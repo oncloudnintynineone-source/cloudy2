@@ -19,22 +19,25 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
 - [1.6 CI migrations (Phase 1.5)](#16-ci-migrations-phase-15)
 - [1.7 Bootstrap & schema hardening (Phase 1.5)](#17-bootstrap-schema-hardening-phase-15)
 - [1.8 Roster & Departments (Phase 2a)](#18-roster-departments-phase-2a)
-- [1.9 Next steps (Phase 2+)](#19-next-steps-phase-2)
-- [1.10 Git history](#110-git-history)
+- [1.9 Seeding (Phase 2b)](#19-seeding-phase-2b)
+- [1.10 Next.js 16 upgrade & auth fix (Phase 2c)](#110-nextjs-16-upgrade-auth-fix-phase-2c)
+- [1.11 Next steps (Phase 2+)](#111-next-steps-phase-2)
+- [1.12 Git history](#112-git-history)
 
 ## 1.1 Status
 
 - **Phase 0 (spec & decisions):** complete
 - **Phase 1 (scaffold):** complete — builds, lints, typechecks, and tests pass locally
+- **Phase 2 (roster/seeding/auth-fix):** roster + departments CRUD shipped; `db:seed`
+  working; Next.js upgraded to 16.3.1 fixing the post-login `useEffectEvent` crash
 - **Deployment (Vercel):** build passes on `main`/`dev` with no warnings (Corepack +
-  `NEXTAUTH_URL` unset). Schema not yet applied to Neon — run `pnpm db:migrate` once
-  (applies `0000` + `0001`).
+  `NEXTAUTH_URL` unset). Migrations `0000` + `0001` applied to Neon (via CI migrate job).
 
 ## 1.2 Decisions locked in (Phase 0)
 
 | Topic                    | Decision                                                                 |
 | ------------------------ | ------------------------------------------------------------------------ |
-| Architecture             | Single Next.js 15 (App Router) app — no monorepo                          |
+| Architecture             | Single Next.js 16 (App Router) app — no monorepo                          |
 | UI                       | Mantine v9                                                               |
 | Database                 | Neon Postgres + Drizzle ORM                                              |
 | Auth                     | NextAuth v4, Credentials provider, **JWT sessions**                       |
@@ -50,7 +53,7 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
 ## 1.3 Implemented (Phase 1)
 
 ### 1.3.1 Tooling
-- Next.js `15.5.23` (Turbopack), React 19, TypeScript, pnpm `11.18.0`
+- Next.js `16.3.1` (Turbopack), React `19.2.8`, TypeScript, pnpm `11.18.0`
 - `packageManager` + `engines` pinned in `package.json`
 - Mantine v9 wired via `postcss.config.cjs` + `MantineProvider` + `optimizePackageImports`
 - Drizzle `0.45.2` + `postgres-js`; Vitest `4.1.10`; ESLint 9 + Prettier
@@ -237,7 +240,7 @@ flowchart LR
 - Verification: migrations applied to Neon (2/2), all 7 tables live, roster queries hit the
   live DB. `pnpm build/lint/typecheck/test` all pass.
 
-## Seeding (Phase 2b)
+## 1.9 Seeding (Phase 2b)
 
 - **`src/db/seed.ts`** — `pnpm db:seed` (tsx). Idempotent, refuses to run with
   `NODE_ENV=production`. Reads `DATABASE_URL` from env or `.env.local`. Seeds 4
@@ -245,7 +248,31 @@ flowchart LR
   empty so seeded users can log in as `[phone]leave`. Verified: 4/4/5 created, re-run
   inserts 0.
 
-## Next steps (Phase 2+)
+## 1.10 Next.js 16 upgrade & auth fix (Phase 2c)
+
+**Root cause of login crash (`useEffectEvent is not a function`):** Next.js 15.5.23
+bundles its own React (`19.2.0-canary-0bdb9206-20250818`) and aliases all `react`
+imports to it at runtime — the installed React version is bypassed. That bundled React
+had no `useEffectEvent`, which Mantine v9.5.1 (peer `react ^19.2.0`, the whole v9 line
+requires React 19.2 stable) calls inside `AppShell`. The protected shell crashed right
+after login on both Vercel and local. This predated the roster work (latent since
+Phase 1); it surfaced once login reached the protected layout.
+
+**Fix:** upgraded Next.js `15.5.23` → `16.3.1` (the line that bundles React 19.2 stable;
+installed bundle is `19.3.0-canary` with `useEffectEvent`). Also `eslint-config-next`
+`15.5.23` → `16.3.1`.
+
+- `eslint.config.mjs` rewritten: Next 16 ships flat configs directly, so
+  `next/core-web-vitals` + `next/typescript` are imported as arrays instead of via
+  `FlatCompat` (the legacy wrapper crashed with a circular-structure error).
+- `next.config.ts` unchanged (`experimental.optimizePackageImports` still valid).
+- tsconfig auto-updated by Next 16: `jsx: preserve` → `react-jsx`, added
+  `.next/dev/types/**/*.ts`.
+- Verified with `next start`: admin login → dashboard/roster/departments 200;
+  non-admin (Bob `82345678leave`) → dashboard 200, `/roster` + `/departments` 307 →
+  `/dashboard`. `pnpm build/lint/typecheck/test` (23) pass.
+
+## 1.11 Next steps (Phase 2+)
 
 1. Replace the Google stub with a real service-account implementation
    (calendar event read/write, Gmail send-as, KAH visibility).
@@ -253,7 +280,7 @@ flowchart LR
    calendar view.
 3. Gmail notifications for KAH percentage breaches.
 
-## 1.10 Git history
+## 1.12 Git history
 
 ```
 c2e1a68 Document Vercel Corepack requirement and env setup
