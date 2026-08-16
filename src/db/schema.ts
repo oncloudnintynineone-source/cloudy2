@@ -67,6 +67,16 @@ export const acronyms = pgTable("acronyms", {
   sortOrder: integer("sort_order").notNull().default(0),
 });
 
+export const eventTypes = pgTable(
+  "event_types",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    name: text("name").notNull(),
+    ...timestamps,
+  },
+  (table) => [uniqueIndex("event_types_name_idx").on(table.name)],
+);
+
 export const paradeStates = pgTable("parade_states", {
   id: uuid("id").primaryKey().defaultRandom(),
   code: text("code").notNull(),
@@ -122,6 +132,7 @@ export type NewUser = typeof users.$inferInsert;
 export type Calendar = typeof calendars.$inferSelect;
 export type NewCalendar = typeof calendars.$inferInsert;
 export type Acronym = typeof acronyms.$inferSelect;
+export type EventType = typeof eventTypes.$inferSelect;
 export type ParadeState = typeof paradeStates.$inferSelect;
 export type Settings = typeof settings.$inferSelect;
 export type AuditLog = typeof auditLogs.$inferSelect;

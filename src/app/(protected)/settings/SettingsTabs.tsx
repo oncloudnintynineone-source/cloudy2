@@ -6,6 +6,7 @@ import { usePathname, useRouter } from "next/navigation";
 const tabs = [
   { value: "/settings/users", label: "Users" },
   { value: "/settings/departments", label: "Departments" },
+  { value: "/settings/event-types", label: "Event Types" },
   { value: "/settings/general", label: "General" },
 ];
 

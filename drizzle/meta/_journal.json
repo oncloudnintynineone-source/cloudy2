@@ -36,6 +36,13 @@
       "when": 1786938550000,
       "tag": "0004_married_sleeper",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1786938551000,
+      "tag": "0005_flat_skullbuster",
+      "breakpoints": true
     }
   ]
 }
