@@ -14,6 +14,7 @@ export const AUDIT_ACTIONS = {
   calendarDelete: "calendar.delete",
   accessGrant: "access.grant",
   accessRevoke: "access.revoke",
+  settingsUpdate: "settings.update",
 } as const;
 
 export type AuditAction = (typeof AUDIT_ACTIONS)[keyof typeof AUDIT_ACTIONS];

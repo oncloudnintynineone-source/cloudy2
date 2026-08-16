@@ -23,8 +23,9 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
 - [1.10 Next.js 16 upgrade & auth fix (Phase 2c)](#110-nextjs-16-upgrade-auth-fix-phase-2c)
 - [1.11 Departments as Google Calendars + sharing + audit (Phase 2d)](#111-departments-as-google-calendars--sharing--audit-phase-2d)
 - [1.12 Mobile-only UI refactor and Users rename (Phase 2e)](#112-mobile-only-ui-refactor-and-users-rename-phase-2e)
-- [1.13 Next steps (Phase 2+)](#113-next-steps-phase-2)
-- [1.14 Git history](#114-git-history)
+- [1.13 Admin Settings hub and login keyword (Phase 2f)](#113-admin-settings-hub-and-login-keyword-phase-2f)
+- [1.14 Next steps (Phase 2+)](#114-next-steps-phase-2)
+- [1.15 Git history](#115-git-history)
 
 ## 1.1 Status
 
@@ -336,7 +337,48 @@ The app is **strictly mobile-only**: no desktop sidebar/hamburger layout exists 
 - Verification: `pnpm lint`, `pnpm typecheck`, `pnpm test` (53), and `pnpm build` all
   pass; build route list shows `/users` and no `/roster`.
 
-## 1.13 Next steps (Phase 2+)
+## 1.13 Admin Settings hub and login keyword (Phase 2f)
+
+The Users and Departments sections now live under a single **Admin Settings** hub,
+reachable only via the profile icon in the header. The bottom nav bar is gone.
+
+- **Routing** — `src/app/(protected)/users` and `.../departments` moved to
+  `src/app/(protected)/settings/users` and `.../settings/departments`. A new
+  `settings/layout.tsx` calls `requireAdmin()` once (removed from the two pages) and
+  renders a horizontal, scrollable `SettingsTabs` bar; `settings/page.tsx` redirects
+  `/settings` → `/settings/users` (Users is the default tab). Tabs: **Users**
+  (`/settings/users`), **Departments** (`/settings/departments`), **General**
+  (`/settings/general`). `next.config.ts` adds permanent redirects from the old
+  `/users` and `/departments` URLs.
+- **Keyword setting (General tab)** — new `src/lib/settings/*` module mirroring the
+  roster module: `validate.ts` (`normalizeKeyword` → trimmed, lowercased, `/^[a-z]{1,12}$/`,
+  plus `validateKeywordForm`; unit-tested), `queries.ts` (`getSettings()` returns only
+  `userKeyword`, never the admin password hash), `actions.ts` (`updateKeyword` server
+  action: `requireAdmin`, validate, `UPDATE settings`, audit log `settings.update` with a
+  field diff, `revalidatePath("/settings/general")`). `AUDIT_ACTIONS.settingsUpdate` added
+  to `src/lib/audit/build.ts`.
+- **Navigation** — `AppShellShell` drops the `AppShell.Footer`/bottom nav entirely; the
+  "Cloudy" brand is now a link to `/dashboard`. `UserMenu` takes a `role` prop and shows an
+  **Admin Settings** item (→ `/settings`) for admins only, above Log out.
+  `FloatingToolbar` bottom offset changed from the old footer clearance (76px) to
+  `calc(env(safe-area-inset-bottom) + 16px)`.
+- **Revalidation** — `src/lib/roster/actions.ts` `revalidatePath` targets updated to
+  `/settings/users` and `/settings/departments`.
+
+```mermaid
+flowchart LR
+    A[Dashboard] -->|profile icon| B[UserMenu]
+    B -->|admin only| C[Admin Settings]
+    C --> D[Users tab]
+    C --> E[Departments tab]
+    C --> F[General tab]
+    F --> G[Update login keyword]
+```
+
+- Verification: `pnpm lint/typecheck/test/build` pass; no schema change so `db:generate`
+  shows no drift.
+
+## 1.14 Next steps (Phase 2+)
 
 1. Wire the real event/Gmail methods in `real.ts` (calendar event read/write, Gmail
    send-as, KAH visibility).
@@ -344,7 +386,7 @@ The app is **strictly mobile-only**: no desktop sidebar/hamburger layout exists 
    calendar view.
 3. Gmail notifications for KAH percentage breaches.
 
-## 1.14 Git history
+## 1.15 Git history
 
 ```
 c2e1a68 Document Vercel Corepack requirement and env setup

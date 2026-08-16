@@ -57,14 +57,21 @@ the quality checks.
 
 - UI is **Mantine v9**; theme in `src/lib/theme.ts`, provider in `src/app/layout.tsx`.
   Authenticated routes live under `src/app/(protected)/` inside the AppShell.
-- **The app is strictly mobile-only.** Navigation is a fixed **bottom nav bar**
-  (`AppShellShell` renders `AppShell.Footer` with icon+label links) — there is no sidebar
-  or hamburger menu. Lists render as stacked **card lists** (`Paper` per row), never
-  `<Table>`. Modals are **floating** dialogs: `centered` with a fixed `size` (never
-  `fullScreen` — they must not fill the full screen width). Keep this pattern for all new
-  UI.
-- The **Users** section is the route `/users` (admin-only), but its internal domain code
-  (types/actions/queries) lives under `src/lib/roster/*`. The "roster" module name is
+- **The app is strictly mobile-only.** There is no sidebar or hamburger menu. Lists render
+  as stacked **card lists** (`Paper` per row), never `<Table>`. Modals are **floating**
+  dialogs: `centered` with a fixed `size` (never `fullScreen` — they must not fill the full
+  screen width). Keep this pattern for all new UI.
+- **Admin settings live under `/settings`** (admin-only), reached via the profile icon in the
+  header. A horizontal scrollable `SettingsTabs` bar (`src/app/(protected)/settings/`)
+  switches between the Users (`/settings/users`), Departments (`/settings/departments`), and
+  General (`/settings/general`) tabs.
+- **Always show a loading skeleton for async loads.** Any route or view that awaits data
+  before rendering (DB queries, fetches) must show a Mantine `Skeleton` fallback instead of
+  a blank screen. In the App Router add a `loading.tsx` to the route segment (auto Suspense
+  fallback, e.g. `src/app/(protected)/settings/users/loading.tsx`); for client-side async use
+  a `Skeleton` state. Shape the skeleton to match the real card list.
+- The **Users** section is the route `/settings/users` (admin-only), but its internal domain
+  code (types/actions/queries) lives under `src/lib/roster/*`. The "roster" module name is
   internal and should not be renamed to match the UI label.
 - **Prettier uses double quotes** (`singleQuote: false`) and `printWidth: 100` — not the
   common TS single-quote default.

@@ -7,12 +7,12 @@ interface FloatingToolbarProps {
 }
 
 /**
- * Floating action toolbar anchored bottom-right, above the fixed bottom nav
- * bar (64px footer + 12px gap). Renders its children as a row of pills.
+ * Floating action toolbar anchored bottom-right, clear of the device safe
+ * area. Renders its children as a row of pills.
  */
 export function FloatingToolbar({ children }: FloatingToolbarProps) {
   return (
-    <Affix position={{ bottom: 76, right: 16 }} zIndex={200}>
+    <Affix position={{ bottom: "calc(env(safe-area-inset-bottom) + 16px)", right: 16 }} zIndex={100}>
       <Group gap="xs" wrap="nowrap">
         {children}
       </Group>

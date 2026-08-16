@@ -1,9 +1,7 @@
-import { requireAdmin } from "@/lib/session";
 import { listDepartments, listUsers } from "@/lib/roster/queries";
 import { UserTable } from "./UserTable";
 
 export default async function UsersPage() {
-  await requireAdmin();
   const [users, departments] = await Promise.all([listUsers(), listDepartments()]);
   return (
     <UserTable
