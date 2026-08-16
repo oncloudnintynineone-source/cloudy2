@@ -79,6 +79,26 @@ src/
 GitHub Actions runs lint, typecheck, test, and a schema-drift check on every push/PR.
 Quality gates only — Vercel handles deployments from `dev` and `main`.
 
+## Deployment (Vercel)
+
+Vercel auto-builds on every push: `main` → production, `dev` → preview.
+
+Required configuration:
+
+1. **Environment variables** (Project → Settings → Environment Variables):
+   - `ENABLE_EXPERIMENTAL_COREPACK` = `1` — makes Vercel honor the
+     `packageManager` field (pnpm `11.18.0`). Without it, Vercel falls back to pnpm 10
+     (detected from `lockfileVersion: 9.0`), which ignores `allowBuilds` and emits the
+     "Ignored build scripts" warning for `esbuild`, `sharp`, and `unrs-resolver`.
+   - `DATABASE_URL` — Neon Postgres connection string.
+   - `NEXTAUTH_SECRET` — session signing secret (`openssl rand -base64 32`).
+   - Leave `NEXTAUTH_URL` **unset** — Vercel injects `VERCEL_URL` and NextAuth falls
+     back to it automatically. Do not add it as an empty value, or the build fails with
+     `TypeError: Invalid URL` during prerender.
+
+2. Native build scripts for `esbuild`, `sharp`, and `unrs-resolver` are approved via
+   `allowBuilds` in `pnpm-workspace.yaml` (pnpm 11 format).
+
 ## Google integration (stub)
 
 Google Calendar/Gmail calls go through `getGoogleIntegration()`, which currently
