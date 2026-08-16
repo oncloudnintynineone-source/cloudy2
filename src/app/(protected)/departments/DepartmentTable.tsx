@@ -2,42 +2,41 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import {
-  Button,
-  Group,
-  Modal,
-  Paper,
-  Stack,
-  Table,
-  Text,
-  Title,
-} from "@mantine/core";
+import { Button, Group, Modal, Paper, Stack, Table, Text, Title } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
 
+import type { Calendar } from "@/db/schema";
 import { deleteDepartment } from "@/lib/roster/actions";
-import type { Department } from "@/db/schema";
 import { DepartmentForm } from "./DepartmentForm";
+import { DepartmentShares } from "./DepartmentShares";
 
 interface DepartmentTableProps {
-  departments: Department[];
+  departments: Calendar[];
 }
 
 export function DepartmentTable({ departments }: DepartmentTableProps) {
   const router = useRouter();
   const [formOpened, { open: openForm, close: closeForm }] = useDisclosure(false);
   const [confirmOpened, { open: openConfirm, close: closeConfirm }] = useDisclosure(false);
-  const [editing, setEditing] = useState<Department | null>(null);
-  const [deleting, setDeleting] = useState<Department | null>(null);
+  const [shareOpened, { open: openShare, close: closeShare }] = useDisclosure(false);
+  const [editing, setEditing] = useState<Calendar | null>(null);
+  const [deleting, setDeleting] = useState<Calendar | null>(null);
+  const [sharing, setSharing] = useState<Calendar | null>(null);
 
   function openCreate() {
     setEditing(null);
     openForm();
   }
 
-  function openEdit(department: Department) {
-    setEditing(department);
+  function openEdit(calendar: Calendar) {
+    setEditing(calendar);
     openForm();
+  }
+
+  function openShareModal(calendar: Calendar) {
+    setSharing(calendar);
+    openShare();
   }
 
   async function confirmDelete() {
@@ -72,26 +71,33 @@ export function DepartmentTable({ departments }: DepartmentTableProps) {
             <Table.Thead>
               <Table.Tr>
                 <Table.Th>Name</Table.Th>
-                <Table.Th>Sort order</Table.Th>
+                <Table.Th>Calendar ID</Table.Th>
                 <Table.Th ta="right">Actions</Table.Th>
               </Table.Tr>
             </Table.Thead>
             <Table.Tbody>
-              {departments.map((department) => (
-                <Table.Tr key={department.id}>
-                  <Table.Td>{department.name}</Table.Td>
-                  <Table.Td>{department.sortOrder}</Table.Td>
+              {departments.map((calendar) => (
+                <Table.Tr key={calendar.id}>
+                  <Table.Td>{calendar.name}</Table.Td>
+                  <Table.Td>
+                    <Text size="sm" c="dimmed" style={{ wordBreak: "break-all" }}>
+                      {calendar.googleCalendarId}
+                    </Text>
+                  </Table.Td>
                   <Table.Td>
                     <Group gap={4} justify="flex-end">
-                      <Button size="xs" variant="light" onClick={() => openEdit(department)}>
-                        Edit
+                      <Button size="xs" variant="light" onClick={() => openShareModal(calendar)}>
+                        Share
+                      </Button>
+                      <Button size="xs" variant="light" onClick={() => openEdit(calendar)}>
+                        Rename
                       </Button>
                       <Button
                         size="xs"
                         variant="subtle"
                         color="red"
                         onClick={() => {
-                          setDeleting(department);
+                          setDeleting(calendar);
                           openConfirm();
                         }}
                       >
@@ -106,10 +112,15 @@ export function DepartmentTable({ departments }: DepartmentTableProps) {
         )}
       </Paper>
 
-      <Modal opened={formOpened} onClose={closeForm} title={editing ? "Edit department" : "Add department"} size="sm">
+      <Modal
+        opened={formOpened}
+        onClose={closeForm}
+        title={editing ? "Rename department" : "Add department"}
+        size="sm"
+      >
         <DepartmentForm
           key={editing?.id ?? "new"}
-          department={editing}
+          calendar={editing}
           onDone={() => {
             closeForm();
             setEditing(null);
@@ -118,15 +129,10 @@ export function DepartmentTable({ departments }: DepartmentTableProps) {
         />
       </Modal>
 
-      <Modal
-        opened={confirmOpened}
-        onClose={closeConfirm}
-        title="Delete department"
-        size="sm"
-      >
+      <Modal opened={confirmOpened} onClose={closeConfirm} title="Delete department" size="sm">
         <Text>
-          Delete &quot;{deleting?.name}&quot;? This also removes all user memberships and
-          calendar links for this department.
+          Delete &quot;{deleting?.name}&quot;? This removes the Google Calendar and unassigns
+          its users.
         </Text>
         <Group justify="flex-end" mt="md">
           <Button variant="default" onClick={closeConfirm}>
@@ -137,6 +143,8 @@ export function DepartmentTable({ departments }: DepartmentTableProps) {
           </Button>
         </Group>
       </Modal>
+
+      <DepartmentShares calendar={sharing} opened={shareOpened} onClose={closeShare} />
     </Stack>
   );
 }

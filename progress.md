@@ -21,8 +21,9 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
 - [1.8 Roster & Departments (Phase 2a)](#18-roster-departments-phase-2a)
 - [1.9 Seeding (Phase 2b)](#19-seeding-phase-2b)
 - [1.10 Next.js 16 upgrade & auth fix (Phase 2c)](#110-nextjs-16-upgrade-auth-fix-phase-2c)
-- [1.11 Next steps (Phase 2+)](#111-next-steps-phase-2)
-- [1.12 Git history](#112-git-history)
+- [1.11 Departments as Google Calendars + sharing + audit (Phase 2d)](#111-departments-as-google-calendars--sharing--audit-phase-2d)
+- [1.12 Next steps (Phase 2+)](#112-next-steps-phase-2)
+- [1.13 Git history](#113-git-history)
 
 ## 1.1 Status
 
@@ -30,8 +31,13 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
 - **Phase 1 (scaffold):** complete — builds, lints, typechecks, and tests pass locally
 - **Phase 2 (roster/seeding/auth-fix):** roster + departments CRUD shipped; `db:seed`
   working; Next.js upgraded to 16.3.1 fixing the post-login `useEffectEvent` crash
+- **Phase 2d (departments = Google Calendars):** departments are now `calendars` rows
+  (kind = `department`), each user has a single `department_id` (dropped
+  `departments`/`user_departments`), real Google Calendar ACL sharing + audit logging
+  shipped. `pnpm build/lint/typecheck/test` (53) pass, `db:generate` shows no drift.
 - **Deployment (Vercel):** build passes on `main`/`dev` with no warnings (Corepack +
-  `NEXTAUTH_URL` unset). Migrations `0000` + `0001` applied to Neon (via CI migrate job).
+  `NEXTAUTH_URL` unset). Migrations `0000` + `0001` applied to Neon (via CI migrate job);
+  `0002`–`0004` pending (apply on next `main` push).
 
 ## 1.2 Decisions locked in (Phase 0)
 
@@ -44,10 +50,10 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
 | Login UX                 | Single input field, auto-detect: admin password vs `[phone][keyword]`    |
 | Google integration       | GCP service account (Calendar v3 + Gmail v1); domain-wide delegation     |
 | GCal notes               | JSON block stored on events                                              |
-| Calendars                | Department-level calendars                                               |
+| Calendars                | Department-level calendars; `calendars` table is the department registry (kind = `department`) |
 | Parade states            | `parade_states` lookup table (code/label/description)                    |
 | Settings                 | Single-row `settings` table (admin password hash, keyword, KAH %)        |
-| User→dept                | Many-to-many `user_departments` with `is_primary` flag                   |
+| User→dept                | One department per user: `users.department_id` → `calendars.id` (nullable, ON DELETE SET NULL) |
 | PWA / monorepo           | Deferred / not used                                                      |
 
 ## 1.3 Implemented (Phase 1)
@@ -272,15 +278,48 @@ installed bundle is `19.3.0-canary` with `useEffectEvent`). Also `eslint-config-
   non-admin (Bob `82345678leave`) → dashboard 200, `/roster` + `/departments` 307 →
   `/dashboard`. `pnpm build/lint/typecheck/test` (23) pass.
 
-## 1.11 Next steps (Phase 2+)
+## 1.11 Departments as Google Calendars + sharing + audit (Phase 2d)
 
-1. Replace the Google stub with a real service-account implementation
-   (calendar event read/write, Gmail send-as, KAH visibility).
+Departments are now Google Calendars: the `calendars` table is the department registry,
+Google Calendar is the source of truth for existence/ACLs, and nothing sharing-related is
+stored in the DB.
+
+- **Schema** — migrations `0002`–`0004`: `users.department_id` (backfilled from
+  `user_departments`, then `departments`/`user_departments` dropped), `calendars` no
+  longer references `departments`, new `audit_logs` table. `src/db/schema.ts` rewritten
+  to match `0004` exactly (verified: `pnpm db:generate` produces no diff).
+- **Google layer** — `src/lib/google/config.ts` (env parsing, `getServiceAccountConfig`,
+  `getAdminGoogleEmail`), `real.ts` (JWT service account, Calendar v3; event/Gmail methods
+  still throw "not implemented yet"), `types.ts` (interface + `GoogleCalendarInfo`),
+  `stub.ts` (no-op fallback), `index.ts` (`getGoogleIntegration()` real-when-configured,
+  `googleCalendarConfigured()`). Env vars: `GOOGLE_SERVICE_ACCOUNT_BASE64` (or
+  `GOOGLE_CLIENT_EMAIL`/`GOOGLE_PRIVATE_KEY`) + `GOOGLE_DELEGATE_EMAIL`.
+- **Sharing** — `src/lib/roster/shares.ts` (`listDepartmentAccess` reconciles assigned
+  users as readers, grants admin owner, returns `DepartmentAccess`); actions
+  `get/grant/revokeDepartmentAccess`; UI modal `DepartmentShares.tsx` (copy calendar ID,
+  add/remove manual shares, surfaces `syncWarning` when Google is unconfigured).
+- **Audit** — `audit_logs` written best-effort via `src/lib/audit/log.ts` +
+  `build.ts` (actions `user.create`/`calendar.create`/`access.grant`/…, field diffs via
+  `diff.ts`). Hooked into roster + calendar + share server actions.
+- **Roster (single-department)** — `users` has one `department_id`; `queries.ts`
+  `listUsers()` left-joins `calendars`, `UserTable`/`UserForm` use a single clearable
+  department select; `actions.ts` `createUser`/`updateUser`/`setUserStatus`.
+- **Departments page** — `DepartmentTable` lists calendars (name + calendar ID) with
+  Share/Rename/Delete; `DepartmentForm` creates/renames a Google Calendar; creation is
+  blocked with a clear message when Google is unconfigured.
+- **New dependency** — `@tabler/icons-react` added (used by `DepartmentShares`).
+- Verification: `pnpm build/lint/typecheck/test` (53) pass; `db:generate` shows no schema
+  drift.
+
+## 1.12 Next steps (Phase 2+)
+
+1. Wire the real event/Gmail methods in `real.ts` (calendar event read/write, Gmail
+   send-as, KAH visibility).
 2. Core screens: leave/event entry, KAH constraint checks, parade states, acronyms,
    calendar view.
 3. Gmail notifications for KAH percentage breaches.
 
-## 1.12 Git history
+## 1.13 Git history
 
 ```
 c2e1a68 Document Vercel Corepack requirement and env setup

@@ -1,6 +1,7 @@
 /**
- * Dev-only seed script: creates departments, users, and department memberships
- * so the roster screens have data to render. Idempotent — safe to re-run.
+ * Dev-only seed script: creates calendars (the department registry) and users
+ * assigned to a single department so the roster and departments screens have
+ * data to render. Idempotent — safe to re-run.
  *
  * Usage: `pnpm db:seed` (reads DATABASE_URL from the environment or .env.local)
  */
@@ -10,7 +11,7 @@ import { join } from "node:path";
 import { eq } from "drizzle-orm";
 
 import { db } from "./index";
-import { departments, settings, userDepartments, users } from "./schema";
+import { calendars, settings, users } from "./schema";
 
 function loadEnvFile(): void {
   if (process.env.DATABASE_URL) {
@@ -33,11 +34,11 @@ function loadEnvFile(): void {
   }
 }
 
-const departmentSeeds = [
-  { name: "Operations", sortOrder: 1 },
-  { name: "Planning", sortOrder: 2 },
-  { name: "HR", sortOrder: 3 },
-  { name: "Finance", sortOrder: 4 },
+const calendarSeeds = [
+  { name: "Operations", googleCalendarId: "dept-operations@cloudy.local" },
+  { name: "Planning", googleCalendarId: "dept-planning@cloudy.local" },
+  { name: "HR", googleCalendarId: "dept-hr@cloudy.local" },
+  { name: "Finance", googleCalendarId: "dept-finance@cloudy.local" },
 ];
 
 const userSeeds: {
@@ -47,7 +48,7 @@ const userSeeds: {
   birthday: string | null;
   role: "admin" | "user";
   status: "active" | "inactive";
-  departments: string[];
+  departmentName: string | null;
 }[] = [
   {
     name: "Alice Tan",
@@ -56,7 +57,7 @@ const userSeeds: {
     birthday: "1991-03-15",
     role: "admin",
     status: "active",
-    departments: ["Operations"],
+    departmentName: "Operations",
   },
   {
     name: "Bob Lim",
@@ -65,7 +66,7 @@ const userSeeds: {
     birthday: "1992-07-22",
     role: "user",
     status: "active",
-    departments: ["Planning", "Operations"],
+    departmentName: "Planning",
   },
   {
     name: "Carol Wong",
@@ -74,7 +75,7 @@ const userSeeds: {
     birthday: "1989-11-02",
     role: "user",
     status: "active",
-    departments: ["HR"],
+    departmentName: "HR",
   },
   {
     name: "David Ng",
@@ -83,7 +84,7 @@ const userSeeds: {
     birthday: null,
     role: "user",
     status: "inactive",
-    departments: ["Finance"],
+    departmentName: null,
   },
 ];
 
@@ -95,61 +96,43 @@ async function seed() {
     process.exit(1);
   }
 
-  let createdDepartments = 0;
-  for (const dept of departmentSeeds) {
+  let createdCalendars = 0;
+  for (const cal of calendarSeeds) {
     const inserted = await db
-      .insert(departments)
-      .values(dept)
+      .insert(calendars)
+      .values({ ...cal, kind: "department" })
       .onConflictDoNothing()
-      .returning({ id: departments.id });
-    createdDepartments += inserted.length;
+      .returning({ id: calendars.id });
+    createdCalendars += inserted.length;
   }
 
-  const deptByName = new Map((await db.select().from(departments)).map((d) => [d.name, d]));
+  const calendarByName = new Map((await db.select().from(calendars)).map((c) => [c.name, c]));
 
   let createdUsers = 0;
-  let createdMemberships = 0;
-  for (const seed of userSeeds) {
+  for (const seedUser of userSeeds) {
     const [existing] = await db
       .select()
       .from(users)
-      .where(eq(users.phone, seed.phone))
+      .where(eq(users.phone, seedUser.phone))
       .limit(1);
     if (existing) {
       continue;
     }
 
-    const [user] = await db
-      .insert(users)
-      .values({
-        name: seed.name,
-        phone: seed.phone,
-        email: seed.email,
-        birthday: seed.birthday,
-        role: seed.role,
-        status: seed.status,
-      })
-      .returning({ id: users.id });
+    const department = seedUser.departmentName
+      ? calendarByName.get(seedUser.departmentName)
+      : undefined;
+
+    await db.insert(users).values({
+      name: seedUser.name,
+      phone: seedUser.phone,
+      email: seedUser.email,
+      birthday: seedUser.birthday,
+      role: seedUser.role,
+      status: seedUser.status,
+      departmentId: department?.id ?? null,
+    });
     createdUsers += 1;
-
-    const userDepts = seed.departments
-      .map((name) => deptByName.get(name))
-      .filter((d) => d !== undefined);
-
-    if (userDepts.length > 0) {
-      const inserted = await db
-        .insert(userDepartments)
-        .values(
-          userDepts.map((d, index) => ({
-            userId: user.id,
-            departmentId: d.id,
-            isPrimary: index === 0,
-          })),
-        )
-        .onConflictDoNothing()
-        .returning({ userId: userDepartments.userId });
-      createdMemberships += inserted.length;
-    }
   }
 
   const [settingsRow] = await db.select().from(settings).limit(1);
@@ -158,7 +141,7 @@ async function seed() {
     console.log("Set settings.userKeyword = 'leave' so seeded users can log in as [phone]leave");
   }
 
-  console.log(`Seeded ${createdDepartments} departments, ${createdUsers} users, ${createdMemberships} memberships.`);
+  console.log(`Seeded ${createdCalendars} calendars, ${createdUsers} users.`);
   console.log("Re-run anytime; existing rows are skipped.");
 }
 

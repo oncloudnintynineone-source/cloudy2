@@ -1,7 +1,7 @@
 "use client";
 
 import { useForm } from "@mantine/form";
-import { Button, Group, MultiSelect, Select, Stack, TextInput } from "@mantine/core";
+import { Button, Group, Select, Stack, TextInput } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
 
 import { createUser, updateUser, type RosterActionResult } from "@/lib/roster/actions";
@@ -28,8 +28,7 @@ function initialValues(user: RosterUser | null): UserFormValues {
       birthday: "",
       role: "user",
       status: "active",
-      departmentIds: [],
-      primaryDepartmentId: null,
+      departmentId: null,
     };
   }
   return {
@@ -39,8 +38,7 @@ function initialValues(user: RosterUser | null): UserFormValues {
     birthday: user.birthday ?? "",
     role: user.role,
     status: user.status,
-    departmentIds: user.departments.map((d) => d.id),
-    primaryDepartmentId: user.departments.find((d) => d.isPrimary)?.id ?? null,
+    departmentId: user.department?.id ?? null,
   };
 }
 
@@ -102,22 +100,13 @@ export function UserForm({ user, departments, onDone }: UserFormProps) {
           ]}
           {...form.getInputProps("status")}
         />
-        <MultiSelect
-          label="Departments"
+        <Select
+          label="Department"
+          placeholder="Optional"
           data={departments.map((d) => ({ value: d.id, label: d.name }))}
           searchable
           clearable
-          {...form.getInputProps("departmentIds")}
-        />
-        <Select
-          label="Primary department"
-          placeholder="Pick the primary department"
-          data={form.values.departmentIds
-            .map((id) => departments.find((d) => d.id === id))
-            .filter((d): d is DepartmentOption => d !== undefined)
-            .map((d) => ({ value: d.id, label: d.name }))}
-          disabled={form.values.departmentIds.length === 0}
-          {...form.getInputProps("primaryDepartmentId")}
+          {...form.getInputProps("departmentId")}
         />
         <Group justify="flex-end" mt="md">
           <Button type="submit">{isEdit ? "Save changes" : "Create user"}</Button>

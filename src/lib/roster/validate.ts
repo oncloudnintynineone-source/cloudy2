@@ -27,15 +27,13 @@ export interface UserFormValues {
   birthday?: string | null;
   role: UserRole;
   status: UserStatus;
-  departmentIds: string[];
-  primaryDepartmentId: string | null;
+  departmentId: string | null;
 }
 
 export interface UserFormErrors {
   name?: string;
   phone?: string;
   email?: string;
-  primaryDepartmentId?: string;
   [key: string]: string | undefined;
 }
 
@@ -55,29 +53,20 @@ export function validateUserForm(values: UserFormValues): UserFormErrors {
     errors.email = "Enter a valid email or leave it blank";
   }
 
-  if (values.departmentIds.length > 0) {
-    if (!values.primaryDepartmentId) {
-      errors.primaryDepartmentId = "Select a primary department";
-    } else if (!values.departmentIds.includes(values.primaryDepartmentId)) {
-      errors.primaryDepartmentId = "Primary must be one of the selected departments";
-    }
-  }
-
   return errors;
 }
 
-export interface DepartmentFormValues {
+export interface CalendarFormValues {
   name: string;
-  sortOrder: number;
 }
 
-export interface DepartmentFormErrors {
+export interface CalendarFormErrors {
   name?: string;
   [key: string]: string | undefined;
 }
 
-export function validateDepartmentForm(values: DepartmentFormValues): DepartmentFormErrors {
-  const errors: DepartmentFormErrors = {};
+export function validateCalendarForm(values: CalendarFormValues): CalendarFormErrors {
+  const errors: CalendarFormErrors = {};
   if (!values.name.trim()) {
     errors.name = "Name is required";
   }
