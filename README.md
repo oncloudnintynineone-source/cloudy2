@@ -1,10 +1,23 @@
-# Cloudy
+# 1. Cloudy
 
 Cloud Calendar Movement — an internal tool for managing company personnel, leave/event
 records, and Key Appointment Holder (KAH) constraints, with Google Calendar as the
 event/visibility layer.
 
-## Tech stack
+## Table of contents
+
+- [1.1 Tech stack](#11-tech-stack)
+- [1.2 Getting started](#12-getting-started)
+- [1.3 Scripts](#13-scripts)
+- [1.4 Environment](#14-environment)
+- [1.5 Login](#15-login)
+- [1.6 Project structure](#16-project-structure)
+- [1.7 CI](#17-ci)
+- [1.8 Git workflow](#18-git-workflow)
+- [1.9 Deployment (Vercel)](#19-deployment-vercel)
+- [1.10 Google integration (stub)](#110-google-integration-stub)
+
+## 1.1 Tech stack
 
 - **Framework:** Next.js 15 (App Router) + TypeScript
 - **UI:** Mantine v9
@@ -13,7 +26,7 @@ event/visibility layer.
 - **Auth:** NextAuth v4 (Credentials provider, JWT sessions)
 - **Google:** Service account for Calendar v3 + Gmail v1 (currently stubbed)
 
-## Getting started
+## 1.2 Getting started
 
 ```bash
 pnpm install
@@ -23,7 +36,7 @@ pnpm db:push          # create/update schema in Neon
 pnpm dev
 ```
 
-## Scripts
+## 1.3 Scripts
 
 | Command            | Description                              |
 | ------------------ | ---------------------------------------- |
@@ -37,7 +50,7 @@ pnpm dev
 | `pnpm db:push`     | Push schema directly to the database      |
 | `pnpm db:migrate`  | Apply generated migrations                |
 
-## Environment
+## 1.4 Environment
 
 | Variable                          | Purpose                                        |
 | --------------------------------- | ---------------------------------------------- |
@@ -49,14 +62,21 @@ pnpm dev
 | `GOOGLE_PRIVATE_KEY`              | Fallback service account private key           |
 | `GOOGLE_DELEGATE_EMAIL`           | Workspace delegate for Gmail send-as / ACL     |
 
-## Login
+## 1.5 Login
 
 Single input field. The server auto-detects:
+
+```mermaid
+flowchart LR
+    A[Single input] --> B{Server auto-detect}
+    B -- "admin password" --> C[Admin]
+    B -- "[phone][keyword]" --> D[User]
+```
 
 - **Admin** — enter the admin password.
 - **User** — enter `[phone][keyword]`, e.g. `91234567leave`.
 
-## Project structure
+## 1.6 Project structure
 
 ```
 src/
@@ -74,16 +94,25 @@ src/
   types/                   # NextAuth type augmentation
 ```
 
-## CI
+## 1.7 CI
 
 GitHub Actions runs lint, typecheck, test, and a schema-drift check on every push/PR.
 Quality gates only — Vercel handles deployments from `dev` and `main`.
 
-## Git workflow
+## 1.8 Git workflow
 
 `dev` is the working branch; `main` is production. All day-to-day work happens on `dev`
 (or short-lived feature branches off it), and `main` only moves forward when `dev` is
 ready to ship.
+
+```mermaid
+flowchart LR
+    A[Feature branch] -- PR --> B[dev]
+    B -- push --> C[CI + Vercel preview]
+    C -- passes --> B
+    B -- git merge dev --> D[main]
+    D --> E[Production]
+```
 
 1. **Work on `dev`.** Commit directly, or branch off `dev` for anything risky and merge
    back with a PR. Every push to `dev` triggers CI + a Vercel preview build.
@@ -106,7 +135,7 @@ ready to ship.
 5. **Optionally protect `main`** with branch rules (require a PR + passing CI) so nothing
    reaches production unreviewed.
 
-## Deployment (Vercel)
+## 1.9 Deployment (Vercel)
 
 Vercel auto-builds on every push: `main` → production, `dev` → preview.
 
@@ -126,7 +155,7 @@ Required configuration:
 2. Native build scripts for `esbuild`, `sharp`, and `unrs-resolver` are approved via
    `allowBuilds` in `pnpm-workspace.yaml` (pnpm 11 format).
 
-## Google integration (stub)
+## 1.10 Google integration (stub)
 
 Google Calendar/Gmail calls go through `getGoogleIntegration()`, which currently
 returns a no-op stub. A real service-account implementation will be added once GCP
