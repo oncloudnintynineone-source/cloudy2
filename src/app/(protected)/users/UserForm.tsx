@@ -1,10 +1,16 @@
 "use client";
 
 import { useForm } from "@mantine/form";
-import { Button, Group, Select, Stack, TextInput } from "@mantine/core";
+import { Button, Group, Modal, Select, Stack, Text, TextInput } from "@mantine/core";
+import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
 
-import { createUser, updateUser, type RosterActionResult } from "@/lib/roster/actions";
+import {
+  createUser,
+  setUserStatus,
+  updateUser,
+  type RosterActionResult,
+} from "@/lib/roster/actions";
 import type { RosterUser } from "@/lib/roster/queries";
 import { validateUserForm, type UserFormValues } from "@/lib/roster/validate";
 
@@ -44,6 +50,7 @@ function initialValues(user: RosterUser | null): UserFormValues {
 
 export function UserForm({ user, departments, onDone }: UserFormProps) {
   const isEdit = user !== null;
+  const [confirmOpened, { open: openConfirm, close: closeConfirm }] = useDisclosure(false);
 
   const form = useForm<UserFormValues>({
     // The parent remounts this component (key) when the target user changes,
@@ -72,6 +79,22 @@ export function UserForm({ user, departments, onDone }: UserFormProps) {
     notifications.show({ color: "red", message: result.error });
   });
 
+  async function handleToggleStatus() {
+    if (!isEdit || !user) return;
+    const next = user.status === "active" ? "inactive" : "active";
+    const result = await setUserStatus(user.id, next);
+    closeConfirm();
+    if (result.ok) {
+      notifications.show({
+        color: "green",
+        message: next === "active" ? "User activated" : "User deactivated",
+      });
+      onDone();
+    } else {
+      notifications.show({ color: "red", message: result.error });
+    }
+  }
+
   return (
     <form onSubmit={onSubmit}>
       <Stack>
@@ -93,14 +116,6 @@ export function UserForm({ user, departments, onDone }: UserFormProps) {
           {...form.getInputProps("role")}
         />
         <Select
-          label="Status"
-          data={[
-            { value: "active", label: "Active" },
-            { value: "inactive", label: "Inactive" },
-          ]}
-          {...form.getInputProps("status")}
-        />
-        <Select
           label="Department"
           placeholder="Optional"
           data={departments.map((d) => ({ value: d.id, label: d.name }))}
@@ -109,8 +124,46 @@ export function UserForm({ user, departments, onDone }: UserFormProps) {
           {...form.getInputProps("departmentId")}
         />
         <Group justify="flex-end" mt="md">
-          <Button type="submit">{isEdit ? "Save changes" : "Create user"}</Button>
+          {isEdit && (
+            <Button
+              type="button"
+              color={user.status === "active" ? "red" : "teal"}
+              variant="light"
+              onClick={openConfirm}
+            >
+              {user.status === "active" ? "Deactivate user" : "Activate user"}
+            </Button>
+          )}
+          <Button type="submit" fullWidth={!isEdit}>
+            {isEdit ? "Save changes" : "Create user"}
+          </Button>
         </Group>
+
+        <Modal
+          opened={confirmOpened}
+          onClose={closeConfirm}
+          title={isEdit && user.status === "active" ? "Deactivate user" : "Activate user"}
+          centered
+          size="sm"
+        >
+          <Stack>
+            <Text>
+              Are you sure you want to {user?.status === "active" ? "deactivate" : "activate"}{" "}
+              {user?.name}?
+            </Text>
+            <Group justify="flex-end" mt="md">
+              <Button variant="default" onClick={closeConfirm}>
+                Cancel
+              </Button>
+              <Button
+                color={user?.status === "active" ? "red" : "teal"}
+                onClick={handleToggleStatus}
+              >
+                Confirm
+              </Button>
+            </Group>
+          </Stack>
+        </Modal>
       </Stack>
     </form>
   );

@@ -14,7 +14,7 @@ describe("buildAuditLog", () => {
       entityId: "22222222-2222-2222-2222-222222222222",
       entityName: "Bob Lim",
       method: "createUser",
-      route: "/roster",
+      route: "/users",
       details: { name: "Bob Lim" },
       ip: "1.2.3.4",
     });
@@ -28,7 +28,7 @@ describe("buildAuditLog", () => {
       entityId: "22222222-2222-2222-2222-222222222222",
       entityName: "Bob Lim",
       method: "createUser",
-      route: "/roster",
+      route: "/users",
       details: { name: "Bob Lim" },
       ip: "1.2.3.4",
     });
@@ -102,7 +102,7 @@ describe("actorFromUser", () => {
 
 describe("pathFromReferer", () => {
   it("extracts the pathname from a full URL", () => {
-    expect(pathFromReferer("https://cloudy.app/roster")).toBe("/roster");
+    expect(pathFromReferer("https://cloudy.app/users")).toBe("/users");
   });
 
   it("keeps query strings off the path", () => {

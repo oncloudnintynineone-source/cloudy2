@@ -84,6 +84,7 @@ export function DepartmentShares({ calendar, opened, onClose }: DepartmentShares
       opened={opened}
       onClose={onClose}
       title={calendar ? `Share: ${calendar.name}` : "Share calendar"}
+      centered
       size="md"
     >
       <Stack>

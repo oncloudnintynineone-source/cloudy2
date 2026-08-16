@@ -57,6 +57,15 @@ the quality checks.
 
 - UI is **Mantine v9**; theme in `src/lib/theme.ts`, provider in `src/app/layout.tsx`.
   Authenticated routes live under `src/app/(protected)/` inside the AppShell.
+- **The app is strictly mobile-only.** Navigation is a fixed **bottom nav bar**
+  (`AppShellShell` renders `AppShell.Footer` with icon+label links) — there is no sidebar
+  or hamburger menu. Lists render as stacked **card lists** (`Paper` per row), never
+  `<Table>`. Modals are **floating** dialogs: `centered` with a fixed `size` (never
+  `fullScreen` — they must not fill the full screen width). Keep this pattern for all new
+  UI.
+- The **Users** section is the route `/users` (admin-only), but its internal domain code
+  (types/actions/queries) lives under `src/lib/roster/*`. The "roster" module name is
+  internal and should not be renamed to match the UI label.
 - **Prettier uses double quotes** (`singleQuote: false`) and `printWidth: 100` — not the
   common TS single-quote default.
 - ESLint 9 flat config composes `eslint-config-next/core-web-vitals` + `next/typescript`

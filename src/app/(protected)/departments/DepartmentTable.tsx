@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Button, Group, Modal, Paper, Stack, Table, Text, Title } from "@mantine/core";
+import { Button, Group, Modal, Paper, Stack, Text, Title } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
 
@@ -61,61 +61,49 @@ export function DepartmentTable({ departments }: DepartmentTableProps) {
         <Button onClick={openCreate}>Add department</Button>
       </Group>
 
-      <Paper withBorder p="md">
-        {departments.length === 0 ? (
-          <Text c="dimmed" ta="center" py="lg">
-            No departments yet.
-          </Text>
-        ) : (
-          <Table striped highlightOnHover>
-            <Table.Thead>
-              <Table.Tr>
-                <Table.Th>Name</Table.Th>
-                <Table.Th>Calendar ID</Table.Th>
-                <Table.Th ta="right">Actions</Table.Th>
-              </Table.Tr>
-            </Table.Thead>
-            <Table.Tbody>
-              {departments.map((calendar) => (
-                <Table.Tr key={calendar.id}>
-                  <Table.Td>{calendar.name}</Table.Td>
-                  <Table.Td>
-                    <Text size="sm" c="dimmed" style={{ wordBreak: "break-all" }}>
-                      {calendar.googleCalendarId}
-                    </Text>
-                  </Table.Td>
-                  <Table.Td>
-                    <Group gap={4} justify="flex-end">
-                      <Button size="xs" variant="light" onClick={() => openShareModal(calendar)}>
-                        Share
-                      </Button>
-                      <Button size="xs" variant="light" onClick={() => openEdit(calendar)}>
-                        Rename
-                      </Button>
-                      <Button
-                        size="xs"
-                        variant="subtle"
-                        color="red"
-                        onClick={() => {
-                          setDeleting(calendar);
-                          openConfirm();
-                        }}
-                      >
-                        Delete
-                      </Button>
-                    </Group>
-                  </Table.Td>
-                </Table.Tr>
-              ))}
-            </Table.Tbody>
-          </Table>
-        )}
-      </Paper>
+      {departments.length === 0 ? (
+        <Text c="dimmed" ta="center" py="lg">
+          No departments yet.
+        </Text>
+      ) : (
+        <Stack gap="sm">
+          {departments.map((calendar) => (
+            <Paper key={calendar.id} withBorder p="sm">
+              <Group justify="space-between" wrap="nowrap" align="flex-start">
+                <Text fw={600}>{calendar.name}</Text>
+                <Button size="xs" variant="light" onClick={() => openShareModal(calendar)}>
+                  Share
+                </Button>
+              </Group>
+              <Text size="sm" c="dimmed" mt={4} style={{ wordBreak: "break-all" }}>
+                {calendar.googleCalendarId}
+              </Text>
+              <Group justify="flex-end" mt="sm" wrap="nowrap">
+                <Button size="xs" variant="light" onClick={() => openEdit(calendar)}>
+                  Rename
+                </Button>
+                <Button
+                  size="xs"
+                  variant="subtle"
+                  color="red"
+                  onClick={() => {
+                    setDeleting(calendar);
+                    openConfirm();
+                  }}
+                >
+                  Delete
+                </Button>
+              </Group>
+            </Paper>
+          ))}
+        </Stack>
+      )}
 
       <Modal
         opened={formOpened}
         onClose={closeForm}
         title={editing ? "Rename department" : "Add department"}
+        centered
         size="sm"
       >
         <DepartmentForm
@@ -129,7 +117,7 @@ export function DepartmentTable({ departments }: DepartmentTableProps) {
         />
       </Modal>
 
-      <Modal opened={confirmOpened} onClose={closeConfirm} title="Delete department" size="sm">
+      <Modal opened={confirmOpened} onClose={closeConfirm} title="Delete department" centered>
         <Text>
           Delete &quot;{deleting?.name}&quot;? This removes the Google Calendar and unassigns
           its users.

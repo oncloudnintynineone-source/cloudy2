@@ -22,8 +22,9 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
 - [1.9 Seeding (Phase 2b)](#19-seeding-phase-2b)
 - [1.10 Next.js 16 upgrade & auth fix (Phase 2c)](#110-nextjs-16-upgrade-auth-fix-phase-2c)
 - [1.11 Departments as Google Calendars + sharing + audit (Phase 2d)](#111-departments-as-google-calendars--sharing--audit-phase-2d)
-- [1.12 Next steps (Phase 2+)](#112-next-steps-phase-2)
-- [1.13 Git history](#113-git-history)
+- [1.12 Mobile-only UI refactor and Users rename (Phase 2e)](#112-mobile-only-ui-refactor-and-users-rename-phase-2e)
+- [1.13 Next steps (Phase 2+)](#113-next-steps-phase-2)
+- [1.14 Git history](#114-git-history)
 
 ## 1.1 Status
 
@@ -35,6 +36,9 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
   (kind = `department`), each user has a single `department_id` (dropped
   `departments`/`user_departments`), real Google Calendar ACL sharing + audit logging
   shipped. `pnpm build/lint/typecheck/test` (53) pass, `db:generate` shows no drift.
+- **Phase 2e (mobile-only UI + rename):** shell switched from hamburger/sidebar to a fixed
+  **bottom nav bar**; lists refactored to mobile **card layouts** with `fullScreen` modals;
+  the "Roster" section renamed to **Users** (`/roster` → `/users`). No schema changes.
 - **Deployment (Vercel):** build passes on `main`/`dev` with no warnings (Corepack +
   `NEXTAUTH_URL` unset). Migrations `0000` + `0001` applied to Neon (via CI migrate job);
   `0002`–`0004` pending (apply on next `main` push).
@@ -311,7 +315,28 @@ stored in the DB.
 - Verification: `pnpm build/lint/typecheck/test` (53) pass; `db:generate` shows no schema
   drift.
 
-## 1.12 Next steps (Phase 2+)
+## 1.12 Mobile-only UI refactor and Users rename (Phase 2e)
+
+The app is **strictly mobile-only**: no desktop sidebar/hamburger layout exists anymore.
+
+- **Bottom nav** — `src/components/AppShellShell.tsx` renders `AppShell.Footer` with
+  icon + label links (Dashboard `IconLayoutDashboard`, Users `IconUsers`, Departments
+  `IconBuilding`; non-admins see only Dashboard). Header is a slim centered "Cloudy" brand
+  bar; footer adds `env(safe-area-inset-bottom)` padding. Active tab matched via
+  `pathname.startsWith(href)`.
+- **Card lists** — `UserTable` and `DepartmentTable` render each row as a stacked
+  `Paper` card (badges + action buttons) instead of `<Table>`; the users filter bar stacks
+  vertically. Modals (`UserForm`, `DepartmentForm`, `DepartmentShares`, delete confirm)
+  are floating `centered` dialogs with a fixed `size`.
+- **"Users" rename** — nav label + page title "Roster" → "Users"; route `/roster` moved
+  to `/users` (`git mv src/app/(protected)/roster src/app/(protected)/users`,
+  `RosterPage` → `UsersPage`). `src/lib/roster/actions.ts` `revalidatePath` calls and the
+  `src/lib/audit/build.test.ts` route fixtures updated. The internal `src/lib/roster/*`
+  module namespace is intentionally left as "roster".
+- Verification: `pnpm lint`, `pnpm typecheck`, `pnpm test` (53), and `pnpm build` all
+  pass; build route list shows `/users` and no `/roster`.
+
+## 1.13 Next steps (Phase 2+)
 
 1. Wire the real event/Gmail methods in `real.ts` (calendar event read/write, Gmail
    send-as, KAH visibility).
@@ -319,7 +344,7 @@ stored in the DB.
    calendar view.
 3. Gmail notifications for KAH percentage breaches.
 
-## 1.13 Git history
+## 1.14 Git history
 
 ```
 c2e1a68 Document Vercel Corepack requirement and env setup
