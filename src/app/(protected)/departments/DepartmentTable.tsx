@@ -2,12 +2,13 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Button, Group, Modal, Paper, Stack, Text, Title } from "@mantine/core";
+import { Button, Group, Modal, Paper, Stack, Text } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
 
 import type { Calendar } from "@/db/schema";
 import { deleteDepartment } from "@/lib/roster/actions";
+import { FloatingToolbar } from "@/components/FloatingToolbar";
 import { DepartmentForm } from "./DepartmentForm";
 import { DepartmentShares } from "./DepartmentShares";
 
@@ -55,12 +56,7 @@ export function DepartmentTable({ departments }: DepartmentTableProps) {
   }
 
   return (
-    <Stack>
-      <Group justify="space-between" wrap="wrap">
-        <Title order={2}>Departments</Title>
-        <Button onClick={openCreate}>Add department</Button>
-      </Group>
-
+    <Stack pb="xl">
       {departments.length === 0 ? (
         <Text c="dimmed" ta="center" py="lg">
           No departments yet.
@@ -133,6 +129,16 @@ export function DepartmentTable({ departments }: DepartmentTableProps) {
       </Modal>
 
       <DepartmentShares calendar={sharing} opened={shareOpened} onClose={closeShare} />
+
+      <FloatingToolbar>
+        <Button
+          radius="xl"
+          style={{ boxShadow: "var(--mantine-shadow-md)" }}
+          onClick={openCreate}
+        >
+          Add department
+        </Button>
+      </FloatingToolbar>
     </Stack>
   );
 }

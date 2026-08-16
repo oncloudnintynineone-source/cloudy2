@@ -10,6 +10,9 @@ import {
   type Icon,
 } from "@tabler/icons-react";
 
+import { ThemeToggle } from "@/components/ThemeToggle";
+import { UserMenu } from "@/components/UserMenu";
+
 interface NavItem {
   label: string;
   href: string;
@@ -27,9 +30,11 @@ const navItems = (role: "admin" | "user"): NavItem[] =>
 
 export function AppShellShell({
   role,
+  name,
   children,
 }: {
   role: "admin" | "user";
+  name: string;
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
@@ -37,10 +42,14 @@ export function AppShellShell({
   return (
     <AppShell header={{ height: 56 }} footer={{ height: 64 }} padding="md">
       <AppShell.Header>
-        <Group h="100%" justify="center">
+        <Group h="100%" justify="space-between" px="md">
           <Text fw={700} size="lg">
             Cloudy
           </Text>
+          <Group gap="xs">
+            <ThemeToggle />
+            <UserMenu name={name} />
+          </Group>
         </Group>
       </AppShell.Header>
 

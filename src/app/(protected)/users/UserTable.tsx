@@ -11,12 +11,12 @@ import {
   Stack,
   Text,
   TextInput,
-  Title,
 } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 
 import { FilterButton } from "@/components/FilterButton";
 import { FilterModal, type FilterGroup } from "@/components/FilterModal";
+import { FloatingToolbar } from "@/components/FloatingToolbar";
 import type { RosterUser } from "@/lib/roster/queries";
 import { UserForm, type DepartmentOption } from "./UserForm";
 
@@ -99,12 +99,7 @@ export function UserTable({ users, departments }: UserTableProps) {
   }
 
   return (
-    <Stack>
-      <Group justify="space-between" wrap="wrap">
-        <Title order={2}>Users</Title>
-        <Button onClick={openCreate}>Add user</Button>
-      </Group>
-
+    <Stack pb="xl">
       <Paper withBorder p="sm">
         <Stack gap="xs">
           <Group justify="space-between" wrap="nowrap">
@@ -202,6 +197,16 @@ export function UserTable({ users, departments }: UserTableProps) {
         values={filterValues}
         onApply={handleApplyFilters}
       />
+
+      <FloatingToolbar>
+        <Button
+          radius="xl"
+          style={{ boxShadow: "var(--mantine-shadow-md)" }}
+          onClick={openCreate}
+        >
+          Add user
+        </Button>
+      </FloatingToolbar>
     </Stack>
   );
 }
