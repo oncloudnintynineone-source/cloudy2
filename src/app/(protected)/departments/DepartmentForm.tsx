@@ -56,7 +56,9 @@ export function DepartmentForm({ calendar, onDone }: DepartmentFormProps) {
           {...form.getInputProps("name")}
         />
         <Group justify="flex-end" mt="md">
-          <Button type="submit">{isEdit ? "Save changes" : "Create department"}</Button>
+          <Button type="submit" fullWidth>
+            {isEdit ? "Save changes" : "Create department"}
+          </Button>
         </Group>
       </Stack>
     </form>

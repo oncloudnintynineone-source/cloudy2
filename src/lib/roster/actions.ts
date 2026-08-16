@@ -113,7 +113,7 @@ export async function createUser(input: UserFormValues): Promise<RosterActionRes
     throw error;
   }
 
-  revalidatePath("/roster");
+  revalidatePath("/users");
   return { ok: true };
 }
 
@@ -173,7 +173,7 @@ export async function updateUser(id: string, input: UserFormValues): Promise<Ros
     throw error;
   }
 
-  revalidatePath("/roster");
+  revalidatePath("/users");
   return { ok: true };
 }
 
@@ -197,7 +197,7 @@ export async function setUserStatus(id: string, status: UserStatus): Promise<Ros
     details: { status },
   });
 
-  revalidatePath("/roster");
+  revalidatePath("/users");
   return { ok: true };
 }
 
@@ -247,7 +247,7 @@ export async function createDepartment(input: CalendarFormValues): Promise<Roste
   }
 
   revalidatePath("/departments");
-  revalidatePath("/roster");
+  revalidatePath("/users");
   return { ok: true };
 }
 
@@ -289,7 +289,7 @@ export async function renameDepartment(
   }
 
   revalidatePath("/departments");
-  revalidatePath("/roster");
+  revalidatePath("/users");
   return { ok: true };
 }
 
@@ -321,7 +321,7 @@ export async function deleteDepartment(id: string): Promise<RosterActionResult> 
   }
 
   revalidatePath("/departments");
-  revalidatePath("/roster");
+  revalidatePath("/users");
   return { ok: true };
 }
 
