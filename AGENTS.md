@@ -17,6 +17,7 @@ pnpm test         # vitest run   |   pnpm test:watch
 pnpm db:generate  # drizzle-kit generate  -> writes ./drizzle/*.sql
 pnpm db:push      # push schema directly to Neon
 pnpm db:migrate   # apply migrations
+pnpm db:seed      # dev-only seed: departments/users/memberships (idempotent)
 ```
 
 Run a single test: `pnpm vitest run src/lib/login.test.ts` (or `pnpm test -- <file>`).
