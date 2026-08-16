@@ -1,6 +1,7 @@
 import { sql } from "drizzle-orm";
 import {
   boolean,
+  check,
   date,
   index,
   integer,
@@ -99,14 +100,18 @@ export const paradeStates = pgTable("parade_states", {
   sortOrder: integer("sort_order").notNull().default(0),
 });
 
-export const settings = pgTable("settings", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  adminPasswordHash: text("admin_password_hash"),
-  userKeyword: text("user_keyword"),
-  kahPercentage: integer("kah_percentage").notNull().default(100),
-  kahNotificationEmails: text("kah_notification_emails").array().notNull().default(sql`'{}'::text[]`),
-  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
-});
+export const settings = pgTable(
+  "settings",
+  {
+    id: text("id").primaryKey().default("singleton"),
+    adminPasswordHash: text("admin_password_hash"),
+    userKeyword: text("user_keyword"),
+    kahPercentage: integer("kah_percentage").notNull().default(100),
+    kahNotificationEmails: text("kah_notification_emails").array().notNull().default(sql`'{}'::text[]`),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [check("settings_singleton", sql`${table.id} = 'singleton'`)],
+);
 
 export type User = typeof users.$inferSelect;
 export type NewUser = typeof users.$inferInsert;
