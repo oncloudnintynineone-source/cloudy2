@@ -1,7 +1,7 @@
 # AGENTS.md
 
 Cloud Calendar Movement — internal tool for personnel, leave/event records, and KAH
-constraints, with Google Calendar as the event/visibility layer. Single Next.js 15
+constraints, with Google Calendar as the event/visibility layer. Single Next.js 16
 (App Router) app, **no monorepo**.
 
 ## Commands
@@ -59,8 +59,8 @@ the quality checks.
   Authenticated routes live under `src/app/(protected)/` inside the AppShell.
 - **Prettier uses double quotes** (`singleQuote: false`) and `printWidth: 100` — not the
   common TS single-quote default.
-- ESLint 9 flat config wraps `next/core-web-vitals` + `next/typescript` via `FlatCompat`,
-  then `eslint-config-prettier`; `drizzle/` is eslint-ignored.
+- ESLint 9 flat config composes `eslint-config-next/core-web-vitals` + `next/typescript`
+  (flat arrays, no FlatCompat) with `eslint-config-prettier`; `drizzle/` is eslint-ignored.
 - Tests: Vitest, node environment, only `src/**/*.test.ts` (currently unit tests — no DB
   fixtures or services needed).
 

@@ -19,7 +19,7 @@ event/visibility layer.
 
 ## 1.1 Tech stack
 
-- **Framework:** Next.js 15 (App Router) + TypeScript
+- **Framework:** Next.js 16 (App Router) + TypeScript
 - **UI:** Mantine v9
 - **Hosting:** Vercel (dev previews from `dev` branch, prod from `main`)
 - **Database:** Neon Postgres + Drizzle ORM
