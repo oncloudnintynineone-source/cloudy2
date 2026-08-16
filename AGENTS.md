@@ -63,6 +63,19 @@ the quality checks.
 - Tests: Vitest, node environment, only `src/**/*.test.ts` (currently unit tests — no DB
   fixtures or services needed).
 
+## Documentation conventions
+
+- For every documentation `.md` file (e.g. `README.md`, `progress.md`, anything under
+  `docs/`), add a **table of contents (TOC)** at the top with anchor links to all sections.
+  `AGENTS.md` is exempt — it's agent instructions, not documentation.
+- **Number headers hierarchically** so the TOC maps to them unambiguously:
+  `# 1. Section` → `## 1.1 Subsection` → `### 1.1.1 Detail`. Renumber whenever a section
+  is added, removed, or reordered. TOC anchors must match GitHub slugification (dots
+  stripped, spaces → hyphens, e.g. `1.1 Foo bar` → `#11-foo-bar`).
+- Add **Mermaid diagrams** (`flowchart`, `sequence`, `er`, `state`, `gantt`) wherever one
+  illustrates a concept — data flow, CI pipeline, DB schema, git workflow, auth flow —
+  and keep the surrounding prose in sync with the diagram.
+
 ## Project state
 
 - `progress.md` tracks phase status, locked-in decisions, verification results, and
