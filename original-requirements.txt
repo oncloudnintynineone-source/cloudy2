@@ -1,0 +1,153 @@
+# Cloudy Webapp Specification
+
+Cloudy ("Cloud Calendar Movement") would be a full-stack application hosted on Vercel, with Google Calendar as the event/visibility layer.
+
+---
+
+## 1. Context & Motivation
+
+Cloudy would be an internal tool for managing company personnel, leave/event records, and Key Appointment Holder (KAH) constraints, where events are created in Google Calendars, and notification email on KAH sent via Email.
+
+### Tech stack
+
+Framework: NextJS, Mantine UI framework
+Hosting: Vercel, with seperate Dev and Prod environment. Keep all features under the free tier limits
+Database: Postgres on Vercel
+Auth: DB-backed authentication
+Google Calender: Service account to create, edit, and destroy calender events
+Testing: Vitest (Unit Test), Github Action 
+Repository: Single Monorepo
+
+2. Features
+- Admin Login - Password
+- User Login - Phone number + keyword
+- Registration - Admin only function
+- On-behalf event creation/editing - For admin to masquerade as any user when creating/editing calender events
+- Event creation/modification - Specifying the event details and adding/modifying the google calender. Event details are all stored in Google Calender Events. Custom data is stored in the event notes (encoded or not, and what data is stored can be discussed again). No event data is stored in the database. 
+- Calender Management - Creating, renaming, deleting google calenders
+- User Management - Creating, Modifying, Deleting Users. Setting their permissions (either admin or not), the calender they create their events in, setting what calender they have access to (means their email account can view the calender in their google calender)
+- Acronyms editor - Admin maintained list of acronyms that will apply on google calender event titles. admin can create/modify/delete these
+Dashboard view - Month and Agenda calender views. User can apply various filters like the different calenders, filtering users, keywords etc. All are fuzzy searches.
+Contacts download - Downloading of all users as VCF so they can be added to the users' personal devices
+Parade State view - View of the parade state status of all users across all calenders for a single day (defaults to today)
+KAH Management - KAH = Key Appointment Holders. Create KAH groups and specify users. These groups of users are very imporant and a set percentage of them needs to remain in the country. This percentage can be adjusted here. When a calender event is added/modified, a check will be conducted to make sure the KAH limit stays above the specified limit. If this limit is exceeded, an email will be sent to specific emails. These emails can be set in this page.
+
+3. UI
+Use Mantine UI components as much as possible. Always check the Mantine MCP documentation for UI references. Optimize UI for mobile. Build reusable components as much as possible. E.g. calender selection dropdown can be a custom component based on the Mantine component. 
+
+4. Sequence Diagrams
+### Request flow (auth)
+
+```mermaid
+sequenceDiagram
+    actor U as User
+    participant FE as React UI
+    participant NX as Next.js Server
+    participant DB as Postgres
+    participant GC as Google Calendar
+
+    U->>FE: Enter password / [phone][keyword]
+    FE->>NX: NextAuth credentials callback
+    NX->>DB: lookup user (admin) or phone+keyword (user)
+    NX-->>FE: session cookie (httpOnly, DB-backed)
+    FE->>NX: Server Action (submitLeave)
+    NX->>NX: auth() guard (role + phone ownership)
+    NX->>GC: create GCal events (service account)
+    NX->>DB: insert row + KAH recalc (transaction)
+    NX-->>FE: { status, eventIds }
+    FE->>FE: optimistic update reconciled
+```
+
+---
+
+## 4. Data Model (not comprehensive, and use this as reference only. Please suggest/ask clarifying questions/suggest improvements)
+
+Naming: `snake_case` tables, `camelCase` columns, UUID primary keys, `timestamptz` timestamps. All tables live under a single schema (`public`).
+
+### 4.1 Users & Org
+
+```ts
+users
+  id            uuid PK
+  name          text not null
+  phone         text not null unique          -- 8-digit Singapore mobile, canonical
+  email         text
+  birthday      date
+  role          text not null default 'user'  -- 'admin' | 'user'
+  password_hash text                           -- only for admin; users use phone+keyword
+  status        text not null default 'active'
+  created_at    timestamptz default now()
+  updated_at    timestamptz default now()
+```
+
+### 4.2 Event Types & Acronyms (admin-configurable)
+
+acronyms
+  id       uuid PK
+  acronym  text not null
+  meaning  text not null
+  active   boolean not null default true
+  sort_order int not null default 0
+```
+
+---
+
+## 5. Google Calendar Integration (Service Account)
+
+### 5.1 Setup
+
+1. GCP project → enable **Calendar API**.
+2. Create service account, download JSON key → store as Vercel env secret `GOOGLE_SERVICE_ACCOUNT`.
+3. Enable **domain-wide delegation** in Workspace admin if calendars are owned by org accounts; otherwise **share each department calendar with the service account email** (Reader/Writer) — this mirrors legacy per-calendar ACLs and avoids delegation entirely.
+4. **Recommendation**: share calendars with the service account email directly (simplest, auditable via existing GCal ACL UI). Domain-wide delegation only if org-wide calendar access is required.
+5. Service account key never in repo; injected at runtime via `GOOGLE_SERVICE_ACCOUNT` + `GOOGLE_CALENDAR_SCOPES=https://www.googleapis.com/auth/calendar`.
+
+### 5.2 Event projection (port of `createGCalEvents`)
+
+- For each department in `leaves.departments`: find-or-create the calendar (match by name).
+- Build title from `settings.gcal_template` with placeholder substitution → `applyAcronyms`.
+- Events (`is_event`): timed vs all-day; recurrence via `RRULE` (DAILY/WEEKDAY/WEEKLY/MONTHLY/ANNUALLY + `UNTIL=until_date`).
+- Leaves: all-day (end = end+1day), as legacy.
+- Return `['calId|eventId', ...]`; store in `leaves.event_ids`.
+- Delete old events + recreate on edit; delete all on cancel. Same semantics as `Leaves.js`.
+
+---
+
+## 6. Authentication & Sessions (NextAuth)
+
+### 6.1 Login modes (preserve UX)
+
+- **Admin**: `password` vs `settings.admin_password_hash` (bcrypt). Session role `admin`.
+- **User**: input ends with `settings.user_keyword`; strip suffix → phone (last 8 digits) → lookup `users.phone`. Role `user`, plus `departments[]` from `user_departments`.
+
+---
+
+## 10. Identity Migration (Contacts → App DB)
+
+**Decision**: users + org structure live in Postgres. Google Contacts is **not** the master directory anymore.
+
+- **Users table** is created from `getSettings().allContacts` snapshot during data migration.
+- `forceSyncContacts` and `forceSyncFromGoogleContacts` are **not ported** as-is. Replacement behavior:
+  - Directory edits (name/phone/unit/birthday) write to Postgres immediately (no 1-minute sync delay).
+  - Optional **one-way export** cron to Google Contacts for phone-address-book parity can be added later (non-blocking).
+- **VCF export** retained (feature #25): client-side generation from the `users` feed.
+
+---
+
+## 11. Environments & CI/CD
+
+| Legacy | v2 |
+|---|---|
+| Dev/Prod = 2 repos + 2 GAS accounts | Single repo; branches / `dev` / `main` → Vercel Preview deployments |
+| GitHub Actions deploys GAS via Clasp | GitHub Actions = quality gates only (lint, typecheck, test, migrate check) |
+| Manual `?v=` cache busting | Hashed Next.js assets + Workbox |
+| GAS time-based triggers | `vercel.json` cron definitions |
+
+---
+
+## 14. Build Order
+
+| Phase | Scope | Exit criteria |
+|---|---|---|
+| 0 | **Spec review** | Spec approved, env access (Vercel + Neon + GCP SA) provisioned |
+| 1 | **Scaffold** | Next.js+TS+Mantine, Drizzle connected, NextAuth wired, CI green, PWA shell, Vercel previews |
