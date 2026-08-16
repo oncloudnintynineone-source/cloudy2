@@ -21,7 +21,10 @@ pnpm db:migrate   # apply migrations
 
 Run a single test: `pnpm vitest run src/lib/login.test.ts` (or `pnpm test -- <file>`).
 
-CI order matters: `lint -> typecheck -> test -> db:generate` (schema-drift check).
+CI order matters: `lint -> typecheck -> test -> db:generate` (schema-drift check). On
+pushes to `main`, a `migrate` job additionally runs `pnpm db:migrate` against Neon using
+the `DATABASE_URL` repo secret — so pending migrations auto-apply on deploy. PRs only run
+the quality checks.
 
 ## Architecture
 
@@ -30,9 +33,12 @@ CI order matters: `lint -> typecheck -> test -> db:generate` (schema-drift check
   is only opened on first use, so build/CI work without a live DB. Never import/require
   `DATABASE_URL` at module load time or build breaks.
 - `src/db/schema.ts` is the Drizzle schema (7 tables). `drizzle.config.ts` generates into
-  `./drizzle`. **`drizzle/meta/` is gitignored** — only generated `*.sql` migrations are
-  committed. When you change the schema, commit the regenerated migration (CI's drift
-  check runs `db:generate`).
+  `./drizzle`. **`drizzle/meta/` is committed** (journal + snapshots) — commit both it and
+  the generated `*.sql` migration whenever you change the schema. CI's drift check runs
+  `pnpm db:generate` then fails on any diff to `drizzle/`.
+- The single `settings` row is enforced by a `settings_singleton` check constraint
+  (`id = 'singleton'`). `ensureSettingsRow()` in `src/lib/bootstrap.ts` lazily seeds it on
+  first auth, hashing `ADMIN_INITIAL_PASSWORD` (env) when no admin password exists yet.
 - Auth is **NextAuth v4** (Credentials provider, JWT sessions), not v5. Config in
   `src/lib/auth.ts`; `id`/`role`/`phone` are carried via session callbacks and declared in
   `src/types/next-auth.d.ts`.
@@ -71,5 +77,6 @@ CI order matters: `lint -> typecheck -> test -> db:generate` (schema-drift check
   detects pnpm 10 from the lockfile and ignores the pnpm-11 `allowBuilds` in
   `pnpm-workspace.yaml` (esbuild/sharp/unrs-resolver build scripts).
 - `main` → production, `dev` → preview. Copy `.env.example` → `.env.local` for local dev;
-  required vars: `DATABASE_URL`, `NEXTAUTH_SECRET`, plus Google service-account vars
-  (still unused while the integration is stubbed).
+  required vars: `DATABASE_URL`, `NEXTAUTH_SECRET`, `ADMIN_INITIAL_PASSWORD` (seeds the
+  admin password hash on first run), plus Google service-account vars (still unused while
+  the integration is stubbed).

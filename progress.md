@@ -7,8 +7,9 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
 
 - **Phase 0 (spec & decisions):** complete
 - **Phase 1 (scaffold):** complete — builds, lints, typechecks, and tests pass locally
-- **Deployment (Vercel):** in progress — build was failing; fixes committed, awaiting
-  final Vercel env config + redeploy
+- **Deployment (Vercel):** build passes on `main`/`dev` with no warnings (Corepack +
+  `NEXTAUTH_URL` unset). Schema not yet applied to Neon — run `pnpm db:migrate` once
+  (applies `0000` + `0001`).
 
 ## Decisions locked in (Phase 0)
 
@@ -89,22 +90,45 @@ Two issues were diagnosed and fixed in-repo (committed and pushed to both `dev` 
    config. Fix: enable Corepack so Vercel honors `packageManager: pnpm@11.18.0`.
 
 ### Remaining manual steps (Vercel dashboard)
-- [ ] Add `ENABLE_EXPERIMENTAL_COREPACK` = `1`
-- [ ] Add `NEXTAUTH_SECRET` (`openssl rand -base64 32`) — done per user
-- [ ] Add `DATABASE_URL` (Neon) — done per user
-- [ ] Remove any empty `NEXTAUTH_URL`
-- [ ] Redeploy and confirm build passes
+- [x] Add `ENABLE_EXPERIMENTAL_COREPACK` = `1` — done, build passes with no warnings
+- [x] Add `NEXTAUTH_SECRET` (`openssl rand -base64 32`) — done per user
+- [x] Add `DATABASE_URL` (Neon) — done per user
+- [x] Remove any empty `NEXTAUTH_URL` — done per user
+- [x] Redeploy and confirm build passes — done, no warnings
+- [ ] Set `ADMIN_INITIAL_PASSWORD` on Vercel (seeds the admin password hash on first login)
+- [x] Add `DATABASE_URL` as a GitHub Actions repo secret (feeds the CI migrate job)
+
+## CI migrations (Phase 1.5)
+
+- `migrate` job added to `.github/workflows/ci.yml`: `needs: quality`, runs only on
+  `main` push (`if: github.ref == 'refs/heads/main'`), serialized via a `db-migrate`
+  concurrency group so concurrent pushes can't race. Applies `pnpm db:migrate` against
+  Neon using the `DATABASE_URL` repo secret.
+- Single shared Neon DB across Vercel `dev`/`main`, so main-only migration keeps both
+  environments schema-synced. Pending `0000` + `0001` apply automatically on the next
+  `main` push — no local migrate step needed.
+
+## Bootstrap & schema hardening (Phase 1.5)
+
+- `settings` table now has a `settings_singleton` CHECK constraint (`id = 'singleton'`,
+  `text` PK with default) — a second row is impossible. Migration `0001` generated.
+- `drizzle/meta/` is now **committed** (was gitignored). CI schema-drift step is
+  `pnpm db:generate && git diff --exit-code -- drizzle/` so drift actually fails the build.
+- `src/lib/bootstrap.ts` `ensureSettingsRow()` lazily seeds the singleton settings row on
+  first auth, hashing `ADMIN_INITIAL_PASSWORD` (env). Called at the top of `authorize` in
+  `src/lib/auth.ts`. Race-safe via `onConflictDoNothing` + check constraint.
+- `ADMIN_INITIAL_PASSWORD` added to `.env.example`.
 
 ## Next steps (Phase 2+)
 
-1. Confirm successful Vercel build/deployment.
-2. Apply schema to Neon (`pnpm db:push` or `pnpm db:migrate`).
+1. Roster screen (`roster` + `departments` CRUD against `users`/`departments`/
+   `user_departments`).
+2. Add `db:seed` script (dev departments/users) once roster exists.
 3. Replace the Google stub with a real service-account implementation
    (calendar event read/write, Gmail send-as, KAH visibility).
-4. Build admin setup flow (initial admin password hash → `settings` row).
-5. Implement core screens: personnel roster, leave/event entry, KAH constraint checks,
-   parade states, acronyms, calendar view.
-6. Gmail notifications for KAH percentage breaches.
+4. Core screens: leave/event entry, KAH constraint checks, parade states, acronyms,
+   calendar view.
+5. Gmail notifications for KAH percentage breaches.
 
 ## Git history
 

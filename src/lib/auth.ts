@@ -5,6 +5,7 @@ import CredentialsProvider from "next-auth/providers/credentials";
 
 import { db } from "@/db";
 import { settings, users } from "@/db/schema";
+import { ensureSettingsRow } from "@/lib/bootstrap";
 import { parseUserLogin } from "@/lib/login";
 
 export const authOptions: NextAuthOptions = {
@@ -21,6 +22,8 @@ export const authOptions: NextAuthOptions = {
         if (typeof input !== "string" || !input.trim()) {
           return null;
         }
+
+        await ensureSettingsRow();
 
         const [settingsRow] = await db.select().from(settings).limit(1);
         const userKeyword = settingsRow?.userKeyword ?? "";

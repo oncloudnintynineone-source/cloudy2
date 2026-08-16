@@ -34,9 +34,6 @@ yarn-error.log*
 .env*
 !.env.example
 
-# drizzle
-/drizzle/meta
-
 
 # vercel
 .vercel
