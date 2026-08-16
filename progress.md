@@ -24,8 +24,10 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
 - [1.11 Departments as Google Calendars + sharing + audit (Phase 2d)](#111-departments-as-google-calendars--sharing--audit-phase-2d)
 - [1.12 Mobile-only UI refactor and Users rename (Phase 2e)](#112-mobile-only-ui-refactor-and-users-rename-phase-2e)
 - [1.13 Admin Settings hub and login keyword (Phase 2f)](#113-admin-settings-hub-and-login-keyword-phase-2f)
-- [1.14 Next steps (Phase 2+)](#114-next-steps-phase-2)
-- [1.15 Git history](#115-git-history)
+- [1.14 Event Types (Phase 2g)](#114-event-types-phase-2g)
+- [1.15 Next steps (Phase 2+)](#115-next-steps-phase-2)
+- [1.16 Calendar events (Phase 2h)](#116-calendar-events-phase-2h)
+- [1.17 Git history](#117-git-history)
 
 ## 1.1 Status
 
@@ -40,9 +42,19 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
 - **Phase 2e (mobile-only UI + rename):** shell switched from hamburger/sidebar to a fixed
   **bottom nav bar**; lists refactored to mobile **card layouts** with `fullScreen` modals;
   the "Roster" section renamed to **Users** (`/roster` → `/users`). No schema changes.
+- **Phase 2g (event types):** new **Event Types** admin settings tab (`/settings/event-types`)
+  for a lookup list of taggable event names (create/rename/delete). Migration `0005` adds the
+  `event_types` table (unique `name`). `pnpm build/lint/typecheck/test` (68) pass; `db:generate`
+  shows no drift.
+- **Phase 2h (calendar events):** the `/dashboard` placeholder is now a real month calendar
+  (`@mantine/schedule` `MonthView`) with create/edit/delete/view of Google Calendar events,
+  calendar + event-type filters, and per-day event rendering. Event data stays 100% in Google
+  Calendar (no DB table); the event type is stored in the event "notes" (`description`) as an
+  extensible JSON block. `pnpm build/lint/typecheck/test` (86) pass; `db:generate` shows no
+  drift.
 - **Deployment (Vercel):** build passes on `main`/`dev` with no warnings (Corepack +
   `NEXTAUTH_URL` unset). Migrations `0000` + `0001` applied to Neon (via CI migrate job);
-  `0002`–`0004` pending (apply on next `main` push).
+  `0002`–`0005` pending (apply on next `main` push).
 
 ## 1.2 Decisions locked in (Phase 0)
 
@@ -378,15 +390,90 @@ flowchart LR
 - Verification: `pnpm lint/typecheck/test/build` pass; no schema change so `db:generate`
   shows no drift.
 
-## 1.14 Next steps (Phase 2+)
+## 1.14 Event Types (Phase 2g)
 
-1. Wire the real event/Gmail methods in `real.ts` (calendar event read/write, Gmail
-   send-as, KAH visibility).
-2. Core screens: leave/event entry, KAH constraint checks, parade states, acronyms,
-   calendar view.
+A new **Event Types** tab in Admin Settings lets admins define the list of event names that
+can later be tagged onto calendar events. This phase ships only the lookup list (create /
+rename / delete) — tagging onto events is a future phase.
+
+- **Schema** — migration `0005` adds `event_types` (`id` uuid pk, `name` text not null,
+  `created_at`/`updated_at`) with a unique index on `name` so the same tag can't be defined
+  twice. `src/db/schema.ts` exports the `eventTypes` table + `EventType` type.
+- **Module** — `src/lib/eventTypes/*` mirrors the roster module:
+  `validate.ts` (`validateEventTypeForm`, unit-tested), `queries.ts` (`listEventTypes()`
+  ordered by name), `actions.ts` (`createEventType`/`renameEventType`/`deleteEventType`
+  server actions — `requireAdmin`, validate, DB op, audit log, `revalidatePath`, unique
+  violation → "already exists" error).
+- **UI** — `src/app/(protected)/settings/event-types/` (`page.tsx`, `EventTypeTable.tsx`
+  card list with Rename/Delete + floating "Add event type" button, `EventTypeForm.tsx`
+  centered modal, `loading.tsx` skeleton). Added to `SettingsTabs` between Departments and
+  General.
+- **Audit** — `AUDIT_ACTIONS` gains `eventType.create`/`eventType.rename`/
+  `eventType.delete`.
+- Verification: `pnpm lint`, `pnpm typecheck`, `pnpm test` (68), `pnpm build`, and
+  `pnpm db:generate` (no drift) all pass; build route list shows `/settings/event-types`.
+
+## 1.15 Next steps (Phase 2+)
+
+1. Wire the real Gmail method in `real.ts` (Gmail send-as, KAH visibility) — calendar
+   event read/write is now implemented.
+2. Core screens still pending: KAH constraint checks, parade states, acronyms on event
+   titles, on-behalf/masquerade permissions, and VCF contacts export.
 3. Gmail notifications for KAH percentage breaches.
 
-## 1.15 Git history
+## 1.16 Calendar events (Phase 2h)
+
+The `/dashboard` placeholder is replaced by a real month calendar with full event
+create/edit/delete/view. Events remain 100% in Google Calendar — no event table exists.
+
+```mermaid
+flowchart LR
+    A[Dashboard] --> B[MonthView]
+    B --> C{Interaction}
+    C -- click day / FAB --> D[EventForm modal]
+    C -- click event --> E[EventDetail modal]
+    D --> F[Server action]
+    E --> G[Edit / Delete]
+    F --> H[Google Calendar API]
+    G --> H
+    H --> I[revalidatePath + router.refresh]
+```
+
+- **Dependency** — added `@mantine/schedule@9.5.1` (the `MonthView` component) and `dayjs`
+  (its required peer). `@mantine/dates/styles.css` + `@mantine/schedule/styles.css` imported
+  in `src/app/layout.tsx` (order: core → dates → schedule).
+- **Google layer** (`src/lib/google/`) — implemented `createEvent`/`updateEvent`/
+  `deleteEvent`/`listEvents` in `real.ts` (`events.insert/update/delete/list`,
+  `singleEvents: true`, `orderBy: startTime`); `listEvents` added to the interface + stub.
+  All-day events use Google's `date` field with an exclusive end date; timed events use
+  `dateTime`. `GcalEventItem` added for read-back.
+- **Events module** (`src/lib/events/*`, mirrors `roster`/`eventTypes`):
+  - `notes.ts` — pure encode/parse of the machine-readable "notes" JSON block stored in the
+    event `description` (currently `{ eventType }`, extensible for future fields).
+  - `datetime.ts` — pure date/time helpers; wall-clock times are treated as fixed
+    `Asia/Singapore` (UTC+8, no DST) so conversions are deterministic and testable.
+  - `validate.ts` — pure form validation (title/start/end, end ≥ start).
+  - `queries.ts` — `listCalendars`, `getUserDepartmentId`, and `fetchMonthEvents` which reads
+    events across the selected calendars and maps them to `CalendarEvent` (schedule-ready
+    data with a `payload` carrying calendar id, Google event id, all-day flag, and parsed
+    event type).
+  - `actions.ts` — `createEvent`/`updateEvent`/`deleteEvent` server actions (`requireSession`,
+    audit-logged, `revalidatePath("/dashboard")`). Admins pick a target calendar; regular
+    users always target their own department.
+- **Dashboard** (`src/app/(protected)/dashboard/`) — `page.tsx` (server) reads `month`/`cal`/
+  `types` search params and fetches events; `DashboardView.tsx` (client) renders a custom
+  header + `MonthView` (`withHeader={false}`), `FilterButton` → `FilterModal` (Calendars +
+  Event Types groups), `EventForm.tsx` (description, all-day toggle swapping
+  `DateTimePicker` ↔ `DatePickerInput`, event-type `Select`, admin calendar `Select`),
+  `EventDetail.tsx` (view + Edit/Delete), a `loading.tsx` skeleton, and a FAB.
+- **Default view** — non-admin shows only their department calendar; admin shows all
+  calendars. The filter always offers every calendar + every event type (regardless of
+  access). Google unconfigured → empty calendar + a notice, and the FAB is disabled.
+- **Audit** — `AUDIT_ACTIONS` gains `event.create`/`event.update`/`event.delete`.
+- Verification: `pnpm lint`, `pnpm typecheck`, `pnpm test` (86), `pnpm build` (route list
+  shows `/dashboard`), and `pnpm db:generate` (no drift — no schema change) all pass.
+
+## 1.17 Git history
 
 ```
 c2e1a68 Document Vercel Corepack requirement and env setup

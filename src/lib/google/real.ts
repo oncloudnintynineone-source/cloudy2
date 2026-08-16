@@ -2,12 +2,13 @@ import { google } from "googleapis";
 import type { calendar_v3 } from "googleapis";
 
 import { getServiceAccountConfig, GOOGLE_CALENDAR_SCOPE } from "./config";
-import type { GcalEvent, GoogleCalendarInfo, GoogleIntegration } from "./types";
+import type { GcalEvent, GcalEventInput, GcalEventItem, GoogleCalendarInfo, GoogleIntegration } from "./types";
 
 /**
  * Real Google Calendar integration using a GCP service account (JWT auth).
- * Calendar lifecycle and ACL sharing are implemented — event/Gmail methods are
- * wired in a later phase and currently throw so nothing is silently dropped.
+ * Calendar lifecycle, ACL sharing, and event read/write are implemented —
+ * Gmail methods are wired in a later phase and currently throw so nothing is
+ * silently dropped.
  */
 export function createRealGoogleIntegration(): GoogleIntegration {
   let client: calendar_v3.Calendar | null = null;
@@ -160,18 +161,108 @@ export function createRealGoogleIntegration(): GoogleIntegration {
       }
     },
 
-    async createEvent(): Promise<GcalEvent> {
-      throw new Error("createEvent is not implemented yet");
+    async createEvent(input: GcalEventInput): Promise<GcalEvent> {
+      try {
+        const res = await getClient().events.insert({
+          calendarId: input.calendarId,
+          requestBody: buildEventBody(input),
+        });
+        const id = res.data.id;
+        if (!id) {
+          throw new Error("Google returned no event id");
+        }
+        return { id, calendarId: input.calendarId, htmlLink: res.data.htmlLink ?? undefined };
+      } catch (error) {
+        fail(error);
+      }
     },
-    async updateEvent(): Promise<GcalEvent> {
-      throw new Error("updateEvent is not implemented yet");
+    async updateEvent(eventId: string, input: GcalEventInput): Promise<GcalEvent> {
+      try {
+        const res = await getClient().events.update({
+          calendarId: input.calendarId,
+          eventId,
+          requestBody: buildEventBody(input),
+        });
+        const id = res.data.id;
+        if (!id) {
+          throw new Error("Google returned no event id");
+        }
+        return { id, calendarId: input.calendarId, htmlLink: res.data.htmlLink ?? undefined };
+      } catch (error) {
+        fail(error);
+      }
     },
-    async deleteEvent(): Promise<void> {
-      throw new Error("deleteEvent is not implemented yet");
+    async deleteEvent(calendarId: string, eventId: string): Promise<void> {
+      try {
+        await getClient().events.delete({ calendarId, eventId });
+      } catch (error) {
+        if (googleStatus(error) === 404) {
+          return;
+        }
+        fail(error);
+      }
+    },
+    async listEvents(
+      calendarId: string,
+      timeMin: Date,
+      timeMax: Date,
+    ): Promise<GcalEventItem[]> {
+      try {
+        const res = await getClient().events.list({
+          calendarId,
+          timeMin: timeMin.toISOString(),
+          timeMax: timeMax.toISOString(),
+          singleEvents: true,
+          orderBy: "startTime",
+          maxResults: 2500,
+        });
+        return (res.data.items ?? []).map(mapGoogleEvent(calendarId));
+      } catch (error) {
+        fail(error);
+      }
     },
     async sendEmail(): Promise<void> {
       throw new Error("sendEmail is not implemented yet");
     },
+  };
+}
+
+/** Build the request body for an event insert/update. */
+function buildEventBody(input: GcalEventInput): calendar_v3.Schema$Event {
+  return {
+    summary: input.title,
+    description: input.description ?? "",
+    start: input.allDay
+      ? { date: toDateString(input.start) }
+      : { dateTime: input.start.toISOString() },
+    end: input.allDay ? { date: toDateString(input.end) } : { dateTime: input.end.toISOString() },
+  };
+}
+
+/** Format a `Date` as a `YYYY-MM-DD` date string (assumes UTC-midnight for all-day dates). */
+function toDateString(value: Date): string {
+  return value.toISOString().slice(0, 10);
+}
+
+/** Map a raw Google event to a `GcalEventItem`. */
+function mapGoogleEvent(
+  calendarId: string,
+): (event: calendar_v3.Schema$Event) => GcalEventItem {
+  return (event) => {
+    const allDay = Boolean(event.start?.date);
+    return {
+      id: event.id ?? "",
+      calendarId,
+      title: event.summary ?? "",
+      description: event.description ?? "",
+      allDay,
+      start: allDay
+        ? new Date(`${event.start?.date ?? "1970-01-01"}T00:00:00Z`)
+        : new Date(event.start?.dateTime ?? 0),
+      end: allDay
+        ? new Date(`${event.end?.date ?? "1970-01-01"}T00:00:00Z`)
+        : new Date(event.end?.dateTime ?? 0),
+    };
   };
 }
 

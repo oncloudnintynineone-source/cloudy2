@@ -1,0 +1,64 @@
+/**
+ * Pure date/time helpers for the calendar events module. All wall-clock times
+ * are interpreted in a fixed Singapore timezone (UTC+8, no DST), so the
+ * conversions are deterministic and unit-testable without a timezone database.
+ *
+ * Convention: naive values are `YYYY-MM-DD HH:mm:ss` strings; date-only values
+ * are `YYYY-MM-DD`. Google all-day events use an *exclusive* end date (the day
+ * after the last day), which callers convert to/from inclusive form.
+ */
+
+export const APP_TIMEZONE = "Asia/Singapore";
+export const APP_TIMEZONE_OFFSET_MINUTES = 8 * 60;
+
+const pad = (value: number): string => String(value).padStart(2, "0");
+
+/** Parse a naive `YYYY-MM-DD HH:mm:ss` string to an instant (UTC+8 wall clock). */
+export function parseNaiveToInstant(naive: string): Date {
+  const [datePart, timePart = "00:00:00"] = naive.split(" ");
+  const [year, month, day] = datePart.split("-").map(Number);
+  const [hours, minutes, seconds] = timePart.split(":").map(Number);
+  return new Date(
+    Date.UTC(year, month - 1, day, hours - APP_TIMEZONE_OFFSET_MINUTES / 60, minutes, seconds),
+  );
+}
+
+/** Format an instant (UTC `Date`) as a naive `YYYY-MM-DD HH:mm:ss` (UTC+8). */
+export function formatInstantToNaive(date: Date): string {
+  const shifted = new Date(date.getTime() + APP_TIMEZONE_OFFSET_MINUTES * 60 * 1000);
+  return [
+    `${shifted.getUTCFullYear()}-${pad(shifted.getUTCMonth() + 1)}-${pad(shifted.getUTCDate())}`,
+    `${pad(shifted.getUTCHours())}:${pad(shifted.getUTCMinutes())}:${pad(shifted.getUTCSeconds())}`,
+  ].join(" ");
+}
+
+/** A `YYYY-MM-DD` date as a UTC-midnight `Date` (Google all-day date). */
+export function dateToUtc(dateOnly: string): Date {
+  return new Date(`${dateOnly}T00:00:00Z`);
+}
+
+/** Format a UTC-midnight `Date` as `YYYY-MM-DD`. */
+export function utcToDateString(date: Date): string {
+  return date.toISOString().slice(0, 10);
+}
+
+/** Add one day to a `YYYY-MM-DD` date. */
+export function addOneDay(dateOnly: string): string {
+  const [year, month, day] = dateOnly.split("-").map(Number);
+  return utcToDateString(new Date(Date.UTC(year, month - 1, day + 1)));
+}
+
+/** Subtract one day from a `YYYY-MM-DD` date. */
+export function subOneDay(dateOnly: string): string {
+  const [year, month, day] = dateOnly.split("-").map(Number);
+  return utcToDateString(new Date(Date.UTC(year, month - 1, day - 1)));
+}
+
+/** First instant and exclusive end instant of a month (`YYYY-MM`), as UTC `Date`s. */
+export function monthRange(month: string): { start: Date; end: Date } {
+  const [year, monthIndex] = month.split("-").map(Number);
+  return {
+    start: new Date(Date.UTC(year, monthIndex - 1, 1)),
+    end: new Date(Date.UTC(year, monthIndex, 1)),
+  };
+}

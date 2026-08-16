@@ -15,7 +15,7 @@ event/visibility layer.
 - [1.7 CI](#17-ci)
 - [1.8 Git workflow](#18-git-workflow)
 - [1.9 Deployment (Vercel)](#19-deployment-vercel)
-- [1.10 Google integration (stub)](#110-google-integration-stub)
+- [1.10 Google integration](#110-google-integration)
 
 ## 1.1 Tech stack
 
@@ -155,8 +155,10 @@ Required configuration:
 2. Native build scripts for `esbuild`, `sharp`, and `unrs-resolver` are approved via
    `allowBuilds` in `pnpm-workspace.yaml` (pnpm 11 format).
 
-## 1.10 Google integration (stub)
+## 1.10 Google integration
 
-Google Calendar/Gmail calls go through `getGoogleIntegration()`, which currently
-returns a no-op stub. A real service-account implementation will be added once GCP
-credentials and Workspace domain-wide delegation are provisioned.
+Google Calendar/Gmail calls go through `getGoogleIntegration()`. When service-account
+credentials (`GOOGLE_SERVICE_ACCOUNT_BASE64`, or `GOOGLE_CLIENT_EMAIL` + `GOOGLE_PRIVATE_KEY`)
+are present it returns the real Calendar v3 client (calendar + event read/write, ACL
+sharing); otherwise it falls back to a no-op stub so the app runs without GCP credentials.
+Gmail send-as is still stubbed until Workspace domain-wide delegation is provisioned.
