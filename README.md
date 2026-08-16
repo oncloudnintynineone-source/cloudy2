@@ -79,6 +79,33 @@ src/
 GitHub Actions runs lint, typecheck, test, and a schema-drift check on every push/PR.
 Quality gates only — Vercel handles deployments from `dev` and `main`.
 
+## Git workflow
+
+`dev` is the working branch; `main` is production. All day-to-day work happens on `dev`
+(or short-lived feature branches off it), and `main` only moves forward when `dev` is
+ready to ship.
+
+1. **Work on `dev`.** Commit directly, or branch off `dev` for anything risky and merge
+   back with a PR. Every push to `dev` triggers CI + a Vercel preview build.
+2. **Keep `dev` deployable.** CI must pass before pushing. Preview builds serve as the
+   integration check.
+3. **Ship with a merge, never a cherry-pick.** When `dev` is production-ready:
+
+   ```bash
+   git checkout main
+   git merge dev
+   git push origin main
+   ```
+
+   Always move changes between `dev` and `main` with `git merge` — cherry-picking the
+   same commits across branches creates duplicate commits with different SHAs (as happened
+   early in this repo). Merge keeps history linear and each commit existing once.
+4. **Finish or stash before switching branches.** Commit or stash your working tree before
+   `git checkout`, or files left untracked/uncommitted get stranded on whichever branch you
+   happened to land on.
+5. **Optionally protect `main`** with branch rules (require a PR + passing CI) so nothing
+   reaches production unreviewed.
+
 ## Deployment (Vercel)
 
 Vercel auto-builds on every push: `main` → production, `dev` → preview.
