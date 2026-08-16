@@ -5,9 +5,22 @@ import { useDisclosure } from "@mantine/hooks";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
-const navItems = [{ label: "Dashboard", href: "/dashboard" }];
+const navItems = (role: "admin" | "user") =>
+  role === "admin"
+    ? [
+        { label: "Dashboard", href: "/dashboard" },
+        { label: "Roster", href: "/roster" },
+        { label: "Departments", href: "/departments" },
+      ]
+    : [{ label: "Dashboard", href: "/dashboard" }];
 
-export function AppShellShell({ children }: { children: React.ReactNode }) {
+export function AppShellShell({
+  role,
+  children,
+}: {
+  role: "admin" | "user";
+  children: React.ReactNode;
+}) {
   const [opened, { toggle }] = useDisclosure();
   const pathname = usePathname();
 
@@ -24,7 +37,7 @@ export function AppShellShell({ children }: { children: React.ReactNode }) {
         </Group>
       </AppShell.Header>
       <AppShell.Navbar p="md">
-        {navItems.map((item) => (
+        {navItems(role).map((item) => (
           <NavLink
             key={item.href}
             component={Link}

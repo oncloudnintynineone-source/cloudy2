@@ -6,6 +6,6 @@ export default async function ProtectedLayout({
 }: {
   children: React.ReactNode;
 }) {
-  await requireSession();
-  return <AppShellShell>{children}</AppShellShell>;
+  const session = await requireSession();
+  return <AppShellShell role={session.user.role}>{children}</AppShellShell>;
 }
