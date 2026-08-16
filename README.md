@@ -1,36 +1,86 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Cloudy
 
-## Getting Started
+Cloud Calendar Movement — an internal tool for managing company personnel, leave/event
+records, and Key Appointment Holder (KAH) constraints, with Google Calendar as the
+event/visibility layer.
 
-First, run the development server:
+## Tech stack
+
+- **Framework:** Next.js 15 (App Router) + TypeScript
+- **UI:** Mantine v9
+- **Hosting:** Vercel (dev previews from `dev` branch, prod from `main`)
+- **Database:** Neon Postgres + Drizzle ORM
+- **Auth:** NextAuth v4 (Credentials provider, JWT sessions)
+- **Google:** Service account for Calendar v3 + Gmail v1 (currently stubbed)
+
+## Getting started
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
+pnpm install
+cp .env.example .env.local
+# fill in .env.local (see Environment below)
+pnpm db:push          # create/update schema in Neon
 pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Scripts
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+| Command            | Description                              |
+| ------------------ | ---------------------------------------- |
+| `pnpm dev`         | Start the dev server (Turbopack)         |
+| `pnpm build`       | Production build                          |
+| `pnpm lint`        | ESLint                                    |
+| `pnpm typecheck`   | TypeScript check                          |
+| `pnpm test`        | Vitest (run once)                         |
+| `pnpm test:watch`  | Vitest in watch mode                      |
+| `pnpm db:generate` | Generate Drizzle migrations               |
+| `pnpm db:push`     | Push schema directly to the database      |
+| `pnpm db:migrate`  | Apply generated migrations                |
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Environment
 
-## Learn More
+| Variable                          | Purpose                                        |
+| --------------------------------- | ---------------------------------------------- |
+| `DATABASE_URL`                    | Neon Postgres connection string                |
+| `NEXTAUTH_SECRET`                 | Session signing secret (`openssl rand -base64 32`) |
+| `NEXTAUTH_URL`                    | App URL (default `http://localhost:3000`)      |
+| `GOOGLE_SERVICE_ACCOUNT_BASE64`   | Base64-encoded GCP service account JSON key    |
+| `GOOGLE_CLIENT_EMAIL`             | Fallback service account email                 |
+| `GOOGLE_PRIVATE_KEY`              | Fallback service account private key           |
+| `GOOGLE_DELEGATE_EMAIL`           | Workspace delegate for Gmail send-as / ACL     |
 
-To learn more about Next.js, take a look at the following resources:
+## Login
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Single input field. The server auto-detects:
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+- **Admin** — enter the admin password.
+- **User** — enter `[phone][keyword]`, e.g. `91234567leave`.
 
-## Deploy on Vercel
+## Project structure
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+```
+src/
+  app/
+    (protected)/          # authenticated routes (AppShell + nav)
+    api/auth/[...nextauth] # NextAuth handler
+    login/                 # login page
+  components/              # reusable UI (LoginForm, AppShellShell, CalendarSelect, ...)
+  db/                      # Drizzle schema + client
+  lib/
+    auth.ts                # NextAuth config
+    session.ts             # session/role guards
+    login.ts               # pure login parsing (unit tested)
+    google/                # Google integration interface + stub
+  types/                   # NextAuth type augmentation
+```
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## CI
+
+GitHub Actions runs lint, typecheck, test, and a schema-drift check on every push/PR.
+Quality gates only — Vercel handles deployments from `dev` and `main`.
+
+## Google integration (stub)
+
+Google Calendar/Gmail calls go through `getGoogleIntegration()`, which currently
+returns a no-op stub. A real service-account implementation will be added once GCP
+credentials and Workspace domain-wide delegation are provisioned.
