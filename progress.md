@@ -237,14 +237,21 @@ flowchart LR
 - Verification: migrations applied to Neon (2/2), all 7 tables live, roster queries hit the
   live DB. `pnpm build/lint/typecheck/test` all pass.
 
-## 1.9 Next steps (Phase 2+)
+## Seeding (Phase 2b)
 
-1. Add `db:seed` script (dev departments/users) now that roster exists.
-2. Replace the Google stub with a real service-account implementation
+- **`src/db/seed.ts`** — `pnpm db:seed` (tsx). Idempotent, refuses to run with
+  `NODE_ENV=production`. Reads `DATABASE_URL` from env or `.env.local`. Seeds 4
+  departments, 4 users, 5 memberships; also sets `settings.userKeyword = 'leave'` when
+  empty so seeded users can log in as `[phone]leave`. Verified: 4/4/5 created, re-run
+  inserts 0.
+
+## Next steps (Phase 2+)
+
+1. Replace the Google stub with a real service-account implementation
    (calendar event read/write, Gmail send-as, KAH visibility).
-3. Core screens: leave/event entry, KAH constraint checks, parade states, acronyms,
+2. Core screens: leave/event entry, KAH constraint checks, parade states, acronyms,
    calendar view.
-4. Gmail notifications for KAH percentage breaches.
+3. Gmail notifications for KAH percentage breaches.
 
 ## 1.10 Git history
 
