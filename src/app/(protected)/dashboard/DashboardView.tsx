@@ -3,10 +3,25 @@
 import dayjs from "dayjs";
 import { useMemo, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { ActionIcon, Alert, Button, Group, Modal, Stack, Text } from "@mantine/core";
+import {
+  ActionIcon,
+  Alert,
+  Button,
+  Group,
+  Modal,
+  SegmentedControl,
+  Stack,
+  Text,
+} from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
-import { MonthView } from "@mantine/schedule";
-import { IconChevronLeft, IconChevronRight, IconPlus } from "@tabler/icons-react";
+import { AgendaView, MobileMonthView, MonthView } from "@mantine/schedule";
+import {
+  IconCalendarDot,
+  IconCalendarMonth,
+  IconChevronLeft,
+  IconChevronRight,
+  IconPlus,
+} from "@tabler/icons-react";
 
 import { FilterButton } from "@/components/FilterButton";
 import { FilterModal, type FilterGroup } from "@/components/FilterModal";
@@ -17,6 +32,7 @@ import { EventForm } from "./EventForm";
 
 interface DashboardViewProps {
   month: string;
+  view: "month" | "mobile";
   events: CalendarEvent[];
   calendars: { id: string; name: string }[];
   eventTypes: string[];
@@ -34,6 +50,7 @@ interface FormState {
 
 export function DashboardView({
   month,
+  view,
   events,
   calendars,
   eventTypes,
@@ -49,6 +66,7 @@ export function DashboardView({
 
   const [detailEvent, setDetailEvent] = useState<CalendarEvent | null>(null);
   const [formState, setFormState] = useState<FormState | null>(null);
+  const [agendaDate, setAgendaDate] = useState<string | null>(null);
   const [filterOpened, { open: openFilter, close: closeFilter }] = useDisclosure(false);
 
   const monthLabel = dayjs(`${month}-01`).format("MMMM YYYY");
@@ -94,6 +112,10 @@ export function DashboardView({
     navigate({ month: next });
   }
 
+  function switchView(next: string) {
+    navigate({ view: next === "month" ? null : next });
+  }
+
   function goToday() {
     navigate({ month: dayjs().format("YYYY-MM") });
   }
@@ -133,6 +155,16 @@ export function DashboardView({
           <Button variant="subtle" size="xs" onClick={goToday}>
             Today
           </Button>
+          <SegmentedControl
+            aria-label="Calendar view"
+            size="xs"
+            value={view}
+            onChange={switchView}
+            data={[
+              { value: "month", label: <IconCalendarMonth size={16} /> },
+              { value: "mobile", label: <IconCalendarDot size={16} /> },
+            ]}
+          />
           <FilterButton activeCount={activeFilterCount} onClick={openFilter} />
         </Group>
       </Group>
@@ -143,14 +175,44 @@ export function DashboardView({
         </Alert>
       )}
 
-      <MonthView
-        date={`${month}-01 00:00:00`}
-        events={events}
-        withHeader={false}
-        maxEventsPerDay={3}
-        onEventClick={(event) => setDetailEvent(event as unknown as CalendarEvent)}
-        onDayClick={(date) => openCreate(date)}
-      />
+      {view === "month" ? (
+        <MonthView
+          date={`${month}-01 00:00:00`}
+          events={events}
+          withHeader={false}
+          maxEventsPerDay={3}
+          onEventClick={(event) => setDetailEvent(event as unknown as CalendarEvent)}
+          onDayClick={(date) => setAgendaDate(date)}
+        />
+      ) : (
+        <MobileMonthView
+          date={`${month}-01 00:00:00`}
+          events={events}
+          styles={{
+            mobileMonthViewHeader: { display: "none" },
+            mobileMonthViewEventsList: { display: "none" },
+          }}
+          onDayClick={(day) => setAgendaDate(day)}
+        />
+      )}
+
+      <Modal
+        opened={agendaDate !== null}
+        onClose={() => setAgendaDate(null)}
+        title={agendaDate ? dayjs(agendaDate).format("dddd, MMMM D, YYYY") : ""}
+        centered
+        size="sm"
+      >
+        {agendaDate && (
+          <AgendaView
+            rangeStart={agendaDate}
+            rangeEnd={agendaDate}
+            events={events}
+            styles={{ agendaViewHeader: { display: "none" } }}
+            onEventClick={(event) => setDetailEvent(event as unknown as CalendarEvent)}
+          />
+        )}
+      </Modal>
 
       <EventDetail
         event={detailEvent}
@@ -161,6 +223,7 @@ export function DashboardView({
         }}
         onDeleted={() => {
           setDetailEvent(null);
+          setAgendaDate(null);
           router.refresh();
         }}
       />

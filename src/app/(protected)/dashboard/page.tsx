@@ -24,6 +24,8 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
     ? params.month
     : currentMonth();
 
+  const view = params.view === "mobile" ? "mobile" : "month";
+
   const [calendars, eventTypes] = await Promise.all([listCalendars(), listEventTypes()]);
   const calendarIds = calendars.map((calendar) => calendar.id);
 
@@ -57,6 +59,7 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
   return (
     <DashboardView
       month={month}
+      view={view}
       events={events}
       calendars={calendars.map((calendar) => ({ id: calendar.id, name: calendar.name }))}
       eventTypes={typeNames}

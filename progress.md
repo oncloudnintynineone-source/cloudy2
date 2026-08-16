@@ -27,7 +27,8 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
 - [1.14 Event Types (Phase 2g)](#114-event-types-phase-2g)
 - [1.15 Next steps (Phase 2+)](#115-next-steps-phase-2)
 - [1.16 Calendar events (Phase 2h)](#116-calendar-events-phase-2h)
-- [1.17 Git history](#117-git-history)
+- [1.17 Dashboard mobile month view (Phase 2i)](#117-dashboard-mobile-month-view-phase-2i)
+- [1.18 Git history](#118-git-history)
 
 ## 1.1 Status
 
@@ -52,6 +53,9 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
   Calendar (no DB table); the event type is stored in the event "notes" (`description`) as an
   extensible JSON block. `pnpm build/lint/typecheck/test` (86) pass; `db:generate` shows no
   drift.
+- **Phase 2i (dashboard view toggle):** `/dashboard` gains a Month ⇄ MobileMonth view
+  toggle (`?view=mobile` URL param); a day tap in either view opens an `AgendaView`
+  modal. No schema changes; `pnpm lint/typecheck/test` (86) pass, `db:generate` no drift.
 - **Deployment (Vercel):** build passes on `main`/`dev` with no warnings (Corepack +
   `NEXTAUTH_URL` unset). Migrations `0000` + `0001` applied to Neon (via CI migrate job);
   `0002`–`0005` pending (apply on next `main` push).
@@ -473,7 +477,64 @@ flowchart LR
 - Verification: `pnpm lint`, `pnpm typecheck`, `pnpm test` (86), `pnpm build` (route list
   shows `/dashboard`), and `pnpm db:generate` (no drift — no schema change) all pass.
 
-## 1.17 Git history
+## 1.17 Dashboard mobile month view (Phase 2i)
+
+`/dashboard` now supports two views, switched by an icon `SegmentedControl` in the header
+row: the default `MonthView` grid, and `@mantine/schedule` `MobileMonthView` (month grid
+with event-dot indicators). The choice persists in the URL as `?view=mobile` (omitted =
+month), matching the existing `month`/`cal`/`types` URL-state pattern. No new dependency —
+`MobileMonthView` and `AgendaView` ship in the already-installed `@mantine/schedule@9.5.1`.
+
+```mermaid
+flowchart LR
+    A[Dashboard] --> B{view URL param}
+    B -- month / default --> C[MonthView grid]
+    B -- mobile --> D[MobileMonthView grid]
+    C -- click day --> G[AgendaView modal<br/>for that day]
+    D -- click day --> G
+    G -- click event --> F[EventDetail modal]
+    C -- click event --> F
+    C -- FAB only --> E[EventForm modal]
+    D -- FAB only --> E
+    E --> H[Server action → Google Calendar]
+    F --> H
+```
+
+- **Toggle** — `SegmentedControl` (`size="xs"`, `aria-label="Calendar view"`) with
+  `IconCalendarMonth` / `IconCalendarDot` segments, placed between "Today" and the filter
+  button in `DashboardView.tsx`. `switchView()` writes/removes the `view` param via the
+  existing `navigate()` URL helper (month is the default, so the param is omitted for it).
+  `dashboard/page.tsx` reads `view` (`params.view === "mobile" ? "mobile" : "month"`) and
+  passes it through; both views render the same fetched month events.
+- **MobileMonthView** — rendered when `view === "mobile"`. A day tap (`onDayClick`) opens
+  the day-agenda modal shared with MonthView (whose old tap-to-create was replaced by the
+  same modal, so creation is strictly from the floating "New event" button in both views —
+  its default date stays "today"; the form's date picker covers other days). The
+   component's built-in header (year back-button + a month label duplicating our own) and
+   bottom event list (duplicated by the agenda modal) are hidden via the `styles` prop:
+  `mobileMonthViewHeader` and `mobileMonthViewEventsList` → `{ display: "none" }`. The app's
+  own header row remains the only navigation chrome.
+- **AgendaView modal** — a day tap in either view opens a floating `centered`
+  `size="sm"` modal titled with the full day (e.g. "Saturday, August 16, 2026"), wrapping
+  `AgendaView` with a single-day range (`rangeStart` = `rangeEnd` = tapped day) and the
+  month's events. `agendaViewHeader` is hidden via `styles` because its label renders
+  "X – X" even for a single day; the modal title carries the date instead. Clicking an
+  event opens `EventDetail` on top — the agenda modal is rendered before `EventDetail` in
+  the tree so its portal mounts first and the detail modal stacks above it. Deleting from
+  the detail closes both the detail and the agenda modal before `router.refresh()`, so a
+  deleted event doesn't linger in the open agenda list.
+- **Mantine 9.5.1 gotchas (verified against the installed package source)** —
+  `MobileMonthView` has **no `withHeader` prop** (unlike `MonthView`); the built-in
+  header is the only leak and must be suppressed with `styles` overrides. `classNames`
+  takes class-name **strings**, not `CSSProperties` — inline style overrides go in the
+  `styles` prop, which is deep-merged over the component's own styles with user values
+  winning. `EventDetail`'s detail/confirm portals mount only while open, which is what
+  makes the agenda → detail stacking order work.
+- **Verification** — `pnpm lint`, `pnpm typecheck`, `pnpm test` (86), `pnpm build` (route
+  list still shows `/dashboard`), and `pnpm db:generate` (no drift — no schema change) all
+  pass.
+
+## 1.18 Git history
 
 ```
 c2e1a68 Document Vercel Corepack requirement and env setup
