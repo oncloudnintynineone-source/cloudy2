@@ -1,41 +1,40 @@
 "use client";
 
 import { useForm } from "@mantine/form";
-import { Button, Group, NumberInput, Stack, TextInput } from "@mantine/core";
+import { Button, Group, Stack, TextInput } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
 
 import {
   createDepartment,
-  updateDepartment,
+  renameDepartment,
   type RosterActionResult,
 } from "@/lib/roster/actions";
-import { validateDepartmentForm, type DepartmentFormValues } from "@/lib/roster/validate";
+import { validateCalendarForm, type CalendarFormValues } from "@/lib/roster/validate";
 
 interface DepartmentFormProps {
-  department: { id: string; name: string; sortOrder: number } | null;
+  calendar: { id: string; name: string } | null;
   onDone: () => void;
 }
 
-export function DepartmentForm({ department, onDone }: DepartmentFormProps) {
-  const isEdit = department !== null;
+export function DepartmentForm({ calendar, onDone }: DepartmentFormProps) {
+  const isEdit = calendar !== null;
 
-  const form = useForm<DepartmentFormValues>({
+  const form = useForm<CalendarFormValues>({
     initialValues: {
-      name: department?.name ?? "",
-      sortOrder: department?.sortOrder ?? 0,
+      name: calendar?.name ?? "",
     },
-    validate: (values) => validateDepartmentForm(values),
+    validate: (values) => validateCalendarForm(values),
   });
 
   const onSubmit = form.onSubmit(async (values) => {
     const result: RosterActionResult = isEdit
-      ? await updateDepartment(department.id, values)
+      ? await renameDepartment(calendar.id, values)
       : await createDepartment(values);
 
     if (result.ok) {
       notifications.show({
         color: "green",
-        message: isEdit ? "Department updated" : "Department created",
+        message: isEdit ? "Department renamed" : "Department created",
       });
       onDone();
       return;
@@ -50,12 +49,11 @@ export function DepartmentForm({ department, onDone }: DepartmentFormProps) {
   return (
     <form onSubmit={onSubmit}>
       <Stack>
-        <TextInput label="Name" required placeholder="Department name" {...form.getInputProps("name")} />
-        <NumberInput
-          label="Sort order"
-          description="Lower numbers appear first"
-          min={0}
-          {...form.getInputProps("sortOrder")}
+        <TextInput
+          label="Name"
+          required
+          placeholder="Department name"
+          {...form.getInputProps("name")}
         />
         <Group justify="flex-end" mt="md">
           <Button type="submit">{isEdit ? "Save changes" : "Create department"}</Button>

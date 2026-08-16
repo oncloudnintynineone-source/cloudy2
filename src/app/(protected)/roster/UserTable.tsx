@@ -43,10 +43,7 @@ export function UserTable({ users, departments }: UserTableProps) {
       if (statusFilter !== "all" && user.status !== statusFilter) {
         return false;
       }
-      if (
-        departmentFilter !== "all" &&
-        !user.departments.some((d) => d.id === departmentFilter)
-      ) {
+      if (departmentFilter !== "all" && user.department?.id !== departmentFilter) {
         return false;
       }
       if (query && !user.name.toLowerCase().includes(query) && !user.phone.includes(query)) {
@@ -130,7 +127,7 @@ export function UserTable({ users, departments }: UserTableProps) {
                 <Table.Th>Birthday</Table.Th>
                 <Table.Th>Role</Table.Th>
                 <Table.Th>Status</Table.Th>
-                <Table.Th>Departments</Table.Th>
+                <Table.Th>Department</Table.Th>
                 <Table.Th ta="right">Actions</Table.Th>
               </Table.Tr>
             </Table.Thead>
@@ -150,19 +147,13 @@ export function UserTable({ users, departments }: UserTableProps) {
                     </Badge>
                   </Table.Td>
                   <Table.Td>
-                    <Group gap={4}>
-                      {user.departments.length === 0 ? (
-                        <Text c="dimmed" size="sm">
-                          —
-                        </Text>
-                      ) : (
-                        user.departments.map((d) => (
-                          <Badge key={d.id} variant={d.isPrimary ? "filled" : "light"}>
-                            {d.name}
-                          </Badge>
-                        ))
-                      )}
-                    </Group>
+                    {user.department ? (
+                      <Badge variant="light">{user.department.name}</Badge>
+                    ) : (
+                      <Text c="dimmed" size="sm">
+                        —
+                      </Text>
+                    )}
                   </Table.Td>
                   <Table.Td>
                     <Group gap={4} justify="flex-end">

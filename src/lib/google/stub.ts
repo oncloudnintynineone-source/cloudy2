@@ -1,9 +1,9 @@
 import type { GoogleIntegration } from "./types";
 
 /**
- * No-op implementation used before Google credentials are provisioned. Every
- * operation resolves successfully but performs no external side effects, so
- * the app runs and tests pass without a GCP service account.
+ * No-op implementation used when no Google service-account credentials are
+ * present. Every operation resolves successfully but performs no external side
+ * effects, so the app runs and tests pass without a GCP service account.
  */
 export const stubGoogleIntegration: GoogleIntegration = {
   async createEvent() {
@@ -18,6 +18,16 @@ export const stubGoogleIntegration: GoogleIntegration = {
   },
   async renameCalendar() {},
   async deleteCalendar() {},
+  async listCalendars() {
+    return [];
+  },
+  async getCalendar() {
+    return null;
+  },
   async setCalendarAccess() {},
+  async listCalendarAccess() {
+    return [];
+  },
+  async removeCalendarAccess() {},
   async sendEmail() {},
 };

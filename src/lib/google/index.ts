@@ -1,19 +1,20 @@
+import { hasGoogleCredentials } from "./config";
+import { createRealGoogleIntegration } from "./real";
 import { stubGoogleIntegration } from "./stub";
 import type { GoogleIntegration } from "./types";
 
-export type { GoogleIntegration, GcalEvent, GcalEventInput } from "./types";
+export type { GoogleIntegration, GcalEvent, GcalEventInput, GoogleCalendarInfo } from "./types";
 
-let cached: GoogleIntegration | null = null;
+/** Whether real Google service-account credentials are configured. */
+export function googleCalendarConfigured(): boolean {
+  return hasGoogleCredentials();
+}
 
 /**
- * Returns the active Google integration. Real implementation is wired in a
- * later phase once service-account credentials are provisioned; until then a
- * no-op stub keeps the app runnable.
+ * Returns the active Google integration — the real service-account client when
+ * credentials are configured, otherwise a no-op stub. Callers that must surface
+ * "Google is unavailable" can check `googleCalendarConfigured()` first.
  */
 export async function getGoogleIntegration(): Promise<GoogleIntegration> {
-  if (cached) {
-    return cached;
-  }
-  cached = stubGoogleIntegration;
-  return cached;
+  return googleCalendarConfigured() ? createRealGoogleIntegration() : stubGoogleIntegration;
 }

@@ -5,8 +5,8 @@ import {
   date,
   index,
   integer,
+  jsonb,
   pgTable,
-  primaryKey,
   text,
   timestamp,
   uniqueIndex,
@@ -26,42 +26,22 @@ export const users = pgTable(
     phone: text("phone").notNull(),
     email: text("email"),
     birthday: date("birthday"),
-    role: text("role", { enum: ["admin", "user"] }).notNull().default("user"),
+    role: text("role", { enum: ["admin", "user"] })
+      .notNull()
+      .default("user"),
     passwordHash: text("password_hash"),
-    status: text("status", { enum: ["active", "inactive"] }).notNull().default("active"),
+    status: text("status", { enum: ["active", "inactive"] })
+      .notNull()
+      .default("active"),
+    departmentId: uuid("department_id").references(() => calendars.id, {
+      onDelete: "set null",
+    }),
     ...timestamps,
   },
   (table) => [
     uniqueIndex("users_phone_idx").on(table.phone),
     index("users_role_idx").on(table.role),
-  ],
-);
-
-export const departments = pgTable(
-  "departments",
-  {
-    id: uuid("id").primaryKey().defaultRandom(),
-    name: text("name").notNull(),
-    sortOrder: integer("sort_order").notNull().default(0),
-    ...timestamps,
-  },
-  (table) => [uniqueIndex("departments_name_idx").on(table.name)],
-);
-
-export const userDepartments = pgTable(
-  "user_departments",
-  {
-    userId: uuid("user_id")
-      .notNull()
-      .references(() => users.id, { onDelete: "cascade" }),
-    departmentId: uuid("department_id")
-      .notNull()
-      .references(() => departments.id, { onDelete: "cascade" }),
-    isPrimary: boolean("is_primary").notNull().default(false),
-  },
-  (table) => [
-    primaryKey({ columns: [table.userId, table.departmentId] }),
-    index("user_departments_department_idx").on(table.departmentId),
+    index("users_department_idx").on(table.departmentId),
   ],
 );
 
@@ -69,18 +49,14 @@ export const calendars = pgTable(
   "calendars",
   {
     id: uuid("id").primaryKey().defaultRandom(),
-    departmentId: uuid("department_id")
-      .notNull()
-      .references(() => departments.id, { onDelete: "cascade" }),
     googleCalendarId: text("google_calendar_id").notNull(),
     name: text("name").notNull(),
-    kind: text("kind", { enum: ["department", "shared"] }).notNull().default("department"),
+    kind: text("kind", { enum: ["department", "shared"] })
+      .notNull()
+      .default("department"),
     ...timestamps,
   },
-  (table) => [
-    uniqueIndex("calendars_google_calendar_id_idx").on(table.googleCalendarId),
-    index("calendars_department_idx").on(table.departmentId),
-  ],
+  (table) => [uniqueIndex("calendars_google_calendar_id_idx").on(table.googleCalendarId)],
 );
 
 export const acronyms = pgTable("acronyms", {
@@ -107,18 +83,46 @@ export const settings = pgTable(
     adminPasswordHash: text("admin_password_hash"),
     userKeyword: text("user_keyword"),
     kahPercentage: integer("kah_percentage").notNull().default(100),
-    kahNotificationEmails: text("kah_notification_emails").array().notNull().default(sql`'{}'::text[]`),
+    kahNotificationEmails: text("kah_notification_emails")
+      .array()
+      .notNull()
+      .default(sql`'{}'::text[]`),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [check("settings_singleton", sql`${table.id} = 'singleton'`)],
 );
 
+export const auditLogs = pgTable(
+  "audit_logs",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    actorId: uuid("actor_id").references(() => users.id, { onDelete: "set null" }),
+    actorName: text("actor_name"),
+    actorRole: text("actor_role"),
+    action: text("action").notNull(),
+    entityType: text("entity_type"),
+    entityId: uuid("entity_id"),
+    entityName: text("entity_name"),
+    route: text("route"),
+    method: text("method"),
+    details: jsonb("details"),
+    ip: text("ip"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("audit_logs_actor_idx").on(table.actorId),
+    index("audit_logs_action_idx").on(table.action),
+    index("audit_logs_created_idx").on(table.createdAt),
+    index("audit_logs_entity_idx").on(table.entityType, table.entityId),
+  ],
+);
+
 export type User = typeof users.$inferSelect;
 export type NewUser = typeof users.$inferInsert;
-export type Department = typeof departments.$inferSelect;
-export type NewDepartment = typeof departments.$inferInsert;
 export type Calendar = typeof calendars.$inferSelect;
 export type NewCalendar = typeof calendars.$inferInsert;
 export type Acronym = typeof acronyms.$inferSelect;
 export type ParadeState = typeof paradeStates.$inferSelect;
 export type Settings = typeof settings.$inferSelect;
+export type AuditLog = typeof auditLogs.$inferSelect;
+export type NewAuditLog = typeof auditLogs.$inferInsert;

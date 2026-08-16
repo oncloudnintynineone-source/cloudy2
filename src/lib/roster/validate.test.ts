@@ -1,90 +1,77 @@
 import { describe, expect, it } from "vitest";
 
-import { normalizePhone, validateDepartmentForm, validateUserForm } from "./validate";
+import {
+  normalizePhone,
+  validateCalendarForm,
+  validateUserForm,
+  type UserFormValues,
+} from "./validate";
 
 describe("normalizePhone", () => {
-  it("keeps a plain 8-digit number", () => {
-    expect(normalizePhone("81234567")).toBe("81234567");
-  });
-
-  it("strips internal spaces and dashes", () => {
+  it("strips non-digits and keeps 8 digits", () => {
     expect(normalizePhone("8123 4567")).toBe("81234567");
     expect(normalizePhone("8123-4567")).toBe("81234567");
   });
 
-  it("rejects a full number with country code", () => {
-    expect(normalizePhone("+65 8123 4567")).toBeNull();
-    expect(normalizePhone("65-8123-4567")).toBeNull();
+  it("returns null when a country code pushes the digit count over 8", () => {
+    expect(normalizePhone("+65 81234567")).toBeNull();
   });
 
-  it("returns null for too few digits", () => {
-    expect(normalizePhone("12345")).toBeNull();
-  });
-
-  it("returns null for too many digits", () => {
-    expect(normalizePhone("123456789")).toBeNull();
+  it("returns null for too few or too many digits", () => {
+    expect(normalizePhone("8123456")).toBeNull();
+    expect(normalizePhone("812345678")).toBeNull();
   });
 
   it("returns null for empty input", () => {
     expect(normalizePhone("")).toBeNull();
+    expect(normalizePhone("abc")).toBeNull();
   });
 });
 
 describe("validateUserForm", () => {
-  const valid = {
+  const base: UserFormValues = {
     name: "Alice Tan",
     phone: "81234567",
     email: "alice@example.com",
-    birthday: "1990-01-01",
-    role: "user" as const,
-    status: "active" as const,
-    departmentIds: ["dept-1"],
-    primaryDepartmentId: "dept-1",
+    birthday: "1991-03-15",
+    role: "user",
+    status: "active",
+    departmentId: "dept-1",
   };
 
-  it("passes a valid form", () => {
-    expect(validateUserForm(valid)).toEqual({});
+  it("accepts a complete valid form", () => {
+    expect(validateUserForm(base)).toEqual({});
   });
 
   it("requires a name", () => {
-    expect(validateUserForm({ ...valid, name: "   " }).name).toBeTruthy();
+    expect(validateUserForm({ ...base, name: "  " }).name).toBe("Name is required");
   });
 
-  it("requires an 8-digit phone", () => {
-    expect(validateUserForm({ ...valid, phone: "123" }).phone).toBeTruthy();
+  it("requires an exactly-8-digit phone", () => {
+    expect(validateUserForm({ ...base, phone: "1234" }).phone).toBe(
+      "Phone must be exactly 8 digits",
+    );
   });
 
-  it("rejects an invalid email but allows blank", () => {
-    expect(validateUserForm({ ...valid, email: "not-an-email" }).email).toBeTruthy();
-    expect(validateUserForm({ ...valid, email: "" }).email).toBeUndefined();
+  it("validates email format and allows blank email", () => {
+    expect(validateUserForm({ ...base, email: "not-an-email" }).email).toBe(
+      "Enter a valid email or leave it blank",
+    );
+    expect(validateUserForm({ ...base, email: "" }).email).toBeUndefined();
   });
 
-  it("requires a primary department when departments are selected", () => {
-    expect(
-      validateUserForm({ ...valid, primaryDepartmentId: null }).primaryDepartmentId,
-    ).toBeTruthy();
-  });
-
-  it("requires the primary department to be one of the selected ones", () => {
-    expect(
-      validateUserForm({ ...valid, primaryDepartmentId: "dept-other" }).primaryDepartmentId,
-    ).toBeTruthy();
-  });
-
-  it("does not require a primary department when none are selected", () => {
-    expect(
-      validateUserForm({ ...valid, departmentIds: [], primaryDepartmentId: null })
-        .primaryDepartmentId,
-    ).toBeUndefined();
+  it("allows a null department (user unassigned)", () => {
+    expect(validateUserForm({ ...base, departmentId: null })).toEqual({});
   });
 });
 
-describe("validateDepartmentForm", () => {
-  it("passes a valid form", () => {
-    expect(validateDepartmentForm({ name: "Ops", sortOrder: 0 })).toEqual({});
+describe("validateCalendarForm", () => {
+  it("accepts a name", () => {
+    expect(validateCalendarForm({ name: "Operations" })).toEqual({});
   });
 
   it("requires a name", () => {
-    expect(validateDepartmentForm({ name: "  ", sortOrder: 0 }).name).toBeTruthy();
+    expect(validateCalendarForm({ name: "" }).name).toBe("Name is required");
+    expect(validateCalendarForm({ name: "   " }).name).toBe("Name is required");
   });
 });
