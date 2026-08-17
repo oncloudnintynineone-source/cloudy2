@@ -16,7 +16,11 @@ import {
 } from "@/lib/events/targets";
 import { validateEventForm, type EventFormValues } from "@/lib/events/validate";
 import { getGoogleIntegration, googleCalendarConfigured, type GcalEventInput } from "@/lib/google";
+import { getUsersByIds } from "@/lib/roster/queries";
 import { resolveGoogleCalendarId } from "@/lib/roster/shares";
+import { formatEventTitle, type EventTitlePerson } from "@/lib/settings/formatEventTitle";
+import { formatFullName } from "@/lib/settings/formatName";
+import { getSettings } from "@/lib/settings/queries";
 import { requireSession } from "@/lib/session";
 
 export type EventActionResult =
@@ -99,18 +103,79 @@ async function refTargetCalendars(ref: EventRef): Promise<string[]> {
   );
 }
 
+/** Resolve-once display data behind the event title template tokens. */
+interface EventTitleContext {
+  template: string;
+  people: EventTitlePerson[];
+  departments: string[];
+}
+
+/**
+ * Resolve the invited people (plain name, acronym, fully qualified name via
+ * the display-name template) and department names a title template can
+ * render. Unknown ids are dropped; malformed invitee arrays are coerced.
+ */
+async function buildEventTitleContext(input: EventFormValues): Promise<EventTitleContext> {
+  const settings = await getSettings();
+  const inviteeUserIds = [
+    ...new Set(Array.isArray(input.inviteeUserIds) ? input.inviteeUserIds : []),
+  ];
+  const inviteeDepartments = Array.isArray(input.inviteeDepartments)
+    ? input.inviteeDepartments
+    : [];
+  const [userRows, departmentNames] = await Promise.all([
+    getUsersByIds(inviteeUserIds),
+    calendarNames(inviteeDepartments),
+  ]);
+  const userById = new Map(userRows.map((user) => [user.id, user]));
+  const people = inviteeUserIds.flatMap((id) => {
+    const user = userById.get(id);
+    if (!user) {
+      return [];
+    }
+    return [
+      {
+        full: user.name,
+        acronym: user.shortname || user.name,
+        fqn: formatFullName(
+          { name: user.name, departmentName: user.departmentName },
+          settings.nameTemplate,
+        ),
+      },
+    ];
+  });
+  return {
+    template: settings.eventTitleTemplate,
+    people,
+    departments: inviteeDepartments.map((id) => departmentNames[id] ?? ""),
+  };
+}
+
 function buildGcalEventInput(
   googleCalendarId: string,
   input: EventFormValues,
   eventId: string,
+  titleContext: EventTitleContext,
 ): GcalEventInput {
-  const title = input.title.trim();
+  const rawTitle = input.title.trim();
+  const renderedTitle = formatEventTitle(
+    {
+      description: rawTitle,
+      eventType: input.eventType || null,
+      people: titleContext.people,
+      departments: titleContext.departments,
+    },
+    titleContext.template,
+  );
+  // A template that renders to nothing must not produce an untitled event.
+  const title = renderedTitle || rawTitle;
   const description = encodeEventNotes({
     eventId,
     eventType: input.eventType || undefined,
     createdBy: input.creatorId || undefined,
     inviteeUsers: input.inviteeUserIds,
     inviteeDepartments: input.inviteeDepartments,
+    title: rawTitle,
   });
 
   const { start, end } = absEventRange(input.start, input.end, input.allDay);
@@ -198,6 +263,7 @@ export async function createEvent(input: EventFormValues): Promise<EventActionRe
 
   const eventId = crypto.randomUUID();
   const integration = await getGoogleIntegration();
+  const titleContext = await buildEventTitleContext(input);
   const created: { googleCalendarId: string; googleEventId: string }[] = [];
 
   try {
@@ -207,7 +273,7 @@ export async function createEvent(input: EventFormValues): Promise<EventActionRe
         throw new Error("Calendar not found");
       }
       const event = await integration.createEvent(
-        buildGcalEventInput(googleCalendarId, input, eventId),
+        buildGcalEventInput(googleCalendarId, input, eventId, titleContext),
       );
       created.push({ googleCalendarId, googleEventId: event.id });
     }
@@ -269,6 +335,7 @@ export async function updateEvent(ref: EventRef, input: EventFormValues): Promis
   ]);
 
   const integration = await getGoogleIntegration();
+  const titleContext = await buildEventTitleContext(input);
   // The old copies' search range covers both the old and new times (±day), so
   // a date/time change still finds the copies to update or retire.
   const range = withMargin(
@@ -295,12 +362,12 @@ export async function updateEvent(ref: EventRef, input: EventFormValues): Promis
           for (const copy of found) {
             await integration.updateEvent(
               copy.googleEventId,
-              buildGcalEventInput(googleCalendarId, input, eventId),
+              buildGcalEventInput(googleCalendarId, input, eventId, titleContext),
             );
           }
         } else {
           const event = await integration.createEvent(
-            buildGcalEventInput(googleCalendarId, input, eventId),
+            buildGcalEventInput(googleCalendarId, input, eventId, titleContext),
           );
           createdHere.push({ googleCalendarId, googleEventId: event.id });
         }

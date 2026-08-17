@@ -6,7 +6,7 @@ import { db } from "@/db";
 import { calendars, users } from "@/db/schema";
 import { getGoogleIntegration } from "@/lib/google";
 import { formatInstantToNaive, monthRange, utcToDateString } from "@/lib/events/datetime";
-import { parseEventPeople, parseEventType } from "@/lib/events/notes";
+import { parseEventPeople, parseEventType, parseEventTitle } from "@/lib/events/notes";
 import { dedupeEventsByGroupId } from "@/lib/events/targets";
 
 export interface CalendarEventPayload {
@@ -23,6 +23,8 @@ export interface CalendarEventPayload {
   inviteeUserIds: string[];
   /** Department (calendar) ids tagged on the event (schedule view rows). */
   inviteeDepartmentIds: string[];
+  /** Raw (pre-template) description from the notes block; null for legacy events. */
+  rawTitle: string | null;
 }
 
 export interface CalendarEvent {
@@ -134,6 +136,7 @@ export async function fetchMonthEvents(params: {
           creatorId: people.creatorId,
           inviteeUserIds: people.userIds,
           inviteeDepartmentIds: people.departmentIds,
+          rawTitle: parseEventTitle(item.description),
         },
       });
     }

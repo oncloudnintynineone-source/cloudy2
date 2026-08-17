@@ -4,6 +4,7 @@ import { settings } from "@/db/schema";
 export interface SettingsView {
   userKeyword: string;
   nameTemplate: string;
+  eventTitleTemplate: string;
 }
 
 /**
@@ -12,5 +13,9 @@ export interface SettingsView {
  */
 export async function getSettings(): Promise<SettingsView> {
   const [row] = await db.select().from(settings).limit(1);
-  return { userKeyword: row?.userKeyword ?? "", nameTemplate: row?.nameTemplate ?? "{name}" };
+  return {
+    userKeyword: row?.userKeyword ?? "",
+    nameTemplate: row?.nameTemplate ?? "{name}",
+    eventTitleTemplate: row?.eventTitleTemplate ?? "{description}",
+  };
 }

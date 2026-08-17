@@ -33,7 +33,8 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
 - [1.20 Cross-department event copies (Phase 2l)](#120-cross-department-event-copies-phase-2l)
 - [1.21 User shortname (Phase 2m)](#121-user-shortname-phase-2m)
 - [1.22 Display name template (Phase 2n)](#122-display-name-template-phase-2n)
-- [1.23 Git history](#123-git-history)
+- [1.23 Event title template (Phase 2o)](#123-event-title-template-phase-2o)
+- [1.24 Git history](#124-git-history)
 
 ## 1.1 Status
 
@@ -83,6 +84,14 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
   schema changes; `pnpm lint/typecheck/test` (114) pass, `db:generate` no drift;
   verified live (2-copy cross-dept create, dedupe, edit reconcile with move, re-tag
   copy, delete cascade, legacy backfill).
+- **Phase 2o (event title template):** admins define an **event title template**
+  (`settings.event_title_template`, default `'{description}'`) that composes the title
+  written to Google Calendar events — `{description}`, `{type}`, `{departments}`, and
+  invited personnel as `{people}` / `{people:full}` / `{people:acronym}` / `{people:fqn}`
+  (bare = FQN via the display-name template). The raw description round-trips through
+  `notes.title` so editing never re-types the rendered title. Only newly created/edited
+  events re-render. `pnpm lint/typecheck/test` (146) pass; `db:generate` no drift
+  (migration `0008`).
 - **Deployment (Vercel):** build passes on `main`/`dev` with no warnings (Corepack +
   `NEXTAUTH_URL` unset). Migrations `0000` + `0001` applied to Neon (via CI migrate job);
   `0002`–`0005` pending (apply on next `main` push).
@@ -840,7 +849,77 @@ string (no gap-collapsing).
 - Verification: `pnpm lint`, `pnpm typecheck`, `pnpm test` (128), `pnpm build`, and
   `pnpm db:generate` (no drift — migration `0007` in sync) all pass.
 
-## 1.23 Git history
+## 1.23 Event title template (Phase 2o)
+
+Admins can define an **event title template** that composes the title written to Google
+Calendar events — the same "global template setting + pure formatter + insert chips +
+live preview" pattern as the display name template (1.22). The template is
+`settings.event_title_template` (default `'{description}'`, i.e. today's raw-description
+behavior) expanded by the pure `formatEventTitle()` in
+`src/lib/settings/formatEventTitle.ts`. Tokens are case-insensitive:
+
+- `{description}` — the text the user typed into the event form ("Event Description")
+- `{type}` — event type name (empty when none)
+- `{people}` / `{people:full}` / `{people:acronym}` / `{people:fqn}` — invited personnel
+  joined with `", "`; bare `{people}` and `{people:fqn}` render the fully qualified name
+  (via the saved display-name template), `{people:full}` the plain name, and
+  `{people:acronym}` the shortname (falling back to the name when blank)
+- `{departments}` — invited departments joined with `", "`
+
+Unknown tokens and unknown people styles stay literal; empty lists render as `""` (no
+gap-collapsing, consistent with `formatFullName`).
+
+```mermaid
+flowchart LR
+    A["EventForm<br/>description · type · invitees"] --> B[createEvent / updateEvent]
+    B --> C["getSettings<br/>event_title_template + name_template"]
+    B --> D["getUsersByIds + department names"]
+    A --> E[buildGcalEventInput]
+    C --> E
+    D --> E
+    E --> F["formatEventTitle (pure)"]
+    F --> G["Google event summary<br/>+ notes.title = raw input"]
+```
+
+- **Schema** — migration `0008` adds `settings.event_title_template` (`text`, `NOT NULL`,
+  default `'{description}'`), so existing rows and the bootstrap insert fall back to the
+  plain description.
+- **Formatter** — new pure `formatEventTitle(input, template)`: people arrive pre-resolved
+  as `{ full, acronym, fqn }` per person, so the formatter is pure string substitution
+  (token regex handles `{token}` and `{token:style}`). Unit-tested
+  (`formatEventTitle.test.ts`, 12 cases).
+- **Validation** (`src/lib/settings/validate.ts`) — `validateEventTitleTemplate`
+  (non-empty after trim, ≤ 200 chars); `EVENT_TITLE_PLACEHOLDERS` drives the insert
+  chips. 4 new cases in `validate.test.ts`.
+- **Settings** — `getSettings()` returns `eventTitleTemplate`; new
+  `updateEventTitleTemplate` server action (mirror of `updateNameTemplate`:
+  `requireAdmin`, validate, `UPDATE settings`, audit `settings.update` with a diff,
+  `revalidatePath("/settings/general")`).
+- **Round-trip fix** — the raw description is now stored in the notes JSON
+  (`notes.title`; `parseEventTitle` in `src/lib/events/notes.ts`), so editing an event
+  prefills the form with the *original* text, not the rendered calendar title. Legacy
+  events (no `notes.title`) fall back to the existing summary and are backfilled on
+  first edit. `CalendarEventPayload.rawTitle` carries it to the client.
+- **Events actions** (`src/lib/events/actions.ts`) — `createEvent`/`updateEvent` resolve
+  the title context **once** per operation: invited people (name / shortname / FQN via
+  the saved display-name template, using new `getUsersByIds()` in `src/lib/roster/queries.ts`)
+  plus department names; `buildGcalEventInput` then renders the Google `summary` via the
+  template. A template that renders to empty falls back to the raw description, so an
+  event is never titled with an empty string. All department copies of one logical event
+  share the same rendered title.
+- **UI** (`src/app/(protected)/settings/general/`) — third "Event title template" card
+  on the General tab: input with insert-at-cursor chips for the seven tokens, a hint
+  line explaining the people styles, and a live preview of a sample event (description
+  "Team offsite" + first event type + up to two real users as invitees + their
+  departments) that re-renders as the admin types. `loading.tsx` gains a third skeleton
+  card.
+- **Scoping** — only newly created/edited events re-render; existing Google summaries are
+  untouched (legacy events lack the raw fields, so a bulk back-render isn't feasible).
+  Changing the template does not rewrite past events.
+- Verification: `pnpm lint`, `pnpm typecheck`, `pnpm test` (146), `pnpm build`, and
+  `pnpm db:generate` (no drift — migration `0008` in sync) all pass.
+
+## 1.24 Git history
 
 ```
 c2e1a68 Document Vercel Corepack requirement and env setup

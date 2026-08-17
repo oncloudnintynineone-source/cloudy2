@@ -80,6 +80,7 @@ function makeEvent(eventId: string | null, calendarId = "cal-1"): CalendarEvent 
       creatorId: "u1",
       inviteeUserIds: [],
       inviteeDepartmentIds: [],
+      rawTitle: null,
     },
   };
 }

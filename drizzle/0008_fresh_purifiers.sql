@@ -1,0 +1,1 @@
+ALTER TABLE "settings" ADD COLUMN "event_title_template" text DEFAULT '{description}' NOT NULL;

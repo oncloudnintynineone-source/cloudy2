@@ -20,7 +20,7 @@ interface EventFormProps {
   /** Session user id; stored as the event creator on create. */
   currentUser: string;
   inviteeDepartments: { id: string; name: string }[];
-  inviteeUsers: { id: string; name: string; departmentName: string | null }[];
+  inviteeUsers: { id: string; name: string; departmentName: string | null; displayName: string }[];
   onDone: () => void;
 }
 
@@ -62,7 +62,9 @@ export function EventForm({
     if (event) {
       const allDay = event.payload.allDay;
       return {
-        title: event.title === "(no title)" ? "" : event.title,
+        // Prefill the raw (pre-template) description when the notes block has
+        // it, so editing never re-types the rendered calendar title.
+        title: event.payload.rawTitle ?? (event.title === "(no title)" ? "" : event.title),
         allDay,
         start: event.start,
         end: allDay ? `${subOneDay(event.end.slice(0, 10))} 00:00:00` : event.end,
@@ -108,7 +110,7 @@ export function EventForm({
               group: "People",
               items: inviteeUsers.map((user) => ({
                 value: `user:${user.id}`,
-                label: user.name,
+                label: user.displayName,
               })),
             },
           ]

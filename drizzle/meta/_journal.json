@@ -57,6 +57,13 @@
       "when": 1786952222654,
       "tag": "0007_freezing_stephen_strange",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1786955171302,
+      "tag": "0008_fresh_purifiers",
+      "breakpoints": true
     }
   ]
 }

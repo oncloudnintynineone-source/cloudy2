@@ -95,6 +95,7 @@ export const settings = pgTable(
     adminPasswordHash: text("admin_password_hash"),
     userKeyword: text("user_keyword"),
     nameTemplate: text("name_template").notNull().default("{name}"),
+    eventTitleTemplate: text("event_title_template").notNull().default("{description}"),
     kahPercentage: integer("kah_percentage").notNull().default(100),
     kahNotificationEmails: text("kah_notification_emails")
       .array()

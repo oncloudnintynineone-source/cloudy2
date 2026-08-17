@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 
-import { normalizeKeyword, validateKeywordForm, validateNameTemplate } from "./validate";
+import {
+  normalizeKeyword,
+  validateEventTitleTemplate,
+  validateKeywordForm,
+  validateNameTemplate,
+} from "./validate";
 
 describe("normalizeKeyword", () => {
   it("returns a lowercase keyword unchanged", () => {
@@ -80,5 +85,32 @@ describe("validateNameTemplate", () => {
 
   it("accepts literal text with no placeholders", () => {
     expect(validateNameTemplate({ nameTemplate: "Staff" })).toEqual({});
+  });
+});
+
+describe("validateEventTitleTemplate", () => {
+  it("returns no errors for a valid template", () => {
+    expect(
+      validateEventTitleTemplate({
+        eventTitleTemplate: "{type}: {description} — {people:acronym}",
+      }),
+    ).toEqual({});
+  });
+
+  it("flags an empty template", () => {
+    expect(validateEventTitleTemplate({ eventTitleTemplate: "  " }).eventTitleTemplate).toBe(
+      "Event title template is required",
+    );
+  });
+
+  it("flags an over-long template", () => {
+    const long = "{description}".repeat(100);
+    expect(validateEventTitleTemplate({ eventTitleTemplate: long }).eventTitleTemplate).toBe(
+      "Event title template must be 200 characters or fewer",
+    );
+  });
+
+  it("accepts literal text with no placeholders", () => {
+    expect(validateEventTitleTemplate({ eventTitleTemplate: "Staff" })).toEqual({});
   });
 });

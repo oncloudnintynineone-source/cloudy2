@@ -9,11 +9,19 @@ import { AUDIT_ACTIONS, actorFromUser } from "@/lib/audit/build";
 import { diffFields } from "@/lib/audit/diff";
 import { logAction } from "@/lib/audit/log";
 import { requireAdmin } from "@/lib/session";
-import { normalizeKeyword, validateNameTemplate } from "@/lib/settings/validate";
+import {
+  normalizeKeyword,
+  validateEventTitleTemplate,
+  validateNameTemplate,
+} from "@/lib/settings/validate";
 
 export type SettingsActionResult =
   | { ok: true }
-  | { ok: false; error: string; field?: "keyword" | "nameTemplate" };
+  | {
+      ok: false;
+      error: string;
+      field?: "keyword" | "nameTemplate" | "eventTitleTemplate";
+    };
 
 export async function updateKeyword(keyword: string): Promise<SettingsActionResult> {
   const session = await requireAdmin();
@@ -87,6 +95,46 @@ export async function updateNameTemplate(template: string): Promise<SettingsActi
     details: diffFields(
       { nameTemplate: before?.nameTemplate ?? null },
       { nameTemplate: normalized },
+    ),
+  });
+
+  revalidatePath("/settings/general");
+  return { ok: true };
+}
+
+export async function updateEventTitleTemplate(template: string): Promise<SettingsActionResult> {
+  const session = await requireAdmin();
+
+  const errors = validateEventTitleTemplate({ eventTitleTemplate: template });
+  if (errors.eventTitleTemplate) {
+    return {
+      ok: false,
+      error: errors.eventTitleTemplate,
+      field: "eventTitleTemplate",
+    };
+  }
+
+  const normalized = template.trim();
+  const [before] = await db.select().from(settings).limit(1);
+
+  await db
+    .update(settings)
+    .set({ eventTitleTemplate: normalized, updatedAt: new Date() })
+    .where(eq(settings.id, "singleton"));
+
+  await logAction({
+    ...actorFromUser({
+      id: session.user.id,
+      name: session.user.name ?? null,
+      role: session.user.role,
+    }),
+    action: AUDIT_ACTIONS.settingsUpdate,
+    entityType: "settings",
+    entityName: "settings",
+    method: "updateEventTitleTemplate",
+    details: diffFields(
+      { eventTitleTemplate: before?.eventTitleTemplate ?? null },
+      { eventTitleTemplate: normalized },
     ),
   });
 

@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 
-import { encodeEventNotes, parseEventNotes, parseEventPeople, parseEventType } from "./notes";
+import {
+  encodeEventNotes,
+  parseEventNotes,
+  parseEventPeople,
+  parseEventType,
+  parseEventTitle,
+} from "./notes";
 
 describe("encodeEventNotes", () => {
   it("serializes a non-empty notes object as JSON", () => {
@@ -61,6 +67,19 @@ describe("parseEventType", () => {
     expect(parseEventType("")).toBeNull();
     expect(parseEventType('{"other":1}')).toBeNull();
     expect(parseEventType('{"eventType":""}')).toBeNull();
+  });
+});
+
+describe("parseEventTitle", () => {
+  it("extracts the raw description from notes", () => {
+    expect(parseEventTitle('{"title":"Team offsite"}')).toBe("Team offsite");
+  });
+
+  it("returns null for legacy notes without a title", () => {
+    expect(parseEventTitle("")).toBeNull();
+    expect(parseEventTitle('{"eventType":"Leave"}')).toBeNull();
+    expect(parseEventTitle('{"title":""}')).toBeNull();
+    expect(parseEventTitle("not json")).toBeNull();
   });
 });
 

@@ -1,4 +1,4 @@
-import { asc, eq } from "drizzle-orm";
+import { asc, eq, inArray } from "drizzle-orm";
 
 import { db } from "@/db";
 import { calendars, users } from "@/db/schema";
@@ -50,6 +50,40 @@ export async function listUsers(): Promise<RosterUser[]> {
     role: row.role,
     status: row.status,
     department: row.departmentId ? { id: row.departmentId, name: row.departmentName ?? "" } : null,
+  }));
+}
+
+export interface UserDisplayInfo {
+  id: string;
+  name: string;
+  shortname: string | null;
+  departmentName: string | null;
+}
+
+/**
+ * Lightweight lookup of users by id (name, shortname, department name) for
+ * rendering event title templates. Unknown ids are omitted from the result.
+ */
+export async function getUsersByIds(userIds: string[]): Promise<UserDisplayInfo[]> {
+  const uniqueIds = [...new Set(userIds)];
+  if (uniqueIds.length === 0) {
+    return [];
+  }
+  const rows = await db
+    .select({
+      id: users.id,
+      name: users.name,
+      shortname: users.shortname,
+      departmentName: calendars.name,
+    })
+    .from(users)
+    .leftJoin(calendars, eq(calendars.id, users.departmentId))
+    .where(inArray(users.id, uniqueIds));
+  return rows.map((row) => ({
+    id: row.id,
+    name: row.name,
+    shortname: row.shortname,
+    departmentName: row.departmentName,
   }));
 }
 

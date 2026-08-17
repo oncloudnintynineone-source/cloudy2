@@ -5,8 +5,19 @@
 
 export const KEYWORD_MAX_LENGTH = 12;
 export const NAME_TEMPLATE_MAX_LENGTH = 200;
+export const EVENT_TITLE_TEMPLATE_MAX_LENGTH = 200;
 
 export const NAME_TEMPLATE_PLACEHOLDERS = ["{name}", "{department}"] as const;
+
+export const EVENT_TITLE_PLACEHOLDERS = [
+  "{description}",
+  "{type}",
+  "{people}",
+  "{people:full}",
+  "{people:acronym}",
+  "{people:fqn}",
+  "{departments}",
+] as const;
 
 export interface KeywordFormValues {
   keyword: string;
@@ -18,6 +29,15 @@ export interface NameTemplateFormValues {
 
 export interface NameTemplateFormErrors {
   nameTemplate?: string;
+  [key: string]: string | undefined;
+}
+
+export interface EventTitleTemplateFormValues {
+  eventTitleTemplate: string;
+}
+
+export interface EventTitleTemplateFormErrors {
+  eventTitleTemplate?: string;
   [key: string]: string | undefined;
 }
 
@@ -61,6 +81,21 @@ export function validateNameTemplate(values: NameTemplateFormValues): NameTempla
     errors.nameTemplate = "Name template is required";
   } else if (template.length > NAME_TEMPLATE_MAX_LENGTH) {
     errors.nameTemplate = `Name template must be ${NAME_TEMPLATE_MAX_LENGTH} characters or fewer`;
+  }
+
+  return errors;
+}
+
+export function validateEventTitleTemplate(
+  values: EventTitleTemplateFormValues,
+): EventTitleTemplateFormErrors {
+  const errors: EventTitleTemplateFormErrors = {};
+  const template = values.eventTitleTemplate.trim();
+
+  if (!template) {
+    errors.eventTitleTemplate = "Event title template is required";
+  } else if (template.length > EVENT_TITLE_TEMPLATE_MAX_LENGTH) {
+    errors.eventTitleTemplate = `Event title template must be ${EVENT_TITLE_TEMPLATE_MAX_LENGTH} characters or fewer`;
   }
 
   return errors;

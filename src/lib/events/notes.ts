@@ -6,6 +6,12 @@
 
 export interface EventNotes {
   eventType?: string;
+  /**
+   * The raw description typed into the event form, kept so editing can
+   * prefill the form with the original text instead of the templated title
+   * rendered into the Google event summary.
+   */
+  title?: string;
   /** Logical event group id; all linked copies (one per department calendar) share it. */
   eventId?: string;
   /** Id of the user who created the event (schedule view: its row always shows the event). */
@@ -89,4 +95,11 @@ export function parseEventType(description: string): string | null {
   const notes = parseEventNotes(description);
   const eventType = notes?.eventType;
   return typeof eventType === "string" && eventType ? eventType : null;
+}
+
+/** Extract the raw (pre-template) description from the notes block, or null (legacy). */
+export function parseEventTitle(description: string): string | null {
+  const notes = parseEventNotes(description);
+  const title = notes?.title;
+  return typeof title === "string" && title ? title : null;
 }

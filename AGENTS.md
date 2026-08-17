@@ -66,7 +66,13 @@ the quality checks.
   switches between the Users (`/settings/users`), Departments (`/settings/departments`), and
   General (`/settings/general`) tabs. The General tab also holds the **display name template**
   (`settings.name_template`, with `{name}`/`{department}` placeholders, expanded by the pure
-  `formatFullName()` helper in `src/lib/settings/formatName.ts`).
+  `formatFullName()` helper in `src/lib/settings/formatName.ts`) and the **event title
+  template** (`settings.event_title_template`, with `{description}`/`{type}`/`{departments}`/
+  `{people}`/`{people:full}`/`{people:acronym}`/`{people:fqn}` tokens — bare `{people}` is the
+  fully qualified name — expanded by the pure `formatEventTitle()` helper in
+  `src/lib/settings/formatEventTitle.ts`). Event titles are rendered into the Google event
+  summary on create/edit; the raw description round-trips via the `title` field of the event
+  notes JSON so the edit form always prefills the original text.
 - **Always show a loading skeleton for async loads.** Any route or view that awaits data
   before rendering (DB queries, fetches) must show a Mantine `Skeleton` fallback instead of
   a blank screen. In the App Router add a `loading.tsx` to the route segment (auto Suspense
