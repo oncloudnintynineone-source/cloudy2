@@ -12,6 +12,7 @@ export interface RosterDepartment {
 export interface RosterUser {
   id: string;
   name: string;
+  shortname: string | null;
   phone: string;
   email: string | null;
   birthday: string | null;
@@ -26,6 +27,7 @@ export async function listUsers(): Promise<RosterUser[]> {
     .select({
       id: users.id,
       name: users.name,
+      shortname: users.shortname,
       phone: users.phone,
       email: users.email,
       birthday: users.birthday,
@@ -41,6 +43,7 @@ export async function listUsers(): Promise<RosterUser[]> {
   return rows.map((row) => ({
     id: row.id,
     name: row.name,
+    shortname: row.shortname,
     phone: row.phone,
     email: row.email,
     birthday: row.birthday,

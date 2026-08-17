@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { normalizeKeyword, validateKeywordForm } from "./validate";
+import { normalizeKeyword, validateKeywordForm, validateNameTemplate } from "./validate";
 
 describe("normalizeKeyword", () => {
   it("returns a lowercase keyword unchanged", () => {
@@ -57,5 +57,28 @@ describe("validateKeywordForm", () => {
     expect(validateKeywordForm({ keyword: "abcdefghijklm" }).keyword).toBe(
       "Keyword must be 12 characters or fewer",
     );
+  });
+});
+
+describe("validateNameTemplate", () => {
+  it("returns no errors for a valid template", () => {
+    expect(validateNameTemplate({ nameTemplate: "{name}: DEPT-{department}" })).toEqual({});
+  });
+
+  it("flags an empty template", () => {
+    expect(validateNameTemplate({ nameTemplate: "  " }).nameTemplate).toBe(
+      "Name template is required",
+    );
+  });
+
+  it("flags an over-long template", () => {
+    const long = "{name}".repeat(100);
+    expect(validateNameTemplate({ nameTemplate: long }).nameTemplate).toBe(
+      "Name template must be 200 characters or fewer",
+    );
+  });
+
+  it("accepts literal text with no placeholders", () => {
+    expect(validateNameTemplate({ nameTemplate: "Staff" })).toEqual({});
   });
 });

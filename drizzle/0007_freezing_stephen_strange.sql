@@ -1,0 +1,1 @@
+ALTER TABLE "settings" ADD COLUMN "name_template" text DEFAULT '{name}' NOT NULL;

@@ -22,6 +22,7 @@ export type UserStatus = "active" | "inactive";
 
 export interface UserFormValues {
   name: string;
+  shortname: string;
   phone: string;
   email?: string | null;
   birthday?: string | null;
@@ -32,6 +33,7 @@ export interface UserFormValues {
 
 export interface UserFormErrors {
   name?: string;
+  shortname?: string;
   phone?: string;
   email?: string;
   [key: string]: string | undefined;
@@ -42,6 +44,10 @@ export function validateUserForm(values: UserFormValues): UserFormErrors {
 
   if (!values.name.trim()) {
     errors.name = "Name is required";
+  }
+
+  if (!values.shortname?.trim()) {
+    errors.shortname = "Shortname is required";
   }
 
   if (!normalizePhone(values.phone)) {

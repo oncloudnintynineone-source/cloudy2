@@ -64,7 +64,9 @@ the quality checks.
 - **Admin settings live under `/settings`** (admin-only), reached via the profile icon in the
   header. A horizontal scrollable `SettingsTabs` bar (`src/app/(protected)/settings/`)
   switches between the Users (`/settings/users`), Departments (`/settings/departments`), and
-  General (`/settings/general`) tabs.
+  General (`/settings/general`) tabs. The General tab also holds the **display name template**
+  (`settings.name_template`, with `{name}`/`{department}` placeholders, expanded by the pure
+  `formatFullName()` helper in `src/lib/settings/formatName.ts`).
 - **Always show a loading skeleton for async loads.** Any route or view that awaits data
   before rendering (DB queries, fetches) must show a Mantine `Skeleton` fallback instead of
   a blank screen. In the App Router add a `loading.tsx` to the route segment (auto Suspense

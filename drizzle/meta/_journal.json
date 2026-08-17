@@ -43,6 +43,20 @@
       "when": 1786938551000,
       "tag": "0005_flat_skullbuster",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1786951706701,
+      "tag": "0006_whole_loners",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1786952222654,
+      "tag": "0007_freezing_stephen_strange",
+      "breakpoints": true
     }
   ]
 }

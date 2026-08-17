@@ -31,7 +31,9 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
 - [1.18 Agenda day swipe (Phase 2j)](#118-agenda-day-swipe-phase-2j)
 - [1.19 Schedule view & event invitees (Phase 2k)](#119-schedule-view--event-invitees-phase-2k)
 - [1.20 Cross-department event copies (Phase 2l)](#120-cross-department-event-copies-phase-2l)
-- [1.21 Git history](#121-git-history)
+- [1.21 User shortname (Phase 2m)](#121-user-shortname-phase-2m)
+- [1.22 Display name template (Phase 2n)](#122-display-name-template-phase-2n)
+- [1.23 Git history](#123-git-history)
 
 ## 1.1 Status
 
@@ -771,7 +773,74 @@ sequenceDiagram
   under the same `eventId`; delete → both copies gone; editing a legacy event →
   `eventId` backfilled with the single copy preserved.
 
-## 1.21 Git history
+## 1.21 User shortname (Phase 2m)
+
+Users now carry a **shortname** (acronym/initials), captured in the Users create/edit form and
+stored for future phases (e.g. schedule/KAH displays) to leverage. Per product decisions: the
+field is **required** in the form, **unique** across users, and stored **exactly as typed**
+(no normalization).
+
+- **Schema** — migration `0006` adds `users.shortname` (nullable `text`, so the auto-applied
+  migration is safe on the populated Neon `users` table) plus a unique index
+  `users_shortname_idx` (Postgres allows multiple NULLs under a unique index, so legacy rows
+  are untouched). `src/db/schema.ts` updated to match; `drizzle/meta/` journal + snapshot
+  committed.
+- **Validation** (`src/lib/roster/validate.ts`) — `UserFormValues` gains required
+  `shortname: string`, `UserFormErrors` gains `shortname?`; `validateUserForm` returns
+  "Shortname is required" for blank/whitespace. Stored as typed — no uppercase/trimming.
+- **Actions** (`src/lib/roster/actions.ts`) — `createUser`/`updateUser` write `shortname`,
+  the audit snapshot (`userSnapshot`) and `diffFields` include it, and audit `details` carry
+  it. `RosterActionResult.field` gains `"shortname"`; the `23505` catch now routes by the
+  violated constraint (postgres-js `constraint_name`): `users_shortname_idx` → "A user with
+  this shortname already exists" on the shortname field, otherwise the existing phone message.
+- **Queries** (`src/lib/roster/queries.ts`) — `RosterUser.shortname: string | null` selected
+  and mapped in `listUsers()`.
+- **UI** (`UserForm.tsx`) — new required `Shortname` `TextInput` ("e.g. ALICE") between Name
+  and Phone; `initialValues` maps `user.shortname ?? ""` on edit; the submit handler surfaces
+  the shortname duplicate error on the field. No card-list display change (deferred).
+- **Tests** — `validate.test.ts` base form gains `shortname`; new required-shortname cases.
+- Verification: `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm build`, and
+  `pnpm db:generate` (no drift — migration `0006` in sync) all pass.
+
+## 1.22 Display name template (Phase 2n)
+
+Admins can define a **display name template** that composes each user's fully qualified name
+from their name and department. The template is a global setting with `{name}` / `{department}`
+placeholders (case-insensitive), e.g. `{name}: DEPT-{department}` renders
+`John Lai: DEPT-Engineering 1`. The section lives as a card on the General settings tab, with a
+live preview against an example and real users; the reusable helper is wired into the Users
+admin card list as proof. Missing values (e.g. a user with no department) render as an empty
+string (no gap-collapsing).
+
+- **Schema** — migration `0007` adds `settings.name_template` (`text`, `NOT NULL` default
+  `'{name}'`), so existing rows and the bootstrap insert both pick up the plain-name fallback.
+  `src/db/schema.ts` updated; `drizzle/meta/` journal + snapshot generated. `ensureSettingsRow`
+  needs no change.
+- **Formatter** — new pure `src/lib/settings/formatName.ts`: `formatFullName({ name,
+  departmentName }, template)` substitutes every `{...}` token case-insensitively, resolves
+  missing values to `""`, leaves unknown tokens literal, and trims the result. Unit-tested
+  (`formatName.test.ts`, 9 cases).
+- **Validation** (`src/lib/settings/validate.ts`) — `NameTemplateFormValues`/Errors and
+  `validateNameTemplate` (non-empty after trim, ≤ 200 chars); `NAME_TEMPLATE_PLACEHOLDERS`
+  (`["{name}", "{department}"]`) drives the insert chips. `validate.test.ts` gains 4 cases.
+- **Actions** (`src/lib/settings/actions.ts`) — `updateNameTemplate(template)` mirrors
+  `updateKeyword`: `requireAdmin`, validate, `UPDATE settings`, audit-log `settings.update`
+  with a `nameTemplate` diff, `revalidatePath("/settings/general")`. `SettingsActionResult.field`
+  gains `"nameTemplate"`.
+- **Queries** (`src/lib/settings/queries.ts`) — `getSettings()` returns `nameTemplate`
+  (falls back to `"{name}"`).
+- **UI** (`src/app/(protected)/settings/general/`) — `page.tsx` also fetches `listUsers()`
+  (first 5 for preview); `SettingsForm.tsx` gains a second "Display name template" `Paper`
+  card: a `TextInput` with `{name}` / `{department}` chips that insert at the cursor, plus a
+  live preview (the John Lai / Engineering 1 example then 5 real users) that re-renders as the
+  admin types. Save button → `updateNameTemplate`. `loading.tsx` skeleton covers two cards.
+- **Proof in Users list** — `settings/users/page.tsx` fetches `getSettings()` and passes
+  `nameTemplate` to `UserTable`, where each card renders `formatFullName(...)` as a muted
+  secondary line under the user's name.
+- Verification: `pnpm lint`, `pnpm typecheck`, `pnpm test` (128), `pnpm build`, and
+  `pnpm db:generate` (no drift — migration `0007` in sync) all pass.
+
+## 1.23 Git history
 
 ```
 c2e1a68 Document Vercel Corepack requirement and env setup

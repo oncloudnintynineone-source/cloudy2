@@ -18,14 +18,16 @@ import { FilterButton } from "@/components/FilterButton";
 import { FilterModal, type FilterGroup } from "@/components/FilterModal";
 import { FloatingToolbar } from "@/components/FloatingToolbar";
 import type { RosterUser } from "@/lib/roster/queries";
+import { formatFullName } from "@/lib/settings/formatName";
 import { UserForm, type DepartmentOption } from "./UserForm";
 
 interface UserTableProps {
   users: RosterUser[];
   departments: DepartmentOption[];
+  nameTemplate: string;
 }
 
-export function UserTable({ users, departments }: UserTableProps) {
+export function UserTable({ users, departments, nameTemplate }: UserTableProps) {
   const router = useRouter();
   const [opened, { open, close }] = useDisclosure(false);
   const [filterOpened, { open: openFilter, close: closeFilter }] = useDisclosure(false);
@@ -149,7 +151,15 @@ export function UserTable({ users, departments }: UserTableProps) {
               style={{ cursor: "pointer" }}
             >
               <Group justify="space-between" wrap="nowrap" align="flex-start">
-                <Text fw={600}>{user.name}</Text>
+                <Stack gap={0}>
+                  <Text fw={600}>{user.name}</Text>
+                  <Text size="sm" c="dimmed">
+                    {formatFullName(
+                      { name: user.name, departmentName: user.department?.name ?? null },
+                      nameTemplate,
+                    )}
+                  </Text>
+                </Stack>
                 <Badge color={user.status === "active" ? "teal" : "gray"}>{user.status}</Badge>
               </Group>
               <Group gap={6} wrap="wrap" mt={4}>

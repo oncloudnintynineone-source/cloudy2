@@ -21,17 +21,25 @@ import {
 } from "@/lib/roster/validate";
 
 export type RosterActionResult =
-  { ok: true } | { ok: false; error: string; field?: "phone" | "name" | "email" };
+  { ok: true } | { ok: false; error: string; field?: "phone" | "shortname" | "name" | "email" };
 
 export type ShareActionResult = { ok: true } | { ok: false; error: string };
 
-function isUniqueViolation(error: unknown): boolean {
+function isUniqueViolation(error: unknown): error is {
+  code?: string;
+  constraint_name?: string;
+} {
   return (
     typeof error === "object" &&
     error !== null &&
     "code" in error &&
     (error as { code?: string }).code === "23505"
   );
+}
+
+/** Constraint name violated by a unique-violation error, or null. */
+function violatedConstraint(error: unknown): string | null {
+  return isUniqueViolation(error) ? error.constraint_name ?? null : null;
 }
 
 function errorMessage(error: unknown): string {
@@ -51,6 +59,7 @@ function actorFrom(session: Awaited<ReturnType<typeof requireAdmin>>) {
 function userSnapshot(user: User) {
   return {
     name: user.name,
+    shortname: user.shortname,
     phone: user.phone,
     email: user.email,
     birthday: user.birthday,
@@ -83,6 +92,7 @@ export async function createUser(input: UserFormValues): Promise<RosterActionRes
       .insert(users)
       .values({
         name: input.name.trim(),
+        shortname: input.shortname,
         phone,
         email: input.email?.trim() || null,
         birthday: input.birthday || null,
@@ -101,12 +111,16 @@ export async function createUser(input: UserFormValues): Promise<RosterActionRes
       method: "createUser",
       details: {
         name: input.name.trim(),
+        shortname: input.shortname,
         role: input.role,
         status: input.status,
         departmentId: input.departmentId,
       },
     });
   } catch (error) {
+    if (violatedConstraint(error) === "users_shortname_idx") {
+      return { ok: false, error: "A user with this shortname already exists", field: "shortname" };
+    }
     if (isUniqueViolation(error)) {
       return { ok: false, error: "A user with this phone number already exists", field: "phone" };
     }
@@ -134,6 +148,7 @@ export async function updateUser(id: string, input: UserFormValues): Promise<Ros
   const after = userSnapshot({
     ...before,
     name: input.name.trim(),
+    shortname: input.shortname,
     phone,
     email: input.email?.trim() || null,
     birthday: input.birthday || null,
@@ -147,6 +162,7 @@ export async function updateUser(id: string, input: UserFormValues): Promise<Ros
       .update(users)
       .set({
         name: input.name.trim(),
+        shortname: input.shortname,
         phone,
         email: input.email?.trim() || null,
         birthday: input.birthday || null,
@@ -167,6 +183,9 @@ export async function updateUser(id: string, input: UserFormValues): Promise<Ros
       details: diffFields(userSnapshot(before), after),
     });
   } catch (error) {
+    if (violatedConstraint(error) === "users_shortname_idx") {
+      return { ok: false, error: "A user with this shortname already exists", field: "shortname" };
+    }
     if (isUniqueViolation(error)) {
       return { ok: false, error: "A user with this phone number already exists", field: "phone" };
     }

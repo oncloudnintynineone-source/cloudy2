@@ -23,6 +23,7 @@ export const users = pgTable(
   {
     id: uuid("id").primaryKey().defaultRandom(),
     name: text("name").notNull(),
+    shortname: text("shortname"),
     phone: text("phone").notNull(),
     email: text("email"),
     birthday: date("birthday"),
@@ -40,6 +41,7 @@ export const users = pgTable(
   },
   (table) => [
     uniqueIndex("users_phone_idx").on(table.phone),
+    uniqueIndex("users_shortname_idx").on(table.shortname),
     index("users_role_idx").on(table.role),
     index("users_department_idx").on(table.departmentId),
   ],
@@ -92,6 +94,7 @@ export const settings = pgTable(
     id: text("id").primaryKey().default("singleton"),
     adminPasswordHash: text("admin_password_hash"),
     userKeyword: text("user_keyword"),
+    nameTemplate: text("name_template").notNull().default("{name}"),
     kahPercentage: integer("kah_percentage").notNull().default(100),
     kahNotificationEmails: text("kah_notification_emails")
       .array()
