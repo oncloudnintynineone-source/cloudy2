@@ -1,113 +1,23 @@
 "use client";
 
-import { useRef } from "react";
 import { useRouter } from "next/navigation";
-import {
-  Button,
-  Divider,
-  Group,
-  Paper,
-  Stack,
-  Text,
-  TextInput,
-} from "@mantine/core";
+import { Button, Group, Paper, Stack, TextInput } from "@mantine/core";
 import { useForm } from "@mantine/form";
 import { notifications } from "@mantine/notifications";
 
-import {
-  updateEventTitleTemplate,
-  updateKeyword,
-  updateNameTemplate,
-  type SettingsActionResult,
-} from "@/lib/settings/actions";
-import {
-  formatEventTitle,
-  type EventTitleInput,
-  type EventTitlePerson,
-} from "@/lib/settings/formatEventTitle";
-import { formatFullName } from "@/lib/settings/formatName";
-import {
-  EVENT_TITLE_PLACEHOLDERS,
-  NAME_TEMPLATE_PLACEHOLDERS,
-  validateEventTitleTemplate,
-  validateKeywordForm,
-  validateNameTemplate,
-  type EventTitleTemplateFormValues,
-  type KeywordFormValues,
-  type NameTemplateFormValues,
-} from "@/lib/settings/validate";
-
-interface PreviewUser {
-  name: string;
-  shortname: string | null;
-  departmentName: string | null;
-}
+import { updateKeyword, type SettingsActionResult } from "@/lib/settings/actions";
+import { validateKeywordForm, type KeywordFormValues } from "@/lib/settings/validate";
 
 interface SettingsFormProps {
   keyword: string;
-  nameTemplate: string;
-  eventTitleTemplate: string;
-  previewUsers: PreviewUser[];
-  previewEventTypes: string[];
 }
 
-const EXAMPLE = { name: "John Lai", departmentName: "Engineering 1" };
-
-const SAMPLE_EVENT_DESCRIPTION = "Team offsite";
-
-const PEOPLE_STYLE_HINT =
-  "{people} = fully qualified · {people:full} = name · {people:acronym} = shortname";
-
-const FALLBACK_SAMPLE_USERS: PreviewUser[] = [
-  { name: "John Lai", shortname: "JL", departmentName: "Engineering 1" },
-  { name: "Mei Lin", shortname: "ML", departmentName: "Logistics" },
-];
-
-/** Insert a placeholder token at the cursor position of a template input. */
-function insertTokenAtCursor(
-  current: string,
-  setValue: (value: string) => void,
-  input: HTMLInputElement | null,
-  token: string,
-) {
-  if (!input) {
-    setValue(current + token);
-    return;
-  }
-  const start = input.selectionStart ?? current.length;
-  const end = input.selectionEnd ?? current.length;
-  setValue(current.slice(0, start) + token + current.slice(end));
-  requestAnimationFrame(() => {
-    input.focus();
-    const pos = start + token.length;
-    input.setSelectionRange(pos, pos);
-  });
-}
-
-export function SettingsForm({
-  keyword,
-  nameTemplate,
-  eventTitleTemplate,
-  previewUsers,
-  previewEventTypes,
-}: SettingsFormProps) {
+export function SettingsForm({ keyword }: SettingsFormProps) {
   const router = useRouter();
-  const templateInputRef = useRef<HTMLInputElement>(null);
-  const eventTemplateInputRef = useRef<HTMLInputElement>(null);
 
   const keywordForm = useForm<KeywordFormValues>({
     initialValues: { keyword },
     validate: (values) => validateKeywordForm(values),
-  });
-
-  const nameTemplateForm = useForm<NameTemplateFormValues>({
-    initialValues: { nameTemplate },
-    validate: (values) => validateNameTemplate(values),
-  });
-
-  const eventTitleTemplateForm = useForm<EventTitleTemplateFormValues>({
-    initialValues: { eventTitleTemplate },
-    validate: (values) => validateEventTitleTemplate(values),
   });
 
   const onSubmitKeyword = keywordForm.onSubmit(async (values) => {
@@ -125,218 +35,17 @@ export function SettingsForm({
     notifications.show({ color: "red", message: result.error });
   });
 
-  const onSubmitNameTemplate = nameTemplateForm.onSubmit(async (values) => {
-    const result: SettingsActionResult = await updateNameTemplate(values.nameTemplate);
-
-    if (result.ok) {
-      notifications.show({ color: "green", message: "Name template updated" });
-      router.refresh();
-      return;
-    }
-
-    if (result.field === "nameTemplate") {
-      nameTemplateForm.setFieldError("nameTemplate", result.error);
-    }
-    notifications.show({ color: "red", message: result.error });
-  });
-
-  const onSubmitEventTitleTemplate = eventTitleTemplateForm.onSubmit(async (values) => {
-    const result: SettingsActionResult = await updateEventTitleTemplate(
-      values.eventTitleTemplate,
-    );
-
-    if (result.ok) {
-      notifications.show({ color: "green", message: "Event title template updated" });
-      router.refresh();
-      return;
-    }
-
-    if (result.field === "eventTitleTemplate") {
-      eventTitleTemplateForm.setFieldError("eventTitleTemplate", result.error);
-    }
-    notifications.show({ color: "red", message: result.error });
-  });
-
-  const template = nameTemplateForm.values.nameTemplate;
-  const eventTitleTemplateValue = eventTitleTemplateForm.values.eventTitleTemplate;
-
-  // Event title preview: up to two real users stand in for the invitees, so
-  // the admin sees how the template renders with the saved display-name
-  // template for the fully qualified style.
-  const sampleUsers = (previewUsers.length > 0 ? previewUsers : FALLBACK_SAMPLE_USERS).slice(0, 2);
-  const samplePeople: EventTitlePerson[] = sampleUsers.map((user) => ({
-    full: user.name,
-    acronym: user.shortname || user.name,
-    fqn: formatFullName({ name: user.name, departmentName: user.departmentName }, nameTemplate),
-  }));
-  const sampleDepartments = [
-    ...new Set(
-      sampleUsers
-        .map((user) => user.departmentName)
-        .filter((name): name is string => Boolean(name)),
-    ),
-  ].slice(0, 2);
-  const sampleEventType = previewEventTypes[0] ?? "Training";
-  const eventTitleSample: EventTitleInput = {
-    description: SAMPLE_EVENT_DESCRIPTION,
-    eventType: sampleEventType,
-    people: samplePeople,
-    departments: sampleDepartments,
-  };
-  const eventTitlePreview = formatEventTitle(eventTitleSample, eventTitleTemplateValue);
-
   return (
     <Stack>
       <Paper withBorder p="sm">
         <form onSubmit={onSubmitKeyword}>
           <Stack>
             <TextInput
-              label="User login keyword"
+              label="User Login Keyword"
               description="Users sign in as their 8-digit phone followed by the keyword — e.g. 81234567leave."
               placeholder="leave"
               {...keywordForm.getInputProps("keyword")}
             />
-            <Group justify="flex-end">
-              <Button type="submit">Save</Button>
-            </Group>
-          </Stack>
-        </form>
-      </Paper>
-
-      <Paper withBorder p="sm">
-        <form onSubmit={onSubmitNameTemplate}>
-          <Stack>
-            <Text fw={600}>Display name template</Text>
-            <Text size="sm" c="dimmed">
-              Compose a user&apos;s fully qualified name from their name and department. The
-              result is used wherever a user&apos;s full name is shown.
-            </Text>
-
-            <TextInput
-              ref={templateInputRef}
-              label="Template"
-              description="Insert tokens to splice in the user's name and department."
-              placeholder="{name}: DEPT-{department}"
-              {...nameTemplateForm.getInputProps("nameTemplate")}
-            />
-
-            <Group gap={6}>
-              <Text size="xs" c="dimmed">
-                Insert:
-              </Text>
-              {NAME_TEMPLATE_PLACEHOLDERS.map((token) => (
-                <Button
-                  key={token}
-                  type="button"
-                  size="compact-xs"
-                  variant="default"
-                  onClick={() =>
-                    insertTokenAtCursor(
-                      nameTemplateForm.values.nameTemplate,
-                      (value) => nameTemplateForm.setFieldValue("nameTemplate", value),
-                      templateInputRef.current,
-                      token,
-                    )
-                  }
-                >
-                  {token}
-                </Button>
-              ))}
-            </Group>
-
-            <Divider />
-
-            <Stack gap={4}>
-              <Text size="xs" fw={600} c="dimmed" tt="uppercase">
-                Preview
-              </Text>
-              <Group justify="space-between" wrap="nowrap">
-                <Text size="sm">{EXAMPLE.name}</Text>
-                <Text size="sm" fw={600} ta="right">
-                  {formatFullName(EXAMPLE, template) || "—"}
-                </Text>
-              </Group>
-              {previewUsers.map((user) => (
-                <Group key={user.name} justify="space-between" wrap="nowrap">
-                  <Text size="sm" c="dimmed">
-                    {user.name}
-                  </Text>
-                  <Text size="sm" fw={600} ta="right" c="dimmed">
-                    {formatFullName(user, template) || "—"}
-                  </Text>
-                </Group>
-              ))}
-            </Stack>
-
-            <Group justify="flex-end">
-              <Button type="submit">Save</Button>
-            </Group>
-          </Stack>
-        </form>
-      </Paper>
-
-      <Paper withBorder p="sm">
-        <form onSubmit={onSubmitEventTitleTemplate}>
-          <Stack>
-            <Text fw={600}>Event title template</Text>
-            <Text size="sm" c="dimmed">
-              Compose the title calendar events get in Google. The raw description stays
-              editable in the event form; the rendered title is what shows on the calendar.
-            </Text>
-
-            <TextInput
-              ref={eventTemplateInputRef}
-              label="Template"
-              description="Insert tokens to build the event title."
-              placeholder="{type}: {description} ({people:acronym})"
-              {...eventTitleTemplateForm.getInputProps("eventTitleTemplate")}
-            />
-
-            <Group gap={6} wrap="wrap">
-              <Text size="xs" c="dimmed">
-                Insert:
-              </Text>
-              {EVENT_TITLE_PLACEHOLDERS.map((token) => (
-                <Button
-                  key={token}
-                  type="button"
-                  size="compact-xs"
-                  variant="default"
-                  onClick={() =>
-                    insertTokenAtCursor(
-                      eventTitleTemplateValue,
-                      (value) => eventTitleTemplateForm.setFieldValue("eventTitleTemplate", value),
-                      eventTemplateInputRef.current,
-                      token,
-                    )
-                  }
-                >
-                  {token}
-                </Button>
-              ))}
-            </Group>
-
-            <Text size="xs" c="dimmed">
-              {PEOPLE_STYLE_HINT}
-            </Text>
-
-            <Divider />
-
-            <Stack gap={4}>
-              <Text size="xs" fw={600} c="dimmed" tt="uppercase">
-                Preview
-              </Text>
-              <Text size="xs" c="dimmed">
-                {eventTitleSample.description}
-                {eventTitleSample.eventType ? ` · ${eventTitleSample.eventType}` : ""} ·{" "}
-                {samplePeople.map((person) => person.acronym).join(", ") || "no invitees"} ·{" "}
-                {sampleDepartments.join(", ") || "no departments"}
-              </Text>
-              <Text size="sm" fw={600} style={{ overflowWrap: "anywhere" }}>
-                {eventTitlePreview || "—"}
-              </Text>
-            </Stack>
-
             <Group justify="flex-end">
               <Button type="submit">Save</Button>
             </Group>

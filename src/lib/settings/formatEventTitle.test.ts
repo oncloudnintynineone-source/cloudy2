@@ -4,7 +4,7 @@ import { formatEventTitle, type EventTitleInput } from "./formatEventTitle";
 
 const input: EventTitleInput = {
   description: "Team offsite",
-  eventType: "Training",
+  eventType: { name: "Training", acronym: "TRN" },
   people: [
     { full: "John Lai", acronym: "JL", fqn: "John Lai: DEPT-Engineering 1" },
     { full: "Mei Lin", acronym: "ML", fqn: "Mei Lin: DEPT-Logistics" },
@@ -37,12 +37,28 @@ describe("formatEventTitle", () => {
     expect(formatEventTitle(input, "{DESCRIPTION}")).toBe("Team offsite");
     expect(formatEventTitle(input, "{PEOPLE:ACRONYM}")).toBe("JL, ML");
     expect(formatEventTitle(input, "{Type}")).toBe("Training");
+    expect(formatEventTitle(input, "{TYPE:ACRONYM}")).toBe("TRN");
+  });
+
+  it("renders {type} as the name and {type:acronym} as the shortname", () => {
+    expect(formatEventTitle(input, "{type}")).toBe("Training");
+    expect(formatEventTitle(input, "{type:acronym}")).toBe("TRN");
+  });
+
+  it("falls back to the name when the event type acronym is blank", () => {
+    expect(formatEventTitle({ ...input, eventType: { name: "Training", acronym: "" } }, "{type:acronym}")).toBe(
+      "Training",
+    );
   });
 
   it("renders an absent event type as an empty string", () => {
     expect(formatEventTitle({ ...input, eventType: null }, "[{type}] {description}")).toBe(
       "[] Team offsite",
     );
+  });
+
+  it("leaves unknown event type styles as literal text", () => {
+    expect(formatEventTitle(input, "{type:weird}")).toBe("{type:weird}");
   });
 
   it("renders empty people/departments lists as empty strings", () => {

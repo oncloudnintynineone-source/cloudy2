@@ -13,15 +13,23 @@ import { validateEventTypeForm, type EventTypeFormValues } from "@/lib/eventType
 
 export type EventTypeActionResult =
   | { ok: true }
-  | { ok: false; error: string; field?: "name" };
+  | { ok: false; error: string; field?: "name" | "shortname" };
 
-function isUniqueViolation(error: unknown): boolean {
+function isUniqueViolation(error: unknown): error is {
+  code?: string;
+  constraint_name?: string;
+} {
   return (
     typeof error === "object" &&
     error !== null &&
     "code" in error &&
     (error as { code?: string }).code === "23505"
   );
+}
+
+/** Constraint name violated by a unique-violation error, or null. */
+function violatedConstraint(error: unknown): string | null {
+  return isUniqueViolation(error) ? error.constraint_name ?? null : null;
 }
 
 function actorFrom(session: Awaited<ReturnType<typeof requireAdmin>>) {
@@ -46,10 +54,11 @@ export async function createEventType(input: EventTypeFormValues): Promise<Event
   }
 
   const name = input.name.trim();
+  const shortname = input.shortname.trim();
   try {
     const [created] = await db
       .insert(eventTypes)
-      .values({ name })
+      .values({ name, shortname })
       .returning({ id: eventTypes.id, name: eventTypes.name });
 
     await logAction({
@@ -59,9 +68,16 @@ export async function createEventType(input: EventTypeFormValues): Promise<Event
       entityId: created.id,
       entityName: created.name,
       method: "createEventType",
-      details: { name },
+      details: { name, shortname },
     });
   } catch (error) {
+    if (violatedConstraint(error) === "event_types_shortname_idx") {
+      return {
+        ok: false,
+        error: "An event type with this shortname already exists",
+        field: "shortname",
+      };
+    }
     if (isUniqueViolation(error)) {
       return { ok: false, error: "An event type with this name already exists", field: "name" };
     }
@@ -89,10 +105,11 @@ export async function renameEventType(
   }
 
   const name = input.name.trim();
+  const shortname = input.shortname.trim();
   try {
     await db
       .update(eventTypes)
-      .set({ name, updatedAt: new Date() })
+      .set({ name, shortname, updatedAt: new Date() })
       .where(eq(eventTypes.id, id));
 
     await logAction({
@@ -102,9 +119,19 @@ export async function renameEventType(
       entityId: id,
       entityName: name,
       method: "renameEventType",
-      details: diffFields({ name: existing.name }, { name }),
+      details: diffFields(
+        { name: existing.name, shortname: existing.shortname },
+        { name, shortname },
+      ),
     });
   } catch (error) {
+    if (violatedConstraint(error) === "event_types_shortname_idx") {
+      return {
+        ok: false,
+        error: "An event type with this shortname already exists",
+        field: "shortname",
+      };
+    }
     if (isUniqueViolation(error)) {
       return { ok: false, error: "An event type with this name already exists", field: "name" };
     }

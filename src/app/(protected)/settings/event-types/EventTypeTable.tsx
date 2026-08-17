@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button, Group, Modal, Paper, Stack, Text } from "@mantine/core";
+
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
 
@@ -58,7 +59,14 @@ export function EventTypeTable({ types }: EventTypeTableProps) {
           {types.map((eventType) => (
             <Paper key={eventType.id} withBorder p="sm">
               <Group justify="space-between" wrap="nowrap" align="flex-start">
-                <Text fw={600}>{eventType.name}</Text>
+                <Stack gap={0}>
+                  <Text fw={600}>{eventType.name}</Text>
+                  {eventType.shortname ? (
+                    <Text size="sm" c="dimmed">
+                      {eventType.shortname}
+                    </Text>
+                  ) : null}
+                </Stack>
               </Group>
               <Group justify="flex-end" mt="sm" wrap="nowrap">
                 <Button size="xs" variant="light" onClick={() => openEdit(eventType)}>
@@ -84,7 +92,7 @@ export function EventTypeTable({ types }: EventTypeTableProps) {
       <Modal
         opened={formOpened}
         onClose={closeForm}
-        title={editing ? "Rename event type" : "Add event type"}
+        title={editing ? "Edit event type" : "Add event type"}
         centered
         size="sm"
       >

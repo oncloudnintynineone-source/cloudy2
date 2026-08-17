@@ -15,10 +15,15 @@ import {
   type EventRef,
 } from "@/lib/events/targets";
 import { validateEventForm, type EventFormValues } from "@/lib/events/validate";
+import { getEventTypesByNames } from "@/lib/eventTypes/queries";
 import { getGoogleIntegration, googleCalendarConfigured, type GcalEventInput } from "@/lib/google";
 import { getUsersByIds } from "@/lib/roster/queries";
 import { resolveGoogleCalendarId } from "@/lib/roster/shares";
-import { formatEventTitle, type EventTitlePerson } from "@/lib/settings/formatEventTitle";
+import {
+  formatEventTitle,
+  type EventTitlePerson,
+  type EventTitleType,
+} from "@/lib/settings/formatEventTitle";
 import { formatFullName } from "@/lib/settings/formatName";
 import { getSettings } from "@/lib/settings/queries";
 import { requireSession } from "@/lib/session";
@@ -106,14 +111,16 @@ async function refTargetCalendars(ref: EventRef): Promise<string[]> {
 /** Resolve-once display data behind the event title template tokens. */
 interface EventTitleContext {
   template: string;
+  eventType: EventTitleType | null;
   people: EventTitlePerson[];
   departments: string[];
 }
 
 /**
  * Resolve the invited people (plain name, acronym, fully qualified name via
- * the display-name template) and department names a title template can
- * render. Unknown ids are dropped; malformed invitee arrays are coerced.
+ * the display-name template), the event type's shortname, and department names
+ * a title template can render. Unknown ids are dropped; malformed invitee
+ * arrays are coerced.
  */
 async function buildEventTitleContext(input: EventFormValues): Promise<EventTitleContext> {
   const settings = await getSettings();
@@ -123,9 +130,11 @@ async function buildEventTitleContext(input: EventFormValues): Promise<EventTitl
   const inviteeDepartments = Array.isArray(input.inviteeDepartments)
     ? input.inviteeDepartments
     : [];
-  const [userRows, departmentNames] = await Promise.all([
+  const eventTypeName = input.eventType.trim();
+  const [userRows, departmentNames, eventTypesByName] = await Promise.all([
     getUsersByIds(inviteeUserIds),
     calendarNames(inviteeDepartments),
+    getEventTypesByNames(eventTypeName ? [eventTypeName] : []),
   ]);
   const userById = new Map(userRows.map((user) => [user.id, user]));
   const people = inviteeUserIds.flatMap((id) => {
@@ -144,8 +153,13 @@ async function buildEventTitleContext(input: EventFormValues): Promise<EventTitl
       },
     ];
   });
+  const eventTypeRow = eventTypeName ? eventTypesByName.get(eventTypeName) : undefined;
+  const eventType: EventTitleType | null = eventTypeName
+    ? { name: eventTypeName, acronym: eventTypeRow?.shortname ?? eventTypeName }
+    : null;
   return {
     template: settings.eventTitleTemplate,
+    eventType,
     people,
     departments: inviteeDepartments.map((id) => departmentNames[id] ?? ""),
   };
@@ -161,7 +175,7 @@ function buildGcalEventInput(
   const renderedTitle = formatEventTitle(
     {
       description: rawTitle,
-      eventType: input.eventType || null,
+      eventType: titleContext.eventType,
       people: titleContext.people,
       departments: titleContext.departments,
     },

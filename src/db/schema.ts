@@ -74,9 +74,13 @@ export const eventTypes = pgTable(
   {
     id: uuid("id").primaryKey().defaultRandom(),
     name: text("name").notNull(),
+    shortname: text("shortname"),
     ...timestamps,
   },
-  (table) => [uniqueIndex("event_types_name_idx").on(table.name)],
+  (table) => [
+    uniqueIndex("event_types_name_idx").on(table.name),
+    uniqueIndex("event_types_shortname_idx").on(table.shortname),
+  ],
 );
 
 export const paradeStates = pgTable("parade_states", {

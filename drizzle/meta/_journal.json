@@ -64,6 +64,13 @@
       "when": 1786955171302,
       "tag": "0008_fresh_purifiers",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1786957240852,
+      "tag": "0009_petite_blur",
+      "breakpoints": true
     }
   ]
 }

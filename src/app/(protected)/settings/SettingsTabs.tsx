@@ -7,6 +7,7 @@ const tabs = [
   { value: "/settings/users", label: "Users" },
   { value: "/settings/departments", label: "Departments" },
   { value: "/settings/event-types", label: "Event Types" },
+  { value: "/settings/templates", label: "Templates" },
   { value: "/settings/general", label: "General" },
 ];
 

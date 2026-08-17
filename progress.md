@@ -34,7 +34,8 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
 - [1.21 User shortname (Phase 2m)](#121-user-shortname-phase-2m)
 - [1.22 Display name template (Phase 2n)](#122-display-name-template-phase-2n)
 - [1.23 Event title template (Phase 2o)](#123-event-title-template-phase-2o)
-- [1.24 Git history](#124-git-history)
+- [1.24 Event type acronym + Templates tab (Phase 2p)](#124-event-type-acronym--templates-tab-phase-2p)
+- [1.25 Git history](#125-git-history)
 
 ## 1.1 Status
 
@@ -86,12 +87,17 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
   copy, delete cascade, legacy backfill).
 - **Phase 2o (event title template):** admins define an **event title template**
   (`settings.event_title_template`, default `'{description}'`) that composes the title
-  written to Google Calendar events — `{description}`, `{type}`, `{departments}`, and
-  invited personnel as `{people}` / `{people:full}` / `{people:acronym}` / `{people:fqn}`
-  (bare = FQN via the display-name template). The raw description round-trips through
-  `notes.title` so editing never re-types the rendered title. Only newly created/edited
+  written to Google Calendar events — `{description}`, `{type}`/`{type:acronym}`,
+  `{departments}`, and invited personnel as `{people}` / `{people:full}` / `{people:acronym}` /
+  `{people:fqn}` (bare = FQN via the display-name template). The raw description round-trips
+  through `notes.title` so editing never re-types the rendered title. Only newly created/edited
   events re-render. `pnpm lint/typecheck/test` (146) pass; `db:generate` no drift
   (migration `0008`).
+- **Phase 2p (event type acronym + Templates tab):** event types gain an app-required, unique
+  **shortname** acronym (migration `0009`) rendered by the new `{type:acronym}` event title
+  token, and the two template cards move from the General tab into a dedicated **Templates**
+  tab (`/settings/templates`). The General tab now holds only the login keyword.
+  `pnpm lint/typecheck/test` (151) pass; `db:generate` no drift.
 - **Deployment (Vercel):** build passes on `main`/`dev` with no warnings (Corepack +
   `NEXTAUTH_URL` unset). Migrations `0000` + `0001` applied to Neon (via CI migrate job);
   `0002`–`0005` pending (apply on next `main` push).
@@ -399,9 +405,11 @@ reachable only via the profile icon in the header. The bottom nav bar is gone.
   `settings/layout.tsx` calls `requireAdmin()` once (removed from the two pages) and
   renders a horizontal, scrollable `SettingsTabs` bar; `settings/page.tsx` redirects
   `/settings` → `/settings/users` (Users is the default tab). Tabs: **Users**
-  (`/settings/users`), **Departments** (`/settings/departments`), **General**
-  (`/settings/general`). `next.config.ts` adds permanent redirects from the old
-  `/users` and `/departments` URLs.
+  (`/settings/users`), **Departments** (`/settings/departments`), **Event Types**
+  (`/settings/event-types`), **Templates** (`/settings/templates`), **General**
+  (`/settings/general`) — Event Types and Templates were added in phases 2g and 2p.
+  `next.config.ts` adds permanent redirects from the old `/users` and `/departments`
+  URLs.
 - **Keyword setting (General tab)** — new `src/lib/settings/*` module mirroring the
   roster module: `validate.ts` (`normalizeKeyword` → trimmed, lowercased, `/^[a-z]{1,12}$/`,
   plus `validateKeywordForm`; unit-tested), `queries.ts` (`getSettings()` returns only
@@ -423,8 +431,10 @@ flowchart LR
     B -->|admin only| C[Admin Settings]
     C --> D[Users tab]
     C --> E[Departments tab]
-    C --> F[General tab]
-    F --> G[Update login keyword]
+    C --> F[Event Types tab]
+    C --> G[Templates tab]
+    C --> H[General tab]
+    H --> I[Update login keyword]
 ```
 
 - Verification: `pnpm lint/typecheck/test/build` pass; no schema change so `db:generate`
@@ -438,16 +448,18 @@ rename / delete) — tagging onto events is a future phase.
 
 - **Schema** — migration `0005` adds `event_types` (`id` uuid pk, `name` text not null,
   `created_at`/`updated_at`) with a unique index on `name` so the same tag can't be defined
-  twice. `src/db/schema.ts` exports the `eventTypes` table + `EventType` type.
+  twice. `src/db/schema.ts` exports the `eventTypes` table + `EventType` type. Phase 2p adds
+  an app-required, unique `shortname` acronym (migration `0009`, mirroring `users.shortname`).
 - **Module** — `src/lib/eventTypes/*` mirrors the roster module:
   `validate.ts` (`validateEventTypeForm`, unit-tested), `queries.ts` (`listEventTypes()`
-  ordered by name), `actions.ts` (`createEventType`/`renameEventType`/`deleteEventType`
-  server actions — `requireAdmin`, validate, DB op, audit log, `revalidatePath`, unique
-  violation → "already exists" error).
+  ordered by name; `getEventTypesByNames()` for title rendering), `actions.ts`
+  (`createEventType`/`renameEventType`/`deleteEventType` server actions — `requireAdmin`,
+  validate, DB op, audit log, `revalidatePath`, unique violation → "already exists" error,
+  routed by constraint for `name` vs `shortname`).
 - **UI** — `src/app/(protected)/settings/event-types/` (`page.tsx`, `EventTypeTable.tsx`
-  card list with Rename/Delete + floating "Add event type" button, `EventTypeForm.tsx`
-  centered modal, `loading.tsx` skeleton). Added to `SettingsTabs` between Departments and
-  General.
+  card list showing name + shortname, Rename/Delete + floating "Add event type" button,
+  `EventTypeForm.tsx` centered modal with required Name + Shortname, `loading.tsx` skeleton).
+  Added to `SettingsTabs` between Departments and General.
 - **Audit** — `AUDIT_ACTIONS` gains `eventType.create`/`eventType.rename`/
   `eventType.delete`.
 - Verification: `pnpm lint`, `pnpm typecheck`, `pnpm test` (68), `pnpm build`, and
@@ -859,14 +871,15 @@ behavior) expanded by the pure `formatEventTitle()` in
 `src/lib/settings/formatEventTitle.ts`. Tokens are case-insensitive:
 
 - `{description}` — the text the user typed into the event form ("Event Description")
-- `{type}` — event type name (empty when none)
+- `{type}` / `{type:acronym}` — the event type name, and its shortname acronym (falling back
+  to the name when blank); empty when no type is set
 - `{people}` / `{people:full}` / `{people:acronym}` / `{people:fqn}` — invited personnel
   joined with `", "`; bare `{people}` and `{people:fqn}` render the fully qualified name
   (via the saved display-name template), `{people:full}` the plain name, and
   `{people:acronym}` the shortname (falling back to the name when blank)
 - `{departments}` — invited departments joined with `", "`
 
-Unknown tokens and unknown people styles stay literal; empty lists render as `""` (no
+Unknown tokens and unknown styles stay literal; empty lists render as `""` (no
 gap-collapsing, consistent with `formatFullName`).
 
 ```mermaid
@@ -894,7 +907,7 @@ flowchart LR
 - **Settings** — `getSettings()` returns `eventTitleTemplate`; new
   `updateEventTitleTemplate` server action (mirror of `updateNameTemplate`:
   `requireAdmin`, validate, `UPDATE settings`, audit `settings.update` with a diff,
-  `revalidatePath("/settings/general")`).
+  `revalidatePath("/settings/templates")`).
 - **Round-trip fix** — the raw description is now stored in the notes JSON
   (`notes.title`; `parseEventTitle` in `src/lib/events/notes.ts`), so editing an event
   prefills the form with the *original* text, not the rendered calendar title. Legacy
@@ -902,24 +915,54 @@ flowchart LR
   first edit. `CalendarEventPayload.rawTitle` carries it to the client.
 - **Events actions** (`src/lib/events/actions.ts`) — `createEvent`/`updateEvent` resolve
   the title context **once** per operation: invited people (name / shortname / FQN via
-  the saved display-name template, using new `getUsersByIds()` in `src/lib/roster/queries.ts`)
-  plus department names; `buildGcalEventInput` then renders the Google `summary` via the
-  template. A template that renders to empty falls back to the raw description, so an
-  event is never titled with an empty string. All department copies of one logical event
-  share the same rendered title.
-- **UI** (`src/app/(protected)/settings/general/`) — third "Event title template" card
-  on the General tab: input with insert-at-cursor chips for the seven tokens, a hint
-  line explaining the people styles, and a live preview of a sample event (description
-  "Team offsite" + first event type + up to two real users as invitees + their
-  departments) that re-renders as the admin types. `loading.tsx` gains a third skeleton
-  card.
+  the saved display-name template, using new `getUsersByIds()` in `src/lib/roster/queries.ts`),
+  the event type's shortname (via `getEventTypesByNames()`), plus department names;
+  `buildGcalEventInput` then renders the Google `summary` via the template. A template
+  that renders to empty falls back to the raw description, so an event is never titled
+  with an empty string. All department copies of one logical event share the same
+  rendered title.
+- **UI** (`src/app/(protected)/settings/templates/`, moved from General in Phase 2p) —
+  "Event Title Template" card: input with insert-at-cursor chips for the eight tokens,
+  hint lines explaining the type and people styles, and a live preview of a sample
+  event (description "Team offsite" + first event type + up to two real users as
+  invitees + their departments) that re-renders as the admin types.
 - **Scoping** — only newly created/edited events re-render; existing Google summaries are
   untouched (legacy events lack the raw fields, so a bulk back-render isn't feasible).
   Changing the template does not rewrite past events.
 - Verification: `pnpm lint`, `pnpm typecheck`, `pnpm test` (146), `pnpm build`, and
   `pnpm db:generate` (no drift — migration `0008` in sync) all pass.
 
-## 1.24 Git history
+## 1.24 Event type acronym + Templates tab (Phase 2p)
+
+Two follow-ups to the template work: event types gain a required shortname acronym (like
+users) that the event title template can render, and the two template cards move out of the
+General tab into a dedicated **Templates** tab.
+
+- **Event type shortname** — event types gain an app-required, unique `shortname` acronym,
+  mirroring `users.shortname` (DB-nullable + unique index `event_types_shortname_idx`,
+  migration `0009`; the app requires it). `validateEventTypeForm` flags a blank shortname;
+  `createEventType`/`renameEventType` persist and audit it, and the unique-violation catch
+  routes by constraint so a duplicate shortname errors on the shortname field. The
+  `EventTypeForm` modal adds a required Shortname input; `EventTypeTable` cards show the
+  shortname as a muted line under the name.
+- **`{type:acronym}` token** — `formatEventTitle()` now takes the event type as
+  `{ name, acronym } | null`: bare `{type}` renders the name and `{type:acronym}` the
+  shortname (falling back to the name when blank), so `{type}` behaves as before.
+  `EVENT_TITLE_PLACEHOLDERS` gains `"{type:acronym}"` (eight chips). `createEvent`/
+  `updateEvent` resolve the shortname once per operation via new `getEventTypesByNames()`
+  in `src/lib/eventTypes/queries.ts` (unknown names fall back to the name).
+- **Templates tab** — the two template cards ("Display Name Template", "Event Title
+  Template" — every word capitalized) move from `settings/general/` into a new
+  `/settings/templates` route (`page.tsx` + `TemplatesForm.tsx` + `loading.tsx`) inserted
+  into `SettingsTabs` before General. The General tab keeps only the login keyword card.
+  `updateNameTemplate`/`updateEventTitleTemplate` now `revalidatePath("/settings/templates")`;
+  `updateKeyword` still targets `/settings/general`. Preview data (first 5 users + event
+  type names/shortnames) is fetched by the templates page.
+- Verification: `pnpm lint`, `pnpm typecheck`, `pnpm test` (151), `pnpm build`, and
+  `pnpm db:generate` (no drift — migration `0009` in sync) all pass; build route list shows
+  `/settings/templates`.
+
+## 1.25 Git history
 
 ```
 c2e1a68 Document Vercel Corepack requirement and env setup

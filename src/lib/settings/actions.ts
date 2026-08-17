@@ -98,7 +98,7 @@ export async function updateNameTemplate(template: string): Promise<SettingsActi
     ),
   });
 
-  revalidatePath("/settings/general");
+  revalidatePath("/settings/templates");
   return { ok: true };
 }
 
@@ -138,6 +138,6 @@ export async function updateEventTitleTemplate(template: string): Promise<Settin
     ),
   });
 
-  revalidatePath("/settings/general");
+  revalidatePath("/settings/templates");
   return { ok: true };
 }

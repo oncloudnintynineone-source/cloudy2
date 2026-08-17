@@ -14,11 +14,18 @@ export interface EventTitlePerson {
   fqn: string;
 }
 
+export interface EventTitleType {
+  /** Event type name (renders bare `{type}`). */
+  name: string;
+  /** Event type shortname (acronym); callers fall back to the name when blank. */
+  acronym: string;
+}
+
 export interface EventTitleInput {
   /** The raw description the user typed into the event form. */
   description: string;
-  /** Event type name, or null when the event has none. */
-  eventType: string | null;
+  /** Event type name + shortname, or null when the event has none. */
+  eventType: EventTitleType | null;
   /** Invited personnel, in form order. */
   people: EventTitlePerson[];
   /** Invited department names, in form order. */
@@ -27,11 +34,11 @@ export interface EventTitleInput {
 
 /**
  * Substitute every `{...}` token in the template (case-insensitive):
- * `{description}`, `{type}`, `{departments}`, and `{people}` / `{people:full}` /
- * `{people:acronym}` / `{people:fqn}` (bare `{people}` is the FQN style).
- * List tokens are joined with `", "`; empty lists/absent values resolve to an
- * empty string (no gap-collapsing), unknown tokens and unknown people styles
- * are left as literal text, and the final result is trimmed.
+ * `{description}`, `{type}` / `{type:acronym}`, `{departments}`, and `{people}` /
+ * `{people:full}` / `{people:acronym}` / `{people:fqn}` (bare `{people}` is the
+ * FQN style). List tokens are joined with `", "`; empty lists/absent values
+ * resolve to an empty string (no gap-collapsing), unknown tokens and unknown
+ * styles are left as literal text, and the final result is trimmed.
  */
 export function formatEventTitle(input: EventTitleInput, template: string): string {
   const peopleByStyle = (style: "full" | "acronym" | "fqn"): string =>
@@ -44,8 +51,18 @@ export function formatEventTitle(input: EventTitleInput, template: string): stri
       switch (token) {
         case "description":
           return input.description;
-        case "type":
-          return input.eventType ?? "";
+        case "type": {
+          if (input.eventType === null) {
+            return "";
+          }
+          if (style === undefined) {
+            return input.eventType.name;
+          }
+          if (style === "acronym") {
+            return input.eventType.acronym || input.eventType.name;
+          }
+          return match;
+        }
         case "people": {
           if (style === undefined || style === "fqn") {
             return peopleByStyle("fqn");

@@ -12,6 +12,7 @@ export const NAME_TEMPLATE_PLACEHOLDERS = ["{name}", "{department}"] as const;
 export const EVENT_TITLE_PLACEHOLDERS = [
   "{description}",
   "{type}",
+  "{type:acronym}",
   "{people}",
   "{people:full}",
   "{people:acronym}",
