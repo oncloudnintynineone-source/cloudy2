@@ -11,6 +11,8 @@ export interface GcalEventInput {
   description?: string;
   start: Date;
   end: Date;
+  /** When true the event is all-day: `start`/`end` are treated as dates. */
+  allDay?: boolean;
   attendees?: string[];
 }
 
@@ -18,6 +20,17 @@ export interface GcalEvent {
   id: string;
   calendarId: string;
   htmlLink?: string;
+}
+
+/** A single event read back from Google Calendar for the calendar view. */
+export interface GcalEventItem {
+  id: string;
+  calendarId: string;
+  title: string;
+  description: string;
+  start: Date;
+  end: Date;
+  allDay: boolean;
 }
 
 export interface GoogleCalendarInfo {
@@ -32,6 +45,8 @@ export interface GoogleIntegration {
   updateEvent(eventId: string, input: GcalEventInput): Promise<GcalEvent>;
   /** Delete an event. */
   deleteEvent(calendarId: string, eventId: string): Promise<void>;
+  /** List events in a calendar overlapping the given [timeMin, timeMax] range. */
+  listEvents(calendarId: string, timeMin: Date, timeMax: Date): Promise<GcalEventItem[]>;
   /** Create a new calendar owned by the service account. */
   createCalendar(name: string): Promise<{ id: string; calendarId: string }>;
   /** Rename a calendar. */

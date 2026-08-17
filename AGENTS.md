@@ -22,6 +22,17 @@ pnpm db:seed      # dev-only seed: departments/users/memberships (idempotent)
 
 Run a single test: `pnpm vitest run src/lib/login.test.ts` (or `pnpm test -- <file>`).
 
+**DB scripts need `DATABASE_URL` in the shell env.** `drizzle-kit` (`db:migrate`, `db:push`)
+does NOT read `.env.local` — running them directly fails with `Please provide required
+params for Postgres driver: url: ''`. `db:generate` is offline (no DB); `db:seed` reads
+`.env.local` itself. On Windows PowerShell, load the var first:
+
+```powershell
+$line = Get-Content .env.local | Where-Object { $_ -match '^DATABASE_URL=' } | Select-Object -First 1
+$env:DATABASE_URL = $line.Substring(13).Trim()
+pnpm db:migrate
+```
+
 CI order matters: `lint -> typecheck -> test -> db:generate` (schema-drift check). On
 pushes to `main`, a `migrate` job additionally runs `pnpm db:migrate` against Neon using
 the `DATABASE_URL` repo secret — so pending migrations auto-apply on deploy. PRs only run
@@ -56,15 +67,37 @@ the quality checks.
 ## Conventions
 
 - UI is **Mantine v9**; theme in `src/lib/theme.ts`, provider in `src/app/layout.tsx`.
+- **Brand colors:** primary is `#0D47A1` (deep blue), secondary is `#FBC02D`
+  (amber). Use these two colors whenever an accent color is needed (badges,
+  chips, highlights, event type colors, etc.).
   Authenticated routes live under `src/app/(protected)/` inside the AppShell.
-- **The app is strictly mobile-only.** Navigation is a fixed **bottom nav bar**
-  (`AppShellShell` renders `AppShell.Footer` with icon+label links) — there is no sidebar
-  or hamburger menu. Lists render as stacked **card lists** (`Paper` per row), never
-  `<Table>`. Modals are **floating** dialogs: `centered` with a fixed `size` (never
-  `fullScreen` — they must not fill the full screen width). Keep this pattern for all new
-  UI.
-- The **Users** section is the route `/users` (admin-only), but its internal domain code
-  (types/actions/queries) lives under `src/lib/roster/*`. The "roster" module name is
+- **The app is strictly mobile-only.** There is no sidebar or hamburger menu. Lists render
+  as stacked **card lists** (`Paper` per row), never `<Table>`. Modals are **floating**
+  dialogs: `centered` with a fixed `size` (never `fullScreen` — they must not fill the full
+  screen width). Keep this pattern for all new UI.
+- **Admin settings live under `/settings`** (admin-only), reached via the profile icon in the
+  header. A horizontal scrollable `SettingsTabs` bar (`src/app/(protected)/settings/`)
+  switches between the Users (`/settings/users`), Departments (`/settings/departments`),
+  Event Types (`/settings/event-types`), Templates (`/settings/templates`), and General
+  (`/settings/general`) tabs. **Event types carry a `shortname`** (their acronym, app-required
+  and unique) shown on the type cards and rendered by the `{type:acronym}` title token.
+  The **Templates tab** holds the two template cards: the **display name template**
+  (`settings.name_template`, with `{name}`/`{department}` placeholders, expanded by the pure
+  `formatFullName()` helper in `src/lib/settings/formatName.ts`) and the **event title
+  template** (`settings.event_title_template`, with `{description}`/`{type}`/`{type:acronym}`/
+  `{departments}`/`{people}`/`{people:full}`/`{people:acronym}`/`{people:fqn}` tokens — bare
+  `{people}` and `{type}` are the fully qualified/plain names — expanded by the pure
+  `formatEventTitle()` helper in `src/lib/settings/formatEventTitle.ts`). Event titles are
+  rendered into the Google event summary on create/edit; the raw description round-trips via
+  the `title` field of the event notes JSON so the edit form always prefills the original text.
+  The **General tab** holds only the login keyword setting.
+- **Always show a loading skeleton for async loads.** Any route or view that awaits data
+  before rendering (DB queries, fetches) must show a Mantine `Skeleton` fallback instead of
+  a blank screen. In the App Router add a `loading.tsx` to the route segment (auto Suspense
+  fallback, e.g. `src/app/(protected)/settings/users/loading.tsx`); for client-side async use
+  a `Skeleton` state. Shape the skeleton to match the real card list.
+- The **Users** section is the route `/settings/users` (admin-only), but its internal domain
+  code (types/actions/queries) lives under `src/lib/roster/*`. The "roster" module name is
   internal and should not be renamed to match the UI label.
 - **Prettier uses double quotes** (`singleQuote: false`) and `printWidth: 100` — not the
   common TS single-quote default.

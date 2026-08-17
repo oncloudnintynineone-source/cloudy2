@@ -29,6 +29,7 @@ function initialValues(user: RosterUser | null): UserFormValues {
   if (!user) {
     return {
       name: "",
+      shortname: "",
       phone: "",
       email: "",
       birthday: "",
@@ -39,6 +40,7 @@ function initialValues(user: RosterUser | null): UserFormValues {
   }
   return {
     name: user.name,
+    shortname: user.shortname ?? "",
     phone: user.phone,
     email: user.email ?? "",
     birthday: user.birthday ?? "",
@@ -76,6 +78,9 @@ export function UserForm({ user, departments, onDone }: UserFormProps) {
     if (result.field === "phone") {
       form.setFieldError("phone", result.error);
     }
+    if (result.field === "shortname") {
+      form.setFieldError("shortname", result.error);
+    }
     notifications.show({ color: "red", message: result.error });
   });
 
@@ -99,6 +104,12 @@ export function UserForm({ user, departments, onDone }: UserFormProps) {
     <form onSubmit={onSubmit}>
       <Stack>
         <TextInput label="Name" required placeholder="Full name" {...form.getInputProps("name")} />
+        <TextInput
+          label="Shortname"
+          required
+          placeholder="e.g. ALICE"
+          {...form.getInputProps("shortname")}
+        />
         <TextInput
           label="Phone"
           required

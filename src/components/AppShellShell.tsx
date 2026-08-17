@@ -1,32 +1,10 @@
 "use client";
 
-import { AppShell, Group, Text, UnstyledButton } from "@mantine/core";
+import { AppShell, Group, Text, useMantineColorScheme } from "@mantine/core";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
-import {
-  IconBuilding,
-  IconLayoutDashboard,
-  IconUsers,
-  type Icon,
-} from "@tabler/icons-react";
 
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { UserMenu } from "@/components/UserMenu";
-
-interface NavItem {
-  label: string;
-  href: string;
-  icon: Icon;
-}
-
-const navItems = (role: "admin" | "user"): NavItem[] =>
-  role === "admin"
-    ? [
-        { label: "Dashboard", href: "/dashboard", icon: IconLayoutDashboard },
-        { label: "Users", href: "/users", icon: IconUsers },
-        { label: "Departments", href: "/departments", icon: IconBuilding },
-      ]
-    : [{ label: "Dashboard", href: "/dashboard", icon: IconLayoutDashboard }];
 
 export function AppShellShell({
   role,
@@ -37,58 +15,31 @@ export function AppShellShell({
   name: string;
   children: React.ReactNode;
 }) {
-  const pathname = usePathname();
+  const { colorScheme } = useMantineColorScheme();
+  const isDark = colorScheme === "dark";
 
   return (
-    <AppShell header={{ height: 56 }} footer={{ height: 64 }} padding="md">
-      <AppShell.Header>
+    <AppShell header={{ height: 56 }} padding="md">
+      <AppShell.Header
+        style={{
+          background: isDark
+            ? "var(--mantine-color-brand-9)"
+            : "var(--mantine-color-brand-7)",
+          borderColor: isDark
+            ? "var(--mantine-color-brand-8)"
+            : "var(--mantine-color-brand-8)",
+        }}
+      >
         <Group h="100%" justify="space-between" px="md">
-          <Text fw={700} size="lg">
+          <Text fw={700} size="lg" component={Link} href="/dashboard" td="none" c="white">
             Cloudy
           </Text>
           <Group gap="xs">
             <ThemeToggle />
-            <UserMenu name={name} />
+            <UserMenu name={name} role={role} />
           </Group>
         </Group>
       </AppShell.Header>
-
-      <AppShell.Footer>
-        <Group
-          h="100%"
-          gap={0}
-          grow
-          style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
-        >
-          {navItems(role).map((item) => {
-            const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
-            const Icon = item.icon;
-            return (
-              <UnstyledButton
-                key={item.href}
-                component={Link}
-                href={item.href}
-                h="100%"
-                style={{
-                  display: "flex",
-                  flexDirection: "column",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  gap: 2,
-                  color: active
-                    ? "var(--mantine-primary-color-filled)"
-                    : "var(--mantine-color-dimmed)",
-                }}
-              >
-                <Icon size={22} stroke={active ? 2.5 : 2} />
-                <Text size="xs" fw={active ? 700 : 500}>
-                  {item.label}
-                </Text>
-              </UnstyledButton>
-            );
-          })}
-        </Group>
-      </AppShell.Footer>
 
       <AppShell.Main>{children}</AppShell.Main>
     </AppShell>

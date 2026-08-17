@@ -18,14 +18,17 @@ import { FilterButton } from "@/components/FilterButton";
 import { FilterModal, type FilterGroup } from "@/components/FilterModal";
 import { FloatingToolbar } from "@/components/FloatingToolbar";
 import type { RosterUser } from "@/lib/roster/queries";
+import { formatFullName } from "@/lib/settings/formatName";
+import { SETTINGS_TAB_BAR_OFFSET } from "../settingsTabBar";
 import { UserForm, type DepartmentOption } from "./UserForm";
 
 interface UserTableProps {
   users: RosterUser[];
   departments: DepartmentOption[];
+  nameTemplate: string;
 }
 
-export function UserTable({ users, departments }: UserTableProps) {
+export function UserTable({ users, departments, nameTemplate }: UserTableProps) {
   const router = useRouter();
   const [opened, { open, close }] = useDisclosure(false);
   const [filterOpened, { open: openFilter, close: closeFilter }] = useDisclosure(false);
@@ -114,14 +117,14 @@ export function UserTable({ users, departments }: UserTableProps) {
           {activeFilterCount > 0 ? (
             <Group gap={6} wrap="wrap">
               {statusFilter.map((value) => (
-                <Badge key={value} color="indigo" variant="light">
+                <Badge key={value} color="brand" variant="light">
                   Status: {value === "active" ? "Active" : "Inactive"}
                 </Badge>
               ))}
               {departmentFilter.map((value) => {
                 const department = departments.find((d) => d.id === value);
                 return (
-                  <Badge key={value} color="indigo" variant="light">
+                  <Badge key={value} color="brand" variant="light">
                     {department?.name ?? value}
                   </Badge>
                 );
@@ -149,16 +152,26 @@ export function UserTable({ users, departments }: UserTableProps) {
               style={{ cursor: "pointer" }}
             >
               <Group justify="space-between" wrap="nowrap" align="flex-start">
-                <Text fw={600}>{user.name}</Text>
+                <Stack gap={0}>
+                  <Text fw={600}>{user.name}</Text>
+                  <Text size="sm" c="dimmed">
+                    {formatFullName(
+                      { name: user.name, departmentName: user.department?.name ?? null },
+                      nameTemplate,
+                    )}
+                  </Text>
+                </Stack>
                 <Badge color={user.status === "active" ? "teal" : "gray"}>{user.status}</Badge>
               </Group>
               <Group gap={6} wrap="wrap" mt={4}>
                 <Text size="sm" c="dimmed">
                   {user.phone}
                 </Text>
-                <Badge color={user.role === "admin" ? "red" : "blue"}>{user.role}</Badge>
+                <Badge color={user.role === "admin" ? "brand" : "gray"}>{user.role}</Badge>
                 {user.department ? (
-                  <Badge variant="light">{user.department.name}</Badge>
+                  <Badge variant="light" color="accent">
+                    {user.department.name}
+                  </Badge>
                 ) : (
                   <Badge variant="outline" color="gray">
                     No department
@@ -198,7 +211,7 @@ export function UserTable({ users, departments }: UserTableProps) {
         onApply={handleApplyFilters}
       />
 
-      <FloatingToolbar>
+      <FloatingToolbar bottomOffset={SETTINGS_TAB_BAR_OFFSET}>
         <Button
           radius="xl"
           style={{ boxShadow: "var(--mantine-shadow-md)" }}

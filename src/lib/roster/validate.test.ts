@@ -31,6 +31,7 @@ describe("normalizePhone", () => {
 describe("validateUserForm", () => {
   const base: UserFormValues = {
     name: "Alice Tan",
+    shortname: "ALICE",
     phone: "81234567",
     email: "alice@example.com",
     birthday: "1991-03-15",
@@ -45,6 +46,15 @@ describe("validateUserForm", () => {
 
   it("requires a name", () => {
     expect(validateUserForm({ ...base, name: "  " }).name).toBe("Name is required");
+  });
+
+  it("requires a shortname", () => {
+    expect(validateUserForm({ ...base, shortname: "  " }).shortname).toBe(
+      "Shortname is required",
+    );
+    expect(validateUserForm({ ...base, shortname: "" }).shortname).toBe(
+      "Shortname is required",
+    );
   });
 
   it("requires an exactly-8-digit phone", () => {

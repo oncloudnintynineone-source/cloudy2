@@ -8,7 +8,7 @@ interface AcronymBadgeProps {
 /** Renders an acronym with an optional tooltip of its meaning. */
 export function AcronymBadge({ acronym, meaning }: AcronymBadgeProps) {
   const badge = (
-    <Badge variant="light" size="sm">
+    <Badge variant="light" color="accent" size="sm">
       {acronym}
     </Badge>
   );

@@ -23,6 +23,7 @@ export const users = pgTable(
   {
     id: uuid("id").primaryKey().defaultRandom(),
     name: text("name").notNull(),
+    shortname: text("shortname"),
     phone: text("phone").notNull(),
     email: text("email"),
     birthday: date("birthday"),
@@ -40,6 +41,7 @@ export const users = pgTable(
   },
   (table) => [
     uniqueIndex("users_phone_idx").on(table.phone),
+    uniqueIndex("users_shortname_idx").on(table.shortname),
     index("users_role_idx").on(table.role),
     index("users_department_idx").on(table.departmentId),
   ],
@@ -67,6 +69,25 @@ export const acronyms = pgTable("acronyms", {
   sortOrder: integer("sort_order").notNull().default(0),
 });
 
+export const eventTypes = pgTable(
+  "event_types",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    name: text("name").notNull(),
+    shortname: text("shortname"),
+    /** Selectable datetime options ("range" | "full"); empty = default range. */
+    timeOptions: text("time_options")
+      .array()
+      .notNull()
+      .default(sql`'{}'::text[]`),
+    ...timestamps,
+  },
+  (table) => [
+    uniqueIndex("event_types_name_idx").on(table.name),
+    uniqueIndex("event_types_shortname_idx").on(table.shortname),
+  ],
+);
+
 export const paradeStates = pgTable("parade_states", {
   id: uuid("id").primaryKey().defaultRandom(),
   code: text("code").notNull(),
@@ -82,6 +103,8 @@ export const settings = pgTable(
     id: text("id").primaryKey().default("singleton"),
     adminPasswordHash: text("admin_password_hash"),
     userKeyword: text("user_keyword"),
+    nameTemplate: text("name_template").notNull().default("{name}"),
+    eventTitleTemplate: text("event_title_template").notNull().default("{description}"),
     kahPercentage: integer("kah_percentage").notNull().default(100),
     kahNotificationEmails: text("kah_notification_emails")
       .array()
@@ -122,6 +145,7 @@ export type NewUser = typeof users.$inferInsert;
 export type Calendar = typeof calendars.$inferSelect;
 export type NewCalendar = typeof calendars.$inferInsert;
 export type Acronym = typeof acronyms.$inferSelect;
+export type EventType = typeof eventTypes.$inferSelect;
 export type ParadeState = typeof paradeStates.$inferSelect;
 export type Settings = typeof settings.$inferSelect;
 export type AuditLog = typeof auditLogs.$inferSelect;

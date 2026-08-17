@@ -13,6 +13,9 @@ export const stubGoogleIntegration: GoogleIntegration = {
     return { id: "stub", calendarId: "stub" };
   },
   async deleteEvent() {},
+  async listEvents() {
+    return [];
+  },
   async createCalendar() {
     return { id: "stub", calendarId: "stub" };
   },

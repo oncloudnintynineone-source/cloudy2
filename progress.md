@@ -23,8 +23,21 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
 - [1.10 Next.js 16 upgrade & auth fix (Phase 2c)](#110-nextjs-16-upgrade-auth-fix-phase-2c)
 - [1.11 Departments as Google Calendars + sharing + audit (Phase 2d)](#111-departments-as-google-calendars--sharing--audit-phase-2d)
 - [1.12 Mobile-only UI refactor and Users rename (Phase 2e)](#112-mobile-only-ui-refactor-and-users-rename-phase-2e)
-- [1.13 Next steps (Phase 2+)](#113-next-steps-phase-2)
-- [1.14 Git history](#114-git-history)
+- [1.13 Admin Settings hub and login keyword (Phase 2f)](#113-admin-settings-hub-and-login-keyword-phase-2f)
+- [1.14 Event Types (Phase 2g)](#114-event-types-phase-2g)
+- [1.15 Next steps (Phase 2+)](#115-next-steps-phase-2)
+- [1.16 Calendar events (Phase 2h)](#116-calendar-events-phase-2h)
+- [1.17 Dashboard mobile month view (Phase 2i)](#117-dashboard-mobile-month-view-phase-2i)
+- [1.18 Agenda day swipe (Phase 2j)](#118-agenda-day-swipe-phase-2j)
+- [1.19 Schedule view & event invitees (Phase 2k)](#119-schedule-view--event-invitees-phase-2k)
+- [1.20 Cross-department event copies (Phase 2l)](#120-cross-department-event-copies-phase-2l)
+- [1.21 User shortname (Phase 2m)](#121-user-shortname-phase-2m)
+- [1.22 Display name template (Phase 2n)](#122-display-name-template-phase-2n)
+- [1.23 Event title template (Phase 2o)](#123-event-title-template-phase-2o)
+- [1.24 Event type acronym + Templates tab (Phase 2p)](#124-event-type-acronym--templates-tab-phase-2p)
+- [1.25 Schedule view space optimization (Phase 2q)](#125-schedule-view-space-optimization-phase-2q)
+- [1.26 Git history](#126-git-history)
+- [1.27 Event time options + calendar preview (Phase 2r)](#127-event-time-options--calendar-preview-phase-2r)
 
 ## 1.1 Status
 
@@ -39,9 +52,61 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
 - **Phase 2e (mobile-only UI + rename):** shell switched from hamburger/sidebar to a fixed
   **bottom nav bar**; lists refactored to mobile **card layouts** with `fullScreen` modals;
   the "Roster" section renamed to **Users** (`/roster` → `/users`). No schema changes.
+- **Phase 2g (event types):** new **Event Types** admin settings tab (`/settings/event-types`)
+  for a lookup list of taggable event names (create/rename/delete). Migration `0005` adds the
+  `event_types` table (unique `name`). `pnpm build/lint/typecheck/test` (68) pass; `db:generate`
+  shows no drift.
+- **Phase 2h (calendar events):** the `/dashboard` placeholder is now a real month calendar
+  (`@mantine/schedule` `MonthView`) with create/edit/delete/view of Google Calendar events,
+  calendar + event-type filters, and per-day event rendering. Event data stays 100% in Google
+  Calendar (no DB table); the event type is stored in the event "notes" (`description`) as an
+  extensible JSON block. `pnpm build/lint/typecheck/test` (86) pass; `db:generate` shows no
+  drift.
+- **Phase 2i (dashboard view toggle):** `/dashboard` gains a Month ⇄ MobileMonth view
+  toggle (`?view=mobile` URL param); a day tap in either view opens an `AgendaView`
+  modal. No schema changes; `pnpm lint/typecheck/test` (86) pass, `db:generate` no drift.
+- **Phase 2j (agenda day swipe):** the agenda modal now changes day via left/right swipe
+  (touch or mouse drag) and prev/next chevrons flanking the title; swiping across a
+  month edge auto-navigates `?month=` so the new month's events load while the modal
+  stays open. No schema changes; `pnpm lint/typecheck/test/build` pass.
+- **Phase 2k (schedule view + event invitees):** `/dashboard` gains a third view —
+  **Schedule** (`@mantine/schedule` `ResourcesDayView`), one row per user plus a
+  department row per filtered department — and an **invitee system**: events store
+  `createdBy`/`inviteeUsers`/`inviteeDepartments` in the notes JSON, and an "Invitees"
+  multi-select in the event form tags people/departments whose rows show the event. The
+  view switcher is now a full-viewport tab strip (Month / Mobile / Schedule). No schema
+  changes;   `pnpm lint/typecheck/test` (103) pass, `db:generate` no drift; verified in the
+  dev environment against the live dev Google Calendar (invitee-tagged event rendered in
+  both the department and user rows; smoke event deleted afterwards).
+- **Phase 2l (cross-department event copies):** the event form no longer offers a
+  calendar picker — the target calendars are derived (creator's department + each tagged
+  person's department + tagged departments) and one linked copy of the event is created
+  per target. Copies share an `eventId` in the notes JSON so the app treats them as one
+  logical event: edits/deletes reconcile and cascade to every copy, and the month views
+  dedupe by `eventId`. Legacy events get the group id backfilled on first edit. No
+  schema changes; `pnpm lint/typecheck/test` (114) pass, `db:generate` no drift;
+  verified live (2-copy cross-dept create, dedupe, edit reconcile with move, re-tag
+  copy, delete cascade, legacy backfill).
+- **Phase 2o (event title template):** admins define an **event title template**
+  (`settings.event_title_template`, default `'{description}'`) that composes the title
+  written to Google Calendar events — `{description}`, `{type}`/`{type:acronym}`,
+  `{departments}`, and invited personnel as `{people}` / `{people:full}` / `{people:acronym}` /
+  `{people:fqn}` (bare = FQN via the display-name template). The raw description round-trips
+  through `notes.title` so editing never re-types the rendered title. Only newly created/edited
+  events re-render. `pnpm lint/typecheck/test` (146) pass; `db:generate` no drift
+  (migration `0008`).
+- **Phase 2p (event type acronym + Templates tab):** event types gain an app-required, unique
+  **shortname** acronym (migration `0009`) rendered by the new `{type:acronym}` event title
+  token, and the two template cards move from the General tab into a dedicated **Templates**
+  tab (`/settings/templates`). The General tab now holds only the login keyword.
+  `pnpm lint/typecheck/test` (151) pass; `db:generate` no drift.
+- **Phase 2q (schedule view space optimization):** the Schedule view's left columns are
+  compressed for mobile — user rows show the shortname (full-name tooltip), department rows
+  drop their text for an icon, and the group header rotates 90° in a narrow column.
+  `pnpm lint/typecheck/test` (152) pass; `db:generate` no drift (no schema change).
 - **Deployment (Vercel):** build passes on `main`/`dev` with no warnings (Corepack +
   `NEXTAUTH_URL` unset). Migrations `0000` + `0001` applied to Neon (via CI migrate job);
-  `0002`–`0004` pending (apply on next `main` push).
+  `0002`–`0005` pending (apply on next `main` push).
 
 ## 1.2 Decisions locked in (Phase 0)
 
@@ -336,15 +401,627 @@ The app is **strictly mobile-only**: no desktop sidebar/hamburger layout exists 
 - Verification: `pnpm lint`, `pnpm typecheck`, `pnpm test` (53), and `pnpm build` all
   pass; build route list shows `/users` and no `/roster`.
 
-## 1.13 Next steps (Phase 2+)
+## 1.13 Admin Settings hub and login keyword (Phase 2f)
 
-1. Wire the real event/Gmail methods in `real.ts` (calendar event read/write, Gmail
-   send-as, KAH visibility).
-2. Core screens: leave/event entry, KAH constraint checks, parade states, acronyms,
-   calendar view.
+The Users and Departments sections now live under a single **Admin Settings** hub,
+reachable only via the profile icon in the header. The bottom nav bar is gone.
+
+- **Routing** — `src/app/(protected)/users` and `.../departments` moved to
+  `src/app/(protected)/settings/users` and `.../settings/departments`. A new
+  `settings/layout.tsx` calls `requireAdmin()` once (removed from the two pages) and
+  renders a horizontal, scrollable `SettingsTabs` bar; `settings/page.tsx` redirects
+  `/settings` → `/settings/users` (Users is the default tab). Tabs: **Users**
+  (`/settings/users`), **Departments** (`/settings/departments`), **Event Types**
+  (`/settings/event-types`), **Templates** (`/settings/templates`), **General**
+  (`/settings/general`) — Event Types and Templates were added in phases 2g and 2p.
+  `next.config.ts` adds permanent redirects from the old `/users` and `/departments`
+  URLs.
+- **Keyword setting (General tab)** — new `src/lib/settings/*` module mirroring the
+  roster module: `validate.ts` (`normalizeKeyword` → trimmed, lowercased, `/^[a-z]{1,12}$/`,
+  plus `validateKeywordForm`; unit-tested), `queries.ts` (`getSettings()` returns only
+  `userKeyword`, never the admin password hash), `actions.ts` (`updateKeyword` server
+  action: `requireAdmin`, validate, `UPDATE settings`, audit log `settings.update` with a
+  field diff, `revalidatePath("/settings/general")`). `AUDIT_ACTIONS.settingsUpdate` added
+  to `src/lib/audit/build.ts`.
+- **Navigation** — `AppShellShell` drops the `AppShell.Footer`/bottom nav entirely; the
+  "Cloudy" brand is now a link to `/dashboard`. `UserMenu` takes a `role` prop and shows an
+  **Admin Settings** item (→ `/settings`) for admins only, above Log out.
+  `FloatingToolbar` bottom offset changed from the old footer clearance (76px) to
+  `calc(env(safe-area-inset-bottom) + 16px)`.
+- **Revalidation** — `src/lib/roster/actions.ts` `revalidatePath` targets updated to
+  `/settings/users` and `/settings/departments`.
+
+```mermaid
+flowchart LR
+    A[Dashboard] -->|profile icon| B[UserMenu]
+    B -->|admin only| C[Admin Settings]
+    C --> D[Users tab]
+    C --> E[Departments tab]
+    C --> F[Event Types tab]
+    C --> G[Templates tab]
+    C --> H[General tab]
+    H --> I[Update login keyword]
+```
+
+- Verification: `pnpm lint/typecheck/test/build` pass; no schema change so `db:generate`
+  shows no drift.
+
+## 1.14 Event Types (Phase 2g)
+
+A new **Event Types** tab in Admin Settings lets admins define the list of event names that
+can later be tagged onto calendar events. This phase ships only the lookup list (create /
+rename / delete) — tagging onto events is a future phase.
+
+- **Schema** — migration `0005` adds `event_types` (`id` uuid pk, `name` text not null,
+  `created_at`/`updated_at`) with a unique index on `name` so the same tag can't be defined
+  twice. `src/db/schema.ts` exports the `eventTypes` table + `EventType` type. Phase 2p adds
+  an app-required, unique `shortname` acronym (migration `0009`, mirroring `users.shortname`).
+- **Module** — `src/lib/eventTypes/*` mirrors the roster module:
+  `validate.ts` (`validateEventTypeForm`, unit-tested), `queries.ts` (`listEventTypes()`
+  ordered by name; `getEventTypesByNames()` for title rendering), `actions.ts`
+  (`createEventType`/`renameEventType`/`deleteEventType` server actions — `requireAdmin`,
+  validate, DB op, audit log, `revalidatePath`, unique violation → "already exists" error,
+  routed by constraint for `name` vs `shortname`).
+- **UI** — `src/app/(protected)/settings/event-types/` (`page.tsx`, `EventTypeTable.tsx`
+  card list showing name + shortname, Rename/Delete + floating "Add event type" button,
+  `EventTypeForm.tsx` centered modal with required Name + Shortname, `loading.tsx` skeleton).
+  Added to `SettingsTabs` between Departments and General.
+- **Audit** — `AUDIT_ACTIONS` gains `eventType.create`/`eventType.rename`/
+  `eventType.delete`.
+- Verification: `pnpm lint`, `pnpm typecheck`, `pnpm test` (68), `pnpm build`, and
+  `pnpm db:generate` (no drift) all pass; build route list shows `/settings/event-types`.
+
+## 1.15 Next steps (Phase 2+)
+
+1. Wire the real Gmail method in `real.ts` (Gmail send-as, KAH visibility) — calendar
+   event read/write is now implemented.
+2. Core screens still pending: KAH constraint checks, parade states, acronyms on event
+   titles, on-behalf/masquerade permissions, and VCF contacts export.
 3. Gmail notifications for KAH percentage breaches.
 
-## 1.14 Git history
+## 1.16 Calendar events (Phase 2h)
+
+The `/dashboard` placeholder is replaced by a real month calendar with full event
+create/edit/delete/view. Events remain 100% in Google Calendar — no event table exists.
+
+```mermaid
+flowchart LR
+    A[Dashboard] --> B[MonthView]
+    B --> C{Interaction}
+    C -- click day / FAB --> D[EventForm modal]
+    C -- click event --> E[EventDetail modal]
+    D --> F[Server action]
+    E --> G[Edit / Delete]
+    F --> H[Google Calendar API]
+    G --> H
+    H --> I[revalidatePath + router.refresh]
+```
+
+- **Dependency** — added `@mantine/schedule@9.5.1` (the `MonthView` component) and `dayjs`
+  (its required peer). `@mantine/dates/styles.css` + `@mantine/schedule/styles.css` imported
+  in `src/app/layout.tsx` (order: core → dates → schedule).
+- **Google layer** (`src/lib/google/`) — implemented `createEvent`/`updateEvent`/
+  `deleteEvent`/`listEvents` in `real.ts` (`events.insert/update/delete/list`,
+  `singleEvents: true`, `orderBy: startTime`); `listEvents` added to the interface + stub.
+  All-day events use Google's `date` field with an exclusive end date; timed events use
+  `dateTime`. `GcalEventItem` added for read-back.
+- **Events module** (`src/lib/events/*`, mirrors `roster`/`eventTypes`):
+  - `notes.ts` — pure encode/parse of the machine-readable "notes" JSON block stored in the
+    event `description` (currently `{ eventType }`, extensible for future fields).
+  - `datetime.ts` — pure date/time helpers; wall-clock times are treated as fixed
+    `Asia/Singapore` (UTC+8, no DST) so conversions are deterministic and testable.
+  - `validate.ts` — pure form validation (title/start/end, end ≥ start).
+  - `queries.ts` — `listCalendars`, `getUserDepartmentId`, and `fetchMonthEvents` which reads
+    events across the selected calendars and maps them to `CalendarEvent` (schedule-ready
+    data with a `payload` carrying calendar id, Google event id, all-day flag, and parsed
+    event type).
+  - `actions.ts` — `createEvent`/`updateEvent`/`deleteEvent` server actions (`requireSession`,
+    audit-logged, `revalidatePath("/dashboard")`). Admins pick a target calendar; regular
+    users always target their own department.
+- **Dashboard** (`src/app/(protected)/dashboard/`) — `page.tsx` (server) reads `month`/`cal`/
+  `types` search params and fetches events; `DashboardView.tsx` (client) renders a custom
+  header + `MonthView` (`withHeader={false}`), `FilterButton` → `FilterModal` (Calendars +
+  Event Types groups), `EventForm.tsx` (description, all-day toggle swapping
+  `DateTimePicker` ↔ `DatePickerInput`, event-type `Select`, admin calendar `Select`),
+  `EventDetail.tsx` (view + Edit/Delete), a `loading.tsx` skeleton, and a FAB.
+- **Default view** — non-admin shows only their department calendar; admin shows all
+  calendars. The filter always offers every calendar + every event type (regardless of
+  access). Google unconfigured → empty calendar + a notice, and the FAB is disabled.
+- **Audit** — `AUDIT_ACTIONS` gains `event.create`/`event.update`/`event.delete`.
+- Verification: `pnpm lint`, `pnpm typecheck`, `pnpm test` (86), `pnpm build` (route list
+  shows `/dashboard`), and `pnpm db:generate` (no drift — no schema change) all pass.
+
+## 1.17 Dashboard mobile month view (Phase 2i)
+
+`/dashboard` now supports two views, switched by an icon `SegmentedControl` in the header
+row: the default `MonthView` grid, and `@mantine/schedule` `MobileMonthView` (month grid
+with event-dot indicators). The choice persists in the URL as `?view=mobile` (omitted =
+month), matching the existing `month`/`cal`/`types` URL-state pattern. No new dependency —
+`MobileMonthView` and `AgendaView` ship in the already-installed `@mantine/schedule@9.5.1`.
+
+```mermaid
+flowchart LR
+    A[Dashboard] --> B{view URL param}
+    B -- month / default --> C[MonthView grid]
+    B -- mobile --> D[MobileMonthView grid]
+    C -- click day --> G[AgendaView modal<br/>for that day]
+    D -- click day --> G
+    G -- click event --> F[EventDetail modal]
+    C -- click event --> F
+    C -- FAB only --> E[EventForm modal]
+    D -- FAB only --> E
+    E --> H[Server action → Google Calendar]
+    F --> H
+```
+
+- **Toggle** — `SegmentedControl` (`size="xs"`, `aria-label="Calendar view"`) with
+  `IconCalendarMonth` / `IconCalendarDot` segments, placed between "Today" and the filter
+  button in `DashboardView.tsx`. `switchView()` writes/removes the `view` param via the
+  existing `navigate()` URL helper (month is the default, so the param is omitted for it).
+  `dashboard/page.tsx` reads `view` (`params.view === "mobile" ? "mobile" : "month"`) and
+  passes it through; both views render the same fetched month events.
+- **MobileMonthView** — rendered when `view === "mobile"`. A day tap (`onDayClick`) opens
+  the day-agenda modal shared with MonthView (whose old tap-to-create was replaced by the
+  same modal, so creation is strictly from the floating "New event" button in both views —
+  its default date stays "today"; the form's date picker covers other days). The
+   component's built-in header (year back-button + a month label duplicating our own) and
+   bottom event list (duplicated by the agenda modal) are hidden via the `styles` prop:
+  `mobileMonthViewHeader` and `mobileMonthViewEventsList` → `{ display: "none" }`. The app's
+  own header row remains the only navigation chrome.
+- **AgendaView modal** — a day tap in either view opens a floating `centered`
+  `size="sm"` modal titled with the full day (e.g. "Saturday, August 16, 2026"), wrapping
+  `AgendaView` with a single-day range (`rangeStart` = `rangeEnd` = tapped day) and the
+  month's events. `agendaViewHeader` is hidden via `styles` because its label renders
+  "X – X" even for a single day; the modal title carries the date instead. Clicking an
+  event opens `EventDetail` on top — the agenda modal is rendered before `EventDetail` in
+  the tree so its portal mounts first and the detail modal stacks above it. Deleting from
+  the detail closes both the detail and the agenda modal before `router.refresh()`, so a
+  deleted event doesn't linger in the open agenda list.
+- **Mantine 9.5.1 gotchas (verified against the installed package source)** —
+  `MobileMonthView` has **no `withHeader` prop** (unlike `MonthView`); the built-in
+  header is the only leak and must be suppressed with `styles` overrides. `classNames`
+  takes class-name **strings**, not `CSSProperties` — inline style overrides go in the
+  `styles` prop, which is deep-merged over the component's own styles with user values
+  winning. `EventDetail`'s detail/confirm portals mount only while open, which is what
+  makes the agenda → detail stacking order work.
+- **Verification** — `pnpm lint`, `pnpm typecheck`, `pnpm test` (86), `pnpm build` (route
+  list still shows `/dashboard`), and `pnpm db:generate` (no drift — no schema change) all
+  pass.
+
+## 1.18 Agenda day swipe (Phase 2j)
+
+The agenda modal's day can now be changed by swiping left/right across the agenda list
+(touch) or dragging it horizontally (mouse), plus prev/next `ActionIcon` chevrons
+flanking the date in the modal title for mouse/keyboard use. Swipe left = next day,
+swipe right = previous day.
+
+```mermaid
+flowchart LR
+    A[AgendaView modal] -- swipe / drag / chevron --> B{crosses loaded month edge?}
+    B -- no --> C[setAgendaDate ±1 day]
+    B -- yes --> D[navigate ?month= ±1<br/>+ setAgendaDate]
+    D --> E[dashboard re-fetches<br/>new month's events]
+    C --> F[AgendaView re-renders<br/>for the new day]
+    E --> F
+```
+
+- **Implementation** — `DashboardView.tsx` only, using `useDrag` from the
+  already-installed `@mantine/hooks` (no new dependency): options
+  `{ axis: "lock", axisThreshold: 8, threshold: 10, filterTaps: true }`. The day changes
+  on pointer release when horizontal displacement ≥ `DAY_SWIPE_THRESHOLD` (48px) after
+  axis locking; canceled gestures (the browser taking over vertical scroll →
+  `pointercancel`) and taps are ignored, so event-row taps still open `EventDetail`.
+- **Scroll coexistence** — the wrapper `div` around `AgendaView` sets
+  `style={{ touchAction: "pan-y" }}`: native vertical scrolling of a long agenda day is
+  kept by the browser, and horizontal gestures are delivered as pointer events. A one-shot
+  `onClickCapture` guard swallows the click that would otherwise fire when a mouse drag
+  ends on an event row.
+- **Month auto-navigation** — events are fetched per calendar month
+  (`fetchMonthEvents`), so swiping past the first/last day of the loaded month updates
+  `?month=` through the existing `navigate()` URL helper while setting `agendaDate`; the
+  `agendaDate` client state survives the RSC navigation, so the modal stays open and the
+  agenda repopulates from the new month's `events` prop. `shiftAgendaDay(±1)` is the
+  shared helper behind both the chevrons and the swipe handler.
+- **Verification** — `pnpm lint`, `pnpm typecheck`, `pnpm test` (86), and `pnpm build`
+  all pass; dev-server smoke check shows `/dashboard` 307 → `/login` (auth redirect) and
+  `/login` 200.
+
+## 1.19 Schedule view & event invitees (Phase 2k)
+
+`/dashboard` now has three views behind a full-viewport **tab strip** (replacing the old
+icon-only `SegmentedControl`): **Month** (`IconCalendarMonth`), **Mobile**
+(`IconCalendarDot`), **Schedule** (`IconCalendarUser`) — each tab shows its icon and
+label, with the tabs stretched across the viewport above the date-navigation row. The
+Schedule view is `@mantine/schedule` `ResourcesDayView`: one row per **user** of the
+selected (filtered) departments, plus a **department row** at the top of each department
+section. Group header columns appear only when more than one department is filtered.
+The day navigates with `‹`/`›`/Today (`?date=YYYY-MM-DD`; `?month` is kept in sync and
+derived from `date` by the page), and `?view=schedule` is the URL state.
+
+Because events previously carried no link to a person, this phase adds the **invitee
+system**. The notes JSON block on Google events gains three fields (no DB migration —
+the notes block is the app's own extensible format):
+
+- `createdBy` — the creating user's id; the creator's row **always** shows the event.
+- `inviteeUsers` — ids of tagged users; the event also appears in each of their rows.
+- `inviteeDepartments` — ids of tagged department calendars; the event appears in each
+  department row.
+
+```mermaid
+flowchart LR
+    A[EventForm<br/>Invitees MultiSelect] --> B[createEvent / updateEvent<br/>server actions]
+    B --> C["Google event description<br/>{eventType, createdBy,<br/>inviteeUsers, inviteeDepartments}"]
+    C --> D[fetchMonthEvents<br/>parseEventPeople → payload]
+    D --> E["expandScheduleEvents (pure)<br/>rows = creator ∪ tagged users<br/>∪ dept:&lt;calendarId&gt;"]
+    F["page: listUsers()<br/>active ∩ selected calendars"] --> G["buildScheduleResources (pure)<br/>dept row + user rows per dept,<br/>groups when >1 dept"]
+    E --> H[ResourcesDayView]
+    G --> H
+```
+
+- **Notes** (`src/lib/events/notes.ts`) — `EventNotes` gains `createdBy?`,
+  `inviteeUsers?`, `inviteeDepartments?`; `encodeEventNotes` now also strips empty
+  arrays; new pure `parseEventPeople(description)` returns `{ creatorId, userIds,
+  departmentIds }` and tolerates absent/malformed values (unique, non-empty strings
+  only). Unit-tested in `notes.test.ts` (12 cases now).
+- **Schedule helpers** (new `src/lib/events/schedule.ts`, all pure, all unit-tested in
+  `schedule.test.ts` — 12 cases):
+  - `departmentRowId`/`isDepartmentRowId` — resource rows keyed `dept:<calendarId>` to
+    keep them distinct from user-uuid rows.
+  - `rowsForEvent(people)` — union of creator, tagged users, and tagged departments,
+    deduped.
+  - `expandScheduleEvents(events)` — one `ScheduleEvent` per row (`id` suffixed
+    `::rowId`, `resourceId` set); events linked to no one expand to nothing.
+  - `buildScheduleResources({ departments, users, events })` — per selected department:
+    a department row then its active users (sorted by name); a userless department is
+    kept only when an event tags it; `groups` emitted only for >1 department.
+- **Queries** (`src/lib/events/queries.ts`) — `CalendarEventPayload` gains
+  `creatorId`/`inviteeUserIds`/`inviteeDepartmentIds`, populated in
+  `fetchMonthEvents` via `parseEventPeople`. Month/Mobile/Agenda views ignore the new
+  fields.
+- **Form & actions** — `EventFormValues` gains `creatorId` + the two invitee arrays
+  (pass-through, no new validation). `EventForm` adds an "Invitees" `MultiSelect`
+  (Mantine v9's dedicated multi-select component; v9 `Select` has no `multiple` prop)
+  with grouped data (`user:<id>` / `dept:<id>` prefixed values disambiguate the two
+  uuid namespaces; split on submit). Picker scope: non-admins → own department + its
+  active users; admins → all departments + all active users. `creatorId` is the session
+  user on create and is **preserved from the original payload on edit** (editing never
+  reassigns the creator row). `actions.ts` writes the three notes fields and audit
+  `details` record invitee counts.
+- **Page** (`dashboard/page.tsx`) — `view` enum gains `"schedule"`; `date` param
+  (validated `YYYY-MM-DD`, default today) drives the month when present. One
+  `listUsers()` call derives: schedule rows (active users in the selected calendars),
+  role-scoped invitee picker options, and the `peopleNames`/`calendarNames` maps for
+  the detail modal.
+- **DashboardView** — top `Tabs` strip (controlled, equal-width `flex: 1` tabs with
+  icon + label; `Tabs` `onChange` is typed `string | null`) → `switchView` writes
+  `?view=schedule&date=today` on entry (month left to be derived) and restores the
+  viewed month on exit. Schedule render: `ResourcesDayView` with `withHeader={false}`,
+  full-day range (`00:00:00`–`23:59:59`, 60-min intervals, `startScrollTime 07:00`),
+  `withCurrentTimeIndicator`, current-time bubble, `onEventClick` → existing
+  `EventDetail`, and `renderResourceLabel` styling department rows (building icon +
+  bold). Empty state (no rows for the filter) shows a `Paper` notice instead of an
+  empty grid. `ScheduleGridSkeleton` (label + lane rows) backs the `isPending` state.
+  The date-nav row reuses its chevrons/Today in day mode (`ddd, MMM D, YYYY`).
+- **EventDetail** — "People:" badges (creator + tagged users, deduped, resolved via
+  `peopleNames`) and "Departments:" badges (tagged departments other than the event's
+  own calendar, resolved via `calendarNames`); unknown ids are silently skipped.
+- **Back-compat** — events created before this phase have no people fields, so they
+  still render in Month/Mobile/Agenda but intentionally do **not** appear in any
+  Schedule row (no row key to attach to). Tagging remains optional.
+- **Verification** — `pnpm lint`, `pnpm typecheck`, `pnpm test` (103), `pnpm build`,
+  and `pnpm db:generate` (no drift — no schema change) all pass. Dev-server smoke
+  against the live dev Google Calendar: `/dashboard`, `?view=mobile`,
+  `?view=schedule` all 200 with the three tabs rendered (`role="tab"`, correct
+  `aria-selected`); a temporary event tagged with the active user + their department
+  read back from Google rendered **in both** the department row and the user row of
+  `ResourcesDayView`; pre-existing untagged events correctly stayed out of the
+  schedule rows; the smoke event was deleted afterwards.
+
+## 1.20 Cross-department event copies (Phase 2l)
+
+The event form **no longer offers a calendar picker** (admins included). Where an event
+lives is derived from its people: the **creator's department** plus every **tagged
+user's department** plus every **tagged department** — one Google Calendar copy per
+target calendar. When everyone is in one department this is exactly one event (the
+pre-2l behavior, now automatic); a creator with no department can create an event only
+by tagging at least one invitee, otherwise creation is blocked with
+"Assign yourself to a department or tag an invitee".
+
+All copies of a logical event share a new `eventId` (UUID) in the notes JSON — the
+linking mechanism. No DB table is added (events stay 100% in Google Calendar), and
+copies are rediscovered by listing each target calendar and matching the `eventId` in
+the event description.
+
+```mermaid
+sequenceDiagram
+    participant F as EventForm
+    participant A as events/actions
+    participant D as departments (db)
+    participant G as Google Calendar
+    F->>A: create / update(ref, values) — no calendarId
+    A->>D: creator + invited users' departments
+    A->>A: targets = union(creatorDept, inviteeDepts, taggedDepts)
+    Note over A,G: create: insert one copy per target (same eventId in notes),<br/>rollback partial copies on failure
+    Note over A,G: update: per calendar in old∪new targets, list over old∪new time
+    range (±1 day), match notes.eventId →<br/>create missing / update existing / delete retired
+    Note over A,G: delete: per target in notes-derived set, list + delete all matches
+```
+
+- **Targets module** (new `src/lib/events/targets.ts`, pure, unit-tested — 9 cases
+  in `targets.test.ts`): `deriveTargetCalendarIds` (creator ∪ invited users' depts ∪
+  tagged depts, deduped, nulls dropped), `diffEventTargets` (create/keep/remove plan),
+  `dedupeEventsByGroupId` (first copy per group id wins; input order decides the
+  representative), and `EventRef` + `eventRefFromCalendarEvent` (the representative
+  copy's fields passed to edit/delete).
+- **Notes** (`src/lib/events/notes.ts`) — `EventNotes.eventId?`;
+  `parseEventPeople` now also returns `eventId: string | null`.
+- **Datetime** (`src/lib/events/datetime.ts`) — new `absEventRange(naiveStart,
+  naiveEnd, allDay)`: timed events parse as UTC+8 instants, all-day events use Google's
+  date / exclusive-end-date semantics. `buildGcalEventInput` refactored onto it; the
+  reconcile search range is `unionRange(old, new)` grown ±1 day so copies whose times
+  drifted (or are being moved) are still found.
+- **Queries** (`src/lib/events/queries.ts`) — `CalendarEventPayload.eventId`; the
+  calendars row fetch is ordered by name so the deduped representative is
+  deterministic; `fetchMonthEvents` returns `dedupeEventsByGroupId(events)` — with
+  several department calendars filtered (admin default) a logical event shows **once**
+  in Month/Mobile/Agenda/Schedule. New batched `getUserDepartmentIds(userIds)`.
+- **Actions** (`src/lib/events/actions.ts`) — rewritten around `EventRef`:
+  - `createEvent`: derive targets (empty ⇒ block error), `eventId =
+    crypto.randomUUID()`, one copy per target; a mid-loop failure rolls back the copies
+    already created; audit entry carries `eventId`, target calendar ids/names, and the
+    Google event ids.
+  - `updateEvent(ref, values)`: `oldTargets` from the ref's people fields, `newTargets`
+    from the form; per calendar in the union, `findCopies` (notes `eventId` match; on a
+    legacy first edit also the `googleEventId` in the representative calendar) drives
+    create / full-contents update / delete. The plan is idempotent, so a half-failed
+    attempt self-heals on retry; newly created copies roll back on failure.
+  - `deleteEvent(ref)`: targets from the ref's people fields, then list + delete every
+    matching copy.
+  - **Legacy events** (no `eventId`): keep working as single events; the first edit
+    generates the group id, backfills it into the existing copy, and — once invitees are
+    spread across departments — converges by creating the missing copies. When nothing
+    else derives, the target set falls back to the representative calendar so editing a
+    legacy event never blocks.
+  - Malformed client bodies (non-array invitee fields) are coerced instead of 500ing.
+  - `EventFormValues` drops `calendarId` (and the form/admin picker with it);
+    `EventActionResult` no longer targets that field.
+- **UI** — `dashboard/page.tsx` drops `initialCalendarId`; `EventForm` drops the
+  Calendar `Select` (invitees `MultiSelect` description now explains the per-department
+  copies); `EventDetail`/`EventForm` build the `EventRef` via
+  `eventRefFromCalendarEvent` for `updateEvent`/`deleteEvent`.
+- **Verification** — `pnpm lint`, `pnpm typecheck`, `pnpm test` (114), `pnpm build`,
+  and `pnpm db:generate` (no drift — no schema change) all pass. Live smoke against the
+  dev Google Calendar (via a temporary authenticated route, removed afterwards):
+  admin without a department + no invitees → blocked with the clear error; tagging an
+  active dev-COU user + the dev-CIU department → exactly two copies sharing one
+  `eventId`, one per calendar; all-calendars read deduped to a single event; renaming +
+  time-shifting + dropping the dev-CIU tag in one edit → dev-CIU copy deleted, dev-COU
+  copy updated in place with the new title/times; re-tagging dev-CIU → copy recreated
+  under the same `eventId`; delete → both copies gone; editing a legacy event →
+  `eventId` backfilled with the single copy preserved.
+
+## 1.21 User shortname (Phase 2m)
+
+Users now carry a **shortname** (acronym/initials), captured in the Users create/edit form and
+stored for future phases (e.g. schedule/KAH displays) to leverage. Per product decisions: the
+field is **required** in the form, **unique** across users, and stored **exactly as typed**
+(no normalization).
+
+- **Schema** — migration `0006` adds `users.shortname` (nullable `text`, so the auto-applied
+  migration is safe on the populated Neon `users` table) plus a unique index
+  `users_shortname_idx` (Postgres allows multiple NULLs under a unique index, so legacy rows
+  are untouched). `src/db/schema.ts` updated to match; `drizzle/meta/` journal + snapshot
+  committed.
+- **Validation** (`src/lib/roster/validate.ts`) — `UserFormValues` gains required
+  `shortname: string`, `UserFormErrors` gains `shortname?`; `validateUserForm` returns
+  "Shortname is required" for blank/whitespace. Stored as typed — no uppercase/trimming.
+- **Actions** (`src/lib/roster/actions.ts`) — `createUser`/`updateUser` write `shortname`,
+  the audit snapshot (`userSnapshot`) and `diffFields` include it, and audit `details` carry
+  it. `RosterActionResult.field` gains `"shortname"`; the `23505` catch now routes by the
+  violated constraint (postgres-js `constraint_name`): `users_shortname_idx` → "A user with
+  this shortname already exists" on the shortname field, otherwise the existing phone message.
+- **Queries** (`src/lib/roster/queries.ts`) — `RosterUser.shortname: string | null` selected
+  and mapped in `listUsers()`.
+- **UI** (`UserForm.tsx`) — new required `Shortname` `TextInput` ("e.g. ALICE") between Name
+  and Phone; `initialValues` maps `user.shortname ?? ""` on edit; the submit handler surfaces
+  the shortname duplicate error on the field. No card-list display change (deferred).
+- **Tests** — `validate.test.ts` base form gains `shortname`; new required-shortname cases.
+- Verification: `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm build`, and
+  `pnpm db:generate` (no drift — migration `0006` in sync) all pass.
+
+## 1.22 Display name template (Phase 2n)
+
+Admins can define a **display name template** that composes each user's fully qualified name
+from their name and department. The template is a global setting with `{name}` / `{department}`
+placeholders (case-insensitive), e.g. `{name}: DEPT-{department}` renders
+`John Lai: DEPT-Engineering 1`. The section lives as a card on the General settings tab, with a
+live preview against an example and real users; the reusable helper is wired into the Users
+admin card list as proof. Missing values (e.g. a user with no department) render as an empty
+string (no gap-collapsing).
+
+- **Schema** — migration `0007` adds `settings.name_template` (`text`, `NOT NULL` default
+  `'{name}'`), so existing rows and the bootstrap insert both pick up the plain-name fallback.
+  `src/db/schema.ts` updated; `drizzle/meta/` journal + snapshot generated. `ensureSettingsRow`
+  needs no change.
+- **Formatter** — new pure `src/lib/settings/formatName.ts`: `formatFullName({ name,
+  departmentName }, template)` substitutes every `{...}` token case-insensitively, resolves
+  missing values to `""`, leaves unknown tokens literal, and trims the result. Unit-tested
+  (`formatName.test.ts`, 9 cases).
+- **Validation** (`src/lib/settings/validate.ts`) — `NameTemplateFormValues`/Errors and
+  `validateNameTemplate` (non-empty after trim, ≤ 200 chars); `NAME_TEMPLATE_PLACEHOLDERS`
+  (`["{name}", "{department}"]`) drives the insert chips. `validate.test.ts` gains 4 cases.
+- **Actions** (`src/lib/settings/actions.ts`) — `updateNameTemplate(template)` mirrors
+  `updateKeyword`: `requireAdmin`, validate, `UPDATE settings`, audit-log `settings.update`
+  with a `nameTemplate` diff, `revalidatePath("/settings/general")`. `SettingsActionResult.field`
+  gains `"nameTemplate"`.
+- **Queries** (`src/lib/settings/queries.ts`) — `getSettings()` returns `nameTemplate`
+  (falls back to `"{name}"`).
+- **UI** (`src/app/(protected)/settings/general/`) — `page.tsx` also fetches `listUsers()`
+  (first 5 for preview); `SettingsForm.tsx` gains a second "Display name template" `Paper`
+  card: a `TextInput` with `{name}` / `{department}` chips that insert at the cursor, plus a
+  live preview (the John Lai / Engineering 1 example then 5 real users) that re-renders as the
+  admin types. Save button → `updateNameTemplate`. `loading.tsx` skeleton covers two cards.
+- **Proof in Users list** — `settings/users/page.tsx` fetches `getSettings()` and passes
+  `nameTemplate` to `UserTable`, where each card renders `formatFullName(...)` as a muted
+  secondary line under the user's name.
+- Verification: `pnpm lint`, `pnpm typecheck`, `pnpm test` (128), `pnpm build`, and
+  `pnpm db:generate` (no drift — migration `0007` in sync) all pass.
+
+## 1.23 Event title template (Phase 2o)
+
+Admins can define an **event title template** that composes the title written to Google
+Calendar events — the same "global template setting + pure formatter + insert chips +
+live preview" pattern as the display name template (1.22). The template is
+`settings.event_title_template` (default `'{description}'`, i.e. today's raw-description
+behavior) expanded by the pure `formatEventTitle()` in
+`src/lib/settings/formatEventTitle.ts`. Tokens are case-insensitive:
+
+- `{description}` — the text the user typed into the event form ("Event Description")
+- `{type}` / `{type:acronym}` — the event type name, and its shortname acronym (falling back
+  to the name when blank); empty when no type is set
+- `{people}` / `{people:full}` / `{people:acronym}` / `{people:fqn}` — invited personnel
+  joined with `", "`; bare `{people}` and `{people:fqn}` render the fully qualified name
+  (via the saved display-name template), `{people:full}` the plain name, and
+  `{people:acronym}` the shortname (falling back to the name when blank)
+- `{departments}` — invited departments joined with `", "`
+
+Unknown tokens and unknown styles stay literal; empty lists render as `""` (no
+gap-collapsing, consistent with `formatFullName`).
+
+```mermaid
+flowchart LR
+    A["EventForm<br/>description · type · invitees"] --> B[createEvent / updateEvent]
+    B --> C["getSettings<br/>event_title_template + name_template"]
+    B --> D["getUsersByIds + department names"]
+    A --> E[buildGcalEventInput]
+    C --> E
+    D --> E
+    E --> F["formatEventTitle (pure)"]
+    F --> G["Google event summary<br/>+ notes.title = raw input"]
+```
+
+- **Schema** — migration `0008` adds `settings.event_title_template` (`text`, `NOT NULL`,
+  default `'{description}'`), so existing rows and the bootstrap insert fall back to the
+  plain description.
+- **Formatter** — new pure `formatEventTitle(input, template)`: people arrive pre-resolved
+  as `{ full, acronym, fqn }` per person, so the formatter is pure string substitution
+  (token regex handles `{token}` and `{token:style}`). Unit-tested
+  (`formatEventTitle.test.ts`, 12 cases).
+- **Validation** (`src/lib/settings/validate.ts`) — `validateEventTitleTemplate`
+  (non-empty after trim, ≤ 200 chars); `EVENT_TITLE_PLACEHOLDERS` drives the insert
+  chips. 4 new cases in `validate.test.ts`.
+- **Settings** — `getSettings()` returns `eventTitleTemplate`; new
+  `updateEventTitleTemplate` server action (mirror of `updateNameTemplate`:
+  `requireAdmin`, validate, `UPDATE settings`, audit `settings.update` with a diff,
+  `revalidatePath("/settings/templates")`).
+- **Round-trip fix** — the raw description is now stored in the notes JSON
+  (`notes.title`; `parseEventTitle` in `src/lib/events/notes.ts`), so editing an event
+  prefills the form with the *original* text, not the rendered calendar title. Legacy
+  events (no `notes.title`) fall back to the existing summary and are backfilled on
+  first edit. `CalendarEventPayload.rawTitle` carries it to the client.
+- **Events actions** (`src/lib/events/actions.ts`) — `createEvent`/`updateEvent` resolve
+  the title context **once** per operation: invited people (name / shortname / FQN via
+  the saved display-name template, using new `getUsersByIds()` in `src/lib/roster/queries.ts`),
+  the event type's shortname (via `getEventTypesByNames()`), plus department names;
+  `buildGcalEventInput` then renders the Google `summary` via the template. A template
+  that renders to empty falls back to the raw description, so an event is never titled
+  with an empty string. All department copies of one logical event share the same
+  rendered title.
+- **UI** (`src/app/(protected)/settings/templates/`, moved from General in Phase 2p) —
+  "Event Title Template" card: input with insert-at-cursor chips for the eight tokens,
+  hint lines explaining the type and people styles, and a live preview of a sample
+  event (description "Team offsite" + first event type + up to two real users as
+  invitees + their departments) that re-renders as the admin types.
+- **Scoping** — only newly created/edited events re-render; existing Google summaries are
+  untouched (legacy events lack the raw fields, so a bulk back-render isn't feasible).
+  Changing the template does not rewrite past events.
+- Verification: `pnpm lint`, `pnpm typecheck`, `pnpm test` (146), `pnpm build`, and
+  `pnpm db:generate` (no drift — migration `0008` in sync) all pass.
+
+## 1.24 Event type acronym + Templates tab (Phase 2p)
+
+Two follow-ups to the template work: event types gain a required shortname acronym (like
+users) that the event title template can render, and the two template cards move out of the
+General tab into a dedicated **Templates** tab.
+
+- **Event type shortname** — event types gain an app-required, unique `shortname` acronym,
+  mirroring `users.shortname` (DB-nullable + unique index `event_types_shortname_idx`,
+  migration `0009`; the app requires it). `validateEventTypeForm` flags a blank shortname;
+  `createEventType`/`renameEventType` persist and audit it, and the unique-violation catch
+  routes by constraint so a duplicate shortname errors on the shortname field. The
+  `EventTypeForm` modal adds a required Shortname input; `EventTypeTable` cards show the
+  shortname as a muted line under the name.
+- **`{type:acronym}` token** — `formatEventTitle()` now takes the event type as
+  `{ name, acronym } | null`: bare `{type}` renders the name and `{type:acronym}` the
+  shortname (falling back to the name when blank), so `{type}` behaves as before.
+  `EVENT_TITLE_PLACEHOLDERS` gains `"{type:acronym}"` (eight chips). `createEvent`/
+  `updateEvent` resolve the shortname once per operation via new `getEventTypesByNames()`
+  in `src/lib/eventTypes/queries.ts` (unknown names fall back to the name).
+- **Templates tab** — the two template cards ("Display Name Template", "Event Title
+  Template" — every word capitalized) move from `settings/general/` into a new
+  `/settings/templates` route (`page.tsx` + `TemplatesForm.tsx` + `loading.tsx`) inserted
+  into `SettingsTabs` before General. The General tab keeps only the login keyword card.
+  `updateNameTemplate`/`updateEventTitleTemplate` now `revalidatePath("/settings/templates")`;
+  `updateKeyword` still targets `/settings/general`. Preview data (first 5 users + event
+  type names/shortnames) is fetched by the templates page.
+- Verification: `pnpm lint`, `pnpm typecheck`, `pnpm test` (151), `pnpm build`, and
+  `pnpm db:generate` (no drift — migration `0009` in sync) all pass; build route list shows
+  `/settings/templates`.
+
+## 1.25 Schedule view space optimization (Phase 2q)
+
+The Schedule view (`ResourcesDayView`) reserved the most horizontal room of any dashboard
+view: its two left columns — the group header (only when ≥2 departments are selected) and the
+resource label — consumed 80px + 120px of a ~390px-wide phone before a single time slot
+began. This phase compresses that gutter from 200px (multi-dept) / 120px (single-dept) down to
+72px / 48px by showing acronyms instead of full names, dropping the department-row text, and
+rotating the group header. No data is lost — full names remain available as tooltips.
+
+```mermaid
+flowchart LR
+    before["Before (multi-dept)<br/>group 80px<br/>label 120px<br/>full names + dept text"]
+    after["After (multi-dept)<br/>group 24px rotated<br/>label 48px<br/>acronyms + dept icon"]
+    before -- "vars + render fns" --> after
+```
+
+- **Data** (`src/lib/events/schedule.ts`) — `ScheduleUser` carries `shortname`;
+  `ScheduleResource` gains `fullName` (the display name used for tooltips/aria).
+  `buildScheduleResources` now labels user rows `shortname || name` (same fallback as the
+  `{people:acronym}` title token) and sets `fullName` to the full name; department rows keep
+  `label = fullName = dept.name`. `dashboard/page.tsx` passes `shortname` through from
+  `listUsers()`.
+- **Narrow columns** (`DashboardView.tsx`) — a `vars` resolver overrides the `ResourcesDayView`
+  root CSS vars: `--resources-day-view-resource-label-width` `7.5rem → 3rem` (48px) and
+  `--resources-day-view-group-label-width` `5rem → 1.5rem` (24px). A `styles` override zeroes
+  the label cell's horizontal padding and adds ellipsis truncation so a long acronym can't
+  push a row.
+- **Department row = icon only** — `renderResourceLabel` renders a bare `IconBuilding`
+  (size 16) for department rows, carrying the department name as `title` + `aria-label`.
+- **User row = acronym** — user rows render `row.label` (the shortname, falling back to the
+  full name when unset) in a `sm` `Text`, with a `title` tooltip showing `fullName` only when
+  it differs from the label (no redundant tooltip for name-fallback rows).
+- **Rotated group header** — `renderGroupLabel` renders the department name in a
+  `writing-mode: vertical-rl` span so it reads top-to-bottom down the 24px column; Mantine's
+  built-in `translateY` vertical centering within the group block is preserved.
+- **Corner cleanup** — `labels={{ resources: "" }}` hides the "Resources" corner text, which
+  no longer fits the narrowed corner.
+- **Skeleton** — `ScheduleGridSkeleton`'s per-row label block goes 88px → 48px to track the new
+  column width.
+- **Mantine 9.5.1 gotcha (verified in the installed package)** — the `vars` prop is a
+  **resolver function** (`(theme, props, ctx) => ({ styleName: { "--css-var": value } })`),
+  not a static object (a static object fails typecheck: `'styleName' does not exist in type
+  'PartialVarsResolver<…>'`). Var values are the full kebab-case CSS variable names, applied as
+  inline styles on the root element, overriding the component's own CSS-var defaults.
+  `renderResourceLabel`/`renderGroupLabel` receive Mantine's `ScheduleResourceData`, so app
+  fields are read via `resource as ScheduleResource` (a safe downcast — the source array is
+  `ScheduleResource[]`).
+- **Tests** — `schedule.test.ts` fixtures gain `shortname`; new cases assert acronym labels,
+  the `shortname → name` fallback, `fullName` passthrough, and that sort order is by name (not
+  shortname). 12 → 13 cases.
+- Verification: `pnpm lint`, `pnpm typecheck`, `pnpm test` (152), and `pnpm build` all pass;
+  `pnpm db:generate` shows no drift (no schema change).
+
+## 1.26 Git history
 
 ```
 c2e1a68 Document Vercel Corepack requirement and env setup
@@ -352,3 +1029,65 @@ d914aca Fix pnpm build scripts and pin package manager/Node
 e04140f Phase 1 scaffold
 8e60883 Initial commit from Create Next App
 ```
+
+## 1.27 Event time options + calendar preview (Phase 2r)
+
+Admins now choose which datetime expressions are allowed per event type, the event
+form is reordered to match, and the final Google Calendar title is previewed live
+above the submit button.
+
+```mermaid
+flowchart LR
+    A[Event Types settings<br/>checkboxes] --> B[event_types.time_options<br/>range · full]
+    B --> C[EventForm tabs]
+    C --> D["Start &amp; End<br/>two datetime pickers"]
+    C --> E["Full Day<br/>start date + AM/PM ·<br/>end date + AM/PM"]
+    D --> H["title (timed)"]
+    E --> G["title + (AM)/(PM)<br/>only when start & end match"]
+    H --> J["Google Calendar summary<br/>+ preview in form"]
+    G --> J
+```
+
+- **Time options** — each event type carries a `time_options` text-array column
+  (migration `0010`) holding a subset of `["range", "full"]` (labels **Start &
+  End**, **Full Day**). Empty/unrecorded types resolve to `["range"]` (the old
+  behaviour). `src/lib/events/timeOptions.ts` is a pure module
+  (`TimeOption`, `TIME_OPTION_LABELS`, `normalizeTimeOptions`,
+  `resolveTimeOptions`, `resolveTimeOption`, `amPmSuffix`) unit-tested in
+  `timeOptions.test.ts`.
+- **Admin UI** — `EventTypeForm` gains a "Time options" `Checkbox.Group`
+  (at least one required, validated in `validateEventTypeForm`);
+  `createEventType`/`renameEventType` persist + audit it (field diff);
+  `EventTypeTable` cards list the enabled option labels. `listEventTypes`
+  returns normalized options; `getEventTypesByNames` also returns them so
+  actions can enforce the restriction.
+- **Event semantics** — `EventFormValues` drops the free `allDay` toggle and gains
+  `timeOption`, `startAmPm` and `endAmPm`. `Start & End` is always timed (two
+  `DateTimePicker`s). **Full Day** (the merged AM/PM + Full Day option) is a
+  full-day event with **start date + AM/PM selector and end date + AM/PM
+  selector**; the title gets `" (AM)"` or `" (PM)"` appended only when both
+  indicators match (`amPmSuffix` — AM→AM or PM→PM), while mixed spans (AM→PM,
+  PM→AM) render no suffix. `allDay` is derived server-side
+  (`timeOption !== "range"`) in `buildGcalEventInput`, which also writes
+  `timeOption`/`startAmPm`/`endAmPm` into the notes JSON (`notes.ts` parses them
+  back via `parseEventTimeOption`/`parseEventStartAmPm`/`parseEventEndAmPm`;
+  `CalendarEventPayload` gains `timeOption` + `startAmPm` + `endAmPm`). Legacy
+  all-day events default to `"full"` on edit prefill with `AM`/`PM` indicators
+  (rendering a plain full day). The server clamps the chosen option against the
+  type's allowed set (`resolveEventTime`), defaulting untyped events to `range`.
+  Chronological validation folds the indicator into the sort key
+  (`YYYY-MM-DD AM` < `YYYY-MM-DD PM`), so a same-day PM→AM span is rejected.
+- **Event form reorder** — order is now **Event Description → Event Type →
+  time-option tabs → datetime component → Invitees → Calendar preview →
+  Create/Save button**. When the selected type allows several options an inline
+  `Tabs` strip switches the datetime component (switching to Full Day normalizes
+  times to `00:00:00` and defaults the indicators to AM/PM — a plain full day);
+  a single allowed option renders it directly; no type selected = Start & End.
+- **Calendar preview** — a `Paper` above the submit button renders the exact
+  summary the server will write: `formatEventTitle(...)` against the saved
+  `event_title_template` using the live title/type shortname/selected people
+  (fqn + acronym)/departments, plus the `(AM)`/`(PM)` suffix. `dashboard/page.tsx`
+  passes the template, rich event-type info, and user `shortname` for the
+  preview.
+- Verification: `pnpm lint`, `pnpm typecheck`, `pnpm test` (175), `pnpm build`,
+  and `pnpm db:generate` (no drift — migration `0010` in sync) all pass.

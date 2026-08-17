@@ -11,6 +11,7 @@ import { deleteDepartment } from "@/lib/roster/actions";
 import { FloatingToolbar } from "@/components/FloatingToolbar";
 import { DepartmentForm } from "./DepartmentForm";
 import { DepartmentShares } from "./DepartmentShares";
+import { SETTINGS_TAB_BAR_OFFSET } from "../settingsTabBar";
 
 interface DepartmentTableProps {
   departments: Calendar[];
@@ -130,7 +131,7 @@ export function DepartmentTable({ departments }: DepartmentTableProps) {
 
       <DepartmentShares calendar={sharing} opened={shareOpened} onClose={closeShare} />
 
-      <FloatingToolbar>
+      <FloatingToolbar bottomOffset={SETTINGS_TAB_BAR_OFFSET}>
         <Button
           radius="xl"
           style={{ boxShadow: "var(--mantine-shadow-md)" }}
