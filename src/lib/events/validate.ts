@@ -48,6 +48,20 @@ function sortKey(values: EventFormValues, end: boolean): string {
   return naive;
 }
 
+/**
+ * Guarantee the event creator is always one of the tagged invitees, so the
+ * creator can never be excluded from an event they created. The creator's id
+ * is deduped into the invitee list; empty creators are left untouched.
+ */
+export function withCreatorInvited(values: EventFormValues): EventFormValues {
+  const creatorId = values.creatorId;
+  if (!creatorId) {
+    return values;
+  }
+  const inviteeUserIds = [...new Set([creatorId, ...values.inviteeUserIds])];
+  return { ...values, inviteeUserIds };
+}
+
 export function validateEventForm(values: EventFormValues): EventFormErrors {
   const errors: EventFormErrors = {};
 

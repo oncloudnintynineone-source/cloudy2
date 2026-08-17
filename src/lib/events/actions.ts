@@ -15,7 +15,11 @@ import {
   deriveTargetCalendarIds,
   type EventRef,
 } from "@/lib/events/targets";
-import { validateEventForm, type EventFormValues } from "@/lib/events/validate";
+import {
+  validateEventForm,
+  withCreatorInvited,
+  type EventFormValues,
+} from "@/lib/events/validate";
 import { getEventTypesByNames } from "@/lib/eventTypes/queries";
 import { getGoogleIntegration, googleCalendarConfigured, type GcalEventInput } from "@/lib/google";
 import { getUsersByIds } from "@/lib/roster/queries";
@@ -282,8 +286,9 @@ async function calendarNames(calendarIds: string[]): Promise<Record<string, stri
 
 export async function createEvent(input: EventFormValues): Promise<EventActionResult> {
   const session = await requireSession();
+  const normalized = withCreatorInvited(input);
 
-  const errors = validateEventForm(input);
+  const errors = validateEventForm(normalized);
   if (Object.keys(errors).length > 0) {
     return { ok: false, error: "Check the highlighted fields", field: "title" };
   }
@@ -292,7 +297,7 @@ export async function createEvent(input: EventFormValues): Promise<EventActionRe
     return { ok: false, error: "Google Calendar is not configured" };
   }
 
-  const targets = await resolveTargetCalendars(input, null);
+  const targets = await resolveTargetCalendars(normalized, null);
   if (targets.length === 0) {
     return {
       ok: false,
@@ -302,8 +307,8 @@ export async function createEvent(input: EventFormValues): Promise<EventActionRe
 
   const eventId = crypto.randomUUID();
   const integration = await getGoogleIntegration();
-  const titleContext = await buildEventTitleContext(input);
-  const effectiveInput = resolveEventTime(input, titleContext);
+  const titleContext = await buildEventTitleContext(normalized);
+  const effectiveInput = resolveEventTime(normalized, titleContext);
   const created: { googleCalendarId: string; googleEventId: string }[] = [];
 
   try {
@@ -359,8 +364,9 @@ export async function createEvent(input: EventFormValues): Promise<EventActionRe
  */
 export async function updateEvent(ref: EventRef, input: EventFormValues): Promise<EventActionResult> {
   const session = await requireSession();
+  const normalized = withCreatorInvited(input);
 
-  const errors = validateEventForm(input);
+  const errors = validateEventForm(normalized);
   if (Object.keys(errors).length > 0) {
     return { ok: false, error: "Check the highlighted fields", field: "title" };
   }
@@ -372,12 +378,12 @@ export async function updateEvent(ref: EventRef, input: EventFormValues): Promis
   const eventId = ref.eventId ?? crypto.randomUUID();
   const [oldTargets, newTargets] = await Promise.all([
     refTargetCalendars(ref),
-    resolveTargetCalendars(input, ref.calendarId),
+    resolveTargetCalendars(normalized, ref.calendarId),
   ]);
 
   const integration = await getGoogleIntegration();
-  const titleContext = await buildEventTitleContext(input);
-  const effectiveInput = resolveEventTime(input, titleContext);
+  const titleContext = await buildEventTitleContext(normalized);
+  const effectiveInput = resolveEventTime(normalized, titleContext);
   // The old copies' search range covers both the old and new times (±day), so
   // a date/time change still finds the copies to update or retire.
   const range = withMargin(

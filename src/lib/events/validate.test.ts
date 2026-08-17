@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { validateEventForm, type EventFormValues } from "./validate";
+import { validateEventForm, withCreatorInvited, type EventFormValues } from "./validate";
 
 const base: EventFormValues = {
   title: "Team sync",
@@ -109,5 +109,35 @@ describe("validateEventForm", () => {
         end: "2026-08-15 00:00:00",
       }),
     ).toEqual({});
+  });
+});
+
+describe("withCreatorInvited", () => {
+  it("adds the creator as an invitee", () => {
+    expect(withCreatorInvited(base).inviteeUserIds).toEqual(["user-1"]);
+  });
+
+  it("dedupes the creator already in the invitee list", () => {
+    expect(withCreatorInvited({ ...base, inviteeUserIds: ["user-1", "user-2"] }).inviteeUserIds).toEqual(
+      ["user-1", "user-2"],
+    );
+  });
+
+  it("leaves other invitees in form order", () => {
+    expect(withCreatorInvited({ ...base, inviteeUserIds: ["user-2", "user-3"] }).inviteeUserIds).toEqual(
+      ["user-1", "user-2", "user-3"],
+    );
+  });
+
+  it("no-ops when there is no creator", () => {
+    const input = { ...base, creatorId: "" };
+    expect(withCreatorInvited(input)).toEqual(input);
+  });
+
+  it("preserves the remaining form fields", () => {
+    expect(withCreatorInvited(base)).toEqual({
+      ...base,
+      inviteeUserIds: ["user-1"],
+    });
   });
 });

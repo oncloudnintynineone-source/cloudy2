@@ -97,6 +97,15 @@ export function EventForm({
   onDone,
 }: EventFormProps) {
   const isEdit = event !== null;
+  // The event creator is always an invitee; the select value holding them is
+  // re-added on every change so the chip can't be cleared or deselected.
+  const lockedUserValue = isEdit
+    ? event.payload.creatorId
+      ? `user:${event.payload.creatorId}`
+      : null
+    : currentUser
+      ? `user:${currentUser}`
+      : null;
 
   const form = useForm<EventFormState>({
     initialValues: buildInitialValues(),
@@ -141,7 +150,8 @@ export function EventForm({
       creatorId: currentUser,
       inviteeUserIds: [],
       inviteeDepartments: [],
-      invitees: [],
+      // The creator is always an invitee of their own event.
+      invitees: currentUser ? [`user:${currentUser}`] : [],
     };
   }
 
@@ -420,7 +430,12 @@ export function EventForm({
                 placeholder="My department only"
                 data={inviteeData}
                 value={form.values.invitees}
-                onChange={(value) => form.setFieldValue("invitees", value)}
+                onChange={(value) =>
+                  form.setFieldValue(
+                    "invitees",
+                    lockedUserValue ? [...new Set([lockedUserValue, ...value])] : value,
+                  )
+                }
                 searchable
                 clearable
               />
