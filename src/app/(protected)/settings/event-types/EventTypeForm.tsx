@@ -1,7 +1,7 @@
 "use client";
 
 import { useForm } from "@mantine/form";
-import { Button, Group, Modal, Stack, Text, TextInput } from "@mantine/core";
+import { Button, Checkbox, Group, Modal, Stack, Text, TextInput } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
 
@@ -15,9 +15,20 @@ import {
   validateEventTypeForm,
   type EventTypeFormValues,
 } from "@/lib/eventTypes/validate";
+import {
+  TIME_OPTIONS,
+  TIME_OPTION_DESCRIPTIONS,
+  TIME_OPTION_LABELS,
+  normalizeTimeOptions,
+} from "@/lib/events/timeOptions";
 
 interface EventTypeFormProps {
-  eventType: { id: string; name: string; shortname: string | null } | null;
+  eventType: {
+    id: string;
+    name: string;
+    shortname: string | null;
+    timeOptions: string[];
+  } | null;
   onDone: () => void;
 }
 
@@ -29,6 +40,7 @@ export function EventTypeForm({ eventType, onDone }: EventTypeFormProps) {
     initialValues: {
       name: eventType?.name ?? "",
       shortname: eventType?.shortname ?? "",
+      timeOptions: eventType ? normalizeTimeOptions(eventType.timeOptions) : [],
     },
     validate: (values) => validateEventTypeForm(values),
   });
@@ -51,6 +63,8 @@ export function EventTypeForm({ eventType, onDone }: EventTypeFormProps) {
       form.setFieldError("name", result.error);
     } else if (result.field === "shortname") {
       form.setFieldError("shortname", result.error);
+    } else if (result.field === "timeOptions") {
+      form.setFieldError("timeOptions", result.error);
     }
     notifications.show({ color: "red", message: result.error });
   });
@@ -85,6 +99,25 @@ export function EventTypeForm({ eventType, onDone }: EventTypeFormProps) {
           description="Short acronym shown via the {type:acronym} event title token"
           {...form.getInputProps("shortname")}
         />
+
+        <Checkbox.Group
+          label="Time options"
+          description="Which datetime selector users may use for events of this type"
+          value={form.values.timeOptions}
+          onChange={(value) => form.setFieldValue("timeOptions", value as EventTypeFormValues["timeOptions"])}
+          error={form.errors.timeOptions}
+        >
+          <Stack gap="xs" mt="xs">
+            {TIME_OPTIONS.map((option) => (
+              <Checkbox
+                key={option}
+                value={option}
+                label={TIME_OPTION_LABELS[option]}
+                description={TIME_OPTION_DESCRIPTIONS[option]}
+              />
+            ))}
+          </Stack>
+        </Checkbox.Group>
         <Group justify="flex-end" mt="md" wrap="nowrap">
           {isEdit && (
             <Button type="button" color="red" variant="light" onClick={openConfirm}>

@@ -36,6 +36,7 @@ import { FilterButton } from "@/components/FilterButton";
 import { FilterModal, type FilterGroup } from "@/components/FilterModal";
 import { FloatingToolbar } from "@/components/FloatingToolbar";
 import type { CalendarEvent } from "@/lib/events/queries";
+import type { TimeOption } from "@/lib/events/timeOptions";
 import {
   buildScheduleResources,
   expandScheduleEvents,
@@ -48,20 +49,33 @@ import { EventForm } from "./EventForm";
 
 type ViewMode = "month" | "mobile" | "schedule";
 
+interface EventTypeOption {
+  name: string;
+  shortname: string | null;
+  timeOptions: TimeOption[];
+}
+
 interface DashboardViewProps {
   month: string;
   date: string;
   view: ViewMode;
   events: CalendarEvent[];
   calendars: { id: string; name: string }[];
-  eventTypes: string[];
+  eventTypes: EventTypeOption[];
+  eventTitleTemplate: string;
   googleConfigured: boolean;
   selectedCalendarIds: string[];
   selectedTypes: string[];
   currentUser: string;
   scheduleUsers: ScheduleUser[];
   inviteeDepartments: { id: string; name: string }[];
-  inviteeUsers: { id: string; name: string; departmentName: string | null; displayName: string }[];
+  inviteeUsers: {
+    id: string;
+    name: string;
+    shortname: string | null;
+    departmentName: string | null;
+    displayName: string;
+  }[];
   peopleNames: Record<string, string>;
   calendarNames: Record<string, string>;
 }
@@ -80,6 +94,7 @@ export function DashboardView({
   events,
   calendars,
   eventTypes,
+  eventTitleTemplate,
   googleConfigured,
   selectedCalendarIds,
   selectedTypes,
@@ -114,7 +129,7 @@ export function DashboardView({
     if (eventTypes.length > 0) {
       groups.push({
         label: "Event Types",
-        options: eventTypes.map((name) => ({ value: name, label: name })),
+        options: eventTypes.map((type) => ({ value: type.name, label: type.name })),
       });
     }
     return groups;
@@ -471,6 +486,7 @@ export function DashboardView({
             event={formState.event}
             defaultDate={formState.defaultDate}
             eventTypes={eventTypes}
+            eventTitleTemplate={eventTitleTemplate}
             currentUser={currentUser}
             inviteeDepartments={inviteeDepartments}
             inviteeUsers={inviteeUsers}

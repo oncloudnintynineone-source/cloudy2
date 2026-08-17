@@ -62,6 +62,11 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
       : calParam.filter((id) => calendarIds.includes(id));
 
   const typeNames = eventTypes.map((type) => type.name);
+  const eventTypeOptions = eventTypes.map((type) => ({
+    name: type.name,
+    shortname: type.shortname,
+    timeOptions: type.timeOptions,
+  }));
   const typesParam =
     typeof params.types === "string" ? params.types.split(",").filter(Boolean) : [];
   const selectedTypes =
@@ -90,6 +95,7 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
   const inviteeUsers = pickerUsers.map((user) => ({
     id: user.id,
     name: user.name,
+    shortname: user.shortname,
     departmentName: user.department?.name ?? null,
     displayName: formatFullName(
       { name: user.name, departmentName: user.department?.name ?? null },
@@ -127,7 +133,8 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
       view={view}
       events={events}
       calendars={calendars.map((calendar) => ({ id: calendar.id, name: calendar.name }))}
-      eventTypes={typeNames}
+      eventTypes={eventTypeOptions}
+      eventTitleTemplate={settings.eventTitleTemplate}
       googleConfigured={googleCalendarConfigured()}
       selectedCalendarIds={selectedCalendars}
       selectedTypes={selectedTypes}

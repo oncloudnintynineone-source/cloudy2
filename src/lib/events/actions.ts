@@ -9,6 +9,7 @@ import { AUDIT_ACTIONS, actorFromUser } from "@/lib/audit/build";
 import { logAction } from "@/lib/audit/log";
 import { absEventRange } from "@/lib/events/datetime";
 import { encodeEventNotes, parseEventPeople } from "@/lib/events/notes";
+import { resolveTimeOption, type TimeOption } from "@/lib/events/timeOptions";
 import { getUserDepartmentIds } from "@/lib/events/queries";
 import {
   deriveTargetCalendarIds,
@@ -114,6 +115,8 @@ interface EventTitleContext {
   eventType: EventTitleType | null;
   people: EventTitlePerson[];
   departments: string[];
+  /** Datetime options the event type allows; empty when the event has no type. */
+  timeOptions: TimeOption[];
 }
 
 /**
@@ -162,6 +165,21 @@ async function buildEventTitleContext(input: EventFormValues): Promise<EventTitl
     eventType,
     people,
     departments: inviteeDepartments.map((id) => departmentNames[id] ?? ""),
+    timeOptions: eventTypeRow?.timeOptions ?? [],
+  };
+}
+
+/**
+ * Clamp the form's chosen datetime option to what the event type allows
+ * (unknown names and untyped events fall back to the default "range"), and
+ * default the AM/PM indicator for "ampm" events.
+ */
+function resolveEventTime(input: EventFormValues, context: EventTitleContext): EventFormValues {
+  const timeOption = resolveTimeOption(context.timeOptions, input.timeOption);
+  return {
+    ...input,
+    timeOption,
+    amPm: timeOption === "ampm" ? (input.amPm === "PM" ? "PM" : "AM") : "",
   };
 }
 
@@ -182,7 +200,8 @@ function buildGcalEventInput(
     titleContext.template,
   );
   // A template that renders to nothing must not produce an untitled event.
-  const title = renderedTitle || rawTitle;
+  const baseTitle = renderedTitle || rawTitle;
+  const title = input.timeOption === "ampm" ? `${baseTitle} (${input.amPm})` : baseTitle;
   const description = encodeEventNotes({
     eventId,
     eventType: input.eventType || undefined,
@@ -190,14 +209,17 @@ function buildGcalEventInput(
     inviteeUsers: input.inviteeUserIds,
     inviteeDepartments: input.inviteeDepartments,
     title: rawTitle,
+    timeOption: input.timeOption,
+    amPm: input.timeOption === "ampm" ? input.amPm : undefined,
   });
 
-  const { start, end } = absEventRange(input.start, input.end, input.allDay);
+  const allDay = input.timeOption !== "range";
+  const { start, end } = absEventRange(input.start, input.end, allDay);
   return {
     calendarId: googleCalendarId,
     title,
     description,
-    allDay: input.allDay,
+    allDay,
     start,
     end,
   };
@@ -278,6 +300,7 @@ export async function createEvent(input: EventFormValues): Promise<EventActionRe
   const eventId = crypto.randomUUID();
   const integration = await getGoogleIntegration();
   const titleContext = await buildEventTitleContext(input);
+  const effectiveInput = resolveEventTime(input, titleContext);
   const created: { googleCalendarId: string; googleEventId: string }[] = [];
 
   try {
@@ -287,7 +310,7 @@ export async function createEvent(input: EventFormValues): Promise<EventActionRe
         throw new Error("Calendar not found");
       }
       const event = await integration.createEvent(
-        buildGcalEventInput(googleCalendarId, input, eventId, titleContext),
+        buildGcalEventInput(googleCalendarId, effectiveInput, eventId, titleContext),
       );
       created.push({ googleCalendarId, googleEventId: event.id });
     }
@@ -310,11 +333,12 @@ export async function createEvent(input: EventFormValues): Promise<EventActionRe
     method: "createEvent",
     details: {
       eventId,
-      eventType: input.eventType || null,
+      eventType: effectiveInput.eventType || null,
+      timeOption: effectiveInput.timeOption,
       targetCalendarIds: targets,
       targetCalendars: Object.values(targetCalendars),
-      inviteeUserCount: arrayLength(input.inviteeUserIds),
-      inviteeDepartmentCount: arrayLength(input.inviteeDepartments),
+      inviteeUserCount: arrayLength(effectiveInput.inviteeUserIds),
+      inviteeDepartmentCount: arrayLength(effectiveInput.inviteeDepartments),
       googleEventIds: created.map((copy) => copy.googleEventId),
     },
   });
@@ -350,12 +374,13 @@ export async function updateEvent(ref: EventRef, input: EventFormValues): Promis
 
   const integration = await getGoogleIntegration();
   const titleContext = await buildEventTitleContext(input);
+  const effectiveInput = resolveEventTime(input, titleContext);
   // The old copies' search range covers both the old and new times (±day), so
   // a date/time change still finds the copies to update or retire.
   const range = withMargin(
     unionRange(
       absEventRange(ref.start, ref.end, ref.allDay),
-      absEventRange(input.start, input.end, input.allDay),
+      absEventRange(effectiveInput.start, effectiveInput.end, effectiveInput.timeOption !== "range"),
     ),
   );
   const fallback = await legacyFallback(ref);
@@ -376,12 +401,12 @@ export async function updateEvent(ref: EventRef, input: EventFormValues): Promis
           for (const copy of found) {
             await integration.updateEvent(
               copy.googleEventId,
-              buildGcalEventInput(googleCalendarId, input, eventId, titleContext),
+              buildGcalEventInput(googleCalendarId, effectiveInput, eventId, titleContext),
             );
           }
         } else {
           const event = await integration.createEvent(
-            buildGcalEventInput(googleCalendarId, input, eventId, titleContext),
+            buildGcalEventInput(googleCalendarId, effectiveInput, eventId, titleContext),
           );
           createdHere.push({ googleCalendarId, googleEventId: event.id });
         }
@@ -409,11 +434,12 @@ export async function updateEvent(ref: EventRef, input: EventFormValues): Promis
     method: "updateEvent",
     details: {
       eventId,
-      eventType: input.eventType || null,
+      eventType: effectiveInput.eventType || null,
+      timeOption: effectiveInput.timeOption,
       removedCalendarIds: oldTargets.filter((id) => !newSet.has(id)),
       addedCalendarIds: newTargets.filter((id) => !oldTargets.includes(id)),
-      inviteeUserCount: arrayLength(input.inviteeUserIds),
-      inviteeDepartmentCount: arrayLength(input.inviteeDepartments),
+      inviteeUserCount: arrayLength(effectiveInput.inviteeUserIds),
+      inviteeDepartmentCount: arrayLength(effectiveInput.inviteeDepartments),
     },
   });
 

@@ -8,6 +8,11 @@ import { useDisclosure } from "@mantine/hooks";
 
 import type { EventType } from "@/db/schema";
 import { FloatingToolbar } from "@/components/FloatingToolbar";
+import {
+  TIME_OPTION_LABELS,
+  normalizeTimeOptions,
+  resolveTimeOptions,
+} from "@/lib/events/timeOptions";
 import { EventTypeForm } from "./EventTypeForm";
 
 interface EventTypeTableProps {
@@ -52,6 +57,11 @@ export function EventTypeTable({ types }: EventTypeTableProps) {
                     {eventType.shortname}
                   </Text>
                 ) : null}
+                <Text size="xs" c="dimmed">
+                  {resolveTimeOptions(normalizeTimeOptions(eventType.timeOptions))
+                    .map((option) => TIME_OPTION_LABELS[option])
+                    .join(" · ")}
+                </Text>
               </Stack>
             </Paper>
           ))}

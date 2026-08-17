@@ -1,0 +1,1 @@
+ALTER TABLE "event_types" ADD COLUMN "time_options" text[] DEFAULT '{}'::text[] NOT NULL;

@@ -6,7 +6,14 @@ import { db } from "@/db";
 import { calendars, users } from "@/db/schema";
 import { getGoogleIntegration } from "@/lib/google";
 import { formatInstantToNaive, monthRange, utcToDateString } from "@/lib/events/datetime";
-import { parseEventPeople, parseEventType, parseEventTitle } from "@/lib/events/notes";
+import {
+  parseEventAmPm,
+  parseEventPeople,
+  parseEventTimeOption,
+  parseEventTitle,
+  parseEventType,
+} from "@/lib/events/notes";
+import type { TimeOption } from "@/lib/events/timeOptions";
 import { dedupeEventsByGroupId } from "@/lib/events/targets";
 
 export interface CalendarEventPayload {
@@ -25,6 +32,10 @@ export interface CalendarEventPayload {
   inviteeDepartmentIds: string[];
   /** Raw (pre-template) description from the notes block; null for legacy events. */
   rawTitle: string | null;
+  /** Datetime option used to create the event; defaults to the timed "range". */
+  timeOption: TimeOption;
+  /** Morning/afternoon indicator for "ampm" events, else null. */
+  timeOptionAmPm: "AM" | "PM" | null;
 }
 
 export interface CalendarEvent {
@@ -137,6 +148,8 @@ export async function fetchMonthEvents(params: {
           inviteeUserIds: people.userIds,
           inviteeDepartmentIds: people.departmentIds,
           rawTitle: parseEventTitle(item.description),
+          timeOption: parseEventTimeOption(item.description) ?? (item.allDay ? "full" : "range"),
+          timeOptionAmPm: parseEventAmPm(item.description),
         },
       });
     }

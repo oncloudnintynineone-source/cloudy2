@@ -4,7 +4,8 @@ import { validateEventForm, type EventFormValues } from "./validate";
 
 const base: EventFormValues = {
   title: "Team sync",
-  allDay: false,
+  timeOption: "range",
+  amPm: "",
   start: "2026-08-15 09:00:00",
   end: "2026-08-15 10:00:00",
   eventType: "Meeting",
@@ -34,11 +35,35 @@ describe("validateEventForm", () => {
     ).toBe("End must be on or after start");
   });
 
-  it("allows a same-day all-day event", () => {
+  it("requires AM/PM for ampm events", () => {
     expect(
       validateEventForm({
         ...base,
-        allDay: true,
+        timeOption: "ampm",
+        amPm: "",
+        start: "2026-08-15 00:00:00",
+        end: "2026-08-15 00:00:00",
+      }).amPm,
+    ).toBe("Select AM or PM");
+  });
+
+  it("accepts an ampm event with the indicator set", () => {
+    expect(
+      validateEventForm({
+        ...base,
+        timeOption: "ampm",
+        amPm: "PM",
+        start: "2026-08-15 00:00:00",
+        end: "2026-08-15 00:00:00",
+      }),
+    ).toEqual({});
+  });
+
+  it("allows a same-day full-day event", () => {
+    expect(
+      validateEventForm({
+        ...base,
+        timeOption: "full",
         start: "2026-08-15 00:00:00",
         end: "2026-08-15 00:00:00",
       }),

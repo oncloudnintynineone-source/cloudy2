@@ -10,10 +10,11 @@ import { diffFields } from "@/lib/audit/diff";
 import { logAction } from "@/lib/audit/log";
 import { requireAdmin } from "@/lib/session";
 import { validateEventTypeForm, type EventTypeFormValues } from "@/lib/eventTypes/validate";
+import { normalizeTimeOptions } from "@/lib/events/timeOptions";
 
 export type EventTypeActionResult =
   | { ok: true }
-  | { ok: false; error: string; field?: "name" | "shortname" };
+  | { ok: false; error: string; field?: "name" | "shortname" | "timeOptions" };
 
 function isUniqueViolation(error: unknown): error is {
   code?: string;
@@ -55,10 +56,11 @@ export async function createEventType(input: EventTypeFormValues): Promise<Event
 
   const name = input.name.trim();
   const shortname = input.shortname.trim();
+  const timeOptions = normalizeTimeOptions(input.timeOptions);
   try {
     const [created] = await db
       .insert(eventTypes)
-      .values({ name, shortname })
+      .values({ name, shortname, timeOptions })
       .returning({ id: eventTypes.id, name: eventTypes.name });
 
     await logAction({
@@ -68,7 +70,7 @@ export async function createEventType(input: EventTypeFormValues): Promise<Event
       entityId: created.id,
       entityName: created.name,
       method: "createEventType",
-      details: { name, shortname },
+      details: { name, shortname, timeOptions },
     });
   } catch (error) {
     if (violatedConstraint(error) === "event_types_shortname_idx") {
@@ -106,10 +108,11 @@ export async function renameEventType(
 
   const name = input.name.trim();
   const shortname = input.shortname.trim();
+  const timeOptions = normalizeTimeOptions(input.timeOptions);
   try {
     await db
       .update(eventTypes)
-      .set({ name, shortname, updatedAt: new Date() })
+      .set({ name, shortname, timeOptions, updatedAt: new Date() })
       .where(eq(eventTypes.id, id));
 
     await logAction({
@@ -120,8 +123,12 @@ export async function renameEventType(
       entityName: name,
       method: "renameEventType",
       details: diffFields(
-        { name: existing.name, shortname: existing.shortname },
-        { name, shortname },
+        {
+          name: existing.name,
+          shortname: existing.shortname,
+          timeOptions: existing.timeOptions,
+        },
+        { name, shortname, timeOptions },
       ),
     });
   } catch (error) {

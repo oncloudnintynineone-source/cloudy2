@@ -81,6 +81,8 @@ function makeEvent(eventId: string | null, calendarId = "cal-1"): CalendarEvent 
       inviteeUserIds: [],
       inviteeDepartmentIds: [],
       rawTitle: null,
+      timeOption: "range",
+      timeOptionAmPm: null,
     },
   };
 }

@@ -71,6 +71,13 @@
       "when": 1786957240852,
       "tag": "0009_petite_blur",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1786970976503,
+      "tag": "0010_jazzy_hemingway",
+      "breakpoints": true
     }
   ]
 }

@@ -4,6 +4,8 @@
  * additional fields can be added later without a format migration.
  */
 
+import { isTimeOption, type TimeOption } from "./timeOptions";
+
 export interface EventNotes {
   eventType?: string;
   /**
@@ -20,6 +22,10 @@ export interface EventNotes {
   inviteeUsers?: string[];
   /** Department (calendar) ids tagged on the event (schedule view: shows in each department row). */
   inviteeDepartments?: string[];
+  /** Datetime option used to create the event ("range" | "ampm" | "full"). */
+  timeOption?: string;
+  /** Morning/afternoon indicator for "ampm" events. */
+  amPm?: string;
   [key: string]: unknown;
 }
 
@@ -102,4 +108,18 @@ export function parseEventTitle(description: string): string | null {
   const notes = parseEventNotes(description);
   const title = notes?.title;
   return typeof title === "string" && title ? title : null;
+}
+
+/** Extract the datetime option from the notes block, or null (legacy). */
+export function parseEventTimeOption(description: string): TimeOption | null {
+  const notes = parseEventNotes(description);
+  const timeOption = notes?.timeOption;
+  return isTimeOption(timeOption) ? timeOption : null;
+}
+
+/** Extract the AM/PM indicator from the notes block, or null when not an AM/PM event. */
+export function parseEventAmPm(description: string): "AM" | "PM" | null {
+  const notes = parseEventNotes(description);
+  const amPm = notes?.amPm;
+  return amPm === "AM" || amPm === "PM" ? amPm : null;
 }

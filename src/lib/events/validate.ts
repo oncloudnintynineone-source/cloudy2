@@ -6,9 +6,14 @@
  * comparison reduces to a simple string comparison.
  */
 
+import type { TimeOption } from "./timeOptions";
+
 export interface EventFormValues {
   title: string;
-  allDay: boolean;
+  /** Selected datetime option ("range" = timed, "ampm"/"full" = full-day). */
+  timeOption: TimeOption;
+  /** Morning/afternoon indicator, required for "ampm" events. */
+  amPm: "AM" | "PM" | "";
   start: string;
   end: string;
   eventType: string;
@@ -22,6 +27,7 @@ export interface EventFormValues {
 
 export interface EventFormErrors {
   title?: string;
+  amPm?: string;
   start?: string;
   end?: string;
   [key: string]: string | undefined;
@@ -32,6 +38,9 @@ export function validateEventForm(values: EventFormValues): EventFormErrors {
 
   if (!values.title.trim()) {
     errors.title = "Description is required";
+  }
+  if (values.timeOption === "ampm" && !values.amPm) {
+    errors.amPm = "Select AM or PM";
   }
   if (!values.start) {
     errors.start = "Start is required";

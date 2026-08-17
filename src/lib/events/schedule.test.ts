@@ -21,6 +21,8 @@ function makeEvent(overrides: Partial<CalendarEvent["payload"]> = {}): CalendarE
     inviteeUserIds: overrides.inviteeUserIds ?? [],
     inviteeDepartmentIds: overrides.inviteeDepartmentIds ?? [],
     rawTitle: null,
+    timeOption: overrides.timeOption ?? "range",
+    timeOptionAmPm: overrides.timeOptionAmPm ?? null,
   };
   return { id: "cal-1:google-1", title: "Test event", start: "2026-08-17 09:00:00", end: "2026-08-17 10:00:00", color: "blue", payload };
 }

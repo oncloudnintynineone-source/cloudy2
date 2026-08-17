@@ -37,6 +37,7 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
 - [1.24 Event type acronym + Templates tab (Phase 2p)](#124-event-type-acronym--templates-tab-phase-2p)
 - [1.25 Schedule view space optimization (Phase 2q)](#125-schedule-view-space-optimization-phase-2q)
 - [1.26 Git history](#126-git-history)
+- [1.27 Event time options + calendar preview (Phase 2r)](#127-event-time-options--calendar-preview-phase-2r)
 
 ## 1.1 Status
 
@@ -1028,3 +1029,61 @@ d914aca Fix pnpm build scripts and pin package manager/Node
 e04140f Phase 1 scaffold
 8e60883 Initial commit from Create Next App
 ```
+
+## 1.27 Event time options + calendar preview (Phase 2r)
+
+Admins now choose which datetime expressions are allowed per event type, the event
+form is reordered to match, and the final Google Calendar title is previewed live
+above the submit button.
+
+```mermaid
+flowchart LR
+    A[Event Types settings<br/>checkboxes] --> B[event_types.time_options<br/>range · ampm · full]
+    B --> C[EventForm tabs]
+    C --> D["Start &amp; End<br/>two datetime pickers"]
+    C --> E["AM/PM<br/>full-day dates + AM/PM"]
+    C --> F["Full Day<br/>full-day dates"]
+    E --> G["title (AM)/(PM)"]
+    D --> H["title (timed)"]
+    F --> I["title (full-day)"]
+    H --> J["Google Calendar summary<br/>+ preview in form"]
+    G --> J
+    I --> J
+```
+
+- **Time options** — each event type carries a `time_options` text-array column
+  (migration `0010`) holding a subset of `["range", "ampm", "full"]` (labels
+  **Start & End**, **AM/PM**, **Full Day**). Empty/unrecorded types resolve to
+  `["range"]` (the old behaviour). `src/lib/events/timeOptions.ts` is a new pure
+  module (`TimeOption`, `TIME_OPTION_LABELS`, `normalizeTimeOptions`,
+  `resolveTimeOptions`, `resolveTimeOption`) unit-tested in `timeOptions.test.ts`.
+- **Admin UI** — `EventTypeForm` gains a "Time options" `Checkbox.Group`
+  (at least one required, validated in `validateEventTypeForm`);
+  `createEventType`/`renameEventType` persist + audit it (field diff);
+  `EventTypeTable` cards list the enabled option labels. `listEventTypes`
+  returns normalized options; `getEventTypesByNames` also returns them so
+  actions can enforce the restriction.
+- **Event semantics** — `EventFormValues` drops the free `allDay` toggle and gains
+  `timeOption` + `amPm`. `Start & End` is always timed (two `DateTimePicker`s);
+  **AM/PM** and **Full Day** are full-day date ranges. **AM/PM** appends `" (AM)"` /
+  `" (PM)"` to the rendered Google title. `allDay` is derived server-side
+  (`timeOption !== "range"`) in `buildGcalEventInput`, which also writes
+  `timeOption`/`amPm` into the notes JSON (`notes.ts` parses them back via new
+  `parseEventTimeOption`/`parseEventAmPm`; `CalendarEventPayload` gains
+  `timeOption` + `timeOptionAmPm`). Legacy all-day events default to `"full"` on
+  edit prefill. The server clamps the chosen option against the type's allowed
+  set (`resolveEventTime`), defaulting untyped events to `range`.
+- **Event form reorder** — order is now **Event Description → Event Type →
+  time-option tabs → datetime component → Invitees → Calendar preview →
+  Create/Save button**. When the selected type allows several options an inline
+  `Tabs` strip switches the datetime component (tab switches normalize times to
+  `00:00:00` and default `amPm` to `AM`); a single allowed option renders it
+  directly; no type selected = Start & End.
+- **Calendar preview** — a `Paper` above the submit button renders the exact
+  summary the server will write: `formatEventTitle(...)` against the saved
+  `event_title_template` using the live title/type shortname/selected people
+  (fqn + acronym)/departments, plus the AM/PM suffix. `dashboard/page.tsx`
+  passes the template, rich event-type info, and user `shortname` for the
+  preview.
+- Verification: `pnpm lint`, `pnpm typecheck`, `pnpm test` (171), `pnpm build`,
+  and `pnpm db:generate` (no drift — migration `0010` in sync) all pass.
