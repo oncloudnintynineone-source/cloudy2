@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  absEventRange,
   addOneDay,
   dateToUtc,
   formatInstantToNaive,
@@ -48,6 +49,22 @@ describe("monthRange", () => {
     expect(monthRange("2026-08")).toEqual({
       start: new Date("2026-08-01T00:00:00.000Z"),
       end: new Date("2026-09-01T00:00:00.000Z"),
+    });
+  });
+});
+
+describe("absEventRange", () => {
+  it("parses timed events as UTC+8 instants", () => {
+    expect(absEventRange("2026-08-17 09:00:00", "2026-08-17 10:30:00", false)).toEqual({
+      start: new Date("2026-08-17T01:00:00.000Z"),
+      end: new Date("2026-08-17T02:30:00.000Z"),
+    });
+  });
+
+  it("uses Google date semantics for all-day events (exclusive end date)", () => {
+    expect(absEventRange("2026-08-17 00:00:00", "2026-08-18 00:00:00", true)).toEqual({
+      start: new Date("2026-08-17T00:00:00.000Z"),
+      end: new Date("2026-08-19T00:00:00.000Z"),
     });
   });
 });

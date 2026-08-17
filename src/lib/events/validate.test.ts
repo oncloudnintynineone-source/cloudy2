@@ -8,7 +8,9 @@ const base: EventFormValues = {
   start: "2026-08-15 09:00:00",
   end: "2026-08-15 10:00:00",
   eventType: "Meeting",
-  calendarId: "dept-1",
+  creatorId: "user-1",
+  inviteeUserIds: [],
+  inviteeDepartments: [],
 };
 
 describe("validateEventForm", () => {

@@ -6,7 +6,8 @@ import { db } from "@/db";
 import { calendars, users } from "@/db/schema";
 import { getGoogleIntegration } from "@/lib/google";
 import { formatInstantToNaive, monthRange, utcToDateString } from "@/lib/events/datetime";
-import { parseEventType } from "@/lib/events/notes";
+import { parseEventPeople, parseEventType } from "@/lib/events/notes";
+import { dedupeEventsByGroupId } from "@/lib/events/targets";
 
 export interface CalendarEventPayload {
   calendarId: string;
@@ -14,6 +15,14 @@ export interface CalendarEventPayload {
   allDay: boolean;
   eventType: string | null;
   calendarName: string;
+  /** Group id shared by all department copies of the logical event, or null (legacy). */
+  eventId: string | null;
+  /** Id of the user who created the event (from the notes block), or null. */
+  creatorId: string | null;
+  /** Ids of users tagged on the event (schedule view rows). */
+  inviteeUserIds: string[];
+  /** Department (calendar) ids tagged on the event (schedule view rows). */
+  inviteeDepartmentIds: string[];
 }
 
 export interface CalendarEvent {
@@ -65,6 +74,21 @@ export async function getUserDepartmentId(userId: string): Promise<string | null
   return user?.departmentId ?? null;
 }
 
+/** Department calendar per user id (null when unassigned or unknown). */
+export async function getUserDepartmentIds(
+  userIds: string[],
+): Promise<Record<string, string | null>> {
+  const uniqueIds = [...new Set(userIds)];
+  if (uniqueIds.length === 0) {
+    return {};
+  }
+  const rows = await db
+    .select({ id: users.id, departmentId: users.departmentId })
+    .from(users)
+    .where(inArray(users.id, uniqueIds));
+  return Object.fromEntries(rows.map((row) => [row.id, row.departmentId]));
+}
+
 /** Fetch events for a month across the selected calendars, as schedule-ready data. */
 export async function fetchMonthEvents(params: {
   month: string;
@@ -75,10 +99,12 @@ export async function fetchMonthEvents(params: {
     return [];
   }
 
+  // Name order makes the representative copy (first per group id) deterministic.
   const rows = await db
     .select()
     .from(calendars)
-    .where(inArray(calendars.id, params.calendarIds));
+    .where(inArray(calendars.id, params.calendarIds))
+    .orderBy(calendars.name);
 
   const integration = await getGoogleIntegration();
   const { start, end } = monthRange(params.month);
@@ -91,6 +117,7 @@ export async function fetchMonthEvents(params: {
       if (params.typeFilter.length > 0 && (!eventType || !params.typeFilter.includes(eventType))) {
         continue;
       }
+      const people = parseEventPeople(item.description);
       events.push({
         id: `${calendar.id}:${item.id}`,
         title: item.title || "(no title)",
@@ -103,11 +130,18 @@ export async function fetchMonthEvents(params: {
           allDay: item.allDay,
           eventType,
           calendarName: calendar.name,
+          eventId: people.eventId,
+          creatorId: people.creatorId,
+          inviteeUserIds: people.userIds,
+          inviteeDepartmentIds: people.departmentIds,
         },
       });
     }
   }
 
   events.sort((a, b) => (a.start < b.start ? -1 : a.start > b.start ? 1 : 0));
-  return events;
+  // A logical event has at most one copy per filtered department calendar;
+  // collapse the copies so views show it once (stable sort keeps calendar
+  // name order among equal start times, so the representative is deterministic).
+  return dedupeEventsByGroupId(events);
 }

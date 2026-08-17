@@ -12,7 +12,12 @@ export interface EventFormValues {
   start: string;
   end: string;
   eventType: string;
-  calendarId: string;
+  /** Event creator (kept on edit; set from the session on create). No validation. */
+  creatorId: string;
+  /** User ids tagged on the event (schedule view rows). No validation. */
+  inviteeUserIds: string[];
+  /** Department (calendar) ids tagged on the event (schedule view rows). No validation. */
+  inviteeDepartments: string[];
 }
 
 export interface EventFormErrors {

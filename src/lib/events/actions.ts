@@ -1,15 +1,19 @@
 "use server";
 
-import { eq } from "drizzle-orm";
+import { inArray } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
 import { db } from "@/db";
 import { calendars } from "@/db/schema";
 import { AUDIT_ACTIONS, actorFromUser } from "@/lib/audit/build";
 import { logAction } from "@/lib/audit/log";
-import { addOneDay, dateToUtc, parseNaiveToInstant } from "@/lib/events/datetime";
-import { encodeEventNotes } from "@/lib/events/notes";
-import { getUserDepartmentId } from "@/lib/events/queries";
+import { absEventRange } from "@/lib/events/datetime";
+import { encodeEventNotes, parseEventPeople } from "@/lib/events/notes";
+import { getUserDepartmentIds } from "@/lib/events/queries";
+import {
+  deriveTargetCalendarIds,
+  type EventRef,
+} from "@/lib/events/targets";
 import { validateEventForm, type EventFormValues } from "@/lib/events/validate";
 import { getGoogleIntegration, googleCalendarConfigured, type GcalEventInput } from "@/lib/google";
 import { resolveGoogleCalendarId } from "@/lib/roster/shares";
@@ -17,10 +21,14 @@ import { requireSession } from "@/lib/session";
 
 export type EventActionResult =
   | { ok: true }
-  | { ok: false; error: string; field?: "title" | "start" | "end" | "calendarId" };
+  | { ok: false; error: string; field?: "title" | "start" | "end" };
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : "Google Calendar request failed";
+}
+
+function arrayLength(value: unknown): number {
+  return Array.isArray(value) ? value.length : 0;
 }
 
 function actorFrom(session: Awaited<ReturnType<typeof requireSession>>) {
@@ -31,53 +39,141 @@ function actorFrom(session: Awaited<ReturnType<typeof requireSession>>) {
   });
 }
 
-/**
- * The calendar a new/edited event should target. Admins pick any registry
- * calendar; regular users always target their own department.
- */
-async function resolveTargetCalendarId(
-  session: Awaited<ReturnType<typeof requireSession>>,
-  requested: string,
-): Promise<string | null> {
-  if (session.user.role === "admin") {
-    if (!requested) {
-      return null;
-    }
-    const [calendar] = await db
-      .select({ id: calendars.id })
-      .from(calendars)
-      .where(eq(calendars.id, requested))
-      .limit(1);
-    return calendar?.id ?? null;
-  }
-  return getUserDepartmentId(session.user.id);
+interface AbsRange {
+  start: Date;
+  end: Date;
 }
 
-function buildGcalEventInput(googleCalendarId: string, input: EventFormValues): GcalEventInput {
+function unionRange(a: AbsRange, b: AbsRange): AbsRange {
+  return {
+    start: new Date(Math.min(a.start.getTime(), b.start.getTime())),
+    end: new Date(Math.max(a.end.getTime(), b.end.getTime())),
+  };
+}
+
+/** Grow a range by a day each side so copies drifted slightly in Google are still found. */
+function withMargin(range: AbsRange): AbsRange {
+  const marginMs = 24 * 60 * 60 * 1000;
+  return {
+    start: new Date(range.start.getTime() - marginMs),
+    end: new Date(range.end.getTime() + marginMs),
+  };
+}
+
+/**
+ * Department calendars a logical event must live in, from its creator +
+ * invitees. When nothing derives (e.g. a legacy event with no creator stored)
+ * and a fallback calendar is given, that calendar alone is the target set.
+ */
+async function resolveTargetCalendars(
+  input: {
+    creatorId: string;
+    inviteeUserIds: string[];
+    inviteeDepartments: string[];
+  },
+  fallbackCalendarId: string | null,
+): Promise<string[]> {
+  const inviteeUserIds = Array.isArray(input.inviteeUserIds) ? input.inviteeUserIds : [];
+  const inviteeDepartments = Array.isArray(input.inviteeDepartments)
+    ? input.inviteeDepartments
+    : [];
+  const ids = [...new Set([...(input.creatorId ? [input.creatorId] : []), ...inviteeUserIds])];
+  const userDepartments = ids.length > 0 ? await getUserDepartmentIds(ids) : {};
+  const derived = deriveTargetCalendarIds({
+    creatorDepartmentId: input.creatorId ? (userDepartments[input.creatorId] ?? null) : null,
+    invitedUserDepartmentIds: inviteeUserIds.map((id) => userDepartments[id] ?? null),
+    invitedDepartmentIds: inviteeDepartments,
+  });
+  return derived.length > 0 ? derived : (fallbackCalendarId ? [fallbackCalendarId] : []);
+}
+
+/** Target set for an existing (representative) copy, from its own people fields. */
+async function refTargetCalendars(ref: EventRef): Promise<string[]> {
+  return resolveTargetCalendars(
+    {
+      creatorId: ref.creatorId ?? "",
+      inviteeUserIds: ref.inviteeUserIds,
+      inviteeDepartments: ref.inviteeDepartmentIds,
+    },
+    ref.calendarId,
+  );
+}
+
+function buildGcalEventInput(
+  googleCalendarId: string,
+  input: EventFormValues,
+  eventId: string,
+): GcalEventInput {
   const title = input.title.trim();
-  const description = encodeEventNotes({ eventType: input.eventType || undefined });
+  const description = encodeEventNotes({
+    eventId,
+    eventType: input.eventType || undefined,
+    createdBy: input.creatorId || undefined,
+    inviteeUsers: input.inviteeUserIds,
+    inviteeDepartments: input.inviteeDepartments,
+  });
 
-  if (input.allDay) {
-    const startDate = input.start.slice(0, 10);
-    const endDate = input.end.slice(0, 10);
-    return {
-      calendarId: googleCalendarId,
-      title,
-      description,
-      allDay: true,
-      start: dateToUtc(startDate),
-      end: dateToUtc(addOneDay(endDate)),
-    };
-  }
-
+  const { start, end } = absEventRange(input.start, input.end, input.allDay);
   return {
     calendarId: googleCalendarId,
     title,
     description,
-    allDay: false,
-    start: parseNaiveToInstant(input.start),
-    end: parseNaiveToInstant(input.end),
+    allDay: input.allDay,
+    start,
+    end,
   };
+}
+
+/**
+ * Copies (in one target calendar) of the logical event: items whose notes
+ * carry the group id, plus — on a legacy first edit/delete — the original copy
+ * matched by Google event id (it has no group id yet).
+ */
+async function findCopies(
+  googleCalendarId: string,
+  eventId: string,
+  range: AbsRange,
+  legacyFallback: { googleCalendarId: string; googleEventId: string } | null,
+): Promise<{ googleCalendarId: string; googleEventId: string }[]> {
+  const integration = await getGoogleIntegration();
+  const items = await integration.listEvents(googleCalendarId, range.start, range.end);
+  return items
+    .filter((item) => {
+      if (parseEventPeople(item.description).eventId === eventId) {
+        return true;
+      }
+      return (
+        legacyFallback !== null &&
+        googleCalendarId === legacyFallback.googleCalendarId &&
+        item.id === legacyFallback.googleEventId
+      );
+    })
+    .map((item) => ({ googleCalendarId, googleEventId: item.id }));
+}
+
+/** Google calendar id of the representative copy's registry row, or null. */
+async function legacyFallback(ref: EventRef): Promise<{
+  googleCalendarId: string;
+  googleEventId: string;
+} | null> {
+  if (ref.eventId !== null) {
+    return null;
+  }
+  const googleCalendarId = await resolveGoogleCalendarId(ref.calendarId);
+  return googleCalendarId
+    ? { googleCalendarId, googleEventId: ref.googleEventId }
+    : null;
+}
+
+async function calendarNames(calendarIds: string[]): Promise<Record<string, string>> {
+  if (calendarIds.length === 0) {
+    return {};
+  }
+  const rows = await db
+    .select({ id: calendars.id, name: calendars.name })
+    .from(calendars)
+    .where(inArray(calendars.id, calendarIds));
+  return Object.fromEntries(rows.map((row) => [row.id, row.name]));
 }
 
 export async function createEvent(input: EventFormValues): Promise<EventActionResult> {
@@ -88,51 +184,73 @@ export async function createEvent(input: EventFormValues): Promise<EventActionRe
     return { ok: false, error: "Check the highlighted fields", field: "title" };
   }
 
-  const calendarId = await resolveTargetCalendarId(session, input.calendarId);
-  if (!calendarId) {
+  if (!googleCalendarConfigured()) {
+    return { ok: false, error: "Google Calendar is not configured" };
+  }
+
+  const targets = await resolveTargetCalendars(input, null);
+  if (targets.length === 0) {
     return {
       ok: false,
-      error:
-        session.user.role === "admin"
-          ? "Select a calendar"
-          : "You are not assigned to a department",
-      field: "calendarId",
+      error: "Assign yourself to a department or tag an invitee",
     };
   }
 
-  if (!googleCalendarConfigured()) {
-    return { ok: false, error: "Google Calendar is not configured", field: "calendarId" };
-  }
-
-  const googleCalendarId = await resolveGoogleCalendarId(calendarId);
-  if (!googleCalendarId) {
-    return { ok: false, error: "Calendar not found", field: "calendarId" };
-  }
+  const eventId = crypto.randomUUID();
+  const integration = await getGoogleIntegration();
+  const created: { googleCalendarId: string; googleEventId: string }[] = [];
 
   try {
-    const integration = await getGoogleIntegration();
-    const created = await integration.createEvent(buildGcalEventInput(googleCalendarId, input));
-    await logAction({
-      ...actorFrom(session),
-      action: AUDIT_ACTIONS.eventCreate,
-      entityType: "calendar",
-      entityId: calendarId,
-      entityName: input.title.trim(),
-      method: "createEvent",
-      details: { googleEventId: created.id, eventType: input.eventType || null },
-    });
+    for (const target of targets) {
+      const googleCalendarId = await resolveGoogleCalendarId(target);
+      if (!googleCalendarId) {
+        throw new Error("Calendar not found");
+      }
+      const event = await integration.createEvent(
+        buildGcalEventInput(googleCalendarId, input, eventId),
+      );
+      created.push({ googleCalendarId, googleEventId: event.id });
+    }
   } catch (error) {
+    // Roll back partial copies so a failed multi-department create never leaves
+    // orphan events behind.
+    for (const copy of created) {
+      await integration.deleteEvent(copy.googleCalendarId, copy.googleEventId).catch(() => {});
+    }
     return { ok: false, error: errorMessage(error) };
   }
+
+  const targetCalendars = await calendarNames(targets);
+  await logAction({
+    ...actorFrom(session),
+    action: AUDIT_ACTIONS.eventCreate,
+    entityType: "calendar",
+    entityId: targets[0],
+    entityName: input.title.trim(),
+    method: "createEvent",
+    details: {
+      eventId,
+      eventType: input.eventType || null,
+      targetCalendarIds: targets,
+      targetCalendars: Object.values(targetCalendars),
+      inviteeUserCount: arrayLength(input.inviteeUserIds),
+      inviteeDepartmentCount: arrayLength(input.inviteeDepartments),
+      googleEventIds: created.map((copy) => copy.googleEventId),
+    },
+  });
 
   revalidatePath("/dashboard");
   return { ok: true };
 }
 
-export async function updateEvent(
-  googleEventId: string,
-  input: EventFormValues,
-): Promise<EventActionResult> {
+/**
+ * Update every linked copy of a logical event. The target set is reconciled:
+ * copies in newly-involved departments are created, existing ones updated
+ * (backfilling the group id on the first edit of a legacy event), and copies in
+ * departments no longer involved are deleted. The plan is idempotent, so a
+ * half-failed attempt self-heals on retry.
+ */
+export async function updateEvent(ref: EventRef, input: EventFormValues): Promise<EventActionResult> {
   const session = await requireSession();
 
   const errors = validateEventForm(input);
@@ -140,73 +258,130 @@ export async function updateEvent(
     return { ok: false, error: "Check the highlighted fields", field: "title" };
   }
 
-  const calendarId = await resolveTargetCalendarId(session, input.calendarId);
-  if (!calendarId) {
-    return { ok: false, error: "Calendar not found", field: "calendarId" };
-  }
-
   if (!googleCalendarConfigured()) {
-    return { ok: false, error: "Google Calendar is not configured", field: "calendarId" };
+    return { ok: false, error: "Google Calendar is not configured" };
   }
 
-  const googleCalendarId = await resolveGoogleCalendarId(calendarId);
-  if (!googleCalendarId) {
-    return { ok: false, error: "Calendar not found", field: "calendarId" };
-  }
+  const eventId = ref.eventId ?? crypto.randomUUID();
+  const [oldTargets, newTargets] = await Promise.all([
+    refTargetCalendars(ref),
+    resolveTargetCalendars(input, ref.calendarId),
+  ]);
+
+  const integration = await getGoogleIntegration();
+  // The old copies' search range covers both the old and new times (±day), so
+  // a date/time change still finds the copies to update or retire.
+  const range = withMargin(
+    unionRange(
+      absEventRange(ref.start, ref.end, ref.allDay),
+      absEventRange(input.start, input.end, input.allDay),
+    ),
+  );
+  const fallback = await legacyFallback(ref);
+
+  const union = [...new Set([...oldTargets, ...newTargets])];
+  const newSet = new Set(newTargets);
+  const createdHere: { googleCalendarId: string; googleEventId: string }[] = [];
 
   try {
-    const integration = await getGoogleIntegration();
-    await integration.updateEvent(
-      googleEventId,
-      buildGcalEventInput(googleCalendarId, input),
-    );
-    await logAction({
-      ...actorFrom(session),
-      action: AUDIT_ACTIONS.eventUpdate,
-      entityType: "calendar",
-      entityId: calendarId,
-      entityName: input.title.trim(),
-      method: "updateEvent",
-      details: { googleEventId, eventType: input.eventType || null },
-    });
+    for (const target of union) {
+      const googleCalendarId = await resolveGoogleCalendarId(target);
+      if (!googleCalendarId) {
+        continue;
+      }
+      const found = await findCopies(googleCalendarId, eventId, range, fallback);
+      if (newSet.has(target)) {
+        if (found.length > 0) {
+          for (const copy of found) {
+            await integration.updateEvent(
+              copy.googleEventId,
+              buildGcalEventInput(googleCalendarId, input, eventId),
+            );
+          }
+        } else {
+          const event = await integration.createEvent(
+            buildGcalEventInput(googleCalendarId, input, eventId),
+          );
+          createdHere.push({ googleCalendarId, googleEventId: event.id });
+        }
+      } else {
+        for (const copy of found) {
+          await integration.deleteEvent(googleCalendarId, copy.googleEventId);
+        }
+      }
+    }
   } catch (error) {
+    // Newly created copies are rolled back; pre-existing copies were already
+    // updated before this point and the retry will re-derive the same plan.
+    for (const copy of createdHere) {
+      await integration.deleteEvent(copy.googleCalendarId, copy.googleEventId).catch(() => {});
+    }
     return { ok: false, error: errorMessage(error) };
   }
+
+  await logAction({
+    ...actorFrom(session),
+    action: AUDIT_ACTIONS.eventUpdate,
+    entityType: "calendar",
+    entityId: newTargets[0],
+    entityName: input.title.trim(),
+    method: "updateEvent",
+    details: {
+      eventId,
+      eventType: input.eventType || null,
+      removedCalendarIds: oldTargets.filter((id) => !newSet.has(id)),
+      addedCalendarIds: newTargets.filter((id) => !oldTargets.includes(id)),
+      inviteeUserCount: arrayLength(input.inviteeUserIds),
+      inviteeDepartmentCount: arrayLength(input.inviteeDepartments),
+    },
+  });
 
   revalidatePath("/dashboard");
   return { ok: true };
 }
 
-export async function deleteEvent(input: {
-  calendarId: string;
-  googleEventId: string;
-}): Promise<EventActionResult> {
+/** Delete every linked copy of a logical event. */
+export async function deleteEvent(ref: EventRef): Promise<EventActionResult> {
   const session = await requireSession();
 
   if (!googleCalendarConfigured()) {
     return { ok: false, error: "Google Calendar is not configured" };
   }
 
-  const googleCalendarId = await resolveGoogleCalendarId(input.calendarId);
-  if (!googleCalendarId) {
-    return { ok: false, error: "Calendar not found" };
-  }
+  const [targets, fallback] = await Promise.all([refTargetCalendars(ref), legacyFallback(ref)]);
+  const integration = await getGoogleIntegration();
+  const range = withMargin(absEventRange(ref.start, ref.end, ref.allDay));
+  const deletedGoogleEventIds: string[] = [];
 
   try {
-    const integration = await getGoogleIntegration();
-    await integration.deleteEvent(googleCalendarId, input.googleEventId);
-    await logAction({
-      ...actorFrom(session),
-      action: AUDIT_ACTIONS.eventDelete,
-      entityType: "calendar",
-      entityId: input.calendarId,
-      entityName: input.googleEventId,
-      method: "deleteEvent",
-      details: { googleEventId: input.googleEventId },
-    });
+    for (const target of targets) {
+      const googleCalendarId = await resolveGoogleCalendarId(target);
+      if (!googleCalendarId) {
+        continue;
+      }
+      const found = await findCopies(googleCalendarId, ref.eventId ?? "", range, fallback);
+      for (const copy of found) {
+        await integration.deleteEvent(googleCalendarId, copy.googleEventId);
+        deletedGoogleEventIds.push(copy.googleEventId);
+      }
+    }
   } catch (error) {
     return { ok: false, error: errorMessage(error) };
   }
+
+  await logAction({
+    ...actorFrom(session),
+    action: AUDIT_ACTIONS.eventDelete,
+    entityType: "calendar",
+    entityId: ref.calendarId,
+    entityName: ref.googleEventId,
+    method: "deleteEvent",
+    details: {
+      eventId: ref.eventId,
+      targetCalendarIds: targets,
+      googleEventIds: deletedGoogleEventIds,
+    },
+  });
 
   revalidatePath("/dashboard");
   return { ok: true };

@@ -28,7 +28,10 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
 - [1.15 Next steps (Phase 2+)](#115-next-steps-phase-2)
 - [1.16 Calendar events (Phase 2h)](#116-calendar-events-phase-2h)
 - [1.17 Dashboard mobile month view (Phase 2i)](#117-dashboard-mobile-month-view-phase-2i)
-- [1.18 Git history](#118-git-history)
+- [1.18 Agenda day swipe (Phase 2j)](#118-agenda-day-swipe-phase-2j)
+- [1.19 Schedule view & event invitees (Phase 2k)](#119-schedule-view--event-invitees-phase-2k)
+- [1.20 Cross-department event copies (Phase 2l)](#120-cross-department-event-copies-phase-2l)
+- [1.21 Git history](#121-git-history)
 
 ## 1.1 Status
 
@@ -56,6 +59,28 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
 - **Phase 2i (dashboard view toggle):** `/dashboard` gains a Month ⇄ MobileMonth view
   toggle (`?view=mobile` URL param); a day tap in either view opens an `AgendaView`
   modal. No schema changes; `pnpm lint/typecheck/test` (86) pass, `db:generate` no drift.
+- **Phase 2j (agenda day swipe):** the agenda modal now changes day via left/right swipe
+  (touch or mouse drag) and prev/next chevrons flanking the title; swiping across a
+  month edge auto-navigates `?month=` so the new month's events load while the modal
+  stays open. No schema changes; `pnpm lint/typecheck/test/build` pass.
+- **Phase 2k (schedule view + event invitees):** `/dashboard` gains a third view —
+  **Schedule** (`@mantine/schedule` `ResourcesDayView`), one row per user plus a
+  department row per filtered department — and an **invitee system**: events store
+  `createdBy`/`inviteeUsers`/`inviteeDepartments` in the notes JSON, and an "Invitees"
+  multi-select in the event form tags people/departments whose rows show the event. The
+  view switcher is now a full-viewport tab strip (Month / Mobile / Schedule). No schema
+  changes;   `pnpm lint/typecheck/test` (103) pass, `db:generate` no drift; verified in the
+  dev environment against the live dev Google Calendar (invitee-tagged event rendered in
+  both the department and user rows; smoke event deleted afterwards).
+- **Phase 2l (cross-department event copies):** the event form no longer offers a
+  calendar picker — the target calendars are derived (creator's department + each tagged
+  person's department + tagged departments) and one linked copy of the event is created
+  per target. Copies share an `eventId` in the notes JSON so the app treats them as one
+  logical event: edits/deletes reconcile and cascade to every copy, and the month views
+  dedupe by `eventId`. Legacy events get the group id backfilled on first edit. No
+  schema changes; `pnpm lint/typecheck/test` (114) pass, `db:generate` no drift;
+  verified live (2-copy cross-dept create, dedupe, edit reconcile with move, re-tag
+  copy, delete cascade, legacy backfill).
 - **Deployment (Vercel):** build passes on `main`/`dev` with no warnings (Corepack +
   `NEXTAUTH_URL` unset). Migrations `0000` + `0001` applied to Neon (via CI migrate job);
   `0002`–`0005` pending (apply on next `main` push).
@@ -534,7 +559,219 @@ flowchart LR
   list still shows `/dashboard`), and `pnpm db:generate` (no drift — no schema change) all
   pass.
 
-## 1.18 Git history
+## 1.18 Agenda day swipe (Phase 2j)
+
+The agenda modal's day can now be changed by swiping left/right across the agenda list
+(touch) or dragging it horizontally (mouse), plus prev/next `ActionIcon` chevrons
+flanking the date in the modal title for mouse/keyboard use. Swipe left = next day,
+swipe right = previous day.
+
+```mermaid
+flowchart LR
+    A[AgendaView modal] -- swipe / drag / chevron --> B{crosses loaded month edge?}
+    B -- no --> C[setAgendaDate ±1 day]
+    B -- yes --> D[navigate ?month= ±1<br/>+ setAgendaDate]
+    D --> E[dashboard re-fetches<br/>new month's events]
+    C --> F[AgendaView re-renders<br/>for the new day]
+    E --> F
+```
+
+- **Implementation** — `DashboardView.tsx` only, using `useDrag` from the
+  already-installed `@mantine/hooks` (no new dependency): options
+  `{ axis: "lock", axisThreshold: 8, threshold: 10, filterTaps: true }`. The day changes
+  on pointer release when horizontal displacement ≥ `DAY_SWIPE_THRESHOLD` (48px) after
+  axis locking; canceled gestures (the browser taking over vertical scroll →
+  `pointercancel`) and taps are ignored, so event-row taps still open `EventDetail`.
+- **Scroll coexistence** — the wrapper `div` around `AgendaView` sets
+  `style={{ touchAction: "pan-y" }}`: native vertical scrolling of a long agenda day is
+  kept by the browser, and horizontal gestures are delivered as pointer events. A one-shot
+  `onClickCapture` guard swallows the click that would otherwise fire when a mouse drag
+  ends on an event row.
+- **Month auto-navigation** — events are fetched per calendar month
+  (`fetchMonthEvents`), so swiping past the first/last day of the loaded month updates
+  `?month=` through the existing `navigate()` URL helper while setting `agendaDate`; the
+  `agendaDate` client state survives the RSC navigation, so the modal stays open and the
+  agenda repopulates from the new month's `events` prop. `shiftAgendaDay(±1)` is the
+  shared helper behind both the chevrons and the swipe handler.
+- **Verification** — `pnpm lint`, `pnpm typecheck`, `pnpm test` (86), and `pnpm build`
+  all pass; dev-server smoke check shows `/dashboard` 307 → `/login` (auth redirect) and
+  `/login` 200.
+
+## 1.19 Schedule view & event invitees (Phase 2k)
+
+`/dashboard` now has three views behind a full-viewport **tab strip** (replacing the old
+icon-only `SegmentedControl`): **Month** (`IconCalendarMonth`), **Mobile**
+(`IconCalendarDot`), **Schedule** (`IconCalendarUser`) — each tab shows its icon and
+label, with the tabs stretched across the viewport above the date-navigation row. The
+Schedule view is `@mantine/schedule` `ResourcesDayView`: one row per **user** of the
+selected (filtered) departments, plus a **department row** at the top of each department
+section. Group header columns appear only when more than one department is filtered.
+The day navigates with `‹`/`›`/Today (`?date=YYYY-MM-DD`; `?month` is kept in sync and
+derived from `date` by the page), and `?view=schedule` is the URL state.
+
+Because events previously carried no link to a person, this phase adds the **invitee
+system**. The notes JSON block on Google events gains three fields (no DB migration —
+the notes block is the app's own extensible format):
+
+- `createdBy` — the creating user's id; the creator's row **always** shows the event.
+- `inviteeUsers` — ids of tagged users; the event also appears in each of their rows.
+- `inviteeDepartments` — ids of tagged department calendars; the event appears in each
+  department row.
+
+```mermaid
+flowchart LR
+    A[EventForm<br/>Invitees MultiSelect] --> B[createEvent / updateEvent<br/>server actions]
+    B --> C["Google event description<br/>{eventType, createdBy,<br/>inviteeUsers, inviteeDepartments}"]
+    C --> D[fetchMonthEvents<br/>parseEventPeople → payload]
+    D --> E["expandScheduleEvents (pure)<br/>rows = creator ∪ tagged users<br/>∪ dept:&lt;calendarId&gt;"]
+    F["page: listUsers()<br/>active ∩ selected calendars"] --> G["buildScheduleResources (pure)<br/>dept row + user rows per dept,<br/>groups when >1 dept"]
+    E --> H[ResourcesDayView]
+    G --> H
+```
+
+- **Notes** (`src/lib/events/notes.ts`) — `EventNotes` gains `createdBy?`,
+  `inviteeUsers?`, `inviteeDepartments?`; `encodeEventNotes` now also strips empty
+  arrays; new pure `parseEventPeople(description)` returns `{ creatorId, userIds,
+  departmentIds }` and tolerates absent/malformed values (unique, non-empty strings
+  only). Unit-tested in `notes.test.ts` (12 cases now).
+- **Schedule helpers** (new `src/lib/events/schedule.ts`, all pure, all unit-tested in
+  `schedule.test.ts` — 12 cases):
+  - `departmentRowId`/`isDepartmentRowId` — resource rows keyed `dept:<calendarId>` to
+    keep them distinct from user-uuid rows.
+  - `rowsForEvent(people)` — union of creator, tagged users, and tagged departments,
+    deduped.
+  - `expandScheduleEvents(events)` — one `ScheduleEvent` per row (`id` suffixed
+    `::rowId`, `resourceId` set); events linked to no one expand to nothing.
+  - `buildScheduleResources({ departments, users, events })` — per selected department:
+    a department row then its active users (sorted by name); a userless department is
+    kept only when an event tags it; `groups` emitted only for >1 department.
+- **Queries** (`src/lib/events/queries.ts`) — `CalendarEventPayload` gains
+  `creatorId`/`inviteeUserIds`/`inviteeDepartmentIds`, populated in
+  `fetchMonthEvents` via `parseEventPeople`. Month/Mobile/Agenda views ignore the new
+  fields.
+- **Form & actions** — `EventFormValues` gains `creatorId` + the two invitee arrays
+  (pass-through, no new validation). `EventForm` adds an "Invitees" `MultiSelect`
+  (Mantine v9's dedicated multi-select component; v9 `Select` has no `multiple` prop)
+  with grouped data (`user:<id>` / `dept:<id>` prefixed values disambiguate the two
+  uuid namespaces; split on submit). Picker scope: non-admins → own department + its
+  active users; admins → all departments + all active users. `creatorId` is the session
+  user on create and is **preserved from the original payload on edit** (editing never
+  reassigns the creator row). `actions.ts` writes the three notes fields and audit
+  `details` record invitee counts.
+- **Page** (`dashboard/page.tsx`) — `view` enum gains `"schedule"`; `date` param
+  (validated `YYYY-MM-DD`, default today) drives the month when present. One
+  `listUsers()` call derives: schedule rows (active users in the selected calendars),
+  role-scoped invitee picker options, and the `peopleNames`/`calendarNames` maps for
+  the detail modal.
+- **DashboardView** — top `Tabs` strip (controlled, equal-width `flex: 1` tabs with
+  icon + label; `Tabs` `onChange` is typed `string | null`) → `switchView` writes
+  `?view=schedule&date=today` on entry (month left to be derived) and restores the
+  viewed month on exit. Schedule render: `ResourcesDayView` with `withHeader={false}`,
+  full-day range (`00:00:00`–`23:59:59`, 60-min intervals, `startScrollTime 07:00`),
+  `withCurrentTimeIndicator`, current-time bubble, `onEventClick` → existing
+  `EventDetail`, and `renderResourceLabel` styling department rows (building icon +
+  bold). Empty state (no rows for the filter) shows a `Paper` notice instead of an
+  empty grid. `ScheduleGridSkeleton` (label + lane rows) backs the `isPending` state.
+  The date-nav row reuses its chevrons/Today in day mode (`ddd, MMM D, YYYY`).
+- **EventDetail** — "People:" badges (creator + tagged users, deduped, resolved via
+  `peopleNames`) and "Departments:" badges (tagged departments other than the event's
+  own calendar, resolved via `calendarNames`); unknown ids are silently skipped.
+- **Back-compat** — events created before this phase have no people fields, so they
+  still render in Month/Mobile/Agenda but intentionally do **not** appear in any
+  Schedule row (no row key to attach to). Tagging remains optional.
+- **Verification** — `pnpm lint`, `pnpm typecheck`, `pnpm test` (103), `pnpm build`,
+  and `pnpm db:generate` (no drift — no schema change) all pass. Dev-server smoke
+  against the live dev Google Calendar: `/dashboard`, `?view=mobile`,
+  `?view=schedule` all 200 with the three tabs rendered (`role="tab"`, correct
+  `aria-selected`); a temporary event tagged with the active user + their department
+  read back from Google rendered **in both** the department row and the user row of
+  `ResourcesDayView`; pre-existing untagged events correctly stayed out of the
+  schedule rows; the smoke event was deleted afterwards.
+
+## 1.20 Cross-department event copies (Phase 2l)
+
+The event form **no longer offers a calendar picker** (admins included). Where an event
+lives is derived from its people: the **creator's department** plus every **tagged
+user's department** plus every **tagged department** — one Google Calendar copy per
+target calendar. When everyone is in one department this is exactly one event (the
+pre-2l behavior, now automatic); a creator with no department can create an event only
+by tagging at least one invitee, otherwise creation is blocked with
+"Assign yourself to a department or tag an invitee".
+
+All copies of a logical event share a new `eventId` (UUID) in the notes JSON — the
+linking mechanism. No DB table is added (events stay 100% in Google Calendar), and
+copies are rediscovered by listing each target calendar and matching the `eventId` in
+the event description.
+
+```mermaid
+sequenceDiagram
+    participant F as EventForm
+    participant A as events/actions
+    participant D as departments (db)
+    participant G as Google Calendar
+    F->>A: create / update(ref, values) — no calendarId
+    A->>D: creator + invited users' departments
+    A->>A: targets = union(creatorDept, inviteeDepts, taggedDepts)
+    Note over A,G: create: insert one copy per target (same eventId in notes),<br/>rollback partial copies on failure
+    Note over A,G: update: per calendar in old∪new targets, list over old∪new time
+    range (±1 day), match notes.eventId →<br/>create missing / update existing / delete retired
+    Note over A,G: delete: per target in notes-derived set, list + delete all matches
+```
+
+- **Targets module** (new `src/lib/events/targets.ts`, pure, unit-tested — 9 cases
+  in `targets.test.ts`): `deriveTargetCalendarIds` (creator ∪ invited users' depts ∪
+  tagged depts, deduped, nulls dropped), `diffEventTargets` (create/keep/remove plan),
+  `dedupeEventsByGroupId` (first copy per group id wins; input order decides the
+  representative), and `EventRef` + `eventRefFromCalendarEvent` (the representative
+  copy's fields passed to edit/delete).
+- **Notes** (`src/lib/events/notes.ts`) — `EventNotes.eventId?`;
+  `parseEventPeople` now also returns `eventId: string | null`.
+- **Datetime** (`src/lib/events/datetime.ts`) — new `absEventRange(naiveStart,
+  naiveEnd, allDay)`: timed events parse as UTC+8 instants, all-day events use Google's
+  date / exclusive-end-date semantics. `buildGcalEventInput` refactored onto it; the
+  reconcile search range is `unionRange(old, new)` grown ±1 day so copies whose times
+  drifted (or are being moved) are still found.
+- **Queries** (`src/lib/events/queries.ts`) — `CalendarEventPayload.eventId`; the
+  calendars row fetch is ordered by name so the deduped representative is
+  deterministic; `fetchMonthEvents` returns `dedupeEventsByGroupId(events)` — with
+  several department calendars filtered (admin default) a logical event shows **once**
+  in Month/Mobile/Agenda/Schedule. New batched `getUserDepartmentIds(userIds)`.
+- **Actions** (`src/lib/events/actions.ts`) — rewritten around `EventRef`:
+  - `createEvent`: derive targets (empty ⇒ block error), `eventId =
+    crypto.randomUUID()`, one copy per target; a mid-loop failure rolls back the copies
+    already created; audit entry carries `eventId`, target calendar ids/names, and the
+    Google event ids.
+  - `updateEvent(ref, values)`: `oldTargets` from the ref's people fields, `newTargets`
+    from the form; per calendar in the union, `findCopies` (notes `eventId` match; on a
+    legacy first edit also the `googleEventId` in the representative calendar) drives
+    create / full-contents update / delete. The plan is idempotent, so a half-failed
+    attempt self-heals on retry; newly created copies roll back on failure.
+  - `deleteEvent(ref)`: targets from the ref's people fields, then list + delete every
+    matching copy.
+  - **Legacy events** (no `eventId`): keep working as single events; the first edit
+    generates the group id, backfills it into the existing copy, and — once invitees are
+    spread across departments — converges by creating the missing copies. When nothing
+    else derives, the target set falls back to the representative calendar so editing a
+    legacy event never blocks.
+  - Malformed client bodies (non-array invitee fields) are coerced instead of 500ing.
+  - `EventFormValues` drops `calendarId` (and the form/admin picker with it);
+    `EventActionResult` no longer targets that field.
+- **UI** — `dashboard/page.tsx` drops `initialCalendarId`; `EventForm` drops the
+  Calendar `Select` (invitees `MultiSelect` description now explains the per-department
+  copies); `EventDetail`/`EventForm` build the `EventRef` via
+  `eventRefFromCalendarEvent` for `updateEvent`/`deleteEvent`.
+- **Verification** — `pnpm lint`, `pnpm typecheck`, `pnpm test` (114), `pnpm build`,
+  and `pnpm db:generate` (no drift — no schema change) all pass. Live smoke against the
+  dev Google Calendar (via a temporary authenticated route, removed afterwards):
+  admin without a department + no invitees → blocked with the clear error; tagging an
+  active dev-COU user + the dev-CIU department → exactly two copies sharing one
+  `eventId`, one per calendar; all-calendars read deduped to a single event; renaming +
+  time-shifting + dropping the dev-CIU tag in one edit → dev-CIU copy deleted, dev-COU
+  copy updated in place with the new title/times; re-tagging dev-CIU → copy recreated
+  under the same `eventId`; delete → both copies gone; editing a legacy event →
+  `eventId` backfilled with the single copy preserved.
+
+## 1.21 Git history
 
 ```
 c2e1a68 Document Vercel Corepack requirement and env setup

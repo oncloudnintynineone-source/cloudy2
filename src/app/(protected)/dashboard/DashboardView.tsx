@@ -1,7 +1,7 @@
 "use client";
 
 import dayjs from "dayjs";
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState, useTransition } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
   ActionIcon,
@@ -9,38 +9,60 @@ import {
   Button,
   Group,
   Modal,
-  SegmentedControl,
+  Paper,
   Stack,
+  Tabs,
   Text,
 } from "@mantine/core";
-import { useDisclosure } from "@mantine/hooks";
-import { AgendaView, MobileMonthView, MonthView } from "@mantine/schedule";
+import { useDisclosure, useDrag } from "@mantine/hooks";
+import { AgendaView, MobileMonthView, MonthView, ResourcesDayView } from "@mantine/schedule";
 import {
+  IconBuilding,
   IconCalendarDot,
   IconCalendarMonth,
+  IconCalendarUser,
   IconChevronLeft,
   IconChevronRight,
   IconPlus,
 } from "@tabler/icons-react";
 
+import {
+  MobileGridSkeleton,
+  MonthGridSkeleton,
+  ScheduleGridSkeleton,
+  monthGridRows,
+} from "./calendarSkeleton";
 import { FilterButton } from "@/components/FilterButton";
 import { FilterModal, type FilterGroup } from "@/components/FilterModal";
 import { FloatingToolbar } from "@/components/FloatingToolbar";
 import type { CalendarEvent } from "@/lib/events/queries";
+import {
+  buildScheduleResources,
+  expandScheduleEvents,
+  isDepartmentRowId,
+  type ScheduleUser,
+} from "@/lib/events/schedule";
 import { EventDetail } from "./EventDetail";
 import { EventForm } from "./EventForm";
 
+type ViewMode = "month" | "mobile" | "schedule";
+
 interface DashboardViewProps {
   month: string;
-  view: "month" | "mobile";
+  date: string;
+  view: ViewMode;
   events: CalendarEvent[];
   calendars: { id: string; name: string }[];
   eventTypes: string[];
-  isAdmin: boolean;
   googleConfigured: boolean;
   selectedCalendarIds: string[];
   selectedTypes: string[];
-  initialCalendarId: string;
+  currentUser: string;
+  scheduleUsers: ScheduleUser[];
+  inviteeDepartments: { id: string; name: string }[];
+  inviteeUsers: { id: string; name: string; departmentName: string | null }[];
+  peopleNames: Record<string, string>;
+  calendarNames: Record<string, string>;
 }
 
 interface FormState {
@@ -48,21 +70,31 @@ interface FormState {
   defaultDate: string;
 }
 
+const DAY_SWIPE_THRESHOLD = 48;
+
 export function DashboardView({
   month,
+  date,
   view,
   events,
   calendars,
   eventTypes,
-  isAdmin,
   googleConfigured,
   selectedCalendarIds,
   selectedTypes,
-  initialCalendarId,
+  currentUser,
+  scheduleUsers,
+  inviteeDepartments,
+  inviteeUsers,
+  peopleNames,
+  calendarNames,
 }: DashboardViewProps) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  const [isPending, startTransition] = useTransition();
+
+  const [targetView, setTargetView] = useState<ViewMode>(view);
 
   const [detailEvent, setDetailEvent] = useState<CalendarEvent | null>(null);
   const [formState, setFormState] = useState<FormState | null>(null);
@@ -70,7 +102,9 @@ export function DashboardView({
   const [filterOpened, { open: openFilter, close: closeFilter }] = useDisclosure(false);
 
   const monthLabel = dayjs(`${month}-01`).format("MMMM YYYY");
+  const dayLabel = dayjs(date).format("ddd, MMM D, YYYY");
   const today = dayjs().format("YYYY-MM-DD");
+  const todayMonth = dayjs().format("YYYY-MM");
 
   const filterGroups: FilterGroup[] = useMemo(() => {
     const groups: FilterGroup[] = [
@@ -94,6 +128,21 @@ export function DashboardView({
     (selectedCalendarIds.length > 0 && selectedCalendarIds.length < calendars.length ? 1 : 0) +
     (selectedTypes.length > 0 ? 1 : 0);
 
+  const scheduleDepartments = useMemo(
+    () => calendars.filter((calendar) => selectedCalendarIds.includes(calendar.id)),
+    [calendars, selectedCalendarIds],
+  );
+  const scheduleResources = useMemo(
+    () =>
+      buildScheduleResources({
+        departments: scheduleDepartments,
+        users: scheduleUsers,
+        events,
+      }),
+    [scheduleDepartments, scheduleUsers, events],
+  );
+  const scheduleEvents = useMemo(() => expandScheduleEvents(events), [events]);
+
   function navigate(updates: Record<string, string | null>) {
     const params = new URLSearchParams(searchParams.toString());
     for (const [key, value] of Object.entries(updates)) {
@@ -104,23 +153,72 @@ export function DashboardView({
       }
     }
     const query = params.toString();
-    router.push(query ? `${pathname}?${query}` : pathname);
+    startTransition(() => {
+      router.push(query ? `${pathname}?${query}` : pathname);
+    });
   }
 
   function shiftMonth(delta: number) {
+    setTargetView(view);
     const next = dayjs(`${month}-01`).add(delta, "month").format("YYYY-MM");
     navigate({ month: next });
   }
 
+  function shiftDay(delta: number) {
+    setTargetView(view);
+    const next = dayjs(date).add(delta, "day");
+    navigate({ date: next.format("YYYY-MM-DD"), month: next.format("YYYY-MM") });
+  }
+
   function switchView(next: string) {
-    navigate({ view: next === "month" ? null : next });
+    const mode: ViewMode = next === "schedule" ? "schedule" : next === "mobile" ? "mobile" : "month";
+    setTargetView(mode);
+    if (mode === "schedule") {
+      // Entering the schedule always starts on today; the month is derived
+      // from the date by the page.
+      navigate({ view: "schedule", month: null, date: today });
+      return;
+    }
+    // Leaving the schedule keeps the currently viewed month visible.
+    navigate({
+      view: mode === "month" ? null : mode,
+      month: view === "schedule" ? date.slice(0, 7) : null,
+      date: null,
+    });
   }
 
   function goToday() {
-    navigate({ month: dayjs().format("YYYY-MM") });
+    setTargetView(view);
+    if (view === "schedule") {
+      navigate({ date: today, month: todayMonth });
+    } else {
+      navigate({ month: todayMonth });
+    }
   }
 
+  function shiftAgendaDay(delta: number) {
+    if (agendaDate === null) return;
+    const next = dayjs(agendaDate).add(delta, "day");
+    setAgendaDate(next.format("YYYY-MM-DD"));
+    const nextMonth = next.format("YYYY-MM");
+    if (nextMonth !== month) {
+      navigate({ month: nextMonth });
+    }
+  }
+
+  const swipedRef = useRef(false);
+  const { ref: agendaSwipeRef } = useDrag<HTMLDivElement>(
+    (state) => {
+      if (!state.last || state.canceled || state.tap) return;
+      if (Math.abs(state.movement[0]) < DAY_SWIPE_THRESHOLD) return;
+      swipedRef.current = true;
+      shiftAgendaDay(state.movement[0] < 0 ? 1 : -1);
+    },
+    { axis: "lock", axisThreshold: 8, threshold: 10, filterTaps: true },
+  );
+
   function handleApplyFilters(values: Record<string, string[]>) {
+    setTargetView(view);
     const cals = values.Calendars ?? [];
     const types = values["Event Types"] ?? [];
     navigate({
@@ -129,25 +227,63 @@ export function DashboardView({
     });
   }
 
-  function openCreate(date: string) {
-    setFormState({ event: null, defaultDate: date });
+  function openCreate(dateValue: string) {
+    setFormState({ event: null, defaultDate: dateValue });
   }
 
   function closeForm() {
     setFormState(null);
   }
 
+  const isSchedule = view === "schedule";
+
   return (
-    <Stack pb="xl">
+    <Stack pb="xl" gap="sm">
+      <Tabs
+        value={view}
+        onChange={(next) => switchView(next ?? "month")}
+        aria-label="Calendar view"
+        styles={{ tab: { flex: 1 } }}
+      >
+        <Tabs.List>
+          <Tabs.Tab value="month">
+            <Group gap="xs" justify="center" wrap="nowrap">
+              <IconCalendarMonth size={16} />
+              <Text fw={600} size="sm">Month</Text>
+            </Group>
+          </Tabs.Tab>
+          <Tabs.Tab value="mobile">
+            <Group gap="xs" justify="center" wrap="nowrap">
+              <IconCalendarDot size={16} />
+              <Text fw={600} size="sm">Mobile</Text>
+            </Group>
+          </Tabs.Tab>
+          <Tabs.Tab value="schedule">
+            <Group gap="xs" justify="center" wrap="nowrap">
+              <IconCalendarUser size={16} />
+              <Text fw={600} size="sm">Schedule</Text>
+            </Group>
+          </Tabs.Tab>
+        </Tabs.List>
+      </Tabs>
+
       <Group justify="space-between" align="center">
         <Group gap="xs">
-          <ActionIcon variant="default" aria-label="Previous month" onClick={() => shiftMonth(-1)}>
+          <ActionIcon
+            variant="default"
+            aria-label={isSchedule ? "Previous day" : "Previous month"}
+            onClick={() => (isSchedule ? shiftDay(-1) : shiftMonth(-1))}
+          >
             <IconChevronLeft size={18} />
           </ActionIcon>
           <Text fw={600} size="lg">
-            {monthLabel}
+            {isSchedule ? dayLabel : monthLabel}
           </Text>
-          <ActionIcon variant="default" aria-label="Next month" onClick={() => shiftMonth(1)}>
+          <ActionIcon
+            variant="default"
+            aria-label={isSchedule ? "Next day" : "Next month"}
+            onClick={() => (isSchedule ? shiftDay(1) : shiftMonth(1))}
+          >
             <IconChevronRight size={18} />
           </ActionIcon>
         </Group>
@@ -155,16 +291,6 @@ export function DashboardView({
           <Button variant="subtle" size="xs" onClick={goToday}>
             Today
           </Button>
-          <SegmentedControl
-            aria-label="Calendar view"
-            size="xs"
-            value={view}
-            onChange={switchView}
-            data={[
-              { value: "month", label: <IconCalendarMonth size={16} /> },
-              { value: "mobile", label: <IconCalendarDot size={16} /> },
-            ]}
-          />
           <FilterButton activeCount={activeFilterCount} onClick={openFilter} />
         </Group>
       </Group>
@@ -175,16 +301,24 @@ export function DashboardView({
         </Alert>
       )}
 
-      {view === "month" ? (
+      {isPending ? (
+        targetView === "month" ? (
+          <MonthGridSkeleton rows={monthGridRows(month)} />
+        ) : targetView === "schedule" ? (
+          <ScheduleGridSkeleton />
+        ) : (
+          <MobileGridSkeleton rows={monthGridRows(month)} />
+        )
+      ) : view === "month" ? (
         <MonthView
           date={`${month}-01 00:00:00`}
           events={events}
           withHeader={false}
           maxEventsPerDay={3}
           onEventClick={(event) => setDetailEvent(event as unknown as CalendarEvent)}
-          onDayClick={(date) => setAgendaDate(date)}
+          onDayClick={(d) => setAgendaDate(d)}
         />
-      ) : (
+      ) : view === "mobile" ? (
         <MobileMonthView
           date={`${month}-01 00:00:00`}
           events={events}
@@ -194,23 +328,95 @@ export function DashboardView({
           }}
           onDayClick={(day) => setAgendaDate(day)}
         />
+      ) : scheduleResources.resources.length === 0 ? (
+        <Paper withBorder radius="md" p="lg">
+          <Text size="sm" c="dimmed">
+            No users in the selected calendars yet. Assign users to a department (Admin Settings)
+            or adjust the filters.
+          </Text>
+        </Paper>
+      ) : (
+        <ResourcesDayView
+          date={date}
+          resources={scheduleResources.resources}
+          groups={scheduleResources.groups}
+          events={scheduleEvents}
+          startTime="00:00:00"
+          endTime="23:59:59"
+          intervalMinutes={60}
+          startScrollTime="07:00:00"
+          rowHeight={56}
+          withHeader={false}
+          withCurrentTimeIndicator
+          onEventClick={(event) => setDetailEvent(event as unknown as CalendarEvent)}
+          renderResourceLabel={(resource) =>
+            isDepartmentRowId(resource.id) ? (
+              <Group gap="xs" wrap="nowrap" align="center">
+                <IconBuilding size={14} style={{ flexShrink: 0 }} />
+                <Text size="sm" fw={600}>
+                  {resource.label}
+                </Text>
+              </Group>
+            ) : (
+              <Text size="sm">{resource.label}</Text>
+            )
+          }
+        />
       )}
 
       <Modal
         opened={agendaDate !== null}
         onClose={() => setAgendaDate(null)}
-        title={agendaDate ? dayjs(agendaDate).format("dddd, MMMM D, YYYY") : ""}
+        title={
+          agendaDate ? (
+            <Group gap="xs" justify="center" w="100%">
+              <ActionIcon
+                variant="subtle"
+                size="sm"
+                aria-label="Previous day"
+                onClick={() => shiftAgendaDay(-1)}
+              >
+                <IconChevronLeft size={16} />
+              </ActionIcon>
+              <Text fw={600} size="sm">
+                {dayjs(agendaDate).format("dddd, MMMM D, YYYY")}
+              </Text>
+              <ActionIcon
+                variant="subtle"
+                size="sm"
+                aria-label="Next day"
+                onClick={() => shiftAgendaDay(1)}
+              >
+                <IconChevronRight size={16} />
+              </ActionIcon>
+            </Group>
+          ) : (
+            ""
+          )
+        }
         centered
         size="sm"
       >
         {agendaDate && (
-          <AgendaView
-            rangeStart={agendaDate}
-            rangeEnd={agendaDate}
-            events={events}
-            styles={{ agendaViewHeader: { display: "none" } }}
-            onEventClick={(event) => setDetailEvent(event as unknown as CalendarEvent)}
-          />
+          <div
+            ref={agendaSwipeRef}
+            style={{ touchAction: "pan-y" }}
+            onClickCapture={(event) => {
+              if (swipedRef.current) {
+                event.preventDefault();
+                event.stopPropagation();
+                swipedRef.current = false;
+              }
+            }}
+          >
+            <AgendaView
+              rangeStart={agendaDate}
+              rangeEnd={agendaDate}
+              events={events}
+              styles={{ agendaViewHeader: { display: "none" } }}
+              onEventClick={(event) => setDetailEvent(event as unknown as CalendarEvent)}
+            />
+          </div>
         )}
       </Modal>
 
@@ -226,6 +432,8 @@ export function DashboardView({
           setAgendaDate(null);
           router.refresh();
         }}
+        peopleNames={peopleNames}
+        calendarNames={calendarNames}
       />
 
       <Modal
@@ -240,10 +448,10 @@ export function DashboardView({
             key={formState.event ? formState.event.id : `new-${formState.defaultDate}`}
             event={formState.event}
             defaultDate={formState.defaultDate}
-            calendars={calendars}
             eventTypes={eventTypes}
-            isAdmin={isAdmin}
-            initialCalendarId={initialCalendarId}
+            currentUser={currentUser}
+            inviteeDepartments={inviteeDepartments}
+            inviteeUsers={inviteeUsers}
             onDone={() => {
               closeForm();
               router.refresh();

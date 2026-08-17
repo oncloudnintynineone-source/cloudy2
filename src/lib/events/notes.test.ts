@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { encodeEventNotes, parseEventNotes, parseEventType } from "./notes";
+import { encodeEventNotes, parseEventNotes, parseEventPeople, parseEventType } from "./notes";
 
 describe("encodeEventNotes", () => {
   it("serializes a non-empty notes object as JSON", () => {
@@ -10,6 +10,26 @@ describe("encodeEventNotes", () => {
   it("drops empty values", () => {
     expect(encodeEventNotes({ eventType: "" })).toBe("");
     expect(encodeEventNotes({})).toBe("");
+  });
+
+  it("drops empty arrays", () => {
+    expect(encodeEventNotes({ inviteeUsers: [], inviteeDepartments: [] })).toBe("");
+    expect(encodeEventNotes({ eventType: "Leave", inviteeUsers: [] })).toBe(
+      '{"eventType":"Leave"}',
+    );
+  });
+
+  it("keeps people fields when present", () => {
+    expect(
+      encodeEventNotes({
+        eventType: "Leave",
+        createdBy: "u1",
+        inviteeUsers: ["u2", "u3"],
+        inviteeDepartments: ["cal-1"],
+      }),
+    ).toBe(
+      '{"eventType":"Leave","createdBy":"u1","inviteeUsers":["u2","u3"],"inviteeDepartments":["cal-1"]}',
+    );
   });
 
   it("keeps future extra fields", () => {
@@ -41,5 +61,43 @@ describe("parseEventType", () => {
     expect(parseEventType("")).toBeNull();
     expect(parseEventType('{"other":1}')).toBeNull();
     expect(parseEventType('{"eventType":""}')).toBeNull();
+  });
+});
+
+describe("parseEventPeople", () => {
+  it("extracts group id, creator, users, and departments", () => {
+    expect(
+      parseEventPeople(
+        '{"eventId":"g-1","createdBy":"u1","inviteeUsers":["u2"],"inviteeDepartments":["cal-9"]}',
+      ),
+    ).toEqual({
+      eventId: "g-1",
+      creatorId: "u1",
+      userIds: ["u2"],
+      departmentIds: ["cal-9"],
+    });
+  });
+
+  it("returns nothing for empty or malformed notes", () => {
+    expect(parseEventPeople("")).toEqual({
+      eventId: null,
+      creatorId: null,
+      userIds: [],
+      departmentIds: [],
+    });
+    expect(parseEventPeople("not json")).toEqual({
+      eventId: null,
+      creatorId: null,
+      userIds: [],
+      departmentIds: [],
+    });
+  });
+
+  it("ignores non-string entries and dedupes", () => {
+    expect(
+      parseEventPeople(
+        '{"eventId":"","createdBy":"","inviteeUsers":["u1",42,"u1",null],"inviteeDepartments":"nope"}',
+      ),
+    ).toEqual({ eventId: null, creatorId: null, userIds: ["u1"], departmentIds: [] });
   });
 });

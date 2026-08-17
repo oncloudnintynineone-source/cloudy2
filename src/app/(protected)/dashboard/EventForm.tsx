@@ -1,12 +1,14 @@
 "use client";
 
-import { Button, Group, Select, Stack, Switch, TextInput } from "@mantine/core";
+import { useMemo } from "react";
+import { Button, Group, MultiSelect, Select, Stack, Switch, TextInput } from "@mantine/core";
 import { DatePickerInput, DateTimePicker } from "@mantine/dates";
 import { useForm } from "@mantine/form";
 import { notifications } from "@mantine/notifications";
 
 import { createEvent, updateEvent, type EventActionResult } from "@/lib/events/actions";
 import { subOneDay } from "@/lib/events/datetime";
+import { eventRefFromCalendarEvent } from "@/lib/events/targets";
 import { validateEventForm, type EventFormValues } from "@/lib/events/validate";
 import type { CalendarEvent } from "@/lib/events/queries";
 import { naiveToDate } from "./clientDateTime";
@@ -14,30 +16,49 @@ import { naiveToDate } from "./clientDateTime";
 interface EventFormProps {
   event: CalendarEvent | null;
   defaultDate: string;
-  calendars: { id: string; name: string }[];
   eventTypes: string[];
-  isAdmin: boolean;
-  initialCalendarId: string;
+  /** Session user id; stored as the event creator on create. */
+  currentUser: string;
+  inviteeDepartments: { id: string; name: string }[];
+  inviteeUsers: { id: string; name: string; departmentName: string | null }[];
   onDone: () => void;
+}
+
+interface EventFormState extends EventFormValues {
+  invitees: string[];
+}
+
+/** Split the prefixed select values (`user:<id>` / `dept:<id>`) into the two notes fields. */
+function splitInvitees(invitees: string[]): { userIds: string[]; departmentIds: string[] } {
+  const userIds: string[] = [];
+  const departmentIds: string[] = [];
+  for (const value of invitees) {
+    if (value.startsWith("user:")) {
+      userIds.push(value.slice("user:".length));
+    } else if (value.startsWith("dept:")) {
+      departmentIds.push(value.slice("dept:".length));
+    }
+  }
+  return { userIds, departmentIds };
 }
 
 export function EventForm({
   event,
   defaultDate,
-  calendars,
   eventTypes,
-  isAdmin,
-  initialCalendarId,
+  currentUser,
+  inviteeDepartments,
+  inviteeUsers,
   onDone,
 }: EventFormProps) {
   const isEdit = event !== null;
 
-  const form = useForm<EventFormValues>({
+  const form = useForm<EventFormState>({
     initialValues: buildInitialValues(),
     validate: (values) => validateEventForm(values),
   });
 
-  function buildInitialValues(): EventFormValues {
+  function buildInitialValues(): EventFormState {
     if (event) {
       const allDay = event.payload.allDay;
       return {
@@ -46,7 +67,13 @@ export function EventForm({
         start: event.start,
         end: allDay ? `${subOneDay(event.end.slice(0, 10))} 00:00:00` : event.end,
         eventType: event.payload.eventType ?? "",
-        calendarId: event.payload.calendarId,
+        creatorId: event.payload.creatorId ?? "",
+        inviteeUserIds: [],
+        inviteeDepartments: [],
+        invitees: [
+          ...event.payload.inviteeDepartmentIds.map((id) => `dept:${id}`),
+          ...event.payload.inviteeUserIds.map((id) => `user:${id}`),
+        ],
       };
     }
     return {
@@ -55,14 +82,48 @@ export function EventForm({
       start: `${defaultDate} 09:00:00`,
       end: `${defaultDate} 10:00:00`,
       eventType: "",
-      calendarId: initialCalendarId,
+      creatorId: currentUser,
+      inviteeUserIds: [],
+      inviteeDepartments: [],
+      invitees: [],
     };
   }
 
+  const inviteeData = useMemo(
+    () => [
+      ...(inviteeDepartments.length > 0
+        ? [
+            {
+              group: "Departments",
+              items: inviteeDepartments.map((dept) => ({
+                value: `dept:${dept.id}`,
+                label: dept.name,
+              })),
+            },
+          ]
+        : []),
+      ...(inviteeUsers.length > 0
+        ? [
+            {
+              group: "People",
+              items: inviteeUsers.map((user) => ({
+                value: `user:${user.id}`,
+                label: user.name,
+              })),
+            },
+          ]
+        : []),
+    ],
+    [inviteeDepartments, inviteeUsers],
+  );
+
   const onSubmit = form.onSubmit(async (values) => {
+    const { invitees, ...rest } = values;
+    const { userIds, departmentIds } = splitInvitees(invitees);
+    const payload: EventFormValues = { ...rest, inviteeUserIds: userIds, inviteeDepartments: departmentIds };
     const result: EventActionResult = isEdit
-      ? await updateEvent(event.payload.googleEventId, values)
-      : await createEvent(values);
+      ? await updateEvent(eventRefFromCalendarEvent(event), payload)
+      : await createEvent(payload);
 
     if (result.ok) {
       notifications.show({
@@ -157,15 +218,16 @@ export function EventForm({
           searchable
         />
 
-        {isAdmin && !isEdit && (
-          <Select
-            label="Calendar"
-            required
-            data={calendars.map((calendar) => ({ value: calendar.id, label: calendar.name }))}
-            value={form.values.calendarId || null}
-            onChange={(value) => form.setFieldValue("calendarId", value ?? "")}
-            error={form.errors.calendarId}
+        {inviteeData.length > 0 && (
+          <MultiSelect
+            label="Invitees"
+            description="A copy of the event is created in each tagged person's department and in each tagged department"
+            placeholder="My department only"
+            data={inviteeData}
+            value={form.values.invitees}
+            onChange={(value) => form.setFieldValue("invitees", value)}
             searchable
+            clearable
           />
         )}
 

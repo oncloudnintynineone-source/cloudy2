@@ -6,6 +6,14 @@
 
 export interface EventNotes {
   eventType?: string;
+  /** Logical event group id; all linked copies (one per department calendar) share it. */
+  eventId?: string;
+  /** Id of the user who created the event (schedule view: its row always shows the event). */
+  createdBy?: string;
+  /** Ids of users tagged on the event (schedule view: the event shows in each of their rows). */
+  inviteeUsers?: string[];
+  /** Department (calendar) ids tagged on the event (schedule view: shows in each department row). */
+  inviteeDepartments?: string[];
   [key: string]: unknown;
 }
 
@@ -13,10 +21,52 @@ export interface EventNotes {
 export function encodeEventNotes(notes: EventNotes): string {
   const cleaned = Object.fromEntries(
     Object.entries(notes).filter(
-      ([, value]) => value !== undefined && value !== null && value !== "",
+      ([, value]) =>
+        value !== undefined &&
+        value !== null &&
+        value !== "" &&
+        !(Array.isArray(value) && value.length === 0),
     ),
   );
   return Object.keys(cleaned).length === 0 ? "" : JSON.stringify(cleaned);
+}
+
+/** People linked to an event: the creator plus tagged users and departments. */
+export interface EventPeople {
+  /** Linked event group id (all department copies share it), or null for legacy events. */
+  eventId: string | null;
+  creatorId: string | null;
+  userIds: string[];
+  departmentIds: string[];
+}
+
+/** Unique, non-empty strings from an untrusted JSON value. */
+function uniqueStrings(value: unknown): string[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  const out: string[] = [];
+  const seen = new Set<string>();
+  for (const entry of value) {
+    if (typeof entry === "string" && entry && !seen.has(entry)) {
+      seen.add(entry);
+      out.push(entry);
+    }
+  }
+  return out;
+}
+
+/** Extract the linked people from the notes block, tolerating absent/malformed values. */
+export function parseEventPeople(description: string): EventPeople {
+  const notes = parseEventNotes(description);
+  const creatorId = notes?.createdBy;
+  const eventId = notes?.eventId;
+  return {
+    eventId: typeof eventId === "string" && eventId ? eventId : null,
+    creatorId: typeof creatorId === "string" && creatorId ? creatorId : null,
+    userIds: uniqueStrings(notes?.inviteeUsers),
+    departmentIds: uniqueStrings(notes?.inviteeDepartments),
+  };
 }
 
 /** Parse the JSON notes block from an event description, or null when absent/malformed. */

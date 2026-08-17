@@ -62,3 +62,22 @@ export function monthRange(month: string): { start: Date; end: Date } {
     end: new Date(Date.UTC(year, monthIndex, 1)),
   };
 }
+
+/**
+ * Absolute instants a naive start/end pair occupies on Google: timed events are
+ * the parsed UTC+8 wall clock; all-day events are the start date and the day
+ * after the inclusive end date (Google's exclusive end-date convention).
+ */
+export function absEventRange(
+  naiveStart: string,
+  naiveEnd: string,
+  allDay: boolean,
+): { start: Date; end: Date } {
+  if (allDay) {
+    return {
+      start: dateToUtc(naiveStart.slice(0, 10)),
+      end: dateToUtc(addOneDay(naiveEnd.slice(0, 10))),
+    };
+  }
+  return { start: parseNaiveToInstant(naiveStart), end: parseNaiveToInstant(naiveEnd) };
+}
