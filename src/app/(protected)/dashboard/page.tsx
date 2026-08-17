@@ -3,6 +3,8 @@ import { formatInstantToNaive } from "@/lib/events/datetime";
 import { fetchMonthEvents, getUserDepartmentId, listCalendars } from "@/lib/events/queries";
 import { googleCalendarConfigured } from "@/lib/google";
 import { listUsers } from "@/lib/roster/queries";
+import { formatFullName } from "@/lib/settings/formatName";
+import { getSettings } from "@/lib/settings/queries";
 import { requireSession } from "@/lib/session";
 import { DashboardView } from "./DashboardView";
 
@@ -38,10 +40,11 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
         : currentMonth();
   const date = dateParam ?? formatInstantToNaive(new Date()).slice(0, 10);
 
-  const [calendars, eventTypes, allUsers] = await Promise.all([
+  const [calendars, eventTypes, allUsers, settings] = await Promise.all([
     listCalendars(),
     listEventTypes(),
     listUsers(),
+    getSettings(),
   ]);
   const calendarIds = calendars.map((calendar) => calendar.id);
 
@@ -87,6 +90,10 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
     id: user.id,
     name: user.name,
     departmentName: user.department?.name ?? null,
+    displayName: formatFullName(
+      { name: user.name, departmentName: user.department?.name ?? null },
+      settings.nameTemplate,
+    ),
   }));
 
   const inviteeDepartments = (
@@ -94,7 +101,13 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
   ).map((calendar) => ({ id: calendar.id, name: calendar.name }));
 
   const peopleNames: Record<string, string> = Object.fromEntries(
-    pickerUsers.map((user) => [user.id, user.name]),
+    pickerUsers.map((user) => [
+      user.id,
+      formatFullName(
+        { name: user.name, departmentName: user.department?.name ?? null },
+        settings.nameTemplate,
+      ),
+    ]),
   );
   const calendarNames: Record<string, string> = Object.fromEntries(
     calendars.map((calendar) => [calendar.id, calendar.name]),

@@ -60,7 +60,7 @@ interface DashboardViewProps {
   currentUser: string;
   scheduleUsers: ScheduleUser[];
   inviteeDepartments: { id: string; name: string }[];
-  inviteeUsers: { id: string; name: string; departmentName: string | null }[];
+  inviteeUsers: { id: string; name: string; departmentName: string | null; displayName: string }[];
   peopleNames: Record<string, string>;
   calendarNames: Record<string, string>;
 }
