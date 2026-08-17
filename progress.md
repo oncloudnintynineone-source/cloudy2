@@ -35,7 +35,8 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
 - [1.22 Display name template (Phase 2n)](#122-display-name-template-phase-2n)
 - [1.23 Event title template (Phase 2o)](#123-event-title-template-phase-2o)
 - [1.24 Event type acronym + Templates tab (Phase 2p)](#124-event-type-acronym--templates-tab-phase-2p)
-- [1.25 Git history](#125-git-history)
+- [1.25 Schedule view space optimization (Phase 2q)](#125-schedule-view-space-optimization-phase-2q)
+- [1.26 Git history](#126-git-history)
 
 ## 1.1 Status
 
@@ -98,6 +99,10 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
   token, and the two template cards move from the General tab into a dedicated **Templates**
   tab (`/settings/templates`). The General tab now holds only the login keyword.
   `pnpm lint/typecheck/test` (151) pass; `db:generate` no drift.
+- **Phase 2q (schedule view space optimization):** the Schedule view's left columns are
+  compressed for mobile — user rows show the shortname (full-name tooltip), department rows
+  drop their text for an icon, and the group header rotates 90° in a narrow column.
+  `pnpm lint/typecheck/test` (152) pass; `db:generate` no drift (no schema change).
 - **Deployment (Vercel):** build passes on `main`/`dev` with no warnings (Corepack +
   `NEXTAUTH_URL` unset). Migrations `0000` + `0001` applied to Neon (via CI migrate job);
   `0002`–`0005` pending (apply on next `main` push).
@@ -962,7 +967,60 @@ General tab into a dedicated **Templates** tab.
   `pnpm db:generate` (no drift — migration `0009` in sync) all pass; build route list shows
   `/settings/templates`.
 
-## 1.25 Git history
+## 1.25 Schedule view space optimization (Phase 2q)
+
+The Schedule view (`ResourcesDayView`) reserved the most horizontal room of any dashboard
+view: its two left columns — the group header (only when ≥2 departments are selected) and the
+resource label — consumed 80px + 120px of a ~390px-wide phone before a single time slot
+began. This phase compresses that gutter from 200px (multi-dept) / 120px (single-dept) down to
+72px / 48px by showing acronyms instead of full names, dropping the department-row text, and
+rotating the group header. No data is lost — full names remain available as tooltips.
+
+```mermaid
+flowchart LR
+    before["Before (multi-dept)<br/>group 80px<br/>label 120px<br/>full names + dept text"]
+    after["After (multi-dept)<br/>group 24px rotated<br/>label 48px<br/>acronyms + dept icon"]
+    before -- "vars + render fns" --> after
+```
+
+- **Data** (`src/lib/events/schedule.ts`) — `ScheduleUser` carries `shortname`;
+  `ScheduleResource` gains `fullName` (the display name used for tooltips/aria).
+  `buildScheduleResources` now labels user rows `shortname || name` (same fallback as the
+  `{people:acronym}` title token) and sets `fullName` to the full name; department rows keep
+  `label = fullName = dept.name`. `dashboard/page.tsx` passes `shortname` through from
+  `listUsers()`.
+- **Narrow columns** (`DashboardView.tsx`) — a `vars` resolver overrides the `ResourcesDayView`
+  root CSS vars: `--resources-day-view-resource-label-width` `7.5rem → 3rem` (48px) and
+  `--resources-day-view-group-label-width` `5rem → 1.5rem` (24px). A `styles` override zeroes
+  the label cell's horizontal padding and adds ellipsis truncation so a long acronym can't
+  push a row.
+- **Department row = icon only** — `renderResourceLabel` renders a bare `IconBuilding`
+  (size 16) for department rows, carrying the department name as `title` + `aria-label`.
+- **User row = acronym** — user rows render `row.label` (the shortname, falling back to the
+  full name when unset) in a `sm` `Text`, with a `title` tooltip showing `fullName` only when
+  it differs from the label (no redundant tooltip for name-fallback rows).
+- **Rotated group header** — `renderGroupLabel` renders the department name in a
+  `writing-mode: vertical-rl` span so it reads top-to-bottom down the 24px column; Mantine's
+  built-in `translateY` vertical centering within the group block is preserved.
+- **Corner cleanup** — `labels={{ resources: "" }}` hides the "Resources" corner text, which
+  no longer fits the narrowed corner.
+- **Skeleton** — `ScheduleGridSkeleton`'s per-row label block goes 88px → 48px to track the new
+  column width.
+- **Mantine 9.5.1 gotcha (verified in the installed package)** — the `vars` prop is a
+  **resolver function** (`(theme, props, ctx) => ({ styleName: { "--css-var": value } })`),
+  not a static object (a static object fails typecheck: `'styleName' does not exist in type
+  'PartialVarsResolver<…>'`). Var values are the full kebab-case CSS variable names, applied as
+  inline styles on the root element, overriding the component's own CSS-var defaults.
+  `renderResourceLabel`/`renderGroupLabel` receive Mantine's `ScheduleResourceData`, so app
+  fields are read via `resource as ScheduleResource` (a safe downcast — the source array is
+  `ScheduleResource[]`).
+- **Tests** — `schedule.test.ts` fixtures gain `shortname`; new cases assert acronym labels,
+  the `shortname → name` fallback, `fullName` passthrough, and that sort order is by name (not
+  shortname). 12 → 13 cases.
+- Verification: `pnpm lint`, `pnpm typecheck`, `pnpm test` (152), and `pnpm build` all pass;
+  `pnpm db:generate` shows no drift (no schema change).
+
+## 1.26 Git history
 
 ```
 c2e1a68 Document Vercel Corepack requirement and env setup

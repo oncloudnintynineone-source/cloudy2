@@ -40,6 +40,7 @@ import {
   buildScheduleResources,
   expandScheduleEvents,
   isDepartmentRowId,
+  type ScheduleResource,
   type ScheduleUser,
 } from "@/lib/events/schedule";
 import { EventDetail } from "./EventDetail";
@@ -349,18 +350,39 @@ export function DashboardView({
           withHeader={false}
           withCurrentTimeIndicator
           onEventClick={(event) => setDetailEvent(event as unknown as CalendarEvent)}
-          renderResourceLabel={(resource) =>
-            isDepartmentRowId(resource.id) ? (
-              <Group gap="xs" wrap="nowrap" align="center">
-                <IconBuilding size={14} style={{ flexShrink: 0 }} />
-                <Text size="sm" fw={600}>
-                  {resource.label}
-                </Text>
-              </Group>
+          vars={() => ({
+            resourcesDayView: {
+              "--resources-day-view-resource-label-width": "3rem",
+              "--resources-day-view-group-label-width": "1.5rem",
+            },
+          })}
+          styles={{
+            resourcesDayViewResourceLabel: {
+              whiteSpace: "nowrap",
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              paddingInline: 0,
+            },
+          }}
+          labels={{ resources: "" }}
+          renderResourceLabel={(resource) => {
+            const row = resource as ScheduleResource;
+            return isDepartmentRowId(row.id) ? (
+              <IconBuilding
+                size={16}
+                aria-label={row.fullName}
+                title={row.fullName}
+                style={{ flexShrink: 0 }}
+              />
             ) : (
-              <Text size="sm">{resource.label}</Text>
-            )
-          }
+              <Text size="sm" title={row.label === row.fullName ? undefined : row.fullName}>
+                {row.label}
+              </Text>
+            );
+          }}
+          renderGroupLabel={(group) => (
+            <span style={{ writingMode: "vertical-rl" }}>{group.label}</span>
+          )}
         />
       )}
 

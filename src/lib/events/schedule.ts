@@ -15,12 +15,16 @@ export interface ScheduleDepartment {
 export interface ScheduleUser {
   id: string;
   name: string;
+  shortname: string | null;
   departmentId: string | null;
 }
 
 export interface ScheduleResource {
   id: string;
+  /** Display label: department name, or the user's shortname (name when unset). */
   label: string;
+  /** Full display name for tooltips/aria: department or user full name. */
+  fullName: string;
   isDepartment: boolean;
 }
 
@@ -93,7 +97,9 @@ export function expandScheduleEvents(events: CalendarEvent[]): ScheduleEvent[] {
 
 /**
  * Build the resource rows for the schedule view: per selected department, a
- * department row (top) followed by that department's users (by name). A
+ * department row (top) followed by that department's users (by name). User
+ * row labels are the shortname (acronym), falling back to the full name when
+ * the shortname is unset (matching the event title acronym token). A
  * department with no users still gets a row when an event tags it. Group
  * labels are only emitted when more than one department is shown.
  */
@@ -124,9 +130,14 @@ export function buildScheduleResources(params: {
     }
     departmentCount += 1;
     const rowId = departmentRowId(dept.id);
-    resources.push({ id: rowId, label: dept.name, isDepartment: true });
+    resources.push({ id: rowId, label: dept.name, fullName: dept.name, isDepartment: true });
     for (const user of deptUsers) {
-      resources.push({ id: user.id, label: user.name, isDepartment: false });
+      resources.push({
+        id: user.id,
+        label: user.shortname || user.name,
+        fullName: user.name,
+        isDepartment: false,
+      });
     }
     groups.push({ label: dept.name, resourceIds: [rowId, ...deptUsers.map((user) => user.id)] });
   }

@@ -83,6 +83,7 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
     .map((user) => ({
       id: user.id,
       name: user.name,
+      shortname: user.shortname,
       departmentId: user.department ? user.department.id : null,
     }));
 

@@ -82,8 +82,8 @@ describe("buildScheduleResources", () => {
     const { resources, groups } = buildScheduleResources({
       departments: [depts[0]],
       users: [
-        { id: "u1", name: "Alice", departmentId: "cal-1" },
-        { id: "u2", name: "Bob", departmentId: "cal-1" },
+        { id: "u1", name: "Alice", shortname: null, departmentId: "cal-1" },
+        { id: "u2", name: "Bob", shortname: null, departmentId: "cal-1" },
       ],
       events: [],
     });
@@ -94,18 +94,36 @@ describe("buildScheduleResources", () => {
   it("drops empty departments that no event tags", () => {
     const { resources } = buildScheduleResources({
       departments: depts,
-      users: [{ id: "u1", name: "Alice", departmentId: "cal-1" }],
+      users: [{ id: "u1", name: "Alice", shortname: null, departmentId: "cal-1" }],
       events: [],
     });
     expect(resources.map((r) => r.id)).toEqual(["dept:cal-1", "u1"]);
+  });
+
+  it("labels user rows with the shortname, falling back to the name", () => {
+    const { resources } = buildScheduleResources({
+      departments: [depts[0]],
+      users: [
+        { id: "u1", name: "Alice Tan", shortname: "AT", departmentId: "cal-1" },
+        { id: "u2", name: "Bob Lee", shortname: null, departmentId: "cal-1" },
+        { id: "u3", name: "Cara Ng", shortname: "", departmentId: "cal-1" },
+      ],
+      events: [],
+    });
+    expect(resources.map((r) => [r.label, r.fullName])).toEqual([
+      ["Dept A", "Dept A"],
+      ["AT", "Alice Tan"],
+      ["Bob Lee", "Bob Lee"],
+      ["Cara Ng", "Cara Ng"],
+    ]);
   });
 
   it("emits groups when more than one department is shown", () => {
     const { resources, groups } = buildScheduleResources({
       departments: depts,
       users: [
-        { id: "u1", name: "Alice", departmentId: "cal-1" },
-        { id: "u2", name: "Bob", departmentId: "cal-2" },
+        { id: "u1", name: "Alice", shortname: null, departmentId: "cal-1" },
+        { id: "u2", name: "Bob", shortname: null, departmentId: "cal-2" },
       ],
       events: [],
     });
@@ -125,12 +143,13 @@ describe("buildScheduleResources", () => {
     expect(resources.map((r) => r.id)).toEqual(["dept:cal-2"]);
   });
 
-  it("sorts users by name within each department", () => {
+  it("sorts users by name within each department, not by shortname", () => {
     const { resources } = buildScheduleResources({
       departments: depts,
       users: [
-        { id: "u2", name: "Bob", departmentId: "cal-1" },
-        { id: "u1", name: "Alice", departmentId: "cal-1" },
+        // Shortnames are reverse of name order: sorting by shortname would put Bob first.
+        { id: "u2", name: "Bob", shortname: "AA", departmentId: "cal-1" },
+        { id: "u1", name: "Alice", shortname: "ZZ", departmentId: "cal-1" },
       ],
       events: [],
     });

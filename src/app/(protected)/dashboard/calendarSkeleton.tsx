@@ -66,7 +66,7 @@ export function ScheduleGridSkeleton({ rows = 6 }: { rows?: number }) {
           const eventBars = (i * 3 + 1) % 3;
           return (
             <Group key={i} gap="xs" wrap="nowrap">
-              <Skeleton width={88} height={44} radius={4} />
+                  <Skeleton width={48} height={44} radius={4} />
               <Box style={{ flex: 1, display: "flex", flexDirection: "column", gap: 4 }}>
                 {Array.from({ length: eventBars }).map((_, b) => (
                   <Skeleton key={b} height={22} radius={3} style={{ width: "72%" }} />
