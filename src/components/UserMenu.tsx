@@ -9,7 +9,7 @@ export function UserMenu({ name, role }: { name: string; role: "admin" | "user" 
   return (
     <Menu position="bottom-end" withinPortal>
       <Menu.Target>
-        <ActionIcon variant="default" size="lg" aria-label="Profile">
+        <ActionIcon variant="transparent" c="white" size="lg" aria-label="Profile">
           <IconUser size={18} />
         </ActionIcon>
       </Menu.Target>

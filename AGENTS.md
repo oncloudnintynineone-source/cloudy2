@@ -22,6 +22,17 @@ pnpm db:seed      # dev-only seed: departments/users/memberships (idempotent)
 
 Run a single test: `pnpm vitest run src/lib/login.test.ts` (or `pnpm test -- <file>`).
 
+**DB scripts need `DATABASE_URL` in the shell env.** `drizzle-kit` (`db:migrate`, `db:push`)
+does NOT read `.env.local` — running them directly fails with `Please provide required
+params for Postgres driver: url: ''`. `db:generate` is offline (no DB); `db:seed` reads
+`.env.local` itself. On Windows PowerShell, load the var first:
+
+```powershell
+$line = Get-Content .env.local | Where-Object { $_ -match '^DATABASE_URL=' } | Select-Object -First 1
+$env:DATABASE_URL = $line.Substring(13).Trim()
+pnpm db:migrate
+```
+
 CI order matters: `lint -> typecheck -> test -> db:generate` (schema-drift check). On
 pushes to `main`, a `migrate` job additionally runs `pnpm db:migrate` against Neon using
 the `DATABASE_URL` repo secret — so pending migrations auto-apply on deploy. PRs only run
@@ -56,6 +67,9 @@ the quality checks.
 ## Conventions
 
 - UI is **Mantine v9**; theme in `src/lib/theme.ts`, provider in `src/app/layout.tsx`.
+- **Brand colors:** primary is `#0D47A1` (deep blue), secondary is `#FBC02D`
+  (amber). Use these two colors whenever an accent color is needed (badges,
+  chips, highlights, event type colors, etc.).
   Authenticated routes live under `src/app/(protected)/` inside the AppShell.
 - **The app is strictly mobile-only.** There is no sidebar or hamburger menu. Lists render
   as stacked **card lists** (`Paper` per row), never `<Table>`. Modals are **floating**

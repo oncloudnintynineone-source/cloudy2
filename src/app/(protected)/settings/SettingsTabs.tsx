@@ -27,18 +27,28 @@ export function SettingsTabs() {
       }}
     >
       <Tabs.List
-        mb="md"
         style={{
           flexWrap: "nowrap",
           overflowX: "auto",
-          position: "sticky",
-          top: 56,
+          position: "fixed",
+          bottom: 0,
+          left: 0,
+          right: 0,
           zIndex: 10,
           background: "var(--mantine-color-body)",
+          borderTop: "1px solid var(--mantine-color-default-border)",
+          paddingBottom: "env(safe-area-inset-bottom)",
         }}
       >
         {tabs.map((tab) => (
-          <Tabs.Tab key={tab.value} value={tab.value}>
+          <Tabs.Tab
+            key={tab.value}
+            value={tab.value}
+            style={{
+              minHeight:
+                "calc((var(--mantine-spacing-xs) + var(--mantine-font-size-sm) + var(--mantine-spacing-xs)) * 1.5)",
+            }}
+          >
             {tab.label}
           </Tabs.Tab>
         ))}

@@ -2,12 +2,13 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Button, Modal, Paper, Stack, Text } from "@mantine/core";
+import { Badge, Button, Group, Modal, Paper, Stack, Text } from "@mantine/core";
 
 import { useDisclosure } from "@mantine/hooks";
 
 import type { EventType } from "@/db/schema";
 import { FloatingToolbar } from "@/components/FloatingToolbar";
+import { SETTINGS_TAB_BAR_OFFSET } from "../settingsTabBar";
 import {
   TIME_OPTION_LABELS,
   normalizeTimeOptions,
@@ -52,16 +53,20 @@ export function EventTypeTable({ types }: EventTypeTableProps) {
             >
               <Stack gap={0}>
                 <Text fw={600}>{eventType.name}</Text>
-                {eventType.shortname ? (
-                  <Text size="sm" c="dimmed">
-                    {eventType.shortname}
-                  </Text>
-                ) : null}
-                <Text size="xs" c="dimmed">
-                  {resolveTimeOptions(normalizeTimeOptions(eventType.timeOptions))
-                    .map((option) => TIME_OPTION_LABELS[option])
-                    .join(" · ")}
-                </Text>
+                <Group gap="xs" wrap="wrap">
+                  {eventType.shortname ? (
+                    <Badge size="sm" variant="light" color="accent">
+                      {eventType.shortname}
+                    </Badge>
+                  ) : null}
+                  {resolveTimeOptions(normalizeTimeOptions(eventType.timeOptions)).map(
+                    (option) => (
+                      <Badge key={option} size="sm" variant="light" color="gray">
+                        {TIME_OPTION_LABELS[option]}
+                      </Badge>
+                    ),
+                  )}
+                </Group>
               </Stack>
             </Paper>
           ))}
@@ -86,7 +91,7 @@ export function EventTypeTable({ types }: EventTypeTableProps) {
         />
       </Modal>
 
-      <FloatingToolbar>
+      <FloatingToolbar bottomOffset={SETTINGS_TAB_BAR_OFFSET}>
         <Button
           radius="xl"
           style={{ boxShadow: "var(--mantine-shadow-md)" }}

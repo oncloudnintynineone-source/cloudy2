@@ -16,6 +16,7 @@ event/visibility layer.
 - [1.8 Git workflow](#18-git-workflow)
 - [1.9 Deployment (Vercel)](#19-deployment-vercel)
 - [1.10 Google integration](#110-google-integration)
+- [1.11 Database migrations](#111-database-migrations)
 
 ## 1.1 Tech stack
 
@@ -32,7 +33,7 @@ event/visibility layer.
 pnpm install
 cp .env.example .env.local
 # fill in .env.local (see Environment below)
-pnpm db:push          # create/update schema in Neon
+pnpm db:push          # create/update schema in Neon (needs DATABASE_URL in the shell — see 1.11)
 pnpm dev
 ```
 
@@ -162,3 +163,38 @@ credentials (`GOOGLE_SERVICE_ACCOUNT_BASE64`, or `GOOGLE_CLIENT_EMAIL` + `GOOGLE
 are present it returns the real Calendar v3 client (calendar + event read/write, ACL
 sharing); otherwise it falls back to a no-op stub so the app runs without GCP credentials.
 Gmail send-as is still stubbed until Workspace domain-wide delegation is provisioned.
+
+## 1.11 Database migrations
+
+Schema lives in `src/db/schema.ts`. The workflow for changing it:
+
+```bash
+pnpm db:generate   # no DB needed — writes drizzle/*.sql + drizzle/meta/ from the schema
+# commit both the generated drizzle/*.sql migration and the drizzle/meta/ files
+pnpm db:migrate    # apply pending migrations to Neon
+```
+
+`db:generate` needs no database. `db:migrate` and `db:push` connect to Neon and **require
+`DATABASE_URL` in the shell environment** — `drizzle-kit` does **not** read `.env.local`, so
+running them directly fails with `Please provide required params for Postgres driver: url: ''`.
+
+On Windows PowerShell, load the variable from `.env.local` first:
+
+```powershell
+$line = Get-Content .env.local | Where-Object { $_ -match '^DATABASE_URL=' } | Select-Object -First 1
+$env:DATABASE_URL = $line.Substring(13).Trim()
+pnpm db:migrate
+```
+
+Command roles:
+
+| Command            | Needs DB | Notes                                                        |
+| ------------------ | -------- | ------------------------------------------------------------ |
+| `pnpm db:generate` | no       | Generate migrations from the schema (offline)                |
+| `pnpm db:migrate`  | yes      | Apply generated `drizzle/*.sql` migrations (the real path)   |
+| `pnpm db:push`     | yes      | Push the schema directly — dev convenience only              |
+| `pnpm db:seed`     | yes      | Dev seed; **reads `.env.local` itself**, no shell step needed |
+
+In CI, the `migrate` job applies pending migrations on `main` pushes via the `DATABASE_URL`
+repo secret, and the schema-drift check runs `pnpm db:generate` then fails on any diff to
+`drizzle/` — so committed migrations stay in sync with the schema.

@@ -2,18 +2,22 @@
  * Pure validation/normalization helpers for the calendar event form. Kept free
  * of I/O so they can be unit-tested without a database or Google credentials.
  *
- * `start`/`end` are naive `YYYY-MM-DD HH:mm:ss` strings, so chronological
- * comparison reduces to a simple string comparison.
+ * `start`/`end` are naive `YYYY-MM-DD HH:mm:ss` strings. For full-day events the
+ * time part is always `00:00:00` and the AM/PM indicators (start/end) add the
+ * half-of-day ordering — so the chronological comparison folds the indicator
+ * into the sort key (`YYYY-MM-DD AM` < `YYYY-MM-DD PM`).
  */
 
-import type { TimeOption } from "./timeOptions";
+import type { AmPm, TimeOption } from "./timeOptions";
 
 export interface EventFormValues {
   title: string;
-  /** Selected datetime option ("range" = timed, "ampm"/"full" = full-day). */
+  /** Selected datetime option ("range" = timed, "full" = full-day). */
   timeOption: TimeOption;
-  /** Morning/afternoon indicator, required for "ampm" events. */
-  amPm: "AM" | "PM" | "";
+  /** Start half-of-day indicator, required for "full" events. */
+  startAmPm: AmPm;
+  /** End half-of-day indicator, required for "full" events. */
+  endAmPm: AmPm;
   start: string;
   end: string;
   eventType: string;
@@ -27,10 +31,21 @@ export interface EventFormValues {
 
 export interface EventFormErrors {
   title?: string;
-  amPm?: string;
+  startAmPm?: string;
+  endAmPm?: string;
   start?: string;
   end?: string;
   [key: string]: string | undefined;
+}
+
+/** Chronological sort key for a side, folding the half-of-day indicator in. */
+function sortKey(values: EventFormValues, end: boolean): string {
+  const naive = end ? values.end : values.start;
+  const amPm = end ? values.endAmPm : values.startAmPm;
+  if (values.timeOption === "full" && amPm) {
+    return `${naive.slice(0, 10)} ${amPm}`;
+  }
+  return naive;
 }
 
 export function validateEventForm(values: EventFormValues): EventFormErrors {
@@ -39,8 +54,13 @@ export function validateEventForm(values: EventFormValues): EventFormErrors {
   if (!values.title.trim()) {
     errors.title = "Description is required";
   }
-  if (values.timeOption === "ampm" && !values.amPm) {
-    errors.amPm = "Select AM or PM";
+  if (values.timeOption === "full") {
+    if (!values.startAmPm) {
+      errors.startAmPm = "Select AM or PM";
+    }
+    if (!values.endAmPm) {
+      errors.endAmPm = "Select AM or PM";
+    }
   }
   if (!values.start) {
     errors.start = "Start is required";
@@ -48,7 +68,7 @@ export function validateEventForm(values: EventFormValues): EventFormErrors {
   if (!values.end) {
     errors.end = "End is required";
   }
-  if (values.start && values.end && values.end < values.start) {
+  if (values.start && values.end && sortKey(values, false) > sortKey(values, true)) {
     errors.end = "End must be on or after start";
   }
 

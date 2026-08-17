@@ -5,7 +5,8 @@ import { validateEventForm, type EventFormValues } from "./validate";
 const base: EventFormValues = {
   title: "Team sync",
   timeOption: "range",
-  amPm: "",
+  startAmPm: "",
+  endAmPm: "",
   start: "2026-08-15 09:00:00",
   end: "2026-08-15 10:00:00",
   eventType: "Meeting",
@@ -35,36 +36,76 @@ describe("validateEventForm", () => {
     ).toBe("End must be on or after start");
   });
 
-  it("requires AM/PM for ampm events", () => {
+  it("accepts a valid full-day event with indicators", () => {
     expect(
       validateEventForm({
         ...base,
-        timeOption: "ampm",
-        amPm: "",
-        start: "2026-08-15 00:00:00",
-        end: "2026-08-15 00:00:00",
-      }).amPm,
-    ).toBe("Select AM or PM");
-  });
-
-  it("accepts an ampm event with the indicator set", () => {
-    expect(
-      validateEventForm({
-        ...base,
-        timeOption: "ampm",
-        amPm: "PM",
+        timeOption: "full",
+        startAmPm: "AM",
+        endAmPm: "PM",
         start: "2026-08-15 00:00:00",
         end: "2026-08-15 00:00:00",
       }),
     ).toEqual({});
   });
 
-  it("allows a same-day full-day event", () => {
+  it("requires both AM/PM indicators for full-day events", () => {
     expect(
       validateEventForm({
         ...base,
         timeOption: "full",
+        startAmPm: "",
+        endAmPm: "PM",
         start: "2026-08-15 00:00:00",
+        end: "2026-08-15 00:00:00",
+      }).startAmPm,
+    ).toBe("Select AM or PM");
+    expect(
+      validateEventForm({
+        ...base,
+        timeOption: "full",
+        startAmPm: "AM",
+        endAmPm: "",
+        start: "2026-08-15 00:00:00",
+        end: "2026-08-15 00:00:00",
+      }).endAmPm,
+    ).toBe("Select AM or PM");
+  });
+
+  it("accepts a same-day AM-to-PM full-day span", () => {
+    expect(
+      validateEventForm({
+        ...base,
+        timeOption: "full",
+        startAmPm: "AM",
+        endAmPm: "PM",
+        start: "2026-08-15 00:00:00",
+        end: "2026-08-15 00:00:00",
+      }),
+    ).toEqual({});
+  });
+
+  it("rejects a same-day PM-to-AM full-day span", () => {
+    expect(
+      validateEventForm({
+        ...base,
+        timeOption: "full",
+        startAmPm: "PM",
+        endAmPm: "AM",
+        start: "2026-08-15 00:00:00",
+        end: "2026-08-15 00:00:00",
+      }).end,
+    ).toBe("End must be on or after start");
+  });
+
+  it("accepts a multi-day span regardless of indicators", () => {
+    expect(
+      validateEventForm({
+        ...base,
+        timeOption: "full",
+        startAmPm: "PM",
+        endAmPm: "AM",
+        start: "2026-08-14 00:00:00",
         end: "2026-08-15 00:00:00",
       }),
     ).toEqual({});

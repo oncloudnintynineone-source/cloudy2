@@ -24,7 +24,8 @@ export function ThemeToggle() {
 
   return (
     <ActionIcon
-      variant="default"
+      variant="transparent"
+      c="white"
       size="lg"
       aria-label={mounted ? SCHEME_LABELS[scheme] : "Switch theme"}
       onClick={() => setColorScheme(NEXT_SCHEME[scheme])}

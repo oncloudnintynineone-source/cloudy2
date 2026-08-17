@@ -85,7 +85,7 @@ export function EventDetail({
 
           <Group gap={6} wrap="wrap">
             {eventType && <Badge variant="light">{eventType}</Badge>}
-            <Badge variant="outline" color="gray">
+            <Badge variant="outline" color="accent">
               {calendarName}
             </Badge>
           </Group>
@@ -109,7 +109,7 @@ export function EventDetail({
                 Departments:
               </Text>
               {departmentNamesResolved.map((name) => (
-                <Badge key={name} variant="light" color="gray">
+                <Badge key={name} variant="light" color="accent">
                   {name}
                 </Badge>
               ))}

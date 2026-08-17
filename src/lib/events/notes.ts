@@ -22,10 +22,12 @@ export interface EventNotes {
   inviteeUsers?: string[];
   /** Department (calendar) ids tagged on the event (schedule view: shows in each department row). */
   inviteeDepartments?: string[];
-  /** Datetime option used to create the event ("range" | "ampm" | "full"). */
+  /** Datetime option used to create the event ("range" | "full"). */
   timeOption?: string;
-  /** Morning/afternoon indicator for "ampm" events. */
-  amPm?: string;
+  /** Start half-of-day indicator for "full" events. */
+  startAmPm?: string;
+  /** End half-of-day indicator for "full" events. */
+  endAmPm?: string;
   [key: string]: unknown;
 }
 
@@ -117,9 +119,16 @@ export function parseEventTimeOption(description: string): TimeOption | null {
   return isTimeOption(timeOption) ? timeOption : null;
 }
 
-/** Extract the AM/PM indicator from the notes block, or null when not an AM/PM event. */
-export function parseEventAmPm(description: string): "AM" | "PM" | null {
+/** Extract the start half-of-day indicator from the notes block, or null. */
+export function parseEventStartAmPm(description: string): "AM" | "PM" | null {
   const notes = parseEventNotes(description);
-  const amPm = notes?.amPm;
-  return amPm === "AM" || amPm === "PM" ? amPm : null;
+  const startAmPm = notes?.startAmPm;
+  return startAmPm === "AM" || startAmPm === "PM" ? startAmPm : null;
+}
+
+/** Extract the end half-of-day indicator from the notes block, or null. */
+export function parseEventEndAmPm(description: string): "AM" | "PM" | null {
+  const notes = parseEventNotes(description);
+  const endAmPm = notes?.endAmPm;
+  return endAmPm === "AM" || endAmPm === "PM" ? endAmPm : null;
 }

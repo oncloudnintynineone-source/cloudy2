@@ -2,9 +2,10 @@ import { describe, expect, it } from "vitest";
 
 import {
   encodeEventNotes,
-  parseEventAmPm,
+  parseEventEndAmPm,
   parseEventNotes,
   parseEventPeople,
+  parseEventStartAmPm,
   parseEventTimeOption,
   parseEventType,
   parseEventTitle,
@@ -46,16 +47,16 @@ describe("encodeEventNotes", () => {
     );
   });
 
-  it("keeps the time option and AM/PM indicator", () => {
+  it("keeps the time option and AM/PM indicators", () => {
     expect(
-      encodeEventNotes({ eventType: "Leave", timeOption: "ampm", amPm: "PM" }),
-    ).toBe('{"eventType":"Leave","timeOption":"ampm","amPm":"PM"}');
+      encodeEventNotes({ eventType: "Leave", timeOption: "full", startAmPm: "AM", endAmPm: "PM" }),
+    ).toBe('{"eventType":"Leave","timeOption":"full","startAmPm":"AM","endAmPm":"PM"}');
   });
 
-  it("drops the AM/PM indicator for non-ampm events", () => {
-    expect(encodeEventNotes({ eventType: "Leave", timeOption: "full", amPm: undefined })).toBe(
-      '{"eventType":"Leave","timeOption":"full"}',
-    );
+  it("drops the indicators for timed events", () => {
+    expect(
+      encodeEventNotes({ eventType: "Leave", timeOption: "range", startAmPm: undefined, endAmPm: undefined }),
+    ).toBe('{"eventType":"Leave","timeOption":"range"}');
   });
 });
 
@@ -99,29 +100,32 @@ describe("parseEventTitle", () => {
 
 describe("parseEventTimeOption", () => {
   it("extracts a valid time option", () => {
-    expect(parseEventTimeOption('{"timeOption":"ampm"}')).toBe("ampm");
     expect(parseEventTimeOption('{"timeOption":"full"}')).toBe("full");
     expect(parseEventTimeOption('{"timeOption":"range"}')).toBe("range");
   });
 
-  it("returns null for absent, empty, or invalid values", () => {
+  it("returns null for absent, empty, invalid, or legacy values", () => {
     expect(parseEventTimeOption("")).toBeNull();
     expect(parseEventTimeOption('{"eventType":"Leave"}')).toBeNull();
     expect(parseEventTimeOption('{"timeOption":""}')).toBeNull();
     expect(parseEventTimeOption('{"timeOption":"half"}')).toBeNull();
+    expect(parseEventTimeOption('{"timeOption":"ampm"}')).toBeNull();
   });
 });
 
-describe("parseEventAmPm", () => {
-  it("extracts AM or PM", () => {
-    expect(parseEventAmPm('{"amPm":"AM"}')).toBe("AM");
-    expect(parseEventAmPm('{"amPm":"PM"}')).toBe("PM");
+describe("parseEventStartAmPm / parseEventEndAmPm", () => {
+  it("extracts AM or PM for each indicator", () => {
+    expect(parseEventStartAmPm('{"startAmPm":"AM","endAmPm":"PM"}')).toBe("AM");
+    expect(parseEventEndAmPm('{"startAmPm":"AM","endAmPm":"PM"}')).toBe("PM");
   });
 
   it("returns null for absent or invalid values", () => {
-    expect(parseEventAmPm("")).toBeNull();
-    expect(parseEventAmPm('{"timeOption":"full"}')).toBeNull();
-    expect(parseEventAmPm('{"amPm":"MIDDAY"}')).toBeNull();
+    expect(parseEventStartAmPm("")).toBeNull();
+    expect(parseEventEndAmPm("")).toBeNull();
+    expect(parseEventStartAmPm('{"timeOption":"full"}')).toBeNull();
+    expect(parseEventEndAmPm('{"timeOption":"full"}')).toBeNull();
+    expect(parseEventStartAmPm('{"startAmPm":"MIDDAY"}')).toBeNull();
+    expect(parseEventEndAmPm('{"endAmPm":"MIDDAY"}')).toBeNull();
   });
 });
 

@@ -7,8 +7,9 @@ import { calendars, users } from "@/db/schema";
 import { getGoogleIntegration } from "@/lib/google";
 import { formatInstantToNaive, monthRange, utcToDateString } from "@/lib/events/datetime";
 import {
-  parseEventAmPm,
+  parseEventEndAmPm,
   parseEventPeople,
+  parseEventStartAmPm,
   parseEventTimeOption,
   parseEventTitle,
   parseEventType,
@@ -34,8 +35,10 @@ export interface CalendarEventPayload {
   rawTitle: string | null;
   /** Datetime option used to create the event; defaults to the timed "range". */
   timeOption: TimeOption;
-  /** Morning/afternoon indicator for "ampm" events, else null. */
-  timeOptionAmPm: "AM" | "PM" | null;
+  /** Start half-of-day indicator for "full" events, else null. */
+  startAmPm: "AM" | "PM" | null;
+  /** End half-of-day indicator for "full" events, else null. */
+  endAmPm: "AM" | "PM" | null;
 }
 
 export interface CalendarEvent {
@@ -149,7 +152,8 @@ export async function fetchMonthEvents(params: {
           inviteeDepartmentIds: people.departmentIds,
           rawTitle: parseEventTitle(item.description),
           timeOption: parseEventTimeOption(item.description) ?? (item.allDay ? "full" : "range"),
-          timeOptionAmPm: parseEventAmPm(item.description),
+          startAmPm: parseEventStartAmPm(item.description),
+          endAmPm: parseEventEndAmPm(item.description),
         },
       });
     }

@@ -9,7 +9,7 @@ import { AUDIT_ACTIONS, actorFromUser } from "@/lib/audit/build";
 import { logAction } from "@/lib/audit/log";
 import { absEventRange } from "@/lib/events/datetime";
 import { encodeEventNotes, parseEventPeople } from "@/lib/events/notes";
-import { resolveTimeOption, type TimeOption } from "@/lib/events/timeOptions";
+import { amPmSuffix, resolveTimeOption, type TimeOption } from "@/lib/events/timeOptions";
 import { getUserDepartmentIds } from "@/lib/events/queries";
 import {
   deriveTargetCalendarIds,
@@ -172,14 +172,15 @@ async function buildEventTitleContext(input: EventFormValues): Promise<EventTitl
 /**
  * Clamp the form's chosen datetime option to what the event type allows
  * (unknown names and untyped events fall back to the default "range"), and
- * default the AM/PM indicator for "ampm" events.
+ * default the start/end AM/PM indicators for "full" events.
  */
 function resolveEventTime(input: EventFormValues, context: EventTitleContext): EventFormValues {
   const timeOption = resolveTimeOption(context.timeOptions, input.timeOption);
   return {
     ...input,
     timeOption,
-    amPm: timeOption === "ampm" ? (input.amPm === "PM" ? "PM" : "AM") : "",
+    startAmPm: timeOption === "full" ? (input.startAmPm === "PM" ? "PM" : "AM") : "",
+    endAmPm: timeOption === "full" ? (input.endAmPm === "PM" ? "PM" : "AM") : "",
   };
 }
 
@@ -201,7 +202,8 @@ function buildGcalEventInput(
   );
   // A template that renders to nothing must not produce an untitled event.
   const baseTitle = renderedTitle || rawTitle;
-  const title = input.timeOption === "ampm" ? `${baseTitle} (${input.amPm})` : baseTitle;
+  const amPm = amPmSuffix(input.startAmPm, input.endAmPm);
+  const title = input.timeOption === "full" && amPm ? `${baseTitle} (${amPm})` : baseTitle;
   const description = encodeEventNotes({
     eventId,
     eventType: input.eventType || undefined,
@@ -210,7 +212,8 @@ function buildGcalEventInput(
     inviteeDepartments: input.inviteeDepartments,
     title: rawTitle,
     timeOption: input.timeOption,
-    amPm: input.timeOption === "ampm" ? input.amPm : undefined,
+    startAmPm: input.timeOption === "full" ? input.startAmPm : undefined,
+    endAmPm: input.timeOption === "full" ? input.endAmPm : undefined,
   });
 
   const allDay = input.timeOption !== "range";

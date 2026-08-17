@@ -2,12 +2,12 @@
 
 import { useMemo } from "react";
 import {
+  Badge,
   Button,
   Group,
   MultiSelect,
   Paper,
   SegmentedControl,
-  Select,
   Stack,
   Tabs,
   Text,
@@ -21,8 +21,10 @@ import { createEvent, updateEvent, type EventActionResult } from "@/lib/events/a
 import { subOneDay } from "@/lib/events/datetime";
 import { eventRefFromCalendarEvent } from "@/lib/events/targets";
 import {
+  amPmSuffix,
   resolveTimeOption,
   TIME_OPTION_LABELS,
+  type AmPm,
   type TimeOption,
 } from "@/lib/events/timeOptions";
 import { validateEventForm, type EventFormValues } from "@/lib/events/validate";
@@ -64,6 +66,11 @@ interface EventFormProps {
 interface EventFormState extends EventFormValues {
   invitees: string[];
 }
+
+const AMPM_OPTIONS = [
+  { label: "AM", value: "AM" },
+  { label: "PM", value: "PM" },
+];
 
 /** Split the prefixed select values (`user:<id>` / `dept:<id>`) into the two notes fields. */
 function splitInvitees(invitees: string[]): { userIds: string[]; departmentIds: string[] } {
@@ -107,7 +114,10 @@ export function EventForm({
         // it, so editing never re-types the rendered calendar title.
         title: event.payload.rawTitle ?? (event.title === "(no title)" ? "" : event.title),
         timeOption,
-        amPm: event.payload.timeOptionAmPm ?? (timeOption === "ampm" ? "AM" : ""),
+        // Legacy full-day events carry no indicators; defaulting to AM→PM
+        // keeps them rendering as a plain full day (no title suffix).
+        startAmPm: event.payload.startAmPm ?? "AM",
+        endAmPm: event.payload.endAmPm ?? "PM",
         start: event.start,
         end: allDay ? `${subOneDay(event.end.slice(0, 10))} 00:00:00` : event.end,
         eventType: event.payload.eventType ?? "",
@@ -123,7 +133,8 @@ export function EventForm({
     return {
       title: "",
       timeOption: "range",
-      amPm: "",
+      startAmPm: "AM",
+      endAmPm: "PM",
       start: `${defaultDate} 09:00:00`,
       end: `${defaultDate} 10:00:00`,
       eventType: "",
@@ -162,21 +173,30 @@ export function EventForm({
     [inviteeDepartments, inviteeUsers],
   );
 
-  const selectedType = eventTypes.find((type) => type.name === form.values.eventType) ?? null;
+  const sortedEventTypes = useMemo(
+    () => [...eventTypes].sort((a, b) => a.name.localeCompare(b.name)),
+    [eventTypes],
+  );
+
+  const selectedType = sortedEventTypes.find((type) => type.name === form.values.eventType) ?? null;
   const allowedOptions: TimeOption[] = selectedType ? selectedType.timeOptions : ["range"];
   const effectiveTimeOption = resolveTimeOption(allowedOptions, form.values.timeOption);
 
   function switchTimeOption(option: TimeOption) {
     form.setFieldValue("timeOption", option);
-    if (option !== "range") {
+    if (option === "full") {
       if (form.values.start) {
         form.setFieldValue("start", `${form.values.start.slice(0, 10)} 00:00:00`);
       }
       if (form.values.end) {
         form.setFieldValue("end", `${form.values.end.slice(0, 10)} 00:00:00`);
       }
-      if (option === "ampm" && !form.values.amPm) {
-        form.setFieldValue("amPm", "AM");
+      // Default to a plain full-day span (no title suffix) on entry.
+      if (!form.values.startAmPm) {
+        form.setFieldValue("startAmPm", "AM");
+      }
+      if (!form.values.endAmPm) {
+        form.setFieldValue("endAmPm", "PM");
       }
     }
   }
@@ -233,9 +253,8 @@ export function EventForm({
       departments,
     };
     const base = formatEventTitle(input, eventTitleTemplate) || form.values.title;
-    return effectiveTimeOption === "ampm" && form.values.amPm
-      ? `${base} (${form.values.amPm})`
-      : base;
+    const amPm = amPmSuffix(form.values.startAmPm, form.values.endAmPm);
+    return effectiveTimeOption === "full" && amPm ? `${base} (${amPm})` : base;
   })();
 
   const onSubmit = form.onSubmit(async (values) => {
@@ -244,7 +263,8 @@ export function EventForm({
     const payload: EventFormValues = {
       ...rest,
       timeOption: effectiveTimeOption,
-      amPm: effectiveTimeOption === "ampm" ? rest.amPm || "AM" : "",
+      startAmPm: effectiveTimeOption === "full" ? rest.startAmPm || "AM" : "",
+      endAmPm: effectiveTimeOption === "full" ? rest.endAmPm || "PM" : "",
       inviteeUserIds: userIds,
       inviteeDepartments: departmentIds,
     };
@@ -267,6 +287,7 @@ export function EventForm({
     notifications.show({ color: "red", message: result.error });
   });
 
+  const hasType = Boolean(form.values.eventType);
   const showTabs = allowedOptions.length > 1;
 
   const timeFields = (option: TimeOption) =>
@@ -295,30 +316,38 @@ export function EventForm({
           onChange={(value) => form.setFieldValue("start", value ? `${value} 00:00:00` : "")}
           error={form.errors.start}
         />
+        <Stack gap={4}>
+          <SegmentedControl
+            aria-label="Start AM or PM"
+            data={AMPM_OPTIONS}
+            value={form.values.startAmPm || undefined}
+            onChange={(value) => form.setFieldValue("startAmPm", value as AmPm)}
+          />
+          {form.errors.startAmPm && (
+            <Text size="xs" c="red">
+              {form.errors.startAmPm}
+            </Text>
+          )}
+        </Stack>
         <DatePickerInput
           label="End date"
           value={naiveToDate(form.values.end)}
           onChange={(value) => form.setFieldValue("end", value ? `${value} 00:00:00` : "")}
           error={form.errors.end}
         />
-        {option === "ampm" && (
-          <Stack gap={4}>
-            <SegmentedControl
-              aria-label="AM or PM"
-              data={[
-                { label: "AM", value: "AM" },
-                { label: "PM", value: "PM" },
-              ]}
-              value={form.values.amPm || undefined}
-              onChange={(value) => form.setFieldValue("amPm", value as "AM" | "PM")}
-            />
-            {form.errors.amPm && (
-              <Text size="xs" c="red">
-                {form.errors.amPm}
-              </Text>
-            )}
-          </Stack>
-        )}
+        <Stack gap={4}>
+          <SegmentedControl
+            aria-label="End AM or PM"
+            data={AMPM_OPTIONS}
+            value={form.values.endAmPm || undefined}
+            onChange={(value) => form.setFieldValue("endAmPm", value as AmPm)}
+          />
+          {form.errors.endAmPm && (
+            <Text size="xs" c="red">
+              {form.errors.endAmPm}
+            </Text>
+          )}
+        </Stack>
       </>
     );
 
@@ -333,66 +362,88 @@ export function EventForm({
           {...form.getInputProps("title")}
         />
 
-        <Select
-          label="Event Type"
-          placeholder="None"
-          data={eventTypes.map((type) => ({ value: type.name, label: type.name }))}
-          value={form.values.eventType || null}
-          onChange={handleEventTypeChange}
-          clearable
-          searchable
-        />
-
-        {showTabs ? (
-          <Tabs
-            value={effectiveTimeOption}
-            onChange={(value) => value && switchTimeOption(value as TimeOption)}
-            aria-label="Time option"
-          >
-            <Tabs.List grow>
-              {allowedOptions.map((option) => (
-                <Tabs.Tab key={option} value={option}>
-                  {TIME_OPTION_LABELS[option]}
-                </Tabs.Tab>
-              ))}
-            </Tabs.List>
-            <Tabs.Panel value={effectiveTimeOption} pt="sm">
-              <Stack>{timeFields(effectiveTimeOption)}</Stack>
-            </Tabs.Panel>
-          </Tabs>
-        ) : (
-          timeFields(effectiveTimeOption)
-        )}
-
-        {inviteeData.length > 0 && (
-          <MultiSelect
-            label="Invitees"
-            description="A copy of the event is created in each tagged person's department and in each tagged department"
-            placeholder="My department only"
-            data={inviteeData}
-            value={form.values.invitees}
-            onChange={(value) => form.setFieldValue("invitees", value)}
-            searchable
-            clearable
-          />
-        )}
-
-        <Paper withBorder p="sm">
-          <Stack gap={4}>
-            <Text size="xs" fw={600} c="dimmed" tt="uppercase">
-              Calendar preview
+        <Stack gap="xs">
+          <Text size="sm" fw={500}>
+            Event Type
+          </Text>
+          {sortedEventTypes.length === 0 ? (
+            <Text size="sm" c="dimmed">
+              No event types
             </Text>
-            <Text size="sm" fw={600} style={{ overflowWrap: "anywhere" }}>
-              {previewTitle || "—"}
-            </Text>
-          </Stack>
-        </Paper>
+          ) : (
+            <Group gap={6} wrap="wrap">
+              {sortedEventTypes.map((type) => {
+                const selected = type.name === form.values.eventType;
+                return (
+                  <Badge
+                    key={type.name}
+                    variant={selected ? "filled" : "light"}
+                    size="lg"
+                    style={{ cursor: "pointer" }}
+                    onClick={() => handleEventTypeChange(selected ? null : type.name)}
+                  >
+                    {type.name}
+                  </Badge>
+                );
+              })}
+            </Group>
+          )}
+        </Stack>
 
-        <Group justify="flex-end" mt="md">
-          <Button type="submit" fullWidth>
-            {isEdit ? "Save changes" : "Create event"}
-          </Button>
-        </Group>
+        {hasType && (
+          <>
+            {showTabs ? (
+              <Tabs
+                value={effectiveTimeOption}
+                onChange={(value) => value && switchTimeOption(value as TimeOption)}
+                aria-label="Time option"
+              >
+                <Tabs.List grow>
+                  {allowedOptions.map((option) => (
+                    <Tabs.Tab key={option} value={option}>
+                      {TIME_OPTION_LABELS[option]}
+                    </Tabs.Tab>
+                  ))}
+                </Tabs.List>
+                <Tabs.Panel value={effectiveTimeOption} pt="sm">
+                  <Stack>{timeFields(effectiveTimeOption)}</Stack>
+                </Tabs.Panel>
+              </Tabs>
+            ) : (
+              timeFields(effectiveTimeOption)
+            )}
+
+            {inviteeData.length > 0 && (
+              <MultiSelect
+                label="Invitees"
+                description="A copy of the event is created in each tagged person's department and in each tagged department"
+                placeholder="My department only"
+                data={inviteeData}
+                value={form.values.invitees}
+                onChange={(value) => form.setFieldValue("invitees", value)}
+                searchable
+                clearable
+              />
+            )}
+
+            <Paper withBorder p="sm">
+              <Stack gap={4}>
+                <Text size="xs" fw={600} c="accent.6" tt="uppercase">
+                  Calendar preview
+                </Text>
+                <Text size="sm" fw={600} style={{ overflowWrap: "anywhere" }}>
+                  {previewTitle || "—"}
+                </Text>
+              </Stack>
+            </Paper>
+
+            <Group justify="flex-end" mt="md">
+              <Button type="submit" fullWidth>
+                {isEdit ? "Save changes" : "Create event"}
+              </Button>
+            </Group>
+          </>
+        )}
       </Stack>
     </form>
   );

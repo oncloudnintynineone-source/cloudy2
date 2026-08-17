@@ -34,7 +34,18 @@ export function LoginForm() {
         <form onSubmit={onSubmit}>
           <Stack>
             <div>
-              <Title order={2}>Cloudy</Title>
+              <div
+                style={{
+                  width: 40,
+                  height: 4,
+                  borderRadius: 999,
+                  background: "var(--mantine-color-accent-6)",
+                  marginBottom: 8,
+                }}
+              />
+              <Title order={2} c="brand">
+                Cloudy
+              </Title>
               <Text c="dimmed" size="sm">
                 Cloud Calendar Movement
               </Text>

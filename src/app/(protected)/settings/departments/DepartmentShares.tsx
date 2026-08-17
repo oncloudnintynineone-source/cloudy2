@@ -138,7 +138,7 @@ export function DepartmentShares({ calendar, opened, onClose }: DepartmentShares
                   Owner access
                 </Text>
                 <Group gap={6}>
-                  <Badge color="red">{data.admin} · owner</Badge>
+                  <Badge color="brand">{data.admin} · owner</Badge>
                 </Group>
               </Stack>
             ) : null}

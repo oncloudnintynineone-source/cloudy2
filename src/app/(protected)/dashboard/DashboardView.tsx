@@ -304,7 +304,7 @@ export function DashboardView({
           </ActionIcon>
         </Group>
         <Group gap="xs">
-          <Button variant="subtle" size="xs" onClick={goToday}>
+          <Button variant="subtle" size="xs" color="accent" onClick={goToday}>
             Today
           </Button>
           <FilterButton activeCount={activeFilterCount} onClick={openFilter} />
@@ -385,6 +385,7 @@ export function DashboardView({
             return isDepartmentRowId(row.id) ? (
               <IconBuilding
                 size={16}
+                color="var(--mantine-color-accent-6)"
                 aria-label={row.fullName}
                 title={row.fullName}
                 style={{ flexShrink: 0 }}

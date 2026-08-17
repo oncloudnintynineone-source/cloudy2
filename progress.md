@@ -1038,25 +1038,23 @@ above the submit button.
 
 ```mermaid
 flowchart LR
-    A[Event Types settings<br/>checkboxes] --> B[event_types.time_options<br/>range · ampm · full]
+    A[Event Types settings<br/>checkboxes] --> B[event_types.time_options<br/>range · full]
     B --> C[EventForm tabs]
     C --> D["Start &amp; End<br/>two datetime pickers"]
-    C --> E["AM/PM<br/>full-day dates + AM/PM"]
-    C --> F["Full Day<br/>full-day dates"]
-    E --> G["title (AM)/(PM)"]
+    C --> E["Full Day<br/>start date + AM/PM ·<br/>end date + AM/PM"]
     D --> H["title (timed)"]
-    F --> I["title (full-day)"]
+    E --> G["title + (AM)/(PM)<br/>only when start & end match"]
     H --> J["Google Calendar summary<br/>+ preview in form"]
     G --> J
-    I --> J
 ```
 
 - **Time options** — each event type carries a `time_options` text-array column
-  (migration `0010`) holding a subset of `["range", "ampm", "full"]` (labels
-  **Start & End**, **AM/PM**, **Full Day**). Empty/unrecorded types resolve to
-  `["range"]` (the old behaviour). `src/lib/events/timeOptions.ts` is a new pure
-  module (`TimeOption`, `TIME_OPTION_LABELS`, `normalizeTimeOptions`,
-  `resolveTimeOptions`, `resolveTimeOption`) unit-tested in `timeOptions.test.ts`.
+  (migration `0010`) holding a subset of `["range", "full"]` (labels **Start &
+  End**, **Full Day**). Empty/unrecorded types resolve to `["range"]` (the old
+  behaviour). `src/lib/events/timeOptions.ts` is a pure module
+  (`TimeOption`, `TIME_OPTION_LABELS`, `normalizeTimeOptions`,
+  `resolveTimeOptions`, `resolveTimeOption`, `amPmSuffix`) unit-tested in
+  `timeOptions.test.ts`.
 - **Admin UI** — `EventTypeForm` gains a "Time options" `Checkbox.Group`
   (at least one required, validated in `validateEventTypeForm`);
   `createEventType`/`renameEventType` persist + audit it (field diff);
@@ -1064,26 +1062,32 @@ flowchart LR
   returns normalized options; `getEventTypesByNames` also returns them so
   actions can enforce the restriction.
 - **Event semantics** — `EventFormValues` drops the free `allDay` toggle and gains
-  `timeOption` + `amPm`. `Start & End` is always timed (two `DateTimePicker`s);
-  **AM/PM** and **Full Day** are full-day date ranges. **AM/PM** appends `" (AM)"` /
-  `" (PM)"` to the rendered Google title. `allDay` is derived server-side
+  `timeOption`, `startAmPm` and `endAmPm`. `Start & End` is always timed (two
+  `DateTimePicker`s). **Full Day** (the merged AM/PM + Full Day option) is a
+  full-day event with **start date + AM/PM selector and end date + AM/PM
+  selector**; the title gets `" (AM)"` or `" (PM)"` appended only when both
+  indicators match (`amPmSuffix` — AM→AM or PM→PM), while mixed spans (AM→PM,
+  PM→AM) render no suffix. `allDay` is derived server-side
   (`timeOption !== "range"`) in `buildGcalEventInput`, which also writes
-  `timeOption`/`amPm` into the notes JSON (`notes.ts` parses them back via new
-  `parseEventTimeOption`/`parseEventAmPm`; `CalendarEventPayload` gains
-  `timeOption` + `timeOptionAmPm`). Legacy all-day events default to `"full"` on
-  edit prefill. The server clamps the chosen option against the type's allowed
-  set (`resolveEventTime`), defaulting untyped events to `range`.
+  `timeOption`/`startAmPm`/`endAmPm` into the notes JSON (`notes.ts` parses them
+  back via `parseEventTimeOption`/`parseEventStartAmPm`/`parseEventEndAmPm`;
+  `CalendarEventPayload` gains `timeOption` + `startAmPm` + `endAmPm`). Legacy
+  all-day events default to `"full"` on edit prefill with `AM`/`PM` indicators
+  (rendering a plain full day). The server clamps the chosen option against the
+  type's allowed set (`resolveEventTime`), defaulting untyped events to `range`.
+  Chronological validation folds the indicator into the sort key
+  (`YYYY-MM-DD AM` < `YYYY-MM-DD PM`), so a same-day PM→AM span is rejected.
 - **Event form reorder** — order is now **Event Description → Event Type →
   time-option tabs → datetime component → Invitees → Calendar preview →
   Create/Save button**. When the selected type allows several options an inline
-  `Tabs` strip switches the datetime component (tab switches normalize times to
-  `00:00:00` and default `amPm` to `AM`); a single allowed option renders it
-  directly; no type selected = Start & End.
+  `Tabs` strip switches the datetime component (switching to Full Day normalizes
+  times to `00:00:00` and defaults the indicators to AM/PM — a plain full day);
+  a single allowed option renders it directly; no type selected = Start & End.
 - **Calendar preview** — a `Paper` above the submit button renders the exact
   summary the server will write: `formatEventTitle(...)` against the saved
   `event_title_template` using the live title/type shortname/selected people
-  (fqn + acronym)/departments, plus the AM/PM suffix. `dashboard/page.tsx`
+  (fqn + acronym)/departments, plus the `(AM)`/`(PM)` suffix. `dashboard/page.tsx`
   passes the template, rich event-type info, and user `shortname` for the
   preview.
-- Verification: `pnpm lint`, `pnpm typecheck`, `pnpm test` (171), `pnpm build`,
+- Verification: `pnpm lint`, `pnpm typecheck`, `pnpm test` (175), `pnpm build`,
   and `pnpm db:generate` (no drift — migration `0010` in sync) all pass.

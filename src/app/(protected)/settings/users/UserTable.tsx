@@ -19,6 +19,7 @@ import { FilterModal, type FilterGroup } from "@/components/FilterModal";
 import { FloatingToolbar } from "@/components/FloatingToolbar";
 import type { RosterUser } from "@/lib/roster/queries";
 import { formatFullName } from "@/lib/settings/formatName";
+import { SETTINGS_TAB_BAR_OFFSET } from "../settingsTabBar";
 import { UserForm, type DepartmentOption } from "./UserForm";
 
 interface UserTableProps {
@@ -116,14 +117,14 @@ export function UserTable({ users, departments, nameTemplate }: UserTableProps) 
           {activeFilterCount > 0 ? (
             <Group gap={6} wrap="wrap">
               {statusFilter.map((value) => (
-                <Badge key={value} color="indigo" variant="light">
+                <Badge key={value} color="brand" variant="light">
                   Status: {value === "active" ? "Active" : "Inactive"}
                 </Badge>
               ))}
               {departmentFilter.map((value) => {
                 const department = departments.find((d) => d.id === value);
                 return (
-                  <Badge key={value} color="indigo" variant="light">
+                  <Badge key={value} color="brand" variant="light">
                     {department?.name ?? value}
                   </Badge>
                 );
@@ -166,9 +167,11 @@ export function UserTable({ users, departments, nameTemplate }: UserTableProps) 
                 <Text size="sm" c="dimmed">
                   {user.phone}
                 </Text>
-                <Badge color={user.role === "admin" ? "red" : "blue"}>{user.role}</Badge>
+                <Badge color={user.role === "admin" ? "brand" : "gray"}>{user.role}</Badge>
                 {user.department ? (
-                  <Badge variant="light">{user.department.name}</Badge>
+                  <Badge variant="light" color="accent">
+                    {user.department.name}
+                  </Badge>
                 ) : (
                   <Badge variant="outline" color="gray">
                     No department
@@ -208,7 +211,7 @@ export function UserTable({ users, departments, nameTemplate }: UserTableProps) 
         onApply={handleApplyFilters}
       />
 
-      <FloatingToolbar>
+      <FloatingToolbar bottomOffset={SETTINGS_TAB_BAR_OFFSET}>
         <Button
           radius="xl"
           style={{ boxShadow: "var(--mantine-shadow-md)" }}

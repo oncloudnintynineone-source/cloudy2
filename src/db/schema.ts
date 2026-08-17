@@ -75,7 +75,7 @@ export const eventTypes = pgTable(
     id: uuid("id").primaryKey().defaultRandom(),
     name: text("name").notNull(),
     shortname: text("shortname"),
-    /** Selectable datetime options ("range" | "ampm" | "full"); empty = default range. */
+    /** Selectable datetime options ("range" | "full"); empty = default range. */
     timeOptions: text("time_options")
       .array()
       .notNull()
