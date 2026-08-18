@@ -7,8 +7,14 @@ import { db } from "@/db";
 import { calendars } from "@/db/schema";
 import { AUDIT_ACTIONS, actorFromUser } from "@/lib/audit/build";
 import { logAction } from "@/lib/audit/log";
+import { appBaseUrl } from "@/lib/appUrl";
 import { absEventRange } from "@/lib/events/datetime";
-import { encodeEventNotes, parseEventPeople } from "@/lib/events/notes";
+import {
+  encodeEventNotes,
+  eventEditUrl,
+  parseEventPeople,
+  withEditLink,
+} from "@/lib/events/notes";
 import { amPmSuffix, resolveTimeOption, type TimeOption } from "@/lib/events/timeOptions";
 import { getUserDepartmentIds } from "@/lib/events/queries";
 import { deriveTargetCalendarIds, type EventRef } from "@/lib/events/targets";
@@ -204,12 +210,12 @@ function resolveEventTime(input: EventFormValues, context: EventTitleContext): E
   };
 }
 
-function buildGcalEventInput(
+async function buildGcalEventInput(
   googleCalendarId: string,
   input: EventFormValues,
   eventId: string,
   titleContext: EventTitleContext,
-): GcalEventInput {
+): Promise<GcalEventInput> {
   const rawTitle = input.title.trim();
   const renderedTitle = formatEventTitle(
     {
@@ -227,7 +233,11 @@ function buildGcalEventInput(
   // An empty title gets no bare "(AM)" suffix.
   const title =
     baseTitle && input.timeOption === "full" && amPm ? `${baseTitle} (${amPm})` : baseTitle;
-  const description = encodeEventNotes({
+  // The notes carry an "Edit:" link (shown on top of the JSON block) that
+  // opens this event's edit form; it is rebuilt on every create/edit so the
+  // embedded date stays current for in-app reschedules.
+  const editLink = eventEditUrl(await appBaseUrl(), input.start, eventId);
+  const notesJson = encodeEventNotes({
     eventId,
     eventType: input.eventType || undefined,
     createdBy: input.creatorId || undefined,
@@ -237,7 +247,9 @@ function buildGcalEventInput(
     timeOption: input.timeOption,
     startAmPm: input.timeOption === "full" ? input.startAmPm : undefined,
     endAmPm: input.timeOption === "full" ? input.endAmPm : undefined,
+    editLink,
   });
+  const description = withEditLink(notesJson, editLink);
 
   const allDay = input.timeOption !== "range";
   const { start, end } = absEventRange(input.start, input.end, allDay);
@@ -341,7 +353,7 @@ export async function createEvent(input: EventFormValues): Promise<EventActionRe
         throw new Error("Calendar not found");
       }
       const event = await integration.createEvent(
-        buildGcalEventInput(googleCalendarId, effectiveInput, eventId, titleContext),
+        await buildGcalEventInput(googleCalendarId, effectiveInput, eventId, titleContext),
       );
       created.push({ googleCalendarId, googleEventId: event.id });
     }
@@ -446,12 +458,12 @@ export async function updateEvent(
           for (const copy of found) {
             await integration.updateEvent(
               copy.googleEventId,
-              buildGcalEventInput(googleCalendarId, effectiveInput, eventId, titleContext),
+              await buildGcalEventInput(googleCalendarId, effectiveInput, eventId, titleContext),
             );
           }
         } else {
           const event = await integration.createEvent(
-            buildGcalEventInput(googleCalendarId, effectiveInput, eventId, titleContext),
+            await buildGcalEventInput(googleCalendarId, effectiveInput, eventId, titleContext),
           );
           createdHere.push({ googleCalendarId, googleEventId: event.id });
         }

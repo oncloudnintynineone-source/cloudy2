@@ -90,6 +90,10 @@ the quality checks.
   `formatEventTitle()` helper in `src/lib/settings/formatEventTitle.ts`). Event titles are
   rendered into the Google event summary on create/edit; the raw description round-trips via
   the `title` field of the event notes JSON so the edit form always prefills the original text.
+  The notes also carry an `editLink` written on every create/edit as a human-readable
+  `Edit: <url>` line above the JSON block (deep link to `/dashboard?date=…&edit=<eventId>`,
+  which opens the event's edit form); the app origin is derived from the request headers in
+  `src/lib/appUrl.ts`.
   The **General tab** holds only the login keyword setting.
 - **Always show a loading skeleton for async loads.** Any route or view that awaits data
   before rendering (DB queries, fetches) must show a Mantine `Skeleton` fallback instead of

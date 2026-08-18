@@ -1,7 +1,9 @@
 /**
  * Pure encoding/parsing of the machine-readable "notes" block stored on Google
  * Calendar events (in the event `description`). The block is a JSON object so
- * additional fields can be added later without a format migration.
+ * additional fields can be added later without a format migration. A short
+ * human-readable line (`Edit: <url>`) sits above the JSON block so the edit
+ * link is visible — and linkified — in Google Calendar's notes.
  */
 
 import { isTimeOption, type TimeOption } from "./timeOptions";
@@ -15,6 +17,8 @@ export interface EventNotes {
    * (unlike other blank values) to record a deliberately empty description.
    */
   title?: string;
+  /** Link that opens the event's edit form in the app (shown above the JSON block). */
+  editLink?: string;
   /** Logical event group id; all linked copies (one per department calendar) share it. */
   eventId?: string;
   /** Id of the user who created the event (schedule view: its row always shows the event). */
@@ -91,19 +95,76 @@ export function parseEventPeople(description: string): EventPeople {
   };
 }
 
-/** Parse the JSON notes block from an event description, or null when absent/malformed. */
-export function parseEventNotes(description: string): EventNotes | null {
-  if (!description) {
+function tryParseObject(text: string): EventNotes | null {
+  if (!text) {
     return null;
   }
   try {
-    const parsed = JSON.parse(description);
+    const parsed = JSON.parse(text);
     return typeof parsed === "object" && parsed !== null && !Array.isArray(parsed)
       ? (parsed as EventNotes)
       : null;
   } catch {
     return null;
   }
+}
+
+/**
+ * Parse the JSON notes block from an event description, or null when
+ * absent/malformed. Handles both the current format (an `Edit: <url>` line
+ * above the JSON block) and legacy descriptions that are the JSON block alone.
+ * The block itself is always a single JSON line, so when the whole string is
+ * not valid JSON the last line that parses as a JSON object is used.
+ */
+export function parseEventNotes(description: string): EventNotes | null {
+  if (!description) {
+    return null;
+  }
+  const direct = tryParseObject(description);
+  if (direct !== null) {
+    return direct;
+  }
+  const lines = description.split("\n");
+  for (let i = lines.length - 1; i >= 0; i -= 1) {
+    const line = lines[i].trim();
+    if (!line.startsWith("{")) {
+      continue;
+    }
+    const parsed = tryParseObject(line);
+    if (parsed !== null) {
+      return parsed;
+    }
+  }
+  return null;
+}
+
+/**
+ * Assemble the full event description from an encoded notes block: the
+ * human-readable `Edit: <url>` line on top (Google Calendar linkifies plain
+ * URLs in the notes) with the JSON block below. An empty notes block still
+ * yields the link line; an empty url leaves the block untouched.
+ */
+export function withEditLink(notesJson: string, url: string): string {
+  if (!url) {
+    return notesJson;
+  }
+  const line = `Edit: ${url}`;
+  return notesJson ? `${line}\n\n${notesJson}` : line;
+}
+
+/**
+ * Build the dashboard URL that deep-links an event's edit form: the start
+ * (naive `YYYY-MM-DD …`) pins the month the link arrives in, and the event
+ * group id picks the event out of it.
+ */
+export function eventEditUrl(baseUrl: string, start: string, eventId: string): string {
+  const params = new URLSearchParams();
+  const date = start.slice(0, 10);
+  if (date) {
+    params.set("date", date);
+  }
+  params.set("edit", eventId);
+  return `${baseUrl}/dashboard?${params.toString()}`;
 }
 
 /** Extract the event type name from the notes block, or null. */

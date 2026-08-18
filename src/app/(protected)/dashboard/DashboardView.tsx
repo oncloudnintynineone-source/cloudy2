@@ -1,7 +1,7 @@
 "use client";
 
 import dayjs from "dayjs";
-import { useMemo, useRef, useState, useTransition } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
   ActionIcon,
@@ -71,6 +71,11 @@ interface DashboardViewProps {
   currentUser: string;
   /** Admin may create/edit events on behalf of any user. */
   isAdmin: boolean;
+  /**
+   * Event group id from the `?edit=` deep link (a Google Calendar "Edit:"
+   * note); its edit form opens automatically once the events are loaded.
+   */
+  initialEditEventId: string | null;
   scheduleUsers: ScheduleUser[];
   inviteeDepartments: { id: string; name: string }[];
   inviteeUsers: {
@@ -105,6 +110,7 @@ export function DashboardView({
   selectedUserIds,
   currentUser,
   isAdmin,
+  initialEditEventId,
   scheduleUsers,
   inviteeDepartments,
   inviteeUsers,
@@ -118,9 +124,24 @@ export function DashboardView({
 
   const [targetView, setTargetView] = useState<ViewMode>(view);
 
+  // The `?edit=` deep link (from a Google Calendar "Edit:" note) resolves its
+  // target event synchronously at mount — the server has already fetched the
+  // month — so the edit form/banner initialize without a follow-up render.
+  const initialEditEvent = initialEditEventId
+    ? (events.find((event) => event.payload.eventId === initialEditEventId) ?? null)
+    : null;
+
   const [detailEvent, setDetailEvent] = useState<CalendarEvent | null>(null);
-  const [formState, setFormState] = useState<FormState | null>(null);
+  const [formState, setFormState] = useState<FormState | null>(
+    () =>
+      initialEditEvent
+        ? { event: initialEditEvent, defaultDate: initialEditEvent.start.slice(0, 10) }
+        : null,
+  );
   const [agendaDate, setAgendaDate] = useState<string | null>(null);
+  const [editLinkFailed, setEditLinkFailed] = useState(
+    () => initialEditEventId !== null && initialEditEvent === null,
+  );
   const [filterOpened, { open: openFilter, close: closeFilter }] = useDisclosure(false);
 
   const monthLabel = dayjs(`${month}-01`).format("MMMM YYYY");
@@ -191,20 +212,34 @@ export function DashboardView({
   );
   const scheduleEvents = useMemo(() => expandScheduleEvents(events), [events]);
 
-  function navigate(updates: Record<string, string | null>) {
-    const params = new URLSearchParams(searchParams.toString());
-    for (const [key, value] of Object.entries(updates)) {
-      if (value === null || value === "") {
-        params.delete(key);
-      } else {
-        params.set(key, value);
+  const navigate = useCallback(
+    (updates: Record<string, string | null>) => {
+      const params = new URLSearchParams(searchParams.toString());
+      for (const [key, value] of Object.entries(updates)) {
+        if (value === null || value === "") {
+          params.delete(key);
+        } else {
+          params.set(key, value);
+        }
       }
+      const query = params.toString();
+      startTransition(() => {
+        router.push(query ? `${pathname}?${query}` : pathname);
+      });
+    },
+    [searchParams, pathname, router, startTransition],
+  );
+
+  // Strip the one-shot `edit` param from the URL so a refresh doesn't reopen
+  // the edit form.
+  const editParamClearedRef = useRef(false);
+  useEffect(() => {
+    if (!initialEditEventId || editParamClearedRef.current) {
+      return;
     }
-    const query = params.toString();
-    startTransition(() => {
-      router.push(query ? `${pathname}?${query}` : pathname);
-    });
-  }
+    editParamClearedRef.current = true;
+    navigate({ edit: null });
+  }, [initialEditEventId, navigate]);
 
   function shiftMonth(delta: number) {
     setTargetView(view);
@@ -348,6 +383,18 @@ export function DashboardView({
       {!googleConfigured && (
         <Alert color="yellow" title="Google Calendar is not configured">
           Events cannot be created or edited until Google service-account credentials are set.
+        </Alert>
+      )}
+
+      {editLinkFailed && (
+        <Alert
+          color="yellow"
+          title="Could not open that event"
+          withCloseButton
+          onClose={() => setEditLinkFailed(false)}
+        >
+          It is not in your current view — adjust the calendar filters or check the date of the
+          event.
         </Alert>
       )}
 

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   encodeEventNotes,
+  eventEditUrl,
   parseEventEndAmPm,
   parseEventNotes,
   parseEventPeople,
@@ -9,6 +10,7 @@ import {
   parseEventTimeOption,
   parseEventType,
   parseEventTitle,
+  withEditLink,
 } from "./notes";
 
 describe("encodeEventNotes", () => {
@@ -83,6 +85,78 @@ describe("parseEventNotes", () => {
     expect(parseEventNotes("not json")).toBeNull();
     expect(parseEventNotes('["a"]')).toBeNull();
     expect(parseEventNotes("42")).toBeNull();
+  });
+});
+
+describe("withEditLink", () => {
+  it("puts the Edit line above the JSON block", () => {
+    expect(
+      withEditLink('{"eventId":"g-1"}', "https://cal.example.com/dashboard?date=2026-08-18&edit=g-1"),
+    ).toBe(
+      'Edit: https://cal.example.com/dashboard?date=2026-08-18&edit=g-1\n\n{"eventId":"g-1"}',
+    );
+  });
+
+  it("yields just the link line for an empty notes block", () => {
+    expect(withEditLink("", "https://x")).toBe("Edit: https://x");
+  });
+
+  it("leaves the block untouched for an empty url", () => {
+    expect(withEditLink('{"a":1}', "")).toBe('{"a":1}');
+  });
+});
+
+describe("eventEditUrl", () => {
+  it("builds the dashboard deep link from base url, start and event id", () => {
+    expect(eventEditUrl("https://cal.example.com", "2026-08-18 09:00:00", "g-1")).toBe(
+      "https://cal.example.com/dashboard?date=2026-08-18&edit=g-1",
+    );
+  });
+
+  it("omits the date param when the start is empty", () => {
+    expect(eventEditUrl("https://cal.example.com", "", "g-1")).toBe(
+      "https://cal.example.com/dashboard?edit=g-1",
+    );
+  });
+});
+
+describe("parseEventNotes (edit-link format)", () => {
+  it("parses the notes from the JSON line below the Edit line", () => {
+    const editLink = "https://cal.example.com/dashboard?date=2026-08-18&edit=g-1";
+    const description = withEditLink(
+      encodeEventNotes({ eventId: "g-1", eventType: "Leave", title: "Team offsite", editLink }),
+      editLink,
+    );
+    expect(parseEventNotes(description)).toEqual({
+      eventId: "g-1",
+      eventType: "Leave",
+      title: "Team offsite",
+      editLink,
+    });
+  });
+
+  it("survives braces inside the title", () => {
+    const description = withEditLink(
+      encodeEventNotes({ eventId: "g-1", title: "fix } { it" }),
+      "https://x",
+    );
+    const notes = parseEventNotes(description);
+    expect(notes?.title).toBe("fix } { it");
+    expect(notes?.eventId).toBe("g-1");
+  });
+
+  it("keeps the field-level parsers working", () => {
+    const description = withEditLink(
+      encodeEventNotes({ eventType: "Leave", createdBy: "u-1", inviteeUsers: ["u-2"] }),
+      "https://x",
+    );
+    expect(parseEventType(description)).toBe("Leave");
+    expect(parseEventPeople(description)).toEqual({
+      eventId: null,
+      creatorId: "u-1",
+      userIds: ["u-2"],
+      departmentIds: [],
+    });
   });
 });
 

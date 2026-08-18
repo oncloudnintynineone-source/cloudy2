@@ -42,6 +42,7 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
 - [1.28 Admin events on behalf of another user (Phase 2s)](#128-admin-events-on-behalf-of-another-user-phase-2s)
 - [1.29 Admin-id UUID guard fix](#129-admin-id-uuid-guard-fix)
 - [1.30 Empty event title (Phase 2t)](#130-empty-event-title-phase-2t)
+- [1.31 Google Calendar "Edit in app" link (Phase 2u)](#131-google-calendar-edit-in-app-link-phase-2u)
 
 ## 1.1 Status
 
@@ -113,6 +114,12 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
   beside it; `?users=` is honored by `fetchMonthEvents`, showing events created by or tagged
   on the selected users in every dashboard view. `pnpm build/lint/typecheck/test` (193) pass,
   `db:generate` shows no drift.
+- **Phase 2u (Google Calendar "Edit in app" link):** every event's Google notes now start
+  with a human-readable `Edit: <url>` line (also stored as `notes.editLink`) that deep-links
+  to `/dashboard?date=<start>&edit=<event group id>` and opens the event's edit form
+  directly (dismissable "could not open" alert when the event isn't in the current view).
+  The link origin is derived from the request headers (no new env config). No schema
+  changes; `pnpm lint/typecheck/test` (203) + `pnpm build` pass, `db:generate` no drift.
 - **Deployment (Vercel):** build passes on `main`/`dev` with no warnings (Corepack +
   `NEXTAUTH_URL` unset). Migrations `0000` + `0001` applied to Neon (via CI migrate job);
   `0002`–`0005` pending (apply on next `main` push).
@@ -1233,3 +1240,64 @@ dashboard, which `fetchMonthEvents` already handled).
   summary clears the title on edit). Audit `entityName` is simply `""` for such events.
 - Verification: `pnpm test` (195), `pnpm typecheck`, `pnpm lint` all pass; no schema
   change, `pnpm db:generate` drift-free.
+
+## 1.31 Google Calendar "Edit in app" link (Phase 2u)
+
+Google Calendar event notes now carry a clickable link that takes the user to the app and
+opens the event's edit form. The machine JSON block is still stored in the notes
+(`description`) — a short `Edit: <url>` line now sits **above** it, which Google
+Calendar linkifies automatically. The URL encodes everything the app needs to find the
+event again: `<origin>/dashboard?date=<start-date>&edit=<event group id>`.
+
+```mermaid
+sequenceDiagram
+    participant U as User (phone)
+    participant G as Google Calendar
+    participant L as /login
+    participant D as /dashboard
+
+    Note over D: create/edit event in the app
+    D->>G: event notes = "Edit: <url>" line + JSON block
+    U->>G: taps the link in the notes
+    G->>D: GET /dashboard?date=YYYY-MM-DD&edit=EVENT_ID
+    alt no session
+        D->>L: NextAuth redirect (credentials)
+        L-->>D: back to the same URL after login
+    end
+    D->>D: resolve the event by group id in the fetched month
+    D-->>U: edit form opens (or dismissable "could not open" alert)
+```
+
+- **Notes format** (`src/lib/events/notes.ts`) — new `editLink` field; pure helpers
+  `eventEditUrl(baseUrl, start, eventId)` (builds the dashboard link, date from the naive
+  start) and `withEditLink(notesJson, url)` (places the `Edit:` line above the JSON
+  block). `parseEventNotes` first tries the whole string (legacy events unaffected), then
+  scans from the bottom for the last line that parses as a JSON object — the block is
+  always a single line (`JSON.stringify`) and the line above it never contains braces, so
+  every reader (queries, `findCopies`) keeps working through that one entry point.
+- **Origin** (new `src/lib/appUrl.ts`) — `appBaseUrl()` derives `<proto>://<host>` from
+  the incoming request headers (`x-forwarded-proto`, `http` fallback), the same pattern as
+  the audit logger; no new env config.
+- **Write path** (`src/lib/events/actions.ts`) — `buildGcalEventInput` is now async and
+  writes `editLink` into the notes plus the `withEditLink` wrapping on **every**
+  create/edit, so the in-notes link stays current when a date changes in the app.
+- **Deep link** (`src/app/(protected)/dashboard/`) — the page validates `?edit=` with
+  `isUuid` (anything else ignored) and passes `initialEditEventId`; `DashboardView`
+  resolves the target synchronously at mount (the month is already fetched server-side)
+  and initializes state directly — the edit form opens with the event, or a dismissable
+  "Could not open that event" alert is shown when the event isn't in the current calendar
+  selection/month. A one-shot effect strips `?edit=` from the URL (refresh won't reopen
+  the form); `navigate` was stabilized with `useCallback` to satisfy the React-19-era
+  `set-state-in-effect` and `exhaustive-deps` lint rules.
+- **Edge cases** — rescheduling the event **in** Google Calendar (outside the app) leaves
+  a stale date in the stored link → the "could not open" alert; an in-app edit rewrites
+  it. Clicks without a session go through the normal NextAuth redirect and return to the
+  same URL. No permission change: the dashboard fetch stays scoped to the user's normal
+  calendar selection and `creatorGuard` still applies on save.
+- **Tests** (`src/lib/events/notes.test.ts`) — 8 new cases: `withEditLink` placement/empty
+  cases, `eventEditUrl` with/without a date, parsing the new format (round trip including
+  `editLink`), braces inside `title`, and the field-level parsers on the new format.
+- **Verification** — `pnpm lint`, `pnpm typecheck`, `pnpm test` (203), `pnpm build`, and
+  `pnpm db:generate` (no drift — no schema change) all pass. Live confirmation that Google
+  Calendar linkifies the stored URL remains pending until service-account credentials are
+  configured (verify with a disposable test event).

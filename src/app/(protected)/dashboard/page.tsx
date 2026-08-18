@@ -6,6 +6,7 @@ import { listUsers } from "@/lib/roster/queries";
 import { formatFullName } from "@/lib/settings/formatName";
 import { getSettings } from "@/lib/settings/queries";
 import { requireSession } from "@/lib/session";
+import { isUuid } from "@/lib/uuid";
 import { DashboardView } from "./DashboardView";
 
 interface DashboardPageProps {
@@ -39,6 +40,11 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
         ? params.month
         : currentMonth();
   const date = dateParam ?? formatInstantToNaive(new Date()).slice(0, 10);
+
+  // Deep link from a Google Calendar event's "Edit:" note; the `date` param in
+  // the same link makes the fetched month cover the event's day.
+  const initialEditEventId =
+    typeof params.edit === "string" && isUuid(params.edit) ? params.edit : null;
 
   const [calendars, eventTypes, allUsers, settings] = await Promise.all([
     listCalendars(),
@@ -148,6 +154,7 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
       selectedUserIds={selectedUsers}
       currentUser={session.user.id}
       isAdmin={isAdmin}
+      initialEditEventId={initialEditEventId}
       scheduleUsers={scheduleUsers}
       inviteeDepartments={inviteeDepartments}
       inviteeUsers={inviteeUsers}
