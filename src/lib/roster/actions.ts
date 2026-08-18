@@ -10,7 +10,13 @@ import { diffFields } from "@/lib/audit/diff";
 import { logAction } from "@/lib/audit/log";
 import { getGoogleIntegration, googleCalendarConfigured } from "@/lib/google";
 import { requireAdmin } from "@/lib/session";
-import { isValidEmail, listDepartmentAccess, type DepartmentAccess } from "@/lib/roster/shares";
+import {
+  isDepartmentAccessRole,
+  isValidEmail,
+  listDepartmentAccess,
+  type DepartmentAccess,
+  type DepartmentAccessRole,
+} from "@/lib/roster/shares";
 import {
   normalizePhone,
   validateCalendarForm,
@@ -357,12 +363,16 @@ export async function getDepartmentAccess(calendarId: string): Promise<Departmen
 export async function grantDepartmentAccess(
   calendarId: string,
   email: string,
+  role: DepartmentAccessRole,
 ): Promise<ShareActionResult> {
   const session = await requireAdmin();
 
   const trimmed = email.trim();
   if (!isValidEmail(trimmed)) {
     return { ok: false, error: "Enter a valid email address" };
+  }
+  if (!isDepartmentAccessRole(role)) {
+    return { ok: false, error: "Invalid access level" };
   }
 
   const calendar = await getCalendarOrNull(calendarId);
@@ -375,7 +385,7 @@ export async function grantDepartmentAccess(
 
   try {
     const integration = await getGoogleIntegration();
-    await integration.setCalendarAccess(calendar.googleCalendarId, trimmed, "reader");
+    await integration.setCalendarAccess(calendar.googleCalendarId, trimmed, role);
   } catch (error) {
     return { ok: false, error: errorMessage(error) };
   }
@@ -387,7 +397,51 @@ export async function grantDepartmentAccess(
     entityId: calendar.id,
     entityName: calendar.name,
     method: "grantDepartmentAccess",
-    details: { email: trimmed, role: "reader" },
+    details: { email: trimmed, role },
+  });
+
+  return { ok: true };
+}
+
+/** Change the access level of an existing additional-access rule. */
+export async function updateDepartmentAccess(
+  calendarId: string,
+  email: string,
+  role: DepartmentAccessRole,
+): Promise<ShareActionResult> {
+  const session = await requireAdmin();
+
+  const trimmed = email.trim();
+  if (!isValidEmail(trimmed)) {
+    return { ok: false, error: "Enter a valid email address" };
+  }
+  if (!isDepartmentAccessRole(role)) {
+    return { ok: false, error: "Invalid access level" };
+  }
+
+  const calendar = await getCalendarOrNull(calendarId);
+  if (!calendar) {
+    return { ok: false, error: "Department not found" };
+  }
+  if (!googleCalendarConfigured()) {
+    return { ok: false, error: "Google Calendar is not configured" };
+  }
+
+  try {
+    const integration = await getGoogleIntegration();
+    await integration.setCalendarAccess(calendar.googleCalendarId, trimmed, role);
+  } catch (error) {
+    return { ok: false, error: errorMessage(error) };
+  }
+
+  await logAction({
+    ...actorFrom(session),
+    action: AUDIT_ACTIONS.accessUpdate,
+    entityType: "calendar",
+    entityId: calendar.id,
+    entityName: calendar.name,
+    method: "updateDepartmentAccess",
+    details: { email: trimmed, role },
   });
 
   return { ok: true };

@@ -19,6 +19,7 @@ export const AUDIT_ACTIONS = {
   eventUpdate: "event.update",
   eventDelete: "event.delete",
   accessGrant: "access.grant",
+  accessUpdate: "access.update",
   accessRevoke: "access.revoke",
   settingsUpdate: "settings.update",
 } as const;

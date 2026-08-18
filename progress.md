@@ -52,6 +52,7 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
 - [1.38 Cross-department user options in filter dialogs (Phase 3d)](#138-cross-department-user-options-in-filter-dialogs-phase-3d)
 - [1.39 Overview full-selection row scoping fix (Phase 3d)](#139-overview-full-selection-row-scoping-fix-phase-3d)
 - [1.40 Externally created events (Phase 3e)](#140-externally-created-events-phase-3e)
+- [1.41 Additional access levels (Phase 3f)](#141-additional-access-levels-phase-3f)
 
 ## 1.1 Status
 
@@ -1788,3 +1789,40 @@ flowchart TD
 count them (no column to put them in). No schema change — `db:generate` no drift.
 
 **Verification** — `pnpm build/lint/typecheck/test` (262) pass; `db:generate` no drift.
+
+## 1.41 Additional access levels (Phase 3f)
+
+The **Additional access** section of a department's Share modal can now set the access
+level (**Read only / Can edit / Owner** → Google ACL `reader` / `writer` / `owner`) when
+granting a new share, and the level of an existing share can be changed later. Previously
+every manual grant was hardcoded to `reader` and existing shares showed only the raw
+Google role string.
+
+```mermaid
+flowchart LR
+    A["Share modal<br/>email + access level Select"] --> B[grantDepartmentAccess]
+    B --> C["setCalendarAccess(email, reader|writer|owner)"]
+    A2["existing rule row<br/>level Select"] --> D[updateDepartmentAccess]
+    D --> C
+    C --> E["listDepartmentAccess (reconcile)"]
+```
+
+- **Domain** (`src/lib/roster/shares.ts`) — new `DepartmentAccessRole = "reader" |
+  "writer" | "owner"` type and pure `isDepartmentAccessRole(value)` guard (rejects
+  `freeBusyReader` and anything else). 2 unit tests added in `shares.test.ts`.
+- **Actions** (`src/lib/roster/actions.ts`) — `grantDepartmentAccess(calendarId, email,
+  role)` takes the role (validated server-side, replacing the hardcoded `"reader"`) and
+  logs it in the audit `details`; new `updateDepartmentAccess(calendarId, email, role)`
+  re-grants an existing rule's role via `setCalendarAccess` and logs it under a new
+  `access.update` audit action (`AUDIT_ACTIONS.accessUpdate` in
+  `src/lib/audit/build.ts`).
+- **UI** (`src/app/(protected)/settings/departments/DepartmentShares.tsx`) — the add
+  form gains an "Access level" `Select` (defaults to **Read only**) above the email
+  row; each existing additional-access rule row now shows a human-readable role label
+  (falling back to the raw role) plus a compact `size="xs"` `Select` to change the
+  level, with a per-row loading state mirroring the Remove button.
+- No schema change (`db:generate` no drift); the role is stored only in Google Calendar,
+  matching the existing ACL-as-source-of-truth model. Assigned users and the admin owner
+  stay auto-managed as `reader`/`owner` respectively.
+- Verification: `pnpm lint`, `pnpm typecheck`, `pnpm test` (264), and `pnpm build` pass;
+  `pnpm db:generate` shows no drift.

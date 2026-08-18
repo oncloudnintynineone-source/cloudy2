@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 
-import { diffAccess, isValidEmail, needsAdminOwnerGrant } from "./shares";
+import {
+  diffAccess,
+  isDepartmentAccessRole,
+  isValidEmail,
+  needsAdminOwnerGrant,
+} from "./shares";
 
 describe("isValidEmail", () => {
   it("accepts a plain email", () => {
@@ -11,6 +16,21 @@ describe("isValidEmail", () => {
     expect(isValidEmail("")).toBe(false);
     expect(isValidEmail("not-an-email")).toBe(false);
     expect(isValidEmail("a@b")).toBe(false);
+  });
+});
+
+describe("isDepartmentAccessRole", () => {
+  it("accepts the three selectable roles", () => {
+    expect(isDepartmentAccessRole("reader")).toBe(true);
+    expect(isDepartmentAccessRole("writer")).toBe(true);
+    expect(isDepartmentAccessRole("owner")).toBe(true);
+  });
+
+  it("rejects freeBusyReader and other values", () => {
+    expect(isDepartmentAccessRole("freeBusyReader")).toBe(false);
+    expect(isDepartmentAccessRole("")).toBe(false);
+    expect(isDepartmentAccessRole(undefined)).toBe(false);
+    expect(isDepartmentAccessRole("admin")).toBe(false);
   });
 });
 

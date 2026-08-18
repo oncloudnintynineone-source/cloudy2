@@ -5,6 +5,9 @@ import { calendars, users } from "@/db/schema";
 import { getGoogleIntegration, googleCalendarConfigured } from "@/lib/google";
 import { getAdminGoogleEmail, getServiceAccountConfig } from "@/lib/google/config";
 
+/** Access levels offered for a department's additional access rules. */
+export type DepartmentAccessRole = "reader" | "writer" | "owner";
+
 export interface CalendarAccessRule {
   email: string;
   role: string;
@@ -25,6 +28,11 @@ const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export function isValidEmail(email: string): boolean {
   return EMAIL_PATTERN.test(email);
+}
+
+/** True when the value is one of the selectable additional-access roles. */
+export function isDepartmentAccessRole(value: unknown): value is DepartmentAccessRole {
+  return value === "reader" || value === "writer" || value === "owner";
 }
 
 /**
