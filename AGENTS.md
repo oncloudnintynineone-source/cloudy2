@@ -128,7 +128,11 @@ the quality checks.
   which opens the event's edit form); the app origin is derived from the request headers in
   `src/lib/appUrl.ts`. The block itself is stored opaque — a JSON object brotli-compressed
   and base64url-encoded on one line (`encodeNotesBlock`), with `parseEventNotes` as the
-  single reader (it also decodes older raw-JSON events, v1/v2).
+  single reader (it also decodes older raw-JSON events, v1/v2). A final human-readable
+  line `Created in cloudy2` (`INTERNAL_EVENT_MARKER`, appended via `withInternalMarker`)
+  marks the event as created in the app; events without the marker **and** without a notes
+  block are treated as **external** (`isExternalEvent`) — flagged with an "External" badge
+  in the event detail and pinned to their calendar's department row in the Day view.
   The **General tab** holds only the login keyword setting.
 - **Always show a loading skeleton for async loads.** Any route or view that awaits data
   before rendering (DB queries, fetches) must show a Mantine `Skeleton` fallback instead of

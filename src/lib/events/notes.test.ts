@@ -6,6 +6,8 @@ import {
   encodeEventNotes,
   encodeNotesBlock,
   eventEditUrl,
+  hasInternalEventMarker,
+  isExternalEvent,
   parseEventEndAmPm,
   parseEventNotes,
   parseEventPeople,
@@ -14,6 +16,7 @@ import {
   parseEventType,
   parseEventTitle,
   withEditLink,
+  withInternalMarker,
 } from "./notes";
 
 /** A realistic-ish notes block long enough that compression actually shrinks it. */
@@ -122,6 +125,52 @@ describe("withEditLink", () => {
 
   it("leaves the block untouched for an empty url", () => {
     expect(withEditLink('{"a":1}', "")).toBe('{"a":1}');
+  });
+});
+
+describe("withInternalMarker", () => {
+  it("appends the marker at the bottom, one blank line below the description", () => {
+    expect(withInternalMarker(withEditLink('{"a":1}', "https://x"))).toBe(
+      'Edit: https://x\n\n{"a":1}\n\nCreated in cloudy2',
+    );
+  });
+
+  it("yields just the marker for an empty description", () => {
+    expect(withInternalMarker("")).toBe("Created in cloudy2");
+  });
+
+  it("does not duplicate the marker when already present", () => {
+    const once = withInternalMarker('{"a":1}');
+    expect(withInternalMarker(once)).toBe(once);
+  });
+
+  it("keeps the notes block parseable under the marker", () => {
+    const description = withInternalMarker(withEditLink('{"a":1}', "https://x"));
+    expect(parseEventNotes(description)).toEqual({ a: 1 });
+  });
+});
+
+describe("hasInternalEventMarker / isExternalEvent", () => {
+  it("treats marker-carrying descriptions as internal", () => {
+    expect(hasInternalEventMarker("anything\n\nCreated in cloudy2")).toBe(true);
+    expect(isExternalEvent("anything\n\nCreated in cloudy2")).toBe(false);
+  });
+
+  it("treats a notes block without the marker as internal (legacy in-app event)", () => {
+    expect(hasInternalEventMarker('{"eventType":"Leave"}')).toBe(false);
+    expect(isExternalEvent('{"eventType":"Leave"}')).toBe(false);
+  });
+
+  it("treats a marker + block combination as internal", () => {
+    expect(isExternalEvent(withInternalMarker(withEditLink('{"a":1}', "https://x")))).toBe(
+      false,
+    );
+  });
+
+  it("treats plain descriptions, the bare Edit line, and empty notes as external", () => {
+    expect(isExternalEvent("Team lunch")).toBe(true);
+    expect(isExternalEvent("Edit: https://x")).toBe(true);
+    expect(isExternalEvent("")).toBe(true);
   });
 });
 

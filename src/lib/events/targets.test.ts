@@ -84,6 +84,7 @@ function makeEvent(eventId: string | null, calendarId = "cal-1"): CalendarEvent 
       timeOption: "range",
       startAmPm: null,
       endAmPm: null,
+      external: false,
     },
   };
 }

@@ -48,6 +48,10 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
 - [1.34 PWA installability (Phase 3a)](#134-pwa-installability-phase-3a)
 - [1.35 Touch-friendly input heights (Phase 3b)](#135-touch-friendly-input-heights-phase-3b)
 - [1.36 Global bottom nav + Overview page (Phase 3c)](#136-global-bottom-nav--overview-page-phase-3c)
+- [1.37 Overview cross-department filter fix (Phase 3d)](#137-overview-cross-department-filter-fix-phase-3d)
+- [1.38 Cross-department user options in filter dialogs (Phase 3d)](#138-cross-department-user-options-in-filter-dialogs-phase-3d)
+- [1.39 Overview full-selection row scoping fix (Phase 3d)](#139-overview-full-selection-row-scoping-fix-phase-3d)
+- [1.40 Externally created events (Phase 3e)](#140-externally-created-events-phase-3e)
 
 ## 1.1 Status
 
@@ -158,11 +162,39 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
   "no filter" value, which the server resolves to their department default, so they could
   never view all calendars. "Clear" still restores the consumer default (department for
   non-admins, all for admins) and untouched groups re-apply their current values. The
-  apply resolution is a pure, unit-tested helper in `src/lib/filters/resolveFilterApply.ts`.
-  `pnpm lint/typecheck/test` (220) + `pnpm build` pass, `db:generate` no drift.
+   apply resolution is a pure, unit-tested helper in `src/lib/filters/resolveFilterApply.ts`.
+   `pnpm lint/typecheck/test` (220) + `pnpm build` pass, `db:generate` no drift.
+- **Bugfix (overview cross-dept filter):** Overview matrix rows no longer intersect the
+   `users` filter — a non-admin filtering to another department with a users filter (e.g.
+   "Only me") active now sees that department's rows instead of the "No users to show"
+   empty state. Row scoping moved to a pure helper (`src/lib/overview/scope.ts`, 6 unit
+   tests) mirroring the dashboard, where `users`/`types` narrow events only.
+   `pnpm lint/typecheck/test` (244) pass, no schema change.
+- **Bugfix (cross-dept user options in filter dialogs):** the filter dialog's **Users**
+   group now offers the users of the selected department(s) — plus the current user so
+   "Only me" still works — instead of being pinned to a non-admin's own department. This
+   applies to both the Overview and Dashboard filters (shared pure helper
+   `src/lib/filters/filterUserOptions.ts`, 6 unit tests). The event-form **invitee
+   picker** stays own-department-scoped (creation context). `pnpm lint/typecheck/test`
+   (250) pass, no schema change.
+- **Bugfix (overview full-selection rows):** the Overview matrix no longer collapses to a
+   non-admin's own department when they select **all** departments — rows always follow
+   the selected departments (dashboard parity). The `narrowed`-length heuristic in
+   `overviewRowUserIds` was replaced with a rule where a full selection is a real
+   selection; only the admin default/full-selection keeps unassigned users. 7 unit tests.
+   `pnpm lint/typecheck/test` (251) pass, no schema change.
+- **Tweak (overview shortname headers):** the Overview matrix column headers now render
+   the event-type **shortname** acronym (e.g. "LL", "OL") with the full name as a
+   tooltip; the filter dialog and `?types=`/counts still use full names. No schema
+   change.
 - **Deployment (Vercel):** build passes on `main`/`dev` with no warnings (Corepack +
   `NEXTAUTH_URL` unset). Migrations `0000` + `0001` applied to Neon (via CI migrate job);
   `0002`–`0005` pending (apply on next `main` push).
+- **Phase 3e (externally created events):** events created directly in Google Calendar
+  (no app notes) are now flagged as **external** — an "External" badge in the event
+  detail modal, and a department-row pin in the Day (schedule) view so they stay visible.
+  In-app events carry a new bottom note line `Created in cloudy2` written on every
+  create/edit. `pnpm build/lint/typecheck/test` (262) pass, `db:generate` no drift.
 
 ## 1.2 Decisions locked in (Phase 0)
 
@@ -1568,3 +1600,191 @@ flowchart LR
 - **Verification** — `pnpm lint`, `pnpm typecheck`, `pnpm test` (238), and `pnpm build`
   all pass; build route list shows `/overview`. No schema change — `pnpm db:generate`
   shows no drift.
+
+## 1.37 Overview cross-department filter fix (Phase 3d)
+
+A non-admin who filtered Overview to a department **they are not in** while any users
+filter was active (the "Only me" quick action, a picked user, or a stale `users=` param)
+got the *"No users to show. Assign yourself to a department…"* card — the department
+filter appeared not to apply.
+
+```mermaid
+flowchart TD
+    A["?cal= / ?users= / ?types="] --> B[Server page]
+    B --> C["cal -> rowUserIds (NEW pure helper)<br/>rows = users of selected departments"]
+    B --> D["users/types -> fetchMonthEvents<br/>narrow events only"]
+    C --> E[Matrix rows]
+    D --> F[buildOverviewCounts]
+    E --> G["OverviewView matrix"]
+    F --> G
+```
+
+**Root cause** (`src/app/(protected)/overview/page.tsx`): matrix rows were computed as
+`rowUsers ∩ selectedUsers`. A non-admin's users filter can only ever contain own-
+department users (the dialog's Users options are role-scoped, and "Only me" always picks
+the current user), so selecting another department intersected to `[]`. The dashboard
+never had this because its schedule rows (`scheduleUsers`) follow the selected calendars
+only — the `users` param filters **events** (`fetchMonthEvents` `userFilter`), never
+rows.
+
+**Fix** — match the dashboard semantics (user-confirmed):
+
+- **New pure helper** `src/lib/overview/scope.ts` — `overviewRowUserIds(users,
+  selectedCalendarIds, calendarCount, isAdmin, ownDepartmentId)`: active users only;
+  narrowed calendar selection → users of the selected departments; otherwise the role
+  default (admins: everyone incl. unassigned, non-admins: own department). No users
+  input — the contract that `?users=` never narrows rows is enforced by the API shape.
+  `scope.test.ts` adds 6 unit tests incl. the cross-department regression guard.
+- **Overview page** — rows (count inputs + department grouping) come from the helper;
+  the `rowUsers ∩ selectedUsers` intersection is gone. `fetchMonthEvents({ userFilter:
+  selectedUsers })` and the `selectedUserIds` prop are unchanged, so the users filter
+  still narrows the counted events and the filter dialog keeps its state/badge.
+- No client changes — `OverviewView.tsx` and `FilterModal` untouched.
+
+**Side effects (accepted):** admins who combined `cal` + `users` to hide rows now keep
+the rows (counts of filtered-out events drop to 0); "Only me" on a foreign department
+shows that department's rows with 0s (or real counts where the user is involved in
+cross-department events).
+
+**Repro that was wrong, now fixed** (live dev DB): Carol (dev-COU) with
+`?cal=dev-CIU&users=<Carol>` rendered the empty-state card; now it renders the two
+dev-CIU rows with 0 counts. Bob (dev-CIU) with `?cal=dev-COU` still shows the dev-COU
+rows and events — the pure `cal` filter already worked and is unchanged.
+
+**Verification** — `pnpm lint`, `pnpm typecheck`, `pnpm test` (244) pass; no schema
+change. Live re-check of the full repro matrix (default / cross-dept / cross-dept +
+users, both directions) against the dev server.
+
+## 1.38 Cross-department user options in filter dialogs (Phase 3d)
+
+After the §1.37 fix a non-admin could switch the **Calendars** filter to another
+department and see that department's rows, but the filter dialog's **Users** group still
+only listed **own-department** users — so "filter other departments and their users"
+was impossible, on both the Overview and the Dashboard filter dialogs.
+
+```mermaid
+flowchart LR
+    A["selected departments (?cal)"] --> B["rows in view<br/>(rowUserIds / scheduleUsers)"]
+    B --> C["filterUserOptionIds<br/>NEW pure helper"]
+    A2[current user] --> C
+    C --> D["filter dialog Users options<br/>(selected dept users + self)"]
+    D --> E["?users= -> fetchMonthEvents<br/>narrows events"]
+```
+
+**Root cause:** both pages fed the filter dialog's Users group from a **role-scoped**
+user list — `overview/page.tsx` `inviteeUsers` (`isAdmin ? all : ownDept`) and
+`dashboard/page.tsx` `pickerUsers` (the same list that also feeds the EventForm invitee
+picker). The server already accepted any roster user id in `?users=`, so the option
+list was the only blocker.
+
+**Fix** (user-confirmed: both pages; creation picker stays role-scoped):
+
+- **New pure helper** `src/lib/filters/filterUserOptions.ts` —
+  `filterUserOptionIds(users, rowUserIds, currentUserId)`: returns the users in view
+  (rows of the selected departments) **plus the current user** when it is in the roster
+  but not already included — so "Only me" works on foreign departments and its chip
+  renders a real label (a selected value absent from the option data would otherwise
+  show as a raw uuid). 6 unit tests in `filterUserOptions.test.ts`.
+- **Overview** — dialog options come from the new helper (rows = `overviewRowUserIds`
+  result); the view prop is renamed `inviteeUsers` → `filterUsers`.
+- **Dashboard** — a new `filterUsers` prop (rows = `scheduleUsers`) drives the filter
+  dialog; `inviteeUsers` stays as the EventForm invitee picker (own-department scope
+  for non-admins, per creation permission semantics) and `peopleNames`/creation flows
+  are untouched.
+- `progress.md` status bullet added.
+
+**Behavior notes (accepted):** non-admin defaults are unchanged in practice
+(own-dept users + self == previous options); admins keep all active users; an inactive
+or unassigned self still appears so "Only me" works for filtering their own past
+events.
+
+**Verification** — `pnpm lint`, `pnpm typecheck`, `pnpm test` (250) pass; no schema
+change. Live re-check on the dev server: Bob (dev-CIU) viewing dev-COU sees the six
+dev-COU users (plus himself) in the Overview and Dashboard filter dialogs; picking one
+filters events while rows stay department-wide; the EventForm invitee picker still
+lists only Bob's own department.
+
+## 1.39 Overview full-selection row scoping fix (Phase 3d)
+
+After §1.37/§1.38, a non-admin filtering the **Overview** to a single foreign
+department saw the right rows — but selecting **all** departments collapsed the matrix
+back to their **own** department.
+
+```mermaid
+flowchart TD
+    A["selected departments (?cal)"] --> B["overviewRowUserIds"]
+    B --> C{"selection == all calendars<br/>and isAdmin?"}
+    C -- yes --> D["every active user<br/>incl. unassigned"]
+    C -- no --> E["users of the selected departments<br/>(dashboard parity)"]
+```
+
+**Root cause** (`src/lib/overview/scope.ts`): the old `overviewRowUserIds` used a
+`narrowed` heuristic — `0 < selected.length < calendarCount` — as a proxy for "an
+explicit filter is applied". When a non-admin selected **every** calendar,
+`length < calendarCount` was false, so the helper fell back to the **role default**
+(own department only). This conflated "no filter" (the role default) with "filtered to
+everything"; the dashboard never had this problem because its `scheduleUsers`
+(`dashboard/page.tsx`) always filters by the selected calendars.
+
+**Fix** (dashboard parity):
+
+- `overviewRowUserIds` no longer uses the length heuristic and drops the
+  `ownDepartmentId` parameter: **any** selection narrows rows to the selected
+  departments; the sole special case is `isAdmin && selection == all calendars`,
+  which keeps unassigned users visible (the admin default view and an explicit full
+  selection share the same code path). The page's `ownDepartmentId` remains — it still
+  drives `defaultCalendars`.
+- `scope.test.ts` updated (7 tests) with the regression guard: a non-admin selecting
+  all departments gets every department's users, not their own.
+
+Behavior matrix (unchanged cases verified): non-admin default (own dept), non-admin
+single foreign department, non-admin unassigned with no calendars, admin subset
+selection, admin default/full selection incl. unassigned.
+
+**Verification** — `pnpm lint`, `pnpm typecheck`, `pnpm test` (251) pass; no schema
+change. Live re-check: Bob `/overview?cal=<CIU>,<COU>` now renders **both** departments
+(dev-CIU 2 + dev-COU 6); `?cal=<COU>` and the default remain correct; the Dashboard
+is unaffected.
+
+## 1.40 Externally created events (Phase 3e)
+
+Events can be created **outside** the app — directly in Google Calendar by a user with
+calendar access. Those events have no app notes, so the app now tells them apart and
+marks them as **external**.
+
+```mermaid
+flowchart TD
+    A["Google event description"] --> B{"has 'Created in cloudy2' line?"}
+    B -- yes --> C[internal]
+    B -- no --> D{"has an app notes block?"}
+    D -- yes --> C
+    D -- no --> E["external (created in Google Calendar)"]
+```
+
+**Detection** (`src/lib/events/notes.ts`):
+
+- `INTERNAL_EVENT_MARKER = "Created in cloudy2"` — a human-readable line the app writes
+  at the **bottom** of every event description it creates or edits
+  (`withInternalMarker`, called from `buildGcalEventInput` in `src/lib/events/actions.ts`
+  after the `Edit:` link + compressed block). Idempotent, so re-edits never duplicate it.
+- `isExternalEvent(description)` — external when the marker **and** a parseable notes
+  block are both absent. The block clause keeps pre-existing in-app events (notes block,
+  no marker yet) from showing as External until their next in-app edit.
+- The marker sits below the opaque block, so `parseEventNotes`'s bottom-up scan still
+  inflates the block correctly (no format change, no migration).
+
+**Display**:
+
+- `CalendarEventPayload` gains `external` (set in `fetchMonthEvents` from the
+  description); titles are unchanged (no prefix).
+- The event detail modal (`EventDetail.tsx`) shows a gray **External** badge next to the
+  type/calendar badges. Edit/Delete remain available — editing an external event
+  "adopts" it (rewrites notes + marker).
+- **Day (schedule) view**: external events have no linked people, so `expandScheduleEvents`
+  pins them to their own calendar's department row, and `buildScheduleResources` keeps a
+  user-less department's row when it holds an external event.
+
+**Out of scope:** external events have no event type, so the Overview matrix does not
+count them (no column to put them in). No schema change — `db:generate` no drift.
+
+**Verification** — `pnpm build/lint/typecheck/test` (262) pass; `db:generate` no drift.

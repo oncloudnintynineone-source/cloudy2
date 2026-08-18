@@ -78,7 +78,8 @@ export function rowsForEvent(people: {
 /**
  * Expand events into one schedule event per row they apply to. `id` suffixed
  * with the row key keeps ids unique across rows of the same Google event.
- * Events linked to no one expand to nothing.
+ * Events linked to no one expand to nothing — except externally created ones,
+ * which are pinned to their own calendar's department row so they stay visible.
  */
 export function expandScheduleEvents(events: CalendarEvent[]): ScheduleEvent[] {
   const out: ScheduleEvent[] = [];
@@ -88,6 +89,9 @@ export function expandScheduleEvents(events: CalendarEvent[]): ScheduleEvent[] {
       userIds: event.payload.inviteeUserIds,
       departmentIds: event.payload.inviteeDepartmentIds,
     });
+    if (rows.length === 0 && event.payload.external) {
+      rows.push(departmentRowId(event.payload.calendarId));
+    }
     for (const rowId of rows) {
       out.push({ ...event, id: `${event.id}::${rowId}`, resourceId: rowId });
     }
@@ -113,6 +117,11 @@ export function buildScheduleResources(params: {
   for (const event of events) {
     for (const departmentId of event.payload.inviteeDepartmentIds) {
       taggedDepts.add(departmentId);
+    }
+    // An external event's own calendar counts as tagged, so its department row
+    // exists even when that department has no users.
+    if (event.payload.external) {
+      taggedDepts.add(event.payload.calendarId);
     }
   }
 

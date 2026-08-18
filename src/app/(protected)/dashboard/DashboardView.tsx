@@ -97,6 +97,8 @@ interface DashboardViewProps {
     departmentName: string | null;
     displayName: string;
   }[];
+  /** Filter dialog user options: users of the selected departments + self. */
+  filterUsers: { id: string; displayName: string }[];
   peopleNames: Record<string, string>;
   calendarNames: Record<string, string>;
 }
@@ -126,6 +128,7 @@ export function DashboardView({
   scheduleUsers,
   inviteeDepartments,
   inviteeUsers,
+  filterUsers,
   peopleNames,
   calendarNames,
 }: DashboardViewProps) {
@@ -215,7 +218,7 @@ export function DashboardView({
     const groups: FilterGroup[] = [
       { label: "Calendars", options: calendars.map((c) => ({ value: c.id, label: c.name })) },
     ];
-    const userOptions = inviteeUsers.map((user) => ({
+    const userOptions = filterUsers.map((user) => ({
       value: user.id,
       label: user.displayName,
     }));
@@ -226,7 +229,7 @@ export function DashboardView({
         // A searchable dropdown instead of one checkbox card per user — the
         // card grid gets unusably tall as the roster grows.
         variant: "search",
-        action: inviteeUsers.some((user) => user.id === currentUser)
+        action: filterUsers.some((user) => user.id === currentUser)
           ? {
               label: "Only me",
               icon: <IconUser size={14} />,
@@ -247,7 +250,7 @@ export function DashboardView({
       });
     }
     return groups;
-  }, [calendars, inviteeUsers, currentUser, eventTypes]);
+  }, [calendars, filterUsers, currentUser, eventTypes]);
 
   const filterValues: Record<string, string[]> = useMemo(
     () => ({

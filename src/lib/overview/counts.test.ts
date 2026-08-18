@@ -25,6 +25,7 @@ function makeEvent(
     timeOption: "range",
     startAmPm: null,
     endAmPm: null,
+    external: false,
     ...overrides,
   };
   return {

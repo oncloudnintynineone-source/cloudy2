@@ -26,10 +26,12 @@ interface OverviewViewProps {
   googleConfigured: boolean;
   departments: OverviewDepartment[];
   typeNames: string[];
+  /** Full type name → shortname acronym, for the matrix column headers. */
+  typeShortnames: Record<string, string>;
   counts: Record<string, Record<string, number>>;
   calendars: { id: string; name: string }[];
   eventTypes: string[];
-  inviteeUsers: { id: string; displayName: string }[];
+  filterUsers: { id: string; displayName: string }[];
   selectedCalendarIds: string[];
   selectedTypes: string[];
   selectedUserIds: string[];
@@ -63,10 +65,11 @@ export function OverviewView({
   googleConfigured,
   departments,
   typeNames,
+  typeShortnames,
   counts,
   calendars,
   eventTypes,
-  inviteeUsers,
+  filterUsers,
   selectedCalendarIds,
   selectedTypes,
   selectedUserIds,
@@ -114,7 +117,7 @@ export function OverviewView({
     const groups: FilterGroup[] = [
       { label: "Calendars", options: calendars.map((c) => ({ value: c.id, label: c.name })) },
     ];
-    const userOptions = inviteeUsers.map((user) => ({
+    const userOptions = filterUsers.map((user) => ({
       value: user.id,
       label: user.displayName,
     }));
@@ -141,7 +144,7 @@ export function OverviewView({
       });
     }
     return groups;
-  }, [calendars, inviteeUsers, currentUser, eventTypes]);
+  }, [calendars, filterUsers, currentUser, eventTypes]);
 
   const filterValues: Record<string, string[]> = useMemo(
     () => ({
@@ -271,7 +274,7 @@ export function OverviewView({
                   }}
                   title={name}
                 >
-                  {name}
+                  {typeShortnames[name] ?? name}
                 </div>
               ))}
               {(() => {

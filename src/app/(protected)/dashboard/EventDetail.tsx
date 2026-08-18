@@ -143,6 +143,11 @@ export function EventDetail({
             )}
 
             <Group gap={6} wrap="wrap">
+              {payload.external && (
+                <Badge variant="light" color="gray">
+                  External
+                </Badge>
+              )}
               {payload.eventType && <Badge variant="light">{payload.eventType}</Badge>}
               <Badge variant="outline" color="accent">
                 {payload.calendarName}

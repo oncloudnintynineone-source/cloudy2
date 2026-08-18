@@ -1,8 +1,10 @@
 import { listEventTypes } from "@/lib/eventTypes/queries";
 import { formatInstantToNaive } from "@/lib/events/datetime";
 import { fetchMonthEvents, getUserDepartmentId, listCalendars } from "@/lib/events/queries";
+import { filterUserOptionIds } from "@/lib/filters/filterUserOptions";
 import { googleCalendarConfigured } from "@/lib/google";
 import { buildOverviewCounts } from "@/lib/overview/counts";
+import { overviewRowUserIds } from "@/lib/overview/scope";
 import type { RosterUser } from "@/lib/roster/queries";
 import { listUsers } from "@/lib/roster/queries";
 import { formatFullName } from "@/lib/settings/formatName";
@@ -58,6 +60,9 @@ export default async function OverviewPage({ searchParams }: OverviewPageProps) 
       : calParam.filter((id) => calendarIds.includes(id));
 
   const typeNames = eventTypes.map((type) => type.name);
+  const typeShortnames = Object.fromEntries(
+    eventTypes.map((type) => [type.name, type.shortname ?? type.name]),
+  );
   const typesParam =
     typeof params.types === "string" ? params.types.split(",").filter(Boolean) : [];
   const selectedTypes =
@@ -76,37 +81,43 @@ export default async function OverviewPage({ searchParams }: OverviewPageProps) 
     userFilter: selectedUsers,
   });
 
-  const activeUsers = allUsers.filter((user) => user.status === "active");
-  const calendarNarrowed = selectedCalendars.length > 0 && selectedCalendars.length < calendars.length;
-  const roleUsers = isAdmin
-    ? activeUsers
-    : activeUsers.filter((user) => user.department?.id === ownDepartmentId);
-  const rowUsers = calendarNarrowed
-    ? activeUsers.filter(
-        (user) => user.department && selectedCalendars.includes(user.department.id),
-      )
-    : roleUsers;
-  const filteredUsers =
-    selectedUsers.length > 0 ? rowUsers.filter((user) => selectedUsers.includes(user.id)) : rowUsers;
+  // Rows follow the selected departments only (mirroring the dashboard
+  // schedule view); the users param narrows events, never rows, so a
+  // cross-department filter plus "only me" can no longer intersect to empty.
+  const rowUserIds = overviewRowUserIds({
+    users: allUsers,
+    selectedCalendarIds: selectedCalendars,
+    calendarCount: calendars.length,
+    isAdmin,
+  });
+  const rowUsers = allUsers.filter((user) => rowUserIds.includes(user.id));
 
   const displayedTypeNames = selectedTypes.length > 0 ? selectedTypes : typeNames;
   const counts = buildOverviewCounts({
     events,
-    userIds: filteredUsers.map((user) => user.id),
+    userIds: rowUserIds,
     typeNames: displayedTypeNames,
   });
 
-  const departments = groupByDepartment(filteredUsers);
+  const departments = groupByDepartment(rowUsers);
 
-  const inviteeUsers = (
-    isAdmin ? activeUsers : activeUsers.filter((user) => user.department?.id === ownDepartmentId)
-  ).map((user) => ({
-    id: user.id,
-    displayName: formatFullName(
-      { name: user.name, departmentName: user.department?.name ?? null },
-      settings.nameTemplate,
-    ),
-  }));
+  // Filter dialog options: the users in view (rows of the selected
+  // departments) plus the current user, so a non-admin can filter other
+  // departments' users and "Only me" still works cross-department.
+  const filterUserIds = filterUserOptionIds({
+    users: allUsers,
+    rowUserIds,
+    currentUserId: session.user.id,
+  });
+  const filterUsers = allUsers
+    .filter((user) => filterUserIds.includes(user.id))
+    .map((user) => ({
+      id: user.id,
+      displayName: formatFullName(
+        { name: user.name, departmentName: user.department?.name ?? null },
+        settings.nameTemplate,
+      ),
+    }));
 
   return (
     <OverviewView
@@ -114,10 +125,11 @@ export default async function OverviewPage({ searchParams }: OverviewPageProps) 
       googleConfigured={googleCalendarConfigured()}
       departments={departments}
       typeNames={displayedTypeNames}
+      typeShortnames={typeShortnames}
       counts={Object.fromEntries(counts)}
       calendars={calendars.map((calendar) => ({ id: calendar.id, name: calendar.name }))}
       eventTypes={typeNames}
-      inviteeUsers={inviteeUsers}
+      filterUsers={filterUsers}
       selectedCalendarIds={selectedCalendars}
       selectedTypes={selectedTypes}
       selectedUserIds={selectedUsers}

@@ -8,6 +8,7 @@ import { getGoogleIntegration } from "@/lib/google";
 import { onlyUuidIds } from "@/lib/uuid";
 import { formatInstantToNaive, monthRange, utcToDateString } from "@/lib/events/datetime";
 import {
+  isExternalEvent,
   parseEventEndAmPm,
   parseEventPeople,
   parseEventStartAmPm,
@@ -41,6 +42,8 @@ export interface CalendarEventPayload {
   startAmPm: "AM" | "PM" | null;
   /** End half-of-day indicator for "full" events, else null. */
   endAmPm: "AM" | "PM" | null;
+  /** True when the event was created directly in Google Calendar, not in the app. */
+  external: boolean;
 }
 
 export interface CalendarEvent {
@@ -167,6 +170,7 @@ export async function fetchMonthEvents(params: {
           timeOption: parseEventTimeOption(item.description) ?? (item.allDay ? "full" : "range"),
           startAmPm: parseEventStartAmPm(item.description),
           endAmPm: parseEventEndAmPm(item.description),
+          external: isExternalEvent(item.description),
         },
       });
     }

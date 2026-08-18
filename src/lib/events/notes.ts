@@ -5,6 +5,9 @@
  * it brotli-compressed and base64url-encoded on a single line (short, and
  * opaque to calendar viewers), with a human-readable `Edit: <url>` line above
  * it so the edit link is visible — and linkified — in Google Calendar's notes.
+ * A human-readable marker line at the very bottom identifies the event as
+ * created in the app (see `INTERNAL_EVENT_MARKER`); events without it (and
+ * without a notes block) are treated as externally created.
  * v1 (raw JSON) and v2 (JSON line under the `Edit:` line) descriptions still
  * parse.
  */
@@ -191,6 +194,40 @@ export function withEditLink(block: string, url: string): string {
   }
   const line = `Edit: ${url}`;
   return block ? `${line}\n\n${block}` : line;
+}
+
+/**
+ * Human-readable marker line the app writes at the bottom of every event
+ * description it creates or edits. Its presence is the signal that an event
+ * was created in the app (as opposed to directly in Google Calendar).
+ */
+export const INTERNAL_EVENT_MARKER = "Created in cloudy2";
+
+/** True when the description carries the app's internal-creation marker line. */
+export function hasInternalEventMarker(description: string): boolean {
+  return description.includes(INTERNAL_EVENT_MARKER);
+}
+
+/**
+ * Append the internal-creation marker at the bottom of a description. Callers
+ * must supply the description built so far (`Edit:` line + notes block); the
+ * marker is added one blank line below and never duplicated.
+ */
+export function withInternalMarker(description: string): string {
+  if (hasInternalEventMarker(description)) {
+    return description;
+  }
+  return description ? `${description}\n\n${INTERNAL_EVENT_MARKER}` : INTERNAL_EVENT_MARKER;
+}
+
+/**
+ * Whether an event was created outside the app. Events count as internal when
+ * they carry the marker line OR a parseable notes block (older in-app events
+ * predate the marker but still hold the block the app wrote); everything else
+ * — e.g. events created directly in Google Calendar — is external.
+ */
+export function isExternalEvent(description: string): boolean {
+  return !hasInternalEventMarker(description) && parseEventNotes(description) === null;
 }
 
 /**

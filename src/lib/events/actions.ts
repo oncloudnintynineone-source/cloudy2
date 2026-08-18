@@ -15,6 +15,7 @@ import {
   eventEditUrl,
   parseEventPeople,
   withEditLink,
+  withInternalMarker,
 } from "@/lib/events/notes";
 import { amPmSuffix, resolveTimeOption, type TimeOption } from "@/lib/events/timeOptions";
 import { getUserDepartmentIds } from "@/lib/events/queries";
@@ -251,7 +252,9 @@ async function buildGcalEventInput(
       endAmPm: input.timeOption === "full" ? input.endAmPm : undefined,
     }),
   );
-  const description = withEditLink(block, editLink);
+  // The marker line at the bottom flags the event as created in the app, so
+  // externally created (Google-only) events can be told apart on read.
+  const description = withInternalMarker(withEditLink(block, editLink));
 
   const allDay = input.timeOption !== "range";
   const { start, end } = absEventRange(input.start, input.end, allDay);

@@ -24,6 +24,7 @@ function makeEvent(overrides: Partial<CalendarEvent["payload"]> = {}): CalendarE
     timeOption: overrides.timeOption ?? "range",
     startAmPm: overrides.startAmPm ?? null,
     endAmPm: overrides.endAmPm ?? null,
+    external: overrides.external ?? false,
   };
   return { id: "cal-1:google-1", title: "Test event", start: "2026-08-17 09:00:00", end: "2026-08-17 10:00:00", color: "blue", payload };
 }
@@ -72,6 +73,20 @@ describe("expandScheduleEvents", () => {
 
   it("drops events linked to no one", () => {
     expect(expandScheduleEvents([makeEvent()])).toEqual([]);
+  });
+
+  it("pins an external event with no people to its calendar's department row", () => {
+    const expanded = expandScheduleEvents([makeEvent({ external: true })]);
+    expect(expanded).toHaveLength(1);
+    expect(expanded[0].resourceId).toBe("dept:cal-1");
+    expect(expanded[0].id).toBe("cal-1:google-1::dept:cal-1");
+  });
+
+  it("keeps an external event's people rows when it has any", () => {
+    const expanded = expandScheduleEvents([
+      makeEvent({ external: true, creatorId: "u1", inviteeUserIds: ["u2"] }),
+    ]);
+    expect(expanded.map((event) => event.resourceId)).toEqual(["u1", "u2"]);
   });
 });
 
@@ -144,6 +159,15 @@ describe("buildScheduleResources", () => {
       events: [makeEvent({ inviteeDepartmentIds: ["cal-2"] })],
     });
     expect(resources.map((r) => r.id)).toEqual(["dept:cal-2"]);
+  });
+
+  it("keeps a department row when an external event lives there despite no users", () => {
+    const { resources } = buildScheduleResources({
+      departments: depts,
+      users: [],
+      events: [makeEvent({ external: true })],
+    });
+    expect(resources.map((r) => r.id)).toEqual(["dept:cal-1"]);
   });
 
   it("sorts users by name within each department, not by shortname", () => {

@@ -1,6 +1,7 @@
 import { listEventTypes } from "@/lib/eventTypes/queries";
 import { formatInstantToNaive } from "@/lib/events/datetime";
 import { fetchMonthEvents, getUserDepartmentId, listCalendars } from "@/lib/events/queries";
+import { filterUserOptionIds } from "@/lib/filters/filterUserOptions";
 import { googleCalendarConfigured } from "@/lib/google";
 import { listUsers } from "@/lib/roster/queries";
 import { formatFullName } from "@/lib/settings/formatName";
@@ -115,6 +116,24 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
     ),
   }));
 
+  // Filter dialog user options: the users in view (schedule rows of the
+  // selected departments) plus the current user, so a non-admin can filter
+  // other departments' users and "Only me" still works cross-department.
+  const filterUserIds = filterUserOptionIds({
+    users: allUsers,
+    rowUserIds: scheduleUsers.map((user) => user.id),
+    currentUserId: session.user.id,
+  });
+  const filterUsers = allUsers
+    .filter((user) => filterUserIds.includes(user.id))
+    .map((user) => ({
+      id: user.id,
+      displayName: formatFullName(
+        { name: user.name, departmentName: user.department?.name ?? null },
+        settings.nameTemplate,
+      ),
+    }));
+
   const inviteeDepartments = (
     isAdmin ? calendars : calendars.filter((calendar) => calendar.id === ownDepartmentId)
   ).map((calendar) => ({ id: calendar.id, name: calendar.name }));
@@ -158,6 +177,7 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
       scheduleUsers={scheduleUsers}
       inviteeDepartments={inviteeDepartments}
       inviteeUsers={inviteeUsers}
+      filterUsers={filterUsers}
       peopleNames={peopleNames}
       calendarNames={calendarNames}
     />
