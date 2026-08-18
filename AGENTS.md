@@ -63,6 +63,23 @@ the quality checks.
   `src/lib/google/index.ts`, which currently returns a no-op stub. Wire the real
   service-account impl there when credentials are provisioned; don't call Google APIs
   directly.
+- The **Overview** page (`/overview`, reachable from the bottom nav) shows per-month,
+  per-user counts by event type. Counting is a pure helper in `src/lib/overview/counts.ts`
+  (`involvedUserIds` + `buildOverviewCounts`) — unit-tested without a DB. Scope mirrors
+  the dashboard: admins see all users/departments, regular users only their own department.
+  The matrix mirrors the dashboard's `ResourcesDayView` layout: a sticky department column
+  with the name written vertically (`writingMode: "vertical-rl"`), a sticky short-name
+  column (`user.shortname || user.name`), then one column per event type, inside a bounded
+  `ScrollArea` (`height: min(60vh, 520px)`) so the header stays visible. Users with no
+  department are grouped under an `Unassigned` pseudo-department. Each department's rows
+  carry a distinct hue-derived tint (`hsl`, `hue = index * 360 / deptCount`) that is
+  theme-aware (`useComputedColorScheme` picks softer pastels in light mode, muted darks in
+  dark mode); the merged department column uses a slightly stronger shade for contrast.
+  The page shares the dashboard's filter (`FilterButton` + `FilterModal`, URL params
+  `cal`/`users`/`types`): Calendars (grid chips), a searchable Users group with an
+  "Only me" quick action, and Event Types (which also narrows the shown columns).
+  Non-admins default to their own department but may filter to any department, matching
+  the calendar page.
 
 ## Conventions
 
@@ -82,11 +99,17 @@ the quality checks.
 - **Floating action buttons** use the shared `FloatingActionButton` + `FloatingToolbar`
   (`src/components/FloatingToolbar.tsx`) anchored bottom-right — never a raw `Button`.
   `FloatingActionButton` sets `radius="xl"`, the pill shadow, and a 43px height (1.2× the
-  Mantine `sm` default) for consistent touch targets; don't override height inline. Under
+  Mantine `sm` default) for consistent touch targets; don't override height inline. The
+  default `bottomOffset` clears the **global bottom nav** (`src/lib/bottomNav.ts`); under
   the settings tab bar pass `bottomOffset={SETTINGS_TAB_BAR_OFFSET}` (exported from
   `src/app/(protected)/settings/settingsTabBar.ts`) to `FloatingToolbar`.
-- **Admin settings live under `/settings`** (admin-only), reached via the profile icon in the
-  header. A horizontal scrollable `SettingsTabs` bar (`src/app/(protected)/settings/`)
+- **Global bottom nav** lives in `AppShellShell`'s `AppShell.Footer` (height from
+  `BOTTOM_NAV_HEIGHT_CSS` in `src/lib/bottomNav.ts`) with three tabs: **Calendar**
+  (`/dashboard`), **Overview** (`/overview`), and **Settings** (`/settings`, admin-only).
+  The Settings sub-tab bar `SettingsTabs` stacks directly above it
+  (`bottom: BOTTOM_NAV_HEIGHT_CSS`).
+- **Admin settings live under `/settings`** (admin-only), reached via the bottom-nav
+  Settings tab. A horizontal scrollable `SettingsTabs` bar (`src/app/(protected)/settings/`)
   switches between the Users (`/settings/users`), Departments (`/settings/departments`),
   Event Types (`/settings/event-types`), Templates (`/settings/templates`), and General
   (`/settings/general`) tabs. **Event types carry a `shortname`** (their acronym, app-required

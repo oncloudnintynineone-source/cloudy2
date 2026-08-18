@@ -2,6 +2,8 @@
 
 import { Affix, Button, Group, type ButtonProps } from "@mantine/core";
 
+import { BOTTOM_NAV_FLOATING_OFFSET } from "@/lib/bottomNav";
+
 interface FloatingToolbarProps {
   children: React.ReactNode;
   bottomOffset?: string;
@@ -31,7 +33,7 @@ export function FloatingActionButton(props: FloatingActionButtonProps) {
  */
 export function FloatingToolbar({
   children,
-  bottomOffset = "calc(env(safe-area-inset-bottom) + 16px)",
+  bottomOffset = BOTTOM_NAV_FLOATING_OFFSET,
   zIndex = 100,
 }: FloatingToolbarProps) {
   return (

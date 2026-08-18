@@ -1,11 +1,10 @@
 "use client";
 
 import { ActionIcon, Menu } from "@mantine/core";
-import { IconLogout, IconSettings, IconUser } from "@tabler/icons-react";
+import { IconLogout, IconUser } from "@tabler/icons-react";
 import { signOut } from "next-auth/react";
-import Link from "next/link";
 
-export function UserMenu({ name, role }: { name: string; role: "admin" | "user" }) {
+export function UserMenu({ name }: { name: string }) {
   return (
     <Menu position="bottom-end" withinPortal>
       <Menu.Target>
@@ -15,15 +14,6 @@ export function UserMenu({ name, role }: { name: string; role: "admin" | "user" 
       </Menu.Target>
       <Menu.Dropdown>
         <Menu.Label>{name}</Menu.Label>
-        {role === "admin" && (
-          <Menu.Item
-            leftSection={<IconSettings size={16} />}
-            component={Link}
-            href="/settings"
-          >
-            Admin Settings
-          </Menu.Item>
-        )}
         <Menu.Item
           leftSection={<IconLogout size={16} />}
           onClick={() => signOut({ callbackUrl: "/login" })}

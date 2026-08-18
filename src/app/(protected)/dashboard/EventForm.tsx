@@ -373,6 +373,12 @@ export function EventForm({
 
   return (
     <form onSubmit={onSubmit}>
+      <div
+        tabIndex={-1}
+        data-autofocus
+        aria-hidden="true"
+        style={{ position: "fixed", top: 0, left: 0, opacity: 0, pointerEvents: "none" }}
+      />
       <Stack>
         <Stack gap="xs">
           <Text size="sm" fw={500}>
@@ -408,7 +414,6 @@ export function EventForm({
               label="Event Description"
               description="Optional — the calendar title is rendered from the title template"
               placeholder="Event title"
-              data-autofocus
               {...form.getInputProps("title")}
             />
 

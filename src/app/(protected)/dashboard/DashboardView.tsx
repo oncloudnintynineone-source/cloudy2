@@ -404,7 +404,15 @@ export function DashboardView({
         aria-label="Calendar view"
         styles={{ tab: { flex: 1 } }}
       >
-        <Tabs.List>
+        <Tabs.List
+          style={{
+            position: "sticky",
+            top: "var(--app-shell-header-offset)",
+            zIndex: 10,
+            background: "var(--mantine-color-body)",
+            borderBottom: "1px solid var(--mantine-color-default-border)",
+          }}
+        >
           <Tabs.Tab value="month">
             <Group gap="xs" justify="center" wrap="nowrap">
               <IconCalendarMonth size={16} />

@@ -3,6 +3,8 @@
 import { Tabs } from "@mantine/core";
 import { usePathname, useRouter } from "next/navigation";
 
+import { BOTTOM_NAV_HEIGHT_CSS } from "@/lib/bottomNav";
+
 const tabs = [
   { value: "/settings/users", label: "Users" },
   { value: "/settings/departments", label: "Departments" },
@@ -31,13 +33,12 @@ export function SettingsTabs() {
           flexWrap: "nowrap",
           overflowX: "auto",
           position: "fixed",
-          bottom: 0,
+          bottom: BOTTOM_NAV_HEIGHT_CSS,
           left: 0,
           right: 0,
           zIndex: 10,
           background: "var(--mantine-color-body)",
           borderTop: "1px solid var(--mantine-color-default-border)",
-          paddingBottom: "env(safe-area-inset-bottom)",
         }}
       >
         {tabs.map((tab) => (

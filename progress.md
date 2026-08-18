@@ -47,6 +47,7 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
 - [1.33 Searchable user filter (Phase 2w)](#133-searchable-user-filter-phase-2w)
 - [1.34 PWA installability (Phase 3a)](#134-pwa-installability-phase-3a)
 - [1.35 Touch-friendly input heights (Phase 3b)](#135-touch-friendly-input-heights-phase-3b)
+- [1.36 Global bottom nav + Overview page (Phase 3c)](#136-global-bottom-nav--overview-page-phase-3c)
 
 ## 1.1 Status
 
@@ -1518,3 +1519,52 @@ New heights (Mantine default → after 1.2×):
   other input consumes the same base-`Input` vars. `pnpm build` not run locally (a dev
   server held `.next`); CI's build job covers it. No schema change —
   `pnpm db:generate` shows no drift.
+
+## 1.36 Global bottom nav + Overview page (Phase 3c)
+
+The app now has a **global bottom navigation bar** on every protected page (the Phase 2e
+bar was removed in 2f in favor of the profile-icon-only settings hub; this restores it as
+the app's primary navigation) and a new **Overview** page that answers "how many events of
+each type did each person have this month".
+
+```mermaid
+flowchart LR
+    A[AppShell.Footer<br/>global bottom nav] --> B[Calendar /dashboard]
+    A --> C[Overview /overview]
+    A --> D[Settings /settings<br/>admin only]
+    D --> E[Settings sub-tab bar<br/>stacks above the global nav]
+    C --> F["?month=YYYY-MM<br/>server fetch"]
+    F --> G[Google Calendar events]
+    G --> H[buildOverviewCounts<br/>pure per-user × per-type counts]
+    H --> I[OverviewView matrix]
+```
+
+- **Bottom nav** (`src/components/AppShellShell.tsx`) — `AppShell.Footer` (height 56px +
+  `env(safe-area-inset-bottom)`) with icon + label tabs: **Calendar** (`/dashboard`,
+  `IconCalendarMonth`), **Overview** (`/overview`, `IconChartBar`), **Settings**
+  (`/settings`, `IconSettings`, admins only — non-admins get just the first two). Active
+  state via `pathname.startsWith(href)`, brand-colored icon/label, `aria-current="page"`.
+- **Clearance constants** (`src/lib/bottomNav.ts`) — `BOTTOM_NAV_HEIGHT` (56),
+  `BOTTOM_NAV_HEIGHT_CSS`, and `BOTTOM_NAV_FLOATING_OFFSET`. The `FloatingToolbar`
+  default `bottomOffset` now clears the nav, so the dashboard "New event" FAB and the
+  minimized-form pill are no longer hidden behind it; the Settings sub-tab bar
+  (`SettingsTabs`) sits at `bottom: BOTTOM_NAV_HEIGHT_CSS` (its own safe-area padding
+  removed — the nav below owns it) and `SETTINGS_TAB_BAR_OFFSET` grew to
+  `calc(108px + env(safe-area-inset-bottom) + 16px)` (52px sub-tab bar + 56px nav) so the
+  Settings floating buttons stay clear.
+- **Overview page** (`src/app/(protected)/overview/`) — month header (‹ / `MMMM YYYY` /
+  › / Today, navigating `?month=`), then a horizontally scrollable CSS-grid matrix inside
+  a `Paper` (no `<Table>`): one column per configured event type (zeros included), one
+  row per **active** user by display name, with a **sticky first column**. Role scoping
+  mirrors the dashboard: admins see all departments/users, regular users only their own
+  department's. Loading skeleton in `loading.tsx`; "Google not configured" and empty
+  states included.
+- **Counts** (`src/lib/overview/counts.ts` + `counts.test.ts`, pure + 9 unit tests) —
+  `involvedUserIds` (creator ∪ tagged users, deduped) and `buildOverviewCounts` (per user
+  per configured type). Input events are already deduped by logical group id
+  (`fetchMonthEvents`), so a cross-department event counts once per involved user; events
+  without a parseable type, or with a type no longer configured, are not represented
+  anywhere (no total/aggregate column).
+- **Verification** — `pnpm lint`, `pnpm typecheck`, `pnpm test` (238), and `pnpm build`
+  all pass; build route list shows `/overview`. No schema change — `pnpm db:generate`
+  shows no drift.
