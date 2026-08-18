@@ -43,6 +43,7 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
 - [1.29 Admin-id UUID guard fix](#129-admin-id-uuid-guard-fix)
 - [1.30 Empty event title (Phase 2t)](#130-empty-event-title-phase-2t)
 - [1.31 Google Calendar "Edit in app" link (Phase 2u)](#131-google-calendar-edit-in-app-link-phase-2u)
+- [1.32 Compressed opaque notes block (Phase 2v)](#132-compressed-opaque-notes-block-phase-2v)
 
 ## 1.1 Status
 
@@ -120,6 +121,13 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
   directly (dismissable "could not open" alert when the event isn't in the current view).
   The link origin is derived from the request headers (no new env config). No schema
   changes; `pnpm lint/typecheck/test` (203) + `pnpm build` pass, `db:generate` no drift.
+- **Phase 2v (compressed opaque notes block):** the Google notes block is now opaque —
+  brotli-compressed and base64url-encoded (no padding) on a single line below the
+  `Edit: <url>` line (block shrinks ~585 → ~220 chars worst case; raw uuids/titles no
+  longer leak to calendar viewers); the redundant in-JSON `editLink` field was dropped.
+  `parseEventNotes` still reads v1 (raw JSON) and v2 (JSON line) events, so no migration.
+  No schema changes; `pnpm lint/typecheck/test` + `pnpm build` pass, `db:generate` no
+  drift.
 - **Deployment (Vercel):** build passes on `main`/`dev` with no warnings (Corepack +
   `NEXTAUTH_URL` unset). Migrations `0000` + `0001` applied to Neon (via CI migrate job);
   `0002`–`0005` pending (apply on next `main` push).
@@ -1301,3 +1309,54 @@ sequenceDiagram
   `pnpm db:generate` (no drift — no schema change) all pass. Live confirmation that Google
   Calendar linkifies the stored URL remains pending until service-account credentials are
   configured (verify with a disposable test event).
+
+## 1.32 Compressed opaque notes block (Phase 2v)
+
+The machine notes block in Google notes no longer exposes raw JSON: below the
+human-readable `Edit: <url>` line it is now **brotli-compressed and base64url-encoded
+(no padding) on a single line**. Notes get short — the block itself measured ~585 → ~220
+chars on a worst-case event (3 invitees, a department, a long title) — and calendar
+viewers no longer see raw group/user uuids, event-type names, or the typed description.
+The block's content is still a JSON object, so adding fields stays migration-free. The
+redundant `editLink` field stored inside the JSON was dropped — the URL the top line
+already shows no longer duplicates inside the block.
+
+```mermaid
+flowchart TB
+    A[notes object] --> B[encodeEventNotes → JSON]
+    B --> C[brotliCompressSync]
+    C --> D[base64url, no padding]
+    D --> E["notes text: Edit: url, blank line, block"]
+    E --> F[parseEventNotes]
+    F --> G{whole string one JSON?}
+    G -- "v1 legacy" --> H[(EventNotes)]
+    G -- no --> I[scan lines bottom-up]
+    I --> J{"line a raw JSON object? (v2)"}
+    J -- yes --> H
+    I --> K{"base64url → brotli or gzip → JSON? (v3)"}
+    K -- yes --> H
+```
+
+- **Writer** (`src/lib/events/notes.ts`) — new `encodeNotesBlock(json)`:
+  `zlib.brotliCompressSync` → `toString("base64url")`. Deterministic (fixed compressor
+  settings, no timestamp), so the same JSON always yields the same single line.
+  `withEditLink` now just places the human line above an arbitrary block line.
+- **Reader** (`src/lib/events/notes.ts`) — `parseEventNotes` keeps the whole-string JSON
+  path (v1) and its bottom-up line scan now accepts each line as (a) a raw JSON line
+  (v2) or (b) a base64url line that inflates to a JSON object — **brotli first** (the
+  current writer) with a **gzip fallback** inflate, so a future codec switch can never
+  strand stored events. Node's `base64url` decoder also accepts the standard `+/`
+  alphabet and padding, so either spelling decodes. Every field parser
+  (`parseEventPeople`, `parseEventTitle`, …) funnels through this one entry point — no
+  changes needed anywhere else.
+- **Write path** (`src/lib/events/actions.ts`) — `description =
+  withEditLink(encodeNotesBlock(encodeEventNotes(…)), editLink)`; `editLink` is no
+  longer a notes field (the v3 block stores it nowhere).
+- **Debug one-liner** — decode a stored block (the last line of the notes) with
+  `echo "<block>" | base64 -d | brotli -d` (or `| zcat` if it was ever gzip-compressed).
+- **Tests** (`src/lib/events/notes.test.ts`) — v3 round trip (incl. braces in `title` and
+  the field-level parsers), gzip fallback decode, v1/v2 legacy cases kept, single
+  base64url line shorter than the raw JSON, determinism, and null for an undecodable
+  line. Notes suite: 35 tests.
+- **Verification** — `pnpm lint`, `pnpm typecheck`, `pnpm test` (208), `pnpm build`, and
+  `pnpm db:generate` (no drift — no schema change) all pass.

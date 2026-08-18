@@ -7,6 +7,7 @@ import { notifications } from "@mantine/notifications";
 
 import { updateKeyword, type SettingsActionResult } from "@/lib/settings/actions";
 import { validateKeywordForm, type KeywordFormValues } from "@/lib/settings/validate";
+import { BUTTON_LOADER_PROPS } from "@/lib/theme";
 
 interface SettingsFormProps {
   keyword: string;
@@ -47,7 +48,13 @@ export function SettingsForm({ keyword }: SettingsFormProps) {
               {...keywordForm.getInputProps("keyword")}
             />
             <Group justify="flex-end">
-              <Button type="submit">Save</Button>
+              <Button
+                type="submit"
+                loading={keywordForm.submitting}
+                loaderProps={BUTTON_LOADER_PROPS}
+              >
+                Save
+              </Button>
             </Group>
           </Stack>
         </form>

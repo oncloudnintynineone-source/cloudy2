@@ -90,16 +90,25 @@ the quality checks.
   `formatEventTitle()` helper in `src/lib/settings/formatEventTitle.ts`). Event titles are
   rendered into the Google event summary on create/edit; the raw description round-trips via
   the `title` field of the event notes JSON so the edit form always prefills the original text.
-  The notes also carry an `editLink` written on every create/edit as a human-readable
-  `Edit: <url>` line above the JSON block (deep link to `/dashboard?date=…&edit=<eventId>`,
+  The notes carry the link written on every create/edit as a human-readable
+  `Edit: <url>` line above the notes block (deep link to `/dashboard?date=…&edit=<eventId>`,
   which opens the event's edit form); the app origin is derived from the request headers in
-  `src/lib/appUrl.ts`.
+  `src/lib/appUrl.ts`. The block itself is stored opaque — a JSON object brotli-compressed
+  and base64url-encoded on one line (`encodeNotesBlock`), with `parseEventNotes` as the
+  single reader (it also decodes older raw-JSON events, v1/v2).
   The **General tab** holds only the login keyword setting.
 - **Always show a loading skeleton for async loads.** Any route or view that awaits data
   before rendering (DB queries, fetches) must show a Mantine `Skeleton` fallback instead of
   a blank screen. In the App Router add a `loading.tsx` to the route segment (auto Suspense
-  fallback, e.g. `src/app/(protected)/settings/users/loading.tsx`); for client-side async use
-  a `Skeleton` state. Shape the skeleton to match the real card list.
+   fallback, e.g. `src/app/(protected)/settings/users/loading.tsx`); for client-side async use
+   a `Skeleton` state. Shape the skeleton to match the real card list.
+ - **Buttons that trigger async work must show a loading indicator in the button itself.**
+   Use Mantine's `loading` prop on `Button` together with the shared
+   `loaderProps={BUTTON_LOADER_PROPS}` from `src/lib/theme.ts`. For `useForm`-backed submit
+   buttons use `loading={form.submitting}` (auto-managed by `form.onSubmit`, also prevents
+   double-submits); for manual handlers (deletes, status toggles, add/remove rows, etc.)
+   hold a local `loading` state around the `await` — set it before the call, clear it in a
+   `finally` block — and guard against re-entry (see `src/components/LoginForm.tsx`).
 - The **Users** section is the route `/settings/users` (admin-only), but its internal domain
   code (types/actions/queries) lives under `src/lib/roster/*`. The "roster" module name is
   internal and should not be renamed to match the UI label.

@@ -35,6 +35,7 @@ import {
   type EventTitleInput,
   type EventTitlePerson,
 } from "@/lib/settings/formatEventTitle";
+import { BUTTON_LOADER_PROPS } from "@/lib/theme";
 import { naiveToDate } from "./clientDateTime";
 
 interface EventTypeOption {
@@ -483,7 +484,7 @@ export function EventForm({
             </Paper>
 
             <Group justify="flex-end" mt="md">
-              <Button type="submit" fullWidth>
+              <Button type="submit" fullWidth loading={form.submitting} loaderProps={BUTTON_LOADER_PROPS}>
                 {isEdit ? "Save changes" : "Create event"}
               </Button>
             </Group>

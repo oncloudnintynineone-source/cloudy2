@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest";
 
+import { gzipSync } from "node:zlib";
+
 import {
   encodeEventNotes,
+  encodeNotesBlock,
   eventEditUrl,
   parseEventEndAmPm,
   parseEventNotes,
@@ -12,6 +15,21 @@ import {
   parseEventTitle,
   withEditLink,
 } from "./notes";
+
+/** A realistic-ish notes block long enough that compression actually shrinks it. */
+const SAMPLE_NOTES = {
+  eventId: "123e4567-e89b-4d1a-a2b3-456789abcdef01",
+  eventType: "Key Appointment Holder Leave",
+  createdBy: "123e4567-e89b-4d1a-a2b3-456789abcdef02",
+  inviteeUsers: [
+    "123e4567-e89b-4d1a-a2b3-456789abcdef01",
+    "123e4567-e89b-4d1a-a2b3-456789abcdef02",
+    "123e4567-e89b-4d1a-a2b3-456789abcdef03",
+  ],
+  inviteeDepartments: ["123e4567-e89b-4d1a-a2b3-456789abcdef04"],
+  title: "KAH cover while Ahmad is on leave (long description text)",
+  timeOption: "range",
+};
 
 describe("encodeEventNotes", () => {
   it("serializes a non-empty notes object as JSON", () => {
@@ -91,10 +109,11 @@ describe("parseEventNotes", () => {
 describe("withEditLink", () => {
   it("puts the Edit line above the JSON block", () => {
     expect(
-      withEditLink('{"eventId":"g-1"}', "https://cal.example.com/dashboard?date=2026-08-18&edit=g-1"),
-    ).toBe(
-      'Edit: https://cal.example.com/dashboard?date=2026-08-18&edit=g-1\n\n{"eventId":"g-1"}',
-    );
+      withEditLink(
+        '{"eventId":"g-1"}',
+        "https://cal.example.com/dashboard?date=2026-08-18&edit=g-1",
+      ),
+    ).toBe('Edit: https://cal.example.com/dashboard?date=2026-08-18&edit=g-1\n\n{"eventId":"g-1"}');
   });
 
   it("yields just the link line for an empty notes block", () => {
@@ -120,24 +139,40 @@ describe("eventEditUrl", () => {
   });
 });
 
-describe("parseEventNotes (edit-link format)", () => {
-  it("parses the notes from the JSON line below the Edit line", () => {
+describe("encodeNotesBlock", () => {
+  it("is a single base64url line shorter than the raw JSON", () => {
+    const json = encodeEventNotes(SAMPLE_NOTES);
+    const block = encodeNotesBlock(json);
+    expect(block).not.toContain("\n");
+    expect(block.length).toBeLessThan(json.length);
+    expect(/^[A-Za-z0-9_-]+$/.test(block)).toBe(true);
+  });
+
+  it("is deterministic for a given JSON", () => {
+    const json = encodeEventNotes(SAMPLE_NOTES);
+    expect(encodeNotesBlock(json)).toBe(encodeNotesBlock(json));
+  });
+});
+
+describe("parseEventNotes (v3: compressed block under the Edit line)", () => {
+  it("round-trips notes stored above a compressed block", () => {
     const editLink = "https://cal.example.com/dashboard?date=2026-08-18&edit=g-1";
     const description = withEditLink(
-      encodeEventNotes({ eventId: "g-1", eventType: "Leave", title: "Team offsite", editLink }),
+      encodeNotesBlock(
+        encodeEventNotes({ eventId: "g-1", eventType: "Leave", title: "Team offsite" }),
+      ),
       editLink,
     );
     expect(parseEventNotes(description)).toEqual({
       eventId: "g-1",
       eventType: "Leave",
       title: "Team offsite",
-      editLink,
     });
   });
 
   it("survives braces inside the title", () => {
     const description = withEditLink(
-      encodeEventNotes({ eventId: "g-1", title: "fix } { it" }),
+      encodeNotesBlock(encodeEventNotes({ eventId: "g-1", title: "fix } { it" })),
       "https://x",
     );
     const notes = parseEventNotes(description);
@@ -147,7 +182,9 @@ describe("parseEventNotes (edit-link format)", () => {
 
   it("keeps the field-level parsers working", () => {
     const description = withEditLink(
-      encodeEventNotes({ eventType: "Leave", createdBy: "u-1", inviteeUsers: ["u-2"] }),
+      encodeNotesBlock(
+        encodeEventNotes({ eventType: "Leave", createdBy: "u-1", inviteeUsers: ["u-2"] }),
+      ),
       "https://x",
     );
     expect(parseEventType(description)).toBe("Leave");
@@ -157,6 +194,26 @@ describe("parseEventNotes (edit-link format)", () => {
       userIds: ["u-2"],
       departmentIds: [],
     });
+  });
+
+  it("decodes a gzip-compressed block too (codec fallback)", () => {
+    const json = encodeEventNotes({ eventId: "g-1", eventType: "Leave" });
+    const description = withEditLink(
+      gzipSync(Buffer.from(json)).toString("base64url"),
+      "https://x",
+    );
+    expect(parseEventNotes(description)).toEqual({ eventId: "g-1", eventType: "Leave" });
+  });
+
+  it("still parses the v2 raw JSON line and v1 pure JSON", () => {
+    expect(
+      parseEventNotes(withEditLink('{"eventId":"g-2","eventType":"Leave"}', "https://x")),
+    ).toEqual({ eventId: "g-2", eventType: "Leave" });
+    expect(parseEventNotes('{"eventType":"Leave"}')).toEqual({ eventType: "Leave" });
+  });
+
+  it("returns null when no line is a JSON or a decodable block", () => {
+    expect(parseEventNotes("Edit: https://x\n\n!!!not-base64-notes!!!")).toBeNull();
   });
 });
 

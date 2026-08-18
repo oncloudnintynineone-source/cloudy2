@@ -25,6 +25,7 @@ import {
   type EventTitleTemplateFormValues,
   type NameTemplateFormValues,
 } from "@/lib/settings/validate";
+import { BUTTON_LOADER_PROPS } from "@/lib/theme";
 
 interface PreviewUser {
   name: string;
@@ -232,7 +233,13 @@ export function TemplatesForm({
             </Stack>
 
             <Group justify="flex-end">
-              <Button type="submit">Save</Button>
+              <Button
+                type="submit"
+                loading={nameTemplateForm.submitting}
+                loaderProps={BUTTON_LOADER_PROPS}
+              >
+                Save
+              </Button>
             </Group>
           </Stack>
         </form>
@@ -304,7 +311,13 @@ export function TemplatesForm({
             </Stack>
 
             <Group justify="flex-end">
-              <Button type="submit">Save</Button>
+              <Button
+                type="submit"
+                loading={eventTitleTemplateForm.submitting}
+                loaderProps={BUTTON_LOADER_PROPS}
+              >
+                Save
+              </Button>
             </Group>
           </Stack>
         </form>

@@ -11,6 +11,7 @@ import { appBaseUrl } from "@/lib/appUrl";
 import { absEventRange } from "@/lib/events/datetime";
 import {
   encodeEventNotes,
+  encodeNotesBlock,
   eventEditUrl,
   parseEventPeople,
   withEditLink,
@@ -233,23 +234,24 @@ async function buildGcalEventInput(
   // An empty title gets no bare "(AM)" suffix.
   const title =
     baseTitle && input.timeOption === "full" && amPm ? `${baseTitle} (${amPm})` : baseTitle;
-  // The notes carry an "Edit:" link (shown on top of the JSON block) that
+  // The notes carry an "Edit:" link (shown on top of the opaque block) that
   // opens this event's edit form; it is rebuilt on every create/edit so the
   // embedded date stays current for in-app reschedules.
   const editLink = eventEditUrl(await appBaseUrl(), input.start, eventId);
-  const notesJson = encodeEventNotes({
-    eventId,
-    eventType: input.eventType || undefined,
-    createdBy: input.creatorId || undefined,
-    inviteeUsers: input.inviteeUserIds,
-    inviteeDepartments: input.inviteeDepartments,
-    title: rawTitle,
-    timeOption: input.timeOption,
-    startAmPm: input.timeOption === "full" ? input.startAmPm : undefined,
-    endAmPm: input.timeOption === "full" ? input.endAmPm : undefined,
-    editLink,
-  });
-  const description = withEditLink(notesJson, editLink);
+  const block = encodeNotesBlock(
+    encodeEventNotes({
+      eventId,
+      eventType: input.eventType || undefined,
+      createdBy: input.creatorId || undefined,
+      inviteeUsers: input.inviteeUserIds,
+      inviteeDepartments: input.inviteeDepartments,
+      title: rawTitle,
+      timeOption: input.timeOption,
+      startAmPm: input.timeOption === "full" ? input.startAmPm : undefined,
+      endAmPm: input.timeOption === "full" ? input.endAmPm : undefined,
+    }),
+  );
+  const description = withEditLink(block, editLink);
 
   const allDay = input.timeOption !== "range";
   const { start, end } = absEventRange(input.start, input.end, allDay);

@@ -1,9 +1,12 @@
 "use client";
 
+import { useState } from "react";
 import { useForm } from "@mantine/form";
 import { Button, Group, Modal, Select, Stack, Text, TextInput } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
+
+import { BUTTON_LOADER_PROPS } from "@/lib/theme";
 
 import {
   createUser,
@@ -53,6 +56,7 @@ function initialValues(user: RosterUser | null): UserFormValues {
 export function UserForm({ user, departments, onDone }: UserFormProps) {
   const isEdit = user !== null;
   const [confirmOpened, { open: openConfirm, close: closeConfirm }] = useDisclosure(false);
+  const [togglingStatus, setTogglingStatus] = useState(false);
 
   const form = useForm<UserFormValues>({
     // The parent remounts this component (key) when the target user changes,
@@ -85,18 +89,23 @@ export function UserForm({ user, departments, onDone }: UserFormProps) {
   });
 
   async function handleToggleStatus() {
-    if (!isEdit || !user) return;
+    if (!isEdit || !user || togglingStatus) return;
     const next = user.status === "active" ? "inactive" : "active";
-    const result = await setUserStatus(user.id, next);
-    closeConfirm();
-    if (result.ok) {
-      notifications.show({
-        color: "green",
-        message: next === "active" ? "User activated" : "User deactivated",
-      });
-      onDone();
-    } else {
-      notifications.show({ color: "red", message: result.error });
+    setTogglingStatus(true);
+    try {
+      const result = await setUserStatus(user.id, next);
+      closeConfirm();
+      if (result.ok) {
+        notifications.show({
+          color: "green",
+          message: next === "active" ? "User activated" : "User deactivated",
+        });
+        onDone();
+      } else {
+        notifications.show({ color: "red", message: result.error });
+      }
+    } finally {
+      setTogglingStatus(false);
     }
   }
 
@@ -145,7 +154,12 @@ export function UserForm({ user, departments, onDone }: UserFormProps) {
               {user.status === "active" ? "Deactivate user" : "Activate user"}
             </Button>
           )}
-          <Button type="submit" fullWidth={!isEdit}>
+          <Button
+            type="submit"
+            fullWidth={!isEdit}
+            loading={form.submitting}
+            loaderProps={BUTTON_LOADER_PROPS}
+          >
             {isEdit ? "Save changes" : "Create user"}
           </Button>
         </Group>
@@ -168,6 +182,8 @@ export function UserForm({ user, departments, onDone }: UserFormProps) {
               </Button>
               <Button
                 color={user?.status === "active" ? "red" : "teal"}
+                loading={togglingStatus}
+                loaderProps={BUTTON_LOADER_PROPS}
                 onClick={handleToggleStatus}
               >
                 Confirm

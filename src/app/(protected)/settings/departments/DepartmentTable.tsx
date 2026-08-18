@@ -8,6 +8,7 @@ import { notifications } from "@mantine/notifications";
 
 import type { Calendar } from "@/db/schema";
 import { deleteDepartment } from "@/lib/roster/actions";
+import { BUTTON_LOADER_PROPS } from "@/lib/theme";
 import { FloatingToolbar } from "@/components/FloatingToolbar";
 import { DepartmentForm } from "./DepartmentForm";
 import { DepartmentShares } from "./DepartmentShares";
@@ -24,6 +25,7 @@ export function DepartmentTable({ departments }: DepartmentTableProps) {
   const [shareOpened, { open: openShare, close: closeShare }] = useDisclosure(false);
   const [editing, setEditing] = useState<Calendar | null>(null);
   const [deleting, setDeleting] = useState<Calendar | null>(null);
+  const [deletingInProgress, setDeletingInProgress] = useState(false);
   const [sharing, setSharing] = useState<Calendar | null>(null);
 
   function openCreate() {
@@ -42,17 +44,22 @@ export function DepartmentTable({ departments }: DepartmentTableProps) {
   }
 
   async function confirmDelete() {
-    if (!deleting) {
+    if (!deleting || deletingInProgress) {
       return;
     }
-    const result = await deleteDepartment(deleting.id);
-    if (result.ok) {
-      notifications.show({ color: "green", message: "Department deleted" });
-      closeConfirm();
-      setDeleting(null);
-      router.refresh();
-    } else {
-      notifications.show({ color: "red", message: result.error });
+    setDeletingInProgress(true);
+    try {
+      const result = await deleteDepartment(deleting.id);
+      if (result.ok) {
+        notifications.show({ color: "green", message: "Department deleted" });
+        closeConfirm();
+        setDeleting(null);
+        router.refresh();
+      } else {
+        notifications.show({ color: "red", message: result.error });
+      }
+    } finally {
+      setDeletingInProgress(false);
     }
   }
 
@@ -123,7 +130,12 @@ export function DepartmentTable({ departments }: DepartmentTableProps) {
           <Button variant="default" onClick={closeConfirm}>
             Cancel
           </Button>
-          <Button color="red" onClick={confirmDelete}>
+          <Button
+            color="red"
+            loading={deletingInProgress}
+            loaderProps={BUTTON_LOADER_PROPS}
+            onClick={confirmDelete}
+          >
             Delete
           </Button>
         </Group>

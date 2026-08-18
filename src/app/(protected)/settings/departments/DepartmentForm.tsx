@@ -10,6 +10,7 @@ import {
   type RosterActionResult,
 } from "@/lib/roster/actions";
 import { validateCalendarForm, type CalendarFormValues } from "@/lib/roster/validate";
+import { BUTTON_LOADER_PROPS } from "@/lib/theme";
 
 interface DepartmentFormProps {
   calendar: { id: string; name: string } | null;
@@ -56,7 +57,7 @@ export function DepartmentForm({ calendar, onDone }: DepartmentFormProps) {
           {...form.getInputProps("name")}
         />
         <Group justify="flex-end" mt="md">
-          <Button type="submit" fullWidth>
+          <Button type="submit" fullWidth loading={form.submitting} loaderProps={BUTTON_LOADER_PROPS}>
             {isEdit ? "Save changes" : "Create department"}
           </Button>
         </Group>

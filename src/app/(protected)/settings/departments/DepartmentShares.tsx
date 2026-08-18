@@ -24,6 +24,7 @@ import {
   revokeDepartmentAccess,
 } from "@/lib/roster/actions";
 import type { DepartmentAccess } from "@/lib/roster/shares";
+import { BUTTON_LOADER_PROPS } from "@/lib/theme";
 
 interface DepartmentSharesProps {
   calendar: Calendar | null;
@@ -34,6 +35,8 @@ interface DepartmentSharesProps {
 export function DepartmentShares({ calendar, opened, onClose }: DepartmentSharesProps) {
   const [data, setData] = useState<DepartmentAccess | null>(null);
   const [email, setEmail] = useState("");
+  const [adding, setAdding] = useState(false);
+  const [removingEmail, setRemovingEmail] = useState<string | null>(null);
 
   useEffect(() => {
     if (opened && calendar) {
@@ -49,29 +52,39 @@ export function DepartmentShares({ calendar, opened, onClose }: DepartmentShares
   }
 
   async function handleAdd() {
-    if (!calendar) {
+    if (!calendar || adding) {
       return;
     }
-    const result = await grantDepartmentAccess(calendar.id, email);
-    if (result.ok) {
-      notifications.show({ color: "green", message: "Access granted" });
-      setEmail("");
-      await reload();
-    } else {
-      notifications.show({ color: "red", message: result.error });
+    setAdding(true);
+    try {
+      const result = await grantDepartmentAccess(calendar.id, email);
+      if (result.ok) {
+        notifications.show({ color: "green", message: "Access granted" });
+        setEmail("");
+        await reload();
+      } else {
+        notifications.show({ color: "red", message: result.error });
+      }
+    } finally {
+      setAdding(false);
     }
   }
 
   async function handleRemove(accessEmail: string) {
-    if (!calendar) {
+    if (!calendar || removingEmail) {
       return;
     }
-    const result = await revokeDepartmentAccess(calendar.id, accessEmail);
-    if (result.ok) {
-      notifications.show({ color: "green", message: "Access removed" });
-      await reload();
-    } else {
-      notifications.show({ color: "red", message: result.error });
+    setRemovingEmail(accessEmail);
+    try {
+      const result = await revokeDepartmentAccess(calendar.id, accessEmail);
+      if (result.ok) {
+        notifications.show({ color: "green", message: "Access removed" });
+        await reload();
+      } else {
+        notifications.show({ color: "red", message: result.error });
+      }
+    } finally {
+      setRemovingEmail(null);
     }
   }
 
@@ -185,6 +198,8 @@ export function DepartmentShares({ calendar, opened, onClose }: DepartmentShares
                         size="xs"
                         variant="subtle"
                         color="red"
+                        loading={removingEmail === rule.email}
+                        loaderProps={BUTTON_LOADER_PROPS}
                         onClick={() => handleRemove(rule.email)}
                       >
                         Remove
@@ -209,7 +224,12 @@ export function DepartmentShares({ calendar, opened, onClose }: DepartmentShares
                   }
                 }}
               />
-              <Button onClick={handleAdd} leftSection={<IconPlus size={16} />}>
+              <Button
+                loading={adding}
+                loaderProps={BUTTON_LOADER_PROPS}
+                leftSection={<IconPlus size={16} />}
+                onClick={handleAdd}
+              >
                 Add
               </Button>
             </Group>

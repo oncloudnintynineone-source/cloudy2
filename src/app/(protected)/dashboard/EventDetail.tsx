@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { Badge, Button, Group, Modal, Stack, Text } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
@@ -8,6 +9,7 @@ import { deleteEvent } from "@/lib/events/actions";
 import { subOneDay } from "@/lib/events/datetime";
 import type { CalendarEvent } from "@/lib/events/queries";
 import { eventRefFromCalendarEvent } from "@/lib/events/targets";
+import { BUTTON_LOADER_PROPS } from "@/lib/theme";
 import { formatDateTime } from "./clientDateTime";
 
 interface EventDetailProps {
@@ -30,6 +32,7 @@ export function EventDetail({
   calendarNames,
 }: EventDetailProps) {
   const [confirmOpen, { open, close }] = useDisclosure(false);
+  const [deleting, setDeleting] = useState(false);
 
   if (!event) {
     return null;
@@ -51,16 +54,21 @@ export function EventDetail({
     : formatDateTime(event.end, false);
 
   async function handleDelete() {
-    if (!event) {
+    if (!event || deleting) {
       return;
     }
-    const result = await deleteEvent(eventRefFromCalendarEvent(event));
-    if (result.ok) {
-      notifications.show({ color: "green", message: "Event deleted" });
-      close();
-      onDeleted();
-    } else {
-      notifications.show({ color: "red", message: result.error });
+    setDeleting(true);
+    try {
+      const result = await deleteEvent(eventRefFromCalendarEvent(event));
+      if (result.ok) {
+        notifications.show({ color: "green", message: "Event deleted" });
+        close();
+        onDeleted();
+      } else {
+        notifications.show({ color: "red", message: result.error });
+      }
+    } finally {
+      setDeleting(false);
     }
   }
 
@@ -133,7 +141,12 @@ export function EventDetail({
           <Button variant="default" onClick={close}>
             Cancel
           </Button>
-          <Button color="red" onClick={handleDelete}>
+          <Button
+            color="red"
+            loading={deleting}
+            loaderProps={BUTTON_LOADER_PROPS}
+            onClick={handleDelete}
+          >
             Delete
           </Button>
         </Group>

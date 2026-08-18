@@ -132,11 +132,10 @@ export function DashboardView({
     : null;
 
   const [detailEvent, setDetailEvent] = useState<CalendarEvent | null>(null);
-  const [formState, setFormState] = useState<FormState | null>(
-    () =>
-      initialEditEvent
-        ? { event: initialEditEvent, defaultDate: initialEditEvent.start.slice(0, 10) }
-        : null,
+  const [formState, setFormState] = useState<FormState | null>(() =>
+    initialEditEvent
+      ? { event: initialEditEvent, defaultDate: initialEditEvent.start.slice(0, 10) }
+      : null,
   );
   const [agendaDate, setAgendaDate] = useState<string | null>(null);
   const [editLinkFailed, setEditLinkFailed] = useState(

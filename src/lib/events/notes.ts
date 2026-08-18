@@ -1,10 +1,15 @@
 /**
  * Pure encoding/parsing of the machine-readable "notes" block stored on Google
  * Calendar events (in the event `description`). The block is a JSON object so
- * additional fields can be added later without a format migration. A short
- * human-readable line (`Edit: <url>`) sits above the JSON block so the edit
- * link is visible — and linkified — in Google Calendar's notes.
+ * additional fields can be added later without a format migration; v3 stores
+ * it brotli-compressed and base64url-encoded on a single line (short, and
+ * opaque to calendar viewers), with a human-readable `Edit: <url>` line above
+ * it so the edit link is visible — and linkified — in Google Calendar's notes.
+ * v1 (raw JSON) and v2 (JSON line under the `Edit:` line) descriptions still
+ * parse.
  */
+
+import { brotliCompressSync, brotliDecompressSync, gunzipSync } from "node:zlib";
 
 import { isTimeOption, type TimeOption } from "./timeOptions";
 
@@ -17,8 +22,6 @@ export interface EventNotes {
    * (unlike other blank values) to record a deliberately empty description.
    */
   title?: string;
-  /** Link that opens the event's edit form in the app (shown above the JSON block). */
-  editLink?: string;
   /** Logical event group id; all linked copies (one per department calendar) share it. */
   eventId?: string;
   /** Id of the user who created the event (schedule view: its row always shows the event). */
@@ -110,11 +113,45 @@ function tryParseObject(text: string): EventNotes | null {
 }
 
 /**
- * Parse the JSON notes block from an event description, or null when
- * absent/malformed. Handles both the current format (an `Edit: <url>` line
- * above the JSON block) and legacy descriptions that are the JSON block alone.
- * The block itself is always a single JSON line, so when the whole string is
- * not valid JSON the last line that parses as a JSON object is used.
+ * Encode the notes JSON into the single block line stored below the `Edit:`
+ * link: brotli-compressed, then base64url-encoded without padding. Keeps the
+ * notes short and opaque to calendar viewers; deterministic (fixed
+ * compressor settings), so a given JSON always yields the same line.
+ */
+export function encodeNotesBlock(json: string): string {
+  return brotliCompressSync(Buffer.from(json, "utf8")).toString("base64url");
+}
+
+/**
+ * Decode a base64url block line into notes: base64url-decode, then inflate
+ * (brotli first — the current writer — gzip as a codec fallback), then JSON.
+ * Node's base64url decoder accepts the standard base64 alphabet and padding
+ * too, so either spelling round-trips.
+ */
+function inflateNotesBlock(line: string): EventNotes | null {
+  let bytes: Buffer;
+  try {
+    bytes = Buffer.from(line, "base64url");
+  } catch {
+    return null;
+  }
+  for (const inflate of [brotliDecompressSync, gunzipSync]) {
+    try {
+      return tryParseObject(inflate(bytes).toString("utf8"));
+    } catch {
+      // Not this codec — try the next.
+    }
+  }
+  return null;
+}
+
+/**
+ * Parse the notes block from an event description, or null when
+ * absent/malformed. Handles all three stored formats: v3 (an `Edit: <url>`
+ * line above a single base64url brotli block), v2 (a raw JSON line under the
+ * `Edit:` line), and v1 (the description is the JSON block alone). When the
+ * whole string is not valid JSON, lines are scanned bottom-up for a JSON line
+ * or an inflatable block line.
  */
 export function parseEventNotes(description: string): EventNotes | null {
   if (!description) {
@@ -127,12 +164,16 @@ export function parseEventNotes(description: string): EventNotes | null {
   const lines = description.split("\n");
   for (let i = lines.length - 1; i >= 0; i -= 1) {
     const line = lines[i].trim();
-    if (!line.startsWith("{")) {
+    if (!line) {
       continue;
     }
-    const parsed = tryParseObject(line);
-    if (parsed !== null) {
-      return parsed;
+    const raw = line.startsWith("{") ? tryParseObject(line) : null;
+    if (raw !== null) {
+      return raw;
+    }
+    const inflated = inflateNotesBlock(line);
+    if (inflated !== null) {
+      return inflated;
     }
   }
   return null;
@@ -141,15 +182,15 @@ export function parseEventNotes(description: string): EventNotes | null {
 /**
  * Assemble the full event description from an encoded notes block: the
  * human-readable `Edit: <url>` line on top (Google Calendar linkifies plain
- * URLs in the notes) with the JSON block below. An empty notes block still
- * yields the link line; an empty url leaves the block untouched.
+ * URLs in the notes) with the block below. An empty block still yields the
+ * link line; an empty url leaves the block untouched.
  */
-export function withEditLink(notesJson: string, url: string): string {
+export function withEditLink(block: string, url: string): string {
   if (!url) {
-    return notesJson;
+    return block;
   }
   const line = `Edit: ${url}`;
-  return notesJson ? `${line}\n\n${notesJson}` : line;
+  return block ? `${line}\n\n${block}` : line;
 }
 
 /**

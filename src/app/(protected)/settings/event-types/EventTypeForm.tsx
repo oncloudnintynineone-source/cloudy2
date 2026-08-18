@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { useForm } from "@mantine/form";
 import { Button, Checkbox, Group, Modal, Stack, Text, TextInput } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
@@ -15,6 +16,7 @@ import {
   validateEventTypeForm,
   type EventTypeFormValues,
 } from "@/lib/eventTypes/validate";
+import { BUTTON_LOADER_PROPS } from "@/lib/theme";
 import {
   TIME_OPTIONS,
   TIME_OPTION_DESCRIPTIONS,
@@ -35,6 +37,7 @@ interface EventTypeFormProps {
 export function EventTypeForm({ eventType, onDone }: EventTypeFormProps) {
   const isEdit = eventType !== null;
   const [confirmOpened, { open: openConfirm, close: closeConfirm }] = useDisclosure(false);
+  const [deletingType, setDeletingType] = useState(false);
 
   const form = useForm<EventTypeFormValues>({
     initialValues: {
@@ -70,16 +73,21 @@ export function EventTypeForm({ eventType, onDone }: EventTypeFormProps) {
   });
 
   async function confirmDelete() {
-    if (!eventType) {
+    if (!eventType || deletingType) {
       return;
     }
-    const result = await deleteEventType(eventType.id);
-    closeConfirm();
-    if (result.ok) {
-      notifications.show({ color: "green", message: "Event type deleted" });
-      onDone();
-    } else {
-      notifications.show({ color: "red", message: result.error });
+    setDeletingType(true);
+    try {
+      const result = await deleteEventType(eventType.id);
+      closeConfirm();
+      if (result.ok) {
+        notifications.show({ color: "green", message: "Event type deleted" });
+        onDone();
+      } else {
+        notifications.show({ color: "red", message: result.error });
+      }
+    } finally {
+      setDeletingType(false);
     }
   }
 
@@ -124,7 +132,12 @@ export function EventTypeForm({ eventType, onDone }: EventTypeFormProps) {
               Delete
             </Button>
           )}
-          <Button type="submit" fullWidth={!isEdit}>
+          <Button
+            type="submit"
+            fullWidth={!isEdit}
+            loading={form.submitting}
+            loaderProps={BUTTON_LOADER_PROPS}
+          >
             {isEdit ? "Save changes" : "Create event type"}
           </Button>
         </Group>
@@ -142,7 +155,12 @@ export function EventTypeForm({ eventType, onDone }: EventTypeFormProps) {
               <Button variant="default" onClick={closeConfirm}>
                 Cancel
               </Button>
-              <Button color="red" onClick={confirmDelete}>
+              <Button
+                color="red"
+                loading={deletingType}
+                loaderProps={BUTTON_LOADER_PROPS}
+                onClick={confirmDelete}
+              >
                 Delete
               </Button>
             </Group>

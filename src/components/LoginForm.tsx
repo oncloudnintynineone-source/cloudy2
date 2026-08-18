@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import { signIn } from "next-auth/react";
 import { Button, Center, Paper, PasswordInput, Stack, Text, Title } from "@mantine/core";
 
+import { BUTTON_LOADER_PROPS } from "@/lib/theme";
+
 export function LoginForm() {
   const router = useRouter();
   const [input, setInput] = useState("");
@@ -64,7 +66,7 @@ export function LoginForm() {
                 {error}
               </Text>
             )}
-            <Button type="submit" loading={loading} fullWidth>
+            <Button type="submit" loading={loading} loaderProps={BUTTON_LOADER_PROPS} fullWidth>
               Sign in
             </Button>
           </Stack>

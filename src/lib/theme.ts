@@ -1,4 +1,4 @@
-import { createTheme, type MantineColorsTuple } from "@mantine/core";
+import { createTheme, type ButtonProps, type MantineColorsTuple } from "@mantine/core";
 
 const brand: MantineColorsTuple = [
   "#eef4fd",
@@ -34,3 +34,8 @@ export const theme = createTheme({
   },
   defaultRadius: "md",
 });
+
+/** Shared loader styling for Buttons that trigger async work. */
+export const BUTTON_LOADER_PROPS: NonNullable<ButtonProps["loaderProps"]> = {
+  type: "oval",
+};
