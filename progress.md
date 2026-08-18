@@ -38,6 +38,10 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
 - [1.25 Schedule view space optimization (Phase 2q)](#125-schedule-view-space-optimization-phase-2q)
 - [1.26 Git history](#126-git-history)
 - [1.27 Event time options + calendar preview (Phase 2r)](#127-event-time-options--calendar-preview-phase-2r)
+- [1.28 Calendar user filter (Phase 2s)](#128-calendar-user-filter-phase-2s)
+- [1.28 Admin events on behalf of another user (Phase 2s)](#128-admin-events-on-behalf-of-another-user-phase-2s)
+- [1.29 Admin-id UUID guard fix](#129-admin-id-uuid-guard-fix)
+- [1.30 Empty event title (Phase 2t)](#130-empty-event-title-phase-2t)
 
 ## 1.1 Status
 
@@ -75,7 +79,7 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
   `createdBy`/`inviteeUsers`/`inviteeDepartments` in the notes JSON, and an "Invitees"
   multi-select in the event form tags people/departments whose rows show the event. The
   view switcher is now a full-viewport tab strip (Month / Mobile / Schedule). No schema
-  changes;   `pnpm lint/typecheck/test` (103) pass, `db:generate` no drift; verified in the
+  changes; `pnpm lint/typecheck/test` (103) pass, `db:generate` no drift; verified in the
   dev environment against the live dev Google Calendar (invitee-tagged event rendered in
   both the department and user rows; smoke event deleted afterwards).
 - **Phase 2l (cross-department event copies):** the event form no longer offers a
@@ -104,30 +108,36 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
   compressed for mobile — user rows show the shortname (full-name tooltip), department rows
   drop their text for an icon, and the group header rotates 90° in a narrow column.
   `pnpm lint/typecheck/test` (152) pass; `db:generate` no drift (no schema change).
+- **Phase 2s (calendar user filter):** the `/dashboard` filter dialog gains a **Users** group
+  (role-scoped active users, display-name labels) with a one-tap **"Only me"** quick action
+  beside it; `?users=` is honored by `fetchMonthEvents`, showing events created by or tagged
+  on the selected users in every dashboard view. `pnpm build/lint/typecheck/test` (193) pass,
+  `db:generate` shows no drift.
 - **Deployment (Vercel):** build passes on `main`/`dev` with no warnings (Corepack +
   `NEXTAUTH_URL` unset). Migrations `0000` + `0001` applied to Neon (via CI migrate job);
   `0002`–`0005` pending (apply on next `main` push).
 
 ## 1.2 Decisions locked in (Phase 0)
 
-| Topic                    | Decision                                                                 |
-| ------------------------ | ------------------------------------------------------------------------ |
-| Architecture             | Single Next.js 16 (App Router) app — no monorepo                          |
-| UI                       | Mantine v9                                                               |
-| Database                 | Neon Postgres + Drizzle ORM                                              |
-| Auth                     | NextAuth v4, Credentials provider, **JWT sessions**                       |
-| Login UX                 | Single input field, auto-detect: admin password vs `[phone][keyword]`    |
-| Google integration       | GCP service account (Calendar v3 + Gmail v1); domain-wide delegation     |
-| GCal notes               | JSON block stored on events                                              |
-| Calendars                | Department-level calendars; `calendars` table is the department registry (kind = `department`) |
-| Parade states            | `parade_states` lookup table (code/label/description)                    |
-| Settings                 | Single-row `settings` table (admin password hash, keyword, KAH %)        |
-| User→dept                | One department per user: `users.department_id` → `calendars.id` (nullable, ON DELETE SET NULL) |
-| PWA / monorepo           | Deferred / not used                                                      |
+| Topic              | Decision                                                                                       |
+| ------------------ | ---------------------------------------------------------------------------------------------- |
+| Architecture       | Single Next.js 16 (App Router) app — no monorepo                                               |
+| UI                 | Mantine v9                                                                                     |
+| Database           | Neon Postgres + Drizzle ORM                                                                    |
+| Auth               | NextAuth v4, Credentials provider, **JWT sessions**                                            |
+| Login UX           | Single input field, auto-detect: admin password vs `[phone][keyword]`                          |
+| Google integration | GCP service account (Calendar v3 + Gmail v1); domain-wide delegation                           |
+| GCal notes         | JSON block stored on events                                                                    |
+| Calendars          | Department-level calendars; `calendars` table is the department registry (kind = `department`) |
+| Parade states      | `parade_states` lookup table (code/label/description)                                          |
+| Settings           | Single-row `settings` table (admin password hash, keyword, KAH %)                              |
+| User→dept          | One department per user: `users.department_id` → `calendars.id` (nullable, ON DELETE SET NULL) |
+| PWA / monorepo     | Deferred / not used                                                                            |
 
 ## 1.3 Implemented (Phase 1)
 
 ### 1.3.1 Tooling
+
 - Next.js `16.3.1` (Turbopack), React `19.2.8`, TypeScript, pnpm `11.18.0`
 - `packageManager` + `engines` pinned in `package.json`
 - Mantine v9 wired via `postcss.config.cjs` + `MantineProvider` + `optimizePackageImports`
@@ -137,6 +147,7 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
 - CI workflow (`.github/workflows/ci.yml`): lint, typecheck, test, schema-drift check
 
 ### 1.3.2 Database schema (`src/db/schema.ts`)
+
 7 tables: `users`, `departments`, `user_departments`, `calendars`, `acronyms`,
 `parade_states`, `settings`. Lazy DB client (`src/db/index.ts`) avoids requiring
 `DATABASE_URL` at build time. Migration generated at `drizzle/0000_serious_ezekiel_stane.sql`.
@@ -205,6 +216,7 @@ erDiagram
 ```
 
 ### 1.3.3 Auth & routing
+
 - `src/lib/auth.ts` — NextAuth config: Credentials + JWT, admin/user resolution, JWT/session
   callbacks that carry `id`, `role`, `phone`
 - `src/lib/login.ts` — pure (I/O-free) login parsing: `parseUserLogin`, `classifyLogin`
@@ -217,22 +229,24 @@ erDiagram
 - `src/components/` — `AcronymBadge`, `CalendarSelect`
 
 ### 1.3.4 Google integration (stub)
+
 - `src/lib/google/types.ts` — `GoogleIntegration` interface
 - `src/lib/google/stub.ts` — no-op implementation
 - `src/lib/google/index.ts` — `getGoogleIntegration()` returns the stub until credentials
   are provisioned
 
 ### 1.3.5 Tests
+
 - `src/lib/login.test.ts` — 8 passing tests (login parsing)
 
 ## 1.4 Verification status
 
-| Check              | Result |
-| ------------------ | ------ |
-| `pnpm build`       | pass   |
-| `pnpm lint`        | pass   |
-| `pnpm typecheck`   | pass   |
-| `pnpm test`        | 8/8    |
+| Check              | Result                |
+| ------------------ | --------------------- |
+| `pnpm build`       | pass                  |
+| `pnpm lint`        | pass                  |
+| `pnpm typecheck`   | pass                  |
+| `pnpm test`        | 8/8                   |
 | `pnpm db:generate` | 7 tables, 1 migration |
 
 ## 1.5 Deployment (Vercel) — current blocker & fix
@@ -250,6 +264,7 @@ Two issues were diagnosed and fixed in-repo (committed and pushed to both `dev` 
    config. Fix: enable Corepack so Vercel honors `packageManager: pnpm@11.18.0`.
 
 ### 1.5.1 Remaining manual steps (Vercel dashboard)
+
 - [x] Add `ENABLE_EXPERIMENTAL_COREPACK` = `1` — done, build passes with no warnings
 - [x] Add `NEXTAUTH_SECRET` (`openssl rand -base64 32`) — done per user
 - [x] Add `DATABASE_URL` (Neon) — done per user
@@ -564,8 +579,8 @@ flowchart LR
   the day-agenda modal shared with MonthView (whose old tap-to-create was replaced by the
   same modal, so creation is strictly from the floating "New event" button in both views —
   its default date stays "today"; the form's date picker covers other days). The
-   component's built-in header (year back-button + a month label duplicating our own) and
-   bottom event list (duplicated by the agenda modal) are hidden via the `styles` prop:
+  component's built-in header (year back-button + a month label duplicating our own) and
+  bottom event list (duplicated by the agenda modal) are hidden via the `styles` prop:
   `mobileMonthViewHeader` and `mobileMonthViewEventsList` → `{ display: "none" }`. The app's
   own header row remains the only navigation chrome.
 - **AgendaView modal** — a day tap in either view opens a floating `centered`
@@ -661,7 +676,7 @@ flowchart LR
 - **Notes** (`src/lib/events/notes.ts`) — `EventNotes` gains `createdBy?`,
   `inviteeUsers?`, `inviteeDepartments?`; `encodeEventNotes` now also strips empty
   arrays; new pure `parseEventPeople(description)` returns `{ creatorId, userIds,
-  departmentIds }` and tolerates absent/malformed values (unique, non-empty strings
+departmentIds }` and tolerates absent/malformed values (unique, non-empty strings
   only). Unit-tested in `notes.test.ts` (12 cases now).
 - **Schedule helpers** (new `src/lib/events/schedule.ts`, all pure, all unit-tested in
   `schedule.test.ts` — 12 cases):
@@ -756,7 +771,7 @@ sequenceDiagram
 - **Notes** (`src/lib/events/notes.ts`) — `EventNotes.eventId?`;
   `parseEventPeople` now also returns `eventId: string | null`.
 - **Datetime** (`src/lib/events/datetime.ts`) — new `absEventRange(naiveStart,
-  naiveEnd, allDay)`: timed events parse as UTC+8 instants, all-day events use Google's
+naiveEnd, allDay)`: timed events parse as UTC+8 instants, all-day events use Google's
   date / exclusive-end-date semantics. `buildGcalEventInput` refactored onto it; the
   reconcile search range is `unionRange(old, new)` grown ±1 day so copies whose times
   drifted (or are being moved) are still found.
@@ -767,7 +782,7 @@ sequenceDiagram
   in Month/Mobile/Agenda/Schedule. New batched `getUserDepartmentIds(userIds)`.
 - **Actions** (`src/lib/events/actions.ts`) — rewritten around `EventRef`:
   - `createEvent`: derive targets (empty ⇒ block error), `eventId =
-    crypto.randomUUID()`, one copy per target; a mid-loop failure rolls back the copies
+crypto.randomUUID()`, one copy per target; a mid-loop failure rolls back the copies
     already created; audit entry carries `eventId`, target calendar ids/names, and the
     Google event ids.
   - `updateEvent(ref, values)`: `oldTargets` from the ref's people fields, `newTargets`
@@ -844,7 +859,7 @@ string (no gap-collapsing).
   `src/db/schema.ts` updated; `drizzle/meta/` journal + snapshot generated. `ensureSettingsRow`
   needs no change.
 - **Formatter** — new pure `src/lib/settings/formatName.ts`: `formatFullName({ name,
-  departmentName }, template)` substitutes every `{...}` token case-insensitively, resolves
+departmentName }, template)` substitutes every `{...}` token case-insensitively, resolves
   missing values to `""`, leaves unknown tokens literal, and trims the result. Unit-tested
   (`formatName.test.ts`, 9 cases).
 - **Validation** (`src/lib/settings/validate.ts`) — `NameTemplateFormValues`/Errors and
@@ -916,7 +931,7 @@ flowchart LR
   `revalidatePath("/settings/templates")`).
 - **Round-trip fix** — the raw description is now stored in the notes JSON
   (`notes.title`; `parseEventTitle` in `src/lib/events/notes.ts`), so editing an event
-  prefills the form with the *original* text, not the rendered calendar title. Legacy
+  prefills the form with the _original_ text, not the rendered calendar title. Legacy
   events (no `notes.title`) fall back to the existing summary and are backfilled on
   first edit. `CalendarEventPayload.rawTitle` carries it to the client.
 - **Events actions** (`src/lib/events/actions.ts`) — `createEvent`/`updateEvent` resolve
@@ -1010,7 +1025,7 @@ flowchart LR
 - **Mantine 9.5.1 gotcha (verified in the installed package)** — the `vars` prop is a
   **resolver function** (`(theme, props, ctx) => ({ styleName: { "--css-var": value } })`),
   not a static object (a static object fails typecheck: `'styleName' does not exist in type
-  'PartialVarsResolver<…>'`). Var values are the full kebab-case CSS variable names, applied as
+'PartialVarsResolver<…>'`). Var values are the full kebab-case CSS variable names, applied as
   inline styles on the root element, overriding the component's own CSS-var defaults.
   `renderResourceLabel`/`renderGroupLabel` receive Mantine's `ScheduleResourceData`, so app
   fields are read via `resource as ScheduleResource` (a safe downcast — the source array is
@@ -1091,3 +1106,130 @@ flowchart LR
   preview.
 - Verification: `pnpm lint`, `pnpm typecheck`, `pnpm test` (175), `pnpm build`,
   and `pnpm db:generate` (no drift — migration `0010` in sync) all pass.
+
+## 1.28 Calendar user filter (Phase 2s)
+
+The `/dashboard` filter dialog gains a **Users** group for narrowing the calendar to specific
+people, plus a one-tap **"Only me"** quick action beside the group label. The selection
+persists in the URL as `?users=<id1,id2>` (same pattern as `cal`/`types`) and the filtering
+runs server-side in `fetchMonthEvents`, so every view (Month, Mobile, Agenda, Day/Schedule)
+renders the same filtered event set.
+
+```mermaid
+flowchart LR
+    A["Filter dialog<br/>Calendars · Users · Event Types"] -->|"Only me" toggle| B["?users=&lt;currentUserId&gt;"]
+    A -->|Apply| C["?cal= · ?types= · ?users="]
+    C --> D["dashboard page<br/>validate ids against listUsers()"]
+    D --> E["fetchMonthEvents<br/>userFilter"]
+    E --> F["eventMatchesUserFilter (pure)<br/>creator ∈ S or tagged ∩ S"]
+    F --> G["all dashboard views<br/>(rows unchanged)"]
+```
+
+- **Matching (decision)** — an event applies to a selected user when that user **created** it or
+  is **tagged** on it (`createdBy` / `inviteeUsers` in the notes JSON) — the same people scope
+  as the schedule view's personal rows. Department-tagged events do **not** match; they remain
+  reachable via the calendar filter.
+- **Pure helper** (new `src/lib/events/userFilter.ts`) — `eventMatchesUserFilter({ creatorId,
+inviteeUserIds }, selectedUserIds)`, I/O-free, unit-tested in `userFilter.test.ts`
+  (7 cases).
+- **Query** (`src/lib/events/queries.ts`) — `fetchMonthEvents` takes `userFilter: string[]`
+  alongside `typeFilter` and skips non-matching copies in the per-calendar loop. All copies of
+  a logical event share identical people notes, so per-copy filtering is equivalent to
+  post-dedupe filtering.
+- **Page** (`dashboard/page.tsx`) — parses the `users` param (comma list) and drops ids absent
+  from `listUsers()` (same treatment as `cal`/`types`); absent param = no filter. Passes
+  `selectedUserIds` to `DashboardView`.
+- **FilterModal** (`src/components/FilterModal.tsx`) — `FilterGroup` gains an optional generic
+  `action?: { label, icon?, isApplied, apply }`, rendered as a small toggle button beside the
+  group label (`variant` flips `default` ↔ `light` in the accent color when applied). The
+  action callback receives a draft-value setter plus the current/all option values. `UserTable`
+  passes no actions, so its behavior is unchanged.
+- **Users group** (`DashboardView.tsx`) — options come from the role-scoped `inviteeUsers`
+  (admin → all active users; regular user → own department) with display-name labels; the group
+  is hidden when empty. The **Only me** action (hidden when the current user is not among the
+  options) toggles the group draft between `[currentUser]` and "all selected" (which the
+  dialog normalizes to "no filter" on Apply, so `?users` clears on toggle-off).
+  `activeFilterCount` — and hence the Filters badge — counts the Users group whenever a subset
+  is applied.
+- **Scope (decision)** — the filter selects which **events** render only; the schedule view's
+  resource rows are unchanged. Existing URL behavior is untouched (params stay shareable; a
+  user opening a shared `?users=` link can only see events they could already see).
+- Verification: `pnpm lint`, `pnpm typecheck`, `pnpm test` (193), `pnpm build`, and
+  `pnpm db:generate` (no drift — no schema change) all pass.
+
+## 1.28 Admin events on behalf of another user (Phase 2s)
+
+Admins can now **create and edit events on behalf of any user**: a user picked in a
+new "On behalf of" selector becomes the event's creator (stored as `createdBy` in the
+notes block). The acting user is locked as an invitee (her department becomes a target
+calendar; she renders in the schedule row and in `{people}` title tokens). On edit the
+selector prefills the current creator and the admin may reassign it; the previous
+creator stays tagged unless manually removed.
+
+- **UI** (`src/app/(protected)/dashboard/EventForm.tsx`) — new `isAdmin` prop. Admins
+  see a required `Select` "On behalf of" (options = all active users, `displayName`
+  via the name template) bound to `creatorId`; non-admins see nothing. On create the
+  admin's `creatorId` starts empty; regular users still default to their own id. The
+  locked creator invitee chip is derived from `form.values.creatorId`, so it tracks the
+  acting user on every change. `validateEventForm` is called with
+  `{ requireCreator: isAdmin }` so an unset creator blocks submission with a field
+  error on the selector.
+- **Validation** (`src/lib/events/validate.ts`) — `validateEventForm(values, opts?)`
+  gains `opts.requireCreator`; when set, a blank `creatorId` returns
+  `errors.creatorId`. `EventFormErrors` gains `creatorId?`. Unit-tested (2 new cases).
+- **Actions** (`src/lib/events/actions.ts`) — `createEvent`/`updateEvent` pass
+  `{ requireCreator: role === "admin" }` (server-side enforcement of the required
+  creator) and a new `creatorGuard` authorizes the creator: admins may use any id;
+  a non-admin may use only their own id, or (on update) the event's existing creator —
+  so invited editors aren't blocked while forging is rejected. `EventResultField`
+  (extracted from the union) now includes `"creatorId"` and the validate-failure return
+  highlights the actual first field instead of hardcoding `title`.
+- **Threading** — `isAdmin` flows `dashboard/page.tsx` → `DashboardView` → `EventForm`.
+- **Verification** — `pnpm lint`, `pnpm typecheck`, `pnpm test` (186), `pnpm build`,
+  and `pnpm db:generate` (no drift — no schema change) all pass. (Live smoke against a
+  configured Google account still pending.)
+
+## 1.29 Admin-id UUID guard fix
+
+The virtual admin session id `"admin"` is not a `users` row (the admin authenticates via
+the settings password hash) and is **not a UUID** — but its `users.id` column is a
+Postgres `uuid`. Admin create/delete passed `"admin"` into the `inArray(users.id, [...])`
+lookup behind target-calendar and title resolution, crashing with
+`invalid input syntax for type uuid: "admin"` (a 500) before any Google call.
+
+- **Root cause** — `src/lib/auth.ts` `authorize` returns `{ id: "admin" }` for the admin
+  password login. `createEvent`/`deleteEvent` → `resolveTargetCalendars` →
+  `getUserDepartmentIds(["admin", <uuid>, …])`; the same latent bug existed in
+  `buildEventTitleContext` → `getUsersByIds`.
+- **Fix** — new pure `src/lib/uuid.ts`: `isUuid(value)` (canonical regex) and
+  `onlyUuidIds(ids)` (filter). Both `getUserDepartmentIds`
+  (`src/lib/events/queries.ts`) and `getUsersByIds` (`src/lib/roster/queries.ts`) now
+  filter to UUID ids before the query, so `"admin"` resolves to no department/no user
+  rather than crashing. Unit-tested (`src/lib/uuid.test.ts`, 4 cases). Later phases
+  build on this: the admin's virtual id is superseded by the "on behalf of" acting-user
+  selection (Phase 2s).
+
+## 1.30 Empty event title (Phase 2t)
+
+The event form's **Event Description** is now **optional**: an event may be created or
+edited with no description, in which case the Google Calendar summary is whatever the
+event title template renders on its own (type/people/departments) — and if the template
+also renders nothing, the event is genuinely untitled (shown as `"(no title)"` in the
+dashboard, which `fetchMonthEvents` already handled).
+
+- **Validation** (`src/lib/events/validate.ts`) — the "Description is required" check is
+  gone; `EventFormErrors.title` removed. The form `TextInput` drops `required` and gains a
+  hint: "Optional — the calendar title is rendered from the title template".
+- **Suffix guard** (`src/lib/events/actions.ts` `buildGcalEventInput`, mirrored in the
+  `EventForm` preview) — the `(AM)/(PM)` full-day suffix is appended only when the title
+  base is non-empty, so a titleless event never becomes a bare `"(AM)"` summary. The
+  preview now also trims the raw fallback, matching the server.
+- **Notes round-trip** (`src/lib/events/notes.ts`) — an empty description must survive
+  storage so the edit form doesn't prefill the _rendered_ template title as the
+  description: `encodeEventNotes` keeps `title: ""` (an exception to its blank-stripping)
+  and `parseEventTitle` returns `""` for it (null only for legacy events without the
+  field). The form prefill (`rawTitle ?? …`) then correctly restores `""`.
+- No schema/Google-transport changes (`events.update` is a full replace, so an empty
+  summary clears the title on edit). Audit `entityName` is simply `""` for such events.
+- Verification: `pnpm test` (195), `pnpm typecheck`, `pnpm lint` all pass; no schema
+  change, `pnpm db:generate` drift-free.

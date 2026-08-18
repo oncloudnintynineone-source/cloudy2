@@ -11,7 +11,8 @@ export interface EventNotes {
   /**
    * The raw description typed into the event form, kept so editing can
    * prefill the form with the original text instead of the templated title
-   * rendered into the Google event summary.
+   * rendered into the Google event summary. An empty string is preserved
+   * (unlike other blank values) to record a deliberately empty description.
    */
   title?: string;
   /** Logical event group id; all linked copies (one per department calendar) share it. */
@@ -34,13 +35,20 @@ export interface EventNotes {
 /** Serialize notes to the JSON string stored on the event, or "" when empty. */
 export function encodeEventNotes(notes: EventNotes): string {
   const cleaned = Object.fromEntries(
-    Object.entries(notes).filter(
-      ([, value]) =>
-        value !== undefined &&
-        value !== null &&
-        value !== "" &&
-        !(Array.isArray(value) && value.length === 0),
-    ),
+    Object.entries(notes).filter(([key, value]) => {
+      if (value === undefined || value === null) {
+        return false;
+      }
+      if (Array.isArray(value) && value.length === 0) {
+        return false;
+      }
+      // A blank title must round-trip so the edit form can tell "no
+      // description was typed" apart from a legacy event without notes.
+      if (value === "") {
+        return key === "title";
+      }
+      return true;
+    }),
   );
   return Object.keys(cleaned).length === 0 ? "" : JSON.stringify(cleaned);
 }
@@ -105,11 +113,15 @@ export function parseEventType(description: string): string | null {
   return typeof eventType === "string" && eventType ? eventType : null;
 }
 
-/** Extract the raw (pre-template) description from the notes block, or null (legacy). */
+/**
+ * Extract the raw (pre-template) description from the notes block: an empty
+ * string when the description was deliberately left blank, null for legacy
+ * events that predate the field.
+ */
 export function parseEventTitle(description: string): string | null {
   const notes = parseEventNotes(description);
   const title = notes?.title;
-  return typeof title === "string" && title ? title : null;
+  return typeof title === "string" ? title : null;
 }
 
 /** Extract the datetime option from the notes block, or null (legacy). */

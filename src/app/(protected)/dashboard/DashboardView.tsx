@@ -24,6 +24,7 @@ import {
   IconChevronLeft,
   IconChevronRight,
   IconPlus,
+  IconUser,
 } from "@tabler/icons-react";
 
 import {
@@ -66,7 +67,10 @@ interface DashboardViewProps {
   googleConfigured: boolean;
   selectedCalendarIds: string[];
   selectedTypes: string[];
+  selectedUserIds: string[];
   currentUser: string;
+  /** Admin may create/edit events on behalf of any user. */
+  isAdmin: boolean;
   scheduleUsers: ScheduleUser[];
   inviteeDepartments: { id: string; name: string }[];
   inviteeUsers: {
@@ -98,7 +102,9 @@ export function DashboardView({
   googleConfigured,
   selectedCalendarIds,
   selectedTypes,
+  selectedUserIds,
   currentUser,
+  isAdmin,
   scheduleUsers,
   inviteeDepartments,
   inviteeUsers,
@@ -126,6 +132,27 @@ export function DashboardView({
     const groups: FilterGroup[] = [
       { label: "Calendars", options: calendars.map((c) => ({ value: c.id, label: c.name })) },
     ];
+    const userOptions = inviteeUsers.map((user) => ({
+      value: user.id,
+      label: user.displayName,
+    }));
+    if (userOptions.length > 0) {
+      groups.push({
+        label: "Users",
+        options: userOptions,
+        action: inviteeUsers.some((user) => user.id === currentUser)
+          ? {
+              label: "Only me",
+              icon: <IconUser size={14} />,
+              isApplied: (selected) => selected.length === 1 && selected[0] === currentUser,
+              apply: (setValues, { selected, allValues }) => {
+                const isActive = selected.length === 1 && selected[0] === currentUser;
+                setValues(isActive ? allValues : [currentUser]);
+              },
+            }
+          : undefined,
+      });
+    }
     if (eventTypes.length > 0) {
       groups.push({
         label: "Event Types",
@@ -133,15 +160,20 @@ export function DashboardView({
       });
     }
     return groups;
-  }, [calendars, eventTypes]);
+  }, [calendars, inviteeUsers, currentUser, eventTypes]);
 
   const filterValues: Record<string, string[]> = useMemo(
-    () => ({ Calendars: selectedCalendarIds, "Event Types": selectedTypes }),
-    [selectedCalendarIds, selectedTypes],
+    () => ({
+      Calendars: selectedCalendarIds,
+      Users: selectedUserIds,
+      "Event Types": selectedTypes,
+    }),
+    [selectedCalendarIds, selectedUserIds, selectedTypes],
   );
 
   const activeFilterCount =
     (selectedCalendarIds.length > 0 && selectedCalendarIds.length < calendars.length ? 1 : 0) +
+    (selectedUserIds.length > 0 ? 1 : 0) +
     (selectedTypes.length > 0 ? 1 : 0);
 
   const scheduleDepartments = useMemo(
@@ -236,9 +268,11 @@ export function DashboardView({
   function handleApplyFilters(values: Record<string, string[]>) {
     setTargetView(view);
     const cals = values.Calendars ?? [];
+    const users = values.Users ?? [];
     const types = values["Event Types"] ?? [];
     navigate({
       cal: cals.length > 0 ? cals.join(",") : null,
+      users: users.length > 0 ? users.join(",") : null,
       types: types.length > 0 ? types.join(",") : null,
     });
   }
@@ -271,13 +305,13 @@ export function DashboardView({
           <Tabs.Tab value="mobile">
             <Group gap="xs" justify="center" wrap="nowrap">
               <IconCalendarDot size={16} />
-              <Text fw={600} size="sm">Mobile</Text>
+              <Text fw={600} size="sm">S. Month</Text>
             </Group>
           </Tabs.Tab>
           <Tabs.Tab value="schedule">
             <Group gap="xs" justify="center" wrap="nowrap">
               <IconCalendarUser size={16} />
-              <Text fw={600} size="sm">Schedule</Text>
+              <Text fw={600} size="sm">Day</Text>
             </Group>
           </Tabs.Tab>
         </Tabs.List>
@@ -489,6 +523,7 @@ export function DashboardView({
             eventTypes={eventTypes}
             eventTitleTemplate={eventTitleTemplate}
             currentUser={currentUser}
+            isAdmin={isAdmin}
             inviteeDepartments={inviteeDepartments}
             inviteeUsers={inviteeUsers}
             onDone={() => {

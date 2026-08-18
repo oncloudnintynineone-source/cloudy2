@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { Button, Checkbox, Group, Modal, SimpleGrid, Stack, Text } from "@mantine/core";
 
 export interface FilterOption {
@@ -8,9 +8,23 @@ export interface FilterOption {
   label: string;
 }
 
+export interface FilterGroupAction {
+  label: string;
+  icon?: ReactNode;
+  /** True when the quick action is currently active (drives the button styling). */
+  isApplied: (selected: string[]) => boolean;
+  /** Called on click with this group's draft value setter and current values. */
+  apply: (
+    setValues: (values: string[]) => void,
+    context: { selected: string[]; allValues: string[] },
+  ) => void;
+}
+
 export interface FilterGroup {
   label: string;
   options: FilterOption[];
+  /** Optional quick action rendered beside the group label (e.g. "only me"). */
+  action?: FilterGroupAction;
 }
 
 interface FilterModalProps {
@@ -99,9 +113,30 @@ function FilterModalBody({
     <Stack>
       {groups.map((group) => (
         <div key={group.label}>
-          <Text fw={600} size="sm">
-            {group.label}
-          </Text>
+          <Group justify="space-between" align="center" gap="xs">
+            <Text fw={600} size="sm">
+              {group.label}
+            </Text>
+            {group.action && (
+              <Button
+                size="xs"
+                variant={group.action.isApplied(draft[group.label] ?? []) ? "light" : "default"}
+                color="accent"
+                leftSection={group.action.icon}
+                onClick={() =>
+                  group.action?.apply(
+                    (values) => handleGroupChange(group.label, values),
+                    {
+                      selected: draft[group.label] ?? [],
+                      allValues: allOptionValues(group),
+                    },
+                  )
+                }
+              >
+                {group.action.label}
+              </Button>
+            )}
+          </Group>
           <Checkbox.Group
             value={draft[group.label] ?? []}
             onChange={(value) => handleGroupChange(group.label, value)}

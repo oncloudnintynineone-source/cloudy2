@@ -30,12 +30,17 @@ export interface EventFormValues {
 }
 
 export interface EventFormErrors {
-  title?: string;
   startAmPm?: string;
   endAmPm?: string;
   start?: string;
   end?: string;
+  creatorId?: string;
   [key: string]: string | undefined;
+}
+
+export interface EventFormValidateOptions {
+  /** Require a creator id (used for admin "on behalf of" creation). */
+  requireCreator?: boolean;
 }
 
 /** Chronological sort key for a side, folding the half-of-day indicator in. */
@@ -62,11 +67,14 @@ export function withCreatorInvited(values: EventFormValues): EventFormValues {
   return { ...values, inviteeUserIds };
 }
 
-export function validateEventForm(values: EventFormValues): EventFormErrors {
+export function validateEventForm(
+  values: EventFormValues,
+  options?: EventFormValidateOptions,
+): EventFormErrors {
   const errors: EventFormErrors = {};
 
-  if (!values.title.trim()) {
-    errors.title = "Description is required";
+  if (options?.requireCreator && !values.creatorId.trim()) {
+    errors.creatorId = "Choose who this event is on behalf of";
   }
   if (values.timeOption === "full") {
     if (!values.startAmPm) {

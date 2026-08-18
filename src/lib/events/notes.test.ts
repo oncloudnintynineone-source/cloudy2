@@ -21,6 +21,14 @@ describe("encodeEventNotes", () => {
     expect(encodeEventNotes({})).toBe("");
   });
 
+  it("keeps a deliberately empty title so it round-trips", () => {
+    expect(encodeEventNotes({ title: "" })).toBe('{"title":""}');
+    expect(encodeEventNotes({ title: "", eventType: "Leave" })).toBe(
+      '{"title":"","eventType":"Leave"}',
+    );
+    expect(encodeEventNotes({ title: "Team offsite" })).toBe('{"title":"Team offsite"}');
+  });
+
   it("drops empty arrays", () => {
     expect(encodeEventNotes({ inviteeUsers: [], inviteeDepartments: [] })).toBe("");
     expect(encodeEventNotes({ eventType: "Leave", inviteeUsers: [] })).toBe(
@@ -55,7 +63,12 @@ describe("encodeEventNotes", () => {
 
   it("drops the indicators for timed events", () => {
     expect(
-      encodeEventNotes({ eventType: "Leave", timeOption: "range", startAmPm: undefined, endAmPm: undefined }),
+      encodeEventNotes({
+        eventType: "Leave",
+        timeOption: "range",
+        startAmPm: undefined,
+        endAmPm: undefined,
+      }),
     ).toBe('{"eventType":"Leave","timeOption":"range"}');
   });
 });
@@ -90,10 +103,13 @@ describe("parseEventTitle", () => {
     expect(parseEventTitle('{"title":"Team offsite"}')).toBe("Team offsite");
   });
 
+  it("returns an empty string for a deliberately blank title", () => {
+    expect(parseEventTitle('{"title":""}')).toBe("");
+  });
+
   it("returns null for legacy notes without a title", () => {
     expect(parseEventTitle("")).toBeNull();
     expect(parseEventTitle('{"eventType":"Leave"}')).toBeNull();
-    expect(parseEventTitle('{"title":""}')).toBeNull();
     expect(parseEventTitle("not json")).toBeNull();
   });
 });

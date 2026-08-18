@@ -20,8 +20,20 @@ describe("validateEventForm", () => {
     expect(validateEventForm(base)).toEqual({});
   });
 
-  it("requires a description", () => {
-    expect(validateEventForm({ ...base, title: "  " }).title).toBe("Description is required");
+  it("allows an empty description (title comes from the template)", () => {
+    expect(validateEventForm({ ...base, title: "" })).toEqual({});
+    expect(validateEventForm({ ...base, title: "  " })).toEqual({});
+  });
+
+  it("requires a creator when requireCreator is set", () => {
+    expect(validateEventForm({ ...base, creatorId: "" }, { requireCreator: true }).creatorId).toBe(
+      "Choose who this event is on behalf of",
+    );
+    expect(validateEventForm(base, { requireCreator: true })).toEqual({});
+  });
+
+  it("does not require a creator by default", () => {
+    expect(validateEventForm({ ...base, creatorId: "" })).toEqual({});
   });
 
   it("requires start and end", () => {
@@ -31,8 +43,7 @@ describe("validateEventForm", () => {
 
   it("rejects an end before the start", () => {
     expect(
-      validateEventForm({ ...base, start: "2026-08-15 10:00:00", end: "2026-08-15 09:00:00" })
-        .end,
+      validateEventForm({ ...base, start: "2026-08-15 10:00:00", end: "2026-08-15 09:00:00" }).end,
     ).toBe("End must be on or after start");
   });
 
@@ -118,15 +129,15 @@ describe("withCreatorInvited", () => {
   });
 
   it("dedupes the creator already in the invitee list", () => {
-    expect(withCreatorInvited({ ...base, inviteeUserIds: ["user-1", "user-2"] }).inviteeUserIds).toEqual(
-      ["user-1", "user-2"],
-    );
+    expect(
+      withCreatorInvited({ ...base, inviteeUserIds: ["user-1", "user-2"] }).inviteeUserIds,
+    ).toEqual(["user-1", "user-2"]);
   });
 
   it("leaves other invitees in form order", () => {
-    expect(withCreatorInvited({ ...base, inviteeUserIds: ["user-2", "user-3"] }).inviteeUserIds).toEqual(
-      ["user-1", "user-2", "user-3"],
-    );
+    expect(
+      withCreatorInvited({ ...base, inviteeUserIds: ["user-2", "user-3"] }).inviteeUserIds,
+    ).toEqual(["user-1", "user-2", "user-3"]);
   });
 
   it("no-ops when there is no creator", () => {

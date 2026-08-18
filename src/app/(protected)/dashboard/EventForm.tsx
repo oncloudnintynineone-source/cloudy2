@@ -8,6 +8,7 @@ import {
   MultiSelect,
   Paper,
   SegmentedControl,
+  Select,
   Stack,
   Tabs,
   Text,
@@ -58,6 +59,8 @@ interface EventFormProps {
   eventTitleTemplate: string;
   /** Session user id; stored as the event creator on create. */
   currentUser: string;
+  /** Admin may create/edit events on behalf of any user (via the creator select). */
+  isAdmin: boolean;
   inviteeDepartments: { id: string; name: string }[];
   inviteeUsers: InviteeUser[];
   onDone: () => void;
@@ -92,25 +95,22 @@ export function EventForm({
   eventTypes,
   eventTitleTemplate,
   currentUser,
+  isAdmin,
   inviteeDepartments,
   inviteeUsers,
   onDone,
 }: EventFormProps) {
   const isEdit = event !== null;
-  // The event creator is always an invitee; the select value holding them is
-  // re-added on every change so the chip can't be cleared or deselected.
-  const lockedUserValue = isEdit
-    ? event.payload.creatorId
-      ? `user:${event.payload.creatorId}`
-      : null
-    : currentUser
-      ? `user:${currentUser}`
-      : null;
 
   const form = useForm<EventFormState>({
     initialValues: buildInitialValues(),
-    validate: (values) => validateEventForm(values),
+    validate: (values) => validateEventForm(values, { requireCreator: isAdmin }),
   });
+
+  // The event creator is always an invitee; the select value holding them is
+  // re-added on every change so the chip can't be cleared or deselected. For
+  // regular users the creator is their own (locked) id; admins can change it.
+  const lockedUserValue = form.values.creatorId ? `user:${form.values.creatorId}` : null;
 
   function buildInitialValues(): EventFormState {
     if (event) {
@@ -147,11 +147,12 @@ export function EventForm({
       start: `${defaultDate} 09:00:00`,
       end: `${defaultDate} 10:00:00`,
       eventType: "",
-      creatorId: currentUser,
+      // Admins pick who the event is on behalf of; regular users create as
+      // themselves (their own id is always locked as an invitee).
+      creatorId: isAdmin ? "" : currentUser,
       inviteeUserIds: [],
       inviteeDepartments: [],
-      // The creator is always an invitee of their own event.
-      invitees: currentUser ? [`user:${currentUser}`] : [],
+      invitees: isAdmin ? [] : currentUser ? [`user:${currentUser}`] : [],
     };
   }
 
@@ -262,9 +263,10 @@ export function EventForm({
       people,
       departments,
     };
-    const base = formatEventTitle(input, eventTitleTemplate) || form.values.title;
+    const base = formatEventTitle(input, eventTitleTemplate) || form.values.title.trim();
     const amPm = amPmSuffix(form.values.startAmPm, form.values.endAmPm);
-    return effectiveTimeOption === "full" && amPm ? `${base} (${amPm})` : base;
+    // Matches the server: an empty title gets no bare "(AM)" suffix.
+    return base && effectiveTimeOption === "full" && amPm ? `${base} (${amPm})` : base;
   })();
 
   const onSubmit = form.onSubmit(async (values) => {
@@ -366,11 +368,39 @@ export function EventForm({
       <Stack>
         <TextInput
           label="Event Description"
-          required
+          description="Optional — the calendar title is rendered from the title template"
           placeholder="Event title"
           data-autofocus
           {...form.getInputProps("title")}
         />
+
+        {isAdmin && (
+          <Select
+            label="On behalf of"
+            description="Create or edit this event as another user"
+            placeholder="Select a user"
+            data={inviteeUsers.map((user) => ({ value: user.id, label: user.displayName }))}
+            value={form.values.creatorId || null}
+            onChange={(value) => {
+              const next = value ?? "";
+              const previous = form.values.creatorId;
+              // The creator is always an invitee; keep the invitee chips and the
+              // live preview in sync with the acting user (matching the server's
+              // withCreatorInvited normalization).
+              const invitees = form.values.invitees.filter(
+                (entry) => `${entry}` !== (previous ? `user:${previous}` : `${entry}`),
+              );
+              form.setFieldValue("creatorId", next);
+              form.setFieldValue(
+                "invitees",
+                next ? [...new Set([...invitees, `user:${next}`])] : invitees,
+              );
+            }}
+            error={form.errors.creatorId}
+            searchable
+            required
+          />
+        )}
 
         <Stack gap="xs">
           <Text size="sm" fw={500}>

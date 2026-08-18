@@ -5,6 +5,7 @@ import { eq, inArray } from "drizzle-orm";
 import { db } from "@/db";
 import { calendars, users } from "@/db/schema";
 import { getGoogleIntegration } from "@/lib/google";
+import { onlyUuidIds } from "@/lib/uuid";
 import { formatInstantToNaive, monthRange, utcToDateString } from "@/lib/events/datetime";
 import {
   parseEventEndAmPm,
@@ -16,6 +17,7 @@ import {
 } from "@/lib/events/notes";
 import type { TimeOption } from "@/lib/events/timeOptions";
 import { dedupeEventsByGroupId } from "@/lib/events/targets";
+import { eventMatchesUserFilter } from "@/lib/events/userFilter";
 
 export interface CalendarEventPayload {
   calendarId: string;
@@ -94,7 +96,7 @@ export async function getUserDepartmentId(userId: string): Promise<string | null
 export async function getUserDepartmentIds(
   userIds: string[],
 ): Promise<Record<string, string | null>> {
-  const uniqueIds = [...new Set(userIds)];
+  const uniqueIds = [...new Set(onlyUuidIds(userIds))];
   if (uniqueIds.length === 0) {
     return {};
   }
@@ -110,6 +112,8 @@ export async function fetchMonthEvents(params: {
   month: string;
   calendarIds: string[];
   typeFilter: string[];
+  /** Keep only events created by or tagged on one of these users (empty = no filter). */
+  userFilter: string[];
 }): Promise<CalendarEvent[]> {
   if (params.calendarIds.length === 0) {
     return [];
@@ -134,6 +138,15 @@ export async function fetchMonthEvents(params: {
         continue;
       }
       const people = parseEventPeople(item.description);
+      if (
+        params.userFilter.length > 0 &&
+        !eventMatchesUserFilter(
+          { creatorId: people.creatorId, inviteeUserIds: people.userIds },
+          params.userFilter,
+        )
+      ) {
+        continue;
+      }
       events.push({
         id: `${calendar.id}:${item.id}`,
         title: item.title || "(no title)",

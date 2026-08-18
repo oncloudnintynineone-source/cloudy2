@@ -11,15 +11,8 @@ import { absEventRange } from "@/lib/events/datetime";
 import { encodeEventNotes, parseEventPeople } from "@/lib/events/notes";
 import { amPmSuffix, resolveTimeOption, type TimeOption } from "@/lib/events/timeOptions";
 import { getUserDepartmentIds } from "@/lib/events/queries";
-import {
-  deriveTargetCalendarIds,
-  type EventRef,
-} from "@/lib/events/targets";
-import {
-  validateEventForm,
-  withCreatorInvited,
-  type EventFormValues,
-} from "@/lib/events/validate";
+import { deriveTargetCalendarIds, type EventRef } from "@/lib/events/targets";
+import { validateEventForm, withCreatorInvited, type EventFormValues } from "@/lib/events/validate";
 import { getEventTypesByNames } from "@/lib/eventTypes/queries";
 import { getGoogleIntegration, googleCalendarConfigured, type GcalEventInput } from "@/lib/google";
 import { getUsersByIds } from "@/lib/roster/queries";
@@ -33,12 +26,35 @@ import { formatFullName } from "@/lib/settings/formatName";
 import { getSettings } from "@/lib/settings/queries";
 import { requireSession } from "@/lib/session";
 
+export type EventResultField = "title" | "start" | "end" | "startAmPm" | "endAmPm" | "creatorId";
+
 export type EventActionResult =
-  | { ok: true }
-  | { ok: false; error: string; field?: "title" | "start" | "end" };
+  { ok: true } | { ok: false; error: string; field?: EventResultField };
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : "Google Calendar request failed";
+}
+
+/**
+ * A non-admin may create/edit events as themselves, and (on edit) keep an
+ * event's existing creator — but never introduce a different creator. Admins
+ * may act on behalf of any user. Returns an error message when denied.
+ */
+function creatorGuard(
+  session: Awaited<ReturnType<typeof requireSession>>,
+  pendingCreatorId: string,
+  originalCreatorId: string | null,
+): string | null {
+  if (session.user.role === "admin") {
+    return null;
+  }
+  if (!pendingCreatorId || pendingCreatorId === session.user.id) {
+    return null;
+  }
+  if (originalCreatorId && pendingCreatorId === originalCreatorId) {
+    return null;
+  }
+  return "You can only create or edit events for yourself";
 }
 
 function arrayLength(value: unknown): number {
@@ -98,7 +114,7 @@ async function resolveTargetCalendars(
     invitedUserDepartmentIds: inviteeUserIds.map((id) => userDepartments[id] ?? null),
     invitedDepartmentIds: inviteeDepartments,
   });
-  return derived.length > 0 ? derived : (fallbackCalendarId ? [fallbackCalendarId] : []);
+  return derived.length > 0 ? derived : fallbackCalendarId ? [fallbackCalendarId] : [];
 }
 
 /** Target set for an existing (representative) copy, from its own people fields. */
@@ -204,10 +220,13 @@ function buildGcalEventInput(
     },
     titleContext.template,
   );
-  // A template that renders to nothing must not produce an untitled event.
+  // When the template renders nothing, fall back to the raw description —
+  // which may itself be empty, producing an intentionally untitled event.
   const baseTitle = renderedTitle || rawTitle;
   const amPm = amPmSuffix(input.startAmPm, input.endAmPm);
-  const title = input.timeOption === "full" && amPm ? `${baseTitle} (${amPm})` : baseTitle;
+  // An empty title gets no bare "(AM)" suffix.
+  const title =
+    baseTitle && input.timeOption === "full" && amPm ? `${baseTitle} (${amPm})` : baseTitle;
   const description = encodeEventNotes({
     eventId,
     eventType: input.eventType || undefined,
@@ -268,9 +287,7 @@ async function legacyFallback(ref: EventRef): Promise<{
     return null;
   }
   const googleCalendarId = await resolveGoogleCalendarId(ref.calendarId);
-  return googleCalendarId
-    ? { googleCalendarId, googleEventId: ref.googleEventId }
-    : null;
+  return googleCalendarId ? { googleCalendarId, googleEventId: ref.googleEventId } : null;
 }
 
 async function calendarNames(calendarIds: string[]): Promise<Record<string, string>> {
@@ -288,9 +305,15 @@ export async function createEvent(input: EventFormValues): Promise<EventActionRe
   const session = await requireSession();
   const normalized = withCreatorInvited(input);
 
-  const errors = validateEventForm(normalized);
+  const creatorError = creatorGuard(session, normalized.creatorId, null);
+  if (creatorError) {
+    return { ok: false, error: creatorError };
+  }
+
+  const errors = validateEventForm(normalized, { requireCreator: session.user.role === "admin" });
   if (Object.keys(errors).length > 0) {
-    return { ok: false, error: "Check the highlighted fields", field: "title" };
+    const firstField = Object.keys(errors)[0] as EventResultField;
+    return { ok: false, error: "Check the highlighted fields", field: firstField };
   }
 
   if (!googleCalendarConfigured()) {
@@ -362,13 +385,22 @@ export async function createEvent(input: EventFormValues): Promise<EventActionRe
  * departments no longer involved are deleted. The plan is idempotent, so a
  * half-failed attempt self-heals on retry.
  */
-export async function updateEvent(ref: EventRef, input: EventFormValues): Promise<EventActionResult> {
+export async function updateEvent(
+  ref: EventRef,
+  input: EventFormValues,
+): Promise<EventActionResult> {
   const session = await requireSession();
   const normalized = withCreatorInvited(input);
 
-  const errors = validateEventForm(normalized);
+  const creatorError = creatorGuard(session, normalized.creatorId, ref.creatorId);
+  if (creatorError) {
+    return { ok: false, error: creatorError };
+  }
+
+  const errors = validateEventForm(normalized, { requireCreator: session.user.role === "admin" });
   if (Object.keys(errors).length > 0) {
-    return { ok: false, error: "Check the highlighted fields", field: "title" };
+    const firstField = Object.keys(errors)[0] as EventResultField;
+    return { ok: false, error: "Check the highlighted fields", field: firstField };
   }
 
   if (!googleCalendarConfigured()) {
@@ -389,7 +421,11 @@ export async function updateEvent(ref: EventRef, input: EventFormValues): Promis
   const range = withMargin(
     unionRange(
       absEventRange(ref.start, ref.end, ref.allDay),
-      absEventRange(effectiveInput.start, effectiveInput.end, effectiveInput.timeOption !== "range"),
+      absEventRange(
+        effectiveInput.start,
+        effectiveInput.end,
+        effectiveInput.timeOption !== "range",
+      ),
     ),
   );
   const fallback = await legacyFallback(ref);

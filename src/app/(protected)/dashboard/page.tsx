@@ -74,6 +74,12 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
       ? []
       : typesParam.filter((name) => typeNames.includes(name));
 
+  const allUserIds = allUsers.map((user) => user.id);
+  const usersParam =
+    typeof params.users === "string" ? params.users.split(",").filter(Boolean) : [];
+  const selectedUsers =
+    params.users === undefined ? [] : usersParam.filter((id) => allUserIds.includes(id));
+
   // Schedule view rows: active users whose department is among the selected
   // calendars. Invitee picker options are role-scoped: admins can tag any
   // department/user, regular users only their own department.
@@ -124,6 +130,7 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
     month,
     calendarIds: selectedCalendars,
     typeFilter: selectedTypes,
+    userFilter: selectedUsers,
   });
 
   return (
@@ -138,7 +145,9 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
       googleConfigured={googleCalendarConfigured()}
       selectedCalendarIds={selectedCalendars}
       selectedTypes={selectedTypes}
+      selectedUserIds={selectedUsers}
       currentUser={session.user.id}
+      isAdmin={isAdmin}
       scheduleUsers={scheduleUsers}
       inviteeDepartments={inviteeDepartments}
       inviteeUsers={inviteeUsers}

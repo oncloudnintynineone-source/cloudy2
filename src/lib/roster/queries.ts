@@ -3,6 +3,7 @@ import { asc, eq, inArray } from "drizzle-orm";
 import { db } from "@/db";
 import { calendars, users } from "@/db/schema";
 import type { UserRole, UserStatus } from "@/lib/roster/validate";
+import { onlyUuidIds } from "@/lib/uuid";
 
 export interface RosterDepartment {
   id: string;
@@ -65,7 +66,7 @@ export interface UserDisplayInfo {
  * rendering event title templates. Unknown ids are omitted from the result.
  */
 export async function getUsersByIds(userIds: string[]): Promise<UserDisplayInfo[]> {
-  const uniqueIds = [...new Set(userIds)];
+  const uniqueIds = [...new Set(onlyUuidIds(userIds))];
   if (uniqueIds.length === 0) {
     return [];
   }
