@@ -46,6 +46,7 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
 - [1.32 Compressed opaque notes block (Phase 2v)](#132-compressed-opaque-notes-block-phase-2v)
 - [1.33 Searchable user filter (Phase 2w)](#133-searchable-user-filter-phase-2w)
 - [1.34 PWA installability (Phase 3a)](#134-pwa-installability-phase-3a)
+- [1.35 Touch-friendly input heights (Phase 3b)](#135-touch-friendly-input-heights-phase-3b)
 
 ## 1.1 Status
 
@@ -141,8 +142,15 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
   served from `/serwist/sw.js`. **Network-first policy:** the SW caches only immutable
   static assets; pages, RSC, auth, and any `/api/*` are `NetworkOnly` so data is always
   fresh from the DB/Google Calendar and never served stale. No push notifications yet.
-  `pnpm build` (SW bundled, 50 precache entries) + `lint/typecheck/test` (220) pass,
-  `db:generate` no drift. Manual iOS/Android install checks pending.
+   `pnpm build` (SW bundled, 50 precache entries) + `lint/typecheck/test` (220) pass,
+   `db:generate` no drift. Manual iOS/Android install checks pending.
+- **Phase 3b (touch-friendly input heights):** every single-line input (text boxes +
+   dropdowns) is 1.2× taller via one `components.Input.vars` override in the theme —
+   Mantine 9 drives input heights with `--input-height-*` CSS variables, and the base-
+   `Input` vars merge into all of `TextInput`/`PasswordInput`/`Select`/`MultiSelect`.
+   The login field's local 1.5× height hack was removed, so it now matches the global
+   scale. No schema changes; `pnpm lint/typecheck/test` (220) pass, `db:generate` no
+   drift.
 - **Bugfix (grid-group apply semantics):** `FilterModal` no longer collapses a fully
   selected **grid** group to "no filter" when the user edited it — the explicit selection
   (including "all") is applied. Previously a non-admin who ticked every calendar got the
@@ -1453,3 +1461,60 @@ flowchart LR
   `application/manifest+json`; `/serwist/sw.js` → 200 `application/javascript`; `/login`
   HTML contains the SW registration + manifest link. Manual device checks remaining:
   iOS "Add to Home Screen" standalone launch, Android install prompt.
+
+## 1.35 Touch-friendly input heights (Phase 3b)
+
+All single-line inputs (text boxes and dropdowns) are now **1.2× taller** so they are
+comfortable to tap on a touchscreen. Mantine 9 no longer exposes the old
+`theme.variants.input.inputHeight` option — input heights are driven by
+`--input-height-{size}` CSS variables on the input's wrapper element. The scale is
+therefore applied once in the theme: a `components.Input.vars` override that every
+input-family component inherits, because they all render on the base `Input` and
+resolve their styles under the name `["Input", <component>]`.
+
+```mermaid
+flowchart TB
+    T["theme.components.Input.vars → wrapper<br/>--input-height-{xs,xl} × 1.2"] --> I[Input wrapper]
+    I --> TI[TextInput]
+    I --> PI[PasswordInput]
+    I --> S[Select]
+    I --> MS[MultiSelect]
+```
+
+New heights (Mantine default → after 1.2×):
+
+| size | before | after |
+| --- | --- | --- |
+| `xs` | 30px | 36px |
+| `sm` (app default — every input uses it) | 36px | 43.2px |
+| `md` | 42px | 50.4px |
+| `lg` | 50px | 60px |
+| `xl` | 60px | 72px |
+
+- **Theme** (`src/lib/theme.ts`) — new `components.Input.vars` sets the wrapper's
+  `--input-height-{xs,sm,md,lg,xl}` to `calc(<base> × 1.2 × var(--mantine-scale))`
+  (2.25 / 2.7 / 3.15 / 3.75 / 4.5rem). The derived values adapt automatically: input
+  `line-height`, inline padding (`height / 3`), and the left/right section size — the
+  chevron box of `Select`/`MultiSelect` stays roughly square at the new height.
+- **Provider move (required by the theme change)** — the theme now carries a function
+  value, and React Server Components cannot pass functions to client components: keeping
+  `MantineProvider theme={theme}` in the server root layout made every page 500 with
+  `Functions cannot be passed directly to Client Components`. The provider now mounts on
+  the client via a new `AppProviders` component (`src/components/AppProviders.tsx`,
+  `"use client"`) that renders `MantineProvider` + `Notifications`; the server layout
+  passes `children` into it (children stay server-rendered — only the provider's own
+  props cross the boundary). `AGENTS.md` documents the constraint.
+- **Login form** (`src/components/LoginForm.tsx`) — the local `1.5×` height hack on the
+  login `PasswordInput` (`styles={{ input: { height: "calc(var(--input-height) * 1.5)" } }}`)
+  was removed; the field now matches the global 1.2× scale (locked-in by request).
+- **Scope** — covers `TextInput`, `PasswordInput`, `Select`, and `MultiSelect`; any
+  future `@mantine/dates` input extends `Input` the same way and is covered too.
+  Untouched: the heights of items inside an opened dropdown list, buttons, and
+  `Textarea`s (auto height, rows-based).
+- **Verification** — `pnpm lint`, `pnpm typecheck`, and `pnpm test` (220) pass. Dev
+  server (Turbopack): `/login` returns 200 and its SSR HTML shows the wrapper inline
+  style `--input-height: var(--input-height-sm); --input-height-sm: calc(2.7rem *
+  var(--mantine-scale))` — i.e. 43.2px = 36px × 1.2 with `--mantine-scale: 1`; every
+  other input consumes the same base-`Input` vars. `pnpm build` not run locally (a dev
+  server held `.next`); CI's build job covers it. No schema change —
+  `pnpm db:generate` shows no drift.

@@ -3,11 +3,10 @@
 import { useMemo, useState, type ReactNode } from "react";
 import {
   Button,
-  Checkbox,
+  Chip,
   Group,
   Modal,
   MultiSelect,
-  SimpleGrid,
   Stack,
   Text,
 } from "@mantine/core";
@@ -41,10 +40,10 @@ export interface FilterGroup {
   /** Optional quick action rendered beside the group label (e.g. "only me"). */
   action?: FilterGroupAction;
   /**
-   * "grid" (default) renders the options as checkbox cards. "search" renders a
-   * searchable dropdown (MultiSelect) for large option lists. Search groups use
-   * "empty = no filter" semantics, so narrowing 100 options down to a few never
-   * requires unticking the rest.
+   * "grid" (default) renders the options as toggleable chip pills. "search"
+   * renders a searchable dropdown (MultiSelect) for large option lists. Search
+   * groups use "empty = no filter" semantics, so narrowing 100 options down to
+   * a few never requires unticking the rest.
    */
   variant?: "grid" | "search";
 }
@@ -90,9 +89,8 @@ function initialDraft(
 
 /**
  * Reusable filter dialog: opens from a trigger button and presents each filter
- * group either as a grid of clickable checkbox cards (default) or as a
- * searchable dropdown (variant "search", for large option lists). Selections
- * are staged in a draft and only applied when "Apply" is pressed. The draft
+ * group either as a row of toggleable chip pills (default) or as a searchable
+ * dropdown (variant "search", for large option lists). Selections are staged in a draft and only applied when "Apply" is pressed. The draft
  * lives in a child that mounts with the modal, so it re-initializes from the
  * current applied values every time the dialog opens. "No filter applied" is
  * "all selected" in grid groups and "nothing selected" in search groups.
@@ -193,27 +191,19 @@ function FilterModalBody({
               nothingFoundMessage={`No ${group.label.toLowerCase()} found`}
             />
           ) : (
-            <Checkbox.Group
+            <Chip.Group
+              multiple
               value={draft[group.label] ?? []}
               onChange={(value) => handleGroupChange(group.label, value)}
             >
-              <SimpleGrid cols={{ base: 1, xs: 2 }} spacing="xs" mt="xs">
+              <Group gap="xs" mt="xs">
                 {group.options.map((option) => (
-                  <Checkbox.Card
-                    key={option.value}
-                    value={option.value}
-                    withBorder
-                    radius="md"
-                    style={{ padding: "var(--mantine-spacing-sm)" }}
-                  >
-                    <Group wrap="nowrap" align="center" gap="xs">
-                      <Checkbox.Indicator />
-                      <Text size="sm">{option.label}</Text>
-                    </Group>
-                  </Checkbox.Card>
+                  <Chip key={option.value} value={option.value} color="primary">
+                    {option.label}
+                  </Chip>
                 ))}
-              </SimpleGrid>
-            </Checkbox.Group>
+              </Group>
+            </Chip.Group>
           )}
         </div>
       ))}

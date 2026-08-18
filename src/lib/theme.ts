@@ -33,6 +33,19 @@ export const theme = createTheme({
     accent,
   },
   defaultRadius: "md",
+  components: {
+    Input: {
+      vars: () => ({
+        wrapper: {
+          "--input-height-xs": "calc(2.25rem * var(--mantine-scale))",
+          "--input-height-sm": "calc(2.7rem * var(--mantine-scale))",
+          "--input-height-md": "calc(3.15rem * var(--mantine-scale))",
+          "--input-height-lg": "calc(3.75rem * var(--mantine-scale))",
+          "--input-height-xl": "calc(4.5rem * var(--mantine-scale))",
+        },
+      }),
+    },
+  },
 });
 
 /** Shared loader styling for Buttons that trigger async work. */

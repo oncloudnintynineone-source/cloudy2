@@ -4,11 +4,10 @@ import "@mantine/schedule/styles.css";
 import "@mantine/notifications/styles.css";
 
 import type { Metadata, Viewport } from "next";
-import { ColorSchemeScript, mantineHtmlProps, MantineProvider } from "@mantine/core";
-import { Notifications } from "@mantine/notifications";
+import { ColorSchemeScript, mantineHtmlProps } from "@mantine/core";
 import { SerwistProvider } from "@serwist/turbopack/react";
 
-import { theme } from "@/lib/theme";
+import AppProviders from "@/components/AppProviders";
 
 export const metadata: Metadata = {
   title: "Cloudy",
@@ -41,10 +40,9 @@ export default function RootLayout({
         <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
       </head>
       <body>
-        <MantineProvider theme={theme} defaultColorScheme="auto">
-          <Notifications />
+        <AppProviders>
           <SerwistProvider swUrl="/serwist/sw.js">{children}</SerwistProvider>
-        </MantineProvider>
+        </AppProviders>
       </body>
     </html>
   );

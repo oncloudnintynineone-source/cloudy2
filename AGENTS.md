@@ -66,7 +66,11 @@ the quality checks.
 
 ## Conventions
 
-- UI is **Mantine v9**; theme in `src/lib/theme.ts`, provider in `src/app/layout.tsx`.
+- UI is **Mantine v9**; theme in `src/lib/theme.ts`, mounted by the client component
+  `AppProviders` (`src/components/AppProviders.tsx`) from the root layout. The theme
+  carries a function value (`components.Input.vars`), which cannot cross the server →
+  client boundary, so `MantineProvider` (and `Notifications`) must live in that client
+  wrapper — don't move them back into the server `layout.tsx`.
 - **Brand colors:** primary is `#0D47A1` (deep blue), secondary is `#FBC02D`
   (amber). Use these two colors whenever an accent color is needed (badges,
   chips, highlights, event type colors, etc.).

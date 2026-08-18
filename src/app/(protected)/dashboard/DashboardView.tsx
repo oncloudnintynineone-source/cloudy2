@@ -16,6 +16,7 @@ import {
   Text,
   UnstyledButton,
 } from "@mantine/core";
+import { MiniCalendar } from "@mantine/dates";
 import { useDisclosure, useDrag } from "@mantine/hooks";
 import { AgendaView, MobileMonthView, MonthView, ResourcesDayView } from "@mantine/schedule";
 import {
@@ -401,6 +402,23 @@ export function DashboardView({
           It is not in your current view — adjust the calendar filters or check the date of the
           event.
         </Alert>
+      )}
+
+      {isSchedule && (
+        <MiniCalendar
+          value={date}
+          date={dayjs(date).subtract(Math.floor(7 / 2), "day").format("YYYY-MM-DD")}
+          onChange={(next) => navigate({ date: next, month: next.slice(0, 7) })}
+          numberOfDays={7}
+          size="sm"
+          previousControlProps={{ style: { display: "none" } }}
+          nextControlProps={{ style: { display: "none" } }}
+          styles={{
+            root: { width: "100%", maxWidth: 420, marginInline: "auto" },
+            days: { flex: 1 },
+            day: { flex: 1 },
+          }}
+        />
       )}
 
       {isPending ? (

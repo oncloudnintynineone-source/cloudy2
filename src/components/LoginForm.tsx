@@ -59,7 +59,6 @@ export function LoginForm() {
               onChange={(e) => setInput(e.currentTarget.value)}
               required
               autoFocus
-              styles={{ input: { height: "calc(var(--input-height) * 1.5)" } }}
             />
             {error && (
               <Text c="red" size="sm">
