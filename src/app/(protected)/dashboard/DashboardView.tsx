@@ -6,6 +6,7 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
   ActionIcon,
   Alert,
+  Box,
   Button,
   Group,
   Modal,
@@ -13,6 +14,7 @@ import {
   Stack,
   Tabs,
   Text,
+  UnstyledButton,
 } from "@mantine/core";
 import { useDisclosure, useDrag } from "@mantine/hooks";
 import { AgendaView, MobileMonthView, MonthView, ResourcesDayView } from "@mantine/schedule";
@@ -160,14 +162,18 @@ export function DashboardView({
       groups.push({
         label: "Users",
         options: userOptions,
+        // A searchable dropdown instead of one checkbox card per user — the
+        // card grid gets unusably tall as the roster grows.
+        variant: "search",
         action: inviteeUsers.some((user) => user.id === currentUser)
           ? {
               label: "Only me",
               icon: <IconUser size={14} />,
               isApplied: (selected) => selected.length === 1 && selected[0] === currentUser,
-              apply: (setValues, { selected, allValues }) => {
+              apply: (setValues, { selected }) => {
                 const isActive = selected.length === 1 && selected[0] === currentUser;
-                setValues(isActive ? allValues : [currentUser]);
+                // Search groups: empty selection means "no filter".
+                setValues(isActive ? [] : [currentUser]);
               },
             }
           : undefined,
@@ -460,6 +466,54 @@ export function DashboardView({
             },
           }}
           labels={{ resources: "" }}
+          // All-day events render as full-width bars whose label would scroll
+          // out of view; the renderEvent hook re-renders only those and pins the
+          // title with position: sticky beside the sticky resource column.
+          renderEvent={(event, rootProps) => {
+            const isAllDay = Boolean((event as unknown as CalendarEvent).payload.allDay);
+            if (!isAllDay) {
+              return <UnstyledButton {...rootProps} />;
+            }
+            const stickyLeft =
+              scheduleResources.groups !== undefined
+                ? "calc(var(--resources-day-view-group-label-width) + var(--resources-day-view-resource-label-width) + 4px)"
+                : "calc(var(--resources-day-view-resource-label-width) + 4px)";
+            return (
+              <UnstyledButton {...rootProps}>
+                <Box
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    width: "100%",
+                    height: "100%",
+                    paddingInline: "4px",
+                    backgroundColor: "var(--event-bg)",
+                    color: "var(--event-color)",
+                    borderRadius: "min(var(--event-radius), 50%)",
+                    pointerEvents: "all",
+                    userSelect: "none",
+                  }}
+                >
+                  <span
+                    style={{
+                      position: "sticky",
+                      left: stickyLeft,
+                      minWidth: 0,
+                      maxWidth: "min(70vw, 100%)",
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                      whiteSpace: "nowrap",
+                      fontSize: "calc(0.75rem * var(--mantine-scale))",
+                      fontWeight: "var(--mantine-font-weight-medium)",
+                      lineHeight: 1,
+                    }}
+                  >
+                    {event.title}
+                  </span>
+                </Box>
+              </UnstyledButton>
+            );
+          }}
           renderResourceLabel={(resource) => {
             const row = resource as ScheduleResource;
             return isDepartmentRowId(row.id) ? (

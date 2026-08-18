@@ -1,7 +1,22 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
-import { Button, Checkbox, Group, Modal, SimpleGrid, Stack, Text } from "@mantine/core";
+import { useMemo, useState, type ReactNode } from "react";
+import {
+  Button,
+  Checkbox,
+  Group,
+  Modal,
+  MultiSelect,
+  SimpleGrid,
+  Stack,
+  Text,
+} from "@mantine/core";
+
+import {
+  isGroupUnfiltered,
+  resolveFilterApply,
+  type FilterApplyGroup,
+} from "@/lib/filters/resolveFilterApply";
 
 export interface FilterOption {
   value: string;
@@ -25,6 +40,13 @@ export interface FilterGroup {
   options: FilterOption[];
   /** Optional quick action rendered beside the group label (e.g. "only me"). */
   action?: FilterGroupAction;
+  /**
+   * "grid" (default) renders the options as checkbox cards. "search" renders a
+   * searchable dropdown (MultiSelect) for large option lists. Search groups use
+   * "empty = no filter" semantics, so narrowing 100 options down to a few never
+   * requires unticking the rest.
+   */
+  variant?: "grid" | "search";
 }
 
 interface FilterModalProps {
@@ -40,33 +62,40 @@ function allOptionValues(group: FilterGroup): string[] {
   return group.options.map((option) => option.value);
 }
 
-function isFullySelected(group: FilterGroup, selected: string[]): boolean {
-  return selected.length === group.options.length;
+function toApplyGroup(group: FilterGroup): FilterApplyGroup {
+  return { label: group.label, optionCount: group.options.length, variant: group.variant };
 }
 
 /**
- * Build the initial draft selection for the dialog: a group with no applied
- * filter shows every option selected ("all selected" = no filter), otherwise it
- * mirrors the applied subset.
+ * Build the initial draft selection for the dialog: a grid group with no applied
+ * filter shows every option selected ("all selected" = no filter); a search group
+ * with no applied filter shows nothing selected ("empty" = no filter). Otherwise
+ * the draft mirrors the applied subset.
  */
 function initialDraft(
   groups: FilterGroup[],
   values: Record<string, string[]>,
 ): Record<string, string[]> {
   return Object.fromEntries(
-    groups.map((group) => [
-      group.label,
-      values[group.label]?.length ? values[group.label] : allOptionValues(group),
-    ]),
+    groups.map((group) =>
+      group.variant === "search"
+        ? [group.label, values[group.label] ?? []]
+        : [
+            group.label,
+            values[group.label]?.length ? values[group.label] : allOptionValues(group),
+          ],
+    ),
   );
 }
 
 /**
  * Reusable filter dialog: opens from a trigger button and presents each filter
- * group as a grid of clickable checkbox cards. Selections are staged in a draft
- * and only applied when "Apply" is pressed. The draft lives in a child that
- * mounts with the modal, so it re-initializes from the current applied values
- * every time the dialog opens. "All selected" means no filter is applied.
+ * group either as a grid of clickable checkbox cards (default) or as a
+ * searchable dropdown (variant "search", for large option lists). Selections
+ * are staged in a draft and only applied when "Apply" is pressed. The draft
+ * lives in a child that mounts with the modal, so it re-initializes from the
+ * current applied values every time the dialog opens. "No filter applied" is
+ * "all selected" in grid groups and "nothing selected" in search groups.
  */
 export function FilterModal({ opened, onClose, title, groups, values, onApply }: FilterModalProps) {
   return (
@@ -85,28 +114,43 @@ function FilterModalBody({
   const [draft, setDraft] = useState<Record<string, string[]>>(() =>
     initialDraft(groups, values),
   );
+  // Grid groups the user edited (apply their draft explicitly — including a
+  // full selection) and whether "Clear" was pressed (apply nothing, restoring
+  // the consumer's default). Untouched grid groups re-apply their current
+  // values, so re-opening the dialog and pressing Apply keeps an existing
+  // filter. Search groups ignore both and keep empty = no filter.
+  const [changed, setChanged] = useState<ReadonlySet<string>>(() => new Set());
+  const [cleared, setCleared] = useState(false);
+
+  const searchLabels = useMemo(
+    () => new Set(groups.filter((group) => group.variant === "search").map((g) => g.label)),
+    [groups],
+  );
 
   function handleGroupChange(key: string, value: string[]) {
-    setDraft((prev) => ({ ...prev, [key]: value.length === 0 ? prev[key] : value }));
+    setDraft((prev) => ({
+      ...prev,
+      // Grid groups keep the old no-clear guard (empty = everything hidden).
+      // Search groups treat empty as "no filter", so allow it through.
+      [key]: !searchLabels.has(key) && value.length === 0 ? prev[key] : value,
+    }));
+    setChanged((prev) => new Set(prev).add(key));
+    setCleared(false);
   }
 
   function handleApply() {
-    const applied = Object.fromEntries(
-      groups.map((group) => [
-        group.label,
-        isFullySelected(group, draft[group.label] ?? []) ? [] : (draft[group.label] ?? []),
-      ]),
-    );
-    onApply(applied);
+    onApply(resolveFilterApply(groups.map(toApplyGroup), draft, values, changed, cleared));
     onClose();
   }
 
   function handleClear() {
     setDraft(initialDraft(groups, {}));
+    setChanged(new Set());
+    setCleared(true);
   }
 
   const hasActiveFilter = groups.some(
-    (group) => !isFullySelected(group, draft[group.label] ?? []),
+    (group) => !isGroupUnfiltered(toApplyGroup(group), draft[group.label] ?? []),
   );
 
   return (
@@ -137,27 +181,40 @@ function FilterModalBody({
               </Button>
             )}
           </Group>
-          <Checkbox.Group
-            value={draft[group.label] ?? []}
-            onChange={(value) => handleGroupChange(group.label, value)}
-          >
-            <SimpleGrid cols={{ base: 1, xs: 2 }} spacing="xs" mt="xs">
-              {group.options.map((option) => (
-                <Checkbox.Card
-                  key={option.value}
-                  value={option.value}
-                  withBorder
-                  radius="md"
-                  style={{ padding: "var(--mantine-spacing-sm)" }}
-                >
-                  <Group wrap="nowrap" align="center" gap="xs">
-                    <Checkbox.Indicator />
-                    <Text size="sm">{option.label}</Text>
-                  </Group>
-                </Checkbox.Card>
-              ))}
-            </SimpleGrid>
-          </Checkbox.Group>
+          {group.variant === "search" ? (
+            <MultiSelect
+              mt="xs"
+              value={draft[group.label] ?? []}
+              onChange={(value) => handleGroupChange(group.label, value)}
+              data={group.options}
+              searchable
+              clearable
+              placeholder={`All ${group.label.toLowerCase()}`}
+              nothingFoundMessage={`No ${group.label.toLowerCase()} found`}
+            />
+          ) : (
+            <Checkbox.Group
+              value={draft[group.label] ?? []}
+              onChange={(value) => handleGroupChange(group.label, value)}
+            >
+              <SimpleGrid cols={{ base: 1, xs: 2 }} spacing="xs" mt="xs">
+                {group.options.map((option) => (
+                  <Checkbox.Card
+                    key={option.value}
+                    value={option.value}
+                    withBorder
+                    radius="md"
+                    style={{ padding: "var(--mantine-spacing-sm)" }}
+                  >
+                    <Group wrap="nowrap" align="center" gap="xs">
+                      <Checkbox.Indicator />
+                      <Text size="sm">{option.label}</Text>
+                    </Group>
+                  </Checkbox.Card>
+                ))}
+              </SimpleGrid>
+            </Checkbox.Group>
+          )}
         </div>
       ))}
 

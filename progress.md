@@ -44,6 +44,8 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
 - [1.30 Empty event title (Phase 2t)](#130-empty-event-title-phase-2t)
 - [1.31 Google Calendar "Edit in app" link (Phase 2u)](#131-google-calendar-edit-in-app-link-phase-2u)
 - [1.32 Compressed opaque notes block (Phase 2v)](#132-compressed-opaque-notes-block-phase-2v)
+- [1.33 Searchable user filter (Phase 2w)](#133-searchable-user-filter-phase-2w)
+- [1.34 PWA installability (Phase 3a)](#134-pwa-installability-phase-3a)
 
 ## 1.1 Status
 
@@ -128,6 +130,27 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
   `parseEventNotes` still reads v1 (raw JSON) and v2 (JSON line) events, so no migration.
   No schema changes; `pnpm lint/typecheck/test` + `pnpm build` pass, `db:generate` no
   drift.
+- **Phase 2w (searchable user filter):** the dashboard's filter dialog now renders the
+  **Users** group as a searchable dropdown (same pattern as the event form's invitees
+  picker) instead of one checkbox card per user. The shared `FilterModal` gains a `search`
+  group variant ("empty selection = no filter") for large option lists; grid groups are
+  unchanged. `pnpm lint/typecheck/test` (208) + `pnpm build` pass, `db:generate` no drift.
+- **Phase 3a (PWA installability):** Cloudy is installable as a PWA — web app manifest
+  (`/manifest.webmanifest`, brand colors + 192/512/maskable icons), iOS metadata
+  (`appleWebApp` + `apple-touch-icon`), and a Serwist service worker (Turbopack variant)
+  served from `/serwist/sw.js`. **Network-first policy:** the SW caches only immutable
+  static assets; pages, RSC, auth, and any `/api/*` are `NetworkOnly` so data is always
+  fresh from the DB/Google Calendar and never served stale. No push notifications yet.
+  `pnpm build` (SW bundled, 50 precache entries) + `lint/typecheck/test` (220) pass,
+  `db:generate` no drift. Manual iOS/Android install checks pending.
+- **Bugfix (grid-group apply semantics):** `FilterModal` no longer collapses a fully
+  selected **grid** group to "no filter" when the user edited it — the explicit selection
+  (including "all") is applied. Previously a non-admin who ticked every calendar got the
+  "no filter" value, which the server resolves to their department default, so they could
+  never view all calendars. "Clear" still restores the consumer default (department for
+  non-admins, all for admins) and untouched groups re-apply their current values. The
+  apply resolution is a pure, unit-tested helper in `src/lib/filters/resolveFilterApply.ts`.
+  `pnpm lint/typecheck/test` (220) + `pnpm build` pass, `db:generate` no drift.
 - **Deployment (Vercel):** build passes on `main`/`dev` with no warnings (Corepack +
   `NEXTAUTH_URL` unset). Migrations `0000` + `0001` applied to Neon (via CI migrate job);
   `0002`–`0005` pending (apply on next `main` push).
@@ -1360,3 +1383,73 @@ flowchart TB
   line. Notes suite: 35 tests.
 - **Verification** — `pnpm lint`, `pnpm typecheck`, `pnpm test` (208), `pnpm build`, and
   `pnpm db:generate` (no drift — no schema change) all pass.
+
+## 1.33 Searchable user filter (Phase 2w)
+
+The dashboard filter dialog's **Users** group no longer renders one checkbox card per user
+(unusable as the roster grows toward 100). It now renders a **searchable dropdown** — the
+same pattern as the event form's invitees `MultiSelect` — with the same role-scoped options
+(admins: every active user; regular users: their own department).
+
+- **`FilterModal` (`src/components/FilterModal.tsx`)** — `FilterGroup.variant` accepts
+  `"grid"` (default, unchanged) or `"search"`. Search groups render a Mantine `MultiSelect`
+  (`searchable` + `clearable`, placeholder `All <group>`) and use **empty = no filter**
+  semantics (grid groups keep "all selected = no filter"), so narrowing 100 options down to
+  a few never requires unticking the rest. Draft initialization, the no-clear-to-empty guard
+  (grid only), `Clear`, `Apply` normalization (all selected → `[]`, plus empty for search),
+  and the active-filter check all branch on the variant.
+- **`DashboardView`** — the Users group sets `variant: "search"`; the "Only me" quick
+  action now toggles between `[currentUser]` and `[]` (empty) instead of the full list.
+  The `?users=` URL state, `fetchMonthEvents` user filtering, and the Filters button badge
+  are unchanged (they already treat an empty list as "no filter").
+- Settings' Users table filter (small Status/Department grid groups) is unaffected.
+- **Verification** — `pnpm lint`, `pnpm typecheck`, `pnpm test` (208), `pnpm build`, and
+  `pnpm db:generate` (no drift — no schema change) all pass.
+
+## 1.34 PWA installability (Phase 3a)
+
+Cloudy is now installable as a **Progressive Web App** (App Router + Serwist for Turbopack).
+Scope is deliberately **installability + app shell only**: all data (events, users, filters)
+is fetched live from the Google Calendar + Neon DB on every operation, and the service worker
+**never serves cached data** — a `NetworkOnly` catch-all covers pages, RSC payloads, auth, and
+any future `/api/*`. Only immutable static build assets (fonts, images) are cached for a fast
+cold start. No push notifications (deferred — needs VAPID + a push backend).
+
+```mermaid
+flowchart LR
+    U[User taps installed icon] --> SW[Service worker]
+    SW -->|immutable static assets| C[(CacheFirst)]
+    SW -->|pages / RSC / auth / api| N[Network only]
+    N --> DB[(Neon DB)]
+    N --> GC[Google Calendar]
+```
+
+- **Manifest** (`src/app/manifest.ts`) — `display: standalone`, portrait, theme
+  `#0D47A1` / background `#FBC02D`, icons 192/512 + maskable 512. Served at
+  `/manifest.webmanifest`.
+- **Layout metadata** (`src/app/layout.tsx`) — `metadata.manifest`,
+  `appleWebApp` (capable, `black-translucent`, title), `formatDetection` off,
+  `viewport.themeColor = #0D47A1`, and the `apple-touch-icon` link (180px). The root
+  layout wraps children in `SerwistProvider` from `@serwist/turbopack/react`, which
+  registers the SW with `updateViaCache: "none"` (critical on iOS).
+- **Next config** (`next.config.ts`) — wrapped with `withSerwist` from
+  `@serwist/turbopack`. The Turbopack setup serves the compiled SW via a **route
+  handler** at `src/app/serwist/[path]/route.ts` (`createSerwistRoute`, `swSrc:
+  src/app/sw.ts`) → `/serwist/sw.js`, instead of emitting `public/sw.js`.
+- **Service worker** (`src/app/sw.ts`) — Serwist with `precacheEntries`,
+  `skipWaiting`, `clientsClaim`, `navigationPreload`, and explicit `runtimeCaching`:
+  `CacheFirst` for fonts/CSS, `StaleWhileRevalidate` for images, and **`NetworkOnly`
+  for every same-origin request** (the app's default `defaultCache` would cache
+  `/api` + RSC with NetworkFirst, which this app must not do).
+- **Icons** (`public/`) — generated from `icon.svg`/`icon-maskable.svg` (brand
+  calendar mark): `icon-192x192.png`, `icon-512x512.png`, `icon-maskable-512x512.png`,
+  `apple-touch-icon.png`.
+- **Dependencies** — `@serwist/turbopack`, `serwist`, `esbuild` (dev). Also fixed a
+  leftover placeholder in `pnpm-workspace.yaml`: `@swc/core` build must be allowed
+  (`true`) or install/typecheck fail.
+- **Verification** — `pnpm build` bundles the SW ("50 precache entries"), and
+  `pnpm lint` / `pnpm typecheck` / `pnpm test` (220) / `pnpm db:generate` (no drift —
+  no schema change) all pass. Local smoke test: `/manifest.webmanifest` → 200
+  `application/manifest+json`; `/serwist/sw.js` → 200 `application/javascript`; `/login`
+  HTML contains the SW registration + manifest link. Manual device checks remaining:
+  iOS "Add to Home Screen" standalone launch, Android install prompt.
