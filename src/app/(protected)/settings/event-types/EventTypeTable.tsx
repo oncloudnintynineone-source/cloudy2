@@ -2,12 +2,12 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Badge, Button, Group, Modal, Paper, Stack, Text } from "@mantine/core";
+import { Badge, Group, Modal, Paper, Stack, Text } from "@mantine/core";
 
 import { useDisclosure } from "@mantine/hooks";
 
 import type { EventType } from "@/db/schema";
-import { FloatingToolbar } from "@/components/FloatingToolbar";
+import { FloatingActionButton, FloatingToolbar } from "@/components/FloatingToolbar";
 import { SETTINGS_TAB_BAR_OFFSET } from "../settingsTabBar";
 import {
   TIME_OPTION_LABELS,
@@ -92,13 +92,9 @@ export function EventTypeTable({ types }: EventTypeTableProps) {
       </Modal>
 
       <FloatingToolbar bottomOffset={SETTINGS_TAB_BAR_OFFSET}>
-        <Button
-          radius="xl"
-          style={{ boxShadow: "var(--mantine-shadow-md)" }}
-          onClick={openCreate}
-        >
+        <FloatingActionButton onClick={openCreate}>
           Add event type
-        </Button>
+        </FloatingActionButton>
       </FloatingToolbar>
     </Stack>
   );

@@ -9,7 +9,7 @@ import { notifications } from "@mantine/notifications";
 import type { Calendar } from "@/db/schema";
 import { deleteDepartment } from "@/lib/roster/actions";
 import { BUTTON_LOADER_PROPS } from "@/lib/theme";
-import { FloatingToolbar } from "@/components/FloatingToolbar";
+import { FloatingActionButton, FloatingToolbar } from "@/components/FloatingToolbar";
 import { DepartmentForm } from "./DepartmentForm";
 import { DepartmentShares } from "./DepartmentShares";
 import { SETTINGS_TAB_BAR_OFFSET } from "../settingsTabBar";
@@ -144,13 +144,9 @@ export function DepartmentTable({ departments }: DepartmentTableProps) {
       <DepartmentShares calendar={sharing} opened={shareOpened} onClose={closeShare} />
 
       <FloatingToolbar bottomOffset={SETTINGS_TAB_BAR_OFFSET}>
-        <Button
-          radius="xl"
-          style={{ boxShadow: "var(--mantine-shadow-md)" }}
-          onClick={openCreate}
-        >
+        <FloatingActionButton onClick={openCreate}>
           Add department
-        </Button>
+        </FloatingActionButton>
       </FloatingToolbar>
     </Stack>
   );

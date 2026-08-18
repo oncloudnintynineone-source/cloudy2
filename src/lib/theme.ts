@@ -33,6 +33,7 @@ export const theme = createTheme({
     accent,
   },
   defaultRadius: "md",
+  respectReducedMotion: true,
   components: {
     Input: {
       vars: () => ({

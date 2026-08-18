@@ -79,6 +79,12 @@ the quality checks.
   as stacked **card lists** (`Paper` per row), never `<Table>`. Modals are **floating**
   dialogs: `centered` with a fixed `size` (never `fullScreen` — they must not fill the full
   screen width). Keep this pattern for all new UI.
+- **Floating action buttons** use the shared `FloatingActionButton` + `FloatingToolbar`
+  (`src/components/FloatingToolbar.tsx`) anchored bottom-right — never a raw `Button`.
+  `FloatingActionButton` sets `radius="xl"`, the pill shadow, and a 43px height (1.2× the
+  Mantine `sm` default) for consistent touch targets; don't override height inline. Under
+  the settings tab bar pass `bottomOffset={SETTINGS_TAB_BAR_OFFSET}` (exported from
+  `src/app/(protected)/settings/settingsTabBar.ts`) to `FloatingToolbar`.
 - **Admin settings live under `/settings`** (admin-only), reached via the profile icon in the
   header. A horizontal scrollable `SettingsTabs` bar (`src/app/(protected)/settings/`)
   switches between the Users (`/settings/users`), Departments (`/settings/departments`),

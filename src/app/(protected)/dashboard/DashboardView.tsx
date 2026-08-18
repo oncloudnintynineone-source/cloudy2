@@ -24,10 +24,13 @@ import {
   IconCalendarDot,
   IconCalendarMonth,
   IconCalendarUser,
+  IconChevronDown,
   IconChevronLeft,
   IconChevronRight,
+  IconChevronUp,
   IconPlus,
   IconUser,
+  IconX,
 } from "@tabler/icons-react";
 
 import {
@@ -38,9 +41,15 @@ import {
 } from "./calendarSkeleton";
 import { FilterButton } from "@/components/FilterButton";
 import { FilterModal, type FilterGroup } from "@/components/FilterModal";
-import { FloatingToolbar } from "@/components/FloatingToolbar";
+import { FloatingActionButton, FloatingToolbar } from "@/components/FloatingToolbar";
 import type { CalendarEvent } from "@/lib/events/queries";
 import type { TimeOption } from "@/lib/events/timeOptions";
+import {
+  scaleFromRect,
+  smModalContentWidth,
+  transformOriginFromRect,
+  type Rect,
+} from "@/lib/motion/origin";
 import {
   buildScheduleResources,
   expandScheduleEvents,
@@ -135,16 +144,67 @@ export function DashboardView({
     : null;
 
   const [detailEvent, setDetailEvent] = useState<CalendarEvent | null>(null);
+  // Where the tapped element sat on screen; the modal grows out of / shrinks
+  // back into it (see src/lib/motion/origin.ts).
+  const [detailOriginRect, setDetailOriginRect] = useState<Rect | null>(null);
+  const [agendaOriginRect, setAgendaOriginRect] = useState<Rect | null>(null);
+  const [formOriginRect, setFormOriginRect] = useState<Rect | null>(null);
   const [formState, setFormState] = useState<FormState | null>(() =>
     initialEditEvent
       ? { event: initialEditEvent, defaultDate: initialEditEvent.start.slice(0, 10) }
       : null,
   );
+  // Facebook-bubble minimize: the form modal collapses into a floating pill
+  // while `formMinimized` is true. The modal stays mounted (`keepMounted`) so
+  // the draft survives; `draftTitle` feeds the pill label.
+  const [formMinimized, setFormMinimized] = useState(false);
+  const [draftTitle, setDraftTitle] = useState("");
   const [agendaDate, setAgendaDate] = useState<string | null>(null);
+  // Keep the last shown agenda date so the closing (shrink) animation still has
+  // content while `opened` is already false.
+  const [displayAgendaDate, setDisplayAgendaDate] = useState<string | null>(agendaDate);
+  const [prevAgendaDate, setPrevAgendaDate] = useState<string | null>(agendaDate);
+  if (agendaDate && agendaDate !== prevAgendaDate) {
+    setPrevAgendaDate(agendaDate);
+    setDisplayAgendaDate(agendaDate);
+  }
   const [editLinkFailed, setEditLinkFailed] = useState(
     () => initialEditEventId !== null && initialEditEvent === null,
   );
   const [filterOpened, { open: openFilter, close: closeFilter }] = useDisclosure(false);
+
+  // The date shown in the agenda day modal; persists through the exit
+  // animation so the shrinking box still has content.
+  const agendaViewDate = agendaDate ?? displayAgendaDate;
+
+  const viewport = {
+    w: typeof window === "undefined" ? 0 : window.innerWidth,
+    h: typeof window === "undefined" ? 0 : window.innerHeight,
+  };
+  const contentWidth = smModalContentWidth(viewport);
+  const agendaTransitionProps = {
+    transition: {
+      in: { opacity: 1, transform: "scale(1)" },
+      out: { opacity: 0, transform: `scale(${scaleFromRect(agendaOriginRect, contentWidth)})` },
+      common: { transformOrigin: transformOriginFromRect(agendaOriginRect, viewport, "center") },
+      transitionProperty: "transform, opacity",
+    },
+    duration: 240,
+    exitDuration: 200,
+    timingFunction: "cubic-bezier(0.3, 1.2, 0.4, 1)",
+  } as const;
+  const formTransitionProps = {
+    transition: {
+      in: { opacity: 1, transform: "scale(1)" },
+      out: { opacity: 0, transform: `scale(${scaleFromRect(formOriginRect, contentWidth, 0.5)})` },
+      common: {
+        transformOrigin: transformOriginFromRect(formOriginRect, viewport, "bottom right"),
+      },
+      transitionProperty: "transform, opacity",
+    },
+    duration: 250,
+    timingFunction: "ease",
+  } as const;
 
   const monthLabel = dayjs(`${month}-01`).format("MMMM YYYY");
   const dayLabel = dayjs(date).format("ddd, MMM D, YYYY");
@@ -306,6 +366,9 @@ export function DashboardView({
     { axis: "lock", axisThreshold: 8, threshold: 10, filterTaps: true },
   );
 
+  // Draggable minimized bubble: pointer-based so it works for both mouse and
+  // touch. A tap (movement under the threshold) restores the form; a drag
+  // repositions the pill, clamped to the viewport.
   function handleApplyFilters(values: Record<string, string[]>) {
     setTargetView(view);
     const cals = values.Calendars ?? [];
@@ -318,11 +381,16 @@ export function DashboardView({
     });
   }
 
-  function openCreate(dateValue: string) {
+  function openCreate(dateValue: string, originRect: Rect | null = null) {
+    setFormMinimized(false);
+    setDraftTitle("");
+    setFormOriginRect(originRect);
     setFormState({ event: null, defaultDate: dateValue });
   }
 
   function closeForm() {
+    setFormMinimized(false);
+    setDraftTitle("");
     setFormState(null);
   }
 
@@ -379,7 +447,7 @@ export function DashboardView({
           </ActionIcon>
         </Group>
         <Group gap="xs">
-          <Button variant="subtle" size="xs" color="accent" onClick={goToday}>
+          <Button variant="default" size="xs" color="black" h={43} onClick={goToday}>
             Today
           </Button>
           <FilterButton activeCount={activeFilterCount} onClick={openFilter} />
@@ -435,8 +503,14 @@ export function DashboardView({
           events={events}
           withHeader={false}
           maxEventsPerDay={3}
-          onEventClick={(event) => setDetailEvent(event as unknown as CalendarEvent)}
-          onDayClick={(d) => setAgendaDate(d)}
+          onEventClick={(event, e) => {
+            setDetailOriginRect(e.currentTarget.getBoundingClientRect());
+            setDetailEvent(event as unknown as CalendarEvent);
+          }}
+          onDayClick={(d, e) => {
+            setAgendaOriginRect(e.currentTarget.getBoundingClientRect());
+            setAgendaDate(d);
+          }}
         />
       ) : view === "mobile" ? (
         <MobileMonthView
@@ -446,7 +520,10 @@ export function DashboardView({
             mobileMonthViewHeader: { display: "none" },
             mobileMonthViewEventsList: { display: "none" },
           }}
-          onDayClick={(day) => setAgendaDate(day)}
+          onDayClick={(d, e) => {
+            setAgendaOriginRect(e.currentTarget.getBoundingClientRect());
+            setAgendaDate(d);
+          }}
         />
       ) : scheduleResources.resources.length === 0 ? (
         <Paper withBorder radius="md" p="lg">
@@ -468,7 +545,10 @@ export function DashboardView({
           rowHeight={56}
           withHeader={false}
           withCurrentTimeIndicator
-          onEventClick={(event) => setDetailEvent(event as unknown as CalendarEvent)}
+          onEventClick={(event, e) => {
+            setDetailOriginRect(e.currentTarget.getBoundingClientRect());
+            setDetailEvent(event as unknown as CalendarEvent);
+          }}
           vars={() => ({
             resourcesDayView: {
               "--resources-day-view-resource-label-width": "3rem",
@@ -558,7 +638,7 @@ export function DashboardView({
         opened={agendaDate !== null}
         onClose={() => setAgendaDate(null)}
         title={
-          agendaDate ? (
+          agendaViewDate ? (
             <Group gap="xs" justify="center" w="100%">
               <ActionIcon
                 variant="subtle"
@@ -569,7 +649,7 @@ export function DashboardView({
                 <IconChevronLeft size={16} />
               </ActionIcon>
               <Text fw={600} size="sm">
-                {dayjs(agendaDate).format("dddd, MMMM D, YYYY")}
+                {dayjs(agendaViewDate).format("dddd, MMMM D, YYYY")}
               </Text>
               <ActionIcon
                 variant="subtle"
@@ -586,8 +666,9 @@ export function DashboardView({
         }
         centered
         size="sm"
+        transitionProps={agendaTransitionProps}
       >
-        {agendaDate && (
+        {agendaViewDate && (
           <div
             ref={agendaSwipeRef}
             style={{ touchAction: "pan-y" }}
@@ -600,11 +681,14 @@ export function DashboardView({
             }}
           >
             <AgendaView
-              rangeStart={agendaDate}
-              rangeEnd={agendaDate}
+              rangeStart={agendaViewDate}
+              rangeEnd={agendaViewDate}
               events={events}
               styles={{ agendaViewHeader: { display: "none" } }}
-              onEventClick={(event) => setDetailEvent(event as unknown as CalendarEvent)}
+              onEventClick={(event, e) => {
+                setDetailOriginRect(e.currentTarget.getBoundingClientRect());
+                setDetailEvent(event as unknown as CalendarEvent);
+              }}
             />
           </div>
         )}
@@ -613,8 +697,11 @@ export function DashboardView({
       <EventDetail
         event={detailEvent}
         onClose={() => setDetailEvent(null)}
-        onEdit={(event) => {
+        onEdit={(event, originRect) => {
           setDetailEvent(null);
+          setFormMinimized(false);
+          setDraftTitle("");
+          setFormOriginRect(originRect);
           setFormState({ event, defaultDate: today });
         }}
         onDeleted={() => {
@@ -624,33 +711,92 @@ export function DashboardView({
         }}
         peopleNames={peopleNames}
         calendarNames={calendarNames}
+        originRect={detailOriginRect}
       />
 
-      <Modal
-        opened={formState !== null}
+      <Modal.Root
+        opened={formState !== null && !formMinimized}
         onClose={closeForm}
-        title={formState?.event ? "Edit event" : "New event"}
+        keepMounted
         centered
         size="sm"
+        zIndex={250}
+        transitionProps={formTransitionProps}
       >
-        {formState && (
-          <EventForm
-            key={formState.event ? formState.event.id : `new-${formState.defaultDate}`}
-            event={formState.event}
-            defaultDate={formState.defaultDate}
-            eventTypes={eventTypes}
-            eventTitleTemplate={eventTitleTemplate}
-            currentUser={currentUser}
-            isAdmin={isAdmin}
-            inviteeDepartments={inviteeDepartments}
-            inviteeUsers={inviteeUsers}
-            onDone={() => {
-              closeForm();
-              router.refresh();
-            }}
-          />
-        )}
-      </Modal>
+        <Modal.Overlay />
+        <Modal.Content>
+          <Modal.Header>
+            <Modal.Title>{formState?.event ? "Edit event" : "New event"}</Modal.Title>
+            <Group gap="xs" ml="auto">
+              <ActionIcon
+                variant="subtle"
+                color="gray"
+                size="sm"
+                aria-label="Minimize event form"
+                onClick={() => {
+                  // Shrink into the floating bubble (bottom-right) instead of
+                  // wherever the form was opened from.
+                  setFormOriginRect(null);
+                  setFormMinimized(true);
+                }}
+              >
+                <IconChevronDown size={16} />
+              </ActionIcon>
+              <Modal.CloseButton />
+            </Group>
+          </Modal.Header>
+          <Modal.Body>
+            {formState && (
+              <EventForm
+                key={formState.event ? formState.event.id : `new-${formState.defaultDate}`}
+                event={formState.event}
+                defaultDate={formState.defaultDate}
+                eventTypes={eventTypes}
+                eventTitleTemplate={eventTitleTemplate}
+                currentUser={currentUser}
+                isAdmin={isAdmin}
+                inviteeDepartments={inviteeDepartments}
+                inviteeUsers={inviteeUsers}
+                onTitleChange={setDraftTitle}
+                onDone={() => {
+                  closeForm();
+                  router.refresh();
+                }}
+              />
+            )}
+          </Modal.Body>
+        </Modal.Content>
+      </Modal.Root>
+
+      {formState && formMinimized && (
+        <FloatingToolbar zIndex={300}>
+          <FloatingActionButton
+            leftSection={<IconChevronUp size={16} />}
+            onClick={() => setFormMinimized(false)}
+          >
+            <span
+              style={{
+                display: "block",
+                maxWidth: "50vw",
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                whiteSpace: "nowrap",
+              }}
+            >
+              {draftTitle || (formState.event ? "Edit event" : "New event")}
+            </span>
+          </FloatingActionButton>
+          <ActionIcon
+            radius="xl"
+            size="lg"
+            variant="default"
+            aria-label="Discard draft"
+            onClick={closeForm}
+          >
+            <IconX size={18} />
+          </ActionIcon>
+        </FloatingToolbar>
+      )}
 
       <FilterModal
         opened={filterOpened}
@@ -661,17 +807,17 @@ export function DashboardView({
         onApply={handleApplyFilters}
       />
 
-      <FloatingToolbar>
-        <Button
-          radius="xl"
-          leftSection={<IconPlus size={18} />}
-          style={{ boxShadow: "var(--mantine-shadow-md)" }}
-          onClick={() => openCreate(today)}
-          disabled={!googleConfigured}
-        >
-          New event
-        </Button>
-      </FloatingToolbar>
+      {formState === null && (
+        <FloatingToolbar>
+          <FloatingActionButton
+            leftSection={<IconPlus size={18} />}
+            onClick={(e) => openCreate(today, e.currentTarget.getBoundingClientRect())}
+            disabled={!googleConfigured}
+          >
+            New event
+          </FloatingActionButton>
+        </FloatingToolbar>
+      )}
     </Stack>
   );
 }

@@ -16,7 +16,7 @@ import { useDisclosure } from "@mantine/hooks";
 
 import { FilterButton } from "@/components/FilterButton";
 import { FilterModal, type FilterGroup } from "@/components/FilterModal";
-import { FloatingToolbar } from "@/components/FloatingToolbar";
+import { FloatingActionButton, FloatingToolbar } from "@/components/FloatingToolbar";
 import type { RosterUser } from "@/lib/roster/queries";
 import { formatFullName } from "@/lib/settings/formatName";
 import { SETTINGS_TAB_BAR_OFFSET } from "../settingsTabBar";
@@ -212,13 +212,9 @@ export function UserTable({ users, departments, nameTemplate }: UserTableProps) 
       />
 
       <FloatingToolbar bottomOffset={SETTINGS_TAB_BAR_OFFSET}>
-        <Button
-          radius="xl"
-          style={{ boxShadow: "var(--mantine-shadow-md)" }}
-          onClick={openCreate}
-        >
+        <FloatingActionButton onClick={openCreate}>
           Add user
-        </Button>
+        </FloatingActionButton>
       </FloatingToolbar>
     </Stack>
   );

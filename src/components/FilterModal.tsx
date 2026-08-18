@@ -198,7 +198,7 @@ function FilterModalBody({
             >
               <Group gap="xs" mt="xs">
                 {group.options.map((option) => (
-                  <Chip key={option.value} value={option.value} color="primary">
+                  <Chip key={option.value} value={option.value} color="accent">
                     {option.label}
                   </Chip>
                 ))}

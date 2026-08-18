@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useEffect, useMemo } from "react";
 import {
   Badge,
   Button,
@@ -65,6 +65,8 @@ interface EventFormProps {
   inviteeDepartments: { id: string; name: string }[];
   inviteeUsers: InviteeUser[];
   onDone: () => void;
+  /** Reports the live-rendered preview title whenever it changes (for the minimized bubble label). */
+  onTitleChange?: (title: string) => void;
 }
 
 interface EventFormState extends EventFormValues {
@@ -100,6 +102,7 @@ export function EventForm({
   inviteeDepartments,
   inviteeUsers,
   onDone,
+  onTitleChange,
 }: EventFormProps) {
   const isEdit = event !== null;
 
@@ -270,6 +273,10 @@ export function EventForm({
     return base && effectiveTimeOption === "full" && amPm ? `${base} (${amPm})` : base;
   })();
 
+  useEffect(() => {
+    onTitleChange?.(previewTitle);
+  }, [previewTitle, onTitleChange]);
+
   const onSubmit = form.onSubmit(async (values) => {
     const { invitees, ...rest } = values;
     const { userIds, departmentIds } = splitInvitees(invitees);
@@ -367,42 +374,6 @@ export function EventForm({
   return (
     <form onSubmit={onSubmit}>
       <Stack>
-        <TextInput
-          label="Event Description"
-          description="Optional — the calendar title is rendered from the title template"
-          placeholder="Event title"
-          data-autofocus
-          {...form.getInputProps("title")}
-        />
-
-        {isAdmin && (
-          <Select
-            label="On behalf of"
-            description="Create or edit this event as another user"
-            placeholder="Select a user"
-            data={inviteeUsers.map((user) => ({ value: user.id, label: user.displayName }))}
-            value={form.values.creatorId || null}
-            onChange={(value) => {
-              const next = value ?? "";
-              const previous = form.values.creatorId;
-              // The creator is always an invitee; keep the invitee chips and the
-              // live preview in sync with the acting user (matching the server's
-              // withCreatorInvited normalization).
-              const invitees = form.values.invitees.filter(
-                (entry) => `${entry}` !== (previous ? `user:${previous}` : `${entry}`),
-              );
-              form.setFieldValue("creatorId", next);
-              form.setFieldValue(
-                "invitees",
-                next ? [...new Set([...invitees, `user:${next}`])] : invitees,
-              );
-            }}
-            error={form.errors.creatorId}
-            searchable
-            required
-          />
-        )}
-
         <Stack gap="xs">
           <Text size="sm" fw={500}>
             Event Type
@@ -420,7 +391,7 @@ export function EventForm({
                     key={type.name}
                     variant={selected ? "filled" : "light"}
                     size="lg"
-                    style={{ cursor: "pointer" }}
+                    style={{ height: "calc(var(--badge-height-lg) * 1.5)", cursor: "pointer" }}
                     onClick={() => handleEventTypeChange(selected ? null : type.name)}
                   >
                     {type.name}
@@ -433,6 +404,42 @@ export function EventForm({
 
         {hasType && (
           <>
+            <TextInput
+              label="Event Description"
+              description="Optional — the calendar title is rendered from the title template"
+              placeholder="Event title"
+              data-autofocus
+              {...form.getInputProps("title")}
+            />
+
+            {isAdmin && (
+              <Select
+                label="On behalf of"
+                description="Create or edit this event as another user"
+                placeholder="Select a user"
+                data={inviteeUsers.map((user) => ({ value: user.id, label: user.displayName }))}
+                value={form.values.creatorId || null}
+                onChange={(value) => {
+                  const next = value ?? "";
+                  const previous = form.values.creatorId;
+                  // The creator is always an invitee; keep the invitee chips and the
+                  // live preview in sync with the acting user (matching the server's
+                  // withCreatorInvited normalization).
+                  const invitees = form.values.invitees.filter(
+                    (entry) => `${entry}` !== (previous ? `user:${previous}` : `${entry}`),
+                  );
+                  form.setFieldValue("creatorId", next);
+                  form.setFieldValue(
+                    "invitees",
+                    next ? [...new Set([...invitees, `user:${next}`])] : invitees,
+                  );
+                }}
+                error={form.errors.creatorId}
+                searchable
+                required
+              />
+            )}
+
             {showTabs ? (
               <Tabs
                 value={effectiveTimeOption}
@@ -474,7 +481,7 @@ export function EventForm({
 
             <Paper withBorder p="sm">
               <Stack gap={4}>
-                <Text size="xs" fw={600} c="accent.6" tt="uppercase">
+                <Text size="sm" fw={500} c="accent.6" tt="uppercase">
                   Calendar preview
                 </Text>
                 <Text size="sm" fw={600} style={{ overflowWrap: "anywhere" }}>
