@@ -163,7 +163,7 @@ function FilterModalBody({
               <Button
                 size="xs"
                 variant={group.action.isApplied(draft[group.label] ?? []) ? "light" : "default"}
-                color="accent"
+                color="brand"
                 leftSection={group.action.icon}
                 onClick={() =>
                   group.action?.apply(
@@ -198,7 +198,7 @@ function FilterModalBody({
             >
               <Group gap="xs" mt="xs">
                 {group.options.map((option) => (
-                  <Chip key={option.value} value={option.value} color="accent">
+                  <Chip key={option.value} value={option.value} color="brand">
                     {option.label}
                   </Chip>
                 ))}
