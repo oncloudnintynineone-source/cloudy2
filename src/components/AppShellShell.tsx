@@ -57,7 +57,9 @@ function NavButton({ item, active }: { item: NavItem; active: boolean }) {
         gap: 2,
         paddingBlock: 6,
         minHeight: BOTTOM_NAV_HEIGHT,
-        color: active ? "var(--mantine-color-brand-7)" : "var(--mantine-color-dimmed)",
+        color: active
+          ? "var(--mantine-color-brand-7)"
+          : "light-dark(var(--mantine-color-gray-6), var(--mantine-color-dark-1))",
       }}
       aria-label={item.label}
       aria-current={active ? "page" : undefined}
