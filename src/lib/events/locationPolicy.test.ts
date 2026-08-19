@@ -39,8 +39,8 @@ describe("normalizeLocationPolicy", () => {
 });
 
 describe("clampOutOfCamp", () => {
-  it("'in' forces the flag off and keeps the location", () => {
-    expect(clampOutOfCamp("in", true, "Hall A")).toEqual({ outOfCamp: false, location: "Hall A" });
+  it("'in' forces the flag off and clears the location", () => {
+    expect(clampOutOfCamp("in", true, "Hall A")).toEqual({ outOfCamp: false, location: "" });
     expect(clampOutOfCamp("in", false, "")).toEqual({ outOfCamp: false, location: "" });
   });
 

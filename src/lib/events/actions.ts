@@ -222,9 +222,10 @@ function resolveEventTime(input: EventFormValues, context: EventTitleContext): E
 
 /**
  * Enforce the event type's location policy on the Out of Camp flag and
- * location (an "out" type clears the location; an "in" type forces the flag
- * off). Applied after {@link resolveEventTime} in both create and update so a
- * stale form state can never submit an out-of-policy combination.
+ * location ("in" and "out" types clear the location; "out" additionally
+ * forces the flag on). Applied after {@link resolveEventTime} in both create
+ * and update so a stale form state can never submit an out-of-policy
+ * combination.
  */
 function resolveEventLocation(input: EventFormValues, context: EventTitleContext): EventFormValues {
   const location = input.location.trim();

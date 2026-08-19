@@ -58,6 +58,8 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
 - [1.44 Schedule week view + S. Month removal (Phase 3i)](#144-schedule-week-view--s-month-removal-phase-3i)
 - [1.45 Pinned Week-view day label (Phase 3j)](#145-pinned-week-view-day-label-phase-3j)
 - [1.46 Out of Camp + location + location policy (Phase 3k)](#146-out-of-camp--location--location-policy-phase-3k)
+- [1.47 Staged event form wizard (Phase 3l)](#147-staged-event-form-wizard-phase-3l)
+- [1.48 Pinned "On behalf of" select for admins (Phase 3l)](#148-pinned-on-behalf-of-select-for-admins-phase-3l)
 
 ## 1.1 Status
 
@@ -2081,16 +2083,18 @@ row is replaced with a pinned strip.
 Events can now take place **out of camp**. The event form gains an "Out of Camp"
 checkbox (above the new **Location** textbox); checking it clears and disables the
 location box. Each event type carries a new admin-set **location policy** — **In camp
-only** / **Out of camp only** / **Both** — that restricts what the user may set. The
+only** / **Out of camp only** / **Both** — that restricts what the user may set: in-camp
+and out-of-camp-only types both clear and disable the Location box (only "Both" lets the
+user type a location, and only while out of camp is unchecked). The
 location is stored in Google's first-class event `location` field (visible in Google
 Calendar, prefilled on edit); the out-of-camp flag lives in the notes JSON
 (`outOfCamp`, written only when `true`). A new `{location}` event-title token renders
-the location in the calendar summary (it vanishes for out-of-camp events, whose
-location is always blank).
+the location in the calendar summary (it vanishes for in-camp-only, out-of-camp, and
+out-of-camp-only events, whose location is always blank).
 
 ```mermaid
 flowchart LR
-    T["event_types.location_policy<br/>in · out · both (default both)"] --> C["clampOutOfCamp (pure)<br/>in → flag off, keep location<br/>out → flag on, clear location<br/>both → passthrough"]
+    T["event_types.location_policy<br/>in · out · both (default both)"] --> C["clampOutOfCamp (pure)<br/>in → flag off, clear location<br/>out → flag on, clear location<br/>both → passthrough"]
     F["EventForm<br/>Out of Camp checkbox + Location box<br/>locked per policy, re-clamped on type switch"] --> A["createEvent / updateEvent<br/>resolveEventLocation (silent clamp)"]
     C --> F
     C --> A
@@ -2104,9 +2108,11 @@ flowchart LR
   `LocationPolicy`, `LOCATION_POLICY_LABELS`/`DESCRIPTIONS`,
   `isLocationPolicy`, `normalizeLocationPolicy` (unknown → `"both"`), and
   `clampOutOfCamp(policy, outOfCamp, location)` — the **single enforcement point**
-  used by the form (locking the checkbox + disabling the location box), the type
-  switch in the form, the edit prefill, and the server actions, so no
-  out-of-policy combination can be submitted.
+  used by the form (locking the checkbox + clearing/disabling the location box),
+  the type switch in the form, the edit prefill, and the server actions, so no
+  out-of-policy combination can be submitted. `"in"` clears the location and forces
+  the flag off; `"out"` clears the location and forces the flag on; `"both"` passes
+  values through.
 - **Schema** — migration `0012` adds `event_types.location_policy` (`text`, `NOT
   NULL` default `'both'`), following the `time_options` precedent (plain column,
   code-level normalization, no check constraint). `drizzle/meta/` journal + snapshot
@@ -2166,3 +2172,115 @@ flowchart LR
   and `pnpm db:generate` (no drift — migration `0012` in sync) all pass. Live
   smoke against the configured Google Calendar still pending (verify location
   write/clear and the note round-trip with a disposable test event).
+
+## 1.47 Staged event form wizard (Phase 3l)
+
+The create/edit event modal is now a **one-step-at-a-time wizard** so the user is
+never shown the full field stack at once. Steps, in order: **1 Event type →
+2 Timestamp → 3 Location** (the Out of Camp checkbox + Location box stay together
+in this step) **→ 4 Invitees → 5 On behalf of (admins only) → 6 Remarks** — the
+old "Event Description" input, now labeled **Remarks** (internal field is still
+`title`, so the `{description}` title token and notes round-trip are untouched).
+Regular users get 5 steps (no On behalf of). Only the current step's fields
+render, with **Back**/**Next** buttons (the existing submit button — "Create
+event"/"Save changes" — appears on the last step).
+
+```mermaid
+flowchart LR
+    S1[1 · Event type<br/>required to advance] --> S2[2 · Timestamp<br/>start/end + AM/PM validated]
+    S2 --> S3[3 · Location<br/>Out of Camp + location, no required fields]
+    S3 --> S4[4 · Invitees<br/>optional]
+    S4 --> S5{admin?}
+    S5 -- yes --> S6[5 · On behalf of<br/>creatorId required]
+    S5 -- no --> S7
+    S6 --> S7[6 · Remarks<br/>optional]
+    P["Calendar preview<br/>always visible below the step content"] -.-> S1
+    P -.-> S2 & S3 & S4 & S6 & S7
+```
+
+Locked-in decisions (user-confirmed):
+- **One step at a time** with Back/Next navigation (not a reordered single
+  scroll).
+- **`Next` validates the current step before advancing** (`goNext` runs
+  `form.validateField` over the fields owned by the step; the type step is
+  gated on a selected type via an inline `eventType` field error).
+- **No auto-advance** when an event type is picked — the user stays on step 1
+  and taps `Next` themselves (tapping the selected badge again still
+  deselects, staying on step 1).
+
+- **Indicator** — Mantine 9.5.1 has no compact `Steps` component (only the full
+  row-per-step `Stepper`, too tall for the 380px `size="sm"` mobile modal), so
+  the indicator is a small custom row: one dot per step (completed + current in
+  `brand-6`, upcoming in `gray-3`, current ringed and slightly larger;
+  completed dots are clickable `UnstyledButton`s that jump **back only**) plus a
+  `n of N · Label` line. Label per step from the step's `label` (`"Event type"`,
+  `"Timestamp"`, `"Location"`, `"Invitees"`, `"On behalf of"`, `"Remarks"`).
+- **Always-visible preview** — the "Calendar preview" `Paper` moved out of the
+  per-step content to sit below it (above the nav row) on **every** step; the
+  live `previewTitle` + `onTitleChange` (minimized-bubble label) wiring is
+  unchanged.
+- **Step model** (`EventForm.tsx`) — local `StepId`/`StepDef` types and a
+  memoized `steps` array built from `isAdmin` (`{ id, label, fields }`, where
+  `fields` are the `EventFormState` keys that must validate cleanly:
+  `time → [start, end, startAmPm, endAmPm]`, `creator → [creatorId]`, the rest
+  `[]`). `step` is a `useState` index; `goBack` decrements, `goNext` gates +
+  increments.
+- **Submit-error → step jump** — `STEP_BY_FIELD` maps the server-reported
+  `EventResultField` to its owning step (`start`/`end`/`startAmPm`/`endAmPm`
+  → Timestamp, `creatorId` → On behalf of, `title` → Remarks); on a failed
+  submit the form `setStep`s there so the user lands on the offending field
+  (the red notification is unchanged). `STEP_BY_FIELD` is `Partial` and the
+  lookup is guarded, so admin-only steps simply don't resolve for regular
+  users.
+- **Implicit-submit guard** — the submit handler bails out unless the last step
+  is active (the submit button only renders there; Enter in a textbox on an
+  earlier step must not send a half-filled payload).
+- **Unchanged** — `src/lib/events/validate.ts` and its tests (a selected type is
+  enforced by the wizard gate, not a new form-level rule), `DashboardView`
+  (modal shell, minimize bubble, `?edit=` deep link), server actions, and the
+  `hasType`-era behavior is otherwise preserved: time-option re-clamp and
+  out-of-camp re-clamp still run in `handleEventTypeChange`, the
+  creator-is-an-invitee sync still runs in the On behalf of change handler, and
+  the edit prefill still starts the user on step 1 with all fields filled.
+- **Empty invitees** — when `inviteeData` has no options the Invitees step
+  shows a dimmed "No people or departments to tag — the event lands in your
+  own department calendar." line instead of a (previously hidden) `MultiSelect`.
+- Verification: `pnpm lint`, `pnpm typecheck`, `pnpm test` (310) and
+  `pnpm build` all pass. No schema change. Manual smoke pass in `pnpm dev`
+  recommended (admin + regular, create + edit, per-step blocking, dot jump-back,
+  preview visible throughout).
+
+## 1.48 Pinned "On behalf of" select for admins (Phase 3l)
+
+The admin **"On behalf of"** `Select` is no longer its own wizard step — it's
+now **pinned at the top of the modal body** (directly under the step-dot
+indicator) and stays visible on **every** step, so an admin can switch the
+acting user at any point without navigating. As a side effect, **all roles now
+walk the same 5 steps** (Event type → Timestamp → Location → Invitees →
+Remarks); the 6th "On behalf of" step is gone.
+
+- **Step model** — `StepId` drops `"creator"`; the step list is a module-level
+  `const STEPS` (no longer a `useMemo` on `isAdmin`) with the five shared
+  entries, and `form.validateField`'s per-step field lists no longer include
+  `creatorId`. The dot indicator + "n of N" label simply render 5 for everyone.
+- **Pinned select** (`EventForm.tsx`) — the `Select` is hoisted out of the
+  per-step conditionals into `{isAdmin && ( <Box …><Select …/></Box> )}`,
+  rendered right after the indicator `Stack`. The `Box` is
+  `position: sticky; top: 0` (zIndex 1, `paddingBottom: 8`,
+  `backgroundColor: var(--mantine-color-body)` — the same Paper token the modal
+  content uses, matched against `@mantine/core`'s compiled CSS), so it literally
+  sticks to the top while the body scrolls (tallest step = full-day Timestamp).
+  The `Select` props + onChange (creators always sync into the invitee chips,
+  matching the server's `withCreatorInvited`) are moved verbatim.
+- **Validation** — the admin-only *required* creator rule is unchanged but now
+  enforced purely at **submit** (via `validateEventForm(values,
+  { requireCreator: isAdmin })`), not as a step gate: `STEP_BY_FIELD` drops the
+  `creatorId` entry (there's no step to jump to), so a missing-creator error
+  renders inline on the always-visible pinned `Select` (`form.errors.creatorId`)
+  plus the existing red notification. Non-admin flow is untouched (they never
+  rendered the select or a creator step).
+- Verification: `pnpm lint`, `pnpm typecheck`, `pnpm test` (310) and
+  `pnpm build` all pass. No schema change. Manual smoke: admin create/edit —
+  select visible on all 5 steps and sticky through the full-day Timestamp
+  scroll; picking/deselecting a creator still syncs the invitee chips;
+  non-admin sees 5 steps with no select.

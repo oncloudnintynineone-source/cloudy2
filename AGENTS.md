@@ -158,7 +158,7 @@ the quality checks.
    **`location_policy`** (`in`/`out`/`both`, default `both`) restricting where events of the
    type may take place. The restriction is enforced client- and server-side by the pure
    `clampOutOfCamp()` helper in `src/lib/events/locationPolicy.ts` (single source of truth:
-   `"in"` forces Out of Camp off and keeps the location, `"out"` forces it on and clears the
+   `"in"` forces Out of Camp off and clears the location, `"out"` forces it on and clears the
    location, `"both"` passes through); the event form locks the Out of Camp checkbox and
    disables the Location textbox accordingly, and `resolveEventLocation()` in
    `src/lib/events/actions.ts` silently re-clamps in both create/update.

@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Badge,
+  Box,
   Button,
   Checkbox,
   Group,
@@ -14,12 +15,19 @@ import {
   Tabs,
   Text,
   TextInput,
+  UnstyledButton,
 } from "@mantine/core";
 import { DatePickerInput, DateTimePicker } from "@mantine/dates";
 import { useForm } from "@mantine/form";
 import { notifications } from "@mantine/notifications";
+import { IconChevronLeft, IconChevronRight } from "@tabler/icons-react";
 
-import { createEvent, updateEvent, type EventActionResult } from "@/lib/events/actions";
+import {
+  createEvent,
+  updateEvent,
+  type EventActionResult,
+  type EventResultField,
+} from "@/lib/events/actions";
 import { subOneDay } from "@/lib/events/datetime";
 import { clampOutOfCamp, type LocationPolicy } from "@/lib/events/locationPolicy";
 import { eventRefFromCalendarEvent } from "@/lib/events/targets";
@@ -86,6 +94,35 @@ const OUT_OF_CAMP_DESCRIPTIONS: Record<LocationPolicy, string> = {
   in: "This event type takes place in camp only",
   out: "This event type takes place out of camp only",
   both: "Out-of-camp events have no location",
+};
+
+/** Wizard step ids for the staged event form. */
+type StepId = "type" | "time" | "location" | "invitees" | "remarks";
+
+interface StepDef {
+  id: StepId;
+  label: string;
+  /** Form fields that must validate cleanly before the step can be left. */
+  fields: (keyof EventFormState)[];
+}
+
+/** The wizard steps, in order (admins additionally pin the "On behalf of"
+    select above the step content). */
+const STEPS: StepDef[] = [
+  { id: "type", label: "Event type", fields: [] },
+  { id: "time", label: "Timestamp", fields: ["start", "end", "startAmPm", "endAmPm"] },
+  { id: "location", label: "Location", fields: [] },
+  { id: "invitees", label: "Invitees", fields: [] },
+  { id: "remarks", label: "Remarks", fields: [] },
+];
+
+/** Maps a server-reported error field to the wizard step that owns it. */
+const STEP_BY_FIELD: Partial<Record<EventResultField, StepId>> = {
+  title: "remarks",
+  start: "time",
+  end: "time",
+  startAmPm: "time",
+  endAmPm: "time",
 };
 
 /** Split the prefixed select values (`user:<id>` / `dept:<id>`) into the two notes fields. */
@@ -226,6 +263,30 @@ export function EventForm({
     form.values.location,
   );
 
+  // Wizard state: a stepped walk through the form so the user only ever sees
+  // one input group at a time.
+  const [step, setStep] = useState(0);
+  const currentStep = STEPS[step];
+  const isLastStep = step === STEPS.length - 1;
+
+  function goBack() {
+    setStep((index) => Math.max(index - 1, 0));
+  }
+
+  function goNext() {
+    // Step 1 needs a selected type before anything else makes sense.
+    if (currentStep.id === "type") {
+      if (!form.values.eventType) {
+        form.setFieldError("eventType", "Select an event type");
+        return;
+      }
+      form.clearFieldError("eventType");
+    } else if (currentStep.fields.some((field) => form.validateField(field).hasError)) {
+      return;
+    }
+    setStep((index) => Math.min(index + 1, STEPS.length - 1));
+  }
+
   function switchTimeOption(option: TimeOption) {
     form.setFieldValue("timeOption", option);
     if (option === "full") {
@@ -248,14 +309,17 @@ export function EventForm({
   function handleEventTypeChange(value: string | null) {
     const name = value ?? "";
     form.setFieldValue("eventType", name);
+    if (name) {
+      form.clearFieldError("eventType");
+    }
     const type = eventTypes.find((entry) => entry.name === name);
     const allowed: TimeOption[] = type ? type.timeOptions : ["range"];
     if (!allowed.includes(form.values.timeOption)) {
       switchTimeOption(allowed[0]);
     }
     // Re-clamp the Out of Camp flag and location against the new type's
-    // location policy (an "out" type clears the location, an "in" type
-    // forces the flag off).
+    // location policy (an "in" or "out" type clears the location, and "out"
+    // additionally forces the flag on).
     const clamped = clampOutOfCamp(
       type ? type.locationPolicy : "both",
       form.values.outOfCamp,
@@ -318,6 +382,11 @@ export function EventForm({
   }, [previewTitle, onTitleChange]);
 
   const onSubmit = form.onSubmit(async (values) => {
+    // The submit button only renders on the last step; guard against implicit
+    // form submission (e.g. Enter in a textbox) from earlier steps.
+    if (!isLastStep) {
+      return;
+    }
     const { invitees, ...rest } = values;
     const { userIds, departmentIds } = splitInvitees(invitees);
     const payload: EventFormValues = {
@@ -342,12 +411,17 @@ export function EventForm({
     }
 
     if (result.field) {
-      form.setFieldError(result.field, result.error);
+      const failedField = result.field;
+      form.setFieldError(failedField, result.error);
+      // Land the user on the step that owns the failing field.
+      const target = STEPS.findIndex((s) => s.id === STEP_BY_FIELD[failedField]);
+      if (target >= 0) {
+        setStep(target);
+      }
     }
     notifications.show({ color: "red", message: result.error });
   });
 
-  const hasType = Boolean(form.values.eventType);
   const showTabs = allowedOptions.length > 1;
 
   const timeFields = (option: TimeOption) =>
@@ -419,93 +493,134 @@ export function EventForm({
         aria-hidden="true"
         style={{ position: "fixed", top: 0, left: 0, opacity: 0, pointerEvents: "none" }}
       />
-      <Stack>
-        <Stack gap="xs">
-          <Text size="sm" fw={500}>
-            Event Type
+      <Stack gap="sm">
+        {/* Compact wizard indicator: dots for progress (tap a filled dot to
+            jump back) plus the current step label. */}
+        <Stack gap={6} align="center">
+          <Group gap={6} justify="center">
+            {STEPS.map((s, index) => {
+              const done = index < step;
+              const current = index === step;
+              return (
+                <UnstyledButton
+                  key={s.id}
+                  type="button"
+                  disabled={!done}
+                  aria-label={`Go to step ${index + 1}: ${s.label}`}
+                  onClick={() => setStep(index)}
+                  style={{
+                    width: current ? 10 : 8,
+                    height: current ? 10 : 8,
+                    borderRadius: "50%",
+                    backgroundColor:
+                      done || current ? "var(--mantine-color-brand-6)" : "var(--mantine-color-gray-3)",
+                    boxShadow: current ? `0 0 0 2px var(--mantine-color-brand-1)` : undefined,
+                  }}
+                />
+              );
+            })}
+          </Group>
+          <Text size="xs" c="dimmed" ta="center">
+            {step + 1} of {STEPS.length} · {currentStep.label}
           </Text>
-          {sortedEventTypes.length === 0 ? (
-            <Text size="sm" c="dimmed">
-              No event types
-            </Text>
-          ) : (
-            <Group gap={6} wrap="wrap">
-              {sortedEventTypes.map((type) => {
-                const selected = type.name === form.values.eventType;
-                return (
-                  <Badge
-                    key={type.name}
-                    variant={selected ? "filled" : "light"}
-                    size="lg"
-                    style={{ height: "calc(var(--badge-height-lg) * 1.5)", cursor: "pointer" }}
-                    onClick={() => handleEventTypeChange(selected ? null : type.name)}
-                  >
-                    {type.name}
-                  </Badge>
-                );
-              })}
-            </Group>
-          )}
         </Stack>
 
-        {hasType && (
-          <>
-            <TextInput
-              label="Event Description"
-              description="Optional — the calendar title is rendered from the title template"
-              placeholder="Event title"
-              {...form.getInputProps("title")}
+        {/* Pinned for admins: who the event is on behalf of, always in view
+            (sticks to the top of the scrolling body). */}
+        {isAdmin && (
+          <Box
+            style={{
+              position: "sticky",
+              top: 0,
+              zIndex: 1,
+              paddingBottom: 8,
+              backgroundColor: "var(--mantine-color-body)",
+            }}
+          >
+            <Select
+              label="On behalf of"
+              description="Create or edit this event as another user"
+              placeholder="Select a user"
+              data={inviteeUsers.map((user) => ({ value: user.id, label: user.displayName }))}
+              value={form.values.creatorId || null}
+              onChange={(value) => {
+                const next = value ?? "";
+                const previous = form.values.creatorId;
+                // The creator is always an invitee; keep the invitee chips and
+                // the live preview in sync with the acting user (matching the
+                // server's withCreatorInvited normalization).
+                const invitees = form.values.invitees.filter(
+                  (entry) => `${entry}` !== (previous ? `user:${previous}` : `${entry}`),
+                );
+                form.setFieldValue("creatorId", next);
+                form.setFieldValue(
+                  "invitees",
+                  next ? [...new Set([...invitees, `user:${next}`])] : invitees,
+                );
+              }}
+              error={form.errors.creatorId}
+              searchable
+              required
             />
+          </Box>
+        )}
 
-            {isAdmin && (
-              <Select
-                label="On behalf of"
-                description="Create or edit this event as another user"
-                placeholder="Select a user"
-                data={inviteeUsers.map((user) => ({ value: user.id, label: user.displayName }))}
-                value={form.values.creatorId || null}
-                onChange={(value) => {
-                  const next = value ?? "";
-                  const previous = form.values.creatorId;
-                  // The creator is always an invitee; keep the invitee chips and the
-                  // live preview in sync with the acting user (matching the server's
-                  // withCreatorInvited normalization).
-                  const invitees = form.values.invitees.filter(
-                    (entry) => `${entry}` !== (previous ? `user:${previous}` : `${entry}`),
-                  );
-                  form.setFieldValue("creatorId", next);
-                  form.setFieldValue(
-                    "invitees",
-                    next ? [...new Set([...invitees, `user:${next}`])] : invitees,
-                  );
-                }}
-                error={form.errors.creatorId}
-                searchable
-                required
-              />
-            )}
-
-            {showTabs ? (
-              <Tabs
-                value={effectiveTimeOption}
-                onChange={(value) => value && switchTimeOption(value as TimeOption)}
-                aria-label="Time option"
-              >
-                <Tabs.List grow>
-                  {allowedOptions.map((option) => (
-                    <Tabs.Tab key={option} value={option}>
-                      {TIME_OPTION_LABELS[option]}
-                    </Tabs.Tab>
-                  ))}
-                </Tabs.List>
-                <Tabs.Panel value={effectiveTimeOption} pt="sm">
-                  <Stack>{timeFields(effectiveTimeOption)}</Stack>
-                </Tabs.Panel>
-              </Tabs>
+        {currentStep.id === "type" && (
+          <Stack gap="xs">
+            {sortedEventTypes.length === 0 ? (
+              <Text size="sm" c="dimmed">
+                No event types
+              </Text>
             ) : (
-              timeFields(effectiveTimeOption)
+              <Group gap={6} wrap="wrap">
+                {sortedEventTypes.map((type) => {
+                  const selected = type.name === form.values.eventType;
+                  return (
+                    <Badge
+                      key={type.name}
+                      variant={selected ? "filled" : "light"}
+                      size="lg"
+                      style={{ height: "calc(var(--badge-height-lg) * 1.5)", cursor: "pointer" }}
+                      onClick={() => handleEventTypeChange(selected ? null : type.name)}
+                    >
+                      {type.name}
+                    </Badge>
+                  );
+                })}
+              </Group>
             )}
+            {form.errors.eventType && (
+              <Text size="xs" c="red">
+                {form.errors.eventType}
+              </Text>
+            )}
+          </Stack>
+        )}
 
+        {currentStep.id === "time" &&
+          (showTabs ? (
+            <Tabs
+              value={effectiveTimeOption}
+              onChange={(value) => value && switchTimeOption(value as TimeOption)}
+              aria-label="Time option"
+            >
+              <Tabs.List grow>
+                {allowedOptions.map((option) => (
+                  <Tabs.Tab key={option} value={option}>
+                    {TIME_OPTION_LABELS[option]}
+                  </Tabs.Tab>
+                ))}
+              </Tabs.List>
+              <Tabs.Panel value={effectiveTimeOption} pt="sm">
+                <Stack>{timeFields(effectiveTimeOption)}</Stack>
+              </Tabs.Panel>
+            </Tabs>
+          ) : (
+            timeFields(effectiveTimeOption)
+          ))}
+
+        {currentStep.id === "location" && (
+          <Stack>
             <Checkbox
               label="Out of Camp"
               description={OUT_OF_CAMP_DESCRIPTIONS[locationPolicy]}
@@ -514,61 +629,97 @@ export function EventForm({
               onChange={(checkedEvent) => {
                 const next = checkedEvent.currentTarget.checked;
                 form.setFieldValue("outOfCamp", next);
-                // An out-of-camp event has no camp location to record.
-                if (next) {
+                // Clear location when switching to in-camp (unchecked).
+                // Keep location when switching to out-of-camp so user can specify where.
+                if (!next) {
                   form.setFieldValue("location", "");
                 }
               }}
             />
-
             <TextInput
               label="Location"
-              placeholder="Where in camp the event takes place"
+              placeholder="Where the event takes place"
               {...form.getInputProps("location")}
-              disabled={effectiveOutOfCamp.outOfCamp}
+              disabled={!effectiveOutOfCamp.outOfCamp || locationPolicy === "in"}
             />
-
-            {inviteeData.length > 0 && (
-              <MultiSelect
-                label="Invitees"
-                description="A copy of the event is created in each tagged person's department and in each tagged department"
-                placeholder="My department only"
-                data={inviteeData}
-                value={form.values.invitees}
-                onChange={(value) =>
-                  form.setFieldValue(
-                    "invitees",
-                    lockedUserValue ? [...new Set([lockedUserValue, ...value])] : value,
-                  )
-                }
-                searchable
-                clearable
-              />
-            )}
-
-            <Paper withBorder p="sm">
-              <Stack gap={4}>
-                <Text size="sm" fw={500} c="accent.6" tt="uppercase">
-                  Calendar preview
-                </Text>
-                <Text size="sm" fw={600} style={{ overflowWrap: "anywhere" }}>
-                  {previewTitle || "—"}
-                </Text>
-              </Stack>
-            </Paper>
-
-            <Group justify="flex-end" mt="md">
-              <Button
-                type="submit"
-                fullWidth
-                loading={form.submitting}
-                loaderProps={BUTTON_LOADER_PROPS}
-              >
-                {isEdit ? "Save changes" : "Create event"}
-              </Button>
-            </Group>
-          </>
+          </Stack>
         )}
+
+        {currentStep.id === "invitees" &&
+          (inviteeData.length > 0 ? (
+            <MultiSelect
+              label="Invitees"
+              description="A copy of the event is created in each tagged person's department and in each tagged department"
+              placeholder="My department only"
+              data={inviteeData}
+              value={form.values.invitees}
+              onChange={(value) =>
+                form.setFieldValue(
+                  "invitees",
+                  lockedUserValue ? [...new Set([lockedUserValue, ...value])] : value,
+                )
+              }
+              searchable
+              clearable
+            />
+          ) : (
+            <Text size="sm" c="dimmed">
+              No people or departments to tag — the event lands in your own department calendar.
+            </Text>
+          ))}
+
+        {currentStep.id === "remarks" && (
+          <TextInput
+            label="Remarks"
+            description="Optional — the calendar title is rendered from the title template"
+            placeholder="Add remarks"
+            {...form.getInputProps("title")}
+          />
+        )}
+
+        <Paper withBorder p="sm">
+          <Stack gap={4}>
+            <Text size="sm" fw={500} c="accent.6" tt="uppercase">
+              Calendar preview
+            </Text>
+            <Text size="sm" fw={600} style={{ overflowWrap: "anywhere" }}>
+              {previewTitle || "—"}
+            </Text>
+          </Stack>
+        </Paper>
+
+        <Group justify={step === 0 ? "flex-end" : "space-between"} gap="sm">
+          {step > 0 && (
+            <Button
+              variant="subtle"
+              color="gray"
+              onClick={goBack}
+              leftSection={<IconChevronLeft size={16} />}
+              style={{ flexShrink: 0 }}
+            >
+              Back
+            </Button>
+          )}
+          {isLastStep ? (
+            <Button
+              type="submit"
+              loading={form.submitting}
+              loaderProps={BUTTON_LOADER_PROPS}
+              style={step > 0 ? { flexGrow: 1 } : undefined}
+            >
+              {isEdit ? "Save changes" : "Create event"}
+            </Button>
+          ) : (
+            <Button
+              fullWidth={step === 0}
+              onClick={goNext}
+              rightSection={<IconChevronRight size={16} />}
+              style={step > 0 ? { flexGrow: 1 } : undefined}
+            >
+              Next
+            </Button>
+          )}
+        </Group>
       </Stack>
     </form>
   );

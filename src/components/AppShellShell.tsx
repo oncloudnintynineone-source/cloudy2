@@ -1,7 +1,12 @@
 "use client";
 
 import { AppShell, Box, Group, Text, UnstyledButton } from "@mantine/core";
-import { IconAddressBook, IconCalendarMonth, IconChartBar, IconSettings } from "@tabler/icons-react";
+import {
+  IconAddressBook,
+  IconCalendarMonth,
+  IconClipboardList,
+  IconSettings,
+} from "@tabler/icons-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
@@ -23,11 +28,11 @@ const CALENDAR: NavItem = {
   matches: (pathname) => pathname === "/dashboard" || pathname.startsWith("/dashboard"),
 };
 
-const OVERVIEW: NavItem = {
-  href: "/overview",
-  label: "Overview",
-  icon: <IconChartBar size={22} />,
-  matches: (pathname) => pathname === "/overview" || pathname.startsWith("/overview"),
+const PARADE_STATE: NavItem = {
+  href: "/parade-state",
+  label: "Parade State",
+  icon: <IconClipboardList size={22} />,
+  matches: (pathname) => pathname === "/parade-state" || pathname.startsWith("/parade-state"),
 };
 
 const CONTACTS: NavItem = {
@@ -83,7 +88,7 @@ export function AppShellShell({
 }) {
   const pathname = usePathname();
   const items: NavItem[] =
-    role === "admin" ? [CALENDAR, OVERVIEW, CONTACTS, SETTINGS] : [CALENDAR, OVERVIEW, CONTACTS];
+    role === "admin" ? [CALENDAR, PARADE_STATE, CONTACTS, SETTINGS] : [CALENDAR, PARADE_STATE, CONTACTS];
 
   return (
     <AppShell header={{ height: 56 }} footer={{ height: BOTTOM_NAV_HEIGHT_CSS }} padding="md">

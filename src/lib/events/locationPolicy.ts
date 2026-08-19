@@ -3,7 +3,7 @@
  * restricts where events of a type may take place:
  *
  * - `in` ("In camp only") — the Out of Camp flag is forced off; the
- *   location field stays available.
+ *   location field is cleared and disabled.
  * - `out` ("Out of camp only") — the Out of Camp flag is forced on; the
  *   location field is cleared.
  * - `both` (default, no restriction) — the user chooses freely.
@@ -25,7 +25,7 @@ export const LOCATION_POLICY_LABELS: Record<LocationPolicy, string> = {
 };
 
 export const LOCATION_POLICY_DESCRIPTIONS: Record<LocationPolicy, string> = {
-  in: "Events of this type take place in camp; the location may always be set.",
+  in: "Events of this type take place in camp; no location is recorded.",
   out: "Events of this type take place out of camp; no location is recorded.",
   both: "The user may choose in camp or out of camp when creating the event.",
 };
@@ -47,7 +47,7 @@ export interface OutOfCampState {
 
 /**
  * Enforce a type's location policy onto the event's Out of Camp flag and
- * location: "in" keeps the location and forces the flag off, "out" forces
+ * location: "in" clears the location and forces the flag off, "out" forces
  * the flag on and clears the location, "both" passes the values through.
  */
 export function clampOutOfCamp(
@@ -56,7 +56,7 @@ export function clampOutOfCamp(
   location: string,
 ): OutOfCampState {
   if (policy === "in") {
-    return { outOfCamp: false, location };
+    return { outOfCamp: false, location: "" };
   }
   if (policy === "out") {
     return { outOfCamp: true, location: "" };
