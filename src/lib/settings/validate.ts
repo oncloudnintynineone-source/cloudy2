@@ -18,6 +18,7 @@ export const EVENT_TITLE_PLACEHOLDERS = [
   "{people:acronym}",
   "{people:fqn}",
   "{departments}",
+  "{location}",
 ] as const;
 
 export interface KeywordFormValues {

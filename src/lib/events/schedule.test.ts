@@ -24,9 +24,18 @@ function makeEvent(overrides: Partial<CalendarEvent["payload"]> = {}): CalendarE
     timeOption: overrides.timeOption ?? "range",
     startAmPm: overrides.startAmPm ?? null,
     endAmPm: overrides.endAmPm ?? null,
+    outOfCamp: overrides.outOfCamp ?? false,
+    location: overrides.location ?? "",
     external: overrides.external ?? false,
   };
-  return { id: "cal-1:google-1", title: "Test event", start: "2026-08-17 09:00:00", end: "2026-08-17 10:00:00", color: "blue", payload };
+  return {
+    id: "cal-1:google-1",
+    title: "Test event",
+    start: "2026-08-17 09:00:00",
+    end: "2026-08-17 10:00:00",
+    color: "blue",
+    payload,
+  };
 }
 
 describe("departmentRowId / isDepartmentRowId", () => {
@@ -44,9 +53,11 @@ describe("rowsForEvent", () => {
   });
 
   it("combines creator, users, and departments", () => {
-    expect(
-      rowsForEvent({ creatorId: "u1", userIds: ["u2"], departmentIds: ["cal-9"] }),
-    ).toEqual(["u1", "u2", "dept:cal-9"]);
+    expect(rowsForEvent({ creatorId: "u1", userIds: ["u2"], departmentIds: ["cal-9"] })).toEqual([
+      "u1",
+      "u2",
+      "dept:cal-9",
+    ]);
   });
 
   it("dedupes when the creator is also tagged", () => {

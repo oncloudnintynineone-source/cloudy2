@@ -9,6 +9,7 @@ import { useDisclosure } from "@mantine/hooks";
 import type { EventType } from "@/db/schema";
 import { FloatingActionButton, FloatingToolbar } from "@/components/FloatingToolbar";
 import { SETTINGS_TAB_BAR_OFFSET } from "../settingsTabBar";
+import { LOCATION_POLICY_LABELS, normalizeLocationPolicy } from "@/lib/events/locationPolicy";
 import {
   TIME_OPTION_LABELS,
   normalizeTimeOptions,
@@ -59,13 +60,14 @@ export function EventTypeTable({ types }: EventTypeTableProps) {
                       {eventType.shortname}
                     </Badge>
                   ) : null}
-                  {resolveTimeOptions(normalizeTimeOptions(eventType.timeOptions)).map(
-                    (option) => (
-                      <Badge key={option} size="sm" variant="light" color="gray">
-                        {TIME_OPTION_LABELS[option]}
-                      </Badge>
-                    ),
-                  )}
+                  {resolveTimeOptions(normalizeTimeOptions(eventType.timeOptions)).map((option) => (
+                    <Badge key={option} size="sm" variant="light" color="gray">
+                      {TIME_OPTION_LABELS[option]}
+                    </Badge>
+                  ))}
+                  <Badge size="sm" variant="light" color="accent">
+                    {LOCATION_POLICY_LABELS[normalizeLocationPolicy(eventType.locationPolicy)]}
+                  </Badge>
                 </Group>
               </Stack>
             </Paper>
@@ -92,9 +94,7 @@ export function EventTypeTable({ types }: EventTypeTableProps) {
       </Modal>
 
       <FloatingToolbar bottomOffset={SETTINGS_TAB_BAR_OFFSET}>
-        <FloatingActionButton onClick={openCreate}>
-          Add event type
-        </FloatingActionButton>
+        <FloatingActionButton onClick={openCreate}>Add event type</FloatingActionButton>
       </FloatingToolbar>
     </Stack>
   );

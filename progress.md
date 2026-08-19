@@ -57,6 +57,7 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
 - [1.43 Calendar force refresh (Phase 3h)](#143-calendar-force-refresh-phase-3h)
 - [1.44 Schedule week view + S. Month removal (Phase 3i)](#144-schedule-week-view--s-month-removal-phase-3i)
 - [1.45 Pinned Week-view day label (Phase 3j)](#145-pinned-week-view-day-label-phase-3j)
+- [1.46 Out of Camp + location + location policy (Phase 3k)](#146-out-of-camp--location--location-policy-phase-3k)
 
 ## 1.1 Status
 
@@ -2074,3 +2075,94 @@ row is replaced with a pinned strip.
 - No schema change, no new pure helper (the clamp/floor is a one-liner in the scroll
   handler).
 - Verification: `pnpm lint`, `pnpm typecheck`, `pnpm test`, and `pnpm build` pass.
+
+## 1.46 Out of Camp + location + location policy (Phase 3k)
+
+Events can now take place **out of camp**. The event form gains an "Out of Camp"
+checkbox (above the new **Location** textbox); checking it clears and disables the
+location box. Each event type carries a new admin-set **location policy** — **In camp
+only** / **Out of camp only** / **Both** — that restricts what the user may set. The
+location is stored in Google's first-class event `location` field (visible in Google
+Calendar, prefilled on edit); the out-of-camp flag lives in the notes JSON
+(`outOfCamp`, written only when `true`). A new `{location}` event-title token renders
+the location in the calendar summary (it vanishes for out-of-camp events, whose
+location is always blank).
+
+```mermaid
+flowchart LR
+    T["event_types.location_policy<br/>in · out · both (default both)"] --> C["clampOutOfCamp (pure)<br/>in → flag off, keep location<br/>out → flag on, clear location<br/>both → passthrough"]
+    F["EventForm<br/>Out of Camp checkbox + Location box<br/>locked per policy, re-clamped on type switch"] --> A["createEvent / updateEvent<br/>resolveEventLocation (silent clamp)"]
+    C --> F
+    C --> A
+    A --> G["Google event<br/>location field + notes.outOfCamp"]
+    G --> R["parseEventOutOfCamp + item.location<br/>→ payload (detail modal, edit prefill)"]
+    A --> S["formatEventTitle {location} token"]
+```
+
+- **Location policy** (new `src/lib/events/locationPolicy.ts`, pure, unit-tested in
+  `locationPolicy.test.ts`) — `LOCATION_POLICIES = ["in", "out", "both"]`,
+  `LocationPolicy`, `LOCATION_POLICY_LABELS`/`DESCRIPTIONS`,
+  `isLocationPolicy`, `normalizeLocationPolicy` (unknown → `"both"`), and
+  `clampOutOfCamp(policy, outOfCamp, location)` — the **single enforcement point**
+  used by the form (locking the checkbox + disabling the location box), the type
+  switch in the form, the edit prefill, and the server actions, so no
+  out-of-policy combination can be submitted.
+- **Schema** — migration `0012` adds `event_types.location_policy` (`text`, `NOT
+  NULL` default `'both'`), following the `time_options` precedent (plain column,
+  code-level normalization, no check constraint). `drizzle/meta/` journal + snapshot
+  committed.
+- **Event type settings** — `EventTypeFormValues` gains `locationPolicy`
+  (validated); `listEventTypes`/`getEventTypesByNames` normalize + expose it (the
+  server reads the policy through `getEventTypesByNames`); `createEventType`/
+  `renameEventType` persist it, field-diff it in the audit log, and
+  `EventTypeActionResult.field` gains `"locationPolicy"`. `EventTypeForm` gains a
+  "Location policy" `Radio.Group` (three radios with descriptions; default `both`
+  on create); `EventTypeTable` cards show the policy as a badge.
+- **Notes block** (`src/lib/events/notes.ts`) — `EventNotes.outOfCamp?`;
+  `parseEventOutOfCamp(description)` → `true` only for an explicit `true`
+  (legacy/absent = in camp). The writer passes `outOfCamp || undefined`, so
+  in-camp events store no flag at all.
+- **Google layer** — `GcalEventInput.location?`, `GcalEventItem.location`;
+  `buildEventBody` always sends `location` (an in-app update is a full replace, so an
+  empty string actively clears a previously set one); `mapGoogleEvent` reads
+  `event.location`. The events cache codec stores/decodes `location`, treating
+  pre-release cache rows (no key) as `""` until their normal refresh.
+- **Read path** (`src/lib/events/queries.ts`) — `CalendarEventPayload` gains
+  `outOfCamp` (from `parseEventOutOfCamp`) and `location` (from
+  `item.location`). `EventDetail` shows a "Location:" line and an "Out of Camp"
+  badge. `dashboard/page.tsx` passes `locationPolicy` through the
+  `EventTypeOption` shapes (`DashboardView`, `EventForm`).
+- **Event form** (`EventForm.tsx`) — inside the `hasType` block, after the time
+  fields and before Invitees: the "Out of Camp" `Checkbox` (description varies per
+  policy) above the `Location` `TextInput`. `checked`/`disabled` are derived from
+  `clampOutOfCamp(policy, values.outOfCamp, values.location)`, so a locked policy
+  renders checked/unchecked + disabled with no extra state; checking (only possible
+  when `both`) clears the location. `handleEventTypeChange` re-clamps both fields
+  for the newly selected type (mirroring the time-option re-clamp). Edit prefill
+  clamps the stored values against the type's *current* policy. The live calendar
+  preview renders `{location}` from the effective (clamped) value.
+- **Server enforcement** (`events/validate.ts`, `events/actions.ts`) —
+  `EventFormValues` gains `outOfCamp: boolean` + `location: string` (pass-through,
+  no new form errors); `EventTitleContext` gains `locationPolicy` (from
+  `getEventTypesByNames`, `"both"` for untyped events); a new
+  `resolveEventLocation(input, context)` — trim + `clampOutOfCamp` — runs after
+  `resolveEventTime` in **both** `createEvent` and `updateEvent` (silent clamp,
+  same philosophy as the time option). `buildGcalEventInput` writes
+  `outOfCamp` to the notes, `location` to the Google input, and `location` into
+  the `formatEventTitle` input. Audit `details` record `outOfCamp` + `location`.
+- **`{location}` title token** (`src/lib/settings/formatEventTitle.ts`) —
+  `EventTitleInput.location`; `case "location"` renders it (no styles, like
+  `{description}`/`{departments}`); empty renders `""` with the existing
+  trim/no-gap-collapsing semantics. `EVENT_TITLE_PLACEHOLDERS` gains
+  `"{location}"` (Templates insert chip); `TemplatesForm`'s sample input +
+  sample-data line include a location.
+- **Scope note** — external (Google-only) events' locations show in the detail
+  modal too (read straight from the Google field); the out-of-camp badge only
+  appears for in-app events that flipped the flag.
+- **Tests** — new `locationPolicy.test.ts` (clamp matrix); notes, cache codec,
+  `formatEventTitle`, `eventTypes/validate`, and `events/validate` suites extended;
+  three payload fixtures (`schedule`/`targets`/`counts` tests) gain the new fields.
+- Verification: `pnpm lint`, `pnpm typecheck`, `pnpm test` (310), `pnpm build`,
+  and `pnpm db:generate` (no drift — migration `0012` in sync) all pass. Live
+  smoke against the configured Google Calendar still pending (verify location
+  write/clear and the note round-trip with a disposable test event).

@@ -61,6 +61,7 @@ import { FilterModal, type FilterGroup } from "@/components/FilterModal";
 import { FloatingActionButton, FloatingToolbar } from "@/components/FloatingToolbar";
 import { weekDays } from "@/lib/events/datetime";
 import type { CalendarEvent } from "@/lib/events/queries";
+import type { LocationPolicy } from "@/lib/events/locationPolicy";
 import type { TimeOption } from "@/lib/events/timeOptions";
 import {
   scaleFromRect,
@@ -85,6 +86,7 @@ interface EventTypeOption {
   name: string;
   shortname: string | null;
   timeOptions: TimeOption[];
+  locationPolicy: LocationPolicy;
 }
 
 interface DashboardViewProps {

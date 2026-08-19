@@ -4,6 +4,7 @@ import { useEffect, useMemo } from "react";
 import {
   Badge,
   Button,
+  Checkbox,
   Group,
   MultiSelect,
   Paper,
@@ -20,6 +21,7 @@ import { notifications } from "@mantine/notifications";
 
 import { createEvent, updateEvent, type EventActionResult } from "@/lib/events/actions";
 import { subOneDay } from "@/lib/events/datetime";
+import { clampOutOfCamp, type LocationPolicy } from "@/lib/events/locationPolicy";
 import { eventRefFromCalendarEvent } from "@/lib/events/targets";
 import {
   amPmSuffix,
@@ -42,6 +44,7 @@ interface EventTypeOption {
   name: string;
   shortname: string | null;
   timeOptions: TimeOption[];
+  locationPolicy: LocationPolicy;
 }
 
 interface InviteeUser {
@@ -77,6 +80,13 @@ const AMPM_OPTIONS = [
   { label: "AM", value: "AM" },
   { label: "PM", value: "PM" },
 ];
+
+/** The Out of Camp checkbox description, per the selected type's location policy. */
+const OUT_OF_CAMP_DESCRIPTIONS: Record<LocationPolicy, string> = {
+  in: "This event type takes place in camp only",
+  out: "This event type takes place out of camp only",
+  both: "Out-of-camp events have no location",
+};
 
 /** Split the prefixed select values (`user:<id>` / `dept:<id>`) into the two notes fields. */
 function splitInvitees(invitees: string[]): { userIds: string[]; departmentIds: string[] } {
@@ -122,6 +132,13 @@ export function EventForm({
       const selectedType = eventTypes.find((type) => type.name === event.payload.eventType) ?? null;
       const allowed: TimeOption[] = selectedType ? selectedType.timeOptions : ["range"];
       const timeOption = resolveTimeOption(allowed, event.payload.timeOption);
+      // Clamp the stored Out of Camp flag against the type's location policy
+      // in case the policy tightened since the event was last edited.
+      const clamped = clampOutOfCamp(
+        selectedType ? selectedType.locationPolicy : "both",
+        event.payload.outOfCamp,
+        event.payload.location,
+      );
       return {
         // Prefill the raw (pre-template) description when the notes block has
         // it, so editing never re-types the rendered calendar title.
@@ -141,6 +158,8 @@ export function EventForm({
           ...event.payload.inviteeDepartmentIds.map((id) => `dept:${id}`),
           ...event.payload.inviteeUserIds.map((id) => `user:${id}`),
         ],
+        outOfCamp: clamped.outOfCamp,
+        location: clamped.location,
       };
     }
     return {
@@ -157,6 +176,8 @@ export function EventForm({
       inviteeUserIds: [],
       inviteeDepartments: [],
       invitees: isAdmin ? [] : currentUser ? [`user:${currentUser}`] : [],
+      outOfCamp: false,
+      location: "",
     };
   }
 
@@ -196,6 +217,14 @@ export function EventForm({
   const selectedType = sortedEventTypes.find((type) => type.name === form.values.eventType) ?? null;
   const allowedOptions: TimeOption[] = selectedType ? selectedType.timeOptions : ["range"];
   const effectiveTimeOption = resolveTimeOption(allowedOptions, form.values.timeOption);
+  /** The selected type's location policy; untyped events are unrestricted. */
+  const locationPolicy: LocationPolicy = selectedType ? selectedType.locationPolicy : "both";
+  /** The effective Out of Camp flag + location after the policy is applied. */
+  const effectiveOutOfCamp = clampOutOfCamp(
+    locationPolicy,
+    form.values.outOfCamp,
+    form.values.location,
+  );
 
   function switchTimeOption(option: TimeOption) {
     form.setFieldValue("timeOption", option);
@@ -224,6 +253,16 @@ export function EventForm({
     if (!allowed.includes(form.values.timeOption)) {
       switchTimeOption(allowed[0]);
     }
+    // Re-clamp the Out of Camp flag and location against the new type's
+    // location policy (an "out" type clears the location, an "in" type
+    // forces the flag off).
+    const clamped = clampOutOfCamp(
+      type ? type.locationPolicy : "both",
+      form.values.outOfCamp,
+      form.values.location,
+    );
+    form.setFieldValue("outOfCamp", clamped.outOfCamp);
+    form.setFieldValue("location", clamped.location);
   }
 
   const peopleById = useMemo(
@@ -266,6 +305,7 @@ export function EventForm({
         : null,
       people,
       departments,
+      location: effectiveOutOfCamp.location,
     };
     const base = formatEventTitle(input, eventTitleTemplate) || form.values.title.trim();
     const amPm = amPmSuffix(form.values.startAmPm, form.values.endAmPm);
@@ -466,6 +506,28 @@ export function EventForm({
               timeFields(effectiveTimeOption)
             )}
 
+            <Checkbox
+              label="Out of Camp"
+              description={OUT_OF_CAMP_DESCRIPTIONS[locationPolicy]}
+              checked={effectiveOutOfCamp.outOfCamp}
+              disabled={locationPolicy !== "both"}
+              onChange={(checkedEvent) => {
+                const next = checkedEvent.currentTarget.checked;
+                form.setFieldValue("outOfCamp", next);
+                // An out-of-camp event has no camp location to record.
+                if (next) {
+                  form.setFieldValue("location", "");
+                }
+              }}
+            />
+
+            <TextInput
+              label="Location"
+              placeholder="Where in camp the event takes place"
+              {...form.getInputProps("location")}
+              disabled={effectiveOutOfCamp.outOfCamp}
+            />
+
             {inviteeData.length > 0 && (
               <MultiSelect
                 label="Invitees"
@@ -496,7 +558,12 @@ export function EventForm({
             </Paper>
 
             <Group justify="flex-end" mt="md">
-              <Button type="submit" fullWidth loading={form.submitting} loaderProps={BUTTON_LOADER_PROPS}>
+              <Button
+                type="submit"
+                fullWidth
+                loading={form.submitting}
+                loaderProps={BUTTON_LOADER_PROPS}
+              >
                 {isEdit ? "Save changes" : "Create event"}
               </Button>
             </Group>

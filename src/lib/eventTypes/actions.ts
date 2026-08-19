@@ -10,11 +10,16 @@ import { diffFields } from "@/lib/audit/diff";
 import { logAction } from "@/lib/audit/log";
 import { requireAdmin } from "@/lib/session";
 import { validateEventTypeForm, type EventTypeFormValues } from "@/lib/eventTypes/validate";
+import { normalizeLocationPolicy } from "@/lib/events/locationPolicy";
 import { normalizeTimeOptions } from "@/lib/events/timeOptions";
 
 export type EventTypeActionResult =
   | { ok: true }
-  | { ok: false; error: string; field?: "name" | "shortname" | "timeOptions" };
+  | {
+      ok: false;
+      error: string;
+      field?: "name" | "shortname" | "timeOptions" | "locationPolicy";
+    };
 
 function isUniqueViolation(error: unknown): error is {
   code?: string;
@@ -30,7 +35,7 @@ function isUniqueViolation(error: unknown): error is {
 
 /** Constraint name violated by a unique-violation error, or null. */
 function violatedConstraint(error: unknown): string | null {
-  return isUniqueViolation(error) ? error.constraint_name ?? null : null;
+  return isUniqueViolation(error) ? (error.constraint_name ?? null) : null;
 }
 
 function actorFrom(session: Awaited<ReturnType<typeof requireAdmin>>) {
@@ -57,10 +62,11 @@ export async function createEventType(input: EventTypeFormValues): Promise<Event
   const name = input.name.trim();
   const shortname = input.shortname.trim();
   const timeOptions = normalizeTimeOptions(input.timeOptions);
+  const locationPolicy = normalizeLocationPolicy(input.locationPolicy);
   try {
     const [created] = await db
       .insert(eventTypes)
-      .values({ name, shortname, timeOptions })
+      .values({ name, shortname, timeOptions, locationPolicy })
       .returning({ id: eventTypes.id, name: eventTypes.name });
 
     await logAction({
@@ -70,7 +76,7 @@ export async function createEventType(input: EventTypeFormValues): Promise<Event
       entityId: created.id,
       entityName: created.name,
       method: "createEventType",
-      details: { name, shortname, timeOptions },
+      details: { name, shortname, timeOptions, locationPolicy },
     });
   } catch (error) {
     if (violatedConstraint(error) === "event_types_shortname_idx") {
@@ -109,10 +115,11 @@ export async function renameEventType(
   const name = input.name.trim();
   const shortname = input.shortname.trim();
   const timeOptions = normalizeTimeOptions(input.timeOptions);
+  const locationPolicy = normalizeLocationPolicy(input.locationPolicy);
   try {
     await db
       .update(eventTypes)
-      .set({ name, shortname, timeOptions, updatedAt: new Date() })
+      .set({ name, shortname, timeOptions, locationPolicy, updatedAt: new Date() })
       .where(eq(eventTypes.id, id));
 
     await logAction({
@@ -127,8 +134,9 @@ export async function renameEventType(
           name: existing.name,
           shortname: existing.shortname,
           timeOptions: existing.timeOptions,
+          locationPolicy: normalizeLocationPolicy(existing.locationPolicy),
         },
-        { name, shortname, timeOptions },
+        { name, shortname, timeOptions, locationPolicy },
       ),
     });
   } catch (error) {

@@ -37,6 +37,7 @@ interface CachedEvent {
   title: string;
   description: string;
   allDay: boolean;
+  location: string;
   start: string;
   end: string;
 }
@@ -49,6 +50,7 @@ export function encodeCachedEvents(items: GcalEventItem[]): CachedEvent[] {
     title: item.title,
     description: item.description,
     allDay: item.allDay,
+    location: item.location,
     start: item.start.toISOString(),
     end: item.end.toISOString(),
   }));
@@ -87,6 +89,8 @@ export function decodeCachedEvents(raw: unknown): GcalEventItem[] {
       title: entry.title,
       description: entry.description,
       allDay: entry.allDay,
+      // Pre-release cache rows carry no location; treat them as unset.
+      location: typeof entry.location === "string" ? entry.location : "",
       start,
       end,
     });

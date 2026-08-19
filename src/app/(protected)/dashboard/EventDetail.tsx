@@ -142,12 +142,19 @@ export function EventDetail({
               </Text>
             )}
 
+            {payload.location && (
+              <Text size="sm" c="dimmed">
+                Location: {payload.location}
+              </Text>
+            )}
+
             <Group gap={6} wrap="wrap">
               {payload.external && (
                 <Badge variant="light" color="gray">
                   External
                 </Badge>
               )}
+              {payload.outOfCamp && <Badge variant="light">Out of Camp</Badge>}
               {payload.eventType && <Badge variant="light">{payload.eventType}</Badge>}
               <Badge variant="outline" color="accent">
                 {payload.calendarName}

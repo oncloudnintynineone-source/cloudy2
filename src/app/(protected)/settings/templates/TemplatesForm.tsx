@@ -49,6 +49,8 @@ const EXAMPLE = { name: "John Lai", departmentName: "Engineering 1" };
 
 const SAMPLE_EVENT_DESCRIPTION = "Team offsite";
 
+const SAMPLE_EVENT_LOCATION = "Hall A";
+
 const PEOPLE_STYLE_HINT =
   "{people} = fully qualified · {people:full} = name · {people:acronym} = shortname";
 
@@ -118,9 +120,7 @@ export function TemplatesForm({
   });
 
   const onSubmitEventTitleTemplate = eventTitleTemplateForm.onSubmit(async (values) => {
-    const result: SettingsActionResult = await updateEventTitleTemplate(
-      values.eventTitleTemplate,
-    );
+    const result: SettingsActionResult = await updateEventTitleTemplate(values.eventTitleTemplate);
 
     if (result.ok) {
       notifications.show({ color: "green", message: "Event title template updated" });
@@ -162,6 +162,7 @@ export function TemplatesForm({
     },
     people: samplePeople,
     departments: sampleDepartments,
+    location: SAMPLE_EVENT_LOCATION,
   };
   const eventTitlePreview = formatEventTitle(eventTitleSample, eventTitleTemplateValue);
 
@@ -172,8 +173,8 @@ export function TemplatesForm({
           <Stack>
             <Text fw={600}>Display Name Template</Text>
             <Text size="sm" c="dimmed">
-              Compose a user&apos;s fully qualified name from their name and department. The
-              result is used wherever a user&apos;s full name is shown.
+              Compose a user&apos;s fully qualified name from their name and department. The result
+              is used wherever a user&apos;s full name is shown.
             </Text>
 
             <TextInput
@@ -250,8 +251,8 @@ export function TemplatesForm({
           <Stack>
             <Text fw={600}>Event Title Template</Text>
             <Text size="sm" c="dimmed">
-              Compose the title calendar events get in Google. The raw description stays
-              editable in the event form; the rendered title is what shows on the calendar.
+              Compose the title calendar events get in Google. The raw description stays editable in
+              the event form; the rendered title is what shows on the calendar.
             </Text>
 
             <TextInput
@@ -303,7 +304,7 @@ export function TemplatesForm({
                 {eventTitleSample.description}
                 {eventTitleSample.eventType ? ` · ${eventTitleSample.eventType.name}` : ""} ·{" "}
                 {samplePeople.map((person) => person.acronym).join(", ") || "no invitees"} ·{" "}
-                {sampleDepartments.join(", ") || "no departments"}
+                {sampleDepartments.join(", ") || "no departments"} · {eventTitleSample.location}
               </Text>
               <Text size="sm" fw={600} style={{ overflowWrap: "anywhere" }}>
                 {eventTitlePreview || "—"}

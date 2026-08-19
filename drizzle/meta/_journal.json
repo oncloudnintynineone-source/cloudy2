@@ -85,6 +85,13 @@
       "when": 1787109737156,
       "tag": "0011_panoramic_mariko_yashida",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1787122336333,
+      "tag": "0012_real_lizard",
+      "breakpoints": true
     }
   ]
 }

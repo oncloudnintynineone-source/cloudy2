@@ -81,6 +81,12 @@ export const eventTypes = pgTable(
       .array()
       .notNull()
       .default(sql`'{}'::text[]`),
+    /**
+     * Where events of this type may take place: "in" (in camp only, no Out of
+     * Camp flag), "out" (out of camp only, no location), "both" (no
+     * restriction — the default).
+     */
+    locationPolicy: text("location_policy").notNull().default("both"),
     ...timestamps,
   },
   (table) => [

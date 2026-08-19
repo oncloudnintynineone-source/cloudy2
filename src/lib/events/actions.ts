@@ -17,6 +17,7 @@ import {
   withEditLink,
   withInternalMarker,
 } from "@/lib/events/notes";
+import { clampOutOfCamp, type LocationPolicy } from "@/lib/events/locationPolicy";
 import { amPmSuffix, resolveTimeOption, type TimeOption } from "@/lib/events/timeOptions";
 import { getUserDepartmentIds } from "@/lib/events/queries";
 import { deriveTargetCalendarIds, type EventRef } from "@/lib/events/targets";
@@ -146,6 +147,11 @@ interface EventTitleContext {
   departments: string[];
   /** Datetime options the event type allows; empty when the event has no type. */
   timeOptions: TimeOption[];
+  /**
+   * The event type's location policy; "both" when the event has no type (no
+   * restriction).
+   */
+  locationPolicy: LocationPolicy;
 }
 
 /**
@@ -195,6 +201,7 @@ async function buildEventTitleContext(input: EventFormValues): Promise<EventTitl
     people,
     departments: inviteeDepartments.map((id) => departmentNames[id] ?? ""),
     timeOptions: eventTypeRow?.timeOptions ?? [],
+    locationPolicy: eventTypeRow?.locationPolicy ?? "both",
   };
 }
 
@@ -213,6 +220,22 @@ function resolveEventTime(input: EventFormValues, context: EventTitleContext): E
   };
 }
 
+/**
+ * Enforce the event type's location policy on the Out of Camp flag and
+ * location (an "out" type clears the location; an "in" type forces the flag
+ * off). Applied after {@link resolveEventTime} in both create and update so a
+ * stale form state can never submit an out-of-policy combination.
+ */
+function resolveEventLocation(input: EventFormValues, context: EventTitleContext): EventFormValues {
+  const location = input.location.trim();
+  const clamped = clampOutOfCamp(context.locationPolicy, input.outOfCamp, location);
+  return {
+    ...input,
+    outOfCamp: clamped.outOfCamp,
+    location: clamped.location,
+  };
+}
+
 async function buildGcalEventInput(
   googleCalendarId: string,
   input: EventFormValues,
@@ -226,6 +249,7 @@ async function buildGcalEventInput(
       eventType: titleContext.eventType,
       people: titleContext.people,
       departments: titleContext.departments,
+      location: input.location,
     },
     titleContext.template,
   );
@@ -251,6 +275,7 @@ async function buildGcalEventInput(
       timeOption: input.timeOption,
       startAmPm: input.timeOption === "full" ? input.startAmPm : undefined,
       endAmPm: input.timeOption === "full" ? input.endAmPm : undefined,
+      outOfCamp: input.outOfCamp || undefined,
     }),
   );
   // The marker line at the bottom flags the event as created in the app, so
@@ -264,6 +289,7 @@ async function buildGcalEventInput(
     title,
     description,
     allDay,
+    location: input.location,
     start,
     end,
   };
@@ -349,7 +375,10 @@ export async function createEvent(input: EventFormValues): Promise<EventActionRe
   const eventId = crypto.randomUUID();
   const integration = await getGoogleIntegration();
   const titleContext = await buildEventTitleContext(normalized);
-  const effectiveInput = resolveEventTime(normalized, titleContext);
+  const effectiveInput = resolveEventLocation(
+    resolveEventTime(normalized, titleContext),
+    titleContext,
+  );
   const created: { googleCalendarId: string; googleEventId: string }[] = [];
 
   try {
@@ -384,6 +413,8 @@ export async function createEvent(input: EventFormValues): Promise<EventActionRe
       eventId,
       eventType: effectiveInput.eventType || null,
       timeOption: effectiveInput.timeOption,
+      outOfCamp: effectiveInput.outOfCamp,
+      location: effectiveInput.location || null,
       targetCalendarIds: targets,
       targetCalendars: Object.values(targetCalendars),
       inviteeUserCount: arrayLength(effectiveInput.inviteeUserIds),
@@ -437,7 +468,10 @@ export async function updateEvent(
 
   const integration = await getGoogleIntegration();
   const titleContext = await buildEventTitleContext(normalized);
-  const effectiveInput = resolveEventTime(normalized, titleContext);
+  const effectiveInput = resolveEventLocation(
+    resolveEventTime(normalized, titleContext),
+    titleContext,
+  );
   // The old copies' search range covers both the old and new times (±day), so
   // a date/time change still finds the copies to update or retire.
   const range = withMargin(
@@ -505,6 +539,8 @@ export async function updateEvent(
       eventId,
       eventType: effectiveInput.eventType || null,
       timeOption: effectiveInput.timeOption,
+      outOfCamp: effectiveInput.outOfCamp,
+      location: effectiveInput.location || null,
       removedCalendarIds: oldTargets.filter((id) => !newSet.has(id)),
       addedCalendarIds: newTargets.filter((id) => !oldTargets.includes(id)),
       inviteeUserCount: arrayLength(effectiveInput.inviteeUserIds),

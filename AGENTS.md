@@ -153,17 +153,28 @@ the quality checks.
   Settings tab. A horizontal scrollable `SettingsTabs` bar (`src/app/(protected)/settings/`)
   switches between the Users (`/settings/users`), Departments (`/settings/departments`),
   Event Types (`/settings/event-types`), Templates (`/settings/templates`), and General
-  (`/settings/general`) tabs. **Event types carry a `shortname`** (their acronym, app-required
-  and unique) shown on the type cards and rendered by the `{type:acronym}` title token.
+   (`/settings/general`) tabs. **Event types carry a `shortname`** (their acronym, app-required
+   and unique) shown on the type cards and rendered by the `{type:acronym}` title token, and a
+   **`location_policy`** (`in`/`out`/`both`, default `both`) restricting where events of the
+   type may take place. The restriction is enforced client- and server-side by the pure
+   `clampOutOfCamp()` helper in `src/lib/events/locationPolicy.ts` (single source of truth:
+   `"in"` forces Out of Camp off and keeps the location, `"out"` forces it on and clears the
+   location, `"both"` passes through); the event form locks the Out of Camp checkbox and
+   disables the Location textbox accordingly, and `resolveEventLocation()` in
+   `src/lib/events/actions.ts` silently re-clamps in both create/update.
   The **Templates tab** holds the two template cards: the **display name template**
   (`settings.name_template`, with `{name}`/`{department}` placeholders, expanded by the pure
   `formatFullName()` helper in `src/lib/settings/formatName.ts`) and the **event title
-  template** (`settings.event_title_template`, with `{description}`/`{type}`/`{type:acronym}`/
-  `{departments}`/`{people}`/`{people:full}`/`{people:acronym}`/`{people:fqn}` tokens — bare
-  `{people}` and `{type}` are the fully qualified/plain names — expanded by the pure
-  `formatEventTitle()` helper in `src/lib/settings/formatEventTitle.ts`). Event titles are
-  rendered into the Google event summary on create/edit; the raw description round-trips via
-  the `title` field of the event notes JSON so the edit form always prefills the original text.
+   template** (`settings.event_title_template`, with `{description}`/`{type}`/`{type:acronym}`/
+   `{departments}`/`{location}`/`{people}`/`{people:full}`/`{people:acronym}`/`{people:fqn}`
+   tokens — bare `{people}` and `{type}` are the fully qualified/plain names, `{location}` the
+   event's location (blank for out-of-camp events) — expanded by the pure `formatEventTitle()`
+   helper in `src/lib/settings/formatEventTitle.ts`). Event titles are rendered into the Google
+   event summary on create/edit; the raw description round-trips via the `title` field of the
+   event notes JSON so the edit form always prefills the original text. The event's **location**
+   is stored in Google's first-class `location` field (not the notes) and an **`outOfCamp`**
+   flag (written only when `true`; read by `parseEventNotes` consumers via
+   `parseEventOutOfCamp()`) is stored in the notes JSON.
   The notes carry the link written on every create/edit as a human-readable
   `Edit: <url>` line above the notes block (deep link to `/dashboard?date=…&edit=<eventId>`,
   which opens the event's edit form); the app origin is derived from the request headers in

@@ -1,10 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import {
-  cacheEntryState,
-  decodeCachedEvents,
-  encodeCachedEvents,
-} from "./eventsCacheCodec";
+import { cacheEntryState, decodeCachedEvents, encodeCachedEvents } from "./eventsCacheCodec";
 
 describe("cacheEntryState", () => {
   const now = new Date("2026-08-01T00:00:00.000Z");
@@ -35,7 +31,7 @@ describe("cacheEntryState", () => {
 });
 
 describe("encodeCachedEvents / decodeCachedEvents", () => {
-  it("round-trips events with Dates preserved", () => {
+  it("round-trips events with Dates and location preserved", () => {
     const items = [
       {
         id: "evt-1",
@@ -43,6 +39,7 @@ describe("encodeCachedEvents / decodeCachedEvents", () => {
         title: "Morning briefing",
         description: "notes",
         allDay: false,
+        location: "Hall A",
         start: new Date("2026-08-01T01:00:00.000Z"),
         end: new Date("2026-08-01T02:00:00.000Z"),
       },
@@ -50,6 +47,22 @@ describe("encodeCachedEvents / decodeCachedEvents", () => {
     const decoded = decodeCachedEvents(encodeCachedEvents(items));
     expect(decoded).toEqual(items);
     expect(decoded[0].start).toBeInstanceOf(Date);
+  });
+
+  it("treats a missing location (pre-release rows) as an empty string", () => {
+    const decoded = decodeCachedEvents([
+      {
+        id: "legacy",
+        calendarId: "c",
+        title: "t",
+        description: "",
+        allDay: false,
+        start: "2026-08-01T00:00:00.000Z",
+        end: "2026-08-02T00:00:00.000Z",
+      },
+    ]);
+    expect(decoded).toHaveLength(1);
+    expect(decoded[0].location).toBe("");
   });
 
   it("drops non-array payloads", () => {

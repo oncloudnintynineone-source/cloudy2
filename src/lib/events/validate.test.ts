@@ -13,6 +13,8 @@ const base: EventFormValues = {
   creatorId: "user-1",
   inviteeUserIds: [],
   inviteeDepartments: [],
+  outOfCamp: false,
+  location: "Hall A",
 };
 
 describe("validateEventForm", () => {

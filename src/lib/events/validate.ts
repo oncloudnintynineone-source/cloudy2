@@ -27,6 +27,10 @@ export interface EventFormValues {
   inviteeUserIds: string[];
   /** Department (calendar) ids tagged on the event (schedule view rows). No validation. */
   inviteeDepartments: string[];
+  /** Whether the event takes place out of camp (no location recorded). */
+  outOfCamp: boolean;
+  /** Location of the event, cleared when the event is out of camp. */
+  location: string;
 }
 
 export interface EventFormErrors {

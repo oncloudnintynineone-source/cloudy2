@@ -7,10 +7,7 @@ const USER_A = "11111111-1111-1111-1111-111111111111";
 const USER_B = "22222222-2222-2222-2222-222222222222";
 const USER_C = "33333333-3333-3333-3333-333333333333";
 
-function makeEvent(
-  overrides: Partial<CalendarEventPayload>,
-  id = "event-1",
-): CalendarEvent {
+function makeEvent(overrides: Partial<CalendarEventPayload>, id = "event-1"): CalendarEvent {
   const payload: CalendarEventPayload = {
     calendarId: "cal-1",
     googleEventId: id,
@@ -25,6 +22,8 @@ function makeEvent(
     timeOption: "range",
     startAmPm: null,
     endAmPm: null,
+    outOfCamp: false,
+    location: "",
     external: false,
     ...overrides,
   };
@@ -69,7 +68,9 @@ describe("buildOverviewCounts", () => {
   });
 
   it("counts a user once per event even when creator and invitee", () => {
-    const events = [makeEvent({ eventType: "Meeting", creatorId: USER_A, inviteeUserIds: [USER_A] }, "e1")];
+    const events = [
+      makeEvent({ eventType: "Meeting", creatorId: USER_A, inviteeUserIds: [USER_A] }, "e1"),
+    ];
     const counts = buildOverviewCounts({ events, userIds: [USER_A], typeNames });
     expect(counts.get(USER_A)).toEqual({ Meeting: 1, Interviews: 0, "Out of Office": 0 });
   });

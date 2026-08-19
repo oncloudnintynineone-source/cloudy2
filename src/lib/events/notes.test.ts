@@ -10,6 +10,7 @@ import {
   isExternalEvent,
   parseEventEndAmPm,
   parseEventNotes,
+  parseEventOutOfCamp,
   parseEventPeople,
   parseEventStartAmPm,
   parseEventTimeOption,
@@ -94,6 +95,20 @@ describe("encodeEventNotes", () => {
       }),
     ).toBe('{"eventType":"Leave","timeOption":"range"}');
   });
+
+  it("keeps the out-of-camp flag when true (the writer omits it otherwise)", () => {
+    expect(encodeEventNotes({ eventType: "Leave", outOfCamp: true })).toBe(
+      '{"eventType":"Leave","outOfCamp":true}',
+    );
+    // The writer passes `outOfCamp || undefined`, so in-camp events store no
+    // flag at all (the generic encoder would keep a literal false).
+    expect(encodeEventNotes({ eventType: "Leave", outOfCamp: false || undefined })).toBe(
+      '{"eventType":"Leave"}',
+    );
+    expect(encodeEventNotes({ eventType: "Leave", outOfCamp: undefined })).toBe(
+      '{"eventType":"Leave"}',
+    );
+  });
 });
 
 describe("parseEventNotes", () => {
@@ -162,9 +177,7 @@ describe("hasInternalEventMarker / isExternalEvent", () => {
   });
 
   it("treats a marker + block combination as internal", () => {
-    expect(isExternalEvent(withInternalMarker(withEditLink('{"a":1}', "https://x")))).toBe(
-      false,
-    );
+    expect(isExternalEvent(withInternalMarker(withEditLink('{"a":1}', "https://x")))).toBe(false);
   });
 
   it("treats plain descriptions, the bare Edit line, and empty notes as external", () => {
@@ -322,6 +335,23 @@ describe("parseEventStartAmPm / parseEventEndAmPm", () => {
     expect(parseEventEndAmPm('{"timeOption":"full"}')).toBeNull();
     expect(parseEventStartAmPm('{"startAmPm":"MIDDAY"}')).toBeNull();
     expect(parseEventEndAmPm('{"endAmPm":"MIDDAY"}')).toBeNull();
+  });
+});
+
+describe("parseEventOutOfCamp", () => {
+  it("returns true only for an explicit true flag", () => {
+    expect(parseEventOutOfCamp('{"outOfCamp":true}')).toBe(true);
+    expect(
+      parseEventOutOfCamp(withEditLink(encodeNotesBlock('{"outOfCamp":true}'), "https://x")),
+    ).toBe(true);
+  });
+
+  it("returns false for absent, false, or malformed values (legacy events default in camp)", () => {
+    expect(parseEventOutOfCamp("")).toBe(false);
+    expect(parseEventOutOfCamp('{"eventType":"Leave"}')).toBe(false);
+    expect(parseEventOutOfCamp('{"outOfCamp":false}')).toBe(false);
+    expect(parseEventOutOfCamp('{"outOfCamp":"yes"}')).toBe(false);
+    expect(parseEventOutOfCamp("not json")).toBe(false);
   });
 });
 

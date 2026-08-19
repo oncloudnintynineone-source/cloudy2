@@ -39,6 +39,12 @@ export interface EventNotes {
   startAmPm?: string;
   /** End half-of-day indicator for "full" events. */
   endAmPm?: string;
+  /**
+   * Whether the event takes place out of camp. Written only when true —
+   * absence (legacy events) or false means in camp. Out-of-camp events carry
+   * no location.
+   */
+  outOfCamp?: boolean;
   [key: string]: unknown;
 }
 
@@ -282,4 +288,9 @@ export function parseEventEndAmPm(description: string): "AM" | "PM" | null {
   const notes = parseEventNotes(description);
   const endAmPm = notes?.endAmPm;
   return endAmPm === "AM" || endAmPm === "PM" ? endAmPm : null;
+}
+
+/** Extract the out-of-camp flag from the notes block; false when absent (legacy). */
+export function parseEventOutOfCamp(description: string): boolean {
+  return parseEventNotes(description)?.outOfCamp === true;
 }

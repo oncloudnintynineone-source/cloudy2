@@ -12,6 +12,7 @@ import { onlyUuidIds } from "@/lib/uuid";
 import {
   isExternalEvent,
   parseEventEndAmPm,
+  parseEventOutOfCamp,
   parseEventPeople,
   parseEventStartAmPm,
   parseEventTimeOption,
@@ -44,6 +45,10 @@ export interface CalendarEventPayload {
   startAmPm: "AM" | "PM" | null;
   /** End half-of-day indicator for "full" events, else null. */
   endAmPm: "AM" | "PM" | null;
+  /** True when the event takes place out of camp (from the notes block). */
+  outOfCamp: boolean;
+  /** The event's location (from Google); "" when unset. */
+  location: string;
   /** True when the event was created directly in Google Calendar, not in the app. */
   external: boolean;
 }
@@ -158,6 +163,8 @@ function mapCalendarItem(
       timeOption: parseEventTimeOption(item.description) ?? (item.allDay ? "full" : "range"),
       startAmPm: parseEventStartAmPm(item.description),
       endAmPm: parseEventEndAmPm(item.description),
+      outOfCamp: parseEventOutOfCamp(item.description),
+      location: item.location ?? "",
       external: isExternalEvent(item.description),
     },
   };

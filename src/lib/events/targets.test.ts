@@ -84,6 +84,8 @@ function makeEvent(eventId: string | null, calendarId = "cal-1"): CalendarEvent 
       timeOption: "range",
       startAmPm: null,
       endAmPm: null,
+      outOfCamp: false,
+      location: "",
       external: false,
     },
   };
@@ -93,10 +95,7 @@ describe("dedupeEventsByGroupId", () => {
   it("keeps the first copy per group id", () => {
     const events = [makeEvent("g1", "cal-a"), makeEvent("g1", "cal-b"), makeEvent("g2", "cal-a")];
     const deduped = dedupeEventsByGroupId(events);
-    expect(deduped.map((e) => e.payload.googleEventId)).toEqual([
-      "google-g1",
-      "google-g2",
-    ]);
+    expect(deduped.map((e) => e.payload.googleEventId)).toEqual(["google-g1", "google-g2"]);
     expect(deduped[0].payload.calendarId).toBe("cal-a");
   });
 
