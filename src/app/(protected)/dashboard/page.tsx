@@ -1,6 +1,11 @@
 import { listEventTypes } from "@/lib/eventTypes/queries";
-import { formatInstantToNaive } from "@/lib/events/datetime";
-import { fetchMonthEvents, getUserDepartmentId, listCalendars } from "@/lib/events/queries";
+import { formatInstantToNaive, monthsInRange, weekDays } from "@/lib/events/datetime";
+import {
+  fetchMonthEvents,
+  fetchRangeEvents,
+  getUserDepartmentId,
+  listCalendars,
+} from "@/lib/events/queries";
 import { filterUserOptionIds } from "@/lib/filters/filterUserOptions";
 import { googleCalendarConfigured } from "@/lib/google";
 import { listUsers } from "@/lib/roster/queries";
@@ -29,13 +34,12 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
   const params = await searchParams;
   const isAdmin = session.user.role === "admin";
 
-  const view =
-    params.view === "mobile" ? "mobile" : params.view === "schedule" ? "schedule" : "month";
+  const view = params.view === "schedule" ? "schedule" : params.view === "week" ? "week" : "month";
 
   const dateParam =
     typeof params.date === "string" && DATE_PATTERN.test(params.date) ? params.date : null;
 
-  // The schedule view is anchored on a single day; when `date` is present the
+  // The day/week views are anchored on a single day; when `date` is present the
   // month is derived from it so the fetched events always cover the day shown.
   const month =
     dateParam !== null
@@ -66,17 +70,11 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
   const calendarIds = calendars.map((calendar) => calendar.id);
 
   const ownDepartmentId = isAdmin ? null : await getUserDepartmentId(session.user.id);
-  const defaultCalendars = isAdmin
-    ? calendarIds
-    : ownDepartmentId
-      ? [ownDepartmentId]
-      : [];
+  const defaultCalendars = isAdmin ? calendarIds : ownDepartmentId ? [ownDepartmentId] : [];
 
   const calParam = typeof params.cal === "string" ? params.cal.split(",").filter(Boolean) : [];
   const selectedCalendars =
-    params.cal === undefined
-      ? defaultCalendars
-      : calParam.filter((id) => calendarIds.includes(id));
+    params.cal === undefined ? defaultCalendars : calParam.filter((id) => calendarIds.includes(id));
 
   const typeNames = eventTypes.map((type) => type.name);
   const eventTypeOptions = eventTypes.map((type) => ({
@@ -87,9 +85,7 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
   const typesParam =
     typeof params.types === "string" ? params.types.split(",").filter(Boolean) : [];
   const selectedTypes =
-    params.types === undefined
-      ? []
-      : typesParam.filter((name) => typeNames.includes(name));
+    params.types === undefined ? [] : typesParam.filter((name) => typeNames.includes(name));
 
   const allUserIds = allUsers.map((user) => user.id);
   const usersParam =
@@ -161,13 +157,25 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
     calendars.map((calendar) => [calendar.id, calendar.name]),
   );
 
-  const events = await fetchMonthEvents({
-    month,
-    calendarIds: selectedCalendars,
-    typeFilter: selectedTypes,
-    userFilter: selectedUsers,
-    force: forceRefresh,
-  });
+  // The week view is anchored on a day and displays the full Monday-first
+  // week containing it, which can span two months (Google month reads are
+  // month-keyed), so those months are fetched and merged in one range read.
+  const week = view === "week" ? weekDays(date) : null;
+  const events = week
+    ? await fetchRangeEvents({
+        months: monthsInRange(week[0], week[6]),
+        calendarIds: selectedCalendars,
+        typeFilter: selectedTypes,
+        userFilter: selectedUsers,
+        force: forceRefresh,
+      })
+    : await fetchMonthEvents({
+        month,
+        calendarIds: selectedCalendars,
+        typeFilter: selectedTypes,
+        userFilter: selectedUsers,
+        force: forceRefresh,
+      });
 
   return (
     <DashboardView

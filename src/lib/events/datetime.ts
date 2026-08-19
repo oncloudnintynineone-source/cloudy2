@@ -63,6 +63,19 @@ export function monthRange(month: string): { start: Date; end: Date } {
   };
 }
 
+/**
+ * The seven `YYYY-MM-DD` days of the week containing `dateOnly`, Monday-first
+ * (matching the Mantine dates default `firstDayOfWeek: 1` used by the schedule
+ * views). Weekends included.
+ */
+export function weekDays(dateOnly: string): string[] {
+  const [year, monthIndex, day] = dateOnly.split("-").map(Number);
+  // JS `getUTCDay`: 0=Sun..6=Sat; offset from Monday, Mon=0..Sun=6.
+  const daysFromMonday = (new Date(Date.UTC(year, monthIndex - 1, day)).getUTCDay() + 6) % 7;
+  const monday = Date.UTC(year, monthIndex - 1, day - daysFromMonday);
+  return Array.from({ length: 7 }, (_, i) => utcToDateString(new Date(monday + i * 86_400_000)));
+}
+
 /** Shift a `YYYY-MM` month by a signed number of months. */
 export function shiftMonth(month: string, delta: number): string {
   const [year, monthIndex] = month.split("-").map(Number);

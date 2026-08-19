@@ -21,3 +21,18 @@ export function formatDateTime(naive: string, allDay: boolean): string {
   }
   return allDay ? dayjs(date).format("MMM D, YYYY") : dayjs(date).format("MMM D, YYYY h:mm A");
 }
+
+/**
+ * Week range label, e.g. `Aug 18 – 24, 2026` (the year only where the month or
+ * year changes), matching the dates context `labelSeparator`.
+ */
+export function formatWeekLabel(weekStart: string, weekEnd: string): string {
+  const start = dayjs(weekStart);
+  const end = dayjs(weekEnd);
+  const startPart = start.format("MMM D");
+  const endPart =
+    start.isSame(end, "year") && start.isSame(end, "month")
+      ? end.format("D, YYYY")
+      : end.format("MMM D, YYYY");
+  return `${startPart} – ${endPart}`;
+}

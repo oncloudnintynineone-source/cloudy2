@@ -70,9 +70,15 @@ the quality checks.
   I/O; misses fall through to one **batched** `SELECT` on the `google_event_cache` table
   (composite PK `calendar_google_id` + `month`) — a single round-trip for the whole month
   regardless of calendar count; anything absent/expired blocks on a fresh Google `events.list`
-  + upsert (bounded concurrency). One entry serves every user/filter on both `/dashboard` and
-  `/overview`. Fresh for 60s (`GCAL_CACHE_FRESH_MS`), then stale-while-revalidate for up to
-  30min (`GCAL_CACHE_EXPIRE_MS`): stale entries are served while `after()` refreshes them in
+   + upsert (bounded concurrency). One entry serves every user/filter on both `/dashboard` and
+   `/overview`. `fetchMonthEvents()` is a single-month wrapper over `fetchRangeEvents()`
+   (`src/lib/events/queries.ts`, the multi-month primitive the dashboard's Week view uses,
+   since a Monday-first week can span two months): it fetches each month through the same
+   cache, dedupes items across months by (calendar, google event id) — Google month listings
+   overlap at boundaries — then applies one type/user-filter + group-dedupe pass, and
+   prefetches the months outside the range on a miss. Fresh for 60s (`GCAL_CACHE_FRESH_MS`),
+   then stale-while-revalidate for up to 30min (`GCAL_CACHE_EXPIRE_MS`): stale entries are
+   served while `after()` refreshes them in
   the background; concurrent refreshes of the same key are coalesced via an in-flight map.
   Never call `integration.listEvents` directly for the month view. In-app mutations call
   `invalidateGcalCache()` (in `src/lib/google/eventsCache.ts`) which purges L1 + in-flight

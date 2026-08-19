@@ -1,7 +1,15 @@
 "use client";
 
 import dayjs from "dayjs";
-import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
+import {
+  type CSSProperties,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useTransition,
+} from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
   ActionIcon,
@@ -18,12 +26,19 @@ import {
 } from "@mantine/core";
 import { MiniCalendar } from "@mantine/dates";
 import { useDisclosure, useDrag } from "@mantine/hooks";
-import { AgendaView, MobileMonthView, MonthView, ResourcesDayView } from "@mantine/schedule";
+import {
+  AgendaView,
+  MonthView,
+  ResourcesDayView,
+  ResourcesWeekView,
+  type ScheduleResourceData,
+  type ScheduleResourceGroup,
+} from "@mantine/schedule";
 import {
   IconBuilding,
-  IconCalendarDot,
   IconCalendarMonth,
   IconCalendarUser,
+  IconCalendarWeek,
   IconChevronDown,
   IconChevronLeft,
   IconChevronRight,
@@ -35,14 +50,16 @@ import {
 } from "@tabler/icons-react";
 
 import {
-  MobileGridSkeleton,
   MonthGridSkeleton,
   ScheduleGridSkeleton,
+  WeekGridSkeleton,
   monthGridRows,
 } from "./calendarSkeleton";
+import { formatWeekLabel } from "./clientDateTime";
 import { FilterButton } from "@/components/FilterButton";
 import { FilterModal, type FilterGroup } from "@/components/FilterModal";
 import { FloatingActionButton, FloatingToolbar } from "@/components/FloatingToolbar";
+import { weekDays } from "@/lib/events/datetime";
 import type { CalendarEvent } from "@/lib/events/queries";
 import type { TimeOption } from "@/lib/events/timeOptions";
 import {
@@ -62,7 +79,7 @@ import { BUTTON_LOADER_PROPS } from "@/lib/theme";
 import { EventDetail } from "./EventDetail";
 import { EventForm } from "./EventForm";
 
-type ViewMode = "month" | "mobile" | "schedule";
+type ViewMode = "month" | "week" | "schedule";
 
 interface EventTypeOption {
   name: string;
@@ -111,6 +128,77 @@ interface FormState {
 }
 
 const DAY_SWIPE_THRESHOLD = 48;
+
+// One day's column width in the Week view: 24 slots × Mantine's default
+// 60px slot width (we don't override `slotWidth`) at the default scale.
+const WEEK_DAY_WIDTH_PX = 24 * 60;
+
+/**
+ * Pinned day-label strip for the Week view. `ResourcesWeekView`'s own day
+ * labels are centered in each full-width day column, so on a phone they are
+ * only visible when the viewport happens to sit over the middle of a day.
+ * This strip replaces that row and pins the leftmost visible day (the caller
+ * tracks it via `onScrollPositionChange`) to the grid's left edge, styled
+ * like Mantine's own day labels (today filled/primary, weekends red).
+ */
+function WeekDayLabelStrip({ day, hasGroups }: { day: string; hasGroups: boolean }) {
+  const dayObj = dayjs(day);
+  const isToday = dayObj.isSame(dayjs(), "day");
+  const isWeekend = dayObj.day() === 0 || dayObj.day() === 6;
+  // The width of the sticky corner/label columns the grid scrolls beneath,
+  // matching the ResourcesWeekView sizing overrides on the view itself.
+  const leftWidth = hasGroups ? "calc(1.5rem + 3rem)" : "3rem";
+  return (
+    <Box
+      component="div"
+      style={{
+        position: "relative",
+        height: "calc(2rem * var(--mantine-scale))",
+        background: "var(--mantine-color-body)",
+        borderBottom: "1px solid var(--mantine-color-default-border)",
+      }}
+    >
+      {/* Continues the corner's vertical divider across the strip's band. */}
+      <Box
+        component="div"
+        style={{
+          position: "absolute",
+          top: 0,
+          bottom: 0,
+          left: 0,
+          width: leftWidth,
+          borderRight: "1px solid var(--mantine-color-default-border)",
+        }}
+      />
+      <span
+        style={{
+          position: "absolute",
+          top: 0,
+          bottom: 0,
+          left: leftWidth,
+          display: "flex",
+          alignItems: "center",
+          paddingInline: "0.5rem",
+          whiteSpace: "nowrap",
+          fontSize: "var(--mantine-font-size-sm)",
+          fontWeight: isToday
+            ? "var(--mantine-font-weight-bold)"
+            : "var(--mantine-font-weight-medium)",
+          textTransform: "capitalize",
+          userSelect: "none",
+          background: isToday ? "var(--mantine-primary-color-filled)" : "transparent",
+          color: isToday
+            ? "var(--mantine-primary-color-contrast)"
+            : isWeekend
+              ? "var(--mantine-color-red-6)"
+              : undefined,
+        }}
+      >
+        {dayObj.format("ddd D")}
+      </span>
+    </Box>
+  );
+}
 
 export function DashboardView({
   month,
@@ -178,6 +266,24 @@ export function DashboardView({
   );
   const [filterOpened, { open: openFilter, close: closeFilter }] = useDisclosure(false);
 
+  // Week view: which day (0-6) sits at the left edge of the horizontally
+  // scrolling grid. The index (not raw px) drives the pinned day-label strip,
+  // so a scroll frame only re-renders when the visible day actually changes.
+  const [weekDayIndex, setWeekDayIndex] = useState(0);
+  const handleWeekScroll = useCallback((pos: { x: number }) => {
+    const index = Math.min(6, Math.max(0, Math.floor(pos.x / WEEK_DAY_WIDTH_PX)));
+    setWeekDayIndex((prev) => (prev === index ? prev : index));
+  }, []);
+  // Stable identity: the week's ScrollArea must not receive a fresh
+  // `scrollAreaProps` object on every scroll frame.
+  const weekScrollAreaProps = useMemo(
+    () => ({
+      startScrollPosition: { y: 7 * 56 },
+      onScrollPositionChange: handleWeekScroll,
+    }),
+    [handleWeekScroll],
+  );
+
   // The date shown in the agenda day modal; persists through the exit
   // animation so the shrinking box still has content.
   const agendaViewDate = agendaDate ?? displayAgendaDate;
@@ -213,6 +319,8 @@ export function DashboardView({
 
   const monthLabel = dayjs(`${month}-01`).format("MMMM YYYY");
   const dayLabel = dayjs(date).format("ddd, MMM D, YYYY");
+  const week = view === "week" ? weekDays(date) : null;
+  const weekLabel = week ? formatWeekLabel(week[0], week[6]) : "";
   const today = dayjs().format("YYYY-MM-DD");
   const todayMonth = dayjs().format("YYYY-MM");
 
@@ -355,26 +463,32 @@ export function DashboardView({
     navigate({ date: next.format("YYYY-MM-DD"), month: next.format("YYYY-MM") });
   }
 
+  function shiftWeek(delta: number) {
+    setTargetView(view);
+    const next = dayjs(date).add(delta, "week");
+    navigate({ date: next.format("YYYY-MM-DD"), month: next.format("YYYY-MM") });
+  }
+
   function switchView(next: string) {
-    const mode: ViewMode = next === "schedule" ? "schedule" : next === "mobile" ? "mobile" : "month";
+    const mode: ViewMode = next === "schedule" ? "schedule" : next === "week" ? "week" : "month";
     setTargetView(mode);
-    if (mode === "schedule") {
-      // Entering the schedule always starts on today; the month is derived
-      // from the date by the page.
-      navigate({ view: "schedule", month: null, date: today });
+    if (mode !== "month") {
+      // Entering an anchored view (day/week) always starts on today; the
+      // month is derived from the date by the page.
+      navigate({ view: mode, month: null, date: today });
       return;
     }
-    // Leaving the schedule keeps the currently viewed month visible.
+    // Leaving an anchored view keeps the currently viewed month visible.
     navigate({
-      view: mode === "month" ? null : mode,
-      month: view === "schedule" ? date.slice(0, 7) : null,
+      view: null,
+      month: view === "schedule" || view === "week" ? date.slice(0, 7) : null,
       date: null,
     });
   }
 
   function goToday() {
     setTargetView(view);
-    if (view === "schedule") {
+    if (view === "schedule" || view === "week") {
       navigate({ date: today, month: todayMonth });
     } else {
       navigate({ month: todayMonth });
@@ -430,7 +544,31 @@ export function DashboardView({
     setFormState(null);
   }
 
+  const isWeek = view === "week";
   const isSchedule = view === "schedule";
+
+  // Shared by the Day and Week resource views: a department row is a building
+  // icon (its name as tooltip/aria), a user row is the shortname label.
+  function renderResourceLabel(resource: ScheduleResourceData) {
+    const row = resource as ScheduleResource;
+    return isDepartmentRowId(row.id) ? (
+      <IconBuilding
+        size={16}
+        color="var(--mantine-color-accent-6)"
+        aria-label={row.fullName}
+        title={row.fullName}
+        style={{ flexShrink: 0 }}
+      />
+    ) : (
+      <Text size="sm" title={row.label === row.fullName ? undefined : row.fullName}>
+        {row.label}
+      </Text>
+    );
+  }
+
+  function renderGroupLabel(group: ScheduleResourceGroup) {
+    return <span style={{ writingMode: "vertical-rl" }}>{group.label}</span>;
+  }
 
   return (
     <Stack pb="xl" gap="sm">
@@ -452,19 +590,25 @@ export function DashboardView({
           <Tabs.Tab value="month">
             <Group gap="xs" justify="center" wrap="nowrap">
               <IconCalendarMonth size={16} />
-              <Text fw={600} size="sm">Month</Text>
+              <Text fw={600} size="sm">
+                Month
+              </Text>
             </Group>
           </Tabs.Tab>
-          <Tabs.Tab value="mobile">
+          <Tabs.Tab value="week">
             <Group gap="xs" justify="center" wrap="nowrap">
-              <IconCalendarDot size={16} />
-              <Text fw={600} size="sm">S. Month</Text>
+              <IconCalendarWeek size={16} />
+              <Text fw={600} size="sm">
+                Week
+              </Text>
             </Group>
           </Tabs.Tab>
           <Tabs.Tab value="schedule">
             <Group gap="xs" justify="center" wrap="nowrap">
               <IconCalendarUser size={16} />
-              <Text fw={600} size="sm">Day</Text>
+              <Text fw={600} size="sm">
+                Day
+              </Text>
             </Group>
           </Tabs.Tab>
         </Tabs.List>
@@ -474,18 +618,18 @@ export function DashboardView({
         <Group gap="xs">
           <ActionIcon
             variant="default"
-            aria-label={isSchedule ? "Previous day" : "Previous month"}
-            onClick={() => (isSchedule ? shiftDay(-1) : shiftMonth(-1))}
+            aria-label={isSchedule ? "Previous day" : isWeek ? "Previous week" : "Previous month"}
+            onClick={() => (isSchedule ? shiftDay(-1) : isWeek ? shiftWeek(-1) : shiftMonth(-1))}
           >
             <IconChevronLeft size={18} />
           </ActionIcon>
           <Text fw={600} size="lg">
-            {isSchedule ? dayLabel : monthLabel}
+            {isSchedule ? dayLabel : isWeek ? weekLabel : monthLabel}
           </Text>
           <ActionIcon
             variant="default"
-            aria-label={isSchedule ? "Next day" : "Next month"}
-            onClick={() => (isSchedule ? shiftDay(1) : shiftMonth(1))}
+            aria-label={isSchedule ? "Next day" : isWeek ? "Next week" : "Next month"}
+            onClick={() => (isSchedule ? shiftDay(1) : isWeek ? shiftWeek(1) : shiftMonth(1))}
           >
             <IconChevronRight size={18} />
           </ActionIcon>
@@ -530,7 +674,9 @@ export function DashboardView({
       {isSchedule && (
         <MiniCalendar
           value={date}
-          date={dayjs(date).subtract(Math.floor(7 / 2), "day").format("YYYY-MM-DD")}
+          date={dayjs(date)
+            .subtract(Math.floor(7 / 2), "day")
+            .format("YYYY-MM-DD")}
           onChange={(next) => navigate({ date: next, month: next.slice(0, 7) })}
           numberOfDays={7}
           size="sm"
@@ -544,150 +690,175 @@ export function DashboardView({
         />
       )}
 
-      {isPending || isRefreshing ? (
-        targetView === "month" ? (
-          <MonthGridSkeleton rows={monthGridRows(month)} />
-        ) : targetView === "schedule" ? (
-          <ScheduleGridSkeleton />
+      <Box>
+        {isWeek && week && (
+          <WeekDayLabelStrip
+            day={week[weekDayIndex]}
+            hasGroups={scheduleResources.groups !== undefined}
+          />
+        )}
+        {isPending || isRefreshing ? (
+          targetView === "month" ? (
+            <MonthGridSkeleton rows={monthGridRows(month)} />
+          ) : targetView === "week" ? (
+            <WeekGridSkeleton />
+          ) : (
+            <ScheduleGridSkeleton />
+          )
+        ) : view === "month" ? (
+          <MonthView
+            date={`${month}-01 00:00:00`}
+            events={events}
+            withHeader={false}
+            maxEventsPerDay={3}
+            onEventClick={(event, e) => {
+              setDetailOriginRect(e.currentTarget.getBoundingClientRect());
+              setDetailEvent(event as unknown as CalendarEvent);
+            }}
+            onDayClick={(d, e) => {
+              setAgendaOriginRect(e.currentTarget.getBoundingClientRect());
+              setAgendaDate(d);
+            }}
+          />
+        ) : (isWeek || isSchedule) && scheduleResources.resources.length === 0 ? (
+          <Paper withBorder radius="md" p="lg">
+            <Text size="sm" c="dimmed">
+              No users in the selected calendars yet. Assign users to a department (Admin Settings)
+              or adjust the filters.
+            </Text>
+          </Paper>
+        ) : isWeek ? (
+          <ResourcesWeekView
+            date={date}
+            resources={scheduleResources.resources}
+            groups={scheduleResources.groups}
+            events={scheduleEvents}
+            startTime="00:00:00"
+            endTime="23:59:59"
+            intervalMinutes={60}
+            rowHeight={56}
+            withHeader={false}
+            withCurrentTimeIndicator
+            onEventClick={(event, e) => {
+              setDetailOriginRect(e.currentTarget.getBoundingClientRect());
+              setDetailEvent(event as unknown as CalendarEvent);
+            }}
+            // The resource-label column width is not a typed ResourcesWeekView
+            // var, so it is set as a CSS variable on the root (cascades to the
+            // all-day sticky labels and the time-indicator offset the same way
+            // the Day view's typed var does).
+            style={{ "--resources-week-view-resource-label-width": "3rem" } as CSSProperties}
+            vars={() => ({
+              resourcesWeekView: {
+                "--resources-week-view-group-label-width": "1.5rem",
+              },
+            })}
+            styles={{
+              // Replaced by the pinned WeekDayLabelStrip above (Mantine's own
+              // labels center in each 1440px-wide day column, so they are
+              // effectively invisible on a phone). The strip must sit directly
+              // above the grid, so it lives outside the scroll area.
+              resourcesWeekViewDayLabelsRow: { display: "none" },
+              resourcesWeekViewResourceLabel: {
+                whiteSpace: "nowrap",
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                paddingInline: 0,
+              },
+            }}
+            labels={{ resources: "" }}
+            // Open at 07:00 like the Day view (startScrollPosition applies on
+            // mount; week-to-week navigation keeps the current scroll position).
+            // onScrollPositionChange feeds the pinned day-label strip.
+            scrollAreaProps={weekScrollAreaProps}
+            renderResourceLabel={renderResourceLabel}
+            renderGroupLabel={renderGroupLabel}
+          />
         ) : (
-          <MobileGridSkeleton rows={monthGridRows(month)} />
-        )
-      ) : view === "month" ? (
-        <MonthView
-          date={`${month}-01 00:00:00`}
-          events={events}
-          withHeader={false}
-          maxEventsPerDay={3}
-          onEventClick={(event, e) => {
-            setDetailOriginRect(e.currentTarget.getBoundingClientRect());
-            setDetailEvent(event as unknown as CalendarEvent);
-          }}
-          onDayClick={(d, e) => {
-            setAgendaOriginRect(e.currentTarget.getBoundingClientRect());
-            setAgendaDate(d);
-          }}
-        />
-      ) : view === "mobile" ? (
-        <MobileMonthView
-          date={`${month}-01 00:00:00`}
-          events={events}
-          styles={{
-            mobileMonthViewHeader: { display: "none" },
-            mobileMonthViewEventsList: { display: "none" },
-          }}
-          onDayClick={(d, e) => {
-            setAgendaOriginRect(e.currentTarget.getBoundingClientRect());
-            setAgendaDate(d);
-          }}
-        />
-      ) : scheduleResources.resources.length === 0 ? (
-        <Paper withBorder radius="md" p="lg">
-          <Text size="sm" c="dimmed">
-            No users in the selected calendars yet. Assign users to a department (Admin Settings)
-            or adjust the filters.
-          </Text>
-        </Paper>
-      ) : (
-        <ResourcesDayView
-          date={date}
-          resources={scheduleResources.resources}
-          groups={scheduleResources.groups}
-          events={scheduleEvents}
-          startTime="00:00:00"
-          endTime="23:59:59"
-          intervalMinutes={60}
-          startScrollTime="07:00:00"
-          rowHeight={56}
-          withHeader={false}
-          withCurrentTimeIndicator
-          onEventClick={(event, e) => {
-            setDetailOriginRect(e.currentTarget.getBoundingClientRect());
-            setDetailEvent(event as unknown as CalendarEvent);
-          }}
-          vars={() => ({
-            resourcesDayView: {
-              "--resources-day-view-resource-label-width": "3rem",
-              "--resources-day-view-group-label-width": "1.5rem",
-            },
-          })}
-          styles={{
-            resourcesDayViewResourceLabel: {
-              whiteSpace: "nowrap",
-              overflow: "hidden",
-              textOverflow: "ellipsis",
-              paddingInline: 0,
-            },
-          }}
-          labels={{ resources: "" }}
-          // All-day events render as full-width bars whose label would scroll
-          // out of view; the renderEvent hook re-renders only those and pins the
-          // title with position: sticky beside the sticky resource column.
-          renderEvent={(event, rootProps) => {
-            const isAllDay = Boolean((event as unknown as CalendarEvent).payload.allDay);
-            if (!isAllDay) {
-              return <UnstyledButton {...rootProps} />;
-            }
-            const stickyLeft =
-              scheduleResources.groups !== undefined
-                ? "calc(var(--resources-day-view-group-label-width) + var(--resources-day-view-resource-label-width) + 4px)"
-                : "calc(var(--resources-day-view-resource-label-width) + 4px)";
-            return (
-              <UnstyledButton {...rootProps}>
-                <Box
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    width: "100%",
-                    height: "100%",
-                    paddingInline: "4px",
-                    backgroundColor: "var(--event-bg)",
-                    color: "var(--event-color)",
-                    borderRadius: "min(var(--event-radius), 50%)",
-                    pointerEvents: "all",
-                    userSelect: "none",
-                  }}
-                >
-                  <span
+          <ResourcesDayView
+            date={date}
+            resources={scheduleResources.resources}
+            groups={scheduleResources.groups}
+            events={scheduleEvents}
+            startTime="00:00:00"
+            endTime="23:59:59"
+            intervalMinutes={60}
+            startScrollTime="07:00:00"
+            rowHeight={56}
+            withHeader={false}
+            withCurrentTimeIndicator
+            onEventClick={(event, e) => {
+              setDetailOriginRect(e.currentTarget.getBoundingClientRect());
+              setDetailEvent(event as unknown as CalendarEvent);
+            }}
+            vars={() => ({
+              resourcesDayView: {
+                "--resources-day-view-resource-label-width": "3rem",
+                "--resources-day-view-group-label-width": "1.5rem",
+              },
+            })}
+            styles={{
+              resourcesDayViewResourceLabel: {
+                whiteSpace: "nowrap",
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                paddingInline: 0,
+              },
+            }}
+            labels={{ resources: "" }}
+            // All-day events render as full-width bars whose label would scroll
+            // out of view; the renderEvent hook re-renders only those and pins the
+            // title with position: sticky beside the sticky resource column.
+            renderEvent={(event, rootProps) => {
+              const isAllDay = Boolean((event as unknown as CalendarEvent).payload.allDay);
+              if (!isAllDay) {
+                return <UnstyledButton {...rootProps} />;
+              }
+              const stickyLeft =
+                scheduleResources.groups !== undefined
+                  ? "calc(var(--resources-day-view-group-label-width) + var(--resources-day-view-resource-label-width) + 4px)"
+                  : "calc(var(--resources-day-view-resource-label-width) + 4px)";
+              return (
+                <UnstyledButton {...rootProps}>
+                  <Box
                     style={{
-                      position: "sticky",
-                      left: stickyLeft,
-                      minWidth: 0,
-                      maxWidth: "min(70vw, 100%)",
-                      overflow: "hidden",
-                      textOverflow: "ellipsis",
-                      whiteSpace: "nowrap",
-                      fontSize: "calc(0.75rem * var(--mantine-scale))",
-                      fontWeight: "var(--mantine-font-weight-medium)",
-                      lineHeight: 1,
+                      display: "flex",
+                      alignItems: "center",
+                      width: "100%",
+                      height: "100%",
+                      paddingInline: "4px",
+                      backgroundColor: "var(--event-bg)",
+                      color: "var(--event-color)",
+                      borderRadius: "min(var(--event-radius), 50%)",
+                      pointerEvents: "all",
+                      userSelect: "none",
                     }}
                   >
-                    {event.title}
-                  </span>
-                </Box>
-              </UnstyledButton>
-            );
-          }}
-          renderResourceLabel={(resource) => {
-            const row = resource as ScheduleResource;
-            return isDepartmentRowId(row.id) ? (
-              <IconBuilding
-                size={16}
-                color="var(--mantine-color-accent-6)"
-                aria-label={row.fullName}
-                title={row.fullName}
-                style={{ flexShrink: 0 }}
-              />
-            ) : (
-              <Text size="sm" title={row.label === row.fullName ? undefined : row.fullName}>
-                {row.label}
-              </Text>
-            );
-          }}
-          renderGroupLabel={(group) => (
-            <span style={{ writingMode: "vertical-rl" }}>{group.label}</span>
-          )}
-        />
-      )}
+                    <span
+                      style={{
+                        position: "sticky",
+                        left: stickyLeft,
+                        minWidth: 0,
+                        maxWidth: "min(70vw, 100%)",
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                        whiteSpace: "nowrap",
+                        fontSize: "calc(0.75rem * var(--mantine-scale))",
+                        fontWeight: "var(--mantine-font-weight-medium)",
+                        lineHeight: 1,
+                      }}
+                    >
+                      {event.title}
+                    </span>
+                  </Box>
+                </UnstyledButton>
+              );
+            }}
+            renderResourceLabel={renderResourceLabel}
+            renderGroupLabel={renderGroupLabel}
+          />
+        )}
+      </Box>
 
       <Modal
         opened={agendaDate !== null}

@@ -1,8 +1,8 @@
 /**
- * Pure helpers for the Schedule (ResourcesDayView) view. They map calendar
- * events onto resource rows — one row per tagged department and one row per
- * user (creator + tagged people) — so the view can render an event in every
- * row it applies to. Kept free of I/O for unit testing.
+ * Pure helpers for the Schedule (ResourcesDayView / ResourcesWeekView) views.
+ * They map calendar events onto resource rows — one row per tagged department
+ * and one row per user (creator + tagged people) — so the view can render an
+ * event in every row it applies to. Kept free of I/O for unit testing.
  */
 
 import type { CalendarEvent } from "./queries";

@@ -66,7 +66,7 @@ export function ScheduleGridSkeleton({ rows = 6 }: { rows?: number }) {
           const eventBars = (i * 3 + 1) % 3;
           return (
             <Group key={i} gap="xs" wrap="nowrap">
-                  <Skeleton width={48} height={44} radius={4} />
+              <Skeleton width={48} height={44} radius={4} />
               <Box style={{ flex: 1, display: "flex", flexDirection: "column", gap: 4 }}>
                 {Array.from({ length: eventBars }).map((_, b) => (
                   <Skeleton key={b} height={22} radius={3} style={{ width: "72%" }} />
@@ -81,38 +81,45 @@ export function ScheduleGridSkeleton({ rows = 6 }: { rows?: number }) {
   );
 }
 
-export function MobileGridSkeleton({ rows }: { rows: number }) {
+/** Stacked resource rows matching the Week view shape (label + 7-day lane). */
+export function WeekGridSkeleton({ rows = 6 }: { rows?: number }) {
   return (
     <Paper withBorder radius="md" p="sm">
       <WeekdayRow />
-      <Box style={gridStyle}>
-        {Array.from({ length: rows * 7 }).map((_, i) => {
-          const dots = (Math.floor(i / 7) * 2 + (i % 7) * 3) % 4;
-          return (
-            <Paper
-              key={i}
-              withBorder
-              radius="sm"
-              p={4}
+      <Box style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+        {Array.from({ length: rows }).map((_, i) => (
+          <Group key={i} gap="xs" wrap="nowrap" align="stretch">
+            <Skeleton width={48} height={44} radius={4} style={{ flexShrink: 0 }} />
+            <Box
               style={{
-                height: 48,
-                display: "flex",
-                flexDirection: "column",
-                alignItems: "center",
-                justifyContent: "space-between",
+                flex: 1,
+                display: "grid",
+                gridTemplateColumns: "repeat(7, 1fr)",
+                alignItems: "stretch",
               }}
             >
-              <Skeleton circle width={12} height={12} />
-              {dots > 0 && (
-                <Group gap={2}>
-                  {Array.from({ length: dots }).map((_, d) => (
-                    <Skeleton key={d} circle width={6} height={6} />
-                  ))}
-                </Group>
-              )}
-            </Paper>
-          );
-        })}
+              {Array.from({ length: 7 }).map((_, c) => {
+                // Deterministic 1-2 event bars per row, varying with the row index.
+                const hasBar = (i * 3 + c) % 7 < 2;
+                return (
+                  <Box
+                    key={c}
+                    style={{
+                      height: 44,
+                      borderInlineStart:
+                        c > 0 ? "1px solid var(--mantine-color-default-border)" : undefined,
+                      display: "flex",
+                      alignItems: "center",
+                      paddingInline: 2,
+                    }}
+                  >
+                    {hasBar && <Skeleton height={18} radius={3} style={{ width: "100%" }} />}
+                  </Box>
+                );
+              })}
+            </Box>
+          </Group>
+        ))}
       </Box>
     </Paper>
   );

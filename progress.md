@@ -55,6 +55,8 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
 - [1.41 Additional access levels (Phase 3f)](#141-additional-access-levels-phase-3f)
 - [1.42 Calendar caching layer (Phase 3g)](#142-calendar-caching-layer-phase-3g)
 - [1.43 Calendar force refresh (Phase 3h)](#143-calendar-force-refresh-phase-3h)
+- [1.44 Schedule week view + S. Month removal (Phase 3i)](#144-schedule-week-view--s-month-removal-phase-3i)
+- [1.45 Pinned Week-view day label (Phase 3j)](#145-pinned-week-view-day-label-phase-3j)
 
 ## 1.1 Status
 
@@ -1965,4 +1967,110 @@ sequenceDiagram
   the page skeleton is `isPending || isRefreshing` so the load is always covered.
 - No schema change and no new pure helpers (the `force` flag is pass-through glue:
   `page.tsx` → `fetchMonthEvents` → `eventsCache.ts`).
+- Verification: `pnpm lint`, `pnpm typecheck`, `pnpm test`, and `pnpm build` pass.
+
+## 1.44 Schedule week view + S. Month removal (Phase 3i)
+
+The dashboard's resource schedule existed only as a single day ("Day" tab,
+`ResourcesDayView`). A **Week** tab now sits between Month and Day, rendered with
+`ResourcesWeekView` from `@mantine/schedule` and customized exactly like the Day tab
+(same resource/group columns, icons, row height, event styling). At the same time the
+legacy **"S. Month"** tab (`MobileMonthView`) and all of its contents were removed.
+
+- **Tabs** (`DashboardView.tsx`) — order is now Month → **Week** (`IconCalendarWeek`)
+  → Day. `ViewMode = "month" | "week" | "schedule"`; the `mobile` mode, its tab, its
+  render branch, the `MobileMonthView` import, and the `MobileGridSkeleton` skeleton are
+  gone. A stale `?view=mobile` URL silently falls back to the Month tab (the page's
+  default branch).
+- **Anchoring & navigation** — entering Week (like Day) always starts on **today's
+  week** (`navigate({ view: "week", month: null, date: today })`). Prev/next step by
+  **±7 days** (`shiftWeek`), the center label is the week range
+  (`formatWeekLabel()` in `clientDateTime.ts`: `Aug 18 – 24, 2026`, month+year repeated
+  only when the week crosses a month/year), and Today jumps to the current week. The
+  MiniCalendar strip stays **Day-only** by decision — the Week view's built-in day-label
+  row already shows all seven days.
+- **Week start** — Monday, from the Mantine dates context default
+  (`firstDayOfWeek: 1`) that the existing Month tab already uses; the app never overrides
+  it, so all schedule views agree.
+- **Cross-month data** — the displayed week can span two months, and Google month reads
+  are month-keyed. `fetchRangeEvents({ months, … })` (new, in `queries.ts`) fetches each
+  month through the existing layered cache, **dedupes items across months by
+  `(calendar, google event id)`** (a multi-day event appears in both month listings),
+  then applies the usual type/user filters, sort, and the single
+  `dedupeEventsByGroupId` pass — preserving the deterministic representative-copy
+  selection. The adjacent-month prefetch now warms the months outside the *range* (for a
+  one-month range this is byte-for-byte the previous behavior). `fetchMonthEvents` is a
+  thin wrapper over it, so Month/Day behavior is unchanged. A pure `weekDays()` helper
+  (Monday-first, unit-tested) computes the seven days on both server and client.
+- **Week view customization** (mirrors the Day tab): `rowHeight={56}`, 1.5rem vertical
+  group (department) column (`--resources-week-view-group-label-width` var), 3rem
+  resource column — set as a CSS variable on the root via `style` because the Week view's
+  typed `vars` omits it (it cascades to the all-day sticky labels and time-indicator
+  offset exactly like the Day view's typed var does) — `withHeader={false}`,
+  `withCurrentTimeIndicator`, blank corner label, ellipsized resource labels,
+  department rows as building icons, and initial vertical scroll of 07:00 via
+  `scrollAreaProps.startScrollPosition` (the mount-only equivalent of the Day view's
+  `startScrollTime`). No `renderEvent` override is needed: `ResourcesWeekView` already
+  renders all-day bars with a built-in sticky label (the very thing the Day view's
+  `renderEvent` hack exists for). Event taps open the same detail modal with the same
+  origin rect; the empty "No users in the selected calendars" state is shared by Week
+  and Day.
+- **Skeleton** — new `WeekGridSkeleton` (weekday header row + resource rows over a
+  7-column lane) for the Week tab; the day `ScheduleGridSkeleton` is untouched.
+
+```mermaid
+flowchart LR
+    U["?view=week&date=YYYY-MM-DD"] --> W["weekDays(date) — Mon..Sun"]
+    W --> MR["monthsInRange(weekStart, weekEnd) — 1 or 2 months"]
+    MR --> FR["fetchRangeEvents(months)"]
+    FR --> C1["month 1 → layered gcal cache"]
+    FR --> C2["month 2 → layered gcal cache (boundary weeks)"]
+    C1 --> D["dedupe (calendar, google id) across months"]
+    C2 --> D
+    D --> F["type/user filters + sort"]
+    F --> G["dedupeEventsByGroupId"]
+    G --> R["ResourcesWeekView (same resources/groups as Day)"]
+```
+
+- No schema change.
+- Verification: `pnpm lint`, `pnpm typecheck`, `pnpm test` (incl. new `weekDays`
+  cases: mid-week, Sunday wrap, year boundary, month boundary, `monthsInRange` feed),
+  and `pnpm build` pass.
+
+## 1.45 Pinned Week-view day label (Phase 3j)
+
+In `ResourcesWeekView` each day-label box spans a full day column (24 × 60px = 1440px)
+with `justify-content: center`, so on a phone the label text ("Wed 19", …) is only
+visible when the viewport happens to sit over the *middle* of that day — in practice the
+Week view had no visible day indicator for most of the horizontal scroll range.
+`@mantine/schedule` 9.5.1 (latest) offers no `renderDayLabel`-style hook, so the built-in
+row is replaced with a pinned strip.
+
+- **Pinned strip** (`WeekDayLabelStrip` in `DashboardView.tsx`) — a 2rem band rendered
+  directly above the Week grid (outside the scroll area, so it stays put during both
+  horizontal and vertical scrolling, like Mantine's otherwise sticky header). It shows a
+  single chip pinned to the grid's left edge with the **leftmost visible day**
+  (`ddd D`): today in primary-filled/bold (mirroring Mantine's `[data-today]` label
+  style), weekends in red (`[data-weekend]`), body background and a bottom border matching
+  the original row. A left spacer of the sticky corner's width
+  (`3rem` + `1.5rem` when department groups are shown) carries a right border that
+  continues the corner's divider line across the band.
+- **Scroll tracking** — `onScrollPositionChange` on the Week view's ScrollArea derives
+  `dayIndex = clamp(floor(scrollX / 1440), 0, 6)` (`WEEK_DAY_WIDTH_PX` assumes Mantine's
+  default 60px slot width; we don't override `slotWidth`). State stores the index, not
+  raw px, and bails out on unchanged values, so a scroll frame only re-renders when the
+  visible day actually changes. `scrollAreaProps` is memoized (stable object identity) so
+  the ScrollArea isn't handed a fresh props object every frame; it still carries the
+  07:00 `startScrollPosition`.
+- **Built-in row hidden** — `styles: { resourcesWeekViewDayLabelsRow: { display: "none" } }`
+  on the Week view; the grid's sticky corner cell then spans only the time-label row and
+  the strip supplies the 2rem band above it (net layout identical). The corner stays
+  visible (hiding it would shift the time-label row off the slot columns), which is why
+  the spacer's border exists.
+- **Behavior** — week-to-week navigation keeps the ScrollArea mounted, so the chip
+  follows the current scroll position into the new week; remounting (tab switch / week
+  first load) starts at the week's first day (default horizontal scroll 0). The chip is
+  non-interactive, like Mantine's original labels.
+- No schema change, no new pure helper (the clamp/floor is a one-liner in the scroll
+  handler).
 - Verification: `pnpm lint`, `pnpm typecheck`, `pnpm test`, and `pnpm build` pass.

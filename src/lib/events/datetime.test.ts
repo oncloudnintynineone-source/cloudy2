@@ -11,6 +11,7 @@ import {
   shiftMonth,
   subOneDay,
   utcToDateString,
+  weekDays,
 } from "./datetime";
 
 describe("parseNaiveToInstant / formatInstantToNaive", () => {
@@ -61,6 +62,73 @@ describe("shiftMonth", () => {
     expect(shiftMonth("2026-08", -1)).toBe("2026-07");
     expect(shiftMonth("2026-12", 1)).toBe("2027-01");
     expect(shiftMonth("2026-01", -1)).toBe("2025-12");
+  });
+});
+
+describe("weekDays", () => {
+  it("returns the Monday-first seven days for a mid-week date", () => {
+    // 2026-08-19 is a Wednesday; its week starts Monday 2026-08-17.
+    expect(weekDays("2026-08-19")).toEqual([
+      "2026-08-17",
+      "2026-08-18",
+      "2026-08-19",
+      "2026-08-20",
+      "2026-08-21",
+      "2026-08-22",
+      "2026-08-23",
+    ]);
+  });
+
+  it("keeps the same week for a Monday and its following Sunday", () => {
+    expect(weekDays("2026-08-17")).toEqual(weekDays("2026-08-23"));
+  });
+
+  it("handles a Sunday belonging to the next week", () => {
+    expect(weekDays("2026-08-30")).toEqual([
+      "2026-08-24",
+      "2026-08-25",
+      "2026-08-26",
+      "2026-08-27",
+      "2026-08-28",
+      "2026-08-29",
+      "2026-08-30",
+    ]);
+  });
+
+  it("spans across a year boundary", () => {
+    expect(weekDays("2026-01-04")).toEqual([
+      "2025-12-29",
+      "2025-12-30",
+      "2025-12-31",
+      "2026-01-01",
+      "2026-01-02",
+      "2026-01-03",
+      "2026-01-04",
+    ]);
+  });
+
+  it("spans across a month boundary", () => {
+    expect(weekDays("2026-07-01")).toEqual([
+      "2026-06-29",
+      "2026-06-30",
+      "2026-07-01",
+      "2026-07-02",
+      "2026-07-03",
+      "2026-07-04",
+      "2026-07-05",
+    ]);
+  });
+
+  it("feeds a month-or-two month list to monthsInRange for a week range", () => {
+    // A week fully inside one month
+    expect(monthsInRange(weekDays("2026-08-19")[0], weekDays("2026-08-19")[6])).toEqual([
+      "2026-08",
+    ]);
+    // A week crossing the June/July boundary
+    expect(monthsInRange(weekDays("2026-07-01")[0], weekDays("2026-07-01")[6])).toEqual([
+      "2026-06",
+      "2026-07",
+    ]);
   });
 });
 
