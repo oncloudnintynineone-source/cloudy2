@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import {
   Badge,
   Box,
@@ -76,8 +76,6 @@ interface EventFormProps {
   inviteeDepartments: { id: string; name: string }[];
   inviteeUsers: InviteeUser[];
   onDone: () => void;
-  /** Reports the live-rendered preview title whenever it changes (for the minimized bubble label). */
-  onTitleChange?: (title: string) => void;
 }
 
 interface EventFormState extends EventFormValues {
@@ -149,7 +147,6 @@ export function EventForm({
   inviteeDepartments,
   inviteeUsers,
   onDone,
-  onTitleChange,
 }: EventFormProps) {
   const isEdit = event !== null;
 
@@ -376,10 +373,6 @@ export function EventForm({
     // Matches the server: an empty title gets no bare "(AM)" suffix.
     return base && effectiveTimeOption === "full" && amPm ? `${base} (${amPm})` : base;
   })();
-
-  useEffect(() => {
-    onTitleChange?.(previewTitle);
-  }, [previewTitle, onTitleChange]);
 
   const onSubmit = form.onSubmit(async (values) => {
     // The submit button only renders on the last step; guard against implicit

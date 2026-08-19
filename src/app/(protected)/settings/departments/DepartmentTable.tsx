@@ -5,11 +5,12 @@ import { useRouter } from "next/navigation";
 import { Button, Group, Modal, Paper, Stack, Text } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
+import { IconPlus } from "@tabler/icons-react";
 
 import type { Calendar } from "@/db/schema";
 import { deleteDepartment } from "@/lib/roster/actions";
 import { BUTTON_LOADER_PROPS } from "@/lib/theme";
-import { FloatingActionButton, FloatingToolbar } from "@/components/FloatingToolbar";
+import { FAB_ICON_SIZE, FloatingActionButton, FloatingToolbar } from "@/components/FloatingToolbar";
 import { DepartmentForm } from "./DepartmentForm";
 import { DepartmentShares } from "./DepartmentShares";
 import { SETTINGS_TAB_BAR_OFFSET } from "../settingsTabBar";
@@ -144,8 +145,8 @@ export function DepartmentTable({ departments }: DepartmentTableProps) {
       <DepartmentShares calendar={sharing} opened={shareOpened} onClose={closeShare} />
 
       <FloatingToolbar bottomOffset={SETTINGS_TAB_BAR_OFFSET}>
-        <FloatingActionButton onClick={openCreate}>
-          Add department
+        <FloatingActionButton aria-label="Add department" onClick={openCreate}>
+          <IconPlus size={FAB_ICON_SIZE} />
         </FloatingActionButton>
       </FloatingToolbar>
     </Stack>

@@ -16,7 +16,7 @@ import {
 import { useClipboard, useDisclosure } from "@mantine/hooks";
 import { IconCheck, IconCopy, IconDownload, IconPhone } from "@tabler/icons-react";
 
-import { FloatingActionButton, FloatingToolbar } from "@/components/FloatingToolbar";
+import { FAB_ICON_SIZE, FloatingActionButton, FloatingToolbar } from "@/components/FloatingToolbar";
 import { buildContactsVcf } from "@/lib/contacts/vcf";
 import type { RosterUser } from "@/lib/roster/queries";
 import { formatFullName } from "@/lib/settings/formatName";
@@ -151,8 +151,8 @@ export function ContactList({ users, nameTemplate }: ContactListProps) {
       )}
 
       <FloatingToolbar>
-        <FloatingActionButton onClick={openConfirm} leftSection={<IconDownload size={18} />}>
-          Export
+        <FloatingActionButton aria-label="Export contacts" onClick={openConfirm}>
+          <IconDownload size={FAB_ICON_SIZE} style={{ position: "relative", top: 2 }} />
         </FloatingActionButton>
       </FloatingToolbar>
 

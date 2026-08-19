@@ -5,9 +5,10 @@ import { useRouter } from "next/navigation";
 import { Badge, Group, Modal, Paper, Stack, Text } from "@mantine/core";
 
 import { useDisclosure } from "@mantine/hooks";
+import { IconPlus } from "@tabler/icons-react";
 
 import type { EventType } from "@/db/schema";
-import { FloatingActionButton, FloatingToolbar } from "@/components/FloatingToolbar";
+import { FAB_ICON_SIZE, FloatingActionButton, FloatingToolbar } from "@/components/FloatingToolbar";
 import { SETTINGS_TAB_BAR_OFFSET } from "../settingsTabBar";
 import { LOCATION_POLICY_LABELS, normalizeLocationPolicy } from "@/lib/events/locationPolicy";
 import {
@@ -94,7 +95,9 @@ export function EventTypeTable({ types }: EventTypeTableProps) {
       </Modal>
 
       <FloatingToolbar bottomOffset={SETTINGS_TAB_BAR_OFFSET}>
-        <FloatingActionButton onClick={openCreate}>Add event type</FloatingActionButton>
+        <FloatingActionButton aria-label="Add event type" onClick={openCreate}>
+          <IconPlus size={FAB_ICON_SIZE} />
+        </FloatingActionButton>
       </FloatingToolbar>
     </Stack>
   );

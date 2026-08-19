@@ -139,8 +139,10 @@ the quality checks.
   screen width). Keep this pattern for all new UI.
 - **Floating action buttons** use the shared `FloatingActionButton` + `FloatingToolbar`
   (`src/components/FloatingToolbar.tsx`) anchored bottom-right — never a raw `Button`.
-  `FloatingActionButton` sets `radius="xl"`, the pill shadow, and a 43px height (1.2× the
-  Mantine `sm` default) for consistent touch targets; don't override height inline. The
+  `FloatingActionButton` is a 52×52 circle (`radius="50%"`) with the md shadow; it is
+  icon-only — pass the tabler icon as children at `FAB_ICON_SIZE` (24px) plus an
+  `aria-label`; `FAB_SIZE`/`FAB_ICON_SIZE` are exported from
+  `src/components/FloatingToolbar.tsx`. Don't override width/height inline. The
   default `bottomOffset` clears the **global bottom nav** (`src/lib/bottomNav.ts`); under
   the settings tab bar pass `bottomOffset={SETTINGS_TAB_BAR_OFFSET}` (exported from
   `src/app/(protected)/settings/settingsTabBar.ts`) to `FloatingToolbar`.

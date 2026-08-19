@@ -60,6 +60,9 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
 - [1.46 Out of Camp + location + location policy (Phase 3k)](#146-out-of-camp--location--location-policy-phase-3k)
 - [1.47 Staged event form wizard (Phase 3l)](#147-staged-event-form-wizard-phase-3l)
 - [1.48 Pinned "On behalf of" select for admins (Phase 3l)](#148-pinned-on-behalf-of-select-for-admins-phase-3l)
+- [1.49 Dashboard toolbar kebab overflow menu (Phase 3m)](#149-dashboard-toolbar-kebab-overflow-menu-phase-3m)
+- [1.50 Icon-only circular FABs (Phase 3n)](#150-icon-only-circular-fabs-phase-3n)
+- [1.51 Bigger FABs + download icon optical centering (Phase 3o)](#151-bigger-fabs--download-icon-optical-centering-phase-3o)
 
 ## 1.1 Status
 
@@ -2284,3 +2287,100 @@ Remarks); the 6th "On behalf of" step is gone.
   select visible on all 5 steps and sticky through the full-day Timestamp
   scroll; picking/deselecting a creator still syncs the invitee chips;
   non-admin sees 5 steps with no select.
+
+## 1.49 Dashboard toolbar kebab overflow menu (Phase 3m)
+
+On narrow phones the dashboard's date toolbar (date label beside
+Today/Filter/Force-refresh) didn't fit the ~328px content width and wrapped
+into two ragged left-aligned lines. The actions now live in a **three-dot
+overflow menu** and the toolbar is a single, non-wrapping row.
+
+- **Row layout** (`DashboardView.tsx`) — `‹` · centered date label · `›` ·
+  `⋮`, all controls 43px (chevrons bumped from the default 28px),
+  `wrap="nowrap"`. The label is the only flexible child
+  (`flex: 1 / minWidth: 0 / textAlign: center` + `lineClamp={1}`) so it
+  centers and ellipsizes instead of wrapping — month/day labels fit at a
+  360px viewport; only the rare two-year-spanning week label truncates.
+- **Kebab menu** — Mantine `Menu` (`position="bottom-end"`, `width={200}`,
+  `shadow="md"`, `IconDotsVertical` target): **Today** (`IconCalendarCheck`,
+  disabled when the view already shows today via a new `onToday` derivation —
+  month === current month / date === today / week contains today),
+  **Filters** (`IconFilter`, opens the unchanged `FilterModal`), divider,
+  **Force refresh** (`IconRefresh`; disabled when Google is unconfigured, and
+  its icon swaps to a `Loader` while refreshing). Plain items close the menu
+  on click (Mantine default); outside-tap and `Escape` close it.
+- **Animation** — `transitionProps={{ transition: "pop-top-right",
+  duration: 150, timingFunction: "ease" }}` on the `Menu` (a premade Mantine
+  Transition, verified against the installed `@mantine/core`): the dropdown
+  fades/scales from its top-right corner — the button's corner — on open and
+  close; Mantine handles the exit phase and honors reduced motion.
+- **Active-filter badge** — the old standalone `FilterButton` badge moved onto
+  the kebab itself (filled `Badge` at `top: -4 / right: -4`), so active
+  filters stay visible while the menu is closed. `FilterButton` is unchanged
+  and still used by `/overview`, `/parade-state`, `/settings/users`.
+- **Imports** — added `Menu`/`Loader`/`Badge` and `IconDotsVertical`/
+  `IconFilter`/`IconCalendarCheck`; dropped `Button`, `FilterButton`, and
+  `BUTTON_LOADER_PROPS` from `DashboardView.tsx` (unused there — still used by
+  `EventForm`/`EventDetail`).
+- Verification: `pnpm lint`, `pnpm typecheck`, `pnpm test` (294) and
+  `pnpm build` all pass. No schema change. Manual check at ~360px width:
+  toolbar stays one line across Month/Week/Day, menu animates in/out from the
+  button corner, "Today" disabled when already on today, refresh disabled
+  while Google is unconfigured, kebab badge tracks the active filter groups.
+
+## 1.50 Icon-only circular FABs (Phase 3n)
+
+The floating action buttons were wide text pills ("New event", "Add
+user", "Export", …) and took too much horizontal space on phones. They
+are now 43×43 **icon-only circles**: `FloatingActionButton`
+(`src/components/FloatingToolbar.tsx`) sets `radius="50%"` + `w={43}` +
+`h={43}` (the md shadow is unchanged), each call site passes the tabler
+icon as children plus an `aria-label`.
+
+- **Converted FABs** — `/dashboard` "New event" (`IconPlus`,
+  still disabled while Google is unconfigured) and the minimized-form
+  restore bubble (`IconChevronUp`; was chevron + truncated draft
+  title), `/contacts` "Export" (`IconDownload`), `/settings/users`
+  "Add user", `/settings/departments` "Add department",
+  `/settings/event-types` "Add event type" — the three add-FABs had no
+  icon before and use `IconPlus`, matching the create convention.
+- **Discard pairing** — the "Discard draft" `ActionIcon` beside the
+  restore bubble became a matching 43px circle (`radius="50%"`, `IconX`
+  20px) so the pair reads as one unit.
+- **Dead code removed** — the bubble no longer shows the draft title,
+  so `DashboardView`'s `draftTitle` state (and its 3 resets) and
+  `EventForm`'s `onTitleChange` prop + its `useEffect` are gone; the
+  in-form live preview title rendering is untouched.
+- The `AGENTS.md` FAB convention line was updated to match (circle,
+  icon-only with `aria-label`, don't override width/height inline).
+- Verification: `pnpm lint`, `pnpm typecheck`, `pnpm test` (294)
+  pass. No schema change.
+
+## 1.51 Bigger FABs + download icon optical centering (Phase 3o)
+
+The 43px FABs read too small once they were icon-only; they are now
+1.2× the previous size. Sizes are centralized so every FAB matches by
+construction.
+
+- **Size constants** (`src/components/FloatingToolbar.tsx`) — new
+  exports `FAB_SIZE = 52` (diameter, 1.2× 43) and `FAB_ICON_SIZE = 24`
+  (1.2× 20). `FloatingActionButton` renders a 52px (`FAB_SIZE`) circle;
+  all six FABs (`/dashboard` ×2, `/contacts`, `/settings/users`,
+  `/settings/departments`, `/settings/event-types`) now pass their
+  tabler icon at `FAB_ICON_SIZE`. The paired "Discard draft"
+  `ActionIcon` beside the restore bubble also uses `FAB_SIZE` /
+  `FAB_ICON_SIZE`, keeping the circle pair matched.
+- **Download icon off-center fix** (`/contacts` FAB) — Tabler's
+  `download` glyph is geometrically centered (bounding box off by
+  ≤0.5px on the 24 grid) but optically the arrow (grid y 4–16,
+  center y=10) sits above the grid center (y=12) while the tray is a
+  thin baseline. The FAB icon carries a 2px downward nudge
+  (`style={{ position: "relative", top: 2 }}` — relative, so flex
+  centering is untouched; 2px matches the 24px render size). The
+  modal's "Download" button icon is untouched (standard leftSection).
+- Not touched: the global bottom nav, the dashboard toolbar
+  (43px chevrons/kebab), `FilterButton`, modals and the form wizard.
+- The `AGENTS.md` FAB convention line was updated (52×52 circle,
+  `FAB_ICON_SIZE`/`FAB_SIZE` constants).
+- Verification: `pnpm lint`, `pnpm typecheck`, `pnpm test` (294)
+  pass. No schema change.

@@ -14,9 +14,11 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
   ActionIcon,
   Alert,
+  Badge,
   Box,
-  Button,
   Group,
+  Loader,
+  Menu,
   Modal,
   Paper,
   Stack,
@@ -36,6 +38,7 @@ import {
 } from "@mantine/schedule";
 import {
   IconBuilding,
+  IconCalendarCheck,
   IconCalendarMonth,
   IconCalendarUser,
   IconCalendarWeek,
@@ -43,6 +46,8 @@ import {
   IconChevronLeft,
   IconChevronRight,
   IconChevronUp,
+  IconDotsVertical,
+  IconFilter,
   IconPlus,
   IconRefresh,
   IconUser,
@@ -56,9 +61,13 @@ import {
   monthGridRows,
 } from "./calendarSkeleton";
 import { formatWeekLabel } from "./clientDateTime";
-import { FilterButton } from "@/components/FilterButton";
 import { FilterModal, type FilterGroup } from "@/components/FilterModal";
-import { FloatingActionButton, FloatingToolbar } from "@/components/FloatingToolbar";
+import {
+  FAB_ICON_SIZE,
+  FAB_SIZE,
+  FloatingActionButton,
+  FloatingToolbar,
+} from "@/components/FloatingToolbar";
 import { weekDays } from "@/lib/events/datetime";
 import type { CalendarEvent } from "@/lib/events/queries";
 import type { LocationPolicy } from "@/lib/events/locationPolicy";
@@ -76,7 +85,6 @@ import {
   type ScheduleResource,
   type ScheduleUser,
 } from "@/lib/events/schedule";
-import { BUTTON_LOADER_PROPS } from "@/lib/theme";
 import { EventDetail } from "./EventDetail";
 import { EventForm } from "./EventForm";
 
@@ -251,11 +259,10 @@ export function DashboardView({
       ? { event: initialEditEvent, defaultDate: initialEditEvent.start.slice(0, 10) }
       : null,
   );
-  // Facebook-bubble minimize: the form modal collapses into a floating pill
+  // Facebook-bubble minimize: the form modal collapses into a floating circle
   // while `formMinimized` is true. The modal stays mounted (`keepMounted`) so
-  // the draft survives; `draftTitle` feeds the pill label.
+  // the draft survives.
   const [formMinimized, setFormMinimized] = useState(false);
-  const [draftTitle, setDraftTitle] = useState("");
   const [agendaDate, setAgendaDate] = useState<string | null>(null);
   // Keep the last shown agenda date so the closing (shrink) animation still has
   // content while `opened` is already false.
@@ -540,19 +547,22 @@ export function DashboardView({
 
   function openCreate(dateValue: string, originRect: Rect | null = null) {
     setFormMinimized(false);
-    setDraftTitle("");
     setFormOriginRect(originRect);
     setFormState({ event: null, defaultDate: dateValue });
   }
 
   function closeForm() {
     setFormMinimized(false);
-    setDraftTitle("");
     setFormState(null);
   }
 
   const isWeek = view === "week";
   const isSchedule = view === "schedule";
+  const onToday = isWeek
+    ? week !== null && week.some((day) => day === today)
+    : isSchedule
+      ? date === today
+      : month === todayMonth;
 
   // Measure the Week view's actual day-column width. Mantine sizes each hour
   // slot in `rem` (`--resources-week-view-slot-width`), so with a non-default
@@ -653,43 +663,81 @@ export function DashboardView({
         </Tabs.List>
       </Tabs>
 
-      <Group justify="space-between" align="center">
-        <Group gap="xs">
-          <ActionIcon
-            variant="default"
-            aria-label={isSchedule ? "Previous day" : isWeek ? "Previous week" : "Previous month"}
-            onClick={() => (isSchedule ? shiftDay(-1) : isWeek ? shiftWeek(-1) : shiftMonth(-1))}
-          >
-            <IconChevronLeft size={18} />
-          </ActionIcon>
-          <Text fw={600} size="lg">
-            {isSchedule ? dayLabel : isWeek ? weekLabel : monthLabel}
-          </Text>
-          <ActionIcon
-            variant="default"
-            aria-label={isSchedule ? "Next day" : isWeek ? "Next week" : "Next month"}
-            onClick={() => (isSchedule ? shiftDay(1) : isWeek ? shiftWeek(1) : shiftMonth(1))}
-          >
-            <IconChevronRight size={18} />
-          </ActionIcon>
-        </Group>
-        <Group gap="xs">
-          <Button variant="default" size="xs" color="black" h={43} onClick={goToday}>
-            Today
-          </Button>
-          <FilterButton activeCount={activeFilterCount} onClick={openFilter} />
-          <ActionIcon
-            size={43}
-            variant="default"
-            aria-label="Force refresh from Google Calendar"
-            disabled={!googleConfigured}
-            loading={isRefreshing}
-            loaderProps={BUTTON_LOADER_PROPS}
-            onClick={refreshNow}
-          >
-            <IconRefresh size={16} />
-          </ActionIcon>
-        </Group>
+      <Group align="center" gap="xs" wrap="nowrap">
+        <ActionIcon
+          size={43}
+          variant="default"
+          aria-label={isSchedule ? "Previous day" : isWeek ? "Previous week" : "Previous month"}
+          onClick={() => (isSchedule ? shiftDay(-1) : isWeek ? shiftWeek(-1) : shiftMonth(-1))}
+        >
+          <IconChevronLeft size={18} />
+        </ActionIcon>
+        <Text
+          fw={600}
+          size="lg"
+          lineClamp={1}
+          style={{ flex: 1, minWidth: 0, textAlign: "center" }}
+        >
+          {isSchedule ? dayLabel : isWeek ? weekLabel : monthLabel}
+        </Text>
+        <ActionIcon
+          size={43}
+          variant="default"
+          aria-label={isSchedule ? "Next day" : isWeek ? "Next week" : "Next month"}
+          onClick={() => (isSchedule ? shiftDay(1) : isWeek ? shiftWeek(1) : shiftMonth(1))}
+        >
+          <IconChevronRight size={18} />
+        </ActionIcon>
+        <Menu
+          shadow="md"
+          width={200}
+          position="bottom-end"
+          transitionProps={{ transition: "pop-top-right", duration: 150, timingFunction: "ease" }}
+        >
+          <Menu.Target>
+            <ActionIcon
+              size={43}
+              variant="default"
+              aria-label="More options"
+              style={{ position: "relative" }}
+            >
+              <IconDotsVertical size={18} />
+              {activeFilterCount > 0 && (
+                <Badge
+                  size="sm"
+                  variant="filled"
+                  radius="xl"
+                  pos="absolute"
+                  style={{ top: -4, right: -4 }}
+                >
+                  {activeFilterCount}
+                </Badge>
+              )}
+            </ActionIcon>
+          </Menu.Target>
+          <Menu.Dropdown>
+            <Menu.Item
+              leftSection={<IconCalendarCheck size={16} />}
+              disabled={onToday}
+              onClick={goToday}
+            >
+              Today
+            </Menu.Item>
+            <Menu.Item leftSection={<IconFilter size={16} />} onClick={openFilter}>
+              Filters
+            </Menu.Item>
+            <Menu.Divider />
+            <Menu.Item
+              leftSection={
+                isRefreshing ? <Loader size="sm" color="gray" /> : <IconRefresh size={16} />
+              }
+              disabled={!googleConfigured || isRefreshing}
+              onClick={refreshNow}
+            >
+              Force refresh
+            </Menu.Item>
+          </Menu.Dropdown>
+        </Menu>
       </Group>
 
       {!googleConfigured && (
@@ -965,7 +1013,6 @@ export function DashboardView({
         onEdit={(event, originRect) => {
           setDetailEvent(null);
           setFormMinimized(false);
-          setDraftTitle("");
           setFormOriginRect(originRect);
           setFormState({ event, defaultDate: today });
         }}
@@ -1022,7 +1069,6 @@ export function DashboardView({
                 isAdmin={isAdmin}
                 inviteeDepartments={inviteeDepartments}
                 inviteeUsers={inviteeUsers}
-                onTitleChange={setDraftTitle}
                 onDone={() => {
                   closeForm();
                   router.refresh();
@@ -1036,29 +1082,20 @@ export function DashboardView({
       {formState && formMinimized && (
         <FloatingToolbar zIndex={300}>
           <FloatingActionButton
-            leftSection={<IconChevronUp size={16} />}
+            aria-label="Restore event form"
             onClick={() => setFormMinimized(false)}
           >
-            <span
-              style={{
-                display: "block",
-                maxWidth: "50vw",
-                overflow: "hidden",
-                textOverflow: "ellipsis",
-                whiteSpace: "nowrap",
-              }}
-            >
-              {draftTitle || (formState.event ? "Edit event" : "New event")}
-            </span>
+            <IconChevronUp size={FAB_ICON_SIZE} />
           </FloatingActionButton>
           <ActionIcon
-            radius="xl"
-            size="lg"
+            radius="50%"
+            w={FAB_SIZE}
+            h={FAB_SIZE}
             variant="default"
             aria-label="Discard draft"
             onClick={closeForm}
           >
-            <IconX size={18} />
+            <IconX size={FAB_ICON_SIZE} />
           </ActionIcon>
         </FloatingToolbar>
       )}
@@ -1075,11 +1112,11 @@ export function DashboardView({
       {formState === null && (
         <FloatingToolbar>
           <FloatingActionButton
-            leftSection={<IconPlus size={18} />}
+            aria-label="New event"
             onClick={(e) => openCreate(today, e.currentTarget.getBoundingClientRect())}
             disabled={!googleConfigured}
           >
-            New event
+            <IconPlus size={FAB_ICON_SIZE} />
           </FloatingActionButton>
         </FloatingToolbar>
       )}
