@@ -63,6 +63,7 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
 - [1.49 Dashboard toolbar kebab overflow menu (Phase 3m)](#149-dashboard-toolbar-kebab-overflow-menu-phase-3m)
 - [1.50 Icon-only circular FABs (Phase 3n)](#150-icon-only-circular-fabs-phase-3n)
 - [1.51 Bigger FABs + download icon optical centering (Phase 3o)](#151-bigger-fabs--download-icon-optical-centering-phase-3o)
+- [1.52 Stale-while-navigating dashboard grid (Phase 3p)](#152-stale-while-navigating-dashboard-grid-phase-3p)
 
 ## 1.1 Status
 
@@ -2384,3 +2385,45 @@ construction.
   `FAB_ICON_SIZE`/`FAB_SIZE` constants).
 - Verification: `pnpm lint`, `pnpm typecheck`, `pnpm test` (294)
   pass. No schema change.
+
+## 1.52 Stale-while-navigating dashboard grid (Phase 3p)
+
+The dashboard's perceived load was driven less by data latency than by the
+skeleton flashing on **every** in-place navigation — with one warm dev
+instance (L1 cache) and the Google stub, month/week/day fetches are fast,
+so the skeleton→grid→skeleton churn was pure perception. The grid now
+**keeps the current view visible during transitions** and swaps it in
+place when the new server data commits, dimmed to 60% opacity (150ms
+transition) while pending. The skeleton is reserved for cold loads (route
+`loading.tsx`) and the force-refresh nonce window.
+
+```mermaid
+stateDiagram-v2
+    [*] --> Grid: cold load (loading.tsx skeleton)
+    Grid --> Dimmed: month/week/day/filter navigate (router.push)
+    Dimmed --> Grid: new RSC data commits, in-place swap
+    Grid --> Skeleton: force-refresh nonce (blocks on fresh Google)
+    Skeleton --> Grid: fresh data commits
+```
+
+- **Skeleton condition** (`DashboardView.tsx`) — the grid skeleton renders
+  only while `isRefreshing` (force-refresh), keyed off the committed `view`
+  prop; no longer while `isPending`, which previously blanked the grid to a
+  skeleton on every transition.
+- **Dim during pending** — the grid wrapper `Box` carries
+  `opacity: isPending ? 0.6 : 1` with a 150ms opacity transition (covers
+  the week-day label strip; opacity doesn't affect layout, so the week
+  day-width DOM measurement is untouched).
+- **`targetView` removed** — its only read was the skeleton shape; since the
+  skeleton now only appears during force-refresh (where the committed `view`
+  prop equals the target), the state and its six `setTargetView` calls
+  (shiftMonth/shiftDay/shiftWeek/switchView/goToday/handleApplyFilters) are
+  gone.
+- **Unchanged** — route `loading.tsx`, force-refresh UX (skeleton + button
+  spinner for the whole blocking window), `router.refresh()` mutation
+  swaps, and the week-view measurement gate (`isPending || isRefreshing`).
+- The `AGENTS.md` skeleton convention now encodes the
+  stale-while-navigating pattern (stale grid dimmed while pending, skeleton
+  for cold loads + force refresh).
+- Verification: `pnpm lint`, `pnpm typecheck`, `pnpm test` (294) and
+  `pnpm build` all pass. No schema change.

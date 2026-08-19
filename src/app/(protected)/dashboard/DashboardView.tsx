@@ -239,8 +239,6 @@ export function DashboardView({
   const searchParams = useSearchParams();
   const [isPending, startTransition] = useTransition();
 
-  const [targetView, setTargetView] = useState<ViewMode>(view);
-
   // The `?edit=` deep link (from a Google Calendar "Edit:" note) resolves its
   // target event synchronously at mount — the server has already fetched the
   // month — so the edit form/banner initialize without a follow-up render.
@@ -457,8 +455,9 @@ export function DashboardView({
   // Force refresh: a transition of its own (the button's spinner) wrapping
   // router.push directly — the transition Next runs inside push stays pending
   // for the whole navigation, so `isRefreshing` covers the load. The server
-  // renders that same request with `force: true`; the page skeleton (the
-  // shared `isPending` ORed in below) shows for the same window.
+  // renders that same request with `force: true`; the grid skeleton shows for
+  // the same window. Ordinary transitions keep the current grid visible
+  // (dimmed, below) and swap it in place when the new data commits.
   function refreshNow() {
     startRefresh(() => {
       router.push(buildHref({ refresh: String(Date.now()) }));
@@ -466,26 +465,22 @@ export function DashboardView({
   }
 
   function shiftMonth(delta: number) {
-    setTargetView(view);
     const next = dayjs(`${month}-01`).add(delta, "month").format("YYYY-MM");
     navigate({ month: next });
   }
 
   function shiftDay(delta: number) {
-    setTargetView(view);
     const next = dayjs(date).add(delta, "day");
     navigate({ date: next.format("YYYY-MM-DD"), month: next.format("YYYY-MM") });
   }
 
   function shiftWeek(delta: number) {
-    setTargetView(view);
     const next = dayjs(date).add(delta, "week");
     navigate({ date: next.format("YYYY-MM-DD"), month: next.format("YYYY-MM") });
   }
 
   function switchView(next: string) {
     const mode: ViewMode = next === "schedule" ? "schedule" : next === "week" ? "week" : "month";
-    setTargetView(mode);
     if (mode !== "month") {
       // Entering an anchored view (day/week) always starts on today; the
       // month is derived from the date by the page.
@@ -501,7 +496,6 @@ export function DashboardView({
   }
 
   function goToday() {
-    setTargetView(view);
     if (view === "schedule" || view === "week") {
       navigate({ date: today, month: todayMonth });
     } else {
@@ -534,7 +528,6 @@ export function DashboardView({
   // touch. A tap (movement under the threshold) restores the form; a drag
   // repositions the pill, clamped to the viewport.
   function handleApplyFilters(values: Record<string, string[]>) {
-    setTargetView(view);
     const cals = values.Calendars ?? [];
     const users = values.Users ?? [];
     const types = values["Event Types"] ?? [];
@@ -777,17 +770,20 @@ export function DashboardView({
         />
       )}
 
-      <Box ref={weekBoxRef}>
+      <Box
+        ref={weekBoxRef}
+        style={{ opacity: isPending ? 0.6 : 1, transition: "opacity 150ms" }}
+      >
         {isWeek && week && (
           <WeekDayLabelStrip
             day={week[weekDayIndex]}
             hasGroups={scheduleResources.groups !== undefined}
           />
         )}
-        {isPending || isRefreshing ? (
-          targetView === "month" ? (
+        {isRefreshing ? (
+          view === "month" ? (
             <MonthGridSkeleton rows={monthGridRows(month)} />
-          ) : targetView === "week" ? (
+          ) : view === "week" ? (
             <WeekGridSkeleton />
           ) : (
             <ScheduleGridSkeleton />

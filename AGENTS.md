@@ -188,11 +188,15 @@ the quality checks.
   block are treated as **external** (`isExternalEvent`) — flagged with an "External" badge
   in the event detail and pinned to their calendar's department row in the Day view.
   The **General tab** holds only the login keyword setting.
-- **Always show a loading skeleton for async loads.** Any route or view that awaits data
-  before rendering (DB queries, fetches) must show a Mantine `Skeleton` fallback instead of
-  a blank screen. In the App Router add a `loading.tsx` to the route segment (auto Suspense
+ - **Always show a loading skeleton for async loads.** Any route or view that awaits data
+   before rendering (DB queries, fetches) must show a Mantine `Skeleton` fallback instead of
+   a blank screen. In the App Router add a `loading.tsx` to the route segment (auto Suspense
    fallback, e.g. `src/app/(protected)/settings/users/loading.tsx`); for client-side async use
-   a `Skeleton` state. Shape the skeleton to match the real card list.
+   a `Skeleton` state. Shape the skeleton to match the real card list. In-place URL
+   navigation on a data grid (dashboard month/week/day/filter changes) instead keeps the
+   stale grid visible — dimmed (`opacity: 0.6`) while the transition is pending — and swaps
+   it in place when the new server data commits; the grid skeleton is reserved for cold
+   loads (route `loading.tsx`) and the dashboard's force-refresh nonce.
  - **Buttons that trigger async work must show a loading indicator in the button itself.**
    Use Mantine's `loading` prop on `Button` together with the shared
    `loaderProps={BUTTON_LOADER_PROPS}` from `src/lib/theme.ts`. For `useForm`-backed submit
