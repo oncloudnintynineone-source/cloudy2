@@ -1,0 +1,11 @@
+@keyframes dashboard-grid-reveal {
+  from {
+    opacity: 0.6;
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .dashboard-grid-reveal {
+    animation: dashboard-grid-reveal 250ms ease-out;
+  }
+}

@@ -64,6 +64,8 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
 - [1.50 Icon-only circular FABs (Phase 3n)](#150-icon-only-circular-fabs-phase-3n)
 - [1.51 Bigger FABs + download icon optical centering (Phase 3o)](#151-bigger-fabs--download-icon-optical-centering-phase-3o)
 - [1.52 Stale-while-navigating dashboard grid (Phase 3p)](#152-stale-while-navigating-dashboard-grid-phase-3p)
+- [1.53 Dashboard grid cold-load reveal (Phase 3p)](#153-dashboard-grid-cold-load-reveal-phase-3p)
+- [1.54 Day-view date picker: MobileMonthView replaces mini calendar (Phase 3q)](#154-day-view-date-picker-mobilemonthview-replaces-mini-calendar-phase-3q)
 
 ## 1.1 Status
 
@@ -215,6 +217,11 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
   (see §1.43) — a one-shot `?refresh=` nonce makes the same RSC render bypass the cache
   freshness window and block on fresh Google fetches for the selected calendars × displayed
   month. No schema changes; `pnpm lint/typecheck/test/build` pass.
+- **Phase 3q (day-view date picker):** the Day view's 7-day mini-calendar strip is removed;
+  a **"Select date"** item in the ⋮ menu (Day view only) opens a `MobileMonthView`-based
+  floating date picker (`DateSelectorModal`). Month navigation is driven by a custom header
+  (‹ ›), and tapping a day navigates `?date=`/`?month=` and closes the picker. No schema
+  changes; `pnpm lint/typecheck/test/build` pass.
 
 ## 1.2 Decisions locked in (Phase 0)
 
@@ -2427,3 +2434,75 @@ stateDiagram-v2
   for cold loads + force refresh).
 - Verification: `pnpm lint`, `pnpm typecheck`, `pnpm test` (294) and
   `pnpm build` all pass. No schema change.
+
+## 1.53 Dashboard grid cold-load reveal (Phase 3p)
+
+The stale-while-navigating change reserved the grid skeleton for cold loads,
+but the skeleton → grid swap was still a hard cut on first arrival. The grid
+now **fades in from `opacity: 0.6`** on a fresh mount — a one-shot CSS
+animation (no JS, so no hydration flash) that softens the arrival without
+adding latency: the grid is fully readable and interactive even while
+dimmed.
+
+- **CSS** (new `src/app/globals.css`, the app's first project stylesheet,
+  imported in `src/app/layout.tsx` after the Mantine styles) —
+  `@keyframes dashboard-grid-reveal { from { opacity: 0.6 } }` (no `to`: it
+  animates to the computed value and hands back to the inline
+  opacity/transition) applied by `.dashboard-grid-reveal` inside
+  `@media (prefers-reduced-motion: no-preference)`.
+- **Scope** — `DashboardView.tsx` adds the class to the persistent grid
+  `Box` (the same one carrying the `isPending` dim). Because the animation
+  lives on the stable wrapper, it plays only when the route remounts — cold
+  load, tab-away-and-back, deep link — and never on in-place month/week/day
+  navigation or view-tab switches (same element, children swap) or
+  force-refresh (the skeleton renders inside the same Box).
+- The `AGENTS.md` skeleton convention bullet now encodes the reveal.
+- Verification: `pnpm lint`, `pnpm typecheck`, `pnpm test` (294) and
+  `pnpm build` all pass. No schema change.
+
+## 1.54 Day-view date picker: MobileMonthView replaces mini calendar (Phase 3q)
+
+The Day (schedule) view navigated days with a 7-day `MiniCalendar` strip pinned below the
+header (prev/next arrows deliberately hidden) — useful for ±3 days, but there was no way
+to jump to an arbitrary day. The strip is removed and replaced by a **"Select date"** item
+in the header's ⋮ overflow menu (Day view only) that opens a floating month picker.
+
+```mermaid
+sequenceDiagram
+    participant U as User
+    participant M as ⋮ Menu
+    participant P as DateSelectorModal (MobileMonthView)
+    participant D as Dashboard (URL)
+    U->>M: tap ⋮ → Select date
+    M->>P: open (pickerDate = current ?date= month)
+    U->>P: ‹ / › chevron or tap a day
+    alt month chevron
+        P->>P: pickerDate ±1 month (local state)
+    else day tap
+        P->>D: onPick(day) → ?date= + ?month=
+        P->>M: close
+    end
+```
+
+- **`DateSelectorModal`** (new `src/app/(protected)/dashboard/DateSelectorModal.tsx`) —
+  a centered `size="sm"` floating `Modal` titled "Select date" wrapping
+  `@mantine/schedule`'s `MobileMonthView` (the dashboard's existing package; its styles
+  are already imported in the root layout). `selectedDate` highlights the current `?date=`,
+  today is highlighted by the component's default, and the bottom events list is hidden
+  (`styles.mobileMonthViewEventsList: display: none`) — a pure date navigator, no events.
+- **Custom `renderHeader`** — required because standalone `MobileMonthView` (v9.5.x) never
+  invokes `onDateChange`, and its default header's year button only fires `onYearClick`
+  (useful only with a `Schedule` year view, which the app doesn't use). The header renders
+  ‹ `MMMM YYYY` ›; month navigation drives the modal's local `pickerDate` state (re-seeded
+  from `date` on each open), day taps navigate immediately.
+- **Navigate + close** — `onDayClick` calls the parent's `pickDate(day)` →
+  `navigate({ date, month: day.slice(0, 7) })` (the same param pair as `shiftDay`), then
+  closes the picker. The in-place stale-while-navigating grid transition handles the swap.
+- **`DashboardView.tsx`** — `MiniCalendar` import + strip block removed; new `pickerOpened`
+  disclosure, a `Menu.Item` (`IconCalendarDot`, rendered only when `isSchedule`) between
+  **Today** and **Filters**, and the modal mounted beside the other modals.
+- Not touched: the header day chevrons (±1 day), Today, Filters, Force refresh, and the
+  Month/Week views (no new menu item there). No schema change.
+- Verification: `pnpm lint`, `pnpm typecheck`, `pnpm test` (294) and `pnpm build` all
+  pass. Pending manual dev check: ‹ › month stepping, today/current-day highlights,
+  day-tap navigation + close, item absent in Month/Week.

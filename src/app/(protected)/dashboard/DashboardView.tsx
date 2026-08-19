@@ -26,7 +26,6 @@ import {
   Text,
   UnstyledButton,
 } from "@mantine/core";
-import { MiniCalendar } from "@mantine/dates";
 import { useDisclosure, useDrag } from "@mantine/hooks";
 import {
   AgendaView,
@@ -39,6 +38,7 @@ import {
 import {
   IconBuilding,
   IconCalendarCheck,
+  IconCalendarDot,
   IconCalendarMonth,
   IconCalendarUser,
   IconCalendarWeek,
@@ -85,6 +85,7 @@ import {
   type ScheduleResource,
   type ScheduleUser,
 } from "@/lib/events/schedule";
+import { DateSelectorModal } from "./DateSelectorModal";
 import { EventDetail } from "./EventDetail";
 import { EventForm } from "./EventForm";
 
@@ -274,6 +275,7 @@ export function DashboardView({
     () => initialEditEventId !== null && initialEditEvent === null,
   );
   const [filterOpened, { open: openFilter, close: closeFilter }] = useDisclosure(false);
+  const [pickerOpened, { open: openPicker, close: closePicker }] = useDisclosure(false);
 
   // Week view: which day (0-6) sits at the left edge of the horizontally
   // scrolling grid. The index (not raw px) drives the pinned day-label strip,
@@ -503,6 +505,10 @@ export function DashboardView({
     }
   }
 
+  function pickDate(picked: string) {
+    navigate({ date: picked, month: picked.slice(0, 7) });
+  }
+
   function shiftAgendaDay(delta: number) {
     if (agendaDate === null) return;
     const next = dayjs(agendaDate).add(delta, "day");
@@ -716,6 +722,11 @@ export function DashboardView({
             >
               Today
             </Menu.Item>
+            {isSchedule && (
+              <Menu.Item leftSection={<IconCalendarDot size={16} />} onClick={openPicker}>
+                Select date
+              </Menu.Item>
+            )}
             <Menu.Item leftSection={<IconFilter size={16} />} onClick={openFilter}>
               Filters
             </Menu.Item>
@@ -751,27 +762,9 @@ export function DashboardView({
         </Alert>
       )}
 
-      {isSchedule && (
-        <MiniCalendar
-          value={date}
-          date={dayjs(date)
-            .subtract(Math.floor(7 / 2), "day")
-            .format("YYYY-MM-DD")}
-          onChange={(next) => navigate({ date: next, month: next.slice(0, 7) })}
-          numberOfDays={7}
-          size="sm"
-          previousControlProps={{ style: { display: "none" } }}
-          nextControlProps={{ style: { display: "none" } }}
-          styles={{
-            root: { width: "100%", maxWidth: 420, marginInline: "auto" },
-            days: { flex: 1 },
-            day: { flex: 1 },
-          }}
-        />
-      )}
-
       <Box
         ref={weekBoxRef}
+        className="dashboard-grid-reveal"
         style={{ opacity: isPending ? 0.6 : 1, transition: "opacity 150ms" }}
       >
         {isWeek && week && (
@@ -1095,6 +1088,13 @@ export function DashboardView({
           </ActionIcon>
         </FloatingToolbar>
       )}
+
+      <DateSelectorModal
+        opened={pickerOpened}
+        date={date}
+        onPick={pickDate}
+        onClose={closePicker}
+      />
 
       <FilterModal
         opened={filterOpened}

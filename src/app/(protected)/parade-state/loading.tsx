@@ -3,14 +3,11 @@ import { Box, Group, Paper, Skeleton, Stack } from "@mantine/core";
 export default function ParadeStateLoading() {
   return (
     <Stack gap="md" p="md">
-      <Group justify="space-between">
-        <Skeleton h={36} w={120} />
-        <Group gap="xs">
-          <Skeleton h={36} w={36} circle />
-          <Skeleton h={24} w={100} />
-          <Skeleton h={36} w={36} circle />
-        </Group>
-        <Skeleton h={36} w={80} />
+      <Group align="center" gap="xs" wrap="nowrap">
+        <Skeleton h={43} w={43} circle />
+        <Skeleton h={24} w={180} />
+        <Skeleton h={43} w={43} circle />
+        <Skeleton h={43} w={43} circle />
       </Group>
 
       <Skeleton h={36} />

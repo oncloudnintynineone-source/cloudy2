@@ -5,18 +5,25 @@ import { useCallback, useMemo, useState, useTransition } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
   ActionIcon,
+  Badge,
   Box,
-  Button,
   Group,
+  Menu,
   Paper,
   Stack,
   Text,
   useComputedColorScheme,
 } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
-import { IconChevronLeft, IconChevronRight, IconUser } from "@tabler/icons-react";
+import {
+  IconCalendarCheck,
+  IconChevronLeft,
+  IconChevronRight,
+  IconDotsVertical,
+  IconFilter,
+  IconUser,
+} from "@tabler/icons-react";
 
-import { FilterButton } from "@/components/FilterButton";
 import { FilterModal, type FilterGroup } from "@/components/FilterModal";
 import type { CalendarEvent } from "@/lib/events/queries";
 import { formatFullName } from "@/lib/settings/formatName";
@@ -298,27 +305,70 @@ return map;
   }, [users]);
 
   const dayLabel = dayjs(date).format("ddd, MMM D, YYYY");
+  const onToday = date === today;
 
   return (
     <Stack gap="md" p="md" pb="xl">
-      <Group justify="space-between" align="center">
-        <Group gap="xs">
-          <ActionIcon variant="default" aria-label="Previous day" onClick={() => shiftDay(-1)}>
-            <IconChevronLeft size={18} />
-          </ActionIcon>
-          <Text fw={600} size="lg">
-            {dayLabel}
-          </Text>
-          <ActionIcon variant="default" aria-label="Next day" onClick={() => shiftDay(1)}>
-            <IconChevronRight size={18} />
-          </ActionIcon>
-        </Group>
-        <Group gap="xs">
-          <Button variant="default" size="xs" color="black" h={43} onClick={goToday}>
-            Today
-          </Button>
-          <FilterButton activeCount={activeFilterCount} onClick={openFilter} />
-        </Group>
+      <Group align="center" gap="xs" wrap="nowrap">
+        <ActionIcon
+          size={43}
+          variant="default"
+          aria-label="Previous day"
+          onClick={() => shiftDay(-1)}
+        >
+          <IconChevronLeft size={18} />
+        </ActionIcon>
+        <Text
+          fw={600}
+          size="lg"
+          lineClamp={1}
+          style={{ flex: 1, minWidth: 0, textAlign: "center" }}
+        >
+          {dayLabel}
+        </Text>
+        <ActionIcon size={43} variant="default" aria-label="Next day" onClick={() => shiftDay(1)}>
+          <IconChevronRight size={18} />
+        </ActionIcon>
+        <Menu
+          shadow="md"
+          width={200}
+          position="bottom-end"
+          transitionProps={{ transition: "pop-top-right", duration: 150, timingFunction: "ease" }}
+        >
+          <Menu.Target>
+            <ActionIcon
+              size={43}
+              variant="default"
+              aria-label="More options"
+              style={{ position: "relative" }}
+            >
+              <IconDotsVertical size={18} />
+              {activeFilterCount > 0 && (
+                <Badge
+                  size="sm"
+                  variant="filled"
+                  radius="xl"
+                  pos="absolute"
+                  style={{ top: -4, right: -4 }}
+                >
+                  {activeFilterCount}
+                </Badge>
+              )}
+            </ActionIcon>
+          </Menu.Target>
+          <Menu.Dropdown>
+            <Menu.Item
+              leftSection={<IconCalendarCheck size={16} />}
+              disabled={onToday}
+              onClick={goToday}
+            >
+              Today
+            </Menu.Item>
+            <Menu.Item leftSection={<IconFilter size={16} />} onClick={openFilter}>
+              Filters
+            </Menu.Item>
+          </Menu.Dropdown>
+        </Menu>
       </Group>
 
       {departments.length === 0 ? (
