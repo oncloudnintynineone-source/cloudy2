@@ -64,17 +64,25 @@ the quality checks.
   service-account impl there when credentials are provisioned; don't call Google APIs
   directly.
 - **Calendar month reads are cached server-side.** The dashboard/overview data flow is
-  `fetchMonthEvents()` (`src/lib/events/queries.ts`) → `getCachedMonthEvents()` in
-  `src/lib/google/eventsCache.ts`, which serves one row of the `google_event_cache` table
-  (composite PK `calendar_google_id` + `month`) per department calendar per month. One entry
-  serves every user/filter on both `/dashboard` and `/overview`. Fresh for 30s
-  (`GCAL_CACHE_FRESH_MS`), then stale-while-revalidate for up to 30min (`GCAL_CACHE_EXPIRE_MS`):
-  stale rows are served while `after()` refreshes them in the background from Google; absent
-  or expired rows block on a fresh `events.list` + upsert. Never call `integration.listEvents`
-  directly for the month view. In-app mutations delete the touched rows via
-  `invalidateGcalCache()` in `src/lib/events/actions.ts` (using the same calendar-id + month
-  sets derived from targets and date ranges) so the mutating user sees their change on
-  `router.refresh()`; `findCopies` inside mutations intentionally bypasses the cache. The
+  `fetchMonthEvents()` (`src/lib/events/queries.ts`) → `getCachedMonthEventsForCalendars()` in
+  `src/lib/google/eventsCache.ts`, a layered cache per department calendar per month. An
+  in-process L1 map (keyed `googleCalendarId:month`) serves warm-instance repeat views with no
+  I/O; misses fall through to one **batched** `SELECT` on the `google_event_cache` table
+  (composite PK `calendar_google_id` + `month`) — a single round-trip for the whole month
+  regardless of calendar count; anything absent/expired blocks on a fresh Google `events.list`
+  + upsert (bounded concurrency). One entry serves every user/filter on both `/dashboard` and
+  `/overview`. Fresh for 60s (`GCAL_CACHE_FRESH_MS`), then stale-while-revalidate for up to
+  30min (`GCAL_CACHE_EXPIRE_MS`): stale entries are served while `after()` refreshes them in
+  the background; concurrent refreshes of the same key are coalesced via an in-flight map.
+  Never call `integration.listEvents` directly for the month view. In-app mutations call
+  `invalidateGcalCache()` (in `src/lib/google/eventsCache.ts`) which purges L1 + in-flight
+   entries and deletes the touched DB rows (calendar-id × month sets derived from targets and
+   date ranges). The L1 purge is per-instance (map lives only where the mutation ran) while
+   the DB delete is shared — so the mutating instance sees the change on `router.refresh()`
+   immediately, but other warm instances can serve the pre-change L1 copy for up to
+   `GCAL_CACHE_FRESH_MS` (60s) before a background refresh corrects it; `findCopies`
+  inside mutations intentionally bypasses the cache. Adjacent months are prefetched in
+  `after()` only when the current month missed the cache (`PREFETCH_ADJACENT_MONTHS`). The
   pure, tested helpers live in `src/lib/google/eventsCacheCodec.ts` (`cacheEntryState`,
   `encodeCachedEvents`, `decodeCachedEvents`) plus `monthsInRange`/`shiftMonth` and
   `mapWithConcurrency`. The cache is deliberately a DB table, not Next's `use cache`/`cacheTag`

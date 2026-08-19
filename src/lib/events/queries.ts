@@ -5,9 +5,8 @@ import { after } from "next/server";
 
 import { db } from "@/db";
 import { calendars, users } from "@/db/schema";
-import { mapWithConcurrency } from "@/lib/async";
 import { formatInstantToNaive, shiftMonth, utcToDateString } from "@/lib/events/datetime";
-import { getCachedMonthEvents } from "@/lib/google/eventsCache";
+import { getCachedMonthEventsForCalendars } from "@/lib/google/eventsCache";
 import { onlyUuidIds } from "@/lib/uuid";
 import {
   isExternalEvent,
@@ -112,9 +111,6 @@ export async function getUserDepartmentIds(
   return Object.fromEntries(rows.map((row) => [row.id, row.departmentId]));
 }
 
-/** Max Google `events.list` calls in flight per page render (bounded for quota). */
-const GOOGLE_FETCH_CONCURRENCY = 4;
-
 /** Warm the neighboring months' cache entries after the response ships. */
 const PREFETCH_ADJACENT_MONTHS = true;
 
@@ -136,33 +132,28 @@ export async function fetchMonthEvents(params: {
     .from(calendars)
     .where(inArray(calendars.id, params.calendarIds))
     .orderBy(calendars.name);
+  const googleCalendarIds = rows.map((calendar) => calendar.googleCalendarId);
 
-  // Prefetch the adjacent months' cache entries after the response is sent, so
-  // navigating to a neighboring month renders from the cache instead of hitting
-  // Google. Cache hits are free; misses warm the entry for later.
-  if (PREFETCH_ADJACENT_MONTHS) {
+  // Google month reads go through the layered events cache (L1 memory + one
+  // batched Postgres read per month). Results are flattened in calendar-name
+  // order so the deterministic representative-copy selection is preserved.
+  const cached = await getCachedMonthEventsForCalendars(googleCalendarIds, params.month);
+
+  // Prefetch the adjacent months only when this month missed the cache (i.e.
+  // the user is actually navigating), so fully-cached views don't churn extra
+  // Google/DB work after the response ships.
+  if (PREFETCH_ADJACENT_MONTHS && !cached.allServed) {
     const prevMonth = shiftMonth(params.month, -1);
     const nextMonth = shiftMonth(params.month, 1);
     after(() => {
-      for (const calendar of rows) {
-        void getCachedMonthEvents(calendar.googleCalendarId, prevMonth).catch(() => {});
-        void getCachedMonthEvents(calendar.googleCalendarId, nextMonth).catch(() => {});
-      }
+      void getCachedMonthEventsForCalendars(googleCalendarIds, prevMonth).catch(() => {});
+      void getCachedMonthEventsForCalendars(googleCalendarIds, nextMonth).catch(() => {});
     });
   }
 
-  // Google month reads go through the Postgres event cache (keyed per
-  // calendar+month). Fetch concurrently with a bounded concurrency, then
-  // flatten in row order so the deterministic representative-copy selection is
-  // preserved.
-  const itemsByCalendar = await mapWithConcurrency(rows, GOOGLE_FETCH_CONCURRENCY, (calendar) =>
-    getCachedMonthEvents(calendar.googleCalendarId, params.month),
-  );
-
   const events: CalendarEvent[] = [];
-  for (let i = 0; i < rows.length; i += 1) {
-    const calendar = rows[i];
-    for (const item of itemsByCalendar[i]) {
+  for (const calendar of rows) {
+    for (const item of cached.events[calendar.googleCalendarId] ?? []) {
       const eventType = parseEventType(item.description);
       if (params.typeFilter.length > 0 && (!eventType || !params.typeFilter.includes(eventType))) {
         continue;

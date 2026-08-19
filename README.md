@@ -17,6 +17,7 @@ event/visibility layer.
 - [1.9 Deployment (Vercel)](#19-deployment-vercel)
 - [1.10 Google integration](#110-google-integration)
 - [1.11 Database migrations](#111-database-migrations)
+- [1.12 Documentation](#112-documentation)
 
 ## 1.1 Tech stack
 
@@ -198,3 +199,16 @@ Command roles:
 In CI, the `migrate` job applies pending migrations on `main` pushes via the `DATABASE_URL`
 repo secret, and the schema-drift check runs `pnpm db:generate` then fails on any diff to
 `drizzle/` — so committed migrations stay in sync with the schema.
+
+## 1.12 Documentation
+
+In-depth documentation lives alongside this README and is indexed here so every doc is
+reachable from the project root:
+
+| Document                  | Covers                                                      |
+| ------------------------- | ----------------------------------------------------------- |
+| [`progress.md`](progress.md) | Phase-by-phase project log, locked-in decisions, verification results |
+| [`docs/events-cache.md`](docs/events-cache.md) | Google Calendar event caching deep-dive — design, data model, read/write flows, freshness, performance |
+
+`AGENTS.md` (agent/dev conventions) and the historical plans under `.opencode/plans/` are
+working documents, not end-user documentation.

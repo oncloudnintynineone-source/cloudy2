@@ -1,10 +1,10 @@
 "use server";
 
-import { and, inArray } from "drizzle-orm";
+import { inArray } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
 import { db } from "@/db";
-import { calendars, googleEventCache } from "@/db/schema";
+import { calendars } from "@/db/schema";
 import { AUDIT_ACTIONS, actorFromUser } from "@/lib/audit/build";
 import { logAction } from "@/lib/audit/log";
 import { appBaseUrl } from "@/lib/appUrl";
@@ -23,6 +23,7 @@ import { deriveTargetCalendarIds, type EventRef } from "@/lib/events/targets";
 import { validateEventForm, withCreatorInvited, type EventFormValues } from "@/lib/events/validate";
 import { getEventTypesByNames } from "@/lib/eventTypes/queries";
 import { getGoogleIntegration, googleCalendarConfigured, type GcalEventInput } from "@/lib/google";
+import { invalidateGcalCache } from "@/lib/google/eventsCache";
 import { getUsersByIds } from "@/lib/roster/queries";
 import { resolveGoogleCalendarId } from "@/lib/roster/shares";
 import {
@@ -96,28 +97,6 @@ function withMargin(range: AbsRange): AbsRange {
     start: new Date(range.start.getTime() - marginMs),
     end: new Date(range.end.getTime() + marginMs),
   };
-}
-
-/**
- * Delete the Google month cache rows a mutation touched, so the next view
- * re-fetches and shows the change immediately. Deleting the exact
- * (calendar × month) combinations is precise; over-invalidation across the
- * touched calendars and months is harmless.
- */
-async function invalidateGcalCache(googleCalendarIds: string[], months: string[]): Promise<void> {
-  const ids = [...new Set(googleCalendarIds)];
-  const monthSet = [...new Set(months)];
-  if (ids.length === 0 || monthSet.length === 0) {
-    return;
-  }
-  await db
-    .delete(googleEventCache)
-    .where(
-      and(
-        inArray(googleEventCache.calendarGoogleId, ids),
-        inArray(googleEventCache.month, monthSet),
-      ),
-    );
 }
 
 /**

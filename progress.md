@@ -1871,29 +1871,41 @@ sequenceDiagram
 - **Schema** (`src/db/schema.ts`) — new `google_event_cache` table (migration `0011`):
   composite PK `(calendar_google_id, month)`, `events` jsonb (`GcalEventItem`s with dates as
   ISO strings), `fetched_at` timestamptz.
-- **Cache layer** (`src/lib/google/eventsCache.ts`) — `getCachedMonthEvents(gcalId, month)`
-  serves fresh rows directly (**30s**, `GCAL_CACHE_FRESH_MS`), serves stale rows while
-  `after()` refreshes them in the background, and blocks on a fresh `events.list` + upsert
-  (`onConflictDoUpdate`) for missing/expired rows (hard expire **30min**,
-  `GCAL_CACHE_EXPIRE_MS`). One entry serves every user/filter combo on both `/dashboard` and
-  `/overview`. Google errors propagate — a failed refresh is never served as data.
-- **Read path** (`src/lib/events/queries.ts`) — `fetchMonthEvents` calls the cache per
-  calendar with **bounded concurrency** (`mapWithConcurrency`, ≤4, order preserved for
-  deterministic dedup), then flattens in calendar-name order. After the response ships,
-  `after()` warms the neighboring months' rows so month swiping is instant
-  (`PREFETCH_ADJACENT_MONTHS` toggle).
-- **Invalidation** (`src/lib/events/actions.ts`) — create/update/delete now call
-  `invalidateGcalCache()` (a `DELETE` on `google_event_cache`) for the affected calendars'
-  Google ids (collected during the write loops) × every month in the old+new ranges
-  (`monthsInRange`), so the mutating user's own `router.refresh()` shows their change.
-  `findCopies` keeps reading the **uncached** integration during reconciles.
+- **Cache layer** (`src/lib/google/eventsCache.ts`) — `getCachedMonthEventsForCalendars(ids,
+  month)` is a **layered** cache: an in-process L1 map (keyed `googleCalendarId:month`) serves
+  warm-instance repeat views with zero I/O; misses fall through to a **single batched** `SELECT`
+  on `google_event_cache` for the whole month (~one round-trip regardless of calendar count,
+  was N × ~50ms serialized reads); anything absent/expired blocks on a fresh `events.list` +
+  upsert (`onConflictDoUpdate`, bounded concurrency ≤4, per-key in-flight dedup). Fresh rows
+  serve directly (**60s**, `GCAL_CACHE_FRESH_MS`); stale rows serve while `after()` refreshes
+  them in the background; hard expire **30min** (`GCAL_CACHE_EXPIRE_MS`). One entry serves every
+  user/filter combo on both `/dashboard` and `/overview`. Google errors propagate — a failed
+  refresh is never served as data.
+- **Read path** (`src/lib/events/queries.ts`) — `fetchMonthEvents` calls the cache once for the
+  whole selected calendar set, then flattens in calendar-name order (deterministic dedup
+  preserved). After the response ships, `after()` warms the neighboring months only when the
+  current month **missed** the cache (`PREFETCH_ADJACENT_MONTHS` gate), so fully-cached views
+  don't churn extra background Google/DB work.
+- **Invalidation** (`src/lib/google/eventsCache.ts`) — `invalidateGcalCache()` purges the L1 +
+  in-flight entries **and** deletes the touched DB rows (affected calendars' Google ids
+  collected during the write loops × every month in the old+new ranges via `monthsInRange`),
+   so the mutating instance's own `router.refresh()` shows the change immediately. The L1 purge
+   is per-instance (map lives only where the mutation ran) while the DB delete is shared, so
+   other warm instances may serve the pre-change L1 copy for up to `GCAL_CACHE_FRESH_MS` (60s)
+   before their background refresh corrects it. `findCopies` keeps reading
+   the **uncached** integration during reconciles.
 - **Helpers** — pure `cacheEntryState`, `encodeCachedEvents`, `decodeCachedEvents`
   (`src/lib/google/eventsCacheCodec.ts`), `monthsInRange`/`shiftMonth`
   (`src/lib/events/datetime.ts`), and `mapWithConcurrency` (`src/lib/async.ts`), each
   unit-tested. `cacheKeys.ts` (Next `cacheTag` helper) was removed.
 - No Next cache config: `next.config.ts` and `(protected)/layout.tsx` were reverted to their
   pre-cache state.
+- **Measured before/after** (authenticated `next dev`, Node 26, Neon pooler): warm dashboard
+  `application-code` ~1.0–1.9s → **~0.35s**; overview 748ms → **~290ms**. Cold connection
+  ~600ms + per-query ~50ms (serialized on `max: 1` postgres) remain the app's pre-existing
+  floor; the events read itself is now one batched query on miss and zero I/O on L1 hit.
 - Verification: `pnpm lint`, `pnpm typecheck`, `pnpm test` (280), and `pnpm build` pass;
-  `pnpm db:generate` drift only adds the new table. Manual: repeat month views produce one
-  Google `events.list` per calendar then cache hits; edits appear immediately after refresh;
-  `next dev` runs on Node 26.
+  `pnpm db:generate` no drift. Manual: repeat month views are served from L1/DB with no Google
+  calls; edits appear immediately after refresh; `next dev` runs on Node 26.
+- **Full design reference:** [`docs/events-cache.md`](docs/events-cache.md) — the complete
+  mechanism (architecture, data model, read/write flows, freshness, performance).
