@@ -29,6 +29,7 @@ import {
   IconChevronRight,
   IconChevronUp,
   IconPlus,
+  IconRefresh,
   IconUser,
   IconX,
 } from "@tabler/icons-react";
@@ -57,6 +58,7 @@ import {
   type ScheduleResource,
   type ScheduleUser,
 } from "@/lib/events/schedule";
+import { BUTTON_LOADER_PROPS } from "@/lib/theme";
 import { EventDetail } from "./EventDetail";
 import { EventForm } from "./EventForm";
 
@@ -281,7 +283,7 @@ export function DashboardView({
   );
   const scheduleEvents = useMemo(() => expandScheduleEvents(events), [events]);
 
-  const navigate = useCallback(
+  const buildHref = useCallback(
     (updates: Record<string, string | null>) => {
       const params = new URLSearchParams(searchParams.toString());
       for (const [key, value] of Object.entries(updates)) {
@@ -292,11 +294,18 @@ export function DashboardView({
         }
       }
       const query = params.toString();
+      return query ? `${pathname}?${query}` : pathname;
+    },
+    [searchParams, pathname],
+  );
+
+  const navigate = useCallback(
+    (updates: Record<string, string | null>) => {
       startTransition(() => {
-        router.push(query ? `${pathname}?${query}` : pathname);
+        router.push(buildHref(updates));
       });
     },
-    [searchParams, pathname, router, startTransition],
+    [buildHref, router, startTransition],
   );
 
   // Strip the one-shot `edit` param from the URL so a refresh doesn't reopen
@@ -309,6 +318,30 @@ export function DashboardView({
     editParamClearedRef.current = true;
     navigate({ edit: null });
   }, [initialEditEventId, navigate]);
+
+  // Strip the one-shot `refresh` nonce as soon as the forced render has
+  // mounted, so later month/day navigation doesn't keep force-refreshing.
+  // Self-terminating (stripping removes the param), and re-arms on every new
+  // nonce — a ref guard would leak a second nonce if refresh is clicked
+  // before the first strip lands.
+  useEffect(() => {
+    if (searchParams.get("refresh") === null) {
+      return;
+    }
+    navigate({ refresh: null });
+  }, [searchParams, navigate]);
+
+  // Force refresh: a transition of its own (the button's spinner) wrapping
+  // router.push directly — the transition Next runs inside push stays pending
+  // for the whole navigation, so `isRefreshing` covers the load. The server
+  // renders that same request with `force: true`; the page skeleton (the
+  // shared `isPending` ORed in below) shows for the same window.
+  const [isRefreshing, startRefresh] = useTransition();
+  function refreshNow() {
+    startRefresh(() => {
+      router.push(buildHref({ refresh: String(Date.now()) }));
+    });
+  }
 
   function shiftMonth(delta: number) {
     setTargetView(view);
@@ -462,6 +495,17 @@ export function DashboardView({
             Today
           </Button>
           <FilterButton activeCount={activeFilterCount} onClick={openFilter} />
+          <ActionIcon
+            size={43}
+            variant="default"
+            aria-label="Force refresh from Google Calendar"
+            disabled={!googleConfigured}
+            loading={isRefreshing}
+            loaderProps={BUTTON_LOADER_PROPS}
+            onClick={refreshNow}
+          >
+            <IconRefresh size={16} />
+          </ActionIcon>
         </Group>
       </Group>
 
@@ -500,7 +544,7 @@ export function DashboardView({
         />
       )}
 
-      {isPending ? (
+      {isPending || isRefreshing ? (
         targetView === "month" ? (
           <MonthGridSkeleton rows={monthGridRows(month)} />
         ) : targetView === "schedule" ? (

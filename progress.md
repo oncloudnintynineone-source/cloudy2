@@ -54,6 +54,7 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
 - [1.40 Externally created events (Phase 3e)](#140-externally-created-events-phase-3e)
 - [1.41 Additional access levels (Phase 3f)](#141-additional-access-levels-phase-3f)
 - [1.42 Calendar caching layer (Phase 3g)](#142-calendar-caching-layer-phase-3g)
+- [1.43 Calendar force refresh (Phase 3h)](#143-calendar-force-refresh-phase-3h)
 
 ## 1.1 Status
 
@@ -201,6 +202,10 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
   server-side in a Postgres `google_event_cache` table (see §1.42) — repeat month views skip
   Google, the per-calendar fan-out is parallelized, and adjacent months are prefetched.
   `pnpm build/lint/typecheck/test` pass, `db:generate` no drift beyond the new table.
+- **Phase 3h (calendar force refresh):** the dashboard header gains a force-refresh button
+  (see §1.43) — a one-shot `?refresh=` nonce makes the same RSC render bypass the cache
+  freshness window and block on fresh Google fetches for the selected calendars × displayed
+  month. No schema changes; `pnpm lint/typecheck/test/build` pass.
 
 ## 1.2 Decisions locked in (Phase 0)
 
@@ -1909,3 +1914,55 @@ sequenceDiagram
   calls; edits appear immediately after refresh; `next dev` runs on Node 26.
 - **Full design reference:** [`docs/events-cache.md`](docs/events-cache.md) — the complete
   mechanism (architecture, data model, read/write flows, freshness, performance).
+
+## 1.43 Calendar force refresh (Phase 3h)
+
+The cache's freshness windows (60s fresh, then stale-while-revalidate to 30min) mean an
+out-of-band Google edit can take ~60–90s to appear, with no way for the user to shorten it.
+The dashboard header now carries a **force-refresh button** (an `ActionIcon` beside Today and
+Filters) that re-fetches exactly the month the user is looking at and renders the new data
+immediately.
+
+```mermaid
+sequenceDiagram
+    participant U as User (dashboard)
+    participant V as DashboardView (client)
+    participant P as Page (RSC render)
+    participant C as events cache (L1/L2)
+    participant G as Google Calendar
+    U->>V: tap force refresh
+    V->>P: router.push(?refresh=<epoch-ms>) — one-shot nonce
+    P->>C: getCachedMonthEventsForCalendars(ids, month, { force: true })
+    C->>G: events.list per selected calendar (coalesced, ≤4 concurrent)
+    G-->>C: items → upsert L2 (fetchedAt=now) + refill L1
+    C-->>P: fresh items — same request
+    P-->>V: render fresh events (skeleton shown while pending)
+    V->>V: strip ?refresh= one-shot param
+```
+
+- **One-shot nonce** (`src/app/(protected)/dashboard/page.tsx`) — the button navigates with
+  `refresh=<Date.now()>`. The server honors it only while it is a finite number younger than
+  `REFRESH_NONCE_TTL_MS` (5min), so a stale history entry (back/forward) can't silently
+  re-force a fetch.
+- **Force in the same request** (`src/lib/google/eventsCache.ts`) —
+  `getCachedMonthEventsForCalendars(..., { force: true })` bypasses L1 **and** L2 and blocks
+  on fresh `events.list` calls for every requested calendar (`mapWithConcurrency`,
+  coalesced, ≤4 in flight), then upserts the DB rows with `fetchedAt = now` (shared across
+  instances) and refills L1 in the serving instance. The force deliberately runs **inside
+  the same RSC render** rather than as an invalidation + `router.refresh()` round-trip: the
+  follow-up render could be served by another instance whose warm L1 entry (≤60s old) would
+  still shadow the fresh rows.
+- **Scope** — selected calendars × displayed month only (what the user actually sees);
+  hidden calendars and other months keep their normal freshness window. `force` returns
+  `allServed: false`, so the `after()` adjacent-month prefetch fires like any miss. The
+  button is `disabled` while Google is unconfigured (same guard as the New-event FAB), since
+  the stub integration returns no events.
+- **One-shot strip** (`DashboardView.tsx`) — a ref-guarded effect (mirroring the `?edit=`
+  param pattern) removes `refresh` from the URL right after the forced render mounts, so
+  later month/day navigation doesn't keep force-refreshing and burning Google quota. The
+  button shows `loading` (oval `BUTTON_LOADER_PROPS`) via a dedicated `useTransition`
+  wrapping the `router.push` directly (the same shape as the existing nav transitions);
+  the page skeleton is `isPending || isRefreshing` so the load is always covered.
+- No schema change and no new pure helpers (the `force` flag is pass-through glue:
+  `page.tsx` → `fetchMonthEvents` → `eventsCache.ts`).
+- Verification: `pnpm lint`, `pnpm typecheck`, `pnpm test`, and `pnpm build` pass.

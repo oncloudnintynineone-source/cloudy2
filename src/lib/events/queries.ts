@@ -121,6 +121,8 @@ export async function fetchMonthEvents(params: {
   typeFilter: string[];
   /** Keep only events created by or tagged on one of these users (empty = no filter). */
   userFilter: string[];
+  /** Bypass the events cache and block on fresh Google fetches (force refresh). */
+  force?: boolean;
 }): Promise<CalendarEvent[]> {
   if (params.calendarIds.length === 0) {
     return [];
@@ -137,7 +139,9 @@ export async function fetchMonthEvents(params: {
   // Google month reads go through the layered events cache (L1 memory + one
   // batched Postgres read per month). Results are flattened in calendar-name
   // order so the deterministic representative-copy selection is preserved.
-  const cached = await getCachedMonthEventsForCalendars(googleCalendarIds, params.month);
+  const cached = await getCachedMonthEventsForCalendars(googleCalendarIds, params.month, {
+    force: params.force === true,
+  });
 
   // Prefetch the adjacent months only when this month missed the cache (i.e.
   // the user is actually navigating), so fully-cached views don't churn extra

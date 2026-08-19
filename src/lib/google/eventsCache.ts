@@ -103,6 +103,15 @@ export interface MonthEventsResult {
   allServed: boolean;
 }
 
+export interface MonthEventsOptions {
+  /**
+   * Bypass every cache layer: block on fresh Google fetches for all calendars
+   * (upserting the cache), even when fresh entries exist. Used by the
+   * dashboard's one-shot force refresh.
+   */
+  force?: boolean;
+}
+
 /**
  * Cached month read across several department calendars. Layers:
  *
@@ -116,15 +125,33 @@ export interface MonthEventsResult {
  * `/dashboard` and `/overview` shares one entry. In-app mutations call
  * `invalidateGcalCache()` so edits appear instantly. Google errors propagate — a
  * failed refresh is never served as data.
+ *
+ * With `{ force: true }` (the dashboard's one-shot force refresh) every layer
+ * is bypassed: all calendars block on a fresh Google fetch. Doing this inside
+ * the same RSC request — rather than invalidating and re-reading — guarantees
+ * the response carries the new data, since a plain re-read could be served by
+ * another instance whose L1 still holds a warm entry.
  */
 export async function getCachedMonthEventsForCalendars(
   googleCalendarIds: string[],
   month: string,
+  options: MonthEventsOptions = {},
 ): Promise<MonthEventsResult> {
   const ids = [...new Set(googleCalendarIds)];
   const events: Record<string, GcalEventItem[]> = {};
   if (ids.length === 0) {
     return { events, allServed: true };
+  }
+
+  if (options.force) {
+    const refreshed = await mapWithConcurrency(ids, GOOGLE_FETCH_CONCURRENCY, async (id) => {
+      const items = await refreshCachedMonth(id, month);
+      return [id, items] as const;
+    });
+    for (const [id, items] of refreshed) {
+      events[id] = items;
+    }
+    return { events, allServed: false };
   }
 
   let allServed = true;

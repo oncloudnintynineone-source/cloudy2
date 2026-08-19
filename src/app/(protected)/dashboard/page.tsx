@@ -16,6 +16,9 @@ interface DashboardPageProps {
 
 const MONTH_PATTERN = /^\d{4}-\d{2}$/;
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+// The one-shot force-refresh nonce is honored only within this window, so a
+// stale history entry (back/forward) can't silently re-force a fetch.
+const REFRESH_NONCE_TTL_MS = 5 * 60_000;
 
 function currentMonth(): string {
   return formatInstantToNaive(new Date()).slice(0, 7);
@@ -41,6 +44,13 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
         ? params.month
         : currentMonth();
   const date = dateParam ?? formatInstantToNaive(new Date()).slice(0, 10);
+
+  // One-shot force-refresh nonce (dashboard refresh button): for this render
+  // only, bypass the cache freshness window and block on fresh Google reads.
+  // The client strips the param right after the forced render.
+  const refreshNonce = typeof params.refresh === "string" ? Number(params.refresh) : NaN;
+  const forceRefresh =
+    Number.isFinite(refreshNonce) && new Date().getTime() - refreshNonce < REFRESH_NONCE_TTL_MS;
 
   // Deep link from a Google Calendar event's "Edit:" note; the `date` param in
   // the same link makes the fetched month cover the event's day.
@@ -156,6 +166,7 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
     calendarIds: selectedCalendars,
     typeFilter: selectedTypes,
     userFilter: selectedUsers,
+    force: forceRefresh,
   });
 
   return (

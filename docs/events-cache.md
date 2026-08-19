@@ -191,6 +191,55 @@ prefetch gate (see §1.8) uses it to avoid background work on fully-cached views
 Stale hits schedule the refresh through `after()` (`next/server`), which runs after the
 response ships — the visible render is never delayed by a stale-entry refresh.
 
+### 1.5.1 Force refresh (manual, one-shot)
+
+The dashboard header has a force-refresh button that bypasses the freshness windows and
+re-fetches from Google on demand. It works as a **one-shot URL nonce**:
+
+1. The button navigates with `?refresh=<epoch-ms>` (`DashboardView.tsx`).
+2. `page.tsx` parses it: the nonce is honored only while it is a finite number younger than
+   `REFRESH_NONCE_TTL_MS` (5min, `page.tsx`) — so a stale history entry (back/forward)
+   can't silently re-force a fetch.
+3. The page passes `force: true` through `fetchMonthEvents` into
+   `getCachedMonthEventsForCalendars(ids, month, { force })` (`eventsCache.ts`): with
+   `force`, **both L1 and L2 are skipped** and every requested calendar blocks on a fresh
+   `events.list` (coalesced, `GOOGLE_FETCH_CONCURRENCY` ≤ 4 in flight), upserting DB rows
+   with `fetchedAt = now` and refilling L1.
+4. After the forced render mounts, a ref-guarded effect in `DashboardView.tsx` (mirroring
+   the `?edit=` param pattern) strips `refresh` from the URL so later month/day navigation
+   doesn't keep force-refreshing.
+
+```mermaid
+sequenceDiagram
+    participant V as DashboardView (client)
+    participant P as Page (RSC render)
+    participant C as events cache (L1/L2)
+    participant G as Google Calendar
+    V->>P: router.push(?refresh=<epoch-ms>)
+    P->>C: getCachedMonthEventsForCalendars(ids, month, { force: true })
+    C->>G: events.list per selected calendar (≤4 concurrent)
+    G-->>C: items → upsert L2 (fetchedAt=now) + refill L1
+    C-->>P: fresh items — same request
+    P-->>V: fresh render; then strip ?refresh=
+```
+
+Scope is the **selected calendars × displayed month** only (what the user sees); hidden
+calendars and other months keep their normal freshness window, and `force` returns
+`allServed: false` so the adjacent-month prefetch (§1.8) fires like any miss.
+
+Doing the force **inside the same RSC render** — rather than invalidating in a server
+action and issuing `router.refresh()` — guarantees the response carries the just-fetched
+data. A separate re-read could be served by another instance whose L1 still holds a warm
+(≤ 60s) entry for the same key, which would shadow the fresh rows for up to
+`GCAL_CACHE_FRESH_MS` (§1.7.2 covers the analogous mutation case; the nonce approach
+eliminates the window for the user who pressed the button entirely).
+
+The button is disabled while Google is unconfigured (the stub integration returns no
+events, so a forced refresh would cache empties and blank the view), and shows a loading
+spinner (`BUTTON_LOADER_PROPS`) from a dedicated `useTransition` that wraps the
+`router.push` directly (the same shape as the page's other nav transitions); the page
+skeleton renders on `isPending || isRefreshing` so the load is covered either way.
+
 ## 1.6 Write / invalidation path
 
 Create, update, and delete (`src/lib/events/actions.ts`: `createEvent` :322, `updateEvent`
@@ -311,6 +360,7 @@ All constants live at the top of `src/lib/google/eventsCache.ts` unless noted.
 | `GOOGLE_FETCH_CONCURRENCY`| `4`       | Max Google `events.list` calls in flight for a cold refresh    |
 | `MAX_MEMORY_ENTRIES`      | `512`     | L1 size cap (oldest-inserted entry evicted first)              |
 | `PREFETCH_ADJACENT_MONTHS`| `true`    | `queries.ts` — enable neighbor-month prefetch (gated on miss)  |
+| `REFRESH_NONCE_TTL_MS`    | `300_000` | `page.tsx` — max age of a valid `?refresh=` nonce (5min, §1.5.1) |
 
 No Next.js cache configuration is used: `next.config.ts` and `(protected)/layout.tsx`
 contain no `cacheComponents`, `cacheLife`, or `instant` settings (see §1.11).
@@ -389,6 +439,8 @@ What the cache changed:
 | `drizzle/0011_panoramic_mariko_yashida.sql`     | Migration creating the table                                 |
 | `src/lib/events/queries.ts:118`                 | `fetchMonthEvents` — read path + gated prefetch             |
 | `src/lib/events/actions.ts`                     | Mutations → `invalidateGcalCache`                           |
+| `src/app/(protected)/dashboard/page.tsx`        | `?refresh=` nonce parsing → `force` flag (§1.5.1)           |
+| `src/app/(protected)/dashboard/DashboardView.tsx` | Force-refresh button + one-shot nonce strip (§1.5.1)       |
 | `src/lib/events/datetime.ts`                    | `monthRange`, `shiftMonth`, `monthsInRange`                 |
 | `src/lib/async.ts`                              | `mapWithConcurrency`                                        |
 | `src/app/sw.ts`                                 | Service worker: `NetworkOnly` for data (unchanged)          |

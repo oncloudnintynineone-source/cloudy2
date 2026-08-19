@@ -81,9 +81,19 @@ the quality checks.
    the DB delete is shared — so the mutating instance sees the change on `router.refresh()`
    immediately, but other warm instances can serve the pre-change L1 copy for up to
    `GCAL_CACHE_FRESH_MS` (60s) before a background refresh corrects it; `findCopies`
-  inside mutations intentionally bypasses the cache. Adjacent months are prefetched in
-  `after()` only when the current month missed the cache (`PREFETCH_ADJACENT_MONTHS`). The
-  pure, tested helpers live in `src/lib/google/eventsCacheCodec.ts` (`cacheEntryState`,
+   inside mutations intentionally bypasses the cache. Adjacent months are prefetched in
+   `after()` only when the current month missed the cache (`PREFETCH_ADJACENT_MONTHS`). The
+   dashboard header has a **force-refresh button**: it navigates with a one-shot
+   `?refresh=<epoch-ms>` nonce (honored by `page.tsx` only for 5min so stale history entries
+   can't re-force; the client strips the param right after the forced render, mirroring the
+   `?edit=` pattern) which makes `fetchMonthEvents` call
+   `getCachedMonthEventsForCalendars(..., { force: true })` — skipping L1 and L2 and blocking
+   on fresh `events.list` calls for the selected calendars × displayed month **inside the
+   same RSC request**, so the response is guaranteed to carry the new data (an
+   invalidate-then-`router.refresh()` round-trip could be served by another instance whose
+   warm L1 entry still shadows the fresh rows). The button is disabled while Google is
+   unconfigured. The pure, tested helpers live in
+   `src/lib/google/eventsCacheCodec.ts` (`cacheEntryState`,
   `encodeCachedEvents`, `decodeCachedEvents`) plus `monthsInRange`/`shiftMonth` and
   `mapWithConcurrency`. The cache is deliberately a DB table, not Next's `use cache`/`cacheTag`
   data cache — those require `cacheComponents: true`, which crashed Turbopack `next dev` on
