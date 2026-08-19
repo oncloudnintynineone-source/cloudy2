@@ -199,10 +199,18 @@ export async function fetchRangeEvents(params: {
   const seen = new Set<string>();
   const events: CalendarEvent[] = [];
   let allServed = true;
-  for (const month of months) {
-    const cached = await getCachedMonthEventsForCalendars(googleCalendarIds, month, {
-      force: params.force === true,
-    });
+  // Fetch the months in parallel; the flatten order below stays chronological
+  // (month-major, calendar-name order within each month) so the deterministic
+  // representative-copy selection is preserved.
+  const cachedPerMonth = await Promise.all(
+    months.map((month) =>
+      getCachedMonthEventsForCalendars(googleCalendarIds, month, {
+        force: params.force === true,
+      }),
+    ),
+  );
+  for (let i = 0; i < months.length; i++) {
+    const cached = cachedPerMonth[i];
     allServed &&= cached.allServed;
     for (const calendar of rows) {
       for (const item of cached.events[calendar.googleCalendarId] ?? []) {

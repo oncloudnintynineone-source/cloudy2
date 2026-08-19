@@ -129,8 +129,10 @@ interface FormState {
 
 const DAY_SWIPE_THRESHOLD = 48;
 
-// One day's column width in the Week view: 24 slots × Mantine's default
-// 60px slot width (we don't override `slotWidth`) at the default scale.
+// Fallback for the Week view's day-column width: 24 hourly slots × Mantine's
+// default 60px slot width at the default scale. The real value is measured
+// from the DOM (see the effect below) so non-default root font sizes still
+// derive the correct day index.
 const WEEK_DAY_WIDTH_PX = 24 * 60;
 
 /**
@@ -269,9 +271,11 @@ export function DashboardView({
   // Week view: which day (0-6) sits at the left edge of the horizontally
   // scrolling grid. The index (not raw px) drives the pinned day-label strip,
   // so a scroll frame only re-renders when the visible day actually changes.
+  const weekDayWidthRef = useRef(WEEK_DAY_WIDTH_PX);
+  const weekBoxRef = useRef<HTMLDivElement | null>(null);
   const [weekDayIndex, setWeekDayIndex] = useState(0);
   const handleWeekScroll = useCallback((pos: { x: number }) => {
-    const index = Math.min(6, Math.max(0, Math.floor(pos.x / WEEK_DAY_WIDTH_PX)));
+    const index = Math.min(6, Math.max(0, Math.floor(pos.x / weekDayWidthRef.current)));
     setWeekDayIndex((prev) => (prev === index ? prev : index));
   }, []);
   // Stable identity: the week's ScrollArea must not receive a fresh
@@ -283,6 +287,8 @@ export function DashboardView({
     }),
     [handleWeekScroll],
   );
+
+  const [isRefreshing, startRefresh] = useTransition();
 
   // The date shown in the agenda day modal; persists through the exit
   // animation so the shrinking box still has content.
@@ -444,7 +450,6 @@ export function DashboardView({
   // for the whole navigation, so `isRefreshing` covers the load. The server
   // renders that same request with `force: true`; the page skeleton (the
   // shared `isPending` ORed in below) shows for the same window.
-  const [isRefreshing, startRefresh] = useTransition();
   function refreshNow() {
     startRefresh(() => {
       router.push(buildHref({ refresh: String(Date.now()) }));
@@ -546,6 +551,38 @@ export function DashboardView({
 
   const isWeek = view === "week";
   const isSchedule = view === "schedule";
+
+  // Measure the Week view's actual day-column width. Mantine sizes each hour
+  // slot in `rem` (`--resources-week-view-slot-width`), so with a non-default
+  // root font size 24×60px would pick the wrong day while scrolling. Probe the
+  // CSS variable on the view's root (found among the Box's children by the
+  // variable it declares) and store 24 slots worth as the day width. Runs only
+  // when the week grid is actually rendered (not the skeleton or the empty
+  // "No users" paper).
+  useEffect(() => {
+    if (!isWeek || isPending || isRefreshing) {
+      return;
+    }
+    const box = weekBoxRef.current;
+    if (!box) {
+      return;
+    }
+    const root = Array.from(box.children).find(
+      (child) =>
+        getComputedStyle(child).getPropertyValue("--resources-week-view-slot-width").trim() !== "",
+    );
+    if (!root) {
+      return;
+    }
+    const probe = document.createElement("span");
+    probe.style.width = "var(--resources-week-view-slot-width)";
+    root.append(probe);
+    const slot = probe.offsetWidth;
+    root.removeChild(probe);
+    if (slot > 0) {
+      weekDayWidthRef.current = slot * 24;
+    }
+  }, [isWeek, isPending, isRefreshing]);
 
   // Shared by the Day and Week resource views: a department row is a building
   // icon (its name as tooltip/aria), a user row is the shortname label.
@@ -690,7 +727,7 @@ export function DashboardView({
         />
       )}
 
-      <Box>
+      <Box ref={weekBoxRef}>
         {isWeek && week && (
           <WeekDayLabelStrip
             day={week[weekDayIndex]}

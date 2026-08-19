@@ -1,12 +1,26 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { ActionIcon, Anchor, Badge, Group, Paper, Stack, Text, TextInput } from "@mantine/core";
-import { useClipboard } from "@mantine/hooks";
-import { IconCheck, IconCopy, IconPhone } from "@tabler/icons-react";
+import {
+  ActionIcon,
+  Anchor,
+  Badge,
+  Button,
+  Group,
+  Modal,
+  Paper,
+  Stack,
+  Text,
+  TextInput,
+} from "@mantine/core";
+import { useClipboard, useDisclosure } from "@mantine/hooks";
+import { IconCheck, IconCopy, IconDownload, IconPhone } from "@tabler/icons-react";
 
+import { FloatingActionButton, FloatingToolbar } from "@/components/FloatingToolbar";
+import { buildContactsVcf } from "@/lib/contacts/vcf";
 import type { RosterUser } from "@/lib/roster/queries";
 import { formatFullName } from "@/lib/settings/formatName";
+import { BUTTON_LOADER_PROPS } from "@/lib/theme";
 
 interface ContactListProps {
   users: RosterUser[];
@@ -35,6 +49,32 @@ function CopyPhoneButton({ phone, name }: CopyPhoneButtonProps) {
 
 export function ContactList({ users, nameTemplate }: ContactListProps) {
   const [search, setSearch] = useState("");
+  const [confirmOpened, { open: openConfirm, close: closeConfirm }] = useDisclosure(false);
+  const [downloading, setDownloading] = useState(false);
+
+  async function downloadVcf() {
+    setDownloading(true);
+    try {
+      const vcf = buildContactsVcf(
+        users.map((user) => ({
+          name: user.name,
+          departmentName: user.department?.name ?? null,
+          phone: user.phone,
+        })),
+        nameTemplate,
+      );
+      const blob = new Blob([vcf], { type: "text/vcard" });
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = "contacts.vcf";
+      anchor.click();
+      URL.revokeObjectURL(url);
+      closeConfirm();
+    } finally {
+      setDownloading(false);
+    }
+  }
 
   const filtered = useMemo(() => {
     const query = search.trim().toLowerCase();
@@ -109,6 +149,30 @@ export function ContactList({ users, nameTemplate }: ContactListProps) {
           ))}
         </Stack>
       )}
+
+      <FloatingToolbar>
+        <FloatingActionButton onClick={openConfirm} leftSection={<IconDownload size={18} />}>
+          Export
+        </FloatingActionButton>
+      </FloatingToolbar>
+
+      <Modal opened={confirmOpened} onClose={closeConfirm} title="Export contacts" centered size="sm">
+        <Text>Download {users.length} contact{users.length === 1 ? "" : "s"} as a .vcf file?</Text>
+        <Group justify="flex-end" mt="md">
+          <Button variant="default" onClick={closeConfirm}>
+            Cancel
+          </Button>
+          <Button
+            color="brand"
+            loading={downloading}
+            loaderProps={BUTTON_LOADER_PROPS}
+            leftSection={<IconDownload size={18} />}
+            onClick={downloadVcf}
+          >
+            Download
+          </Button>
+        </Group>
+      </Modal>
     </Stack>
   );
 }
