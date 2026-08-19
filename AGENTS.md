@@ -63,6 +63,23 @@ the quality checks.
   `src/lib/google/index.ts`, which currently returns a no-op stub. Wire the real
   service-account impl there when credentials are provisioned; don't call Google APIs
   directly.
+- **Calendar month reads are cached server-side.** The dashboard/overview data flow is
+  `fetchMonthEvents()` (`src/lib/events/queries.ts`) → `getCachedMonthEvents()` in
+  `src/lib/google/eventsCache.ts`, which serves one row of the `google_event_cache` table
+  (composite PK `calendar_google_id` + `month`) per department calendar per month. One entry
+  serves every user/filter on both `/dashboard` and `/overview`. Fresh for 30s
+  (`GCAL_CACHE_FRESH_MS`), then stale-while-revalidate for up to 30min (`GCAL_CACHE_EXPIRE_MS`):
+  stale rows are served while `after()` refreshes them in the background from Google; absent
+  or expired rows block on a fresh `events.list` + upsert. Never call `integration.listEvents`
+  directly for the month view. In-app mutations delete the touched rows via
+  `invalidateGcalCache()` in `src/lib/events/actions.ts` (using the same calendar-id + month
+  sets derived from targets and date ranges) so the mutating user sees their change on
+  `router.refresh()`; `findCopies` inside mutations intentionally bypasses the cache. The
+  pure, tested helpers live in `src/lib/google/eventsCacheCodec.ts` (`cacheEntryState`,
+  `encodeCachedEvents`, `decodeCachedEvents`) plus `monthsInRange`/`shiftMonth` and
+  `mapWithConcurrency`. The cache is deliberately a DB table, not Next's `use cache`/`cacheTag`
+  data cache — those require `cacheComponents: true`, which crashed Turbopack `next dev` on
+  Node 26 (unfixed vercel/next.js#96165) and added PPR/`instant` complexity.
 - The **Overview** page (`/overview`, reachable from the bottom nav) shows per-month,
   per-user counts by event type. Counting is a pure helper in `src/lib/overview/counts.ts`
   (`involvedUserIds` + `buildOverviewCounts`) — unit-tested without a DB. Scope mirrors

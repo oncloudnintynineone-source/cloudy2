@@ -63,6 +63,31 @@ export function monthRange(month: string): { start: Date; end: Date } {
   };
 }
 
+/** Shift a `YYYY-MM` month by a signed number of months. */
+export function shiftMonth(month: string, delta: number): string {
+  const [year, monthIndex] = month.split("-").map(Number);
+  const shifted = new Date(Date.UTC(year, monthIndex - 1 + delta, 1));
+  return `${shifted.getUTCFullYear()}-${pad(shifted.getUTCMonth() + 1)}`;
+}
+
+/** Every `YYYY-MM` month a naive start/end range touches, inclusive. */
+export function monthsInRange(startNaive: string, endNaive: string): string[] {
+  const start = parseNaiveToInstant(startNaive);
+  const end = parseNaiveToInstant(endNaive);
+  const months: string[] = [];
+  const cursor = new Date(Date.UTC(start.getUTCFullYear(), start.getUTCMonth(), 1));
+  const last = new Date(Date.UTC(end.getUTCFullYear(), end.getUTCMonth(), 1));
+  while (cursor <= last) {
+    months.push(`${cursor.getUTCFullYear()}-${pad(cursor.getUTCMonth() + 1)}`);
+    cursor.setUTCMonth(cursor.getUTCMonth() + 1);
+  }
+  // Malformed ranges (end before start) still invalidate the start month.
+  if (months.length === 0) {
+    months.push(`${start.getUTCFullYear()}-${pad(start.getUTCMonth() + 1)}`);
+  }
+  return months;
+}
+
 /**
  * Absolute instants a naive start/end pair occupies on Google: timed events are
  * the parsed UTC+8 wall clock; all-day events are the start date and the day

@@ -53,6 +53,7 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
 - [1.39 Overview full-selection row scoping fix (Phase 3d)](#139-overview-full-selection-row-scoping-fix-phase-3d)
 - [1.40 Externally created events (Phase 3e)](#140-externally-created-events-phase-3e)
 - [1.41 Additional access levels (Phase 3f)](#141-additional-access-levels-phase-3f)
+- [1.42 Calendar caching layer (Phase 3g)](#142-calendar-caching-layer-phase-3g)
 
 ## 1.1 Status
 
@@ -196,6 +197,10 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
   detail modal, and a department-row pin in the Day (schedule) view so they stay visible.
   In-app events carry a new bottom note line `Created in cloudy2` written on every
   create/edit. `pnpm build/lint/typecheck/test` (262) pass, `db:generate` no drift.
+- **Phase 3g (calendar caching layer):** the Google Calendar month read is now cached
+  server-side in a Postgres `google_event_cache` table (see §1.42) — repeat month views skip
+  Google, the per-calendar fan-out is parallelized, and adjacent months are prefetched.
+  `pnpm build/lint/typecheck/test` pass, `db:generate` no drift beyond the new table.
 
 ## 1.2 Decisions locked in (Phase 0)
 
@@ -1826,3 +1831,69 @@ flowchart LR
   stay auto-managed as `reader`/`owner` respectively.
 - Verification: `pnpm lint`, `pnpm typecheck`, `pnpm test` (264), and `pnpm build` pass;
   `pnpm db:generate` shows no drift.
+
+## 1.42 Calendar caching layer (Phase 3g)
+
+The dashboard/overview pages rendered by re-hitting Google Calendar on **every** server
+render — a serial `events.list` per selected department calendar per month, hidden behind
+the loading skeleton. A server-side caching layer now sits between the frontend and the
+Google Calendar API, backed by a Postgres table so it is shared across serverless instances
+and survives restarts.
+
+> **Why Postgres and not Next's `use cache` data cache?** The first implementation used
+> `cacheComponents: true` + a `'use cache'` function, but Turbopack `next dev` crashed on
+> **Node 26** with `TypeError: ArrayBuffer is not detachable and could not be cloned`
+> (vercel/next.js#96165 — pooled `Buffer`s are non-detachable when enqueued into the dev
+> RSC byte stream; unfixed, dev-only, production unaffected). It also forced PPR-style
+> prerendering and an `export const instant = false` opt-out on protected routes. The DB
+> table avoids the entire Next cache runtime and works identically in dev/CI/Vercel.
+
+```mermaid
+sequenceDiagram
+    participant P as Page (RSC render)
+    participant D as google_event_cache (Postgres)
+    participant G as Google Calendar
+    P->>D: getCachedMonthEvents(gcalId, month) per selected calendar
+    alt fresh row (hit, <30s)
+        D-->>P: decoded GcalEventItem[]
+    else stale row (30s–30min)
+        D-->>P: decoded GcalEventItem[]
+        Note over P,D: after() → background refresh from Google + upsert
+    else missing or expired
+        D->>G: events.list (bounded concurrency, ≤4)
+        G-->>D: items → upsert row
+        D-->>P: items
+    end
+    Note over P: after() → warm M±1 cache rows post-response
+    Note over P: create/update/delete → invalidateGcalCache() deletes touched rows
+```
+
+- **Schema** (`src/db/schema.ts`) — new `google_event_cache` table (migration `0011`):
+  composite PK `(calendar_google_id, month)`, `events` jsonb (`GcalEventItem`s with dates as
+  ISO strings), `fetched_at` timestamptz.
+- **Cache layer** (`src/lib/google/eventsCache.ts`) — `getCachedMonthEvents(gcalId, month)`
+  serves fresh rows directly (**30s**, `GCAL_CACHE_FRESH_MS`), serves stale rows while
+  `after()` refreshes them in the background, and blocks on a fresh `events.list` + upsert
+  (`onConflictDoUpdate`) for missing/expired rows (hard expire **30min**,
+  `GCAL_CACHE_EXPIRE_MS`). One entry serves every user/filter combo on both `/dashboard` and
+  `/overview`. Google errors propagate — a failed refresh is never served as data.
+- **Read path** (`src/lib/events/queries.ts`) — `fetchMonthEvents` calls the cache per
+  calendar with **bounded concurrency** (`mapWithConcurrency`, ≤4, order preserved for
+  deterministic dedup), then flattens in calendar-name order. After the response ships,
+  `after()` warms the neighboring months' rows so month swiping is instant
+  (`PREFETCH_ADJACENT_MONTHS` toggle).
+- **Invalidation** (`src/lib/events/actions.ts`) — create/update/delete now call
+  `invalidateGcalCache()` (a `DELETE` on `google_event_cache`) for the affected calendars'
+  Google ids (collected during the write loops) × every month in the old+new ranges
+  (`monthsInRange`), so the mutating user's own `router.refresh()` shows their change.
+  `findCopies` keeps reading the **uncached** integration during reconciles.
+- **Helpers** — pure `cacheEntryState`, `encodeCachedEvents`, `decodeCachedEvents`
+  (`src/lib/google/eventsCacheCodec.ts`), `monthsInRange`/`shiftMonth`
+  (`src/lib/events/datetime.ts`), and `mapWithConcurrency` (`src/lib/async.ts`), each
+  unit-tested. `cacheKeys.ts` (Next `cacheTag` helper) was removed.
+- No Next cache config: `next.config.ts` and `(protected)/layout.tsx` were reverted to their
+  pre-cache state.
+- Verification: `pnpm lint`, `pnpm typecheck`, `pnpm test` (280), and `pnpm build` pass;
+  `pnpm db:generate` drift only adds the new table. Manual: repeat month views produce one
+  Google `events.list` per calendar then cache hits; edits appear immediately after refresh;
+  `next dev` runs on Node 26.

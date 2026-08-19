@@ -6,7 +6,9 @@ import {
   dateToUtc,
   formatInstantToNaive,
   monthRange,
+  monthsInRange,
   parseNaiveToInstant,
+  shiftMonth,
   subOneDay,
   utcToDateString,
 } from "./datetime";
@@ -50,6 +52,40 @@ describe("monthRange", () => {
       start: new Date("2026-08-01T00:00:00.000Z"),
       end: new Date("2026-09-01T00:00:00.000Z"),
     });
+  });
+});
+
+describe("shiftMonth", () => {
+  it("shifts forward and backward across year boundaries", () => {
+    expect(shiftMonth("2026-08", 1)).toBe("2026-09");
+    expect(shiftMonth("2026-08", -1)).toBe("2026-07");
+    expect(shiftMonth("2026-12", 1)).toBe("2027-01");
+    expect(shiftMonth("2026-01", -1)).toBe("2025-12");
+  });
+});
+
+describe("monthsInRange", () => {
+  it("returns the single month for a same-month range", () => {
+    expect(monthsInRange("2026-08-15 09:00:00", "2026-08-15 10:30:00")).toEqual(["2026-08"]);
+  });
+
+  it("includes every month the range spans", () => {
+    expect(monthsInRange("2026-08-25 09:00:00", "2026-10-03 18:00:00")).toEqual([
+      "2026-08",
+      "2026-09",
+      "2026-10",
+    ]);
+  });
+
+  it("spans across a year boundary", () => {
+    expect(monthsInRange("2026-12-28 08:00:00", "2027-01-02 09:00:00")).toEqual([
+      "2026-12",
+      "2027-01",
+    ]);
+  });
+
+  it("still returns the start month for a malformed (reversed) range", () => {
+    expect(monthsInRange("2026-09-10 10:00:00", "2026-08-01 09:00:00")).toEqual(["2026-09"]);
   });
 });
 

@@ -1,14 +1,14 @@
 "use server";
 
-import { inArray } from "drizzle-orm";
+import { and, inArray } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
 import { db } from "@/db";
-import { calendars } from "@/db/schema";
+import { calendars, googleEventCache } from "@/db/schema";
 import { AUDIT_ACTIONS, actorFromUser } from "@/lib/audit/build";
 import { logAction } from "@/lib/audit/log";
 import { appBaseUrl } from "@/lib/appUrl";
-import { absEventRange } from "@/lib/events/datetime";
+import { absEventRange, monthsInRange } from "@/lib/events/datetime";
 import {
   encodeEventNotes,
   encodeNotesBlock,
@@ -96,6 +96,28 @@ function withMargin(range: AbsRange): AbsRange {
     start: new Date(range.start.getTime() - marginMs),
     end: new Date(range.end.getTime() + marginMs),
   };
+}
+
+/**
+ * Delete the Google month cache rows a mutation touched, so the next view
+ * re-fetches and shows the change immediately. Deleting the exact
+ * (calendar × month) combinations is precise; over-invalidation across the
+ * touched calendars and months is harmless.
+ */
+async function invalidateGcalCache(googleCalendarIds: string[], months: string[]): Promise<void> {
+  const ids = [...new Set(googleCalendarIds)];
+  const monthSet = [...new Set(months)];
+  if (ids.length === 0 || monthSet.length === 0) {
+    return;
+  }
+  await db
+    .delete(googleEventCache)
+    .where(
+      and(
+        inArray(googleEventCache.calendarGoogleId, ids),
+        inArray(googleEventCache.month, monthSet),
+      ),
+    );
 }
 
 /**
@@ -391,6 +413,10 @@ export async function createEvent(input: EventFormValues): Promise<EventActionRe
     },
   });
 
+  await invalidateGcalCache(
+    created.map((copy) => copy.googleCalendarId),
+    monthsInRange(effectiveInput.start, effectiveInput.end),
+  );
   revalidatePath("/dashboard");
   return { ok: true };
 }
@@ -450,6 +476,7 @@ export async function updateEvent(
   const union = [...new Set([...oldTargets, ...newTargets])];
   const newSet = new Set(newTargets);
   const createdHere: { googleCalendarId: string; googleEventId: string }[] = [];
+  const affectedGoogleIds = new Set<string>();
 
   try {
     for (const target of union) {
@@ -457,6 +484,7 @@ export async function updateEvent(
       if (!googleCalendarId) {
         continue;
       }
+      affectedGoogleIds.add(googleCalendarId);
       const found = await findCopies(googleCalendarId, eventId, range, fallback);
       if (newSet.has(target)) {
         if (found.length > 0) {
@@ -505,6 +533,15 @@ export async function updateEvent(
     },
   });
 
+  await invalidateGcalCache(
+    [...affectedGoogleIds],
+    [
+      ...new Set([
+        ...monthsInRange(ref.start, ref.end),
+        ...monthsInRange(effectiveInput.start, effectiveInput.end),
+      ]),
+    ],
+  );
   revalidatePath("/dashboard");
   return { ok: true };
 }
@@ -521,6 +558,7 @@ export async function deleteEvent(ref: EventRef): Promise<EventActionResult> {
   const integration = await getGoogleIntegration();
   const range = withMargin(absEventRange(ref.start, ref.end, ref.allDay));
   const deletedGoogleEventIds: string[] = [];
+  const affectedGoogleIds = new Set<string>();
 
   try {
     for (const target of targets) {
@@ -528,6 +566,7 @@ export async function deleteEvent(ref: EventRef): Promise<EventActionResult> {
       if (!googleCalendarId) {
         continue;
       }
+      affectedGoogleIds.add(googleCalendarId);
       const found = await findCopies(googleCalendarId, ref.eventId ?? "", range, fallback);
       for (const copy of found) {
         await integration.deleteEvent(googleCalendarId, copy.googleEventId);
@@ -552,6 +591,7 @@ export async function deleteEvent(ref: EventRef): Promise<EventActionResult> {
     },
   });
 
+  await invalidateGcalCache([...affectedGoogleIds], monthsInRange(ref.start, ref.end));
   revalidatePath("/dashboard");
   return { ok: true };
 }

@@ -1,12 +1,14 @@
 import type { MantineColor } from "@mantine/core";
 import type { DateTimeStringValue } from "@mantine/schedule";
 import { eq, inArray } from "drizzle-orm";
+import { after } from "next/server";
 
 import { db } from "@/db";
 import { calendars, users } from "@/db/schema";
-import { getGoogleIntegration } from "@/lib/google";
+import { mapWithConcurrency } from "@/lib/async";
+import { formatInstantToNaive, shiftMonth, utcToDateString } from "@/lib/events/datetime";
+import { getCachedMonthEvents } from "@/lib/google/eventsCache";
 import { onlyUuidIds } from "@/lib/uuid";
-import { formatInstantToNaive, monthRange, utcToDateString } from "@/lib/events/datetime";
 import {
   isExternalEvent,
   parseEventEndAmPm,
@@ -110,6 +112,12 @@ export async function getUserDepartmentIds(
   return Object.fromEntries(rows.map((row) => [row.id, row.departmentId]));
 }
 
+/** Max Google `events.list` calls in flight per page render (bounded for quota). */
+const GOOGLE_FETCH_CONCURRENCY = 4;
+
+/** Warm the neighboring months' cache entries after the response ships. */
+const PREFETCH_ADJACENT_MONTHS = true;
+
 /** Fetch events for a month across the selected calendars, as schedule-ready data. */
 export async function fetchMonthEvents(params: {
   month: string;
@@ -129,13 +137,32 @@ export async function fetchMonthEvents(params: {
     .where(inArray(calendars.id, params.calendarIds))
     .orderBy(calendars.name);
 
-  const integration = await getGoogleIntegration();
-  const { start, end } = monthRange(params.month);
-  const events: CalendarEvent[] = [];
+  // Prefetch the adjacent months' cache entries after the response is sent, so
+  // navigating to a neighboring month renders from the cache instead of hitting
+  // Google. Cache hits are free; misses warm the entry for later.
+  if (PREFETCH_ADJACENT_MONTHS) {
+    const prevMonth = shiftMonth(params.month, -1);
+    const nextMonth = shiftMonth(params.month, 1);
+    after(() => {
+      for (const calendar of rows) {
+        void getCachedMonthEvents(calendar.googleCalendarId, prevMonth).catch(() => {});
+        void getCachedMonthEvents(calendar.googleCalendarId, nextMonth).catch(() => {});
+      }
+    });
+  }
 
-  for (const calendar of rows) {
-    const items = await integration.listEvents(calendar.googleCalendarId, start, end);
-    for (const item of items) {
+  // Google month reads go through the Postgres event cache (keyed per
+  // calendar+month). Fetch concurrently with a bounded concurrency, then
+  // flatten in row order so the deterministic representative-copy selection is
+  // preserved.
+  const itemsByCalendar = await mapWithConcurrency(rows, GOOGLE_FETCH_CONCURRENCY, (calendar) =>
+    getCachedMonthEvents(calendar.googleCalendarId, params.month),
+  );
+
+  const events: CalendarEvent[] = [];
+  for (let i = 0; i < rows.length; i += 1) {
+    const calendar = rows[i];
+    for (const item of itemsByCalendar[i]) {
       const eventType = parseEventType(item.description);
       if (params.typeFilter.length > 0 && (!eventType || !params.typeFilter.includes(eventType))) {
         continue;

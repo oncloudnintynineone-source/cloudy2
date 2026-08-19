@@ -7,6 +7,7 @@ import {
   integer,
   jsonb,
   pgTable,
+  primaryKey,
   text,
   timestamp,
   uniqueIndex,
@@ -140,6 +141,25 @@ export const auditLogs = pgTable(
   ],
 );
 
+/**
+ * Server-side cache of one department calendar's month of events, keyed by the
+ * Google calendar id + `YYYY-MM`. `events` holds `GcalEventItem`s with dates
+ * encoded as ISO strings (see `src/lib/google/eventsCacheCodec.ts`). Kept in
+ * Postgres so it is shared across serverless instances and survives restarts;
+ * entries are TTL'd on read (fresh 30s → stale-while-revalidate → expire 30min)
+ * and invalidated by in-app mutations via `invalidateGcalCache()`.
+ */
+export const googleEventCache = pgTable(
+  "google_event_cache",
+  {
+    calendarGoogleId: text("calendar_google_id").notNull(),
+    month: text("month").notNull(),
+    events: jsonb("events").notNull(),
+    fetchedAt: timestamp("fetched_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [primaryKey({ columns: [table.calendarGoogleId, table.month] })],
+);
+
 export type User = typeof users.$inferSelect;
 export type NewUser = typeof users.$inferInsert;
 export type Calendar = typeof calendars.$inferSelect;
@@ -150,3 +170,5 @@ export type ParadeState = typeof paradeStates.$inferSelect;
 export type Settings = typeof settings.$inferSelect;
 export type AuditLog = typeof auditLogs.$inferSelect;
 export type NewAuditLog = typeof auditLogs.$inferInsert;
+export type GoogleEventCache = typeof googleEventCache.$inferSelect;
+export type NewGoogleEventCache = typeof googleEventCache.$inferInsert;
