@@ -78,6 +78,35 @@ export function ScheduleGridSkeleton({ rows = 6 }: { rows?: number }) {
   );
 }
 
+/** Stacked list matching the Agenda view shape (date header + event rows). */
+export function AgendaListSkeleton({ rows = 4 }: { rows?: number }) {
+  return (
+    <Paper withBorder radius="md" p={0} style={{ overflow: "hidden" }}>
+      <Box style={{ padding: "var(--mantine-spacing-xs) var(--mantine-spacing-sm)" }}>
+        <Skeleton height={14} width="45%" />
+      </Box>
+      {Array.from({ length: rows }).map((_, i) => (
+        <Group
+          key={i}
+          gap="sm"
+          wrap="nowrap"
+          align="center"
+          style={{
+            padding: "var(--mantine-spacing-xs) var(--mantine-spacing-sm)",
+            borderTop: "1px solid var(--mantine-color-default-border)",
+          }}
+        >
+          <Skeleton width={4} height={30} radius={2} style={{ flexShrink: 0 }} />
+          <Box style={{ flex: 1, display: "flex", flexDirection: "column", gap: 4 }}>
+            <Skeleton height={14} radius={2} style={{ width: `${60 - (i % 3) * 10}%` }} />
+            <Skeleton height={10} radius={2} style={{ width: "35%" }} />
+          </Box>
+        </Group>
+      ))}
+    </Paper>
+  );
+}
+
 /** Stacked resource rows matching the Week view shape (label + 7-day lane). */
 export function WeekGridSkeleton({ rows = 6 }: { rows?: number }) {
   return (

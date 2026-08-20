@@ -14,17 +14,17 @@ export default function DashboardLoading() {
       <Box
         style={{
           display: "grid",
-          gridTemplateColumns: "repeat(3, 1fr)",
+          gridTemplateColumns: "repeat(4, 1fr)",
           paddingBottom: 10,
           borderBottom: "1px solid var(--mantine-color-default-border)",
         }}
       >
-        {Array.from({ length: 3 }).map((_, i) => (
+        {Array.from({ length: 4 }).map((_, i) => (
           <Skeleton
             key={i}
             height={28}
             radius={6}
-            width={i === 1 ? "55%" : "40%"}
+            width={i % 2 === 1 ? "60%" : "45%"}
             style={{ margin: "0 auto" }}
           />
         ))}

@@ -74,6 +74,7 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
 - [1.60 Event form: stop Enter submitting the draft (Phase 3v)](#160-event-form-stop-enter-submitting-the-draft-phase-3v)
 - [1.61 Email change syncs Google Calendar access (bugfix)](#161-email-change-syncs-google-calendar-access-bugfix)
 - [1.62 Department selects without type-to-filter search](#162-department-selects-without-type-to-filter-search)
+- [1.63 Dashboard Agenda view (Phase 3w)](#163-dashboard-agenda-view-phase-3w)
 
 ## 1.1 Status
 
@@ -2908,3 +2909,59 @@ and the `NoKeyboard*` deferred-readOnly dance) adds nothing.
   use plain (non-searchable) `Select`/`MultiSelect`, whose button targets can't raise
   the keyboard at all.
 - Verification: `pnpm lint`, `pnpm typecheck`, `pnpm test` pass. No schema change.
+
+## 1.63 Dashboard Agenda view (Phase 3w)
+
+The dashboard gains a fourth view — **Agenda** (`?view=agenda`) — a day-anchored
+vertical list of the selected day's events grouped by date, rendered with Mantine's
+`AgendaView` (already installed for the day-tap modal). It reuses the shared day
+navigator (‹ day ›) and the header ⋮ menu exactly like the Day view: **Today**,
+**Select date** (month-calendar picker), **Filters**, and **Force refresh** — the
+"Select date" item is now offered in every day-anchored view.
+
+```mermaid
+flowchart LR
+    A["?view= param"] --> B{"anchor unit"}
+    B -- "month (default)" --> C["?month=YYYY-MM"]
+    B -- "week / schedule / agenda" --> D["?date=YYYY-MM-DD"]
+    C --> E["fetchMonthEvents(month)"]
+    D --> F["month derives from date<br/>week: 2-month range fetch"]
+    E --> G{"view"}
+    F --> G
+    G -- month --> H["MonthView"]
+    G -- week --> I["ResourcesWeekView"]
+    G -- schedule --> J["ResourcesDayView"]
+    G -- agenda --> K["AgendaView<br/>single-day range"]
+```
+
+- **`page.tsx`** — the view parse accepts `agenda`; everything downstream already
+  handles day-anchored views (the page derives `?month=` from `?date=`), so there is
+  no fetch or cache change.
+- **`DashboardView.tsx`** — `ViewMode` gains `"agenda"`. A new `isAnchoredView` flag
+  (`schedule` ∪ `agenda`) centralizes the day-level behavior: the ‹/› chevrons step
+  days (`shiftDay`, which already syncs `?month=` across a month edge), the label
+  shows the day, "Today"/`onToday` compare `date`, and `switchView` starts anchored
+  views on today and restores the viewed month when leaving one. The ⋮ menu's
+  "Select date" item (reusing `DateSelectorModal`) now shows for any day-anchored
+  view. The grid area gains an `AgendaView` branch: single-day range
+  (`rangeStart` = `rangeEnd` = `date`), the redundant range header hidden via
+  `styles`, the shared boxed look supplied through `style` (the component root is an
+  unstyled Box in v9.5.1), stock event rows (color stripe + title + time / "All
+  day"), event tap → `EventDetail` via the shared origin-rect pattern, and the new
+  `AgendaListSkeleton` in the `gridLoading` chain. The week/schedule "No users" empty
+  state no longer guards the `view` checks — month and agenda settle the branches
+  first, so the agenda renders whatever events the month fetch returned (it lists
+  events with no invitees too).
+- **`calendarSkeleton.tsx`** — new exported `AgendaListSkeleton` (bordered radius-md
+  box: one date-header stub plus deterministic event-row stubs — color-stripe sliver
+  + title/time bars) so the in-place swap and the shared grid pattern stay in sync.
+- **`loading.tsx`** — the route-level tab-strip skeleton is now 4 columns.
+- **Decisions** — the Month-view day-tap agenda modal is kept as-is (instant peek
+  with swipe + scale animation); the Agenda tab is a separate full-screen mode.
+  Rows use the stock Mantine rendering — `EventDetail` remains one tap away, and the
+  other views also show title only.
+- **Not touched** — data flow/events cache (same per-month cached fetch as the Day
+  view), filters, force-refresh nonce, `DateSelectorModal`, `EventDetail`/`EventForm`.
+  No schema change.
+- Verification: `pnpm lint`, `pnpm typecheck`, `pnpm test` (355), and `pnpm build`
+  all pass.

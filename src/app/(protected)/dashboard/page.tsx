@@ -34,7 +34,14 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
   const params = await searchParams;
   const isAdmin = session.user.role === "admin";
 
-  const view = params.view === "schedule" ? "schedule" : params.view === "week" ? "week" : "month";
+  const view =
+    params.view === "schedule"
+      ? "schedule"
+      : params.view === "week"
+        ? "week"
+        : params.view === "agenda"
+          ? "agenda"
+          : "month";
 
   const dateParam =
     typeof params.date === "string" && DATE_PATTERN.test(params.date) ? params.date : null;

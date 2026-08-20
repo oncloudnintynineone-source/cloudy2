@@ -24,6 +24,7 @@ import {
   Stack,
   Tabs,
   Text,
+  Tooltip,
   UnstyledButton,
 } from "@mantine/core";
 import { useDisclosure, useDrag } from "@mantine/hooks";
@@ -48,6 +49,7 @@ import {
   IconChevronUp,
   IconDotsVertical,
   IconFilter,
+  IconListDetails,
   IconPlus,
   IconRefresh,
   IconUser,
@@ -55,6 +57,7 @@ import {
 } from "@tabler/icons-react";
 
 import {
+  AgendaListSkeleton,
   MonthGridSkeleton,
   ScheduleGridSkeleton,
   WeekGridSkeleton,
@@ -91,7 +94,7 @@ import {
 import { EventDetail } from "./EventDetail";
 import { EventForm } from "./EventForm";
 
-type ViewMode = "month" | "week" | "schedule";
+type ViewMode = "month" | "week" | "schedule" | "agenda";
 
 interface EventTypeOption {
   name: string;
@@ -504,23 +507,31 @@ export function DashboardView({
   }
 
   function switchView(next: string) {
-    const mode: ViewMode = next === "schedule" ? "schedule" : next === "week" ? "week" : "month";
+    const mode: ViewMode =
+      next === "schedule"
+        ? "schedule"
+        : next === "week"
+          ? "week"
+          : next === "agenda"
+            ? "agenda"
+            : "month";
     if (mode !== "month") {
-      // Entering an anchored view (day/week) always starts on today; the
+      // Entering an anchored view (day/week/agenda) always starts on today; the
       // month is derived from the date by the page.
       navigate({ view: mode, month: null, date: today });
       return;
     }
-    // Leaving an anchored view keeps the currently viewed month visible.
+    // Leaving a date-anchored view keeps the currently viewed month visible;
+    // the month is derived from the anchor date for week and agenda/day alike.
     navigate({
       view: null,
-      month: view === "schedule" || view === "week" ? date.slice(0, 7) : null,
+      month: isWeek || isAnchoredView ? date.slice(0, 7) : null,
       date: null,
     });
   }
 
   function goToday() {
-    if (view === "schedule" || view === "week") {
+    if (isAnchoredView) {
       navigate({ date: today, month: todayMonth });
     } else {
       navigate({ month: todayMonth });
@@ -579,9 +590,12 @@ export function DashboardView({
 
   const isWeek = view === "week";
   const isSchedule = view === "schedule";
+  const isAgenda = view === "agenda";
+  // Day-anchored views (Day, Agenda): a `?date=` anchor drives the fetch.
+  const isAnchoredView = isSchedule || isAgenda;
   const onToday = isWeek
     ? week !== null && week.some((day) => day === today)
-    : isSchedule
+    : isAnchoredView
       ? date === today
       : month === todayMonth;
 
@@ -629,10 +643,14 @@ export function DashboardView({
         title={row.fullName}
         style={{ flexShrink: 0 }}
       />
+    ) : row.label === row.fullName ? (
+      <Text size="sm">{row.label}</Text>
     ) : (
-      <Text size="sm" title={row.label === row.fullName ? undefined : row.fullName}>
-        {row.label}
-      </Text>
+      <Tooltip label={row.fullName} position="right">
+        <Text size="sm" aria-label={row.fullName}>
+          {row.label}
+        </Text>
+      </Tooltip>
     );
   }
 
@@ -681,6 +699,14 @@ export function DashboardView({
               </Text>
             </Group>
           </Tabs.Tab>
+          <Tabs.Tab value="agenda">
+            <Group gap="xs" justify="center" wrap="nowrap">
+              <IconListDetails size={16} />
+              <Text fw={600} size="sm">
+                Agenda
+              </Text>
+            </Group>
+          </Tabs.Tab>
         </Tabs.List>
       </Tabs>
 
@@ -688,8 +714,8 @@ export function DashboardView({
         <ActionIcon
           size={43}
           variant="default"
-          aria-label={isSchedule ? "Previous day" : isWeek ? "Previous week" : "Previous month"}
-          onClick={() => (isSchedule ? shiftDay(-1) : isWeek ? shiftWeek(-1) : shiftMonth(-1))}
+          aria-label={isAnchoredView ? "Previous day" : isWeek ? "Previous week" : "Previous month"}
+          onClick={() => (isAnchoredView ? shiftDay(-1) : isWeek ? shiftWeek(-1) : shiftMonth(-1))}
         >
           <IconChevronLeft size={18} />
         </ActionIcon>
@@ -699,13 +725,13 @@ export function DashboardView({
           lineClamp={1}
           style={{ flex: 1, minWidth: 0, textAlign: "center" }}
         >
-          {isSchedule ? dayLabel : isWeek ? weekLabel : monthLabel}
+          {isAnchoredView ? dayLabel : isWeek ? weekLabel : monthLabel}
         </Text>
         <ActionIcon
           size={43}
           variant="default"
-          aria-label={isSchedule ? "Next day" : isWeek ? "Next week" : "Next month"}
-          onClick={() => (isSchedule ? shiftDay(1) : isWeek ? shiftWeek(1) : shiftMonth(1))}
+          aria-label={isAnchoredView ? "Next day" : isWeek ? "Next week" : "Next month"}
+          onClick={() => (isAnchoredView ? shiftDay(1) : isWeek ? shiftWeek(1) : shiftMonth(1))}
         >
           <IconChevronRight size={18} />
         </ActionIcon>
@@ -741,7 +767,7 @@ export function DashboardView({
             >
               Today
             </Menu.Item>
-            {isSchedule && (
+            {isAnchoredView && (
               <Menu.Item leftSection={<IconCalendarDot size={16} />} onClick={openPicker}>
                 Select date
               </Menu.Item>
@@ -803,6 +829,8 @@ export function DashboardView({
             <MonthGridSkeleton rows={monthGridRows(month)} />
           ) : view === "week" ? (
             <WeekGridSkeleton />
+          ) : isAgenda ? (
+            <AgendaListSkeleton />
           ) : (
             <ScheduleGridSkeleton />
           )
@@ -821,7 +849,26 @@ export function DashboardView({
               setAgendaDate(d);
             }}
           />
-        ) : (isWeek || isSchedule) && scheduleResources.resources.length === 0 ? (
+        ) : isAgenda ? (
+          <AgendaView
+            rangeStart={date}
+            rangeEnd={date}
+            events={events}
+            // The view root is an unstyled Box, so the shared boxed look of the
+            // other views comes from here. The nav row above already shows the
+            // day, so only the stock per-day group header is kept.
+            style={{
+              border: "1px solid var(--mantine-color-default-border)",
+              borderRadius: "var(--mantine-radius-md)",
+              overflow: "hidden",
+            }}
+            styles={{ agendaViewHeader: { display: "none" } }}
+            onEventClick={(event, e) => {
+              setDetailOriginRect(e.currentTarget.getBoundingClientRect());
+              setDetailEvent(event as unknown as CalendarEvent);
+            }}
+          />
+        ) : scheduleResources.resources.length === 0 ? (
           <Paper withBorder radius="md" p="lg">
             <Text size="sm" c="dimmed">
               No users in the selected calendars yet. Assign users to a department (Admin Settings)
