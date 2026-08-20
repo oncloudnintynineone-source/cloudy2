@@ -66,6 +66,7 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
 - [1.52 Stale-while-navigating dashboard grid (Phase 3p)](#152-stale-while-navigating-dashboard-grid-phase-3p)
 - [1.53 Dashboard grid cold-load reveal (Phase 3p)](#153-dashboard-grid-cold-load-reveal-phase-3p)
 - [1.54 Day-view date picker: MobileMonthView replaces mini calendar (Phase 3q)](#154-day-view-date-picker-mobilemonthview-replaces-mini-calendar-phase-3q)
+- [1.55 Parade State filter row scoping + Event Types removal (Phase 3r)](#155-parade-state-filter-row-scoping--event-types-removal-phase-3r)
 
 ## 1.1 Status
 
@@ -2506,3 +2507,58 @@ sequenceDiagram
 - Verification: `pnpm lint`, `pnpm typecheck`, `pnpm test` (294) and `pnpm build` all
   pass. Pending manual dev check: ‹ › month stepping, today/current-day highlights,
   day-tap navigation + close, item absent in Month/Week.
+
+## 1.55 Parade State filter row scoping + Event Types removal (Phase 3r)
+
+The Parade State page's filters (⋮ → Filters) appeared to do nothing: the
+`?cal`/`?users`/`?types` params only narrowed the server-side
+`fetchMonthEvents()` call, while the department/user card list rendered from an
+unscoped user list — every user card stayed visible ("No events" when nothing
+matched). On top of that, regular users defaulted to fetching only their own
+department's calendar, so other users' cards were almost permanently "No
+events". The Event Types filter was also removed from the page on request.
+
+```mermaid
+flowchart LR
+    subgraph before [Before]
+      B1[Filter params] --> B2["fetchMonthEvents (events only)"]
+      B3[All active users] --> B4["Cards: always every user"]
+    end
+    subgraph after [After]
+      A1[Filter params] --> A2["scopeParadeUsers()"]
+      A2 --> A3["users prop = scoped rows"]
+      A1 --> A4["fetchMonthEvents (cal/user scope)"]
+      A3 --> A5["Cards follow the filters"]
+    end
+```
+
+- **All-calendars default for every role** — `page.tsx` no longer role-scopes
+  the default (the `getUserDepartmentId` lookup is gone): `selectedCalendars`
+  defaults to all calendars for everyone, so the page opens on every
+  department for all roles (matching the original requirement "all users
+  across all calendars"), and "all chips selected" in the dialog means "no
+  filter" with no badge. The default month fetch now spans all calendars, so
+  other users' cards show their real out-of-camp events.
+- **Row scoping** — new pure helper `scopeParadeUsers()` in
+  `src/app/(protected)/parade-state/scopeUsers.ts` (unit-tested in
+  `scopeUsers.test.ts`): a calendar selection that is empty or covers every
+  calendar is "no narrowing" (everyone incl. the unassigned group); a proper
+  subset keeps only users in the selected departments (unassigned hidden); an
+  empty user selection is "no filter", otherwise membership. The view's
+  `users` prop is now
+  `scopeParadeUsers(activeUsers, …, selectedCalendars, selectedUsers)` (was: all
+  active users), so the Calendars and Users filters narrow the visible rows;
+  the dialog's Users options are the calendar-scoped set (no user narrowing, so
+  the Users filter stays editable) plus the current user via
+  `filterUserOptionIds`.
+- **Event Types filter removed** — `page.tsx` no longer reads `?types=`
+  (`typeFilter: []`) and no longer calls `listEventTypes()` on this route; the
+  view drops the group, its local state and its badge term.
+  `handleApplyFilters` writes only `cal`/`users` (plus `types: null`, which
+  also scrubs the param from older URLs), and a one-shot ref-guarded effect
+  (the dashboard `?edit=` strip pattern) removes `?types=` from deep links on
+  mount.
+- Not touched: dashboard and Event Types settings (the dashboard keeps its own
+  Event Types filter), event create/edit, the events cache. No schema change.
+- Verification: `pnpm lint`, `pnpm typecheck`, `pnpm test` (301) and
+  `pnpm build` all pass.

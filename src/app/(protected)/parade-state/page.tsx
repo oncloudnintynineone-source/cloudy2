@@ -1,13 +1,12 @@
-import { listEventTypes } from "@/lib/eventTypes/queries";
 import { formatInstantToNaive } from "@/lib/events/datetime";
-import { fetchMonthEvents, getUserDepartmentId, listCalendars } from "@/lib/events/queries";
+import { fetchMonthEvents, listCalendars } from "@/lib/events/queries";
 import { filterUserOptionIds } from "@/lib/filters/filterUserOptions";
-import { googleCalendarConfigured } from "@/lib/google";
 import { listUsers } from "@/lib/roster/queries";
 import { formatFullName } from "@/lib/settings/formatName";
 import { getSettings } from "@/lib/settings/queries";
 import { requireSession } from "@/lib/session";
 import { ParadeStateView } from "./ParadeStateView";
+import { scopeParadeUsers } from "./scopeUsers";
 
 interface ParadeStatePageProps {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
@@ -22,32 +21,24 @@ function today(): string {
 export default async function ParadeStatePage({ searchParams }: ParadeStatePageProps) {
   const session = await requireSession();
   const params = await searchParams;
-  const isAdmin = session.user.role === "admin";
 
   const dateParam =
     typeof params.date === "string" && DATE_PATTERN.test(params.date) ? params.date : today();
   const month = dateParam.slice(0, 7);
 
-  const [calendars, eventTypes, allUsers, settings] = await Promise.all([
+  const [calendars, allUsers, settings] = await Promise.all([
     listCalendars(),
-    listEventTypes(),
     listUsers(),
     getSettings(),
   ]);
+
   const calendarIds = calendars.map((calendar) => calendar.id);
 
-  const ownDepartmentId = isAdmin ? null : await getUserDepartmentId(session.user.id);
-  const defaultCalendars = isAdmin ? calendarIds : ownDepartmentId ? [ownDepartmentId] : [];
-
+  // Every role opens on every department; narrowing is purely opt-in via the
+  // Calendars filter ("all selected" = no filter).
   const calParam = typeof params.cal === "string" ? params.cal.split(",").filter(Boolean) : [];
   const selectedCalendars =
-    params.cal === undefined ? defaultCalendars : calParam.filter((id) => calendarIds.includes(id));
-
-  const typeNames = eventTypes.map((type) => type.name);
-  const typesParam =
-    typeof params.types === "string" ? params.types.split(",").filter(Boolean) : [];
-  const selectedTypes =
-    params.types === undefined ? [] : typesParam.filter((name) => typeNames.includes(name));
+    params.cal === undefined ? calendarIds : calParam.filter((id) => calendarIds.includes(id));
 
   const allUserIds = allUsers.map((user) => user.id);
   const usersParam =
@@ -58,15 +49,19 @@ export default async function ParadeStatePage({ searchParams }: ParadeStatePageP
   const events = await fetchMonthEvents({
     month,
     calendarIds: selectedCalendars,
-    typeFilter: selectedTypes,
+    typeFilter: [],
     userFilter: selectedUsers,
   });
 
   const activeUsers = allUsers.filter((user) => user.status === "active");
+  const visibleUsers = scopeParadeUsers(activeUsers, calendarIds, selectedCalendars, selectedUsers);
 
+  // Filter-dialog user options: the users in the current calendar scope (no
+  // user narrowing, so the Users filter can be changed) plus the current user.
+  const scopedRowUsers = scopeParadeUsers(activeUsers, calendarIds, selectedCalendars, []);
   const filterUserIds = filterUserOptionIds({
     users: allUsers,
-    rowUserIds: activeUsers.map((user) => user.id),
+    rowUserIds: scopedRowUsers.map((user) => user.id),
     currentUserId: session.user.id,
   });
   const filterUsers = allUsers
@@ -83,7 +78,7 @@ export default async function ParadeStatePage({ searchParams }: ParadeStatePageP
     <ParadeStateView
       date={dateParam}
       month={month}
-      users={activeUsers.map((user) => ({
+      users={visibleUsers.map((user) => ({
         id: user.id,
         name: user.name,
         shortname: user.shortname,
@@ -91,12 +86,8 @@ export default async function ParadeStatePage({ searchParams }: ParadeStatePageP
       }))}
       events={events}
       calendars={calendars.map((calendar) => ({ id: calendar.id, name: calendar.name }))}
-      eventTypes={eventTypes.map((type) => ({ name: type.name, shortname: type.shortname ?? "" }))}
-      googleConfigured={googleCalendarConfigured()}
       currentUser={session.user.id}
-      isAdmin={isAdmin}
       selectedCalendarIds={selectedCalendars}
-      selectedTypes={selectedTypes}
       selectedUserIds={selectedUsers}
       filterUsers={filterUsers}
       nameTemplate={settings.nameTemplate}

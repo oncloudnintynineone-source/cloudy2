@@ -1,7 +1,7 @@
 "use client";
 
 import dayjs from "dayjs";
-import { useCallback, useMemo, useState, useTransition } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
   ActionIcon,
@@ -61,12 +61,8 @@ export interface ParadeStateViewProps {
   users: ParadeStateUser[];
   events: CalendarEvent[];
   calendars: { id: string; name: string }[];
-  eventTypes: { name: string; shortname: string }[];
-  googleConfigured: boolean;
   currentUser: string;
-  isAdmin: boolean;
   selectedCalendarIds: string[];
-  selectedTypes: string[];
   selectedUserIds: string[];
   filterUsers: { id: string; displayName: string }[];
   nameTemplate: string;
@@ -106,10 +102,8 @@ export function ParadeStateView({
   users,
   events,
   calendars,
-  eventTypes,
   currentUser,
   selectedCalendarIds: initSelectedCalendars,
-  selectedTypes: initSelectedTypes,
   selectedUserIds: initSelectedUsers,
   filterUsers,
   nameTemplate,
@@ -122,7 +116,6 @@ export function ParadeStateView({
   const [date, setDate] = useState(initialDate);
   const [month, setMonth] = useState(initialMonth);
   const [selectedCalendars, setSelectedCalendars] = useState(initSelectedCalendars);
-  const [selectedTypes, setSelectedTypes] = useState(initSelectedTypes);
   const [selectedUsers, setSelectedUsers] = useState(initSelectedUsers);
   const [filterOpened, { open: openFilter, close: closeFilter }] = useDisclosure(false);
 
@@ -178,17 +171,26 @@ export function ParadeStateView({
     }
   }
 
+  // Strip the legacy `types` param (the Event Types filter used to write it)
+  // so stale history entries and deep links don't carry it around.
+  const typesParamClearedRef = useRef(false);
+  useEffect(() => {
+    if (searchParams.get("types") === null || typesParamClearedRef.current) {
+      return;
+    }
+    typesParamClearedRef.current = true;
+    navigate({ types: null });
+  }, [searchParams, navigate]);
+
   function handleApplyFilters(values: Record<string, string[]>) {
     const calIds = values["Calendars"] ?? [];
-    const types = values["Event Types"] ?? [];
     const userIds = values["Users"] ?? [];
     setSelectedCalendars(calIds);
-    setSelectedTypes(types);
     setSelectedUsers(userIds);
     navigate({
       cal: calIds.length > 0 ? calIds.join(",") : null,
-      types: types.length > 0 ? types.join(",") : null,
       users: userIds.length > 0 ? userIds.join(",") : null,
+      types: null,
     });
   }
 
@@ -215,48 +217,38 @@ export function ParadeStateView({
           : undefined,
       });
     }
-    if (eventTypes.length > 0) {
-      groups.push({
-        label: "Event Types",
-        options: eventTypes.map((type) => ({ value: type.name, label: type.name })),
-      });
-    }
     return groups;
-  }, [calendars, filterUsers, currentUser, eventTypes]);
+  }, [calendars, filterUsers, currentUser]);
 
   const filterValues: Record<string, string[]> = useMemo(
     () => ({
       Calendars: selectedCalendars,
       Users: selectedUsers,
-      "Event Types": selectedTypes,
     }),
-    [selectedCalendars, selectedUsers, selectedTypes],
+    [selectedCalendars, selectedUsers],
   );
 
   const activeFilterCount =
     (selectedCalendars.length > 0 && selectedCalendars.length < calendars.length ? 1 : 0) +
-    (selectedUsers.length > 0 ? 1 : 0) +
-    (selectedTypes.length > 0 ? 1 : 0);
+    (selectedUsers.length > 0 ? 1 : 0);
 
   const dayEvents = useMemo(
     () =>
       events
         .filter((event) => eventCoversDay(event, date))
-        .map(
-          (event): ParadeStateEvent => ({
-            id: event.id,
-            title: event.title,
-            start: event.start,
-            end: event.end,
-            allDay: event.payload.allDay,
-            outOfCamp: event.payload.outOfCamp,
-            eventType: event.payload.eventType,
-            location: event.payload.location,
-            calendarName: event.payload.calendarName,
-            creatorId: event.payload.creatorId,
-            inviteeUserIds: event.payload.inviteeUserIds,
-          }),
-        ),
+        .map((event): ParadeStateEvent => ({
+          id: event.id,
+          title: event.title,
+          start: event.start,
+          end: event.end,
+          allDay: event.payload.allDay,
+          outOfCamp: event.payload.outOfCamp,
+          eventType: event.payload.eventType,
+          location: event.payload.location,
+          calendarName: event.payload.calendarName,
+          creatorId: event.payload.creatorId,
+          inviteeUserIds: event.payload.inviteeUserIds,
+        })),
     [events, date],
   );
 
@@ -277,7 +269,7 @@ export function ParadeStateView({
     for (const [userId, evts] of map) {
       map.set(userId, sortEvents(evts));
     }
-return map;
+    return map;
   }, [dayEvents]);
 
   const departments: ParadeStateDepartment[] = useMemo(() => {
@@ -336,13 +328,10 @@ return map;
           transitionProps={{ transition: "pop-top-right", duration: 150, timingFunction: "ease" }}
         >
           <Menu.Target>
-            <ActionIcon
-              size={43}
-              variant="default"
-              aria-label="More options"
-              style={{ position: "relative" }}
-            >
-              <IconDotsVertical size={18} />
+            <Box pos="relative">
+              <ActionIcon size={43} variant="default" aria-label="More options">
+                <IconDotsVertical size={18} />
+              </ActionIcon>
               {activeFilterCount > 0 && (
                 <Badge
                   size="sm"
@@ -354,7 +343,7 @@ return map;
                   {activeFilterCount}
                 </Badge>
               )}
-            </ActionIcon>
+            </Box>
           </Menu.Target>
           <Menu.Dropdown>
             <Menu.Item
@@ -364,7 +353,17 @@ return map;
             >
               Today
             </Menu.Item>
-            <Menu.Item leftSection={<IconFilter size={16} />} onClick={openFilter}>
+            <Menu.Item
+              leftSection={<IconFilter size={16} />}
+              onClick={openFilter}
+              rightSection={
+                activeFilterCount > 0 ? (
+                  <Badge size="sm" variant="filled" radius="xl">
+                    {activeFilterCount}
+                  </Badge>
+                ) : null
+              }
+            >
               Filters
             </Menu.Item>
           </Menu.Dropdown>

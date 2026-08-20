@@ -694,13 +694,10 @@ export function DashboardView({
           transitionProps={{ transition: "pop-top-right", duration: 150, timingFunction: "ease" }}
         >
           <Menu.Target>
-            <ActionIcon
-              size={43}
-              variant="default"
-              aria-label="More options"
-              style={{ position: "relative" }}
-            >
-              <IconDotsVertical size={18} />
+            <Box pos="relative">
+              <ActionIcon size={43} variant="default" aria-label="More options">
+                <IconDotsVertical size={18} />
+              </ActionIcon>
               {activeFilterCount > 0 && (
                 <Badge
                   size="sm"
@@ -712,7 +709,7 @@ export function DashboardView({
                   {activeFilterCount}
                 </Badge>
               )}
-            </ActionIcon>
+            </Box>
           </Menu.Target>
           <Menu.Dropdown>
             <Menu.Item
@@ -727,7 +724,17 @@ export function DashboardView({
                 Select date
               </Menu.Item>
             )}
-            <Menu.Item leftSection={<IconFilter size={16} />} onClick={openFilter}>
+            <Menu.Item
+              leftSection={<IconFilter size={16} />}
+              onClick={openFilter}
+              rightSection={
+                activeFilterCount > 0 ? (
+                  <Badge size="sm" variant="filled" radius="xl">
+                    {activeFilterCount}
+                  </Badge>
+                ) : null
+              }
+            >
               Filters
             </Menu.Item>
             <Menu.Divider />
