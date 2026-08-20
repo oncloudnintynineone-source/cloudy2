@@ -119,8 +119,22 @@ the quality checks.
   The page shares the dashboard's filter (`FilterButton` + `FilterModal`, URL params
   `cal`/`users`/`types`): Calendars (grid chips), a searchable Users group with an
   "Only me" quick action, and Event Types (which also narrows the shown columns).
-  Non-admins default to their own department but may filter to any department, matching
-  the calendar page.
+   Non-admins default to their own department but may filter to any department, matching
+   the calendar page.
+- The dashboard's **Week v2** tab (`?view=weekv2`, fifth tab after Week) is a week
+  matrix: X axis = the week (7 columns, one day per column, Monday-first), Y axis = the
+  same resource rows as the Day/Week views (department rows + users, grouped per
+  department). **No Mantine Schedule component fits this shape** (`WeekView` has no user
+  axis; `ResourcesWeekView` columns are 24-hour time lanes; `ResourcesMonthView` always
+  spans the whole month) — it is a custom CSS-grid client component in
+  `WeekMatrixView.tsx`: a sticky 7-day header over per-department grid blocks sharing one
+  column template (`[1.5rem group] 3rem label + repeat(7, minmax(0, 1fr))`, so the day
+  columns shrink to the phone width — no horizontal scroll). Cell binning is the pure,
+  unit-tested `buildWeekMatrix`/`coveredDays` helpers in `src/lib/events/weekMatrix.ts`
+  (row semantics = `rowsForEvent`; all-day ends are exclusive → `subOneDay`; cells hold
+  up to two title chips + a "+N more" modal listing the full (row, day) events); data
+  comes from the same `fetchRangeEvents` 2-month range read as the timeline Week view, so
+  cache/filters/force-refresh are inherited unchanged.
 
 ## Conventions
 

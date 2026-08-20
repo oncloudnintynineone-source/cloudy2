@@ -77,6 +77,7 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
 - [1.63 Dashboard Agenda view (Phase 3w)](#163-dashboard-agenda-view-phase-3w)
 - [1.64 Agenda day slide-in + create-event button (Phase 3x)](#164-agenda-day-slide-in--create-event-button-phase-3x)
 - [1.65 Agenda-tab day swipe + slide (Phase 3y)](#165-agenda-tab-day-swipe--slide-phase-3y)
+- [1.66 Week v2 matrix view (Phase 3z)](#166-week-v2-matrix-view-phase-3z)
 
 ## 1.1 Status
 
@@ -3130,3 +3131,70 @@ flowchart LR
   branches and the modal's `prevAgendaDate` hold were already value-guarded). Verified
   against the installed `react-dom-client.development.js` (`renderWithHooksAgain` +
   `enqueueRenderPhaseUpdate`). `pnpm lint/typecheck/test (355)/build` pass.
+
+## 1.66 Week v2 matrix view (Phase 3z)
+
+The dashboard gains a fifth view — **Week v2** (`?view=weekv2`) — a week matrix: the X axis
+is the week (7 columns, one day per column, Monday-first) and the Y axis is one row per
+user plus a department row per selected department (same rows as the Day/Week resource
+views). Each cell stacks up to two event-title chips (Mantine "light" variant colors, like
+the schedule views) with a "+N more" overflow. **No Mantine Schedule component fits this
+shape** — verified against the installed `@mantine/schedule@9.5.1` API: `WeekView` has no
+user axis, `ResourcesWeekView`'s columns are 24-hour time lanes (1440px/day scroll), and
+`ResourcesMonthView` is day-columns × user-rows but always spans the whole month (28–31
+columns). The matrix is therefore a custom CSS-grid component.
+
+```mermaid
+flowchart LR
+    A["?view=weekv2 + ?date="] --> B["page: weekDays(date)<br/>fetchRangeEvents (2-month span)<br/>— same cache path as Week"]
+    B --> C["buildWeekMatrix (pure, tested)<br/>rows = creator ∪ tagged users<br/>∪ dept:&lt;calendarId&gt;; all-day<br/>end is exclusive (subOneDay)"]
+    D["buildScheduleResources (pure)<br/>dept row + user rows, groups"] --> E["WeekMatrixView<br/>7 day columns × resource rows"]
+    C --> E
+    E -- "chip tap" --> F["EventDetail modal"]
+    E -- "empty cell tap" --> G["EventForm<br/>prefilled that day"]
+    E -- "+N more tap" --> H["cell agenda modal<br/>full (row, day) event list<br/>+ New event button"]
+```
+
+- **Data** (`page.tsx`) — one parse branch (`weekv2`) and one fetch condition
+  (`view === "week" || view === "weekv2"` → `weekDays(date)` → the existing
+  `fetchRangeEvents` 2-month range read). No new fetch, cache, filter, or force-refresh
+  logic — Week v2 inherits all of it.
+- **Pure helper** (`src/lib/events/weekMatrix.ts`, 14 unit tests) —
+  `coveredDays(event, week)`: the week days an event occupies (all-day end dates are
+  exclusive → `subOneDay`; timed events span start..end dates; clamped to the week) and
+  `buildWeekMatrix(events, week)`: bins the week's events into
+  `(rowId → day → CalendarEvent[])` cells using the schedule views' row semantics
+  (`rowsForEvent`; external events pin to their calendar's department row), sorted per
+  cell by start time (ties by title).
+- **Component** (`WeekMatrixView.tsx`, client) — a sticky 7-day header (today filled
+  primary/bold, weekends red, matching the Week view's day-label language) over
+  per-department **grid blocks** sharing one column template
+  (`[1.5rem group] 3rem label + repeat(7, minmax(0, 1fr))`): the day columns shrink
+  instead of overflowing so the grid always fits the phone width (no horizontal scroll);
+  the group label spans its department's rows (`gridRow: span N`, vertical-rl like the
+  other views). Cells are ~44px-min rows; a chip tap opens `EventDetail` (shared
+  origin-rect pattern), an empty-cell tap opens the event form prefilled with that day
+  (guarded by `googleConfigured` like the FAB), and "+N more" opens a small modal listing
+  the full (row, day) cell events (a plain list, so multi-day events that only *cover*
+  the day still appear) plus a "New event" button. Bounded `ScrollArea`
+  (`min(60vh, 520px)`) like the other matrix surfaces.
+- **Wiring** (`DashboardView.tsx`) — `ViewMode` + a fifth tab (`IconLayoutGrid`, compact
+  nowrap label) after Week. `isWeek` now covers both week views (week label, ‹/› =
+  `shiftWeek`, `onToday`), and Week v2 joins `isAnchoredView` (day-anchored: starts on
+  today, "Select date" offered, month kept when leaving). The `WeekDayLabelStrip` and
+  the slot-width measurement effect stay exclusive to the timeline Week view; the
+  loading branch reuses `WeekGridSkeleton` (its label + 7-day-lane shape already matches);
+  `loading.tsx`'s tab-strip skeleton goes 4 → 5.
+- **Decisions (user-confirmed)** — new 5th top tab (not a sub-toggle in the Week tab, not
+  a replacement); title chips with overflow (not availability dots); empty-cell tap
+  creates the event for that day.
+- **Out of scope** — swipe-to-shift-week (chevrons/Today/Select date suffice for v1),
+  start times inside chips.
+- **Unchanged** — the timeline Week view, Day/Month/Agenda views, events cache, filters,
+  force refresh, `?edit=` deep links. No schema change — `db:generate` no drift.
+- Verification: `pnpm lint`, `pnpm typecheck`, `pnpm test` (369), and `pnpm build` all
+  pass. Dev-server smoke: `/login` 200, `/dashboard?view=weekv2` 307 → login (auth
+  redirect, expected unauthenticated). Manual on-device checks owed: chip/overflow/
+  empty-cell taps, today + weekend highlighting, multi-day events spanning cells,
+  group-column alignment with ≥2 departments, and the 5-tab strip on a 360px viewport.
+

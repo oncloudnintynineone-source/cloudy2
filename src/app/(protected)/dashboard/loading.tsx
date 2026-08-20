@@ -14,12 +14,12 @@ export default function DashboardLoading() {
       <Box
         style={{
           display: "grid",
-          gridTemplateColumns: "repeat(4, 1fr)",
+          gridTemplateColumns: "repeat(5, 1fr)",
           paddingBottom: 10,
           borderBottom: "1px solid var(--mantine-color-default-border)",
         }}
       >
-        {Array.from({ length: 4 }).map((_, i) => (
+        {Array.from({ length: 5 }).map((_, i) => (
           <Skeleton
             key={i}
             height={28}

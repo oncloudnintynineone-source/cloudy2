@@ -50,6 +50,7 @@ import {
   IconChevronUp,
   IconDotsVertical,
   IconFilter,
+  IconLayoutGrid,
   IconListDetails,
   IconPlus,
   IconRefresh,
@@ -64,7 +65,7 @@ import {
   WeekGridSkeleton,
   monthGridRows,
 } from "./calendarSkeleton";
-import { formatWeekLabel } from "./clientDateTime";
+import { formatDateTime, formatWeekLabel } from "./clientDateTime";
 import { DateSelectorModal } from "@/components/DateSelectorModal";
 import { FilterModal, type FilterGroup } from "@/components/FilterModal";
 import {
@@ -94,8 +95,9 @@ import {
 } from "@/lib/events/schedule";
 import { EventDetail } from "./EventDetail";
 import { EventForm } from "./EventForm";
+import { WeekMatrixView } from "./WeekMatrixView";
 
-type ViewMode = "month" | "week" | "schedule" | "agenda";
+type ViewMode = "month" | "week" | "weekv2" | "schedule" | "agenda";
 
 interface EventTypeOption {
   name: string;
@@ -295,6 +297,12 @@ export function DashboardView({
   );
   const [filterOpened, { open: openFilter, close: closeFilter }] = useDisclosure(false);
   const [pickerOpened, { open: openPicker, close: closePicker }] = useDisclosure(false);
+  // Week v2 "+N more": the full event list of the tapped (row, day) cell.
+  const [cellAgenda, setCellAgenda] = useState<{
+    day: string;
+    label: string;
+    events: CalendarEvent[];
+  } | null>(null);
 
   // Week view: which day (0-6) sits at the left edge of the horizontally
   // scrolling grid. The index (not raw px) drives the pinned day-label strip,
@@ -363,7 +371,7 @@ export function DashboardView({
 
   const monthLabel = dayjs(`${month}-01`).format("MMMM YYYY");
   const dayLabel = dayjs(date).format("ddd, MMM D, YYYY");
-  const week = view === "week" ? weekDays(date) : null;
+  const week = view === "week" || view === "weekv2" ? weekDays(date) : null;
   const weekLabel = week ? formatWeekLabel(week[0], week[6]) : "";
   const today = dayjs().format("YYYY-MM-DD");
   const todayMonth = dayjs().format("YYYY-MM");
@@ -435,11 +443,13 @@ export function DashboardView({
   );
   const scheduleEvents = useMemo(() => expandScheduleEvents(events), [events]);
 
-  const isWeek = view === "week";
+  const isWeekV2 = view === "weekv2";
+  const isWeek = view === "week" || isWeekV2;
   const isSchedule = view === "schedule";
   const isAgenda = view === "agenda";
-  // Day-anchored views (Day, Agenda): a `?date=` anchor drives the fetch.
-  const isAnchoredView = isSchedule || isAgenda;
+  // Day-anchored views (Day, Week v2, Agenda): a `?date=` anchor drives the
+  // fetch (Week v2 shows the Monday-first week containing the anchor day).
+  const isAnchoredView = isSchedule || isWeekV2 || isAgenda;
 
   const buildHref = useCallback(
     (updates: Record<string, string | null>) => {
@@ -532,9 +542,11 @@ export function DashboardView({
         ? "schedule"
         : next === "week"
           ? "week"
-          : next === "agenda"
-            ? "agenda"
-            : "month";
+          : next === "weekv2"
+            ? "weekv2"
+            : next === "agenda"
+              ? "agenda"
+              : "month";
     if (mode !== "month") {
       if (mode === "agenda") {
         // A fresh entry re-follows the URL (the render-phase sync above
@@ -714,7 +726,7 @@ export function DashboardView({
   // when the week grid is actually rendered (not the skeleton or the empty
   // "No users" paper).
   useEffect(() => {
-    if (!isWeek || gridLoading) {
+    if (view !== "week" || gridLoading) {
       return;
     }
     const box = weekBoxRef.current;
@@ -736,7 +748,7 @@ export function DashboardView({
     if (slot > 0) {
       weekDayWidthRef.current = slot * 24;
     }
-  }, [isWeek, gridLoading]);
+  }, [view, gridLoading]);
 
   // Shared by the Day and Week resource views: a department row is a building
   // icon (its name as tooltip/aria), a user row is the shortname label.
@@ -798,6 +810,14 @@ export function DashboardView({
               </Text>
             </Group>
           </Tabs.Tab>
+          <Tabs.Tab value="weekv2">
+            <Group gap="xs" justify="center" wrap="nowrap">
+              <IconLayoutGrid size={16} />
+              <Text fw={600} size="sm" style={{ whiteSpace: "nowrap" }}>
+                Week v2
+              </Text>
+            </Group>
+          </Tabs.Tab>
           <Tabs.Tab value="schedule">
             <Group gap="xs" justify="center" wrap="nowrap">
               <IconCalendarUser size={16} />
@@ -821,14 +841,14 @@ export function DashboardView({
         <ActionIcon
           size={43}
           variant="default"
-          aria-label={isAnchoredView ? "Previous day" : isWeek ? "Previous week" : "Previous month"}
+          aria-label={isWeek ? "Previous week" : isAnchoredView ? "Previous day" : "Previous month"}
           onClick={() =>
             isAgenda
               ? applyAgendaDay(dayjs(headerDate).add(-1, "day").format("YYYY-MM-DD"))
-              : isAnchoredView
-                ? shiftDay(-1)
-                : isWeek
-                  ? shiftWeek(-1)
+              : isWeek
+                ? shiftWeek(-1)
+                : isAnchoredView
+                  ? shiftDay(-1)
                   : shiftMonth(-1)
           }
         >
@@ -842,23 +862,23 @@ export function DashboardView({
         >
           {isAgenda
             ? dayjs(headerDate).format("ddd, MMM D, YYYY")
-            : isAnchoredView
-              ? dayLabel
-              : isWeek
-                ? weekLabel
+            : isWeek
+              ? weekLabel
+              : isAnchoredView
+                ? dayLabel
                 : monthLabel}
         </Text>
         <ActionIcon
           size={43}
           variant="default"
-          aria-label={isAnchoredView ? "Next day" : isWeek ? "Next week" : "Next month"}
+          aria-label={isWeek ? "Next week" : isAnchoredView ? "Next day" : "Next month"}
           onClick={() =>
             isAgenda
               ? applyAgendaDay(dayjs(headerDate).add(1, "day").format("YYYY-MM-DD"))
-              : isAnchoredView
-                ? shiftDay(1)
-                : isWeek
-                  ? shiftWeek(1)
+              : isWeek
+                ? shiftWeek(1)
+                : isAnchoredView
+                  ? shiftDay(1)
                   : shiftMonth(1)
           }
         >
@@ -947,7 +967,7 @@ export function DashboardView({
       )}
 
       <Box ref={weekBoxRef} className={CONTENT_ENTER_CLASS}>
-        {isWeek && week && (
+        {view === "week" && week && (
           <WeekDayLabelStrip
             day={week[weekDayIndex]}
             hasGroups={scheduleResources.groups !== undefined}
@@ -956,7 +976,7 @@ export function DashboardView({
         {gridLoading ? (
           view === "month" ? (
             <MonthGridSkeleton rows={monthGridRows(month)} />
-          ) : view === "week" ? (
+          ) : isWeek ? (
             <WeekGridSkeleton />
           ) : isAgenda ? (
             <AgendaListSkeleton />
@@ -1032,6 +1052,28 @@ export function DashboardView({
               or adjust the filters.
             </Text>
           </Paper>
+        ) : isWeekV2 && week ? (
+          <WeekMatrixView
+            days={week}
+            resources={scheduleResources.resources}
+            groups={scheduleResources.groups}
+            events={events}
+            today={today}
+            renderResourceLabel={renderResourceLabel}
+            onEventClick={(event, e) => {
+              setDetailOriginRect(e.currentTarget.getBoundingClientRect());
+              setDetailEvent(event);
+            }}
+            onCellClick={(day, e) => {
+              if (!googleConfigured) {
+                return; // Same guard as the "New event" FAB.
+              }
+              openCreate(day, e.currentTarget.getBoundingClientRect());
+            }}
+            onOverflowClick={(day, resource, cellEvents) =>
+              setCellAgenda({ day, label: resource.fullName, events: cellEvents })
+            }
+          />
         ) : isWeek ? (
           <ResourcesWeekView
             date={date}
@@ -1252,6 +1294,84 @@ export function DashboardView({
                 // prefilled with the day being viewed.
                 const targetDate = agendaViewDate;
                 setAgendaDate(null);
+                openCreate(targetDate, e.currentTarget.getBoundingClientRect());
+              }}
+            >
+              New event
+            </Button>
+          </>
+        )}
+      </Modal>
+
+      {/* Week v2 "+N more": every event of the tapped (row, day) cell. A
+          plain list (not AgendaView) so multi-day events that only *cover*
+          the day still show up, matching what the cell chips already do. */}
+      <Modal
+        opened={cellAgenda !== null}
+        onClose={() => setCellAgenda(null)}
+        centered
+        size="sm"
+        title={
+          cellAgenda
+            ? `${dayjs(cellAgenda.day).format("ddd, MMM D, YYYY")} — ${cellAgenda.label}`
+            : ""
+        }
+      >
+        {cellAgenda && (
+          <>
+            <Stack
+              gap={4}
+              style={{ maxHeight: "56dvh", overflowY: "auto", overscrollBehavior: "contain" }}
+            >
+              {cellAgenda.events.map((event) => (
+                <UnstyledButton
+                  key={event.id}
+                  onClick={(e) => {
+                    setCellAgenda(null);
+                    setDetailOriginRect(e.currentTarget.getBoundingClientRect());
+                    setDetailEvent(event);
+                  }}
+                  style={{
+                    display: "block",
+                    width: "100%",
+                    textAlign: "left",
+                    padding: "6px 8px",
+                    border: "1px solid var(--mantine-color-default-border)",
+                    borderRadius: "var(--mantine-radius-sm)",
+                  }}
+                >
+                  <Group gap="xs" wrap="nowrap" align="center">
+                    <Box
+                      component="span"
+                      aria-hidden
+                      style={{
+                        width: 8,
+                        height: 8,
+                        borderRadius: "50%",
+                        flexShrink: 0,
+                        background: `var(--mantine-color-${event.color}-6)`,
+                      }}
+                    />
+                    <Box style={{ flex: 1, minWidth: 0 }}>
+                      <Text size="sm" lineClamp={1}>
+                        {event.title}
+                      </Text>
+                      <Text size="xs" c="dimmed" lineClamp={1}>
+                        {event.payload.allDay ? "All day" : formatDateTime(event.start, false)}
+                      </Text>
+                    </Box>
+                  </Group>
+                </UnstyledButton>
+              ))}
+            </Stack>
+            <Button
+              w="100%"
+              mt="sm"
+              leftSection={<IconPlus size={20} />}
+              disabled={!googleConfigured}
+              onClick={(e) => {
+                const targetDate = cellAgenda.day;
+                setCellAgenda(null);
                 openCreate(targetDate, e.currentTarget.getBoundingClientRect());
               }}
             >

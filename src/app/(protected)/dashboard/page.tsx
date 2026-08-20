@@ -39,9 +39,11 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
       ? "schedule"
       : params.view === "week"
         ? "week"
-        : params.view === "agenda"
-          ? "agenda"
-          : "month";
+        : params.view === "weekv2"
+          ? "weekv2"
+          : params.view === "agenda"
+            ? "agenda"
+            : "month";
 
   const dateParam =
     typeof params.date === "string" && DATE_PATTERN.test(params.date) ? params.date : null;
@@ -165,10 +167,11 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
     calendars.map((calendar) => [calendar.id, calendar.name]),
   );
 
-  // The week view is anchored on a day and displays the full Monday-first
-  // week containing it, which can span two months (Google month reads are
-  // month-keyed), so those months are fetched and merged in one range read.
-  const week = view === "week" ? weekDays(date) : null;
+  // The week views (Week, Week v2) are anchored on a day and display the full
+  // Monday-first week containing it, which can span two months (Google month
+  // reads are month-keyed), so those months are fetched and merged in one
+  // range read.
+  const week = view === "week" || view === "weekv2" ? weekDays(date) : null;
   const events = week
     ? await fetchRangeEvents({
         months: monthsInRange(week[0], week[6]),
