@@ -5,6 +5,7 @@ import { Button, Group, NumberInput, Paper, Stack, TextInput } from "@mantine/co
 import { useForm } from "@mantine/form";
 import { notifications } from "@mantine/notifications";
 
+import { CONTENT_ENTER_CLASS } from "@/lib/loading/contentEnter";
 import { updateAuditLogRetention, updateKeyword, type SettingsActionResult } from "@/lib/settings/actions";
 import {
   AUDIT_RETENTION_MAX,
@@ -65,7 +66,7 @@ export function SettingsForm({ keyword, retentionDays }: SettingsFormProps) {
   });
 
   return (
-    <Stack>
+    <Stack className={CONTENT_ENTER_CLASS}>
       <Paper withBorder p="sm">
         <form onSubmit={onSubmitKeyword}>
           <Stack>

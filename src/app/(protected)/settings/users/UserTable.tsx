@@ -18,6 +18,7 @@ import { IconPlus } from "@tabler/icons-react";
 import { FilterButton } from "@/components/FilterButton";
 import { FilterModal, type FilterGroup } from "@/components/FilterModal";
 import { FAB_ICON_SIZE, FloatingActionButton, FloatingToolbar } from "@/components/FloatingToolbar";
+import { CONTENT_ENTER_CLASS } from "@/lib/loading/contentEnter";
 import type { RosterUser } from "@/lib/roster/queries";
 import { formatFullName } from "@/lib/settings/formatName";
 import { SETTINGS_TAB_BAR_OFFSET } from "../settingsTabBar";
@@ -103,7 +104,7 @@ export function UserTable({ users, departments, nameTemplate }: UserTableProps) 
   }
 
   return (
-    <Stack pb="xl">
+    <Stack pb="xl" className={CONTENT_ENTER_CLASS}>
       <Paper withBorder p="sm">
         <Stack gap="xs">
           <Group justify="space-between" wrap="nowrap">

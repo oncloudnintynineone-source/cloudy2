@@ -70,6 +70,8 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
 - [1.56 No-keyboard dropdowns (Phase 3s)](#156-no-keyboard-dropdowns-phase-3s)
 - [1.57 Audit log viewer + retention + export (Phase 3t)](#157-audit-log-viewer--retention--export-phase-3t)
 - [1.58 Dashboard loading: skeleton only, fade-in on swap (Phase 3u)](#158-dashboard-loading-skeleton-only-fade-in-on-swap-phase-3u)
+- [1.59 Standard loading appearance across the app (Phase 3u)](#159-standard-loading-appearance-across-the-app-phase-3u)
+- [1.60 Event form: stop Enter submitting the draft (Phase 3v)](#160-event-form-stop-enter-submitting-the-draft-phase-3v)
 
 ## 1.1 Status
 
@@ -2684,40 +2686,160 @@ stateDiagram-v2
 - **Skeleton on every pending data navigation** (`DashboardView.tsx`) — the
   grid branch renders the view-matched skeleton
   (`MonthGridSkeleton`/`WeekGridSkeleton`/`ScheduleGridSkeleton`) while
-  `isRefreshing || isPending`; the stale-grid dim
-  (`opacity: isPending ? 0.6 : 1`, 150ms transition) is gone. During pending
-  the skeleton is keyed off the still-committed `view`/`month` props, so e.g.
-  a month → week switch briefly shows the month skeleton before the week
-  grid commits.
-- **Fade-in on commit** (`src/app/globals.css`, replacing
-  `dashboard-grid-reveal`) — `@keyframes dashboard-grid-enter { from {
-  opacity: 0 } }` applied by `.dashboard-grid-enter` (180ms ease-out) inside
-  `@media (prefers-reduced-motion: no-preference)`. The class ships in the
+  `gridLoading = useMinSkeletonHold(isPending || isRefreshing)`; the stale-grid
+  dim (`opacity: isPending ? 0.6 : 1`, 150ms transition) is gone. During
+  pending the skeleton is keyed off the still-committed `view`/`month` props,
+  so e.g. a month → week switch briefly shows the month skeleton before the
+  week grid commits.
+- **Minimum ~350ms hold** — `useMinSkeletonHold` (`src/lib/loading/minHoldLoading.ts`)
+  keeps the skeleton up until 350ms after the load *started*, so warm cached
+  loads (sub-100ms round-trips in dev) read as a deliberate skeleton → reveal
+  sequence instead of a flash. A new pending supersedes any outstanding hold,
+  so holds never stack.
+- **Fade-in on reveal, no remount, scroll preserved** — shared
+  `CONTENT_ENTER_CLASS` (`src/lib/loading/contentEnter.ts`, declared in
+  `src/app/globals.css` as `.content-enter`, 300ms ease-out inside
+  `@media (prefers-reduced-motion: no-preference)`; content fades 0 → 1 — it
+  is never visible dimmed, unlike the old 0.6 reveal). The class ships in the
   SSR HTML, so the cold load (route `loading.tsx` → grid) plays it on first
-  paint with no hydration flash; content is never visible in a dimmed state
-  (fades 0 → 1, unlike the old 0.6 reveal).
-- **No remount, scroll preserved** — the grid `Box` must stay mounted across
+  paint with no hydration flash. The grid `Box` must stay mounted across
   commits (the week/schedule `ScrollArea` keeps its scroll position on
-  week-to-week / day-to-day navigation), so the animation restarts via a
-  `useLayoutEffect` classList remove/reflow/re-add keyed on the committed
-  identity `view|month|date|cal|users|types` (data-affecting params only).
-  Layout effects run before paint, so the commit frame already shows the fade
-  at frame 0 (no fully-opaque flash first). The null-init ref skips the first
-  mount, where the SSR class is already playing.
+  week-to-week / day-to-day navigation), so `useContentEnter(weekBoxRef,
+  !gridLoading)` restarts the animation on the skeleton → content flip via a
+  classList remove/reflow/re-add in a `useLayoutEffect` — before paint, so the
+  reveal frame already shows the fade at frame 0.
 - **URL strips stay invisible** — the one-shot `edit`/`refresh` param strips
-  navigate with a plain `router.push` (no `startTransition`), so their
-  commits show no skeleton and don't replay the fade (the identity excludes
-  those params — otherwise force refresh would fade twice: once for the new
-  data, again when the nonce is stripped).
+  navigate with a plain `router.push` (no `startTransition`), so they never
+  set the pending flag: no skeleton, no fade replay (otherwise force refresh
+  would fade twice — once for the new data, again when the nonce strips).
 - **No-op guard in `navigate()`** — skips the push when the built href equals
   the current URL (e.g. tapping "Today" while already there), so no-op
   changes never flash the skeleton.
 - Unchanged: route `loading.tsx` cold-load skeleton, force-refresh UX
   (skeleton + button spinner for the whole blocking window), the `router.refresh()`
-  mutation swap, and the week-view slot-width measurement gate
-  (`isPending || isRefreshing`).
-- The `AGENTS.md` skeleton convention now encodes skeleton-only loading and
-  the `dashboard-grid-enter` commit fade (incl. the no-remount retrigger and
-  the plain-push strips).
+  mutation swap, and the week-view slot-width measurement gate (now `gridLoading`).
+- Superseded in detail by [1.59](#159-standard-loading-appearance-across-the-app-phase-3u), which
+  generalizes the mechanism (`useMinSkeletonHold`/`useContentEnter`) and
+  applies it to every loading surface.
 - Verification: `pnpm lint`, `pnpm typecheck`, `pnpm test` (338) and
   `pnpm build` all pass. No schema change.
+
+## 1.59 Standard loading appearance across the app (Phase 3u)
+
+The 1.58 dashboard mechanism was generalized into two shared pieces and
+applied to **every** loading surface, so the whole app now has one loading
+language: **skeleton only, ~350ms minimum hold, 300ms fade-in on reveal** —
+no dimming/darkening anywhere.
+
+```mermaid
+flowchart LR
+    S["Skeleton<br/>(min ~350ms hold)"] -->|reveal| F["Content fades in<br/>(.content-enter, 300ms)"]
+    subgraph "shared"
+      M["useMinSkeletonHold(pending)"]
+      C["useContentEnter(ref, shown)"]
+      K[".content-enter keyframes<br/>(globals.css, reduced-motion guarded)"]
+    end
+    M --> S
+    C --> F
+    K --> F
+```
+
+- **`useMinSkeletonHold(pending)`** (new `src/lib/loading/minHoldLoading.ts`)
+  — `MIN_SKELETON_HOLD_MS = 350`; true while `pending`, plus until 350ms after
+  the load started. Implemented as a single state update on the end edge
+  (bail-out on equal values — the React 19 `react-hooks/set-state-in-effect`
+  rule forbids the naive per-branch reset) and a timeout that releases the
+  hold; timers are cleared on re-entry, so consecutive fast navigations never
+  stack holds.
+- **`useContentEnter(ref, shown)` + `CONTENT_ENTER_CLASS`** (new
+  `src/lib/loading/contentEnter.ts`) — the reveal fade restarts on the
+  skeleton → content flip (ref-init skips the SSR cold mount, which plays the
+  class from the HTML). `globals.css` now holds only the generic
+  `.content-enter` keyframes (the dashboard-specific `dashboard-grid-enter`
+  from 1.58 is gone).
+- **Dashboard** — `gridLoading`/`useContentEnter` replace the 1.58
+  identity-keyed retrigger (simpler: key off the actual reveal, not the URL
+  identity); the week slot-width measurement gate uses `gridLoading`.
+- **Audit log** (`AuditLogView.tsx`) — the last dimming pattern left
+  (`opacity: isPending ? 0.6` on the row list) is replaced by a 5-card
+  skeleton (`AuditLogRowSkeleton`, also reused by `audit-log/loading.tsx` so
+  the shapes stay in sync) while `useMinSkeletonHold(isPending)`; the list
+  `Stack` carries `CONTENT_ENTER_CLASS` + `useContentEnter`; `navigate()`
+  gains the no-op-href guard.
+- **Parade state** (`ParadeStateView.tsx`) — previously showed *nothing*
+  while in-place navigating (and cross-month day switches briefly rendered
+  the stale month's events — usually an empty list — until commit). Now:
+  `contentLoading = useMinSkeletonHold(initialMonth !== month)` shows a
+  department/user-card skeleton (shared `ParadeStateDepartmentSkeleton`, also
+  reused by `parade-state/loading.tsx`) for cross-month switches only —
+  in-month day switches and filter applies stay instant because their content
+  is derived optimistically from local state (a skeleton there would hurt the
+  snappy feel). The content `Box` carries `CONTENT_ENTER_CLASS` +
+  `useContentEnter`.
+- **Fade-in on all committed cold loads** — `CONTENT_ENTER_CLASS` added to
+  the content root of the other surfaces: `ContactList`, `UserTable`,
+  `DepartmentTable`, `EventTypeTable`, `SettingsForm` (General tab),
+  `TemplatesForm`. No JS retrigger needed there: segment navigation remounts
+  them (the class plays), and `router.refresh()` mutations don't remount
+  (no replay).
+- **Out of scope (by design)** — `router.refresh()` mutation swaps (button
+  loader covers them), URL-param strips (plain pushes), and modals (no
+  loading of their own).
+- The `AGENTS.md` bullet "Standard loading appearance: skeleton only +
+  fade-in on reveal" is now the canonical checklist to apply whenever a
+  loading skeleton is implemented or updated.
+- Verification: `pnpm lint`, `pnpm typecheck`, `pnpm test` (338) and
+  `pnpm build` all pass. No schema change.
+
+## 1.60 Event form: no accidental submit on reaching the Remarks step (Phase 3v)
+
+The create/edit wizard **submitted the moment the Remarks step appeared** — the
+event was saved before the user could type anything. The trigger was not Enter:
+the **Next button and the Create/Save button are the same DOM `<button>` node**.
+They are the two branches of one conditional rendering the same `<Button>` at the
+same position, so React reuses the element and only swaps props. On the last
+step, clicking "Next" → `goNext()` → `setStep(4)`, and React 18/19 flushes
+discrete-event (click) state updates **synchronously** — so the button's `type`
+attribute flips `"button"` → `"submit"` before the click event finishes. The
+browser then runs the click's default action against a now-submit button,
+firing the form's `submit` event; Mantine's `form.onSubmit` validates and calls
+`createEvent`/`updateEvent`. Desktop and mobile alike (Chrome verified), and the
+event really was saved.
+
+```mermaid
+flowchart TB
+    N["Click 'Next' on the Invitees step<br/>type='button'"] --> R["goNext → setStep(4)<br/>React flushes synchronously"]
+    R --> T["Same DOM node re-typed to type='submit'"]
+    T -->|"before: browser runs the click default action"| S["form submit → createEvent / updateEvent<br/>modal closes before typing"]
+    T -->|"after: click.preventDefault + distinct keys"| X["[blocked]<br/>advances to Remarks only"]
+```
+
+Changes in `src/app/(protected)/dashboard/EventForm.tsx`:
+- **Cancel the step-advance click** — the Next `Button`'s `onClick` now calls
+  `event.preventDefault()` before `goNext()`. A canceled click never runs the
+  button's activation behavior, so the form cannot submit regardless of the
+  `type` flip mid-handler.
+- **Distinct button keys** — the Next button gets `key="next"` and the
+  Create/Save button `key="submit"`, so React mounts a **fresh** DOM node per
+  branch instead of re-typing the clicked one (belt-and-suspenders against the
+  same hazard; a "Back then Next" round-trip just remounts, which is harmless).
+- **Form-level Enter guard** — `<form onKeyDown={handleFormKeyDown}>`
+  `preventDefault()`s `Enter` when the target is an `INPUT`/`SELECT`, so no
+  single-line field (Location, the admin "On behalf of" select, the invitee
+  input) can trigger implicit submission on any step. `TEXTAREA` is excluded —
+  textareas have no implicit submit, and the guard would eat the newline. The
+  bubbling handler runs **after** component key handlers (e.g. the datetime
+  pickers' Enter-to-confirm), so only the native default — the submit — is
+  cancelled. The existing `if (!isLastStep) return` guard stays as a safety net.
+- **Remarks → multiline `Textarea`** — swapped the Remarks `TextInput` for a
+  `Textarea` (`autosize`, `minRows={2}`, `maxRows={4}`, `resize: none`) so Enter
+  inserts a newline and long notes wrap. It binds to the same `title` field, so
+  the `{description}` title token and the `rawTitle` notes round-trip are
+  untouched.
+- **Not changed** — the wizard steps/navigation, the submit button (now the only
+  real submit path), `validate.ts`, the server actions, and the notes/title
+  round-trip.
+- Verification: `pnpm lint`, `pnpm typecheck`, `pnpm test` (348) and
+  `pnpm build` all pass. No schema change. Manual smoke owed: create + edit →
+  walk all 5 steps; reaching Remarks must not submit; the event saves only on
+  the Create/Save tap. Type multiline text, Enter inserts a newline (no submit).

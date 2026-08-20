@@ -16,6 +16,7 @@ import {
   normalizeTimeOptions,
   resolveTimeOptions,
 } from "@/lib/events/timeOptions";
+import { CONTENT_ENTER_CLASS } from "@/lib/loading/contentEnter";
 import { EventTypeForm } from "./EventTypeForm";
 
 interface EventTypeTableProps {
@@ -38,7 +39,7 @@ export function EventTypeTable({ types }: EventTypeTableProps) {
   }
 
   return (
-    <Stack pb="xl">
+    <Stack pb="xl" className={CONTENT_ENTER_CLASS}>
       {types.length === 0 ? (
         <Text c="dimmed" ta="center" py="lg">
           No event types yet.

@@ -18,6 +18,7 @@ import { IconCheck, IconCopy, IconDownload, IconPhone } from "@tabler/icons-reac
 
 import { FAB_ICON_SIZE, FloatingActionButton, FloatingToolbar } from "@/components/FloatingToolbar";
 import { buildContactsVcf } from "@/lib/contacts/vcf";
+import { CONTENT_ENTER_CLASS } from "@/lib/loading/contentEnter";
 import type { RosterUser } from "@/lib/roster/queries";
 import { formatFullName } from "@/lib/settings/formatName";
 import { BUTTON_LOADER_PROPS } from "@/lib/theme";
@@ -87,7 +88,7 @@ export function ContactList({ users, nameTemplate }: ContactListProps) {
   }, [users, search]);
 
   return (
-    <Stack pb="xl">
+    <Stack pb="xl" className={CONTENT_ENTER_CLASS}>
       <Paper withBorder p="sm">
         <TextInput
           placeholder="Search by name or phone"

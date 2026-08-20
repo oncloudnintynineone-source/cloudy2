@@ -6,6 +6,7 @@ import { Button, Divider, Group, Paper, Stack, Text, TextInput } from "@mantine/
 import { useForm } from "@mantine/form";
 import { notifications } from "@mantine/notifications";
 
+import { CONTENT_ENTER_CLASS } from "@/lib/loading/contentEnter";
 import {
   updateEventTitleTemplate,
   updateNameTemplate,
@@ -167,7 +168,7 @@ export function TemplatesForm({
   const eventTitlePreview = formatEventTitle(eventTitleSample, eventTitleTemplateValue);
 
   return (
-    <Stack>
+    <Stack className={CONTENT_ENTER_CLASS}>
       <Paper withBorder p="sm">
         <form onSubmit={onSubmitNameTemplate}>
           <Stack>

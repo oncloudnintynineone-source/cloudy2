@@ -8,6 +8,7 @@ import { notifications } from "@mantine/notifications";
 import { IconPlus } from "@tabler/icons-react";
 
 import type { Calendar } from "@/db/schema";
+import { CONTENT_ENTER_CLASS } from "@/lib/loading/contentEnter";
 import { deleteDepartment } from "@/lib/roster/actions";
 import { BUTTON_LOADER_PROPS } from "@/lib/theme";
 import { FAB_ICON_SIZE, FloatingActionButton, FloatingToolbar } from "@/components/FloatingToolbar";
@@ -65,7 +66,7 @@ export function DepartmentTable({ departments }: DepartmentTableProps) {
   }
 
   return (
-    <Stack pb="xl">
+    <Stack pb="xl" className={CONTENT_ENTER_CLASS}>
       {departments.length === 0 ? (
         <Text c="dimmed" ta="center" py="lg">
           No departments yet.

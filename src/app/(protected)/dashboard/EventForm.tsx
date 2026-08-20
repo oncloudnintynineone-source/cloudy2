@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, type KeyboardEvent } from "react";
 import {
   Badge,
   Box,
@@ -12,6 +12,7 @@ import {
   Stack,
   Tabs,
   Text,
+  Textarea,
   TextInput,
   UnstyledButton,
 } from "@mantine/core";
@@ -269,6 +270,25 @@ export function EventForm({
     setStep((index) => Math.max(index - 1, 0));
   }
 
+  // Enter in a single-line input must never submit the form: the browser's
+  // implicit submit (or the mobile keyboard's return key) would otherwise
+  // commit the event mid-typing. Only the explicit Create/Save button
+  // submits. Implicit submission only applies to single-line inputs and
+  // selects, not textareas — so the Remarks Textarea keeps its natural
+  // newline behavior. This also covers the admin "On behalf of" select and
+  // the invitee input. Component key handlers (e.g. the datetime pickers)
+  // run before this bubbling handler, so only the native default — the
+  // submit — is cancelled.
+  function handleFormKeyDown(event: KeyboardEvent<HTMLFormElement>) {
+    if (event.key !== "Enter") {
+      return;
+    }
+    const tag = event.target instanceof HTMLElement ? event.target.tagName : "";
+    if (tag === "INPUT" || tag === "SELECT") {
+      event.preventDefault();
+    }
+  }
+
   function goNext() {
     // Step 1 needs a selected type before anything else makes sense.
     if (currentStep.id === "type") {
@@ -478,7 +498,7 @@ export function EventForm({
     );
 
   return (
-    <form onSubmit={onSubmit}>
+    <form onSubmit={onSubmit} onKeyDown={handleFormKeyDown}>
       <div
         tabIndex={-1}
         data-autofocus
@@ -661,10 +681,14 @@ export function EventForm({
           ))}
 
         {currentStep.id === "remarks" && (
-          <TextInput
+          <Textarea
             label="Remarks"
             description="Optional — the calendar title is rendered from the title template"
             placeholder="Add remarks"
+            autosize
+            minRows={2}
+            maxRows={4}
+            style={{ resize: "none" }}
             {...form.getInputProps("title")}
           />
         )}
@@ -694,6 +718,7 @@ export function EventForm({
           )}
           {isLastStep ? (
             <Button
+              key="submit"
               type="submit"
               loading={form.submitting}
               loaderProps={BUTTON_LOADER_PROPS}
@@ -703,8 +728,19 @@ export function EventForm({
             </Button>
           ) : (
             <Button
+              key="next"
               fullWidth={step === 0}
-              onClick={goNext}
+              onClick={(event) => {
+                // The Next button and the Create/Save button are the same DOM
+                // node (one conditional, React reuses the element). Without
+                // this, the step-advance click leaves the button `type="submit"`
+                // by the time the browser runs the click's default action, so
+                // advancing into the Remarks step submits the form. A canceled
+                // click never activates the button, and the distinct keys force
+                // React to mount a fresh node (never re-typing the clicked one).
+                event.preventDefault();
+                goNext();
+              }}
               rightSection={<IconChevronRight size={16} />}
               style={step > 0 ? { flexGrow: 1 } : undefined}
             >

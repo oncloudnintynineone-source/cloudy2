@@ -5,7 +5,6 @@ import {
   type CSSProperties,
   useCallback,
   useEffect,
-  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -73,6 +72,8 @@ import { weekDays } from "@/lib/events/datetime";
 import type { CalendarEvent } from "@/lib/events/queries";
 import type { LocationPolicy } from "@/lib/events/locationPolicy";
 import type { TimeOption } from "@/lib/events/timeOptions";
+import { CONTENT_ENTER_CLASS, useContentEnter } from "@/lib/loading/contentEnter";
+import { useMinSkeletonHold } from "@/lib/loading/minHoldLoading";
 import {
   scaleFromRect,
   smModalContentWidth,
@@ -300,38 +301,15 @@ export function DashboardView({
 
   const [isRefreshing, startRefresh] = useTransition();
 
-  // One-shot fade-in of the grid after a loading skeleton (cold load, any
-  // data navigation, force refresh). The grid Box is never remounted — the
-  // week/schedule ScrollArea must keep its scroll position across navigations
-  // — so the CSS animation is restarted by remove/reflow/re-add. A layout
-  // effect runs before paint, so the commit frame already shows the fade at
-  // frame 0. The identity only covers data-affecting params, so the one-shot
-  // `edit`/`refresh` strips (plain pushes) never replay it. On first mount
-  // the class ships in the SSR HTML and plays on first paint; the null check
-  // skips that run.
-  const gridIdentity = [
-    view,
-    month,
-    date,
-    selectedCalendarIds.join(","),
-    selectedUserIds.join(","),
-    selectedTypes.join(","),
-  ].join("|");
-  const prevGridIdentityRef = useRef<string | null>(null);
-  useLayoutEffect(() => {
-    const prev = prevGridIdentityRef.current;
-    prevGridIdentityRef.current = gridIdentity;
-    if (prev === null || prev === gridIdentity) {
-      return;
-    }
-    const el = weekBoxRef.current;
-    if (!el) {
-      return;
-    }
-    el.classList.remove("dashboard-grid-enter");
-    void el.offsetWidth;
-    el.classList.add("dashboard-grid-enter");
-  }, [gridIdentity]);
+  // Skeleton-only loading: any pending data navigation or force refresh
+  // shows the grid skeleton. `useMinSkeletonHold` keeps it up for a minimum
+  // ~350ms so fast (cached) loads read as a deliberate sequence instead of a
+  // flash. `useContentEnter` fades the grid in on the reveal; on a cold
+  // mount the class ships in the SSR HTML and plays on first paint. The
+  // one-shot `edit`/`refresh` strips are plain pushes (no transition), so
+  // they never set the pending flag and never replay the fade.
+  const gridLoading = useMinSkeletonHold(isPending || isRefreshing);
+  useContentEnter(weekBoxRef, !gridLoading);
 
   // The date shown in the agenda day modal; persists through the exit
   // animation so the shrinking box still has content.
@@ -615,7 +593,7 @@ export function DashboardView({
   // when the week grid is actually rendered (not the skeleton or the empty
   // "No users" paper).
   useEffect(() => {
-    if (!isWeek || isPending || isRefreshing) {
+    if (!isWeek || gridLoading) {
       return;
     }
     const box = weekBoxRef.current;
@@ -637,7 +615,7 @@ export function DashboardView({
     if (slot > 0) {
       weekDayWidthRef.current = slot * 24;
     }
-  }, [isWeek, isPending, isRefreshing]);
+  }, [isWeek, gridLoading]);
 
   // Shared by the Day and Week resource views: a department row is a building
   // icon (its name as tooltip/aria), a user row is the shortname label.
@@ -813,14 +791,14 @@ export function DashboardView({
         </Alert>
       )}
 
-      <Box ref={weekBoxRef} className="dashboard-grid-enter">
+      <Box ref={weekBoxRef} className={CONTENT_ENTER_CLASS}>
         {isWeek && week && (
           <WeekDayLabelStrip
             day={week[weekDayIndex]}
             hasGroups={scheduleResources.groups !== undefined}
           />
         )}
-        {isRefreshing || isPending ? (
+        {gridLoading ? (
           view === "month" ? (
             <MonthGridSkeleton rows={monthGridRows(month)} />
           ) : view === "week" ? (

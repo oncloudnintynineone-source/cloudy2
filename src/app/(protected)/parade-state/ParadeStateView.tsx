@@ -26,7 +26,13 @@ import {
 
 import { FilterModal, type FilterGroup } from "@/components/FilterModal";
 import type { CalendarEvent } from "@/lib/events/queries";
+import { CONTENT_ENTER_CLASS, useContentEnter } from "@/lib/loading/contentEnter";
+import { useMinSkeletonHold } from "@/lib/loading/minHoldLoading";
 import { formatFullName } from "@/lib/settings/formatName";
+
+import { departmentHeadcount } from "./headcount";
+import { formatEventTimeBadge } from "./eventTimeBadge";
+import { ParadeStateDepartmentSkeleton } from "./paradeStateSkeleton";
 
 interface ParadeStateUser {
   id: string;
@@ -118,6 +124,17 @@ export function ParadeStateView({
   const [selectedCalendars, setSelectedCalendars] = useState(initSelectedCalendars);
   const [selectedUsers, setSelectedUsers] = useState(initSelectedUsers);
   const [filterOpened, { open: openFilter, close: closeFilter }] = useDisclosure(false);
+
+  // Cross-month day switches need the new month's events from the server (the
+  // local `date` state flips optimistically, so the stale event props would
+  // briefly render an empty list); show a skeleton — with a minimum ~350ms
+  // hold — until the new month commits, then fade the content in. In-month
+  // switches and filter applies stay instant: their data is already derived
+  // correctly from local state, so a skeleton there would only hurt the snappy
+  // feel.
+  const contentLoading = useMinSkeletonHold(initialMonth !== month);
+  const contentRef = useRef<HTMLDivElement | null>(null);
+  useContentEnter(contentRef, !contentLoading);
 
   const colorScheme = useComputedColorScheme("light");
   const today = dayjs().format("YYYY-MM-DD");
@@ -370,71 +387,90 @@ export function ParadeStateView({
         </Menu>
       </Group>
 
-      {departments.length === 0 ? (
-        <Text c="dimmed" ta="center" py="lg">
-          No departments found.
-        </Text>
-      ) : departments.every((dept) => dept.users.length === 0) ? (
-        <Text c="dimmed" ta="center" py="lg">
-          No users found.
-        </Text>
-      ) : (
-        <Stack gap="lg">
-          {departments.map((dept) => {
-            if (dept.users.length === 0) return null;
-            return (
-              <Box key={dept.id ?? "__unassigned__"}>
-                <Text fw={700} size="sm" c="dimmed" mb="xs" tt="uppercase" lh={1}>
-                  {dept.name}
-                </Text>
-                <Stack gap="xs">
-                  {dept.users.map((user) => {
-                    const userEvents = eventsByUser.get(user.id) ?? [];
-                    const displayName = formatFullName(
-                      { name: user.name, departmentName: user.department?.name ?? null },
-                      nameTemplate,
-                    );
-                    return (
-                      <Paper
-                        key={user.id}
-                        withBorder
-                        p="sm"
-                        style={
-                          userEvents.length > 0
-                            ? {
-                                backgroundColor: colorScheme === "dark" ? "#3d3200" : "#fff8e1",
-                                borderColor: "var(--mantine-color-yellow-4)",
-                              }
-                            : undefined
-                        }
-                      >
-                        <Stack gap={2}>
-                          <Text fw={600} size="sm">
-                            {displayName}
-                          </Text>
-                          {userEvents.length === 0 ? (
-                            <Text size="xs" c="dimmed">
-                              No events
+      <Box ref={contentRef} className={CONTENT_ENTER_CLASS}>
+        {contentLoading ? (
+          <Stack gap="lg">
+            <ParadeStateDepartmentSkeleton users={2} />
+            <ParadeStateDepartmentSkeleton users={3} />
+          </Stack>
+        ) : departments.length === 0 ? (
+          <Text c="dimmed" ta="center" py="lg">
+            No departments found.
+          </Text>
+        ) : departments.every((dept) => dept.users.length === 0) ? (
+          <Text c="dimmed" ta="center" py="lg">
+            No users found.
+          </Text>
+        ) : (
+          <Stack gap="lg">
+            {departments.map((dept) => {
+              if (dept.users.length === 0) return null;
+              const headcount = departmentHeadcount(dept.users, eventsByUser);
+              return (
+                <Box key={dept.id ?? "__unassigned__"}>
+                  <Text fw={700} size="sm" c="dimmed" mb="xs" tt="uppercase" lh={1}>
+                    {dept.name} ({headcount.present}/{headcount.total})
+                  </Text>
+                  <Stack gap="xs">
+                    {dept.users.map((user) => {
+                      const userEvents = eventsByUser.get(user.id) ?? [];
+                      const displayName = formatFullName(
+                        { name: user.name, departmentName: user.department?.name ?? null },
+                        nameTemplate,
+                      );
+                      return (
+                        <Paper
+                          key={user.id}
+                          withBorder
+                          p="sm"
+                          style={
+                            userEvents.length > 0
+                              ? {
+                                  backgroundColor: colorScheme === "dark" ? "#3d3200" : "#fff8e1",
+                                  borderColor: "var(--mantine-color-yellow-4)",
+                                }
+                              : undefined
+                          }
+                        >
+                          <Stack gap={2}>
+                            <Text fw={600} size="sm">
+                              {displayName}
                             </Text>
-                          ) : (
-                            <Stack gap={2} ml="xs">
-                              {userEvents.map((event) => (
-                                <Text key={event.id} size="xs" fw={400} c="dimmed">
-                                  {event.title}
-                                </Text>
-                              ))}
-                            </Stack>
-                          )}
-                        </Stack>
-                      </Paper>
-                    );
-                  })}
-                </Stack>
-              </Box>
-            );
-          })}
-        </Stack>
-      )}
+                            {userEvents.length === 0 ? (
+                              <Text size="xs" c="dimmed">
+                                No events
+                              </Text>
+                            ) : (
+                              <Stack gap={2} ml="xs">
+                                {userEvents.map((event) => (
+                                  <Group key={event.id} gap={6} wrap="nowrap" align="center">
+                                    <Badge
+                                      size="xs"
+                                      variant="light"
+                                      color="gray"
+                                      radius="sm"
+                                      style={{ flexShrink: 0 }}
+                                    >
+                                      {formatEventTimeBadge(event, date)}
+                                    </Badge>
+                                    <Text size="xs" fw={400} c="dimmed" style={{ flex: 1, minWidth: 0 }}>
+                                      {event.title}
+                                    </Text>
+                                  </Group>
+                                ))}
+                              </Stack>
+                            )}
+                          </Stack>
+                        </Paper>
+                      );
+                    })}
+                  </Stack>
+                </Box>
+              );
+            })}
+          </Stack>
+        )}
+      </Box>
 
       <FilterModal
         opened={filterOpened}

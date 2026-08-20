@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useState, useTransition } from "react";
+import { useCallback, useMemo, useRef, useState, useTransition } from "react";
 import {
   ActionIcon,
   Badge,
@@ -33,8 +33,12 @@ import { listAuditActions } from "@/lib/audit/build";
 import { actionLabel, actorLabel, formatAuditDetails, formatLogTimestamp } from "@/lib/audit/format";
 import type { AuditFilters } from "@/lib/audit/queries";
 import { SETTINGS_TAB_BAR_OFFSET } from "@/app/(protected)/settings/settingsTabBar";
+import { CONTENT_ENTER_CLASS, useContentEnter } from "@/lib/loading/contentEnter";
+import { useMinSkeletonHold } from "@/lib/loading/minHoldLoading";
 import { BUTTON_LOADER_PROPS } from "@/lib/theme";
 import type { AuditLog } from "@/db/schema";
+
+import { AuditLogRowSkeleton } from "./AuditLogRowSkeleton";
 
 interface AuditLogViewProps {
   initialRows: AuditLog[];
@@ -76,6 +80,12 @@ export function AuditLogView({
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const [isPending, startTransition] = useTransition();
+
+  // Skeleton-only loading: filter changes (URL transitions) show a row-card
+  // skeleton with a minimum ~350ms hold, then the list fades in on the reveal.
+  const listLoading = useMinSkeletonHold(isPending);
+  const listRef = useRef<HTMLDivElement | null>(null);
+  useContentEnter(listRef, !listLoading);
 
   const [rows, setRows] = useState(initialRows);
   const [cursor, setCursor] = useState(nextCursor);
@@ -126,11 +136,18 @@ export function AuditLogView({
 
   const navigate = useCallback(
     (updates: Record<string, string | null>) => {
+      const query = searchParams.toString();
+      const next = buildHref(updates);
+      // A no-op navigation (picking the filter value already applied) would
+      // still run a transition, flashing the list skeleton for nothing.
+      if (next === (query ? `${pathname}?${query}` : pathname)) {
+        return;
+      }
       startTransition(() => {
-        router.push(buildHref(updates));
+        router.push(next);
       });
     },
-    [buildHref, router, startTransition],
+    [buildHref, router, startTransition, pathname, searchParams],
   );
 
   const applyFilters = useCallback(
@@ -309,8 +326,14 @@ export function AuditLogView({
         </Menu>
       </Group>
 
-      <Stack gap="sm" style={{ opacity: isPending ? 0.6 : 1, transition: "opacity 150ms ease-out" }}>
-        {rows.length === 0 ? (
+      <Stack gap="sm" ref={listRef} className={CONTENT_ENTER_CLASS}>
+        {listLoading ? (
+          <Stack gap="sm">
+            {Array.from({ length: 5 }).map((_, i) => (
+              <AuditLogRowSkeleton key={i} />
+            ))}
+          </Stack>
+        ) : rows.length === 0 ? (
           <Text c="dimmed" ta="center" py="lg">
             No log entries match these filters.
           </Text>

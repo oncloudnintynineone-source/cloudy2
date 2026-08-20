@@ -206,26 +206,42 @@ the quality checks.
   job needed. Never call `listAuditLogs`-adjacent helpers directly with a live DB in tests —
   the pure parts (`parseAuditFilters`, cursor codec, CSV builder, display format) are
   I/O-free and unit-tested.
- - **Always show a loading skeleton for async loads.** Any route or view that awaits data
-   before rendering (DB queries, fetches) must show a Mantine `Skeleton` fallback instead of
-   a blank screen. In the App Router add a `loading.tsx` to the route segment (auto Suspense
-   fallback, e.g. `src/app/(protected)/settings/users/loading.tsx`); for client-side async use
-    a `Skeleton` state. Shape the skeleton to match the real card list. On the dashboard the
-    skeleton is the only loading indicator — never dim or darken the grid while loading:
-    in-place URL navigation on the grid (month/week/day/view/filter changes) shows the
-    view-matched grid skeleton (the same month/week/schedule shapes the force-refresh nonce
-    uses) while the transition is pending, and the new grid swaps in place when it commits.
-    Every skeleton → grid commit plays a one-shot ~180ms opacity fade-in on the grid block
-    (class `dashboard-grid-enter` in `src/app/globals.css`, 180ms ease-out,
-    `prefers-reduced-motion`-guarded); the grid `Box` is never remounted (the week/schedule
-    `ScrollArea` must keep its scroll position across navigations), so the animation is
-    restarted by a `useLayoutEffect` classList remove/reflow/re-add keyed on the committed
-    view identity (`view|month|date|cal|users|types`) — it runs before paint, so the commit
-    frame already shows the fade at frame 0, and the first mount plays it from the class in
-    the SSR HTML (no hydration flash). URL-only strips (clearing the one-shot `edit`/
-    `refresh` params) navigate with a plain `router.push` outside the transition, so they
-    show no skeleton and no fade; `navigate()` also skips no-op hrefs so e.g. tapping
-    "Today" while already there doesn't flash the skeleton.
+  - **Standard loading appearance: skeleton only + fade-in on reveal.** Apply this
+    checklist whenever you **implement or update a loading skeleton** (route fallback,
+    in-place navigation, filter change, refetch):
+    1. **The skeleton is the only loading indicator — never dim or darken content while
+       loading** (the `opacity: isPending ? 0.6 : 1` pattern is banned). Shape the skeleton
+       to match the real content; extract the row/card skeleton into a small shared
+       component so `loading.tsx` and the in-place swap stay in sync (e.g.
+       `audit-log/AuditLogRowSkeleton.tsx`, `parade-state/paradeStateSkeleton.tsx`,
+       `dashboard/calendarSkeleton.tsx`).
+    2. **Route level:** every route segment that awaits data gets a `loading.tsx` (auto
+       Suspense fallback; e.g. `src/app/(protected)/settings/users/loading.tsx`). Put the
+       shared `CONTENT_ENTER_CLASS` (`src/lib/loading/contentEnter.ts`) on the committed
+       content's root: it ships in the SSR HTML so the fade plays on first paint (no JS, no
+       hydration flash), segment remounts replay it, and `router.refresh()` mutations don't
+       remount so they never replay it.
+    3. **Client-side pending** (URL transitions, blocking refetches): gate the skeleton on
+       `useMinSkeletonHold(pending)` (`src/lib/loading/minHoldLoading.ts`) — a ~350ms
+       minimum hold (`MIN_SKELETON_HOLD_MS`) so fast L1-cached loads read as a deliberate
+       sequence instead of a flash. The revealed content fades in over ~300ms: for a stable
+       container that must NOT remount (e.g. the dashboard's week/schedule `ScrollArea`
+       keeps its scroll position across navigations) call
+       `useContentEnter(ref, !loading)` to restart the CSS animation on the reveal
+       (remove/reflow/re-add the class in a `useLayoutEffect` — it runs before paint, so the
+       reveal frame already shows the fade at frame 0). The animation lives in
+       `src/app/globals.css` (`.content-enter`, 300ms ease-out, inside
+       `@media (prefers-reduced-motion: no-preference)` — reduced-motion users get the hard
+       swap).
+    4. **One-shot param strips & no-ops:** one-shot URL params (`edit`/`refresh`-style) are
+       stripped with a plain `router.push` outside `startTransition` (no skeleton, no
+       fade); `navigate()` returns early when the built href equals the current URL so a
+       no-op change (tapping "Today" while already there) doesn't flash the skeleton.
+    5. **Mutations are out of scope:** `router.refresh()` after a server action is not
+       wrapped in a transition — the button's loader covers it; no skeleton, no fade.
+    - In-page exception: the parade-state page updates in-month day switches and filter
+      applies optimistically from local state (already correct), so those show no skeleton;
+      only the cross-month switch (server must fetch the new month's events) does.
  - **Buttons that trigger async work must show a loading indicator in the button itself.**
    Use Mantine's `loading` prop on `Button` together with the shared
    `loaderProps={BUTTON_LOADER_PROPS}` from `src/lib/theme.ts`. For `useForm`-backed submit
