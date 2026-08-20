@@ -137,6 +137,15 @@ the quality checks.
   as stacked **card lists** (`Paper` per row), never `<Table>`. Modals are **floating**
   dialogs: `centered` with a fixed `size` (never `fullScreen` — they must not fill the full
   screen width). Keep this pattern for all new UI.
+- **No mobile keyboard pop-up from dropdown taps.** Never render a `searchable`
+  `Select`/`MultiSelect` directly: a searchable Mantine combobox target is an editable
+  `<input>`, so tapping it on mobile raises the virtual keyboard before the user decided
+  to type. Use the shared `NoKeyboardSelect`/`NoKeyboardMultiSelect`
+  (`src/components/NoKeyboardSelect.tsx`) instead — they keep a native `readOnly`
+  attribute on the target input (via the styles-API `attributes.input`) while the
+  dropdown is closed, so a tap only opens the list, and lift it once the dropdown opens
+  so the user can tap the field and type to filter. Don't use Mantine's `readOnly` prop
+  for this — it disables the whole dropdown.
 - **Floating action buttons** use the shared `FloatingActionButton` + `FloatingToolbar`
   (`src/components/FloatingToolbar.tsx`) anchored bottom-right — never a raw `Button`.
   `FloatingActionButton` is a 52×52 circle (`radius="50%"`) with the md shadow; it is

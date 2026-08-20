@@ -1,16 +1,9 @@
 "use client";
 
 import { useMemo, useState, type ReactNode } from "react";
-import {
-  Button,
-  Chip,
-  Group,
-  Modal,
-  MultiSelect,
-  Stack,
-  Text,
-} from "@mantine/core";
+import { Button, Chip, Group, Modal, Stack, Text } from "@mantine/core";
 
+import { NoKeyboardMultiSelect } from "@/components/NoKeyboardSelect";
 import {
   isGroupUnfiltered,
   resolveFilterApply,
@@ -180,7 +173,7 @@ function FilterModalBody({
             )}
           </Group>
           {group.variant === "search" ? (
-            <MultiSelect
+            <NoKeyboardMultiSelect
               mt="xs"
               value={draft[group.label] ?? []}
               onChange={(value) => handleGroupChange(group.label, value)}

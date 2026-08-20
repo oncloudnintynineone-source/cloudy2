@@ -67,6 +67,7 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
 - [1.53 Dashboard grid cold-load reveal (Phase 3p)](#153-dashboard-grid-cold-load-reveal-phase-3p)
 - [1.54 Day-view date picker: MobileMonthView replaces mini calendar (Phase 3q)](#154-day-view-date-picker-mobilemonthview-replaces-mini-calendar-phase-3q)
 - [1.55 Parade State filter row scoping + Event Types removal (Phase 3r)](#155-parade-state-filter-row-scoping--event-types-removal-phase-3r)
+- [1.56 No-keyboard dropdowns (Phase 3s)](#156-no-keyboard-dropdowns-phase-3s)
 
 ## 1.1 Status
 
@@ -2558,7 +2559,40 @@ flowchart LR
   also scrubs the param from older URLs), and a one-shot ref-guarded effect
   (the dashboard `?edit=` strip pattern) removes `?types=` from deep links on
   mount.
-- Not touched: dashboard and Event Types settings (the dashboard keeps its own
-  Event Types filter), event create/edit, the events cache. No schema change.
+ - Not touched: dashboard and Event Types settings (the dashboard keeps its own
+   Event Types filter), event create/edit, the events cache. No schema change.
+ - Verification: `pnpm lint`, `pnpm typecheck`, `pnpm test` (301) and
+   `pnpm build` all pass.
+
+## 1.56 No-keyboard dropdowns (Phase 3s)
+
+Searchable Mantine `Select`/`MultiSelect` targets are editable `<input>`s, so on
+a phone the virtual keyboard popped up every time a user tapped a dropdown —
+even when they only wanted to pick from the list.
+
+- **New shared wrappers** `NoKeyboardSelect` / `NoKeyboardMultiSelect` in
+  `src/components/NoKeyboardSelect.tsx`. They keep a native `readOnly`
+  attribute on the target input — set through Mantine v9's styles-API
+  `attributes.input`, which lands on the DOM input without triggering
+  Mantine's `readOnly` prop (that one disables the whole dropdown, so it was
+  not an option) — while the dropdown is closed, and lift it when the dropdown
+  opens (tracked via `onDropdownOpen`/`onDropdownClose`, chaining the
+  consumer's handlers). Result: a tap opens the list without the keyboard;
+  the user can tap the field once the list is open and type to filter.
+- **Applied to every searchable dropdown** — `FilterModal`'s search-variant
+  groups (dashboard + Parade State Users filters), the Event form's
+  "On behalf of" select and "Invitees" multi-select, and the User form's
+  Department select. `CalendarSelect` (currently unused) was rebased on
+  `NoKeyboardMultiSelect` so it stays consistent if adopted later.
+  Non-searchable selects (role, access level) and `Menu`-based dropdowns were
+  already button targets and needed no change.
+- **Trade-off** — desktop-only, typing into a *closed* focused select no
+  longer opens+filters it; the list opens via click or Arrow-down first, then
+  typing works. Mantine's own keyboard handling is untouched (it gates on the
+  `readOnly` *prop*, which is never set).
+- New convention recorded in `AGENTS.md`: searchable dropdowns must use the
+  `NoKeyboard*` wrappers, never a raw `searchable` Select/MultiSelect and
+  never Mantine's `readOnly` prop.
 - Verification: `pnpm lint`, `pnpm typecheck`, `pnpm test` (301) and
-  `pnpm build` all pass.
+  `pnpm build` all pass. Manual on-device check (tap → list without
+  keyboard; tap field → keyboard + filter) is still owed.

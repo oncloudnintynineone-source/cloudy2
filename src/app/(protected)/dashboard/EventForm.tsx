@@ -7,10 +7,8 @@ import {
   Button,
   Checkbox,
   Group,
-  MultiSelect,
   Paper,
   SegmentedControl,
-  Select,
   Stack,
   Tabs,
   Text,
@@ -22,6 +20,7 @@ import { useForm } from "@mantine/form";
 import { notifications } from "@mantine/notifications";
 import { IconChevronLeft, IconChevronRight } from "@tabler/icons-react";
 
+import { NoKeyboardMultiSelect, NoKeyboardSelect } from "@/components/NoKeyboardSelect";
 import {
   createEvent,
   updateEvent,
@@ -530,7 +529,7 @@ export function EventForm({
               backgroundColor: "var(--mantine-color-body)",
             }}
           >
-            <Select
+            <NoKeyboardSelect
               label="On behalf of"
               description="Create or edit this event as another user"
               placeholder="Select a user"
@@ -640,7 +639,7 @@ export function EventForm({
 
         {currentStep.id === "invitees" &&
           (inviteeData.length > 0 ? (
-            <MultiSelect
+            <NoKeyboardMultiSelect
               label="Invitees"
               description="A copy of the event is created in each tagged person's department and in each tagged department"
               placeholder="My department only"

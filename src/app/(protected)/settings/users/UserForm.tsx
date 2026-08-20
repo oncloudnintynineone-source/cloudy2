@@ -6,6 +6,7 @@ import { Button, Group, Modal, Select, Stack, Text, TextInput } from "@mantine/c
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
 
+import { NoKeyboardSelect } from "@/components/NoKeyboardSelect";
 import { BUTTON_LOADER_PROPS } from "@/lib/theme";
 
 import {
@@ -135,7 +136,7 @@ export function UserForm({ user, departments, onDone }: UserFormProps) {
           ]}
           {...form.getInputProps("role")}
         />
-        <Select
+        <NoKeyboardSelect
           label="Department"
           placeholder="Optional"
           data={departments.map((d) => ({ value: d.id, label: d.name }))}

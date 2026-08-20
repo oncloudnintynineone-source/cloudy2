@@ -1,7 +1,9 @@
 "use client";
 
-import { MultiSelect, MultiSelectProps } from "@mantine/core";
+import { type MultiSelectProps } from "@mantine/core";
 import { useMemo } from "react";
+
+import { NoKeyboardMultiSelect } from "@/components/NoKeyboardSelect";
 
 export interface CalendarOption {
   value: string;
@@ -16,8 +18,10 @@ interface CalendarSelectProps
 }
 
 /**
- * Reusable calendar selection dropdown built on Mantine MultiSelect. Used for
- * dashboard filters (filter by calendar) and user calendar-access management.
+ * Reusable calendar selection dropdown. Used for dashboard filters (filter by
+ * calendar) and user calendar-access management. The target input never
+ * raises the mobile virtual keyboard until the dropdown is open (see
+ * NoKeyboardMultiSelect).
  */
 export function CalendarSelect({
   calendars,
@@ -31,7 +35,7 @@ export function CalendarSelect({
   );
 
   return (
-    <MultiSelect
+    <NoKeyboardMultiSelect
       data={data}
       value={value}
       onChange={onChange}
