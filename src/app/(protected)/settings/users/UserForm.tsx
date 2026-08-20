@@ -6,7 +6,6 @@ import { Button, Group, Modal, Select, Stack, Text, TextInput } from "@mantine/c
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
 
-import { NoKeyboardSelect } from "@/components/NoKeyboardSelect";
 import { BUTTON_LOADER_PROPS } from "@/lib/theme";
 
 import {
@@ -72,10 +71,16 @@ export function UserForm({ user, departments, onDone }: UserFormProps) {
       : await createUser(values);
 
     if (result.ok) {
-      notifications.show({
-        color: "green",
-        message: isEdit ? "User updated" : "User created",
-      });
+      const message = isEdit ? "User updated" : "User created";
+      if (result.warnings && result.warnings.length > 0) {
+        notifications.show({
+          color: "yellow",
+          title: message,
+          message: result.warnings.join(" · "),
+        });
+      } else {
+        notifications.show({ color: "green", message });
+      }
       onDone();
       return;
     }
@@ -136,11 +141,10 @@ export function UserForm({ user, departments, onDone }: UserFormProps) {
           ]}
           {...form.getInputProps("role")}
         />
-        <NoKeyboardSelect
+        <Select
           label="Department"
           placeholder="Optional"
           data={departments.map((d) => ({ value: d.id, label: d.name }))}
-          searchable
           clearable
           {...form.getInputProps("departmentId")}
         />

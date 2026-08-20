@@ -61,6 +61,7 @@ import {
   monthGridRows,
 } from "./calendarSkeleton";
 import { formatWeekLabel } from "./clientDateTime";
+import { DateSelectorModal } from "@/components/DateSelectorModal";
 import { FilterModal, type FilterGroup } from "@/components/FilterModal";
 import {
   FAB_ICON_SIZE,
@@ -87,7 +88,6 @@ import {
   type ScheduleResource,
   type ScheduleUser,
 } from "@/lib/events/schedule";
-import { DateSelectorModal } from "./DateSelectorModal";
 import { EventDetail } from "./EventDetail";
 import { EventForm } from "./EventForm";
 

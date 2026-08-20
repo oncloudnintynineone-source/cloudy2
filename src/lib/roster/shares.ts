@@ -50,6 +50,18 @@ export function diffAccess(
 }
 
 /**
+ * Emails whose ACL rule should be revoked: candidates that no assigned user
+ * holds anymore (e.g. a user's previous email after it changed). Matching is
+ * case-insensitive; blank emails are ignored.
+ */
+export function diffRevocable(candidates: string[], assigned: string[]): string[] {
+  const present = new Set(assigned.map((email) => email.toLowerCase()));
+  return candidates.filter(
+    (email) => email.trim() && !present.has(email.toLowerCase()),
+  );
+}
+
+/**
  * Whether the admin account still needs an `owner` grant: no rule exists, or
  * its role is not `owner` (so a manual `reader` grant gets upgraded). Blank
  * emails never need a grant.
@@ -65,6 +77,24 @@ export function needsAdminOwnerGrant(
     (candidate) => candidate.email.toLowerCase() === adminEmail.toLowerCase(),
   );
   return !rule || rule.role !== "owner";
+}
+
+/**
+ * Whether an email is an inherent owner of a department calendar and must
+ * never be revoked or surfaced as a removable share: the calendar resource
+ * itself, the owning service account, or the configured admin account.
+ */
+export function isInherentOwnerEmail(
+  email: string,
+  googleCalendarId: string,
+  serviceAccountEmail: string | null,
+  adminEmail: string,
+): boolean {
+  return (
+    email === googleCalendarId ||
+    (serviceAccountEmail != null && email === serviceAccountEmail) ||
+    (adminEmail !== "" && email === adminEmail)
+  );
 }
 
 /**
@@ -153,13 +183,11 @@ export async function listDepartmentAccess(
     }
 
     const assignedSet = new Set(assigned.map((email) => email.toLowerCase()));
-    const serviceAccountEmail = getServiceAccountConfig()?.clientEmail;
+    const serviceAccountEmail = getServiceAccountConfig()?.clientEmail ?? null;
     // The calendar resource id, the owning service account, and the admin
     // account are inherent owner rules — never expose them as removable shares.
     const isInherentOwner = (rule: CalendarAccessRule) =>
-      rule.email === googleCalendarId ||
-      (serviceAccountEmail != null && rule.email === serviceAccountEmail) ||
-      (adminEmail !== "" && rule.email === adminEmail);
+      isInherentOwnerEmail(rule.email, googleCalendarId, serviceAccountEmail, adminEmail);
     const additional = acls.filter(
       (rule) => !assignedSet.has(rule.email.toLowerCase()) && !isInherentOwner(rule),
     );
@@ -187,4 +215,105 @@ export async function listDepartmentAccess(
         error instanceof Error ? error.message : "Could not sync calendar access",
     };
   }
+}
+
+/** The parts of a user row that affect their department calendars' sharing. */
+export interface UserAccessChange {
+  /** The user's email before the change (null when there was none). */
+  oldEmail: string | null;
+  /** The user's email after the change (null when it was cleared). */
+  newEmail: string | null;
+  /** The user's department before the change (null when unassigned). */
+  oldDepartmentId: string | null;
+  /** The user's department after the change (null when unassigned). */
+  newDepartmentId: string | null;
+}
+
+/**
+ * Reconcile Google Calendar ACLs after a user's email or department changed.
+ * For each affected department calendar:
+ * - grant reader access to every assigned user's email missing a rule (this
+ *   covers the new email, and the user's email after a department move);
+ * - revoke the ACL rule for the email the user gave up in the department they
+ *   left (their previous email, or their unchanged email in the old
+ *   department) — but only when no assigned user holds that email anymore,
+ *   and never for an inherent owner.
+ * Google Calendar remains the source of truth for ACLs. Returns human-readable
+ * warnings for operations that failed; Google unconfigured short-circuits to
+ * no warnings (there is nothing to reconcile).
+ */
+export async function reconcileUserAccessChange(
+  change: UserAccessChange,
+): Promise<string[]> {
+  const warnings: string[] = [];
+  if (!googleCalendarConfigured()) {
+    return warnings;
+  }
+
+  const departmentIds = new Set<string>();
+  if (change.oldDepartmentId) {
+    departmentIds.add(change.oldDepartmentId);
+  }
+  if (change.newDepartmentId) {
+    departmentIds.add(change.newDepartmentId);
+  }
+
+  for (const departmentId of departmentIds) {
+    const googleCalendarId = await resolveGoogleCalendarId(departmentId);
+    if (!googleCalendarId) {
+      continue;
+    }
+
+    const assignedUsers = await db
+      .select({ email: users.email })
+      .from(users)
+      .where(eq(users.departmentId, departmentId));
+    const assigned = Array.from(
+      new Set(
+        assignedUsers
+          .map((user) => user.email?.trim())
+          .filter((email): email is string => Boolean(email)),
+      ),
+    );
+
+    // The email the user gave up in this department: the previous email when
+    // this is the department they are leaving (email change or department move).
+    const givenUp =
+      departmentId === change.oldDepartmentId ? change.oldEmail?.trim() ?? null : null;
+
+    try {
+      const integration = await getGoogleIntegration();
+      const acls = await integration.listCalendarAccess(googleCalendarId);
+
+      const failed: string[] = [];
+      for (const email of diffAccess(acls, assigned)) {
+        try {
+          await integration.setCalendarAccess(googleCalendarId, email, "reader");
+        } catch {
+          failed.push(email);
+        }
+      }
+
+      const serviceAccountEmail = getServiceAccountConfig()?.clientEmail ?? null;
+      const adminEmail = getAdminGoogleEmail();
+      for (const email of diffRevocable(givenUp ? [givenUp] : [], assigned)) {
+        if (isInherentOwnerEmail(email, googleCalendarId, serviceAccountEmail, adminEmail)) {
+          continue;
+        }
+        try {
+          await integration.removeCalendarAccess(googleCalendarId, email);
+        } catch {
+          failed.push(email);
+        }
+      }
+
+      if (failed.length > 0) {
+        warnings.push(`Could not sync calendar access for: ${failed.join(", ")}`);
+      }
+    } catch (error) {
+      warnings.push(error instanceof Error ? error.message : "Could not sync calendar access");
+    }
+  }
+
+  return warnings;
 }

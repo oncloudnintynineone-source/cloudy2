@@ -14,6 +14,7 @@ import {
   isDepartmentAccessRole,
   isValidEmail,
   listDepartmentAccess,
+  reconcileUserAccessChange,
   type DepartmentAccess,
   type DepartmentAccessRole,
 } from "@/lib/roster/shares";
@@ -27,7 +28,8 @@ import {
 } from "@/lib/roster/validate";
 
 export type RosterActionResult =
-  { ok: true } | { ok: false; error: string; field?: "phone" | "shortname" | "name" | "email" };
+  | { ok: true; warnings?: string[] }
+  | { ok: false; error: string; field?: "phone" | "shortname" | "name" | "email" };
 
 export type ShareActionResult = { ok: true } | { ok: false; error: string };
 
@@ -134,7 +136,14 @@ export async function createUser(input: UserFormValues): Promise<RosterActionRes
   }
 
   revalidatePath("/settings/users");
-  return { ok: true };
+
+  const warnings = await reconcileUserAccessChange({
+    oldEmail: null,
+    newEmail: input.email?.trim() || null,
+    oldDepartmentId: null,
+    newDepartmentId: input.departmentId || null,
+  });
+  return warnings.length > 0 ? { ok: true, warnings } : { ok: true };
 }
 
 export async function updateUser(id: string, input: UserFormValues): Promise<RosterActionResult> {
@@ -199,6 +208,19 @@ export async function updateUser(id: string, input: UserFormValues): Promise<Ros
   }
 
   revalidatePath("/settings/users");
+
+  const emailChanged = (before.email ?? "") !== (after.email ?? "");
+  const departmentChanged = (before.departmentId ?? null) !== (after.departmentId ?? null);
+  if (emailChanged || departmentChanged) {
+    const warnings = await reconcileUserAccessChange({
+      oldEmail: before.email,
+      newEmail: after.email,
+      oldDepartmentId: before.departmentId,
+      newDepartmentId: after.departmentId,
+    });
+    return warnings.length > 0 ? { ok: true, warnings } : { ok: true };
+  }
+
   return { ok: true };
 }
 

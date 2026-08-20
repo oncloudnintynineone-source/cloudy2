@@ -72,6 +72,8 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
 - [1.58 Dashboard loading: skeleton only, fade-in on swap (Phase 3u)](#158-dashboard-loading-skeleton-only-fade-in-on-swap-phase-3u)
 - [1.59 Standard loading appearance across the app (Phase 3u)](#159-standard-loading-appearance-across-the-app-phase-3u)
 - [1.60 Event form: stop Enter submitting the draft (Phase 3v)](#160-event-form-stop-enter-submitting-the-draft-phase-3v)
+- [1.61 Email change syncs Google Calendar access (bugfix)](#161-email-change-syncs-google-calendar-access-bugfix)
+- [1.62 Department selects without type-to-filter search](#162-department-selects-without-type-to-filter-search)
 
 ## 1.1 Status
 
@@ -2843,3 +2845,66 @@ Changes in `src/app/(protected)/dashboard/EventForm.tsx`:
   `pnpm build` all pass. No schema change. Manual smoke owed: create + edit →
   walk all 5 steps; reaching Remarks must not submit; the event saves only on
   the Create/Save tap. Type multiline text, Enter inserts a newline (no submit).
+## 1.61 Email change syncs Google Calendar access (bugfix)
+
+Editing a user's email (or department) previously left Google Calendar ACLs stale:
+the new email only got `reader` access the next time an admin opened the department's
+Shares modal (reconcile-on-read), and the **old** email kept access forever unless an
+admin manually revoked it. Now the user create/update server actions reconcile the
+affected department calendars immediately.
+
+```mermaid
+flowchart LR
+    A["updateUser / createUser"] --> B{email or department changed?}
+    B -- no --> C["return ok"]
+    B -- yes --> D["reconcileUserAccessChange"]
+    D --> E["per affected calendar<br/>grant reader to missing assigned emails"]
+    D --> F["revoke given-up email<br/>when no assigned user holds it"]
+    E --> G["return ok + warnings (if any failed)"]
+    F --> G
+```
+
+- **`src/lib/roster/shares.ts`** — new `reconcileUserAccessChange()` (async, Google/DB
+  I/O): for each department calendar touched by the change it (a) grants `reader` to
+  every assigned user's email missing an ACL rule — covering the new email and the
+  user's unchanged email after a department move — and (b) revokes the ACL rule for the
+  email the user gave up in the department they left, but only when no assigned user
+  holds that email anymore and never for an inherent owner (calendar resource id,
+  service account, admin account). Google unconfigured short-circuits to no warnings.
+  Per-calendar failures are collected into human-readable warnings instead of failing
+  the whole action (the roster DB update already committed). Two new pure, unit-tested
+  helpers: `diffRevocable(candidates, assigned)` (the mirror of `diffAccess`) and
+  `isInherentOwnerEmail(...)` — the latter now shared with `listDepartmentAccess`, whose
+  inline owner check was refactored to use it.
+- **`src/lib/roster/actions.ts`** — `updateUser` calls `reconcileUserAccessChange` after
+  the DB write + audit log when `email` or `departmentId` changed; `createUser` does the
+  same so a newly created user with an email+department gets `reader` immediately.
+  `RosterActionResult`'s success variant gains optional `warnings?: string[]`.
+- **`src/app/(protected)/settings/users/UserForm.tsx`** — a success with warnings shows a
+  yellow "User updated/created" toast with the warning text instead of the green one, so
+  partial Google-sync failures are visible without blocking the save.
+- Verification: `pnpm lint`, `pnpm typecheck`, `pnpm test` (355), and `pnpm build` pass.
+  No schema change — `db:generate` shows no drift.
+
+## 1.62 Department selects without type-to-filter search
+
+All department-selecting dropdowns should be plain lists — no type-to-filter. Department
+lists are short and always visible, so `searchable` (and with it the editable input target
+and the `NoKeyboard*` deferred-readOnly dance) adds nothing.
+
+- **`src/app/(protected)/settings/users/UserForm.tsx`** — the Department select dropped
+  `searchable` and the `NoKeyboardSelect` wrapper, now a plain `Select` (like the Role
+  select). Non-searchable Mantine combobox targets are buttons, so tapping them on mobile
+  never raises the virtual keyboard.
+- **`src/components/CalendarSelect.tsx`** (currently unused, documented in README) —
+  rebased from `NoKeyboardMultiSelect` to a plain non-searchable `MultiSelect` for the
+  same reason, so it stays consistent if adopted later.
+- **Unchanged** — the mixed users+departments "Invitees" multi-select in the Event form
+  keeps `searchable`: with a large roster, typing is the only fast way to find someone
+  (deliberate, per the user); the chip-grid "Calendars"/"Department" filter groups in the
+  filter dialogs already have no search; all user-only dropdowns (On behalf of, Users
+  filter groups, Audit Log Actor) keep search.
+- Convention recorded in `AGENTS.md`: department-specific selects are never searchable —
+  use plain (non-searchable) `Select`/`MultiSelect`, whose button targets can't raise
+  the keyboard at all.
+- Verification: `pnpm lint`, `pnpm typecheck`, `pnpm test` pass. No schema change.

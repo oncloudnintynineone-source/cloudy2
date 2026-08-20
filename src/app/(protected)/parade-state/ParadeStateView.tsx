@@ -17,6 +17,7 @@ import {
 import { useDisclosure } from "@mantine/hooks";
 import {
   IconCalendarCheck,
+  IconCalendarDot,
   IconChevronLeft,
   IconChevronRight,
   IconDotsVertical,
@@ -24,6 +25,7 @@ import {
   IconUser,
 } from "@tabler/icons-react";
 
+import { DateSelectorModal } from "@/components/DateSelectorModal";
 import { FilterModal, type FilterGroup } from "@/components/FilterModal";
 import type { CalendarEvent } from "@/lib/events/queries";
 import { CONTENT_ENTER_CLASS, useContentEnter } from "@/lib/loading/contentEnter";
@@ -124,6 +126,7 @@ export function ParadeStateView({
   const [selectedCalendars, setSelectedCalendars] = useState(initSelectedCalendars);
   const [selectedUsers, setSelectedUsers] = useState(initSelectedUsers);
   const [filterOpened, { open: openFilter, close: closeFilter }] = useDisclosure(false);
+  const [pickerOpened, { open: openPicker, close: closePicker }] = useDisclosure(false);
 
   // Cross-month day switches need the new month's events from the server (the
   // local `date` state flips optimistically, so the stale event props would
@@ -185,6 +188,18 @@ export function ParadeStateView({
       navigate({ date: today, month: todayMonth });
     } else {
       navigate({ date: today });
+    }
+  }
+
+  function pickDate(picked: string) {
+    if (picked === date) return;
+    const nextMonth = picked.slice(0, 7);
+    setDate(picked);
+    if (nextMonth !== month) {
+      setMonth(nextMonth);
+      navigate({ date: picked, month: nextMonth });
+    } else {
+      navigate({ date: picked });
     }
   }
 
@@ -370,6 +385,9 @@ export function ParadeStateView({
             >
               Today
             </Menu.Item>
+            <Menu.Item leftSection={<IconCalendarDot size={16} />} onClick={openPicker}>
+              Select date
+            </Menu.Item>
             <Menu.Item
               leftSection={<IconFilter size={16} />}
               onClick={openFilter}
@@ -479,6 +497,12 @@ export function ParadeStateView({
         groups={filterGroups}
         values={filterValues}
         onApply={handleApplyFilters}
+      />
+      <DateSelectorModal
+        opened={pickerOpened}
+        date={date}
+        onPick={pickDate}
+        onClose={closePicker}
       />
     </Stack>
   );

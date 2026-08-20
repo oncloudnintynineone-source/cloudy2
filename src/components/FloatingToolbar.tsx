@@ -13,14 +13,14 @@ interface FloatingToolbarProps {
 
 type FloatingActionButtonProps = ButtonProps & React.ComponentPropsWithoutRef<"button">;
 
-/** FAB diameter: 1.2× the original 43px touch target. */
-export const FAB_SIZE = 52;
+/** FAB diameter: 1.5× the original 43px touch target. */
+export const FAB_SIZE = 65;
 
-/** Icon size for FABs: 1.2× the original 20px, in step with `FAB_SIZE`. */
-export const FAB_ICON_SIZE = 24;
+/** Icon size for FABs: 1.5× the original 20px, in step with `FAB_SIZE`. */
+export const FAB_ICON_SIZE = 30;
 
 /**
- * Shared floating action button: a 52px circle for the bottom-right toolbar.
+ * Shared floating action button: a 65px circle for the bottom-right toolbar.
  * Icon-only — pass the icon as children (at `FAB_ICON_SIZE`) and an
  * `aria-label` for accessibility.
  */
