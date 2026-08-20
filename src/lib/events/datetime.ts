@@ -83,6 +83,18 @@ export function shiftMonth(month: string, delta: number): string {
   return `${shifted.getUTCFullYear()}-${pad(shifted.getUTCMonth() + 1)}`;
 }
 
+/**
+ * Full week rows a consistent 7-column month grid renders for `YYYY-MM`
+ * (first weekday Sun=0..Sat=6, matching dayjs `.day()`). Used by the
+ * dashboard's loading skeleton.
+ */
+export function monthGridRows(month: string): number {
+  const [year, monthIndex] = month.split("-").map(Number);
+  const first = new Date(Date.UTC(year, monthIndex - 1, 1));
+  const daysInMonth = new Date(Date.UTC(year, monthIndex, 0)).getUTCDate();
+  return Math.ceil((first.getUTCDay() + daysInMonth) / 7);
+}
+
 /** Every `YYYY-MM` month a naive start/end range touches, inclusive. */
 export function monthsInRange(startNaive: string, endNaive: string): string[] {
   const start = parseNaiveToInstant(startNaive);

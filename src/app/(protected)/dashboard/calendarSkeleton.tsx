@@ -1,19 +1,16 @@
 "use client";
 
-import dayjs from "dayjs";
 import { Box, Group, Paper, Skeleton } from "@mantine/core";
+
+import { monthGridRows } from "@/lib/events/datetime";
+
+export { monthGridRows };
 
 const gridStyle = {
   display: "grid",
   gridTemplateColumns: "repeat(7, 1fr)",
   gap: 3,
 } as const;
-
-/** Full week rows a consistent 7-column month grid renders for the month. */
-export function monthGridRows(month: string): number {
-  const first = dayjs(`${month}-01 00:00:00`);
-  return Math.ceil((first.day() + first.daysInMonth()) / 7);
-}
 
 export function WeekdayRow() {
   return (

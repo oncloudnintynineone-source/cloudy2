@@ -5,6 +5,7 @@ import {
   addOneDay,
   dateToUtc,
   formatInstantToNaive,
+  monthGridRows,
   monthRange,
   monthsInRange,
   parseNaiveToInstant,
@@ -170,5 +171,22 @@ describe("absEventRange", () => {
       start: new Date("2026-08-17T00:00:00.000Z"),
       end: new Date("2026-08-19T00:00:00.000Z"),
     });
+  });
+});
+
+describe("monthGridRows", () => {
+  it("counts rows for a Saturday-start 31-day month (Aug 2026)", () => {
+    // Aug 2026: 1st is Saturday (day 6); ceil((6 + 31) / 7) = 6 rows.
+    expect(monthGridRows("2026-08")).toBe(6);
+  });
+
+  it("counts rows for a Friday-start 31-day month (May 2026)", () => {
+    // May 2026: 1st is Friday (day 5); ceil((5 + 31) / 7) = 6 rows.
+    expect(monthGridRows("2026-05")).toBe(6);
+  });
+
+  it("counts rows for a Sunday-start 28-day month (Feb 2026)", () => {
+    // Feb 2026: 1st is Sunday (day 0); ceil((0 + 28) / 7) = 4 rows.
+    expect(monthGridRows("2026-02")).toBe(4);
   });
 });

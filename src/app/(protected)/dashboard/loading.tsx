@@ -1,6 +1,7 @@
 import { Box, Group, Skeleton, Stack } from "@mantine/core";
 
-import { MonthGridSkeleton, monthGridRows } from "./calendarSkeleton";
+import { monthGridRows } from "@/lib/events/datetime";
+import { MonthGridSkeleton } from "./calendarSkeleton";
 
 function currentMonth(): string {
   const now = new Date();
