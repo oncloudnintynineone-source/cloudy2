@@ -688,8 +688,12 @@ export function DashboardView({
       if (agendaUrlBase === null || date !== agendaUrlBase) {
         setViewedDay(date);
       }
-    } else {
-      setAgendaUrlBase(null); // Our write committed.
+    } else if (agendaUrlBase !== null) {
+      // Our write committed; clear the in-flight marker. Guarded: a
+      // render-phase setState with an unchanged value still schedules a
+      // re-render (no eager bail-out), so dispatching unconditionally
+      // would loop until React's "Too many re-renders" limit.
+      setAgendaUrlBase(null);
     }
   }
 

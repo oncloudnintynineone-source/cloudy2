@@ -3120,3 +3120,13 @@ flowchart LR
   directions (instant slide, no skeleton in-month), cross-month swipe (skeleton → fade),
   chevron/Today/picker parity, refresh/back/tab-re-entry day resolution, event taps
   after a botched swipe, and the FAB prefilling the viewed day.
+- **Bugfix (render-phase setState infinite loop):** switching to the Agenda tab crashed
+  with *"Too many re-renders"* (React limits renders at 50). The reconcile's final
+  branch called `setAgendaUrlBase(null)` on **every** agenda render (even when it was
+  already `null`), and a render-phase `setState` never bails out on equal values — the
+  eager-state `Object.is` bail-out in React's `dispatchSetState` only exists on the
+  non-render-phase path, so every dispatch scheduled another render until the limit.
+  Fixed by guarding the dispatch with `agendaUrlBase !== null` (the other reconcile
+  branches and the modal's `prevAgendaDate` hold were already value-guarded). Verified
+  against the installed `react-dom-client.development.js` (`renderWithHooksAgain` +
+  `enqueueRenderPhaseUpdate`). `pnpm lint/typecheck/test (355)/build` pass.
