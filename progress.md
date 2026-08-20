@@ -75,6 +75,7 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
 - [1.61 Email change syncs Google Calendar access (bugfix)](#161-email-change-syncs-google-calendar-access-bugfix)
 - [1.62 Department selects without type-to-filter search](#162-department-selects-without-type-to-filter-search)
 - [1.63 Dashboard Agenda view (Phase 3w)](#163-dashboard-agenda-view-phase-3w)
+- [1.64 Agenda day slide-in + create-event button (Phase 3x)](#164-agenda-day-slide-in--create-event-button-phase-3x)
 
 ## 1.1 Status
 
@@ -231,6 +232,11 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
   floating date picker (`DateSelectorModal`). Month navigation is driven by a custom header
   (‹ ›), and tapping a day navigates `?date=`/`?month=` and closes the picker. No schema
   changes; `pnpm lint/typecheck/test/build` pass.
+- **Phase 3x (agenda day slide-in + create button):** the Month-view day-agenda modal now
+  animates day changes — the incoming day's agenda slides in (220ms, from the
+  swipe/chevron direction; reduced-motion aware) instead of hard-swapping — and gains a
+  full-width "New event" button below the list that opens the event form prefilled with
+  the viewed day. No schema changes; `pnpm build/lint/typecheck/test` pass.
 
 ## 1.2 Decisions locked in (Phase 0)
 
@@ -2965,3 +2971,69 @@ flowchart LR
   No schema change.
 - Verification: `pnpm lint`, `pnpm typecheck`, `pnpm test` (355), and `pnpm build`
   all pass.
+
+## 1.64 Agenda day slide-in + create-event button (Phase 3x)
+
+The Month-view day-agenda modal (tap a day → that day's agenda in the floating dialog) had
+two gaps: changing the day (swipe left/right or the ‹ › chevrons) was a hard content swap
+with no motion, and — with the page-level "New event" FAB hidden behind the modal overlay —
+there was no way to create an event **for the day being viewed** without closing the modal
+first.
+
+```mermaid
+flowchart LR
+    A[Day agenda modal] -- "swipe left/right" --> B{"release ≥ 48px?"}
+    A -- "‹ › chevron" --> C["shiftAgendaDay ±1"]
+    B -- yes --> C
+    B -- no --> D[no day change]
+    C -- "agendaSlideDir ±1<br/>+ setAgendaDate" --> E{crosses loaded<br/>month edge?}
+    E -- no --> F["wrapper remounts (key = day)<br/>220ms directional slide-in"]
+    E -- yes --> G["navigate ?month= ±1"]
+    G --> H["new month events commit<br/>(modal stays open)"]
+    H --> F
+    I["New event button"] --> J["close agenda — EventForm grows from<br/>the button, prefilled 09:00–10:00 that day"]
+```
+
+- **Directional slide** (`DashboardView.tsx`) — a new `agendaSlideDir` state
+  (`0 | 1 | -1`). `shiftAgendaDay()` — the single helper behind both the `useDrag` swipe
+  handler and the header chevrons — sets it to `±1` before swapping the date; `MonthView`'s
+  `onDayClick` resets it to `0` on a fresh open so the modal's own scale-in doesn't double
+  up with a slide. The modal body wraps `AgendaView` in a div **keyed by the displayed
+  day**, carrying `agenda-slide-next` (next day: in from the right) or `agenda-slide-prev`
+  (previous day: in from the left) per direction. The day-keyed remount restarts the
+  animation from frame 0 on every change; on close the key stays stable via the existing
+  `displayAgendaDate` hold, so the shrink-out never replays the slide.
+- **CSS** (`src/app/globals.css`) — `@keyframes agenda-slide-in-next/prev` (opacity
+  0.3 → 1 with `translateX(±48px) → 0`), applied at 220ms
+  `cubic-bezier(0.22, 1, 0.36, 1)` inside the existing
+  `@media (prefers-reduced-motion: no-preference)` block — reduced-motion users get the
+  instant swap (same gating convention as `.content-enter`).
+- **Swipe behavior unchanged** — same `useDrag` options (`axis: "lock"`, 48px release
+  threshold, tap/`pointercancel` guards, one-shot click suppression), so event-row taps
+  still open `EventDetail` and a sub-threshold wiggle neither changes the day nor
+  mis-opens an event. Cross-month swipes keep the modal open and re-navigate `?month=`
+  (Phase 2j); a day in the not-yet-fetched month briefly shows "No events" until the
+  re-fetch commits — the pre-existing limitation, unchanged.
+- **Create-event button** — a full-width primary `Button` ("New event", `IconPlus` left
+  section) below the agenda list, `disabled` while Google is unconfigured (same guard as
+  the FAB; opening the form would only save into the stub integration). The swipe wrapper
+  becomes the list's scroll area — `overflowY: auto`, `maxHeight: 56dvh`,
+  `overscrollBehavior: contain`, with `touchAction: "pan-y"` and the capture-phase swipe
+  click guard unchanged — so a long day scrolls internally and the header + button always
+  fit inside the modal's `90dvh` content cap.
+- **Button wiring** — on click: `setAgendaDate(null)` +
+  `openCreate(agendaViewDate, buttonRect)` — the agenda shrinks away and the event form
+  scales in from the button (the same origin-rect pattern as the FAB and the
+  EventDetail → Edit flow), prefilled with the viewed day via `EventForm`'s existing
+  `defaultDate` behavior (09:00–10:00). Saving runs `onDone` → `router.refresh()` and the
+  new month event appears in the grid.
+- **Decisions (user-confirmed)** — the simple directional slide was chosen over a
+  finger-follow carousel (no live 1:1 pan; the day still commits on release), and the
+  button lives below the list rather than as a header icon.
+- **Not touched** — the Agenda *tab* view (separate full-screen mode; its day swaps stay
+  instant and it has no swipe — it could adopt this treatment later), month grid, data
+  flow/cache, `EventForm`, `EventDetail`. No schema change.
+- Verification: `pnpm lint`, `pnpm typecheck`, `pnpm test` (355), and `pnpm build` all
+  pass; no `db:generate` drift. Manual on-device checks owed: swipe + chevron slide
+  directions, tap-vs-swipe disambiguation, cross-month swipe, and the button
+  open → create → refresh path.

@@ -16,6 +16,7 @@ import {
   Alert,
   Badge,
   Box,
+  Button,
   Group,
   Loader,
   Menu,
@@ -268,6 +269,10 @@ export function DashboardView({
   // the draft survives.
   const [formMinimized, setFormMinimized] = useState(false);
   const [agendaDate, setAgendaDate] = useState<string | null>(null);
+  // Direction of the last in-modal day change, so the new agenda can slide in
+  // from the swipe/chevron direction (1 = next day, -1 = previous day,
+  // 0 = none yet, e.g. right after the modal opened).
+  const [agendaSlideDir, setAgendaSlideDir] = useState<0 | 1 | -1>(0);
   // Keep the last shown agenda date so the closing (shrink) animation still has
   // content while `opened` is already false.
   const [displayAgendaDate, setDisplayAgendaDate] = useState<string | null>(agendaDate);
@@ -545,6 +550,7 @@ export function DashboardView({
   function shiftAgendaDay(delta: number) {
     if (agendaDate === null) return;
     const next = dayjs(agendaDate).add(delta, "day");
+    setAgendaSlideDir(delta > 0 ? 1 : -1);
     setAgendaDate(next.format("YYYY-MM-DD"));
     const nextMonth = next.format("YYYY-MM");
     if (nextMonth !== month) {
@@ -846,6 +852,8 @@ export function DashboardView({
             }}
             onDayClick={(d, e) => {
               setAgendaOriginRect(e.currentTarget.getBoundingClientRect());
+              // A fresh open animates with the modal itself, not a day slide.
+              setAgendaSlideDir(0);
               setAgendaDate(d);
             }}
           />
@@ -1043,28 +1051,64 @@ export function DashboardView({
         transitionProps={agendaTransitionProps}
       >
         {agendaViewDate && (
-          <div
-            ref={agendaSwipeRef}
-            style={{ touchAction: "pan-y" }}
-            onClickCapture={(event) => {
-              if (swipedRef.current) {
-                event.preventDefault();
-                event.stopPropagation();
-                swipedRef.current = false;
-              }
-            }}
-          >
-            <AgendaView
-              rangeStart={agendaViewDate}
-              rangeEnd={agendaViewDate}
-              events={events}
-              styles={{ agendaViewHeader: { display: "none" } }}
-              onEventClick={(event, e) => {
-                setDetailOriginRect(e.currentTarget.getBoundingClientRect());
-                setDetailEvent(event as unknown as CalendarEvent);
+          <>
+            <div
+              ref={agendaSwipeRef}
+              style={{
+                touchAction: "pan-y",
+                overflowY: "auto",
+                maxHeight: "56dvh",
+                overscrollBehavior: "contain",
               }}
-            />
-          </div>
+              onClickCapture={(event) => {
+                if (swipedRef.current) {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  swipedRef.current = false;
+                }
+              }}
+            >
+              {/* The day key restarts the directional slide-in animation on
+                  every day change; on close the key stays put via
+                  displayAgendaDate, so the shrink-out never replays it. */}
+              <div
+                key={agendaViewDate}
+                className={
+                  agendaSlideDir === 1
+                    ? "agenda-slide-next"
+                    : agendaSlideDir === -1
+                      ? "agenda-slide-prev"
+                      : undefined
+                }
+              >
+                <AgendaView
+                  rangeStart={agendaViewDate}
+                  rangeEnd={agendaViewDate}
+                  events={events}
+                  styles={{ agendaViewHeader: { display: "none" } }}
+                  onEventClick={(event, e) => {
+                    setDetailOriginRect(e.currentTarget.getBoundingClientRect());
+                    setDetailEvent(event as unknown as CalendarEvent);
+                  }}
+                />
+              </div>
+            </div>
+            <Button
+              w="100%"
+              mt="sm"
+              leftSection={<IconPlus size={20} />}
+              disabled={!googleConfigured}
+              onClick={(e) => {
+                // Close the agenda and grow the event form out of the button,
+                // prefilled with the day being viewed.
+                const targetDate = agendaViewDate;
+                setAgendaDate(null);
+                openCreate(targetDate, e.currentTarget.getBoundingClientRect());
+              }}
+            >
+              New event
+            </Button>
+          </>
         )}
       </Modal>
 
