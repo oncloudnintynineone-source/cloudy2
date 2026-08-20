@@ -10,7 +10,7 @@ export interface FilterUserSource {
 /**
  * Ids offered by a filter dialog's Users group: the ids of the users in view
  * (the rows of the selected departments) plus, when present in the roster and
- * not already included, the current user — so the "Only me" quick action keeps
+ * not already included, the current user — so the "My Events" quick action keeps
  * working and renders with a real label even on departments the user is not in.
  */
 export function filterUserOptionIds(params: {

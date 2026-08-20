@@ -116,9 +116,16 @@ the quality checks.
   carry a distinct hue-derived tint (`hsl`, `hue = index * 360 / deptCount`) that is
   theme-aware (`useComputedColorScheme` picks softer pastels in light mode, muted darks in
   dark mode); the merged department column uses a slightly stronger shade for contrast.
-  The page shares the dashboard's filter (`FilterButton` + `FilterModal`, URL params
-  `cal`/`users`/`types`): Calendars (grid chips), a searchable Users group with an
-  "Only me" quick action, and Event Types (which also narrows the shown columns).
+  The page shares the dashboard's filter (`FilterModal`, URL params `cal`/`users`/`types`):
+  Calendars (grid chips), a searchable Users group, and Event Types (which also narrows
+  the shown columns). The dashboard and parade-state 3-dot menus group the quick filter
+  actions under a `Filters` `Menu.Label` group: a **"My Events"** `Menu.CheckboxItem`
+  (toggles the Users filter to the current user, applied immediately, hidden when the
+  current user isn't a filter option), a `Clear` item (restores the consumer's default —
+  disabled when no filter is active), and `More Filters` (opens the `FilterModal`). The
+  same "My Events" quick action also lives inside the dialog as a `FilterGroup.action`
+  button beside the Users group label (draft-scoped); the `FilterModal`'s own `Clear`
+  button (draft reset) is unchanged.
    Non-admins default to their own department but may filter to any department, matching
    the calendar page.
 - The dashboard's **Week v2** tab (`?view=weekv2`, fifth tab after Week) is a week

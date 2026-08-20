@@ -78,6 +78,7 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
 - [1.64 Agenda day slide-in + create-event button (Phase 3x)](#164-agenda-day-slide-in--create-event-button-phase-3x)
 - [1.65 Agenda-tab day swipe + slide (Phase 3y)](#165-agenda-tab-day-swipe--slide-phase-3y)
 - [1.66 Week v2 matrix view (Phase 3z)](#166-week-v2-matrix-view-phase-3z)
+- [1.67 Filter quick actions in the 3-dot menus (Phase 3aa)](#167-filter-quick-actions-in-the-3-dot-menus-phase-3aa)
 
 ## 1.1 Status
 
@@ -246,6 +247,13 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
   data navigation (skeleton + fade). The ‹/› chevrons, Today, and the date picker use the
   same writer, and the New-event FAB prefills the viewed day on this tab. No schema
   changes; `pnpm build/lint/typecheck/test` pass.
+- **Phase 3aa (filter quick actions in the 3-dot menus):** the dashboard and parade-state
+  ⋮ menus now hold the one-tap filter actions directly (see §1.67) — a **"My Events"**
+  toggle (Users filter = current user), a **Clear** item (restores the consumer's
+  default), and **More Filters** (renamed from "Filters", opens the dialog). The
+  dialog keeps its own **"My Events"** quick action (`FilterGroup.action` beside the
+  Users group label, draft-scoped) and its draft-`Clear`. Audit log untouched (its ⋮
+  menu is the filter panel itself). No schema changes; `pnpm lint/typecheck/test` pass.
 
 ## 1.2 Decisions locked in (Phase 0)
 
@@ -3197,4 +3205,56 @@ flowchart LR
   redirect, expected unauthenticated). Manual on-device checks owed: chip/overflow/
   empty-cell taps, today + weekend highlighting, multi-day events spanning cells,
   group-column alignment with ≥2 departments, and the 5-tab strip on a 360px viewport.
+
+## 1.67 Filter quick actions in the 3-dot menus (Phase 3aa)
+
+The one-tap filter actions are now available directly from the page-level ⋮ menus (the
+dashboard and parade-state header kebabs — the two surfaces that open the filter dialog),
+while the dialog keeps its own quick-action button. Both surfaces share the **"My
+Events"** toggle: narrowing the Users filter to the current user.
+
+- **Menu shape** — the three filter items sit under a `Filters` `Menu.Label` group:
+  a **"My Events"** `Menu.CheckboxItem` (checked when the Users filter is exactly the
+  current user; toggles it on/off immediately; hidden when the current user isn't a
+  filter option), a **Clear** `Menu.Item` (disabled when no filter is active; nulls
+  `cal`/`users`/`types` so the server default — a non-admin's own department — is
+  restored), and **More Filters** (renamed from "Filters", keeps the active-count badge,
+  opens the `FilterModal`).
+- **`Menu.CheckboxItem` quirk** — checkbox items don't close the menu on click by
+  default, so "My Events" sets `closeMenuOnClick`; plain `Menu.Item`s close by default.
+  There is no `Menu.Group` in Mantine v9 (removed in v7) — grouping uses `Menu.Label` +
+  `Menu.Divider`.
+- **Dashboard** (`DashboardView.tsx`) — `onlyMeActive`/`onlyMeAvailable` derived from
+  `selectedUserIds`; `toggleOnlyMe` → `navigate({ users: checked ? currentUser : null })`;
+  `clearFilters` → `navigate({ cal: null, users: null, types: null })` (a server data
+  navigation, skeleton + fade, like any filter change). The menu keeps its existing
+  Today / Select date / divider / Force refresh structure.
+- **Parade State** (`ParadeStateView.tsx`) — the view mirrors URL filter state locally
+  for optimistic applies, so `toggleOnlyMe`/`clearFilters` update `selectedUsers`/
+  `selectedCalendars` *then* navigate (no skeleton), mirroring `handleApplyFilters`.
+- **`FilterModal`** — unchanged from before this phase: the **"My Events"** quick action
+  still renders via the `FilterGroup.action` slot as a button beside the Users group
+  label (draft-scoped — `isApplied`/`apply` read the draft, not the applied URL state),
+  and the dialog keeps its own draft **Clear** (reset + Apply). `resolveFilterApply` and
+  its tests are untouched.
+- **Unchanged / out of scope** — the `/settings/audit-log` ⋮ menu (its dropdown *is* the
+  filter panel — inline selects + dates + "Reset filters"; nothing to extract or rename),
+  the icon-only `FilterButton` in the Users settings header (no ⋮ menu), the trigger
+  badge / `activeFilterCount` logic, and the dialog title ("Filters"). No schema change —
+  `db:generate` no drift.
+
+```mermaid
+flowchart LR
+    A["⋮ menu<br/>Today / Select date"] --> B["Filters (Menu.Label)"]
+    B --> C["My Events<br/>Menu.CheckboxItem<br/>?users=&lt;me&gt; / null"]
+    B --> D["Clear<br/>cal/users/types = null"]
+    B --> E["More Filters [n]<br/>opens FilterModal"]
+    E --> F["FilterModal<br/>My Events quick action (draft)<br/>+ Clear + Apply"]
+```
+
+- Verification: `pnpm lint`, `pnpm typecheck`, `pnpm test` all pass. Manual dev-server
+  smoke owed: dashboard + parade-state — toggle "My Events" on/off in the ⋮ menu (badge +
+  checkmark, `?users=` in the URL), Clear (badge → 0, defaults restored), More Filters
+  opens the dialog where the "My Events" quick-action button and the in-dialog Clear
+  still work.
 

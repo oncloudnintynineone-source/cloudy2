@@ -393,7 +393,7 @@ export function DashboardView({
         variant: "search",
         action: filterUsers.some((user) => user.id === currentUser)
           ? {
-              label: "Only me",
+              label: "My Events",
               icon: <IconUser size={14} />,
               isApplied: (selected) => selected.length === 1 && selected[0] === currentUser,
               apply: (setValues, { selected }) => {
@@ -676,6 +676,21 @@ export function DashboardView({
     });
   }
 
+  const onlyMeActive = selectedUserIds.length === 1 && selectedUserIds[0] === currentUser;
+  const onlyMeAvailable = filterUsers.some((user) => user.id === currentUser);
+
+  function toggleOnlyMe(checked: boolean) {
+    // Search groups: empty selection means "no filter", so unchecked clears
+    // the Users filter entirely.
+    navigate({ users: checked ? currentUser : null });
+  }
+
+  function clearFilters() {
+    // Null params restore the server defaults (non-admins default to their
+    // own department's calendar).
+    navigate({ cal: null, users: null, types: null });
+  }
+
   function openCreate(dateValue: string, originRect: Rect | null = null) {
     setFormMinimized(false);
     setFormOriginRect(originRect);
@@ -921,6 +936,20 @@ export function DashboardView({
                 Select date
               </Menu.Item>
             )}
+            <Menu.Divider />
+            <Menu.Label>Filters</Menu.Label>
+            {onlyMeAvailable && (
+              <Menu.CheckboxItem checked={onlyMeActive} onChange={toggleOnlyMe} closeMenuOnClick>
+                My Events
+              </Menu.CheckboxItem>
+            )}
+            <Menu.Item
+              leftSection={<IconX size={16} />}
+              disabled={activeFilterCount === 0}
+              onClick={clearFilters}
+            >
+              Clear
+            </Menu.Item>
             <Menu.Item
               leftSection={<IconFilter size={16} />}
               onClick={openFilter}
@@ -932,7 +961,7 @@ export function DashboardView({
                 ) : null
               }
             >
-              Filters
+              More Filters
             </Menu.Item>
             <Menu.Divider />
             <Menu.Item

@@ -30,7 +30,7 @@ export interface FilterGroupAction {
 export interface FilterGroup {
   label: string;
   options: FilterOption[];
-  /** Optional quick action rendered beside the group label (e.g. "only me"). */
+  /** Optional quick action rendered beside the group label (e.g. "My Events"). */
   action?: FilterGroupAction;
   /**
    * "grid" (default) renders the options as toggleable chip pills. "search"

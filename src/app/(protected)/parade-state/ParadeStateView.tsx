@@ -23,6 +23,7 @@ import {
   IconDotsVertical,
   IconFilter,
   IconUser,
+  IconX,
 } from "@tabler/icons-react";
 
 import { DateSelectorModal } from "@/components/DateSelectorModal";
@@ -226,6 +227,23 @@ export function ParadeStateView({
     });
   }
 
+  const onlyMeActive = selectedUsers.length === 1 && selectedUsers[0] === currentUser;
+  const onlyMeAvailable = filterUsers.some((user) => user.id === currentUser);
+
+  function toggleOnlyMe(checked: boolean) {
+    // Search groups: empty selection means "no filter", so unchecked clears
+    // the Users filter entirely. Mirrored optimistically (no skeleton).
+    const next = checked ? [currentUser] : [];
+    setSelectedUsers(next);
+    navigate({ users: next.length > 0 ? next.join(",") : null });
+  }
+
+  function clearFilters() {
+    setSelectedCalendars([]);
+    setSelectedUsers([]);
+    navigate({ cal: null, users: null, types: null });
+  }
+
   const filterGroups: FilterGroup[] = useMemo(() => {
     const groups: FilterGroup[] = [
       { label: "Calendars", options: calendars.map((c) => ({ value: c.id, label: c.name })) },
@@ -238,7 +256,7 @@ export function ParadeStateView({
         variant: "search",
         action: filterUsers.some((user) => user.id === currentUser)
           ? {
-              label: "Only me",
+              label: "My Events",
               icon: <IconUser size={14} />,
               isApplied: (selected) => selected.length === 1 && selected[0] === currentUser,
               apply: (setValues, { selected }) => {
@@ -388,6 +406,20 @@ export function ParadeStateView({
             <Menu.Item leftSection={<IconCalendarDot size={16} />} onClick={openPicker}>
               Select date
             </Menu.Item>
+            <Menu.Divider />
+            <Menu.Label>Filters</Menu.Label>
+            {onlyMeAvailable && (
+              <Menu.CheckboxItem checked={onlyMeActive} onChange={toggleOnlyMe} closeMenuOnClick>
+                My Events
+              </Menu.CheckboxItem>
+            )}
+            <Menu.Item
+              leftSection={<IconX size={16} />}
+              disabled={activeFilterCount === 0}
+              onClick={clearFilters}
+            >
+              Clear
+            </Menu.Item>
             <Menu.Item
               leftSection={<IconFilter size={16} />}
               onClick={openFilter}
@@ -399,7 +431,7 @@ export function ParadeStateView({
                 ) : null
               }
             >
-              Filters
+              More Filters
             </Menu.Item>
           </Menu.Dropdown>
         </Menu>

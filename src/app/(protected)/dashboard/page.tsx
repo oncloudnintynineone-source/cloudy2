@@ -134,7 +134,7 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
 
   // Filter dialog user options: the users in view (schedule rows of the
   // selected departments) plus the current user, so a non-admin can filter
-  // other departments' users and "Only me" still works cross-department.
+  // other departments' users and "My Events" still works cross-department.
   const filterUserIds = filterUserOptionIds({
     users: allUsers,
     rowUserIds: scheduleUsers.map((user) => user.id),
