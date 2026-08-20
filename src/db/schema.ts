@@ -117,6 +117,8 @@ export const settings = pgTable(
       .array()
       .notNull()
       .default(sql`'{}'::text[]`),
+    /** How many days of audit_logs to keep; older rows are purged on read. */
+    auditLogRetentionDays: integer("audit_log_retention_days").notNull().default(90),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [check("settings_singleton", sql`${table.id} = 'singleton'`)],

@@ -68,6 +68,7 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
 - [1.54 Day-view date picker: MobileMonthView replaces mini calendar (Phase 3q)](#154-day-view-date-picker-mobilemonthview-replaces-mini-calendar-phase-3q)
 - [1.55 Parade State filter row scoping + Event Types removal (Phase 3r)](#155-parade-state-filter-row-scoping--event-types-removal-phase-3r)
 - [1.56 No-keyboard dropdowns (Phase 3s)](#156-no-keyboard-dropdowns-phase-3s)
+- [1.57 Audit log viewer + retention + export (Phase 3t)](#157-audit-log-viewer--retention--export-phase-3t)
 
 ## 1.1 Status
 
@@ -2596,3 +2597,65 @@ even when they only wanted to pick from the list.
 - Verification: `pnpm lint`, `pnpm typecheck`, `pnpm test` (301) and
   `pnpm build` all pass. Manual on-device check (tap → list without
   keyboard; tap field → keyboard + filter) is still owed.
+
+## 1.57 Audit log viewer + retention + export (Phase 3t)
+
+The audit write-side (table `audit_logs` + `logAction` in every server action) shipped in
+Phase 2d. This phase adds the **read side**: a Settings tab to browse the log with filters,
+configurable retention with on-read rotation, and CSV export.
+
+```mermaid
+flowchart LR
+    A[Server action / login] -->|logAction| B[audit_logs table]
+    B --> C[Audit Log tab /settings/audit-log]
+    C --> D[URL-param filters<br/>actor / action / entity / dates / search]
+    D --> E[Keyset-paginated card list<br/>load more via server action]
+    C --> F[CSV export /api/audit/export]
+    B --> G[Rotation: purge on read]
+    G --> H[settings.audit_log_retention_days<br/>General tab, default 90]
+```
+
+- **Schema (migration `0013`)** — `settings.audit_log_retention_days` integer, default `90`,
+  bounded 7–365 by the General tab. `src/lib/settings/validate.ts` adds
+  `normalizeRetentionDays`/`validateRetentionForm` (clamps + rounds; non-finite → default).
+- **General tab** — second card with a `NumberInput` + Save wired to a new
+  `updateAuditLogRetention` server action (`requireAdmin`, field diff audit-logged as
+  `settings.update`). `getSettings()` now returns the value.
+- **Read module** `src/lib/audit/queries.ts` — pure, unit-tested helpers
+  (`parseAuditFilters` with real-calendar-date validation, `encode/decodeAuditCursor`
+  base64url `[createdAtMs, id]`, `dayBounds`) plus DB functions:
+  `listAuditLogs` (keyset page ordered `created_at DESC, id DESC`, `and(...)` conditions for
+  actor-name / action / entity-type / free-text `ilike` / from-to bounds, `pageSize` + cursor),
+  `purgeExpiredAuditLogs(retentionDays)` (indexed delete on `created_at`, returns count),
+  `listAuditActors`/`listAuditEntityTypes` (distinct, sorted). `listAuditActions` moved to
+  `src/lib/audit/build.ts` so the client filter UI can import it without dragging in `db`.
+- **Server actions** `src/lib/audit/actions.ts` — `loadMoreAuditLogs(filters, pageSize)`
+  (admin-guarded, capped 50) and `purgeAuditLogs(days)` (admin-guarded, clamps days, logs an
+  `audit.purge` entry with the deleted count — a new `AUDIT_ACTIONS` value).
+- **Rotation** — on every render of the Audit Log page, `listAuditLogs` first purges rows
+  older than the configured retention, so storage stays bounded without a cron job; the
+  General tab controls the window and the Audit Log tab offers a manual "Delete older than N
+  days" button (confirm modal → `purgeAuditLogs` → notification with count).
+- **Audit Log tab** `/settings/audit-log` (admin-only, added to `SettingsTabs`) —
+  server `page.tsx` parses `searchParams`, fetches filter options + page 1, passes to the
+  client `AuditLogView`. Filter card uses `NoKeyboardSelect` for actor/action/entity, two
+  `DatePickerInput`s (from/to), and a search box; each change navigates URL params
+  (clearing the cursor) with the list dimmed during the RSC transition. Cards render the
+  humanized action label (`actionLabel`), actor + role, entity name, route/method badges, and
+  an Asia/Singapore timestamp; "Details" opens a modal rendering `diffFields` as
+  before → after lines or pretty JSON (`formatAuditDetails`). "Load more" appends via the
+  server action. Export FAB (floating, `SETTINGS_TAB_BAR_OFFSET`) opens a confirm modal that
+  downloads the filtered CSV.
+- **CSV export** `src/app/api/audit/export/route.ts` — admin-guarded GET, same filters as the
+  page, streams up to 10k rows as `text/csv` with `Content-Disposition: attachment`
+  (`audit-log-YYYY-MM-DD.csv`). Pure `src/lib/audit/export.ts` (`csvField` quoting/escaping,
+  `buildAuditLogCsv` with `details` as stringified JSON) is unit-tested.
+- **Login events wired** — `src/lib/auth.ts` now logs `auth.login.success` for admin and user
+  logins (via `actorFromUser`, so the admin pseudo-account gets a null actor id) and
+  `auth.login.failure` recording only the derived phone / reason — never the raw input, which
+  could be the admin password.
+- New unit tests: `src/lib/audit/queries.test.ts`, `export.test.ts`, `format.test.ts`, plus
+  retention cases in `src/lib/settings/validate.test.ts`.
+- Verification: `pnpm lint`, `pnpm typecheck`, `pnpm test` (335), `pnpm build` (routes show
+  `/settings/audit-log` + `/api/audit/export`), `pnpm db:generate` no drift. Migration `0013`
+  applies automatically on the next `main` push (CI migrate job).

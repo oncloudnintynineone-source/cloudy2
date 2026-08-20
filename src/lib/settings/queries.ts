@@ -1,10 +1,12 @@
 import { db } from "@/db";
 import { settings } from "@/db/schema";
+import { AUDIT_RETENTION_DEFAULT } from "@/lib/settings/validate";
 
 export interface SettingsView {
   userKeyword: string;
   nameTemplate: string;
   eventTitleTemplate: string;
+  auditLogRetentionDays: number;
 }
 
 /**
@@ -17,5 +19,6 @@ export async function getSettings(): Promise<SettingsView> {
     userKeyword: row?.userKeyword ?? "",
     nameTemplate: row?.nameTemplate ?? "{name}",
     eventTitleTemplate: row?.eventTitleTemplate ?? "{description}",
+    auditLogRetentionDays: row?.auditLogRetentionDays ?? AUDIT_RETENTION_DEFAULT,
   };
 }

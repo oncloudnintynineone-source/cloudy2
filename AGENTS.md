@@ -163,8 +163,8 @@ the quality checks.
 - **Admin settings live under `/settings`** (admin-only), reached via the bottom-nav
   Settings tab. A horizontal scrollable `SettingsTabs` bar (`src/app/(protected)/settings/`)
   switches between the Users (`/settings/users`), Departments (`/settings/departments`),
-  Event Types (`/settings/event-types`), Templates (`/settings/templates`), and General
-   (`/settings/general`) tabs. **Event types carry a `shortname`** (their acronym, app-required
+  Event Types (`/settings/event-types`), Templates (`/settings/templates`), General
+   (`/settings/general`), and Audit Log (`/settings/audit-log`) tabs. **Event types carry a `shortname`** (their acronym, app-required
    and unique) shown on the type cards and rendered by the `{type:acronym}` title token, and a
    **`location_policy`** (`in`/`out`/`both`, default `both`) restricting where events of the
    type may take place. The restriction is enforced client- and server-side by the pure
@@ -196,7 +196,16 @@ the quality checks.
   marks the event as created in the app; events without the marker **and** without a notes
   block are treated as **external** (`isExternalEvent`) — flagged with an "External" badge
   in the event detail and pinned to their calendar's department row in the Day view.
-  The **General tab** holds only the login keyword setting.
+  The **General tab** holds the login keyword and the **audit log retention** setting
+  (`settings.audit_log_retention_days`, default 90, clamped 7–365). The **Audit Log tab**
+  (`/settings/audit-log`) browses the `audit_logs` table written by `logAction()` (see
+  `src/lib/audit/`): URL-param filters (actor / action / entity type / from-to dates / free
+  text), keyset pagination via `listAuditLogs`, and CSV export at `/api/audit/export`.
+  **Rotation is on-read** — every page render purges rows older than the configured retention
+  (indexed delete on `created_at`), plus a manual "Delete older than N days" button; no cron
+  job needed. Never call `listAuditLogs`-adjacent helpers directly with a live DB in tests —
+  the pure parts (`parseAuditFilters`, cursor codec, CSV builder, display format) are
+  I/O-free and unit-tested.
  - **Always show a loading skeleton for async loads.** Any route or view that awaits data
    before rendering (DB queries, fetches) must show a Mantine `Skeleton` fallback instead of
    a blank screen. In the App Router add a `loading.tsx` to the route segment (auto Suspense

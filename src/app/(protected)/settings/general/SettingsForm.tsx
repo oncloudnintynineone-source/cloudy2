@@ -1,24 +1,37 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { Button, Group, Paper, Stack, TextInput } from "@mantine/core";
+import { Button, Group, NumberInput, Paper, Stack, TextInput } from "@mantine/core";
 import { useForm } from "@mantine/form";
 import { notifications } from "@mantine/notifications";
 
-import { updateKeyword, type SettingsActionResult } from "@/lib/settings/actions";
-import { validateKeywordForm, type KeywordFormValues } from "@/lib/settings/validate";
+import { updateAuditLogRetention, updateKeyword, type SettingsActionResult } from "@/lib/settings/actions";
+import {
+  AUDIT_RETENTION_MAX,
+  AUDIT_RETENTION_MIN,
+  validateKeywordForm,
+  validateRetentionForm,
+  type KeywordFormValues,
+  type RetentionFormValues,
+} from "@/lib/settings/validate";
 import { BUTTON_LOADER_PROPS } from "@/lib/theme";
 
 interface SettingsFormProps {
   keyword: string;
+  retentionDays: number;
 }
 
-export function SettingsForm({ keyword }: SettingsFormProps) {
+export function SettingsForm({ keyword, retentionDays }: SettingsFormProps) {
   const router = useRouter();
 
   const keywordForm = useForm<KeywordFormValues>({
     initialValues: { keyword },
     validate: (values) => validateKeywordForm(values),
+  });
+
+  const retentionForm = useForm<RetentionFormValues>({
+    initialValues: { retentionDays },
+    validate: (values) => validateRetentionForm(values),
   });
 
   const onSubmitKeyword = keywordForm.onSubmit(async (values) => {
@@ -32,6 +45,21 @@ export function SettingsForm({ keyword }: SettingsFormProps) {
 
     if (result.field === "keyword") {
       keywordForm.setFieldError("keyword", result.error);
+    }
+    notifications.show({ color: "red", message: result.error });
+  });
+
+  const onSubmitRetention = retentionForm.onSubmit(async (values) => {
+    const result: SettingsActionResult = await updateAuditLogRetention(values.retentionDays);
+
+    if (result.ok) {
+      notifications.show({ color: "green", message: "Audit log retention updated" });
+      router.refresh();
+      return;
+    }
+
+    if (result.field === "retentionDays") {
+      retentionForm.setFieldError("retentionDays", result.error);
     }
     notifications.show({ color: "red", message: result.error });
   });
@@ -51,6 +79,29 @@ export function SettingsForm({ keyword }: SettingsFormProps) {
               <Button
                 type="submit"
                 loading={keywordForm.submitting}
+                loaderProps={BUTTON_LOADER_PROPS}
+              >
+                Save
+              </Button>
+            </Group>
+          </Stack>
+        </form>
+      </Paper>
+      <Paper withBorder p="sm">
+        <form onSubmit={onSubmitRetention}>
+          <Stack>
+            <NumberInput
+              label="Audit Log Retention"
+              description="How many days of audit log entries to keep. Older entries are purged automatically when the log is viewed."
+              min={AUDIT_RETENTION_MIN}
+              max={AUDIT_RETENTION_MAX}
+              allowNegative={false}
+              {...retentionForm.getInputProps("retentionDays")}
+            />
+            <Group justify="flex-end">
+              <Button
+                type="submit"
+                loading={retentionForm.submitting}
                 loaderProps={BUTTON_LOADER_PROPS}
               >
                 Save

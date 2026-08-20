@@ -22,9 +22,15 @@ export const AUDIT_ACTIONS = {
   accessUpdate: "access.update",
   accessRevoke: "access.revoke",
   settingsUpdate: "settings.update",
+  auditPurge: "audit.purge",
 } as const;
 
 export type AuditAction = (typeof AUDIT_ACTIONS)[keyof typeof AUDIT_ACTIONS];
+
+/** The ordered, deduped list of known audit actions (for the filter UI). */
+export function listAuditActions(): string[] {
+  return [...new Set(Object.values(AUDIT_ACTIONS))];
+}
 
 export interface AuditActor {
   id: string;

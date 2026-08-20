@@ -11,8 +11,10 @@ import { logAction } from "@/lib/audit/log";
 import { requireAdmin } from "@/lib/session";
 import {
   normalizeKeyword,
+  normalizeRetentionDays,
   validateEventTitleTemplate,
   validateNameTemplate,
+  validateRetentionForm,
 } from "@/lib/settings/validate";
 
 export type SettingsActionResult =
@@ -20,7 +22,7 @@ export type SettingsActionResult =
   | {
       ok: false;
       error: string;
-      field?: "keyword" | "nameTemplate" | "eventTitleTemplate";
+      field?: "keyword" | "nameTemplate" | "eventTitleTemplate" | "retentionDays";
     };
 
 export async function updateKeyword(keyword: string): Promise<SettingsActionResult> {
@@ -102,8 +104,7 @@ export async function updateNameTemplate(template: string): Promise<SettingsActi
   return { ok: true };
 }
 
-export async function updateEventTitleTemplate(template: string): Promise<SettingsActionResult> {
-  const session = await requireAdmin();
+export async function updateEventTitleTemplate(template: string): Promise<SettingsActionResult> {  const session = await requireAdmin();
 
   const errors = validateEventTitleTemplate({ eventTitleTemplate: template });
   if (errors.eventTitleTemplate) {
@@ -139,5 +140,45 @@ export async function updateEventTitleTemplate(template: string): Promise<Settin
   });
 
   revalidatePath("/settings/templates");
+  return { ok: true };
+}
+
+export async function updateAuditLogRetention(days: number): Promise<SettingsActionResult> {
+  const session = await requireAdmin();
+
+  const errors = validateRetentionForm({ retentionDays: days });
+  if (errors.retentionDays) {
+    return {
+      ok: false,
+      error: errors.retentionDays,
+      field: "retentionDays",
+    };
+  }
+
+  const retentionDays = normalizeRetentionDays(days);
+  const [before] = await db.select().from(settings).limit(1);
+
+  await db
+    .update(settings)
+    .set({ auditLogRetentionDays: retentionDays, updatedAt: new Date() })
+    .where(eq(settings.id, "singleton"));
+
+  await logAction({
+    ...actorFromUser({
+      id: session.user.id,
+      name: session.user.name ?? null,
+      role: session.user.role,
+    }),
+    action: AUDIT_ACTIONS.settingsUpdate,
+    entityType: "settings",
+    entityName: "settings",
+    method: "updateAuditLogRetention",
+    details: diffFields(
+      { auditLogRetentionDays: before?.auditLogRetentionDays ?? null },
+      { auditLogRetentionDays: retentionDays },
+    ),
+  });
+
+  revalidatePath("/settings/general");
   return { ok: true };
 }

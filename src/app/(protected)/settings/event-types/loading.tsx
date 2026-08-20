@@ -1,4 +1,4 @@
-import { Paper, Skeleton, Stack } from "@mantine/core";
+import { Group, Paper, Skeleton, Stack } from "@mantine/core";
 
 export default function EventTypesLoading() {
   return (
@@ -7,7 +7,11 @@ export default function EventTypesLoading() {
         <Paper key={i} withBorder p="sm">
           <Stack gap="xs">
             <Skeleton height={20} width="40%" />
-            <Skeleton height={24} width="30%" style={{ alignSelf: "flex-end" }} />
+            <Group gap={6}>
+              <Skeleton height={22} width={40} radius="xl" />
+              <Skeleton height={22} width={64} radius="xl" />
+              <Skeleton height={22} width={88} radius="xl" />
+            </Group>
           </Stack>
         </Paper>
       ))}
