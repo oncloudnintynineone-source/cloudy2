@@ -7,6 +7,7 @@ import "./globals.css";
 import type { Metadata, Viewport } from "next";
 import { ColorSchemeScript, mantineHtmlProps } from "@mantine/core";
 import { SerwistProvider } from "@serwist/turbopack/react";
+import { SpeedInsights } from "@vercel/speed-insights/next";
 
 import AppProviders from "@/components/AppProviders";
 
@@ -44,6 +45,7 @@ export default function RootLayout({
         <AppProviders>
           <SerwistProvider swUrl="/serwist/sw.js">{children}</SerwistProvider>
         </AppProviders>
+        <SpeedInsights />
       </body>
     </html>
   );
