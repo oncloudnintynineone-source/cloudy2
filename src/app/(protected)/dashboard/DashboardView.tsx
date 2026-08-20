@@ -273,6 +273,15 @@ export function DashboardView({
   // from the swipe/chevron direction (1 = next day, -1 = previous day,
   // 0 = none yet, e.g. right after the modal opened).
   const [agendaSlideDir, setAgendaSlideDir] = useState<0 | 1 | -1>(0);
+  // The day the Agenda *tab* is showing (client source of truth while the tab
+  // is up); null = follow the `?date=` prop. In-month changes apply locally
+  // and sync the URL with a no-transition push so no skeleton flashes.
+  const [viewedDay, setViewedDay] = useState<string | null>(null);
+  // `?date=` prop value before the last day write from the Agenda tab: while
+  // the prop still holds it, a prop ≠ viewedDay diff is our own write in
+  // flight, not an external navigation to follow. State (not a ref) so the
+  // render-phase sync below can read it.
+  const [agendaUrlBase, setAgendaUrlBase] = useState<string | null>(null);
   // Keep the last shown agenda date so the closing (shrink) animation still has
   // content while `opened` is already false.
   const [displayAgendaDate, setDisplayAgendaDate] = useState<string | null>(agendaDate);
@@ -426,6 +435,12 @@ export function DashboardView({
   );
   const scheduleEvents = useMemo(() => expandScheduleEvents(events), [events]);
 
+  const isWeek = view === "week";
+  const isSchedule = view === "schedule";
+  const isAgenda = view === "agenda";
+  // Day-anchored views (Day, Agenda): a `?date=` anchor drives the fetch.
+  const isAnchoredView = isSchedule || isAgenda;
+
   const buildHref = useCallback(
     (updates: Record<string, string | null>) => {
       const params = new URLSearchParams(searchParams.toString());
@@ -521,10 +536,24 @@ export function DashboardView({
             ? "agenda"
             : "month";
     if (mode !== "month") {
+      if (mode === "agenda") {
+        // A fresh entry re-follows the URL (the render-phase sync above
+        // re-seeds viewedDay) and plays the reveal fade, not a stale slide.
+        setViewedDay(null);
+        setAgendaUrlBase(null);
+        setAgendaSlideDir(0);
+      }
       // Entering an anchored view (day/week/agenda) always starts on today; the
       // month is derived from the date by the page.
       navigate({ view: mode, month: null, date: today });
       return;
+    }
+    if (isAgenda) {
+      // Leaving the Agenda tab drops the local day so a later entry (which
+      // navigates to today) seeds it cleanly instead of resurrecting a stale
+      // view or a half-committed URL write.
+      setViewedDay(null);
+      setAgendaUrlBase(null);
     }
     // Leaving a date-anchored view keeps the currently viewed month visible;
     // the month is derived from the anchor date for week and agenda/day alike.
@@ -536,6 +565,10 @@ export function DashboardView({
   }
 
   function goToday() {
+    if (isAgenda) {
+      applyAgendaDay(today);
+      return;
+    }
     if (isAnchoredView) {
       navigate({ date: today, month: todayMonth });
     } else {
@@ -545,6 +578,35 @@ export function DashboardView({
 
   function pickDate(picked: string) {
     navigate({ date: picked, month: picked.slice(0, 7) });
+  }
+
+  /**
+   * Applies a day change in the Agenda tab. The viewed day and the slide
+   * direction update locally and immediately; `?date=` is kept in sync — with
+   * a plain no-transition push in-month (no new fetch identity, so the page
+   * re-renders silently behind the slide) or a data navigation across a month
+   * edge (skeleton + reveal fade, no slide). Refresh/back/deep links always
+   * resolve to the viewed day.
+   */
+  function applyAgendaDay(next: string) {
+    const current = viewedDay ?? date;
+    if (next === current) {
+      return; // No-op (e.g. Today while already on it): no skeleton, no slide.
+    }
+    setViewedDay(next);
+    setAgendaUrlBase(date);
+    const nextMonth = next.slice(0, 7);
+    if (nextMonth !== month) {
+      // The server must fetch the new month; the skeleton + reveal fade
+      // replace the directional slide, so clear it.
+      setAgendaSlideDir(0);
+      navigate({ date: next, month: nextMonth });
+      return;
+    }
+    setAgendaSlideDir(dayjs(next).isAfter(dayjs(current)) ? 1 : -1);
+    // Plain push outside startTransition: it never sets the pending flag
+    // (same pattern as the ?edit=/?refresh= URL strips), so no skeleton.
+    router.push(buildHref({ date: next }));
   }
 
   function shiftAgendaDay(delta: number) {
@@ -565,6 +627,25 @@ export function DashboardView({
       if (Math.abs(state.movement[0]) < DAY_SWIPE_THRESHOLD) return;
       swipedRef.current = true;
       shiftAgendaDay(state.movement[0] < 0 ? 1 : -1);
+    },
+    { axis: "lock", axisThreshold: 8, threshold: 10, filterTaps: true },
+  );
+
+  // Same gesture for the Agenda tab (the ref only ever attaches to the tab's
+  // list, so the two instances are mutually exclusive and share the
+  // swipedRef click-suppression flag safely).
+  const { ref: agendaTabSwipeRef } = useDrag<HTMLDivElement>(
+    (state) => {
+      if (!state.last || state.canceled || state.tap) return;
+      if (!isAgenda) return;
+      if (Math.abs(state.movement[0]) < DAY_SWIPE_THRESHOLD) return;
+      swipedRef.current = true;
+      const base = viewedDay ?? date;
+      applyAgendaDay(
+        dayjs(base)
+          .add(state.movement[0] < 0 ? 1 : -1, "day")
+          .format("YYYY-MM-DD"),
+      );
     },
     { axis: "lock", axisThreshold: 8, threshold: 10, filterTaps: true },
   );
@@ -594,15 +675,31 @@ export function DashboardView({
     setFormState(null);
   }
 
-  const isWeek = view === "week";
-  const isSchedule = view === "schedule";
-  const isAgenda = view === "agenda";
-  // Day-anchored views (Day, Agenda): a `?date=` anchor drives the fetch.
-  const isAnchoredView = isSchedule || isAgenda;
+  // Keep the Agenda tab's local day in sync with the URL (setState during
+  // render, the same pattern as the modal's displayAgendaDate hold): null
+  // seeds it on entry; an external `?date=` change (back/forward, deep link,
+  // re-entry after leaving the tab) wins; while one of our own writes is
+  // still in flight (the prop still holds the pre-write value) the local day
+  // is kept.
+  if (isAgenda) {
+    if (viewedDay === null) {
+      setViewedDay(date);
+    } else if (viewedDay !== date) {
+      if (agendaUrlBase === null || date !== agendaUrlBase) {
+        setViewedDay(date);
+      }
+    } else {
+      setAgendaUrlBase(null); // Our write committed.
+    }
+  }
+
+  // The day the Agenda tab shows and its navigation acts on; in the other
+  // views this is identical to the `?date=` prop.
+  const headerDate = isAgenda ? (viewedDay ?? date) : date;
   const onToday = isWeek
     ? week !== null && week.some((day) => day === today)
     : isAnchoredView
-      ? date === today
+      ? headerDate === today
       : month === todayMonth;
 
   // Measure the Week view's actual day-column width. Mantine sizes each hour
@@ -721,7 +818,15 @@ export function DashboardView({
           size={43}
           variant="default"
           aria-label={isAnchoredView ? "Previous day" : isWeek ? "Previous week" : "Previous month"}
-          onClick={() => (isAnchoredView ? shiftDay(-1) : isWeek ? shiftWeek(-1) : shiftMonth(-1))}
+          onClick={() =>
+            isAgenda
+              ? applyAgendaDay(dayjs(headerDate).add(-1, "day").format("YYYY-MM-DD"))
+              : isAnchoredView
+                ? shiftDay(-1)
+                : isWeek
+                  ? shiftWeek(-1)
+                  : shiftMonth(-1)
+          }
         >
           <IconChevronLeft size={18} />
         </ActionIcon>
@@ -731,13 +836,27 @@ export function DashboardView({
           lineClamp={1}
           style={{ flex: 1, minWidth: 0, textAlign: "center" }}
         >
-          {isAnchoredView ? dayLabel : isWeek ? weekLabel : monthLabel}
+          {isAgenda
+            ? dayjs(headerDate).format("ddd, MMM D, YYYY")
+            : isAnchoredView
+              ? dayLabel
+              : isWeek
+                ? weekLabel
+                : monthLabel}
         </Text>
         <ActionIcon
           size={43}
           variant="default"
           aria-label={isAnchoredView ? "Next day" : isWeek ? "Next week" : "Next month"}
-          onClick={() => (isAnchoredView ? shiftDay(1) : isWeek ? shiftWeek(1) : shiftMonth(1))}
+          onClick={() =>
+            isAgenda
+              ? applyAgendaDay(dayjs(headerDate).add(1, "day").format("YYYY-MM-DD"))
+              : isAnchoredView
+                ? shiftDay(1)
+                : isWeek
+                  ? shiftWeek(1)
+                  : shiftMonth(1)
+          }
         >
           <IconChevronRight size={18} />
         </ActionIcon>
@@ -858,24 +977,50 @@ export function DashboardView({
             }}
           />
         ) : isAgenda ? (
-          <AgendaView
-            rangeStart={date}
-            rangeEnd={date}
-            events={events}
-            // The view root is an unstyled Box, so the shared boxed look of the
-            // other views comes from here. The nav row above already shows the
-            // day, so only the stock per-day group header is kept.
-            style={{
-              border: "1px solid var(--mantine-color-default-border)",
-              borderRadius: "var(--mantine-radius-md)",
-              overflow: "hidden",
+          <div
+            ref={agendaTabSwipeRef}
+            style={{ touchAction: "pan-y", overflow: "hidden" }}
+            onClickCapture={(event) => {
+              if (swipedRef.current) {
+                event.preventDefault();
+                event.stopPropagation();
+                swipedRef.current = false;
+              }
             }}
-            styles={{ agendaViewHeader: { display: "none" } }}
-            onEventClick={(event, e) => {
-              setDetailOriginRect(e.currentTarget.getBoundingClientRect());
-              setDetailEvent(event as unknown as CalendarEvent);
-            }}
-          />
+          >
+            {/* The day key restarts the directional slide-in on every day
+                change; month edges get the reveal fade instead (slide dir is
+                cleared for those). */}
+            <div
+              key={headerDate}
+              className={
+                agendaSlideDir === 1
+                  ? "agenda-slide-next"
+                  : agendaSlideDir === -1
+                    ? "agenda-slide-prev"
+                    : undefined
+              }
+            >
+              <AgendaView
+                rangeStart={headerDate}
+                rangeEnd={headerDate}
+                events={events}
+                // The view root is an unstyled Box, so the shared boxed look of
+                // the other views comes from here. The nav row above already
+                // shows the day, so only the stock per-day group header is kept.
+                style={{
+                  border: "1px solid var(--mantine-color-default-border)",
+                  borderRadius: "var(--mantine-radius-md)",
+                  overflow: "hidden",
+                }}
+                styles={{ agendaViewHeader: { display: "none" } }}
+                onEventClick={(event, e) => {
+                  setDetailOriginRect(e.currentTarget.getBoundingClientRect());
+                  setDetailEvent(event as unknown as CalendarEvent);
+                }}
+              />
+            </div>
+          </div>
         ) : scheduleResources.resources.length === 0 ? (
           <Paper withBorder radius="md" p="lg">
             <Text size="sm" c="dimmed">
@@ -1207,8 +1352,8 @@ export function DashboardView({
 
       <DateSelectorModal
         opened={pickerOpened}
-        date={date}
-        onPick={pickDate}
+        date={isAgenda ? headerDate : date}
+        onPick={isAgenda ? applyAgendaDay : pickDate}
         onClose={closePicker}
       />
 
@@ -1225,7 +1370,11 @@ export function DashboardView({
         <FloatingToolbar>
           <FloatingActionButton
             aria-label="New event"
-            onClick={(e) => openCreate(today, e.currentTarget.getBoundingClientRect())}
+            // The Agenda tab prefills the day being viewed (like the day
+            // modal's button); the other views keep "today".
+            onClick={(e) =>
+              openCreate(isAgenda ? headerDate : today, e.currentTarget.getBoundingClientRect())
+            }
             disabled={!googleConfigured}
           >
             <IconPlus size={FAB_ICON_SIZE} />

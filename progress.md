@@ -76,6 +76,7 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
 - [1.62 Department selects without type-to-filter search](#162-department-selects-without-type-to-filter-search)
 - [1.63 Dashboard Agenda view (Phase 3w)](#163-dashboard-agenda-view-phase-3w)
 - [1.64 Agenda day slide-in + create-event button (Phase 3x)](#164-agenda-day-slide-in--create-event-button-phase-3x)
+- [1.65 Agenda-tab day swipe + slide (Phase 3y)](#165-agenda-tab-day-swipe--slide-phase-3y)
 
 ## 1.1 Status
 
@@ -237,6 +238,13 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
   swipe/chevron direction; reduced-motion aware) instead of hard-swapping — and gains a
   full-width "New event" button below the list that opens the event form prefilled with
   the viewed day. No schema changes; `pnpm build/lint/typecheck/test` pass.
+- **Phase 3y (agenda-tab day swipe + slide):** the dashboard's Agenda tab now changes days
+  by left/right swipe (touch or mouse drag) with the same directional slide-in as the
+  day modal; in-month changes apply optimistically from local state (no skeleton) and
+  sync `?date=` with a plain no-transition push, while cross-month changes run the usual
+  data navigation (skeleton + fade). The ‹/› chevrons, Today, and the date picker use the
+  same writer, and the New-event FAB prefills the viewed day on this tab. No schema
+  changes; `pnpm build/lint/typecheck/test` pass.
 
 ## 1.2 Decisions locked in (Phase 0)
 
@@ -3030,10 +3038,85 @@ flowchart LR
 - **Decisions (user-confirmed)** — the simple directional slide was chosen over a
   finger-follow carousel (no live 1:1 pan; the day still commits on release), and the
   button lives below the list rather than as a header icon.
-- **Not touched** — the Agenda *tab* view (separate full-screen mode; its day swaps stay
-  instant and it has no swipe — it could adopt this treatment later), month grid, data
-  flow/cache, `EventForm`, `EventDetail`. No schema change.
+- **Not touched** — the Agenda *tab* view remained a separate full-screen mode without a
+  swipe (it got the same treatment in [1.65](#165-agenda-tab-day-swipe--slide-phase-3y)),
+  month grid, data flow/cache, `EventForm`, `EventDetail`. No schema change.
 - Verification: `pnpm lint`, `pnpm typecheck`, `pnpm test` (355), and `pnpm build` all
   pass; no `db:generate` drift. Manual on-device checks owed: swipe + chevron slide
   directions, tap-vs-swipe disambiguation, cross-month swipe, and the button
   open → create → refresh path.
+
+## 1.65 Agenda-tab day swipe + slide (Phase 3y)
+
+The dashboard's **Agenda tab** (`?view=agenda`) changed days only through the header
+‹/› chevrons (and Today / Select date), each a full data navigation — so every day
+change flashed the grid skeleton and faded back in, and there was no swipe at all. It
+now has the same day-swipe gesture + directional slide-in as the Month-view day modal
+(§1.64), and in-month day changes are instant (optimistic local state) instead of
+skeleton-backed.
+
+```mermaid
+flowchart LR
+    A["Agenda tab (viewedDay state)"] -- "swipe left/right" --> B{"release ≥ 48px?"}
+    A -- "‹ › / Today / Select date" --> C["applyAgendaDay(next)"]
+    B -- yes --> C
+    B -- no --> D[no day change]
+    C -- in-month --> E["setViewedDay + slide dir ±1<br/>bare router.push(?date=)<br/>— no pending flag, no skeleton"]
+    C -- cross-month --> F["slide dir 0, navigate(?date=, ?month=)<br/>data navigation"]
+    E --> G["day-keyed div remounts →<br/>220ms directional slide-in"]
+    F --> H["AgendaListSkeleton (≥350ms)<br/>then reveal fade"]
+    E -. "URL re-render (same month,<br/>L1/cached read)" .-> G
+```
+
+- **Local day source of truth** (`DashboardView.tsx`) — new `viewedDay` state
+  (`string | null`; null = follow the `?date=` prop) plus `agendaUrlBase` state (the `?date=`
+  prop value before the tab's last write). A render-phase sync block (the same
+  setState-during-render pattern as the modal's `displayAgendaDate` hold) keeps the two
+  in agreement: null seeds `viewedDay` from the prop on entry; an external `?date=`
+  change (back/forward, deep link, re-entry) wins and re-seeds it; while one of the tab's
+  own writes is still in flight (the prop still holds the pre-write value) the local day
+  is kept; when the prop catches up (`viewedDay === date`) the base ref clears.
+  `switchView` resets `viewedDay`/base ref when entering or leaving the tab (entry also
+  clears the slide dir so a fresh entry plays the reveal fade, not a stale slide).
+- **Single URL writer** — `applyAgendaDay(next)` (no-op early return when `next` equals
+  the viewed day, so "Today" while on today is silent): in-month it sets `viewedDay` +
+  the slide direction (sign of the day move) and syncs `?date=` with a **plain
+  `router.push` outside `startTransition`** — a no-transition push never sets this
+  component's pending flag (the `?edit=`/`?refresh=` strips rely on the same behavior),
+  and a same-month `?date=` change has no new fetch identity, so the page re-renders
+  silently behind the instant slide. Cross-month it clears the slide dir and runs the
+  usual `navigate({ date, month })` data navigation — skeleton + `useContentEnter`
+  reveal fade, exactly like the parade-state cross-month exception (now noted alongside
+  it in `AGENTS.md`'s loading checklist).
+- **Swipe** — a second `useDrag` instance (same options as the modal: `axis: "lock"`,
+  `axisThreshold: 8`, `threshold: 10`, `filterTaps: true`, same 48px release threshold,
+  tap/`pointercancel` guards, and the shared `swipedRef` one-shot click suppression —
+  the two drag refs never attach at once, so the flag is safe to share). The agenda grid
+  branch now wraps `AgendaView` in a drag div (`touchAction: "pan-y"`, `overflow: hidden`
+  to clip the ±48px slide, capture-phase click guard) containing a **day-keyed div**
+  carrying `agenda-slide-next`/`agenda-slide-prev` — the shared §1.64 keyframes (reused
+  verbatim; reduced-motion gated). `rangeStart`/`rangeEnd` now key off the viewed day.
+- **All day navigation routes through the writer** — the header ‹/› chevrons, the
+  kebab menu **Today** item, and the ⋮ **Select date** picker (seeded from the viewed
+  day; its `onPick` now calls `applyAgendaDay` on this tab) all take it, so chevrons and
+  swipes are visually identical (instant slide in-month — a side-benefit fix, since the
+  old chevron path skeleton-flashed even in-month) and the picker/Today keep the
+  same-month vs cross-month split. The header label, the "Today"/`onToday` compare, and
+  the picker's `selectedDate` all read `headerDate` (`viewedDay` on the agenda tab, the
+  prop otherwise) instead of the raw `?date=` prop.
+- **FAB** (user-confirmed) — the page-level "New event" FAB prefills the event form with
+  the **viewed day** while on the Agenda tab (`isAgenda ? headerDate : today`), matching
+  the day modal's button; all other views keep "today".
+- **Unchanged** — the Month-view day modal (its own `agendaDate`/`shiftAgendaDay` path
+  is untouched; the shared `agendaSlideDir`/`swipedRef` are never driven by both
+  surfaces at once), the Day/Week/Month views, the `?date=`-derived `?month=` page
+  fetch, filters, force refresh, `?edit=` deep links, and the cache layer. A same-month
+  push re-renders the page with a fresh `events` array, but the keyed div's key is
+  unchanged so a running/finished slide never replays. No schema change.
+- **Not touched** — no new pure helpers were extractable (the writer is client URL glue),
+  so no new unit tests; the full existing suite must stay green.
+- Verification: `pnpm lint`, `pnpm typecheck`, `pnpm test` (355), and `pnpm build` all
+  pass; no `db:generate` drift. Manual on-device checks owed: Agenda-tab swipe both
+  directions (instant slide, no skeleton in-month), cross-month swipe (skeleton → fade),
+  chevron/Today/picker parity, refresh/back/tab-re-entry day resolution, event taps
+  after a botched swipe, and the FAB prefilling the viewed day.

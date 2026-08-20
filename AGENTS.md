@@ -244,7 +244,11 @@ the quality checks.
        wrapped in a transition — the button's loader covers it; no skeleton, no fade.
     - In-page exception: the parade-state page updates in-month day switches and filter
       applies optimistically from local state (already correct), so those show no skeleton;
-      only the cross-month switch (server must fetch the new month's events) does.
+      only the cross-month switch (server must fetch the new month's events) does. The
+      dashboard's **Agenda tab** is the same: in-month day changes (swipe/chevrons/Today/
+      picker) apply to local state instantly and sync `?date=` with a plain no-transition
+      `router.push` (no skeleton, no fade — the new day plays the directional slide-in
+      classes instead); only a cross-month change is a data navigation with the skeleton.
  - **Buttons that trigger async work must show a loading indicator in the button itself.**
    Use Mantine's `loading` prop on `Button` together with the shared
    `loaderProps={BUTTON_LOADER_PROPS}` from `src/lib/theme.ts`. For `useForm`-backed submit
