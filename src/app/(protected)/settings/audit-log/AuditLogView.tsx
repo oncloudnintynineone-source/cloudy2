@@ -4,9 +4,11 @@ import { useCallback, useMemo, useState, useTransition } from "react";
 import {
   ActionIcon,
   Badge,
+  Box,
   Button,
   Divider,
   Group,
+  Menu,
   Modal,
   Paper,
   ScrollArea,
@@ -17,7 +19,7 @@ import {
 import { DatePickerInput } from "@mantine/dates";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
-import { IconDownload, IconTrash, IconX } from "@tabler/icons-react";
+import { IconDownload, IconDotsVertical, IconTrash, IconX } from "@tabler/icons-react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
 import {
@@ -143,9 +145,13 @@ export function AuditLogView({
     navigate({ actor: null, action: null, entity: null, from: null, to: null, q: null });
   };
 
-  const hasFilters =
-    filters.actor !== null || filters.action !== null || filters.entityType !== null ||
-    filters.from !== null || filters.to !== null || filters.query !== null;
+  const activeFilterCount =
+    (filters.actor ? 1 : 0) +
+    (filters.action ? 1 : 0) +
+    (filters.entityType ? 1 : 0) +
+    (filters.from ? 1 : 0) +
+    (filters.to ? 1 : 0) +
+    (filters.query ? 1 : 0);
 
   const exportUrl = useMemo(() => {
     const params = new URLSearchParams();
@@ -200,72 +206,108 @@ export function AuditLogView({
 
   return (
     <Stack pb="xl">
-      <Paper withBorder p="sm">
-        <Stack gap="sm">
-          <form
-            onSubmit={(event) => {
-              event.preventDefault();
-              applyFilters({ q: searchInput.trim() || null });
-            }}
-          >
-            <TextInput
-              placeholder="Search actor, entity, route…"
-              value={searchInput}
-              onChange={(event) => setSearchInput(event.currentTarget.value)}
-              rightSection={
-                searchInput ? (
-                  <ActionIcon variant="subtle" onClick={() => setSearchInput("")} aria-label="Clear search">
-                    <IconX size={16} />
-                  </ActionIcon>
-                ) : null
-              }
-            />
-          </form>
-          <NoKeyboardSelect
-            data={actorOptions}
-            value={filters.actor ?? ""}
-            onChange={(value) => applyFilters({ actor: value || null })}
-            label="Actor"
-            searchable
-            clearable
+      <Group align="center" gap="xs" wrap="nowrap">
+        <form
+          style={{ flex: 1, minWidth: 0 }}
+          onSubmit={(event) => {
+            event.preventDefault();
+            applyFilters({ q: searchInput.trim() || null });
+          }}
+        >
+          <TextInput
+            placeholder="Search actor, entity, route…"
+            value={searchInput}
+            onChange={(event) => setSearchInput(event.currentTarget.value)}
+            rightSection={
+              searchInput ? (
+                <ActionIcon variant="subtle" onClick={() => setSearchInput("")} aria-label="Clear search">
+                  <IconX size={16} />
+                </ActionIcon>
+              ) : null
+            }
           />
-          <NoKeyboardSelect
-            data={actionOptions}
-            value={filters.action ?? ""}
-            onChange={(value) => applyFilters({ action: value || null })}
-            label="Action"
-            clearable
-          />
-          <NoKeyboardSelect
-            data={entityOptions}
-            value={filters.entityType ?? ""}
-            onChange={(value) => applyFilters({ entity: value || null })}
-            label="Entity type"
-            clearable
-          />
-          <Group grow align="flex-end" wrap="wrap">
-            <DatePickerInput
-              label="From"
-              value={inputToDate(filters.from)}
-              onChange={(date) => applyFilters({ from: dateToInput(date) })}
-              clearable
-            />
-            <DatePickerInput
-              label="To"
-              value={inputToDate(filters.to)}
-              onChange={(date) => applyFilters({ to: dateToInput(date) })}
-              clearable
-            />
-          </Group>
-          {hasFilters ? (
-            <Group justify="flex-end">
-              <Button variant="subtle" size="xs" onClick={resetFilters} leftSection={<IconX size={14} />}>
-                Reset filters
-              </Button>
-            </Group>
-          ) : null}
-        </Stack>
-      </Paper>
+        </form>
+        <Menu
+          shadow="md"
+          width={300}
+          position="bottom-end"
+          closeOnClickOutside={false}
+          transitionProps={{ transition: "pop-top-right", duration: 150, timingFunction: "ease" }}
+        >
+          <Menu.Target>
+            <Box pos="relative">
+              <ActionIcon size={43} variant="default" aria-label="Filter log">
+                <IconDotsVertical size={18} />
+              </ActionIcon>
+              {activeFilterCount > 0 && (
+                <Badge
+                  size="sm"
+                  variant="filled"
+                  radius="xl"
+                  pos="absolute"
+                  style={{ top: -4, right: -4 }}
+                >
+                  {activeFilterCount}
+                </Badge>
+              )}
+            </Box>
+          </Menu.Target>
+          <Menu.Dropdown>
+            <ScrollArea.Autosize mah={420} type="auto">
+              <Stack gap="sm" p="xs">
+                <NoKeyboardSelect
+                  data={actorOptions}
+                  value={filters.actor ?? ""}
+                  onChange={(value) => applyFilters({ actor: value || null })}
+                  label="Actor"
+                  searchable
+                  clearable
+                />
+                <NoKeyboardSelect
+                  data={actionOptions}
+                  value={filters.action ?? ""}
+                  onChange={(value) => applyFilters({ action: value || null })}
+                  label="Action"
+                  clearable
+                />
+                <NoKeyboardSelect
+                  data={entityOptions}
+                  value={filters.entityType ?? ""}
+                  onChange={(value) => applyFilters({ entity: value || null })}
+                  label="Entity type"
+                  clearable
+                />
+                <Group grow align="flex-end" wrap="wrap">
+                  <DatePickerInput
+                    label="From"
+                    value={inputToDate(filters.from)}
+                    onChange={(date) => applyFilters({ from: dateToInput(date) })}
+                    clearable
+                  />
+                  <DatePickerInput
+                    label="To"
+                    value={inputToDate(filters.to)}
+                    onChange={(date) => applyFilters({ to: dateToInput(date) })}
+                    clearable
+                  />
+                </Group>
+                {activeFilterCount > 0 ? (
+                  <Group justify="flex-end">
+                    <Button
+                      variant="subtle"
+                      size="xs"
+                      onClick={resetFilters}
+                      leftSection={<IconX size={14} />}
+                    >
+                      Reset filters
+                    </Button>
+                  </Group>
+                ) : null}
+              </Stack>
+            </ScrollArea.Autosize>
+          </Menu.Dropdown>
+        </Menu>
+      </Group>
 
       <Stack gap="sm" style={{ opacity: isPending ? 0.6 : 1, transition: "opacity 150ms ease-out" }}>
         {rows.length === 0 ? (
