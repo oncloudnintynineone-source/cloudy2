@@ -210,15 +210,22 @@ the quality checks.
    before rendering (DB queries, fetches) must show a Mantine `Skeleton` fallback instead of
    a blank screen. In the App Router add a `loading.tsx` to the route segment (auto Suspense
    fallback, e.g. `src/app/(protected)/settings/users/loading.tsx`); for client-side async use
-   a `Skeleton` state. Shape the skeleton to match the real card list. In-place URL
-   navigation on a data grid (dashboard month/week/day/filter changes) instead keeps the
-   stale grid visible — dimmed (`opacity: 0.6`) while the transition is pending — and swaps
-   it in place when the new server data commits; the grid skeleton is reserved for cold
-   loads (route `loading.tsx`) and the dashboard's force-refresh nonce. On a fresh mount of
-   the dashboard grid (cold load, tab-away-and-back, deep link) a one-shot CSS reveal fades
-   it in from `opacity: 0.6` (class `dashboard-grid-reveal` in `src/app/globals.css`, 250ms
-   ease-out, `prefers-reduced-motion`-guarded) — in-place navigation never replays it since
-   the same `Box` element persists.
+    a `Skeleton` state. Shape the skeleton to match the real card list. On the dashboard the
+    skeleton is the only loading indicator — never dim or darken the grid while loading:
+    in-place URL navigation on the grid (month/week/day/view/filter changes) shows the
+    view-matched grid skeleton (the same month/week/schedule shapes the force-refresh nonce
+    uses) while the transition is pending, and the new grid swaps in place when it commits.
+    Every skeleton → grid commit plays a one-shot ~180ms opacity fade-in on the grid block
+    (class `dashboard-grid-enter` in `src/app/globals.css`, 180ms ease-out,
+    `prefers-reduced-motion`-guarded); the grid `Box` is never remounted (the week/schedule
+    `ScrollArea` must keep its scroll position across navigations), so the animation is
+    restarted by a `useLayoutEffect` classList remove/reflow/re-add keyed on the committed
+    view identity (`view|month|date|cal|users|types`) — it runs before paint, so the commit
+    frame already shows the fade at frame 0, and the first mount plays it from the class in
+    the SSR HTML (no hydration flash). URL-only strips (clearing the one-shot `edit`/
+    `refresh` params) navigate with a plain `router.push` outside the transition, so they
+    show no skeleton and no fade; `navigate()` also skips no-op hrefs so e.g. tapping
+    "Today" while already there doesn't flash the skeleton.
  - **Buttons that trigger async work must show a loading indicator in the button itself.**
    Use Mantine's `loading` prop on `Button` together with the shared
    `loaderProps={BUTTON_LOADER_PROPS}` from `src/lib/theme.ts`. For `useForm`-backed submit

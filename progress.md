@@ -69,6 +69,7 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
 - [1.55 Parade State filter row scoping + Event Types removal (Phase 3r)](#155-parade-state-filter-row-scoping--event-types-removal-phase-3r)
 - [1.56 No-keyboard dropdowns (Phase 3s)](#156-no-keyboard-dropdowns-phase-3s)
 - [1.57 Audit log viewer + retention + export (Phase 3t)](#157-audit-log-viewer--retention--export-phase-3t)
+- [1.58 Dashboard loading: skeleton only, fade-in on swap (Phase 3u)](#158-dashboard-loading-skeleton-only-fade-in-on-swap-phase-3u)
 
 ## 1.1 Status
 
@@ -2659,3 +2660,64 @@ flowchart LR
 - Verification: `pnpm lint`, `pnpm typecheck`, `pnpm test` (335), `pnpm build` (routes show
   `/settings/audit-log` + `/api/audit/export`), `pnpm db:generate` no drift. Migration `0013`
   applies automatically on the next `main` push (CI migrate job).
+
+## 1.58 Dashboard loading: skeleton only, fade-in on swap (Phase 3u)
+
+The dashboard carried two opacity-based loading appearances on top of the
+skeleton: in-place navigation dimmed the stale grid to 60% while pending,
+and the grid faded in *from* 60% opacity on a fresh mount. Both are removed
+— the Mantine skeleton is now the **only** loading indicator on the page
+(no dimming/darkening ever), and the still-jarring skeleton → grid cut is
+softened by a fast fade-in of the **new** grid.
+
+```mermaid
+stateDiagram-v2
+    [*] --> RouteSkeleton: cold load (loading.tsx)
+    RouteSkeleton --> Grid: data renders, fade-in
+    Grid --> GridSkeleton: month/week/day/view/filter nav (transition push)
+    GridSkeleton --> Grid: new RSC commits, in-place swap + fade-in
+    Grid --> GridSkeleton: force-refresh nonce (blocks on fresh Google)
+    GridSkeleton --> Grid: fresh data commits, fade-in
+    Grid --> Grid: edit/refresh URL strips (plain push, no visual change)
+```
+
+- **Skeleton on every pending data navigation** (`DashboardView.tsx`) — the
+  grid branch renders the view-matched skeleton
+  (`MonthGridSkeleton`/`WeekGridSkeleton`/`ScheduleGridSkeleton`) while
+  `isRefreshing || isPending`; the stale-grid dim
+  (`opacity: isPending ? 0.6 : 1`, 150ms transition) is gone. During pending
+  the skeleton is keyed off the still-committed `view`/`month` props, so e.g.
+  a month → week switch briefly shows the month skeleton before the week
+  grid commits.
+- **Fade-in on commit** (`src/app/globals.css`, replacing
+  `dashboard-grid-reveal`) — `@keyframes dashboard-grid-enter { from {
+  opacity: 0 } }` applied by `.dashboard-grid-enter` (180ms ease-out) inside
+  `@media (prefers-reduced-motion: no-preference)`. The class ships in the
+  SSR HTML, so the cold load (route `loading.tsx` → grid) plays it on first
+  paint with no hydration flash; content is never visible in a dimmed state
+  (fades 0 → 1, unlike the old 0.6 reveal).
+- **No remount, scroll preserved** — the grid `Box` must stay mounted across
+  commits (the week/schedule `ScrollArea` keeps its scroll position on
+  week-to-week / day-to-day navigation), so the animation restarts via a
+  `useLayoutEffect` classList remove/reflow/re-add keyed on the committed
+  identity `view|month|date|cal|users|types` (data-affecting params only).
+  Layout effects run before paint, so the commit frame already shows the fade
+  at frame 0 (no fully-opaque flash first). The null-init ref skips the first
+  mount, where the SSR class is already playing.
+- **URL strips stay invisible** — the one-shot `edit`/`refresh` param strips
+  navigate with a plain `router.push` (no `startTransition`), so their
+  commits show no skeleton and don't replay the fade (the identity excludes
+  those params — otherwise force refresh would fade twice: once for the new
+  data, again when the nonce is stripped).
+- **No-op guard in `navigate()`** — skips the push when the built href equals
+  the current URL (e.g. tapping "Today" while already there), so no-op
+  changes never flash the skeleton.
+- Unchanged: route `loading.tsx` cold-load skeleton, force-refresh UX
+  (skeleton + button spinner for the whole blocking window), the `router.refresh()`
+  mutation swap, and the week-view slot-width measurement gate
+  (`isPending || isRefreshing`).
+- The `AGENTS.md` skeleton convention now encodes skeleton-only loading and
+  the `dashboard-grid-enter` commit fade (incl. the no-remount retrigger and
+  the plain-push strips).
+- Verification: `pnpm lint`, `pnpm typecheck`, `pnpm test` (338) and
+  `pnpm build` all pass. No schema change.

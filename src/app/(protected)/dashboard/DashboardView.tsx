@@ -5,6 +5,7 @@ import {
   type CSSProperties,
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -299,6 +300,39 @@ export function DashboardView({
 
   const [isRefreshing, startRefresh] = useTransition();
 
+  // One-shot fade-in of the grid after a loading skeleton (cold load, any
+  // data navigation, force refresh). The grid Box is never remounted — the
+  // week/schedule ScrollArea must keep its scroll position across navigations
+  // — so the CSS animation is restarted by remove/reflow/re-add. A layout
+  // effect runs before paint, so the commit frame already shows the fade at
+  // frame 0. The identity only covers data-affecting params, so the one-shot
+  // `edit`/`refresh` strips (plain pushes) never replay it. On first mount
+  // the class ships in the SSR HTML and plays on first paint; the null check
+  // skips that run.
+  const gridIdentity = [
+    view,
+    month,
+    date,
+    selectedCalendarIds.join(","),
+    selectedUserIds.join(","),
+    selectedTypes.join(","),
+  ].join("|");
+  const prevGridIdentityRef = useRef<string | null>(null);
+  useLayoutEffect(() => {
+    const prev = prevGridIdentityRef.current;
+    prevGridIdentityRef.current = gridIdentity;
+    if (prev === null || prev === gridIdentity) {
+      return;
+    }
+    const el = weekBoxRef.current;
+    if (!el) {
+      return;
+    }
+    el.classList.remove("dashboard-grid-enter");
+    void el.offsetWidth;
+    el.classList.add("dashboard-grid-enter");
+  }, [gridIdentity]);
+
   // The date shown in the agenda day modal; persists through the exit
   // animation so the shrinking box still has content.
   const agendaViewDate = agendaDate ?? displayAgendaDate;
@@ -424,42 +458,52 @@ export function DashboardView({
 
   const navigate = useCallback(
     (updates: Record<string, string | null>) => {
+      const query = searchParams.toString();
+      const next = buildHref(updates);
+      // A no-op navigation (e.g. tapping "Today" while already there) would
+      // still run a transition, flashing the grid skeleton for nothing.
+      if (next === (query ? `${pathname}?${query}` : pathname)) {
+        return;
+      }
       startTransition(() => {
-        router.push(buildHref(updates));
+        router.push(next);
       });
     },
-    [buildHref, router, startTransition],
+    [buildHref, router, startTransition, pathname, searchParams],
   );
 
   // Strip the one-shot `edit` param from the URL so a refresh doesn't reopen
-  // the edit form.
+  // the edit form. A plain push (no transition): the grid shows no skeleton
+  // and no fade for a URL-only change.
   const editParamClearedRef = useRef(false);
   useEffect(() => {
     if (!initialEditEventId || editParamClearedRef.current) {
       return;
     }
     editParamClearedRef.current = true;
-    navigate({ edit: null });
-  }, [initialEditEventId, navigate]);
+    router.push(buildHref({ edit: null }));
+  }, [buildHref, initialEditEventId, router]);
 
   // Strip the one-shot `refresh` nonce as soon as the forced render has
   // mounted, so later month/day navigation doesn't keep force-refreshing.
   // Self-terminating (stripping removes the param), and re-arms on every new
   // nonce — a ref guard would leak a second nonce if refresh is clicked
-  // before the first strip lands.
+  // before the first strip lands. Plain push (no transition), same as the
+  // edit strip above.
   useEffect(() => {
     if (searchParams.get("refresh") === null) {
       return;
     }
-    navigate({ refresh: null });
-  }, [searchParams, navigate]);
+    router.push(buildHref({ refresh: null }));
+  }, [buildHref, router, searchParams]);
 
   // Force refresh: a transition of its own (the button's spinner) wrapping
   // router.push directly — the transition Next runs inside push stays pending
   // for the whole navigation, so `isRefreshing` covers the load. The server
   // renders that same request with `force: true`; the grid skeleton shows for
-  // the same window. Ordinary transitions keep the current grid visible
-  // (dimmed, below) and swap it in place when the new data commits.
+  // the same window. Ordinary data navigations (month/week/day/view/filter)
+  // show the same grid skeleton while pending and swap the new grid in place
+  // (with a one-shot fade-in) when it commits.
   function refreshNow() {
     startRefresh(() => {
       router.push(buildHref({ refresh: String(Date.now()) }));
@@ -769,18 +813,14 @@ export function DashboardView({
         </Alert>
       )}
 
-      <Box
-        ref={weekBoxRef}
-        className="dashboard-grid-reveal"
-        style={{ opacity: isPending ? 0.6 : 1, transition: "opacity 150ms" }}
-      >
+      <Box ref={weekBoxRef} className="dashboard-grid-enter">
         {isWeek && week && (
           <WeekDayLabelStrip
             day={week[weekDayIndex]}
             hasGroups={scheduleResources.groups !== undefined}
           />
         )}
-        {isRefreshing ? (
+        {isRefreshing || isPending ? (
           view === "month" ? (
             <MonthGridSkeleton rows={monthGridRows(month)} />
           ) : view === "week" ? (
