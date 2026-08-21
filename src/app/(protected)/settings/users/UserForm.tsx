@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useForm } from "@mantine/form";
-import { Badge, Button, Group, Modal, Select, Stack, Text, TextInput } from "@mantine/core";
+import { Badge, Button, Group, Modal, Stack, Text, TextInput } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
 
@@ -133,14 +133,38 @@ export function UserForm({ user, departments, onDone }: UserFormProps) {
         />
         <TextInput label="Email" placeholder="Optional" {...form.getInputProps("email")} />
         <TextInput label="Birthday" type="date" {...form.getInputProps("birthday")} />
-        <Select
-          label="Role"
-          data={[
-            { value: "user", label: "User" },
-            { value: "admin", label: "Admin" },
-          ]}
-          {...form.getInputProps("role")}
-        />
+        {/* Role as toggleable badges, same pattern as Department: the two
+            options are always visible and tapping a badge never focuses an
+            input, so it can't raise the mobile keyboard. Role is required,
+            so tapping a badge always selects it (no toggle-off). Colors
+            mirror UserTable: admin = brand, user = gray. */}
+        <Stack gap={4}>
+          <Text fw={500} size="sm">
+            Role
+          </Text>
+          <Group gap={6} wrap="wrap">
+            {(
+              [
+                { value: "user", label: "User", color: "gray" },
+                { value: "admin", label: "Admin", color: "brand" },
+              ] as const
+            ).map((option) => {
+              const selected = form.values.role === option.value;
+              return (
+                <Badge
+                  key={option.value}
+                  color={option.color}
+                  variant={selected ? "filled" : "light"}
+                  size="lg"
+                  style={{ height: "calc(var(--badge-height-lg) * 1.5)", cursor: "pointer" }}
+                  onClick={() => form.setFieldValue("role", option.value)}
+                >
+                  {option.label}
+                </Badge>
+              );
+            })}
+          </Group>
+        </Stack>
         {/* Department as toggleable badges instead of a Select: the list is
             short, always visible, and tapping a badge never focuses an input,
             so it can't raise the mobile keyboard or trigger the browser's
