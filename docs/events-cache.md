@@ -242,9 +242,9 @@ skeleton renders on `isPending || isRefreshing` so the load is covered either wa
 
 ## 1.6 Write / invalidation path
 
-Create, update, and delete (`src/lib/events/actions.ts`: `createEvent` :322, `updateEvent`
-:410, `deleteEvent` :529) write to Google Calendar directly (the source of truth), audit-log,
-then call `invalidateGcalCache(googleCalendarIds, months)` (`eventsCache.ts:199`) before
+Create, update, and delete (`src/lib/events/actions.ts`: `createEvent`, `updateEvent`,
+`deleteEvent`) write to Google Calendar directly (the source of truth), audit-log,
+then call `invalidateGcalCache(googleCalendarIds, months)` before
 `revalidatePath("/dashboard")`:
 
 ```mermaid

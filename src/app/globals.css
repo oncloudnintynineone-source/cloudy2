@@ -41,3 +41,13 @@
     animation: agenda-slide-in-prev 220ms cubic-bezier(0.22, 1, 0.36, 1);
   }
 }
+
+/* In dark mode the active tab's underline (a 2px border in --tabs-color,
+   defaulting to --mantine-primary-color-filled = brand shade 8, a dark navy)
+   is nearly invisible on the dark body. The variable is set inline on the
+   Tabs root, so re-declaring it on the active tab itself — a descendant —
+   wins over inheritance without !important. The data-mantine-color-scheme
+   attribute is set before first paint, so this switches flash-free. */
+[data-mantine-color-scheme="dark"] [role="tablist"] [role="tab"][data-active] {
+  --tabs-color: var(--mantine-brand-color-4);
+}

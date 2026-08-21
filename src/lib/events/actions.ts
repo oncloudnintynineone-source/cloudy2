@@ -6,9 +6,16 @@ import { revalidatePath } from "next/cache";
 import { db } from "@/db";
 import { calendars } from "@/db/schema";
 import { AUDIT_ACTIONS, actorFromUser } from "@/lib/audit/build";
+import { diffFields } from "@/lib/audit/diff";
 import { logAction } from "@/lib/audit/log";
 import { appBaseUrl } from "@/lib/appUrl";
 import { absEventRange, monthsInRange } from "@/lib/events/datetime";
+import {
+  buildEventSnapshot,
+  snapshotFromCopy,
+  type EventSnapshotNames,
+  type EventTimeParts,
+} from "@/lib/events/eventAudit";
 import {
   encodeEventNotes,
   encodeNotesBlock,
@@ -24,9 +31,14 @@ import { getUserDepartmentIds } from "@/lib/events/queries";
 import { deriveTargetCalendarIds, type EventRef } from "@/lib/events/targets";
 import { validateEventForm, withCreatorInvited, type EventFormValues } from "@/lib/events/validate";
 import { getEventTypesByNames } from "@/lib/eventTypes/queries";
-import { getGoogleIntegration, googleCalendarConfigured, type GcalEventInput } from "@/lib/google";
+import {
+  getGoogleIntegration,
+  googleCalendarConfigured,
+  type GcalEventInput,
+  type GcalEventItem,
+} from "@/lib/google";
 import { invalidateGcalCache } from "@/lib/google/eventsCache";
-import { getUsersByIds } from "@/lib/roster/queries";
+import { getUsersByIds, type UserDisplayInfo } from "@/lib/roster/queries";
 import { resolveGoogleCalendarId } from "@/lib/roster/shares";
 import {
   formatEventTitle,
@@ -46,8 +58,20 @@ function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : "Google Calendar request failed";
 }
 
-function arrayLength(value: unknown): number {
-  return Array.isArray(value) ? value.length : 0;
+/** User id → name map from a roster lookup, for audit snapshot display. */
+function namesById(rows: UserDisplayInfo[]): Record<string, string> {
+  return Object.fromEntries(rows.map((user) => [user.id, user.name]));
+}
+
+/** The snapshot's datetime parts from a (resolved) event form. */
+function timePartsOf(values: EventFormValues): EventTimeParts {
+  return {
+    timeOption: values.timeOption,
+    start: values.start,
+    end: values.end,
+    startAmPm: values.startAmPm,
+    endAmPm: values.endAmPm,
+  };
 }
 
 function actorFrom(session: Awaited<ReturnType<typeof requireSession>>) {
@@ -278,28 +302,27 @@ async function buildGcalEventInput(
 /**
  * Copies (in one target calendar) of the logical event: items whose notes
  * carry the group id, plus — on a legacy first edit/delete — the original copy
- * matched by Google event id (it has no group id yet).
+ * matched by Google event id (it has no group id yet). Full items are returned
+ * so callers can snapshot the pre-change state from the first copy found.
  */
 async function findCopies(
   googleCalendarId: string,
   eventId: string,
   range: AbsRange,
   legacyFallback: { googleCalendarId: string; googleEventId: string } | null,
-): Promise<{ googleCalendarId: string; googleEventId: string }[]> {
+): Promise<GcalEventItem[]> {
   const integration = await getGoogleIntegration();
   const items = await integration.listEvents(googleCalendarId, range.start, range.end);
-  return items
-    .filter((item) => {
-      if (parseEventPeople(item.description).eventId === eventId) {
-        return true;
-      }
-      return (
-        legacyFallback !== null &&
-        googleCalendarId === legacyFallback.googleCalendarId &&
-        item.id === legacyFallback.googleEventId
-      );
-    })
-    .map((item) => ({ googleCalendarId, googleEventId: item.id }));
+  return items.filter((item) => {
+    if (parseEventPeople(item.description).eventId === eventId) {
+      return true;
+    }
+    return (
+      legacyFallback !== null &&
+      googleCalendarId === legacyFallback.googleCalendarId &&
+      item.id === legacyFallback.googleEventId
+    );
+  });
 }
 
 /** Google calendar id of the representative copy's registry row, or null. */
@@ -382,6 +405,20 @@ export async function createEvent(input: EventFormValues): Promise<EventActionRe
   }
 
   const targetCalendars = await calendarNames(targets);
+  const userNames = namesById(
+    await getUsersByIds([...new Set([normalized.creatorId, ...normalized.inviteeUserIds])]),
+  );
+  const snapshot = buildEventSnapshot({
+    title: effectiveInput.title,
+    type: effectiveInput.eventType,
+    timeParts: timePartsOf(effectiveInput),
+    outOfCamp: effectiveInput.outOfCamp,
+    location: effectiveInput.location,
+    departmentIds: targets,
+    inviteeUserIds: effectiveInput.inviteeUserIds,
+    creatorId: effectiveInput.creatorId || null,
+    names: { departmentNames: targetCalendars, userNames },
+  });
   await logAction({
     ...actorFrom(session),
     action: AUDIT_ACTIONS.eventCreate,
@@ -390,15 +427,8 @@ export async function createEvent(input: EventFormValues): Promise<EventActionRe
     entityName: input.title.trim(),
     method: "createEvent",
     details: {
+      ...snapshot,
       eventId,
-      eventType: effectiveInput.eventType || null,
-      timeOption: effectiveInput.timeOption,
-      outOfCamp: effectiveInput.outOfCamp,
-      location: effectiveInput.location || null,
-      targetCalendarIds: targets,
-      targetCalendars: Object.values(targetCalendars),
-      inviteeUserCount: arrayLength(effectiveInput.inviteeUserIds),
-      inviteeDepartmentCount: arrayLength(effectiveInput.inviteeDepartments),
       googleEventIds: created.map((copy) => copy.googleEventId),
     },
   });
@@ -475,6 +505,9 @@ export async function updateEvent(
   const newSet = new Set(newTargets);
   const createdHere: { googleCalendarId: string; googleEventId: string }[] = [];
   const affectedGoogleIds = new Set<string>();
+  // The first existing copy found anywhere is the event's pre-edit state for
+  // the audit diff (all copies of a logical event are identical).
+  let firstCopy: GcalEventItem | null = null;
 
   try {
     for (const target of union) {
@@ -484,11 +517,14 @@ export async function updateEvent(
       }
       affectedGoogleIds.add(googleCalendarId);
       const found = await findCopies(googleCalendarId, eventId, range, fallback);
+      if (firstCopy === null && found.length > 0) {
+        firstCopy = found[0];
+      }
       if (newSet.has(target)) {
         if (found.length > 0) {
           for (const copy of found) {
             await integration.updateEvent(
-              copy.googleEventId,
+              copy.id,
               await buildGcalEventInput(googleCalendarId, effectiveInput, eventId, titleContext),
             );
           }
@@ -500,7 +536,7 @@ export async function updateEvent(
         }
       } else {
         for (const copy of found) {
-          await integration.deleteEvent(googleCalendarId, copy.googleEventId);
+          await integration.deleteEvent(googleCalendarId, copy.id);
         }
       }
     }
@@ -513,6 +549,33 @@ export async function updateEvent(
     return { ok: false, error: errorMessage(error) };
   }
 
+  const names: EventSnapshotNames = {
+    departmentNames: await calendarNames([...new Set([...oldTargets, ...newTargets])]),
+    userNames: namesById(
+      await getUsersByIds(
+        [
+          ...new Set([
+            ...(ref.creatorId ? [ref.creatorId] : []),
+            ...ref.inviteeUserIds,
+            normalized.creatorId,
+            ...normalized.inviteeUserIds,
+          ]),
+        ],
+      ),
+    ),
+  };
+  const before = snapshotFromCopy(ref, firstCopy, names, oldTargets);
+  const after = buildEventSnapshot({
+    title: effectiveInput.title,
+    type: effectiveInput.eventType,
+    timeParts: timePartsOf(effectiveInput),
+    outOfCamp: effectiveInput.outOfCamp,
+    location: effectiveInput.location,
+    departmentIds: newTargets,
+    inviteeUserIds: effectiveInput.inviteeUserIds,
+    creatorId: effectiveInput.creatorId || null,
+    names,
+  });
   await logAction({
     ...actorFrom(session),
     action: AUDIT_ACTIONS.eventUpdate,
@@ -521,15 +584,8 @@ export async function updateEvent(
     entityName: input.title.trim(),
     method: "updateEvent",
     details: {
+      ...diffFields(before, after),
       eventId,
-      eventType: effectiveInput.eventType || null,
-      timeOption: effectiveInput.timeOption,
-      outOfCamp: effectiveInput.outOfCamp,
-      location: effectiveInput.location || null,
-      removedCalendarIds: oldTargets.filter((id) => !newSet.has(id)),
-      addedCalendarIds: newTargets.filter((id) => !oldTargets.includes(id)),
-      inviteeUserCount: arrayLength(effectiveInput.inviteeUserIds),
-      inviteeDepartmentCount: arrayLength(effectiveInput.inviteeDepartments),
     },
   });
 
@@ -564,6 +620,8 @@ export async function deleteEvent(ref: EventRef): Promise<EventActionResult> {
   const range = withMargin(absEventRange(ref.start, ref.end, ref.allDay));
   const deletedGoogleEventIds: string[] = [];
   const affectedGoogleIds = new Set<string>();
+  // The first existing copy found is the event's state for the audit row.
+  let firstCopy: GcalEventItem | null = null;
 
   try {
     for (const target of targets) {
@@ -573,25 +631,39 @@ export async function deleteEvent(ref: EventRef): Promise<EventActionResult> {
       }
       affectedGoogleIds.add(googleCalendarId);
       const found = await findCopies(googleCalendarId, ref.eventId ?? "", range, fallback);
+      if (firstCopy === null && found.length > 0) {
+        firstCopy = found[0];
+      }
       for (const copy of found) {
-        await integration.deleteEvent(googleCalendarId, copy.googleEventId);
-        deletedGoogleEventIds.push(copy.googleEventId);
+        await integration.deleteEvent(googleCalendarId, copy.id);
+        deletedGoogleEventIds.push(copy.id);
       }
     }
   } catch (error) {
     return { ok: false, error: errorMessage(error) };
   }
 
+  const snapshot = snapshotFromCopy(
+    ref,
+    firstCopy,
+    {
+      departmentNames: await calendarNames(targets),
+      userNames: namesById(
+        await getUsersByIds([...new Set([...(ref.creatorId ? [ref.creatorId] : []), ...ref.inviteeUserIds])]),
+      ),
+    },
+    targets,
+  );
   await logAction({
     ...actorFrom(session),
     action: AUDIT_ACTIONS.eventDelete,
     entityType: "calendar",
     entityId: ref.calendarId,
-    entityName: ref.googleEventId,
+    entityName: snapshot.title ?? "Untitled event",
     method: "deleteEvent",
     details: {
+      ...snapshot,
       eventId: ref.eventId,
-      targetCalendarIds: targets,
       googleEventIds: deletedGoogleEventIds,
     },
   });

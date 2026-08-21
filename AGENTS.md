@@ -299,9 +299,30 @@ the quality checks.
   text), keyset pagination via `listAuditLogs`, and CSV export at `/api/audit/export`.
   **Rotation is on-read** — every page render purges rows older than the configured retention
   (indexed delete on `created_at`), plus a manual "Delete older than N days" button; no cron
-  job needed. Never call `listAuditLogs`-adjacent helpers directly with a live DB in tests —
-  the pure parts (`parseAuditFilters`, cursor codec, CSV builder, display format) are
-  I/O-free and unit-tested.
+   job needed. Never call `listAuditLogs`-adjacent helpers directly with a live DB in tests —
+   the pure parts (`parseAuditFilters`, cursor codec, CSV builder, display format, event
+   audit snapshots) are I/O-free and unit-tested.
+   - **`details` payloads are human-readable by design** — no UUIDs, no raw enums, no
+     missing datetimes. Event rows (create/update/delete) store an
+     `EventAuditSnapshot` (`{ title, type, time, outOfCamp, location, departments,
+     invitees, creator }`) built by the pure helpers in `src/lib/events/eventAudit.ts`:
+     display names instead of ids, and `time` pre-formatted in the app's UTC+8 wall clock
+     (`2026-08-21 14:00 – 15:30`, `2026-08-21 (AM) – 2026-08-23 (PM)`). Create/delete store
+     the snapshot flat (+ `eventId`, `googleEventIds`); update stores
+     `diffFields(before, after)` + `eventId`, where the *before* snapshot is parsed from
+     the notes of the first existing Google copy found in the reconcile loop (`findCopies`
+     returns full `GcalEventItem[]` for exactly that reason) — legacy events without notes
+     show `∅ → value` for the fields it can't know. User rows carry
+     `department` names (not ids); access role changes are `role` field-diffs (previous
+     role read via `listCalendarAccess` before the mutation); event-type rows store time
+     options / location policy as display labels. The display layer
+     (`formatAuditDetails`, `src/lib/audit/format.ts`) renders three shapes: `changes`
+     (a FieldDiff → before→after lines, other flat top-level keys as context lines, and the
+     stored `after` record as a "Resulting state" section), `fields` (any flat object →
+     label/value lines — which is also how legacy rows already in the DB render), and a
+     pretty-JSON fallback; labels, enum/boolean/array rendering come from the pure
+     `fieldLabel`/`valueString` helpers. Keep new `details` payloads flat and
+     human-readable so they render as label/value lines without code changes.
   - **Standard loading appearance: skeleton only + fade-in on reveal.** Apply this
     checklist whenever you **implement or update a loading skeleton** (route fallback,
     in-place navigation, filter change, refetch):

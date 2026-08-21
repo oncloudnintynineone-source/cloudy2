@@ -30,7 +30,14 @@ import {
 import { NoKeyboardSelect } from "@/components/NoKeyboardSelect";
 import { purgeAuditLogs, loadMoreAuditLogs } from "@/lib/audit/actions";
 import { listAuditActions } from "@/lib/audit/build";
-import { actionLabel, actorLabel, formatAuditDetails, formatLogTimestamp } from "@/lib/audit/format";
+import {
+  actionLabel,
+  actorLabel,
+  EMPTY_VALUE,
+  formatAuditDetails,
+  formatLogTimestamp,
+  type DetailValue,
+} from "@/lib/audit/format";
 import type { AuditFilters } from "@/lib/audit/queries";
 import { SETTINGS_TAB_BAR_OFFSET } from "@/app/(protected)/settings/settingsTabBar";
 import { CONTENT_ENTER_CLASS, useContentEnter } from "@/lib/loading/contentEnter";
@@ -511,38 +518,78 @@ function LogDetailModal({ row, onClose }: LogDetailModalProps) {
             </Text>
           ) : null}
           <Divider />
-          {details.kind === "changes" && details.lines.length > 0 ? (
-            <ScrollArea.Autosize mah={320} type="auto">
-              <Stack gap={4}>
-                {details.lines.map((line) => (
-                  <Paper key={line.label} withBorder p="xs">
-                    <Stack gap={2}>
-                      <Text size="xs" fw={600} c="dimmed">
-                        {line.label}
-                      </Text>
-                      <Text size="sm">
-                        <Text component="span" c="red" size="sm" inherit>
-                          {line.before ?? "∅"}
-                        </Text>
-                        {" → "}
-                        <Text component="span" c="teal" size="sm" inherit>
-                          {line.after ?? "∅"}
-                        </Text>
-                      </Text>
-                    </Stack>
-                  </Paper>
-                ))}
-              </Stack>
-            </ScrollArea.Autosize>
-          ) : (
+          {details.kind === "json" ? (
             <ScrollArea.Autosize mah={320} type="auto">
               <Text component="pre" size="xs" style={{ margin: 0, whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
                 {details.json}
               </Text>
             </ScrollArea.Autosize>
+          ) : (
+            <ScrollArea.Autosize mah={420} type="auto">
+              <Stack gap="sm">
+                {details.values.length > 0 ? <DetailValueList items={details.values} /> : null}
+                {details.kind === "changes" && details.lines.length > 0 ? (
+                  <Stack gap={4}>
+                    {details.lines.map((line) => (
+                      <Paper key={line.label} withBorder p="xs">
+                        <Stack gap={2}>
+                          <Text size="xs" fw={600} c="dimmed">
+                            {line.label}
+                          </Text>
+                          <Text size="sm">
+                            <Text component="span" c="red" size="sm" inherit>
+                              {line.before ?? EMPTY_VALUE}
+                            </Text>
+                            {" → "}
+                            <Text component="span" c="teal" size="sm" inherit>
+                              {line.after ?? EMPTY_VALUE}
+                            </Text>
+                          </Text>
+                        </Stack>
+                      </Paper>
+                    ))}
+                  </Stack>
+                ) : null}
+                {details.kind === "changes" && details.after.length > 0 ? (
+                  <Stack gap={4}>
+                    <Text size="xs" fw={600} c="dimmed">
+                      Resulting state
+                    </Text>
+                    <DetailValueList items={details.after} />
+                  </Stack>
+                ) : null}
+                {details.kind === "changes" &&
+                details.lines.length === 0 &&
+                details.values.length === 0 &&
+                details.after.length === 0 ? (
+                  <Text size="sm" c="dimmed">
+                    No changes recorded.
+                  </Text>
+                ) : null}
+              </Stack>
+            </ScrollArea.Autosize>
           )}
         </Stack>
       ) : null}
     </Modal>
+  );
+}
+
+function DetailValueList({ items }: { items: DetailValue[] }) {
+  return (
+    <Stack gap={4}>
+      {items.map((item) => (
+        <Paper key={item.label} withBorder p="xs">
+          <Stack gap={2}>
+            <Text size="xs" fw={600} c="dimmed">
+              {item.label}
+            </Text>
+            <Text size="sm" style={{ wordBreak: "break-word" }}>
+              {item.value || EMPTY_VALUE}
+            </Text>
+          </Stack>
+        </Paper>
+      ))}
+    </Stack>
   );
 }

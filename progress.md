@@ -83,6 +83,8 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
 - [1.69 Remembered UI state across relaunch (Phase 3ab)](#169-remembered-ui-state-across-relaunch-phase-3ab)
 - [1.71 User filter narrows the resource rows (bugfix)](#171-user-filter-narrows-the-resource-rows-bugfix)
 - [1.72 Pinned dashboard view tabs (Phase 3ac)](#172-pinned-dashboard-view-tabs-phase-3ac)
+- [1.73 Legible audit log details (Phase 3ad)](#173-legible-audit-log-details-phase-3ad)
+- [1.74 Week v2 event chips + dark-mode tab indicator (Phase 3ae)](#174-week-v2-event-chips--dark-mode-tab-indicator-phase-3ae)
 
 ## 1.1 Status
 
@@ -255,9 +257,14 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
   ⋮ menus now hold the one-tap filter actions directly (see §1.67) — a **"My Events"**
   toggle (Users filter = current user), a **Clear** item (restores the consumer's
   default), and **More Filters** (renamed from "Filters", opens the dialog). The
-  dialog keeps its own **"My Events"** quick action (`FilterGroup.action` beside the
-  Users group label, draft-scoped) and its draft-`Clear`. Audit log untouched (its ⋮
-  menu is the filter panel itself). No schema changes; `pnpm lint/typecheck/test` pass.
+   dialog keeps its own **"My Events"** quick action (`FilterGroup.action` beside the
+   Users group label, draft-scoped) and its draft-`Clear`. Audit log untouched (its ⋮
+   menu is the filter panel itself). No schema changes; `pnpm lint/typecheck/test` pass.
+- **Phase 3ad (legible audit log details):** every `audit_logs` `details` payload is now
+   human-readable (see §1.73) — event rows carry a name-based snapshot with a
+   pre-formatted datetime, event updates store a true before/after diff, and the
+   Details modal renders flat payloads as label/value lines (legacy rows included).
+   No schema changes; `pnpm lint/typecheck/test` (449) pass.
 
 ## 1.2 Decisions locked in (Phase 0)
 
@@ -3578,4 +3585,129 @@ flowchart LR
   returns; F5 / PWA relaunch keeps the order on first paint; tab switches
   don't clear pins; the menu label/icon + tab star survive the menu
   close/reopen on the new tab; sign-out clears the pins.
+
+## 1.73 Legible audit log details (Phase 3ad)
+
+The audit log recorded *what happened* but often not *what it was about*.
+Event creates had no date/time at all, event updates stored a flat "new
+state" (impossible to tell what changed), deletes named the entity by its raw
+Google event id, and every non-diff payload rendered as raw JSON in the
+Details modal. Now every `details` payload is human-readable: display names
+instead of UUIDs, pre-formatted datetimes, enum labels, and true before/after
+diffs for updates.
+
+**Design decisions (user-confirmed):** event updates render **diff + full
+after-state** (changed fields as before→after, then a "Resulting state"
+section); invitees/departments are stored as **names**, not counts.
+
+```mermaid
+flowchart TD
+    A["updateEvent / deleteEvent"] --> B["reconcile loop over target calendars"]
+    B --> C["findCopies (now returns full GcalEventItem[])"]
+    C --> D["first existing copy<br/>= pre-change state"]
+    D --> E["snapshotFromCopy<br/>(parse notes: title/type/<br/>timeOption/AM-PM/outOfCamp/location)"]
+    F["form values + name lookups<br/>(calendarNames, getUsersByIds)"] --> G["buildEventSnapshot<br/>(names, pre-formatted time)"]
+    E --> H["diffFields(before, after) + eventId"]
+    G --> H
+    H --> I[("audit_logs.details (jsonb)")]
+    I --> J["formatAuditDetails<br/>changes / fields / json"]
+    J --> K["Details modal:<br/>context values · before→after lines<br/>· Resulting state"]
+```
+
+- **Pure snapshot module** (`src/lib/events/eventAudit.ts`, new, unit-tested in
+  `eventAudit.test.ts`) — `EventAuditSnapshot` type
+  (`{ title, type, time, outOfCamp, location, departments, invitees, creator }`),
+  `formatEventAuditTime(parts)` (range: `2026-08-21 14:00 – 15:30` /
+  `2026-08-21 14:00 – 2026-08-23 09:30`; full: `2026-08-21 (AM)`,
+  `2026-08-21 (AM–PM)`, `2026-08-21 (AM) – 2026-08-23 (PM)`; zero seconds
+  dropped), `buildEventSnapshot(...)` (after-state from form values + id→name
+  maps; blank title/type/location → null; unknown ids dropped), and
+  `snapshotFromCopy(ref, copy, names, departmentIds)` (before-state from the
+  edit/delete ref + the first Google copy found; times/people from the ref,
+  everything else parsed from the copy's notes — null/false when the copy is
+  missing or legacy, so the diff shows `∅ → value` for what couldn't be known).
+- **Event actions** (`src/lib/events/actions.ts`) — `findCopies` now returns
+  `GcalEventItem[]` (full items; callers use `item.id`) so update/delete can
+  snapshot the pre-change state **without extra Google API calls** (the first
+  copy found in the reconcile loop is captured before any mutation).
+  `createEvent` details = snapshot + `eventId` + `googleEventIds`; `updateEvent`
+  details = `diffFields(before, after)` + `eventId` (title/type/time/location/
+  out-of-camp/departments/invitees/creator all diffed); `deleteEvent`
+  `entityName` = event title (fallback "Untitled event", was the raw Google id)
+  and details = the deleted event's snapshot + ids.
+- **Display layer** (`src/lib/audit/format.ts`) — `formatAuditDetails` renders
+  three shapes: `changes` (FieldDiff → before→after lines + other flat
+  top-level keys as context value lines + the stored `after` record as a
+  "Resulting state" section), `fields` (any flat object → label/value lines —
+  covers creates, grants, purges, **and every legacy row already in the DB**),
+  and a pretty-JSON fallback. New pure helpers: `fieldLabel` (key → label,
+  incl. legacy keys like `targetCalendarIds`, `inviteeUserCount`) and
+  `valueString(key, value)` (nulls → `∅`, booleans → Yes/No, string arrays
+  joined, `timeOption`/`timeOptions`/`locationPolicy` → their display labels).
+- **Details modal** (`AuditLogView.tsx`) — renders value lines
+  (`DetailValueList`), change lines, and the "Resulting state" section inside
+  one scroll area; an empty diff shows "No changes recorded."
+- **Roster actions** (`src/lib/roster/actions.ts`) — `createUser` details gain
+  phone/email/birthday and the `department` **name** (was `departmentId` UUID);
+  `updateUser` diffs `department` by name (both sides resolved, one
+  `calendars` query); `setUserStatus` stores a before/after `status` diff;
+  `deleteDepartment` stores the `googleCalendarId`; access grant/update/revoke
+  store `{ email } + role field-diff` (∅→role / old→new / old→∅) — the previous
+  role is read via the read-only `listCalendarAccess` before the mutation
+  (not `listDepartmentAccess`, which reconciles and would add side effects to
+  the mutation path); revoke now trims the email before removing it.
+- **Event-type actions** (`src/lib/eventTypes/actions.ts`) — create/rename
+  store time options and location policy as display labels ("Start & End",
+  "Full Day", "In camp only", …) instead of raw enums.
+- **Unchanged** — settings/auth/purge payloads (their display labels improved
+  via `FIELD_LABELS` only), CSV export (embeds the raw JSON, which is now more
+  readable anyway), `diffFields`/`buildAuditLog`/query layer, the audit table
+  (no schema change — `db:generate` no drift). Pre-existing rows cannot be
+  backfilled; they render best-effort through the new label map (still missing
+  times, which were never stored).
+- **Tests** — new `src/lib/events/eventAudit.test.ts` (12 cases: time
+  formatting matrix, snapshot building, copy parsing incl. v3-notes round-trip
+  and legacy fallbacks); `format.test.ts` extended (labels, value rendering,
+  flat/legacy rows, diff extras + after-state, empty diff). Suite 449.
+- Verification: `pnpm lint`, `pnpm typecheck`, and `pnpm test` (449) all pass.
+  Manual on-device checks owed: create/edit/delete an event and open each
+  row's Details (time visible, only changed fields diffed, resulting state
+  shown); check a legacy row and an old user-update row still render; access
+  grant/update/revoke show the role transition.
+
+## 1.74 Week v2 event chips + dark-mode tab indicator (Phase 3ae)
+
+The Week v2 matrix's event banners looked off next to the Mantine-based
+schedule views (sharp corners, flush against the cell edges), and in dark
+mode the active-tab underline was nearly invisible.
+
+- **Week v2 banners** (`src/app/(protected)/dashboard/WeekMatrixView.tsx`) —
+  the single stretching `UnstyledButton` became the same two-layer structure
+  the Mantine `ScheduleEvent` uses (and the Day view's all-day bars already
+  mirror): the outer button keeps the grid placement/click and is now a
+  transparent spacer with `padding: 2px` (a roomier version of the `.event`
+  1px inset from the cell edge — bumped after the 1px looked too tight),
+  and an inner `Box` is the visible chip — `borderRadius: 8` (radius `md`,
+  doubled from the schedule views' 4px after the same feedback), the existing
+  1px border/background/foreground from `variantColorResolver`
+  (`variant: "light"` — already identical to the Mantine views), medium font
+  weight (`.eventInner` is `--mantine-font-weight-medium`), the 1px 6px text
+  padding (kept as-is — only the outer inset was doubled), and the same
+  0.75rem ellipsized title. No hover state — the app is mobile-only and
+  Mantine's event hover is `@media (hover: hover)`.
+- **Dark-mode tab indicator** (`src/app/globals.css`) — the active tab's
+  underline is a 2px border in `--tabs-color` (default
+  `--mantine-primary-color-filled`), which in dark mode resolves to brand
+  shade 8 (`#0a3a85`) — nearly invisible on the dark body (`#141414`). One
+  rule re-declares the variable on the active tab itself
+  (`[data-mantine-color-scheme="dark"] [role="tablist"] [role="tab"][data-active]
+  { --tabs-color: var(--mantine-brand-color-4) }`): the variable is set inline
+  on the Tabs root, so a declaration on the descendant tab wins over
+  inheritance without `!important`, and the `data-mantine-color-scheme`
+  attribute is set pre-paint by `ColorSchemeScript` (no flash). Fixes the
+  dashboard view tabs, the settings sub-tabs, and the event form's
+  time-option tabs at once; light mode (brand-6 underline) is untouched.
+- Verification: `pnpm lint`, `pnpm typecheck`, and `pnpm test` (449) all pass.
+  Manual check: Week v2 in both color schemes (rounded, inset chips) and the
+  tab underline in dark mode on /dashboard and /settings.
 

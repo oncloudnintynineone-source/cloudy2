@@ -10,8 +10,8 @@ import { diffFields } from "@/lib/audit/diff";
 import { logAction } from "@/lib/audit/log";
 import { requireAdmin } from "@/lib/session";
 import { validateEventTypeForm, type EventTypeFormValues } from "@/lib/eventTypes/validate";
-import { normalizeLocationPolicy } from "@/lib/events/locationPolicy";
-import { normalizeTimeOptions } from "@/lib/events/timeOptions";
+import { LOCATION_POLICY_LABELS, normalizeLocationPolicy } from "@/lib/events/locationPolicy";
+import { isTimeOption, normalizeTimeOptions, TIME_OPTION_LABELS } from "@/lib/events/timeOptions";
 
 export type EventTypeActionResult =
   | { ok: true }
@@ -51,6 +51,11 @@ async function getEventTypeOrNull(id: string): Promise<EventType | null> {
   return row ?? null;
 }
 
+/** Display labels for a set of time options, stored in audit details. */
+function timeOptionLabels(options: string[]): string[] {
+  return options.map((option) => (isTimeOption(option) ? TIME_OPTION_LABELS[option] : option));
+}
+
 export async function createEventType(input: EventTypeFormValues): Promise<EventTypeActionResult> {
   const session = await requireAdmin();
 
@@ -76,7 +81,12 @@ export async function createEventType(input: EventTypeFormValues): Promise<Event
       entityId: created.id,
       entityName: created.name,
       method: "createEventType",
-      details: { name, shortname, timeOptions, locationPolicy },
+      details: {
+        name,
+        shortname,
+        timeOptions: timeOptionLabels(timeOptions),
+        locationPolicy: LOCATION_POLICY_LABELS[locationPolicy],
+      },
     });
   } catch (error) {
     if (violatedConstraint(error) === "event_types_shortname_idx") {
@@ -133,10 +143,15 @@ export async function renameEventType(
         {
           name: existing.name,
           shortname: existing.shortname,
-          timeOptions: existing.timeOptions,
-          locationPolicy: normalizeLocationPolicy(existing.locationPolicy),
+          timeOptions: timeOptionLabels(existing.timeOptions),
+          locationPolicy: LOCATION_POLICY_LABELS[normalizeLocationPolicy(existing.locationPolicy)],
         },
-        { name, shortname, timeOptions, locationPolicy },
+        {
+          name,
+          shortname,
+          timeOptions: timeOptionLabels(timeOptions),
+          locationPolicy: LOCATION_POLICY_LABELS[locationPolicy],
+        },
       ),
     });
   } catch (error) {

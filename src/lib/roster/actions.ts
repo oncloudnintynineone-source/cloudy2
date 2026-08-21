@@ -1,6 +1,6 @@
 "use server";
 
-import { eq } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
 import { db } from "@/db";
@@ -64,7 +64,7 @@ function actorFrom(session: Awaited<ReturnType<typeof requireAdmin>>) {
 }
 
 /** Sanitized user snapshot for audit details (never includes the password hash). */
-function userSnapshot(user: User) {
+function userSnapshot(user: User, departmentNames: Record<string, string>) {
   return {
     name: user.name,
     shortname: user.shortname,
@@ -73,13 +73,34 @@ function userSnapshot(user: User) {
     birthday: user.birthday,
     role: user.role,
     status: user.status,
-    departmentId: user.departmentId,
+    department: user.departmentId ? (departmentNames[user.departmentId] ?? null) : null,
   };
 }
 
 async function getCalendarOrNull(calendarId: string): Promise<Calendar | null> {
   const [row] = await db.select().from(calendars).where(eq(calendars.id, calendarId)).limit(1);
   return row ?? null;
+}
+
+/** Department (calendar) name for a user's department id, or null. */
+async function calendarNameOrNull(calendarId: string | null | undefined): Promise<string | null> {
+  if (!calendarId) {
+    return null;
+  }
+  const calendar = await getCalendarOrNull(calendarId);
+  return calendar?.name ?? null;
+}
+
+/** Department (calendar) id → name map for a set of ids, for audit display. */
+async function calendarNamesByIds(ids: string[]): Promise<Record<string, string>> {
+  if (ids.length === 0) {
+    return {};
+  }
+  const rows = await db
+    .select({ id: calendars.id, name: calendars.name })
+    .from(calendars)
+    .where(inArray(calendars.id, ids));
+  return Object.fromEntries(rows.map((row) => [row.id, row.name]));
 }
 
 // ---------------------------------------------------------------------------
@@ -95,6 +116,7 @@ export async function createUser(input: UserFormValues): Promise<RosterActionRes
   }
 
   const phone = normalizePhone(input.phone)!;
+  const department = await calendarNameOrNull(input.departmentId);
   try {
     const [created] = await db
       .insert(users)
@@ -120,9 +142,12 @@ export async function createUser(input: UserFormValues): Promise<RosterActionRes
       details: {
         name: input.name.trim(),
         shortname: input.shortname,
+        phone,
+        email: input.email?.trim() || null,
+        birthday: input.birthday || null,
         role: input.role,
         status: input.status,
-        departmentId: input.departmentId,
+        department,
       },
     });
   } catch (error) {
@@ -160,17 +185,23 @@ export async function updateUser(id: string, input: UserFormValues): Promise<Ros
     return { ok: false, error: "User not found", field: "name" };
   }
 
-  const after = userSnapshot({
-    ...before,
-    name: input.name.trim(),
-    shortname: input.shortname,
-    phone,
-    email: input.email?.trim() || null,
-    birthday: input.birthday || null,
-    role: input.role,
-    status: input.status,
-    departmentId: input.departmentId || null,
-  });
+  const departmentNames = await calendarNamesByIds(
+    [...new Set([before.departmentId, input.departmentId].filter((value): value is string => value !== null))],
+  );
+  const after = userSnapshot(
+    {
+      ...before,
+      name: input.name.trim(),
+      shortname: input.shortname,
+      phone,
+      email: input.email?.trim() || null,
+      birthday: input.birthday || null,
+      role: input.role,
+      status: input.status,
+      departmentId: input.departmentId || null,
+    },
+    departmentNames,
+  );
 
   try {
     await db
@@ -195,7 +226,7 @@ export async function updateUser(id: string, input: UserFormValues): Promise<Ros
       entityId: id,
       entityName: input.name.trim(),
       method: "updateUser",
-      details: diffFields(userSnapshot(before), after),
+      details: diffFields(userSnapshot(before, departmentNames), after),
     });
   } catch (error) {
     if (violatedConstraint(error) === "users_shortname_idx") {
@@ -210,13 +241,13 @@ export async function updateUser(id: string, input: UserFormValues): Promise<Ros
   revalidatePath("/settings/users");
 
   const emailChanged = (before.email ?? "") !== (after.email ?? "");
-  const departmentChanged = (before.departmentId ?? null) !== (after.departmentId ?? null);
+  const departmentChanged = (before.departmentId ?? null) !== (input.departmentId || null);
   if (emailChanged || departmentChanged) {
     const warnings = await reconcileUserAccessChange({
       oldEmail: before.email,
       newEmail: after.email,
       oldDepartmentId: before.departmentId,
-      newDepartmentId: after.departmentId,
+      newDepartmentId: input.departmentId || null,
     });
     return warnings.length > 0 ? { ok: true, warnings } : { ok: true };
   }
@@ -239,10 +270,10 @@ export async function setUserStatus(id: string, status: UserStatus): Promise<Ros
     action: AUDIT_ACTIONS.userStatusChange,
     entityType: "user",
     entityId: id,
-    entityName: user.name,
-    method: "setUserStatus",
-    details: { status },
-  });
+      entityName: user.name,
+      method: "setUserStatus",
+      details: diffFields({ status: user.status }, { status }),
+    });
 
   revalidatePath("/settings/users");
   return { ok: true };
@@ -362,6 +393,7 @@ export async function deleteDepartment(id: string): Promise<RosterActionResult> 
       entityId: id,
       entityName: calendar.name,
       method: "deleteDepartment",
+      details: { googleCalendarId: calendar.googleCalendarId },
     });
   } catch (error) {
     return { ok: false, error: errorMessage(error) };
@@ -417,10 +449,10 @@ export async function grantDepartmentAccess(
     action: AUDIT_ACTIONS.accessGrant,
     entityType: "calendar",
     entityId: calendar.id,
-    entityName: calendar.name,
-    method: "grantDepartmentAccess",
-    details: { email: trimmed, role },
-  });
+      entityName: calendar.name,
+      method: "grantDepartmentAccess",
+      details: { email: trimmed, ...diffFields({ role: null }, { role }) },
+    });
 
   return { ok: true };
 }
@@ -449,8 +481,12 @@ export async function updateDepartmentAccess(
     return { ok: false, error: "Google Calendar is not configured" };
   }
 
+  let previousRole: string | null = null;
   try {
     const integration = await getGoogleIntegration();
+    const accessRules = await integration.listCalendarAccess(calendar.googleCalendarId);
+    previousRole =
+      accessRules.find((rule) => rule.email.toLowerCase() === trimmed.toLowerCase())?.role ?? null;
     await integration.setCalendarAccess(calendar.googleCalendarId, trimmed, role);
   } catch (error) {
     return { ok: false, error: errorMessage(error) };
@@ -463,7 +499,7 @@ export async function updateDepartmentAccess(
     entityId: calendar.id,
     entityName: calendar.name,
     method: "updateDepartmentAccess",
-    details: { email: trimmed, role },
+    details: { email: trimmed, ...diffFields({ role: previousRole }, { role }) },
   });
 
   return { ok: true };
@@ -475,6 +511,7 @@ export async function revokeDepartmentAccess(
 ): Promise<ShareActionResult> {
   const session = await requireAdmin();
 
+  const trimmed = email.trim();
   const calendar = await getCalendarOrNull(calendarId);
   if (!calendar) {
     return { ok: false, error: "Department not found" };
@@ -483,9 +520,13 @@ export async function revokeDepartmentAccess(
     return { ok: false, error: "Google Calendar is not configured" };
   }
 
+  let previousRole: string | null = null;
   try {
     const integration = await getGoogleIntegration();
-    await integration.removeCalendarAccess(calendar.googleCalendarId, email);
+    const accessRules = await integration.listCalendarAccess(calendar.googleCalendarId);
+    previousRole =
+      accessRules.find((rule) => rule.email.toLowerCase() === trimmed.toLowerCase())?.role ?? null;
+    await integration.removeCalendarAccess(calendar.googleCalendarId, trimmed);
   } catch (error) {
     return { ok: false, error: errorMessage(error) };
   }
@@ -497,7 +538,7 @@ export async function revokeDepartmentAccess(
     entityId: calendar.id,
     entityName: calendar.name,
     method: "revokeDepartmentAccess",
-    details: { email },
+    details: { email: trimmed, ...diffFields({ role: previousRole }, { role: null }) },
   });
 
   return { ok: true };

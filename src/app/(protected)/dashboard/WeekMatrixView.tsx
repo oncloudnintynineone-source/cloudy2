@@ -378,7 +378,11 @@ function MatrixRow({
           );
         })}
 
-        {/* Spanning event banners — one per span, placed in lane rows. */}
+        {/* Spanning event banners — one per span, placed in lane rows. The
+            outer button is a transparent spacer inset from the cell edge and
+            the inner box is the visible chip (radius md = 8px, medium
+            weight), so the banners read like the Mantine-based views with a
+            roomier inset. */}
         {spans.map((lane, laneIndex) =>
           lane.map((span) => {
             const colors = theme.variantColorResolver({
@@ -398,22 +402,32 @@ function MatrixRow({
                   gridColumn: `${1 + span.startDay} / ${2 + span.endDay}`,
                   gridRow: laneIndex + 1,
                   zIndex: 1,
-                  display: "flex",
-                  alignItems: "center",
-                  padding: "1px 6px",
-                  borderRadius: 3,
-                  border: `1px solid ${colors.border}`,
-                  background: colors.background,
-                  color: colors.color,
-                  textAlign: "left",
-                  whiteSpace: "nowrap",
-                  overflow: "hidden",
-                  textOverflow: "ellipsis",
-                  fontSize: "0.75rem",
-                  lineHeight: 1.4,
+                  padding: "2px",
                 }}
               >
-                {span.event.title}
+                <Box
+                  component="span"
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    width: "100%",
+                    height: "100%",
+                    padding: "1px 6px",
+                    borderRadius: 8,
+                    border: `1px solid ${colors.border}`,
+                    background: colors.background,
+                    color: colors.color,
+                    fontWeight: "var(--mantine-font-weight-medium)",
+                    textAlign: "left",
+                    whiteSpace: "nowrap",
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                    fontSize: "0.75rem",
+                    lineHeight: 1.4,
+                  }}
+                >
+                  {span.event.title}
+                </Box>
               </UnstyledButton>
             );
           }),
