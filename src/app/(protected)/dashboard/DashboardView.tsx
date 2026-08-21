@@ -5,6 +5,7 @@ import {
   type CSSProperties,
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -65,7 +66,7 @@ import {
   WeekGridSkeleton,
   monthGridRows,
 } from "./calendarSkeleton";
-import { formatDateTime, formatWeekLabel } from "./clientDateTime";
+import { formatWeekLabel } from "./clientDateTime";
 import { DateSelectorModal } from "@/components/DateSelectorModal";
 import { FilterModal, type FilterGroup } from "@/components/FilterModal";
 import {
@@ -93,6 +94,8 @@ import {
   type ScheduleResource,
   type ScheduleUser,
 } from "@/lib/events/schedule";
+import { DASHBOARD_STATE_KEYS, freshMarkerNeeded } from "@/lib/ui/uiState";
+import { usePersistUiState } from "@/lib/ui/uiStateClient";
 import { EventDetail } from "./EventDetail";
 import { EventForm } from "./EventForm";
 import { WeekMatrixView } from "./WeekMatrixView";
@@ -297,12 +300,23 @@ export function DashboardView({
   );
   const [filterOpened, { open: openFilter, close: closeFilter }] = useDisclosure(false);
   const [pickerOpened, { open: openPicker, close: closePicker }] = useDisclosure(false);
-  // Week v2 "+N more": the full event list of the tapped (row, day) cell.
-  const [cellAgenda, setCellAgenda] = useState<{
-    day: string;
-    label: string;
-    events: CalendarEvent[];
-  } | null>(null);
+
+  // Height of the sticky view-tabs bar, so the Week v2 pinned day header can
+  // stick just below it. Measured before first paint (and on resize) so the
+  // header never overlaps the tabs.
+  const tabsListRef = useRef<HTMLDivElement | null>(null);
+  const [tabsHeight, setTabsHeight] = useState(0);
+  useLayoutEffect(() => {
+    const el = tabsListRef.current;
+    if (!el) {
+      return;
+    }
+    const update = () => setTabsHeight(el.offsetHeight);
+    update();
+    const observer = new ResizeObserver(update);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
 
   // Week view: which day (0-6) sits at the left edge of the horizontally
   // scrolling grid. The index (not raw px) drives the pinned day-label strip,
@@ -335,6 +349,18 @@ export function DashboardView({
   // they never set the pending flag and never replay the fade.
   const gridLoading = useMinSkeletonHold(isPending || isRefreshing);
   useContentEnter(weekBoxRef, !gridLoading);
+
+  // Remembered UI state: persist the server-resolved view/filters to the
+  // per-device cookie every time the rendered state changes, so a relaunch
+  // (or F5) lands on exactly this view (see src/lib/ui/uiState.ts).
+  usePersistUiState("dashboard", {
+    view,
+    date,
+    month,
+    cal: selectedCalendarIds,
+    users: selectedUserIds,
+    types: selectedTypes,
+  });
 
   // The date shown in the agenda day modal; persists through the exit
   // animation so the shrinking box still has content.
@@ -470,18 +496,39 @@ export function DashboardView({
   const navigate = useCallback(
     (updates: Record<string, string | null>) => {
       const query = searchParams.toString();
-      const next = buildHref(updates);
+      const currentHref = query ? `${pathname}?${query}` : pathname;
+      const plainHref = buildHref(updates);
       // A no-op navigation (e.g. tapping "Today" while already there) would
       // still run a transition, flashing the grid skeleton for nothing.
-      if (next === (query ? `${pathname}?${query}` : pathname)) {
+      // Checked before the `_fresh` injection below so "re-removing" an
+      // already-absent key stays a no-op instead of a render round-trip.
+      if (plainHref === currentHref) {
         return;
       }
+      // When this navigation drops remembered keys (Clear, tab switch off an
+      // anchored view), the next bare URL would fall back to the stale
+      // remembered-state cookie — the one-shot `_fresh` marker makes this one
+      // render use pure defaults; the state effect below re-persists the
+      // freshly resolved values right after.
+      const nextHref = freshMarkerNeeded(updates, DASHBOARD_STATE_KEYS)
+        ? buildHref({ ...updates, _fresh: "1" })
+        : plainHref;
       startTransition(() => {
-        router.push(next);
+        router.push(nextHref);
       });
     },
     [buildHref, router, startTransition, pathname, searchParams],
   );
+
+  // Strip the one-shot `_fresh` marker after its render has mounted (self-
+  // terminating, plain push — same pattern as the `refresh` strip below), so
+  // the marker never survives into back/forward history.
+  useEffect(() => {
+    if (searchParams.get("_fresh") === null) {
+      return;
+    }
+    router.push(buildHref({ _fresh: null }));
+  }, [buildHref, router, searchParams]);
 
   // Strip the one-shot `edit` param from the URL so a refresh doesn't reopen
   // the edit form. A plain push (no transition): the grid shows no skeleton
@@ -794,63 +841,73 @@ export function DashboardView({
 
   return (
     <Stack pb="xl" gap="sm">
-      <Tabs
-        value={view}
-        onChange={(next) => switchView(next ?? "month")}
-        aria-label="Calendar view"
-        styles={{ tab: { flex: 1 } }}
+      {/* The sticky view-tabs bar. The wrapper is a direct child of the Stack,
+          so its containing block spans the whole page and sticky can hold it at
+          the top (a sticky element pinned to the Tabs root alone can't — that
+          root is only as tall as the tab bar and scrolls away with it). */}
+      <Box
+        ref={tabsListRef}
+        style={{
+          position: "sticky",
+          top: "var(--app-shell-header-offset)",
+          zIndex: 10,
+          background: "var(--mantine-color-body)",
+        }}
       >
-        <Tabs.List
-          style={{
-            position: "sticky",
-            top: "var(--app-shell-header-offset)",
-            zIndex: 10,
-            background: "var(--mantine-color-body)",
-            borderBottom: "1px solid var(--mantine-color-default-border)",
-          }}
+        <Tabs
+          value={view}
+          onChange={(next) => switchView(next ?? "month")}
+          aria-label="Calendar view"
+          styles={{ tab: { flex: 1 } }}
         >
-          <Tabs.Tab value="month">
-            <Group gap="xs" justify="center" wrap="nowrap">
-              <IconCalendarMonth size={16} />
-              <Text fw={600} size="sm">
-                Month
-              </Text>
-            </Group>
-          </Tabs.Tab>
-          <Tabs.Tab value="week">
-            <Group gap="xs" justify="center" wrap="nowrap">
-              <IconCalendarWeek size={16} />
-              <Text fw={600} size="sm">
-                Week
-              </Text>
-            </Group>
-          </Tabs.Tab>
-          <Tabs.Tab value="weekv2">
-            <Group gap="xs" justify="center" wrap="nowrap">
-              <IconLayoutGrid size={16} />
-              <Text fw={600} size="sm" style={{ whiteSpace: "nowrap" }}>
-                Week v2
-              </Text>
-            </Group>
-          </Tabs.Tab>
-          <Tabs.Tab value="schedule">
-            <Group gap="xs" justify="center" wrap="nowrap">
-              <IconCalendarUser size={16} />
-              <Text fw={600} size="sm">
-                Day
-              </Text>
-            </Group>
-          </Tabs.Tab>
-          <Tabs.Tab value="agenda">
-            <Group gap="xs" justify="center" wrap="nowrap">
-              <IconListDetails size={16} />
-              <Text fw={600} size="sm">
-                Agenda
-              </Text>
-            </Group>
-          </Tabs.Tab>
-        </Tabs.List>
-      </Tabs>
+          <Tabs.List
+            style={{
+              borderBottom: "1px solid var(--mantine-color-default-border)",
+            }}
+          >
+            <Tabs.Tab value="month">
+              <Group gap="xs" justify="center" wrap="nowrap">
+                <IconCalendarMonth size={16} />
+                <Text fw={600} size="sm">
+                  Month
+                </Text>
+              </Group>
+            </Tabs.Tab>
+            <Tabs.Tab value="week">
+              <Group gap="xs" justify="center" wrap="nowrap">
+                <IconCalendarWeek size={16} />
+                <Text fw={600} size="sm">
+                  Week
+                </Text>
+              </Group>
+            </Tabs.Tab>
+            <Tabs.Tab value="weekv2">
+              <Group gap="xs" justify="center" wrap="nowrap">
+                <IconLayoutGrid size={16} />
+                <Text fw={600} size="sm" style={{ whiteSpace: "nowrap" }}>
+                  Week v2
+                </Text>
+              </Group>
+            </Tabs.Tab>
+            <Tabs.Tab value="schedule">
+              <Group gap="xs" justify="center" wrap="nowrap">
+                <IconCalendarUser size={16} />
+                <Text fw={600} size="sm">
+                  Day
+                </Text>
+              </Group>
+            </Tabs.Tab>
+            <Tabs.Tab value="agenda">
+              <Group gap="xs" justify="center" wrap="nowrap">
+                <IconListDetails size={16} />
+                <Text fw={600} size="sm">
+                  Agenda
+                </Text>
+              </Group>
+            </Tabs.Tab>
+          </Tabs.List>
+        </Tabs>
+      </Box>
 
       <Group align="center" gap="xs" wrap="nowrap">
         <ActionIcon
@@ -1099,9 +1156,7 @@ export function DashboardView({
               }
               openCreate(day, e.currentTarget.getBoundingClientRect());
             }}
-            onOverflowClick={(day, resource, cellEvents) =>
-              setCellAgenda({ day, label: resource.fullName, events: cellEvents })
-            }
+            tabBarOffset={tabsHeight}
           />
         ) : isWeek ? (
           <ResourcesWeekView
@@ -1323,84 +1378,6 @@ export function DashboardView({
                 // prefilled with the day being viewed.
                 const targetDate = agendaViewDate;
                 setAgendaDate(null);
-                openCreate(targetDate, e.currentTarget.getBoundingClientRect());
-              }}
-            >
-              New event
-            </Button>
-          </>
-        )}
-      </Modal>
-
-      {/* Week v2 "+N more": every event of the tapped (row, day) cell. A
-          plain list (not AgendaView) so multi-day events that only *cover*
-          the day still show up, matching what the cell chips already do. */}
-      <Modal
-        opened={cellAgenda !== null}
-        onClose={() => setCellAgenda(null)}
-        centered
-        size="sm"
-        title={
-          cellAgenda
-            ? `${dayjs(cellAgenda.day).format("ddd, MMM D, YYYY")} — ${cellAgenda.label}`
-            : ""
-        }
-      >
-        {cellAgenda && (
-          <>
-            <Stack
-              gap={4}
-              style={{ maxHeight: "56dvh", overflowY: "auto", overscrollBehavior: "contain" }}
-            >
-              {cellAgenda.events.map((event) => (
-                <UnstyledButton
-                  key={event.id}
-                  onClick={(e) => {
-                    setCellAgenda(null);
-                    setDetailOriginRect(e.currentTarget.getBoundingClientRect());
-                    setDetailEvent(event);
-                  }}
-                  style={{
-                    display: "block",
-                    width: "100%",
-                    textAlign: "left",
-                    padding: "6px 8px",
-                    border: "1px solid var(--mantine-color-default-border)",
-                    borderRadius: "var(--mantine-radius-sm)",
-                  }}
-                >
-                  <Group gap="xs" wrap="nowrap" align="center">
-                    <Box
-                      component="span"
-                      aria-hidden
-                      style={{
-                        width: 8,
-                        height: 8,
-                        borderRadius: "50%",
-                        flexShrink: 0,
-                        background: `var(--mantine-color-${event.color}-6)`,
-                      }}
-                    />
-                    <Box style={{ flex: 1, minWidth: 0 }}>
-                      <Text size="sm" lineClamp={1}>
-                        {event.title}
-                      </Text>
-                      <Text size="xs" c="dimmed" lineClamp={1}>
-                        {event.payload.allDay ? "All day" : formatDateTime(event.start, false)}
-                      </Text>
-                    </Box>
-                  </Group>
-                </UnstyledButton>
-              ))}
-            </Stack>
-            <Button
-              w="100%"
-              mt="sm"
-              leftSection={<IconPlus size={20} />}
-              disabled={!googleConfigured}
-              onClick={(e) => {
-                const targetDate = cellAgenda.day;
-                setCellAgenda(null);
                 openCreate(targetDate, e.currentTarget.getBoundingClientRect());
               }}
             >

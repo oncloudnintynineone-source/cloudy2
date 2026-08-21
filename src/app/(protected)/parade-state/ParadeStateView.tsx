@@ -32,6 +32,8 @@ import type { CalendarEvent } from "@/lib/events/queries";
 import { CONTENT_ENTER_CLASS, useContentEnter } from "@/lib/loading/contentEnter";
 import { useMinSkeletonHold } from "@/lib/loading/minHoldLoading";
 import { formatFullName } from "@/lib/settings/formatName";
+import { PARADE_STATE_KEYS, freshMarkerNeeded } from "@/lib/ui/uiState";
+import { usePersistUiState } from "@/lib/ui/uiStateClient";
 
 import { departmentHeadcount } from "./headcount";
 import { formatEventTimeBadge } from "./eventTimeBadge";
@@ -140,6 +142,16 @@ export function ParadeStateView({
   const contentRef = useRef<HTMLDivElement | null>(null);
   useContentEnter(contentRef, !contentLoading);
 
+  // Remembered UI state: persist the server-resolved day/filters to the
+  // per-device cookie on every change, so a relaunch (or F5) lands on exactly
+  // this state (see src/lib/ui/uiState.ts).
+  usePersistUiState("parade", {
+    date: initialDate,
+    month: initialMonth,
+    cal: initSelectedCalendars,
+    users: initSelectedUsers,
+  });
+
   const colorScheme = useComputedColorScheme("light");
   const today = dayjs().format("YYYY-MM-DD");
 
@@ -161,8 +173,16 @@ export function ParadeStateView({
 
   const navigate = useCallback(
     (updates: Record<string, string | null>) => {
+      // When this navigation removes remembered keys (Clear, unchecking
+      // "My Events"), the one-shot `_fresh` marker makes this one render use
+      // pure defaults instead of the now-stale remembered-state cookie; the
+      // state effect re-persists the freshly resolved values right after.
       startTransition(() => {
-        router.push(buildHref(updates));
+        router.push(
+          freshMarkerNeeded(updates, PARADE_STATE_KEYS)
+            ? buildHref({ ...updates, _fresh: "1" })
+            : buildHref(updates),
+        );
       });
     },
     [buildHref, router, startTransition],
@@ -214,6 +234,16 @@ export function ParadeStateView({
     typesParamClearedRef.current = true;
     navigate({ types: null });
   }, [searchParams, navigate]);
+
+  // Strip the one-shot `_fresh` marker after its render has mounted (self-
+  // terminating, plain push — no skeleton for a URL-only change), so the
+  // marker never survives into back/forward history.
+  useEffect(() => {
+    if (searchParams.get("_fresh") === null) {
+      return;
+    }
+    router.push(buildHref({ _fresh: null }));
+  }, [buildHref, router, searchParams]);
 
   function handleApplyFilters(values: Record<string, string[]>) {
     const calIds = values["Calendars"] ?? [];
@@ -486,11 +516,7 @@ export function ParadeStateView({
                             <Text fw={600} size="sm">
                               {displayName}
                             </Text>
-                            {userEvents.length === 0 ? (
-                              <Text size="xs" c="dimmed">
-                                No events
-                              </Text>
-                            ) : (
+                            {userEvents.length > 0 && (
                               <Stack gap={2} ml="xs">
                                 {userEvents.map((event) => (
                                   <Group key={event.id} gap={6} wrap="nowrap" align="center">

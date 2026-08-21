@@ -2,11 +2,15 @@
  * Pure helpers for the per-event-type "location policy" feature. An admin
  * restricts where events of a type may take place:
  *
+ * Location is the out-of-camp destination: in-camp events record no
+ * location at all.
+ *
  * - `in` ("In camp only") — the Out of Camp flag is forced off; the
  *   location field is cleared and disabled.
  * - `out` ("Out of camp only") — the Out of Camp flag is forced on; the
- *   location field is cleared.
- * - `both` (default, no restriction) — the user chooses freely.
+ *   location records the destination.
+ * - `both` (default, no restriction) — the user chooses freely; the
+ *   location is recorded only while out of camp.
  *
  * `clampOutOfCamp` is the single source of truth applied both client-side
  * (event form) and server-side (create/update actions), so a stale form
@@ -26,7 +30,7 @@ export const LOCATION_POLICY_LABELS: Record<LocationPolicy, string> = {
 
 export const LOCATION_POLICY_DESCRIPTIONS: Record<LocationPolicy, string> = {
   in: "Events of this type take place in camp; no location is recorded.",
-  out: "Events of this type take place out of camp; no location is recorded.",
+  out: "Events of this type take place out of camp; the location records the destination.",
   both: "The user may choose in camp or out of camp when creating the event.",
 };
 
@@ -47,8 +51,9 @@ export interface OutOfCampState {
 
 /**
  * Enforce a type's location policy onto the event's Out of Camp flag and
- * location: "in" clears the location and forces the flag off, "out" forces
- * the flag on and clears the location, "both" passes the values through.
+ * location: "in" forces the flag off and clears the location, "out" forces
+ * the flag on and keeps the location (the destination), "both" keeps the
+ * location only while out of camp (in-camp clears it).
  */
 export function clampOutOfCamp(
   policy: LocationPolicy,
@@ -59,7 +64,7 @@ export function clampOutOfCamp(
     return { outOfCamp: false, location: "" };
   }
   if (policy === "out") {
-    return { outOfCamp: true, location: "" };
+    return { outOfCamp: true, location };
   }
-  return { outOfCamp, location };
+  return { outOfCamp, location: outOfCamp ? location : "" };
 }

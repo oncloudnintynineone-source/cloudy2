@@ -79,6 +79,8 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
 - [1.65 Agenda-tab day swipe + slide (Phase 3y)](#165-agenda-tab-day-swipe--slide-phase-3y)
 - [1.66 Week v2 matrix view (Phase 3z)](#166-week-v2-matrix-view-phase-3z)
 - [1.67 Filter quick actions in the 3-dot menus (Phase 3aa)](#167-filter-quick-actions-in-the-3-dot-menus-phase-3aa)
+- [1.68 Event location polarity fix (bugfix)](#168-event-location-polarity-fix-bugfix)
+- [1.69 Remembered UI state across relaunch (Phase 3ab)](#169-remembered-ui-state-across-relaunch-phase-3ab)
 
 ## 1.1 Status
 
@@ -3155,37 +3157,48 @@ columns). The matrix is therefore a custom CSS-grid component.
 ```mermaid
 flowchart LR
     A["?view=weekv2 + ?date="] --> B["page: weekDays(date)<br/>fetchRangeEvents (2-month span)<br/>— same cache path as Week"]
-    B --> C["buildWeekMatrix (pure, tested)<br/>rows = creator ∪ tagged users<br/>∪ dept:&lt;calendarId&gt;; all-day<br/>end is exclusive (subOneDay)"]
+    B --> C["buildWeekLanes (pure, tested)<br/>rows = creator ∪ tagged users<br/>∪ dept:&lt;calendarId&gt;; multi-day<br/>events as WeekSpan, greedy lanes"]
     D["buildScheduleResources (pure)<br/>dept row + user rows, groups"] --> E["WeekMatrixView<br/>7 day columns × resource rows"]
     C --> E
-    E -- "chip tap" --> F["EventDetail modal"]
+    E -- "banner tap" --> F["EventDetail modal"]
     E -- "empty cell tap" --> G["EventForm<br/>prefilled that day"]
-    E -- "+N more tap" --> H["cell agenda modal<br/>full (row, day) event list<br/>+ New event button"]
 ```
 
 - **Data** (`page.tsx`) — one parse branch (`weekv2`) and one fetch condition
   (`view === "week" || view === "weekv2"` → `weekDays(date)` → the existing
   `fetchRangeEvents` 2-month range read). No new fetch, cache, filter, or force-refresh
   logic — Week v2 inherits all of it.
-- **Pure helper** (`src/lib/events/weekMatrix.ts`, 14 unit tests) —
+- **Pure helper** (`src/lib/events/weekMatrix.ts`, 16 unit tests) —
   `coveredDays(event, week)`: the week days an event occupies (all-day end dates are
   exclusive → `subOneDay`; timed events span start..end dates; clamped to the week) and
-  `buildWeekMatrix(events, week)`: bins the week's events into
-  `(rowId → day → CalendarEvent[])` cells using the schedule views' row semantics
-  (`rowsForEvent`; external events pin to their calendar's department row), sorted per
-  cell by start time (ties by title).
-- **Component** (`WeekMatrixView.tsx`, client) — a sticky 7-day header (today filled
+  `buildWeekLanes(events, week)`: maps `(rowId → WeekLane[])` using the schedule views'
+  row semantics (`rowsForEvent`; external events pin to their calendar's department row),
+  with each event placed as a `WeekSpan` (inclusive startDay/endDay indexes) and
+  non-overlapping events within a row packed into lanes via greedy interval partitioning
+  (sort by startDay → start time → title, then place each span in the first lane whose
+  last span ends before it starts).
+- **Component** (`WeekMatrixView.tsx`, client) — a **pinned 7-day header** (today filled
   primary/bold, weekends red, matching the Week view's day-label language) over
-  per-department **grid blocks** sharing one column template
-  (`[1.5rem group] 3rem label + repeat(7, minmax(0, 1fr))`): the day columns shrink
-  instead of overflowing so the grid always fits the phone width (no horizontal scroll);
-  the group label spans its department's rows (`gridRow: span N`, vertical-rl like the
-  other views). Cells are ~44px-min rows; a chip tap opens `EventDetail` (shared
-  origin-rect pattern), an empty-cell tap opens the event form prefilled with that day
-  (guarded by `googleConfigured` like the FAB), and "+N more" opens a small modal listing
-  the full (row, day) cell events (a plain list, so multi-day events that only *cover*
-  the day still appear) plus a "New event" button. Bounded `ScrollArea`
-  (`min(60vh, 520px)`) like the other matrix surfaces.
+  per-department **flex blocks** sharing one day-column template
+  (`repeat(7, minmax(112px, 1fr))`): the day columns have a
+  minimum width of 112px so event banners are readable. The table is **full-height** — no
+  vertical clamp (the page scrolls), only the horizontal scroll stays internal via the
+  ScrollArea `content minWidth`; the day header is a **pinned strip outside the scroll
+  area** that sticks to the viewport below the view tabs (`DashboardView` measures the
+  `Tabs.List` height and passes `tabBarOffset`; the strip is `top: calc(var(--app-shell-header-offset)
+  + tabBarOffset)`) and follows the table's horizontal scroll via a `translateX(-scrollLeft)`
+  transform applied directly on `onScrollPositionChange` (no per-frame re-render). The **left
+  labels are pinned during horizontal scroll** like the Day/Week schedule views: each
+  department block is a flex row with a sticky-left group label (`left: 0`, vertical-rl,
+  stretching the block's height) and each resource row is a flex row with a sticky-left
+  shortname label (`left: 1.5rem` when a group column exists) beside the shared day grid
+  (sticky labels paint above the banners at `z-index` 5/6 vs 1, but below the pinned header
+  at 10). Each resource row's day grid is the 
+  scrolling part; rows are ~36px-min lanes (compact but
+  still comfortable touch targets) with spanning
+  event banners (single title chip per event, occupying every covered day column), a
+  banner tap opens `EventDetail` (shared origin-rect pattern), and an empty-cell tap opens
+  the event form prefilled with that day (guarded by `googleConfigured` like the FAB).
 - **Wiring** (`DashboardView.tsx`) — `ViewMode` + a fifth tab (`IconLayoutGrid`, compact
   nowrap label) after Week. `isWeek` now covers both week views (week label, ‹/› =
   `shiftWeek`, `onToday`), and Week v2 joins `isAnchoredView` (day-anchored: starts on
@@ -3255,6 +3268,161 @@ flowchart LR
 - Verification: `pnpm lint`, `pnpm typecheck`, `pnpm test` all pass. Manual dev-server
   smoke owed: dashboard + parade-state — toggle "My Events" on/off in the ⋮ menu (badge +
   checkmark, `?users=` in the URL), Clear (badge → 0, defaults restored), More Filters
-  opens the dialog where the "My Events" quick-action button and the in-dialog Clear
-  still work.
+   opens the dialog where the "My Events" quick-action button and the in-dialog Clear
+   still work.
+
+## 1.68 Event location polarity fix (bugfix)
+
+The Location input in the edit event modal "did not work at all": on
+`out`-policy event types the destination box looked editable, but whatever was
+typed never appeared in the calendar preview and was silently discarded on
+save. Root cause: §1.46 shipped `clampOutOfCamp` with the location polarity
+inverted relative to the intended semantics. User-confirmed intent (this
+phase): **the location is the out-of-camp destination — in-camp events always
+have a blank location.** The form's visible behavior (input enabled only while
+out of camp, cleared when switched back in) already matched that polarity; the
+clamp — the single enforcement point — did not.
+
+```mermaid
+flowchart LR
+    P["event_types.location_policy<br/>in · out · both"] --> C["clampOutOfCamp (fixed)<br/>in → flag off, location ''<br/>out → flag on, location kept<br/>both → location only while out of camp"]
+    C --> F["EventForm<br/>checkbox + location box<br/>(unchanged — already correct)"]
+    C --> A["createEvent / updateEvent<br/>resolveEventLocation (silent clamp)"]
+    A --> G["Google event<br/>location field"]
+```
+
+- **`clampOutOfCamp`** (`src/lib/events/locationPolicy.ts`) — the `out` branch
+  now **keeps** the location (`{ outOfCamp: true, location }`; previously
+  wiped it — the cause of the silent data loss), and the `both` branch records
+  the location **only while out of camp** (`outOfCamp ? location : ""`;
+  previously a full passthrough that could leak an in-camp location). The `in`
+  branch is unchanged (`{ false, "" }`). Because the clamp is the single
+  enforcement point, the edit prefill, the type-switch re-clamp, and both
+  server actions pick up the corrected rule with no changes of their own —
+  the form's `disabled` condition, the checkbox change handler, and the live
+  preview were already correct and are untouched.
+- **Event form** (`EventForm.tsx`) — the `both`-policy checkbox description
+  flips from "Out-of-camp events have no location" to "In-camp events have no
+  location; out of camp takes place at a location" (it previously contradicted
+  the field right below it).
+- **Docs comment sync** — `LOCATION_POLICY_DESCRIPTIONS.out` ("the location
+  records the destination"), the `locationPolicy.ts` module header + function
+  doc, `actions.ts` (`resolveEventLocation`), `validate.ts` (`outOfCamp` /
+  `location` field docs), `notes.ts` (`EventNotes.outOfCamp`), `AGENTS.md`
+  (clamp matrix + `{location}` token note: "blank for in-camp events").
+- **Tests** — `locationPolicy.test.ts`: the `out` case now expects the
+  location kept; the `both` in-camp case now expects it cleared.
+- **Consequences** — destinations previously silently erased for `out`-policy
+  events are gone from Google (nothing to recover or migrate). External/legacy
+  **in-camp** events with a Google `location` still display it, but the next
+  in-app edit blanks it (consistent with in-camp = blank).
+- **Unchanged / out of scope** — the location stays **optional** (the
+  Location step has "no required fields" per §1.47); a required-destination
+  validation for out-of-camp events is deferred. No schema change.
+- Verification: `pnpm lint`, `pnpm typecheck`, and `pnpm test` (369) all pass.
+  Manual dev-server smoke owed: edit an out-of-camp event (`out`-policy type)
+  — destination box enabled + prefilled, typed value shows in the calendar
+  preview, save persists it (detail modal + Google location); on a `both`-type
+  event, checking Out of Camp enables the box and unchecking clears +
+  disables it; in-camp events keep the box disabled.
+
+## 1.69 Remembered UI state across relaunch (Phase 3ab)
+
+The app "forgot" everything on relaunch: a PWA cold start lands on `/`,
+redirected to `/dashboard` with the pure defaults (Month view, today, role-
+default calendars) regardless of where the user last was. This phase persists
+the last bottom-nav page, the dashboard's view tab + displayed day/month +
+Cal/Users/Types filters, and the parade-state day + Cal/Users filters so a
+relaunch (or F5) lands exactly where the user left off.
+
+**Design decision (user-confirmed):** storage is **per-device** (a single
+client-owned cookie, `cloudy2.ui`) — not a per-user DB row — so there is no
+schema/migration work and it works offline; the remembered state does not
+follow the user to another device. Scope: dashboard + parade state + last
+page (settings sub-tabs included); audit-log filters are out of scope and can
+join later with the same mechanism.
+
+```mermaid
+flowchart LR
+    subgraph client ["Client (writes)"]
+        AS["AppShellShell<br/>useRememberedPage(pathname)"]
+        DV["DashboardView<br/>usePersistUiState('dashboard', resolved props)"]
+        PV["ParadeStateView<br/>usePersistUiState('parade', resolved props)"]
+        NM["navigate(): drops a remembered key?<br/>→ auto-inject one-shot ?_fresh=1"]
+        AS --> W["writeUiState() — read-modify-write<br/>document.cookie 'cloudy2.ui' (base64url JSON)"]
+        DV --> W
+        PV --> W
+        NM --> NAV["router.push(...)"]
+    end
+    subgraph server ["Server (reads, pre-paint)"]
+        RT["/ (start_url)<br/>resolveLaunchTarget(lastPage, role)<br/>→ redirect to last page"]
+        DP["/dashboard page.tsx<br/>view/date/month/cal/users/types:<br/>URL param → cookie → role default"]
+        PP["/parade-state page.tsx<br/>date/cal/users:<br/>URL param → cookie → default"]
+        COOK[("cookie 'cloudy2.ui'")]
+        COOK --> RT
+        COOK --> DP
+        COOK --> PP
+    end
+    NAV -- "full load / RSC request" --> COOK
+```
+
+- **Core modules** — `src/lib/ui/uiState.ts` (pure, unit-tested): the
+  `UiState` shape, `encodeUiState`/`decodeUiState` (base64url(JSON), padding-
+  tolerant, safe `atob`/`btoa` + `TextEncoder` so the codec is shared by
+  server, client, and node tests), `normalizeUiState` (drops mismatched
+  shapes; empty id lists = "unfiltered" → role default), `mergeUiState`,
+  `freshMarkerNeeded(updates, keys)`, and `resolveLaunchTarget(lastPage,
+  role)` — a whitelist of `/dashboard`, `/parade-state`, `/contacts` plus the
+  six `/settings/*` sub-tabs (admin-only; unknown/garbage → `/dashboard`).
+  `src/lib/ui/uiStateClient.ts` ("use client"): `writeUiState` (RMW with a
+  ~3.5 KB size guard that degrades by dropping id lists), `clearUiState`,
+  `usePersistUiState(section, values)`, `useRememberedPage(pathname)`.
+- **Server consumption** — `src/app/page.tsx` became async: `getSession()` +
+  the cookie → `redirect(resolveLaunchTarget(...)`, so a cold open of
+  `start_url /` bounces to the last page **before first paint** (no JS, no
+  flash; unauthenticated falls through to the `/login` redirect as before).
+  Dashboard/parade `page.tsx` apply the cookie as a **per-key fallback
+  exactly like the URL params** (same pattern/validation, so stale calendar/
+  user ids drop out the same way). Dashboard specifics: a remembered `date`
+  only applies when the resolved view is day-anchored (Week/Week v2/Day/
+  Agenda) — in Month view the remembered `month` drives the read; and the
+  cookie is skipped entirely for `?edit=` deep links (explicit intent).
+- **The `_fresh` one-shot marker** — the subtle case: "Clear" and the tab
+  switch off an anchored view produce a *bare* URL, which the cookie fallback
+  would immediately re-apply the just-deleted state on. Both views'
+  `navigate()` auto-inject `?_fresh=1` whenever a remembered key maps to
+  `null` in the updates (pure `freshMarkerNeeded`; the dashboard checks the
+  no-op condition *before* injecting, so "re-removing" an absent key stays a
+  no-op); the server treats `_fresh` as "render with pure defaults this
+  once", and a self-terminating strip effect (same pattern as the
+  `refresh`/`edit` strips) removes it from the URL. Because
+  `usePersistUiState` writes the **server-resolved props** (not raw URL
+  params) on every render, the cookie converges to exactly what was displayed
+  right after the flagged render — no per-handler pre-writes needed.
+- **Sign-out** — `UserMenu` calls `clearUiState()` before `signOut()`, so the
+  remembered state never bleeds across accounts on a shared device.
+- **Unit tests** — `src/lib/ui/uiState.test.ts` (20 tests): codec round-trips
+  (incl. padded input, base64url alphabet), garbage → null, shape
+  normalization, empty-list-to-absent, merge semantics,
+  `freshMarkerNeeded`, and the `resolveLaunchTarget` matrix (roles, sub-tabs,
+  junk).
+- **Consequences / known edges** — state is per browser/origin (no cross-
+  device sync by decision); a fresh account on a device that just signed out
+  starts from defaults (cookie wiped); if a remembered calendar no longer
+  exists it is silently dropped on read (self-healing, the next render
+  re-persists the reduced set). The `?_fresh` strip is plain-push, no
+  skeleton — consistent with the other one-shot strips.
+- Verification: `pnpm lint`, `pnpm typecheck`, `pnpm build` (Turbopack, `/`
+  correctly becomes dynamic), and `pnpm test` (391) all pass. Live dev-server
+  smoke against the Neon dev DB (curl + hand-made cookie, logged in as
+  admin): `/` with no cookie → 307 `/dashboard`; with
+  `lastPage=/parade-state` → 307 `/parade-state`; admin
+  `lastPage=/settings/audit-log` → 307 `/settings/audit-log`; junk
+  `lastPage` → 307 `/dashboard`; bare `/dashboard` with remembered
+  `{view:week, date:2026-08-17}` renders the week "Aug 17 – 23, 2026" (no
+  client redirect); the same cookie with `?_fresh=1` renders the default
+  Month view; bare `/parade-state` with remembered `date=2026-08-10` renders
+  that day; `?view=agenda&date=2026-09-05` beats the cookie (URL always
+  wins). Manual PWA relaunch on a phone (kill app → tap icon → last page with
+  filters) remains the final user-facing confirmation.
 

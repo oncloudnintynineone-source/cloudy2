@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { addOneDay, subOneDay, weekDays } from "./datetime";
 import type { CalendarEvent } from "./queries";
-import { buildWeekMatrix, coveredDays } from "./weekMatrix";
+import { buildWeekLanes, coveredDays } from "./weekMatrix";
 
 // A concrete week (Monday-first) used across the cases; referenced by index
 // so the assertions never rely on a hard-coded weekday.
@@ -84,20 +84,23 @@ describe("coveredDays", () => {
   });
 });
 
-describe("buildWeekMatrix", () => {
-  it("bins a creator-only event into the creator's row and day", () => {
-    const matrix = buildWeekMatrix(
+describe("buildWeekLanes", () => {
+  it("places a creator-only event in one span in the creator's row", () => {
+    const lanes = buildWeekLanes(
       [makeEvent(`${WEEK[2]} 09:00:00`, `${WEEK[2]} 10:00:00`, { creatorId: "u1" })],
       WEEK,
     );
-    expect([...matrix.keys()]).toEqual(["u1"]);
-    const byDay = matrix.get("u1")!;
-    expect([...byDay.keys()]).toEqual([WEEK[2]]);
-    expect(byDay.get(WEEK[2])).toHaveLength(1);
+    expect([...lanes.keys()]).toEqual(["u1"]);
+    const row = lanes.get("u1")!;
+    expect(row).toHaveLength(1);
+    expect(row[0]).toHaveLength(1);
+    expect(row[0][0].startDay).toBe(2);
+    expect(row[0][0].endDay).toBe(2);
+    expect(row[0][0].event.title).toBe("Test event");
   });
 
   it("places the event in every tagged user and department row", () => {
-    const matrix = buildWeekMatrix(
+    const lanes = buildWeekLanes(
       [
         makeEvent(`${WEEK[1]} 09:00:00`, `${WEEK[1]} 10:00:00`, {
           creatorId: "u1",
@@ -107,28 +110,33 @@ describe("buildWeekMatrix", () => {
       ],
       WEEK,
     );
-    expect([...matrix.keys()]).toEqual(["u1", "u2", "dept:cal-9"]);
+    expect([...lanes.keys()]).toEqual(["u1", "u2", "dept:cal-9"]);
     for (const rowId of ["u1", "u2", "dept:cal-9"]) {
-      expect(matrix.get(rowId)!.get(WEEK[1])).toHaveLength(1);
+      const row = lanes.get(rowId)!;
+      expect(row).toHaveLength(1);
+      expect(row[0][0].startDay).toBe(1);
+      expect(row[0][0].endDay).toBe(1);
     }
   });
 
   it("pins an external event with no rows to its calendar's department row", () => {
-    const matrix = buildWeekMatrix(
+    const lanes = buildWeekLanes(
       [makeEvent(`${WEEK[3]} 09:00:00`, `${WEEK[3]} 10:00:00`, { external: true })],
       WEEK,
     );
-    expect([...matrix.keys()]).toEqual(["dept:cal-1"]);
-    expect(matrix.get("dept:cal-1")!.get(WEEK[3])!).toHaveLength(1);
+    expect([...lanes.keys()]).toEqual(["dept:cal-1"]);
+    const row = lanes.get("dept:cal-1")!;
+    expect(row).toHaveLength(1);
+    expect(row[0][0].startDay).toBe(3);
   });
 
   it("drops an unlinked non-external event entirely", () => {
-    const matrix = buildWeekMatrix([makeEvent(`${WEEK[3]} 09:00:00`, `${WEEK[3]} 10:00:00`)], WEEK);
-    expect(matrix.size).toBe(0);
+    const lanes = buildWeekLanes([makeEvent(`${WEEK[3]} 09:00:00`, `${WEEK[3]} 10:00:00`)], WEEK);
+    expect(lanes.size).toBe(0);
   });
 
   it("omits rows for events outside the week", () => {
-    const matrix = buildWeekMatrix(
+    const lanes = buildWeekLanes(
       [
         makeEvent(`${subOneDay(WEEK[0])} 09:00:00`, `${subOneDay(WEEK[0])} 10:00:00`, {
           creatorId: "u1",
@@ -136,19 +144,71 @@ describe("buildWeekMatrix", () => {
       ],
       WEEK,
     );
-    expect(matrix.size).toBe(0);
+    expect(lanes.size).toBe(0);
   });
 
-  it("copies a multi-day all-day event into every covered cell of a row", () => {
-    const matrix = buildWeekMatrix(
+  it("produces one multi-day span with correct startDay/endDay", () => {
+    const lanes = buildWeekLanes(
       [makeEvent(`${WEEK[0]} 00:00:00`, `${WEEK[3]} 00:00:00`, { allDay: true, creatorId: "u1" })],
       WEEK,
     );
-    const byDay = matrix.get("u1")!;
-    expect([...byDay.keys()]).toEqual([WEEK[0], WEEK[1], WEEK[2]]);
+    const row = lanes.get("u1")!;
+    expect(row).toHaveLength(1);
+    expect(row[0]).toHaveLength(1);
+    expect(row[0][0].startDay).toBe(0);
+    expect(row[0][0].endDay).toBe(2);
   });
 
-  it("sorts a cell by start time, breaking ties by title", () => {
+  it("places overlapping events in separate lanes", () => {
+    const lanes = buildWeekLanes(
+      [
+        makeEvent(`${WEEK[0]} 00:00:00`, `${WEEK[3]} 00:00:00`, {
+          allDay: true,
+          title: "A",
+          creatorId: "u1",
+        }),
+        makeEvent(`${WEEK[1]} 00:00:00`, `${WEEK[4]} 00:00:00`, {
+          allDay: true,
+          title: "B",
+          creatorId: "u1",
+        }),
+      ],
+      WEEK,
+    );
+    const row = lanes.get("u1")!;
+    expect(row).toHaveLength(2);
+    expect(row[0][0].event.title).toBe("A");
+    expect(row[0][0].startDay).toBe(0);
+    expect(row[0][0].endDay).toBe(2);
+    expect(row[1][0].event.title).toBe("B");
+    expect(row[1][0].startDay).toBe(1);
+    expect(row[1][0].endDay).toBe(3);
+  });
+
+  it("places non-overlapping events in the same lane", () => {
+    const lanes = buildWeekLanes(
+      [
+        makeEvent(`${WEEK[0]} 00:00:00`, `${WEEK[1]} 00:00:00`, {
+          allDay: true,
+          title: "A",
+          creatorId: "u1",
+        }),
+        makeEvent(`${WEEK[2]} 00:00:00`, `${WEEK[3]} 00:00:00`, {
+          allDay: true,
+          title: "B",
+          creatorId: "u1",
+        }),
+      ],
+      WEEK,
+    );
+    const row = lanes.get("u1")!;
+    expect(row).toHaveLength(1);
+    expect(row[0]).toHaveLength(2);
+    expect(row[0][0].event.title).toBe("A");
+    expect(row[0][1].event.title).toBe("B");
+  });
+
+  it("sorts spans within a row by startDay, then start time, then title", () => {
     const withCreator = (event: CalendarEvent): CalendarEvent => ({
       ...event,
       payload: { ...event.payload, creatorId: "u1" },
@@ -157,8 +217,16 @@ describe("buildWeekMatrix", () => {
     const earlier = makeEvent(`${WEEK[4]} 08:00:00`, `${WEEK[4]} 09:00:00`, { title: "Alpha" });
     const sameTimeB = makeEvent(`${WEEK[4]} 10:00:00`, `${WEEK[4]} 10:30:00`, { title: "Bravo" });
     const sameTimeA = makeEvent(`${WEEK[4]} 10:00:00`, `${WEEK[4]} 11:00:00`, { title: "Alpha" });
-    const matrix = buildWeekMatrix([later, earlier, sameTimeB, sameTimeA].map(withCreator), WEEK);
-    const titles = (matrix.get("u1")!.get(WEEK[4]) ?? []).map((event) => event.title);
+    const lanes = buildWeekLanes(
+      [later, earlier, sameTimeB, sameTimeA].map(withCreator),
+      WEEK,
+    );
+    const row = lanes.get("u1")!;
+    // All same-day events share the same day range → they overlap in the
+    // grid and each gets its own lane.  Sort order is verified by the
+    // startDay → start time → title comparator.
+    expect(row).toHaveLength(4);
+    const titles = row.map((lane) => lane[0].event.title);
     expect(titles).toEqual(["Alpha", "Alpha", "Bravo", "Zulu"]);
   });
 });

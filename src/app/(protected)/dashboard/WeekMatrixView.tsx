@@ -2,20 +2,21 @@
 
 /**
  * Week v2 matrix: 7 day columns (Monday-first) x one row per user/department.
- * No Mantine Schedule component fits this shape (WeekView has no user axis;
- * ResourcesWeekView's columns are hourly time lanes; ResourcesMonthView always
- * spans a whole month), so the grid is plain CSS. Each department group is its
- * own grid block (the group label spans the group's rows) and every block
- * shares one column template, so the day columns line up. Cells show up to two
- * event-title chips (Mantine "light" variant colors, like the schedule views);
- * the rest of the cell starts a new event on that day.
+ * Multi-day events render as spanning banners that occupy every day they
+ * cover within a row, placed in lanes (stacked vertically) so overlapping
+ * events don't collide.  The day header and the left group/user labels are
+ * pinned while the table scrolls horizontally, mirroring the Day/Week
+ * schedule views: each department block is a flex row whose group label is
+ * sticky-left, and each resource row is a flex row whose label is sticky-left
+ * beside a shared day grid, so every day column lines up across the table.
  */
 
 import dayjs from "dayjs";
-import { type MouseEvent, type ReactNode, useMemo } from "react";
+import { useCallback, type MouseEvent, type ReactNode, useMemo, useRef } from "react";
 import { Box, Paper, ScrollArea, Text, UnstyledButton, useMantineTheme } from "@mantine/core";
 
-import { buildWeekMatrix } from "@/lib/events/weekMatrix";
+import { buildWeekLanes } from "@/lib/events/weekMatrix";
+import type { WeekSpan } from "@/lib/events/weekMatrix";
 import type { CalendarEvent } from "@/lib/events/queries";
 import type { ScheduleResource, ScheduleResourceGroup } from "@/lib/events/schedule";
 
@@ -34,22 +35,29 @@ export interface WeekMatrixViewProps {
   onEventClick: (event: CalendarEvent, e: MouseEvent<HTMLButtonElement>) => void;
   /** Tapping an empty part of a cell: start a new event on that day. */
   onCellClick: (day: string, e: MouseEvent<HTMLDivElement>) => void;
-  /** Tapping "+N more": browse every event of that row on that day. */
-  onOverflowClick: (
-    day: string,
-    resource: ScheduleResource,
-    cellEvents: CalendarEvent[],
-    e: MouseEvent<HTMLButtonElement>,
-  ) => void;
+  /**
+   * Height of the sticky view-tabs bar (px). The pinned day header sits just
+   * below it (`top: calc(var(--app-shell-header-offset) + tabBarOffset)`).
+   */
+  tabBarOffset: number;
 }
 
-/** Chips shown per cell before the "+N more" overflow chip takes over. */
-const MAX_VISIBLE_EVENTS = 2;
-/** Minimum row height, close to the other schedule views' compact rows. */
-const ROW_HEIGHT_PX = 44;
+/** Minimum day-column width in pixels so event titles are readable. */
+const MIN_DAY_PX = 112;
+/**
+ * Compact lane height: matches the schedule views' all-day bar height
+ * (~1.25rem / 20px) with a little extra for the banner border and padding.
+ * Kept small so several same-day events stack without towering over the
+ * other rows.
+ */
+const ROW_HEIGHT_PX = 36;
 const LABEL_WIDTH = "3rem";
 const GROUP_WIDTH = "1.5rem";
 const CELL_BORDER = "1px solid var(--mantine-color-default-border)";
+/** Seven day columns sharing one template; each stays ≥ MIN_DAY_PX wide. */
+const DAY_TEMPLATE = `repeat(7, minmax(${MIN_DAY_PX}px, 1fr))`;
+/** Total day-area width (7 × MIN_DAY_PX) — the floor before horizontal scroll. */
+const DAY_MIN_WIDTH = `${7 * MIN_DAY_PX}px`;
 
 interface MatrixBlock {
   key: string;
@@ -67,21 +75,34 @@ export function WeekMatrixView({
   renderResourceLabel,
   onEventClick,
   onCellClick,
-  onOverflowClick,
+  tabBarOffset,
 }: WeekMatrixViewProps) {
   const theme = useMantineTheme();
   const hasGroups = groups !== undefined;
-  // One template for the header and every block: [group col] + label col +
-  // seven equal day columns that shrink (minmax 0) instead of overflowing,
-  // so the grid always fits the phone width with no horizontal scroll.
-  const template = `${hasGroups ? `${GROUP_WIDTH} ` : ""}${LABEL_WIDTH} repeat(7, minmax(0, 1fr))`;
+  // ScrollArea content min-width: guarantees horizontal scroll on narrow
+  // screens so the day columns never shrink below MIN_DAY_PX.
+  const contentMinWidth = `calc(${hasGroups ? `${GROUP_WIDTH} + ` : ""}${LABEL_WIDTH} + 7 * ${MIN_DAY_PX}px)`;
+  // The pinned day header sticks below the sticky view-tabs bar.
+  const headerTop = `calc(var(--app-shell-header-offset) + ${tabBarOffset}px)`;
+  // The resource label pins just right of the group column while scrolling.
+  const labelLeft = hasGroups ? GROUP_WIDTH : "0";
   const todayTint = theme.variantColorResolver({
     color: theme.primaryColor,
     theme,
     variant: "light",
   }).background;
 
-  const matrix = useMemo(() => buildWeekMatrix(events, days), [events, days]);
+  // The pinned header sits outside the (horizontal) scroll area, so its day
+  // columns follow the table via a transform updated directly on scroll —
+  // no React re-render per frame.
+  const headerInnerRef = useRef<HTMLDivElement>(null);
+  const handleScroll = useCallback((pos: { x: number }) => {
+    if (headerInnerRef.current) {
+      headerInnerRef.current.style.transform = `translateX(${-pos.x}px)`;
+    }
+  }, []);
+
+  const laneMap = useMemo(() => buildWeekLanes(events, days), [events, days]);
 
   // One block per department group (the group label spans the group's rows);
   // resources not covered by any group still get rows (defensive).
@@ -107,76 +128,104 @@ export function WeekMatrixView({
   }, [resources, groups]);
 
   return (
-    <Paper withBorder radius="md" p={0} style={{ overflow: "hidden" }}>
-      <ScrollArea type="auto" style={{ height: "min(60vh, 520px)" }}>
-        <Box component="div" style={{ display: "flex", flexDirection: "column", minWidth: 0 }}>
-          {/* Sticky day header: with all seven columns visible at once, no
-              pinned single-day strip is needed (unlike the timeline view). */}
-          <Box
-            component="div"
-            role="row"
-            style={{
-              position: "sticky",
-              top: 0,
-              zIndex: 10,
-              display: "grid",
-              gridTemplateColumns: template,
-              background: "var(--mantine-color-body)",
-              borderBottom: CELL_BORDER,
-            }}
-          >
+    <Paper withBorder radius="md" p={0}>
+      {/* Pinned day header: sticks to the viewport below the view tabs while
+          the (full-height) table scrolls with the page. The corner spacers
+          stay put; only the day columns translate (-scrollLeft) to track the
+          table's horizontal scroll, clipped to the table's width. */}
+      <Box
+        component="div"
+        style={{
+          position: "sticky",
+          top: headerTop,
+          zIndex: 10,
+          overflow: "hidden",
+          background: "var(--mantine-color-body)",
+          borderBottom: CELL_BORDER,
+        }}
+      >
+        <Box component="div" style={{ display: "flex", minWidth: 0 }}>
+          {hasGroups && (
             <Box
               component="div"
               aria-hidden
-              style={{ gridColumn: hasGroups ? "span 2" : "span 1", borderRight: CELL_BORDER }}
+              style={{ flexShrink: 0, width: GROUP_WIDTH, borderRight: CELL_BORDER }}
             />
-            {days.map((day) => {
-              const dayObj = dayjs(day);
-              const isToday = day === today;
-              const isWeekend = dayObj.day() === 0 || dayObj.day() === 6;
-              const labelColor = isToday
-                ? "var(--mantine-primary-color-contrast)"
-                : isWeekend
-                  ? "var(--mantine-color-red-6)"
-                  : undefined;
-              return (
-                <Box
-                  component="div"
-                  key={day}
-                  style={{
-                    display: "flex",
-                    flexDirection: "column",
-                    alignItems: "center",
-                    padding: "4px 2px",
-                    userSelect: "none",
-                    background: isToday ? "var(--mantine-primary-color-filled)" : "transparent",
-                    color: labelColor,
-                  }}
-                >
-                  <Text
-                    size="sm"
-                    fw={isToday ? "bold" : "medium"}
-                    style={{ lineHeight: 1.1, textTransform: "capitalize" }}
+          )}
+          <Box
+            component="div"
+            aria-hidden
+            style={{ flexShrink: 0, width: LABEL_WIDTH, borderRight: CELL_BORDER }}
+          />
+          <Box component="div" style={{ flex: 1, minWidth: 0, overflow: "hidden" }}>
+            <Box
+              ref={headerInnerRef}
+              component="div"
+              role="row"
+              style={{
+                display: "grid",
+                gridTemplateColumns: DAY_TEMPLATE,
+                width: "100%",
+                minWidth: DAY_MIN_WIDTH,
+                willChange: "transform",
+              }}
+            >
+              {days.map((day) => {
+                const dayObj = dayjs(day);
+                const isToday = day === today;
+                const isWeekend = dayObj.day() === 0 || dayObj.day() === 6;
+                const labelColor = isToday
+                  ? "var(--mantine-primary-color-contrast)"
+                  : isWeekend
+                    ? "var(--mantine-color-red-6)"
+                    : undefined;
+                return (
+                  <Box
+                    component="div"
+                    key={day}
+                    style={{
+                      display: "flex",
+                      flexDirection: "column",
+                      alignItems: "center",
+                      padding: "4px 2px",
+                      userSelect: "none",
+                      background: isToday ? "var(--mantine-primary-color-filled)" : "transparent",
+                      color: labelColor,
+                    }}
                   >
-                    {dayObj.format("ddd")}
-                  </Text>
-                  <Text size="xs" style={{ lineHeight: 1.1 }}>
-                    {dayObj.format("D")}
-                  </Text>
-                </Box>
-              );
-            })}
+                    <Text
+                      size="sm"
+                      fw={isToday ? "bold" : "medium"}
+                      style={{ lineHeight: 1.1, textTransform: "capitalize" }}
+                    >
+                      {dayObj.format("ddd")}
+                    </Text>
+                    <Text size="xs" style={{ lineHeight: 1.1 }}>
+                      {dayObj.format("D")}
+                    </Text>
+                  </Box>
+                );
+              })}
+            </Box>
           </Box>
+        </Box>
+      </Box>
 
+      {/* Full-height table: no vertical clamp, so the page scrolls; only the
+          horizontal scroll stays internal (min-width day columns). */}
+      <ScrollArea
+        type="auto"
+        styles={{ content: { minWidth: contentMinWidth } }}
+        onScrollPositionChange={handleScroll}
+      >
+        <Box component="div" style={{ display: "flex", flexDirection: "column", minWidth: 0 }}>
           {blocks.map((block, blockIndex) => (
             <Box
               component="div"
               key={block.key}
               role="rowgroup"
               style={{
-                display: "grid",
-                gridTemplateColumns: template,
-                gridAutoRows: `minmax(${ROW_HEIGHT_PX}px, auto)`,
+                display: "flex",
                 borderTop: blockIndex > 0 ? CELL_BORDER : undefined,
               }}
             >
@@ -185,8 +234,11 @@ export function WeekMatrixView({
                   component="div"
                   role="rowheader"
                   style={{
-                    gridColumn: 1,
-                    gridRow: `span ${block.rows.length}`,
+                    position: "sticky",
+                    left: 0,
+                    flexShrink: 0,
+                    width: GROUP_WIDTH,
+                    zIndex: 6,
                     display: "flex",
                     alignItems: "center",
                     justifyContent: "center",
@@ -203,29 +255,25 @@ export function WeekMatrixView({
                   </Text>
                 </Box>
               ) : hasGroups ? (
-                // Empty spacer keeps the label cell in the second column when
-                // a block has no group label but a group column is present.
-                <Box
-                  component="div"
-                  aria-hidden
-                  style={{ gridColumn: 1, gridRow: `span ${block.rows.length}` }}
-                />
+                <Box component="div" aria-hidden style={{ flexShrink: 0, width: GROUP_WIDTH }} />
               ) : null}
-              {block.rows.map((resource, rowIndex) => (
-                <MatrixRow
-                  key={resource.id}
-                  resource={resource}
-                  cellEvents={days.map((day) => matrix.get(resource.id)?.get(day) ?? [])}
-                  days={days}
-                  today={today}
-                  todayTint={todayTint}
-                  lastRow={rowIndex === block.rows.length - 1}
-                  renderResourceLabel={renderResourceLabel}
-                  onEventClick={onEventClick}
-                  onCellClick={onCellClick}
-                  onOverflowClick={onOverflowClick}
-                />
-              ))}
+              <Box component="div" style={{ flex: 1, minWidth: 0 }}>
+                {block.rows.map((resource, rowIndex) => (
+                  <MatrixRow
+                    key={resource.id}
+                    resource={resource}
+                    spans={laneMap.get(resource.id) ?? []}
+                    days={days}
+                    today={today}
+                    todayTint={todayTint}
+                    lastRow={rowIndex === block.rows.length - 1}
+                    renderResourceLabel={renderResourceLabel}
+                    onEventClick={onEventClick}
+                    onCellClick={onCellClick}
+                    labelLeft={labelLeft}
+                  />
+                ))}
+              </Box>
             </Box>
           ))}
         </Box>
@@ -235,13 +283,14 @@ export function WeekMatrixView({
 }
 
 /**
- * One resource row: the left label cell plus seven day cells. Rendered as
- * plain (non-grid) children of the block's grid so the block's auto-placement
- * lines them up under the shared column template.
+ * One resource row: a sticky-left label plus a day grid (seven day background
+ * cells — clickable, tinted for today — and spanning event banners placed in
+ * lanes). The label stays pinned while the row scrolls horizontally, like the
+ * schedule views' resource labels.
  */
 function MatrixRow({
   resource,
-  cellEvents,
+  spans,
   days,
   today,
   todayTint,
@@ -249,33 +298,42 @@ function MatrixRow({
   renderResourceLabel,
   onEventClick,
   onCellClick,
-  onOverflowClick,
+  labelLeft,
 }: {
   resource: ScheduleResource;
-  cellEvents: CalendarEvent[][];
+  /** Lanes in draw order.  Lane i renders on grid row i + 1. */
+  spans: WeekSpan[][];
   days: string[];
   today: string;
   todayTint: string;
-  /** Last row of its block: no bottom border (the Paper / next block borders). */
+  /** Last row of its block: no bottom border. */
   lastRow: boolean;
   renderResourceLabel: (resource: ScheduleResource) => ReactNode;
   onEventClick: (event: CalendarEvent, e: MouseEvent<HTMLButtonElement>) => void;
   onCellClick: (day: string, e: MouseEvent<HTMLDivElement>) => void;
-  onOverflowClick: (
-    day: string,
-    resource: ScheduleResource,
-    cellEvents: CalendarEvent[],
-    e: MouseEvent<HTMLButtonElement>,
-  ) => void;
+  /** Sticky-left offset for the label (`GROUP_WIDTH` when a group column exists). */
+  labelLeft: string;
 }) {
   const theme = useMantineTheme();
   const rowBorder = lastRow ? undefined : CELL_BORDER;
+  // The label and day cells span all lane rows. Use a definite, positive span
+  // (never `1 / -1`): the lanes are implicit rows created by the banners, and
+  // a negative `-1` reference can resolve before those rows exist, leaving the
+  // background/label covering only the first lane.
+  const rowSpan = `1 / ${Math.max(1, spans.length) + 1}`;
+
   return (
-    <>
+    <Box component="div" role="row" style={{ display: "flex" }}>
+      {/* Resource label — sticky left, spans all lanes. */}
       <Box
         component="div"
         role="rowheader"
         style={{
+          position: "sticky",
+          left: labelLeft,
+          flexShrink: 0,
+          width: LABEL_WIDTH,
+          zIndex: 5,
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
@@ -287,81 +345,80 @@ function MatrixRow({
       >
         {renderResourceLabel(resource)}
       </Box>
-      {days.map((day, index) => {
-        const eventsInCell = cellEvents[index] ?? [];
-        const isToday = day === today;
-        return (
-          <Box
-            component="div"
-            key={day}
-            role="gridcell"
-            aria-label={dayjs(day).format("dddd, MMMM D")}
-            onClick={(e) => onCellClick(day, e)}
-            style={{
-              display: "flex",
-              flexDirection: "column",
-              gap: 2,
-              padding: 2,
-              borderLeft: index > 0 ? CELL_BORDER : undefined,
-              borderBottom: rowBorder,
-              background: isToday ? todayTint : "transparent",
-            }}
-          >
-            {eventsInCell.slice(0, MAX_VISIBLE_EVENTS).map((event) => {
-              const colors = theme.variantColorResolver({
-                color: event.color,
-                theme,
-                variant: "light",
-              });
-              return (
-                <UnstyledButton
-                  key={event.id}
-                  aria-label={event.title}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onEventClick(event, e);
-                  }}
-                  style={{
-                    display: "block",
-                    width: "100%",
-                    padding: "1px 4px",
-                    borderRadius: 3,
-                    border: `1px solid ${colors.border}`,
-                    background: colors.background,
-                    color: colors.color,
-                    textAlign: "left",
-                    whiteSpace: "nowrap",
-                    overflow: "hidden",
-                    textOverflow: "ellipsis",
-                    fontSize: "0.75rem",
-                    lineHeight: 1.4,
-                  }}
-                >
-                  {event.title}
-                </UnstyledButton>
-              );
-            })}
-            {eventsInCell.length > MAX_VISIBLE_EVENTS && (
+
+      {/* Day grid — the horizontally scrolling part. */}
+      <Box
+        component="div"
+        style={{
+          flex: 1,
+          minWidth: DAY_MIN_WIDTH,
+          display: "grid",
+          gridTemplateColumns: DAY_TEMPLATE,
+          gridAutoRows: `minmax(${ROW_HEIGHT_PX}px, auto)`,
+        }}
+      >
+        {/* Day background cells — span all lanes, tinted for today, clickable. */}
+        {days.map((day, index) => {
+          const isToday = day === today;
+          return (
+            <Box
+              component="div"
+              key={day}
+              role="gridcell"
+              aria-label={dayjs(day).format("dddd, MMMM D")}
+              onClick={(e) => onCellClick(day, e)}
+              style={{
+                gridColumn: `${1 + index} / ${2 + index}`,
+                gridRow: rowSpan,
+                borderLeft: index > 0 ? CELL_BORDER : undefined,
+                borderBottom: rowBorder,
+                background: isToday ? todayTint : "transparent",
+              }}
+            />
+          );
+        })}
+
+        {/* Spanning event banners — one per span, placed in lane rows. */}
+        {spans.map((lane, laneIndex) =>
+          lane.map((span) => {
+            const colors = theme.variantColorResolver({
+              color: span.event.color,
+              theme,
+              variant: "light",
+            });
+            return (
               <UnstyledButton
+                key={span.event.id}
+                aria-label={span.event.title}
                 onClick={(e) => {
                   e.stopPropagation();
-                  onOverflowClick(day, resource, eventsInCell, e);
+                  onEventClick(span.event, e);
                 }}
                 style={{
-                  alignSelf: "flex-start",
-                  padding: 0,
+                  gridColumn: `${1 + span.startDay} / ${2 + span.endDay}`,
+                  gridRow: laneIndex + 1,
+                  zIndex: 1,
+                  display: "flex",
+                  alignItems: "center",
+                  padding: "1px 6px",
+                  borderRadius: 3,
+                  border: `1px solid ${colors.border}`,
+                  background: colors.background,
+                  color: colors.color,
+                  textAlign: "left",
+                  whiteSpace: "nowrap",
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
                   fontSize: "0.75rem",
-                  lineHeight: 1.2,
+                  lineHeight: 1.4,
                 }}
               >
-                <Text size="xs" c="dimmed" fw={500}>
-                  +{eventsInCell.length - MAX_VISIBLE_EVENTS} more
-                </Text>
+                {span.event.title}
               </UnstyledButton>
-            )}
-          </Box>
-        );
-      })}
-    </>
+            );
+          }),
+        )}
+      </Box>
+    </Box>
   );
 }

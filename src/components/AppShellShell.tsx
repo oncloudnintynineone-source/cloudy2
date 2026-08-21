@@ -13,6 +13,7 @@ import { usePathname } from "next/navigation";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { UserMenu } from "@/components/UserMenu";
 import { BOTTOM_NAV_HEIGHT, BOTTOM_NAV_HEIGHT_CSS } from "@/lib/bottomNav";
+import { useRememberedPage } from "@/lib/ui/uiStateClient";
 
 interface NavItem {
   href: string;
@@ -87,6 +88,10 @@ export function AppShellShell({
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
+  // Remember the last visited page (incl. the /settings sub-tab) so a PWA
+  // relaunch from the start URL can land back here — read by / at launch.
+  useRememberedPage(pathname);
+
   const items: NavItem[] =
     role === "admin" ? [CALENDAR, PARADE_STATE, CONTACTS, SETTINGS] : [CALENDAR, PARADE_STATE, CONTACTS];
 

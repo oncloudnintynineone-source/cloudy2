@@ -133,15 +133,56 @@ the quality checks.
   same resource rows as the Day/Week views (department rows + users, grouped per
   department). **No Mantine Schedule component fits this shape** (`WeekView` has no user
   axis; `ResourcesWeekView` columns are 24-hour time lanes; `ResourcesMonthView` always
-  spans the whole month) — it is a custom CSS-grid client component in
-  `WeekMatrixView.tsx`: a sticky 7-day header over per-department grid blocks sharing one
-  column template (`[1.5rem group] 3rem label + repeat(7, minmax(0, 1fr))`, so the day
-  columns shrink to the phone width — no horizontal scroll). Cell binning is the pure,
-  unit-tested `buildWeekMatrix`/`coveredDays` helpers in `src/lib/events/weekMatrix.ts`
-  (row semantics = `rowsForEvent`; all-day ends are exclusive → `subOneDay`; cells hold
-  up to two title chips + a "+N more" modal listing the full (row, day) events); data
-  comes from the same `fetchRangeEvents` 2-month range read as the timeline Week view, so
-  cache/filters/force-refresh are inherited unchanged.
+   spans the whole month) — it is a custom client component in
+   `WeekMatrixView.tsx`: a pinned 7-day header over per-department blocks sharing one
+   day-column template (`repeat(7, minmax(112px, 1fr))`). The table
+   is **full-height** — no internal vertical clamp, the page scrolls — and only the
+   horizontal scroll stays internal (ScrollArea `content min-width`, so the day columns
+   never shrink below 112px). The day header is a **pinned strip** outside the scroll area
+   that sticks to the viewport below the view tabs (`top: calc(var(--app-shell-header-offset)
+   + tabBarOffset)`; `DashboardView` measures the `Tabs.List` height) and follows the
+   table's horizontal scroll via a `translateX(-scrollLeft)` transform updated directly on
+   `onScrollPositionChange` (no per-frame re-render). The **left labels are pinned during
+   horizontal scroll** like the Day/Week schedule views: each department block is a flex
+   row with a sticky-left group label (`left: 0`, vertical-rl) and each resource row is a
+   flex row with a sticky-left shortname label (`left: 1.5rem` when a group column exists)
+   beside the shared day grid; sticky labels paint above the banners (`z-index` 5/6 vs
+   1) but below the pinned header (10). Cell binning is the pure,
+   unit-tested `buildWeekLanes`/`coveredDays` helpers in `src/lib/events/weekMatrix.ts`
+    (row semantics = `rowsForEvent`; all-day ends are exclusive → `subOneDay`; multi-day
+    events produce a single `WeekSpan` spanning their covered columns, placed in non-overlapping
+    lanes via greedy interval partitioning); data comes from the same
+    `fetchRangeEvents` 2-month range read as the timeline Week view, so
+    cache/filters/force-refresh are inherited unchanged.
+ - **Remembered UI state survives relaunch.** The last page, the dashboard's
+   view/tab + day/month + Cal/Users/Types filters, and the parade-state day +
+   Cal/Users filters are persisted per-device in one cookie, `cloudy2.ui`
+   (base64url JSON: `{ lastPage, dashboard: { view, date, month, cal, users, types },
+   parade: { date, month, cal, users } }`; max-age 1y). The **server** reads it
+   (`cookies()` in `src/app/page.tsx` and the two pages' `page.tsx`) and applies it
+   as a **per-key fallback where the URL param is absent** — URL params always
+   win — so a PWA cold start (`start_url /`) redirects to the remembered
+   `lastPage` (whitelisted by the pure `resolveLaunchTarget()` in
+   `src/lib/ui/uiState.ts`, `/settings/*` admin-only, junk → `/dashboard`) and a
+   bare/F5 load of a page renders the remembered view **before first paint, no
+   client redirect**. The **client owns the write**: `writeUiState()` in
+   `src/lib/ui/uiStateClient.ts` is a read-modify-write of `document.cookie`;
+   `useRememberedPage(pathname)` in `AppShellShell.tsx` stores the last page on
+   every pathname change (incl. the `/settings` sub-tab), and
+   `usePersistUiState(section, values)` in `DashboardView`/`ParadeStateView`
+   re-persists the **server-resolved props** after each render — so the cookie
+   always converges to exactly what was displayed (stale ids already dropped,
+   role defaults after a Clear). When a navigation *removes* remembered keys
+   (Clear, "My Events" off, the tab switch off an anchored view), the views'
+   `navigate()` auto-injects the one-shot **`?_fresh=1`** marker (pure
+   `freshMarkerNeeded()` decides) so that one render skips the cookie and uses
+   pure defaults instead of re-applying the stale values; a self-terminating
+   strip effect then removes the marker (same pattern as the `refresh`/`edit`
+   strips). `?edit=` deep links skip the cookie entirely (explicit intent).
+   `clearUiState()` runs on sign-out (`UserMenu.tsx`). The codec/normalizer/
+   launch-target/marker helpers are pure and unit-tested in
+   `src/lib/ui/uiState.test.ts`; stored values are re-validated server-side like
+   URL params, and an oversized cookie degrades by dropping the id lists.
 
 ## Conventions
 
@@ -192,18 +233,20 @@ the quality checks.
    and unique) shown on the type cards and rendered by the `{type:acronym}` title token, and a
    **`location_policy`** (`in`/`out`/`both`, default `both`) restricting where events of the
    type may take place. The restriction is enforced client- and server-side by the pure
-   `clampOutOfCamp()` helper in `src/lib/events/locationPolicy.ts` (single source of truth:
-   `"in"` forces Out of Camp off and clears the location, `"out"` forces it on and clears the
-   location, `"both"` passes through); the event form locks the Out of Camp checkbox and
-   disables the Location textbox accordingly, and `resolveEventLocation()` in
+    `clampOutOfCamp()` helper in `src/lib/events/locationPolicy.ts` (single source of truth:
+    the location is the **out-of-camp destination** — `"in"` forces Out of Camp off and clears
+    the location, `"out"` forces it on and keeps it, `"both"` records it only while out of
+    camp, in-camp events always have a blank location); the event form locks the Out of Camp
+    checkbox and disables the Location textbox accordingly, and `resolveEventLocation()` in
    `src/lib/events/actions.ts` silently re-clamps in both create/update.
   The **Templates tab** holds the two template cards: the **display name template**
   (`settings.name_template`, with `{name}`/`{department}` placeholders, expanded by the pure
   `formatFullName()` helper in `src/lib/settings/formatName.ts`) and the **event title
    template** (`settings.event_title_template`, with `{description}`/`{type}`/`{type:acronym}`/
    `{departments}`/`{location}`/`{people}`/`{people:full}`/`{people:acronym}`/`{people:fqn}`
-   tokens — bare `{people}` and `{type}` are the fully qualified/plain names, `{location}` the
-   event's location (blank for out-of-camp events) — expanded by the pure `formatEventTitle()`
+    tokens — bare `{people}` and `{type}` are the fully qualified/plain names, `{location}` the
+    event's location (the out-of-camp destination; blank for in-camp events) — expanded by the
+    pure `formatEventTitle()`
    helper in `src/lib/settings/formatEventTitle.ts`). Event titles are rendered into the Google
    event summary on create/edit; the raw description round-trips via the `title` field of the
    event notes JSON so the edit form always prefills the original text. The event's **location**

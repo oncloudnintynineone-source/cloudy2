@@ -41,8 +41,9 @@ export interface EventNotes {
   endAmPm?: string;
   /**
    * Whether the event takes place out of camp. Written only when true —
-   * absence (legacy events) or false means in camp. Out-of-camp events carry
-   * no location.
+   * absence (legacy events) or false means in camp. In-camp events carry no
+   * location; out-of-camp ones record the destination in Google's location
+   * field.
    */
   outOfCamp?: boolean;
   [key: string]: unknown;

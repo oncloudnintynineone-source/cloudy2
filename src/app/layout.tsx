@@ -15,6 +15,9 @@ export const metadata: Metadata = {
   description: "Cloud Calendar Movement",
   applicationName: "Cloudy",
   manifest: "/manifest.webmanifest",
+  icons: {
+    icon: "/icon.svg",
+  },
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",

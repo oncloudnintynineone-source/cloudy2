@@ -1,3 +1,5 @@
+import { cookies } from "next/headers";
+
 import { formatInstantToNaive } from "@/lib/events/datetime";
 import { fetchMonthEvents, listCalendars } from "@/lib/events/queries";
 import { filterUserOptionIds } from "@/lib/filters/filterUserOptions";
@@ -5,6 +7,7 @@ import { listUsers } from "@/lib/roster/queries";
 import { formatFullName } from "@/lib/settings/formatName";
 import { getSettings } from "@/lib/settings/queries";
 import { requireSession } from "@/lib/session";
+import { UI_STATE_COOKIE, decodeUiState } from "@/lib/ui/uiState";
 import { ParadeStateView } from "./ParadeStateView";
 import { scopeParadeUsers } from "./scopeUsers";
 
@@ -22,8 +25,20 @@ export default async function ParadeStatePage({ searchParams }: ParadeStatePageP
   const session = await requireSession();
   const params = await searchParams;
 
-  const dateParam =
-    typeof params.date === "string" && DATE_PATTERN.test(params.date) ? params.date : today();
+  // Per-device remembered UI state, same contract as the dashboard page: URL
+  // params win, and the one-shot `_fresh` marker (a render that just removed
+  // remembered keys) skips the cookie so a Clear/tab-switch never re-applies
+  // the stale values for that one render.
+  const freshRender = typeof params._fresh === "string";
+  const uiState = freshRender
+    ? null
+    : decodeUiState((await cookies()).get(UI_STATE_COOKIE)?.value);
+  const ui = uiState?.parade;
+
+  const urlDate =
+    typeof params.date === "string" && DATE_PATTERN.test(params.date) ? params.date : null;
+  const cookieDate = typeof ui?.date === "string" && DATE_PATTERN.test(ui.date) ? ui.date : null;
+  const dateParam = urlDate ?? cookieDate ?? today();
   const month = dateParam.slice(0, 7);
 
   const [calendars, allUsers, settings] = await Promise.all([
@@ -37,14 +52,21 @@ export default async function ParadeStatePage({ searchParams }: ParadeStatePageP
   // Every role opens on every department; narrowing is purely opt-in via the
   // Calendars filter ("all selected" = no filter).
   const calParam = typeof params.cal === "string" ? params.cal.split(",").filter(Boolean) : [];
+  const cookieCal = ui?.cal ?? [];
   const selectedCalendars =
-    params.cal === undefined ? calendarIds : calParam.filter((id) => calendarIds.includes(id));
+    params.cal !== undefined
+      ? calParam.filter((id) => calendarIds.includes(id))
+      : cookieCal.length > 0
+        ? cookieCal.filter((id) => calendarIds.includes(id))
+        : calendarIds;
 
   const allUserIds = allUsers.map((user) => user.id);
   const usersParam =
     typeof params.users === "string" ? params.users.split(",").filter(Boolean) : [];
   const selectedUsers =
-    params.users === undefined ? [] : usersParam.filter((id) => allUserIds.includes(id));
+    params.users !== undefined
+      ? usersParam.filter((id) => allUserIds.includes(id))
+      : (ui?.users ?? []).filter((id) => allUserIds.includes(id));
 
   const events = await fetchMonthEvents({
     month,

@@ -1,3 +1,5 @@
+import { cookies } from "next/headers";
+
 import { listEventTypes } from "@/lib/eventTypes/queries";
 import { formatInstantToNaive, monthsInRange, weekDays } from "@/lib/events/datetime";
 import {
@@ -13,6 +15,7 @@ import { formatFullName } from "@/lib/settings/formatName";
 import { getSettings } from "@/lib/settings/queries";
 import { requireSession } from "@/lib/session";
 import { isUuid } from "@/lib/uuid";
+import { UI_STATE_COOKIE, decodeUiState } from "@/lib/ui/uiState";
 import { DashboardView } from "./DashboardView";
 
 interface DashboardPageProps {
@@ -34,28 +37,52 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
   const params = await searchParams;
   const isAdmin = session.user.role === "admin";
 
+  // Deep link from a Google Calendar event's "Edit:" note; the `date` param in
+  // the same link makes the fetched month cover the event's day.
+  const initialEditEventId =
+    typeof params.edit === "string" && isUuid(params.edit) ? params.edit : null;
+
+  // Per-device remembered UI state: where the URL is silent, the last rendered
+  // view/filters apply, so a cold open (or F5) lands where the user left off —
+  // resolved here, before first paint, with no client redirect. URL params
+  // always win; the cookie is skipped entirely for the one-shot `_fresh`
+  // marker (a render that just removed remembered keys — Clear, tab switch)
+  // and for `edit` deep links (an explicit intent to see one event).
+  const freshRender = typeof params._fresh === "string";
+  const uiState =
+    freshRender || initialEditEventId !== null
+      ? null
+      : decodeUiState((await cookies()).get(UI_STATE_COOKIE)?.value);
+  const ui = uiState?.dashboard;
+
+  const viewParam = params.view ?? ui?.view;
   const view =
-    params.view === "schedule"
+    viewParam === "schedule"
       ? "schedule"
-      : params.view === "week"
+      : viewParam === "week"
         ? "week"
-        : params.view === "weekv2"
+        : viewParam === "weekv2"
           ? "weekv2"
-          : params.view === "agenda"
+          : viewParam === "agenda"
             ? "agenda"
             : "month";
 
-  const dateParam =
+  const urlDate =
     typeof params.date === "string" && DATE_PATTERN.test(params.date) ? params.date : null;
+  const cookieDate = typeof ui?.date === "string" && DATE_PATTERN.test(ui.date) ? ui.date : null;
+  // A remembered `date` only anchors the day views (Week, Week v2, Day,
+  // Agenda); in Month view the remembered month — not a remembered day —
+  // drives the read.
+  const dateParam = urlDate ?? (view === "month" ? null : cookieDate);
 
   // The day/week views are anchored on a single day; when `date` is present the
   // month is derived from it so the fetched events always cover the day shown.
+  const urlMonth =
+    typeof params.month === "string" && MONTH_PATTERN.test(params.month) ? params.month : null;
+  const cookieMonth =
+    typeof ui?.month === "string" && MONTH_PATTERN.test(ui.month) ? ui.month : null;
   const month =
-    dateParam !== null
-      ? dateParam.slice(0, 7)
-      : typeof params.month === "string" && MONTH_PATTERN.test(params.month)
-        ? params.month
-        : currentMonth();
+    dateParam !== null ? dateParam.slice(0, 7) : urlMonth ?? cookieMonth ?? currentMonth();
   const date = dateParam ?? formatInstantToNaive(new Date()).slice(0, 10);
 
   // One-shot force-refresh nonce (dashboard refresh button): for this render
@@ -64,11 +91,6 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
   const refreshNonce = typeof params.refresh === "string" ? Number(params.refresh) : NaN;
   const forceRefresh =
     Number.isFinite(refreshNonce) && new Date().getTime() - refreshNonce < REFRESH_NONCE_TTL_MS;
-
-  // Deep link from a Google Calendar event's "Edit:" note; the `date` param in
-  // the same link makes the fetched month cover the event's day.
-  const initialEditEventId =
-    typeof params.edit === "string" && isUuid(params.edit) ? params.edit : null;
 
   const [calendars, eventTypes, allUsers, settings] = await Promise.all([
     listCalendars(),
@@ -82,8 +104,15 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
   const defaultCalendars = isAdmin ? calendarIds : ownDepartmentId ? [ownDepartmentId] : [];
 
   const calParam = typeof params.cal === "string" ? params.cal.split(",").filter(Boolean) : [];
+  // No `cal` in the URL: the remembered selection (validated like a URL param,
+  // so stale ids drop) wins over the role default.
+  const cookieCal = ui?.cal ?? [];
   const selectedCalendars =
-    params.cal === undefined ? defaultCalendars : calParam.filter((id) => calendarIds.includes(id));
+    params.cal !== undefined
+      ? calParam.filter((id) => calendarIds.includes(id))
+      : cookieCal.length > 0
+        ? cookieCal.filter((id) => calendarIds.includes(id))
+        : defaultCalendars;
 
   const typeNames = eventTypes.map((type) => type.name);
   const eventTypeOptions = eventTypes.map((type) => ({
@@ -95,13 +124,17 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
   const typesParam =
     typeof params.types === "string" ? params.types.split(",").filter(Boolean) : [];
   const selectedTypes =
-    params.types === undefined ? [] : typesParam.filter((name) => typeNames.includes(name));
+    params.types !== undefined
+      ? typesParam.filter((name) => typeNames.includes(name))
+      : (ui?.types ?? []).filter((name) => typeNames.includes(name));
 
   const allUserIds = allUsers.map((user) => user.id);
   const usersParam =
     typeof params.users === "string" ? params.users.split(",").filter(Boolean) : [];
   const selectedUsers =
-    params.users === undefined ? [] : usersParam.filter((id) => allUserIds.includes(id));
+    params.users !== undefined
+      ? usersParam.filter((id) => allUserIds.includes(id))
+      : (ui?.users ?? []).filter((id) => allUserIds.includes(id));
 
   // Schedule view rows: active users whose department is among the selected
   // calendars. Invitee picker options are role-scoped: admins can tag any

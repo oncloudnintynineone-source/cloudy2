@@ -44,16 +44,16 @@ describe("clampOutOfCamp", () => {
     expect(clampOutOfCamp("in", false, "")).toEqual({ outOfCamp: false, location: "" });
   });
 
-  it("'out' forces the flag on and clears the location", () => {
-    expect(clampOutOfCamp("out", false, "Hall A")).toEqual({ outOfCamp: true, location: "" });
+  it("'out' forces the flag on and keeps the location", () => {
+    expect(clampOutOfCamp("out", false, "Hall A")).toEqual({ outOfCamp: true, location: "Hall A" });
     expect(clampOutOfCamp("out", true, "")).toEqual({ outOfCamp: true, location: "" });
   });
 
-  it("'both' passes the values through unchanged", () => {
+  it("'both' keeps the location only while out of camp", () => {
     expect(clampOutOfCamp("both", true, "Hall A")).toEqual({ outOfCamp: true, location: "Hall A" });
     expect(clampOutOfCamp("both", false, "Hall A")).toEqual({
       outOfCamp: false,
-      location: "Hall A",
+      location: "",
     });
     expect(clampOutOfCamp("both", false, "")).toEqual({ outOfCamp: false, location: "" });
   });

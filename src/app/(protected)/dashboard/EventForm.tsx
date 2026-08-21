@@ -91,7 +91,7 @@ const AMPM_OPTIONS = [
 const OUT_OF_CAMP_DESCRIPTIONS: Record<LocationPolicy, string> = {
   in: "This event type takes place in camp only",
   out: "This event type takes place out of camp only",
-  both: "Out-of-camp events have no location",
+  both: "In-camp events have no location; out of camp takes place at a location",
 };
 
 /** Wizard step ids for the staged event form. */
