@@ -29,6 +29,10 @@ interface EventDetailProps {
   calendarNames: Record<string, string>;
   /** Bounding rect of the clicked event chip; the modal grows out of / shrinks back into it. */
   originRect: Rect | null;
+  /** Id of the currently signed-in user; edit/delete are limited to the creator unless admin. */
+  currentUserId: string;
+  /** Admins may edit/delete any event. */
+  isAdmin: boolean;
 }
 
 export function EventDetail({
@@ -39,6 +43,8 @@ export function EventDetail({
   peopleNames,
   calendarNames,
   originRect,
+  currentUserId,
+  isAdmin,
 }: EventDetailProps) {
   const [confirmOpen, { open, close }] = useDisclosure(false);
   const [deleting, setDeleting] = useState(false);
@@ -187,17 +193,19 @@ export function EventDetail({
               </Group>
             )}
 
-            <Group justify="flex-end" mt="md">
-              <Button
-                variant="light"
-                onClick={(e) => onEdit(showEvent, e.currentTarget.getBoundingClientRect())}
-              >
-                Edit
-              </Button>
-              <Button variant="subtle" color="red" onClick={open}>
-                Delete
-              </Button>
-            </Group>
+            {isAdmin || payload.creatorId === currentUserId ? (
+              <Group justify="flex-end" mt="md">
+                <Button
+                  variant="light"
+                  onClick={(e) => onEdit(showEvent, e.currentTarget.getBoundingClientRect())}
+                >
+                  Edit
+                </Button>
+                <Button variant="subtle" color="red" onClick={open}>
+                  Delete
+                </Button>
+              </Group>
+            ) : null}
           </Stack>
         )}
       </Modal>

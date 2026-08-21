@@ -1404,6 +1404,8 @@ export function DashboardView({
         peopleNames={peopleNames}
         calendarNames={calendarNames}
         originRect={detailOriginRect}
+        currentUserId={currentUser}
+        isAdmin={isAdmin}
       />
 
       <Modal.Root

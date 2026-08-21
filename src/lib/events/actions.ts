@@ -18,6 +18,7 @@ import {
   withInternalMarker,
 } from "@/lib/events/notes";
 import { clampOutOfCamp, type LocationPolicy } from "@/lib/events/locationPolicy";
+import { creatorGuard, ownershipGuard } from "@/lib/events/guards";
 import { amPmSuffix, resolveTimeOption, type TimeOption } from "@/lib/events/timeOptions";
 import { getUserDepartmentIds } from "@/lib/events/queries";
 import { deriveTargetCalendarIds, type EventRef } from "@/lib/events/targets";
@@ -43,28 +44,6 @@ export type EventActionResult =
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : "Google Calendar request failed";
-}
-
-/**
- * A non-admin may create/edit events as themselves, and (on edit) keep an
- * event's existing creator — but never introduce a different creator. Admins
- * may act on behalf of any user. Returns an error message when denied.
- */
-function creatorGuard(
-  session: Awaited<ReturnType<typeof requireSession>>,
-  pendingCreatorId: string,
-  originalCreatorId: string | null,
-): string | null {
-  if (session.user.role === "admin") {
-    return null;
-  }
-  if (!pendingCreatorId || pendingCreatorId === session.user.id) {
-    return null;
-  }
-  if (originalCreatorId && pendingCreatorId === originalCreatorId) {
-    return null;
-  }
-  return "You can only create or edit events for yourself";
 }
 
 function arrayLength(value: unknown): number {
@@ -446,6 +425,11 @@ export async function updateEvent(
   const session = await requireSession();
   const normalized = withCreatorInvited(input);
 
+  const ownershipError = ownershipGuard(session, ref.creatorId);
+  if (ownershipError) {
+    return { ok: false, error: ownershipError };
+  }
+
   const creatorError = creatorGuard(session, normalized.creatorId, ref.creatorId);
   if (creatorError) {
     return { ok: false, error: creatorError };
@@ -565,6 +549,11 @@ export async function updateEvent(
 /** Delete every linked copy of a logical event. */
 export async function deleteEvent(ref: EventRef): Promise<EventActionResult> {
   const session = await requireSession();
+
+  const ownershipError = ownershipGuard(session, ref.creatorId);
+  if (ownershipError) {
+    return { ok: false, error: ownershipError };
+  }
 
   if (!googleCalendarConfigured()) {
     return { ok: false, error: "Google Calendar is not configured" };
