@@ -82,7 +82,7 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
   const cookieMonth =
     typeof ui?.month === "string" && MONTH_PATTERN.test(ui.month) ? ui.month : null;
   const month =
-    dateParam !== null ? dateParam.slice(0, 7) : urlMonth ?? cookieMonth ?? currentMonth();
+    dateParam !== null ? dateParam.slice(0, 7) : (urlMonth ?? cookieMonth ?? currentMonth());
   const date = dateParam ?? formatInstantToNaive(new Date()).slice(0, 10);
 
   // One-shot force-refresh nonce (dashboard refresh button): for this render
@@ -153,6 +153,15 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
       shortname: user.shortname,
       departmentId: user.department ? user.department.id : null,
     }));
+
+  // The full active roster for the Users-filter row build: a selected user
+  // gets a row even when their department is outside the selected calendars.
+  const allActiveUsers = activeUsers.map((user) => ({
+    id: user.id,
+    name: user.name,
+    shortname: user.shortname,
+    departmentId: user.department ? user.department.id : null,
+  }));
 
   const inviteeUsers = pickerUsers.map((user) => ({
     id: user.id,
@@ -238,6 +247,7 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
       isAdmin={isAdmin}
       initialEditEventId={initialEditEventId}
       scheduleUsers={scheduleUsers}
+      allActiveUsers={allActiveUsers}
       inviteeDepartments={inviteeDepartments}
       inviteeUsers={inviteeUsers}
       filterUsers={filterUsers}

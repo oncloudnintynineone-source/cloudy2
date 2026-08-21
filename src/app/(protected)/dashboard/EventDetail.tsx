@@ -82,8 +82,10 @@ export function EventDetail({
   const showEvent = event ?? displayEvent;
   const payload = showEvent?.payload;
 
+  const ownerName =
+    payload && payload.creatorId ? peopleNames[payload.creatorId] ?? null : null;
   const peopleNamesResolved = payload
-    ? [...new Set([...(payload.creatorId ? [payload.creatorId] : []), ...payload.inviteeUserIds])]
+    ? [...new Set(payload.inviteeUserIds)]
         .map((id) => peopleNames[id])
         .filter((name, index, all): name is string => Boolean(name) && all.indexOf(name) === index)
     : [];
@@ -148,36 +150,67 @@ export function EventDetail({
               </Text>
             )}
 
-            {payload.location && (
-              <Text size="sm" c="dimmed">
-                Location: {payload.location}
-              </Text>
-            )}
+            <Text size="xs" c="dimmed" fw={600}>
+              Location
+            </Text>
+            <Group gap={6} wrap="wrap" align="center">
+              {payload.outOfCamp ? (
+                <Badge variant="light" color="yellow">
+                  Out of Camp
+                </Badge>
+              ) : (
+                <Badge variant="light" color="green">
+                  In Camp
+                </Badge>
+              )}
+              {payload.location && (
+                <Text size="sm" c="dimmed">
+                  {payload.location}
+                </Text>
+              )}
+            </Group>
 
+            <Text size="xs" c="dimmed" fw={600}>
+              Event Type
+            </Text>
             <Group gap={6} wrap="wrap">
-              {payload.external && (
+              {payload.eventType && <Badge variant="light">{payload.eventType}</Badge>}
+            </Group>
+
+            {payload.external && (
+              <Group gap={6} wrap="wrap">
                 <Badge variant="light" color="gray">
                   External
                 </Badge>
-              )}
-              {payload.outOfCamp && <Badge variant="light">Out of Camp</Badge>}
-              {payload.eventType && <Badge variant="light">{payload.eventType}</Badge>}
-              <Badge variant="outline" color="accent">
-                {payload.calendarName}
-              </Badge>
-            </Group>
+              </Group>
+            )}
+
+            {ownerName && (
+              <>
+                <Text size="xs" c="dimmed" fw={600}>
+                  Owner
+                </Text>
+                <Group gap={6} wrap="wrap">
+                  <Badge variant="light" color="brand">
+                    {ownerName}
+                  </Badge>
+                </Group>
+              </>
+            )}
 
             {peopleNamesResolved.length > 0 && (
-              <Group gap={6} wrap="wrap" align="center">
+              <>
                 <Text size="xs" c="dimmed" fw={600}>
-                  People:
+                  People
                 </Text>
-                {peopleNamesResolved.map((name) => (
-                  <Badge key={name} variant="light">
-                    {name}
-                  </Badge>
-                ))}
-              </Group>
+                <Group gap={6} wrap="wrap">
+                  {peopleNamesResolved.map((name) => (
+                    <Badge key={name} variant="light">
+                      {name}
+                    </Badge>
+                  ))}
+                </Group>
+              </>
             )}
 
             {departmentNamesResolved.length > 0 && (
@@ -201,7 +234,7 @@ export function EventDetail({
                 >
                   Edit
                 </Button>
-                <Button variant="subtle" color="red" onClick={open}>
+                <Button variant="light" color="red" onClick={open}>
                   Delete
                 </Button>
               </Group>

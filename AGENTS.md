@@ -125,7 +125,14 @@ the quality checks.
   disabled when no filter is active), and `More Filters` (opens the `FilterModal`). The
   same "My Events" quick action also lives inside the dialog as a `FilterGroup.action`
   button beside the Users group label (draft-scoped); the `FilterModal`'s own `Clear`
-  button (draft reset) is unchanged.
+  button (draft reset) is unchanged. On the dashboard the **Users** filter also narrows
+  the rows of the row-based views: when active, Day/Week/Week v2 render exactly the
+  selected users' rows (no department rows, no other users) — `buildScheduleResources`'
+  `userFilter` (`src/lib/events/schedule.ts`; rows group under each user's own
+  department, unassigned users under `Unassigned`). The event data is already filtered,
+  and placements for non-rendered rows are ignored by the views (Mantine keys events on
+  rendered resources; the matrix reads lanes of rendered rows only), so no
+  expansion/lanes changes are needed.
    Non-admins default to their own department but may filter to any department, matching
    the calendar page.
 - The dashboard's **Week v2** tab (`?view=weekv2`, fifth tab after Week) is a week

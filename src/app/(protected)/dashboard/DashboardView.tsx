@@ -130,6 +130,8 @@ interface DashboardViewProps {
    */
   initialEditEventId: string | null;
   scheduleUsers: ScheduleUser[];
+  /** Full active roster: row source when the Users filter narrows the rows. */
+  allActiveUsers: ScheduleUser[];
   inviteeDepartments: { id: string; name: string }[];
   inviteeUsers: {
     id: string;
@@ -240,6 +242,7 @@ export function DashboardView({
   isAdmin,
   initialEditEventId,
   scheduleUsers,
+  allActiveUsers,
   inviteeDepartments,
   inviteeUsers,
   filterUsers,
@@ -458,14 +461,29 @@ export function DashboardView({
     () => calendars.filter((calendar) => selectedCalendarIds.includes(calendar.id)),
     [calendars, selectedCalendarIds],
   );
+  // An active Users filter narrows the rows to exactly the selected users
+  // (no department rows, no other users), so the filter visibly changes the
+  // grid. The row source becomes the full active roster — a selected user gets
+  // a row even when their department is outside the `cal` selection — and the
+  // department list must cover each selected user's own department.
+  const userFilterActive = selectedUserIds.length > 0;
   const scheduleResources = useMemo(
     () =>
       buildScheduleResources({
-        departments: scheduleDepartments,
-        users: scheduleUsers,
+        departments: userFilterActive ? calendars : scheduleDepartments,
+        users: userFilterActive ? allActiveUsers : scheduleUsers,
         events,
+        userFilter: selectedUserIds,
       }),
-    [scheduleDepartments, scheduleUsers, events],
+    [
+      userFilterActive,
+      calendars,
+      scheduleDepartments,
+      scheduleUsers,
+      allActiveUsers,
+      events,
+      selectedUserIds,
+    ],
   );
   const scheduleEvents = useMemo(() => expandScheduleEvents(events), [events]);
 
@@ -1134,8 +1152,9 @@ export function DashboardView({
         ) : scheduleResources.resources.length === 0 ? (
           <Paper withBorder radius="md" p="lg">
             <Text size="sm" c="dimmed">
-              No users in the selected calendars yet. Assign users to a department (Admin Settings)
-              or adjust the filters.
+              {userFilterActive
+                ? "No active users match the Users filter. Adjust the filter."
+                : "No users in the selected calendars yet. Assign users to a department (Admin Settings) or adjust the filters."}
             </Text>
           </Paper>
         ) : isWeekV2 && week ? (

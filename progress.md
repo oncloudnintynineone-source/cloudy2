@@ -81,6 +81,7 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
 - [1.67 Filter quick actions in the 3-dot menus (Phase 3aa)](#167-filter-quick-actions-in-the-3-dot-menus-phase-3aa)
 - [1.68 Event location polarity fix (bugfix)](#168-event-location-polarity-fix-bugfix)
 - [1.69 Remembered UI state across relaunch (Phase 3ab)](#169-remembered-ui-state-across-relaunch-phase-3ab)
+- [1.71 User filter narrows the resource rows (bugfix)](#171-user-filter-narrows-the-resource-rows-bugfix)
 
 ## 1.1 Status
 
@@ -3423,6 +3424,83 @@ flowchart LR
   client redirect); the same cookie with `?_fresh=1` renders the default
   Month view; bare `/parade-state` with remembered `date=2026-08-10` renders
   that day; `?view=agenda&date=2026-09-05` beats the cookie (URL always
-  wins). Manual PWA relaunch on a phone (kill app → tap icon → last page with
-  filters) remains the final user-facing confirmation.
+   wins). Manual PWA relaunch on a phone (kill app → tap icon → last page with
+   filters) remains the final user-facing confirmation.
+
+## 1.71 User filter narrows the resource rows (bugfix)
+
+**Symptom** — the dashboard's **Users** filter had no visible effect on the
+**Day**, **Week**, and **Week v2** tabs: applying it left all user rows in
+place and most events unchanged, so it "looked like no filter has been
+applied". Month/Agenda were unaffected (no rows to mislead).
+
+**Root cause** — the filter always narrowed the *event data* correctly
+(server-side `eventMatchesUserFilter` in `fetchRangeEvents`), but the three
+resource-row views ignored it for *rows*:
+
+1. `buildScheduleResources` rendered every user of the selected departments
+   plus the department rows — the Phase 2s scope decision ("the filter selects
+   which **events** render only; the schedule view's resource rows are
+   unchanged", §1.28).
+2. `expandScheduleEvents` (Day/Week) and `buildWeekLanes` (Week v2) place each
+   surviving event on **every** row it applies to — the creator's row, all
+   co-tagged users' rows, and the tagged department rows. Filtering to "John"
+   therefore still showed his events in his creators'/co-tagged rows and
+   department rows, with every label still on screen → reads as unfiltered.
+
+```mermaid
+flowchart TD
+    A["?users=&lt;ids&gt; active"] --> B["buildScheduleResources(userFilter) (NEW)"]
+    B -->|"rows = selected users only<br/>grouped by their own dept, no dept rows"| C["Day / Week / Week v2 grid"]
+    A --> D["fetchRangeEvents userFilter (unchanged)"]
+    D --> E["events narrowed to creator/tagged matches"]
+    E --> F["expandScheduleEvents / buildWeekLanes (unchanged)"]
+    F --> G["placements for hidden rows are ignored<br/>(Mantine keys events on rendered resources;<br/>matrix reads lanes of rendered rows only)"]
+    G --> C
+```
+
+**Fix (behavior user-confirmed)** — when the Users filter is active, the three
+views render **only the selected users' rows** (no department rows, no other
+users). Each surviving event then lands only on its selected users' rows, so
+the grid visibly changes; "My Events" collapses to your single row. Month,
+Agenda, and Overview are untouched (the Overview "`?users=` never narrows
+rows" contract from its fix section stands).
+
+- **`buildScheduleResources`** (`src/lib/events/schedule.ts`) — new
+  `userFilter?: string[]` param. Non-empty → `buildFilteredScheduleResources`:
+  one row per selected user present in the roster (shortname/name labels and
+  name ordering unchanged), grouped under the user's **own** department — so a
+  selected user gets a row even when that department is outside the `cal`
+  selection (row source becomes the full active roster); department rows and
+  the tagged-department pinning are skipped (events without people data are
+  already excluded by the data filter); unassigned selected users land in a
+  trailing `Unassigned` group; selected ids missing from the roster are
+  skipped; groups are only emitted when more than one group has rows.
+  Empty/absent filter → exactly the previous behavior (existing tests
+  unchanged).
+- **View wiring** — `dashboard/page.tsx` passes a new `allActiveUsers` prop
+  (full active roster, `ScheduleUser` shape); `DashboardView` switches the
+  row build to `{ departments: calendars, users: allActiveUsers, userFilter:
+  selectedUserIds }` when the filter is active, keeping the previous
+  `scheduleDepartments`/`scheduleUsers` build otherwise.
+- **No expansion/lanes changes** — verified against `@mantine/schedule` 9.5.1
+  (`get-resources-day-view-events`: events are keyed per rendered resource and
+  `if (!(event.resourceId in eventsByResource)) continue;`), so Day/Week drop
+  placements for hidden rows implicitly; `WeekMatrixView` only reads
+  `laneMap.get(resource.id)` for rendered rows, so hidden rows' lanes are
+  never used.
+- **Empty state** — zero rows under an active filter show
+  "No active users match the Users filter. Adjust the filter." (the no-filter
+  message is unchanged).
+- **Unit tests** — `src/lib/events/schedule.test.ts`: six new cases (single
+  user → row only, no dept row; dept rows dropped even when events tag the
+  department; multi-department grouping; unknown ids skipped; unassigned group;
+  no selected user in roster → no rows).
+- **Revises** the Phase 2s scope decision (§1.28, "rows unchanged") for the
+  three resource views; the data-level matching semantics are untouched.
+- Verification: `pnpm lint`, `pnpm typecheck`, `pnpm test` (418), and
+  `pnpm build` all pass (no schema change). Manual phone smoke owed: apply a
+  Users filter / "My Events" on each of Day/Week/Week v2 → only the selected
+  users' rows remain and events appear only in them; Clear restores the full
+  row set.
 
