@@ -161,11 +161,13 @@ the quality checks.
     lanes via greedy interval partitioning); data comes from the same
     `fetchRangeEvents` 2-month range read as the timeline Week view, so
     cache/filters/force-refresh are inherited unchanged.
- - **Remembered UI state survives relaunch.** The last page, the dashboard's
-   view/tab + day/month + Cal/Users/Types filters, and the parade-state day +
-   Cal/Users filters are persisted per-device in one cookie, `cloudy2.ui`
-   (base64url JSON: `{ lastPage, dashboard: { view, date, month, cal, users, types },
-   parade: { date, month, cal, users } }`; max-age 1y). The **server** reads it
+  - **Remembered UI state survives relaunch.** The last page, the dashboard's
+    view/tab + day/month + Cal/Users/Types filters + pinned tabs, and the
+    parade-state day + Cal/Users filters are persisted per-device in one
+    cookie, `cloudy2.ui`
+    (base64url JSON: `{ lastPage, dashboard: { view, date, month, cal, users, types,
+    pinnedViews }, parade: { date, month, cal, users } }`; max-age 1y). The
+    **server** reads it
    (`cookies()` in `src/app/page.tsx` and the two pages' `page.tsx`) and applies it
    as a **per-key fallback where the URL param is absent** — URL params always
    win — so a PWA cold start (`start_url /`) redirects to the remembered
@@ -185,11 +187,31 @@ the quality checks.
    `freshMarkerNeeded()` decides) so that one render skips the cookie and uses
    pure defaults instead of re-applying the stale values; a self-terminating
    strip effect then removes the marker (same pattern as the `refresh`/`edit`
-   strips). `?edit=` deep links skip the cookie entirely (explicit intent).
-   `clearUiState()` runs on sign-out (`UserMenu.tsx`). The codec/normalizer/
-   launch-target/marker helpers are pure and unit-tested in
-   `src/lib/ui/uiState.test.ts`; stored values are re-validated server-side like
-   URL params, and an oversized cookie degrades by dropping the id lists.
+    strips). `?edit=` deep links skip the cookie entirely (explicit intent).
+    **Dashboard tabs can be pinned:** the "Pin Tab" `Menu.Item` in the
+    dashboard's 3-dot menu (after "Select date"; state-based — "Pin Tab" with
+    an outlined `IconStar` when unpinned, "Unpin Tab" with a filled
+    `IconStarFilled` when pinned) pins/unpins the *active* tab. Pinned tabs
+    render first in the tab bar in pin-recency order (last pinned = leftmost),
+    with a filled star icon (`IconStarFilled`, 14px) prefixed to their tab
+    name; unpinned tabs keep the default order
+    (`DASHBOARD_VIEW_VALUES`). The list is stored in `dashboard.pinnedViews` in
+    recency order and shaped by the pure, unit-tested helpers in
+    `src/lib/ui/uiState.ts`: `normalizePinnedViews()` (known views only,
+    de-duplicated, order-preserving) and `orderDashboardViews()`. Pins are
+    **not URL-backed**, so — unlike the other dashboard keys — the page reads
+    them from the cookie even on `_fresh`/`edit` renders (every tab switch is a
+    `_fresh` render; skipping the cookie there would wipe the pins on the next
+    switch). `DASHBOARD_STATE_KEYS` deliberately excludes the key, and a pin
+    toggle navigates nowhere (no skeleton, no `_fresh`). `DashboardView` keeps
+    the pins in local state (a render-phase sync follows the server-validated
+    prop, so back/forward re-resolves win over a stale local toggle) and
+    persists them through the same `usePersistUiState` write; the cookie's
+    overflow-degrade branch keeps `pinnedViews` alongside view/date/month.
+    `clearUiState()` runs on sign-out (`UserMenu.tsx`). The codec/normalizer/
+    launch-target/marker helpers are pure and unit-tested in
+    `src/lib/ui/uiState.test.ts`; stored values are re-validated server-side like
+    URL params, and an oversized cookie degrades by dropping the id lists.
 
 ## Conventions
 

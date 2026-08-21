@@ -3,6 +3,7 @@
 import dayjs from "dayjs";
 import {
   type CSSProperties,
+  type ReactNode,
   useCallback,
   useEffect,
   useLayoutEffect,
@@ -55,6 +56,8 @@ import {
   IconListDetails,
   IconPlus,
   IconRefresh,
+  IconStar,
+  IconStarFilled,
   IconUser,
   IconX,
 } from "@tabler/icons-react";
@@ -75,6 +78,7 @@ import {
   FloatingActionButton,
   FloatingToolbar,
 } from "@/components/FloatingToolbar";
+import { eventsOnDay } from "@/lib/events/agenda";
 import { weekDays } from "@/lib/events/datetime";
 import type { CalendarEvent } from "@/lib/events/queries";
 import type { LocationPolicy } from "@/lib/events/locationPolicy";
@@ -94,13 +98,23 @@ import {
   type ScheduleResource,
   type ScheduleUser,
 } from "@/lib/events/schedule";
-import { DASHBOARD_STATE_KEYS, freshMarkerNeeded } from "@/lib/ui/uiState";
+import { DASHBOARD_STATE_KEYS, freshMarkerNeeded, orderDashboardViews } from "@/lib/ui/uiState";
 import { usePersistUiState } from "@/lib/ui/uiStateClient";
 import { EventDetail } from "./EventDetail";
 import { EventForm } from "./EventForm";
 import { WeekMatrixView } from "./WeekMatrixView";
 
 type ViewMode = "month" | "week" | "weekv2" | "schedule" | "agenda";
+
+// Tab bar labels/icons in default (unpinned) order; pinned tabs are moved to
+// the front by `orderDashboardViews` (see the pinnedViews prop).
+const VIEW_TAB_META: Record<ViewMode, { label: string; icon: ReactNode; nowrap?: boolean }> = {
+  month: { label: "Month", icon: <IconCalendarMonth size={16} /> },
+  week: { label: "Week", icon: <IconCalendarWeek size={16} /> },
+  weekv2: { label: "Week v2", icon: <IconLayoutGrid size={16} />, nowrap: true },
+  schedule: { label: "Day", icon: <IconCalendarUser size={16} /> },
+  agenda: { label: "Agenda", icon: <IconListDetails size={16} /> },
+};
 
 interface EventTypeOption {
   name: string;
@@ -113,6 +127,13 @@ interface DashboardViewProps {
   month: string;
   date: string;
   view: ViewMode;
+  /**
+   * Pinned tabs in recency order (index 0 = most recently pinned, renders
+   * leftmost); unpinned tabs keep their default order. The server resolves
+   * this from the remembered-state cookie on every render — including
+   * `_fresh` renders, since pins are not URL-backed.
+   */
+  pinnedViews: string[];
   events: CalendarEvent[];
   calendars: { id: string; name: string }[];
   eventTypes: EventTypeOption[];
@@ -230,6 +251,7 @@ export function DashboardView({
   month,
   date,
   view,
+  pinnedViews,
   events,
   calendars,
   eventTypes,
@@ -303,6 +325,19 @@ export function DashboardView({
   );
   const [filterOpened, { open: openFilter, close: closeFilter }] = useDisclosure(false);
   const [pickerOpened, { open: openPicker, close: closePicker }] = useDisclosure(false);
+
+  // Pinned tabs (index 0 = leftmost). The prop is the server's validated read
+  // of the remembered-state cookie; local state leads it by one toggle. The
+  // render-phase sync below (the standard "adjust state on prop change"
+  // pattern) follows external prop changes — back/forward, a cleared cookie —
+  // without clobbering a local toggle the cookie hasn't re-confirmed yet
+  // (compared by content, not reference).
+  const [pinned, setPinned] = useState<string[]>(pinnedViews);
+  const [prevPinnedViews, setPrevPinnedViews] = useState<string[]>(pinnedViews);
+  if (JSON.stringify(prevPinnedViews) !== JSON.stringify(pinnedViews)) {
+    setPrevPinnedViews(pinnedViews);
+    setPinned(pinnedViews);
+  }
 
   // Height of the sticky view-tabs bar, so the Week v2 pinned day header can
   // stick just below it. Measured before first paint (and on resize) so the
@@ -393,6 +428,7 @@ export function DashboardView({
     cal: selectedCalendarIds,
     users: selectedUserIds,
     types: selectedTypes,
+    pinnedViews: pinned,
   });
 
   // The date shown in the agenda day modal; persists through the exit
@@ -524,6 +560,10 @@ export function DashboardView({
   // Day-anchored views (Day, Week v2, Agenda): a `?date=` anchor drives the
   // fetch (Week v2 shows the Monday-first week containing the anchor day).
   const isAnchoredView = isSchedule || isWeekV2 || isAgenda;
+
+  // Tab bar order: pinned tabs first (in recency order), then the rest in
+  // their default order. Re-validates the stored list (drops unknown values).
+  const orderedViews = useMemo(() => orderDashboardViews(pinned), [pinned]);
 
   const buildHref = useCallback(
     (updates: Record<string, string | null>) => {
@@ -780,6 +820,15 @@ export function DashboardView({
     navigate({ users: checked ? currentUser : null });
   }
 
+  function togglePinView() {
+    // Pinning moves the active tab to the front (last pinned = leftmost);
+    // unpinning drops it back into the default tab order. Pure display order —
+    // no navigation, so no skeleton and no `_fresh` marker.
+    setPinned(
+      pinned.includes(view) ? pinned.filter((mode) => mode !== view) : [view, ...pinned],
+    );
+  }
+
   function clearFilters() {
     // Null params restore the server defaults (non-admins default to their
     // own department's calendar).
@@ -822,6 +871,15 @@ export function DashboardView({
   // The day the Agenda tab shows and its navigation acts on; in the other
   // views this is identical to the `?date=` prop.
   const headerDate = isAgenda ? (viewedDay ?? date) : date;
+
+  // Mantine's AgendaView leaks adjacent-day all-day events into the selected
+  // day (its day-granularity end check lets an exclusive end land exactly on
+  // the viewed midnight), so pre-filter to exactly the occupying events.
+  const agendaTabEvents = useMemo(() => eventsOnDay(events, headerDate), [events, headerDate]);
+  const agendaModalEvents = useMemo(
+    () => (agendaViewDate ? eventsOnDay(events, agendaViewDate) : []),
+    [events, agendaViewDate],
+  );
   const onToday = isWeek
     ? week !== null && week.some((day) => day === today)
     : isAnchoredView
@@ -916,46 +974,20 @@ export function DashboardView({
               borderBottom: "1px solid var(--mantine-color-default-border)",
             }}
           >
-            <Tabs.Tab value="month">
-              <Group gap="xs" justify="center" wrap="nowrap">
-                <IconCalendarMonth size={16} />
-                <Text fw={600} size="sm">
-                  Month
-                </Text>
-              </Group>
-            </Tabs.Tab>
-            <Tabs.Tab value="week">
-              <Group gap="xs" justify="center" wrap="nowrap">
-                <IconCalendarWeek size={16} />
-                <Text fw={600} size="sm">
-                  Week
-                </Text>
-              </Group>
-            </Tabs.Tab>
-            <Tabs.Tab value="weekv2">
-              <Group gap="xs" justify="center" wrap="nowrap">
-                <IconLayoutGrid size={16} />
-                <Text fw={600} size="sm" style={{ whiteSpace: "nowrap" }}>
-                  Week v2
-                </Text>
-              </Group>
-            </Tabs.Tab>
-            <Tabs.Tab value="schedule">
-              <Group gap="xs" justify="center" wrap="nowrap">
-                <IconCalendarUser size={16} />
-                <Text fw={600} size="sm">
-                  Day
-                </Text>
-              </Group>
-            </Tabs.Tab>
-            <Tabs.Tab value="agenda">
-              <Group gap="xs" justify="center" wrap="nowrap">
-                <IconListDetails size={16} />
-                <Text fw={600} size="sm">
-                  Agenda
-                </Text>
-              </Group>
-            </Tabs.Tab>
+            {orderedViews.map((mode) => {
+              const meta = VIEW_TAB_META[mode];
+              return (
+                <Tabs.Tab key={mode} value={mode}>
+                  <Group gap="xs" justify="center" wrap="nowrap">
+                    {meta.icon}
+                    {pinned.includes(mode) && <IconStarFilled size={14} />}
+                    <Text fw={600} size="sm" style={meta.nowrap ? { whiteSpace: "nowrap" } : undefined}>
+                      {meta.label}
+                    </Text>
+                  </Group>
+                </Tabs.Tab>
+              );
+            })}
           </Tabs.List>
         </Tabs>
       </Box>
@@ -1044,6 +1076,14 @@ export function DashboardView({
                 Select date
               </Menu.Item>
             )}
+            <Menu.Item
+              leftSection={
+                pinned.includes(view) ? <IconStarFilled size={16} /> : <IconStar size={16} />
+              }
+              onClick={togglePinView}
+            >
+              {pinned.includes(view) ? "Unpin Tab" : "Pin Tab"}
+            </Menu.Item>
             <Menu.Divider />
             <Menu.Label>Filters</Menu.Label>
             {onlyMeAvailable && (
@@ -1165,7 +1205,7 @@ export function DashboardView({
               <AgendaView
                 rangeStart={headerDate}
                 rangeEnd={headerDate}
-                events={events}
+                events={agendaTabEvents}
                 // The view root is an unstyled Box, so the shared boxed look of
                 // the other views comes from here. The nav row above already
                 // shows the day, so only the stock per-day group header is kept.
@@ -1411,7 +1451,7 @@ export function DashboardView({
                 <AgendaView
                   rangeStart={agendaViewDate}
                   rangeEnd={agendaViewDate}
-                  events={events}
+                  events={agendaModalEvents}
                   styles={{ agendaViewHeader: { display: "none" } }}
                   onEventClick={(event, e) => {
                     setDetailOriginRect(e.currentTarget.getBoundingClientRect());

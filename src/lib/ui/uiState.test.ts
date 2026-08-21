@@ -1,12 +1,15 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  DASHBOARD_VIEW_VALUES,
   UI_STATE_COOKIE,
   decodeUiState,
   encodeUiState,
   freshMarkerNeeded,
   mergeUiState,
+  normalizePinnedViews,
   normalizeUiState,
+  orderDashboardViews,
   resolveLaunchTarget,
 } from "./uiState";
 
@@ -19,6 +22,7 @@ describe("encodeUiState/decodeUiState", () => {
       month: "2026-08",
       cal: ["a", "b"],
       users: ["u1"],
+      pinnedViews: ["agenda", "week"],
     },
     parade: { date: "2026-08-20", month: "2026-08" },
   };
@@ -84,7 +88,15 @@ describe("normalizeUiState", () => {
     expect(
       normalizeUiState({
         lastPage: 42,
-        dashboard: { view: 7, date: null, month: 0, cal: "a,b", users: ["u", 3, ""], types: {} },
+        dashboard: {
+          view: 7,
+          date: null,
+          month: 0,
+          cal: "a,b",
+          users: ["u", 3, ""],
+          types: {},
+          pinnedViews: "agenda",
+        },
         parade: ["array"],
       }),
     ).toEqual({ dashboard: { users: ["u"] } });
@@ -94,10 +106,24 @@ describe("normalizeUiState", () => {
     expect(normalizeUiState({ dashboard: { cal: [], users: [], view: "month" } })).toEqual({
       dashboard: { view: "month" },
     });
+    expect(
+      normalizeUiState({ dashboard: { pinnedViews: [], view: "month" } }),
+    ).toEqual({ dashboard: { view: "month" } });
     // the section vanishes, other valid fields survive
     expect(normalizeUiState({ dashboard: { cal: [] }, lastPage: "/x" })).toEqual({
       lastPage: "/x",
     });
+  });
+
+  it("keeps known pinnedViews in order, dropping unknown and duplicate values", () => {
+    expect(
+      normalizeUiState({
+        dashboard: {
+          view: "month",
+          pinnedViews: ["agenda", "nope", "agenda", "week", 42, "schedule"],
+        },
+      }),
+    ).toEqual({ dashboard: { view: "month", pinnedViews: ["agenda", "week", "schedule"] } });
   });
 
   it("drops lastPage values that are not absolute paths", () => {
@@ -127,6 +153,68 @@ describe("mergeUiState", () => {
       dashboard: { view: "week", date: "2026-08-10" },
       parade: { month: "2026-08" },
     });
+  });
+});
+
+describe("normalizePinnedViews", () => {
+  it("returns [] for non-arrays", () => {
+    expect(normalizePinnedViews(null)).toEqual([]);
+    expect(normalizePinnedViews(undefined)).toEqual([]);
+    expect(normalizePinnedViews("agenda")).toEqual([]);
+    expect(normalizePinnedViews({ agenda: true })).toEqual([]);
+  });
+
+  it("keeps only known view values, de-duplicated, in stored order", () => {
+    expect(normalizePinnedViews(["agenda", "junk", "agenda", "week", null, "month"])).toEqual([
+      "agenda",
+      "week",
+      "month",
+    ]);
+  });
+});
+
+describe("orderDashboardViews", () => {
+  it("returns the default tab order when nothing is pinned", () => {
+    expect(orderDashboardViews([])).toEqual([...DASHBOARD_VIEW_VALUES]);
+  });
+
+  it("moves a single pin to the front", () => {
+    expect(orderDashboardViews(["agenda"])).toEqual([
+      "agenda",
+      "month",
+      "week",
+      "weekv2",
+      "schedule",
+    ]);
+  });
+
+  it("keeps multiple pins in stored recency order (last pinned first)", () => {
+    // The list is stored in recency order (index 0 = last pinned), so agenda
+    // pinned after week is stored as ["agenda", "week"] and renders first.
+    expect(orderDashboardViews(["agenda", "week"])).toEqual([
+      "agenda",
+      "week",
+      "month",
+      "weekv2",
+      "schedule",
+    ]);
+  });
+
+  it("ignores unknown values and duplicates without losing the rest", () => {
+    expect(orderDashboardViews(["agenda", "nope", "agenda"])).toEqual([
+      "agenda",
+      "month",
+      "week",
+      "weekv2",
+      "schedule",
+    ]);
+  });
+
+  it("renders every view exactly once when all tabs are pinned", () => {
+    expect(orderDashboardViews(["schedule", "weekv2", "week", "agenda", "month"])).toHaveLength(5);
+    expect(new Set(orderDashboardViews(["schedule", "weekv2", "week", "agenda", "month"])).size).toBe(
+      5,
+    );
   });
 });
 

@@ -15,7 +15,7 @@ import { formatFullName } from "@/lib/settings/formatName";
 import { getSettings } from "@/lib/settings/queries";
 import { requireSession } from "@/lib/session";
 import { isUuid } from "@/lib/uuid";
-import { UI_STATE_COOKIE, decodeUiState } from "@/lib/ui/uiState";
+import { UI_STATE_COOKIE, decodeUiState, normalizePinnedViews } from "@/lib/ui/uiState";
 import { DashboardView } from "./DashboardView";
 
 interface DashboardPageProps {
@@ -49,11 +49,13 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
   // marker (a render that just removed remembered keys — Clear, tab switch)
   // and for `edit` deep links (an explicit intent to see one event).
   const freshRender = typeof params._fresh === "string";
-  const uiState =
-    freshRender || initialEditEventId !== null
-      ? null
-      : decodeUiState((await cookies()).get(UI_STATE_COOKIE)?.value);
+  const cookieState = decodeUiState((await cookies()).get(UI_STATE_COOKIE)?.value);
+  const uiState = freshRender || initialEditEventId !== null ? null : cookieState;
   const ui = uiState?.dashboard;
+  // Pinned tabs are not URL-backed, so the `_fresh`/`edit` cookie skip above
+  // must not drop them — every tab switch is a `_fresh` render, and skipping
+  // the cookie there would wipe the pin list on the very next switch.
+  const pinnedViews = normalizePinnedViews(cookieState?.dashboard?.pinnedViews);
 
   const viewParam = params.view ?? ui?.view;
   const view =
@@ -235,6 +237,7 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
       month={month}
       date={date}
       view={view}
+      pinnedViews={pinnedViews}
       events={events}
       calendars={calendars.map((calendar) => ({ id: calendar.id, name: calendar.name }))}
       eventTypes={eventTypeOptions}

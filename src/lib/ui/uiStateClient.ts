@@ -16,7 +16,8 @@ import {
 
 const COOKIE_MAX_AGE_SECONDS = 60 * 60 * 24 * 365; // one year
 // Browsers cap a cookie value around 4 KiB; keep headroom. A state that would
-// overflow drops its (largest) id lists and keeps view/date/month/lastPage.
+// overflow drops its (largest) id lists and keeps view/date/month/pinnedViews/
+// lastPage (the small scalars that carry the most "where am I" signal).
 const SAFE_COOKIE_VALUE_LENGTH = 3500;
 
 function readCookieValue(name: string): string | undefined {
@@ -32,7 +33,12 @@ export function writeUiState(patch: UiState): void {
     value = encodeUiState({
       ...merged,
       dashboard: merged.dashboard
-        ? { view: merged.dashboard.view, date: merged.dashboard.date, month: merged.dashboard.month }
+        ? {
+            view: merged.dashboard.view,
+            date: merged.dashboard.date,
+            month: merged.dashboard.month,
+            pinnedViews: merged.dashboard.pinnedViews,
+          }
         : undefined,
       parade: merged.parade
         ? { date: merged.parade.date, month: merged.parade.month }

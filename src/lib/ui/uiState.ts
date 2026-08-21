@@ -11,7 +11,8 @@
  * params):
  *   {
  *     lastPage?: string,        // bottom-nav path, incl. /settings sub-tab
- *     dashboard?: { view?, date?, month?, cal?: string[], users?: string[], types?: string[] },
+ *     dashboard?: { view?, date?, month?, cal?: string[], users?: string[], types?: string[],
+ *                    pinnedViews?: string[] },  // pinned tabs, recency order (0 = leftmost)
  *     parade?:    { date?, month?, cal?: string[], users?: string[] },
  *   }
  *
@@ -33,6 +34,11 @@ export interface DashboardUiState {
   cal?: string[];
   users?: string[];
   types?: string[];
+  /** Pinned view tabs in recency order — index 0 is the most recently pinned
+   *  tab and renders leftmost. Not URL-backed: the server reads it from the
+   *  cookie even on `_fresh`/`edit` renders (every tab switch is a `_fresh`
+   *  render, and skipping the cookie there would wipe the pins). */
+  pinnedViews?: string[];
 }
 
 export interface ParadeUiState {
@@ -50,8 +56,44 @@ export interface UiState {
 
 // The dashboard keys a remembered section tracks; `navigate()` consults these
 // to decide when a navigation removes remembered state and must send `_fresh`.
+// `pinnedViews` is deliberately absent: it is not URL-backed, so pin changes
+// never navigate and never need `_fresh`.
 export const DASHBOARD_STATE_KEYS = ["view", "date", "month", "cal", "users", "types"] as const;
 export const PARADE_STATE_KEYS = ["date", "month", "cal", "users"] as const;
+
+// The dashboard's view tabs, in their default (unpinned) order.
+export const DASHBOARD_VIEW_VALUES = ["month", "week", "weekv2", "schedule", "agenda"] as const;
+export type DashboardViewValue = (typeof DASHBOARD_VIEW_VALUES)[number];
+
+function isDashboardViewValue(value: unknown): value is DashboardViewValue {
+  return typeof value === "string" && (DASHBOARD_VIEW_VALUES as readonly string[]).includes(value);
+}
+
+/**
+ * The remembered pin list: only known view values survive, de-duplicated in
+ * stored order (index 0 = most recently pinned = leftmost tab).
+ */
+export function normalizePinnedViews(value: unknown): DashboardViewValue[] {
+  if (!Array.isArray(value)) return [];
+  const seen = new Set<string>();
+  const pinned: DashboardViewValue[] = [];
+  for (const entry of value) {
+    if (isDashboardViewValue(entry) && !seen.has(entry)) {
+      seen.add(entry);
+      pinned.push(entry);
+    }
+  }
+  return pinned;
+}
+
+/**
+ * Tab bar order: pinned tabs first (in recency order, as stored), then the
+ * unpinned tabs in their default order.
+ */
+export function orderDashboardViews(pinned: readonly string[]): DashboardViewValue[] {
+  const known = normalizePinnedViews(pinned);
+  return [...known, ...DASHBOARD_VIEW_VALUES.filter((view) => !known.includes(view))];
+}
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -91,12 +133,14 @@ export function normalizeUiState(value: unknown): UiState | null {
     const cal = idListOf(dashboard.cal);
     const users = idListOf(dashboard.users);
     const types = idListOf(dashboard.types);
+    const pinnedViews = normalizePinnedViews(dashboard.pinnedViews);
     if (view !== undefined) section.view = view;
     if (date !== undefined) section.date = date;
     if (month !== undefined) section.month = month;
     if (cal !== undefined) section.cal = cal;
     if (users !== undefined) section.users = users;
     if (types !== undefined) section.types = types;
+    if (pinnedViews.length > 0) section.pinnedViews = pinnedViews;
     if (Object.keys(section).length > 0) {
       state.dashboard = section;
     }

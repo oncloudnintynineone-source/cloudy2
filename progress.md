@@ -82,6 +82,7 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
 - [1.68 Event location polarity fix (bugfix)](#168-event-location-polarity-fix-bugfix)
 - [1.69 Remembered UI state across relaunch (Phase 3ab)](#169-remembered-ui-state-across-relaunch-phase-3ab)
 - [1.71 User filter narrows the resource rows (bugfix)](#171-user-filter-narrows-the-resource-rows-bugfix)
+- [1.72 Pinned dashboard view tabs (Phase 3ac)](#172-pinned-dashboard-view-tabs-phase-3ac)
 
 ## 1.1 Status
 
@@ -3503,4 +3504,78 @@ rows" contract from its fix section stands).
   Users filter / "My Events" on each of Day/Week/Week v2 → only the selected
   users' rows remain and events appear only in them; Clear restores the full
   row set.
+
+## 1.72 Pinned dashboard view tabs (Phase 3ac)
+
+Users can pin their preferred calendar view tabs. A **"Pin Tab"** `Menu.Item`
+in the dashboard's header 3-dot menu (the same menu on every dashboard view,
+placed after "Select date" and before the Filters group; state-based — **"Pin
+Tab"** with an outlined `IconStar` when unpinned, **"Unpin Tab"** with a filled
+`IconStarFilled` when pinned) pins/unpins the *currently active* tab. Pinned
+tabs render **first** in the tab bar in pin-recency order — the last pinned tab
+is leftmost — with a filled star icon (`IconStarFilled`, 14px) prefixed to
+their tab name; unpinned tabs keep the default order (Month → Week → Week v2 →
+Day → Agenda).
+
+**Design decision (user-confirmed):** storage is **per-device** in the existing
+`cloudy2.ui` cookie (§1.69) as `dashboard.pinnedViews: string[]` — index 0 is
+the most recently pinned tab. No schema work; pins clear on sign-out with the
+rest of the UI state.
+
+```mermaid
+flowchart LR
+    M["⋮ menu<br/>Pin Tab / Unpin Tab<br/>(Menu.Item, star icon leftSection)"] --> S["local state 'pinned'<br/>(render-phase sync follows prop)"]
+    S --> O["orderDashboardViews(pinned)<br/>pinned first (recency) + defaults"]
+    O --> T["Tabs.List<br/>ordered tabs, SSR-correct order"]
+    S --> W["usePersistUiState('dashboard', …<br/>pinnedViews: pinned)"]
+    W --> C[("cookie 'cloudy2.ui'<br/>dashboard.pinnedViews")]
+    C --> P["dashboard/page.tsx<br/>normalizePinnedViews()<br/>— read even on _fresh/edit"]
+    P --> S
+```
+
+- **Pure helpers** (`src/lib/ui/uiState.ts`, unit-tested) —
+  `DASHBOARD_VIEW_VALUES` (the five tab values in default order),
+  `normalizePinnedViews(value)` (only known views survive, de-duplicated,
+  stored order preserved), and `orderDashboardViews(pinned)` (pinned first in
+  stored/recency order, then the unpinned defaults). `normalizeUiState` keeps
+  `dashboard.pinnedViews` when non-empty. `DASHBOARD_STATE_KEYS` deliberately
+  **excludes** the key: pins are not URL-backed, so pinning never navigates and
+  never triggers `_fresh`.
+- **`_fresh` carve-out** (the subtle part) — every tab switch is a `_fresh`
+  render, and `page.tsx` normally nulls the whole cookie for `_fresh`/`edit`
+  renders. Reading pins through that path would wipe them on the next tab
+  switch. The page now decodes the cookie once (`cookieState`) and resolves
+  `pinnedViews` from it **in all render modes**; only the URL-backed keys
+  honor the skip.
+- **Server** (`dashboard/page.tsx`) — `pinnedViews` prop on `DashboardView`
+  (validated = the tab order is correct in the SSR HTML, no reorder flash).
+- **Client** (`DashboardView.tsx`) — the five hardcoded `Tabs.Tab` blocks
+  became `orderDashboardViews(pinned).map(...)` over a `VIEW_TAB_META`
+  `{label, icon}` map (Week v2 keeps its `nowrap` label). Pin state is local
+  (`useState`, seeded from the prop) with a render-phase content-compare sync
+  (the codebase's existing "adjust state on prop change" pattern) so
+  back/forward re-resolves win over a stale local toggle while a fresh local
+  toggle the cookie hasn't re-confirmed yet is never clobbered. Toggling runs
+  `setPinned(pinned.includes(view) ? pinned.filter(…rest) : [view, …pinned])` —
+  no navigation, so no skeleton and no `_fresh`; persistence rides the existing
+  `usePersistUiState` write
+  (the dashboard section now always includes `pinnedViews`, so the
+  whole-section `mergeUiState` replacement stays lossless).
+- **Overflow guard** (`uiStateClient.ts`) — the >3.5 KB degrade branch now
+  keeps `pinnedViews` alongside view/date/month (it's ≤5 short strings).
+- **Tests** — `uiState.test.ts`: round-trip incl. `pinnedViews`; normalize
+  (non-arrays, unknown/junk, duplicates, empty); `orderDashboardViews`
+  (default order, single pin first, multi-pin recency, unknowns ignored,
+  all-pinned). Suite 426.
+- **Unchanged** — parade-state (no tabs), the tab-switching navigation
+  (`switchView`), the active-tab scroll-into-view effect (pinning never changes
+  the active tab), the `?view=` URL param (pinning is display-only — a pinned
+  tab is still addressed by `?view=` exactly as before). No schema change —
+  `db:generate` no drift.
+- Verification: `pnpm lint`, `pnpm typecheck`, and `pnpm test` (426) all pass.
+  Manual on-device checks owed: pin a view → it jumps leftmost; pin a second
+  → it goes first (first pinned drops to second); unpin → default order
+  returns; F5 / PWA relaunch keeps the order on first paint; tab switches
+  don't clear pins; the menu label/icon + tab star survive the menu
+  close/reopen on the new tab; sign-out clears the pins.
 
