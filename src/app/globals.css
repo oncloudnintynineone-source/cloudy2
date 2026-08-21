@@ -42,14 +42,6 @@
   }
 }
 
-/* A Modal's content box is the only scroll container that may move while a
-   dialog is open (the AppShell scrolls via the document). Stop the modal's
-   scroll from chaining into the page, which Android/iOS would otherwise pan
-   when a control inside the modal receives focus. */
-[data-modal-content] {
-  overscroll-behavior: none;
-}
-
 /* In dark mode the active tab's underline (a 2px border in --tabs-color,
    defaulting to --mantine-primary-color-filled = brand shade 8, a dark navy)
    is nearly invisible on the dark body. The variable is set inline on the

@@ -4,7 +4,6 @@ import type { ReactNode } from "react";
 import { MantineProvider } from "@mantine/core";
 import { Notifications } from "@mantine/notifications";
 
-import { useContainModalFocusScroll } from "@/lib/mobile/containModalFocusScroll";
 import { theme } from "@/lib/theme";
 
 /**
@@ -13,7 +12,6 @@ import { theme } from "@/lib/theme";
  * component boundary, so MantineProvider must mount on the client.
  */
 export default function AppProviders({ children }: { children: ReactNode }) {
-  useContainModalFocusScroll();
   return (
     <MantineProvider theme={theme} defaultColorScheme="auto">
       <Notifications />

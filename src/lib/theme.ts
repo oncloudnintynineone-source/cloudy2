@@ -46,23 +46,6 @@ export const theme = createTheme({
         },
       }),
     },
-    Modal: {
-      // Mobile: size the dialog off `svh` (the constant smallest viewport)
-      // instead of Mantine's `dvh`, which changes when the browser toolbar or
-      // keyboard appears. A `dvh` change re-layouts and re-centers the box
-      // while a Select inside it is being focused, feeding the focus-scroll
-      // jump loop (see useContainModalFocusScroll).
-      styles: {
-        content: {
-          maxHeight: "calc(100svh - var(--modal-y-offset) * 2)",
-        },
-      },
-      vars: () => ({
-        root: {
-          "--modal-y-offset": "5svh",
-        },
-      }),
-    },
   },
 });
 

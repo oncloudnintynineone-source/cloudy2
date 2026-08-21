@@ -236,10 +236,14 @@ the quality checks.
   attribute on the target input (via the styles-API `attributes.input`) while the
   dropdown is closed, so a tap only opens the list, and lift it once the dropdown opens
   so the user can tap the field and type to filter. Don't use Mantine's `readOnly` prop
-  for this — it disables the whole dropdown. **Department-specific selects are never
-  searchable**: the department list is short and always visible, so use plain
-  (non-searchable) `Select`/`MultiSelect` instead — their targets are buttons, so a
-  tap can't raise the keyboard at all (User form Department select, `CalendarSelect`).
+   for this — it disables the whole dropdown. **Department-specific selects are never
+   searchable**: the department list is short and always visible, so use plain
+   (non-searchable) `Select`/`MultiSelect` instead — their targets are buttons, so a
+   tap can't raise the keyboard at all (`CalendarSelect`). The exception is the **User
+   form Department field** (`src/app/(protected)/settings/users/UserForm.tsx`), which is
+   a row of toggleable `Badge`s — a Mantine Select's focused input triggers the
+   browser's focus-scroll on mobile, which visibly "spasms" the modal (see the badge
+   comment there).
 - **Floating action buttons** use the shared `FloatingActionButton` + `FloatingToolbar`
   (`src/components/FloatingToolbar.tsx`) anchored bottom-right — never a raw `Button`.
   `FloatingActionButton` is a 52×52 circle (`radius="50%"`) with the md shadow; it is

@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useForm } from "@mantine/form";
-import { Button, Group, Modal, Select, Stack, Text, TextInput } from "@mantine/core";
+import { Badge, Button, Group, Modal, Select, Stack, Text, TextInput } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
 
@@ -141,13 +141,41 @@ export function UserForm({ user, departments, onDone }: UserFormProps) {
           ]}
           {...form.getInputProps("role")}
         />
-        <Select
-          label="Department"
-          placeholder="Optional"
-          data={departments.map((d) => ({ value: d.id, label: d.name }))}
-          clearable
-          {...form.getInputProps("departmentId")}
-        />
+        {/* Department as toggleable badges instead of a Select: the list is
+            short, always visible, and tapping a badge never focuses an input,
+            so it can't raise the mobile keyboard or trigger the browser's
+            focus-scroll (which the old Select did on Android/iOS). Tapping the
+            selected badge clears the field, mirroring the old clearable
+            Select. */}
+        <Stack gap={4}>
+          <Text fw={500} size="sm">
+            Department
+          </Text>
+          {departments.length === 0 ? (
+            <Text size="sm" c="dimmed">
+              No departments yet
+            </Text>
+          ) : (
+            <Group gap={6} wrap="wrap">
+              {departments.map((department) => {
+                const selected = form.values.departmentId === department.id;
+                return (
+                  <Badge
+                    key={department.id}
+                    variant={selected ? "filled" : "light"}
+                    size="lg"
+                    style={{ height: "calc(var(--badge-height-lg) * 1.5)", cursor: "pointer" }}
+                    onClick={() =>
+                      form.setFieldValue("departmentId", selected ? null : department.id)
+                    }
+                  >
+                    {department.name}
+                  </Badge>
+                );
+              })}
+            </Group>
+          )}
+        </Stack>
         <Group justify="flex-end" mt="md">
           {isEdit && (
             <Button
