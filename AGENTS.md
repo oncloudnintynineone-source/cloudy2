@@ -304,15 +304,21 @@ the quality checks.
    audit snapshots) are I/O-free and unit-tested.
    - **`details` payloads are human-readable by design** — no UUIDs, no raw enums, no
      missing datetimes. Event rows (create/update/delete) store an
-     `EventAuditSnapshot` (`{ title, type, time, outOfCamp, location, departments,
-     invitees, creator }`) built by the pure helpers in `src/lib/events/eventAudit.ts`:
-     display names instead of ids, and `time` pre-formatted in the app's UTC+8 wall clock
-     (`2026-08-21 14:00 – 15:30`, `2026-08-21 (AM) – 2026-08-23 (PM)`). Create/delete store
-     the snapshot flat (+ `eventId`, `googleEventIds`); update stores
-     `diffFields(before, after)` + `eventId`, where the *before* snapshot is parsed from
-     the notes of the first existing Google copy found in the reconcile loop (`findCopies`
-     returns full `GcalEventItem[]` for exactly that reason) — legacy events without notes
-     show `∅ → value` for the fields it can't know. User rows carry
+     `EventAuditSnapshot` (`{ title, description, type, time, outOfCamp, location,
+     departments, invitees, creator }`) built by the pure helpers in
+     `src/lib/events/eventAudit.ts`: display names instead of ids, and `time`
+     pre-formatted in the app's UTC+8 wall clock (`2026-08-21 14:00 – 15:30`,
+     `2026-08-21 (AM) – 2026-08-23 (PM)`). `title` is the **rendered Google Calendar
+     title** (the same string written to Google — computed by the pure `renderEventTitle`
+     helper in `src/lib/events/eventTitle.ts`, shared by the write path and the audit so
+     they can't diverge), and `description` is the raw text typed in the event form.
+     Create/delete store the snapshot flat (+ `eventId`, `googleEventIds`); update stores
+     `diffFields(before, after)` + `eventId`, where the *before* snapshot takes its title
+     from the first existing Google copy's summary (`findCopies` returns full
+     `GcalEventItem[]` for exactly that reason) and its description/type/time-option/AM-PM/
+     out-of-camp/location from that copy's notes — so legacy/external/blank-description
+     events still show the visible title, and fields the notes can't supply show the empty
+     marker `—` (`EMPTY_VALUE`). User rows carry
      `department` names (not ids); access role changes are `role` field-diffs (previous
      role read via `listCalendarAccess` before the mutation); event-type rows store time
      options / location policy as display labels. The display layer

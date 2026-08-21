@@ -8,6 +8,7 @@ import {
   snapshotFromCopy,
   type EventSnapshotNames,
 } from "./eventAudit";
+import { renderEventTitle } from "./eventTitle";
 import {
   encodeEventNotes,
   encodeNotesBlock,
@@ -111,7 +112,8 @@ describe("buildEventSnapshot", () => {
 
   it("resolves departments and invitees to names", () => {
     const snapshot = buildEventSnapshot({
-      title: "Trip to Singapore",
+      title: "OUT Tan Wei Liang",
+      description: "Trip to Singapore",
       type: "Out of Camp",
       timeParts: {
         timeOption: "range",
@@ -128,7 +130,8 @@ describe("buildEventSnapshot", () => {
       names,
     });
     expect(snapshot).toEqual({
-      title: "Trip to Singapore",
+      title: "OUT Tan Wei Liang",
+      description: "Trip to Singapore",
       type: "Out of Camp",
       time: "2026-08-21 14:00 \u2013 15:30",
       outOfCamp: true,
@@ -139,9 +142,10 @@ describe("buildEventSnapshot", () => {
     });
   });
 
-  it("turns blank title, type, and location into null and drops unknown ids", () => {
+  it("turns blank title, description, type, and location into null and drops unknown ids", () => {
     const snapshot = buildEventSnapshot({
       title: "   ",
+      description: "",
       type: "",
       timeParts: {
         timeOption: "full",
@@ -158,6 +162,7 @@ describe("buildEventSnapshot", () => {
       names,
     });
     expect(snapshot.title).toBeNull();
+    expect(snapshot.description).toBeNull();
     expect(snapshot.type).toBeNull();
     expect(snapshot.location).toBeNull();
     expect(snapshot.outOfCamp).toBe(false);
@@ -223,7 +228,8 @@ describe("snapshotFromCopy", () => {
       ["d-1"],
     );
     expect(snapshot).toEqual({
-      title: "Trip to Singapore",
+      title: "rendered title",
+      description: "Trip to Singapore",
       type: "Out of Camp",
       time: "2026-08-21 14:00 \u2013 15:30",
       outOfCamp: true,
@@ -234,14 +240,15 @@ describe("snapshotFromCopy", () => {
     });
   });
 
-  it("falls back to the ref and defaults for a legacy copy without notes", () => {
+  it("uses the copy's rendered title for a legacy copy without notes", () => {
     const snapshot = snapshotFromCopy(
       { ...REF, allDay: true, start: "2026-08-21 00:00:00", end: "2026-08-22 00:00:00" },
       copy("plain external-looking text", "Battlements"),
       names,
       ["d-1"],
     );
-    expect(snapshot.title).toBeNull();
+    expect(snapshot.title).toBe("rendered title");
+    expect(snapshot.description).toBeNull();
     expect(snapshot.type).toBeNull();
     expect(snapshot.time).toBe("2026-08-21 \u2013 2026-08-22");
     expect(snapshot.outOfCamp).toBe(false);
@@ -251,10 +258,95 @@ describe("snapshotFromCopy", () => {
   it("treats a missing copy as an unknown state", () => {
     const snapshot = snapshotFromCopy(REF, null, names, ["d-1"]);
     expect(snapshot.title).toBeNull();
+    expect(snapshot.description).toBeNull();
     expect(snapshot.type).toBeNull();
     expect(snapshot.location).toBeNull();
     expect(snapshot.outOfCamp).toBe(false);
     expect(snapshot.time).toBe("2026-08-21 14:00 \u2013 15:30");
     expect(snapshot.invitees).toEqual(["Tan Wei Liang", "Lim Kah"]);
+  });
+});
+
+describe("renderEventTitle", () => {
+  const people = [{ full: "Tan Wei Liang", acronym: "TWL", fqn: "Tan Wei Liang" }];
+
+  it("renders a template with description and type tokens", () => {
+    expect(
+      renderEventTitle({
+        description: "Trip to Singapore",
+        eventType: { name: "Out of Camp", acronym: "OUT" },
+        people: [],
+        departments: [],
+        location: "Singapore",
+        template: "{type:acronym} {description}",
+        timeOption: "range",
+        startAmPm: "",
+        endAmPm: "",
+      }),
+    ).toBe("OUT Trip to Singapore");
+  });
+
+  it("renders a visible title from the template even when the description is blank", () => {
+    expect(
+      renderEventTitle({
+        description: "",
+        eventType: { name: "Out of Camp", acronym: "OUT" },
+        people,
+        departments: ["COU"],
+        location: "",
+        template: "{type:acronym} {people:full}",
+        timeOption: "range",
+        startAmPm: "",
+        endAmPm: "",
+      }),
+    ).toBe("OUT Tan Wei Liang");
+  });
+
+  it("appends the shared AM/PM marker for full-day events", () => {
+    expect(
+      renderEventTitle({
+        description: "Duty",
+        eventType: null,
+        people: [],
+        departments: [],
+        location: "",
+        template: "{description}",
+        timeOption: "full",
+        startAmPm: "AM",
+        endAmPm: "AM",
+      }),
+    ).toBe("Duty (AM)");
+  });
+
+  it("falls back to the raw description when the template renders nothing", () => {
+    expect(
+      renderEventTitle({
+        description: "Trip to Singapore",
+        eventType: { name: "Out of Camp", acronym: "OUT" },
+        people: [],
+        departments: [],
+        location: "",
+        template: "{location}",
+        timeOption: "range",
+        startAmPm: "",
+        endAmPm: "",
+      }),
+    ).toBe("Trip to Singapore");
+  });
+
+  it("produces an empty title when the description and template both render nothing", () => {
+    expect(
+      renderEventTitle({
+        description: "   ",
+        eventType: null,
+        people: [],
+        departments: [],
+        location: "",
+        template: "{description}",
+        timeOption: "range",
+        startAmPm: "",
+        endAmPm: "",
+      }),
+    ).toBe("");
   });
 });

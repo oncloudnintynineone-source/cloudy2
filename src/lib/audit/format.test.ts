@@ -27,6 +27,7 @@ describe("fieldLabel", () => {
     expect(fieldLabel("phone")).toBe("Phone");
     expect(fieldLabel("departmentId")).toBe("Department");
     expect(fieldLabel("outOfCamp")).toBe("Out of camp");
+    expect(fieldLabel("description")).toBe("Description");
     expect(fieldLabel("userKeyword")).toBe("Login keyword");
   });
 

@@ -62,6 +62,7 @@ const FIELD_LABELS: Record<string, string> = {
   department: "Department",
   departmentId: "Department",
   title: "Title",
+  description: "Description",
   type: "Type",
   eventType: "Type",
   time: "Time",
@@ -119,7 +120,7 @@ export interface AuditDisplayDetails {
 }
 
 /** Null/undefined marker for empty detail values. */
-export const EMPTY_VALUE = "\u2205";
+export const EMPTY_VALUE = "\u2014";
 
 /** Render one detail value for display: nulls, booleans, arrays, and a few
  * domain enums (time option, location policy) get human-readable forms. */

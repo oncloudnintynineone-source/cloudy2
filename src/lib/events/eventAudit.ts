@@ -21,8 +21,10 @@ import type { EventRef } from "./targets";
 
 /** Human-readable snapshot of one event, for audit log details. */
 export type EventAuditSnapshot = {
-  /** The raw description typed in the event form; null when unknown/blank. */
+  /** The rendered Google Calendar title (what users see); null when untitled. */
   title: string | null;
+  /** The raw description typed in the event form; null when unknown/blank. */
+  description: string | null;
   /** Event type name; null for untyped events. */
   type: string | null;
   /** Pre-formatted start–end string in the app's UTC+8 wall clock. */
@@ -102,11 +104,14 @@ export function formatEventAuditTime(parts: EventTimeParts): string {
 
 /**
  * Build the after-state snapshot from form values plus the resolved id → name
- * maps. Unknown ids are dropped from the name lists; blank title/location
- * become null.
+ * maps. Unknown ids are dropped from the name lists; blank title/description/
+ * location become null.
  */
 export function buildEventSnapshot(input: {
+  /** The rendered Google Calendar title (callers compute it via `renderEventTitle`). */
   title: string;
+  /** The raw description typed in the event form. */
+  description: string;
   type: string;
   timeParts: EventTimeParts;
   outOfCamp: boolean;
@@ -118,6 +123,7 @@ export function buildEventSnapshot(input: {
 }): EventAuditSnapshot {
   return {
     title: input.title.trim() || null,
+    description: input.description.trim() || null,
     type: input.type.trim() || null,
     time: formatEventAuditTime(input.timeParts),
     outOfCamp: input.outOfCamp,
@@ -135,10 +141,11 @@ export function buildEventSnapshot(input: {
 /**
  * Build the before-state snapshot for an existing event from its edit/delete
  * reference plus one representative copy read back from Google (or null when
- * none was found). Times and people come from the ref; the title, type,
- * datetime option, AM/PM markers, out-of-camp flag, and location are parsed
- * from the copy's notes — all null/false when the copy is missing or is a
- * legacy event without a notes block.
+ * none was found). Times and people come from the ref; the title is the copy's
+ * Google summary (visible even for legacy/external/blank-description events),
+ * while the description, type, datetime option, AM/PM markers, out-of-camp
+ * flag, and location come from the copy's notes — null/false when the copy is
+ * missing or is a legacy event without a notes block.
  */
 export function snapshotFromCopy(
   ref: EventRef,
@@ -148,7 +155,8 @@ export function snapshotFromCopy(
 ): EventAuditSnapshot {
   const description = copy?.description ?? "";
   return buildEventSnapshot({
-    title: parseEventTitle(description) ?? "",
+    title: copy?.title ?? "",
+    description: parseEventTitle(description) ?? "",
     type: parseEventType(description) ?? "",
     timeParts: {
       timeOption: parseEventTimeOption(description) ?? (ref.allDay ? "full" : "range"),

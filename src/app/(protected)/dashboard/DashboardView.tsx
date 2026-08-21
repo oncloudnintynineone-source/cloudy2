@@ -933,7 +933,13 @@ export function DashboardView({
     ) : row.label === row.fullName ? (
       <Text size="sm">{row.label}</Text>
     ) : (
-      <Tooltip label={row.fullName} position="right">
+      // `events` replaces the default object, so `hover` is restated explicitly;
+      // `touch` lets a tap open the tooltip on phones (tap-outside dismisses it).
+      <Tooltip
+        label={row.fullName}
+        position="right"
+        events={{ hover: true, focus: false, touch: true }}
+      >
         <Text size="sm" aria-label={row.fullName}>
           {row.label}
         </Text>

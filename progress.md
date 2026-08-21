@@ -85,6 +85,7 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
 - [1.72 Pinned dashboard view tabs (Phase 3ac)](#172-pinned-dashboard-view-tabs-phase-3ac)
 - [1.73 Legible audit log details (Phase 3ad)](#173-legible-audit-log-details-phase-3ad)
 - [1.74 Week v2 event chips + dark-mode tab indicator (Phase 3ae)](#174-week-v2-event-chips--dark-mode-tab-indicator-phase-3ae)
+- [1.75 Tap-to-show tooltips for user shortnames (Phase 3af)](#175-tap-to-show-tooltips-for-user-shortnames-phase-3af)
 
 ## 1.1 Status
 
@@ -262,9 +263,9 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
    menu is the filter panel itself). No schema changes; `pnpm lint/typecheck/test` pass.
 - **Phase 3ad (legible audit log details):** every `audit_logs` `details` payload is now
    human-readable (see §1.73) — event rows carry a name-based snapshot with a
-   pre-formatted datetime, event updates store a true before/after diff, and the
-   Details modal renders flat payloads as label/value lines (legacy rows included).
-   No schema changes; `pnpm lint/typecheck/test` (449) pass.
+   pre-formatted datetime and the rendered Google title, event updates store a true
+   before/after diff, and the Details modal renders flat payloads as label/value lines
+   (legacy rows included). No schema changes; `pnpm lint/typecheck/test` pass.
 
 ## 1.2 Decisions locked in (Phase 0)
 
@@ -3598,15 +3599,17 @@ diffs for updates.
 
 **Design decisions (user-confirmed):** event updates render **diff + full
 after-state** (changed fields as before→after, then a "Resulting state"
-section); invitees/departments are stored as **names**, not counts.
+section); invitees/departments are stored as **names**, not counts; the
+snapshot `title` is the **rendered Google title** (what users see) plus a
+separate raw `description`; the empty-value marker is `—`.
 
 ```mermaid
 flowchart TD
     A["updateEvent / deleteEvent"] --> B["reconcile loop over target calendars"]
     B --> C["findCopies (now returns full GcalEventItem[])"]
     C --> D["first existing copy<br/>= pre-change state"]
-    D --> E["snapshotFromCopy<br/>(parse notes: title/type/<br/>timeOption/AM-PM/outOfCamp/location)"]
-    F["form values + name lookups<br/>(calendarNames, getUsersByIds)"] --> G["buildEventSnapshot<br/>(names, pre-formatted time)"]
+    D --> E["snapshotFromCopy<br/>(title = copy summary;<br/>description/type/timeOption/<br/>AM-PM/outOfCamp/location from notes)"]
+    F["form values + name lookups<br/>(calendarNames, getUsersByIds)"] --> G["buildEventSnapshot<br/>(renderEventTitle, names,<br/>pre-formatted time)"]
     E --> H["diffFields(before, after) + eventId"]
     G --> H
     H --> I[("audit_logs.details (jsonb)")]
@@ -3616,25 +3619,35 @@ flowchart TD
 
 - **Pure snapshot module** (`src/lib/events/eventAudit.ts`, new, unit-tested in
   `eventAudit.test.ts`) — `EventAuditSnapshot` type
-  (`{ title, type, time, outOfCamp, location, departments, invitees, creator }`),
-  `formatEventAuditTime(parts)` (range: `2026-08-21 14:00 – 15:30` /
-  `2026-08-21 14:00 – 2026-08-23 09:30`; full: `2026-08-21 (AM)`,
-  `2026-08-21 (AM–PM)`, `2026-08-21 (AM) – 2026-08-23 (PM)`; zero seconds
-  dropped), `buildEventSnapshot(...)` (after-state from form values + id→name
-  maps; blank title/type/location → null; unknown ids dropped), and
-  `snapshotFromCopy(ref, copy, names, departmentIds)` (before-state from the
-  edit/delete ref + the first Google copy found; times/people from the ref,
-  everything else parsed from the copy's notes — null/false when the copy is
-  missing or legacy, so the diff shows `∅ → value` for what couldn't be known).
+  (`{ title, description, type, time, outOfCamp, location, departments,
+  invitees, creator }`), `formatEventAuditTime(parts)` (range:
+  `2026-08-21 14:00 – 15:30` / `2026-08-21 14:00 – 2026-08-23 09:30`; full:
+  `2026-08-21 (AM)`, `2026-08-21 (AM–PM)`, `2026-08-21 (AM) – 2026-08-23 (PM)`;
+  zero seconds dropped), `buildEventSnapshot(...)` (after-state from form values
+  + id→name maps; blank title/description/type/location → null; unknown ids
+  dropped), and `snapshotFromCopy(ref, copy, names, departmentIds)`
+  (before-state from the edit/delete ref + the first Google copy found;
+  times/people from the ref; `title` from the copy's Google summary — visible
+  even for legacy/external/blank-description events — and
+  description/type/time-option/AM-PM/out-of-camp/location from its notes, shown
+  as `—` (`EMPTY_VALUE`) when the copy is missing or has no notes). The `title`
+  itself is computed by the new pure `renderEventTitle(...)` helper in
+  `src/lib/events/eventTitle.ts` (template substitution + raw-description
+  fallback + (AM)/(PM) suffix), shared by the write path and the audit so the
+  audited title always equals the Google summary.
 - **Event actions** (`src/lib/events/actions.ts`) — `findCopies` now returns
   `GcalEventItem[]` (full items; callers use `item.id`) so update/delete can
   snapshot the pre-change state **without extra Google API calls** (the first
   copy found in the reconcile loop is captured before any mutation).
   `createEvent` details = snapshot + `eventId` + `googleEventIds`; `updateEvent`
-  details = `diffFields(before, after)` + `eventId` (title/type/time/location/
+  details = `diffFields(before, after)` + `eventId` (title/description/type/time/
+  location/
   out-of-camp/departments/invitees/creator all diffed); `deleteEvent`
   `entityName` = event title (fallback "Untitled event", was the raw Google id)
-  and details = the deleted event's snapshot + ids.
+  and details = the deleted event's snapshot + ids. `createEvent`/`updateEvent`
+  `entityName` is now the rendered title too (was the blank raw description,
+  which is why titled-but-blank-description events showed "Untitled event" /
+  empty Details).
 - **Display layer** (`src/lib/audit/format.ts`) — `formatAuditDetails` renders
   three shapes: `changes` (FieldDiff → before→after lines + other flat
   top-level keys as context value lines + the stored `after` record as a
@@ -3642,7 +3655,7 @@ flowchart TD
   covers creates, grants, purges, **and every legacy row already in the DB**),
   and a pretty-JSON fallback. New pure helpers: `fieldLabel` (key → label,
   incl. legacy keys like `targetCalendarIds`, `inviteeUserCount`) and
-  `valueString(key, value)` (nulls → `∅`, booleans → Yes/No, string arrays
+  `valueString(key, value)` (nulls → `—`, booleans → Yes/No, string arrays
   joined, `timeOption`/`timeOptions`/`locationPolicy` → their display labels).
 - **Details modal** (`AuditLogView.tsx`) — renders value lines
   (`DetailValueList`), change lines, and the "Resulting state" section inside
@@ -3652,7 +3665,7 @@ flowchart TD
   `updateUser` diffs `department` by name (both sides resolved, one
   `calendars` query); `setUserStatus` stores a before/after `status` diff;
   `deleteDepartment` stores the `googleCalendarId`; access grant/update/revoke
-  store `{ email } + role field-diff` (∅→role / old→new / old→∅) — the previous
+  store `{ email } + role field-diff` (—→role / old→new / old→—) — the previous
   role is read via the read-only `listCalendarAccess` before the mutation
   (not `listDepartmentAccess`, which reconciles and would add side effects to
   the mutation path); revoke now trims the email before removing it.
@@ -3665,11 +3678,14 @@ flowchart TD
   (no schema change — `db:generate` no drift). Pre-existing rows cannot be
   backfilled; they render best-effort through the new label map (still missing
   times, which were never stored).
-- **Tests** — new `src/lib/events/eventAudit.test.ts` (12 cases: time
+- **Tests** — new `src/lib/events/eventAudit.test.ts` (17 cases: time
   formatting matrix, snapshot building, copy parsing incl. v3-notes round-trip
-  and legacy fallbacks); `format.test.ts` extended (labels, value rendering,
-  flat/legacy rows, diff extras + after-state, empty diff). Suite 449.
-- Verification: `pnpm lint`, `pnpm typecheck`, and `pnpm test` (449) all pass.
+  and legacy fallbacks, `renderEventTitle` incl. the blank-description →
+  template-title case); `format.test.ts` extended (labels, value rendering,
+  flat/legacy rows, diff extras + after-state, empty diff). Suite 454.
+- Verification: `pnpm lint` and `pnpm test` (454) pass; `pnpm typecheck` passes
+  for all changed files (the project-wide run is currently blocked only by an
+  unrelated uncommitted `DashboardView.tsx` `Tooltip events` prop type error).
   Manual on-device checks owed: create/edit/delete an event and open each
   row's Details (time visible, only changed fields diffed, resulting state
   shown); check a legacy row and an old user-update row still render; access
@@ -3710,4 +3726,29 @@ mode the active-tab underline was nearly invisible.
 - Verification: `pnpm lint`, `pnpm typecheck`, and `pnpm test` (449) all pass.
   Manual check: Week v2 in both color schemes (rounded, inset chips) and the
   tab underline in dark mode on /dashboard and /settings.
+
+## 1.75 Tap-to-show tooltips for user shortnames (Phase 3af)
+
+The user shortname labels in the Day/Week/Week v2 views showed the full name
+in a `Tooltip` on hover only — unreachable on touch devices (no cursor), and a
+tap did nothing.
+
+- **Fix** (`src/app/(protected)/dashboard/DashboardView.tsx`) — the shared
+  `renderResourceLabel` Tooltip now passes
+  `events={{ hover: true, focus: false, touch: true }}`. Mantine 9.5.1's
+  `Tooltip` maps
+  `events.touch` to floating-ui `useHover` with `mouseOnly: false`, so a tap
+  opens the tooltip the same way a mouse-enter does; the tooltip stays
+  uncontrolled, so Mantine's `useDismiss` closes it on a tap outside or
+  Escape. `events` replaces the whole default object (`{ hover: true,
+  focus: false, touch: false }`), hence the explicit `hover: true` restates
+  desktop behavior. One change covers all three row-based views (Day, Week,
+  Week v2) since they share the renderer; the tooltip is portal-rendered, so
+  the sticky label column's `overflow: hidden` can't clip it.
+- Known edge case: starting a scroll gesture on a label can flash the tooltip
+  (floating-ui treats touch movement as hover) — accepted.
+- Verification: `pnpm lint`, `pnpm typecheck`, and `pnpm test` (454) all pass.
+  Manual check owed (touch device / DevTools touch emulation): tap a shortname
+  in Day/Week/Week v2 → full name appears; tap elsewhere → dismissed; desktop
+  hover unchanged.
 

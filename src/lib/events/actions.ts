@@ -26,7 +26,8 @@ import {
 } from "@/lib/events/notes";
 import { clampOutOfCamp, type LocationPolicy } from "@/lib/events/locationPolicy";
 import { creatorGuard, ownershipGuard } from "@/lib/events/guards";
-import { amPmSuffix, resolveTimeOption, type TimeOption } from "@/lib/events/timeOptions";
+import { resolveTimeOption, type TimeOption } from "@/lib/events/timeOptions";
+import { renderEventTitle } from "@/lib/events/eventTitle";
 import { getUserDepartmentIds } from "@/lib/events/queries";
 import { deriveTargetCalendarIds, type EventRef } from "@/lib/events/targets";
 import { validateEventForm, withCreatorInvited, type EventFormValues } from "@/lib/events/validate";
@@ -41,7 +42,6 @@ import { invalidateGcalCache } from "@/lib/google/eventsCache";
 import { getUsersByIds, type UserDisplayInfo } from "@/lib/roster/queries";
 import { resolveGoogleCalendarId } from "@/lib/roster/shares";
 import {
-  formatEventTitle,
   type EventTitlePerson,
   type EventTitleType,
 } from "@/lib/settings/formatEventTitle";
@@ -247,23 +247,17 @@ async function buildGcalEventInput(
   titleContext: EventTitleContext,
 ): Promise<GcalEventInput> {
   const rawTitle = input.title.trim();
-  const renderedTitle = formatEventTitle(
-    {
-      description: rawTitle,
-      eventType: titleContext.eventType,
-      people: titleContext.people,
-      departments: titleContext.departments,
-      location: input.location,
-    },
-    titleContext.template,
-  );
-  // When the template renders nothing, fall back to the raw description —
-  // which may itself be empty, producing an intentionally untitled event.
-  const baseTitle = renderedTitle || rawTitle;
-  const amPm = amPmSuffix(input.startAmPm, input.endAmPm);
-  // An empty title gets no bare "(AM)" suffix.
-  const title =
-    baseTitle && input.timeOption === "full" && amPm ? `${baseTitle} (${amPm})` : baseTitle;
+  const title = renderEventTitle({
+    description: input.title,
+    eventType: titleContext.eventType,
+    people: titleContext.people,
+    departments: titleContext.departments,
+    location: input.location,
+    template: titleContext.template,
+    timeOption: input.timeOption,
+    startAmPm: input.startAmPm,
+    endAmPm: input.endAmPm,
+  });
   // The notes carry an "Edit:" link (shown on top of the opaque block) that
   // opens this event's edit form; it is rebuilt on every create/edit so the
   // embedded date stays current for in-app reschedules.
@@ -408,8 +402,20 @@ export async function createEvent(input: EventFormValues): Promise<EventActionRe
   const userNames = namesById(
     await getUsersByIds([...new Set([normalized.creatorId, ...normalized.inviteeUserIds])]),
   );
+  const renderedTitle = renderEventTitle({
+    description: effectiveInput.title,
+    eventType: titleContext.eventType,
+    people: titleContext.people,
+    departments: titleContext.departments,
+    location: effectiveInput.location,
+    template: titleContext.template,
+    timeOption: effectiveInput.timeOption,
+    startAmPm: effectiveInput.startAmPm,
+    endAmPm: effectiveInput.endAmPm,
+  });
   const snapshot = buildEventSnapshot({
-    title: effectiveInput.title,
+    title: renderedTitle,
+    description: effectiveInput.title,
     type: effectiveInput.eventType,
     timeParts: timePartsOf(effectiveInput),
     outOfCamp: effectiveInput.outOfCamp,
@@ -424,7 +430,7 @@ export async function createEvent(input: EventFormValues): Promise<EventActionRe
     action: AUDIT_ACTIONS.eventCreate,
     entityType: "calendar",
     entityId: targets[0],
-    entityName: input.title.trim(),
+    entityName: renderedTitle || "Untitled event",
     method: "createEvent",
     details: {
       ...snapshot,
@@ -565,8 +571,20 @@ export async function updateEvent(
     ),
   };
   const before = snapshotFromCopy(ref, firstCopy, names, oldTargets);
+  const renderedTitle = renderEventTitle({
+    description: effectiveInput.title,
+    eventType: titleContext.eventType,
+    people: titleContext.people,
+    departments: titleContext.departments,
+    location: effectiveInput.location,
+    template: titleContext.template,
+    timeOption: effectiveInput.timeOption,
+    startAmPm: effectiveInput.startAmPm,
+    endAmPm: effectiveInput.endAmPm,
+  });
   const after = buildEventSnapshot({
-    title: effectiveInput.title,
+    title: renderedTitle,
+    description: effectiveInput.title,
     type: effectiveInput.eventType,
     timeParts: timePartsOf(effectiveInput),
     outOfCamp: effectiveInput.outOfCamp,
@@ -581,7 +599,7 @@ export async function updateEvent(
     action: AUDIT_ACTIONS.eventUpdate,
     entityType: "calendar",
     entityId: newTargets[0],
-    entityName: input.title.trim(),
+    entityName: renderedTitle || "Untitled event",
     method: "updateEvent",
     details: {
       ...diffFields(before, after),
