@@ -321,6 +321,36 @@ export function DashboardView({
     return () => observer.disconnect();
   }, []);
 
+  // The tab bar scrolls horizontally on narrow screens. After a view change
+  // (tab tap, `?view=` deep link, remembered-state cold start) bring the
+  // active tab into view if it sits outside the visible strip; a direct tap
+  // is already visible so this is a no-op there. `block: "nearest"` keeps the
+  // scroll inside the strip instead of moving the page vertically.
+  const tabListElRef = useRef<HTMLDivElement | null>(null);
+  useLayoutEffect(() => {
+    const list = tabListElRef.current;
+    if (!list) {
+      return;
+    }
+    const active = list.querySelector<HTMLElement>('[data-active="true"]');
+    if (!active) {
+      return;
+    }
+    const listRect = list.getBoundingClientRect();
+    const tabRect = active.getBoundingClientRect();
+    if (tabRect.left < listRect.left || tabRect.right > listRect.right) {
+      active.scrollIntoView({
+        behavior:
+          typeof window !== "undefined" &&
+          window.matchMedia("(prefers-reduced-motion: reduce)").matches
+            ? "auto"
+            : "smooth",
+        inline: "center",
+        block: "nearest",
+      });
+    }
+  }, [view]);
+
   // Week view: which day (0-6) sits at the left edge of the horizontally
   // scrolling grid. The index (not raw px) drives the pinned day-label strip,
   // so a scroll frame only re-renders when the visible day actually changes.
@@ -879,7 +909,10 @@ export function DashboardView({
           styles={{ tab: { flex: 1 } }}
         >
           <Tabs.List
+            ref={tabListElRef}
             style={{
+              flexWrap: "nowrap",
+              overflowX: "auto",
               borderBottom: "1px solid var(--mantine-color-default-border)",
             }}
           >
