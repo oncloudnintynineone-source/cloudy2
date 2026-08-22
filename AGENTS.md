@@ -60,9 +60,9 @@ the quality checks.
   Parsing lives in `src/lib/login.ts` as pure, I/O-free functions (`parseUserLogin` returns
   the trailing 8 digits). Keep it pure — it's unit-tested without a DB.
 - Google Calendar/Gmail access goes through `getGoogleIntegration()` in
-  `src/lib/google/index.ts`, which currently returns a no-op stub. Wire the real
-  service-account impl there when credentials are provisioned; don't call Google APIs
-  directly.
+   `src/lib/google/index.ts`, which currently returns a no-op stub. Wire the real
+   service-account impl there when credentials are provisioned; don't call Google APIs
+   directly. Full design in [docs/google-integration.md](docs/google-integration.md).
 - **Calendar month reads are cached server-side.** The dashboard/overview data flow is
   `fetchMonthEvents()` (`src/lib/events/queries.ts`) → `getCachedMonthEventsForCalendars()` in
   `src/lib/google/eventsCache.ts`, a layered cache per department calendar per month. An
@@ -102,8 +102,9 @@ the quality checks.
    `src/lib/google/eventsCacheCodec.ts` (`cacheEntryState`,
   `encodeCachedEvents`, `decodeCachedEvents`) plus `monthsInRange`/`shiftMonth` and
   `mapWithConcurrency`. The cache is deliberately a DB table, not Next's `use cache`/`cacheTag`
-  data cache — those require `cacheComponents: true`, which crashed Turbopack `next dev` on
-  Node 26 (unfixed vercel/next.js#96165) and added PPR/`instant` complexity.
+   data cache — those require `cacheComponents: true`, which crashed Turbopack `next dev` on
+   Node 26 (unfixed vercel/next.js#96165) and added PPR/`instant` complexity. Full design in
+   [docs/events-cache.md](docs/events-cache.md).
 - The **Overview** page (`/overview`, reachable from the bottom nav) shows per-month,
   per-user counts by event type. Counting is a pure helper in `src/lib/overview/counts.ts`
   (`involvedUserIds` + `buildOverviewCounts`) — unit-tested without a DB. Scope mirrors
@@ -210,8 +211,9 @@ the quality checks.
     overflow-degrade branch keeps `pinnedViews` alongside view/date/month.
     `clearUiState()` runs on sign-out (`UserMenu.tsx`). The codec/normalizer/
     launch-target/marker helpers are pure and unit-tested in
-    `src/lib/ui/uiState.test.ts`; stored values are re-validated server-side like
-    URL params, and an oversized cookie degrades by dropping the id lists.
+     `src/lib/ui/uiState.test.ts`; stored values are re-validated server-side like
+     URL params, and an oversized cookie degrades by dropping the id lists. Full design in
+     [docs/ui-state.md](docs/ui-state.md).
 
 ## Conventions
 
@@ -254,8 +256,9 @@ the quality checks.
   the settings tab bar pass `bottomOffset={SETTINGS_TAB_BAR_OFFSET}` (exported from
   `src/app/(protected)/settings/settingsTabBar.ts`) to `FloatingToolbar`.
 - **Global bottom nav** lives in `AppShellShell`'s `AppShell.Footer` (height from
-  `BOTTOM_NAV_HEIGHT_CSS` in `src/lib/bottomNav.ts`) with three tabs: **Calendar**
-  (`/dashboard`), **Overview** (`/overview`), and **Settings** (`/settings`, admin-only).
+  `BOTTOM_NAV_HEIGHT_CSS` in `src/lib/bottomNav.ts`) with four tabs for admins:
+  **Calendar** (`/dashboard`), **Parade State** (`/parade-state`), **Contacts**
+  (`/contacts`), and **Settings** (`/settings`; regular users get the first three).
   The Settings sub-tab bar `SettingsTabs` stacks directly above it
   (`bottom: BOTTOM_NAV_HEIGHT_CSS`).
 - **Admin settings live under `/settings`** (admin-only), reached via the bottom-nav
@@ -294,8 +297,11 @@ the quality checks.
   single reader (it also decodes older raw-JSON events, v1/v2). A final human-readable
   line `Created in cloudy2` (`INTERNAL_EVENT_MARKER`, appended via `withInternalMarker`)
   marks the event as created in the app; events without the marker **and** without a notes
-  block are treated as **external** (`isExternalEvent`) — flagged with an "External" badge
-  in the event detail and pinned to their calendar's department row in the Day view.
+   block are treated as **external** (`isExternalEvent`) — flagged with an "External" badge
+   in the event detail and pinned to their calendar's department row in the Day view. The
+   event data model and the create/update/delete flows are documented in
+   [docs/event-lifecycle.md](docs/event-lifecycle.md) and
+   [docs/event-mutations.md](docs/event-mutations.md).
   The **General tab** holds the login keyword and the **audit log retention** setting
   (`settings.audit_log_retention_days`, default 90, clamped 7–365). The **Audit Log tab**
   (`/settings/audit-log`) browses the `audit_logs` table written by `logAction()` (see
@@ -330,9 +336,10 @@ the quality checks.
      (a FieldDiff → before→after lines, other flat top-level keys as context lines, and the
      stored `after` record as a "Resulting state" section), `fields` (any flat object →
      label/value lines — which is also how legacy rows already in the DB render), and a
-     pretty-JSON fallback; labels, enum/boolean/array rendering come from the pure
-     `fieldLabel`/`valueString` helpers. Keep new `details` payloads flat and
-     human-readable so they render as label/value lines without code changes.
+      pretty-JSON fallback; labels, enum/boolean/array rendering come from the pure
+      `fieldLabel`/`valueString` helpers. Keep new `details` payloads flat and
+      human-readable so they render as label/value lines without code changes. Full design
+      in [docs/audit-log.md](docs/audit-log.md).
   - **Standard loading appearance: skeleton only + fade-in on reveal.** Apply this
     checklist whenever you **implement or update a loading skeleton** (route fallback,
     in-place navigation, filter change, refetch):
@@ -370,9 +377,10 @@ the quality checks.
       applies optimistically from local state (already correct), so those show no skeleton;
       only the cross-month switch (server must fetch the new month's events) does. The
       dashboard's **Agenda tab** is the same: in-month day changes (swipe/chevrons/Today/
-      picker) apply to local state instantly and sync `?date=` with a plain no-transition
-      `router.push` (no skeleton, no fade — the new day plays the directional slide-in
-      classes instead); only a cross-month change is a data navigation with the skeleton.
+       picker) apply to local state instantly and sync `?date=` with a plain no-transition
+       `router.push` (no skeleton, no fade — the new day plays the directional slide-in
+       classes instead); only a cross-month change is a data navigation with the skeleton.
+       Full design in [docs/loading-transitions.md](docs/loading-transitions.md).
  - **Buttons that trigger async work must show a loading indicator in the button itself.**
    Use Mantine's `loading` prop on `Button` together with the shared
    `loaderProps={BUTTON_LOADER_PROPS}` from `src/lib/theme.ts`. For `useForm`-backed submit
@@ -380,9 +388,11 @@ the quality checks.
    double-submits); for manual handlers (deletes, status toggles, add/remove rows, etc.)
    hold a local `loading` state around the `await` — set it before the call, clear it in a
    `finally` block — and guard against re-entry (see `src/components/LoginForm.tsx`).
-- The **Users** section is the route `/settings/users` (admin-only), but its internal domain
-  code (types/actions/queries) lives under `src/lib/roster/*`. The "roster" module name is
-  internal and should not be renamed to match the UI label.
+ - The **Users** section is the route `/settings/users` (admin-only), but its internal domain
+   code (types/actions/queries) lives under `src/lib/roster/*`. The "roster" module name is
+   internal and should not be renamed to match the UI label. The roster model and calendar
+   sharing (Google-only ACLs, reconcile-on-read/write) are documented in
+   [docs/roster-sharing.md](docs/roster-sharing.md).
 - **Prettier uses double quotes** (`singleQuote: false`) and `printWidth: 100` — not the
   common TS single-quote default.
 - ESLint 9 flat config composes `eslint-config-next/core-web-vitals` + `next/typescript`

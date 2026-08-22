@@ -86,6 +86,7 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
 - [1.73 Legible audit log details (Phase 3ad)](#173-legible-audit-log-details-phase-3ad)
 - [1.74 Week v2 event chips + dark-mode tab indicator (Phase 3ae)](#174-week-v2-event-chips--dark-mode-tab-indicator-phase-3ae)
 - [1.75 Tap-to-show tooltips for user shortnames (Phase 3af)](#175-tap-to-show-tooltips-for-user-shortnames-phase-3af)
+- [1.76 Documentation deep-dives (Phase 3ag)](#176-documentation-deep-dives-phase-3ag)
 
 ## 1.1 Status
 
@@ -3751,4 +3752,53 @@ tap did nothing.
   Manual check owed (touch device / DevTools touch emulation): tap a shortname
   in Day/Week/Week v2 → full name appears; tap elsewhere → dismissed; desktop
   hover unchanged.
+
+## 1.76 Documentation deep-dives (Phase 3ag)
+
+`docs/events-cache.md` had become the de-facto deep-dive format (numbered
+headers, TOC, Mermaid, constant/helper tables, pure-helper & testing index,
+file index). The other subsystems were documented only inline in `AGENTS.md`
+bullets, which grew long and hard to navigate. This phase replicated the
+deep-dive format across every other major subsystem, so each one has a
+self-contained design reference.
+
+**New documents** (all follow the `events-cache.md` conventions: `# 1. …` +
+TOC, hierarchically numbered headers, Mermaid where it clarifies, pure
+helpers & testing table, file index & related docs):
+
+| Document | Covers |
+| -------- | ------ |
+| `docs/event-lifecycle.md` | Event form → Google Calendar data model: the 5-step wizard, guards, notes block codec (v1/v2/v3 brotli+base64url), `INTERNAL_EVENT_MARKER` / external detection, title templates & tokens, location policy, time options |
+| `docs/event-mutations.md` | Create/update/delete: copy reconciliation, group-id identity, `findCopies`, legacy fallback, idempotent reconcile plans, rollback-of-only-new-copies, audit snapshots, cache invalidation |
+| `docs/ui-state.md` | The `cloudy2.ui` cookie: codec + degrade, per-key server reads, `resolveLaunchTarget`, client write path, pinned tabs, the `?_fresh=` one-shot marker, sign-out clear |
+| `docs/audit-log.md` | The audit subsystem: schema + indexes, retention, `logAction`, action taxonomy, `diffFields`, filters + keyset pagination, rotation-on-read, the three `formatAuditDetails` shapes, CSV export |
+| `docs/google-integration.md` | The integration layer: service-account config resolution, real client vs stub, error mapping, every calendar/event/ACL method, `sendEmail` |
+| `docs/roster-sharing.md` | Roster & sharing: flat org model (department = calendar, `users.department_id`), Google-only ACLs, the two reconcile paths (on read, on write), access-level actions |
+| `docs/loading-transitions.md` | Loading appearance: skeleton-only rule, route skeletons, `useMinSkeletonHold`, `useContentEnter` reveal fade, one-shot URL params, in-page exceptions |
+
+**Wiring:**
+
+- `README.md §1.12` doc index now lists all 9 documents (progress.md +
+  events-cache.md + the 7 new ones).
+- `AGENTS.md`: the long bullets are **kept as-is** (they are the quick
+  reference); each relevant bullet now ends with a one-line pointer to its
+  deep-dive (google-integration, events-cache, ui-state, event-lifecycle +
+  event-mutations, audit-log, loading-transitions, roster-sharing).
+
+**Drift found while writing (documented, not fixed):**
+
+1. The `/overview` page described in `AGENTS.md`, `progress.md`, and
+   `eventsCache.ts` comments **does not exist** on any branch (dev/main) — the
+   new docs are written against the current branch, which has no Overview
+   page.
+2. `AGENTS.md`/`README.md` say `db:seed` seeds "departments/users/memberships";
+   the actual seed inserts `calendars` + `users`.
+3. Stale comment at `src/db/schema.ts:157` — "fresh 30s" vs the actual
+   `GCAL_CACHE_FRESH_MS` of 60s.
+4. `EventForm`'s client-side title preview duplicates `renderEventTitle`'s
+   token logic inline (drift risk between preview and the string actually
+   written to Google) — called out in `event-lifecycle.md`.
+
+**Verification:** docs-only change — `pnpm lint`, `pnpm typecheck`, and
+`pnpm test` all pass (no code touched).
 

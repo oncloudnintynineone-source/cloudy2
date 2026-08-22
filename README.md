@@ -205,10 +205,17 @@ repo secret, and the schema-drift check runs `pnpm db:generate` then fails on an
 In-depth documentation lives alongside this README and is indexed here so every doc is
 reachable from the project root:
 
-| Document                  | Covers                                                      |
-| ------------------------- | ----------------------------------------------------------- |
+| Document                        | Covers |
+| ------------------------------- | ------ |
 | [`progress.md`](progress.md) | Phase-by-phase project log, locked-in decisions, verification results |
 | [`docs/events-cache.md`](docs/events-cache.md) | Google Calendar event caching deep-dive — design, data model, read/write flows, freshness, performance |
+| [`docs/event-lifecycle.md`](docs/event-lifecycle.md) | Event form → Google Calendar data model — the 5-step wizard, guards, notes block codec, title templates, location policy |
+| [`docs/event-mutations.md`](docs/event-mutations.md) | Event create/update/delete — copy reconciliation, group identity, rollbacks, audit snapshots, cache invalidation |
+| [`docs/ui-state.md`](docs/ui-state.md) | Remembered UI state — the `cloudy2.ui` cookie, launch targeting, pinned tabs, the `_fresh` one-shot marker |
+| [`docs/audit-log.md`](docs/audit-log.md) | Audit log subsystem — schema, retention, action taxonomy, keyset pagination, rotation, CSV export |
+| [`docs/google-integration.md`](docs/google-integration.md) | Google integration layer — service-account config, client + stub, error mapping, all calendar/event/ACL methods |
+| [`docs/roster-sharing.md`](docs/roster-sharing.md) | Roster & calendar sharing — flat org model, Google-only ACLs, reconcile-on-read and reconcile-on-write |
+| [`docs/loading-transitions.md`](docs/loading-transitions.md) | Loading & transitions — skeleton-only loading, minimum hold, reveal fade, one-shot URL params |
 
 `AGENTS.md` (agent/dev conventions) and the historical plans under `.opencode/plans/` are
 working documents, not end-user documentation.
