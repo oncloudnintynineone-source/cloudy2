@@ -1084,6 +1084,7 @@ export function DashboardView({
             bottom corner (the FAB is hidden at lg, below). */}
         <Button
           visibleFrom="lg"
+          __vars={{ "--button-height": "43px" }}
           leftSection={<IconPlus size={16} />}
           disabled={!googleConfigured}
           onClick={(e) =>
