@@ -81,7 +81,12 @@ export function UserTable({ users, departments, nameTemplate }: UserTableProps) 
       ) {
         return false;
       }
-      if (query && !user.name.toLowerCase().includes(query) && !user.phone.includes(query)) {
+      if (
+        query &&
+        !user.name.toLowerCase().includes(query) &&
+        !(user.shortname ?? "").toLowerCase().includes(query) &&
+        !user.phone.includes(query)
+      ) {
         return false;
       }
       return true;
@@ -173,6 +178,11 @@ export function UserTable({ users, departments, nameTemplate }: UserTableProps) 
                   <Badge color={user.status === "active" ? "teal" : "gray"}>{user.status}</Badge>
                 </Group>
                 <Group gap={6} wrap="wrap" mt={4}>
+                  {user.shortname ? (
+                    <Badge variant="light" color="accent">
+                      {user.shortname}
+                    </Badge>
+                  ) : null}
                   <Text size="sm" c="dimmed">
                     {user.phone}
                   </Text>
@@ -197,6 +207,7 @@ export function UserTable({ users, departments, nameTemplate }: UserTableProps) 
               <Table.Thead>
                 <Table.Tr>
                   <Table.Th>Name</Table.Th>
+                  <Table.Th>Short Name</Table.Th>
                   <Table.Th>Phone</Table.Th>
                   <Table.Th>Role</Table.Th>
                   <Table.Th>Department</Table.Th>
@@ -223,6 +234,15 @@ export function UserTable({ users, departments, nameTemplate }: UserTableProps) 
                           )}
                         </Text>
                       </Stack>
+                    </Table.Td>
+                    <Table.Td>
+                      {user.shortname ? (
+                        <Badge variant="light" color="accent">
+                          {user.shortname}
+                        </Badge>
+                      ) : (
+                        <Text c="dimmed">—</Text>
+                      )}
                     </Table.Td>
                     <Table.Td>{user.phone}</Table.Td>
                     <Table.Td>

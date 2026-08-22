@@ -84,7 +84,10 @@ export function ContactList({ users, nameTemplate }: ContactListProps) {
       return users;
     }
     return users.filter(
-      (user) => user.name.toLowerCase().includes(query) || user.phone.includes(query),
+      (user) =>
+        user.name.toLowerCase().includes(query) ||
+        (user.shortname?.toLowerCase().includes(query) ?? false) ||
+        user.phone.includes(query),
     );
   }, [users, search]);
 
@@ -92,7 +95,7 @@ export function ContactList({ users, nameTemplate }: ContactListProps) {
     <Stack pb="xl" className={CONTENT_ENTER_CLASS}>
       <Paper withBorder p="sm">
         <TextInput
-          placeholder="Search by name or phone"
+          placeholder="Search by name, shortname, or phone"
           value={search}
           onChange={(e) => setSearch(e.currentTarget.value)}
         />
@@ -109,7 +112,14 @@ export function ContactList({ users, nameTemplate }: ContactListProps) {
               <Stack gap={0}>
                 <Group justify="space-between" wrap="nowrap" align="flex-start">
                   <Stack gap={0}>
-                    <Text fw={600}>{user.name}</Text>
+                    <Group gap={6} wrap="nowrap">
+                      <Text fw={600}>{user.name}</Text>
+                      {user.shortname ? (
+                        <Text size="sm" c="dimmed">
+                          {user.shortname}
+                        </Text>
+                      ) : null}
+                    </Group>
                     <Text size="sm" c="dimmed">
                       {formatFullName(
                         { name: user.name, departmentName: user.department?.name ?? null },

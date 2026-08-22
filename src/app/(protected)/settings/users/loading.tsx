@@ -34,8 +34,8 @@ export default function UsersLoading() {
         ))}
       </Stack>
 
-      {/* Desktop: data table (Name / Phone / Role / Department / Status / Actions) */}
-      <SettingsTableSkeleton columns={[3, 2, 1.5, 2, 1.5, 1.2]} visibleFrom="lg" />
+      {/* Desktop: data table (Name / Short Name / Phone / Role / Department / Status / Actions) */}
+      <SettingsTableSkeleton columns={[3, 1.5, 2, 1.5, 2, 1.5, 1.2]} visibleFrom="lg" />
     </Stack>
   );
 }
