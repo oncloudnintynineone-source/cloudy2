@@ -8,7 +8,13 @@ import { clearUiState } from "@/lib/ui/uiStateClient";
 
 export function UserMenu({ name }: { name: string }) {
   return (
-    <Menu position="bottom-end" withinPortal>
+    <Menu
+      shadow="md"
+      width={200}
+      position="bottom-end"
+      withinPortal
+      transitionProps={{ transition: "pop-top-right", duration: 150, timingFunction: "ease" }}
+    >
       <Menu.Target>
         <ActionIcon variant="transparent" c="white" size="lg" aria-label="Profile">
           <IconUser size={18} />
