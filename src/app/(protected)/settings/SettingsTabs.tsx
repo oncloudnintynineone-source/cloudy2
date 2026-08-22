@@ -89,6 +89,7 @@ export function SettingsTabs() {
         zIndex: 9,
         background: "var(--mantine-color-body)",
         borderBottom: "1px solid var(--mantine-color-default-border)",
+        marginBottom: "var(--mantine-spacing-md)",
       }}
     >
       {tabsEl}
