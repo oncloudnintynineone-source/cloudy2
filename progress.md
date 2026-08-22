@@ -3965,3 +3965,46 @@ reload the dev session, re-navigate settings (skeleton error should be gone,
 console clean), and run the Â§1.77 width sweep â€” now expecting desktop layout to
 appear at â‰¥992px (sidebar visible, bottom nav collapsed).
 
+
+## 1.80 Event form wizard: review step, relocated "On behalf of", optional creator (Phase 3ak)
+
+Three user-driven changes to `EventForm.tsx` plus one decision reversal.
+
+- **Progress UI removed** — the tap-to-jump-back dots and the "N of M · label"
+  caption are gone (`UnstyledButton`/`Box` imports and the `StepDef.label`
+  field dropped with them). Back is now the only backward navigation.
+- **"On behalf of" moved out of every step** — it was a sticky select pinned
+  above all step content for admins; it is now its own step after Remarks
+  (`buildSteps(isAdmin)` replaces the static `STEPS`: regular users walk six
+  steps, admins seven). Its invitee-chip sync onChange moved verbatim.
+- **Review step added** — a read-only last page folding in the "Calendar
+  preview" Paper (removed from every other step) plus When / Location / Event
+  Type / On-behalf-of / People / Departments / Remarks rows computed from the
+  same effective state as the submit payload (`reviewPeople`,
+  `reviewDepartments`, `creatorName`, `whenText`).
+- **DECISION REVERSED — "On behalf of" is now OPTIONAL for admins** (was
+  required since 1.x: client gate `{ requireCreator: isAdmin }`, server
+  `validateEventForm(..., { requireCreator })`). A blank select uniformly
+  means **the acting admin themselves**, on create *and* update (clearing an
+  existing owner reassigns the event to the editor; legacy ownerless events
+  are adopted on first edit). Implementation:
+    - New pure `withSelfCreator(values, sessionUserId)` in
+      `events/validate.ts` (blank/whitespace ? session user, then
+      `withCreatorInvited`); applied in both actions right after
+      `requireSession()` — so targets, notes `createdBy`, ownership, and audit
+      snapshots all see the effective creator even when none was submitted.
+    - The `requireCreator` option and its "Choose who this event is on behalf
+      of" error were deleted from `validateEventForm`; the creator step has no
+      leave-gate; the select lost `required` (placeholder "Yourself",
+      description marks it optional); `STEP_BY_FIELD` keeps the defensive
+      `creatorId ? creator` mapping.
+    - Review falls back to the session user's display name, so it always shows
+      the effective owner.
+  Docs synced (`event-lifecycle.md` §1.3/§1.4/§1.4.1/§1.5.2/file tables,
+  `event-mutations.md` diagram + table).
+
+**Verification:** `pnpm lint`, `pnpm typecheck`, `pnpm test` (460, +4 net from
+the removed requireCreator case and the new `withSelfCreator` cases) pass.
+Owed: manual create/edit walkthroughs for both roles (admin blank vs picked
+creator incl. edit-clearing reassignment; regular user unchanged flow), then
+confirm on Neon that notes `createdBy` lands for blank-creator creates.

@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 
-import { validateEventForm, withCreatorInvited, type EventFormValues } from "./validate";
+import {
+  validateEventForm,
+  withCreatorInvited,
+  withSelfCreator,
+  type EventFormValues,
+} from "./validate";
 
 const base: EventFormValues = {
   title: "Team sync",
@@ -27,15 +32,9 @@ describe("validateEventForm", () => {
     expect(validateEventForm({ ...base, title: "  " })).toEqual({});
   });
 
-  it("requires a creator when requireCreator is set", () => {
-    expect(validateEventForm({ ...base, creatorId: "" }, { requireCreator: true }).creatorId).toBe(
-      "Choose who this event is on behalf of",
-    );
-    expect(validateEventForm(base, { requireCreator: true })).toEqual({});
-  });
-
-  it("does not require a creator by default", () => {
+  it("does not require a creator (blank means the acting user, defaulted elsewhere)", () => {
     expect(validateEventForm({ ...base, creatorId: "" })).toEqual({});
+    expect(validateEventForm({ ...base, creatorId: "  " })).toEqual({});
   });
 
   it("requires start and end", () => {
@@ -151,6 +150,41 @@ describe("withCreatorInvited", () => {
     expect(withCreatorInvited(base)).toEqual({
       ...base,
       inviteeUserIds: ["user-1"],
+    });
+  });
+});
+
+describe("withSelfCreator", () => {
+  it("defaults a blank creator to the session user and keeps them invited", () => {
+    const result = withSelfCreator({ ...base, creatorId: "" }, "admin-9");
+    expect(result.creatorId).toBe("admin-9");
+    expect(result.inviteeUserIds).toEqual(["admin-9"]);
+  });
+
+  it("trims whitespace before defaulting", () => {
+    expect(withSelfCreator({ ...base, creatorId: "   " }, "admin-9").creatorId).toBe("admin-9");
+  });
+
+  it("keeps an explicitly chosen creator untouched", () => {
+    expect(withSelfCreator(base, "admin-9").creatorId).toBe("user-1");
+  });
+
+  it("dedupes the defaulted creator into existing invitees in form order", () => {
+    expect(
+      withSelfCreator({ ...base, creatorId: "", inviteeUserIds: ["user-2"] }, "user-2")
+        .inviteeUserIds,
+    ).toEqual(["user-2"]);
+    expect(
+      withSelfCreator({ ...base, creatorId: "", inviteeUserIds: ["user-3"] }, "admin-9")
+        .inviteeUserIds,
+    ).toEqual(["admin-9", "user-3"]);
+  });
+
+  it("preserves the remaining form fields", () => {
+    expect(withSelfCreator({ ...base, creatorId: "" }, "admin-9")).toEqual({
+      ...base,
+      creatorId: "admin-9",
+      inviteeUserIds: ["admin-9"],
     });
   });
 });

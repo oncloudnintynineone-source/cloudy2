@@ -30,7 +30,11 @@ import { resolveTimeOption, type TimeOption } from "@/lib/events/timeOptions";
 import { renderEventTitle } from "@/lib/events/eventTitle";
 import { getUserDepartmentIds } from "@/lib/events/queries";
 import { deriveTargetCalendarIds, type EventRef } from "@/lib/events/targets";
-import { validateEventForm, withCreatorInvited, type EventFormValues } from "@/lib/events/validate";
+import {
+  validateEventForm,
+  withSelfCreator,
+  type EventFormValues,
+} from "@/lib/events/validate";
 import { getEventTypesByNames } from "@/lib/eventTypes/queries";
 import {
   getGoogleIntegration,
@@ -344,14 +348,15 @@ async function calendarNames(calendarIds: string[]): Promise<Record<string, stri
 
 export async function createEvent(input: EventFormValues): Promise<EventActionResult> {
   const session = await requireSession();
-  const normalized = withCreatorInvited(input);
+  // "On behalf of" is optional: a blank creator means the acting user.
+  const normalized = withSelfCreator(input, session.user.id);
 
   const creatorError = creatorGuard(session, normalized.creatorId, null);
   if (creatorError) {
     return { ok: false, error: creatorError };
   }
 
-  const errors = validateEventForm(normalized, { requireCreator: session.user.role === "admin" });
+  const errors = validateEventForm(normalized);
   if (Object.keys(errors).length > 0) {
     const firstField = Object.keys(errors)[0] as EventResultField;
     return { ok: false, error: "Check the highlighted fields", field: firstField };
@@ -459,7 +464,9 @@ export async function updateEvent(
   input: EventFormValues,
 ): Promise<EventActionResult> {
   const session = await requireSession();
-  const normalized = withCreatorInvited(input);
+  // "On behalf of" is optional: a blank creator means the acting user (a
+  // cleared select reassigns the event to the editor).
+  const normalized = withSelfCreator(input, session.user.id);
 
   const ownershipError = ownershipGuard(session, ref.creatorId);
   if (ownershipError) {
@@ -471,7 +478,7 @@ export async function updateEvent(
     return { ok: false, error: creatorError };
   }
 
-  const errors = validateEventForm(normalized, { requireCreator: session.user.role === "admin" });
+  const errors = validateEventForm(normalized);
   if (Object.keys(errors).length > 0) {
     const firstField = Object.keys(errors)[0] as EventResultField;
     return { ok: false, error: "Check the highlighted fields", field: firstField };

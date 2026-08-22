@@ -68,7 +68,7 @@ All actions are `"use server"` and follow the same opening sequence (create:
 
 ```mermaid
 flowchart LR
-    S["requireSession()"] --> N["withCreatorInvited(input)<br/>(create/update)"]
+    S["requireSession()"] --> N["withSelfCreator(input, session.user.id)<br/>(create/update)"]
     N --> G["ownershipGuard (update/delete)<br/>creatorGuard (create/update)"]
     G --> V["validateEventForm<br/>(create/update)"]
     V --> C["googleCalendarConfigured()<br/>— gate when unconfigured"]
@@ -283,7 +283,7 @@ full list); the mutation-specific ones:
 | ------ | ------ | ----- |
 | `deriveTargetCalendarIds`, `diffEventTargets`, `dedupeEventsByGroupId`, `eventRefFromCalendarEvent` | `events/targets.ts` | `targets.test.ts` |
 | `creatorGuard`, `ownershipGuard` | `events/guards.ts` | `guards.test.ts` |
-| `validateEventForm`, `withCreatorInvited` | `events/validate.ts` | `validate.test.ts` |
+| `validateEventForm`, `withSelfCreator` | `events/validate.ts` | `validate.test.ts` |
 | `resolveTimeOption`, `amPmSuffix` | `events/timeOptions.ts` | `timeOptions.test.ts` |
 | `clampOutOfCamp` | `events/locationPolicy.ts` | `locationPolicy.test.ts` |
 | `absEventRange`, `monthsInRange` | `events/datetime.ts` | `datetime.test.ts` |

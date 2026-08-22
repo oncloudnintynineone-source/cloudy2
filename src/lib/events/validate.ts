@@ -42,11 +42,6 @@ export interface EventFormErrors {
   [key: string]: string | undefined;
 }
 
-export interface EventFormValidateOptions {
-  /** Require a creator id (used for admin "on behalf of" creation). */
-  requireCreator?: boolean;
-}
-
 /** Chronological sort key for a side, folding the half-of-day indicator in. */
 function sortKey(values: EventFormValues, end: boolean): string {
   const naive = end ? values.end : values.start;
@@ -71,15 +66,19 @@ export function withCreatorInvited(values: EventFormValues): EventFormValues {
   return { ...values, inviteeUserIds };
 }
 
-export function validateEventForm(
-  values: EventFormValues,
-  options?: EventFormValidateOptions,
-): EventFormErrors {
+/**
+ * "On behalf of" is optional for admins: a blank creator means the acting
+ * session user. Defaults the creator to `sessionUserId` when unset (trimmed),
+ * then keeps them invited via {@link withCreatorInvited}. Applied in both
+ * create and update so a cleared select uniformly means "for yourself".
+ */
+export function withSelfCreator(values: EventFormValues, sessionUserId: string): EventFormValues {
+  return withCreatorInvited({ ...values, creatorId: values.creatorId.trim() || sessionUserId });
+}
+
+export function validateEventForm(values: EventFormValues): EventFormErrors {
   const errors: EventFormErrors = {};
 
-  if (options?.requireCreator && !values.creatorId.trim()) {
-    errors.creatorId = "Choose who this event is on behalf of";
-  }
   if (values.timeOption === "full") {
     if (!values.startAmPm) {
       errors.startAmPm = "Select AM or PM";

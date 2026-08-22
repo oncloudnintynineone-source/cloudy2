@@ -73,8 +73,8 @@ pipeline solves:
 ```mermaid
 flowchart LR
     subgraph FORM["EventForm (client wizard)"]
-        W["5 steps: type / time / location / invitees / remarks"]
-        P["live title preview"]
+        W["staged steps: type / time / location / invitees / remarks<br/>(+ on behalf of for admins) → review"]
+        P["calendar preview on the review step"]
     end
     subgraph GUARD["Server action (actions.ts)"]
         G["creatorGuard / ownershipGuard"]
@@ -107,61 +107,75 @@ the pure notes parsers over each `GcalEventItem` and produces a `CalendarEvent` 
 
 The form is `EventForm` (`src/app/(protected)/dashboard/EventForm.tsx`), rendered in a
 floating `size="sm"` modal from `DashboardView.tsx:1509` and minimizable into a floating
-bubble that keeps its draft. It is a **5-step staged walk** — one input group visible at
-a time (`STEPS`, `EventForm.tsx:109`):
+bubble that keeps its draft. It is a **staged walk** — one input group visible at a
+time, built by role via `buildSteps` (`EventForm.tsx:118-125`): regular users get six
+steps, admins seven ("On behalf of" sits between Remarks and Review):
 
-| # | Step     | Label      | Gate before advancing                                          |
-| - | -------- | ---------- | -------------------------------------------------------------- |
-| 1 | `type`   | Event type | custom: a type must be selected (`EventForm.tsx:294-299`)      |
-| 2 | `time`   | Timestamp  | `start`, `end`, `startAmPm`, `endAmPm` validate cleanly        |
-| 3 | `location` | Location | none (policy clamping is live, §1.9)                           |
-| 4 | `invitees` | Invitees | none                                                           |
-| 5 | `remarks`| Remarks    | submit only (last step)                                        |
+| # | Step       | Who         | Gate before advancing                                           |
+| - | ---------- | ----------- | --------------------------------------------------------------- |
+| 1 | `type`     | all         | custom: a type must be selected (`EventForm.tsx:308-313`)       |
+| 2 | `time`     | all         | `start`, `end`, `startAmPm`, `endAmPm` validate cleanly         |
+| 3 | `location` | all         | none (policy clamping is live, §1.9)                            |
+| 4 | `invitees` | all         | none                                                            |
+| 5 | `remarks`  | all         | none                                                            |
+| 6 | `creator`  | admins only | none — optional; blank means the acting user (§1.5.2)           |
+| 7 | `review`   | all         | submit only (last step) — read-only summary of everything entered |
 
 Mechanics worth knowing:
 
-- **Progress dots** (`EventForm.tsx:509-538`): a filled (completed) dot jumps back to
-  that step; the caption reads "N of 5 · label".
-- **Enter never submits**: `handleFormKeyDown` (`EventForm.tsx:282-290`) cancels the
+- **No progress indicator**: there are no step dots or "N of M" caption; the **Back**
+  button (`EventForm.tsx:838-849`) is the only backward navigation.
+- **Enter never submits**: `handleFormKeyDown` (`EventForm.tsx:296-303`) cancels the
   browser's implicit form submission for `INPUT`/`SELECT` targets, so only the explicit
-  Create/Save button (last step) commits — the Remarks `Textarea` keeps natural newline
-  behavior. `onSubmit` re-guards with `if (!isLastStep) return` (`EventForm.tsx:396-401`),
+  Create/Save button (review step) commits — the Remarks `Textarea` keeps natural newline
+  behavior. `onSubmit` re-guards with `if (!isLastStep) return` (`EventForm.tsx:447`),
   and the Next/submit buttons use distinct React keys so a step-advance click can never
-  activate a leftover `type="submit"` node (`EventForm.tsx:719-749`).
+  activate a leftover `type="submit"` node (`EventForm.tsx:852, 862`).
 - **Server error → step**: a failed submit maps the server's `field` back onto the owning
-  step via `STEP_BY_FIELD` (`EventForm.tsx:118-124`) and lands the user there
-  (`EventForm.tsx:425-433`).
-- **Admin "On behalf of"** (`EventForm.tsx:542-578`): a sticky searchable select pinned
-  above the step content; changing it sets `creatorId` and keeps the invitee chips in
-  sync (the creator is always an invitee — mirroring the server's
-  `withCreatorInvited`). Regular users have their own id locked in as `creatorId`.
+  step via `STEP_BY_FIELD` (`EventForm.tsx:127-134`, including `creatorId` → `creator`)
+  and lands the user there (`EventForm.tsx:477`).
+- **Admin "On behalf of"** (`EventForm.tsx:701-722`): its own step after Remarks rather
+  than a select pinned above every step; **optional** — a blank select means the acting
+  admin themselves (the server defaults it via `withSelfCreator`, §1.5.2). Picking a user
+  sets `creatorId` and keeps the invitee chips in sync (the creator is always an invitee).
+  Regular users have their own id locked in as `creatorId`.
 
 ### 1.4.1 Step details
 
-- **Type** (`EventForm.tsx:580-610`): alphabetically sorted toggleable `Badge` chips
+- **Type** (`EventForm.tsx:578-608`): alphabetically sorted toggleable `Badge` chips
   (no searchable select — the list is short). Selecting a type re-resolves the time
   option against the type's allowed set and re-clamps Out of Camp + location against the
-  type's location policy (`handleEventTypeChange`, `EventForm.tsx:325-346`).
-- **Timestamp** (`EventForm.tsx:612-632`): when the type allows more than one option the
+  type's location policy (`handleEventTypeChange`, `EventForm.tsx:339-360`).
+- **Timestamp** (`EventForm.tsx:610-630`): when the type allows more than one option the
   step shows a `Tabs` control ("Start & End" / "Full Day"); otherwise the single option's
   fields render directly. `range` = two `DateTimePicker`s (naive
   `YYYY-MM-DD HH:mm:ss` strings); `full` = two `DatePickerInput`s plus an AM/PM
-  `SegmentedControl` per side. `switchTimeOption` (`EventForm.tsx:306-323`) zeroes the
+  `SegmentedControl` per side. `switchTimeOption` (`EventForm.tsx:320-337`) zeroes the
   time part to `00:00:00` when entering `full` and defaults the indicators to AM→PM so a
   plain full-day span renders with no title suffix.
-- **Location** (`EventForm.tsx:634-658`): the "Out of Camp" checkbox is disabled unless
+- **Location** (`EventForm.tsx:632-656`): the "Out of Camp" checkbox is disabled unless
   the type's policy is `both`; unchecking it clears the location; the location input is
   disabled when in-camp or the policy is `in`. The effective flag/location is always the
-  `clampOutOfCamp` pair (`EventForm.tsx:257-261`), never the raw form value.
-- **Invitees** (`EventForm.tsx:660-681`): a `NoKeyboardMultiSelect` with two groups —
+  `clampOutOfCamp` pair (`EventForm.tsx:269-273`), never the raw form value.
+- **Invitees** (`EventForm.tsx:658-679`): a `NoKeyboardMultiSelect` with two groups —
   Departments (`dept:<id>` values) and People (`user:<id>` values). The creator's chip is
-  **locked** and re-added on every change (`lockedUserValue`, `EventForm.tsx:161,
-  668-672`) so it can never be deselected. The value prefixes are split into
+  **locked** and re-added on every change (`lockedUserValue`, `EventForm.tsx:173,
+  669`) so it can never be deselected. The value prefixes are split into
   `inviteeUserIds` / `inviteeDepartments` on submit (`splitInvitees`,
-  `EventForm.tsx:127-138`).
-- **Remarks** (`EventForm.tsx:683-694`): an autosize `Textarea` bound to the form's
+  `EventForm.tsx:137-148`).
+- **Remarks** (`EventForm.tsx:681-697`): an autosize `Textarea` bound to the form's
   `title` field — the **raw description**. It is optional; the calendar title comes from
   the template (§1.8).
+- **On behalf of** (`EventForm.tsx:703-727`, admins only): the searchable user select,
+  entered as the last input before review (see §1.4). Optional — blank = acting user.
+- **Review** (`EventForm.tsx:739-848`): the read-only final page. It folds in the
+  calendar preview Paper plus When / Location (In/Out-of-Camp badge + destination) /
+  Event Type / On-behalf-of / People / Departments / Remarks rows, all resolved from the
+  same effective state the submit payload uses (`reviewPeople`, `reviewDepartments`,
+  `creatorName`, `whenText`, `EventForm.tsx:425-456`; `reviewPeople` derives from the
+  effective invitee list, so the People row includes the acting admin when "On behalf
+  of" is blank) so what is reviewed is exactly what gets saved. There are no per-section
+  edit links — fixing a mistake means walking Back through the intermediate steps.
 
 ### 1.4.2 Edit prefill (`?edit=` deep link)
 
@@ -180,11 +194,11 @@ Google Calendar events created by the app carry an `Edit: <url>` line in their n
   dismissible "not in your current view" alert (`:323-325`, `:1140-1150`). The one-shot
   `edit` param is stripped after its render by a ref-guarded plain `router.push`
   (`:621-631`).
-- **Form prefill** (`buildInitialValues`, `EventForm.tsx:163-216`):
+- **Form prefill** (`buildInitialValues`, `EventForm.tsx:175-228`):
   - `title` = the notes' raw description (`payload.rawTitle`) — never the rendered
     calendar title; a deliberately blank description round-trips as `""` (legacy events
     without the field fall back to the summary, with `"(no title)"` normalized to `""`,
-    `EventForm.tsx:179`).
+    `EventForm.tsx:191`).
   - time option resolved against the stored type's allowed set
     (`resolveTimeOption`, `EventForm.tsx:168`); legacy full-day events without
     indicators default to AM→PM (`:183-184`).
@@ -215,13 +229,11 @@ detail modal — Edit/Delete buttons render only for admins or the creator.
 
 ### 1.5.2 Field validation (`src/lib/events/validate.ts`)
 
-`validateEventForm(values, { requireCreator })` (`validate.ts:74`) checks, in order:
+`validateEventForm(values)` (`validate.ts:79`) checks, in order:
 
-1. `creatorId` non-empty **only when `requireCreator`** (admin on-behalf) → "Choose who
-   this event is on behalf of".
-2. `full` events: both `startAmPm` and `endAmPm` required → "Select AM or PM".
-3. `start` / `end` required.
-4. **Cross-field chronology** via `sortKey` (`validate.ts:51-58`): for `full` events the
+1. `full` events: both `startAmPm` and `endAmPm` required → "Select AM or PM".
+2. `start` / `end` required.
+3. **Cross-field chronology** via `sortKey` (`validate.ts:51-58`): for `full` events the
    half-of-day indicator is folded into the sort key (`YYYY-MM-DD AM` < `YYYY-MM-DD PM`,
    since the time part is always `00:00:00`), so same-day AM→PM is valid and PM→AM is not;
    for `range` the full naive strings compare. Violation → "End must be on or after
@@ -231,8 +243,13 @@ Deliberately **not** validated: `title` (may be blank — the template produces 
 title), `eventType` (the wizard's custom gate covers it), invitee arrays, `outOfCamp`,
 and `location` (policy clamping covers it, §1.9).
 
-`withCreatorInvited(values)` (`validate.ts:65`) dedupes the creator into the invitee
-list; the server applies it in both actions (`actions.ts:347, 462`).
+Creator normalization happens before the guards and this validation: `withSelfCreator`
+(`validate.ts:75`) defaults a blank/whitespace `creatorId` to the **session user** — "on
+behalf of" is optional, and a cleared select uniformly means the acting admin — then
+dedupes the creator into the invitee list via `withCreatorInvited` (`validate.ts:60`).
+Both actions apply it right after `requireSession()` (`actions.ts`, create & update), so
+targets (§1.6), the notes' `createdBy`, ownership, and the audit snapshot all see the
+effective creator even when the form submitted none.
 
 ## 1.6 Target derivation
 
@@ -399,11 +416,17 @@ audit snapshots (`actions.ts:405, 574`), so the two can never diverge.
 
 ### 1.8.3 The form's live preview
 
-`EventForm` shows a "Calendar preview" Paper (`EventForm.tsx:696-705`) with the exact
-title the server will write, recomputed from form values
-(`EventForm.tsx:370-394`). Note: the preview **re-implements** the fallback + AM/PM
-suffix rules inline rather than importing the pure `renderEventTitle` — kept in sync by
-convention, a drift risk to be aware of when changing the title rules.
+`EventForm` shows a "Calendar preview" Paper with the exact title the server will write,
+recomputed from form values (`EventForm.tsx:397-421`). The Paper lives **on the review
+step only** (`EventForm.tsx:741-749`) — earlier steps render no preview card. The
+preview derives its people from the **effective** invitee list (`effectiveInvitees`,
+`EventForm.tsx:385-393`): the creator — picked user, or the acting admin when "On
+behalf of" is blank — is prepended first, mirroring the server's `withSelfCreator` +
+`withCreatorInvited` ordering exactly, so `{people}` / `{people:acronym}` tokens render
+identically to what gets written (the review step's People row uses the same list).
+Note: the preview **re-implements** the fallback + AM/PM suffix rules inline rather than
+importing the pure `renderEventTitle` — kept in sync by convention, a drift risk to be
+aware of when changing the title rules.
 
 ### 1.8.4 Context resolution (I/O)
 
@@ -494,7 +517,7 @@ writes, headers) is thin and lives in `actions.ts` / `queries.ts`.
 | `resolveTimeOption(s)`, `normalizeTimeOptions`, `amPmSuffix` | `events/timeOptions.ts` | `timeOptions.test.ts` |
 | `absEventRange` (timed + all-day exclusive end), naive↔instant, `weekDays`, `monthsInRange`, `shiftMonth`, `monthRange`, `monthGridRows` | `events/datetime.ts` | `datetime.test.ts` |
 | `creatorGuard`, `ownershipGuard` | `events/guards.ts` | `guards.test.ts` |
-| `validateEventForm` (incl. full-day chronology), `withCreatorInvited` | `events/validate.ts` | `validate.test.ts` |
+| `validateEventForm` (incl. full-day chronology), `withSelfCreator` / `withCreatorInvited` | `events/validate.ts` | `validate.test.ts` |
 | `deriveTargetCalendarIds`, `diffEventTargets`, `dedupeEventsByGroupId`, `eventRefFromCalendarEvent` | `events/targets.ts` | `targets.test.ts` |
 
 I/O-bound (not unit-tested, per the repo convention): `actions.ts` (the server

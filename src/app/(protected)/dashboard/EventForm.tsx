@@ -3,7 +3,6 @@
 import { useMemo, useState, type KeyboardEvent } from "react";
 import {
   Badge,
-  Box,
   Button,
   Checkbox,
   Grid,
@@ -15,7 +14,6 @@ import {
   Text,
   Textarea,
   TextInput,
-  UnstyledButton,
   useMantineTheme,
 } from "@mantine/core";
 import { DatePickerInput, DateTimePicker } from "@mantine/dates";
@@ -49,7 +47,7 @@ import {
   type EventTitlePerson,
 } from "@/lib/settings/formatEventTitle";
 import { BUTTON_LOADER_PROPS } from "@/lib/theme";
-import { naiveToDate } from "./clientDateTime";
+import { formatDateTime, naiveToDate } from "./clientDateTime";
 
 interface EventTypeOption {
   name: string;
@@ -98,24 +96,33 @@ const OUT_OF_CAMP_DESCRIPTIONS: Record<LocationPolicy, string> = {
 };
 
 /** Wizard step ids for the staged event form. */
-type StepId = "type" | "time" | "location" | "invitees" | "remarks";
+type StepId = "type" | "time" | "location" | "invitees" | "remarks" | "creator" | "review";
 
 interface StepDef {
   id: StepId;
-  label: string;
   /** Form fields that must validate cleanly before the step can be left. */
   fields: (keyof EventFormState)[];
 }
 
-/** The wizard steps, in order (admins additionally pin the "On behalf of"
-    select above the step content). */
-const STEPS: StepDef[] = [
-  { id: "type", label: "Event type", fields: [] },
-  { id: "time", label: "Timestamp", fields: ["start", "end", "startAmPm", "endAmPm"] },
-  { id: "location", label: "Location", fields: [] },
-  { id: "invitees", label: "Invitees", fields: [] },
-  { id: "remarks", label: "Remarks", fields: [] },
+/** The input steps shared by every user, in order. */
+const BASE_STEPS: StepDef[] = [
+  { id: "type", fields: [] },
+  { id: "time", fields: ["start", "end", "startAmPm", "endAmPm"] },
+  { id: "location", fields: [] },
+  { id: "invitees", fields: [] },
+  { id: "remarks", fields: [] },
 ];
+
+/** The full wizard walk: admins enter an optional "On behalf of" after
+    Remarks (blank = themselves); everyone ends on a read-only review of
+    everything entered so far. */
+function buildSteps(isAdmin: boolean): StepDef[] {
+  return [
+    ...BASE_STEPS,
+    ...(isAdmin ? [{ id: "creator", fields: [] } satisfies StepDef] : []),
+    { id: "review", fields: [] },
+  ];
+}
 
 /** Maps a server-reported error field to the wizard step that owns it. */
 const STEP_BY_FIELD: Partial<Record<EventResultField, StepId>> = {
@@ -124,6 +131,7 @@ const STEP_BY_FIELD: Partial<Record<EventResultField, StepId>> = {
   end: "time",
   startAmPm: "time",
   endAmPm: "time",
+  creatorId: "creator",
 };
 
 /** Split the prefixed select values (`user:<id>` / `dept:<id>`) into the two notes fields. */
@@ -157,7 +165,7 @@ export function EventForm({
 
   const form = useForm<EventFormState>({
     initialValues: buildInitialValues(),
-    validate: (values) => validateEventForm(values, { requireCreator: isAdmin }),
+    validate: (values) => validateEventForm(values),
   });
 
   // The event creator is always an invitee; the select value holding them is
@@ -266,10 +274,12 @@ export function EventForm({
   );
 
   // Wizard state: a stepped walk through the form so the user only ever sees
-  // one input group at a time.
+  // one input group at a time. The step list depends on the role (admins get
+  // the "On behalf of" step); it never changes mid-session, so memoize it.
+  const steps = useMemo(() => buildSteps(isAdmin), [isAdmin]);
   const [step, setStep] = useState(0);
-  const currentStep = STEPS[step];
-  const isLastStep = step === STEPS.length - 1;
+  const currentStep = steps[step];
+  const isLastStep = step === steps.length - 1;
 
   function goBack() {
     setStep((index) => Math.max(index - 1, 0));
@@ -305,7 +315,7 @@ export function EventForm({
     } else if (currentStep.fields.some((field) => form.validateField(field).hasError)) {
       return;
     }
-    setStep((index) => Math.min(index + 1, STEPS.length - 1));
+    setStep((index) => Math.min(index + 1, steps.length - 1));
   }
 
   function switchTimeOption(option: TimeOption) {
@@ -369,11 +379,23 @@ export function EventForm({
     [inviteeDepartments],
   );
 
+  // "On behalf of" is optional: a blank select means the acting user, who is
+  // always invited (mirroring the server's withSelfCreator normalization).
+  // Preview and review derive their people from this effective list, so
+  // {people} tokens match exactly what gets written.
+  const effectiveCreatorId = form.values.creatorId || currentUser;
+  const effectiveInvitees = [
+    ...new Set([
+      ...(effectiveCreatorId ? [`user:${effectiveCreatorId}`] : []),
+      ...form.values.invitees,
+    ]),
+  ];
+
   // Live rendering of the exact title the server will write to Google, so the
   // user sees the final calendar summary (template tokens + AM/PM suffix)
   // before submitting.
   const previewTitle = (() => {
-    const people: EventTitlePerson[] = form.values.invitees
+    const people: EventTitlePerson[] = effectiveInvitees
       .filter((value) => value.startsWith("user:"))
       .map((value) => value.slice("user:".length))
       .map((id) => peopleById[id])
@@ -396,6 +418,39 @@ export function EventForm({
     const amPm = amPmSuffix(form.values.startAmPm, form.values.endAmPm);
     // Matches the server: an empty title gets no bare "(AM)" suffix.
     return base && effectiveTimeOption === "full" && amPm ? `${base} (${amPm})` : base;
+  })();
+
+  // Review-step display values — resolved from the same effective state the
+  // submit payload uses, so what the user reviews is exactly what gets saved.
+  const reviewPeople = [
+    ...new Set(
+      effectiveInvitees
+        .filter((value) => value.startsWith("user:"))
+        .map((value) => peopleById[value.slice("user:".length)]?.fqn)
+        .filter((name): name is string => Boolean(name)),
+    ),
+  ];
+  const reviewDepartments = [
+    ...new Set(
+      form.values.invitees
+        .filter((value) => value.startsWith("dept:"))
+        .map((value) => departmentNames[value.slice("dept:".length)])
+        .filter((name): name is string => Boolean(name)),
+    ),
+  ];
+  // The review always shows the effective owner (blank select = acting user).
+  const creatorName = peopleById[effectiveCreatorId]?.fqn ?? null;
+  const whenText = (() => {
+    if (!form.values.start || !form.values.end) {
+      return "";
+    }
+    if (effectiveTimeOption === "full") {
+      const startText = formatDateTime(form.values.start, true);
+      // All-day ends are exclusive: the stored end is midnight after the last day.
+      const endText = formatDateTime(`${subOneDay(form.values.end.slice(0, 10))} 00:00:00`, true);
+      return endText && endText !== startText ? `${startText} – ${endText}` : startText;
+    }
+    return `${formatDateTime(form.values.start, false)} – ${formatDateTime(form.values.end, false)}`;
   })();
 
   const onSubmit = form.onSubmit(async (values) => {
@@ -431,7 +486,7 @@ export function EventForm({
       const failedField = result.field;
       form.setFieldError(failedField, result.error);
       // Land the user on the step that owns the failing field.
-      const target = STEPS.findIndex((s) => s.id === STEP_BY_FIELD[failedField]);
+      const target = steps.findIndex((s) => s.id === STEP_BY_FIELD[failedField]);
       if (target >= 0) {
         setStep(target);
       }
@@ -532,79 +587,6 @@ export function EventForm({
         style={{ position: "fixed", top: 0, left: 0, opacity: 0, pointerEvents: "none" }}
       />
       <Stack gap="sm">
-        {/* Compact wizard indicator: dots for progress (tap a filled dot to
-            jump back) plus the current step label. */}
-        <Stack gap={6} align="center">
-          <Group gap={6} justify="center">
-            {STEPS.map((s, index) => {
-              const done = index < step;
-              const current = index === step;
-              return (
-                <UnstyledButton
-                  key={s.id}
-                  type="button"
-                  disabled={!done}
-                  aria-label={`Go to step ${index + 1}: ${s.label}`}
-                  onClick={() => setStep(index)}
-                  style={{
-                    width: current ? 10 : 8,
-                    height: current ? 10 : 8,
-                    borderRadius: "50%",
-                    backgroundColor:
-                      done || current
-                        ? "var(--mantine-color-brand-6)"
-                        : "var(--mantine-color-gray-3)",
-                    boxShadow: current ? `0 0 0 2px var(--mantine-color-brand-1)` : undefined,
-                  }}
-                />
-              );
-            })}
-          </Group>
-          <Text size="xs" c="dimmed" ta="center">
-            {step + 1} of {STEPS.length} · {currentStep.label}
-          </Text>
-        </Stack>
-
-        {/* Pinned for admins: who the event is on behalf of, always in view
-            (sticks to the top of the scrolling body). */}
-        {isAdmin && (
-          <Box
-            style={{
-              position: "sticky",
-              top: 0,
-              zIndex: 1,
-              paddingBottom: 8,
-              backgroundColor: "var(--mantine-color-body)",
-            }}
-          >
-            <NoKeyboardSelect
-              label="On behalf of"
-              description="Create or edit this event as another user"
-              placeholder="Select a user"
-              data={inviteeUsers.map((user) => ({ value: user.id, label: user.displayName }))}
-              value={form.values.creatorId || null}
-              onChange={(value) => {
-                const next = value ?? "";
-                const previous = form.values.creatorId;
-                // The creator is always an invitee; keep the invitee chips and
-                // the live preview in sync with the acting user (matching the
-                // server's withCreatorInvited normalization).
-                const invitees = form.values.invitees.filter(
-                  (entry) => `${entry}` !== (previous ? `user:${previous}` : `${entry}`),
-                );
-                form.setFieldValue("creatorId", next);
-                form.setFieldValue(
-                  "invitees",
-                  next ? [...new Set([...invitees, `user:${next}`])] : invitees,
-                );
-              }}
-              error={form.errors.creatorId}
-              searchable
-              required
-            />
-          </Box>
-        )}
-
         {currentStep.id === "type" && (
           <Stack gap="xs">
             {sortedEventTypes.length === 0 ? (
@@ -721,16 +703,147 @@ export function EventForm({
           />
         )}
 
-        <Paper withBorder p="sm">
-          <Stack gap={4}>
-            <Text size="sm" fw={500} c="accent.6" tt="uppercase">
-              Calendar preview
-            </Text>
-            <Text size="sm" fw={600} style={{ overflowWrap: "anywhere" }}>
-              {previewTitle || "—"}
-            </Text>
+        {/* Admins only, after Remarks: who this event is recorded as created
+            or edited by. Optional — leaving it blank means the event belongs
+            to the acting admin. Picking a user keeps the invitee chips in sync
+            (the creator is always an invitee, mirroring the server's
+            withSelfCreator normalization); the review step below reflects the
+            effective owner. */}
+        {currentStep.id === "creator" && (
+          <NoKeyboardSelect
+            label="On behalf of"
+            description="Optional — leave empty to create or edit this event as yourself"
+            placeholder="Yourself"
+            data={inviteeUsers.map((user) => ({ value: user.id, label: user.displayName }))}
+            value={form.values.creatorId || null}
+            onChange={(value) => {
+              const next = value ?? "";
+              const previous = form.values.creatorId;
+              const invitees = form.values.invitees.filter(
+                (entry) => `${entry}` !== (previous ? `user:${previous}` : `${entry}`),
+              );
+              form.setFieldValue("creatorId", next);
+              form.setFieldValue(
+                "invitees",
+                next ? [...new Set([...invitees, `user:${next}`])] : invitees,
+              );
+            }}
+            error={form.errors.creatorId}
+            searchable
+          />
+        )}
+
+        {/* Last step: a read-only review of everything entered. The calendar
+            preview lives here — it renders the exact title the server will
+            write to Google. Submitting commits the event. */}
+        {currentStep.id === "review" && (
+          <Stack gap="sm">
+            <Paper withBorder p="sm">
+              <Stack gap={4}>
+                <Text size="sm" fw={500} c="accent.6" tt="uppercase">
+                  Calendar preview
+                </Text>
+                <Text size="sm" fw={600} style={{ overflowWrap: "anywhere" }}>
+                  {previewTitle || "—"}
+                </Text>
+              </Stack>
+            </Paper>
+
+            <Stack gap={4}>
+              <Text size="xs" c="dimmed" fw={600}>
+                When
+              </Text>
+              <Text size="sm">{whenText || "—"}</Text>
+            </Stack>
+
+            <Stack gap={4}>
+              <Text size="xs" c="dimmed" fw={600}>
+                Location
+              </Text>
+              <Group gap={6} wrap="wrap">
+                <Badge variant="light" color={effectiveOutOfCamp.outOfCamp ? "yellow" : "green"}>
+                  {effectiveOutOfCamp.outOfCamp ? "Out of Camp" : "In Camp"}
+                </Badge>
+                {effectiveOutOfCamp.location && (
+                  <Text size="sm" c="dimmed">
+                    {effectiveOutOfCamp.location}
+                  </Text>
+                )}
+              </Group>
+            </Stack>
+
+            <Stack gap={4}>
+              <Text size="xs" c="dimmed" fw={600}>
+                Event Type
+              </Text>
+              <Group gap={6} wrap="wrap">
+                {form.values.eventType ? (
+                  <Badge variant="light">{form.values.eventType}</Badge>
+                ) : (
+                  <Text size="sm" c="dimmed">
+                    —
+                  </Text>
+                )}
+              </Group>
+            </Stack>
+
+            {isAdmin && (
+              <Stack gap={4}>
+                <Text size="xs" c="dimmed" fw={600}>
+                  On behalf of
+                </Text>
+                <Group gap={6} wrap="wrap">
+                  {creatorName ? (
+                    <Badge variant="light" color="brand">
+                      {creatorName}
+                    </Badge>
+                  ) : (
+                    <Text size="sm">Yourself</Text>
+                  )}
+                </Group>
+              </Stack>
+            )}
+
+            {reviewPeople.length > 0 && (
+              <Stack gap={4}>
+                <Text size="xs" c="dimmed" fw={600}>
+                  People
+                </Text>
+                <Group gap={6} wrap="wrap">
+                  {reviewPeople.map((name) => (
+                    <Badge key={name} variant="light">
+                      {name}
+                    </Badge>
+                  ))}
+                </Group>
+              </Stack>
+            )}
+
+            {reviewDepartments.length > 0 && (
+              <Stack gap={4}>
+                <Text size="xs" c="dimmed" fw={600}>
+                  Departments
+                </Text>
+                <Group gap={6} wrap="wrap">
+                  {reviewDepartments.map((name) => (
+                    <Badge key={name} variant="light" color="accent">
+                      {name}
+                    </Badge>
+                  ))}
+                </Group>
+              </Stack>
+            )}
+
+            <Stack gap={4}>
+              <Text size="xs" c="dimmed" fw={600}>
+                Remarks
+              </Text>
+              <Text size="sm" style={{ overflowWrap: "anywhere", whiteSpace: "pre-wrap" }}>
+                {form.values.title.trim() || "—"}
+              </Text>
+            </Stack>
           </Stack>
-        </Paper>
+        )}
 
         <Group justify={step === 0 ? "flex-end" : "space-between"} gap="sm">
           {step > 0 && (
