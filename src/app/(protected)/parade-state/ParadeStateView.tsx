@@ -491,7 +491,9 @@ export function ParadeStateView({
                   <Text fw={700} size="sm" c="dimmed" mb="xs" tt="uppercase" lh={1}>
                     {dept.name} ({headcount.present}/{headcount.total})
                   </Text>
-                  <Stack gap="xs">
+                  {/* Single column on mobile; auto-filling card grid at lg
+                      (see .card-grid in globals.css). */}
+                  <Box component="div" className="card-grid">
                     {dept.users.map((user) => {
                       const userEvents = eventsByUser.get(user.id) ?? [];
                       const displayName = formatFullName(
@@ -529,7 +531,12 @@ export function ParadeStateView({
                                     >
                                       {formatEventTimeBadge(event, date)}
                                     </Badge>
-                                    <Text size="xs" fw={400} c="dimmed" style={{ flex: 1, minWidth: 0 }}>
+                                    <Text
+                                      size="xs"
+                                      fw={400}
+                                      c="dimmed"
+                                      style={{ flex: 1, minWidth: 0 }}
+                                    >
                                       {event.title}
                                     </Text>
                                   </Group>
@@ -540,7 +547,7 @@ export function ParadeStateView({
                         </Paper>
                       );
                     })}
-                  </Stack>
+                  </Box>
                 </Box>
               );
             })}

@@ -1,5 +1,7 @@
 import { Group, Paper, Skeleton, Stack } from "@mantine/core";
 
+import { SettingsTableSkeleton } from "../SettingsTableSkeleton";
+
 export default function UsersLoading() {
   return (
     <Stack pb="xl">
@@ -10,7 +12,8 @@ export default function UsersLoading() {
         </Group>
       </Paper>
 
-      <Stack gap="sm">
+      {/* Mobile: card list */}
+      <Stack gap="sm" hiddenFrom="lg">
         {Array.from({ length: 6 }).map((_, i) => (
           <Paper key={i} withBorder p="sm">
             <Stack gap="xs">
@@ -30,6 +33,9 @@ export default function UsersLoading() {
           </Paper>
         ))}
       </Stack>
+
+      {/* Desktop: data table (Name / Phone / Role / Department / Status / Actions) */}
+      <SettingsTableSkeleton columns={[3, 2, 1.5, 2, 1.5, 1.2]} visibleFrom="lg" />
     </Stack>
   );
 }

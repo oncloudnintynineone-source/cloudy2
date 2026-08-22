@@ -6,6 +6,7 @@ import {
   Box,
   Button,
   Checkbox,
+  Grid,
   Group,
   Paper,
   SegmentedControl,
@@ -15,8 +16,10 @@ import {
   Textarea,
   TextInput,
   UnstyledButton,
+  useMantineTheme,
 } from "@mantine/core";
 import { DatePickerInput, DateTimePicker } from "@mantine/dates";
+import { useMediaQuery } from "@mantine/hooks";
 import { useForm } from "@mantine/form";
 import { notifications } from "@mantine/notifications";
 import { IconChevronLeft, IconChevronRight } from "@tabler/icons-react";
@@ -149,6 +152,8 @@ export function EventForm({
   onDone,
 }: EventFormProps) {
   const isEdit = event !== null;
+  const theme = useMantineTheme();
+  const isDesktop = useMediaQuery(`(min-width: ${theme.breakpoints.lg})`);
 
   const form = useForm<EventFormState>({
     initialValues: buildInitialValues(),
@@ -436,9 +441,9 @@ export function EventForm({
 
   const showTabs = allowedOptions.length > 1;
 
-  const timeFields = (option: TimeOption) =>
-    option === "range" ? (
-      <>
+  const timeFields = (option: TimeOption) => {
+    const startField =
+      option === "range" ? (
         <DateTimePicker
           label="Start time"
           value={naiveToDate(form.values.start)}
@@ -446,6 +451,31 @@ export function EventForm({
           valueFormat="YYYY-MM-DD HH:mm"
           error={form.errors.start}
         />
+      ) : (
+        <>
+          <DatePickerInput
+            label="Start date"
+            value={naiveToDate(form.values.start)}
+            onChange={(value) => form.setFieldValue("start", value ? `${value} 00:00:00` : "")}
+            error={form.errors.start}
+          />
+          <Stack gap={4}>
+            <SegmentedControl
+              aria-label="Start AM or PM"
+              data={AMPM_OPTIONS}
+              value={form.values.startAmPm || undefined}
+              onChange={(value) => form.setFieldValue("startAmPm", value as AmPm)}
+            />
+            {form.errors.startAmPm && (
+              <Text size="xs" c="red">
+                {form.errors.startAmPm}
+              </Text>
+            )}
+          </Stack>
+        </>
+      );
+    const endField =
+      option === "range" ? (
         <DateTimePicker
           label="End time"
           value={naiveToDate(form.values.end)}
@@ -453,49 +483,45 @@ export function EventForm({
           valueFormat="YYYY-MM-DD HH:mm"
           error={form.errors.end}
         />
-      </>
-    ) : (
+      ) : (
+        <>
+          <DatePickerInput
+            label="End date"
+            value={naiveToDate(form.values.end)}
+            onChange={(value) => form.setFieldValue("end", value ? `${value} 00:00:00` : "")}
+            error={form.errors.end}
+          />
+          <Stack gap={4}>
+            <SegmentedControl
+              aria-label="End AM or PM"
+              data={AMPM_OPTIONS}
+              value={form.values.endAmPm || undefined}
+              onChange={(value) => form.setFieldValue("endAmPm", value as AmPm)}
+            />
+            {form.errors.endAmPm && (
+              <Text size="xs" c="red">
+                {form.errors.endAmPm}
+              </Text>
+            )}
+          </Stack>
+        </>
+      );
+    // The modal is wide enough at lg for start/end side by side.
+    if (isDesktop) {
+      return (
+        <Grid gap="sm">
+          <Grid.Col span={6}>{startField}</Grid.Col>
+          <Grid.Col span={6}>{endField}</Grid.Col>
+        </Grid>
+      );
+    }
+    return (
       <>
-        <DatePickerInput
-          label="Start date"
-          value={naiveToDate(form.values.start)}
-          onChange={(value) => form.setFieldValue("start", value ? `${value} 00:00:00` : "")}
-          error={form.errors.start}
-        />
-        <Stack gap={4}>
-          <SegmentedControl
-            aria-label="Start AM or PM"
-            data={AMPM_OPTIONS}
-            value={form.values.startAmPm || undefined}
-            onChange={(value) => form.setFieldValue("startAmPm", value as AmPm)}
-          />
-          {form.errors.startAmPm && (
-            <Text size="xs" c="red">
-              {form.errors.startAmPm}
-            </Text>
-          )}
-        </Stack>
-        <DatePickerInput
-          label="End date"
-          value={naiveToDate(form.values.end)}
-          onChange={(value) => form.setFieldValue("end", value ? `${value} 00:00:00` : "")}
-          error={form.errors.end}
-        />
-        <Stack gap={4}>
-          <SegmentedControl
-            aria-label="End AM or PM"
-            data={AMPM_OPTIONS}
-            value={form.values.endAmPm || undefined}
-            onChange={(value) => form.setFieldValue("endAmPm", value as AmPm)}
-          />
-          {form.errors.endAmPm && (
-            <Text size="xs" c="red">
-              {form.errors.endAmPm}
-            </Text>
-          )}
-        </Stack>
+        {startField}
+        {endField}
       </>
     );
+  };
 
   return (
     <form onSubmit={onSubmit} onKeyDown={handleFormKeyDown}>
@@ -525,7 +551,9 @@ export function EventForm({
                     height: current ? 10 : 8,
                     borderRadius: "50%",
                     backgroundColor:
-                      done || current ? "var(--mantine-color-brand-6)" : "var(--mantine-color-gray-3)",
+                      done || current
+                        ? "var(--mantine-color-brand-6)"
+                        : "var(--mantine-color-gray-3)",
                     boxShadow: current ? `0 0 0 2px var(--mantine-color-brand-1)` : undefined,
                   }}
                 />

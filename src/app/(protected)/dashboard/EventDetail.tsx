@@ -1,8 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { Badge, Button, Group, Modal, Stack, Text } from "@mantine/core";
-import { useDisclosure } from "@mantine/hooks";
+import { Badge, Button, Group, Modal, Stack, Text, useMantineTheme } from "@mantine/core";
+import { useDisclosure, useMediaQuery } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
 
 import { deleteEvent } from "@/lib/events/actions";
@@ -10,8 +10,8 @@ import { subOneDay } from "@/lib/events/datetime";
 import type { CalendarEvent } from "@/lib/events/queries";
 import { eventRefFromCalendarEvent } from "@/lib/events/targets";
 import {
+  modalContentWidth,
   scaleFromRect,
-  smModalContentWidth,
   transformOriginFromRect,
   type Rect,
 } from "@/lib/motion/origin";
@@ -59,14 +59,17 @@ export function EventDetail({
     setDisplayEvent(event);
   }
 
+  const theme = useMantineTheme();
+  const isDesktop = useMediaQuery(`(min-width: ${theme.breakpoints.lg})`);
   // The modal is `centered` with a fixed size, so its content center is the
   // viewport center; the transform-origin can therefore be derived purely from
-  // the clicked element's rect (see src/lib/motion/origin.ts).
+  // the clicked element's rect (see src/lib/motion/origin.ts). The modal
+  // widens sm (380px) -> md (440px) at lg, matching the shrink scale.
   const viewport = {
     w: typeof window === "undefined" ? 0 : window.innerWidth,
     h: typeof window === "undefined" ? 0 : window.innerHeight,
   };
-  const contentWidth = smModalContentWidth(viewport);
+  const contentWidth = modalContentWidth(viewport, isDesktop ? 440 : 380);
   const transitionProps = {
     transition: {
       in: { opacity: 1, transform: "scale(1)" },
@@ -82,8 +85,7 @@ export function EventDetail({
   const showEvent = event ?? displayEvent;
   const payload = showEvent?.payload;
 
-  const ownerName =
-    payload && payload.creatorId ? peopleNames[payload.creatorId] ?? null : null;
+  const ownerName = payload && payload.creatorId ? (peopleNames[payload.creatorId] ?? null) : null;
   const peopleNamesResolved = payload
     ? [...new Set(payload.inviteeUserIds)]
         .map((id) => peopleNames[id])
@@ -129,7 +131,7 @@ export function EventDetail({
         onClose={onClose}
         title="Event"
         centered
-        size="sm"
+        size={isDesktop ? "md" : "sm"}
         keepMounted
         transitionProps={transitionProps}
       >

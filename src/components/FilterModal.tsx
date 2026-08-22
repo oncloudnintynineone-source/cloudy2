@@ -1,7 +1,8 @@
 "use client";
 
 import { useMemo, useState, type ReactNode } from "react";
-import { Button, Chip, Group, Modal, Stack, Text } from "@mantine/core";
+import { Button, Chip, Group, Modal, Stack, Text, useMantineTheme } from "@mantine/core";
+import { useMediaQuery } from "@mantine/hooks";
 
 import { NoKeyboardMultiSelect } from "@/components/NoKeyboardSelect";
 import {
@@ -72,10 +73,7 @@ function initialDraft(
     groups.map((group) =>
       group.variant === "search"
         ? [group.label, values[group.label] ?? []]
-        : [
-            group.label,
-            values[group.label]?.length ? values[group.label] : allOptionValues(group),
-          ],
+        : [group.label, values[group.label]?.length ? values[group.label] : allOptionValues(group)],
     ),
   );
 }
@@ -89,8 +87,10 @@ function initialDraft(
  * "all selected" in grid groups and "nothing selected" in search groups.
  */
 export function FilterModal({ opened, onClose, title, groups, values, onApply }: FilterModalProps) {
+  const theme = useMantineTheme();
+  const isDesktop = useMediaQuery(`(min-width: ${theme.breakpoints.lg})`);
   return (
-    <Modal opened={opened} onClose={onClose} title={title} centered size="sm">
+    <Modal opened={opened} onClose={onClose} title={title} centered size={isDesktop ? "md" : "sm"}>
       <FilterModalBody groups={groups} values={values} onApply={onApply} onClose={onClose} />
     </Modal>
   );
@@ -102,9 +102,7 @@ function FilterModalBody({
   onApply,
   onClose,
 }: Pick<FilterModalProps, "groups" | "values" | "onApply" | "onClose">) {
-  const [draft, setDraft] = useState<Record<string, string[]>>(() =>
-    initialDraft(groups, values),
-  );
+  const [draft, setDraft] = useState<Record<string, string[]>>(() => initialDraft(groups, values));
   // Grid groups the user edited (apply their draft explicitly — including a
   // full selection) and whether "Clear" was pressed (apply nothing, restoring
   // the consumer's default). Untouched grid groups re-apply their current
@@ -159,13 +157,10 @@ function FilterModalBody({
                 color="brand"
                 leftSection={group.action.icon}
                 onClick={() =>
-                  group.action?.apply(
-                    (values) => handleGroupChange(group.label, values),
-                    {
-                      selected: draft[group.label] ?? [],
-                      allValues: allOptionValues(group),
-                    },
-                  )
+                  group.action?.apply((values) => handleGroupChange(group.label, values), {
+                    selected: draft[group.label] ?? [],
+                    allValues: allOptionValues(group),
+                  })
                 }
               >
                 {group.action.label}

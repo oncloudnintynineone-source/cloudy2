@@ -87,6 +87,9 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
 - [1.74 Week v2 event chips + dark-mode tab indicator (Phase 3ae)](#174-week-v2-event-chips--dark-mode-tab-indicator-phase-3ae)
 - [1.75 Tap-to-show tooltips for user shortnames (Phase 3af)](#175-tap-to-show-tooltips-for-user-shortnames-phase-3af)
 - [1.76 Documentation deep-dives (Phase 3ag)](#176-documentation-deep-dives-phase-3ag)
+- [1.77 Desktop responsive layout (Phase 3ah)](#177-desktop-responsive-layout-phase-3ah)
+- [1.78 Desktop layout review fixes (Phase 3ai)](#178-desktop-layout-review-fixes-phase-3ai)
+- [1.79 Desktop responsive bugfixes (Phase 3aj)](#179-desktop-responsive-bugfixes-phase-3aj)
 
 ## 1.1 Status
 
@@ -3801,4 +3804,164 @@ helpers & testing table, file index & related docs):
 
 **Verification:** docs-only change — `pnpm lint`, `pnpm typecheck`, and
 `pnpm test` all pass (no code touched).
+
+## 1.77 Desktop responsive layout (Phase 3ah)
+
+The app now has a purpose-built desktop layout at Mantine's `lg` breakpoint
+(992px / 62em); below `lg` the mobile layout is unchanged. User-approved
+decisions: full pass in phases; Mantine `Table` at `lg`+ for the data-dense
+settings lists (scoped exception to the card-list rule); left sidebar at `lg`+
+(bottom nav collapses); shell-first execution order.
+
+- **Scaffolding (Phase 0)** — `globals.css` gains one `@media (min-width: 62em)`
+  block: `--app-floating-bottom-offset` (bottom-nav clearance → 16px),
+  `--settings-fab-bottom` + `.settings-page-pad` padding (bottom-nav + tab-bar
+  clearance → 16px), `.page-container` (centered, `max-width: 1200px` at lg),
+  and `.card-grid` (1fr → `repeat(auto-fill, minmax(320px, 1fr))`).
+  `FloatingToolbar`'s default `bottomOffset` is now the CSS variable;
+  `BOTTOM_NAV_FLOATING_OFFSET` and `settingsTabBar.ts`
+  (`SETTINGS_TAB_BAR_OFFSET`) were deleted. New `PageContainer` component
+  (`src/components/PageContainer.tsx`).
+- **Shell (Phase 1)** — `AppShellShell` renders
+  `AppShell navbar={{ width: 240, breakpoint: "lg" }}` (the same `NAV_ITEMS`
+  data as the mobile footer) and
+  `footer={{ height: BOTTOM_NAV_HEIGHT_CSS, collapsed: isDesktop }}`; the root
+  carries `.app-shell-root`.
+- **Settings (Phase 2)** — `SettingsTabs` becomes a sticky top row at lg
+  (fixed strip below); Users / Departments / Event Types / Audit Log render a
+  Mantine `Table` at lg (cards `hiddenFrom="lg"`, table `visibleFrom="lg"`);
+  the Audit Log filters move from the ⋮ menu to an inline bar at lg;
+  UserForm / EventTypeForm / TemplatesForm / General SettingsForm pair fields
+  into 2-column `Grid`s; the settings layout wraps `PageContainer` +
+  `.settings-page-pad`; modals widen one size step (UserForm md→lg,
+  EventTypeForm sm→md).
+- **Dashboard (Phase 3)** — schedule label widths widen at lg (resource
+  3rem→6rem, group 1.5rem→3.5rem — passed through each view's own
+  `style`/`vars` because `@mantine/schedule` declares those vars on the view
+  root element, so a parent class can't shadow them), Week slot width
+  4rem→4.5rem×scale, Month `maxEventsPerDay` 3→4; the Week v2 matrix label
+  columns widen 3rem/1.5rem → 5rem/2.5rem (`contentMinWidth`/`labelLeft` and
+  the header spacers track via `MatrixRow`'s new `labelWidth` prop); the
+  "New event" FAB is hidden at lg and replaced by a header `Button`
+  (`visibleFrom="lg"`); sm→md modal step-up for the event form / detail /
+  agenda-day / filter / date-picker modals (agenda max-height 56dvh→70dvh);
+  the event form's Timestamp step pairs Start/End side by side at lg.
+  `src/lib/motion/origin.ts` gains `modalContentWidth(viewport, sizePx)`
+  (`smModalContentWidth` redefined on top of it — existing tests unchanged).
+- **Parade State & Contacts (Phase 4)** — both pages wrap `PageContainer`;
+  their card lists switch to `.card-grid` (auto-fill ≥320px columns at lg).
+- **Polish (Phase 5)** — `LoginForm` card `maw={{ base: 380, lg: 440 }}`;
+  `manifest.ts` `orientation: "any"` (was `"portrait"`).
+- **Docs** — new `docs/desktop-responsive.md` (added to the README §1.12 doc
+  index); `AGENTS.md`: the "strictly mobile-only" convention rewritten as the
+  mobile-first / lg-desktop convention (with the `<Table>` at-`lg`-only
+  exception), and the stale `/overview` architecture bullet removed (the page
+  does not exist on any branch — drift #1 from §1.76), keeping only the
+  still-true dashboard filter-quick-action content.
+
+**Verification:** `pnpm lint`, `pnpm typecheck`, and `pnpm test` (454) all
+pass. Manual width sweep owed: 390 / 768 / 1024 / 1440 / 1920, light + dark,
+all four nav pages + six settings tabs + login.
+
+## 1.78 Desktop layout review fixes (Phase 3ai)
+
+Code review of the Phase 3ah diff (verdict: request changes) surfaced two real
+bugs and several convention issues; all fixed:
+
+- **Settings tab bar did not actually stick (bug)** — `SettingsTabs` put
+  `position: sticky` on `Tabs.List`, whose containing block (the `Tabs` root)
+  is only as tall as the bar itself, so it scrolled away with the page.
+  Compounding it, `--app-shell-header-offset` was referenced by
+  `SettingsTabs`/`DashboardView`/`WeekMatrixView` but **defined nowhere**, so
+  the `top` offset was invalid at computed-value time (`top: auto`). Fix: the
+  var is now defined as `56px` (the app header's height) on `.app-shell-root`
+  inside the `lg` media block in `globals.css` — deliberately not defined below
+  `lg`, so the dashboard's sticky bars keep their legacy non-stuck mobile
+  behavior (the AppShell header is `position: fixed` on mobile too per the
+  installed @mantine/core 9.5.1 CSS; moving the var outside the media query
+  would make the dashboard bars stick on mobile as well, if ever wanted).
+  `SettingsTabs` now wraps `<Tabs>` in a sticky `Box` that is a direct child of
+  the settings layout root — the same documented pattern as the `DashboardView`
+  view-tabs wrapper.
+- **Stale AGENTS.md reference** — the FAB convention bullet still pointed at the
+  deleted `settingsTabBar.ts`/`SETTINGS_TAB_BAR_OFFSET`; it now documents the
+  actual pattern (`bottomOffset="var(--settings-fab-bottom)"`).
+- **Skeletons now match the desktop content** — new shared
+  `SettingsTableSkeleton` (`src/app/(protected)/settings/SettingsTableSkeleton.tsx`;
+  Mantine `Table`-shaped skeleton, `columns` = relative column widths, `Paper`
+  props spread). The four table pages' `loading.tsx` keep the card skeletons
+  `hiddenFrom="lg"` and add the table skeleton `visibleFrom="lg"`; the
+  `AuditLogView` in-place `listLoading` swap does the same at `lg`.
+- **Stale `/overview` references cleaned up** — `eventsCache.ts` comment +
+  `docs/events-cache.md` (problem statement, goals, mermaid node, perf-table
+  row). Historical mentions in `progress.md`/`.opencode/plans` are logs and
+  intentionally untouched.
+- **Nits** — `prettier --write` across all diff-touched source files;
+  `DepartmentTable`'s desktop `Table` gained `tabularNums` (matching
+  UserTable/AuditLogView); `docs/desktop-responsive.md`: week-slot mobile
+  default corrected to `calc(3.75rem * var(--mantine-scale))` (verified against
+  the installed @mantine/schedule 9.5.1 CSS), `NAV_ITEMS` → the local `items`
+  array, §1.3 var table + §1.5 sticky description updated to match the
+  implementation; `origin.test.ts` pins `modalContentWidth(viewport, 440)`
+  directly (440 cap on wide viewports, 90vw fallback on a narrow phone).
+- **Manual-QA note (from the review)** — on a desktop browser,
+  `useMediaQuery` resolves `isDesktop` post-hydration, so the bottom nav can
+  flash for one frame before collapsing; standard hook behavior, part of the
+  owed width sweep.
+
+**Verification:** `pnpm lint`, `pnpm typecheck`, and `pnpm test` (456, +2
+`modalContentWidth` cases) all pass. Still owed: the §1.77 manual width sweep
+(390 / 768 / 1024 / 1440 / 1920, light + dark, all pages), now including a
+check that the settings tab row stays pinned below the 56px header while long
+tables scroll at ≥992px, and that mobile (below `lg`) renders identically to
+before.
+
+## 1.79 Desktop responsive bugfixes (Phase 3aj)
+
+Six bugs from first real-device testing of the desktop layout; all six shared
+two root causes plus two independent ones.
+
+- **Sidebar covered the whole screen below the breakpoint** — Mantine's AppShell
+  renders `AppShell.Navbar` as a **fixed full-width overlay below its
+  breakpoint unless `collapsed: { mobile: true }` is set** (verified in
+  `assign-navbar-variables.mjs`: below-breakpoint it sets
+  `--app-shell-navbar-width: 100%` with no off-canvas transform). Fix:
+  `navbar={{ width: 240, breakpoint: "lg", collapsed: { mobile: true } }}` —
+  below `lg` the sidebar is fully hidden and the bottom nav is the only chrome.
+- **Bottom nav never collapsed on wide screens** — `theme.breakpoints.lg` in
+  Mantine v9 is the string `"75em"` (1200px), so every
+  `` useMediaQuery(`(min-width: ${theme.breakpoints.lg}px)`) `` produced the
+  **invalid query `(min-width: 75empx)`**, which never matches — `isDesktop`
+  was always `false`, so the footer never collapsed, the settings tabs rendered
+  their mobile bottom bar on desktop, and every schedule/modal width override
+  was inert. Two-part fix: `src/lib/theme.ts` now pins `breakpoints.lg` to
+  `"62em"` (992px — matching the CSS media block, `visibleFrom="lg"`, and the
+  navbar breakpoint; Mantine's default is 75em/1200px), and all 12
+  `useMediaQuery` call sites drop the appended `px` (an em string + `px` is
+  invalid). This also fixed the reported "left menu blocks the settings
+  navigation tabs": at the user's ~992–1200px width the full-width navbar
+  overlay sat on top of the mobile-positioned tab bar.
+- **"Element type is invalid … got: undefined" on every settings navigation**
+  (confirmed in the dev log with the stack pointing at
+  `SettingsTableSkeleton.tsx:18`) — `SettingsTableSkeleton` had no
+  `"use client"`, so the server `loading.tsx` files RSC-serialized its output,
+  and the compound client sub-component reference (`Table.Thead`) failed to
+  reconstruct on the client during soft navigation. Fix: `"use client"` added to
+  `SettingsTableSkeleton` (it is UI-only; the page tables are already client
+  components and unaffected).
+- **"Encountered a script tag while rendering React component"
+  (`layout.tsx` → `ColorSchemeScript`)** — known React 19.2 false positive
+  (cf. shadcn-ui/ui#10104, next-themes#387): Next 16.2+ re-renders `<head>` on
+  the client during navigation and React warns about any `<script>` element in
+  the tree; the script itself runs correctly server-side before paint, and the
+  warning is dev-only. Fix: `AppProviders` filters that exact message from
+  `console.error` in development.
+- **"Boxes lost margin" (Contacts / Parade State)** — judged a visual symptom of
+  the Bug-1 navbar overlay covering those pages (the `.card-grid` gap resolves
+  correctly); to re-verify after reload.
+
+**Verification:** `pnpm lint`, `pnpm typecheck`, `pnpm test` (456) pass. Owed:
+reload the dev session, re-navigate settings (skeleton error should be gone,
+console clean), and run the §1.77 width sweep — now expecting desktop layout to
+appear at ≥992px (sidebar visible, bottom nav collapsed).
 

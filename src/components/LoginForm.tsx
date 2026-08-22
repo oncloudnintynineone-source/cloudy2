@@ -32,7 +32,7 @@ export function LoginForm() {
 
   return (
     <Center mih="100dvh">
-      <Paper withBorder radius="md" p="lg" shadow="sm" w="100%" maw={380}>
+      <Paper withBorder radius="md" p="lg" shadow="sm" w="100%" maw={{ base: 380, lg: 440 }}>
         <form onSubmit={onSubmit}>
           <Stack>
             <div>

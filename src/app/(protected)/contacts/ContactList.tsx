@@ -5,6 +5,7 @@ import {
   ActionIcon,
   Anchor,
   Badge,
+  Box,
   Button,
   Group,
   Modal,
@@ -102,7 +103,7 @@ export function ContactList({ users, nameTemplate }: ContactListProps) {
           No contacts found.
         </Text>
       ) : (
-        <Stack gap="sm">
+        <Box component="div" className="card-grid">
           {filtered.map((user) => (
             <Paper key={user.id} withBorder p="sm">
               <Stack gap={0}>
@@ -148,7 +149,7 @@ export function ContactList({ users, nameTemplate }: ContactListProps) {
               </Stack>
             </Paper>
           ))}
-        </Stack>
+        </Box>
       )}
 
       <FloatingToolbar>
@@ -157,8 +158,16 @@ export function ContactList({ users, nameTemplate }: ContactListProps) {
         </FloatingActionButton>
       </FloatingToolbar>
 
-      <Modal opened={confirmOpened} onClose={closeConfirm} title="Export contacts" centered size="sm">
-        <Text>Download {users.length} contact{users.length === 1 ? "" : "s"} as a .vcf file?</Text>
+      <Modal
+        opened={confirmOpened}
+        onClose={closeConfirm}
+        title="Export contacts"
+        centered
+        size="sm"
+      >
+        <Text>
+          Download {users.length} contact{users.length === 1 ? "" : "s"} as a .vcf file?
+        </Text>
         <Group justify="flex-end" mt="md">
           <Button variant="default" onClick={closeConfirm}>
             Cancel

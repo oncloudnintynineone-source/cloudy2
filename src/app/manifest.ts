@@ -7,7 +7,7 @@ export default function manifest(): MetadataRoute.Manifest {
     description: "Cloud Calendar Movement",
     start_url: "/",
     display: "standalone",
-    orientation: "portrait",
+    orientation: "any",
     background_color: "#FBC02D",
     theme_color: "#0D47A1",
     icons: [

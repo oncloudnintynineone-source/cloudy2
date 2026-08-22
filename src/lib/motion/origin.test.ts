@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  modalContentWidth,
   scaleFromRect,
   smModalContentWidth,
   transformOriginFromRect,
@@ -13,17 +14,13 @@ describe("transformOriginFromRect", () => {
     // Viewport 390x844 → center (195, 422). A chip centered on-screen maps to
     // the content center (50% 50%).
     const centerChip = { left: 145, top: 400, width: 100, height: 44 };
-    expect(transformOriginFromRect(centerChip, viewport)).toBe(
-      "calc(50% + 0px) calc(50% + 0px)",
-    );
+    expect(transformOriginFromRect(centerChip, viewport)).toBe("calc(50% + 0px) calc(50% + 0px)");
   });
 
   it("offsets from the viewport center for off-center targets", () => {
     // Chip near the top-right: center (350, 60) → offsets +155, -362.
     const chip = { left: 300, top: 40, width: 100, height: 40 };
-    expect(transformOriginFromRect(chip, viewport)).toBe(
-      "calc(50% + 155px) calc(50% + -362px)",
-    );
+    expect(transformOriginFromRect(chip, viewport)).toBe("calc(50% + 155px) calc(50% + -362px)");
   });
 
   it("returns the fallback when no rect is available", () => {
@@ -39,6 +36,16 @@ describe("smModalContentWidth", () => {
 
   it("uses 90% of a narrow phone viewport", () => {
     expect(smModalContentWidth(viewport)).toBe(351);
+  });
+});
+
+describe("modalContentWidth", () => {
+  it("caps at 440px (md) for wide viewports", () => {
+    expect(modalContentWidth({ w: 1200, h: 800 }, 440)).toBe(440);
+  });
+
+  it("falls back to 90vw on a narrow phone", () => {
+    expect(modalContentWidth(viewport, 440)).toBe(351);
   });
 });
 

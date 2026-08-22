@@ -1,6 +1,16 @@
 "use client";
 
-import { AppShell, Box, Group, Text, UnstyledButton } from "@mantine/core";
+import {
+  AppShell,
+  Box,
+  Group,
+  NavLink,
+  Stack,
+  Text,
+  UnstyledButton,
+  useMantineTheme,
+} from "@mantine/core";
+import { useMediaQuery } from "@mantine/hooks";
 import {
   IconAddressBook,
   IconCalendarMonth,
@@ -92,11 +102,25 @@ export function AppShellShell({
   // relaunch from the start URL can land back here — read by / at launch.
   useRememberedPage(pathname);
 
+  const theme = useMantineTheme();
+  // Desktop = the theme's lg breakpoint: the bottom nav collapses and a left
+  // sidebar takes over navigation (AppShell navbar, hidden below the
+  // breakpoint). Both read the same theme value so they can't drift.
+  const isDesktop = useMediaQuery(`(min-width: ${theme.breakpoints.lg})`);
+
   const items: NavItem[] =
-    role === "admin" ? [CALENDAR, PARADE_STATE, CONTACTS, SETTINGS] : [CALENDAR, PARADE_STATE, CONTACTS];
+    role === "admin"
+      ? [CALENDAR, PARADE_STATE, CONTACTS, SETTINGS]
+      : [CALENDAR, PARADE_STATE, CONTACTS];
 
   return (
-    <AppShell header={{ height: 56 }} footer={{ height: BOTTOM_NAV_HEIGHT_CSS }} padding="md">
+    <AppShell
+      header={{ height: 56 }}
+      navbar={{ width: 240, breakpoint: "lg", collapsed: { mobile: true } }}
+      footer={{ height: BOTTOM_NAV_HEIGHT_CSS, collapsed: isDesktop }}
+      padding="md"
+      className="app-shell-root"
+    >
       <AppShell.Header
         style={{
           background: "var(--mantine-color-brand-7)",
@@ -113,6 +137,27 @@ export function AppShellShell({
           </Group>
         </Group>
       </AppShell.Header>
+
+      <AppShell.Navbar
+        p="md"
+        style={{
+          background: "var(--mantine-color-body)",
+          borderRight: "1px solid var(--mantine-color-default-border)",
+        }}
+      >
+        <Stack gap="xs">
+          {items.map((item) => (
+            <NavLink
+              key={item.href}
+              component={Link}
+              href={item.href}
+              label={item.label}
+              leftSection={item.icon}
+              active={item.matches(pathname)}
+            />
+          ))}
+        </Stack>
+      </AppShell.Navbar>
 
       <AppShell.Main>{children}</AppShell.Main>
 

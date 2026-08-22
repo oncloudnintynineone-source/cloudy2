@@ -216,6 +216,7 @@ reachable from the project root:
 | [`docs/google-integration.md`](docs/google-integration.md) | Google integration layer — service-account config, client + stub, error mapping, all calendar/event/ACL methods |
 | [`docs/roster-sharing.md`](docs/roster-sharing.md) | Roster & calendar sharing — flat org model, Google-only ACLs, reconcile-on-read and reconcile-on-write |
 | [`docs/loading-transitions.md`](docs/loading-transitions.md) | Loading & transitions — skeleton-only loading, minimum hold, reveal fade, one-shot URL params |
+| [`docs/desktop-responsive.md`](docs/desktop-responsive.md) | Desktop responsive layout — `lg` breakpoint, sidebar shell, tables/card-grids, modal & form widths |
 
 `AGENTS.md` (agent/dev conventions) and the historical plans under `.opencode/plans/` are
 working documents, not end-user documentation.

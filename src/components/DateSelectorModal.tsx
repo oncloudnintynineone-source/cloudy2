@@ -2,7 +2,8 @@
 
 import dayjs from "dayjs";
 import { useState } from "react";
-import { ActionIcon, Modal, Text } from "@mantine/core";
+import { ActionIcon, Modal, Text, useMantineTheme } from "@mantine/core";
+import { useMediaQuery } from "@mantine/hooks";
 import { MobileMonthView } from "@mantine/schedule";
 import { IconChevronLeft, IconChevronRight } from "@tabler/icons-react";
 
@@ -14,6 +15,8 @@ interface DateSelectorModalProps {
 }
 
 export function DateSelectorModal({ opened, date, onPick, onClose }: DateSelectorModalProps) {
+  const theme = useMantineTheme();
+  const isDesktop = useMediaQuery(`(min-width: ${theme.breakpoints.lg})`);
   const [pickerDate, setPickerDate] = useState(date);
   // Re-seed the displayed month every time the modal opens (render-phase
   // reset, same pattern as the agenda date in DashboardView).
@@ -29,7 +32,13 @@ export function DateSelectorModal({ opened, date, onPick, onClose }: DateSelecto
     setPickerDate(dayjs(pickerDate).add(delta, "month").format("YYYY-MM-DD"));
 
   return (
-    <Modal opened={opened} onClose={onClose} title="Select date" centered size="sm">
+    <Modal
+      opened={opened}
+      onClose={onClose}
+      title="Select date"
+      centered
+      size={isDesktop ? "md" : "sm"}
+    >
       <MobileMonthView
         date={pickerDate}
         selectedDate={date}

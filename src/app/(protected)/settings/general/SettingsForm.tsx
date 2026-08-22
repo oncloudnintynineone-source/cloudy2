@@ -1,12 +1,16 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { Button, Group, NumberInput, Paper, Stack, TextInput } from "@mantine/core";
+import { Button, Grid, Group, NumberInput, Paper, Stack, TextInput } from "@mantine/core";
 import { useForm } from "@mantine/form";
 import { notifications } from "@mantine/notifications";
 
 import { CONTENT_ENTER_CLASS } from "@/lib/loading/contentEnter";
-import { updateAuditLogRetention, updateKeyword, type SettingsActionResult } from "@/lib/settings/actions";
+import {
+  updateAuditLogRetention,
+  updateKeyword,
+  type SettingsActionResult,
+} from "@/lib/settings/actions";
 import {
   AUDIT_RETENTION_MAX,
   AUDIT_RETENTION_MIN,
@@ -66,51 +70,55 @@ export function SettingsForm({ keyword, retentionDays }: SettingsFormProps) {
   });
 
   return (
-    <Stack className={CONTENT_ENTER_CLASS}>
-      <Paper withBorder p="sm">
-        <form onSubmit={onSubmitKeyword}>
-          <Stack>
-            <TextInput
-              label="User Login Keyword"
-              description="Users sign in as their 8-digit phone followed by the keyword — e.g. 81234567leave."
-              placeholder="leave"
-              {...keywordForm.getInputProps("keyword")}
-            />
-            <Group justify="flex-end">
-              <Button
-                type="submit"
-                loading={keywordForm.submitting}
-                loaderProps={BUTTON_LOADER_PROPS}
-              >
-                Save
-              </Button>
-            </Group>
-          </Stack>
-        </form>
-      </Paper>
-      <Paper withBorder p="sm">
-        <form onSubmit={onSubmitRetention}>
-          <Stack>
-            <NumberInput
-              label="Audit Log Retention"
-              description="How many days of audit log entries to keep. Older entries are purged automatically when the log is viewed."
-              min={AUDIT_RETENTION_MIN}
-              max={AUDIT_RETENTION_MAX}
-              allowNegative={false}
-              {...retentionForm.getInputProps("retentionDays")}
-            />
-            <Group justify="flex-end">
-              <Button
-                type="submit"
-                loading={retentionForm.submitting}
-                loaderProps={BUTTON_LOADER_PROPS}
-              >
-                Save
-              </Button>
-            </Group>
-          </Stack>
-        </form>
-      </Paper>
-    </Stack>
+    <Grid className={CONTENT_ENTER_CLASS} gap="md">
+      <Grid.Col span={{ base: 12, lg: 6 }}>
+        <Paper withBorder p="sm" style={{ height: "100%" }}>
+          <form onSubmit={onSubmitKeyword}>
+            <Stack>
+              <TextInput
+                label="User Login Keyword"
+                description="Users sign in as their 8-digit phone followed by the keyword — e.g. 81234567leave."
+                placeholder="leave"
+                {...keywordForm.getInputProps("keyword")}
+              />
+              <Group justify="flex-end">
+                <Button
+                  type="submit"
+                  loading={keywordForm.submitting}
+                  loaderProps={BUTTON_LOADER_PROPS}
+                >
+                  Save
+                </Button>
+              </Group>
+            </Stack>
+          </form>
+        </Paper>
+      </Grid.Col>
+      <Grid.Col span={{ base: 12, lg: 6 }}>
+        <Paper withBorder p="sm" style={{ height: "100%" }}>
+          <form onSubmit={onSubmitRetention}>
+            <Stack>
+              <NumberInput
+                label="Audit Log Retention"
+                description="How many days of audit log entries to keep. Older entries are purged automatically when the log is viewed."
+                min={AUDIT_RETENTION_MIN}
+                max={AUDIT_RETENTION_MAX}
+                allowNegative={false}
+                {...retentionForm.getInputProps("retentionDays")}
+              />
+              <Group justify="flex-end">
+                <Button
+                  type="submit"
+                  loading={retentionForm.submitting}
+                  loaderProps={BUTTON_LOADER_PROPS}
+                >
+                  Save
+                </Button>
+              </Group>
+            </Stack>
+          </form>
+        </Paper>
+      </Grid.Col>
+    </Grid>
   );
 }

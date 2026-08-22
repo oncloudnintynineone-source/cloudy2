@@ -39,9 +39,18 @@ export function transformOriginFromRect(
   return `calc(50% + ${dx}px) calc(50% + ${dy}px)`;
 }
 
+/**
+ * Content width of a centered fixed-size modal: the smaller of the modal's
+ * size (Mantine defaults: sm 380px, md 440px, lg 620px at the default scale)
+ * and 90vw.
+ */
+export function modalContentWidth(viewport: ViewportSize, sizePx: number): number {
+  return Math.min(sizePx, viewport.w * 0.9);
+}
+
 /** Content width of a centered `size="sm"` modal (min of 380px and 90vw). */
 export function smModalContentWidth(viewport: ViewportSize): number {
-  return Math.min(380, viewport.w * 0.9);
+  return modalContentWidth(viewport, 380);
 }
 
 /**

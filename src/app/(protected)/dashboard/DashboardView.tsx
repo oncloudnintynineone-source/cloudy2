@@ -29,8 +29,9 @@ import {
   Text,
   Tooltip,
   UnstyledButton,
+  useMantineTheme,
 } from "@mantine/core";
-import { useDisclosure, useDrag } from "@mantine/hooks";
+import { useDisclosure, useDrag, useMediaQuery } from "@mantine/hooks";
 import {
   AgendaView,
   MonthView,
@@ -86,8 +87,8 @@ import type { TimeOption } from "@/lib/events/timeOptions";
 import { CONTENT_ENTER_CLASS, useContentEnter } from "@/lib/loading/contentEnter";
 import { useMinSkeletonHold } from "@/lib/loading/minHoldLoading";
 import {
+  modalContentWidth,
   scaleFromRect,
-  smModalContentWidth,
   transformOriginFromRect,
   type Rect,
 } from "@/lib/motion/origin";
@@ -188,13 +189,25 @@ const WEEK_DAY_WIDTH_PX = 24 * 60;
  * tracks it via `onScrollPositionChange`) to the grid's left edge, styled
  * like Mantine's own day labels (today filled/primary, weekends red).
  */
-function WeekDayLabelStrip({ day, hasGroups }: { day: string; hasGroups: boolean }) {
+function WeekDayLabelStrip({
+  day,
+  hasGroups,
+  resourceLabelWidth,
+  groupLabelWidth,
+}: {
+  day: string;
+  hasGroups: boolean;
+  resourceLabelWidth: string;
+  groupLabelWidth: string;
+}) {
   const dayObj = dayjs(day);
   const isToday = dayObj.isSame(dayjs(), "day");
   const isWeekend = dayObj.day() === 0 || dayObj.day() === 6;
   // The width of the sticky corner/label columns the grid scrolls beneath,
   // matching the ResourcesWeekView sizing overrides on the view itself.
-  const leftWidth = hasGroups ? "calc(1.5rem + 3rem)" : "3rem";
+  const leftWidth = hasGroups
+    ? `calc(${groupLabelWidth} + ${resourceLabelWidth})`
+    : resourceLabelWidth;
   return (
     <Box
       component="div"
@@ -275,6 +288,24 @@ export function DashboardView({
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const [isPending, startTransition] = useTransition();
+
+  const theme = useMantineTheme();
+  // Desktop = the theme's lg breakpoint: schedule label columns widen, the
+  // week view's hour slots grow, modals get a wider size, and the "New event"
+  // FAB moves into the nav row. The schedule views declare their label/slot
+  // widths on the view root (inline var / styles-API var), so the override
+  // lives here — a parent CSS class can't shadow the root's own declaration.
+  const isDesktop = useMediaQuery(`(min-width: ${theme.breakpoints.lg})`);
+
+  // Label-column widths for the schedule views: mobile-narrowed 48px/24px for
+  // phones, comfortable 96px/56px on desktop.
+  const scheduleLabelWidths = isDesktop
+    ? { resource: "6rem", group: "3.5rem" }
+    : { resource: "3rem", group: "1.5rem" };
+  // The week view's 60px/hour slots are phone-tuned; 72px/hour gives event
+  // banners desktop-readable width. The day view keeps Mantine's 80px default
+  // (a 24h day is then exactly 1920px — a full desktop screen).
+  const weekSlotWidth = isDesktop ? "calc(4.5rem * var(--mantine-scale))" : undefined;
 
   // The `?edit=` deep link (from a Google Calendar "Edit:" note) resolves its
   // target event synchronously at mount — the server has already fetched the
@@ -439,7 +470,9 @@ export function DashboardView({
     w: typeof window === "undefined" ? 0 : window.innerWidth,
     h: typeof window === "undefined" ? 0 : window.innerHeight,
   };
-  const contentWidth = smModalContentWidth(viewport);
+  // The agenda-day and event-form modals widen sm (380px) -> md (440px) at lg,
+  // so the shrink-to-target scale must use the matching content width.
+  const contentWidth = modalContentWidth(viewport, isDesktop ? 440 : 380);
   const agendaTransitionProps = {
     transition: {
       in: { opacity: 1, transform: "scale(1)" },
@@ -824,9 +857,7 @@ export function DashboardView({
     // Pinning moves the active tab to the front (last pinned = leftmost);
     // unpinning drops it back into the default tab order. Pure display order —
     // no navigation, so no skeleton and no `_fresh` marker.
-    setPinned(
-      pinned.includes(view) ? pinned.filter((mode) => mode !== view) : [view, ...pinned],
-    );
+    setPinned(pinned.includes(view) ? pinned.filter((mode) => mode !== view) : [view, ...pinned]);
   }
 
   function clearFilters() {
@@ -987,7 +1018,11 @@ export function DashboardView({
                   <Group gap="xs" justify="center" wrap="nowrap">
                     {meta.icon}
                     {pinned.includes(mode) && <IconStarFilled size={14} />}
-                    <Text fw={600} size="sm" style={meta.nowrap ? { whiteSpace: "nowrap" } : undefined}>
+                    <Text
+                      fw={600}
+                      size="sm"
+                      style={meta.nowrap ? { whiteSpace: "nowrap" } : undefined}
+                    >
                       {meta.label}
                     </Text>
                   </Group>
@@ -1045,6 +1080,18 @@ export function DashboardView({
         >
           <IconChevronRight size={18} />
         </ActionIcon>
+        {/* Desktop: the "New event" FAB lives in the nav row instead of the
+            bottom corner (the FAB is hidden at lg, below). */}
+        <Button
+          visibleFrom="lg"
+          leftSection={<IconPlus size={16} />}
+          disabled={!googleConfigured}
+          onClick={(e) =>
+            openCreate(isAgenda ? headerDate : today, e.currentTarget.getBoundingClientRect())
+          }
+        >
+          New event
+        </Button>
         <Menu
           shadow="md"
           width={200}
@@ -1154,6 +1201,8 @@ export function DashboardView({
           <WeekDayLabelStrip
             day={week[weekDayIndex]}
             hasGroups={scheduleResources.groups !== undefined}
+            resourceLabelWidth={scheduleLabelWidths.resource}
+            groupLabelWidth={scheduleLabelWidths.group}
           />
         )}
         {gridLoading ? (
@@ -1171,7 +1220,7 @@ export function DashboardView({
             date={`${month}-01 00:00:00`}
             events={events}
             withHeader={false}
-            maxEventsPerDay={3}
+            maxEventsPerDay={isDesktop ? 4 : 3}
             onEventClick={(event, e) => {
               setDetailOriginRect(e.currentTarget.getBoundingClientRect());
               setDetailEvent(event as unknown as CalendarEvent);
@@ -1275,11 +1324,17 @@ export function DashboardView({
             // The resource-label column width is not a typed ResourcesWeekView
             // var, so it is set as a CSS variable on the root (cascades to the
             // all-day sticky labels and the time-indicator offset the same way
-            // the Day view's typed var does).
-            style={{ "--resources-week-view-resource-label-width": "3rem" } as CSSProperties}
+            // the Day view's typed var does). Desktop widens the columns and
+            // the hour slots (see scheduleLabelWidths/weekSlotWidth above).
+            style={
+              {
+                "--resources-week-view-resource-label-width": scheduleLabelWidths.resource,
+                ...(weekSlotWidth ? { "--resources-week-view-slot-width": weekSlotWidth } : {}),
+              } as CSSProperties
+            }
             vars={() => ({
               resourcesWeekView: {
-                "--resources-week-view-group-label-width": "1.5rem",
+                "--resources-week-view-group-label-width": scheduleLabelWidths.group,
               },
             })}
             styles={{
@@ -1322,8 +1377,8 @@ export function DashboardView({
             }}
             vars={() => ({
               resourcesDayView: {
-                "--resources-day-view-resource-label-width": "3rem",
-                "--resources-day-view-group-label-width": "1.5rem",
+                "--resources-day-view-resource-label-width": scheduleLabelWidths.resource,
+                "--resources-day-view-group-label-width": scheduleLabelWidths.group,
               },
             })}
             styles={{
@@ -1420,7 +1475,7 @@ export function DashboardView({
           )
         }
         centered
-        size="sm"
+        size={isDesktop ? "md" : "sm"}
         transitionProps={agendaTransitionProps}
       >
         {agendaViewDate && (
@@ -1430,7 +1485,7 @@ export function DashboardView({
               style={{
                 touchAction: "pan-y",
                 overflowY: "auto",
-                maxHeight: "56dvh",
+                maxHeight: isDesktop ? "70dvh" : "56dvh",
                 overscrollBehavior: "contain",
               }}
               onClickCapture={(event) => {
@@ -1511,7 +1566,7 @@ export function DashboardView({
         onClose={closeForm}
         keepMounted
         centered
-        size="sm"
+        size={isDesktop ? "md" : "sm"}
         zIndex={250}
         transitionProps={formTransitionProps}
       >
@@ -1597,19 +1652,22 @@ export function DashboardView({
       />
 
       {formState === null && (
-        <FloatingToolbar>
-          <FloatingActionButton
-            aria-label="New event"
-            // The Agenda tab prefills the day being viewed (like the day
-            // modal's button); the other views keep "today".
-            onClick={(e) =>
-              openCreate(isAgenda ? headerDate : today, e.currentTarget.getBoundingClientRect())
-            }
-            disabled={!googleConfigured}
-          >
-            <IconPlus size={FAB_ICON_SIZE} />
-          </FloatingActionButton>
-        </FloatingToolbar>
+        // Mobile-only: at lg the "New event" button in the nav row replaces the FAB.
+        <Box hiddenFrom="lg">
+          <FloatingToolbar>
+            <FloatingActionButton
+              aria-label="New event"
+              // The Agenda tab prefills the day being viewed (like the day
+              // modal's button); the other views keep "today".
+              onClick={(e) =>
+                openCreate(isAgenda ? headerDate : today, e.currentTarget.getBoundingClientRect())
+              }
+              disabled={!googleConfigured}
+            >
+              <IconPlus size={FAB_ICON_SIZE} />
+            </FloatingActionButton>
+          </FloatingToolbar>
+        </Box>
       )}
     </Stack>
   );

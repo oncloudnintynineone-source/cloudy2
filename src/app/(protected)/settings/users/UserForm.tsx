@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useForm } from "@mantine/form";
-import { Badge, Button, Group, Modal, Stack, Text, TextInput } from "@mantine/core";
+import { Badge, Button, Grid, Group, Modal, Stack, Text, TextInput } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
 
@@ -118,21 +118,39 @@ export function UserForm({ user, departments, onDone }: UserFormProps) {
   return (
     <form onSubmit={onSubmit}>
       <Stack>
-        <TextInput label="Name" required placeholder="Full name" {...form.getInputProps("name")} />
-        <TextInput
-          label="Shortname"
-          required
-          placeholder="e.g. ALICE"
-          {...form.getInputProps("shortname")}
-        />
-        <TextInput
-          label="Phone"
-          required
-          placeholder="8-digit number"
-          {...form.getInputProps("phone")}
-        />
-        <TextInput label="Email" placeholder="Optional" {...form.getInputProps("email")} />
-        <TextInput label="Birthday" type="date" {...form.getInputProps("birthday")} />
+        {/* At lg the modal is wide enough for a two-column field grid. */}
+        <Grid gap="md">
+          <Grid.Col span={{ base: 12, lg: 6 }}>
+            <TextInput
+              label="Name"
+              required
+              placeholder="Full name"
+              {...form.getInputProps("name")}
+            />
+          </Grid.Col>
+          <Grid.Col span={{ base: 12, lg: 6 }}>
+            <TextInput
+              label="Shortname"
+              required
+              placeholder="e.g. ALICE"
+              {...form.getInputProps("shortname")}
+            />
+          </Grid.Col>
+          <Grid.Col span={{ base: 12, lg: 6 }}>
+            <TextInput
+              label="Phone"
+              required
+              placeholder="8-digit number"
+              {...form.getInputProps("phone")}
+            />
+          </Grid.Col>
+          <Grid.Col span={{ base: 12, lg: 6 }}>
+            <TextInput label="Email" placeholder="Optional" {...form.getInputProps("email")} />
+          </Grid.Col>
+          <Grid.Col span={{ base: 12, lg: 6 }}>
+            <TextInput label="Birthday" type="date" {...form.getInputProps("birthday")} />
+          </Grid.Col>
+        </Grid>
         {/* Role as toggleable badges, same pattern as Department: the two
             options are always visible and tapping a badge never focuses an
             input, so it can't raise the mobile keyboard. Role is required,

@@ -32,6 +32,18 @@ export const theme = createTheme({
     brand,
     accent,
   },
+  // The app's "desktop" layout (sidebar, tables, card grids) kicks in at 992px
+  // — Mantine's `md`. `lg` is pinned to the same 62em so every `lg:` reference
+  // (responsive props, `visibleFrom="lg"`, the AppShell navbar breakpoint, and
+  // the `useMediaQuery` calls) stays consistent with the `@media (min-width:
+  // 62em)` block in globals.css. Mantine's default `lg` is 75em (1200px).
+  breakpoints: {
+    xs: "36em",
+    sm: "48em",
+    md: "62em",
+    lg: "62em",
+    xl: "88em",
+  },
   defaultRadius: "md",
   respectReducedMotion: true,
   components: {

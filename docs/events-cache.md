@@ -24,8 +24,8 @@ in `progress.md` §1.42; this is the full reference.
 
 ## 1.1 Problem
 
-Both authenticated calendar pages — `/dashboard` and `/overview` — rendered by asking
-Google Calendar for events **on every server render**:
+The dashboard (`/dashboard`) rendered by asking Google Calendar for events **on every
+server render**:
 
 - `fetchMonthEvents()` (`src/lib/events/queries.ts`) called `integration.listEvents()`
   once per selected department calendar, **serially**, for the whole month.
@@ -33,7 +33,6 @@ Google Calendar for events **on every server render**:
   calendar (each a network call to the Google API, often hundreds of milliseconds).
 - The result was masked by the loading skeleton: users waited on the Google fan-out with
   nothing rendered.
-- The same uncached fan-out ran independently on `/dashboard` **and** `/overview`.
 - There was no caching at all: no HTTP cache, no data cache, and the service worker
   (`src/app/sw.ts`) deliberately runs `NetworkOnly` for same-origin data, because event
   data "can never be stale".
@@ -46,7 +45,7 @@ Google Calendar for events **on every server render**:
 - In-app create/edit/delete appears immediately to the mutating user on the same instance,
   and everywhere else within the fresh window (see §1.6).
 - Out-of-band edits made directly in Google Calendar converge within a bounded window.
-- One cached entry serves every user, filter combination, and both pages.
+- One cached entry serves every user and filter combination.
 - The shared layer (L2 Postgres) is consistent across serverless instances and survives
   restarts; the fast layer (L1) is per-instance and eventually consistent (see §1.6 / §1.7.2).
 
@@ -64,7 +63,7 @@ Google Calendar for events **on every server render**:
 ```mermaid
 flowchart LR
     subgraph RSC["Server render (per request)"]
-        D["/dashboard or /overview page"]
+        D["/dashboard page"]
         FM["fetchMonthEvents()<br/>(queries.ts)"]
     end
     subgraph CACHE["Layered events cache (eventsCache.ts)"]
@@ -92,7 +91,7 @@ The central design decision: **filters are applied after the fetch.** `fetchMont
 reads the full month from the cache and only then narrows by calendar, event type, and
 user (`parseEventType`, `parseEventPeople`, `eventMatchesUserFilter`). Because of that,
 the cache key is independent of every filter — a single entry per `(googleCalendarId,
-month)` serves all users and all filter combinations on both pages.
+month)` serves all users and all filter combinations.
 
 ## 1.4 Cache key & data model
 
@@ -410,7 +409,6 @@ Calendar, after the layered optimization:
 | Page                          | Before caching | DB-only cache | Layered cache (current) |
 | ----------------------------- | -------------- | ------------- | ----------------------- |
 | `/dashboard` warm hit         | ~1.0–1.9s      | ~1.0s         | **~0.35–0.46s**         |
-| `/overview` warm hit          | ~0.75s         | ~0.75s        | **~0.29s**              |
 
 Where the remaining time goes (pre-existing app floor, unchanged by the cache):
 

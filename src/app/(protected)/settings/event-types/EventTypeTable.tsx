@@ -2,14 +2,13 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Badge, Group, Modal, Paper, Stack, Text } from "@mantine/core";
+import { Badge, Group, Modal, Paper, Stack, Table, Text, useMantineTheme } from "@mantine/core";
 
-import { useDisclosure } from "@mantine/hooks";
+import { useDisclosure, useMediaQuery } from "@mantine/hooks";
 import { IconPlus } from "@tabler/icons-react";
 
 import type { EventType } from "@/db/schema";
 import { FAB_ICON_SIZE, FloatingActionButton, FloatingToolbar } from "@/components/FloatingToolbar";
-import { SETTINGS_TAB_BAR_OFFSET } from "../settingsTabBar";
 import { LOCATION_POLICY_LABELS, normalizeLocationPolicy } from "@/lib/events/locationPolicy";
 import {
   TIME_OPTION_LABELS,
@@ -25,6 +24,8 @@ interface EventTypeTableProps {
 
 export function EventTypeTable({ types }: EventTypeTableProps) {
   const router = useRouter();
+  const theme = useMantineTheme();
+  const isDesktop = useMediaQuery(`(min-width: ${theme.breakpoints.lg})`);
   const [formOpened, { open: openForm, close: closeForm }] = useDisclosure(false);
   const [editing, setEditing] = useState<EventType | null>(null);
 
@@ -45,36 +46,93 @@ export function EventTypeTable({ types }: EventTypeTableProps) {
           No event types yet.
         </Text>
       ) : (
-        <Stack gap="sm">
-          {types.map((eventType) => (
-            <Paper
-              key={eventType.id}
-              withBorder
-              p="sm"
-              onClick={() => openEdit(eventType)}
-              style={{ cursor: "pointer" }}
-            >
-              <Stack gap={0}>
-                <Text fw={600}>{eventType.name}</Text>
-                <Group gap="xs" wrap="wrap">
-                  {eventType.shortname ? (
+        <>
+          {/* Mobile: card list */}
+          <Stack gap="sm" hiddenFrom="lg">
+            {types.map((eventType) => (
+              <Paper
+                key={eventType.id}
+                withBorder
+                p="sm"
+                onClick={() => openEdit(eventType)}
+                style={{ cursor: "pointer" }}
+              >
+                <Stack gap={0}>
+                  <Text fw={600}>{eventType.name}</Text>
+                  <Group gap="xs" wrap="wrap">
+                    {eventType.shortname ? (
+                      <Badge size="sm" variant="light" color="accent">
+                        {eventType.shortname}
+                      </Badge>
+                    ) : null}
+                    {resolveTimeOptions(normalizeTimeOptions(eventType.timeOptions)).map(
+                      (option) => (
+                        <Badge key={option} size="sm" variant="light" color="gray">
+                          {TIME_OPTION_LABELS[option]}
+                        </Badge>
+                      ),
+                    )}
                     <Badge size="sm" variant="light" color="accent">
-                      {eventType.shortname}
+                      {LOCATION_POLICY_LABELS[normalizeLocationPolicy(eventType.locationPolicy)]}
                     </Badge>
-                  ) : null}
-                  {resolveTimeOptions(normalizeTimeOptions(eventType.timeOptions)).map((option) => (
-                    <Badge key={option} size="sm" variant="light" color="gray">
-                      {TIME_OPTION_LABELS[option]}
-                    </Badge>
-                  ))}
-                  <Badge size="sm" variant="light" color="accent">
-                    {LOCATION_POLICY_LABELS[normalizeLocationPolicy(eventType.locationPolicy)]}
-                  </Badge>
-                </Group>
-              </Stack>
-            </Paper>
-          ))}
-        </Stack>
+                  </Group>
+                </Stack>
+              </Paper>
+            ))}
+          </Stack>
+
+          {/* Desktop: data table */}
+          <Paper withBorder visibleFrom="lg">
+            <Table withRowBorders={false} highlightOnHover>
+              <Table.Thead>
+                <Table.Tr>
+                  <Table.Th>Name</Table.Th>
+                  <Table.Th>Acronym</Table.Th>
+                  <Table.Th>Time options</Table.Th>
+                  <Table.Th>Location policy</Table.Th>
+                </Table.Tr>
+              </Table.Thead>
+              <Table.Tbody>
+                {types.map((eventType) => (
+                  <Table.Tr
+                    key={eventType.id}
+                    onClick={() => openEdit(eventType)}
+                    style={{ cursor: "pointer" }}
+                  >
+                    <Table.Td>
+                      <Text fw={600}>{eventType.name}</Text>
+                    </Table.Td>
+                    <Table.Td>
+                      {eventType.shortname ? (
+                        <Badge size="sm" variant="light" color="accent">
+                          {eventType.shortname}
+                        </Badge>
+                      ) : (
+                        <Text c="dimmed">—</Text>
+                      )}
+                    </Table.Td>
+                    <Table.Td>
+                      <Group gap="xs" wrap="wrap">
+                        {resolveTimeOptions(normalizeTimeOptions(eventType.timeOptions)).map(
+                          (option) => (
+                            <Badge key={option} size="sm" variant="light" color="gray">
+                              {TIME_OPTION_LABELS[option]}
+                            </Badge>
+                          ),
+                        )}
+                      </Group>
+                    </Table.Td>
+                    <Table.Td>
+                      <Badge size="sm" variant="light" color="accent">
+                        {LOCATION_POLICY_LABELS[normalizeLocationPolicy(eventType.locationPolicy)]}
+                      </Badge>
+                    </Table.Td>
+                  </Table.Tr>
+                ))}
+              </Table.Tbody>
+            </Table>
+          </Paper>
+        </>
       )}
 
       <Modal
@@ -82,7 +140,7 @@ export function EventTypeTable({ types }: EventTypeTableProps) {
         onClose={closeForm}
         title={editing ? "Edit event type" : "Add event type"}
         centered
-        size="sm"
+        size={isDesktop ? "md" : "sm"}
       >
         <EventTypeForm
           key={editing?.id ?? "new"}
@@ -95,7 +153,7 @@ export function EventTypeTable({ types }: EventTypeTableProps) {
         />
       </Modal>
 
-      <FloatingToolbar bottomOffset={SETTINGS_TAB_BAR_OFFSET}>
+      <FloatingToolbar bottomOffset="var(--settings-fab-bottom)">
         <FloatingActionButton aria-label="Add event type" onClick={openCreate}>
           <IconPlus size={FAB_ICON_SIZE} />
         </FloatingActionButton>

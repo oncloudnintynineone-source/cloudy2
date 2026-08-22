@@ -14,6 +14,7 @@
 import dayjs from "dayjs";
 import { useCallback, type MouseEvent, type ReactNode, useMemo, useRef } from "react";
 import { Box, Paper, ScrollArea, Text, UnstyledButton, useMantineTheme } from "@mantine/core";
+import { useMediaQuery } from "@mantine/hooks";
 
 import { buildWeekLanes } from "@/lib/events/weekMatrix";
 import type { WeekSpan } from "@/lib/events/weekMatrix";
@@ -51,8 +52,12 @@ const MIN_DAY_PX = 112;
  * other rows.
  */
 const ROW_HEIGHT_PX = 36;
-const LABEL_WIDTH = "3rem";
-const GROUP_WIDTH = "1.5rem";
+// Mobile-narrowed sticky label columns; desktop widens them so user
+// shortnames and department names are readable (see the component below).
+const MOBILE_LABEL_WIDTH = "3rem";
+const MOBILE_GROUP_WIDTH = "1.5rem";
+const DESKTOP_LABEL_WIDTH = "5rem";
+const DESKTOP_GROUP_WIDTH = "2.5rem";
 const CELL_BORDER = "1px solid var(--mantine-color-default-border)";
 /** Seven day columns sharing one template; each stays ≥ MIN_DAY_PX wide. */
 const DAY_TEMPLATE = `repeat(7, minmax(${MIN_DAY_PX}px, 1fr))`;
@@ -78,14 +83,17 @@ export function WeekMatrixView({
   tabBarOffset,
 }: WeekMatrixViewProps) {
   const theme = useMantineTheme();
+  const isDesktop = useMediaQuery(`(min-width: ${theme.breakpoints.lg})`);
+  const labelWidth = isDesktop ? DESKTOP_LABEL_WIDTH : MOBILE_LABEL_WIDTH;
+  const groupWidth = isDesktop ? DESKTOP_GROUP_WIDTH : MOBILE_GROUP_WIDTH;
   const hasGroups = groups !== undefined;
   // ScrollArea content min-width: guarantees horizontal scroll on narrow
   // screens so the day columns never shrink below MIN_DAY_PX.
-  const contentMinWidth = `calc(${hasGroups ? `${GROUP_WIDTH} + ` : ""}${LABEL_WIDTH} + 7 * ${MIN_DAY_PX}px)`;
+  const contentMinWidth = `calc(${hasGroups ? `${groupWidth} + ` : ""}${labelWidth} + 7 * ${MIN_DAY_PX}px)`;
   // The pinned day header sticks below the sticky view-tabs bar.
   const headerTop = `calc(var(--app-shell-header-offset) + ${tabBarOffset}px)`;
   // The resource label pins just right of the group column while scrolling.
-  const labelLeft = hasGroups ? GROUP_WIDTH : "0";
+  const labelLeft = hasGroups ? groupWidth : "0";
   const todayTint = theme.variantColorResolver({
     color: theme.primaryColor,
     theme,
@@ -149,13 +157,13 @@ export function WeekMatrixView({
             <Box
               component="div"
               aria-hidden
-              style={{ flexShrink: 0, width: GROUP_WIDTH, borderRight: CELL_BORDER }}
+              style={{ flexShrink: 0, width: groupWidth, borderRight: CELL_BORDER }}
             />
           )}
           <Box
             component="div"
             aria-hidden
-            style={{ flexShrink: 0, width: LABEL_WIDTH, borderRight: CELL_BORDER }}
+            style={{ flexShrink: 0, width: labelWidth, borderRight: CELL_BORDER }}
           />
           <Box component="div" style={{ flex: 1, minWidth: 0, overflow: "hidden" }}>
             <Box
@@ -237,7 +245,7 @@ export function WeekMatrixView({
                     position: "sticky",
                     left: 0,
                     flexShrink: 0,
-                    width: GROUP_WIDTH,
+                    width: groupWidth,
                     zIndex: 6,
                     display: "flex",
                     alignItems: "center",
@@ -255,7 +263,7 @@ export function WeekMatrixView({
                   </Text>
                 </Box>
               ) : hasGroups ? (
-                <Box component="div" aria-hidden style={{ flexShrink: 0, width: GROUP_WIDTH }} />
+                <Box component="div" aria-hidden style={{ flexShrink: 0, width: groupWidth }} />
               ) : null}
               <Box component="div" style={{ flex: 1, minWidth: 0 }}>
                 {block.rows.map((resource, rowIndex) => (
@@ -271,6 +279,7 @@ export function WeekMatrixView({
                     onEventClick={onEventClick}
                     onCellClick={onCellClick}
                     labelLeft={labelLeft}
+                    labelWidth={labelWidth}
                   />
                 ))}
               </Box>
@@ -299,6 +308,7 @@ function MatrixRow({
   onEventClick,
   onCellClick,
   labelLeft,
+  labelWidth,
 }: {
   resource: ScheduleResource;
   /** Lanes in draw order.  Lane i renders on grid row i + 1. */
@@ -311,8 +321,10 @@ function MatrixRow({
   renderResourceLabel: (resource: ScheduleResource) => ReactNode;
   onEventClick: (event: CalendarEvent, e: MouseEvent<HTMLButtonElement>) => void;
   onCellClick: (day: string, e: MouseEvent<HTMLDivElement>) => void;
-  /** Sticky-left offset for the label (`GROUP_WIDTH` when a group column exists). */
+  /** Sticky-left offset for the label (the group column width when groups exist). */
   labelLeft: string;
+  /** Width of the sticky resource-label column. */
+  labelWidth: string;
 }) {
   const theme = useMantineTheme();
   const rowBorder = lastRow ? undefined : CELL_BORDER;
@@ -332,7 +344,7 @@ function MatrixRow({
           position: "sticky",
           left: labelLeft,
           flexShrink: 0,
-          width: LABEL_WIDTH,
+          width: labelWidth,
           zIndex: 5,
           display: "flex",
           alignItems: "center",

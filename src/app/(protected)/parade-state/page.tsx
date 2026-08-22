@@ -1,5 +1,6 @@
 import { cookies } from "next/headers";
 
+import { PageContainer } from "@/components/PageContainer";
 import { formatInstantToNaive } from "@/lib/events/datetime";
 import { fetchMonthEvents, listCalendars } from "@/lib/events/queries";
 import { filterUserOptionIds } from "@/lib/filters/filterUserOptions";
@@ -30,9 +31,7 @@ export default async function ParadeStatePage({ searchParams }: ParadeStatePageP
   // remembered keys) skips the cookie so a Clear/tab-switch never re-applies
   // the stale values for that one render.
   const freshRender = typeof params._fresh === "string";
-  const uiState = freshRender
-    ? null
-    : decodeUiState((await cookies()).get(UI_STATE_COOKIE)?.value);
+  const uiState = freshRender ? null : decodeUiState((await cookies()).get(UI_STATE_COOKIE)?.value);
   const ui = uiState?.parade;
 
   const urlDate =
@@ -97,22 +96,24 @@ export default async function ParadeStatePage({ searchParams }: ParadeStatePageP
     }));
 
   return (
-    <ParadeStateView
-      date={dateParam}
-      month={month}
-      users={visibleUsers.map((user) => ({
-        id: user.id,
-        name: user.name,
-        shortname: user.shortname,
-        department: user.department,
-      }))}
-      events={events}
-      calendars={calendars.map((calendar) => ({ id: calendar.id, name: calendar.name }))}
-      currentUser={session.user.id}
-      selectedCalendarIds={selectedCalendars}
-      selectedUserIds={selectedUsers}
-      filterUsers={filterUsers}
-      nameTemplate={settings.nameTemplate}
-    />
+    <PageContainer>
+      <ParadeStateView
+        date={dateParam}
+        month={month}
+        users={visibleUsers.map((user) => ({
+          id: user.id,
+          name: user.name,
+          shortname: user.shortname,
+          department: user.department,
+        }))}
+        events={events}
+        calendars={calendars.map((calendar) => ({ id: calendar.id, name: calendar.name }))}
+        currentUser={session.user.id}
+        selectedCalendarIds={selectedCalendars}
+        selectedUserIds={selectedUsers}
+        filterUsers={filterUsers}
+        nameTemplate={settings.nameTemplate}
+      />
+    </PageContainer>
   );
 }

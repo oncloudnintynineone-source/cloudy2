@@ -2,7 +2,7 @@
 
 import { useRef } from "react";
 import { useRouter } from "next/navigation";
-import { Button, Divider, Group, Paper, Stack, Text, TextInput } from "@mantine/core";
+import { Button, Divider, Grid, Group, Paper, Stack, Text, TextInput } from "@mantine/core";
 import { useForm } from "@mantine/form";
 import { notifications } from "@mantine/notifications";
 
@@ -168,162 +168,167 @@ export function TemplatesForm({
   const eventTitlePreview = formatEventTitle(eventTitleSample, eventTitleTemplateValue);
 
   return (
-    <Stack className={CONTENT_ENTER_CLASS}>
-      <Paper withBorder p="sm">
-        <form onSubmit={onSubmitNameTemplate}>
-          <Stack>
-            <Text fw={600}>Display Name Template</Text>
-            <Text size="sm" c="dimmed">
-              Compose a user&apos;s fully qualified name from their name and department. The result
-              is used wherever a user&apos;s full name is shown.
-            </Text>
-
-            <TextInput
-              ref={templateInputRef}
-              label="Template"
-              description="Insert tokens to splice in the user's name and department."
-              placeholder="{name}: DEPT-{department}"
-              {...nameTemplateForm.getInputProps("nameTemplate")}
-            />
-
-            <Group gap={6}>
-              <Text size="xs" c="dimmed">
-                Insert:
+    <Grid className={CONTENT_ENTER_CLASS} gap="md">
+      <Grid.Col span={{ base: 12, lg: 6 }}>
+        <Paper withBorder p="sm" style={{ height: "100%" }}>
+          <form onSubmit={onSubmitNameTemplate}>
+            <Stack>
+              <Text fw={600}>Display Name Template</Text>
+              <Text size="sm" c="dimmed">
+                Compose a user&apos;s fully qualified name from their name and department. The
+                result is used wherever a user&apos;s full name is shown.
               </Text>
-              {NAME_TEMPLATE_PLACEHOLDERS.map((token) => (
-                <Button
-                  key={token}
-                  type="button"
-                  size="compact-xs"
-                  variant="default"
-                  onClick={() =>
-                    insertTokenAtCursor(
-                      nameTemplateForm.values.nameTemplate,
-                      (value) => nameTemplateForm.setFieldValue("nameTemplate", value),
-                      templateInputRef.current,
-                      token,
-                    )
-                  }
-                >
-                  {token}
-                </Button>
-              ))}
-            </Group>
 
-            <Divider />
+              <TextInput
+                ref={templateInputRef}
+                label="Template"
+                description="Insert tokens to splice in the user's name and department."
+                placeholder="{name}: DEPT-{department}"
+                {...nameTemplateForm.getInputProps("nameTemplate")}
+              />
 
-            <Stack gap={4}>
-              <Text size="xs" fw={600} c="dimmed" tt="uppercase">
-                Preview
-              </Text>
-              <Group justify="space-between" wrap="nowrap">
-                <Text size="sm">{EXAMPLE.name}</Text>
-                <Text size="sm" fw={600} ta="right">
-                  {formatFullName(EXAMPLE, template) || "—"}
+              <Group gap={6}>
+                <Text size="xs" c="dimmed">
+                  Insert:
                 </Text>
+                {NAME_TEMPLATE_PLACEHOLDERS.map((token) => (
+                  <Button
+                    key={token}
+                    type="button"
+                    size="compact-xs"
+                    variant="default"
+                    onClick={() =>
+                      insertTokenAtCursor(
+                        nameTemplateForm.values.nameTemplate,
+                        (value) => nameTemplateForm.setFieldValue("nameTemplate", value),
+                        templateInputRef.current,
+                        token,
+                      )
+                    }
+                  >
+                    {token}
+                  </Button>
+                ))}
               </Group>
-              {previewUsers.map((user) => (
-                <Group key={user.name} justify="space-between" wrap="nowrap">
-                  <Text size="sm" c="dimmed">
-                    {user.name}
-                  </Text>
-                  <Text size="sm" fw={600} ta="right" c="dimmed">
-                    {formatFullName(user, template) || "—"}
+
+              <Divider />
+
+              <Stack gap={4}>
+                <Text size="xs" fw={600} c="dimmed" tt="uppercase">
+                  Preview
+                </Text>
+                <Group justify="space-between" wrap="nowrap">
+                  <Text size="sm">{EXAMPLE.name}</Text>
+                  <Text size="sm" fw={600} ta="right">
+                    {formatFullName(EXAMPLE, template) || "—"}
                   </Text>
                 </Group>
-              ))}
-            </Stack>
+                {previewUsers.map((user) => (
+                  <Group key={user.name} justify="space-between" wrap="nowrap">
+                    <Text size="sm" c="dimmed">
+                      {user.name}
+                    </Text>
+                    <Text size="sm" fw={600} ta="right" c="dimmed">
+                      {formatFullName(user, template) || "—"}
+                    </Text>
+                  </Group>
+                ))}
+              </Stack>
 
-            <Group justify="flex-end">
-              <Button
-                type="submit"
-                loading={nameTemplateForm.submitting}
-                loaderProps={BUTTON_LOADER_PROPS}
-              >
-                Save
-              </Button>
-            </Group>
-          </Stack>
-        </form>
-      </Paper>
-
-      <Paper withBorder p="sm">
-        <form onSubmit={onSubmitEventTitleTemplate}>
-          <Stack>
-            <Text fw={600}>Event Title Template</Text>
-            <Text size="sm" c="dimmed">
-              Compose the title calendar events get in Google. The raw description stays editable in
-              the event form; the rendered title is what shows on the calendar.
-            </Text>
-
-            <TextInput
-              ref={eventTemplateInputRef}
-              label="Template"
-              description="Insert tokens to build the event title."
-              placeholder="{type:acronym}: {description} ({people:acronym})"
-              {...eventTitleTemplateForm.getInputProps("eventTitleTemplate")}
-            />
-
-            <Group gap={6} wrap="wrap">
-              <Text size="xs" c="dimmed">
-                Insert:
-              </Text>
-              {EVENT_TITLE_PLACEHOLDERS.map((token) => (
+              <Group justify="flex-end">
                 <Button
-                  key={token}
-                  type="button"
-                  size="compact-xs"
-                  variant="default"
-                  onClick={() =>
-                    insertTokenAtCursor(
-                      eventTitleTemplateValue,
-                      (value) => eventTitleTemplateForm.setFieldValue("eventTitleTemplate", value),
-                      eventTemplateInputRef.current,
-                      token,
-                    )
-                  }
+                  type="submit"
+                  loading={nameTemplateForm.submitting}
+                  loaderProps={BUTTON_LOADER_PROPS}
                 >
-                  {token}
+                  Save
                 </Button>
-              ))}
-            </Group>
+              </Group>
+            </Stack>
+          </form>
+        </Paper>
+      </Grid.Col>
 
-            <Text size="xs" c="dimmed">
-              {TYPE_STYLE_HINT}
-            </Text>
-            <Text size="xs" c="dimmed">
-              {PEOPLE_STYLE_HINT}
-            </Text>
+      <Grid.Col span={{ base: 12, lg: 6 }}>
+        <Paper withBorder p="sm" style={{ height: "100%" }}>
+          <form onSubmit={onSubmitEventTitleTemplate}>
+            <Stack>
+              <Text fw={600}>Event Title Template</Text>
+              <Text size="sm" c="dimmed">
+                Compose the title calendar events get in Google. The raw description stays editable
+                in the event form; the rendered title is what shows on the calendar.
+              </Text>
 
-            <Divider />
+              <TextInput
+                ref={eventTemplateInputRef}
+                label="Template"
+                description="Insert tokens to build the event title."
+                placeholder="{type:acronym}: {description} ({people:acronym})"
+                {...eventTitleTemplateForm.getInputProps("eventTitleTemplate")}
+              />
 
-            <Stack gap={4}>
-              <Text size="xs" fw={600} c="dimmed" tt="uppercase">
-                Preview
+              <Group gap={6} wrap="wrap">
+                <Text size="xs" c="dimmed">
+                  Insert:
+                </Text>
+                {EVENT_TITLE_PLACEHOLDERS.map((token) => (
+                  <Button
+                    key={token}
+                    type="button"
+                    size="compact-xs"
+                    variant="default"
+                    onClick={() =>
+                      insertTokenAtCursor(
+                        eventTitleTemplateValue,
+                        (value) =>
+                          eventTitleTemplateForm.setFieldValue("eventTitleTemplate", value),
+                        eventTemplateInputRef.current,
+                        token,
+                      )
+                    }
+                  >
+                    {token}
+                  </Button>
+                ))}
+              </Group>
+
+              <Text size="xs" c="dimmed">
+                {TYPE_STYLE_HINT}
               </Text>
               <Text size="xs" c="dimmed">
-                {eventTitleSample.description}
-                {eventTitleSample.eventType ? ` · ${eventTitleSample.eventType.name}` : ""} ·{" "}
-                {samplePeople.map((person) => person.acronym).join(", ") || "no invitees"} ·{" "}
-                {sampleDepartments.join(", ") || "no departments"} · {eventTitleSample.location}
+                {PEOPLE_STYLE_HINT}
               </Text>
-              <Text size="sm" fw={600} style={{ overflowWrap: "anywhere" }}>
-                {eventTitlePreview || "—"}
-              </Text>
-            </Stack>
 
-            <Group justify="flex-end">
-              <Button
-                type="submit"
-                loading={eventTitleTemplateForm.submitting}
-                loaderProps={BUTTON_LOADER_PROPS}
-              >
-                Save
-              </Button>
-            </Group>
-          </Stack>
-        </form>
-      </Paper>
-    </Stack>
+              <Divider />
+
+              <Stack gap={4}>
+                <Text size="xs" fw={600} c="dimmed" tt="uppercase">
+                  Preview
+                </Text>
+                <Text size="xs" c="dimmed">
+                  {eventTitleSample.description}
+                  {eventTitleSample.eventType ? ` · ${eventTitleSample.eventType.name}` : ""} ·{" "}
+                  {samplePeople.map((person) => person.acronym).join(", ") || "no invitees"} ·{" "}
+                  {sampleDepartments.join(", ") || "no departments"} · {eventTitleSample.location}
+                </Text>
+                <Text size="sm" fw={600} style={{ overflowWrap: "anywhere" }}>
+                  {eventTitlePreview || "—"}
+                </Text>
+              </Stack>
+
+              <Group justify="flex-end">
+                <Button
+                  type="submit"
+                  loading={eventTitleTemplateForm.submitting}
+                  loaderProps={BUTTON_LOADER_PROPS}
+                >
+                  Save
+                </Button>
+              </Group>
+            </Stack>
+          </form>
+        </Paper>
+      </Grid.Col>
+    </Grid>
   );
 }

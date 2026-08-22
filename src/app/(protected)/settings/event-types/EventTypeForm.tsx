@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useForm } from "@mantine/form";
-import { Button, Checkbox, Group, Modal, Radio, Stack, Text, TextInput } from "@mantine/core";
+import { Button, Checkbox, Grid, Group, Modal, Radio, Stack, Text, TextInput } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
 
@@ -101,61 +101,73 @@ export function EventTypeForm({ eventType, onDone }: EventTypeFormProps) {
   return (
     <form onSubmit={onSubmit}>
       <Stack>
-        <TextInput
-          label="Name"
-          required
-          placeholder="Event type name"
-          {...form.getInputProps("name")}
-        />
-        <TextInput
-          label="Shortname"
-          required
-          placeholder="LV"
-          description="Short acronym shown via the {type:acronym} event title token"
-          {...form.getInputProps("shortname")}
-        />
+        {/* At lg the modal is wide enough for a two-column field grid. */}
+        <Grid gap="md">
+          <Grid.Col span={{ base: 12, lg: 6 }}>
+            <TextInput
+              label="Name"
+              required
+              placeholder="Event type name"
+              {...form.getInputProps("name")}
+            />
+          </Grid.Col>
+          <Grid.Col span={{ base: 12, lg: 6 }}>
+            <TextInput
+              label="Shortname"
+              required
+              placeholder="LV"
+              description="Short acronym shown via the {type:acronym} event title token"
+              {...form.getInputProps("shortname")}
+            />
+          </Grid.Col>
+        </Grid>
 
-        <Checkbox.Group
-          label="Time options"
-          description="Which datetime selector users may use for events of this type"
-          value={form.values.timeOptions}
-          onChange={(value) =>
-            form.setFieldValue("timeOptions", value as EventTypeFormValues["timeOptions"])
-          }
-          error={form.errors.timeOptions}
-        >
-          <Stack gap="xs" mt="xs">
-            {TIME_OPTIONS.map((option) => (
-              <Checkbox
-                key={option}
-                value={option}
-                label={TIME_OPTION_LABELS[option]}
-                description={TIME_OPTION_DESCRIPTIONS[option]}
-              />
-            ))}
-          </Stack>
-        </Checkbox.Group>
-
-        <Radio.Group
-          label="Location policy"
-          description="Where events of this type may take place"
-          value={form.values.locationPolicy}
-          onChange={(value) =>
-            form.setFieldValue("locationPolicy", value as EventTypeFormValues["locationPolicy"])
-          }
-          error={form.errors.locationPolicy}
-        >
-          <Stack gap="xs" mt="xs">
-            {LOCATION_POLICIES.map((policy) => (
-              <Radio
-                key={policy}
-                value={policy}
-                label={LOCATION_POLICY_LABELS[policy]}
-                description={LOCATION_POLICY_DESCRIPTIONS[policy]}
-              />
-            ))}
-          </Stack>
-        </Radio.Group>
+        <Grid gap="md">
+          <Grid.Col span={{ base: 12, lg: 6 }}>
+            <Checkbox.Group
+              label="Time options"
+              description="Which datetime selector users may use for events of this type"
+              value={form.values.timeOptions}
+              onChange={(value) =>
+                form.setFieldValue("timeOptions", value as EventTypeFormValues["timeOptions"])
+              }
+              error={form.errors.timeOptions}
+            >
+              <Stack gap="xs" mt="xs">
+                {TIME_OPTIONS.map((option) => (
+                  <Checkbox
+                    key={option}
+                    value={option}
+                    label={TIME_OPTION_LABELS[option]}
+                    description={TIME_OPTION_DESCRIPTIONS[option]}
+                  />
+                ))}
+              </Stack>
+            </Checkbox.Group>
+          </Grid.Col>
+          <Grid.Col span={{ base: 12, lg: 6 }}>
+            <Radio.Group
+              label="Location policy"
+              description="Where events of this type may take place"
+              value={form.values.locationPolicy}
+              onChange={(value) =>
+                form.setFieldValue("locationPolicy", value as EventTypeFormValues["locationPolicy"])
+              }
+              error={form.errors.locationPolicy}
+            >
+              <Stack gap="xs" mt="xs">
+                {LOCATION_POLICIES.map((policy) => (
+                  <Radio
+                    key={policy}
+                    value={policy}
+                    label={LOCATION_POLICY_LABELS[policy]}
+                    description={LOCATION_POLICY_DESCRIPTIONS[policy]}
+                  />
+                ))}
+              </Stack>
+            </Radio.Group>
+          </Grid.Col>
+        </Grid>
         <Group justify="flex-end" mt="md" wrap="nowrap">
           {isEdit && (
             <Button type="button" color="red" variant="light" onClick={openConfirm}>

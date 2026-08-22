@@ -63,15 +63,15 @@ the quality checks.
    `src/lib/google/index.ts`, which currently returns a no-op stub. Wire the real
    service-account impl there when credentials are provisioned; don't call Google APIs
    directly. Full design in [docs/google-integration.md](docs/google-integration.md).
-- **Calendar month reads are cached server-side.** The dashboard/overview data flow is
-  `fetchMonthEvents()` (`src/lib/events/queries.ts`) → `getCachedMonthEventsForCalendars()` in
-  `src/lib/google/eventsCache.ts`, a layered cache per department calendar per month. An
-  in-process L1 map (keyed `googleCalendarId:month`) serves warm-instance repeat views with no
-  I/O; misses fall through to one **batched** `SELECT` on the `google_event_cache` table
-  (composite PK `calendar_google_id` + `month`) — a single round-trip for the whole month
-   regardless of calendar count; anything absent/expired blocks on a fresh Google `events.list`
-   + upsert (bounded concurrency). One entry serves every user/filter on both `/dashboard` and
-   `/overview`. `fetchMonthEvents()` is a single-month wrapper over `fetchRangeEvents()`
+ - **Calendar month reads are cached server-side.** The dashboard data flow is
+   `fetchMonthEvents()` (`src/lib/events/queries.ts`) → `getCachedMonthEventsForCalendars()` in
+   `src/lib/google/eventsCache.ts`, a layered cache per department calendar per month. An
+   in-process L1 map (keyed `googleCalendarId:month`) serves warm-instance repeat views with no
+   I/O; misses fall through to one **batched** `SELECT` on the `google_event_cache` table
+   (composite PK `calendar_google_id` + `month`) — a single round-trip for the whole month
+    regardless of calendar count; anything absent/expired blocks on a fresh Google `events.list`
+    + upsert (bounded concurrency). One entry serves every user/filter on `/dashboard`.
+   `fetchMonthEvents()` is a single-month wrapper over `fetchRangeEvents()`
    (`src/lib/events/queries.ts`, the multi-month primitive the dashboard's Week view uses,
    since a Monday-first week can span two months): it fetches each month through the same
    cache, dedupes items across months by (calendar, google event id) — Google month listings
@@ -105,21 +105,7 @@ the quality checks.
    data cache — those require `cacheComponents: true`, which crashed Turbopack `next dev` on
    Node 26 (unfixed vercel/next.js#96165) and added PPR/`instant` complexity. Full design in
    [docs/events-cache.md](docs/events-cache.md).
-- The **Overview** page (`/overview`, reachable from the bottom nav) shows per-month,
-  per-user counts by event type. Counting is a pure helper in `src/lib/overview/counts.ts`
-  (`involvedUserIds` + `buildOverviewCounts`) — unit-tested without a DB. Scope mirrors
-  the dashboard: admins see all users/departments, regular users only their own department.
-  The matrix mirrors the dashboard's `ResourcesDayView` layout: a sticky department column
-  with the name written vertically (`writingMode: "vertical-rl"`), a sticky short-name
-  column (`user.shortname || user.name`), then one column per event type, inside a bounded
-  `ScrollArea` (`height: min(60vh, 520px)`) so the header stays visible. Users with no
-  department are grouped under an `Unassigned` pseudo-department. Each department's rows
-  carry a distinct hue-derived tint (`hsl`, `hue = index * 360 / deptCount`) that is
-  theme-aware (`useComputedColorScheme` picks softer pastels in light mode, muted darks in
-  dark mode); the merged department column uses a slightly stronger shade for contrast.
-  The page shares the dashboard's filter (`FilterModal`, URL params `cal`/`users`/`types`):
-  Calendars (grid chips), a searchable Users group, and Event Types (which also narrows
-  the shown columns). The dashboard and parade-state 3-dot menus group the quick filter
+ - The dashboard and parade-state 3-dot menus group the quick filter
   actions under a `Filters` `Menu.Label` group: a **"My Events"** `Menu.CheckboxItem`
   (toggles the Users filter to the current user, applied immediately, hidden when the
   current user isn't a filter option), a `Clear` item (restores the consumer's default —
@@ -226,10 +212,24 @@ the quality checks.
   (amber). Use these two colors whenever an accent color is needed (badges,
   chips, highlights, event type colors, etc.).
   Authenticated routes live under `src/app/(protected)/` inside the AppShell.
-- **The app is strictly mobile-only.** There is no sidebar or hamburger menu. Lists render
-  as stacked **card lists** (`Paper` per row), never `<Table>`. Modals are **floating**
-  dialogs: `centered` with a fixed `size` (never `fullScreen` — they must not fill the full
-  screen width). Keep this pattern for all new UI.
+ - **The app is mobile-first with a desktop layout at `lg` (992px) and above.** `lg` is
+   pinned to 992px by a theme override (`src/lib/theme.ts` sets `breakpoints.lg` to
+   `"62em"`) so it matches the `62em` CSS media block and the `visibleFrom="lg"` props.
+   Below `lg` it is the original touch layout — bottom nav, stacked **card lists**
+   (`Paper` per row, no `<Table>`), floating centered modals with a fixed `size` (never
+   `fullScreen`), and the sidebar is hidden (`AppShell navbar collapsed: { mobile: true }`).
+   At/above `lg` the shell gains a left sidebar (240px AppShell navbar) and the bottom nav
+   collapses; pages center in a 1200px `PageContainer`; the data-dense settings lists
+   (Users, Departments, Event Types, Audit Log) switch from cards to Mantine `Table`s
+   (`hiddenFrom="lg"` cards + `visibleFrom="lg"` tables — the scoped `<Table>` exception);
+   card lists (Contacts, Parade State) reflow through the `.card-grid` CSS class; modals
+   widen one size step and forms pair fields into 2-column `Grid`s. Detect the breakpoint
+   in client components with
+   `useMediaQuery(\`(min-width: ${theme.breakpoints.lg})\`)` — do **not** append `px`
+   (`theme.breakpoints.lg` is an em string, so `...lg}px)` would be an invalid query that
+   always returns false); pure-CSS switches live in
+   `src/app/globals.css` under `@media (min-width: 62em)`. Full design in
+   [docs/desktop-responsive.md](docs/desktop-responsive.md).
 - **No mobile keyboard pop-up from dropdown taps.** Never render a `searchable`
   `Select`/`MultiSelect` directly: a searchable Mantine combobox target is an editable
   `<input>`, so tapping it on mobile raises the virtual keyboard before the user decided
@@ -252,9 +252,10 @@ the quality checks.
   icon-only — pass the tabler icon as children at `FAB_ICON_SIZE` (24px) plus an
   `aria-label`; `FAB_SIZE`/`FAB_ICON_SIZE` are exported from
   `src/components/FloatingToolbar.tsx`. Don't override width/height inline. The
-  default `bottomOffset` clears the **global bottom nav** (`src/lib/bottomNav.ts`); under
-  the settings tab bar pass `bottomOffset={SETTINGS_TAB_BAR_OFFSET}` (exported from
-  `src/app/(protected)/settings/settingsTabBar.ts`) to `FloatingToolbar`.
+  default `bottomOffset` clears the **global bottom nav** (`src/lib/bottomNav.ts`); the
+  settings pages pass `bottomOffset="var(--settings-fab-bottom)"` — the CSS var is
+  declared on `.settings-page-pad` in `src/app/globals.css` (mobile clearance for the
+  bottom-docked settings sub-tab bar; `16px` at `lg`).
 - **Global bottom nav** lives in `AppShellShell`'s `AppShell.Footer` (height from
   `BOTTOM_NAV_HEIGHT_CSS` in `src/lib/bottomNav.ts`) with four tabs for admins:
   **Calendar** (`/dashboard`), **Parade State** (`/parade-state`), **Contacts**

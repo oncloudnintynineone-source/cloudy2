@@ -13,20 +13,19 @@ import {
   Paper,
   ScrollArea,
   Stack,
+  Table,
   Text,
   TextInput,
+  useMantineTheme,
+  VisuallyHidden,
 } from "@mantine/core";
 import { DatePickerInput } from "@mantine/dates";
-import { useDisclosure } from "@mantine/hooks";
+import { useDisclosure, useMediaQuery } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
 import { IconDownload, IconDotsVertical, IconTrash, IconX } from "@tabler/icons-react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
-import {
-  FAB_ICON_SIZE,
-  FloatingActionButton,
-  FloatingToolbar,
-} from "@/components/FloatingToolbar";
+import { FAB_ICON_SIZE, FloatingActionButton, FloatingToolbar } from "@/components/FloatingToolbar";
 import { NoKeyboardSelect } from "@/components/NoKeyboardSelect";
 import { purgeAuditLogs, loadMoreAuditLogs } from "@/lib/audit/actions";
 import { listAuditActions } from "@/lib/audit/build";
@@ -39,13 +38,13 @@ import {
   type DetailValue,
 } from "@/lib/audit/format";
 import type { AuditFilters } from "@/lib/audit/queries";
-import { SETTINGS_TAB_BAR_OFFSET } from "@/app/(protected)/settings/settingsTabBar";
 import { CONTENT_ENTER_CLASS, useContentEnter } from "@/lib/loading/contentEnter";
 import { useMinSkeletonHold } from "@/lib/loading/minHoldLoading";
 import { BUTTON_LOADER_PROPS } from "@/lib/theme";
 import type { AuditLog } from "@/db/schema";
 
 import { AuditLogRowSkeleton } from "./AuditLogRowSkeleton";
+import { SettingsTableSkeleton } from "../SettingsTableSkeleton";
 
 interface AuditLogViewProps {
   initialRows: AuditLog[];
@@ -86,6 +85,8 @@ export function AuditLogView({
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  const theme = useMantineTheme();
+  const isDesktop = useMediaQuery(`(min-width: ${theme.breakpoints.lg})`);
   const [isPending, startTransition] = useTransition();
 
   // Skeleton-only loading: filter changes (URL transitions) show a row-card
@@ -112,7 +113,10 @@ export function AuditLogView({
   );
 
   const actorOptions = useMemo(
-    () => [{ value: "", label: "All actors" }, ...actors.map((actor) => ({ value: actor, label: actor }))],
+    () => [
+      { value: "", label: "All actors" },
+      ...actors.map((actor) => ({ value: actor, label: actor })),
+    ],
     [actors],
   );
 
@@ -230,170 +234,347 @@ export function AuditLogView({
 
   return (
     <Stack pb="xl">
-      <Group align="center" gap="xs" wrap="nowrap">
-        <form
-          style={{ flex: 1, minWidth: 0 }}
-          onSubmit={(event) => {
-            event.preventDefault();
-            applyFilters({ q: searchInput.trim() || null });
-          }}
-        >
-          <TextInput
-            placeholder="Search actor, entity, route…"
-            value={searchInput}
-            onChange={(event) => setSearchInput(event.currentTarget.value)}
-            rightSection={
-              searchInput ? (
-                <ActionIcon variant="subtle" onClick={() => setSearchInput("")} aria-label="Clear search">
-                  <IconX size={16} />
-                </ActionIcon>
-              ) : null
-            }
+      {isDesktop ? (
+        // Desktop: the filters live inline in a wrap row instead of the
+        // 300px dropdown menu (no room-hungry menu needed at this width).
+        <Group align="flex-end" gap="xs" wrap="wrap">
+          <form
+            style={{ flex: 1, minWidth: 200 }}
+            onSubmit={(event) => {
+              event.preventDefault();
+              applyFilters({ q: searchInput.trim() || null });
+            }}
+          >
+            <TextInput
+              placeholder="Search actor, entity, route…"
+              value={searchInput}
+              onChange={(event) => setSearchInput(event.currentTarget.value)}
+              rightSection={
+                searchInput ? (
+                  <ActionIcon
+                    variant="subtle"
+                    onClick={() => setSearchInput("")}
+                    aria-label="Clear search"
+                  >
+                    <IconX size={16} />
+                  </ActionIcon>
+                ) : null
+              }
+            />
+          </form>
+          <NoKeyboardSelect
+            data={actorOptions}
+            value={filters.actor ?? ""}
+            onChange={(value) => applyFilters({ actor: value || null })}
+            label="Actor"
+            searchable
+            clearable
+            w={170}
           />
-        </form>
-        <Menu
-          shadow="md"
-          width={300}
-          position="bottom-end"
-          closeOnClickOutside={false}
-          transitionProps={{ transition: "pop-top-right", duration: 150, timingFunction: "ease" }}
-        >
-          <Menu.Target>
-            <Box pos="relative">
-              <ActionIcon size={43} variant="default" aria-label="Filter log">
-                <IconDotsVertical size={18} />
-              </ActionIcon>
-              {activeFilterCount > 0 && (
-                <Badge
-                  size="sm"
-                  variant="filled"
-                  radius="xl"
-                  pos="absolute"
-                  style={{ top: -4, right: -4 }}
-                >
-                  {activeFilterCount}
-                </Badge>
-              )}
-            </Box>
-          </Menu.Target>
-          <Menu.Dropdown>
-            <ScrollArea.Autosize mah={420} type="auto">
-              <Stack gap="sm" p="xs">
-                <NoKeyboardSelect
-                  data={actorOptions}
-                  value={filters.actor ?? ""}
-                  onChange={(value) => applyFilters({ actor: value || null })}
-                  label="Actor"
-                  searchable
-                  clearable
-                />
-                <NoKeyboardSelect
-                  data={actionOptions}
-                  value={filters.action ?? ""}
-                  onChange={(value) => applyFilters({ action: value || null })}
-                  label="Action"
-                  clearable
-                />
-                <NoKeyboardSelect
-                  data={entityOptions}
-                  value={filters.entityType ?? ""}
-                  onChange={(value) => applyFilters({ entity: value || null })}
-                  label="Entity type"
-                  clearable
-                />
-                <Group grow align="flex-end" wrap="wrap">
-                  <DatePickerInput
-                    label="From"
-                    value={inputToDate(filters.from)}
-                    onChange={(date) => applyFilters({ from: dateToInput(date) })}
+          <NoKeyboardSelect
+            data={actionOptions}
+            value={filters.action ?? ""}
+            onChange={(value) => applyFilters({ action: value || null })}
+            label="Action"
+            clearable
+            w={170}
+          />
+          <NoKeyboardSelect
+            data={entityOptions}
+            value={filters.entityType ?? ""}
+            onChange={(value) => applyFilters({ entity: value || null })}
+            label="Entity type"
+            clearable
+            w={150}
+          />
+          <DatePickerInput
+            label="From"
+            value={inputToDate(filters.from)}
+            onChange={(date) => applyFilters({ from: dateToInput(date) })}
+            clearable
+            w={150}
+          />
+          <DatePickerInput
+            label="To"
+            value={inputToDate(filters.to)}
+            onChange={(date) => applyFilters({ to: dateToInput(date) })}
+            clearable
+            w={150}
+          />
+          {activeFilterCount > 0 ? (
+            <Button
+              variant="subtle"
+              size="xs"
+              onClick={resetFilters}
+              leftSection={<IconX size={14} />}
+            >
+              Reset filters
+            </Button>
+          ) : null}
+        </Group>
+      ) : (
+        <Group align="center" gap="xs" wrap="nowrap">
+          <form
+            style={{ flex: 1, minWidth: 0 }}
+            onSubmit={(event) => {
+              event.preventDefault();
+              applyFilters({ q: searchInput.trim() || null });
+            }}
+          >
+            <TextInput
+              placeholder="Search actor, entity, route…"
+              value={searchInput}
+              onChange={(event) => setSearchInput(event.currentTarget.value)}
+              rightSection={
+                searchInput ? (
+                  <ActionIcon
+                    variant="subtle"
+                    onClick={() => setSearchInput("")}
+                    aria-label="Clear search"
+                  >
+                    <IconX size={16} />
+                  </ActionIcon>
+                ) : null
+              }
+            />
+          </form>
+          <Menu
+            shadow="md"
+            width={300}
+            position="bottom-end"
+            closeOnClickOutside={false}
+            transitionProps={{ transition: "pop-top-right", duration: 150, timingFunction: "ease" }}
+          >
+            <Menu.Target>
+              <Box pos="relative">
+                <ActionIcon size={43} variant="default" aria-label="Filter log">
+                  <IconDotsVertical size={18} />
+                </ActionIcon>
+                {activeFilterCount > 0 && (
+                  <Badge
+                    size="sm"
+                    variant="filled"
+                    radius="xl"
+                    pos="absolute"
+                    style={{ top: -4, right: -4 }}
+                  >
+                    {activeFilterCount}
+                  </Badge>
+                )}
+              </Box>
+            </Menu.Target>
+            <Menu.Dropdown>
+              <ScrollArea.Autosize mah={420} type="auto">
+                <Stack gap="sm" p="xs">
+                  <NoKeyboardSelect
+                    data={actorOptions}
+                    value={filters.actor ?? ""}
+                    onChange={(value) => applyFilters({ actor: value || null })}
+                    label="Actor"
+                    searchable
                     clearable
                   />
-                  <DatePickerInput
-                    label="To"
-                    value={inputToDate(filters.to)}
-                    onChange={(date) => applyFilters({ to: dateToInput(date) })}
+                  <NoKeyboardSelect
+                    data={actionOptions}
+                    value={filters.action ?? ""}
+                    onChange={(value) => applyFilters({ action: value || null })}
+                    label="Action"
                     clearable
                   />
-                </Group>
-                {activeFilterCount > 0 ? (
-                  <Group justify="flex-end">
-                    <Button
-                      variant="subtle"
-                      size="xs"
-                      onClick={resetFilters}
-                      leftSection={<IconX size={14} />}
-                    >
-                      Reset filters
-                    </Button>
+                  <NoKeyboardSelect
+                    data={entityOptions}
+                    value={filters.entityType ?? ""}
+                    onChange={(value) => applyFilters({ entity: value || null })}
+                    label="Entity type"
+                    clearable
+                  />
+                  <Group grow align="flex-end" wrap="wrap">
+                    <DatePickerInput
+                      label="From"
+                      value={inputToDate(filters.from)}
+                      onChange={(date) => applyFilters({ from: dateToInput(date) })}
+                      clearable
+                    />
+                    <DatePickerInput
+                      label="To"
+                      value={inputToDate(filters.to)}
+                      onChange={(date) => applyFilters({ to: dateToInput(date) })}
+                      clearable
+                    />
                   </Group>
-                ) : null}
-              </Stack>
-            </ScrollArea.Autosize>
-          </Menu.Dropdown>
-        </Menu>
-      </Group>
+                  {activeFilterCount > 0 ? (
+                    <Group justify="flex-end">
+                      <Button
+                        variant="subtle"
+                        size="xs"
+                        onClick={resetFilters}
+                        leftSection={<IconX size={14} />}
+                      >
+                        Reset filters
+                      </Button>
+                    </Group>
+                  ) : null}
+                </Stack>
+              </ScrollArea.Autosize>
+            </Menu.Dropdown>
+          </Menu>
+        </Group>
+      )}
 
       <Stack gap="sm" ref={listRef} className={CONTENT_ENTER_CLASS}>
         {listLoading ? (
-          <Stack gap="sm">
-            {Array.from({ length: 5 }).map((_, i) => (
-              <AuditLogRowSkeleton key={i} />
-            ))}
-          </Stack>
+          <>
+            {/* Mobile: card list */}
+            <Stack gap="sm" hiddenFrom="lg">
+              {Array.from({ length: 5 }).map((_, i) => (
+                <AuditLogRowSkeleton key={i} />
+              ))}
+            </Stack>
+
+            {/* Desktop: data table (Time / Actor / Action / Entity / Route / Details) */}
+            <SettingsTableSkeleton columns={[2, 1.5, 1.5, 2, 2, 1.5]} rows={5} visibleFrom="lg" />
+          </>
         ) : rows.length === 0 ? (
           <Text c="dimmed" ta="center" py="lg">
             No log entries match these filters.
           </Text>
         ) : (
-          rows.map((row) => (
-            <Paper key={row.id} withBorder p="sm">
-              <Stack gap={4}>
-                <Group justify="space-between" wrap="nowrap" align="flex-start">
-                  <Text fw={600} size="sm">
-                    {actionLabel(row.action)}
-                  </Text>
-                  <Text size="xs" c="dimmed" style={{ whiteSpace: "nowrap" }}>
-                    {formatLogTimestamp(row.createdAt)}
-                  </Text>
-                </Group>
-                <Group gap={6} wrap="wrap">
-                  <Text size="sm" c="dimmed">
-                    {actorLabel(row)}
-                  </Text>
-                  {row.entityType ? (
-                    <Badge size="xs" variant="light" color="brand">
-                      {row.entityType}
-                    </Badge>
-                  ) : null}
-                </Group>
-                {row.entityName ? (
-                  <Text size="sm" truncate>
-                    {row.entityName}
-                  </Text>
-                ) : null}
-                <Group gap={6} wrap="wrap">
-                  {row.route ? (
-                    <Badge size="xs" variant="outline" color="gray">
-                      {row.route}
-                    </Badge>
-                  ) : null}
-                  {row.method ? (
-                    <Badge size="xs" variant="outline" color="gray">
-                      {row.method}
-                    </Badge>
-                  ) : null}
-                  <Button
-                    variant="subtle"
-                    size="compact-xs"
-                    onClick={() => setDetail(row)}
-                    style={{ marginLeft: "auto" }}
-                  >
-                    Details
-                  </Button>
-                </Group>
-              </Stack>
+          <>
+            {/* Mobile: card list */}
+            <Stack gap="sm" hiddenFrom="lg">
+              {rows.map((row) => (
+                <Paper key={row.id} withBorder p="sm">
+                  <Stack gap={4}>
+                    <Group justify="space-between" wrap="nowrap" align="flex-start">
+                      <Text fw={600} size="sm">
+                        {actionLabel(row.action)}
+                      </Text>
+                      <Text size="xs" c="dimmed" style={{ whiteSpace: "nowrap" }}>
+                        {formatLogTimestamp(row.createdAt)}
+                      </Text>
+                    </Group>
+                    <Group gap={6} wrap="wrap">
+                      <Text size="sm" c="dimmed">
+                        {actorLabel(row)}
+                      </Text>
+                      {row.entityType ? (
+                        <Badge size="xs" variant="light" color="brand">
+                          {row.entityType}
+                        </Badge>
+                      ) : null}
+                    </Group>
+                    {row.entityName ? (
+                      <Text size="sm" truncate>
+                        {row.entityName}
+                      </Text>
+                    ) : null}
+                    <Group gap={6} wrap="wrap">
+                      {row.route ? (
+                        <Badge size="xs" variant="outline" color="gray">
+                          {row.route}
+                        </Badge>
+                      ) : null}
+                      {row.method ? (
+                        <Badge size="xs" variant="outline" color="gray">
+                          {row.method}
+                        </Badge>
+                      ) : null}
+                      <Button
+                        variant="subtle"
+                        size="compact-xs"
+                        onClick={() => setDetail(row)}
+                        style={{ marginLeft: "auto" }}
+                      >
+                        Details
+                      </Button>
+                    </Group>
+                  </Stack>
+                </Paper>
+              ))}
+            </Stack>
+
+            {/* Desktop: data table */}
+            <Paper withBorder visibleFrom="lg">
+              <Table withRowBorders={false} highlightOnHover tabularNums>
+                <Table.Thead>
+                  <Table.Tr>
+                    <Table.Th>Time</Table.Th>
+                    <Table.Th>Actor</Table.Th>
+                    <Table.Th>Action</Table.Th>
+                    <Table.Th>Entity</Table.Th>
+                    <Table.Th>Route</Table.Th>
+                    <Table.Th ta="right">
+                      <VisuallyHidden>Details</VisuallyHidden>
+                    </Table.Th>
+                  </Table.Tr>
+                </Table.Thead>
+                <Table.Tbody>
+                  {rows.map((row) => (
+                    <Table.Tr key={row.id}>
+                      <Table.Td style={{ whiteSpace: "nowrap" }}>
+                        <Text size="sm" c="dimmed">
+                          {formatLogTimestamp(row.createdAt)}
+                        </Text>
+                      </Table.Td>
+                      <Table.Td>
+                        <Text size="sm">{actorLabel(row)}</Text>
+                      </Table.Td>
+                      <Table.Td>
+                        <Text size="sm" fw={600}>
+                          {actionLabel(row.action)}
+                        </Text>
+                      </Table.Td>
+                      <Table.Td>
+                        {row.entityType || row.entityName ? (
+                          <Group gap={6} wrap="nowrap">
+                            {row.entityType ? (
+                              <Badge size="xs" variant="light" color="brand">
+                                {row.entityType}
+                              </Badge>
+                            ) : null}
+                            {row.entityName ? (
+                              <Text size="sm" truncate>
+                                {row.entityName}
+                              </Text>
+                            ) : null}
+                          </Group>
+                        ) : (
+                          <Text size="sm" c="dimmed">
+                            —
+                          </Text>
+                        )}
+                      </Table.Td>
+                      <Table.Td>
+                        {row.route || row.method ? (
+                          <Group gap={6} wrap="nowrap">
+                            {row.method ? (
+                              <Badge size="xs" variant="outline" color="gray">
+                                {row.method}
+                              </Badge>
+                            ) : null}
+                            {row.route ? (
+                              <Text size="sm" c="dimmed" truncate>
+                                {row.route}
+                              </Text>
+                            ) : null}
+                          </Group>
+                        ) : (
+                          <Text size="sm" c="dimmed">
+                            —
+                          </Text>
+                        )}
+                      </Table.Td>
+                      <Table.Td ta="right">
+                        <Button variant="subtle" size="xs" onClick={() => setDetail(row)}>
+                          Details
+                        </Button>
+                      </Table.Td>
+                    </Table.Tr>
+                  ))}
+                </Table.Tbody>
+              </Table>
             </Paper>
-          ))
+          </>
         )}
 
         {cursor ? (
@@ -435,7 +616,13 @@ export function AuditLogView({
 
       <LogDetailModal row={detail} onClose={() => setDetail(null)} />
 
-      <Modal opened={purgeOpened} onClose={closePurge} title="Delete old audit logs" centered size="sm">
+      <Modal
+        opened={purgeOpened}
+        onClose={closePurge}
+        title="Delete old audit logs"
+        centered
+        size="sm"
+      >
         <Text size="sm">
           Permanently delete all log entries older than {retentionDays} days? This cannot be undone.
         </Text>
@@ -449,10 +636,14 @@ export function AuditLogView({
         </Group>
       </Modal>
 
-      <Modal opened={exportOpened} onClose={closeExport} title="Export audit log" centered size="sm">
-        <Text size="sm">
-          Download the currently filtered log entries as a CSV file?
-        </Text>
+      <Modal
+        opened={exportOpened}
+        onClose={closeExport}
+        title="Export audit log"
+        centered
+        size="sm"
+      >
+        <Text size="sm">Download the currently filtered log entries as a CSV file?</Text>
         <Group justify="flex-end" mt="md">
           <Button variant="default" onClick={closeExport}>
             Cancel
@@ -470,7 +661,7 @@ export function AuditLogView({
         </Group>
       </Modal>
 
-      <FloatingToolbar bottomOffset={SETTINGS_TAB_BAR_OFFSET}>
+      <FloatingToolbar bottomOffset="var(--settings-fab-bottom)">
         <FloatingActionButton aria-label="Export audit log" onClick={openExport}>
           <IconDownload size={FAB_ICON_SIZE} />
         </FloatingActionButton>
@@ -485,9 +676,17 @@ interface LogDetailModalProps {
 }
 
 function LogDetailModal({ row, onClose }: LogDetailModalProps) {
+  const theme = useMantineTheme();
+  const isDesktop = useMediaQuery(`(min-width: ${theme.breakpoints.lg})`);
   const details = row ? formatAuditDetails(row.details) : null;
   return (
-    <Modal opened={row !== null} onClose={onClose} title="Log details" centered size="md">
+    <Modal
+      opened={row !== null}
+      onClose={onClose}
+      title="Log details"
+      centered
+      size={isDesktop ? "lg" : "md"}
+    >
       {row && details ? (
         <Stack gap="sm">
           <Group gap={6} wrap="wrap">
@@ -520,7 +719,11 @@ function LogDetailModal({ row, onClose }: LogDetailModalProps) {
           <Divider />
           {details.kind === "json" ? (
             <ScrollArea.Autosize mah={320} type="auto">
-              <Text component="pre" size="xs" style={{ margin: 0, whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
+              <Text
+                component="pre"
+                size="xs"
+                style={{ margin: 0, whiteSpace: "pre-wrap", wordBreak: "break-word" }}
+              >
                 {details.json}
               </Text>
             </ScrollArea.Autosize>

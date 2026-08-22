@@ -6,11 +6,7 @@ import { googleEventCache } from "@/db/schema";
 import { mapWithConcurrency } from "@/lib/async";
 import { monthRange } from "@/lib/events/datetime";
 import { getGoogleIntegration } from "./index";
-import {
-  cacheEntryState,
-  decodeCachedEvents,
-  encodeCachedEvents,
-} from "./eventsCacheCodec";
+import { cacheEntryState, decodeCachedEvents, encodeCachedEvents } from "./eventsCacheCodec";
 import type { GcalEventItem } from "./types";
 
 /** Serve cached month data directly for this long. */
@@ -64,10 +60,7 @@ function remember(
  * Fetch a calendar's month from Google and upsert the cache entry (DB + L1).
  * Concurrent callers for the same key share one in-flight promise.
  */
-function refreshCachedMonth(
-  googleCalendarId: string,
-  month: string,
-): Promise<GcalEventItem[]> {
+function refreshCachedMonth(googleCalendarId: string, month: string): Promise<GcalEventItem[]> {
   const key = memoryKey(googleCalendarId, month);
   const existing = inflight.get(key);
   if (existing) {
@@ -121,8 +114,8 @@ export interface MonthEventsOptions {
  *    round-trip regardless of calendar count), served the same way;
  * 3. blocking Google `events.list` + upsert for anything missing/expired.
  *
- * Keyed by `(googleCalendarId, month)` so every user/filter combination on both
- * `/dashboard` and `/overview` shares one entry. In-app mutations call
+ * Keyed by `(googleCalendarId, month)` so every user/filter combination on
+ * `/dashboard` shares one entry. In-app mutations call
  * `invalidateGcalCache()` so edits appear instantly. Google errors propagate — a
  * failed refresh is never served as data.
  *
@@ -179,10 +172,7 @@ export async function getCachedMonthEventsForCalendars(
       .select()
       .from(googleEventCache)
       .where(
-        and(
-          eq(googleEventCache.month, month),
-          inArray(googleEventCache.calendarGoogleId, missing),
-        ),
+        and(eq(googleEventCache.month, month), inArray(googleEventCache.calendarGoogleId, missing)),
       );
     const rowById = new Map(rows.map((row) => [row.calendarGoogleId, row]));
     const pending: string[] = [];
