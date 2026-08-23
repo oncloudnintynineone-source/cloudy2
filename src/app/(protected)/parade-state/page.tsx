@@ -1,6 +1,7 @@
 import { cookies } from "next/headers";
 
 import { PageContainer } from "@/components/PageContainer";
+import { listEventTypes } from "@/lib/eventTypes/queries";
 import { formatInstantToNaive } from "@/lib/events/datetime";
 import { fetchMonthEvents, listCalendars } from "@/lib/events/queries";
 import { filterUserOptionIds } from "@/lib/filters/filterUserOptions";
@@ -40,10 +41,11 @@ export default async function ParadeStatePage({ searchParams }: ParadeStatePageP
   const dateParam = urlDate ?? cookieDate ?? today();
   const month = dateParam.slice(0, 7);
 
-  const [calendars, allUsers, settings] = await Promise.all([
+  const [calendars, allUsers, settings, eventTypes] = await Promise.all([
     listCalendars(),
     listUsers(),
     getSettings(),
+    listEventTypes(),
   ]);
 
   const calendarIds = calendars.map((calendar) => calendar.id);
@@ -113,6 +115,9 @@ export default async function ParadeStatePage({ searchParams }: ParadeStatePageP
         selectedUserIds={selectedUsers}
         filterUsers={filterUsers}
         nameTemplate={settings.nameTemplate}
+        eventTypeAcronyms={Object.fromEntries(
+          eventTypes.map((eventType) => [eventType.name, eventType.shortname]),
+        )}
       />
     </PageContainer>
   );

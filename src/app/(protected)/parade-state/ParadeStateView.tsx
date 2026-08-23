@@ -7,27 +7,35 @@ import {
   ActionIcon,
   Badge,
   Box,
+  Button,
+  Checkbox,
   Group,
   Menu,
   Paper,
   Stack,
   Text,
   useComputedColorScheme,
+  useMantineTheme,
 } from "@mantine/core";
-import { useDisclosure } from "@mantine/hooks";
+import { useClipboard, useDisclosure, useMediaQuery } from "@mantine/hooks";
+import { notifications } from "@mantine/notifications";
 import {
   IconCalendarCheck,
   IconCalendarDot,
   IconChevronLeft,
   IconChevronRight,
+  IconClipboard,
+  IconClipboardCheck,
   IconDotsVertical,
   IconFilter,
+  IconRefresh,
   IconUser,
   IconX,
 } from "@tabler/icons-react";
 
 import { DateSelectorModal } from "@/components/DateSelectorModal";
 import { FilterModal, type FilterGroup } from "@/components/FilterModal";
+import { FAB_ICON_SIZE, FloatingActionButton, FloatingToolbar } from "@/components/FloatingToolbar";
 import type { CalendarEvent } from "@/lib/events/queries";
 import { CONTENT_ENTER_CLASS, useContentEnter } from "@/lib/loading/contentEnter";
 import { useMinSkeletonHold } from "@/lib/loading/minHoldLoading";
@@ -35,6 +43,8 @@ import { formatFullName } from "@/lib/settings/formatName";
 import { PARADE_STATE_KEYS, freshMarkerNeeded } from "@/lib/ui/uiState";
 import { usePersistUiState } from "@/lib/ui/uiStateClient";
 
+import { buildAttendanceReport, resolveEventTypeTag } from "./attendanceReport";
+import { clearAttendance, loadAttendanceRecord, saveAttendanceIds } from "./attendanceStorage";
 import { departmentHeadcount } from "./headcount";
 import { formatEventTimeBadge } from "./eventTimeBadge";
 import { ParadeStateDepartmentSkeleton } from "./paradeStateSkeleton";
@@ -77,6 +87,8 @@ export interface ParadeStateViewProps {
   selectedUserIds: string[];
   filterUsers: { id: string; displayName: string }[];
   nameTemplate: string;
+  /** Event type name → shortname (acronym), for the attendance report tags. */
+  eventTypeAcronyms: Record<string, string | null>;
 }
 
 function eventCoversDay(event: CalendarEvent, date: string): boolean {
@@ -118,6 +130,7 @@ export function ParadeStateView({
   selectedUserIds: initSelectedUsers,
   filterUsers,
   nameTemplate,
+  eventTypeAcronyms,
 }: ParadeStateViewProps) {
   const router = useRouter();
   const pathname = usePathname();
@@ -152,7 +165,22 @@ export function ParadeStateView({
     users: initSelectedUsers,
   });
 
+  // Attendance mode: checked users are kept per shown date in localStorage
+  // (never the database). The full record is read when the mode is entered
+  // and kept in memory from then on; `checkedIds` is derived for the shown
+  // date, so day switches swap rosters without any reload.
+  const [attendanceMode, setAttendanceMode] = useState(false);
+  const [attendance, setAttendance] = useState<Record<string, string[]>>({});
+  const clipboard = useClipboard();
+
+  const checkedIds = useMemo(() => new Set(attendance[date] ?? []), [attendance, date]);
+
   const colorScheme = useComputedColorScheme("light");
+  const theme = useMantineTheme();
+  // The attendance FAB is mobile-only; at lg the entry point is the nav-row
+  // button beside the kebab menu. JS-gated (not CSS) because the FloatingToolbar
+  // Affix portals to <body>, so a hiddenFrom wrapper can't hide it.
+  const isDesktop = useMediaQuery(`(min-width: ${theme.breakpoints.lg})`);
   const today = dayjs().format("YYYY-MM-DD");
 
   const buildHref = useCallback(
@@ -376,6 +404,86 @@ export function ParadeStateView({
     return result;
   }, [users]);
 
+  function enterAttendance() {
+    setAttendance(loadAttendanceRecord());
+    setAttendanceMode(true);
+  }
+
+  function toggleAttendance(userId: string) {
+    const current = new Set(attendance[date] ?? []);
+    if (current.has(userId)) {
+      current.delete(userId);
+    } else {
+      current.add(userId);
+    }
+    const ids = [...current];
+    saveAttendanceIds(date, ids);
+    setAttendance((prev) => ({ ...prev, [date]: ids }));
+  }
+
+  // Reset clears every date's checks, not just the shown day's.
+  function resetAttendance() {
+    clearAttendance();
+    setAttendance({});
+  }
+
+  async function copyAttendanceReport() {
+    // Full names (raw roster names, not the display-name template); each event
+    // tag resolves via the {type:acronym} fallback chain (shortname → type
+    // name → title), in card order.
+    const text = buildAttendanceReport(
+      departments.map((dept) => ({
+        name: dept.name,
+        users: dept.users.map((user) => ({
+          id: user.id,
+          name: user.name,
+          eventTags: (eventsByUser.get(user.id) ?? []).map((event) =>
+            resolveEventTypeTag(event.eventType, event.title, eventTypeAcronyms),
+          ),
+        })),
+      })),
+      checkedIds,
+    );
+    try {
+      await clipboard.copy(text);
+      notifications.show({ color: "green", message: "Parade state copied to clipboard" });
+    } catch {
+      notifications.show({ color: "red", message: "Could not copy to clipboard" });
+    }
+  }
+
+  const attendanceMenuItems = (
+    <>
+      <Menu.Item leftSection={<IconRefresh size={16} />} onClick={resetAttendance}>
+        Reset
+      </Menu.Item>
+      <Menu.Item
+        leftSection={<IconClipboard size={16} />}
+        onClick={() => void copyAttendanceReport()}
+      >
+        Copy to Clipboard
+      </Menu.Item>
+      <Menu.Divider />
+      <Menu.Item leftSection={<IconX size={16} />} onClick={() => setAttendanceMode(false)}>
+        Exit
+      </Menu.Item>
+    </>
+  );
+
+  // Desktop: the attendance entry point lives beside the kebab menu instead of
+  // the bottom corner FAB — same convention as the dashboard's nav-row
+  // "New event" button. In attendance mode it becomes the options menu target.
+  const desktopAttendanceButton = (
+    <Button
+      visibleFrom="lg"
+      __vars={{ "--button-height": "43px" }}
+      leftSection={<IconClipboardCheck size={16} />}
+      onClick={attendanceMode ? undefined : enterAttendance}
+    >
+      Attendance
+    </Button>
+  );
+
   const dayLabel = dayjs(date).format("ddd, MMM D, YYYY");
   const onToday = date === today;
 
@@ -401,6 +509,19 @@ export function ParadeStateView({
         <ActionIcon size={43} variant="default" aria-label="Next day" onClick={() => shiftDay(1)}>
           <IconChevronRight size={18} />
         </ActionIcon>
+        {attendanceMode ? (
+          <Menu
+            shadow="md"
+            width={220}
+            position="bottom-end"
+            transitionProps={{ transition: "pop-top-right", duration: 150, timingFunction: "ease" }}
+          >
+            <Menu.Target>{desktopAttendanceButton}</Menu.Target>
+            <Menu.Dropdown>{attendanceMenuItems}</Menu.Dropdown>
+          </Menu>
+        ) : (
+          desktopAttendanceButton
+        )}
         <Menu
           shadow="md"
           width={200}
@@ -486,16 +607,20 @@ export function ParadeStateView({
             {departments.map((dept) => {
               if (dept.users.length === 0) return null;
               const headcount = departmentHeadcount(dept.users, eventsByUser);
+              const presentCount = attendanceMode
+                ? dept.users.filter((user) => checkedIds.has(user.id)).length
+                : headcount.present;
               return (
                 <Box key={dept.id ?? "__unassigned__"}>
                   <Text fw={700} size="sm" c="dimmed" mb="xs" tt="uppercase" lh={1}>
-                    {dept.name} ({headcount.present}/{headcount.total})
+                    {dept.name} ({presentCount}/{headcount.total})
                   </Text>
                   {/* Single column on mobile; auto-filling card grid at lg
                       (see .card-grid in globals.css). */}
                   <Box component="div" className="card-grid">
                     {dept.users.map((user) => {
                       const userEvents = eventsByUser.get(user.id) ?? [];
+                      const checked = attendanceMode && checkedIds.has(user.id);
                       const displayName = formatFullName(
                         { name: user.name, departmentName: user.department?.name ?? null },
                         nameTemplate,
@@ -505,19 +630,43 @@ export function ParadeStateView({
                           key={user.id}
                           withBorder
                           p="sm"
-                          style={
-                            userEvents.length > 0
+                          onClick={attendanceMode ? () => toggleAttendance(user.id) : undefined}
+                          style={{
+                            cursor: attendanceMode ? "pointer" : undefined,
+                            ...(checked
                               ? {
-                                  backgroundColor: colorScheme === "dark" ? "#3d3200" : "#fff8e1",
-                                  borderColor: "var(--mantine-color-yellow-4)",
+                                  backgroundColor: colorScheme === "dark" ? "#10281b" : "#e8f5e9",
+                                  borderColor: "var(--mantine-color-green-4)",
                                 }
-                              : undefined
-                          }
+                              : userEvents.length > 0
+                                ? {
+                                    backgroundColor:
+                                      colorScheme === "dark" ? "#3d3200" : "#fff8e1",
+                                    borderColor: "var(--mantine-color-yellow-4)",
+                                  }
+                                : {}),
+                          }}
                         >
                           <Stack gap={2}>
-                            <Text fw={600} size="sm">
-                              {displayName}
-                            </Text>
+                            <Group gap="xs" wrap="nowrap" align="center">
+                              {attendanceMode && (
+                                // Clicks stop here: toggling the checkbox must
+                                // not also fire the card-level toggle.
+                                <Box
+                                  onClick={(event) => event.stopPropagation()}
+                                  style={{ flexShrink: 0 }}
+                                >
+                                  <Checkbox
+                                    checked={checkedIds.has(user.id)}
+                                    onChange={() => toggleAttendance(user.id)}
+                                    aria-label={`Mark ${user.name} as present`}
+                                  />
+                                </Box>
+                              )}
+                              <Text fw={600} size="sm">
+                                {displayName}
+                              </Text>
+                            </Group>
                             {userEvents.length > 0 && (
                               <Stack gap={2} ml="xs">
                                 {userEvents.map((event) => (
@@ -554,6 +703,34 @@ export function ParadeStateView({
           </Stack>
         )}
       </Box>
+
+      {!isDesktop && (
+        <FloatingToolbar>
+          {attendanceMode ? (
+            <Menu
+              shadow="md"
+              width={220}
+              position="top-end"
+              transitionProps={{
+                transition: "pop-top-right",
+                duration: 150,
+                timingFunction: "ease",
+              }}
+            >
+              <Menu.Target>
+                <FloatingActionButton aria-label="Attendance options">
+                  <IconClipboardCheck size={FAB_ICON_SIZE} />
+                </FloatingActionButton>
+              </Menu.Target>
+              <Menu.Dropdown>{attendanceMenuItems}</Menu.Dropdown>
+            </Menu>
+          ) : (
+            <FloatingActionButton aria-label="Start attendance" onClick={enterAttendance}>
+              <IconClipboardCheck size={FAB_ICON_SIZE} />
+            </FloatingActionButton>
+          )}
+        </FloatingToolbar>
+      )}
 
       <FilterModal
         opened={filterOpened}

@@ -100,6 +100,8 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
 - [1.81 Collapsible sidebar rail (Phase 3al)](#181-collapsible-sidebar-rail-phase-3al)
 - [1.82 Settings list pages: full-size desktop create buttons (Phase 3am)](#182-settings-list-pages-full-size-desktop-create-buttons-phase-3am)
 - [1.83 Mobile FAB: portaled Affix + :root offset vars (bugfix)](#183-mobile-fab-ported-affix--root-offset-vars-bugfix)
+- [1.84 Full Day / Half Day time-option split (Phase 3an)](#184-full-day--half-day-time-option-split-phase-3an)
+- [1.85 Parade State attendance-taking mode (Phase 3ao)](#185-parade-state-attendance-taking-mode-phase-3ao)
 
 ## 1.1 Status
 
@@ -4168,3 +4170,71 @@ flowchart LR
 pass; schema untouched so no `db:generate` drift.
 Owed: manual pass over the wizard with each option mix (tabs order, review
 "When" text, preview suffix) and one legacy full+marker event edit.
+
+## 1.85 Parade State attendance-taking mode (Phase 3ao)
+
+The Parade State page gains **attendance mode** via an entry point that
+follows the app's responsive convention: a bottom-right FAB below `lg`, and a
+nav-row "Attendance" button beside the kebab menu at `lg`+ (same pattern as
+the dashboard's "New event"). Entering it puts a checkbox beside every user
+card (the checkbox *or* the card itself toggles), switches the department
+headers from *in-camp/total* to *checked/total*, and turns the entry point
+into a Mantine `Menu` with **Reset** (clears every date), **Copy to
+Clipboard** (roster text), and **Exit** (mode off, checks kept). Checked state
+lives only in `localStorage` (`cloudy2.parade-attendance` — the app's first
+`localStorage` use), keyed by the shown date so each day keeps its own
+roster; the mode itself does not survive a reload.
+
+```mermaid
+flowchart LR
+  A["FAB &lt;lg / Button lg+<br/>(normal mode)"] -- tap --> B["Attendance mode<br/>record loaded into memory"]
+  B -- "tap checkbox / card" --> C["toggle user<br/>write localStorage under shown date"]
+  B -- tap entry point --> D["Menu (top-end / bottom-end)"]
+  D -- Reset --> E["clear all dates"]
+  D -- Copy --> F["clipboard string:<br/>&lt;dept&gt; (X of Y)<br/>Name - Absent / - (ACRONYM, …)"]
+  D -- Exit --> G["Normal mode<br/>(checks kept)"]
+  C --> H["localStorage<br/>cloudy2.parade-attendance<br/>{ date: userId[] }"]
+  E --> H
+```
+
+- `attendanceReport.ts` (new, pure) — `buildAttendanceReport(departments,
+  checkedIds)`: departments in page order (A→Z, Unassigned last), empty ones
+  skipped; header `<name> (<checked> of <total>)`; one line per user in
+  roster order using the raw roster `name` (full name, not the display-name
+  template): unchecked users get ` - Absent` (even when event-tagged — absent
+  wins), checked users render bare or with ` - (<tags joined ", ">)` for
+  event-tagged days; departments separated by a blank line, no trailing
+  newline. Tags resolve via `resolveEventTypeTag`, the `{type:acronym}`
+  fallback chain: registry shortname → raw type name → event title when the
+  event has no type.
+- `attendanceStorage.ts` (new) — pure codecs (`parseAttendanceRecord` returns
+  `{}` for corrupt/non-conforming JSON and keeps only `string[]` values;
+  `serializeAttendanceRecord` drops empty dates) plus SSR-safe
+  `loadAttendanceRecord` / `saveAttendanceIds` / `clearAttendance`
+  (try/catch no-ops outside a browser; node-env tests cover the codecs only).
+- `page.tsx` — fetches `listEventTypes()` alongside the other loads and
+  passes `eventTypeAcronyms` (`Record<type name, shortname>`) to the view.
+- `ParadeStateView.tsx` — `attendanceMode` + `attendance` (in-memory
+  `Record<date, userId[]>`, read once on mode entry; `checkedIds` derived per
+  shown date, so day switches swap rosters with no effect — an earlier
+  effect-based load tripped `react-hooks/set-state-in-effect`); toggles
+  persist immediately under the shown date; checked cards get a green tint
+  that outranks the amber out-of-camp tint. The entry point is one shared
+  button element: bare normally, wrapped as the `Menu.Target` in attendance
+  mode (`bottom-end` at `lg`+, `top-end` on the mobile FAB), with the three
+  items defined once and reused. The mobile FAB is gated with
+  `useMediaQuery` instead of a CSS wrapper because the `FloatingToolbar`
+  Affix portals to `<body>` (`withinPortal: true` default), so a
+  `hiddenFrom` wrapper cannot hide it — which also means the dashboard's
+  `<Box hiddenFrom="lg">` around its own mobile-only "New event" FAB is
+  likely ineffective today (flagged, not fixed here). Copy uses
+  `useClipboard` with a green/red `notifications.show`, menu auto-closes on
+  item click.
+- Tests: `attendanceReport.test.ts` (12), `attendanceStorage.test.ts` (8).
+
+**Verification:** `pnpm lint`, `pnpm typecheck`, `pnpm test` (489) pass;
+schema untouched so no `db:generate` drift.
+Owed: manual pass — enter/exit from both entry points, card + checkbox
+toggling, per-date isolation on day switches, reload restoring checks (mode
+off), copied string format (Absent/acronyms/fallback chain), Reset clearing
+all dates, filters preserving hidden users' checks.
