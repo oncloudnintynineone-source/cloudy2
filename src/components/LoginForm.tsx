@@ -48,12 +48,11 @@ export function LoginForm() {
                 Cloudy
               </Title>
               <Text c="dimmed" size="sm">
-                Cloud Calendar Movement
+                Cloud Group Parade State
               </Text>
             </div>
             <PasswordInput
-              label="Password / Phone + keyword"
-              description="Admin password, or your 8-digit phone number followed by the login keyword (e.g. 81234567leave)."
+              aria-label="Password or phone number plus login keyword"
               placeholder="Enter your credentials"
               value={input}
               onChange={(e) => setInput(e.currentTarget.value)}
