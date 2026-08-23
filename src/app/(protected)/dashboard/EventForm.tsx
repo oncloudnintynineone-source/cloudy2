@@ -746,9 +746,9 @@ export function EventForm({
             onChange={(value) => {
               const next = value ?? "";
               const previous = form.values.creatorId;
-              const invitees = form.values.invitees.filter(
-                (entry) => `${entry}` !== (previous ? `user:${previous}` : `${entry}`),
-              );
+              const invitees = previous
+                ? form.values.invitees.filter((entry) => `${entry}` !== `user:${previous}`)
+                : [...form.values.invitees];
               form.setFieldValue("creatorId", next);
               form.setFieldValue(
                 "invitees",
