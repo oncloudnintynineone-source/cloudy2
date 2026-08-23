@@ -4549,3 +4549,18 @@ needed no extra styling.
 
 Tests: new `src/lib/ui/activatable.test.ts` (7 cases).
 Verification: lint/typecheck/test pass (529 tests).
+
+## 1.94 Not-found prerender fix (bugfix)
+
+Vercel's build failed on `/_not-found`: `not-found.tsx` was a Server Component whose
+action element passed `component={Link}` — a function reference — into the client
+`ErrorState`. Functions cannot cross the server→client serialization boundary during
+prerender (React error "Functions cannot be passed directly to Client Components").
+Local gates missed it because lint/typecheck/vitest never exercise static generation;
+only `next build` does.
+
+Fix: mark `src/app/not-found.tsx` `"use client"` (it exports no metadata and needs no
+server data), keeping the `<Button component={Link}>` SPA link intact.
+
+Verification: full `pnpm build` passes — all 18 routes generate, `/_not-found`
+prerendered static.

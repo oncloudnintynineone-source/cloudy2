@@ -1,10 +1,16 @@
+"use client";
+
 import { Button } from "@mantine/core";
 import { IconCalendarSearch } from "@tabler/icons-react";
 import Link from "next/link";
 
 import { ErrorState } from "@/components/ErrorState";
 
-/** Branded 404. Renders inside the root layout, so providers are available. */
+/**
+ * Branded 404. Client component: the action button passes `component={Link}`,
+ * a function reference that cannot cross the server→client boundary when
+ * this page is prerendered (build fails on /_not-found otherwise).
+ */
 export default function NotFound() {
   return (
     <ErrorState
