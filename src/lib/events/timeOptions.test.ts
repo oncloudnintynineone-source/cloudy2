@@ -6,30 +6,45 @@ import {
   normalizeTimeOptions,
   resolveTimeOption,
   resolveTimeOptions,
+  TIME_OPTIONS,
+  TIME_OPTION_LABELS,
 } from "./timeOptions";
 
 describe("isTimeOption", () => {
   it("accepts the canonical values", () => {
     expect(isTimeOption("range")).toBe(true);
     expect(isTimeOption("full")).toBe(true);
+    expect(isTimeOption("half")).toBe(true);
   });
 
   it("rejects anything else (including the old ampm value)", () => {
     expect(isTimeOption("ampm")).toBe(false);
-    expect(isTimeOption("half")).toBe(false);
     expect(isTimeOption("")).toBe(false);
     expect(isTimeOption(null)).toBe(false);
     expect(isTimeOption(42)).toBe(false);
   });
 });
 
+describe("TIME_OPTIONS / TIME_OPTION_LABELS", () => {
+  it("exposes all three options in display order with labels", () => {
+    expect([...TIME_OPTIONS]).toEqual(["range", "full", "half"]);
+    expect(TIME_OPTION_LABELS.range).toBe("Start & End");
+    expect(TIME_OPTION_LABELS.full).toBe("Full Day");
+    expect(TIME_OPTION_LABELS.half).toBe("Half Day");
+  });
+});
+
 describe("normalizeTimeOptions", () => {
   it("keeps valid options in order", () => {
     expect(normalizeTimeOptions(["full", "range"])).toEqual(["full", "range"]);
+    expect(normalizeTimeOptions(["half", "full"])).toEqual(["half", "full"]);
   });
 
   it("drops unknown values (legacy ampm included) and dedupes", () => {
-    expect(normalizeTimeOptions(["full", "ampm", "half", "full", null])).toEqual(["full"]);
+    expect(normalizeTimeOptions(["full", "ampm", "half", "full", null])).toEqual([
+      "full",
+      "half",
+    ]);
   });
 
   it("returns [] for non-arrays", () => {
@@ -41,6 +56,7 @@ describe("normalizeTimeOptions", () => {
 describe("resolveTimeOptions", () => {
   it("passes through a non-empty list", () => {
     expect(resolveTimeOptions(["full"])).toEqual(["full"]);
+    expect(resolveTimeOptions(["half"])).toEqual(["half"]);
   });
 
   it("falls back to the default range behaviour when empty", () => {
@@ -51,15 +67,18 @@ describe("resolveTimeOptions", () => {
 describe("resolveTimeOption", () => {
   it("returns the selection when allowed", () => {
     expect(resolveTimeOption(["full", "range"], "full")).toBe("full");
+    expect(resolveTimeOption(["range", "half"], "half")).toBe("half");
   });
 
   it("falls back to the first allowed option when not allowed", () => {
     expect(resolveTimeOption(["full"], "range")).toBe("full");
     expect(resolveTimeOption(["range"], "full")).toBe("range");
+    expect(resolveTimeOption(["range"], "half")).toBe("range");
   });
 
   it("falls back to range when nothing is allowed", () => {
     expect(resolveTimeOption([], "full")).toBe("range");
+    expect(resolveTimeOption([], "half")).toBe("range");
     expect(resolveTimeOption([], "")).toBe("range");
   });
 });

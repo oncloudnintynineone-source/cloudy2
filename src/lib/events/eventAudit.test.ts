@@ -55,7 +55,7 @@ describe("formatEventAuditTime", () => {
     ).toBe("2026-08-21 14:00 \u2013 2026-08-23 09:30");
   });
 
-  it("renders a full-day event with a shared AM/PM marker", () => {
+  it("renders a legacy full-day event's stored AM/PM markers", () => {
     expect(
       formatEventAuditTime({
         timeOption: "full",
@@ -67,7 +67,7 @@ describe("formatEventAuditTime", () => {
     ).toBe("2026-08-21 (AM)");
   });
 
-  it("renders a single full day spanning AM to PM", () => {
+  it("renders a single legacy full day spanning AM to PM", () => {
     expect(
       formatEventAuditTime({
         timeOption: "full",
@@ -79,7 +79,7 @@ describe("formatEventAuditTime", () => {
     ).toBe("2026-08-21 (AM\u2013PM)");
   });
 
-  it("renders a full-day event without markers as bare dates", () => {
+  it("renders a plain full-day event without markers as bare dates", () => {
     expect(
       formatEventAuditTime({
         timeOption: "full",
@@ -91,7 +91,7 @@ describe("formatEventAuditTime", () => {
     ).toBe("2026-08-21 \u2013 2026-08-23");
   });
 
-  it("renders a multi-day full event with per-side markers", () => {
+  it("renders a multi-day legacy full event with per-side markers", () => {
     expect(
       formatEventAuditTime({
         timeOption: "full",
@@ -101,6 +101,30 @@ describe("formatEventAuditTime", () => {
         endAmPm: "PM",
       }),
     ).toBe("2026-08-21 (AM) \u2013 2026-08-23 (PM)");
+  });
+
+  it("renders a same-day half-day event with a shared marker", () => {
+    expect(
+      formatEventAuditTime({
+        timeOption: "half",
+        start: "2026-08-21 00:00:00",
+        end: "2026-08-21 00:00:00",
+        startAmPm: "PM",
+        endAmPm: "PM",
+      }),
+    ).toBe("2026-08-21 (PM)");
+  });
+
+  it("renders a multi-day half-day span with per-side markers", () => {
+    expect(
+      formatEventAuditTime({
+        timeOption: "half",
+        start: "2026-08-21 00:00:00",
+        end: "2026-08-25 00:00:00",
+        startAmPm: "PM",
+        endAmPm: "AM",
+      }),
+    ).toBe("2026-08-21 (PM) \u2013 2026-08-25 (AM)");
   });
 });
 
@@ -302,7 +326,23 @@ describe("renderEventTitle", () => {
     ).toBe("OUT Tan Wei Liang");
   });
 
-  it("appends the shared AM/PM marker for full-day events", () => {
+  it("appends the shared AM/PM marker for half-day events", () => {
+    expect(
+      renderEventTitle({
+        description: "Duty",
+        eventType: null,
+        people: [],
+        departments: [],
+        location: "",
+        template: "{description}",
+        timeOption: "half",
+        startAmPm: "AM",
+        endAmPm: "AM",
+      }),
+    ).toBe("Duty (AM)");
+  });
+
+  it("renders no marker for full-day events (plain dates only)", () => {
     expect(
       renderEventTitle({
         description: "Duty",
@@ -315,7 +355,7 @@ describe("renderEventTitle", () => {
         startAmPm: "AM",
         endAmPm: "AM",
       }),
-    ).toBe("Duty (AM)");
+    ).toBe("Duty");
   });
 
   it("falls back to the raw description when the template renders nothing", () => {

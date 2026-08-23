@@ -4115,3 +4115,56 @@ Owed: on-device recheck — FAB pinned bottom-right above the settings tab bar
 and the bottom nav on dashboard/contacts, stays put while scrolling. If the
 phone runs the installed PWA, the Serwist service worker may serve the old
 bundle until it updates (hard-reload once after deploy).
+
+## 1.84 Full Day / Half Day time-option split (Phase 3an)
+
+The per-event-type "Full Day" option previously bundled plain all-day dates
+with optional (AM)/(PM) half-day markers. The two concerns are now separate
+options; no DB migration (`event_types.time_options` is a text JSON list of
+strings — `"half"` is just a new value).
+
+```mermaid
+flowchart LR
+  A["Event type<br/>time_options"] --> B["range<br/>Start &amp; End"]
+  A --> C["full<br/>Full Day"]
+  A --> D["half<br/>Half Day"]
+  B --> B1["2 datetime pickers"]
+  C --> C1["2 date pickers<br/>(no markers)"]
+  D --> D1["2 date pickers +<br/>AM/PM per side"]
+  D1 --> E{"start = end<br/>indicator?"}
+  E -- yes --> F["title gets (AM)/(PM)"]
+  E -- mixed --> G["no title marker"]
+```
+
+- `timeOptions.ts` — `TIME_OPTIONS` gains `"half"` ("Half Day"); `full`'s
+  description drops the AM/PM wording. Legacy note kept in the module doc:
+  pre-split events carry `"full"` + markers in their notes and keep working.
+- AM/PM re-gated from `"full"` to `"half"` everywhere it had feature meaning:
+  `resolveEventTime` (defaults/blanks indicators), the notes write in
+  `buildGcalEventInput`, `renderEventTitle`'s suffix, and
+  `validateEventForm`'s required checks + `sortKey` folding. All-day-on-Google
+  stays `timeOption !== "range"` for both day-based options.
+- `formatEventAuditTime` renders markers **by presence** for any non-`range`
+  option — so legacy `full` snapshots (before-state read from notes) still
+  show `(AM–PM)` spans while new `full` events render bare dates.
+- `EventForm.tsx` — tabs pick up Half Day via `allowedOptions`;
+  `timeFields` shows the AM/PM controls only under `half`; submit payload and
+  live preview gate on `half`; edit prefill still reads stored markers so a
+  legacy event switched to Half Day keeps its original AM/PM. Review-step
+  "When" now mirrors the audit rendering (markers by presence) **and fixes an
+  off-by-one**: it double-subtracted a day from the inclusive form end date
+  (picking Aug 21–23 displayed "Aug 21 – Aug 22").
+- Admin UI needs no code change — `EventTypeForm`/`EventTypeTable` iterate
+  `TIME_OPTIONS`, so the third checkbox/badge appears automatically. Existing
+  type rows stay valid; admins opt types into Half Day by editing them.
+- Tests updated/extended: `timeOptions.test.ts` (option set, labels,
+  resolution), `validate.test.ts` (required-indicator gating moves to `half`),
+  `notes.test.ts` (`"half"` now parses as a valid option),
+  `eventAudit.test.ts` (legacy-full vs new-half marker rendering;
+  `renderEventTitle` full+markers → no suffix), `format.test.ts` ("Half Day"
+  audit labels).
+
+**Verification:** `pnpm lint`, `pnpm typecheck`, `pnpm test` (469, +5 net)
+pass; schema untouched so no `db:generate` drift.
+Owed: manual pass over the wizard with each option mix (tabs order, review
+"When" text, preview suffix) and one legacy full+marker event edit.

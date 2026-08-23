@@ -147,12 +147,13 @@ Mechanics worth knowing:
   option against the type's allowed set and re-clamps Out of Camp + location against the
   type's location policy (`handleEventTypeChange`, `EventForm.tsx:339-360`).
 - **Timestamp** (`EventForm.tsx:610-630`): when the type allows more than one option the
-  step shows a `Tabs` control ("Start & End" / "Full Day"); otherwise the single option's
-  fields render directly. `range` = two `DateTimePicker`s (naive
-  `YYYY-MM-DD HH:mm:ss` strings); `full` = two `DatePickerInput`s plus an AM/PM
-  `SegmentedControl` per side. `switchTimeOption` (`EventForm.tsx:320-337`) zeroes the
-  time part to `00:00:00` when entering `full` and defaults the indicators to AM→PM so a
-  plain full-day span renders with no title suffix.
+  step shows a `Tabs` control ("Start & End" / "Full Day" / "Half Day"); otherwise the
+  single option's fields render directly. `range` = two `DateTimePicker`s (naive
+  `YYYY-MM-DD HH:mm:ss` strings); `full` = two `DatePickerInput`s (plain dates, no
+  half-day markers); `half` = two `DatePickerInput`s plus an AM/PM `SegmentedControl`
+  per side. `switchTimeOption` (`EventForm.tsx:320-337`) zeroes the time part to
+  `00:00:00` when entering any day-based option and defaults the indicators to AM→PM on
+  `half`, so a mixed span renders with no title suffix.
 - **Location** (`EventForm.tsx:632-656`): the "Out of Camp" checkbox is disabled unless
   the type's policy is `both`; unchecking it clears the location; the location input is
   disabled when in-camp or the policy is `in`. The effective flag/location is always the
@@ -300,8 +301,8 @@ The machine-readable state lives in the Google event **description**; the visibl
 | `createdBy` | set | Creator user id (schedule view: the event's row always shows it) |
 | `inviteeUsers` | non-empty | Tagged user ids (the event shows in each user's row) |
 | `inviteeDepartments` | non-empty | Tagged department ids (shows in each department row) |
-| `timeOption` | set | `"range"` \| `"full"` |
-| `startAmPm` / `endAmPm` | `full` only | Half-of-day indicators |
+| `timeOption` | set | `"range"` \| `"full"` \| `"half"` |
+| `startAmPm` / `endAmPm` | `half` only (legacy `full` events may still carry them) | Half-of-day indicators |
 | `outOfCamp` | **only when `true`** | Absence (legacy) or `false` means in camp; the destination itself goes to Google's `location` field, not the notes |
 
 `encodeEventNotes` (`notes.ts:53`) drops `undefined`/`null`/empty-array values and keeps
@@ -404,10 +405,12 @@ result is trimmed. People arrive pre-resolved as `EventTitlePerson { full, acron
 2. renders the template via `formatEventTitle`;
 3. **falls back to the raw (trimmed) description when the template renders nothing** —
    an empty result yields an intentionally untitled event;
-4. appends ` (AM)` / ` (PM)` **only** when `timeOption === "full"`, the base title is
+4. appends ` (AM)` / ` (PM)` **only** when `timeOption === "half"`, the base title is
    non-empty, and `amPmSuffix(startAmPm, endAmPm)` (`timeOptions.ts:74`) is non-empty —
-   i.e. only when start and end **share** the same indicator. AM→PM and PM→PM spans get
-   no suffix, and an empty title gets no bare "(AM)".
+   i.e. only when start and end **share** the same indicator. AM→PM and PM→AM spans get
+   no suffix, and an empty title gets no bare "(AM)". Full-day events render plain dates
+   with no marker (legacy `full` events keep the markers already baked into their stored
+   Google titles — this function only renders on writes).
 
 There are deliberately **no AM/PM tokens in the template** — the time marker is appended
 solely by this wrapper. This function is the single source of truth for both the title
@@ -467,15 +470,21 @@ Per event type, `time_options` enables one or more of:
 | Option | Label | Form fields | Notes |
 | ------ | ----- | ----------- | ----- |
 | `range` | Start & End | two datetime pickers | always timed |
-| `full` | Full Day | two date pickers + AM/PM per side | optional (AM)/(PM) marker in the title |
+| `full` | Full Day | two date pickers | plain all-day dates — no half-day markers |
+| `half` | Half Day | two date pickers + AM/PM per side | optional (AM)/(PM) marker in the title |
+
+Legacy note: the AM/PM markers used to live under `full`; events saved before the split
+still carry `"full"` + markers in their notes and display them as-is. Editing such an
+event re-clamps to the type's current allowed set; saving under `full` drops the
+markers, switching to `half` (prefilled from the stored notes) keeps them.
 
 - `normalizeTimeOptions` (`timeOptions.ts:34`) dedupes and drops unknown values (e.g. a
   legacy `"ampm"`).
 - `resolveTimeOptions` (`:53`): empty/unrecorded types fall back to `["range"]`.
 - `resolveTimeOption(allowed, selected)` (`:62`): unknown/empty selection → first
   allowed; a selection the type no longer allows → first allowed. The server applies it
-  in `resolveEventTime` (`actions.ts:216`), which also defaults `full`-event indicators
-  to AM→PM when unset.
+  in `resolveEventTime` (`actions.ts:216`), which also defaults `half`-event indicators
+  to AM→PM when unset and blanks them for every other option.
 - `amPmSuffix(startAmPm, endAmPm)` (`:74`): the shared marker, or `""`.
 
 ### 1.10.2 Datetime conventions (`src/lib/events/datetime.ts`)

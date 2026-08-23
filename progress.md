@@ -18,7 +18,7 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
 
 ## 1.1 Status
 
-- All phases through **Phase 3al (collapsible sidebar rail)** are shipped.
+- All phases through **Phase 3an (Full Day / Half Day time-option split)** are shipped.
 - Quality gates (`lint` / `typecheck` / `test` / schema-drift check) run in CI on every
   PR; pushes to `main` additionally auto-apply pending migrations against Neon. The
   per-phase "pnpm … pass" claims are therefore no longer repeated here.
@@ -132,6 +132,9 @@ One line per phase; full write-ups (incl. Mermaid diagrams and verification note
 - 1.79 Desktop responsive bugfixes (Phase 3aj)
 - 1.80 Wizard review step, relocated "On behalf of", optional creator (Phase 3ak)
 - 1.81 Collapsible sidebar rail (Phase 3al)
+- 1.82 Settings list pages: full-size desktop create buttons (Phase 3am)
+- 1.83 Mobile FAB: portaled Affix + :root offset vars (bugfix)
+- 1.84 Full Day / Half Day time-option split (Phase 3an)
 
 ## 1.4 Open items & next steps
 

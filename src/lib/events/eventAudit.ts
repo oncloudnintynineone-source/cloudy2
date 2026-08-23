@@ -77,14 +77,16 @@ function clockPart(naive: string): string {
  * UTC+8 wall clock:
  * - `range`: `2026-08-21 14:00 – 15:30` (same day) or
  *   `2026-08-21 14:00 – 2026-08-23 09:30` (multi-day).
- * - `full`: dates with optional (AM)/(PM) markers — `2026-08-21 (AM)`,
- *   `2026-08-21 (AM–PM)`, `2026-08-21 – 2026-08-23 (PM)`.
+ * - day-based (`full`/`half`): dates with optional (AM)/(PM) markers —
+ *   `2026-08-21 (AM)`, `2026-08-21 (AM–PM)`, `2026-08-21 – 2026-08-23 (PM)`.
+ *   Markers render purely by presence, so legacy full-day events that carry
+ *   them in their notes keep displaying them.
  */
 export function formatEventAuditTime(parts: EventTimeParts): string {
   const startDay = datePart(parts.start);
   const endDay = datePart(parts.end);
 
-  if (parts.timeOption !== "full") {
+  if (parts.timeOption === "range") {
     if (startDay === endDay) {
       return `${startDay} ${clockPart(parts.start)} ${EN_DASH} ${clockPart(parts.end)}`;
     }

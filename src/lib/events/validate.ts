@@ -2,10 +2,10 @@
  * Pure validation/normalization helpers for the calendar event form. Kept free
  * of I/O so they can be unit-tested without a database or Google credentials.
  *
- * `start`/`end` are naive `YYYY-MM-DD HH:mm:ss` strings. For full-day events the
- * time part is always `00:00:00` and the AM/PM indicators (start/end) add the
- * half-of-day ordering — so the chronological comparison folds the indicator
- * into the sort key (`YYYY-MM-DD AM` < `YYYY-MM-DD PM`).
+ * `start`/`end` are naive `YYYY-MM-DD HH:mm:ss` strings. For half-day events
+ * the time part is always `00:00:00` and the AM/PM indicators (start/end) add
+ * the half-of-day ordering — so the chronological comparison folds the
+ * indicator into the sort key (`YYYY-MM-DD AM` < `YYYY-MM-DD PM`).
  */
 
 import type { AmPm, TimeOption } from "./timeOptions";
@@ -46,7 +46,7 @@ export interface EventFormErrors {
 function sortKey(values: EventFormValues, end: boolean): string {
   const naive = end ? values.end : values.start;
   const amPm = end ? values.endAmPm : values.startAmPm;
-  if (values.timeOption === "full" && amPm) {
+  if (values.timeOption === "half" && amPm) {
     return `${naive.slice(0, 10)} ${amPm}`;
   }
   return naive;
@@ -79,7 +79,7 @@ export function withSelfCreator(values: EventFormValues, sessionUserId: string):
 export function validateEventForm(values: EventFormValues): EventFormErrors {
   const errors: EventFormErrors = {};
 
-  if (values.timeOption === "full") {
+  if (values.timeOption === "half") {
     if (!values.startAmPm) {
       errors.startAmPm = "Select AM or PM";
     }

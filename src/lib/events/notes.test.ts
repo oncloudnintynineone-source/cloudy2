@@ -311,13 +311,13 @@ describe("parseEventTimeOption", () => {
   it("extracts a valid time option", () => {
     expect(parseEventTimeOption('{"timeOption":"full"}')).toBe("full");
     expect(parseEventTimeOption('{"timeOption":"range"}')).toBe("range");
+    expect(parseEventTimeOption('{"timeOption":"half"}')).toBe("half");
   });
 
   it("returns null for absent, empty, invalid, or legacy values", () => {
     expect(parseEventTimeOption("")).toBeNull();
     expect(parseEventTimeOption('{"eventType":"Leave"}')).toBeNull();
     expect(parseEventTimeOption('{"timeOption":""}')).toBeNull();
-    expect(parseEventTimeOption('{"timeOption":"half"}')).toBeNull();
     expect(parseEventTimeOption('{"timeOption":"ampm"}')).toBeNull();
   });
 });

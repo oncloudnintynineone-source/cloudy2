@@ -276,8 +276,8 @@ Supporting helpers:
   IDs"); unknown keys render verbatim.
 - `valueString(key, value)` (`:127`) — null/undefined → `EMPTY_VALUE` (`—`,
   `:123`); domain enums mapped by key (`timeOption`/`timeOptions` → "Start &
-  End"/"Full Day", `locationPolicy` → "In camp only"/…); booleans → "Yes"/"No";
-  strings as-is; arrays joined with `", "`; anything else JSON-stringified.
+  End"/"Full Day"/"Half Day", `locationPolicy` → "In camp only"/…); booleans →
+  "Yes"/"No"; strings as-is; arrays joined with `", "`; anything else JSON-stringified.
 - `actorLabel(row)` (`:206`) — `"{name} ({role})"`, "Unknown" for a null name.
 - `formatLogTimestamp(createdAt)` (`:212`) — `YYYY-MM-DD HH:MM` in
   Asia/Singapore (UTC+8, no DST), computed with a fixed offset.

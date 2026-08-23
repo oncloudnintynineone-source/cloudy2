@@ -191,8 +191,8 @@ export function EventForm({
         // it, so editing never re-types the rendered calendar title.
         title: event.payload.rawTitle ?? (event.title === "(no title)" ? "" : event.title),
         timeOption,
-        // Legacy full-day events carry no indicators; defaulting to AM→PM
-        // keeps them rendering as a plain full day (no title suffix).
+        // Prefill any half-day markers stored in the notes (legacy full-day
+        // events may carry them); AM→PM keeps plain spans marker-free.
         startAmPm: event.payload.startAmPm ?? "AM",
         endAmPm: event.payload.endAmPm ?? "PM",
         start: event.start,
@@ -320,14 +320,16 @@ export function EventForm({
 
   function switchTimeOption(option: TimeOption) {
     form.setFieldValue("timeOption", option);
-    if (option === "full") {
+    if (option !== "range") {
       if (form.values.start) {
         form.setFieldValue("start", `${form.values.start.slice(0, 10)} 00:00:00`);
       }
       if (form.values.end) {
         form.setFieldValue("end", `${form.values.end.slice(0, 10)} 00:00:00`);
       }
-      // Default to a plain full-day span (no title suffix) on entry.
+    }
+    if (option === "half") {
+      // Default to an AM→PM span (a mixed span renders with no title marker).
       if (!form.values.startAmPm) {
         form.setFieldValue("startAmPm", "AM");
       }
@@ -417,7 +419,7 @@ export function EventForm({
     const base = formatEventTitle(input, eventTitleTemplate) || form.values.title.trim();
     const amPm = amPmSuffix(form.values.startAmPm, form.values.endAmPm);
     // Matches the server: an empty title gets no bare "(AM)" suffix.
-    return base && effectiveTimeOption === "full" && amPm ? `${base} (${amPm})` : base;
+    return base && effectiveTimeOption === "half" && amPm ? `${base} (${amPm})` : base;
   })();
 
   // Review-step display values — resolved from the same effective state the
@@ -444,11 +446,30 @@ export function EventForm({
     if (!form.values.start || !form.values.end) {
       return "";
     }
-    if (effectiveTimeOption === "full") {
+    if (effectiveTimeOption !== "range") {
       const startText = formatDateTime(form.values.start, true);
-      // All-day ends are exclusive: the stored end is midnight after the last day.
-      const endText = formatDateTime(`${subOneDay(form.values.end.slice(0, 10))} 00:00:00`, true);
-      return endText && endText !== startText ? `${startText} – ${endText}` : startText;
+      // The form stores the inclusive last day; the review shows it as-is
+      // (the exclusive-day expansion happens only on the Google write).
+      const endText = formatDateTime(`${form.values.end.slice(0, 10)} 00:00:00`, true);
+      // Mirrors the audit rendering: markers by presence, folded when mixed.
+      const startMarker =
+        effectiveTimeOption === "half" && form.values.startAmPm
+          ? ` (${form.values.startAmPm})`
+          : "";
+      const endMarker =
+        effectiveTimeOption === "half" && form.values.endAmPm ? ` (${form.values.endAmPm})` : "";
+      if (!endText || endText === startText) {
+        if (
+          effectiveTimeOption === "half" &&
+          form.values.startAmPm &&
+          form.values.endAmPm &&
+          form.values.startAmPm !== form.values.endAmPm
+        ) {
+          return `${startText} (${form.values.startAmPm}\u2013${form.values.endAmPm})`;
+        }
+        return `${startText}${startMarker}`;
+      }
+      return `${startText}${startMarker} \u2013 ${endText}${endMarker}`;
     }
     return `${formatDateTime(form.values.start, false)} – ${formatDateTime(form.values.end, false)}`;
   })();
@@ -464,8 +485,8 @@ export function EventForm({
     const payload: EventFormValues = {
       ...rest,
       timeOption: effectiveTimeOption,
-      startAmPm: effectiveTimeOption === "full" ? rest.startAmPm || "AM" : "",
-      endAmPm: effectiveTimeOption === "full" ? rest.endAmPm || "PM" : "",
+      startAmPm: effectiveTimeOption === "half" ? rest.startAmPm || "AM" : "",
+      endAmPm: effectiveTimeOption === "half" ? rest.endAmPm || "PM" : "",
       inviteeUserIds: userIds,
       inviteeDepartments: departmentIds,
     };
@@ -497,6 +518,8 @@ export function EventForm({
   const showTabs = allowedOptions.length > 1;
 
   const timeFields = (option: TimeOption) => {
+    // Only Half Day carries half-of-day markers; Full Day is a plain range.
+    const showAmPm = option === "half";
     const startField =
       option === "range" ? (
         <DateTimePicker
@@ -514,19 +537,21 @@ export function EventForm({
             onChange={(value) => form.setFieldValue("start", value ? `${value} 00:00:00` : "")}
             error={form.errors.start}
           />
-          <Stack gap={4}>
-            <SegmentedControl
-              aria-label="Start AM or PM"
-              data={AMPM_OPTIONS}
-              value={form.values.startAmPm || undefined}
-              onChange={(value) => form.setFieldValue("startAmPm", value as AmPm)}
-            />
-            {form.errors.startAmPm && (
-              <Text size="xs" c="red">
-                {form.errors.startAmPm}
-              </Text>
-            )}
-          </Stack>
+          {showAmPm && (
+            <Stack gap={4}>
+              <SegmentedControl
+                aria-label="Start AM or PM"
+                data={AMPM_OPTIONS}
+                value={form.values.startAmPm || undefined}
+                onChange={(value) => form.setFieldValue("startAmPm", value as AmPm)}
+              />
+              {form.errors.startAmPm && (
+                <Text size="xs" c="red">
+                  {form.errors.startAmPm}
+                </Text>
+              )}
+            </Stack>
+          )}
         </>
       );
     const endField =
@@ -546,19 +571,21 @@ export function EventForm({
             onChange={(value) => form.setFieldValue("end", value ? `${value} 00:00:00` : "")}
             error={form.errors.end}
           />
-          <Stack gap={4}>
-            <SegmentedControl
-              aria-label="End AM or PM"
-              data={AMPM_OPTIONS}
-              value={form.values.endAmPm || undefined}
-              onChange={(value) => form.setFieldValue("endAmPm", value as AmPm)}
-            />
-            {form.errors.endAmPm && (
-              <Text size="xs" c="red">
-                {form.errors.endAmPm}
-              </Text>
-            )}
-          </Stack>
+          {showAmPm && (
+            <Stack gap={4}>
+              <SegmentedControl
+                aria-label="End AM or PM"
+                data={AMPM_OPTIONS}
+                value={form.values.endAmPm || undefined}
+                onChange={(value) => form.setFieldValue("endAmPm", value as AmPm)}
+              />
+              {form.errors.endAmPm && (
+                <Text size="xs" c="red">
+                  {form.errors.endAmPm}
+                </Text>
+              )}
+            </Stack>
+          )}
         </>
       );
     // The modal is wide enough at lg for start/end side by side.

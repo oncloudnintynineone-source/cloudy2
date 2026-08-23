@@ -55,7 +55,9 @@ describe("valueString", () => {
   it("maps time option and location policy enums to labels", () => {
     expect(valueString("timeOption", "range")).toBe("Start & End");
     expect(valueString("timeOption", "full")).toBe("Full Day");
+    expect(valueString("timeOption", "half")).toBe("Half Day");
     expect(valueString("timeOptions", ["range", "full"])).toBe("Start & End, Full Day");
+    expect(valueString("timeOptions", ["half"])).toBe("Half Day");
     expect(valueString("locationPolicy", "out")).toBe("Out of camp only");
   });
 
