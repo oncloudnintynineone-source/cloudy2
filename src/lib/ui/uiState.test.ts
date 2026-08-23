@@ -130,6 +130,17 @@ describe("normalizeUiState", () => {
     expect(normalizeUiState({ lastPage: "dashboard" })).toEqual({});
     expect(normalizeUiState({ lastPage: "https://evil.example" })).toEqual({});
   });
+
+  it("keeps sidebarCollapsed only when it is a real boolean (both values)", () => {
+    expect(normalizeUiState({ sidebarCollapsed: true })).toEqual({ sidebarCollapsed: true });
+    expect(normalizeUiState({ sidebarCollapsed: false })).toEqual({ sidebarCollapsed: false });
+  });
+
+  it("drops mismatched sidebarCollapsed types", () => {
+    expect(normalizeUiState({ sidebarCollapsed: "true" })).toEqual({});
+    expect(normalizeUiState({ sidebarCollapsed: 1 })).toEqual({});
+    expect(normalizeUiState({ sidebarCollapsed: null })).toEqual({});
+  });
 });
 
 describe("mergeUiState", () => {
@@ -153,6 +164,23 @@ describe("mergeUiState", () => {
       dashboard: { view: "week", date: "2026-08-10" },
       parade: { month: "2026-08" },
     });
+  });
+
+  it("merges sidebarCollapsed with patch-wins in both directions", () => {
+    expect(mergeUiState({ sidebarCollapsed: false }, { sidebarCollapsed: true })).toEqual({
+      sidebarCollapsed: true,
+    });
+    expect(mergeUiState({ sidebarCollapsed: true }, { sidebarCollapsed: false })).toEqual({
+      sidebarCollapsed: false,
+    });
+  });
+
+  it("keeps the current sidebarCollapsed when the patch omits it, and omits it when neither has it", () => {
+    expect(mergeUiState({ sidebarCollapsed: true }, { lastPage: "/contacts" })).toEqual({
+      lastPage: "/contacts",
+      sidebarCollapsed: true,
+    });
+    expect(mergeUiState({}, { lastPage: "/contacts" })).toEqual({ lastPage: "/contacts" });
   });
 });
 

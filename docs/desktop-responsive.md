@@ -43,7 +43,7 @@ flowchart LR
     A[Viewport width] --> B{≥ 992px?}
     B -- no --> C[Mobile layout<br/>bottom nav · card lists · sm modals]
     B -- yes --> D[Desktop layout]
-    D --> E[Left sidebar 240px<br/>bottom nav collapsed]
+    D --> E[Left sidebar 240px, minimizes to a 64px icon rail<br/>bottom nav collapsed]
     D --> F[PageContainer ≤ 1200px]
     D --> G[Tables / card-grid<br/>md-lg modals · 2-col forms]
 ```
@@ -52,11 +52,29 @@ flowchart LR
 
 `src/components/AppShellShell.tsx` (client) renders the whole authenticated shell:
 
-- **Navbar** — `AppShell navbar={{ width: 240, breakpoint: "lg" }}`: appears at `lg`
+- **Navbar** — `AppShell navbar={{ width: collapsed ? 64 : 240, breakpoint: "lg",
+  collapsed: { mobile: true } }}`: appears at `lg`
   with the four nav items (Calendar, Parade State, Contacts, Settings for admins) as
   `NavLink`s driven by the same local `items` array (the `NavItem` constants defined in
   the same file) the mobile footer renders. Below `lg` Mantine collapses it
   automatically.
+- **Collapsible rail (desktop only)** — a button pinned to the bottom of the navbar
+  (`IconLayoutSidebarLeftCollapse`/`IconLayoutSidebarLeftExpand`) minimizes the
+  sidebar to a 64px
+  **icon-only rail**: the `NavLink`s swap for centered icon buttons (`RailNavButton`,
+  label on a right-side `Tooltip`, `aria-label` + `aria-current` kept) and the
+  `AppShell` `navbar.width` drops 240 → 64, which Mantine re-emits into the
+  `--app-shell-navbar-width`/`-offset` CSS vars every render, so the main area's
+  padding follows. The resize animates: the navbar gets an inline
+  `transitionProperty: "transform, top, height, width"` (Mantine animates
+  transform/top/height by itself; the main area already transitions its padding).
+  The state is **remembered per device** in the `cloudy2.ui` cookie as
+  `sidebarCollapsed` (see [ui-state.md](ui-state.md)): the (protected) layout
+  reads it from the cookie before first paint and passes it to the shell as the
+  initial state (the server renders exactly what was remembered — no client
+  restore, no flash, no hydration mismatch), and a `useEffect` converges the
+  cookie on every toggle. The rail never affects < `lg` (the navbar is hidden
+  there by Mantine's `collapsed.mobile`).
 - **Footer** — `footer={{ height: BOTTOM_NAV_HEIGHT_CSS, collapsed: isDesktop }}`:
   the bottom nav stays for mobile; at `lg` it collapses off-screen and its layout
   offset drops to 0 (Mantine's `collapsed` footer behavior), so the FAB clearance
@@ -183,7 +201,7 @@ The event form's **Timestamp step** pairs Start/End side by side in a 2-column
 | File | Role |
 | ---- | ---- |
 | `src/app/globals.css` | `@media (min-width: 62em)` block: offset vars, `.page-container`, `.card-grid` |
-| `src/components/AppShellShell.tsx` | Navbar (240px, `breakpoint: "lg"`), footer `collapsed: isDesktop`, `.app-shell-root` |
+| `src/components/AppShellShell.tsx` | Navbar (240px ↔ 64px rail, `breakpoint: "lg"`, remembered via `sidebarCollapsed`), footer `collapsed: isDesktop`, `.app-shell-root` |
 | `src/components/PageContainer.tsx` | 1200px-centered wrapper |
 | `src/components/FloatingToolbar.tsx` | Default `bottomOffset` = `var(--app-floating-bottom-offset)` |
 | `src/lib/bottomNav.ts` | `BOTTOM_NAV_HEIGHT` / `BOTTOM_NAV_HEIGHT_CSS` (floating offset var moved to CSS) |

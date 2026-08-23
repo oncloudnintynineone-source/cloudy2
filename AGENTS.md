@@ -149,14 +149,17 @@ the quality checks.
     `fetchRangeEvents` 2-month range read as the timeline Week view, so
     cache/filters/force-refresh are inherited unchanged.
   - **Remembered UI state survives relaunch.** The last page, the dashboard's
-    view/tab + day/month + Cal/Users/Types filters + pinned tabs, and the
+    view/tab + day/month + Cal/Users/Types filters + pinned tabs, the desktop
+    sidebar's minimized state (`sidebarCollapsed`), and the
     parade-state day + Cal/Users filters are persisted per-device in one
     cookie, `cloudy2.ui`
-    (base64url JSON: `{ lastPage, dashboard: { view, date, month, cal, users, types,
-    pinnedViews }, parade: { date, month, cal, users } }`; max-age 1y). The
+    (base64url JSON: `{ lastPage, sidebarCollapsed, dashboard: { view, date, month,
+    cal, users, types, pinnedViews }, parade: { date, month, cal, users } }`;
+    max-age 1y). The
     **server** reads it
-   (`cookies()` in `src/app/page.tsx` and the two pages' `page.tsx`) and applies it
-   as a **per-key fallback where the URL param is absent** — URL params always
+    (`cookies()` in `src/app/page.tsx`, the two pages' `page.tsx`, and the
+    (protected) layout for `sidebarCollapsed`) and applies it
+    as a **per-key fallback where the URL param is absent** — URL params always
    win — so a PWA cold start (`start_url /`) redirects to the remembered
    `lastPage` (whitelisted by the pure `resolveLaunchTarget()` in
    `src/lib/ui/uiState.ts`, `/settings/*` admin-only, junk → `/dashboard`) and a
@@ -218,8 +221,18 @@ the quality checks.
    Below `lg` it is the original touch layout — bottom nav, stacked **card lists**
    (`Paper` per row, no `<Table>`), floating centered modals with a fixed `size` (never
    `fullScreen`), and the sidebar is hidden (`AppShell navbar collapsed: { mobile: true }`).
-   At/above `lg` the shell gains a left sidebar (240px AppShell navbar) and the bottom nav
-   collapses; pages center in a 1200px `PageContainer`; the data-dense settings lists
+    At/above `lg` the shell gains a left sidebar (240px AppShell navbar) and the bottom nav
+    collapses. The sidebar **minimizes to a 64px icon-only rail** on a bottom-pinned
+    toggle button (icons + right-side `Tooltip`s,
+    `IconLayoutSidebarLeftCollapse`/`Expand`):
+    the (protected) layout reads `sidebarCollapsed` from the `cloudy2.ui` cookie
+    before first paint and passes it to `AppShellShell` as the initial state (the
+    server renders the remembered state — no client restore, no flash, no
+    hydration mismatch); the shell persists every toggle via `writeUiState` and
+    animates the 240↔64 resize by adding `width` to the navbar's inline
+    `transitionProperty` (Mantine animates transform/top/height; main already
+    transitions its padding). It never affects < `lg` (Mantine's `collapsed.mobile`
+    hides the navbar there). Pages center in a 1200px `PageContainer`; the data-dense settings lists
    (Users, Departments, Event Types, Audit Log) switch from cards to Mantine `Table`s
    (`hiddenFrom="lg"` cards + `visibleFrom="lg"` tables — the scoped `<Table>` exception);
    card lists (Contacts, Parade State) reflow through the `.card-grid` CSS class; modals

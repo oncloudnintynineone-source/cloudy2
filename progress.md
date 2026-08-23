@@ -90,6 +90,8 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
 - [1.77 Desktop responsive layout (Phase 3ah)](#177-desktop-responsive-layout-phase-3ah)
 - [1.78 Desktop layout review fixes (Phase 3ai)](#178-desktop-layout-review-fixes-phase-3ai)
 - [1.79 Desktop responsive bugfixes (Phase 3aj)](#179-desktop-responsive-bugfixes-phase-3aj)
+- [1.80 Event form wizard: review step, relocated "On behalf of", optional creator (Phase 3ak)](#180-event-form-wizard-review-step-relocated-on-behalf-of-optional-creator-phase-3ak)
+- [1.81 Collapsible sidebar rail (Phase 3al)](#181-collapsible-sidebar-rail-phase-3al)
 
 ## 1.1 Status
 
@@ -3970,19 +3972,19 @@ appear at â‰¥992px (sidebar visible, bottom nav collapsed).
 
 Three user-driven changes to `EventForm.tsx` plus one decision reversal.
 
-- **Progress UI removed** — the tap-to-jump-back dots and the "N of M · label"
+- **Progress UI removed** ï¿½ the tap-to-jump-back dots and the "N of M ï¿½ label"
   caption are gone (`UnstyledButton`/`Box` imports and the `StepDef.label`
   field dropped with them). Back is now the only backward navigation.
-- **"On behalf of" moved out of every step** — it was a sticky select pinned
+- **"On behalf of" moved out of every step** ï¿½ it was a sticky select pinned
   above all step content for admins; it is now its own step after Remarks
   (`buildSteps(isAdmin)` replaces the static `STEPS`: regular users walk six
   steps, admins seven). Its invitee-chip sync onChange moved verbatim.
-- **Review step added** — a read-only last page folding in the "Calendar
+- **Review step added** ï¿½ a read-only last page folding in the "Calendar
   preview" Paper (removed from every other step) plus When / Location / Event
   Type / On-behalf-of / People / Departments / Remarks rows computed from the
   same effective state as the submit payload (`reviewPeople`,
   `reviewDepartments`, `creatorName`, `whenText`).
-- **DECISION REVERSED — "On behalf of" is now OPTIONAL for admins** (was
+- **DECISION REVERSED ï¿½ "On behalf of" is now OPTIONAL for admins** (was
   required since 1.x: client gate `{ requireCreator: isAdmin }`, server
   `validateEventForm(..., { requireCreator })`). A blank select uniformly
   means **the acting admin themselves**, on create *and* update (clearing an
@@ -3991,7 +3993,7 @@ Three user-driven changes to `EventForm.tsx` plus one decision reversal.
     - New pure `withSelfCreator(values, sessionUserId)` in
       `events/validate.ts` (blank/whitespace ? session user, then
       `withCreatorInvited`); applied in both actions right after
-      `requireSession()` — so targets, notes `createdBy`, ownership, and audit
+      `requireSession()` ï¿½ so targets, notes `createdBy`, ownership, and audit
       snapshots all see the effective creator even when none was submitted.
     - The `requireCreator` option and its "Choose who this event is on behalf
       of" error were deleted from `validateEventForm`; the creator step has no
@@ -4000,7 +4002,7 @@ Three user-driven changes to `EventForm.tsx` plus one decision reversal.
       `creatorId ? creator` mapping.
     - Review falls back to the session user's display name, so it always shows
       the effective owner.
-  Docs synced (`event-lifecycle.md` §1.3/§1.4/§1.4.1/§1.5.2/file tables,
+  Docs synced (`event-lifecycle.md` ï¿½1.3/ï¿½1.4/ï¿½1.4.1/ï¿½1.5.2/file tables,
   `event-mutations.md` diagram + table).
 
 **Verification:** `pnpm lint`, `pnpm typecheck`, `pnpm test` (460, +4 net from
@@ -4008,3 +4010,41 @@ the removed requireCreator case and the new `withSelfCreator` cases) pass.
 Owed: manual create/edit walkthroughs for both roles (admin blank vs picked
 creator incl. edit-clearing reassignment; regular user unchanged flow), then
 confirm on Neon that notes `createdBy` lands for blank-creator creates.
+
+## 1.81 Collapsible sidebar rail (Phase 3al)
+
+On wide screens the desktop sidebar now minimizes to an icon rail, and the
+minimized state is remembered per device like the pinned tabs and last page.
+
+- **Icon-only rail** â€” `AppShellShell.tsx` gains a bottom-pinned toggle button
+  (`IconLayoutSidebarLeftCollapse`/`Expand`, `aria-label` switches) that shrinks
+  the sidebar 240px â†’ 64px: `AppShell`'s `navbar.width` is now state-driven
+  (Mantine re-emits the `--app-shell-navbar-width`/`-offset` CSS vars every
+  render, so the main area's padding follows), and the `NavLink`s swap for
+  centered icon-only `RailNavButton`s (label on a right-side `Tooltip`,
+  `aria-label`/`aria-current` kept). The 240â†”64 resize animates: the navbar gets
+  an inline `transitionProperty: "transform, top, height, width"` (Mantine
+  animates transform/top/height by itself; the main area already transitions
+  its padding). Below `lg` nothing changes (the navbar is hidden there by
+  Mantine's `collapsed.mobile`).
+- **Remembered per device** â€” a new `sidebarCollapsed` boolean in the
+  `cloudy2.ui` cookie. `UiState` + `normalizeUiState` (only real booleans
+  survive) + `mergeUiState` (patch-wins â€” it had to copy the key, the old merge
+  silently dropped unknown top-level keys). The restore is **server-side**: the
+  React 19 `react-hooks/set-state-in-effect` rule rejects the classic
+  "hydrate-from-cookie-in-an-effect" pattern, so `(protected)/layout.tsx`
+  decodes the cookie with `decodeUiState` before first paint and passes
+  `sidebarCollapsed` to `AppShellShell` as its initial state (the server
+  renders exactly what was remembered â€” no flash, no hydration mismatch); the
+  shell's effect persists the value on mount and every toggle (writing `false`
+  too, so the cookie converges when the sidebar is re-expanded). Sign-out
+  (`clearUiState`) wipes it with the rest.
+- Docs synced (`desktop-responsive.md` Â§1.2 + diagram + file table,
+  `ui-state.md` shape/normalize/merge/writers/index + line refs, `AGENTS.md`
+  shell + cookie bullets).
+
+**Verification:** `pnpm lint`, `pnpm typecheck`, `pnpm test` (464, +4 for the
+new `sidebarCollapsed` normalize/merge cases), and `pnpm build` all pass.
+Owed: wide-window manual check â€” toggle the rail (animated resize, tooltips,
+active states), reload/PWA relaunch to confirm the remembered state, and a
+<992px pass to confirm the mobile layout is untouched.

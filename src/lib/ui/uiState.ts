@@ -11,6 +11,7 @@
  * params):
  *   {
  *     lastPage?: string,        // bottom-nav path, incl. /settings sub-tab
+ *     sidebarCollapsed?: boolean,  // desktop sidebar minimized to the icon rail
  *     dashboard?: { view?, date?, month?, cal?: string[], users?: string[], types?: string[],
  *                    pinnedViews?: string[] },  // pinned tabs, recency order (0 = leftmost)
  *     parade?:    { date?, month?, cal?: string[], users?: string[] },
@@ -50,6 +51,8 @@ export interface ParadeUiState {
 
 export interface UiState {
   lastPage?: string;
+  /** Desktop sidebar minimized to the icon rail (desktop-only, no-op below lg). */
+  sidebarCollapsed?: boolean;
   dashboard?: DashboardUiState;
   parade?: ParadeUiState;
 }
@@ -123,6 +126,9 @@ export function normalizeUiState(value: unknown): UiState | null {
   const lastPage = stringOf(value.lastPage);
   if (lastPage !== undefined && lastPage.startsWith("/")) {
     state.lastPage = lastPage;
+  }
+  if (typeof value.sidebarCollapsed === "boolean") {
+    state.sidebarCollapsed = value.sidebarCollapsed;
   }
   const dashboard = isPlainObject(value.dashboard) ? value.dashboard : undefined;
   if (dashboard !== undefined) {
@@ -199,6 +205,9 @@ export function mergeUiState(current: UiState, patch: UiState): UiState {
   return {
     ...(current.lastPage !== undefined || patch.lastPage !== undefined
       ? { lastPage: patch.lastPage ?? current.lastPage }
+      : {}),
+    ...(current.sidebarCollapsed !== undefined || patch.sidebarCollapsed !== undefined
+      ? { sidebarCollapsed: patch.sidebarCollapsed ?? current.sidebarCollapsed }
       : {}),
     ...(patch.dashboard !== undefined
       ? { dashboard: patch.dashboard }

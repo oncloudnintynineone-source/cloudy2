@@ -2,7 +2,8 @@
 
 Relaunching the PWA (or an F5) should land the user exactly where they left off:
 the last page, the dashboard's view/tab, date or month, and the Cal/Users/Types
-filters — plus the pinned view tabs. This document describes the
+filters — plus the pinned view tabs and the desktop sidebar's minimized state.
+This document describes the
 **per-device remembered UI state** subsystem: one small cookie the **client owns
 writing** and the **server reads** as per-key defaults before first paint, the
 trust/normalization rules that keep a user-editable cookie from breaking renders,
@@ -74,9 +75,11 @@ The constraints that shape the design:
 flowchart LR
     subgraph CLIENT["Client (owner of the write)"]
         RP["useRememberedPage(pathname)<br/>(AppShellShell)"]
+        SB["sidebarCollapsed toggle effect<br/>(AppShellShell)"]
         PU["usePersistUiState(section, values)<br/>(DashboardView / ParadeStateView)"]
         W["writeUiState(patch)<br/>read-modify-write"]
         RP --> W
+        SB --> W
         PU --> W
     end
     CK["cookie 'cloudy2.ui'<br/>base64url(JSON), 1y max-age"]
@@ -84,46 +87,53 @@ flowchart LR
     subgraph SERVER["Server (read-only)"]
         D["dashboard/page.tsx<br/>per-key fallback, re-validated"]
         P["parade-state/page.tsx<br/>per-key fallback, re-validated"]
+        L["(protected)/layout.tsx<br/>sidebarCollapsed restore"]
         H["app/page.tsx<br/>resolveLaunchTarget on cold start"]
         D --> DASH["DashboardView props"]
         P --> PAR["ParadeStateView props"]
+        L --> SHELL["AppShellShell initial state"]
     end
     CK --> D
     CK --> P
+    CK --> L
     CK --> H
 ```
 
 Division of labor:
 
-- **The client owns the write.** Two independent writer hooks feed one
+- **The client owns the write.** Three independent writers feed one
   read-modify-write `writeUiState`: `useRememberedPage` (the app shell, on every
-  pathname change) and `usePersistUiState` (each page, on resolved-prop change).
-  `mergeUiState`'s section-wholesale semantics keep them from clobbering each
-  other (§1.7).
-- **The server only reads**, via `cookies()` in the page components, and applies
-  the state as **per-key fallbacks where the URL param is absent** — so
-  restoration happens in the same RSC request, before first paint.
+  pathname change), the sidebar toggle effect (the app shell, on the
+  `sidebarCollapsed` change), and `usePersistUiState` (each page, on
+  resolved-prop change). `mergeUiState`'s section-wholesale semantics keep them
+  from clobbering each other (§1.7).
+- **The server only reads**, via `cookies()` in the page components (and the
+  (protected) layout for the sidebar key), and applies the state as **per-key
+  fallbacks where the URL param is absent** — so restoration happens in the
+  same RSC request, before first paint.
 
 ## 1.4 The cookie: format & stored shape
 
-- **Name**: `cloudy2.ui` (`UI_STATE_COOKIE`, `src/lib/ui/uiState.ts:28`).
+- **Name**: `cloudy2.ui` (`UI_STATE_COOKIE`, `src/lib/ui/uiState.ts:29`).
 - **Value**: `base64url(JSON)` without padding — `encodeUiState` / `decodeUiState`
-  (`uiState.ts:183` / `:188`). The encoder is `toBase64Url` (`:166`, UTF-8 →
+  (`uiState.ts:189` / `:194`). The encoder is `toBase64Url` (`:172`, UTF-8 →
   `btoa` → `+`→`-`, `/`→`_`, padding stripped); the decoder re-pads and is total —
   any failure (bad base64, broken JSON, non-object) returns `null`, never throws.
-- **Attributes**: `path=/; max-age=31536000` (one year, `uiStateClient.ts:17,48`).
+- **Attributes**: `path=/; max-age=31536000` (one year, `uiStateClient.ts:17,49`).
 - **Overflow guard**: if the encoded value would exceed
   `SAFE_COOKIE_VALUE_LENGTH` (3500, headroom under the ~4 KiB browser cap —
-  `uiStateClient.ts:18-21`), the writer re-encodes **dropping the id lists**
+  `uiStateClient.ts:21-22`), the writer re-encodes **dropping the id lists**
   (`cal`/`users`/`types`) and keeping the small scalars that carry the most
-  "where am I" signal: `lastPage`, dashboard `view`/`date`/`month`/`pinnedViews`,
-  parade `date`/`month` (`uiStateClient.ts:32-46`).
+  "where am I" signal: `lastPage`, `sidebarCollapsed`, dashboard
+  `view`/`date`/`month`/`pinnedViews`, parade `date`/`month`
+  (`uiStateClient.ts:33-47`).
 
-### 1.4.1 Stored JSON (`UiState`, `uiState.ts:30-55`)
+### 1.4.1 Stored JSON (`UiState`, `uiState.ts:52-58`)
 
 ```jsonc
 {
   "lastPage": "/settings/users",        // bottom-nav path, incl. /settings sub-tab
+  "sidebarCollapsed": false,            // desktop sidebar minimized to the icon rail
   "dashboard": {
     "view": "weekv2",                   // month | week | weekv2 | schedule | agenda
     "date": "2026-08-21",               // day-anchored views
@@ -148,14 +158,16 @@ Anything mismatched is **dropped, never thrown** — a corrupted cookie degrades
 "no remembered state":
 
 - Non-plain-object top level → `null`.
-- `lastPage` must be a string starting with `/` (`:123-126`) — blocks relative
+- `lastPage` must be a string starting with `/` (`:126-128`) — blocks relative
   paths and `https://…` open-redirect attempts.
-- Id lists: only arrays of non-empty strings survive (`idListOf`, `:109-113`); an
+- `sidebarCollapsed` must be a real boolean — both `true` and `false` survive
+  (an explicit `false` is "expanded", which the writer persists on re-expand).
+- Id lists: only arrays of non-empty strings survive (`idListOf`, `:112-116`); an
   **empty list is dropped** — empty means "unfiltered", and dropping it makes
   consumers fall back to their role default.
 - `pinnedViews` keeps only known view values, de-duplicated in stored order
-  (`normalizePinnedViews`, `:76-87`).
-- A section with no surviving keys vanishes entirely (`:144-146`, `:159-161`).
+  (`normalizePinnedViews`, `:79-90`).
+- A section with no surviving keys vanishes entirely (`:150-152`, `:165-167`).
 - Note: `view`/`date`/`month` are **not** pattern-checked here — that lives in
   the consuming pages, which re-validate every key exactly like a URL param
   (§1.5).
@@ -223,16 +235,24 @@ so a tampered cookie can never launch a non-admin into admin routes.
 
 ## 1.7 Client write: convergence to what was rendered
 
-`writeUiState(patch)` (`src/lib/ui/uiStateClient.ts:28-49`) is a read-modify-write:
+`writeUiState(patch)` (`src/lib/ui/uiStateClient.ts:29-50`) is a read-modify-write:
 decode the current cookie, `mergeUiState(current, patch)`, encode, set.
-`mergeUiState` (`uiState.ts:198`) merges **per section**: a patch's section
-replaces that section wholesale; `lastPage` patch-wins; absent keys are untouched.
-That is what keeps the two writer hooks from clobbering each other.
+`mergeUiState` (`uiState.ts:204`) merges **per section**: a patch's section
+replaces that section wholesale; `lastPage` and `sidebarCollapsed` patch-win;
+absent keys are untouched.
+That is what keeps the writer hooks from clobbering each other.
+
+The sidebar key is the one state the **shell** owns end-to-end: the (protected)
+layout reads `sidebarCollapsed` from the cookie before first paint
+(`(protected)/layout.tsx:17`) and passes it to `AppShellShell` as the
+initial state (no client-side restore — the server renders exactly what was
+remembered), and the shell's effect persists it back on every toggle.
 
 | Writer | Where | What it persists |
 | ------ | ----- | ---------------- |
-| `useRememberedPage(pathname)` (`uiStateClient.ts:73`) | `AppShellShell.tsx` — every authenticated page | `{ lastPage: pathname }` on every pathname change, incl. `/settings` sub-tabs |
-| `usePersistUiState("dashboard", values)` (`uiStateClient.ts:62`) | `DashboardView.tsx:424` | the **server-resolved props**: `view`, `date`, `month`, `cal`, `users`, `types`, plus local `pinnedViews` |
+| `useRememberedPage(pathname)` (`uiStateClient.ts:74`) | `AppShellShell.tsx` — every authenticated page | `{ lastPage: pathname }` on every pathname change, incl. `/settings` sub-tabs |
+| sidebar toggle effect (`AppShellShell.tsx:153-155`) | `AppShellShell.tsx` — every authenticated page | `{ sidebarCollapsed }` on mount (the remembered value) and on every toggle — writing `false` too, so the cookie converges when the sidebar is re-expanded |
+| `usePersistUiState("dashboard", values)` (`uiStateClient.ts:63`) | `DashboardView.tsx:424` | the **server-resolved props**: `view`, `date`, `month`, `cal`, `users`, `types`, plus local `pinnedViews` |
 | `usePersistUiState("parade", values)` | `ParadeStateView.tsx:148` | the server-resolved `date`, `month`, `cal`, `users` |
 
 The crucial detail is **what** gets written: the *server-resolved* props, not the
@@ -251,10 +271,10 @@ The dashboard's view tabs can be pinned: the "Pin Tab" / "Unpin Tab" item in the
 - **Storage**: `dashboard.pinnedViews` in the cookie — **recency order**, index 0
   = most recently pinned = renders **leftmost**, with a filled star icon prefixed
   to the tab name (`DashboardView.tsx:983-996`). `orderDashboardViews`
-  (`uiState.ts:93`) computes the tab bar order: pinned first (stored order), then
-  unpinned in the default order (`DASHBOARD_VIEW_VALUES`, `uiState.ts:65`).
+  (`uiState.ts:96`) computes the tab bar order: pinned first (stored order), then
+  unpinned in the default order (`DASHBOARD_VIEW_VALUES`, `uiState.ts:68`).
 - **Not URL-backed** — unlike every other dashboard key. `DASHBOARD_STATE_KEYS`
-  deliberately excludes `pinnedViews` (`uiState.ts:57-61`), and a pin toggle
+  deliberately excludes `pinnedViews` (`uiState.ts:64-65`), and a pin toggle
   **navigates nowhere**: `togglePinView` (`DashboardView.tsx:823-830`) just
   updates local state (prepend on pin, filter-out on unpin) — no skeleton, no
   `_fresh`.
@@ -293,7 +313,7 @@ sequenceDiagram
     P-->>V: clean bare URL — cookie now matches the URL
 ```
 
-1. **Detection** — `freshMarkerNeeded(updates, keys)` (`uiState.ts:221-226`):
+1. **Detection** — `freshMarkerNeeded(updates, keys)` (`uiState.ts:230-235`):
    true when any remembered key is set to `null` in the navigation's updates.
 2. **Injection** — `navigate()` in `DashboardView` (`:584-609`) and
    `ParadeStateView` (`:174-189`): after a no-op guard (built href === current
@@ -316,33 +336,34 @@ matches the URL — the stale entries are gone.
 
 ## 1.10 Sign-out & clearing
 
-- `clearUiState()` (`uiStateClient.ts:51-53`) expires the cookie (`max-age=0`).
+- `clearUiState()` (`uiStateClient.ts:52-54`) expires the cookie (`max-age=0`).
 - It is called by the **Log out** menu item in `UserMenu.tsx:19-26` right before
   NextAuth's `signOut`: the state is per-device, so the next account on the device
-  must start from pure defaults. `UserMenu` is the only caller.
+  must start from pure defaults (the sidebar rail preference goes with it).
+  `UserMenu` is the only caller.
 
 ## 1.11 Pure helpers & testing
 
 All decision logic is pure and unit-tested in `src/lib/ui/uiState.test.ts`
-(283 lines); the writer hooks and the page-level reads are thin glue.
+(311 lines); the writer hooks and the page-level reads are thin glue.
 
 | Helper (`src/lib/ui/uiState.ts`) | Behavior | Tests |
 | -------------------------------- | -------- | ----- |
-| `encodeUiState` / `decodeUiState` (`:183` / `:188`) | base64url round-trip; total decode (garbage → `null`) | round-trip (incl. `pinnedViews`), alphabet check, padded-input tolerance, garbage cases |
-| `normalizeUiState` (`:120`) | type/shape coercion; drops mismatched values, empty lists, empty sections; `lastPath` absolute-path check | well-formed keep, mismatched drop, mixed-type lists, open-redirect block |
-| `mergeUiState` (`:198`) | section-wholesale merge, `lastPage` patch-wins | patch-only-section, whole-section replace |
-| `normalizePinnedViews` (`:76`) | known values only, de-duped, stored order | non-arrays, unknown/duplicate drop, order |
-| `orderDashboardViews` (`:93`) | pinned first (recency), then default order | default order, single/multiple pins, all-pinned uniqueness |
-| `freshMarkerNeeded` (`:221`) | true iff any remembered key removed | single/multiple removals, set-only, empty |
-| `resolveLaunchTarget` (`:243`) | whitelist + role scoping for the cold start | base pages, `/settings` per role, all subtabs, unknown/relative/`https`/`undefined` fallbacks |
+| `encodeUiState` / `decodeUiState` (`:189` / `:194`) | base64url round-trip; total decode (garbage → `null`) | round-trip (incl. `pinnedViews`), alphabet check, padded-input tolerance, garbage cases |
+| `normalizeUiState` (`:123`) | type/shape coercion; drops mismatched values, empty lists, empty sections; `lastPage` absolute-path check; `sidebarCollapsed` boolean-only | well-formed keep, mismatched drop, mixed-type lists, open-redirect block, `sidebarCollapsed` keep/drop |
+| `mergeUiState` (`:204`) | section-wholesale merge, `lastPage`/`sidebarCollapsed` patch-wins | patch-only-section, whole-section replace, `sidebarCollapsed` both directions + absence |
+| `normalizePinnedViews` (`:79`) | known values only, de-duped, stored order | non-arrays, unknown/duplicate drop, order |
+| `orderDashboardViews` (`:96`) | pinned first (recency), then default order | default order, single/multiple pins, all-pinned uniqueness |
+| `freshMarkerNeeded` (`:230`) | true iff any remembered key removed | single/multiple removals, set-only, empty |
+| `resolveLaunchTarget` (`:252`) | whitelist + role scoping for the cold start | base pages, `/settings` per role, all subtabs, unknown/relative/`https`/`undefined` fallbacks |
 
 Test environment note: vitest runs in bare node without `btoa`/`atob`, so the test
 file carries a `Buffer`-based mirror of the base64url encoder
-(`uiState.test.ts:278-283`).
+(`uiState.test.ts:306-311`).
 
 I/O-bound (not unit-tested): `uiStateClient.ts` (`document.cookie`), the
-`cookies()` reads in `page.tsx`/`dashboard/page.tsx`/`parade-state/page.tsx`, and
-the writer hooks.
+`cookies()` reads in `page.tsx`/`dashboard/page.tsx`/`parade-state/page.tsx`/
+`(protected)/layout.tsx`, and the writer hooks.
 
 ## 1.12 File index & related docs
 
@@ -356,7 +377,8 @@ the writer hooks.
 | `src/app/(protected)/parade-state/page.tsx` | Parade-state per-key fallback + `_fresh` skip |
 | `src/app/(protected)/dashboard/DashboardView.tsx` | Persist hook, `navigate` + `_fresh` inject/strip, pin toggle + sync, one-shot strips |
 | `src/app/(protected)/parade-state/ParadeStateView.tsx` | Parade persist hook + `_fresh` inject/strip |
-| `src/components/AppShellShell.tsx` | `useRememberedPage` on every pathname change |
+| `src/app/(protected)/layout.tsx` | Reads `sidebarCollapsed` from the cookie before first paint, passes it to the shell as initial state |
+| `src/components/AppShellShell.tsx` | `useRememberedPage` on every pathname change; sidebar `sidebarCollapsed` initial state (from the layout prop) + persist (effect) |
 | `src/components/UserMenu.tsx` | Sign-out → `clearUiState` |
 | `src/app/manifest.ts` | PWA `start_url /` |
 
@@ -369,4 +391,4 @@ Related docs:
   state system coexists with.
 - [`README.md`](../README.md#112-documentation) — documentation index.
 - `progress.md` — phase write-ups: 1.69 (remembered UI state), 1.71 (user filter
-  row narrowing), 1.72 (pinned tabs).
+  row narrowing), 1.72 (pinned tabs), 1.81 (collapsible sidebar rail).
