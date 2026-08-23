@@ -141,6 +141,11 @@ One line per phase; full write-ups (incl. Mermaid diagrams and verification note
 - 1.86 Calendar skeleton consistency pass (bugfix)
 - 1.87 Event webhooks to external systems (Phase 3ap)
 - 1.88 Multiple webhook endpoints + in-app payload guide (Phase 3aq)
+- 1.89 Attendance report: present wins, no event tags (Phase 3ar)
+- 1.90 Branded error/404/offline fallbacks (error boundaries + OfflineBanner)
+- 1.91 Mobile correctness: viewport-fit safe areas, toast placement, skeleton fidelity
+- 1.92 Interaction consistency: Reset confirm, purge/export loading, filter pills, login errors
+- 1.93 Accessibility pass: keyboard-activatable rows/cards, aria-pressed toggles, parade legend
 
 ## 1.4 Open items & next steps
 

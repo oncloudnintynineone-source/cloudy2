@@ -4,7 +4,6 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { signIn } from "next-auth/react";
 import { Button, Center, Paper, PasswordInput, Stack, Text, Title } from "@mantine/core";
-
 import { BUTTON_LOADER_PROPS } from "@/lib/theme";
 
 export function LoginForm() {
@@ -54,17 +53,16 @@ export function LoginForm() {
             </div>
             <PasswordInput
               label="Password / Phone + keyword"
+              description="Admin password, or your 8-digit phone number followed by the login keyword (e.g. 81234567leave)."
               placeholder="Enter your credentials"
               value={input}
               onChange={(e) => setInput(e.currentTarget.value)}
+              // Rendered in Mantine's error slot under the input (wired to
+              // it via aria-describedby) instead of a detached red Text.
+              error={error ?? undefined}
               required
               autoFocus
             />
-            {error && (
-              <Text c="red" size="sm">
-                {error}
-              </Text>
-            )}
             <Button type="submit" loading={loading} loaderProps={BUTTON_LOADER_PROPS} fullWidth>
               Sign in
             </Button>

@@ -128,6 +128,15 @@ widths in JS and inlines them. The pinned Week-day header strip takes the same
 widths as props (`resourceLabelWidth`/`groupLabelWidth`) so its corner spacers
 track the label columns at both breakpoints.
 
+**FAB-hiding gotcha:** `FloatingToolbar`'s `Affix` portals its content to
+`<body>` (`withinPortal` default), so a `hiddenFrom` wrapper *around* the
+toolbar hides only an empty div while the portaled FABs stay visible at every
+width. Responsive visibility must be passed as `hiddenFrom` **on
+`FloatingToolbar` itself** — it forwards to the portaled Affix root, where the
+CSS actually applies. This is how every mobile-only FAB hides at `lg`
+(Dashboard "New event", Users/Departments/Event types/Webhooks "Add …",
+Contacts/Audit-log "Export", Parade-state attendance).
+
 ## 1.5 Settings
 
 - **`SettingsTabs`** — below `lg` it stays a fixed strip above the bottom nav; at
@@ -150,7 +159,7 @@ track the label columns at both breakpoints.
 
 - **Audit Log filters** — mobile keeps them in the ⋮ menu; at `lg` they render as
   an inline bar (search field + Actor/Action/Entity selects + from/to date inputs +
-  Reset) above the table.
+  Reset + Export) above the table.
 - **Forms go 2-column** at `lg` via `Grid gap="md"` with
   `Grid.Col span={{ base: 12, lg: 6 }}` pairs: `UserForm` (Name/Shortname,
   Phone/Email, Birthday half-width), `EventTypeForm` (Name/Acronym,
@@ -164,7 +173,17 @@ track the label columns at both breakpoints.
 Both pages wrap their content in `PageContainer`; their card lists
 (`ContactList`, `ParadeStateView`'s per-department user list) switch from
 `<Stack gap="sm">` to a `<Box className="card-grid">`, so cards reflow into
-`auto-fill` ≥320px columns at `lg`. No other behavior changes.
+`auto-fill` ≥320px columns at `lg`. Beyond that, the floating buttons swap for
+inline controls:
+
+- **Contacts** — the search bar gains an `Export contacts`
+  `Button visibleFrom="lg"` (same confirm modal as the FAB); the export FAB is
+  `hiddenFrom="lg"`.
+- **Parade State** — the attendance FAB toolbar is `hiddenFrom="lg"`; at `lg`
+  the entry point stays the nav-row button beside the ⋮ menu.
+
+FAB visibility is set via `hiddenFrom` on `FloatingToolbar` itself — its Affix
+portals to `<body>`, so wrapper elements cannot hide it (see the gotcha in 1.4).
 
 ## 1.7 Modal sizes
 

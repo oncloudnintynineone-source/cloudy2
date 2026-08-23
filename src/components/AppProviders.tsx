@@ -3,8 +3,10 @@
 import type { ReactNode } from "react";
 import { MantineProvider } from "@mantine/core";
 import { Notifications } from "@mantine/notifications";
+import { useMediaQuery } from "@mantine/hooks";
 
-import { theme } from "@/lib/theme";
+import { OfflineBanner } from "@/components/OfflineBanner";
+import { DESKTOP_MEDIA_QUERY, theme } from "@/lib/theme";
 
 // React 19.2 warns when a `<script>` element is rendered inside a React
 // component on the client. Mantine's `ColorSchemeScript` (root layout `<head>`)
@@ -33,9 +35,16 @@ if (process.env.NODE_ENV === "development" && typeof window !== "undefined") {
  * component boundary, so MantineProvider must mount on the client.
  */
 export default function AppProviders({ children }: { children: ReactNode }) {
+  // Toasts default to the bottom-right corner, which is exactly where the
+  // FloatingToolbar FABs sit on mobile (both portaled to <body>) — a success
+  // toast would cover the button the user just tapped. Mobile gets
+  // top-center instead; desktop has no FABs, so bottom-right stays.
+  // `useMediaQuery` resolves after mount, before any notification exists.
+  const isDesktop = useMediaQuery(DESKTOP_MEDIA_QUERY);
   return (
     <MantineProvider theme={theme} defaultColorScheme="auto">
-      <Notifications />
+      <Notifications position={isDesktop ? "bottom-right" : "top-center"} />
+      <OfflineBanner />
       {children}
     </MantineProvider>
   );

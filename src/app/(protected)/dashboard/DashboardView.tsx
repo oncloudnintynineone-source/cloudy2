@@ -1656,22 +1656,22 @@ export function DashboardView({
       />
 
       {formState === null && (
-        // Mobile-only: at lg the "New event" button in the nav row replaces the FAB.
-        <Box hiddenFrom="lg">
-          <FloatingToolbar>
-            <FloatingActionButton
-              aria-label="New event"
-              // The Agenda tab prefills the day being viewed (like the day
-              // modal's button); the other views keep "today".
-              onClick={(e) =>
-                openCreate(isAgenda ? headerDate : today, e.currentTarget.getBoundingClientRect())
-              }
-              disabled={!googleConfigured}
-            >
-              <IconPlus size={FAB_ICON_SIZE} />
-            </FloatingActionButton>
-          </FloatingToolbar>
-        </Box>
+        // Mobile-only: at lg the "New event" button in the nav row replaces the
+        // FAB. hiddenFrom sits on the toolbar itself: its Affix portals to
+        // <body>, so a wrapper element could not hide it.
+        <FloatingToolbar hiddenFrom="lg">
+          <FloatingActionButton
+            aria-label="New event"
+            // The Agenda tab prefills the day being viewed (like the day
+            // modal's button); the other views keep "today".
+            onClick={(e) =>
+              openCreate(isAgenda ? headerDate : today, e.currentTarget.getBoundingClientRect())
+            }
+            disabled={!googleConfigured}
+          >
+            <IconPlus size={FAB_ICON_SIZE} />
+          </FloatingActionButton>
+        </FloatingToolbar>
       )}
     </Stack>
   );

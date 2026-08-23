@@ -8,7 +8,7 @@ function TemplateCardSkeleton({ previewRows }: { previewRows: number }) {
         <Skeleton height={12} />
         <Skeleton height={12} width="85%" />
         <Skeleton height={12} width="25%" />
-        <Skeleton height={36} />
+        <Skeleton height={43} />
         <Skeleton height={12} width="70%" />
         <Group gap={6}>
           <Skeleton height={12} width={44} />
@@ -27,7 +27,7 @@ function TemplateCardSkeleton({ previewRows }: { previewRows: number }) {
           ))}
         </Stack>
         <Group justify="flex-end">
-          <Skeleton height={36} width={96} radius={6} />
+          <Skeleton height={43} width={96} radius={6} />
         </Group>
       </Stack>
     </Paper>

@@ -9,7 +9,6 @@ import {
   Text,
   Tooltip,
   UnstyledButton,
-  useMantineTheme,
 } from "@mantine/core";
 import { useMediaQuery } from "@mantine/hooks";
 import {
@@ -27,6 +26,7 @@ import { usePathname } from "next/navigation";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { UserMenu } from "@/components/UserMenu";
 import { BOTTOM_NAV_HEIGHT, BOTTOM_NAV_HEIGHT_CSS } from "@/lib/bottomNav";
+import { DESKTOP_MEDIA_QUERY } from "@/lib/theme";
 import { useRememberedPage, writeUiState } from "@/lib/ui/uiStateClient";
 
 interface NavItem {
@@ -139,11 +139,10 @@ export function AppShellShell({
   // relaunch from the start URL can land back here — read by / at launch.
   useRememberedPage(pathname);
 
-  const theme = useMantineTheme();
   // Desktop = the theme's lg breakpoint: the bottom nav collapses and a left
   // sidebar takes over navigation (AppShell navbar, hidden below the
   // breakpoint). Both read the same theme value so they can't drift.
-  const isDesktop = useMediaQuery(`(min-width: ${theme.breakpoints.lg})`);
+  const isDesktop = useMediaQuery(DESKTOP_MEDIA_QUERY);
 
   // Desktop sidebar minimized to the icon rail, initialized from the
   // remembered state the (protected) layout read from the cookie before first
@@ -161,7 +160,10 @@ export function AppShellShell({
 
   return (
     <AppShell
-      header={{ height: 56 }}
+      // Extra top inset engages in standalone PWA mode on notched devices
+      // (`viewport-fit=cover`): the navy header extends edge-to-edge behind
+      // the status bar instead of letterboxing. Reports 0 in-browser.
+      header={{ height: "calc(56px + env(safe-area-inset-top))" }}
       navbar={{
         width: collapsed ? SIDEBAR_RAIL_WIDTH : SIDEBAR_WIDTH,
         breakpoint: "lg",

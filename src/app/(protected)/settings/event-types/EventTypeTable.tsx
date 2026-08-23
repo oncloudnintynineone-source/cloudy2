@@ -4,7 +4,6 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   Badge,
-  Box,
   Button,
   Group,
   Modal,
@@ -27,6 +26,7 @@ import {
   resolveTimeOptions,
 } from "@/lib/events/timeOptions";
 import { CONTENT_ENTER_CLASS } from "@/lib/loading/contentEnter";
+import { activatable } from "@/lib/ui/activatable";
 import { EventTypeForm } from "./EventTypeForm";
 
 interface EventTypeTableProps {
@@ -81,6 +81,7 @@ export function EventTypeTable({ types }: EventTypeTableProps) {
                 withBorder
                 p="sm"
                 onClick={() => openEdit(eventType)}
+                {...activatable(() => openEdit(eventType))}
                 style={{ cursor: "pointer" }}
               >
                 <Stack gap={0}>
@@ -123,6 +124,7 @@ export function EventTypeTable({ types }: EventTypeTableProps) {
                   <Table.Tr
                     key={eventType.id}
                     onClick={() => openEdit(eventType)}
+                    {...activatable(() => openEdit(eventType))}
                     style={{ cursor: "pointer" }}
                   >
                     <Table.Td>
@@ -179,14 +181,14 @@ export function EventTypeTable({ types }: EventTypeTableProps) {
         />
       </Modal>
 
-      {/* Mobile-only: at lg the "Add event type" button in the toolbar replaces the FAB. */}
-      <Box hiddenFrom="lg">
-        <FloatingToolbar bottomOffset="var(--settings-fab-bottom)">
-          <FloatingActionButton aria-label="Add event type" onClick={openCreate}>
-            <IconPlus size={FAB_ICON_SIZE} />
-          </FloatingActionButton>
-        </FloatingToolbar>
-      </Box>
+      {/* Mobile-only: at lg the "Add event type" button in the toolbar replaces
+          the FAB. hiddenFrom sits on the toolbar itself: its Affix portals to
+          <body>, so a wrapper element could not hide it. */}
+      <FloatingToolbar bottomOffset="var(--settings-fab-bottom)" hiddenFrom="lg">
+        <FloatingActionButton aria-label="Add event type" onClick={openCreate}>
+          <IconPlus size={FAB_ICON_SIZE} />
+        </FloatingActionButton>
+      </FloatingToolbar>
     </Stack>
   );
 }

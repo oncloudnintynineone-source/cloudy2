@@ -54,11 +54,25 @@ export function ContactList({ users, nameTemplate }: ContactListProps) {
   const [confirmOpened, { open: openConfirm, close: closeConfirm }] = useDisclosure(false);
   const [downloading, setDownloading] = useState(false);
 
+  const filtered = useMemo(() => {
+    const query = search.trim().toLowerCase();
+    if (!query) {
+      return users;
+    }
+    return users.filter(
+      (user) =>
+        user.name.toLowerCase().includes(query) ||
+        (user.shortname?.toLowerCase().includes(query) ?? false) ||
+        user.phone.includes(query),
+    );
+  }, [users, search]);
+
   async function downloadVcf() {
     setDownloading(true);
     try {
+      // Respect the active search filter: what you see is what you get.
       const vcf = buildContactsVcf(
-        users.map((user) => ({
+        filtered.map((user) => ({
           name: user.name,
           departmentName: user.department?.name ?? null,
           phone: user.phone,
@@ -78,27 +92,28 @@ export function ContactList({ users, nameTemplate }: ContactListProps) {
     }
   }
 
-  const filtered = useMemo(() => {
-    const query = search.trim().toLowerCase();
-    if (!query) {
-      return users;
-    }
-    return users.filter(
-      (user) =>
-        user.name.toLowerCase().includes(query) ||
-        (user.shortname?.toLowerCase().includes(query) ?? false) ||
-        user.phone.includes(query),
-    );
-  }, [users, search]);
-
   return (
     <Stack pb="xl" className={CONTENT_ENTER_CLASS}>
       <Paper withBorder p="sm">
-        <TextInput
-          placeholder="Search by name, shortname, or phone"
-          value={search}
-          onChange={(e) => setSearch(e.currentTarget.value)}
-        />
+        <Group justify="space-between" wrap="nowrap" gap="sm">
+          <TextInput
+            aria-label="Search contacts by name, shortname, or phone"
+            placeholder="Search by name, shortname, or phone"
+            value={search}
+            onChange={(e) => setSearch(e.currentTarget.value)}
+            style={{ flex: 1 }}
+          />
+          {/* Desktop: full-size export button instead of the FAB (like the
+              settings tabs' "Add ..." buttons); the FAB below is mobile-only. */}
+          <Button
+            visibleFrom="lg"
+            __vars={{ "--button-height": "43px" }}
+            leftSection={<IconDownload size={16} />}
+            onClick={openConfirm}
+          >
+            Export contacts
+          </Button>
+        </Group>
       </Paper>
 
       {filtered.length === 0 ? (
@@ -162,7 +177,10 @@ export function ContactList({ users, nameTemplate }: ContactListProps) {
         </Box>
       )}
 
-      <FloatingToolbar>
+      {/* Mobile-only: at lg the "Export contacts" button in the search bar
+          replaces the FAB. hiddenFrom sits on the toolbar itself: its Affix
+          portals to <body>, so a wrapper element could not hide it. */}
+      <FloatingToolbar hiddenFrom="lg">
         <FloatingActionButton aria-label="Export contacts" onClick={openConfirm}>
           <IconDownload size={FAB_ICON_SIZE} style={{ position: "relative", top: 2 }} />
         </FloatingActionButton>
@@ -176,7 +194,8 @@ export function ContactList({ users, nameTemplate }: ContactListProps) {
         size="sm"
       >
         <Text>
-          Download {users.length} contact{users.length === 1 ? "" : "s"} as a .vcf file?
+          Download {filtered.length} contact{filtered.length === 1 ? "" : "s"} as a .vcf file
+          {search.trim() ? " (current search results only)" : ""}?
         </Text>
         <Group justify="flex-end" mt="md">
           <Button variant="default" onClick={closeConfirm}>

@@ -7,6 +7,14 @@ interface FloatingToolbarProps {
   bottomOffset?: string;
   /** Affix z-index. Raise above modal/overlay z-indexes to stay clickable while other modals are open. */
   zIndex?: number;
+  /**
+   * Responsive visibility breakpoint, e.g. hiddenFrom="lg" = mobile-only
+   * toolbar (Mantine style-prop semantics). MUST be passed here rather than to
+   * a wrapper element: the Affix below portals its content to <body>, so a
+   * wrapper's display:none would only ever hide an empty div while the FABs
+   * stay visible at every breakpoint.
+   */
+  hiddenFrom?: string;
 }
 
 type FloatingActionButtonProps = ButtonProps & React.ComponentPropsWithoutRef<"button">;
@@ -42,13 +50,21 @@ export function FloatingToolbar({
   children,
   bottomOffset = "var(--app-floating-bottom-offset)",
   zIndex = 100,
+  hiddenFrom,
 }: FloatingToolbarProps) {
   return (
     // Portaled to <body> (Mantine default): `position: fixed` must stay
     // viewport-relative no matter what the page's layout does to its
     // ancestors. The bottom offsets are CSS vars declared on :root
     // (globals.css), so they resolve from the portaled element too.
-    <Affix position={{ bottom: bottomOffset, right: 16 }} zIndex={zIndex}>
+    // Responsive props like hiddenFrom land on this portaled Affix root
+    // (Affix forwards them to its Box), which is why they work while a
+    // wrapper around this component cannot.
+    <Affix
+      position={{ bottom: bottomOffset, right: 16 }}
+      zIndex={zIndex}
+      hiddenFrom={hiddenFrom}
+    >
       <Group gap="xs" wrap="nowrap">
         {children}
       </Group>

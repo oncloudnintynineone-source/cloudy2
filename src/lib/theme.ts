@@ -65,3 +65,10 @@ export const theme = createTheme({
 export const BUTTON_LOADER_PROPS: NonNullable<ButtonProps["loaderProps"]> = {
   type: "oval",
 };
+
+/**
+ * Media query for the app's desktop layout. Kept alongside the pinned
+ * `breakpoints.lg` above so JS matchMedia calls (`useMediaQuery`) and Mantine
+ * responsive props can't drift apart.
+ */
+export const DESKTOP_MEDIA_QUERY = "(min-width: 62em)";

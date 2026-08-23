@@ -102,6 +102,10 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
 - [1.83 Mobile FAB: portaled Affix + :root offset vars (bugfix)](#183-mobile-fab-ported-affix--root-offset-vars-bugfix)
 - [1.84 Full Day / Half Day time-option split (Phase 3an)](#184-full-day--half-day-time-option-split-phase-3an)
 - [1.85 Parade State attendance-taking mode (Phase 3ao)](#185-parade-state-attendance-taking-mode-phase-3ao)
+- [1.86 Calendar skeleton consistency pass (bugfix)](#186-calendar-skeleton-consistency-pass-bugfix)
+- [1.87 Event webhooks to external systems (Phase 3ap)](#187-event-webhooks-to-external-systems-phase-3ap)
+- [1.88 Multiple webhook endpoints + in-app payload guide (Phase 3aq)](#188-multiple-webhook-endpoints--in-app-payload-guide-phase-3aq)
+- [1.89 Attendance report: present wins, no event tags (Phase 3ar)](#189-attendance-report-present-wins-no-event-tags-phase-3ar)
 
 ## 1.1 Status
 
@@ -4415,3 +4419,133 @@ Tests: `webhooks/validate.test.ts` (moved + name cases), `webhooks/example.test.
 (determinism, distinct per action, update-only changes, legacy-delete shape).
 Verification: lint/typecheck/test pass; `db:generate` clean after committing the
 hand-seeded migration; local `pnpm db:migrate` applied.
+
+## 1.89 Attendance report: present wins, no event tags (Phase 3ar)
+
+The attendance-mode "Copy to Clipboard" report previously suffixed a checked user
+with their out-of-camp event tags (`Name - (SITE, NSC)`, acronyms via the
+`{type:acronym}` chain). Checking is now the override: a checked user renders bare
+(`Name`) — present, no event tags, no `Absent` — whatever their calendar says.
+Unchecked users stay `Name - Absent`; department headers keep their
+`(checked of total)` count.
+
+```mermaid
+flowchart LR
+  U["user on the day"] --> C{"checkbox on?"}
+  C -- "yes — overrides calendar" --> P["Name"]
+  C -- "no" --> AB["Name - Absent"]
+```
+
+- `attendanceReport.ts` — `buildAttendanceReport` renders checked users bare;
+  `eventTags` dropped from `AttendanceReportUser`; `resolveEventTypeTag` deleted
+  (the tag fallback chain had no other consumer).
+- `ParadeStateView.tsx` — `copyAttendanceReport` maps users to `{id, name}` only;
+  `eventTypeAcronyms` prop removed.
+- `page.tsx` — `listEventTypes()` query removed (one fewer DB round-trip per
+  render).
+- **Unchanged**: event badges (time + title) on the user cards, headcount
+  display, localStorage attendance storage.
+
+Tests: `attendanceReport.test.ts` (7, incl. a checked-bare case; the
+`resolveEventTypeTag` block removed with the function).
+Verification: lint/typecheck/test pass (522 tests).
+
+## 1.90 Branded error, 404 & offline fallbacks
+
+The app had zero `error.tsx` / `global-error.tsx` / `not-found.tsx` files: any RSC or
+route exception surfaced Next's unstyled production crash screen, unknown URLs got the
+stock 404, and (with the service worker's deliberate `NetworkOnly` strategy) an offline
+navigation was a raw browser error. All three now render branded fallbacks:
+
+```mermaid
+stateDiagram-v2
+  [*] --> Offline: browser reports offline
+  Offline --> Online: connection returns
+  note right of Offline
+    OfflineBanner (amber strip,
+    AppProviders, all routes)
+  end note
+```
+
+- **`ErrorState`** (`src/components/ErrorState.tsx`): shared centered fallback —
+  brand-light storm-cloud icon, title, dimmed copy, optional "Try again" button wired
+  to the boundary's `reset()` or a custom action slot.
+- **Boundaries**: `(protected)/error.tsx` (renders inside the shell, so sidebar/bottom
+  nav stay alive), `login/error.tsx`, and `global-error.tsx` (own `<html>` document +
+  re-mounted `MantineProvider`, same theme). Each logs via `console.error`.
+- **`not-found.tsx`** at the app root with a "Go to Calendar" link.
+- **`OfflineBanner`** (`src/components/OfflineBanner.tsx`): fixed amber strip pinned to
+  the viewport top whenever `navigator.onLine` is false; flips in an effect (no
+  hydration mismatch) and auto-hides on reconnect. Mounted once in `AppProviders`.
+
+Verification: lint/typecheck/test pass.
+
+## 1.91 Mobile correctness: safe areas, toast placement, skeleton fidelity
+
+- **Safe-area work was inert**: every `env(safe-area-inset-bottom)` expression
+  evaluated to 0 without `viewportFit: "cover"` in the root `Viewport` export. Added it;
+  the AppShell header height is now `calc(56px + env(safe-area-inset-top))` so a
+  standalone PWA extends edge-to-edge behind the status bar instead of letterboxing;
+  the offline banner clears the inset too.
+- **Toast/FAB collision**: Mantine's default bottom-right notification stack landed
+  exactly on the FloatingToolbar corner on mobile. `<Notifications>` now positions by
+  breakpoint — top-center below lg (where FABs live), bottom-right at lg+ (no FABs).
+  Shared `DESKTOP_MEDIA_QUERY` exported from `theme.ts`; both `useMediaQuery` call
+  sites (`AppProviders`, `AppShellShell`) consume it.
+- **Desktop layout shift on load**: contacts + parade-state `loading.tsx` painted their
+  skeletons full-bleed while the pages wrap in `PageContainer` (1200px cap); both now
+  wrapped, no >1200px snap when content commits.
+- **Skeleton fidelity**: parade-state nav placeholders switched from circles to the
+  real 43×43 radius-md ActionIcon shape; audit-log search skeleton lost its stray
+  `radius="sm"`; general/templates/contacts control skeletons bumped 36px → the real
+  ~43px input/button heights.
+
+Verification: lint/typecheck/test pass.
+
+## 1.92 Interaction consistency: confirms, chips, export scope, login errors
+
+- **Attendance Reset now confirms** ("Clear attendance checks for every date? This
+  cannot be undone.") — previously it wiped ALL dates' localStorage checks from the ⋮
+  menu with zero friction, unlike every other destructive action in the app.
+- **Audit purge** gained a `loading` prop + re-entry guard on its confirm Delete (was
+  the only destructive action without either). **CSV export** switched from
+  `window.location.href` navigation to fetch→blob→anchor download: real progress on the
+  button, failures toast instead of navigating away, filename still parsed from
+  `Content-Disposition`.
+- **Dismissible applied-filter chips**: Users-tab status/department chips are now
+  Mantine `Pill`s with per-chip remove buttons (Badge has no `onRemove` in v9);
+  parade-state renders its applied Calendars/Users filters as removable pills too
+  (previously count-badge only).
+- **Contacts VCF export respects the active search filter** — "what you see is what you
+  get"; confirm modal counts the filtered set and says so when a search is active.
+- **Login errors** render in the PasswordInput's own error slot (wired via
+  `aria-describedby`) instead of a detached red Text, plus a format hint under the
+  field: admin password, or 8-digit phone + keyword.
+- **DateSelectorModal month chevrons** up from ~26px subtle/sm targets to the app-wide
+  43px convention with size-18 icons.
+
+Verification: lint/typecheck/test pass.
+
+## 1.93 Accessibility pass: keyboard reachability, pressed states, parade legend
+
+- **`activatable()` helper** (`src/lib/ui/activatable.ts`, unit-tested): spreads
+  `role="button"` / `tabIndex={0}` / Enter-Space handler onto non-semantic click
+  targets, ignoring keys that originate on inner interactive children. Applied to the
+  Users/Event-types/Webhooks click-to-edit cards AND desktop table rows (keyboard users
+  could not open those modals at all before) and parade attendance cards.
+- **Role/Department pickers in UserForm** are real toggle buttons now (`aria-pressed`,
+  keyboard-operable) wrapping the unchanged Badge visuals.
+- **Parade state status no longer color-only**: out-of-camp cards carry an IconMapPin
+  twin (attendance-mode checked cards an IconCheck), a text legend names both colors,
+  and attendance mode shows a day-level `X/Y present` total beside the legend.
+- **Search inputs labeled**: contacts, users, and both audit search boxes gained
+  `aria-label`s (previously placeholder-only). The audit mobile filter trigger's glyph
+  changed from the kebab (used for overflow actions elsewhere) to IconFilter, matching
+  its "Filter log" label.
+
+Note: Mantine's `UnstyledButton` already ships a visible `:focus-visible` ring
+(`mantine-focus-auto` class verified in compiled styles.css), so custom nav buttons
+needed no extra styling.
+
+Tests: new `src/lib/ui/activatable.test.ts` (7 cases).
+Verification: lint/typecheck/test pass (529 tests).

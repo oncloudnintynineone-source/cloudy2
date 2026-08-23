@@ -48,24 +48,26 @@ export function DateSelectorModal({ opened, date, onPick, onClose }: DateSelecto
         }}
         renderHeader={({ date: displayedDate }) => (
           <>
+            {/* 43px targets: the app-wide minimum touch size (the rest of
+                the app's date nav chevrons use the same). */}
             <ActionIcon
               variant="subtle"
-              size="sm"
+              size={43}
               aria-label="Previous month"
               onClick={() => shiftMonth(-1)}
             >
-              <IconChevronLeft size={16} />
+              <IconChevronLeft size={18} />
             </ActionIcon>
             <Text fw={600} size="sm">
               {dayjs(displayedDate).format("MMMM YYYY")}
             </Text>
             <ActionIcon
               variant="subtle"
-              size="sm"
+              size={43}
               aria-label="Next month"
               onClick={() => shiftMonth(1)}
             >
-              <IconChevronRight size={16} />
+              <IconChevronRight size={18} />
             </ActionIcon>
           </>
         )}

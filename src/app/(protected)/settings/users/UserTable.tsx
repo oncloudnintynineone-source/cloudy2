@@ -4,11 +4,11 @@ import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   Badge,
-  Box,
   Button,
   Group,
   Modal,
   Paper,
+  Pill,
   Stack,
   Table,
   Text,
@@ -25,6 +25,7 @@ import { FAB_ICON_SIZE, FloatingActionButton, FloatingToolbar } from "@/componen
 import { CONTENT_ENTER_CLASS } from "@/lib/loading/contentEnter";
 import type { RosterUser } from "@/lib/roster/queries";
 import { formatFullName } from "@/lib/settings/formatName";
+import { activatable } from "@/lib/ui/activatable";
 import { UserForm, type DepartmentOption } from "./UserForm";
 
 interface UserTableProps {
@@ -120,6 +121,7 @@ export function UserTable({ users, departments, nameTemplate }: UserTableProps) 
         <Stack gap="xs">
           <Group justify="space-between" wrap="nowrap">
             <TextInput
+              aria-label="Search users by name or phone"
               placeholder="Search by name or phone"
               value={search}
               onChange={(e) => setSearch(e.currentTarget.value)}
@@ -140,16 +142,28 @@ export function UserTable({ users, departments, nameTemplate }: UserTableProps) 
           {activeFilterCount > 0 ? (
             <Group gap={6} wrap="wrap">
               {statusFilter.map((value) => (
-                <Badge key={value} color="brand" variant="light">
+                <Pill
+                  key={value}
+                  withRemoveButton
+                  onRemove={() =>
+                    setStatusFilter((values) => values.filter((entry) => entry !== value))
+                  }
+                >
                   Status: {value === "active" ? "Active" : "Inactive"}
-                </Badge>
+                </Pill>
               ))}
               {departmentFilter.map((value) => {
                 const department = departments.find((d) => d.id === value);
                 return (
-                  <Badge key={value} color="brand" variant="light">
+                  <Pill
+                    key={value}
+                    withRemoveButton
+                    onRemove={() =>
+                      setDepartmentFilter((values) => values.filter((entry) => entry !== value))
+                    }
+                  >
                     {department?.name ?? value}
-                  </Badge>
+                  </Pill>
                 );
               })}
               <Button size="xs" variant="subtle" onClick={clearAllFilters}>
@@ -174,6 +188,7 @@ export function UserTable({ users, departments, nameTemplate }: UserTableProps) 
                 withBorder
                 p="sm"
                 onClick={() => openEdit(user)}
+                {...activatable(() => openEdit(user))}
                 style={{ cursor: "pointer" }}
               >
                 <Group justify="space-between" wrap="nowrap" align="flex-start">
@@ -233,6 +248,7 @@ export function UserTable({ users, departments, nameTemplate }: UserTableProps) 
                   <Table.Tr
                     key={user.id}
                     onClick={() => openEdit(user)}
+                    {...activatable(() => openEdit(user))}
                     style={{ cursor: "pointer" }}
                   >
                     <Table.Td>
@@ -323,14 +339,14 @@ export function UserTable({ users, departments, nameTemplate }: UserTableProps) 
         onApply={handleApplyFilters}
       />
 
-      {/* Mobile-only: at lg the "Add user" button in the toolbar replaces the FAB. */}
-      <Box hiddenFrom="lg">
-        <FloatingToolbar bottomOffset="var(--settings-fab-bottom)">
-          <FloatingActionButton aria-label="Add user" onClick={openCreate}>
-            <IconPlus size={FAB_ICON_SIZE} />
-          </FloatingActionButton>
-        </FloatingToolbar>
-      </Box>
+      {/* Mobile-only: at lg the "Add user" button in the toolbar replaces the
+          FAB. hiddenFrom sits on the toolbar itself: its Affix portals to
+          <body>, so a wrapper element could not hide it. */}
+      <FloatingToolbar bottomOffset="var(--settings-fab-bottom)" hiddenFrom="lg">
+        <FloatingActionButton aria-label="Add user" onClick={openCreate}>
+          <IconPlus size={FAB_ICON_SIZE} />
+        </FloatingActionButton>
+      </FloatingToolbar>
     </Stack>
   );
 }

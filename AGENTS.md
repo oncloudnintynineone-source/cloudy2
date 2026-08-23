@@ -136,9 +136,12 @@ before changing the subsystem.
   `Badge`s (a Select's focused input focus-scrolls the modal spasmodically on mobile).
 - **Floating action buttons** use shared `FloatingActionButton` + `FloatingToolbar`
   (`src/components/FloatingToolbar.tsx`) anchored bottom-right — never a raw `Button`.
-  52×52 circle (`radius="50%"`), icon-only: children = tabler icon at `FAB_ICON_SIZE`
-  (24px) + `aria-label`; don't override width/height inline. Default `bottomOffset`
+  65×65 circle (`radius="50%"`), icon-only: children = tabler icon at `FAB_ICON_SIZE`
+  (30px) + `aria-label`; don't override width/height inline. Default `bottomOffset`
   clears the global bottom nav; settings pages pass `var(--settings-fab-bottom)`.
+  Mobile-only toolbars hide via `hiddenFrom="lg"` **on `FloatingToolbar` itself** —
+  never a wrapper element: its Affix portals to `<body>`, so a wrapper's
+  `display:none` can't reach it.
 - **Global bottom nav** (`AppShell.Footer`, height `BOTTOM_NAV_HEIGHT_CSS` from
   `src/lib/bottomNav.ts`): Calendar `/dashboard`, Parade State `/parade-state`, Contacts
   `/contacts`, Settings `/settings` (regular users get the first three). `SettingsTabs`

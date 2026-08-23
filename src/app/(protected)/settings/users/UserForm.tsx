@@ -2,7 +2,17 @@
 
 import { useState } from "react";
 import { useForm } from "@mantine/form";
-import { Badge, Button, Grid, Group, Modal, Stack, Text, TextInput } from "@mantine/core";
+import {
+  Badge,
+  Button,
+  Grid,
+  Group,
+  Modal,
+  Stack,
+  Text,
+  TextInput,
+  UnstyledButton,
+} from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
 
@@ -169,16 +179,24 @@ export function UserForm({ user, departments, onDone }: UserFormProps) {
             ).map((option) => {
               const selected = form.values.role === option.value;
               return (
-                <Badge
+                // A real button (not an onClick Badge): keyboard-operable and
+                // announces its pressed state. The Badge keeps the visual.
+                <UnstyledButton
                   key={option.value}
-                  color={option.color}
-                  variant={selected ? "filled" : "light"}
-                  size="lg"
-                  style={{ height: "calc(var(--badge-height-lg) * 1.5)", cursor: "pointer" }}
+                  aria-pressed={selected}
+                  aria-label={`Role: ${option.label}`}
                   onClick={() => form.setFieldValue("role", option.value)}
+                  style={{ cursor: "pointer", borderRadius: "var(--mantine-radius-md)" }}
                 >
-                  {option.label}
-                </Badge>
+                  <Badge
+                    color={option.color}
+                    variant={selected ? "filled" : "light"}
+                    size="lg"
+                    style={{ height: "calc(var(--badge-height-lg) * 1.5)" }}
+                  >
+                    {option.label}
+                  </Badge>
+                </UnstyledButton>
               );
             })}
           </Group>
@@ -202,17 +220,25 @@ export function UserForm({ user, departments, onDone }: UserFormProps) {
               {departments.map((department) => {
                 const selected = form.values.departmentId === department.id;
                 return (
-                  <Badge
+                  // Real toggle button (aria-pressed), Badge visual — same
+                  // keyboard/no-keyboard rationale as the Role badges above.
+                  <UnstyledButton
                     key={department.id}
-                    variant={selected ? "filled" : "light"}
-                    size="lg"
-                    style={{ height: "calc(var(--badge-height-lg) * 1.5)", cursor: "pointer" }}
+                    aria-pressed={selected}
+                    aria-label={`Department: ${department.name}`}
                     onClick={() =>
                       form.setFieldValue("departmentId", selected ? null : department.id)
                     }
+                    style={{ cursor: "pointer", borderRadius: "var(--mantine-radius-md)" }}
                   >
-                    {department.name}
-                  </Badge>
+                    <Badge
+                      variant={selected ? "filled" : "light"}
+                      size="lg"
+                      style={{ height: "calc(var(--badge-height-lg) * 1.5)" }}
+                    >
+                      {department.name}
+                    </Badge>
+                  </UnstyledButton>
                 );
               })}
             </Group>

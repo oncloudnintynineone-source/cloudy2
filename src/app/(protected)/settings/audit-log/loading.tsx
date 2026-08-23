@@ -7,7 +7,7 @@ export default function AuditLogLoading() {
   return (
     <Stack>
       <Group align="center" gap="xs" wrap="nowrap">
-        <Skeleton height={43} style={{ flex: 1 }} radius="sm" />
+        <Skeleton height={43} style={{ flex: 1 }} />
         <Skeleton width={43} height={43} radius="50%" />
       </Group>
 

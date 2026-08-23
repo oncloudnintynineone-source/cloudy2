@@ -4,7 +4,6 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   Badge,
-  Box,
   Button,
   Code,
   Group,
@@ -22,6 +21,7 @@ import { IconPlus } from "@tabler/icons-react";
 import type { Webhook } from "@/db/schema";
 import { FAB_ICON_SIZE, FloatingActionButton, FloatingToolbar } from "@/components/FloatingToolbar";
 import { CONTENT_ENTER_CLASS } from "@/lib/loading/contentEnter";
+import { activatable } from "@/lib/ui/activatable";
 import { WebhookForm } from "./WebhookForm";
 
 interface WebhookTableProps {
@@ -77,6 +77,7 @@ export function WebhookTable({ webhooks }: WebhookTableProps) {
                 withBorder
                 p="sm"
                 onClick={() => openEdit(webhook)}
+                {...activatable(() => openEdit(webhook))}
                 style={{ cursor: "pointer" }}
               >
                 <Stack gap={0}>
@@ -107,6 +108,7 @@ export function WebhookTable({ webhooks }: WebhookTableProps) {
                   <Table.Tr
                     key={webhook.id}
                     onClick={() => openEdit(webhook)}
+                    {...activatable(() => openEdit(webhook))}
                     style={{ cursor: "pointer" }}
                   >
                     <Table.Td>
@@ -156,14 +158,14 @@ export function WebhookTable({ webhooks }: WebhookTableProps) {
         />
       </Modal>
 
-      {/* Mobile-only: at lg the "Add webhook" button in the toolbar replaces the FAB. */}
-      <Box hiddenFrom="lg">
-        <FloatingToolbar bottomOffset="var(--settings-fab-bottom)">
-          <FloatingActionButton aria-label="Add webhook endpoint" onClick={openCreate}>
-            <IconPlus size={FAB_ICON_SIZE} />
-          </FloatingActionButton>
-        </FloatingToolbar>
-      </Box>
+      {/* Mobile-only: at lg the "Add webhook" button in the toolbar replaces
+          the FAB. hiddenFrom sits on the toolbar itself: its Affix portals to
+          <body>, so a wrapper element could not hide it. */}
+      <FloatingToolbar bottomOffset="var(--settings-fab-bottom)" hiddenFrom="lg">
+        <FloatingActionButton aria-label="Add webhook endpoint" onClick={openCreate}>
+          <IconPlus size={FAB_ICON_SIZE} />
+        </FloatingActionButton>
+      </FloatingToolbar>
     </Stack>
   );
 }

@@ -1,23 +1,19 @@
 import { describe, expect, it } from "vitest";
 
-import {
-  buildAttendanceReport,
-  resolveEventTypeTag,
-  type AttendanceReportDepartment,
-} from "./attendanceReport";
+import { buildAttendanceReport, type AttendanceReportDepartment } from "./attendanceReport";
 
 const departments: AttendanceReportDepartment[] = [
   {
     name: "Logistics",
     users: [
-      { id: "u1", name: "Alice Tan", eventTags: [] },
-      { id: "u2", name: "Bob Ng", eventTags: ["SITE"] },
-      { id: "u3", name: "Carol Lim", eventTags: ["NSC", "MC"] },
+      { id: "u1", name: "Alice Tan" },
+      { id: "u2", name: "Bob Ng" },
+      { id: "u3", name: "Carol Lim" },
     ],
   },
   {
     name: "Operations",
-    users: [{ id: "u4", name: "David Koh", eventTags: [] }],
+    users: [{ id: "u4", name: "David Koh" }],
   },
 ];
 
@@ -28,7 +24,7 @@ describe("buildAttendanceReport", () => {
       [
         "Logistics (2 of 3)",
         "Alice Tan",
-        "Bob Ng - (SITE)",
+        "Bob Ng",
         "Carol Lim - Absent",
         "",
         "Operations (0 of 1)",
@@ -43,17 +39,19 @@ describe("buildAttendanceReport", () => {
     );
   });
 
-  it("marks an unchecked event-tagged user as Absent only (absent wins)", () => {
-    const text = buildAttendanceReport([departments[0]], new Set());
-    expect(text).toContain("Carol Lim - Absent");
-    expect(text).not.toContain("(NSC");
-    expect(text).not.toContain("(MC");
-  });
-
-  it("joins multiple tags comma-separated for a checked user", () => {
-    const text = buildAttendanceReport([departments[0]], new Set(["u1", "u3"]));
-    expect(text).toContain("Carol Lim - (NSC, MC)");
-    expect(text).toContain("Logistics (2 of 3)");
+  it("marks a checked user bare (present wins, no event tags or absent)", () => {
+    const text = buildAttendanceReport(departments, new Set(["u2", "u3"]));
+    expect(text).toBe(
+      [
+        "Logistics (2 of 3)",
+        "Alice Tan - Absent",
+        "Bob Ng",
+        "Carol Lim",
+        "",
+        "Operations (0 of 1)",
+        "David Koh - Absent",
+      ].join("\n"),
+    );
   });
 
   it("keeps department and user order as given", () => {
@@ -89,25 +87,5 @@ describe("buildAttendanceReport", () => {
     expect(buildAttendanceReport(departments, new Set(["u1", "ghost"]))).toContain(
       "Logistics (1 of 3)",
     );
-  });
-});
-
-describe("resolveEventTypeTag", () => {
-  const acronyms = { Leave: null, Training: "TRN" };
-
-  it("prefers the registry shortname", () => {
-    expect(resolveEventTypeTag("Training", "Some title", acronyms)).toBe("TRN");
-  });
-
-  it("falls back to the raw type name when unknown to the registry", () => {
-    expect(resolveEventTypeTag("Field Trip", "Some title", acronyms)).toBe("Field Trip");
-  });
-
-  it("falls back to the type name when the shortname is blank", () => {
-    expect(resolveEventTypeTag("Leave", "Some title", acronyms)).toBe("Leave");
-  });
-
-  it("falls back to the title when the event has no type", () => {
-    expect(resolveEventTypeTag(null, "Some title", acronyms)).toBe("Some title");
   });
 });

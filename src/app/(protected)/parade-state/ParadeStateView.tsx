@@ -11,23 +11,26 @@ import {
   Checkbox,
   Group,
   Menu,
+  Modal,
   Paper,
+  Pill,
   Stack,
   Text,
   useComputedColorScheme,
-  useMantineTheme,
 } from "@mantine/core";
-import { useClipboard, useDisclosure, useMediaQuery } from "@mantine/hooks";
+import { useClipboard, useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
 import {
   IconCalendarCheck,
   IconCalendarDot,
+  IconCheck,
   IconChevronLeft,
   IconChevronRight,
   IconClipboard,
   IconClipboardCheck,
   IconDotsVertical,
   IconFilter,
+  IconMapPin,
   IconRefresh,
   IconUser,
   IconX,
@@ -40,10 +43,11 @@ import type { CalendarEvent } from "@/lib/events/queries";
 import { CONTENT_ENTER_CLASS, useContentEnter } from "@/lib/loading/contentEnter";
 import { useMinSkeletonHold } from "@/lib/loading/minHoldLoading";
 import { formatFullName } from "@/lib/settings/formatName";
+import { activatable } from "@/lib/ui/activatable";
 import { PARADE_STATE_KEYS, freshMarkerNeeded } from "@/lib/ui/uiState";
 import { usePersistUiState } from "@/lib/ui/uiStateClient";
 
-import { buildAttendanceReport, resolveEventTypeTag } from "./attendanceReport";
+import { buildAttendanceReport } from "./attendanceReport";
 import { clearAttendance, loadAttendanceRecord, saveAttendanceIds } from "./attendanceStorage";
 import { departmentHeadcount } from "./headcount";
 import { formatEventTimeBadge } from "./eventTimeBadge";
@@ -87,8 +91,6 @@ export interface ParadeStateViewProps {
   selectedUserIds: string[];
   filterUsers: { id: string; displayName: string }[];
   nameTemplate: string;
-  /** Event type name → shortname (acronym), for the attendance report tags. */
-  eventTypeAcronyms: Record<string, string | null>;
 }
 
 function eventCoversDay(event: CalendarEvent, date: string): boolean {
@@ -130,7 +132,6 @@ export function ParadeStateView({
   selectedUserIds: initSelectedUsers,
   filterUsers,
   nameTemplate,
-  eventTypeAcronyms,
 }: ParadeStateViewProps) {
   const router = useRouter();
   const pathname = usePathname();
@@ -143,6 +144,9 @@ export function ParadeStateView({
   const [selectedUsers, setSelectedUsers] = useState(initSelectedUsers);
   const [filterOpened, { open: openFilter, close: closeFilter }] = useDisclosure(false);
   const [pickerOpened, { open: openPicker, close: closePicker }] = useDisclosure(false);
+  // Reset wipes attendance for every date, so it confirms first like every
+  // other destructive action in the app.
+  const [resetOpened, { open: openResetConfirm, close: closeResetConfirm }] = useDisclosure(false);
 
   // Cross-month day switches need the new month's events from the server (the
   // local `date` state flips optimistically, so the stale event props would
@@ -176,11 +180,6 @@ export function ParadeStateView({
   const checkedIds = useMemo(() => new Set(attendance[date] ?? []), [attendance, date]);
 
   const colorScheme = useComputedColorScheme("light");
-  const theme = useMantineTheme();
-  // The attendance FAB is mobile-only; at lg the entry point is the nav-row
-  // button beside the kebab menu. JS-gated (not CSS) because the FloatingToolbar
-  // Affix portals to <body>, so a hiddenFrom wrapper can't hide it.
-  const isDesktop = useMediaQuery(`(min-width: ${theme.breakpoints.lg})`);
   const today = dayjs().format("YYYY-MM-DD");
 
   const buildHref = useCallback(
@@ -340,6 +339,23 @@ export function ParadeStateView({
     (selectedCalendars.length > 0 && selectedCalendars.length < calendars.length ? 1 : 0) +
     (selectedUsers.length > 0 ? 1 : 0);
 
+  const calendarsFiltered =
+    selectedCalendars.length > 0 && selectedCalendars.length < calendars.length;
+
+  // Per-chip removal mirrors the Users tab: drop one value from the applied
+  // filter and navigate with the remainder (empty → param removed).
+  function removeFilterValue(group: "cal" | "users", value: string) {
+    if (group === "cal") {
+      const next = selectedCalendars.filter((id) => id !== value);
+      setSelectedCalendars(next);
+      navigate({ cal: next.length > 0 ? next.join(",") : null });
+      return;
+    }
+    const next = selectedUsers.filter((id) => id !== value);
+    setSelectedUsers(next);
+    navigate({ users: next.length > 0 ? next.join(",") : null });
+  }
+
   const dayEvents = useMemo(
     () =>
       events
@@ -428,19 +444,12 @@ export function ParadeStateView({
   }
 
   async function copyAttendanceReport() {
-    // Full names (raw roster names, not the display-name template); each event
-    // tag resolves via the {type:acronym} fallback chain (shortname → type
-    // name → title), in card order.
+    // Full names (raw roster names, not the display-name template); a checked
+    // user renders bare (present) regardless of their calendar.
     const text = buildAttendanceReport(
       departments.map((dept) => ({
         name: dept.name,
-        users: dept.users.map((user) => ({
-          id: user.id,
-          name: user.name,
-          eventTags: (eventsByUser.get(user.id) ?? []).map((event) =>
-            resolveEventTypeTag(event.eventType, event.title, eventTypeAcronyms),
-          ),
-        })),
+        users: dept.users.map((user) => ({ id: user.id, name: user.name })),
       })),
       checkedIds,
     );
@@ -454,7 +463,7 @@ export function ParadeStateView({
 
   const attendanceMenuItems = (
     <>
-      <Menu.Item leftSection={<IconRefresh size={16} />} onClick={resetAttendance}>
+      <Menu.Item leftSection={<IconRefresh size={16} />} onClick={openResetConfirm}>
         Reset
       </Menu.Item>
       <Menu.Item
@@ -588,6 +597,65 @@ export function ParadeStateView({
         </Menu>
       </Group>
 
+      {(calendarsFiltered || selectedUsers.length > 0) && (
+        <Group gap={6} wrap="wrap">
+          {calendarsFiltered &&
+            selectedCalendars.map((id) => {
+              const cal = calendars.find((entry) => entry.id === id);
+              return (
+                <Pill key={id} withRemoveButton onRemove={() => removeFilterValue("cal", id)}>
+                  {cal?.name ?? id}
+                </Pill>
+              );
+            })}
+          {selectedUsers.map((id) => {
+            const user = filterUsers.find((entry) => entry.id === id);
+            return (
+              <Pill key={id} withRemoveButton onRemove={() => removeFilterValue("users", id)}>
+                {user?.displayName ?? id}
+              </Pill>
+            );
+          })}
+        </Group>
+      )}
+
+      {/* Status legend + attendance day total: the card colors carry real
+          meaning, so they are named in text (color-blind safe) and the
+          overall present count is visible without scanning departments. */}
+      <Group justify="space-between" gap="sm" wrap="nowrap">
+        <Group gap="md" wrap="nowrap">
+          <Group gap={6} wrap="nowrap">
+            <Box
+              aria-hidden
+              w={10}
+              h={10}
+              style={{ background: "var(--mantine-color-yellow-4)", borderRadius: 2 }}
+            />
+            <Text size="xs" c="dimmed">
+              Out of camp
+            </Text>
+          </Group>
+          {attendanceMode && (
+            <Group gap={6} wrap="nowrap">
+              <Box
+                aria-hidden
+                w={10}
+                h={10}
+                style={{ background: "var(--mantine-color-green-4)", borderRadius: 2 }}
+              />
+              <Text size="xs" c="dimmed">
+                Marked present
+              </Text>
+            </Group>
+          )}
+        </Group>
+        {attendanceMode && (
+          <Text size="xs" fw={600} style={{ flexShrink: 0 }}>
+            {users.filter((user) => checkedIds.has(user.id)).length}/{users.length} present
+          </Text>
+        )}
+      </Group>
+
       <Box ref={contentRef} className={CONTENT_ENTER_CLASS}>
         {contentLoading ? (
           <Stack gap="lg">
@@ -631,6 +699,7 @@ export function ParadeStateView({
                           withBorder
                           p="sm"
                           onClick={attendanceMode ? () => toggleAttendance(user.id) : undefined}
+                          {...(attendanceMode ? activatable(() => toggleAttendance(user.id)) : {})}
                           style={{
                             cursor: attendanceMode ? "pointer" : undefined,
                             ...(checked
@@ -662,6 +731,25 @@ export function ParadeStateView({
                                     aria-label={`Mark ${user.name} as present`}
                                   />
                                 </Box>
+                              )}
+                              {/* Icon twin of the amber card background (the
+                                  legend names it), so out-of-camp status never
+                                  rides on color alone. */}
+                              {!checked && userEvents.length > 0 && (
+                                <IconMapPin
+                                  size={14}
+                                  color="var(--mantine-color-dimmed)"
+                                  aria-hidden
+                                  style={{ flexShrink: 0 }}
+                                />
+                              )}
+                              {attendanceMode && checkedIds.has(user.id) && (
+                                <IconCheck
+                                  size={14}
+                                  color="var(--mantine-color-teal-6)"
+                                  aria-hidden
+                                  style={{ flexShrink: 0 }}
+                                />
                               )}
                               <Text fw={600} size="sm">
                                 {displayName}
@@ -704,33 +792,35 @@ export function ParadeStateView({
         )}
       </Box>
 
-      {!isDesktop && (
-        <FloatingToolbar>
-          {attendanceMode ? (
-            <Menu
-              shadow="md"
-              width={220}
-              position="top-end"
-              transitionProps={{
-                transition: "pop-top-right",
-                duration: 150,
-                timingFunction: "ease",
-              }}
-            >
-              <Menu.Target>
-                <FloatingActionButton aria-label="Attendance options">
-                  <IconClipboardCheck size={FAB_ICON_SIZE} />
-                </FloatingActionButton>
-              </Menu.Target>
-              <Menu.Dropdown>{attendanceMenuItems}</Menu.Dropdown>
-            </Menu>
-          ) : (
-            <FloatingActionButton aria-label="Start attendance" onClick={enterAttendance}>
-              <IconClipboardCheck size={FAB_ICON_SIZE} />
-            </FloatingActionButton>
-          )}
-        </FloatingToolbar>
-      )}
+      {/* The attendance FAB is mobile-only; at lg the entry point is the
+          nav-row button beside the kebab menu. hiddenFrom sits on the toolbar
+          itself: its Affix portals to <body>, so a wrapper element could not
+          hide it. */}
+      <FloatingToolbar hiddenFrom="lg">
+        {attendanceMode ? (
+          <Menu
+            shadow="md"
+            width={220}
+            position="top-end"
+            transitionProps={{
+              transition: "pop-top-right",
+              duration: 150,
+              timingFunction: "ease",
+            }}
+          >
+            <Menu.Target>
+              <FloatingActionButton aria-label="Attendance options">
+                <IconClipboardCheck size={FAB_ICON_SIZE} />
+              </FloatingActionButton>
+            </Menu.Target>
+            <Menu.Dropdown>{attendanceMenuItems}</Menu.Dropdown>
+          </Menu>
+        ) : (
+          <FloatingActionButton aria-label="Start attendance" onClick={enterAttendance}>
+            <IconClipboardCheck size={FAB_ICON_SIZE} />
+          </FloatingActionButton>
+        )}
+      </FloatingToolbar>
 
       <FilterModal
         opened={filterOpened}
@@ -746,6 +836,25 @@ export function ParadeStateView({
         onPick={pickDate}
         onClose={closePicker}
       />
+      <Modal opened={resetOpened} onClose={closeResetConfirm} title="Reset attendance" centered>
+        <Text>
+          Clear attendance checks for every date? This cannot be undone.
+        </Text>
+        <Group justify="flex-end" mt="md">
+          <Button variant="default" onClick={closeResetConfirm}>
+            Cancel
+          </Button>
+          <Button
+            color="red"
+            onClick={() => {
+              resetAttendance();
+              closeResetConfirm();
+            }}
+          >
+            Reset
+          </Button>
+        </Group>
+      </Modal>
     </Stack>
   );
 }

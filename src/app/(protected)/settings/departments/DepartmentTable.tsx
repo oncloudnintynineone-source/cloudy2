@@ -3,7 +3,6 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import {
-  Box,
   Button,
   Group,
   Modal,
@@ -222,14 +221,14 @@ export function DepartmentTable({ departments }: DepartmentTableProps) {
 
       <DepartmentShares calendar={sharing} opened={shareOpened} onClose={closeShare} />
 
-      {/* Mobile-only: at lg the "Add department" button in the toolbar replaces the FAB. */}
-      <Box hiddenFrom="lg">
-        <FloatingToolbar bottomOffset="var(--settings-fab-bottom)">
-          <FloatingActionButton aria-label="Add department" onClick={openCreate}>
-            <IconPlus size={FAB_ICON_SIZE} />
-          </FloatingActionButton>
-        </FloatingToolbar>
-      </Box>
+      {/* Mobile-only: at lg the "Add department" button in the toolbar replaces
+          the FAB. hiddenFrom sits on the toolbar itself: its Affix portals to
+          <body>, so a wrapper element could not hide it. */}
+      <FloatingToolbar bottomOffset="var(--settings-fab-bottom)" hiddenFrom="lg">
+        <FloatingActionButton aria-label="Add department" onClick={openCreate}>
+          <IconPlus size={FAB_ICON_SIZE} />
+        </FloatingActionButton>
+      </FloatingToolbar>
     </Stack>
   );
 }

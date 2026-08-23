@@ -22,7 +22,7 @@ import {
 import { DatePickerInput } from "@mantine/dates";
 import { useDisclosure, useMediaQuery } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
-import { IconDownload, IconDotsVertical, IconTrash, IconX } from "@tabler/icons-react";
+import { IconDownload, IconFilter, IconTrash, IconX } from "@tabler/icons-react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
 import { FAB_ICON_SIZE, FloatingActionButton, FloatingToolbar } from "@/components/FloatingToolbar";
@@ -103,6 +103,8 @@ export function AuditLogView({
   const [detail, setDetail] = useState<AuditLog | null>(null);
   const [purgeOpened, { open: openPurge, close: closePurge }] = useDisclosure(false);
   const [exportOpened, { open: openExport, close: closeExport }] = useDisclosure(false);
+  const [purging, setPurging] = useState(false);
+  const [exporting, setExporting] = useState(false);
 
   const actionOptions = useMemo(
     () => [
@@ -216,19 +218,58 @@ export function AuditLogView({
   };
 
   const handlePurge = async () => {
-    const result = await purgeAuditLogs(retentionDays);
-    if (result.ok) {
-      notifications.show({
-        color: "green",
-        message:
-          result.deleted === 0
-            ? "No entries older than the retention period"
-            : `Deleted ${result.deleted} old log entr${result.deleted === 1 ? "y" : "ies"}`,
-      });
-      closePurge();
-      router.refresh();
-    } else {
-      notifications.show({ color: "red", message: result.error });
+    if (purging) {
+      return;
+    }
+    setPurging(true);
+    try {
+      const result = await purgeAuditLogs(retentionDays);
+      if (result.ok) {
+        notifications.show({
+          color: "green",
+          message:
+            result.deleted === 0
+              ? "No entries older than the retention period"
+              : `Deleted ${result.deleted} old log entr${result.deleted === 1 ? "y" : "ies"}`,
+        });
+        closePurge();
+        router.refresh();
+      } else {
+        notifications.show({ color: "red", message: result.error });
+      }
+    } finally {
+      setPurging(false);
+    }
+  };
+
+  // Fetch the CSV as a blob (like contacts' VCF export) so the confirm
+  // button can show real progress and failures surface as a toast instead
+  // of a navigation to an error page.
+  const handleExport = async () => {
+    if (exporting) {
+      return;
+    }
+    setExporting(true);
+    try {
+      const response = await fetch(exportUrl);
+      if (!response.ok) {
+        throw new Error(`Export failed with status ${response.status}`);
+      }
+      const disposition = response.headers.get("Content-Disposition") ?? "";
+      const filename = /filename="([^"]+)"/.exec(disposition)?.[1] ?? "audit-log.csv";
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = filename;
+      anchor.click();
+      URL.revokeObjectURL(url);
+      closeExport();
+    } catch (error) {
+      console.error("[audit] CSV export failed", error);
+      notifications.show({ color: "red", message: "Could not export the audit log" });
+    } finally {
+      setExporting(false);
     }
   };
 
@@ -246,6 +287,7 @@ export function AuditLogView({
             }}
           >
             <TextInput
+              aria-label="Search the audit log"
               placeholder="Search actor, entity, route…"
               value={searchInput}
               onChange={(event) => setSearchInput(event.currentTarget.value)}
@@ -311,6 +353,14 @@ export function AuditLogView({
               Reset filters
             </Button>
           ) : null}
+          {/* Desktop export entry point; the FAB below is mobile-only. */}
+          <Button
+            __vars={{ "--button-height": "43px" }}
+            leftSection={<IconDownload size={16} />}
+            onClick={openExport}
+          >
+            Export
+          </Button>
         </Group>
       ) : (
         <Group align="center" gap="xs" wrap="nowrap">
@@ -322,6 +372,7 @@ export function AuditLogView({
             }}
           >
             <TextInput
+              aria-label="Search the audit log"
               placeholder="Search actor, entity, route…"
               value={searchInput}
               onChange={(event) => setSearchInput(event.currentTarget.value)}
@@ -347,8 +398,10 @@ export function AuditLogView({
           >
             <Menu.Target>
               <Box pos="relative">
+                {/* Icon matches the label: a filter glyph, not the kebab used
+                    for row/overflow actions elsewhere. */}
                 <ActionIcon size={43} variant="default" aria-label="Filter log">
-                  <IconDotsVertical size={18} />
+                  <IconFilter size={18} />
                 </ActionIcon>
                 {activeFilterCount > 0 && (
                   <Badge
@@ -630,7 +683,12 @@ export function AuditLogView({
           <Button variant="default" onClick={closePurge}>
             Cancel
           </Button>
-          <Button color="red" onClick={handlePurge}>
+          <Button
+            color="red"
+            loading={purging}
+            loaderProps={BUTTON_LOADER_PROPS}
+            onClick={handlePurge}
+          >
             Delete
           </Button>
         </Group>
@@ -650,18 +708,20 @@ export function AuditLogView({
           </Button>
           <Button
             color="brand"
+            loading={exporting}
+            loaderProps={BUTTON_LOADER_PROPS}
             leftSection={<IconDownload size={18} />}
-            onClick={() => {
-              closeExport();
-              window.location.href = exportUrl;
-            }}
+            onClick={() => void handleExport()}
           >
             Download
           </Button>
         </Group>
       </Modal>
 
-      <FloatingToolbar bottomOffset="var(--settings-fab-bottom)">
+      {/* Mobile-only: at lg the "Export" button in the filter row replaces the
+          FAB. hiddenFrom sits on the toolbar itself: its Affix portals to
+          <body>, so a wrapper element could not hide it. */}
+      <FloatingToolbar bottomOffset="var(--settings-fab-bottom)" hiddenFrom="lg">
         <FloatingActionButton aria-label="Export audit log" onClick={openExport}>
           <IconDownload size={FAB_ICON_SIZE} />
         </FloatingActionButton>
