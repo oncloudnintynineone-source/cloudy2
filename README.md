@@ -207,7 +207,8 @@ reachable from the project root:
 
 | Document                        | Covers |
 | ------------------------------- | ------ |
-| [`progress.md`](progress.md) | Phase-by-phase project log, locked-in decisions, verification results |
+| [`progress.md`](progress.md) | Current status, locked-in decisions, one-line phase changelog, open items |
+| [`progress-archive.md`](progress-archive.md) | Detailed per-phase history (write-ups preserved under their original section numbers) |
 | [`docs/events-cache.md`](docs/events-cache.md) | Google Calendar event caching deep-dive — design, data model, read/write flows, freshness, performance |
 | [`docs/event-lifecycle.md`](docs/event-lifecycle.md) | Event form → Google Calendar data model — the 5-step wizard, guards, notes block codec, title templates, location policy |
 | [`docs/event-mutations.md`](docs/event-mutations.md) | Event create/update/delete — copy reconciliation, group identity, rollbacks, audit snapshots, cache invalidation |

@@ -331,6 +331,6 @@ Related docs:
   department calendars (users' departments).
 - [`audit-log.md`](audit-log.md) — the user/calendar/access rows rendered.
 - [`README.md`](../README.md#112-documentation) — documentation index.
-- `progress.md` — phase write-ups: 1.8 (roster & departments), 1.11 (calendars
+- `progress-archive.md` — phase write-ups: 1.8 (roster & departments), 1.11 (calendars
   + sharing + audit), 1.41 (access levels), 1.61 (email-change ACL sync bugfix),
   1.62 (department selects).

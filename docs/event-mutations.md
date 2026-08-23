@@ -322,5 +322,5 @@ Related docs:
 - [`audit-log.md`](audit-log.md) — the audit rows these mutations write, rendered.
 - [`roster-sharing.md`](roster-sharing.md) — the department calendars (Google ACLs)
   the copies live in.
-- `progress.md` — phase write-ups: 1.16 (events), 1.20 (cross-department copies),
+- `progress-archive.md` — phase write-ups: 1.16 (events), 1.20 (cross-department copies),
   1.29 (admin-id UUID guard), 1.30 (empty title), 1.73 (legible audit details).

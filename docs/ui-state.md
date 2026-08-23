@@ -390,5 +390,5 @@ Related docs:
 - [`events-cache.md`](events-cache.md) — the `?refresh=` force-refresh nonce this
   state system coexists with.
 - [`README.md`](../README.md#112-documentation) — documentation index.
-- `progress.md` — phase write-ups: 1.69 (remembered UI state), 1.71 (user filter
+- `progress-archive.md` — phase write-ups: 1.69 (remembered UI state), 1.71 (user filter
   row narrowing), 1.72 (pinned tabs), 1.81 (collapsible sidebar rail).

@@ -247,5 +247,5 @@ Related docs:
   (`setCalendarAccess`/`listCalendarAccess`/`removeCalendarAccess`).
 - [`README.md`](../README.md#110-google-integration) — environment variables and
   the stub note.
-- `progress.md` — phase write-ups: 1.3.4 (stub), 1.11 (calendars + sharing), 1.41
+- `progress-archive.md` — phase write-ups: 1.3.4 (stub), 1.11 (calendars + sharing), 1.41
   (access levels), 1.61 (email-change ACL sync).

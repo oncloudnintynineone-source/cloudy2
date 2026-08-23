@@ -554,6 +554,6 @@ Related docs:
 - [`audit-log.md`](audit-log.md) — where the event audit snapshots from §1.8.2 render.
 - [`roster-sharing.md`](roster-sharing.md) — who can see which department calendar.
 - [`README.md`](../README.md#112-documentation) — documentation index.
-- `progress.md` — phase write-ups: 1.16 (events), 1.20 (copies), 1.23/1.24 (title
+- `progress-archive.md` — phase write-ups: 1.16 (events), 1.20 (copies), 1.23/1.24 (title
   template), 1.27 (time options), 1.31 (edit link), 1.32 (opaque notes), 1.40
   (external events), 1.46 (location policy), 1.47 (staged wizard).

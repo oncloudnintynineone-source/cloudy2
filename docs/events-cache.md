@@ -4,7 +4,7 @@ The calendar pages render a month of events sourced from Google Calendar. This d
 describes the server-side caching layer between the frontend and the Google Calendar API:
 its design, data model, read/write flows, freshness guarantees, and the pure helpers that
 make it testable. The concise architecture note lives in `AGENTS.md`; the phase write-up is
-in `progress.md` §1.42; this is the full reference.
+in `progress-archive.md` §1.42; this is the full reference.
 
 ## Table of contents
 
@@ -399,7 +399,7 @@ invalidation. It was replaced with the Postgres table because:
   (no cross-instance sharing), with a 2 MB per-entry fetch-cache cap.
 
 The DB table avoids the entire Next cache runtime and behaves identically in dev, CI,
-Vercel, and self-hosted. See `progress.md` §1.42 for the full history.
+Vercel, and self-hosted. See `progress-archive.md` §1.42 for the full history.
 
 ## 1.12 Performance
 
@@ -446,6 +446,6 @@ What the cache changed:
 Related docs:
 
 - [`README.md`](../README.md#112-documentation) — documentation index (this file).
-- [`progress.md` §1.42](../progress.md#142-calendar-caching-layer-phase-3g) — phase write-up
+- [`progress-archive.md` §1.42](../progress-archive.md#142-calendar-caching-layer-phase-3g) — phase write-up
   and the `use cache` → Postgres migration history.
 - `AGENTS.md` — concise architecture bullet (the canonical quick reference).

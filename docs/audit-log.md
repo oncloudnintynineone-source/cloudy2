@@ -373,5 +373,5 @@ Related docs:
 - [`loading-transitions.md`](loading-transitions.md) — the loading pattern the
   audit view follows.
 - [`README.md`](../README.md#112-documentation) — documentation index.
-- `progress.md` — phase write-ups: 1.57 (viewer + retention + export), 1.73
+- `progress-archive.md` — phase write-ups: 1.57 (viewer + retention + export), 1.73
   (legible details).
