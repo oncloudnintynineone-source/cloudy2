@@ -44,11 +44,11 @@ export function FloatingToolbar({
   zIndex = 100,
 }: FloatingToolbarProps) {
   return (
-    // Render inline (not portaled): the bottom offsets are page-scoped CSS
-    // vars (--app-floating-bottom-offset on .app-shell-root,
-    // --settings-fab-bottom on .settings-page-pad) and a portal to <body>
-    // would escape their scope, leaving `bottom` unresolved.
-    <Affix position={{ bottom: bottomOffset, right: 16 }} zIndex={zIndex} withinPortal={false}>
+    // Portaled to <body> (Mantine default): `position: fixed` must stay
+    // viewport-relative no matter what the page's layout does to its
+    // ancestors. The bottom offsets are CSS vars declared on :root
+    // (globals.css), so they resolve from the portaled element too.
+    <Affix position={{ bottom: bottomOffset, right: 16 }} zIndex={zIndex}>
       <Group gap="xs" wrap="nowrap">
         {children}
       </Group>

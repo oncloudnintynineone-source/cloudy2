@@ -21,6 +21,13 @@ export default function EventTypesLoading() {
         ))}
       </Stack>
 
+      {/* Desktop: toolbar row with the "Add event type" button */}
+      <Paper withBorder p="sm" visibleFrom="lg">
+        <Group justify="flex-end" wrap="nowrap">
+          <Skeleton width={150} height={43} />
+        </Group>
+      </Paper>
+
       {/* Desktop: data table (Name / Acronym / Time options / Location policy) */}
       <SettingsTableSkeleton columns={[3, 1.5, 2.5, 2]} rows={4} visibleFrom="lg" />
     </Stack>

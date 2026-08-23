@@ -92,6 +92,8 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
 - [1.79 Desktop responsive bugfixes (Phase 3aj)](#179-desktop-responsive-bugfixes-phase-3aj)
 - [1.80 Event form wizard: review step, relocated "On behalf of", optional creator (Phase 3ak)](#180-event-form-wizard-review-step-relocated-on-behalf-of-optional-creator-phase-3ak)
 - [1.81 Collapsible sidebar rail (Phase 3al)](#181-collapsible-sidebar-rail-phase-3al)
+- [1.82 Settings list pages: full-size desktop create buttons (Phase 3am)](#182-settings-list-pages-full-size-desktop-create-buttons-phase-3am)
+- [1.83 Mobile FAB: portaled Affix + :root offset vars (bugfix)](#183-mobile-fab-ported-affix--root-offset-vars-bugfix)
 
 ## 1.1 Status
 
@@ -4048,3 +4050,62 @@ new `sidebarCollapsed` normalize/merge cases), and `pnpm build` all pass.
 Owed: wide-window manual check — toggle the rail (animated resize, tooltips,
 active states), reload/PWA relaunch to confirm the remembered state, and a
 <992px pass to confirm the mobile layout is untouched.
+
+## 1.82 Settings list pages: full-size desktop create buttons (Phase 3am)
+
+At `lg+` the Settings > Users / Departments / Event Types pages create entries
+from the FAB, which is a poor fit for a data-table context. They now use the
+same full-size button pattern as the Calendar page's "New event" button.
+
+- **Users** (`UserTable.tsx`) — an "Add user" `Button` (`visibleFrom="lg"`,
+  `leftSection={<IconPlus size={16}/>}`, `--button-height: 43px` to align with
+  the 43px `FilterButton`) sits in the existing search toolbar, right of the
+  filter icon.
+- **Departments / Event Types** — each gains a bordered toolbar `Paper`
+  (right-aligned 43px "Add department" / "Add event type" button) above the
+  list, rendered **before** the empty-state conditional so the button is
+  available even when the list is empty.
+- The three `FloatingToolbar`s are wrapped in `<Box hiddenFrom="lg">` so the
+  FABs remain mobile-only (mirrors the dashboard FAB's pattern).
+- Skeletons kept in sync: a `visibleFrom="lg"` button placeholder in
+  `users/loading.tsx`'s toolbar group, and a desktop toolbar-row skeleton in
+  the departments/event-types `loading.tsx` files.
+
+**Verification:** `pnpm lint`, `pnpm typecheck`, `pnpm test` (464) pass.
+
+## 1.83 Mobile FAB: portaled Affix + :root offset vars (bugfix)
+
+On small screens the FABs (settings pages, dashboard, contacts, audit log)
+were not pinned to the bottom of the screen — they sat below the last item in
+the list.
+
+- **Root cause** — the FAB is a Mantine `Affix` (`position: fixed`). Commit
+  `9fa5889` had switched `FloatingToolbar` from Mantine's default (portaled to
+  `<body>`) to inline rendering (`withinPortal={false}`) because the page-
+  scoped offset vars (`--settings-fab-bottom` on `.settings-page-pad`) don't
+  resolve for a body-portaled element — with the portal version `bottom` was
+  unresolved and the FAB stuck to the top of the screen. The inline version
+  resolves the vars, but an inline `position: fixed` depends on the page's
+  DOM context and on-device it positioned relative to the content instead of
+  the viewport (the `<Box hiddenFrom="lg">` wrapper from §1.82 was verified
+  innocent — it's a `display: none` media rule only).
+- **Fix** — both problems at once: `FloatingToolbar.tsx` drops
+  `withinPortal={false}` (the Affix portals to `<body>` again, so its
+  containing block is always the viewport regardless of page layout), and the
+  two offset vars move to `:root` in `globals.css`
+  (`--app-floating-bottom-offset`, `--settings-fab-bottom`, with the existing
+  `16px` values re-declared on `:root` inside `@media (min-width: 62em)`), so
+  they resolve from the portaled element. `.settings-page-pad` keeps only its
+  `padding-bottom: var(--settings-fab-bottom)` (lg override `padding-bottom: 0`
+  unchanged); `.app-shell-root` keeps only the lg
+  `--app-shell-header-offset: 56px` (sticky bars).
+- Verified with headless Chrome at a mobile-class viewport: FAB pinned at
+  `bottom: 124px` (the `--settings-fab-bottom` value with a zero safe-area
+  inset; scroll-invariant rect) above the settings tab bar, independent of
+  list length.
+
+**Verification:** `pnpm lint`, `pnpm typecheck`, `pnpm test` (464) pass.
+Owed: on-device recheck — FAB pinned bottom-right above the settings tab bar
+and the bottom nav on dashboard/contacts, stays put while scrolling. If the
+phone runs the installed PWA, the Serwist service worker may serve the old
+bundle until it updates (hard-reload once after deploy).

@@ -69,17 +69,21 @@
                                   on mobile too, but the dashboard's sticky bars
                                   keep their legacy non-stuck behavior below lg
 
+  The FAB clearance vars are declared on :root (not on the page elements):
+  FloatingToolbar renders its Affix portaled to <body>, so a page-scoped var
+  would be out of scope and `bottom` would go unresolved.
+
   Note: @mantine/schedule declares its label/slot width vars on the view's
   root element itself, so a parent class can't shadow them — the dashboard
   overrides them per-breakpoint via the views' vars/style props instead
   (see DashboardView).
 */
-.app-shell-root {
+:root {
   --app-floating-bottom-offset: calc(56px + env(safe-area-inset-bottom) + 16px);
+  --settings-fab-bottom: calc(108px + env(safe-area-inset-bottom) + 16px);
 }
 
 .settings-page-pad {
-  --settings-fab-bottom: calc(108px + env(safe-area-inset-bottom) + 16px);
   padding-bottom: var(--settings-fab-bottom);
 }
 
@@ -100,13 +104,16 @@
 }
 
 @media (min-width: 62em) {
-  .app-shell-root {
+  :root {
     --app-floating-bottom-offset: 16px;
+    --settings-fab-bottom: 16px;
+  }
+
+  .app-shell-root {
     --app-shell-header-offset: 56px;
   }
 
   .settings-page-pad {
-    --settings-fab-bottom: 16px;
     padding-bottom: 0;
   }
 

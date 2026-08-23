@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   Badge,
+  Box,
   Button,
   Group,
   Modal,
@@ -125,6 +126,16 @@ export function UserTable({ users, departments, nameTemplate }: UserTableProps) 
               style={{ flex: 1 }}
             />
             <FilterButton activeCount={activeFilterCount} onClick={openFilter} />
+            {/* Desktop: full-size create button instead of the FAB (like the
+                Calendar page's "New event" button); the FAB below is mobile-only. */}
+            <Button
+              visibleFrom="lg"
+              __vars={{ "--button-height": "43px" }}
+              leftSection={<IconPlus size={16} />}
+              onClick={openCreate}
+            >
+              Add user
+            </Button>
           </Group>
           {activeFilterCount > 0 ? (
             <Group gap={6} wrap="wrap">
@@ -312,11 +323,14 @@ export function UserTable({ users, departments, nameTemplate }: UserTableProps) 
         onApply={handleApplyFilters}
       />
 
-      <FloatingToolbar bottomOffset="var(--settings-fab-bottom)">
-        <FloatingActionButton aria-label="Add user" onClick={openCreate}>
-          <IconPlus size={FAB_ICON_SIZE} />
-        </FloatingActionButton>
-      </FloatingToolbar>
+      {/* Mobile-only: at lg the "Add user" button in the toolbar replaces the FAB. */}
+      <Box hiddenFrom="lg">
+        <FloatingToolbar bottomOffset="var(--settings-fab-bottom)">
+          <FloatingActionButton aria-label="Add user" onClick={openCreate}>
+            <IconPlus size={FAB_ICON_SIZE} />
+          </FloatingActionButton>
+        </FloatingToolbar>
+      </Box>
     </Stack>
   );
 }

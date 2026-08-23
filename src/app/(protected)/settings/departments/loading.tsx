@@ -24,6 +24,13 @@ export default function DepartmentsLoading() {
         ))}
       </Stack>
 
+      {/* Desktop: toolbar row with the "Add department" button */}
+      <Paper withBorder p="sm" visibleFrom="lg">
+        <Group justify="flex-end" wrap="nowrap">
+          <Skeleton width={150} height={43} />
+        </Group>
+      </Paper>
+
       {/* Desktop: data table (Name / Calendar ID / Actions) */}
       <SettingsTableSkeleton columns={[3, 4, 1.5]} rows={4} visibleFrom="lg" />
     </Stack>

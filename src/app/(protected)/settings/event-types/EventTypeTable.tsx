@@ -2,7 +2,18 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Badge, Group, Modal, Paper, Stack, Table, Text, useMantineTheme } from "@mantine/core";
+import {
+  Badge,
+  Box,
+  Button,
+  Group,
+  Modal,
+  Paper,
+  Stack,
+  Table,
+  Text,
+  useMantineTheme,
+} from "@mantine/core";
 
 import { useDisclosure, useMediaQuery } from "@mantine/hooks";
 import { IconPlus } from "@tabler/icons-react";
@@ -41,6 +52,21 @@ export function EventTypeTable({ types }: EventTypeTableProps) {
 
   return (
     <Stack pb="xl" className={CONTENT_ENTER_CLASS}>
+      {/* Desktop: full-size create button instead of the FAB (like the
+          Calendar page's "New event" button); the FAB below is mobile-only.
+          Rendered above the list so it is still available when empty. */}
+      <Paper withBorder p="sm" visibleFrom="lg">
+        <Group justify="flex-end" wrap="nowrap">
+          <Button
+            __vars={{ "--button-height": "43px" }}
+            leftSection={<IconPlus size={16} />}
+            onClick={openCreate}
+          >
+            Add event type
+          </Button>
+        </Group>
+      </Paper>
+
       {types.length === 0 ? (
         <Text c="dimmed" ta="center" py="lg">
           No event types yet.
@@ -153,11 +179,14 @@ export function EventTypeTable({ types }: EventTypeTableProps) {
         />
       </Modal>
 
-      <FloatingToolbar bottomOffset="var(--settings-fab-bottom)">
-        <FloatingActionButton aria-label="Add event type" onClick={openCreate}>
-          <IconPlus size={FAB_ICON_SIZE} />
-        </FloatingActionButton>
-      </FloatingToolbar>
+      {/* Mobile-only: at lg the "Add event type" button in the toolbar replaces the FAB. */}
+      <Box hiddenFrom="lg">
+        <FloatingToolbar bottomOffset="var(--settings-fab-bottom)">
+          <FloatingActionButton aria-label="Add event type" onClick={openCreate}>
+            <IconPlus size={FAB_ICON_SIZE} />
+          </FloatingActionButton>
+        </FloatingToolbar>
+      </Box>
     </Stack>
   );
 }

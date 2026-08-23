@@ -9,6 +9,7 @@ export default function UsersLoading() {
         <Group justify="space-between" wrap="nowrap">
           <Skeleton height={36} style={{ flex: 1 }} />
           <Skeleton width={43} height={43} radius="50%" />
+          <Skeleton width={104} height={43} visibleFrom="lg" />
         </Group>
       </Paper>
 
