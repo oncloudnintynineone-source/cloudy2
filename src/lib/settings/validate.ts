@@ -9,8 +9,6 @@ export const EVENT_TITLE_TEMPLATE_MAX_LENGTH = 200;
 export const AUDIT_RETENTION_MIN = 7;
 export const AUDIT_RETENTION_MAX = 365;
 export const AUDIT_RETENTION_DEFAULT = 90;
-export const WEBHOOK_URL_MAX_LENGTH = 500;
-export const WEBHOOK_SECRET_MAX_LENGTH = 200;
 
 export const NAME_TEMPLATE_PLACEHOLDERS = ["{name}", "{department}"] as const;
 
@@ -59,18 +57,6 @@ export interface RetentionFormValues {
 
 export interface RetentionFormErrors {
   retentionDays?: string;
-  [key: string]: string | undefined;
-}
-
-export interface WebhookFormValues {
-  webhookUrl: string;
-  webhookSecret: string;
-  webhookEnabled: boolean;
-}
-
-export interface WebhookFormErrors {
-  webhookUrl?: string;
-  webhookSecret?: string;
   [key: string]: string | undefined;
 }
 
@@ -158,56 +144,6 @@ export function validateEventTitleTemplate(
     errors.eventTitleTemplate = "Event title template is required";
   } else if (template.length > EVENT_TITLE_TEMPLATE_MAX_LENGTH) {
     errors.eventTitleTemplate = `Event title template must be ${EVENT_TITLE_TEMPLATE_MAX_LENGTH} characters or fewer`;
-  }
-
-  return errors;
-}
-
-/**
- * Normalize a webhook endpoint URL: trimmed; an empty string means "no
- * webhook configured". Returns null when the value is not a valid http(s) URL.
- */
-export function normalizeWebhookUrl(raw: string): string | null {
-  const value = raw.trim();
-  if (!value) {
-    return "";
-  }
-  if (value.length > WEBHOOK_URL_MAX_LENGTH) {
-    return null;
-  }
-  try {
-    const parsed = new URL(value);
-    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
-      return null;
-    }
-  } catch {
-    return null;
-  }
-  return value;
-}
-
-/** Trim a webhook signing secret; null when over the length cap. */
-export function normalizeWebhookSecret(raw: string): string | null {
-  const value = raw.trim();
-  return value.length > WEBHOOK_SECRET_MAX_LENGTH ? null : value;
-}
-
-export function validateWebhookForm(values: WebhookFormValues): WebhookFormErrors {
-  const errors: WebhookFormErrors = {};
-  const url = values.webhookUrl.trim();
-
-  if (url && url.length <= WEBHOOK_URL_MAX_LENGTH) {
-    try {
-      const parsed = new URL(url);
-      if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
-        errors.webhookUrl = "URL must start with http:// or https://";
-      }
-    } catch {
-      errors.webhookUrl = "Enter a valid URL";
-    }
-  }
-  if (values.webhookSecret.trim().length > WEBHOOK_SECRET_MAX_LENGTH) {
-    errors.webhookSecret = `Secret must be ${WEBHOOK_SECRET_MAX_LENGTH} characters or fewer`;
   }
 
   return errors;

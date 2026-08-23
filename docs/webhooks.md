@@ -1,11 +1,11 @@
 # 1. Event webhooks: notifying external systems
 
 When an event is created, modified, or deleted inside the app, a JSON notification is
-POSTed to a single admin-configured webhook URL so external systems can mirror the
-change. The payload carries **everything the event form collects** — rendered title,
-raw description, type, times, out-of-camp/location, departments, invitees, creator —
-with display names resolved exactly like the audit log. Delivery is fire-and-forget:
-it never delays or fails the mutation. What an event *is* lives in
+POSTed to every enabled admin-registered webhook endpoint so external systems can
+mirror the change. The payload carries **everything the event form collects** —
+rendered title, raw description, type, times, out-of-camp/location, departments,
+invitees, creator — with display names resolved exactly like the audit log. Delivery
+is fire-and-forget: it never delays or fails the mutation. What an event *is* lives in
 [`event-lifecycle.md`](event-lifecycle.md); the mutations that trigger the webhook live
 in [`event-mutations.md`](event-mutations.md).
 
@@ -16,8 +16,9 @@ in [`event-mutations.md`](event-mutations.md).
 - [1.3 Payload](#13-payload)
 - [1.4 Delivery & security](#14-delivery--security)
 - [1.5 Integration points](#15-integration-points)
-- [1.6 Pure helpers & testing](#16-pure-helpers--testing)
-- [1.7 File index & related docs](#17-file-index--related-docs)
+- [1.6 In-app integration guide](#16-in-app-integration-guide)
+- [1.7 Pure helpers & testing](#17-pure-helpers--testing)
+- [1.8 File index & related docs](#18-file-index--related-docs)
 
 ## 1.1 Goals & non-goals
 
@@ -27,7 +28,9 @@ in [`event-mutations.md`](event-mutations.md).
   all user-configurable fields included — no follow-up call into cloudy2 required.
 - Updates show what changed (`changes` with `[before, after]` pairs) plus the full
   resulting state, mirroring the audit log's diff.
-- A slow or broken receiver can never delay a mutation response or fail the action.
+- Any number of endpoints can be registered; each is delivered independently, so one
+  slow or broken receiver can never delay a mutation response or affect other
+  receivers.
 
 **Non-goals**
 
@@ -35,31 +38,34 @@ in [`event-mutations.md`](event-mutations.md).
   dropped (same philosophy as `logAction`).
 - No notifications for Google-side edits of events made outside the app — only the
   three in-app server actions fire webhooks.
-- No per-action subscription filters: the single configured endpoint receives all
-  three actions.
+- No per-endpoint action filters: every enabled endpoint receives all three actions.
 
 ## 1.2 Configuration
 
-The destination lives on the singleton `settings` row (admin-only Settings → General,
-"Event webhooks" card):
+Endpoints live in the dedicated `webhooks` table and are managed in Settings →
+Webhooks (admin-only), which also renders the in-app integration guide (§1.6):
 
-| Column            | Meaning                                                                    |
-| ----------------- | -------------------------------------------------------------------------- |
-| `webhook_url`     | The endpoint URL; empty/null disables delivery                              |
-| `webhook_secret`  | Optional shared secret used to sign deliveries (§1.4)                       |
-| `webhook_enabled` | Master switch; lets admins pause delivery without losing the configuration |
+| Column       | Meaning                                                                        |
+| ------------ | ------------------------------------------------------------------------------ |
+| `name`       | Display label used in this list and the audit log                              |
+| `url`        | The HTTPS endpoint that receives deliveries                                     |
+| `secret`     | Optional per-endpoint shared secret used to sign its deliveries (§1.4)          |
+| `enabled`    | Disabled rows receive nothing but keep their configuration                      |
 
-`updateWebhook` (`src/lib/settings/actions.ts`) validates with the pure helpers in
-`src/lib/settings/validate.ts` (`normalizeWebhookUrl` requires an http(s) URL;
-`normalizeWebhookSecret` caps length), writes the row, and records a `settings.update`
-audit diff of the enabled flag and URL (never the secret).
+CRUD goes through `createWebhook` / `updateWebhook` / `deleteWebhook`
+(`src/lib/webhooks/actions.ts`) following the settings/event-types pattern:
+`requireAdmin()` → pure validation (`src/lib/webhooks/validate.ts`: required name,
+http(s) URL, secret length cap) → DB write → audit row (`webhook.create/update/delete`,
+details of name/url/enabled — **never the secret**) → `revalidatePath`. The original
+single-endpoint config (`settings.webhook_url/secret/enabled`, Phase 3ap) was migrated
+into this table by `drizzle/0015_chubby_sentinel.sql`, which then dropped those
+columns.
 
 ```mermaid
 flowchart LR
-    A["Admin saves the General tab"] --> V["validateWebhookForm<br/>(pure)"]
-    V --> D["updateWebhook action<br/>requireAdmin → settings row"]
-    D --> L["settings.update audit row<br/>(enabled flag + URL only)"]
-    D --> R["revalidatePath('/settings/general')"]
+    A["Admin manages endpoints<br/>(Settings - Webhooks)"] --> V["validateWebhookForm<br/>(pure)"]
+    V --> D["webhook.create / update / delete<br/>requireAdmin → webhooks row + audit"]
+    A --> G["Integration guide accordion:<br/>schema, examples, signatures"]
 ```
 
 ## 1.3 Payload
@@ -123,33 +129,38 @@ successful mutation:
 sequenceDiagram
     participant A as server action
     participant W as dispatchEventWebhook
-    participant S as settings row
-    participant R as receiver
+    participant D as webhooks table
+    participant R as receivers
     A->>W: input (snapshot, eventId, changes, actor…)
-    W->>S: getSettings()
-    alt disabled or no URL
+    W->>D: select enabled endpoints
+    alt no enabled endpoints
         W-->>A: no-op
-    else configured
-        W->>W: buildEventWebhookPayload + sign (pure)
+    else one or more
+        W->>W: buildEventWebhookPayload (once) + sign per endpoint secret
         Note over W: after(() => …) — the action returns now
-        W->>R: POST application/json<br/>10s AbortSignal timeout
-        R-->>W: any response / network error → console only
+        par per endpoint (Promise.allSettled)
+            W->>R: POST application/json<br/>10s AbortSignal timeout
+            R-->>W: any response / network error → console only
+        end
     end
 ```
 
-- **Fire-and-forget**: the signed POST is queued via `after()` (`next/server`), so the
+- **Fan-out**: the payload and body are built once; every enabled endpoint gets its
+  own signed POST inside a single `after()` via `Promise.allSettled` — deliveries are
+  independent, so one receiver's failure never affects another's.
+- **Fire-and-forget**: the POSTs are queued via `after()` (`next/server`), so the
   mutation's response is never delayed; preparation failures are caught and logged.
 - **Timeout**: `AbortSignal.timeout(10_000)` bounds each delivery.
-- **Signature** (`src/lib/webhooks/sign.ts`, pure): when a secret is configured,
-  deliveries carry
+- **Signature** (`src/lib/webhooks/sign.ts`, pure): when an endpoint has a secret, its
+  delivery carries
   - `X-Cloudy2-Signature: sha256=<hex>` — HMAC-SHA256 over `"<timestamp>.<body>"`
   - `X-Cloudy2-Timestamp` — unix seconds, part of the signed material (replay binding)
   - `X-Cloudy2-Event` — the action string, for cheap routing without parsing the body
 
   Receivers verify by recomputing the HMAC over `${header.timestamp}.${rawBody}` with
   their shared secret and comparing (constant-time comparison recommended).
-- **No secrets in logs**: failures log the URL/status/error only; the secret is never
-  written to the console or the audit log.
+- **No secrets in logs or audits**: failures log the endpoint name/URL/status/error
+  only; secrets appear nowhere outside the `webhooks` row.
 
 ## 1.5 Integration points
 
@@ -163,28 +174,46 @@ never for rolled-back attempts:
 | `updateEvent` | `changes` = the same `diffFields(before, after)` the audit row stores; `googleEventIds` = every copy touched this run (updated, newly created, retired) collected in the reconcile loop |
 | `deleteEvent` | `snapshotFromCopy` result; `timeParts: null`; `googleEventIds` = the deleted copy ids |
 
-## 1.6 Pure helpers & testing
+## 1.6 In-app integration guide
+
+The Webhooks tab renders a **PayloadReference** accordion
+(`src/app/(protected)/settings/webhooks/PayloadReference.tsx`) so endpoint integrators
+get the schema without leaving the app:
+
+- **Actions & headers** — the three action strings and the delivery headers table.
+- **Example payloads** — one JSON sample per action with copy buttons. These are
+  generated at render time by `buildExampleWebhookPayload`
+  (`src/lib/webhooks/example.ts`, pure), which calls the **real**
+  `buildEventWebhookPayload` with fixed fixture data — the displayed schema can never
+  drift from actual deliveries.
+- **Verifying signatures** — HMAC recipe with a copyable Node `crypto` snippet.
+
+## 1.7 Pure helpers & testing
 
 | Helper | Module | Tests |
 | ------ | ------ | ----- |
 | `buildEventWebhookPayload`, `WEBHOOK_ACTIONS` | `webhooks/payload.ts` | `payload.test.ts` |
+| `buildExampleWebhookPayload` | `webhooks/example.ts` | `example.test.ts` |
 | `webhookSignature` | `webhooks/sign.ts` | `sign.test.ts` |
-| `normalizeWebhookUrl`, `normalizeWebhookSecret`, `validateWebhookForm` | `settings/validate.ts` | `validate.test.ts` |
+| `normalizeWebhookName/Url/Secret`, `validateWebhookForm` | `webhooks/validate.ts` | `validate.test.ts` |
 
-I/O-bound (not unit-tested, per repo convention): `webhooks/deliver.ts` (settings read
-+ `fetch`) and the wiring inside `events/actions.ts`.
+I/O-bound (not unit-tested, per repo convention): `webhooks/deliver.ts` (endpoint read
++ `fetch`), `webhooks/actions.ts` (CRUD server actions), and the wiring inside
+`events/actions.ts`.
 
-## 1.7 File index & related docs
+## 1.8 File index & related docs
 
 | File | Role |
 | ---- | ---- |
 | `src/lib/webhooks/payload.ts` | Payload builder + action constants (pure) |
+| `src/lib/webhooks/example.ts` | Fixture-driven examples for the in-app guide (pure) |
 | `src/lib/webhooks/sign.ts` | HMAC-SHA256 signature (pure) |
-| `src/lib/webhooks/deliver.ts` | Settings read, sign, `after()` POST |
+| `src/lib/webhooks/deliver.ts` | Enabled-endpoint read, sign, fan-out `after()` POSTs |
+| `src/lib/webhooks/queries.ts` | `listWebhooks` for the settings tab |
+| `src/lib/webhooks/actions.ts` | Endpoint CRUD server actions + audit rows |
+| `src/app/(protected)/settings/webhooks/*` | Tab page, list/table/form, payload reference |
 | `src/lib/events/actions.ts` | The three dispatch sites |
-| `src/lib/settings/actions.ts` | `updateWebhook` server action |
-| `src/lib/settings/validate.ts` | URL/secret validation (pure) |
-| `src/db/schema.ts` | `settings.webhook_*` columns |
+| `src/db/schema.ts` | The `webhooks` table |
 
 Related docs:
 

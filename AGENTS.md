@@ -144,7 +144,7 @@ before changing the subsystem.
   `/contacts`, Settings `/settings` (regular users get the first three). `SettingsTabs`
   stacks directly above it.
 - **Admin settings live under `/settings`** (admin-only): Users, Departments, Event
-  Types, Templates, General, Audit Log tabs. Event types carry an app-required unique
+  Types, Templates, Webhooks, General, Audit Log tabs. Event types carry an app-required unique
   `shortname` (the `{type:acronym}` title token) and a `location_policy`
   (`in`/`out`/`both`) enforced client- and server-side by pure `clampOutOfCamp()`
   (`src/lib/events/locationPolicy.ts`): the location field IS the out-of-camp
@@ -163,8 +163,7 @@ before changing the subsystem.
   the `outOfCamp` flag rides in notes (`parseEventOutOfCamp`). Flows:
   [docs/event-lifecycle.md](docs/event-lifecycle.md),
   [docs/event-mutations.md](docs/event-mutations.md).
-- **General tab:** login keyword, `audit_log_retention_days` (default 90, clamp 7–365),
-  and the event webhook (URL/secret/enabled).
+- **General tab:** login keyword, `audit_log_retention_days` (default 90, clamp 7–365).
   **Audit Log tab:** URL-param filters, keyset pagination (`listAuditLogs`), CSV export
   at `/api/audit/export`. **Rotation is on-read** (every render purges past retention) +
   a manual delete button; no cron. Never call `listAuditLogs`-adjacent helpers with a
@@ -175,15 +174,17 @@ before changing the subsystem.
   store `diffFields(before, after)`; unsupplyable fields show `—` (`EMPTY_VALUE`).
   `formatAuditDetails` renders changes / fields / pretty-JSON fallback. Keep new
   payloads flat and human-readable. Design: [docs/audit-log.md](docs/audit-log.md).
-- **Event webhooks notify external systems** of successful create/update/delete: one
-  admin-configured endpoint (`settings.webhook_url/secret/enabled`, General tab) gets a
-  fire-and-forget POST via `after()` — never delays/fails the mutation, no retry queue.
-  Payloads are built by pure `buildEventWebhookPayload` (`src/lib/webhooks/payload.ts`)
-  from the **same audit snapshots** (all form fields, names resolved); updates carry
-  `changes` `[before, after]` pairs. Deliveries sign with HMAC-SHA256 over
-  `"timestamp.body"` (`X-Cloudy2-Signature`). Dispatch only after each mutation's
-  `logAction`; a disabled/unconfigured webhook is a no-op. Design:
-  [docs/webhooks.md](docs/webhooks.md).
+- **Event webhooks notify external systems** of successful create/update/delete:
+  admin-registered endpoints (`webhooks` table; Settings → Webhooks tab) each get a
+  fire-and-forget POST via `after()` — never delays/fails the mutation, no retry
+  queue, one endpoint's failure never affects the others. Every enabled endpoint
+  receives every action. Payloads are built by pure `buildEventWebhookPayload`
+  (`src/lib/webhooks/payload.ts`) from the **same audit snapshots** (all form fields,
+  names resolved); updates carry `changes` `[before, after]` pairs. Each delivery
+  signs with its endpoint's secret: HMAC-SHA256 over `"timestamp.body"`
+  (`X-Cloudy2-Signature`). Dispatch only after each mutation's `logAction`. The tab's
+  PayloadReference accordion generates example payloads from the real builder — keep
+  it that way (never hand-copy JSON into UI). Design: [docs/webhooks.md](docs/webhooks.md).
 - **Standard loading appearance: skeleton only + fade-in on reveal.** (1) The skeleton
   is the ONLY loading indicator — never dim or darken content while loading (the
   `opacity: isPending ? …` pattern is banned); shape it off shared skeleton components

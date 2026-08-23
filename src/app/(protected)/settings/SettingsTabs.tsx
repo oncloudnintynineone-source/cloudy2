@@ -11,6 +11,7 @@ const tabs = [
   { value: "/settings/departments", label: "Departments" },
   { value: "/settings/event-types", label: "Event Types" },
   { value: "/settings/templates", label: "Templates" },
+  { value: "/settings/webhooks", label: "Webhooks" },
   { value: "/settings/general", label: "General" },
   { value: "/settings/audit-log", label: "Audit Log" },
 ];

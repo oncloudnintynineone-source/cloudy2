@@ -7,9 +7,6 @@ export interface SettingsView {
   nameTemplate: string;
   eventTitleTemplate: string;
   auditLogRetentionDays: number;
-  webhookUrl: string;
-  webhookSecret: string;
-  webhookEnabled: boolean;
 }
 
 /**
@@ -23,8 +20,5 @@ export async function getSettings(): Promise<SettingsView> {
     nameTemplate: row?.nameTemplate ?? "{name}",
     eventTitleTemplate: row?.eventTitleTemplate ?? "{description}",
     auditLogRetentionDays: row?.auditLogRetentionDays ?? AUDIT_RETENTION_DEFAULT,
-    webhookUrl: row?.webhookUrl ?? "",
-    webhookSecret: row?.webhookSecret ?? "",
-    webhookEnabled: row?.webhookEnabled ?? false,
   };
 }

@@ -214,7 +214,7 @@ reachable from the project root:
 | [`docs/event-mutations.md`](docs/event-mutations.md) | Event create/update/delete — copy reconciliation, group identity, rollbacks, audit snapshots, cache invalidation |
 | [`docs/ui-state.md`](docs/ui-state.md) | Remembered UI state — the `cloudy2.ui` cookie, launch targeting, pinned tabs, the `_fresh` one-shot marker |
 | [`docs/audit-log.md`](docs/audit-log.md) | Audit log subsystem — schema, retention, action taxonomy, keyset pagination, rotation, CSV export |
-| [`docs/webhooks.md`](docs/webhooks.md) | Event webhooks — admin-configured endpoint, full-field payloads, update diffs, HMAC signatures, fire-and-forget delivery |
+| [`docs/webhooks.md`](docs/webhooks.md) | Event webhooks — multiple admin-registered endpoints, full-field payloads, update diffs, HMAC signatures, fire-and-forget fan-out delivery |
 | [`docs/google-integration.md`](docs/google-integration.md) | Google integration layer — service-account config, client + stub, error mapping, all calendar/event/ACL methods |
 | [`docs/roster-sharing.md`](docs/roster-sharing.md) | Roster & calendar sharing — flat org model, Google-only ACLs, reconcile-on-read and reconcile-on-write |
 | [`docs/loading-transitions.md`](docs/loading-transitions.md) | Loading & transitions — skeleton-only loading, minimum hold, reveal fade, one-shot URL params |

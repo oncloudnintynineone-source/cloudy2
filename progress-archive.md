@@ -4381,3 +4381,37 @@ URL/secret normalizers + form validation.
 
 Verification: `pnpm lint`, `pnpm typecheck`, `pnpm test` pass;
 `pnpm db:generate` clean after committing the migration.
+
+## 1.88 Multiple webhook endpoints + in-app payload guide (Phase 3aq)
+
+The Phase 3ap single-endpoint webhook became a full CRUD registry of endpoints, each
+delivered independently.
+
+- **Schema**: new `webhooks` table (id/name/url/secret/enabled + timestamps);
+  `drizzle/0015_chubby_sentinel.sql` seeds it from the old
+  `settings.webhook_url/secret/enabled` row before dropping those columns. No
+  per-endpoint action filters — every enabled endpoint receives all three actions.
+  Duplicate URLs are permitted (same consumer, different secrets).
+- **CRUD** (`src/lib/webhooks/actions.ts`): `createWebhook` / `updateWebhook` /
+  `deleteWebhook`, requireAdmin → pure `validateWebhookForm` (required name ≤100,
+  http(s) URL ≤500, secret ≤200) → DB write → audit rows `webhook.create/update/
+  delete` with flat name/url/enabled details (never the secret). Validators moved out
+  of `settings/validate.ts`; the General tab card was removed.
+- **Delivery** (`deliver.ts`): one query for enabled endpoints; payload/body/timestamp
+  built once; a single `after()` fans out via `Promise.allSettled`, signing each POST
+  with its endpoint's secret (HMAC-SHA256 over `"timestamp.body"`). Failures log as
+  `[webhook:<name>]`. Dispatch call sites in `events/actions.ts` unchanged.
+- **UI**: new Settings tab "Webhooks" (`/settings/webhooks`) cloned from event-types:
+  mobile card list / desktop table, FAB or desktop Add button, add/edit modal form
+  (name, URL, password-masked secret prefilled, Enabled switch), delete confirm.
+- **In-app integration guide** (`PayloadReference.tsx`, accordion under the list):
+  actions & headers tables, example payloads for all three actions generated at
+  render time by pure `buildExampleWebhookPayload` from the REAL payload builder with
+  fixture data (can never drift), and a copyable HMAC verification snippet.
+- Docs: `docs/webhooks.md` restructured (§1.2 config table, §1.4 fan-out sequence
+  diagram, new §1.6 in-app guide); AGENTS.md bullets updated.
+
+Tests: `webhooks/validate.test.ts` (moved + name cases), `webhooks/example.test.ts`
+(determinism, distinct per action, update-only changes, legacy-delete shape).
+Verification: lint/typecheck/test pass; `db:generate` clean after committing the
+hand-seeded migration; local `pnpm db:migrate` applied.

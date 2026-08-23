@@ -119,18 +119,24 @@ export const settings = pgTable(
       .default(sql`'{}'::text[]`),
     /** How many days of audit_logs to keep; older rows are purged on read. */
     auditLogRetentionDays: integer("audit_log_retention_days").notNull().default(90),
-    /**
-     * Outbound webhook for event create/update/delete notifications. Empty or
-     * null `webhook_url` (or `webhook_enabled` false) disables delivery.
-     */
-    webhookUrl: text("webhook_url"),
-    /** Shared HMAC-SHA256 secret receivers use to verify the signature header. */
-    webhookSecret: text("webhook_secret"),
-    webhookEnabled: boolean("webhook_enabled").notNull().default(false),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [check("settings_singleton", sql`${table.id} = 'singleton'`)],
 );
+
+/**
+ * Registered outbound webhook endpoints notified of event create/update/delete.
+ * Every enabled row receives every event action; `secret` is optional (an
+ * endpoint without one receives unsigned deliveries).
+ */
+export const webhooks = pgTable("webhooks", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  name: text("name").notNull(),
+  url: text("url").notNull(),
+  secret: text("secret"),
+  enabled: boolean("enabled").notNull().default(true),
+  ...timestamps,
+});
 
 export const auditLogs = pgTable(
   "audit_logs",
@@ -188,3 +194,5 @@ export type AuditLog = typeof auditLogs.$inferSelect;
 export type NewAuditLog = typeof auditLogs.$inferInsert;
 export type GoogleEventCache = typeof googleEventCache.$inferSelect;
 export type NewGoogleEventCache = typeof googleEventCache.$inferInsert;
+export type Webhook = typeof webhooks.$inferSelect;
+export type NewWebhook = typeof webhooks.$inferInsert;
