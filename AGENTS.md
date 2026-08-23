@@ -163,7 +163,8 @@ before changing the subsystem.
   the `outOfCamp` flag rides in notes (`parseEventOutOfCamp`). Flows:
   [docs/event-lifecycle.md](docs/event-lifecycle.md),
   [docs/event-mutations.md](docs/event-mutations.md).
-- **General tab:** login keyword + `audit_log_retention_days` (default 90, clamp 7–365).
+- **General tab:** login keyword, `audit_log_retention_days` (default 90, clamp 7–365),
+  and the event webhook (URL/secret/enabled).
   **Audit Log tab:** URL-param filters, keyset pagination (`listAuditLogs`), CSV export
   at `/api/audit/export`. **Rotation is on-read** (every render purges past retention) +
   a manual delete button; no cron. Never call `listAuditLogs`-adjacent helpers with a
@@ -174,6 +175,15 @@ before changing the subsystem.
   store `diffFields(before, after)`; unsupplyable fields show `—` (`EMPTY_VALUE`).
   `formatAuditDetails` renders changes / fields / pretty-JSON fallback. Keep new
   payloads flat and human-readable. Design: [docs/audit-log.md](docs/audit-log.md).
+- **Event webhooks notify external systems** of successful create/update/delete: one
+  admin-configured endpoint (`settings.webhook_url/secret/enabled`, General tab) gets a
+  fire-and-forget POST via `after()` — never delays/fails the mutation, no retry queue.
+  Payloads are built by pure `buildEventWebhookPayload` (`src/lib/webhooks/payload.ts`)
+  from the **same audit snapshots** (all form fields, names resolved); updates carry
+  `changes` `[before, after]` pairs. Deliveries sign with HMAC-SHA256 over
+  `"timestamp.body"` (`X-Cloudy2-Signature`). Dispatch only after each mutation's
+  `logAction`; a disabled/unconfigured webhook is a no-op. Design:
+  [docs/webhooks.md](docs/webhooks.md).
 - **Standard loading appearance: skeleton only + fade-in on reveal.** (1) The skeleton
   is the ONLY loading indicator — never dim or darken content while loading (the
   `opacity: isPending ? …` pattern is banned); shape it off shared skeleton components

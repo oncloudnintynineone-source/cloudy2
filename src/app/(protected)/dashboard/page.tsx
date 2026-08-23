@@ -15,7 +15,12 @@ import { formatFullName } from "@/lib/settings/formatName";
 import { getSettings } from "@/lib/settings/queries";
 import { requireSession } from "@/lib/session";
 import { isUuid } from "@/lib/uuid";
-import { UI_STATE_COOKIE, decodeUiState, normalizePinnedViews } from "@/lib/ui/uiState";
+import {
+  UI_STATE_COOKIE,
+  decodeUiState,
+  normalizePinnedViews,
+  resolveDashboardView,
+} from "@/lib/ui/uiState";
 import { DashboardView } from "./DashboardView";
 
 interface DashboardPageProps {
@@ -57,17 +62,7 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
   // the cookie there would wipe the pin list on the very next switch.
   const pinnedViews = normalizePinnedViews(cookieState?.dashboard?.pinnedViews);
 
-  const viewParam = params.view ?? ui?.view;
-  const view =
-    viewParam === "schedule"
-      ? "schedule"
-      : viewParam === "week"
-        ? "week"
-        : viewParam === "weekv2"
-          ? "weekv2"
-          : viewParam === "agenda"
-            ? "agenda"
-            : "month";
+  const view = resolveDashboardView(params.view ?? ui?.view);
 
   const urlDate =
     typeof params.date === "string" && DATE_PATTERN.test(params.date) ? params.date : null;

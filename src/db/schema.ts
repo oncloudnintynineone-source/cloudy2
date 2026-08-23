@@ -119,6 +119,14 @@ export const settings = pgTable(
       .default(sql`'{}'::text[]`),
     /** How many days of audit_logs to keep; older rows are purged on read. */
     auditLogRetentionDays: integer("audit_log_retention_days").notNull().default(90),
+    /**
+     * Outbound webhook for event create/update/delete notifications. Empty or
+     * null `webhook_url` (or `webhook_enabled` false) disables delivery.
+     */
+    webhookUrl: text("webhook_url"),
+    /** Shared HMAC-SHA256 secret receivers use to verify the signature header. */
+    webhookSecret: text("webhook_secret"),
+    webhookEnabled: boolean("webhook_enabled").notNull().default(false),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [check("settings_singleton", sql`${table.id} = 'singleton'`)],

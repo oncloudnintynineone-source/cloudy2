@@ -101,7 +101,7 @@ Suspense fallback), shaped to match the real content:
 
 | Segment | `loading.tsx` |
 | ------- | ------------- |
-| `(protected)/dashboard` | tab-bar + toolbar skeletons + `MonthGridSkeleton` (row count from `monthGridRows(currentMonth())`, so the skeleton matches the real grid height) |
+| `(protected)/dashboard` | view-aware: reads the `cloudy2.ui` cookie (validated by the shared `resolveDashboardView`) and renders the matching per-view grid skeleton; month rows from `monthGridRows()` on the remembered/URL-silent month. Loading files receive no URL props, so an explicit `?view=` link or `edit` deep link can briefly disagree with a divergent remembered view |
 | `(protected)/parade-state` | day card + rows from `paradeStateSkeleton.tsx` |
 | `(protected)/contacts` | list skeleton |
 | `(protected)/settings/users` | user card skeletons |
@@ -113,7 +113,9 @@ Suspense fallback), shaped to match the real content:
 
 The row/card skeletons are extracted into small **shared components** so the
 route fallback and the in-page swap stay in sync: `dashboard/calendarSkeleton.tsx`
-(`MonthGridSkeleton`), `parade-state/paradeStateSkeleton.tsx`,
+(all five view grids — `MonthGridSkeleton`, `WeekMatrixSkeleton` (Week v2
+matrix), `WeekGridSkeleton`, `AgendaListSkeleton`, `ScheduleGridSkeleton`),
+`parade-state/paradeStateSkeleton.tsx`,
 `settings/audit-log/AuditLogRowSkeleton.tsx`.
 
 The committed content's root carries `CONTENT_ENTER_CLASS`
@@ -140,7 +142,7 @@ replay it.
 
 Callers gate their *in-page* skeleton on the held value, e.g.
 `gridLoading = useMinSkeletonHold(isPending || isRefreshing)`
-(`DashboardView.tsx:418`) — the force-refresh transition's `isRefreshing`
+(`DashboardView.tsx:450`) — the force-refresh transition's `isRefreshing`
 participates in the same hold.
 
 ## 1.6 Reveal fade
@@ -176,9 +178,9 @@ stale history entry can't re-trigger the behavior.
 
 | Param | Purpose | Validity | Stripped by |
 | ----- | ------- | -------- | ----------- |
-| `?edit=<uuid>` | open the event's edit form (deep link from the `Edit:` note line) | `isUuid` — anything else ignored (`dashboard/page.tsx:42-43`); the link's `date` pins the fetched month; the remembered-UI-state cookie is skipped for the render ([`ui-state.md`](ui-state.md)) | ref-guarded effect after the forced render mounts (`DashboardView.tsx:621-631`) — a refresh won't reopen the form |
-| `?refresh=<epoch-ms>` | force-refresh: bypass the cache freshness windows and block on fresh Google reads **inside the same RSC request** | finite number younger than `REFRESH_NONCE_TTL_MS` (5 min, `page.tsx:29,93-95`) — a stale history entry can't silently re-force (`events-cache.md` §1.5.1) | self-terminating effect (`DashboardView.tsx:633-644`) — a ref guard would leak a second nonce if refresh is clicked before the first strip lands |
-| `?_fresh=1` | skip the remembered-UI-state cookie for this one render (a navigation that *removed* remembered keys — Clear, tab switch — must not re-apply the now-stale cookie) | any value — presence is enough (`dashboard/page.tsx:51`, `parade-state/page.tsx:32`) | self-terminating effect after mount (`DashboardView.tsx:611-619`, `ParadeStateView.tsx:238-246`) |
+| `?edit=<uuid>` | open the event's edit form (deep link from the `Edit:` note line) | `isUuid` — anything else ignored (`dashboard/page.tsx:47-48`); the link's `date` pins the fetched month; the remembered-UI-state cookie is skipped for the render ([`ui-state.md`](ui-state.md)) | ref-guarded effect after the forced render mounts (`DashboardView.tsx:655-665`) — a refresh won't reopen the form |
+| `?refresh=<epoch-ms>` | force-refresh: bypass the cache freshness windows and block on fresh Google reads **inside the same RSC request** | finite number younger than `REFRESH_NONCE_TTL_MS` (5 min, `page.tsx:29,89-90`) — a stale history entry can't silently re-force (`events-cache.md` §1.5.1) | self-terminating effect (`DashboardView.tsx:667-678`) — a ref guard would leak a second nonce if refresh is clicked before the first strip lands |
+| `?_fresh=1` | skip the remembered-UI-state cookie for this one render (a navigation that *removed* remembered keys — Clear, tab switch — must not re-apply the now-stale cookie) | any value — presence is enough (`dashboard/page.tsx:56`, `parade-state/page.tsx:34`) | self-terminating effect after mount (`DashboardView.tsx:645-653`, `ParadeStateView.tsx:269-274`) |
 
 Injection of `_fresh` is automatic: `navigate()` checks
 `freshMarkerNeeded(updates, STATE_KEYS)` (a remembered key set to `null`) and
@@ -205,17 +207,17 @@ whose warm L1 entry still shadows the fresh rows
 
 - **No-op guard**: `navigate()` builds the href and returns early when it
   equals the current URL — tapping "Today" while already there doesn't run a
-  transition or flash the skeleton (`DashboardView.tsx:589-595`).
+  transition or flash the skeleton (`DashboardView.tsx:618-629`).
 - **Parade state**: in-month day switches and filter applies update from local
   state optimistically (already correct), so they show no skeleton; only a
   cross-month switch (the server must fetch the new month) is a data
   navigation — hence `useMinSkeletonHold(initialMonth !== month)`
-  (`ParadeStateView.tsx:141`).
+  (`ParadeStateView.tsx:154`).
 - **Dashboard Agenda tab**: in-month day changes (swipe/chevrons/Today/picker)
   apply to local state instantly and sync `?date=` with a plain no-transition
   push; the new day plays the **directional slide-in** classes instead of the
   skeleton. Only a cross-month change is a data navigation with the skeleton
-  (`DashboardView.tsx:738-757`).
+  (`DashboardView.tsx:772-791`).
 
 ## 1.9 Mutations are out of scope
 
@@ -229,9 +231,9 @@ and the non-remounting container means `useContentEnter` never replays.
 
 | Consumer | Minimum hold | Reveal fade | Notes |
 | -------- | ------------ | ----------- | ----- |
-| `DashboardView` (week/schedule grid) | `useMinSkeletonHold(isPending \|\| isRefreshing)` (`:418`) | `useContentEnter(weekBoxRef, …)` (`:419`) | stable `ScrollArea` keeps scroll position; force-refresh participates in the hold |
-| `ParadeStateView` | `useMinSkeletonHold(initialMonth !== month)` (`:141`) | `useContentEnter` (`:143`) | in-month changes are optimistic — no skeleton |
-| `AuditLogView` | `useMinSkeletonHold(isPending)` (`:93`) | `useContentEnter` (`:95`) | filter navigations; no-op guard skips the transition |
+| `DashboardView` (week/schedule grid) | `useMinSkeletonHold(isPending \|\| isRefreshing)` (`:450`) | `useContentEnter(weekBoxRef, …)` (`:451`) | stable `ScrollArea` keeps scroll position; force-refresh participates in the hold |
+| `ParadeStateView` | `useMinSkeletonHold(initialMonth !== month)` (`:154`) | `useContentEnter` (`:156`) | in-month changes are optimistic — no skeleton |
+| `AuditLogView` | `useMinSkeletonHold(isPending)` (`:94`) | `useContentEnter` (`:96`) | filter navigations; no-op guard skips the transition |
 | `SettingsForm`, `DepartmentTable`, `ContactList`, `UserTable`, `EventTypeTable`, `TemplatesForm` | — | static `CONTENT_ENTER_CLASS` on the content root | server-rendered pages; the SSR fade plays on first paint |
 | all nine route segments | — | `loading.tsx` skeletons | §1.4 table |
 
@@ -243,7 +245,8 @@ and the non-remounting container means `useContentEnter` never replays.
 | `src/lib/loading/contentEnter.ts` | `CONTENT_ENTER_CLASS` + `useContentEnter` |
 | `src/app/globals.css` | `content-enter` / `agenda-slide-*` keyframes, reduced-motion guard |
 | `src/app/(protected)/*/loading.tsx` | Route-level skeletons (9 segments) |
-| `src/app/(protected)/dashboard/calendarSkeleton.tsx` | `MonthGridSkeleton` (shared by route + in-page) |
+| `src/app/(protected)/dashboard/calendarSkeleton.tsx` | All five view grid skeletons (shared by route + in-page): `MonthGridSkeleton`, `WeekMatrixSkeleton`, `WeekGridSkeleton`, `AgendaListSkeleton`, `ScheduleGridSkeleton` |
+| `src/lib/ui/uiState.ts` | `resolveDashboardView` — shared view resolution for page + route fallback |
 | `src/app/(protected)/parade-state/paradeStateSkeleton.tsx` | Parade row skeletons (shared) |
 | `src/app/(protected)/settings/audit-log/AuditLogRowSkeleton.tsx` | Audit row skeleton (shared) |
 | `src/app/(protected)/dashboard/DashboardView.tsx` | Held loading, reveal fade, one-shot strips (`edit`/`refresh`/`_fresh`), agenda slide |

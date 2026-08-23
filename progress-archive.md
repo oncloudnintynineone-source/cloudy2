@@ -4238,3 +4238,146 @@ Owed: manual pass — enter/exit from both entry points, card + checkbox
 toggling, per-date isolation on day switches, reload restoring checks (mode
 off), copied string format (Absent/acronyms/fallback chain), Reset clearing
 all dates, filters preserving hidden users' checks.
+
+## 1.86 Calendar skeleton consistency pass (bugfix)
+
+Review of the calendar page's loading skeletons against
+[docs/loading-transitions.md](docs/loading-transitions.md) found three shape
+mismatches, all fixed:
+
+- **Week v2 showed the Week view's skeleton.** The in-page grid-swap ternary in
+  `DashboardView.tsx` branched on `isWeek` (week *or* weekv2), so Week v2 loads
+  painted `WeekGridSkeleton` (weekday row + uniform 7-column lanes). A new
+  `WeekMatrixSkeleton` (`calendarSkeleton.tsx`) now matches `WeekMatrixView`'s
+  matrix: two-line-per-day header band inside the bordered paper, resource rows
+  of label placeholder + 7-column day grid with deterministic multi-day
+  spanning banner bars (36px lanes, mirroring `ROW_HEIGHT_PX`). The ternary
+  branches `isWeekV2` before `isWeek`.
+- **Double weekday header during Week loads.** `WeekGridSkeleton` embedded a
+  fake weekday row while the real pinned `WeekDayLabelStrip` stays visible
+  above the grid through loads — two stacked headers. The skeleton row is gone;
+  `WeekdayRow` remains inside `MonthGridSkeleton` only (the real MonthView
+  renders weekdays even with `withHeader={false}`).
+- **Route fallback always month-shaped.** `dashboard/loading.tsx` unconditionally
+  painted `MonthGridSkeleton`, so a cold start onto a remembered Agenda/Week/
+  Day view hard-swapped layouts when content landed. It is now an async server
+  component that reads the `cloudy2.ui` cookie and picks the matching per-view
+  skeleton; month rows use the remembered month when it passes validation.
+
+```mermaid
+flowchart LR
+  C["cloudy2.ui cookie"] --> D["decodeUiState"]
+  D --> R["resolveDashboardView(ui.view)"]
+  R --> S{view}
+  S -- month --> M["MonthGridSkeleton<br/>(remembered-month row count)"]
+  S -- weekv2 --> W2["WeekMatrixSkeleton"]
+  S -- week --> W["WeekGridSkeleton"]
+  S -- agenda --> A["AgendaListSkeleton"]
+  S -- schedule/Day --> SD["ScheduleGridSkeleton"]
+```
+
+- `resolveDashboardView(raw)` (new, pure, in `uiState.ts`): known
+  `DASHBOARD_VIEW_VALUES` pass through, everything else degrades to `"month"`.
+  `page.tsx` uses it too, replacing its inline switch — and it now also
+  validates the cookie's remembered view, which previously flowed into
+  `DashboardView` unvalidated. Shared by page + route fallback so both resolve
+  the same shape per request.
+- Loading files receive **no URL props** (Next instantiates them as
+  `createElement(Loading, { key: 'l' })`), so the fallback is cookie-only:
+  an explicit `?view=` link or an `edit` deep link can briefly disagree with a
+  divergent remembered view before the real render replaces it. F5/PWA relaunch
+  match exactly (`navigate()` keeps `?view=` synced with the persisted cookie).
+- Route fallback nav-row placeholders: circles → rounded squares (`radius="md"`)
+  matching the real `ActionIcon variant="default"` (0.5rem default radius), plus
+  a desktop-only "New event" button placeholder (`visibleFrom="lg"`). Other
+  pages' loading files keep their circle pattern deliberately (scope: calendar).
+- `docs/loading-transitions.md` §1.4/§1.10/§1.11 updated for the new skeletons +
+  shared resolver, and all stale `DashboardView.tsx`/`page.tsx`/
+  `ParadeStateView.tsx`/`AuditLogView.tsx` line references refreshed.
+
+Tests: `resolveDashboardView` covered in `uiState.test.ts` (pass-through of all
+five values; unknown/empty/non-string → month).
+
+**Runtime bug caught by verification:** importing `monthGridRows` through
+`calendarSkeleton.tsx`'s re-export made the loading fallback call a
+*"use client"* reference during server render —
+`Error: Attempted to call monthGridRows() from the server…`. Rendering client
+*components* from a server fallback is fine; calling their exported functions
+is not. Fixed by importing from `@/lib/events/datetime` directly. Neither
+typecheck nor unit tests can see client-reference proxies — only an actual SSR
+render exercises this path.
+
+**Verification:** `pnpm lint`, `pnpm typecheck`, `pnpm test` (491) pass; schema
+untouched so no `db:generate` drift. Live dev-server pass (scripted NextAuth
+login + streamed first-response inspection against the hot-reloading dev
+instance):
+
+- all five views SSR-render final content with view-distinct markers and the
+  tabs bar — no error pages;
+- with forged `cloudy2.ui` cookies, each cold `/dashboard` request streams the
+  matching fallback shape: month → grid skeleton (42 × 124px cells), week →
+  label-lane skeleton with **no** fake weekday row (double-header fixed),
+  weekv2 → matrix skeleton (two-line header bars, 36px lanes, six banner
+  chips at radius 0.5rem), schedule/Day → 72% event-bar rows, agenda → list
+  rows;
+- nav-row placeholders render rounded-square (`--mantine-radius-md`, four of
+  them incl. the desktop-only button).
+
+## 1.87 Event webhooks to external systems (Phase 3ap)
+
+Successful in-app event create/update/delete now POST a JSON notification to a single
+admin-configured webhook URL so external systems can mirror the change.
+
+```mermaid
+sequenceDiagram
+    participant A as server action
+    participant W as dispatchEventWebhook
+    participant S as settings row
+    participant R as receiver
+    A->>A: Google writes + audit row succeed
+    A->>W: input (snapshot, eventId, changes, actor…)
+    W->>S: getSettings()
+    alt disabled or no URL
+        W-->>A: no-op
+    else configured
+        W->>W: buildEventWebhookPayload + webhookSignature (pure)
+        Note over W: after(() => …) — the action returns now
+        W->>R: POST application/json (10s timeout)
+        R-->>W: response/errors console-logged only
+    end
+```
+
+- **Config** (General tab card): `settings.webhook_url` (empty = off),
+  `webhook_secret`, `webhook_enabled` master switch; migration
+  `drizzle/0014_ancient_ogun.sql`. `updateWebhook` follows the other settings
+  actions (requireAdmin → pure `validateWebhookForm`/normalizers → diff audit
+  row of enabled flag + URL, never the secret).
+- **Payload** (`src/lib/webhooks/payload.ts`, pure): built from the same
+  `EventAuditSnapshot` the audit log stores — rendered title, raw description,
+  type, pre-formatted UTC+8 `time` plus structured `timeOption/start/end/
+  startAmPm/endAmPm` when the parts are known, outOfCamp/location,
+  departments/invitees/creator by display name — plus `action`
+  (`event.created|updated|deleted`), logical group `eventId`,
+  `googleEventIds[]`, `occurredAt`, and `actor {name, role}`. Updates add
+  `changes` `[before, after]` pairs (the audit `diffFields`). Delete of a
+  legacy event omits the structured time keys; `time` remains the fallback.
+- **Delivery** (`src/lib/webhooks/deliver.ts`): fire-and-forget via `after()`;
+  10s `AbortSignal.timeout`; failures logged, never thrown; disabled or
+  unconfigured endpoint is a no-op. Signed with HMAC-SHA256 over
+  `"timestamp.body"` → `X-Cloudy2-Signature: sha256=<hex>`, with
+  `X-Cloudy2-Timestamp` (replay binding) and `X-Cloudy2-Event` headers.
+- **Wiring** (`events/actions.ts`): one dispatch per action immediately after
+  each `logAction`, so rolled-back mutations never notify. `updateEvent` now
+  also collects every touched Google event id in its reconcile loop
+  (`touchedGoogleEventIds`) for the payload.
+- Docs: new `docs/webhooks.md`; AGENTS.md architecture bullet; README §1.12
+  index row.
+
+Tests: `webhooks/payload.test.ts` (create shape incl. structured times;
+update-only `changes`; legacy-delete omits structured keys; blank AM/PM →
+null; array copies), `webhooks/sign.test.ts` (HMAC matches node crypto,
+timestamp/body/secret binding), `settings/validate.test.ts` additions for the
+URL/secret normalizers + form validation.
+
+Verification: `pnpm lint`, `pnpm typecheck`, `pnpm test` pass;
+`pnpm db:generate` clean after committing the migration.

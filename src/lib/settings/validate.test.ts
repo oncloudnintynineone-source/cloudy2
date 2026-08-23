@@ -5,10 +5,13 @@ import {
   AUDIT_RETENTION_MIN,
   normalizeKeyword,
   normalizeRetentionDays,
+  normalizeWebhookSecret,
+  normalizeWebhookUrl,
   validateEventTitleTemplate,
   validateKeywordForm,
   validateNameTemplate,
   validateRetentionForm,
+  validateWebhookForm,
 } from "./validate";
 
 describe("normalizeKeyword", () => {
@@ -157,5 +160,100 @@ describe("validateRetentionForm", () => {
     expect(validateRetentionForm({ retentionDays: 500 }).retentionDays).toBe(
       `Retention must be at most ${AUDIT_RETENTION_MAX} days`,
     );
+  });
+});
+
+describe("normalizeWebhookUrl", () => {
+  it("returns an empty string for a blank URL (no webhook)", () => {
+    expect(normalizeWebhookUrl("")).toBe("");
+    expect(normalizeWebhookUrl("   ")).toBe("");
+  });
+
+  it("trims surrounding whitespace", () => {
+    expect(normalizeWebhookUrl("  https://example.com/hook  ")).toBe("https://example.com/hook");
+  });
+
+  it("accepts http and https URLs", () => {
+    expect(normalizeWebhookUrl("http://intranet.local/hook")).toBe("http://intranet.local/hook");
+    expect(normalizeWebhookUrl("https://example.com/hook")).toBe("https://example.com/hook");
+  });
+
+  it("returns null for a non-URL value", () => {
+    expect(normalizeWebhookUrl("not a url")).toBeNull();
+  });
+
+  it("returns null for unsupported protocols", () => {
+    expect(normalizeWebhookUrl("ftp://example.com/hook")).toBeNull();
+    expect(normalizeWebhookUrl("javascript:alert(1)")).toBeNull();
+  });
+
+  it("returns null for an over-long URL", () => {
+    expect(normalizeWebhookUrl(`https://example.com/${"a".repeat(600)}`)).toBeNull();
+  });
+});
+
+describe("normalizeWebhookSecret", () => {
+  it("trims surrounding whitespace", () => {
+    expect(normalizeWebhookSecret("  s3cret  ")).toBe("s3cret");
+  });
+
+  it("returns an empty string for blank input", () => {
+    expect(normalizeWebhookSecret("")).toBe("");
+  });
+
+  it("returns null for an over-long secret", () => {
+    expect(normalizeWebhookSecret("x".repeat(201))).toBeNull();
+  });
+
+  it("accepts a secret at the cap", () => {
+    expect(normalizeWebhookSecret("x".repeat(200))).toBe("x".repeat(200));
+  });
+});
+
+describe("validateWebhookForm", () => {
+  it("returns no errors for a valid configuration", () => {
+    expect(
+      validateWebhookForm({
+        webhookUrl: "https://example.com/hook",
+        webhookSecret: "s3cret",
+        webhookEnabled: true,
+      }),
+    ).toEqual({});
+  });
+
+  it("returns no errors when the URL is blank", () => {
+    expect(
+      validateWebhookForm({
+        webhookUrl: "",
+        webhookSecret: "",
+        webhookEnabled: false,
+      }),
+    ).toEqual({});
+  });
+
+  it("flags an invalid URL", () => {
+    expect(
+      validateWebhookForm({ webhookUrl: "nope", webhookSecret: "", webhookEnabled: false })
+        .webhookUrl,
+    ).toBe("Enter a valid URL");
+  });
+
+  it("flags a non-http(s) protocol", () => {
+    expect(
+      validateWebhookForm({
+        webhookUrl: "ftp://example.com",
+        webhookSecret: "",
+        webhookEnabled: false,
+      }).webhookUrl,
+    ).toBe("URL must start with http:// or https://");
+  });
+
+  it("flags an over-long secret", () => {
+    const result = validateWebhookForm({
+      webhookUrl: "",
+      webhookSecret: "x".repeat(201),
+      webhookEnabled: false,
+    });
+    expect(result.webhookSecret).toBe("Secret must be 200 characters or fewer");
   });
 });

@@ -25,7 +25,8 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
 - Feature surface: admin-password + `[phone][keyword]` logins; departments as Google
   Calendars with service-account ACL sharing; audit logging; event CRUD across department
   calendars with cross-department copies, invitees, templates, time options and location
-  policy; dashboard Month/Mobile-month/Schedule-Day/Week/Week-v2-matrix/Agenda views over
+  policy, with outbound webhooks to an admin-configured external endpoint on
+  create/update/delete; dashboard Month/Mobile-month/Schedule-Day/Week/Week-v2-matrix/Agenda views over
   a layered calendar cache; parade-state page with local attendance mode; contacts page;
   PWA installability;
   mobile-first UI with a desktop layout at `lg`; remembered UI state across relaunch;
@@ -137,6 +138,8 @@ One line per phase; full write-ups (incl. Mermaid diagrams and verification note
 - 1.83 Mobile FAB: portaled Affix + :root offset vars (bugfix)
 - 1.84 Full Day / Half Day time-option split (Phase 3an)
 - 1.85 Parade State attendance-taking mode (Phase 3ao)
+- 1.86 Calendar skeleton consistency pass (bugfix)
+- 1.87 Event webhooks to external systems (Phase 3ap)
 
 ## 1.4 Open items & next steps
 

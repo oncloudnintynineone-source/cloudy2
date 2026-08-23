@@ -10,6 +10,7 @@ import {
   normalizePinnedViews,
   normalizeUiState,
   orderDashboardViews,
+  resolveDashboardView,
   resolveLaunchTarget,
 } from "./uiState";
 
@@ -243,6 +244,20 @@ describe("orderDashboardViews", () => {
     expect(new Set(orderDashboardViews(["schedule", "weekv2", "week", "agenda", "month"])).size).toBe(
       5,
     );
+  });
+});
+
+describe("resolveDashboardView", () => {
+  it("passes through every known view value", () => {
+    for (const view of DASHBOARD_VIEW_VALUES) {
+      expect(resolveDashboardView(view)).toBe(view);
+    }
+  });
+
+  it("degrades unknown, empty, and non-string values to month", () => {
+    for (const raw of [undefined, null, "", "day", "WEEK", 42, ["week"], {}]) {
+      expect(resolveDashboardView(raw)).toBe("month");
+    }
   });
 });
 

@@ -98,6 +98,17 @@ export function orderDashboardViews(pinned: readonly string[]): DashboardViewVal
   return [...known, ...DASHBOARD_VIEW_VALUES.filter((view) => !known.includes(view))];
 }
 
+/**
+ * Resolve the dashboard view from a raw candidate (a URL `view` param or a
+ * remembered cookie value): known view values pass through, anything else —
+ * including an absent or invalid remembered value — degrades to "month".
+ * Shared by the page and its route-level loading fallback so both resolve
+ * the same shape for the same request.
+ */
+export function resolveDashboardView(raw: unknown): DashboardViewValue {
+  return isDashboardViewValue(raw) ? raw : "month";
+}
+
 function isPlainObject(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }

@@ -3,5 +3,13 @@ import { SettingsForm } from "./SettingsForm";
 
 export default async function GeneralPage() {
   const settings = await getSettings();
-  return <SettingsForm keyword={settings.userKeyword} retentionDays={settings.auditLogRetentionDays} />;
+  return (
+    <SettingsForm
+      keyword={settings.userKeyword}
+      retentionDays={settings.auditLogRetentionDays}
+      webhookUrl={settings.webhookUrl}
+      webhookSecret={settings.webhookSecret}
+      webhookEnabled={settings.webhookEnabled}
+    />
+  );
 }

@@ -107,11 +107,15 @@ export function AgendaListSkeleton({ rows = 4 }: { rows?: number }) {
   );
 }
 
-/** Stacked resource rows matching the Week view shape (label + 7-day lane). */
+/**
+ * Stacked resource rows matching the Week view shape (label + 7-day lane).
+ * No weekday header inside: the real Week view replaces Mantine's internal
+ * day-labels row with the pinned `WeekDayLabelStrip`, which stays visible
+ * above this skeleton while it loads.
+ */
 export function WeekGridSkeleton({ rows = 6 }: { rows?: number }) {
   return (
     <Paper withBorder radius="md" p="sm">
-      <WeekdayRow />
       <Box style={{ display: "flex", flexDirection: "column", gap: 8 }}>
         {Array.from({ length: rows }).map((_, i) => (
           <Group key={i} gap="xs" wrap="nowrap" align="stretch">
@@ -147,6 +151,103 @@ export function WeekGridSkeleton({ rows = 6 }: { rows?: number }) {
           </Group>
         ))}
       </Box>
+    </Paper>
+  );
+}
+
+const MATRIX_BORDER = "1px solid var(--mantine-color-default-border)";
+/** Week v2 lane height — mirrors `ROW_HEIGHT_PX` in `WeekMatrixView`. */
+const MATRIX_ROW_HEIGHT_PX = 36;
+
+/**
+ * Matrix matching the Week v2 shape (`WeekMatrixView`): a two-line-per-day
+ * header band inside the bordered paper, then one row per resource — sticky
+ * label placeholder + a 7-column day grid whose spanning banner bars cross
+ * multiple day cells. Deterministic bar placement only (SSR-safe).
+ */
+export function WeekMatrixSkeleton({ rows = 6 }: { rows?: number }) {
+  return (
+    <Paper withBorder radius="md" p={0} style={{ overflow: "hidden" }}>
+      {/* Day-header band: two stacked bars per column (weekday + date). */}
+      <Box
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(7, 1fr)",
+          borderBottom: MATRIX_BORDER,
+        }}
+      >
+        {Array.from({ length: 7 }).map((_, c) => (
+          <Box
+            key={c}
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              gap: 3,
+              padding: "5px 2px",
+            }}
+          >
+            <Skeleton height={10} radius={2} style={{ width: "55%" }} />
+            <Skeleton height={8} radius={2} style={{ width: "25%" }} />
+          </Box>
+        ))}
+      </Box>
+
+      {/* Resource rows: label column + day grid with spanning banners. */}
+      {Array.from({ length: rows }).map((_, i) => {
+        // One deterministic multi-day banner per row, varying start/span.
+        const startDay = (i * 2 + 1) % 5;
+        const spanDays = 2 + ((i + 1) % 2);
+        const rowBorder = i < rows - 1 ? MATRIX_BORDER : undefined;
+        return (
+          <Box key={i} style={{ display: "flex" }}>
+            <Box
+              style={{
+                flexShrink: 0,
+                width: 48,
+                borderRight: MATRIX_BORDER,
+                borderBottom: rowBorder,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
+              <Skeleton height={10} radius={2} style={{ width: "60%" }} />
+            </Box>
+            <Box
+              style={{
+                flex: 1,
+                minWidth: 0,
+                display: "grid",
+                gridTemplateColumns: "repeat(7, 1fr)",
+                borderBottom: rowBorder,
+              }}
+            >
+              {Array.from({ length: 7 }).map((_, c) => (
+                <Box
+                  key={c}
+                  style={{
+                    gridColumn: `${1 + c} / ${2 + c}`,
+                    gridRow: 1,
+                    height: MATRIX_ROW_HEIGHT_PX,
+                    borderLeft: c > 0 ? MATRIX_BORDER : undefined,
+                  }}
+                />
+              ))}
+              <Box
+                style={{
+                  gridColumn: `${1 + startDay} / ${1 + startDay + spanDays}`,
+                  gridRow: 1,
+                  zIndex: 1,
+                  padding: 2,
+                }}
+              >
+                <Skeleton height={28} radius={8} style={{ width: "100%" }} />
+              </Box>
+            </Box>
+          </Box>
+        );
+      })}
     </Paper>
   );
 }

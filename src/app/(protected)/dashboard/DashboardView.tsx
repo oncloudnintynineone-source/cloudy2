@@ -68,6 +68,7 @@ import {
   MonthGridSkeleton,
   ScheduleGridSkeleton,
   WeekGridSkeleton,
+  WeekMatrixSkeleton,
   monthGridRows,
 } from "./calendarSkeleton";
 import { formatWeekLabel } from "./clientDateTime";
@@ -1209,6 +1210,8 @@ export function DashboardView({
         {gridLoading ? (
           view === "month" ? (
             <MonthGridSkeleton rows={monthGridRows(month)} />
+          ) : isWeekV2 ? (
+            <WeekMatrixSkeleton />
           ) : isWeek ? (
             <WeekGridSkeleton />
           ) : isAgenda ? (

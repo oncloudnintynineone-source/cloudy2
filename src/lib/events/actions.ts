@@ -52,6 +52,8 @@ import {
 import { formatFullName } from "@/lib/settings/formatName";
 import { getSettings } from "@/lib/settings/queries";
 import { requireSession } from "@/lib/session";
+import { dispatchEventWebhook } from "@/lib/webhooks/deliver";
+import { WEBHOOK_ACTIONS } from "@/lib/webhooks/payload";
 
 export type EventResultField = "title" | "start" | "end" | "startAmPm" | "endAmPm" | "creatorId";
 
@@ -84,6 +86,11 @@ function actorFrom(session: Awaited<ReturnType<typeof requireSession>>) {
     name: session.user.name ?? null,
     role: session.user.role,
   });
+}
+
+/** Actor fields of the outbound event webhook payload. */
+function webhookActorFrom(session: Awaited<ReturnType<typeof requireSession>>) {
+  return { name: session.user.name ?? null, role: session.user.role };
 }
 
 interface AbsRange {
@@ -443,6 +450,16 @@ export async function createEvent(input: EventFormValues): Promise<EventActionRe
       googleEventIds: created.map((copy) => copy.googleEventId),
     },
   });
+  await dispatchEventWebhook({
+    action: WEBHOOK_ACTIONS.eventCreated,
+    eventId,
+    googleEventIds: created.map((copy) => copy.googleEventId),
+    snapshot,
+    timeParts: timePartsOf(effectiveInput),
+    changes: null,
+    actor: webhookActorFrom(session),
+    occurredAt: new Date(),
+  });
 
   await invalidateGcalCache(
     created.map((copy) => copy.googleCalendarId),
@@ -518,6 +535,9 @@ export async function updateEvent(
   const newSet = new Set(newTargets);
   const createdHere: { googleCalendarId: string; googleEventId: string }[] = [];
   const affectedGoogleIds = new Set<string>();
+  // Google event ids touched by this run (updated, created, or retired) for
+  // the webhook payload.
+  const touchedGoogleEventIds = new Set<string>();
   // The first existing copy found anywhere is the event's pre-edit state for
   // the audit diff (all copies of a logical event are identical).
   let firstCopy: GcalEventItem | null = null;
@@ -540,16 +560,19 @@ export async function updateEvent(
               copy.id,
               await buildGcalEventInput(googleCalendarId, effectiveInput, eventId, titleContext),
             );
+            touchedGoogleEventIds.add(copy.id);
           }
         } else {
           const event = await integration.createEvent(
             await buildGcalEventInput(googleCalendarId, effectiveInput, eventId, titleContext),
           );
           createdHere.push({ googleCalendarId, googleEventId: event.id });
+          touchedGoogleEventIds.add(event.id);
         }
       } else {
         for (const copy of found) {
           await integration.deleteEvent(googleCalendarId, copy.id);
+          touchedGoogleEventIds.add(copy.id);
         }
       }
     }
@@ -612,6 +635,16 @@ export async function updateEvent(
       ...diffFields(before, after),
       eventId,
     },
+  });
+  await dispatchEventWebhook({
+    action: WEBHOOK_ACTIONS.eventUpdated,
+    eventId,
+    googleEventIds: [...touchedGoogleEventIds],
+    snapshot: after,
+    timeParts: timePartsOf(effectiveInput),
+    changes: diffFields(before, after).changes,
+    actor: webhookActorFrom(session),
+    occurredAt: new Date(),
   });
 
   await invalidateGcalCache(
@@ -691,6 +724,16 @@ export async function deleteEvent(ref: EventRef): Promise<EventActionResult> {
       eventId: ref.eventId,
       googleEventIds: deletedGoogleEventIds,
     },
+  });
+  await dispatchEventWebhook({
+    action: WEBHOOK_ACTIONS.eventDeleted,
+    eventId: ref.eventId,
+    googleEventIds: deletedGoogleEventIds,
+    snapshot,
+    timeParts: null,
+    changes: null,
+    actor: webhookActorFrom(session),
+    occurredAt: new Date(),
   });
 
   await invalidateGcalCache([...affectedGoogleIds], monthsInRange(ref.start, ref.end));

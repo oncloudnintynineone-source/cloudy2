@@ -12,9 +12,12 @@ import { requireAdmin } from "@/lib/session";
 import {
   normalizeKeyword,
   normalizeRetentionDays,
+  normalizeWebhookSecret,
+  normalizeWebhookUrl,
   validateEventTitleTemplate,
   validateNameTemplate,
   validateRetentionForm,
+  validateWebhookForm,
 } from "@/lib/settings/validate";
 
 export type SettingsActionResult =
@@ -22,7 +25,13 @@ export type SettingsActionResult =
   | {
       ok: false;
       error: string;
-      field?: "keyword" | "nameTemplate" | "eventTitleTemplate" | "retentionDays";
+      field?:
+        | "keyword"
+        | "nameTemplate"
+        | "eventTitleTemplate"
+        | "retentionDays"
+        | "webhookUrl"
+        | "webhookSecret";
     };
 
 export async function updateKeyword(keyword: string): Promise<SettingsActionResult> {
@@ -176,6 +185,68 @@ export async function updateAuditLogRetention(days: number): Promise<SettingsAct
     details: diffFields(
       { auditLogRetentionDays: before?.auditLogRetentionDays ?? null },
       { auditLogRetentionDays: retentionDays },
+    ),
+  });
+
+  revalidatePath("/settings/general");
+  return { ok: true };
+}
+
+export async function updateWebhook(input: {
+  webhookUrl: string;
+  webhookSecret: string;
+  webhookEnabled: boolean;
+}): Promise<SettingsActionResult> {
+  const session = await requireAdmin();
+
+  const errors = validateWebhookForm(input);
+  if (errors.webhookUrl || errors.webhookSecret) {
+    return {
+      ok: false,
+      error: errors.webhookUrl ?? (errors.webhookSecret as string),
+      field: errors.webhookUrl ? "webhookUrl" : "webhookSecret",
+    };
+  }
+
+  // An empty URL is stored as null ("no webhook"); an invalid URL can only
+  // come from a stale client, since validateWebhookForm rejects it.
+  const url = normalizeWebhookUrl(input.webhookUrl);
+  if (url === null) {
+    return { ok: false, error: "Enter a valid http(s) URL", field: "webhookUrl" };
+  }
+  const secret = normalizeWebhookSecret(input.webhookSecret);
+  if (secret === null) {
+    return { ok: false, error: "Secret is too long", field: "webhookSecret" };
+  }
+
+  const [before] = await db.select().from(settings).limit(1);
+
+  await db
+    .update(settings)
+    .set({
+      webhookUrl: url || null,
+      webhookSecret: secret || null,
+      webhookEnabled: input.webhookEnabled,
+      updatedAt: new Date(),
+    })
+    .where(eq(settings.id, "singleton"));
+
+  await logAction({
+    ...actorFromUser({
+      id: session.user.id,
+      name: session.user.name ?? null,
+      role: session.user.role,
+    }),
+    action: AUDIT_ACTIONS.settingsUpdate,
+    entityType: "settings",
+    entityName: "settings",
+    method: "updateWebhook",
+    details: diffFields(
+      {
+        webhookEnabled: before?.webhookEnabled ?? false,
+        webhookUrl: before?.webhookUrl ?? null,
+      },
+      { webhookEnabled: input.webhookEnabled, webhookUrl: url || null },
     ),
   });
 
