@@ -86,8 +86,10 @@ export function EventDetail({
   const payload = showEvent?.payload;
 
   const ownerName = payload && payload.creatorId ? (peopleNames[payload.creatorId] ?? null) : null;
+  // The owner is badged above; keep them out of the invited-attendee list.
   const peopleNamesResolved = payload
     ? [...new Set(payload.inviteeUserIds)]
+        .filter((id) => id !== payload.creatorId)
         .map((id) => peopleNames[id])
         .filter((name, index, all): name is string => Boolean(name) && all.indexOf(name) === index)
     : [];
@@ -203,7 +205,7 @@ export function EventDetail({
             {peopleNamesResolved.length > 0 && (
               <>
                 <Text size="xs" c="dimmed" fw={600}>
-                  People
+                  Invited Attendees
                 </Text>
                 <Group gap={6} wrap="wrap">
                   {peopleNamesResolved.map((name) => (

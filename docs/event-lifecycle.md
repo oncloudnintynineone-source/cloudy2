@@ -158,8 +158,9 @@ Mechanics worth knowing:
   the type's policy is `both`; unchecking it clears the location; the location input is
   disabled when in-camp or the policy is `in`. The effective flag/location is always the
   `clampOutOfCamp` pair (`EventForm.tsx:269-273`), never the raw form value.
-- **Invitees** (`EventForm.tsx:658-679`): a `NoKeyboardMultiSelect` with two groups —
-  Departments (`dept:<id>` values) and People (`user:<id>` values). The creator's chip is
+- **Invited Attendees** (`EventForm.tsx:658-679`): a `NoKeyboardMultiSelect` with two
+  groups — Departments (`dept:<id>` values) and Invited Attendees (`user:<id>` values).
+  The creator's chip is
   **locked** and re-added on every change (`lockedUserValue`, `EventForm.tsx:173,
   669`) so it can never be deselected. The value prefixes are split into
   `inviteeUserIds` / `inviteeDepartments` on submit (`splitInvitees`,
@@ -171,12 +172,15 @@ Mechanics worth knowing:
   entered as the last input before review (see §1.4). Optional — blank = acting user.
 - **Review** (`EventForm.tsx:739-848`): the read-only final page. It folds in the
   calendar preview Paper plus When / Location (In/Out-of-Camp badge + destination) /
-  Event Type / On-behalf-of / People / Departments / Remarks rows, all resolved from the
-  same effective state the submit payload uses (`reviewPeople`, `reviewDepartments`,
-  `creatorName`, `whenText`, `EventForm.tsx:425-456`; `reviewPeople` derives from the
-  effective invitee list, so the People row includes the acting admin when "On behalf
-  of" is blank) so what is reviewed is exactly what gets saved. There are no per-section
-  edit links — fixing a mistake means walking Back through the intermediate steps.
+  Event Type / On-behalf-of / Invited Attendees / Departments / Remarks rows, all
+  resolved from the same effective state the submit payload uses (`reviewPeople`,
+  `reviewDepartments`, `creatorName`, `whenText`, `EventForm.tsx:425-456`).
+  `reviewPeople` derives from the effective invitee list **minus the effective owner**
+  (picked "On behalf of" user, or the acting user when blank), so the Invited
+  Attendees row never duplicates the owner — who is badged in the On-behalf-of row for
+  admins and is the acting user themselves otherwise — so what is reviewed is exactly
+  what gets saved. There are no per-section edit links — fixing a mistake means walking
+  Back through the intermediate steps.
 
 ### 1.4.2 Edit prefill (`?edit=` deep link)
 
@@ -426,7 +430,8 @@ preview derives its people from the **effective** invitee list (`effectiveInvite
 `EventForm.tsx:385-393`): the creator — picked user, or the acting admin when "On
 behalf of" is blank — is prepended first, mirroring the server's `withSelfCreator` +
 `withCreatorInvited` ordering exactly, so `{people}` / `{people:acronym}` tokens render
-identically to what gets written (the review step's People row uses the same list).
+identically to what gets written (the review step's Invited Attendees row uses the same
+list **minus the effective owner** — the title token deliberately keeps the owner).
 Note: the preview **re-implements** the fallback + AM/PM suffix rules inline rather than
 importing the pure `renderEventTitle` — kept in sync by convention, a drift risk to be
 aware of when changing the title rules.

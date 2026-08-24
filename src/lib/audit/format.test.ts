@@ -103,7 +103,7 @@ describe("formatAuditDetails", () => {
       { label: "Out of camp", value: "Yes" },
       { label: "Location", value: EMPTY_VALUE },
       { label: "Departments", value: "COU, LOG" },
-      { label: "Invitee users (count)", value: "2" },
+      { label: "Invited attendee users (count)", value: "2" },
     ]);
   });
 
@@ -128,7 +128,7 @@ describe("formatAuditDetails", () => {
       { label: "Location", value: "Singapore" },
       { label: "Calendar IDs", value: "46829e20" },
       { label: "Calendars", value: "COU" },
-      { label: "Invitee users (count)", value: "1" },
+      { label: "Invited attendee users (count)", value: "1" },
       { label: "Google event IDs", value: "o0qgnnv2" },
     ]);
   });

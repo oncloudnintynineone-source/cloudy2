@@ -4713,3 +4713,42 @@ Follow-up to §1.97 after device use surfaced three issues.
 Verification: lint/typecheck/test pass; manual mobile-emulation check of all
 five views (ruler alignment during horizontal pan, no overlap under pinned
 bars, docked stacking order app header → chrome → strip → ruler → grid).
+
+## 1.99 Owner hidden from invited-attendee lists; "Invited Attendees" rename (Phase 3aw)
+
+The event owner appeared twice in the UI: `withCreatorInvited` (the creator is
+always merged into `inviteeUserIds`) put the owner in both the "Owner" and
+"People" rows of the event detail modal and both the "On behalf of" and
+"People" rows of the wizard's review step. The data semantics are deliberate
+and were kept — target-calendar derivation, schedule rows, the `{people}`
+title token, and the audit/webhook snapshots all still carry the creator. The
+fix is display-only:
+
+- `EventDetail.tsx`: `peopleNamesResolved` filters out `payload.creatorId`, so
+  the Owner badge no longer repeats in the list; owner-only events hide the
+  section entirely via the existing `length > 0` guard.
+- `EventForm.tsx` review: `reviewPeople` filters out
+  `user:${effectiveCreatorId}` (the picked "On behalf of" user, or the
+  acting user when blank). The calendar-preview `{people}` rendering is
+  untouched — it must mirror the title the server writes.
+
+"People" / "Invitees" labels were renamed to "Invited Attendees" at every
+visible spot; the `{people*}` title tokens and code identifiers
+(`inviteeUserIds`, `EventPeople`, `parseEventPeople`, the notes keys) are
+unchanged:
+
+- Event detail modal section (was "People"); wizard field label (was
+  "Invitees"), multi-select user-group label (was "People"), and review row
+  (was "People").
+- Audit detail labels in `audit/format.ts`: `invitees` → "Invited Attendees",
+  `inviteeUserCount` / `inviteeDepartmentCount` → "Invited attendee
+  users/departments (count)" (legacy rows only).
+- Webhook payload reference: `event.invitees` described as "Invited attendees
+  by display name (includes owner)".
+
+Tests: `format.test.ts` label expectations updated. Docs:
+event-lifecycle.md §1.4.1 (Invited Attendees step, Review step) and §1.8.3
+(preview note that the title token deliberately keeps the owner while the
+review row drops it).
+
+Verification: lint/typecheck/test pass.

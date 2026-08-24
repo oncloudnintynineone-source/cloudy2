@@ -244,7 +244,7 @@ export function EventForm({
       ...(inviteeUsers.length > 0
         ? [
             {
-              group: "People",
+              group: "Invited Attendees",
               items: inviteeUsers.map((user) => ({
                 value: `user:${user.id}`,
                 label: user.displayName,
@@ -424,10 +424,13 @@ export function EventForm({
 
   // Review-step display values — resolved from the same effective state the
   // submit payload uses, so what the user reviews is exactly what gets saved.
+  // The effective owner is shown in the "On behalf of" row (or is the acting
+  // user themselves), so keep them out of the invited-attendee list.
   const reviewPeople = [
     ...new Set(
       effectiveInvitees
         .filter((value) => value.startsWith("user:"))
+        .filter((value) => value !== `user:${effectiveCreatorId}`)
         .map((value) => peopleById[value.slice("user:".length)]?.fqn)
         .filter((name): name is string => Boolean(name)),
     ),
@@ -697,7 +700,7 @@ export function EventForm({
         {currentStep.id === "invitees" &&
           (inviteeData.length > 0 ? (
             <NoKeyboardMultiSelect
-              label="Invitees"
+              label="Invited Attendees"
               description="A copy of the event is created in each tagged person's department and in each tagged department"
               placeholder="My department only"
               data={inviteeData}
@@ -834,7 +837,7 @@ export function EventForm({
             {reviewPeople.length > 0 && (
               <Stack gap={4}>
                 <Text size="xs" c="dimmed" fw={600}>
-                  People
+                  Invited Attendees
                 </Text>
                 <Group gap={6} wrap="wrap">
                   {reviewPeople.map((name) => (

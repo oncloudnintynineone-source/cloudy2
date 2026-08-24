@@ -151,6 +151,7 @@ One line per phase; full write-ups (incl. Mermaid diagrams and verification note
 - 1.96 Event-type event colors; department color becomes the external-event fallback (Phase 3at)
 - 1.97 Sticky calendar chrome: tabs+date-nav pinned at all widths, Week strip docks, mobile headers fixed (Phase 3au)
 - 1.98 Pinned Day/Week hour rulers; compact date-nav row; z-order fix for columns overlapping pinned bars (Phase 3av)
+- 1.99 Owner hidden from invited-attendee lists; People/Invitees labels renamed (Phase 3aw)
 
 ## 1.4 Open items & next steps
 
