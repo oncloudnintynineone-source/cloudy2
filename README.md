@@ -175,6 +175,11 @@ pnpm db:generate   # no DB needed — writes drizzle/*.sql + drizzle/meta/ from 
 pnpm db:migrate    # apply pending migrations to Neon
 ```
 
+Migrations run in filename order (`0000_…` → `0016_…`). Each applied migration is
+recorded in a `__drizzle_migrations` table inside the database, so re-running
+`pnpm db:migrate` only applies files that haven't been applied yet — it's safe
+and idempotent.
+
 `db:generate` needs no database. `db:migrate` and `db:push` connect to Neon and **require
 `DATABASE_URL` in the shell environment** — `drizzle-kit` does **not** read `.env.local`, so
 running them directly fails with `Please provide required params for Postgres driver: url: ''`.
