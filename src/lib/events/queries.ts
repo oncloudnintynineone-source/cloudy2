@@ -5,6 +5,7 @@ import { after } from "next/server";
 
 import { db } from "@/db";
 import { calendars, users } from "@/db/schema";
+import { effectiveCalendarColor } from "@/lib/events/calendarColors";
 import { formatInstantToNaive, shiftMonth, utcToDateString } from "@/lib/events/datetime";
 import { getCachedMonthEventsForCalendars } from "@/lib/google/eventsCache";
 import type { GcalEventItem } from "@/lib/google/types";
@@ -62,27 +63,6 @@ export interface CalendarEvent {
   payload: CalendarEventPayload;
 }
 
-const PALETTE: MantineColor[] = [
-  "blue",
-  "green",
-  "red",
-  "violet",
-  "orange",
-  "cyan",
-  "grape",
-  "teal",
-  "yellow",
-  "pink",
-];
-
-function colorForCalendar(calendarId: string): MantineColor {
-  let hash = 0;
-  for (let i = 0; i < calendarId.length; i += 1) {
-    hash = (hash * 31 + calendarId.charCodeAt(i)) >>> 0;
-  }
-  return PALETTE[hash % PALETTE.length];
-}
-
 function scheduleTime(date: Date, allDay: boolean): string {
   return allDay ? `${utcToDateString(date)} 00:00:00` : formatInstantToNaive(date);
 }
@@ -125,7 +105,7 @@ const PREFETCH_ADJACENT_MONTHS = true;
  * filters exclude it.
  */
 function mapCalendarItem(
-  calendar: { id: string; name: string },
+  calendar: { id: string; name: string; color: string | null },
   item: GcalEventItem,
   filters: { typeFilter: string[]; userFilter: string[] },
 ): CalendarEvent | null {
@@ -148,7 +128,7 @@ function mapCalendarItem(
     title: item.title || "(no title)",
     start: scheduleTime(item.start, item.allDay),
     end: scheduleTime(item.end, item.allDay),
-    color: colorForCalendar(calendar.id),
+    color: effectiveCalendarColor(calendar.id, calendar.color),
     payload: {
       calendarId: calendar.id,
       googleEventId: item.id,

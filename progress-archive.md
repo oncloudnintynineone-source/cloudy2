@@ -4564,3 +4564,46 @@ server data), keeping the `<Button component={Link}>` SPA link intact.
 
 Verification: full `pnpm build` passes — all 18 routes generate, `/_not-found`
 prerendered static.
+
+## 1.95 Department event colors (Phase 3as)
+
+Admins can now set the color of each department's events from Settings →
+Departments. Previously the color was derived purely from hashing the calendar
+UUID onto a fixed 10-color Mantine palette (`colorForCalendar` inline in
+`queries.ts`) — nothing was stored, Google's `colorId` was ignored in both
+directions, and there was no way to configure it.
+
+- **Schema**: `calendars.color` nullable text (migration `0016`): `null` =
+  "Auto" (the deterministic per-calendar hash default, unchanged behavior); a
+  value = an admin-pinned Mantine palette name.
+- **Pure helpers** `src/lib/events/calendarColors.ts` (unit-tested):
+  `CALENDAR_COLORS` (the fixed 10-color palette), `isCalendarColor`,
+  `normalizeCalendarColor` (accept palette name, fall back to null — the
+  accept/fallback pattern of `normalizeLocationPolicy`), `colorForCalendar`
+  (moved from `queries.ts`, now exported), `effectiveCalendarColor` (pinned or
+  default).
+- **Read path**: `mapCalendarItem` stamps
+  `effectiveCalendarColor(calendar.id, calendar.color)`; `fetchRangeEvents`
+  already selected full calendar rows. The color is applied in the mapping pass,
+  so it never enters `google_event_cache` — **no invalidation needed**; a color
+  change takes effect on the next render.
+- **Writes**: `createDepartment` stores the normalized color (audit details now
+  include it); `renameDepartment` — the one save behind the form — calls
+  Google's rename **only when the name actually changed** (color is app-local)
+  and writes name + color in a single DB update. New audit action
+  `calendar.update` (`Calendar updated`) with `diffFields({ name, color })`; a
+  `Color` field label was added in `audit/format.ts`; legacy `calendar.rename`
+  rows are untouched.
+- **UI** (`settings/departments/`): new `DepartmentColor.tsx` — `ColorDot` list
+  chip, `DepartmentColorPicker` (tap-friendly swatch buttons, `aria-pressed`,
+  "Auto" rendered as a conic gradient of the palette — no keyboard pop-up per
+  the no-input convention), `formatCalendarColorLabel` ("Auto (blue)" when
+  unset). The Add/Edit modal gained an Event color section (title now
+  "Edit department"), and the list shows each department's chip + label; the
+  Rename button became Edit.
+- **Consumers unchanged**: `@mantine/schedule` and `WeekMatrixView` resolve
+  whatever Mantine color arrives, so no view code moved.
+
+Tests: new `calendarColors.test.ts` (8 cases).
+Verification: lint/typecheck/test pass (537 tests); `pnpm db:generate` no-op
+(drift-clean); full `pnpm build` passes (18 routes).

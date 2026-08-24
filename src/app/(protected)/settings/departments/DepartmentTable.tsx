@@ -21,6 +21,7 @@ import { CONTENT_ENTER_CLASS } from "@/lib/loading/contentEnter";
 import { deleteDepartment } from "@/lib/roster/actions";
 import { BUTTON_LOADER_PROPS } from "@/lib/theme";
 import { FAB_ICON_SIZE, FloatingActionButton, FloatingToolbar } from "@/components/FloatingToolbar";
+import { ColorDot, formatCalendarColorLabel } from "./DepartmentColor";
 import { DepartmentForm } from "./DepartmentForm";
 import { DepartmentShares } from "./DepartmentShares";
 
@@ -101,7 +102,10 @@ export function DepartmentTable({ departments }: DepartmentTableProps) {
             {departments.map((calendar) => (
               <Paper key={calendar.id} withBorder p="sm">
                 <Group justify="space-between" wrap="nowrap" align="flex-start">
-                  <Text fw={600}>{calendar.name}</Text>
+                  <Group wrap="nowrap" align="center" gap={6}>
+                    <ColorDot color={calendar.color} />
+                    <Text fw={600}>{calendar.name}</Text>
+                  </Group>
                   <Button size="xs" variant="light" onClick={() => openShareModal(calendar)}>
                     Share
                   </Button>
@@ -111,7 +115,7 @@ export function DepartmentTable({ departments }: DepartmentTableProps) {
                 </Text>
                 <Group justify="flex-end" mt="sm" wrap="nowrap">
                   <Button size="xs" variant="light" onClick={() => openEdit(calendar)}>
-                    Rename
+                    Edit
                   </Button>
                   <Button
                     size="xs"
@@ -135,6 +139,7 @@ export function DepartmentTable({ departments }: DepartmentTableProps) {
               <Table.Thead>
                 <Table.Tr>
                   <Table.Th>Name</Table.Th>
+                  <Table.Th>Color</Table.Th>
                   <Table.Th>Calendar ID</Table.Th>
                   <Table.Th ta="right">
                     <VisuallyHidden>Actions</VisuallyHidden>
@@ -148,6 +153,12 @@ export function DepartmentTable({ departments }: DepartmentTableProps) {
                       <Text fw={600}>{calendar.name}</Text>
                     </Table.Td>
                     <Table.Td>
+                      <Group gap={6} wrap="nowrap">
+                        <ColorDot color={calendar.color} />
+                        <Text size="sm">{formatCalendarColorLabel(calendar.color, calendar.id)}</Text>
+                      </Group>
+                    </Table.Td>
+                    <Table.Td>
                       <Text size="sm" c="dimmed" style={{ wordBreak: "break-all" }}>
                         {calendar.googleCalendarId}
                       </Text>
@@ -158,7 +169,7 @@ export function DepartmentTable({ departments }: DepartmentTableProps) {
                           Share
                         </Button>
                         <Button size="xs" variant="light" onClick={() => openEdit(calendar)}>
-                          Rename
+                          Edit
                         </Button>
                         <Button
                           size="xs"
@@ -184,7 +195,7 @@ export function DepartmentTable({ departments }: DepartmentTableProps) {
       <Modal
         opened={formOpened}
         onClose={closeForm}
-        title={editing ? "Rename department" : "Add department"}
+        title={editing ? "Edit department" : "Add department"}
         centered
         size="sm"
       >

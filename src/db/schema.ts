@@ -57,6 +57,8 @@ export const calendars = pgTable(
     kind: text("kind", { enum: ["department", "shared"] })
       .notNull()
       .default("department"),
+    /** Admin-set event color (Mantine palette name); null = deterministic default. */
+    color: text("color"),
     ...timestamps,
   },
   (table) => [uniqueIndex("calendars_google_calendar_id_idx").on(table.googleCalendarId)],

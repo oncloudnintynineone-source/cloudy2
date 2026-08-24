@@ -11,6 +11,7 @@ export const AUDIT_ACTIONS = {
   userStatusChange: "user.status.change",
   calendarCreate: "calendar.create",
   calendarRename: "calendar.rename",
+  calendarUpdate: "calendar.update",
   calendarDelete: "calendar.delete",
   eventTypeCreate: "eventType.create",
   eventTypeRename: "eventType.rename",

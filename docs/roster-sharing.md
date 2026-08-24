@@ -18,11 +18,12 @@ reconcile paths (on read, and on user change).
 - [1.4 Data model](#14-data-model)
 - [1.5 The ACL model](#15-the-acl-model)
 - [1.6 Roster & department actions](#16-roster--department-actions)
-- [1.7 Reconcile-on-read: the Shares modal](#17-reconcile-on-read-the-shares-modal)
-- [1.8 Reconcile-on-write: email & department changes](#18-reconcile-on-write-email--department-changes)
-- [1.9 Access-level actions](#19-access-level-actions)
-- [1.10 Pure helpers & testing](#110-pure-helpers--testing)
-- [1.11 File index & related docs](#111-file-index--related-docs)
+- [1.7 Event colors](#17-event-colors)
+- [1.8 Reconcile-on-read: the Shares modal](#18-reconcile-on-read-the-shares-modal)
+- [1.9 Reconcile-on-write: email & department changes](#19-reconcile-on-write-email--department-changes)
+- [1.10 Access-level actions](#110-access-level-actions)
+- [1.11 Pure helpers & testing](#111-pure-helpers--testing)
+- [1.12 File index & related docs](#112-file-index--related-docs)
 
 ## 1.1 Problem
 
@@ -102,6 +103,7 @@ erDiagram
         text google_calendar_id UK "Google Calendar id"
         text name
         text kind "department | shared (only department used)"
+        text color "nullable — null = deterministic default (event colors, §1.7)"
     }
     users {
         uuid id PK
@@ -125,6 +127,8 @@ erDiagram
 - `calendars` (`schema.ts:51`): the **department registry**;
   `google_calendar_id` is unique (a department with the same Google calendar
   can't be created twice). `kind` is `department` (used) or `shared` (reserved).
+  `color` is the admin-pinned event color (a Mantine palette name) — nullable,
+  where null means "use the deterministic per-calendar default" (§1.7).
 - **History**: the original schema (migration 0000) had a `departments` table
   plus a many-to-many `user_departments` join; migration 0002 collapsed that
   into the single `users.department_id` column (backfilled by primary
@@ -166,16 +170,16 @@ The pure diff helpers (all case-insensitive, ignoring blanks):
 
 All in `src/lib/roster/actions.ts` (`"use server"`, all `requireAdmin()`-gated).
 Result types: `RosterActionResult = { ok: true; warnings? } | { ok: false; error, field? }`
-(`:30`) — `warnings` carries partial Google-sync failures (yellow toast in the
-form); and `ShareActionResult` (`:34`).
+(`:31`) — `warnings` carries partial Google-sync failures (yellow toast in the
+form); and `ShareActionResult` (`:35`).
 
 **User actions**
 
 | Action | Behavior | Audit row |
 | ------ | -------- | --------- |
-| `createUser` (`:110`) | validate → `normalizePhone` → INSERT (returning id+name) → audit → `revalidatePath` → **`reconcileUserAccessChange` with old values null** (a new user with email+department gets reader access immediately) | `user.create` — flat details incl. department **name** |
-| `updateUser` (`:174`) | validate → load before → build before/after `userSnapshot`s (sanitized — never the password hash — with department names) → UPDATE → audit **`diffFields(before, after)`** → reconcile **only when email or department changed** (`:243-252`) | `user.update` |
-| `setUserStatus` (`:258`) | toggle active/inactive; **no ACL reconcile** — status doesn't affect sharing | `user.status.change` — status diff |
+| `createUser` (`:111`) | validate → `normalizePhone` → INSERT (returning id+name) → audit → `revalidatePath` → **`reconcileUserAccessChange` with old values null** (a new user with email+department gets reader access immediately) | `user.create` — flat details incl. department **name** |
+| `updateUser` (`:175`) | validate → load before → build before/after `userSnapshot`s (sanitized — never the password hash — with department names) → UPDATE → audit **`diffFields(before, after)`** → reconcile **only when email or department changed** (`:244-253`) | `user.update` |
+| `setUserStatus` (`:259`) | toggle active/inactive; **no ACL reconcile** — status doesn't affect sharing | `user.status.change` — status diff |
 
 There is **no `deleteUser`**: users are deactivated, never deleted (the UI has a
 Deactivate/Activate button).
@@ -183,18 +187,56 @@ Deactivate/Activate button).
 Duplicate UX is **constraint-driven, not pre-queried**: the INSERT/UPDATE catch
 Postgres SQLSTATE `23505` and map the violated constraint to a field error —
 `users_shortname_idx` → "A user with this shortname already exists" (field
-`shortname`), any other unique violation → phone duplicate (`:153-161`,
-`:231-239`).
+`shortname`), any other unique violation → phone duplicate (`:154-162`,
+`:232-240`).
 
 **Department (calendar) actions**
 
 | Action | Behavior | Audit row |
 | ------ | -------- | --------- |
-| `createDepartment` (`:286`) | requires Google configured → **creates the calendar in Google first**, then inserts the registry row → unique `google_calendar_id` violation → "A department with this Google Calendar already exists" | `calendar.create` — `{ googleCalendarId }` |
-| `renameDepartment` (`:332`) | renames in Google (when configured) then DB | `calendar.rename` — name diff |
-| `deleteDepartment` (`:374`) | deletes the Google calendar (404 tolerated) then the registry row — the FK cascade **unassigns its users** | `calendar.delete` — `{ googleCalendarId }` |
+| `createDepartment` (`:287`) | requires Google configured → **creates the calendar in Google first**, then inserts the registry row (name + `color`, normalized via `normalizeCalendarColor`) → unique `google_calendar_id` violation → "A department with this Google Calendar already exists" | `calendar.create` — `{ googleCalendarId, color }` |
+| `renameDepartment` (`:334`) | the department form's single save: renames in Google **only when the name actually changed** (color is app-local — no Google call for color-only edits), then updates name + color in the DB | `calendar.update` — `diffFields({ name, color })` (legacy rows: `calendar.rename` — name diff) |
+| `deleteDepartment` (`:377`) | deletes the Google calendar (404 tolerated) then the registry row — the FK cascade **unassigns its users** | `calendar.delete` — `{ googleCalendarId }` |
 
-## 1.7 Reconcile-on-read: the Shares modal
+## 1.7 Event colors
+
+Every event renders in the color of its **department calendar** — one color per
+department, applied to all its events. There is no per-event or per-event-type
+color, and Google's own `colorId` is ignored in both directions (the read path
+drops it before caching; the write path never sends it).
+
+```mermaid
+flowchart LR
+    P["calendars.color<br/>(admin-pinned, nullable)"] --> E{effectiveCalendarColor}
+    I["calendars.id (UUID)<br/>deterministic hash"] -->|"color is null"| E
+    E --> CE["CalendarEvent.color<br/>(queries.ts mapCalendarItem)"]
+    CE --> V["@mantine/schedule views<br/>+ WeekMatrixView"]
+```
+
+- **The value** is one of the fixed 10-color Mantine palette
+  (`CALENDAR_COLORS`, `src/lib/events/calendarColors.ts`). Null ("Auto") means
+  the calendar's **deterministic default**: `colorForCalendar` hashes the
+  calendar UUID onto the same palette, so a department without a pinned color
+  always renders the same color across sessions and views.
+- **Configuration** lives in Settings → Departments: the Add/Edit modal
+  (`DepartmentForm.tsx` + `DepartmentColorPicker` in `DepartmentColor.tsx`,
+  tap-friendly swatch buttons — no keyboard pop-up on mobile) offers "Auto"
+  plus every palette color. Server-side, `normalizeCalendarColor` accepts a
+  palette name and falls back to null for anything else (accept/fallback pair,
+  like `normalizeLocationPolicy`) — invalid data can never break rendering.
+- **Application is at read time**: `fetchRangeEvents` selects full calendar
+  rows and `mapCalendarItem` stamps
+  `color: effectiveCalendarColor(calendar.id, calendar.color)` on every event.
+  The color is **not part of `google_event_cache`** (the cache stores raw
+  Google items; mapping happens per request —
+  [`events-cache.md`](events-cache.md)), so changing a department's color takes
+  effect on the next render with **no cache invalidation**.
+- **Rendering**: `@mantine/schedule` resolves `color` via
+  `variantColorResolver({ variant: "light" })` into the `--event-bg` /
+  `--event-color` CSS vars; `WeekMatrixView.tsx` replicates that resolution for
+  its custom matrix cells. Consumers need no changes when a color changes.
+
+## 1.8 Reconcile-on-read: the Shares modal
 
 `listDepartmentAccess(calendarId)` (`shares.ts:120`) is called by the admin-gated
 `getDepartmentAccess` (`actions.ts:412`) when the Shares modal opens:
@@ -233,7 +275,7 @@ Properties:
   admin owner access"); a total ACL read failure returns a generic warning with
   the assigned list intact (`:195-217`).
 
-## 1.8 Reconcile-on-write: email & department changes
+## 1.9 Reconcile-on-write: email & department changes
 
 `reconcileUserAccessChange(change)` (`shares.ts:245`) runs after the DB commit in
 `createUser` (always) and `updateUser` (only when email or department changed):
@@ -278,7 +320,7 @@ The rules, precisely:
   yellow toast — the roster change already committed and is not rolled back.
 - **Short-circuit**: Google unconfigured → no warnings, nothing to reconcile.
 
-## 1.9 Access-level actions
+## 1.10 Access-level actions
 
 Manual management of `additional` rules (Shares modal), all admin-gated, all
 validating email + role server-side (`isValidEmail`,
@@ -286,21 +328,22 @@ validating email + role server-side (`isValidEmail`,
 
 | Action (`actions.ts`) | Behavior | Audit row |
 | --------------------- | -------- | --------- |
-| `grantDepartmentAccess(calendarId, email, role)` (`:417`) | `setCalendarAccess` (upsert) | `access.grant` — `{ email, role: null → role }` diff |
-| `updateDepartmentAccess(calendarId, email, role)` (`:461`) | reads ACLs for the **previous role** (case-insensitive), then upserts | `access.update` — `{ email, role: prev → new }` diff |
-| `revokeDepartmentAccess(calendarId, email)` (`:508`) | reads ACLs for the previous role, then `removeCalendarAccess` | `access.revoke` — `{ email, role: prev → null }` diff |
+| `grantDepartmentAccess(calendarId, email, role)` (`:420`) | `setCalendarAccess` (upsert) | `access.grant` — `{ email, role: null → role }` diff |
+| `updateDepartmentAccess(calendarId, email, role)` (`:464`) | reads ACLs for the **previous role** (case-insensitive), then upserts | `access.update` — `{ email, role: prev → new }` diff |
+| `revokeDepartmentAccess(calendarId, email)` (`:511`) | reads ACLs for the previous role, then `removeCalendarAccess` | `access.revoke` — `{ email, role: prev → null }` diff |
 
 Inherent owners can't be removed through the UI (they aren't listed), and the
 admin account's owner rule is shown in a separate "Owner access" section, not as
 a removable row.
 
-## 1.10 Pure helpers & testing
+## 1.11 Pure helpers & testing
 
 | Helper | Module | Tests |
 | ------ | ------ | ----- |
 | `normalizePhone` (exactly 8 digits, strips non-digits), `validateUserForm`, `validateCalendarForm` | `roster/validate.ts` | `roster/validate.test.ts` |
 | `isValidEmail`, `isDepartmentAccessRole` (rejects `freeBusyReader`), `diffAccess`, `diffRevocable`, `needsAdminOwnerGrant` (incl. blank-admin edge), `isInherentOwnerEmail` | `roster/shares.ts` | `roster/shares.test.ts` |
 | `diffFields` (the audit diffs), `actorFromUser`, `AUDIT_ACTIONS` | `audit/diff.ts`, `audit/build.ts` | `audit/diff.test.ts`, `audit/build.test.ts` |
+| `CALENDAR_COLORS`, `isCalendarColor`, `normalizeCalendarColor` (accept/fallback, §1.7), `colorForCalendar` (deterministic UUID hash), `effectiveCalendarColor` (pinned or default) | `events/calendarColors.ts` | `events/calendarColors.test.ts` |
 | `getServiceAccountConfig`, `hasGoogleCredentials`, `getAdminGoogleEmail` | `google/config.ts` | `google/config.test.ts` |
 
 I/O-bound (not unit-tested, per the repo convention): `resolveGoogleCalendarId`,
@@ -309,18 +352,19 @@ I/O-bound (not unit-tested, per the repo convention): `resolveGoogleCalendarId`,
 `roster/actions.ts`, and the `events/queries.ts` department lookups
 (`getUserDepartmentId(s)`).
 
-## 1.11 File index & related docs
+## 1.12 File index & related docs
 
 | File | Role |
 | ---- | ---- |
-| `src/db/schema.ts:22-63` | `users` + `calendars` tables |
+| `src/db/schema.ts:22-65` | `users` + `calendars` tables (incl. `calendars.color`, §1.7) |
 | `src/lib/roster/shares.ts` | ACL model, pure diff helpers, both reconcile paths |
 | `src/lib/roster/validate.ts` | Phone/user/calendar validation (pure) |
 | `src/lib/roster/queries.ts` | Roster reads (users, departments, by-ids) |
 | `src/lib/roster/actions.ts` | User/department/sharing server actions |
+| `src/lib/events/calendarColors.ts` | Event-color palette, normalization, deterministic default (pure, §1.7) |
 | `src/app/(protected)/settings/users/` | Users page: `UserTable`, `UserForm` (badge role/department fields), deactivate |
 | `src/app/(protected)/settings/users/DepartmentShares.tsx` | The Shares modal (assigned/additional/admin sections) |
-| `src/app/(protected)/settings/departments/` | Departments page: create/rename/share/delete |
+| `src/app/(protected)/settings/departments/` | Departments page: create/edit (name + event color)/share/delete; `DepartmentColor.tsx` holds the swatch picker + list chip |
 | `src/lib/google/` | The integration the ACL calls go through |
 
 Related docs:
@@ -333,4 +377,4 @@ Related docs:
 - [`README.md`](../README.md#112-documentation) — documentation index.
 - `progress-archive.md` — phase write-ups: 1.8 (roster & departments), 1.11 (calendars
   + sharing + audit), 1.41 (access levels), 1.61 (email-change ACL sync bugfix),
-  1.62 (department selects).
+  1.62 (department selects), 1.95 (department event colors).

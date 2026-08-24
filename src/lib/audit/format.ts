@@ -24,6 +24,7 @@ const ACTION_LABELS: Record<string, string> = {
   "user.status.change": "User status changed",
   "calendar.create": "Calendar created",
   "calendar.rename": "Calendar renamed",
+  "calendar.update": "Calendar updated",
   "calendar.delete": "Calendar deleted",
   "eventType.create": "Event type created",
   "eventType.rename": "Event type renamed",
@@ -53,6 +54,7 @@ export function actionLabel(action: string): string {
 /** Field → display label for detail lines; unknown keys render verbatim. */
 const FIELD_LABELS: Record<string, string> = {
   name: "Name",
+  color: "Color",
   shortname: "Short name",
   phone: "Phone",
   email: "Email",

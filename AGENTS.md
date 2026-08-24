@@ -147,7 +147,11 @@ before changing the subsystem.
   `/contacts`, Settings `/settings` (regular users get the first three). `SettingsTabs`
   stacks directly above it.
 - **Admin settings live under `/settings`** (admin-only): Users, Departments, Event
-  Types, Templates, Webhooks, General, Audit Log tabs. Event types carry an app-required unique
+  Types, Templates, Webhooks, General, Audit Log tabs. Departments carry an optional
+  event `color` (Mantine palette name; null = deterministic per-calendar default —
+  pure helpers in `src/lib/events/calendarColors.ts`), edited in the department
+  form modal; it is applied at read time in `mapCalendarItem`, never stored in the
+  events cache, so no invalidation on change. Event types carry an app-required unique
   `shortname` (the `{type:acronym}` title token) and a `location_policy`
   (`in`/`out`/`both`) enforced client- and server-side by pure `clampOutOfCamp()`
   (`src/lib/events/locationPolicy.ts`): the location field IS the out-of-camp

@@ -64,6 +64,8 @@ export function validateUserForm(values: UserFormValues): UserFormErrors {
 
 export interface CalendarFormValues {
   name: string;
+  /** Pinned event color (Mantine palette name); "" = the calendar's default. */
+  color?: string;
 }
 
 export interface CalendarFormErrors {

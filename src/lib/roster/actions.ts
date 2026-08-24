@@ -8,6 +8,7 @@ import { calendars, users, type Calendar, type User } from "@/db/schema";
 import { AUDIT_ACTIONS, actorFromUser } from "@/lib/audit/build";
 import { diffFields } from "@/lib/audit/diff";
 import { logAction } from "@/lib/audit/log";
+import { normalizeCalendarColor } from "@/lib/events/calendarColors";
 import { getGoogleIntegration, googleCalendarConfigured } from "@/lib/google";
 import { requireAdmin } from "@/lib/session";
 import {
@@ -296,12 +297,13 @@ export async function createDepartment(input: CalendarFormValues): Promise<Roste
   }
 
   const name = input.name.trim();
+  const color = normalizeCalendarColor(input.color);
   try {
     const integration = await getGoogleIntegration();
     const created = await integration.createCalendar(name);
     const [row] = await db
       .insert(calendars)
-      .values({ name, googleCalendarId: created.calendarId, kind: "department" })
+      .values({ name, googleCalendarId: created.calendarId, kind: "department", color })
       .returning({ id: calendars.id, name: calendars.name });
 
     await logAction({
@@ -311,7 +313,7 @@ export async function createDepartment(input: CalendarFormValues): Promise<Roste
       entityId: row.id,
       entityName: row.name,
       method: "createDepartment",
-      details: { googleCalendarId: created.calendarId },
+      details: { googleCalendarId: created.calendarId, color },
     });
   } catch (error) {
     if (isUniqueViolation(error)) {
@@ -346,21 +348,22 @@ export async function renameDepartment(
   }
 
   const name = input.name.trim();
+  const color = normalizeCalendarColor(input.color);
   try {
-    if (googleCalendarConfigured()) {
+    if (name !== calendar.name && googleCalendarConfigured()) {
       const integration = await getGoogleIntegration();
       await integration.renameCalendar(calendar.googleCalendarId, name);
     }
-    await db.update(calendars).set({ name, updatedAt: new Date() }).where(eq(calendars.id, id));
+    await db.update(calendars).set({ name, color, updatedAt: new Date() }).where(eq(calendars.id, id));
 
     await logAction({
       ...actorFrom(session),
-      action: AUDIT_ACTIONS.calendarRename,
+      action: AUDIT_ACTIONS.calendarUpdate,
       entityType: "calendar",
       entityId: id,
       entityName: name,
       method: "renameDepartment",
-      details: diffFields({ name: calendar.name }, { name }),
+      details: diffFields({ name: calendar.name, color: calendar.color }, { name, color }),
     });
   } catch (error) {
     return { ok: false, error: errorMessage(error), field: "name" };
