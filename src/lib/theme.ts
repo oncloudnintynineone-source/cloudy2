@@ -50,6 +50,9 @@ export const theme = createTheme({
     Input: {
       vars: () => ({
         wrapper: {
+          // >= 16px so iOS Safari doesn't auto-zoom the page when an input
+          // is focused (it magnifies any field with a smaller font-size).
+          "--input-fz": "var(--mantine-font-size-md)",
           "--input-height-xs": "calc(2.25rem * var(--mantine-scale))",
           "--input-height-sm": "calc(2.7rem * var(--mantine-scale))",
           "--input-height-md": "calc(3.15rem * var(--mantine-scale))",
