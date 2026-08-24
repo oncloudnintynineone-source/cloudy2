@@ -154,6 +154,7 @@ One line per phase; full write-ups (incl. Mermaid diagrams and verification note
 - 1.99 Owner hidden from invited-attendee lists; People/Invitees labels renamed (Phase 3aw)
 - 1.100 Form validation feedback: toast + scroll to first invalid field + validate-on-blur, all forms
 - 1.101 Duplicate phone/shortname crashes fixed: drizzle-wrapped error inspection + no raw SQL in toasts
+- 1.102 Slow-network responsiveness: optimistic nav + date-nav chrome, `staleTimes.dynamic=120` client-router reuse (Phase 3ax)
 
 ## 1.4 Open items & next steps
 

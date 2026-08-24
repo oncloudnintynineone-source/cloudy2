@@ -20,7 +20,7 @@ import {
   IconSettings,
 } from "@tabler/icons-react";
 import { useEffect, useState } from "react";
-import Link from "next/link";
+import Link, { useLinkStatus } from "next/link";
 import { usePathname } from "next/navigation";
 
 import { ThemeToggle } from "@/components/ThemeToggle";
@@ -71,13 +71,43 @@ const SIDEBAR_RAIL_WIDTH = 64;
 const NAV_ACTIVE_COLOR = "var(--mantine-color-brand-7)";
 const NAV_IDLE_COLOR = "light-dark(var(--mantine-color-gray-6), var(--mantine-color-dark-1))";
 
+// How long an optimistic nav highlight survives without a commit before
+// reverting (stalled or offline request). Long enough to never flicker on a
+// slow-but-alive connection, short enough that a dead tap doesn't lie about
+// where you are.
+const NAV_TAP_REVERT_MS = 6000;
+
+/**
+ * Subtle press feedback inside a nav `<Link>` while its navigation is in
+ * flight: the icon dims until the route commits. `useLinkStatus` must run
+ * within the Link's subtree, hence this wrapper rather than state in the
+ * button itself.
+ */
+function PendingDim({ children }: { children: React.ReactNode }) {
+  const { pending } = useLinkStatus();
+  return (
+    <Box style={{ opacity: pending ? 0.55 : 1, transition: "opacity 120ms ease" }}>
+      {children}
+    </Box>
+  );
+}
+
 /** Icon-only nav entry for the minimized sidebar rail; the label rides a tooltip. */
-function RailNavButton({ item, active }: { item: NavItem; active: boolean }) {
+function RailNavButton({
+  item,
+  active,
+  onTap,
+}: {
+  item: NavItem;
+  active: boolean;
+  onTap: () => void;
+}) {
   return (
     <Tooltip label={item.label} position="right">
       <UnstyledButton
         component={Link}
         href={item.href}
+        onClick={onTap}
         style={{
           display: "flex",
           alignItems: "center",
@@ -88,23 +118,31 @@ function RailNavButton({ item, active }: { item: NavItem; active: boolean }) {
         aria-label={item.label}
         aria-current={active ? "page" : undefined}
       >
-        {item.icon}
+        <PendingDim>{item.icon}</PendingDim>
       </UnstyledButton>
     </Tooltip>
   );
 }
 
-function NavButton({ item, active }: { item: NavItem; active: boolean }) {
+function NavButton({
+  item,
+  active,
+  onTap,
+}: {
+  item: NavItem;
+  active: boolean;
+  onTap: () => void;
+}) {
   return (
     <UnstyledButton
       component={Link}
       href={item.href}
+      onClick={onTap}
       style={{
         flex: 1,
         display: "flex",
-        flexDirection: "column",
         alignItems: "center",
-        gap: 2,
+        justifyContent: "center",
         paddingBlock: 6,
         minHeight: BOTTOM_NAV_HEIGHT,
         color: active ? NAV_ACTIVE_COLOR : NAV_IDLE_COLOR,
@@ -112,10 +150,16 @@ function NavButton({ item, active }: { item: NavItem; active: boolean }) {
       aria-label={item.label}
       aria-current={active ? "page" : undefined}
     >
-      {item.icon}
-      <Text size="xs" fw={active ? 600 : 500}>
-        {item.label}
-      </Text>
+      <PendingDim>
+        <Box
+          style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 2 }}
+        >
+          {item.icon}
+          <Text size="xs" fw={active ? 600 : 500}>
+            {item.label}
+          </Text>
+        </Box>
+      </PendingDim>
     </UnstyledButton>
   );
 }
@@ -152,6 +196,30 @@ export function AppShellShell({
   useEffect(() => {
     writeUiState({ sidebarCollapsed: collapsed });
   }, [collapsed]);
+
+  // Optimistic nav highlight: `pathname` only moves when a navigation
+  // commits, so on a slow connection taps used to read as dead. Track the
+  // tapped href and light it immediately; two revert paths keep it honest —
+  // the committed `pathname` (navigation landed; render-phase "adjust state
+  // on prop change" sync below) and a short timer (stalled or offline
+  // request), so the highlight can never stick to a destination that was
+  // never reached.
+  const [tappedHref, setTappedHref] = useState<string | null>(null);
+  const [prevPathname, setPrevPathname] = useState(pathname);
+  if (prevPathname !== pathname) {
+    setPrevPathname(pathname);
+    setTappedHref(null);
+  }
+  useEffect(() => {
+    if (tappedHref === null) {
+      return;
+    }
+    const timer = window.setTimeout(() => setTappedHref(null), NAV_TAP_REVERT_MS);
+    return () => window.clearTimeout(timer);
+  }, [tappedHref]);
+
+  const isActive = (item: NavItem) => item.matches(pathname) || item.href === tappedHref;
+  const handleTap = (href: string) => setTappedHref(href);
 
   const items: NavItem[] =
     role === "admin"
@@ -203,15 +271,21 @@ export function AppShellShell({
         <Stack gap="xs">
           {items.map((item) =>
             collapsed ? (
-              <RailNavButton key={item.href} item={item} active={item.matches(pathname)} />
+              <RailNavButton
+                key={item.href}
+                item={item}
+                active={isActive(item)}
+                onTap={() => handleTap(item.href)}
+              />
             ) : (
               <NavLink
                 key={item.href}
                 component={Link}
                 href={item.href}
                 label={item.label}
-                leftSection={item.icon}
-                active={item.matches(pathname)}
+                leftSection={<PendingDim>{item.icon}</PendingDim>}
+                active={isActive(item)}
+                onClick={() => handleTap(item.href)}
               />
             ),
           )}
@@ -251,7 +325,12 @@ export function AppShellShell({
           }}
         >
           {items.map((item) => (
-            <NavButton key={item.href} item={item} active={item.matches(pathname)} />
+            <NavButton
+              key={item.href}
+              item={item}
+              active={isActive(item)}
+              onTap={() => handleTap(item.href)}
+            />
           ))}
         </Box>
       </AppShell.Footer>

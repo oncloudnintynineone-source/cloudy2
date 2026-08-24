@@ -4822,3 +4822,46 @@ create/update/delete).
 
 Tests: 13 new cases in `pgErrors.test.ts`. Verification:
 lint/typecheck/test/build pass.
+
+## 1.102 Slow-network responsiveness: optimistic chrome + client-router reuse
+
+On a flaky connection the app read as unresponsive: taps produced no visible
+reaction until the RSC response landed. Two root causes:
+
+1. **No client-router reuse at all** — Next.js defaults
+   `experimental.staleTimes.dynamic` to 0, so every soft navigation to a
+   dynamic page blocks on the network even if the same URL was fetched moments
+   ago.
+2. **Controls rendered from committed state only** — the bottom nav's active
+   highlight derives from `usePathname()` (updates when a navigation commits)
+   and the dashboard's Tabs value / period label derive from server-resolved
+   props, so both stayed frozen while a slow fetch was in flight.
+
+Fixes, split into "chrome answers instantly" and "repeat navigations are
+near-instant":
+
+- `next.config.ts`: `experimental.staleTimes.dynamic = 120` — within 2 minutes
+  a revisited URL renders its cached client-router payload with zero network
+  wait (hard loads / new param combos / force-refresh nonce remain distinct
+  cache keys that always hit the server; consistent with the data layer's
+  60s-fresh + 30min-SWR tolerance).
+- `AppShellShell.tsx`: optimistic nav highlight — `tappedHref` lights the
+  tapped item immediately (`active = matches(pathname) || href ===
+  tappedHref`), cleared by a render-phase sync on committed `pathname`, plus a
+  6 s `NAV_TAP_REVERT_MS` timer so a stalled/offline tap can't stick. Each
+  nav `<Link>` wraps its content in `PendingDim` (`useLinkStatus`) for a
+  subtle dim-while-pending affordance.
+- `DashboardView.tsx`: optimistic date-nav chrome — new `shownView` /
+  `shownMonth` / `shownDate` state leads the server props after any tab /
+  chevron / Today / picker interaction; one render-phase sync keyed on
+  `(view, month, date, isPending)` adopts committed props whenever the
+  transition ends (success *or* failure), healing offline navigations.
+  Shifts compose on `shown*`, so rapid taps accumulate instead of being eaten
+  by navigate()'s no-op guard. Grid/ruler/agenda rendering,
+  `usePersistUiState`, and chevron click dispatch stay on committed props;
+  the skeleton flavor and period label select by the optimistic view (same
+  contract as `loading.tsx`). Tab scroll-into-view keys off `shownView`.
+
+Docs: `docs/loading-transitions.md` §1.9 (optimistic chrome) + §1.10
+(client-router reuse window); AGENTS.md loading checklist gained point (6).
+Verification: lint/typecheck/test/build pass.

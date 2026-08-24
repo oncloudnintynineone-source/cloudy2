@@ -3,11 +3,13 @@
 The app renders data-heavy pages (a month of Google Calendar events behind a
 server cache) on small mobile screens, where a flash-of-skeleton or a content
 hard-cut reads as jank. This document describes the standard **loading
-appearance** — skeleton only, minimum hold, fade-in on reveal — and the
-**one-shot URL param** pattern (`?edit=` / `?refresh=` / `?_fresh=`) that
-drives forced renders without polluting history. The rules here are canonical
-for the repo (see also the checklist bullet in `AGENTS.md`); this is the
-reference for *why* each piece exists and where it is wired.
+appearance** — skeleton only, minimum hold, fade-in on reveal — the
+**optimistic navigation chrome** that keeps controls answering instantly while
+data loads (§1.9), and the **one-shot URL param** pattern (`?edit=` /
+`?refresh=` / `?_fresh=`) that drives forced renders without polluting
+history. The rules here are canonical for the repo (see also the checklist
+bullet in `AGENTS.md`); this is the reference for *why* each piece exists and
+where it is wired.
 
 ## Table of contents
 
@@ -19,9 +21,11 @@ reference for *why* each piece exists and where it is wired.
 - [1.6 Reveal fade](#16-reveal-fade)
 - [1.7 One-shot URL params](#17-one-shot-url-params)
 - [1.8 No-op navigations & in-page exceptions](#18-no-op-navigations--in-page-exceptions)
-- [1.9 Mutations are out of scope](#19-mutations-are-out-of-scope)
-- [1.10 Usage inventory](#110-usage-inventory)
-- [1.11 File index & related docs](#111-file-index--related-docs)
+- [1.9 Optimistic navigation chrome](#19-optimistic-navigation-chrome)
+- [1.10 Client-router reuse window](#110-client-router-reuse-window)
+- [1.11 Mutations are out of scope](#111-mutations-are-out-of-scope)
+- [1.12 Usage inventory](#112-usage-inventory)
+- [1.13 File index & related docs](#113-file-index--related-docs)
 
 ## 1.1 Problem
 
@@ -219,7 +223,97 @@ whose warm L1 entry still shadows the fresh rows
   skeleton. Only a cross-month change is a data navigation with the skeleton
   (`DashboardView.tsx:772-791`).
 
-## 1.9 Mutations are out of scope
+## 1.9 Optimistic navigation chrome
+
+The skeleton sequence (§1.3) governs the **content**, but on a slow network it
+used to leave the *controls* frozen until the RSC response landed: the bottom
+nav's active highlight derives from the committed `pathname`, and the
+dashboard's tab value / period label derive from server-resolved props. A tap
+on a flaky connection read as dead for seconds. The fix is a two-layer split:
+
+- **Chrome** (tab highlight, nav highlight, period label, chevron aria-labels,
+  skeleton flavor) flips **optimistically at tap time**, from local state.
+- **Data** (grids, rulers, agenda machinery, persisted UI state) keeps
+  rendering from committed props — the skeleton covers the gap.
+
+```mermaid
+sequenceDiagram
+    participant U as User
+    participant C as Chrome (local state)
+    participant N as Next router
+    participant S as Server
+    U->>C: tap Week tab
+    C->>C: highlight + label flip instantly (shown* state)
+    C->>N: startTransition(router.push)
+    N->>S: RSC fetch (may take seconds)
+    N-->>C: WeekGridSkeleton meanwhile (optimistic flavor)
+    S-->>N: payload
+    N-->>C: commit → props update → sync snaps shown* to props
+    Note over C: failed/offline fetch: transition ends,<br/>sync reverts chrome to last committed state
+```
+
+### 1.9.1 Bottom nav & sidebar (`AppShellShell.tsx`)
+
+`tappedHref` tracks the tapped destination; `active` becomes
+`matches(pathname) || href === tappedHref`. Two revert paths keep the
+highlight honest:
+
+1. **Commit**: render-phase "adjust state on prop change" sync clears
+   `tappedHref` when `pathname` changes.
+2. **Abandonment**: a timer (`NAV_TAP_REVERT_MS`, 6 s) clears it when no
+   navigation ever lands (stalled or offline request), so the highlight can't
+   stick to a destination that was never reached.
+
+Additionally each nav `<Link>` wraps its content in `PendingDim`, which calls
+`useLinkStatus()` and dims the icon (~55 %) while that link's navigation is in
+flight — subtle inline feedback exactly as the Next.js docs prescribe. (The
+hook must run inside the Link subtree; hence the wrapper component rather than
+state on the button.)
+
+### 1.9.2 Dashboard date-nav chrome (`DashboardView.tsx`)
+
+`shownView` / `shownMonth` / `shownDate` mirror the server props but lead them
+after a tap. Written by `shiftMonth/shiftDay/shiftWeek/switchView/goToday/
+pickDate`; reconciled by one render-phase sync keyed on
+`(view, month, date, isPending)`:
+
+- While our transition is pending, optimistic values stand (rapid taps compose
+  — shifts base on `shown*`, so two quick "+" presses advance two months
+  instead of the second being eaten by the no-op guard).
+- When the transition ends — commit **or failure** — the sync snaps `shown*`
+  back onto whatever the server resolved, self-healing an offline navigation
+  instead of stranding the label on an intent that never landed.
+
+What deliberately stays on **committed** props: grid/ruler/agenda rendering
+and their guards (`isWeekV2`, `isAnchoredView`, `headerDate`),
+`usePersistUiState` (relaunch restores last *committed* state), chevron click
+dispatch. The invariant that makes this safe: whenever the data renders
+(`!gridLoading`), the sync guarantees `shown === committed`.
+
+The grid **skeleton flavor** and the period label both select by the
+optimistic view — the shape and text you asked for are what appear while it
+loads (same contract as `loading.tsx` resolving the remembered view from the
+cookie).
+
+## 1.10 Client-router reuse window
+
+Next.js defaults `staleTimes.dynamic` to **0** — every soft navigation to a
+dynamic page blocks on the network, even one visited moments ago. The config
+raises it (`next.config.ts`):
+
+```ts
+experimental: { staleTimes: { dynamic: 120 } }
+```
+
+Within 2 minutes, revisiting a URL renders its cached client-router payload
+instantly — bottom-nav round trips and dashboard tab flips become zero-wait
+when the prefetch/cache is warm. This is a *page-snapshot* window only:
+hard loads, new param combinations, and the force-refresh nonce are different
+cache keys and always hit the server, and freshness of the underlying event
+data remains [`events-cache.md`](events-cache.md)'s job. It matches the data
+layer's existing tolerance (60 s fresh window, 30 min stale-while-revalidate).
+
+## 1.11 Mutations are out of scope
 
 A `router.refresh()` after a server action is **not** wrapped in a transition:
 the button's own loader covers it (Mantine `loading` +
@@ -227,7 +321,7 @@ the button's own loader covers it (Mantine `loading` +
 skeleton, no fade — the content stays put while the data updates in place,
 and the non-remounting container means `useContentEnter` never replays.
 
-## 1.10 Usage inventory
+## 1.12 Usage inventory
 
 | Consumer | Minimum hold | Reveal fade | Notes |
 | -------- | ------------ | ----------- | ----- |
@@ -237,7 +331,7 @@ and the non-remounting container means `useContentEnter` never replays.
 | `SettingsForm`, `DepartmentTable`, `ContactList`, `UserTable`, `EventTypeTable`, `TemplatesForm` | — | static `CONTENT_ENTER_CLASS` on the content root | server-rendered pages; the SSR fade plays on first paint |
 | all nine route segments | — | `loading.tsx` skeletons | §1.4 table |
 
-## 1.11 File index & related docs
+## 1.13 File index & related docs
 
 | File | Role |
 | ---- | ---- |
@@ -249,8 +343,10 @@ and the non-remounting container means `useContentEnter` never replays.
 | `src/lib/ui/uiState.ts` | `resolveDashboardView` — shared view resolution for page + route fallback |
 | `src/app/(protected)/parade-state/paradeStateSkeleton.tsx` | Parade row skeletons (shared) |
 | `src/app/(protected)/settings/audit-log/AuditLogRowSkeleton.tsx` | Audit row skeleton (shared) |
-| `src/app/(protected)/dashboard/DashboardView.tsx` | Held loading, reveal fade, one-shot strips (`edit`/`refresh`/`_fresh`), agenda slide |
+| `src/app/(protected)/dashboard/DashboardView.tsx` | Held loading, reveal fade, one-shot strips (`edit`/`refresh`/`_fresh`), agenda slide, optimistic date-nav chrome (`shown*`, §1.9.2) |
 | `src/app/(protected)/parade-state/ParadeStateView.tsx` | Month-gated hold, `_fresh` inject/strip |
+| `src/components/AppShellShell.tsx` | Optimistic nav highlight (`tappedHref`) + `PendingDim`/`useLinkStatus` (§1.9.1) |
+| `next.config.ts` | `experimental.staleTimes.dynamic = 120` client-router reuse window (§1.10) |
 | `src/app/(protected)/dashboard/page.tsx` | `?edit=`/`?refresh=` nonce validation |
 
 Related docs:

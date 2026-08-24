@@ -205,9 +205,15 @@ before changing the subsystem.
   reduced-motion users get a hard swap). (4) Strip one-shot URL params with a plain
   `router.push` outside `startTransition`; `navigate()` early-returns when the href is
   unchanged (no skeleton flash on no-ops). (5) `router.refresh()` after server actions
-  isn't wrapped in transitions — the button loader covers it. In-page exception:
-  in-month/optimistic switches (parade state, Agenda tab) show no skeleton; only
-  cross-month data navigations do.
+  isn't wrapped in transitions — the button loader covers it. (6) Controls answer
+  instantly on slow networks: nav highlights flip optimistically at tap time
+  (`tappedHref` + `useLinkStatus` in `AppShellShell`, reverted on commit or after a 6s
+  stall timer) and the dashboard's date-nav chrome (`shown*` state in `DashboardView`)
+  leads the server props, snapping back when the transition ends; grids/data keep
+  rendering from committed props. `experimental.staleTimes.dynamic = 120`
+  (`next.config.ts`) makes warm soft navigations reuse cached payloads. In-page
+  exception: in-month/optimistic switches (parade state, Agenda tab) show no skeleton;
+  only cross-month data navigations do.
   Design: [docs/loading-transitions.md](docs/loading-transitions.md).
 - **Buttons triggering async work show loading in the button itself:** Mantine `loading`
   prop + shared `loaderProps={BUTTON_LOADER_PROPS}` (`src/lib/theme.ts`);

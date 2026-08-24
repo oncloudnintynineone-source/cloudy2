@@ -475,6 +475,41 @@ export function DashboardView({
     setPinned(pinnedViews);
   }
 
+  // Optimistic date-nav chrome (`shown*`): leads the server-resolved props so
+  // tab taps, chevrons and Today answer instantly while the grid waits behind
+  // its skeleton for real data. Taps write these directly (shift*/switchView/
+  // goToday/pickDate); the render-phase sync below follows external prop
+  // changes (back/forward, deep links, remembered-state cold starts) and —
+  // whenever our navigation transition has ended — re-snaps to the committed
+  // props, healing a failed or offline navigation instead of stranding the
+  // chrome on an intent that never landed. Same "adjust state during render"
+  // pattern as `pinned` above.
+  const [shownView, setShownView] = useState(view);
+  const [shownMonth, setShownMonth] = useState(month);
+  const [shownDate, setShownDate] = useState(date);
+  const [prevNavSync, setPrevNavSync] = useState({ view, month, date, isPending });
+  if (
+    prevNavSync.view !== view ||
+    prevNavSync.month !== month ||
+    prevNavSync.date !== date ||
+    prevNavSync.isPending !== isPending
+  ) {
+    setPrevNavSync({ view, month, date, isPending });
+    // While our transition is in flight the optimistic values stand; once it
+    // ends (commit or failure), whatever the server resolved wins.
+    if (!isPending) {
+      setShownView(view);
+      setShownMonth(month);
+      setShownDate(date);
+    }
+  }
+  const shownIsAgenda = shownView === "agenda";
+  const shownIsWeekV2 = shownView === "weekv2";
+  const shownIsWeek = shownView === "week" || shownIsWeekV2;
+  // Day-anchored chrome flag mirroring `isAnchoredView`, which stays bound to
+  // the committed props because it drives data rendering below.
+  const shownIsAnchored = shownView === "schedule" || shownIsWeekV2 || shownIsAgenda;
+
   // Height of the sticky chrome block (view tabs + date-nav row, one sticky
   // unit), so the Week v2 pinned day header and the Week day-label strip can
   // stick just below it. Measured before first paint (and on resize) so the
@@ -521,7 +556,7 @@ export function DashboardView({
         block: "nearest",
       });
     }
-  }, [view]);
+  }, [shownView]);
 
   // Week view: which day (0-6) sits at the left edge of the horizontally
   // scrolling grid. The index (not raw px) drives the pinned day-label strip,
@@ -627,9 +662,14 @@ export function DashboardView({
     timingFunction: "ease",
   } as const;
 
-  const monthLabel = dayjs(`${month}-01`).format("MMMM YYYY");
-  const dayLabel = dayjs(date).format("ddd, MMM D, YYYY");
-  const week = view === "week" || view === "weekv2" ? weekDays(date) : null;
+  // Nav-row labels derive from the optimistic `shown*` chrome so the period
+  // text moves the instant a control is tapped. The grid/ruler branches below
+  // guard on the committed `view` too, and whenever it renders (!gridLoading)
+  // the sync above guarantees shown === committed, so these never feed stale
+  // values into data rendering.
+  const monthLabel = dayjs(`${shownMonth}-01`).format("MMMM YYYY");
+  const dayLabel = dayjs(shownDate).format("ddd, MMM D, YYYY");
+  const week = shownView === "week" || shownView === "weekv2" ? weekDays(shownDate) : null;
   const weekLabel = week ? formatWeekLabel(week[0], week[6]) : "";
   const today = dayjs().format("YYYY-MM-DD");
   const todayMonth = dayjs().format("YYYY-MM");
@@ -819,18 +859,26 @@ export function DashboardView({
     });
   }
 
+  // Shifts compose on the optimistic chrome values (not the committed props),
+  // so rapid taps during a pending navigation accumulate instead of being
+  // eaten by navigate()'s no-op guard.
   function shiftMonth(delta: number) {
-    const next = dayjs(`${month}-01`).add(delta, "month").format("YYYY-MM");
+    const next = dayjs(`${shownMonth}-01`).add(delta, "month").format("YYYY-MM");
+    setShownMonth(next);
     navigate({ month: next });
   }
 
   function shiftDay(delta: number) {
-    const next = dayjs(date).add(delta, "day");
+    const next = dayjs(shownDate).add(delta, "day");
+    setShownDate(next.format("YYYY-MM-DD"));
+    setShownMonth(next.format("YYYY-MM"));
     navigate({ date: next.format("YYYY-MM-DD"), month: next.format("YYYY-MM") });
   }
 
   function shiftWeek(delta: number) {
-    const next = dayjs(date).add(delta, "week");
+    const next = dayjs(shownDate).add(delta, "week");
+    setShownDate(next.format("YYYY-MM-DD"));
+    setShownMonth(next.format("YYYY-MM"));
     navigate({ date: next.format("YYYY-MM-DD"), month: next.format("YYYY-MM") });
   }
 
@@ -854,7 +902,11 @@ export function DashboardView({
         setAgendaSlideDir(0);
       }
       // Entering an anchored view (day/week/agenda) always starts on today; the
-      // month is derived from the date by the page.
+      // month is derived from the date by the page. The chrome flips now —
+      // tab highlight and period label answer before the fetch resolves.
+      setShownView(mode);
+      setShownDate(today);
+      setShownMonth(todayMonth);
       navigate({ view: mode, month: null, date: today });
       return;
     }
@@ -867,9 +919,13 @@ export function DashboardView({
     }
     // Leaving a date-anchored view keeps the currently viewed month visible;
     // the month is derived from the anchor date for week and agenda/day alike.
+    // Anchoring reads the optimistic chrome so leaving mid-flight (tap Week,
+    // then Month before commit) still lands on the month you were shown.
+    const anchorMonth = shownIsWeek || shownIsAnchored ? shownDate.slice(0, 7) : null;
+    setShownView("month");
     navigate({
       view: null,
-      month: isWeek || isAnchoredView ? date.slice(0, 7) : null,
+      month: anchorMonth,
       date: null,
     });
   }
@@ -880,13 +936,18 @@ export function DashboardView({
       return;
     }
     if (isAnchoredView) {
+      setShownDate(today);
+      setShownMonth(todayMonth);
       navigate({ date: today, month: todayMonth });
     } else {
+      setShownMonth(todayMonth);
       navigate({ month: todayMonth });
     }
   }
 
   function pickDate(picked: string) {
+    setShownDate(picked);
+    setShownMonth(picked.slice(0, 7));
     navigate({ date: picked, month: picked.slice(0, 7) });
   }
 
@@ -1041,11 +1102,13 @@ export function DashboardView({
     () => (agendaViewDate ? eventsOnDay(events, agendaViewDate) : []),
     [events, agendaViewDate],
   );
-  const onToday = isWeek
+  // "Today" affordance state, keyed to the optimistic chrome like the label:
+  // the menu item reflects where you're headed, not where the fetch is at.
+  const onToday = shownIsWeek
     ? week !== null && week.some((day) => day === today)
-    : isAnchoredView
+    : shownIsAnchored
       ? headerDate === today
-      : month === todayMonth;
+      : shownMonth === todayMonth;
 
   // Measure the schedule views' actual hourly slot width and sync the pinned
   // rulers with it. Mantine sizes each hour slot in `rem`
@@ -1154,7 +1217,7 @@ export function DashboardView({
         }}
       >
         <Tabs
-          value={view}
+          value={shownView}
           onChange={(next) => switchView(next ?? "month")}
           aria-label="Calendar view"
           styles={{ tab: { flex: 1 } }}
@@ -1197,7 +1260,7 @@ export function DashboardView({
             size={36}
             variant="default"
             aria-label={
-              isWeek ? "Previous week" : isAnchoredView ? "Previous day" : "Previous month"
+              shownIsWeek ? "Previous week" : shownIsAnchored ? "Previous day" : "Previous month"
             }
             onClick={() =>
               isAgenda
@@ -1217,18 +1280,23 @@ export function DashboardView({
             lineClamp={1}
             style={{ flex: 1, minWidth: 0, textAlign: "center" }}
           >
-            {isAgenda
-              ? dayjs(headerDate).format("ddd, MMM D, YYYY")
-              : isWeek
+            {/* Label flavor follows the optimistic chrome (same contract as
+                the skeleton below): the period you asked for is what reads,
+                even while its data is still in flight. The Agenda branch
+                still tracks `viewedDay` once the tab is live — a fresh entry
+                has none, so it falls back to the optimistic date (today). */}
+            {shownIsAgenda
+              ? dayjs(viewedDay ?? shownDate).format("ddd, MMM D, YYYY")
+              : shownIsWeek
                 ? weekLabel
-                : isAnchoredView
+                : shownIsAnchored
                   ? dayLabel
                   : monthLabel}
           </Text>
           <ActionIcon
             size={36}
             variant="default"
-            aria-label={isWeek ? "Next week" : isAnchoredView ? "Next day" : "Next month"}
+            aria-label={shownIsWeek ? "Next week" : shownIsAnchored ? "Next day" : "Next month"}
             onClick={() =>
               isAgenda
                 ? applyAgendaDay(dayjs(headerDate).add(1, "day").format("YYYY-MM-DD"))
@@ -1392,13 +1460,16 @@ export function DashboardView({
           />
         )}
         {gridLoading ? (
-          view === "month" ? (
-            <MonthGridSkeleton rows={monthGridRows(month)} />
-          ) : isWeekV2 ? (
+          // Skeleton flavor follows the optimistic view: the shape you tapped
+          // is what appears to load (same contract as loading.tsx, which
+          // resolves the remembered view from the cookie).
+          shownView === "month" ? (
+            <MonthGridSkeleton rows={monthGridRows(shownMonth)} />
+          ) : shownIsWeekV2 ? (
             <WeekMatrixSkeleton />
-          ) : isWeek ? (
+          ) : shownIsWeek ? (
             <WeekGridSkeleton />
-          ) : isAgenda ? (
+          ) : shownIsAgenda ? (
             <AgendaListSkeleton />
           ) : (
             <ScheduleGridSkeleton />
