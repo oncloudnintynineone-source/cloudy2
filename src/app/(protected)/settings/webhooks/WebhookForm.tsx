@@ -14,6 +14,7 @@ import {
 } from "@/lib/webhooks/actions";
 import { validateWebhookForm, type WebhookFormValues } from "@/lib/webhooks/validate";
 import { BUTTON_LOADER_PROPS } from "@/lib/theme";
+import { showValidationFailure } from "@/lib/ui/validationFeedback";
 
 interface WebhookFormProps {
   webhook: {
@@ -39,31 +40,35 @@ export function WebhookForm({ webhook, onDone }: WebhookFormProps) {
       enabled: webhook?.enabled ?? true,
     },
     validate: (values) => validateWebhookForm(values),
+    validateInputOnBlur: true,
   });
 
-  const onSubmit = form.onSubmit(async (values) => {
-    const result: WebhookActionResult = isEdit
-      ? await updateWebhook(webhook.id, values)
-      : await createWebhook(values);
+  const onSubmit = form.onSubmit(
+    async (values) => {
+      const result: WebhookActionResult = isEdit
+        ? await updateWebhook(webhook.id, values)
+        : await createWebhook(values);
 
-    if (result.ok) {
-      notifications.show({
-        color: "green",
-        message: isEdit ? "Webhook endpoint updated" : "Webhook endpoint created",
-      });
-      onDone();
-      return;
-    }
+      if (result.ok) {
+        notifications.show({
+          color: "green",
+          message: isEdit ? "Webhook endpoint updated" : "Webhook endpoint created",
+        });
+        onDone();
+        return;
+      }
 
-    if (result.field === "name") {
-      form.setFieldError("name", result.error);
-    } else if (result.field === "url") {
-      form.setFieldError("url", result.error);
-    } else if (result.field === "secret") {
-      form.setFieldError("secret", result.error);
-    }
-    notifications.show({ color: "red", message: result.error });
-  });
+      if (result.field === "name") {
+        form.setFieldError("name", result.error);
+      } else if (result.field === "url") {
+        form.setFieldError("url", result.error);
+      } else if (result.field === "secret") {
+        form.setFieldError("secret", result.error);
+      }
+      notifications.show({ color: "red", message: result.error });
+    },
+    (errors) => showValidationFailure(errors, (field) => form.getInputNode(field)),
+  );
 
   async function confirmDelete() {
     if (!webhook || deletingWebhook) {

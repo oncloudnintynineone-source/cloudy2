@@ -14,6 +14,7 @@ import {
 } from "@/lib/eventTypes/actions";
 import { validateEventTypeForm, type EventTypeFormValues } from "@/lib/eventTypes/validate";
 import { BUTTON_LOADER_PROPS } from "@/lib/theme";
+import { showValidationFailure } from "@/lib/ui/validationFeedback";
 import {
   LOCATION_POLICIES,
   LOCATION_POLICY_DESCRIPTIONS,
@@ -54,33 +55,37 @@ export function EventTypeForm({ eventType, onDone }: EventTypeFormProps) {
       color: eventType?.color ?? "",
     },
     validate: (values) => validateEventTypeForm(values),
+    validateInputOnBlur: true,
   });
 
-  const onSubmit = form.onSubmit(async (values) => {
-    const result: EventTypeActionResult = isEdit
-      ? await renameEventType(eventType.id, values)
-      : await createEventType(values);
+  const onSubmit = form.onSubmit(
+    async (values) => {
+      const result: EventTypeActionResult = isEdit
+        ? await renameEventType(eventType.id, values)
+        : await createEventType(values);
 
-    if (result.ok) {
-      notifications.show({
-        color: "green",
-        message: isEdit ? "Event type updated" : "Event type created",
-      });
-      onDone();
-      return;
-    }
+      if (result.ok) {
+        notifications.show({
+          color: "green",
+          message: isEdit ? "Event type updated" : "Event type created",
+        });
+        onDone();
+        return;
+      }
 
-    if (result.field === "name") {
-      form.setFieldError("name", result.error);
-    } else if (result.field === "shortname") {
-      form.setFieldError("shortname", result.error);
-    } else if (result.field === "timeOptions") {
-      form.setFieldError("timeOptions", result.error);
-    } else if (result.field === "locationPolicy") {
-      form.setFieldError("locationPolicy", result.error);
-    }
-    notifications.show({ color: "red", message: result.error });
-  });
+      if (result.field === "name") {
+        form.setFieldError("name", result.error);
+      } else if (result.field === "shortname") {
+        form.setFieldError("shortname", result.error);
+      } else if (result.field === "timeOptions") {
+        form.setFieldError("timeOptions", result.error);
+      } else if (result.field === "locationPolicy") {
+        form.setFieldError("locationPolicy", result.error);
+      }
+      notifications.show({ color: "red", message: result.error });
+    },
+    (errors) => showValidationFailure(errors, (field) => form.getInputNode(field)),
+  );
 
   async function confirmDelete() {
     if (!eventType || deletingType) {

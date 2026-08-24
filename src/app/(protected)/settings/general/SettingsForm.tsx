@@ -20,6 +20,7 @@ import {
   type RetentionFormValues,
 } from "@/lib/settings/validate";
 import { BUTTON_LOADER_PROPS } from "@/lib/theme";
+import { showValidationFailure } from "@/lib/ui/validationFeedback";
 
 interface SettingsFormProps {
   keyword: string;
@@ -32,42 +33,50 @@ export function SettingsForm({ keyword, retentionDays }: SettingsFormProps) {
   const keywordForm = useForm<KeywordFormValues>({
     initialValues: { keyword },
     validate: (values) => validateKeywordForm(values),
+    validateInputOnBlur: true,
   });
 
   const retentionForm = useForm<RetentionFormValues>({
     initialValues: { retentionDays },
     validate: (values) => validateRetentionForm(values),
+    validateInputOnBlur: true,
   });
 
-  const onSubmitKeyword = keywordForm.onSubmit(async (values) => {
-    const result: SettingsActionResult = await updateKeyword(values.keyword);
+  const onSubmitKeyword = keywordForm.onSubmit(
+    async (values) => {
+      const result: SettingsActionResult = await updateKeyword(values.keyword);
 
-    if (result.ok) {
-      notifications.show({ color: "green", message: "Login keyword updated" });
-      router.refresh();
-      return;
-    }
+      if (result.ok) {
+        notifications.show({ color: "green", message: "Login keyword updated" });
+        router.refresh();
+        return;
+      }
 
-    if (result.field === "keyword") {
-      keywordForm.setFieldError("keyword", result.error);
-    }
-    notifications.show({ color: "red", message: result.error });
-  });
+      if (result.field === "keyword") {
+        keywordForm.setFieldError("keyword", result.error);
+      }
+      notifications.show({ color: "red", message: result.error });
+    },
+    (errors) => showValidationFailure(errors, (field) => keywordForm.getInputNode(field)),
+  );
 
-  const onSubmitRetention = retentionForm.onSubmit(async (values) => {
-    const result: SettingsActionResult = await updateAuditLogRetention(values.retentionDays);
+  const onSubmitRetention = retentionForm.onSubmit(
+    async (values) => {
+      const result: SettingsActionResult = await updateAuditLogRetention(values.retentionDays);
 
-    if (result.ok) {
-      notifications.show({ color: "green", message: "Audit log retention updated" });
-      router.refresh();
-      return;
-    }
+      if (result.ok) {
+        notifications.show({ color: "green", message: "Audit log retention updated" });
+        router.refresh();
+        return;
+      }
 
-    if (result.field === "retentionDays") {
-      retentionForm.setFieldError("retentionDays", result.error);
-    }
-    notifications.show({ color: "red", message: result.error });
-  });
+      if (result.field === "retentionDays") {
+        retentionForm.setFieldError("retentionDays", result.error);
+      }
+      notifications.show({ color: "red", message: result.error });
+    },
+    (errors) => showValidationFailure(errors, (field) => retentionForm.getInputNode(field)),
+  );
 
   return (
     <Grid className={CONTENT_ENTER_CLASS} gap="md">

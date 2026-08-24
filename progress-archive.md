@@ -4752,3 +4752,73 @@ event-lifecycle.md §1.4.1 (Invited Attendees step, Review step) and §1.8.3
 review row drops it).
 
 Verification: lint/typecheck/test pass.
+
+## 1.100 Form validation feedback: toast + scroll-to-error + validate-on-blur
+
+Client-side validation failures in the create/edit user modal (and every other
+Mantine form) had no visible feedback: the only output was the small red text
+under the invalid fields, which in a scrollable mobile modal sits far from the
+submit button — tapping Create/Save with bad values appeared to do nothing.
+Mantine's form core already set the field errors on a failed submit; the gap
+was purely in the feedback layer.
+
+- New `src/lib/ui/validationFeedback.ts` ("use client"): `firstErrorField`
+  (pure, unit-tested) plus `showValidationFailure(errors, getErrorNode)`,
+  which scrolls the first invalid field into view
+  (`scrollIntoView({ behavior: "smooth", block: "center" })`) and shows a red
+  "Check the highlighted fields" toast — the same wording the server path
+  uses in `roster/actions.ts`.
+- Every Mantine form now passes the failure handler as the second
+  `form.onSubmit` argument and sets `validateInputOnBlur: true` (inline error
+  as soon as a field loses focus; the default `clearInputErrorOnChange` clears
+  it on the next edit): `UserForm`, `DepartmentForm`, `EventTypeForm`,
+  `WebhookForm`, `TemplatesForm` (both forms), `SettingsForm` (both forms),
+  and the dashboard `EventForm` final submit.
+- `EventForm` nuance: only the `getInputProps`-bound fields (title, location)
+  get blur validation and scroll-into-view — the wizard's `goNext` already
+  gates every other step via `validateField`. The toast still fires on any
+  final-submit failure, including cross-field rules.
+
+Tests: new `validationFeedback.test.ts` (3 cases). Verification:
+lint/typecheck/test pass.
+
+
+## 1.101 Duplicate-key crashes fixed: drizzle-wrapped error inspection
+
+Creating or editing a user (or event type) with an already-used phone or
+shortname crashed the server action instead of showing a friendly toast.
+Root cause: **drizzle-orm wraps every failed query in a `DrizzleQueryError`**
+(`"Failed query: <sql>\nparams: ..."`) and hides the underlying postgres-js
+`PostgresError` — the one carrying the SQLSTATE `code` (`23505`) and
+`constraint_name` — in `.cause`. The `isUniqueViolation` / `violatedConstraint`
+helpers in `roster/actions.ts` and `eventTypes/actions.ts` checked `"code" in
+error` on the wrapper (which has no `code`), so the duplicate-key branches
+never matched and the catch fell through to `throw error`, producing an
+"Uncaught (in promise)" in the browser with no toast or field error. The same
+wrapper also leaked raw SQL into user-facing toasts wherever a catch used
+`error.message` directly (department rename/delete, all event
+create/update/delete).
+
+- New `src/db/pgErrors.ts` (pure, no imports, unit-tested in
+  `pgErrors.test.ts`):
+  - `findUniqueViolation(error)` walks the error's `.cause` chain
+    (cycle-guarded) and returns `{ constraintName }` for the first SQLSTATE
+    `23505` it finds, else null.
+  - `isDbQueryError(error)` detects the drizzle `"Failed query: "` wrapper
+    anywhere in the chain.
+  - `describeError(error, fallback)` returns the error's own message for real
+    errors (e.g. Google API failures) and the caller-supplied fallback when
+    the message is raw SQL from a failed DB query.
+- `roster/actions.ts` + `eventTypes/actions.ts`: removed the broken local
+  `isUniqueViolation` / `violatedConstraint` helpers; `createUser` /
+  `updateUser` / `createEventType` / `renameEventType` now resolve the
+  constraint through `findUniqueViolation`, so a duplicate phone/shortname/name
+  returns the proper field-targeted error (the existing client handling then
+  toasts + marks the field) instead of throwing.
+- `roster/actions.ts` (department create/rename/delete) and `events/actions.ts`
+  (event create/update/delete): DB failures now surface a friendly
+  `describeError` fallback ("Could not create/update/delete the …") instead of
+  the raw `Failed query: <sql>` text.
+
+Tests: 13 new cases in `pgErrors.test.ts`. Verification:
+lint/typecheck/test/build pass.

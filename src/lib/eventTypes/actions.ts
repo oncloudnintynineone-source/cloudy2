@@ -4,6 +4,7 @@ import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
 import { db } from "@/db";
+import { findUniqueViolation } from "@/db/pgErrors";
 import { eventTypes, type EventType } from "@/db/schema";
 import { AUDIT_ACTIONS, actorFromUser } from "@/lib/audit/build";
 import { diffFields } from "@/lib/audit/diff";
@@ -21,23 +22,6 @@ export type EventTypeActionResult =
       error: string;
       field?: "name" | "shortname" | "timeOptions" | "locationPolicy";
     };
-
-function isUniqueViolation(error: unknown): error is {
-  code?: string;
-  constraint_name?: string;
-} {
-  return (
-    typeof error === "object" &&
-    error !== null &&
-    "code" in error &&
-    (error as { code?: string }).code === "23505"
-  );
-}
-
-/** Constraint name violated by a unique-violation error, or null. */
-function violatedConstraint(error: unknown): string | null {
-  return isUniqueViolation(error) ? (error.constraint_name ?? null) : null;
-}
 
 function actorFrom(session: Awaited<ReturnType<typeof requireAdmin>>) {
   return actorFromUser({
@@ -92,14 +76,17 @@ export async function createEventType(input: EventTypeFormValues): Promise<Event
       },
     });
   } catch (error) {
-    if (violatedConstraint(error) === "event_types_shortname_idx") {
+    // Drizzle wraps the PostgresError in a DrizzleQueryError, so the
+    // constraint name lives down the .cause chain (see src/db/pgErrors.ts).
+    const violation = findUniqueViolation(error);
+    if (violation?.constraintName === "event_types_shortname_idx") {
       return {
         ok: false,
         error: "An event type with this shortname already exists",
         field: "shortname",
       };
     }
-    if (isUniqueViolation(error)) {
+    if (violation !== null) {
       return { ok: false, error: "An event type with this name already exists", field: "name" };
     }
     throw error;
@@ -161,14 +148,17 @@ export async function renameEventType(
       ),
     });
   } catch (error) {
-    if (violatedConstraint(error) === "event_types_shortname_idx") {
+    // Drizzle wraps the PostgresError in a DrizzleQueryError, so the
+    // constraint name lives down the .cause chain (see src/db/pgErrors.ts).
+    const violation = findUniqueViolation(error);
+    if (violation?.constraintName === "event_types_shortname_idx") {
       return {
         ok: false,
         error: "An event type with this shortname already exists",
         field: "shortname",
       };
     }
-    if (isUniqueViolation(error)) {
+    if (violation !== null) {
       return { ok: false, error: "An event type with this name already exists", field: "name" };
     }
     throw error;

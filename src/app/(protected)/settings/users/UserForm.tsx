@@ -17,6 +17,7 @@ import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
 
 import { BUTTON_LOADER_PROPS } from "@/lib/theme";
+import { showValidationFailure } from "@/lib/ui/validationFeedback";
 
 import {
   createUser,
@@ -73,36 +74,45 @@ export function UserForm({ user, departments, onDone }: UserFormProps) {
     // so initialValues are computed once per mount and stay correct.
     initialValues: initialValues(user),
     validate: (values) => validateUserForm(values),
+    // Validate as soon as a field loses focus: the inline error appears
+    // without waiting for a submit (errors clear on the next edit).
+    validateInputOnBlur: true,
   });
 
-  const onSubmit = form.onSubmit(async (values) => {
-    const result: RosterActionResult = isEdit
-      ? await updateUser(user.id, values)
-      : await createUser(values);
+  const onSubmit = form.onSubmit(
+    async (values) => {
+      const result: RosterActionResult = isEdit
+        ? await updateUser(user.id, values)
+        : await createUser(values);
 
-    if (result.ok) {
-      const message = isEdit ? "User updated" : "User created";
-      if (result.warnings && result.warnings.length > 0) {
-        notifications.show({
-          color: "yellow",
-          title: message,
-          message: result.warnings.join(" · "),
-        });
-      } else {
-        notifications.show({ color: "green", message });
+      if (result.ok) {
+        const message = isEdit ? "User updated" : "User created";
+        if (result.warnings && result.warnings.length > 0) {
+          notifications.show({
+            color: "yellow",
+            title: message,
+            message: result.warnings.join(" · "),
+          });
+        } else {
+          notifications.show({ color: "green", message });
+        }
+        onDone();
+        return;
       }
-      onDone();
-      return;
-    }
 
-    if (result.field === "phone") {
-      form.setFieldError("phone", result.error);
-    }
-    if (result.field === "shortname") {
-      form.setFieldError("shortname", result.error);
-    }
-    notifications.show({ color: "red", message: result.error });
-  });
+      if (result.field === "phone") {
+        form.setFieldError("phone", result.error);
+      }
+      if (result.field === "shortname") {
+        form.setFieldError("shortname", result.error);
+      }
+      notifications.show({ color: "red", message: result.error });
+    },
+    // Client-side validation failure: inline field errors alone are easy to
+    // miss (submit button is far from the invalid fields), so also toast and
+    // scroll the first invalid field into view.
+    (errors) => showValidationFailure(errors, (field) => form.getInputNode(field)),
+  );
 
   async function handleToggleStatus() {
     if (!isEdit || !user || togglingStatus) return;

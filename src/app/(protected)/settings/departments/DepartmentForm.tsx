@@ -11,6 +11,7 @@ import {
 } from "@/lib/roster/actions";
 import { validateCalendarForm, type CalendarFormValues } from "@/lib/roster/validate";
 import { BUTTON_LOADER_PROPS } from "@/lib/theme";
+import { showValidationFailure } from "@/lib/ui/validationFeedback";
 import { ColorSwatchPicker } from "@/components/ColorSwatchPicker";
 
 interface DepartmentFormProps {
@@ -27,27 +28,31 @@ export function DepartmentForm({ calendar, onDone }: DepartmentFormProps) {
       color: calendar?.color ?? "",
     },
     validate: (values) => validateCalendarForm(values),
+    validateInputOnBlur: true,
   });
 
-  const onSubmit = form.onSubmit(async (values) => {
-    const result: RosterActionResult = isEdit
-      ? await renameDepartment(calendar.id, values)
-      : await createDepartment(values);
+  const onSubmit = form.onSubmit(
+    async (values) => {
+      const result: RosterActionResult = isEdit
+        ? await renameDepartment(calendar.id, values)
+        : await createDepartment(values);
 
-    if (result.ok) {
-      notifications.show({
-        color: "green",
-        message: isEdit ? "Department updated" : "Department created",
-      });
-      onDone();
-      return;
-    }
+      if (result.ok) {
+        notifications.show({
+          color: "green",
+          message: isEdit ? "Department updated" : "Department created",
+        });
+        onDone();
+        return;
+      }
 
-    if (result.field === "name") {
-      form.setFieldError("name", result.error);
-    }
-    notifications.show({ color: "red", message: result.error });
-  });
+      if (result.field === "name") {
+        form.setFieldError("name", result.error);
+      }
+      notifications.show({ color: "red", message: result.error });
+    },
+    (errors) => showValidationFailure(errors, (field) => form.getInputNode(field)),
+  );
 
   return (
     <form onSubmit={onSubmit}>

@@ -213,6 +213,13 @@ before changing the subsystem.
   prop + shared `loaderProps={BUTTON_LOADER_PROPS}` (`src/lib/theme.ts`);
   `loading={form.submitting}` for useForm submits; local `loading` state set before /
   cleared in `finally` around manual awaits, guarding re-entry (see `LoginForm.tsx`).
+- **Form validation feedback:** every Mantine form sets `validateInputOnBlur: true`
+  and passes the failure handler as the second `form.onSubmit` argument:
+  `(errors) => showValidationFailure(errors, (field) => form.getInputNode(field))`
+  (`src/lib/ui/validationFeedback.ts`) — a red "Check the highlighted fields" toast
+  (same wording as the server path) plus scroll-into-view of the first invalid field.
+  Inline field errors alone are easy to miss in a scrollable modal, so new forms must
+  include both.
 - The Users section is route `/settings/users`, but its domain code stays under
   `src/lib/roster/*` — don't rename the internal module to match the UI label.
   Model + calendar sharing: [docs/roster-sharing.md](docs/roster-sharing.md).

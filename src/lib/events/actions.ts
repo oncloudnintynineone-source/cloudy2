@@ -4,6 +4,7 @@ import { inArray } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
 import { db } from "@/db";
+import { describeError } from "@/db/pgErrors";
 import { calendars } from "@/db/schema";
 import { AUDIT_ACTIONS, actorFromUser } from "@/lib/audit/build";
 import { diffFields } from "@/lib/audit/diff";
@@ -59,10 +60,6 @@ export type EventResultField = "title" | "start" | "end" | "startAmPm" | "endAmP
 
 export type EventActionResult =
   { ok: true } | { ok: false; error: string; field?: EventResultField };
-
-function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : "Google Calendar request failed";
-}
 
 /** User id → name map from a roster lookup, for audit snapshot display. */
 function namesById(rows: UserDisplayInfo[]): Record<string, string> {
@@ -407,7 +404,9 @@ export async function createEvent(input: EventFormValues): Promise<EventActionRe
     for (const copy of created) {
       await integration.deleteEvent(copy.googleCalendarId, copy.googleEventId).catch(() => {});
     }
-    return { ok: false, error: errorMessage(error) };
+    // describeError hides raw SQL from drizzle-wrapped DB errors and keeps
+    // Google API messages (see src/db/pgErrors.ts).
+    return { ok: false, error: describeError(error, "Could not create the event") };
   }
 
   const targetCalendars = await calendarNames(targets);
@@ -582,7 +581,7 @@ export async function updateEvent(
     for (const copy of createdHere) {
       await integration.deleteEvent(copy.googleCalendarId, copy.googleEventId).catch(() => {});
     }
-    return { ok: false, error: errorMessage(error) };
+    return { ok: false, error: describeError(error, "Could not update the event") };
   }
 
   const names: EventSnapshotNames = {
@@ -698,7 +697,7 @@ export async function deleteEvent(ref: EventRef): Promise<EventActionResult> {
       }
     }
   } catch (error) {
-    return { ok: false, error: errorMessage(error) };
+    return { ok: false, error: describeError(error, "Could not delete the event") };
   }
 
   const snapshot = snapshotFromCopy(

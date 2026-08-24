@@ -47,6 +47,7 @@ import {
   type EventTitlePerson,
 } from "@/lib/settings/formatEventTitle";
 import { BUTTON_LOADER_PROPS } from "@/lib/theme";
+import { showValidationFailure } from "@/lib/ui/validationFeedback";
 import { formatDateTime, naiveToDate } from "./clientDateTime";
 
 interface EventTypeOption {
@@ -166,6 +167,9 @@ export function EventForm({
   const form = useForm<EventFormState>({
     initialValues: buildInitialValues(),
     validate: (values) => validateEventForm(values),
+    // Blur-validation only covers the getInputProps-bound fields (title,
+    // location); the wizard's goNext already gates every other step.
+    validateInputOnBlur: true,
   });
 
   // The event creator is always an invitee; the select value holding them is
@@ -477,46 +481,51 @@ export function EventForm({
     return `${formatDateTime(form.values.start, false)} – ${formatDateTime(form.values.end, false)}`;
   })();
 
-  const onSubmit = form.onSubmit(async (values) => {
-    // The submit button only renders on the last step; guard against implicit
-    // form submission (e.g. Enter in a textbox) from earlier steps.
-    if (!isLastStep) {
-      return;
-    }
-    const { invitees, ...rest } = values;
-    const { userIds, departmentIds } = splitInvitees(invitees);
-    const payload: EventFormValues = {
-      ...rest,
-      timeOption: effectiveTimeOption,
-      startAmPm: effectiveTimeOption === "half" ? rest.startAmPm || "AM" : "",
-      endAmPm: effectiveTimeOption === "half" ? rest.endAmPm || "PM" : "",
-      inviteeUserIds: userIds,
-      inviteeDepartments: departmentIds,
-    };
-    const result: EventActionResult = isEdit
-      ? await updateEvent(eventRefFromCalendarEvent(event), payload)
-      : await createEvent(payload);
-
-    if (result.ok) {
-      notifications.show({
-        color: "green",
-        message: isEdit ? "Event updated" : "Event created",
-      });
-      onDone();
-      return;
-    }
-
-    if (result.field) {
-      const failedField = result.field;
-      form.setFieldError(failedField, result.error);
-      // Land the user on the step that owns the failing field.
-      const target = steps.findIndex((s) => s.id === STEP_BY_FIELD[failedField]);
-      if (target >= 0) {
-        setStep(target);
+  const onSubmit = form.onSubmit(
+    async (values) => {
+      // The submit button only renders on the last step; guard against
+      // implicit form submission (e.g. Enter in a textbox) from earlier steps.
+      if (!isLastStep) {
+        return;
       }
-    }
-    notifications.show({ color: "red", message: result.error });
-  });
+      const { invitees, ...rest } = values;
+      const { userIds, departmentIds } = splitInvitees(invitees);
+      const payload: EventFormValues = {
+        ...rest,
+        timeOption: effectiveTimeOption,
+        startAmPm: effectiveTimeOption === "half" ? rest.startAmPm || "AM" : "",
+        endAmPm: effectiveTimeOption === "half" ? rest.endAmPm || "PM" : "",
+        inviteeUserIds: userIds,
+        inviteeDepartments: departmentIds,
+      };
+      const result: EventActionResult = isEdit
+        ? await updateEvent(eventRefFromCalendarEvent(event), payload)
+        : await createEvent(payload);
+
+      if (result.ok) {
+        notifications.show({
+          color: "green",
+          message: isEdit ? "Event updated" : "Event created",
+        });
+        onDone();
+        return;
+      }
+
+      if (result.field) {
+        const failedField = result.field;
+        form.setFieldError(failedField, result.error);
+        // Land the user on the step that owns the failing field.
+        const target = steps.findIndex((s) => s.id === STEP_BY_FIELD[failedField]);
+        if (target >= 0) {
+          setStep(target);
+        }
+      }
+      notifications.show({ color: "red", message: result.error });
+    },
+    // Client-side failure on the final submit (e.g. end before start): toast,
+    // and scroll the first invalid field into view when it is on this step.
+    (errors) => showValidationFailure(errors, (field) => form.getInputNode(field)),
+  );
 
   const showTabs = allowedOptions.length > 1;
 

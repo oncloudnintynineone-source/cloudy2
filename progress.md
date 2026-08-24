@@ -152,6 +152,8 @@ One line per phase; full write-ups (incl. Mermaid diagrams and verification note
 - 1.97 Sticky calendar chrome: tabs+date-nav pinned at all widths, Week strip docks, mobile headers fixed (Phase 3au)
 - 1.98 Pinned Day/Week hour rulers; compact date-nav row; z-order fix for columns overlapping pinned bars (Phase 3av)
 - 1.99 Owner hidden from invited-attendee lists; People/Invitees labels renamed (Phase 3aw)
+- 1.100 Form validation feedback: toast + scroll to first invalid field + validate-on-blur, all forms
+- 1.101 Duplicate phone/shortname crashes fixed: drizzle-wrapped error inspection + no raw SQL in toasts
 
 ## 1.4 Open items & next steps
 

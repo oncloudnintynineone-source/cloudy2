@@ -27,6 +27,7 @@ import {
   type NameTemplateFormValues,
 } from "@/lib/settings/validate";
 import { BUTTON_LOADER_PROPS } from "@/lib/theme";
+import { showValidationFailure } from "@/lib/ui/validationFeedback";
 
 interface PreviewUser {
   name: string;
@@ -98,42 +99,52 @@ export function TemplatesForm({
   const nameTemplateForm = useForm<NameTemplateFormValues>({
     initialValues: { nameTemplate },
     validate: (values) => validateNameTemplate(values),
+    validateInputOnBlur: true,
   });
 
   const eventTitleTemplateForm = useForm<EventTitleTemplateFormValues>({
     initialValues: { eventTitleTemplate },
     validate: (values) => validateEventTitleTemplate(values),
+    validateInputOnBlur: true,
   });
 
-  const onSubmitNameTemplate = nameTemplateForm.onSubmit(async (values) => {
-    const result: SettingsActionResult = await updateNameTemplate(values.nameTemplate);
+  const onSubmitNameTemplate = nameTemplateForm.onSubmit(
+    async (values) => {
+      const result: SettingsActionResult = await updateNameTemplate(values.nameTemplate);
 
-    if (result.ok) {
-      notifications.show({ color: "green", message: "Name template updated" });
-      router.refresh();
-      return;
-    }
+      if (result.ok) {
+        notifications.show({ color: "green", message: "Name template updated" });
+        router.refresh();
+        return;
+      }
 
-    if (result.field === "nameTemplate") {
-      nameTemplateForm.setFieldError("nameTemplate", result.error);
-    }
-    notifications.show({ color: "red", message: result.error });
-  });
+      if (result.field === "nameTemplate") {
+        nameTemplateForm.setFieldError("nameTemplate", result.error);
+      }
+      notifications.show({ color: "red", message: result.error });
+    },
+    (errors) => showValidationFailure(errors, (field) => nameTemplateForm.getInputNode(field)),
+  );
 
-  const onSubmitEventTitleTemplate = eventTitleTemplateForm.onSubmit(async (values) => {
-    const result: SettingsActionResult = await updateEventTitleTemplate(values.eventTitleTemplate);
+  const onSubmitEventTitleTemplate = eventTitleTemplateForm.onSubmit(
+    async (values) => {
+      const result: SettingsActionResult = await updateEventTitleTemplate(
+        values.eventTitleTemplate,
+      );
 
-    if (result.ok) {
-      notifications.show({ color: "green", message: "Event title template updated" });
-      router.refresh();
-      return;
-    }
+      if (result.ok) {
+        notifications.show({ color: "green", message: "Event title template updated" });
+        router.refresh();
+        return;
+      }
 
-    if (result.field === "eventTitleTemplate") {
-      eventTitleTemplateForm.setFieldError("eventTitleTemplate", result.error);
-    }
-    notifications.show({ color: "red", message: result.error });
-  });
+      if (result.field === "eventTitleTemplate") {
+        eventTitleTemplateForm.setFieldError("eventTitleTemplate", result.error);
+      }
+      notifications.show({ color: "red", message: result.error });
+    },
+    (errors) => showValidationFailure(errors, (field) => eventTitleTemplateForm.getInputNode(field)),
+  );
 
   const template = nameTemplateForm.values.nameTemplate;
   const eventTitleTemplateValue = eventTitleTemplateForm.values.eventTitleTemplate;
