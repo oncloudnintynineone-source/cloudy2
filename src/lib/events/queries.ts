@@ -4,8 +4,8 @@ import { eq, inArray } from "drizzle-orm";
 import { after } from "next/server";
 
 import { db } from "@/db";
-import { calendars, users } from "@/db/schema";
-import { effectiveCalendarColor } from "@/lib/events/calendarColors";
+import { calendars, eventTypes, users } from "@/db/schema";
+import { effectiveCalendarColor, effectiveEventTypeColor } from "@/lib/events/eventColors";
 import { formatInstantToNaive, shiftMonth, utcToDateString } from "@/lib/events/datetime";
 import { getCachedMonthEventsForCalendars } from "@/lib/google/eventsCache";
 import type { GcalEventItem } from "@/lib/google/types";
@@ -103,11 +103,17 @@ const PREFETCH_ADJACENT_MONTHS = true;
 /**
  * One Google listing item as schedule-ready data, or null when the type/user
  * filters exclude it.
+ *
+ * Color: typed events use their event type's pinned color, or the
+ * deterministic default derived from the type name (also the fallback for
+ * types deleted after their events were created); untyped/external events
+ * use the department calendar's pinned color, or its id-derived default.
  */
 function mapCalendarItem(
   calendar: { id: string; name: string; color: string | null },
   item: GcalEventItem,
   filters: { typeFilter: string[]; userFilter: string[] },
+  typeColors: Map<string, string | null>,
 ): CalendarEvent | null {
   const eventType = parseEventType(item.description);
   if (filters.typeFilter.length > 0 && (!eventType || !filters.typeFilter.includes(eventType))) {
@@ -128,7 +134,9 @@ function mapCalendarItem(
     title: item.title || "(no title)",
     start: scheduleTime(item.start, item.allDay),
     end: scheduleTime(item.end, item.allDay),
-    color: effectiveCalendarColor(calendar.id, calendar.color),
+    color: eventType
+      ? effectiveEventTypeColor(eventType, typeColors.get(eventType) ?? null)
+      : effectiveCalendarColor(calendar.id, calendar.color),
     payload: {
       calendarId: calendar.id,
       googleEventId: item.id,
@@ -183,6 +191,13 @@ export async function fetchRangeEvents(params: {
     .orderBy(calendars.name);
   const googleCalendarIds = rows.map((calendar) => calendar.googleCalendarId);
 
+  // Event type name → pinned color (tiny table; read per request so a color
+  // change takes effect on the next render with no cache invalidation).
+  const typeRows = await db
+    .select({ name: eventTypes.name, color: eventTypes.color })
+    .from(eventTypes);
+  const typeColors = new Map(typeRows.map((row) => [row.name, row.color]));
+
   const seen = new Set<string>();
   const events: CalendarEvent[] = [];
   let allServed = true;
@@ -206,7 +221,7 @@ export async function fetchRangeEvents(params: {
           continue;
         }
         seen.add(key);
-        const mapped = mapCalendarItem(calendar, item, params);
+        const mapped = mapCalendarItem(calendar, item, params, typeColors);
         if (mapped) {
           events.push(mapped);
         }

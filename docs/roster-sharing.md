@@ -103,7 +103,7 @@ erDiagram
         text google_calendar_id UK "Google Calendar id"
         text name
         text kind "department | shared (only department used)"
-        text color "nullable — null = deterministic default (event colors, §1.7)"
+        text color "nullable — fallback for untyped/external events (event colors, §1.7)"
     }
     users {
         uuid id PK
@@ -127,8 +127,10 @@ erDiagram
 - `calendars` (`schema.ts:51`): the **department registry**;
   `google_calendar_id` is unique (a department with the same Google calendar
   can't be created twice). `kind` is `department` (used) or `shared` (reserved).
-  `color` is the admin-pinned event color (a Mantine palette name) — nullable,
-  where null means "use the deterministic per-calendar default" (§1.7).
+  `color` is the admin-pinned **fallback** color for untyped/external events
+  (a Mantine palette name) — nullable, where null means "use the
+  deterministic per-calendar default" (§1.7). Typed events take their color
+  from the event type instead.
 - **History**: the original schema (migration 0000) had a `departments` table
   plus a many-to-many `user_departments` join; migration 0002 collapsed that
   into the single `users.department_id` column (backfilled by primary
@@ -200,37 +202,50 @@ Postgres SQLSTATE `23505` and map the violated constraint to a field error —
 
 ## 1.7 Event colors
 
-Every event renders in the color of its **department calendar** — one color per
-department, applied to all its events. There is no per-event or per-event-type
-color, and Google's own `colorId` is ignored in both directions (the read path
-drops it before caching; the write path never sends it).
+Typed events render in the color of their **event type** — one color per type,
+shared across all departments. Untyped/external events (created directly in
+Google Calendar) fall back to the color of the **department calendar**. There
+is no per-event color, and Google's own `colorId` is ignored in both
+directions (the read path drops it before caching; the write path never sends
+it).
 
 ```mermaid
 flowchart LR
-    P["calendars.color<br/>(admin-pinned, nullable)"] --> E{effectiveCalendarColor}
-    I["calendars.id (UUID)<br/>deterministic hash"] -->|"color is null"| E
-    E --> CE["CalendarEvent.color<br/>(queries.ts mapCalendarItem)"]
+    T["event_types.color<br/>(admin-pinned, nullable)"] -->|typed event| E1{effectiveEventTypeColor}
+    TN["event type name<br/>deterministic hash"] -->|"color is null"| E1
+    C["calendars.color<br/>(admin-pinned, nullable)"] -->|untyped/external| E2{effectiveCalendarColor}
+    CI["calendars.id (UUID)<br/>deterministic hash"] -->|"color is null"| E2
+    E1 --> CE["CalendarEvent.color<br/>(queries.ts mapCalendarItem)"]
+    E2 --> CE
     CE --> V["@mantine/schedule views<br/>+ WeekMatrixView"]
 ```
 
 - **The value** is one of the fixed 10-color Mantine palette
-  (`CALENDAR_COLORS`, `src/lib/events/calendarColors.ts`). Null ("Auto") means
-  the calendar's **deterministic default**: `colorForCalendar` hashes the
-  calendar UUID onto the same palette, so a department without a pinned color
-  always renders the same color across sessions and views.
-- **Configuration** lives in Settings → Departments: the Add/Edit modal
-  (`DepartmentForm.tsx` + `DepartmentColorPicker` in `DepartmentColor.tsx`,
-  tap-friendly swatch buttons — no keyboard pop-up on mobile) offers "Auto"
-  plus every palette color. Server-side, `normalizeCalendarColor` accepts a
-  palette name and falls back to null for anything else (accept/fallback pair,
-  like `normalizeLocationPolicy`) — invalid data can never break rendering.
+  (`EVENT_COLORS`, `src/lib/events/eventColors.ts`). Null ("Auto") means a
+  **deterministic default**: `colorForId` hashes the event type *name* (typed
+  events) or the calendar UUID (untyped/external) onto the same palette, so an
+  unset type/department always renders the same color across sessions and
+  views — and events of a later-deleted type keep a stable name-derived
+  color.
+- **Configuration** lives in Settings → Event Types (the primary color) and
+  Settings → Departments (the external-event fallback). Both forms use the
+  shared `ColorSwatchPicker` (`src/components/ColorSwatchPicker.tsx`) —
+  tap-friendly swatch buttons, not inputs, so no keyboard pop-up on mobile —
+  offering "Auto" (labeled with the id-derived default) plus every palette
+  color. Server-side, `normalizeEventColor` accepts a palette name and falls
+  back to null for anything else (accept/fallback pair, like
+  `normalizeLocationPolicy`) — invalid data can never break rendering. Event
+  type create/rename audit rows store the human-readable label
+  (`formatColorLabel`, e.g. "Blue" or "Auto (Teal)").
 - **Application is at read time**: `fetchRangeEvents` selects full calendar
-  rows and `mapCalendarItem` stamps
-  `color: effectiveCalendarColor(calendar.id, calendar.color)` on every event.
+  rows plus every event type's (name, color) and `mapCalendarItem` stamps
+  `color: effectiveEventTypeColor(typeName, typeColor)` on typed events and
+  `color: effectiveCalendarColor(calendar.id, calendar.color)` on the rest.
   The color is **not part of `google_event_cache`** (the cache stores raw
   Google items; mapping happens per request —
-  [`events-cache.md`](events-cache.md)), so changing a department's color takes
-  effect on the next render with **no cache invalidation**.
+  [`events-cache.md`](events-cache.md)), so changing a type's or a
+  department's color takes effect on the next render with **no cache
+  invalidation**.
 - **Rendering**: `@mantine/schedule` resolves `color` via
   `variantColorResolver({ variant: "light" })` into the `--event-bg` /
   `--event-color` CSS vars; `WeekMatrixView.tsx` replicates that resolution for
@@ -343,7 +358,7 @@ a removable row.
 | `normalizePhone` (exactly 8 digits, strips non-digits), `validateUserForm`, `validateCalendarForm` | `roster/validate.ts` | `roster/validate.test.ts` |
 | `isValidEmail`, `isDepartmentAccessRole` (rejects `freeBusyReader`), `diffAccess`, `diffRevocable`, `needsAdminOwnerGrant` (incl. blank-admin edge), `isInherentOwnerEmail` | `roster/shares.ts` | `roster/shares.test.ts` |
 | `diffFields` (the audit diffs), `actorFromUser`, `AUDIT_ACTIONS` | `audit/diff.ts`, `audit/build.ts` | `audit/diff.test.ts`, `audit/build.test.ts` |
-| `CALENDAR_COLORS`, `isCalendarColor`, `normalizeCalendarColor` (accept/fallback, §1.7), `colorForCalendar` (deterministic UUID hash), `effectiveCalendarColor` (pinned or default) | `events/calendarColors.ts` | `events/calendarColors.test.ts` |
+| `EVENT_COLORS`, `isEventColor`, `normalizeEventColor` (accept/fallback, §1.7), `colorForId` (deterministic id hash), `effectiveEventTypeColor` (type: pinned or name-derived default), `effectiveCalendarColor` (untyped/external: pinned or id-derived default), `formatColorLabel` (audit/UI labels) | `events/eventColors.ts` | `events/eventColors.test.ts` |
 | `getServiceAccountConfig`, `hasGoogleCredentials`, `getAdminGoogleEmail` | `google/config.ts` | `google/config.test.ts` |
 
 I/O-bound (not unit-tested, per the repo convention): `resolveGoogleCalendarId`,
@@ -356,15 +371,16 @@ I/O-bound (not unit-tested, per the repo convention): `resolveGoogleCalendarId`,
 
 | File | Role |
 | ---- | ---- |
-| `src/db/schema.ts:22-65` | `users` + `calendars` tables (incl. `calendars.color`, §1.7) |
+| `src/db/schema.ts:22-68` | `users` + `calendars` tables (incl. `calendars.color` external fallback, §1.7) |
 | `src/lib/roster/shares.ts` | ACL model, pure diff helpers, both reconcile paths |
 | `src/lib/roster/validate.ts` | Phone/user/calendar validation (pure) |
 | `src/lib/roster/queries.ts` | Roster reads (users, departments, by-ids) |
 | `src/lib/roster/actions.ts` | User/department/sharing server actions |
-| `src/lib/events/calendarColors.ts` | Event-color palette, normalization, deterministic default (pure, §1.7) |
+| `src/lib/events/eventColors.ts` | Event-color palette, normalization, deterministic defaults, labels (pure, §1.7) |
+| `src/components/ColorSwatchPicker.tsx` | Shared color swatch picker + `ColorDot` chip (event type & department forms, §1.7) |
 | `src/app/(protected)/settings/users/` | Users page: `UserTable`, `UserForm` (badge role/department fields), deactivate |
 | `src/app/(protected)/settings/users/DepartmentShares.tsx` | The Shares modal (assigned/additional/admin sections) |
-| `src/app/(protected)/settings/departments/` | Departments page: create/edit (name + event color)/share/delete; `DepartmentColor.tsx` holds the swatch picker + list chip |
+| `src/app/(protected)/settings/departments/` | Departments page: create/edit (name + external-event fallback color)/share/delete; the swatch picker + chip come from the shared `ColorSwatchPicker` |
 | `src/lib/google/` | The integration the ACL calls go through |
 
 Related docs:
@@ -377,4 +393,5 @@ Related docs:
 - [`README.md`](../README.md#112-documentation) — documentation index.
 - `progress-archive.md` — phase write-ups: 1.8 (roster & departments), 1.11 (calendars
   + sharing + audit), 1.41 (access levels), 1.61 (email-change ACL sync bugfix),
-  1.62 (department selects), 1.95 (department event colors).
+  1.62 (department selects), 1.95 (department event colors), 1.96 (event-type
+  event colors).

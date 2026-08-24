@@ -63,11 +63,12 @@
     --app-floating-bottom-offset  default FAB clearance (FloatingToolbar)
     --settings-fab-bottom         FAB clearance on settings pages (the
                                   settings sub-tab bar docks there on mobile)
-    --app-shell-header-offset     sticky top offset for bars pinned under the
-                                  56px app header. Defined at lg only: the
-                                  AppShell header is fixed at the viewport top
-                                  on mobile too, but the dashboard's sticky bars
-                                  keep their legacy non-stuck behavior below lg
+
+  The AppShell header is fixed at the viewport top at every width (56px), and
+  `--app-shell-header-offset` (sticky top offset for bars pinned under it) is
+  declared unconditionally on `.app-shell-root`: the dashboard's view-tabs +
+  date-nav block and the Week v2 day header pin on mobile too. Consumers that
+  want desktop-only stickiness must gate themselves in JS (SettingsTabs does).
 
   The FAB clearance vars are declared on :root (not on the page elements):
   FloatingToolbar renders its Affix portaled to <body>, so a page-scoped var
@@ -81,6 +82,10 @@
 :root {
   --app-floating-bottom-offset: calc(56px + env(safe-area-inset-bottom) + 16px);
   --settings-fab-bottom: calc(108px + env(safe-area-inset-bottom) + 16px);
+}
+
+.app-shell-root {
+  --app-shell-header-offset: 56px;
 }
 
 .settings-page-pad {
@@ -107,10 +112,6 @@
   :root {
     --app-floating-bottom-offset: 16px;
     --settings-fab-bottom: 16px;
-  }
-
-  .app-shell-root {
-    --app-shell-header-offset: 56px;
   }
 
   .settings-page-pad {

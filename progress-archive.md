@@ -4607,3 +4607,109 @@ directions, and there was no way to configure it.
 Tests: new `calendarColors.test.ts` (8 cases).
 Verification: lint/typecheck/test pass (537 tests); `pnpm db:generate` no-op
 (drift-clean); full `pnpm build` passes (18 routes).
+
+## 1.96 Event-type event colors (Phase 3at)
+
+Event colors are now configured at the **event type** level instead of the
+department level. Typed events render in the color of their type (one color per
+type, shared across all departments); untyped/external events (created directly
+in Google Calendar) fall back to the department calendar's color.
+
+- **Schema**: `event_types.color` nullable text (migration `0017`) — same
+  semantics as the old `calendars.color`: `null` = "Auto" (deterministic
+  default), value = admin-pinned Mantine palette name. `calendars.color` is
+  **kept**, now documented as the fallback for untyped/external events. No data
+  migration — department colors keep working as the external fallback, and
+  type colors start unset.
+- **Pure helpers**: `calendarColors.ts` renamed to `eventColors.ts`
+  (unit-tested): `EVENT_COLORS`/`isEventColor`/`normalizeEventColor` (renamed),
+  `colorForCalendar` → `colorForId` (generic id hash — type name or calendar
+  id), new `effectiveEventTypeColor(typeName, color)` (pinned or name-derived
+  default), `effectiveCalendarColor` kept for the external branch, new
+  `formatColorLabel(color, autoRefId)` (human-readable "Blue" / "Auto (Teal)"
+  for settings lists and audit details).
+- **Read path**: `fetchRangeEvents` additionally selects every event type's
+  (name, color) — a tiny per-request read, so a color change needs no cache
+  invalidation — and `mapCalendarItem` resolves typed events through
+  `effectiveEventTypeColor` (events of a deleted type keep a stable
+  name-derived color) and untyped/external ones through
+  `effectiveCalendarColor`. Dashboard, parade state, and all views inherit it
+  unchanged.
+- **Writes**: `createEventType`/`renameEventType` persist the normalized
+  color; audit details store the `formatColorLabel` label (create: absolute,
+  rename: before/after diff).
+- **UI**: new shared `src/components/ColorSwatchPicker.tsx` (`ColorSwatchPicker`
+  + `ColorDot`; "Auto" swatch labeled with the id-derived default) replaces
+  `DepartmentColor.tsx`. Settings → Event Types gains the Event color section
+  in the form (Auto ref = the type name) and a Color column/dot in the list.
+  Settings → Departments keeps its picker, relabeled "External event color"
+  (form) / "External color" (list column) — typed events use the type's color.
+
+Tests: `eventColors.test.ts` (renamed + extended, 13 cases).
+Verification: lint/typecheck/test pass (542 tests); `pnpm db:generate`
+drift-clean after committing `0017`; applied against Neon via `pnpm db:migrate`.
+
+## 1.97 Sticky dashboard chrome & pinned view headers (Phase 3au)
+
+On small screens every calendar view's headers scrolled out of view while the
+grid scrolled vertically — only Week v2's day header felt pinned (its
+horizontal-pan tracking), and even its vertical stickiness silently disengaged
+below `lg`. Root cause: `--app-shell-header-offset` was declared **only inside
+`@media (min-width: 62em)`**, so every sticky bar's `top` computed to `auto`
+below the breakpoint.
+
+- **Un-gated the var**: `.app-shell-root { --app-shell-header-offset: 56px }`
+  now lives outside the media query in `globals.css` (the AppShell header is
+  fixed at the viewport top at every width). Consumers wanting desktop-only
+  stickiness must gate in JS — `SettingsTabs` already did and keeps that
+  behavior; it is unchanged.
+- **Chrome as one sticky unit**: `DashboardView` wraps the view tabs and the
+  date-nav row (chevrons, period label, ⋮ menu) in a single sticky block
+  (`top: var(--app-shell-header-offset)`, opaque background, bottom divider,
+  `zIndex` 10) at **every** breakpoint, so period context + navigation stay
+  reachable on phones. The existing pre-paint `ResizeObserver` measurement now
+  covers the whole unit (`chromeHeight`, renamed from `tabsHeight`).
+- **Docking consumers**: Week v2's pinned day header receives the combined
+  height via a renamed prop (`tabBarOffset` → `chromeOffset`) so it docks flush
+  beneath both chrome rows; the Week view's `WeekDayLabelStrip` was upgraded
+  from `position: relative` to sticky with the same docking formula (new
+  `chromeOffset` prop, `zIndex` 9) — its horizontal pan tracking
+  (`weekDayIndex`) is unchanged.
+- **Accepted limitations**: the Day/Week time rulers and Month weekday-initial
+  rows live inside `@mantine/schedule`'s content-height `ScrollArea`s and can't
+  pin during page scroll without restructuring those views; Agenda is
+  intentionally header-less. Documented in docs/desktop-responsive.md §1.4.
+
+No behavior change for pure helpers; no schema impact.
+Verification: typecheck/lint/test pass; manual device-emulation pass across all
+five dashboard views at ~390px (pin order app header → chrome → view header,
+no overlap; ⋮ menu above pinned bars; dark-mode backgrounds opaque;
+SettingsTabs mobile unchanged).
+
+## 1.98 Pinned time rulers, compact chrome, overlap fix (Phase 3av)
+
+Follow-up to §1.97 after device use surfaced three issues.
+
+- **Columns overlapped the pinned bars while scrolling**: `@mantine/schedule`
+  stacks its sticky-left columns and scrollbars at z-index 12-13/20 inside the
+  same stacking context as the dashboard's pinned chrome (z 10) and Week strip
+  (z 9), so grid content sliding beneath painted over them. The chrome now
+  renders at z-index 50 and pinned view headers at 45 — above every
+  library-internal layer.
+- **Time axis scrolled away in Day/Week**: the library's time-labels row is
+  sticky only inside its own content-height ScrollArea viewport (which never
+  scrolls vertically). Both rows are now hidden and replaced by a shared
+  `TimeRulerStrip` that pins beneath the chrome and translates its hourly
+  track by `-scrollLeft` via direct DOM transforms (Week v2 header mechanics):
+  slot width probed from each view's `--resources-*-view-slot-width` var,
+  scroll tracked via `onScrollPositionChange`, initial offset synced through
+  the views' merged `scrollAreaProps.viewportRef`. Side fix: Week passes the
+  real `startScrollDateTime={monday} 07:00:00` instead of a nonexistent
+  `startScrollPosition: {y}` prop that was silently ignored.
+- **Date-nav row too tall**: nav controls (chevrons, ⋮, New event) shrunk
+  43px → 36px, period label lg → md, margins/padding sm → xs. The pinned
+  chrome block drops ~20-25px on every breakpoint.
+
+Verification: lint/typecheck/test pass; manual mobile-emulation check of all
+five views (ruler alignment during horizontal pan, no overlap under pinned
+bars, docked stacking order app header → chrome → strip → ruler → grid).

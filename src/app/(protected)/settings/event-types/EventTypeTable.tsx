@@ -19,6 +19,8 @@ import { IconPlus } from "@tabler/icons-react";
 
 import type { EventType } from "@/db/schema";
 import { FAB_ICON_SIZE, FloatingActionButton, FloatingToolbar } from "@/components/FloatingToolbar";
+import { formatColorLabel } from "@/lib/events/eventColors";
+import { ColorDot } from "@/components/ColorSwatchPicker";
 import { LOCATION_POLICY_LABELS, normalizeLocationPolicy } from "@/lib/events/locationPolicy";
 import {
   TIME_OPTION_LABELS,
@@ -85,7 +87,10 @@ export function EventTypeTable({ types }: EventTypeTableProps) {
                 style={{ cursor: "pointer" }}
               >
                 <Stack gap={0}>
-                  <Text fw={600}>{eventType.name}</Text>
+                  <Group wrap="nowrap" align="center" gap={6}>
+                    <ColorDot color={eventType.color} />
+                    <Text fw={600}>{eventType.name}</Text>
+                  </Group>
                   <Group gap="xs" wrap="wrap">
                     {eventType.shortname ? (
                       <Badge size="sm" variant="light" color="accent">
@@ -115,6 +120,7 @@ export function EventTypeTable({ types }: EventTypeTableProps) {
                 <Table.Tr>
                   <Table.Th>Name</Table.Th>
                   <Table.Th>Acronym</Table.Th>
+                  <Table.Th>Color</Table.Th>
                   <Table.Th>Time options</Table.Th>
                   <Table.Th>Location policy</Table.Th>
                 </Table.Tr>
@@ -138,6 +144,12 @@ export function EventTypeTable({ types }: EventTypeTableProps) {
                       ) : (
                         <Text c="dimmed">—</Text>
                       )}
+                    </Table.Td>
+                    <Table.Td>
+                      <Group gap={6} wrap="nowrap">
+                        <ColorDot color={eventType.color} />
+                        <Text size="sm">{formatColorLabel(eventType.color, eventType.name)}</Text>
+                      </Group>
                     </Table.Td>
                     <Table.Td>
                       <Group gap="xs" wrap="wrap">

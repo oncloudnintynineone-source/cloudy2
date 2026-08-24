@@ -20,6 +20,7 @@ import {
   LOCATION_POLICY_LABELS,
   normalizeLocationPolicy,
 } from "@/lib/events/locationPolicy";
+import { ColorSwatchPicker } from "@/components/ColorSwatchPicker";
 import {
   TIME_OPTIONS,
   TIME_OPTION_DESCRIPTIONS,
@@ -34,6 +35,7 @@ interface EventTypeFormProps {
     shortname: string | null;
     timeOptions: string[];
     locationPolicy: string;
+    color: string | null;
   } | null;
   onDone: () => void;
 }
@@ -49,6 +51,7 @@ export function EventTypeForm({ eventType, onDone }: EventTypeFormProps) {
       shortname: eventType?.shortname ?? "",
       timeOptions: eventType ? normalizeTimeOptions(eventType.timeOptions) : [],
       locationPolicy: eventType ? normalizeLocationPolicy(eventType.locationPolicy) : "both",
+      color: eventType?.color ?? "",
     },
     validate: (values) => validateEventTypeForm(values),
   });
@@ -166,6 +169,26 @@ export function EventTypeForm({ eventType, onDone }: EventTypeFormProps) {
                 ))}
               </Stack>
             </Radio.Group>
+          </Grid.Col>
+
+          {/* Swatch buttons (not an input), same no-keyboard rationale as the
+              Role/Department badges in UserForm: tapping a swatch on mobile
+              never raises the keyboard. */}
+          <Grid.Col span={12}>
+            <Stack gap={4}>
+              <Text fw={500} size="sm">
+                Event color
+              </Text>
+              <ColorSwatchPicker
+                value={form.values.color ?? ""}
+                onChange={(color) => form.setFieldValue("color", color)}
+                autoRefId={eventType?.name ?? null}
+              />
+              <Text size="sm" c="dimmed">
+                The color this type&apos;s events appear in. Auto uses a stable default derived
+                from the type name.
+              </Text>
+            </Stack>
           </Grid.Col>
         </Grid>
         <Group justify="flex-end" mt="md" wrap="nowrap">

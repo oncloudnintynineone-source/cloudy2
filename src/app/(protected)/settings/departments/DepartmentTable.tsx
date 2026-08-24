@@ -21,7 +21,8 @@ import { CONTENT_ENTER_CLASS } from "@/lib/loading/contentEnter";
 import { deleteDepartment } from "@/lib/roster/actions";
 import { BUTTON_LOADER_PROPS } from "@/lib/theme";
 import { FAB_ICON_SIZE, FloatingActionButton, FloatingToolbar } from "@/components/FloatingToolbar";
-import { ColorDot, formatCalendarColorLabel } from "./DepartmentColor";
+import { formatColorLabel } from "@/lib/events/eventColors";
+import { ColorDot } from "@/components/ColorSwatchPicker";
 import { DepartmentForm } from "./DepartmentForm";
 import { DepartmentShares } from "./DepartmentShares";
 
@@ -139,7 +140,7 @@ export function DepartmentTable({ departments }: DepartmentTableProps) {
               <Table.Thead>
                 <Table.Tr>
                   <Table.Th>Name</Table.Th>
-                  <Table.Th>Color</Table.Th>
+                  <Table.Th>External color</Table.Th>
                   <Table.Th>Calendar ID</Table.Th>
                   <Table.Th ta="right">
                     <VisuallyHidden>Actions</VisuallyHidden>
@@ -155,7 +156,7 @@ export function DepartmentTable({ departments }: DepartmentTableProps) {
                     <Table.Td>
                       <Group gap={6} wrap="nowrap">
                         <ColorDot color={calendar.color} />
-                        <Text size="sm">{formatCalendarColorLabel(calendar.color, calendar.id)}</Text>
+                        <Text size="sm">{formatColorLabel(calendar.color, calendar.id)}</Text>
                       </Group>
                     </Table.Td>
                     <Table.Td>

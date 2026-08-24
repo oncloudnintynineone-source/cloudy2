@@ -57,7 +57,10 @@ export const calendars = pgTable(
     kind: text("kind", { enum: ["department", "shared"] })
       .notNull()
       .default("department"),
-    /** Admin-set event color (Mantine palette name); null = deterministic default. */
+    /**
+     * Fallback color for untyped/external events (Mantine palette name);
+     * null = deterministic default from the calendar id.
+     */
     color: text("color"),
     ...timestamps,
   },
@@ -89,6 +92,8 @@ export const eventTypes = pgTable(
      * restriction — the default).
      */
     locationPolicy: text("location_policy").notNull().default("both"),
+    /** Admin-set event color (Mantine palette name); null = deterministic default from the name. */
+    color: text("color"),
     ...timestamps,
   },
   (table) => [

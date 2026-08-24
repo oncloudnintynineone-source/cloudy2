@@ -10,6 +10,7 @@ import { diffFields } from "@/lib/audit/diff";
 import { logAction } from "@/lib/audit/log";
 import { requireAdmin } from "@/lib/session";
 import { validateEventTypeForm, type EventTypeFormValues } from "@/lib/eventTypes/validate";
+import { formatColorLabel, normalizeEventColor } from "@/lib/events/eventColors";
 import { LOCATION_POLICY_LABELS, normalizeLocationPolicy } from "@/lib/events/locationPolicy";
 import { isTimeOption, normalizeTimeOptions, TIME_OPTION_LABELS } from "@/lib/events/timeOptions";
 
@@ -68,10 +69,11 @@ export async function createEventType(input: EventTypeFormValues): Promise<Event
   const shortname = input.shortname.trim();
   const timeOptions = normalizeTimeOptions(input.timeOptions);
   const locationPolicy = normalizeLocationPolicy(input.locationPolicy);
+  const color = normalizeEventColor(input.color);
   try {
     const [created] = await db
       .insert(eventTypes)
-      .values({ name, shortname, timeOptions, locationPolicy })
+      .values({ name, shortname, timeOptions, locationPolicy, color })
       .returning({ id: eventTypes.id, name: eventTypes.name });
 
     await logAction({
@@ -86,6 +88,7 @@ export async function createEventType(input: EventTypeFormValues): Promise<Event
         shortname,
         timeOptions: timeOptionLabels(timeOptions),
         locationPolicy: LOCATION_POLICY_LABELS[locationPolicy],
+        color: formatColorLabel(color, name),
       },
     });
   } catch (error) {
@@ -126,10 +129,11 @@ export async function renameEventType(
   const shortname = input.shortname.trim();
   const timeOptions = normalizeTimeOptions(input.timeOptions);
   const locationPolicy = normalizeLocationPolicy(input.locationPolicy);
+  const color = normalizeEventColor(input.color);
   try {
     await db
       .update(eventTypes)
-      .set({ name, shortname, timeOptions, locationPolicy, updatedAt: new Date() })
+      .set({ name, shortname, timeOptions, locationPolicy, color, updatedAt: new Date() })
       .where(eq(eventTypes.id, id));
 
     await logAction({
@@ -145,12 +149,14 @@ export async function renameEventType(
           shortname: existing.shortname,
           timeOptions: timeOptionLabels(existing.timeOptions),
           locationPolicy: LOCATION_POLICY_LABELS[normalizeLocationPolicy(existing.locationPolicy)],
+          color: formatColorLabel(existing.color, existing.name),
         },
         {
           name,
           shortname,
           timeOptions: timeOptionLabels(timeOptions),
           locationPolicy: LOCATION_POLICY_LABELS[locationPolicy],
+          color: formatColorLabel(color, name),
         },
       ),
     });

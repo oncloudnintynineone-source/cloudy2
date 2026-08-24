@@ -37,10 +37,11 @@ export interface WeekMatrixViewProps {
   /** Tapping an empty part of a cell: start a new event on that day. */
   onCellClick: (day: string, e: MouseEvent<HTMLDivElement>) => void;
   /**
-   * Height of the sticky view-tabs bar (px). The pinned day header sits just
-   * below it (`top: calc(var(--app-shell-header-offset) + tabBarOffset)`).
+   * Height of the sticky chrome block above the grid (view tabs + date-nav
+   * row). The pinned day header sits just below it
+   * (`top: calc(var(--app-shell-header-offset) + chromeOffset)`).
    */
-  tabBarOffset: number;
+  chromeOffset: number;
 }
 
 /** Minimum day-column width in pixels so event titles are readable. */
@@ -80,7 +81,7 @@ export function WeekMatrixView({
   renderResourceLabel,
   onEventClick,
   onCellClick,
-  tabBarOffset,
+  chromeOffset,
 }: WeekMatrixViewProps) {
   const theme = useMantineTheme();
   const isDesktop = useMediaQuery(`(min-width: ${theme.breakpoints.lg})`);
@@ -90,8 +91,8 @@ export function WeekMatrixView({
   // ScrollArea content min-width: guarantees horizontal scroll on narrow
   // screens so the day columns never shrink below MIN_DAY_PX.
   const contentMinWidth = `calc(${hasGroups ? `${groupWidth} + ` : ""}${labelWidth} + 7 * ${MIN_DAY_PX}px)`;
-  // The pinned day header sticks below the sticky view-tabs bar.
-  const headerTop = `calc(var(--app-shell-header-offset) + ${tabBarOffset}px)`;
+  // The pinned day header sticks below the sticky tabs+date-nav chrome.
+  const headerTop = `calc(var(--app-shell-header-offset) + ${chromeOffset}px)`;
   // The resource label pins just right of the group column while scrolling.
   const labelLeft = hasGroups ? groupWidth : "0";
   const todayTint = theme.variantColorResolver({
@@ -137,10 +138,11 @@ export function WeekMatrixView({
 
   return (
     <Paper withBorder radius="md" p={0}>
-      {/* Pinned day header: sticks to the viewport below the view tabs while
-          the (full-height) table scrolls with the page. The corner spacers
-          stay put; only the day columns translate (-scrollLeft) to track the
-          table's horizontal scroll, clipped to the table's width. */}
+      {/* Pinned day header: sticks to the viewport below the tabs+date-nav
+          chrome while the (full-height) table scrolls with the page. The
+          corner spacers stay put; only the day columns translate
+          (-scrollLeft) to track the table's horizontal scroll, clipped to the
+          table's width. */}
       <Box
         component="div"
         style={{

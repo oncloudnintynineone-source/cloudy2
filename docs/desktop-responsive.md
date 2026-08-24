@@ -93,7 +93,7 @@ All pure-CSS desktop switches live in one `@media (min-width: 62em)` block in
 | ----------- | ------ | ------- | ----------- |
 | `.app-shell-root` → `--app-floating-bottom-offset` | `calc(56px + env(safe-area-inset-bottom) + 16px)` (clears bottom nav) | `16px` | `FloatingToolbar` default `bottomOffset` |
 | `.settings-page-pad` → `--settings-fab-bottom` + `padding-bottom` | `calc(108px + env(safe-area-inset-bottom) + 16px)` (clears bottom nav + settings tab bar) | `16px` | settings `layout.tsx` wrapper; the four settings FABs pass it to `FloatingToolbar` |
-| `.app-shell-root` → `--app-shell-header-offset` | undefined (the dashboard's sticky bars stay non-stuck on mobile) | `56px` (the app header's height) | `SettingsTabs` sticky row; the dashboard's view-tabs wrapper and Week v2 day-header strip |
+| `.app-shell-root` → `--app-shell-header-offset` | `56px` (declared unconditionally — the AppShell header is fixed at every width; consumers that want desktop-only stickiness gate in JS) | `56px` (same) | `SettingsTabs` sticky row (JS-gated to `lg`+); the dashboard's sticky tabs+date-nav chrome block and Week v2 day-header strip (sticky at all widths); the Week view's day-label strip |
 | `.page-container` | full width | `max-width: 1200px; margin-inline: auto` | `PageContainer` component |
 | `.card-grid` | `1fr` single column | `repeat(auto-fill, minmax(320px, 1fr))` | `ContactList`, `ParadeStateView` |
 
@@ -120,6 +120,40 @@ gated on `isDesktop`):
 | "New event" | FAB only | FAB **hidden** (`hiddenFrom="lg"`) — replaced by a `Button visibleFrom="lg"` in the header row beside the ⋮ menu |
 | Agenda day / event form / detail / filter / date-picker modals | `sm` | `md` (see 1.7) |
 
+**Sticky chrome & pinned view headers (every width):** the dashboard pins its
+view tabs + date-nav row as **one sticky unit** (`top:
+var(--app-shell-header-offset)`, opaque background, bottom divider,
+compact 36px controls) so the period label, prev/next chevrons and ⋮ menu stay
+reachable while any view's grid scrolls — on phones too, where losing them
+mid-scroll was the old default. The unit renders at `zIndex: 50`, above every
+layer `@mantine/schedule` stacks internally (sticky-left columns reach
+z-index 12-13, scrollbars 20), so grid content sliding beneath never paints
+over it. The unit's height is measured with a `ResizeObserver`
+(pre-first-paint + on resize) and feeds every view header that docks beneath
+it via `top: calc(var(--app-shell-header-offset) + <chromeHeight>px)`:
+
+- **Week v2** day header (`WeekMatrixView`, prop `chromeOffset`) — already
+  sticky, now correctly docked below both chrome rows.
+- **Week** day-label strip (`WeekDayLabelStrip`, zIndex 45) — sticky with the
+  same docking formula; its horizontal pan tracking (`weekDayIndex`) is
+  unchanged.
+- **Day/Week hour rulers** (`TimeRulerStrip`, zIndex 45) — the library's own
+  time-labels rows are hidden and replaced by a pinned strip of compact hourly
+  labels whose inner track translates by `-scrollLeft` via direct DOM
+  transforms (same mechanics as Week v2's header). The measured slot width
+  comes from probing each view's `--resources-*-view-slot-width` CSS var; both
+  views' `scrollAreaProps.viewportRef` lets a layout effect re-sync the track
+  after mounts/loads, since the libraries' `startScrollTime` /
+  `startScrollDateTime` effects reposition the grid without a scroll event.
+  (Side fix: Week now passes the supported `startScrollDateTime={monday}
+  07:00:00` instead of a bogus `startScrollPosition: {y}` prop that was
+  silently ignored.)
+
+The **Month weekday-initials row** still lives inside `MonthView`'s
+content-height `ScrollArea` and cannot pin during page scroll without
+restructuring that view — accepted limitation (each cell carries its date
+number). Agenda is intentionally header-less (the nav row shows the day).
+
 **Schedule CSS-var gotcha:** `@mantine/schedule` declares its label/slot width
 variables on the **view root element** (hashed class), so a parent class cannot
 shadow them. `DashboardView` therefore passes the widths through each view's own
@@ -145,7 +179,9 @@ Contacts/Audit-log "Export", Parade-state attendance).
   direct child of the settings layout root (a full-height column), because a sticky
   element pinned to the `Tabs` root alone can't stick: that root is only as tall as
   the tab bar and scrolls away with the page (same pattern as the dashboard's
-  view-tabs wrapper).
+  sticky chrome block). Unlike the dashboard, this one is deliberately **JS-gated
+  to `lg`+** (the component returns a non-sticky version below `lg`) — the CSS var
+  it consumes is defined at every width.
 - **Data-dense lists use Mantine `Table` at `lg` only** (the scoped exception to
   the mobile card-list rule — cards stay below `lg` via `hiddenFrom="lg"`, the
   table wrapper uses `visibleFrom="lg"`):

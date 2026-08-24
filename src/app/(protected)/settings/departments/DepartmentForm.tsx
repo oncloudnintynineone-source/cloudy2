@@ -11,7 +11,7 @@ import {
 } from "@/lib/roster/actions";
 import { validateCalendarForm, type CalendarFormValues } from "@/lib/roster/validate";
 import { BUTTON_LOADER_PROPS } from "@/lib/theme";
-import { DepartmentColorPicker } from "./DepartmentColor";
+import { ColorSwatchPicker } from "@/components/ColorSwatchPicker";
 
 interface DepartmentFormProps {
   calendar: { id: string; name: string; color: string | null } | null;
@@ -63,16 +63,16 @@ export function DepartmentForm({ calendar, onDone }: DepartmentFormProps) {
             never raises the keyboard. */}
         <Stack gap={4} mt="md">
           <Text fw={500} size="sm">
-            Event color
+            External event color
           </Text>
-          <DepartmentColorPicker
+          <ColorSwatchPicker
             value={form.values.color ?? ""}
             onChange={(color) => form.setFieldValue("color", color)}
-            calendarId={calendar?.id ?? null}
+            autoRefId={calendar?.id ?? null}
           />
           <Text size="sm" c="dimmed">
-            The color this department&apos;s events appear in. Auto keeps the default color for
-            this calendar.
+            Color for events created directly in Google (no event type). Typed events use the
+            color of their event type. Auto keeps the default color for this calendar.
           </Text>
         </Stack>
         <Group justify="flex-end" mt="md">

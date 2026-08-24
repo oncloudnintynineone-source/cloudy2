@@ -13,6 +13,8 @@ export interface EventTypeFormValues {
   timeOptions: TimeOption[];
   /** Where events of this type may take place ("in" | "out" | "both"). */
   locationPolicy: LocationPolicy;
+  /** Pinned event color (Mantine palette name); "" = the name-derived default. */
+  color?: string;
 }
 
 export interface EventTypeFormErrors {

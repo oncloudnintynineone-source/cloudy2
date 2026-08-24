@@ -4,6 +4,7 @@ import dayjs from "dayjs";
 import {
   type CSSProperties,
   type ReactNode,
+  type RefObject,
   useCallback,
   useEffect,
   useLayoutEffect,
@@ -183,23 +184,28 @@ const DAY_SWIPE_THRESHOLD = 48;
 const WEEK_DAY_WIDTH_PX = 24 * 60;
 
 /**
- * Pinned day-label strip for the Week view. `ResourcesWeekView`'s own day
- * labels are centered in each full-width day column, so on a phone they are
- * only visible when the viewport happens to sit over the middle of a day.
- * This strip replaces that row and pins the leftmost visible day (the caller
- * tracks it via `onScrollPositionChange`) to the grid's left edge, styled
- * like Mantine's own day labels (today filled/primary, weekends red).
+ * Day-label strip for the Week view. `ResourcesWeekView`'s own day labels are
+ * centered in each full-width day column, so on a phone they are only visible
+ * when the viewport happens to sit over the middle of a day. This strip
+ * replaces that row and pins the leftmost visible day (the caller tracks it
+ * via `onScrollPositionChange`) to the grid's left edge, styled like Mantine's
+ * own day labels (today filled/primary, weekends red). The strip itself is
+ * sticky under the shared tabs+date-nav chrome at every breakpoint, mirroring
+ * the Week v2 day header.
  */
 function WeekDayLabelStrip({
   day,
   hasGroups,
   resourceLabelWidth,
   groupLabelWidth,
+  chromeOffset,
 }: {
   day: string;
   hasGroups: boolean;
   resourceLabelWidth: string;
   groupLabelWidth: string;
+  /** Height of the sticky tabs+date-nav chrome this strip docks below. */
+  chromeOffset: number;
 }) {
   const dayObj = dayjs(day);
   const isToday = dayObj.isSame(dayjs(), "day");
@@ -213,7 +219,9 @@ function WeekDayLabelStrip({
     <Box
       component="div"
       style={{
-        position: "relative",
+        position: "sticky",
+        top: `calc(var(--app-shell-header-offset) + ${chromeOffset}px)`,
+        zIndex: 45,
         height: "calc(2rem * var(--mantine-scale))",
         background: "var(--mantine-color-body)",
         borderBottom: "1px solid var(--mantine-color-default-border)",
@@ -257,6 +265,102 @@ function WeekDayLabelStrip({
       >
         {dayObj.format("ddd D")}
       </span>
+    </Box>
+  );
+}
+
+/** Hourly slots per day in the schedule views (00:00–23:59 @ 60min). */
+const SLOTS_PER_DAY = 24;
+
+/**
+ * Pinned hour ruler for the Day and Week schedule views. The library's own
+ * time-labels row is sticky only inside its ScrollArea viewport, which never
+ * scrolls vertically (the page does), so during page scroll the axis scrolls
+ * away with the grid. This strip replaces that row: it pins beneath the shared
+ * chrome (like the Week day-label strip) and its inner hour track translates
+ * by -scrollLeft via a direct DOM transform — no re-renders — so labels stay
+ * over their columns while the grid pans horizontally, mirroring the Week v2
+ * day-header mechanics.
+ */
+function TimeRulerStrip({
+  hasGroups,
+  resourceLabelWidth,
+  groupLabelWidth,
+  chromeOffset,
+  /** Extra sticky offset when another strip stacks above this one. */
+  stackBelowHeight,
+  innerRef,
+}: {
+  hasGroups: boolean;
+  resourceLabelWidth: string;
+  groupLabelWidth: string;
+  chromeOffset: number;
+  stackBelowHeight?: string;
+  innerRef: RefObject<HTMLDivElement | null>;
+}) {
+  // The width of the sticky corner/label columns the grid scrolls beneath,
+  // matching the ResourcesWeekView/ResourcesDayView sizing overrides.
+  const leftWidth = hasGroups
+    ? `calc(${groupLabelWidth} + ${resourceLabelWidth})`
+    : resourceLabelWidth;
+  return (
+    <Box
+      component="div"
+      aria-hidden
+      style={{
+        position: "sticky",
+        top: stackBelowHeight
+          ? `calc(var(--app-shell-header-offset) + ${chromeOffset}px + ${stackBelowHeight})`
+          : `calc(var(--app-shell-header-offset) + ${chromeOffset}px)`,
+        zIndex: 45,
+        display: "flex",
+        overflow: "hidden",
+        background: "var(--mantine-color-body)",
+        borderBottom: "1px solid var(--mantine-color-default-border)",
+      }}
+    >
+      <Box
+        component="div"
+        aria-hidden
+        style={{
+          flexShrink: 0,
+          width: leftWidth,
+          // Continues the corner's vertical divider across the ruler band.
+          borderRight: "1px solid var(--mantine-color-default-border)",
+        }}
+      />
+      <Box component="div" aria-hidden style={{ flex: 1, minWidth: 0, overflow: "hidden" }}>
+        <Box
+          ref={innerRef}
+          component="div"
+          style={{
+            display: "flex",
+            width: `calc(var(--ruler-slot, 60px) * ${SLOTS_PER_DAY})`,
+            willChange: "transform",
+          }}
+        >
+          {Array.from({ length: SLOTS_PER_DAY }, (_, hour) => (
+            <Box
+              key={hour}
+              component="div"
+              style={{
+                width: "var(--ruler-slot, 60px)",
+                flexShrink: 0,
+                borderLeft: "1px solid var(--mantine-color-default-border)",
+                padding: "2px 0 2px 4px",
+              }}
+            >
+              <Text
+                size="xs"
+                c="dimmed"
+                style={{ lineHeight: 1.2, userSelect: "none", whiteSpace: "nowrap" }}
+              >
+                {String(hour).padStart(2, "0")}
+              </Text>
+            </Box>
+          ))}
+        </Box>
+      </Box>
     </Box>
   );
 }
@@ -371,17 +475,18 @@ export function DashboardView({
     setPinned(pinnedViews);
   }
 
-  // Height of the sticky view-tabs bar, so the Week v2 pinned day header can
+  // Height of the sticky chrome block (view tabs + date-nav row, one sticky
+  // unit), so the Week v2 pinned day header and the Week day-label strip can
   // stick just below it. Measured before first paint (and on resize) so the
-  // header never overlaps the tabs.
+  // pinned headers never overlap the chrome.
   const tabsListRef = useRef<HTMLDivElement | null>(null);
-  const [tabsHeight, setTabsHeight] = useState(0);
+  const [chromeHeight, setChromeHeight] = useState(0);
   useLayoutEffect(() => {
     const el = tabsListRef.current;
     if (!el) {
       return;
     }
-    const update = () => setTabsHeight(el.offsetHeight);
+    const update = () => setChromeHeight(el.offsetHeight);
     update();
     const observer = new ResizeObserver(update);
     observer.observe(el);
@@ -424,18 +529,42 @@ export function DashboardView({
   const weekDayWidthRef = useRef(WEEK_DAY_WIDTH_PX);
   const weekBoxRef = useRef<HTMLDivElement | null>(null);
   const [weekDayIndex, setWeekDayIndex] = useState(0);
+  // Inner tracks of the pinned rulers follow horizontal scroll via direct DOM
+  // transforms (see TimeRulerStrip); their cell width rides the --ruler-slot
+  // var set on the content box by the measurement effect below. Viewport refs
+  // sync the tracks on mount/load, when the views' start-scroll effects have
+  // already positioned the grids.
+  const weekRulerRef = useRef<HTMLDivElement | null>(null);
+  const dayRulerRef = useRef<HTMLDivElement | null>(null);
+  const weekViewportRef = useRef<HTMLDivElement | null>(null);
+  const dayViewportRef = useRef<HTMLDivElement | null>(null);
   const handleWeekScroll = useCallback((pos: { x: number }) => {
     const index = Math.min(6, Math.max(0, Math.floor(pos.x / weekDayWidthRef.current)));
     setWeekDayIndex((prev) => (prev === index ? prev : index));
+    if (weekRulerRef.current) {
+      weekRulerRef.current.style.transform = `translateX(${-pos.x}px)`;
+    }
   }, []);
-  // Stable identity: the week's ScrollArea must not receive a fresh
-  // `scrollAreaProps` object on every scroll frame.
+  const handleDayScroll = useCallback((pos: { x: number }) => {
+    if (dayRulerRef.current) {
+      dayRulerRef.current.style.transform = `translateX(${-pos.x}px)`;
+    }
+  }, []);
+  // Stable identity: the schedule views must not receive fresh
+  // `scrollAreaProps` objects on every scroll frame.
   const weekScrollAreaProps = useMemo(
     () => ({
-      startScrollPosition: { y: 7 * 56 },
+      viewportRef: weekViewportRef,
       onScrollPositionChange: handleWeekScroll,
     }),
     [handleWeekScroll],
+  );
+  const dayScrollAreaProps = useMemo(
+    () => ({
+      viewportRef: dayViewportRef,
+      onScrollPositionChange: handleDayScroll,
+    }),
+    [handleDayScroll],
   );
 
   const [isRefreshing, startRefresh] = useTransition();
@@ -918,37 +1047,53 @@ export function DashboardView({
       ? headerDate === today
       : month === todayMonth;
 
-  // Measure the Week view's actual day-column width. Mantine sizes each hour
-  // slot in `rem` (`--resources-week-view-slot-width`), so with a non-default
-  // root font size 24×60px would pick the wrong day while scrolling. Probe the
-  // CSS variable on the view's root (found among the Box's children by the
-  // variable it declares) and store 24 slots worth as the day width. Runs only
-  // when the week grid is actually rendered (not the skeleton or the empty
-  // "No users" paper).
-  useEffect(() => {
-    if (view !== "week" || gridLoading) {
+  // Measure the schedule views' actual hourly slot width and sync the pinned
+  // rulers with it. Mantine sizes each hour slot in `rem`
+  // (`--resources-*-view-slot-width`), so with a non-default root font size or
+  // --mantine-scale a hardcoded px guess would drift. Probe the CSS variable
+  // on the active view's root (found among the Box's children by the variable
+  // it declares); the Week day index stores 24 slots' worth. The measured slot
+  // is published to the rulers as `--ruler-slot` on the content box — direct
+  // DOM writes, pre-paint (no state). Runs only when the Day/Week grid is
+  // actually rendered (not the skeleton or the empty "No users" paper), and
+  // re-runs when the breakpoint flips (the Week slot width widens at lg).
+  useLayoutEffect(() => {
+    const isWeekGrid = view === "week";
+    const isDayGrid = isSchedule;
+    if ((!isWeekGrid && !isDayGrid) || gridLoading) {
       return;
     }
     const box = weekBoxRef.current;
     if (!box) {
       return;
     }
+    const varName = isWeekGrid
+      ? "--resources-week-view-slot-width"
+      : "--resources-day-view-slot-width";
     const root = Array.from(box.children).find(
-      (child) =>
-        getComputedStyle(child).getPropertyValue("--resources-week-view-slot-width").trim() !== "",
+      (child) => getComputedStyle(child).getPropertyValue(varName).trim() !== "",
     );
     if (!root) {
       return;
     }
     const probe = document.createElement("span");
-    probe.style.width = "var(--resources-week-view-slot-width)";
+    probe.style.width = `var(${varName})`;
     root.append(probe);
     const slot = probe.offsetWidth;
     root.removeChild(probe);
     if (slot > 0) {
       weekDayWidthRef.current = slot * 24;
+      box.style.setProperty("--ruler-slot", `${slot}px`);
     }
-  }, [view, gridLoading]);
+    // The library's start-scroll effects (startScrollTime /
+    // startScrollDateTime) repositioned the grid before paint without a
+    // scroll event; align the ruler tracks with the real scroll offset.
+    const viewport = isWeekGrid ? weekViewportRef.current : dayViewportRef.current;
+    const ruler = isWeekGrid ? weekRulerRef.current : dayRulerRef.current;
+    if (viewport && ruler) {
+      ruler.style.transform = `translateX(${-viewport.scrollLeft}px)`;
+    }
+  }, [view, gridLoading, isSchedule, isDesktop]);
 
   // Shared by the Day and Week resource views: a department row is a building
   // icon (its name as tooltip/aria), a user row is the shortname label.
@@ -985,17 +1130,27 @@ export function DashboardView({
 
   return (
     <Stack pb="xl" gap="sm">
-      {/* The sticky view-tabs bar. The wrapper is a direct child of the Stack,
-          so its containing block spans the whole page and sticky can hold it at
-          the top (a sticky element pinned to the Tabs root alone can't — that
-          root is only as tall as the tab bar and scrolls away with it). */}
+      {/* The sticky chrome block: view tabs + date-nav row pinned as one unit
+          at every breakpoint. The wrapper is a direct child of the Stack, so
+          its containing block spans the whole page and sticky can hold it at
+          the top (a sticky element pinned to a shorter root would scroll away
+          with it); page content slides beneath its opaque background. Its
+          measured height feeds the Week v2 day header and the Week label
+          strip so they dock flush beneath it. */}
       <Box
         ref={tabsListRef}
         style={{
           position: "sticky",
           top: "var(--app-shell-header-offset)",
-          zIndex: 10,
+          // Above everything the schedule views stack internally (their
+          // sticky-left columns and scrollbars reach z-index 20) so grid
+          // content sliding beneath never paints over the pinned chrome.
+          zIndex: 50,
           background: "var(--mantine-color-body)",
+          paddingBottom: "var(--mantine-spacing-xs)",
+          // Marks the chrome's bottom edge while content scrolls beneath it
+          // (the tabs list's own border now sits mid-block, above the nav).
+          borderBottom: "1px solid var(--mantine-color-default-border)",
         }}
       >
         <Tabs
@@ -1032,153 +1187,159 @@ export function DashboardView({
             })}
           </Tabs.List>
         </Tabs>
-      </Box>
 
-      <Group align="center" gap="xs" wrap="nowrap">
-        <ActionIcon
-          size={43}
-          variant="default"
-          aria-label={isWeek ? "Previous week" : isAnchoredView ? "Previous day" : "Previous month"}
-          onClick={() =>
-            isAgenda
-              ? applyAgendaDay(dayjs(headerDate).add(-1, "day").format("YYYY-MM-DD"))
+        {/* Date navigation: pinned together with the tabs above so the period
+            label and prev/next stay reachable while the grid scrolls. Kept
+            compact (36px controls) — it is part of the permanently visible
+            chrome on every breakpoint. */}
+        <Group align="center" gap="xs" wrap="nowrap" mt="xs">
+          <ActionIcon
+            size={36}
+            variant="default"
+            aria-label={
+              isWeek ? "Previous week" : isAnchoredView ? "Previous day" : "Previous month"
+            }
+            onClick={() =>
+              isAgenda
+                ? applyAgendaDay(dayjs(headerDate).add(-1, "day").format("YYYY-MM-DD"))
+                : isWeek
+                  ? shiftWeek(-1)
+                  : isAnchoredView
+                    ? shiftDay(-1)
+                    : shiftMonth(-1)
+            }
+          >
+            <IconChevronLeft size={18} />
+          </ActionIcon>
+          <Text
+            fw={600}
+            size="md"
+            lineClamp={1}
+            style={{ flex: 1, minWidth: 0, textAlign: "center" }}
+          >
+            {isAgenda
+              ? dayjs(headerDate).format("ddd, MMM D, YYYY")
               : isWeek
-                ? shiftWeek(-1)
+                ? weekLabel
                 : isAnchoredView
-                  ? shiftDay(-1)
-                  : shiftMonth(-1)
-          }
-        >
-          <IconChevronLeft size={18} />
-        </ActionIcon>
-        <Text
-          fw={600}
-          size="lg"
-          lineClamp={1}
-          style={{ flex: 1, minWidth: 0, textAlign: "center" }}
-        >
-          {isAgenda
-            ? dayjs(headerDate).format("ddd, MMM D, YYYY")
-            : isWeek
-              ? weekLabel
-              : isAnchoredView
-                ? dayLabel
-                : monthLabel}
-        </Text>
-        <ActionIcon
-          size={43}
-          variant="default"
-          aria-label={isWeek ? "Next week" : isAnchoredView ? "Next day" : "Next month"}
-          onClick={() =>
-            isAgenda
-              ? applyAgendaDay(dayjs(headerDate).add(1, "day").format("YYYY-MM-DD"))
-              : isWeek
-                ? shiftWeek(1)
-                : isAnchoredView
-                  ? shiftDay(1)
-                  : shiftMonth(1)
-          }
-        >
-          <IconChevronRight size={18} />
-        </ActionIcon>
-        {/* Desktop: the "New event" FAB lives in the nav row instead of the
+                  ? dayLabel
+                  : monthLabel}
+          </Text>
+          <ActionIcon
+            size={36}
+            variant="default"
+            aria-label={isWeek ? "Next week" : isAnchoredView ? "Next day" : "Next month"}
+            onClick={() =>
+              isAgenda
+                ? applyAgendaDay(dayjs(headerDate).add(1, "day").format("YYYY-MM-DD"))
+                : isWeek
+                  ? shiftWeek(1)
+                  : isAnchoredView
+                    ? shiftDay(1)
+                    : shiftMonth(1)
+            }
+          >
+            <IconChevronRight size={18} />
+          </ActionIcon>
+          {/* Desktop: the "New event" FAB lives in the nav row instead of the
             bottom corner (the FAB is hidden at lg, below). */}
-        <Button
-          visibleFrom="lg"
-          __vars={{ "--button-height": "43px" }}
-          leftSection={<IconPlus size={16} />}
-          disabled={!googleConfigured}
-          onClick={(e) =>
-            openCreate(isAgenda ? headerDate : today, e.currentTarget.getBoundingClientRect())
-          }
-        >
-          New event
-        </Button>
-        <Menu
-          shadow="md"
-          width={200}
-          position="bottom-end"
-          transitionProps={{ transition: "pop-top-right", duration: 150, timingFunction: "ease" }}
-        >
-          <Menu.Target>
-            <Box pos="relative">
-              <ActionIcon size={43} variant="default" aria-label="More options">
-                <IconDotsVertical size={18} />
-              </ActionIcon>
-              {activeFilterCount > 0 && (
-                <Badge
-                  size="sm"
-                  variant="filled"
-                  radius="xl"
-                  pos="absolute"
-                  style={{ top: -4, right: -4 }}
-                >
-                  {activeFilterCount}
-                </Badge>
-              )}
-            </Box>
-          </Menu.Target>
-          <Menu.Dropdown>
-            <Menu.Item
-              leftSection={<IconCalendarCheck size={16} />}
-              disabled={onToday}
-              onClick={goToday}
-            >
-              Today
-            </Menu.Item>
-            {isAnchoredView && (
-              <Menu.Item leftSection={<IconCalendarDot size={16} />} onClick={openPicker}>
-                Select date
-              </Menu.Item>
-            )}
-            <Menu.Item
-              leftSection={
-                pinned.includes(view) ? <IconStarFilled size={16} /> : <IconStar size={16} />
-              }
-              onClick={togglePinView}
-            >
-              {pinned.includes(view) ? "Unpin Tab" : "Pin Tab"}
-            </Menu.Item>
-            <Menu.Divider />
-            <Menu.Label>Filters</Menu.Label>
-            {onlyMeAvailable && (
-              <Menu.CheckboxItem checked={onlyMeActive} onChange={toggleOnlyMe} closeMenuOnClick>
-                My Events
-              </Menu.CheckboxItem>
-            )}
-            <Menu.Item
-              leftSection={<IconX size={16} />}
-              disabled={activeFilterCount === 0}
-              onClick={clearFilters}
-            >
-              Clear
-            </Menu.Item>
-            <Menu.Item
-              leftSection={<IconFilter size={16} />}
-              onClick={openFilter}
-              rightSection={
-                activeFilterCount > 0 ? (
-                  <Badge size="sm" variant="filled" radius="xl">
+          <Button
+            visibleFrom="lg"
+            __vars={{ "--button-height": "36px" }}
+            leftSection={<IconPlus size={16} />}
+            disabled={!googleConfigured}
+            onClick={(e) =>
+              openCreate(isAgenda ? headerDate : today, e.currentTarget.getBoundingClientRect())
+            }
+          >
+            New event
+          </Button>
+          <Menu
+            shadow="md"
+            width={200}
+            position="bottom-end"
+            transitionProps={{ transition: "pop-top-right", duration: 150, timingFunction: "ease" }}
+          >
+            <Menu.Target>
+              <Box pos="relative">
+                <ActionIcon size={36} variant="default" aria-label="More options">
+                  <IconDotsVertical size={18} />
+                </ActionIcon>
+                {activeFilterCount > 0 && (
+                  <Badge
+                    size="sm"
+                    variant="filled"
+                    radius="xl"
+                    pos="absolute"
+                    style={{ top: -4, right: -4 }}
+                  >
                     {activeFilterCount}
                   </Badge>
-                ) : null
-              }
-            >
-              More Filters
-            </Menu.Item>
-            <Menu.Divider />
-            <Menu.Item
-              leftSection={
-                isRefreshing ? <Loader size="sm" color="gray" /> : <IconRefresh size={16} />
-              }
-              disabled={!googleConfigured || isRefreshing}
-              onClick={refreshNow}
-            >
-              Force refresh
-            </Menu.Item>
-          </Menu.Dropdown>
-        </Menu>
-      </Group>
+                )}
+              </Box>
+            </Menu.Target>
+            <Menu.Dropdown>
+              <Menu.Item
+                leftSection={<IconCalendarCheck size={16} />}
+                disabled={onToday}
+                onClick={goToday}
+              >
+                Today
+              </Menu.Item>
+              {isAnchoredView && (
+                <Menu.Item leftSection={<IconCalendarDot size={16} />} onClick={openPicker}>
+                  Select date
+                </Menu.Item>
+              )}
+              <Menu.Item
+                leftSection={
+                  pinned.includes(view) ? <IconStarFilled size={16} /> : <IconStar size={16} />
+                }
+                onClick={togglePinView}
+              >
+                {pinned.includes(view) ? "Unpin Tab" : "Pin Tab"}
+              </Menu.Item>
+              <Menu.Divider />
+              <Menu.Label>Filters</Menu.Label>
+              {onlyMeAvailable && (
+                <Menu.CheckboxItem checked={onlyMeActive} onChange={toggleOnlyMe} closeMenuOnClick>
+                  My Events
+                </Menu.CheckboxItem>
+              )}
+              <Menu.Item
+                leftSection={<IconX size={16} />}
+                disabled={activeFilterCount === 0}
+                onClick={clearFilters}
+              >
+                Clear
+              </Menu.Item>
+              <Menu.Item
+                leftSection={<IconFilter size={16} />}
+                onClick={openFilter}
+                rightSection={
+                  activeFilterCount > 0 ? (
+                    <Badge size="sm" variant="filled" radius="xl">
+                      {activeFilterCount}
+                    </Badge>
+                  ) : null
+                }
+              >
+                More Filters
+              </Menu.Item>
+              <Menu.Divider />
+              <Menu.Item
+                leftSection={
+                  isRefreshing ? <Loader size="sm" color="gray" /> : <IconRefresh size={16} />
+                }
+                disabled={!googleConfigured || isRefreshing}
+                onClick={refreshNow}
+              >
+                Force refresh
+              </Menu.Item>
+            </Menu.Dropdown>
+          </Menu>
+        </Group>
+      </Box>
 
       {!googleConfigured && (
         <Alert color="yellow" title="Google Calendar is not configured">
@@ -1205,6 +1366,29 @@ export function DashboardView({
             hasGroups={scheduleResources.groups !== undefined}
             resourceLabelWidth={scheduleLabelWidths.resource}
             groupLabelWidth={scheduleLabelWidths.group}
+            chromeOffset={chromeHeight}
+          />
+        )}
+        {/* Pinned hour rulers for the schedule views. Only rendered with the
+            real grid (not skeleton/empty state) so the measured slot width is
+            meaningful; the Week one stacks beneath its day-label strip. */}
+        {!gridLoading && view === "week" && week && scheduleResources.resources.length > 0 && (
+          <TimeRulerStrip
+            hasGroups={scheduleResources.groups !== undefined}
+            resourceLabelWidth={scheduleLabelWidths.resource}
+            groupLabelWidth={scheduleLabelWidths.group}
+            chromeOffset={chromeHeight}
+            stackBelowHeight="calc(var(--mantine-scale) * 2rem)"
+            innerRef={weekRulerRef}
+          />
+        )}
+        {!gridLoading && view === "schedule" && scheduleResources.resources.length > 0 && (
+          <TimeRulerStrip
+            hasGroups={scheduleResources.groups !== undefined}
+            resourceLabelWidth={scheduleLabelWidths.resource}
+            groupLabelWidth={scheduleLabelWidths.group}
+            chromeOffset={chromeHeight}
+            innerRef={dayRulerRef}
           />
         )}
         {gridLoading ? (
@@ -1307,7 +1491,7 @@ export function DashboardView({
               }
               openCreate(day, e.currentTarget.getBoundingClientRect());
             }}
-            tabBarOffset={tabsHeight}
+            chromeOffset={chromeHeight}
           />
         ) : isWeek ? (
           <ResourcesWeekView
@@ -1321,6 +1505,9 @@ export function DashboardView({
             rowHeight={56}
             withHeader={false}
             withCurrentTimeIndicator
+            // Open at Monday 07:00 like the Day view (mount-only effect;
+            // week-to-week navigation keeps the current scroll position).
+            startScrollDateTime={week ? `${week[0]} 07:00:00` : undefined}
             onEventClick={(event, e) => {
               setDetailOriginRect(e.currentTarget.getBoundingClientRect());
               setDetailEvent(event as unknown as CalendarEvent);
@@ -1345,8 +1532,10 @@ export function DashboardView({
               // Replaced by the pinned WeekDayLabelStrip above (Mantine's own
               // labels center in each 1440px-wide day column, so they are
               // effectively invisible on a phone). The strip must sit directly
-              // above the grid, so it lives outside the scroll area.
+              // above the grid, so it lives outside the scroll area. The time
+              // labels are replaced the same way by the pinned TimeRulerStrip.
               resourcesWeekViewDayLabelsRow: { display: "none" },
+              resourcesWeekViewTimeLabelsRow: { display: "none" },
               resourcesWeekViewResourceLabel: {
                 whiteSpace: "nowrap",
                 overflow: "hidden",
@@ -1355,9 +1544,9 @@ export function DashboardView({
               },
             }}
             labels={{ resources: "" }}
-            // Open at 07:00 like the Day view (startScrollPosition applies on
-            // mount; week-to-week navigation keeps the current scroll position).
-            // onScrollPositionChange feeds the pinned day-label strip.
+            // onScrollPositionChange feeds the pinned day-label strip and the
+            // ruler's translateX tracking; viewportRef syncs the ruler after
+            // mount/loads (see the layout effect above).
             scrollAreaProps={weekScrollAreaProps}
             renderResourceLabel={renderResourceLabel}
             renderGroupLabel={renderGroupLabel}
@@ -1386,6 +1575,10 @@ export function DashboardView({
               },
             })}
             styles={{
+              // Replaced by the pinned TimeRulerStrip above (the library's own
+              // row is sticky only inside its ScrollArea viewport, which never
+              // scrolls vertically — the page does).
+              resourcesDayViewTimeLabelsRow: { display: "none" },
               resourcesDayViewResourceLabel: {
                 whiteSpace: "nowrap",
                 overflow: "hidden",
@@ -1394,6 +1587,9 @@ export function DashboardView({
               },
             }}
             labels={{ resources: "" }}
+            // onScrollPositionChange feeds the ruler's translateX tracking;
+            // viewportRef syncs it after mount/loads (layout effect above).
+            scrollAreaProps={dayScrollAreaProps}
             // All-day events render as full-width bars whose label would scroll
             // out of view; the renderEvent hook re-renders only those and pins the
             // title with position: sticky beside the sticky resource column.

@@ -1,55 +1,77 @@
 import { describe, expect, it } from "vitest";
 
 import {
-  CALENDAR_COLORS,
-  colorForCalendar,
+  EVENT_COLORS,
+  colorForId,
   effectiveCalendarColor,
-  isCalendarColor,
-  normalizeCalendarColor,
-} from "./calendarColors";
+  effectiveEventTypeColor,
+  formatColorLabel,
+  isEventColor,
+  normalizeEventColor,
+} from "./eventColors";
 
-describe("isCalendarColor", () => {
+function capitalize(value: string): string {
+  return value.charAt(0).toUpperCase() + value.slice(1);
+}
+
+describe("isEventColor", () => {
   it("accepts only palette members", () => {
-    for (const color of CALENDAR_COLORS) {
-      expect(isCalendarColor(color)).toBe(true);
+    for (const color of EVENT_COLORS) {
+      expect(isEventColor(color)).toBe(true);
     }
-    expect(isCalendarColor("purple")).toBe(false);
-    expect(isCalendarColor("")).toBe(false);
-    expect(isCalendarColor(null)).toBe(false);
-    expect(isCalendarColor({ color: "blue" })).toBe(false);
+  });
+
+  it("rejects non-strings and unknown names", () => {
+    expect(isEventColor("purple")).toBe(false);
+    expect(isEventColor(42)).toBe(false);
+    expect(isEventColor(null)).toBe(false);
+    expect(isEventColor({ color: "blue" })).toBe(false);
   });
 });
 
-describe("normalizeCalendarColor", () => {
-  it("passes through valid palette names", () => {
-    expect(normalizeCalendarColor("blue")).toBe("blue");
-    expect(normalizeCalendarColor("pink")).toBe("pink");
+describe("normalizeEventColor", () => {
+  it("accepts palette colors", () => {
+    expect(normalizeEventColor("blue")).toBe("blue");
+    expect(normalizeEventColor("pink")).toBe("pink");
   });
 
-  it("falls back to null (auto) for missing/unknown values", () => {
-    expect(normalizeCalendarColor(undefined)).toBeNull();
-    expect(normalizeCalendarColor(null)).toBeNull();
-    expect(normalizeCalendarColor("")).toBeNull();
-    expect(normalizeCalendarColor("auto")).toBeNull();
-    expect(normalizeCalendarColor("purple")).toBeNull();
-    expect(normalizeCalendarColor(42)).toBeNull();
+  it("falls back to null for empty, auto, or unknown values", () => {
+    expect(normalizeEventColor(undefined)).toBeNull();
+    expect(normalizeEventColor(null)).toBeNull();
+    expect(normalizeEventColor("")).toBeNull();
+    expect(normalizeEventColor("auto")).toBeNull();
+    expect(normalizeEventColor("purple")).toBeNull();
+    expect(normalizeEventColor(42)).toBeNull();
   });
 });
 
-describe("colorForCalendar", () => {
+describe("colorForId", () => {
   it("is stable for a given id", () => {
-    expect(colorForCalendar("abc-123")).toBe(colorForCalendar("abc-123"));
+    expect(colorForId("abc-123")).toBe(colorForId("abc-123"));
   });
 
-  it("always yields a palette member", () => {
-    for (const id of ["", "a", "01234567-89ab-4def-8123-456789abcdef", "x".repeat(36)]) {
-      expect(CALENDAR_COLORS).toContain(colorForCalendar(id));
+  it("always lands on the palette", () => {
+    for (let i = 0; i < 20; i += 1) {
+      const id = `id-${i}`;
+      expect(EVENT_COLORS).toContain(colorForId(id));
     }
   });
 
-  it("distributes distinct ids across the palette", () => {
-    const seen = new Set(Array.from({ length: 50 }, (_, i) => colorForCalendar(`id-${i}`)));
+  it("spreads ids across the palette", () => {
+    const seen = new Set(Array.from({ length: 50 }, (_, i) => colorForId(`id-${i}`)));
     expect(seen.size).toBeGreaterThan(1);
+  });
+});
+
+describe("effectiveEventTypeColor", () => {
+  it("prefers the pinned color when set", () => {
+    expect(effectiveEventTypeColor("Leave", "red")).toBe("red");
+  });
+
+  it("falls back to the name-derived default", () => {
+    expect(effectiveEventTypeColor("Leave", null)).toBe(colorForId("Leave"));
+    expect(effectiveEventTypeColor("Leave", "")).toBe(colorForId("Leave"));
+    expect(effectiveEventTypeColor("Leave", "bogus")).toBe(colorForId("Leave"));
   });
 });
 
@@ -58,9 +80,21 @@ describe("effectiveCalendarColor", () => {
     expect(effectiveCalendarColor("id-1", "red")).toBe("red");
   });
 
-  it("falls back to the deterministic default when unset or invalid", () => {
-    expect(effectiveCalendarColor("id-1", null)).toBe(colorForCalendar("id-1"));
-    expect(effectiveCalendarColor("id-1", "")).toBe(colorForCalendar("id-1"));
-    expect(effectiveCalendarColor("id-1", "bogus")).toBe(colorForCalendar("id-1"));
+  it("falls back to the id-derived default", () => {
+    expect(effectiveCalendarColor("id-1", null)).toBe(colorForId("id-1"));
+    expect(effectiveCalendarColor("id-1", "")).toBe(colorForId("id-1"));
+    expect(effectiveCalendarColor("id-1", "bogus")).toBe(colorForId("id-1"));
+  });
+});
+
+describe("formatColorLabel", () => {
+  it("capitalizes a pinned color", () => {
+    expect(formatColorLabel("blue", "Leave")).toBe("Blue");
+  });
+
+  it("labels an unset color as Auto with the id-derived default", () => {
+    const defaultColor = colorForId("Leave");
+    expect(formatColorLabel(null, "Leave")).toBe(`Auto (${capitalize(defaultColor)})`);
+    expect(formatColorLabel("", "Leave")).toBe(`Auto (${capitalize(defaultColor)})`);
   });
 });

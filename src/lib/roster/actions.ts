@@ -8,7 +8,7 @@ import { calendars, users, type Calendar, type User } from "@/db/schema";
 import { AUDIT_ACTIONS, actorFromUser } from "@/lib/audit/build";
 import { diffFields } from "@/lib/audit/diff";
 import { logAction } from "@/lib/audit/log";
-import { normalizeCalendarColor } from "@/lib/events/calendarColors";
+import { normalizeEventColor } from "@/lib/events/eventColors";
 import { getGoogleIntegration, googleCalendarConfigured } from "@/lib/google";
 import { requireAdmin } from "@/lib/session";
 import {
@@ -297,7 +297,7 @@ export async function createDepartment(input: CalendarFormValues): Promise<Roste
   }
 
   const name = input.name.trim();
-  const color = normalizeCalendarColor(input.color);
+  const color = normalizeEventColor(input.color);
   try {
     const integration = await getGoogleIntegration();
     const created = await integration.createCalendar(name);
@@ -348,7 +348,7 @@ export async function renameDepartment(
   }
 
   const name = input.name.trim();
-  const color = normalizeCalendarColor(input.color);
+  const color = normalizeEventColor(input.color);
   try {
     if (name !== calendar.name && googleCalendarConfigured()) {
       const integration = await getGoogleIntegration();

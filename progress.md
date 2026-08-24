@@ -18,7 +18,7 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
 
 ## 1.1 Status
 
-- All phases through **Phase 3an (Full Day / Half Day time-option split)** are shipped.
+- All phases through **Phase 3av (Pinned time rulers, chrome compaction, overlap fix)** are shipped.
 - Quality gates (`lint` / `typecheck` / `test` / schema-drift check) run in CI on every
   PR; pushes to `main` additionally auto-apply pending migrations against Neon. The
   per-phase "pnpm … pass" claims are therefore no longer repeated here.
@@ -148,6 +148,9 @@ One line per phase; full write-ups (incl. Mermaid diagrams and verification note
 - 1.93 Accessibility pass: keyboard-activatable rows/cards, aria-pressed toggles, parade legend
 - 1.94 Not-found prerender fix (bugfix)
 - 1.95 Department event colors configurable from Settings → Departments (Phase 3as)
+- 1.96 Event-type event colors; department color becomes the external-event fallback (Phase 3at)
+- 1.97 Sticky calendar chrome: tabs+date-nav pinned at all widths, Week strip docks, mobile headers fixed (Phase 3au)
+- 1.98 Pinned Day/Week hour rulers; compact date-nav row; z-order fix for columns overlapping pinned bars (Phase 3av)
 
 ## 1.4 Open items & next steps
 
