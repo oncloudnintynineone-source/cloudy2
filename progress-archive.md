@@ -121,6 +121,7 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
 - [1.102 Slow-network responsiveness: optimistic chrome + client-router reuse](#1102-slow-network-responsiveness-optimistic-chrome--client-router-reuse)
 - [1.103 Quick links: admin-managed link menu launched from the Calendar FAB (Phase 3ay)](#1103-quick-links-admin-managed-link-menu-launched-from-the-calendar-fab-phase-3ay)
 - [1.104 Fullscreen calendar view (Phase 3az)](#1104-fullscreen-calendar-view-phase-3az)
+- [1.105 Event invitee picker: cross-department invites for non-admins (Phase 3b0)](#1105-event-invitee-picker-cross-department-invites-for-non-admins-phase-3b0)
 
 ## 1.1 Status
 
@@ -5073,3 +5074,71 @@ Verification: `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm build` all
 pass. (On-device QA notes: verify Android Chrome status-bar hiding, iOS
 CSS-only fallback, `Esc` restore, and the sticky-chrome re-pin in each
 dashboard view.)
+
+## 1.105 Event invitee picker: cross-department invites for non-admins (Phase 3b0)
+
+The event form's **Invited Attendees** picker is no longer role-scoped: a
+regular user can now tag **any** active user and **any** department, not just
+people from their own department. This reverses the §1.38 decision that the
+*creation* picker "stays role-scoped (own-department scope for non-admins,
+per creation permission semantics)" — inviting is a cross-department
+coordination act that every role may perform, not an admin-only one. The
+§1.38 change itself (cross-department *filter* options via `filterUsers`) is
+untouched.
+
+Why it was safe to relax: a logical event already materializes as one Google
+calendar copy per involved department (`deriveTargetCalendarIds`,
+`src/lib/events/targets.ts`), and the service account owns every department
+calendar, so cross-department copies always write cleanly — the old
+restriction was a deliberate permission choice, not a technical limit. The
+server actions never validated invitee departments either; the scope lived
+entirely in the option lists built in `dashboard/page.tsx`.
+
+- **Page** (`src/app/(protected)/dashboard/page.tsx`) — `pickerUsers` is now
+  `activeUsers` for every role (the `ownUsers` block is gone) and
+  `inviteeDepartments` is the full `calendars` list. The role default for the
+  *view* (a non-admin's default calendar = own department) is untouched —
+  `isAdmin`/`ownDepartmentId` still drive `defaultCalendars`, so only the
+  creation picker widened. `peopleNames` derives from `pickerUsers`, so the
+  event detail modal now resolves cross-department invitee/creator names
+  instead of dropping them (previously a latent gap, e.g. when an admin
+  creates an event "on behalf of" someone who later edits it).
+- **EventForm** (`src/app/(protected)/dashboard/EventForm.tsx`) — copy only:
+  the picker placeholder "My department only" → "Tag people or departments"
+  (the old text described the removed restriction), and the empty-state line
+  → "No active users or departments to tag yet." — reachable only with an
+  empty roster now, and the old second clause was wrong for unassigned
+  users, who can *now* create by tagging someone else's department.
+- **EventDetail** — prop comment "(role-scoped roster)" → "(active roster)".
+- **Unchanged:** `creatorGuard`/`ownershipGuard` (`src/lib/events/guards.ts`)
+  — non-admins still create only as themselves and edit/delete only their
+  own events; the admin "On behalf of" step; filter-dialog user options
+  (`filterUsers`); the `active`-status filter (inactive users remain
+  un-inviteable); the multi-copy create/update flows (`event-mutations.md`),
+  which already handled arbitrary department targets.
+
+Edge cases:
+
+- Non-admin **without** a department: previously picker empty and creation
+  blocked ("Assign yourself to a department or tag an invitee"); now they can
+  invite anyone and the event lands in the tagged departments.
+- Editing an admin-created event (creator = this non-admin) that already
+  carries cross-department invitees: chips now resolve to labels; previously
+  the ids had no option label.
+
+```mermaid
+flowchart LR
+    R["listUsers()"] --> A["activeUsers<br/>(status = active)"]
+    A --> P["pickerUsers — full roster<br/>(was: own dept for non-admins)"]
+    C["listCalendars()"] --> D["inviteeDepartments — all departments<br/>(was: own dept only)"]
+    P --> F["EventForm invitee picker"]
+    D --> F
+    P --> N["peopleNames map<br/>(detail-modal labels)"]
+```
+
+Verification: `pnpm lint`, `pnpm typecheck`, `pnpm test` pass. (No pure
+helper changed, so no new unit tests; `dashboard/page.tsx` is I/O-bound per
+repo convention.) Manual QA: as a non-admin, the event form lists all active
+users + all departments; creating an event with a foreign-department
+invitee lands copies in both department calendars, and the detail modal
+shows both sets of names.

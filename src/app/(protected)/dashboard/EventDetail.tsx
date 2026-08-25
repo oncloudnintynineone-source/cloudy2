@@ -23,7 +23,7 @@ interface EventDetailProps {
   onClose: () => void;
   onEdit: (event: CalendarEvent, originRect: Rect | null) => void;
   onDeleted: () => void;
-  /** User id to display name (role-scoped roster). */
+  /** User id to display name (active roster). */
   peopleNames: Record<string, string>;
   /** Calendar (department) id to display name. */
   calendarNames: Record<string, string>;

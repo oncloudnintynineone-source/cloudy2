@@ -136,13 +136,11 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
       : (ui?.users ?? []).filter((id) => allUserIds.includes(id));
 
   // Schedule view rows: active users whose department is among the selected
-  // calendars. Invitee picker options are role-scoped: admins can tag any
-  // department/user, regular users only their own department.
+  // calendars. Invitee picker options are the full active roster for every
+  // role: non-admins may invite users from any department (and tag any
+  // department) — the event copies then land in the invitees' departments.
   const activeUsers = allUsers.filter((user) => user.status === "active");
-  const ownUsers = ownDepartmentId
-    ? activeUsers.filter((user) => user.department?.id === ownDepartmentId)
-    : [];
-  const pickerUsers = isAdmin ? activeUsers : ownUsers;
+  const pickerUsers = activeUsers;
 
   const scheduleUsers = activeUsers
     .filter((user) => user.department && selectedCalendars.includes(user.department.id))
@@ -191,9 +189,10 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
       ),
     }));
 
-  const inviteeDepartments = (
-    isAdmin ? calendars : calendars.filter((calendar) => calendar.id === ownDepartmentId)
-  ).map((calendar) => ({ id: calendar.id, name: calendar.name }));
+  const inviteeDepartments = calendars.map((calendar) => ({
+    id: calendar.id,
+    name: calendar.name,
+  }));
 
   const peopleNames: Record<string, string> = Object.fromEntries(
     pickerUsers.map((user) => [

@@ -18,7 +18,7 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
 
 ## 1.1 Status
 
-- All phases through **Phase 3av (Pinned time rulers, chrome compaction, overlap fix)** are shipped.
+- All phases through **Phase 3b0 (Cross-department event invites for non-admins)** are shipped.
 - Quality gates (`lint` / `typecheck` / `test` / schema-drift check) run in CI on every
   PR; pushes to `main` additionally auto-apply pending migrations against Neon. The
   per-phase "pnpm … pass" claims are therefore no longer repeated here.
@@ -159,6 +159,7 @@ One line per phase; full write-ups (incl. Mermaid diagrams and verification note
 - 1.102 Slow-network responsiveness: optimistic nav + date-nav chrome, `staleTimes.dynamic=120` client-router reuse (Phase 3ax)
 - 1.103 Quick links: admin-managed link menu launched from an amber `IconLink` Calendar FAB (mobile) / labelled "Quick links" nav-row chip (lg), page-scale menu items + kebab-style pop (Phase 3ay)
 - 1.104 Fullscreen calendar view: date-nav toggle hides header/nav/sidebar + Fullscreen API, FABs drop to safe-area offset (Phase 3az)
+- 1.105 Event invitee picker: non-admins can invite any user and tag any department (Phase 3b0)
 
 ## 1.4 Open items & next steps
 

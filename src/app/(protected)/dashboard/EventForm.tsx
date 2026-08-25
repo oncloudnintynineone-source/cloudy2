@@ -711,7 +711,7 @@ export function EventForm({
             <NoKeyboardMultiSelect
               label="Invited Attendees"
               description="A copy of the event is created in each tagged person's department and in each tagged department"
-              placeholder="My department only"
+              placeholder="Tag people or departments"
               data={inviteeData}
               value={form.values.invitees}
               onChange={(value) =>
@@ -725,7 +725,7 @@ export function EventForm({
             />
           ) : (
             <Text size="sm" c="dimmed">
-              No people or departments to tag — the event lands in your own department calendar.
+              No active users or departments to tag yet.
             </Text>
           ))}
 
