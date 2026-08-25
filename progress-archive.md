@@ -4865,3 +4865,75 @@ near-instant":
 Docs: `docs/loading-transitions.md` §1.9 (optimistic chrome) + §1.10
 (client-router reuse window); AGENTS.md loading checklist gained point (6).
 Verification: lint/typecheck/test/build pass.
+
+## 1.103 Quick links: admin-managed link menu launched from the Calendar FAB (Phase 3ay)
+
+Admins register a list of quick links (label, URL, icon, icon color, enabled,
+order) that staff can open from the Calendar page. The launcher is
+deliberately non-customizable and deliberately distinct from the grey
+"More options" kebab: a light-`accent` FAB with an `IconLink` glyph beside
+the "New event" FAB (mobile) and a 36px *labelled* "Quick links"
+light-`accent` chip in the date-nav row (lg). Tapping always opens the menu
+— even with a single link, never a direct jump — which starts with a
+branded amber header band so the dropdown reads as "quick links" at a
+glance; a menu item (colored icon + label) opens its URL in a new tab. With
+zero enabled links the launcher is hidden entirely.
+
+- `src/db/schema.ts`: new `quick_links` table (`label`, `url`, `icon` key,
+  `color` palette name or null, `enabled`, `sort_order`, timestamps;
+  `quick_links_sort_idx`) — migration
+  `drizzle/0018_youthful_quentin_quire.sql` (+ committed `drizzle/meta`).
+- `src/lib/quickLinks/`: `icons.ts` (curated 40-key icon registry — keys +
+  human labels, pure; the tabler components live in
+  `src/components/QuickLinkIcon.tsx` so server code never pulls icon
+  components), `validate.ts` (label ≤ 40 chars; URL ≤ 2048 chars and
+  http/https only — `javascript:` & co. rejected; icon normalized to the
+  default key, color via the event types' `normalizeEventColor`),
+  `queries.ts` (order: `sortOrder ASC, createdAt ASC`), `actions.ts`
+  (`createQuickLink` / `updateQuickLink` / `deleteQuickLink` /
+  `moveQuickLink`, all audited as `quickLink.*` with human-readable icon
+  label / color label in `details`, both `/settings/quick-links` and
+  `/dashboard` revalidated).
+- `moveQuickLink` first renumbers every row to a unique ascending
+  `sortOrder` inside a transaction, then swaps with the neighbor — a move
+  therefore always takes effect, even when legacy rows share `sortOrder`
+  values.
+- `src/components/QuickLinksMenu.tsx`: one Mantine `Menu` with a
+  caller-supplied single-element trigger (`top-end` above the amber mobile
+  FAB, `bottom-end` below the labelled lg chip), whose dropdown opens with a
+  branded `accent[0]`/`accent[8]` "Quick links" header band so it never
+  reads as a clone of the grey kebab menu, plus `QuickLinkIconPicker.tsx`, a
+  tappable grid
+  of icon buttons — not a Select, so taps on mobile never raise the keyboard
+  (same rationale as the color swatches and department badges).
+- Settings → new **Quick Links** tab (between Webhooks and General; admin
+  gate inherited from the settings layout): desktop table / mobile cards per
+  the standard list tab — row/card tap opens the form modal (label, URL,
+  icon picker, `ColorSwatchPicker` for the icon color, enabled switch,
+  delete-with-confirm in edit mode); per-row up/down + delete actions live on
+  the row/card itself; add entry point is the mobile-only FAB / full-size
+  desktop button.
+- Dashboard `page.tsx` reads `listQuickLinks()` in its existing
+  `Promise.all` and hands only enabled links to `DashboardView` (new
+  `quickLinks` prop); `DashboardView` renders the launcher only when the
+  list is non-empty — mobile inside the existing `formState === null`
+  toolbar (so the minimized-form toolbar never collides), desktop in the nav
+  row beside "New event".
+- Audit: `AUDIT_ACTIONS.quickLinkCreate/Update/Delete`
+  (`quickLink.create|update|delete`) + labels in `audit/format.ts`, plus
+  `label` / `url` / `icon` / `order` field labels.
+
+Verification: `pnpm lint` / `typecheck` / `test` / `db:generate` drift check
+all pass.
+
+Post-review fixes (same day): user QA on the first build reported (1) the
+launcher looked identical to the existing grey kebab, and (2) both bottom-right
+FABs missing on mobile. Fix for (1) is the amber labelled design above. For
+(2): a headless-Chromium E2E (Playwright, logged in via the auth API) at
+every viewport ≤991px (mobile and desktop UA) renders both FABs correctly —
+not reproducible; the session's long-running dev server (started during the
+original build) was restarted, and the launcher markup was simplified in the
+same pass (the trigger is now a single element cloned by `Menu.Target`
+directly, no `Box` wrapper). E2E asserts: launcher visible at all mobile
+widths, labelled chip at lg, menu opens on click at both breakpoints with the
+branded header, item click opens the URL in a new tab, outside click closes.

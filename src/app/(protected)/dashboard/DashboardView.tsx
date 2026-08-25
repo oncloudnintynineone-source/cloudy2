@@ -56,6 +56,7 @@ import {
   IconFilter,
   IconLayoutGrid,
   IconListDetails,
+  IconLink,
   IconPlus,
   IconRefresh,
   IconStar,
@@ -81,6 +82,7 @@ import {
   FloatingActionButton,
   FloatingToolbar,
 } from "@/components/FloatingToolbar";
+import { QuickLinksMenu, type QuickLinkMenuItem } from "@/components/QuickLinksMenu";
 import { eventsOnDay } from "@/lib/events/agenda";
 import { weekDays } from "@/lib/events/datetime";
 import type { CalendarEvent } from "@/lib/events/queries";
@@ -142,6 +144,12 @@ interface DashboardViewProps {
   eventTypes: EventTypeOption[];
   eventTitleTemplate: string;
   googleConfigured: boolean;
+  /**
+   * Enabled quick links in menu order (Settings → Quick Links); the amber
+   * Quick-links launcher (mobile FAB / nav-row chip at lg) renders only when
+   * at least one is set.
+   */
+  quickLinks: QuickLinkMenuItem[];
   selectedCalendarIds: string[];
   selectedTypes: string[];
   selectedUserIds: string[];
@@ -375,6 +383,7 @@ export function DashboardView({
   eventTypes,
   eventTitleTemplate,
   googleConfigured,
+  quickLinks,
   selectedCalendarIds,
   selectedTypes,
   selectedUserIds,
@@ -1322,6 +1331,27 @@ export function DashboardView({
           >
             New event
           </Button>
+          {/* The same quick-links menu, launched from the nav row at lg (the
+              mobile FAB is hidden there). Amber + labelled on purpose: it must
+              never be confused with the grey "More options" kebab next door. */}
+          {quickLinks.length > 0 && (
+            <QuickLinksMenu
+              links={quickLinks}
+              position="bottom-end"
+              trigger={
+                <Button
+                  visibleFrom="lg"
+                  variant="light"
+                  color="accent"
+                  __vars={{ "--button-height": "36px" }}
+                  leftSection={<IconLink size={16} />}
+                  aria-label="Quick links"
+                >
+                  Quick links
+                </Button>
+              }
+            />
+          )}
           <Menu
             shadow="md"
             width={200}
@@ -1927,6 +1957,21 @@ export function DashboardView({
         // FAB. hiddenFrom sits on the toolbar itself: its Affix portals to
         // <body>, so a wrapper element could not hide it.
         <FloatingToolbar hiddenFrom="lg">
+          {/* The amber Quick-links FAB opens the quick-links menu (Settings →
+              Quick Links); it renders only when at least one link is enabled.
+              Amber + link icon on purpose: it must never be confused with the
+              grey "More options" kebab in the nav row. */}
+          {quickLinks.length > 0 && (
+            <QuickLinksMenu
+              links={quickLinks}
+              position="top-end"
+              trigger={
+                <FloatingActionButton variant="light" color="accent" aria-label="Quick links">
+                  <IconLink size={FAB_ICON_SIZE} />
+                </FloatingActionButton>
+              }
+            />
+          )}
           <FloatingActionButton
             aria-label="New event"
             // The Agenda tab prefills the day being viewed (like the day

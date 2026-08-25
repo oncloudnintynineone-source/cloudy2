@@ -93,6 +93,24 @@ before changing the subsystem.
   fits this shape. Cell binning is pure `buildWeekLanes`/`coveredDays`
   (`src/lib/events/weekMatrix.ts`); data comes from the same `fetchRangeEvents`
   2-month read as Week, so cache/filters/force-refresh are inherited unchanged.
+- **Quick Links** are admin-managed shortcut links shown on the Calendar page
+  (Settings → Quick Links tab). `quick_links` table (`src/db/schema.ts`:
+  label, url, icon key, Mantine-palette color, enabled, sortOrder); CRUD +
+  reorder in `src/lib/quickLinks/actions.ts` (audited `quickLink.*`,
+  revalidates `/settings/quick-links` + `/dashboard`; `moveQuickLink`
+  renumbers to unique ascending `sortOrder` inside its transaction). The
+  curated icon registry is pure in `src/lib/quickLinks/icons.ts` (keys +
+  labels); icon components and the `QuickLinkIcon` / `QuickLinkIconPicker` /
+  `QuickLinksMenu` components are client-only (the picker is a tappable icon
+  button grid, never a Select). Validation in `src/lib/quickLinks/validate.ts`
+  (http/https URLs only). `page.tsx` (dashboard) passes only **enabled**
+  links to `DashboardView` (the `quickLinks` prop); a deliberately
+  non-customizable **amber `IconLink` launcher** (never grey dots — it must
+  not blend with the "More options" kebab) — light-`accent` FAB beside the
+  "New event" FAB on mobile, labelled "Quick links" light-`accent` 36px nav-row
+  chip at lg — renders only when the list is non-empty and always opens the
+  menu (never a direct link); the dropdown opens with a branded amber
+  "Quick links" header band; items open their URL in a new tab.
 - **Remembered UI state survives relaunch** in one cookie, `cloudy2.ui` (base64url
   JSON, max-age 1y): lastPage, sidebarCollapsed, dashboard `{view,date,month,cal,users,
   types,pinnedViews}`, parade `{date,month,cal,users}`. The server applies it per-key as
@@ -147,7 +165,7 @@ before changing the subsystem.
   `/contacts`, Settings `/settings` (regular users get the first three). `SettingsTabs`
   stacks directly above it.
 - **Admin settings live under `/settings`** (admin-only): Users, Departments, Event
-   Types, Templates, Webhooks, General, Audit Log tabs. Event types carry an
+   Types, Templates, Webhooks, Quick Links, General, Audit Log tabs. Event types carry an
    app-required unique `shortname` (the `{type:acronym}` title token), a
    `location_policy` (`in`/`out`/`both`) enforced client- and server-side by pure
    `clampOutOfCamp()` (`src/lib/events/locationPolicy.ts`) — the location field IS

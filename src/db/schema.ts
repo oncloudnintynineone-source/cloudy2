@@ -145,6 +145,29 @@ export const webhooks = pgTable("webhooks", {
   ...timestamps,
 });
 
+/**
+ * Admin-managed quick links shown in the dashboard's quick-links menu
+ * (launched by the grey 3-dots FAB on mobile / the nav-row button at lg).
+ * The menu lists `enabled` rows in `sortOrder` order; the launcher only
+ * appears when at least one row is enabled. `icon` is a key into the curated
+ * tabler icon set (see `src/lib/quickLinks/icons.ts`); `color` (Mantine
+ * palette name) tints the menu item's icon.
+ */
+export const quickLinks = pgTable(
+  "quick_links",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    label: text("label").notNull(),
+    url: text("url").notNull(),
+    icon: text("icon").notNull().default("external-link"),
+    color: text("color"),
+    enabled: boolean("enabled").notNull().default(true),
+    sortOrder: integer("sort_order").notNull().default(0),
+    ...timestamps,
+  },
+  (table) => [index("quick_links_sort_idx").on(table.sortOrder)],
+);
+
 export const auditLogs = pgTable(
   "audit_logs",
   {
@@ -203,3 +226,5 @@ export type GoogleEventCache = typeof googleEventCache.$inferSelect;
 export type NewGoogleEventCache = typeof googleEventCache.$inferInsert;
 export type Webhook = typeof webhooks.$inferSelect;
 export type NewWebhook = typeof webhooks.$inferInsert;
+export type QuickLink = typeof quickLinks.$inferSelect;
+export type NewQuickLink = typeof quickLinks.$inferInsert;

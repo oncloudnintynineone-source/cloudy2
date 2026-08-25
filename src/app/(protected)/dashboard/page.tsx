@@ -10,6 +10,7 @@ import {
 } from "@/lib/events/queries";
 import { filterUserOptionIds } from "@/lib/filters/filterUserOptions";
 import { googleCalendarConfigured } from "@/lib/google";
+import { listQuickLinks } from "@/lib/quickLinks/queries";
 import { listUsers } from "@/lib/roster/queries";
 import { formatFullName } from "@/lib/settings/formatName";
 import { getSettings } from "@/lib/settings/queries";
@@ -89,11 +90,12 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
   const forceRefresh =
     Number.isFinite(refreshNonce) && new Date().getTime() - refreshNonce < REFRESH_NONCE_TTL_MS;
 
-  const [calendars, eventTypes, allUsers, settings] = await Promise.all([
+  const [calendars, eventTypes, allUsers, settings, quickLinks] = await Promise.all([
     listCalendars(),
     listEventTypes(),
     listUsers(),
     getSettings(),
+    listQuickLinks(),
   ]);
   const calendarIds = calendars.map((calendar) => calendar.id);
 
@@ -238,6 +240,17 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
       eventTypes={eventTypeOptions}
       eventTitleTemplate={settings.eventTitleTemplate}
       googleConfigured={googleCalendarConfigured()}
+      // Only enabled links reach the client; an empty list hides the
+      // quick-links launcher on the Calendar page entirely.
+      quickLinks={quickLinks
+        .filter((link) => link.enabled)
+        .map((link) => ({
+          id: link.id,
+          label: link.label,
+          url: link.url,
+          icon: link.icon,
+          color: link.color,
+        }))}
       selectedCalendarIds={selectedCalendars}
       selectedTypes={selectedTypes}
       selectedUserIds={selectedUsers}

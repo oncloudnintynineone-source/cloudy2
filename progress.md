@@ -30,7 +30,9 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
   a layered calendar cache; parade-state page with local attendance mode; contacts page;
   PWA installability;
   mobile-first UI with a desktop layout at `lg`; remembered UI state across relaunch;
-  audit-log viewer with retention + CSV export.
+  audit-log viewer with retention + CSV export; admin-managed quick-links menu
+  launched from a grey 3-dots FAB (mobile) / nav-row button (desktop) on the
+  Calendar page.
 - Google integration is real for Calendar once configured (service account); Gmail send
   is still unwired.
 
@@ -155,6 +157,7 @@ One line per phase; full write-ups (incl. Mermaid diagrams and verification note
 - 1.100 Form validation feedback: toast + scroll to first invalid field + validate-on-blur, all forms
 - 1.101 Duplicate phone/shortname crashes fixed: drizzle-wrapped error inspection + no raw SQL in toasts
 - 1.102 Slow-network responsiveness: optimistic nav + date-nav chrome, `staleTimes.dynamic=120` client-router reuse (Phase 3ax)
+- 1.103 Quick links: admin-managed link menu launched from an amber `IconLink` Calendar FAB (mobile) / labelled "Quick links" nav-row chip (lg), branded menu header (Phase 3ay)
 
 ## 1.4 Open items & next steps
 

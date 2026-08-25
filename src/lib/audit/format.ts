@@ -29,6 +29,9 @@ const ACTION_LABELS: Record<string, string> = {
   "eventType.create": "Event type created",
   "eventType.rename": "Event type renamed",
   "eventType.delete": "Event type deleted",
+  "quickLink.create": "Quick link created",
+  "quickLink.update": "Quick link updated",
+  "quickLink.delete": "Quick link deleted",
   "event.create": "Event created",
   "event.update": "Event updated",
   "event.delete": "Event deleted",
@@ -54,6 +57,10 @@ export function actionLabel(action: string): string {
 /** Field → display label for detail lines; unknown keys render verbatim. */
 const FIELD_LABELS: Record<string, string> = {
   name: "Name",
+  label: "Label",
+  url: "URL",
+  icon: "Icon",
+  order: "Order",
   color: "Color",
   shortname: "Short name",
   phone: "Phone",
