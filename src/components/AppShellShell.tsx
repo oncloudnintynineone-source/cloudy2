@@ -16,6 +16,7 @@ import { usePathname } from "next/navigation";
 
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { UserMenu } from "@/components/UserMenu";
+import { type BannerConfig, bannerColorOption } from "@/lib/banner/banner";
 import { BOTTOM_NAV_HEIGHT, BOTTOM_NAV_HEIGHT_CSS } from "@/lib/bottomNav";
 import { DESKTOP_MEDIA_QUERY } from "@/lib/theme";
 import { ImmersiveModeContext, type ImmersiveModeValue } from "@/lib/ui/immersiveMode";
@@ -144,10 +145,54 @@ function NavButton({ item, active, onTap }: { item: NavItem; active: boolean; on
   );
 }
 
+// The navy brand bar's height; the shell header stacks the optional
+// announcement banner (admin-picked height preset) on top of it.
+const HEADER_HEIGHT_PX = 56;
+
+/**
+ * The admin-managed announcement banner: a fixed-height strip (admin-picked
+ * preset) above the navy brand bar, filled with its curated palette color
+ * (`-filled` var, so light/dark schemes both work) and the readable text color
+ * that option pins. Text wraps and clips at the preset height; the full
+ * content shows on hover (title). The fixed height is what keeps the shell's
+ * offset math exact — the px value is fed into `--app-banner-height` (set
+ * inline on the AppShell root, see globals.css).
+ */
+function AnnouncementBanner({ config }: { config: BannerConfig }) {
+  const option = bannerColorOption(config.color);
+  return (
+    <div
+      role="status"
+      title={config.text}
+      style={{
+        flexShrink: 0,
+        height: config.height,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        paddingInline: "var(--mantine-spacing-md)",
+        textAlign: "center",
+        background: `var(--mantine-color-${config.color}-filled)`,
+        color:
+          option.textColor === "dark"
+            ? "var(--mantine-color-black)"
+            : "var(--mantine-color-white)",
+        fontSize: "var(--mantine-font-size-sm)",
+        fontWeight: 500,
+        // Text wraps within the admin-picked height; overflow is clipped.
+        overflow: "hidden",
+      }}
+    >
+      <span style={{ width: "100%", overflowWrap: "break-word" }}>{config.text}</span>
+    </div>
+  );
+}
+
 export function AppShellShell({
   role,
   name,
   sidebarCollapsed,
+  banner,
   children,
 }: {
   role: "admin" | "user";
@@ -156,6 +201,10 @@ export function AppShellShell({
    *  (protected) layout before first paint (the server renders exactly what
    *  was remembered — no client restore, no flash). */
   sidebarCollapsed: boolean;
+  /** Admin-managed announcement banner, or null when disabled (no reserved
+   *  space — today's layout). Rendered inside the header above the navy bar;
+   *  `--app-shell-header-offset` grows via the inline `--app-banner-height`. */
+  banner?: BannerConfig | null;
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
@@ -245,10 +294,27 @@ export function AppShellShell({
 
   return (
     <AppShell
+      // `--app-banner-height` (absent by default → 0px from the class, the
+      // admin preset when a banner is active) feeds
+      // `--app-shell-header-offset` in globals.css. Set as an inline custom
+      // property on the root so the cascade can't drift between class
+      // declarations. (Not the `vars` prop — in Mantine v9 that's a
+      // resolver *function*, not an object.)
+      style={
+        banner
+          ? ({ "--app-banner-height": `${banner.height}px` } as React.CSSProperties)
+          : undefined
+      }
       // Extra top inset engages in standalone PWA mode on notched devices
       // (`viewport-fit=cover`): the navy header extends edge-to-edge behind
-      // the status bar instead of letterboxing. Reports 0 in-browser.
-      header={{ height: "calc(56px + env(safe-area-inset-top))" }}
+      // the status bar instead of letterboxing. Reports 0 in-browser. The
+      // banner (when active) stacks above the 56px brand bar inside the same
+      // header element.
+      header={{
+        height: banner
+          ? `calc(env(safe-area-inset-top) + ${banner.height}px + ${HEADER_HEIGHT_PX}px)`
+          : `calc(${HEADER_HEIGHT_PX}px + env(safe-area-inset-top))`,
+      }}
       navbar={{
         width: collapsed ? SIDEBAR_RAIL_WIDTH : SIDEBAR_WIDTH,
         breakpoint: "lg",
@@ -262,9 +328,16 @@ export function AppShellShell({
         style={{
           background: "var(--mantine-color-brand-7)",
           borderColor: "var(--mantine-color-brand-8)",
+          // The safe-area region stays navy; the banner + brand bar render
+          // below it. Column layout only when a banner is stacked on top —
+          // otherwise the single Group keeps today's row rendering.
+          paddingTop: "env(safe-area-inset-top)",
+          display: banner ? "flex" : undefined,
+          flexDirection: banner ? "column" : undefined,
         }}
       >
-        <Group h="100%" justify="space-between" px="md">
+        {banner ? <AnnouncementBanner config={banner} /> : null}
+        <Group h={HEADER_HEIGHT_PX} justify="space-between" px="md">
           <Text fw={700} size="lg" component={Link} href="/dashboard" td="none" c="white">
             Cloudy
           </Text>

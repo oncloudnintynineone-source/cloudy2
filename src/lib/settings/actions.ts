@@ -5,6 +5,14 @@ import { revalidatePath } from "next/cache";
 
 import { db } from "@/db";
 import { settings } from "@/db/schema";
+import {
+  formatBannerColorLabel,
+  formatBannerHeightLabel,
+  normalizeBannerColor,
+  normalizeBannerHeight,
+  validateBannerForm,
+  type BannerFormValues,
+} from "@/lib/banner/banner";
 import { AUDIT_ACTIONS, actorFromUser } from "@/lib/audit/build";
 import { diffFields } from "@/lib/audit/diff";
 import { logAction } from "@/lib/audit/log";
@@ -22,7 +30,12 @@ export type SettingsActionResult =
   | {
       ok: false;
       error: string;
-      field?: "keyword" | "nameTemplate" | "eventTitleTemplate" | "retentionDays";
+      field?:
+        | "keyword"
+        | "nameTemplate"
+        | "eventTitleTemplate"
+        | "retentionDays"
+        | "bannerText";
     };
 
 export async function updateKeyword(keyword: string): Promise<SettingsActionResult> {
@@ -180,5 +193,64 @@ export async function updateAuditLogRetention(days: number): Promise<SettingsAct
   });
 
   revalidatePath("/settings/general");
+  return { ok: true };
+}
+
+export async function updateBanner(values: BannerFormValues): Promise<SettingsActionResult> {
+  const session = await requireAdmin();
+
+  const errors = validateBannerForm(values);
+  if (errors.text) {
+    return {
+      ok: false,
+      error: errors.text,
+      field: "bannerText",
+    };
+  }
+
+  const enabled = values.enabled === true;
+  const text = values.text.trim();
+  const color = normalizeBannerColor(values.color);
+  const height = normalizeBannerHeight(values.height);
+  const [before] = await db.select().from(settings).limit(1);
+
+  await db
+    .update(settings)
+    .set({
+      bannerEnabled: enabled,
+      bannerText: text,
+      bannerColor: color,
+      bannerHeight: height,
+      updatedAt: new Date(),
+    })
+    .where(eq(settings.id, "singleton"));
+
+  await logAction({
+    ...actorFromUser({
+      id: session.user.id,
+      name: session.user.name ?? null,
+      role: session.user.role,
+    }),
+    action: AUDIT_ACTIONS.settingsUpdate,
+    entityType: "settings",
+    entityName: "settings",
+    method: "updateBanner",
+    details: diffFields(
+      {
+        bannerEnabled: before?.bannerEnabled ?? false,
+        bannerText: before?.bannerText ?? "",
+        bannerColor: formatBannerColorLabel(before?.bannerColor),
+        bannerHeight: formatBannerHeightLabel(before?.bannerHeight),
+      },
+      {
+        bannerEnabled: enabled,
+        bannerText: text,
+        bannerColor: formatBannerColorLabel(color),
+        bannerHeight: formatBannerHeightLabel(height),
+      },
+    ),
+  });
+
+  revalidatePath("/settings/banner");
   return { ok: true };
 }

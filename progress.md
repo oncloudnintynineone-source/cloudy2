@@ -163,6 +163,8 @@ One line per phase; full write-ups (incl. Mermaid diagrams and verification note
 - 1.106 UserSelectModal: badge picker dialog (search + department grouping) replaces the user multi-selects in the event wizard and FilterModal (Phase 3b1)
 - 1.107 UserSelectModal: fixed-height picker dialog — search/footer pinned, only badge sections scroll (bugfix)
 - 1.108 UserSelectModal: badge taps keep the search-box focus / soft keyboard open (bugfix)
+- 1.109 Announcement banner: admin-managed persistent banner above the header (enable/disable, text, curated color) with a dedicated Settings tab (Phase 3b2)
+- 1.110 Announcement banner: admin height presets (Short/Medium/Tall/XL), text wraps + clips, offset via inline `--app-banner-height` (Phase 3b3)
 
 ## 1.4 Open items & next steps
 
