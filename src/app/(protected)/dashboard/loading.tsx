@@ -37,7 +37,9 @@ export default async function DashboardLoading() {
     typeof ui?.month === "string" && MONTH_PATTERN.test(ui.month) ? ui.month : currentMonth();
 
   return (
-    <Stack pb="xl" gap="sm">
+    // Same shell-padding pull-up as DashboardView, so the skeleton chrome
+    // starts flush under the fixed header exactly like the real render.
+    <Stack pb="xl" gap="sm" style={{ marginTop: "calc(-1 * var(--app-shell-padding))" }}>
       {/* Sticky view-tabs bar placeholder (five tabs, flex:1 each). */}
       <Box
         style={{

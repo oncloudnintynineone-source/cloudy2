@@ -1226,7 +1226,12 @@ export function DashboardView({
   }
 
   return (
-    <Stack pb="xl" gap="sm">
+    // Pulled up by the shell's md padding: AppShell.Main adds
+    // --app-shell-padding ON TOP of the 56px header offset, which showed as a
+    // body-background strip under the fixed header until the sticky chrome
+    // scrolled up to pin flush. Negative margin starts the chrome at the
+    // header's bottom edge (its sticky `top`), so rest and pinned states match.
+    <Stack pb="xl" gap="sm" style={{ marginTop: "calc(-1 * var(--app-shell-padding))" }}>
       {/* The sticky chrome block: view tabs + date-nav row pinned as one unit
           at every breakpoint. The wrapper is a direct child of the Stack, so
           its containing block spans the whole page and sticky can hold it at
