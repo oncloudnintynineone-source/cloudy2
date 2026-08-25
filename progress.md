@@ -162,6 +162,7 @@ One line per phase; full write-ups (incl. Mermaid diagrams and verification note
 - 1.105 Event invitee picker: non-admins can invite any user and tag any department (Phase 3b0)
 - 1.106 UserSelectModal: badge picker dialog (search + department grouping) replaces the user multi-selects in the event wizard and FilterModal (Phase 3b1)
 - 1.107 UserSelectModal: fixed-height picker dialog — search/footer pinned, only badge sections scroll (bugfix)
+- 1.108 UserSelectModal: badge taps keep the search-box focus / soft keyboard open (bugfix)
 
 ## 1.4 Open items & next steps
 

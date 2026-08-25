@@ -5253,3 +5253,33 @@ Manual QA: open dashboard ⋮ → More Filters → Users → Select, type a
 narrowing query — the dialog holds its size, the search box stays put under
 the header, remaining badges scroll internally, footer stays reachable at
 mobile and desktop widths.
+
+## 1.108 UserSelectModal: badge taps keep the search focus (bugfix)
+
+Follow-up to 1.107: tapping a badge dismissed the mobile soft keyboard.
+The badges are real `UnstyledButton`s, so pressing one transferred DOM
+focus off the search `TextInput` — the keyboard closed after every tap,
+forcing the user to re-open it before filtering for the next person. That
+broke the picker's core loop of *search → tap → search → tap*.
+
+Two complementary techniques keep the input focused (the same pattern
+Mantine's Combobox uses):
+
+- Badge buttons get `onMouseDown={(event) => event.preventDefault()}`,
+  which stops the press from moving focus at all (desktop + Android).
+- `toggle()` explicitly refocuses the input via a new `searchRef`
+  (`searchRef.current?.focus()`), covering iOS Safari, which blurs during
+  touch handling before the synthesized `mousedown` but honors `focus()`
+  called inside the click gesture.
+
+The ✕ clear-search `ActionIcon` gets the same treatment so clearing a
+query doesn't drop the keyboard either. Footer Clear / Cancel / Confirm
+buttons are deliberately untouched — they end the flow and should release
+the keyboard. Keyboard users are unaffected: `preventDefault` on
+`mousedown` doesn't interfere with Tab/Enter/Space activation or the
+`aria-pressed` toggle semantics.
+
+Verification: `pnpm lint`, `pnpm typecheck`, `pnpm test` pass (592 tests).
+Manual QA: filter down by query, tap several badges consecutively — the
+soft keyboard stays up between taps on mobile widths; typing continues
+immediately after each tap on desktop.

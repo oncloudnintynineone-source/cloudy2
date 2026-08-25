@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import {
   ActionIcon,
   Badge,
@@ -99,6 +99,7 @@ function UserSelectModalBody({
   onClose,
   confirmLabel,
 }: Pick<UserSelectModalProps, "groups" | "values" | "onConfirm" | "onClose" | "confirmLabel">) {
+  const searchRef = useRef<HTMLInputElement>(null);
   const [query, setQuery] = useState("");
   const [draft, setDraft] = useState<Record<string, string[]>>(() =>
     selectionByGroup(groups, Object.values(values).flat()),
@@ -117,6 +118,9 @@ function UserSelectModalBody({
           : [...current, optionId],
       };
     });
+    // Keep the search box focused so the soft keyboard stays open and the
+    // user can keep filtering between badge taps.
+    searchRef.current?.focus();
   }
 
   function handleClear() {
@@ -131,6 +135,7 @@ function UserSelectModalBody({
   return (
     <Stack h="100%" style={{ overflow: "hidden" }}>
       <TextInput
+        ref={searchRef}
         aria-label="Search"
         placeholder="Search"
         leftSection={<IconSearch size={14} style={{ color: "var(--mantine-color-dimmed)" }} />}
@@ -140,7 +145,12 @@ function UserSelectModalBody({
               variant="subtle"
               color="gray"
               aria-label="Clear search"
-              onClick={() => setQuery("")}
+              // Don't steal focus from the input when clearing the query.
+              onMouseDown={(event) => event.preventDefault()}
+              onClick={() => {
+                setQuery("");
+                searchRef.current?.focus();
+              }}
             >
               <IconX size={14} />
             </ActionIcon>
@@ -171,6 +181,10 @@ function UserSelectModalBody({
                       key={option.id}
                       aria-pressed={selected}
                       aria-label={`${option.label}${selected ? ", selected" : ""}`}
+                      // Don't steal focus from the search box on press; the
+                      // explicit refocus in `toggle` covers iOS Safari, which
+                      // blurs before the synthesized mousedown.
+                      onMouseDown={(event) => event.preventDefault()}
                       onClick={() => toggle(section, option.id)}
                       style={{ cursor: "pointer", borderRadius: "var(--mantine-radius-md)" }}
                     >
