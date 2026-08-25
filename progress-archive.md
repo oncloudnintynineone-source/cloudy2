@@ -5217,3 +5217,39 @@ selected badges, the dialog lists all users grouped by department with a
 live search, the creator can't be dropped; dashboard + parade-state Filters
 → Users opens the grouped dialog, My Events parity, empty confirm clears the
 filter.
+
+## 1.107 UserSelectModal: fixed-height picker dialog (bugfix)
+
+Typing a specific query into `UserSelectModal`'s search box collapsed the
+badge sections and the modal — a `centered` auto-sized Mantine `Modal` —
+shrank and re-centered toward the viewport middle on **every keystroke**.
+With the mobile keyboard open the shrunken dialog landed behind it, hiding
+exactly the search box and the few matching badges the user was about to
+tap; on desktop it was a jarring jump at best. Root cause: search input,
+all badge sections and the footer shared one unbounded `Stack` inside the
+modal body, so content height (and therefore centered position) tracked
+the filter result size.
+
+The fix makes the picker a **fixed-height three-region dialog** so filtering
+never resizes it:
+
+- `Modal` styles: `content` gets
+  `height: min(560px, calc(100dvh - 96px))` + `display: flex; flex-direction:
+  column`; `body` gets `flex: 1; min-height: 0; overflow: hidden`.
+- Body is now a column: the search `TextInput` pinned at the top, a
+  scrollable inner `Stack` (`flex: 1; overflowY: auto; minHeight: 0`) holding
+  only the badge sections / "No matches" message, and the Clear / Cancel /
+  Confirm footer pinned at the bottom. Native scrolling (no `ScrollArea`),
+  matching existing patterns.
+
+No logic changes: query state, draft toggling and the pure helpers in
+`src/lib/users/userSelect.ts` are untouched; both call sites inherit the fix
+unchanged (FilterModal's nested picker at `zIndex 200`, event wizard invitees
+at `zIndex 300`). Section spacing inside the new scroll region is preserved
+by making it a `Stack` (same `gap: md` the outer stack provided before).
+
+Verification: `pnpm lint`, `pnpm typecheck`, `pnpm test` pass (592 tests).
+Manual QA: open dashboard ⋮ → More Filters → Users → Select, type a
+narrowing query — the dialog holds its size, the search box stays put under
+the header, remaining badges scroll internally, footer stays reachable at
+mobile and desktop widths.

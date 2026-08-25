@@ -40,7 +40,10 @@ interface UserSelectModalProps {
 /**
  * Generic badge picker: sections of toggleable badges with an instant search
  * box on top. Typing removes non-matching options immediately (sections
- * persist, emptied ones disappear). The selection is staged in a draft and
+ * persist, emptied ones disappear). The dialog has a fixed height — search
+ * pinned top, footer pinned bottom, only the badge sections scroll — so
+ * narrowing the list never resizes it or pushes the search box out of view.
+ * The selection is staged in a draft and
  * only committed when the confirm button is pressed. The draft lives in a
  * child that mounts with the modal, so it re-initializes from values every
  * time the dialog opens (the FilterModalBody pattern).
@@ -65,6 +68,18 @@ export function UserSelectModal({
       centered
       size={isDesktop ? "md" : "sm"}
       zIndex={zIndex}
+      // Fixed height so filtering never resizes the dialog: the search box
+      // stays pinned at the top and the footer at the bottom while only the
+      // badge sections scroll. An auto-sized modal would shrink and re-center
+      // on every keystroke (behind the mobile keyboard once it filters down).
+      styles={{
+        content: {
+          height: "min(560px, calc(100dvh - 96px))",
+          display: "flex",
+          flexDirection: "column",
+        },
+        body: { flex: 1, minHeight: 0, overflow: "hidden" },
+      }}
     >
       <UserSelectModalBody
         groups={groups}
@@ -114,7 +129,7 @@ function UserSelectModalBody({
   }
 
   return (
-    <Stack>
+    <Stack h="100%" style={{ overflow: "hidden" }}>
       <TextInput
         aria-label="Search"
         placeholder="Search"
@@ -135,45 +150,47 @@ function UserSelectModalBody({
         onChange={(event) => setQuery(event.currentTarget.value)}
       />
 
-      {visible.length === 0 ? (
-        <Text size="sm" c="dimmed">
-          No matches for &ldquo;{query.trim()}&rdquo;
-        </Text>
-      ) : (
-        visible.map((section) => (
-          <div key={section.label}>
-            <Text fw={600} size="sm" mb={6}>
-              {section.label}
-            </Text>
-            <Group gap={6} wrap="wrap">
-              {section.options.map((option) => {
-                const selected = (draft[section.label] ?? []).includes(option.id);
-                return (
-                  // A real button (not an onClick Badge): keyboard-operable and
-                  // announces its pressed state. The Badge keeps the visual.
-                  <UnstyledButton
-                    key={option.id}
-                    aria-pressed={selected}
-                    aria-label={`${option.label}${selected ? ", selected" : ""}`}
-                    onClick={() => toggle(section, option.id)}
-                    style={{ cursor: "pointer", borderRadius: "var(--mantine-radius-md)" }}
-                  >
-                    <Badge
-                      variant={selected ? "filled" : "light"}
-                      size="lg"
-                      style={{ height: "calc(var(--badge-height-lg) * 1.5)" }}
+      <Stack flex={1} gap="md" style={{ overflowY: "auto", minHeight: 0 }}>
+        {visible.length === 0 ? (
+          <Text size="sm" c="dimmed">
+            No matches for &ldquo;{query.trim()}&rdquo;
+          </Text>
+        ) : (
+          visible.map((section) => (
+            <div key={section.label}>
+              <Text fw={600} size="sm" mb={6}>
+                {section.label}
+              </Text>
+              <Group gap={6} wrap="wrap">
+                {section.options.map((option) => {
+                  const selected = (draft[section.label] ?? []).includes(option.id);
+                  return (
+                    // A real button (not an onClick Badge): keyboard-operable and
+                    // announces its pressed state. The Badge keeps the visual.
+                    <UnstyledButton
+                      key={option.id}
+                      aria-pressed={selected}
+                      aria-label={`${option.label}${selected ? ", selected" : ""}`}
+                      onClick={() => toggle(section, option.id)}
+                      style={{ cursor: "pointer", borderRadius: "var(--mantine-radius-md)" }}
                     >
-                      {option.label}
-                    </Badge>
-                  </UnstyledButton>
-                );
-              })}
-            </Group>
-          </div>
-        ))
-      )}
+                      <Badge
+                        variant={selected ? "filled" : "light"}
+                        size="lg"
+                        style={{ height: "calc(var(--badge-height-lg) * 1.5)" }}
+                      >
+                        {option.label}
+                      </Badge>
+                    </UnstyledButton>
+                  );
+                })}
+              </Group>
+            </div>
+          ))
+        )}
+      </Stack>
 
-      <Group justify="space-between" mt="md" wrap="wrap">
+      <Group justify="space-between" wrap="wrap">
         <Button variant="subtle" color="gray" onClick={handleClear} disabled={selectedCount === 0}>
           Clear
         </Button>
