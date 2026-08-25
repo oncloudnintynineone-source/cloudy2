@@ -183,10 +183,8 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
     .filter((user) => filterUserIds.includes(user.id))
     .map((user) => ({
       id: user.id,
-      displayName: formatFullName(
-        { name: user.name, departmentName: user.department?.name ?? null },
-        settings.nameTemplate,
-      ),
+      name: user.name,
+      departmentName: user.department?.name ?? null,
     }));
 
   const inviteeDepartments = calendars.map((calendar) => ({

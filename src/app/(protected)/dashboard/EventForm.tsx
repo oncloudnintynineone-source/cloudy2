@@ -20,9 +20,10 @@ import { DatePickerInput, DateTimePicker } from "@mantine/dates";
 import { useMediaQuery } from "@mantine/hooks";
 import { useForm } from "@mantine/form";
 import { notifications } from "@mantine/notifications";
-import { IconChevronLeft, IconChevronRight } from "@tabler/icons-react";
+import { IconChevronLeft, IconChevronRight, IconPlus } from "@tabler/icons-react";
 
-import { NoKeyboardMultiSelect, NoKeyboardSelect } from "@/components/NoKeyboardSelect";
+import { NoKeyboardSelect } from "@/components/NoKeyboardSelect";
+import { UserSelectModal } from "@/components/UserSelectModal";
 import {
   createEvent,
   updateEvent,
@@ -48,6 +49,7 @@ import {
 } from "@/lib/settings/formatEventTitle";
 import { BUTTON_LOADER_PROPS } from "@/lib/theme";
 import { showValidationFailure } from "@/lib/ui/validationFeedback";
+import { buildUserGroups, selectionByGroup } from "@/lib/users/userSelect";
 import { formatDateTime, naiveToDate } from "./clientDateTime";
 
 interface EventTypeOption {
@@ -135,6 +137,9 @@ const STEP_BY_FIELD: Partial<Record<EventResultField, StepId>> = {
   creatorId: "creator",
 };
 
+/** Section label of the flat department list inside the invitee badge picker. */
+const PICKER_DEPARTMENTS_SECTION = "Departments";
+
 /** Split the prefixed select values (`user:<id>` / `dept:<id>`) into the two notes fields. */
 function splitInvitees(invitees: string[]): { userIds: string[]; departmentIds: string[] } {
   const userIds: string[] = [];
@@ -172,10 +177,35 @@ export function EventForm({
     validateInputOnBlur: true,
   });
 
-  // The event creator is always an invitee; the select value holding them is
-  // re-added on every change so the chip can't be cleared or deselected. For
-  // regular users the creator is their own (locked) id; admins can change it.
-  const lockedUserValue = form.values.creatorId ? `user:${form.values.creatorId}` : null;
+  // Commits the badge picker draft into the form: the Departments section
+  // yields department ids, every other section yields user ids. Previously
+  // selected ids that no longer appear in the picker (e.g. now-inactive users)
+  // are kept so editing can't silently drop them, and the locked creator is
+  // kept first — the same guarantee the old multi-select's onChange had.
+  function applyInviteePicker(values: Record<string, string[]>) {
+    const known = new Set(Object.values(values).flat());
+    const { userIds: previousUserIds, departmentIds: previousDepartmentIds } =
+      splitInvitees(form.values.invitees);
+    const departmentIds = [
+      ...new Set([
+        ...(values[PICKER_DEPARTMENTS_SECTION] ?? []),
+        ...previousDepartmentIds.filter((id) => !known.has(id)),
+      ]),
+    ];
+    const pickedUserIds = Object.keys(values)
+      .filter((label) => label !== PICKER_DEPARTMENTS_SECTION)
+      .flatMap((label) => values[label] ?? []);
+    const uniqueUserIds = [
+      ...new Set([...pickedUserIds, ...previousUserIds.filter((id) => !known.has(id))]),
+    ];
+    const userIds = form.values.creatorId
+      ? [form.values.creatorId, ...uniqueUserIds.filter((id) => id !== form.values.creatorId)]
+      : uniqueUserIds;
+    form.setFieldValue("invitees", [
+      ...departmentIds.map((id) => `dept:${id}`),
+      ...userIds.map((id) => `user:${id}`),
+    ]);
+  }
 
   function buildInitialValues(): EventFormState {
     if (event) {
@@ -232,33 +262,39 @@ export function EventForm({
     };
   }
 
-  const inviteeData = useMemo(
+  // Badge picker content: a flat Departments section plus one user section per
+  // department (No department last), built from the same props the old
+  // multi-select used. Badges show the plain name — the section header already
+  // carries the department — so the search haystack only adds the shortname
+  // (section-label matching still finds whole departments).
+  const inviteePickerGroups = useMemo(
     () => [
       ...(inviteeDepartments.length > 0
         ? [
             {
-              group: "Departments",
-              items: inviteeDepartments.map((dept) => ({
-                value: `dept:${dept.id}`,
-                label: dept.name,
-              })),
+              label: PICKER_DEPARTMENTS_SECTION,
+              options: inviteeDepartments.map((dept) => ({ id: dept.id, label: dept.name })),
             },
           ]
         : []),
-      ...(inviteeUsers.length > 0
-        ? [
-            {
-              group: "Invited Attendees",
-              items: inviteeUsers.map((user) => ({
-                value: `user:${user.id}`,
-                label: user.displayName,
-              })),
-            },
-          ]
-        : []),
+      ...buildUserGroups(
+        inviteeUsers.map((user) => ({
+          id: user.id,
+          label: user.name,
+          department: user.departmentName,
+          search: user.shortname || undefined,
+        })),
+      ),
     ],
     [inviteeDepartments, inviteeUsers],
   );
+
+  // Seed the picker dialog draft from the current form value; re-derived every
+  // render so the dialog always opens on the latest selection.
+  const inviteePickerValues = useMemo(() => {
+    const { userIds, departmentIds } = splitInvitees(form.values.invitees);
+    return selectionByGroup(inviteePickerGroups, [...userIds, ...departmentIds]);
+  }, [inviteePickerGroups, form.values.invitees]);
 
   const sortedEventTypes = useMemo(
     () => [...eventTypes].sort((a, b) => a.name.localeCompare(b.name)),
@@ -282,6 +318,7 @@ export function EventForm({
   // the "On behalf of" step); it never changes mid-session, so memoize it.
   const steps = useMemo(() => buildSteps(isAdmin), [isAdmin]);
   const [step, setStep] = useState(0);
+  const [inviteePickerOpen, setInviteePickerOpen] = useState(false);
   const currentStep = steps[step];
   const isLastStep = step === steps.length - 1;
 
@@ -384,6 +421,9 @@ export function EventForm({
     () => Object.fromEntries(inviteeDepartments.map((dept) => [dept.id, dept.name])),
     [inviteeDepartments],
   );
+  // The currently selected attendees, for the invitee step's summary badges
+  // and the badge picker's draft seeding.
+  const selectedInvitees = splitInvitees(form.values.invitees);
 
   // "On behalf of" is optional: a blank select means the acting user, who is
   // always invited (mirroring the server's withSelfCreator normalization).
@@ -707,22 +747,61 @@ export function EventForm({
         )}
 
         {currentStep.id === "invitees" &&
-          (inviteeData.length > 0 ? (
-            <NoKeyboardMultiSelect
-              label="Invited Attendees"
-              description="A copy of the event is created in each tagged person's department and in each tagged department"
-              placeholder="Tag people or departments"
-              data={inviteeData}
-              value={form.values.invitees}
-              onChange={(value) =>
-                form.setFieldValue(
-                  "invitees",
-                  lockedUserValue ? [...new Set([lockedUserValue, ...value])] : value,
-                )
-              }
-              searchable
-              clearable
-            />
+          (inviteePickerGroups.length > 0 ? (
+            <Stack gap="xs">
+              <Group justify="space-between" align="center" gap="xs">
+                <Text fw={600} size="sm">
+                  Invited Attendees
+                </Text>
+                <Button
+                  size="xs"
+                  variant="light"
+                  leftSection={<IconPlus size={14} />}
+                  onClick={() => setInviteePickerOpen(true)}
+                >
+                  Select
+                </Button>
+              </Group>
+              <Text size="xs" c="dimmed">
+                A copy of the event is created in each tagged person&apos;s department and in each
+                tagged department
+              </Text>
+              {(selectedInvitees.userIds.length > 0 || selectedInvitees.departmentIds.length > 0) && (
+                <Group gap={6} wrap="wrap" align="start">
+                  {selectedInvitees.userIds.map((id) => {
+                    const person = peopleById[id];
+                    if (!person) {
+                      return null;
+                    }
+                    return (
+                      <Badge
+                        key={id}
+                        variant="light"
+                        color={id === form.values.creatorId ? "brand" : undefined}
+                      >
+                        {person.full}
+                      </Badge>
+                    );
+                  })}
+                  {selectedInvitees.departmentIds.map((id) =>
+                    departmentNames[id] ? (
+                      <Badge key={id} variant="light" color="accent">
+                        {departmentNames[id]}
+                      </Badge>
+                    ) : null,
+                  )}
+                </Group>
+              )}
+              <UserSelectModal
+                opened={inviteePickerOpen}
+                onClose={() => setInviteePickerOpen(false)}
+                groups={inviteePickerGroups}
+                values={inviteePickerValues}
+                onConfirm={applyInviteePicker}
+                confirmLabel="Select"
+                zIndex={300}
+              />
+            </Stack>
           ) : (
             <Text size="sm" c="dimmed">
               No active users or departments to tag yet.

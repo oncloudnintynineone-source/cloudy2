@@ -176,7 +176,7 @@ interface DashboardViewProps {
     displayName: string;
   }[];
   /** Filter dialog user options: users of the selected departments + self. */
-  filterUsers: { id: string; displayName: string }[];
+  filterUsers: { id: string; name: string; departmentName: string | null }[];
   peopleNames: Record<string, string>;
   calendarNames: Record<string, string>;
 }
@@ -711,7 +711,10 @@ export function DashboardView({
     ];
     const userOptions = filterUsers.map((user) => ({
       value: user.id,
-      label: user.displayName,
+      label: user.name,
+      // Carries the department into the picker dialog so users render as
+      // per-department badge sections instead of one flat list.
+      department: user.departmentName,
     }));
     if (userOptions.length > 0) {
       groups.push({

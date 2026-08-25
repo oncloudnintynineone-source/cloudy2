@@ -1,19 +1,29 @@
 "use client";
 
 import { useMemo, useState, type ReactNode } from "react";
-import { Button, Chip, Group, Modal, Stack, Text, useMantineTheme } from "@mantine/core";
+import { Badge, Button, Chip, Group, Modal, Stack, Text, useMantineTheme } from "@mantine/core";
 import { useMediaQuery } from "@mantine/hooks";
+import { IconPlus } from "@tabler/icons-react";
 
-import { NoKeyboardMultiSelect } from "@/components/NoKeyboardSelect";
+import { UserSelectModal } from "@/components/UserSelectModal";
 import {
   isGroupUnfiltered,
   resolveFilterApply,
   type FilterApplyGroup,
 } from "@/lib/filters/resolveFilterApply";
+import { buildUserGroups, type PickerGroup } from "@/lib/users/userSelect";
 
 export interface FilterOption {
   value: string;
   label: string;
+  /** Optional case-insensitive search terms beyond the label. */
+  search?: string;
+  /**
+   * Department (grouping) name for search-variant groups: when present, the
+   * picker dialog shows one badge section per department instead of one flat
+   * list. Absent (undefined) = flat section.
+   */
+  department?: string | null;
 }
 
 export interface FilterGroupAction {
@@ -35,11 +45,41 @@ export interface FilterGroup {
   action?: FilterGroupAction;
   /**
    * "grid" (default) renders the options as toggleable chip pills. "search"
-   * renders a searchable dropdown (MultiSelect) for large option lists. Search
-   * groups use "empty = no filter" semantics, so narrowing 100 options down to
-   * a few never requires unticking the rest.
+   * renders a badge picker dialog (UserSelectModal) for large option lists:
+   * the currently selected options appear as badges beside a Select trigger,
+   * and the dialog filters them by a search box. Search groups use "empty =
+   * no filter" semantics, so narrowing 100 options down to a few never
+   * requires unticking the rest.
    */
   variant?: "grid" | "search";
+}
+
+/**
+ * Build the picker sections for a search-variant group: when the options carry
+ * department names, one section per department (No department last),
+ * otherwise a single flat section carrying the group label.
+ */
+function searchGroupPickerGroups(group: FilterGroup): PickerGroup[] {
+  if (group.options.some((option) => option.department !== undefined)) {
+    return buildUserGroups(
+      group.options.map((option) => ({
+        id: option.value,
+        label: option.label,
+        department: option.department ?? null,
+        search: option.search,
+      })),
+    );
+  }
+  return [
+    {
+      label: group.label,
+      options: group.options.map((option) => ({
+        id: option.value,
+        label: option.label,
+        search: option.search,
+      })),
+    },
+  ];
 }
 
 interface FilterModalProps {
@@ -80,11 +120,13 @@ function initialDraft(
 
 /**
  * Reusable filter dialog: opens from a trigger button and presents each filter
- * group either as a row of toggleable chip pills (default) or as a searchable
- * dropdown (variant "search", for large option lists). Selections are staged in a draft and only applied when "Apply" is pressed. The draft
- * lives in a child that mounts with the modal, so it re-initializes from the
- * current applied values every time the dialog opens. "No filter applied" is
- * "all selected" in grid groups and "nothing selected" in search groups.
+ * group either as a row of toggleable chip pills (default) or as a selected-badge
+ * summary + Select trigger that opens the UserSelectModal badge picker (variant
+ * "search", for large option lists). Selections are staged in a draft and only
+ * applied when "Apply" is pressed. The draft lives in a child that mounts with
+ * the modal, so it re-initializes from the current applied values every time the
+ * dialog opens. "No filter applied" is "all selected" in grid groups and
+ * "nothing selected" in search groups.
  */
 export function FilterModal({ opened, onClose, title, groups, values, onApply }: FilterModalProps) {
   const theme = useMantineTheme();
@@ -115,6 +157,25 @@ function FilterModalBody({
     () => new Set(groups.filter((group) => group.variant === "search").map((g) => g.label)),
     [groups],
   );
+
+  // The open state of the search-group picker is kept separate from its
+  // content, so the closing animation plays over the same sections/dialog it
+  // opened instead of blanking mid-transition.
+  const [pickerContent, setPickerContent] = useState<{
+    label: string;
+    groups: PickerGroup[];
+    values: Record<string, string[]>;
+  } | null>(null);
+  const [pickerOpened, setPickerOpened] = useState(false);
+
+  function openPicker(group: FilterGroup) {
+    setPickerContent({
+      label: group.label,
+      groups: searchGroupPickerGroups(group),
+      values: { [group.label]: draft[group.label] ?? [] },
+    });
+    setPickerOpened(true);
+  }
 
   function handleGroupChange(key: string, value: string[]) {
     setDraft((prev) => ({
@@ -168,16 +229,32 @@ function FilterModalBody({
             )}
           </Group>
           {group.variant === "search" ? (
-            <NoKeyboardMultiSelect
-              mt="xs"
-              value={draft[group.label] ?? []}
-              onChange={(value) => handleGroupChange(group.label, value)}
-              data={group.options}
-              searchable
-              clearable
-              placeholder={`All ${group.label.toLowerCase()}`}
-              nothingFoundMessage={`No ${group.label.toLowerCase()} found`}
-            />
+            <Group justify="space-between" align="center" gap="xs" mt="xs" wrap="wrap">
+              {(draft[group.label] ?? []).length > 0 ? (
+                <Group gap={4} wrap="wrap" grow>
+                  {(draft[group.label] ?? [])
+                    .map((value) => group.options.find((option) => option.value === value))
+                    .filter((option): option is FilterOption => option !== undefined)
+                    .map((option) => (
+                      <Badge key={option.value} variant="light" size="sm">
+                        {option.label}
+                      </Badge>
+                    ))}
+                </Group>
+              ) : (
+                <Text size="xs" c="dimmed">
+                  All {group.label.toLowerCase()}
+                </Text>
+              )}
+              <Button
+                size="xs"
+                variant="light"
+                leftSection={<IconPlus size={14} />}
+                onClick={() => openPicker(group)}
+              >
+                Select
+              </Button>
+            </Group>
           ) : (
             <Chip.Group
               multiple
@@ -195,6 +272,21 @@ function FilterModalBody({
           )}
         </div>
       ))}
+
+      <UserSelectModal
+        opened={pickerOpened}
+        onClose={() => setPickerOpened(false)}
+        groups={pickerContent?.groups ?? []}
+        values={pickerContent?.values ?? {}}
+        onConfirm={(values) => {
+          if (pickerContent) {
+            handleGroupChange(pickerContent.label, values[pickerContent.label] ?? []);
+          }
+          setPickerOpened(false);
+        }}
+        confirmLabel="Apply"
+        zIndex={200}
+      />
 
       <Group justify="space-between" mt="md" wrap="wrap">
         <Button variant="subtle" color="gray" onClick={handleClear} disabled={!hasActiveFilter}>

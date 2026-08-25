@@ -89,7 +89,7 @@ export interface ParadeStateViewProps {
   currentUser: string;
   selectedCalendarIds: string[];
   selectedUserIds: string[];
-  filterUsers: { id: string; displayName: string }[];
+  filterUsers: { id: string; name: string; displayName: string; departmentName: string | null }[];
   nameTemplate: string;
 }
 
@@ -305,7 +305,13 @@ export function ParadeStateView({
     const groups: FilterGroup[] = [
       { label: "Calendars", options: calendars.map((c) => ({ value: c.id, label: c.name })) },
     ];
-    const userOptions = filterUsers.map((user) => ({ value: user.id, label: user.displayName }));
+    const userOptions = filterUsers.map((user) => ({
+      value: user.id,
+      label: user.name,
+      // Carries the department into the picker dialog so users render as
+      // per-department badge sections instead of one flat list.
+      department: user.departmentName,
+    }));
     if (userOptions.length > 0) {
       groups.push({
         label: "Users",

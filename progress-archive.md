@@ -5142,3 +5142,78 @@ repo convention.) Manual QA: as a non-admin, the event form lists all active
 users + all departments; creating an event with a foreign-department
 invitee lands copies in both department calendars, and the detail modal
 shows both sets of names.
+
+## 1.106 UserSelectModal: badge picker dialog replaces the user multi-selects (Phase 3b1)
+
+A new shared component, `UserSelectModal` (`src/components/UserSelectModal.tsx`),
+replaces the searchable user `MultiSelect` dropdowns everywhere: the
+**Invited Attendees** field of the create/edit event wizard and the **Users**
+group (variant `"search"`) of the dashboard / parade-state filter dialog.
+The dialog shows every option as a toggleable badge — users grouped under
+their department (section per department, "No department" last) — with a
+search box on top that removes non-matching badges immediately as you type
+(an option stays when its label, its extra search terms, *or its section
+label* match, so typing a department name keeps the whole department). The
+selection is staged in a draft and committed only on the confirm button
+(Clear / Cancel / Confirm footer); the draft lives in a child that mounts
+with the modal, so it re-initializes from the caller's `values` on every
+open — the `FilterModalBody` pattern.
+
+Data crosses the boundary as `Record<sectionLabel, string[]>` of option ids
+(in = `values`, out = `onConfirm`), so callers keep their own id domains.
+Pure logic lives in `src/lib/users/userSelect.ts` (`PickerOption`/
+`PickerGroup` types, `optionMatchesQuery`, `sortOptionsInGroups`,
+`buildUserGroups`, `filterPickerGroups`, `selectionByGroup`) with 16 unit
+tests in `userSelect.test.ts`. Badge visuals follow the existing toggle idiom
+(`UnstyledButton` + `aria-pressed` + filled/light `Badge`, default blue).
+
+- **EventForm** (`src/app/(protected)/dashboard/EventForm.tsx`) — the mixed
+  `NoKeyboardMultiSelect` (users + departments in one prefixed-value field)
+  is gone. The invitees step now shows the label + description, a small
+  **Select** trigger, and a read-only summary row of the current selection
+  (creator badge in `brand`, department badges in `accent`), and opens
+  `UserSelectModal` (`zIndex 300` over the z-250 event dialog) with a flat
+  `Departments` section plus `buildUserGroups` sections per department. The
+  `invitees` form field **keeps its `user:`/`dept:` prefixed shape**, so
+  `splitInvitees`, the title preview, the review step and the submit payload
+  are unchanged. `applyInviteePicker` re-adds the locked creator first and
+  re-appends previously selected ids that no longer appear in the picker
+  (now-inactive users), so editing can't silently drop them — the only
+  behavioral delta vs. the old dropdown is that such ids can no longer be
+  *removed* (they were visible only as raw chips there). The admin
+  **"On behalf of"** single-select stays a `NoKeyboardSelect`.
+- **FilterModal** (`src/components/FilterModal.tsx`) — variant `"search"`
+  groups no longer render `NoKeyboardMultiSelect`: the group shows the
+  selected options as light badges (or an "All <group>" placeholder) beside
+  a small **Select** trigger that opens a nested `UserSelectModal`
+  (`zIndex 200` over the filter dialog, confirm label "Apply"). `FilterOption`
+  gained optional `search` and `department` fields; when options carry
+  `department`, `searchGroupPickerGroups` builds per-department sections,
+  else one flat section. The draft/`changed`/`cleared`/`resolveFilterApply`
+  machinery, the "My Events" quick action and the empty = no filter
+  semantics are untouched, so confirming with an empty selection clears the
+  filter as before.
+- **Dashboard / parade-state pages** — `filterUsers` gains
+  `departmentName: string | null` (both `page.tsx` already had the data via
+  `RosterUser.department`) and both views pass it into the Users group as
+  `department`, which is what switches the dialog to per-department sections.
+
+```mermaid
+flowchart TB
+    subgraph EventModal ["Create/edit event wizard"]
+        A["Invitees step: summary badges + Select trigger"] --> B["UserSelectModal<br/>(z 300)"]
+        B -->|onConfirm Record section→ids| C["applyInviteePicker<br/>prefixes user:/dept:<br/>re-adds locked creator"]
+        C --> D["form field invitees<br/>(shape unchanged)"]
+    end
+    subgraph Filter ["FilterModal (dashboard / parade state)"]
+        E["Users group: selected badges + Select trigger"] --> F["UserSelectModal<br/>(z 200, Apply)"]
+        F -->|onConfirm| G["handleGroupChange(label, ids)<br/>→ draft → resolveFilterApply"]
+    end
+```
+
+Verification: `pnpm lint`, `pnpm typecheck`, `pnpm test` pass (592 tests,
+incl. the new 16). Manual QA: create/edit event — invitees step shows the
+selected badges, the dialog lists all users grouped by department with a
+live search, the creator can't be dropped; dashboard + parade-state Filters
+→ Users opens the grouped dialog, My Events parity, empty confirm clears the
+filter.

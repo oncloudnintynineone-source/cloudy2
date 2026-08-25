@@ -89,10 +89,12 @@ export default async function ParadeStatePage({ searchParams }: ParadeStatePageP
     .filter((user) => filterUserIds.includes(user.id))
     .map((user) => ({
       id: user.id,
+      name: user.name,
       displayName: formatFullName(
         { name: user.name, departmentName: user.department?.name ?? null },
         settings.nameTemplate,
       ),
+      departmentName: user.department?.name ?? null,
     }));
 
   return (

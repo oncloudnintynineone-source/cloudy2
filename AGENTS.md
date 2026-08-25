@@ -171,9 +171,29 @@ before changing the subsystem.
   `Select`/`MultiSelect` directly — use shared `NoKeyboardSelect`/`NoKeyboardMultiSelect`
   (`src/components/NoKeyboardSelect.tsx`); keep native `readOnly` until the dropdown
   opens. Don't use Mantine's `readOnly` prop — it disables the whole dropdown.
-  **Department selects are never searchable** (short list; plain Select/MultiSelect
-  targets are buttons). Exception: the User-form Department field is a row of toggleable
-  `Badge`s (a Select's focused input focus-scrolls the modal spasmodically on mobile).
+   **Department selects are never searchable** (short list; plain Select/MultiSelect
+   targets are buttons). Exception: the User-form Department field is a row of toggleable
+   `Badge`s (a Select's focused input focus-scrolls the modal spasmodically on mobile).
+- **Picking users (or any large option list) is a badge dialog, not a
+  searchable dropdown.** `UserSelectModal` (`src/components/UserSelectModal.tsx`):
+  a `Modal` listing its sections of toggleable badges with a search box on top —
+  typing removes non-matching options immediately (an option survives when its
+  label, its extra `search` terms, **or its section label** match; emptied
+  sections disappear). Callers pass `groups: PickerGroup[]` (render order) and
+  `values: Record<sectionLabel, string[]>` and get `onConfirm(values)` back —
+  ids in, ids out, so each caller keeps its own id domain. The draft lives in a
+  child that mounts with the modal, so it re-seeds from `values` on every open
+  (the FilterModalBody pattern); pass `zIndex` when nested (event wizard uses
+  300 over its z-250 dialog, FilterModal 200). Users render grouped by
+  department ("No department" last) via `buildUserGroups`; pure helpers
+  (`optionMatchesQuery`, `sortOptionsInGroups`, `buildUserGroups`,
+  `filterPickerGroups`, `selectionByGroup`) are in `src/lib/users/userSelect.ts`,
+  unit-tested. Used by the event wizard's Invited Attendees step (a flat
+  `Departments` section + user sections; the form's `invitees` field keeps its
+  `user:`/`dept:` prefixed shape) and by FilterModal's `variant: "search"`
+  groups (Users on dashboard + parade state; options may carry `department` to
+  get per-department sections, `search` for extra matching). The admin
+  "On behalf of" single-select stays a `NoKeyboardSelect`.
 - **Floating action buttons** use shared `FloatingActionButton` + `FloatingToolbar`
   (`src/components/FloatingToolbar.tsx`) anchored bottom-right — never a raw `Button`.
   65×65 circle (`radius="50%"`), icon-only: children = tabler icon at `FAB_ICON_SIZE`
