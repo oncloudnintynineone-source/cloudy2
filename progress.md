@@ -157,7 +157,7 @@ One line per phase; full write-ups (incl. Mermaid diagrams and verification note
 - 1.100 Form validation feedback: toast + scroll to first invalid field + validate-on-blur, all forms
 - 1.101 Duplicate phone/shortname crashes fixed: drizzle-wrapped error inspection + no raw SQL in toasts
 - 1.102 Slow-network responsiveness: optimistic nav + date-nav chrome, `staleTimes.dynamic=120` client-router reuse (Phase 3ax)
-- 1.103 Quick links: admin-managed link menu launched from an amber `IconLink` Calendar FAB (mobile) / labelled "Quick links" nav-row chip (lg), branded menu header (Phase 3ay)
+- 1.103 Quick links: admin-managed link menu launched from an amber `IconLink` Calendar FAB (mobile) / labelled "Quick links" nav-row chip (lg), page-scale menu items + kebab-style pop (Phase 3ay)
 - 1.104 Fullscreen calendar view: date-nav toggle hides header/nav/sidebar + Fullscreen API, FABs drop to safe-area offset (Phase 3az)
 
 ## 1.4 Open items & next steps

@@ -4889,10 +4889,10 @@ deliberately non-customizable and deliberately distinct from the grey
 "More options" kebab: a light-`accent` FAB with an `IconLink` glyph beside
 the "New event" FAB (mobile) and a 36px *labelled* "Quick links"
 light-`accent` chip in the date-nav row (lg). Tapping always opens the menu
-— even with a single link, never a direct jump — which starts with a
-branded amber header band so the dropdown reads as "quick links" at a
-glance; a menu item (colored icon + label) opens its URL in a new tab. With
-zero enabled links the launcher is hidden entirely.
+— even with a single link, never a direct jump — with page-scale rows
+(16px text, ~44px touch targets) and a direction-aware pop transition
+matching the kebab menu; a menu item (colored icon + label) opens its URL
+in a new tab. With zero enabled links the launcher is hidden entirely.
 
 - `src/db/schema.ts`: new `quick_links` table (`label`, `url`, `icon` key,
   `color` palette name or null, `enabled`, `sort_order`, timestamps;
@@ -4915,9 +4915,10 @@ zero enabled links the launcher is hidden entirely.
   values.
 - `src/components/QuickLinksMenu.tsx`: one Mantine `Menu` with a
   caller-supplied single-element trigger (`top-end` above the amber mobile
-  FAB, `bottom-end` below the labelled lg chip), whose dropdown opens with a
-  branded `accent[0]`/`accent[8]` "Quick links" header band so it never
-  reads as a clone of the grey kebab menu, plus `QuickLinkIconPicker.tsx`, a
+  FAB, `bottom-end` below the labelled lg chip), page-scale items
+  (`10px 12px` padding, `md` font, 20px icon) and a `pop-top-right` /
+  `pop-bottom-right` 150ms ease transition chosen by opening direction —
+  same feel as the kebab menu — plus `QuickLinkIconPicker.tsx`, a
   tappable grid
   of icon buttons — not a Select, so taps on mobile never raise the keyboard
   (same rationale as the color swatches and department badges).
@@ -4951,7 +4952,14 @@ original build) was restarted, and the launcher markup was simplified in the
 same pass (the trigger is now a single element cloned by `Menu.Target`
 directly, no `Box` wrapper). E2E asserts: launcher visible at all mobile
 widths, labelled chip at lg, menu opens on click at both breakpoints with the
-branded header, item click opens the URL in a new tab, outside click closes.
+pop transition, item click opens the URL in a new tab, outside click closes.
+
+Second polish pass (same day, user feedback): dropped the amber "Quick links"
+header band entirely (the amber trigger already identifies the menu), sized
+items to page scale (`10px 12px` padding, `md` 16px text, 20px icon ≈ 44px
+rows) and gave the dropdown the kebab's pop transition, direction-aware
+(`pop-top-right` below the lg chip, `pop-bottom-right` above the mobile FAB),
+150ms ease.
 
 ## 1.104 Fullscreen calendar view (Phase 3az)
 

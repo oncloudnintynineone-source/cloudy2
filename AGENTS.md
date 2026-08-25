@@ -130,8 +130,9 @@ before changing the subsystem.
   not blend with the "More options" kebab) — light-`accent` FAB beside the
   "New event" FAB on mobile, labelled "Quick links" light-`accent` 36px nav-row
   chip at lg — renders only when the list is non-empty and always opens the
-  menu (never a direct link); the dropdown opens with a branded amber
-  "Quick links" header band; items open their URL in a new tab.
+  menu (never a direct link); items are page-scale (16px text, ~44px rows)
+  and open their URL in a new tab; the dropdown pops from the anchored
+  corner like the kebab menu.
 - **Remembered UI state survives relaunch** in one cookie, `cloudy2.ui` (base64url
   JSON, max-age 1y): lastPage, sidebarCollapsed, dashboard `{view,date,month,cal,users,
   types,pinnedViews}`, parade `{date,month,cal,users}`. The server applies it per-key as
