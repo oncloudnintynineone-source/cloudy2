@@ -107,7 +107,10 @@ before changing the subsystem.
   zeroes `--app-shell-header/navbar/footer-offset` — declarations on the root
   div beat Mantine's `:root`-injected vars (same mechanism as the 56px header
   offset), so the AppShell main padding and the sticky chrome / Week strips
-  re-pin to the viewport edge with no per-view changes. Browsers that reject
+  re-pin to the viewport edge with no per-view changes. The dashboard's
+  floating toolbars take the freed bottom-nav space: `FloatingToolbar` gets
+  `bottomOffset="var(--app-floating-bottom-offset-immersive)"` while active
+  (a `:root` var, because the Affix portals to `<body>`). Browsers that reject
   page fullscreen (iOS) keep the CSS-only mode — the sticky chrome then takes
   `env(safe-area-inset-top)` padding. Deliberately NOT persisted in `cloudy2.ui`
   (transient focus mode; refresh/navigation starts with the chrome up).

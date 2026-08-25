@@ -5012,6 +5012,15 @@ viewport top. Where the Fullscreen API is unsupported (iOS standalone,
 `padding-top: env(safe-area-inset-top)` so the tabs clear the still-visible
 status bar (the var is 0 everywhere else).
 
+The floating toolbars take the freed bottom-nav space too: while active,
+both dashboard `FloatingToolbar`s (the mobile FAB row and the
+minimized-draft restore/discard pair) get
+`bottomOffset="var(--app-floating-bottom-offset-immersive)"` —
+`env(safe-area-inset-bottom) + 16px`, dropping the 56px nav allowance while
+keeping gesture-bar clearance. The var is declared on `:root` in globals.css
+because the Affix portals its content to `<body>`, outside the immersive
+class's scope (same reason as the other FAB clearance vars).
+
 Exit paths, in priority of surprise:
 
 | Trigger                                    | Path                                                        |

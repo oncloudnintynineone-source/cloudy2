@@ -425,6 +425,14 @@ export function DashboardView({
     return () => exitImmersive();
   }, [exitImmersive]);
 
+  // In immersive mode the hidden bottom nav frees its clearance: the floating
+  // toolbars drop to the bare safe-area offset. Undefined keeps
+  // FloatingToolbar's default var (the var lives on :root — the Affix
+  // portals to <body>, outside any class scope).
+  const fabBottomOffset = immersiveMode.active
+    ? "var(--app-floating-bottom-offset-immersive)"
+    : undefined;
+
   // Label-column widths for the schedule views: mobile-narrowed 48px/24px for
   // phones, comfortable 96px/56px on desktop.
   const scheduleLabelWidths = isDesktop
@@ -1953,7 +1961,7 @@ export function DashboardView({
       </Modal.Root>
 
       {formState && formMinimized && (
-        <FloatingToolbar zIndex={300}>
+        <FloatingToolbar zIndex={300} bottomOffset={fabBottomOffset}>
           <FloatingActionButton
             aria-label="Restore event form"
             onClick={() => setFormMinimized(false)}
@@ -1993,7 +2001,7 @@ export function DashboardView({
         // Mobile-only: at lg the "New event" button in the nav row replaces the
         // FAB. hiddenFrom sits on the toolbar itself: its Affix portals to
         // <body>, so a wrapper element could not hide it.
-        <FloatingToolbar hiddenFrom="lg">
+        <FloatingToolbar hiddenFrom="lg" bottomOffset={fabBottomOffset}>
           {/* The amber Quick-links FAB opens the quick-links menu (Settings →
               Quick Links); it renders only when at least one link is enabled.
               Amber + link icon on purpose: it must never be confused with the

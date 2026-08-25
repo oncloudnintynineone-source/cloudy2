@@ -81,6 +81,11 @@
 */
 :root {
   --app-floating-bottom-offset: calc(56px + env(safe-area-inset-bottom) + 16px);
+  /* Immersive mode: the bottom nav is hidden, so dashboard FABs drop its
+     56px allowance and keep only the gesture-bar clearance. Referenced by
+     DashboardView's FloatingToolbars while immersive; must live on :root
+     because their Affix portals to <body>, outside any page/class scope. */
+  --app-floating-bottom-offset-immersive: calc(env(safe-area-inset-bottom) + 16px);
   --settings-fab-bottom: calc(108px + env(safe-area-inset-bottom) + 16px);
 }
 
