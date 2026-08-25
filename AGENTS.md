@@ -92,7 +92,31 @@ before changing the subsystem.
   resource rows as Day/Week) in `WeekMatrixView.tsx` — no Mantine Schedule component
   fits this shape. Cell binning is pure `buildWeekLanes`/`coveredDays`
   (`src/lib/events/weekMatrix.ts`); data comes from the same `fetchRangeEvents`
-  2-month read as Week, so cache/filters/force-refresh are inherited unchanged.
+     2-month read as Week, so cache/filters/force-refresh are inherited unchanged.
+- **Dashboard cold start: streamed events + lazy modules.** `page.tsx` resolves
+   filters + department in one `Promise.all` and passes the events fetch to
+   `DashboardView` **un-awaited**; the shell chrome (tabs, date-nav, FABs) paints
+   first, and `EventsArea.tsx` — the view grid, week/day strips, agenda tab + day
+   modal, and `?edit=` resolution (the only code that reads `events`) — sits in a
+   `Suspense` boundary and unwraps the promise with React `use()`. Cold start:
+   `loading.tsx` covers the (now metadata-only) page-suspension window, then the
+   chrome paints before the (possibly Google-bound) read completes. Navigation
+   transitions hold the committed grid (showPrevious) until the new promise
+   resolves; **force refresh is a plain push (no transition) + `forcePending`
+   state** in `DashboardView`, so the Suspense fallback (a `ViewLoadingSkeleton`
+   matching the old `gridLoading` branch) covers the whole fetch; `forcePending`
+   clears via `onEventsResolved` when the events promise settles. All five views
+   (the four `@mantine/schedule` + `WeekMatrixView`) and the modals (`EventForm`,
+   `EventDetail`, `FilterModal`, `DateSelectorModal`) are `next/dynamic` modules
+   in `lazy.tsx`: the active view's chunk is primed at render time
+   (`ensureActiveView(view)`), the rest warm in `requestIdleCallback`
+   (`preloadDashboardModules`). Modals mount from their first open onward
+   (`*EverOpened` flags in `DashboardView`) so close animations still play;
+   `EventDetail` keeps its `keepMounted` post-open (its `displayEvent` shrink-out
+   depends on it). `@mantine/schedule` + `@mantine/dates` CSS is imported at the
+   usage sites (`EventsArea`, `DateSelectorModal`, `EventForm`, `AuditLogView`),
+   not the root layout. `WeekDayLabelStrip`/`TimeRulerStrip` live in `strips.tsx`.
+   Measured dashboard first load: 1339 → 1027 KiB JS, 330 → 305 KiB CSS.
 - **Fullscreen calendar (immersive mode):** a 36px toggle in the dashboard
   date-nav row (`IconArrowsMaximize`/`IconArrowsMinimize`, `aria-pressed`,
   tooltip "Fullscreen"/"Exit fullscreen") hides the shell header, bottom nav

@@ -1,5 +1,7 @@
 "use client";
 
+import "@mantine/dates/styles.css";
+
 import { useMemo, useState, type KeyboardEvent } from "react";
 import {
   Badge,
