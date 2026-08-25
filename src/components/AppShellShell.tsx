@@ -1,15 +1,6 @@
 "use client";
 
-import {
-  AppShell,
-  Box,
-  Group,
-  NavLink,
-  Stack,
-  Text,
-  Tooltip,
-  UnstyledButton,
-} from "@mantine/core";
+import { AppShell, Box, Group, NavLink, Stack, Text, Tooltip, UnstyledButton } from "@mantine/core";
 import { useMediaQuery } from "@mantine/hooks";
 import {
   IconAddressBook,
@@ -19,7 +10,7 @@ import {
   IconLayoutSidebarLeftExpand,
   IconSettings,
 } from "@tabler/icons-react";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link, { useLinkStatus } from "next/link";
 import { usePathname } from "next/navigation";
 
@@ -27,6 +18,7 @@ import { ThemeToggle } from "@/components/ThemeToggle";
 import { UserMenu } from "@/components/UserMenu";
 import { BOTTOM_NAV_HEIGHT, BOTTOM_NAV_HEIGHT_CSS } from "@/lib/bottomNav";
 import { DESKTOP_MEDIA_QUERY } from "@/lib/theme";
+import { ImmersiveModeContext, type ImmersiveModeValue } from "@/lib/ui/immersiveMode";
 import { useRememberedPage, writeUiState } from "@/lib/ui/uiStateClient";
 
 interface NavItem {
@@ -86,9 +78,7 @@ const NAV_TAP_REVERT_MS = 6000;
 function PendingDim({ children }: { children: React.ReactNode }) {
   const { pending } = useLinkStatus();
   return (
-    <Box style={{ opacity: pending ? 0.55 : 1, transition: "opacity 120ms ease" }}>
-      {children}
-    </Box>
+    <Box style={{ opacity: pending ? 0.55 : 1, transition: "opacity 120ms ease" }}>{children}</Box>
   );
 }
 
@@ -124,15 +114,7 @@ function RailNavButton({
   );
 }
 
-function NavButton({
-  item,
-  active,
-  onTap,
-}: {
-  item: NavItem;
-  active: boolean;
-  onTap: () => void;
-}) {
+function NavButton({ item, active, onTap }: { item: NavItem; active: boolean; onTap: () => void }) {
   return (
     <UnstyledButton
       component={Link}
@@ -151,9 +133,7 @@ function NavButton({
       aria-current={active ? "page" : undefined}
     >
       <PendingDim>
-        <Box
-          style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 2 }}
-        >
+        <Box style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 2 }}>
           {item.icon}
           <Text size="xs" fw={active ? 600 : 500}>
             {item.label}
@@ -187,6 +167,43 @@ export function AppShellShell({
   // sidebar takes over navigation (AppShell navbar, hidden below the
   // breakpoint). Both read the same theme value so they can't drift.
   const isDesktop = useMediaQuery(DESKTOP_MEDIA_QUERY);
+
+  // Immersive ("fullscreen") mode: a Calendar button hides this shell's
+  // chrome (header, bottom nav, desktop sidebar) and requests the page-level
+  // Fullscreen API so the OS status bar / browser UI go too, where supported.
+  // The CSS half is the `app-shell-immersive` class on the AppShell root
+  // (globals.css); pages call enter/exit via useImmersiveMode() and exit on
+  // unmount, so leaving the page always restores the chrome. A browser that
+  // rejects the Fullscreen API (iOS pages) simply keeps the CSS-only mode.
+  const [immersive, setImmersive] = useState(false);
+  const enter = useCallback(() => {
+    setImmersive(true);
+    if (document.fullscreenElement === null) {
+      document.documentElement.requestFullscreen({ navigationUI: "hide" }).catch(() => {
+        // Unsupported or rejected: stay in the CSS-only focus mode.
+      });
+    }
+  }, []);
+  const exit = useCallback(() => {
+    setImmersive(false);
+    if (document.fullscreenElement !== null) {
+      document.exitFullscreen().catch(() => {});
+    }
+  }, []);
+
+  // The user can leave the Fullscreen API state without our button (Esc on
+  // desktop, the status-bar edge gesture on Android) — follow the browser's
+  // truth back so the chrome can't get stranded hidden.
+  useEffect(() => {
+    const sync = () => setImmersive(document.fullscreenElement !== null);
+    document.addEventListener("fullscreenchange", sync);
+    return () => document.removeEventListener("fullscreenchange", sync);
+  }, []);
+
+  const immersiveMode: ImmersiveModeValue = useMemo(
+    () => ({ active: immersive, enter, exit }),
+    [immersive, enter, exit],
+  );
 
   // Desktop sidebar minimized to the icon rail, initialized from the
   // remembered state the (protected) layout read from the cookie before first
@@ -239,7 +256,7 @@ export function AppShellShell({
       }}
       footer={{ height: BOTTOM_NAV_HEIGHT_CSS, collapsed: isDesktop }}
       padding="md"
-      className="app-shell-root"
+      className={immersive ? "app-shell-root app-shell-immersive" : "app-shell-root"}
     >
       <AppShell.Header
         style={{
@@ -310,7 +327,11 @@ export function AppShellShell({
         </UnstyledButton>
       </AppShell.Navbar>
 
-      <AppShell.Main>{children}</AppShell.Main>
+      <AppShell.Main>
+        <ImmersiveModeContext.Provider value={immersiveMode}>
+          {children}
+        </ImmersiveModeContext.Provider>
+      </AppShell.Main>
 
       <AppShell.Footer
         style={{

@@ -93,6 +93,24 @@ before changing the subsystem.
   fits this shape. Cell binning is pure `buildWeekLanes`/`coveredDays`
   (`src/lib/events/weekMatrix.ts`); data comes from the same `fetchRangeEvents`
   2-month read as Week, so cache/filters/force-refresh are inherited unchanged.
+- **Fullscreen calendar (immersive mode):** a 36px toggle in the dashboard
+  date-nav row (`IconArrowsMaximize`/`IconArrowsMinimize`, `aria-pressed`,
+  tooltip "Fullscreen"/"Exit fullscreen") hides the shell header, bottom nav
+  and desktop sidebar, and requests the page-level Fullscreen API
+  (`requestFullscreen({ navigationUI: "hide" })`) so the OS status bar /
+  browser UI go too. State is owned by `AppShellShell` (it renders the chrome
+  being hidden) and exposed via `useImmersiveMode()` (`src/lib/ui/immersiveMode.ts`);
+  only `DashboardView` controls it and always exits on unmount, and the shell's
+  `fullscreenchange` listener follows `Esc` / the Android status-bar edge
+  gesture. The CSS half is the `app-shell-immersive` class on the AppShell root
+  (globals.css): it hides the direct `<header>/<nav>/<footer>` children and
+  zeroes `--app-shell-header/navbar/footer-offset` — declarations on the root
+  div beat Mantine's `:root`-injected vars (same mechanism as the 56px header
+  offset), so the AppShell main padding and the sticky chrome / Week strips
+  re-pin to the viewport edge with no per-view changes. Browsers that reject
+  page fullscreen (iOS) keep the CSS-only mode — the sticky chrome then takes
+  `env(safe-area-inset-top)` padding. Deliberately NOT persisted in `cloudy2.ui`
+  (transient focus mode; refresh/navigation starts with the chrome up).
 - **Quick Links** are admin-managed shortcut links shown on the Calendar page
   (Settings → Quick Links tab). `quick_links` table (`src/db/schema.ts`:
   label, url, icon key, Mantine-palette color, enabled, sortOrder); CRUD +

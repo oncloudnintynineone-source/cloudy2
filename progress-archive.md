@@ -106,6 +106,21 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
 - [1.87 Event webhooks to external systems (Phase 3ap)](#187-event-webhooks-to-external-systems-phase-3ap)
 - [1.88 Multiple webhook endpoints + in-app payload guide (Phase 3aq)](#188-multiple-webhook-endpoints--in-app-payload-guide-phase-3aq)
 - [1.89 Attendance report: present wins, no event tags (Phase 3ar)](#189-attendance-report-present-wins-no-event-tags-phase-3ar)
+- [1.90 Branded error, 404 & offline fallbacks](#190-branded-error--404--offline-fallbacks)
+- [1.91 Mobile correctness: safe areas, toast placement, skeleton fidelity](#191-mobile-correctness-safe-areas-toast-placement-skeleton-fidelity)
+- [1.92 Interaction consistency: confirms, chips, export scope, login errors](#192-interaction-consistency-confirms-chips-export-scope-login-errors)
+- [1.93 Accessibility pass: keyboard reachability, pressed states, parade legend](#193-accessibility-pass-keyboard-reachability-pressed-states-parade-legend)
+- [1.94 Not-found prerender fix (bugfix)](#194-not-found-prerender-fix-bugfix)
+- [1.95 Department event colors (Phase 3as)](#195-department-event-colors-phase-3as)
+- [1.96 Event-type event colors (Phase 3at)](#196-event-type-event-colors-phase-3at)
+- [1.97 Sticky dashboard chrome & pinned view headers (Phase 3au)](#197-sticky-dashboard-chrome--pinned-view-headers-phase-3au)
+- [1.98 Pinned time rulers, compact chrome, overlap fix (Phase 3av)](#198-pinned-time-rulers-compact-chrome-overlap-fix-phase-3av)
+- [1.99 Owner hidden from invited-attendee lists; "Invited Attendees" rename (Phase 3aw)](#199-owner-hidden-from-invited-attendee-lists-invited-attendees-rename-phase-3aw)
+- [1.100 Form validation feedback: toast + scroll-to-error + validate-on-blur](#1100-form-validation-feedback-toast--scroll-to-error--validate-on-blur)
+- [1.101 Duplicate-key crashes fixed: drizzle-wrapped error inspection](#1101-duplicate-key-crashes-fixed-drizzle-wrapped-error-inspection)
+- [1.102 Slow-network responsiveness: optimistic chrome + client-router reuse](#1102-slow-network-responsiveness-optimistic-chrome--client-router-reuse)
+- [1.103 Quick links: admin-managed link menu launched from the Calendar FAB (Phase 3ay)](#1103-quick-links-admin-managed-link-menu-launched-from-the-calendar-fab-phase-3ay)
+- [1.104 Fullscreen calendar view (Phase 3az)](#1104-fullscreen-calendar-view-phase-3az)
 
 ## 1.1 Status
 
@@ -4937,3 +4952,107 @@ same pass (the trigger is now a single element cloned by `Menu.Target`
 directly, no `Box` wrapper). E2E asserts: launcher visible at all mobile
 widths, labelled chip at lg, menu opens on click at both breakpoints with the
 branded header, item click opens the URL in a new tab, outside click closes.
+
+## 1.104 Fullscreen calendar view (Phase 3az)
+
+The Calendar's date-nav row gains a 36px **Fullscreen** toggle
+(`IconArrowsMaximize` / `IconArrowsMinimize`, `aria-label` + `aria-pressed`,
+hover/focus tooltip) sitting between the Next chevron and the "New event"
+button. Active mode — *immersive mode* — hides the shell header, the bottom
+nav, and the lg sidebar, and enters the page-level Fullscreen API so the OS
+status bar / browser UI go with them. The icon flips while active, so the
+same button is the in-page exit path; `Esc` (desktop) and the Android
+status-bar edge gesture also exit.
+
+Why the shell owns the state:
+
+- The header / bottom nav / sidebar are rendered by `AppShellShell`, so it
+  is the only component that can hide them and re-pin the main content.
+  `DashboardView` is a grandchild and only *controls* the mode through a
+  context.
+- `src/lib/ui/immersiveMode.ts` (new): `ImmersiveModeContext` +
+  `useImmersiveMode()` returning `{ active, enter, exit }` (throws outside
+  the provider, like the other context helpers).
+- `AppShellShell` holds `immersive` state with two callbacks:
+  `enter` = set state + `document.documentElement.requestFullscreen({
+  navigationUI: "hide" })` (`.catch(() => {})` — a browser that rejects or
+  lacks page fullscreen, i.e. iOS, keeps the CSS-only focus mode;
+  `navigationUI: "hide"` hides the mobile browser toolbar on Chrome/Edge);
+  `exit` = clear state + `document.exitFullscreen()` when active
+  (idempotent either way). A `fullscreenchange` listener syncs the state
+  from `document.fullscreenElement`, so leaving fullscreen via the browser
+  never strands the chrome hidden.
+
+The CSS half is one class on the AppShell root:
+
+```
+.app-shell-immersive {
+  --app-shell-header-offset: 0px;
+  --app-shell-navbar-offset: 0px;
+  --app-shell-footer-offset: 0px;
+}
+.app-shell-immersive > header,
+.app-shell-immersive > nav,
+.app-shell-immersive > footer { display: none; }
+```
+
+This works because Mantine 9's AppShell drives its main-section padding and
+its fixed header/navbar/footer entirely from `--app-shell-*` custom
+properties injected on `:root`, while this app already overrides
+`--app-shell-header-offset: 56px` on `.app-shell-root` (a closer-ancestor
+declaration beats the `:root` inheritance for every descendant — the same
+mechanism, now reused for all three offsets). The header/footer/navbar are
+semantic `<header>/<footer>/<nav>` direct children of the root Box, so the
+direct-child `display: none` is precise. Everything else follows the vars
+with zero per-view changes: the AppShell main padding collapses to just
+`--app-shell-padding`, and the dashboard's sticky chrome + Week/Week v2
+pinned strips (all `top: var(--app-shell-header-offset) …`) re-pin to the
+viewport top. Where the Fullscreen API is unsupported (iOS standalone,
+`viewport-fit=cover`), the sticky chrome takes
+`padding-top: env(safe-area-inset-top)` so the tabs clear the still-visible
+status bar (the var is 0 everywhere else).
+
+Exit paths, in priority of surprise:
+
+| Trigger                                    | Path                                                        |
+| ------------------------------------------ | ----------------------------------------------------------- |
+| Tap the toggle while active                | `exit()` → state off + `exitFullscreen()`                    |
+| `Esc` (desktop) / Android status-bar edge  | browser fires `fullscreenchange` → shell sync → state off    |
+| Navigate away from `/dashboard`            | `DashboardView` unmount cleanup calls `exit()` (shell stays mounted) |
+
+Deliberately **not** remembered: the mode is transient (no `cloudy2.ui`
+cookie entry) — a refresh or navigation starts with the chrome up.
+
+```mermaid
+flowchart LR
+  subgraph dash [DashboardView]
+    BTN["Date-nav toggle<br/>(aria-pressed)"]
+    UM["unmount cleanup → exit()"]
+  end
+  subgraph shell [AppShellShell]
+    ST["immersive state"]
+    EN["enter(): setState +<br/>requestFullscreen({navigationUI:'hide'})"]
+    EX["exit(): setState + exitFullscreen()"]
+    FS["fullscreenchange listener<br/>(Esc / Android edge) → sync state"]
+    CSS[".app-shell-immersive on root:<br/>hide header/nav/footer,<br/>zero --app-shell-*-offset"]
+  end
+  BRA["browser / OS:<br/>status bar + browser UI"]
+
+  BTN -- "active? exit() : enter()" --> ST
+  EN --> ST
+  EX --> ST
+  FS --> ST
+  ST -- "className" --> CSS
+  EN -.-> BRA
+  EX -.-> BRA
+  UM --> EX
+```
+
+Files: `src/lib/ui/immersiveMode.ts` (new), `src/components/AppShellShell.tsx`,
+`src/app/globals.css`, `src/app/(protected)/dashboard/DashboardView.tsx`,
+`AGENTS.md`.
+
+Verification: `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm build` all
+pass. (On-device QA notes: verify Android Chrome status-bar hiding, iOS
+CSS-only fallback, `Esc` restore, and the sticky-chrome re-pin in each
+dashboard view.)

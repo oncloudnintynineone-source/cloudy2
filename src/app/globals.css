@@ -88,6 +88,29 @@
   --app-shell-header-offset: 56px;
 }
 
+/*
+  Immersive ("fullscreen") mode, toggled from the Calendar date-nav row:
+  the shell header, bottom nav and (at lg) the sidebar are direct
+  <header>/<footer>/<nav> children of this root element, so hiding those
+  tags is precise. Zeroing the three offset vars (declared here, not on
+  :root) wins the inheritance cascade exactly like the 56px header
+  offset above — the AppShell main section's padding and the dashboard's
+  sticky chrome (top: var(--app-shell-header-offset)) both recompute to
+  the viewport edge with no per-view changes. The Fullscreen API call
+  itself is made by AppShellShell; this class is its CSS half.
+*/
+.app-shell-immersive {
+  --app-shell-header-offset: 0px;
+  --app-shell-navbar-offset: 0px;
+  --app-shell-footer-offset: 0px;
+}
+
+.app-shell-immersive > header,
+.app-shell-immersive > nav,
+.app-shell-immersive > footer {
+  display: none;
+}
+
 .settings-page-pad {
   padding-bottom: var(--settings-fab-bottom);
 }

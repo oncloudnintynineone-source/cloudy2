@@ -42,6 +42,8 @@ import {
   type ScheduleResourceGroup,
 } from "@mantine/schedule";
 import {
+  IconArrowsMaximize,
+  IconArrowsMinimize,
   IconBuilding,
   IconCalendarCheck,
   IconCalendarDot,
@@ -103,6 +105,7 @@ import {
   type ScheduleResource,
   type ScheduleUser,
 } from "@/lib/events/schedule";
+import { useImmersiveMode } from "@/lib/ui/immersiveMode";
 import { DASHBOARD_STATE_KEYS, freshMarkerNeeded, orderDashboardViews } from "@/lib/ui/uiState";
 import { usePersistUiState } from "@/lib/ui/uiStateClient";
 import { EventDetail } from "./EventDetail";
@@ -410,6 +413,17 @@ export function DashboardView({
   // widths on the view root (inline var / styles-API var), so the override
   // lives here — a parent CSS class can't shadow the root's own declaration.
   const isDesktop = useMediaQuery(`(min-width: ${theme.breakpoints.lg})`);
+
+  // Immersive ("fullscreen") mode is owned by the AppShell — it renders the
+  // header / bottom nav / sidebar being hidden. We only control it here and
+  // always exit on unmount, so navigating away from the calendar restores
+  // the chrome (the shell's fullscreenchange listener covers Esc / the
+  // Android status-bar edge gesture).
+  const immersiveMode = useImmersiveMode();
+  const exitImmersive = immersiveMode.exit;
+  useEffect(() => {
+    return () => exitImmersive();
+  }, [exitImmersive]);
 
   // Label-column widths for the schedule views: mobile-narrowed 48px/24px for
   // phones, comfortable 96px/56px on desktop.
@@ -1219,6 +1233,10 @@ export function DashboardView({
           // content sliding beneath never paints over the pinned chrome.
           zIndex: 50,
           background: "var(--mantine-color-body)",
+          // Immersive pins the chrome at the viewport top. Where the
+          // Fullscreen API is unsupported (iOS) the OS status bar is still
+          // up — keep the tabs clear of it (0 elsewhere).
+          paddingTop: immersiveMode.active ? "env(safe-area-inset-top)" : undefined,
           paddingBottom: "var(--mantine-spacing-xs)",
           // Marks the chrome's bottom edge while content scrolls beneath it
           // (the tabs list's own border now sits mid-block, above the nav).
@@ -1318,6 +1336,25 @@ export function DashboardView({
           >
             <IconChevronRight size={18} />
           </ActionIcon>
+          {/* Immersive ("fullscreen") toggle: hides the shell chrome (header,
+              bottom nav, desktop sidebar) and requests the page-level
+              Fullscreen API so the status bar / browser UI go too. The icon
+              flips while active — this is the in-page exit path. */}
+          <Tooltip label={immersiveMode.active ? "Exit fullscreen" : "Fullscreen"}>
+            <ActionIcon
+              size={36}
+              variant="default"
+              aria-label={immersiveMode.active ? "Exit fullscreen" : "Enter fullscreen"}
+              aria-pressed={immersiveMode.active}
+              onClick={immersiveMode.active ? immersiveMode.exit : immersiveMode.enter}
+            >
+              {immersiveMode.active ? (
+                <IconArrowsMinimize size={18} />
+              ) : (
+                <IconArrowsMaximize size={18} />
+              )}
+            </ActionIcon>
+          </Tooltip>
           {/* Desktop: the "New event" FAB lives in the nav row instead of the
             bottom corner (the FAB is hidden at lg, below). */}
           <Button
