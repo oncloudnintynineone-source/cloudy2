@@ -355,7 +355,7 @@ export function AppShellShell({
           // below it. Column layout only when a banner is stacked on top —
           // otherwise the single Group keeps today's row rendering.
           paddingTop: "env(safe-area-inset-top)",
-          display: banner ? "flex" : undefined,
+          display: banner && !immersive ? "flex" : undefined,
           flexDirection: banner ? "column" : undefined,
         }}
       >
