@@ -311,7 +311,7 @@ export function AppShellShell({
       ? [CALENDAR, PARADE_STATE, CONTACTS, SETTINGS]
       : [CALENDAR, PARADE_STATE, CONTACTS];
 
-  // --- iOS PWA viewport sync (temporary — remove after verification) ---
+  // --- iOS PWA viewport sync ---
   // On some iOS versions, 100dvh/vh resolves to the full screen height but the
   // actual layout viewport is shorter (excludes the top safe-area inset). This
   // causes Mantine's dvh-based sizing to overshoot, making the document
