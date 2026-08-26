@@ -168,6 +168,7 @@ One line per phase; full write-ups (incl. Mermaid diagrams and verification note
 - 1.111 Month view hides adjacent-month days (`withOutsideDays={false}`); skeleton row count matches the unpadded grid (bugfix)
 - 1.112 Month view range-reads its 6-week grid (2-3 months via `monthGridMonths`); adjacent-month days show their events, cross-month bars span them (supersedes 1.111; includes a `monthsInRange` UTC-midnight fix)
 - 1.113 Mobile FAB clearance: `.fab-page-pad` reserves bottom scroll clearance so last rows/card rows scroll above the portaled FABs instead of underneath them (dashboard, parade-state, contacts) (bugfix)
+- 1.114 Day/Week timeline views auto-anchor to the current time on mount when the shown day/week contains today (Day: `startScrollTime={now}`, Week: `startScrollDateTime={today} {now}`), falling back to 07:00 / Monday 07:00 otherwise
 
 ## 1.4 Open items & next steps
 

@@ -712,6 +712,11 @@ export function DashboardView({
   const weekLabel = week ? formatWeekLabel(week[0], week[6]) : "";
   const today = dayjs().format("YYYY-MM-DD");
   const todayMonth = dayjs().format("YYYY-MM");
+  // Start-scroll anchor for the Day/Week timelines: when the shown period
+  // contains today the grid opens at the current time, otherwise the 07:00
+  // working-day default. Only consumed by the library's client mount effect
+  // (never emitted to the DOM), so the client-computed value is hydration-safe.
+  const currentScrollTime = dayjs().format("HH:mm:ss");
 
   const filterGroups: FilterGroup[] = useMemo(() => {
     const groups: FilterGroup[] = [
@@ -1674,9 +1679,16 @@ export function DashboardView({
             rowHeight={56}
             withHeader={false}
             withCurrentTimeIndicator
-            // Open at Monday 07:00 like the Day view (mount-only effect;
-            // week-to-week navigation keeps the current scroll position).
-            startScrollDateTime={week ? `${week[0]} 07:00:00` : undefined}
+            // Week containing today opens at the current time, other weeks at
+            // Monday 07:00 (mount-only effect, re-applied after each tab
+            // switch / date navigation remounts the grid via the skeleton).
+            startScrollDateTime={
+              week
+                ? week.includes(today)
+                  ? `${today} ${currentScrollTime}`
+                  : `${week[0]} 07:00:00`
+                : undefined
+            }
             onEventClick={(event, e) => {
               setDetailOriginRect(e.currentTarget.getBoundingClientRect());
               setDetailEvent(event as unknown as CalendarEvent);
@@ -1729,7 +1741,10 @@ export function DashboardView({
             startTime="00:00:00"
             endTime="23:59:59"
             intervalMinutes={60}
-            startScrollTime="07:00:00"
+            // Today opens at the current time; other days at the 07:00
+            // working-day default (re-applied on every mount, i.e. after each
+            // tab switch / date navigation remounts the grid via the skeleton).
+            startScrollTime={date === today ? currentScrollTime : "07:00:00"}
             rowHeight={56}
             withHeader={false}
             withCurrentTimeIndicator

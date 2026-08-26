@@ -154,9 +154,12 @@ it via `top: calc(var(--app-shell-header-offset) + <chromeHeight>px)`:
   views' `scrollAreaProps.viewportRef` lets a layout effect re-sync the track
   after mounts/loads, since the libraries' `startScrollTime` /
   `startScrollDateTime` effects reposition the grid without a scroll event.
-  (Side fix: Week now passes the supported `startScrollDateTime={monday}
-  07:00:00` instead of a bogus `startScrollPosition: {y}` prop that was
-  silently ignored.)
+   (Side fix: Week now passes the supported `startScrollDateTime` instead of a
+   bogus `startScrollPosition: {y}` prop that was silently ignored.) The anchor
+   is dynamic: the Day view uses the current time when its date is today, the
+   Week view uses `{today} {now}` when the shown week contains today — both fall
+   back to 07:00 / Monday 07:00 otherwise (`DashboardView`:
+   `currentScrollTime`).
 
 The **Month weekday-initials row** still lives inside `MonthView`'s
 content-height `ScrollArea` and cannot pin during page scroll without
