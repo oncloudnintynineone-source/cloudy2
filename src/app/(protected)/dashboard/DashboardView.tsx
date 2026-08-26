@@ -223,9 +223,11 @@ function WeekDayLabelStrip({
   const isWeekend = dayObj.day() === 0 || dayObj.day() === 6;
   // The width of the sticky corner/label columns the grid scrolls beneath,
   // matching the ResourcesWeekView sizing overrides on the view itself.
+  // +1px accounts for the grid root's left border so the day label aligns
+  // with the grid's first slot column.
   const leftWidth = hasGroups
-    ? `calc(${groupLabelWidth} + ${resourceLabelWidth})`
-    : resourceLabelWidth;
+    ? `calc(${groupLabelWidth} + ${resourceLabelWidth} + 1px)`
+    : `calc(${resourceLabelWidth} + 1px)`;
   return (
     <Box
       component="div"
@@ -301,6 +303,8 @@ function TimeRulerStrip({
   /** Extra sticky offset when another strip stacks above this one. */
   stackBelowHeight,
   innerRef,
+  /** Number of days the ruler spans (1 for Day view, 7 for Week view). */
+  days = 1,
 }: {
   hasGroups: boolean;
   resourceLabelWidth: string;
@@ -308,12 +312,16 @@ function TimeRulerStrip({
   chromeOffset: number;
   stackBelowHeight?: string;
   innerRef: RefObject<HTMLDivElement | null>;
+  days?: number;
 }) {
   // The width of the sticky corner/label columns the grid scrolls beneath,
   // matching the ResourcesWeekView/ResourcesDayView sizing overrides.
+  // +1px accounts for the grid root's left border so the ruler aligns with
+  // the grid's slot columns.
   const leftWidth = hasGroups
-    ? `calc(${groupLabelWidth} + ${resourceLabelWidth})`
-    : resourceLabelWidth;
+    ? `calc(${groupLabelWidth} + ${resourceLabelWidth} + 1px)`
+    : `calc(${resourceLabelWidth} + 1px)`;
+  const totalSlots = SLOTS_PER_DAY * days;
   return (
     <Box
       component="div"
@@ -346,13 +354,13 @@ function TimeRulerStrip({
           component="div"
           style={{
             display: "flex",
-            width: `calc(var(--ruler-slot, 60px) * ${SLOTS_PER_DAY})`,
+            width: `calc(var(--ruler-slot, 60px) * ${totalSlots})`,
             willChange: "transform",
           }}
         >
-          {Array.from({ length: SLOTS_PER_DAY }, (_, hour) => (
+          {Array.from({ length: totalSlots }, (_, slot) => (
             <Box
-              key={hour}
+              key={slot}
               component="div"
               style={{
                 width: "var(--ruler-slot, 60px)",
@@ -366,7 +374,7 @@ function TimeRulerStrip({
                 c="dimmed"
                 style={{ lineHeight: 1.2, userSelect: "none", whiteSpace: "nowrap" }}
               >
-                {String(hour).padStart(2, "0")}
+                {String(slot % SLOTS_PER_DAY).padStart(2, "0")}
               </Text>
             </Box>
           ))}
@@ -1174,6 +1182,7 @@ export function DashboardView({
       return;
     }
     const probe = document.createElement("span");
+    probe.style.display = "block";
     probe.style.width = `var(${varName})`;
     root.append(probe);
     const slot = probe.offsetWidth;
@@ -1531,6 +1540,7 @@ export function DashboardView({
             chromeOffset={chromeHeight}
             stackBelowHeight="calc(var(--mantine-scale) * 2rem)"
             innerRef={weekRulerRef}
+            days={7}
           />
         )}
         {!gridLoading && view === "schedule" && scheduleResources.resources.length > 0 && (
