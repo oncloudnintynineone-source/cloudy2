@@ -17,8 +17,8 @@ import { logAction } from "@/lib/audit/log";
 import { requireAdmin } from "@/lib/session";
 import {
   normalizeKahNotificationEmails,
-  validateKahEmailsForm,
-  type KahEmailsFormValues,
+  validateKahNotificationsForm,
+  type KahNotificationsFormValues,
 } from "@/lib/kah/validate";
 import {
   normalizeKeyword,
@@ -39,7 +39,9 @@ export type SettingsActionResult =
         | "eventTitleTemplate"
         | "retentionDays"
         | "bannerText"
-        | "kahEmails";
+        | "kahEmails"
+        | "kahSubject"
+        | "kahBody";
     };
 
 export async function updateKeyword(keyword: string): Promise<SettingsActionResult> {
@@ -255,26 +257,37 @@ export async function updateBanner(values: BannerFormValues): Promise<SettingsAc
   return { ok: true };
 }
 
-export async function updateKahNotificationEmails(
-  values: KahEmailsFormValues,
+export async function updateKahNotifications(
+  values: KahNotificationsFormValues,
 ): Promise<SettingsActionResult> {
   const session = await requireAdmin();
 
-  const errors = validateKahEmailsForm(values);
-  if (errors.emails) {
+  const errors = validateKahNotificationsForm(values);
+  if (errors.emails || errors.subjectTemplate || errors.bodyTemplate) {
     return {
       ok: false,
-      error: errors.emails,
-      field: "kahEmails",
+      error: errors.emails ?? errors.subjectTemplate ?? errors.bodyTemplate!,
+      field: errors.emails
+        ? "kahEmails"
+        : errors.subjectTemplate
+          ? "kahSubject"
+          : "kahBody",
     };
   }
 
   const emails = normalizeKahNotificationEmails(values.emails);
+  const subject = values.subjectTemplate.trim();
+  const body = values.bodyTemplate.trim();
   const [before] = await db.select().from(settings).limit(1);
 
   await db
     .update(settings)
-    .set({ kahNotificationEmails: emails, updatedAt: new Date() })
+    .set({
+      kahNotificationEmails: emails,
+      kahEmailSubjectTemplate: subject,
+      kahEmailBodyTemplate: body,
+      updatedAt: new Date(),
+    })
     .where(eq(settings.id, "singleton"));
 
   await logAction({
@@ -286,15 +299,17 @@ export async function updateKahNotificationEmails(
     action: AUDIT_ACTIONS.settingsUpdate,
     entityType: "settings",
     entityName: "settings",
-    method: "updateKahNotificationEmails",
+    method: "updateKahNotifications",
     details: diffFields(
       {
         kahNotificationEmails:
           before?.kahNotificationEmails && before.kahNotificationEmails.length > 0
             ? before.kahNotificationEmails.join(", ")
             : null,
+        kahEmailSubjectTemplate: before?.kahEmailSubjectTemplate ?? null,
+        kahEmailBodyTemplate: before?.kahEmailBodyTemplate ?? null,
       },
-      { kahNotificationEmails: emails.length > 0 ? emails.join(", ") : null },
+      { kahNotificationEmails: emails.length > 0 ? emails.join(", ") : null, kahEmailSubjectTemplate: subject, kahEmailBodyTemplate: body },
     ),
   });
 

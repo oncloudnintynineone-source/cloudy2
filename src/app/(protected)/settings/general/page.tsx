@@ -8,6 +8,8 @@ export default async function GeneralPage() {
       keyword={settings.userKeyword}
       retentionDays={settings.auditLogRetentionDays}
       kahEmails={settings.kahNotificationEmails}
+      kahEmailSubject={settings.kahEmailSubjectTemplate}
+      kahEmailBody={settings.kahEmailBodyTemplate}
     />
   );
 }

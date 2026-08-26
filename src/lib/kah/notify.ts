@@ -17,7 +17,7 @@ import { AUDIT_ACTIONS } from "@/lib/audit/build";
 import { logAction } from "@/lib/audit/log";
 import { formatInstantToNaive, monthsInRange } from "@/lib/events/datetime";
 import { parseEventPeople } from "@/lib/events/notes";
-import { getGoogleIntegration } from "@/lib/google";
+import { sendNotificationEmail } from "@/lib/email/send";
 import { getCachedMonthEventsForCalendars } from "@/lib/google/eventsCache";
 import { computeKahBreaches, type KahGroupCheck } from "@/lib/kah/check";
 import { buildKahBreachEmail, type KahBreachEmailGroup } from "@/lib/kah/email";
@@ -147,7 +147,11 @@ export function dispatchKahBreachCheck(input: KahBreachCheckInput): void {
       const awayNamesByGroup = await resolveAwayNames(breaches);
 
       const [settingsRow] = await db
-        .select({ kahNotificationEmails: settings.kahNotificationEmails })
+        .select({
+          kahNotificationEmails: settings.kahNotificationEmails,
+          kahEmailSubjectTemplate: settings.kahEmailSubjectTemplate,
+          kahEmailBodyTemplate: settings.kahEmailBodyTemplate,
+        })
         .from(settings)
         .limit(1);
       const recipients = settingsRow?.kahNotificationEmails ?? [];
@@ -190,12 +194,13 @@ export function dispatchKahBreachCheck(input: KahBreachCheckInput): void {
         actorName: input.actor.actorName,
         windowStart: input.windowStart,
         windowEnd: input.windowEnd,
+        subjectTemplate: settingsRow?.kahEmailSubjectTemplate ?? null,
+        bodyTemplate: settingsRow?.kahEmailBodyTemplate ?? null,
       });
       if (!email) {
         return;
       }
-      const integration = await getGoogleIntegration();
-      await integration.sendEmail({
+      await sendNotificationEmail({
         to: recipients,
         subject: email.subject,
         body: email.body,

@@ -171,13 +171,15 @@ One line per phase; full write-ups (incl. Mermaid diagrams and verification note
 - 1.114 Day/Week timeline views auto-anchor to the current time on mount when the shown day/week contains today (Day: `startScrollTime={now}`, Week: `startScrollDateTime={today} {now}`), falling back to 07:00 / Monday 07:00 otherwise
 - 1.115 Parade state always opens on today: the day leaves the remembered-UI cookie (`parade {cal,users}` filters only); explicit `?date=` still wins
 - 1.116 KAH constraints: KAH Groups tab (per-group required in-country %, badge-dialog members), General-tab breach notification emails, notify-only breach check on event create/update via the events cache with one combined Gmail (real `sendEmail` wired; Phase 3b2-adjacent)
+- 1.117 KAH email delivery: admin-editable subject/body templates with live preview (General tab), SMTP fallback via `SMTP_URL`/nodemailer for non-Workspace deployments, transport selection delegation → SMTP → audit-only
 
 ## 1.4 Open items & next steps
 
 1. **ADMIN_INITIAL_PASSWORD** must be set on Vercel (seeds the admin password hash on
    first login) — the only unfinished item from the original deployment checklist.
-2. **Gmail delegation**: Workspace admin must grant the service account the `gmail.send`
-   scope for `GOOGLE_DELEGATE_EMAIL` (domain-wide delegation) before breach emails send.
+2. **Breach email transport**: configure either Workspace domain-wide delegation
+   (`gmail.send` scope for `GOOGLE_DELEGATE_EMAIL`) or the SMTP fallback (`SMTP_URL`,
+   e.g. a personal Gmail app password) — without one, breaches stay audit-only.
 3. Carried-over Phase-0 scope to re-confirm as still wanted: acronym glossary surfaced
    on event titles, VCF contacts export, masquerade permissions beyond "on behalf of".
 4. Per-phase manual-QA debts recorded in the archive's verification notes (PWA device

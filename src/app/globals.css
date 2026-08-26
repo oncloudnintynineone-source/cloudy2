@@ -188,22 +188,27 @@
 }
 
 /*
-  iOS PWA viewport sync: `100dvh`/`vh` can resolve to the full screen height
-  while the actual layout viewport is shorter (excludes safe-area-inset-top).
-  The sync effect in AppShellShell measures the real clientHeight and shell
-  chrome heights, setting --app-shell-vh / --app-shell-header-offset /
-  --app-shell-footer-offset as inline style vars on the root element.
+  iOS PWA standalone + viewport-fit=cover: `100dvh` can resolve to the full
+  screen height while the actual layout viewport is shorter (excludes
+  safe-area-inset-top on notched iPhones). The sync effect in AppShellShell
+  measures the real clientHeight and shell chrome heights, setting
+  --app-shell-vh / --app-shell-header-offset / --app-shell-footer-offset as
+  inline style vars on the root element.
 
-  These rules consume those vars (with dvh/fallback for SSR and non-PWA):
+  These rules consume those vars (with dvh/fallback for SSR and non-PWA).
+  Scoped to standalone PWA mode — in normal browser mode `100dvh` already
+  tracks the keyboard-aware dynamic viewport correctly on both iOS and Android.
 */
-.app-shell-root .m_8983817 {
-  min-height: var(--app-shell-vh, 100dvh) !important;
-}
+@media (display-mode: standalone) {
+  .app-shell-root .m_8983817 {
+    min-height: var(--app-shell-vh, 100dvh) !important;
+  }
 
-.app-shell-root .m_45252eee {
-  height: calc(
-    var(--app-shell-vh, 100dvh) -
-      var(--app-shell-header-offset, 0rem) -
-      var(--app-shell-footer-offset, 0rem)
-  ) !important;
+  .app-shell-root .m_45252eee {
+    height: calc(
+      var(--app-shell-vh, 100dvh) -
+        var(--app-shell-header-offset, 0rem) -
+        var(--app-shell-footer-offset, 0rem)
+    ) !important;
+  }
 }

@@ -168,11 +168,14 @@ before changing the subsystem.
   `invalidateGcalCache` so its reads see the saved copies), marks members away when they
   are creator/invitee on any internal event overlapping the saved event's window, and
   computes breaches with pure `computeKahBreaches` (floored %, breach strictly below).
-  Breaches write an audited `kah.breachNotify` row and send ONE combined email via the
-  integration's now-real `sendEmail` (Gmail `gmail.send` scope, domain-wide delegated to
-  `GOOGLE_DELEGATE_EMAIL`; pure MIME builder in `google/mime.ts`; stub logs instead of
-  sends). The whole check is best-effort — it can never fail or delay the mutation.
-  Design: [docs/kah.md](docs/kah.md).
+  Breaches write an audited `kah.breachNotify` row and send ONE combined email whose
+  subject/body come from admin-editable templates on the settings row
+  (`{event} {actor} {window} {breaches}` tokens; General tab editor with live preview;
+  defaults shared with the schema columns via `kah/emailDefaults.ts`). Delivery picks
+  the first configured transport: Workspace delegation (`GOOGLE_DELEGATE_EMAIL` +
+  `gmail.send` scope) → SMTP fallback (`SMTP_URL`, e.g. personal-Gmail app password,
+  nodemailer in `src/lib/email/`) → warn + audit-only. The whole check is best-effort —
+  it can never fail or delay the mutation. Design: [docs/kah.md](docs/kah.md).
 - **Remembered UI state survives relaunch** in one cookie, `cloudy2.ui` (base64url
   JSON, max-age 1y): lastPage, sidebarCollapsed, dashboard `{view,date,month,cal,users,
   types,pinnedViews}`, parade `{cal,users}` — parade deliberately does NOT remember

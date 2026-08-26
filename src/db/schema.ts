@@ -129,6 +129,23 @@ export const settings = pgTable(
       .array()
       .notNull()
       .default(sql`'{}'::text[]`),
+    /**
+     * Admin-customized KAH breach email templates ({event} {actor} {window}
+     * {breaches}); the defaults are the shipped wording — keep in sync with
+     * `src/lib/kah/emailDefaults.ts`, which shares these exact strings.
+     */
+    kahEmailSubjectTemplate: text("kah_email_subject_template")
+      .notNull()
+      .default("[cloudy2] KAH limit exceeded — {event}"),
+    kahEmailBodyTemplate: text("kah_email_body_template")
+      .notNull()
+      .default(
+        'Key Appointment Holder limit exceeded.\n\nAfter "{event}" was saved by {actor}, '
+        + "the following groups are below\ntheir required in-country percentage for the "
+        + "affected period:\n\n{breaches}\n\nEvent window: {window}\n\nThis is a notification "
+        + "only — the event was saved. Adjust the event or\nthe KAH groups in Settings if "
+        + "this was not intended.",
+      ),
     /** How many days of audit_logs to keep; older rows are purged on read. */
     auditLogRetentionDays: integer("audit_log_retention_days").notNull().default(90),
     /**

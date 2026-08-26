@@ -136,3 +136,62 @@ export function validateKahEmailsForm(values: KahEmailsFormValues): KahEmailsFor
   }
   return errors;
 }
+
+export const KAH_EMAIL_SUBJECT_MAX_LENGTH = 200;
+export const KAH_EMAIL_BODY_MAX_LENGTH = 5000;
+/** The one load-bearing token: without it the email carries no breach data. */
+export const KAH_EMAIL_BODY_REQUIRED_TOKEN = "{breaches}";
+
+/** Tokens a KAH email template may use, for UI descriptions. */
+export const KAH_EMAIL_TEMPLATE_PLACEHOLDERS = [
+  "{event}",
+  "{actor}",
+  "{window}",
+  "{breaches}",
+] as const;
+
+export interface KahNotificationsFormValues {
+  emails: string[];
+  subjectTemplate: string;
+  bodyTemplate: string;
+}
+
+export interface KahNotificationsFormErrors {
+  emails?: string;
+  subjectTemplate?: string;
+  bodyTemplate?: string;
+  [key: string]: string | undefined;
+}
+
+/**
+ * Validate the whole General-tab KAH card: recipient addresses, subject and
+ * body templates. The body must carry `{breaches}` — every other omission
+ * degrades gracefully (blank tokens render as empty), but dropping the
+ * breach block would make the email pointless.
+ */
+export function validateKahNotificationsForm(
+  values: KahNotificationsFormValues,
+): KahNotificationsFormErrors {
+  const errors: KahNotificationsFormErrors = {
+    ...validateKahEmailsForm({ emails: values.emails }),
+  };
+
+  const subject = values.subjectTemplate.trim();
+  if (!subject) {
+    errors.subjectTemplate = "Subject template is required";
+  } else if (subject.length > KAH_EMAIL_SUBJECT_MAX_LENGTH) {
+    errors.subjectTemplate = `Subject must be ${KAH_EMAIL_SUBJECT_MAX_LENGTH} characters or fewer`;
+  }
+
+  const body = values.bodyTemplate.trim();
+  if (!body) {
+    errors.bodyTemplate = "Body template is required";
+  } else if (body.length > KAH_EMAIL_BODY_MAX_LENGTH) {
+    errors.bodyTemplate = `Body must be ${KAH_EMAIL_BODY_MAX_LENGTH} characters or fewer`;
+  } else if (!body.toLowerCase().includes(KAH_EMAIL_BODY_REQUIRED_TOKEN)) {
+    errors.bodyTemplate =
+      "Body must contain {breaches} — it renders the per-group breach summary";
+  }
+
+  return errors;
+}

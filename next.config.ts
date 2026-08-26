@@ -26,6 +26,8 @@ const nextConfig: NextConfig = withSerwist({
       dynamic: 120,
     },
   },
+  // Nodemailer is Node-only (net/tls internals) — keep it out of the bundle.
+  serverExternalPackages: ["nodemailer"],
   // No extra config needed — Serwist reads swSrc/swDest from the route handler.
 });
 

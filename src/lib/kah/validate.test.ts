@@ -7,6 +7,7 @@ import {
   normalizeKahPercentage,
   validateKahEmailsForm,
   validateKahGroupForm,
+  validateKahNotificationsForm,
 } from "./validate";
 
 describe("normalizeKahGroupName", () => {
@@ -87,5 +88,41 @@ describe("validateKahEmailsForm", () => {
         emails: Array.from({ length: 11 }, (_, i) => `u${i}@x.com`),
       }).emails,
     ).toContain("At most");
+  });
+});
+
+describe("validateKahNotificationsForm", () => {
+  const valid = {
+    emails: ["ops@unit.gov"],
+    subjectTemplate: "[cloudy2] KAH limit exceeded — {event}",
+    bodyTemplate: "Breaches:\n{breaches}",
+  };
+
+  it("accepts a valid form", () => {
+    expect(validateKahNotificationsForm(valid)).toEqual({});
+  });
+
+  it("requires the subject/body templates and the breaches token", () => {
+    expect(validateKahNotificationsForm({ ...valid, subjectTemplate: "  " }).subjectTemplate).toBeTruthy();
+    expect(
+      validateKahNotificationsForm({ ...valid, subjectTemplate: "x".repeat(201) }).subjectTemplate,
+    ).toBeTruthy();
+    expect(validateKahNotificationsForm({ ...valid, bodyTemplate: "" }).bodyTemplate).toBeTruthy();
+    expect(
+      validateKahNotificationsForm({
+        ...valid,
+        bodyTemplate: "no tokens here",
+      }).bodyTemplate,
+    ).toContain("{breaches}");
+    expect(
+      validateKahNotificationsForm({
+        ...valid,
+        bodyTemplate: `{"breaches": "json-ish"} ${"x".repeat(5001)}`,
+      }).bodyTemplate,
+    ).toBeTruthy(); // over max length
+  });
+
+  it("still validates the recipient list", () => {
+    expect(validateKahNotificationsForm({ ...valid, emails: ["bad"] }).emails).toBeTruthy();
   });
 });

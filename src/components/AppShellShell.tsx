@@ -323,6 +323,9 @@ export function AppShellShell({
   useEffect(() => {
     const el = rootRef.current;
     if (!el) return;
+    // Only run viewport sync in standalone PWA mode — in normal browser mode
+    // 100dvh already tracks the keyboard-aware dynamic viewport correctly.
+    if (!window.matchMedia("(display-mode: standalone)").matches) return;
 
     const sync = () => {
       const vh = document.documentElement.clientHeight;

@@ -116,15 +116,40 @@ Guarantees:
 
 ## 1.5 Email delivery
 
-- `sendEmail` on the Google integration is real: service account JWT with the
-  `gmail.send` scope, impersonating `GOOGLE_DELEGATE_EMAIL` via domain-wide delegation
-  (`subject:` on the JWT). Workspace admins must grant the service account the
-  **gmail.send** scope for that account.
-- MIME messages are built by pure `buildTextEmail` (`src/lib/google/mime.ts`): UTF-8 text,
-  RFC 2047 encoded subject, base64url `raw` for `users.messages.send`.
-- Without credentials the stub logs the message to the console instead of sending.
-- One **combined** email per mutation lists every breached group with counts and names;
-  no addresses configured → audit row still written, email skipped.
+Transport selection happens at dispatch time (`src/lib/email/send.ts`), first match wins:
+
+1. **Workspace delegation** — `GOOGLE_DELEGATE_EMAIL` set → the integration's real
+   `sendEmail`: service-account JWT with the `gmail.send` scope impersonating that
+   account (domain-wide delegation; Workspace admins must grant the scope).
+2. **SMTP** — `SMTP_URL` set (e.g. a personal Gmail account with an app password, no
+   Workspace needed) → nodemailer (`smtp.gmail.com:465`). See `.env.example` for the
+   app-password setup.
+3. **Neither** → one warn log; the audit row below is still written.
+
+MIME messages for the Gmail path are built by pure `buildTextEmail`
+(`src/lib/google/mime.ts`): UTF-8 text, RFC 2047 encoded subject, base64url `raw` for
+`users.messages.send`. Without Google credentials the stub logs instead of sending.
+
+One **combined** email per mutation lists every breached group with counts and names;
+no addresses configured → audit row still written, email skipped.
+
+### 1.5.1 Customizable templates
+
+Subject and body come from admin-editable settings columns
+(`kah_email_subject_template` / `kah_email_body_template`, edited in Settings → General
+with a live preview rendered by the same pure renderer). Tokens, substituted
+case-insensitively; unknown tokens stay literal:
+
+| Token | Value |
+| --- | --- |
+| `{event}` | The rendered Google Calendar title of the saved event |
+| `{actor}` | Display name of the user who saved it |
+| `{window}` | The checked window, UTC+8 wall clock |
+| `{breaches}` | One `- Group: X% in country … away: names` line per breached group |
+
+The body must contain `{breaches}` (validated in the form); blank stored templates fall
+back to the shipped defaults in `emailDefaults.ts`, whose strings must stay identical to
+the schema column defaults (guarded by a unit test).
 
 ## 1.6 Admin UI
 
@@ -133,8 +158,10 @@ Guarantees:
   prefilled from the settings default, and members picked through the shared badge dialog
   (`UserSelectModal`, active users grouped by department). Delete asks for confirmation.
   All mutations are audited (`kahGroup.create/update/delete`) with member display names.
-- **Settings → General → KAH Breach Notification Emails**: `TagsInput` list validated by
-  `validateKahEmailsForm`, audited as a `settings.update`.
+- **Settings → General → KAH Breach Notifications**: `TagsInput` recipient list plus
+  subject/body template fields with a live preview (sample breach data rendered through
+  `renderKahEmailTemplate`), validated by `validateKahNotificationsForm`, saved by one
+  audited `updateKahNotifications` action (`settings.update`).
 - The tab is registered in `SettingsTabs.tsx` between Quick Links and Banner.
 
 ## 1.7 Files
@@ -144,10 +171,13 @@ Guarantees:
 | `src/db/schema.ts` | `kahGroups`, `kahGroupMembers`, repurposed `settings.kahPercentage` |
 | `src/lib/kah/check.ts` | Pure breach math (`computeKahBreaches`, `inCountryPercentage`) |
 | `src/lib/kah/validate.ts` | Pure form validation/normalization |
-| `src/lib/kah/email.ts` | Pure combined breach-email builder |
+| `src/lib/kah/email.ts` | Pure template renderer + combined breach-email builder |
+| `src/lib/kah/emailDefaults.ts` | Default subject/body templates shared with the schema defaults |
 | `src/lib/kah/queries.ts` | Group + member reads for the tab |
 | `src/lib/kah/actions.ts` | Audited group CRUD server actions |
 | `src/lib/kah/notify.ts` | `dispatchKahBreachCheck` — cache reads, check, audit, email |
+| `src/lib/email/send.ts` | Transport selection: Workspace delegation → SMTP → warn |
+| `src/lib/email/smtp.ts` | Pure `SMTP_URL` parser + nodemailer sender |
 | `src/lib/events/actions.ts` | Hook call sites in `createEvent` / `updateEvent` |
 | `src/lib/google/{mime,config,real,stub}.ts` | MIME builder, scopes, real/stub `sendEmail` |
 | `drizzle/0022_*.sql` | Migration creating the two tables |

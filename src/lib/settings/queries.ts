@@ -8,6 +8,10 @@ import {
   type BannerConfig,
 } from "@/lib/banner/banner";
 import { AUDIT_RETENTION_DEFAULT } from "@/lib/settings/validate";
+import {
+  KAH_EMAIL_BODY_TEMPLATE_DEFAULT,
+  KAH_EMAIL_SUBJECT_TEMPLATE_DEFAULT,
+} from "@/lib/kah/emailDefaults";
 
 export interface SettingsView {
   userKeyword: string;
@@ -19,12 +23,15 @@ export interface SettingsView {
   /** Stored curated-color key; null = unset (renders as the default). */
   bannerColor: string | null;
   /**
-   * Default required in-country percentage prefilled for new KAH groups
-   * (live thresholds live on each group).
+   * Default required in-country percentage prefilled when a new KAH group
+   * is created (the live thresholds live on each group).
    */
   kahDefaultPercentage: number;
   /** Addresses notified when an event pushes a KAH group below its threshold. */
   kahNotificationEmails: string[];
+  /** Admin-customized KAH breach email templates ({event}/{actor}/{window}/{breaches}). */
+  kahEmailSubjectTemplate: string;
+  kahEmailBodyTemplate: string;
 }
 
 /**
@@ -52,6 +59,9 @@ export async function getSettings(): Promise<SettingsView> {
     bannerColor: row?.bannerColor ?? null,
     kahDefaultPercentage: row?.kahPercentage ?? 100,
     kahNotificationEmails: row?.kahNotificationEmails ?? [],
+    kahEmailSubjectTemplate:
+      row?.kahEmailSubjectTemplate?.trim() || KAH_EMAIL_SUBJECT_TEMPLATE_DEFAULT,
+    kahEmailBodyTemplate: row?.kahEmailBodyTemplate?.trim() || KAH_EMAIL_BODY_TEMPLATE_DEFAULT,
   };
 }
 
