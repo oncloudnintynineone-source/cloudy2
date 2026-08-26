@@ -179,6 +179,7 @@ interface DashboardViewProps {
   filterUsers: { id: string; name: string; departmentName: string | null }[];
   peopleNames: Record<string, string>;
   calendarNames: Record<string, string>;
+  currentUserName: string;
 }
 
 interface FormState {
@@ -408,6 +409,7 @@ export function DashboardView({
   filterUsers,
   peopleNames,
   calendarNames,
+  currentUserName,
 }: DashboardViewProps) {
   const router = useRouter();
   const pathname = usePathname();
@@ -1508,6 +1510,32 @@ export function DashboardView({
           </Menu>
         </Group>
       </Box>
+
+      {currentUserName.trim().length <= 2 && (
+        <Alert color="yellow" title="Your display name is incomplete">
+          Your current display name &ldquo;{currentUserName}&rdquo; is too short — you&apos;ll
+          be difficult to identify in the calendar, schedule view, and event titles.
+          <Text component="p" mt="xs" size="sm">
+            <b>If you are an admin:</b> Go to{" "}
+            <Text component="span" fw={700}>
+              Settings → Users
+            </Text>{" "}
+            → find this user → edit and set a full display name (e.g. &ldquo;Lim Kah
+            Hwee&rdquo;).
+          </Text>
+          <Text component="p" mt="xs" size="sm">
+            <b>If you are not an admin:</b> Ask an admin to update your name via{" "}
+            <Text component="span" fw={700}>
+              Settings → Users
+            </Text>.
+          </Text>
+          <Text component="p" mt="xs" size="sm" c="dimmed">
+            Without a proper name, your events will show the short name to everyone,
+            you&apos;ll be hard to pick in invitee lists, and KAH group emails may
+            reference you by initials only.
+          </Text>
+        </Alert>
+      )}
 
       {!googleConfigured && (
         <Alert color="yellow" title="Google Calendar is not configured">

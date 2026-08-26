@@ -266,6 +266,7 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
       selectedUserIds={selectedUsers}
       currentUser={session.user.id}
       isAdmin={isAdmin}
+      currentUserName={session.user.name ?? ""}
       initialEditEventId={initialEditEventId}
       scheduleUsers={scheduleUsers}
       allActiveUsers={allActiveUsers}

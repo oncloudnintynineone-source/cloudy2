@@ -68,8 +68,7 @@ export async function sendNotificationEmail(email: NotificationEmail): Promise<b
       });
       return true;
     } catch (error) {
-      console.error("[email] Gmail delivery failed", error);
-      return false;
+      console.error("[email] Gmail delegation failed — falling through to SMTP", error);
     }
   }
 
