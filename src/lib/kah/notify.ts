@@ -9,7 +9,7 @@
 
 import { after } from "next/server";
 
-import { and, eq } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 
 import { db } from "@/db";
 import { calendars, kahGroupMembers, kahGroups, settings, users } from "@/db/schema";
@@ -21,7 +21,6 @@ import { sendNotificationEmail } from "@/lib/email/send";
 import { getCachedMonthEventsForCalendars } from "@/lib/google/eventsCache";
 import { computeKahBreaches, type KahGroupCheck } from "@/lib/kah/check";
 import { buildKahBreachEmail, type KahBreachEmailGroup } from "@/lib/kah/email";
-import { getUsersByIds } from "@/lib/roster/queries";
 
 export interface KahBreachActor {
   actorId: string | null;
@@ -116,15 +115,42 @@ async function resolveAwayNames(
   breaches: ReturnType<typeof computeKahBreaches>,
 ): Promise<Map<string, string[]>> {
   const allAwayIds = [...new Set(breaches.flatMap((breach) => breach.awayIds))];
-  const nameById = new Map(
-    (await getUsersByIds(allAwayIds)).map((user) => [user.id, user.name]),
-  );
+  if (allAwayIds.length === 0) {
+    return new Map(breaches.map((breach) => [breach.groupId, []]));
+  }
+  const rows = await db
+    .select({ id: users.id, name: users.name })
+    .from(users)
+    .where(inArray(users.id, allAwayIds));
+  const nameById = new Map(rows.map((user) => [user.id, user.name]));
   return new Map(
     breaches.map((breach) => [
       breach.groupId,
       breach.awayIds.map((id) => nameById.get(id)).filter((name): name is string => !!name),
     ]),
   );
+}
+
+/**
+ * Resolve email addresses for a set of user IDs. Returns deduplicated,
+ * non-empty emails only.
+ */
+async function resolveMemberEmails(userIds: string[]): Promise<string[]> {
+  const uniqueIds = [...new Set(userIds)];
+  if (uniqueIds.length === 0) {
+    return [];
+  }
+  const rows = await db
+    .select({ email: users.email })
+    .from(users)
+    .where(inArray(users.id, uniqueIds));
+  const emails = new Set<string>();
+  for (const row of rows) {
+    if (row.email && row.email.trim()) {
+      emails.add(row.email.trim());
+    }
+  }
+  return [...emails];
 }
 
 /**
@@ -146,15 +172,21 @@ export function dispatchKahBreachCheck(input: KahBreachCheckInput): void {
       }
       const awayNamesByGroup = await resolveAwayNames(breaches);
 
+      // Collect all member IDs from breached groups and resolve their emails.
+      const breachedMemberIds = breaches.flatMap((breach) => {
+        const group = groups.find((g) => g.id === breach.groupId);
+        return group?.memberIds ?? [];
+      });
+      const recipients = await resolveMemberEmails(breachedMemberIds);
+
+      // Read email templates from settings.
       const [settingsRow] = await db
         .select({
-          kahNotificationEmails: settings.kahNotificationEmails,
           kahEmailSubjectTemplate: settings.kahEmailSubjectTemplate,
           kahEmailBodyTemplate: settings.kahEmailBodyTemplate,
         })
         .from(settings)
         .limit(1);
-      const recipients = settingsRow?.kahNotificationEmails ?? [];
 
       const window =
         `${formatInstantToNaive(input.windowStart)} – ${formatInstantToNaive(input.windowEnd)} (UTC+8)`;

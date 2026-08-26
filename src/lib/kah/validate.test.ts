@@ -1,11 +1,8 @@
 import { describe, expect, it } from "vitest";
 
 import {
-  KAH_NOTIFICATION_EMAILS_MAX,
   normalizeKahGroupName,
-  normalizeKahNotificationEmails,
   normalizeKahPercentage,
-  validateKahEmailsForm,
   validateKahGroupForm,
   validateKahNotificationsForm,
 } from "./validate";
@@ -55,45 +52,8 @@ describe("validateKahGroupForm", () => {
   });
 });
 
-describe("normalizeKahNotificationEmails", () => {
-  it("trims, drops empties and case-duplicates, preserves first spelling", () => {
-    expect(
-      normalizeKahNotificationEmails([" A@x.com ", "", "a@X.COM", "b@y.com"]),
-    ).toEqual(["A@x.com", "b@y.com"]);
-  });
-
-  it("ignores non-strings and caps the list", () => {
-    const many = Array.from({ length: 15 }, (_, i) => `u${i}@x.com`);
-    expect(normalizeKahNotificationEmails(many)).toHaveLength(KAH_NOTIFICATION_EMAILS_MAX);
-    expect(normalizeKahNotificationEmails([1, null])).toEqual([]);
-    expect(normalizeKahNotificationEmails("not-an-array")).toEqual([]);
-  });
-});
-
-describe("validateKahEmailsForm", () => {
-  it("accepts valid address lists and an empty list", () => {
-    expect(validateKahEmailsForm({ emails: ["ops@unit.gov", "b@y.com"] })).toEqual({});
-    expect(validateKahEmailsForm({ emails: [] })).toEqual({});
-  });
-
-  it("rejects malformed addresses", () => {
-    expect(validateKahEmailsForm({ emails: ["nope"] }).emails).toContain("nope");
-    expect(validateKahEmailsForm({ emails: ["a@b"] }).emails).toBeTruthy();
-  });
-
-  it("rejects over-long addresses and oversized lists", () => {
-    expect(validateKahEmailsForm({ emails: ["x".repeat(255)] }).emails).toBeTruthy();
-    expect(
-      validateKahEmailsForm({
-        emails: Array.from({ length: 11 }, (_, i) => `u${i}@x.com`),
-      }).emails,
-    ).toContain("At most");
-  });
-});
-
 describe("validateKahNotificationsForm", () => {
   const valid = {
-    emails: ["ops@unit.gov"],
     subjectTemplate: "[cloudy2] KAH limit exceeded — {event}",
     bodyTemplate: "Breaches:\n{breaches}",
   };
@@ -120,9 +80,5 @@ describe("validateKahNotificationsForm", () => {
         bodyTemplate: `{"breaches": "json-ish"} ${"x".repeat(5001)}`,
       }).bodyTemplate,
     ).toBeTruthy(); // over max length
-  });
-
-  it("still validates the recipient list", () => {
-    expect(validateKahNotificationsForm({ ...valid, emails: ["bad"] }).emails).toBeTruthy();
   });
 });

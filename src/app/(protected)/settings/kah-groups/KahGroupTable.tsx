@@ -1,9 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   Badge,
+  Box,
   Button,
   Group,
   Modal,
@@ -11,8 +12,12 @@ import {
   Stack,
   Table,
   Text,
+  Textarea,
+  TextInput,
   useMantineTheme,
 } from "@mantine/core";
+import { useForm } from "@mantine/form";
+import { notifications } from "@mantine/notifications";
 
 import { useDisclosure, useMediaQuery } from "@mantine/hooks";
 import { IconPlus } from "@tabler/icons-react";
@@ -22,6 +27,19 @@ import { FAB_ICON_SIZE, FloatingActionButton, FloatingToolbar } from "@/componen
 import { CONTENT_ENTER_CLASS } from "@/lib/loading/contentEnter";
 import type { UserGroupInput } from "@/lib/users/userSelect";
 import { activatable } from "@/lib/ui/activatable";
+import { updateKahNotifications, type SettingsActionResult } from "@/lib/settings/actions";
+import { renderKahEmailTemplate, KAH_TEMPLATE_SAMPLE_CONTEXT } from "@/lib/kah/email";
+import {
+  KAH_EMAIL_BODY_TEMPLATE_DEFAULT,
+  KAH_EMAIL_SUBJECT_TEMPLATE_DEFAULT,
+} from "@/lib/kah/emailDefaults";
+import {
+  KAH_EMAIL_TEMPLATE_PLACEHOLDERS,
+  validateKahNotificationsForm,
+  type KahNotificationsFormValues,
+} from "@/lib/kah/validate";
+import { BUTTON_LOADER_PROPS } from "@/lib/theme";
+import { showValidationFailure } from "@/lib/ui/validationFeedback";
 
 import { KahGroupForm } from "./KahGroupForm";
 
@@ -30,14 +48,59 @@ interface KahGroupTableProps {
   pickerUsers: UserGroupInput[];
   /** Settings default prefilled when creating a new group. */
   defaultPercentage: number;
+  kahEmailSubjectTemplate: string;
+  kahEmailBodyTemplate: string;
 }
 
-export function KahGroupTable({ groups, pickerUsers, defaultPercentage }: KahGroupTableProps) {
+export function KahGroupTable({
+  groups,
+  pickerUsers,
+  defaultPercentage,
+  kahEmailSubjectTemplate,
+  kahEmailBodyTemplate,
+}: KahGroupTableProps) {
   const router = useRouter();
   const theme = useMantineTheme();
   const isDesktop = useMediaQuery(`(min-width: ${theme.breakpoints.lg})`);
   const [formOpened, { open: openForm, close: closeForm }] = useDisclosure(false);
   const [editing, setEditing] = useState<KahGroupWithMembers | null>(null);
+
+  const kahForm = useForm<KahNotificationsFormValues>({
+    initialValues: {
+      subjectTemplate: kahEmailSubjectTemplate || KAH_EMAIL_SUBJECT_TEMPLATE_DEFAULT,
+      bodyTemplate: kahEmailBodyTemplate || KAH_EMAIL_BODY_TEMPLATE_DEFAULT,
+    },
+    validate: (values) => validateKahNotificationsForm(values),
+    validateInputOnBlur: true,
+  });
+
+  const preview = useMemo(
+    () => ({
+      subject: renderKahEmailTemplate(kahForm.values.subjectTemplate, KAH_TEMPLATE_SAMPLE_CONTEXT),
+      body: renderKahEmailTemplate(kahForm.values.bodyTemplate, KAH_TEMPLATE_SAMPLE_CONTEXT),
+    }),
+    [kahForm.values.subjectTemplate, kahForm.values.bodyTemplate],
+  );
+
+  const onSubmitKah = kahForm.onSubmit(
+    async (values) => {
+      const result: SettingsActionResult = await updateKahNotifications(values);
+
+      if (result.ok) {
+        notifications.show({ color: "green", message: "KAH breach email templates updated" });
+        router.refresh();
+        return;
+      }
+
+      if (result.field === "kahSubject") {
+        kahForm.setFieldError("subjectTemplate", result.error);
+      } else if (result.field === "kahBody") {
+        kahForm.setFieldError("bodyTemplate", result.error);
+      }
+      notifications.show({ color: "red", message: result.error });
+    },
+    (errors) => showValidationFailure(errors, (field) => kahForm.getInputNode(field)),
+  );
 
   function openCreate() {
     setEditing(null);
@@ -69,7 +132,7 @@ export function KahGroupTable({ groups, pickerUsers, defaultPercentage }: KahGro
       {groups.length === 0 ? (
         <Text c="dimmed" ta="center" py="lg">
           No KAH groups yet. When an event pushes a group below its required in-country
-          percentage, the notification addresses in Settings → General are emailed.
+          percentage, group members with email addresses are notified.
         </Text>
       ) : (
         <>
@@ -143,6 +206,65 @@ export function KahGroupTable({ groups, pickerUsers, defaultPercentage }: KahGro
           </Paper>
         </>
       )}
+
+      {/* Breach email templates */}
+      <Paper withBorder p="sm">
+        <form onSubmit={onSubmitKah}>
+          <Stack gap="sm">
+            <Text fw={600}>Breach Email Templates</Text>
+            <Text fz="sm" c="dimmed">
+              When an event pushes a KAH group below its required in-country percentage, all
+              group members with an email address on their profile are notified using these
+              templates.
+            </Text>
+
+            <TextInput
+              label="Subject Template"
+              description={`Tokens: ${KAH_EMAIL_TEMPLATE_PLACEHOLDERS.join(" ")}`}
+              {...kahForm.getInputProps("subjectTemplate")}
+            />
+
+            <Textarea
+              label="Body Template"
+              description="{breaches} renders the per-group summary lines and is required."
+              autosize
+              minRows={8}
+              maxRows={16}
+              styles={{
+                input: {
+                  fontFamily: "var(--mantine-font-family-monospace)",
+                  fontSize: "var(--mantine-font-size-sm)",
+                },
+              }}
+              {...kahForm.getInputProps("bodyTemplate")}
+            />
+
+            <Paper withBorder p="sm" variant="filled">
+              <Text fz="xs" fw={700} c="dimmed" mb={4}>
+                Preview (sample data)
+              </Text>
+              <Box style={{ whiteSpace: "pre-wrap" }}>
+                <Text fz="sm" fw={600}>
+                  {preview.subject}
+                </Text>
+                <Text fz="sm" mt={4}>
+                  {preview.body}
+                </Text>
+              </Box>
+            </Paper>
+
+            <Group justify="flex-end">
+              <Button
+                type="submit"
+                loading={kahForm.submitting}
+                loaderProps={BUTTON_LOADER_PROPS}
+              >
+                Save
+              </Button>
+            </Group>
+          </Stack>
+        </form>
+      </Paper>
 
       <Modal
         opened={formOpened}

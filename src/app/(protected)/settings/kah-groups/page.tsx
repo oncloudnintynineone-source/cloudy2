@@ -26,6 +26,8 @@ export default async function KahGroupsPage() {
       groups={groups}
       pickerUsers={pickerUsers}
       defaultPercentage={settings.kahDefaultPercentage}
+      kahEmailSubjectTemplate={settings.kahEmailSubjectTemplate}
+      kahEmailBodyTemplate={settings.kahEmailBodyTemplate}
     />
   );
 }

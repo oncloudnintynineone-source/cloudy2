@@ -16,7 +16,6 @@ import { diffFields } from "@/lib/audit/diff";
 import { logAction } from "@/lib/audit/log";
 import { requireAdmin } from "@/lib/session";
 import {
-  normalizeKahNotificationEmails,
   validateKahNotificationsForm,
   type KahNotificationsFormValues,
 } from "@/lib/kah/validate";
@@ -263,19 +262,14 @@ export async function updateKahNotifications(
   const session = await requireAdmin();
 
   const errors = validateKahNotificationsForm(values);
-  if (errors.emails || errors.subjectTemplate || errors.bodyTemplate) {
+  if (errors.subjectTemplate || errors.bodyTemplate) {
     return {
       ok: false,
-      error: errors.emails ?? errors.subjectTemplate ?? errors.bodyTemplate!,
-      field: errors.emails
-        ? "kahEmails"
-        : errors.subjectTemplate
-          ? "kahSubject"
-          : "kahBody",
+      error: errors.subjectTemplate ?? errors.bodyTemplate!,
+      field: errors.subjectTemplate ? "kahSubject" : "kahBody",
     };
   }
 
-  const emails = normalizeKahNotificationEmails(values.emails);
   const subject = values.subjectTemplate.trim();
   const body = values.bodyTemplate.trim();
   const [before] = await db.select().from(settings).limit(1);
@@ -283,7 +277,6 @@ export async function updateKahNotifications(
   await db
     .update(settings)
     .set({
-      kahNotificationEmails: emails,
       kahEmailSubjectTemplate: subject,
       kahEmailBodyTemplate: body,
       updatedAt: new Date(),
@@ -302,14 +295,10 @@ export async function updateKahNotifications(
     method: "updateKahNotifications",
     details: diffFields(
       {
-        kahNotificationEmails:
-          before?.kahNotificationEmails && before.kahNotificationEmails.length > 0
-            ? before.kahNotificationEmails.join(", ")
-            : null,
         kahEmailSubjectTemplate: before?.kahEmailSubjectTemplate ?? null,
         kahEmailBodyTemplate: before?.kahEmailBodyTemplate ?? null,
       },
-      { kahNotificationEmails: emails.length > 0 ? emails.join(", ") : null, kahEmailSubjectTemplate: subject, kahEmailBodyTemplate: body },
+      { kahEmailSubjectTemplate: subject, kahEmailBodyTemplate: body },
     ),
   });
 

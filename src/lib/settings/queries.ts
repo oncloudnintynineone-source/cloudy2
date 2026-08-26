@@ -27,8 +27,6 @@ export interface SettingsView {
    * is created (the live thresholds live on each group).
    */
   kahDefaultPercentage: number;
-  /** Addresses notified when an event pushes a KAH group below its threshold. */
-  kahNotificationEmails: string[];
   /** Admin-customized KAH breach email templates ({event}/{actor}/{window}/{breaches}). */
   kahEmailSubjectTemplate: string;
   kahEmailBodyTemplate: string;
@@ -58,7 +56,6 @@ export async function getSettings(): Promise<SettingsView> {
     bannerText: row?.bannerText ?? "",
     bannerColor: row?.bannerColor ?? null,
     kahDefaultPercentage: row?.kahPercentage ?? 100,
-    kahNotificationEmails: row?.kahNotificationEmails ?? [],
     kahEmailSubjectTemplate:
       row?.kahEmailSubjectTemplate?.trim() || KAH_EMAIL_SUBJECT_TEMPLATE_DEFAULT,
     kahEmailBodyTemplate: row?.kahEmailBodyTemplate?.trim() || KAH_EMAIL_BODY_TEMPLATE_DEFAULT,
