@@ -100,7 +100,7 @@
      cascade, so no class toggling is needed. In immersive mode the inline
      style is omitted, so the CSS default of 0px applies. */
   --app-banner-height: 0px;
-  --app-shell-header-offset: calc(56px + var(--app-banner-height));
+  --app-shell-header-offset: calc(56px + var(--app-banner-height) + env(safe-area-inset-top));
 }
 
 /*
