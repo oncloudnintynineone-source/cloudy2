@@ -188,27 +188,22 @@
 }
 
 /*
-  iOS PWA standalone + viewport-fit=cover: 100dvh resolves to the viewport
-  height *excluding* env(safe-area-inset-bottom), making the AppShell
-  ~34px shorter than the physical screen on notched iPhones. This creates
-  a visible gap below the bottom nav and pushes content upward.
+  iOS PWA viewport sync: `100dvh`/`vh` can resolve to the full screen height
+  while the actual layout viewport is shorter (excludes safe-area-inset-top).
+  The sync effect in AppShellShell measures the real clientHeight and shell
+  chrome heights, setting --app-shell-vh / --app-shell-header-offset /
+  --app-shell-footer-offset as inline style vars on the root element.
 
-  Compensate by adding the missing inset to the main content min-height
-  and the sidebar navbar height. Targets Mantine v9 AppShell internal
-  class hashes — update if Mantine is upgraded. Graceful degradation:
-  if the hashes change the overrides stop matching and the app reverts
-  to the (slightly gap-prone) default.
+  These rules consume those vars (with dvh/fallback for SSR and non-PWA):
 */
-@media (display-mode: standalone) {
-  .app-shell-root .m_8983817 {
-    min-height: calc(100dvh + env(safe-area-inset-bottom)) !important;
-  }
+.app-shell-root .m_8983817 {
+  min-height: var(--app-shell-vh, 100dvh) !important;
+}
 
-  .app-shell-root .m_45252eee {
-    height: calc(
-      100dvh + env(safe-area-inset-bottom) -
-        var(--app-shell-header-offset, 0rem) -
-        var(--app-shell-footer-offset, 0rem)
-    ) !important;
-  }
+.app-shell-root .m_45252eee {
+  height: calc(
+    var(--app-shell-vh, 100dvh) -
+      var(--app-shell-header-offset, 0rem) -
+      var(--app-shell-footer-offset, 0rem)
+  ) !important;
 }

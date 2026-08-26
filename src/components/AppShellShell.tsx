@@ -311,8 +311,65 @@ export function AppShellShell({
       ? [CALENDAR, PARADE_STATE, CONTACTS, SETTINGS]
       : [CALENDAR, PARADE_STATE, CONTACTS];
 
+  // --- iOS PWA viewport sync (temporary — remove after verification) ---
+  // On some iOS versions, 100dvh/vh resolves to the full screen height but the
+  // actual layout viewport is shorter (excludes the top safe-area inset). This
+  // causes Mantine's dvh-based sizing to overshoot, making the document
+  // scrollable and pushing content under the fixed header/footer.
+  // Measure the real layout viewport and shell chrome, feed them back as CSS
+  // variables that globals.css and Mantine's stylesheets consume.
+  const rootRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const el = rootRef.current;
+    if (!el) return;
+
+    const sync = () => {
+      const vh = document.documentElement.clientHeight;
+      el.style.setProperty("--app-shell-vh", `${vh}px`);
+
+      if (!immersive) {
+        const header = el.querySelector<HTMLElement>(":scope > header");
+        const footer = el.querySelector<HTMLElement>(":scope > footer");
+        if (header) {
+          el.style.setProperty(
+            "--app-shell-header-offset",
+            `${header.getBoundingClientRect().height}px`,
+          );
+        }
+        if (footer) {
+          el.style.setProperty(
+            "--app-shell-footer-offset",
+            `${footer.getBoundingClientRect().height}px`,
+          );
+        }
+      } else {
+        el.style.removeProperty("--app-shell-header-offset");
+        el.style.removeProperty("--app-shell-footer-offset");
+      }
+    };
+
+    sync();
+    const id = setInterval(sync, 500);
+    window.addEventListener("resize", sync);
+    const onOrientation = () => setTimeout(sync, 400);
+    window.addEventListener("orientationchange", onOrientation);
+    const vv = window.visualViewport;
+    vv?.addEventListener("resize", sync);
+    return () => {
+      clearInterval(id);
+      window.removeEventListener("resize", sync);
+      window.removeEventListener("orientationchange", onOrientation);
+      vv?.removeEventListener("resize", sync);
+      el.style.removeProperty("--app-shell-vh");
+      el.style.removeProperty("--app-shell-header-offset");
+      el.style.removeProperty("--app-shell-footer-offset");
+    };
+  }, [immersive]);
+
   return (
     <AppShell
+      ref={rootRef}
       // `--app-banner-height` (absent by default → 0px from the class, the
       // measured height when a banner is active) feeds
       // `--app-shell-header-offset` in globals.css. Set as an inline custom
