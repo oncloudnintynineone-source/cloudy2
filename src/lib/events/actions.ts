@@ -27,6 +27,7 @@ import {
 } from "@/lib/events/notes";
 import { clampOutOfCamp, type LocationPolicy } from "@/lib/events/locationPolicy";
 import { creatorGuard, ownershipGuard } from "@/lib/events/guards";
+import { dispatchKahBreachCheck } from "@/lib/kah/notify";
 import { resolveTimeOption, type TimeOption } from "@/lib/events/timeOptions";
 import { renderEventTitle } from "@/lib/events/eventTitle";
 import { getUserDepartmentIds } from "@/lib/events/queries";
@@ -464,6 +465,19 @@ export async function createEvent(input: EventFormValues): Promise<EventActionRe
     created.map((copy) => copy.googleCalendarId),
     monthsInRange(effectiveInput.start, effectiveInput.end),
   );
+  // Best-effort KAH breach notification (registered after the cache
+  // invalidation so its month reads see the saved copies). Never blocks.
+  const createdWindow = absEventRange(
+    effectiveInput.start,
+    effectiveInput.end,
+    effectiveInput.timeOption !== "range",
+  );
+  dispatchKahBreachCheck({
+    windowStart: createdWindow.start,
+    windowEnd: createdWindow.end,
+    eventTitle: renderedTitle,
+    actor: actorFrom(session),
+  });
   revalidatePath("/dashboard");
   return { ok: true };
 }
@@ -655,6 +669,19 @@ export async function updateEvent(
       ]),
     ],
   );
+  // Same best-effort KAH breach check as create (deleteEvent skips it: a
+  // deletion frees people and cannot push a group below its threshold).
+  const updatedWindow = absEventRange(
+    effectiveInput.start,
+    effectiveInput.end,
+    effectiveInput.timeOption !== "range",
+  );
+  dispatchKahBreachCheck({
+    windowStart: updatedWindow.start,
+    windowEnd: updatedWindow.end,
+    eventTitle: renderedTitle,
+    actor: actorFrom(session),
+  });
   revalidatePath("/dashboard");
   return { ok: true };
 }

@@ -1,13 +1,23 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { Button, Grid, Group, NumberInput, Paper, Stack, TextInput } from "@mantine/core";
+import {
+  Button,
+  Grid,
+  Group,
+  NumberInput,
+  Paper,
+  Stack,
+  TagsInput,
+  TextInput,
+} from "@mantine/core";
 import { useForm } from "@mantine/form";
 import { notifications } from "@mantine/notifications";
 
 import { CONTENT_ENTER_CLASS } from "@/lib/loading/contentEnter";
 import {
   updateAuditLogRetention,
+  updateKahNotificationEmails,
   updateKeyword,
   type SettingsActionResult,
 } from "@/lib/settings/actions";
@@ -19,15 +29,17 @@ import {
   type KeywordFormValues,
   type RetentionFormValues,
 } from "@/lib/settings/validate";
+import { validateKahEmailsForm, type KahEmailsFormValues } from "@/lib/kah/validate";
 import { BUTTON_LOADER_PROPS } from "@/lib/theme";
 import { showValidationFailure } from "@/lib/ui/validationFeedback";
 
 interface SettingsFormProps {
   keyword: string;
   retentionDays: number;
+  kahEmails: string[];
 }
 
-export function SettingsForm({ keyword, retentionDays }: SettingsFormProps) {
+export function SettingsForm({ keyword, retentionDays, kahEmails }: SettingsFormProps) {
   const router = useRouter();
 
   const keywordForm = useForm<KeywordFormValues>({
@@ -39,6 +51,12 @@ export function SettingsForm({ keyword, retentionDays }: SettingsFormProps) {
   const retentionForm = useForm<RetentionFormValues>({
     initialValues: { retentionDays },
     validate: (values) => validateRetentionForm(values),
+    validateInputOnBlur: true,
+  });
+
+  const kahEmailsForm = useForm<KahEmailsFormValues>({
+    initialValues: { emails: kahEmails },
+    validate: (values) => validateKahEmailsForm(values),
     validateInputOnBlur: true,
   });
 
@@ -76,6 +94,24 @@ export function SettingsForm({ keyword, retentionDays }: SettingsFormProps) {
       notifications.show({ color: "red", message: result.error });
     },
     (errors) => showValidationFailure(errors, (field) => retentionForm.getInputNode(field)),
+  );
+
+  const onSubmitKahEmails = kahEmailsForm.onSubmit(
+    async (values) => {
+      const result: SettingsActionResult = await updateKahNotificationEmails(values);
+
+      if (result.ok) {
+        notifications.show({ color: "green", message: "KAH notification emails updated" });
+        router.refresh();
+        return;
+      }
+
+      if (result.field === "kahEmails") {
+        kahEmailsForm.setFieldError("emails", result.error);
+      }
+      notifications.show({ color: "red", message: result.error });
+    },
+    (errors) => showValidationFailure(errors, (field) => kahEmailsForm.getInputNode(field)),
   );
 
   return (
@@ -119,6 +155,30 @@ export function SettingsForm({ keyword, retentionDays }: SettingsFormProps) {
                 <Button
                   type="submit"
                   loading={retentionForm.submitting}
+                  loaderProps={BUTTON_LOADER_PROPS}
+                >
+                  Save
+                </Button>
+              </Group>
+            </Stack>
+          </form>
+        </Paper>
+      </Grid.Col>
+      <Grid.Col span={{ base: 12, lg: 6 }}>
+        <Paper withBorder p="sm" style={{ height: "100%" }}>
+          <form onSubmit={onSubmitKahEmails}>
+            <Stack>
+              <TagsInput
+                label="KAH Breach Notification Emails"
+                description="Addresses emailed when saving an event pushes a KAH group below its required in-country percentage (manage the groups under Settings → KAH Groups)."
+                placeholder="ops@unit.gov"
+                clearable
+                {...kahEmailsForm.getInputProps("emails")}
+              />
+              <Group justify="flex-end">
+                <Button
+                  type="submit"
+                  loading={kahEmailsForm.submitting}
                   loaderProps={BUTTON_LOADER_PROPS}
                 >
                   Save

@@ -18,6 +18,13 @@ export interface SettingsView {
   bannerText: string;
   /** Stored curated-color key; null = unset (renders as the default). */
   bannerColor: string | null;
+  /**
+   * Default required in-country percentage prefilled for new KAH groups
+   * (live thresholds live on each group).
+   */
+  kahDefaultPercentage: number;
+  /** Addresses notified when an event pushes a KAH group below its threshold. */
+  kahNotificationEmails: string[];
 }
 
 /**
@@ -43,6 +50,8 @@ export async function getSettings(): Promise<SettingsView> {
     bannerEnabled: row?.bannerEnabled ?? false,
     bannerText: row?.bannerText ?? "",
     bannerColor: row?.bannerColor ?? null,
+    kahDefaultPercentage: row?.kahPercentage ?? 100,
+    kahNotificationEmails: row?.kahNotificationEmails ?? [],
   };
 }
 

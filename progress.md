@@ -33,8 +33,8 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
   audit-log viewer with retention + CSV export; admin-managed quick-links menu
   launched from a grey 3-dots FAB (mobile) / nav-row button (desktop) on the
   Calendar page.
-- Google integration is real for Calendar once configured (service account); Gmail send
-  is still unwired.
+- Google integration is real for Calendar and Gmail-send once configured (service
+  account + domain-wide delegation).
 
 ## 1.2 Decisions locked in (Phase 0)
 
@@ -49,7 +49,7 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
 | GCal notes         | JSON block stored on events                                                                    |
 | Calendars          | Department-level calendars; `calendars` table is the department registry (kind = `department`) |
 | Parade states      | `parade_states` lookup table (code/label/description)                                          |
-| Settings           | Single-row `settings` table (admin password hash, keyword, KAH %)                              |
+| Settings           | Single-row `settings` table (admin password hash, keyword, KAH default % + notification emails) |
 | User→dept          | One department per user: `users.department_id` → `calendars.id` (nullable, ON DELETE SET NULL) |
 | PWA / monorepo     | Deferred / not used                                                                            |
 
@@ -170,18 +170,17 @@ One line per phase; full write-ups (incl. Mermaid diagrams and verification note
 - 1.113 Mobile FAB clearance: `.fab-page-pad` reserves bottom scroll clearance so last rows/card rows scroll above the portaled FABs instead of underneath them (dashboard, parade-state, contacts) (bugfix)
 - 1.114 Day/Week timeline views auto-anchor to the current time on mount when the shown day/week contains today (Day: `startScrollTime={now}`, Week: `startScrollDateTime={today} {now}`), falling back to 07:00 / Monday 07:00 otherwise
 - 1.115 Parade state always opens on today: the day leaves the remembered-UI cookie (`parade {cal,users}` filters only); explicit `?date=` still wins
+- 1.116 KAH constraints: KAH Groups tab (per-group required in-country %, badge-dialog members), General-tab breach notification emails, notify-only breach check on event create/update via the events cache with one combined Gmail (real `sendEmail` wired; Phase 3b2-adjacent)
 
 ## 1.4 Open items & next steps
 
-1. **Gmail**: wire the real Gmail method in `src/lib/google/real.ts` (send-as; still
-   throws "not implemented").
-2. **KAH constraint checks** — never built (core Phase-0 scope).
-3. **KAH percentage breach notifications** via Gmail.
-4. **ADMIN_INITIAL_PASSWORD** must be set on Vercel (seeds the admin password hash on
+1. **ADMIN_INITIAL_PASSWORD** must be set on Vercel (seeds the admin password hash on
    first login) — the only unfinished item from the original deployment checklist.
-5. Carried-over Phase-0 scope to re-confirm as still wanted: acronym glossary surfaced
+2. **Gmail delegation**: Workspace admin must grant the service account the `gmail.send`
+   scope for `GOOGLE_DELEGATE_EMAIL` (domain-wide delegation) before breach emails send.
+3. Carried-over Phase-0 scope to re-confirm as still wanted: acronym glossary surfaced
    on event titles, VCF contacts export, masquerade permissions beyond "on behalf of".
-6. Per-phase manual-QA debts recorded in the archive's verification notes (PWA device
+4. Per-phase manual-QA debts recorded in the archive's verification notes (PWA device
    installs, on-device swipe checks, width sweeps) were never systematically cleared.
 
 ## 1.5 Deployment & environments

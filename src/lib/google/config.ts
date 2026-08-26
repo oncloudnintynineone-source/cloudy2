@@ -11,6 +11,8 @@ export interface ServiceAccountConfig {
 export type GoogleEnv = Record<string, string | undefined>;
 
 export const GOOGLE_CALENDAR_SCOPE = "https://www.googleapis.com/auth/calendar";
+/** Gmail send-only scope for KAH breach notifications (delegated to a user). */
+export const GMAIL_SEND_SCOPE = "https://www.googleapis.com/auth/gmail.send";
 
 /**
  * Parse the service account credentials from the environment. Prefers the

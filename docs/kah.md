@@ -1,0 +1,163 @@
+# 1. KAH (Key Appointment Holder) constraints
+
+KAH groups are named sets of important people ("Key Appointment Holders") of which a
+required percentage must remain in-country. When an event is created or updated, the app
+checks every group over the saved event's time window and notifies configured email
+addresses when a group falls below its threshold. **Notification only** — the save itself
+never blocks or fails because of KAH.
+
+## Table of contents
+
+- [1.1 What the check does](#11-what-the-check-does)
+- [1.2 Data model](#12-data-model)
+- [1.3 Breach math](#13-breach-math)
+- [1.4 Flow of a mutation](#14-flow-of-a-mutation)
+- [1.5 Email delivery](#15-email-delivery)
+- [1.6 Admin UI](#16-admin-ui)
+- [1.7 Files](#17-files)
+- [1.8 Deliberate limits & future work](#18-deliberate-limits--future-work)
+
+## 1.1 What the check does
+
+For each enabled group, count how many members are **away** during the saved event's
+window, and compare the remaining share against the group's required percentage:
+
+```mermaid
+flowchart LR
+    A[Event create / update succeeds] --> B["dispatchKahBreachCheck(window, title, actor)"]
+    B --> C[Load KAH groups<br/>+ active members]
+    B --> D[Month-cache reads across<br/>all calendars × window months]
+    C --> E["computeKahBreaches(groups, busy) (pure)"]
+    D --> E
+    E -->|breaches| F["after(): audit row + one combined email"]
+    E -->|no breach| G[no-op]
+```
+
+A member is away when they are the **creator or an invitee** (`inviteeUsers`) of any
+in-app internal event overlapping the window `[event.start, event.end]`. External events
+carry no parsed people, so they never contribute. Deactivated users stop counting even if
+still listed as members.
+
+## 1.2 Data model
+
+```mermaid
+erDiagram
+    kah_groups ||--o{ kah_group_members : has
+    users ||--o{ kah_group_members : "member of"
+    settings {
+        text kah_percentage "default % prefill for NEW groups"
+        text_array kah_notification_emails "breach recipients"
+    }
+    kah_groups {
+        uuid id PK
+        text name UK
+        int min_percentage "required in-country %"
+    }
+    kah_group_members {
+        uuid group_id PK,FK
+        uuid user_id PK,FK
+    }
+```
+
+- `kah_group_members` cascades on both FKs: deleting a group or user cleans membership.
+- The legacy global `settings.kah_percentage` column is repurposed as the **prefill
+  default** for newly created groups (live thresholds live on each row).
+- Recipient addresses live once on `settings.kah_notification_emails`
+  (Settings → General), shared by all groups; max 10.
+
+## 1.3 Breach math
+
+Pure helpers in `src/lib/kah/check.ts`:
+
+- `actualPct = floor(inCountry / totalMembers × 100)` — floored, so rounding is
+  conservative against the requirement.
+- A breach is **strictly below**: meeting the percentage exactly is not a breach
+  (3 of 5 members = 60% satisfies a 60% requirement).
+- Empty groups never breach; duplicate member ids collapse.
+
+Validation/normalization for the forms lives in `src/lib/kah/validate.ts`; the email body
+builder in `src/lib/kah/email.ts`. All three modules are pure and unit-tested without a DB.
+
+## 1.4 Flow of a mutation
+
+```mermaid
+sequenceDiagram
+    participant U as User (event form)
+    participant A as createEvent/updateEvent
+    participant G as Google Calendar
+    participant N as dispatchKahBreachCheck
+    participant M as after() queue
+    U->>A: submit form values
+    A->>G: create/update all copies
+    A->>G: invalidateGcalCache (months touched)
+    A->>N: register check (window = saved range)
+    A-->>U: ok (response never waits for KAH)
+    Note over N,M: runs after the response ships,
+    after the invalidation above, so its reads see the saved copies
+    N->>N: listKahGroupChecks (active members only)
+    N->>N: busyKahsIn — getCachedMonthEventsForCalendars over all calendars × window months
+    N->>N: computeKahBreaches (pure)
+    alt breaches exist
+        N->>N: logAction(kah.breachNotify) — flat human-readable details
+        N->>N: buildKahBreachEmail (one combined message)
+        N->>M: integration.sendEmail(to=settings emails)
+    end
+```
+
+Guarantees:
+
+- Registration order matters: `dispatchKahBreachCheck` is called **after**
+  `invalidateGcalCache`, so the month cache refetches include the just-saved copies and
+  the edited event counts with its *new* invitees.
+- Everything inside the check is wrapped in try/catch and logged — a KAH failure can
+  never fail the mutation (same philosophy as webhook delivery).
+- `deleteEvent` skips the check: deleting frees people and cannot cause a breach.
+- No dedup/cooldown: two saves that both breach send two emails.
+
+## 1.5 Email delivery
+
+- `sendEmail` on the Google integration is real: service account JWT with the
+  `gmail.send` scope, impersonating `GOOGLE_DELEGATE_EMAIL` via domain-wide delegation
+  (`subject:` on the JWT). Workspace admins must grant the service account the
+  **gmail.send** scope for that account.
+- MIME messages are built by pure `buildTextEmail` (`src/lib/google/mime.ts`): UTF-8 text,
+  RFC 2047 encoded subject, base64url `raw` for `users.messages.send`.
+- Without credentials the stub logs the message to the console instead of sending.
+- One **combined** email per mutation lists every breached group with counts and names;
+  no addresses configured → audit row still written, email skipped.
+
+## 1.6 Admin UI
+
+- **Settings → KAH Groups** (`/settings/kah-groups`): table (desktop) / cards (mobile) of
+  groups with name, required %, members. Create/edit modal: name, required-% NumberInput
+  prefilled from the settings default, and members picked through the shared badge dialog
+  (`UserSelectModal`, active users grouped by department). Delete asks for confirmation.
+  All mutations are audited (`kahGroup.create/update/delete`) with member display names.
+- **Settings → General → KAH Breach Notification Emails**: `TagsInput` list validated by
+  `validateKahEmailsForm`, audited as a `settings.update`.
+- The tab is registered in `SettingsTabs.tsx` between Quick Links and Banner.
+
+## 1.7 Files
+
+| File | Role |
+| --- | --- |
+| `src/db/schema.ts` | `kahGroups`, `kahGroupMembers`, repurposed `settings.kahPercentage` |
+| `src/lib/kah/check.ts` | Pure breach math (`computeKahBreaches`, `inCountryPercentage`) |
+| `src/lib/kah/validate.ts` | Pure form validation/normalization |
+| `src/lib/kah/email.ts` | Pure combined breach-email builder |
+| `src/lib/kah/queries.ts` | Group + member reads for the tab |
+| `src/lib/kah/actions.ts` | Audited group CRUD server actions |
+| `src/lib/kah/notify.ts` | `dispatchKahBreachCheck` — cache reads, check, audit, email |
+| `src/lib/events/actions.ts` | Hook call sites in `createEvent` / `updateEvent` |
+| `src/lib/google/{mime,config,real,stub}.ts` | MIME builder, scopes, real/stub `sendEmail` |
+| `drizzle/0022_*.sql` | Migration creating the two tables |
+
+## 1.8 Deliberate limits & future work
+
+- **Notify-only** — there is deliberately no hard block on saving breaching events.
+- The check runs only at mutation time over the saved event's own window; it does not
+  continuously monitor "right now", nor evaluate other windows.
+- Away-ness ignores event type (any tagged event counts) and location (`outOfCamp` is not
+  consulted); if finer rules are needed later, filter the busy-set computation by event
+  type or flag rather than changing the pure check.
+- No digest/cooldown for repeated breaches of the same group.

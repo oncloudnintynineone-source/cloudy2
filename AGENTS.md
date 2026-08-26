@@ -157,7 +157,22 @@ before changing the subsystem.
   Disabled = null = today's layout exactly (no reserved space); immersive mode
   omits both the inline style and the header height contribution so the
   CSS-default 0px applies and Mantine allocates no phantom main-content
-  padding; full text on hover via `title`.
+   padding; full text on hover via `title`.
+- **KAH (Key Appointment Holder) constraints are notify-only.** Groups
+  (`kah_groups` + `kah_group_members`, per-group `min_percentage`) live in a
+  Settings → KAH Groups tab; recipients live once in `settings.kah_notification_emails`
+  (General tab) and `settings.kah_percentage` is only the *prefill default* for new
+  groups. After every successful `createEvent`/`updateEvent` (never delete — deletions
+  free people), `dispatchKahBreachCheck()` (`src/lib/kah/notify.ts`) runs inside
+  `after()`: it month-reads all calendars through the events cache (registered AFTER
+  `invalidateGcalCache` so its reads see the saved copies), marks members away when they
+  are creator/invitee on any internal event overlapping the saved event's window, and
+  computes breaches with pure `computeKahBreaches` (floored %, breach strictly below).
+  Breaches write an audited `kah.breachNotify` row and send ONE combined email via the
+  integration's now-real `sendEmail` (Gmail `gmail.send` scope, domain-wide delegated to
+  `GOOGLE_DELEGATE_EMAIL`; pure MIME builder in `google/mime.ts`; stub logs instead of
+  sends). The whole check is best-effort — it can never fail or delay the mutation.
+  Design: [docs/kah.md](docs/kah.md).
 - **Remembered UI state survives relaunch** in one cookie, `cloudy2.ui` (base64url
   JSON, max-age 1y): lastPage, sidebarCollapsed, dashboard `{view,date,month,cal,users,
   types,pinnedViews}`, parade `{cal,users}` — parade deliberately does NOT remember

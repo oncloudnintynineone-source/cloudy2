@@ -16,6 +16,11 @@ import { diffFields } from "@/lib/audit/diff";
 import { logAction } from "@/lib/audit/log";
 import { requireAdmin } from "@/lib/session";
 import {
+  normalizeKahNotificationEmails,
+  validateKahEmailsForm,
+  type KahEmailsFormValues,
+} from "@/lib/kah/validate";
+import {
   normalizeKeyword,
   normalizeRetentionDays,
   validateEventTitleTemplate,
@@ -33,7 +38,8 @@ export type SettingsActionResult =
         | "nameTemplate"
         | "eventTitleTemplate"
         | "retentionDays"
-        | "bannerText";
+        | "bannerText"
+        | "kahEmails";
     };
 
 export async function updateKeyword(keyword: string): Promise<SettingsActionResult> {
@@ -246,5 +252,53 @@ export async function updateBanner(values: BannerFormValues): Promise<SettingsAc
   });
 
   revalidatePath("/settings/banner");
+  return { ok: true };
+}
+
+export async function updateKahNotificationEmails(
+  values: KahEmailsFormValues,
+): Promise<SettingsActionResult> {
+  const session = await requireAdmin();
+
+  const errors = validateKahEmailsForm(values);
+  if (errors.emails) {
+    return {
+      ok: false,
+      error: errors.emails,
+      field: "kahEmails",
+    };
+  }
+
+  const emails = normalizeKahNotificationEmails(values.emails);
+  const [before] = await db.select().from(settings).limit(1);
+
+  await db
+    .update(settings)
+    .set({ kahNotificationEmails: emails, updatedAt: new Date() })
+    .where(eq(settings.id, "singleton"));
+
+  await logAction({
+    ...actorFromUser({
+      id: session.user.id,
+      name: session.user.name ?? null,
+      role: session.user.role,
+    }),
+    action: AUDIT_ACTIONS.settingsUpdate,
+    entityType: "settings",
+    entityName: "settings",
+    method: "updateKahNotificationEmails",
+    details: diffFields(
+      {
+        kahNotificationEmails:
+          before?.kahNotificationEmails && before.kahNotificationEmails.length > 0
+            ? before.kahNotificationEmails.join(", ")
+            : null,
+      },
+      { kahNotificationEmails: emails.length > 0 ? emails.join(", ") : null },
+    ),
+  });
+
+  revalidatePath("/settings/general");
+  revalidatePath("/settings/kah-groups");
   return { ok: true };
 }

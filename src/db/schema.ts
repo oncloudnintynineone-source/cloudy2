@@ -119,7 +119,12 @@ export const settings = pgTable(
     userKeyword: text("user_keyword"),
     nameTemplate: text("name_template").notNull().default("{name}"),
     eventTitleTemplate: text("event_title_template").notNull().default("{description}"),
+    /**
+     * Default required in-country percentage prefilled when a new KAH group
+     * is created (the live thresholds live on each `kah_groups` row).
+     */
     kahPercentage: integer("kah_percentage").notNull().default(100),
+    /** Addresses notified when an event pushes a KAH group below its threshold. */
     kahNotificationEmails: text("kah_notification_emails")
       .array()
       .notNull()
@@ -174,6 +179,44 @@ export const quickLinks = pgTable(
     ...timestamps,
   },
   (table) => [index("quick_links_sort_idx").on(table.sortOrder)],
+);
+
+/**
+ * Key Appointment Holder (KAH) groups: named sets of important users with a
+ * required percentage of members that must remain in-country. When an event
+ * is created or updated, each group's members tagged on events overlapping
+ * the event's window count as away; a group whose in-country share drops
+ * below `minPercentage` triggers a notification email (see
+ * `src/lib/kah/notify.ts`, design: docs/kah.md).
+ */
+export const kahGroups = pgTable(
+  "kah_groups",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    name: text("name").notNull(),
+    /** Required in-country share of the group, 1–100. */
+    minPercentage: integer("min_percentage").notNull().default(100),
+    ...timestamps,
+  },
+  (table) => [uniqueIndex("kah_groups_name_idx").on(table.name)],
+);
+
+/** Membership join between KAH groups and roster users. */
+export const kahGroupMembers = pgTable(
+  "kah_group_members",
+  {
+    groupId: uuid("group_id")
+      .notNull()
+      .references(() => kahGroups.id, { onDelete: "cascade" }),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    ...timestamps,
+  },
+  (table) => [
+    primaryKey({ columns: [table.groupId, table.userId] }),
+    index("kah_group_members_user_idx").on(table.userId),
+  ],
 );
 
 export const auditLogs = pgTable(
@@ -236,3 +279,7 @@ export type Webhook = typeof webhooks.$inferSelect;
 export type NewWebhook = typeof webhooks.$inferInsert;
 export type QuickLink = typeof quickLinks.$inferSelect;
 export type NewQuickLink = typeof quickLinks.$inferInsert;
+export type KahGroup = typeof kahGroups.$inferSelect;
+export type NewKahGroup = typeof kahGroups.$inferInsert;
+export type KahGroupMember = typeof kahGroupMembers.$inferSelect;
+export type NewKahGroupMember = typeof kahGroupMembers.$inferInsert;

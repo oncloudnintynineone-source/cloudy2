@@ -1,7 +1,13 @@
 import { google } from "googleapis";
-import type { calendar_v3 } from "googleapis";
+import type { calendar_v3, gmail_v1 } from "googleapis";
 
-import { getServiceAccountConfig, GOOGLE_CALENDAR_SCOPE } from "./config";
+import {
+  getServiceAccountConfig,
+  getAdminGoogleEmail,
+  GOOGLE_CALENDAR_SCOPE,
+  GMAIL_SEND_SCOPE,
+} from "./config";
+import { buildTextEmail } from "./mime";
 import type {
   GcalEvent,
   GcalEventInput,
@@ -18,6 +24,7 @@ import type {
  */
 export function createRealGoogleIntegration(): GoogleIntegration {
   let client: calendar_v3.Calendar | null = null;
+  let gmail: gmail_v1.Gmail | null = null;
 
   function getClient(): calendar_v3.Calendar {
     if (!client) {
@@ -28,11 +35,39 @@ export function createRealGoogleIntegration(): GoogleIntegration {
       const auth = new google.auth.JWT({
         email: config.clientEmail,
         key: config.privateKey,
-        scopes: [GOOGLE_CALENDAR_SCOPE],
+        scopes: [GOOGLE_CALENDAR_SCOPE, GMAIL_SEND_SCOPE],
       });
       client = google.calendar({ version: "v3", auth });
     }
     return client;
+  }
+
+  /**
+   * Gmail client sending as the delegated admin account. Domain-wide
+   * delegation must grant the service account the gmail.send scope for that
+   * account (Workspace admin console → domain-wide delegation).
+   */
+  function getGmailClient(): gmail_v1.Gmail {
+    if (!gmail) {
+      const config = getServiceAccountConfig();
+      if (!config) {
+        throw new Error("Google integration is not configured");
+      }
+      const sender = getAdminGoogleEmail();
+      if (!sender) {
+        throw new Error(
+          "Gmail sender is not configured — set GOOGLE_DELEGATE_EMAIL to the account emails should come from",
+        );
+      }
+      const auth = new google.auth.JWT({
+        email: config.clientEmail,
+        key: config.privateKey,
+        scopes: [GOOGLE_CALENDAR_SCOPE, GMAIL_SEND_SCOPE],
+        subject: sender,
+      });
+      gmail = google.gmail({ version: "v1", auth });
+    }
+    return gmail;
   }
 
   function googleStatus(error: unknown): number | undefined {
@@ -221,8 +256,21 @@ export function createRealGoogleIntegration(): GoogleIntegration {
         fail(error);
       }
     },
-    async sendEmail(): Promise<void> {
-      throw new Error("sendEmail is not implemented yet");
+    async sendEmail(input): Promise<void> {
+      try {
+        await getGmailClient().users.messages.send({
+          userId: "me",
+          requestBody: { raw: buildTextEmail(input) },
+        });
+      } catch (error) {
+        const status = googleStatus(error);
+        if (status === 401 || status === 403) {
+          throw new Error(
+            "Gmail send was denied — check that domain-wide delegation grants the gmail.send scope to the service account",
+          );
+        }
+        throw new Error(error instanceof Error ? error.message : "Gmail request failed");
+      }
     },
   };
 }
