@@ -1,7 +1,5 @@
 "use client";
 
-import "@mantine/dates/styles.css";
-
 import { useCallback, useMemo, useRef, useState, useTransition } from "react";
 import {
   ActionIcon,

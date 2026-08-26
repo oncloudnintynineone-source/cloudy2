@@ -2,8 +2,9 @@
 
 import dayjs from "dayjs";
 import {
-  Suspense,
+  type CSSProperties,
   type ReactNode,
+  type RefObject,
   useCallback,
   useEffect,
   useLayoutEffect,
@@ -23,16 +24,27 @@ import {
   Loader,
   Menu,
   Modal,
+  Paper,
   Stack,
   Tabs,
   Text,
   Tooltip,
+  UnstyledButton,
   useMantineTheme,
 } from "@mantine/core";
 import { useDisclosure, useDrag, useMediaQuery } from "@mantine/hooks";
 import {
+  AgendaView,
+  MonthView,
+  ResourcesDayView,
+  ResourcesWeekView,
+  type ScheduleResourceData,
+  type ScheduleResourceGroup,
+} from "@mantine/schedule";
+import {
   IconArrowsMaximize,
   IconArrowsMinimize,
+  IconBuilding,
   IconCalendarCheck,
   IconCalendarDot,
   IconCalendarMonth,
@@ -55,8 +67,17 @@ import {
   IconX,
 } from "@tabler/icons-react";
 
+import {
+  AgendaListSkeleton,
+  MonthGridSkeleton,
+  ScheduleGridSkeleton,
+  WeekGridSkeleton,
+  WeekMatrixSkeleton,
+  monthGridRows,
+} from "./calendarSkeleton";
 import { formatWeekLabel } from "./clientDateTime";
-import type { FilterGroup } from "@/components/FilterModal";
+import { DateSelectorModal } from "@/components/DateSelectorModal";
+import { FilterModal, type FilterGroup } from "@/components/FilterModal";
 import {
   FAB_ICON_SIZE,
   FAB_SIZE,
@@ -64,10 +85,12 @@ import {
   FloatingToolbar,
 } from "@/components/FloatingToolbar";
 import { QuickLinksMenu, type QuickLinkMenuItem } from "@/components/QuickLinksMenu";
+import { eventsOnDay } from "@/lib/events/agenda";
 import { weekDays } from "@/lib/events/datetime";
 import type { CalendarEvent } from "@/lib/events/queries";
 import type { LocationPolicy } from "@/lib/events/locationPolicy";
 import type { TimeOption } from "@/lib/events/timeOptions";
+import { CONTENT_ENTER_CLASS, useContentEnter } from "@/lib/loading/contentEnter";
 import { useMinSkeletonHold } from "@/lib/loading/minHoldLoading";
 import {
   modalContentWidth,
@@ -75,20 +98,21 @@ import {
   transformOriginFromRect,
   type Rect,
 } from "@/lib/motion/origin";
-import type { ScheduleUser } from "@/lib/events/schedule";
+import {
+  buildScheduleResources,
+  expandScheduleEvents,
+  isDepartmentRowId,
+  type ScheduleResource,
+  type ScheduleUser,
+} from "@/lib/events/schedule";
 import { useImmersiveMode } from "@/lib/ui/immersiveMode";
 import { DASHBOARD_STATE_KEYS, freshMarkerNeeded, orderDashboardViews } from "@/lib/ui/uiState";
 import { usePersistUiState } from "@/lib/ui/uiStateClient";
-import { EventsArea, ViewLoadingSkeleton } from "./EventsArea";
-import {
-  DateSelectorModalLazy,
-  EventDetailLazy,
-  EventFormLazy,
-  FilterModalLazy,
-  preloadDashboardModules,
-} from "./lazy";
+import { EventDetail } from "./EventDetail";
+import { EventForm } from "./EventForm";
+import { WeekMatrixView } from "./WeekMatrixView";
 
-export type ViewMode = "month" | "week" | "weekv2" | "schedule" | "agenda";
+type ViewMode = "month" | "week" | "weekv2" | "schedule" | "agenda";
 
 // Tab bar labels/icons in default (unpinned) order; pinned tabs are moved to
 // the front by `orderDashboardViews` (see the pinnedViews prop).
@@ -118,13 +142,7 @@ interface DashboardViewProps {
    * `_fresh` renders, since pins are not URL-backed.
    */
   pinnedViews: string[];
-  /**
-   * Streamed from the page (deliberately unawaited there): this component
-   * passes it straight to `EventsArea`, which resolves it with React's `use`
-   * inside its Suspense boundary, so the chrome paints before the events
-   * read lands.
-   */
-  events: Promise<CalendarEvent[]>;
+  events: CalendarEvent[];
   calendars: { id: string; name: string }[];
   eventTypes: EventTypeOption[];
   eventTitleTemplate: string;
@@ -175,6 +193,188 @@ const DAY_SWIPE_THRESHOLD = 48;
 // from the DOM (see the effect below) so non-default root font sizes still
 // derive the correct day index.
 const WEEK_DAY_WIDTH_PX = 24 * 60;
+
+/**
+ * Day-label strip for the Week view. `ResourcesWeekView`'s own day labels are
+ * centered in each full-width day column, so on a phone they are only visible
+ * when the viewport happens to sit over the middle of a day. This strip
+ * replaces that row and pins the leftmost visible day (the caller tracks it
+ * via `onScrollPositionChange`) to the grid's left edge, styled like Mantine's
+ * own day labels (today filled/primary, weekends red). The strip itself is
+ * sticky under the shared tabs+date-nav chrome at every breakpoint, mirroring
+ * the Week v2 day header.
+ */
+function WeekDayLabelStrip({
+  day,
+  hasGroups,
+  resourceLabelWidth,
+  groupLabelWidth,
+  chromeOffset,
+}: {
+  day: string;
+  hasGroups: boolean;
+  resourceLabelWidth: string;
+  groupLabelWidth: string;
+  /** Height of the sticky tabs+date-nav chrome this strip docks below. */
+  chromeOffset: number;
+}) {
+  const dayObj = dayjs(day);
+  const isToday = dayObj.isSame(dayjs(), "day");
+  const isWeekend = dayObj.day() === 0 || dayObj.day() === 6;
+  // The width of the sticky corner/label columns the grid scrolls beneath,
+  // matching the ResourcesWeekView sizing overrides on the view itself.
+  const leftWidth = hasGroups
+    ? `calc(${groupLabelWidth} + ${resourceLabelWidth})`
+    : resourceLabelWidth;
+  return (
+    <Box
+      component="div"
+      style={{
+        position: "sticky",
+        top: `calc(var(--app-shell-header-offset) + ${chromeOffset}px)`,
+        zIndex: 45,
+        height: "calc(2rem * var(--mantine-scale))",
+        background: "var(--mantine-color-body)",
+        borderBottom: "1px solid var(--mantine-color-default-border)",
+      }}
+    >
+      {/* Continues the corner's vertical divider across the strip's band. */}
+      <Box
+        component="div"
+        style={{
+          position: "absolute",
+          top: 0,
+          bottom: 0,
+          left: 0,
+          width: leftWidth,
+          borderRight: "1px solid var(--mantine-color-default-border)",
+        }}
+      />
+      <span
+        style={{
+          position: "absolute",
+          top: 0,
+          bottom: 0,
+          left: leftWidth,
+          display: "flex",
+          alignItems: "center",
+          paddingInline: "0.5rem",
+          whiteSpace: "nowrap",
+          fontSize: "var(--mantine-font-size-sm)",
+          fontWeight: isToday
+            ? "var(--mantine-font-weight-bold)"
+            : "var(--mantine-font-weight-medium)",
+          textTransform: "capitalize",
+          userSelect: "none",
+          background: isToday ? "var(--mantine-primary-color-filled)" : "transparent",
+          color: isToday
+            ? "var(--mantine-primary-color-contrast)"
+            : isWeekend
+              ? "var(--mantine-color-red-6)"
+              : undefined,
+        }}
+      >
+        {dayObj.format("ddd D")}
+      </span>
+    </Box>
+  );
+}
+
+/** Hourly slots per day in the schedule views (00:00–23:59 @ 60min). */
+const SLOTS_PER_DAY = 24;
+
+/**
+ * Pinned hour ruler for the Day and Week schedule views. The library's own
+ * time-labels row is sticky only inside its ScrollArea viewport, which never
+ * scrolls vertically (the page does), so during page scroll the axis scrolls
+ * away with the grid. This strip replaces that row: it pins beneath the shared
+ * chrome (like the Week day-label strip) and its inner hour track translates
+ * by -scrollLeft via a direct DOM transform — no re-renders — so labels stay
+ * over their columns while the grid pans horizontally, mirroring the Week v2
+ * day-header mechanics.
+ */
+function TimeRulerStrip({
+  hasGroups,
+  resourceLabelWidth,
+  groupLabelWidth,
+  chromeOffset,
+  /** Extra sticky offset when another strip stacks above this one. */
+  stackBelowHeight,
+  innerRef,
+}: {
+  hasGroups: boolean;
+  resourceLabelWidth: string;
+  groupLabelWidth: string;
+  chromeOffset: number;
+  stackBelowHeight?: string;
+  innerRef: RefObject<HTMLDivElement | null>;
+}) {
+  // The width of the sticky corner/label columns the grid scrolls beneath,
+  // matching the ResourcesWeekView/ResourcesDayView sizing overrides.
+  const leftWidth = hasGroups
+    ? `calc(${groupLabelWidth} + ${resourceLabelWidth})`
+    : resourceLabelWidth;
+  return (
+    <Box
+      component="div"
+      aria-hidden
+      style={{
+        position: "sticky",
+        top: stackBelowHeight
+          ? `calc(var(--app-shell-header-offset) + ${chromeOffset}px + ${stackBelowHeight})`
+          : `calc(var(--app-shell-header-offset) + ${chromeOffset}px)`,
+        zIndex: 45,
+        display: "flex",
+        overflow: "hidden",
+        background: "var(--mantine-color-body)",
+        borderBottom: "1px solid var(--mantine-color-default-border)",
+      }}
+    >
+      <Box
+        component="div"
+        aria-hidden
+        style={{
+          flexShrink: 0,
+          width: leftWidth,
+          // Continues the corner's vertical divider across the ruler band.
+          borderRight: "1px solid var(--mantine-color-default-border)",
+        }}
+      />
+      <Box component="div" aria-hidden style={{ flex: 1, minWidth: 0, overflow: "hidden" }}>
+        <Box
+          ref={innerRef}
+          component="div"
+          style={{
+            display: "flex",
+            width: `calc(var(--ruler-slot, 60px) * ${SLOTS_PER_DAY})`,
+            willChange: "transform",
+          }}
+        >
+          {Array.from({ length: SLOTS_PER_DAY }, (_, hour) => (
+            <Box
+              key={hour}
+              component="div"
+              style={{
+                width: "var(--ruler-slot, 60px)",
+                flexShrink: 0,
+                borderLeft: "1px solid var(--mantine-color-default-border)",
+                padding: "2px 0 2px 4px",
+              }}
+            >
+              <Text
+                size="xs"
+                c="dimmed"
+                style={{ lineHeight: 1.2, userSelect: "none", whiteSpace: "nowrap" }}
+              >
+                {String(hour).padStart(2, "0")}
+              </Text>
+            </Box>
+          ))}
+        </Box>
+      </Box>
+    </Box>
+  );
+}
 
 export function DashboardView({
   month,
@@ -243,16 +443,24 @@ export function DashboardView({
   // (a 24h day is then exactly 1920px — a full desktop screen).
   const weekSlotWidth = isDesktop ? "calc(4.5rem * var(--mantine-scale))" : undefined;
 
+  // The `?edit=` deep link (from a Google Calendar "Edit:" note) resolves its
+  // target event synchronously at mount — the server has already fetched the
+  // month — so the edit form/banner initialize without a follow-up render.
+  const initialEditEvent = initialEditEventId
+    ? (events.find((event) => event.payload.eventId === initialEditEventId) ?? null)
+    : null;
+
   const [detailEvent, setDetailEvent] = useState<CalendarEvent | null>(null);
   // Where the tapped element sat on screen; the modal grows out of / shrinks
   // back into it (see src/lib/motion/origin.ts).
   const [detailOriginRect, setDetailOriginRect] = useState<Rect | null>(null);
   const [agendaOriginRect, setAgendaOriginRect] = useState<Rect | null>(null);
   const [formOriginRect, setFormOriginRect] = useState<Rect | null>(null);
-  // Starts closed; a `?edit=` deep link opens it from EventsArea once the
-  // streamed events resolve (one extra render vs the old sync initializer —
-  // the form's grow-in animation hides it).
-  const [formState, setFormState] = useState<FormState | null>(null);
+  const [formState, setFormState] = useState<FormState | null>(() =>
+    initialEditEvent
+      ? { event: initialEditEvent, defaultDate: initialEditEvent.start.slice(0, 10) }
+      : null,
+  );
   // Facebook-bubble minimize: the form modal collapses into a floating circle
   // while `formMinimized` is true. The modal stays mounted (`keepMounted`) so
   // the draft survives.
@@ -271,27 +479,19 @@ export function DashboardView({
   // flight, not an external navigation to follow. State (not a ref) so the
   // render-phase sync below can read it.
   const [agendaUrlBase, setAgendaUrlBase] = useState<string | null>(null);
-  // Lazy chunks: modals render from first open onward (keeps the exit
-  // animations intact — an outer unmount would cut them off) and the chunk
-  // stays out of the initial bundle until then.
-  const [detailEverOpened, setDetailEverOpened] = useState(false);
-  const [filterEverOpened, setFilterEverOpened] = useState(false);
-  const [pickerEverOpened, setPickerEverOpened] = useState(false);
-  // Force-refresh window: set on click, cleared when EventsArea's streamed
-  // events commit (the forced Google read can take a couple of seconds).
-  const [forcePending, setForcePending] = useState(false);
+  // Keep the last shown agenda date so the closing (shrink) animation still has
+  // content while `opened` is already false.
+  const [displayAgendaDate, setDisplayAgendaDate] = useState<string | null>(agendaDate);
+  const [prevAgendaDate, setPrevAgendaDate] = useState<string | null>(agendaDate);
+  if (agendaDate && agendaDate !== prevAgendaDate) {
+    setPrevAgendaDate(agendaDate);
+    setDisplayAgendaDate(agendaDate);
+  }
+  const [editLinkFailed, setEditLinkFailed] = useState(
+    () => initialEditEventId !== null && initialEditEvent === null,
+  );
   const [filterOpened, { open: openFilter, close: closeFilter }] = useDisclosure(false);
   const [pickerOpened, { open: openPicker, close: closePicker }] = useDisclosure(false);
-
-  const clearForcePending = useCallback(() => setForcePending(false), []);
-  const handleEditLinkResolved = useCallback((event: CalendarEvent) => {
-    setFormState({ event, defaultDate: event.start.slice(0, 10) });
-  }, []);
-  const handleEventClick = useCallback((event: CalendarEvent, originRect: DOMRect) => {
-    setDetailEverOpened(true);
-    setDetailOriginRect(originRect);
-    setDetailEvent(event);
-  }, []);
 
   // Pinned tabs (index 0 = leftmost). The prop is the server's validated read
   // of the remembered-state cookie; local state leads it by one toggle. The
@@ -393,6 +593,7 @@ export function DashboardView({
   // scrolling grid. The index (not raw px) drives the pinned day-label strip,
   // so a scroll frame only re-renders when the visible day actually changes.
   const weekDayWidthRef = useRef(WEEK_DAY_WIDTH_PX);
+  const weekBoxRef = useRef<HTMLDivElement | null>(null);
   const [weekDayIndex, setWeekDayIndex] = useState(0);
   // Inner tracks of the pinned rulers follow horizontal scroll via direct DOM
   // transforms (see TimeRulerStrip); their cell width rides the --ruler-slot
@@ -432,12 +633,17 @@ export function DashboardView({
     [handleDayScroll],
   );
 
+  const [isRefreshing, startRefresh] = useTransition();
+
   // Skeleton-only loading: any pending data navigation or force refresh
   // shows the grid skeleton. `useMinSkeletonHold` keeps it up for a minimum
   // ~350ms so fast (cached) loads read as a deliberate sequence instead of a
-  // flash. `useContentEnter` (in EventsArea) fades the grid in on the reveal;
-  // on a cold mount the class ships in the SSR HTML and plays on first paint.
-  const gridLoading = useMinSkeletonHold(isPending || forcePending);
+  // flash. `useContentEnter` fades the grid in on the reveal; on a cold
+  // mount the class ships in the SSR HTML and plays on first paint. The
+  // one-shot `edit`/`refresh` strips are plain pushes (no transition), so
+  // they never set the pending flag and never replay the fade.
+  const gridLoading = useMinSkeletonHold(isPending || isRefreshing);
+  useContentEnter(weekBoxRef, !gridLoading);
 
   // Remembered UI state: persist the server-resolved view/filters to the
   // per-device cookie every time the rendered state changes, so a relaunch
@@ -451,6 +657,10 @@ export function DashboardView({
     types: selectedTypes,
     pinnedViews: pinned,
   });
+
+  // The date shown in the agenda day modal; persists through the exit
+  // animation so the shrinking box still has content.
+  const agendaViewDate = agendaDate ?? displayAgendaDate;
 
   const viewport = {
     w: typeof window === "undefined" ? 0 : window.innerWidth,
@@ -550,6 +760,36 @@ export function DashboardView({
     (selectedUserIds.length > 0 ? 1 : 0) +
     (selectedTypes.length > 0 ? 1 : 0);
 
+  const scheduleDepartments = useMemo(
+    () => calendars.filter((calendar) => selectedCalendarIds.includes(calendar.id)),
+    [calendars, selectedCalendarIds],
+  );
+  // An active Users filter narrows the rows to exactly the selected users
+  // (no department rows, no other users), so the filter visibly changes the
+  // grid. The row source becomes the full active roster — a selected user gets
+  // a row even when their department is outside the `cal` selection — and the
+  // department list must cover each selected user's own department.
+  const userFilterActive = selectedUserIds.length > 0;
+  const scheduleResources = useMemo(
+    () =>
+      buildScheduleResources({
+        departments: userFilterActive ? calendars : scheduleDepartments,
+        users: userFilterActive ? allActiveUsers : scheduleUsers,
+        events,
+        userFilter: selectedUserIds,
+      }),
+    [
+      userFilterActive,
+      calendars,
+      scheduleDepartments,
+      scheduleUsers,
+      allActiveUsers,
+      events,
+      selectedUserIds,
+    ],
+  );
+  const scheduleEvents = useMemo(() => expandScheduleEvents(events), [events]);
+
   const isWeekV2 = view === "weekv2";
   const isWeek = view === "week" || isWeekV2;
   const isSchedule = view === "schedule";
@@ -640,15 +880,17 @@ export function DashboardView({
     router.push(buildHref({ refresh: null }));
   }, [buildHref, router, searchParams]);
 
-  // Force refresh: a plain push of the one-shot nonce (no transition) — the
-  // server renders that request with `force: true` and streams a fresh events
-  // promise. Outside a transition the Suspense boundary falls back to the
-  // grid skeleton while the forced Google read lands (a transition would hold
-  // the old grid instead), and `forcePending` covers the same window for the
-  // menu spinner + min-hold.
+  // Force refresh: a transition of its own (the button's spinner) wrapping
+  // router.push directly — the transition Next runs inside push stays pending
+  // for the whole navigation, so `isRefreshing` covers the load. The server
+  // renders that same request with `force: true`; the grid skeleton shows for
+  // the same window. Ordinary data navigations (month/week/day/view/filter)
+  // show the same grid skeleton while pending and swap the new grid in place
+  // (with a one-shot fade-in) when it commits.
   function refreshNow() {
-    setForcePending(true);
-    router.push(buildHref({ refresh: String(Date.now()) }));
+    startRefresh(() => {
+      router.push(buildHref({ refresh: String(Date.now()) }));
+    });
   }
 
   // Shifts compose on the optimistic chrome values (not the committed props),
@@ -886,6 +1128,14 @@ export function DashboardView({
   // views this is identical to the `?date=` prop.
   const headerDate = isAgenda ? (viewedDay ?? date) : date;
 
+  // Mantine's AgendaView leaks adjacent-day all-day events into the selected
+  // day (its day-granularity end check lets an exclusive end land exactly on
+  // the viewed midnight), so pre-filter to exactly the occupying events.
+  const agendaTabEvents = useMemo(() => eventsOnDay(events, headerDate), [events, headerDate]);
+  const agendaModalEvents = useMemo(
+    () => (agendaViewDate ? eventsOnDay(events, agendaViewDate) : []),
+    [events, agendaViewDate],
+  );
   // "Today" affordance state, keyed to the optimistic chrome like the label:
   // the menu item reflects where you're headed, not where the fetch is at.
   const onToday = shownIsWeek
@@ -894,19 +1144,86 @@ export function DashboardView({
       ? headerDate === today
       : shownMonth === todayMonth;
 
-  // Warm the lazy dashboard modules (the five views + the modals) after first
-  // paint, so a later tab switch or modal tap never waits on a chunk. The
-  // active view's chunk is already primed at render time by EventsArea.
-  useEffect(() => {
-    if (typeof window.requestIdleCallback === "function") {
-      const idle = window.requestIdleCallback(() => preloadDashboardModules(), {
-        timeout: 5000,
-      });
-      return () => window.cancelIdleCallback(idle);
+  // Measure the schedule views' actual hourly slot width and sync the pinned
+  // rulers with it. Mantine sizes each hour slot in `rem`
+  // (`--resources-*-view-slot-width`), so with a non-default root font size or
+  // --mantine-scale a hardcoded px guess would drift. Probe the CSS variable
+  // on the active view's root (found among the Box's children by the variable
+  // it declares); the Week day index stores 24 slots' worth. The measured slot
+  // is published to the rulers as `--ruler-slot` on the content box — direct
+  // DOM writes, pre-paint (no state). Runs only when the Day/Week grid is
+  // actually rendered (not the skeleton or the empty "No users" paper), and
+  // re-runs when the breakpoint flips (the Week slot width widens at lg).
+  useLayoutEffect(() => {
+    const isWeekGrid = view === "week";
+    const isDayGrid = isSchedule;
+    if ((!isWeekGrid && !isDayGrid) || gridLoading) {
+      return;
     }
-    const timer = window.setTimeout(() => preloadDashboardModules(), 1500);
-    return () => window.clearTimeout(timer);
-  }, []);
+    const box = weekBoxRef.current;
+    if (!box) {
+      return;
+    }
+    const varName = isWeekGrid
+      ? "--resources-week-view-slot-width"
+      : "--resources-day-view-slot-width";
+    const root = Array.from(box.children).find(
+      (child) => getComputedStyle(child).getPropertyValue(varName).trim() !== "",
+    );
+    if (!root) {
+      return;
+    }
+    const probe = document.createElement("span");
+    probe.style.width = `var(${varName})`;
+    root.append(probe);
+    const slot = probe.offsetWidth;
+    root.removeChild(probe);
+    if (slot > 0) {
+      weekDayWidthRef.current = slot * 24;
+      box.style.setProperty("--ruler-slot", `${slot}px`);
+    }
+    // The library's start-scroll effects (startScrollTime /
+    // startScrollDateTime) repositioned the grid before paint without a
+    // scroll event; align the ruler tracks with the real scroll offset.
+    const viewport = isWeekGrid ? weekViewportRef.current : dayViewportRef.current;
+    const ruler = isWeekGrid ? weekRulerRef.current : dayRulerRef.current;
+    if (viewport && ruler) {
+      ruler.style.transform = `translateX(${-viewport.scrollLeft}px)`;
+    }
+  }, [view, gridLoading, isSchedule, isDesktop]);
+
+  // Shared by the Day and Week resource views: a department row is a building
+  // icon (its name as tooltip/aria), a user row is the shortname label.
+  function renderResourceLabel(resource: ScheduleResourceData) {
+    const row = resource as ScheduleResource;
+    return isDepartmentRowId(row.id) ? (
+      <IconBuilding
+        size={16}
+        color="var(--mantine-color-accent-6)"
+        aria-label={row.fullName}
+        title={row.fullName}
+        style={{ flexShrink: 0 }}
+      />
+    ) : row.label === row.fullName ? (
+      <Text size="sm">{row.label}</Text>
+    ) : (
+      // `events` replaces the default object, so `hover` is restated explicitly;
+      // `touch` lets a tap open the tooltip on phones (tap-outside dismisses it).
+      <Tooltip
+        label={row.fullName}
+        position="right"
+        events={{ hover: true, focus: false, touch: true }}
+      >
+        <Text size="sm" aria-label={row.fullName}>
+          {row.label}
+        </Text>
+      </Tooltip>
+    );
+  }
+
+  function renderGroupLabel(group: ScheduleResourceGroup) {
+    return <span style={{ writingMode: "vertical-rl" }}>{group.label}</span>;
+  }
 
   return (
     // Pulled up by the shell's md padding: AppShell.Main adds
@@ -1121,13 +1438,7 @@ export function DashboardView({
                 Today
               </Menu.Item>
               {isAnchoredView && (
-                <Menu.Item
-                  leftSection={<IconCalendarDot size={16} />}
-                  onClick={() => {
-                    setPickerEverOpened(true);
-                    openPicker();
-                  }}
-                >
+                <Menu.Item leftSection={<IconCalendarDot size={16} />} onClick={openPicker}>
                   Select date
                 </Menu.Item>
               )}
@@ -1155,10 +1466,7 @@ export function DashboardView({
               </Menu.Item>
               <Menu.Item
                 leftSection={<IconFilter size={16} />}
-                onClick={() => {
-                  setFilterEverOpened(true);
-                  openFilter();
-                }}
+                onClick={openFilter}
                 rightSection={
                   activeFilterCount > 0 ? (
                     <Badge size="sm" variant="filled" radius="xl">
@@ -1172,9 +1480,9 @@ export function DashboardView({
               <Menu.Divider />
               <Menu.Item
                 leftSection={
-                  forcePending ? <Loader size="sm" color="gray" /> : <IconRefresh size={16} />
+                  isRefreshing ? <Loader size="sm" color="gray" /> : <IconRefresh size={16} />
                 }
-                disabled={!googleConfigured || forcePending}
+                disabled={!googleConfigured || isRefreshing}
                 onClick={refreshNow}
               >
                 Force refresh
@@ -1190,82 +1498,422 @@ export function DashboardView({
         </Alert>
       )}
 
-      {/* The data area streams in: the page hands over an unawaited events
-          promise and EventsArea resolves it inside this Suspense boundary, so
-          the chrome above paints before the (possibly Google-bound) read
-          lands. During transitions the committed grid is held until the new
-          promise resolves; a force refresh (plain push, no transition) falls
-          back to the skeleton below for the whole fetch. */}
-      <Suspense fallback={<ViewLoadingSkeleton shownView={shownView} shownMonth={shownMonth} />}>
-        <EventsArea
-          events={events}
-          initialEditEventId={initialEditEventId}
-          onEditLinkResolved={handleEditLinkResolved}
-          onEventsResolved={clearForcePending}
-          view={view}
-          shownView={shownView}
-          shownMonth={shownMonth}
-          month={month}
-          date={date}
-          week={week}
-          gridLoading={gridLoading}
-          isDesktop={isDesktop}
-          googleConfigured={googleConfigured}
-          chromeHeight={chromeHeight}
-          scheduleLabelWidths={scheduleLabelWidths}
-          weekSlotWidth={weekSlotWidth}
-          today={today}
-          calendars={calendars}
-          selectedCalendarIds={selectedCalendarIds}
-          scheduleUsers={scheduleUsers}
-          allActiveUsers={allActiveUsers}
-          selectedUserIds={selectedUserIds}
-          weekDayIndex={weekDayIndex}
-          weekDayWidthRef={weekDayWidthRef}
-          weekRulerRef={weekRulerRef}
-          dayRulerRef={dayRulerRef}
-          weekViewportRef={weekViewportRef}
-          dayViewportRef={dayViewportRef}
-          weekScrollAreaProps={weekScrollAreaProps}
-          dayScrollAreaProps={dayScrollAreaProps}
-          agendaDate={agendaDate}
-          setAgendaDate={setAgendaDate}
-          setAgendaSlideDir={setAgendaSlideDir}
-          agendaSlideDir={agendaSlideDir}
-          setAgendaOriginRect={setAgendaOriginRect}
-          agendaTransitionProps={agendaTransitionProps}
-          agendaSwipeRef={agendaSwipeRef}
-          agendaTabSwipeRef={agendaTabSwipeRef}
-          swipedRef={swipedRef}
-          headerDate={headerDate}
-          shiftAgendaDay={shiftAgendaDay}
-          onEventClick={handleEventClick}
-          openCreate={openCreate}
-        />
-      </Suspense>
-
-      {detailEverOpened && (
-        <EventDetailLazy
-          event={detailEvent}
-          onClose={() => setDetailEvent(null)}
-          onEdit={(event, originRect) => {
-            setDetailEvent(null);
-            setFormMinimized(false);
-            setFormOriginRect(originRect);
-            setFormState({ event, defaultDate: today });
-          }}
-          onDeleted={() => {
-            setDetailEvent(null);
-            setAgendaDate(null);
-            router.refresh();
-          }}
-          peopleNames={peopleNames}
-          calendarNames={calendarNames}
-          originRect={detailOriginRect}
-          currentUserId={currentUser}
-          isAdmin={isAdmin}
-        />
+      {editLinkFailed && (
+        <Alert
+          color="yellow"
+          title="Could not open that event"
+          withCloseButton
+          onClose={() => setEditLinkFailed(false)}
+        >
+          It is not in your current view — adjust the calendar filters or check the date of the
+          event.
+        </Alert>
       )}
+
+      <Box ref={weekBoxRef} className={CONTENT_ENTER_CLASS}>
+        {view === "week" && week && (
+          <WeekDayLabelStrip
+            day={week[weekDayIndex]}
+            hasGroups={scheduleResources.groups !== undefined}
+            resourceLabelWidth={scheduleLabelWidths.resource}
+            groupLabelWidth={scheduleLabelWidths.group}
+            chromeOffset={chromeHeight}
+          />
+        )}
+        {/* Pinned hour rulers for the schedule views. Only rendered with the
+            real grid (not skeleton/empty state) so the measured slot width is
+            meaningful; the Week one stacks beneath its day-label strip. */}
+        {!gridLoading && view === "week" && week && scheduleResources.resources.length > 0 && (
+          <TimeRulerStrip
+            hasGroups={scheduleResources.groups !== undefined}
+            resourceLabelWidth={scheduleLabelWidths.resource}
+            groupLabelWidth={scheduleLabelWidths.group}
+            chromeOffset={chromeHeight}
+            stackBelowHeight="calc(var(--mantine-scale) * 2rem)"
+            innerRef={weekRulerRef}
+          />
+        )}
+        {!gridLoading && view === "schedule" && scheduleResources.resources.length > 0 && (
+          <TimeRulerStrip
+            hasGroups={scheduleResources.groups !== undefined}
+            resourceLabelWidth={scheduleLabelWidths.resource}
+            groupLabelWidth={scheduleLabelWidths.group}
+            chromeOffset={chromeHeight}
+            innerRef={dayRulerRef}
+          />
+        )}
+        {gridLoading ? (
+          // Skeleton flavor follows the optimistic view: the shape you tapped
+          // is what appears to load (same contract as loading.tsx, which
+          // resolves the remembered view from the cookie).
+          shownView === "month" ? (
+            <MonthGridSkeleton rows={monthGridRows(shownMonth)} />
+          ) : shownIsWeekV2 ? (
+            <WeekMatrixSkeleton />
+          ) : shownIsWeek ? (
+            <WeekGridSkeleton />
+          ) : shownIsAgenda ? (
+            <AgendaListSkeleton />
+          ) : (
+            <ScheduleGridSkeleton />
+          )
+        ) : view === "month" ? (
+          <MonthView
+            date={`${month}-01 00:00:00`}
+            events={events}
+            withHeader={false}
+            maxEventsPerDay={isDesktop ? 4 : 3}
+            onEventClick={(event, e) => {
+              setDetailOriginRect(e.currentTarget.getBoundingClientRect());
+              setDetailEvent(event as unknown as CalendarEvent);
+            }}
+            onDayClick={(d, e) => {
+              setAgendaOriginRect(e.currentTarget.getBoundingClientRect());
+              // A fresh open animates with the modal itself, not a day slide.
+              setAgendaSlideDir(0);
+              setAgendaDate(d);
+            }}
+          />
+        ) : isAgenda ? (
+          <div
+            ref={agendaTabSwipeRef}
+            style={{ touchAction: "pan-y", overflow: "hidden" }}
+            onClickCapture={(event) => {
+              if (swipedRef.current) {
+                event.preventDefault();
+                event.stopPropagation();
+                swipedRef.current = false;
+              }
+            }}
+          >
+            {/* The day key restarts the directional slide-in on every day
+                change; month edges get the reveal fade instead (slide dir is
+                cleared for those). */}
+            <div
+              key={headerDate}
+              className={
+                agendaSlideDir === 1
+                  ? "agenda-slide-next"
+                  : agendaSlideDir === -1
+                    ? "agenda-slide-prev"
+                    : undefined
+              }
+            >
+              <AgendaView
+                rangeStart={headerDate}
+                rangeEnd={headerDate}
+                events={agendaTabEvents}
+                // The view root is an unstyled Box, so the shared boxed look of
+                // the other views comes from here. The nav row above already
+                // shows the day, so only the stock per-day group header is kept.
+                style={{
+                  border: "1px solid var(--mantine-color-default-border)",
+                  borderRadius: "var(--mantine-radius-md)",
+                  overflow: "hidden",
+                }}
+                styles={{ agendaViewHeader: { display: "none" } }}
+                onEventClick={(event, e) => {
+                  setDetailOriginRect(e.currentTarget.getBoundingClientRect());
+                  setDetailEvent(event as unknown as CalendarEvent);
+                }}
+              />
+            </div>
+          </div>
+        ) : scheduleResources.resources.length === 0 ? (
+          <Paper withBorder radius="md" p="lg">
+            <Text size="sm" c="dimmed">
+              {userFilterActive
+                ? "No active users match the Users filter. Adjust the filter."
+                : "No users in the selected calendars yet. Assign users to a department (Admin Settings) or adjust the filters."}
+            </Text>
+          </Paper>
+        ) : isWeekV2 && week ? (
+          <WeekMatrixView
+            days={week}
+            resources={scheduleResources.resources}
+            groups={scheduleResources.groups}
+            events={events}
+            today={today}
+            renderResourceLabel={renderResourceLabel}
+            onEventClick={(event, e) => {
+              setDetailOriginRect(e.currentTarget.getBoundingClientRect());
+              setDetailEvent(event);
+            }}
+            onCellClick={(day, e) => {
+              if (!googleConfigured) {
+                return; // Same guard as the "New event" FAB.
+              }
+              openCreate(day, e.currentTarget.getBoundingClientRect());
+            }}
+            chromeOffset={chromeHeight}
+          />
+        ) : isWeek ? (
+          <ResourcesWeekView
+            date={date}
+            resources={scheduleResources.resources}
+            groups={scheduleResources.groups}
+            events={scheduleEvents}
+            startTime="00:00:00"
+            endTime="23:59:59"
+            intervalMinutes={60}
+            rowHeight={56}
+            withHeader={false}
+            withCurrentTimeIndicator
+            // Open at Monday 07:00 like the Day view (mount-only effect;
+            // week-to-week navigation keeps the current scroll position).
+            startScrollDateTime={week ? `${week[0]} 07:00:00` : undefined}
+            onEventClick={(event, e) => {
+              setDetailOriginRect(e.currentTarget.getBoundingClientRect());
+              setDetailEvent(event as unknown as CalendarEvent);
+            }}
+            // The resource-label column width is not a typed ResourcesWeekView
+            // var, so it is set as a CSS variable on the root (cascades to the
+            // all-day sticky labels and the time-indicator offset the same way
+            // the Day view's typed var does). Desktop widens the columns and
+            // the hour slots (see scheduleLabelWidths/weekSlotWidth above).
+            style={
+              {
+                "--resources-week-view-resource-label-width": scheduleLabelWidths.resource,
+                ...(weekSlotWidth ? { "--resources-week-view-slot-width": weekSlotWidth } : {}),
+              } as CSSProperties
+            }
+            vars={() => ({
+              resourcesWeekView: {
+                "--resources-week-view-group-label-width": scheduleLabelWidths.group,
+              },
+            })}
+            styles={{
+              // Replaced by the pinned WeekDayLabelStrip above (Mantine's own
+              // labels center in each 1440px-wide day column, so they are
+              // effectively invisible on a phone). The strip must sit directly
+              // above the grid, so it lives outside the scroll area. The time
+              // labels are replaced the same way by the pinned TimeRulerStrip.
+              resourcesWeekViewDayLabelsRow: { display: "none" },
+              resourcesWeekViewTimeLabelsRow: { display: "none" },
+              resourcesWeekViewResourceLabel: {
+                whiteSpace: "nowrap",
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                paddingInline: 0,
+              },
+            }}
+            labels={{ resources: "" }}
+            // onScrollPositionChange feeds the pinned day-label strip and the
+            // ruler's translateX tracking; viewportRef syncs the ruler after
+            // mount/loads (see the layout effect above).
+            scrollAreaProps={weekScrollAreaProps}
+            renderResourceLabel={renderResourceLabel}
+            renderGroupLabel={renderGroupLabel}
+          />
+        ) : (
+          <ResourcesDayView
+            date={date}
+            resources={scheduleResources.resources}
+            groups={scheduleResources.groups}
+            events={scheduleEvents}
+            startTime="00:00:00"
+            endTime="23:59:59"
+            intervalMinutes={60}
+            startScrollTime="07:00:00"
+            rowHeight={56}
+            withHeader={false}
+            withCurrentTimeIndicator
+            onEventClick={(event, e) => {
+              setDetailOriginRect(e.currentTarget.getBoundingClientRect());
+              setDetailEvent(event as unknown as CalendarEvent);
+            }}
+            vars={() => ({
+              resourcesDayView: {
+                "--resources-day-view-resource-label-width": scheduleLabelWidths.resource,
+                "--resources-day-view-group-label-width": scheduleLabelWidths.group,
+              },
+            })}
+            styles={{
+              // Replaced by the pinned TimeRulerStrip above (the library's own
+              // row is sticky only inside its ScrollArea viewport, which never
+              // scrolls vertically — the page does).
+              resourcesDayViewTimeLabelsRow: { display: "none" },
+              resourcesDayViewResourceLabel: {
+                whiteSpace: "nowrap",
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                paddingInline: 0,
+              },
+            }}
+            labels={{ resources: "" }}
+            // onScrollPositionChange feeds the ruler's translateX tracking;
+            // viewportRef syncs it after mount/loads (layout effect above).
+            scrollAreaProps={dayScrollAreaProps}
+            // All-day events render as full-width bars whose label would scroll
+            // out of view; the renderEvent hook re-renders only those and pins the
+            // title with position: sticky beside the sticky resource column.
+            renderEvent={(event, rootProps) => {
+              const isAllDay = Boolean((event as unknown as CalendarEvent).payload.allDay);
+              if (!isAllDay) {
+                return <UnstyledButton {...rootProps} />;
+              }
+              const stickyLeft =
+                scheduleResources.groups !== undefined
+                  ? "calc(var(--resources-day-view-group-label-width) + var(--resources-day-view-resource-label-width) + 4px)"
+                  : "calc(var(--resources-day-view-resource-label-width) + 4px)";
+              return (
+                <UnstyledButton {...rootProps}>
+                  <Box
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      width: "100%",
+                      height: "100%",
+                      paddingInline: "4px",
+                      backgroundColor: "var(--event-bg)",
+                      color: "var(--event-color)",
+                      borderRadius: "min(var(--event-radius), 50%)",
+                      pointerEvents: "all",
+                      userSelect: "none",
+                    }}
+                  >
+                    <span
+                      style={{
+                        position: "sticky",
+                        left: stickyLeft,
+                        minWidth: 0,
+                        maxWidth: "min(70vw, 100%)",
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                        whiteSpace: "nowrap",
+                        fontSize: "calc(0.75rem * var(--mantine-scale))",
+                        fontWeight: "var(--mantine-font-weight-medium)",
+                        lineHeight: 1,
+                      }}
+                    >
+                      {event.title}
+                    </span>
+                  </Box>
+                </UnstyledButton>
+              );
+            }}
+            renderResourceLabel={renderResourceLabel}
+            renderGroupLabel={renderGroupLabel}
+          />
+        )}
+      </Box>
+
+      <Modal
+        opened={agendaDate !== null}
+        onClose={() => setAgendaDate(null)}
+        title={
+          agendaViewDate ? (
+            <Group gap="xs" justify="center" w="100%">
+              <ActionIcon
+                variant="subtle"
+                size="sm"
+                aria-label="Previous day"
+                onClick={() => shiftAgendaDay(-1)}
+              >
+                <IconChevronLeft size={16} />
+              </ActionIcon>
+              <Text fw={600} size="sm">
+                {dayjs(agendaViewDate).format("dddd, MMMM D, YYYY")}
+              </Text>
+              <ActionIcon
+                variant="subtle"
+                size="sm"
+                aria-label="Next day"
+                onClick={() => shiftAgendaDay(1)}
+              >
+                <IconChevronRight size={16} />
+              </ActionIcon>
+            </Group>
+          ) : (
+            ""
+          )
+        }
+        centered
+        size={isDesktop ? "md" : "sm"}
+        transitionProps={agendaTransitionProps}
+      >
+        {agendaViewDate && (
+          <>
+            <div
+              ref={agendaSwipeRef}
+              style={{
+                touchAction: "pan-y",
+                overflowY: "auto",
+                maxHeight: isDesktop ? "70dvh" : "56dvh",
+                overscrollBehavior: "contain",
+              }}
+              onClickCapture={(event) => {
+                if (swipedRef.current) {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  swipedRef.current = false;
+                }
+              }}
+            >
+              {/* The day key restarts the directional slide-in animation on
+                  every day change; on close the key stays put via
+                  displayAgendaDate, so the shrink-out never replays it. */}
+              <div
+                key={agendaViewDate}
+                className={
+                  agendaSlideDir === 1
+                    ? "agenda-slide-next"
+                    : agendaSlideDir === -1
+                      ? "agenda-slide-prev"
+                      : undefined
+                }
+              >
+                <AgendaView
+                  rangeStart={agendaViewDate}
+                  rangeEnd={agendaViewDate}
+                  events={agendaModalEvents}
+                  styles={{ agendaViewHeader: { display: "none" } }}
+                  onEventClick={(event, e) => {
+                    setDetailOriginRect(e.currentTarget.getBoundingClientRect());
+                    setDetailEvent(event as unknown as CalendarEvent);
+                  }}
+                />
+              </div>
+            </div>
+            <Button
+              w="100%"
+              mt="sm"
+              leftSection={<IconPlus size={20} />}
+              disabled={!googleConfigured}
+              onClick={(e) => {
+                // Close the agenda and grow the event form out of the button,
+                // prefilled with the day being viewed.
+                const targetDate = agendaViewDate;
+                setAgendaDate(null);
+                openCreate(targetDate, e.currentTarget.getBoundingClientRect());
+              }}
+            >
+              New event
+            </Button>
+          </>
+        )}
+      </Modal>
+
+      <EventDetail
+        event={detailEvent}
+        onClose={() => setDetailEvent(null)}
+        onEdit={(event, originRect) => {
+          setDetailEvent(null);
+          setFormMinimized(false);
+          setFormOriginRect(originRect);
+          setFormState({ event, defaultDate: today });
+        }}
+        onDeleted={() => {
+          setDetailEvent(null);
+          setAgendaDate(null);
+          router.refresh();
+        }}
+        peopleNames={peopleNames}
+        calendarNames={calendarNames}
+        originRect={detailOriginRect}
+        currentUserId={currentUser}
+        isAdmin={isAdmin}
+      />
 
       <Modal.Root
         opened={formState !== null && !formMinimized}
@@ -1300,7 +1948,7 @@ export function DashboardView({
           </Modal.Header>
           <Modal.Body>
             {formState && (
-              <EventFormLazy
+              <EventForm
                 key={formState.event ? formState.event.id : `new-${formState.defaultDate}`}
                 event={formState.event}
                 defaultDate={formState.defaultDate}
@@ -1341,25 +1989,21 @@ export function DashboardView({
         </FloatingToolbar>
       )}
 
-      {pickerEverOpened && (
-        <DateSelectorModalLazy
-          opened={pickerOpened}
-          date={isAgenda ? headerDate : date}
-          onPick={isAgenda ? applyAgendaDay : pickDate}
-          onClose={closePicker}
-        />
-      )}
+      <DateSelectorModal
+        opened={pickerOpened}
+        date={isAgenda ? headerDate : date}
+        onPick={isAgenda ? applyAgendaDay : pickDate}
+        onClose={closePicker}
+      />
 
-      {filterEverOpened && (
-        <FilterModalLazy
-          opened={filterOpened}
-          onClose={closeFilter}
-          title="Filters"
-          groups={filterGroups}
-          values={filterValues}
-          onApply={handleApplyFilters}
-        />
-      )}
+      <FilterModal
+        opened={filterOpened}
+        onClose={closeFilter}
+        title="Filters"
+        groups={filterGroups}
+        values={filterValues}
+        onApply={handleApplyFilters}
+      />
 
       {formState === null && (
         // Mobile-only: at lg the "New event" button in the nav row replaces the

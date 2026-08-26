@@ -1,7 +1,6 @@
-// dates/schedule styles are imported at their usage sites (EventsArea,
-// DateSelectorModal, EventForm, AuditLogView) so routes that never render
-// them (e.g. /login) don't ship the CSS.
 import "@mantine/core/styles.css";
+import "@mantine/dates/styles.css";
+import "@mantine/schedule/styles.css";
 import "@mantine/notifications/styles.css";
 import "./globals.css";
 

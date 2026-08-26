@@ -90,19 +90,16 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
   const forceRefresh =
     Number.isFinite(refreshNonce) && new Date().getTime() - refreshNonce < REFRESH_NONCE_TTL_MS;
 
-  const [calendars, eventTypes, allUsers, settings, quickLinks, ownDepartmentId] =
-    await Promise.all([
-      listCalendars(),
-      listEventTypes(),
-      listUsers(),
-      getSettings(),
-      listQuickLinks(),
-      // Depends only on the session id, so it rides the same batch — a serial
-      // round-trip here would add a full DB hop to every cold load.
-      isAdmin ? Promise.resolve(null) : getUserDepartmentId(session.user.id),
-    ]);
+  const [calendars, eventTypes, allUsers, settings, quickLinks] = await Promise.all([
+    listCalendars(),
+    listEventTypes(),
+    listUsers(),
+    getSettings(),
+    listQuickLinks(),
+  ]);
   const calendarIds = calendars.map((calendar) => calendar.id);
 
+  const ownDepartmentId = isAdmin ? null : await getUserDepartmentId(session.user.id);
   const defaultCalendars = isAdmin ? calendarIds : ownDepartmentId ? [ownDepartmentId] : [];
 
   const calParam = typeof params.cal === "string" ? params.cal.split(",").filter(Boolean) : [];
@@ -213,19 +210,15 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
   // reads are month-keyed), so those months are fetched and merged in one
   // range read.
   const week = view === "week" || view === "weekv2" ? weekDays(date) : null;
-  // Deliberately unawaited: the page renders the dashboard shell as soon as
-  // the metadata batch above resolves, and the events promise streams in
-  // behind the grid's Suspense boundary (see EventsArea). Cold starts paint
-  // the chrome before the (potentially Google-bound) events read lands.
   const events = week
-    ? fetchRangeEvents({
+    ? await fetchRangeEvents({
         months: monthsInRange(week[0], week[6]),
         calendarIds: selectedCalendars,
         typeFilter: selectedTypes,
         userFilter: selectedUsers,
         force: forceRefresh,
       })
-    : fetchMonthEvents({
+    : await fetchMonthEvents({
         month,
         calendarIds: selectedCalendars,
         typeFilter: selectedTypes,

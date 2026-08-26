@@ -1,7 +1,5 @@
 "use client";
 
-import "@mantine/schedule/styles.css";
-
 import dayjs from "dayjs";
 import { useState } from "react";
 import { ActionIcon, Modal, Text, useMantineTheme } from "@mantine/core";
