@@ -6,6 +6,7 @@ import { Notifications } from "@mantine/notifications";
 import { useMediaQuery } from "@mantine/hooks";
 
 import { OfflineBanner } from "@/components/OfflineBanner";
+import { ViewportDebug } from "@/components/ViewportDebug";
 import { DESKTOP_MEDIA_QUERY, theme } from "@/lib/theme";
 
 // React 19.2 warns when a `<script>` element is rendered inside a React
@@ -45,6 +46,7 @@ export default function AppProviders({ children }: { children: ReactNode }) {
     <MantineProvider theme={theme} defaultColorScheme="auto">
       <Notifications position={isDesktop ? "bottom-right" : "top-center"} />
       <OfflineBanner />
+      <ViewportDebug />
       {children}
     </MantineProvider>
   );
