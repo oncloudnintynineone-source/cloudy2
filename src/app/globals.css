@@ -100,7 +100,7 @@
      cascade, so no class toggling is needed. In immersive mode the inline
      style is omitted, so the CSS default of 0px applies. */
   --app-banner-height: 0px;
-  --app-shell-header-offset: calc(56px + var(--app-banner-height) + env(safe-area-inset-top));
+  --app-shell-header-offset: calc(56px + var(--app-banner-height));
 }
 
 /*
@@ -130,6 +130,22 @@
   padding-bottom: var(--settings-fab-bottom);
 }
 
+/*
+  Bottom clearance for pages whose mobile-only FloatingToolbar FAB (a 65px row
+  sitting 16px above the bottom nav, portaled to <body>) overlaps
+  document-scrolling content: at max scroll the last content row must end
+  above the FAB's top edge. The 65px must stay in sync with FAB_SIZE in
+  src/components/FloatingToolbar.tsx. The value uses the immersive var
+  (16px + safe-area, never re-declared at lg) because it clears the FAB in
+  both modes: normally the AppShell main's own bottom padding (56px footer
+  offset + 16px shell padding) adds the rest, while in immersive mode that
+  footer allowance vanishes and this var compensates for it. Pages apply it
+  instead of their pb="xl" so their regular bottom padding returns at lg.
+*/
+.fab-page-pad {
+  padding-bottom: calc(var(--app-floating-bottom-offset-immersive) + 65px);
+}
+
 /* Centered max-width wrapper for list-style pages (settings, contacts,
    parade state): a single column would stretch absurdly wide on desktop.
    The dashboard's calendar views stay full-bleed and are not wrapped. */
@@ -154,6 +170,12 @@
 
   .settings-page-pad {
     padding-bottom: 0;
+  }
+
+  /* The FAB is mobile-only (hiddenFrom="lg"), so the pages keep only their
+     regular xl bottom padding. */
+  .fab-page-pad {
+    padding-bottom: var(--mantine-spacing-xl);
   }
 
   .page-container {

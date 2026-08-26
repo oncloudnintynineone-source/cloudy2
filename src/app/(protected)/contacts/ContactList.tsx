@@ -93,7 +93,9 @@ export function ContactList({ users, nameTemplate }: ContactListProps) {
   }
 
   return (
-    <Stack pb="xl" className={CONTENT_ENTER_CLASS}>
+    // fab-page-pad replaces pb="xl": reserves clearance for the mobile
+    // export FAB below the last contact card, restores plain xl at lg.
+    <Stack className={`${CONTENT_ENTER_CLASS} fab-page-pad`}>
       <Paper withBorder p="sm">
         <Group justify="space-between" wrap="nowrap" gap="sm">
           <TextInput

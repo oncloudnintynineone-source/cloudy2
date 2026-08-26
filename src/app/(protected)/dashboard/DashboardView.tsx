@@ -1240,7 +1240,10 @@ export function DashboardView({
     // body-background strip under the fixed header until the sticky chrome
     // scrolled up to pin flush. Negative margin starts the chrome at the
     // header's bottom edge (its sticky `top`), so rest and pinned states match.
-    <Stack pb="xl" gap="sm" style={{ marginTop: "calc(-1 * var(--app-shell-padding))" }}>
+    // fab-page-pad replaces pb="xl" (inline would beat the class): it reserves
+    // clearance for the mobile Create/Quick-links FABs below the last grid
+    // row and restores plain xl at lg (globals.css).
+    <Stack className="fab-page-pad" gap="sm" style={{ marginTop: "calc(-1 * var(--app-shell-padding))" }}>
       {/* The sticky chrome block: view tabs + date-nav row pinned as one unit
           at every breakpoint. The wrapper is a direct child of the Stack, so
           its containing block spans the whole page and sticky can hold it at

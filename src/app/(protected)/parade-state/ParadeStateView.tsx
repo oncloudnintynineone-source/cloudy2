@@ -503,7 +503,9 @@ export function ParadeStateView({
   const onToday = date === today;
 
   return (
-    <Stack gap="md" p="md" pb="xl">
+    // fab-page-pad replaces pb="xl": reserves clearance for the mobile
+    // attendance FAB below the last card row, restores plain xl at lg.
+    <Stack gap="md" p="md" className="fab-page-pad">
       <Group align="center" gap="xs" wrap="nowrap">
         <ActionIcon
           size={43}
