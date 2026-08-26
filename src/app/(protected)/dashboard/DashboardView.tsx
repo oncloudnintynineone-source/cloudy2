@@ -1571,6 +1571,8 @@ export function DashboardView({
           <MonthView
             date={`${month}-01 00:00:00`}
             events={events}
+            // The page range-reads the whole 6-week grid (monthGridMonths), so
+            // the dimmed adjacent-month days render their events too.
             withHeader={false}
             maxEventsPerDay={isDesktop ? 4 : 3}
             onEventClick={(event, e) => {

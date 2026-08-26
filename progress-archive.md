@@ -122,6 +122,8 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
 - [1.103 Quick links: admin-managed link menu launched from the Calendar FAB (Phase 3ay)](#1103-quick-links-admin-managed-link-menu-launched-from-the-calendar-fab-phase-3ay)
 - [1.104 Fullscreen calendar view (Phase 3az)](#1104-fullscreen-calendar-view-phase-3az)
 - [1.105 Event invitee picker: cross-department invites for non-admins (Phase 3b0)](#1105-event-invitee-picker-cross-department-invites-for-non-admins-phase-3b0)
+- [1.111 Month view hides adjacent-month days (bugfix)](#1111-month-view-hides-adjacent-month-days-bugfix)
+- [1.112 Month view range-reads its 6-week grid; adjacent-month days show their events (supersedes 1.111)](#1112-month-view-range-reads-its-6-week-grid-adjacent-month-days-show-their-events-supersedes-1111)
 
 ## 1.1 Status
 
@@ -5283,3 +5285,102 @@ Verification: `pnpm lint`, `pnpm typecheck`, `pnpm test` pass (592 tests).
 Manual QA: filter down by query, tap several badges consecutively — the
 soft keyboard stays up between taps on mobile widths; typing continues
 immediately after each tap on desktop.
+
+## 1.111 Month view hides adjacent-month days (bugfix)
+
+The dashboard's Month view rendered Mantine's `MonthView` with its defaults
+(`withOutsideDays: true`, `consistentWeeks: true`), so the 6-week grid carried
+dimmed days from the previous month (top) and the next month (bottom). Those
+cells showed bare date numbers but **never any events**: the page only fetches
+the viewed month (`fetchMonthEvents` → one Google month read), while Mantine
+positions events across the whole 42-day grid range — adjacent-month events
+simply were not in the data. Users saw next-month dates in the current month's
+view with nothing on them (e.g. the August cells trailing July's grid).
+
+Fix (chosen with the user over fetching the full grid range): pass
+`withOutsideDays={false}` to `MonthView` (`DashboardView.tsx`). Mantine then
+
+- restricts event positioning to the month proper (`getMonthRange` returns
+  `[1st, last]`), so no outside-day event can render or be expected;
+- renders the leading/trailing week cells as empty static `data-static` divs
+  (no date label, no events, `pointer-events: none`) that keep the 7-column
+  week layout; and
+- skips the 6-week padding, because `MonthView` computes
+  `consistentWeeks && withOutsideDays` — the grid shrinks to the month's
+  actual week count (4-6 rows).
+
+`monthGridRows()` (`src/lib/events/datetime.ts`), which sizes the Month
+loading skeleton, had two pre-existing drifts from the real grid: it counted
+rows Sunday-first (`getUTCDay()` baseline) while the grid is Monday-first, and
+assumed the padded shape. It now counts the Monday-first weeks overlapping the
+month without padding: `ceil(((getUTCDay + 6) % 7 + daysInMonth) / 7)`.
+Expectations updated in `datetime.test.ts` (2026-05 → 5, 2026-02 → 5, new
+2027-02 → 4; 2026-08 stays 6). No data-fetch change: the page still fetches
+exactly one month, so the events-cache design and `docs/events-cache.md` are
+untouched; other views (Week, Week v2, Day, Agenda, parade-state) are
+unaffected.
+
+Verification: `pnpm test`, `pnpm typecheck`, `pnpm lint` pass. Manual QA:
+dashboard Month view shows no adjacent-month dates (empty corner cells only),
+row count varies per month (e.g. May 2026 renders 5 rows) and the loading
+skeleton matches; a month-end multi-day event still renders clipped to the
+month and stays clickable.
+
+## 1.112 Month view range-reads its 6-week grid; adjacent-month days show their events (supersedes 1.111)
+
+Reversal of 1.111's design. Hiding the adjacent-month days made the dimmed
+grid cells disappear, but the follow-up report showed Mantine still positions
+multi-day events across **full week rows** (`getWeeksInRange` expands the
+month range to the Monday on/before the 1st → Sunday on/after the last day,
+and `calculateEventPositionInWeek` only clips against the *week* edge). With
+the outside cells emptied out, a cross-month bar (e.g. Aug 30 – Sep 2 viewed
+in August) painted straight across the now-empty Sep 1/2 cells. The decision,
+revisited with the user: fetch the whole grid instead of hiding its days.
+
+Changes:
+
+- `src/lib/events/datetime.ts`
+  - `monthGridMonths(month)` (new, pure): the months the `MonthView` grid
+    displays — the Monday on/before the 1st (`weekDays(\`${month}-01\`)[0]`)
+    through `MONTH_GRID_WEEKS` (6) full weeks, via `monthsInRange`. Two
+    months when the 1st is a Monday, three otherwise.
+  - `addDays(dateOnly, n)` (new, pure): small signed-day helper.
+  - `monthGridRows(month)`: back to the padded shape
+    (`Math.max(ceil((daysFromMonday + daysInMonth) / 7), 6)` = fixed 6),
+    matching Mantine's `consistentWeeks` padding now that the outside days
+    are visible again.
+- `src/app/(protected)/dashboard/page.tsx`: the month view now calls
+  `fetchRangeEvents({ months: monthGridMonths(month), ... })` (the range path
+  already dedupes boundary-spanning copies per calendar × Google id, applies
+  filters after the fetch, and gates its adjacent-month prefetch on the
+  whole-range `allServed`). Day/Agenda keep single-month reads;
+  `fetchMonthEvents` stays exported for them and parade-state.
+- `DashboardView.tsx`: `withOutsideDays={false}` reverted — the grid keeps
+  Mantine's defaults (dimmed outside days, 6 rows), and with the grid months
+  fetched those cells render their events. Cross-month multi-day events (full
+  spans are what the cache stores — `mapGoogleEvent` never month-clips)
+  render as one bar spanning the dimmed cells in both neighboring months'
+  views, deduped to a single representative copy per logical event.
+- Incidental fix in `monthsInRange`: it derived the month from the parsed
+  **instant** (UTC+8 wall clock → UTC), so a date-only `YYYY-MM-DD` at
+  midnight landed on the previous UTC day — a range starting on the 1st of a
+  month was attributed to the previous month (e.g. a week starting Mon
+  2026-06-01 fetched an extra `2026-05`; the new month-grid fetch did the
+  same). It now reads the wall-clock months straight from the date part,
+  matching its docblock; regression-tested.
+
+Tradeoff: a *cold* month view can block on up to 3 months × N calendars of
+Google `events.list` (concurrency ≤ 4 per month) versus one before; the
+existing adjacent-month prefetch warms the grid's neighbors after any miss,
+so subsequent month swipes mostly hit L1/L2.
+
+Docs updated: `docs/events-cache.md` (§1.3 diagram, §1.4.1 key, §1.5.1 force
+refresh, §1.8 prefetch, file index), `docs/desktop-responsive.md` §1.4,
+`AGENTS.md` cache bullet. Verification: `pnpm test` (615), `pnpm typecheck`,
+`pnpm lint` pass; new/updated cases in `datetime.test.ts`
+(`monthGridMonths` incl. year boundary, `monthGridRows` padded, `addDays`,
+`monthsInRange` midnight shift). Manual QA: August 2026 — dimmed Sep 1–6
+cells visible with events on them; an Aug 30 – Sep 2 all-day event renders as
+one bar spanning the dimmed cells (and again in the September view over the
+dimmed Aug 31); a dimmed-day click opens the agenda listing that day's
+events; detail/edit flows keep the full span; force-refresh works.

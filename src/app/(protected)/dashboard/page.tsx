@@ -1,7 +1,12 @@
 import { cookies } from "next/headers";
 
 import { listEventTypes } from "@/lib/eventTypes/queries";
-import { formatInstantToNaive, monthsInRange, weekDays } from "@/lib/events/datetime";
+import {
+  formatInstantToNaive,
+  monthGridMonths,
+  monthsInRange,
+  weekDays,
+} from "@/lib/events/datetime";
 import {
   fetchMonthEvents,
   fetchRangeEvents,
@@ -208,23 +213,31 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
   // The week views (Week, Week v2) are anchored on a day and display the full
   // Monday-first week containing it, which can span two months (Google month
   // reads are month-keyed), so those months are fetched and merged in one
-  // range read.
+  // range read. The Month view likewise displays a full 6-week grid whose
+  // adjacent-month days carry events, so it range-reads those months too
+  // (2-3 via monthGridMonths); Day/Agenda stay single-month.
   const week = view === "week" || view === "weekv2" ? weekDays(date) : null;
-  const events = week
-    ? await fetchRangeEvents({
-        months: monthsInRange(week[0], week[6]),
-        calendarIds: selectedCalendars,
-        typeFilter: selectedTypes,
-        userFilter: selectedUsers,
-        force: forceRefresh,
-      })
-    : await fetchMonthEvents({
-        month,
-        calendarIds: selectedCalendars,
-        typeFilter: selectedTypes,
-        userFilter: selectedUsers,
-        force: forceRefresh,
-      });
+  const rangeMonths = week
+    ? monthsInRange(week[0], week[6])
+    : view === "month"
+      ? monthGridMonths(month)
+      : [month];
+  const events =
+    rangeMonths.length > 1
+      ? await fetchRangeEvents({
+          months: rangeMonths,
+          calendarIds: selectedCalendars,
+          typeFilter: selectedTypes,
+          userFilter: selectedUsers,
+          force: forceRefresh,
+        })
+      : await fetchMonthEvents({
+          month,
+          calendarIds: selectedCalendars,
+          typeFilter: selectedTypes,
+          userFilter: selectedUsers,
+          force: forceRefresh,
+        });
 
   return (
     <DashboardView

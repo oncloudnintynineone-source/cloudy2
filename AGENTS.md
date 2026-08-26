@@ -79,9 +79,14 @@ before changing the subsystem.
   60s, and `findCopies` inside mutations deliberately bypasses the cache. The
   force-refresh button's one-shot `?refresh=` nonce calls with `{ force: true }`,
   bypassing L1+L2 inside the same RSC request. Pure helpers in
-  `eventsCacheCodec.ts`. Deliberately a DB table, not Next's `use cache`/
-  `cacheComponents` (crashed Turbopack dev, vercel/next.js#96165).
-  Design: [docs/events-cache.md](docs/events-cache.md).
+   `eventsCacheCodec.ts`. Deliberately a DB table, not Next's `use cache`/
+   `cacheComponents` (crashed Turbopack dev, vercel/next.js#96165). The Month view
+   keeps Mantine's adjacent-month days and range-reads the months its 6-week grid
+   displays (`monthGridMonths()` in `src/lib/events/datetime.ts` — Monday on/before
+   the 1st through six full weeks, 2-3 months — via `fetchRangeEvents`), so the
+   dimmed cells carry their events and multi-day events span them; the loading
+   skeleton follows the fixed 6-row shape via `monthGridRows()`.
+   Design: [docs/events-cache.md](docs/events-cache.md).
 - Dashboard + parade-state ⋮ menus hold quick filter actions: **My Events**
   (Users filter = current user), **Clear**, **More Filters** (opens `FilterModal`; the
   dialog also has a draft-scoped My Events action). On the dashboard an active **Users**

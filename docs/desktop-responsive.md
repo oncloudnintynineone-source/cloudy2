@@ -120,6 +120,15 @@ gated on `isDesktop`):
 | "New event" | FAB only | FAB **hidden** (`hiddenFrom="lg"`) — replaced by a `Button visibleFrom="lg"` in the header row beside the ⋮ menu |
 | Agenda day / event form / detail / filter / date-picker modals | `sm` | `md` (see 1.7) |
 
+**Month view shows adjacent-month days with their events (every width):**
+`MonthView` keeps its Mantine defaults (dimmed outside days + the fixed
+6-week grid), and the page range-reads the months the grid actually displays
+— `monthGridMonths()` (`src/lib/events/datetime.ts`), the Monday on/before the
+1st through six full weeks (2-3 months, via `fetchRangeEvents`) — so the
+dimmed cells carry their events and multi-day events spanning a month
+boundary render as one bar across them. The loading skeleton matches the
+fixed 6-row shape via `monthGridRows()`.
+
 **Sticky chrome & pinned view headers (every width):** the dashboard pins its
 view tabs + date-nav row as **one sticky unit** (`top:
 var(--app-shell-header-offset)`, opaque background, bottom divider,

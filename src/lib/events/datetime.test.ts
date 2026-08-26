@@ -2,9 +2,11 @@ import { describe, expect, it } from "vitest";
 
 import {
   absEventRange,
+  addDays,
   addOneDay,
   dateToUtc,
   formatInstantToNaive,
+  monthGridMonths,
   monthGridRows,
   monthRange,
   monthsInRange,
@@ -45,6 +47,13 @@ describe("all-day date helpers", () => {
   it("adds and subtracts one day", () => {
     expect(addOneDay("2026-08-31")).toBe("2026-09-01");
     expect(subOneDay("2026-08-01")).toBe("2026-07-31");
+  });
+
+  it("adds a signed number of days across month and year boundaries", () => {
+    expect(addDays("2026-01-30", 2)).toBe("2026-02-01");
+    expect(addDays("2026-06-30", 41)).toBe("2026-08-10");
+    expect(addDays("2026-12-31", 1)).toBe("2027-01-01");
+    expect(addDays("2026-03-01", -59)).toBe("2026-01-01");
   });
 });
 
@@ -153,6 +162,10 @@ describe("monthsInRange", () => {
     ]);
   });
 
+  it("keeps a date-only start on the 1st in its own month (no UTC midnight shift)", () => {
+    expect(monthsInRange("2026-06-01", "2026-06-07")).toEqual(["2026-06"]);
+  });
+
   it("still returns the start month for a malformed (reversed) range", () => {
     expect(monthsInRange("2026-09-10 10:00:00", "2026-08-01 09:00:00")).toEqual(["2026-09"]);
   });
@@ -175,18 +188,53 @@ describe("absEventRange", () => {
 });
 
 describe("monthGridRows", () => {
-  it("counts rows for a Saturday-start 31-day month (Aug 2026)", () => {
-    // Aug 2026: 1st is Saturday (day 6); ceil((6 + 31) / 7) = 6 rows.
+  it("counts the unpadded weeks but pads to the fixed 6-row grid (Aug 2026)", () => {
+    // Aug 2026: 1st is Saturday, 5 days after the grid's Monday;
+    // ceil((5 + 31) / 7) = 6 rows — already at the Mantine padding.
     expect(monthGridRows("2026-08")).toBe(6);
   });
 
-  it("counts rows for a Friday-start 31-day month (May 2026)", () => {
-    // May 2026: 1st is Friday (day 5); ceil((5 + 31) / 7) = 6 rows.
+  it("pads a 5-week month to the fixed 6-row grid (May 2026)", () => {
+    // May 2026: 1st is Friday, 4 days after the grid's Monday;
+    // ceil((4 + 31) / 7) = 5, padded to 6 rows.
     expect(monthGridRows("2026-05")).toBe(6);
   });
 
-  it("counts rows for a Sunday-start 28-day month (Feb 2026)", () => {
-    // Feb 2026: 1st is Sunday (day 0); ceil((0 + 28) / 7) = 4 rows.
-    expect(monthGridRows("2026-02")).toBe(4);
+  it("pads a 5-week month to the fixed 6-row grid (Feb 2026)", () => {
+    // Feb 2026: 1st is Sunday, 6 days after the grid's Monday;
+    // ceil((6 + 28) / 7) = 5, padded to 6 rows.
+    expect(monthGridRows("2026-02")).toBe(6);
+  });
+
+  it("pads a 4-week month to the fixed 6-row grid (Feb 2027)", () => {
+    // Feb 2027: 1st is Monday; ceil((0 + 28) / 7) = 4, padded to 6 rows.
+    expect(monthGridRows("2027-02")).toBe(6);
+  });
+});
+
+describe("monthGridMonths", () => {
+  it("covers the months of a 6-week grid spanning three months (Aug 2026)", () => {
+    // 1st is Saturday: grid runs Mon 2026-07-27 → Sun 2026-09-06.
+    expect(monthGridMonths("2026-08")).toEqual(["2026-07", "2026-08", "2026-09"]);
+  });
+
+  it("covers a 5-week month's grid (May 2026)", () => {
+    // 1st is Friday: grid runs Mon 2026-04-27 → Sun 2026-06-07.
+    expect(monthGridMonths("2026-05")).toEqual(["2026-04", "2026-05", "2026-06"]);
+  });
+
+  it("covers only the two months when the 1st is a Monday (Jun 2026)", () => {
+    // 1st is Monday: grid runs Mon 2026-06-01 → Sun 2026-07-12.
+    expect(monthGridMonths("2026-06")).toEqual(["2026-06", "2026-07"]);
+  });
+
+  it("covers a Sunday-start month's grid (Feb 2026)", () => {
+    // 1st is Sunday: grid runs Mon 2026-01-26 → Sun 2026-03-08.
+    expect(monthGridMonths("2026-02")).toEqual(["2026-01", "2026-02", "2026-03"]);
+  });
+
+  it("rolls across the year boundary (Dec 2026)", () => {
+    // 1st is Tuesday: grid runs Mon 2026-11-30 → Sun 2027-01-10.
+    expect(monthGridMonths("2026-12")).toEqual(["2026-11", "2026-12", "2027-01"]);
   });
 });

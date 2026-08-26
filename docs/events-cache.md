@@ -64,7 +64,7 @@ server render**:
 flowchart LR
     subgraph RSC["Server render (per request)"]
         D["/dashboard page"]
-        FM["fetchMonthEvents()<br/>(queries.ts)"]
+        FM["fetchMonthEvents() / fetchRangeEvents()<br/>(queries.ts)"]
     end
     subgraph CACHE["Layered events cache (eventsCache.ts)"]
         L1["L1 in-process Map<br/>(0 I/O on hit)"]
@@ -100,7 +100,11 @@ month)` serves all users and all filter combinations.
 `(googleCalendarId, month)` where `month` is the `YYYY-MM` string of the viewed month
 (`fetchMonthEvents` derives the range via `monthRange()` in
 `src/lib/events/datetime.ts:57`). Events are fetched for the exclusive `[monthStart,
-nextMonthStart)` window.
+nextMonthStart)` window. The dashboard Month view reads the months its 6-week grid
+displays in one range pass — `fetchRangeEvents` over `monthGridMonths()` (the Monday
+on/before the 1st through six full weeks, 2-3 cache entries per calendar) — so the
+dimmed adjacent-month days carry their events; Day/Agenda/parade-state stay single
+month via `fetchMonthEvents`.
 
 ### 1.4.2 Table
 
@@ -199,11 +203,12 @@ re-fetches from Google on demand. It works as a **one-shot URL nonce**:
 2. `page.tsx` parses it: the nonce is honored only while it is a finite number younger than
    `REFRESH_NONCE_TTL_MS` (5min, `page.tsx`) — so a stale history entry (back/forward)
    can't silently re-force a fetch.
-3. The page passes `force: true` through `fetchMonthEvents` into
+3. The page passes `force: true` through `fetchMonthEvents` / `fetchRangeEvents` into
    `getCachedMonthEventsForCalendars(ids, month, { force })` (`eventsCache.ts`): with
    `force`, **both L1 and L2 are skipped** and every requested calendar blocks on a fresh
-   `events.list` (coalesced, `GOOGLE_FETCH_CONCURRENCY` ≤ 4 in flight), upserting DB rows
-   with `fetchedAt = now` and refilling L1.
+   `events.list` (coalesced, `GOOGLE_FETCH_CONCURRENCY` ≤ 4 in flight) for **every month
+   in the read** (1 for Day/Agenda, 2 for a boundary week, 2-3 for the Month grid),
+   upserting DB rows with `fetchedAt = now` and refilling L1.
 4. After the forced render mounts, a ref-guarded effect in `DashboardView.tsx` (mirroring
    the `?edit=` param pattern) strips `refresh` from the URL so later month/day navigation
    doesn't keep force-refreshing.
@@ -328,10 +333,11 @@ stateDiagram-v2
 
 ## 1.8 Adjacent-month prefetch
 
-After a month view that **missed** the cache (`allServed === false` — i.e. the user is
-actually navigating), `fetchMonthEvents` schedules an `after()` callback that warms the
-neighboring months (`shiftMonth(month, ±1)`, `datetime.ts:67`) with the same batched
-function (`queries.ts:118`):
+After a month/range view that **missed** the cache (`allServed === false` — i.e. the
+user is actually navigating), `fetchRangeEvents` schedules an `after()` callback that
+warms the months adjacent to the **whole range** (`shiftMonth(firstMonth, -1)` /
+`shiftMonth(lastMonth, 1)`, `datetime.ts:67`) with the same batched function
+(`queries.ts:118`):
 
 ```mermaid
 sequenceDiagram
@@ -435,11 +441,11 @@ What the cache changed:
 | `src/lib/google/eventsCacheCodec.ts`            | Pure state + codec helpers (unit-tested)                   |
 | `src/db/schema.ts:152`                          | `google_event_cache` table                                  |
 | `drizzle/0011_panoramic_mariko_yashida.sql`     | Migration creating the table                                 |
-| `src/lib/events/queries.ts:118`                 | `fetchMonthEvents` — read path + gated prefetch             |
+| `src/lib/events/queries.ts`                     | `fetchMonthEvents` / `fetchRangeEvents` — read path + gated prefetch |
 | `src/lib/events/actions.ts`                     | Mutations → `invalidateGcalCache`                           |
 | `src/app/(protected)/dashboard/page.tsx`        | `?refresh=` nonce parsing → `force` flag (§1.5.1)           |
 | `src/app/(protected)/dashboard/DashboardView.tsx` | Force-refresh button + one-shot nonce strip (§1.5.1)       |
-| `src/lib/events/datetime.ts`                    | `monthRange`, `shiftMonth`, `monthsInRange`                 |
+| `src/lib/events/datetime.ts`                    | `monthRange`, `shiftMonth`, `monthsInRange`, `monthGridMonths`, `monthGridRows` |
 | `src/lib/async.ts`                              | `mapWithConcurrency`                                        |
 | `src/app/sw.ts`                                 | Service worker: `NetworkOnly` for data (unchanged)          |
 

@@ -165,6 +165,8 @@ One line per phase; full write-ups (incl. Mermaid diagrams and verification note
 - 1.108 UserSelectModal: badge taps keep the search-box focus / soft keyboard open (bugfix)
 - 1.109 Announcement banner: admin-managed persistent banner above the header (enable/disable, text, curated color) with a dedicated Settings tab (Phase 3b2)
 - 1.110 Announcement banner: admin height presets (Short/Medium/Tall/XL), text wraps + clips, offset via inline `--app-banner-height` (Phase 3b3)
+- 1.111 Month view hides adjacent-month days (`withOutsideDays={false}`); skeleton row count matches the unpadded grid (bugfix)
+- 1.112 Month view range-reads its 6-week grid (2-3 months via `monthGridMonths`); adjacent-month days show their events, cross-month bars span them (supersedes 1.111; includes a `monthsInRange` UTC-midnight fix)
 
 ## 1.4 Open items & next steps
 
