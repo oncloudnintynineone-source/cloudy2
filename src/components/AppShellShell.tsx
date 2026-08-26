@@ -17,7 +17,7 @@ import { usePathname } from "next/navigation";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { UserMenu } from "@/components/UserMenu";
 import { type BannerConfig, BANNER_HEIGHT_PX, bannerColorOption } from "@/lib/banner/banner";
-import { BOTTOM_NAV_HEIGHT, BOTTOM_NAV_HEIGHT_CSS } from "@/lib/bottomNav";
+import { BOTTOM_NAV_HEIGHT } from "@/lib/bottomNav";
 import { DESKTOP_MEDIA_QUERY } from "@/lib/theme";
 import { ImmersiveModeContext, type ImmersiveModeValue } from "@/lib/ui/immersiveMode";
 import { useRememberedPage, writeUiState } from "@/lib/ui/uiStateClient";
@@ -343,7 +343,7 @@ export function AppShellShell({
         breakpoint: "lg",
         collapsed: { mobile: true },
       }}
-      footer={{ height: BOTTOM_NAV_HEIGHT_CSS, collapsed: isDesktop }}
+      footer={{ height: `${BOTTOM_NAV_HEIGHT}px`, collapsed: isDesktop }}
       padding="md"
       className={immersive ? "app-shell-root app-shell-immersive" : "app-shell-root"}
     >
@@ -438,7 +438,6 @@ export function AppShellShell({
         <Box
           style={{
             display: "flex",
-            paddingBottom: "env(safe-area-inset-bottom)",
           }}
         >
           {items.map((item) => (

@@ -164,3 +164,29 @@
     grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
   }
 }
+
+/*
+  iOS PWA standalone + viewport-fit=cover: 100dvh resolves to the viewport
+  height *excluding* env(safe-area-inset-bottom), making the AppShell
+  ~34px shorter than the physical screen on notched iPhones. This creates
+  a visible gap below the bottom nav and pushes content upward.
+
+  Compensate by adding the missing inset to the main content min-height
+  and the sidebar navbar height. Targets Mantine v9 AppShell internal
+  class hashes — update if Mantine is upgraded. Graceful degradation:
+  if the hashes change the overrides stop matching and the app reverts
+  to the (slightly gap-prone) default.
+*/
+@media (display-mode: standalone) {
+  .app-shell-root .m_8983817 {
+    min-height: calc(100dvh + env(safe-area-inset-bottom)) !important;
+  }
+
+  .app-shell-root .m_45252eee {
+    height: calc(
+      100dvh + env(safe-area-inset-bottom) -
+        var(--app-shell-header-offset, 0rem) -
+        var(--app-shell-footer-offset, 0rem)
+    ) !important;
+  }
+}
