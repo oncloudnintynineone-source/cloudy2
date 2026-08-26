@@ -93,11 +93,12 @@
 .app-shell-root {
   /* Announcement banner (Settings → Banner): 0px by default; AppShellShell
      sets --app-banner-height as an inline custom property on this same
-     element when the banner is active (the admin's height preset from
-     BANNER_HEIGHT_PRESETS in src/lib/banner/banner.ts). Declared as a var so
-     every consumer of the header offset (AppShell main padding, sticky
-     chrome, navbar top/height) grows together. Inline wins the cascade, so
-     no class toggling is needed. */
+     element when the banner is active (the measured height from the
+     AnnouncementBanner component — see AppShellShell.tsx). Declared as a
+     var so every consumer of the header offset (AppShell main padding,
+     sticky chrome, navbar top/height) grows together. Inline wins the
+     cascade, so no class toggling is needed. In immersive mode the inline
+     style is omitted, so the CSS default of 0px applies. */
   --app-banner-height: 0px;
   --app-shell-header-offset: calc(56px + var(--app-banner-height));
 }

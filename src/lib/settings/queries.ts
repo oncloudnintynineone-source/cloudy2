@@ -5,7 +5,6 @@ import { settings } from "@/db/schema";
 import {
   BANNER_DEFAULT_COLOR,
   isBannerColor,
-  normalizeBannerHeight,
   type BannerConfig,
 } from "@/lib/banner/banner";
 import { AUDIT_RETENTION_DEFAULT } from "@/lib/settings/validate";
@@ -19,8 +18,6 @@ export interface SettingsView {
   bannerText: string;
   /** Stored curated-color key; null = unset (renders as the default). */
   bannerColor: string | null;
-  /** Stored curated height preset (px). */
-  bannerHeight: number;
 }
 
 /**
@@ -46,7 +43,6 @@ export async function getSettings(): Promise<SettingsView> {
     bannerEnabled: row?.bannerEnabled ?? false,
     bannerText: row?.bannerText ?? "",
     bannerColor: row?.bannerColor ?? null,
-    bannerHeight: normalizeBannerHeight(row?.bannerHeight),
   };
 }
 
@@ -63,6 +59,5 @@ export async function getBanner(): Promise<BannerConfig | null> {
   return {
     text: row.bannerText.trim(),
     color: isBannerColor(row.bannerColor) ? row.bannerColor : BANNER_DEFAULT_COLOR,
-    height: normalizeBannerHeight(row.bannerHeight),
   };
 }

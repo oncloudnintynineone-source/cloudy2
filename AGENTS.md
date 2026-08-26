@@ -136,23 +136,23 @@ before changing the subsystem.
 - **Announcement banner:** an admin-managed persistent banner above the navy
   header bar, visible to all signed-in users (Settings → Banner tab). Config
   lives on the singleton `settings` row (`banner_enabled`/`banner_text`/
-  `banner_color`/`banner_height`); curated background palette, height presets
-  (`BANNER_HEIGHT_PRESETS`: Short 28 / Medium 36 / Tall 48 / XL 64) and
-  validation are pure in `src/lib/banner/banner.ts` (admins pick swatches + a
-  preset, never color codes or raw px; each color entry pins its readable text
-  color; `normalizeBannerHeight` snaps any stored value to the nearest preset);
-  audited `updateBanner` action revalidates `/settings/banner`. The protected
-  layout reads `getBanner()` (per-request deduped via React `cache`) and passes
-  it to `AppShellShell`, which renders `AnnouncementBanner` inside
-  `AppShell.Header` above the brand bar and grows `--app-shell-header-offset`
-  by setting `--app-banner-height` **inline** on the AppShell root (the
-  `calc(56px + var(--app-banner-height))` chain lives on `.app-shell-root` in
-  globals.css — no class toggling), so main padding, navbar and all sticky
-  chrome follow automatically. Do NOT pass it via Mantine's `vars` prop — in
-  v9 that is a resolver *function*, not an object. Disabled = null = today's
-  layout exactly (no reserved space); immersive mode hides it with the rest of
-  the chrome; text wraps and clips at the chosen preset height (full text on
-  hover via `title`).
+  `banner_color`); curated background palette and validation are pure in
+  `src/lib/banner/banner.ts` (admins pick swatches, never color codes; each
+  color entry pins its readable text color); audited `updateBanner` action
+  revalidates `/settings/banner`. The protected layout reads `getBanner()`
+  (per-request deduped via React `cache`) and passes it to `AppShellShell`,
+  which renders `AnnouncementBanner` inside `AppShell.Header` above the brand
+  bar. The banner has a fixed 25px min-height (`BANNER_HEIGHT_PX`) and grows
+  taller when text wraps. `AnnouncementBanner` measures its own height after
+  layout and feeds the value into `--app-banner-height` **inline** on the
+  AppShell root (the `calc(56px + var(--app-banner-height))` chain lives on
+  `.app-shell-root` in globals.css — no class toggling), so main padding,
+  navbar and all sticky chrome follow automatically. Do NOT pass it via
+  Mantine's `vars` prop — in v9 that is a resolver *function*, not an object.
+  Disabled = null = today's layout exactly (no reserved space); immersive mode
+  omits both the inline style and the header height contribution so the
+  CSS-default 0px applies and Mantine allocates no phantom main-content
+  padding; full text on hover via `title`.
 - **Remembered UI state survives relaunch** in one cookie, `cloudy2.ui` (base64url
   JSON, max-age 1y): lastPage, sidebarCollapsed, dashboard `{view,date,month,cal,users,
   types,pinnedViews}`, parade `{date,month,cal,users}`. The server applies it per-key as

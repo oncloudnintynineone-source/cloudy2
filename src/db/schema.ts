@@ -130,12 +130,10 @@ export const settings = pgTable(
      * Announcement banner shown above the app header for all signed-in users
      * (Settings → Banner). `banner_color` is a key of the curated BANNER_COLORS
      * list (`src/lib/banner/banner.ts`); null = the default entry.
-     * `banner_height` is one of the BANNER_HEIGHT_PRESETS px values.
      */
     bannerEnabled: boolean("banner_enabled").notNull().default(false),
     bannerText: text("banner_text").notNull().default(""),
     bannerColor: text("banner_color"),
-    bannerHeight: integer("banner_height").notNull().default(36),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [check("settings_singleton", sql`${table.id} = 'singleton'`)],

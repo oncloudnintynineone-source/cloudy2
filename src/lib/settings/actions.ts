@@ -7,9 +7,7 @@ import { db } from "@/db";
 import { settings } from "@/db/schema";
 import {
   formatBannerColorLabel,
-  formatBannerHeightLabel,
   normalizeBannerColor,
-  normalizeBannerHeight,
   validateBannerForm,
   type BannerFormValues,
 } from "@/lib/banner/banner";
@@ -211,7 +209,6 @@ export async function updateBanner(values: BannerFormValues): Promise<SettingsAc
   const enabled = values.enabled === true;
   const text = values.text.trim();
   const color = normalizeBannerColor(values.color);
-  const height = normalizeBannerHeight(values.height);
   const [before] = await db.select().from(settings).limit(1);
 
   await db
@@ -220,7 +217,6 @@ export async function updateBanner(values: BannerFormValues): Promise<SettingsAc
       bannerEnabled: enabled,
       bannerText: text,
       bannerColor: color,
-      bannerHeight: height,
       updatedAt: new Date(),
     })
     .where(eq(settings.id, "singleton"));
@@ -240,13 +236,11 @@ export async function updateBanner(values: BannerFormValues): Promise<SettingsAc
         bannerEnabled: before?.bannerEnabled ?? false,
         bannerText: before?.bannerText ?? "",
         bannerColor: formatBannerColorLabel(before?.bannerColor),
-        bannerHeight: formatBannerHeightLabel(before?.bannerHeight),
       },
       {
         bannerEnabled: enabled,
         bannerText: text,
         bannerColor: formatBannerColorLabel(color),
-        bannerHeight: formatBannerHeightLabel(height),
       },
     ),
   });

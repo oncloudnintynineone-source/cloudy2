@@ -7,11 +7,10 @@ import { notifications } from "@mantine/notifications";
 
 import {
   BANNER_COLORS,
-  BANNER_HEIGHT_PRESETS,
+  BANNER_HEIGHT_PX,
   BANNER_TEXT_MAX_LENGTH,
   bannerColorOption,
   normalizeBannerColor,
-  normalizeBannerHeight,
   validateBannerForm,
   type BannerFormValues,
 } from "@/lib/banner/banner";
@@ -21,18 +20,17 @@ import { BUTTON_LOADER_PROPS } from "@/lib/theme";
 import { showValidationFailure } from "@/lib/ui/validationFeedback";
 
 interface BannerFormProps {
-  initial: { enabled: boolean; text: string; color: string; height: number };
+  initial: { enabled: boolean; text: string; color: string };
 }
 
-/** One live preview strip at the banner's real (chosen) height and fill. */
+/** One live preview strip at the banner's base height and fill. */
 function BannerPreview({ values }: { values: BannerFormValues }) {
   const option = bannerColorOption(normalizeBannerColor(values.color));
-  const height = normalizeBannerHeight(values.height);
   const text = values.text.trim();
   return (
     <div
       style={{
-        height,
+        minHeight: BANNER_HEIGHT_PX,
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
@@ -46,7 +44,6 @@ function BannerPreview({ values }: { values: BannerFormValues }) {
             : "var(--mantine-color-white)",
         fontSize: "var(--mantine-font-size-sm)",
         fontWeight: 500,
-        overflow: "hidden",
         opacity: values.enabled ? undefined : 0.55,
       }}
     >
@@ -61,7 +58,7 @@ export function BannerForm({ initial }: BannerFormProps) {
   const router = useRouter();
 
   const form = useForm<BannerFormValues>({
-    initialValues: { ...initial, height: normalizeBannerHeight(initial.height) },
+    initialValues: { ...initial },
     validate: (values) => validateBannerForm(values),
     validateInputOnBlur: true,
   });
@@ -102,7 +99,7 @@ export function BannerForm({ initial }: BannerFormProps) {
             required={form.values.enabled}
             placeholder="Water parade at 0800"
             maxLength={BANNER_TEXT_MAX_LENGTH}
-            description="Wraps to fit the chosen height above the header; text that doesn't fit is clipped."
+            description="Wraps to fit the banner width; the banner grows taller when text wraps to multiple lines."
             {...form.getInputProps("text")}
           />
 
@@ -133,42 +130,6 @@ export function BannerForm({ initial }: BannerFormProps) {
                       outlineOffset: 2,
                     }}
                   />
-                );
-              })}
-            </Group>
-          </Stack>
-
-          {/* Height presets as tappable buttons (not inputs), so tapping never
-              raises the mobile keyboard. */}
-          <Stack gap={4}>
-            <Text fw={500} size="sm">
-              Height
-            </Text>
-            <Group gap={8} wrap="wrap">
-              {BANNER_HEIGHT_PRESETS.map((preset) => {
-                const selected = form.values.height === preset.px;
-                return (
-                  <UnstyledButton
-                    key={preset.px}
-                    aria-pressed={selected}
-                    onClick={() => form.setFieldValue("height", preset.px)}
-                    style={{
-                      paddingInline: "var(--mantine-spacing-md)",
-                      paddingBlock: 6,
-                      borderRadius: "var(--mantine-radius-md)",
-                      border: "1px solid var(--mantine-color-default-border)",
-                      background: selected
-                        ? "var(--mantine-primary-color-filled)"
-                        : "var(--mantine-color-body)",
-                      color: selected
-                        ? "var(--mantine-primary-color-filled-text)"
-                        : "var(--mantine-color-text)",
-                      fontSize: "var(--mantine-font-size-sm)",
-                      fontWeight: selected ? 600 : 500,
-                    }}
-                  >
-                    {preset.label} ({preset.px}px)
-                  </UnstyledButton>
                 );
               })}
             </Group>

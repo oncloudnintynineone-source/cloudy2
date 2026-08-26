@@ -10,13 +10,13 @@ import {
   IconLayoutSidebarLeftExpand,
   IconSettings,
 } from "@tabler/icons-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link, { useLinkStatus } from "next/link";
 import { usePathname } from "next/navigation";
 
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { UserMenu } from "@/components/UserMenu";
-import { type BannerConfig, bannerColorOption } from "@/lib/banner/banner";
+import { type BannerConfig, BANNER_HEIGHT_PX, bannerColorOption } from "@/lib/banner/banner";
 import { BOTTOM_NAV_HEIGHT, BOTTOM_NAV_HEIGHT_CSS } from "@/lib/bottomNav";
 import { DESKTOP_MEDIA_QUERY } from "@/lib/theme";
 import { ImmersiveModeContext, type ImmersiveModeValue } from "@/lib/ui/immersiveMode";
@@ -150,23 +150,36 @@ function NavButton({ item, active, onTap }: { item: NavItem; active: boolean; on
 const HEADER_HEIGHT_PX = 56;
 
 /**
- * The admin-managed announcement banner: a fixed-height strip (admin-picked
- * preset) above the navy brand bar, filled with its curated palette color
- * (`-filled` var, so light/dark schemes both work) and the readable text color
- * that option pins. Text wraps and clips at the preset height; the full
- * content shows on hover (title). The fixed height is what keeps the shell's
- * offset math exact — the px value is fed into `--app-banner-height` (set
- * inline on the AppShell root, see globals.css).
+ * The admin-managed announcement banner: a min-height strip (25px) above the
+ * navy brand bar, filled with its curated palette color (`-filled` var, so
+ * light/dark schemes both work) and the readable text color that option pins.
+ * Text wraps and the banner grows taller when it overflows the base height.
+ * The measured height is fed into `--app-banner-height` (set inline on the
+ * AppShell root, see globals.css) so the shell's offset math stays exact.
  */
-function AnnouncementBanner({ config }: { config: BannerConfig }) {
+function AnnouncementBanner({
+  config,
+  onMeasure,
+}: {
+  config: BannerConfig;
+  onMeasure: (px: number) => void;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
   const option = bannerColorOption(config.color);
+
+  useEffect(() => {
+    if (!ref.current) return;
+    onMeasure(ref.current.offsetHeight);
+  });
+
   return (
     <div
+      ref={ref}
       role="status"
       title={config.text}
       style={{
         flexShrink: 0,
-        height: config.height,
+        minHeight: BANNER_HEIGHT_PX,
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
@@ -179,8 +192,6 @@ function AnnouncementBanner({ config }: { config: BannerConfig }) {
             : "var(--mantine-color-white)",
         fontSize: "var(--mantine-font-size-sm)",
         fontWeight: 500,
-        // Text wraps within the admin-picked height; overflow is clipped.
-        overflow: "hidden",
       }}
     >
       <span style={{ width: "100%", overflowWrap: "break-word" }}>{config.text}</span>
@@ -254,6 +265,14 @@ export function AppShellShell({
     [immersive, enter, exit],
   );
 
+  // Measured banner height (px). Starts at the base height; updated by
+  // AnnouncementBanner's onMeasure callback after layout so the shell's
+  // offset math stays exact when text wraps to multiple lines.
+  const [bannerPx, setBannerPx] = useState(BANNER_HEIGHT_PX);
+  const measureBanner = useCallback((px: number) => {
+    if (px > 0) setBannerPx(px);
+  }, []);
+
   // Desktop sidebar minimized to the icon rail, initialized from the
   // remembered state the (protected) layout read from the cookie before first
   // paint. The effect below converges the cookie on every toggle (writing
@@ -295,24 +314,28 @@ export function AppShellShell({
   return (
     <AppShell
       // `--app-banner-height` (absent by default → 0px from the class, the
-      // admin preset when a banner is active) feeds
+      // measured height when a banner is active) feeds
       // `--app-shell-header-offset` in globals.css. Set as an inline custom
       // property on the root so the cascade can't drift between class
       // declarations. (Not the `vars` prop — in Mantine v9 that's a
-      // resolver *function*, not an object.)
+      // resolver *function*, not an object.) In immersive mode the banner
+      // is hidden, so we omit the variable to keep --app-banner-height at
+      // its CSS default of 0px.
       style={
-        banner
-          ? ({ "--app-banner-height": `${banner.height}px` } as React.CSSProperties)
+        banner && !immersive
+          ? ({ "--app-banner-height": `${bannerPx}px` } as React.CSSProperties)
           : undefined
       }
       // Extra top inset engages in standalone PWA mode on notched devices
       // (`viewport-fit=cover`): the navy header extends edge-to-edge behind
       // the status bar instead of letterboxing. Reports 0 in-browser. The
-      // banner (when active) stacks above the 56px brand bar inside the same
-      // header element.
+      // banner (when active) stacks above the 56px brand bar inside the
+      // same header element. In immersive mode the header is hidden, so we
+      // drop the banner height from the prop to avoid Mantine allocating
+      // phantom main-content padding.
       header={{
-        height: banner
-          ? `calc(env(safe-area-inset-top) + ${banner.height}px + ${HEADER_HEIGHT_PX}px)`
+        height: banner && !immersive
+          ? `calc(env(safe-area-inset-top) + ${bannerPx}px + ${HEADER_HEIGHT_PX}px)`
           : `calc(${HEADER_HEIGHT_PX}px + env(safe-area-inset-top))`,
       }}
       navbar={{
@@ -336,7 +359,7 @@ export function AppShellShell({
           flexDirection: banner ? "column" : undefined,
         }}
       >
-        {banner ? <AnnouncementBanner config={banner} /> : null}
+        {banner ? <AnnouncementBanner config={banner} onMeasure={measureBanner} /> : null}
         <Group h={HEADER_HEIGHT_PX} justify="space-between" px="md">
           <Text fw={700} size="lg" component={Link} href="/dashboard" td="none" c="white">
             Cloudy

@@ -12,7 +12,6 @@ export default async function BannerPage() {
         // Resolve unset/unknown to the default swatch so the form shows what
         // the banner actually renders.
         color: normalizeBannerColor(settings.bannerColor),
-        height: settings.bannerHeight,
       }}
     />
   );

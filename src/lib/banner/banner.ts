@@ -38,36 +38,22 @@ export const BANNER_DEFAULT_COLOR: MantineColor = "brand";
 
 export const BANNER_TEXT_MAX_LENGTH = 200;
 
-export interface BannerHeightPreset {
-  px: number;
-  label: string;
-}
-
 /**
- * The curated banner heights. The admin picks a preset; the chosen px value is
- * what the shell renders with and feeds into `--app-banner-height` (set inline
- * on the AppShell root by AppShellShell — see globals.css).
+ * The fixed banner height. The banner uses this as a min-height and grows
+ * taller when text wraps. The measured height drives `--app-banner-height`
+ * (set inline on the AppShell root by AppShellShell — see globals.css).
  */
-export const BANNER_HEIGHT_PRESETS: readonly BannerHeightPreset[] = [
-  { px: 28, label: "Short" },
-  { px: 36, label: "Medium" },
-  { px: 48, label: "Tall" },
-  { px: 64, label: "XL" },
-];
-
-export const BANNER_HEIGHT_DEFAULT = 36;
+export const BANNER_HEIGHT_PX = 25;
 
 export interface BannerConfig {
   text: string;
   color: MantineColor;
-  height: number;
 }
 
 export interface BannerFormValues {
   enabled: boolean;
   text: string;
   color: string;
-  height: number;
 }
 
 export interface BannerFormErrors {
@@ -99,44 +85,6 @@ export function formatBannerColorLabel(color: string | null | undefined): string
   const normalized = normalizeBannerColor(color);
   const label = bannerColorOption(normalized).label;
   return isBannerColor(color) ? label : `${label} (default)`;
-}
-
-/**
- * Snap any stored/raw height to the nearest curated preset. Non-numeric or
- * out-of-range values fall back to the nearest preset (clamped), so a stale
- * client can never store a height the shell doesn't render.
- */
-export function normalizeBannerHeight(raw: unknown): number {
-  if (raw === null || raw === undefined) {
-    return BANNER_HEIGHT_DEFAULT;
-  }
-  const value = Number(raw);
-  if (!Number.isFinite(value)) {
-    return BANNER_HEIGHT_DEFAULT;
-  }
-  const min = BANNER_HEIGHT_PRESETS[0].px;
-  const max = BANNER_HEIGHT_PRESETS[BANNER_HEIGHT_PRESETS.length - 1].px;
-  if (value < min) {
-    return min;
-  }
-  if (value > max) {
-    return max;
-  }
-  return BANNER_HEIGHT_PRESETS.reduce((closest, preset) =>
-    Math.abs(preset.px - value) < Math.abs(closest.px - value) ? preset : closest,
-  ).px;
-}
-
-/**
- * Human-readable label for a stored height (audit details, settings UI):
- * e.g. "Tall (48px)" for a curated preset, or "<n>px" for an unknown value.
- */
-export function formatBannerHeightLabel(px: number | null | undefined): string {
-  if (px === null || px === undefined) {
-    return `${BANNER_HEIGHT_DEFAULT}px`;
-  }
-  const preset = BANNER_HEIGHT_PRESETS.find((entry) => entry.px === px);
-  return preset ? `${preset.label} (${preset.px}px)` : `${px}px`;
 }
 
 /**

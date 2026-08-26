@@ -3,14 +3,12 @@ import { describe, expect, it } from "vitest";
 import {
   BANNER_COLORS,
   BANNER_DEFAULT_COLOR,
-  BANNER_HEIGHT_DEFAULT,
-  BANNER_HEIGHT_PRESETS,
+  BANNER_HEIGHT_PX,
+  BANNER_TEXT_MAX_LENGTH,
   bannerColorOption,
   formatBannerColorLabel,
-  formatBannerHeightLabel,
   isBannerColor,
   normalizeBannerColor,
-  normalizeBannerHeight,
   normalizeBannerText,
   validateBannerForm,
 } from "./banner";
@@ -77,57 +75,14 @@ describe("normalizeBannerText", () => {
   });
 });
 
-describe("normalizeBannerHeight", () => {
-  it("keeps an exact preset value", () => {
-    for (const preset of BANNER_HEIGHT_PRESETS) {
-      expect(normalizeBannerHeight(preset.px)).toBe(preset.px);
-    }
-  });
-
-  it("snaps to the nearest preset", () => {
-    expect(normalizeBannerHeight(30)).toBe(28);
-    expect(normalizeBannerHeight(43)).toBe(48);
-    expect(normalizeBannerHeight(60)).toBe(64);
-  });
-
-  it("keeps the lower preset on an exact tie", () => {
-    expect(normalizeBannerHeight(42)).toBe(36);
-  });
-
-  it("clamps below-minimum values to the shortest preset", () => {
-    expect(normalizeBannerHeight(4)).toBe(28);
-    expect(normalizeBannerHeight(0)).toBe(28);
-  });
-
-  it("clamps above-maximum values to the tallest preset", () => {
-    expect(normalizeBannerHeight(500)).toBe(64);
-  });
-
-  it("falls back to the default for non-numeric input", () => {
-    expect(normalizeBannerHeight(null)).toBe(BANNER_HEIGHT_DEFAULT);
-    expect(normalizeBannerHeight(undefined)).toBe(BANNER_HEIGHT_DEFAULT);
-    expect(normalizeBannerHeight("nope")).toBe(BANNER_HEIGHT_DEFAULT);
-    expect(normalizeBannerHeight(NaN)).toBe(BANNER_HEIGHT_DEFAULT);
-  });
-});
-
-describe("formatBannerHeightLabel", () => {
-  it("labels a curated preset", () => {
-    expect(formatBannerHeightLabel(48)).toBe("Tall (48px)");
-  });
-
-  it("labels unknown values with the raw px", () => {
-    expect(formatBannerHeightLabel(42)).toBe("42px");
-  });
-
-  it("defaults when unset", () => {
-    expect(formatBannerHeightLabel(null)).toBe("36px");
+describe("BANNER_HEIGHT_PX", () => {
+  it("is 25", () => {
+    expect(BANNER_HEIGHT_PX).toBe(25);
   });
 });
 
 describe("validateBannerForm", () => {
-  // Height is preset-driven and needs no validation, so a fixed preset here.
-  const base = { color: "brand", height: 36 };
+  const base = { color: "brand" };
 
   it("requires text when enabled", () => {
     const errors = validateBannerForm({ ...base, enabled: true, text: "   " });
@@ -140,7 +95,7 @@ describe("validateBannerForm", () => {
   });
 
   it("flags text over the length cap in either state", () => {
-    const long = "x".repeat(201);
+    const long = "x".repeat(BANNER_TEXT_MAX_LENGTH + 1);
     expect(validateBannerForm({ ...base, enabled: true, text: long }).text).toBeDefined();
     expect(validateBannerForm({ ...base, enabled: false, text: long }).text).toBeDefined();
   });
