@@ -160,7 +160,9 @@ before changing the subsystem.
   padding; full text on hover via `title`.
 - **Remembered UI state survives relaunch** in one cookie, `cloudy2.ui` (base64url
   JSON, max-age 1y): lastPage, sidebarCollapsed, dashboard `{view,date,month,cal,users,
-  types,pinnedViews}`, parade `{date,month,cal,users}`. The server applies it per-key as
+  types,pinnedViews}`, parade `{cal,users}` — parade deliberately does NOT remember
+  its day: a bare `/parade-state` always opens on today; only an explicit `?date=`
+  wins. The server applies it per-key as
   fallback only where the URL param is absent (URL always wins; `?edit=` deep links skip
   it entirely), so cold starts render the remembered view before first paint. The client
   owns writes: `writeUiState()` (`uiStateClient.ts`), `useRememberedPage()`

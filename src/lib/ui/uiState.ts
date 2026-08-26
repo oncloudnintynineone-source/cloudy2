@@ -14,7 +14,8 @@
  *     sidebarCollapsed?: boolean,  // desktop sidebar minimized to the icon rail
  *     dashboard?: { view?, date?, month?, cal?: string[], users?: string[], types?: string[],
  *                    pinnedViews?: string[] },  // pinned tabs, recency order (0 = leftmost)
- *     parade?:    { date?, month?, cal?: string[], users?: string[] },
+ *     parade?:    { cal?: string[], users?: string[] },  // filters only — the day is NOT
+ *                    remembered: a bare /parade-state always opens on today
  *   }
  *
  * One-shot URL params (`edit`, `refresh`, `_fresh`) are never stored. The
@@ -43,8 +44,6 @@ export interface DashboardUiState {
 }
 
 export interface ParadeUiState {
-  date?: string;
-  month?: string;
   cal?: string[];
   users?: string[];
 }
@@ -57,12 +56,15 @@ export interface UiState {
   parade?: ParadeUiState;
 }
 
-// The dashboard keys a remembered section tracks; `navigate()` consults these
-// to decide when a navigation removes remembered state and must send `_fresh`.
-// `pinnedViews` is deliberately absent: it is not URL-backed, so pin changes
-// never navigate and never need `_fresh`.
+// The keys a remembered section tracks; `navigate()` consults these to decide
+// when a navigation removes remembered state and must send `_fresh`.
+// Parade's `date`/`month` are deliberately absent: the day is never read back
+// from the cookie (a bare /parade-state opens on today), and no parade
+// navigation ever removes them from the URL anyway.
+// Dashboard's `pinnedViews` is also absent: it is not URL-backed, so pin
+// changes never navigate and never need `_fresh`.
 export const DASHBOARD_STATE_KEYS = ["view", "date", "month", "cal", "users", "types"] as const;
-export const PARADE_STATE_KEYS = ["date", "month", "cal", "users"] as const;
+export const PARADE_STATE_KEYS = ["cal", "users"] as const;
 
 // The dashboard's view tabs, in their default (unpinned) order.
 export const DASHBOARD_VIEW_VALUES = ["month", "week", "weekv2", "schedule", "agenda"] as const;
@@ -165,12 +167,10 @@ export function normalizeUiState(value: unknown): UiState | null {
   const parade = isPlainObject(value.parade) ? value.parade : undefined;
   if (parade !== undefined) {
     const section: ParadeUiState = {};
-    const date = stringOf(parade.date);
-    const month = stringOf(parade.month);
+    // Filters only — parade's day is never remembered (always opens on
+    // today); a stale date/month in an old cookie is simply ignored here.
     const cal = idListOf(parade.cal);
     const users = idListOf(parade.users);
-    if (date !== undefined) section.date = date;
-    if (month !== undefined) section.month = month;
     if (cal !== undefined) section.cal = cal;
     if (users !== undefined) section.users = users;
     if (Object.keys(section).length > 0) {

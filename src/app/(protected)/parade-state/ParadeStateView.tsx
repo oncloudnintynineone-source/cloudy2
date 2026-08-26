@@ -159,12 +159,11 @@ export function ParadeStateView({
   const contentRef = useRef<HTMLDivElement | null>(null);
   useContentEnter(contentRef, !contentLoading);
 
-  // Remembered UI state: persist the server-resolved day/filters to the
-  // per-device cookie on every change, so a relaunch (or F5) lands on exactly
-  // this state (see src/lib/ui/uiState.ts).
+  // Remembered UI state: persist the server-resolved filters to the
+  // per-device cookie on every change, so a relaunch restores them (see
+  // src/lib/ui/uiState.ts). The day is deliberately not persisted — a bare
+  // /parade-state always opens on today; only an explicit ?date= wins.
   usePersistUiState("parade", {
-    date: initialDate,
-    month: initialMonth,
     cal: initSelectedCalendars,
     users: initSelectedUsers,
   });

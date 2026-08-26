@@ -3,6 +3,8 @@
 Relaunching the PWA (or an F5) should land the user exactly where they left off:
 the last page, the dashboard's view/tab, date or month, and the Cal/Users/Types
 filters — plus the pinned view tabs and the desktop sidebar's minimized state.
+One deliberate exception: the parade state page remembers only its
+Cal/Users filters — its day is never restored, so it always opens on today.
 This document describes the
 **per-device remembered UI state** subsystem: one small cookie the **client owns
 writing** and the **server reads** as per-key defaults before first paint, the
@@ -122,11 +124,12 @@ Division of labor:
 - **Attributes**: `path=/; max-age=31536000` (one year, `uiStateClient.ts:17,49`).
 - **Overflow guard**: if the encoded value would exceed
   `SAFE_COOKIE_VALUE_LENGTH` (3500, headroom under the ~4 KiB browser cap —
-  `uiStateClient.ts:21-22`), the writer re-encodes **dropping the id lists**
+  `uiStateClient.ts:23,34`), the writer re-encodes **dropping the id lists**
   (`cal`/`users`/`types`) and keeping the small scalars that carry the most
   "where am I" signal: `lastPage`, `sidebarCollapsed`, dashboard
-  `view`/`date`/`month`/`pinnedViews`, parade `date`/`month`
-  (`uiStateClient.ts:33-47`).
+  `view`/`date`/`month`/`pinnedViews`. The parade section holds only filter id
+  lists, so it degrades to nothing there — its filters reset, and its day was
+  never remembered anyway (`uiStateClient.ts:30-49`).
 
 ### 1.4.1 Stored JSON (`UiState`, `uiState.ts:52-58`)
 
@@ -144,10 +147,8 @@ Division of labor:
     "pinnedViews": ["weekv2", "month"]  // recency order: index 0 = leftmost tab
   },
   "parade": {
-    "date": "2026-08-21",
-    "month": "2026-08",
-    "cal": ["<calendar id>"],
-    "users": ["<user id>"]
+    "cal": ["<calendar id>"],           // filters only — the day is NOT remembered:
+    "users": ["<user id>"]              // a bare /parade-state always opens on today
   }
 }
 ```
@@ -170,7 +171,8 @@ Anything mismatched is **dropped, never thrown** — a corrupted cookie degrades
 - A section with no surviving keys vanishes entirely (`:150-152`, `:165-167`).
 - Note: `view`/`date`/`month` are **not** pattern-checked here — that lives in
   the consuming pages, which re-validate every key exactly like a URL param
-  (§1.5).
+  (§1.5). The parade section has no scalars left at all: a stale `date`/`month`
+  in an old cookie is dropped outright, because the day is never restored.
 
 ## 1.5 Server read: per-key fallback
 
@@ -198,9 +200,12 @@ filtered against live calendar/user/type data).
   re-persists afterwards (§1.7).
 
 **Parade state** (`src/app/(protected)/parade-state/page.tsx`): same `_fresh`
-contract (`:32-36`); `date` = URL ?? cookie (pattern-checked) ?? today, `month`
-derived from it (`:38-42`); `cal` — **every role defaults to all calendars**,
-narrowing is opt-in (`:52-61`) — and `users` (`:63-69`) use the identical
+contract (`:33-34`). The day is deliberately **not** remembered — `date` = URL
+(pattern-checked) ?? today (`:37-43`), `month` derived from it — so a bare
+/parade-state always opens on today while an explicit `?date=` still wins
+(in-session day switches, back/forward, F5 on a picked-day URL). Remembered
+state is filters only: `cal` — **every role defaults to all calendars**,
+narrowing is opt-in (`:53-62`) — and `users` (`:64-70`) use the identical
 URL-wins/validate-remembered/default pattern.
 
 ## 1.6 Cold-start launch target
@@ -253,7 +258,7 @@ remembered), and the shell's effect persists it back on every toggle.
 | `useRememberedPage(pathname)` (`uiStateClient.ts:74`) | `AppShellShell.tsx` — every authenticated page | `{ lastPage: pathname }` on every pathname change, incl. `/settings` sub-tabs |
 | sidebar toggle effect (`AppShellShell.tsx:153-155`) | `AppShellShell.tsx` — every authenticated page | `{ sidebarCollapsed }` on mount (the remembered value) and on every toggle — writing `false` too, so the cookie converges when the sidebar is re-expanded |
 | `usePersistUiState("dashboard", values)` (`uiStateClient.ts:63`) | `DashboardView.tsx:424` | the **server-resolved props**: `view`, `date`, `month`, `cal`, `users`, `types`, plus local `pinnedViews` |
-| `usePersistUiState("parade", values)` | `ParadeStateView.tsx:148` | the server-resolved `date`, `month`, `cal`, `users` |
+| `usePersistUiState("parade", values)` | `ParadeStateView.tsx:166` | the server-resolved `cal`, `users` filters — the day is deliberately not persisted, so a bare /parade-state opens on today |
 
 The crucial detail is **what** gets written: the *server-resolved* props, not the
 raw URL params. The server has already dropped stale ids and applied role
@@ -323,7 +328,7 @@ sequenceDiagram
    (`:707-711`), `toggleOnlyMe` unchecked (`:817-821`); parade equivalents in
    `ParadeStateView.tsx:248-275`.
 3. **Server handling** — presence of `?_fresh` (any value) nulls the whole cookie
-   state for that render: `dashboard/page.tsx:51-53`, `parade-state/page.tsx:32-35`.
+   state for that render: `dashboard/page.tsx:51-53`, `parade-state/page.tsx:33-34`.
 4. **Stripping** — a self-terminating effect pushes a plain (no-transition)
    `router.push` removing the marker once its render mounted
    (`DashboardView.tsx:611-619`, `ParadeStateView.tsx:238-246`), so it never
@@ -345,7 +350,7 @@ matches the URL — the stale entries are gone.
 ## 1.11 Pure helpers & testing
 
 All decision logic is pure and unit-tested in `src/lib/ui/uiState.test.ts`
-(311 lines); the writer hooks and the page-level reads are thin glue.
+(334 lines); the writer hooks and the page-level reads are thin glue.
 
 | Helper (`src/lib/ui/uiState.ts`) | Behavior | Tests |
 | -------------------------------- | -------- | ----- |
@@ -359,7 +364,7 @@ All decision logic is pure and unit-tested in `src/lib/ui/uiState.test.ts`
 
 Test environment note: vitest runs in bare node without `btoa`/`atob`, so the test
 file carries a `Buffer`-based mirror of the base64url encoder
-(`uiState.test.ts:306-311`).
+(`uiState.test.ts:321-326`).
 
 I/O-bound (not unit-tested): `uiStateClient.ts` (`document.cookie`), the
 `cookies()` reads in `page.tsx`/`dashboard/page.tsx`/`parade-state/page.tsx`/

@@ -34,10 +34,12 @@ export default async function ParadeStatePage({ searchParams }: ParadeStatePageP
   const uiState = freshRender ? null : decodeUiState((await cookies()).get(UI_STATE_COOKIE)?.value);
   const ui = uiState?.parade;
 
+  // The day is deliberately NOT remembered (unlike the dashboard): a bare
+  // /parade-state always opens on today; only an explicit ?date= wins. The
+  // cookie still restores the Calendars/Users filters below.
   const urlDate =
     typeof params.date === "string" && DATE_PATTERN.test(params.date) ? params.date : null;
-  const cookieDate = typeof ui?.date === "string" && DATE_PATTERN.test(ui.date) ? ui.date : null;
-  const dateParam = urlDate ?? cookieDate ?? today();
+  const dateParam = urlDate ?? today();
   const month = dateParam.slice(0, 7);
 
   const [calendars, allUsers, settings] = await Promise.all([

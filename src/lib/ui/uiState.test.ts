@@ -25,7 +25,7 @@ describe("encodeUiState/decodeUiState", () => {
       users: ["u1"],
       pinnedViews: ["agenda", "week"],
     },
-    parade: { date: "2026-08-20", month: "2026-08" },
+    parade: { cal: ["c9"], users: ["u9"] },
   };
 
   it("round-trips the full state", () => {
@@ -83,6 +83,14 @@ describe("normalizeUiState", () => {
       dashboard: { view: "agenda", cal: ["x"] },
       parade: { users: ["u"] },
     });
+  });
+
+  it("drops a stale parade date/month (the day is never remembered)", () => {
+    expect(
+      normalizeUiState({
+        parade: { date: "2026-08-20", month: "2026-08", users: ["u"] },
+      }),
+    ).toEqual({ parade: { users: ["u"] } });
   });
 
   it("drops mismatched types entirely instead of throwing", () => {
@@ -148,14 +156,14 @@ describe("mergeUiState", () => {
   const current = {
     lastPage: "/dashboard",
     dashboard: { view: "month" },
-    parade: { month: "2026-08" },
+    parade: { cal: ["c1"] },
   };
 
   it("patches only the sections it is given", () => {
     expect(mergeUiState(current, { lastPage: "/parade-state" })).toEqual({
       lastPage: "/parade-state",
       dashboard: { view: "month" },
-      parade: { month: "2026-08" },
+      parade: { cal: ["c1"] },
     });
   });
 
@@ -163,7 +171,7 @@ describe("mergeUiState", () => {
     expect(mergeUiState(current, { dashboard: { view: "week", date: "2026-08-10" } })).toEqual({
       lastPage: "/dashboard",
       dashboard: { view: "week", date: "2026-08-10" },
-      parade: { month: "2026-08" },
+      parade: { cal: ["c1"] },
     });
   });
 
