@@ -1,6 +1,6 @@
 "use client";
 
-import { MultiSelect, MultiSelectProps } from "@mantine/core";
+import { MultiSelect, type MultiSelectProps } from "@mantine/core";
 import { useMemo } from "react";
 
 export interface CalendarOption {
@@ -16,8 +16,10 @@ interface CalendarSelectProps
 }
 
 /**
- * Reusable calendar selection dropdown built on Mantine MultiSelect. Used for
- * dashboard filters (filter by calendar) and user calendar-access management.
+ * Reusable calendar selection dropdown. Used for dashboard filters (filter by
+ * calendar) and user calendar-access management. Intentionally not searchable
+ * — departments are a short, always-visible list, so a plain (button-target)
+ * MultiSelect that never raises the mobile keyboard is the right fit.
  */
 export function CalendarSelect({
   calendars,
@@ -36,7 +38,6 @@ export function CalendarSelect({
       value={value}
       onChange={onChange}
       placeholder="Filter by calendar"
-      searchable
       clearable
       {...rest}
     />

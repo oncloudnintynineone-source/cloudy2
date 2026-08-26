@@ -2,16 +2,29 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Button, Group, Modal, Paper, Stack, Text } from "@mantine/core";
+import {
+  Button,
+  Group,
+  Modal,
+  Paper,
+  Stack,
+  Table,
+  Text,
+  VisuallyHidden,
+} from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
+import { IconPlus } from "@tabler/icons-react";
 
 import type { Calendar } from "@/db/schema";
+import { CONTENT_ENTER_CLASS } from "@/lib/loading/contentEnter";
 import { deleteDepartment } from "@/lib/roster/actions";
-import { FloatingToolbar } from "@/components/FloatingToolbar";
+import { BUTTON_LOADER_PROPS } from "@/lib/theme";
+import { FAB_ICON_SIZE, FloatingActionButton, FloatingToolbar } from "@/components/FloatingToolbar";
+import { formatColorLabel } from "@/lib/events/eventColors";
+import { ColorDot } from "@/components/ColorSwatchPicker";
 import { DepartmentForm } from "./DepartmentForm";
 import { DepartmentShares } from "./DepartmentShares";
-import { SETTINGS_TAB_BAR_OFFSET } from "../settingsTabBar";
 
 interface DepartmentTableProps {
   departments: Calendar[];
@@ -24,6 +37,7 @@ export function DepartmentTable({ departments }: DepartmentTableProps) {
   const [shareOpened, { open: openShare, close: closeShare }] = useDisclosure(false);
   const [editing, setEditing] = useState<Calendar | null>(null);
   const [deleting, setDeleting] = useState<Calendar | null>(null);
+  const [deletingInProgress, setDeletingInProgress] = useState(false);
   const [sharing, setSharing] = useState<Calendar | null>(null);
 
   function openCreate() {
@@ -42,64 +56,147 @@ export function DepartmentTable({ departments }: DepartmentTableProps) {
   }
 
   async function confirmDelete() {
-    if (!deleting) {
+    if (!deleting || deletingInProgress) {
       return;
     }
-    const result = await deleteDepartment(deleting.id);
-    if (result.ok) {
-      notifications.show({ color: "green", message: "Department deleted" });
-      closeConfirm();
-      setDeleting(null);
-      router.refresh();
-    } else {
-      notifications.show({ color: "red", message: result.error });
+    setDeletingInProgress(true);
+    try {
+      const result = await deleteDepartment(deleting.id);
+      if (result.ok) {
+        notifications.show({ color: "green", message: "Department deleted" });
+        closeConfirm();
+        setDeleting(null);
+        router.refresh();
+      } else {
+        notifications.show({ color: "red", message: result.error });
+      }
+    } finally {
+      setDeletingInProgress(false);
     }
   }
 
   return (
-    <Stack pb="xl">
+    <Stack pb="xl" className={CONTENT_ENTER_CLASS}>
+      {/* Desktop: full-size create button instead of the FAB (like the
+          Calendar page's "New event" button); the FAB below is mobile-only.
+          Rendered above the list so it is still available when empty. */}
+      <Paper withBorder p="sm" visibleFrom="lg">
+        <Group justify="flex-end" wrap="nowrap">
+          <Button
+            __vars={{ "--button-height": "43px" }}
+            leftSection={<IconPlus size={16} />}
+            onClick={openCreate}
+          >
+            Add department
+          </Button>
+        </Group>
+      </Paper>
+
       {departments.length === 0 ? (
         <Text c="dimmed" ta="center" py="lg">
           No departments yet.
         </Text>
       ) : (
-        <Stack gap="sm">
-          {departments.map((calendar) => (
-            <Paper key={calendar.id} withBorder p="sm">
-              <Group justify="space-between" wrap="nowrap" align="flex-start">
-                <Text fw={600}>{calendar.name}</Text>
-                <Button size="xs" variant="light" onClick={() => openShareModal(calendar)}>
-                  Share
-                </Button>
-              </Group>
-              <Text size="sm" c="dimmed" mt={4} style={{ wordBreak: "break-all" }}>
-                {calendar.googleCalendarId}
-              </Text>
-              <Group justify="flex-end" mt="sm" wrap="nowrap">
-                <Button size="xs" variant="light" onClick={() => openEdit(calendar)}>
-                  Rename
-                </Button>
-                <Button
-                  size="xs"
-                  variant="subtle"
-                  color="red"
-                  onClick={() => {
-                    setDeleting(calendar);
-                    openConfirm();
-                  }}
-                >
-                  Delete
-                </Button>
-              </Group>
-            </Paper>
-          ))}
-        </Stack>
+        <>
+          {/* Mobile: card list */}
+          <Stack gap="sm" hiddenFrom="lg">
+            {departments.map((calendar) => (
+              <Paper key={calendar.id} withBorder p="sm">
+                <Group justify="space-between" wrap="nowrap" align="flex-start">
+                  <Group wrap="nowrap" align="center" gap={6}>
+                    <ColorDot color={calendar.color} />
+                    <Text fw={600}>{calendar.name}</Text>
+                  </Group>
+                  <Button size="xs" variant="light" onClick={() => openShareModal(calendar)}>
+                    Share
+                  </Button>
+                </Group>
+                <Text size="sm" c="dimmed" mt={4} style={{ wordBreak: "break-all" }}>
+                  {calendar.googleCalendarId}
+                </Text>
+                <Group justify="flex-end" mt="sm" wrap="nowrap">
+                  <Button size="xs" variant="light" onClick={() => openEdit(calendar)}>
+                    Edit
+                  </Button>
+                  <Button
+                    size="xs"
+                    variant="subtle"
+                    color="red"
+                    onClick={() => {
+                      setDeleting(calendar);
+                      openConfirm();
+                    }}
+                  >
+                    Delete
+                  </Button>
+                </Group>
+              </Paper>
+            ))}
+          </Stack>
+
+          {/* Desktop: data table */}
+          <Paper withBorder visibleFrom="lg">
+            <Table withRowBorders={false} highlightOnHover tabularNums>
+              <Table.Thead>
+                <Table.Tr>
+                  <Table.Th>Name</Table.Th>
+                  <Table.Th>External color</Table.Th>
+                  <Table.Th>Calendar ID</Table.Th>
+                  <Table.Th ta="right">
+                    <VisuallyHidden>Actions</VisuallyHidden>
+                  </Table.Th>
+                </Table.Tr>
+              </Table.Thead>
+              <Table.Tbody>
+                {departments.map((calendar) => (
+                  <Table.Tr key={calendar.id}>
+                    <Table.Td>
+                      <Text fw={600}>{calendar.name}</Text>
+                    </Table.Td>
+                    <Table.Td>
+                      <Group gap={6} wrap="nowrap">
+                        <ColorDot color={calendar.color} />
+                        <Text size="sm">{formatColorLabel(calendar.color, calendar.id)}</Text>
+                      </Group>
+                    </Table.Td>
+                    <Table.Td>
+                      <Text size="sm" c="dimmed" style={{ wordBreak: "break-all" }}>
+                        {calendar.googleCalendarId}
+                      </Text>
+                    </Table.Td>
+                    <Table.Td>
+                      <Group gap="xs" justify="flex-end" wrap="nowrap">
+                        <Button size="xs" variant="light" onClick={() => openShareModal(calendar)}>
+                          Share
+                        </Button>
+                        <Button size="xs" variant="light" onClick={() => openEdit(calendar)}>
+                          Edit
+                        </Button>
+                        <Button
+                          size="xs"
+                          variant="subtle"
+                          color="red"
+                          onClick={() => {
+                            setDeleting(calendar);
+                            openConfirm();
+                          }}
+                        >
+                          Delete
+                        </Button>
+                      </Group>
+                    </Table.Td>
+                  </Table.Tr>
+                ))}
+              </Table.Tbody>
+            </Table>
+          </Paper>
+        </>
       )}
 
       <Modal
         opened={formOpened}
         onClose={closeForm}
-        title={editing ? "Rename department" : "Add department"}
+        title={editing ? "Edit department" : "Add department"}
         centered
         size="sm"
       >
@@ -116,14 +213,19 @@ export function DepartmentTable({ departments }: DepartmentTableProps) {
 
       <Modal opened={confirmOpened} onClose={closeConfirm} title="Delete department" centered>
         <Text>
-          Delete &quot;{deleting?.name}&quot;? This removes the Google Calendar and unassigns
-          its users.
+          Delete &quot;{deleting?.name}&quot;? This removes the Google Calendar and unassigns its
+          users.
         </Text>
         <Group justify="flex-end" mt="md">
           <Button variant="default" onClick={closeConfirm}>
             Cancel
           </Button>
-          <Button color="red" onClick={confirmDelete}>
+          <Button
+            color="red"
+            loading={deletingInProgress}
+            loaderProps={BUTTON_LOADER_PROPS}
+            onClick={confirmDelete}
+          >
             Delete
           </Button>
         </Group>
@@ -131,14 +233,13 @@ export function DepartmentTable({ departments }: DepartmentTableProps) {
 
       <DepartmentShares calendar={sharing} opened={shareOpened} onClose={closeShare} />
 
-      <FloatingToolbar bottomOffset={SETTINGS_TAB_BAR_OFFSET}>
-        <Button
-          radius="xl"
-          style={{ boxShadow: "var(--mantine-shadow-md)" }}
-          onClick={openCreate}
-        >
-          Add department
-        </Button>
+      {/* Mobile-only: at lg the "Add department" button in the toolbar replaces
+          the FAB. hiddenFrom sits on the toolbar itself: its Affix portals to
+          <body>, so a wrapper element could not hide it. */}
+      <FloatingToolbar bottomOffset="var(--settings-fab-bottom)" hiddenFrom="lg">
+        <FloatingActionButton aria-label="Add department" onClick={openCreate}>
+          <IconPlus size={FAB_ICON_SIZE} />
+        </FloatingActionButton>
       </FloatingToolbar>
     </Stack>
   );

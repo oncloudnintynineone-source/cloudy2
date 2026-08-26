@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 
-import { validateEventForm, type EventFormValues } from "./validate";
+import {
+  validateEventForm,
+  withCreatorInvited,
+  withSelfCreator,
+  type EventFormValues,
+} from "./validate";
 
 const base: EventFormValues = {
   title: "Team sync",
@@ -13,6 +18,8 @@ const base: EventFormValues = {
   creatorId: "user-1",
   inviteeUserIds: [],
   inviteeDepartments: [],
+  outOfCamp: false,
+  location: "Hall A",
 };
 
 describe("validateEventForm", () => {
@@ -20,8 +27,14 @@ describe("validateEventForm", () => {
     expect(validateEventForm(base)).toEqual({});
   });
 
-  it("requires a description", () => {
-    expect(validateEventForm({ ...base, title: "  " }).title).toBe("Description is required");
+  it("allows an empty description (title comes from the template)", () => {
+    expect(validateEventForm({ ...base, title: "" })).toEqual({});
+    expect(validateEventForm({ ...base, title: "  " })).toEqual({});
+  });
+
+  it("does not require a creator (blank means the acting user, defaulted elsewhere)", () => {
+    expect(validateEventForm({ ...base, creatorId: "" })).toEqual({});
+    expect(validateEventForm({ ...base, creatorId: "  " })).toEqual({});
   });
 
   it("requires start and end", () => {
@@ -31,16 +44,28 @@ describe("validateEventForm", () => {
 
   it("rejects an end before the start", () => {
     expect(
-      validateEventForm({ ...base, start: "2026-08-15 10:00:00", end: "2026-08-15 09:00:00" })
-        .end,
+      validateEventForm({ ...base, start: "2026-08-15 10:00:00", end: "2026-08-15 09:00:00" }).end,
     ).toBe("End must be on or after start");
   });
 
-  it("accepts a valid full-day event with indicators", () => {
+  it("accepts a valid full-day event without indicators", () => {
     expect(
       validateEventForm({
         ...base,
         timeOption: "full",
+        startAmPm: "",
+        endAmPm: "",
+        start: "2026-08-15 00:00:00",
+        end: "2026-08-15 00:00:00",
+      }),
+    ).toEqual({});
+  });
+
+  it("accepts a valid half-day event with indicators", () => {
+    expect(
+      validateEventForm({
+        ...base,
+        timeOption: "half",
         startAmPm: "AM",
         endAmPm: "PM",
         start: "2026-08-15 00:00:00",
@@ -49,11 +74,11 @@ describe("validateEventForm", () => {
     ).toEqual({});
   });
 
-  it("requires both AM/PM indicators for full-day events", () => {
+  it("requires both AM/PM indicators for half-day events only", () => {
     expect(
       validateEventForm({
         ...base,
-        timeOption: "full",
+        timeOption: "half",
         startAmPm: "",
         endAmPm: "PM",
         start: "2026-08-15 00:00:00",
@@ -63,20 +88,31 @@ describe("validateEventForm", () => {
     expect(
       validateEventForm({
         ...base,
-        timeOption: "full",
+        timeOption: "half",
         startAmPm: "AM",
         endAmPm: "",
         start: "2026-08-15 00:00:00",
         end: "2026-08-15 00:00:00",
       }).endAmPm,
     ).toBe("Select AM or PM");
-  });
-
-  it("accepts a same-day AM-to-PM full-day span", () => {
+    // Full-day events no longer carry indicators at all.
     expect(
       validateEventForm({
         ...base,
         timeOption: "full",
+        startAmPm: "",
+        endAmPm: "",
+        start: "2026-08-15 00:00:00",
+        end: "2026-08-16 00:00:00",
+      }),
+    ).toEqual({});
+  });
+
+  it("accepts a same-day AM-to-PM half-day span", () => {
+    expect(
+      validateEventForm({
+        ...base,
+        timeOption: "half",
         startAmPm: "AM",
         endAmPm: "PM",
         start: "2026-08-15 00:00:00",
@@ -85,11 +121,11 @@ describe("validateEventForm", () => {
     ).toEqual({});
   });
 
-  it("rejects a same-day PM-to-AM full-day span", () => {
+  it("rejects a same-day PM-to-AM half-day span", () => {
     expect(
       validateEventForm({
         ...base,
-        timeOption: "full",
+        timeOption: "half",
         startAmPm: "PM",
         endAmPm: "AM",
         start: "2026-08-15 00:00:00",
@@ -98,16 +134,81 @@ describe("validateEventForm", () => {
     ).toBe("End must be on or after start");
   });
 
-  it("accepts a multi-day span regardless of indicators", () => {
+  it("folds the indicator into the sort key for multi-day spans", () => {
     expect(
       validateEventForm({
         ...base,
-        timeOption: "full",
+        timeOption: "half",
         startAmPm: "PM",
         endAmPm: "AM",
         start: "2026-08-14 00:00:00",
         end: "2026-08-15 00:00:00",
       }),
     ).toEqual({});
+  });
+});
+
+describe("withCreatorInvited", () => {
+  it("adds the creator as an invitee", () => {
+    expect(withCreatorInvited(base).inviteeUserIds).toEqual(["user-1"]);
+  });
+
+  it("dedupes the creator already in the invitee list", () => {
+    expect(
+      withCreatorInvited({ ...base, inviteeUserIds: ["user-1", "user-2"] }).inviteeUserIds,
+    ).toEqual(["user-1", "user-2"]);
+  });
+
+  it("leaves other invitees in form order", () => {
+    expect(
+      withCreatorInvited({ ...base, inviteeUserIds: ["user-2", "user-3"] }).inviteeUserIds,
+    ).toEqual(["user-1", "user-2", "user-3"]);
+  });
+
+  it("no-ops when there is no creator", () => {
+    const input = { ...base, creatorId: "" };
+    expect(withCreatorInvited(input)).toEqual(input);
+  });
+
+  it("preserves the remaining form fields", () => {
+    expect(withCreatorInvited(base)).toEqual({
+      ...base,
+      inviteeUserIds: ["user-1"],
+    });
+  });
+});
+
+describe("withSelfCreator", () => {
+  it("defaults a blank creator to the session user and keeps them invited", () => {
+    const result = withSelfCreator({ ...base, creatorId: "" }, "admin-9");
+    expect(result.creatorId).toBe("admin-9");
+    expect(result.inviteeUserIds).toEqual(["admin-9"]);
+  });
+
+  it("trims whitespace before defaulting", () => {
+    expect(withSelfCreator({ ...base, creatorId: "   " }, "admin-9").creatorId).toBe("admin-9");
+  });
+
+  it("keeps an explicitly chosen creator untouched", () => {
+    expect(withSelfCreator(base, "admin-9").creatorId).toBe("user-1");
+  });
+
+  it("dedupes the defaulted creator into existing invitees in form order", () => {
+    expect(
+      withSelfCreator({ ...base, creatorId: "", inviteeUserIds: ["user-2"] }, "user-2")
+        .inviteeUserIds,
+    ).toEqual(["user-2"]);
+    expect(
+      withSelfCreator({ ...base, creatorId: "", inviteeUserIds: ["user-3"] }, "admin-9")
+        .inviteeUserIds,
+    ).toEqual(["admin-9", "user-3"]);
+  });
+
+  it("preserves the remaining form fields", () => {
+    expect(withSelfCreator({ ...base, creatorId: "" }, "admin-9")).toEqual({
+      ...base,
+      creatorId: "admin-9",
+      inviteeUserIds: ["admin-9"],
+    });
   });
 });

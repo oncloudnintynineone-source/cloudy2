@@ -24,8 +24,18 @@ function makeEvent(overrides: Partial<CalendarEvent["payload"]> = {}): CalendarE
     timeOption: overrides.timeOption ?? "range",
     startAmPm: overrides.startAmPm ?? null,
     endAmPm: overrides.endAmPm ?? null,
+    outOfCamp: overrides.outOfCamp ?? false,
+    location: overrides.location ?? "",
+    external: overrides.external ?? false,
   };
-  return { id: "cal-1:google-1", title: "Test event", start: "2026-08-17 09:00:00", end: "2026-08-17 10:00:00", color: "blue", payload };
+  return {
+    id: "cal-1:google-1",
+    title: "Test event",
+    start: "2026-08-17 09:00:00",
+    end: "2026-08-17 10:00:00",
+    color: "blue",
+    payload,
+  };
 }
 
 describe("departmentRowId / isDepartmentRowId", () => {
@@ -43,9 +53,11 @@ describe("rowsForEvent", () => {
   });
 
   it("combines creator, users, and departments", () => {
-    expect(
-      rowsForEvent({ creatorId: "u1", userIds: ["u2"], departmentIds: ["cal-9"] }),
-    ).toEqual(["u1", "u2", "dept:cal-9"]);
+    expect(rowsForEvent({ creatorId: "u1", userIds: ["u2"], departmentIds: ["cal-9"] })).toEqual([
+      "u1",
+      "u2",
+      "dept:cal-9",
+    ]);
   });
 
   it("dedupes when the creator is also tagged", () => {
@@ -72,6 +84,20 @@ describe("expandScheduleEvents", () => {
 
   it("drops events linked to no one", () => {
     expect(expandScheduleEvents([makeEvent()])).toEqual([]);
+  });
+
+  it("pins an external event with no people to its calendar's department row", () => {
+    const expanded = expandScheduleEvents([makeEvent({ external: true })]);
+    expect(expanded).toHaveLength(1);
+    expect(expanded[0].resourceId).toBe("dept:cal-1");
+    expect(expanded[0].id).toBe("cal-1:google-1::dept:cal-1");
+  });
+
+  it("keeps an external event's people rows when it has any", () => {
+    const expanded = expandScheduleEvents([
+      makeEvent({ external: true, creatorId: "u1", inviteeUserIds: ["u2"] }),
+    ]);
+    expect(expanded.map((event) => event.resourceId)).toEqual(["u1", "u2"]);
   });
 });
 
@@ -146,6 +172,15 @@ describe("buildScheduleResources", () => {
     expect(resources.map((r) => r.id)).toEqual(["dept:cal-2"]);
   });
 
+  it("keeps a department row when an external event lives there despite no users", () => {
+    const { resources } = buildScheduleResources({
+      departments: depts,
+      users: [],
+      events: [makeEvent({ external: true })],
+    });
+    expect(resources.map((r) => r.id)).toEqual(["dept:cal-1"]);
+  });
+
   it("sorts users by name within each department, not by shortname", () => {
     const { resources } = buildScheduleResources({
       departments: depts,
@@ -157,5 +192,93 @@ describe("buildScheduleResources", () => {
       events: [],
     });
     expect(resources.slice(1).map((r) => r.id)).toEqual(["u1", "u2"]);
+  });
+});
+
+describe("buildScheduleResources with a user filter", () => {
+  const depts = [
+    { id: "cal-1", name: "Dept A" },
+    { id: "cal-2", name: "Dept B" },
+  ];
+  const users = [
+    { id: "u1", name: "Alice", shortname: null, departmentId: "cal-1" },
+    { id: "u2", name: "Bob", shortname: "BL", departmentId: "cal-1" },
+    { id: "u3", name: "Cara", shortname: null, departmentId: "cal-2" },
+    { id: "u4", name: "Dan", shortname: null, departmentId: null },
+  ];
+
+  it("renders only the selected user's row — no department row, no other users", () => {
+    const { resources, groups } = buildScheduleResources({
+      departments: depts,
+      users,
+      events: [],
+      userFilter: ["u2"],
+    });
+    expect(groups).toBeUndefined();
+    expect(resources.map((r) => r.id)).toEqual(["u2"]);
+    expect(resources[0].label).toBe("BL");
+  });
+
+  it("drops department rows even when events tag the department", () => {
+    const { resources } = buildScheduleResources({
+      departments: depts,
+      users,
+      events: [
+        makeEvent({ creatorId: "u1", inviteeUserIds: ["u3"], inviteeDepartmentIds: ["cal-1"] }),
+        makeEvent({ external: true }),
+      ],
+      userFilter: ["u1", "u3"],
+    });
+    expect(resources.map((r) => r.id)).toEqual(["u1", "u3"]);
+    expect(resources.every((r) => !r.isDepartment)).toBe(true);
+  });
+
+  it("groups selected users under their own departments with group labels", () => {
+    const { resources, groups } = buildScheduleResources({
+      departments: depts,
+      users,
+      events: [],
+      userFilter: ["u3", "u1"],
+    });
+    expect(groups).toEqual([
+      { label: "Dept A", resourceIds: ["u1"] },
+      { label: "Dept B", resourceIds: ["u3"] },
+    ]);
+    expect(resources.map((r) => r.id)).toEqual(["u1", "u3"]);
+  });
+
+  it("skips selected users missing from the roster", () => {
+    const { resources } = buildScheduleResources({
+      departments: depts,
+      users,
+      events: [],
+      userFilter: ["ghost", "u1"],
+    });
+    expect(resources.map((r) => r.id)).toEqual(["u1"]);
+  });
+
+  it("puts unassigned selected users in a trailing Unassigned group", () => {
+    const { resources, groups } = buildScheduleResources({
+      departments: depts,
+      users,
+      events: [],
+      userFilter: ["u4", "u1"],
+    });
+    expect(groups).toEqual([
+      { label: "Dept A", resourceIds: ["u1"] },
+      { label: "Unassigned", resourceIds: ["u4"] },
+    ]);
+    expect(resources.map((r) => r.id)).toEqual(["u1", "u4"]);
+  });
+
+  it("returns no rows when no selected user is in the roster", () => {
+    const { resources, groups } = buildScheduleResources({
+      departments: depts,
+      users,
+      events: [],
+      userFilter: ["ghost"],
+    });
+    expect(resources).toEqual([]);
+    expect(groups).toBeUndefined();
   });
 });

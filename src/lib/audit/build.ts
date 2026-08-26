@@ -11,6 +11,7 @@ export const AUDIT_ACTIONS = {
   userStatusChange: "user.status.change",
   calendarCreate: "calendar.create",
   calendarRename: "calendar.rename",
+  calendarUpdate: "calendar.update",
   calendarDelete: "calendar.delete",
   eventTypeCreate: "eventType.create",
   eventTypeRename: "eventType.rename",
@@ -18,12 +19,29 @@ export const AUDIT_ACTIONS = {
   eventCreate: "event.create",
   eventUpdate: "event.update",
   eventDelete: "event.delete",
+  webhookCreate: "webhook.create",
+  webhookUpdate: "webhook.update",
+  webhookDelete: "webhook.delete",
+  quickLinkCreate: "quickLink.create",
+  quickLinkUpdate: "quickLink.update",
+  quickLinkDelete: "quickLink.delete",
+  kahGroupCreate: "kahGroup.create",
+  kahGroupUpdate: "kahGroup.update",
+  kahGroupDelete: "kahGroup.delete",
+  kahBreachNotify: "kah.breachNotify",
   accessGrant: "access.grant",
+  accessUpdate: "access.update",
   accessRevoke: "access.revoke",
   settingsUpdate: "settings.update",
+  auditPurge: "audit.purge",
 } as const;
 
 export type AuditAction = (typeof AUDIT_ACTIONS)[keyof typeof AUDIT_ACTIONS];
+
+/** The ordered, deduped list of known audit actions (for the filter UI). */
+export function listAuditActions(): string[] {
+  return [...new Set(Object.values(AUDIT_ACTIONS))];
+}
 
 export interface AuditActor {
   id: string;

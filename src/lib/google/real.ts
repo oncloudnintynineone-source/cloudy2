@@ -1,8 +1,20 @@
 import { google } from "googleapis";
-import type { calendar_v3 } from "googleapis";
+import type { calendar_v3, gmail_v1 } from "googleapis";
 
-import { getServiceAccountConfig, GOOGLE_CALENDAR_SCOPE } from "./config";
-import type { GcalEvent, GcalEventInput, GcalEventItem, GoogleCalendarInfo, GoogleIntegration } from "./types";
+import {
+  getServiceAccountConfig,
+  getAdminGoogleEmail,
+  GOOGLE_CALENDAR_SCOPE,
+  GMAIL_SEND_SCOPE,
+} from "./config";
+import { buildTextEmail } from "./mime";
+import type {
+  GcalEvent,
+  GcalEventInput,
+  GcalEventItem,
+  GoogleCalendarInfo,
+  GoogleIntegration,
+} from "./types";
 
 /**
  * Real Google Calendar integration using a GCP service account (JWT auth).
@@ -12,6 +24,7 @@ import type { GcalEvent, GcalEventInput, GcalEventItem, GoogleCalendarInfo, Goog
  */
 export function createRealGoogleIntegration(): GoogleIntegration {
   let client: calendar_v3.Calendar | null = null;
+  let gmail: gmail_v1.Gmail | null = null;
 
   function getClient(): calendar_v3.Calendar {
     if (!client) {
@@ -22,11 +35,39 @@ export function createRealGoogleIntegration(): GoogleIntegration {
       const auth = new google.auth.JWT({
         email: config.clientEmail,
         key: config.privateKey,
-        scopes: [GOOGLE_CALENDAR_SCOPE],
+        scopes: [GOOGLE_CALENDAR_SCOPE, GMAIL_SEND_SCOPE],
       });
       client = google.calendar({ version: "v3", auth });
     }
     return client;
+  }
+
+  /**
+   * Gmail client sending as the delegated admin account. Domain-wide
+   * delegation must grant the service account the gmail.send scope for that
+   * account (Workspace admin console → domain-wide delegation).
+   */
+  function getGmailClient(): gmail_v1.Gmail {
+    if (!gmail) {
+      const config = getServiceAccountConfig();
+      if (!config) {
+        throw new Error("Google integration is not configured");
+      }
+      const sender = getAdminGoogleEmail();
+      if (!sender) {
+        throw new Error(
+          "Gmail sender is not configured — set GOOGLE_DELEGATE_EMAIL to the account emails should come from",
+        );
+      }
+      const auth = new google.auth.JWT({
+        email: config.clientEmail,
+        key: config.privateKey,
+        scopes: [GOOGLE_CALENDAR_SCOPE, GMAIL_SEND_SCOPE],
+        subject: sender,
+      });
+      gmail = google.gmail({ version: "v1", auth });
+    }
+    return gmail;
   }
 
   function googleStatus(error: unknown): number | undefined {
@@ -44,9 +85,7 @@ export function createRealGoogleIntegration(): GoogleIntegration {
     if (status === 429) {
       throw new Error("Google Calendar is rate limited, please try again later");
     }
-    throw new Error(
-      error instanceof Error ? error.message : "Google Calendar request failed",
-    );
+    throw new Error(error instanceof Error ? error.message : "Google Calendar request failed");
   }
 
   return {
@@ -202,11 +241,7 @@ export function createRealGoogleIntegration(): GoogleIntegration {
         fail(error);
       }
     },
-    async listEvents(
-      calendarId: string,
-      timeMin: Date,
-      timeMax: Date,
-    ): Promise<GcalEventItem[]> {
+    async listEvents(calendarId: string, timeMin: Date, timeMax: Date): Promise<GcalEventItem[]> {
       try {
         const res = await getClient().events.list({
           calendarId,
@@ -221,8 +256,21 @@ export function createRealGoogleIntegration(): GoogleIntegration {
         fail(error);
       }
     },
-    async sendEmail(): Promise<void> {
-      throw new Error("sendEmail is not implemented yet");
+    async sendEmail(input): Promise<void> {
+      try {
+        await getGmailClient().users.messages.send({
+          userId: "me",
+          requestBody: { raw: buildTextEmail(input) },
+        });
+      } catch (error) {
+        const status = googleStatus(error);
+        if (status === 401 || status === 403) {
+          throw new Error(
+            "Gmail send was denied — check that domain-wide delegation grants the gmail.send scope to the service account",
+          );
+        }
+        throw new Error(error instanceof Error ? error.message : "Gmail request failed");
+      }
     },
   };
 }
@@ -232,6 +280,9 @@ function buildEventBody(input: GcalEventInput): calendar_v3.Schema$Event {
   return {
     summary: input.title,
     description: input.description ?? "",
+    // Always sent (even empty): an in-app update is a full replace, so an
+    // empty location actively clears a previously set one.
+    location: input.location ?? "",
     start: input.allDay
       ? { date: toDateString(input.start) }
       : { dateTime: input.start.toISOString() },
@@ -245,9 +296,7 @@ function toDateString(value: Date): string {
 }
 
 /** Map a raw Google event to a `GcalEventItem`. */
-function mapGoogleEvent(
-  calendarId: string,
-): (event: calendar_v3.Schema$Event) => GcalEventItem {
+function mapGoogleEvent(calendarId: string): (event: calendar_v3.Schema$Event) => GcalEventItem {
   return (event) => {
     const allDay = Boolean(event.start?.date);
     return {
@@ -256,6 +305,7 @@ function mapGoogleEvent(
       title: event.summary ?? "",
       description: event.description ?? "",
       allDay,
+      location: event.location ?? "",
       start: allDay
         ? new Date(`${event.start?.date ?? "1970-01-01"}T00:00:00Z`)
         : new Date(event.start?.dateTime ?? 0),

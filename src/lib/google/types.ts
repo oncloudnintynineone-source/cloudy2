@@ -14,6 +14,8 @@ export interface GcalEventInput {
   /** When true the event is all-day: `start`/`end` are treated as dates. */
   allDay?: boolean;
   attendees?: string[];
+  /** The event's location; empty/absent leaves it unset. */
+  location?: string;
 }
 
 export interface GcalEvent {
@@ -31,6 +33,8 @@ export interface GcalEventItem {
   start: Date;
   end: Date;
   allDay: boolean;
+  /** The event's location, or "" when unset. */
+  location: string;
 }
 
 export interface GoogleCalendarInfo {

@@ -1,13 +1,13 @@
+import { PageContainer } from "@/components/PageContainer";
 import { requireAdmin } from "@/lib/session";
 import { SettingsTabs } from "./SettingsTabs";
-import { SETTINGS_TAB_BAR_OFFSET } from "./settingsTabBar";
 
 export default async function SettingsLayout({ children }: { children: React.ReactNode }) {
   await requireAdmin();
   return (
-    <div style={{ paddingBottom: SETTINGS_TAB_BAR_OFFSET }}>
+    <div className="settings-page-pad">
       <SettingsTabs />
-      {children}
+      <PageContainer>{children}</PageContainer>
     </div>
   );
 }

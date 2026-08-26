@@ -1,9 +1,23 @@
 "use client";
 
+import { useState } from "react";
 import { useForm } from "@mantine/form";
-import { Button, Group, Modal, Select, Stack, Text, TextInput } from "@mantine/core";
+import {
+  Badge,
+  Button,
+  Grid,
+  Group,
+  Modal,
+  Stack,
+  Text,
+  TextInput,
+  UnstyledButton,
+} from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
+
+import { BUTTON_LOADER_PROPS } from "@/lib/theme";
+import { showValidationFailure } from "@/lib/ui/validationFeedback";
 
 import {
   createUser,
@@ -53,87 +67,193 @@ function initialValues(user: RosterUser | null): UserFormValues {
 export function UserForm({ user, departments, onDone }: UserFormProps) {
   const isEdit = user !== null;
   const [confirmOpened, { open: openConfirm, close: closeConfirm }] = useDisclosure(false);
+  const [togglingStatus, setTogglingStatus] = useState(false);
 
   const form = useForm<UserFormValues>({
     // The parent remounts this component (key) when the target user changes,
     // so initialValues are computed once per mount and stay correct.
     initialValues: initialValues(user),
     validate: (values) => validateUserForm(values),
+    // Validate as soon as a field loses focus: the inline error appears
+    // without waiting for a submit (errors clear on the next edit).
+    validateInputOnBlur: true,
   });
 
-  const onSubmit = form.onSubmit(async (values) => {
-    const result: RosterActionResult = isEdit
-      ? await updateUser(user.id, values)
-      : await createUser(values);
+  const onSubmit = form.onSubmit(
+    async (values) => {
+      const result: RosterActionResult = isEdit
+        ? await updateUser(user.id, values)
+        : await createUser(values);
 
-    if (result.ok) {
-      notifications.show({
-        color: "green",
-        message: isEdit ? "User updated" : "User created",
-      });
-      onDone();
-      return;
-    }
+      if (result.ok) {
+        const message = isEdit ? "User updated" : "User created";
+        if (result.warnings && result.warnings.length > 0) {
+          notifications.show({
+            color: "yellow",
+            title: message,
+            message: result.warnings.join(" · "),
+          });
+        } else {
+          notifications.show({ color: "green", message });
+        }
+        onDone();
+        return;
+      }
 
-    if (result.field === "phone") {
-      form.setFieldError("phone", result.error);
-    }
-    if (result.field === "shortname") {
-      form.setFieldError("shortname", result.error);
-    }
-    notifications.show({ color: "red", message: result.error });
-  });
+      if (result.field === "phone") {
+        form.setFieldError("phone", result.error);
+      }
+      if (result.field === "shortname") {
+        form.setFieldError("shortname", result.error);
+      }
+      notifications.show({ color: "red", message: result.error });
+    },
+    // Client-side validation failure: inline field errors alone are easy to
+    // miss (submit button is far from the invalid fields), so also toast and
+    // scroll the first invalid field into view.
+    (errors) => showValidationFailure(errors, (field) => form.getInputNode(field)),
+  );
 
   async function handleToggleStatus() {
-    if (!isEdit || !user) return;
+    if (!isEdit || !user || togglingStatus) return;
     const next = user.status === "active" ? "inactive" : "active";
-    const result = await setUserStatus(user.id, next);
-    closeConfirm();
-    if (result.ok) {
-      notifications.show({
-        color: "green",
-        message: next === "active" ? "User activated" : "User deactivated",
-      });
-      onDone();
-    } else {
-      notifications.show({ color: "red", message: result.error });
+    setTogglingStatus(true);
+    try {
+      const result = await setUserStatus(user.id, next);
+      closeConfirm();
+      if (result.ok) {
+        notifications.show({
+          color: "green",
+          message: next === "active" ? "User activated" : "User deactivated",
+        });
+        onDone();
+      } else {
+        notifications.show({ color: "red", message: result.error });
+      }
+    } finally {
+      setTogglingStatus(false);
     }
   }
 
   return (
     <form onSubmit={onSubmit}>
       <Stack>
-        <TextInput label="Name" required placeholder="Full name" {...form.getInputProps("name")} />
-        <TextInput
-          label="Shortname"
-          required
-          placeholder="e.g. ALICE"
-          {...form.getInputProps("shortname")}
-        />
-        <TextInput
-          label="Phone"
-          required
-          placeholder="8-digit number"
-          {...form.getInputProps("phone")}
-        />
-        <TextInput label="Email" placeholder="Optional" {...form.getInputProps("email")} />
-        <TextInput label="Birthday" type="date" {...form.getInputProps("birthday")} />
-        <Select
-          label="Role"
-          data={[
-            { value: "user", label: "User" },
-            { value: "admin", label: "Admin" },
-          ]}
-          {...form.getInputProps("role")}
-        />
-        <Select
-          label="Department"
-          placeholder="Optional"
-          data={departments.map((d) => ({ value: d.id, label: d.name }))}
-          searchable
-          clearable
-          {...form.getInputProps("departmentId")}
-        />
+        {/* At lg the modal is wide enough for a two-column field grid. */}
+        <Grid gap="md">
+          <Grid.Col span={{ base: 12, lg: 6 }}>
+            <TextInput
+              label="Name"
+              required
+              placeholder="Full name"
+              {...form.getInputProps("name")}
+            />
+          </Grid.Col>
+          <Grid.Col span={{ base: 12, lg: 6 }}>
+            <TextInput
+              label="Shortname"
+              required
+              placeholder="e.g. ALICE"
+              {...form.getInputProps("shortname")}
+            />
+          </Grid.Col>
+          <Grid.Col span={{ base: 12, lg: 6 }}>
+            <TextInput
+              label="Phone"
+              required
+              placeholder="8-digit number"
+              {...form.getInputProps("phone")}
+            />
+          </Grid.Col>
+          <Grid.Col span={{ base: 12, lg: 6 }}>
+            <TextInput label="Email" placeholder="Optional" {...form.getInputProps("email")} />
+          </Grid.Col>
+          <Grid.Col span={{ base: 12, lg: 6 }}>
+            <TextInput label="Birthday" type="date" {...form.getInputProps("birthday")} />
+          </Grid.Col>
+        </Grid>
+        {/* Role as toggleable badges, same pattern as Department: the two
+            options are always visible and tapping a badge never focuses an
+            input, so it can't raise the mobile keyboard. Role is required,
+            so tapping a badge always selects it (no toggle-off). Colors
+            mirror UserTable: admin = brand, user = gray. */}
+        <Stack gap={4}>
+          <Text fw={500} size="sm">
+            Role
+          </Text>
+          <Group gap={6} wrap="wrap">
+            {(
+              [
+                { value: "user", label: "User", color: "gray" },
+                { value: "admin", label: "Admin", color: "brand" },
+              ] as const
+            ).map((option) => {
+              const selected = form.values.role === option.value;
+              return (
+                // A real button (not an onClick Badge): keyboard-operable and
+                // announces its pressed state. The Badge keeps the visual.
+                <UnstyledButton
+                  key={option.value}
+                  aria-pressed={selected}
+                  aria-label={`Role: ${option.label}`}
+                  onClick={() => form.setFieldValue("role", option.value)}
+                  style={{ cursor: "pointer", borderRadius: "var(--mantine-radius-md)" }}
+                >
+                  <Badge
+                    color={option.color}
+                    variant={selected ? "filled" : "light"}
+                    size="lg"
+                    style={{ height: "calc(var(--badge-height-lg) * 1.5)" }}
+                  >
+                    {option.label}
+                  </Badge>
+                </UnstyledButton>
+              );
+            })}
+          </Group>
+        </Stack>
+        {/* Department as toggleable badges instead of a Select: the list is
+            short, always visible, and tapping a badge never focuses an input,
+            so it can't raise the mobile keyboard or trigger the browser's
+            focus-scroll (which the old Select did on Android/iOS). Tapping the
+            selected badge clears the field, mirroring the old clearable
+            Select. */}
+        <Stack gap={4}>
+          <Text fw={500} size="sm">
+            Department
+          </Text>
+          {departments.length === 0 ? (
+            <Text size="sm" c="dimmed">
+              No departments yet
+            </Text>
+          ) : (
+            <Group gap={6} wrap="wrap">
+              {departments.map((department) => {
+                const selected = form.values.departmentId === department.id;
+                return (
+                  // Real toggle button (aria-pressed), Badge visual — same
+                  // keyboard/no-keyboard rationale as the Role badges above.
+                  <UnstyledButton
+                    key={department.id}
+                    aria-pressed={selected}
+                    aria-label={`Department: ${department.name}`}
+                    onClick={() =>
+                      form.setFieldValue("departmentId", selected ? null : department.id)
+                    }
+                    style={{ cursor: "pointer", borderRadius: "var(--mantine-radius-md)" }}
+                  >
+                    <Badge
+                      variant={selected ? "filled" : "light"}
+                      size="lg"
+                      style={{ height: "calc(var(--badge-height-lg) * 1.5)" }}
+                    >
+                      {department.name}
+                    </Badge>
+                  </UnstyledButton>
+                );
+              })}
+            </Group>
+          )}
+        </Stack>
         <Group justify="flex-end" mt="md">
           {isEdit && (
             <Button
@@ -145,7 +265,12 @@ export function UserForm({ user, departments, onDone }: UserFormProps) {
               {user.status === "active" ? "Deactivate user" : "Activate user"}
             </Button>
           )}
-          <Button type="submit" fullWidth={!isEdit}>
+          <Button
+            type="submit"
+            fullWidth={!isEdit}
+            loading={form.submitting}
+            loaderProps={BUTTON_LOADER_PROPS}
+          >
             {isEdit ? "Save changes" : "Create user"}
           </Button>
         </Group>
@@ -168,6 +293,8 @@ export function UserForm({ user, departments, onDone }: UserFormProps) {
               </Button>
               <Button
                 color={user?.status === "active" ? "red" : "teal"}
+                loading={togglingStatus}
+                loaderProps={BUTTON_LOADER_PROPS}
                 onClick={handleToggleStatus}
               >
                 Confirm

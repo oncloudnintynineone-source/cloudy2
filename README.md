@@ -17,6 +17,7 @@ event/visibility layer.
 - [1.9 Deployment (Vercel)](#19-deployment-vercel)
 - [1.10 Google integration](#110-google-integration)
 - [1.11 Database migrations](#111-database-migrations)
+- [1.12 Documentation](#112-documentation)
 
 ## 1.1 Tech stack
 
@@ -174,6 +175,11 @@ pnpm db:generate   # no DB needed — writes drizzle/*.sql + drizzle/meta/ from 
 pnpm db:migrate    # apply pending migrations to Neon
 ```
 
+Migrations run in filename order (`0000_…` → `0016_…`). Each applied migration is
+recorded in a `__drizzle_migrations` table inside the database, so re-running
+`pnpm db:migrate` only applies files that haven't been applied yet — it's safe
+and idempotent.
+
 `db:generate` needs no database. `db:migrate` and `db:push` connect to Neon and **require
 `DATABASE_URL` in the shell environment** — `drizzle-kit` does **not** read `.env.local`, so
 running them directly fails with `Please provide required params for Postgres driver: url: ''`.
@@ -198,3 +204,26 @@ Command roles:
 In CI, the `migrate` job applies pending migrations on `main` pushes via the `DATABASE_URL`
 repo secret, and the schema-drift check runs `pnpm db:generate` then fails on any diff to
 `drizzle/` — so committed migrations stay in sync with the schema.
+
+## 1.12 Documentation
+
+In-depth documentation lives alongside this README and is indexed here so every doc is
+reachable from the project root:
+
+| Document                        | Covers |
+| ------------------------------- | ------ |
+| [`progress.md`](progress.md) | Current status, locked-in decisions, one-line phase changelog, open items |
+| [`progress-archive.md`](progress-archive.md) | Detailed per-phase history (write-ups preserved under their original section numbers) |
+| [`docs/events-cache.md`](docs/events-cache.md) | Google Calendar event caching deep-dive — design, data model, read/write flows, freshness, performance |
+| [`docs/event-lifecycle.md`](docs/event-lifecycle.md) | Event form → Google Calendar data model — the 5-step wizard, guards, notes block codec, title templates, location policy |
+| [`docs/event-mutations.md`](docs/event-mutations.md) | Event create/update/delete — copy reconciliation, group identity, rollbacks, audit snapshots, cache invalidation |
+| [`docs/ui-state.md`](docs/ui-state.md) | Remembered UI state — the `cloudy2.ui` cookie, launch targeting, pinned tabs, the `_fresh` one-shot marker |
+| [`docs/audit-log.md`](docs/audit-log.md) | Audit log subsystem — schema, retention, action taxonomy, keyset pagination, rotation, CSV export |
+| [`docs/webhooks.md`](docs/webhooks.md) | Event webhooks — multiple admin-registered endpoints, full-field payloads, update diffs, HMAC signatures, fire-and-forget fan-out delivery |
+| [`docs/google-integration.md`](docs/google-integration.md) | Google integration layer — service-account config, client + stub, error mapping, all calendar/event/ACL methods |
+| [`docs/roster-sharing.md`](docs/roster-sharing.md) | Roster & calendar sharing — flat org model, Google-only ACLs, reconcile-on-read and reconcile-on-write |
+| [`docs/loading-transitions.md`](docs/loading-transitions.md) | Loading & transitions — skeleton-only loading, minimum hold, reveal fade, one-shot URL params |
+| [`docs/desktop-responsive.md`](docs/desktop-responsive.md) | Desktop responsive layout — `lg` breakpoint, sidebar shell, tables/card-grids, modal & form widths |
+
+`AGENTS.md` (agent/dev conventions) and the historical plans under `.opencode/plans/` are
+working documents, not end-user documentation.

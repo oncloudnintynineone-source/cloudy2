@@ -5,14 +5,27 @@ import { revalidatePath } from "next/cache";
 
 import { db } from "@/db";
 import { settings } from "@/db/schema";
+import {
+  formatBannerColorLabel,
+  normalizeBannerColor,
+  validateBannerForm,
+  type BannerFormValues,
+} from "@/lib/banner/banner";
 import { AUDIT_ACTIONS, actorFromUser } from "@/lib/audit/build";
 import { diffFields } from "@/lib/audit/diff";
 import { logAction } from "@/lib/audit/log";
 import { requireAdmin } from "@/lib/session";
 import {
+  normalizeKahNotificationEmails,
+  validateKahNotificationsForm,
+  type KahNotificationsFormValues,
+} from "@/lib/kah/validate";
+import {
   normalizeKeyword,
+  normalizeRetentionDays,
   validateEventTitleTemplate,
   validateNameTemplate,
+  validateRetentionForm,
 } from "@/lib/settings/validate";
 
 export type SettingsActionResult =
@@ -20,7 +33,15 @@ export type SettingsActionResult =
   | {
       ok: false;
       error: string;
-      field?: "keyword" | "nameTemplate" | "eventTitleTemplate";
+      field?:
+        | "keyword"
+        | "nameTemplate"
+        | "eventTitleTemplate"
+        | "retentionDays"
+        | "bannerText"
+        | "kahEmails"
+        | "kahSubject"
+        | "kahBody";
     };
 
 export async function updateKeyword(keyword: string): Promise<SettingsActionResult> {
@@ -102,8 +123,7 @@ export async function updateNameTemplate(template: string): Promise<SettingsActi
   return { ok: true };
 }
 
-export async function updateEventTitleTemplate(template: string): Promise<SettingsActionResult> {
-  const session = await requireAdmin();
+export async function updateEventTitleTemplate(template: string): Promise<SettingsActionResult> {  const session = await requireAdmin();
 
   const errors = validateEventTitleTemplate({ eventTitleTemplate: template });
   if (errors.eventTitleTemplate) {
@@ -139,5 +159,161 @@ export async function updateEventTitleTemplate(template: string): Promise<Settin
   });
 
   revalidatePath("/settings/templates");
+  return { ok: true };
+}
+
+export async function updateAuditLogRetention(days: number): Promise<SettingsActionResult> {
+  const session = await requireAdmin();
+
+  const errors = validateRetentionForm({ retentionDays: days });
+  if (errors.retentionDays) {
+    return {
+      ok: false,
+      error: errors.retentionDays,
+      field: "retentionDays",
+    };
+  }
+
+  const retentionDays = normalizeRetentionDays(days);
+  const [before] = await db.select().from(settings).limit(1);
+
+  await db
+    .update(settings)
+    .set({ auditLogRetentionDays: retentionDays, updatedAt: new Date() })
+    .where(eq(settings.id, "singleton"));
+
+  await logAction({
+    ...actorFromUser({
+      id: session.user.id,
+      name: session.user.name ?? null,
+      role: session.user.role,
+    }),
+    action: AUDIT_ACTIONS.settingsUpdate,
+    entityType: "settings",
+    entityName: "settings",
+    method: "updateAuditLogRetention",
+    details: diffFields(
+      { auditLogRetentionDays: before?.auditLogRetentionDays ?? null },
+      { auditLogRetentionDays: retentionDays },
+    ),
+  });
+
+  revalidatePath("/settings/general");
+  return { ok: true };
+}
+
+export async function updateBanner(values: BannerFormValues): Promise<SettingsActionResult> {
+  const session = await requireAdmin();
+
+  const errors = validateBannerForm(values);
+  if (errors.text) {
+    return {
+      ok: false,
+      error: errors.text,
+      field: "bannerText",
+    };
+  }
+
+  const enabled = values.enabled === true;
+  const text = values.text.trim();
+  const color = normalizeBannerColor(values.color);
+  const [before] = await db.select().from(settings).limit(1);
+
+  await db
+    .update(settings)
+    .set({
+      bannerEnabled: enabled,
+      bannerText: text,
+      bannerColor: color,
+      updatedAt: new Date(),
+    })
+    .where(eq(settings.id, "singleton"));
+
+  await logAction({
+    ...actorFromUser({
+      id: session.user.id,
+      name: session.user.name ?? null,
+      role: session.user.role,
+    }),
+    action: AUDIT_ACTIONS.settingsUpdate,
+    entityType: "settings",
+    entityName: "settings",
+    method: "updateBanner",
+    details: diffFields(
+      {
+        bannerEnabled: before?.bannerEnabled ?? false,
+        bannerText: before?.bannerText ?? "",
+        bannerColor: formatBannerColorLabel(before?.bannerColor),
+      },
+      {
+        bannerEnabled: enabled,
+        bannerText: text,
+        bannerColor: formatBannerColorLabel(color),
+      },
+    ),
+  });
+
+  revalidatePath("/settings/banner");
+  return { ok: true };
+}
+
+export async function updateKahNotifications(
+  values: KahNotificationsFormValues,
+): Promise<SettingsActionResult> {
+  const session = await requireAdmin();
+
+  const errors = validateKahNotificationsForm(values);
+  if (errors.emails || errors.subjectTemplate || errors.bodyTemplate) {
+    return {
+      ok: false,
+      error: errors.emails ?? errors.subjectTemplate ?? errors.bodyTemplate!,
+      field: errors.emails
+        ? "kahEmails"
+        : errors.subjectTemplate
+          ? "kahSubject"
+          : "kahBody",
+    };
+  }
+
+  const emails = normalizeKahNotificationEmails(values.emails);
+  const subject = values.subjectTemplate.trim();
+  const body = values.bodyTemplate.trim();
+  const [before] = await db.select().from(settings).limit(1);
+
+  await db
+    .update(settings)
+    .set({
+      kahNotificationEmails: emails,
+      kahEmailSubjectTemplate: subject,
+      kahEmailBodyTemplate: body,
+      updatedAt: new Date(),
+    })
+    .where(eq(settings.id, "singleton"));
+
+  await logAction({
+    ...actorFromUser({
+      id: session.user.id,
+      name: session.user.name ?? null,
+      role: session.user.role,
+    }),
+    action: AUDIT_ACTIONS.settingsUpdate,
+    entityType: "settings",
+    entityName: "settings",
+    method: "updateKahNotifications",
+    details: diffFields(
+      {
+        kahNotificationEmails:
+          before?.kahNotificationEmails && before.kahNotificationEmails.length > 0
+            ? before.kahNotificationEmails.join(", ")
+            : null,
+        kahEmailSubjectTemplate: before?.kahEmailSubjectTemplate ?? null,
+        kahEmailBodyTemplate: before?.kahEmailBodyTemplate ?? null,
+      },
+      { kahNotificationEmails: emails.length > 0 ? emails.join(", ") : null, kahEmailSubjectTemplate: subject, kahEmailBodyTemplate: body },
+    ),
+  });
+
+  revalidatePath("/settings/general");
+  revalidatePath("/settings/kah-groups");
   return { ok: true };
 }

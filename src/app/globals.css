@@ -1,0 +1,214 @@
+@keyframes content-enter {
+  from {
+    opacity: 0;
+  }
+}
+
+/* Day-agenda directional slide: the incoming day's agenda slides in from the
+   direction of travel (next day from the right, previous day from the left). */
+@keyframes agenda-slide-in-next {
+  from {
+    opacity: 0.3;
+    transform: translateX(48px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes agenda-slide-in-prev {
+  from {
+    opacity: 0.3;
+    transform: translateX(-48px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .content-enter {
+    animation: content-enter 300ms ease-out;
+  }
+
+  .agenda-slide-next {
+    animation: agenda-slide-in-next 220ms cubic-bezier(0.22, 1, 0.36, 1);
+  }
+
+  .agenda-slide-prev {
+    animation: agenda-slide-in-prev 220ms cubic-bezier(0.22, 1, 0.36, 1);
+  }
+}
+
+/* In dark mode the active tab's underline (a 2px border in --tabs-color,
+   defaulting to --mantine-primary-color-filled = brand shade 8, a dark navy)
+   is nearly invisible on the dark body. The variable is set inline on the
+   Tabs root, so re-declaring it on the active tab itself — a descendant —
+   wins over inheritance without !important. The data-mantine-color-scheme
+   attribute is set before first paint, so this switches flash-free. */
+[data-mantine-color-scheme="dark"] [role="tablist"] [role="tab"][data-active] {
+  --tabs-color: var(--mantine-brand-color-4);
+}
+
+/*
+  Responsive desktop layout (>= 62em = Mantine's default lg breakpoint).
+
+  The app is mobile-first: below lg every page is a full-width single column
+  with a bottom nav, and floating UI (FABs, the settings sub-tab bar) must
+  clear it. At lg+ the shell swaps to a left sidebar and the bottom nav
+  disappears, so the clearance vars are re-declared here. Components consume
+  the vars (no per-component breakpoints):
+    --app-floating-bottom-offset  default FAB clearance (FloatingToolbar)
+    --settings-fab-bottom         FAB clearance on settings pages (the
+                                  settings sub-tab bar docks there on mobile)
+
+  The AppShell header is fixed at the viewport top at every width (56px brand
+  bar + the optional announcement banner, see --app-banner-height below), and
+  `--app-shell-header-offset` (sticky top offset for bars pinned under it) is
+  declared unconditionally on `.app-shell-root`: the dashboard's view-tabs +
+  date-nav block and the Week v2 day header pin on mobile too. Consumers that
+  want desktop-only stickiness must gate themselves in JS (SettingsTabs does).
+
+  The FAB clearance vars are declared on :root (not on the page elements):
+  FloatingToolbar renders its Affix portaled to <body>, so a page-scoped var
+  would be out of scope and `bottom` would go unresolved.
+
+  Note: @mantine/schedule declares its label/slot width vars on the view's
+  root element itself, so a parent class can't shadow them — the dashboard
+  overrides them per-breakpoint via the views' vars/style props instead
+  (see DashboardView).
+*/
+:root {
+  --app-floating-bottom-offset: calc(56px + env(safe-area-inset-bottom) + 16px);
+  /* Immersive mode: the bottom nav is hidden, so dashboard FABs drop its
+     56px allowance and keep only the gesture-bar clearance. Referenced by
+     DashboardView's FloatingToolbars while immersive; must live on :root
+     because their Affix portals to <body>, outside any page/class scope. */
+  --app-floating-bottom-offset-immersive: calc(env(safe-area-inset-bottom) + 16px);
+  --settings-fab-bottom: calc(108px + env(safe-area-inset-bottom) + 16px);
+}
+
+.app-shell-root {
+  /* Announcement banner (Settings → Banner): 0px by default; AppShellShell
+     sets --app-banner-height as an inline custom property on this same
+     element when the banner is active (the measured height from the
+     AnnouncementBanner component — see AppShellShell.tsx). Declared as a
+     var so every consumer of the header offset (AppShell main padding,
+     sticky chrome, navbar top/height) grows together. Inline wins the
+     cascade, so no class toggling is needed. In immersive mode the inline
+     style is omitted, so the CSS default of 0px applies. */
+  --app-banner-height: 0px;
+  --app-shell-header-offset: calc(56px + var(--app-banner-height));
+}
+
+/*
+  Immersive ("fullscreen") mode, toggled from the Calendar date-nav row:
+  the shell header, bottom nav and (at lg) the sidebar are direct
+  <header>/<footer>/<nav> children of this root element, so hiding those
+  tags is precise. Zeroing the three offset vars (declared here, not on
+  :root) wins the inheritance cascade exactly like the 56px header
+  offset above — the AppShell main section's padding and the dashboard's
+  sticky chrome (top: var(--app-shell-header-offset)) both recompute to
+  the viewport edge with no per-view changes. The Fullscreen API call
+  itself is made by AppShellShell; this class is its CSS half.
+*/
+.app-shell-immersive {
+  --app-shell-header-offset: 0px;
+  --app-shell-navbar-offset: 0px;
+  --app-shell-footer-offset: 0px;
+}
+
+.app-shell-immersive > header,
+.app-shell-immersive > nav,
+.app-shell-immersive > footer {
+  display: none;
+}
+
+.settings-page-pad {
+  padding-bottom: var(--settings-fab-bottom);
+}
+
+/*
+  Bottom clearance for pages whose mobile-only FloatingToolbar FAB (a 65px row
+  sitting 16px above the bottom nav, portaled to <body>) overlaps
+  document-scrolling content: at max scroll the last content row must end
+  above the FAB's top edge. The 65px must stay in sync with FAB_SIZE in
+  src/components/FloatingToolbar.tsx. The value uses the immersive var
+  (16px + safe-area, never re-declared at lg) because it clears the FAB in
+  both modes: normally the AppShell main's own bottom padding (56px footer
+  offset + 16px shell padding) adds the rest, while in immersive mode that
+  footer allowance vanishes and this var compensates for it. Pages apply it
+  instead of their pb="xl" so their regular bottom padding returns at lg.
+*/
+.fab-page-pad {
+  padding-bottom: calc(var(--app-floating-bottom-offset-immersive) + 65px);
+}
+
+/* Centered max-width wrapper for list-style pages (settings, contacts,
+   parade state): a single column would stretch absurdly wide on desktop.
+   The dashboard's calendar views stay full-bleed and are not wrapped. */
+.page-container {
+  width: 100%;
+  margin-inline: auto;
+}
+
+/* Card grids for the contacts and parade-state lists: a single column on
+   mobile, auto-filling columns of >=320px cards on desktop. */
+.card-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--mantine-spacing-sm);
+}
+
+@media (min-width: 62em) {
+  :root {
+    --app-floating-bottom-offset: 16px;
+    --settings-fab-bottom: 16px;
+  }
+
+  .settings-page-pad {
+    padding-bottom: 0;
+  }
+
+  /* The FAB is mobile-only (hiddenFrom="lg"), so the pages keep only their
+     regular xl bottom padding. */
+  .fab-page-pad {
+    padding-bottom: var(--mantine-spacing-xl);
+  }
+
+  .page-container {
+    max-width: 1200px;
+  }
+
+  .card-grid {
+    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  }
+}
+
+/*
+  iOS PWA standalone + viewport-fit=cover: `100dvh` can resolve to the full
+  screen height while the actual layout viewport is shorter (excludes
+  safe-area-inset-top on notched iPhones). The sync effect in AppShellShell
+  measures the real clientHeight and shell chrome heights, setting
+  --app-shell-vh / --app-shell-header-offset / --app-shell-footer-offset as
+  inline style vars on the root element.
+
+  These rules consume those vars (with dvh/fallback for SSR and non-PWA).
+  Scoped to standalone PWA mode — in normal browser mode `100dvh` already
+  tracks the keyboard-aware dynamic viewport correctly on both iOS and Android.
+*/
+@media (display-mode: standalone) {
+  .app-shell-root .m_8983817 {
+    min-height: var(--app-shell-vh, 100dvh) !important;
+  }
+
+  .app-shell-root .m_45252eee {
+    height: calc(
+      var(--app-shell-vh, 100dvh) -
+        var(--app-shell-header-offset, 0rem) -
+        var(--app-shell-footer-offset, 0rem)
+    ) !important;
+  }
+}

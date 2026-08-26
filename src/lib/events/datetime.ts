@@ -54,6 +54,12 @@ export function subOneDay(dateOnly: string): string {
   return utcToDateString(new Date(Date.UTC(year, month - 1, day - 1)));
 }
 
+/** Add a signed number of days to a `YYYY-MM-DD` date. */
+export function addDays(dateOnly: string, days: number): string {
+  const [year, month, day] = dateOnly.split("-").map(Number);
+  return utcToDateString(new Date(Date.UTC(year, month - 1, day + days)));
+}
+
 /** First instant and exclusive end instant of a month (`YYYY-MM`), as UTC `Date`s. */
 export function monthRange(month: string): { start: Date; end: Date } {
   const [year, monthIndex] = month.split("-").map(Number);
@@ -61,6 +67,78 @@ export function monthRange(month: string): { start: Date; end: Date } {
     start: new Date(Date.UTC(year, monthIndex - 1, 1)),
     end: new Date(Date.UTC(year, monthIndex, 1)),
   };
+}
+
+/**
+ * The seven `YYYY-MM-DD` days of the week containing `dateOnly`, Monday-first
+ * (matching the Mantine dates default `firstDayOfWeek: 1` used by the schedule
+ * views). Weekends included.
+ */
+export function weekDays(dateOnly: string): string[] {
+  const [year, monthIndex, day] = dateOnly.split("-").map(Number);
+  // JS `getUTCDay`: 0=Sun..6=Sat; offset from Monday, Mon=0..Sun=6.
+  const daysFromMonday = (new Date(Date.UTC(year, monthIndex - 1, day)).getUTCDay() + 6) % 7;
+  const monday = Date.UTC(year, monthIndex - 1, day - daysFromMonday);
+  return Array.from({ length: 7 }, (_, i) => utcToDateString(new Date(monday + i * 86_400_000)));
+}
+
+/** Shift a `YYYY-MM` month by a signed number of months. */
+export function shiftMonth(month: string, delta: number): string {
+  const [year, monthIndex] = month.split("-").map(Number);
+  const shifted = new Date(Date.UTC(year, monthIndex - 1 + delta, 1));
+  return `${shifted.getUTCFullYear()}-${pad(shifted.getUTCMonth() + 1)}`;
+}
+
+/** Weeks of the dashboard's Month view grid — Mantine's consistent-weeks padding. */
+export const MONTH_GRID_WEEKS = 6;
+
+/**
+ * Week rows the dashboard's Month view grid renders for `YYYY-MM`: the
+ * Monday-first weeks overlapping the month, padded to a fixed 6 rows by
+ * Mantine's `MonthView` defaults (`withOutsideDays` + `consistentWeeks`,
+ * the leading/trailing cells showing adjacent-month days). Used by the
+ * loading skeleton.
+ */
+export function monthGridRows(month: string): number {
+  const [year, monthIndex] = month.split("-").map(Number);
+  const first = new Date(Date.UTC(year, monthIndex - 1, 1));
+  const daysInMonth = new Date(Date.UTC(year, monthIndex, 0)).getUTCDate();
+  // JS `getUTCDay`: 0=Sun..6=Sat; offset from Monday, Mon=0..Sun=6.
+  const daysFromMonday = (first.getUTCDay() + 6) % 7;
+  return Math.max(Math.ceil((daysFromMonday + daysInMonth) / 7), MONTH_GRID_WEEKS);
+}
+
+/**
+ * Every `YYYY-MM` month the Month view grid displays for `YYYY-MM`: the
+ * Monday on or before the 1st through `MONTH_GRID_WEEKS` full weeks later
+ * (`monthGridRows`), so adjacent-month days rendered by `MonthView` carry
+ * their events. 2 months when the 1st is a Monday, 3 otherwise.
+ */
+export function monthGridMonths(month: string): string[] {
+  const gridStart = weekDays(`${month}-01`)[0];
+  const gridEnd = addDays(gridStart, MONTH_GRID_WEEKS * 7 - 1);
+  return monthsInRange(gridStart, gridEnd);
+}
+
+/** Every `YYYY-MM` month a naive start/end range touches, inclusive. */
+export function monthsInRange(startNaive: string, endNaive: string): string[] {
+  // Wall-clock months from the date part: the UTC+8 instant of a midnight
+  // `YYYY-MM-DD` lands on the previous UTC day, which would shift a range
+  // starting on the 1st into the previous month.
+  const [startYear, startMonth] = startNaive.slice(0, 7).split("-").map(Number);
+  const [endYear, endMonth] = endNaive.slice(0, 7).split("-").map(Number);
+  const months: string[] = [];
+  const cursor = new Date(Date.UTC(startYear, startMonth - 1, 1));
+  const last = new Date(Date.UTC(endYear, endMonth - 1, 1));
+  while (cursor <= last) {
+    months.push(`${cursor.getUTCFullYear()}-${pad(cursor.getUTCMonth() + 1)}`);
+    cursor.setUTCMonth(cursor.getUTCMonth() + 1);
+  }
+  // Malformed ranges (end before start) still invalidate the start month.
+  if (months.length === 0) {
+    months.push(startNaive.slice(0, 7));
+  }
+  return months;
 }
 
 /**

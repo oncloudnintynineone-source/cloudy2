@@ -3,7 +3,13 @@ import { createRealGoogleIntegration } from "./real";
 import { stubGoogleIntegration } from "./stub";
 import type { GoogleIntegration } from "./types";
 
-export type { GoogleIntegration, GcalEvent, GcalEventInput, GoogleCalendarInfo } from "./types";
+export type {
+  GcalEvent,
+  GcalEventInput,
+  GcalEventItem,
+  GoogleCalendarInfo,
+  GoogleIntegration,
+} from "./types";
 
 /** Whether real Google service-account credentials are configured. */
 export function googleCalendarConfigured(): boolean {

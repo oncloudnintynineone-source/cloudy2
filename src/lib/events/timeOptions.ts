@@ -4,25 +4,30 @@
  * express the event's datetime:
  *
  * - `range` ("Start & End") — always timed: two datetime pickers.
- * - `full` ("Full Day") — full-day with an optional (AM)/(PM) start/end
- *   marker: two date pickers plus an AM/PM selector each. The title gets the
- *   marker appended only when both start and end share it.
+ * - `full` ("Full Day") — plain all-day: two date pickers, no half-day
+ *   markers.
+ * - `half` ("Half Day") — date pickers plus an AM/PM selector each side; the
+ *   title gets the marker appended only when both start and end share it.
+ *   (This used to live under `full`, which is why legacy events may still
+ *   carry `full` + markers in their notes.)
  *
  * Kept free of I/O so the helpers are unit-testable without a database.
  */
 
-export const TIME_OPTIONS = ["range", "full"] as const;
+export const TIME_OPTIONS = ["range", "full", "half"] as const;
 
 export type TimeOption = (typeof TIME_OPTIONS)[number];
 
 export const TIME_OPTION_LABELS: Record<TimeOption, string> = {
   range: "Start & End",
   full: "Full Day",
+  half: "Half Day",
 };
 
 export const TIME_OPTION_DESCRIPTIONS: Record<TimeOption, string> = {
   range: "Pick an exact start and end time for the event.",
-  full: "Create the event as a full day, optionally tagging the start/end with (AM) or (PM).",
+  full: "Create the event as a full day (date range only).",
+  half: "Pick a date range and tag the start/end with (AM) or (PM) for half days.",
 };
 
 /** Whether a value is one of the canonical time option ids. */

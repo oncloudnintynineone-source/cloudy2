@@ -1,13 +1,20 @@
 "use client";
 
 import { ActionIcon, Menu } from "@mantine/core";
-import { IconLogout, IconSettings, IconUser } from "@tabler/icons-react";
+import { IconLogout, IconUser } from "@tabler/icons-react";
 import { signOut } from "next-auth/react";
-import Link from "next/link";
 
-export function UserMenu({ name, role }: { name: string; role: "admin" | "user" }) {
+import { clearUiState } from "@/lib/ui/uiStateClient";
+
+export function UserMenu({ name }: { name: string }) {
   return (
-    <Menu position="bottom-end" withinPortal>
+    <Menu
+      shadow="md"
+      width={200}
+      position="bottom-end"
+      withinPortal
+      transitionProps={{ transition: "pop-top-right", duration: 150, timingFunction: "ease" }}
+    >
       <Menu.Target>
         <ActionIcon variant="transparent" c="white" size="lg" aria-label="Profile">
           <IconUser size={18} />
@@ -15,18 +22,14 @@ export function UserMenu({ name, role }: { name: string; role: "admin" | "user" 
       </Menu.Target>
       <Menu.Dropdown>
         <Menu.Label>{name}</Menu.Label>
-        {role === "admin" && (
-          <Menu.Item
-            leftSection={<IconSettings size={16} />}
-            component={Link}
-            href="/settings"
-          >
-            Admin Settings
-          </Menu.Item>
-        )}
         <Menu.Item
           leftSection={<IconLogout size={16} />}
-          onClick={() => signOut({ callbackUrl: "/login" })}
+          onClick={() => {
+            // The remembered-state cookie is per-device: drop it on sign-out so
+            // the next account on this device starts from the defaults.
+            clearUiState();
+            signOut({ callbackUrl: "/login" });
+          }}
         >
           Log out
         </Menu.Item>

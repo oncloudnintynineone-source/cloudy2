@@ -30,15 +30,18 @@ export interface EventTitleInput {
   people: EventTitlePerson[];
   /** Invited department names, in form order. */
   departments: string[];
+  /** The event's location; "" when unset (out-of-camp events are always ""). */
+  location: string;
 }
 
 /**
  * Substitute every `{...}` token in the template (case-insensitive):
- * `{description}`, `{type}` / `{type:acronym}`, `{departments}`, and `{people}` /
- * `{people:full}` / `{people:acronym}` / `{people:fqn}` (bare `{people}` is the
- * FQN style). List tokens are joined with `", "`; empty lists/absent values
- * resolve to an empty string (no gap-collapsing), unknown tokens and unknown
- * styles are left as literal text, and the final result is trimmed.
+ * `{description}`, `{type}` / `{type:acronym}`, `{departments}`, `{location}`,
+ * and `{people}` / `{people:full}` / `{people:acronym}` / `{people:fqn}` (bare
+ * `{people}` is the FQN style). List tokens are joined with `", "`; empty
+ * lists/absent values resolve to an empty string (no gap-collapsing), unknown
+ * tokens and unknown styles are left as literal text, and the final result is
+ * trimmed.
  */
 export function formatEventTitle(input: EventTitleInput, template: string): string {
   const peopleByStyle = (style: "full" | "acronym" | "fqn"): string =>
@@ -77,6 +80,8 @@ export function formatEventTitle(input: EventTitleInput, template: string): stri
         }
         case "departments":
           return input.departments.join(", ");
+        case "location":
+          return input.location;
         default:
           return match;
       }

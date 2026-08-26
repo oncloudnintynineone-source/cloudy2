@@ -1,0 +1,1 @@
+ALTER TABLE "settings" ADD COLUMN "banner_height" integer DEFAULT 36 NOT NULL;

@@ -10,6 +10,7 @@ const input: EventTitleInput = {
     { full: "Mei Lin", acronym: "ML", fqn: "Mei Lin: DEPT-Logistics" },
   ],
   departments: ["Engineering 1", "Logistics"],
+  location: "Hall A",
 };
 
 describe("formatEventTitle", () => {
@@ -40,15 +41,35 @@ describe("formatEventTitle", () => {
     expect(formatEventTitle(input, "{TYPE:ACRONYM}")).toBe("TRN");
   });
 
+  it("renders {location}", () => {
+    expect(formatEventTitle(input, "{type} — {description} @ {location}")).toBe(
+      "Training — Team offsite @ Hall A",
+    );
+  });
+
+  it("renders an empty location as an empty string (result is trimmed)", () => {
+    expect(formatEventTitle({ ...input, location: "" }, "{description} @ {location}")).toBe(
+      "Team offsite @",
+    );
+    // Middle-of-string gaps are not collapsed (matches other empty tokens).
+    expect(
+      formatEventTitle({ ...input, location: "" }, "{description} @ {location} · {type}"),
+    ).toBe("Team offsite @  · Training");
+    expect(formatEventTitle({ ...input, location: "" }, "  {location}  ")).toBe("");
+  });
+
   it("renders {type} as the name and {type:acronym} as the shortname", () => {
     expect(formatEventTitle(input, "{type}")).toBe("Training");
     expect(formatEventTitle(input, "{type:acronym}")).toBe("TRN");
   });
 
   it("falls back to the name when the event type acronym is blank", () => {
-    expect(formatEventTitle({ ...input, eventType: { name: "Training", acronym: "" } }, "{type:acronym}")).toBe(
-      "Training",
-    );
+    expect(
+      formatEventTitle(
+        { ...input, eventType: { name: "Training", acronym: "" } },
+        "{type:acronym}",
+      ),
+    ).toBe("Training");
   });
 
   it("renders an absent event type as an empty string", () => {

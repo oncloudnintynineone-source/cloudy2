@@ -4,34 +4,24 @@ import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
 import { db } from "@/db";
+import { findUniqueViolation } from "@/db/pgErrors";
 import { eventTypes, type EventType } from "@/db/schema";
 import { AUDIT_ACTIONS, actorFromUser } from "@/lib/audit/build";
 import { diffFields } from "@/lib/audit/diff";
 import { logAction } from "@/lib/audit/log";
 import { requireAdmin } from "@/lib/session";
 import { validateEventTypeForm, type EventTypeFormValues } from "@/lib/eventTypes/validate";
-import { normalizeTimeOptions } from "@/lib/events/timeOptions";
+import { formatColorLabel, normalizeEventColor } from "@/lib/events/eventColors";
+import { LOCATION_POLICY_LABELS, normalizeLocationPolicy } from "@/lib/events/locationPolicy";
+import { isTimeOption, normalizeTimeOptions, TIME_OPTION_LABELS } from "@/lib/events/timeOptions";
 
 export type EventTypeActionResult =
   | { ok: true }
-  | { ok: false; error: string; field?: "name" | "shortname" | "timeOptions" };
-
-function isUniqueViolation(error: unknown): error is {
-  code?: string;
-  constraint_name?: string;
-} {
-  return (
-    typeof error === "object" &&
-    error !== null &&
-    "code" in error &&
-    (error as { code?: string }).code === "23505"
-  );
-}
-
-/** Constraint name violated by a unique-violation error, or null. */
-function violatedConstraint(error: unknown): string | null {
-  return isUniqueViolation(error) ? error.constraint_name ?? null : null;
-}
+  | {
+      ok: false;
+      error: string;
+      field?: "name" | "shortname" | "timeOptions" | "locationPolicy";
+    };
 
 function actorFrom(session: Awaited<ReturnType<typeof requireAdmin>>) {
   return actorFromUser({
@@ -46,6 +36,11 @@ async function getEventTypeOrNull(id: string): Promise<EventType | null> {
   return row ?? null;
 }
 
+/** Display labels for a set of time options, stored in audit details. */
+function timeOptionLabels(options: string[]): string[] {
+  return options.map((option) => (isTimeOption(option) ? TIME_OPTION_LABELS[option] : option));
+}
+
 export async function createEventType(input: EventTypeFormValues): Promise<EventTypeActionResult> {
   const session = await requireAdmin();
 
@@ -57,10 +52,12 @@ export async function createEventType(input: EventTypeFormValues): Promise<Event
   const name = input.name.trim();
   const shortname = input.shortname.trim();
   const timeOptions = normalizeTimeOptions(input.timeOptions);
+  const locationPolicy = normalizeLocationPolicy(input.locationPolicy);
+  const color = normalizeEventColor(input.color);
   try {
     const [created] = await db
       .insert(eventTypes)
-      .values({ name, shortname, timeOptions })
+      .values({ name, shortname, timeOptions, locationPolicy, color })
       .returning({ id: eventTypes.id, name: eventTypes.name });
 
     await logAction({
@@ -70,17 +67,26 @@ export async function createEventType(input: EventTypeFormValues): Promise<Event
       entityId: created.id,
       entityName: created.name,
       method: "createEventType",
-      details: { name, shortname, timeOptions },
+      details: {
+        name,
+        shortname,
+        timeOptions: timeOptionLabels(timeOptions),
+        locationPolicy: LOCATION_POLICY_LABELS[locationPolicy],
+        color: formatColorLabel(color, name),
+      },
     });
   } catch (error) {
-    if (violatedConstraint(error) === "event_types_shortname_idx") {
+    // Drizzle wraps the PostgresError in a DrizzleQueryError, so the
+    // constraint name lives down the .cause chain (see src/db/pgErrors.ts).
+    const violation = findUniqueViolation(error);
+    if (violation?.constraintName === "event_types_shortname_idx") {
       return {
         ok: false,
         error: "An event type with this shortname already exists",
         field: "shortname",
       };
     }
-    if (isUniqueViolation(error)) {
+    if (violation !== null) {
       return { ok: false, error: "An event type with this name already exists", field: "name" };
     }
     throw error;
@@ -109,10 +115,12 @@ export async function renameEventType(
   const name = input.name.trim();
   const shortname = input.shortname.trim();
   const timeOptions = normalizeTimeOptions(input.timeOptions);
+  const locationPolicy = normalizeLocationPolicy(input.locationPolicy);
+  const color = normalizeEventColor(input.color);
   try {
     await db
       .update(eventTypes)
-      .set({ name, shortname, timeOptions, updatedAt: new Date() })
+      .set({ name, shortname, timeOptions, locationPolicy, color, updatedAt: new Date() })
       .where(eq(eventTypes.id, id));
 
     await logAction({
@@ -126,20 +134,31 @@ export async function renameEventType(
         {
           name: existing.name,
           shortname: existing.shortname,
-          timeOptions: existing.timeOptions,
+          timeOptions: timeOptionLabels(existing.timeOptions),
+          locationPolicy: LOCATION_POLICY_LABELS[normalizeLocationPolicy(existing.locationPolicy)],
+          color: formatColorLabel(existing.color, existing.name),
         },
-        { name, shortname, timeOptions },
+        {
+          name,
+          shortname,
+          timeOptions: timeOptionLabels(timeOptions),
+          locationPolicy: LOCATION_POLICY_LABELS[locationPolicy],
+          color: formatColorLabel(color, name),
+        },
       ),
     });
   } catch (error) {
-    if (violatedConstraint(error) === "event_types_shortname_idx") {
+    // Drizzle wraps the PostgresError in a DrizzleQueryError, so the
+    // constraint name lives down the .cause chain (see src/db/pgErrors.ts).
+    const violation = findUniqueViolation(error);
+    if (violation?.constraintName === "event_types_shortname_idx") {
       return {
         ok: false,
         error: "An event type with this shortname already exists",
         field: "shortname",
       };
     }
-    if (isUniqueViolation(error)) {
+    if (violation !== null) {
       return { ok: false, error: "An event type with this name already exists", field: "name" };
     }
     throw error;

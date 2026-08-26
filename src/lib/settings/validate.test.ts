@@ -1,10 +1,14 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  AUDIT_RETENTION_MAX,
+  AUDIT_RETENTION_MIN,
   normalizeKeyword,
+  normalizeRetentionDays,
   validateEventTitleTemplate,
   validateKeywordForm,
   validateNameTemplate,
+  validateRetentionForm,
 } from "./validate";
 
 describe("normalizeKeyword", () => {
@@ -112,5 +116,46 @@ describe("validateEventTitleTemplate", () => {
 
   it("accepts literal text with no placeholders", () => {
     expect(validateEventTitleTemplate({ eventTitleTemplate: "Staff" })).toEqual({});
+  });
+});
+
+describe("normalizeRetentionDays", () => {
+  it("clamps below the minimum", () => {
+    expect(normalizeRetentionDays(1)).toBe(AUDIT_RETENTION_MIN);
+  });
+
+  it("clamps above the maximum", () => {
+    expect(normalizeRetentionDays(1000)).toBe(AUDIT_RETENTION_MAX);
+  });
+
+  it("rounds fractional input", () => {
+    expect(normalizeRetentionDays(30.6)).toBe(31);
+  });
+
+  it("falls back to the default for non-finite input", () => {
+    expect(normalizeRetentionDays(Number.NaN)).toBe(90);
+    expect(normalizeRetentionDays("abc" as unknown as number)).toBe(90);
+  });
+
+  it("passes a value in range through", () => {
+    expect(normalizeRetentionDays(90)).toBe(90);
+  });
+});
+
+describe("validateRetentionForm", () => {
+  it("returns no errors for a valid retention value", () => {
+    expect(validateRetentionForm({ retentionDays: 90 })).toEqual({});
+  });
+
+  it("flags a value below the minimum", () => {
+    expect(validateRetentionForm({ retentionDays: 3 }).retentionDays).toBe(
+      `Retention must be at least ${AUDIT_RETENTION_MIN} days`,
+    );
+  });
+
+  it("flags a value above the maximum", () => {
+    expect(validateRetentionForm({ retentionDays: 500 }).retentionDays).toBe(
+      `Retention must be at most ${AUDIT_RETENTION_MAX} days`,
+    );
   });
 });

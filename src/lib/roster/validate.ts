@@ -64,6 +64,11 @@ export function validateUserForm(values: UserFormValues): UserFormErrors {
 
 export interface CalendarFormValues {
   name: string;
+  /**
+   * Fallback color for untyped/external events (Mantine palette name);
+   * "" = the calendar's default.
+   */
+  color?: string;
 }
 
 export interface CalendarFormErrors {

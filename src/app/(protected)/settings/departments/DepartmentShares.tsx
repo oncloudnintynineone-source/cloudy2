@@ -10,6 +10,7 @@ import {
   Loader,
   Modal,
   Paper,
+  Select,
   Stack,
   Text,
   TextInput,
@@ -22,8 +23,26 @@ import {
   getDepartmentAccess,
   grantDepartmentAccess,
   revokeDepartmentAccess,
+  updateDepartmentAccess,
 } from "@/lib/roster/actions";
-import type { DepartmentAccess } from "@/lib/roster/shares";
+import type { DepartmentAccess, DepartmentAccessRole } from "@/lib/roster/shares";
+import { BUTTON_LOADER_PROPS } from "@/lib/theme";
+
+const ACCESS_ROLE_OPTIONS = [
+  { value: "reader", label: "Read only" },
+  { value: "writer", label: "Can edit" },
+  { value: "owner", label: "Owner" },
+];
+
+const ACCESS_ROLE_LABELS: Record<string, string> = {
+  reader: "Read only",
+  writer: "Can edit",
+  owner: "Owner",
+};
+
+function roleLabel(role: string): string {
+  return ACCESS_ROLE_LABELS[role] ?? role;
+}
 
 interface DepartmentSharesProps {
   calendar: Calendar | null;
@@ -34,6 +53,10 @@ interface DepartmentSharesProps {
 export function DepartmentShares({ calendar, opened, onClose }: DepartmentSharesProps) {
   const [data, setData] = useState<DepartmentAccess | null>(null);
   const [email, setEmail] = useState("");
+  const [role, setRole] = useState<DepartmentAccessRole>("reader");
+  const [adding, setAdding] = useState(false);
+  const [removingEmail, setRemovingEmail] = useState<string | null>(null);
+  const [updatingEmail, setUpdatingEmail] = useState<string | null>(null);
 
   useEffect(() => {
     if (opened && calendar) {
@@ -49,29 +72,57 @@ export function DepartmentShares({ calendar, opened, onClose }: DepartmentShares
   }
 
   async function handleAdd() {
-    if (!calendar) {
+    if (!calendar || adding) {
       return;
     }
-    const result = await grantDepartmentAccess(calendar.id, email);
-    if (result.ok) {
-      notifications.show({ color: "green", message: "Access granted" });
-      setEmail("");
-      await reload();
-    } else {
-      notifications.show({ color: "red", message: result.error });
+    setAdding(true);
+    try {
+      const result = await grantDepartmentAccess(calendar.id, email, role);
+      if (result.ok) {
+        notifications.show({ color: "green", message: "Access granted" });
+        setEmail("");
+        await reload();
+      } else {
+        notifications.show({ color: "red", message: result.error });
+      }
+    } finally {
+      setAdding(false);
+    }
+  }
+
+  async function handleRoleChange(accessEmail: string, nextRole: DepartmentAccessRole) {
+    if (!calendar || updatingEmail) {
+      return;
+    }
+    setUpdatingEmail(accessEmail);
+    try {
+      const result = await updateDepartmentAccess(calendar.id, accessEmail, nextRole);
+      if (result.ok) {
+        notifications.show({ color: "green", message: "Access level updated" });
+        await reload();
+      } else {
+        notifications.show({ color: "red", message: result.error });
+      }
+    } finally {
+      setUpdatingEmail(null);
     }
   }
 
   async function handleRemove(accessEmail: string) {
-    if (!calendar) {
+    if (!calendar || removingEmail) {
       return;
     }
-    const result = await revokeDepartmentAccess(calendar.id, accessEmail);
-    if (result.ok) {
-      notifications.show({ color: "green", message: "Access removed" });
-      await reload();
-    } else {
-      notifications.show({ color: "red", message: result.error });
+    setRemovingEmail(accessEmail);
+    try {
+      const result = await revokeDepartmentAccess(calendar.id, accessEmail);
+      if (result.ok) {
+        notifications.show({ color: "green", message: "Access removed" });
+        await reload();
+      } else {
+        notifications.show({ color: "red", message: result.error });
+      }
+    } finally {
+      setRemovingEmail(null);
     }
   }
 
@@ -173,46 +224,81 @@ export function DepartmentShares({ calendar, opened, onClose }: DepartmentShares
               ) : (
                 data?.additional.map((rule) => (
                   <Paper key={rule.email} withBorder p="xs" radius="md">
-                    <Group justify="space-between" wrap="nowrap">
-                      <Text size="sm" style={{ wordBreak: "break-all" }}>
-                        {rule.email}
-                        <Text span c="dimmed">
-                          {" "}
-                          · {rule.role}
+                    <Stack gap={6}>
+                      <Group justify="space-between" wrap="nowrap">
+                        <Text size="sm" style={{ wordBreak: "break-all" }}>
+                          {rule.email}
+                          <Text span c="dimmed">
+                            {" "}
+                            · {roleLabel(rule.role)}
+                          </Text>
                         </Text>
-                      </Text>
-                      <Button
+                        <Button
+                          size="xs"
+                          variant="subtle"
+                          color="red"
+                          loading={removingEmail === rule.email}
+                          loaderProps={BUTTON_LOADER_PROPS}
+                          onClick={() => handleRemove(rule.email)}
+                        >
+                          Remove
+                        </Button>
+                      </Group>
+                      <Select
                         size="xs"
-                        variant="subtle"
-                        color="red"
-                        onClick={() => handleRemove(rule.email)}
-                      >
-                        Remove
-                      </Button>
-                    </Group>
+                        aria-label={`Access level for ${rule.email}`}
+                        data={ACCESS_ROLE_OPTIONS}
+                        value={rule.role}
+                        placeholder={roleLabel(rule.role)}
+                        loading={updatingEmail === rule.email}
+                        disabled={removingEmail === rule.email}
+                        onChange={(value) => {
+                          if (value) {
+                            handleRoleChange(rule.email, value as DepartmentAccessRole);
+                          }
+                        }}
+                      />
+                    </Stack>
                   </Paper>
                 ))
               )}
             </Stack>
 
-            <Group gap={4} wrap="nowrap">
-              <TextInput
-                placeholder="person@example.com"
-                aria-label="Email to share with"
-                value={email}
-                onChange={(e) => setEmail(e.currentTarget.value)}
-                style={{ flex: 1 }}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") {
-                    e.preventDefault();
-                    handleAdd();
+            <Stack gap={4}>
+              <Select
+                label="Access level"
+                data={ACCESS_ROLE_OPTIONS}
+                value={role}
+                onChange={(value) => {
+                  if (value) {
+                    setRole(value as DepartmentAccessRole);
                   }
                 }}
               />
-              <Button onClick={handleAdd} leftSection={<IconPlus size={16} />}>
-                Add
-              </Button>
-            </Group>
+              <Group gap={4} wrap="nowrap">
+                <TextInput
+                  placeholder="person@example.com"
+                  aria-label="Email to share with"
+                  value={email}
+                  onChange={(e) => setEmail(e.currentTarget.value)}
+                  style={{ flex: 1 }}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      handleAdd();
+                    }
+                  }}
+                />
+                <Button
+                  loading={adding}
+                  loaderProps={BUTTON_LOADER_PROPS}
+                  leftSection={<IconPlus size={16} />}
+                  onClick={handleAdd}
+                >
+                  Add
+                </Button>
+              </Group>
+            </Stack>
           </>
         )}
       </Stack>

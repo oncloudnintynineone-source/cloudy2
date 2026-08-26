@@ -6,6 +6,7 @@ const base: EventTypeFormValues = {
   name: "Leave",
   shortname: "LV",
   timeOptions: ["range", "full"],
+  locationPolicy: "both",
 };
 
 describe("validateEventTypeForm", () => {
@@ -41,5 +42,20 @@ describe("validateEventTypeForm", () => {
     expect(validateEventTypeForm({ ...base, timeOptions: [] })).toEqual({
       timeOptions: "Select at least one time option",
     });
+  });
+
+  it("accepts all canonical location policies", () => {
+    for (const policy of ["in", "out", "both"] as const) {
+      expect(validateEventTypeForm({ ...base, locationPolicy: policy })).toEqual({});
+    }
+  });
+
+  it("rejects an unknown location policy", () => {
+    expect(
+      validateEventTypeForm({
+        ...base,
+        locationPolicy: "camp" as EventTypeFormValues["locationPolicy"],
+      }),
+    ).toEqual({ locationPolicy: "Select a location policy" });
   });
 });

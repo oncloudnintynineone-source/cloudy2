@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { signIn } from "next-auth/react";
 import { Button, Center, Paper, PasswordInput, Stack, Text, Title } from "@mantine/core";
+import { BUTTON_LOADER_PROPS } from "@/lib/theme";
 
 export function LoginForm() {
   const router = useRouter();
@@ -30,7 +31,7 @@ export function LoginForm() {
 
   return (
     <Center mih="100dvh">
-      <Paper withBorder radius="md" p="lg" shadow="sm" w="100%" maw={380}>
+      <Paper withBorder radius="md" p="lg" shadow="sm" w="100%" maw={{ base: 380, lg: 440 }}>
         <form onSubmit={onSubmit}>
           <Stack>
             <div>
@@ -47,24 +48,21 @@ export function LoginForm() {
                 Cloudy
               </Title>
               <Text c="dimmed" size="sm">
-                Cloud Calendar Movement
+                Cloud Group Parade State
               </Text>
             </div>
             <PasswordInput
-              label="Password / Phone + keyword"
+              aria-label="Password or phone number plus login keyword"
               placeholder="Enter your credentials"
               value={input}
               onChange={(e) => setInput(e.currentTarget.value)}
+              // Rendered in Mantine's error slot under the input (wired to
+              // it via aria-describedby) instead of a detached red Text.
+              error={error ?? undefined}
               required
               autoFocus
-              styles={{ input: { height: "calc(var(--input-height) * 1.5)" } }}
             />
-            {error && (
-              <Text c="red" size="sm">
-                {error}
-              </Text>
-            )}
-            <Button type="submit" loading={loading} fullWidth>
+            <Button type="submit" loading={loading} loaderProps={BUTTON_LOADER_PROPS} fullWidth>
               Sign in
             </Button>
           </Stack>

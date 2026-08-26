@@ -1,0 +1,1 @@
+ALTER TABLE "event_types" ADD COLUMN "location_policy" text DEFAULT 'both' NOT NULL;

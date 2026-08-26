@@ -32,5 +32,8 @@ export const stubGoogleIntegration: GoogleIntegration = {
     return [];
   },
   async removeCalendarAccess() {},
-  async sendEmail() {},
+  async sendEmail(input) {
+    // Visible in dev so breach notifications can be followed without creds.
+    console.log(`[stub] Email to ${input.to.join(", ")}: ${input.subject}`);
+  },
 };

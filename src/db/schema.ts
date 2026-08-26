@@ -7,6 +7,7 @@ import {
   integer,
   jsonb,
   pgTable,
+  primaryKey,
   text,
   timestamp,
   uniqueIndex,
@@ -56,6 +57,11 @@ export const calendars = pgTable(
     kind: text("kind", { enum: ["department", "shared"] })
       .notNull()
       .default("department"),
+    /**
+     * Fallback color for untyped/external events (Mantine palette name);
+     * null = deterministic default from the calendar id.
+     */
+    color: text("color"),
     ...timestamps,
   },
   (table) => [uniqueIndex("calendars_google_calendar_id_idx").on(table.googleCalendarId)],
@@ -80,6 +86,14 @@ export const eventTypes = pgTable(
       .array()
       .notNull()
       .default(sql`'{}'::text[]`),
+    /**
+     * Where events of this type may take place: "in" (in camp only, no Out of
+     * Camp flag), "out" (out of camp only, no location), "both" (no
+     * restriction — the default).
+     */
+    locationPolicy: text("location_policy").notNull().default("both"),
+    /** Admin-set event color (Mantine palette name); null = deterministic default from the name. */
+    color: text("color"),
     ...timestamps,
   },
   (table) => [
@@ -105,14 +119,121 @@ export const settings = pgTable(
     userKeyword: text("user_keyword"),
     nameTemplate: text("name_template").notNull().default("{name}"),
     eventTitleTemplate: text("event_title_template").notNull().default("{description}"),
+    /**
+     * Default required in-country percentage prefilled when a new KAH group
+     * is created (the live thresholds live on each `kah_groups` row).
+     */
     kahPercentage: integer("kah_percentage").notNull().default(100),
+    /** Addresses notified when an event pushes a KAH group below its threshold. */
     kahNotificationEmails: text("kah_notification_emails")
       .array()
       .notNull()
       .default(sql`'{}'::text[]`),
+    /**
+     * Admin-customized KAH breach email templates ({event} {actor} {window}
+     * {breaches}); the defaults are the shipped wording — keep in sync with
+     * `src/lib/kah/emailDefaults.ts`, which shares these exact strings.
+     */
+    kahEmailSubjectTemplate: text("kah_email_subject_template")
+      .notNull()
+      .default("[cloudy2] KAH limit exceeded — {event}"),
+    kahEmailBodyTemplate: text("kah_email_body_template")
+      .notNull()
+      .default(
+        'Key Appointment Holder limit exceeded.\n\nAfter "{event}" was saved by {actor}, '
+        + "the following groups are below\ntheir required in-country percentage for the "
+        + "affected period:\n\n{breaches}\n\nEvent window: {window}\n\nThis is a notification "
+        + "only — the event was saved. Adjust the event or\nthe KAH groups in Settings if "
+        + "this was not intended.",
+      ),
+    /** How many days of audit_logs to keep; older rows are purged on read. */
+    auditLogRetentionDays: integer("audit_log_retention_days").notNull().default(90),
+    /**
+     * Announcement banner shown above the app header for all signed-in users
+     * (Settings → Banner). `banner_color` is a key of the curated BANNER_COLORS
+     * list (`src/lib/banner/banner.ts`); null = the default entry.
+     */
+    bannerEnabled: boolean("banner_enabled").notNull().default(false),
+    bannerText: text("banner_text").notNull().default(""),
+    bannerColor: text("banner_color"),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [check("settings_singleton", sql`${table.id} = 'singleton'`)],
+);
+
+/**
+ * Registered outbound webhook endpoints notified of event create/update/delete.
+ * Every enabled row receives every event action; `secret` is optional (an
+ * endpoint without one receives unsigned deliveries).
+ */
+export const webhooks = pgTable("webhooks", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  name: text("name").notNull(),
+  url: text("url").notNull(),
+  secret: text("secret"),
+  enabled: boolean("enabled").notNull().default(true),
+  ...timestamps,
+});
+
+/**
+ * Admin-managed quick links shown in the dashboard's quick-links menu
+ * (launched by the grey 3-dots FAB on mobile / the nav-row button at lg).
+ * The menu lists `enabled` rows in `sortOrder` order; the launcher only
+ * appears when at least one row is enabled. `icon` is a key into the curated
+ * tabler icon set (see `src/lib/quickLinks/icons.ts`); `color` (Mantine
+ * palette name) tints the menu item's icon.
+ */
+export const quickLinks = pgTable(
+  "quick_links",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    label: text("label").notNull(),
+    url: text("url").notNull(),
+    icon: text("icon").notNull().default("external-link"),
+    color: text("color"),
+    enabled: boolean("enabled").notNull().default(true),
+    sortOrder: integer("sort_order").notNull().default(0),
+    ...timestamps,
+  },
+  (table) => [index("quick_links_sort_idx").on(table.sortOrder)],
+);
+
+/**
+ * Key Appointment Holder (KAH) groups: named sets of important users with a
+ * required percentage of members that must remain in-country. When an event
+ * is created or updated, each group's members tagged on events overlapping
+ * the event's window count as away; a group whose in-country share drops
+ * below `minPercentage` triggers a notification email (see
+ * `src/lib/kah/notify.ts`, design: docs/kah.md).
+ */
+export const kahGroups = pgTable(
+  "kah_groups",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    name: text("name").notNull(),
+    /** Required in-country share of the group, 1–100. */
+    minPercentage: integer("min_percentage").notNull().default(100),
+    ...timestamps,
+  },
+  (table) => [uniqueIndex("kah_groups_name_idx").on(table.name)],
+);
+
+/** Membership join between KAH groups and roster users. */
+export const kahGroupMembers = pgTable(
+  "kah_group_members",
+  {
+    groupId: uuid("group_id")
+      .notNull()
+      .references(() => kahGroups.id, { onDelete: "cascade" }),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    ...timestamps,
+  },
+  (table) => [
+    primaryKey({ columns: [table.groupId, table.userId] }),
+    index("kah_group_members_user_idx").on(table.userId),
+  ],
 );
 
 export const auditLogs = pgTable(
@@ -140,6 +261,25 @@ export const auditLogs = pgTable(
   ],
 );
 
+/**
+ * Server-side cache of one department calendar's month of events, keyed by the
+ * Google calendar id + `YYYY-MM`. `events` holds `GcalEventItem`s with dates
+ * encoded as ISO strings (see `src/lib/google/eventsCacheCodec.ts`). Kept in
+ * Postgres so it is shared across serverless instances and survives restarts;
+ * entries are TTL'd on read (fresh 30s → stale-while-revalidate → expire 30min)
+ * and invalidated by in-app mutations via `invalidateGcalCache()`.
+ */
+export const googleEventCache = pgTable(
+  "google_event_cache",
+  {
+    calendarGoogleId: text("calendar_google_id").notNull(),
+    month: text("month").notNull(),
+    events: jsonb("events").notNull(),
+    fetchedAt: timestamp("fetched_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [primaryKey({ columns: [table.calendarGoogleId, table.month] })],
+);
+
 export type User = typeof users.$inferSelect;
 export type NewUser = typeof users.$inferInsert;
 export type Calendar = typeof calendars.$inferSelect;
@@ -150,3 +290,13 @@ export type ParadeState = typeof paradeStates.$inferSelect;
 export type Settings = typeof settings.$inferSelect;
 export type AuditLog = typeof auditLogs.$inferSelect;
 export type NewAuditLog = typeof auditLogs.$inferInsert;
+export type GoogleEventCache = typeof googleEventCache.$inferSelect;
+export type NewGoogleEventCache = typeof googleEventCache.$inferInsert;
+export type Webhook = typeof webhooks.$inferSelect;
+export type NewWebhook = typeof webhooks.$inferInsert;
+export type QuickLink = typeof quickLinks.$inferSelect;
+export type NewQuickLink = typeof quickLinks.$inferInsert;
+export type KahGroup = typeof kahGroups.$inferSelect;
+export type NewKahGroup = typeof kahGroups.$inferInsert;
+export type KahGroupMember = typeof kahGroupMembers.$inferSelect;
+export type NewKahGroupMember = typeof kahGroupMembers.$inferInsert;
