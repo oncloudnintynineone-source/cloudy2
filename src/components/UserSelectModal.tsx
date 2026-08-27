@@ -118,9 +118,6 @@ function UserSelectModalBody({
           : [...current, optionId],
       };
     });
-    // Keep the search box focused so the soft keyboard stays open and the
-    // user can keep filtering between badge taps.
-    searchRef.current?.focus();
   }
 
   function handleClear() {
@@ -181,10 +178,6 @@ function UserSelectModalBody({
                       key={option.id}
                       aria-pressed={selected}
                       aria-label={`${option.label}${selected ? ", selected" : ""}`}
-                      // Don't steal focus from the search box on press; the
-                      // explicit refocus in `toggle` covers iOS Safari, which
-                      // blurs before the synthesized mousedown.
-                      onMouseDown={(event) => event.preventDefault()}
                       onClick={() => toggle(section, option.id)}
                       style={{ cursor: "pointer", borderRadius: "var(--mantine-radius-md)" }}
                     >
