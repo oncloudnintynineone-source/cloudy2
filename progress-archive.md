@@ -5475,9 +5475,25 @@ Changes (all in `DashboardView.tsx`):
   through `onClose` first (`ModalBaseCloseButton`), which would have minimized
   instead of discarding. The header X and the bubble's "Discard draft" X
   (unchanged) remain the only discard paths.
-- New hint line under the wizard form in the modal body: a subtle
-  `borderTop`-separated centered row (`IconInfoCircle` + dimmed `Text` —
-  "Tap outside to minimize — your draft is kept.").
+- A "Tap outside to minimize" caption floats **below** the dialog box,
+  outside of it (no background, bare white text — the overlay under it is
+  60% black in both themes). The dialog `Paper` clips everything inside it
+  (`overflow-y: auto`) and Mantine's inner layer is a row flexbox with no
+  usable sibling slot, so the caption is a `position: fixed` `Text`
+  (z 260 — above the 250 overlay/layer, below the 300 restore bubble)
+  pinned 8px under the measured Paper bottom, centered on its width.
+  A `ref` on `Modal.Content` (delivered to the Paper `section` via
+  `ModalBaseContent` → `FocusTrap innerRef`) feeds an effect keyed on
+  `[formIsOpen, formMinimized]` that measures `offsetTop/offsetLeft/
+  offsetWidth` — layout coordinates, stable through the transform-only
+  open/close animation (`getBoundingClientRect` would read the mid-scale
+  box), already viewport-relative because the Paper's offsetParent is the
+  modal's fixed full-viewport inner layer. A `ResizeObserver` follows
+  wizard-step height changes; `window` + `visualViewport` resize listeners
+  catch soft-keyboard/rotation re-centering a dialog shorter than its
+  max height. The caption cross-fades with the modal's own 250ms
+  transitions and is `pointer-events: none`, so tapping it lands on the
+  overlay → minimizes — which is what it advertises.
 
 The resulting gesture matrix:
 

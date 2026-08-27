@@ -25,6 +25,7 @@ import {
   Menu,
   Modal,
   Paper,
+  Portal,
   Stack,
   Tabs,
   Text,
@@ -56,7 +57,6 @@ import {
   IconChevronUp,
   IconDotsVertical,
   IconFilter,
-  IconInfoCircle,
   IconLayoutGrid,
   IconListDetails,
   IconLink,
@@ -476,6 +476,50 @@ export function DashboardView({
   // while `formMinimized` is true. The modal stays mounted (`keepMounted`) so
   // the draft survives.
   const [formMinimized, setFormMinimized] = useState(false);
+  // The "Tap outside to minimize" caption floats *below* the dialog box,
+  // outside of it, so its position is measured rather than styled in: the
+  // dialog Paper's offsetParent is the modal's fixed full-viewport inner
+  // layer, which makes offsetTop/offsetLeft viewport coordinates directly.
+  // They're layout coordinates, so they stay stable during the modal's
+  // transform-only open/close animation (getBoundingClientRect would return
+  // the mid-scale box while the animation runs).
+  const formContentRef = useRef<HTMLDivElement>(null);
+  const [hintPosition, setHintPosition] = useState<{
+    bottom: number;
+    left: number;
+    width: number;
+  } | null>(null);
+  const formIsOpen = formState !== null;
+
+  useEffect(() => {
+    const el = formContentRef.current;
+    if (!el) return;
+    const update = () => {
+      if (el.offsetParent === null) {
+        // Paper is Activity-hidden (modal fully closed) — hide the caption.
+        setHintPosition(null);
+        return;
+      }
+      setHintPosition({
+        bottom: el.offsetTop + el.offsetHeight,
+        left: el.offsetLeft,
+        width: el.offsetWidth,
+      });
+    };
+    update();
+    const observer = new ResizeObserver(update);
+    observer.observe(el);
+    // Viewport resizes (soft keyboard, rotation) re-center a dialog that
+    // doesn't fill its max height; the ResizeObserver alone won't fire.
+    window.addEventListener("resize", update);
+    window.visualViewport?.addEventListener("resize", update);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("resize", update);
+      window.visualViewport?.removeEventListener("resize", update);
+    };
+  }, [formIsOpen, formMinimized]);
+  const hintVisible = formIsOpen && !formMinimized && hintPosition !== null;
   const [agendaDate, setAgendaDate] = useState<string | null>(null);
   // Direction of the last in-modal day change, so the new agenda can slide in
   // from the swipe/chevron direction (1 = next day, -1 = previous day,
@@ -1984,7 +2028,7 @@ export function DashboardView({
       />
 
       <Modal.Root
-        opened={formState !== null && !formMinimized}
+        opened={formIsOpen && !formMinimized}
         onClose={minimizeForm}
         keepMounted
         centered
@@ -1993,7 +2037,7 @@ export function DashboardView({
         transitionProps={formTransitionProps}
       >
         <Modal.Overlay />
-        <Modal.Content>
+        <Modal.Content ref={formContentRef}>
           <Modal.Header>
             <Modal.Title>{formState?.event ? "Edit event" : "New event"}</Modal.Title>
             <Group gap="xs" ml="auto">
@@ -2021,39 +2065,56 @@ export function DashboardView({
           </Modal.Header>
           <Modal.Body>
             {formState && (
-              <>
-                <EventForm
-                  key={formState.event ? formState.event.id : `new-${formState.defaultDate}`}
-                  event={formState.event}
-                  defaultDate={formState.defaultDate}
-                  eventTypes={eventTypes}
-                  eventTitleTemplate={eventTitleTemplate}
-                  currentUser={currentUser}
-                  isAdmin={isAdmin}
-                  inviteeDepartments={inviteeDepartments}
-                  inviteeUsers={inviteeUsers}
-                  onDone={() => {
-                    closeForm();
-                    router.refresh();
-                  }}
-                />
-                <Group
-                  justify="center"
-                  gap={6}
-                  mt="sm"
-                  pt="sm"
-                  style={{ borderTop: `1px solid ${theme.colors.gray[4]}` }}
-                >
-                  <IconInfoCircle size={14} color={theme.colors.gray[6]} />
-                  <Text size="xs" c="dimmed">
-                    Tap outside to minimize — your draft is kept.
-                  </Text>
-                </Group>
-              </>
+              <EventForm
+                key={formState.event ? formState.event.id : `new-${formState.defaultDate}`}
+                event={formState.event}
+                defaultDate={formState.defaultDate}
+                eventTypes={eventTypes}
+                eventTitleTemplate={eventTitleTemplate}
+                currentUser={currentUser}
+                isAdmin={isAdmin}
+                inviteeDepartments={inviteeDepartments}
+                inviteeUsers={inviteeUsers}
+                onDone={() => {
+                  closeForm();
+                  router.refresh();
+                }}
+              />
             )}
           </Modal.Body>
         </Modal.Content>
       </Modal.Root>
+
+      {/* Floating caption under the dialog box. It lives outside the Paper
+          deliberately — the Paper clips anything inside it (overflow-y) —
+          and portals to <body> (like the restore bubble's Affix) so its
+          z-index competes at the root level: 260 puts it above the modal's
+          250 overlay and below the 300 bubble. Pinned to the measured Paper
+          bottom, cross-fading with the modal's own 250ms transitions.
+          pointer-events: none, so tapping the caption lands on the overlay
+          → minimizes, which is what it advertises. */}
+      <Portal>
+        <Text
+          size="xs"
+          aria-hidden={!hintVisible}
+          style={{
+            position: "fixed",
+            top: hintPosition ? hintPosition.bottom + 8 : -9999,
+            left: hintPosition?.left ?? -9999,
+            width: hintPosition?.width ?? 0,
+            textAlign: "center",
+            margin: 0,
+            zIndex: 260,
+            color: "rgba(255, 255, 255, 0.85)",
+            opacity: hintVisible ? 1 : 0,
+            transition: "opacity 250ms ease",
+            pointerEvents: "none",
+            userSelect: "none",
+          }}
+        >
+          Tap outside to minimize
+        </Text>
+      </Portal>
 
       {formState && formMinimized && (
         <FloatingToolbar zIndex={300} bottomOffset={fabBottomOffset}>

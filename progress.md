@@ -174,7 +174,7 @@ One line per phase; full write-ups (incl. Mermaid diagrams and verification note
 - 1.116 KAH constraints: KAH Groups tab (per-group required in-country %, badge-dialog members), General-tab breach notification emails, notify-only breach check on event create/update via the events cache with one combined Gmail (real `sendEmail` wired; Phase 3b2-adjacent)
 - 1.117 KAH email delivery: admin-editable subject/body templates with live preview (General tab), SMTP fallback via `SMTP_URL`/nodemailer for non-Workspace deployments, transport selection delegation → SMTP → audit-only
 - 1.118 Departments detail modal: row/card tap opens one modal (settings + calendar access + delete) replacing the Share/Edit/Delete buttons; calendar ID off the list; assigned users get an inline role selector (reader/writer/owner override, immediate + reconcile-safe)
-- 1.119 Event wizard modal: outside click / Escape minimize instead of discarding (draft keeps in the floating bubble); hint under the form
+- 1.119 Event wizard modal: outside click / Escape minimize instead of discarding (draft keeps in the floating bubble); "Tap outside to minimize" caption floats beneath the dialog
 
 ## 1.4 Open items & next steps
 
