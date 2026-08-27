@@ -2,6 +2,7 @@
 
 import { useMemo, useState, type KeyboardEvent } from "react";
 import {
+  Anchor,
   Badge,
   Button,
   Checkbox,
@@ -362,6 +363,10 @@ export function EventForm({
 
   function goBack() {
     setStep((index) => Math.max(index - 1, 0));
+  }
+
+  function goToSummary() {
+    setStep(steps.length - 1);
   }
 
   // Enter in a single-line input must never submit the form: the browser's
@@ -1094,6 +1099,20 @@ export function EventForm({
             </Button>
           )}
         </Group>
+
+        {!isLastStep && (
+          <Anchor
+            component="button"
+            type="button"
+            size="sm"
+            c="dimmed"
+            onClick={goToSummary}
+            ta="center"
+            style={{ display: "block" }}
+          >
+            Go to Summary
+          </Anchor>
+        )}
       </Stack>
     </form>
   );
