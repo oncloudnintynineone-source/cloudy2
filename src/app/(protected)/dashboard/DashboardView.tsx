@@ -483,7 +483,13 @@ export function DashboardView({
   // They're layout coordinates, so they stay stable during the modal's
   // transform-only open/close animation (getBoundingClientRect would return
   // the mid-scale box while the animation runs).
-  const formContentRef = useRef<HTMLDivElement>(null);
+  // Callback ref for Modal.Content — useState so the measurement effect
+  // re-runs when React calls the ref callback.  Mantine v9.5.1 wraps the
+  // modal body in <Activity mode="hidden"> when keepMounted (the default);
+  // during the Activity transition the DOM node is detached and the ref
+  // fires with null.  A plain useRef wouldn't trigger a re-measure when
+  // Activity switches to visible, so we track the element in state.
+  const [contentEl, setContentEl] = useState<HTMLDivElement | null>(null);
   const [hintPosition, setHintPosition] = useState<{
     bottom: number;
     left: number;
@@ -492,7 +498,7 @@ export function DashboardView({
   const formIsOpen = formState !== null;
 
   useEffect(() => {
-    const el = formContentRef.current;
+    const el = contentEl;
     if (!el) return;
     const update = () => {
       if (el.offsetParent === null) {
@@ -518,7 +524,7 @@ export function DashboardView({
       window.removeEventListener("resize", update);
       window.visualViewport?.removeEventListener("resize", update);
     };
-  }, [formIsOpen, formMinimized]);
+  }, [contentEl, formIsOpen, formMinimized]);
   const hintVisible = formIsOpen && !formMinimized && hintPosition !== null;
   const [agendaDate, setAgendaDate] = useState<string | null>(null);
   // Direction of the last in-modal day change, so the new agenda can slide in
@@ -2037,7 +2043,7 @@ export function DashboardView({
         transitionProps={formTransitionProps}
       >
         <Modal.Overlay />
-        <Modal.Content ref={formContentRef}>
+        <Modal.Content ref={setContentEl}>
           <Modal.Header>
             <Modal.Title>{formState?.event ? "Edit event" : "New event"}</Modal.Title>
             <Group gap="xs" ml="auto">
