@@ -236,6 +236,35 @@ export const kahGroupMembers = pgTable(
   ],
 );
 
+/**
+ * Dedup record for KAH breach notifications: one row per (group × window ×
+ * breach-pct) that has already been emailed. Prevents duplicate notifications
+ * when the same mutation is re-saved or an edit doesn't change the breach
+ * state. Rows cascade-delete when the parent group is removed.
+ */
+export const kahBreachNotifications = pgTable(
+  "kah_breach_notifications",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    groupId: uuid("group_id")
+      .notNull()
+      .references(() => kahGroups.id, { onDelete: "cascade" }),
+    windowStart: timestamp("window_start", { withTimezone: true }).notNull(),
+    windowEnd: timestamp("window_end", { withTimezone: true }).notNull(),
+    /** The floored in-country % at the time of notification (the breach state). */
+    breachPct: integer("breach_pct").notNull(),
+    ...timestamps,
+  },
+  (table) => [
+    uniqueIndex("kah_breach_notif_dedup_idx").on(
+      table.groupId,
+      table.windowStart,
+      table.windowEnd,
+      table.breachPct,
+    ),
+  ],
+);
+
 export const auditLogs = pgTable(
   "audit_logs",
   {
@@ -300,3 +329,5 @@ export type KahGroup = typeof kahGroups.$inferSelect;
 export type NewKahGroup = typeof kahGroups.$inferInsert;
 export type KahGroupMember = typeof kahGroupMembers.$inferSelect;
 export type NewKahGroupMember = typeof kahGroupMembers.$inferInsert;
+export type KahBreachNotification = typeof kahBreachNotifications.$inferSelect;
+export type NewKahBreachNotification = typeof kahBreachNotifications.$inferInsert;

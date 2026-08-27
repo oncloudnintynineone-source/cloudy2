@@ -43,6 +43,7 @@ still listed as members.
 ```mermaid
 erDiagram
     kah_groups ||--o{ kah_group_members : has
+    kah_groups ||--o{ kah_breach_notifications : "dedup records"
     users ||--o{ kah_group_members : "member of"
     settings {
         text kah_percentage "default % prefill for NEW groups"
@@ -57,9 +58,18 @@ erDiagram
         uuid group_id PK,FK
         uuid user_id PK,FK
     }
+    kah_breach_notifications {
+        uuid id PK
+        uuid group_id FK
+        timestamp window_start
+        timestamp window_end
+        int breach_pct "floored in-country % at notify time"
+    }
 ```
 
 - `kah_group_members` cascades on both FKs: deleting a group or user cleans membership.
+- `kah_breach_notifications` stores one row per notified (group × window × breach-pct)
+  combination; cascades on `group_id` so deleting a group cleans its dedup history.
 - The legacy global `settings.kah_percentage` column is repurposed as the **prefill
   default** for newly created groups (live thresholds live on each row).
 - Recipient addresses live once on `settings.kah_notification_emails`
@@ -97,8 +107,10 @@ sequenceDiagram
     N->>N: listKahGroupChecks (active members only)
     N->>N: busyKahsIn — getCachedMonthEventsForCalendars over all calendars × window months
     N->>N: computeKahBreaches (pure)
-    alt breaches exist
+    N->>N: dedup — filter breaches already in kah_breach_notifications
+    alt new breaches exist
         N->>N: logAction(kah.breachNotify) — flat human-readable details
+        N->>N: insert dedup rows (group × window × pct)
         N->>N: buildKahBreachEmail (one combined message)
         N->>M: integration.sendEmail(to=settings emails)
     end
@@ -112,7 +124,9 @@ Guarantees:
 - Everything inside the check is wrapped in try/catch and logged — a KAH failure can
   never fail the mutation (same philosophy as webhook delivery).
 - `deleteEvent` skips the check: deleting frees people and cannot cause a breach.
-- No dedup/cooldown: two saves that both breach send two emails.
+- **Dedup:** each (group × window × breach-pct) triggers at most one email. A
+  subsequent mutation that doesn't change the breach state is silent. A change in breach
+  percentage (worsening or recovery + re-breach) re-notifies.
 
 ## 1.5 Email delivery
 
@@ -168,7 +182,7 @@ the schema column defaults (guarded by a unit test).
 
 | File | Role |
 | --- | --- |
-| `src/db/schema.ts` | `kahGroups`, `kahGroupMembers`, repurposed `settings.kahPercentage` |
+| `src/db/schema.ts` | `kahGroups`, `kahGroupMembers`, `kahBreachNotifications`, repurposed `settings.kahPercentage` |
 | `src/lib/kah/check.ts` | Pure breach math (`computeKahBreaches`, `inCountryPercentage`) |
 | `src/lib/kah/validate.ts` | Pure form validation/normalization |
 | `src/lib/kah/email.ts` | Pure template renderer + combined breach-email builder |
@@ -180,7 +194,8 @@ the schema column defaults (guarded by a unit test).
 | `src/lib/email/smtp.ts` | Pure `SMTP_URL` parser + nodemailer sender |
 | `src/lib/events/actions.ts` | Hook call sites in `createEvent` / `updateEvent` |
 | `src/lib/google/{mime,config,real,stub}.ts` | MIME builder, scopes, real/stub `sendEmail` |
-| `drizzle/0022_*.sql` | Migration creating the two tables |
+| `drizzle/0022_*.sql` | Migration creating the two KAH tables |
+| `drizzle/0024_*.sql` | Migration adding `kah_breach_notifications` dedup table |
 
 ## 1.8 Deliberate limits & future work
 
@@ -190,4 +205,6 @@ the schema column defaults (guarded by a unit test).
 - Away-ness ignores event type (any tagged event counts) and location (`outOfCamp` is not
   consulted); if finer rules are needed later, filter the busy-set computation by event
   type or flag rather than changing the pure check.
-- No digest/cooldown for repeated breaches of the same group.
+- **Dedup** via `kah_breach_notifications`: each (group × window × breach-pct)
+  combination triggers at most one email. The table is append-only during normal
+  operation; rows cascade-delete when a group is removed.

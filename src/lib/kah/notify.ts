@@ -5,6 +5,11 @@
  * then hands the email + audit write to `after()` so the server action's
  * response is never delayed. Everything is best-effort: any failure is logged
  * and swallowed — a KAH problem never fails the mutation.
+ *
+ * Dedup: each (group × window × breach-pct) combination triggers at most one
+ * email. If a subsequent mutation produces the same breach state for the same
+ * window, the notification is suppressed. A change in breach percentage
+ * (worsening or recovery + re-breach) re-notifies.
  */
 
 import { after } from "next/server";
@@ -12,7 +17,14 @@ import { after } from "next/server";
 import { and, eq, inArray } from "drizzle-orm";
 
 import { db } from "@/db";
-import { calendars, kahGroupMembers, kahGroups, settings, users } from "@/db/schema";
+import {
+  calendars,
+  kahBreachNotifications,
+  kahGroupMembers,
+  kahGroups,
+  settings,
+  users,
+} from "@/db/schema";
 import { AUDIT_ACTIONS } from "@/lib/audit/build";
 import { logAction } from "@/lib/audit/log";
 import { formatInstantToNaive, monthsInRange } from "@/lib/events/datetime";
@@ -170,10 +182,36 @@ export function dispatchKahBreachCheck(input: KahBreachCheckInput): void {
       if (breaches.length === 0) {
         return;
       }
-      const awayNamesByGroup = await resolveAwayNames(breaches);
+
+      // Dedup: skip breaches already notified for this group × window × pct.
+      const groupIds = [...new Set(breaches.map((b) => b.groupId))];
+      const existingRows = await db
+        .select({
+          groupId: kahBreachNotifications.groupId,
+          breachPct: kahBreachNotifications.breachPct,
+        })
+        .from(kahBreachNotifications)
+        .where(
+          and(
+            eq(kahBreachNotifications.windowStart, input.windowStart),
+            eq(kahBreachNotifications.windowEnd, input.windowEnd),
+            inArray(kahBreachNotifications.groupId, groupIds),
+          ),
+        );
+      const notifiedKeys = new Set(
+        existingRows.map((r) => `${r.groupId}:${r.breachPct}`),
+      );
+      const newBreaches = breaches.filter(
+        (b) => !notifiedKeys.has(`${b.groupId}:${b.actualPct}`),
+      );
+      if (newBreaches.length === 0) {
+        return;
+      }
+
+      const awayNamesByGroup = await resolveAwayNames(newBreaches);
 
       // Collect all member IDs from breached groups and resolve their emails.
-      const breachedMemberIds = breaches.flatMap((breach) => {
+      const breachedMemberIds = newBreaches.flatMap((breach) => {
         const group = groups.find((g) => g.id === breach.groupId);
         return group?.memberIds ?? [];
       });
@@ -198,24 +236,34 @@ export function dispatchKahBreachCheck(input: KahBreachCheckInput): void {
         actorRole: input.actor.actorRole,
         action: AUDIT_ACTIONS.kahBreachNotify,
         entityType: "kah_group",
-        entityName: breaches.map((breach) => breach.groupName).join(", "),
+        entityName: newBreaches.map((breach) => breach.groupName).join(", "),
         method: "dispatchKahBreachCheck",
         details: {
           eventTitle: input.eventTitle.trim() || null,
           window,
-          breaches: breaches
+          breaches: newBreaches
             .map((breach) => `${breach.groupName}: ${breach.actualPct}% < ${breach.requiredPct}%`)
             .join("; "),
           notified: recipients.length > 0 ? recipients.join(", ") : null,
         },
       });
 
+      // Record dedup rows before sending so a concurrent check sees them.
+      await db.insert(kahBreachNotifications).values(
+        newBreaches.map((b) => ({
+          groupId: b.groupId,
+          windowStart: input.windowStart,
+          windowEnd: input.windowEnd,
+          breachPct: b.actualPct,
+        })),
+      );
+
       if (recipients.length === 0) {
         return;
       }
 
       const email = buildKahBreachEmail({
-        breaches: breaches.map<KahBreachEmailGroup>((breach) => ({
+        breaches: newBreaches.map<KahBreachEmailGroup>((breach) => ({
           groupName: breach.groupName,
           requiredPct: breach.requiredPct,
           actualPct: breach.actualPct,

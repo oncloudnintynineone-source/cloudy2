@@ -169,6 +169,13 @@
       "when": 1787747137641,
       "tag": "0023_whole_champions",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1787788678328,
+      "tag": "0024_giant_wild_pack",
+      "breakpoints": true
     }
   ]
 }
