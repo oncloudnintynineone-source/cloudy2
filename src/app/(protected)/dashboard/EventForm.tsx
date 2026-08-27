@@ -580,6 +580,7 @@ export function EventForm({
           onChange={(value) => form.setFieldValue("start", value ?? "")}
           valueFormat="YYYY-MM-DD HH:mm"
           error={form.errors.start}
+          popoverProps={{ trapFocus: false }}
         />
       ) : (
         <>
@@ -614,6 +615,7 @@ export function EventForm({
           onChange={(value) => form.setFieldValue("end", value ?? "")}
           valueFormat="YYYY-MM-DD HH:mm"
           error={form.errors.end}
+          popoverProps={{ trapFocus: false }}
         />
       ) : (
         <>
