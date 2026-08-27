@@ -3,7 +3,8 @@
  * one or more options on an event type, restricting how the event form may
  * express the event's datetime:
  *
- * - `range` ("Start & End") — always timed: two datetime pickers.
+ * - `range` ("Start & End") — always timed: two date pickers plus two
+ *   keyboard-free 24h time pickers (tap-to-select dropdown, 15-min step).
  * - `full` ("Full Day") — plain all-day: two date pickers, no half-day
  *   markers.
  * - `half` ("Half Day") — date pickers plus an AM/PM selector each side; the
@@ -67,6 +68,38 @@ export function resolveTimeOptions(raw: TimeOption[]): TimeOption[] {
 export function resolveTimeOption(allowed: TimeOption[], selected: TimeOption | "" | null): TimeOption {
   const options = resolveTimeOptions(allowed);
   return selected && options.includes(selected) ? selected : options[0];
+}
+
+/**
+ * The date part (`YYYY-MM-DD`) of a naive `YYYY-MM-DD HH:mm:ss` string.
+ * Empty/blank input yields "".
+ */
+export function naiveDatePart(naive: string): string {
+  return naive ? naive.slice(0, 10) : "";
+}
+
+/**
+ * The time part (`HH:mm`) of a naive `YYYY-MM-DD HH:mm:ss` string, or "" when
+ * no time is recorded (day-based values carry `00:00:00` — callers that need
+ * to treat midnight as "no time" must check the time option, not this part).
+ */
+export function naiveTimePart(naive: string): string {
+  const timePart = naive.split(" ")[1];
+  if (!timePart) {
+    return "";
+  }
+  const [hours, minutes] = timePart.split(":");
+  return hours !== undefined && minutes !== undefined ? `${hours}:${minutes}` : "";
+}
+
+/**
+ * Join a `YYYY-MM-DD` date and an `HH:mm` time into the naive
+ * `YYYY-MM-DD HH:mm:ss` form. A blank time yields a bare date string (the
+ * "time not yet chosen" state of a Start & End event); a blank date yields
+ * "" (a time without a date is dropped rather than corrupting the value).
+ */
+export function joinDateTimeParts(date: string, time: string): string {
+  return date && time ? `${date} ${time}:00` : date;
 }
 
 export type AmPm = "AM" | "PM" | "";

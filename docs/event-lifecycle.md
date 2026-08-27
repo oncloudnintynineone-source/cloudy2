@@ -146,14 +146,19 @@ Mechanics worth knowing:
   (no searchable select — the list is short). Selecting a type re-resolves the time
   option against the type's allowed set and re-clamps Out of Camp + location against the
   type's location policy (`handleEventTypeChange`, `EventForm.tsx:339-360`).
-- **Timestamp** (`EventForm.tsx:610-630`): when the type allows more than one option the
-  step shows a `Tabs` control ("Start & End" / "Full Day" / "Half Day"); otherwise the
-  single option's fields render directly. `range` = two `DateTimePicker`s (naive
-  `YYYY-MM-DD HH:mm:ss` strings); `full` = two `DatePickerInput`s (plain dates, no
-  half-day markers); `half` = two `DatePickerInput`s plus an AM/PM `SegmentedControl`
-  per side. `switchTimeOption` (`EventForm.tsx:320-337`) zeroes the time part to
-  `00:00:00` when entering any day-based option and defaults the indicators to AM→PM on
-  `half`, so a mixed span renders with no title suffix.
+- **Timestamp** (`EventForm.tsx:575-660, 753-773`): when the type allows more than one
+  option the step shows a `Tabs` control ("Start & End" / "Full Day" / "Half Day");
+  otherwise the single option's fields render directly. `range` = a `DatePickerInput`
+  plus a `TimePicker` per side — date pickers carry no time, and the time is set
+  keyboard-free: a 24h `TimePicker` with `withDropdown` (tap-to-select hour/minute
+  lists) and `minutesStep={15}`; the two halves join into the naive
+  `YYYY-MM-DD HH:mm:ss` string via `joinDateTimeParts`, a cleared time stores a bare
+  date, which `validateEventForm` rejects ("Start time is required" / "End time is
+  required"). `full` = two `DatePickerInput`s (plain dates, no half-day markers);
+  `half` = two `DatePickerInput`s plus an AM/PM `SegmentedControl` per side.
+  `switchTimeOption` (`EventForm.tsx:365`) zeroes the time part to `00:00:00` when
+  entering any day-based option and defaults the indicators to AM→PM on `half`, so a
+  mixed span renders with no title suffix.
 - **Location** (`EventForm.tsx:632-656`): the "Out of Camp" checkbox is disabled unless
   the type's policy is `both`; unchecking it clears the location; the location input is
   disabled when in-camp or the policy is `in`. The effective flag/location is always the
@@ -474,7 +479,7 @@ Per event type, `time_options` enables one or more of:
 
 | Option | Label | Form fields | Notes |
 | ------ | ----- | ----------- | ----- |
-| `range` | Start & End | two datetime pickers | always timed |
+| `range` | Start & End | two date pickers + two 24h time pickers (tap-select dropdown, 15-min step) | always timed |
 | `full` | Full Day | two date pickers | plain all-day dates — no half-day markers |
 | `half` | Half Day | two date pickers + AM/PM per side | optional (AM)/(PM) marker in the title |
 
@@ -483,14 +488,18 @@ still carry `"full"` + markers in their notes and display them as-is. Editing su
 event re-clamps to the type's current allowed set; saving under `full` drops the
 markers, switching to `half` (prefilled from the stored notes) keeps them.
 
-- `normalizeTimeOptions` (`timeOptions.ts:34`) dedupes and drops unknown values (e.g. a
+- `normalizeTimeOptions` (`timeOptions.ts:40`) dedupes and drops unknown values (e.g. a
   legacy `"ampm"`).
-- `resolveTimeOptions` (`:53`): empty/unrecorded types fall back to `["range"]`.
-- `resolveTimeOption(allowed, selected)` (`:62`): unknown/empty selection → first
+- `resolveTimeOptions` (`:59`): empty/unrecorded types fall back to `["range"]`.
+- `resolveTimeOption(allowed, selected)` (`:68`): unknown/empty selection → first
   allowed; a selection the type no longer allows → first allowed. The server applies it
   in `resolveEventTime` (`actions.ts:216`), which also defaults `half`-event indicators
   to AM→PM when unset and blanks them for every other option.
-- `amPmSuffix(startAmPm, endAmPm)` (`:74`): the shared marker, or `""`.
+- `naiveDatePart` / `naiveTimePart` / `joinDateTimeParts` (`:77` / `:86` / `:100`):
+  split/join the Start & End form's one-string-per-side storage into the date picker's
+  `YYYY-MM-DD` half and the time picker's `HH:mm` half (a blank time stores a bare date
+  — the "time not yet chosen" state).
+- `amPmSuffix(startAmPm, endAmPm)` (`:111`): the shared marker, or `""`.
 
 ### 1.10.2 Datetime conventions (`src/lib/events/datetime.ts`)
 
@@ -528,10 +537,10 @@ writes, headers) is thin and lives in `actions.ts` / `queries.ts`.
 | `formatEventTitle` (every token/style, unknown pass-through) | `settings/formatEventTitle.ts` | `formatEventTitle.test.ts` |
 | `formatFullName` | `settings/formatName.ts` | `formatName.test.ts` |
 | `clampOutOfCamp` (all policies), `normalizeLocationPolicy` | `events/locationPolicy.ts` | `locationPolicy.test.ts` |
-| `resolveTimeOption(s)`, `normalizeTimeOptions`, `amPmSuffix` | `events/timeOptions.ts` | `timeOptions.test.ts` |
+| `resolveTimeOption(s)`, `normalizeTimeOptions`, `naiveDatePart` / `naiveTimePart` / `joinDateTimeParts`, `amPmSuffix` | `events/timeOptions.ts` | `timeOptions.test.ts` |
 | `absEventRange` (timed + all-day exclusive end), naive↔instant, `weekDays`, `monthsInRange`, `shiftMonth`, `monthRange`, `monthGridRows` | `events/datetime.ts` | `datetime.test.ts` |
 | `creatorGuard`, `ownershipGuard` | `events/guards.ts` | `guards.test.ts` |
-| `validateEventForm` (incl. full-day chronology), `withSelfCreator` / `withCreatorInvited` | `events/validate.ts` | `validate.test.ts` |
+| `validateEventForm` (range time-part requirement, chronology), `withSelfCreator` / `withCreatorInvited` | `events/validate.ts` | `validate.test.ts` |
 | `deriveTargetCalendarIds`, `diffEventTargets`, `dedupeEventsByGroupId`, `eventRefFromCalendarEvent` | `events/targets.ts` | `targets.test.ts` |
 
 I/O-bound (not unit-tested, per the repo convention): `actions.ts` (the server

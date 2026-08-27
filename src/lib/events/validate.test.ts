@@ -48,6 +48,43 @@ describe("validateEventForm", () => {
     ).toBe("End must be on or after start");
   });
 
+  it("requires a time part on both sides for Start & End events", () => {
+    // A cleared time picker stores a bare date (no HH:mm part).
+    expect(validateEventForm({ ...base, start: "2026-08-15" }).start).toBe(
+      "Start time is required",
+    );
+    expect(validateEventForm({ ...base, end: "2026-08-15" }).end).toBe(
+      "End time is required",
+    );
+    expect(
+      validateEventForm({ ...base, start: "2026-08-15", end: "2026-08-15" }),
+    ).toEqual({
+      start: "Start time is required",
+      end: "End time is required",
+    });
+  });
+
+  it("does not require a time part for day-based options", () => {
+    expect(
+      validateEventForm({
+        ...base,
+        timeOption: "full",
+        start: "2026-08-15",
+        end: "2026-08-15",
+      }),
+    ).toEqual({});
+    expect(
+      validateEventForm({
+        ...base,
+        timeOption: "half",
+        startAmPm: "AM",
+        endAmPm: "PM",
+        start: "2026-08-15",
+        end: "2026-08-15",
+      }),
+    ).toEqual({});
+  });
+
   it("accepts a valid full-day event without indicators", () => {
     expect(
       validateEventForm({

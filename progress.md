@@ -160,6 +160,7 @@ One line per phase; full write-ups (incl. Mermaid diagrams and verification note
 - 1.103 Quick links: admin-managed link menu launched from an amber `IconLink` Calendar FAB (mobile) / labelled "Quick links" nav-row chip (lg), page-scale menu items + kebab-style pop (Phase 3ay)
 - 1.104 Fullscreen calendar view: date-nav toggle hides header/nav/sidebar + Fullscreen API, FABs drop to safe-area offset (Phase 3az)
 - 1.105 Event invitee picker: non-admins can invite any user and tag any department (Phase 3b0)
+- 1.106 Start & End rework: date pickers + 24h TimePicker tap-select dropdowns (15-min step), times set without a keyboard
 - 1.106 UserSelectModal: badge picker dialog (search + department grouping) replaces the user multi-selects in the event wizard and FilterModal (Phase 3b1)
 - 1.107 UserSelectModal: fixed-height picker dialog — search/footer pinned, only badge sections scroll (bugfix)
 - 1.108 UserSelectModal: badge taps keep the search-box focus / soft keyboard open (bugfix)

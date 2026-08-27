@@ -3,6 +3,9 @@ import { describe, expect, it } from "vitest";
 import {
   amPmSuffix,
   isTimeOption,
+  joinDateTimeParts,
+  naiveDatePart,
+  naiveTimePart,
   normalizeTimeOptions,
   resolveTimeOption,
   resolveTimeOptions,
@@ -80,6 +83,45 @@ describe("resolveTimeOption", () => {
     expect(resolveTimeOption([], "full")).toBe("range");
     expect(resolveTimeOption([], "half")).toBe("range");
     expect(resolveTimeOption([], "")).toBe("range");
+  });
+});
+
+describe("naiveDatePart / naiveTimePart / joinDateTimeParts", () => {
+  it("splits a naive datetime into date and HH:mm time parts", () => {
+    expect(naiveDatePart("2026-08-15 09:00:00")).toBe("2026-08-15");
+    expect(naiveTimePart("2026-08-15 09:00:00")).toBe("09:00");
+  });
+
+  it("splits a bare date into a date and an empty time", () => {
+    expect(naiveDatePart("2026-08-15")).toBe("2026-08-15");
+    expect(naiveTimePart("2026-08-15")).toBe("");
+  });
+
+  it("leaves empty input untouched", () => {
+    expect(naiveDatePart("")).toBe("");
+    expect(naiveTimePart("")).toBe("");
+  });
+
+  it("drops the seconds part but keeps hours and minutes zero-padded", () => {
+    expect(naiveTimePart("2026-08-15 00:05:59")).toBe("00:05");
+  });
+
+  it("joins a date and a time into the naive form with zero seconds", () => {
+    expect(joinDateTimeParts("2026-08-15", "09:00")).toBe("2026-08-15 09:00:00");
+  });
+
+  it("joins a date with a blank time as a bare date string", () => {
+    expect(joinDateTimeParts("2026-08-15", "")).toBe("2026-08-15");
+  });
+
+  it("drops the time when the date is blank (never a time-only value)", () => {
+    expect(joinDateTimeParts("", "09:00")).toBe("");
+    expect(joinDateTimeParts("", "")).toBe("");
+  });
+
+  it("round-trips a naive datetime through the parts", () => {
+    const naive = "2026-08-15 23:45:00";
+    expect(joinDateTimeParts(naiveDatePart(naive), naiveTimePart(naive))).toBe(naive);
   });
 });
 

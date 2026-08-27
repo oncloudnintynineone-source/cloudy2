@@ -8,7 +8,7 @@
  * indicator into the sort key (`YYYY-MM-DD AM` < `YYYY-MM-DD PM`).
  */
 
-import type { AmPm, TimeOption } from "./timeOptions";
+import { naiveTimePart, type AmPm, type TimeOption } from "./timeOptions";
 
 export interface EventFormValues {
   title: string;
@@ -89,11 +89,21 @@ export function validateEventForm(values: EventFormValues): EventFormErrors {
   }
   if (!values.start) {
     errors.start = "Start is required";
+  } else if (values.timeOption === "range" && !naiveTimePart(values.start)) {
+    // Start & End is always timed; a cleared time picker stores a bare date.
+    errors.start = "Start time is required";
   }
   if (!values.end) {
     errors.end = "End is required";
+  } else if (values.timeOption === "range" && !naiveTimePart(values.end)) {
+    errors.end = "End time is required";
   }
-  if (values.start && values.end && sortKey(values, false) > sortKey(values, true)) {
+  // The ordering check needs a complete value on both sides; an unfinished
+  // range side (missing time part) already reports its own error.
+  const startComplete =
+    !!values.start && (values.timeOption !== "range" || !!naiveTimePart(values.start));
+  const endComplete = !!values.end && (values.timeOption !== "range" || !!naiveTimePart(values.end));
+  if (startComplete && endComplete && sortKey(values, false) > sortKey(values, true)) {
     errors.end = "End must be on or after start";
   }
 

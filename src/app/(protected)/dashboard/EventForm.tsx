@@ -16,7 +16,7 @@ import {
   TextInput,
   useMantineTheme,
 } from "@mantine/core";
-import { DatePickerInput, DateTimePicker } from "@mantine/dates";
+import { DatePickerInput, TimePicker } from "@mantine/dates";
 import { useMediaQuery } from "@mantine/hooks";
 import { useForm } from "@mantine/form";
 import { notifications } from "@mantine/notifications";
@@ -35,6 +35,9 @@ import { clampOutOfCamp, type LocationPolicy } from "@/lib/events/locationPolicy
 import { eventRefFromCalendarEvent } from "@/lib/events/targets";
 import {
   amPmSuffix,
+  joinDateTimeParts,
+  naiveDatePart,
+  naiveTimePart,
   resolveTimeOption,
   TIME_OPTION_LABELS,
   type AmPm,
@@ -331,10 +334,10 @@ export function EventForm({
   // commit the event mid-typing. Only the explicit Create/Save button
   // submits. Implicit submission only applies to single-line inputs and
   // selects, not textareas — so the Remarks Textarea keeps its natural
-  // newline behavior. This also covers the admin "On behalf of" select and
-  // the invitee input. Component key handlers (e.g. the datetime pickers)
-  // run before this bubbling handler, so only the native default — the
-  // submit — is cancelled.
+   // newline behavior. This also covers the admin "On behalf of" select and
+   // the invitee input. Component key handlers (e.g. the date/time pickers)
+   // run before this bubbling handler, so only the native default — the
+   // submit — is cancelled.
   function handleFormKeyDown(event: KeyboardEvent<HTMLFormElement>) {
     if (event.key !== "Enter") {
       return;
@@ -572,16 +575,43 @@ export function EventForm({
   const timeFields = (option: TimeOption) => {
     // Only Half Day carries half-of-day markers; Full Day is a plain range.
     const showAmPm = option === "half";
+    // Start & End stores date and time in one naive string per side, so the
+    // validator error lands on the widget at fault: a missing date under the
+    // date input, a missing time or an out-of-order end under the time input.
+    const dateError = (field: "start" | "end") =>
+      form.values[field] ? undefined : form.errors[field];
+    const timeError = (field: "start" | "end") =>
+      form.values[field] ? form.errors[field] : undefined;
     const startField =
       option === "range" ? (
-        <DateTimePicker
-          label="Start time"
-          value={naiveToDate(form.values.start)}
-          onChange={(value) => form.setFieldValue("start", value ?? "")}
-          valueFormat="YYYY-MM-DD HH:mm"
-          error={form.errors.start}
-          popoverProps={{ trapFocus: false }}
-        />
+        <Stack gap="xs">
+          <DatePickerInput
+            label="Start date"
+            value={naiveDatePart(form.values.start) || null}
+            onChange={(value) =>
+              form.setFieldValue(
+                "start",
+                joinDateTimeParts(value ?? "", naiveTimePart(form.values.start)),
+              )
+            }
+            error={dateError("start")}
+            popoverProps={{ trapFocus: false }}
+          />
+          <TimePicker
+            label="Start time"
+            value={naiveTimePart(form.values.start)}
+            onChange={(time) =>
+              form.setFieldValue(
+                "start",
+                joinDateTimeParts(naiveDatePart(form.values.start), time),
+              )
+            }
+            withDropdown
+            minutesStep={15}
+            error={timeError("start")}
+            popoverProps={{ trapFocus: false }}
+          />
+        </Stack>
       ) : (
         <>
           <DatePickerInput
@@ -609,14 +639,34 @@ export function EventForm({
       );
     const endField =
       option === "range" ? (
-        <DateTimePicker
-          label="End time"
-          value={naiveToDate(form.values.end)}
-          onChange={(value) => form.setFieldValue("end", value ?? "")}
-          valueFormat="YYYY-MM-DD HH:mm"
-          error={form.errors.end}
-          popoverProps={{ trapFocus: false }}
-        />
+        <Stack gap="xs">
+          <DatePickerInput
+            label="End date"
+            value={naiveDatePart(form.values.end) || null}
+            onChange={(value) =>
+              form.setFieldValue(
+                "end",
+                joinDateTimeParts(value ?? "", naiveTimePart(form.values.end)),
+              )
+            }
+            error={dateError("end")}
+            popoverProps={{ trapFocus: false }}
+          />
+          <TimePicker
+            label="End time"
+            value={naiveTimePart(form.values.end)}
+            onChange={(time) =>
+              form.setFieldValue(
+                "end",
+                joinDateTimeParts(naiveDatePart(form.values.end), time),
+              )
+            }
+            withDropdown
+            minutesStep={15}
+            error={timeError("end")}
+            popoverProps={{ trapFocus: false }}
+          />
+        </Stack>
       ) : (
         <>
           <DatePickerInput
