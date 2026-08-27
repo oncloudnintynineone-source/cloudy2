@@ -87,9 +87,9 @@ export function WeekMatrixView({
 }: WeekMatrixViewProps) {
   const theme = useMantineTheme();
   const isDesktop = useMediaQuery(`(min-width: ${theme.breakpoints.lg})`);
-  // Desktop drag-to-pan + edge pan chevrons (same story as the Day/Week
-  // schedule views — see useGridPan).
-  const gridPan = useGridPan(isDesktop);
+  // Drag-to-pan + edge pan buttons (same story as the Day/Week schedule
+  // views — see useGridPan). Always enabled, not desktop-gated.
+  const gridPan = useGridPan();
   const rootRef = useRef<HTMLDivElement | null>(null);
   const labelWidth = isDesktop ? DESKTOP_LABEL_WIDTH : MOBILE_LABEL_WIDTH;
   const groupWidth = isDesktop ? DESKTOP_GROUP_WIDTH : MOBILE_GROUP_WIDTH;

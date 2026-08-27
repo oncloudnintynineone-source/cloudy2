@@ -4,21 +4,21 @@ import { type MouseEvent, useCallback, useMemo, useRef, useState } from "react";
 import { useScroller } from "@mantine/hooks";
 
 /**
- * Desktop mouse drag-to-pan for the dashboard's horizontally scrolling grids
+ * Mouse/touch drag-to-pan for the dashboard's horizontally scrolling grids
  * (Day/Week schedule views and Week v2). Those scroll areas are wider than
  * the viewport, but Mantine hides the native scrollbars and its own 4px bar
  * sits at the bottom of a table that is usually taller than the screen (the
- * page scrolls vertically, not the area) — so without this, a wheel mouse has
- * no discoverable way to pan horizontally.
+ * page scrolls vertically, not the area) — so without drag/buttons there is
+ * no discoverable way to pan horizontally on any breakpoint.
  *
  * Uses @mantine/hooks' `useScroller` for the drag mechanics only (a >5px drag
  * suppresses the trailing click, so event/slot clicks survive). The edge
  * state is tracked here instead, on element **attach**: the grid remounts
  * after every view switch / skeleton, so a mount-time one-shot listener (what
- * useScroller does) would miss the container and keep stale edges.
- * `enabled` should be the desktop breakpoint — touch devices keep their
- * native pan and get no mouse handlers at all. Trackpad horizontal swipes and
- * Shift+wheel keep working natively alongside this.
+ * useScroller does) would miss the container and keep stale edges. Always
+ * enabled — buttons and drag are available on both desktop and mobile
+ * whenever overflow exists; native touch pan and Shift+wheel keep working
+ * alongside this.
  */
 export interface GridPan {
   /** Attach to the scrolling element (Mantine ScrollArea `viewportRef`). */
@@ -40,8 +40,8 @@ export interface GridPan {
   panTo: (edge: "start" | "end") => void;
 }
 
-export function useGridPan(enabled: boolean): GridPan {
-  const scroller = useScroller({ draggable: enabled });
+export function useGridPan(): GridPan {
+  const scroller = useScroller({ draggable: true });
   const elementRef = useRef<HTMLDivElement | null>(null);
   const [canScrollLeft, setCanScrollLeft] = useState(false);
   const [canScrollRight, setCanScrollRight] = useState(false);
@@ -100,15 +100,13 @@ export function useGridPan(enabled: boolean): GridPan {
 
   const { onMouseDown, onMouseMove, onMouseUp, onMouseLeave } = scroller.dragHandlers;
   // The cursor is driven from React (not useScroller's inline writes) so a
-  // re-render mid-drag can never blank the grabbing cursor: grab only where
-  // and when panning is possible, grabbing while the drag is live.
-  const cursor = enabled
-    ? scroller.isDragging
-      ? "grabbing"
-      : canScrollLeft || canScrollRight
-        ? "grab"
-        : undefined
-    : undefined;
+  // re-render mid-drag can never blank the grabbing cursor: grabbing while
+  // the drag is live, grab wherever panning is possible.
+  const cursor = scroller.isDragging
+    ? "grabbing"
+    : canScrollLeft || canScrollRight
+      ? "grab"
+      : undefined;
   const viewportProps = useMemo(
     () => ({
       onMouseDown,
@@ -123,8 +121,8 @@ export function useGridPan(enabled: boolean): GridPan {
   return {
     viewportRef,
     viewportProps,
-    canScrollLeft: enabled && canScrollLeft,
-    canScrollRight: enabled && canScrollRight,
+    canScrollLeft,
+    canScrollRight,
     panTo,
   };
 }

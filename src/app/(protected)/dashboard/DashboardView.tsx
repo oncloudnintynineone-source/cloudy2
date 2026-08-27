@@ -686,10 +686,11 @@ export function DashboardView({
       dayRulerRef.current.style.transform = `translateX(${-pos.x}px)`;
     }
   }, []);
-  // Desktop drag-to-pan + edge pan buttons for the schedule grids (see
-  // useGridPan): on a wheel mouse the only horizontal pan available today is
-  // the grid's hidden scrollbar at the bottom of a full-height table.
-  const schedulePan = useGridPan(isDesktop);
+  // Drag-to-pan + edge pan buttons for the schedule grids (see useGridPan):
+  // Mantine hides the native scrollbar and its 4px bar sits at the bottom of
+  // a full-height table, so without this there is no discoverable horizontal
+  // affordance. Always enabled — overflow exists on both desktop and mobile.
+  const schedulePan = useGridPan();
   const weekGridViewportRef = useMergedRef(weekViewportRef, schedulePan.viewportRef);
   const dayGridViewportRef = useMergedRef(dayViewportRef, schedulePan.viewportRef);
   // Stable identity: the schedule views must not receive fresh

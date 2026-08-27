@@ -98,22 +98,23 @@ before changing the subsystem.
   fits this shape. Cell binning is pure `buildWeekLanes`/`coveredDays`
   (`src/lib/events/weekMatrix.ts`); data comes from the same `fetchRangeEvents`
   2-month read as Week, so cache/filters/force-refresh are inherited unchanged.
-- **Wide-grid horizontal pan (desktop):** the Day/Week/Week v2 grids are wider than
-  the viewport at `lg`, but Mantine hides the native scrollbars and its own 4px bar
-  sits at the bottom of a table that is usually taller than the screen (the page
-  scrolls vertically, not the area) — a wheel mouse otherwise has no discoverable
-  horizontal pan. `useGridPan` (`src/lib/ui/gridPan.ts`, wraps Mantine's
+- **Wide-grid horizontal pan:** the Day/Week/Week v2 grids are wider than the
+  viewport, but Mantine hides the native scrollbars and its own 4px bar sits at
+  the bottom of a table that is usually taller than the screen (the page scrolls
+  vertically, not the area) — otherwise there is no discoverable horizontal pan
+  on any breakpoint. `useGridPan` (`src/lib/ui/gridPan.ts`, wraps Mantine's
   `useScroller`: drag-to-pan with click suppression after a >5px drag) +
   `GridPanControls` (`src/components/GridPanControls.tsx`, fixed mid-height
-  filled-primary arrow buttons — deliberately heavier than the grey date-nav
-  chevrons so they read as "the grid continues off-screen", one-viewport-width
-  `panTo`) remedy this for all three, `lg`-gated so
-  touch keeps its native pan. Day/Week wire it through the schedule views'
-  `scrollAreaProps` (`viewportProps` + a `viewportRef` merged with the
-  ruler-sync ref — keep `scrollAreaProps` identity stable across scroll frames);
-  Week v2 through its own `ScrollArea`. Edge state is tracked on element
-  **attach**, not mount (the grids remount per view switch, so a one-shot mount
-  listener would keep stale edges).
+  circular grey filled-triangle buttons — intentionally subdued secondary
+  chrome (lighter than the date-nav chevrons), one-viewport-width `panTo`)
+  remedy this for all three at every breakpoint (drag and buttons are always
+  enabled whenever the viewport overflows; native touch pan is preserved
+  alongside). Day/Week wire it through the schedule views' `scrollAreaProps`
+  (`viewportProps` + a `viewportRef` merged with the ruler-sync ref — keep
+  `scrollAreaProps` identity stable across scroll frames); Week v2 through its
+  own `ScrollArea`. Edge state is tracked on element **attach**, not mount (the
+  grids remount per view switch, so a one-shot mount listener would keep stale
+  edges).
 - **Fullscreen calendar (immersive mode):** a 36px toggle in the dashboard
   date-nav row (`IconArrowsMaximize`/`IconArrowsMinimize`, `aria-pressed`,
   tooltip "Fullscreen"/"Exit fullscreen") hides the shell header, bottom nav

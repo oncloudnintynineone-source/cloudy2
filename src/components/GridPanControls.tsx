@@ -2,7 +2,7 @@
 
 import { type CSSProperties, type RefObject, useEffect, useState } from "react";
 import { ActionIcon } from "@mantine/core";
-import { IconArrowsLeft, IconArrowsRight } from "@tabler/icons-react";
+import { IconTriangleFilled } from "@tabler/icons-react";
 
 /**
  * Floating pan buttons for the dashboard's wide grids (Day/Week schedule
@@ -11,10 +11,11 @@ import { IconArrowsLeft, IconArrowsRight } from "@tabler/icons-react";
  * anchor box) rather than the window's — the desktop sidebar sits left of the
  * grid, so a window-left button would overlap it. The anchor rect is
  * re-measured on resize (sidebar collapse, immersive mode and window resizes
- * all change it). Desktop-only: below lg there is no mouse pan to advertise.
- * Filled primary + full arrows on purpose: the grey outline chevrons of the
- * date-nav row read as "navigate days", while these must read at a glance as
- * "the grid continues off-screen".
+ * all change it). Always visible whenever the grid overflows, at any
+ * breakpoint — drag-to-pan and the buttons are the discoverable horizontal
+ * affordance on both desktop and mobile. Subdued circular grey with filled
+ * triangles: intentionally lighter than the date-nav chevrons and the prior
+ * brand-filled arrows so the control reads as secondary chrome.
  */
 export function GridPanControls({
   anchorRef,
@@ -70,29 +71,49 @@ export function GridPanControls({
       {canScrollLeft && (
         <ActionIcon
           style={{ ...baseStyle, left: offsets.left }}
-          visibleFrom="lg"
-          size={44}
+          size={40}
+          radius="50%"
           variant="filled"
-          color="primary"
-          styles={{ root: { boxShadow: "var(--mantine-shadow-md)" } }}
+          color="gray"
+          styles={{
+            root: {
+              backgroundColor: "color-mix(in srgb, var(--mantine-color-gray-filled) 50%, transparent)",
+              "&:where([data-disabled])": {
+                backgroundColor: "color-mix(in srgb, var(--mantine-color-gray-filled) 50%, transparent)",
+              },
+              "&:where(:hover)": {
+                backgroundColor: "color-mix(in srgb, var(--mantine-color-gray-filled) 60%, transparent)",
+              },
+            },
+          }}
           aria-label="Scroll grid left"
           onClick={() => onPan("start")}
         >
-          <IconArrowsLeft size={22} />
+          <IconTriangleFilled size={14} style={{ transform: "rotate(-90deg)" }} />
         </ActionIcon>
       )}
       {canScrollRight && (
         <ActionIcon
           style={{ ...baseStyle, right: offsets.right }}
-          visibleFrom="lg"
-          size={44}
+          size={40}
+          radius="50%"
           variant="filled"
-          color="primary"
-          styles={{ root: { boxShadow: "var(--mantine-shadow-md)" } }}
+          color="gray"
+          styles={{
+            root: {
+              backgroundColor: "color-mix(in srgb, var(--mantine-color-gray-filled) 50%, transparent)",
+              "&:where([data-disabled])": {
+                backgroundColor: "color-mix(in srgb, var(--mantine-color-gray-filled) 50%, transparent)",
+              },
+              "&:where(:hover)": {
+                backgroundColor: "color-mix(in srgb, var(--mantine-color-gray-filled) 60%, transparent)",
+              },
+            },
+          }}
           aria-label="Scroll grid right"
           onClick={() => onPan("end")}
         >
-          <IconArrowsRight size={22} />
+          <IconTriangleFilled size={14} style={{ transform: "rotate(90deg)" }} />
         </ActionIcon>
       )}
     </>
