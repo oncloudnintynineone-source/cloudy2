@@ -668,33 +668,49 @@ export function DashboardView({
   const dayRulerRef = useRef<HTMLDivElement | null>(null);
   const weekViewportRef = useRef<HTMLDivElement | null>(null);
   const dayViewportRef = useRef<HTMLDivElement | null>(null);
-  const handleWeekScroll = useCallback((pos: { x: number }) => {
-    const index = Math.min(6, Math.max(0, Math.floor(pos.x / weekDayWidthRef.current)));
-    setWeekDayIndex((prev) => (prev === index ? prev : index));
-    if (weekRulerRef.current) {
-      weekRulerRef.current.style.transform = `translateX(${-pos.x}px)`;
-    }
-  }, []);
-  const handleDayScroll = useCallback((pos: { x: number }) => {
-    if (dayRulerRef.current) {
-      dayRulerRef.current.style.transform = `translateX(${-pos.x}px)`;
-    }
-  }, []);
+  // Whether the horizontally-scrollable schedule grid has more content hidden
+  // to the right of the viewport. Drives the fade-edge gradient overlay.
+  const [weekHasMoreRight, setWeekHasMoreRight] = useState(false);
+  const [dayHasMoreRight, setDayHasMoreRight] = useState(false);
+  const computeOverflow = (vp: HTMLDivElement | null, scrollX: number) =>
+    vp ? scrollX + vp.clientWidth < vp.scrollWidth - 4 : false;
+  const handleWeekScroll = useCallback(
+    (pos: { x: number }) => {
+      const index = Math.min(6, Math.max(0, Math.floor(pos.x / weekDayWidthRef.current)));
+      setWeekDayIndex((prev) => (prev === index ? prev : index));
+      if (weekRulerRef.current) {
+        weekRulerRef.current.style.transform = `translateX(${-pos.x}px)`;
+      }
+      setWeekHasMoreRight(computeOverflow(weekViewportRef.current, pos.x));
+    },
+    [],
+  );
+  const handleDayScroll = useCallback(
+    (pos: { x: number }) => {
+      if (dayRulerRef.current) {
+        dayRulerRef.current.style.transform = `translateX(${-pos.x}px)`;
+      }
+      setDayHasMoreRight(computeOverflow(dayViewportRef.current, pos.x));
+    },
+    [],
+  );
   // Stable identity: the schedule views must not receive fresh
   // `scrollAreaProps` objects on every scroll frame.
   const weekScrollAreaProps = useMemo(
     () => ({
       viewportRef: weekViewportRef,
       onScrollPositionChange: handleWeekScroll,
+      ...(isDesktop ? { type: "always" as const, scrollbars: "x" as const } : {}),
     }),
-    [handleWeekScroll],
+    [handleWeekScroll, isDesktop],
   );
   const dayScrollAreaProps = useMemo(
     () => ({
       viewportRef: dayViewportRef,
       onScrollPositionChange: handleDayScroll,
+      ...(isDesktop ? { type: "always" as const, scrollbars: "x" as const } : {}),
     }),
-    [handleDayScroll],
+    [handleDayScroll, isDesktop],
   );
 
   const [isRefreshing, startRefresh] = useTransition();
@@ -708,6 +724,20 @@ export function DashboardView({
   // they never set the pending flag and never replay the fade.
   const gridLoading = useMinSkeletonHold(isPending || isRefreshing);
   useContentEnter(weekBoxRef, !gridLoading);
+
+  // Seed the overflow state after the schedule views mount and their
+  // start-scroll effects position the viewport (the scroll handler won't
+  // fire for the initial position until the user interacts).
+  useLayoutEffect(() => {
+    const vp = view === "week" ? weekViewportRef.current : dayViewportRef.current;
+    if (!vp) return;
+    const hasMore = vp.scrollLeft + vp.clientWidth < vp.scrollWidth - 4;
+    if (view === "week") {
+      setWeekHasMoreRight(hasMore);
+    } else if (view === "schedule") {
+      setDayHasMoreRight(hasMore);
+    }
+  }, [view, gridLoading]);
 
   // Remembered UI state: persist the server-resolved view/filters to the
   // per-device cookie every time the rendered state changes, so a relaunch
@@ -1915,6 +1945,27 @@ export function DashboardView({
             }}
             renderResourceLabel={renderResourceLabel}
             renderGroupLabel={renderGroupLabel}
+          />
+        )}
+        {/* Desktop-only right-edge fade: a gradient that signals more content
+            is available to the right of the schedule grid. Hidden when the
+            viewport is scrolled to (or near) the right edge. */}
+        {isDesktop && (view === "week" || view === "schedule") && (
+          <Box
+            aria-hidden
+            style={{
+              position: "sticky",
+              bottom: 0,
+              right: 0,
+              width: 24,
+              alignSelf: "stretch",
+              pointerEvents: "none",
+              background: "linear-gradient(to right, transparent, var(--mantine-color-body))",
+              opacity: (view === "week" ? weekHasMoreRight : dayHasMoreRight) ? 1 : 0,
+              transition: "opacity 150ms ease",
+              zIndex: 5,
+              marginLeft: -24,
+            }}
           />
         )}
       </Box>
