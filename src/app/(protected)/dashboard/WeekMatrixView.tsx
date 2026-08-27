@@ -16,10 +16,12 @@ import { useCallback, type MouseEvent, type ReactNode, useMemo, useRef } from "r
 import { Box, Paper, ScrollArea, Text, UnstyledButton, useMantineTheme } from "@mantine/core";
 import { useMediaQuery } from "@mantine/hooks";
 
+import { GridPanControls } from "@/components/GridPanControls";
 import { buildWeekLanes } from "@/lib/events/weekMatrix";
 import type { WeekSpan } from "@/lib/events/weekMatrix";
 import type { CalendarEvent } from "@/lib/events/queries";
 import type { ScheduleResource, ScheduleResourceGroup } from "@/lib/events/schedule";
+import { useGridPan } from "@/lib/ui/gridPan";
 
 export interface WeekMatrixViewProps {
   /** The seven days of the displayed week, Monday-first (`YYYY-MM-DD`). */
@@ -85,6 +87,10 @@ export function WeekMatrixView({
 }: WeekMatrixViewProps) {
   const theme = useMantineTheme();
   const isDesktop = useMediaQuery(`(min-width: ${theme.breakpoints.lg})`);
+  // Desktop drag-to-pan + edge pan chevrons (same story as the Day/Week
+  // schedule views — see useGridPan).
+  const gridPan = useGridPan(isDesktop);
+  const rootRef = useRef<HTMLDivElement | null>(null);
   const labelWidth = isDesktop ? DESKTOP_LABEL_WIDTH : MOBILE_LABEL_WIDTH;
   const groupWidth = isDesktop ? DESKTOP_GROUP_WIDTH : MOBILE_GROUP_WIDTH;
   const hasGroups = groups !== undefined;
@@ -137,159 +143,173 @@ export function WeekMatrixView({
   }, [resources, groups]);
 
   return (
-    <Paper withBorder radius="md" p={0}>
-      {/* Pinned day header: sticks to the viewport below the tabs+date-nav
+    <>
+      <Paper ref={rootRef} withBorder radius="md" p={0}>
+        {/* Pinned day header: sticks to the viewport below the tabs+date-nav
           chrome while the (full-height) table scrolls with the page. The
           corner spacers stay put; only the day columns translate
           (-scrollLeft) to track the table's horizontal scroll, clipped to the
           table's width. */}
-      <Box
-        component="div"
-        style={{
-          position: "sticky",
-          top: headerTop,
-          zIndex: 10,
-          overflow: "hidden",
-          background: "var(--mantine-color-body)",
-          borderBottom: CELL_BORDER,
-        }}
-      >
-        <Box component="div" style={{ display: "flex", minWidth: 0 }}>
-          {hasGroups && (
+        <Box
+          component="div"
+          style={{
+            position: "sticky",
+            top: headerTop,
+            zIndex: 10,
+            overflow: "hidden",
+            background: "var(--mantine-color-body)",
+            borderBottom: CELL_BORDER,
+          }}
+        >
+          <Box component="div" style={{ display: "flex", minWidth: 0 }}>
+            {hasGroups && (
+              <Box
+                component="div"
+                aria-hidden
+                style={{ flexShrink: 0, width: groupWidth, borderRight: CELL_BORDER }}
+              />
+            )}
             <Box
               component="div"
               aria-hidden
-              style={{ flexShrink: 0, width: groupWidth, borderRight: CELL_BORDER }}
+              style={{ flexShrink: 0, width: labelWidth, borderRight: CELL_BORDER }}
             />
-          )}
-          <Box
-            component="div"
-            aria-hidden
-            style={{ flexShrink: 0, width: labelWidth, borderRight: CELL_BORDER }}
-          />
-          <Box component="div" style={{ flex: 1, minWidth: 0, overflow: "hidden" }}>
-            <Box
-              ref={headerInnerRef}
-              component="div"
-              role="row"
-              style={{
-                display: "grid",
-                gridTemplateColumns: DAY_TEMPLATE,
-                width: "100%",
-                minWidth: DAY_MIN_WIDTH,
-                willChange: "transform",
-              }}
-            >
-              {days.map((day) => {
-                const dayObj = dayjs(day);
-                const isToday = day === today;
-                const isWeekend = dayObj.day() === 0 || dayObj.day() === 6;
-                const labelColor = isToday
-                  ? "var(--mantine-primary-color-contrast)"
-                  : isWeekend
-                    ? "var(--mantine-color-red-6)"
-                    : undefined;
-                return (
-                  <Box
-                    component="div"
-                    key={day}
-                    style={{
-                      display: "flex",
-                      flexDirection: "column",
-                      alignItems: "center",
-                      padding: "4px 2px",
-                      userSelect: "none",
-                      background: isToday ? "var(--mantine-primary-color-filled)" : "transparent",
-                      color: labelColor,
-                    }}
-                  >
-                    <Text
-                      size="sm"
-                      fw={isToday ? "bold" : "medium"}
-                      style={{ lineHeight: 1.1, textTransform: "capitalize" }}
+            <Box component="div" style={{ flex: 1, minWidth: 0, overflow: "hidden" }}>
+              <Box
+                ref={headerInnerRef}
+                component="div"
+                role="row"
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: DAY_TEMPLATE,
+                  width: "100%",
+                  minWidth: DAY_MIN_WIDTH,
+                  willChange: "transform",
+                }}
+              >
+                {days.map((day) => {
+                  const dayObj = dayjs(day);
+                  const isToday = day === today;
+                  const isWeekend = dayObj.day() === 0 || dayObj.day() === 6;
+                  const labelColor = isToday
+                    ? "var(--mantine-primary-color-contrast)"
+                    : isWeekend
+                      ? "var(--mantine-color-red-6)"
+                      : undefined;
+                  return (
+                    <Box
+                      component="div"
+                      key={day}
+                      style={{
+                        display: "flex",
+                        flexDirection: "column",
+                        alignItems: "center",
+                        padding: "4px 2px",
+                        userSelect: "none",
+                        background: isToday ? "var(--mantine-primary-color-filled)" : "transparent",
+                        color: labelColor,
+                      }}
                     >
-                      {dayObj.format("ddd")}
-                    </Text>
-                    <Text size="xs" style={{ lineHeight: 1.1 }}>
-                      {dayObj.format("D")}
-                    </Text>
-                  </Box>
-                );
-              })}
+                      <Text
+                        size="sm"
+                        fw={isToday ? "bold" : "medium"}
+                        style={{ lineHeight: 1.1, textTransform: "capitalize" }}
+                      >
+                        {dayObj.format("ddd")}
+                      </Text>
+                      <Text size="xs" style={{ lineHeight: 1.1 }}>
+                        {dayObj.format("D")}
+                      </Text>
+                    </Box>
+                  );
+                })}
+              </Box>
             </Box>
           </Box>
         </Box>
-      </Box>
 
-      {/* Full-height table: no vertical clamp, so the page scrolls; only the
-          horizontal scroll stays internal (min-width day columns). */}
-      <ScrollArea
-        type="auto"
-        styles={{ content: { minWidth: contentMinWidth } }}
-        onScrollPositionChange={handleScroll}
-      >
-        <Box component="div" style={{ display: "flex", flexDirection: "column", minWidth: 0 }}>
-          {blocks.map((block, blockIndex) => (
-            <Box
-              component="div"
-              key={block.key}
-              role="rowgroup"
-              style={{
-                display: "flex",
-                borderTop: blockIndex > 0 ? CELL_BORDER : undefined,
-              }}
-            >
-              {block.label !== null ? (
-                <Box
-                  component="div"
-                  role="rowheader"
-                  style={{
-                    position: "sticky",
-                    left: 0,
-                    flexShrink: 0,
-                    width: groupWidth,
-                    zIndex: 6,
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    borderRight: CELL_BORDER,
-                    background: "var(--mantine-color-body)",
-                  }}
-                >
-                  <Text
-                    size="xs"
-                    c="dimmed"
-                    style={{ writingMode: "vertical-rl", userSelect: "none" }}
+        {/* Full-height table: no vertical clamp, so the page scrolls; only the
+          horizontal scroll stays internal (min-width day columns). The
+          viewport gets the desktop pan handlers + ref (see useGridPan above). */}
+        <ScrollArea
+          type="auto"
+          styles={{ content: { minWidth: contentMinWidth } }}
+          viewportRef={gridPan.viewportRef}
+          viewportProps={gridPan.viewportProps}
+          onScrollPositionChange={handleScroll}
+        >
+          <Box component="div" style={{ display: "flex", flexDirection: "column", minWidth: 0 }}>
+            {blocks.map((block, blockIndex) => (
+              <Box
+                component="div"
+                key={block.key}
+                role="rowgroup"
+                style={{
+                  display: "flex",
+                  borderTop: blockIndex > 0 ? CELL_BORDER : undefined,
+                }}
+              >
+                {block.label !== null ? (
+                  <Box
+                    component="div"
+                    role="rowheader"
+                    style={{
+                      position: "sticky",
+                      left: 0,
+                      flexShrink: 0,
+                      width: groupWidth,
+                      zIndex: 6,
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      borderRight: CELL_BORDER,
+                      background: "var(--mantine-color-body)",
+                    }}
                   >
-                    {block.label}
-                  </Text>
+                    <Text
+                      size="xs"
+                      c="dimmed"
+                      style={{ writingMode: "vertical-rl", userSelect: "none" }}
+                    >
+                      {block.label}
+                    </Text>
+                  </Box>
+                ) : hasGroups ? (
+                  <Box component="div" aria-hidden style={{ flexShrink: 0, width: groupWidth }} />
+                ) : null}
+                <Box component="div" style={{ flex: 1, minWidth: 0 }}>
+                  {block.rows.map((resource, rowIndex) => (
+                    <MatrixRow
+                      key={resource.id}
+                      resource={resource}
+                      spans={laneMap.get(resource.id) ?? []}
+                      days={days}
+                      today={today}
+                      todayTint={todayTint}
+                      lastRow={rowIndex === block.rows.length - 1}
+                      renderResourceLabel={renderResourceLabel}
+                      onEventClick={onEventClick}
+                      onCellClick={onCellClick}
+                      labelLeft={labelLeft}
+                      labelWidth={labelWidth}
+                    />
+                  ))}
                 </Box>
-              ) : hasGroups ? (
-                <Box component="div" aria-hidden style={{ flexShrink: 0, width: groupWidth }} />
-              ) : null}
-              <Box component="div" style={{ flex: 1, minWidth: 0 }}>
-                {block.rows.map((resource, rowIndex) => (
-                  <MatrixRow
-                    key={resource.id}
-                    resource={resource}
-                    spans={laneMap.get(resource.id) ?? []}
-                    days={days}
-                    today={today}
-                    todayTint={todayTint}
-                    lastRow={rowIndex === block.rows.length - 1}
-                    renderResourceLabel={renderResourceLabel}
-                    onEventClick={onEventClick}
-                    onCellClick={onCellClick}
-                    labelLeft={labelLeft}
-                    labelWidth={labelWidth}
-                  />
-                ))}
               </Box>
-            </Box>
-          ))}
-        </Box>
-      </ScrollArea>
-    </Paper>
+            ))}
+          </Box>
+        </ScrollArea>
+      </Paper>
+
+      {/* Edge pan buttons — only appear at the width where the day columns
+          actually overflow (they stretch to fit on wide desktops). */}
+      <GridPanControls
+        anchorRef={rootRef}
+        canScrollLeft={gridPan.canScrollLeft}
+        canScrollRight={gridPan.canScrollRight}
+        onPan={gridPan.panTo}
+      />
+    </>
   );
 }
 

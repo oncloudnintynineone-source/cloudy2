@@ -33,7 +33,7 @@ import {
   UnstyledButton,
   useMantineTheme,
 } from "@mantine/core";
-import { useDisclosure, useDrag, useMediaQuery } from "@mantine/hooks";
+import { useDisclosure, useDrag, useMediaQuery, useMergedRef } from "@mantine/hooks";
 import {
   AgendaView,
   MonthView,
@@ -79,6 +79,7 @@ import {
 import { formatWeekLabel } from "./clientDateTime";
 import { DateSelectorModal } from "@/components/DateSelectorModal";
 import { FilterModal, type FilterGroup } from "@/components/FilterModal";
+import { GridPanControls } from "@/components/GridPanControls";
 import {
   FAB_ICON_SIZE,
   FAB_SIZE,
@@ -106,6 +107,7 @@ import {
   type ScheduleResource,
   type ScheduleUser,
 } from "@/lib/events/schedule";
+import { useGridPan } from "@/lib/ui/gridPan";
 import { useImmersiveMode } from "@/lib/ui/immersiveMode";
 import { DASHBOARD_STATE_KEYS, freshMarkerNeeded, orderDashboardViews } from "@/lib/ui/uiState";
 import { usePersistUiState } from "@/lib/ui/uiStateClient";
@@ -472,7 +474,11 @@ export function DashboardView({
   const [formOriginRect, setFormOriginRect] = useState<Rect | null>(null);
   const [formState, setFormState] = useState<FormState | null>(() =>
     initialEditEvent
-      ? { event: initialEditEvent, templateEvent: null, defaultDate: initialEditEvent.start.slice(0, 10) }
+      ? {
+          event: initialEditEvent,
+          templateEvent: null,
+          defaultDate: initialEditEvent.start.slice(0, 10),
+        }
       : null,
   );
   // Facebook-bubble minimize: the form modal collapses into a floating circle
@@ -668,49 +674,42 @@ export function DashboardView({
   const dayRulerRef = useRef<HTMLDivElement | null>(null);
   const weekViewportRef = useRef<HTMLDivElement | null>(null);
   const dayViewportRef = useRef<HTMLDivElement | null>(null);
-  // Whether the horizontally-scrollable schedule grid has more content hidden
-  // to the right of the viewport. Drives the fade-edge gradient overlay.
-  const [weekHasMoreRight, setWeekHasMoreRight] = useState(false);
-  const [dayHasMoreRight, setDayHasMoreRight] = useState(false);
-  const computeOverflow = (vp: HTMLDivElement | null, scrollX: number) =>
-    vp ? scrollX + vp.clientWidth < vp.scrollWidth - 4 : false;
-  const handleWeekScroll = useCallback(
-    (pos: { x: number }) => {
-      const index = Math.min(6, Math.max(0, Math.floor(pos.x / weekDayWidthRef.current)));
-      setWeekDayIndex((prev) => (prev === index ? prev : index));
-      if (weekRulerRef.current) {
-        weekRulerRef.current.style.transform = `translateX(${-pos.x}px)`;
-      }
-      setWeekHasMoreRight(computeOverflow(weekViewportRef.current, pos.x));
-    },
-    [],
-  );
-  const handleDayScroll = useCallback(
-    (pos: { x: number }) => {
-      if (dayRulerRef.current) {
-        dayRulerRef.current.style.transform = `translateX(${-pos.x}px)`;
-      }
-      setDayHasMoreRight(computeOverflow(dayViewportRef.current, pos.x));
-    },
-    [],
-  );
+  const handleWeekScroll = useCallback((pos: { x: number }) => {
+    const index = Math.min(6, Math.max(0, Math.floor(pos.x / weekDayWidthRef.current)));
+    setWeekDayIndex((prev) => (prev === index ? prev : index));
+    if (weekRulerRef.current) {
+      weekRulerRef.current.style.transform = `translateX(${-pos.x}px)`;
+    }
+  }, []);
+  const handleDayScroll = useCallback((pos: { x: number }) => {
+    if (dayRulerRef.current) {
+      dayRulerRef.current.style.transform = `translateX(${-pos.x}px)`;
+    }
+  }, []);
+  // Desktop drag-to-pan + edge pan buttons for the schedule grids (see
+  // useGridPan): on a wheel mouse the only horizontal pan available today is
+  // the grid's hidden scrollbar at the bottom of a full-height table.
+  const schedulePan = useGridPan(isDesktop);
+  const weekGridViewportRef = useMergedRef(weekViewportRef, schedulePan.viewportRef);
+  const dayGridViewportRef = useMergedRef(dayViewportRef, schedulePan.viewportRef);
   // Stable identity: the schedule views must not receive fresh
-  // `scrollAreaProps` objects on every scroll frame.
+  // `scrollAreaProps` objects on every scroll frame (schedulePan.viewportProps
+  // is memoized and only changes at a drag/scroll-edge boundary).
   const weekScrollAreaProps = useMemo(
     () => ({
-      viewportRef: weekViewportRef,
+      viewportRef: weekGridViewportRef,
       onScrollPositionChange: handleWeekScroll,
-      ...(isDesktop ? { type: "always" as const, scrollbars: "x" as const } : {}),
+      viewportProps: schedulePan.viewportProps,
     }),
-    [handleWeekScroll, isDesktop],
+    [handleWeekScroll, weekGridViewportRef, schedulePan.viewportProps],
   );
   const dayScrollAreaProps = useMemo(
     () => ({
-      viewportRef: dayViewportRef,
+      viewportRef: dayGridViewportRef,
       onScrollPositionChange: handleDayScroll,
-      ...(isDesktop ? { type: "always" as const, scrollbars: "x" as const } : {}),
+      viewportProps: schedulePan.viewportProps,
     }),
-    [handleDayScroll, isDesktop],
+    [handleDayScroll, dayGridViewportRef, schedulePan.viewportProps],
   );
 
   const [isRefreshing, startRefresh] = useTransition();
@@ -724,20 +723,6 @@ export function DashboardView({
   // they never set the pending flag and never replay the fade.
   const gridLoading = useMinSkeletonHold(isPending || isRefreshing);
   useContentEnter(weekBoxRef, !gridLoading);
-
-  // Seed the overflow state after the schedule views mount and their
-  // start-scroll effects position the viewport (the scroll handler won't
-  // fire for the initial position until the user interacts).
-  useLayoutEffect(() => {
-    const vp = view === "week" ? weekViewportRef.current : dayViewportRef.current;
-    if (!vp) return;
-    const hasMore = vp.scrollLeft + vp.clientWidth < vp.scrollWidth - 4;
-    if (view === "week") {
-      setWeekHasMoreRight(hasMore);
-    } else if (view === "schedule") {
-      setDayHasMoreRight(hasMore);
-    }
-  }, [view, gridLoading]);
 
   // Remembered UI state: persist the server-resolved view/filters to the
   // per-device cookie every time the rendered state changes, so a relaunch
@@ -1343,7 +1328,11 @@ export function DashboardView({
     // fab-page-pad replaces pb="xl" (inline would beat the class): it reserves
     // clearance for the mobile Create/Quick-links FABs below the last grid
     // row and restores plain xl at lg (globals.css).
-    <Stack className="fab-page-pad" gap="sm" style={{ marginTop: "calc(-1 * var(--app-shell-padding))" }}>
+    <Stack
+      className="fab-page-pad"
+      gap="sm"
+      style={{ marginTop: "calc(-1 * var(--app-shell-padding))" }}
+    >
       {/* The sticky chrome block: view tabs + date-nav row pinned as one unit
           at every breakpoint. The wrapper is a direct child of the Stack, so
           its containing block spans the whole page and sticky can hold it at
@@ -1606,26 +1595,25 @@ export function DashboardView({
 
       {currentUserName.trim().length <= 2 && (
         <Alert color="yellow" title="Your display name is incomplete">
-          Your current display name &ldquo;{currentUserName}&rdquo; is too short — you&apos;ll
-          be difficult to identify in the calendar, schedule view, and event titles.
+          Your current display name &ldquo;{currentUserName}&rdquo; is too short — you&apos;ll be
+          difficult to identify in the calendar, schedule view, and event titles.
           <Text component="p" mt="xs" size="sm">
             <b>If you are an admin:</b> Go to{" "}
             <Text component="span" fw={700}>
               Settings → Users
             </Text>{" "}
-            → find this user → edit and set a full display name (e.g. &ldquo;Lim Kah
-            Hwee&rdquo;).
+            → find this user → edit and set a full display name (e.g. &ldquo;Lim Kah Hwee&rdquo;).
           </Text>
           <Text component="p" mt="xs" size="sm">
             <b>If you are not an admin:</b> Ask an admin to update your name via{" "}
             <Text component="span" fw={700}>
               Settings → Users
-            </Text>.
+            </Text>
+            .
           </Text>
           <Text component="p" mt="xs" size="sm" c="dimmed">
-            Without a proper name, your events will show the short name to everyone,
-            you&apos;ll be hard to pick in invitee lists, and KAH group emails may
-            reference you by initials only.
+            Without a proper name, your events will show the short name to everyone, you&apos;ll be
+            hard to pick in invitee lists, and KAH group emails may reference you by initials only.
           </Text>
         </Alert>
       )}
@@ -1947,28 +1935,21 @@ export function DashboardView({
             renderGroupLabel={renderGroupLabel}
           />
         )}
-        {/* Desktop-only right-edge fade: a gradient that signals more content
-            is available to the right of the schedule grid. Hidden when the
-            viewport is scrolled to (or near) the right edge. */}
-        {isDesktop && (view === "week" || view === "schedule") && (
-          <Box
-            aria-hidden
-            style={{
-              position: "sticky",
-              bottom: 0,
-              right: 0,
-              width: 24,
-              alignSelf: "stretch",
-              pointerEvents: "none",
-              background: "linear-gradient(to right, transparent, var(--mantine-color-body))",
-              opacity: (view === "week" ? weekHasMoreRight : dayHasMoreRight) ? 1 : 0,
-              transition: "opacity 150ms ease",
-              zIndex: 5,
-              marginLeft: -24,
-            }}
+      </Box>
+
+      {/* Edge pan buttons for the Day/Week grids (Week v2 renders its own
+          inside WeekMatrixView). Gated on the real grid, so a stale
+          scroll state from a previous view can't linger over the skeleton. */}
+      {!gridLoading &&
+        scheduleResources.resources.length > 0 &&
+        (isSchedule || (view === "week" && week !== null)) && (
+          <GridPanControls
+            anchorRef={weekBoxRef}
+            canScrollLeft={schedulePan.canScrollLeft}
+            canScrollRight={schedulePan.canScrollRight}
+            onPan={schedulePan.panTo}
           />
         )}
-      </Box>
 
       <Modal
         opened={agendaDate !== null}
