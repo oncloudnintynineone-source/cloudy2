@@ -794,7 +794,7 @@ export function DashboardView({
         variant: "search",
         action: filterUsers.some((user) => user.id === currentUser)
           ? {
-              label: "My Events",
+              label: "Myself",
               icon: <IconUser size={14} />,
               isApplied: (selected) => selected.length === 1 && selected[0] === currentUser,
               apply: (setValues, { selected }) => {
@@ -1536,7 +1536,7 @@ export function DashboardView({
               <Menu.Label>Filters</Menu.Label>
               {onlyMeAvailable && (
                 <Menu.CheckboxItem checked={onlyMeActive} onChange={toggleOnlyMe} closeMenuOnClick>
-                  My Events
+                  Myself
                 </Menu.CheckboxItem>
               )}
               <Menu.Item

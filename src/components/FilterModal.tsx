@@ -1,9 +1,9 @@
 "use client";
 
 import { useMemo, useState, type ReactNode } from "react";
-import { Badge, Button, Chip, Group, Modal, Stack, Text, useMantineTheme } from "@mantine/core";
+import { ActionIcon, Badge, Button, Chip, Group, Modal, Stack, Text, Tooltip, useMantineTheme } from "@mantine/core";
 import { useMediaQuery } from "@mantine/hooks";
-import { IconPlus } from "@tabler/icons-react";
+import { IconPlus, IconSquareCheck, IconSquareX } from "@tabler/icons-react";
 
 import { UserSelectModal } from "@/components/UserSelectModal";
 import {
@@ -222,24 +222,30 @@ function FilterModalBody({
               {group.label}
             </Text>
             <Group gap={4} align="center">
-              <Button
-                size="xs"
-                variant="subtle"
-                color="gray"
-                onClick={() => handleSelectAll(group)}
-                disabled={draft[group.label]?.length === allOptionValues(group).length}
-              >
-                Select All
-              </Button>
-              <Button
-                size="xs"
-                variant="subtle"
-                color="gray"
-                onClick={() => handleDeselectAll(group)}
-                disabled={(draft[group.label] ?? []).length === 0}
-              >
-                Deselect All
-              </Button>
+              <Tooltip label="Select All">
+                <ActionIcon
+                  variant="subtle"
+                  color="gray"
+                  size="sm"
+                  onClick={() => handleSelectAll(group)}
+                  disabled={draft[group.label]?.length === allOptionValues(group).length}
+                  aria-label="Select All"
+                >
+                  <IconSquareCheck size={16} />
+                </ActionIcon>
+              </Tooltip>
+              <Tooltip label="Deselect All">
+                <ActionIcon
+                  variant="subtle"
+                  color="gray"
+                  size="sm"
+                  onClick={() => handleDeselectAll(group)}
+                  disabled={(draft[group.label] ?? []).length === 0}
+                  aria-label="Deselect All"
+                >
+                  <IconSquareX size={16} />
+                </ActionIcon>
+              </Tooltip>
               {group.action && (
                 <Button
                   size="xs"
@@ -310,7 +316,7 @@ function FilterModalBody({
         values={pickerContent?.values ?? {}}
         onConfirm={(values) => {
           if (pickerContent) {
-            handleGroupChange(pickerContent.label, values[pickerContent.label] ?? []);
+            handleGroupChange(pickerContent.label, Object.values(values).flat());
           }
           setPickerOpened(false);
         }}
