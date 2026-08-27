@@ -16,6 +16,12 @@ export interface CalendarAccessRule {
 export interface DepartmentAccess {
   /** Emails of users assigned to the department (auto-shared as readers). */
   assigned: string[];
+  /**
+   * Each assigned email's current Google ACL role (keyed by the exact
+   * assigned email), so the UI can show — and the admin can override — an
+   * elevated role the user holds. Empty when Google is unavailable.
+   */
+  assignedRoles: Record<string, string>;
   /** Extra ACL rules granted beyond assigned users. */
   additional: CalendarAccessRule[];
   /** The admin Google account granted owner access (non-removable). */
@@ -39,14 +45,9 @@ export function isDepartmentAccessRole(value: unknown): value is DepartmentAcces
  * Emails that should be granted reader access but do not yet have an ACL rule.
  * Matching is case-insensitive; blank emails are ignored.
  */
-export function diffAccess(
-  existing: CalendarAccessRule[],
-  expected: string[],
-): string[] {
+export function diffAccess(existing: CalendarAccessRule[], expected: string[]): string[] {
   const present = new Set(existing.map((rule) => rule.email.toLowerCase()));
-  return expected.filter(
-    (email) => email.trim() && !present.has(email.toLowerCase()),
-  );
+  return expected.filter((email) => email.trim() && !present.has(email.toLowerCase()));
 }
 
 /**
@@ -56,9 +57,7 @@ export function diffAccess(
  */
 export function diffRevocable(candidates: string[], assigned: string[]): string[] {
   const present = new Set(assigned.map((email) => email.toLowerCase()));
-  return candidates.filter(
-    (email) => email.trim() && !present.has(email.toLowerCase()),
-  );
+  return candidates.filter((email) => email.trim() && !present.has(email.toLowerCase()));
 }
 
 /**
@@ -66,16 +65,11 @@ export function diffRevocable(candidates: string[], assigned: string[]): string[
  * its role is not `owner` (so a manual `reader` grant gets upgraded). Blank
  * emails never need a grant.
  */
-export function needsAdminOwnerGrant(
-  acls: CalendarAccessRule[],
-  adminEmail: string,
-): boolean {
+export function needsAdminOwnerGrant(acls: CalendarAccessRule[], adminEmail: string): boolean {
   if (!adminEmail.trim()) {
     return false;
   }
-  const rule = acls.find(
-    (candidate) => candidate.email.toLowerCase() === adminEmail.toLowerCase(),
-  );
+  const rule = acls.find((candidate) => candidate.email.toLowerCase() === adminEmail.toLowerCase());
   return !rule || rule.role !== "owner";
 }
 
@@ -101,9 +95,7 @@ export function isInherentOwnerEmail(
  * Resolve a registry row (department id as used by the UI) to the Google
  * Calendar id it links to. Returns null when the department is missing.
  */
-export async function resolveGoogleCalendarId(
-  calendarId: string,
-): Promise<string | null> {
+export async function resolveGoogleCalendarId(calendarId: string): Promise<string | null> {
   const [calendar] = await db
     .select({ googleCalendarId: calendars.googleCalendarId })
     .from(calendars)
@@ -117,15 +109,14 @@ export async function resolveGoogleCalendarId(
  * email are granted reader access (if missing); manual grants are preserved.
  * Google Calendar is the source of truth for ACLs — nothing is stored in the DB.
  */
-export async function listDepartmentAccess(
-  calendarId: string,
-): Promise<DepartmentAccess> {
+export async function listDepartmentAccess(calendarId: string): Promise<DepartmentAccess> {
   const googleCalendarId = await resolveGoogleCalendarId(calendarId);
   const adminEmail = getAdminGoogleEmail();
 
   if (!googleCalendarId) {
     return {
       assigned: [],
+      assignedRoles: {},
       additional: [],
       admin: adminEmail || null,
       syncWarning: "Department not found",
@@ -148,6 +139,7 @@ export async function listDepartmentAccess(
   if (!googleCalendarConfigured()) {
     return {
       assigned,
+      assignedRoles: {},
       additional: [],
       admin: adminEmail || null,
       syncWarning: "Google Calendar is not configured — sharing is unavailable",
@@ -191,6 +183,16 @@ export async function listDepartmentAccess(
     const additional = acls.filter(
       (rule) => !assignedSet.has(rule.email.toLowerCase()) && !isInherentOwner(rule),
     );
+    // Assigned users' live ACL roles: the auto-grant above only fills in
+    // missing rules, so an admin-upgraded role (writer/owner) survives here
+    // and the UI can offer it as the user's current access level.
+    const assignedRoles: Record<string, string> = {};
+    for (const email of assigned) {
+      const rule = acls.find((candidate) => candidate.email.toLowerCase() === email.toLowerCase());
+      if (rule) {
+        assignedRoles[email] = rule.role;
+      }
+    }
 
     const warnings: string[] = [];
     if (adminEmail && !aclChanged && needsAdminOwnerGrant(acls, adminEmail)) {
@@ -202,6 +204,7 @@ export async function listDepartmentAccess(
 
     const result: DepartmentAccess = {
       assigned,
+      assignedRoles,
       additional,
       admin: adminEmail || null,
     };
@@ -209,10 +212,10 @@ export async function listDepartmentAccess(
   } catch (error) {
     return {
       assigned,
+      assignedRoles: {},
       additional: [],
       admin: adminEmail || null,
-      syncWarning:
-        error instanceof Error ? error.message : "Could not sync calendar access",
+      syncWarning: error instanceof Error ? error.message : "Could not sync calendar access",
     };
   }
 }
@@ -242,9 +245,7 @@ export interface UserAccessChange {
  * warnings for operations that failed; Google unconfigured short-circuits to
  * no warnings (there is nothing to reconcile).
  */
-export async function reconcileUserAccessChange(
-  change: UserAccessChange,
-): Promise<string[]> {
+export async function reconcileUserAccessChange(change: UserAccessChange): Promise<string[]> {
   const warnings: string[] = [];
   if (!googleCalendarConfigured()) {
     return warnings;
@@ -279,7 +280,7 @@ export async function reconcileUserAccessChange(
     // The email the user gave up in this department: the previous email when
     // this is the department they are leaving (email change or department move).
     const givenUp =
-      departmentId === change.oldDepartmentId ? change.oldEmail?.trim() ?? null : null;
+      departmentId === change.oldDepartmentId ? (change.oldEmail?.trim() ?? null) : null;
 
     try {
       const integration = await getGoogleIntegration();

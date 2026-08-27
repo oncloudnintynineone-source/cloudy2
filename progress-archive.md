@@ -5384,3 +5384,64 @@ cells visible with events on them; an Aug 30 – Sep 2 all-day event renders as
 one bar spanning the dimmed cells (and again in the September view over the
 dimmed Aug 31); a dimmed-day click opens the agenda listing that day's
 events; detail/edit flows keep the full span; force-refresh works.
+
+## 1.118 Departments settings: unified detail modal + assigned-user role overrides
+
+ Rework of the admin Departments settings UX on top of the roster-sharing
+ model. The list no longer shows the Google calendar ID or the per-row
+ Share/Edit/Delete buttons; tapping a row (desktop) or card (mobile) opens one
+ unified detail modal that replaces the three old modals, and the sharing
+ section grows an inline role selector per assigned user so the admin can
+ upgrade the assignment-auto-granted reader to writer/owner (or back down).
+ The reconcile semantics needed no change — `diffAccess` only fills rules
+ that are *missing*, so an upgraded assigned-user rule survives every
+ reconcile-on-read/write; it is revoked like any other rule when the user
+ leaves the department or changes email.
+
+ Changes:
+
+ - `src/lib/roster/shares.ts`
+   - `DepartmentAccess` gains `assignedRoles: Record<string, string>` — each
+     assigned email's live Google ACL role, read from the post-reconcile ACL
+     list (empty `{}` on the department-missing and Google-unconfigured
+     returns, and on the catch path).
+ - `src/app/(protected)/settings/departments/`
+   - `DepartmentTable.tsx`: the list reduces to name + external color
+     (two-column desktop table; dot + name + color-label mobile cards).
+     Rows/cards are keyboard-activatable (`role="button"`, `tabIndex=0`,
+     Enter/Space, `aria-haspopup="dialog"`) and open the detail modal; the
+     Share/Edit/Delete row buttons are gone. The delete confirmation modal
+     is kept as a separate modal, triggered from the detail modal's
+     "Delete department" button (the detail modal closes first). The create
+     flow reuses the same modal with `calendar={null}` (settings fields
+     only).
+   - `DepartmentDetail.tsx` (new): one centered `size="md"` modal with the
+     name + external-event-color form, a "Calendar access" section (calendar
+     ID + copy + add-to-Google link, the sync warning, the owner badge, the
+     assigned users each with an immediate-apply role `Select` wired to
+     `updateDepartmentAccess` — no Remove button, access is
+     assignment-managed —, the additional-access rows with role change +
+     remove, and the add-another-person row), and a footer
+     ("Save changes"/"Create department" + "Delete department"). All
+     non-submit controls are Mantine `type="button"` by default, so only the
+     footer submit saves the form. The body is a keyed child component:
+     Mantine unmounts the modal content on close, so the Mantine form state
+     and the access data reseed fresh on every open from the tapped row, and
+     a save updates the list row in place (create refreshes the list).
+   - `DepartmentForm.tsx`, `DepartmentShares.tsx`: removed (absorbed into
+     `DepartmentDetail.tsx`).
+   - `loading.tsx`: skeletons match the new shapes (single-line mobile cards,
+     two-column desktop table).
+
+ Docs updated: `docs/roster-sharing.md` (§1 intro, §1.2 goal, §1.3 diagram +
+ warning, §1.5 `DepartmentAccess` bullet + line refs, §1.6 line refs +
+ rename/delete notes, §1.8 renamed to the detail modal + assigned-override
+ property + line refs, §1.9 revoke note, §1.10 override reuse + line refs,
+ §1.12 file index + phase list; the stale `users/DepartmentShares.tsx` file
+ entry dropped).
+
+ Verification: `pnpm typecheck`, `pnpm lint`, `pnpm test` (659) pass. Manual QA
+ pending: open a department row on mobile + desktop; edit name/color and save;
+ upgrade an assigned user to writer and reopen (role persists); add/remove an
+ additional access; create + delete flows; empty state; keyboard row
+ activation.

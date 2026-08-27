@@ -1,17 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { type KeyboardEvent, useState } from "react";
 import { useRouter } from "next/navigation";
-import {
-  Button,
-  Group,
-  Modal,
-  Paper,
-  Stack,
-  Table,
-  Text,
-  VisuallyHidden,
-} from "@mantine/core";
+import { Button, Group, Modal, Paper, Stack, Table, Text } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
 import { IconPlus } from "@tabler/icons-react";
@@ -23,8 +14,7 @@ import { BUTTON_LOADER_PROPS } from "@/lib/theme";
 import { FAB_ICON_SIZE, FloatingActionButton, FloatingToolbar } from "@/components/FloatingToolbar";
 import { formatColorLabel } from "@/lib/events/eventColors";
 import { ColorDot } from "@/components/ColorSwatchPicker";
-import { DepartmentForm } from "./DepartmentForm";
-import { DepartmentShares } from "./DepartmentShares";
+import { DepartmentDetail } from "./DepartmentDetail";
 
 interface DepartmentTableProps {
   departments: Calendar[];
@@ -32,27 +22,26 @@ interface DepartmentTableProps {
 
 export function DepartmentTable({ departments }: DepartmentTableProps) {
   const router = useRouter();
-  const [formOpened, { open: openForm, close: closeForm }] = useDisclosure(false);
+  const [detailOpened, { open: openDetail, close: closeDetail }] = useDisclosure(false);
   const [confirmOpened, { open: openConfirm, close: closeConfirm }] = useDisclosure(false);
-  const [shareOpened, { open: openShare, close: closeShare }] = useDisclosure(false);
-  const [editing, setEditing] = useState<Calendar | null>(null);
+  const [selected, setSelected] = useState<Calendar | null>(null);
   const [deleting, setDeleting] = useState<Calendar | null>(null);
   const [deletingInProgress, setDeletingInProgress] = useState(false);
-  const [sharing, setSharing] = useState<Calendar | null>(null);
 
   function openCreate() {
-    setEditing(null);
-    openForm();
+    setSelected(null);
+    openDetail();
   }
 
-  function openEdit(calendar: Calendar) {
-    setEditing(calendar);
-    openForm();
+  function openDetails(calendar: Calendar) {
+    setSelected(calendar);
+    openDetail();
   }
 
-  function openShareModal(calendar: Calendar) {
-    setSharing(calendar);
-    openShare();
+  function requestDelete(calendar: Calendar) {
+    setDeleting(calendar);
+    closeDetail();
+    openConfirm();
   }
 
   async function confirmDelete() {
@@ -75,6 +64,21 @@ export function DepartmentTable({ departments }: DepartmentTableProps) {
     }
   }
 
+  const openRow = (calendar: Calendar) => ({
+    role: "button",
+    tabIndex: 0,
+    "aria-haspopup": "dialog" as const,
+    "aria-label": `Open ${calendar.name} details`,
+    onClick: () => openDetails(calendar),
+    onKeyDown: (event: KeyboardEvent) => {
+      if (event.key === "Enter" || event.key === " ") {
+        event.preventDefault();
+        openDetails(calendar);
+      }
+    },
+    style: { cursor: "pointer" },
+  });
+
   return (
     <Stack pb="xl" className={CONTENT_ENTER_CLASS}>
       {/* Desktop: full-size create button instead of the FAB (like the
@@ -93,63 +97,43 @@ export function DepartmentTable({ departments }: DepartmentTableProps) {
       </Paper>
 
       {departments.length === 0 ? (
-        <Text c="dimmed" ta="center" py="lg">
-          No departments yet.
-        </Text>
+        <Group justify="center" wrap="nowrap" py="lg">
+          <Text c="dimmed">No departments yet.</Text>
+          <Button variant="light" leftSection={<IconPlus size={16} />} onClick={openCreate}>
+            Add department
+          </Button>
+        </Group>
       ) : (
         <>
-          {/* Mobile: card list */}
+          {/* Mobile: card list — tap a card to open the details modal */}
           <Stack gap="sm" hiddenFrom="lg">
             {departments.map((calendar) => (
-              <Paper key={calendar.id} withBorder p="sm">
-                <Group justify="space-between" wrap="nowrap" align="flex-start">
+              <Paper key={calendar.id} withBorder p="sm" {...openRow(calendar)}>
+                <Group justify="space-between" wrap="nowrap" align="center">
                   <Group wrap="nowrap" align="center" gap={6}>
                     <ColorDot color={calendar.color} />
                     <Text fw={600}>{calendar.name}</Text>
                   </Group>
-                  <Button size="xs" variant="light" onClick={() => openShareModal(calendar)}>
-                    Share
-                  </Button>
-                </Group>
-                <Text size="sm" c="dimmed" mt={4} style={{ wordBreak: "break-all" }}>
-                  {calendar.googleCalendarId}
-                </Text>
-                <Group justify="flex-end" mt="sm" wrap="nowrap">
-                  <Button size="xs" variant="light" onClick={() => openEdit(calendar)}>
-                    Edit
-                  </Button>
-                  <Button
-                    size="xs"
-                    variant="subtle"
-                    color="red"
-                    onClick={() => {
-                      setDeleting(calendar);
-                      openConfirm();
-                    }}
-                  >
-                    Delete
-                  </Button>
+                  <Text size="sm" c="dimmed">
+                    {formatColorLabel(calendar.color, calendar.id)}
+                  </Text>
                 </Group>
               </Paper>
             ))}
           </Stack>
 
-          {/* Desktop: data table */}
+          {/* Desktop: data table — tap a row to open the details modal */}
           <Paper withBorder visibleFrom="lg">
             <Table withRowBorders={false} highlightOnHover tabularNums>
               <Table.Thead>
                 <Table.Tr>
                   <Table.Th>Name</Table.Th>
                   <Table.Th>External color</Table.Th>
-                  <Table.Th>Calendar ID</Table.Th>
-                  <Table.Th ta="right">
-                    <VisuallyHidden>Actions</VisuallyHidden>
-                  </Table.Th>
                 </Table.Tr>
               </Table.Thead>
               <Table.Tbody>
                 {departments.map((calendar) => (
-                  <Table.Tr key={calendar.id}>
+                  <Table.Tr key={calendar.id} {...openRow(calendar)}>
                     <Table.Td>
                       <Text fw={600}>{calendar.name}</Text>
                     </Table.Td>
@@ -157,32 +141,6 @@ export function DepartmentTable({ departments }: DepartmentTableProps) {
                       <Group gap={6} wrap="nowrap">
                         <ColorDot color={calendar.color} />
                         <Text size="sm">{formatColorLabel(calendar.color, calendar.id)}</Text>
-                      </Group>
-                    </Table.Td>
-                    <Table.Td>
-                      <Text size="sm" c="dimmed" style={{ wordBreak: "break-all" }}>
-                        {calendar.googleCalendarId}
-                      </Text>
-                    </Table.Td>
-                    <Table.Td>
-                      <Group gap="xs" justify="flex-end" wrap="nowrap">
-                        <Button size="xs" variant="light" onClick={() => openShareModal(calendar)}>
-                          Share
-                        </Button>
-                        <Button size="xs" variant="light" onClick={() => openEdit(calendar)}>
-                          Edit
-                        </Button>
-                        <Button
-                          size="xs"
-                          variant="subtle"
-                          color="red"
-                          onClick={() => {
-                            setDeleting(calendar);
-                            openConfirm();
-                          }}
-                        >
-                          Delete
-                        </Button>
                       </Group>
                     </Table.Td>
                   </Table.Tr>
@@ -193,23 +151,20 @@ export function DepartmentTable({ departments }: DepartmentTableProps) {
         </>
       )}
 
-      <Modal
-        opened={formOpened}
-        onClose={closeForm}
-        title={editing ? "Edit department" : "Add department"}
-        centered
-        size="sm"
-      >
-        <DepartmentForm
-          key={editing?.id ?? "new"}
-          calendar={editing}
-          onDone={() => {
-            closeForm();
-            setEditing(null);
-            router.refresh();
-          }}
-        />
-      </Modal>
+      <DepartmentDetail
+        calendar={selected}
+        opened={detailOpened}
+        onClose={closeDetail}
+        onSaved={(calendar) => {
+          setSelected(calendar);
+        }}
+        onCreate={() => {
+          closeDetail();
+          setSelected(null);
+          router.refresh();
+        }}
+        onRequestDelete={requestDelete}
+      />
 
       <Modal opened={confirmOpened} onClose={closeConfirm} title="Delete department" centered>
         <Text>
@@ -230,8 +185,6 @@ export function DepartmentTable({ departments }: DepartmentTableProps) {
           </Button>
         </Group>
       </Modal>
-
-      <DepartmentShares calendar={sharing} opened={shareOpened} onClose={closeShare} />
 
       {/* Mobile-only: at lg the "Add department" button in the toolbar replaces
           the FAB. hiddenFrom sits on the toolbar itself: its Affix portals to

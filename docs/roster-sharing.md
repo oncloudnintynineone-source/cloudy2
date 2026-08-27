@@ -5,8 +5,9 @@ The app's org model is deliberately flat: a **department is a Google Calendar**
 (`users.department_id`). Access to a department's calendar is expressed **only in
 Google's ACLs** — nothing is stored in the database — so keeping access correct
 is a reconciliation problem: every org change (user create/edit, department
-create/delete) and every read of the Shares modal must *diff* Google's current
-ACLs against what the roster implies and fix the difference. This document
+create/delete) and every read of the department detail modal must *diff*
+Google's current ACLs against what the roster implies and fix the difference.
+This document
 covers the data model, the roster actions, the ACL model, and the two
 reconcile paths (on read, and on user change).
 
@@ -19,7 +20,7 @@ reconcile paths (on read, and on user change).
 - [1.5 The ACL model](#15-the-acl-model)
 - [1.6 Roster & department actions](#16-roster--department-actions)
 - [1.7 Event colors](#17-event-colors)
-- [1.8 Reconcile-on-read: the Shares modal](#18-reconcile-on-read-the-shares-modal)
+- [1.8 Reconcile-on-read: the department detail modal](#18-reconcile-on-read-the-department-detail-modal)
 - [1.9 Reconcile-on-write: email & department changes](#19-reconcile-on-write-email--department-changes)
 - [1.10 Access-level actions](#110-access-level-actions)
 - [1.11 Pure helpers & testing](#111-pure-helpers--testing)
@@ -48,8 +49,9 @@ actions reconcile immediately after the DB write.
   calendar".
 - Every department calendar has: the service account (owner, inherent), the
   admin account (`GOOGLE_DELEGATE_EMAIL`, owner — granted/upgraded on read),
-  every assigned user with an email (reader, auto-granted), and any manual
-  additional grants (reader/writer/owner).
+  every assigned user with an email (reader, auto-granted — upgradable to
+  writer/owner from the detail modal), and any manual additional grants
+  (reader/writer/owner).
 - Org changes sync immediately after the DB commit; failures degrade to
   human-readable warnings, never failing the already-committed roster change.
 - Reconcile-on-read remains as a safety net for pre-existing drift.
@@ -72,7 +74,7 @@ flowchart TB
         C["calendars (google_calendar_id)"]
     end
     subgraph RECONCILE["Reconciliation (shares.ts)"]
-        READ["listDepartmentAccess — reconcile-on-read<br/>(Shares modal open)"]
+        READ["listDepartmentAccess — reconcile-on-read<br/>(detail modal Calendar access open)"]
         WRITE["reconcileUserAccessChange — reconcile-on-write<br/>(after user create/update)"]
     end
     subgraph G["Google Calendar (source of truth)"]
@@ -91,7 +93,7 @@ flowchart TB
 
 All Google I/O goes through `getGoogleIntegration()`
 ([`google-integration.md`](google-integration.md)); when Google is
-unconfigured, reconcile paths short-circuit and the Shares modal surfaces a
+unconfigured, reconcile paths short-circuit and the detail modal surfaces a
 `syncWarning`.
 
 ## 1.4 Data model
@@ -144,16 +146,18 @@ erDiagram
 
 - **`DepartmentAccessRole`** (`shares.ts:9`) — `"reader" | "writer" | "owner"`:
   the selectable levels, mapping 1:1 to Google ACL roles (Read only / Can edit /
-  Owner). `isDepartmentAccessRole` (`:34`) deliberately rejects
+  Owner).   `isDepartmentAccessRole` (`:40`) deliberately rejects
   `freeBusyReader` even though the integration contract allows it — it is not a
   UI-selectable level.
-- **`DepartmentAccess`** (`:16`) — what the Shares modal renders:
-  `assigned` (emails of the department's users — auto-readers), `additional`
-  (manual grants beyond assigned users), `admin` (the `GOOGLE_DELEGATE_EMAIL`
-  account, non-removable), and `syncWarning` when Google is unavailable or a
-  sync failed.
+- **`DepartmentAccess`** (`:16`) — what the detail modal renders:
+  `assigned` (emails of the department's users — auto-readers),
+  `assignedRoles` (each assigned email's live ACL role, so an admin-upgraded
+  writer/owner shows through the selector), `additional` (manual grants beyond
+  assigned users), `admin` (the `GOOGLE_DELEGATE_EMAIL` account,
+  non-removable), and `syncWarning` when Google is unavailable or a sync
+  failed.
 
-**Inherent owners** — `isInherentOwnerEmail` (`shares.ts:87`) — three email
+**Inherent owners** — `isInherentOwnerEmail` (`shares.ts:81`) — three email
 identities are owner rules that are **never revoked and never surfaced as
 removable shares**: the calendar resource id itself, the owning service account
 (`getServiceAccountConfig().clientEmail`), and the configured admin account.
@@ -162,26 +166,26 @@ The pure diff helpers (all case-insensitive, ignoring blanks):
 
 | Helper (`shares.ts`) | Computes |
 | -------------------- | -------- |
-| `diffAccess(existing, expected)` (`:42`) | expected emails **missing** an ACL rule → to grant |
-| `diffRevocable(candidates, assigned)` (`:57`) | candidate emails no assigned user holds anymore → safe to revoke |
-| `needsAdminOwnerGrant(acls, adminEmail)` (`:69`) | true when the admin has no rule or a lower role (a manual reader grant gets upgraded to owner); blank email never needs one |
-| `isValidEmail` (`:29`) | simple email shape check, used server-side in grant/update and in user-form validation |
-| `resolveGoogleCalendarId(calendarId)` (`:104`) | registry id → Google calendar id (null when missing); also reused by the events layer |
+| `diffAccess(existing, expected)` (`:48`) | expected emails **missing** an ACL rule → to grant |
+| `diffRevocable(candidates, assigned)` (`:58`) | candidate emails no assigned user holds anymore → safe to revoke |
+| `needsAdminOwnerGrant(acls, adminEmail)` (`:68`) | true when the admin has no rule or a lower role (a manual reader grant gets upgraded to owner); blank email never needs one |
+| `isValidEmail` (`:35`) | simple email shape check, used server-side in grant/update and in user-form validation |
+| `resolveGoogleCalendarId(calendarId)` (`:98`) | registry id → Google calendar id (null when missing); also reused by the events layer |
 
 ## 1.6 Roster & department actions
 
 All in `src/lib/roster/actions.ts` (`"use server"`, all `requireAdmin()`-gated).
 Result types: `RosterActionResult = { ok: true; warnings? } | { ok: false; error, field? }`
-(`:31`) — `warnings` carries partial Google-sync failures (yellow toast in the
-form); and `ShareActionResult` (`:35`).
+(`:32`) — `warnings` carries partial Google-sync failures (yellow toast in the
+form); and `ShareActionResult` (`:36`).
 
 **User actions**
 
 | Action | Behavior | Audit row |
 | ------ | -------- | --------- |
-| `createUser` (`:111`) | validate → `normalizePhone` → INSERT (returning id+name) → audit → `revalidatePath` → **`reconcileUserAccessChange` with old values null** (a new user with email+department gets reader access immediately) | `user.create` — flat details incl. department **name** |
-| `updateUser` (`:175`) | validate → load before → build before/after `userSnapshot`s (sanitized — never the password hash — with department names) → UPDATE → audit **`diffFields(before, after)`** → reconcile **only when email or department changed** (`:244-253`) | `user.update` |
-| `setUserStatus` (`:259`) | toggle active/inactive; **no ACL reconcile** — status doesn't affect sharing | `user.status.change` — status diff |
+| `createUser` (`:91`) | validate → `normalizePhone` → INSERT (returning id+name) → audit → `revalidatePath` → **`reconcileUserAccessChange` with old values null** (a new user with email+department gets reader access immediately) | `user.create` — flat details incl. department **name** |
+| `updateUser` (`:158`) | validate → load before → build before/after `userSnapshot`s (sanitized — never the password hash — with department names) → UPDATE → audit **`diffFields(before, after)`** → reconcile **only when email or department changed** (`:233`) | `user.update` |
+| `setUserStatus` (`:245`) | toggle active/inactive; **no ACL reconcile** — status doesn't affect sharing | `user.status.change` — status diff |
 
 There is **no `deleteUser`**: users are deactivated, never deleted (the UI has a
 Deactivate/Activate button).
@@ -196,9 +200,9 @@ Postgres SQLSTATE `23505` and map the violated constraint to a field error —
 
 | Action | Behavior | Audit row |
 | ------ | -------- | --------- |
-| `createDepartment` (`:287`) | requires Google configured → **creates the calendar in Google first**, then inserts the registry row (name + `color`, normalized via `normalizeCalendarColor`) → unique `google_calendar_id` violation → "A department with this Google Calendar already exists" | `calendar.create` — `{ googleCalendarId, color }` |
-| `renameDepartment` (`:334`) | the department form's single save: renames in Google **only when the name actually changed** (color is app-local — no Google call for color-only edits), then updates name + color in the DB | `calendar.update` — `diffFields({ name, color })` (legacy rows: `calendar.rename` — name diff) |
-| `deleteDepartment` (`:377`) | deletes the Google calendar (404 tolerated) then the registry row — the FK cascade **unassigns its users** | `calendar.delete` — `{ googleCalendarId }` |
+| `createDepartment` (`:273`) | requires Google configured → **creates the calendar in Google first**, then inserts the registry row (name + `color`, normalized via `normalizeCalendarColor`) → unique `google_calendar_id` violation → "A department with this Google Calendar already exists" | `calendar.create` — `{ googleCalendarId, color }` |
+| `renameDepartment` (`:320`) | the detail modal's Save: renames in Google **only when the name actually changed** (color is app-local — no Google call for color-only edits), then updates name + color in the DB | `calendar.update` — `diffFields({ name, color })` (legacy rows: `calendar.rename` — name diff) |
+| `deleteDepartment` (`:363`) | deletes the Google calendar (404 tolerated) then the registry row — the FK cascade **unassigns its users**; the detail modal's Delete button opens a separate confirm modal for it | `calendar.delete` — `{ googleCalendarId }` |
 
 ## 1.7 Event colors
 
@@ -251,14 +255,16 @@ flowchart LR
   `--event-color` CSS vars; `WeekMatrixView.tsx` replicates that resolution for
   its custom matrix cells. Consumers need no changes when a color changes.
 
-## 1.8 Reconcile-on-read: the Shares modal
+## 1.8 Reconcile-on-read: the department detail modal
 
-`listDepartmentAccess(calendarId)` (`shares.ts:120`) is called by the admin-gated
-`getDepartmentAccess` (`actions.ts:412`) when the Shares modal opens:
+`listDepartmentAccess(calendarId)` (`shares.ts:112`) is called by the admin-gated
+`getDepartmentAccess` (`actions.ts:401`) when a department's detail modal opens
+(its "Calendar access" section — the sharing view that used to be a separate
+Shares modal):
 
 ```mermaid
 sequenceDiagram
-    participant M as Shares modal
+    participant M as Detail modal
     participant S as listDepartmentAccess
     participant D as DB (users)
     participant G as Google ACL
@@ -275,7 +281,7 @@ sequenceDiagram
             S->>G: setCalendarAccess(email, reader)  [failures collected]
         end
         S->>G: re-read ACLs if anything changed
-        S-->>M: assigned + additional (non-assigned, non-inherent) + admin [+ syncWarning]
+        S-->>M: assigned + assignedRoles + additional (non-assigned, non-inherent) + admin [+ syncWarning]
     end
 ```
 
@@ -284,7 +290,14 @@ Properties:
 - **Reads are also writes**: opening the modal grants any missing reader rules
   and upgrades the admin to owner — drift self-heals on view.
 - **`additional`** excludes assigned users and inherent owners
-  (`shares.ts:185-193`), so the modal only lists rules an admin can act on.
+  (`shares.ts:177-185`), so the modal only lists rules an admin can act on.
+- **Assigned-user role overrides**: the modal shows each assigned user's live
+  role from `assignedRoles` (the auto-granted rule reads `reader`). The
+  selector next to the user calls `updateDepartmentAccess`, upserting the ACL
+  rule to `writer`/`owner`; the override then survives every follow-up
+  reconcile because `diffAccess` only grants emails that still have **no**
+  rule. When the user leaves the department (or changes email) the rule is
+  revoked as usual (§1.9) — an override is scoped to the assignment.
 - **Failures never throw**: per-email grant failures and an admin-grant failure
   become a joined `syncWarning` ("Could not share with: …" · "Could not grant
   admin owner access"); a total ACL read failure returns a generic warning with
@@ -292,7 +305,7 @@ Properties:
 
 ## 1.9 Reconcile-on-write: email & department changes
 
-`reconcileUserAccessChange(change)` (`shares.ts:245`) runs after the DB commit in
+`reconcileUserAccessChange(change)` (`shares.ts:248`) runs after the DB commit in
 `createUser` (always) and `updateUser` (only when email or department changed):
 
 ```mermaid
@@ -321,15 +334,16 @@ sequenceDiagram
 The rules, precisely:
 
 - **Affected calendars** = union of `oldDepartmentId` and `newDepartmentId`
-  (`shares.ts:253-259`); each resolved to a Google id, missing ones skipped.
+  (`shares.ts:254-260`); each resolved to a Google id, missing ones skipped.
 - **Grants**: `diffAccess(acls, assigned)` against a **fresh** SELECT of the
-  department's emails (`:267-277`) — covers a new email on the same department,
+  department's emails (`:268-278`) — covers a new email on the same department,
   and the (unchanged) email on the newly joined department after a move.
 - **Revokes**: the "given-up" email is defined **only for the department being
-  left** — `oldEmail` when the calendar is `oldDepartmentId` (`:279-282`). It is
+  left** — `oldEmail` when the calendar is `oldDepartmentId` (`:281-284`). It is
   revoked only when `diffRevocable` says no remaining assigned user holds that
-  email, and never when it is an inherent owner (`:299-302`). This is what fixed
-  the old "old email keeps access forever" bug.
+  email, and never when it is an inherent owner (`:300-303`) — which also ends
+  an admin-granted writer/owner override, since it rides the same ACL rule.
+  This is what fixed the old "old email keeps access forever" bug.
 - **Failure isolation**: every grant/revoke is try/caught; failures accumulate
   into warnings like "Could not sync calendar access for: …" that surface as a
   yellow toast — the roster change already committed and is not rolled back.
@@ -337,19 +351,23 @@ The rules, precisely:
 
 ## 1.10 Access-level actions
 
-Manual management of `additional` rules (Shares modal), all admin-gated, all
-validating email + role server-side (`isValidEmail`,
+Manual management of the detail modal's "Calendar access" section, all
+admin-gated, all validating email + role server-side (`isValidEmail`,
 `isDepartmentAccessRole`), all requiring the calendar + Google configured:
 
 | Action (`actions.ts`) | Behavior | Audit row |
 | --------------------- | -------- | --------- |
-| `grantDepartmentAccess(calendarId, email, role)` (`:420`) | `setCalendarAccess` (upsert) | `access.grant` — `{ email, role: null → role }` diff |
-| `updateDepartmentAccess(calendarId, email, role)` (`:464`) | reads ACLs for the **previous role** (case-insensitive), then upserts | `access.update` — `{ email, role: prev → new }` diff |
-| `revokeDepartmentAccess(calendarId, email)` (`:511`) | reads ACLs for the previous role, then `removeCalendarAccess` | `access.revoke` — `{ email, role: prev → null }` diff |
+| `grantDepartmentAccess(calendarId, email, role)` (`:406`) | `setCalendarAccess` (upsert) | `access.grant` — `{ email, role: null → role }` diff |
+| `updateDepartmentAccess(calendarId, email, role)` (`:450`) | reads ACLs for the **previous role** (case-insensitive), then upserts | `access.update` — `{ email, role: prev → new }` diff |
+| `revokeDepartmentAccess(calendarId, email)` (`:497`) | reads ACLs for the previous role, then `removeCalendarAccess` | `access.revoke` — `{ email, role: prev → null }` diff |
 
-Inherent owners can't be removed through the UI (they aren't listed), and the
-admin account's owner rule is shown in a separate "Owner access" section, not as
-a removable row.
+The **assigned-user role override** reuses `updateDepartmentAccess` with the
+user's department email — the same upsert, the same `access.update` audit row,
+the same reconcile-safe semantics (§1.8). Assigned users get no Remove button:
+their rule is auto-managed by the assignment, so taking it back means
+unassigning the user or changing their email. Inherent owners can't be removed
+through the UI (they aren't listed), and the admin account's owner rule is shown
+in a separate "Owner access" section, not as a removable row.
 
 ## 1.11 Pure helpers & testing
 
@@ -379,8 +397,7 @@ I/O-bound (not unit-tested, per the repo convention): `resolveGoogleCalendarId`,
 | `src/lib/events/eventColors.ts` | Event-color palette, normalization, deterministic defaults, labels (pure, §1.7) |
 | `src/components/ColorSwatchPicker.tsx` | Shared color swatch picker + `ColorDot` chip (event type & department forms, §1.7) |
 | `src/app/(protected)/settings/users/` | Users page: `UserTable`, `UserForm` (badge role/department fields), deactivate |
-| `src/app/(protected)/settings/users/DepartmentShares.tsx` | The Shares modal (assigned/additional/admin sections) |
-| `src/app/(protected)/settings/departments/` | Departments page: create/edit (name + external-event fallback color)/share/delete; the swatch picker + chip come from the shared `ColorSwatchPicker` |
+| `src/app/(protected)/settings/departments/` | Departments page: a two-column list (name + external color) whose rows/cards open `DepartmentDetail` — one modal holding the name/color form, the calendar ID, the Calendar-access management (owner, assigned-user role override, additional access) and the delete trigger; the swatch picker + chip come from the shared `ColorSwatchPicker` |
 | `src/lib/google/` | The integration the ACL calls go through |
 
 Related docs:
@@ -394,4 +411,4 @@ Related docs:
 - `progress-archive.md` — phase write-ups: 1.8 (roster & departments), 1.11 (calendars
   + sharing + audit), 1.41 (access levels), 1.61 (email-change ACL sync bugfix),
   1.62 (department selects), 1.95 (department event colors), 1.96 (event-type
-  event colors).
+  event colors), 1.118 (departments detail modal + assigned-user role overrides).
