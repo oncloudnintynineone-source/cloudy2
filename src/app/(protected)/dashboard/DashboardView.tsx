@@ -56,6 +56,7 @@ import {
   IconChevronUp,
   IconDotsVertical,
   IconFilter,
+  IconInfoCircle,
   IconLayoutGrid,
   IconListDetails,
   IconLink,
@@ -1117,6 +1118,15 @@ export function DashboardView({
     setFormState(null);
   }
 
+  function minimizeForm() {
+    // Shrink into the floating bubble (bottom-right) instead of wherever the
+    // form was opened from; the draft stays alive in the keepMounted modal.
+    // Used by the header chevron, outside clicks and Escape — none of them
+    // discard the draft.
+    setFormOriginRect(null);
+    setFormMinimized(true);
+  }
+
   // Keep the Agenda tab's local day in sync with the URL (setState during
   // render, the same pattern as the modal's displayAgendaDate hold): null
   // seeds it on entry; an external `?date=` change (back/forward, deep link,
@@ -1975,7 +1985,7 @@ export function DashboardView({
 
       <Modal.Root
         opened={formState !== null && !formMinimized}
-        onClose={closeForm}
+        onClose={minimizeForm}
         keepMounted
         centered
         size={isDesktop ? "md" : "sm"}
@@ -1992,35 +2002,54 @@ export function DashboardView({
                 color="gray"
                 size="sm"
                 aria-label="Minimize event form"
-                onClick={() => {
-                  // Shrink into the floating bubble (bottom-right) instead of
-                  // wherever the form was opened from.
-                  setFormOriginRect(null);
-                  setFormMinimized(true);
-                }}
+                onClick={minimizeForm}
               >
                 <IconChevronDown size={16} />
               </ActionIcon>
-              <Modal.CloseButton />
+              {/* Custom X: Modal.CloseButton would route through onClose (which
+                  now minimizes), but the close button must discard the draft. */}
+              <ActionIcon
+                variant="subtle"
+                color="gray"
+                size="sm"
+                aria-label="Close and discard draft"
+                onClick={closeForm}
+              >
+                <IconX size={16} />
+              </ActionIcon>
             </Group>
           </Modal.Header>
           <Modal.Body>
             {formState && (
-              <EventForm
-                key={formState.event ? formState.event.id : `new-${formState.defaultDate}`}
-                event={formState.event}
-                defaultDate={formState.defaultDate}
-                eventTypes={eventTypes}
-                eventTitleTemplate={eventTitleTemplate}
-                currentUser={currentUser}
-                isAdmin={isAdmin}
-                inviteeDepartments={inviteeDepartments}
-                inviteeUsers={inviteeUsers}
-                onDone={() => {
-                  closeForm();
-                  router.refresh();
-                }}
-              />
+              <>
+                <EventForm
+                  key={formState.event ? formState.event.id : `new-${formState.defaultDate}`}
+                  event={formState.event}
+                  defaultDate={formState.defaultDate}
+                  eventTypes={eventTypes}
+                  eventTitleTemplate={eventTitleTemplate}
+                  currentUser={currentUser}
+                  isAdmin={isAdmin}
+                  inviteeDepartments={inviteeDepartments}
+                  inviteeUsers={inviteeUsers}
+                  onDone={() => {
+                    closeForm();
+                    router.refresh();
+                  }}
+                />
+                <Group
+                  justify="center"
+                  gap={6}
+                  mt="sm"
+                  pt="sm"
+                  style={{ borderTop: `1px solid ${theme.colors.gray[4]}` }}
+                >
+                  <IconInfoCircle size={14} color={theme.colors.gray[6]} />
+                  <Text size="xs" c="dimmed">
+                    Tap outside to minimize — your draft is kept.
+                  </Text>
+                </Group>
+              </>
             )}
           </Modal.Body>
         </Modal.Content>

@@ -122,8 +122,13 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
 - [1.103 Quick links: admin-managed link menu launched from the Calendar FAB (Phase 3ay)](#1103-quick-links-admin-managed-link-menu-launched-from-the-calendar-fab-phase-3ay)
 - [1.104 Fullscreen calendar view (Phase 3az)](#1104-fullscreen-calendar-view-phase-3az)
 - [1.105 Event invitee picker: cross-department invites for non-admins (Phase 3b0)](#1105-event-invitee-picker-cross-department-invites-for-non-admins-phase-3b0)
+- [1.106 UserSelectModal: badge picker dialog replaces the user multi-selects (Phase 3b1)](#1106-userselectmodal-badge-picker-dialog-replaces-the-user-multi-selects-phase-3b1)
+- [1.107 UserSelectModal: fixed-height picker dialog (bugfix)](#1107-userselectmodal-fixed-height-picker-dialog-bugfix)
+- [1.108 UserSelectModal: badge taps keep the search focus (bugfix)](#1108-userselectmodal-badge-taps-keep-the-search-focus-bugfix)
 - [1.111 Month view hides adjacent-month days (bugfix)](#1111-month-view-hides-adjacent-month-days-bugfix)
 - [1.112 Month view range-reads its 6-week grid; adjacent-month days show their events (supersedes 1.111)](#1112-month-view-range-reads-its-6-week-grid-adjacent-month-days-show-their-events-supersedes-1111)
+- [1.118 Departments settings: unified detail modal + assigned-user role overrides](#1118-departments-settings-unified-detail-modal--assigned-user-role-overrides)
+- [1.119 Event wizard modal: outside clicks and Escape minimize instead of discarding](#1119-event-wizard-modal-outside-clicks-and-escape-minimize-instead-of-discarding)
 
 ## 1.1 Status
 
@@ -5445,3 +5450,59 @@ events; detail/edit flows keep the full span; force-refresh works.
  upgrade an assigned user to writer and reopen (role persists); add/remove an
  additional access; create + delete flows; empty state; keyboard row
  activation.
+
+## 1.119 Event wizard modal: outside clicks and Escape minimize instead of discarding
+
+The create/edit event dialog discarded the whole draft whenever the user tapped
+the dimmed background or pressed Escape — one stray tap while reaching past the
+open dialog wiped the partially-filled wizard. The wizard already ships an
+explicit minimize path (header chevron → floating restore bubble, with the draft
+kept alive in the `keepMounted` modal), so the "step away" gestures were
+re-routed to it. Only the explicit X now discards.
+
+Changes (all in `DashboardView.tsx`):
+
+- New `minimizeForm()`: `setFormOriginRect(null)` + `setFormMinimized(true)` —
+  shrinks into the bottom-right bubble instead of the tap origin (same behavior
+  the header chevron had inline; the chevron now calls it too, deduplicated).
+- The wizard's `Modal.Root` gets `onClose={minimizeForm}`. Per the installed
+  Mantine v9 internals (`ModalBaseOverlay` / `use-modal`), the `onClose`
+  callback is exactly what outside/overlay clicks (`closeOnClickOutside`,
+  default on) and Escape (`closeOnEscape`, default on) invoke — both now
+  minimize and keep the draft.
+- `Modal.CloseButton` replaced with a plain `ActionIcon` (X, same subtle gray
+  look) that calls `closeForm` directly: the built-in close button routes
+  through `onClose` first (`ModalBaseCloseButton`), which would have minimized
+  instead of discarding. The header X and the bubble's "Discard draft" X
+  (unchanged) remain the only discard paths.
+- New hint line under the wizard form in the modal body: a subtle
+  `borderTop`-separated centered row (`IconInfoCircle` + dimmed `Text` —
+  "Tap outside to minimize — your draft is kept.").
+
+The resulting gesture matrix:
+
+| Gesture              | Before | After               |
+| -------------------- | ------ | ------------------- |
+| Outside/overlay tap  | discard | minimize (bubble)  |
+| Escape               | discard | minimize (bubble)  |
+| Header X             | discard | discard            |
+| Header chevron       | minimize | minimize           |
+| Bubble chevron-up    | restore | restore            |
+| Bubble X             | discard | discard            |
+
+```mermaid
+stateDiagram-v2
+    [*] --> closed
+    closed --> open: tap day cell / New event / edit
+    open --> open: wizard steps
+    open --> minimized: chevron / outside tap / Escape
+    minimized --> open: restore bubble
+    open --> closed: header X / save (onDone)
+    minimized --> closed: discard bubble
+```
+
+Verification: `pnpm typecheck`, `pnpm lint`, `pnpm test` (659) pass. Manual QA
+pending: open the create wizard half-filled on mobile + desktop, tap the
+overlay / press Escape — the dialog shrinks into the bottom-right bubble with
+the draft intact; restore and continue; the header X still discards; saving
+from a restored state submits the event.
