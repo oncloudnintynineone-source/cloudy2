@@ -267,16 +267,27 @@ function FilterModalBody({
           {group.variant === "search" ? (
             <Group justify="space-between" align="center" gap="xs" mt="xs" wrap="wrap">
               {(draft[group.label] ?? []).length > 0 ? (
-                <Group gap={4} wrap="wrap" grow>
-                  {(draft[group.label] ?? [])
+                (() => {
+                  const all = (draft[group.label] ?? [])
                     .map((value) => group.options.find((option) => option.value === value))
-                    .filter((option): option is FilterOption => option !== undefined)
-                    .map((option) => (
-                      <Badge key={option.value} variant="light" size="sm">
-                        {option.label}
-                      </Badge>
-                    ))}
-                </Group>
+                    .filter((option): option is FilterOption => option !== undefined);
+                  const visible = all.slice(0, 5);
+                  const overflow = all.length - visible.length;
+                  return (
+                    <Group gap={4} wrap="wrap">
+                      {visible.map((option) => (
+                        <Badge key={option.value} variant="light" size="sm">
+                          {option.label}
+                        </Badge>
+                      ))}
+                      {overflow > 0 && (
+                        <Badge variant="light" size="sm">
+                          +{overflow}
+                        </Badge>
+                      )}
+                    </Group>
+                  );
+                })()
               ) : (
                 <Text size="xs" c="dimmed">
                   All {group.label.toLowerCase()}
