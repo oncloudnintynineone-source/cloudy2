@@ -199,6 +199,16 @@ function FilterModalBody({
     setCleared(true);
   }
 
+  function handleSelectAll(group: FilterGroup) {
+    handleGroupChange(group.label, allOptionValues(group));
+  }
+
+  function handleDeselectAll(group: FilterGroup) {
+    setDraft((prev) => ({ ...prev, [group.label]: [] }));
+    setChanged((prev) => new Set(prev).add(group.label));
+    setCleared(false);
+  }
+
   const hasActiveFilter = groups.some(
     (group) => !isGroupUnfiltered(toApplyGroup(group), draft[group.label] ?? []),
   );
@@ -211,22 +221,42 @@ function FilterModalBody({
             <Text fw={600} size="sm">
               {group.label}
             </Text>
-            {group.action && (
+            <Group gap={4} align="center">
               <Button
                 size="xs"
-                variant={group.action.isApplied(draft[group.label] ?? []) ? "light" : "default"}
-                color="brand"
-                leftSection={group.action.icon}
-                onClick={() =>
-                  group.action?.apply((values) => handleGroupChange(group.label, values), {
-                    selected: draft[group.label] ?? [],
-                    allValues: allOptionValues(group),
-                  })
-                }
+                variant="subtle"
+                color="gray"
+                onClick={() => handleSelectAll(group)}
+                disabled={draft[group.label]?.length === allOptionValues(group).length}
               >
-                {group.action.label}
+                Select All
               </Button>
-            )}
+              <Button
+                size="xs"
+                variant="subtle"
+                color="gray"
+                onClick={() => handleDeselectAll(group)}
+                disabled={(draft[group.label] ?? []).length === 0}
+              >
+                Deselect All
+              </Button>
+              {group.action && (
+                <Button
+                  size="xs"
+                  variant={group.action.isApplied(draft[group.label] ?? []) ? "light" : "default"}
+                  color="brand"
+                  leftSection={group.action.icon}
+                  onClick={() =>
+                    group.action?.apply((values) => handleGroupChange(group.label, values), {
+                      selected: draft[group.label] ?? [],
+                      allValues: allOptionValues(group),
+                    })
+                  }
+                >
+                  {group.action.label}
+                </Button>
+              )}
+            </Group>
           </Group>
           {group.variant === "search" ? (
             <Group justify="space-between" align="center" gap="xs" mt="xs" wrap="wrap">
@@ -290,7 +320,7 @@ function FilterModalBody({
 
       <Group justify="space-between" mt="md" wrap="wrap">
         <Button variant="subtle" color="gray" onClick={handleClear} disabled={!hasActiveFilter}>
-          Clear
+          Reset
         </Button>
         <Group gap="xs">
           <Button variant="default" onClick={onClose}>
