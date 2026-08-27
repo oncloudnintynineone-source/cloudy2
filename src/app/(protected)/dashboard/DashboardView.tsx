@@ -185,6 +185,9 @@ interface DashboardViewProps {
 
 interface FormState {
   event: CalendarEvent | null;
+  /** When set (and `event` is null), the form pre-fills from this source event
+      in create mode — the "duplicate" flow. */
+  templateEvent: CalendarEvent | null;
   defaultDate: string;
 }
 
@@ -469,7 +472,7 @@ export function DashboardView({
   const [formOriginRect, setFormOriginRect] = useState<Rect | null>(null);
   const [formState, setFormState] = useState<FormState | null>(() =>
     initialEditEvent
-      ? { event: initialEditEvent, defaultDate: initialEditEvent.start.slice(0, 10) }
+      ? { event: initialEditEvent, templateEvent: null, defaultDate: initialEditEvent.start.slice(0, 10) }
       : null,
   );
   // Facebook-bubble minimize: the form modal collapses into a floating circle
@@ -1160,7 +1163,7 @@ export function DashboardView({
   function openCreate(dateValue: string, originRect: Rect | null = null) {
     setFormMinimized(false);
     setFormOriginRect(originRect);
-    setFormState({ event: null, defaultDate: dateValue });
+    setFormState({ event: null, templateEvent: null, defaultDate: dateValue });
   }
 
   function closeForm() {
@@ -2019,7 +2022,17 @@ export function DashboardView({
           setDetailEvent(null);
           setFormMinimized(false);
           setFormOriginRect(originRect);
-          setFormState({ event, defaultDate: today });
+          setFormState({ event, templateEvent: null, defaultDate: today });
+        }}
+        onDuplicate={(event, originRect) => {
+          setDetailEvent(null);
+          setFormMinimized(false);
+          setFormOriginRect(originRect);
+          setFormState({
+            event: null,
+            templateEvent: event,
+            defaultDate: event.start.slice(0, 10),
+          });
         }}
         onDeleted={() => {
           setDetailEvent(null);
@@ -2045,7 +2058,13 @@ export function DashboardView({
         <Modal.Overlay />
         <Modal.Content ref={setContentEl}>
           <Modal.Header>
-            <Modal.Title>{formState?.event ? "Edit event" : "New event"}</Modal.Title>
+            <Modal.Title>
+              {formState?.event
+                ? "Edit event"
+                : formState?.templateEvent
+                  ? "Duplicate event"
+                  : "New event"}
+            </Modal.Title>
             <Group gap="xs" ml="auto">
               <ActionIcon
                 variant="subtle"
@@ -2072,8 +2091,15 @@ export function DashboardView({
           <Modal.Body>
             {formState && (
               <EventForm
-                key={formState.event ? formState.event.id : `new-${formState.defaultDate}`}
+                key={
+                  formState.event
+                    ? formState.event.id
+                    : formState.templateEvent
+                      ? `dup-${formState.templateEvent.id}`
+                      : `new-${formState.defaultDate}`
+                }
                 event={formState.event}
+                templateEvent={formState.templateEvent}
                 defaultDate={formState.defaultDate}
                 eventTypes={eventTypes}
                 eventTitleTemplate={eventTitleTemplate}

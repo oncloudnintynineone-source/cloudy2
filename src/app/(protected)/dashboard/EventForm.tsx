@@ -72,6 +72,9 @@ interface InviteeUser {
 
 interface EventFormProps {
   event: CalendarEvent | null;
+  /** When set (and `event` is null), the form opens in create mode but
+      pre-fills all fields from this source event — the "duplicate" flow. */
+  templateEvent?: CalendarEvent | null;
   defaultDate: string;
   eventTypes: EventTypeOption[];
   /** The admin-defined event title template, for the live calendar preview. */
@@ -159,6 +162,7 @@ function splitInvitees(invitees: string[]): { userIds: string[]; departmentIds: 
 
 export function EventForm({
   event,
+  templateEvent,
   defaultDate,
   eventTypes,
   eventTitleTemplate,
@@ -241,6 +245,37 @@ export function EventForm({
         invitees: [
           ...event.payload.inviteeDepartmentIds.map((id) => `dept:${id}`),
           ...event.payload.inviteeUserIds.map((id) => `user:${id}`),
+        ],
+        outOfCamp: clamped.outOfCamp,
+        location: clamped.location,
+      };
+    }
+    // Duplicate: pre-fill from a source event but stay in create mode.
+    if (templateEvent) {
+      const src = templateEvent;
+      const allDay = src.payload.allDay;
+      const selectedType = eventTypes.find((t) => t.name === src.payload.eventType) ?? null;
+      const allowed: TimeOption[] = selectedType ? selectedType.timeOptions : ["range"];
+      const timeOption = resolveTimeOption(allowed, src.payload.timeOption);
+      const clamped = clampOutOfCamp(
+        selectedType ? selectedType.locationPolicy : "both",
+        src.payload.outOfCamp,
+        src.payload.location,
+      );
+      return {
+        title: src.payload.rawTitle ?? (src.title === "(no title)" ? "" : src.title),
+        timeOption,
+        startAmPm: src.payload.startAmPm ?? "AM",
+        endAmPm: src.payload.endAmPm ?? "PM",
+        start: src.start,
+        end: allDay ? `${subOneDay(src.end.slice(0, 10))} 00:00:00` : src.end,
+        eventType: src.payload.eventType ?? "",
+        creatorId: src.payload.creatorId ?? "",
+        inviteeUserIds: [],
+        inviteeDepartments: [],
+        invitees: [
+          ...src.payload.inviteeDepartmentIds.map((id) => `dept:${id}`),
+          ...src.payload.inviteeUserIds.map((id) => `user:${id}`),
         ],
         outOfCamp: clamped.outOfCamp,
         location: clamped.location,

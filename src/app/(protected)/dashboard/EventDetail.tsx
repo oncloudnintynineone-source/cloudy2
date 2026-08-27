@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Badge, Button, Group, Modal, Stack, Text, useMantineTheme } from "@mantine/core";
 import { useDisclosure, useMediaQuery } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
+import { IconCopy } from "@tabler/icons-react";
 
 import { deleteEvent } from "@/lib/events/actions";
 import { subOneDay } from "@/lib/events/datetime";
@@ -22,6 +23,7 @@ interface EventDetailProps {
   event: CalendarEvent | null;
   onClose: () => void;
   onEdit: (event: CalendarEvent, originRect: Rect | null) => void;
+  onDuplicate: (event: CalendarEvent, originRect: Rect | null) => void;
   onDeleted: () => void;
   /** User id to display name (active roster). */
   peopleNames: Record<string, string>;
@@ -39,6 +41,7 @@ export function EventDetail({
   event,
   onClose,
   onEdit,
+  onDuplicate,
   onDeleted,
   peopleNames,
   calendarNames,
@@ -232,6 +235,13 @@ export function EventDetail({
 
             {isAdmin || payload.creatorId === currentUserId ? (
               <Group justify="flex-end" mt="md">
+                <Button
+                  variant="light"
+                  leftSection={<IconCopy size={16} />}
+                  onClick={(e) => onDuplicate(showEvent, e.currentTarget.getBoundingClientRect())}
+                >
+                  Duplicate
+                </Button>
                 <Button
                   variant="light"
                   onClick={(e) => onEdit(showEvent, e.currentTarget.getBoundingClientRect())}
