@@ -32,6 +32,7 @@ import { deleteQuickLink, moveQuickLink } from "@/lib/quickLinks/actions";
 import { BUTTON_LOADER_PROPS } from "@/lib/theme";
 import { activatable } from "@/lib/ui/activatable";
 import { QuickLinkForm } from "./QuickLinkForm";
+import { invalidateCurrentPathCaches } from "@/lib/pwa/client";
 
 interface QuickLinkTableProps {
   links: QuickLink[];
@@ -63,7 +64,7 @@ export function QuickLinkTable({ links }: QuickLinkTableProps) {
   async function move(link: QuickLink, direction: "up" | "down") {
     const result = await moveQuickLink(link.id, direction);
     if (result.ok) {
-      router.refresh();
+      void invalidateCurrentPathCaches().then(() => router.refresh());
     } else {
       notifications.show({ color: "red", message: result.error });
     }
@@ -79,7 +80,7 @@ export function QuickLinkTable({ links }: QuickLinkTableProps) {
       setPendingDelete(null);
       if (result.ok) {
         notifications.show({ color: "green", message: "Quick link deleted" });
-        router.refresh();
+        void invalidateCurrentPathCaches().then(() => router.refresh());
       } else {
         notifications.show({ color: "red", message: result.error });
       }
@@ -252,7 +253,7 @@ export function QuickLinkTable({ links }: QuickLinkTableProps) {
           onDone={() => {
             closeForm();
             setEditing(null);
-            router.refresh();
+            void invalidateCurrentPathCaches().then(() => router.refresh());
           }}
         />
       </Modal>

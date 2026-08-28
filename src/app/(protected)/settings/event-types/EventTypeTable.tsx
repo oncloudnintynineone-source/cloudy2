@@ -30,6 +30,7 @@ import {
 import { CONTENT_ENTER_CLASS } from "@/lib/loading/contentEnter";
 import { activatable } from "@/lib/ui/activatable";
 import { EventTypeForm } from "./EventTypeForm";
+import { invalidateCurrentPathCaches } from "@/lib/pwa/client";
 
 interface EventTypeTableProps {
   types: EventType[];
@@ -188,7 +189,7 @@ export function EventTypeTable({ types }: EventTypeTableProps) {
           onDone={() => {
             closeForm();
             setEditing(null);
-            router.refresh();
+            void invalidateCurrentPathCaches().then(() => router.refresh());
           }}
         />
       </Modal>

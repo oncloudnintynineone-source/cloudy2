@@ -208,6 +208,23 @@ before changing the subsystem.
   `normalizePinnedViews()`/`orderDashboardViews()`. `clearUiState()` runs on sign-out.
   Helpers are pure + unit-tested in `uiState.test.ts`; oversized cookies degrade by
   dropping id lists. Design: [docs/ui-state.md](docs/ui-state.md).
+- **PWA offline & instant open:** the installed app (Serwist, `src/app/sw.ts`) serves
+  previously rendered pages stale-while-revalidate so a cold open shows the last-saved
+  calendar instantly — even offline — and revalidates in the background (the
+  revalidation hits the server's 60 s-fresh / 30 min-SWR Google cache, not Google
+  directly). Two SWR caches: `app-documents-swr` for navigation documents (the
+  instant-open lever; stamping via `stampDocument` shows a "Saved · HH:MM" chip in
+  `DashboardView`) and `app-rsc-swr` for RSC payloads (instant in-app navigations
+  and offline previously-visited views). Offline with no saved copy serves a
+  precached branded `public/offline.html`. Post-mutation freshness is guarded by
+  `invalidateCurrentPathCaches()` (`src/lib/pwa/client.ts`) — every
+  `router.refresh()` site invalidates the current pathname in both caches first,
+  so the subsequent fetch cannot serve stale data. Session expiry purges both
+  caches in the SW and the client (`AppProviders` listens for
+  `cloudy2:session-expired`); `UserMenu` also purges on sign-out. Pure predicates
+  in `src/lib/pwa/swRules.ts` are unit-tested; `docs/pwa-offline.md` is the
+  reference. Offline is read-only — creating/editing while offline surfaces an
+  error (no local write queue).
 
 ## Conventions
 

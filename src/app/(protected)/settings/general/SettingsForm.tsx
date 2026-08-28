@@ -21,6 +21,7 @@ import {
 } from "@/lib/settings/validate";
 import { BUTTON_LOADER_PROPS } from "@/lib/theme";
 import { showValidationFailure } from "@/lib/ui/validationFeedback";
+import { invalidateCurrentPathCaches } from "@/lib/pwa/client";
 
 interface SettingsFormProps {
   keyword: string;
@@ -48,7 +49,7 @@ export function SettingsForm({ keyword, retentionDays }: SettingsFormProps) {
 
       if (result.ok) {
         notifications.show({ color: "green", message: "Login keyword updated" });
-        router.refresh();
+        void invalidateCurrentPathCaches().then(() => router.refresh());
         return;
       }
 
@@ -66,7 +67,7 @@ export function SettingsForm({ keyword, retentionDays }: SettingsFormProps) {
 
       if (result.ok) {
         notifications.show({ color: "green", message: "Audit log retention updated" });
-        router.refresh();
+        void invalidateCurrentPathCaches().then(() => router.refresh());
         return;
       }
 

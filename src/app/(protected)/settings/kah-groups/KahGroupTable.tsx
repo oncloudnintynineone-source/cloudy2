@@ -42,6 +42,7 @@ import { BUTTON_LOADER_PROPS } from "@/lib/theme";
 import { showValidationFailure } from "@/lib/ui/validationFeedback";
 
 import { KahGroupForm } from "./KahGroupForm";
+import { invalidateCurrentPathCaches } from "@/lib/pwa/client";
 
 interface KahGroupTableProps {
   groups: KahGroupWithMembers[];
@@ -88,7 +89,7 @@ export function KahGroupTable({
 
       if (result.ok) {
         notifications.show({ color: "green", message: "KAH breach email templates updated" });
-        router.refresh();
+        void invalidateCurrentPathCaches().then(() => router.refresh());
         return;
       }
 
@@ -290,7 +291,7 @@ export function KahGroupTable({
           onDone={() => {
             closeForm();
             setEditing(null);
-            router.refresh();
+            void invalidateCurrentPathCaches().then(() => router.refresh());
           }}
         />
       </Modal>

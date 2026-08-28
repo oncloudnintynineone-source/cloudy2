@@ -4,6 +4,7 @@ import { ActionIcon, Menu } from "@mantine/core";
 import { IconLogout, IconUser } from "@tabler/icons-react";
 import { signOut } from "next-auth/react";
 
+import { clearAllSavedPages } from "@/lib/pwa/client";
 import { clearUiState } from "@/lib/ui/uiStateClient";
 
 export function UserMenu({ name }: { name: string }) {
@@ -28,6 +29,7 @@ export function UserMenu({ name }: { name: string }) {
             // The remembered-state cookie is per-device: drop it on sign-out so
             // the next account on this device starts from the defaults.
             clearUiState();
+            void clearAllSavedPages();
             signOut({ callbackUrl: "/login" });
           }}
         >

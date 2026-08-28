@@ -18,6 +18,7 @@ import { CONTENT_ENTER_CLASS } from "@/lib/loading/contentEnter";
 import { updateBanner, type SettingsActionResult } from "@/lib/settings/actions";
 import { BUTTON_LOADER_PROPS } from "@/lib/theme";
 import { showValidationFailure } from "@/lib/ui/validationFeedback";
+import { invalidateCurrentPathCaches } from "@/lib/pwa/client";
 
 interface BannerFormProps {
   initial: { enabled: boolean; text: string; color: string };
@@ -72,7 +73,7 @@ export function BannerForm({ initial }: BannerFormProps) {
           color: "green",
           message: values.enabled ? "Banner updated" : "Banner disabled",
         });
-        router.refresh();
+        void invalidateCurrentPathCaches().then(() => router.refresh());
         return;
       }
 

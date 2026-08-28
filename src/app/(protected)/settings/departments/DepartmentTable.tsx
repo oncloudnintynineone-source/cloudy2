@@ -15,6 +15,7 @@ import { FAB_ICON_SIZE, FloatingActionButton, FloatingToolbar } from "@/componen
 import { formatColorLabel } from "@/lib/events/eventColors";
 import { ColorDot } from "@/components/ColorSwatchPicker";
 import { DepartmentDetail } from "./DepartmentDetail";
+import { invalidateCurrentPathCaches } from "@/lib/pwa/client";
 
 interface DepartmentTableProps {
   departments: Calendar[];
@@ -56,7 +57,7 @@ export function DepartmentTable({ departments }: DepartmentTableProps) {
         notifications.show({ color: "green", message: "Department deleted" });
         closeConfirm();
         setDeleting(null);
-        router.refresh();
+        void invalidateCurrentPathCaches().then(() => router.refresh());
       } else {
         notifications.show({ color: "red", message: result.error });
       }
@@ -72,7 +73,7 @@ export function DepartmentTable({ departments }: DepartmentTableProps) {
     try {
       const result = await moveDepartment(calendar.id, direction);
       if (result.ok) {
-        router.refresh();
+        void invalidateCurrentPathCaches().then(() => router.refresh());
       } else {
         notifications.show({ color: "red", message: result.error });
       }
@@ -218,7 +219,7 @@ export function DepartmentTable({ departments }: DepartmentTableProps) {
         onCreate={() => {
           closeDetail();
           setSelected(null);
-          router.refresh();
+          void invalidateCurrentPathCaches().then(() => router.refresh());
         }}
         onRequestDelete={requestDelete}
       />

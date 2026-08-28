@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { signIn } from "next-auth/react";
 import { Button, Center, Paper, PasswordInput, Stack, Text, Title } from "@mantine/core";
 import { BUTTON_LOADER_PROPS } from "@/lib/theme";
+import { invalidateCurrentPathCaches } from "@/lib/pwa/client";
 
 export function LoginForm() {
   const router = useRouter();
@@ -23,7 +24,7 @@ export function LoginForm() {
         return;
       }
       router.push("/dashboard");
-      router.refresh();
+      void invalidateCurrentPathCaches().then(() => router.refresh());
     } finally {
       setLoading(false);
     }

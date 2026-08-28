@@ -1,12 +1,33 @@
 "use client";
 
-import type { ReactNode } from "react";
+import { useEffect, type ReactNode } from "react";
 import { MantineProvider } from "@mantine/core";
 import { Notifications } from "@mantine/notifications";
 import { useMediaQuery } from "@mantine/hooks";
 
 import { OfflineBanner } from "@/components/OfflineBanner";
 import { DESKTOP_MEDIA_QUERY, theme } from "@/lib/theme";
+
+function useSessionExpiryRedirect() {
+  // The SW posts this when a background revalidation lands on /login
+  // (session expired on a cached device). Purge is already done in the SW —
+  // here we just leave the stale page.
+  useEffect(() => {
+    const handler = (event: MessageEvent) => {
+      if (event.data?.type === "cloudy2:session-expired") {
+        // eslint-disable-next-line @next/next/no-location-assign-relative-destination
+        window.location.assign("/login");
+      }
+    };
+    if ("serviceWorker" in navigator) {
+      navigator.serviceWorker.addEventListener("message", handler as EventListener);
+      return () =>
+        navigator.serviceWorker.removeEventListener("message", handler as EventListener);
+    }
+    window.addEventListener("message", handler);
+    return () => window.removeEventListener("message", handler);
+  }, []);
+}
 
 // React 19.2 warns when a `<script>` element is rendered inside a React
 // component on the client. Mantine's `ColorSchemeScript` (root layout `<head>`)
@@ -35,6 +56,9 @@ if (process.env.NODE_ENV === "development" && typeof window !== "undefined") {
  * component boundary, so MantineProvider must mount on the client.
  */
 export default function AppProviders({ children }: { children: ReactNode }) {
+  // If the SW detected a session expiry while revalidating a cached page,
+  // leave the stale view for /login — the caches are already purged in the SW.
+  useSessionExpiryRedirect();
   // Toasts default to the bottom-right corner, which is exactly where the
   // FloatingToolbar FABs sit on mobile (both portaled to <body>) — a success
   // toast would cover the button the user just tapped. Mobile gets

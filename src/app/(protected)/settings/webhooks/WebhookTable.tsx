@@ -23,6 +23,7 @@ import { FAB_ICON_SIZE, FloatingActionButton, FloatingToolbar } from "@/componen
 import { CONTENT_ENTER_CLASS } from "@/lib/loading/contentEnter";
 import { activatable } from "@/lib/ui/activatable";
 import { WebhookForm } from "./WebhookForm";
+import { invalidateCurrentPathCaches } from "@/lib/pwa/client";
 
 interface WebhookTableProps {
   webhooks: Webhook[];
@@ -153,7 +154,7 @@ export function WebhookTable({ webhooks }: WebhookTableProps) {
           onDone={() => {
             closeForm();
             setEditing(null);
-            router.refresh();
+            void invalidateCurrentPathCaches().then(() => router.refresh());
           }}
         />
       </Modal>

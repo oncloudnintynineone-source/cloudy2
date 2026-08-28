@@ -45,6 +45,7 @@ import type { AuditLog } from "@/db/schema";
 
 import { AuditLogRowSkeleton } from "./AuditLogRowSkeleton";
 import { SettingsTableSkeleton } from "../SettingsTableSkeleton";
+import { invalidateCurrentPathCaches } from "@/lib/pwa/client";
 
 interface AuditLogViewProps {
   initialRows: AuditLog[];
@@ -233,7 +234,7 @@ export function AuditLogView({
               : `Deleted ${result.deleted} old log entr${result.deleted === 1 ? "y" : "ies"}`,
         });
         closePurge();
-        router.refresh();
+        void invalidateCurrentPathCaches().then(() => router.refresh());
       } else {
         notifications.show({ color: "red", message: result.error });
       }

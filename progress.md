@@ -27,8 +27,8 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
   calendars with cross-department copies, invitees, templates, time options and location
   policy, with outbound webhooks to any number of admin-registered external endpoints on
   create/update/delete; dashboard Month/Mobile-month/Schedule-Day/Week/Week-v2-matrix/Agenda views over
-  a layered calendar cache; parade-state page with local attendance mode; contacts page;
-  PWA installability;
+   a layered calendar cache; parade-state page with local attendance mode; contacts page;
+   PWA installability with offline & instant open (SWR document + RSC, precached offline.html);
   mobile-first UI with a desktop layout at `lg`; remembered UI state across relaunch;
   audit-log viewer with retention + CSV export; admin-managed quick-links menu
   launched from a grey 3-dots FAB (mobile) / nav-row button (desktop) on the
@@ -176,6 +176,7 @@ One line per phase; full write-ups (incl. Mermaid diagrams and verification note
 - 1.118 Departments detail modal: row/card tap opens one modal (settings + calendar access + delete) replacing the Share/Edit/Delete buttons; calendar ID off the list; assigned users get an inline role selector (reader/writer/owner override, immediate + reconcile-safe)
 - 1.119 Event wizard modal: outside click / Escape minimize instead of discarding (draft keeps in the floating bubble); "Tap outside to minimize" caption floats beneath the dialog
 - 1.120 Desktop wide-grid horizontal pan: mouse drag-to-pan + viewport-edge pan chevrons on the Day/Week/Week v2 grids (`useGridPan` over Mantine `useScroller` + `GridPanControls`) — Mantine hides the native scrollbar and its 4px bar sits at the bottom of a table taller than the page, so a wheel mouse had no discoverable horizontal pan (supersedes the committed fade-edge/always-scrollbar attempt)
+- 1.121 PWA offline & instant open: stale-while-revalidate document + RSC caches (`app-documents-swr` / `app-rsc-swr`) so the installed app shows the last-saved calendar instantly — even offline — with background revalidation, a precached branded `offline.html`, per-pathname invalidation on every `router.refresh()` (so mutations never render stale), session-expiry purge + `Saved · HH:MM` chip, and sign-out cache clear (pure predicate module `src/lib/pwa/swRules.ts` unit-tested; `docs/pwa-offline.md`)
 
 ## 1.4 Open items & next steps
 

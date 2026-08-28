@@ -27,6 +27,7 @@ import type { RosterUser } from "@/lib/roster/queries";
 import { formatFullName } from "@/lib/settings/formatName";
 import { activatable } from "@/lib/ui/activatable";
 import { UserForm, type DepartmentOption } from "./UserForm";
+import { invalidateCurrentPathCaches } from "@/lib/pwa/client";
 
 interface UserTableProps {
   users: RosterUser[];
@@ -325,7 +326,7 @@ export function UserTable({ users, departments, nameTemplate }: UserTableProps) 
           onDone={() => {
             close();
             setEditingUser(null);
-            router.refresh();
+            void invalidateCurrentPathCaches().then(() => router.refresh());
           }}
         />
       </Modal>

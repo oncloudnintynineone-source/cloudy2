@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#0D47A1" />
+    <title>Offline — Cloudy</title>
+    <style>
+      :root {
+        --navy: #0d47a1;
+        --amber: #fbc02d;
+        --bg: #f7f8fb;
+      }
+      * { box-sizing: border-box; margin: 0; padding: 0; }
+      body {
+        font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+        background: var(--bg);
+        color: #1a1a1a;
+        min-height: 100dvh;
+        display: flex;
+        flex-direction: column;
+      }
+      header {
+        background: var(--navy);
+        color: white;
+        padding: calc(14px + env(safe-area-inset-top, 0px)) 16px 14px;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+      }
+      header svg { flex-shrink: 0; }
+      header h1 { font-size: 1.1rem; font-weight: 700; letter-spacing: 0.02em; }
+      main {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        padding: 32px 20px 40px;
+        text-align: center;
+      }
+      .card {
+        background: white;
+        border: 1px solid #e6e8ef;
+        border-radius: 12px;
+        padding: 28px 24px;
+        max-width: 420px;
+        width: 100%;
+        box-shadow: 0 2px 12px rgba(13, 71, 161, 0.08);
+      }
+      .icon {
+        width: 56px;
+        height: 56px;
+        margin: 0 auto 16px;
+        border-radius: 999px;
+        background: #fff8e1;
+        display: grid;
+        place-items: center;
+      }
+      .icon svg { display: block; }
+      h2 { font-size: 1.15rem; font-weight: 700; margin-bottom: 8px; color: #0d47a1; }
+      p { font-size: 0.95rem; line-height: 1.5; color: #4a4a4a; }
+      p + p { margin-top: 10px; }
+      .btn {
+        margin-top: 18px;
+        display: inline-block;
+        background: var(--navy);
+        color: white;
+        font-weight: 600;
+        font-size: 0.95rem;
+        padding: 10px 18px;
+        border-radius: 8px;
+        text-decoration: none;
+      }
+      .hint { margin-top: 14px; font-size: 0.82rem; color: #777; }
+    </style>
+  </head>
+  <body>
+    <header>
+      <!-- Inline brand mark: cloud + calendar, no external asset -->
+      <svg width="28" height="28" viewBox="0 0 28 28" fill="none" aria-hidden="true">
+        <path d="M8 18a4 4 0 01-.7-7.92A5.5 5.5 0 0118 8.5 4 4 0 0122 18H8z" fill="white" opacity="0.95" />
+        <rect x="7" y="11" width="14" height="10" rx="2" fill="#0D47A1" stroke="white" stroke-width="1.2" />
+        <path d="M10 11V9M18 11V9M7 14h14" stroke="white" stroke-width="1.2" stroke-linecap="round" />
+      </svg>
+      <h1>Cloudy</h1>
+    </header>
+    <main>
+      <div class="card">
+        <div class="icon" aria-hidden="true">
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#F9A825" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M3 12a9 9 0 1018 0 9 9 0 00-18 0z" />
+            <path d="M8 12h8M12 8v8" />
+            <path d="M9 16l-1 1M15 16l1 1" opacity="0.0" />
+          </svg>
+        </div>
+        <h2>You're offline</h2>
+        <p>Cloudy couldn't reach the server. If you've opened the calendar before, your last saved view is still available — try going back or reopening the app.</p>
+        <p>This page appears when there's no saved copy for this view yet.</p>
+        <a class="btn" href="/">Try again</a>
+        <p class="hint">Tip: open the calendar while online once — afterwards it opens instantly, even offline.</p>
+      </div>
+    </main>
+  </body>
+</html>

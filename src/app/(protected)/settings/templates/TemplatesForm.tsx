@@ -44,6 +44,7 @@ import { NoKeyboardSelect } from "@/components/NoKeyboardSelect";
 
 import { MasterTemplateForm } from "./MasterTemplateForm";
 import { ViewTemplateForm } from "./ViewTemplateForm";
+import { invalidateCurrentPathCaches } from "@/lib/pwa/client";
 
 interface PreviewUser {
   name: string;
@@ -184,7 +185,7 @@ export function TemplatesForm({
       const result: SettingsActionResult = await updateNameTemplate(values.nameTemplate);
       if (result.ok) {
         notifications.show({ color: "green", message: "Name template updated" });
-        router.refresh();
+        void invalidateCurrentPathCaches().then(() => router.refresh());
         return;
       }
       if (result.field === "nameTemplate") {
@@ -246,7 +247,7 @@ export function TemplatesForm({
   const handleFormDone = () => {
     closeForm();
     setEditing(null);
-    router.refresh();
+    void invalidateCurrentPathCaches().then(() => router.refresh());
   };
 
   const handleAssignmentSave = async () => {
@@ -259,7 +260,7 @@ export function TemplatesForm({
     if (result.ok) {
       notifications.show({ color: "green", message: "View assignments updated" });
       closeAssignments();
-      router.refresh();
+      void invalidateCurrentPathCaches().then(() => router.refresh());
       return;
     }
     notifications.show({ color: "red", message: result.error });
@@ -558,7 +559,7 @@ export function TemplatesForm({
           emptySample={eventTitleEmptySample}
           onDone={() => {
             closeMaster();
-            router.refresh();
+            void invalidateCurrentPathCaches().then(() => router.refresh());
           }}
         />
       </Modal>

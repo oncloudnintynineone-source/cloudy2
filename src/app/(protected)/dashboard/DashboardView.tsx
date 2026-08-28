@@ -111,9 +111,11 @@ import { useGridPan } from "@/lib/ui/gridPan";
 import { useImmersiveMode } from "@/lib/ui/immersiveMode";
 import { DASHBOARD_STATE_KEYS, freshMarkerNeeded, orderDashboardViews } from "@/lib/ui/uiState";
 import { usePersistUiState } from "@/lib/ui/uiStateClient";
+import { SavedDataChip } from "@/components/SavedDataChip";
 import { EventDetail } from "./EventDetail";
 import { EventForm } from "./EventForm";
 import { WeekMatrixView } from "./WeekMatrixView";
+import { invalidateCurrentPathCaches } from "@/lib/pwa/client";
 
 type ViewMode = "month" | "week" | "weekv2" | "schedule" | "agenda";
 
@@ -1594,6 +1596,9 @@ export function DashboardView({
             </Menu.Dropdown>
           </Menu>
         </Group>
+        <Box style={{ display: "flex", justifyContent: "center", marginTop: 4, minHeight: 18 }}>
+          <SavedDataChip />
+        </Box>
       </Box>
 
       {currentUserName.trim().length <= 2 && (
@@ -2072,7 +2077,7 @@ export function DashboardView({
         onDeleted={() => {
           setDetailEvent(null);
           setAgendaDate(null);
-          router.refresh();
+          void invalidateCurrentPathCaches().then(() => router.refresh());
         }}
         peopleNames={peopleNames}
         calendarNames={calendarNames}
@@ -2146,7 +2151,7 @@ export function DashboardView({
                 inviteeUsers={inviteeUsers}
                 onDone={() => {
                   closeForm();
-                  router.refresh();
+                  void invalidateCurrentPathCaches().then(() => router.refresh());
                 }}
               />
             )}
