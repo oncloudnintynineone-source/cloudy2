@@ -138,7 +138,7 @@ Division of labor:
   "lastPage": "/settings/users",        // bottom-nav path, incl. /settings sub-tab
   "sidebarCollapsed": false,            // desktop sidebar minimized to the icon rail
   "dashboard": {
-    "view": "weekv2",                   // month | week | weekv2 | schedule | agenda
+    "view": "weekv2",                   // month | week (H) | weekv2 (Week D) | schedule | agenda — labels are "Week (H)" / "Week (D)"
     "date": "2026-08-21",               // day-anchored views
     "month": "2026-08",                 // Month view
     "cal": ["<calendar id>", "..."],    // comma-joined in the URL

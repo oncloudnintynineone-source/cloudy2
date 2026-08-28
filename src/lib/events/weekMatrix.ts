@@ -1,5 +1,5 @@
 /**
- * Pure helpers for the Week v2 matrix view: 7 day columns (the week's days) x
+ * Pure helpers for the Week (D) matrix view: 7 day columns (the week's days) x
  * one row per user/department. Events are laid out as spanning banners that
  * occupy every day they cover within a row, placed in "lanes" (stacked
  * vertically within the row) so overlapping multi-day events don't collide.

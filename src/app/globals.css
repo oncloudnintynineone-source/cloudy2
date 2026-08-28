@@ -66,9 +66,9 @@
 
   The AppShell header is fixed at the viewport top at every width (56px brand
   bar + the optional announcement banner, see --app-banner-height below), and
-  `--app-shell-header-offset` (sticky top offset for bars pinned under it) is
-  declared unconditionally on `.app-shell-root`: the dashboard's view-tabs +
-  date-nav block and the Week v2 day header pin on mobile too. Consumers that
+   `--app-shell-header-offset` (sticky top offset for bars pinned under it) is
+   declared unconditionally on `.app-shell-root`: the dashboard's view-tabs +
+   date-nav block and the Week (D) day header pin on mobile too. Consumers that
   want desktop-only stickiness must gate themselves in JS (SettingsTabs does).
 
   The FAB clearance vars are declared on :root (not on the page elements):
@@ -154,12 +154,22 @@
   margin-inline: auto;
 }
 
-/* Card grids for the contacts and parade-state lists: a single column on
-   mobile, auto-filling columns of >=320px cards on desktop. */
+/* Card grids for the contacts and parade-state lists: single column on
+   narrow mobile, auto-filling columns on wider screens well before the
+   62em desktop shell switch — otherwise mid-width viewports (e.g. large
+   phones in landscape / tablets around 600-900px) render a single
+   elongated column. 300px at 36em lets 2 columns fit from ~640px;
+   320px at 62em is the desktop width. */
 .card-grid {
   display: grid;
   grid-template-columns: 1fr;
   gap: var(--mantine-spacing-sm);
+}
+
+@media (min-width: 36em) {
+  .card-grid {
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  }
 }
 
 @media (min-width: 62em) {

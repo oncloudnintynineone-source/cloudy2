@@ -1,11 +1,11 @@
 "use client";
 
 /**
- * Week v2 matrix: 7 day columns (Monday-first) x one row per user/department.
+ * Week (D) matrix: 7 day columns (Monday-first) x one row per user/department.
  * Multi-day events render as spanning banners that occupy every day they
  * cover within a row, placed in lanes (stacked vertically) so overlapping
  * events don't collide.  The day header and the left group/user labels are
- * pinned while the table scrolls horizontally, mirroring the Day/Week
+ * pinned while the table scrolls horizontally, mirroring the Day/Week (H)
  * schedule views: each department block is a flex row whose group label is
  * sticky-left, and each resource row is a flex row whose label is sticky-left
  * beside a shared day grid, so every day column lines up across the table.
@@ -87,7 +87,7 @@ export function WeekMatrixView({
 }: WeekMatrixViewProps) {
   const theme = useMantineTheme();
   const isDesktop = useMediaQuery(`(min-width: ${theme.breakpoints.lg})`);
-  // Drag-to-pan + edge pan buttons (same story as the Day/Week schedule
+  // Drag-to-pan + edge pan buttons (same story as the Day/Week (H) schedule
   // views — see useGridPan). Always enabled, not desktop-gated.
   const gridPan = useGridPan();
   const rootRef = useRef<HTMLDivElement | null>(null);

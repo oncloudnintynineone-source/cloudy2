@@ -90,15 +90,15 @@ before changing the subsystem.
 - Dashboard + parade-state ⋮ menus hold quick filter actions: **My Events**
   (Users filter = current user), **Clear**, **More Filters** (opens `FilterModal`; the
   dialog also has a draft-scoped My Events action). On the dashboard an active **Users**
-  filter also narrows the rows of Day/Week/Week v2 (`buildScheduleResources`
+  filter also narrows the rows of Day/Week (H)/Week (D) (`buildScheduleResources`
   `userFilter`, `src/lib/events/schedule.ts`). Non-admins default to their own
   department but may filter to any department.
-- **Week v2** (`?view=weekv2`) is a custom week matrix (7 day-columns × the same
-  resource rows as Day/Week) in `WeekMatrixView.tsx` — no Mantine Schedule component
+- **Week (D)** (`?view=weekv2`) is a custom week matrix (7 day-columns × the same
+  resource rows as Day/Week (H)) in `WeekMatrixView.tsx` — no Mantine Schedule component
   fits this shape. Cell binning is pure `buildWeekLanes`/`coveredDays`
   (`src/lib/events/weekMatrix.ts`); data comes from the same `fetchRangeEvents`
-  2-month read as Week, so cache/filters/force-refresh are inherited unchanged.
-- **Wide-grid horizontal pan:** the Day/Week/Week v2 grids are wider than the
+  2-month read as Week (H), so cache/filters/force-refresh are inherited unchanged.
+- **Wide-grid horizontal pan:** the Day/Week (H)/Week (D) grids are wider than the
   viewport, but Mantine hides the native scrollbars and its own 4px bar sits at
   the bottom of a table that is usually taller than the screen (the page scrolls
   vertically, not the area) — otherwise there is no discoverable horizontal pan
@@ -111,7 +111,7 @@ before changing the subsystem.
   enabled whenever the viewport overflows; native touch pan is preserved
   alongside). Day/Week wire it through the schedule views' `scrollAreaProps`
   (`viewportProps` + a `viewportRef` merged with the ruler-sync ref — keep
-  `scrollAreaProps` identity stable across scroll frames); Week v2 through its
+  `scrollAreaProps` identity stable across scroll frames); Week (D) through its
   own `ScrollArea`. Edge state is tracked on element **attach**, not mount (the
   grids remount per view switch, so a one-shot mount listener would keep stale
   edges).

@@ -113,7 +113,7 @@ export function expandScheduleEvents(events: CalendarEvent[]): ScheduleEvent[] {
  * their own department (by name) regardless of the calendar selection, and
  * unassigned selected users land in a trailing `Unassigned` group. Event
  * placements for hidden rows are ignored by the views (Mantine skips events
- * whose resource is not rendered; the Week v2 matrix only reads lanes of
+ * whose resource is not rendered; the Week (D) matrix only reads lanes of
  * rendered rows).
  */
 export function buildScheduleResources(params: {

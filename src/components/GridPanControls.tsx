@@ -5,8 +5,8 @@ import { ActionIcon } from "@mantine/core";
 import { IconTriangleFilled } from "@tabler/icons-react";
 
 /**
- * Floating pan buttons for the dashboard's wide grids (Day/Week schedule
- * views, Week v2): fixed at the viewport's mid-height, one per edge that can
+ * Floating pan buttons for the dashboard's wide grids (Day/Week (H) schedule
+ * views, Week (D)): fixed at the viewport's mid-height, one per edge that can
  * still scroll, positioned just inside the grid's own left/right edges (the
  * anchor box) rather than the window's — the desktop sidebar sits left of the
  * grid, so a window-left button would overlap it. The anchor rect is

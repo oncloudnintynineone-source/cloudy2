@@ -88,8 +88,8 @@ const FALLBACK_SAMPLE_EVENT_TYPE: PreviewEventType = { name: "Training", shortna
 
 const VIEW_LABELS: Record<string, string> = {
   month: "Month",
-  week: "Week",
-  weekv2: "Week v2",
+  week: "Week (H)",
+  weekv2: "Week (D)",
   schedule: "Day",
   agenda: "Agenda",
 };

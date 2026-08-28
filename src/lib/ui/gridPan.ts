@@ -5,7 +5,7 @@ import { useScroller } from "@mantine/hooks";
 
 /**
  * Mouse/touch drag-to-pan for the dashboard's horizontally scrolling grids
- * (Day/Week schedule views and Week v2). Those scroll areas are wider than
+ * (Day/Week (H) schedule views and Week (D)). Those scroll areas are wider than
  * the viewport, but Mantine hides the native scrollbars and its own 4px bar
  * sits at the bottom of a table that is usually taller than the screen (the
  * page scrolls vertically, not the area) — so without drag/buttons there is

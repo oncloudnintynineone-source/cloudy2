@@ -74,7 +74,7 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
   const urlDate =
     typeof params.date === "string" && DATE_PATTERN.test(params.date) ? params.date : null;
   const cookieDate = typeof ui?.date === "string" && DATE_PATTERN.test(ui.date) ? ui.date : null;
-  // A remembered `date` only anchors the day views (Week, Week v2, Day,
+  // A remembered `date` only anchors the day views (Week (H), Week (D), Day,
   // Agenda); in Month view the remembered month — not a remembered day —
   // drives the read.
   const dateParam = urlDate ?? (view === "month" ? null : cookieDate);
@@ -213,7 +213,7 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
     calendars.map((calendar) => [calendar.id, calendar.name]),
   );
 
-  // The week views (Week, Week v2) are anchored on a day and display the full
+  // The week views (Week (H), Week (D)) are anchored on a day and display the full
   // Monday-first week containing it, which can span two months (Google month
   // reads are month-keyed), so those months are fetched and merged in one
   // range read. The Month view likewise displays a full 6-week grid whose

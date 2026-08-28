@@ -117,8 +117,8 @@ Suspense fallback), shaped to match the real content:
 
 The row/card skeletons are extracted into small **shared components** so the
 route fallback and the in-page swap stay in sync: `dashboard/calendarSkeleton.tsx`
-(all five view grids — `MonthGridSkeleton`, `WeekMatrixSkeleton` (Week v2
-matrix), `WeekGridSkeleton`, `AgendaListSkeleton`, `ScheduleGridSkeleton`),
+(all five view grids — `MonthGridSkeleton`, `WeekMatrixSkeleton` (Week (D)
+matrix), `WeekGridSkeleton` (Week (H)), `AgendaListSkeleton`, `ScheduleGridSkeleton`),
 `parade-state/paradeStateSkeleton.tsx`,
 `settings/audit-log/AuditLogRowSkeleton.tsx`.
 
@@ -242,11 +242,11 @@ sequenceDiagram
     participant C as Chrome (local state)
     participant N as Next router
     participant S as Server
-    U->>C: tap Week tab
+    U->>C: tap Week (H) tab
     C->>C: highlight + label flip instantly (shown* state)
     C->>N: startTransition(router.push)
     N->>S: RSC fetch (may take seconds)
-    N-->>C: WeekGridSkeleton meanwhile (optimistic flavor)
+    N-->>C: WeekGridSkeleton (Week (H)) meanwhile (optimistic flavor)
     S-->>N: payload
     N-->>C: commit → props update → sync snaps shown* to props
     Note over C: failed/offline fetch: transition ends,<br/>sync reverts chrome to last committed state

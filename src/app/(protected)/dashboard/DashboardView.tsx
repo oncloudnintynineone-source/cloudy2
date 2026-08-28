@@ -121,8 +121,8 @@ type ViewMode = "month" | "week" | "weekv2" | "schedule" | "agenda";
 // the front by `orderDashboardViews` (see the pinnedViews prop).
 const VIEW_TAB_META: Record<ViewMode, { label: string; icon: ReactNode; nowrap?: boolean }> = {
   month: { label: "Month", icon: <IconCalendarMonth size={16} /> },
-  week: { label: "Week", icon: <IconCalendarWeek size={16} /> },
-  weekv2: { label: "Week v2", icon: <IconLayoutGrid size={16} />, nowrap: true },
+  week: { label: "Week (H)", icon: <IconCalendarWeek size={16} /> },
+  weekv2: { label: "Week (D)", icon: <IconLayoutGrid size={16} />, nowrap: true },
   schedule: { label: "Day", icon: <IconCalendarUser size={16} /> },
   agenda: { label: "Agenda", icon: <IconListDetails size={16} /> },
 };
@@ -196,21 +196,21 @@ interface FormState {
 
 const DAY_SWIPE_THRESHOLD = 48;
 
-// Fallback for the Week view's day-column width: 24 hourly slots × Mantine's
+// Fallback for the Week (H) view's day-column width: 24 hourly slots × Mantine's
 // default 60px slot width at the default scale. The real value is measured
 // from the DOM (see the effect below) so non-default root font sizes still
 // derive the correct day index.
 const WEEK_DAY_WIDTH_PX = 24 * 60;
 
 /**
- * Day-label strip for the Week view. `ResourcesWeekView`'s own day labels are
+ * Day-label strip for the Week (H) view. `ResourcesWeekView`'s own day labels are
  * centered in each full-width day column, so on a phone they are only visible
  * when the viewport happens to sit over the middle of a day. This strip
  * replaces that row and pins the leftmost visible day (the caller tracks it
  * via `onScrollPositionChange`) to the grid's left edge, styled like Mantine's
  * own day labels (today filled/primary, weekends red). The strip itself is
  * sticky under the shared tabs+date-nav chrome at every breakpoint, mirroring
- * the Week v2 day header.
+ * the Week (D) day header.
  */
 function WeekDayLabelStrip({
   day,
@@ -294,13 +294,13 @@ function WeekDayLabelStrip({
 const SLOTS_PER_DAY = 24;
 
 /**
- * Pinned hour ruler for the Day and Week schedule views. The library's own
+ * Pinned hour ruler for the Day and Week (H) schedule views. The library's own
  * time-labels row is sticky only inside its ScrollArea viewport, which never
  * scrolls vertically (the page does), so during page scroll the axis scrolls
  * away with the grid. This strip replaces that row: it pins beneath the shared
- * chrome (like the Week day-label strip) and its inner hour track translates
+ * chrome (like the Week (H) day-label strip) and its inner hour track translates
  * by -scrollLeft via a direct DOM transform — no re-renders — so labels stay
- * over their columns while the grid pans horizontally, mirroring the Week v2
+ * over their columns while the grid pans horizontally, mirroring the Week (D)
  * day-header mechanics.
  */
 function TimeRulerStrip({
@@ -311,7 +311,7 @@ function TimeRulerStrip({
   /** Extra sticky offset when another strip stacks above this one. */
   stackBelowHeight,
   innerRef,
-  /** Number of days the ruler spans (1 for Day view, 7 for Week view). */
+  /** Number of days the ruler spans (1 for Day view, 7 for Week (H) view). */
   days = 1,
 }: {
   hasGroups: boolean;
@@ -614,7 +614,7 @@ export function DashboardView({
   const shownIsAnchored = shownView === "schedule" || shownIsWeekV2 || shownIsAgenda;
 
   // Height of the sticky chrome block (view tabs + date-nav row, one sticky
-  // unit), so the Week v2 pinned day header and the Week day-label strip can
+  // unit), so the Week (D) pinned day header and the Week (H) day-label strip can
   // stick just below it. Measured before first paint (and on resize) so the
   // pinned headers never overlap the chrome.
   const tabsListRef = useRef<HTMLDivElement | null>(null);
@@ -661,7 +661,7 @@ export function DashboardView({
     }
   }, [shownView]);
 
-  // Week view: which day (0-6) sits at the left edge of the horizontally
+  // Week (H) view: which day (0-6) sits at the left edge of the horizontally
   // scrolling grid. The index (not raw px) drives the pinned day-label strip,
   // so a scroll frame only re-renders when the visible day actually changes.
   const weekDayWidthRef = useRef(WEEK_DAY_WIDTH_PX);
@@ -786,7 +786,7 @@ export function DashboardView({
   const weekLabel = week ? formatWeekLabel(week[0], week[6]) : "";
   const today = dayjs().format("YYYY-MM-DD");
   const todayMonth = dayjs().format("YYYY-MM");
-  // Start-scroll anchor for the Day/Week timelines: when the shown period
+  // Start-scroll anchor for the Day/Week (H) timelines: when the shown period
   // contains today the grid opens at the current time, otherwise the 07:00
   // working-day default. Only consumed by the library's client mount effect
   // (never emitted to the DOM), so the client-computed value is hydration-safe.
@@ -881,8 +881,8 @@ export function DashboardView({
   const isWeek = view === "week" || isWeekV2;
   const isSchedule = view === "schedule";
   const isAgenda = view === "agenda";
-  // Day-anchored views (Day, Week v2, Agenda): a `?date=` anchor drives the
-  // fetch (Week v2 shows the Monday-first week containing the anchor day).
+  // Day-anchored views (Day, Week (D), Agenda): a `?date=` anchor drives the
+  // fetch (Week (D) shows the Monday-first week containing the anchor day).
   const isAnchoredView = isSchedule || isWeekV2 || isAgenda;
 
   // Tab bar order: pinned tabs first (in recency order), then the rest in
@@ -1040,7 +1040,7 @@ export function DashboardView({
     }
     // Leaving a date-anchored view keeps the currently viewed month visible;
     // the month is derived from the anchor date for week and agenda/day alike.
-    // Anchoring reads the optimistic chrome so leaving mid-flight (tap Week,
+    // Anchoring reads the optimistic chrome so leaving mid-flight (tap Week (H) or Week (D),
     // then Month before commit) still lands on the month you were shown.
     const anchorMonth = shownIsWeek || shownIsAnchored ? shownDate.slice(0, 7) : null;
     setShownView("month");
@@ -1245,11 +1245,11 @@ export function DashboardView({
   // (`--resources-*-view-slot-width`), so with a non-default root font size or
   // --mantine-scale a hardcoded px guess would drift. Probe the CSS variable
   // on the active view's root (found among the Box's children by the variable
-  // it declares); the Week day index stores 24 slots' worth. The measured slot
+  // it declares); the Week (H) day index stores 24 slots' worth. The measured slot
   // is published to the rulers as `--ruler-slot` on the content box — direct
-  // DOM writes, pre-paint (no state). Runs only when the Day/Week grid is
+  // DOM writes, pre-paint (no state). Runs only when the Day/Week (H) grid is
   // actually rendered (not the skeleton or the empty "No users" paper), and
-  // re-runs when the breakpoint flips (the Week slot width widens at lg).
+  // re-runs when the breakpoint flips (the Week (H) slot width widens at lg).
   useLayoutEffect(() => {
     const isWeekGrid = view === "week";
     const isDayGrid = isSchedule;
@@ -1289,7 +1289,7 @@ export function DashboardView({
     }
   }, [view, gridLoading, isSchedule, isDesktop]);
 
-  // Shared by the Day and Week resource views: a department row is a building
+  // Shared by the Day and Week (H) resource views: a department row is a building
   // icon (its name as tooltip/aria), a user row is the shortname label.
   function renderResourceLabel(resource: ScheduleResourceData) {
     const row = resource as ScheduleResource;
@@ -1341,7 +1341,7 @@ export function DashboardView({
           its containing block spans the whole page and sticky can hold it at
           the top (a sticky element pinned to a shorter root would scroll away
           with it); page content slides beneath its opaque background. Its
-          measured height feeds the Week v2 day header and the Week label
+          measured height feeds the Week (D) day header and the Week (H) label
           strip so they dock flush beneath it. */}
       <Box
         ref={tabsListRef}
@@ -1940,7 +1940,7 @@ export function DashboardView({
         )}
       </Box>
 
-      {/* Edge pan buttons for the Day/Week grids (Week v2 renders its own
+      {/* Edge pan buttons for the Day/Week (H) grids (Week (D) renders its own
           inside WeekMatrixView). Gated on the real grid, so a stale
           scroll state from a previous view can't linger over the skeleton. */}
       {!gridLoading &&

@@ -22,16 +22,20 @@ mobile layout is byte-for-byte the same code path.
 
 ## 1.1 Breakpoint & detection
 
-One breakpoint governs everything: Mantine `lg`, pinned to **992px** via a
+One breakpoint governs the **shell**: Mantine `lg`, pinned to **992px** via a
 theme override (`src/lib/theme.ts` sets `breakpoints.lg` to `"62em"`, matching
 the CSS block). Mantine's default `lg` is 75em (1200px); without the override
 the JS `isDesktop` query, the `visibleFrom="lg"` props, and the `62em` CSS
 would drift apart. The override makes every `lg:` reference mean 992px.
+The card grids (`ContactList`, `ParadeStateView`) add an **earlier**
+`36em` (576px) breakpoint so mid-width viewports (large phones in
+landscape / tablets around 640-900px) already reflow to a grid before the
+shell switches to desktop chrome.
 
 | Medium | Where | Usage |
 | ------ | ----- | ----- |
-| CSS | `src/app/globals.css` | `@media (min-width: 62em)` block (62em = 992px at the default 16px root) |
-| Theme | `src/lib/theme.ts` | `breakpoints.lg: "62em"` — aligns Mantine's `lg` with the CSS |
+| CSS | `src/app/globals.css` | `@media (min-width: 36em)` (576px: card-grid ≥300px) + `@media (min-width: 62em)` block (62em = 992px at the default 16px root: shell + card-grid ≥320px) |
+| Theme | `src/lib/theme.ts` | `breakpoints.lg: "62em"` — aligns Mantine's `lg` with the CSS (`xs` is 36em) |
 | Client components | `@mantine/hooks` | `const theme = useMantineTheme(); const isDesktop = useMediaQuery(\`(min-width: ${theme.breakpoints.lg})\`)` (do **not** append `px` — `theme.breakpoints.lg` is an em string) |
 | Mantine props | core | `visibleFrom="lg"` / `hiddenFrom="lg"` (note: v9 has no `hiddenDown`/`visibleDown`), responsive props like `maw={{ base: 380, lg: 440 }}`, `Grid.Col span={{ base: 12, lg: 6 }}` |
 
@@ -40,12 +44,14 @@ CSS/`visibleFrom`/`hiddenFrom` props decide.
 
 ```mermaid
 flowchart LR
-    A[Viewport width] --> B{≥ 992px?}
-    B -- no --> C[Mobile layout<br/>bottom nav · card lists · sm modals]
-    B -- yes --> D[Desktop layout]
+    A[Viewport width] --> B{≥ 576px?}
+    B -- no --> C[Mobile single-column<br/>bottom nav · card lists · sm modals]
+    B -- yes --> B2{≥ 992px?}
+    B2 -- no --> C2[Mid-width grid<br/>bottom nav · 2-col card-grid]
+    B2 -- yes --> D[Desktop layout]
     D --> E[Left sidebar 240px, minimizes to a 64px icon rail<br/>bottom nav collapsed]
     D --> F[PageContainer ≤ 1200px]
-    D --> G[Tables / card-grid<br/>md-lg modals · 2-col forms]
+    D --> G[Tables / 320px card-grid<br/>md-lg modals · 2-col forms]
 ```
 
 ## 1.2 App shell (sidebar + collapsed bottom nav)
@@ -86,16 +92,17 @@ flowchart LR
 
 ## 1.3 Layout scaffolding (globals.css)
 
-All pure-CSS desktop switches live in one `@media (min-width: 62em)` block in
+Pure-CSS switches live in `@media (min-width: 36em)` (card-grid early grid)
+and `@media (min-width: 62em)` (desktop shell) blocks in
 `src/app/globals.css`, plus a few base classes:
 
-| Class / var | Mobile | At `lg` | Consumed by |
-| ----------- | ------ | ------- | ----------- |
-| `.app-shell-root` → `--app-floating-bottom-offset` | `calc(56px + env(safe-area-inset-bottom) + 16px)` (clears bottom nav) | `16px` | `FloatingToolbar` default `bottomOffset` |
-| `.settings-page-pad` → `--settings-fab-bottom` + `padding-bottom` | `calc(108px + env(safe-area-inset-bottom) + 16px)` (clears bottom nav + settings tab bar) | `16px` | settings `layout.tsx` wrapper; the four settings FABs pass it to `FloatingToolbar` |
-| `.app-shell-root` → `--app-shell-header-offset` | `56px` (declared unconditionally — the AppShell header is fixed at every width; consumers that want desktop-only stickiness gate in JS) | `56px` (same) | `SettingsTabs` sticky row (JS-gated to `lg`+); the dashboard's sticky tabs+date-nav chrome block and Week v2 day-header strip (sticky at all widths); the Week view's day-label strip |
-| `.page-container` | full width | `max-width: 1200px; margin-inline: auto` | `PageContainer` component |
-| `.card-grid` | `1fr` single column | `repeat(auto-fill, minmax(320px, 1fr))` | `ContactList`, `ParadeStateView` |
+| Class / var | Mobile `< 36em` | Mid `36em – 62em` | At `lg` `≥ 62em` | Consumed by |
+| ----------- | -------------- | ----------------- | --------------- | ----------- |
+| `.app-shell-root` → `--app-floating-bottom-offset` | `calc(56px + env(safe-area-inset-bottom) + 16px)` (clears bottom nav) | same | `16px` | `FloatingToolbar` default `bottomOffset` |
+| `.settings-page-pad` → `--settings-fab-bottom` + `padding-bottom` | `calc(108px + env(safe-area-inset-bottom) + 16px)` (clears bottom nav + settings tab bar) | same | `16px` | settings `layout.tsx` wrapper; the four settings FABs pass it to `FloatingToolbar` |
+| `.app-shell-root` → `--app-shell-header-offset` | `56px` (declared unconditionally — the AppShell header is fixed at every width; consumers that want desktop-only stickiness gate in JS) | `56px` (same) | `56px` (same) | `SettingsTabs` sticky row (JS-gated to `lg`+); the dashboard's sticky tabs+date-nav chrome block and Week (D) day-header strip (sticky at all widths); the Week (H) view's day-label strip |
+| `.page-container` | full width | full width | `max-width: 1200px; margin-inline: auto` | `PageContainer` component |
+| `.card-grid` | `1fr` single column | `repeat(auto-fill, minmax(300px, 1fr))` — 2 columns from ~640px, still with bottom nav | `repeat(auto-fill, minmax(320px, 1fr))` | `ContactList`, `ParadeStateView` |
 
 `PageContainer` (`src/components/PageContainer.tsx`) is the thin wrapper
 (`<Box className="page-container">`) that data pages apply to their root so
@@ -114,8 +121,8 @@ gated on `isDesktop`):
 | Element | Mobile | At `lg` |
 | ------- | ------ | ------- |
 | Schedule views' resource/group label widths (`--resources-day-view-*` / `--resources-week-view-*` vars) | `3rem` / `1.5rem` | `6rem` / `3.5rem` — shortnames get room to stop ellipsizing |
-| Week timeline slot width (`--resources-week-view-slot-width`) | Mantine default (`calc(3.75rem * var(--mantine-scale))`, 60px/hour) | `calc(4.5rem * var(--mantine-scale))` |
-| Week v2 matrix label columns | `MOBILE_LABEL_WIDTH` 3rem / group 1.5rem | `DESKTOP_LABEL_WIDTH` 5rem / group 2.5rem (header spacers, sticky row labels, `contentMinWidth`, `labelLeft`) |
+| Week (H) timeline slot width (`--resources-week-view-slot-width`) | Mantine default (`calc(3.75rem * var(--mantine-scale))`, 60px/hour) | `calc(4.5rem * var(--mantine-scale))` |
+| Week (D) matrix label columns | `MOBILE_LABEL_WIDTH` 3rem / group 1.5rem | `DESKTOP_LABEL_WIDTH` 5rem / group 2.5rem (header spacers, sticky row labels, `contentMinWidth`, `labelLeft`) |
 | Month view `maxEventsPerDay` | 3 | 4 |
 | "New event" | FAB only | FAB **hidden** (`hiddenFrom="lg"`) — replaced by a `Button visibleFrom="lg"` in the header row beside the ⋮ menu |
 | Agenda day / event form / detail / filter / date-picker modals | `sm` | `md` (see 1.7) |
@@ -141,23 +148,23 @@ over it. The unit's height is measured with a `ResizeObserver`
 (pre-first-paint + on resize) and feeds every view header that docks beneath
 it via `top: calc(var(--app-shell-header-offset) + <chromeHeight>px)`:
 
-- **Week v2** day header (`WeekMatrixView`, prop `chromeOffset`) — already
+- **Week (D)** day header (`WeekMatrixView`, prop `chromeOffset`) — already
   sticky, now correctly docked below both chrome rows.
-- **Week** day-label strip (`WeekDayLabelStrip`, zIndex 45) — sticky with the
+- **Week (H)** day-label strip (`WeekDayLabelStrip`, zIndex 45) — sticky with the
   same docking formula; its horizontal pan tracking (`weekDayIndex`) is
   unchanged.
-- **Day/Week hour rulers** (`TimeRulerStrip`, zIndex 45) — the library's own
+- **Day/Week (H) hour rulers** (`TimeRulerStrip`, zIndex 45) — the library's own
   time-labels rows are hidden and replaced by a pinned strip of compact hourly
   labels whose inner track translates by `-scrollLeft` via direct DOM
-  transforms (same mechanics as Week v2's header). The measured slot width
+  transforms (same mechanics as Week (D)'s header). The measured slot width
   comes from probing each view's `--resources-*-view-slot-width` CSS var; both
   views' `scrollAreaProps.viewportRef` lets a layout effect re-sync the track
   after mounts/loads, since the libraries' `startScrollTime` /
   `startScrollDateTime` effects reposition the grid without a scroll event.
-   (Side fix: Week now passes the supported `startScrollDateTime` instead of a
+   (Side fix: Week (H) now passes the supported `startScrollDateTime` instead of a
    bogus `startScrollPosition: {y}` prop that was silently ignored.) The anchor
    is dynamic: the Day view uses the current time when its date is today, the
-   Week view uses `{today} {now}` when the shown week contains today — both fall
+   Week (H) view uses `{today} {now}` when the shown week contains today — both fall
    back to 07:00 / Monday 07:00 otherwise (`DashboardView`:
    `currentScrollTime`).
 
@@ -170,7 +177,7 @@ number). Agenda is intentionally header-less (the nav row shows the day).
 variables on the **view root element** (hashed class), so a parent class cannot
 shadow them. `DashboardView` therefore passes the widths through each view's own
 `style`/`vars` props, and `WeekMatrixView` (a fully custom component) computes the
-widths in JS and inlines them. The pinned Week-day header strip takes the same
+widths in JS and inlines them. The pinned Week (H)-day header strip takes the same
 widths as props (`resourceLabelWidth`/`groupLabelWidth`) so its corner spacers
 track the label columns at both breakpoints.
 
@@ -221,8 +228,12 @@ Contacts/Audit-log "Export", Parade-state attendance).
 Both pages wrap their content in `PageContainer`; their card lists
 (`ContactList`, `ParadeStateView`'s per-department user list) switch from
 `<Stack gap="sm">` to a `<Box className="card-grid">`, so cards reflow into
-`auto-fill` ≥320px columns at `lg`. Beyond that, the floating buttons swap for
-inline controls:
+`auto-fill` ≥300px columns at `36em` (~640px effective for 2 columns due to
+`p="md"` + `gap`) and ≥320px at `lg`. The grid therefore activates well
+before the desktop shell (sidebar / `PageContainer` max-width) does — mid-width
+viewports around 640-991px already show a 2-column grid instead of a single
+elongated column while keeping the mobile bottom nav. Beyond that, the
+floating buttons swap for inline controls:
 
 - **Contacts** — the search bar gains an `Export contacts`
   `Button visibleFrom="lg"` (same confirm modal as the FAB); the export FAB is
@@ -267,7 +278,7 @@ The event form's **Timestamp step** pairs Start/End side by side in a 2-column
 
 | File | Role |
 | ---- | ---- |
-| `src/app/globals.css` | `@media (min-width: 62em)` block: offset vars, `.page-container`, `.card-grid` |
+| `src/app/globals.css` | `@media (min-width: 36em)` (card-grid ≥300px) + `@media (min-width: 62em)` block: offset vars, `.page-container`, `.card-grid` ≥320px |
 | `src/components/AppShellShell.tsx` | Navbar (240px ↔ 64px rail, `breakpoint: "lg"`, remembered via `sidebarCollapsed`), footer `collapsed: isDesktop`, `.app-shell-root` |
 | `src/components/PageContainer.tsx` | 1200px-centered wrapper |
 | `src/components/FloatingToolbar.tsx` | Default `bottomOffset` = `var(--app-floating-bottom-offset)` |

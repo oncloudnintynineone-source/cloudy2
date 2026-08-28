@@ -108,8 +108,8 @@ export function AgendaListSkeleton({ rows = 4 }: { rows?: number }) {
 }
 
 /**
- * Stacked resource rows matching the Week view shape (label + 7-day lane).
- * No weekday header inside: the real Week view replaces Mantine's internal
+ * Stacked resource rows matching the Week (H) view shape (label + 7-day lane).
+ * No weekday header inside: the real Week (H) view replaces Mantine's internal
  * day-labels row with the pinned `WeekDayLabelStrip`, which stays visible
  * above this skeleton while it loads.
  */
@@ -156,11 +156,11 @@ export function WeekGridSkeleton({ rows = 6 }: { rows?: number }) {
 }
 
 const MATRIX_BORDER = "1px solid var(--mantine-color-default-border)";
-/** Week v2 lane height — mirrors `ROW_HEIGHT_PX` in `WeekMatrixView`. */
+/** Week (D) lane height — mirrors `ROW_HEIGHT_PX` in `WeekMatrixView`. */
 const MATRIX_ROW_HEIGHT_PX = 36;
 
 /**
- * Matrix matching the Week v2 shape (`WeekMatrixView`): a two-line-per-day
+ * Matrix matching the Week (D) shape (`WeekMatrixView`): a two-line-per-day
  * header band inside the bordered paper, then one row per resource — sticky
  * label placeholder + a 7-column day grid whose spanning banner bars cross
  * multiple day cells. Deterministic bar placement only (SSR-safe).
