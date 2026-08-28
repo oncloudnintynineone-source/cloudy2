@@ -29,7 +29,10 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: "#0D47A1",
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#ffffff" },
+    { media: "(prefers-color-scheme: dark)", color: "#1A1B1E" },
+  ],
   // Makes env(safe-area-inset-*) report real values on notched devices so
   // the header/bottom-nav/FAB clearance vars actually engage in the
   // standalone PWA (they evaluate to 0 without it).
