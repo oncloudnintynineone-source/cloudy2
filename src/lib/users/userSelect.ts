@@ -116,3 +116,61 @@ export function selectionByGroup(groups: PickerGroup[], selected: string[]): Rec
   }
   return result;
 }
+
+export const INVITEE_DEPARTMENTS_SECTION = "Departments";
+
+/** Split the prefixed invitee values (`user:<id>` / `dept:<id>`) into the two id lists. */
+export function splitInvitees(invitees: string[]): {
+  userIds: string[];
+  departmentIds: string[];
+} {
+  const userIds: string[] = [];
+  const departmentIds: string[] = [];
+  for (const value of invitees) {
+    if (value.startsWith("user:")) {
+      userIds.push(value.slice("user:".length));
+    } else if (value.startsWith("dept:")) {
+      departmentIds.push(value.slice("dept:".length));
+    }
+  }
+  return { userIds, departmentIds };
+}
+
+/**
+ * Commit the badge picker draft into the prefixed invitee list.
+ *
+ * Previously selected ids that no longer appear in the picker (e.g.
+ * now-inactive users/departments) are kept so editing can't silently drop
+ * them; the locked creator (if any) is kept first.
+ *
+ * The Departments section yields department ids, every other section yields
+ * user ids.
+ */
+export function mergeInviteeSelection(
+  groups: PickerGroup[],
+  previousInvitees: string[],
+  draft: Record<string, string[]>,
+  creatorId: string | null,
+  departmentsSectionLabel: string = INVITEE_DEPARTMENTS_SECTION,
+): string[] {
+  const allOptionIds = new Set(groups.flatMap((group) => group.options.map((option) => option.id)));
+  const { userIds: previousUserIds, departmentIds: previousDepartmentIds } = splitInvitees(previousInvitees);
+  const keepDepartmentIds = previousDepartmentIds.filter((id) => !allOptionIds.has(id));
+  const keepUserIds = previousUserIds.filter((id) => !allOptionIds.has(id));
+
+  const departmentIds = [
+    ...new Set([...(draft[departmentsSectionLabel] ?? []), ...keepDepartmentIds]),
+  ];
+  const pickedUserIds = Object.keys(draft)
+    .filter((label) => label !== departmentsSectionLabel)
+    .flatMap((label) => draft[label] ?? []);
+  const uniqueUserIds = [...new Set([...pickedUserIds, ...keepUserIds])];
+  const userIds = creatorId
+    ? [creatorId, ...uniqueUserIds.filter((id) => id !== creatorId)]
+    : uniqueUserIds;
+
+  return [
+    ...departmentIds.map((id) => `dept:${id}`),
+    ...userIds.map((id) => `user:${id}`),
+  ];
+}

@@ -53,7 +53,12 @@ import {
 } from "@/lib/settings/formatEventTitle";
 import { BUTTON_LOADER_PROPS } from "@/lib/theme";
 import { showValidationFailure } from "@/lib/ui/validationFeedback";
-import { buildUserGroups, selectionByGroup } from "@/lib/users/userSelect";
+import {
+  buildUserGroups,
+  mergeInviteeSelection,
+  selectionByGroup,
+  splitInvitees,
+} from "@/lib/users/userSelect";
 import { formatDateTime, naiveToDate } from "./clientDateTime";
 
 interface EventTypeOption {
@@ -149,20 +154,6 @@ const STEP_BY_FIELD: Partial<Record<EventResultField, StepId>> = {
 /** Section label of the flat department list inside the invitee badge picker. */
 const PICKER_DEPARTMENTS_SECTION = "Departments";
 
-/** Split the prefixed select values (`user:<id>` / `dept:<id>`) into the two notes fields. */
-function splitInvitees(invitees: string[]): { userIds: string[]; departmentIds: string[] } {
-  const userIds: string[] = [];
-  const departmentIds: string[] = [];
-  for (const value of invitees) {
-    if (value.startsWith("user:")) {
-      userIds.push(value.slice("user:".length));
-    } else if (value.startsWith("dept:")) {
-      departmentIds.push(value.slice("dept:".length));
-    }
-  }
-  return { userIds, departmentIds };
-}
-
 export function EventForm({
   event,
   templateEvent,
@@ -188,36 +179,6 @@ export function EventForm({
     // location); the wizard's goNext already gates every other step.
     validateInputOnBlur: true,
   });
-
-  // Commits the badge picker draft into the form: the Departments section
-  // yields department ids, every other section yields user ids. Previously
-  // selected ids that no longer appear in the picker (e.g. now-inactive users)
-  // are kept so editing can't silently drop them, and the locked creator is
-  // kept first — the same guarantee the old multi-select's onChange had.
-  function applyInviteePicker(values: Record<string, string[]>) {
-    const known = new Set(Object.values(values).flat());
-    const { userIds: previousUserIds, departmentIds: previousDepartmentIds } =
-      splitInvitees(form.values.invitees);
-    const departmentIds = [
-      ...new Set([
-        ...(values[PICKER_DEPARTMENTS_SECTION] ?? []),
-        ...previousDepartmentIds.filter((id) => !known.has(id)),
-      ]),
-    ];
-    const pickedUserIds = Object.keys(values)
-      .filter((label) => label !== PICKER_DEPARTMENTS_SECTION)
-      .flatMap((label) => values[label] ?? []);
-    const uniqueUserIds = [
-      ...new Set([...pickedUserIds, ...previousUserIds.filter((id) => !known.has(id))]),
-    ];
-    const userIds = form.values.creatorId
-      ? [form.values.creatorId, ...uniqueUserIds.filter((id) => id !== form.values.creatorId)]
-      : uniqueUserIds;
-    form.setFieldValue("invitees", [
-      ...departmentIds.map((id) => `dept:${id}`),
-      ...userIds.map((id) => `user:${id}`),
-    ]);
-  }
 
   function buildInitialValues(): EventFormState {
     if (event) {
@@ -338,6 +299,23 @@ export function EventForm({
     const { userIds, departmentIds } = splitInvitees(form.values.invitees);
     return selectionByGroup(inviteePickerGroups, [...userIds, ...departmentIds]);
   }, [inviteePickerGroups, form.values.invitees]);
+
+  // Commits the badge picker draft into the form. Previously selected ids
+  // that no longer appear in the picker (e.g. now-inactive users) are kept
+  // so editing can't silently drop them, and the locked creator is kept
+  // first — see `mergeInviteeSelection` for the pure logic.
+  function applyInviteePicker(values: Record<string, string[]>) {
+    form.setFieldValue(
+      "invitees",
+      mergeInviteeSelection(
+        inviteePickerGroups,
+        form.values.invitees,
+        values,
+        form.values.creatorId || null,
+        PICKER_DEPARTMENTS_SECTION,
+      ),
+    );
+  }
 
   const sortedEventTypes = useMemo(
     () => [...eventTypes].sort((a, b) => a.name.localeCompare(b.name)),

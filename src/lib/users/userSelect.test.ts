@@ -1,12 +1,15 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  INVITEE_DEPARTMENTS_SECTION,
   NO_DEPARTMENT_LABEL,
   buildUserGroups,
   filterPickerGroups,
+  mergeInviteeSelection,
   optionMatchesQuery,
   selectionByGroup,
   sortOptionsInGroups,
+  splitInvitees,
   type PickerGroup,
 } from "./userSelect";
 
@@ -130,5 +133,96 @@ describe("selectionByGroup", () => {
 
   it("returns empty lists per section for an empty selection", () => {
     expect(selectionByGroup(GROUPS, [])).toEqual({ Logistics: [], Admin: [] });
+  });
+});
+
+describe("splitInvitees", () => {
+  it("splits prefixed values into user and department ids", () => {
+    expect(splitInvitees(["user:u1", "dept:d1", "user:u2"])).toEqual({
+      userIds: ["u1", "u2"],
+      departmentIds: ["d1"],
+    });
+  });
+
+  it("returns empty lists for an empty input", () => {
+    expect(splitInvitees([])).toEqual({ userIds: [], departmentIds: [] });
+  });
+
+  it("ignores malformed entries", () => {
+    expect(splitInvitees(["u1", "dept:", "user:"])).toEqual({ userIds: [""], departmentIds: [""] });
+  });
+});
+
+describe("mergeInviteeSelection", () => {
+  const GROUPS_WITH_DEPTS: PickerGroup[] = [
+    { label: INVITEE_DEPARTMENTS_SECTION, options: [{ id: "d1", label: "Dept 1" }, { id: "d2", label: "Dept 2" }] },
+    { label: "Engineering", options: [{ id: "u1", label: "Alice" }, { id: "u2", label: "Bob" }] },
+    { label: "Admin", options: [{ id: "u3", label: "Carol" }] },
+  ];
+
+  it("removes a deselected user while keeping others", () => {
+    const previous = ["user:u1", "user:u2", "user:u3"];
+    const draft = {
+      [INVITEE_DEPARTMENTS_SECTION]: [] as string[],
+      Engineering: ["u1"], // u2 deselected
+      Admin: ["u3"],
+    };
+    expect(mergeInviteeSelection(GROUPS_WITH_DEPTS, previous, draft, null)).toEqual(["user:u1", "user:u3"]);
+  });
+
+  it("removes a deselected department", () => {
+    const previous = ["dept:d1", "dept:d2", "user:u1"];
+    const draft = {
+      [INVITEE_DEPARTMENTS_SECTION]: ["d1"], // d2 deselected
+      Engineering: ["u1"],
+      Admin: [] as string[],
+    };
+    expect(mergeInviteeSelection(GROUPS_WITH_DEPTS, previous, draft, null)).toEqual(["dept:d1", "user:u1"]);
+  });
+
+  it("preserves inactive ids that no longer appear in picker groups", () => {
+    const previous = ["user:ghost", "dept:ghostDept", "user:u1"];
+    const draft = {
+      [INVITEE_DEPARTMENTS_SECTION]: [] as string[],
+      Engineering: ["u1"],
+      Admin: [] as string[],
+    };
+    const result = mergeInviteeSelection(GROUPS_WITH_DEPTS, previous, draft, null);
+    expect(result).toEqual(["dept:ghostDept", "user:u1", "user:ghost"]);
+  });
+
+  it("keeps the locked creator first even when draft deselects them", () => {
+    const previous = ["user:u1", "user:u2"];
+    const draft = {
+      [INVITEE_DEPARTMENTS_SECTION]: [] as string[],
+      Engineering: ["u1"], // u2 (creator) is not in draft but should stay via creator lock
+      Admin: [] as string[],
+    };
+    // creator u2 not in draft pick, but creator lock re-adds it first
+    expect(mergeInviteeSelection(GROUPS_WITH_DEPTS, previous, draft, "u2")).toEqual(["user:u2", "user:u1"]);
+  });
+
+  it("deselect-all visible leaves only inactive and creator", () => {
+    const previous = ["user:u1", "user:ghost", "dept:d1"];
+    const draft = {
+      [INVITEE_DEPARTMENTS_SECTION]: [] as string[],
+      Engineering: [] as string[],
+      Admin: [] as string[],
+    };
+    expect(mergeInviteeSelection(GROUPS_WITH_DEPTS, previous, draft, null)).toEqual(["user:ghost"]);
+  });
+
+  it("adds newly selected users and departments", () => {
+    const previous: string[] = [];
+    const draft = {
+      [INVITEE_DEPARTMENTS_SECTION]: ["d2"],
+      Engineering: ["u2"],
+      Admin: ["u3"],
+    };
+    expect(mergeInviteeSelection(GROUPS_WITH_DEPTS, previous, draft, null)).toEqual([
+      "dept:d2",
+      "user:u2",
+      "user:u3",
+    ]);
   });
 });
