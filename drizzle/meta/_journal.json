@@ -176,6 +176,13 @@
       "when": 1787788678328,
       "tag": "0024_giant_wild_pack",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1787881480779,
+      "tag": "0025_red_annihilus",
+      "breakpoints": true
     }
   ]
 }

@@ -111,6 +111,13 @@ export const paradeStates = pgTable("parade_states", {
   sortOrder: integer("sort_order").notNull().default(0),
 });
 
+export const eventTitleTemplates = pgTable("event_title_templates", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  label: text("label").notNull(),
+  template: text("template").notNull(),
+  ...timestamps,
+});
+
 export const settings = pgTable(
   "settings",
   {
@@ -119,6 +126,9 @@ export const settings = pgTable(
     userKeyword: text("user_keyword"),
     nameTemplate: text("name_template").notNull().default("{name}"),
     eventTitleTemplate: text("event_title_template").notNull().default("{description}"),
+    eventTitleTemplateAssignments: jsonb("event_title_template_assignments")
+      .notNull()
+      .default(sql`'{}'::jsonb`),
     /**
      * Default required in-country percentage prefilled when a new KAH group
      * is created (the live thresholds live on each `kah_groups` row).
@@ -316,6 +326,8 @@ export type NewCalendar = typeof calendars.$inferInsert;
 export type Acronym = typeof acronyms.$inferSelect;
 export type EventType = typeof eventTypes.$inferSelect;
 export type ParadeState = typeof paradeStates.$inferSelect;
+export type EventTitleTemplate = typeof eventTitleTemplates.$inferSelect;
+export type NewEventTitleTemplate = typeof eventTitleTemplates.$inferInsert;
 export type Settings = typeof settings.$inferSelect;
 export type AuditLog = typeof auditLogs.$inferSelect;
 export type NewAuditLog = typeof auditLogs.$inferInsert;

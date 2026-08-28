@@ -149,6 +149,7 @@ interface DashboardViewProps {
   calendars: { id: string; name: string }[];
   eventTypes: EventTypeOption[];
   eventTitleTemplate: string;
+  viewEventTitleTemplate: string;
   googleConfigured: boolean;
   /**
    * Enabled quick links in menu order (Settings → Quick Links); the amber
@@ -400,6 +401,7 @@ export function DashboardView({
   calendars,
   eventTypes,
   eventTitleTemplate,
+  viewEventTitleTemplate,
   googleConfigured,
   quickLinks,
   selectedCalendarIds,
@@ -2136,6 +2138,8 @@ export function DashboardView({
                 defaultDate={formState.defaultDate}
                 eventTypes={eventTypes}
                 eventTitleTemplate={eventTitleTemplate}
+                viewEventTitleTemplate={viewEventTitleTemplate}
+                viewLabel={VIEW_TAB_META[view].label}
                 currentUser={currentUser}
                 isAdmin={isAdmin}
                 inviteeDepartments={inviteeDepartments}

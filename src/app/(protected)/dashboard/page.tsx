@@ -17,8 +17,9 @@ import { filterUserOptionIds } from "@/lib/filters/filterUserOptions";
 import { googleCalendarConfigured } from "@/lib/google";
 import { listQuickLinks } from "@/lib/quickLinks/queries";
 import { listUsers } from "@/lib/roster/queries";
+import { resolveDisplayTitles } from "@/lib/events/eventTitleDisplay";
 import { formatFullName } from "@/lib/settings/formatName";
-import { getSettings } from "@/lib/settings/queries";
+import { getSettings, listEventTitleTemplates } from "@/lib/settings/queries";
 import { requireSession } from "@/lib/session";
 import { isUuid } from "@/lib/uuid";
 import {
@@ -95,13 +96,15 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
   const forceRefresh =
     Number.isFinite(refreshNonce) && new Date().getTime() - refreshNonce < REFRESH_NONCE_TTL_MS;
 
-  const [calendars, eventTypes, allUsers, settings, quickLinks] = await Promise.all([
-    listCalendars(),
-    listEventTypes(),
-    listUsers(),
-    getSettings(),
-    listQuickLinks(),
-  ]);
+  const [calendars, eventTypes, allUsers, settings, quickLinks, eventTitleTemplates] =
+    await Promise.all([
+      listCalendars(),
+      listEventTypes(),
+      listUsers(),
+      getSettings(),
+      listQuickLinks(),
+      listEventTitleTemplates(),
+    ]);
   const calendarIds = calendars.map((calendar) => calendar.id);
 
   const ownDepartmentId = isAdmin ? null : await getUserDepartmentId(session.user.id);
@@ -222,7 +225,7 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
     : view === "month"
       ? monthGridMonths(month)
       : [month];
-  const events =
+  const rawEvents =
     rangeMonths.length > 1
       ? await fetchRangeEvents({
           months: rangeMonths,
@@ -239,6 +242,47 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
           force: forceRefresh,
         });
 
+  // Display-only per-view title: re-render each internal event via the
+  // view-assigned template (fallback to master). External events keep Google title.
+  const templateMapForDisplay = new Map(
+    eventTitleTemplates.map((t) => [t.id, t.template] as const),
+  );
+  const viewTemplate =
+    (settings.eventTitleTemplateAssignments as Record<string, string>)[view] &&
+    templateMapForDisplay.get(
+      (settings.eventTitleTemplateAssignments as Record<string, string>)[view],
+    )
+      ? templateMapForDisplay.get(
+          (settings.eventTitleTemplateAssignments as Record<string, string>)[view],
+        )!
+      : settings.eventTitleTemplate;
+
+  const usersById = new Map(
+    allUsers.map((u) => [
+      u.id,
+      {
+        id: u.id,
+        name: u.name,
+        shortname: u.shortname,
+        departmentName: u.department?.name ?? null,
+      },
+    ]),
+  );
+  const eventTypesByName = new Map(
+    eventTypes.map((t) => [t.name, { name: t.name, shortname: t.shortname }]),
+  );
+  const calendarsById = new Map(calendars.map((c) => [c.id, c.name]));
+  const events = resolveDisplayTitles(rawEvents, {
+    view,
+    nameTemplate: settings.nameTemplate,
+    masterTemplate: settings.eventTitleTemplate,
+    assignments: settings.eventTitleTemplateAssignments as Record<string, string>,
+    templates: eventTitleTemplates.map((t) => ({ id: t.id, label: t.label, template: t.template })),
+    usersById,
+    eventTypesByName,
+    calendarsById,
+  });
+
   return (
     <DashboardView
       month={month}
@@ -249,6 +293,7 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
       calendars={calendars.map((calendar) => ({ id: calendar.id, name: calendar.name }))}
       eventTypes={eventTypeOptions}
       eventTitleTemplate={settings.eventTitleTemplate}
+      viewEventTitleTemplate={viewTemplate}
       googleConfigured={googleCalendarConfigured()}
       // Only enabled links reach the client; an empty list hides the
       // quick-links launcher on the Calendar page entirely.

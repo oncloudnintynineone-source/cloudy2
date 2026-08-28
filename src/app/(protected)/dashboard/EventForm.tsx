@@ -78,8 +78,10 @@ interface EventFormProps {
   templateEvent?: CalendarEvent | null;
   defaultDate: string;
   eventTypes: EventTypeOption[];
-  /** The admin-defined event title template, for the live calendar preview. */
+  /** Master template (Google) and per-view display template. */
   eventTitleTemplate: string;
+  viewEventTitleTemplate?: string;
+  viewLabel?: string;
   /** Session user id; stored as the event creator on create. */
   currentUser: string;
   /** Admin may create/edit events on behalf of any user (via the creator select). */
@@ -167,6 +169,8 @@ export function EventForm({
   defaultDate,
   eventTypes,
   eventTitleTemplate,
+  viewEventTitleTemplate,
+  viewLabel,
   currentUser,
   isAdmin,
   inviteeDepartments,
@@ -482,8 +486,8 @@ export function EventForm({
 
   // Live rendering of the exact title the server will write to Google, so the
   // user sees the final calendar summary (template tokens + AM/PM suffix)
-  // before submitting.
-  const previewTitle = (() => {
+  // before submitting. Also show the per-view display title when it differs.
+  const previewTitles = (() => {
     const people: EventTitlePerson[] = effectiveInvitees
       .filter((value) => value.startsWith("user:"))
       .map((value) => value.slice("user:".length))
@@ -503,10 +507,15 @@ export function EventForm({
       departments,
       location: effectiveOutOfCamp.location,
     };
-    const base = formatEventTitle(input, eventTitleTemplate) || form.values.title.trim();
     const amPm = amPmSuffix(form.values.startAmPm, form.values.endAmPm);
-    // Matches the server: an empty title gets no bare "(AM)" suffix.
-    return base && effectiveTimeOption === "half" && amPm ? `${base} (${amPm})` : base;
+    const render = (tpl: string) => {
+      const base = formatEventTitle(input, tpl) || form.values.title.trim();
+      return base && effectiveTimeOption === "half" && amPm ? `${base} (${amPm})` : base;
+    };
+    const master = render(eventTitleTemplate);
+    const viewTpl = viewEventTitleTemplate ?? eventTitleTemplate;
+    const view = viewTpl === eventTitleTemplate ? master : render(viewTpl);
+    return { master, view, viewTpl, isSame: viewTpl === eventTitleTemplate };
   })();
 
   // Review-step display values — resolved from the same effective state the
@@ -953,9 +962,24 @@ export function EventForm({
                 <Text size="sm" fw={500} c="accent.6" tt="uppercase">
                   Calendar preview
                 </Text>
-                <Text size="sm" fw={600} style={{ overflowWrap: "anywhere" }}>
-                  {previewTitle || "—"}
-                </Text>
+                <Stack gap={2}>
+                  <Text size="xs" c="dimmed">
+                    Google will store as:
+                  </Text>
+                  <Text size="sm" fw={600} style={{ overflowWrap: "anywhere" }}>
+                    {previewTitles.master || "—"}
+                  </Text>
+                </Stack>
+                {!previewTitles.isSame && (
+                  <Stack gap={2}>
+                    <Text size="xs" c="dimmed">
+                      {viewLabel ? `${viewLabel} view will display as:` : "This view will display as:"}
+                    </Text>
+                    <Text size="sm" fw={600} style={{ overflowWrap: "anywhere" }}>
+                      {previewTitles.view || "—"}
+                    </Text>
+                  </Stack>
+                )}
               </Stack>
             </Paper>
 

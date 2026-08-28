@@ -1,7 +1,7 @@
 import { cache } from "react";
 
 import { db } from "@/db";
-import { settings } from "@/db/schema";
+import { eventTitleTemplates, settings } from "@/db/schema";
 import {
   BANNER_DEFAULT_COLOR,
   isBannerColor,
@@ -12,11 +12,22 @@ import {
   KAH_EMAIL_BODY_TEMPLATE_DEFAULT,
   KAH_EMAIL_SUBJECT_TEMPLATE_DEFAULT,
 } from "@/lib/kah/emailDefaults";
+import { normalizeAssignments } from "@/lib/settings/validate";
+
+export interface EventTitleTemplateView {
+  id: string;
+  label: string;
+  template: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
 
 export interface SettingsView {
   userKeyword: string;
   nameTemplate: string;
   eventTitleTemplate: string;
+  /** Per-view library assignment: view -> templateId (empty string means use master). */
+  eventTitleTemplateAssignments: Partial<Record<string, string>>;
   auditLogRetentionDays: number;
   bannerEnabled: boolean;
   bannerText: string;
@@ -51,6 +62,9 @@ export async function getSettings(): Promise<SettingsView> {
     userKeyword: row?.userKeyword ?? "",
     nameTemplate: row?.nameTemplate ?? "{name}",
     eventTitleTemplate: row?.eventTitleTemplate ?? "{description}",
+    eventTitleTemplateAssignments: normalizeAssignments(
+      (row as unknown as { eventTitleTemplateAssignments?: unknown })?.eventTitleTemplateAssignments,
+    ),
     auditLogRetentionDays: row?.auditLogRetentionDays ?? AUDIT_RETENTION_DEFAULT,
     bannerEnabled: row?.bannerEnabled ?? false,
     bannerText: row?.bannerText ?? "",
@@ -60,6 +74,25 @@ export async function getSettings(): Promise<SettingsView> {
       row?.kahEmailSubjectTemplate?.trim() || KAH_EMAIL_SUBJECT_TEMPLATE_DEFAULT,
     kahEmailBodyTemplate: row?.kahEmailBodyTemplate?.trim() || KAH_EMAIL_BODY_TEMPLATE_DEFAULT,
   };
+}
+
+export async function listEventTitleTemplates(): Promise<EventTitleTemplateView[]> {
+  const rows = await db
+    .select()
+    .from(eventTitleTemplates)
+    .orderBy(eventTitleTemplates.createdAt);
+  return rows.map((r) => ({
+    id: r.id,
+    label: r.label,
+    template: r.template,
+    createdAt: r.createdAt,
+    updatedAt: r.updatedAt,
+  }));
+}
+
+export async function getEventTitleTemplateMap(): Promise<Map<string, EventTitleTemplateView>> {
+  const list = await listEventTitleTemplates();
+  return new Map(list.map((t) => [t.id, t]));
 }
 
 /**

@@ -4,7 +4,7 @@ import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
 import { db } from "@/db";
-import { settings } from "@/db/schema";
+import { eventTitleTemplates, settings } from "@/db/schema";
 import {
   formatBannerColorLabel,
   normalizeBannerColor,
@@ -20,8 +20,12 @@ import {
   type KahNotificationsFormValues,
 } from "@/lib/kah/validate";
 import {
+  EVENT_TITLE_TEMPLATES_MAX_COUNT,
+  normalizeAssignments,
   normalizeKeyword,
   normalizeRetentionDays,
+  validateAssignments,
+  validateEventTitleLibraryItem,
   validateEventTitleTemplate,
   validateNameTemplate,
   validateRetentionForm,
@@ -40,7 +44,10 @@ export type SettingsActionResult =
         | "bannerText"
         | "kahEmails"
         | "kahSubject"
-        | "kahBody";
+        | "kahBody"
+        | "templateLabel"
+        | "template"
+        | "assignments";
     };
 
 export async function updateKeyword(keyword: string): Promise<SettingsActionResult> {
@@ -158,6 +165,157 @@ export async function updateEventTitleTemplate(template: string): Promise<Settin
   });
 
   revalidatePath("/settings/templates");
+  return { ok: true };
+}
+
+export async function createEventTitleTemplate(
+  label: string,
+  template: string,
+): Promise<SettingsActionResult> {
+  const session = await requireAdmin();
+  const existing = await db.select().from(eventTitleTemplates);
+  if (existing.length >= EVENT_TITLE_TEMPLATES_MAX_COUNT) {
+    return {
+      ok: false,
+      error: `At most ${EVENT_TITLE_TEMPLATES_MAX_COUNT} templates allowed`,
+      field: "templateLabel",
+    };
+  }
+  const errors = validateEventTitleLibraryItem(
+    { label, template },
+    existing.map((r) => r.label),
+  );
+  if (errors.label) return { ok: false, error: errors.label, field: "templateLabel" };
+  if (errors.template) return { ok: false, error: errors.template, field: "template" };
+
+  const [created] = await db
+    .insert(eventTitleTemplates)
+    .values({ label: label.trim(), template: template.trim() })
+    .returning();
+
+  await logAction({
+    ...actorFromUser({ id: session.user.id, name: session.user.name ?? null, role: session.user.role }),
+    action: AUDIT_ACTIONS.settingsUpdate,
+    entityType: "settings",
+    entityName: "settings",
+    method: "createEventTitleTemplate",
+    details: { label: created.label, template: created.template, id: created.id },
+  });
+
+  revalidatePath("/settings/templates");
+  revalidatePath("/dashboard");
+  return { ok: true };
+}
+
+export async function updateEventTitleTemplateById(
+  id: string,
+  label: string,
+  template: string,
+): Promise<SettingsActionResult> {
+  const session = await requireAdmin();
+  const existing = await db.select().from(eventTitleTemplates);
+  const target = existing.find((r) => r.id === id);
+  if (!target) return { ok: false, error: "Template not found" };
+  const otherLabels = existing.filter((r) => r.id !== id).map((r) => r.label);
+  const errors = validateEventTitleLibraryItem({ label, template }, otherLabels);
+  if (errors.label) return { ok: false, error: errors.label, field: "templateLabel" };
+  if (errors.template) return { ok: false, error: errors.template, field: "template" };
+
+  const before = { label: target.label, template: target.template };
+  await db
+    .update(eventTitleTemplates)
+    .set({ label: label.trim(), template: template.trim(), updatedAt: new Date() })
+    .where(eq(eventTitleTemplates.id, id));
+
+  await logAction({
+    ...actorFromUser({ id: session.user.id, name: session.user.name ?? null, role: session.user.role }),
+    action: AUDIT_ACTIONS.settingsUpdate,
+    entityType: "settings",
+    entityName: "settings",
+    method: "updateEventTitleTemplateById",
+    details: diffFields(before, { label: label.trim(), template: template.trim() }),
+  });
+
+  revalidatePath("/settings/templates");
+  revalidatePath("/dashboard");
+  return { ok: true };
+}
+
+export async function deleteEventTitleTemplate(id: string): Promise<SettingsActionResult> {
+  const session = await requireAdmin();
+  const [row] = await db.select().from(settings).limit(1);
+  const assignments = normalizeAssignments(
+    (row as unknown as { eventTitleTemplateAssignments?: unknown })?.eventTitleTemplateAssignments,
+  );
+  const assignedViews = Object.entries(assignments)
+    .filter(([, tid]) => tid === id)
+    .map(([view]) => view);
+  if (assignedViews.length > 0) {
+    return {
+      ok: false,
+      error: `Template is assigned to ${assignedViews.join(", ")} — reassign first`,
+      field: "assignments",
+    };
+  }
+
+  const existing = await db.select().from(eventTitleTemplates).where(eq(eventTitleTemplates.id, id));
+  if (existing.length === 0) return { ok: false, error: "Template not found" };
+
+  await db.delete(eventTitleTemplates).where(eq(eventTitleTemplates.id, id));
+
+  await logAction({
+    ...actorFromUser({ id: session.user.id, name: session.user.name ?? null, role: session.user.role }),
+    action: AUDIT_ACTIONS.settingsUpdate,
+    entityType: "settings",
+    entityName: "settings",
+    method: "deleteEventTitleTemplate",
+    details: { deletedId: id, label: existing[0].label },
+  });
+
+  revalidatePath("/settings/templates");
+  revalidatePath("/dashboard");
+  return { ok: true };
+}
+
+export async function updateEventTitleTemplateAssignments(
+  assignments: Record<string, string | null>,
+): Promise<SettingsActionResult> {
+  const session = await requireAdmin();
+  const templates = await db.select().from(eventTitleTemplates);
+  const knownIds = new Set(templates.map((t) => t.id));
+  // Allow null/empty to mean master fallback
+  const cleaned: Record<string, string> = {};
+  for (const [view, tid] of Object.entries(assignments)) {
+    if (tid == null || tid === "") continue;
+    cleaned[view] = tid.trim();
+  }
+  const errors = validateAssignments(cleaned, knownIds);
+  if (Object.keys(errors).length > 0) {
+    const first = Object.entries(errors)[0];
+    return { ok: false, error: first[1], field: "assignments" };
+  }
+
+  const [before] = await db.select().from(settings).limit(1);
+  const beforeAssignments = normalizeAssignments(
+    (before as unknown as { eventTitleTemplateAssignments?: unknown })?.eventTitleTemplateAssignments,
+  );
+
+  await db
+    .update(settings)
+    .set({ eventTitleTemplateAssignments: cleaned, updatedAt: new Date() })
+    .where(eq(settings.id, "singleton"));
+
+  await logAction({
+    ...actorFromUser({ id: session.user.id, name: session.user.name ?? null, role: session.user.role }),
+    action: AUDIT_ACTIONS.settingsUpdate,
+    entityType: "settings",
+    entityName: "settings",
+    method: "updateEventTitleTemplateAssignments",
+    details: diffFields({ assignments: beforeAssignments }, { assignments: cleaned }),
+  });
+
+  revalidatePath("/settings/templates");
+  revalidatePath("/dashboard");
   return { ok: true };
 }
 
