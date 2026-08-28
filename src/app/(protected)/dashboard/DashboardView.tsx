@@ -1185,7 +1185,12 @@ export function DashboardView({
   function togglePinView() {
     // Pinning moves the active tab to the front (last pinned = leftmost);
     // unpinning drops it back into the default tab order. Pure display order —
-    // no navigation, so no skeleton and no `_fresh` marker.
+    // no navigation, so no skeleton and no `_fresh` marker. The toggle only
+    // writes the cookie, so SWR-cached /dashboard payloads rendered before it
+    // still carry the old order — invalidating the current pathname keeps the
+    // next reload/navigation from serving one (a stale commit would re-seed
+    // the prop and the state writer would clobber the fresh pin in the cookie).
+    void invalidateCurrentPathCaches();
     setPinned(pinned.includes(view) ? pinned.filter((mode) => mode !== view) : [view, ...pinned]);
   }
 

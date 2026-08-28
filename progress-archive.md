@@ -5522,3 +5522,39 @@ pending: open the create wizard half-filled on mobile + desktop, tap the
 overlay / press Escape — the dialog shrinks into the bottom-right bubble with
 the draft intact; restore and continue; the header X still discards; saving
 from a restored state submits the event.
+
+## 1.122 Pin/Unpin tab: SWR cache invalidation (bugfix)
+
+Pinned dashboard view tabs were lost after switching views or reloading once
+the 1.121 SWR caches landed. A same-day label-only commit (renaming the
+Week/Week v2 tabs to Week (H)/Week (D)) was the first change noticed in the
+batch, but pinning is keyed on view *values*
+(`month`/`week`/`weekv2`/`schedule`/`agenda`) — never on labels — so the
+rename was ruled out by diff inspection + the 35 `uiState` unit tests. The
+real cause was the 1.121 `app-documents-swr` / `app-rsc-swr` caches.
+
+The pin toggle is a `cloudy2.ui` cookie-only state change: no navigation,
+no URL change, no `router.refresh()` — so none of the mutation-site
+invalidations fired. Both SWR caches are URL-keyed, so every `/dashboard`
+document or RSC payload rendered *before* the toggle still carries the
+pre-pin `pinnedViews` prop. When one is served afterwards (F5 / PWA cold
+start for documents, or a soft navigation back to a previously visited view
+URL for RSC), the render-phase prop sync in `DashboardView` re-seeds the
+local `pinned` state and `usePersistUiState` converges the cookie to the
+payload — silently deleting the fresh pin.
+
+Fix: `togglePinView` (`DashboardView`) now calls
+`invalidateCurrentPathCaches()` fire-and-forget beside `setPinned` — the
+same helper and the same cost as the mutation sites, minus the refresh
+(in-session state is already correct after the toggle). The next dashboard
+load after a toggle bypasses the instant cache, an accepted trade-off for a
+rare action. Unpinning takes the same path, so a stale payload can no longer
+resurrect an unpinned tab either.
+
+`docs/pwa-offline.md` §1.7 now lists the pin toggle as an invalidation
+trigger (plus its file-index row), and the AGENTS.md PWA bullet mentions it.
+
+Verification: `pnpm lint`, `pnpm typecheck`, `pnpm test` pass. Manual QA:
+pin a tab → F5 → pin survives; pin → switch view → switch back → pin
+survives; unpin → switch back → the star is gone; a PWA cold open after a
+pin change shows the new tab order.

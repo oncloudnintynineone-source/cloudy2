@@ -116,6 +116,7 @@ sequenceDiagram
 - Helper: `invalidatePathCaches(pathname)` / `invalidateCurrentPathCaches()` in `src/lib/pwa/client.ts` (reads `caches`, filters keys by `origin + pathname`, fire-and-forget, never throws).
 - 22 `router.refresh()` call sites across 12 files were migrated to `void invalidateCurrentPathCaches().then(() => router.refresh())`.
 - The same helper is used for the document cache — a hard reload (F5) after a mutation also cannot serve the pre-mutation document.
+- The dashboard's **Pin/Unpin tab** toggle fires the same invalidation, fire-and-forget and without a refresh: pinning only writes the `cloudy2.ui` cookie (no navigation, no URL change), so every SWR-cached `/dashboard` document and RSC payload rendered before the toggle still carries the old tab order. Serving one on the next reload or soft navigation would re-seed the `pinnedViews` prop and the state writer would then clobber the fresh pin in the cookie — losing it for good. `togglePinView` therefore calls `invalidateCurrentPathCaches()` before `setPinned`; the cost is that the next dashboard load after a toggle bypasses the instant cache (pin toggles are rare).
 
 ## 1.8 Offline fallback
 
@@ -183,7 +184,7 @@ Tests: `src/lib/pwa/swRules.test.ts` (16 cases). The SW bundle itself (`src/app/
 | `src/components/AppProviders.tsx` | Session-expiry `message` listener |
 | `src/components/UserMenu.tsx` | Sign-out cache purge |
 | `public/offline.html` | Branded offline fallback (precached) |
-| `src/app/(protected)/dashboard/DashboardView.tsx` | Chip placement + `router.refresh` → invalidate-then-refresh |
+| `src/app/(protected)/dashboard/DashboardView.tsx` | Chip placement + `router.refresh` → invalidate-then-refresh + pin-toggle cache invalidation (§1.7) |
 | `src/app/(protected)/settings/**` + `src/components/LoginForm.tsx` | Same invalidate-then-refresh migration |
 | `docs/pwa-offline.md` | This document |
 | `docs/events-cache.md` | Server-side Google Calendar cache (the background revalidation target) |

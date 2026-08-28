@@ -219,7 +219,10 @@ before changing the subsystem.
   precached branded `public/offline.html`. Post-mutation freshness is guarded by
   `invalidateCurrentPathCaches()` (`src/lib/pwa/client.ts`) — every
   `router.refresh()` site invalidates the current pathname in both caches first,
-  so the subsequent fetch cannot serve stale data. Session expiry purges both
+  so the subsequent fetch cannot serve stale data. The dashboard's pin/unpin tab
+  toggle does the same (fire-and-forget, no refresh): pinning is a cookie-only
+  state change with no URL, so a stale cached payload would otherwise resurrect
+  the old tab order and clobber the fresh pin. Session expiry purges both
   caches in the SW and the client (`AppProviders` listens for
   `cloudy2:session-expired`); `UserMenu` also purges on sign-out. Pure predicates
   in `src/lib/pwa/swRules.ts` are unit-tested; `docs/pwa-offline.md` is the
