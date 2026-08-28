@@ -130,6 +130,8 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
 - [1.118 Departments settings: unified detail modal + assigned-user role overrides](#1118-departments-settings-unified-detail-modal--assigned-user-role-overrides)
 - [1.119 Event wizard modal: outside clicks and Escape minimize instead of discarding](#1119-event-wizard-modal-outside-clicks-and-escape-minimize-instead-of-discarding)
 - [1.123 SW build-update takeover: build-versioned page caches + controllerchange reload (bugfix)](#1123-sw-build-update-takeover-build-versioned-page-caches--controllerchange-reload-bugfix)
+- [1.124 Offline fallback: last-saved view + saved-views picker (Phase 3b4)](#1124-offline-fallback-last-saved-view--saved-views-picker-phase-3b4)
+- [1.125 Offline fallback reachability fix (bugfix for 1.124)](#1125-offline-fallback-reachability-fix-bugfix-for-1124)
 
 ## 1.1 Status
 
@@ -5686,3 +5688,54 @@ device: open a few view/date URLs online → DevTools Network → Offline → ic
 tap (expect last-saved view + chip, not the offline page) → typed URL never
 visited (expect picker, row taps open the saved views) → F5 of a visited URL
 (direct SWR hit) → clear site data → offline open (empty picker, correct).
+
+## 1.125 Offline fallback reachability fix (bugfix for 1.124)
+
+Report (prod): still seeing the bare "You're offline / Connect to view the
+calendar" page most of the time when offline, despite the 1.124 fallback
+chain shipping `offline.html` as a saved-views picker.
+
+Root cause: the branded `offline.html` **was precached** (confirmed in the
+production-built SW at `.next/server/app/serwist/sw.js.body`:
+`{url:"/offline.html",revision:"…"}` — the SSG'd `/serwist/sw.js` route
+bakes the manifest at build time), but `handlerDidError` looked it up with a
+bare `caches.match("/offline.html")`. Serwist stores revisioned precache
+entries under a versioned cache key —
+`https://<origin>/offline.html?__WB_REVISION__=<hash>` — and the Cache API
+treats the query string as significant, so the plain match always returned
+`null` and the fallback dropped through to the minimal inline
+`"You're offline"` string. This predates 1.124: the old
+`caches.match("/offline.html")` never fired in any build, so the branded page
+was dead on arrival in both the old and new handlers.
+
+Fix (`src/app/sw.ts`):
+
+1. **`serwist.matchPrecache("/offline.html")`** in place of `caches.match`.
+   `Serwist.matchPrecache` (Serwist.ts:696) resolves the URL through
+   `getPrecacheKeyForUrl` → the `_urlsToCacheKeys` map populated at precache
+   install, so it opens the precache cache under the revisioned key and finds
+   the page. The `serwist` instance is created later in the module; the
+   closure reference is safe because `handlerDidError` only runs once the SW
+   is active (install succeeded → the map is populated).
+2. **`OFFLINE_FALLBACK_HTML`**: the absolute-last-resort inline response is now
+   a self-contained branded copy of `offline.html` (same styling + saved-views
+   picker script, kept in sync with `public/offline.html` — the canonical
+   source) instead of a bare error string. It is only reachable if merging an
+   active SW's precache lookup fails, so it is a safety net, not a path.
+
+Why the dev-mode red herring doesn't matter: `@serwist/turbopack` sets
+`disablePrecacheManifest` outside production (`self.__SW_MANIFEST` is
+`undefined` under `pnpm dev`), so offline behavior only exercises fully in a
+production build. The fix is validated against the `.next` production output.
+
+Docs: `docs/pwa-offline.md` §1.9 gains the matchPrecache rationale
+(`__WB_REVISION__`); AGENTS.md PWA bullet unchanged.
+
+Verification: `pnpm vitest run src/lib/pwa/swRules.test.ts` (34) +
+`pnpm lint` + `pnpm typecheck` pass; `pnpm build` passes and the emitted
+`sw.js.body` still lists `/offline.html`; manual prod check: build →
+deploy → open online → go offline → deep-link to an unvisited URL → branded
+picker appears (not the bare error string); icon tap offline → last-saved
+view. The user's existing prod deployment must be rebuilt to pick up the new
+SW (the client's `controllerchange` takeover reloads under run it; otherwise
+close/reopen the PWA once after deploy).
