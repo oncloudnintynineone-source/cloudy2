@@ -53,6 +53,58 @@ function sortKey(values: EventFormValues, end: boolean): string {
 }
 
 /**
+ * Clamp `end` so it is never before `start`. Returns a new values object
+ * with `end` (and for half-day, `endAmPm`) bumped to `start` when the sort
+ * key ordering would otherwise fail validation. No-ops when either side is
+ * incomplete (blank date or, for range, missing time part) so required-field
+ * errors still surface.
+ *
+ * Mirrors `validateEventForm`'s ordering check (`sortKey` comparison) so
+ * client and server stay in sync. Intended for use on every start/end edit
+ * and as a server-side safety net (like `clampOutOfCamp`).
+ */
+export function clampEventEnd(values: EventFormValues): EventFormValues {
+  if (!values.start || !values.end) {
+    return values;
+  }
+  const startComplete =
+    !!values.start && (values.timeOption !== "range" || !!naiveTimePart(values.start));
+  const endComplete =
+    !!values.end && (values.timeOption !== "range" || !!naiveTimePart(values.end));
+  if (!startComplete || !endComplete) {
+    return values;
+  }
+  if (sortKey(values, false) <= sortKey(values, true)) {
+    return values;
+  }
+  // End is before start — snap end to start. For half-day also snap the
+  // indicator so "2026-08-15 PM → AM" becomes "PM → PM".
+  if (values.timeOption === "half") {
+    return {
+      ...values,
+      end: `${values.start.slice(0, 10)} 00:00:00`,
+      endAmPm: values.startAmPm || values.endAmPm,
+    };
+  }
+  return { ...values, end: values.start };
+}
+
+/** Whether `values` would need clamping (`end` before `start`). Pure helper for UI affordances. */
+export function needsClamp(values: EventFormValues): boolean {
+  if (!values.start || !values.end) {
+    return false;
+  }
+  const startComplete =
+    !!values.start && (values.timeOption !== "range" || !!naiveTimePart(values.start));
+  const endComplete =
+    !!values.end && (values.timeOption !== "range" || !!naiveTimePart(values.end));
+  if (!startComplete || !endComplete) {
+    return false;
+  }
+  return sortKey(values, false) > sortKey(values, true);
+}
+
+/**
  * Guarantee the event creator is always one of the tagged invitees, so the
  * creator can never be excluded from an event they created. The creator's id
  * is deduped into the invitee list; empty creators are left untouched.

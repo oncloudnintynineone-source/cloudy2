@@ -33,6 +33,7 @@ import { renderEventTitle } from "@/lib/events/eventTitle";
 import { getUserDepartmentIds } from "@/lib/events/queries";
 import { deriveTargetCalendarIds, type EventRef } from "@/lib/events/targets";
 import {
+  clampEventEnd,
   validateEventForm,
   withSelfCreator,
   type EventFormValues,
@@ -233,6 +234,17 @@ function resolveEventTime(input: EventFormValues, context: EventTitleContext): E
 }
 
 /**
+ * Ensure `end` is never before `start` (e.g. stale client where start was
+ * moved past end). Mirrors the client-side auto-clamp so a direct API call
+ * cannot create an inverted range. No-ops on incomplete sides — validation
+ * still reports required fields. Must run after `resolveEventTime` so
+ * half-day indicators are normalized.
+ */
+function resolveEventDates(input: EventFormValues): EventFormValues {
+  return clampEventEnd(input);
+}
+
+/**
  * Enforce the event type's location policy on the Out of Camp flag and
  * location (in-camp events clear the location; "in" additionally forces the
  * flag off, "out" forces it on). Applied after {@link resolveEventTime} in
@@ -354,7 +366,9 @@ async function calendarNames(calendarIds: string[]): Promise<Record<string, stri
 export async function createEvent(input: EventFormValues): Promise<EventActionResult> {
   const session = await requireSession();
   // "On behalf of" is optional: a blank creator means the acting user.
-  const normalized = withSelfCreator(input, session.user.id);
+  // Clamp end to start before validation so a stale client with an inverted
+  // range auto-corrects instead of surfacing "End must be on or after start".
+  const normalized = clampEventEnd(withSelfCreator(input, session.user.id));
 
   const creatorError = creatorGuard(session, normalized.creatorId, null);
   if (creatorError) {
@@ -383,7 +397,7 @@ export async function createEvent(input: EventFormValues): Promise<EventActionRe
   const integration = await getGoogleIntegration();
   const titleContext = await buildEventTitleContext(normalized);
   const effectiveInput = resolveEventLocation(
-    resolveEventTime(normalized, titleContext),
+    resolveEventDates(resolveEventTime(normalized, titleContext)),
     titleContext,
   );
   const created: { googleCalendarId: string; googleEventId: string }[] = [];
@@ -495,8 +509,9 @@ export async function updateEvent(
 ): Promise<EventActionResult> {
   const session = await requireSession();
   // "On behalf of" is optional: a blank creator means the acting user (a
-  // cleared select reassigns the event to the editor).
-  const normalized = withSelfCreator(input, session.user.id);
+  // cleared select reassigns the event to the editor). Clamp before
+  // validation so inverted ranges auto-correct.
+  const normalized = clampEventEnd(withSelfCreator(input, session.user.id));
 
   const ownershipError = ownershipGuard(session, ref.creatorId);
   if (ownershipError) {
@@ -527,7 +542,7 @@ export async function updateEvent(
   const integration = await getGoogleIntegration();
   const titleContext = await buildEventTitleContext(normalized);
   const effectiveInput = resolveEventLocation(
-    resolveEventTime(normalized, titleContext),
+    resolveEventDates(resolveEventTime(normalized, titleContext)),
     titleContext,
   );
   // The old copies' search range covers both the old and new times (±day), so

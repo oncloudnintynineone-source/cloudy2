@@ -44,7 +44,11 @@ import {
   type AmPm,
   type TimeOption,
 } from "@/lib/events/timeOptions";
-import { validateEventForm, type EventFormValues } from "@/lib/events/validate";
+import {
+  clampEventEnd,
+  validateEventForm,
+  type EventFormValues,
+} from "@/lib/events/validate";
 import type { CalendarEvent } from "@/lib/events/queries";
 import {
   formatEventTitle,
@@ -384,6 +388,52 @@ export function EventForm({
     setStep((index) => Math.min(index + 1, steps.length - 1));
   }
 
+  // ---- date/time clamping helpers (end never before start) ----
+  function applyClamped(patch: Partial<EventFormValues>) {
+    const draft = { ...form.values, ...patch } as EventFormValues;
+    const clamped = clampEventEnd(draft);
+    // Apply the patch fields first, then any clamped end corrections.
+    (Object.entries(patch) as [keyof EventFormValues, EventFormValues[keyof EventFormValues]][]).forEach(
+      ([key, value]) => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        form.setFieldValue(key as string as any, value as any);
+      },
+    );
+    if (clamped.end !== draft.end) {
+      form.setFieldValue("end", clamped.end);
+    }
+    if (clamped.endAmPm !== draft.endAmPm) {
+      form.setFieldValue("endAmPm", clamped.endAmPm);
+    }
+  }
+
+  function setStartField(nextStart: string) {
+    applyClamped({ start: nextStart });
+  }
+
+  function setEndField(nextEnd: string) {
+    // End edits clamp end to start (not start to end).
+    const draft = { ...form.values, end: nextEnd } as EventFormValues;
+    const clamped = clampEventEnd(draft);
+    form.setFieldValue("end", clamped.end);
+    if (clamped.endAmPm !== draft.endAmPm) {
+      form.setFieldValue("endAmPm", clamped.endAmPm);
+    }
+  }
+
+  function setStartAmPmField(next: AmPm) {
+    applyClamped({ startAmPm: next });
+  }
+
+  function setEndAmPmField(next: AmPm) {
+    const draft = { ...form.values, endAmPm: next } as EventFormValues;
+    const clamped = clampEventEnd(draft);
+    form.setFieldValue("endAmPm", clamped.endAmPm);
+    if (clamped.end !== draft.end) {
+      form.setFieldValue("end", clamped.end);
+    }
+  }
+
   function switchTimeOption(option: TimeOption) {
     form.setFieldValue("timeOption", option);
     if (option !== "range") {
@@ -402,6 +452,24 @@ export function EventForm({
       if (!form.values.endAmPm) {
         form.setFieldValue("endAmPm", "PM");
       }
+    }
+    // Re-clamp after the option switch (e.g. range 09:00→10:00 collapsed to
+    // full-day dates where start date might now be after end date).
+    const next = clampEventEnd({
+      ...form.values,
+      timeOption: option,
+      start: option !== "range" && form.values.start ? `${form.values.start.slice(0, 10)} 00:00:00` : form.values.start,
+      end: option !== "range" && form.values.end ? `${form.values.end.slice(0, 10)} 00:00:00` : form.values.end,
+      startAmPm: option === "half" ? form.values.startAmPm || "AM" : "",
+      endAmPm: option === "half" ? form.values.endAmPm || "PM" : "",
+    } as EventFormValues);
+    if (next.end !== form.values.end) {
+      // Defer to next tick so the intermediate setFieldValue above has flushed.
+      // Directly setting here is safe because we compute from the pre-switch values.
+      form.setFieldValue("end", next.end);
+    }
+    if (next.endAmPm !== form.values.endAmPm && option === "half") {
+      form.setFieldValue("endAmPm", next.endAmPm);
     }
   }
 
@@ -609,6 +677,9 @@ export function EventForm({
       form.values[field] ? undefined : form.errors[field];
     const timeError = (field: "start" | "end") =>
       form.values[field] ? form.errors[field] : undefined;
+    // End must never be before start — clamp on every edit and also hint
+    // via minDate so the picker greys out earlier dates.
+    const endMinDate = form.values.start ? naiveToDate(`${form.values.start.slice(0, 10)} 00:00:00`) : null;
     const startField =
       option === "range" ? (
         <Stack gap="xs">
@@ -616,10 +687,7 @@ export function EventForm({
             label="Start date"
             value={naiveDatePart(form.values.start) || null}
             onChange={(value) =>
-              form.setFieldValue(
-                "start",
-                joinDateTimeParts(value ?? "", naiveTimePart(form.values.start)),
-              )
+              setStartField(joinDateTimeParts(value ?? "", naiveTimePart(form.values.start)))
             }
             error={dateError("start")}
             popoverProps={{ trapFocus: false }}
@@ -628,10 +696,7 @@ export function EventForm({
             label="Start time"
             value={naiveTimePart(form.values.start)}
             onChange={(time) =>
-              form.setFieldValue(
-                "start",
-                joinDateTimeParts(naiveDatePart(form.values.start), time),
-              )
+              setStartField(joinDateTimeParts(naiveDatePart(form.values.start), time))
             }
             withDropdown
             minutesStep={15}
@@ -644,7 +709,7 @@ export function EventForm({
           <DatePickerInput
             label="Start date"
             value={naiveToDate(form.values.start)}
-            onChange={(value) => form.setFieldValue("start", value ? `${value} 00:00:00` : "")}
+            onChange={(value) => setStartField(value ? `${value} 00:00:00` : "")}
             error={form.errors.start}
           />
           {showAmPm && (
@@ -653,7 +718,7 @@ export function EventForm({
                 aria-label="Start AM or PM"
                 data={AMPM_OPTIONS}
                 value={form.values.startAmPm || undefined}
-                onChange={(value) => form.setFieldValue("startAmPm", value as AmPm)}
+                onChange={(value) => setStartAmPmField(value as AmPm)}
               />
               {form.errors.startAmPm && (
                 <Text size="xs" c="red">
@@ -671,22 +736,17 @@ export function EventForm({
             label="End date"
             value={naiveDatePart(form.values.end) || null}
             onChange={(value) =>
-              form.setFieldValue(
-                "end",
-                joinDateTimeParts(value ?? "", naiveTimePart(form.values.end)),
-              )
+              setEndField(joinDateTimeParts(value ?? "", naiveTimePart(form.values.end)))
             }
             error={dateError("end")}
+            minDate={endMinDate ?? undefined}
             popoverProps={{ trapFocus: false }}
           />
           <TimePicker
             label="End time"
             value={naiveTimePart(form.values.end)}
             onChange={(time) =>
-              form.setFieldValue(
-                "end",
-                joinDateTimeParts(naiveDatePart(form.values.end), time),
-              )
+              setEndField(joinDateTimeParts(naiveDatePart(form.values.end), time))
             }
             withDropdown
             minutesStep={15}
@@ -699,8 +759,9 @@ export function EventForm({
           <DatePickerInput
             label="End date"
             value={naiveToDate(form.values.end)}
-            onChange={(value) => form.setFieldValue("end", value ? `${value} 00:00:00` : "")}
+            onChange={(value) => setEndField(value ? `${value} 00:00:00` : "")}
             error={form.errors.end}
+            minDate={endMinDate ?? undefined}
           />
           {showAmPm && (
             <Stack gap={4}>
@@ -708,7 +769,7 @@ export function EventForm({
                 aria-label="End AM or PM"
                 data={AMPM_OPTIONS}
                 value={form.values.endAmPm || undefined}
-                onChange={(value) => form.setFieldValue("endAmPm", value as AmPm)}
+                onChange={(value) => setEndAmPmField(value as AmPm)}
               />
               {form.errors.endAmPm && (
                 <Text size="xs" c="red">
