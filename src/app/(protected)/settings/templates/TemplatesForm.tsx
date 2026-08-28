@@ -3,7 +3,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
-  Alert,
   Badge,
   Button,
   Divider,
@@ -22,7 +21,6 @@ import { notifications } from "@mantine/notifications";
 
 import { CONTENT_ENTER_CLASS } from "@/lib/loading/contentEnter";
 import {
-  updateEventTitleTemplate,
   updateEventTitleTemplateAssignments,
   updateNameTemplate,
   type SettingsActionResult,
@@ -35,18 +33,16 @@ import {
 import { formatFullName } from "@/lib/settings/formatName";
 import {
   DASHBOARD_VIEW_VALUES,
-  EVENT_TITLE_PLACEHOLDERS,
   getEventTitleTemplateWarnings,
   NAME_TEMPLATE_PLACEHOLDERS,
-  validateEventTitleTemplate,
   validateNameTemplate,
-  type EventTitleTemplateFormValues,
   type NameTemplateFormValues,
 } from "@/lib/settings/validate";
 import { BUTTON_LOADER_PROPS } from "@/lib/theme";
 import { showValidationFailure } from "@/lib/ui/validationFeedback";
 import { NoKeyboardSelect } from "@/components/NoKeyboardSelect";
 
+import { MasterTemplateForm } from "./MasterTemplateForm";
 import { ViewTemplateForm } from "./ViewTemplateForm";
 
 interface PreviewUser {
@@ -81,13 +77,7 @@ const SAMPLE_EVENT_DESCRIPTION = "Team offsite";
 
 const SAMPLE_EVENT_LOCATION = "Hall A";
 
-const PEOPLE_STYLE_HINT =
-  "{people} = fully qualified · {people:full} = name · {people:acronym} = shortname";
 
-const TYPE_STYLE_HINT = "{type} = name · {type:acronym} = shortname";
-
-const CONDITIONAL_HINT =
-  "Wrap punctuation with a field in < > to hide it when empty — e.g. {description}< - {location}>< ({people:acronym})>. Escape literal < > with \\< \\>.";
 
 const FALLBACK_SAMPLE_USERS: PreviewUser[] = [
   { name: "John Lai", shortname: "JL", departmentName: "Engineering 1" },
@@ -124,35 +114,6 @@ function insertTokenAtCursor(
   });
 }
 
-function wrapSelectionInConditional(
-  current: string,
-  setValue: (value: string) => void,
-  input: HTMLTextAreaElement | null,
-) {
-  if (!input) {
-    setValue(`${current}<>`);
-    return;
-  }
-  const start = input.selectionStart ?? current.length;
-  const end = input.selectionEnd ?? current.length;
-  const hasSelection = start !== end;
-  if (hasSelection) {
-    const selected = current.slice(start, end);
-    setValue(`${current.slice(0, start)}<${selected}>${current.slice(end)}`);
-    requestAnimationFrame(() => {
-      input.focus();
-      input.setSelectionRange(start + 1, start + 1 + selected.length);
-    });
-  } else {
-    setValue(`${current.slice(0, start)}<>${current.slice(end)}`);
-    requestAnimationFrame(() => {
-      input.focus();
-      const pos = start + 1;
-      input.setSelectionRange(pos, pos);
-    });
-  }
-}
-
 function activatable(onActivate: () => void) {
   return {
     role: "button" as const,
@@ -179,12 +140,12 @@ export function TemplatesForm({
   const isDesktop = useMediaQuery(`(min-width: ${theme.breakpoints.lg})`);
 
   const templateInputRef = useRef<HTMLTextAreaElement>(null);
-  const eventTemplateInputRef = useRef<HTMLTextAreaElement>(null);
 
   const [libraryOpened, { open: openLibrary, close: closeLibrary }] = useDisclosure(false);
   const [formOpened, { open: openForm, close: closeForm }] = useDisclosure(false);
   const [editing, setEditing] = useState<EventTitleTemplateView | null>(null);
   const [assignmentsOpened, { open: openAssignments, close: closeAssignments }] = useDisclosure(false);
+  const [masterOpened, { open: openMaster, close: closeMaster }] = useDisclosure(false);
 
   const nameTemplateForm = useForm<NameTemplateFormValues>({
     initialValues: { nameTemplate },
@@ -192,20 +153,10 @@ export function TemplatesForm({
     validateInputOnBlur: true,
   });
 
-  const eventTitleTemplateForm = useForm<EventTitleTemplateFormValues>({
-    initialValues: { eventTitleTemplate },
-    validate: (values) => validateEventTitleTemplate(values),
-    validateInputOnBlur: true,
-  });
-
   useEffect(() => {
     nameTemplateForm.setValues({ nameTemplate });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [nameTemplate]);
-  useEffect(() => {
-    eventTitleTemplateForm.setValues({ eventTitleTemplate });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [eventTitleTemplate]);
 
   const assignmentForm = useForm<Record<string, string>>({
     initialValues: {
@@ -244,25 +195,8 @@ export function TemplatesForm({
     (errors) => showValidationFailure(errors, (field) => nameTemplateForm.getInputNode(field)),
   );
 
-  const onSubmitEventTitleTemplate = eventTitleTemplateForm.onSubmit(
-    async (values) => {
-      const result: SettingsActionResult = await updateEventTitleTemplate(values.eventTitleTemplate);
-      if (result.ok) {
-        notifications.show({ color: "green", message: "Master template updated" });
-        router.refresh();
-        return;
-      }
-      if (result.field === "eventTitleTemplate") {
-        eventTitleTemplateForm.setFieldError("eventTitleTemplate", result.error);
-      }
-      notifications.show({ color: "red", message: result.error });
-    },
-    (errors) => showValidationFailure(errors, (field) => eventTitleTemplateForm.getInputNode(field)),
-  );
-
   const template = nameTemplateForm.values.nameTemplate;
-  const eventTitleTemplateValue = eventTitleTemplateForm.values.eventTitleTemplate;
-  const eventTitleWarnings = getEventTitleTemplateWarnings(eventTitleTemplateValue);
+  const masterWarnings = getEventTitleTemplateWarnings(eventTitleTemplate);
 
   const sampleUsers = (previewUsers.length > 0 ? previewUsers : FALLBACK_SAMPLE_USERS).slice(0, 2);
   const samplePeople: EventTitlePerson[] = sampleUsers.map((user) => ({
@@ -295,11 +229,11 @@ export function TemplatesForm({
     departments: [],
     location: "",
   };
-  const eventTitlePreview = formatEventTitle(eventTitleSample, eventTitleTemplateValue);
-  const eventTitleEmptyPreview = formatEventTitle(eventTitleEmptySample, eventTitleTemplateValue);
+  const eventTitlePreview = formatEventTitle(eventTitleSample, eventTitleTemplate);
+  const eventTitleEmptyPreview = formatEventTitle(eventTitleEmptySample, eventTitleTemplate);
 
   const templateMap = new Map(templates.map((t) => [t.id, t.template]));
-  const masterTemplate = eventTitleTemplateValue;
+  const masterTemplate = eventTitleTemplate;
 
   const openCreate = () => {
     setEditing(null);
@@ -424,114 +358,64 @@ export function TemplatesForm({
 
           <Grid.Col span={{ base: 12, lg: 6 }}>
             <Paper withBorder p="sm" style={{ height: "100%" }}>
-              <form onSubmit={onSubmitEventTitleTemplate}>
-                <Stack>
-                  <Text fw={600}>Master Event Title Template (Google)</Text>
-                  <Text size="sm" c="dimmed">
-                    This title is written to Google Calendar and used as the fallback when a view
-                    has no assigned template. The raw description stays editable in the event form.
-                  </Text>
-
-                  <Textarea
-                    ref={eventTemplateInputRef}
-                    label="Template"
-                    description="Insert tokens to build the event title. Use < > to hide punctuation when a field is empty."
-                    placeholder={"{type:acronym}: {description}\n< ({people:acronym})>\n< - {location}>\n<, {departments}>"}
-                    autosize
-                    minRows={3}
-                    maxRows={8}
-                    {...eventTitleTemplateForm.getInputProps("eventTitleTemplate")}
-                  />
-
-                  {eventTitleWarnings.length > 0 && (
-                    <Alert color="yellow" variant="light" p="xs">
-                      {eventTitleWarnings.map((w) => (
-                        <Text key={w} size="xs">
-                          {w}
-                        </Text>
-                      ))}
-                    </Alert>
-                  )}
-
-                  <Group gap={6} wrap="wrap">
-                    <Text size="xs" c="dimmed">
-                      Insert:
+              <Stack>
+                <Group justify="space-between" wrap="nowrap" align="flex-start">
+                  <Stack gap={2} style={{ flex: 1, minWidth: 0 }}>
+                    <Group gap="xs" wrap="nowrap">
+                      <Text fw={600}>Master Event Title Template (Google)</Text>
+                      {masterWarnings.length > 0 && (
+                        <Badge color="yellow" variant="light" size="xs">
+                          Warning
+                        </Badge>
+                      )}
+                    </Group>
+                    <Text size="sm" c="dimmed">
+                      Written to Google Calendar and used as fallback when a view has no assignment. Raw description stays editable in the event form.
                     </Text>
-                    {EVENT_TITLE_PLACEHOLDERS.map((token) => (
-                      <Button
-                        key={token}
-                        type="button"
-                        size="compact-xs"
-                        variant="default"
-                        onClick={() =>
-                          insertTokenAtCursor(
-                            eventTitleTemplateValue,
-                            (value) => eventTitleTemplateForm.setFieldValue("eventTitleTemplate", value),
-                            eventTemplateInputRef.current,
-                            token,
-                          )
-                        }
-                      >
-                        {token}
-                      </Button>
-                    ))}
-                    <Button
-                      type="button"
-                      size="compact-xs"
-                      variant="default"
-                      onClick={() => wrapSelectionInConditional(eventTitleTemplateValue, (value) => eventTitleTemplateForm.setFieldValue("eventTitleTemplate", value), eventTemplateInputRef.current)}
-                    >
-                      {"Wrap in < >"}
-                    </Button>
-                  </Group>
-
-                  <Text size="xs" c="dimmed">
-                    {TYPE_STYLE_HINT}
-                  </Text>
-                  <Text size="xs" c="dimmed">
-                    {PEOPLE_STYLE_HINT}
-                  </Text>
-                  <Text size="xs" c="dimmed">
-                    {CONDITIONAL_HINT}
-                  </Text>
-
-                  <Divider />
-
-                  <Stack gap={4}>
-                    <Text size="xs" fw={600} c="dimmed" tt="uppercase">
-                      Preview (Master)
+                    <Text size="sm" c="dimmed" lineClamp={2} style={{ overflowWrap: "anywhere" }}>
+                      {eventTitleTemplate || "—"}
                     </Text>
-                    <Text size="xs" c="dimmed">
-                      {eventTitleSample.description}
-                      {eventTitleSample.eventType ? ` · ${eventTitleSample.eventType.name}` : ""} ·{" "}
-                      {samplePeople.map((person) => person.acronym).join(", ") || "no invitees"} ·{" "}
-                      {sampleDepartments.join(", ") || "no departments"} · {eventTitleSample.location}
-                    </Text>
-                    <Stack gap={2}>
-                      <Text size="xs" c="dimmed">
-                        All fields:
-                      </Text>
-                      <Text size="sm" fw={600} style={{ overflowWrap: "anywhere" }}>
-                        {eventTitlePreview || "—"}
-                      </Text>
-                    </Stack>
-                    <Stack gap={2}>
-                      <Text size="xs" c="dimmed">
-                        When optional fields empty:
-                      </Text>
-                      <Text size="sm" fw={600} c="dimmed" style={{ overflowWrap: "anywhere" }}>
-                        {eventTitleEmptyPreview || "—"}
-                      </Text>
-                    </Stack>
                   </Stack>
+                  <Button size="xs" variant="default" onClick={openMaster} style={{ flexShrink: 0 }}>
+                    Edit master
+                  </Button>
+                </Group>
 
-                  <Group justify="flex-end">
-                    <Button type="submit" loading={eventTitleTemplateForm.submitting} loaderProps={BUTTON_LOADER_PROPS}>
-                      Save
-                    </Button>
-                  </Group>
+                <Divider />
+
+                <Stack gap={4}>
+                  <Text size="xs" fw={600} c="dimmed" tt="uppercase">
+                    Preview (Master)
+                  </Text>
+                  <Text size="xs" c="dimmed">
+                    {eventTitleSample.description}
+                    {eventTitleSample.eventType ? ` · ${eventTitleSample.eventType.name}` : ""} ·{" "}
+                    {samplePeople.map((person) => person.acronym).join(", ") || "no invitees"} ·{" "}
+                    {sampleDepartments.join(", ") || "no departments"} · {eventTitleSample.location}
+                  </Text>
+                  <Stack gap={2}>
+                    <Text size="xs" c="dimmed">
+                      All fields:
+                    </Text>
+                    <Text size="sm" fw={600} style={{ overflowWrap: "anywhere" }}>
+                      {eventTitlePreview || "—"}
+                    </Text>
+                  </Stack>
+                  <Stack gap={2}>
+                    <Text size="xs" c="dimmed">
+                      When optional fields empty:
+                    </Text>
+                    <Text size="sm" fw={600} c="dimmed" style={{ overflowWrap: "anywhere" }}>
+                      {eventTitleEmptyPreview || "—"}
+                    </Text>
+                  </Stack>
+                  {masterWarnings.length > 0 && (
+                    <Text size="xs" c="yellow">
+                      {masterWarnings[0]}
+                    </Text>
+                  )}
                 </Stack>
-              </form>
+              </Stack>
             </Paper>
           </Grid.Col>
         </Grid>
@@ -664,6 +548,19 @@ export function TemplatesForm({
             </Button>
           </Group>
         </Stack>
+      </Modal>
+
+      <Modal opened={masterOpened} onClose={closeMaster} title="Master Event Title Template" centered size={isDesktop ? "md" : "sm"}>
+        <MasterTemplateForm
+          key={eventTitleTemplate}
+          initialTemplate={eventTitleTemplate}
+          sample={eventTitleSample}
+          emptySample={eventTitleEmptySample}
+          onDone={() => {
+            closeMaster();
+            router.refresh();
+          }}
+        />
       </Modal>
     </>
   );
