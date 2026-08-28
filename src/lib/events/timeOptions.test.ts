@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 
 import {
-  amPmSuffix,
   isTimeOption,
   joinDateTimeParts,
   naiveDatePart,
@@ -122,20 +121,5 @@ describe("naiveDatePart / naiveTimePart / joinDateTimeParts", () => {
   it("round-trips a naive datetime through the parts", () => {
     const naive = "2026-08-15 23:45:00";
     expect(joinDateTimeParts(naiveDatePart(naive), naiveTimePart(naive))).toBe(naive);
-  });
-});
-
-describe("amPmSuffix", () => {
-  it("appends the shared indicator when start and end match", () => {
-    expect(amPmSuffix("AM", "AM")).toBe("AM");
-    expect(amPmSuffix("PM", "PM")).toBe("PM");
-  });
-
-  it("renders no suffix for mixed or missing indicators", () => {
-    expect(amPmSuffix("AM", "PM")).toBe("");
-    expect(amPmSuffix("PM", "AM")).toBe("");
-    expect(amPmSuffix("", "AM")).toBe("");
-    expect(amPmSuffix("AM", "")).toBe("");
-    expect(amPmSuffix("", "")).toBe("");
   });
 });

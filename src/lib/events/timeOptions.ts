@@ -104,11 +104,3 @@ export function joinDateTimeParts(date: string, time: string): string {
 
 export type AmPm = "AM" | "PM" | "";
 
-/**
- * The (AM)/(PM) marker to append to a full-day event title: present only when
- * the start and end share the same indicator, so AM→PM and PM→AM spans render
- * without a suffix. Returns "" for missing or mixed indicators.
- */
-export function amPmSuffix(startAmPm: AmPm, endAmPm: AmPm): "AM" | "PM" | "" {
-  return startAmPm !== "" && startAmPm === endAmPm ? startAmPm : "";
-}

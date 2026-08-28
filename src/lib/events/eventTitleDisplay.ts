@@ -1,6 +1,6 @@
 import { formatFullName } from "@/lib/settings/formatName";
 import { formatEventTitle } from "@/lib/settings/formatEventTitle";
-import { amPmSuffix, naiveTimePart } from "@/lib/events/timeOptions";
+import { naiveTimePart } from "@/lib/events/timeOptions";
 import type { CalendarEvent } from "@/lib/events/queries";
 
 export interface DisplayTitleUser {
@@ -99,13 +99,7 @@ export function resolveDisplayTitles(
       },
       template,
     );
-    const base = rendered || rawTitle.trim();
-    const suffix = amPmSuffix(
-      event.payload.startAmPm ?? "",
-      event.payload.endAmPm ?? "",
-    );
-    const displayTitle =
-      base && event.payload.timeOption === "half" && suffix ? `${base} (${suffix})` : base;
+    const displayTitle = rendered || rawTitle.trim();
 
     const finalTitle = displayTitle || event.title;
     if (finalTitle === event.title) return event;
