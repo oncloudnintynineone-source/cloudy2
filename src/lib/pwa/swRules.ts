@@ -3,8 +3,52 @@
  * No DOM, no I/O — unit-tested without a live cache or network.
  */
 
-export const APP_DOCUMENT_CACHE = "app-documents-swr";
-export const APP_RSC_CACHE = "app-rsc-swr";
+/**
+ * Prefixes of the page-cache names. The actual names carry a per-build
+ * version suffix (see `documentCacheName` / `rscCacheName`) so a new service
+ * worker build never serves documents or RSC payloads saved by an older
+ * build — the old HTML references `/_next/static` chunk names that 404 on
+ * the new build. Callers that don't know the current version (the page
+ * client) match by prefix via `isPageCacheName`.
+ */
+export const APP_DOCUMENT_CACHE_PREFIX = "app-documents-swr";
+export const APP_RSC_CACHE_PREFIX = "app-rsc-swr";
+
+/**
+ * Derive a short, deterministic version token from the service worker's
+ * precache manifest. Every build produces a different precache (the chunk
+ * hashes change), so the token changes with every deploy. FNV-1a 32-bit over
+ * the serialized entries — collision-resistant enough for cache naming, no
+ * crypto needed.
+ */
+export function swCacheVersion(manifest: unknown): string {
+  const source = Array.isArray(manifest)
+    ? manifest.map((entry) => JSON.stringify(entry)).join("|")
+    : "";
+  let hash = 0x811c9dc5;
+  for (let i = 0; i < source.length; i++) {
+    hash ^= source.charCodeAt(i);
+    hash = Math.imul(hash, 0x01000193);
+  }
+  return (hash >>> 0).toString(36);
+}
+
+export function documentCacheName(version: string): string {
+  return `${APP_DOCUMENT_CACHE_PREFIX}-v${version}`;
+}
+
+export function rscCacheName(version: string): string {
+  return `${APP_RSC_CACHE_PREFIX}-v${version}`;
+}
+
+/**
+ * Whether a Cache Storage name belongs to the page caches — any build
+ * version, including legacy unversioned names. Used for wipe/invalidation
+ * sweeps that must cover entries written by older builds.
+ */
+export function isPageCacheName(name: string): boolean {
+  return name.startsWith(APP_DOCUMENT_CACHE_PREFIX) || name.startsWith(APP_RSC_CACHE_PREFIX);
+}
 
 /** Paths whose navigations/RSC should never be served from cache. */
 const EXCLUDED_PREFIXES = ["/login", "/api/", "/serwist/", "/_next/"] as const;

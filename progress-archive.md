@@ -129,6 +129,7 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
 - [1.112 Month view range-reads its 6-week grid; adjacent-month days show their events (supersedes 1.111)](#1112-month-view-range-reads-its-6-week-grid-adjacent-month-days-show-their-events-supersedes-1111)
 - [1.118 Departments settings: unified detail modal + assigned-user role overrides](#1118-departments-settings-unified-detail-modal--assigned-user-role-overrides)
 - [1.119 Event wizard modal: outside clicks and Escape minimize instead of discarding](#1119-event-wizard-modal-outside-clicks-and-escape-minimize-instead-of-discarding)
+- [1.123 SW build-update takeover: build-versioned page caches + controllerchange reload (bugfix)](#1123-sw-build-update-takeover-build-versioned-page-caches--controllerchange-reload-bugfix)
 
 ## 1.1 Status
 
@@ -5558,3 +5559,75 @@ Verification: `pnpm lint`, `pnpm typecheck`, `pnpm test` pass. Manual QA:
 pin a tab → F5 → pin survives; pin → switch view → switch back → pin
 survives; unpin → switch back → the star is gone; a PWA cold open after a
 pin change shows the new tab order.
+
+## 1.123 SW build-update takeover: build-versioned page caches + controllerchange reload (bugfix)
+
+Report: "sometimes while navigating between views in the calendar, changing
+pages to parade state, contacts, and settings, the UI loads an older version
+of the page (and sometimes even older versions of the web app itself)." Two
+independent gaps in the 1.121 PWA layer caused it:
+
+**Gap 1 — the page caches were not build-versioned.** The `app-documents-swr`
+/ `app-rsc-swr` runtime caches persisted under fixed names across service
+worker versions (unlike the precache, which Serwist cleans up between
+versions). After a Vercel deploy, the new SW (`skipWaiting` +
+`clientsClaim`) takes over and its `StaleWhileRevalidate` handlers happily
+serve the old build's cached documents — HTML whose `<script>` tags reference
+`/_next/static/chunks/<old-hash>.js`, which 404 against the new build. The
+page then renders stale or broken; the background revalidation fixes the
+cache entry for the *next* open, not the one just served.
+
+**Gap 2 — the running tab never learned about the build swap.** The SW file
+is served from a fixed URL (`/serwist/sw.js`), so
+`navigator.serviceWorker.controller.scriptURL` never changes across deploys,
+and there was no `controllerchange` handling anywhere in the client. A tab
+running the old build kept running it until a manual reload.
+
+Fix (three parts):
+
+1. **Build-versioned page cache names** (`src/lib/pwa/swRules.ts`): new pure
+   helpers — `swCacheVersion(manifest)` computes a deterministic FNV-1a 32-bit
+   token over the serialized SW precache manifest (every build's chunk hashes
+   differ, so every build gets a different token); `documentCacheName(v)` /
+   `rscCacheName(v)` derive the real names
+   (`app-documents-swr-v<token>` / `app-rsc-swr-v<token>`); `isPageCacheName(name)`
+   matches any build's page cache by prefix (including the legacy unversioned
+   names). `APP_DOCUMENT_CACHE` / `APP_RSC_CACHE` became
+   `APP_DOCUMENT_CACHE_PREFIX` / `APP_RSC_CACHE_PREFIX`.
+2. **Wipe on activate** (`src/app/sw.ts`): an `activate` listener deletes
+   every page-cache name this build does not own (prefix match), so
+   old-build entries — and the legacy unversioned names — vanish the moment
+   the new SW activates, for this build and every future one.
+3. **Client swap detection** (`src/components/AppProviders.tsx` →
+   `useSWUpdateReload`): listens for `navigator.serviceWorker`
+   `controllerchange` and compares `ServiceWorker` **object identity** (not
+   `scriptURL`, which is fixed by design). A reload fires only when the tab
+   was already under control — the first-ever claim after install is
+   excluded, so a normal initial install never flashes. On a real swap it
+   runs `clearAllSavedPages()` (now prefix-matched in
+   `src/lib/pwa/client.ts`, sweeping every build version) and
+   `window.location.reload()`; the reload also drops Next's in-memory
+   client-router RSC cache (`staleTimes.dynamic`), so no old-build payload
+   survives in-page.
+
+The activate wipe and the client clear are deliberately redundant: the wipe
+closes the "fresh tab after deploy" hole (a tab opened after the new SW
+claimed has no `controllerchange` in its lifetime), the client clear covers
+the brief activate/claim race where an in-flight old-SW fetch could
+re-store an entry under the old name after the wipe.
+
+In-page "older data" *within the same build* (navigating back to a visited
+URL within `staleTimes.dynamic` / the SWR window) is unchanged — that is the
+intended instant-open design, with the "Saved · HH:MM" chip and the
+force-refresh nonce as the escape hatch.
+
+`docs/pwa-offline.md` gained §1.8 (deploy takeover, with sequence diagram);
+§1.5/§1.6/§1.12/§1.13/§1.14/§1.15 updated for the versioned names and
+prefix-matched helpers, sections renumbered; AGENTS.md PWA bullet updated.
+
+Verification: `pnpm lint`, `pnpm typecheck`, `pnpm test` (696) pass;
+`pnpm build` passes and the emitted SW bundle was inspected — FNV
+versioning, the activate wipe, and both versioned runtime cache routes are
+present. Manual QA pending on a real deploy: open the installed PWA on the
+old build, deploy, navigate — the tab should reload once and come back on
+the new build with no stale-chunk 404s and no old HTML.

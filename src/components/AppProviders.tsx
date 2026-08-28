@@ -6,7 +6,37 @@ import { Notifications } from "@mantine/notifications";
 import { useMediaQuery } from "@mantine/hooks";
 
 import { OfflineBanner } from "@/components/OfflineBanner";
+import { clearAllSavedPages } from "@/lib/pwa/client";
 import { DESKTOP_MEDIA_QUERY, theme } from "@/lib/theme";
+
+function useSWUpdateReload() {
+  // When a new service-worker build activates (post-deploy) and takes over
+  // this tab, the running page is the old build: its HTML references
+  // /_next/static chunk names that no longer exist, so continuing in place
+  // shows stale (or broken) UI. The new SW wipes older page caches on
+  // activate; we additionally clear from the client (covers the brief
+  // activate/claim race) and reload so the tab runs the new build.
+  //
+  // The SW file lives at a fixed URL, so detect the swap by ServiceWorker
+  // object identity, not scriptURL. The first-ever claim (controller was
+  // null) must NOT reload — that is a normal initial install.
+  useEffect(() => {
+    if (!("serviceWorker" in navigator)) return;
+    let lastController = navigator.serviceWorker.controller;
+    const handleChange = () => {
+      const current = navigator.serviceWorker.controller;
+      const wasControlled = lastController !== null;
+      lastController = current;
+      if (!wasControlled || current === null) return;
+      void clearAllSavedPages().then(() => {
+        window.location.reload();
+      });
+    };
+    navigator.serviceWorker.addEventListener("controllerchange", handleChange);
+    return () =>
+      navigator.serviceWorker.removeEventListener("controllerchange", handleChange);
+  }, []);
+}
 
 function useSessionExpiryRedirect() {
   // The SW posts this when a background revalidation lands on /login
@@ -56,6 +86,9 @@ if (process.env.NODE_ENV === "development" && typeof window !== "undefined") {
  * component boundary, so MantineProvider must mount on the client.
  */
 export default function AppProviders({ children }: { children: ReactNode }) {
+  // A deployed SW build took over this tab — clear stale page caches and
+  // reload under the new build.
+  useSWUpdateReload();
   // If the SW detected a session expiry while revalidating a cached page,
   // leave the stale view for /login — the caches are already purged in the SW.
   useSessionExpiryRedirect();

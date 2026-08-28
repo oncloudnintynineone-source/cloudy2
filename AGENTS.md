@@ -215,7 +215,17 @@ before changing the subsystem.
   directly). Two SWR caches: `app-documents-swr` for navigation documents (the
   instant-open lever; stamping via `stampDocument` shows a "Saved · HH:MM" chip in
   `DashboardView`) and `app-rsc-swr` for RSC payloads (instant in-app navigations
-  and offline previously-visited views). Offline with no saved copy serves a
+  and offline previously-visited views). **Both page-cache names are
+  build-versioned** — `<prefix>-v<token>` where the token is a deterministic
+  FNV-1a fingerprint of the SW precache manifest (`swCacheVersion`,
+  `src/lib/pwa/swRules.ts`) — so a new build never serves a document/RSC payload
+  an older build cached (the old HTML references `/_next/static` chunk names that
+  404 on the new build). On `activate`, the SW wipes every page-cache name it
+  doesn't own; the client (`useSWUpdateReload` in `AppProviders`) additionally
+  detects a build swap via `controllerchange` (ServiceWorker *object* identity —
+  the SW file lives at a fixed URL, so scriptURL never changes) and, when the
+  tab was already under control, clears all page caches and reloads under the
+  new build. Offline with no saved copy serves a
   precached branded `public/offline.html`. Post-mutation freshness is guarded by
   `invalidateCurrentPathCaches()` (`src/lib/pwa/client.ts`) — every
   `router.refresh()` site invalidates the current pathname in both caches first,

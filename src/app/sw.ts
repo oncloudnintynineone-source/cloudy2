@@ -4,14 +4,16 @@ import type { PrecacheEntry, SerwistGlobalConfig } from "serwist";
 import { CacheFirst, ExpirationPlugin, NetworkOnly, Serwist, StaleWhileRevalidate } from "serwist";
 
 import {
-  APP_DOCUMENT_CACHE,
-  APP_RSC_CACHE,
+  documentCacheName,
   isCacheableDocumentRequest,
   isCacheableRscRequest,
+  isPageCacheName,
   isSessionExpiredResponse,
+  rscCacheName,
   shouldStoreDocumentResponse,
   shouldStoreRscResponse,
   stampDocument,
+  swCacheVersion,
 } from "@/lib/pwa/swRules";
 
 declare global {
@@ -22,6 +24,14 @@ declare global {
 
 declare const self: ServiceWorkerGlobalScope;
 
+// Per-build version token for the page caches (see swRules for why the names
+// are versioned). Computed once at module load from this build's precache
+// manifest — a new deploy yields a new token, so this build only ever reads
+// caches it (or this build) wrote.
+const PAGE_CACHE_VERSION = swCacheVersion(self.__SW_MANIFEST);
+const APP_DOCUMENT_CACHE = documentCacheName(PAGE_CACHE_VERSION);
+const APP_RSC_CACHE = rscCacheName(PAGE_CACHE_VERSION);
+
 // Helpers used inside plugins (small, no extra imports needed in the SW).
 
 function purgePageCaches(): Promise<void> {
@@ -29,6 +39,25 @@ function purgePageCaches(): Promise<void> {
     () => undefined,
   );
 }
+
+// A brand-new SW build must never serve page documents or RSC payloads that
+// an older build cached — that HTML references /_next/static chunk names that
+// no longer exist on the new build, so the page loads stale or breaks. The
+// precache plugin already cleans up outdated precache caches, but the
+// versioned runtime page caches are ours to manage: on activate, wipe every
+// page-cache name we don't recognize (i.e. written by an older build).
+self.addEventListener("activate", (event) => {
+  event.waitUntil(
+    (async () => {
+      const names = await caches.keys();
+      await Promise.all(
+        names
+          .filter((name) => isPageCacheName(name) && name !== APP_DOCUMENT_CACHE && name !== APP_RSC_CACHE)
+          .map((name) => caches.delete(name)),
+      );
+    })().catch(() => undefined),
+  );
+});
 
 async function notifySessionExpired(): Promise<void> {
   const clients = await self.clients.matchAll({ type: "window", includeUncontrolled: true });

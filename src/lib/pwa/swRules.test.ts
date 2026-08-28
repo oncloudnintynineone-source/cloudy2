@@ -1,23 +1,85 @@
 import { describe, expect, it } from "vitest";
 
 import {
-  APP_DOCUMENT_CACHE,
-  APP_RSC_CACHE,
+  APP_DOCUMENT_CACHE_PREFIX,
+  APP_RSC_CACHE_PREFIX,
+  documentCacheName,
   isCacheableDocumentRequest,
   isCacheableRscRequest,
+  isPageCacheName,
   isSessionExpiredResponse,
   keysForPathname,
+  rscCacheName,
   shouldStoreDocumentResponse,
   shouldStoreRscResponse,
   stampDocument,
+  swCacheVersion,
 } from "./swRules";
 
 const ORIGIN = "https://cloudy.example.com";
 
 describe("swRules", () => {
-  it("exports cache names", () => {
-    expect(APP_DOCUMENT_CACHE).toBe("app-documents-swr");
-    expect(APP_RSC_CACHE).toBe("app-rsc-swr");
+  it("exports cache name prefixes", () => {
+    expect(APP_DOCUMENT_CACHE_PREFIX).toBe("app-documents-swr");
+    expect(APP_RSC_CACHE_PREFIX).toBe("app-rsc-swr");
+  });
+
+  describe("swCacheVersion", () => {
+    const manifestA = [
+      "/_next/static/chunks/abc123.js",
+      { url: "/_next/static/chunks/def456.js", revision: null },
+      "/offline.html",
+    ];
+    const manifestB = [
+      "/_next/static/chunks/zzz999.js",
+      { url: "/_next/static/chunks/yyy888.js", revision: null },
+      "/offline.html",
+    ];
+
+    it("is deterministic for the same manifest", () => {
+      expect(swCacheVersion(manifestA)).toBe(swCacheVersion(manifestA));
+    });
+
+    it("differs for different manifests", () => {
+      expect(swCacheVersion(manifestA)).not.toBe(swCacheVersion(manifestB));
+    });
+
+    it("is stable for a missing manifest", () => {
+      expect(swCacheVersion(undefined)).toBe(swCacheVersion(undefined));
+      expect(swCacheVersion(null)).toBe(swCacheVersion(undefined));
+    });
+
+    it("produces a short alphanumeric token", () => {
+      expect(swCacheVersion(manifestA)).toMatch(/^[1-9a-z]+$/);
+      expect(swCacheVersion(manifestA).length).toBeLessThanOrEqual(7);
+    });
+  });
+
+  describe("cache name derivation", () => {
+    it("appends the version to the prefix", () => {
+      expect(documentCacheName("abc12")).toBe("app-documents-swr-vabc12");
+      expect(rscCacheName("abc12")).toBe("app-rsc-swr-vabc12");
+    });
+
+    it("document and RSC names never collide", () => {
+      expect(documentCacheName("x")).not.toBe(rscCacheName("x"));
+    });
+  });
+
+  describe("isPageCacheName", () => {
+    it("matches versioned and legacy unversioned names", () => {
+      expect(isPageCacheName("app-documents-swr")).toBe(true);
+      expect(isPageCacheName("app-documents-swr-vabc12")).toBe(true);
+      expect(isPageCacheName("app-rsc-swr")).toBe(true);
+      expect(isPageCacheName("app-rsc-swr-vabc12")).toBe(true);
+    });
+
+    it("rejects other caches", () => {
+      expect(isPageCacheName("static-image-assets")).toBe(false);
+      expect(isPageCacheName("static-style-assets")).toBe(false);
+      expect(isPageCacheName("serwist-precache-v2-abc")).toBe(false);
+      expect(isPageCacheName("")).toBe(false);
+    });
   });
 
   describe("isCacheableDocumentRequest", () => {
