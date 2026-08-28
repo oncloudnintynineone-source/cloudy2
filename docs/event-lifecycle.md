@@ -386,7 +386,7 @@ so editing never re-types the templated calendar title.
 ### 1.8.1 `formatEventTitle` — the token engine (`src/lib/settings/formatEventTitle.ts:46`)
 
 Substitutes `{...}` tokens in the admin template (`settings.event_title_template`,
-default `"{description}"`) case-insensitively:
+default `"{description}"`, max 300 chars) case-insensitively:
 
 | Token | Renders |
 | ----- | ------- |
@@ -400,13 +400,40 @@ default `"{description}"`) case-insensitively:
 | `{departments}` | department names joined with `", "` |
 | `{location}` | the out-of-camp destination; `""` for in-camp events |
 
-List tokens join with `", "`; empty lists/absent values resolve to `""` (no
-gap-collapsing); **unknown tokens and unknown styles are left as literal text**; the
-result is trimmed. People arrive pre-resolved as `EventTitlePerson { full, acronym, fqn
+List tokens join with `", "`; empty lists/absent values resolve to `""`; **unknown
+tokens and unknown styles are left as literal text**; the result is trimmed.
+People arrive pre-resolved as `EventTitlePerson { full, acronym, fqn
 }` (`formatEventTitle.ts:8`) and the type as `EventTitleType { name, acronym }`
 (`:17`), so the formatter is pure string substitution. The FQN style uses
 `formatFullName` (`src/lib/settings/formatName.ts:20`), which substitutes
 `{name}`/`{department}` in `settings.name_template` the same way.
+
+#### 1.8.1.1 Conditional sections `< >`
+
+To avoid dangling punctuation when a field is empty, any content wrapped in `< >`
+is **conditional** — it is kept only when at least one token inside it resolves
+to non-empty (OR rule). This lets the admin tie surrounding punctuation to its
+field:
+
+```
+{description}< - {location}>                // " - Hall A" only when location set
+{type}: {description}< ({people:acronym})>  // " (JL, ML)" only when someone invited
+{description}<, {departments}>< @ {location}>
+<{type} — >{description}                    // prefix only when type set
+```
+
+* Nestable: `<outer <inner {location}> end>` — inner emptiness bubbles; the
+  outer is hidden when every token inside (recursively) is empty.
+* If a `< >` pair contains **no tokens at all** (e.g. `Status <urgent>`), it is
+  treated as literal text — so existing titles with literal angle brackets are
+  unaffected.
+* Escaping: `\<` `\>` `\{` `\}` `\\` render as literal characters; an unmatched
+  `<` or `>` is rendered fail-soft as literal text. The Settings tab shows a
+  non-blocking yellow warning for unmatched delimiters (see `getEventTitleTemplateWarnings`
+  in `src/lib/settings/validate.ts`).
+* Whitespace is verbatim — put the leading space **inside** the group
+  (`< - {location}>` not ` < - {location}>`) and the group carries its space
+  when shown. The final result is still trimmed.
 
 ### 1.8.2 `renderEventTitle` — the single source of truth (`src/lib/events/eventTitle.ts:40`)
 

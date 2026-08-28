@@ -283,9 +283,10 @@ before changing the subsystem.
    invalidation on change.
 - **Templates tab:** display-name template (`formatFullName()`) + event-title template
   (`formatEventTitle()`, tokens `{description} {type} {type:acronym} {departments}
-  {location} {people}` plus `{people:full|acronym|fqn}`). Rendered titles go to the
-  Google summary; the raw description round-trips via the notes' `title` field so edits
-  prefill original text.
+  {location} {people}` plus `{people:full|acronym|fqn}`, with conditional
+  `< >` groups hiding punctuation when every token inside is empty — e.g.
+  `{description}< - {location}>`). Rendered titles go to the Google summary; the raw
+  description round-trips via the notes' `title` field so edits prefill original text.
 - **Event notes:** an `Edit: <url>` deep-link line (origin from request headers,
   `src/lib/appUrl.ts`) above an opaque brotli+base64url JSON block (`encodeNotesBlock`;
   `parseEventNotes` is the single reader and decodes legacy v1/v2), ending with the

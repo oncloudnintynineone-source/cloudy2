@@ -5,7 +5,7 @@
 
 export const KEYWORD_MAX_LENGTH = 12;
 export const NAME_TEMPLATE_MAX_LENGTH = 200;
-export const EVENT_TITLE_TEMPLATE_MAX_LENGTH = 200;
+export const EVENT_TITLE_TEMPLATE_MAX_LENGTH = 300;
 export const AUDIT_RETENTION_MIN = 7;
 export const AUDIT_RETENTION_MAX = 365;
 export const AUDIT_RETENTION_DEFAULT = 90;
@@ -127,6 +127,8 @@ export function validateNameTemplate(values: NameTemplateFormValues): NameTempla
 
   if (!template) {
     errors.nameTemplate = "Name template is required";
+  } else if (/\r|\n/.test(values.nameTemplate)) {
+    errors.nameTemplate = "Template must be a single line";
   } else if (template.length > NAME_TEMPLATE_MAX_LENGTH) {
     errors.nameTemplate = `Name template must be ${NAME_TEMPLATE_MAX_LENGTH} characters or fewer`;
   }
@@ -142,9 +144,47 @@ export function validateEventTitleTemplate(
 
   if (!template) {
     errors.eventTitleTemplate = "Event title template is required";
+  } else if (/\r|\n/.test(values.eventTitleTemplate)) {
+    errors.eventTitleTemplate = "Template must be a single line";
   } else if (template.length > EVENT_TITLE_TEMPLATE_MAX_LENGTH) {
     errors.eventTitleTemplate = `Event title template must be ${EVENT_TITLE_TEMPLATE_MAX_LENGTH} characters or fewer`;
   }
 
   return errors;
+}
+
+/**
+ * Non-blocking warnings for the event title template. Unmatched `<`/`>` are
+ * rendered fail-soft as literal text, but the admin should be warned so they
+ * can fix the grouping or escape with `\<`/`\>`.
+ */
+export function getEventTitleTemplateWarnings(template: string): string[] {
+  const warnings: string[] = [];
+  let depth = 0;
+  let i = 0;
+  while (i < template.length) {
+    const ch = template[i];
+    if (ch === "\\" && i + 1 < template.length) {
+      const next = template[i + 1];
+      if (next === "<" || next === ">" || next === "{" || next === "}" || next === "\\") {
+        i += 2;
+        continue;
+      }
+    }
+    if (ch === "<") {
+      depth += 1;
+    } else if (ch === ">") {
+      if (depth > 0) {
+        depth -= 1;
+      } else {
+        warnings.push("Unmatched '>' — escape as \\> for a literal '>'");
+        break;
+      }
+    }
+    i += 1;
+  }
+  if (depth > 0) {
+    warnings.push("Unmatched '<' — escape as \\< for a literal '<' or close with '>'");
+  }
+  return warnings;
 }

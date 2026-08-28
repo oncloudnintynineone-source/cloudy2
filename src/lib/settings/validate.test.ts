@@ -110,7 +110,7 @@ describe("validateEventTitleTemplate", () => {
   it("flags an over-long template", () => {
     const long = "{description}".repeat(100);
     expect(validateEventTitleTemplate({ eventTitleTemplate: long }).eventTitleTemplate).toBe(
-      "Event title template must be 200 characters or fewer",
+      "Event title template must be 300 characters or fewer",
     );
   });
 

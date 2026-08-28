@@ -2,7 +2,7 @@
 
 import { useRef } from "react";
 import { useRouter } from "next/navigation";
-import { Button, Divider, Grid, Group, Paper, Stack, Text, TextInput } from "@mantine/core";
+import { Alert, Button, Divider, Grid, Group, Paper, Stack, Text, Textarea } from "@mantine/core";
 import { useForm } from "@mantine/form";
 import { notifications } from "@mantine/notifications";
 
@@ -20,6 +20,7 @@ import {
 import { formatFullName } from "@/lib/settings/formatName";
 import {
   EVENT_TITLE_PLACEHOLDERS,
+  getEventTitleTemplateWarnings,
   NAME_TEMPLATE_PLACEHOLDERS,
   validateEventTitleTemplate,
   validateNameTemplate,
@@ -58,6 +59,9 @@ const PEOPLE_STYLE_HINT =
 
 const TYPE_STYLE_HINT = "{type} = name · {type:acronym} = shortname";
 
+const CONDITIONAL_HINT =
+  "Wrap punctuation with a field in < > to hide it when empty — e.g. {description}< - {location}>< ({people:acronym})>. Escape literal < > with \\< \\>.";
+
 const FALLBACK_SAMPLE_USERS: PreviewUser[] = [
   { name: "John Lai", shortname: "JL", departmentName: "Engineering 1" },
   { name: "Mei Lin", shortname: "ML", departmentName: "Logistics" },
@@ -69,7 +73,7 @@ const FALLBACK_SAMPLE_EVENT_TYPE: PreviewEventType = { name: "Training", shortna
 function insertTokenAtCursor(
   current: string,
   setValue: (value: string) => void,
-  input: HTMLInputElement | null,
+  input: HTMLTextAreaElement | null,
   token: string,
 ) {
   if (!input) {
@@ -86,6 +90,35 @@ function insertTokenAtCursor(
   });
 }
 
+function wrapSelectionInConditional(
+  current: string,
+  setValue: (value: string) => void,
+  input: HTMLTextAreaElement | null,
+) {
+  if (!input) {
+    setValue(`${current}<>`);
+    return;
+  }
+  const start = input.selectionStart ?? current.length;
+  const end = input.selectionEnd ?? current.length;
+  const hasSelection = start !== end;
+  if (hasSelection) {
+    const selected = current.slice(start, end);
+    setValue(`${current.slice(0, start)}<${selected}>${current.slice(end)}`);
+    requestAnimationFrame(() => {
+      input.focus();
+      input.setSelectionRange(start + 1, start + 1 + selected.length);
+    });
+  } else {
+    setValue(`${current.slice(0, start)}<>${current.slice(end)}`);
+    requestAnimationFrame(() => {
+      input.focus();
+      const pos = start + 1;
+      input.setSelectionRange(pos, pos);
+    });
+  }
+}
+
 export function TemplatesForm({
   nameTemplate,
   eventTitleTemplate,
@@ -93,8 +126,8 @@ export function TemplatesForm({
   previewEventTypes,
 }: TemplatesFormProps) {
   const router = useRouter();
-  const templateInputRef = useRef<HTMLInputElement>(null);
-  const eventTemplateInputRef = useRef<HTMLInputElement>(null);
+  const templateInputRef = useRef<HTMLTextAreaElement>(null);
+  const eventTemplateInputRef = useRef<HTMLTextAreaElement>(null);
 
   const nameTemplateForm = useForm<NameTemplateFormValues>({
     initialValues: { nameTemplate },
@@ -148,6 +181,7 @@ export function TemplatesForm({
 
   const template = nameTemplateForm.values.nameTemplate;
   const eventTitleTemplateValue = eventTitleTemplateForm.values.eventTitleTemplate;
+  const eventTitleWarnings = getEventTitleTemplateWarnings(eventTitleTemplateValue);
 
   // Event title preview: up to two real users stand in for the invitees, so
   // the admin sees how the template renders with the saved display-name
@@ -176,7 +210,15 @@ export function TemplatesForm({
     departments: sampleDepartments,
     location: SAMPLE_EVENT_LOCATION,
   };
+  const eventTitleEmptySample: EventTitleInput = {
+    description: SAMPLE_EVENT_DESCRIPTION,
+    eventType: null,
+    people: [],
+    departments: [],
+    location: "",
+  };
   const eventTitlePreview = formatEventTitle(eventTitleSample, eventTitleTemplateValue);
+  const eventTitleEmptyPreview = formatEventTitle(eventTitleEmptySample, eventTitleTemplateValue);
 
   return (
     <Grid className={CONTENT_ENTER_CLASS} gap="md">
@@ -190,11 +232,14 @@ export function TemplatesForm({
                 result is used wherever a user&apos;s full name is shown.
               </Text>
 
-              <TextInput
+              <Textarea
                 ref={templateInputRef}
                 label="Template"
                 description="Insert tokens to splice in the user's name and department."
-                placeholder="{name}: DEPT-{department}"
+                placeholder={"{name}\n— e.g. {name}: DEPT-{department}"}
+                autosize
+                minRows={3}
+                maxRows={8}
                 {...nameTemplateForm.getInputProps("nameTemplate")}
               />
 
@@ -270,13 +315,28 @@ export function TemplatesForm({
                 in the event form; the rendered title is what shows on the calendar.
               </Text>
 
-              <TextInput
+              <Textarea
                 ref={eventTemplateInputRef}
                 label="Template"
-                description="Insert tokens to build the event title."
-                placeholder="{type:acronym}: {description} ({people:acronym})"
+                description="Insert tokens to build the event title. Use < > to hide punctuation when a field is empty."
+                placeholder={
+                  "{type:acronym}: {description}\n< ({people:acronym})>\n< - {location}>\n<, {departments}>"
+                }
+                autosize
+                minRows={3}
+                maxRows={8}
                 {...eventTitleTemplateForm.getInputProps("eventTitleTemplate")}
               />
+
+              {eventTitleWarnings.length > 0 && (
+                <Alert color="yellow" variant="light" p="xs">
+                  {eventTitleWarnings.map((w) => (
+                    <Text key={w} size="xs">
+                      {w}
+                    </Text>
+                  ))}
+                </Alert>
+              )}
 
               <Group gap={6} wrap="wrap">
                 <Text size="xs" c="dimmed">
@@ -301,6 +361,21 @@ export function TemplatesForm({
                     {token}
                   </Button>
                 ))}
+                <Button
+                  type="button"
+                  size="compact-xs"
+                  variant="default"
+                  onClick={() =>
+                    wrapSelectionInConditional(
+                      eventTitleTemplateValue,
+                      (value) =>
+                        eventTitleTemplateForm.setFieldValue("eventTitleTemplate", value),
+                      eventTemplateInputRef.current,
+                    )
+                  }
+                >
+                  {"Wrap in < >"}
+                </Button>
               </Group>
 
               <Text size="xs" c="dimmed">
@@ -308,6 +383,9 @@ export function TemplatesForm({
               </Text>
               <Text size="xs" c="dimmed">
                 {PEOPLE_STYLE_HINT}
+              </Text>
+              <Text size="xs" c="dimmed">
+                {CONDITIONAL_HINT}
               </Text>
 
               <Divider />
@@ -322,9 +400,26 @@ export function TemplatesForm({
                   {samplePeople.map((person) => person.acronym).join(", ") || "no invitees"} ·{" "}
                   {sampleDepartments.join(", ") || "no departments"} · {eventTitleSample.location}
                 </Text>
-                <Text size="sm" fw={600} style={{ overflowWrap: "anywhere" }}>
-                  {eventTitlePreview || "—"}
-                </Text>
+                <Stack gap={2}>
+                  <Text size="xs" c="dimmed">
+                    All fields:
+                  </Text>
+                  <Text size="sm" fw={600} style={{ overflowWrap: "anywhere" }}>
+                    {eventTitlePreview || "—"}
+                  </Text>
+                </Stack>
+                <Stack gap={2}>
+                  <Text size="xs" c="dimmed">
+                    When optional fields empty:
+                  </Text>
+                  <Text size="sm" fw={600} c="dimmed" style={{ overflowWrap: "anywhere" }}>
+                    {eventTitleEmptyPreview || "—"}
+                  </Text>
+                  <Text size="xs" c="dimmed">
+                    (type, people, departments, location blank — falls back to description when
+                    template renders empty)
+                  </Text>
+                </Stack>
               </Stack>
 
               <Group justify="flex-end">
