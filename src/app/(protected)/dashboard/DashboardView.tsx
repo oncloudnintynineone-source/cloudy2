@@ -111,11 +111,10 @@ import { useGridPan } from "@/lib/ui/gridPan";
 import { useImmersiveMode } from "@/lib/ui/immersiveMode";
 import { DASHBOARD_STATE_KEYS, freshMarkerNeeded, orderDashboardViews } from "@/lib/ui/uiState";
 import { usePersistUiState } from "@/lib/ui/uiStateClient";
-import { SavedDataChip } from "@/components/SavedDataChip";
 import { EventDetail } from "./EventDetail";
 import { EventForm } from "./EventForm";
 import { WeekMatrixView } from "./WeekMatrixView";
-import { invalidateCurrentPathCaches } from "@/lib/pwa/client";
+import { invalidateCurrentPathCaches, readStaleStamp } from "@/lib/pwa/client";
 
 type ViewMode = "month" | "week" | "weekv2" | "schedule" | "agenda";
 
@@ -718,6 +717,22 @@ export function DashboardView({
   );
 
   const [isRefreshing, startRefresh] = useTransition();
+
+  const savedStamp = useMemo(() => readStaleStamp(), []);
+  const savedInfo = useMemo(() => {
+    if (!savedStamp?.cachedAt) return null;
+    try {
+      const d = new Date(savedStamp.cachedAt);
+      if (Number.isNaN(d.getTime())) return null;
+      const time = d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+      return {
+        label: `Saved · ${time}`,
+        full: `Showing saved data from ${d.toLocaleString()}. Pull to refresh or tap Force refresh for the latest.`,
+      };
+    } catch {
+      return null;
+    }
+  }, [savedStamp]);
 
   // Skeleton-only loading: any pending data navigation or force refresh
   // shows the grid skeleton. `useMinSkeletonHold` keeps it up for a minimum
@@ -1584,6 +1599,11 @@ export function DashboardView({
                 More Filters
               </Menu.Item>
               <Menu.Divider />
+              {savedInfo ? (
+                <Tooltip label={savedInfo.full} multiline maw={260} withArrow>
+                  <Menu.Label style={{ cursor: "default" }}>{savedInfo.label}</Menu.Label>
+                </Tooltip>
+              ) : null}
               <Menu.Item
                 leftSection={
                   isRefreshing ? <Loader size="sm" color="gray" /> : <IconRefresh size={16} />
@@ -1596,9 +1616,6 @@ export function DashboardView({
             </Menu.Dropdown>
           </Menu>
         </Group>
-        <Box style={{ display: "flex", justifyContent: "center", marginTop: 4, minHeight: 18 }}>
-          <SavedDataChip />
-        </Box>
       </Box>
 
       {currentUserName.trim().length <= 2 && (
