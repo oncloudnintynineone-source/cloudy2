@@ -1377,43 +1377,51 @@ export function DashboardView({
           paddingBottom: "var(--mantine-spacing-xs)",
           // Marks the chrome's bottom edge while content scrolls beneath it
           // (the tabs list's own border now sits mid-block, above the nav).
-          borderBottom: "1px solid var(--mantine-color-default-border)",
+          // In immersive the tabs are hidden, so the border would orphan above
+          // the date-nav row — drop it.
+          borderBottom: immersiveMode.active
+            ? undefined
+            : "1px solid var(--mantine-color-default-border)",
         }}
       >
-        <Tabs
-          value={shownView}
-          onChange={(next) => switchView(next ?? "month")}
-          aria-label="Calendar view"
-          styles={{ tab: { flex: 1 } }}
-        >
-          <Tabs.List
-            ref={tabListElRef}
-            style={{
-              flexWrap: "nowrap",
-              overflowX: "auto",
-              borderBottom: "1px solid var(--mantine-color-default-border)",
-            }}
+        {/* View tabs are chrome too — they vanish in fullscreen, leaving only
+            the grid and the date-nav row above it. */}
+        {!immersiveMode.active && (
+          <Tabs
+            value={shownView}
+            onChange={(next) => switchView(next ?? "month")}
+            aria-label="Calendar view"
+            styles={{ tab: { flex: 1 } }}
           >
-            {orderedViews.map((mode) => {
-              const meta = VIEW_TAB_META[mode];
-              return (
-                <Tabs.Tab key={mode} value={mode}>
-                  <Group gap="xs" justify="center" wrap="nowrap">
-                    {meta.icon}
-                    {pinned.includes(mode) && <IconStarFilled size={14} />}
-                    <Text
-                      fw={600}
-                      size="sm"
-                      style={meta.nowrap ? { whiteSpace: "nowrap" } : undefined}
-                    >
-                      {meta.label}
-                    </Text>
-                  </Group>
-                </Tabs.Tab>
-              );
-            })}
-          </Tabs.List>
-        </Tabs>
+            <Tabs.List
+              ref={tabListElRef}
+              style={{
+                flexWrap: "nowrap",
+                overflowX: "auto",
+                borderBottom: "1px solid var(--mantine-color-default-border)",
+              }}
+            >
+              {orderedViews.map((mode) => {
+                const meta = VIEW_TAB_META[mode];
+                return (
+                  <Tabs.Tab key={mode} value={mode}>
+                    <Group gap="xs" justify="center" wrap="nowrap">
+                      {meta.icon}
+                      {pinned.includes(mode) && <IconStarFilled size={14} />}
+                      <Text
+                        fw={600}
+                        size="sm"
+                        style={meta.nowrap ? { whiteSpace: "nowrap" } : undefined}
+                      >
+                        {meta.label}
+                      </Text>
+                    </Group>
+                  </Tabs.Tab>
+                );
+              })}
+            </Tabs.List>
+          </Tabs>
+        )}
 
         {/* Date navigation: pinned together with the tabs above so the period
             label and prev/next stay reachable while the grid scrolls. Kept
