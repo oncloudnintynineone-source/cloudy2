@@ -9,6 +9,7 @@ import {
   isPageCacheName,
   isSessionExpiredResponse,
   keysForPathname,
+  newestSavedView,
   rscCacheName,
   shouldStoreDocumentResponse,
   shouldStoreRscResponse,
@@ -279,6 +280,47 @@ describe("swRules", () => {
     });
   });
 
+  describe("newestSavedView", () => {
+    it("returns null for an empty list", () => {
+      expect(newestSavedView([])).toBeNull();
+    });
+
+    it("picks the newest by savedAtMs", () => {
+      expect(
+        newestSavedView([
+          { url: `${ORIGIN}/dashboard`, savedAtMs: 1000 },
+          { url: `${ORIGIN}/parade-state`, savedAtMs: 3000 },
+          { url: `${ORIGIN}/contacts`, savedAtMs: 2000 },
+        ]),
+      ).toEqual({ url: `${ORIGIN}/parade-state`, savedAtMs: 3000 });
+    });
+
+    it("treats missing timestamps as oldest", () => {
+      expect(
+        newestSavedView([
+          { url: `${ORIGIN}/a`, savedAtMs: null },
+          { url: `${ORIGIN}/b`, savedAtMs: 5 },
+        ]),
+      ).toEqual({ url: `${ORIGIN}/b`, savedAtMs: 5 });
+    });
+
+    it("breaks ties toward the first entry", () => {
+      expect(
+        newestSavedView([
+          { url: `${ORIGIN}/a`, savedAtMs: 1000 },
+          { url: `${ORIGIN}/b`, savedAtMs: 1000 },
+        ]),
+      ).toEqual({ url: `${ORIGIN}/a`, savedAtMs: 1000 });
+    });
+
+    it("returns the only entry even without a timestamp", () => {
+      expect(newestSavedView([{ url: `${ORIGIN}/a`, savedAtMs: null }])).toEqual({
+        url: `${ORIGIN}/a`,
+        savedAtMs: null,
+      });
+    });
+  });
+
   describe("stampDocument", () => {
     it("injects after <head>", () => {
       const html = "<html><head><title>x</title></head><body></body></html>";
@@ -293,6 +335,14 @@ describe("swRules", () => {
       const out = stampDocument("<html>hi</html>", "2026-01-02T03:04:05.000Z");
       expect(out.startsWith("<script>")).toBe(true);
       expect(out).toContain("__C2_STAMP__");
+    });
+
+    it("replaces an existing stamp instead of stacking", () => {
+      const once = stampDocument("<html><head></head><body></body></html>", "2026-01-01T00:00:00.000Z");
+      const twice = stampDocument(once, "2026-02-01T00:00:00.000Z");
+      expect(twice.match(/__C2_STAMP__/g)).toHaveLength(1);
+      expect(twice).toContain("2026-02-01T00:00:00.000Z");
+      expect(twice).not.toContain("2026-01-01T00:00:00.000Z");
     });
   });
 });

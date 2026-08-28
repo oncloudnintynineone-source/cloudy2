@@ -17,22 +17,14 @@ import { after } from "next/server";
 import { and, eq, inArray } from "drizzle-orm";
 
 import { db } from "@/db";
-import {
-  calendars,
-  kahBreachNotifications,
-  kahGroupMembers,
-  kahGroups,
-  settings,
-  users,
-} from "@/db/schema";
+import { kahBreachNotifications, settings, users } from "@/db/schema";
 import { AUDIT_ACTIONS } from "@/lib/audit/build";
 import { logAction } from "@/lib/audit/log";
-import { formatInstantToNaive, monthsInRange } from "@/lib/events/datetime";
-import { parseEventPeople } from "@/lib/events/notes";
+import { formatInstantToNaive } from "@/lib/events/datetime";
 import { sendNotificationEmail } from "@/lib/email/send";
-import { getCachedMonthEventsForCalendars } from "@/lib/google/eventsCache";
-import { computeKahBreaches, type KahGroupCheck } from "@/lib/kah/check";
+import { computeKahBreaches } from "@/lib/kah/check";
 import { buildKahBreachEmail, type KahBreachEmailGroup } from "@/lib/kah/email";
+import { busyKahsIn, listKahGroupChecks } from "@/lib/kah/status";
 
 export interface KahBreachActor {
   actorId: string | null;
@@ -48,78 +40,6 @@ export interface KahBreachCheckInput {
   eventTitle: string;
   /** The acting user, for the audit row and the email body. */
   actor: KahBreachActor;
-}
-
-/**
- * Groups as the check sees them: every group, but only members who are
- * still active on the roster count toward the percentage.
- */
-async function listKahGroupChecks(): Promise<KahGroupCheck[]> {
-  const [groupRows, memberRows] = await Promise.all([
-    db
-      .select({
-        id: kahGroups.id,
-        name: kahGroups.name,
-        minPercentage: kahGroups.minPercentage,
-      })
-      .from(kahGroups),
-    db
-      .select({ groupId: kahGroupMembers.groupId, userId: kahGroupMembers.userId })
-      .from(kahGroupMembers)
-      .innerJoin(users, and(eq(users.id, kahGroupMembers.userId), eq(users.status, "active"))),
-  ]);
-  const byId = new Map<string, KahGroupCheck>(
-    groupRows.map((row) => [
-      row.id,
-      { id: row.id, name: row.name, minPercentage: row.minPercentage, memberIds: [] },
-    ]),
-  );
-  for (const member of memberRows) {
-    byId.get(member.groupId)?.memberIds.push(member.userId);
-  }
-  return [...byId.values()];
-}
-
-/**
- * KAH members tagged on internal events overlapping [windowStart, windowEnd]:
- * every calendar is month-read through the events cache (never raw
- * `listEvents`), and each item's creator/invitees join the set.
- */
-async function busyKahsIn(windowStart: Date, windowEnd: Date): Promise<Set<string>> {
-  const calendarRows = await db
-    .select({ googleCalendarId: calendars.googleCalendarId })
-    .from(calendars);
-  const googleCalendarIds = calendarRows.map((row) => row.googleCalendarId);
-  if (googleCalendarIds.length === 0) {
-    return new Set();
-  }
-
-  // Wall-clock month keys covering the window, matching the view reads.
-  const naiveStart = formatInstantToNaive(windowStart);
-  const naiveEnd = formatInstantToNaive(windowEnd);
-  const months = [...new Set(monthsInRange(naiveStart, naiveEnd))];
-
-  const busy = new Set<string>();
-  const cachedPerMonth = await Promise.all(
-    months.map((month) => getCachedMonthEventsForCalendars(googleCalendarIds, month)),
-  );
-  for (const cached of cachedPerMonth) {
-    for (const items of Object.values(cached.events)) {
-      for (const item of items) {
-        if (item.start > windowEnd || item.end < windowStart) {
-          continue;
-        }
-        const people = parseEventPeople(item.description);
-        if (people.creatorId) {
-          busy.add(people.creatorId);
-        }
-        for (const userId of people.userIds) {
-          busy.add(userId);
-        }
-      }
-    }
-  }
-  return busy;
 }
 
 /** Away-member display names per breached group (unknown ids dropped). */

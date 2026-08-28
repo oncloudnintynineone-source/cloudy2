@@ -30,9 +30,10 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
    a layered calendar cache; parade-state page with local attendance mode; contacts page;
    PWA installability with offline & instant open (SWR document + RSC, precached offline.html);
   mobile-first UI with a desktop layout at `lg`; remembered UI state across relaunch;
-  audit-log viewer with retention + CSV export; admin-managed quick-links menu
-  launched from a grey 3-dots FAB (mobile) / nav-row button (desktop) on the
-  Calendar page.
+   audit-log viewer with retention + CSV export; admin-managed quick-links menu
+   launched from a grey 3-dots FAB (mobile) / nav-row button (desktop) on the
+   Calendar page; user-facing KAH Status page (read-only, member's own groups,
+   live in-country % per selected day).
 - Google integration is real for Calendar and Gmail-send once configured (service
   account + domain-wide delegation).
 
@@ -177,8 +178,10 @@ One line per phase; full write-ups (incl. Mermaid diagrams and verification note
 - 1.119 Event wizard modal: outside click / Escape minimize instead of discarding (draft keeps in the floating bubble); "Tap outside to minimize" caption floats beneath the dialog
 - 1.120 Desktop wide-grid horizontal pan: mouse drag-to-pan + viewport-edge pan chevrons on the Day/Week/Week v2 grids (`useGridPan` over Mantine `useScroller` + `GridPanControls`) — Mantine hides the native scrollbar and its 4px bar sits at the bottom of a table taller than the page, so a wheel mouse had no discoverable horizontal pan (supersedes the committed fade-edge/always-scrollbar attempt)
 - 1.121 PWA offline & instant open: stale-while-revalidate document + RSC caches (`app-documents-swr` / `app-rsc-swr`) so the installed app shows the last-saved calendar instantly — even offline — with background revalidation, a precached branded `offline.html`, per-pathname invalidation on every `router.refresh()` (so mutations never render stale), session-expiry purge + `Saved · HH:MM` chip, and sign-out cache clear (pure predicate module `src/lib/pwa/swRules.ts` unit-tested; `docs/pwa-offline.md`)
+- 1.122 KAH Status page: read-only user-facing `/kah-status` showing a member's own group(s) live in-country % for a selected day (default today) via the existing month cache — green/amber/red status badges (amber within 10pts below), away members inline, no-keyboard day selector; nav entry only for users in ≥1 KAH group (server-computed `hasKahGroup`); shared KAH reads extracted to `src/lib/kah/status.ts` (pure `kahStatusForWindow` unit-tested)
 - 1.122 Pin/Unpin tab invalidates the current pathname's SWR document + RSC caches: a pre-pin payload could no longer resurrect the old tab order on reload/tab switch and clobber the fresh pin in the `cloudy2.ui` cookie (bugfix for the 1.121 caches)
 - 1.123 SW build-update takeover: page caches are now build-versioned (FNV-1a fingerprint of the precache manifest), the new SW wipes older builds' page caches on activate, and the client detects the build swap via `controllerchange` (ServiceWorker object identity) + `clearAllSavedPages()` + reload — a deployed build no longer leaves installed PWA tabs serving older pages/app versions (bugfix for the 1.121 caches)
+- 1.124 Offline fallback: query-less navigations (icon tap, bare F5) serve the most recently saved view (stamped, re-stored under the requested URL) and `offline.html` becomes a saved-views picker (newest-first tappable list over the document caches) — the offline page no longer appears while saved views exist (Phase 3b4)
 
 ## 1.4 Open items & next steps
 

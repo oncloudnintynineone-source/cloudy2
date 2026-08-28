@@ -47,7 +47,13 @@
         max-width: 420px;
         width: 100%;
         box-shadow: 0 2px 12px rgba(0, 0, 0, 0.4);
+        text-align: left;
       }
+      .card h2,
+      .card p,
+      .card .btn { margin-left: auto; margin-right: auto; }
+      .card h2 { text-align: center; }
+      .card p { text-align: center; }
       .icon {
         width: 56px;
         height: 56px;
@@ -61,6 +67,37 @@
       h2 { font-size: 1.15rem; font-weight: 700; margin-bottom: 8px; color: #8ca8e2; }
       p { font-size: 0.95rem; line-height: 1.5; color: #b0b0b0; }
       p + p { margin-top: 10px; }
+      .list-caption {
+        margin-top: 20px;
+        margin-bottom: 8px;
+        font-size: 0.78rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        color: #8a8a8a;
+        text-align: left;
+      }
+      #saved-views {
+        list-style: none;
+        text-align: left;
+      }
+      .view-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 12px;
+        padding: 12px 14px;
+        background: #2c2e33;
+        border: 1px solid #373a40;
+        border-radius: 10px;
+        text-decoration: none;
+        color: #e0e0e0;
+        font-size: 0.95rem;
+      }
+      .view-row:active { background: #34363c; }
+      .view-row + .view-row { margin-top: 8px; }
+      .view-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .view-when { color: #8ca8e2; font-size: 0.8rem; white-space: nowrap; flex-shrink: 0; }
       .btn {
         margin-top: 18px;
         display: inline-block;
@@ -95,11 +132,103 @@
           </svg>
         </div>
         <h2>You're offline</h2>
-        <p>Cloudy couldn't reach the server. If you've opened the calendar before, your last saved view is still available — try going back or reopening the app.</p>
-        <p>This page appears when there's no saved copy for this view yet.</p>
+        <p>
+          Cloudy couldn't reach the server. Views you opened while online are still saved on this
+          device — pick one below, or tap Try again when your connection is back.
+        </p>
+        <p class="list-caption" id="saved-views-title" hidden>Saved views</p>
+        <ul id="saved-views" hidden></ul>
+        <p class="hint" id="no-saved-note">
+          No saved views on this device yet. Open the app once while online — afterwards it opens
+          instantly, even offline.
+        </p>
         <a class="btn" href="/">Try again</a>
-        <p class="hint">Tip: open the calendar while online once — afterwards it opens instantly, even offline.</p>
       </div>
     </main>
+    <script>
+      // Saved-views picker: enumerate the service worker's document caches
+      // (any build version, matched by prefix) and list them newest-first.
+      // Tapping a row is a navigation the SW serves straight from cache.
+      (async function () {
+        var PREFIX = "app-documents-swr";
+        var list = document.getElementById("saved-views");
+        var title = document.getElementById("saved-views-title");
+        var emptyNote = document.getElementById("no-saved-note");
+        if (!list || !("caches" in window)) return;
+        // Path -> label map (mirrors the app's nav labels; this static page
+        // cannot import shared code, so the small map is duplicated here).
+        var NAMES = {
+          "/dashboard": "Calendar",
+          "/parade-state": "Parade state",
+          "/contacts": "Contacts",
+        };
+        function labelFor(href) {
+          try {
+            var u = new URL(href);
+            if (NAMES[u.pathname]) return NAMES[u.pathname];
+            if (u.pathname.indexOf("/settings") === 0) return "Settings";
+            var tail = u.pathname.replace(/^\//, "").replace(/\//g, " \u00b7 ");
+            return tail ? decodeURIComponent(tail) : "Home";
+          } catch (e) {
+            return href;
+          }
+        }
+        function fmtWhen(d) {
+          var day = d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+          var hh = String(d.getHours()).padStart(2, "0");
+          var mm = String(d.getMinutes()).padStart(2, "0");
+          return day + " " + hh + ":" + mm;
+        }
+        try {
+          var names = (await caches.keys()).filter(function (n) {
+            return n.indexOf(PREFIX) === 0;
+          });
+          var found = new Map(); // href -> { href, savedAt }
+          for (var i = 0; i < names.length; i++) {
+            var cache = await caches.open(names[i]);
+            var keys = await cache.keys();
+            for (var j = 0; j < keys.length; j++) {
+              var res = await cache.match(keys[j]);
+              if (!res) continue;
+              var dateHeader = res.headers.get("date");
+              var t = dateHeader ? Date.parse(dateHeader) : NaN;
+              var savedAt = Number.isNaN(t) ? null : new Date(t);
+              var prev = found.get(keys[j].url);
+              if (!prev || (savedAt && (!prev.savedAt || savedAt > prev.savedAt))) {
+                found.set(keys[j].url, { href: keys[j].url, savedAt: savedAt });
+              }
+            }
+          }
+          var all = Array.from(found.values()).sort(function (a, b) {
+            return (b.savedAt ? b.savedAt.getTime() : 0) - (a.savedAt ? a.savedAt.getTime() : 0);
+          });
+          var shown = all.slice(0, 12);
+          for (var k = 0; k < shown.length; k++) {
+            var e = shown[k];
+            var row = document.createElement("li");
+            var a = document.createElement("a");
+            a.className = "view-row";
+            a.href = e.href;
+            var name = document.createElement("span");
+            name.className = "view-name";
+            name.textContent = labelFor(e.href);
+            var when = document.createElement("span");
+            when.className = "view-when";
+            when.textContent = e.savedAt ? "Saved \u00b7 " + fmtWhen(e.savedAt) : "Saved";
+            a.appendChild(name);
+            a.appendChild(when);
+            row.appendChild(a);
+            list.appendChild(row);
+          }
+          if (all.length) {
+            list.hidden = false;
+            if (title) title.hidden = false;
+            if (emptyNote) emptyNote.hidden = true;
+          }
+        } catch (err) {
+          // Leave the static copy in place.
+        }
+      })();
+    </script>
   </body>
 </html>

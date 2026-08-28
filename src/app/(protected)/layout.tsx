@@ -1,6 +1,7 @@
 import { cookies } from "next/headers";
 
 import { AppShellShell } from "@/components/AppShellShell";
+import { userHasKahGroup } from "@/lib/kah/status";
 import { getBanner } from "@/lib/settings/queries";
 import { requireSession } from "@/lib/session";
 import { UI_STATE_COOKIE, decodeUiState } from "@/lib/ui/uiState";
@@ -18,13 +19,17 @@ export default async function ProtectedLayout({
   const uiState = decodeUiState((await cookies()).get(UI_STATE_COOKIE)?.value);
   // The admin-managed announcement banner rides every authenticated render
   // (null when disabled, which keeps today's layout exactly).
-  const banner = await getBanner();
+  const [banner, hasKahGroup] = await Promise.all([
+    getBanner(),
+    userHasKahGroup(session.user.id),
+  ]);
   return (
     <AppShellShell
       role={session.user.role}
       name={session.user.name ?? ""}
       sidebarCollapsed={uiState?.sidebarCollapsed === true}
       banner={banner}
+      hasKahGroup={hasKahGroup}
     >
       {children}
     </AppShellShell>

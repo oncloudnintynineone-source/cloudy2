@@ -9,6 +9,7 @@ import {
   IconLayoutSidebarLeftCollapse,
   IconLayoutSidebarLeftExpand,
   IconSettings,
+  IconUsersGroup,
 } from "@tabler/icons-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link, { useLinkStatus } from "next/link";
@@ -48,6 +49,13 @@ const CONTACTS: NavItem = {
   label: "Contacts",
   icon: <IconAddressBook size={22} />,
   matches: (pathname) => pathname === "/contacts" || pathname.startsWith("/contacts"),
+};
+
+const KAH_STATUS: NavItem = {
+  href: "/kah-status",
+  label: "KAH Status",
+  icon: <IconUsersGroup size={22} />,
+  matches: (pathname) => pathname === "/kah-status" || pathname.startsWith("/kah-status"),
 };
 
 const SETTINGS: NavItem = {
@@ -204,6 +212,7 @@ export function AppShellShell({
   name,
   sidebarCollapsed,
   banner,
+  hasKahGroup = false,
   children,
 }: {
   role: "admin" | "user";
@@ -216,6 +225,10 @@ export function AppShellShell({
    *  space — today's layout). Rendered inside the header above the navy bar;
    *  `--app-shell-header-offset` grows via the inline `--app-banner-height`. */
   banner?: BannerConfig | null;
+  /** True when the signed-in user belongs to at least one KAH group. Only
+   *  then does the KAH Status nav entry appear (server-computed so it can't
+   *  flicker). */
+  hasKahGroup?: boolean;
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
@@ -308,8 +321,12 @@ export function AppShellShell({
 
   const items: NavItem[] =
     role === "admin"
-      ? [CALENDAR, PARADE_STATE, CONTACTS, SETTINGS]
-      : [CALENDAR, PARADE_STATE, CONTACTS];
+      ? hasKahGroup
+        ? [CALENDAR, PARADE_STATE, CONTACTS, KAH_STATUS, SETTINGS]
+        : [CALENDAR, PARADE_STATE, CONTACTS, SETTINGS]
+      : hasKahGroup
+        ? [CALENDAR, PARADE_STATE, CONTACTS, KAH_STATUS]
+        : [CALENDAR, PARADE_STATE, CONTACTS];
 
   // --- iOS PWA viewport sync ---
   // On some iOS versions, 100dvh/vh resolves to the full screen height but the

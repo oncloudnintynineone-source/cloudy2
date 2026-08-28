@@ -228,8 +228,12 @@ before changing the subsystem.
   detects a build swap via `controllerchange` (ServiceWorker *object* identity —
   the SW file lives at a fixed URL, so scriptURL never changes) and, when the
   tab was already under control, clears all page caches and reloads under the
-  new build. Offline with no saved copy serves a
-  precached branded `public/offline.html`. Post-mutation freshness is guarded by
+   new build. Offline with no saved copy for the exact URL: a query-less
+   navigation (icon tap on the start URL, bare F5) serves the most recently
+   saved document (stamped, re-stored under the requested URL — pure
+   `newestSavedView`); a deep link with a query serves the precached branded
+   `public/offline.html`, which lists saved views newest-first (tappable, works
+   offline) when any exist. Post-mutation freshness is guarded by
   `invalidateCurrentPathCaches()` (`src/lib/pwa/client.ts`) — every
   `router.refresh()` site invalidates the current pathname in both caches first,
   so the subsequent fetch cannot serve stale data. The dashboard's pin/unpin tab

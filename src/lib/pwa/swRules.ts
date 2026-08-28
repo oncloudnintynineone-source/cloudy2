@@ -159,6 +159,31 @@ export function isSessionExpiredResponse(check: StorableCheck): boolean {
 }
 
 /**
+ * A document-cache entry collected for the offline fallback: the cache key's
+ * URL plus its `Date` header as epoch ms (`null` when the header is missing
+ * or unparseable).
+ */
+export interface SavedViewEntry {
+  url: string;
+  savedAtMs: number | null;
+}
+
+/**
+ * Pick the most recently saved entry — the "last saved view" an offline
+ * fallback serves instead of a dead end. Entries without a timestamp sort as
+ * oldest; ties resolve to the first entry (deterministic).
+ */
+export function newestSavedView(entries: readonly SavedViewEntry[]): SavedViewEntry | null {
+  let best: SavedViewEntry | null = null;
+  for (const entry of entries) {
+    const candidateMs = entry.savedAtMs ?? Number.NEGATIVE_INFINITY;
+    const bestMs = best ? (best.savedAtMs ?? Number.NEGATIVE_INFINITY) : Number.NEGATIVE_INFINITY;
+    if (best === null || candidateMs > bestMs) best = entry;
+  }
+  return best;
+}
+
+/**
  * Return the cache keys whose URL pathname equals the given pathname (origin
  * must match). Used to invalidate stale RSC/document entries after a mutation.
  */
@@ -181,8 +206,11 @@ export function keysForPathname(cacheKeys: string[], origin: string, pathname: s
  */
 export function stampDocument(html: string, cachedAtIso: string): string {
   const script = `<script>window.__C2_STAMP__={cachedAt:${JSON.stringify(cachedAtIso)}}<\/script>`;
-  if (/<head[^>]*>/i.test(html)) {
-    return html.replace(/<head[^>]*>/i, (m) => `${m}${script}`);
+  // Idempotent: a copy served through the offline fallback can already carry a
+  // stamp — replace it instead of stacking a second script.
+  const stripped = html.replace(/<script>window\.__C2_STAMP__=\{[^{}]*\}<\/script>/g, "");
+  if (/<head[^>]*>/i.test(stripped)) {
+    return stripped.replace(/<head[^>]*>/i, (m) => `${m}${script}`);
   }
-  return `${script}${html}`;
+  return `${script}${stripped}`;
 }

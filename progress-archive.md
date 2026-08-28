@@ -5631,3 +5631,58 @@ versioning, the activate wipe, and both versioned runtime cache routes are
 present. Manual QA pending on a real deploy: open the installed PWA on the
 old build, deploy, navigate — the tab should reload once and come back on
 the new build with no stale-chunk 404s and no old HTML.
+
+## 1.124 Offline fallback: last-saved view + saved-views picker (Phase 3b4)
+
+Report: "when offline / on a bad connection, a page is displayed instead of
+the actual UI." The installed PWA showed the branded `offline.html` on icon
+taps and on typed/refreshed URLs even while saved views existed in the SWR
+document cache.
+
+Root cause: the document cache is keyed by **exact URL**. Icon taps always
+navigate to the start URL `/` (which 307-redirects server-side to the
+remembered page), while the saved documents live under the deep-link URLs
+actually visited (`/dashboard?view=…&date=…`, F5'd URLs) — different cache
+keys. So the most common offline entry points (`/`, a new day's `?date=`, a
+never-F5'd deep link) missed the cache, and the old `handlerDidError` went
+straight to the dead-end offline page despite good saved documents in the
+same cache.
+
+Fix (SW fallback chain, `src/app/sw.ts` `handlerDidError`):
+
+1. **Query-less requests → last-saved view.** Icon taps (`/`) and bare F5s
+   are a page-level intent, not a specific view. `lastSavedDocument()` scans
+   this build's `app-documents-swr-v<token>` cache, picks the entry with the
+   newest `Date` header via the new pure `newestSavedView()` helper
+   (`src/lib/pwa/swRules.ts` — missing timestamps sort oldest, ties to the
+   first entry), stamps it with the extracted `stampCachedResponse()`
+   (shared with the serve path, so the "Saved · HH:MM" chip renders) and
+   serves it. The un-stamped original is re-stored under the requested URL,
+   so repeat offline opens are stable and normal SWR revalidation applies on
+   reconnect. `stampDocument()` is now idempotent (replaces an existing
+   `__C2_STAMP__` script) so this is safe.
+2. **Query requests → saved-views picker.** A `?view=…&date=…` deep link is a
+   specific intent — silently substituting a different view would mislead, so
+   these fall through to `offline.html`.
+3. **`public/offline.html` now lists the saved views.** An inline script
+   (the page is static and precached, so it cannot import shared code — it
+   prefix-matches `app-documents-swr` across build versions and the small
+   nav-label map is deliberately duplicated there) enumerates every document
+   cache, dedupes by URL keeping the newest, sorts newest-first and renders
+   up to 12 tappable rows ("Calendar — Saved · 28 Aug 09:12"). Tapping a row
+   is a navigation the SW serves straight from cache, so the picker works
+   fully offline. With a genuinely empty cache (first install, right after a
+   deploy wipe, sign-out) the list stays hidden and the page shows the
+   "open once while online" hint — there is no on-device data in that case.
+
+Docs: `docs/pwa-offline.md` §1.9 rewritten (two-step fallback), §1.3 diagram
+gained the fallback branch, §1.13 lists the new helper (34 test cases),
+§1.15 file index updated; AGENTS.md PWA bullet updated.
+
+Verification: `pnpm lint`, `pnpm typecheck`,
+`pnpm vitest run src/lib/pwa/swRules.test.ts` (34) pass; `pnpm build` passes
+(72 precache entries, SW bundles clean). Manual offline matrix pending on a
+device: open a few view/date URLs online → DevTools Network → Offline → icon
+tap (expect last-saved view + chip, not the offline page) → typed URL never
+visited (expect picker, row taps open the saved views) → F5 of a visited URL
+(direct SWR hit) → clear site data → offline open (empty picker, correct).

@@ -9,11 +9,13 @@ import {
   isCacheableRscRequest,
   isPageCacheName,
   isSessionExpiredResponse,
+  newestSavedView,
   rscCacheName,
   shouldStoreDocumentResponse,
   shouldStoreRscResponse,
   stampDocument,
   swCacheVersion,
+  type SavedViewEntry,
 } from "@/lib/pwa/swRules";
 
 declare global {
@@ -80,6 +82,61 @@ function docStorableCheck(request: Request, response: Response) {
   };
 }
 
+// Stamp a cached HTML document so the page can show "Saved · HH:MM" (reads
+// the cache entry's Date header as cachedAt). Shared by the serve path and
+// the offline fallback; never mutates the stored copy.
+async function stampCachedResponse(cachedResponse: Response): Promise<Response> {
+  try {
+    const dateHeader = cachedResponse.headers.get("date");
+    const cachedAt = dateHeader ? new Date(dateHeader).toISOString() : new Date().toISOString();
+    const text = await cachedResponse.clone().text();
+    // Only stamp HTML documents.
+    const ct = (cachedResponse.headers.get("content-type") ?? "").toLowerCase();
+    if (!ct.includes("text/html")) return cachedResponse;
+    const stamped = stampDocument(text, cachedAt);
+    const headers = new Headers(cachedResponse.headers);
+    // Ensure fresh content-length / remove stale encoding hints from the
+    // original response that no longer match the stamped body.
+    headers.delete("content-length");
+    headers.delete("content-encoding");
+    return new Response(stamped, {
+      status: cachedResponse.status,
+      statusText: cachedResponse.statusText,
+      headers,
+    });
+  } catch {
+    return cachedResponse;
+  }
+}
+
+// The most recently saved document in this build's document cache, stamped for
+// serving. Used as the offline fallback for query-less navigations (icon tap
+// on the start URL, bare F5): their cache key may never have been filled
+// (e.g. the user always deep-links), but some saved view almost always exists
+// and beats the offline page. The original (un-stamped) copy is re-stored
+// under the requested URL so repeat offline opens of it are stable; serves
+// stamp on the way out, and `stampDocument` stays idempotent either way.
+async function lastSavedDocument(request: Request): Promise<Response | null> {
+  const cache = await caches.open(APP_DOCUMENT_CACHE);
+  const byUrl = new Map<string, Request>();
+  const entries: SavedViewEntry[] = [];
+  for (const key of await cache.keys()) {
+    const response = await cache.match(key).catch(() => null);
+    if (!response) continue;
+    byUrl.set(key.url, key);
+    const dateHeader = response.headers.get("date");
+    const parsed = dateHeader ? Date.parse(dateHeader) : NaN;
+    entries.push({ url: key.url, savedAtMs: Number.isNaN(parsed) ? null : parsed });
+  }
+  const newest = newestSavedView(entries);
+  const keyRequest = newest ? byUrl.get(newest.url) : undefined;
+  if (!keyRequest) return null;
+  const response = await cache.match(keyRequest);
+  if (!response) return null;
+  await cache.put(request, response.clone()).catch(() => undefined);
+  return stampCachedResponse(response);
+}
+
 // Plugin that enforces document cacheability, handles session-expiry purging,
 // and stamps cached responses so the page can show "Saved · HH:MM".
 const documentPlugin = {
@@ -106,31 +163,26 @@ const documentPlugin = {
     cachedResponse: Response | null;
   }): Promise<Response | null> => {
     if (!cachedResponse) return null;
-    try {
-      const dateHeader = cachedResponse.headers.get("date");
-      const cachedAt = dateHeader ? new Date(dateHeader).toISOString() : new Date().toISOString();
-      const text = await cachedResponse.clone().text();
-      // Only stamp HTML documents.
-      const ct = (cachedResponse.headers.get("content-type") ?? "").toLowerCase();
-      if (!ct.includes("text/html")) return cachedResponse;
-      const stamped = stampDocument(text, cachedAt);
-      const headers = new Headers(cachedResponse.headers);
-      // Ensure fresh content-length / remove stale encoding hints from the
-      // original response that no longer match the stamped body.
-      headers.delete("content-length");
-      headers.delete("content-encoding");
-      return new Response(stamped, {
-        status: cachedResponse.status,
-        statusText: cachedResponse.statusText,
-        headers,
-      });
-    } catch {
-      return cachedResponse;
-    }
+    return stampCachedResponse(cachedResponse);
   },
-  handlerDidError: async (): Promise<Response | undefined> => {
-    // Offline and no cached document → branded fallback.
-    // `offline.html` is expected to be precached (public/offline.html).
+  handlerDidError: async ({ request }: { request: Request }): Promise<Response | undefined> => {
+    // Offline and no cached document for this exact URL. A query-less request
+    // is a page-level intent (icon tap on the start URL, bare F5) — serve the
+    // most recently saved view with its stamp instead of a dead end. A query
+    // carries a specific view intent (?view=…&date=…), so silently swapping in
+    // a different view would mislead; offer the saved-views picker instead.
+    let hasQuery = true;
+    try {
+      hasQuery = new URL(request.url).search !== "";
+    } catch {
+      // Unparseable — keep the picker (safer default).
+    }
+    if (request.method === "GET" && request.mode === "navigate" && !hasQuery) {
+      const lastSaved = await lastSavedDocument(request).catch(() => null);
+      if (lastSaved) return lastSaved;
+    }
+    // Offline and nothing usable → branded fallback, which lists saved views
+    // when any exist. `offline.html` is expected to be precached.
     try {
       const fallback = await caches.match("/offline.html");
       if (fallback) return fallback;
@@ -261,7 +313,8 @@ const serwist = new Serwist({
     },
     // Document navigations (PWA cold open, F5, share link) — the main
     // "instant open" lever. Served instantly from cache when available,
-    // revalidated in the background; offline with no cache → offline.html.
+    // revalidated in the background; offline with no cache → last-saved view
+    // (query-less) or the saved-views picker page (query; docs/pwa-offline.md §1.9).
     {
       matcher: isDocRequest,
       handler: new StaleWhileRevalidate({

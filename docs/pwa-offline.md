@@ -52,7 +52,9 @@ flowchart TB
 
     SW -->|document hit| DOC[Serve stamped HTML from app-documents-swr<br/>+ revalidate in background]
     SW -->|document miss, online| NET[Network fetch<br/>store if 200 text/html<br/>+ date stamp]
-    SW -->|document miss, offline| OFF[Branded /offline.html<br/>precached fallback]
+    SW -->|document miss, offline,<br/>no query in URL| LASTSAVED[Serve most recently saved view<br/>stamped, re-stored under requested URL]
+    SW -->|document miss, offline,<br/>query in URL| OFF[Branded /offline.html<br/>precached fallback — lists saved<br/>views with timestamps when any]
+    LASTSAVED -->|cache empty| OFF
 
     SW -->|RSC hit| RSC[Serve RSC from app-rsc-swr<br/>+ revalidate]
     SW -->|RSC miss, offline & hit| RSC
@@ -159,8 +161,13 @@ Notes:
 
 ## 1.9 Offline fallback
 
-- `public/offline.html` is a branded, self-contained HTML file (navy header, no external assets) included in `__SW_MANIFEST` as `/offline.html` (the `pnpm build` log prints the precache entry count).
-- The document `handlerDidError` plugin returns `caches.match("/offline.html")` when a navigation has neither a cache hit nor a successful network fetch — i.e. offline on a never-visited view. If the precache lookup fails, an inline minimal HTML response is returned instead.
+When a navigation has neither a cache hit for its exact URL nor a working network, the document handler's `handlerDidError` runs a two-step fallback:
+
+1. **Last saved view (query-less requests only).** Icon taps land on the start URL `/` and bare F5s carry no query — a page-level intent with no specific view. For those, `lastSavedDocument` (`src/app/sw.ts`) scans this build's document cache, picks the entry with the newest `Date` header (pure `newestSavedView`, §1.13), stamps it ("Saved · HH:MM") and serves it. The un-stamped original is re-stored under the requested URL so repeat offline opens of it are stable; normal SWR revalidation applies on reconnect. The launch URL and the deep-link URLs users actually visit are different cache keys (§1.5), so this closes the "icon tap offline shows the offline page even though saved views exist" gap.
+2. **Saved-views picker (query requests).** A query (`?view=…&date=…`) is a specific view intent — silently substituting a different view would mislead, so the fallback serves `offline.html` instead, which lists what *is* saved.
+
+`public/offline.html` is a branded, self-contained HTML file (navy header, no external assets) included in `__SW_MANIFEST` as `/offline.html` (the `pnpm build` log prints the precache entry count). It now **lists the saved views**: an inline script enumerates every `app-documents-swr*` cache (prefix-matched across build versions), dedupes by URL keeping the newest, sorts newest-first and renders up to 12 tappable rows ("Calendar — Saved · 28 Aug 09:12"). Tapping a row is a navigation the SW serves straight from cache, so the picker works fully offline. With no saved views at all (first-ever install, right after a deploy wipe or sign-out) the list stays hidden and the page shows the "open once while online" hint — at that point there genuinely is no data on-device. If the precache lookup fails, a minimal inline response is the last resort.
+
 - Offline with a previously visited view → served from the document/RSC SWR caches, no fallback needed.
 - `OfflineBanner` (`src/components/OfflineBanner.tsx`) still shows the amber "You're offline" strip globally.
 
@@ -204,12 +211,13 @@ Pure logic lives in `src/lib/pwa/swRules.ts` so it is unit-tested without a live
 - `shouldStoreDocumentResponse(check)` / `shouldStoreRscResponse(check)`
 - `isSessionExpiredResponse(check)`
 - `keysForPathname(keys, origin, pathname)`
-- `stampDocument(html, cachedAtIso)`
+- `stampDocument(html, cachedAtIso)` — idempotent: replaces an existing `__C2_STAMP__` script instead of stacking a second one
+- `newestSavedView(entries)` — newest-`Date` entry for the offline fallback (§1.9); missing timestamps sort oldest, ties to the first entry
 - `swCacheVersion(manifest)`
 - `documentCacheName(version)` / `rscCacheName(version)`
 - `isPageCacheName(name)`
 
-Tests: `src/lib/pwa/swRules.test.ts` (24 cases). The SW bundle itself (`src/app/sw.ts`) is wiring only — no branching logic to test there. Integration is validated by `pnpm build` (precache count + inspecting the emitted SW bundle) + manual PWA checks: second open instant + chip, F5, force-refresh bypass, deep links, offline cold open, offline view switching, offline mutation error, sign-out isolation, killed-session purge, and the deploy-takeover reload (§1.8).
+Tests: `src/lib/pwa/swRules.test.ts` (34 cases). The SW bundle itself (`src/app/sw.ts`) is wiring only — no branching logic to test there. Integration is validated by `pnpm build` (precache count + inspecting the emitted SW bundle) + manual PWA checks: second open instant + chip, F5, force-refresh bypass, deep links, offline cold open, offline view switching, offline mutation error, sign-out isolation, killed-session purge, and the deploy-takeover reload (§1.8).
 
 ## 1.14 Sign-out
 
@@ -219,14 +227,14 @@ Tests: `src/lib/pwa/swRules.test.ts` (24 cases). The SW bundle itself (`src/app/
 
 | File | Role |
 |---|---|
-| `src/app/sw.ts` | Serwist SW: precache + 5 runtime routes (images, fonts, RSC, documents, NetworkOnly fallback) + activate-time page-cache wipe (§1.8) |
+| `src/app/sw.ts` | Serwist SW: precache + 5 runtime routes (images, fonts, RSC, documents, NetworkOnly fallback) + activate-time page-cache wipe (§1.8) + offline last-saved-view fallback (§1.9) |
 | `src/lib/pwa/swRules.ts` | Pure predicates, constants & build-version helpers (see §1.13) |
 | `src/lib/pwa/swRules.test.ts` | Unit tests for the above |
 | `src/lib/pwa/client.ts` | Client cache helpers (prefix-matched across build versions): `invalidatePathCaches`, `invalidateCurrentPathCaches`, `clearAllSavedPages`, `readStaleStamp` |
 | `src/components/SavedDataChip.tsx` | "Saved · HH:MM" chip |
 | `src/components/AppProviders.tsx` | Session-expiry `message` listener + `controllerchange` build-swap reload (§1.8) |
 | `src/components/UserMenu.tsx` | Sign-out cache purge |
-| `public/offline.html` | Branded offline fallback (precached) |
+| `public/offline.html` | Branded offline fallback (precached) + saved-views picker (inline script over the `app-documents-swr*` caches, newest-first) |
 | `src/app/(protected)/dashboard/DashboardView.tsx` | Chip placement + `router.refresh` → invalidate-then-refresh + pin-toggle cache invalidation (§1.7) |
 | `src/app/(protected)/settings/**` + `src/components/LoginForm.tsx` | Same invalidate-then-refresh migration |
 | `docs/pwa-offline.md` | This document |
