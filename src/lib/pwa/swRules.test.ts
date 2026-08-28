@@ -185,6 +185,32 @@ describe("swRules", () => {
         }),
       ).toBe(false);
     });
+
+    it("rejects one-shot params (refresh/edit/_fresh)", () => {
+      for (const query of ["refresh=123", "edit=abc-123", "_fresh=1"]) {
+        expect(
+          shouldStoreDocumentResponse({
+            status: 200,
+            finalUrl: `${ORIGIN}/dashboard`,
+            requestUrl: `${ORIGIN}/dashboard?${query}`,
+            contentType: "text/html",
+            origin: ORIGIN,
+          }),
+        ).toBe(false);
+      }
+    });
+
+    it("accepts ordinary query params", () => {
+      expect(
+        shouldStoreDocumentResponse({
+          status: 200,
+          finalUrl: `${ORIGIN}/dashboard`,
+          requestUrl: `${ORIGIN}/dashboard?view=month&date=2026-08-01`,
+          contentType: "text/html",
+          origin: ORIGIN,
+        }),
+      ).toBe(true);
+    });
   });
 
   describe("shouldStoreRscResponse", () => {
@@ -222,6 +248,20 @@ describe("swRules", () => {
           origin: ORIGIN,
         }),
       ).toBe(false);
+    });
+
+    it("rejects one-shot params (refresh/edit/_fresh)", () => {
+      for (const query of ["refresh=123", "edit=abc-123", "_fresh=1"]) {
+        expect(
+          shouldStoreRscResponse({
+            status: 200,
+            finalUrl: `${ORIGIN}/dashboard`,
+            requestUrl: `${ORIGIN}/dashboard?${query}`,
+            contentType: "text/x-component",
+            origin: ORIGIN,
+          }),
+        ).toBe(false);
+      }
     });
   });
 

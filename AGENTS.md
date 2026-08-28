@@ -230,12 +230,16 @@ the SW file lives at a fixed URL, so scriptURL never changes) and, when the
    tab was already under control, clears all page caches and reloads under the
    new build. Offline with no saved copy for the exact URL: any navigation
    (icon tap on the start URL, bare F5, or a deep link with a query that was
-   never visited) serves the most recently saved document (stamped, re-stored
-   under the requested URL — pure `newestSavedView`), since the served page
-   already carries the `OfflineBanner` + "Saved · HH:MM" stamp; only when
-   nothing is saved at all does the precached branded `public/offline.html`
-   appear — a plain "You're offline" explainer with Try again, deliberately no
-   saved-views picker (it only ever shows when the cache is empty).
+   never visited) 302-redirects to the most recently saved view's own URL
+   (pure `newestSavedView`) — a redirect, not a body-swap, so the browser URL
+   and the rendered view stay in lockstep and the page hydrates cleanly; the
+   redirected-to page already carries the `OfflineBanner` + "Saved · HH:MM"
+   stamp; only when nothing is saved at all does the precached branded
+   `public/offline.html` appear — a plain "You're offline" explainer with Try
+   again, deliberately no saved-views picker (it only ever shows when the cache
+   is empty). One-shot `?refresh=`/`?edit=`/`?_fresh=` responses are never
+   stored (their URLs are stripped right after the render), so they can't
+   pollute the caches or surface as a "newest" offline candidate.
    Post-mutation freshness is guarded by
   `invalidateCurrentPathCaches()` (`src/lib/pwa/client.ts`) — every
   `router.refresh()` site invalidates the current pathname in both caches first,

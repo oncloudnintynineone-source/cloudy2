@@ -733,11 +733,13 @@ export function DashboardView({
 
   const [isRefreshing, startRefresh] = useTransition();
 
-  // Data freshness tracking: the label shows "Saved · HH:MM" by default (the
-  // server-side events cache serves stale data most of the time) and is hidden
-  // only when data was recently confirmed fresh (after force-refresh or a
-  // mutation). This replaces the old SW document-stamp mechanism, which was
-  // unreliable because it tracked HTML caching rather than data freshness.
+  // Data freshness tracking: the label shows "Saved · HH:MM" whenever the data
+  // may not be the latest — by default (the server-side events cache serves
+  // stale data most of the time) and after a cached-document open (the SW's
+  // injected `__C2_STAMP__` gives the truthful saved-at time via
+  // `initialSavedAt`). It is hidden only while data was recently confirmed
+  // fresh — for 60s after a force-refresh or a mutation, matching
+  // GCAL_CACHE_FRESH_MS.
   const savedAtRef = useRef(initialSavedAt());
   const [isDataFresh, setIsDataFresh] = useState(false);
 

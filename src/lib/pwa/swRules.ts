@@ -59,6 +59,24 @@ function isExcludedPath(pathname: string): boolean {
   return EXCLUDED_PREFIXES.some((p) => pathname.startsWith(p));
 }
 
+/**
+ * One-shot URL params that mint a unique cache key per visit (`?refresh=`
+ * force-refresh nonce, `?edit=` deep link, `?_fresh=` cleared-state marker).
+ * The client strips each of them right after its render, so the URL is never
+ * requested again — storing its response only pollutes the document/RSC caches
+ * and lets the offline fallback pick a stale nonce entry as "newest". Such
+ * responses are therefore never stored (but the requests are still served
+ * through the document route, so they keep the offline redirect fallback).
+ */
+const ONE_SHOT_PARAMS = new Set(["refresh", "edit", "_fresh"]);
+
+function hasOneShotParam(url: URL): boolean {
+  for (const key of url.searchParams.keys()) {
+    if (ONE_SHOT_PARAMS.has(key)) return true;
+  }
+  return false;
+}
+
 function sameOrigin(url: URL, origin: string): boolean {
   return url.origin === origin;
 }
@@ -122,6 +140,7 @@ export function shouldStoreDocumentResponse(check: StorableCheck): boolean {
   try {
     const reqUrl = new URL(check.requestUrl);
     if (isExcludedPath(reqUrl.pathname)) return false;
+    if (hasOneShotParam(reqUrl)) return false;
   } catch {
     return false;
   }
@@ -142,6 +161,7 @@ export function shouldStoreRscResponse(check: StorableCheck): boolean {
   try {
     const reqUrl = new URL(check.requestUrl);
     if (isExcludedPath(reqUrl.pathname)) return false;
+    if (hasOneShotParam(reqUrl)) return false;
   } catch {
     return false;
   }

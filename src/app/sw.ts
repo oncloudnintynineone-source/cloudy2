@@ -83,8 +83,8 @@ function docStorableCheck(request: Request, response: Response) {
 }
 
 // Stamp a cached HTML document so the page can show "Saved · HH:MM" (reads
-// the cache entry's Date header as cachedAt). Shared by the serve path and
-// the offline fallback; never mutates the stored copy.
+// the cache entry's Date header as cachedAt). Runs on the serve path (via
+// `cachedResponseWillBeUsed`); never mutates the stored copy.
 async function stampCachedResponse(cachedResponse: Response): Promise<Response> {
   try {
     const dateHeader = cachedResponse.headers.get("date");
@@ -109,32 +109,25 @@ async function stampCachedResponse(cachedResponse: Response): Promise<Response> 
   }
 }
 
-// The most recently saved document in this build's document cache, stamped for
-// serving. Used as the offline fallback for query-less navigations (icon tap
-// on the start URL, bare F5): their cache key may never have been filled
-// (e.g. the user always deep-links), but some saved view almost always exists
-// and beats the offline page. The original (un-stamped) copy is re-stored
-// under the requested URL so repeat offline opens of it are stable; serves
-// stamp on the way out, and `stampDocument` stays idempotent either way.
-async function lastSavedDocument(request: Request): Promise<Response | null> {
+// The URL of the most recently saved document in this build's document cache.
+// Used as the offline fallback target: when a navigation has no cache hit for
+// its exact URL and the network is down, we redirect to the newest saved view's
+// own URL (a guaranteed cache hit) instead of body-swapping a different view
+// under the requested URL. Body-swapping left the browser URL disagreeing with
+// the served page — the client then hydrated with mismatched view state, so
+// the rendered view didn't match what was asked for. A redirect keeps URL and
+// content in lockstep.
+async function lastSavedDocumentUrl(): Promise<string | null> {
   const cache = await caches.open(APP_DOCUMENT_CACHE);
-  const byUrl = new Map<string, Request>();
   const entries: SavedViewEntry[] = [];
   for (const key of await cache.keys()) {
     const response = await cache.match(key).catch(() => null);
     if (!response) continue;
-    byUrl.set(key.url, key);
     const dateHeader = response.headers.get("date");
     const parsed = dateHeader ? Date.parse(dateHeader) : NaN;
     entries.push({ url: key.url, savedAtMs: Number.isNaN(parsed) ? null : parsed });
   }
-  const newest = newestSavedView(entries);
-  const keyRequest = newest ? byUrl.get(newest.url) : undefined;
-  if (!keyRequest) return null;
-  const response = await cache.match(keyRequest);
-  if (!response) return null;
-  await cache.put(request, response.clone()).catch(() => undefined);
-  return stampCachedResponse(response);
+  return newestSavedView(entries)?.url ?? null;
 }
 
 // The absolute-last-resort offline page: a self-contained branded copy of
@@ -209,18 +202,21 @@ const documentPlugin = {
     return stampCachedResponse(cachedResponse);
   },
   handlerDidError: async ({ request }: { request: Request }): Promise<Response | undefined> => {
-    // Offline and no cached document for this exact URL. Serve the most
-    // recently saved view whenever one exists — for a query-less request (icon
-    // tap on the start URL, bare F5) it is the obvious intent, and for a deep
-    // link with a query (?view=…&date=…) that was never visited it is still far
-    // more useful than a dead end. The served page already carries the amber
-    // OfflineBanner and the "Saved · HH:MM" stamp (window.__C2_STAMP__), so the
-    // "this is an offline copy" context is on-page without a picker landing
-    // page. Exact-visit deep links resolve from the SWR cache before this, and
-    // /login is never routed here (isCacheableDocumentRequest excludes it).
+    // Offline and no cached document for this exact URL. Redirect to the most
+    // recently saved view's own URL whenever one exists — for a query-less
+    // request (icon tap on the start URL, bare F5) it is the obvious intent,
+    // and for a deep link with a query (?view=…&date=…) that was never visited
+    // it is still far more useful than a dead end. Redirecting (rather than
+    // serving the saved body under the requested URL) keeps the browser URL
+    // agreeing with the rendered view, so the served page hydrates cleanly —
+    // it already carries the amber OfflineBanner and the "Saved · HH:MM" stamp
+    // (window.__C2_STAMP__), so the "this is an offline copy" context is
+    // on-page without a picker landing page. Exact-visit deep links resolve
+    // from the SWR cache before this, and /login is never routed here
+    // (isCacheableDocumentRequest excludes it).
     if (request.method === "GET" && request.mode === "navigate") {
-      const lastSaved = await lastSavedDocument(request).catch(() => null);
-      if (lastSaved) return lastSaved;
+      const lastSavedUrl = await lastSavedDocumentUrl().catch(() => null);
+      if (lastSavedUrl) return Response.redirect(lastSavedUrl, 302);
     }
     // Offline and nothing usable → branded explainer. `offline.html` is
     // precached, but Serwist stores precache entries under a revisioned cache
@@ -351,6 +347,7 @@ const serwist = new Serwist({
             maxEntries: 64,
             maxAgeSeconds: 30 * 24 * 60 * 60,
             maxAgeFrom: "last-used",
+            purgeOnQuotaError: true,
           }),
           rscPlugin,
         ],
@@ -358,8 +355,8 @@ const serwist = new Serwist({
     },
     // Document navigations (PWA cold open, F5, share link) — the main
     // "instant open" lever. Served instantly from cache when available,
-    // revalidated in the background; offline with no cache → last-saved view
-    // (query-less) or the saved-views picker page (query; docs/pwa-offline.md §1.9).
+    // revalidated in the background; offline with no cache → redirect to the
+    // last-saved view's URL, or offline.html when nothing is saved.
     {
       matcher: isDocRequest,
       handler: new StaleWhileRevalidate({
@@ -369,6 +366,7 @@ const serwist = new Serwist({
             maxEntries: 48,
             maxAgeSeconds: 30 * 24 * 60 * 60,
             maxAgeFrom: "last-used",
+            purgeOnQuotaError: true,
           }),
           documentPlugin,
         ],
