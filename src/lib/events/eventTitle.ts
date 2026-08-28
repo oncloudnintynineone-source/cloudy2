@@ -27,6 +27,10 @@ export interface RenderEventTitleInput {
   /** The admin-defined event title template. */
   template: string;
   timeOption: TimeOption;
+  /** Start time as HH:MM (24h) for range events; "" for full/half. */
+  startTime: string;
+  /** End time as HH:MM (24h) for range events; "" for full/half. */
+  endTime: string;
   startAmPm: AmPm;
   endAmPm: AmPm;
 }
@@ -48,6 +52,11 @@ export function renderEventTitle(input: RenderEventTitleInput): string {
       people: input.people,
       departments: input.departments,
       location: input.location,
+      timeOption: input.timeOption,
+      startTime: input.startTime,
+      endTime: input.endTime,
+      startAmPm: input.startAmPm,
+      endAmPm: input.endAmPm,
     },
     input.template,
   );

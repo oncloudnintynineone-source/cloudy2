@@ -222,6 +222,11 @@ export function TemplatesForm({
     people: samplePeople,
     departments: sampleDepartments,
     location: SAMPLE_EVENT_LOCATION,
+    timeOption: "range",
+    startTime: "09:00",
+    endTime: "17:00",
+    startAmPm: "",
+    endAmPm: "",
   };
   const eventTitleEmptySample: EventTitleInput = {
     description: SAMPLE_EVENT_DESCRIPTION,
@@ -229,6 +234,11 @@ export function TemplatesForm({
     people: [],
     departments: [],
     location: "",
+    timeOption: "full",
+    startTime: "",
+    endTime: "",
+    startAmPm: "",
+    endAmPm: "",
   };
   const eventTitlePreview = formatEventTitle(eventTitleSample, eventTitleTemplate);
   const eventTitleEmptyPreview = formatEventTitle(eventTitleEmptySample, eventTitleTemplate);
@@ -392,7 +402,8 @@ export function TemplatesForm({
                     {eventTitleSample.description}
                     {eventTitleSample.eventType ? ` · ${eventTitleSample.eventType.name}` : ""} ·{" "}
                     {samplePeople.map((person) => person.acronym).join(", ") || "no invitees"} ·{" "}
-                    {sampleDepartments.join(", ") || "no departments"} · {eventTitleSample.location}
+                    {sampleDepartments.join(", ") || "no departments"} · {eventTitleSample.location} ·
+                    time {eventTitleSample.startTime && eventTitleSample.endTime ? `${eventTitleSample.startTime}-${eventTitleSample.endTime}` : "—"}
                   </Text>
                   <Stack gap={2}>
                     <Text size="xs" c="dimmed">

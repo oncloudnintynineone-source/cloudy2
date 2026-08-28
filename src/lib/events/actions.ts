@@ -28,7 +28,7 @@ import {
 import { clampOutOfCamp, type LocationPolicy } from "@/lib/events/locationPolicy";
 import { creatorGuard, ownershipGuard } from "@/lib/events/guards";
 import { dispatchKahBreachCheck } from "@/lib/kah/notify";
-import { resolveTimeOption, type TimeOption } from "@/lib/events/timeOptions";
+import { naiveTimePart, resolveTimeOption, type TimeOption } from "@/lib/events/timeOptions";
 import { renderEventTitle } from "@/lib/events/eventTitle";
 import { getUserDepartmentIds } from "@/lib/events/queries";
 import { deriveTargetCalendarIds, type EventRef } from "@/lib/events/targets";
@@ -276,6 +276,8 @@ async function buildGcalEventInput(
     location: input.location,
     template: titleContext.template,
     timeOption: input.timeOption,
+    startTime: naiveTimePart(input.start),
+    endTime: naiveTimePart(input.end),
     startAmPm: input.startAmPm,
     endAmPm: input.endAmPm,
   });
@@ -436,6 +438,8 @@ export async function createEvent(input: EventFormValues): Promise<EventActionRe
     location: effectiveInput.location,
     template: titleContext.template,
     timeOption: effectiveInput.timeOption,
+    startTime: naiveTimePart(effectiveInput.start),
+    endTime: naiveTimePart(effectiveInput.end),
     startAmPm: effectiveInput.startAmPm,
     endAmPm: effectiveInput.endAmPm,
   });
@@ -637,6 +641,8 @@ export async function updateEvent(
     location: effectiveInput.location,
     template: titleContext.template,
     timeOption: effectiveInput.timeOption,
+    startTime: naiveTimePart(effectiveInput.start),
+    endTime: naiveTimePart(effectiveInput.end),
     startAmPm: effectiveInput.startAmPm,
     endAmPm: effectiveInput.endAmPm,
   });

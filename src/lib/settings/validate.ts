@@ -18,6 +18,7 @@ export const EVENT_TITLE_PLACEHOLDERS = [
   "{description}",
   "{type}",
   "{type:acronym}",
+  "{time}",
   "{people}",
   "{people:full}",
   "{people:acronym}",

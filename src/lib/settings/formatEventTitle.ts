@@ -32,6 +32,16 @@ export interface EventTitleInput {
   departments: string[];
   /** The event's location; "" when unset (out-of-camp events are always ""). */
   location: string;
+  /** The event's time option: "range", "full", or "half". */
+  timeOption: "range" | "full" | "half";
+  /** Start time as HH:MM (24h) for range events; "" for full/half. */
+  startTime: string;
+  /** End time as HH:MM (24h) for range events; "" for full/half. */
+  endTime: string;
+  /** Start half-of-day indicator for half-day events. */
+  startAmPm: "AM" | "PM" | "";
+  /** End half-of-day indicator for half-day events. */
+  endAmPm: "AM" | "PM" | "";
 }
 
 type TemplateNode =
@@ -84,11 +94,28 @@ function resolveToken(
   if (token === "location") {
     return input.location;
   }
+  if (token === "time") {
+    if (style !== undefined) {
+      return raw;
+    }
+    if (input.timeOption === "range" && input.startTime && input.endTime) {
+      return `${input.startTime}-${input.endTime}`;
+    }
+    if (input.timeOption === "half") {
+      return input.startAmPm || "";
+    }
+    return "";
+  }
   return raw;
 }
 
 function isKnownToken(token: string, style: string | undefined): boolean {
-  if (token === "description" || token === "departments" || token === "location") {
+  if (
+    token === "description" ||
+    token === "departments" ||
+    token === "location" ||
+    token === "time"
+  ) {
     return style === undefined;
   }
   if (token === "type") {
@@ -316,10 +343,12 @@ export function getEventTitleTemplateWarnings(template: string): string[] {
 /**
  * Substitute every `{...}` token in the template (case-insensitive):
  * `{description}`, `{type}` / `{type:acronym}`, `{departments}`, `{location}`,
- * and `{people}` / `{people:full}` / `{people:acronym}` / `{people:fqn}` (bare
- * `{people}` is the FQN style). List tokens are joined with `", "`; empty
- * lists/absent values resolve to an empty string, unknown tokens and unknown
- * styles are left as literal text, and the final result is trimmed.
+ * `{time}`, and `{people}` / `{people:full}` / `{people:acronym}` /
+ * `{people:fqn}` (bare `{people}` is the FQN style). List tokens are joined
+ * with `", "`; empty lists/absent values resolve to an empty string, unknown
+ * tokens and unknown styles are left as literal text, and the final result is
+ * trimmed. `{time}` renders as `HH:MM-HH:MM` for range events, `AM`/`PM` for
+ * half-day events, or an empty string for full-day events.
  *
  * Conditional groups `<...>` (nestable, escape with `\`) render their inner
  * content only when at least one token inside (OR) resolves to non-empty.

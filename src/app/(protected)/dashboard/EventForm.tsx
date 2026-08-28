@@ -552,6 +552,11 @@ export function EventForm({
       people,
       departments,
       location: effectiveOutOfCamp.location,
+      timeOption: effectiveTimeOption,
+      startTime: naiveTimePart(form.values.start),
+      endTime: naiveTimePart(form.values.end),
+      startAmPm: effectiveTimeOption === "half" ? form.values.startAmPm || "AM" : "",
+      endAmPm: effectiveTimeOption === "half" ? form.values.endAmPm || "PM" : "",
     };
     const amPm = amPmSuffix(form.values.startAmPm, form.values.endAmPm);
     const render = (tpl: string) => {

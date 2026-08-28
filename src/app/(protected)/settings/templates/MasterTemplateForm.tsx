@@ -122,7 +122,7 @@ export function MasterTemplateForm({
           ref={ref}
           label="Template"
           description="Insert tokens to build the event title. Use < > to hide punctuation when a field is empty."
-          placeholder={"{type:acronym}: {description}\n< ({people:acronym})>\n< - {location}>\n<, {departments}>"}
+          placeholder={"{type:acronym}: {description}\n< ({people:acronym})>\n< - {location}>\n< {time}>\n<, {departments}>"}
           autosize
           minRows={3}
           maxRows={8}
@@ -181,7 +181,8 @@ export function MasterTemplateForm({
           <Text size="xs" c="dimmed">
             {sample.description}
             {sample.eventType ? ` · ${sample.eventType.name}` : ""} · {sample.people.map((p) => p.acronym).join(", ") || "no invitees"} ·{" "}
-            {sample.departments.join(", ") || "no departments"} · {sample.location}
+            {sample.departments.join(", ") || "no departments"} · {sample.location} ·
+            time {sample.startTime && sample.endTime ? `${sample.startTime}-${sample.endTime}` : "—"}
           </Text>
           <Stack gap={2}>
             <Text size="xs" c="dimmed">

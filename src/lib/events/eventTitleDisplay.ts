@@ -1,6 +1,6 @@
 import { formatFullName } from "@/lib/settings/formatName";
 import { formatEventTitle } from "@/lib/settings/formatEventTitle";
-import { amPmSuffix } from "@/lib/events/timeOptions";
+import { amPmSuffix, naiveTimePart } from "@/lib/events/timeOptions";
 import type { CalendarEvent } from "@/lib/events/queries";
 
 export interface DisplayTitleUser {
@@ -91,6 +91,11 @@ export function resolveDisplayTitles(
         people,
         departments,
         location: event.payload.location ?? "",
+        timeOption: event.payload.timeOption,
+        startTime: naiveTimePart(event.start),
+        endTime: naiveTimePart(event.end),
+        startAmPm: event.payload.startAmPm ?? "",
+        endAmPm: event.payload.endAmPm ?? "",
       },
       template,
     );

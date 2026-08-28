@@ -11,6 +11,11 @@ const input: EventTitleInput = {
   ],
   departments: ["Engineering 1", "Logistics"],
   location: "Hall A",
+  timeOption: "range",
+  startTime: "09:00",
+  endTime: "17:00",
+  startAmPm: "",
+  endAmPm: "",
 };
 
 describe("formatEventTitle", () => {
@@ -116,5 +121,46 @@ describe("formatEventTitle", () => {
 
   it("keeps literal text with no placeholders", () => {
     expect(formatEventTitle(input, "Staff meeting")).toBe("Staff meeting");
+  });
+
+  it("renders {time} as HH:MM-HH:MM for range events", () => {
+    expect(formatEventTitle(input, "{description} {time}")).toBe("Team offsite 09:00-17:00");
+  });
+
+  it("renders {time} as the half-of-day marker for half-day events", () => {
+    const half: EventTitleInput = {
+      ...input,
+      timeOption: "half",
+      startAmPm: "PM",
+      endAmPm: "PM",
+      startTime: "",
+      endTime: "",
+    };
+    expect(formatEventTitle(half, "{time}")).toBe("PM");
+  });
+
+  it("renders {time} as empty for full-day events", () => {
+    const full: EventTitleInput = {
+      ...input,
+      timeOption: "full",
+      startAmPm: "",
+      endAmPm: "",
+      startTime: "",
+      endTime: "",
+    };
+    expect(formatEventTitle(full, "[{time}] {description}")).toBe("[] Team offsite");
+  });
+
+  it("renders {time} as empty when a range event lacks a time part", () => {
+    const noTime: EventTitleInput = { ...input, startTime: "", endTime: "" };
+    expect(formatEventTitle(noTime, "{description}< ({time})>")).toBe("Team offsite");
+  });
+
+  it("substitutes the {time} token case-insensitively", () => {
+    expect(formatEventTitle(input, "{TIME}")).toBe("09:00-17:00");
+  });
+
+  it("leaves unknown time styles as literal text", () => {
+    expect(formatEventTitle(input, "{time:12h}")).toBe("{time:12h}");
   });
 });
