@@ -114,9 +114,24 @@ import { usePersistUiState } from "@/lib/ui/uiStateClient";
 import { EventDetail } from "./EventDetail";
 import { EventForm } from "./EventForm";
 import { WeekMatrixView } from "./WeekMatrixView";
-import { invalidateCurrentPathCaches, readStaleStamp } from "@/lib/pwa/client";
+import { invalidateCurrentPathCaches } from "@/lib/pwa/client";
 
 type ViewMode = "month" | "week" | "weekv2" | "schedule" | "agenda";
+
+// Initial "saved at" timestamp for the data-freshness label: prefer the SW's
+// injected document stamp (when the HTML shell was served from the SW cache,
+// its cachedAt is the most truthful data timestamp), else fall back to the
+// mount time.
+function initialSavedAt(): number {
+  if (typeof window === "undefined") return Date.now();
+  const w = window as unknown as { __C2_STAMP__?: { cachedAt: string } };
+  const s = w.__C2_STAMP__;
+  if (s && typeof s.cachedAt === "string") {
+    const d = new Date(s.cachedAt);
+    if (!Number.isNaN(d.getTime())) return d.getTime();
+  }
+  return Date.now();
+}
 
 // Tab bar labels/icons in default (unpinned) order; pinned tabs are moved to
 // the front by `orderDashboardViews` (see the pinnedViews prop).
@@ -718,21 +733,34 @@ export function DashboardView({
 
   const [isRefreshing, startRefresh] = useTransition();
 
-  const savedStamp = useMemo(() => readStaleStamp(), []);
+  // Data freshness tracking: the label shows "Saved · HH:MM" by default (the
+  // server-side events cache serves stale data most of the time) and is hidden
+  // only when data was recently confirmed fresh (after force-refresh or a
+  // mutation). This replaces the old SW document-stamp mechanism, which was
+  // unreliable because it tracked HTML caching rather than data freshness.
+  const savedAtRef = useRef(initialSavedAt());
+  const [isDataFresh, setIsDataFresh] = useState(false);
+
   const savedInfo = useMemo(() => {
-    if (!savedStamp?.cachedAt) return null;
-    try {
-      const d = new Date(savedStamp.cachedAt);
-      if (Number.isNaN(d.getTime())) return null;
-      const time = d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-      return {
-        label: `Saved · ${time}`,
-        full: `Showing saved data from ${d.toLocaleString()}. Pull to refresh or tap Force refresh for the latest.`,
-      };
-    } catch {
-      return null;
-    }
-  }, [savedStamp]);
+    if (isDataFresh) return null;
+    const d = new Date(savedAtRef.current);
+    if (Number.isNaN(d.getTime())) return null;
+    const time = d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+    return {
+      label: `Saved · ${time}`,
+      full: `Showing saved data from ${d.toLocaleString()}. Pull to refresh or tap Force refresh for the latest.`,
+    };
+  }, [isDataFresh]);
+
+  // After a force-refresh or mutation marks the data fresh, revert to the
+  // "Saved" state once the server-side events cache freshness window elapses —
+  // after that, reads may again be served from the cache, so the data is
+  // plausibly saved again. Matches GCAL_CACHE_FRESH_MS (60s).
+  useEffect(() => {
+    if (!isDataFresh) return;
+    const timer = setTimeout(() => setIsDataFresh(false), 60_000);
+    return () => clearTimeout(timer);
+  }, [isDataFresh]);
 
   // Skeleton-only loading: any pending data navigation or force refresh
   // shows the grid skeleton. `useMinSkeletonHold` keeps it up for a minimum
@@ -992,6 +1020,11 @@ export function DashboardView({
   // show the same grid skeleton while pending and swap the new grid in place
   // (with a one-shot fade-in) when it commits.
   function refreshNow() {
+    // Force-refresh bypasses the cache freshness window and blocks on fresh
+    // Google reads, so the data is fresh once the transition lands. Mark it
+    // now (the 60s timeout below reverts it to "Saved" afterwards).
+    savedAtRef.current = Date.now();
+    setIsDataFresh(true);
     startRefresh(() => {
       router.push(buildHref({ refresh: String(Date.now()) }));
     });
@@ -2107,6 +2140,8 @@ export function DashboardView({
         onDeleted={() => {
           setDetailEvent(null);
           setAgendaDate(null);
+          savedAtRef.current = Date.now();
+          setIsDataFresh(true);
           void invalidateCurrentPathCaches().then(() => router.refresh());
         }}
         peopleNames={peopleNames}
@@ -2181,6 +2216,8 @@ export function DashboardView({
                 inviteeUsers={inviteeUsers}
                 onDone={() => {
                   closeForm();
+                  savedAtRef.current = Date.now();
+                  setIsDataFresh(true);
                   void invalidateCurrentPathCaches().then(() => router.refresh());
                 }}
               />

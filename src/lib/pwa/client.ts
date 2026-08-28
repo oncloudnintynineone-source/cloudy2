@@ -77,11 +77,3 @@ export async function refreshFresh(
   await invalidatePathCaches(pathname);
   refresh();
 }
-
-/** Read the injected staleness stamp if the document was served from cache. */
-export function readStaleStamp(): { cachedAt: string } | null {
-  if (typeof window === "undefined") return null;
-  const w = window as unknown as { __C2_STAMP__?: { cachedAt: string } };
-  const s = w.__C2_STAMP__;
-  return s && typeof s.cachedAt === "string" ? s : null;
-}
