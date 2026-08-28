@@ -11,7 +11,7 @@ import {
   type EventTitlePerson,
   type EventTitleType,
 } from "@/lib/settings/formatEventTitle";
-import { amPmSuffix, type AmPm, type TimeOption } from "./timeOptions";
+import { type AmPm, type TimeOption } from "./timeOptions";
 
 export interface RenderEventTitleInput {
   /** The raw description typed into the event form. */
@@ -60,8 +60,5 @@ export function renderEventTitle(input: RenderEventTitleInput): string {
     },
     input.template,
   );
-  const baseTitle = renderedTitle || rawTitle;
-  const amPm = amPmSuffix(input.startAmPm, input.endAmPm);
-  // An empty title gets no bare "(AM)" suffix.
-  return baseTitle && input.timeOption === "half" && amPm ? `${baseTitle} (${amPm})` : baseTitle;
+  return renderedTitle || rawTitle;
 }

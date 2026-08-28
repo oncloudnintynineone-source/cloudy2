@@ -104,9 +104,12 @@ before changing the subsystem.
   vertically, not the area) — otherwise there is no discoverable horizontal pan
   on any breakpoint. `useGridPan` (`src/lib/ui/gridPan.ts`, wraps Mantine's
   `useScroller`: drag-to-pan with click suppression after a >5px drag) +
-  `GridPanControls` (`src/components/GridPanControls.tsx`, fixed mid-height
-  circular grey filled-triangle buttons — intentionally subdued secondary
-  chrome (lighter than the date-nav chevrons), one-viewport-width `panTo`)
+   `GridPanControls` (`src/components/GridPanControls.tsx`, circular grey
+   filled-triangle buttons pinned just inside the grid's own edges and
+   vertically centered on its on-screen visible slice (re-measured on
+   resize + page scroll; hidden when the grid scrolls out of view) —
+   intentionally subdued secondary chrome (lighter than the date-nav
+   chevrons), one-viewport-width `panTo`)
   remedy this for all three at every breakpoint (drag and buttons are always
   enabled whenever the viewport overflows; native touch pan is preserved
   alongside). Day/Week wire it through the schedule views' `scrollAreaProps`

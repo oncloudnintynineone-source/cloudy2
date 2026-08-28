@@ -330,7 +330,7 @@ describe("renderEventTitle", () => {
     ).toBe("OUT Tan Wei Liang");
   });
 
-  it("appends the shared AM/PM marker for half-day events", () => {
+  it("does not hardcode AM/PM marker for half-day events (template controls it)", () => {
     expect(
       renderEventTitle({
         description: "Duty",
@@ -345,7 +345,7 @@ describe("renderEventTitle", () => {
         startAmPm: "AM",
         endAmPm: "AM",
       }),
-    ).toBe("Duty (AM)");
+    ).toBe("Duty");
   });
 
   it("renders no marker for full-day events (plain dates only)", () => {
