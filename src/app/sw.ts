@@ -138,9 +138,9 @@ async function lastSavedDocument(request: Request): Promise<Response | null> {
 }
 
 // The absolute-last-resort offline page: a self-contained branded copy of
-// public/offline.html (same styling + saved-views picker), served only when the
-// precached `/offline.html` is unavailable. Keep the markup/styling/picker in
-// sync with public/offline.html — it is the canonical source of this UI.
+// public/offline.html, served only when the precached `/offline.html` is
+// unavailable. Keep the markup/styling in sync with public/offline.html — it is
+// the canonical source of this UI.
 const OFFLINE_FALLBACK_HTML = `<!doctype html>
 <html lang="en">
 <head>
@@ -160,15 +160,8 @@ main{flex:1;display:flex;align-items:center;justify-content:center;padding:32px 
 h2{font-size:1.15rem;font-weight:700;margin-bottom:8px;color:#8ca8e2}
 p{font-size:.95rem;line-height:1.5;color:#b0b0b0}
 p+p{margin-top:10px}
-.list-caption{margin-top:20px;margin-bottom:8px;font-size:.78rem;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:#8a8a8a;text-align:left}
-#saved-views{list-style:none;text-align:left}
-.view-row{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:12px 14px;background:#2c2e33;border:1px solid #373a40;border-radius:10px;text-decoration:none;color:#e0e0e0;font-size:.95rem}
-.view-row:active{background:#34363c}
-.view-row+.view-row{margin-top:8px}
-.view-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.view-when{color:#8ca8e2;font-size:.8rem;white-space:nowrap;flex-shrink:0}
-.btn{margin-top:18px;display:inline-block;background:var(--navy);color:#fff;font-weight:600;font-size:.95rem;padding:10px 18px;border-radius:8px;text-decoration:none}
 .hint{margin-top:14px;font-size:.82rem;color:#8a8a8a}
+.btn{margin-top:18px;display:inline-block;background:var(--navy);color:#fff;font-weight:600;font-size:.95rem;padding:10px 18px;border-radius:8px;text-decoration:none}
 </style>
 </head>
 <body>
@@ -180,16 +173,10 @@ p+p{margin-top:10px}
 <div class="card">
 <div class="icon" aria-hidden="true"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#F9A825" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1018 0 9 9 0 00-18 0z"/><path d="M8 12h8M12 8v8"/></svg></div>
 <h2>You're offline</h2>
-<p>Cloudy couldn't reach the server. Views you opened while online are still saved on this device — pick one below, or tap Try again when your connection is back.</p>
-<p class="list-caption" id="saved-views-title" hidden>Saved views</p>
-<ul id="saved-views" hidden></ul>
-<p class="hint" id="no-saved-note">No saved views on this device yet. Open the app once while online — afterwards it opens instantly, even offline.</p>
+<p>Cloudy couldn't reach the server. Reconnect to keep using the app. Once you've opened the app while online, it opens instantly — even offline.</p>
 <a class="btn" href="/">Try again</a>
 </div>
 </main>
-<script>
-(async function(){var PREFIX="app-documents-swr",list=document.getElementById("saved-views"),title=document.getElementById("saved-views-title"),emptyNote=document.getElementById("no-saved-note");if(!list||!("caches" in window))return;var NAMES={"/dashboard":"Calendar","/parade-state":"Parade state","/contacts":"Contacts"};function labelFor(href){try{var u=new URL(href);if(NAMES[u.pathname])return NAMES[u.pathname];if(u.pathname.indexOf("/settings")===0)return "Settings";var tail=u.pathname.replace(/^\//,"").replace(/\//g," \u00b7 ");return tail?decodeURIComponent(tail):"Home"}catch(e){return href}}function fmtWhen(d){var day=d.toLocaleDateString(undefined,{month:"short",day:"numeric"}),hh=String(d.getHours()).padStart(2,"0"),mm=String(d.getMinutes()).padStart(2,"0");return day+" "+hh+":"+mm}try{var names=(await caches.keys()).filter(function(n){return n.indexOf(PREFIX)===0}),found=new Map();for(var i=0;i<names.length;i++){var cache=await caches.open(names[i]),keys=await cache.keys();for(var j=0;j<keys.length;j++){var res=await cache.match(keys[j]);if(!res)continue;var dateHeader=res.headers.get("date"),t=dateHeader?Date.parse(dateHeader):NaN,savedAt=Number.isNaN(t)?null:new Date(t),prev=found.get(keys[j].url);if(!prev||(savedAt&&(!prev.savedAt||savedAt>prev.savedAt)))found.set(keys[j].url,{href:keys[j].url,savedAt:savedAt})}}var all=Array.from(found.values()).sort(function(a,b){return(b.savedAt?b.savedAt.getTime():0)-(a.savedAt?a.savedAt.getTime():0)}),shown=all.slice(0,12);for(var k=0;k<shown.length;k++){var e=shown[k],row=document.createElement("li"),a=document.createElement("a");a.className="view-row";a.href=e.href;var name=document.createElement("span");name.className="view-name";name.textContent=labelFor(e.href);var when=document.createElement("span");when.className="view-when";when.textContent=e.savedAt?"Saved \u00b7 "+fmtWhen(e.savedAt):"Saved";a.appendChild(name);a.appendChild(when);row.appendChild(a);list.appendChild(row)}if(all.length){list.hidden=false;if(title)title.hidden=false;if(emptyNote)emptyNote.hidden=true}}catch(err){}})();
-</script>
 </body>
 </html>`;
 
@@ -222,31 +209,29 @@ const documentPlugin = {
     return stampCachedResponse(cachedResponse);
   },
   handlerDidError: async ({ request }: { request: Request }): Promise<Response | undefined> => {
-    // Offline and no cached document for this exact URL. A query-less request
-    // is a page-level intent (icon tap on the start URL, bare F5) — serve the
-    // most recently saved view with its stamp instead of a dead end. A query
-    // carries a specific view intent (?view=…&date=…), so silently swapping in
-    // a different view would mislead; offer the saved-views picker instead.
-    let hasQuery = true;
-    try {
-      hasQuery = new URL(request.url).search !== "";
-    } catch {
-      // Unparseable — keep the picker (safer default).
-    }
-    if (request.method === "GET" && request.mode === "navigate" && !hasQuery) {
+    // Offline and no cached document for this exact URL. Serve the most
+    // recently saved view whenever one exists — for a query-less request (icon
+    // tap on the start URL, bare F5) it is the obvious intent, and for a deep
+    // link with a query (?view=…&date=…) that was never visited it is still far
+    // more useful than a dead end. The served page already carries the amber
+    // OfflineBanner and the "Saved · HH:MM" stamp (window.__C2_STAMP__), so the
+    // "this is an offline copy" context is on-page without a picker landing
+    // page. Exact-visit deep links resolve from the SWR cache before this, and
+    // /login is never routed here (isCacheableDocumentRequest excludes it).
+    if (request.method === "GET" && request.mode === "navigate") {
       const lastSaved = await lastSavedDocument(request).catch(() => null);
       if (lastSaved) return lastSaved;
     }
-    // Offline and nothing usable → branded fallback, which lists saved views
-    // when any exist. `offline.html` is precached, but Serwist stores precache
-    // entries under a revisioned cache key (…?__WB_REVISION__=<hash>), so a bare
-    // `caches.match("/offline.html")` on the plain URL always misses. Resolve the
-    // precache key through the serwist instance instead.
+    // Offline and nothing usable → branded explainer. `offline.html` is
+    // precached, but Serwist stores precache entries under a revisioned cache
+    // key (…?__WB_REVISION__=<hash>), so a bare `caches.match("/offline.html")`
+    // on the plain URL always misses. Resolve the precache key through the
+    // serwist instance instead.
     try {
       const fallback = await serwist.matchPrecache("/offline.html");
       if (fallback) return fallback;
-      // Absolute last resort: a self-contained branded copy of offline.html
-      // (with the same saved-views picker), never a bare error string.
+      // Absolute last resort: a self-contained branded copy of offline.html,
+      // never a bare error string.
       return new Response(OFFLINE_FALLBACK_HTML, {
         status: 200,
         headers: { "content-type": "text/html; charset=utf-8" },

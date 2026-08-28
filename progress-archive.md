@@ -132,6 +132,7 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
 - [1.123 SW build-update takeover: build-versioned page caches + controllerchange reload (bugfix)](#1123-sw-build-update-takeover-build-versioned-page-caches--controllerchange-reload-bugfix)
 - [1.124 Offline fallback: last-saved view + saved-views picker (Phase 3b4)](#1124-offline-fallback-last-saved-view--saved-views-picker-phase-3b4)
 - [1.125 Offline fallback reachability fix (bugfix for 1.124)](#1125-offline-fallback-reachability-fix-bugfix-for-1124)
+- [1.126 Offline UX: last saved view for every offline navigation; offline.html drops the picker (Phase 3b4)](#1126-offline-ux-last-saved-view-for-every-offline-navigation-offlinehtml-drops-the-picker-phase-3b4)
 
 ## 1.1 Status
 
@@ -5739,3 +5740,56 @@ picker appears (not the bare error string); icon tap offline → last-saved
 view. The user's existing prod deployment must be rebuilt to pick up the new
 SW (the client's `controllerchange` takeover reloads under run it; otherwise
 close/reopen the PWA once after deploy).
+
+## 1.126 Offline UX: last saved view for every offline navigation; offline.html drops the picker (Phase 3b4)
+
+Report: the saved-views picker page (added in 1.124) is confusing — a
+technical-looking list of labels + "Saved · 28 Aug 09:12" timestamps that
+forces the user to choose *which* offline copy they want.
+
+Decision: auto-serve instead of ask. Any offline navigation that isn't an
+exact cache hit now gets the **most recently saved document**, regardless of
+whether the URL carries a query. The served page already communicates the
+offline/recency context on its own:
+
+- `OfflineBanner` (`src/components/OfflineBanner.tsx`) — amber "You're
+  offline" strip on every route.
+- The "Saved · HH:MM" stamp chip (`window.__C2_STAMP__` → `initialSavedAt`
+  in `DashboardView`) — shows how stale the copy is.
+
+So there is no separate landing page to explain the situation; a never-visited
+deep link (`?view=…&date=…`) simply opens the latest saved content instead of
+dead-ending. Exact-visit deep links are still served by the SWR cache before
+`handlerDidError` (unchanged), and `/login` is never routed to the document
+handler (`isCacheableDocumentRequest` excludes it — swRules test), so no
+guard was needed for it.
+
+Changes:
+
+1. **`src/app/sw.ts` `handlerDidError`**: removed the query-less gating
+   (`hasQuery`) so `lastSavedDocument(request)` runs for every
+   GET-navigate doc request. `lastSavedDocument` is unchanged — it still
+   re-stores the un-stamped original under the requested URL, so repeat
+   offline opens of that URL become direct cache hits.
+2. **`public/offline.html`**: dropped the saved-views list + picker inline
+   script. It now only appears when the document cache is genuinely empty
+   (first install, right after a deploy wipe, sign-out) — in which case the
+   list would have shown "no saved views" anyway — so it is a plain branded
+   explainer: "You're offline — reconnect to keep using the app" + a Try
+   again (`/`) button. No `<script>` at all now.
+3. **`OFFLINE_FALLBACK_HTML`** (`src/app/sw.ts`): the twin inline copy was
+   simplified to match (same markup/CSS, no list/script).
+
+Docs: `docs/pwa-offline.md` §1.9 rewritten (single-step fallback, no picker),
+§1.3 mermaid collapsed to one fallback branch, §1.11/§1.15 corrected to point
+at `DashboardView` for the chip (the old `SavedDataChip.tsx` was merged into
+it); AGENTS.md PWA bullet updated.
+
+Verification: `pnpm lint` + `pnpm typecheck` +
+`pnpm vitest run src/lib/pwa/swRules.test.ts` (34) + `pnpm test` (714) pass;
+`pnpm build` passes (72 precache entries) and the emitted `sw.js.body` no
+longer contains the picker script (the only `app-documents-swr` strings are
+the versioned cache-name helpers). Manual offline matrix (prod build):
+icon tap → newest saved view + chip; F5 visited URL → direct SWR hit;
+never-visited deep link with `?view=&date=` → newest saved view (no picker);
+clear site data → offline open → plain branded explainer (no list).
