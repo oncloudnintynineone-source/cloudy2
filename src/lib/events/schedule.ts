@@ -10,6 +10,7 @@ import type { CalendarEvent } from "./queries";
 export interface ScheduleDepartment {
   id: string;
   name: string;
+  sortOrder?: number;
 }
 
 export interface ScheduleUser {
@@ -147,7 +148,9 @@ export function buildScheduleResources(params: {
   const groups: ScheduleResourceGroup[] = [];
   let departmentCount = 0;
 
-  const sortedDepts = [...departments].sort((a, b) => a.name.localeCompare(b.name));
+  const sortedDepts = [...departments].sort(
+    (a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0) || a.name.localeCompare(b.name),
+  );
   for (const dept of sortedDepts) {
     const deptUsers = users
       .filter((user) => user.departmentId === dept.id)
@@ -204,7 +207,9 @@ function buildFilteredScheduleResources(params: {
     groups.push({ label, resourceIds: deptUsers.map((user) => user.id) });
   };
 
-  const sortedDepts = [...departments].sort((a, b) => a.name.localeCompare(b.name));
+  const sortedDepts = [...departments].sort(
+    (a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0) || a.name.localeCompare(b.name),
+  );
   for (const dept of sortedDepts) {
     const deptUsers = users
       .filter((user) => user.departmentId === dept.id && selected.has(user.id))

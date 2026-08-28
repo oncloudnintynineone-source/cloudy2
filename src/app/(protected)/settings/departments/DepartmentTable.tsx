@@ -2,14 +2,14 @@
 
 import { type KeyboardEvent, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Button, Group, Modal, Paper, Stack, Table, Text } from "@mantine/core";
+import { ActionIcon, Button, Group, Modal, Paper, Stack, Table, Text, Tooltip } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
-import { IconPlus } from "@tabler/icons-react";
+import { IconChevronDown, IconChevronUp, IconPlus } from "@tabler/icons-react";
 
 import type { Calendar } from "@/db/schema";
 import { CONTENT_ENTER_CLASS } from "@/lib/loading/contentEnter";
-import { deleteDepartment } from "@/lib/roster/actions";
+import { deleteDepartment, moveDepartment } from "@/lib/roster/actions";
 import { BUTTON_LOADER_PROPS } from "@/lib/theme";
 import { FAB_ICON_SIZE, FloatingActionButton, FloatingToolbar } from "@/components/FloatingToolbar";
 import { formatColorLabel } from "@/lib/events/eventColors";
@@ -27,6 +27,7 @@ export function DepartmentTable({ departments }: DepartmentTableProps) {
   const [selected, setSelected] = useState<Calendar | null>(null);
   const [deleting, setDeleting] = useState<Calendar | null>(null);
   const [deletingInProgress, setDeletingInProgress] = useState(false);
+  const [moving, setMoving] = useState<string | null>(null);
 
   function openCreate() {
     setSelected(null);
@@ -62,6 +63,55 @@ export function DepartmentTable({ departments }: DepartmentTableProps) {
     } finally {
       setDeletingInProgress(false);
     }
+  }
+
+  async function move(calendar: Calendar, direction: "up" | "down") {
+    const key = `${calendar.id}:${direction}`;
+    if (moving) return;
+    setMoving(key);
+    try {
+      const result = await moveDepartment(calendar.id, direction);
+      if (result.ok) {
+        router.refresh();
+      } else {
+        notifications.show({ color: "red", message: result.error });
+      }
+    } finally {
+      setMoving(null);
+    }
+  }
+
+  function actionsFor(calendar: Calendar, index: number) {
+    return (
+      <Group gap={4} wrap="nowrap" onClick={(event) => event.stopPropagation()}>
+        <Tooltip label="Move up" position="top">
+          <ActionIcon
+            variant="default"
+            size="sm"
+            aria-label={`Move ${calendar.name} up`}
+            disabled={index === 0}
+            loading={moving === `${calendar.id}:up`}
+            loaderProps={BUTTON_LOADER_PROPS}
+            onClick={() => move(calendar, "up")}
+          >
+            <IconChevronUp size={16} />
+          </ActionIcon>
+        </Tooltip>
+        <Tooltip label="Move down" position="top">
+          <ActionIcon
+            variant="default"
+            size="sm"
+            aria-label={`Move ${calendar.name} down`}
+            disabled={index === departments.length - 1}
+            loading={moving === `${calendar.id}:down`}
+            loaderProps={BUTTON_LOADER_PROPS}
+            onClick={() => move(calendar, "down")}
+          >
+            <IconChevronDown size={16} />
+          </ActionIcon>
+        </Tooltip>
+      </Group>
+    );
   }
 
   const openRow = (calendar: Calendar) => ({
@@ -107,16 +157,21 @@ export function DepartmentTable({ departments }: DepartmentTableProps) {
         <>
           {/* Mobile: card list — tap a card to open the details modal */}
           <Stack gap="sm" hiddenFrom="lg">
-            {departments.map((calendar) => (
+            {departments.map((calendar, index) => (
               <Paper key={calendar.id} withBorder p="sm" {...openRow(calendar)}>
                 <Group justify="space-between" wrap="nowrap" align="center">
-                  <Group wrap="nowrap" align="center" gap={6}>
+                  <Group wrap="nowrap" align="center" gap={6} style={{ minWidth: 0 }}>
                     <ColorDot color={calendar.color} />
-                    <Text fw={600}>{calendar.name}</Text>
+                    <Text fw={600} truncate>
+                      {calendar.name}
+                    </Text>
                   </Group>
-                  <Text size="sm" c="dimmed">
-                    {formatColorLabel(calendar.color, calendar.id)}
-                  </Text>
+                  <Group wrap="nowrap" gap="sm" align="center">
+                    <Text size="sm" c="dimmed" style={{ flexShrink: 0 }}>
+                      {formatColorLabel(calendar.color, calendar.id)}
+                    </Text>
+                    {actionsFor(calendar, index)}
+                  </Group>
                 </Group>
               </Paper>
             ))}
@@ -129,10 +184,11 @@ export function DepartmentTable({ departments }: DepartmentTableProps) {
                 <Table.Tr>
                   <Table.Th>Name</Table.Th>
                   <Table.Th>External color</Table.Th>
+                  <Table.Th>Actions</Table.Th>
                 </Table.Tr>
               </Table.Thead>
               <Table.Tbody>
-                {departments.map((calendar) => (
+                {departments.map((calendar, index) => (
                   <Table.Tr key={calendar.id} {...openRow(calendar)}>
                     <Table.Td>
                       <Text fw={600}>{calendar.name}</Text>
@@ -143,6 +199,7 @@ export function DepartmentTable({ departments }: DepartmentTableProps) {
                         <Text size="sm">{formatColorLabel(calendar.color, calendar.id)}</Text>
                       </Group>
                     </Table.Td>
+                    <Table.Td>{actionsFor(calendar, index)}</Table.Td>
                   </Table.Tr>
                 ))}
               </Table.Tbody>

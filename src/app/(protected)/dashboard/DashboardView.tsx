@@ -146,7 +146,7 @@ interface DashboardViewProps {
    */
   pinnedViews: string[];
   events: CalendarEvent[];
-  calendars: { id: string; name: string }[];
+  calendars: { id: string; name: string; sortOrder: number }[];
   eventTypes: EventTypeOption[];
   eventTitleTemplate: string;
   viewEventTitleTemplate: string;

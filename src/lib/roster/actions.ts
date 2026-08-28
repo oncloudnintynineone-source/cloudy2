@@ -1,6 +1,6 @@
 "use server";
 
-import { eq, inArray } from "drizzle-orm";
+import { asc, eq, inArray } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
 import { db } from "@/db";
@@ -287,9 +287,11 @@ export async function createDepartment(input: CalendarFormValues): Promise<Roste
   try {
     const integration = await getGoogleIntegration();
     const created = await integration.createCalendar(name);
+    const existing = await db.select({ sortOrder: calendars.sortOrder }).from(calendars);
+    const nextOrder = existing.reduce((max, row) => Math.max(max, row.sortOrder), -1) + 1;
     const [row] = await db
       .insert(calendars)
-      .values({ name, googleCalendarId: created.calendarId, kind: "department", color })
+      .values({ name, googleCalendarId: created.calendarId, kind: "department", color, sortOrder: nextOrder })
       .returning({ id: calendars.id, name: calendars.name });
 
     await logAction({
@@ -314,6 +316,8 @@ export async function createDepartment(input: CalendarFormValues): Promise<Roste
 
   revalidatePath("/settings/departments");
   revalidatePath("/settings/users");
+  revalidatePath("/dashboard");
+  revalidatePath("/parade-state");
   return { ok: true };
 }
 
@@ -357,6 +361,8 @@ export async function renameDepartment(
 
   revalidatePath("/settings/departments");
   revalidatePath("/settings/users");
+  revalidatePath("/dashboard");
+  revalidatePath("/parade-state");
   return { ok: true };
 }
 
@@ -390,6 +396,62 @@ export async function deleteDepartment(id: string): Promise<RosterActionResult> 
 
   revalidatePath("/settings/departments");
   revalidatePath("/settings/users");
+  revalidatePath("/dashboard");
+  revalidatePath("/parade-state");
+  return { ok: true };
+}
+
+/**
+ * Move a department one step toward the front ("up") or back ("down") of the
+ * display order. Renumbering every row first keeps `sortOrder` unique even
+ * when legacy rows share values, so the swap always takes effect. No-op at
+ * either end. The order is shared by all calendar sub-views (Month/Day/Week)
+ * and parade state.
+ */
+export async function moveDepartment(
+  id: string,
+  direction: "up" | "down",
+): Promise<RosterActionResult> {
+  const session = await requireAdmin();
+
+  const rows = await db.select().from(calendars).orderBy(asc(calendars.sortOrder), asc(calendars.name));
+  const index = rows.findIndex((row) => row.id === id);
+  if (index === -1) {
+    return { ok: false, error: "Department not found", field: "name" };
+  }
+  const neighborIndex = direction === "up" ? index - 1 : index + 1;
+  const neighbor = rows[neighborIndex];
+  if (!neighbor) {
+    return { ok: true };
+  }
+
+  const moved = rows[index];
+  await db.transaction(async (tx) => {
+    for (let i = 0; i < rows.length; i += 1) {
+      if (rows[i].sortOrder !== i) {
+        await tx.update(calendars).set({ sortOrder: i }).where(eq(calendars.id, rows[i].id));
+      }
+    }
+    await tx.update(calendars).set({ sortOrder: neighborIndex }).where(eq(calendars.id, id));
+    await tx.update(calendars).set({ sortOrder: index }).where(eq(calendars.id, neighbor.id));
+  });
+
+  await logAction({
+    ...actorFrom(session),
+    action: AUDIT_ACTIONS.calendarUpdate,
+    entityType: "calendar",
+    entityId: id,
+    entityName: moved.name,
+    method: "moveDepartment",
+    details: diffFields(
+      { order: index + 1, name: moved.name },
+      { order: neighborIndex + 1, name: moved.name },
+    ),
+  });
+
+  revalidatePath("/settings/departments");
+  revalidatePath("/dashboard");
+  revalidatePath("/parade-state");
   return { ok: true };
 }
 

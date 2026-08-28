@@ -67,9 +67,9 @@ function scheduleTime(date: Date, allDay: boolean): string {
   return allDay ? `${utcToDateString(date)} 00:00:00` : formatInstantToNaive(date);
 }
 
-/** All calendars (the filter option source), ordered by name. */
+/** All calendars (the filter option source), ordered for display (sortOrder then name). */
 export async function listCalendars() {
-  return db.select().from(calendars).orderBy(calendars.name);
+  return db.select().from(calendars).orderBy(calendars.sortOrder, calendars.name);
 }
 
 /** The department calendar a user is assigned to, or null. */
@@ -166,8 +166,9 @@ function mapCalendarItem(
  * batched Postgres read per month), one pass per month. Because Google month
  * listings overlap at boundaries (a multi-day event appears in both), items
  * are deduped by (calendar, google event id) before mapping. Results are
- * flattened in calendar-name order (months in chronological order) so the
- * deterministic representative-copy selection is preserved.
+ * flattened in calendar display order (sortOrder then name, months in
+ * chronological order) so the deterministic representative-copy selection is
+ * preserved.
  */
 export async function fetchRangeEvents(params: {
   months: string[];
@@ -183,12 +184,13 @@ export async function fetchRangeEvents(params: {
     return [];
   }
 
-  // Name order makes the representative copy (first per group id) deterministic.
+  // sortOrder then name makes the representative copy (first per group id) deterministic
+  // and respects the admin-configured department order.
   const rows = await db
     .select()
     .from(calendars)
     .where(inArray(calendars.id, params.calendarIds))
-    .orderBy(calendars.name);
+    .orderBy(calendars.sortOrder, calendars.name);
   const googleCalendarIds = rows.map((calendar) => calendar.googleCalendarId);
 
   // Event type name → pinned color (tiny table; read per request so a color
@@ -202,7 +204,7 @@ export async function fetchRangeEvents(params: {
   const events: CalendarEvent[] = [];
   let allServed = true;
   // Fetch the months in parallel; the flatten order below stays chronological
-  // (month-major, calendar-name order within each month) so the deterministic
+  // (month-major, calendar display order within each month) so the deterministic
   // representative-copy selection is preserved.
   const cachedPerMonth = await Promise.all(
     months.map((month) =>
@@ -245,7 +247,7 @@ export async function fetchRangeEvents(params: {
   events.sort((a, b) => (a.start < b.start ? -1 : a.start > b.start ? 1 : 0));
   // A logical event has at most one copy per filtered department calendar;
   // collapse the copies so views show it once (stable sort keeps calendar
-  // name order among equal start times, so the representative is deterministic).
+  // display order among equal start times, so the representative is deterministic).
   return dedupeEventsByGroupId(events);
 }
 

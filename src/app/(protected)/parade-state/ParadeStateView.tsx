@@ -57,7 +57,7 @@ interface ParadeStateUser {
   id: string;
   name: string;
   shortname: string | null;
-  department: { id: string; name: string } | null;
+  department: { id: string; name: string; sortOrder?: number } | null;
 }
 
 interface ParadeStateEvent {
@@ -85,7 +85,7 @@ export interface ParadeStateViewProps {
   month: string;
   users: ParadeStateUser[];
   events: CalendarEvent[];
-  calendars: { id: string; name: string }[];
+  calendars: { id: string; name: string; sortOrder?: number }[];
   currentUser: string;
   selectedCalendarIds: string[];
   selectedUserIds: string[];
@@ -402,14 +402,19 @@ export function ParadeStateView({
   }, [dayEvents]);
 
   const departments: ParadeStateDepartment[] = useMemo(() => {
-    const deptMap = new Map<string, ParadeStateDepartment>();
+    const deptMap = new Map<string, ParadeStateDepartment & { sortOrder: number }>();
     const unassigned: ParadeStateDepartment = { id: null, name: "Unassigned", users: [] };
 
     for (const user of users) {
       if (user.department) {
         let dept = deptMap.get(user.department.id);
         if (!dept) {
-          dept = { id: user.department.id, name: user.department.name, users: [] };
+          dept = {
+            id: user.department.id,
+            name: user.department.name,
+            sortOrder: user.department.sortOrder ?? 0,
+            users: [],
+          };
           deptMap.set(user.department.id, dept);
         }
         dept.users.push(user);
@@ -418,7 +423,10 @@ export function ParadeStateView({
       }
     }
 
-    const result = [...deptMap.values()].sort((a, b) => a.name.localeCompare(b.name));
+    const sorted = [...deptMap.values()].sort(
+      (a, b) => (a.sortOrder - b.sortOrder) || a.name.localeCompare(b.name),
+    );
+    const result: ParadeStateDepartment[] = [...sorted];
     if (unassigned.users.length > 0) {
       result.push(unassigned);
     }

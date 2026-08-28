@@ -183,6 +183,13 @@
       "when": 1787881480779,
       "tag": "0025_red_annihilus",
       "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1787900327317,
+      "tag": "0026_easy_slapstick",
+      "breakpoints": true
     }
   ]
 }

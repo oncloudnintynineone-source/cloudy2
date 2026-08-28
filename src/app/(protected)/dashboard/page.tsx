@@ -198,6 +198,7 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
   const inviteeDepartments = calendars.map((calendar) => ({
     id: calendar.id,
     name: calendar.name,
+    sortOrder: calendar.sortOrder,
   }));
 
   const peopleNames: Record<string, string> = Object.fromEntries(
@@ -290,7 +291,11 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
       view={view}
       pinnedViews={pinnedViews}
       events={events}
-      calendars={calendars.map((calendar) => ({ id: calendar.id, name: calendar.name }))}
+      calendars={calendars.map((calendar) => ({
+        id: calendar.id,
+        name: calendar.name,
+        sortOrder: calendar.sortOrder,
+      }))}
       eventTypes={eventTypeOptions}
       eventTitleTemplate={settings.eventTitleTemplate}
       viewEventTitleTemplate={viewTemplate}

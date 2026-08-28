@@ -108,10 +108,20 @@ export default async function ParadeStatePage({ searchParams }: ParadeStatePageP
           id: user.id,
           name: user.name,
           shortname: user.shortname,
-          department: user.department,
+          department: user.department
+            ? {
+                id: user.department.id,
+                name: user.department.name,
+                sortOrder: user.department.sortOrder,
+              }
+            : null,
         }))}
         events={events}
-        calendars={calendars.map((calendar) => ({ id: calendar.id, name: calendar.name }))}
+        calendars={calendars.map((calendar) => ({
+          id: calendar.id,
+          name: calendar.name,
+          sortOrder: calendar.sortOrder,
+        }))}
         currentUser={session.user.id}
         selectedCalendarIds={selectedCalendars}
         selectedUserIds={selectedUsers}

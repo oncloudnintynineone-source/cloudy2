@@ -8,6 +8,7 @@ import { onlyUuidIds } from "@/lib/uuid";
 export interface RosterDepartment {
   id: string;
   name: string;
+  sortOrder: number;
 }
 
 export interface RosterUser {
@@ -36,6 +37,7 @@ export async function listUsers(): Promise<RosterUser[]> {
       status: users.status,
       departmentId: calendars.id,
       departmentName: calendars.name,
+      departmentSortOrder: calendars.sortOrder,
     })
     .from(users)
     .leftJoin(calendars, eq(calendars.id, users.departmentId))
@@ -50,7 +52,13 @@ export async function listUsers(): Promise<RosterUser[]> {
     birthday: row.birthday,
     role: row.role,
     status: row.status,
-    department: row.departmentId ? { id: row.departmentId, name: row.departmentName ?? "" } : null,
+    department: row.departmentId
+      ? {
+          id: row.departmentId,
+          name: row.departmentName ?? "",
+          sortOrder: row.departmentSortOrder ?? 0,
+        }
+      : null,
   }));
 }
 
@@ -88,7 +96,10 @@ export async function getUsersByIds(userIds: string[]): Promise<UserDisplayInfo[
   }));
 }
 
-/** All departments (Google Calendar registry), ordered by name. */
+/** All departments (Google Calendar registry), ordered for display (sortOrder then name). */
 export async function listDepartments() {
-  return db.select().from(calendars).orderBy(asc(calendars.name));
+  return db
+    .select()
+    .from(calendars)
+    .orderBy(asc(calendars.sortOrder), asc(calendars.name));
 }

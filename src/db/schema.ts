@@ -62,9 +62,13 @@ export const calendars = pgTable(
      * null = deterministic default from the calendar id.
      */
     color: text("color"),
+    sortOrder: integer("sort_order").notNull().default(0),
     ...timestamps,
   },
-  (table) => [uniqueIndex("calendars_google_calendar_id_idx").on(table.googleCalendarId)],
+  (table) => [
+    uniqueIndex("calendars_google_calendar_id_idx").on(table.googleCalendarId),
+    index("calendars_sort_idx").on(table.sortOrder),
+  ],
 );
 
 export const acronyms = pgTable("acronyms", {
