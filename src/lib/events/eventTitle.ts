@@ -38,10 +38,10 @@ export interface RenderEventTitleInput {
 /**
  * Render the event's Google summary: substitute the template tokens, fall
  * back to the raw description when the template renders nothing (which may
- * itself be empty, producing an intentionally untitled event), and append the
- * shared (AM)/(PM) marker for half-day events whose halves agree. Legacy
- * full-day events may still carry markers in their stored Google title —
- * those are read back as-is and never re-rendered here.
+ * itself be empty, producing an intentionally untitled event). Half-day
+ * AM/PM markers come from the `{time}` token in the template, never a
+ * hardcoded suffix. Legacy full-day events may still carry markers in their
+ * stored Google title — those are read back as-is and never re-rendered here.
  */
 export function renderEventTitle(input: RenderEventTitleInput): string {
   const rawTitle = input.description.trim();

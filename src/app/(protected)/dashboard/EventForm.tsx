@@ -35,7 +35,6 @@ import { subOneDay } from "@/lib/events/datetime";
 import { clampOutOfCamp, type LocationPolicy } from "@/lib/events/locationPolicy";
 import { eventRefFromCalendarEvent } from "@/lib/events/targets";
 import {
-  amPmSuffix,
   joinDateTimeParts,
   naiveDatePart,
   naiveTimePart,
@@ -531,8 +530,8 @@ export function EventForm({
   ];
 
   // Live rendering of the exact title the server will write to Google, so the
-  // user sees the final calendar summary (template tokens + AM/PM suffix)
-  // before submitting. Also show the per-view display title when it differs.
+  // user sees the final calendar summary (template tokens) before submitting.
+  // Also show the per-view display title when it differs.
   const previewTitles = (() => {
     const people: EventTitlePerson[] = effectiveInvitees
       .filter((value) => value.startsWith("user:"))
@@ -558,10 +557,8 @@ export function EventForm({
       startAmPm: effectiveTimeOption === "half" ? form.values.startAmPm || "AM" : "",
       endAmPm: effectiveTimeOption === "half" ? form.values.endAmPm || "PM" : "",
     };
-    const amPm = amPmSuffix(form.values.startAmPm, form.values.endAmPm);
     const render = (tpl: string) => {
-      const base = formatEventTitle(input, tpl) || form.values.title.trim();
-      return base && effectiveTimeOption === "half" && amPm ? `${base} (${amPm})` : base;
+      return formatEventTitle(input, tpl) || form.values.title.trim();
     };
     const master = render(eventTitleTemplate);
     const viewTpl = viewEventTitleTemplate ?? eventTitleTemplate;
