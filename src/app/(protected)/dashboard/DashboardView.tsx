@@ -111,6 +111,7 @@ import { useGridPan } from "@/lib/ui/gridPan";
 import { useImmersiveMode } from "@/lib/ui/immersiveMode";
 import { DASHBOARD_STATE_KEYS, freshMarkerNeeded, orderDashboardViews } from "@/lib/ui/uiState";
 import { usePersistUiState } from "@/lib/ui/uiStateClient";
+import { PINNED_EVENTS_CHANGED_EVENT } from "@/lib/ui/pinnedPanel";
 import { EventDetail } from "./EventDetail";
 import { EventForm } from "./EventForm";
 import { WeekMatrixView } from "./WeekMatrixView";
@@ -186,6 +187,12 @@ interface DashboardViewProps {
    * note); its edit form opens automatically once the events are loaded.
    */
   initialEditEventId: string | null;
+  /**
+   * Event group id from the `?event=` deep link (the Pinned Events agenda's
+   * tap-to-open); the event's details modal opens automatically once the
+   * fetched events include a copy of the group.
+   */
+  initialDetailEventId: string | null;
   scheduleUsers: ScheduleUser[];
   /** Full active roster: row source when the Users filter narrows the rows. */
   allActiveUsers: ScheduleUser[];
@@ -428,6 +435,7 @@ export function DashboardView({
   currentUser,
   isAdmin,
   initialEditEventId,
+  initialDetailEventId,
   scheduleUsers,
   allActiveUsers,
   inviteeDepartments,
@@ -486,7 +494,11 @@ export function DashboardView({
     ? (events.find((event) => event.payload.eventId === initialEditEventId) ?? null)
     : null;
 
-  const [detailEvent, setDetailEvent] = useState<CalendarEvent | null>(null);
+  const initialDetailEvent = initialDetailEventId
+    ? (events.find((event) => event.payload.eventId === initialDetailEventId) ?? null)
+    : null;
+
+  const [detailEvent, setDetailEvent] = useState<CalendarEvent | null>(initialDetailEvent);
   // Where the tapped element sat on screen; the modal grows out of / shrinks
   // back into it (see src/lib/motion/origin.ts).
   const [detailOriginRect, setDetailOriginRect] = useState<Rect | null>(null);
@@ -578,8 +590,22 @@ export function DashboardView({
     setDisplayAgendaDate(agendaDate);
   }
   const [editLinkFailed, setEditLinkFailed] = useState(
-    () => initialEditEventId !== null && initialEditEvent === null,
+    () =>
+      (initialEditEventId !== null && initialEditEvent === null) ||
+      (initialDetailEventId !== null && initialDetailEvent === null),
   );
+  // A `?event=` deep link resolved while the component is already mounted (a
+  // pinned-events tap on /dashboard is a same-route param change, so the
+  // mount-time initializer above never re-runs). Track the last-handled id and
+  // re-open the details for each new one; null (a stripped param) is ignored.
+  const [prevDetailLinkId, setPrevDetailLinkId] = useState<string | null>(null);
+  if (initialDetailEventId !== null && initialDetailEventId !== prevDetailLinkId) {
+    setPrevDetailLinkId(initialDetailEventId);
+    const found =
+      events.find((event) => event.payload.eventId === initialDetailEventId) ?? null;
+    setDetailEvent(found);
+    setEditLinkFailed(found === null);
+  }
   const [filterOpened, { open: openFilter, close: closeFilter }] = useDisclosure(false);
   const [pickerOpened, { open: openPicker, close: closePicker }] = useDisclosure(false);
 
@@ -1002,6 +1028,17 @@ export function DashboardView({
     editParamClearedRef.current = true;
     router.push(buildHref({ edit: null }));
   }, [buildHref, initialEditEventId, router]);
+
+  // Strip the one-shot `event` param (Pinned Events deep link) the same way,
+  // so a refresh/back doesn't silently re-open the details modal.
+  const detailParamClearedRef = useRef(false);
+  useEffect(() => {
+    if (!initialDetailEventId || detailParamClearedRef.current) {
+      return;
+    }
+    detailParamClearedRef.current = true;
+    router.push(buildHref({ event: null }));
+  }, [buildHref, initialDetailEventId, router]);
 
   // Strip the one-shot `refresh` nonce as soon as the forced render has
   // mounted, so later month/day navigation doesn't keep force-refreshing.
@@ -2146,6 +2183,7 @@ export function DashboardView({
           setAgendaDate(null);
           savedAtRef.current = Date.now();
           setIsDataFresh(true);
+          window.dispatchEvent(new CustomEvent(PINNED_EVENTS_CHANGED_EVENT));
           void invalidateCurrentPathCaches().then(() => router.refresh());
         }}
         peopleNames={peopleNames}
@@ -2222,6 +2260,7 @@ export function DashboardView({
                   closeForm();
                   savedAtRef.current = Date.now();
                   setIsDataFresh(true);
+                  window.dispatchEvent(new CustomEvent(PINNED_EVENTS_CHANGED_EVENT));
                   void invalidateCurrentPathCaches().then(() => router.refresh());
                 }}
               />

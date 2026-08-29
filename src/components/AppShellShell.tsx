@@ -1,6 +1,6 @@
 "use client";
 
-import { AppShell, Box, Group, NavLink, Stack, Text, Tooltip, UnstyledButton } from "@mantine/core";
+import { AppShell, Box, Button, Group, Indicator, NavLink, Stack, Text, Tooltip, UnstyledButton } from "@mantine/core";
 import { useMediaQuery } from "@mantine/hooks";
 import {
   IconAddressBook,
@@ -8,19 +8,24 @@ import {
   IconClipboardList,
   IconLayoutSidebarLeftCollapse,
   IconLayoutSidebarLeftExpand,
+  IconPin,
   IconSettings,
   IconUsersGroup,
 } from "@tabler/icons-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link, { useLinkStatus } from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 
+import { PinnedEventsPanel } from "@/components/PinnedEventsPanel";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { UserMenu } from "@/components/UserMenu";
 import { type BannerConfig, BANNER_HEIGHT_PX, bannerColorOption } from "@/lib/banner/banner";
 import { BOTTOM_NAV_HEIGHT } from "@/lib/bottomNav";
+import { countPinnedEvents } from "@/lib/events/pinned";
+import type { Rect } from "@/lib/motion/origin";
 import { DESKTOP_MEDIA_QUERY } from "@/lib/theme";
 import { ImmersiveModeContext, type ImmersiveModeValue } from "@/lib/ui/immersiveMode";
+import { PinnedPanelContext, PINNED_EVENTS_CHANGED_EVENT, type PinnedPanelValue } from "@/lib/ui/pinnedPanel";
 import { useRememberedPage, writeUiState } from "@/lib/ui/uiStateClient";
 
 interface NavItem {
@@ -236,6 +241,77 @@ export function AppShellShell({
   // relaunch from the start URL can land back here — read by / at launch.
   useRememberedPage(pathname);
 
+  // The Pinned Events agenda: the shell owns the open/close state because it
+  // renders the header button; the panel reads it through the context. Opening
+  // is a transient client state — never persisted. The header is global, so
+  // tapping the pin from another page navigates to the dashboard first (the
+  // shell stays mounted across the navigation, so the modal survives it).
+  const [pinnedOpen, setPinnedOpen] = useState(false);
+  const router = useRouter();
+  // The header button's rect at open time: the panel modal zooms out of /
+  // shrinks back into it. Captured before any navigation — the header is
+  // persistent, so the origin stays correct across the jump to /dashboard.
+  const [pinnedOriginRect, setPinnedOriginRect] = useState<Rect | null>(null);
+  const openPinnedPanel = useCallback(
+    (originRect: Rect | null) => {
+      if (pathname !== "/dashboard") {
+        router.push("/dashboard");
+      }
+      setPinnedOriginRect(originRect);
+      setPinnedOpen(true);
+    },
+    [pathname, router],
+  );
+  const pinnedPanelValue: PinnedPanelValue = useMemo(
+    () => ({
+      open: pinnedOpen,
+      originRect: pinnedOriginRect,
+      openPanel: openPinnedPanel,
+      closePanel: () => setPinnedOpen(false),
+    }),
+    [pinnedOpen, pinnedOriginRect, openPinnedPanel],
+  );
+
+  // Header count badge: how many department-pinned events are upcoming. Fetched
+  // on mount (background, so it never blocks a page load), again after the
+  // panel closes (its fetch just pulled fresh data), on tab refocus (the
+  // rolling window drifts as events end), and whenever event CRUD runs
+  // (`PINNED_EVENTS_CHANGED_EVENT`). Best-effort — a failure keeps the last
+  // count.
+  const [pinnedCount, setPinnedCount] = useState(0);
+  const refreshPinnedCount = useCallback(() => {
+    void countPinnedEvents()
+      .then((count) => setPinnedCount(count))
+      .catch(() => {});
+  }, []);
+  useEffect(() => {
+    refreshPinnedCount();
+  }, [refreshPinnedCount]);
+  const didOpenPanelRef = useRef(false);
+  useEffect(() => {
+    if (pinnedOpen) {
+      didOpenPanelRef.current = true;
+      return;
+    }
+    if (didOpenPanelRef.current) {
+      refreshPinnedCount();
+    }
+  }, [pinnedOpen, refreshPinnedCount]);
+  useEffect(() => {
+    const onChange = () => refreshPinnedCount();
+    window.addEventListener(PINNED_EVENTS_CHANGED_EVENT, onChange);
+    const onVisible = () => {
+      if (document.visibilityState === "visible") {
+        refreshPinnedCount();
+      }
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      window.removeEventListener(PINNED_EVENTS_CHANGED_EVENT, onChange);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
+  }, [refreshPinnedCount]);
+
   // Desktop = the theme's lg breakpoint: the bottom nav collapses and a left
   // sidebar takes over navigation (AppShell navbar, hidden below the
   // breakpoint). Both read the same theme value so they can't drift.
@@ -387,6 +463,21 @@ export function AppShellShell({
     };
   }, [immersive]);
 
+  const pinnedButton = (
+    <Button
+      variant="filled"
+      radius="xl"
+      size="compact-sm"
+      bg="brand.8"
+      c="white"
+      leftSection={<IconPin size={14} />}
+      onClick={(e) => openPinnedPanel(e.currentTarget.getBoundingClientRect())}
+      aria-label={pinnedCount > 0 ? `Pinned events (${pinnedCount})` : "Pinned events"}
+    >
+      Pinned events
+    </Button>
+  );
+
   return (
     <AppShell
       ref={rootRef}
@@ -442,6 +533,20 @@ export function AppShellShell({
             Cloudy
           </Text>
           <Group gap="xs">
+            {pinnedCount > 0 ? (
+              <Indicator
+                position="top-start"
+                size={18}
+                offset={4}
+                color="accent"
+                withBorder
+                label={pinnedCount > 99 ? "99+" : pinnedCount}
+              >
+                {pinnedButton}
+              </Indicator>
+            ) : (
+              pinnedButton
+            )}
             <ThemeToggle />
             <UserMenu name={name} />
           </Group>
@@ -502,7 +607,10 @@ export function AppShellShell({
 
       <AppShell.Main>
         <ImmersiveModeContext.Provider value={immersiveMode}>
-          {children}
+          <PinnedPanelContext.Provider value={pinnedPanelValue}>
+            {children}
+            <PinnedEventsPanel />
+          </PinnedPanelContext.Provider>
         </ImmersiveModeContext.Provider>
       </AppShell.Main>
 

@@ -176,8 +176,29 @@ before changing the subsystem.
   Mantine's `vars` prop — in v9 that is a resolver *function*, not an object.
   Disabled = null = today's layout exactly (no reserved space); immersive mode
   omits both the inline style and the header height contribution so the
-  CSS-default 0px applies and Mantine allocates no phantom main-content
-   padding; full text on hover via `title`.
+   CSS-default 0px applies and Mantine allocates no phantom main-content
+    padding; full text on hover via `title`.
+- **Pinned Events (department agenda):** a header pin button (all pages, beside
+  the light/dark toggle) opens a centered Modal listing every department-pinned
+  event (`inviteeDepartmentIds` non-empty — a whole-department invite) over a
+  rolling today→3-months window, ignoring the dashboard's current filters.
+  Server fetch `fetchPinnedEvents()` (`src/lib/events/pinned.ts`) month-reads all
+  calendars through the events cache and resolves rendered titles + department
+  names; the pure `selectUpcomingPinnedEvents` (`pinnedSelect.ts`, unit-tested)
+  drops events already ended and sorts by start. Tapping an event closes and
+  navigates to `/dashboard?date=YYYY-MM-DD&event=<groupId>`, where the
+  dashboard's `?event=` deep link auto-opens the event's details modal (Edit /
+  Duplicate / Delete per the usual `isAdmin || creator` rule); legacy events
+  without a group id fall back to the date alone. Opening from a non-dashboard
+  page navigates to the dashboard first (the shell stays mounted, so the modal
+  survives). The header button also carries an amber count badge
+  (`countPinnedEvents` in `pinned.ts`, the shared read without title/name
+  resolution) refreshed on mount, on panel close, on tab refocus, and after
+  every event create/update/delete via the `cloudy2:pinned-events-changed`
+  window event (dispatched at the dashboard's `onDeleted` / form `onDone`).
+  Open/close state lives in `AppShellShell` and rides
+  `PinnedPanelContext` (`src/lib/ui/pinnedPanel.ts`); the Modal itself is
+  `src/components/PinnedEventsPanel.tsx`.
 - **KAH (Key Appointment Holder) constraints are notify-only.** Groups
   (`kah_groups` + `kah_group_members`, per-group `min_percentage`) live in a
   Settings → KAH Groups tab; recipients live once in `settings.kah_notification_emails`

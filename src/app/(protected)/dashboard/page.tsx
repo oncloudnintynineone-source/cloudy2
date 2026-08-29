@@ -54,15 +54,24 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
   const initialEditEventId =
     typeof params.edit === "string" && isUuid(params.edit) ? params.edit : null;
 
+  // Deep link from the Pinned Events agenda (header pin button): the tapped
+  // event's group id. The dashboard auto-opens its details (edit/duplicate)
+  // once the fetched events include a copy.
+  const initialDetailEventId =
+    typeof params.event === "string" && isUuid(params.event) ? params.event : null;
+
   // Per-device remembered UI state: where the URL is silent, the last rendered
   // view/filters apply, so a cold open (or F5) lands where the user left off —
   // resolved here, before first paint, with no client redirect. URL params
   // always win; the cookie is skipped entirely for the one-shot `_fresh`
   // marker (a render that just removed remembered keys — Clear, tab switch)
-  // and for `edit` deep links (an explicit intent to see one event).
+  // and for `edit`/`event` deep links (an explicit intent to see one event).
   const freshRender = typeof params._fresh === "string";
   const cookieState = decodeUiState((await cookies()).get(UI_STATE_COOKIE)?.value);
-  const uiState = freshRender || initialEditEventId !== null ? null : cookieState;
+  const uiState =
+    freshRender || initialEditEventId !== null || initialDetailEventId !== null
+      ? null
+      : cookieState;
   const ui = uiState?.dashboard;
   // Pinned tabs are not URL-backed, so the `_fresh`/`edit` cookie skip above
   // must not drop them — every tab switch is a `_fresh` render, and skipping
@@ -320,6 +329,7 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
       isAdmin={isAdmin}
       currentUserName={session.user.name ?? ""}
       initialEditEventId={initialEditEventId}
+      initialDetailEventId={initialDetailEventId}
       scheduleUsers={scheduleUsers}
       allActiveUsers={allActiveUsers}
       inviteeDepartments={inviteeDepartments}
