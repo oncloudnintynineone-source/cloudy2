@@ -52,6 +52,23 @@ export interface EventTitleTemplateFormErrors {
 export const DASHBOARD_VIEW_VALUES = ["month", "week", "weekv2", "schedule", "agenda"] as const;
 export type DashboardViewValue = (typeof DASHBOARD_VIEW_VALUES)[number];
 
+/**
+ * Every target an event title template can be assigned to: the dashboard views
+ * plus the Pinned Events panel (`pinned`). "Empty = Master (Default)" applies
+ * to all of them.
+ */
+export const EVENT_TITLE_ASSIGNMENT_TARGETS = [...DASHBOARD_VIEW_VALUES, "pinned"] as const;
+export type EventTitleAssignmentTarget = (typeof EVENT_TITLE_ASSIGNMENT_TARGETS)[number];
+
+export const EVENT_TITLE_TARGET_LABELS: Record<EventTitleAssignmentTarget, string> = {
+  month: "Month",
+  week: "Week (H)",
+  weekv2: "Week (D)",
+  schedule: "Day",
+  agenda: "Agenda",
+  pinned: "Pinned events",
+};
+
 export interface EventTitleLibraryItemFormValues {
   label: string;
   template: string;
@@ -205,13 +222,13 @@ export function validateEventTitleLibraryItem(
 
 export function normalizeAssignments(
   raw: unknown,
-): Partial<Record<DashboardViewValue, string>> {
+): Partial<Record<EventTitleAssignmentTarget, string>> {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) return {};
-  const out: Partial<Record<DashboardViewValue, string>> = {};
-  for (const view of DASHBOARD_VIEW_VALUES) {
-    const val = (raw as Record<string, unknown>)[view];
+  const out: Partial<Record<EventTitleAssignmentTarget, string>> = {};
+  for (const target of EVENT_TITLE_ASSIGNMENT_TARGETS) {
+    const val = (raw as Record<string, unknown>)[target];
     if (typeof val === "string" && val.trim()) {
-      out[view] = val.trim();
+      out[target] = val.trim();
     }
   }
   return out;
@@ -222,11 +239,11 @@ export function validateAssignments(
   knownIds: Set<string>,
 ): Record<string, string> {
   const errors: Record<string, string> = {};
-  for (const view of DASHBOARD_VIEW_VALUES) {
-    const id = assignments[view];
+  for (const target of EVENT_TITLE_ASSIGNMENT_TARGETS) {
+    const id = assignments[target];
     if (id == null || id === "") continue;
     if (!knownIds.has(id)) {
-      errors[view] = "Unknown template";
+      errors[target] = "Unknown template";
     }
   }
   return errors;

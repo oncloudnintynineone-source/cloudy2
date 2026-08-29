@@ -184,7 +184,9 @@ before changing the subsystem.
   rolling today→3-months window, ignoring the dashboard's current filters.
   Server fetch `fetchPinnedEvents()` (`src/lib/events/pinned.ts`) month-reads all
   calendars through the events cache and resolves rendered titles + department
-  names; the pure `selectUpcomingPinnedEvents` (`pinnedSelect.ts`, unit-tested)
+  names; panel titles render through the `pinned` template-assignment target
+  (Settings → Templates → View assignments), falling back to the master template
+  when unassigned. The pure `selectUpcomingPinnedEvents` (`pinnedSelect.ts`, unit-tested)
   drops events already ended and sorts by start. Tapping an event closes and
   navigates to `/dashboard?date=YYYY-MM-DD&event=<groupId>`, where the
   dashboard's `?event=` deep link auto-opens the event's details modal (Edit /
@@ -363,6 +365,12 @@ the SW file lives at a fixed URL, so scriptURL never changes) and, when the
   `< >` groups hiding punctuation when every token inside is empty — e.g.
   `{description}< - {location}>`). Rendered titles go to the Google summary; the raw
   description round-trips via the notes' `title` field so edits prefill original text.
+  The saved library templates assign to per-target selects in the View assignments
+  modal (`eventTitleTemplateAssignments` jsonb, keyed by `EVENT_TITLE_ASSIGNMENT_TARGETS`
+  = the 5 dashboard views + `pinned`; `normalizeAssignments`/`validateAssignments`
+  whitelist those keys; empty = Master fallback) — dashboard views are display-only
+  re-renders, while the `pinned` target feeds `fetchPinnedEvents` for the Pinned
+  Events panel.
 - **Event notes:** an `Edit: <url>` deep-link line (origin from request headers,
   `src/lib/appUrl.ts`) above an opaque brotli+base64url JSON block (`encodeNotesBlock`;
   `parseEventNotes` is the single reader and decodes legacy v1/v2), ending with the

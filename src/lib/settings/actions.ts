@@ -20,6 +20,8 @@ import {
   type KahNotificationsFormValues,
 } from "@/lib/kah/validate";
 import {
+  EVENT_TITLE_ASSIGNMENT_TARGETS,
+  EVENT_TITLE_TARGET_LABELS,
   EVENT_TITLE_TEMPLATES_MAX_COUNT,
   normalizeAssignments,
   normalizeKeyword,
@@ -29,6 +31,7 @@ import {
   validateEventTitleTemplate,
   validateNameTemplate,
   validateRetentionForm,
+  type EventTitleAssignmentTarget,
 } from "@/lib/settings/validate";
 
 export type SettingsActionResult =
@@ -249,7 +252,7 @@ export async function deleteEventTitleTemplate(id: string): Promise<SettingsActi
   );
   const assignedViews = Object.entries(assignments)
     .filter(([, tid]) => tid === id)
-    .map(([view]) => view);
+    .map(([target]) => EVENT_TITLE_TARGET_LABELS[target as EventTitleAssignmentTarget] ?? target);
   if (assignedViews.length > 0) {
     return {
       ok: false,
@@ -283,11 +286,12 @@ export async function updateEventTitleTemplateAssignments(
   const session = await requireAdmin();
   const templates = await db.select().from(eventTitleTemplates);
   const knownIds = new Set(templates.map((t) => t.id));
-  // Allow null/empty to mean master fallback
+  // Allow null/empty to mean master fallback; only known targets are stored.
   const cleaned: Record<string, string> = {};
-  for (const [view, tid] of Object.entries(assignments)) {
+  for (const target of EVENT_TITLE_ASSIGNMENT_TARGETS) {
+    const tid = assignments[target];
     if (tid == null || tid === "") continue;
-    cleaned[view] = tid.trim();
+    cleaned[target] = tid.trim();
   }
   const errors = validateAssignments(cleaned, knownIds);
   if (Object.keys(errors).length > 0) {

@@ -3,8 +3,11 @@ import { describe, expect, it } from "vitest";
 import {
   AUDIT_RETENTION_MAX,
   AUDIT_RETENTION_MIN,
+  EVENT_TITLE_ASSIGNMENT_TARGETS,
+  normalizeAssignments,
   normalizeKeyword,
   normalizeRetentionDays,
+  validateAssignments,
   validateEventTitleTemplate,
   validateKeywordForm,
   validateNameTemplate,
@@ -116,6 +119,64 @@ describe("validateEventTitleTemplate", () => {
 
   it("accepts literal text with no placeholders", () => {
     expect(validateEventTitleTemplate({ eventTitleTemplate: "Staff" })).toEqual({});
+  });
+});
+
+describe("normalizeAssignments", () => {
+  it("drops non-string and blank values", () => {
+    expect(
+      normalizeAssignments({ month: "", week: 5, schedule: null, agenda: "tpl-1" }),
+    ).toEqual({ agenda: "tpl-1" });
+  });
+
+  it("keeps the pinned target alongside the dashboard views", () => {
+    expect(normalizeAssignments({ schedule: "tpl-1", pinned: "tpl-2" })).toEqual({
+      schedule: "tpl-1",
+      pinned: "tpl-2",
+    });
+  });
+
+  it("ignores unknown keys", () => {
+    expect(normalizeAssignments({ schedule: "tpl-1", nonsense: "tpl-2", pinned: "" })).toEqual({
+      schedule: "tpl-1",
+    });
+  });
+
+  it("returns an empty map for non-object input", () => {
+    expect(normalizeAssignments(null)).toEqual({});
+    expect(normalizeAssignments("x")).toEqual({});
+    expect(normalizeAssignments([])).toEqual({});
+  });
+});
+
+describe("validateAssignments", () => {
+  const knownIds = new Set(["tpl-1", "tpl-2"]);
+
+  it("accepts known template ids on any target including pinned", () => {
+    expect(
+      validateAssignments({ schedule: "tpl-1", pinned: "tpl-2" }, knownIds),
+    ).toEqual({});
+  });
+
+  it("rejects unknown template ids with the target as the key", () => {
+    expect(validateAssignments({ pinned: "missing" }, knownIds)).toEqual({
+      pinned: "Unknown template",
+    });
+  });
+
+  it("treats blanks as unassigned (master fallback)", () => {
+    expect(validateAssignments({ pinned: "", schedule: null }, knownIds)).toEqual({});
+  });
+
+  it("defines the five dashboard views plus pinned", () => {
+    expect(EVENT_TITLE_ASSIGNMENT_TARGETS).toEqual([
+      "month",
+      "week",
+      "weekv2",
+      "schedule",
+      "agenda",
+      "pinned",
+    ]);
   });
 });
 

@@ -12,7 +12,10 @@ import {
   KAH_EMAIL_BODY_TEMPLATE_DEFAULT,
   KAH_EMAIL_SUBJECT_TEMPLATE_DEFAULT,
 } from "@/lib/kah/emailDefaults";
-import { normalizeAssignments } from "@/lib/settings/validate";
+import {
+  normalizeAssignments,
+  type EventTitleAssignmentTarget,
+} from "@/lib/settings/validate";
 
 export interface EventTitleTemplateView {
   id: string;
@@ -26,8 +29,8 @@ export interface SettingsView {
   userKeyword: string;
   nameTemplate: string;
   eventTitleTemplate: string;
-  /** Per-view library assignment: view -> templateId (empty string means use master). */
-  eventTitleTemplateAssignments: Partial<Record<string, string>>;
+  /** Per-target library assignment: target -> templateId (empty string means use master). */
+  eventTitleTemplateAssignments: Partial<Record<EventTitleAssignmentTarget, string>>;
   auditLogRetentionDays: number;
   bannerEnabled: boolean;
   bannerText: string;

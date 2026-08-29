@@ -32,7 +32,8 @@ import {
 } from "@/lib/settings/formatEventTitle";
 import { formatFullName } from "@/lib/settings/formatName";
 import {
-  DASHBOARD_VIEW_VALUES,
+  EVENT_TITLE_ASSIGNMENT_TARGETS,
+  EVENT_TITLE_TARGET_LABELS,
   getEventTitleTemplateWarnings,
   NAME_TEMPLATE_PLACEHOLDERS,
   validateNameTemplate,
@@ -86,14 +87,6 @@ const FALLBACK_SAMPLE_USERS: PreviewUser[] = [
 ];
 
 const FALLBACK_SAMPLE_EVENT_TYPE: PreviewEventType = { name: "Training", shortname: "TRN" };
-
-const VIEW_LABELS: Record<string, string> = {
-  month: "Month",
-  week: "Week (H)",
-  weekv2: "Week (D)",
-  schedule: "Day",
-  agenda: "Agenda",
-};
 
 function insertTokenAtCursor(
   current: string,
@@ -166,6 +159,7 @@ export function TemplatesForm({
       weekv2: assignments.weekv2 ?? "",
       schedule: assignments.schedule ?? "",
       agenda: assignments.agenda ?? "",
+      pinned: assignments.pinned ?? "",
     },
   });
 
@@ -176,9 +170,17 @@ export function TemplatesForm({
       weekv2: assignments.weekv2 ?? "",
       schedule: assignments.schedule ?? "",
       agenda: assignments.agenda ?? "",
+      pinned: assignments.pinned ?? "",
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [assignments.month, assignments.week, assignments.weekv2, assignments.schedule, assignments.agenda]);
+  }, [
+    assignments.month,
+    assignments.week,
+    assignments.weekv2,
+    assignments.schedule,
+    assignments.agenda,
+    assignments.pinned,
+  ]);
 
   const onSubmitNameTemplate = nameTemplateForm.onSubmit(
     async (values) => {
@@ -263,8 +265,8 @@ export function TemplatesForm({
   const handleAssignmentSave = async () => {
     const values = assignmentForm.values;
     const cleaned: Record<string, string | null> = {};
-    for (const view of DASHBOARD_VIEW_VALUES) {
-      cleaned[view] = values[view] || null;
+    for (const target of EVENT_TITLE_ASSIGNMENT_TARGETS) {
+      cleaned[target] = values[target] || null;
     }
     const result = await updateEventTitleTemplateAssignments(cleaned as Record<string, string | null>);
     if (result.ok) {
@@ -282,7 +284,7 @@ export function TemplatesForm({
   ];
 
   // Use live assignments prop for summary (not form draft) so page summary reflects saved state
-  const savedAssignedCount = DASHBOARD_VIEW_VALUES.filter((v) => assignments[v]).length;
+  const savedAssignedCount = EVENT_TITLE_ASSIGNMENT_TARGETS.filter((target) => assignments[target]).length;
 
   return (
     <>
@@ -438,8 +440,8 @@ export function TemplatesForm({
               <Text fw={600}>View Templates</Text>
               <Text size="sm" c="dimmed">
                 {templates.length === 0
-                  ? "No view templates yet — all views use Master (Default)."
-                  : `${templates.length} template${templates.length === 1 ? "" : "s"} · ${savedAssignedCount}/5 views assigned`}
+                  ? "No view templates yet — every target uses Master (Default)."
+                  : `${templates.length} template${templates.length === 1 ? "" : "s"} · ${savedAssignedCount}/${EVENT_TITLE_ASSIGNMENT_TARGETS.length} targets assigned`}
               </Text>
             </Stack>
             <Group gap="xs" wrap="nowrap">
@@ -524,20 +526,20 @@ export function TemplatesForm({
       <Modal opened={assignmentsOpened} onClose={closeAssignments} title="View assignments" centered size={isDesktop ? "md" : "sm"}>
         <Stack>
           <Text size="sm" c="dimmed">
-            Choose which view template each dashboard view displays. Empty = Master (Default). Any view can use any token.
+            Choose which template each target displays: dashboard views and the Pinned Events panel. Empty = Master (Default). Any target can use any token.
           </Text>
 
           <Stack gap="sm">
-            {DASHBOARD_VIEW_VALUES.map((view) => {
-              const assignedId = assignmentForm.values[view] ?? "";
+            {EVENT_TITLE_ASSIGNMENT_TARGETS.map((target) => {
+              const assignedId = assignmentForm.values[target] ?? "";
               const tpl = assignedId ? (templateMap.get(assignedId) ?? masterTemplate) : masterTemplate;
               return (
-                <Stack key={view} gap="xs">
+                <Stack key={target} gap="xs">
                   <NoKeyboardSelect
-                    label={VIEW_LABELS[view] ?? view}
+                    label={EVENT_TITLE_TARGET_LABELS[target]}
                     data={templateOptions}
                     value={assignedId}
-                    onChange={(val) => assignmentForm.setFieldValue(view, val ?? "")}
+                    onChange={(val) => assignmentForm.setFieldValue(target, val ?? "")}
                     placeholder="Master (Default)"
                     searchable={false}
                     allowDeselect

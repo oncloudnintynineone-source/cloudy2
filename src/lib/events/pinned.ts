@@ -8,7 +8,7 @@ import { selectUpcomingPinnedEvents } from "@/lib/events/pinnedSelect";
 import { naiveTimePart } from "@/lib/events/timeOptions";
 import { formatInstantToNaive, monthsInRange } from "@/lib/events/datetime";
 import { formatFullName } from "@/lib/settings/formatName";
-import { getSettings } from "@/lib/settings/queries";
+import { getSettings, getEventTitleTemplateMap } from "@/lib/settings/queries";
 import { requireSession } from "@/lib/session";
 
 export interface PinnedEvent {
@@ -86,13 +86,22 @@ export async function fetchPinnedEvents(): Promise<PinnedEvent[]> {
     return [];
   }
 
-  const [settings, users, eventTypes] = await Promise.all([
+  const [settings, users, eventTypes, templateMap] = await Promise.all([
     getSettings(),
     listUsers(),
     listEventTypes(),
+    getEventTitleTemplateMap(),
   ]);
   const userById = new Map(users.map((u) => [u.id, u]));
   const typeAcronym = new Map(eventTypes.map((t) => [t.name, t.shortname]));
+
+  // The pinned panel renders the event title template assigned to the
+  // `pinned` target (Settings → Templates → View assignments); unassigned =
+  // Master, exactly like the dashboard views.
+  const pinnedTemplateId = settings.eventTitleTemplateAssignments["pinned"] ?? "";
+  const pinnedTemplate = pinnedTemplateId
+    ? templateMap.get(pinnedTemplateId)?.template ?? settings.eventTitleTemplate
+    : settings.eventTitleTemplate;
 
   return pinned.map((e) => {
     const people = e.payload.inviteeUserIds.flatMap((id) => {
@@ -121,7 +130,7 @@ export async function fetchPinnedEvents(): Promise<PinnedEvent[]> {
       people,
       departments,
       location: e.payload.location ?? "",
-      template: settings.eventTitleTemplate,
+      template: pinnedTemplate,
       timeOption: e.payload.timeOption,
       startTime: naiveTimePart(e.start),
       endTime: naiveTimePart(e.end),
