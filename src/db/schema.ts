@@ -12,6 +12,7 @@ import {
   timestamp,
   uniqueIndex,
   uuid,
+  type AnyPgColumn,
 } from "drizzle-orm/pg-core";
 
 const timestamps = {
@@ -62,12 +63,22 @@ export const calendars = pgTable(
      * null = deterministic default from the calendar id.
      */
     color: text("color"),
+    /**
+     * Parent department (self FK); null = top level. Deleting a parent
+     * promotes its children to top level. `sortOrder` is globally unique
+     * and encodes preorder tree rank (children ranked right after their
+     * parent), so the flat ordering doubles as the tree rendering order.
+     */
+    parentId: uuid("parent_id").references((): AnyPgColumn => calendars.id, {
+      onDelete: "set null",
+    }),
     sortOrder: integer("sort_order").notNull().default(0),
     ...timestamps,
   },
   (table) => [
     uniqueIndex("calendars_google_calendar_id_idx").on(table.googleCalendarId),
     index("calendars_sort_idx").on(table.sortOrder),
+    index("calendars_parent_idx").on(table.parentId),
   ],
 );
 

@@ -30,11 +30,13 @@ import {
   updateDepartmentAccess,
   type RosterActionResult,
 } from "@/lib/roster/actions";
+import { parentOptionsFor } from "@/lib/roster/hierarchy";
 import type { DepartmentAccess, DepartmentAccessRole } from "@/lib/roster/shares";
 import { validateCalendarForm, type CalendarFormValues } from "@/lib/roster/validate";
 import { BUTTON_LOADER_PROPS } from "@/lib/theme";
 import { showValidationFailure } from "@/lib/ui/validationFeedback";
 import { ColorSwatchPicker } from "@/components/ColorSwatchPicker";
+import { NoKeyboardSelect } from "@/components/NoKeyboardSelect";
 
 const ACCESS_ROLE_OPTIONS = [
   { value: "reader", label: "Read only" },
@@ -58,6 +60,8 @@ function roleLabel(role: string | undefined): string {
 interface DepartmentDetailProps {
   /** The department to manage; null opens the create flow. */
   calendar: Calendar | null;
+  /** Every department — source of the parent-department options. */
+  departments: Calendar[];
   opened: boolean;
   onClose: () => void;
   /** After an existing department is saved: update its list row in place. */
@@ -70,6 +74,7 @@ interface DepartmentDetailProps {
 
 interface DepartmentDetailBodyProps {
   calendar: Calendar | null;
+  departments: Calendar[];
   onSaved: (calendar: Calendar) => void;
   onCreate: () => void;
   onRequestDelete: (calendar: Calendar) => void;
@@ -77,6 +82,7 @@ interface DepartmentDetailBodyProps {
 
 export function DepartmentDetail({
   calendar,
+  departments,
   opened,
   onClose,
   onSaved,
@@ -98,6 +104,7 @@ export function DepartmentDetail({
       <DepartmentDetailBody
         key={calendar?.id ?? "new"}
         calendar={calendar}
+        departments={departments}
         onSaved={onSaved}
         onCreate={onCreate}
         onRequestDelete={onRequestDelete}
@@ -108,6 +115,7 @@ export function DepartmentDetail({
 
 function DepartmentDetailBody({
   calendar,
+  departments,
   onSaved,
   onCreate,
   onRequestDelete,
@@ -119,10 +127,21 @@ function DepartmentDetailBody({
     initialValues: {
       name: calendar?.name ?? "",
       color: calendar?.color ?? "",
+      parentId: calendar?.parentId ?? "",
     },
     validate: (values) => validateCalendarForm(values),
     validateInputOnBlur: true,
   });
+
+  // Self and descendants are excluded: choosing one of them would create a
+  // cycle in the hierarchy.
+  const parentOptions = [
+    { value: "", label: "No parent (top level)" },
+    ...parentOptionsFor(departments, calendarId ?? "").map((dept) => ({
+      value: dept.id,
+      label: dept.name,
+    })),
+  ];
 
   const [data, setData] = useState<DepartmentAccess | null>(null);
   const [email, setEmail] = useState("");
@@ -162,7 +181,12 @@ function DepartmentDetailBody({
           notifications.show({ color: "green", message });
         }
         if (isEdit && calendar) {
-          onSaved({ ...calendar, name: values.name, color: values.color || null });
+          onSaved({
+            ...calendar,
+            name: values.name,
+            color: values.color || null,
+            parentId: values.parentId || null,
+          });
         } else {
           onCreate();
         }
@@ -171,6 +195,9 @@ function DepartmentDetailBody({
 
       if (result.field === "name") {
         form.setFieldError("name", result.error);
+      }
+      if (result.field === "parentId") {
+        form.setFieldError("parentId", result.error);
       }
       notifications.show({ color: "red", message: result.error });
     },
@@ -266,6 +293,18 @@ function DepartmentDetailBody({
           placeholder="Department name"
           {...form.getInputProps("name")}
         />
+        {/* Non-searchable on purpose: the department list is short, and a
+            button target never raises the mobile keyboard. */}
+        <NoKeyboardSelect
+          mt="md"
+          label="Parent department"
+          data={parentOptions}
+          {...form.getInputProps("parentId")}
+        />
+        <Text size="sm" c="dimmed">
+          Sub-departments are grouped under their parent: in parade state, the parent&apos;s
+          headcount includes every department below it.
+        </Text>
         {/* Swatch buttons (not an input), same no-keyboard rationale as the
               Role/Department badges in UserForm: tapping a swatch on mobile
               never raises the keyboard. */}

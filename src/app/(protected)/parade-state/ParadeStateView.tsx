@@ -42,14 +42,15 @@ import { FAB_ICON_SIZE, FloatingActionButton, FloatingToolbar } from "@/componen
 import type { CalendarEvent } from "@/lib/events/queries";
 import { CONTENT_ENTER_CLASS, useContentEnter } from "@/lib/loading/contentEnter";
 import { useMinSkeletonHold } from "@/lib/loading/minHoldLoading";
+import { buildDepartmentTree, type DepartmentTreeNode } from "@/lib/roster/hierarchy";
 import { formatFullName } from "@/lib/settings/formatName";
 import { activatable } from "@/lib/ui/activatable";
 import { PARADE_STATE_KEYS, freshMarkerNeeded } from "@/lib/ui/uiState";
 import { usePersistUiState } from "@/lib/ui/uiStateClient";
 
-import { buildAttendanceReport } from "./attendanceReport";
+import { buildAttendanceReport, type AttendanceReportDepartment } from "./attendanceReport";
 import { clearAttendance, loadAttendanceRecord, saveAttendanceIds } from "./attendanceStorage";
-import { departmentHeadcount } from "./headcount";
+import { departmentTreeHeadcount } from "./headcount";
 import { formatEventTimeBadge } from "./eventTimeBadge";
 import { ParadeStateDepartmentSkeleton } from "./paradeStateSkeleton";
 
@@ -74,10 +75,28 @@ interface ParadeStateEvent {
   inviteeUserIds: string[];
 }
 
-interface ParadeStateDepartment {
+/** A department section of the rendered hierarchy (direct users + sub-sections). */
+interface DepartmentSection {
   id: string | null;
   name: string;
   users: ParadeStateUser[];
+  children: DepartmentSection[];
+}
+
+function sectionHasUsers(section: DepartmentSection): boolean {
+  if (section.users.length > 0) return true;
+  return section.children.some(sectionHasUsers);
+}
+
+function countCheckedIn(
+  section: DepartmentSection,
+  checkedIds: ReadonlySet<string>,
+): number {
+  let count = section.users.filter((user) => checkedIds.has(user.id)).length;
+  for (const child of section.children) {
+    count += countCheckedIn(child, checkedIds);
+  }
+  return count;
 }
 
 export interface ParadeStateViewProps {
@@ -85,7 +104,7 @@ export interface ParadeStateViewProps {
   month: string;
   users: ParadeStateUser[];
   events: CalendarEvent[];
-  calendars: { id: string; name: string; sortOrder?: number }[];
+  calendars: { id: string; name: string; sortOrder?: number; parentId: string | null }[];
   currentUser: string;
   selectedCalendarIds: string[];
   selectedUserIds: string[];
@@ -401,37 +420,43 @@ export function ParadeStateView({
     return map;
   }, [dayEvents]);
 
-  const departments: ParadeStateDepartment[] = useMemo(() => {
-    const deptMap = new Map<string, ParadeStateDepartment & { sortOrder: number }>();
-    const unassigned: ParadeStateDepartment = { id: null, name: "Unassigned", users: [] };
+  // The department hierarchy (parents before children, by the shared sortOrder)
+  // with each user's direct department section; "Unassigned" stays a terminal
+  // top-level section. Headcounts aggregate down the tree at render time.
+  const sections: DepartmentSection[] = useMemo(() => {
+    const usersByDept = new Map<string, ParadeStateUser[]>();
+    const unassigned: ParadeStateUser[] = [];
 
     for (const user of users) {
       if (user.department) {
-        let dept = deptMap.get(user.department.id);
-        if (!dept) {
-          dept = {
-            id: user.department.id,
-            name: user.department.name,
-            sortOrder: user.department.sortOrder ?? 0,
-            users: [],
-          };
-          deptMap.set(user.department.id, dept);
-        }
-        dept.users.push(user);
+        const list = usersByDept.get(user.department.id) ?? [];
+        list.push(user);
+        usersByDept.set(user.department.id, list);
       } else {
-        unassigned.users.push(user);
+        unassigned.push(user);
       }
     }
 
-    const sorted = [...deptMap.values()].sort(
-      (a, b) => (a.sortOrder - b.sortOrder) || a.name.localeCompare(b.name),
+    const tree = buildDepartmentTree(
+      calendars.map((calendar) => ({
+        id: calendar.id,
+        name: calendar.name,
+        sortOrder: calendar.sortOrder ?? 0,
+        parentId: calendar.parentId,
+      })),
     );
-    const result: ParadeStateDepartment[] = [...sorted];
-    if (unassigned.users.length > 0) {
-      result.push(unassigned);
-    }
-    return result;
-  }, [users]);
+    const mapNode = (node: DepartmentTreeNode): DepartmentSection => ({
+      id: node.id,
+      name: node.name,
+      users: usersByDept.get(node.id) ?? [],
+      children: node.children.map(mapNode),
+    });
+
+    return [
+      ...tree.map(mapNode),
+      { id: null, name: "Unassigned", users: unassigned, children: [] },
+    ];
+  }, [users, calendars]);
 
   function enterAttendance() {
     setAttendance(loadAttendanceRecord());
@@ -458,14 +483,17 @@ export function ParadeStateView({
 
   async function copyAttendanceReport() {
     // Full names (raw roster names, not the display-name template); a checked
-    // user renders bare (present) regardless of their calendar.
-    const text = buildAttendanceReport(
-      departments.map((dept) => ({
-        name: dept.name,
-        users: dept.users.map((user) => ({ id: user.id, name: user.name })),
-      })),
-      checkedIds,
-    );
+    // user renders bare (present) regardless of their calendar. The tree
+    // shape carries the hierarchy: flat blocks in tree order, parent counts
+    // include every sub-department.
+    const toReport = (section: DepartmentSection): AttendanceReportDepartment => ({
+      name: section.name,
+      users: section.users.map((user) => ({ id: user.id, name: user.name })),
+      ...(section.children.length > 0
+        ? { children: section.children.map(toReport) }
+        : {}),
+    });
+    const text = buildAttendanceReport(sections.map(toReport), checkedIds);
     try {
       await clipboard.copy(text);
       notifications.show({ color: "green", message: "Parade state copied to clipboard" });
@@ -505,6 +533,131 @@ export function ParadeStateView({
       Attendance
     </Button>
   );
+
+  function renderUserCard(user: ParadeStateUser) {
+    const userEvents = eventsByUser.get(user.id) ?? [];
+    const checked = attendanceMode && checkedIds.has(user.id);
+    const displayName = formatFullName(
+      { name: user.name, departmentName: user.department?.name ?? null },
+      nameTemplate,
+    );
+    return (
+      <Paper
+        key={user.id}
+        withBorder
+        p="sm"
+        onClick={attendanceMode ? () => toggleAttendance(user.id) : undefined}
+        {...(attendanceMode ? activatable(() => toggleAttendance(user.id)) : {})}
+        style={{
+          cursor: attendanceMode ? "pointer" : undefined,
+          ...(checked
+            ? {
+                backgroundColor: colorScheme === "dark" ? "#10281b" : "#e8f5e9",
+                borderColor: "var(--mantine-color-green-4)",
+              }
+            : userEvents.length > 0
+              ? {
+                  backgroundColor: colorScheme === "dark" ? "#3d3200" : "#fff8e1",
+                  borderColor: "var(--mantine-color-yellow-4)",
+                }
+              : {}),
+        }}
+      >
+        <Stack gap={2}>
+          <Group gap="xs" wrap="nowrap" align="center">
+            {attendanceMode && (
+              // Clicks stop here: toggling the checkbox must
+              // not also fire the card-level toggle.
+              <Box
+                onClick={(event) => event.stopPropagation()}
+                style={{ flexShrink: 0 }}
+              >
+                <Checkbox
+                  checked={checkedIds.has(user.id)}
+                  onChange={() => toggleAttendance(user.id)}
+                  aria-label={`Mark ${user.name} as present`}
+                />
+              </Box>
+            )}
+            {/* Icon twin of the amber card background (the
+                legend names it), so out-of-camp status never
+                rides on color alone. */}
+            {!checked && userEvents.length > 0 && (
+              <IconMapPin
+                size={14}
+                color="var(--mantine-color-dimmed)"
+                aria-hidden
+                style={{ flexShrink: 0 }}
+              />
+            )}
+            {attendanceMode && checkedIds.has(user.id) && (
+              <IconCheck
+                size={14}
+                color="var(--mantine-color-teal-6)"
+                aria-hidden
+                style={{ flexShrink: 0 }}
+              />
+            )}
+            <Text fw={600} size="sm">
+              {displayName}
+            </Text>
+          </Group>
+          {userEvents.length > 0 && (
+            <Stack gap={2} ml="xs">
+              {userEvents.map((event) => (
+                <Group key={event.id} gap={6} wrap="nowrap" align="center">
+                  <Badge
+                    size="xs"
+                    variant="light"
+                    color="gray"
+                    radius="sm"
+                    style={{ flexShrink: 0 }}
+                  >
+                    {formatEventTimeBadge(event, date)}
+                  </Badge>
+                  <Text
+                    size="xs"
+                    fw={400}
+                    c="dimmed"
+                    style={{ flex: 1, minWidth: 0 }}
+                  >
+                    {event.title}
+                  </Text>
+                </Group>
+              ))}
+            </Stack>
+          )}
+        </Stack>
+      </Paper>
+    );
+  }
+
+  // One level of the hierarchy: header (headcount aggregated over every
+  // sub-department below), the direct members' card grid, then the nested
+  // sub-departments. Each level indents within its parent, so depth
+  // accumulates naturally.
+  function renderSection(section: DepartmentSection, depth: number) {
+    if (!sectionHasUsers(section)) return null;
+    const headcount = departmentTreeHeadcount(section, eventsByUser);
+    const presentCount = attendanceMode
+      ? countCheckedIn(section, checkedIds)
+      : headcount.present;
+    return (
+      <Box key={section.id ?? "__unassigned__"} style={{ marginLeft: depth * 16 }}>
+        <Text fw={700} size="sm" c="dimmed" mb="xs" tt="uppercase" lh={1}>
+          {section.name} ({presentCount}/{headcount.total})
+        </Text>
+        {section.users.length > 0 && (
+          // Single column on mobile; auto-filling card grid at lg
+          // (see .card-grid in globals.css).
+          <Box component="div" className="card-grid">
+            {section.users.map(renderUserCard)}
+          </Box>
+        )}
+        {section.children.map((child) => renderSection(child, depth + 1))}
+      </Box>
+    );
+  }
 
   const dayLabel = dayjs(date).format("ddd, MMM D, YYYY");
   const onToday = date === today;
@@ -677,133 +830,12 @@ export function ParadeStateView({
             <ParadeStateDepartmentSkeleton users={2} />
             <ParadeStateDepartmentSkeleton users={3} />
           </Stack>
-        ) : departments.length === 0 ? (
+        ) : !sections.some(sectionHasUsers) ? (
           <Text c="dimmed" ta="center" py="lg">
-            No departments found.
-          </Text>
-        ) : departments.every((dept) => dept.users.length === 0) ? (
-          <Text c="dimmed" ta="center" py="lg">
-            No users found.
+            {users.length === 0 ? "No departments found." : "No users found."}
           </Text>
         ) : (
-          <Stack gap="lg">
-            {departments.map((dept) => {
-              if (dept.users.length === 0) return null;
-              const headcount = departmentHeadcount(dept.users, eventsByUser);
-              const presentCount = attendanceMode
-                ? dept.users.filter((user) => checkedIds.has(user.id)).length
-                : headcount.present;
-              return (
-                <Box key={dept.id ?? "__unassigned__"}>
-                  <Text fw={700} size="sm" c="dimmed" mb="xs" tt="uppercase" lh={1}>
-                    {dept.name} ({presentCount}/{headcount.total})
-                  </Text>
-                  {/* Single column on mobile; auto-filling card grid at lg
-                      (see .card-grid in globals.css). */}
-                  <Box component="div" className="card-grid">
-                    {dept.users.map((user) => {
-                      const userEvents = eventsByUser.get(user.id) ?? [];
-                      const checked = attendanceMode && checkedIds.has(user.id);
-                      const displayName = formatFullName(
-                        { name: user.name, departmentName: user.department?.name ?? null },
-                        nameTemplate,
-                      );
-                      return (
-                        <Paper
-                          key={user.id}
-                          withBorder
-                          p="sm"
-                          onClick={attendanceMode ? () => toggleAttendance(user.id) : undefined}
-                          {...(attendanceMode ? activatable(() => toggleAttendance(user.id)) : {})}
-                          style={{
-                            cursor: attendanceMode ? "pointer" : undefined,
-                            ...(checked
-                              ? {
-                                  backgroundColor: colorScheme === "dark" ? "#10281b" : "#e8f5e9",
-                                  borderColor: "var(--mantine-color-green-4)",
-                                }
-                              : userEvents.length > 0
-                                ? {
-                                    backgroundColor:
-                                      colorScheme === "dark" ? "#3d3200" : "#fff8e1",
-                                    borderColor: "var(--mantine-color-yellow-4)",
-                                  }
-                                : {}),
-                          }}
-                        >
-                          <Stack gap={2}>
-                            <Group gap="xs" wrap="nowrap" align="center">
-                              {attendanceMode && (
-                                // Clicks stop here: toggling the checkbox must
-                                // not also fire the card-level toggle.
-                                <Box
-                                  onClick={(event) => event.stopPropagation()}
-                                  style={{ flexShrink: 0 }}
-                                >
-                                  <Checkbox
-                                    checked={checkedIds.has(user.id)}
-                                    onChange={() => toggleAttendance(user.id)}
-                                    aria-label={`Mark ${user.name} as present`}
-                                  />
-                                </Box>
-                              )}
-                              {/* Icon twin of the amber card background (the
-                                  legend names it), so out-of-camp status never
-                                  rides on color alone. */}
-                              {!checked && userEvents.length > 0 && (
-                                <IconMapPin
-                                  size={14}
-                                  color="var(--mantine-color-dimmed)"
-                                  aria-hidden
-                                  style={{ flexShrink: 0 }}
-                                />
-                              )}
-                              {attendanceMode && checkedIds.has(user.id) && (
-                                <IconCheck
-                                  size={14}
-                                  color="var(--mantine-color-teal-6)"
-                                  aria-hidden
-                                  style={{ flexShrink: 0 }}
-                                />
-                              )}
-                              <Text fw={600} size="sm">
-                                {displayName}
-                              </Text>
-                            </Group>
-                            {userEvents.length > 0 && (
-                              <Stack gap={2} ml="xs">
-                                {userEvents.map((event) => (
-                                  <Group key={event.id} gap={6} wrap="nowrap" align="center">
-                                    <Badge
-                                      size="xs"
-                                      variant="light"
-                                      color="gray"
-                                      radius="sm"
-                                      style={{ flexShrink: 0 }}
-                                    >
-                                      {formatEventTimeBadge(event, date)}
-                                    </Badge>
-                                    <Text
-                                      size="xs"
-                                      fw={400}
-                                      c="dimmed"
-                                      style={{ flex: 1, minWidth: 0 }}
-                                    >
-                                      {event.title}
-                                    </Text>
-                                  </Group>
-                                ))}
-                              </Stack>
-                            )}
-                          </Stack>
-                        </Paper>
-                      );
-                    })}
-                  </Box>
-                </Box>
-              );
-            })}
-          </Stack>
+          <Stack gap="lg">{sections.map((section) => renderSection(section, 0))}</Stack>
         )}
       </Box>
 

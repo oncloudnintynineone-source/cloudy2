@@ -89,3 +89,70 @@ describe("buildAttendanceReport", () => {
     );
   });
 });
+
+describe("buildAttendanceReport with hierarchy", () => {
+  const nested: AttendanceReportDepartment[] = [
+    {
+      name: "HQ",
+      users: [{ id: "u0", name: "John Doe" }],
+      children: [
+        {
+          name: "Logistics",
+          users: [
+            { id: "u1", name: "Alice Tan" },
+            { id: "u2", name: "Bob Ng" },
+          ],
+        },
+        {
+          name: "Operations",
+          users: [{ id: "u4", name: "David Koh" }],
+          children: [{ name: "Night shift", users: [{ id: "u5", name: "Eve Wong" }] }],
+        },
+      ],
+    },
+    { name: "Field", users: [{ id: "u6", name: "Frank Goh" }] },
+  ];
+
+  it("renders flat blocks in tree order with aggregated parent counts", () => {
+    const text = buildAttendanceReport(nested, new Set(["u0", "u1"]));
+    expect(text).toBe(
+      [
+        "HQ (2 of 5)",
+        "John Doe",
+        "",
+        "Logistics (1 of 2)",
+        "Alice Tan",
+        "Bob Ng - Absent",
+        "",
+        "Operations (0 of 2)",
+        "David Koh - Absent",
+        "",
+        "Night shift (0 of 1)",
+        "Eve Wong - Absent",
+        "",
+        "Field (0 of 1)",
+        "Frank Goh - Absent",
+      ].join("\n"),
+    );
+  });
+
+  it("counts transitive descendants in the topmost header", () => {
+    const text = buildAttendanceReport(nested, new Set(["u1", "u4", "u5"]));
+    expect(text).toContain("HQ (3 of 5)");
+    expect(text).toContain("Operations (2 of 2)");
+  });
+
+  it("omits the block of a parent without direct users but keeps its children", () => {
+    const groupless: AttendanceReportDepartment[] = [
+      {
+        name: "Group",
+        users: [],
+        children: [nested[0]],
+      },
+    ];
+    const text = buildAttendanceReport(groupless, new Set());
+    expect(text).toContain("HQ (0 of 5)");
+    expect(text).not.toContain("Group");
+    expect(text.startsWith("HQ (0 of 5)")).toBe(true);
+  });
+});

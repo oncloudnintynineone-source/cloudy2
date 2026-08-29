@@ -121,6 +121,7 @@ export default async function ParadeStatePage({ searchParams }: ParadeStatePageP
           id: calendar.id,
           name: calendar.name,
           sortOrder: calendar.sortOrder,
+          parentId: calendar.parentId,
         }))}
         currentUser={session.user.id}
         selectedCalendarIds={selectedCalendars}

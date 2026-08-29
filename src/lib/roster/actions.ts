@@ -13,6 +13,13 @@ import { normalizeEventColor } from "@/lib/events/eventColors";
 import { getGoogleIntegration, googleCalendarConfigured } from "@/lib/google";
 import { requireAdmin } from "@/lib/session";
 import {
+  buildDepartmentTree,
+  descendantIds,
+  findDepartmentNode,
+  flattenDepartmentTree,
+  moveInTreeOrder,
+} from "@/lib/roster/hierarchy";
+import {
   isDepartmentAccessRole,
   isValidEmail,
   listDepartmentAccess,
@@ -31,7 +38,11 @@ import {
 
 export type RosterActionResult =
   | { ok: true; warnings?: string[] }
-  | { ok: false; error: string; field?: "phone" | "shortname" | "name" | "email" };
+  | {
+      ok: false;
+      error: string;
+      field?: "phone" | "shortname" | "name" | "email" | "parentId";
+    };
 
 export type ShareActionResult = { ok: true } | { ok: false; error: string };
 
@@ -284,15 +295,69 @@ export async function createDepartment(input: CalendarFormValues): Promise<Roste
 
   const name = input.name.trim();
   const color = normalizeEventColor(input.color);
+  const parentId = input.parentId || null;
+
+  const existing = await db
+    .select({ id: calendars.id, name: calendars.name, sortOrder: calendars.sortOrder, parentId: calendars.parentId })
+    .from(calendars)
+    .orderBy(asc(calendars.sortOrder), asc(calendars.name));
+
+  let parentName: string | null = null;
+  if (parentId) {
+    const parent = existing.find((row) => row.id === parentId);
+    if (!parent) {
+      return { ok: false, error: "Parent department not found", field: "parentId" };
+    }
+    parentName = parent.name;
+  }
+
+  // sortOrder encodes preorder tree rank: a new top-level department ranks
+  // last overall; a new child ranks at the end of its parent's subtree
+  // (shifted rows are renumbered in the same transaction as the insert).
+  let newRank: number;
+  let ranked: { id: string; sortOrder: number }[] | null = null;
+  if (parentId) {
+    const tree = buildDepartmentTree(existing);
+    const parent = findDepartmentNode(tree, parentId);
+    if (!parent) {
+      return { ok: false, error: "Parent department not found", field: "parentId" };
+    }
+    parent.children.push({ id: "__new__", name, sortOrder: Number.MAX_SAFE_INTEGER, parentId, children: [] });
+    // The placeholder stands in for the new row, so each combined-preorder
+    // index IS the final rank (the placeholder's own index is the new rank).
+    const flat = flattenDepartmentTree(tree);
+    newRank = flat.findIndex((node) => node.id === "__new__");
+    ranked = flat
+      .map((node, index) => ({ id: node.id, sortOrder: index }))
+      .filter((entry) => entry.id !== "__new__");
+  } else {
+    newRank = existing.reduce((max, row) => Math.max(max, row.sortOrder), -1) + 1;
+  }
+
   try {
     const integration = await getGoogleIntegration();
     const created = await integration.createCalendar(name);
-    const existing = await db.select({ sortOrder: calendars.sortOrder }).from(calendars);
-    const nextOrder = existing.reduce((max, row) => Math.max(max, row.sortOrder), -1) + 1;
-    const [row] = await db
-      .insert(calendars)
-      .values({ name, googleCalendarId: created.calendarId, kind: "department", color, sortOrder: nextOrder })
-      .returning({ id: calendars.id, name: calendars.name });
+    const [row] = await db.transaction(async (tx) => {
+      if (ranked) {
+        for (const entry of ranked) {
+          const current = existing.find((row) => row.id === entry.id);
+          if (current && current.sortOrder !== entry.sortOrder) {
+            await tx.update(calendars).set({ sortOrder: entry.sortOrder }).where(eq(calendars.id, entry.id));
+          }
+        }
+      }
+      return tx
+        .insert(calendars)
+        .values({
+          name,
+          googleCalendarId: created.calendarId,
+          kind: "department",
+          color,
+          parentId,
+          sortOrder: newRank,
+        })
+        .returning({ id: calendars.id, name: calendars.name });
+    });
 
     await logAction({
       ...actorFrom(session),
@@ -301,7 +366,7 @@ export async function createDepartment(input: CalendarFormValues): Promise<Roste
       entityId: row.id,
       entityName: row.name,
       method: "createDepartment",
-      details: { googleCalendarId: created.calendarId, color },
+      details: { googleCalendarId: created.calendarId, color, parent: parentName },
     });
   } catch (error) {
     if (findUniqueViolation(error) !== null) {
@@ -339,13 +404,68 @@ export async function renameDepartment(
 
   const name = input.name.trim();
   const color = normalizeEventColor(input.color);
+  const targetParentId = input.parentId || null;
+
+  // A parent change moves the department's whole subtree, so it needs the
+  // full list: validate existence + cycle-freedom, then renumber preorder
+  // ranks in the same transaction.
+  let ranked: { id: string; sortOrder: number }[] | null = null;
+  let rows: {
+    id: string;
+    name: string;
+    sortOrder: number;
+    parentId: string | null;
+  }[] | null = null;
+  if (targetParentId !== calendar.parentId) {
+    if (targetParentId === id) {
+      return { ok: false, error: "A department cannot be its own sub-department", field: "parentId" };
+    }
+    rows = await db
+      .select({ id: calendars.id, name: calendars.name, sortOrder: calendars.sortOrder, parentId: calendars.parentId })
+      .from(calendars)
+      .orderBy(asc(calendars.sortOrder), asc(calendars.name));
+    if (!rows.some((row) => row.id === targetParentId)) {
+      return { ok: false, error: "Parent department not found", field: "parentId" };
+    }
+    // Moving to top level (null) can never create a cycle.
+    if (targetParentId !== null && descendantIds(rows, id).has(targetParentId)) {
+      return {
+        ok: false,
+        error: "A department cannot be moved under one of its own sub-departments",
+        field: "parentId",
+      };
+    }
+    const reordered = rows.map((row) => (row.id === id ? { ...row, parentId: targetParentId } : row));
+    ranked = flattenDepartmentTree(buildDepartmentTree(reordered)).map((node, index) => ({
+      id: node.id,
+      sortOrder: index,
+    }));
+  }
+
   try {
     if (name !== calendar.name && googleCalendarConfigured()) {
       const integration = await getGoogleIntegration();
       await integration.renameCalendar(calendar.googleCalendarId, name);
     }
-    await db.update(calendars).set({ name, color, updatedAt: new Date() }).where(eq(calendars.id, id));
+    await db.transaction(async (tx) => {
+      await tx
+        .update(calendars)
+        .set({ name, color, parentId: targetParentId, updatedAt: new Date() })
+        .where(eq(calendars.id, id));
+      if (ranked && rows) {
+        for (const entry of ranked) {
+          const current = rows.find((row) => row.id === entry.id);
+          if (current && current.sortOrder !== entry.sortOrder) {
+            await tx.update(calendars).set({ sortOrder: entry.sortOrder }).where(eq(calendars.id, entry.id));
+          }
+        }
+      }
+    });
 
+    const parentIds = [calendar.parentId, targetParentId].filter(
+      (value): value is string => value !== null && value !== undefined,
+    );
+    const parentNames = await calendarNamesByIds([...new Set(parentIds)]);
     await logAction({
       ...actorFrom(session),
       action: AUDIT_ACTIONS.calendarUpdate,
@@ -353,7 +473,14 @@ export async function renameDepartment(
       entityId: id,
       entityName: name,
       method: "renameDepartment",
-      details: diffFields({ name: calendar.name, color: calendar.color }, { name, color }),
+      details: diffFields(
+        {
+          name: calendar.name,
+          color: calendar.color,
+          parent: calendar.parentId ? (parentNames[calendar.parentId] ?? null) : null,
+        },
+        { name, color, parent: targetParentId ? (parentNames[targetParentId] ?? null) : null },
+      ),
     });
   } catch (error) {
     return { ok: false, error: describeError(error, "Could not update the department"), field: "name" };
@@ -402,11 +529,12 @@ export async function deleteDepartment(id: string): Promise<RosterActionResult> 
 }
 
 /**
- * Move a department one step toward the front ("up") or back ("down") of the
- * display order. Renumbering every row first keeps `sortOrder` unique even
- * when legacy rows share values, so the swap always takes effect. No-op at
- * either end. The order is shared by all calendar sub-views (Month/Day/Week)
- * and parade state.
+ * Move a department one step toward the front ("up") or back ("down") among
+ * its siblings (same parent, or both top level); the whole subtree moves
+ * with the department. The result is re-ranked in preorder, which also
+ * closes gaps left by legacy duplicate sortOrder values. No-op at either end
+ * of the sibling group. The order is shared by all calendar sub-views
+ * (Month/Day/Week) and parade state.
  */
 export async function moveDepartment(
   id: string,
@@ -419,21 +547,19 @@ export async function moveDepartment(
   if (index === -1) {
     return { ok: false, error: "Department not found", field: "name" };
   }
-  const neighborIndex = direction === "up" ? index - 1 : index + 1;
-  const neighbor = rows[neighborIndex];
-  if (!neighbor) {
+  const moved = moveInTreeOrder(rows, id, direction);
+  if (!moved) {
     return { ok: true };
   }
+  const neighborIndex = moved.findIndex((row) => row.id === id);
 
-  const moved = rows[index];
   await db.transaction(async (tx) => {
-    for (let i = 0; i < rows.length; i += 1) {
-      if (rows[i].sortOrder !== i) {
-        await tx.update(calendars).set({ sortOrder: i }).where(eq(calendars.id, rows[i].id));
+    for (const entry of moved) {
+      const current = rows.find((row) => row.id === entry.id);
+      if (current && current.sortOrder !== entry.sortOrder) {
+        await tx.update(calendars).set({ sortOrder: entry.sortOrder }).where(eq(calendars.id, entry.id));
       }
     }
-    await tx.update(calendars).set({ sortOrder: neighborIndex }).where(eq(calendars.id, id));
-    await tx.update(calendars).set({ sortOrder: index }).where(eq(calendars.id, neighbor.id));
   });
 
   await logAction({
@@ -441,11 +567,11 @@ export async function moveDepartment(
     action: AUDIT_ACTIONS.calendarUpdate,
     entityType: "calendar",
     entityId: id,
-    entityName: moved.name,
+    entityName: rows[index].name,
     method: "moveDepartment",
     details: diffFields(
-      { order: index + 1, name: moved.name },
-      { order: neighborIndex + 1, name: moved.name },
+      { order: index + 1, name: rows[index].name },
+      { order: neighborIndex + 1, name: rows[index].name },
     ),
   });
 

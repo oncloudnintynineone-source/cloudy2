@@ -69,6 +69,11 @@ export interface CalendarFormValues {
    * "" = the calendar's default.
    */
   color?: string;
+  /**
+   * Parent department; null/"" = top level. Existence and cycle-freedom are
+   * validated server-side (they need the full department list).
+   */
+  parentId?: string | null;
 }
 
 export interface CalendarFormErrors {

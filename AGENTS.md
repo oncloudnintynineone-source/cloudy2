@@ -407,6 +407,19 @@ the SW file lives at a fixed URL, so scriptURL never changes) and, when the
 - The Users section is route `/settings/users`, but its domain code stays under
   `src/lib/roster/*` — don't rename the internal module to match the UI label.
   Model + calendar sharing: [docs/roster-sharing.md](docs/roster-sharing.md).
+- **Departments form a hierarchy** via `calendars.parent_id` (nullable self FK;
+  deleting a parent promotes children to top level). `sortOrder` is globally
+  unique and encodes **preorder tree rank**, so flat calendar listings are
+  already in tree order. Users still belong to exactly one (direct)
+  department; a parent's people include every sub-department below it.
+  Hierarchy management: parent select in the department detail modal (self +
+  descendants excluded), sibling-scoped up/down moves, cycle validation
+  server-side (`descendantIds`). Pure helpers in `src/lib/roster/hierarchy.ts`
+  (unit-tested). The parade-state page renders the tree as nested sections
+  whose `NAME (present/total)` headers aggregate down the subtree
+  (`departmentTreeHeadcount`), and the attendance clipboard report emits flat
+  blocks in tree order with the same aggregated counts (`buildAttendanceReport`
+  takes the nested shape).
 - **Prettier uses double quotes** (`singleQuote: false`) and `printWidth: 100`.
 - ESLint 9 flat config composes `eslint-config-next/core-web-vitals` +
   `next/typescript` (flat arrays, no FlatCompat) with `eslint-config-prettier`;

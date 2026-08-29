@@ -211,6 +211,13 @@
       "when": 1787974511906,
       "tag": "0029_spotty_penance",
       "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "7",
+      "when": 1787979206251,
+      "tag": "0030_fluffy_mojo",
+      "breakpoints": true
     }
   ]
 }

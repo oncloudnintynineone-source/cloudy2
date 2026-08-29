@@ -133,6 +133,7 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
 - [1.124 Offline fallback: last-saved view + saved-views picker (Phase 3b4)](#1124-offline-fallback-last-saved-view--saved-views-picker-phase-3b4)
 - [1.125 Offline fallback reachability fix (bugfix for 1.124)](#1125-offline-fallback-reachability-fix-bugfix-for-1124)
 - [1.126 Offline UX: last saved view for every offline navigation; offline.html drops the picker (Phase 3b4)](#1126-offline-ux-last-saved-view-for-every-offline-navigation-offlinehtml-drops-the-picker-phase-3b4)
+- [1.131 Department hierarchy (Phase 3b6)](#1131-department-hierarchy-phase-3b6)
 
 ## 1.1 Status
 
@@ -5793,3 +5794,87 @@ the versioned cache-name helpers). Manual offline matrix (prod build):
 icon tap → newest saved view + chip; F5 visited URL → direct SWR hit;
 never-visited deep link with `?view=&date=` → newest saved view (no picker);
 clear site data → offline open → plain branded explainer (no list).
+
+## 1.131 Department hierarchy (Phase 3b6)
+
+Report: smaller departments make up bigger ones in reality, but the org model
+was flat — a department's parade-state headcount only counted its own direct
+members, so a parent department's true size was invisible, and neither the
+page nor the clipboard report could express the grouping.
+
+Decision (confirmed with the user): departments nest under a **parent
+department** (any depth); a user still belongs to exactly one *direct*
+department. On parade state the parent renders as a **nested section** whose
+`NAME (present/total)` header aggregates direct + all sub-department members;
+the attendance clipboard report stays **flat blocks in tree order** (parent
+before children, depth-first, no indentation) with the same aggregated
+counts. Moving a department reorders it **among its siblings only** (the
+whole subtree moves; for flat data this is identical to the old global
+up/down swap), and deleting a parent **promotes its children to top level**
+(the delete confirm warns).
+
+Changes:
+
+1. **Schema** — `calendars.parent_id`: nullable self FK (`ON DELETE SET
+   NULL`), indexed. The self-reference needed the `references(():
+   AnyPgColumn => calendars.id)` getter-type annotation to break the
+   TypeScript inference cycle. Migration 0030 (+ committed
+   `drizzle/meta/0030_snapshot.json`). `sort_order` stays globally unique and
+   now encodes **preorder tree rank**, so every flat calendar listing
+   (`listCalendars`, `listDepartments`, filter options) is already in tree
+   order.
+2. **`src/lib/roster/hierarchy.ts` (new, pure, unit-tested)** —
+   `buildDepartmentTree` (cycle-safe: missing parents and self/descendant
+   links degrade to top level), `findDepartmentNode`, `flattenDepartmentTree`
+   (preorder), `descendantIds` (cycle-safe), `parentOptionsFor` (excludes
+   self + descendants), `moveAvailability`, `moveInTreeOrder` (sibling swap;
+   subtree moves; null at sibling ends). 15 tests.
+3. **`src/lib/roster/actions.ts`** — `createDepartment` accepts an optional
+   `parentId` (must exist; new child ranked at the end of the parent's
+   subtree, shifted rows renumbered in the same transaction);
+   `renameDepartment` can change the parent (self/descendant rejected via
+   `descendantIds` — moving to top level always allowed; affected preorder
+   ranks renumbered in the same transaction; audit diff gains `parent`);
+   `moveDepartment` swaps with the adjacent sibling via `moveInTreeOrder`
+   and re-ranks the result (also closing legacy gaps); `deleteDepartment`
+   unchanged mechanically (FK set-null promotes children). Audit details are
+   human-readable names, per the audit convention.
+4. **Settings → Departments** — the detail modal gains a **Parent
+   department** field (plain `NoKeyboardSelect` — short list, no search;
+   options = "No parent (top level)" + `parentOptionsFor`); the list renders
+   the tree (desktop: indent depth + new Parent column; mobile: indent +
+   "In {parent}" line); up/down arrows disable per `moveAvailability`
+   (sibling-scoped); the delete confirm names the sub-departments that will
+   be promoted.
+5. **Parade state** — the page passes each calendar's `parentId`;
+   `ParadeStateView` builds the section tree (`buildDepartmentTree` + direct
+   members; "Unassigned" stays a terminal top-level section) and renders
+   recursively: header with **aggregated** counts (`departmentTreeHeadcount`
+   — direct + descendants; attendance mode counts checked the same way),
+   direct members' card grid, nested sub-departments indented per level. A
+   section renders when it or a descendant has users. `buildAttendanceReport`
+   now takes the nested shape and emits flat preorder blocks with aggregated
+   headers (a department without direct users gets no block; its people still
+   count toward the ancestor's header). Day-total counter, filtering,
+   attendance storage, and the Calendars filter (per-calendar, parent
+   selection does **not** auto-include children) are unchanged.
+
+Non-goals: no auto-include of child calendars in the Calendars/user filters,
+no change to user→department assignment (one direct department), no
+change to event targeting or ACL sharing (a parent/child link is not an
+access relationship).
+
+Docs: `docs/roster-sharing.md` gains §1.7 (Department hierarchy &
+parade-state aggregation: model, pure-helper table, management UI, parade
+render + clipboard format with example; Mermaid tree) and the ERD/
+action-table/file-index updates; sections 1.7–1.12 renumbered to 1.8–1.13
+(cross-references updated); AGENTS.md gains a hierarchy bullet;
+`progress.md` one-liner.
+
+Verification: `pnpm vitest run src/lib/roster/hierarchy.test.ts` (15) +
+updated `attendanceReport`/`headcount` cases; `pnpm test` (748) +
+`pnpm lint` + `pnpm typecheck` pass; `pnpm db:generate` clean (schema-drift
+check) and migration 0030 applied to the dev DB; `pnpm build` passes; dev
+server smoke: `/parade-state`, `/settings/departments`, `/dashboard` all
+respond. Manual QA debt: on-device check of the nested parade sections +
+clipboard text against a real hierarchy (not yet seeded in dev data).

@@ -1,8 +1,19 @@
 "use client";
 
-import { type KeyboardEvent, useState } from "react";
+import { type KeyboardEvent, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ActionIcon, Button, Group, Modal, Paper, Stack, Table, Text, Tooltip } from "@mantine/core";
+import {
+  ActionIcon,
+  Box,
+  Button,
+  Group,
+  Modal,
+  Paper,
+  Stack,
+  Table,
+  Text,
+  Tooltip,
+} from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
 import { IconChevronDown, IconChevronUp, IconPlus } from "@tabler/icons-react";
@@ -10,6 +21,11 @@ import { IconChevronDown, IconChevronUp, IconPlus } from "@tabler/icons-react";
 import type { Calendar } from "@/db/schema";
 import { CONTENT_ENTER_CLASS } from "@/lib/loading/contentEnter";
 import { deleteDepartment, moveDepartment } from "@/lib/roster/actions";
+import {
+  buildDepartmentTree,
+  moveAvailability,
+  type DepartmentTreeNode,
+} from "@/lib/roster/hierarchy";
 import { BUTTON_LOADER_PROPS } from "@/lib/theme";
 import { FAB_ICON_SIZE, FloatingActionButton, FloatingToolbar } from "@/components/FloatingToolbar";
 import { formatColorLabel } from "@/lib/events/eventColors";
@@ -29,6 +45,33 @@ export function DepartmentTable({ departments }: DepartmentTableProps) {
   const [deleting, setDeleting] = useState<Calendar | null>(null);
   const [deletingInProgress, setDeletingInProgress] = useState(false);
   const [moving, setMoving] = useState<string | null>(null);
+
+  const deletingChildCount = deleting
+    ? departments.filter((calendar) => calendar.parentId === deleting.id).length
+    : 0;
+
+  // Preorder display (parent, then its children, indented by depth) and each
+  // row's move availability (a department only moves among its siblings).
+  const displayRows = useMemo(() => {
+    const byId = new Map(departments.map((calendar) => [calendar.id, calendar]));
+    const rows: { calendar: Calendar; depth: number; parent: Calendar | null }[] = [];
+    const walk = (nodes: DepartmentTreeNode[], depth: number) => {
+      for (const node of nodes) {
+        const calendar = byId.get(node.id);
+        if (!calendar) continue;
+        rows.push({
+          calendar,
+          depth,
+          parent: calendar.parentId ? (byId.get(calendar.parentId) ?? null) : null,
+        });
+        walk(node.children, depth + 1);
+      }
+    };
+    walk(buildDepartmentTree(departments), 0);
+    return rows;
+  }, [departments]);
+
+  const availability = useMemo(() => moveAvailability(departments), [departments]);
 
   function openCreate() {
     setSelected(null);
@@ -82,7 +125,8 @@ export function DepartmentTable({ departments }: DepartmentTableProps) {
     }
   }
 
-  function actionsFor(calendar: Calendar, index: number) {
+  function actionsFor(calendar: Calendar) {
+    const can = availability.get(calendar.id) ?? { up: false, down: false };
     return (
       <Group gap={4} wrap="nowrap" onClick={(event) => event.stopPropagation()}>
         <Tooltip label="Move up" position="top">
@@ -90,7 +134,7 @@ export function DepartmentTable({ departments }: DepartmentTableProps) {
             variant="default"
             size="sm"
             aria-label={`Move ${calendar.name} up`}
-            disabled={index === 0}
+            disabled={!can.up}
             loading={moving === `${calendar.id}:up`}
             loaderProps={BUTTON_LOADER_PROPS}
             onClick={() => move(calendar, "up")}
@@ -103,7 +147,7 @@ export function DepartmentTable({ departments }: DepartmentTableProps) {
             variant="default"
             size="sm"
             aria-label={`Move ${calendar.name} down`}
-            disabled={index === departments.length - 1}
+            disabled={!can.down}
             loading={moving === `${calendar.id}:down`}
             loaderProps={BUTTON_LOADER_PROPS}
             onClick={() => move(calendar, "down")}
@@ -156,43 +200,66 @@ export function DepartmentTable({ departments }: DepartmentTableProps) {
         </Group>
       ) : (
         <>
-          {/* Mobile: card list — tap a card to open the details modal */}
+          {/* Mobile: card list — tap a card to open the details modal.
+              Children are indented and name their parent on a second line. */}
           <Stack gap="sm" hiddenFrom="lg">
-            {departments.map((calendar, index) => (
+            {displayRows.map(({ calendar, depth, parent }) => (
               <Paper key={calendar.id} withBorder p="sm" {...openRow(calendar)}>
                 <Group justify="space-between" wrap="nowrap" align="center">
-                  <Group wrap="nowrap" align="center" gap={6} style={{ minWidth: 0 }}>
-                    <ColorDot color={calendar.color} />
-                    <Text fw={600} truncate>
-                      {calendar.name}
-                    </Text>
-                  </Group>
+                  <Box style={{ minWidth: 0 }}>
+                    <Group wrap="nowrap" align="center" gap={6}>
+                      <ColorDot color={calendar.color} />
+                      <Text fw={600} truncate style={{ paddingLeft: depth * 12 }}>
+                        {calendar.name}
+                      </Text>
+                    </Group>
+                    {parent && (
+                      <Text size="xs" c="dimmed" truncate style={{ paddingLeft: 12 + depth * 12 }}>
+                        In {parent.name}
+                      </Text>
+                    )}
+                  </Box>
                   <Group wrap="nowrap" gap="sm" align="center">
                     <Text size="sm" c="dimmed" style={{ flexShrink: 0 }}>
                       {formatColorLabel(calendar.color, calendar.id)}
                     </Text>
-                    {actionsFor(calendar, index)}
+                    {actionsFor(calendar)}
                   </Group>
                 </Group>
               </Paper>
             ))}
           </Stack>
 
-          {/* Desktop: data table — tap a row to open the details modal */}
+          {/* Desktop: data table — tap a row to open the details modal.
+              Hierarchy is carried by the indent depth + the Parent column. */}
           <Paper withBorder visibleFrom="lg">
             <Table withRowBorders={false} highlightOnHover tabularNums>
               <Table.Thead>
                 <Table.Tr>
                   <Table.Th>Name</Table.Th>
+                  <Table.Th>Parent</Table.Th>
                   <Table.Th>External color</Table.Th>
                   <Table.Th>Actions</Table.Th>
                 </Table.Tr>
               </Table.Thead>
               <Table.Tbody>
-                {departments.map((calendar, index) => (
+                {displayRows.map(({ calendar, depth, parent }) => (
                   <Table.Tr key={calendar.id} {...openRow(calendar)}>
                     <Table.Td>
-                      <Text fw={600}>{calendar.name}</Text>
+                      <Text fw={600} style={{ paddingLeft: depth * 16 }}>
+                        {calendar.name}
+                      </Text>
+                    </Table.Td>
+                    <Table.Td>
+                      {parent ? (
+                        <Text size="sm" c="dimmed">
+                          {parent.name}
+                        </Text>
+                      ) : (
+                        <Text size="sm" c="dimmed">
+                          —
+                        </Text>
+                      )}
                     </Table.Td>
                     <Table.Td>
                       <Group gap={6} wrap="nowrap">
@@ -200,7 +267,7 @@ export function DepartmentTable({ departments }: DepartmentTableProps) {
                         <Text size="sm">{formatColorLabel(calendar.color, calendar.id)}</Text>
                       </Group>
                     </Table.Td>
-                    <Table.Td>{actionsFor(calendar, index)}</Table.Td>
+                    <Table.Td>{actionsFor(calendar)}</Table.Td>
                   </Table.Tr>
                 ))}
               </Table.Tbody>
@@ -211,6 +278,7 @@ export function DepartmentTable({ departments }: DepartmentTableProps) {
 
       <DepartmentDetail
         calendar={selected}
+        departments={departments}
         opened={detailOpened}
         onClose={closeDetail}
         onSaved={(calendar) => {
@@ -228,6 +296,13 @@ export function DepartmentTable({ departments }: DepartmentTableProps) {
         <Text>
           Delete &quot;{deleting?.name}&quot;? This removes the Google Calendar and unassigns its
           users.
+          {deleting && deletingChildCount > 0 && (
+            <>
+              {" "}
+              Its {deletingChildCount} sub-department{deletingChildCount > 1 ? "s" : ""} will
+              become top level.
+            </>
+          )}
         </Text>
         <Group justify="flex-end" mt="md">
           <Button variant="default" onClick={closeConfirm}>
