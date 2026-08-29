@@ -13,7 +13,8 @@
  *     lastPage?: string,        // bottom-nav path, incl. /settings sub-tab
  *     sidebarCollapsed?: boolean,  // desktop sidebar minimized to the icon rail
  *     dashboard?: { view?, date?, month?, cal?: string[], users?: string[], types?: string[],
- *                    pinnedViews?: string[] },  // pinned tabs, recency order (0 = leftmost)
+ *                    pinnedViews?: string[],  // pinned tabs, recency order (0 = leftmost)
+ *                    zoom?: number },  // Day/Week (H) hour-slot zoom level (see slotZoom.ts)
  *     parade?:    { cal?: string[], users?: string[] },  // filters only — the day is NOT
  *                    remembered: a bare /parade-state always opens on today
  *   }
@@ -26,6 +27,8 @@
  * values. The post-commit state writer then persists the freshly resolved
  * values again, so the cookie always converges to what was rendered.
  */
+
+import { clampZoom } from "./slotZoom";
 
 export const UI_STATE_COOKIE = "cloudy2.ui";
 
@@ -41,6 +44,10 @@ export interface DashboardUiState {
    *  cookie even on `_fresh`/`edit` renders (every tab switch is a `_fresh`
    *  render, and skipping the cookie there would wipe the pins). */
   pinnedViews?: string[];
+  /** Day/Week (H) hour-slot zoom level (a member of `ZOOM_LEVELS`). Shared by
+   *  both views. Not URL-backed like `pinnedViews`: zooming never navigates,
+   *  so the server reads it from the raw cookie even on `_fresh` renders. */
+  zoom?: number;
 }
 
 export interface ParadeUiState {
@@ -61,8 +68,8 @@ export interface UiState {
 // Parade's `date`/`month` are deliberately absent: the day is never read back
 // from the cookie (a bare /parade-state opens on today), and no parade
 // navigation ever removes them from the URL anyway.
-// Dashboard's `pinnedViews` is also absent: it is not URL-backed, so pin
-// changes never navigate and never need `_fresh`.
+// Dashboard's `pinnedViews` and `zoom` are also absent: neither is URL-backed,
+// so pin/zoom changes never navigate and never need `_fresh`.
 export const DASHBOARD_STATE_KEYS = ["view", "date", "month", "cal", "users", "types"] as const;
 export const PARADE_STATE_KEYS = ["cal", "users"] as const;
 
@@ -153,6 +160,7 @@ export function normalizeUiState(value: unknown): UiState | null {
     const users = idListOf(dashboard.users);
     const types = idListOf(dashboard.types);
     const pinnedViews = normalizePinnedViews(dashboard.pinnedViews);
+    const zoom = clampZoom(dashboard.zoom);
     if (view !== undefined) section.view = view;
     if (date !== undefined) section.date = date;
     if (month !== undefined) section.month = month;
@@ -160,6 +168,7 @@ export function normalizeUiState(value: unknown): UiState | null {
     if (users !== undefined) section.users = users;
     if (types !== undefined) section.types = types;
     if (pinnedViews.length > 0) section.pinnedViews = pinnedViews;
+    if (zoom !== null) section.zoom = zoom;
     if (Object.keys(section).length > 0) {
       state.dashboard = section;
     }

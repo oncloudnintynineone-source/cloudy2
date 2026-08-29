@@ -121,7 +121,8 @@ gated on `isDesktop`):
 | Element | Mobile | At `lg` |
 | ------- | ------ | ------- |
 | Schedule views' resource/group label widths (`--resources-day-view-*` / `--resources-week-view-*` vars) | `3rem` / `1.5rem` | `6rem` / `3.5rem` — shortnames get room to stop ellipsizing |
-| Week (H) timeline slot width (`--resources-week-view-slot-width`) | Mantine default (`calc(3.75rem * var(--mantine-scale))`, 60px/hour) | `calc(4.5rem * var(--mantine-scale))` |
+| Week (H) timeline slot width (`--resources-week-view-slot-width`) | Mantine default (`calc(3.75rem * var(--mantine-scale))`, 60px/hour) | `calc(4.5rem * var(--mantine-scale))` (72px/hour) |
+| Day timeline slot width (`--resources-day-view-slot-width`) | Mantine default (`calc(5rem * var(--mantine-scale))`, 80px/hour) | same — both slot widths are then multiplied by the shared **timeline zoom** level (0.5–2, default 1; see [`dashboard-views.md`](dashboard-views.md#15-timeline-zoom-day-and-week-h)) |
 | Week (D) matrix label columns | `MOBILE_LABEL_WIDTH` 3rem / group 1.5rem | `DESKTOP_LABEL_WIDTH` 5rem / group 2.5rem (header spacers, sticky row labels, `contentMinWidth`, `labelLeft`) |
 | Month view `maxEventsPerDay` | 3 | 4 |
 | "New event" | FAB only | FAB **hidden** (`hiddenFrom="lg"`) — replaced by a `Button visibleFrom="lg"` in the header row beside the ⋮ menu |
@@ -177,7 +178,10 @@ number). Agenda is intentionally header-less (the nav row shows the day).
 variables on the **view root element** (hashed class), so a parent class cannot
 shadow them. `DashboardView` therefore passes the widths through each view's own
 `style`/`vars` props, and `WeekMatrixView` (a fully custom component) computes the
-widths in JS and inlines them. The pinned Week (H)-day header strip takes the same
+widths in JS and inlines them. The timeline zoom's slot width rides the same
+mechanism — the zoomed value is written to `--resources-*-view-slot-width` through
+each view's `style` prop ([`dashboard-views.md`](dashboard-views.md#15-timeline-zoom-day-and-week-h)).
+The pinned Week (H)-day header strip takes the same
 widths as props (`resourceLabelWidth`/`groupLabelWidth`) so its corner spacers
 track the label columns at both breakpoints.
 

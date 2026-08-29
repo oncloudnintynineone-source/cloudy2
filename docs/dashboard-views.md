@@ -2,8 +2,9 @@
 
 The Calendar dashboard (`/dashboard`) renders one of six event views over the shared
 server-side events cache ([`events-cache.md`](events-cache.md)) and a shared filter
-state. This document covers the view inventory, the quick-filter ⋮ menus, and the
-custom Week (D) matrix — the one view no Mantine Schedule component can render.
+state. This document covers the view inventory, the quick-filter ⋮ menus, the custom
+Week (D) matrix — the one view no Mantine Schedule component can render — and the
+Day / Week (H) timeline zoom.
 
 ## Table of contents
 
@@ -11,7 +12,8 @@ custom Week (D) matrix — the one view no Mantine Schedule component can render
 - [1.2 Quick-filter menus](#12-quick-filter-menus)
 - [1.3 Week (D): the custom week matrix](#13-week-d-the-custom-week-matrix)
 - [1.4 Data flow shared by all views](#14-data-flow-shared-by-all-views)
-- [1.5 File index & related docs](#15-file-index--related-docs)
+- [1.5 Timeline zoom (Day and Week (H))](#15-timeline-zoom-day-and-week-h)
+- [1.6 File index & related docs](#16-file-index--related-docs)
 
 ## 1.1 View inventory
 
@@ -81,14 +83,62 @@ directly ([`events-cache.md`](events-cache.md)):
   `GridPanControls` ([`grid-pan.md`](grid-pan.md)); the dashboard chrome can go
   fullscreen through immersive mode ([`immersive-mode.md`](immersive-mode.md)).
 
-## 1.5 File index & related docs
+## 1.5 Timeline zoom (Day and Week (H))
+
+The Day and Week (H) schedule views can zoom their hour columns in and out, so the
+user can fit more of the day/week in view (overview) or expand it for detail. One
+**shared** zoom level scales the width of every hour slot; it does not change the
+slot granularity (still 60-minute columns) or the row height.
+
+- **Levels**: discrete `0.5, 0.75, 1, 1.25, 1.5, 2` (`ZOOM_LEVELS`,
+  `src/lib/ui/slotZoom.ts`); `1` is the default (today's fixed widths). The buttons
+  step one level at a time and clamp at the extremes (disabled there).
+- **Controls**: `GridZoomControls` (`src/components/GridZoomControls.tsx`) — a
+  floating vertical pair (zoom-in on top) parked just inside the grid's right edge,
+  below the right pan button. It uses the same fixed-position, visible-slice
+  tracking as `GridPanControls` ([`grid-pan.md`](grid-pan.md)). Rendered whenever the
+  schedule grid is shown (skeleton/empty excluded) — unlike the pan buttons it shows
+  even when the grid fits without overflowing.
+- **Mechanism**: each view reads its slot width from a CSS variable on the view root
+  (`--resources-week-view-slot-width` / `--resources-day-view-slot-width`). Mantine
+  sizes the day container from that var and lays every event out as a **percentage**
+  of it, so changing the var re-lays out slots *and* events with no JS geometry work.
+  `DashboardView` computes the zoomed width (`weekSlotWidth` / `daySlotWidth`) and
+  writes it to the var through the view's `style` prop (the Schedule CSS-var gotcha —
+  [`desktop-responsive.md`](desktop-responsive.md)).
+- **Rulers follow**: the pinned hour ruler and the Week (H) day-label strip track the
+  slot width through a `useLayoutEffect` that probes the var from the DOM and
+  publishes it as `--ruler-slot` / a 24-slot day width. `zoom` is in that effect's
+  dependency list, so both strips re-measure on every zoom change.
+- **Persistence**: the level is remembered per device in the `cloudy2.ui` cookie as
+  `dashboard.zoom` — not URL-backed (zooming never navigates), so it is read from the
+  raw cookie and seeded into the client state before first paint (no width jump on
+  relaunch). See [`ui-state.md`](ui-state.md).
+- **Scope**: shared by Day and Week (H) only. Week (D) — its columns are
+  day-granularity, not hour slots — and Month and Agenda are unaffected. Zooming keeps
+  the grid's horizontal `scrollLeft` in px (no time re-anchoring).
+
+```mermaid
+flowchart LR
+    B["Zoom in / out<br/>(GridZoomControls)"] --> S["zoom state<br/>(DashboardView)"]
+    S --> W["weekSlotWidth / daySlotWidth<br/>(slotZoom.ts)"]
+    W --> V["CSS var --resources-*-view-slot-width<br/>(view root style)"]
+    V --> G["Mantine grid re-lays out<br/>slots + events (percentage-based)"]
+    V --> M["useLayoutEffect re-measures<br/>(zoom in deps)"]
+    M --> R["pinned hour ruler +<br/>Week (H) day-label strip"]
+    S --> C["dashboard.zoom cookie<br/>(usePersistUiState)"]
+```
+
+## 1.6 File index & related docs
 
 | File | Role |
 | ---- | ---- |
-| `src/app/(protected)/dashboard/DashboardView.tsx` | View switch, date-nav chrome, filter state |
+| `src/app/(protected)/dashboard/DashboardView.tsx` | View switch, date-nav chrome, filter state, zoom state + slot widths |
 | `src/app/(protected)/dashboard/WeekMatrixView.tsx` | Week (D) matrix renderer |
 | `src/lib/events/weekMatrix.ts` | Pure Week (D) lane binning (`coveredDays`, `buildWeekLanes`) |
 | `src/lib/events/schedule.ts` | Resource rows (`buildScheduleResources`, `userFilter`) |
+| `src/lib/ui/slotZoom.ts` | Pure zoom levels + slot-width math (`clampZoom`, `stepZoom`, `weekSlotWidth`, `daySlotWidth`) |
+| `src/components/GridZoomControls.tsx` | Floating zoom-in/out buttons for the Day/Week (H) grids |
 | `src/components/FilterModal.tsx` | More Filters dialog |
 
 Related docs:
@@ -97,4 +147,5 @@ Related docs:
 - [`grid-pan.md`](grid-pan.md) — horizontal pan for the wide grids.
 - [`immersive-mode.md`](immersive-mode.md) — fullscreen calendar chrome.
 - [`user-picker.md`](user-picker.md) — the Users filter's badge-dialog picker.
-- [`ui-state.md`](ui-state.md) — remembered view + pinned view tabs.
+- [`desktop-responsive.md`](desktop-responsive.md) — the slot/label width table and the Schedule CSS-var gotcha zoom builds on.
+- [`ui-state.md`](ui-state.md) — remembered view + pinned view tabs + the `zoom` level.

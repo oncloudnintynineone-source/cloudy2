@@ -134,6 +134,7 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
 - [1.125 Offline fallback reachability fix (bugfix for 1.124)](#1125-offline-fallback-reachability-fix-bugfix-for-1124)
 - [1.126 Offline UX: last saved view for every offline navigation; offline.html drops the picker (Phase 3b4)](#1126-offline-ux-last-saved-view-for-every-offline-navigation-offlinehtml-drops-the-picker-phase-3b4)
 - [1.131 Department hierarchy (Phase 3b6)](#1131-department-hierarchy-phase-3b6)
+- [1.138 Day/Week (H) timeline zoom (Phase 3b7)](#1138-dayweek-h-timeline-zoom-phase-3b7)
 
 ## 1.1 Status
 
@@ -5878,3 +5879,64 @@ check) and migration 0030 applied to the dev DB; `pnpm build` passes; dev
 server smoke: `/parade-state`, `/settings/departments`, `/dashboard` all
 respond. Manual QA debt: on-device check of the nested parade sections +
 clipboard text against a real hierarchy (not yet seeded in dev data).
+
+## 1.138 Day/Week (H) timeline zoom (Phase 3b7)
+
+Report: the Day and Week (H) schedule views lay out 24 fixed-width hour
+columns (60px mobile / 72px desktop for Week (H); 80px for Day), so a phone
+could only ever show a thin slice of the day and a desktop a fixed amount —
+there was no way to fit more of the week in view for an overview or expand
+the columns for detail.
+
+Decision (confirmed with the user): floating zoom-in/out buttons beside the
+grid, a single zoom level shared by Day and Week (H), discrete levels 0.5–2
+in 25% steps (1 = today's widths), and the level remembered across relaunch
+(like the pinned tabs — not URL-backed, since zooming never navigates).
+
+Changes:
+
+1. **`src/lib/ui/slotZoom.ts` (new, pure, unit-tested)** — `ZOOM_LEVELS`
+   (`0.5, 0.75, 1, 1.25, 1.5, 2`), `clampZoom` (finite number → nearest
+   level, else `null` — a corrupted cookie degrades, never throws),
+   `stepZoom` (clamped at the extremes), and the width math
+   `weekSlotWidth(zoom, isDesktop)` / `daySlotWidth(zoom)`, which emit
+   `calc(<base>×<zoom>rem * var(--mantine-scale))` so Mantine's own scale
+   still applies. 9 tests.
+2. **`src/lib/ui/uiState.ts`** — `dashboard.zoom` joins `DashboardUiState`
+   and is normalized through `clampZoom`; excluded from
+   `DASHBOARD_STATE_KEYS` (not URL-backed, like `pinnedViews`).
+   **`uiStateClient.ts`** keeps `zoom` in the overflow-degrade scalar set.
+3. **`page.tsx`** — resolves `initialZoom` from the **raw** cookie (survives
+   the `_fresh`/`edit` whole-cookie skip, defaulting to 1) and seeds it into
+   `DashboardView` before first paint (no width jump on a cold open).
+4. **`DashboardView.tsx`** — client `zoom` state (seeded from the prop,
+   written back via `usePersistUiState`); the zoomed width is written to the
+   views' `--resources-*-view-slot-width` CSS var through each view's `style`
+   prop (Mantine sizes the day container from that var and lays events out as
+   percentages of it, so slots *and* events re-flow with no JS geometry
+   work); `zoom` added to the ruler-measurement `useLayoutEffect` deps so the
+   pinned hour ruler + Week (H) day-label strip re-measure on every change.
+5. **`src/components/GridZoomControls.tsx` (new)** — a floating vertical
+   pair (zoom-in on top) parked just inside the grid's right edge, below the
+   right pan button; reuses `GridPanControls`' fixed-position / visible-slice
+   tracking (resize + page scroll + ResizeObserver) and chrome. Rendered
+   whenever the schedule grid is shown — unlike the pan buttons it shows even
+   when the grid fits without overflowing.
+
+Non-goals: no per-view independent levels, no zoom for Week (D) (its columns
+are day-granularity), Month or Agenda; no change to slot granularity
+(60-min columns) or row height; zooming keeps the grid's horizontal
+`scrollLeft` in px (no time re-anchoring).
+
+Docs: `docs/dashboard-views.md` gains §1.5 (Timeline zoom: levels, controls,
+the CSS-var mechanism, ruler follow, persistence, scope; Mermaid flow) and
+the file-index/related-docs updates (file index renumbered to §1.6);
+`docs/ui-state.md` adds `zoom` to the stored shape, normalization, overflow
+keep-set, server read and the persist table; `docs/grid-pan.md` notes
+`GridZoomControls` shares the anchor mechanics; `docs/desktop-responsive.md`
+§1.4 slot rows + the CSS-var gotcha mention zoom; `progress.md` one-liner.
+
+Verification: `pnpm test` (775) + `pnpm lint` + `pnpm typecheck` pass; no
+schema change (`db:generate` clean). Manual QA debt: on-device sweep of the
+zoom levels (ruler/day-strip alignment at 0.5× and 2×, relaunch restore,
+breakpoint flip at a non-default zoom).

@@ -125,9 +125,9 @@ Division of labor:
 - **Overflow guard**: if the encoded value would exceed
   `SAFE_COOKIE_VALUE_LENGTH` (3500, headroom under the ~4 KiB browser cap —
   `uiStateClient.ts:23,34`), the writer re-encodes **dropping the id lists**
-  (`cal`/`users`/`types`) and keeping the small scalars that carry the most
-  "where am I" signal: `lastPage`, `sidebarCollapsed`, dashboard
-  `view`/`date`/`month`/`pinnedViews`. The parade section holds only filter id
+   (`cal`/`users`/`types`) and keeping the small scalars that carry the most
+   "where am I" signal: `lastPage`, `sidebarCollapsed`, dashboard
+   `view`/`date`/`month`/`pinnedViews`/`zoom`. The parade section holds only filter id
   lists, so it degrades to nothing there — its filters reset, and its day was
   never remembered anyway (`uiStateClient.ts:30-49`).
 
@@ -143,9 +143,10 @@ Division of labor:
     "month": "2026-08",                 // Month view
     "cal": ["<calendar id>", "..."],    // comma-joined in the URL
     "users": ["<user id>"],
-    "types": ["<event type name>"],
-    "pinnedViews": ["weekv2", "month"]  // recency order: index 0 = leftmost tab
-  },
+     "types": ["<event type name>"],
+     "pinnedViews": ["weekv2", "month"], // recency order: index 0 = leftmost tab
+     "zoom": 1.5                         // Day/Week (H) hour-slot zoom (see slotZoom.ts)
+   },
   "parade": {
     "cal": ["<calendar id>"],           // filters only — the day is NOT remembered:
     "users": ["<user id>"]              // a bare /parade-state always opens on today
@@ -168,6 +169,8 @@ Anything mismatched is **dropped, never thrown** — a corrupted cookie degrades
   consumers fall back to their role default.
 - `pinnedViews` keeps only known view values, de-duplicated in stored order
   (`normalizePinnedViews`, `:79-90`).
+- `zoom` is a finite number snapped to the nearest known level via `clampZoom`
+  (`slotZoom.ts`); non-numeric / non-finite values drop.
 - A section with no surviving keys vanishes entirely (`:150-152`, `:165-167`).
 - Note: `view`/`date`/`month` are **not** pattern-checked here — that lives in
   the consuming pages, which re-validate every key exactly like a URL param
@@ -185,6 +188,10 @@ filtered against live calendar/user/type data).
 
 - **Whole-cookie skips** (`page.tsx:51-53`): a `_fresh` render or an `?edit=` deep
   link (explicit intent) ignores the cookie entirely — `uiState = null`.
+- `zoom` (Day/Week (H) hour-slot width): not URL-backed like `pinnedViews`, so it
+  is read from the **raw** `cookieState` (not the skipped `uiState`), snapped via
+  `clampZoom` (`slotZoom.ts`), defaulting to `1`. It seeds the client zoom state
+  before first paint so a relaunch restores the last zoom with no width jump.
 - `view` (`:60-70`): whitelisted to the five tab values, else `"month"`.
 - `date` (`:72-78`): URL date (pattern `YYYY-MM-DD`) wins; a remembered date is
   used **only for day-anchored views** (`view !== "month"`) — in Month view the
@@ -257,7 +264,7 @@ remembered), and the shell's effect persists it back on every toggle.
 | ------ | ----- | ---------------- |
 | `useRememberedPage(pathname)` (`uiStateClient.ts:74`) | `AppShellShell.tsx` — every authenticated page | `{ lastPage: pathname }` on every pathname change, incl. `/settings` sub-tabs |
 | sidebar toggle effect (`AppShellShell.tsx:153-155`) | `AppShellShell.tsx` — every authenticated page | `{ sidebarCollapsed }` on mount (the remembered value) and on every toggle — writing `false` too, so the cookie converges when the sidebar is re-expanded |
-| `usePersistUiState("dashboard", values)` (`uiStateClient.ts:63`) | `DashboardView.tsx:424` | the **server-resolved props**: `view`, `date`, `month`, `cal`, `users`, `types`, plus local `pinnedViews` |
+| `usePersistUiState("dashboard", values)` (`uiStateClient.ts:63`) | `DashboardView.tsx` | the **server-resolved props**: `view`, `date`, `month`, `cal`, `users`, `types`, plus local `pinnedViews` and `zoom` |
 | `usePersistUiState("parade", values)` | `ParadeStateView.tsx:166` | the server-resolved `cal`, `users` filters — the day is deliberately not persisted, so a bare /parade-state opens on today |
 
 The crucial detail is **what** gets written: the *server-resolved* props, not the
@@ -279,7 +286,9 @@ The dashboard's view tabs can be pinned: the "Pin Tab" / "Unpin Tab" item in the
   (`uiState.ts:96`) computes the tab bar order: pinned first (stored order), then
   unpinned in the default order (`DASHBOARD_VIEW_VALUES`, `uiState.ts:68`).
 - **Not URL-backed** — unlike every other dashboard key. `DASHBOARD_STATE_KEYS`
-  deliberately excludes `pinnedViews` (`uiState.ts:64-65`), and a pin toggle
+  deliberately excludes `pinnedViews` (and `zoom`, the Day/Week (H) slot zoom —
+  which follows this exact pattern: a non-navigating local state, read from the
+  raw cookie, never needing `_fresh`), and a pin toggle
   **navigates nowhere**: `togglePinView` (`DashboardView.tsx:823-830`) just
   updates local state (prepend on pin, filter-out on unpin) — no skeleton, no
   `_fresh`.

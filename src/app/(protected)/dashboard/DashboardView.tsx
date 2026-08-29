@@ -80,6 +80,7 @@ import { formatWeekLabel } from "./clientDateTime";
 import { DateSelectorModal } from "@/components/DateSelectorModal";
 import { FilterModal, type FilterGroup } from "@/components/FilterModal";
 import { GridPanControls } from "@/components/GridPanControls";
+import { GridZoomControls } from "@/components/GridZoomControls";
 import {
   FAB_ICON_SIZE,
   FAB_SIZE,
@@ -109,6 +110,7 @@ import {
 } from "@/lib/events/schedule";
 import { useGridPan } from "@/lib/ui/gridPan";
 import { useImmersiveMode } from "@/lib/ui/immersiveMode";
+import { daySlotWidth, stepZoom, weekSlotWidth, type SlotZoom } from "@/lib/ui/slotZoom";
 import { DASHBOARD_STATE_KEYS, freshMarkerNeeded, orderDashboardViews } from "@/lib/ui/uiState";
 import { usePersistUiState } from "@/lib/ui/uiStateClient";
 import { PINNED_EVENTS_CHANGED_EVENT } from "@/lib/ui/pinnedPanel";
@@ -164,6 +166,12 @@ interface DashboardViewProps {
    * `_fresh` renders, since pins are not URL-backed.
    */
   pinnedViews: string[];
+  /**
+   * Remembered Day/Week (H) hour-slot zoom level, resolved from the UI-state
+   * cookie before first paint (a relaunch restores the last zoom with no
+   * width jump). Seeding value for the client zoom state only.
+   */
+  initialZoom: SlotZoom;
   events: CalendarEvent[];
   calendars: { id: string; name: string; sortOrder: number }[];
   eventTypes: EventTypeOption[];
@@ -422,6 +430,7 @@ export function DashboardView({
   date,
   view,
   pinnedViews,
+  initialZoom,
   events,
   calendars,
   eventTypes,
@@ -477,15 +486,24 @@ export function DashboardView({
     ? "var(--app-floating-bottom-offset-immersive)"
     : undefined;
 
+  // Timeline zoom (Day/Week (H) hour-slot width). Purely client-owned, seeded
+  // once from the remembered cookie; `usePersistUiState` below writes every
+  // change back so a relaunch restores it. No render-phase sync: the user's
+  // latest tap always wins, and the cookie (hence the next server seed) has
+  // already converged to it.
+  const [zoom, setZoom] = useState<SlotZoom>(initialZoom);
+
   // Label-column widths for the schedule views: mobile-narrowed 48px/24px for
   // phones, comfortable 96px/56px on desktop.
   const scheduleLabelWidths = isDesktop
     ? { resource: "6rem", group: "3.5rem" }
     : { resource: "3rem", group: "1.5rem" };
-  // The week view's 60px/hour slots are phone-tuned; 72px/hour gives event
-  // banners desktop-readable width. The day view keeps Mantine's 80px default
-  // (a 24h day is then exactly 1920px — a full desktop screen).
-  const weekSlotWidth = isDesktop ? "calc(4.5rem * var(--mantine-scale))" : undefined;
+  // Hour-slot (column) width for the schedule views, driven by the shared
+  // timeline zoom: Week (H) slots are 60px phone-tuned / 72px at lg, the Day
+  // view keeps Mantine's 80px — each multiplied by the zoom level (1 = these
+  // defaults). See src/lib/ui/slotZoom.ts and GridZoomControls.
+  const weekSlotWidthValue = weekSlotWidth(zoom, isDesktop);
+  const daySlotWidthValue = daySlotWidth(zoom);
 
   // The `?edit=` deep link (from a Google Calendar "Edit:" note) resolves its
   // target event synchronously at mount — the server has already fetched the
@@ -813,6 +831,7 @@ export function DashboardView({
     users: selectedUserIds,
     types: selectedTypes,
     pinnedViews: pinned,
+    zoom,
   });
 
   // The date shown in the agenda day modal; persists through the exit
@@ -1342,10 +1361,11 @@ export function DashboardView({
   // --mantine-scale a hardcoded px guess would drift. Probe the CSS variable
   // on the active view's root (found among the Box's children by the variable
   // it declares); the Week (H) day index stores 24 slots' worth. The measured slot
-  // is published to the rulers as `--ruler-slot` on the content box — direct
-  // DOM writes, pre-paint (no state). Runs only when the Day/Week (H) grid is
-  // actually rendered (not the skeleton or the empty "No users" paper), and
-  // re-runs when the breakpoint flips (the Week (H) slot width widens at lg).
+   // is published to the rulers as `--ruler-slot` on the content box — direct
+   // DOM writes, pre-paint (no state). Runs only when the Day/Week (H) grid is
+   // actually rendered (not the skeleton or the empty "No users" paper), and
+   // re-runs when the breakpoint flips (the Week (H) slot width widens at lg)
+   // or the timeline zoom changes (the slot width is re-derived below).
   useLayoutEffect(() => {
     const isWeekGrid = view === "week";
     const isDayGrid = isSchedule;
@@ -1383,7 +1403,7 @@ export function DashboardView({
     if (viewport && ruler) {
       ruler.style.transform = `translateX(${-viewport.scrollLeft}px)`;
     }
-  }, [view, gridLoading, isSchedule, isDesktop]);
+  }, [view, gridLoading, isSchedule, isDesktop, zoom]);
 
   // Shared by the Day and Week (H) resource views: a department row is a building
   // icon (its name as tooltip/aria), a user row is the shortname label.
@@ -1917,12 +1937,13 @@ export function DashboardView({
             // The resource-label column width is not a typed ResourcesWeekView
             // var, so it is set as a CSS variable on the root (cascades to the
             // all-day sticky labels and the time-indicator offset the same way
-            // the Day view's typed var does). Desktop widens the columns and
-            // the hour slots (see scheduleLabelWidths/weekSlotWidth above).
+            // the Day view's typed var does). The hour-slot width is the zoomed
+            // value (see scheduleLabelWidths/weekSlotWidthValue above); the
+            // pinned day-label strip + hour ruler re-measure it on change.
             style={
               {
                 "--resources-week-view-resource-label-width": scheduleLabelWidths.resource,
-                ...(weekSlotWidth ? { "--resources-week-view-slot-width": weekSlotWidth } : {}),
+                "--resources-week-view-slot-width": weekSlotWidthValue,
               } as CSSProperties
             }
             vars={() => ({
@@ -1973,6 +1994,9 @@ export function DashboardView({
               setDetailOriginRect(e.currentTarget.getBoundingClientRect());
               setDetailEvent(event as unknown as CalendarEvent);
             }}
+            // Zoomed hour-slot width (default 80px at zoom 1); the pinned hour
+            // ruler re-measures it on change (layout effect below).
+            style={{ "--resources-day-view-slot-width": daySlotWidthValue } as CSSProperties}
             vars={() => ({
               resourcesDayView: {
                 "--resources-day-view-resource-label-width": scheduleLabelWidths.resource,
@@ -2060,6 +2084,21 @@ export function DashboardView({
             canScrollLeft={schedulePan.canScrollLeft}
             canScrollRight={schedulePan.canScrollRight}
             onPan={schedulePan.panTo}
+          />
+        )}
+
+      {/* Timeline zoom buttons for the Day/Week (H) grids: scale the hour
+          columns' width (see GridZoomControls). Same gate as the pan controls
+          so they never linger over the skeleton; unlike the pan buttons they
+          render even when the grid fits without overflowing. */}
+      {!gridLoading &&
+        scheduleResources.resources.length > 0 &&
+        (isSchedule || (view === "week" && week !== null)) && (
+          <GridZoomControls
+            anchorRef={weekBoxRef}
+            zoom={zoom}
+            onZoomIn={() => setZoom((z) => stepZoom(z, 1))}
+            onZoomOut={() => setZoom((z) => stepZoom(z, -1))}
           />
         )}
 

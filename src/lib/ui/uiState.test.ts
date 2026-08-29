@@ -24,6 +24,7 @@ describe("encodeUiState/decodeUiState", () => {
       cal: ["a", "b"],
       users: ["u1"],
       pinnedViews: ["agenda", "week"],
+      zoom: 1.5,
     },
     parade: { cal: ["c9"], users: ["u9"] },
   };
@@ -149,6 +150,19 @@ describe("normalizeUiState", () => {
     expect(normalizeUiState({ sidebarCollapsed: "true" })).toEqual({});
     expect(normalizeUiState({ sidebarCollapsed: 1 })).toEqual({});
     expect(normalizeUiState({ sidebarCollapsed: null })).toEqual({});
+  });
+
+  it("keeps a remembered zoom level and snaps a stale one to the nearest level", () => {
+    expect(normalizeUiState({ dashboard: { zoom: 1.25 } })).toEqual({ dashboard: { zoom: 1.25 } });
+    expect(normalizeUiState({ dashboard: { zoom: 1.1 } })).toEqual({ dashboard: { zoom: 1 } });
+    expect(normalizeUiState({ dashboard: { zoom: 1.4 } })).toEqual({ dashboard: { zoom: 1.5 } });
+  });
+
+  it("drops non-numeric or non-finite zoom (a corrupted cookie degrades, never throws)", () => {
+    expect(normalizeUiState({ dashboard: { zoom: "2" } })).toEqual({});
+    expect(normalizeUiState({ dashboard: { zoom: null } })).toEqual({});
+    expect(normalizeUiState({ dashboard: { zoom: Number.NaN } })).toEqual({});
+    expect(normalizeUiState({ dashboard: { zoom: Number.POSITIVE_INFINITY } })).toEqual({});
   });
 });
 

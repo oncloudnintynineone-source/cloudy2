@@ -16,10 +16,11 @@ import {
 
 const COOKIE_MAX_AGE_SECONDS = 60 * 60 * 24 * 365; // one year
 // Browsers cap a cookie value around 4 KiB; keep headroom. A state that would
-// overflow drops its (largest) id lists and keeps view/date/month/pinnedViews/
-// lastPage/sidebarCollapsed (the small scalars that carry the most "where am
-// I" signal). The parade section holds only filter id lists, so it degrades to
-// nothing — its filters reset, and its day was never remembered anyway.
+// overflow drops its (largest) id lists and keeps
+// view/date/month/pinnedViews/zoom/lastPage/sidebarCollapsed (the small
+// scalars that carry the most "where am I" signal). The parade section holds
+// only filter id lists, so it degrades to nothing — its filters reset, and
+// its day was never remembered anyway.
 const SAFE_COOKIE_VALUE_LENGTH = 3500;
 
 function readCookieValue(name: string): string | undefined {
@@ -34,14 +35,15 @@ export function writeUiState(patch: UiState): void {
   if (value.length > SAFE_COOKIE_VALUE_LENGTH) {
     value = encodeUiState({
       ...merged,
-      dashboard: merged.dashboard
-        ? {
-            view: merged.dashboard.view,
-            date: merged.dashboard.date,
-            month: merged.dashboard.month,
-            pinnedViews: merged.dashboard.pinnedViews,
-          }
-        : undefined,
+          dashboard: merged.dashboard
+            ? {
+                view: merged.dashboard.view,
+                date: merged.dashboard.date,
+                month: merged.dashboard.month,
+                pinnedViews: merged.dashboard.pinnedViews,
+                zoom: merged.dashboard.zoom,
+              }
+            : undefined,
       parade: undefined,
     });
   }

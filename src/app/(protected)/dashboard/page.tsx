@@ -22,6 +22,7 @@ import { formatFullName } from "@/lib/settings/formatName";
 import { getSettings, listEventTitleTemplates } from "@/lib/settings/queries";
 import { requireSession } from "@/lib/session";
 import { isUuid } from "@/lib/uuid";
+import { clampZoom } from "@/lib/ui/slotZoom";
 import {
   UI_STATE_COOKIE,
   decodeUiState,
@@ -77,6 +78,10 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
   // must not drop them — every tab switch is a `_fresh` render, and skipping
   // the cookie there would wipe the pin list on the very next switch.
   const pinnedViews = normalizePinnedViews(cookieState?.dashboard?.pinnedViews);
+  // Timeline zoom (Day/Week (H)) is remembered the same way: not URL-backed,
+  // so it is read from the raw cookie (survives `_fresh`) and resolved before
+  // first paint to avoid a width jump on cold open.
+  const initialZoom = clampZoom(cookieState?.dashboard?.zoom) ?? 1;
 
   const view = resolveDashboardView(params.view ?? ui?.view);
 
@@ -301,6 +306,7 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
       date={date}
       view={view}
       pinnedViews={pinnedViews}
+      initialZoom={initialZoom}
       events={events}
       calendars={calendars.map((calendar) => ({
         id: calendar.id,

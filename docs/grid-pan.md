@@ -46,6 +46,13 @@ filled-triangle buttons that call `panTo`:
   out of view.
 - Intentionally subdued secondary chrome (lighter than the date-nav chevrons).
 
+`GridZoomControls` (`src/components/GridZoomControls.tsx`) reuses this exact
+fixed-position / visible-slice tracking for the Day/Week (H) **timeline zoom**
+buttons: a vertical pair parked just inside the grid's right edge, below the right
+pan button (see [`dashboard-views.md`](dashboard-views.md#15-timeline-zoom-day-and-week-h)).
+Unlike the pan buttons it renders whenever the schedule grid is shown — zoom is
+useful even when the grid fits without overflowing.
+
 ## 1.3 Wiring into the grids
 
 | Grid | Wiring |
@@ -59,6 +66,7 @@ filled-triangle buttons that call `panTo`:
 | ---- | ---- |
 | `src/lib/ui/gridPan.ts` | `useGridPan` hook (drag, edge state, `panTo`) |
 | `src/components/GridPanControls.tsx` | Edge pan buttons |
+| `src/components/GridZoomControls.tsx` | Day/Week (H) timeline zoom buttons (shares the anchor/visible-slice mechanics) |
 
 Related docs:
 
