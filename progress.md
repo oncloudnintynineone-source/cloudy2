@@ -31,7 +31,7 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
    PWA installability with offline & instant open (SWR document + RSC, precached offline.html);
   mobile-first UI with a desktop layout at `lg`; remembered UI state across relaunch;
    audit-log viewer with retention + CSV export; admin-managed quick-links menu
-   launched from a grey 3-dots FAB (mobile) / nav-row button (desktop) on the
+   launched from an amber `IconLink` FAB (mobile) / nav-row chip (desktop) on the
    Calendar page; user-facing KAH Status page (read-only, member's own groups,
    live in-country % per selected day).
 - Google integration is real for Calendar and Gmail-send once configured (service

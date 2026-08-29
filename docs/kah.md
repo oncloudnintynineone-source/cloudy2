@@ -51,7 +51,8 @@ erDiagram
     users ||--o{ kah_group_members : "member of"
     settings {
         text kah_percentage "default % prefill for NEW groups"
-        text_array kah_notification_emails "breach recipients"
+        text kah_email_subject_template "breach email subject template"
+        text kah_email_body_template "breach email body template"
     }
     kah_groups {
         uuid id PK
@@ -76,8 +77,11 @@ erDiagram
   combination; cascades on `group_id` so deleting a group cleans its dedup history.
 - The legacy global `settings.kah_percentage` column is repurposed as the **prefill
   default** for newly created groups (live thresholds live on each row).
-- Recipient addresses live once on `settings.kah_notification_emails`
-  (Settings → General), shared by all groups; max 10.
+- Recipients are the **members of the breached groups**: `resolveMemberEmails`
+  (`src/lib/kah/notify.ts`) collects the `users.email` of every member in a breach,
+  deduplicated and non-empty only — members without an email on file are skipped
+  (a breach with zero resolvable emails stays audit-only). The legacy
+  `settings.kah_notification_emails` column is unused.
 
 ## 1.3 Breach math
 
@@ -116,7 +120,7 @@ sequenceDiagram
         N->>N: logAction(kah.breachNotify) — flat human-readable details
         N->>N: insert dedup rows (group × window × pct)
         N->>N: buildKahBreachEmail (one combined message)
-        N->>M: integration.sendEmail(to=settings emails)
+        N->>M: sendNotificationEmail(to=breached members' emails)
     end
 ```
 
@@ -149,13 +153,13 @@ MIME messages for the Gmail path are built by pure `buildTextEmail`
 `users.messages.send`. Without Google credentials the stub logs instead of sending.
 
 One **combined** email per mutation lists every breached group with counts and names;
-no addresses configured → audit row still written, email skipped.
+no resolvable member emails → audit row still written, email skipped.
 
 ### 1.5.1 Customizable templates
 
 Subject and body come from admin-editable settings columns
-(`kah_email_subject_template` / `kah_email_body_template`, edited in Settings → General
-with a live preview rendered by the same pure renderer). Tokens, substituted
+(`kah_email_subject_template` / `kah_email_body_template`, edited in Settings → KAH
+Groups with a live preview rendered by the same pure renderer). Tokens, substituted
 case-insensitively; unknown tokens stay literal:
 
 | Token | Value |
@@ -176,8 +180,8 @@ the schema column defaults (guarded by a unit test).
   prefilled from the settings default, and members picked through the shared badge dialog
   (`UserSelectModal`, active users grouped by department). Delete asks for confirmation.
   All mutations are audited (`kahGroup.create/update/delete`) with member display names.
-- **Settings → General → KAH Breach Notifications**: `TagsInput` recipient list plus
-  subject/body template fields with a live preview (sample breach data rendered through
+- **Settings → KAH Groups → Breach Email Templates**: subject/body template fields
+  with a live preview (sample breach data rendered through
   `renderKahEmailTemplate`), validated by `validateKahNotificationsForm`, saved by one
   audited `updateKahNotifications` action (`settings.update`).
 - The tab is registered in `SettingsTabs.tsx` between Quick Links and Banner.

@@ -219,7 +219,8 @@ Contacts/Audit-log "Export", Parade-state attendance).
   `Grid.Col span={{ base: 12, lg: 6 }}` pairs: `UserForm` (Name/Shortname,
   Phone/Email, Birthday half-width), `EventTypeForm` (Name/Acronym,
   Time options/Allowed locations + remarks/invitees toggles), `TemplatesForm` and the
-  General tab's `SettingsForm` (two template cards side by side).
+  General tab's `SettingsForm` (keyword + audit-retention fields side by side; the KAH
+  breach-email template cards live on the KAH Groups tab).
 - Modals widen one size step (1.7); settings pages wrap their content in
   `PageContainer` from `settings/layout.tsx`.
 

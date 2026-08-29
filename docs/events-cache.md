@@ -451,7 +451,7 @@ What the cache changed:
 
 Related docs:
 
-- [`README.md`](../README.md#112-documentation) — documentation index (this file).
+- [`developer-guide.md`](developer-guide.md#112-related-docs) — documentation index (this file).
 - [`progress-archive.md` §1.42](../progress-archive.md#142-calendar-caching-layer-phase-3g) — phase write-up
   and the `use cache` → Postgres migration history.
 - `AGENTS.md` — concise architecture bullet (the canonical quick reference).

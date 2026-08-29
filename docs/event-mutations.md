@@ -31,7 +31,7 @@ appear in each of them so each department's people see it. The complications:
 
 - **No foreign keys across calendars**: the copies are independent Google events; the
   only link is the group id written into each copy's notes (`eventId`,
-  [`event-lifecycle.md` §1.7.1](event-lifecycle.md#171-fields-eventnotes-srclibeventsnotess19)).
+  [`event-lifecycle.md` §1.7.1](event-lifecycle.md#171-fields-eventnotes-srclibeventsnotests19)).
 - **Google is not a local database**: there is no transaction. A multi-calendar write
   can fail halfway, and the app must define what a half-finished mutation means.
 - **Legacy events** created before the copies feature have no group id and may exist in

@@ -483,6 +483,27 @@ the department names, and the event-type row (shortname, `timeOptions`,
 `allowedLocations`, `showRemarks`). Unknown ids are dropped; a blank type shortname
 falls back to the name.
 
+### 1.8.5 View assignments (per-target templates)
+
+Saved library templates can be assigned to individual display targets in the View
+assignments modal (Settings → Templates):
+
+- The assignments live on the settings row as `eventTitleTemplateAssignments` (jsonb).
+  Keys are whitelisted to `EVENT_TITLE_ASSIGNMENT_TARGETS`
+  (`src/lib/settings/validate.ts:60`) — the five dashboard views
+  (`DASHBOARD_VIEW_VALUES`: `month`, `week`, `weekv2`, `schedule`, `agenda`) plus
+  `pinned`.
+- Pure `normalizeAssignments` (`validate.ts:223`) keeps only whitelisted keys and
+  drops empty/null entries; `validateAssignments` (`:237`) rejects unknown template
+  ids (unit-tested in `validate.test.ts`).
+- **Unassigned target = Master fallback** (`settings.eventTitleTemplate`).
+- Dashboard views are display-only re-renders; the `pinned` target feeds
+  `fetchPinnedEvents` for the Pinned Events panel
+  ([`pinned-events.md`](pinned-events.md)).
+- Reads resolve assignments through `normalizeAssignments` and
+  `getEventTitleTemplateMap()` (`src/lib/settings/queries.ts`); the update action
+  normalizes + validates before saving (`src/lib/settings/actions.ts`).
+
 ## 1.9 Location categories (the allowed-locations matrix)
 
 Per event type, an admin configures which location **categories** events of that type may
@@ -601,6 +622,7 @@ writes, headers) is thin and lives in `actions.ts` / `queries.ts`.
 | `encodeEventNotes`, `parseEventNotes` (v1/v2/v3 + gzip fallback), `encodeNotesBlock`, `withEditLink`, `withInternalMarker`, `isExternalEvent`, `eventEditUrl`, all field parsers | `events/notes.ts` | `notes.test.ts` |
 | `renderEventTitle` | `events/eventTitle.ts` | `eventAudit.test.ts:270` |
 | `formatEventTitle` (every token/style, unknown pass-through) | `settings/formatEventTitle.ts` | `formatEventTitle.test.ts` |
+| `normalizeAssignments` (whitelist keys, drop empties), `validateAssignments` (unknown ids) (§1.8.5) | `settings/validate.ts` | `settings/validate.test.ts` |
 | `formatFullName` | `settings/formatName.ts` | `formatName.test.ts` |
 | `clampOutOfCamp` (all allowed-location sets), `flagsFromCategory` / `categoryFromFlags`, `normalizeAllowedLocations` | `events/locationPolicy.ts` | `locationPolicy.test.ts` |
 | `resolveTimeOption(s)`, `normalizeTimeOptions`, `naiveDatePart` / `naiveTimePart` / `joinDateTimeParts`, `amPmSuffix` | `events/timeOptions.ts` | `timeOptions.test.ts` |
@@ -642,7 +664,7 @@ Related docs:
   through.
 - [`audit-log.md`](audit-log.md) — where the event audit snapshots from §1.8.2 render.
 - [`roster-sharing.md`](roster-sharing.md) — who can see which department calendar.
-- [`README.md`](../README.md#112-documentation) — documentation index.
+- [`developer-guide.md`](developer-guide.md#112-related-docs) — documentation index.
 - `progress-archive.md` — phase write-ups: 1.16 (events), 1.20 (copies), 1.23/1.24 (title
   template), 1.27 (time options), 1.31 (edit link), 1.32 (opaque notes), 1.40
   (external events), 1.46 (location policy), 1.47 (staged wizard), 1.127 (location

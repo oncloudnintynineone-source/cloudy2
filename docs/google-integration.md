@@ -245,7 +245,7 @@ Related docs:
   `listEvents`.
 - [`roster-sharing.md`](roster-sharing.md) — the ACL consumer
   (`setCalendarAccess`/`listCalendarAccess`/`removeCalendarAccess`).
-- [`README.md`](../README.md#110-google-integration) — environment variables and
+- [`developer-guide.md`](developer-guide.md#110-google-integration-setup) — environment variables and
   the stub note.
 - `progress-archive.md` — phase write-ups: 1.3.4 (stub), 1.11 (calendars + sharing), 1.41
   (access levels), 1.61 (email-change ACL sync).

@@ -356,7 +356,7 @@ Related docs:
 - [`events-cache.md`](events-cache.md) — what the loads load (the month cache)
   and the force-refresh mechanism.
 - `AGENTS.md` — the "Standard loading appearance" checklist (canonical rules).
-- [`README.md`](../README.md#112-documentation) — documentation index.
+- [`developer-guide.md`](developer-guide.md#112-related-docs) — documentation index.
 - `progress-archive.md` — phase write-ups: 1.52/1.53 (stale-while-navigating grid,
   cold-load reveal), 1.58/1.59 (skeleton-only loading across the app), 1.64/1.65
   (agenda slide-in).

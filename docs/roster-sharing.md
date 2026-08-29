@@ -530,7 +530,7 @@ Related docs:
 - [`event-lifecycle.md`](event-lifecycle.md) — how events pick their target
   department calendars (users' departments).
 - [`audit-log.md`](audit-log.md) — the user/calendar/access rows rendered.
-- [`README.md`](../README.md#112-documentation) — documentation index.
+- [`developer-guide.md`](developer-guide.md#112-related-docs) — documentation index.
 - `progress-archive.md` — phase write-ups: 1.8 (roster & departments), 1.11 (calendars
   + sharing + audit), 1.41 (access levels), 1.61 (email-change ACL sync bugfix),
   1.62 (department selects), 1.95 (department event colors), 1.96 (event-type

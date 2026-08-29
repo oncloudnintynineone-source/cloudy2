@@ -210,7 +210,7 @@ export const webhooks = pgTable("webhooks", {
 
 /**
  * Admin-managed quick links shown in the dashboard's quick-links menu
- * (launched by the grey 3-dots FAB on mobile / the nav-row button at lg).
+ * (launched by the amber `IconLink` FAB on mobile / the nav-row chip at lg).
  * The menu lists `enabled` rows in `sortOrder` order; the launcher only
  * appears when at least one row is enabled. `icon` is a key into the curated
  * tabler icon set (see `src/lib/quickLinks/icons.ts`); `color` (Mantine
