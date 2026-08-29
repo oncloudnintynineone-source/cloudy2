@@ -12,6 +12,7 @@ import {
   parseEventNotes,
   parseEventOutOfCamp,
   parseEventPeople,
+  parseEventPinned,
   parseEventStartAmPm,
   parseEventTimeOption,
   parseEventType,
@@ -352,6 +353,23 @@ describe("parseEventOutOfCamp", () => {
     expect(parseEventOutOfCamp('{"outOfCamp":false}')).toBe(false);
     expect(parseEventOutOfCamp('{"outOfCamp":"yes"}')).toBe(false);
     expect(parseEventOutOfCamp("not json")).toBe(false);
+  });
+});
+
+describe("parseEventPinned", () => {
+  it("returns true only for an explicit true flag", () => {
+    expect(parseEventPinned('{"pinned":true}')).toBe(true);
+    expect(parseEventPinned(withEditLink(encodeNotesBlock('{"pinned":true}'), "https://x"))).toBe(
+      true,
+    );
+  });
+
+  it("returns false for absent, false, or malformed values (legacy events are unpinned)", () => {
+    expect(parseEventPinned("")).toBe(false);
+    expect(parseEventPinned('{"eventType":"Leave"}')).toBe(false);
+    expect(parseEventPinned('{"pinned":false}')).toBe(false);
+    expect(parseEventPinned('{"pinned":"yes"}')).toBe(false);
+    expect(parseEventPinned("not json")).toBe(false);
   });
 });
 

@@ -35,11 +35,11 @@ function pinnedWindowMonths(): string[] {
 }
 
 /**
- * The department-pinned upcoming `CalendarEvent`s behind both the panel list
+ * The explicitly-pinned upcoming `CalendarEvent`s behind both the panel list
  * and the header count badge: scans every department's calendar (all of them —
  * ignores the dashboard's current filters) over the rolling 3-month window and
- * keeps only the events that pin a whole department (`inviteeDepartmentIds`
- * non-empty), sorted by start time with any already-ended ones dropped.
+ * keeps only the events marked with the `pinned` notes flag, sorted by start
+ * time with any already-ended ones dropped.
  */
 async function upcomingPinnedCalendarEvents(
   calendars: Awaited<ReturnType<typeof listCalendars>>,
@@ -69,11 +69,11 @@ export async function countPinnedEvents(): Promise<number> {
 }
 
 /**
- * Upcoming department-tagged events for the Pinned Events panel. Returns only
- * the events that pin a whole department (`inviteeDepartmentIds` non-empty),
- * sorted by start time with any that have already ended dropped. Everything
- * resolves to display-ready data: titles rendered through the shared title
- * template and department names resolved for display.
+ * Upcoming explicitly-pinned events for the Pinned Events panel. Returns only
+ * the events marked with the `pinned` notes flag, sorted by start time with
+ * any that have already ended dropped. Everything resolves to display-ready
+ * data: titles rendered through the shared title template and department names
+ * resolved for display.
  */
 export async function fetchPinnedEvents(): Promise<PinnedEvent[]> {
   await requireSession();

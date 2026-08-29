@@ -10,6 +10,7 @@ import {
   Paper,
   SegmentedControl,
   Stack,
+  Switch,
   Tabs,
   Text,
   Textarea,
@@ -230,6 +231,7 @@ export function EventForm({
               ],
         outOfCamp: clamped.outOfCamp,
         overseas: clamped.overseas,
+        pinned: event.payload.pinned,
         location: clamped.location,
       };
     }
@@ -266,6 +268,7 @@ export function EventForm({
               ],
         outOfCamp: clamped.outOfCamp,
         overseas: clamped.overseas,
+        pinned: src.payload.pinned,
         location: clamped.location,
       };
     }
@@ -285,6 +288,7 @@ export function EventForm({
       invitees: isAdmin ? [] : currentUser ? [`user:${currentUser}`] : [],
       outOfCamp: false,
       overseas: false,
+      pinned: false,
       location: "",
     };
   }
@@ -959,67 +963,75 @@ export function EventForm({
           </Stack>
         )}
 
-        {currentStep.id === "invitees" &&
-          (inviteePickerGroups.length > 0 ? (
-            <Stack gap="xs">
-              <Group justify="space-between" align="center" gap="xs">
-                <Text fw={600} size="sm">
-                  Invited Attendees
-                </Text>
-                <Button
-                  size="xs"
-                  variant="light"
-                  leftSection={<IconPlus size={14} />}
-                  onClick={() => setInviteePickerOpen(true)}
-                >
-                  Select
-                </Button>
-              </Group>
-              <Text size="xs" c="dimmed">
-                A copy of the event is created in each tagged person&apos;s department and in each
-                tagged department
-              </Text>
-              {(selectedInvitees.userIds.length > 0 || selectedInvitees.departmentIds.length > 0) && (
-                <Group gap={6} wrap="wrap" align="start">
-                  {selectedInvitees.userIds.map((id) => {
-                    const person = peopleById[id];
-                    if (!person) {
-                      return null;
-                    }
-                    return (
-                      <Badge
-                        key={id}
-                        variant="light"
-                        color={id === form.values.creatorId ? "brand" : undefined}
-                      >
-                        {person.full}
-                      </Badge>
-                    );
-                  })}
-                  {selectedInvitees.departmentIds.map((id) =>
-                    departmentNames[id] ? (
-                      <Badge key={id} variant="light" color="accent">
-                        {departmentNames[id]}
-                      </Badge>
-                    ) : null,
-                  )}
+        {currentStep.id === "invitees" && (
+          <Stack gap="sm">
+            {inviteePickerGroups.length > 0 ? (
+              <Stack gap="xs">
+                <Group justify="space-between" align="center" gap="xs">
+                  <Text fw={600} size="sm">
+                    Invited Attendees
+                  </Text>
+                  <Button
+                    size="xs"
+                    variant="light"
+                    leftSection={<IconPlus size={14} />}
+                    onClick={() => setInviteePickerOpen(true)}
+                  >
+                    Select
+                  </Button>
                 </Group>
-              )}
-              <UserSelectModal
-                opened={inviteePickerOpen}
-                onClose={() => setInviteePickerOpen(false)}
-                groups={inviteePickerGroups}
-                values={inviteePickerValues}
-                onConfirm={applyInviteePicker}
-                confirmLabel="Select"
-                zIndex={300}
-              />
-            </Stack>
-          ) : (
-            <Text size="sm" c="dimmed">
-              No active users or departments to tag yet.
-            </Text>
-          ))}
+                <Text size="xs" c="dimmed">
+                  A copy of the event is created in each tagged person&apos;s department and in each
+                  tagged department
+                </Text>
+                {(selectedInvitees.userIds.length > 0 || selectedInvitees.departmentIds.length > 0) && (
+                  <Group gap={6} wrap="wrap" align="start">
+                    {selectedInvitees.userIds.map((id) => {
+                      const person = peopleById[id];
+                      if (!person) {
+                        return null;
+                      }
+                      return (
+                        <Badge
+                          key={id}
+                          variant="light"
+                          color={id === form.values.creatorId ? "brand" : undefined}
+                        >
+                          {person.full}
+                        </Badge>
+                      );
+                    })}
+                    {selectedInvitees.departmentIds.map((id) =>
+                      departmentNames[id] ? (
+                        <Badge key={id} variant="light" color="accent">
+                          {departmentNames[id]}
+                        </Badge>
+                      ) : null,
+                    )}
+                  </Group>
+                )}
+                <UserSelectModal
+                  opened={inviteePickerOpen}
+                  onClose={() => setInviteePickerOpen(false)}
+                  groups={inviteePickerGroups}
+                  values={inviteePickerValues}
+                  onConfirm={applyInviteePicker}
+                  confirmLabel="Select"
+                  zIndex={300}
+                />
+              </Stack>
+            ) : (
+              <Text size="sm" c="dimmed">
+                No active users or departments to tag yet.
+              </Text>
+            )}
+            <Switch
+              label="Pin this event"
+              description="Shows this event in the Pinned Events panel on every page"
+              {...form.getInputProps("pinned", { type: "checkbox" })}
+            />
+          </Stack>
+        )}
 
         {currentStep.id === "remarks" && (
           <Textarea
@@ -1100,6 +1112,21 @@ export function EventForm({
                 When
               </Text>
               <Text size="sm">{whenText || "—"}</Text>
+            </Stack>
+
+            <Stack gap={4}>
+              <Text size="xs" c="dimmed" fw={600}>
+                Pinned
+              </Text>
+              {form.values.pinned ? (
+                <Badge variant="light" color="accent">
+                  Pinned to the Pinned Events panel
+                </Badge>
+              ) : (
+                <Text size="sm" c="dimmed">
+                  —
+                </Text>
+              )}
             </Stack>
 
             {showLocationStep && (

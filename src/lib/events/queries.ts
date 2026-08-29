@@ -16,6 +16,7 @@ import {
   parseEventOutOfCamp,
   parseEventOverseas,
   parseEventPeople,
+  parseEventPinned,
   parseEventStartAmPm,
   parseEventTimeOption,
   parseEventTitle,
@@ -51,6 +52,8 @@ export interface CalendarEventPayload {
   outOfCamp: boolean;
   /** True when the out-of-camp event is outside the country (from the notes block). */
   overseas: boolean;
+  /** True when the event is explicitly marked as pinned (Pinned Events panel). */
+  pinned: boolean;
   /** The event's location (from Google); "" when unset. */
   location: string;
   /** True when the event was created directly in Google Calendar, not in the app. */
@@ -156,6 +159,7 @@ function mapCalendarItem(
       endAmPm: parseEventEndAmPm(item.description),
       outOfCamp: parseEventOutOfCamp(item.description),
       overseas: parseEventOverseas(item.description),
+      pinned: parseEventPinned(item.description),
       location: item.location ?? "",
       external: isExternalEvent(item.description),
     },

@@ -31,6 +31,8 @@ export interface EventFormValues {
   outOfCamp: boolean;
   /** Whether the out-of-camp event is outside the country (KAH "away"). */
   overseas: boolean;
+  /** Whether the event is explicitly marked as pinned (Pinned Events panel). No validation. */
+  pinned: boolean;
   /** Location of the event; an optional specific place even for in-camp events. */
   location: string;
 }

@@ -178,10 +178,12 @@ before changing the subsystem.
   omits both the inline style and the header height contribution so the
    CSS-default 0px applies and Mantine allocates no phantom main-content
     padding; full text on hover via `title`.
-- **Pinned Events (department agenda):** a header pin button (all pages, beside
-  the light/dark toggle) opens a centered Modal listing every department-pinned
-  event (`inviteeDepartmentIds` non-empty — a whole-department invite) over a
-  rolling today→3-months window, ignoring the dashboard's current filters.
+- **Pinned Events:** a header pin button (all pages, beside
+  the light/dark toggle) opens a centered Modal listing every explicitly-pinned
+  upcoming event — the wizard's Invited Attendees step carries a "Pin this
+  event" switch (any user) that sets the `pinned` notes flag; tagging a whole
+  department no longer pins by itself. A rolling today→3-months window,
+  ignoring the dashboard's current filters.
   Server fetch `fetchPinnedEvents()` (`src/lib/events/pinned.ts`) month-reads all
   calendars through the events cache and resolves rendered titles + department
   names; panel titles render through the `pinned` template-assignment target

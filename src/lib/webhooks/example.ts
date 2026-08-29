@@ -38,6 +38,7 @@ function snapshot() {
     timeParts: TIME_PARTS,
     outOfCamp: true,
     overseas: true,
+    pinned: true,
     location: "Range North",
     departmentIds: ["dept"],
     inviteeUserIds: ["user-2", "user-1"],

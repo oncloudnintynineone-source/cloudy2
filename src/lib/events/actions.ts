@@ -341,6 +341,7 @@ async function buildGcalEventInput(
       endAmPm: input.timeOption === "half" ? input.endAmPm : undefined,
       outOfCamp: input.outOfCamp || undefined,
       overseas: input.outOfCamp && input.overseas ? true : undefined,
+      pinned: input.pinned || undefined,
     }),
   );
   // The marker line at the bottom flags the event as created in the app, so
@@ -495,6 +496,7 @@ export async function createEvent(input: EventFormValues): Promise<EventActionRe
     timeParts: timePartsOf(effectiveInput),
     outOfCamp: effectiveInput.outOfCamp,
     overseas: effectiveInput.overseas,
+    pinned: effectiveInput.pinned,
     location: effectiveInput.location,
     departmentIds: targets,
     inviteeUserIds: effectiveInput.inviteeUserIds,
@@ -701,6 +703,7 @@ export async function updateEvent(
     timeParts: timePartsOf(effectiveInput),
     outOfCamp: effectiveInput.outOfCamp,
     overseas: effectiveInput.overseas,
+    pinned: effectiveInput.pinned,
     location: effectiveInput.location,
     departmentIds: newTargets,
     inviteeUserIds: effectiveInput.inviteeUserIds,

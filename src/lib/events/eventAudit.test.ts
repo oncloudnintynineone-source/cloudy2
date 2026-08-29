@@ -148,6 +148,7 @@ describe("buildEventSnapshot", () => {
       },
       outOfCamp: true,
       overseas: true,
+      pinned: true,
       location: "Singapore",
       departmentIds: ["d-1", "d-2"],
       inviteeUserIds: ["u-1", "u-2", "u-1"],
@@ -161,6 +162,7 @@ describe("buildEventSnapshot", () => {
       time: "2026-08-21 14:00 \u2013 15:30",
       outOfCamp: true,
       overseas: true,
+      pinned: true,
       location: "Singapore",
       departments: ["COU", "LOG"],
       invitees: ["Tan Wei Liang", "Lim Kah"],
@@ -182,6 +184,7 @@ describe("buildEventSnapshot", () => {
       },
       outOfCamp: false,
       overseas: false,
+      pinned: false,
       location: "  ",
       departmentIds: ["d-1", "unknown"],
       inviteeUserIds: ["unknown"],
@@ -194,6 +197,7 @@ describe("buildEventSnapshot", () => {
     expect(snapshot.location).toBeNull();
     expect(snapshot.outOfCamp).toBe(false);
     expect(snapshot.overseas).toBe(false);
+    expect(snapshot.pinned).toBe(false);
     expect(snapshot.time).toBe("2026-08-21 (PM)");
     expect(snapshot.departments).toEqual(["COU"]);
     expect(snapshot.invitees).toEqual([]);
@@ -249,6 +253,7 @@ describe("snapshotFromCopy", () => {
           inviteeUsers: ["u-1", "u-2"],
           timeOption: "range",
           outOfCamp: true,
+          pinned: true,
         }),
         "Singapore",
       ),
@@ -262,6 +267,7 @@ describe("snapshotFromCopy", () => {
       time: "2026-08-21 14:00 \u2013 15:30",
       outOfCamp: true,
       overseas: false,
+      pinned: true,
       location: "Singapore",
       departments: ["COU"],
       invitees: ["Tan Wei Liang", "Lim Kah"],

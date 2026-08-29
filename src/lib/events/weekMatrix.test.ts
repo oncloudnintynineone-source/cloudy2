@@ -31,6 +31,7 @@ function makeEvent(
     endAmPm: overrides.endAmPm ?? null,
     outOfCamp: overrides.outOfCamp ?? false,
     overseas: overrides.overseas ?? false,
+    pinned: overrides.pinned ?? false,
     location: overrides.location ?? "",
     external: overrides.external ?? false,
   };

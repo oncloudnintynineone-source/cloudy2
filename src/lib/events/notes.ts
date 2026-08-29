@@ -33,6 +33,12 @@ export interface EventNotes {
   inviteeUsers?: string[];
   /** Department (calendar) ids tagged on the event (schedule view: shows in each department row). */
   inviteeDepartments?: string[];
+  /**
+   * Whether the event is explicitly marked as pinned (shown in the Pinned
+   * Events panel). Written only when true — absence (legacy events) or false
+   * means unpinned, so events are pinned on demand, not by tagging.
+   */
+  pinned?: boolean;
   /** Datetime option used to create the event ("range" | "full"). */
   timeOption?: string;
   /** Start half-of-day indicator for "full" events. */
@@ -306,4 +312,9 @@ export function parseEventOutOfCamp(description: string): boolean {
 /** Extract the overseas flag from the notes block; false when absent (legacy). */
 export function parseEventOverseas(description: string): boolean {
   return parseEventNotes(description)?.overseas === true;
+}
+
+/** Extract the pinned flag from the notes block; false when absent (legacy). */
+export function parseEventPinned(description: string): boolean {
+  return parseEventNotes(description)?.pinned === true;
 }
