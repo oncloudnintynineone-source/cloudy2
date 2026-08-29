@@ -108,11 +108,15 @@ export interface MonthEventsOptions {
 /**
  * Cached month read across several department calendars. Layers:
  *
- * 1. L1 memory — served with no I/O at all (stale entries schedule a background
- *    refresh via `after()`);
- * 2. L2 Postgres — a single batched `SELECT` for the whole month (~one
- *    round-trip regardless of calendar count), served the same way;
- * 3. blocking Google `events.list` + upsert for anything missing/expired.
+ * 1. L1 memory — checked first; hits are verified against L2 in one batched
+ *    `SELECT` so a cross-instance `invalidateGcalCache` (DELETE on another
+ *    lambda) is visible everywhere — the previous zero-I/O warm hit traded
+ *    ~60 ms for a 60s stale window on other instances; now correctness wins.
+ *    Stale entries schedule a background refresh via `after()`.
+ * 2. L2 Postgres — the same single batched `SELECT` for the whole month
+ *    (~one round-trip regardless of calendar count) also serves L1 misses;
+ * 3. blocking Google `events.list` + upsert for anything missing/expired or
+ *    for L1 hits whose L2 row was deleted/expired elsewhere.
  *
  * Keyed by `(googleCalendarId, month)` so every user/filter combination on
  * `/dashboard` shares one entry. In-app mutations call
@@ -148,66 +152,99 @@ export async function getCachedMonthEventsForCalendars(
   }
 
   let allServed = true;
-  const missing: string[] = [];
 
+  // Partition ids by L1 presence: hits may still be stale due to a
+  // cross-instance invalidation (DELETE on another lambda's DB, invisible to
+  // this lambda's Map). We verify every L1 hit against the shared L2 row in
+  // one batched SELECT, turning the previous zero-I/O warm hit into one DB
+  // roundtrip (~60 ms) for a cross-instance read-your-writes guarantee.
+  const l1Hits = new Map<string, MemoryEntry>();
+  const l1MissIds: string[] = [];
   for (const id of ids) {
     const entry = memory.get(memoryKey(id, month));
-    if (entry) {
-      const state = entryState(entry);
-      if (state !== "expired") {
-        if (state === "stale") {
+    if (entry && entryState(entry) !== "expired") {
+      l1Hits.set(id, entry);
+    } else {
+      l1MissIds.push(id);
+    }
+  }
+
+  // One batched SELECT for every requested calendar (both L1 hits for
+  // verification and L1 misses for normal L2 fallback). A single roundtrip
+  // regardless of calendar count; seeing no row for an L1 hit means the
+  // entry was invalidated elsewhere and must be re-fetched blocking.
+  const rows = await db
+    .select()
+    .from(googleEventCache)
+    .where(and(eq(googleEventCache.month, month), inArray(googleEventCache.calendarGoogleId, ids)));
+  const rowById = new Map(rows.map((row) => [row.calendarGoogleId, row]));
+  const pending: string[] = [];
+
+  for (const [id, entry] of l1Hits) {
+    const row = rowById.get(id);
+    if (!row) {
+      // L1 holds a value whose L2 row was deleted by invalidateGcalCache on
+      // another instance — purge the local copy and treat as a blocking miss.
+      memory.delete(memoryKey(id, month));
+      inflight.delete(memoryKey(id, month));
+      pending.push(id);
+      continue;
+    }
+    const { usable, stale } = rowUsable(row.fetchedAt);
+    if (!usable) {
+      memory.delete(memoryKey(id, month));
+      inflight.delete(memoryKey(id, month));
+      pending.push(id);
+      continue;
+    }
+    if (stale || entryState(entry) === "stale") {
+      after(() => {
+        void refreshCachedMonth(id, month).catch(() => {});
+      });
+    }
+    // If the shared L2 row is newer than the local L1 copy (e.g. another
+    // instance refreshed and upserted), prefer the fresher DB data so
+    // external Google edits converge on the next request even though the
+    // local L1 is still technically "fresh".
+    if (row.fetchedAt.getTime() !== entry.fetchedAt) {
+      const decoded = decodeCachedEvents(row.events);
+      remember(id, month, decoded, row.fetchedAt.getTime());
+      events[id] = decoded;
+    } else {
+      events[id] = entry.events;
+    }
+  }
+
+  for (const id of l1MissIds) {
+    const row = rowById.get(id);
+    if (row) {
+      const { usable, stale } = rowUsable(row.fetchedAt);
+      if (usable) {
+        if (stale) {
           after(() => {
             void refreshCachedMonth(id, month).catch(() => {});
           });
         }
-        events[id] = entry.events;
-        continue;
-      }
-    }
-    missing.push(id);
-  }
-
-  if (missing.length > 0) {
-    const rows = await db
-      .select()
-      .from(googleEventCache)
-      .where(
-        and(eq(googleEventCache.month, month), inArray(googleEventCache.calendarGoogleId, missing)),
-      );
-    const rowById = new Map(rows.map((row) => [row.calendarGoogleId, row]));
-    const pending: string[] = [];
-
-    for (const id of missing) {
-      const row = rowById.get(id);
-      if (row) {
-        const { usable, stale } = rowUsable(row.fetchedAt);
-        if (usable) {
-          if (stale) {
-            after(() => {
-              void refreshCachedMonth(id, month).catch(() => {});
-            });
-          }
-          const decoded = decodeCachedEvents(row.events);
-          // Inherit the row's age so L1 can't extend past GCAL_CACHE_EXPIRE_MS.
-          remember(id, month, decoded, row.fetchedAt.getTime());
-          events[id] = decoded;
-        } else {
-          pending.push(id);
-        }
+        const decoded = decodeCachedEvents(row.events);
+        // Inherit the row's age so L1 can't extend past GCAL_CACHE_EXPIRE_MS.
+        remember(id, month, decoded, row.fetchedAt.getTime());
+        events[id] = decoded;
       } else {
         pending.push(id);
       }
+    } else {
+      pending.push(id);
     }
+  }
 
-    if (pending.length > 0) {
-      allServed = false;
-      const refreshed = await mapWithConcurrency(pending, GOOGLE_FETCH_CONCURRENCY, async (id) => {
-        const items = await refreshCachedMonth(id, month);
-        return [id, items] as const;
-      });
-      for (const [id, items] of refreshed) {
-        events[id] = items;
-      }
+  if (pending.length > 0) {
+    allServed = false;
+    const refreshed = await mapWithConcurrency(pending, GOOGLE_FETCH_CONCURRENCY, async (id) => {
+      const items = await refreshCachedMonth(id, month);
+      return [id, items] as const;
+    });
+    for (const [id, items] of refreshed) {
+      events[id] = items;
     }
   }
 
