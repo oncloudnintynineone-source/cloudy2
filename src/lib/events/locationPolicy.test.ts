@@ -76,11 +76,11 @@ describe("clampLocationCategory", () => {
 });
 
 describe("clampOutOfCamp", () => {
-  it("forces in camp when only 'in' is allowed, clearing the overseas flag and location", () => {
+  it("forces in camp when only 'in' is allowed, clearing the overseas flag but keeping the location", () => {
     expect(clampOutOfCamp(["in"], true, true, "Abroad")).toEqual({
       outOfCamp: false,
       overseas: false,
-      location: "",
+      location: "Abroad",
     });
     expect(clampOutOfCamp(["in"], false, false, "")).toEqual({
       outOfCamp: false,
@@ -105,7 +105,7 @@ describe("clampOutOfCamp", () => {
     });
   });
 
-  it("keeps the location and overseas flag only while out of camp", () => {
+  it("always keeps the location string, in or out of camp", () => {
     expect(clampOutOfCamp(["in", "out", "overseas"], true, true, "Beijing")).toEqual({
       outOfCamp: true,
       overseas: true,
@@ -116,10 +116,11 @@ describe("clampOutOfCamp", () => {
       overseas: false,
       location: "Town",
     });
-    expect(clampOutOfCamp(["in", "out", "overseas"], false, true, "Abroad")).toEqual({
+    // An in-camp event keeps its specific location (never implies out of camp).
+    expect(clampOutOfCamp(["in", "out", "overseas"], false, true, "Block 5, Hall 2")).toEqual({
       outOfCamp: false,
       overseas: false,
-      location: "",
+      location: "Block 5, Hall 2",
     });
     expect(clampOutOfCamp(["in", "out", "overseas"], false, false, "")).toEqual({
       outOfCamp: false,
@@ -136,11 +137,11 @@ describe("clampOutOfCamp", () => {
       location: "",
     });
     // Type allows in + overseas but not local out — an out-of-camp-local pick
-    // clamps to the first allowed category (in camp), clearing the destination.
+    // clamps to the first allowed category (in camp), keeping the destination.
     expect(clampOutOfCamp(["in", "overseas"], true, false, "Town")).toEqual({
       outOfCamp: false,
       overseas: false,
-      location: "",
+      location: "Town",
     });
   });
 });

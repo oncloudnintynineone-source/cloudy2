@@ -27,11 +27,11 @@ export interface EventFormValues {
   inviteeUserIds: string[];
   /** Department (calendar) ids tagged on the event (schedule view rows). No validation. */
   inviteeDepartments: string[];
-  /** Whether the event takes place out of camp (in-camp events record no location). */
+  /** Whether the event takes place out of camp (in-camp events may still record an optional location). */
   outOfCamp: boolean;
   /** Whether the out-of-camp event is outside the country (KAH "away"). */
   overseas: boolean;
-  /** Location of the event (out-of-camp destination); blank for in-camp events. */
+  /** Location of the event; an optional specific place even for in-camp events. */
   location: string;
 }
 

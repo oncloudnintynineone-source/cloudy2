@@ -128,22 +128,23 @@ interface StepDef {
 }
 
 /**
- * The full wizard walk: the location, remarks, and invitees steps drop out per
- * the selected type's config (an exclusively in-camp type has no location step;
- * a type with remarks or invitees disabled has neither step). Admins enter an
- * optional "On behalf of" after Remarks (blank = themselves); everyone ends on
- * a read-only review of everything entered so far.
+ * The full wizard walk: the remarks and invitees steps drop out per the
+ * selected type's config (a type with remarks or invitees disabled has
+ * neither step). The location step always stays — even an exclusively
+ * in-camp type offers an optional specific location (the category selector
+ * collapses to a single, disabled option). Admins enter an optional "On
+ * behalf of" after Remarks (blank = themselves); everyone ends on a
+ * read-only review of everything entered so far.
  */
 function buildSteps(
   isAdmin: boolean,
-  showLocationStep: boolean,
   showRemarksStep: boolean,
   showInviteesStep: boolean,
 ): StepDef[] {
   return [
     { id: "type", fields: [] },
     { id: "time", fields: ["start", "end", "startAmPm", "endAmPm"] },
-    ...(showLocationStep ? [{ id: "location", fields: [] } satisfies StepDef] : []),
+    { id: "location", fields: [] },
     ...(showInviteesStep ? [{ id: "invitees", fields: [] } satisfies StepDef] : []),
     ...(showRemarksStep ? [{ id: "remarks", fields: [] } satisfies StepDef] : []),
     ...(isAdmin ? [{ id: "creator", fields: [] } satisfies StepDef] : []),
@@ -354,9 +355,12 @@ export function EventForm({
   const allowedLocations: LocationCategory[] = selectedType
     ? normalizeAllowedLocations(selectedType.allowedLocations)
     : [...LOCATION_CATEGORIES];
-  /** Whether the wizard shows the Location step (types that are exclusively
-      in-camp have no location to record). */
-  const showLocationStep = allowedLocations.some((category) => category !== "in");
+  /**
+   * The Location step always shows so an in-camp event can optionally record
+   * a specific location; an exclusively in-camp type just collapses the
+   * category selector to its single option.
+   */
+  const showLocationStep = true;
   /** Whether the wizard shows the Remarks step (per-type toggle). */
   const showRemarksStep = selectedType ? selectedType.showRemarks !== false : true;
   /** Whether the wizard shows the Invited Attendees step (per-type toggle). */
@@ -384,7 +388,7 @@ export function EventForm({
   // drop out per its config). Rebuilt each render (a handful of tiny objects)
   // because its deps derive from reactive form values; the type is only ever
   // changed on step 1, so the step index stays valid when the list re-derives.
-  const steps = buildSteps(isAdmin, showLocationStep, showRemarksStep, showInviteesStep);
+  const steps = buildSteps(isAdmin, showRemarksStep, showInviteesStep);
   const [step, setStep] = useState(0);
   const [inviteePickerOpen, setInviteePickerOpen] = useState(false);
   const currentStep = steps[step];
@@ -528,7 +532,7 @@ export function EventForm({
       switchTimeOption(allowed[0]);
     }
     // Re-clamp the location category against the new type's allowed locations
-    // (an in-camp-only type forces the flags off and clears the location).
+    // (an in-camp-only type forces the flags off; the location is preserved).
     const clamped = clampOutOfCamp(
       type ? type.allowedLocations : undefined,
       form.values.outOfCamp,
@@ -938,11 +942,6 @@ export function EventForm({
                 const flags = flagsFromCategory(value as LocationCategory);
                 form.setFieldValue("outOfCamp", flags.outOfCamp);
                 form.setFieldValue("overseas", flags.overseas);
-                // Clear the destination when switching back in camp; keep it
-                // for out-of-camp so the user can specify where.
-                if (!flags.outOfCamp) {
-                  form.setFieldValue("location", "");
-                }
               }}
             />
             <TextInput
@@ -953,7 +952,6 @@ export function EventForm({
                   : "Where the event takes place"
               }
               {...form.getInputProps("location")}
-              disabled={!effectiveOutOfCamp.outOfCamp}
             />
             <Text size="xs" c="dimmed">
               {LOCATION_CATEGORY_DESCRIPTIONS[effectiveCategory]}

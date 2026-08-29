@@ -322,9 +322,10 @@ the SW file lives at a fixed URL, so scriptURL never changes) and, when the
    `in`/`out`/`overseas`) enforced client- and server-side by pure
    `clampOutOfCamp()` (`src/lib/events/locationPolicy.ts`) — an event's location is a
    single category (In camp / Out of camp / Overseas) chosen in the wizard's Location
-   step; the `overseas` category is the KAH "away" signal and the destination
-   (`location`) IS the out-of-camp destination; `resolveEventLocation()` silently
-   re-clamps on create/update — plus `show_remarks` and `show_invitees` toggles: the
+   step (always present: the `location` string is an **optional specific place even for
+   in-camp events**); the `overseas` category is the KAH "away" signal;
+   `resolveEventLocation()` silently re-clamps on create/update — plus `show_remarks`
+   and `show_invitees` toggles: the
    former drops the Remarks step and clears the description, the latter drops the
    Invited Attendees step and collapses attendees to the creator (target calendars
    derive from the cleared input, so re-saving a hidden-invitee event removes its other

@@ -4,7 +4,7 @@
  * place in (the "allowed locations" matrix). An event's location is a single
  * category selected from that allowlist:
  *
- * - `in` — in camp. No Out of Camp flag, no destination.
+ * - `in` — in camp. No Out of Camp flag; a specific location is optional.
  * - `out` — out of camp but in country (the destination is recorded).
  * - `overseas` — out of the country (out of camp by implication; the
  *   destination is recorded). This is the only category that makes a tagged
@@ -31,7 +31,7 @@ export const LOCATION_CATEGORY_LABELS: Record<LocationCategory, string> = {
 };
 
 export const LOCATION_CATEGORY_DESCRIPTIONS: Record<LocationCategory, string> = {
-  in: "Events of this type take place in camp; no location is recorded.",
+  in: "Events of this type take place in camp; a specific location is optional.",
   out: "Events of this type take place out of camp but in country; the location records the destination.",
   overseas:
     "Events of this type take place outside the country; the location records the overseas destination.",
@@ -115,10 +115,10 @@ export interface OutOfCampState {
 /**
  * Enforce a type's allowed locations onto the event's Out of Camp flag,
  * overseas flag, and location: a category outside the allowlist is clamped to
- * the first allowed one, and the location is cleared whenever the event is
- * not out of camp (in-camp events record no destination). Keeping the
- * overseas flag is what makes the event count a tagged person as away in the
- * KAH check.
+ * the first allowed one, and the location string is always preserved — in-camp
+ * events may optionally record a specific location (it never implies out of
+ * camp). Keeping the overseas flag is what makes the event count a tagged
+ * person as away in the KAH check.
  */
 export function clampOutOfCamp(
   allowed: readonly LocationCategory[] | null | undefined,
@@ -130,6 +130,6 @@ export function clampOutOfCamp(
   const flags = flagsFromCategory(category);
   return {
     ...flags,
-    location: flags.outOfCamp ? location : "",
+    location,
   };
 }

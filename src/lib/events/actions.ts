@@ -260,10 +260,11 @@ function resolveEventDates(input: EventFormValues): EventFormValues {
 
 /**
  * Enforce the event type's allowed locations on the Out of Camp / overseas
- * flags and location (in-camp events clear the location; an exclusively
- * in-camp type forces both flags off; an out-of-camp-only type forces the
- * category out). Applied after {@link resolveEventTime} in both create and
- * update so a stale form state can never submit an out-of-policy category.
+ * flags and location (in-camp events keep an optional specific location; an
+ * exclusively in-camp type forces both flags off; an out-of-camp-only type
+ * forces the category out). Applied after {@link resolveEventTime} in both
+ * create and update so a stale form state can never submit an out-of-policy
+ * category.
  */
 function resolveEventLocation(input: EventFormValues, context: EventTitleContext): EventFormValues {
   const location = input.location.trim();

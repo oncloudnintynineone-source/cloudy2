@@ -164,10 +164,12 @@ Mechanics worth knowing:
   `switchTimeOption` (`EventForm.tsx:365`) zeroes the time part to `00:00:00` when
   entering any day-based option and defaults the indicators to AM→PM on `half`, so a
   mixed span renders with no title suffix.
-- **Location** (`EventForm.tsx:632-656`): the "Out of Camp" checkbox is disabled unless
-  the type's policy is `both`; unchecking it clears the location; the location input is
-  disabled when in-camp or the policy is `in`. The effective flag/location is always the
-  `clampOutOfCamp` pair (`EventForm.tsx:269-273`), never the raw form value.
+- **Location** (`EventForm.tsx:923-961`): a `SegmentedControl` over the type's allowed
+  categories (single-option types show one disabled segment), switching it sets the
+  `outOfCamp`/`overseas` flags. The location `TextInput` below is **always enabled** —
+  even in-camp events may record an optional specific place (it never implies out of
+  camp). The effective flag/location is always the
+  `clampOutOfCamp` pair (`EventForm.tsx:365-370`), never the raw form value.
 - **Invited Attendees** (`EventForm.tsx:658-679`): a `NoKeyboardMultiSelect` with two
   groups — Departments (`dept:<id>` values) and Invited Attendees (`user:<id>` values).
   The creator's chip is
@@ -403,7 +405,7 @@ default `"{description}"`, max 300 chars) case-insensitively:
 | `{people:acronym}` | user shortnames, falling back to names |
 | `{people:fqn}` | `formatFullName` rendering (`{name}`/`{department}`) |
 | `{departments}` | department names joined with `", "` |
-| `{location}` | the out-of-camp destination; `""` for in-camp events |
+| `{location}` | the location string (optional even for in-camp events); `""` when unset |
 
 List tokens join with `", "`; empty lists/absent values resolve to `""`; **unknown
 tokens and unknown styles are left as literal text**; the result is trimmed.
@@ -485,12 +487,12 @@ falls back to the name.
 
 Per event type, an admin configures which location **categories** events of that type may
 take place in — `event_types.allowed_locations` (a `text[]` matrix column, defaulting to
-all three; `src/lib/events/locationPolicy.ts`). Location is the **out-of-camp
-destination** — in-camp events record no location at all.
+all three; `src/lib/events/locationPolicy.ts`). The location string is an **optional
+specific place** regardless of category — even in-camp events may record one.
 
 | Category | Label | Stored flags (`outOfCamp` / `overseas`) | Destination | KAH counts tagged member as |
 | -------- | ----- | --------------------------------------- | ----------- | --------------------------- |
-| `in` | In camp | `false` / `false` | never | in country |
+| `in` | In camp | `false` / `false` | optional | in country |
 | `out` | Out of camp | `true` / `false` | recorded | in country |
 | `overseas` | Overseas | `true` / `true` | recorded | **away (not in country)** |
 
@@ -506,10 +508,11 @@ form derives the effective flags live and re-clamps on type change
 (`actions.ts`) after `resolveEventTime`, in both create and update — so a stale form state
 can never submit an out-of-policy category. A category outside the type's allowlist clamps
 to the **first allowed category in canonical order** (`in` → `out` → `overseas`; in-camp is
-the terminal fallback), and an out-of-policy pick therefore degrades to in camp. The
-`outOfCamp` and `overseas` flags are persisted in the notes (each only when true); the
-destination goes to Google's first-class `location` field, which the write path always
-sends (even empty) so an in-app update actively clears a previously set location.
+the terminal fallback), and an out-of-policy pick therefore degrades to in camp. The clamp
+**always preserves the location string** — in-camp events keep their optional specific
+place. The `outOfCamp` and `overseas` flags are persisted in the notes (each only when
+true); the location goes to Google's first-class `location` field, which the write path
+always sends (even empty) so an in-app update actively clears a previously set location.
 
 Migration note: `event_types.location_policy` (`in`/`out`/`both`) was replaced by the
 matrix. Migration `0027` backfilled existing rows (`in`→`[in]`, `out`→`[out,overseas]`,
@@ -530,8 +533,9 @@ event-type form, Settings → Event Types), both defaulting to `true`:
   (`resolveTargetCalendars`) runs on the *cleared* input, re-saving an existing
   multi-department event of such a type removes its other departments' copies.
 
-The Location step itself is omitted for types whose matrix is exclusively `[in]` — there
-is no location to record.
+The Location step always stays; for types whose matrix is exclusively `[in]` the category
+selector collapses to a single disabled "In camp" segment and only the optional location
+input remains.
 
 ## 1.10 Time options & datetime math
 
