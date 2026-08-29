@@ -6,7 +6,8 @@ const base: EventTypeFormValues = {
   name: "Leave",
   shortname: "LV",
   timeOptions: ["range", "full"],
-  locationPolicy: "both",
+  allowedLocations: ["in", "out", "overseas"],
+  showRemarks: true,
 };
 
 describe("validateEventTypeForm", () => {
@@ -44,18 +45,24 @@ describe("validateEventTypeForm", () => {
     });
   });
 
-  it("accepts all canonical location policies", () => {
-    for (const policy of ["in", "out", "both"] as const) {
-      expect(validateEventTypeForm({ ...base, locationPolicy: policy })).toEqual({});
-    }
+  it("accepts any canonical allowed-location combination", () => {
+    expect(validateEventTypeForm({ ...base, allowedLocations: ["in"] })).toEqual({});
+    expect(validateEventTypeForm({ ...base, allowedLocations: ["out", "overseas"] })).toEqual({});
+    expect(validateEventTypeForm({ ...base, allowedLocations: ["overseas"] })).toEqual({});
   });
 
-  it("rejects an unknown location policy", () => {
+  it("requires at least one allowed location", () => {
+    expect(validateEventTypeForm({ ...base, allowedLocations: [] })).toEqual({
+      allowedLocations: "Select at least one location",
+    });
+  });
+
+  it("rejects an unknown allowed location", () => {
     expect(
       validateEventTypeForm({
         ...base,
-        locationPolicy: "camp" as EventTypeFormValues["locationPolicy"],
+        allowedLocations: ["camp" as EventTypeFormValues["allowedLocations"][number]],
       }),
-    ).toEqual({ locationPolicy: "Select a location policy" });
+    ).toEqual({ allowedLocations: "Select at least one location" });
   });
 });

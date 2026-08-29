@@ -181,7 +181,7 @@ raw enums, no machine datetimes. The shape is one of two things:
 | `event.update` | `diffFields(before, after)` + `eventId` |
 | `event.delete` | flat `EventAuditSnapshot` + `eventId` + `googleEventIds[]` |
 | `access.grant` / `access.update` / `access.revoke` | role diff (previous role read from the ACLs before the mutation) |
-| `eventType.create` / `eventType.rename` / `eventType.delete` | field objects; time options / location policy as display labels |
+| `eventType.create` / `eventType.rename` / `eventType.delete` | field objects; time options / allowed locations as display labels |
 | `settings.update` | single-field diffs (e.g. `auditLogRetentionDays` before/after) |
 | `auth.login.failure` | `{ reason: "invalid_credentials" \| "unknown_input" }`; the derived phone (never the raw input) is the `actor_name` |
 | `audit.purge` | `{ retentionDays, deleted }` |
@@ -276,7 +276,7 @@ Supporting helpers:
   IDs"); unknown keys render verbatim.
 - `valueString(key, value)` (`:127`) — null/undefined → `EMPTY_VALUE` (`—`,
   `:123`); domain enums mapped by key (`timeOption`/`timeOptions` → "Start &
-  End"/"Full Day"/"Half Day", `locationPolicy` → "In camp only"/…); booleans →
+  End"/"Full Day"/"Half Day", `allowedLocations` → "In camp, Overseas", etc.); booleans →
   "Yes"/"No"; strings as-is; arrays joined with `", "`; anything else JSON-stringified.
 - `actorLabel(row)` (`:206`) — `"{name} ({role})"`, "Unknown" for a null name.
 - `formatLogTimestamp(createdAt)` (`:212`) — `YYYY-MM-DD HH:MM` in

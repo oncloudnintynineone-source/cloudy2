@@ -25,6 +25,7 @@ function makeEvent(id: string, start: string, end: string, allDay = false): Cale
       startAmPm: null,
       endAmPm: null,
       outOfCamp: false,
+      overseas: false,
       location: "",
       external: false,
     },

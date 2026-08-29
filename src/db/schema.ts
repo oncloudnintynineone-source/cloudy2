@@ -91,11 +91,17 @@ export const eventTypes = pgTable(
       .notNull()
       .default(sql`'{}'::text[]`),
     /**
-     * Where events of this type may take place: "in" (in camp only, no Out of
-     * Camp flag), "out" (out of camp only, no location), "both" (no
-     * restriction — the default).
+     * The location categories events of this type may take place in
+     * ("in" camp | "out" of camp in country | "overseas"). Empty/missing
+     * falls back to all three. An event's category is a single value; this
+     * matrix is the per-type allowlist.
      */
-    locationPolicy: text("location_policy").notNull().default("both"),
+    allowedLocations: text("allowed_locations")
+      .array()
+      .notNull()
+      .default(sql`'{in,out,overseas}'::text[]`),
+    /** Whether the event form shows the Remarks (description) step for this type. */
+    showRemarks: boolean("show_remarks").notNull().default(true),
     /** Admin-set event color (Mantine palette name); null = deterministic default from the name. */
     color: text("color"),
     ...timestamps,

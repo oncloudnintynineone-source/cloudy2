@@ -5,7 +5,6 @@ import {
   Anchor,
   Badge,
   Button,
-  Checkbox,
   Grid,
   Group,
   Paper,
@@ -32,7 +31,16 @@ import {
   type EventResultField,
 } from "@/lib/events/actions";
 import { subOneDay } from "@/lib/events/datetime";
-import { clampOutOfCamp, type LocationPolicy } from "@/lib/events/locationPolicy";
+import {
+  categoryFromFlags,
+  clampOutOfCamp,
+  flagsFromCategory,
+  LOCATION_CATEGORIES,
+  LOCATION_CATEGORY_DESCRIPTIONS,
+  LOCATION_CATEGORY_LABELS,
+  normalizeAllowedLocations,
+  type LocationCategory,
+} from "@/lib/events/locationPolicy";
 import { eventRefFromCalendarEvent } from "@/lib/events/targets";
 import {
   joinDateTimeParts,
@@ -68,7 +76,8 @@ interface EventTypeOption {
   name: string;
   shortname: string | null;
   timeOptions: TimeOption[];
-  locationPolicy: LocationPolicy;
+  allowedLocations: LocationCategory[];
+  showRemarks: boolean;
 }
 
 interface InviteeUser {
@@ -108,13 +117,6 @@ const AMPM_OPTIONS = [
   { label: "PM", value: "PM" },
 ];
 
-/** The Out of Camp checkbox description, per the selected type's location policy. */
-const OUT_OF_CAMP_DESCRIPTIONS: Record<LocationPolicy, string> = {
-  in: "This event type takes place in camp only",
-  out: "This event type takes place out of camp only",
-  both: "In-camp events have no location; out of camp takes place at a location",
-};
-
 /** Wizard step ids for the staged event form. */
 type StepId = "type" | "time" | "location" | "invitees" | "remarks" | "creator" | "review";
 
@@ -124,21 +126,24 @@ interface StepDef {
   fields: (keyof EventFormState)[];
 }
 
-/** The input steps shared by every user, in order. */
-const BASE_STEPS: StepDef[] = [
-  { id: "type", fields: [] },
-  { id: "time", fields: ["start", "end", "startAmPm", "endAmPm"] },
-  { id: "location", fields: [] },
-  { id: "invitees", fields: [] },
-  { id: "remarks", fields: [] },
-];
-
-/** The full wizard walk: admins enter an optional "On behalf of" after
-    Remarks (blank = themselves); everyone ends on a read-only review of
-    everything entered so far. */
-function buildSteps(isAdmin: boolean): StepDef[] {
+/**
+ * The full wizard walk: the location and remarks steps drop out per the
+ * selected type's config (an exclusively in-camp type has no location step; a
+ * type with remarks disabled has no remarks step). Admins enter an optional
+ * "On behalf of" after Remarks (blank = themselves); everyone ends on a
+ * read-only review of everything entered so far.
+ */
+function buildSteps(
+  isAdmin: boolean,
+  showLocationStep: boolean,
+  showRemarksStep: boolean,
+): StepDef[] {
   return [
-    ...BASE_STEPS,
+    { id: "type", fields: [] },
+    { id: "time", fields: ["start", "end", "startAmPm", "endAmPm"] },
+    ...(showLocationStep ? [{ id: "location", fields: [] } satisfies StepDef] : []),
+    { id: "invitees", fields: [] },
+    ...(showRemarksStep ? [{ id: "remarks", fields: [] } satisfies StepDef] : []),
     ...(isAdmin ? [{ id: "creator", fields: [] } satisfies StepDef] : []),
     { id: "review", fields: [] },
   ];
@@ -189,11 +194,13 @@ export function EventForm({
       const selectedType = eventTypes.find((type) => type.name === event.payload.eventType) ?? null;
       const allowed: TimeOption[] = selectedType ? selectedType.timeOptions : ["range"];
       const timeOption = resolveTimeOption(allowed, event.payload.timeOption);
-      // Clamp the stored Out of Camp flag against the type's location policy
-      // in case the policy tightened since the event was last edited.
+      // Clamp the stored Out of Camp / overseas flags against the type's
+      // allowed locations in case the matrix tightened since the event was
+      // last edited.
       const clamped = clampOutOfCamp(
-        selectedType ? selectedType.locationPolicy : "both",
+        selectedType ? selectedType.allowedLocations : undefined,
         event.payload.outOfCamp,
+        event.payload.overseas,
         event.payload.location,
       );
       return {
@@ -216,6 +223,7 @@ export function EventForm({
           ...event.payload.inviteeUserIds.map((id) => `user:${id}`),
         ],
         outOfCamp: clamped.outOfCamp,
+        overseas: clamped.overseas,
         location: clamped.location,
       };
     }
@@ -227,8 +235,9 @@ export function EventForm({
       const allowed: TimeOption[] = selectedType ? selectedType.timeOptions : ["range"];
       const timeOption = resolveTimeOption(allowed, src.payload.timeOption);
       const clamped = clampOutOfCamp(
-        selectedType ? selectedType.locationPolicy : "both",
+        selectedType ? selectedType.allowedLocations : undefined,
         src.payload.outOfCamp,
+        src.payload.overseas,
         src.payload.location,
       );
       return {
@@ -247,6 +256,7 @@ export function EventForm({
           ...src.payload.inviteeUserIds.map((id) => `user:${id}`),
         ],
         outOfCamp: clamped.outOfCamp,
+        overseas: clamped.overseas,
         location: clamped.location,
       };
     }
@@ -265,6 +275,7 @@ export function EventForm({
       inviteeDepartments: [],
       invitees: isAdmin ? [] : currentUser ? [`user:${currentUser}`] : [],
       outOfCamp: false,
+      overseas: false,
       location: "",
     };
   }
@@ -328,19 +339,42 @@ export function EventForm({
   const selectedType = sortedEventTypes.find((type) => type.name === form.values.eventType) ?? null;
   const allowedOptions: TimeOption[] = selectedType ? selectedType.timeOptions : ["range"];
   const effectiveTimeOption = resolveTimeOption(allowedOptions, form.values.timeOption);
-  /** The selected type's location policy; untyped events are unrestricted. */
-  const locationPolicy: LocationPolicy = selectedType ? selectedType.locationPolicy : "both";
-  /** The effective Out of Camp flag + location after the policy is applied. */
+  /**
+   * The selected type's allowed location categories; untyped events are
+   * unrestricted. Normalized defensively in case a stale prop row drifts.
+   */
+  const allowedLocations: LocationCategory[] = selectedType
+    ? normalizeAllowedLocations(selectedType.allowedLocations)
+    : [...LOCATION_CATEGORIES];
+  /** Whether the wizard shows the Location step (types that are exclusively
+      in-camp have no location to record). */
+  const showLocationStep = allowedLocations.some((category) => category !== "in");
+  /** Whether the wizard shows the Remarks step (per-type toggle). */
+  const showRemarksStep = selectedType ? selectedType.showRemarks !== false : true;
+  /** The effective location flags + destination after the matrix is applied. */
   const effectiveOutOfCamp = clampOutOfCamp(
-    locationPolicy,
+    allowedLocations,
     form.values.outOfCamp,
+    form.values.overseas,
     form.values.location,
+  );
+  /** The single category the effective flags resolve to (drives the selector). */
+  const effectiveCategory: LocationCategory = categoryFromFlags(
+    effectiveOutOfCamp.outOfCamp,
+    effectiveOutOfCamp.overseas,
+  );
+  /** The location categories offered by the selector, in canonical order. */
+  const allowedCategoryOptions = LOCATION_CATEGORIES.filter((category) =>
+    allowedLocations.includes(category),
   );
 
   // Wizard state: a stepped walk through the form so the user only ever sees
   // one input group at a time. The step list depends on the role (admins get
-  // the "On behalf of" step); it never changes mid-session, so memoize it.
-  const steps = useMemo(() => buildSteps(isAdmin), [isAdmin]);
+  // the "On behalf of" step) and the selected type (location/remarks steps
+  // drop out per its config). Rebuilt each render (a handful of tiny objects)
+  // because its deps derive from reactive form values; the type is only ever
+  // changed on step 1, so the step index stays valid when the list re-derives.
+  const steps = buildSteps(isAdmin, showLocationStep, showRemarksStep);
   const [step, setStep] = useState(0);
   const [inviteePickerOpen, setInviteePickerOpen] = useState(false);
   const currentStep = steps[step];
@@ -483,16 +517,21 @@ export function EventForm({
     if (!allowed.includes(form.values.timeOption)) {
       switchTimeOption(allowed[0]);
     }
-    // Re-clamp the Out of Camp flag and location against the new type's
-    // location policy (an "in" or "out" type clears the location, and "out"
-    // additionally forces the flag on).
+    // Re-clamp the location category against the new type's allowed locations
+    // (an in-camp-only type forces the flags off and clears the location).
     const clamped = clampOutOfCamp(
-      type ? type.locationPolicy : "both",
+      type ? type.allowedLocations : undefined,
       form.values.outOfCamp,
+      form.values.overseas,
       form.values.location,
     );
     form.setFieldValue("outOfCamp", clamped.outOfCamp);
+    form.setFieldValue("overseas", clamped.overseas);
     form.setFieldValue("location", clamped.location);
+    // A type with remarks disabled carries no description.
+    if (type && type.showRemarks === false) {
+      form.setFieldValue("title", "");
+    }
   }
 
   const peopleById = useMemo(
@@ -864,27 +903,42 @@ export function EventForm({
 
         {currentStep.id === "location" && (
           <Stack>
-            <Checkbox
-              label="Out of Camp"
-              description={OUT_OF_CAMP_DESCRIPTIONS[locationPolicy]}
-              checked={effectiveOutOfCamp.outOfCamp}
-              disabled={locationPolicy !== "both"}
-              onChange={(checkedEvent) => {
-                const next = checkedEvent.currentTarget.checked;
-                form.setFieldValue("outOfCamp", next);
-                // Clear location when switching to in-camp (unchecked).
-                // Keep location when switching to out-of-camp so user can specify where.
-                if (!next) {
+            <Text fw={500} size="sm">
+              Location
+            </Text>
+            <SegmentedControl
+              aria-label="Location"
+              fullWidth
+              data={allowedCategoryOptions.map((category) => ({
+                value: category,
+                label: LOCATION_CATEGORY_LABELS[category],
+              }))}
+              value={effectiveCategory}
+              disabled={allowedCategoryOptions.length === 1}
+              onChange={(value) => {
+                const flags = flagsFromCategory(value as LocationCategory);
+                form.setFieldValue("outOfCamp", flags.outOfCamp);
+                form.setFieldValue("overseas", flags.overseas);
+                // Clear the destination when switching back in camp; keep it
+                // for out-of-camp so the user can specify where.
+                if (!flags.outOfCamp) {
                   form.setFieldValue("location", "");
                 }
               }}
             />
             <TextInput
-              label="Location"
-              placeholder="Where the event takes place"
+              label={effectiveCategory === "overseas" ? "Overseas location" : "Location"}
+              placeholder={
+                effectiveCategory === "overseas"
+                  ? "Where the event takes place overseas"
+                  : "Where the event takes place"
+              }
               {...form.getInputProps("location")}
-              disabled={!effectiveOutOfCamp.outOfCamp || locationPolicy === "in"}
+              disabled={!effectiveOutOfCamp.outOfCamp}
             />
+            <Text size="xs" c="dimmed">
+              {LOCATION_CATEGORY_DESCRIPTIONS[effectiveCategory]}
+            </Text>
           </Stack>
         )}
 
@@ -1031,21 +1085,28 @@ export function EventForm({
               <Text size="sm">{whenText || "—"}</Text>
             </Stack>
 
-            <Stack gap={4}>
-              <Text size="xs" c="dimmed" fw={600}>
-                Location
-              </Text>
-              <Group gap={6} wrap="wrap">
-                <Badge variant="light" color={effectiveOutOfCamp.outOfCamp ? "yellow" : "green"}>
-                  {effectiveOutOfCamp.outOfCamp ? "Out of Camp" : "In Camp"}
-                </Badge>
-                {effectiveOutOfCamp.location && (
-                  <Text size="sm" c="dimmed">
-                    {effectiveOutOfCamp.location}
-                  </Text>
-                )}
-              </Group>
-            </Stack>
+            {showLocationStep && (
+              <Stack gap={4}>
+                <Text size="xs" c="dimmed" fw={600}>
+                  Location
+                </Text>
+                <Group gap={6} wrap="wrap">
+                  <Badge variant="light" color={effectiveOutOfCamp.outOfCamp ? "yellow" : "green"}>
+                    {effectiveOutOfCamp.outOfCamp ? "Out of Camp" : "In Camp"}
+                  </Badge>
+                  {effectiveOutOfCamp.overseas && (
+                    <Badge variant="light" color="blue">
+                      Overseas
+                    </Badge>
+                  )}
+                  {effectiveOutOfCamp.location && (
+                    <Text size="sm" c="dimmed">
+                      {effectiveOutOfCamp.location}
+                    </Text>
+                  )}
+                </Group>
+              </Stack>
+            )}
 
             <Stack gap={4}>
               <Text size="xs" c="dimmed" fw={600}>
@@ -1109,14 +1170,16 @@ export function EventForm({
               </Stack>
             )}
 
-            <Stack gap={4}>
-              <Text size="xs" c="dimmed" fw={600}>
-                Remarks
-              </Text>
-              <Text size="sm" style={{ overflowWrap: "anywhere", whiteSpace: "pre-wrap" }}>
-                {form.values.title.trim() || "—"}
-              </Text>
-            </Stack>
+            {showRemarksStep && (
+              <Stack gap={4}>
+                <Text size="xs" c="dimmed" fw={600}>
+                  Remarks
+                </Text>
+                <Text size="sm" style={{ overflowWrap: "anywhere", whiteSpace: "pre-wrap" }}>
+                  {form.values.title.trim() || "—"}
+                </Text>
+              </Stack>
+            )}
           </Stack>
         )}
 

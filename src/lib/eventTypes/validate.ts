@@ -3,7 +3,7 @@
  * of I/O so they can be unit-tested without a database.
  */
 
-import { isLocationPolicy, type LocationPolicy } from "@/lib/events/locationPolicy";
+import { isLocationCategory, type LocationCategory } from "@/lib/events/locationPolicy";
 import type { TimeOption } from "@/lib/events/timeOptions";
 
 export interface EventTypeFormValues {
@@ -11,8 +11,10 @@ export interface EventTypeFormValues {
   shortname: string;
   /** Selectable datetime options; at least one must be enabled. */
   timeOptions: TimeOption[];
-  /** Where events of this type may take place ("in" | "out" | "both"). */
-  locationPolicy: LocationPolicy;
+  /** Location categories events of this type may take place in; at least one. */
+  allowedLocations: LocationCategory[];
+  /** Whether the event form shows the Remarks (description) step. */
+  showRemarks: boolean;
   /** Pinned event color (Mantine palette name); "" = the name-derived default. */
   color?: string;
 }
@@ -21,7 +23,7 @@ export interface EventTypeFormErrors {
   name?: string;
   shortname?: string;
   timeOptions?: string;
-  locationPolicy?: string;
+  allowedLocations?: string;
   [key: string]: string | undefined;
 }
 
@@ -36,8 +38,12 @@ export function validateEventTypeForm(values: EventTypeFormValues): EventTypeFor
   if (!Array.isArray(values.timeOptions) || values.timeOptions.length === 0) {
     errors.timeOptions = "Select at least one time option";
   }
-  if (!isLocationPolicy(values.locationPolicy)) {
-    errors.locationPolicy = "Select a location policy";
+  if (
+    !Array.isArray(values.allowedLocations) ||
+    values.allowedLocations.length === 0 ||
+    !values.allowedLocations.every(isLocationCategory)
+  ) {
+    errors.allowedLocations = "Select at least one location";
   }
   return errors;
 }

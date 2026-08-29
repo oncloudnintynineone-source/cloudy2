@@ -46,6 +46,13 @@ export interface EventNotes {
    * field.
    */
   outOfCamp?: boolean;
+  /**
+   * Whether an out-of-camp event is outside the country. Written only when
+   * the event is out of camp AND overseas — absence (legacy events) or false
+   * means in country. This is the flag the KAH check uses to count a tagged
+   * member as "not in country".
+   */
+  overseas?: boolean;
   [key: string]: unknown;
 }
 
@@ -294,4 +301,9 @@ export function parseEventEndAmPm(description: string): "AM" | "PM" | null {
 /** Extract the out-of-camp flag from the notes block; false when absent (legacy). */
 export function parseEventOutOfCamp(description: string): boolean {
   return parseEventNotes(description)?.outOfCamp === true;
+}
+
+/** Extract the overseas flag from the notes block; false when absent (legacy). */
+export function parseEventOverseas(description: string): boolean {
+  return parseEventNotes(description)?.overseas === true;
 }

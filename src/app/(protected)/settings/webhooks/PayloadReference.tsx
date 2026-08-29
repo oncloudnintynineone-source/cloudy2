@@ -70,6 +70,7 @@ const FIELDS = [
     "Structured times (naive UTC+8 strings); omitted when unrecoverable (legacy deletes)",
   ],
   ["event.outOfCamp", "boolean", "Out-of-camp flag"],
+  ["event.overseas", "boolean", "Out-of-country flag (only set when out of camp)"],
   ["event.location", "string | null", "Out-of-camp destination; null in camp"],
   ["event.departments", "string[]", "Department names the event lives in"],
   ["event.invitees", "string[]", "Invited attendees by display name (includes owner)"],

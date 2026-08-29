@@ -30,6 +30,7 @@ function makeEvent(
     startAmPm: overrides.startAmPm ?? null,
     endAmPm: overrides.endAmPm ?? null,
     outOfCamp: overrides.outOfCamp ?? false,
+    overseas: overrides.overseas ?? false,
     location: overrides.location ?? "",
     external: overrides.external ?? false,
   };

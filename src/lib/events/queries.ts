@@ -14,6 +14,7 @@ import {
   isExternalEvent,
   parseEventEndAmPm,
   parseEventOutOfCamp,
+  parseEventOverseas,
   parseEventPeople,
   parseEventStartAmPm,
   parseEventTimeOption,
@@ -48,6 +49,8 @@ export interface CalendarEventPayload {
   endAmPm: "AM" | "PM" | null;
   /** True when the event takes place out of camp (from the notes block). */
   outOfCamp: boolean;
+  /** True when the out-of-camp event is outside the country (from the notes block). */
+  overseas: boolean;
   /** The event's location (from Google); "" when unset. */
   location: string;
   /** True when the event was created directly in Google Calendar, not in the app. */
@@ -152,6 +155,7 @@ function mapCalendarItem(
       startAmPm: parseEventStartAmPm(item.description),
       endAmPm: parseEventEndAmPm(item.description),
       outOfCamp: parseEventOutOfCamp(item.description),
+      overseas: parseEventOverseas(item.description),
       location: item.location ?? "",
       external: isExternalEvent(item.description),
     },

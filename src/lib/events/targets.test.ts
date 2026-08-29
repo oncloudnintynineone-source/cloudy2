@@ -85,6 +85,7 @@ function makeEvent(eventId: string | null, calendarId = "cal-1"): CalendarEvent 
       startAmPm: null,
       endAmPm: null,
       outOfCamp: false,
+      overseas: false,
       location: "",
       external: false,
     },

@@ -12,7 +12,11 @@ import { logAction } from "@/lib/audit/log";
 import { requireAdmin } from "@/lib/session";
 import { validateEventTypeForm, type EventTypeFormValues } from "@/lib/eventTypes/validate";
 import { formatColorLabel, normalizeEventColor } from "@/lib/events/eventColors";
-import { LOCATION_POLICY_LABELS, normalizeLocationPolicy } from "@/lib/events/locationPolicy";
+import {
+  isLocationCategory,
+  LOCATION_CATEGORY_LABELS,
+  normalizeAllowedLocations,
+} from "@/lib/events/locationPolicy";
 import { isTimeOption, normalizeTimeOptions, TIME_OPTION_LABELS } from "@/lib/events/timeOptions";
 
 export type EventTypeActionResult =
@@ -20,7 +24,7 @@ export type EventTypeActionResult =
   | {
       ok: false;
       error: string;
-      field?: "name" | "shortname" | "timeOptions" | "locationPolicy";
+      field?: "name" | "shortname" | "timeOptions" | "allowedLocations";
     };
 
 function actorFrom(session: Awaited<ReturnType<typeof requireAdmin>>) {
@@ -41,6 +45,13 @@ function timeOptionLabels(options: string[]): string[] {
   return options.map((option) => (isTimeOption(option) ? TIME_OPTION_LABELS[option] : option));
 }
 
+/** Display labels for the allowed-location matrix, stored in audit details. */
+function allowedLocationLabels(locations: string[]): string[] {
+  return locations.map((location) =>
+    isLocationCategory(location) ? LOCATION_CATEGORY_LABELS[location] : location,
+  );
+}
+
 export async function createEventType(input: EventTypeFormValues): Promise<EventTypeActionResult> {
   const session = await requireAdmin();
 
@@ -52,12 +63,13 @@ export async function createEventType(input: EventTypeFormValues): Promise<Event
   const name = input.name.trim();
   const shortname = input.shortname.trim();
   const timeOptions = normalizeTimeOptions(input.timeOptions);
-  const locationPolicy = normalizeLocationPolicy(input.locationPolicy);
+  const allowedLocations = normalizeAllowedLocations(input.allowedLocations);
+  const showRemarks = input.showRemarks !== false;
   const color = normalizeEventColor(input.color);
   try {
     const [created] = await db
       .insert(eventTypes)
-      .values({ name, shortname, timeOptions, locationPolicy, color })
+      .values({ name, shortname, timeOptions, allowedLocations, showRemarks, color })
       .returning({ id: eventTypes.id, name: eventTypes.name });
 
     await logAction({
@@ -71,7 +83,8 @@ export async function createEventType(input: EventTypeFormValues): Promise<Event
         name,
         shortname,
         timeOptions: timeOptionLabels(timeOptions),
-        locationPolicy: LOCATION_POLICY_LABELS[locationPolicy],
+        allowedLocations: allowedLocationLabels(allowedLocations),
+        showRemarks,
         color: formatColorLabel(color, name),
       },
     });
@@ -115,12 +128,13 @@ export async function renameEventType(
   const name = input.name.trim();
   const shortname = input.shortname.trim();
   const timeOptions = normalizeTimeOptions(input.timeOptions);
-  const locationPolicy = normalizeLocationPolicy(input.locationPolicy);
+  const allowedLocations = normalizeAllowedLocations(input.allowedLocations);
+  const showRemarks = input.showRemarks !== false;
   const color = normalizeEventColor(input.color);
   try {
     await db
       .update(eventTypes)
-      .set({ name, shortname, timeOptions, locationPolicy, color, updatedAt: new Date() })
+      .set({ name, shortname, timeOptions, allowedLocations, showRemarks, color, updatedAt: new Date() })
       .where(eq(eventTypes.id, id));
 
     await logAction({
@@ -135,14 +149,16 @@ export async function renameEventType(
           name: existing.name,
           shortname: existing.shortname,
           timeOptions: timeOptionLabels(existing.timeOptions),
-          locationPolicy: LOCATION_POLICY_LABELS[normalizeLocationPolicy(existing.locationPolicy)],
+          allowedLocations: allowedLocationLabels(normalizeAllowedLocations(existing.allowedLocations)),
+          showRemarks: existing.showRemarks,
           color: formatColorLabel(existing.color, existing.name),
         },
         {
           name,
           shortname,
           timeOptions: timeOptionLabels(timeOptions),
-          locationPolicy: LOCATION_POLICY_LABELS[locationPolicy],
+          allowedLocations: allowedLocationLabels(allowedLocations),
+          showRemarks,
           color: formatColorLabel(color, name),
         },
       ),

@@ -11,6 +11,7 @@ import type { GcalEventItem } from "@/lib/google";
 import {
   parseEventEndAmPm,
   parseEventOutOfCamp,
+  parseEventOverseas,
   parseEventStartAmPm,
   parseEventTimeOption,
   parseEventTitle,
@@ -30,6 +31,8 @@ export type EventAuditSnapshot = {
   /** Pre-formatted start–end string in the app's UTC+8 wall clock. */
   time: string;
   outOfCamp: boolean;
+  /** Whether the out-of-camp event is outside the country. */
+  overseas: boolean;
   /** Out-of-camp destination; null for in-camp events. */
   location: string | null;
   /** Names of the department calendars the event lives in. */
@@ -117,6 +120,7 @@ export function buildEventSnapshot(input: {
   type: string;
   timeParts: EventTimeParts;
   outOfCamp: boolean;
+  overseas: boolean;
   location: string;
   departmentIds: string[];
   inviteeUserIds: string[];
@@ -129,6 +133,7 @@ export function buildEventSnapshot(input: {
     type: input.type.trim() || null,
     time: formatEventAuditTime(input.timeParts),
     outOfCamp: input.outOfCamp,
+    overseas: input.overseas,
     location: input.location.trim() || null,
     departments: input.departmentIds
       .map((id) => input.names.departmentNames[id])
@@ -168,6 +173,7 @@ export function snapshotFromCopy(
       endAmPm: parseEventEndAmPm(description) ?? "",
     },
     outOfCamp: parseEventOutOfCamp(description),
+    overseas: parseEventOverseas(description),
     location: copy?.location ?? "",
     departmentIds,
     inviteeUserIds: ref.inviteeUserIds,

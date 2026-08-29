@@ -222,4 +222,4 @@ Related docs:
 - [`audit-log.md`](audit-log.md) — the audit rows whose snapshots/diffs feed the
   payload.
 - [`event-lifecycle.md`](event-lifecycle.md) — what each payload field means
-  (title rendering, location policy, time options).
+  (title rendering, location categories, time options).

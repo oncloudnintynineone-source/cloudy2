@@ -186,7 +186,10 @@ before changing the subsystem.
   free people), `dispatchKahBreachCheck()` (`src/lib/kah/notify.ts`) runs inside
   `after()`: it month-reads all calendars through the events cache (registered AFTER
   `invalidateGcalCache` so its reads see the saved copies), marks members away when they
-  are creator/invitee on any internal event overlapping the saved event's window, and
+  are creator/invitee on an internal event overlapping the saved event's window whose
+  location category is `overseas` (the notes `overseas` flag via `eventTakesMembersOverseas`
+  in `src/lib/kah/status.ts` — in-camp, local out-of-camp, external, and legacy events
+  never count), and
   computes breaches with pure `computeKahBreaches` (floored %, breach strictly below).
   Breaches write an audited `kah.breachNotify` row and send ONE combined email whose
   subject/body come from admin-editable templates on the settings row
@@ -314,12 +317,16 @@ the SW file lives at a fixed URL, so scriptURL never changes) and, when the
   stacks directly above it.
 - **Admin settings live under `/settings`** (admin-only): Users, Departments, Event
    Types, Templates, Webhooks, Quick Links, General, Audit Log tabs. Event types carry an
-   app-required unique `shortname` (the `{type:acronym}` title token), a
-   `location_policy` (`in`/`out`/`both`) enforced client- and server-side by pure
-   `clampOutOfCamp()` (`src/lib/events/locationPolicy.ts`) — the location field IS
-   the out-of-camp destination; `resolveEventLocation()` silently re-clamps on
-   create/update — and an optional event `color` (Mantine palette name; null =
-   deterministic default derived from the type name), edited in the event type
+   app-required unique `shortname` (the `{type:acronym}` title token), an
+   **allowed-locations matrix** (`allowed_locations`, a `text[]` subset of
+   `in`/`out`/`overseas`) enforced client- and server-side by pure
+   `clampOutOfCamp()` (`src/lib/events/locationPolicy.ts`) — an event's location is a
+   single category (In camp / Out of camp / Overseas) chosen in the wizard's Location
+   step; the `overseas` category is the KAH "away" signal and the destination
+   (`location`) IS the out-of-camp destination; `resolveEventLocation()` silently
+   re-clamps on create/update — plus a `show_remarks` toggle (off = no Remarks step, the
+   server clears the description), and an optional event `color` (Mantine palette name;
+   null = deterministic default derived from the type name), edited in the event type
    form modal. Departments keep an optional fallback `color` used ONLY for
    untyped/external events (null = deterministic per-calendar default). Both
    colors are applied at read time in `mapCalendarItem` (pure helpers in

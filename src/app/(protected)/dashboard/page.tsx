@@ -126,7 +126,8 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
     name: type.name,
     shortname: type.shortname,
     timeOptions: type.timeOptions,
-    locationPolicy: type.locationPolicy,
+    allowedLocations: type.allowedLocations,
+    showRemarks: type.showRemarks,
   }));
   const typesParam =
     typeof params.types === "string" ? params.types.split(",").filter(Boolean) : [];

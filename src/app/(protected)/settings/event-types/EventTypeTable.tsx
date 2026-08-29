@@ -21,7 +21,7 @@ import type { EventType } from "@/db/schema";
 import { FAB_ICON_SIZE, FloatingActionButton, FloatingToolbar } from "@/components/FloatingToolbar";
 import { formatColorLabel } from "@/lib/events/eventColors";
 import { ColorDot } from "@/components/ColorSwatchPicker";
-import { LOCATION_POLICY_LABELS, normalizeLocationPolicy } from "@/lib/events/locationPolicy";
+import { LOCATION_CATEGORY_LABELS, normalizeAllowedLocations } from "@/lib/events/locationPolicy";
 import {
   TIME_OPTION_LABELS,
   normalizeTimeOptions,
@@ -105,9 +105,16 @@ export function EventTypeTable({ types }: EventTypeTableProps) {
                         </Badge>
                       ),
                     )}
-                    <Badge size="sm" variant="light" color="accent">
-                      {LOCATION_POLICY_LABELS[normalizeLocationPolicy(eventType.locationPolicy)]}
-                    </Badge>
+                    {normalizeAllowedLocations(eventType.allowedLocations).map((category) => (
+                      <Badge key={category} size="sm" variant="light" color="accent">
+                        {LOCATION_CATEGORY_LABELS[category]}
+                      </Badge>
+                    ))}
+                    {eventType.showRemarks === false && (
+                      <Badge size="sm" variant="light" color="gray">
+                        No remarks
+                      </Badge>
+                    )}
                   </Group>
                 </Stack>
               </Paper>
@@ -123,7 +130,7 @@ export function EventTypeTable({ types }: EventTypeTableProps) {
                   <Table.Th>Acronym</Table.Th>
                   <Table.Th>Color</Table.Th>
                   <Table.Th>Time options</Table.Th>
-                  <Table.Th>Location policy</Table.Th>
+                  <Table.Th>Allowed locations</Table.Th>
                 </Table.Tr>
               </Table.Thead>
               <Table.Tbody>
@@ -164,9 +171,18 @@ export function EventTypeTable({ types }: EventTypeTableProps) {
                       </Group>
                     </Table.Td>
                     <Table.Td>
-                      <Badge size="sm" variant="light" color="accent">
-                        {LOCATION_POLICY_LABELS[normalizeLocationPolicy(eventType.locationPolicy)]}
-                      </Badge>
+                      <Group gap="xs" wrap="wrap">
+                        {normalizeAllowedLocations(eventType.allowedLocations).map((category) => (
+                          <Badge key={category} size="sm" variant="light" color="accent">
+                            {LOCATION_CATEGORY_LABELS[category]}
+                          </Badge>
+                        ))}
+                        {eventType.showRemarks === false && (
+                          <Badge size="sm" variant="light" color="gray">
+                            No remarks
+                          </Badge>
+                        )}
+                      </Group>
                     </Table.Td>
                   </Table.Tr>
                 ))}

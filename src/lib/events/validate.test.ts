@@ -19,6 +19,7 @@ const base: EventFormValues = {
   inviteeUserIds: [],
   inviteeDepartments: [],
   outOfCamp: false,
+  overseas: false,
   location: "Hall A",
 };
 

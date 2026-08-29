@@ -90,7 +90,7 @@ import { QuickLinksMenu, type QuickLinkMenuItem } from "@/components/QuickLinksM
 import { eventsOnDay } from "@/lib/events/agenda";
 import { weekDays } from "@/lib/events/datetime";
 import type { CalendarEvent } from "@/lib/events/queries";
-import type { LocationPolicy } from "@/lib/events/locationPolicy";
+import type { LocationCategory } from "@/lib/events/locationPolicy";
 import type { TimeOption } from "@/lib/events/timeOptions";
 import { CONTENT_ENTER_CLASS, useContentEnter } from "@/lib/loading/contentEnter";
 import { useMinSkeletonHold } from "@/lib/loading/minHoldLoading";
@@ -147,7 +147,8 @@ interface EventTypeOption {
   name: string;
   shortname: string | null;
   timeOptions: TimeOption[];
-  locationPolicy: LocationPolicy;
+  allowedLocations: LocationCategory[];
+  showRemarks: boolean;
 }
 
 interface DashboardViewProps {

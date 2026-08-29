@@ -86,9 +86,10 @@ flowchart LR
   "Google Calendar is not configured" (the stub integration would otherwise "succeed"
   and audit-log phantom events).
 - **Server re-normalization** (create `:375-378`, update `:492-495`):
-  `resolveEventLocation(resolveEventTime(input, ctx), ctx)` clamps the time option to
-  the type's allowed set and applies the location policy — the same pure helpers the
-  form uses, so a stale or tampered form can't submit an out-of-policy combination.
+  `resolveEventFields(resolveEventLocation(resolveEventTime(input, ctx), ctx), ctx)`
+  clamps the time option, the location category, and hidden fields (remarks) to the
+  type's allowed set — the same pure helpers the form uses, so a stale or tampered
+  form can't submit an out-of-policy combination.
 - **Result type**: `EventActionResult = { ok: true } | { ok: false; error: string;
   field?: EventResultField }` (`actions.ts:54`) — actions never throw for expected
   failures; the client maps the error back onto the wizard.
@@ -285,7 +286,7 @@ full list); the mutation-specific ones:
 | `creatorGuard`, `ownershipGuard` | `events/guards.ts` | `guards.test.ts` |
 | `validateEventForm`, `withSelfCreator` | `events/validate.ts` | `validate.test.ts` |
 | `resolveTimeOption`, `amPmSuffix` | `events/timeOptions.ts` | `timeOptions.test.ts` |
-| `clampOutOfCamp` | `events/locationPolicy.ts` | `locationPolicy.test.ts` |
+| `clampOutOfCamp`, `flagsFromCategory` / `categoryFromFlags`, `normalizeAllowedLocations` | `events/locationPolicy.ts` | `locationPolicy.test.ts` |
 | `absEventRange`, `monthsInRange` | `events/datetime.ts` | `datetime.test.ts` |
 | `buildEventSnapshot`, `snapshotFromCopy`, `formatEventAuditTime`, `renderEventTitle` | `events/eventAudit.ts` / `events/eventTitle.ts` | `eventAudit.test.ts` |
 | `diffFields` | `audit/diff.ts` | `audit/diff.test.ts` |
@@ -317,7 +318,7 @@ live runtime, per the repo convention.
 Related docs:
 
 - [`event-lifecycle.md`](event-lifecycle.md) — what an event is: form, notes block,
-  title, location policy, time options.
+  title, location categories, time options.
 - [`events-cache.md`](events-cache.md) — the read cache these mutations invalidate.
 - [`audit-log.md`](audit-log.md) — the audit rows these mutations write, rendered.
 - [`roster-sharing.md`](roster-sharing.md) — the department calendars (Google ACLs)

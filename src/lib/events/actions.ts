@@ -25,7 +25,7 @@ import {
   withEditLink,
   withInternalMarker,
 } from "@/lib/events/notes";
-import { clampOutOfCamp, type LocationPolicy } from "@/lib/events/locationPolicy";
+import { clampOutOfCamp, type LocationCategory } from "@/lib/events/locationPolicy";
 import { creatorGuard, ownershipGuard } from "@/lib/events/guards";
 import { dispatchKahBreachCheck } from "@/lib/kah/notify";
 import { naiveTimePart, resolveTimeOption, type TimeOption } from "@/lib/events/timeOptions";
@@ -161,10 +161,12 @@ interface EventTitleContext {
   /** Datetime options the event type allows; empty when the event has no type. */
   timeOptions: TimeOption[];
   /**
-   * The event type's location policy; "both" when the event has no type (no
-   * restriction).
+   * The event type's allowed location categories; undefined when the event
+   * has no type (no restriction).
    */
-  locationPolicy: LocationPolicy;
+  allowedLocations: LocationCategory[] | null;
+  /** Whether the event type shows the Remarks (description) field. */
+  showRemarks: boolean;
 }
 
 /**
@@ -214,7 +216,8 @@ async function buildEventTitleContext(input: EventFormValues): Promise<EventTitl
     people,
     departments: inviteeDepartments.map((id) => departmentNames[id] ?? ""),
     timeOptions: eventTypeRow?.timeOptions ?? [],
-    locationPolicy: eventTypeRow?.locationPolicy ?? "both",
+    allowedLocations: eventTypeRow ? eventTypeRow.allowedLocations : null,
+    showRemarks: eventTypeRow ? eventTypeRow.showRemarks : true,
   };
 }
 
@@ -245,20 +248,39 @@ function resolveEventDates(input: EventFormValues): EventFormValues {
 }
 
 /**
- * Enforce the event type's location policy on the Out of Camp flag and
- * location (in-camp events clear the location; "in" additionally forces the
- * flag off, "out" forces it on). Applied after {@link resolveEventTime} in
- * both create and update so a stale form state can never submit an
- * out-of-policy combination.
+ * Enforce the event type's allowed locations on the Out of Camp / overseas
+ * flags and location (in-camp events clear the location; an exclusively
+ * in-camp type forces both flags off; an out-of-camp-only type forces the
+ * category out). Applied after {@link resolveEventTime} in both create and
+ * update so a stale form state can never submit an out-of-policy category.
  */
 function resolveEventLocation(input: EventFormValues, context: EventTitleContext): EventFormValues {
   const location = input.location.trim();
-  const clamped = clampOutOfCamp(context.locationPolicy, input.outOfCamp, location);
+  const clamped = clampOutOfCamp(
+    context.allowedLocations,
+    input.outOfCamp,
+    input.overseas,
+    location,
+  );
   return {
     ...input,
     outOfCamp: clamped.outOfCamp,
+    overseas: clamped.overseas,
     location: clamped.location,
   };
+}
+
+/**
+ * Drop form fields the event type hides: a type with remarks disabled carries
+ * no description. Runs after {@link resolveEventLocation} so the title the
+ * template renders (from type/people/location tokens) is the only text a
+ * no-remarks event gets.
+ */
+function resolveEventFields(input: EventFormValues, context: EventTitleContext): EventFormValues {
+  if (context.showRemarks) {
+    return input;
+  }
+  return { ...input, title: "" };
 }
 
 async function buildGcalEventInput(
@@ -297,6 +319,7 @@ async function buildGcalEventInput(
       startAmPm: input.timeOption === "half" ? input.startAmPm : undefined,
       endAmPm: input.timeOption === "half" ? input.endAmPm : undefined,
       outOfCamp: input.outOfCamp || undefined,
+      overseas: input.outOfCamp && input.overseas ? true : undefined,
     }),
   );
   // The marker line at the bottom flags the event as created in the app, so
@@ -398,8 +421,8 @@ export async function createEvent(input: EventFormValues): Promise<EventActionRe
   const eventId = crypto.randomUUID();
   const integration = await getGoogleIntegration();
   const titleContext = await buildEventTitleContext(normalized);
-  const effectiveInput = resolveEventLocation(
-    resolveEventDates(resolveEventTime(normalized, titleContext)),
+  const effectiveInput = resolveEventFields(
+    resolveEventLocation(resolveEventDates(resolveEventTime(normalized, titleContext)), titleContext),
     titleContext,
   );
   const created: { googleCalendarId: string; googleEventId: string }[] = [];
@@ -449,6 +472,7 @@ export async function createEvent(input: EventFormValues): Promise<EventActionRe
     type: effectiveInput.eventType,
     timeParts: timePartsOf(effectiveInput),
     outOfCamp: effectiveInput.outOfCamp,
+    overseas: effectiveInput.overseas,
     location: effectiveInput.location,
     departmentIds: targets,
     inviteeUserIds: effectiveInput.inviteeUserIds,
@@ -545,8 +569,8 @@ export async function updateEvent(
 
   const integration = await getGoogleIntegration();
   const titleContext = await buildEventTitleContext(normalized);
-  const effectiveInput = resolveEventLocation(
-    resolveEventDates(resolveEventTime(normalized, titleContext)),
+  const effectiveInput = resolveEventFields(
+    resolveEventLocation(resolveEventDates(resolveEventTime(normalized, titleContext)), titleContext),
     titleContext,
   );
   // The old copies' search range covers both the old and new times (±day), so
@@ -652,6 +676,7 @@ export async function updateEvent(
     type: effectiveInput.eventType,
     timeParts: timePartsOf(effectiveInput),
     outOfCamp: effectiveInput.outOfCamp,
+    overseas: effectiveInput.overseas,
     location: effectiveInput.location,
     departmentIds: newTargets,
     inviteeUserIds: effectiveInput.inviteeUserIds,

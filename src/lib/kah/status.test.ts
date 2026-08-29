@@ -1,8 +1,14 @@
 import { describe, expect, it } from "vitest";
 
+import { encodeEventNotes, encodeNotesBlock } from "@/lib/events/notes";
 import type { KahGroupCheck } from "@/lib/kah/check";
 
-import { kahStatusForWindow } from "./status";
+import { eventTakesMembersOverseas, kahStatusForWindow } from "./status";
+
+/** A description carrying the given notes fields (an in-app internal event). */
+function notesDescription(notes: { outOfCamp?: boolean; overseas?: boolean }): string {
+  return encodeNotesBlock(encodeEventNotes(notes));
+}
 
 const makeGroup = (overrides: Partial<KahGroupCheck> & { id: string }): KahGroupCheck => ({
   name: overrides.id,
@@ -71,5 +77,30 @@ describe("kahStatusForWindow", () => {
       new Set(["a"]),
     );
     expect(status.map((s) => s.groupId)).toEqual(["g1", "g2"]);
+  });
+});
+
+describe("eventTakesMembersOverseas", () => {
+  it("is true only for events marked overseas (out of camp + overseas)", () => {
+    expect(eventTakesMembersOverseas(notesDescription({ outOfCamp: true, overseas: true }))).toBe(
+      true,
+    );
+  });
+
+  it("is false for in-camp events", () => {
+    expect(eventTakesMembersOverseas(notesDescription({ outOfCamp: false }))).toBe(false);
+    expect(eventTakesMembersOverseas(notesDescription({}))).toBe(false);
+  });
+
+  it("is false for out-of-camp events that are not overseas", () => {
+    expect(eventTakesMembersOverseas(notesDescription({ outOfCamp: true, overseas: false }))).toBe(
+      false,
+    );
+    expect(eventTakesMembersOverseas(notesDescription({ outOfCamp: true }))).toBe(false);
+  });
+
+  it("is false for descriptions without a notes block (legacy/external)", () => {
+    expect(eventTakesMembersOverseas("")).toBe(false);
+    expect(eventTakesMembersOverseas("A plain Google event")).toBe(false);
   });
 });

@@ -34,10 +34,13 @@ flowchart LR
     E -->|no breach| G[no-op]
 ```
 
-A member is away when they are the **creator or an invitee** (`inviteeUsers`) of any
-in-app internal event overlapping the window `[event.start, event.end]`. External events
-carry no parsed people, so they never contribute. Deactivated users stop counting even if
-still listed as members.
+A member is **away** when they are the **creator or an invitee** (`inviteeUsers`) of an
+in-app internal event overlapping the window `[event.start, event.end]` **whose location
+category is `overseas`** (the `overseas` notes flag; `eventTakesMembersOverseas` in
+`src/lib/kah/status.ts`). In-camp events, local out-of-camp events, external events, and
+legacy events without the overseas flag never make anyone away — the flag is only written
+for events recorded as overseas, so legacy data stays in-country by default. Deactivated
+users stop counting even if still listed as members.
 
 ## 1.2 Data model
 
@@ -239,9 +242,10 @@ flowchart LR
 - The check runs only at mutation time over the saved event's own window / the
   status page's selected day; it does not continuously monitor "right now" apart
   from whatever day is open, nor evaluate other windows automatically.
-- Away-ness ignores event type (any tagged event counts) and location (`outOfCamp` is not
-  consulted); if finer rules are needed later, filter the busy-set computation by event
-  type or flag rather than changing the pure check.
+- Away-ness is tied to the **overseas** location category (see §1.1) — the busy-set
+  computation filters on the overseas notes flag (`eventTakesMembersOverseas`) rather
+  than counting every tagged event; if finer rules are needed later, extend that pure
+  filter rather than changing `computeKahBreaches`.
 - **Dedup** via `kah_breach_notifications`: each (group × window × breach-pct)
   combination triggers at most one email. The table is append-only during normal
   operation; rows cascade-delete when a group is removed.

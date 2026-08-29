@@ -12,7 +12,10 @@
  * - `json`: anything else — pretty-printed JSON fallback.
  */
 
-import { isLocationPolicy, LOCATION_POLICY_LABELS } from "@/lib/events/locationPolicy";
+import {
+  isLocationCategory,
+  LOCATION_CATEGORY_LABELS,
+} from "@/lib/events/locationPolicy";
 import { isTimeOption, TIME_OPTION_LABELS } from "@/lib/events/timeOptions";
 import type { AuditLog } from "@/db/schema";
 
@@ -81,6 +84,7 @@ const FIELD_LABELS: Record<string, string> = {
   time: "Time",
   timeOption: "Time option",
   outOfCamp: "Out of camp",
+  overseas: "Overseas",
   location: "Location",
   departments: "Departments",
   invitees: "Invited Attendees",
@@ -96,6 +100,8 @@ const FIELD_LABELS: Record<string, string> = {
   googleCalendarId: "Google calendar ID",
   timeOptions: "Time options",
   locationPolicy: "Location policy",
+  allowedLocations: "Allowed locations",
+  showRemarks: "Show remarks",
   userKeyword: "Login keyword",
   nameTemplate: "Name template",
   eventTitleTemplate: "Event title template",
@@ -144,8 +150,10 @@ export function valueString(key: string, value: unknown): string {
   if (key === "timeOption" && isTimeOption(value)) {
     return TIME_OPTION_LABELS[value];
   }
-  if (key === "locationPolicy" && isLocationPolicy(value)) {
-    return LOCATION_POLICY_LABELS[value];
+  if (key === "allowedLocations" && Array.isArray(value)) {
+    return value
+      .map((entry) => (isLocationCategory(entry) ? LOCATION_CATEGORY_LABELS[entry] : String(entry)))
+      .join(", ");
   }
   if (key === "timeOptions" && Array.isArray(value)) {
     return value.map((entry) => (isTimeOption(entry) ? TIME_OPTION_LABELS[entry] : String(entry))).join(", ");

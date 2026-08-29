@@ -147,6 +147,7 @@ describe("buildEventSnapshot", () => {
         endAmPm: "",
       },
       outOfCamp: true,
+      overseas: true,
       location: "Singapore",
       departmentIds: ["d-1", "d-2"],
       inviteeUserIds: ["u-1", "u-2", "u-1"],
@@ -159,6 +160,7 @@ describe("buildEventSnapshot", () => {
       type: "Out of Camp",
       time: "2026-08-21 14:00 \u2013 15:30",
       outOfCamp: true,
+      overseas: true,
       location: "Singapore",
       departments: ["COU", "LOG"],
       invitees: ["Tan Wei Liang", "Lim Kah"],
@@ -179,6 +181,7 @@ describe("buildEventSnapshot", () => {
         endAmPm: "PM",
       },
       outOfCamp: false,
+      overseas: false,
       location: "  ",
       departmentIds: ["d-1", "unknown"],
       inviteeUserIds: ["unknown"],
@@ -190,6 +193,7 @@ describe("buildEventSnapshot", () => {
     expect(snapshot.type).toBeNull();
     expect(snapshot.location).toBeNull();
     expect(snapshot.outOfCamp).toBe(false);
+    expect(snapshot.overseas).toBe(false);
     expect(snapshot.time).toBe("2026-08-21 (PM)");
     expect(snapshot.departments).toEqual(["COU"]);
     expect(snapshot.invitees).toEqual([]);
@@ -257,6 +261,7 @@ describe("snapshotFromCopy", () => {
       type: "Out of Camp",
       time: "2026-08-21 14:00 \u2013 15:30",
       outOfCamp: true,
+      overseas: false,
       location: "Singapore",
       departments: ["COU"],
       invitees: ["Tan Wei Liang", "Lim Kah"],

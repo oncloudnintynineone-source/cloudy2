@@ -2,20 +2,23 @@ import { asc, inArray } from "drizzle-orm";
 
 import { db } from "@/db";
 import { eventTypes } from "@/db/schema";
-import { normalizeLocationPolicy, type LocationPolicy } from "@/lib/events/locationPolicy";
+import {
+  normalizeAllowedLocations,
+  type LocationCategory,
+} from "@/lib/events/locationPolicy";
 import {
   normalizeTimeOptions,
   resolveTimeOptions,
   type TimeOption,
 } from "@/lib/events/timeOptions";
 
-/** All event types, ordered by name, with normalized time options and location policy. */
+/** All event types, ordered by name, with normalized time options, allowed locations, and remarks flag. */
 export async function listEventTypes() {
   const rows = await db.select().from(eventTypes).orderBy(asc(eventTypes.name));
   return rows.map((row) => ({
     ...row,
     timeOptions: resolveTimeOptions(normalizeTimeOptions(row.timeOptions)),
-    locationPolicy: normalizeLocationPolicy(row.locationPolicy),
+    allowedLocations: normalizeAllowedLocations(row.allowedLocations),
   }));
 }
 
@@ -24,14 +27,17 @@ export interface EventTypeDisplayInfo {
   shortname: string | null;
   /** Selectable datetime options (resolved; never empty). */
   timeOptions: TimeOption[];
-  /** Where events of this type may take place ("in" | "out" | "both"). */
-  locationPolicy: LocationPolicy;
+  /** Location categories events of this type may take place in (never empty). */
+  allowedLocations: LocationCategory[];
+  /** Whether the event form shows the Remarks (description) step. */
+  showRemarks: boolean;
 }
 
 /**
- * Lookup of event types by name (name → shortname, time options, location policy)
- * for rendering event title templates and enforcing the form's datetime selector
- * and Out of Camp / location rules. Names that don't match are omitted.
+ * Lookup of event types by name (name → shortname, time options, allowed
+ * locations, remarks flag) for rendering event title templates and enforcing
+ * the form's datetime selector and location category rules. Names that don't
+ * match are omitted.
  */
 export async function getEventTypesByNames(
   names: string[],
@@ -45,7 +51,8 @@ export async function getEventTypesByNames(
       name: eventTypes.name,
       shortname: eventTypes.shortname,
       timeOptions: eventTypes.timeOptions,
-      locationPolicy: eventTypes.locationPolicy,
+      allowedLocations: eventTypes.allowedLocations,
+      showRemarks: eventTypes.showRemarks,
     })
     .from(eventTypes)
     .where(inArray(eventTypes.name, uniqueNames));
@@ -56,7 +63,8 @@ export async function getEventTypesByNames(
         name: row.name,
         shortname: row.shortname,
         timeOptions: resolveTimeOptions(normalizeTimeOptions(row.timeOptions)),
-        locationPolicy: normalizeLocationPolicy(row.locationPolicy),
+        allowedLocations: normalizeAllowedLocations(row.allowedLocations),
+        showRemarks: row.showRemarks,
       },
     ]),
   );

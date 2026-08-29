@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useForm } from "@mantine/form";
-import { Button, Checkbox, Grid, Group, Modal, Radio, Stack, Text, TextInput } from "@mantine/core";
+import { Button, Checkbox, Grid, Group, Modal, Stack, Text, TextInput } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
 
@@ -16,10 +16,10 @@ import { validateEventTypeForm, type EventTypeFormValues } from "@/lib/eventType
 import { BUTTON_LOADER_PROPS } from "@/lib/theme";
 import { showValidationFailure } from "@/lib/ui/validationFeedback";
 import {
-  LOCATION_POLICIES,
-  LOCATION_POLICY_DESCRIPTIONS,
-  LOCATION_POLICY_LABELS,
-  normalizeLocationPolicy,
+  LOCATION_CATEGORIES,
+  LOCATION_CATEGORY_DESCRIPTIONS,
+  LOCATION_CATEGORY_LABELS,
+  normalizeAllowedLocations,
 } from "@/lib/events/locationPolicy";
 import { ColorSwatchPicker } from "@/components/ColorSwatchPicker";
 import {
@@ -35,7 +35,8 @@ interface EventTypeFormProps {
     name: string;
     shortname: string | null;
     timeOptions: string[];
-    locationPolicy: string;
+    allowedLocations: string[];
+    showRemarks: boolean;
     color: string | null;
   } | null;
   onDone: () => void;
@@ -51,7 +52,10 @@ export function EventTypeForm({ eventType, onDone }: EventTypeFormProps) {
       name: eventType?.name ?? "",
       shortname: eventType?.shortname ?? "",
       timeOptions: eventType ? normalizeTimeOptions(eventType.timeOptions) : [],
-      locationPolicy: eventType ? normalizeLocationPolicy(eventType.locationPolicy) : "both",
+      allowedLocations: eventType
+        ? normalizeAllowedLocations(eventType.allowedLocations)
+        : [...LOCATION_CATEGORIES],
+      showRemarks: eventType ? eventType.showRemarks !== false : true,
       color: eventType?.color ?? "",
     },
     validate: (values) => validateEventTypeForm(values),
@@ -79,8 +83,8 @@ export function EventTypeForm({ eventType, onDone }: EventTypeFormProps) {
         form.setFieldError("shortname", result.error);
       } else if (result.field === "timeOptions") {
         form.setFieldError("timeOptions", result.error);
-      } else if (result.field === "locationPolicy") {
-        form.setFieldError("locationPolicy", result.error);
+      } else if (result.field === "allowedLocations") {
+        form.setFieldError("allowedLocations", result.error);
       }
       notifications.show({ color: "red", message: result.error });
     },
@@ -154,26 +158,36 @@ export function EventTypeForm({ eventType, onDone }: EventTypeFormProps) {
             </Checkbox.Group>
           </Grid.Col>
           <Grid.Col span={{ base: 12, lg: 6 }}>
-            <Radio.Group
-              label="Location policy"
-              description="Where events of this type may take place"
-              value={form.values.locationPolicy}
+            <Checkbox.Group
+              label="Allowed locations"
+              description="Where events of this type may take place (at least one)"
+              value={form.values.allowedLocations}
               onChange={(value) =>
-                form.setFieldValue("locationPolicy", value as EventTypeFormValues["locationPolicy"])
+                form.setFieldValue(
+                  "allowedLocations",
+                  value as EventTypeFormValues["allowedLocations"],
+                )
               }
-              error={form.errors.locationPolicy}
+              error={form.errors.allowedLocations}
             >
               <Stack gap="xs" mt="xs">
-                {LOCATION_POLICIES.map((policy) => (
-                  <Radio
-                    key={policy}
-                    value={policy}
-                    label={LOCATION_POLICY_LABELS[policy]}
-                    description={LOCATION_POLICY_DESCRIPTIONS[policy]}
+                {LOCATION_CATEGORIES.map((category) => (
+                  <Checkbox
+                    key={category}
+                    value={category}
+                    label={LOCATION_CATEGORY_LABELS[category]}
+                    description={LOCATION_CATEGORY_DESCRIPTIONS[category]}
                   />
                 ))}
               </Stack>
-            </Radio.Group>
+            </Checkbox.Group>
+            <Checkbox
+              mt="lg"
+              label="Show remarks in the event form"
+              description="Events of this type may carry a description; hide it for types that don't need one"
+              checked={form.values.showRemarks}
+              onChange={(event) => form.setFieldValue("showRemarks", event.currentTarget.checked)}
+            />
           </Grid.Col>
 
           {/* Swatch buttons (not an input), same no-keyboard rationale as the

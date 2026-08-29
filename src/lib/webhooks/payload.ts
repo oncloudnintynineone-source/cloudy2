@@ -61,6 +61,7 @@ export interface EventWebhookPayload {
     type: string | null;
     time: string;
     outOfCamp: boolean;
+    overseas: boolean;
     location: string | null;
     departments: string[];
     invitees: string[];
@@ -88,6 +89,7 @@ export function buildEventWebhookPayload(input: EventWebhookInput): EventWebhook
     type: input.snapshot.type,
     time: input.snapshot.time,
     outOfCamp: input.snapshot.outOfCamp,
+    overseas: input.snapshot.overseas,
     location: input.snapshot.location,
     departments: [...input.snapshot.departments],
     invitees: [...input.snapshot.invitees],

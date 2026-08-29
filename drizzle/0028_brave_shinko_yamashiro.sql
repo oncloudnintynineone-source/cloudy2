@@ -1,0 +1,1 @@
+ALTER TABLE "event_types" DROP COLUMN "location_policy";

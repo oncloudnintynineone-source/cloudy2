@@ -170,6 +170,11 @@ export function EventDetail({
                   In Camp
                 </Badge>
               )}
+              {payload.overseas && (
+                <Badge variant="light" color="blue">
+                  Overseas
+                </Badge>
+              )}
               {payload.location && (
                 <Text size="sm" c="dimmed">
                   {payload.location}

@@ -28,7 +28,7 @@ export default function EventTypesLoading() {
         </Group>
       </Paper>
 
-      {/* Desktop: data table (Name / Acronym / Time options / Location policy) */}
+      {/* Desktop: data table (Name / Acronym / Time options / Allowed locations) */}
       <SettingsTableSkeleton columns={[3, 1.5, 2.5, 2]} rows={4} visibleFrom="lg" />
     </Stack>
   );

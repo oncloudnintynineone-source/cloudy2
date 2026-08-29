@@ -13,9 +13,21 @@ import { and, eq, inArray } from "drizzle-orm";
 import { db } from "@/db";
 import { calendars, kahGroupMembers, kahGroups, users } from "@/db/schema";
 import { formatInstantToNaive, monthsInRange } from "@/lib/events/datetime";
-import { parseEventPeople } from "@/lib/events/notes";
+import { parseEventOutOfCamp, parseEventOverseas, parseEventPeople } from "@/lib/events/notes";
 import { getCachedMonthEventsForCalendars } from "@/lib/google/eventsCache";
 import { inCountryPercentage, type KahGroupCheck } from "@/lib/kah/check";
+
+/**
+ * Whether an event's notes mark it as taking its tagged people out of the
+ * country — the KAH "away" rule. Only events marked overseas count: in-camp
+ * and out-of-camp-but-in-country events keep everyone in country, and legacy
+ * events without the overseas flag never count as away. Overseas implies out
+ * of camp (the flag is only ever written alongside it), so both are checked.
+ * Pure so it can be unit-tested without a database.
+ */
+export function eventTakesMembersOverseas(description: string): boolean {
+  return parseEventOutOfCamp(description) && parseEventOverseas(description);
+}
 
 /** Live per-group KAH status over a window: both safe and breached groups. */
 export interface KahGroupStatus {
@@ -115,7 +127,9 @@ export async function userHasKahGroup(userId: string): Promise<boolean> {
 /**
  * KAH members tagged on internal events overlapping [windowStart, windowEnd]:
  * every calendar is month-read through the events cache (never raw
- * `listEvents`), and each item's creator/invitees join the set.
+ * `listEvents`), and each item's creator/invitees join the set. Only events
+ * marked overseas make a member "away" (out of country); in-camp and local
+ * out-of-camp events never do.
  */
 export async function busyKahsIn(windowStart: Date, windowEnd: Date): Promise<Set<string>> {
   const calendarRows = await db
@@ -139,6 +153,10 @@ export async function busyKahsIn(windowStart: Date, windowEnd: Date): Promise<Se
     for (const items of Object.values(cached.events)) {
       for (const item of items) {
         if (item.start > windowEnd || item.end < windowStart) {
+          continue;
+        }
+        // Only overseas events take a tagged member out of the country.
+        if (!eventTakesMembersOverseas(item.description)) {
           continue;
         }
         const people = parseEventPeople(item.description);

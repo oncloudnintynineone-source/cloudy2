@@ -4,7 +4,7 @@ An event is created and edited through the dashboard's staged form, but it **liv
 Google Calendar** — one copy per involved department calendar. This document describes
 how form data becomes a Google event: the staged wizard, the access guards and
 validation, target-calendar derivation, the machine-readable notes block (and its three
-stored formats), the title template, the location policy, and the time/datetime
+stored formats), the title template, the location categories, and the time/datetime
 conventions. The write-side mutations (create/update/delete, copy reconciliation) are a
 separate concern covered in [`event-mutations.md`](event-mutations.md); the read-side
 month cache is covered in [`events-cache.md`](events-cache.md).
@@ -19,7 +19,8 @@ month cache is covered in [`events-cache.md`](events-cache.md).
 - [1.6 Target derivation](#16-target-derivation)
 - [1.7 The notes block](#17-the-notes-block)
 - [1.8 Title rendering](#18-title-rendering)
-- [1.9 Location policy](#19-location-policy)
+- [1.9 Location categories](#19-location-categories)
+  - [1.9.1 Per-type field visibility](#191-per-type-field-visibility)
 - [1.10 Time options & datetime math](#110-time-options--datetime-math)
 - [1.11 Pure helpers & testing](#111-pure-helpers--testing)
 - [1.12 File index & related docs](#112-file-index--related-docs)
@@ -40,7 +41,8 @@ pipeline solves:
 - **Rendering**: the calendar title is rendered from an admin template with people/type/
   location tokens, plus a shared (AM)/(PM) marker — identically on the server write path
   and in the audit log, with a live preview in the form (§1.8).
-- **Constraints**: admins restrict each event type's time options and location policy;
+- **Constraints**: admins restrict each event type's time options, allowed location
+  categories, and remarks field;
   the form and the server must enforce the same rules so a stale form can never submit
   an out-of-policy combination (§1.9, §1.10).
 
@@ -144,8 +146,8 @@ Mechanics worth knowing:
 
 - **Type** (`EventForm.tsx:578-608`): alphabetically sorted toggleable `Badge` chips
   (no searchable select — the list is short). Selecting a type re-resolves the time
-  option against the type's allowed set and re-clamps Out of Camp + location against the
-  type's location policy (`handleEventTypeChange`, `EventForm.tsx:339-360`).
+  option against the type's allowed set and re-clamps the location category against the
+  type's allowed locations (`handleEventTypeChange`, `EventForm.tsx:339-360`).
 - **Timestamp** (`EventForm.tsx:575-660, 753-773`): when the type allows more than one
   option the step shows a `Tabs` control ("Start & End" / "Full Day" / "Half Day");
   otherwise the single option's fields render directly. `range` = a `DatePickerInput`
@@ -473,30 +475,51 @@ aware of when changing the title rules.
 `buildEventTitleContext` (`actions.ts:166-209`) resolves everything the tokens need in
 one `Promise.all`: the settings (both templates), the invitee users (`getUsersByIds`),
 the department names, and the event-type row (shortname, `timeOptions`,
-`locationPolicy`). Unknown ids are dropped; a blank type shortname falls back to the
-name.
+`allowedLocations`, `showRemarks`). Unknown ids are dropped; a blank type shortname
+falls back to the name.
 
-## 1.9 Location policy
+## 1.9 Location categories (the allowed-locations matrix)
 
-Per event type, an admin restricts where events may take place
-(`event_types.location_policy`; `src/lib/events/locationPolicy.ts`). Location is the
-**out-of-camp destination** — in-camp events record no location at all.
+Per event type, an admin configures which location **categories** events of that type may
+take place in — `event_types.allowed_locations` (a `text[]` matrix column, defaulting to
+all three; `src/lib/events/locationPolicy.ts`). Location is the **out-of-camp
+destination** — in-camp events record no location at all.
 
-| Policy | Label | `clampOutOfCamp` effect (`locationPolicy.ts:58`) | UI |
-| ------ | ----- | ------------------------------------------------ | -- |
-| `in` | In camp only | `{ outOfCamp: false, location: "" }` — flag forced off, location cleared | checkbox disabled, input disabled |
-| `out` | Out of camp only | `{ outOfCamp: true, location }` — flag forced on, destination kept | checkbox disabled (on), input enabled |
-| `both` (default) | Both | `{ outOfCamp, location: outOfCamp ? location : "" }` — location recorded only while out of camp | checkbox free |
+| Category | Label | Stored flags (`outOfCamp` / `overseas`) | Destination | KAH counts tagged member as |
+| -------- | ----- | --------------------------------------- | ----------- | --------------------------- |
+| `in` | In camp | `false` / `false` | never | in country |
+| `out` | Out of camp | `true` / `false` | recorded | in country |
+| `overseas` | Overseas | `true` / `true` | recorded | **away (not in country)** |
+
+An event's location is a **single category** picked in the wizard's Location step — a
+`SegmentedControl` built from the type's allowed categories (untyped events = all three).
+`flagsFromCategory`/`categoryFromFlags` (`locationPolicy.ts`) map between the category and
+the two stored booleans, and the "Overseas" checkbox from the original request is the
+category itself: an `overseas` event is out of camp and out of the country.
 
 `clampOutOfCamp` is the **single source of truth applied client- and server-side**: the
-form derives the effective pair live (`EventForm.tsx:257-261`) and re-clamps on type
-change; the write path re-applies it in `resolveEventLocation`
-(`actions.ts:233-241`) after `resolveEventTime`, in both create and update — so a stale
-form state can never submit an out-of-policy combination. `normalizeLocationPolicy`
-(`locationPolicy.ts:43`) maps unknown/missing values to `"both"`. The `outOfCamp` flag
-is persisted in the notes (only when true); the destination goes to Google's
-first-class `location` field (`actions.ts:290`), which `buildEventBody` always sends
-(even empty) so an in-app update actively clears a previously set location.
+form derives the effective flags live and re-clamps on type change
+(`EventForm.tsx`), and the write path re-applies it in `resolveEventLocation`
+(`actions.ts`) after `resolveEventTime`, in both create and update — so a stale form state
+can never submit an out-of-policy category. A category outside the type's allowlist clamps
+to the **first allowed category in canonical order** (`in` → `out` → `overseas`; in-camp is
+the terminal fallback), and an out-of-policy pick therefore degrades to in camp. The
+`outOfCamp` and `overseas` flags are persisted in the notes (each only when true); the
+destination goes to Google's first-class `location` field, which the write path always
+sends (even empty) so an in-app update actively clears a previously set location.
+
+Migration note: `event_types.location_policy` (`in`/`out`/`both`) was replaced by the
+matrix. Migration `0027` backfilled existing rows (`in`→`[in]`, `out`→`[out,overseas]`,
+`both`→all three); `0028` dropped the old column.
+
+### 1.9.1 Per-type field visibility
+
+Besides the location matrix, each event type carries `event_types.show_remarks` (default
+`true`): when off, the wizard's Remarks step is omitted and the server clears the
+description (`resolveEventFields` in `actions.ts`), so the title template's other tokens
+supply the text. The Location step itself is omitted for types whose matrix is
+exclusively `[in]` — there is no location to record. The two toggles are edited in the
+event-type form (Settings → Event Types).
 
 ## 1.10 Time options & datetime math
 
@@ -563,7 +586,7 @@ writes, headers) is thin and lives in `actions.ts` / `queries.ts`.
 | `renderEventTitle` | `events/eventTitle.ts` | `eventAudit.test.ts:270` |
 | `formatEventTitle` (every token/style, unknown pass-through) | `settings/formatEventTitle.ts` | `formatEventTitle.test.ts` |
 | `formatFullName` | `settings/formatName.ts` | `formatName.test.ts` |
-| `clampOutOfCamp` (all policies), `normalizeLocationPolicy` | `events/locationPolicy.ts` | `locationPolicy.test.ts` |
+| `clampOutOfCamp` (all allowed-location sets), `flagsFromCategory` / `categoryFromFlags`, `normalizeAllowedLocations` | `events/locationPolicy.ts` | `locationPolicy.test.ts` |
 | `resolveTimeOption(s)`, `normalizeTimeOptions`, `naiveDatePart` / `naiveTimePart` / `joinDateTimeParts`, `amPmSuffix` | `events/timeOptions.ts` | `timeOptions.test.ts` |
 | `absEventRange` (timed + all-day exclusive end), naive↔instant, `weekDays`, `monthsInRange`, `shiftMonth`, `monthRange`, `monthGridRows` | `events/datetime.ts` | `datetime.test.ts` |
 | `creatorGuard`, `ownershipGuard` | `events/guards.ts` | `guards.test.ts` |
@@ -586,7 +609,7 @@ actions), `queries.ts` (DB + cache reads, `mapCalendarItem`), `appUrl.ts`
 | `src/lib/events/eventTitle.ts` | `renderEventTitle` (pure) |
 | `src/lib/settings/formatEventTitle.ts` | Template token engine (pure) |
 | `src/lib/settings/formatName.ts` | Display-name template (pure) |
-| `src/lib/events/locationPolicy.ts` | Location policy clamping (pure) |
+| `src/lib/events/locationPolicy.ts` | Location categories / allowed-locations clamping (pure) |
 | `src/lib/events/timeOptions.ts` | Time options + AM/PM marker (pure) |
 | `src/lib/events/datetime.ts` | UTC+8 datetime math (pure) |
 | `src/lib/events/guards.ts` | Creator/ownership guards (pure) |
@@ -606,4 +629,5 @@ Related docs:
 - [`README.md`](../README.md#112-documentation) — documentation index.
 - `progress-archive.md` — phase write-ups: 1.16 (events), 1.20 (copies), 1.23/1.24 (title
   template), 1.27 (time options), 1.31 (edit link), 1.32 (opaque notes), 1.40
-  (external events), 1.46 (location policy), 1.47 (staged wizard).
+  (external events), 1.46 (location policy), 1.47 (staged wizard), 1.127 (location
+  categories matrix + remarks toggle).
