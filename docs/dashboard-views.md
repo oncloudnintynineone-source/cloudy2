@@ -93,11 +93,12 @@ slot granularity (still 60-minute columns) or the row height.
 - **Levels**: discrete `0.5, 0.75, 1, 1.25, 1.5, 2` (`ZOOM_LEVELS`,
   `src/lib/ui/slotZoom.ts`); `1` is the default (today's fixed widths). The buttons
   step one level at a time and clamp at the extremes (disabled there).
-- **Controls**: `GridZoomControls` (`src/components/GridZoomControls.tsx`) — a
-  floating vertical pair (zoom-in on top) parked just inside the grid's right edge,
-  below the right pan button. It uses the same fixed-position, visible-slice
-  tracking as `GridPanControls` ([`grid-pan.md`](grid-pan.md)). Rendered whenever the
-  schedule grid is shown (skeleton/empty excluded) — unlike the pan buttons it shows
+- **Controls**: `GridNavControls` (`src/components/GridNavControls.tsx`) — the zoom
+  in/out pair lives in the **same right-edge control cluster** as the right pan
+  arrow (zoom +/− on top, a divider, then the pan arrow), with the left pan arrow
+  edge-anchored on the left; the pair is the familiar map-controls layout and can
+  never overlap the pan arrow ([`grid-pan.md`](grid-pan.md)). Rendered whenever the
+  schedule grid is shown (skeleton/empty excluded) — unlike the pan arrows it shows
   even when the grid fits without overflowing.
 - **Mechanism**: each view reads its slot width from a CSS variable on the view root
   (`--resources-week-view-slot-width` / `--resources-day-view-slot-width`). Mantine
@@ -120,7 +121,7 @@ slot granularity (still 60-minute columns) or the row height.
 
 ```mermaid
 flowchart LR
-    B["Zoom in / out<br/>(GridZoomControls)"] --> S["zoom state<br/>(DashboardView)"]
+    B["Zoom in / out<br/>(GridNavControls cluster)"] --> S["zoom state<br/>(DashboardView)"]
     S --> W["weekSlotWidth / daySlotWidth<br/>(slotZoom.ts)"]
     W --> V["CSS var --resources-*-view-slot-width<br/>(view root style)"]
     V --> G["Mantine grid re-lays out<br/>slots + events (percentage-based)"]
@@ -138,7 +139,7 @@ flowchart LR
 | `src/lib/events/weekMatrix.ts` | Pure Week (D) lane binning (`coveredDays`, `buildWeekLanes`) |
 | `src/lib/events/schedule.ts` | Resource rows (`buildScheduleResources`, `userFilter`) |
 | `src/lib/ui/slotZoom.ts` | Pure zoom levels + slot-width math (`clampZoom`, `stepZoom`, `weekSlotWidth`, `daySlotWidth`) |
-| `src/components/GridZoomControls.tsx` | Floating zoom-in/out buttons for the Day/Week (H) grids |
+| `src/components/GridNavControls.tsx` | Day/Week (H) right-edge cluster: zoom +/− + right pan, plus left-edge pan |
 | `src/components/FilterModal.tsx` | More Filters dialog |
 
 Related docs:

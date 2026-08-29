@@ -39,19 +39,21 @@ and Shift+wheel keep working alongside.
 ## 1.2 GridPanControls — the edge buttons
 
 `GridPanControls` (`src/components/GridPanControls.tsx`) renders circular grey
-filled-triangle buttons that call `panTo`:
+filled-triangle buttons that call `panTo`. Two components share the same
+fixed-position / visible-slice tracking (pinned just inside the grid's own edges,
+vertically centered on its **on-screen visible slice**, re-measured on resize +
+page scroll, hidden when the grid scrolls out of view, intentionally subdued
+secondary chrome lighter than the date-nav chevrons):
 
-- Pinned just inside the grid's own edges and vertically centered on its **on-screen
-  visible slice**, re-measured on resize + page scroll; hidden when the grid scrolls
-  out of view.
-- Intentionally subdued secondary chrome (lighter than the date-nav chevrons).
-
-`GridZoomControls` (`src/components/GridZoomControls.tsx`) reuses this exact
-fixed-position / visible-slice tracking for the Day/Week (H) **timeline zoom**
-buttons: a vertical pair parked just inside the grid's right edge, below the right
-pan button (see [`dashboard-views.md`](dashboard-views.md#15-timeline-zoom-day-and-week-h)).
-Unlike the pan buttons it renders whenever the schedule grid is shown — zoom is
-useful even when the grid fits without overflowing.
+- **`GridPanControls`** — the **Week (D)** grid renders its own instance: a
+  left/right pair of edge-anchored buttons (one per scrollable edge).
+- **`GridNavControls`** (`src/components/GridNavControls.tsx`) — the **Day/Week (H)**
+  grids use one right-edge control cluster: the **timeline zoom** in/out pair on
+  top, a divider, then the right pan arrow; a single left-edge pan arrow stays
+  edge-anchored on the left so "scroll left" still reads from the left edge (see
+  [`dashboard-views.md`](dashboard-views.md#15-timeline-zoom-day-and-week-h)).
+  Unlike the pan arrows, the zoom pair renders whenever the schedule grid is shown
+  — zoom is useful even when the grid fits without overflowing.
 
 ## 1.3 Wiring into the grids
 
@@ -65,8 +67,8 @@ useful even when the grid fits without overflowing.
 | File | Role |
 | ---- | ---- |
 | `src/lib/ui/gridPan.ts` | `useGridPan` hook (drag, edge state, `panTo`) |
-| `src/components/GridPanControls.tsx` | Edge pan buttons |
-| `src/components/GridZoomControls.tsx` | Day/Week (H) timeline zoom buttons (shares the anchor/visible-slice mechanics) |
+| `src/components/GridPanControls.tsx` | Week (D) edge pan buttons |
+| `src/components/GridNavControls.tsx` | Day/Week (H) right-edge cluster: zoom +/− + right pan, plus left-edge pan |
 
 Related docs:
 

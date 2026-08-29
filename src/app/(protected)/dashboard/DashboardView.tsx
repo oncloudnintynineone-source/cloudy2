@@ -79,8 +79,7 @@ import {
 import { formatWeekLabel } from "./clientDateTime";
 import { DateSelectorModal } from "@/components/DateSelectorModal";
 import { FilterModal, type FilterGroup } from "@/components/FilterModal";
-import { GridPanControls } from "@/components/GridPanControls";
-import { GridZoomControls } from "@/components/GridZoomControls";
+import { GridNavControls } from "@/components/GridNavControls";
 import {
   FAB_ICON_SIZE,
   FAB_SIZE,
@@ -501,7 +500,7 @@ export function DashboardView({
   // Hour-slot (column) width for the schedule views, driven by the shared
   // timeline zoom: Week (H) slots are 60px phone-tuned / 72px at lg, the Day
   // view keeps Mantine's 80px — each multiplied by the zoom level (1 = these
-  // defaults). See src/lib/ui/slotZoom.ts and GridZoomControls.
+  // defaults). See src/lib/ui/slotZoom.ts and GridNavControls.
   const weekSlotWidthValue = weekSlotWidth(zoom, isDesktop);
   const daySlotWidthValue = daySlotWidth(zoom);
 
@@ -2073,29 +2072,20 @@ export function DashboardView({
         )}
       </Box>
 
-      {/* Edge pan buttons for the Day/Week (H) grids (Week (D) renders its own
-          inside WeekMatrixView). Gated on the real grid, so a stale
-          scroll state from a previous view can't linger over the skeleton. */}
+      {/* Timeline navigation for the Day/Week (H) grids: the zoom in/out pair
+          and the right pan arrow share one right-edge control cluster, with the
+          left pan arrow edge-anchored on the left (see GridNavControls). Gated
+          on the real grid, so a stale scroll state can't linger over the
+          skeleton; the zoom pair renders even when the grid fits without
+          overflowing. */}
       {!gridLoading &&
         scheduleResources.resources.length > 0 &&
         (isSchedule || (view === "week" && week !== null)) && (
-          <GridPanControls
+          <GridNavControls
             anchorRef={weekBoxRef}
             canScrollLeft={schedulePan.canScrollLeft}
             canScrollRight={schedulePan.canScrollRight}
             onPan={schedulePan.panTo}
-          />
-        )}
-
-      {/* Timeline zoom buttons for the Day/Week (H) grids: scale the hour
-          columns' width (see GridZoomControls). Same gate as the pan controls
-          so they never linger over the skeleton; unlike the pan buttons they
-          render even when the grid fits without overflowing. */}
-      {!gridLoading &&
-        scheduleResources.resources.length > 0 &&
-        (isSchedule || (view === "week" && week !== null)) && (
-          <GridZoomControls
-            anchorRef={weekBoxRef}
             zoom={zoom}
             onZoomIn={() => setZoom((z) => stepZoom(z, 1))}
             onZoomOut={() => setZoom((z) => stepZoom(z, -1))}
