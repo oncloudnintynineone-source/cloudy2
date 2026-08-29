@@ -115,6 +115,11 @@ export function EventTypeTable({ types }: EventTypeTableProps) {
                         No remarks
                       </Badge>
                     )}
+                    {eventType.showInvitees === false && (
+                      <Badge size="sm" variant="light" color="gray">
+                        No invitees
+                      </Badge>
+                    )}
                   </Group>
                 </Stack>
               </Paper>
@@ -180,6 +185,11 @@ export function EventTypeTable({ types }: EventTypeTableProps) {
                         {eventType.showRemarks === false && (
                           <Badge size="sm" variant="light" color="gray">
                             No remarks
+                          </Badge>
+                        )}
+                        {eventType.showInvitees === false && (
+                          <Badge size="sm" variant="light" color="gray">
+                            No invitees
                           </Badge>
                         )}
                       </Group>

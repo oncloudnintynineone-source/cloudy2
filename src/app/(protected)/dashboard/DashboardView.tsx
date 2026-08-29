@@ -149,6 +149,7 @@ interface EventTypeOption {
   timeOptions: TimeOption[];
   allowedLocations: LocationCategory[];
   showRemarks: boolean;
+  showInvitees: boolean;
 }
 
 interface DashboardViewProps {

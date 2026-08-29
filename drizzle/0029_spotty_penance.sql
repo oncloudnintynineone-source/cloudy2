@@ -1,0 +1,1 @@
+ALTER TABLE "event_types" ADD COLUMN "show_invitees" boolean DEFAULT true NOT NULL;

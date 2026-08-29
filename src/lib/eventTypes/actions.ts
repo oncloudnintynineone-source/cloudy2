@@ -65,11 +65,12 @@ export async function createEventType(input: EventTypeFormValues): Promise<Event
   const timeOptions = normalizeTimeOptions(input.timeOptions);
   const allowedLocations = normalizeAllowedLocations(input.allowedLocations);
   const showRemarks = input.showRemarks !== false;
+  const showInvitees = input.showInvitees !== false;
   const color = normalizeEventColor(input.color);
   try {
     const [created] = await db
       .insert(eventTypes)
-      .values({ name, shortname, timeOptions, allowedLocations, showRemarks, color })
+      .values({ name, shortname, timeOptions, allowedLocations, showRemarks, showInvitees, color })
       .returning({ id: eventTypes.id, name: eventTypes.name });
 
     await logAction({
@@ -85,6 +86,7 @@ export async function createEventType(input: EventTypeFormValues): Promise<Event
         timeOptions: timeOptionLabels(timeOptions),
         allowedLocations: allowedLocationLabels(allowedLocations),
         showRemarks,
+        showInvitees,
         color: formatColorLabel(color, name),
       },
     });
@@ -130,11 +132,21 @@ export async function renameEventType(
   const timeOptions = normalizeTimeOptions(input.timeOptions);
   const allowedLocations = normalizeAllowedLocations(input.allowedLocations);
   const showRemarks = input.showRemarks !== false;
+  const showInvitees = input.showInvitees !== false;
   const color = normalizeEventColor(input.color);
   try {
     await db
       .update(eventTypes)
-      .set({ name, shortname, timeOptions, allowedLocations, showRemarks, color, updatedAt: new Date() })
+      .set({
+        name,
+        shortname,
+        timeOptions,
+        allowedLocations,
+        showRemarks,
+        showInvitees,
+        color,
+        updatedAt: new Date(),
+      })
       .where(eq(eventTypes.id, id));
 
     await logAction({
@@ -151,6 +163,7 @@ export async function renameEventType(
           timeOptions: timeOptionLabels(existing.timeOptions),
           allowedLocations: allowedLocationLabels(normalizeAllowedLocations(existing.allowedLocations)),
           showRemarks: existing.showRemarks,
+          showInvitees: existing.showInvitees,
           color: formatColorLabel(existing.color, existing.name),
         },
         {
@@ -159,6 +172,7 @@ export async function renameEventType(
           timeOptions: timeOptionLabels(timeOptions),
           allowedLocations: allowedLocationLabels(allowedLocations),
           showRemarks,
+          showInvitees,
           color: formatColorLabel(color, name),
         },
       ),

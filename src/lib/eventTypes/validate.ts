@@ -15,6 +15,8 @@ export interface EventTypeFormValues {
   allowedLocations: LocationCategory[];
   /** Whether the event form shows the Remarks (description) step. */
   showRemarks: boolean;
+  /** Whether the event form shows the Invited Attendees step. */
+  showInvitees: boolean;
   /** Pinned event color (Mantine palette name); "" = the name-derived default. */
   color?: string;
 }

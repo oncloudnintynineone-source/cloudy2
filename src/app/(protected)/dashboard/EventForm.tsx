@@ -78,6 +78,7 @@ interface EventTypeOption {
   timeOptions: TimeOption[];
   allowedLocations: LocationCategory[];
   showRemarks: boolean;
+  showInvitees: boolean;
 }
 
 interface InviteeUser {
@@ -127,22 +128,23 @@ interface StepDef {
 }
 
 /**
- * The full wizard walk: the location and remarks steps drop out per the
- * selected type's config (an exclusively in-camp type has no location step; a
- * type with remarks disabled has no remarks step). Admins enter an optional
- * "On behalf of" after Remarks (blank = themselves); everyone ends on a
- * read-only review of everything entered so far.
+ * The full wizard walk: the location, remarks, and invitees steps drop out per
+ * the selected type's config (an exclusively in-camp type has no location step;
+ * a type with remarks or invitees disabled has neither step). Admins enter an
+ * optional "On behalf of" after Remarks (blank = themselves); everyone ends on
+ * a read-only review of everything entered so far.
  */
 function buildSteps(
   isAdmin: boolean,
   showLocationStep: boolean,
   showRemarksStep: boolean,
+  showInviteesStep: boolean,
 ): StepDef[] {
   return [
     { id: "type", fields: [] },
     { id: "time", fields: ["start", "end", "startAmPm", "endAmPm"] },
     ...(showLocationStep ? [{ id: "location", fields: [] } satisfies StepDef] : []),
-    { id: "invitees", fields: [] },
+    ...(showInviteesStep ? [{ id: "invitees", fields: [] } satisfies StepDef] : []),
     ...(showRemarksStep ? [{ id: "remarks", fields: [] } satisfies StepDef] : []),
     ...(isAdmin ? [{ id: "creator", fields: [] } satisfies StepDef] : []),
     { id: "review", fields: [] },
@@ -218,10 +220,13 @@ export function EventForm({
         creatorId: event.payload.creatorId ?? "",
         inviteeUserIds: [],
         inviteeDepartments: [],
-        invitees: [
-          ...event.payload.inviteeDepartmentIds.map((id) => `dept:${id}`),
-          ...event.payload.inviteeUserIds.map((id) => `user:${id}`),
-        ],
+        invitees:
+          selectedType && selectedType.showInvitees === false
+            ? []
+            : [
+                ...event.payload.inviteeDepartmentIds.map((id) => `dept:${id}`),
+                ...event.payload.inviteeUserIds.map((id) => `user:${id}`),
+              ],
         outOfCamp: clamped.outOfCamp,
         overseas: clamped.overseas,
         location: clamped.location,
@@ -251,10 +256,13 @@ export function EventForm({
         creatorId: src.payload.creatorId ?? "",
         inviteeUserIds: [],
         inviteeDepartments: [],
-        invitees: [
-          ...src.payload.inviteeDepartmentIds.map((id) => `dept:${id}`),
-          ...src.payload.inviteeUserIds.map((id) => `user:${id}`),
-        ],
+        invitees:
+          selectedType && selectedType.showInvitees === false
+            ? []
+            : [
+                ...src.payload.inviteeDepartmentIds.map((id) => `dept:${id}`),
+                ...src.payload.inviteeUserIds.map((id) => `user:${id}`),
+              ],
         outOfCamp: clamped.outOfCamp,
         overseas: clamped.overseas,
         location: clamped.location,
@@ -351,6 +359,8 @@ export function EventForm({
   const showLocationStep = allowedLocations.some((category) => category !== "in");
   /** Whether the wizard shows the Remarks step (per-type toggle). */
   const showRemarksStep = selectedType ? selectedType.showRemarks !== false : true;
+  /** Whether the wizard shows the Invited Attendees step (per-type toggle). */
+  const showInviteesStep = selectedType ? selectedType.showInvitees !== false : true;
   /** The effective location flags + destination after the matrix is applied. */
   const effectiveOutOfCamp = clampOutOfCamp(
     allowedLocations,
@@ -374,7 +384,7 @@ export function EventForm({
   // drop out per its config). Rebuilt each render (a handful of tiny objects)
   // because its deps derive from reactive form values; the type is only ever
   // changed on step 1, so the step index stays valid when the list re-derives.
-  const steps = buildSteps(isAdmin, showLocationStep, showRemarksStep);
+  const steps = buildSteps(isAdmin, showLocationStep, showRemarksStep, showInviteesStep);
   const [step, setStep] = useState(0);
   const [inviteePickerOpen, setInviteePickerOpen] = useState(false);
   const currentStep = steps[step];
@@ -532,6 +542,10 @@ export function EventForm({
     if (type && type.showRemarks === false) {
       form.setFieldValue("title", "");
     }
+    // A type with invitees disabled carries no attendees beyond the creator.
+    if (type && type.showInvitees === false) {
+      form.setFieldValue("invitees", []);
+    }
   }
 
   const peopleById = useMemo(
@@ -559,14 +573,19 @@ export function EventForm({
   // "On behalf of" is optional: a blank select means the acting user, who is
   // always invited (mirroring the server's withSelfCreator normalization).
   // Preview and review derive their people from this effective list, so
-  // {people} tokens match exactly what gets written.
+  // {people} tokens match exactly what gets written. Types with invitees
+  // disabled only ever carry the creator.
   const effectiveCreatorId = form.values.creatorId || currentUser;
-  const effectiveInvitees = [
-    ...new Set([
-      ...(effectiveCreatorId ? [`user:${effectiveCreatorId}`] : []),
-      ...form.values.invitees,
-    ]),
-  ];
+  const effectiveInvitees = showInviteesStep
+    ? [
+        ...new Set([
+          ...(effectiveCreatorId ? [`user:${effectiveCreatorId}`] : []),
+          ...form.values.invitees,
+        ]),
+      ]
+    : effectiveCreatorId
+      ? [`user:${effectiveCreatorId}`]
+      : [];
 
   // Live rendering of the exact title the server will write to Google, so the
   // user sees the final calendar summary (template tokens) before submitting.

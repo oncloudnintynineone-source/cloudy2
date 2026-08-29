@@ -167,6 +167,8 @@ interface EventTitleContext {
   allowedLocations: LocationCategory[] | null;
   /** Whether the event type shows the Remarks (description) field. */
   showRemarks: boolean;
+  /** Whether the event type shows the Invited Attendees field. */
+  showInvitees: boolean;
 }
 
 /**
@@ -189,8 +191,17 @@ async function buildEventTitleContext(input: EventFormValues): Promise<EventTitl
     calendarNames(inviteeDepartments),
     getEventTypesByNames(eventTypeName ? [eventTypeName] : []),
   ]);
+  const eventTypeRow = eventTypeName ? eventTypesByName.get(eventTypeName) : undefined;
+  const inviteesHidden = eventTypeRow ? eventTypeRow.showInvitees === false : false;
+  // Types with invitees disabled carry no attendees beyond the creator, so the
+  // {people} token never names someone the event no longer has.
+  const peopleUserIds = inviteesHidden
+    ? input.creatorId
+      ? [input.creatorId]
+      : []
+    : inviteeUserIds;
   const userById = new Map(userRows.map((user) => [user.id, user]));
-  const people = inviteeUserIds.flatMap((id) => {
+  const people = peopleUserIds.flatMap((id) => {
     const user = userById.get(id);
     if (!user) {
       return [];
@@ -206,7 +217,6 @@ async function buildEventTitleContext(input: EventFormValues): Promise<EventTitl
       },
     ];
   });
-  const eventTypeRow = eventTypeName ? eventTypesByName.get(eventTypeName) : undefined;
   const eventType: EventTitleType | null = eventTypeName
     ? { name: eventTypeName, acronym: eventTypeRow?.shortname ?? eventTypeName }
     : null;
@@ -214,10 +224,11 @@ async function buildEventTitleContext(input: EventFormValues): Promise<EventTitl
     template: settings.eventTitleTemplate,
     eventType,
     people,
-    departments: inviteeDepartments.map((id) => departmentNames[id] ?? ""),
+    departments: inviteesHidden ? [] : inviteeDepartments.map((id) => departmentNames[id] ?? ""),
     timeOptions: eventTypeRow?.timeOptions ?? [],
     allowedLocations: eventTypeRow ? eventTypeRow.allowedLocations : null,
     showRemarks: eventTypeRow ? eventTypeRow.showRemarks : true,
+    showInvitees: eventTypeRow ? eventTypeRow.showInvitees : true,
   };
 }
 
@@ -272,15 +283,24 @@ function resolveEventLocation(input: EventFormValues, context: EventTitleContext
 
 /**
  * Drop form fields the event type hides: a type with remarks disabled carries
- * no description. Runs after {@link resolveEventLocation} so the title the
+ * no description, and a type with invitees disabled carries no attendees
+ * beyond the creator. Runs after {@link resolveEventLocation} so the title the
  * template renders (from type/people/location tokens) is the only text a
  * no-remarks event gets.
  */
 function resolveEventFields(input: EventFormValues, context: EventTitleContext): EventFormValues {
-  if (context.showRemarks) {
-    return input;
+  let next = input;
+  if (!context.showRemarks) {
+    next = { ...next, title: "" };
   }
-  return { ...input, title: "" };
+  if (!context.showInvitees) {
+    next = {
+      ...next,
+      inviteeUserIds: next.creatorId ? [next.creatorId] : [],
+      inviteeDepartments: [],
+    };
+  }
+  return next;
 }
 
 async function buildGcalEventInput(
@@ -410,14 +430,6 @@ export async function createEvent(input: EventFormValues): Promise<EventActionRe
     return { ok: false, error: "Google Calendar is not configured" };
   }
 
-  const targets = await resolveTargetCalendars(normalized, null);
-  if (targets.length === 0) {
-    return {
-      ok: false,
-      error: "Assign yourself to a department or tag an invitee",
-    };
-  }
-
   const eventId = crypto.randomUUID();
   const integration = await getGoogleIntegration();
   const titleContext = await buildEventTitleContext(normalized);
@@ -425,6 +437,15 @@ export async function createEvent(input: EventFormValues): Promise<EventActionRe
     resolveEventLocation(resolveEventDates(resolveEventTime(normalized, titleContext)), titleContext),
     titleContext,
   );
+  // Targets derive from the effective input so a type with invitees disabled
+  // only ever lands in the creator's department.
+  const targets = await resolveTargetCalendars(effectiveInput, null);
+  if (targets.length === 0) {
+    return {
+      ok: false,
+      error: "Assign yourself to a department or tag an invitee",
+    };
+  }
   const created: { googleCalendarId: string; googleEventId: string }[] = [];
 
   try {
@@ -562,17 +583,19 @@ export async function updateEvent(
   }
 
   const eventId = ref.eventId ?? crypto.randomUUID();
-  const [oldTargets, newTargets] = await Promise.all([
-    refTargetCalendars(ref),
-    resolveTargetCalendars(normalized, ref.calendarId),
-  ]);
-
   const integration = await getGoogleIntegration();
   const titleContext = await buildEventTitleContext(normalized);
   const effectiveInput = resolveEventFields(
     resolveEventLocation(resolveEventDates(resolveEventTime(normalized, titleContext)), titleContext),
     titleContext,
   );
+  // Old targets come from the ref (its stored people); new targets from the
+  // effective input, so a type with invitees disabled removes the other
+  // departments' copies on save.
+  const [oldTargets, newTargets] = await Promise.all([
+    refTargetCalendars(ref),
+    resolveTargetCalendars(effectiveInput, ref.calendarId),
+  ]);
   // The old copies' search range covers both the old and new times (±day), so
   // a date/time change still finds the copies to update or retire.
   const range = withMargin(

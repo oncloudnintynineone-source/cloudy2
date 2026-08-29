@@ -102,6 +102,8 @@ export const eventTypes = pgTable(
       .default(sql`'{in,out,overseas}'::text[]`),
     /** Whether the event form shows the Remarks (description) step for this type. */
     showRemarks: boolean("show_remarks").notNull().default(true),
+    /** Whether the event form shows the Invited Attendees step for this type. */
+    showInvitees: boolean("show_invitees").notNull().default(true),
     /** Admin-set event color (Mantine palette name); null = deterministic default from the name. */
     color: text("color"),
     ...timestamps,

@@ -8,6 +8,7 @@ const base: EventTypeFormValues = {
   timeOptions: ["range", "full"],
   allowedLocations: ["in", "out", "overseas"],
   showRemarks: true,
+  showInvitees: true,
 };
 
 describe("validateEventTypeForm", () => {

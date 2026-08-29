@@ -37,6 +37,7 @@ interface EventTypeFormProps {
     timeOptions: string[];
     allowedLocations: string[];
     showRemarks: boolean;
+    showInvitees: boolean;
     color: string | null;
   } | null;
   onDone: () => void;
@@ -56,6 +57,7 @@ export function EventTypeForm({ eventType, onDone }: EventTypeFormProps) {
         ? normalizeAllowedLocations(eventType.allowedLocations)
         : [...LOCATION_CATEGORIES],
       showRemarks: eventType ? eventType.showRemarks !== false : true,
+      showInvitees: eventType ? eventType.showInvitees !== false : true,
       color: eventType?.color ?? "",
     },
     validate: (values) => validateEventTypeForm(values),
@@ -187,6 +189,13 @@ export function EventTypeForm({ eventType, onDone }: EventTypeFormProps) {
               description="Events of this type may carry a description; hide it for types that don't need one"
               checked={form.values.showRemarks}
               onChange={(event) => form.setFieldValue("showRemarks", event.currentTarget.checked)}
+            />
+            <Checkbox
+              mt="xs"
+              label="Show invited attendees in the event form"
+              description="Let users tag people and departments on events of this type; hide it for types that involve only the creator"
+              checked={form.values.showInvitees}
+              onChange={(event) => form.setFieldValue("showInvitees", event.currentTarget.checked)}
             />
           </Grid.Col>
 

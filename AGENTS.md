@@ -324,8 +324,11 @@ the SW file lives at a fixed URL, so scriptURL never changes) and, when the
    single category (In camp / Out of camp / Overseas) chosen in the wizard's Location
    step; the `overseas` category is the KAH "away" signal and the destination
    (`location`) IS the out-of-camp destination; `resolveEventLocation()` silently
-   re-clamps on create/update — plus a `show_remarks` toggle (off = no Remarks step, the
-   server clears the description), and an optional event `color` (Mantine palette name;
+   re-clamps on create/update — plus `show_remarks` and `show_invitees` toggles: the
+   former drops the Remarks step and clears the description, the latter drops the
+   Invited Attendees step and collapses attendees to the creator (target calendars
+   derive from the cleared input, so re-saving a hidden-invitee event removes its other
+   departments' copies) — and an optional event `color` (Mantine palette name;
    null = deterministic default derived from the type name), edited in the event type
    form modal. Departments keep an optional fallback `color` used ONLY for
    untyped/external events (null = deterministic per-calendar default). Both

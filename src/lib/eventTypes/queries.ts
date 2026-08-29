@@ -12,7 +12,7 @@ import {
   type TimeOption,
 } from "@/lib/events/timeOptions";
 
-/** All event types, ordered by name, with normalized time options, allowed locations, and remarks flag. */
+/** All event types, ordered by name, with normalized time options, allowed locations, and field-visibility flags. */
 export async function listEventTypes() {
   const rows = await db.select().from(eventTypes).orderBy(asc(eventTypes.name));
   return rows.map((row) => ({
@@ -31,13 +31,15 @@ export interface EventTypeDisplayInfo {
   allowedLocations: LocationCategory[];
   /** Whether the event form shows the Remarks (description) step. */
   showRemarks: boolean;
+  /** Whether the event form shows the Invited Attendees step. */
+  showInvitees: boolean;
 }
 
 /**
  * Lookup of event types by name (name → shortname, time options, allowed
- * locations, remarks flag) for rendering event title templates and enforcing
- * the form's datetime selector and location category rules. Names that don't
- * match are omitted.
+ * locations, remarks/invitees flags) for rendering event title templates and
+ * enforcing the form's datetime selector and location category rules. Names
+ * that don't match are omitted.
  */
 export async function getEventTypesByNames(
   names: string[],
@@ -53,6 +55,7 @@ export async function getEventTypesByNames(
       timeOptions: eventTypes.timeOptions,
       allowedLocations: eventTypes.allowedLocations,
       showRemarks: eventTypes.showRemarks,
+      showInvitees: eventTypes.showInvitees,
     })
     .from(eventTypes)
     .where(inArray(eventTypes.name, uniqueNames));
@@ -65,6 +68,7 @@ export async function getEventTypesByNames(
         timeOptions: resolveTimeOptions(normalizeTimeOptions(row.timeOptions)),
         allowedLocations: normalizeAllowedLocations(row.allowedLocations),
         showRemarks: row.showRemarks,
+        showInvitees: row.showInvitees,
       },
     ]),
   );

@@ -123,6 +123,9 @@ steps, admins seven ("On behalf of" sits between Remarks and Review):
 | 6 | `creator`  | admins only | none — optional; blank means the acting user (§1.5.2)           |
 | 7 | `review`   | all         | submit only (last step) — read-only summary of everything entered |
 
+The `location`, `invitees`, and `remarks` steps drop out per the selected type's config
+(§1.9.1); an untyped event walks all of them.
+
 Mechanics worth knowing:
 
 - **No progress indicator**: there are no step dots or "N of M" caption; the **Back**
@@ -514,12 +517,21 @@ matrix. Migration `0027` backfilled existing rows (`in`→`[in]`, `out`→`[out,
 
 ### 1.9.1 Per-type field visibility
 
-Besides the location matrix, each event type carries `event_types.show_remarks` (default
-`true`): when off, the wizard's Remarks step is omitted and the server clears the
-description (`resolveEventFields` in `actions.ts`), so the title template's other tokens
-supply the text. The Location step itself is omitted for types whose matrix is
-exclusively `[in]` — there is no location to record. The two toggles are edited in the
-event-type form (Settings → Event Types).
+Besides the location matrix, each event type carries two boolean toggles (edited in the
+event-type form, Settings → Event Types), both defaulting to `true`:
+
+- `event_types.show_remarks`: when off, the wizard's Remarks step is omitted and the
+  server clears the description (`resolveEventFields` in `actions.ts`), so the title
+  template's other tokens supply the text.
+- `event_types.show_invitees`: when off, the wizard's Invited Attendees step is omitted
+  and the server drops every attendee beyond the creator (`inviteeUserIds` collapses to
+  the creator, `inviteeDepartments` empties), so `{people}` renders just the creator and
+  the event lives only in the creator's department calendar. Because target derivation
+  (`resolveTargetCalendars`) runs on the *cleared* input, re-saving an existing
+  multi-department event of such a type removes its other departments' copies.
+
+The Location step itself is omitted for types whose matrix is exclusively `[in]` — there
+is no location to record.
 
 ## 1.10 Time options & datetime math
 

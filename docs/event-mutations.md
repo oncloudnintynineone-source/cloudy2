@@ -85,11 +85,16 @@ flowchart LR
 - **Google gate**: without service-account credentials the actions refuse with
   "Google Calendar is not configured" (the stub integration would otherwise "succeed"
   and audit-log phantom events).
-- **Server re-normalization** (create `:375-378`, update `:492-495`):
+- **Server re-normalization** (create, update):
   `resolveEventFields(resolveEventLocation(resolveEventTime(input, ctx), ctx), ctx)`
-  clamps the time option, the location category, and hidden fields (remarks) to the
-  type's allowed set — the same pure helpers the form uses, so a stale or tampered
-  form can't submit an out-of-policy combination.
+  clamps the time option, the location category, and hidden fields to the type's
+  allowed set — a type with remarks disabled clears the description, a type with
+  invitees disabled drops every attendee beyond the creator. Target calendars are
+  derived from this *effective* input (`resolveTargetCalendars(effectiveInput)`), so a
+  hidden-attendee type only ever lands in the creator's department — and re-saving an
+  existing event of such a type removes its other departments' copies. The same pure
+  helpers the form uses, so a stale or tampered form can't submit an out-of-policy
+  combination.
 - **Result type**: `EventActionResult = { ok: true } | { ok: false; error: string;
   field?: EventResultField }` (`actions.ts:54`) — actions never throw for expected
   failures; the client maps the error back onto the wizard.
