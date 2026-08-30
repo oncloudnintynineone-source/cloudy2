@@ -37,6 +37,19 @@ server render**:
   (`src/app/sw.ts`) deliberately runs `NetworkOnly` for same-origin data, because event
   data "can never be stale".
 
+The cache exists to defend **two real constraints — not a daily Google quota scare**.
+The Calendar API's project-level capacity (per-minute-per-project, and a 1M-requests/day
+billing threshold on post-May-2026 projects) is far above this app's traffic; measured
+usage on the production project is ~0%. The real ceilings are:
+
+1. **Per-user per-minute rate limit.** Every Google call here is made by the **service
+   account**, which Google charges as a single "user" (~600 requests/min on new projects).
+   An uncached admin view of all departments fans out to N `events.list` calls per render,
+   so a busy multi-user minute can burst past that cap. The cache collapses "N Google
+   calls per render" into "zero on a warm hit".
+2. **Render latency.** Each `events.list` round-trip costs hundreds of milliseconds and
+   the uncached fan-out was serial, hiding the wait behind the loading skeleton.
+
 ## 1.2 Goals & non-goals
 
 **Goals**
@@ -57,6 +70,17 @@ server render**:
   Calendar remains the single source of truth for event data.
 - No event persistence: the app still writes/reads events only through the Google
   integration; the cache is derived data, never authoritative.
+
+**The binding constraint is the database, not Google.** The cache converts Google calls
+(per-user burst-capped, daily effectively free) into reads/writes on the shared L2
+Postgres row — and Neon's free tier (100 compute-hours/month, 5 GB egress) is far easier
+to exhaust than Google's 1M-requests/day. That is why the read path is deliberately
+DB-frugal: warm L1 hits are verified with a metadata-only `SELECT` (no JSONB re-ship,
+§1.5), full month rows are read only for L1 misses, duplicate per-render reads are
+`React.cache()`d (see `events/queries.ts`), and cross-instance Google refreshes are
+coalesced by a Postgres advisory lock (§1.5.2). In short: the system trades a generous
+external quota for a scarce internal one, and the cache is tuned to keep the scarce side
+cheap. See [`neon-usage.md`](neon-usage.md) for how to verify the DB-side numbers.
 
 ## 1.3 Architecture overview
 
@@ -177,22 +201,41 @@ sequenceDiagram
 ```
 
 1. **L1 in-process map** (`memory`, keyed `` `${googleCalendarId}:${month}` ``) — a warm
-   instance serves repeat views with **zero I/O**. Entries hold the already-decoded
+   instance serves repeat views with **no Google I/O** and, since the `events` JSONB is
+   never re-shipped for a warm hit, minimal DB transfer. Entries hold the already-decoded
    `GcalEventItem[]` plus an epoch `fetchedAt`. A size cap (`MAX_MEMORY_ENTRIES`) evicts
    the oldest-inserted entry when the map exceeds 512 rows.
-2. **L2 Postgres** — for ids not served by L1, a **single batched `SELECT`** returns every
-   cache row for the month across all requested calendars (one round-trip regardless of
-   calendar count). Usable rows (fresh or stale) are decoded and promoted into L1.
+2. **L2 Postgres** — every L1 hit is verified against the shared row with a
+   **metadata-only `SELECT`** (`calendar_google_id`, `fetched_at` — no `events` payload),
+   so a cross-instance `invalidateGcalCache` (DELETE on another lambda) is visible without
+   re-downloading whole months; full `events` rows are fetched **only for L1 misses** (one
+   batched `SELECT` regardless of calendar count), plus the rare L1 hit whose shared row is
+   meaningfully newer than the local copy. Usable rows (fresh or stale) are decoded and
+   promoted into L1.
 3. **Google** — anything missing or expired blocks on a fresh `events.list` + upsert,
    executed with bounded concurrency (`GOOGLE_FETCH_CONCURRENCY` = 4). Concurrent callers
    of the same key within one process share a single promise via the `inflight` map, so a
-   thundering herd collapses to one Google call.
+   thundering herd collapses to one Google call. Across processes the fetch+upsert runs
+   under a Postgres advisory lock keyed on `(googleCalendarId, month)` (see §1.5.2), so
+   only one serverless instance actually refreshes a given stale/expired key.
 
 `allServed` is `false` when at least one calendar needed a blocking Google refresh; the
 prefetch gate (see §1.8) uses it to avoid background work on fully-cached views.
 
 Stale hits schedule the refresh through `after()` (`next/server`), which runs after the
 response ships — the visible render is never delayed by a stale-entry refresh.
+
+### 1.5.2 Cross-instance refresh coalescing
+
+A stale or expired `(googleCalendarId, month)` is refreshed from Google by **every**
+instance that serves it during the stale window — on a multi-instance deployment that is
+duplicate Google calls plus duplicate JSONB upserts. `refreshMonthEvents`
+(`eventsCache.ts`) therefore runs its fetch+upsert inside a transaction that holds a
+Postgres advisory lock keyed on `(googleCalendarId, month)`. A waiter that acquires the
+lock and finds a row refreshed by another instance **within the fresh window** reuses that
+row instead of re-hitting Google; only the first instance (or a `{ force: true }` refresh,
+which always re-fetches) pays for the Google call. The lock is transaction-scoped, so a
+failed fetch releases it on abort.
 
 ### 1.5.1 Force refresh (manual, one-shot)
 
@@ -429,9 +472,20 @@ What the cache changed:
 - **Before:** N serial Google `events.list` calls per render (one per calendar).
 - **DB-only:** N serial `SELECT`s per render (~50ms each) — an improvement only for
   many-calendar admin views, and it could *feel* slower for small calendar counts.
-- **Layered (current):** L1 hits cost zero I/O; L2 costs **one batched `SELECT`** (~60ms
-  total regardless of calendar count); only true misses touch Google (parallel, ≤4, and
-  coalesced per key).
+- **Layered (current):** L1 hits cost a **metadata-only `SELECT`** (no JSONB payload) per
+  month; full month rows are read only for L1 misses (one batched `SELECT`, ~60ms total
+  regardless of calendar count); only true misses touch Google (parallel, ≤4, coalesced
+  per key in-process and across instances via the §1.5.2 advisory lock).
+
+Two adjacent DB-load reductions complement the layered cache (they live outside this
+module, but they keep the render's total query count low):
+
+- `listCalendars` / `listEventTypes` are React-`cache()`d per request, so the dashboard
+  page and `fetchRangeEvents` share one read each instead of two.
+- `countPinnedEvents` / `fetchPinnedEvents` (global, user-independent values) are served
+  from a 60s in-memory TTL (`src/lib/cache.ts`), so the pinned badge's mount/refocus/
+  panel-close/CRUD refreshes collapse to one read per window; event mutations call
+  `invalidatePinnedCache` for immediate freshness.
 
 ## 1.13 File index & related docs
 
@@ -447,6 +501,7 @@ What the cache changed:
 | `src/app/(protected)/dashboard/DashboardView.tsx` | Force-refresh button + one-shot nonce strip (§1.5.1)       |
 | `src/lib/events/datetime.ts`                    | `monthRange`, `shiftMonth`, `monthsInRange`, `monthGridMonths`, `monthGridRows` |
 | `src/lib/async.ts`                              | `mapWithConcurrency`                                        |
+| `src/lib/cache.ts`                              | Generic TTL cache backing the pinned count/list reads       |
 | `src/app/sw.ts`                                 | Service worker: `NetworkOnly` for data (unchanged)          |
 
 Related docs:

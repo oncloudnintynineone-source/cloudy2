@@ -17,7 +17,8 @@
     "db:generate": "drizzle-kit generate",
     "db:push": "drizzle-kit push",
     "db:migrate": "drizzle-kit migrate",
-    "db:seed": "tsx src/db/seed.ts"
+    "db:seed": "tsx src/db/seed.ts",
+    "db:usage": "node scripts/neon-usage.mjs"
   },
   "dependencies": {
     "@mantine/core": "^9.5.1",

@@ -1,4 +1,5 @@
 import { asc, inArray } from "drizzle-orm";
+import { cache } from "react";
 
 import { db } from "@/db";
 import { eventTypes } from "@/db/schema";
@@ -12,15 +13,21 @@ import {
   type TimeOption,
 } from "@/lib/events/timeOptions";
 
-/** All event types, ordered by name, with normalized time options, allowed locations, and field-visibility flags. */
-export async function listEventTypes() {
+/**
+ * All event types, ordered by name, with normalized time options, allowed
+ * locations, and field-visibility flags. Wrapped in React's per-request
+ * `cache()` so callers that share a render (the dashboard page +
+ * `fetchRangeEvents`) hit the DB once; request-scoped only, so admin edits
+ * still appear on the next request.
+ */
+export const listEventTypes = cache(async () => {
   const rows = await db.select().from(eventTypes).orderBy(asc(eventTypes.name));
   return rows.map((row) => ({
     ...row,
     timeOptions: resolveTimeOptions(normalizeTimeOptions(row.timeOptions)),
     allowedLocations: normalizeAllowedLocations(row.allowedLocations),
   }));
-}
+});
 
 export interface EventTypeDisplayInfo {
   name: string;

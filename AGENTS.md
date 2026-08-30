@@ -70,7 +70,9 @@ mechanics in the doc.
   `fetchRangeEvents()` (`src/lib/events/queries.ts`) — **never call
   `integration.listEvents` directly for month/range views** (a Monday-first week can
   span two months — use `fetchRangeEvents`). In-app mutations must call
-  `invalidateGcalCache()`.
+  `invalidateGcalCache()`. Warm L1 hits are verified against L2 with a **metadata-only
+  SELECT** (no JSONB), and cross-instance Google refreshes are coalesced by a Postgres
+  advisory lock — see §1.5.2.
   Design: [docs/events-cache.md](docs/events-cache.md).
 - **Event lifecycle & mutations:** staged wizard → Google copies with notes-block
   round-trip; cross-department copies reconciled by `findCopies` (deliberately

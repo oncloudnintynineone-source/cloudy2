@@ -2,11 +2,13 @@ import type { MantineColor } from "@mantine/core";
 import type { DateTimeStringValue } from "@mantine/schedule";
 import { eq, inArray } from "drizzle-orm";
 import { after } from "next/server";
+import { cache } from "react";
 
 import { db } from "@/db";
-import { calendars, eventTypes, users } from "@/db/schema";
+import { calendars, users } from "@/db/schema";
 import { effectiveCalendarColor, effectiveEventTypeColor } from "@/lib/events/eventColors";
 import { formatInstantToNaive, shiftMonth, utcToDateString } from "@/lib/events/datetime";
+import { listEventTypes } from "@/lib/eventTypes/queries";
 import { getCachedMonthEventsForCalendars } from "@/lib/google/eventsCache";
 import type { GcalEventItem } from "@/lib/google/types";
 import { onlyUuidIds } from "@/lib/uuid";
@@ -73,10 +75,15 @@ function scheduleTime(date: Date, allDay: boolean): string {
   return allDay ? `${utcToDateString(date)} 00:00:00` : formatInstantToNaive(date);
 }
 
-/** All calendars (the filter option source), ordered for display (sortOrder then name). */
-export async function listCalendars() {
+/**
+ * All calendars (the filter option source), ordered for display (sortOrder then
+ * name). Wrapped in React's per-request `cache()` so callers that share a render
+ * (the dashboard page + `fetchRangeEvents`) hit the DB once; request-scoped
+ * only, so admin edits still appear on the next request.
+ */
+export const listCalendars = cache(async () => {
   return db.select().from(calendars).orderBy(calendars.sortOrder, calendars.name);
-}
+});
 
 /** The department calendar a user is assigned to, or null. */
 export async function getUserDepartmentId(userId: string): Promise<string | null> {
@@ -193,20 +200,18 @@ export async function fetchRangeEvents(params: {
   }
 
   // sortOrder then name makes the representative copy (first per group id) deterministic
-  // and respects the admin-configured department order.
-  const rows = await db
-    .select()
-    .from(calendars)
-    .where(inArray(calendars.id, params.calendarIds))
-    .orderBy(calendars.sortOrder, calendars.name);
+  // and respects the admin-configured department order. `listCalendars` and
+  // `listEventTypes` are React-`cache()`d per request, so when the calling page
+  // has already loaded them this render reuses those results instead of
+  // re-querying.
+  const allCalendars = await listCalendars();
+  const rows = allCalendars.filter((calendar) => params.calendarIds.includes(calendar.id));
   const googleCalendarIds = rows.map((calendar) => calendar.googleCalendarId);
 
   // Event type name → pinned color (tiny table; read per request so a color
   // change takes effect on the next render with no cache invalidation).
-  const typeRows = await db
-    .select({ name: eventTypes.name, color: eventTypes.color })
-    .from(eventTypes);
-  const typeColors = new Map(typeRows.map((row) => [row.name, row.color]));
+  const allEventTypes = await listEventTypes();
+  const typeColors = new Map(allEventTypes.map((row) => [row.name, row.color]));
 
   const seen = new Set<string>();
   const events: CalendarEvent[] = [];

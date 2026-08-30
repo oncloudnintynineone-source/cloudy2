@@ -1,4 +1,4 @@
-import { and, eq, inArray } from "drizzle-orm";
+import { and, eq, inArray, sql } from "drizzle-orm";
 import { after } from "next/server";
 
 import { db } from "@/db";
@@ -20,6 +20,13 @@ const GOOGLE_FETCH_CONCURRENCY = 4;
 
 /** Simple cap so an idle instance can't grow the L1 map without bound. */
 const MAX_MEMORY_ENTRIES = 512;
+
+/**
+ * A shared L2 row is treated as "newer than the local L1 copy" only when it
+ * beats it by at least this much — otherwise a local refresh's own upsert
+ * (microseconds apart) would re-download the same month payload for nothing.
+ */
+const ROW_NEWER_TOLERANCE_MS = 1_000;
 
 interface MemoryEntry {
   events: GcalEventItem[];
@@ -60,13 +67,17 @@ function remember(
  * Fetch a calendar's month from Google and upsert the cache entry (DB + L1).
  * Concurrent callers for the same key share one in-flight promise.
  */
-function refreshCachedMonth(googleCalendarId: string, month: string): Promise<GcalEventItem[]> {
+function refreshCachedMonth(
+  googleCalendarId: string,
+  month: string,
+  options: { force?: boolean } = {},
+): Promise<GcalEventItem[]> {
   const key = memoryKey(googleCalendarId, month);
   const existing = inflight.get(key);
   if (existing) {
     return existing;
   }
-  const promise = refreshMonthEvents(googleCalendarId, month).finally(() => {
+  const promise = refreshMonthEvents(googleCalendarId, month, options).finally(() => {
     inflight.delete(key);
   });
   inflight.set(key, promise);
@@ -108,13 +119,15 @@ export interface MonthEventsOptions {
 /**
  * Cached month read across several department calendars. Layers:
  *
- * 1. L1 memory — checked first; hits are verified against L2 in one batched
- *    `SELECT` so a cross-instance `invalidateGcalCache` (DELETE on another
- *    lambda) is visible everywhere — the previous zero-I/O warm hit traded
- *    ~60 ms for a 60s stale window on other instances; now correctness wins.
- *    Stale entries schedule a background refresh via `after()`.
- * 2. L2 Postgres — the same single batched `SELECT` for the whole month
- *    (~one round-trip regardless of calendar count) also serves L1 misses;
+ * 1. L1 memory — checked first; hits are verified against L2 with a
+ *    lightweight metadata-only `SELECT` (`calendar_google_id`, `fetched_at` —
+ *    no `events` JSONB) so a cross-instance `invalidateGcalCache` (DELETE on
+ *    another lambda) is visible everywhere without re-downloading whole month
+ *    payloads on warm views. Stale entries schedule a background refresh via
+ *    `after()`.
+ * 2. L2 Postgres — full `events` rows are fetched only for L1 misses (one
+ *    batched `SELECT` regardless of calendar count), plus the rare L1 hit
+ *    whose shared row is newer than the local copy.
  * 3. blocking Google `events.list` + upsert for anything missing/expired or
  *    for L1 hits whose L2 row was deleted/expired elsewhere.
  *
@@ -142,7 +155,7 @@ export async function getCachedMonthEventsForCalendars(
 
   if (options.force) {
     const refreshed = await mapWithConcurrency(ids, GOOGLE_FETCH_CONCURRENCY, async (id) => {
-      const items = await refreshCachedMonth(id, month);
+      const items = await refreshCachedMonth(id, month, { force: true });
       return [id, items] as const;
     });
     for (const [id, items] of refreshed) {
@@ -155,9 +168,11 @@ export async function getCachedMonthEventsForCalendars(
 
   // Partition ids by L1 presence: hits may still be stale due to a
   // cross-instance invalidation (DELETE on another lambda's DB, invisible to
-  // this lambda's Map). We verify every L1 hit against the shared L2 row in
-  // one batched SELECT, turning the previous zero-I/O warm hit into one DB
-  // roundtrip (~60 ms) for a cross-instance read-your-writes guarantee.
+  // this lambda's Map). Every L1 hit is verified against the shared L2 row
+  // with a lightweight metadata-only SELECT — `calendar_google_id` and
+  // `fetched_at`, no `events` JSONB — so warm views keep their
+  // cross-instance read-your-writes guarantee without re-downloading whole
+  // month payloads.
   const l1Hits = new Map<string, MemoryEntry>();
   const l1MissIds: string[] = [];
   for (const id of ids) {
@@ -169,20 +184,28 @@ export async function getCachedMonthEventsForCalendars(
     }
   }
 
-  // One batched SELECT for every requested calendar (both L1 hits for
-  // verification and L1 misses for normal L2 fallback). A single roundtrip
-  // regardless of calendar count; seeing no row for an L1 hit means the
-  // entry was invalidated elsewhere and must be re-fetched blocking.
-  const rows = await db
-    .select()
+  // One tiny batched SELECT: month + fetched_at per requested calendar (a
+  // single roundtrip regardless of calendar count). Seeing no row for an L1
+  // hit means the entry was invalidated elsewhere and must be re-fetched
+  // blocking.
+  const metaRows = await db
+    .select({
+      calendarGoogleId: googleEventCache.calendarGoogleId,
+      fetchedAt: googleEventCache.fetchedAt,
+    })
     .from(googleEventCache)
     .where(and(eq(googleEventCache.month, month), inArray(googleEventCache.calendarGoogleId, ids)));
-  const rowById = new Map(rows.map((row) => [row.calendarGoogleId, row]));
+  const metaById = new Map(metaRows.map((row) => [row.calendarGoogleId, row]));
+
   const pending: string[] = [];
+  // The ids whose full `events` JSONB we actually need: every L1 miss with a
+  // usable row, plus the rare L1 hit whose shared row is meaningfully newer
+  // than the local copy. Fetched in one batched SELECT below.
+  const needFullRow = new Set<string>();
 
   for (const [id, entry] of l1Hits) {
-    const row = rowById.get(id);
-    if (!row) {
+    const meta = metaById.get(id);
+    if (!meta) {
       // L1 holds a value whose L2 row was deleted by invalidateGcalCache on
       // another instance — purge the local copy and treat as a blocking miss.
       memory.delete(memoryKey(id, month));
@@ -190,7 +213,7 @@ export async function getCachedMonthEventsForCalendars(
       pending.push(id);
       continue;
     }
-    const { usable, stale } = rowUsable(row.fetchedAt);
+    const { usable, stale } = rowUsable(meta.fetchedAt);
     if (!usable) {
       memory.delete(memoryKey(id, month));
       inflight.delete(memoryKey(id, month));
@@ -202,38 +225,52 @@ export async function getCachedMonthEventsForCalendars(
         void refreshCachedMonth(id, month).catch(() => {});
       });
     }
-    // If the shared L2 row is newer than the local L1 copy (e.g. another
-    // instance refreshed and upserted), prefer the fresher DB data so
+    // If the shared L2 row is meaningfully newer than the local L1 copy (e.g.
+    // another instance refreshed and upserted), prefer the fresher DB data so
     // external Google edits converge on the next request even though the
-    // local L1 is still technically "fresh".
-    if (row.fetchedAt.getTime() !== entry.fetchedAt) {
-      const decoded = decodeCachedEvents(row.events);
-      remember(id, month, decoded, row.fetchedAt.getTime());
-      events[id] = decoded;
+    // local L1 is still technically "fresh". A small tolerance avoids the
+    // microsecond drift between a local refresh's L1 store and its own upsert.
+    if (meta.fetchedAt.getTime() - entry.fetchedAt > ROW_NEWER_TOLERANCE_MS) {
+      needFullRow.add(id);
     } else {
       events[id] = entry.events;
     }
   }
 
   for (const id of l1MissIds) {
-    const row = rowById.get(id);
-    if (row) {
-      const { usable, stale } = rowUsable(row.fetchedAt);
+    const meta = metaById.get(id);
+    if (meta) {
+      const { usable, stale } = rowUsable(meta.fetchedAt);
       if (usable) {
         if (stale) {
           after(() => {
             void refreshCachedMonth(id, month).catch(() => {});
           });
         }
-        const decoded = decodeCachedEvents(row.events);
-        // Inherit the row's age so L1 can't extend past GCAL_CACHE_EXPIRE_MS.
-        remember(id, month, decoded, row.fetchedAt.getTime());
-        events[id] = decoded;
+        needFullRow.add(id);
       } else {
         pending.push(id);
       }
     } else {
       pending.push(id);
+    }
+  }
+
+  if (needFullRow.size > 0) {
+    const rows = await db
+      .select()
+      .from(googleEventCache)
+      .where(
+        and(
+          eq(googleEventCache.month, month),
+          inArray(googleEventCache.calendarGoogleId, [...needFullRow]),
+        ),
+      );
+    for (const row of rows) {
+      const decoded = decodeCachedEvents(row.events);
+      // Inherit the row's age so L1 can't extend past GCAL_CACHE_EXPIRE_MS.
+      remember(row.calendarGoogleId, month, decoded, row.fetchedAt.getTime());
+      events[row.calendarGoogleId] = decoded;
     }
   }
 
@@ -282,27 +319,74 @@ export async function invalidateGcalCache(
     );
 }
 
-/** Fetch a calendar's month from Google and store it in DB + L1 memory. */
+/** Namespaced advisory-lock key for a `(googleCalendarId, month)` refresh. */
+function refreshLockKey(googleCalendarId: string, month: string): string {
+  return `cloudy2:gcal:${googleCalendarId}:${month}`;
+}
+
+/**
+ * Fetch a calendar's month from Google and store it in DB + L1 memory.
+ *
+ * The fetch + upsert run inside a transaction holding a Postgres advisory lock
+ * keyed on `(googleCalendarId, month)`, so across serverless instances only one
+ * refreshes a given stale/expired key at a time: a waiter that acquires the
+ * lock and finds a just-refreshed fresh row reuses it instead of re-hitting
+ * Google. `{ force: true }` (the dashboard's one-shot refresh) skips the reuse
+ * check and always fetches.
+ */
 async function refreshMonthEvents(
   googleCalendarId: string,
   month: string,
+  options: { force?: boolean } = {},
 ): Promise<GcalEventItem[]> {
-  const integration = await getGoogleIntegration();
-  const { start, end } = monthRange(month);
-  const items = await integration.listEvents(googleCalendarId, start, end);
-  const events = encodeCachedEvents(items);
-  await db
-    .insert(googleEventCache)
-    .values({
-      calendarGoogleId: googleCalendarId,
-      month,
-      events,
-      fetchedAt: new Date(),
-    })
-    .onConflictDoUpdate({
-      target: [googleEventCache.calendarGoogleId, googleEventCache.month],
-      set: { events, fetchedAt: new Date() },
-    });
-  remember(googleCalendarId, month, items);
-  return items;
+  return db.transaction(async (tx) => {
+    // Serialize cross-instance refreshes of the same (calendar, month). The
+    // lock is transaction-scoped and released when this block commits/aborts.
+    await tx.execute(
+      sql`SELECT pg_advisory_xact_lock(hashtextextended(${refreshLockKey(googleCalendarId, month)}, 0))`,
+    );
+
+    // Coalesce: another instance refreshed this key within the fresh window
+    // while we waited for the lock — reuse its row instead of re-fetching.
+    if (!options.force) {
+      const [row] = await tx
+        .select({ fetchedAt: googleEventCache.fetchedAt, events: googleEventCache.events })
+        .from(googleEventCache)
+        .where(
+          and(
+            eq(googleEventCache.calendarGoogleId, googleCalendarId),
+            eq(googleEventCache.month, month),
+          ),
+        )
+        .limit(1);
+      if (
+        row &&
+        cacheEntryState(row.fetchedAt, new Date(), GCAL_CACHE_FRESH_MS, GCAL_CACHE_EXPIRE_MS) ===
+          "fresh"
+      ) {
+        const decoded = decodeCachedEvents(row.events);
+        remember(googleCalendarId, month, decoded, row.fetchedAt.getTime());
+        return decoded;
+      }
+    }
+
+    const integration = await getGoogleIntegration();
+    const { start, end } = monthRange(month);
+    const items = await integration.listEvents(googleCalendarId, start, end);
+    const events = encodeCachedEvents(items);
+    await tx
+      .insert(googleEventCache)
+      .values({
+        calendarGoogleId: googleCalendarId,
+        month,
+        events,
+        fetchedAt: new Date(),
+      })
+      .onConflictDoUpdate({
+        target: [googleEventCache.calendarGoogleId, googleEventCache.month],
+        set: { events, fetchedAt: new Date() },
+      });
+    remember(googleCalendarId, month, items);
+    return items;
+  });
 }

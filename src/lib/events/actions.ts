@@ -31,6 +31,7 @@ import { dispatchKahBreachCheck } from "@/lib/kah/notify";
 import { naiveTimePart, resolveTimeOption, type TimeOption } from "@/lib/events/timeOptions";
 import { renderEventTitle } from "@/lib/events/eventTitle";
 import { getUserDepartmentIds } from "@/lib/events/queries";
+import { invalidatePinnedCache } from "@/lib/events/pinned";
 import { deriveTargetCalendarIds, type EventRef } from "@/lib/events/targets";
 import {
   clampEventEnd,
@@ -531,6 +532,7 @@ export async function createEvent(input: EventFormValues): Promise<EventActionRe
     created.map((copy) => copy.googleCalendarId),
     monthsInRange(effectiveInput.start, effectiveInput.end),
   );
+  await invalidatePinnedCache();
   // Best-effort KAH breach notification (registered after the cache
   // invalidation so its month reads see the saved copies). Never blocks.
   const createdWindow = absEventRange(
@@ -742,6 +744,7 @@ export async function updateEvent(
       ]),
     ],
   );
+  await invalidatePinnedCache();
   // Same best-effort KAH breach check as create (deleteEvent skips it: a
   // deletion frees people and cannot push a group below its threshold).
   const updatedWindow = absEventRange(
@@ -836,6 +839,7 @@ export async function deleteEvent(ref: EventRef): Promise<EventActionResult> {
   });
 
   await invalidateGcalCache([...affectedGoogleIds], monthsInRange(ref.start, ref.end));
+  await invalidatePinnedCache();
   revalidatePath("/dashboard");
   return { ok: true };
 }

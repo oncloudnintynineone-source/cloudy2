@@ -1,5 +1,6 @@
 "use server";
 
+import { getCachedValue, invalidateCachedValue } from "@/lib/cache";
 import { fetchRangeEvents, listCalendars, type CalendarEvent } from "@/lib/events/queries";
 import { renderEventTitle } from "@/lib/events/eventTitle";
 import { listEventTypes } from "@/lib/eventTypes/queries";
@@ -34,6 +35,21 @@ function pinnedWindowMonths(): string[] {
   return monthsInRange(startNaive, endNaive);
 }
 
+// The pinned count/list are global values (every department, no user filter)
+// that change only on event CRUD. The badge refreshes on mount, tab refocus,
+// panel close, and after every CRUD, so a short TTL collapses that churn to one
+// read per window; mutations call `invalidatePinnedCache` for immediate
+// freshness, matching the events cache's 60s fresh window.
+const PINNED_CACHE_TTL_MS = 60_000;
+const PINNED_COUNT_KEY = "pinned:count";
+const PINNED_LIST_KEY = "pinned:list";
+
+/** Drop the cached pinned count/list (and any in-flight loads). */
+export async function invalidatePinnedCache(): Promise<void> {
+  invalidateCachedValue(PINNED_COUNT_KEY);
+  invalidateCachedValue(PINNED_LIST_KEY);
+}
+
 /**
  * The explicitly-pinned upcoming `CalendarEvent`s behind both the panel list
  * and the header count badge: scans every department's calendar (all of them —
@@ -64,8 +80,10 @@ async function upcomingPinnedCalendarEvents(
  */
 export async function countPinnedEvents(): Promise<number> {
   await requireSession();
-  const calendars = await listCalendars();
-  return (await upcomingPinnedCalendarEvents(calendars)).length;
+  return getCachedValue(PINNED_COUNT_KEY, PINNED_CACHE_TTL_MS, async () => {
+    const calendars = await listCalendars();
+    return (await upcomingPinnedCalendarEvents(calendars)).length;
+  });
 }
 
 /**
@@ -78,75 +96,77 @@ export async function countPinnedEvents(): Promise<number> {
 export async function fetchPinnedEvents(): Promise<PinnedEvent[]> {
   await requireSession();
 
-  const calendars = await listCalendars();
-  const calendarById = new Map(calendars.map((c) => [c.id, c.name]));
-  const pinned = await upcomingPinnedCalendarEvents(calendars);
+  return getCachedValue(PINNED_LIST_KEY, PINNED_CACHE_TTL_MS, async () => {
+    const calendars = await listCalendars();
+    const calendarById = new Map(calendars.map((c) => [c.id, c.name]));
+    const pinned = await upcomingPinnedCalendarEvents(calendars);
 
-  if (pinned.length === 0) {
-    return [];
-  }
+    if (pinned.length === 0) {
+      return [];
+    }
 
-  const [settings, users, eventTypes, templateMap] = await Promise.all([
-    getSettings(),
-    listUsers(),
-    listEventTypes(),
-    getEventTitleTemplateMap(),
-  ]);
-  const userById = new Map(users.map((u) => [u.id, u]));
-  const typeAcronym = new Map(eventTypes.map((t) => [t.name, t.shortname]));
+    const [settings, users, eventTypes, templateMap] = await Promise.all([
+      getSettings(),
+      listUsers(),
+      listEventTypes(),
+      getEventTitleTemplateMap(),
+    ]);
+    const userById = new Map(users.map((u) => [u.id, u]));
+    const typeAcronym = new Map(eventTypes.map((t) => [t.name, t.shortname]));
 
-  // The pinned panel renders the event title template assigned to the
-  // `pinned` target (Settings → Templates → View assignments); unassigned =
-  // Master, exactly like the dashboard views.
-  const pinnedTemplateId = settings.eventTitleTemplateAssignments["pinned"] ?? "";
-  const pinnedTemplate = pinnedTemplateId
-    ? templateMap.get(pinnedTemplateId)?.template ?? settings.eventTitleTemplate
-    : settings.eventTitleTemplate;
+    // The pinned panel renders the event title template assigned to the
+    // `pinned` target (Settings → Templates → View assignments); unassigned =
+    // Master, exactly like the dashboard views.
+    const pinnedTemplateId = settings.eventTitleTemplateAssignments["pinned"] ?? "";
+    const pinnedTemplate = pinnedTemplateId
+      ? templateMap.get(pinnedTemplateId)?.template ?? settings.eventTitleTemplate
+      : settings.eventTitleTemplate;
 
-  return pinned.map((e) => {
-    const people = e.payload.inviteeUserIds.flatMap((id) => {
-      const user = userById.get(id);
-      if (!user) return [];
-      return [
-        {
-          full: user.name,
-          acronym: user.shortname || user.name,
-          fqn: formatFullName(
-            { name: user.name, departmentName: user.department?.name ?? null },
-            settings.nameTemplate,
-          ),
-        },
-      ];
+    return pinned.map((e) => {
+      const people = e.payload.inviteeUserIds.flatMap((id) => {
+        const user = userById.get(id);
+        if (!user) return [];
+        return [
+          {
+            full: user.name,
+            acronym: user.shortname || user.name,
+            fqn: formatFullName(
+              { name: user.name, departmentName: user.department?.name ?? null },
+              settings.nameTemplate,
+            ),
+          },
+        ];
+      });
+      const eventType = e.payload.eventType
+        ? { name: e.payload.eventType, acronym: typeAcronym.get(e.payload.eventType) ?? e.payload.eventType }
+        : null;
+      const departments = e.payload.inviteeDepartmentIds
+        .map((id) => calendarById.get(id) ?? "")
+        .filter(Boolean);
+      const title = renderEventTitle({
+        description: e.payload.rawTitle ?? "",
+        eventType,
+        people,
+        departments,
+        location: e.payload.location ?? "",
+        template: pinnedTemplate,
+        timeOption: e.payload.timeOption,
+        startTime: naiveTimePart(e.start),
+        endTime: naiveTimePart(e.end),
+        startAmPm: e.payload.startAmPm ?? "",
+        endAmPm: e.payload.endAmPm ?? "",
+      });
+
+      return {
+        id: e.id,
+        title,
+        start: e.start,
+        end: e.end,
+        color: e.color,
+        allDay: e.payload.allDay,
+        departments,
+        eventId: e.payload.eventId,
+      };
     });
-    const eventType = e.payload.eventType
-      ? { name: e.payload.eventType, acronym: typeAcronym.get(e.payload.eventType) ?? e.payload.eventType }
-      : null;
-    const departments = e.payload.inviteeDepartmentIds
-      .map((id) => calendarById.get(id) ?? "")
-      .filter(Boolean);
-    const title = renderEventTitle({
-      description: e.payload.rawTitle ?? "",
-      eventType,
-      people,
-      departments,
-      location: e.payload.location ?? "",
-      template: pinnedTemplate,
-      timeOption: e.payload.timeOption,
-      startTime: naiveTimePart(e.start),
-      endTime: naiveTimePart(e.end),
-      startAmPm: e.payload.startAmPm ?? "",
-      endAmPm: e.payload.endAmPm ?? "",
-    });
-
-    return {
-      id: e.id,
-      title,
-      start: e.start,
-      end: e.end,
-      color: e.color,
-      allDay: e.payload.allDay,
-      departments,
-      eventId: e.payload.eventId,
-    };
   });
 }
