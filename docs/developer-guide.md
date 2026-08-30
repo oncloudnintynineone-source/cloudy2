@@ -36,6 +36,7 @@ and the migration workflow. Subsystem design lives in the deep-dive docs indexed
 ## 1.2 Getting started
 
 ```bash
+git checkout dev        # day-to-day work happens here; main is production-only
 pnpm install
 cp .env.example .env.local
 # fill in .env.local — at minimum DATABASE_URL, NEXTAUTH_SECRET, ADMIN_INITIAL_PASSWORD
@@ -140,50 +141,68 @@ GitHub Actions runs on every push/PR in this order:
 ```mermaid
 flowchart LR
     A[lint] --> B[typecheck] --> C[test] --> D[db:generate<br/>schema-drift check]
-    D -- "push to main" --> E[migrate<br/>pnpm db:migrate vs Neon]
+    D -- "push to dev" --> E[migrate-preview<br/>pnpm db:migrate vs dev Neon]
+    D -- "push to main" --> F[migrate<br/>pnpm db:migrate vs prod Neon]
 ```
 
 - The schema-drift check runs `pnpm db:generate` and fails on any diff to
   `drizzle/` — committed migrations must stay in sync with `src/db/schema.ts`.
-- Pushes to `main` additionally run the `migrate` job against Neon using the
-  `DATABASE_URL` repo secret, so pending migrations auto-apply on deploy. PRs only
-  run the quality checks.
+- Pushes run the matching `migrate` job: `dev` → `migrate-preview` against the dev
+  Neon DB (`DATABASE_URL_PREVIEW` secret), `main` → `migrate` against the prod Neon
+  DB (`DATABASE_URL` secret) — pending migrations auto-apply per environment on
+  deploy. Both jobs are branch-gated with their own concurrency group. PRs only run
+  the quality checks.
 
-## 1.8 Git workflow
+## 1.8 Git workflow (cheatsheet)
 
-`dev` is the working branch; `main` is production. All day-to-day work happens on
-`dev` (or short-lived feature branches off it), and `main` only moves forward when
-`dev` is ready to ship.
+**All work lands on `dev` first. `main` is production — it only ever advances by
+merging `dev`. Never commit directly to `main`.**
 
 ```mermaid
 flowchart LR
-    A[Feature branch] -- PR --> B[dev]
-    B -- push --> C[CI + Vercel preview]
-    C -- passes --> B
-    B -- git merge dev --> D[main]
-    D --> E[Production]
+    A[feature branch] -- PR --> B[dev]
+    B -- push --> C["CI: quality + migrate-preview (dev Neon)"]
+    C --> D["Vercel preview — isolated dev Neon + dev Google account"]
+    D -- verify on preview --> B
+    B -- merge --> E[main]
+    E -- push --> F["CI: migrate (prod Neon) → production"]
 ```
 
-1. **Work on `dev`.** Commit directly, or branch off `dev` for anything risky and
-   merge back with a PR. Every push to `dev` triggers CI + a Vercel preview build.
-2. **Keep `dev` deployable.** CI must pass before pushing. Preview builds serve as
-   the integration check.
-3. **Ship with a merge, never a cherry-pick.** When `dev` is production-ready:
+### Terminal
 
-   ```bash
-   git checkout main
-   git merge dev
-   git push origin main
-   ```
+```bash
+# 1. Daily work — every push triggers CI + the Vercel preview
+git checkout dev && git pull origin dev
+# …edit, commit…
+git push origin dev          # verify on the preview URL before shipping
 
-   Always move changes between `dev` and `main` with `git merge` — cherry-picking
-   the same commits across branches creates duplicate commits with different SHAs
-   (as happened early in this repo).
-4. **Finish or stash before switching branches.** Commit or stash your working tree
-   before `git checkout`, or untracked/uncommitted work gets stranded on whichever
-   branch you landed on.
-5. **Optionally protect `main`** with branch rules (require a PR + passing CI) so
-   nothing reaches production unreviewed.
+# 2. Ship to prod (only after the preview checks out)
+git checkout main && git pull origin main
+git merge dev                # merge, never cherry-pick (duplicate SHAs)
+git push origin main         # prod deploy + migrate job vs prod Neon
+
+# 3. Verify prod, then back to work
+git checkout dev
+```
+
+### VS Code
+
+1. **Switch/create branch:** branch indicator in the bottom-left status bar → pick
+   `dev` (or "Create new branch…" for risky work, merged back via PR).
+2. **Commit & push:** Source Control (`Ctrl+Shift+G`) → stage `＋` → short imperative
+   message → **Commit** → **Sync Changes**. The push fires CI + the preview build.
+3. **Verify on the preview:** open the latest preview URL (Vercel dashboard), log in
+   with the **dev** admin password, exercise the changed flows — isolated dev Neon +
+   dev Google account, so prod is untouchable; CI already migrated the dev DB.
+4. **Ship:** status bar → switch to `main` → Source Control `…` → **Pull** → command
+   palette → **Git: Merge Branch…** → `dev` → `…` → **Push**. Prod deploys; CI runs
+   the `migrate` job against the prod DB.
+5. **Verify prod** (log in, confirm the change), then switch back to `dev`.
+6. **Before any branch switch:** commit or stash (Source Control `…` → **Pull, Push**
+   → **Stash** / **Pop Stash**) — or uncommitted work gets stranded.
+7. Optionally protect `main` with GitHub branch rules (require PR + CI).
+
+> Env var split per environment: §1.9 · migration mechanics: §1.11
 
 ## 1.9 Deployment (Vercel)
 
