@@ -188,19 +188,23 @@ the schema column defaults (guarded by a unit test).
 
 ## 1.7 User-facing status page
 
-Regular users — especially KAH members — can check their group's live in-country
-standing from a read-only **KAH Status** page (`/kah-status`), reached from the
-bottom nav / desktop sidebar (the entry appears **only for users who belong to at
-least one KAH group**; the server passes `hasKahGroup` into `AppShellShell` so it
-can't flicker). It answers "is my group OK today?" before acting on leave/events —
+Users can check their group's live in-country standing from a read-only **KAH
+Status** page (`/kah-status`), reached from the bottom nav / desktop sidebar.
+The entry appears for **any member of at least one KAH group** (the server
+passes `hasKahGroup` into `AppShellShell` so it can't flicker) and **always for
+admins**, whose view lists **every KAH group** (`listKahGroupChecks()`), not
+just their memberships — marked with a dimmed "Admin view — showing all KAH
+groups" hint. It answers "is my group OK today?" before acting on leave/events —
 the same data the notify-only breach check reasons about, but shown proactively.
 
 ```mermaid
 flowchart LR
-    U[Logged-in user in a KAH group] --> P["/kah-status?date=YYYY-MM-DD (server)"]
-    P --> G["kahGroupsForUser(userId)"]
+    U["Logged-in viewer<br/>(member of ≥1 group, or admin)"] --> P["/kah-status?date=YYYY-MM-DD (server)"]
+    P -- "member" --> G["kahGroupsForUser(userId)"]
+    P -- "admin" --> A["listKahGroupChecks() — all groups"]
     P --> B["busyKahsIn(day window)"]
     G --> S["kahStatusForWindow(groups, busy) (pure)"]
+    A --> S
     B --> S
     S --> V[KahStatusView: cards / table]
 ```
@@ -227,11 +231,11 @@ flowchart LR
 | `src/lib/kah/email.ts` | Pure template renderer + combined breach-email builder |
 | `src/lib/kah/emailDefaults.ts` | Default subject/body templates shared with the schema defaults |
 | `src/lib/kah/queries.ts` | Group + member reads for the tab |
-| `src/lib/kah/status.ts` | Shared status reads: member groups, `busyKahsIn`, pure `kahStatusForWindow`, `userHasKahGroup` |
+| `src/lib/kah/status.ts` | Shared status reads: member groups, `busyKahsIn`, pure `kahStatusForWindow`, `userHasKahGroup`, `isUuid` session-id guard |
 | `src/lib/kah/actions.ts` | Audited group CRUD server actions |
 | `src/lib/kah/notify.ts` | `dispatchKahBreachCheck` — check, audit, email (imports reads from `status.ts`) |
-| `src/app/(protected)/kah-status/{page,loading,KahStatusView}.tsx` | Read-only user-facing status page with day selector |
-| `src/components/AppShellShell.tsx` | Conditional KAH Status nav entry (`hasKahGroup`) |
+| `src/app/(protected)/kah-status/{page,loading,KahStatusView}.tsx` | Read-only status page with day selector (members: own groups; admins: all groups) |
+| `src/components/AppShellShell.tsx` | Conditional KAH Status nav entry (members: `hasKahGroup`; admins: always) |
 | `src/lib/email/send.ts` | Transport selection: Workspace delegation → SMTP → warn |
 | `src/lib/email/smtp.ts` | Pure `SMTP_URL` parser + nodemailer sender |
 | `src/lib/events/actions.ts` | Hook call sites in `createEvent` / `updateEvent` |

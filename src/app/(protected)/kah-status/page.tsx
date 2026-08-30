@@ -1,6 +1,6 @@
 import { PageContainer } from "@/components/PageContainer";
 import { addOneDay, formatInstantToNaive, parseNaiveToInstant } from "@/lib/events/datetime";
-import { busyKahsIn, kahGroupsForUser, kahStatusForWindow, resolveUserNames } from "@/lib/kah/status";
+import { busyKahsIn, kahGroupsForUser, kahStatusForWindow, listKahGroupChecks, resolveUserNames } from "@/lib/kah/status";
 import { requireSession } from "@/lib/session";
 
 import { KahStatusView } from "./KahStatusView";
@@ -24,7 +24,9 @@ export default async function KahStatusPage({ searchParams }: KahStatusPageProps
     typeof params.date === "string" && DATE_PATTERN.test(params.date) ? params.date : null;
   const date = urlDate ?? today();
 
-  const groups = await kahGroupsForUser(session.user.id);
+  // Admins see the page unconditionally with every group; members only their own.
+  const isAdmin = session.user.role === "admin";
+  const groups = isAdmin ? await listKahGroupChecks() : await kahGroupsForUser(session.user.id);
 
   // The full-day window [date 00:00, next-day 00:00), matching how the rest
   // of the app reads a single day's events.
@@ -49,7 +51,7 @@ export default async function KahStatusPage({ searchParams }: KahStatusPageProps
 
   return (
     <PageContainer>
-      <KahStatusView date={date} rows={rows} />
+      <KahStatusView date={date} rows={rows} allGroups={isAdmin} />
     </PageContainer>
   );
 }

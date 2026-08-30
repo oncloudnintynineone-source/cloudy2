@@ -94,7 +94,7 @@ src/
       dashboard/            # Calendar page (month/day/week views, wizard, details)
       parade-state/         # Parade state + attendance mode
       contacts/             # Contact list + VCF export
-      kah-status/           # Read-only KAH status for group members
+      kah-status/           # Read-only KAH status (member's own groups; admins: all)
       settings/             # Admin hub: users, departments, event-types, templates,
                             # webhooks, quick-links, kah-groups, banner, general, audit-log
     login/                  # Single-input login

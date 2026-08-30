@@ -397,9 +397,7 @@ export function AppShellShell({
 
   const items: NavItem[] =
     role === "admin"
-      ? hasKahGroup
-        ? [CALENDAR, PARADE_STATE, CONTACTS, KAH_STATUS, SETTINGS]
-        : [CALENDAR, PARADE_STATE, CONTACTS, SETTINGS]
+      ? [CALENDAR, PARADE_STATE, CONTACTS, KAH_STATUS, SETTINGS]
       : hasKahGroup
         ? [CALENDAR, PARADE_STATE, CONTACTS, KAH_STATUS]
         : [CALENDAR, PARADE_STATE, CONTACTS];

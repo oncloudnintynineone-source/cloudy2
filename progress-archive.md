@@ -137,6 +137,7 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
 - [1.138 Day/Week (H) timeline zoom (Phase 3b7)](#1138-dayweek-h-timeline-zoom-phase-3b7)
 - [1.140 Dev environment isolation (separate Neon + Google accounts)](#1140-dev-environment-isolation-separate-neon--google-accounts)
 - [1.141 Bootstrap-admin KAH crash fix (bugfix)](#1141-bootstrap-admin-kah-crash-fix-bugfix)
+- [1.142 KAH Status: admins always see the page with all groups](#1142-kah-status-admins-always-see-the-page-with-all-groups)
 
 ## 1.1 Status
 
@@ -6062,3 +6063,43 @@ Docs: `progress.md` one-liner (this section).
 Verification: `pnpm test` (779, +4) + `pnpm lint` + `pnpm typecheck` pass;
 no schema change (`db:generate` clean). Deploy verification: admin login
 renders the shell on the dev preview (and prod after the dev → main merge).
+
+## 1.142 KAH Status: admins always see the page with all groups
+
+Report: after the dev environment shipped, the user noticed the KAH Status
+nav entry appears on dev but not prod. Not a code difference (same commit) —
+the entry is membership-gated (`hasKahGroup` from `userHasKahGroup`), and on
+prod the viewer was the bootstrap admin (synthetic `id: "admin"`, never a
+member) with no KAH groups in the prod DB yet.
+
+Decision (confirmed with the user): admins should **always** see the KAH
+Status page and see **all** KAH groups, not just their memberships — the
+admin view mirrors what the breach check reasons about.
+
+Changes:
+
+1. **`src/components/AppShellShell.tsx`** — the admin nav is now
+   `[CALENDAR, PARADE_STATE, CONTACTS, KAH_STATUS, SETTINGS]` unconditionally;
+   the member branch keeps the `hasKahGroup` gate.
+2. **`src/app/(protected)/layout.tsx`** — admins skip the
+   `userHasKahGroup` lookup entirely (`Promise.resolve(false)`), so the
+   synthetic admin id never hits the uuid-typed query on protected renders.
+3. **`src/app/(protected)/kah-status/page.tsx`** — admins resolve groups via
+   `listKahGroupChecks()` (all groups, same `KahGroupCheck[]` shape, takes no
+   user id so the synthetic id is irrelevant); members keep
+   `kahGroupsForUser`. Passes `allGroups={isAdmin}` to the view.
+4. **`KahStatusView.tsx`** — new optional `allGroups` prop: a dimmed
+   "Admin view — showing all KAH groups" hint under the date header and an
+   adjusted empty state ("No KAH groups exist yet." vs "You are not part of
+   any KAH group."). Rows/cards/table unchanged.
+
+Docs: `docs/kah.md` §1.7 rewritten (admin path in prose + Mermaid branch) and
+the §1.8 file-index rows updated; `docs/admin-guide.md` / `docs/user-guide.md`
+/ `docs/developer-guide.md` one-liners; `progress.md` one-liner.
+
+Non-goals: no change to member visibility; no change to the breach-check
+logic; no new admin-only columns or actions on the page (still read-only).
+
+Verification: `pnpm test` + `pnpm lint` + `pnpm typecheck` pass; no schema
+change. Deploy verification: admin login shows the tab and lists all groups
+on the dev preview; a member login behaves exactly as before.

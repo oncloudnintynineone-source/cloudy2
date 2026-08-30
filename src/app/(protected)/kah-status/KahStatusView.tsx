@@ -23,6 +23,8 @@ export interface KahStatusRow {
 interface KahStatusViewProps {
   date: string;
   rows: KahStatusRow[];
+  /** Admin view: shows every KAH group (not just the viewer's memberships). */
+  allGroups?: boolean;
 }
 
 /** How many points below the requirement an amber (caution) group may be. */
@@ -62,7 +64,7 @@ function statusBadge(row: KahStatusRow) {
   );
 }
 
-export function KahStatusView({ date, rows }: KahStatusViewProps) {
+export function KahStatusView({ date, rows, allGroups = false }: KahStatusViewProps) {
   const router = useRouter();
   const [pickerOpened, { open: openPicker, close: closePicker }] = useDisclosure(false);
 
@@ -101,9 +103,15 @@ export function KahStatusView({ date, rows }: KahStatusViewProps) {
         </ActionIcon>
       </Group>
 
+      {allGroups ? (
+        <Text fz="sm" c="dimmed">
+          Admin view — showing all KAH groups
+        </Text>
+      ) : null}
+
       {rows.length === 0 ? (
         <Text c="dimmed" ta="center" py="xl">
-          You are not part of any KAH group.
+          {allGroups ? "No KAH groups exist yet." : "You are not part of any KAH group."}
         </Text>
       ) : (
         <>

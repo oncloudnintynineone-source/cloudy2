@@ -153,7 +153,8 @@ app never blocks an event.
 - **Breach Email Templates** (same tab): admin-editable subject/body with live
   preview; tokens `{event}` `{actor}` `{window}` `{breaches}`. The body must keep
   `{breaches}`.
-- Members also get the read-only **KAH Status** page automatically.
+- Members also get the read-only **KAH Status** page automatically; **admins always
+  see it too**, listing every group.
 
 Design: [`kah.md`](kah.md).
 

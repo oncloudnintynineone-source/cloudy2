@@ -21,7 +21,8 @@ export default async function ProtectedLayout({
   // (null when disabled, which keeps today's layout exactly).
   const [banner, hasKahGroup] = await Promise.all([
     getBanner(),
-    userHasKahGroup(session.user.id),
+    // Admins always see KAH Status (all groups) — skip the membership lookup.
+    session.user.role === "admin" ? Promise.resolve(false) : userHasKahGroup(session.user.id),
   ]);
   return (
     <AppShellShell
