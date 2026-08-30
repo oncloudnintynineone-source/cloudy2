@@ -138,6 +138,8 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
 - [1.140 Dev environment isolation (separate Neon + Google accounts)](#1140-dev-environment-isolation-separate-neon--google-accounts)
 - [1.141 Bootstrap-admin KAH crash fix (bugfix)](#1141-bootstrap-admin-kah-crash-fix-bugfix)
 - [1.142 KAH Status: admins always see the page with all groups](#1142-kah-status-admins-always-see-the-page-with-all-groups)
+- [1.144 Highlight my entries across dashboard views (Phase 3b8)](#1144-highlight-my-entries-across-dashboard-views-phase-3b8)
+- [1.145 Dark-mode my-entry tint fix](#1145-dark-mode-my-entry-tint-fix)
 
 ## 1.1 Status
 
@@ -6103,3 +6105,94 @@ logic; no new admin-only columns or actions on the page (still read-only).
 Verification: `pnpm test` + `pnpm lint` + `pnpm typecheck` pass; no schema
 change. Deploy verification: admin login shows the tab and lists all groups
 on the dev preview; a member login behaves exactly as before.
+
+## 1.144 Highlight my entries across dashboard views (Phase 3b8)
+
+Report: roster members struggle to find their own entries among everyone
+else's in the calendar views; the Users filter narrows results but the user
+wanted an always-on visual indicator too. Suggestions reviewed and refined
+with the user: Week (D)/Week (H) — highlight the user's entire row; Month —
+move the user's events to the top of each day's cell + highlighted border;
+Agenda — same. Decisions confirmed: "mine" = created-by or tagged-on (the
+Myself filter's semantics), Day view included, highlights stay on under the
+Myself filter, and the Agenda keeps chronological order (highlight only —
+reordering would break the time reading).
+
+Changes:
+
+1. **`src/lib/events/mineFirst.ts`** (new, pure + unit-tested) —
+   `sortMineFirst(events, myIds)` stably partitions the events into
+   mine-first blocks, each time-sorted (start → end → id tie-breaks).
+   MonthView assigns each day's rows greedily in input order
+   (`getMonthPositionedEvents` → `findAvailableRow`), so feeding this order
+   makes the user's events claim the top rows of every day (topmost
+   non-conflicting row; an earlier-placed multi-day event can still hold row
+   1). With `maxEventsPerDay` this pushes more of *other* events behind
+   "+N more" on dense days — the intended trade-off.
+2. **`DashboardView.tsx`** — `myEventIds` (`eventMatchesUserFilter` against
+   `currentUser`) drives: `monthEvents = sortMineFirst(...)` into MonthView;
+   two `renderEvent` replacements (`renderMyMonthEvent` → `c2-my-event`
+   amber ring, also in the "+N more" popup; `renderMyAgendaEvent` →
+   `c2-my-agenda-event` amber bar/tint + semibold title) on the month grid,
+   the Agenda tab and the month day modal; and `renderResourceLabel` now
+   renders the current user's label as a `data-c2-my-row` marker span (amber
+   dot + semibold shortname) shared by Day, Week (H) and Week (D). Week (D)
+   additionally gets a `myRowId` prop.
+3. **`WeekMatrixView.tsx`** — `myRowId` prop; the user's row's day cells are
+   tinted uniformly light amber (wins over the today tint so the row reads
+   as one block, matching the schedule views).
+4. **`globals.css`** — the schedule row tint is structural CSS: the label
+   cell is the only element containing the marker directly and the row the
+   only element containing it through a direct child, so
+   `.app-shell-root :has(> [data-c2-my-row])` /
+   `.app-shell-root :has(> * > [data-c2-my-row])` tint exactly the label
+   cell (accent-1 + inset accent-6 bar) and the whole row (accent-0). No
+   dependence on Mantine's hashed class names (verified against the
+   9.5.1 row DOM: `[groupCell, labelCell, slots]`, transparent rows/slots);
+   the `.app-shell-root` scope lifts specificity over Mantine's own rules.
+   Plus the `c2-my-event` ring (on the inner chip element, whose rounded
+   background the outline follows) and `c2-my-agenda-event` styles.
+
+Colors: brand amber `accent` family (secondary `#FBC02D`) — distinct from
+event-type colors and the blue `brand` today/primary accents.
+
+Boundary: only roster members get row highlights (no row ⇒ no marker); an
+admin without a roster row still gets the event-level highlights for events
+they created/tagged. All client-side — no cache, server or PWA impact.
+
+Docs: `docs/dashboard-views.md` new §1.5 (per-view mechanics + Mermaid
+flow), timeline-zoom/file-index renumbered to §1.6/§1.7, file index gains the
+`mineFirst.ts` row; `progress.md` one-liner.
+
+Verification: `pnpm test` (incl. 6 new `mineFirst` cases) + `pnpm lint` +
+`pnpm typecheck` pass; no schema change. Manual check: all five views at
+mobile + `lg` — row tint on the user's row only, month top rows + rings,
+agenda rows highlighted in time order, admin-without-roster-row case, and
+skeleton/empty states unaffected.
+
+## 1.145 Dark-mode my-entry tint fix
+
+Report: in dark mode the 1.144 row/label/agenda tint glared — it used the
+near-white accent-0 (`#fff9e0`) / accent-1 (`#fff3c0`) creams, which Mantine
+keeps at the same values in the dark scheme.
+
+Fix (user chose the "balanced" strength): the tint now switches on color
+scheme via two custom properties in `globals.css` — `:root` keeps
+`--c2-my-row-tint: var(--mantine-color-accent-0)` /
+`--c2-my-label-tint: var(--mantine-color-accent-1)` (light mode unchanged),
+and `[data-mantine-color-scheme="dark"]` (the same dark selector
+`globals.css` already uses for the tab underline) overrides them to darker
+olive amber: row `#3d3200`, label `#4a3c00`. `#3d3200` is the exact dark
+amber `ParadeStateView` already uses for its card tint, so the app stays
+consistent. The `:has()` row/label rules and `.c2-my-agenda-event` consume
+the variables; the Week (D) matrix reads them inline in its day-cell and
+label-cell `background` styles, so its scheme-blind `myTint` prop chain
+(`variantColorResolver` — which resolves against the base palette and cannot
+follow the scheme) was dropped. The accent-6 bars, dot and month chip ring
+are unchanged across schemes.
+
+Docs: `docs/dashboard-views.md` §1.5 colors paragraph; `progress.md`
+one-liner.
+
+Verification: `pnpm lint` + `pnpm typecheck` + `pnpm test` (785) pass; no
+logic change (CSS variables + inline-style strings only).

@@ -34,6 +34,12 @@ export interface WeekMatrixViewProps {
   events: CalendarEvent[];
   /** Today (`YYYY-MM-DD`) for the highlighted day column. */
   today: string;
+  /**
+   * The current user's id: that user's row is tinted (the "my entries"
+   * highlight — matches the row tint of the Day/Week (H) views). A no-match
+   * id (e.g. an admin without a roster row) simply tints nothing.
+   */
+  myRowId: string;
   renderResourceLabel: (resource: ScheduleResource) => ReactNode;
   onEventClick: (event: CalendarEvent, e: MouseEvent<HTMLButtonElement>) => void;
   /** Tapping an empty part of a cell: start a new event on that day. */
@@ -80,6 +86,7 @@ export function WeekMatrixView({
   groups,
   events,
   today,
+  myRowId,
   renderResourceLabel,
   onEventClick,
   onCellClick,
@@ -106,7 +113,6 @@ export function WeekMatrixView({
     theme,
     variant: "light",
   }).background;
-
   // The pinned header sits outside the (horizontal) scroll area, so its day
   // columns follow the table via a transform updated directly on scroll —
   // no React re-render per frame.
@@ -286,6 +292,7 @@ export function WeekMatrixView({
                       days={days}
                       today={today}
                       todayTint={todayTint}
+                      isMineRow={resource.id === myRowId}
                       lastRow={rowIndex === block.rows.length - 1}
                       renderResourceLabel={renderResourceLabel}
                       onEventClick={onEventClick}
@@ -325,6 +332,7 @@ function MatrixRow({
   days,
   today,
   todayTint,
+  isMineRow,
   lastRow,
   renderResourceLabel,
   onEventClick,
@@ -338,6 +346,8 @@ function MatrixRow({
   days: string[];
   today: string;
   todayTint: string;
+  /** The current user's row (see the `myRowId` prop). */
+  isMineRow: boolean;
   /** Last row of its block: no bottom border. */
   lastRow: boolean;
   renderResourceLabel: (resource: ScheduleResource) => ReactNode;
@@ -373,7 +383,11 @@ function MatrixRow({
           justifyContent: "center",
           borderRight: CELL_BORDER,
           borderBottom: rowBorder,
-          background: "var(--mantine-color-body)",
+          // Inline (so it wins over the row's CSS background); the accent-6
+          // inset bar for the mine row comes from the shared :has() rule.
+          background: isMineRow
+            ? "var(--c2-my-label-tint)"
+            : "var(--mantine-color-body)",
           overflow: "hidden",
         }}
       >
@@ -391,7 +405,8 @@ function MatrixRow({
           gridAutoRows: `minmax(${ROW_HEIGHT_PX}px, auto)`,
         }}
       >
-        {/* Day background cells — span all lanes, tinted for today, clickable. */}
+        {/* Day background cells — span all lanes, tinted for the mine row
+            (uniform amber, wins over today) else for today, clickable. */}
         {days.map((day, index) => {
           const isToday = day === today;
           return (
@@ -406,7 +421,10 @@ function MatrixRow({
                 gridRow: rowSpan,
                 borderLeft: index > 0 ? CELL_BORDER : undefined,
                 borderBottom: rowBorder,
-                background: isToday ? todayTint : "transparent",
+                // --c2-my-row-tint is uniform across the week (it wins over
+                // the today tint so the row reads as one block) and switches
+                // to the darker olive in dark mode.
+                background: isMineRow ? "var(--c2-my-row-tint)" : isToday ? todayTint : "transparent",
               }}
             />
           );

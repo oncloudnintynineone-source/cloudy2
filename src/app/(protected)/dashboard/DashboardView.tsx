@@ -2,7 +2,9 @@
 
 import dayjs from "dayjs";
 import {
+  type ComponentPropsWithoutRef,
   type CSSProperties,
+  type ReactElement,
   type ReactNode,
   type RefObject,
   useCallback,
@@ -89,9 +91,11 @@ import {
 import { QuickLinksMenu, type QuickLinkMenuItem } from "@/components/QuickLinksMenu";
 import { eventsOnDay } from "@/lib/events/agenda";
 import { weekDays } from "@/lib/events/datetime";
+import { sortMineFirst } from "@/lib/events/mineFirst";
 import type { CalendarEvent } from "@/lib/events/queries";
 import type { LocationCategory } from "@/lib/events/locationPolicy";
 import type { TimeOption } from "@/lib/events/timeOptions";
+import { eventMatchesUserFilter } from "@/lib/events/userFilter";
 import { CONTENT_ENTER_CLASS, useContentEnter } from "@/lib/loading/contentEnter";
 import { useMinSkeletonHold } from "@/lib/loading/minHoldLoading";
 import {
@@ -119,6 +123,15 @@ import { WeekMatrixView } from "./WeekMatrixView";
 import { invalidateCurrentPathCaches } from "@/lib/pwa/client";
 
 type ViewMode = "month" | "week" | "weekv2" | "schedule" | "agenda";
+
+/**
+ * Mantine's `RenderEvent` signature (the type itself is not re-exported from
+ * the package root) — the Month/Agenda `renderEvent` prop contract.
+ */
+type MyEventRender = (
+  event: { id: string | number },
+  props: ComponentPropsWithoutRef<"button"> & { children: ReactNode },
+) => ReactElement;
 
 // Initial "saved at" timestamp for the data-freshness label: prefer the SW's
 // injected document stamp (when the HTML shell was served from the SW cache,
@@ -970,6 +983,55 @@ export function DashboardView({
   );
   const scheduleEvents = useMemo(() => expandScheduleEvents(events), [events]);
 
+  // "Highlight my entries": the events the current user created or is tagged
+  // on — the same semantics as the Myself quick filter. Drives the per-view
+  // highlights (month top rows + chip ring, agenda row tint, the resource-row
+  // tint via the label marker below); see docs/dashboard-views.md §1.5.
+  const myEventIds = useMemo(
+    () =>
+      new Set(
+        events
+          .filter((event) => eventMatchesUserFilter(event.payload, [currentUser]))
+          .map((event) => event.id),
+      ),
+    [events, currentUser],
+  );
+  // The month grid assigns each day's rows greedily in input order, so feed
+  // the user's events first (each block time-sorted) and they claim the top
+  // rows of every day.
+  const monthEvents = useMemo(() => sortMineFirst(events, myEventIds), [events, myEventIds]);
+
+  // renderEvent replacements for Month + Agenda: the same default root, plus
+  // a highlight class on the user's events (the styling lives in globals.css).
+  // Month: c2-my-event = amber ring around the chip (also in the "+N more"
+  // popup). Agenda: c2-my-agenda-event = amber bar/tint + bold title.
+  const renderMyMonthEvent: MyEventRender = useCallback(
+    (event, props) => (
+      <UnstyledButton
+        {...props}
+        className={
+          myEventIds.has(String(event.id))
+            ? `${props.className ?? ""} c2-my-event`
+            : props.className
+        }
+      />
+    ),
+    [myEventIds],
+  );
+  const renderMyAgendaEvent: MyEventRender = useCallback(
+    (event, props) => (
+      <UnstyledButton
+        {...props}
+        className={
+          myEventIds.has(String(event.id))
+            ? `${props.className ?? ""} c2-my-agenda-event`
+            : props.className
+        }
+      />
+    ),
+    [myEventIds],
+  );
+
   const isWeekV2 = view === "weekv2";
   const isWeek = view === "week" || isWeekV2;
   const isSchedule = view === "schedule";
@@ -1404,32 +1466,69 @@ export function DashboardView({
     }
   }, [view, gridLoading, isSchedule, isDesktop, zoom]);
 
-  // Shared by the Day and Week (H) resource views: a department row is a building
-  // icon (its name as tooltip/aria), a user row is the shortname label.
+  // Shared by the Day, Week (H) and Week (D) resource views: a department row
+  // is a building icon (its name as tooltip/aria), a user row is the shortname
+  // label. The current user's row carries a `data-c2-my-row` marker span
+  // (amber dot + bold label): globals.css tints exactly that row's label cell
+  // and whole row through structural `:has()` rules on the marker.
   function renderResourceLabel(resource: ScheduleResourceData) {
     const row = resource as ScheduleResource;
-    return isDepartmentRowId(row.id) ? (
-      <IconBuilding
-        size={16}
-        color="var(--mantine-color-accent-6)"
-        aria-label={row.fullName}
-        title={row.fullName}
-        style={{ flexShrink: 0 }}
-      />
-    ) : row.label === row.fullName ? (
-      <Text size="sm">{row.label}</Text>
-    ) : (
-      // `events` replaces the default object, so `hover` is restated explicitly;
-      // `touch` lets a tap open the tooltip on phones (tap-outside dismisses it).
-      <Tooltip
-        label={row.fullName}
-        position="right"
-        events={{ hover: true, focus: false, touch: true }}
-      >
-        <Text size="sm" aria-label={row.fullName}>
+    if (isDepartmentRowId(row.id)) {
+      return (
+        <IconBuilding
+          size={16}
+          color="var(--mantine-color-accent-6)"
+          aria-label={row.fullName}
+          title={row.fullName}
+          style={{ flexShrink: 0 }}
+        />
+      );
+    }
+    const isMine = row.id === currentUser;
+    const label =
+      row.label === row.fullName ? (
+        <Text size="sm" fw={isMine ? 600 : undefined} aria-label={isMine ? `You — ${row.fullName}` : undefined}>
           {row.label}
         </Text>
-      </Tooltip>
+      ) : (
+        // `events` replaces the default object, so `hover` is restated explicitly;
+        // `touch` lets a tap open the tooltip on phones (tap-outside dismisses it).
+        <Tooltip
+          label={row.fullName}
+          position="right"
+          events={{ hover: true, focus: false, touch: true }}
+        >
+          <Text size="sm" fw={isMine ? 600 : undefined} aria-label={row.fullName}>
+            {row.label}
+          </Text>
+        </Tooltip>
+      );
+    if (!isMine) {
+      return label;
+    }
+    return (
+      <span
+        data-c2-my-row
+        style={{
+          display: "inline-flex",
+          alignItems: "center",
+          gap: "0.25rem",
+          maxWidth: "100%",
+          minWidth: 0,
+        }}
+      >
+        <span
+          aria-hidden
+          style={{
+            flexShrink: 0,
+            width: 6,
+            height: 6,
+            borderRadius: "50%",
+            background: "var(--mantine-color-accent-6)",
+          }}
+        />
+        {label}
+      </span>
     );
   }
 
@@ -1818,11 +1917,15 @@ export function DashboardView({
         ) : view === "month" ? (
           <MonthView
             date={`${month}-01 00:00:00`}
-            events={events}
+            // Pre-sorted so the user's events claim the top rows of each day
+            // (the grid assigns rows greedily in input order); their chips get
+            // the amber ring via renderEvent.
+            events={monthEvents}
             // The page range-reads the whole 6-week grid (monthGridMonths), so
             // the dimmed adjacent-month days render their events too.
             withHeader={false}
             maxEventsPerDay={isDesktop ? 4 : 3}
+            renderEvent={renderMyMonthEvent}
             onEventClick={(event, e) => {
               setDetailOriginRect(e.currentTarget.getBoundingClientRect());
               setDetailEvent(event as unknown as CalendarEvent);
@@ -1872,6 +1975,9 @@ export function DashboardView({
                   overflow: "hidden",
                 }}
                 styles={{ agendaViewHeader: { display: "none" } }}
+                // The user's entries get the amber bar/tint + bold title
+                // (c2-my-agenda-event, globals.css); time order is kept.
+                renderEvent={renderMyAgendaEvent}
                 onEventClick={(event, e) => {
                   setDetailOriginRect(e.currentTarget.getBoundingClientRect());
                   setDetailEvent(event as unknown as CalendarEvent);
@@ -1894,6 +2000,7 @@ export function DashboardView({
             groups={scheduleResources.groups}
             events={events}
             today={today}
+            myRowId={currentUser}
             renderResourceLabel={renderResourceLabel}
             onEventClick={(event, e) => {
               setDetailOriginRect(e.currentTarget.getBoundingClientRect());
@@ -2162,6 +2269,7 @@ export function DashboardView({
                   rangeEnd={agendaViewDate}
                   events={agendaModalEvents}
                   styles={{ agendaViewHeader: { display: "none" } }}
+                  renderEvent={renderMyAgendaEvent}
                   onEventClick={(event, e) => {
                     setDetailOriginRect(e.currentTarget.getBoundingClientRect());
                     setDetailEvent(event as unknown as CalendarEvent);

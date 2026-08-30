@@ -222,3 +222,63 @@
     ) !important;
   }
 }
+
+/*
+  "Highlight my entries" (dashboard calendar views — see
+  docs/dashboard-views.md §1.5). The current user's resource row carries a
+  <span data-c2-my-row> marker emitted by renderResourceLabel inside the
+  row's sticky label cell. Structural :has() rules (scoped under the app
+  shell for specificity over Mantine's own class rules) then tint exactly
+  the label cell (the only element containing the marker directly) and the
+  whole row (the only element containing it through a direct child). The
+  row and its hour slots are transparent by default, so the row background
+  shows through; events sit above it. Works for Day, Week (H) and the
+  custom Week (D) matrix (same row shape).
+  The tint switches on color scheme via two custom properties (the Week (D)
+  matrix reads the same variables inline): light mode uses the near-white
+  accent-0/1 creams, but in dark mode those would glow on the dark body, so
+  both go to the darker olive amber — #3d3200, the tint Parade State already
+  uses for its amber card.
+*/
+:root {
+  --c2-my-row-tint: var(--mantine-color-accent-0);
+  --c2-my-label-tint: var(--mantine-color-accent-1);
+}
+
+[data-mantine-color-scheme="dark"] {
+  --c2-my-row-tint: #3d3200;
+  --c2-my-label-tint: #4a3c00;
+}
+
+.app-shell-root :has(> [data-c2-my-row]) {
+  background-color: var(--c2-my-label-tint);
+  box-shadow: inset calc(0.1875rem * var(--mantine-scale)) 0 0 var(--mantine-color-accent-6);
+}
+
+.app-shell-root :has(> * > [data-c2-my-row]) {
+  background-color: var(--c2-my-row-tint);
+}
+
+/* Month view: the user's chips get an amber ring. The ring goes on the
+   inner chip element (the one carrying the rounded background), which is
+   the only element child of the event root in both the grid and the
+   "+N more" popup. */
+.c2-my-event {
+  z-index: 4;
+}
+
+.c2-my-event > * {
+  outline: calc(0.125rem * var(--mantine-scale)) solid var(--mantine-color-accent-6);
+  outline-offset: calc(0.0625rem * var(--mantine-scale));
+}
+
+/* Agenda: the user's rows get an amber left bar + light tint, and their
+   title (the first <p> in the row) goes semibold. */
+.c2-my-agenda-event {
+  background-color: var(--c2-my-row-tint);
+  box-shadow: inset calc(0.1875rem * var(--mantine-scale)) 0 0 var(--mantine-color-accent-6);
+}
+
+.c2-my-agenda-event p:first-of-type {
+  font-weight: var(--mantine-font-weight-semibold);
+}
