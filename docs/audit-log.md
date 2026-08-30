@@ -206,13 +206,17 @@ renders them as label/value lines with no code changes.
 ### 1.7.1 Filters
 
 `parseAuditFilters(params)` (`src/lib/audit/queries.ts:81`, pure) maps URL params
-to `AuditFilters`, trimming and dropping empty values:
+to `AuditFilters`, trimming and dropping empty values. The three multi-value
+filters are **comma-joined lists** (the same convention as the dashboard /
+parade-state `users`/`cal` params): `multi()` (`:60`) splits on `,`, trims each
+entry, drops empties, and dedupes while preserving order. An empty list means
+"no filter"; a legacy single-value URL still parses as a one-element list.
 
 | URL param | Filter | Matching |
 | --------- | ------ | -------- |
-| `actor` | `actor` | `eq(actor_name)` — the snapshot, so it survives deletion |
-| `action` | `action` | `eq(action)` |
-| `entity` | `entityType` | `eq(entity_type)` |
+| `actor` | `actor: string[]` | `in array (actor_name)` — the snapshot, so it survives deletion |
+| `action` | `action: string[]` | `in array (action)` |
+| `entity` | `entityType: string[]` | `in array (entity_type)` |
 | `q` | `query` | `ilike` OR across `actor_name, entity_name, route, method, action` |
 | `from` / `to` | `from` / `to` | inclusive UTC day bounds — `T00:00:00.000Z` / `T23:59:59.999Z` (`dayBounds`, `:124`) |
 | `cursor` | `cursor` | keyset cursor (below) |
@@ -220,7 +224,13 @@ to `AuditFilters`, trimming and dropping empty values:
 Dates pass a **round-trip calendar check** (`validDate`, `:61-75`): `2026-13-45`
 and `2026-02-31` are dropped, not just pattern-rejected. The cursor is kept only
 if it decodes. `auditFilterConditions` (`:132`) builds the Drizzle `where`
-expressions.
+expressions (`inArray` guarded by a `length > 0` check for the three lists).
+
+The picker **options** are built on the server page: the distinct actor names
+from the log are unioned with any names in the applied filter (so a purged name
+still renders its pill/picker label) and mapped to roster department names via
+`listUsers()` — names with no roster match (`Admin`, deleted users) land in an
+"Other" picker section.
 
 ### 1.7.2 Keyset pagination
 
@@ -313,19 +323,26 @@ double-quotes fields containing `"`, `,`, `\r`, or `\n` and doubles inner quotes
 
 - **Server page** (`settings/audit-log/page.tsx`): `parseAuditFilters` on the URL
   params, then in parallel `getSettings()` + `listAuditActors()` +
-  `listAuditEntityTypes()` (the filter dropdown options), then
-  `listAuditLogs(filters, { retentionDays })` — **this is where rotation-on-read
-  fires** — rendered into `AuditLogView` with the first page, the next cursor,
-  the parsed filters, the option lists, and the retention window.
-- **Client view** (`AuditLogView.tsx`): a search box (`?q=` on submit), a 3-dot
-  filter menu (Actor/Action/Entity type via `NoKeyboardSelect` — the actor options
-  come from the distinct DB values, the action options from `listAuditActions()` —
-  plus From/To date pickers and a reset), card rows (action label, UTC+8
-  timestamp, actor, entity badge, route/method badges, Details button), a
-  "Load more" button (server action, re-entry guarded, `loading` +
-  `BUTTON_LOADER_PROPS`), a retention card with a red "Delete older than N days"
-  confirm button, and a download `FloatingActionButton` (confirm modal →
-  `window.location.href` to the export URL built from the current filters).
+  `listAuditEntityTypes()` + `listUsers()` (the filter options and the
+  actor→department map), then `listAuditLogs(filters, { retentionDays })` —
+  **this is where rotation-on-read fires** — rendered into `AuditLogView` with
+  the first page, the next cursor, the parsed filters, the option lists, and the
+  retention window.
+- **Client view** (`AuditLogView.tsx`): a search box (`?q=` on submit) and
+  From/To date pickers, plus the **multi-value filters shared with the rest of
+  the app** — a `FilterButton` (desktop) or the mobile filter menu's "More
+  filters…" item opens one [`FilterModal`](user-picker.md) with three
+  `variant: "search"` groups (Actors / Actions / Entity types), each rendered as
+  a badge summary + Select trigger opening the `UserSelectModal` badge picker;
+  Actors get per-department sections from the roster map ("Other" for
+  unmatched). Applied selections show as a removable `Pill` row under the filter
+  row (one pill per value: actor name, `actionLabel(action)`, entity type,
+  search term, From/To dates). Card rows (action label, UTC+8 timestamp, actor,
+  entity badge, route/method badges, Details button), a "Load more" button
+  (server action, re-entry guarded, `loading` + `BUTTON_LOADER_PROPS`), a
+  retention card with a red "Delete older than N days" confirm button, and a
+  download `FloatingActionButton` (confirm modal → blob fetch of the export URL
+  built from the current filters).
   Loading follows the standard skeleton-only pattern (`useMinSkeletonHold` +
   `useContentEnter`, see [`loading-transitions.md`](loading-transitions.md)).
 - **Detail modal** (`LogDetailModal`): action label + raw action badge, actor ·
@@ -337,7 +354,7 @@ double-quotes fields containing `"`, `,`, `\r`, or `\n` and doubles inner quotes
 | ------ | ------ | ----- |
 | `buildAuditLog`, `actorFromUser` (incl. admin → null id), `pathFromReferer`, `listAuditActions` | `audit/build.ts` | `audit/build.test.ts` |
 | `diffFields` (union keys, JSON-equality, added/removed, null vs `""`) | `audit/diff.ts` | `audit/diff.test.ts` |
-| `parseAuditFilters` (all params, trimming, malformed dates/cursors dropped), `encodeAuditCursor`/`decodeAuditCursor` (round-trip + rejection), `dayBounds` | `audit/queries.ts` | `audit/queries.test.ts` |
+| `parseAuditFilters` (all params, comma-list splitting via `multi`, trimming, malformed dates/cursors dropped), `encodeAuditCursor`/`decodeAuditCursor` (round-trip + rejection), `dayBounds` | `audit/queries.ts` | `audit/queries.test.ts` |
 | `actionLabel`, `fieldLabel`, `valueString`, `formatAuditDetails` (all three shapes, incl. legacy flat rows and empty diffs), `actorLabel`, `formatLogTimestamp` | `audit/format.ts` | `audit/format.test.ts` |
 | `csvField` (escaping), `buildAuditLogCsv`, `auditCsvFilename` | `audit/export.ts` | `audit/export.test.ts` |
 | `normalizeRetentionDays` (clamp 7–365, default 90), `validateRetentionForm` | `settings/validate.ts` | `settings/validate.test.ts` |
@@ -370,6 +387,8 @@ Related docs:
 - [`event-mutations.md`](event-mutations.md) — the event create/update/delete rows
   and their snapshots.
 - [`roster-sharing.md`](roster-sharing.md) — the user/calendar/access rows.
+- [`user-picker.md`](user-picker.md) — the multi-user filter/picker UX the audit
+  filters now share.
 - [`loading-transitions.md`](loading-transitions.md) — the loading pattern the
   audit view follows.
 - [`developer-guide.md`](developer-guide.md#112-related-docs) — documentation index.

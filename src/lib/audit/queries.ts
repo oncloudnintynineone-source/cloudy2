@@ -6,7 +6,20 @@
  * CSV export route.
  */
 
-import { and, asc, desc, eq, gte, ilike, isNotNull, lte, lt, or, type SQL } from "drizzle-orm";
+import {
+  and,
+  asc,
+  desc,
+  eq,
+  gte,
+  ilike,
+  inArray,
+  isNotNull,
+  lte,
+  lt,
+  or,
+  type SQL,
+} from "drizzle-orm";
 
 import { db } from "@/db";
 import { auditLogs, type AuditLog } from "@/db/schema";
@@ -17,12 +30,12 @@ export const AUDIT_PAGE_SIZE = 30;
 export const ADMIN_ACTOR_NAME = "Admin";
 
 export interface AuditFilters {
-  /** Match `actor_name` (snapshot; survives user deletion). */
-  actor: string | null;
-  /** Match `action` (one of `AUDIT_ACTIONS`). */
-  action: string | null;
-  /** Match `entity_type`. */
-  entityType: string | null;
+  /** Match `actor_name` (snapshot; survives user deletion). Empty = no filter. */
+  actor: string[];
+  /** Match `action` (one of `AUDIT_ACTIONS`). Empty = no filter. */
+  action: string[];
+  /** Match `entity_type`. Empty = no filter. */
+  entityType: string[];
   /** Free-text search across actor name / entity name / route / method / action. */
   query: string | null;
   /** Inclusive lower date bound, `YYYY-MM-DD` (UTC). */
@@ -39,9 +52,9 @@ export interface AuditCursor {
 }
 
 export const EMPTY_AUDIT_FILTERS: AuditFilters = {
-  actor: null,
-  action: null,
-  entityType: null,
+  actor: [],
+  action: [],
+  entityType: [],
   query: null,
   from: null,
   to: null,
@@ -56,6 +69,26 @@ function single(params: Record<string, string | string[] | undefined>, key: stri
     return value.trim();
   }
   return null;
+}
+
+/**
+ * Split a comma-joined multi-value param (the convention shared with the
+ * dashboard/parade-state `users`/`cal` params): trim each entry, drop empties,
+ * dedupe while preserving order. Absent/blank → `[]`.
+ */
+export function multi(params: Record<string, string | string[] | undefined>, key: string): string[] {
+  const value = params[key];
+  if (typeof value !== "string") {
+    return [];
+  }
+  const seen = new Set<string>();
+  for (const part of value.split(",")) {
+    const entry = part.trim();
+    if (entry && !seen.has(entry)) {
+      seen.add(entry);
+    }
+  }
+  return [...seen];
 }
 
 /** Keep a `YYYY-MM-DD` value only when it is a real calendar date. */
@@ -83,9 +116,9 @@ export function parseAuditFilters(
 ): AuditFilters {
   const cursor = single(params, "cursor");
   return {
-    actor: single(params, "actor"),
-    action: single(params, "action"),
-    entityType: single(params, "entity"),
+    actor: multi(params, "actor"),
+    action: multi(params, "action"),
+    entityType: multi(params, "entity"),
     query: single(params, "q"),
     from: validDate(single(params, "from")),
     to: validDate(single(params, "to")),
@@ -132,14 +165,14 @@ export function dayBounds(from: string | null, to: string | null): { start: Date
 export function auditFilterConditions(filters: AuditFilters): SQL[] {
   const conditions: SQL[] = [];
 
-  if (filters.actor) {
-    conditions.push(eq(auditLogs.actorName, filters.actor));
+  if (filters.actor.length > 0) {
+    conditions.push(inArray(auditLogs.actorName, filters.actor));
   }
-  if (filters.action) {
-    conditions.push(eq(auditLogs.action, filters.action));
+  if (filters.action.length > 0) {
+    conditions.push(inArray(auditLogs.action, filters.action));
   }
-  if (filters.entityType) {
-    conditions.push(eq(auditLogs.entityType, filters.entityType));
+  if (filters.entityType.length > 0) {
+    conditions.push(inArray(auditLogs.entityType, filters.entityType));
   }
   if (filters.query) {
     const pattern = `%${filters.query}%`;

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { dayBounds, decodeAuditCursor, encodeAuditCursor, parseAuditFilters } from "./queries";
+import { dayBounds, decodeAuditCursor, encodeAuditCursor, multi, parseAuditFilters } from "./queries";
 
 describe("parseAuditFilters", () => {
   it("parses all supported params", () => {
@@ -9,8 +9,8 @@ describe("parseAuditFilters", () => {
       id: "22222222-2222-2222-2222-222222222222",
     });
     const filters = parseAuditFilters({
-      actor: "Alice Tan",
-      action: "user.create",
+      actor: "Alice Tan,Admin",
+      action: "user.create,event.update",
       entity: "user",
       q: "Bob",
       from: "2026-08-01",
@@ -18,9 +18,9 @@ describe("parseAuditFilters", () => {
       cursor,
     });
     expect(filters).toEqual({
-      actor: "Alice Tan",
-      action: "user.create",
-      entityType: "user",
+      actor: ["Alice Tan", "Admin"],
+      action: ["user.create", "event.update"],
+      entityType: ["user"],
       query: "Bob",
       from: "2026-08-01",
       to: "2026-08-20",
@@ -39,9 +39,9 @@ describe("parseAuditFilters", () => {
       cursor: "%%%not-base64url%%%",
     });
     expect(filters).toEqual({
-      actor: null,
-      action: null,
-      entityType: null,
+      actor: [],
+      action: [],
+      entityType: [],
       query: null,
       from: null,
       to: null,
@@ -65,8 +65,27 @@ describe("parseAuditFilters", () => {
 
   it("trims whitespace from text values", () => {
     const filters = parseAuditFilters({ actor: "  Alice Tan  ", q: "  Bob  " });
-    expect(filters.actor).toBe("Alice Tan");
+    expect(filters.actor).toEqual(["Alice Tan"]);
     expect(filters.query).toBe("Bob");
+  });
+});
+
+describe("multi", () => {
+  it("splits a comma-joined param into trimmed values", () => {
+    expect(multi({}, "actor")).toEqual([]);
+    expect(multi({ actor: undefined }, "actor")).toEqual([]);
+    expect(multi({ actor: "" }, "actor")).toEqual([]);
+    expect(multi({ actor: " , , " }, "actor")).toEqual([]);
+    expect(multi({ actor: "Alice Tan" }, "actor")).toEqual(["Alice Tan"]);
+    expect(multi({ actor: "Alice Tan, Admin ,Bob" }, "actor")).toEqual([
+      "Alice Tan",
+      "Admin",
+      "Bob",
+    ]);
+  });
+
+  it("dedupes while preserving first-seen order", () => {
+    expect(multi({ actor: "Admin,Alice Tan,Admin" }, "actor")).toEqual(["Admin", "Alice Tan"]);
   });
 });
 

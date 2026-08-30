@@ -11,6 +11,7 @@ import {
   Menu,
   Modal,
   Paper,
+  Pill,
   ScrollArea,
   Stack,
   Table,
@@ -25,8 +26,9 @@ import { notifications } from "@mantine/notifications";
 import { IconDownload, IconFilter, IconTrash, IconX } from "@tabler/icons-react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
+import { FilterButton } from "@/components/FilterButton";
+import { FilterModal, type FilterGroup } from "@/components/FilterModal";
 import { FAB_ICON_SIZE, FloatingActionButton, FloatingToolbar } from "@/components/FloatingToolbar";
-import { NoKeyboardSelect } from "@/components/NoKeyboardSelect";
 import { purgeAuditLogs, loadMoreAuditLogs } from "@/lib/audit/actions";
 import { listAuditActions } from "@/lib/audit/build";
 import {
@@ -51,7 +53,10 @@ interface AuditLogViewProps {
   initialRows: AuditLog[];
   nextCursor: string | null;
   filters: AuditFilters;
+  /** Distinct actor names seen in the log, plus any name in the applied filter. */
   actors: string[];
+  /** Actor name → roster department name (null for "Admin"/deleted users). */
+  actorDepartments: Record<string, string | null>;
   entityTypes: string[];
   retentionDays: number;
 }
@@ -80,6 +85,7 @@ export function AuditLogView({
   nextCursor,
   filters,
   actors,
+  actorDepartments,
   entityTypes,
   retentionDays,
 }: AuditLogViewProps) {
@@ -104,31 +110,50 @@ export function AuditLogView({
   const [detail, setDetail] = useState<AuditLog | null>(null);
   const [purgeOpened, { open: openPurge, close: closePurge }] = useDisclosure(false);
   const [exportOpened, { open: openExport, close: closeExport }] = useDisclosure(false);
+  const [filtersOpened, { open: openFilters, close: closeFilters }] = useDisclosure(false);
   const [purging, setPurging] = useState(false);
   const [exporting, setExporting] = useState(false);
 
-  const actionOptions = useMemo(
+  // Multi-value filter groups (Actors/Actions/Entity types), all using the
+  // shared badge-dialog picker ("search" variant, empty = no filter). Actors
+  // get per-department sections via the roster lookup; names with no roster
+  // match ("Admin", deleted users) share an "Other" section.
+  const filterGroups: FilterGroup[] = useMemo(
     () => [
-      { value: "", label: "All actions" },
-      ...listAuditActions().map((action) => ({ value: action, label: actionLabel(action) })),
+      {
+        label: "Actors",
+        variant: "search",
+        options: actors.map((name) => ({
+          value: name,
+          label: name,
+          department: actorDepartments[name] ?? "Other",
+        })),
+      },
+      {
+        label: "Actions",
+        variant: "search",
+        options: listAuditActions().map((action) => ({
+          value: action,
+          label: actionLabel(action),
+          search: action,
+        })),
+      },
+      {
+        label: "Entity types",
+        variant: "search",
+        options: entityTypes.map((entity) => ({ value: entity, label: entity })),
+      },
     ],
-    [],
+    [actors, actorDepartments, entityTypes],
   );
 
-  const actorOptions = useMemo(
-    () => [
-      { value: "", label: "All actors" },
-      ...actors.map((actor) => ({ value: actor, label: actor })),
-    ],
-    [actors],
-  );
-
-  const entityOptions = useMemo(
-    () => [
-      { value: "", label: "All entity types" },
-      ...entityTypes.map((entity) => ({ value: entity, label: entity })),
-    ],
-    [entityTypes],
+  const filterValues: Record<string, string[]> = useMemo(
+    () => ({
+      Actors: filters.actor,
+      Actions: filters.action,
+      "Entity types": filters.entityType,
+    }),
+    [filters.actor, filters.action, filters.entityType],
   );
 
   const buildHref = useCallback(
@@ -171,15 +196,35 @@ export function AuditLogView({
     [navigate],
   );
 
+  function handleApplyFilters(values: Record<string, string[]>) {
+    const nextActors = values["Actors"] ?? [];
+    const nextActions = values["Actions"] ?? [];
+    const nextEntities = values["Entity types"] ?? [];
+    applyFilters({
+      actor: nextActors.length > 0 ? nextActors.join(",") : null,
+      action: nextActions.length > 0 ? nextActions.join(",") : null,
+      entity: nextEntities.length > 0 ? nextEntities.join(",") : null,
+    });
+  }
+
+  // Per-pill removal mirrors the parade-state filters: drop one value from the
+  // applied filter and navigate with the remainder (empty → param removed).
+  function removeFilterValue(field: "actor" | "action" | "entity", value: string) {
+    const list =
+      field === "actor" ? filters.actor : field === "action" ? filters.action : filters.entityType;
+    const next = list.filter((entry) => entry !== value);
+    applyFilters({ [field]: next.length > 0 ? next.join(",") : null });
+  }
+
   const resetFilters = () => {
     setSearchInput("");
     navigate({ actor: null, action: null, entity: null, from: null, to: null, q: null });
   };
 
   const activeFilterCount =
-    (filters.actor ? 1 : 0) +
-    (filters.action ? 1 : 0) +
-    (filters.entityType ? 1 : 0) +
+    (filters.actor.length > 0 ? 1 : 0) +
+    (filters.action.length > 0 ? 1 : 0) +
+    (filters.entityType.length > 0 ? 1 : 0) +
     (filters.from ? 1 : 0) +
     (filters.to ? 1 : 0) +
     (filters.query ? 1 : 0);
@@ -191,9 +236,9 @@ export function AuditLogView({
         params.set(key, value);
       }
     };
-    put("actor", filters.actor);
-    put("action", filters.action);
-    put("entity", filters.entityType);
+    put("actor", filters.actor.join(","));
+    put("action", filters.action.join(","));
+    put("entity", filters.entityType.join(","));
     put("q", filters.query);
     put("from", filters.from);
     put("to", filters.to);
@@ -277,8 +322,9 @@ export function AuditLogView({
   return (
     <Stack pb="xl">
       {isDesktop ? (
-        // Desktop: the filters live inline in a wrap row instead of the
-        // 300px dropdown menu (no room-hungry menu needed at this width).
+        // Desktop: search + dates live inline; the multi-value filters
+        // (Actors/Actions/Entity types) open from a shared filter dialog, like
+        // the dashboard and parade state.
         <Group align="flex-end" gap="xs" wrap="wrap">
           <form
             style={{ flex: 1, minWidth: 200 }}
@@ -305,31 +351,7 @@ export function AuditLogView({
               }
             />
           </form>
-          <NoKeyboardSelect
-            data={actorOptions}
-            value={filters.actor ?? ""}
-            onChange={(value) => applyFilters({ actor: value || null })}
-            label="Actor"
-            searchable
-            clearable
-            w={170}
-          />
-          <NoKeyboardSelect
-            data={actionOptions}
-            value={filters.action ?? ""}
-            onChange={(value) => applyFilters({ action: value || null })}
-            label="Action"
-            clearable
-            w={170}
-          />
-          <NoKeyboardSelect
-            data={entityOptions}
-            value={filters.entityType ?? ""}
-            onChange={(value) => applyFilters({ entity: value || null })}
-            label="Entity type"
-            clearable
-            w={150}
-          />
+          <FilterButton activeCount={activeFilterCount} onClick={openFilters} />
           <DatePickerInput
             label="From"
             value={inputToDate(filters.from)}
@@ -418,62 +440,98 @@ export function AuditLogView({
               </Box>
             </Menu.Target>
             <Menu.Dropdown>
-              <ScrollArea.Autosize mah={420} type="auto">
-                <Stack gap="sm" p="xs">
-                  <NoKeyboardSelect
-                    data={actorOptions}
-                    value={filters.actor ?? ""}
-                    onChange={(value) => applyFilters({ actor: value || null })}
-                    label="Actor"
-                    searchable
+              {/* Dates stay as quick inline pickers; the multi-value groups
+                  open in the shared filter dialog ("empty = no filter"). */}
+              <Stack gap="sm" p="xs">
+                <Group grow align="flex-end" wrap="wrap">
+                  <DatePickerInput
+                    label="From"
+                    value={inputToDate(filters.from)}
+                    onChange={(date) => applyFilters({ from: dateToInput(date) })}
                     clearable
                   />
-                  <NoKeyboardSelect
-                    data={actionOptions}
-                    value={filters.action ?? ""}
-                    onChange={(value) => applyFilters({ action: value || null })}
-                    label="Action"
+                  <DatePickerInput
+                    label="To"
+                    value={inputToDate(filters.to)}
+                    onChange={(date) => applyFilters({ to: dateToInput(date) })}
                     clearable
                   />
-                  <NoKeyboardSelect
-                    data={entityOptions}
-                    value={filters.entityType ?? ""}
-                    onChange={(value) => applyFilters({ entity: value || null })}
-                    label="Entity type"
-                    clearable
-                  />
-                  <Group grow align="flex-end" wrap="wrap">
-                    <DatePickerInput
-                      label="From"
-                      value={inputToDate(filters.from)}
-                      onChange={(date) => applyFilters({ from: dateToInput(date) })}
-                      clearable
-                    />
-                    <DatePickerInput
-                      label="To"
-                      value={inputToDate(filters.to)}
-                      onChange={(date) => applyFilters({ to: dateToInput(date) })}
-                      clearable
-                    />
-                  </Group>
-                  {activeFilterCount > 0 ? (
-                    <Group justify="flex-end">
-                      <Button
-                        variant="subtle"
-                        size="xs"
-                        onClick={resetFilters}
-                        leftSection={<IconX size={14} />}
-                      >
-                        Reset filters
-                      </Button>
-                    </Group>
-                  ) : null}
-                </Stack>
-              </ScrollArea.Autosize>
+                </Group>
+              </Stack>
+              <Menu.Divider />
+              <Menu.Item
+                leftSection={<IconFilter size={16} />}
+                onClick={openFilters}
+                rightSection={
+                  activeFilterCount > 0 ? (
+                    <Badge size="sm" variant="filled" radius="xl">
+                      {activeFilterCount}
+                    </Badge>
+                  ) : null
+                }
+              >
+                More filters…
+              </Menu.Item>
             </Menu.Dropdown>
           </Menu>
         </Group>
       )}
+
+      {/* Applied-filter pills (parade-state pattern): one removable pill per
+          selected value, so the active filters stay visible without reopening
+          the dialog. */}
+      {activeFilterCount > 0 ? (
+        <Group gap={6} wrap="wrap">
+          {filters.actor.map((name) => (
+            <Pill
+              key={`actor:${name}`}
+              withRemoveButton
+              onRemove={() => removeFilterValue("actor", name)}
+            >
+              {name}
+            </Pill>
+          ))}
+          {filters.action.map((action) => (
+            <Pill
+              key={`action:${action}`}
+              withRemoveButton
+              onRemove={() => removeFilterValue("action", action)}
+            >
+              {actionLabel(action)}
+            </Pill>
+          ))}
+          {filters.entityType.map((entity) => (
+            <Pill
+              key={`entity:${entity}`}
+              withRemoveButton
+              onRemove={() => removeFilterValue("entity", entity)}
+            >
+              {entity}
+            </Pill>
+          ))}
+          {filters.query ? (
+            <Pill
+              withRemoveButton
+              onRemove={() => {
+                setSearchInput("");
+                applyFilters({ q: null });
+              }}
+            >
+              Search: {filters.query}
+            </Pill>
+          ) : null}
+          {filters.from ? (
+            <Pill withRemoveButton onRemove={() => applyFilters({ from: null })}>
+              From {filters.from}
+            </Pill>
+          ) : null}
+          {filters.to ? (
+            <Pill withRemoveButton onRemove={() => applyFilters({ to: null })}>
+              To {filters.to}
+            </Pill>
+          ) : null}
+        </Group>
+      ) : null}
 
       <Stack gap="sm" ref={listRef} className={CONTENT_ENTER_CLASS}>
         {listLoading ? (
@@ -669,6 +727,15 @@ export function AuditLogView({
       </Paper>
 
       <LogDetailModal row={detail} onClose={() => setDetail(null)} />
+
+      <FilterModal
+        opened={filtersOpened}
+        onClose={closeFilters}
+        title="Filters"
+        groups={filterGroups}
+        values={filterValues}
+        onApply={handleApplyFilters}
+      />
 
       <Modal
         opened={purgeOpened}
