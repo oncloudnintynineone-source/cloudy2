@@ -10,6 +10,7 @@ import {
   isUuid,
   kahBreachEpisodes,
   kahStatusForWindow,
+  windowMonths,
   type KahDayStatus,
   type KahOverseasEvent,
 } from "./status";
@@ -153,6 +154,37 @@ function overseasEvent(
     userIds: people.userIds ?? [],
   };
 }
+
+describe("windowMonths", () => {
+  it("does not read the month after a window that ends exactly on a month boundary", () => {
+    // May 1 00:00 → Dec 1 00:00 (UTC+8) covers May–Nov — December's listing
+    // can only hold events that also overlap November.
+    expect(
+      windowMonths(
+        parseNaiveToInstant("2026-05-01 00:00:00"),
+        parseNaiveToInstant("2026-12-01 00:00:00"),
+      ),
+    ).toEqual(["2026-05", "2026-06", "2026-07", "2026-08", "2026-09", "2026-10", "2026-11"]);
+  });
+
+  it("includes the end month when the window extends past the boundary", () => {
+    expect(
+      windowMonths(
+        parseNaiveToInstant("2026-11-30 22:00:00"),
+        parseNaiveToInstant("2026-12-01 02:00:00"),
+      ),
+    ).toEqual(["2026-11", "2026-12"]);
+  });
+
+  it("keeps a same-month window in its single month", () => {
+    expect(
+      windowMonths(
+        parseNaiveToInstant("2026-08-10 10:00:00"),
+        parseNaiveToInstant("2026-08-10 17:00:00"),
+      ),
+    ).toEqual(["2026-08"]);
+  });
+});
 
 describe("busyDaysInRange", () => {
   it("marks a member away only on days their timed overseas event covers", () => {

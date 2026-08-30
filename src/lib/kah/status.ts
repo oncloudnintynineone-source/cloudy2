@@ -147,6 +147,21 @@ export async function userHasKahGroup(userId: string): Promise<boolean> {
   return rows.length > 0;
 }
 
+/**
+ * The `YYYY-MM` month keys whose listings can contain an event overlapping the
+ * half-open [windowStart, windowEnd) instant window. The end is exclusive, so
+ * a window ending exactly on a month boundary does not pull in the following
+ * month: an event only listed there would span the boundary and therefore also
+ * overlap the previous month's listing. Pure so it can be unit-tested without
+ * a database.
+ */
+export function windowMonths(windowStart: Date, windowEnd: Date): string[] {
+  const naiveStart = formatInstantToNaive(windowStart);
+  // Last instant covered by the half-open window.
+  const naiveEnd = formatInstantToNaive(new Date(windowEnd.getTime() - 1));
+  return [...new Set(monthsInRange(naiveStart, naiveEnd))];
+}
+
 /** An overseas event (in-app, taking its tagged people out of country) as the KAH reads see it. */
 export interface KahOverseasEvent {
   /** Absolute instant the event starts. */
@@ -179,9 +194,7 @@ export async function overseasEventsInRange(
   }
 
   // Wall-clock month keys covering the window, matching the view reads.
-  const naiveStart = formatInstantToNaive(windowStart);
-  const naiveEnd = formatInstantToNaive(windowEnd);
-  const months = [...new Set(monthsInRange(naiveStart, naiveEnd))];
+  const months = windowMonths(windowStart, windowEnd);
 
   const seen = new Set<string>();
   const events: KahOverseasEvent[] = [];
