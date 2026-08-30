@@ -112,6 +112,15 @@ mechanics in the doc.
 
 ## Conventions
 
+- **After every codebase change (not docs-only), walk the user through the dev→prod
+  git workflow** — all work lands on `dev`; `main` only advances by merging `dev`
+  (never commit straight to `main`). Reference
+  [docs/developer-guide.md](docs/developer-guide.md) §1.8: commit → `git push origin dev`
+  (fires CI + Vercel preview, isolated dev Neon/Google) → verify on the preview →
+  `git checkout main && git merge dev && git push origin main` (prod deploy +
+  auto-migrate) → switch back to `dev`. Briefly mention what the push triggers per
+  environment (§1.7/§1.9), then **ask if the user needs help** (e.g. running the
+  pushes, or the `pnpm db:migrate` shell-env step if the schema changed — §1.11).
 - UI is **Mantine v9**; theme in `src/lib/theme.ts`, mounted by the client component
   `AppProviders` (`src/components/AppProviders.tsx`). The theme carries a function value
   (`components.Input.vars`), so `MantineProvider` (and `Notifications`) must stay in that
