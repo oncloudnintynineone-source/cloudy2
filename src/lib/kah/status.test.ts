@@ -1,9 +1,18 @@
 import { describe, expect, it } from "vitest";
 
+import { addDays, parseNaiveToInstant } from "@/lib/events/datetime";
 import { encodeEventNotes, encodeNotesBlock } from "@/lib/events/notes";
 import type { KahGroupCheck } from "@/lib/kah/check";
 
-import { eventTakesMembersOverseas, isUuid, kahStatusForWindow } from "./status";
+import {
+  busyDaysInRange,
+  eventTakesMembersOverseas,
+  isUuid,
+  kahBreachEpisodes,
+  kahStatusForWindow,
+  type KahDayStatus,
+  type KahOverseasEvent,
+} from "./status";
 
 /** A description carrying the given notes fields (an in-app internal event). */
 function notesDescription(notes: { outOfCamp?: boolean; overseas?: boolean }): string {
@@ -116,5 +125,253 @@ describe("isUuid", () => {
     expect(isUuid("")).toBe(false);
     expect(isUuid("0b8d5f2e1c474a909d3e6f1a2b3c4d5e")).toBe(false);
     expect(isUuid("0b8d5f2e-1c47-4a90-9d3e-6f1a2b3c4d5")).toBe(false);
+  });
+});
+
+const commandGroup = makeGroup({
+  id: "g1",
+  name: "Command",
+  minPercentage: 60,
+  memberIds: ["a", "b", "c"],
+});
+const opsGroup = makeGroup({ id: "g2", name: "Ops", minPercentage: 100, memberIds: ["z"] });
+
+/** Contiguous `YYYY-MM-DD` days starting at `start` (inclusive). */
+function dateRange(start: string, count: number): string[] {
+  return Array.from({ length: count }, (_, i) => addDays(start, i));
+}
+
+function overseasEvent(
+  start: string,
+  end: string,
+  people: { creatorId?: string | null; userIds?: string[] },
+): KahOverseasEvent {
+  return {
+    start: parseNaiveToInstant(start),
+    end: parseNaiveToInstant(end),
+    creatorId: people.creatorId ?? null,
+    userIds: people.userIds ?? [],
+  };
+}
+
+describe("busyDaysInRange", () => {
+  it("marks a member away only on days their timed overseas event covers", () => {
+    // 08:00–17:00 SGT on Aug 10 == [Aug 10 00:00Z, Aug 10 09:00Z).
+    const result = busyDaysInRange(
+      [overseasEvent("2026-08-10 08:00:00", "2026-08-10 17:00:00", { userIds: ["a"] })],
+      ["2026-08-09", "2026-08-10", "2026-08-11"],
+    );
+    expect(result.map((day) => day.awayIds)).toEqual([[], ["a"], []]);
+  });
+
+  it("spans multi-day events across every covered day, creator and invitees deduped", () => {
+    // Aug 10 20:00 → Aug 12 09:00 SGT covers all three UTC+8 days.
+    const trip = overseasEvent("2026-08-10 20:00:00", "2026-08-12 09:00:00", {
+      creatorId: "a",
+      userIds: ["a", "b"],
+    });
+    const result = busyDaysInRange([trip], ["2026-08-10", "2026-08-11", "2026-08-12", "2026-08-13"]);
+    expect(result.map((day) => day.awayIds)).toEqual([
+      ["a", "b"],
+      ["a", "b"],
+      ["a", "b"],
+      [],
+    ]);
+  });
+
+  it("treats all-day events as UTC-midnight bounds (8h spill into the next UTC+8 day)", () => {
+    // An all-day event on Aug 10 is [Aug 10 00:00Z, Aug 11 00:00Z): it covers
+    // Aug 10 and still overlaps Aug 11's UTC+8 window for its last 8 hours —
+    // the same overlap behavior the notify window has always had.
+    const allDay: KahOverseasEvent = {
+      start: new Date("2026-08-10T00:00:00Z"),
+      end: new Date("2026-08-11T00:00:00Z"),
+      creatorId: null,
+      userIds: ["a"],
+    };
+    const result = busyDaysInRange([allDay], ["2026-08-10", "2026-08-11", "2026-08-12"]);
+    expect(result.map((day) => day.awayIds)).toEqual([["a"], ["a"], []]);
+  });
+
+  it("returns empty away sets when no events are given", () => {
+    expect(busyDaysInRange([], ["2026-08-10"])).toEqual([{ date: "2026-08-10", awayIds: [] }]);
+  });
+});
+
+describe("kahBreachEpisodes", () => {
+  // Command: 3 members, 60% required — 2 away (33%) breaches, 1 away (66%) is OK.
+  const scan = (days: string[], awayByDate: Record<string, string[]>): KahDayStatus[] =>
+    days.map((date) => ({
+      date,
+      statuses: kahStatusForWindow([commandGroup], new Set(awayByDate[date] ?? [])),
+    }));
+
+  it("returns nothing for an empty scan or when no day breaches", () => {
+    expect(kahBreachEpisodes([], "2026-08-30")).toEqual([]);
+    expect(kahBreachEpisodes(scan(["2026-08-10"], {}), "2026-08-30")).toEqual([]);
+  });
+
+  it("groups a past single-day breach into one resolved episode", () => {
+    const episodes = kahBreachEpisodes(
+      scan(["2026-08-10", "2026-08-11", "2026-08-12"], { "2026-08-11": ["a", "b"] }),
+      "2026-08-30",
+    );
+    expect(episodes).toEqual([
+      {
+        groupId: "g1",
+        groupName: "Command",
+        requiredPct: 60,
+        startDate: "2026-08-11",
+        endDate: "2026-08-11",
+        days: 1,
+        worstPct: 33,
+        clippedStart: false,
+        clippedEnd: false,
+        status: "resolved",
+        awayIds: ["a", "b"],
+      },
+    ]);
+  });
+
+  it("marks a run including today as active, also when it starts or ends on today", () => {
+    const endingToday = kahBreachEpisodes(
+      scan(dateRange("2026-08-28", 3), {
+        "2026-08-28": ["a", "b"],
+        "2026-08-29": ["a", "b"],
+        "2026-08-30": ["a", "b"],
+      }),
+      "2026-08-30",
+    );
+    expect(endingToday).toHaveLength(1);
+    expect(endingToday[0]).toMatchObject({
+      startDate: "2026-08-28",
+      endDate: "2026-08-30",
+      days: 3,
+      status: "active",
+    });
+
+    const startingToday = kahBreachEpisodes(
+      scan(dateRange("2026-08-30", 3), {
+        "2026-08-30": ["a", "b"],
+        "2026-08-31": ["a", "b"],
+        "2026-09-01": ["a", "b"],
+      }),
+      "2026-08-30",
+    );
+    expect(startingToday[0]).toMatchObject({
+      startDate: "2026-08-30",
+      endDate: "2026-09-01",
+      status: "active",
+    });
+  });
+
+  it("marks a future run as upcoming", () => {
+    const episodes = kahBreachEpisodes(
+      scan(["2026-09-05", "2026-09-06"], { "2026-09-05": ["a", "b"], "2026-09-06": ["a", "b"] }),
+      "2026-08-30",
+    );
+    expect(episodes).toHaveLength(1);
+    expect(episodes[0]).toMatchObject({
+      startDate: "2026-09-05",
+      endDate: "2026-09-06",
+      days: 2,
+      status: "upcoming",
+    });
+  });
+
+  it("splits non-contiguous breaches into separate episodes", () => {
+    const episodes = kahBreachEpisodes(
+      scan(dateRange("2026-08-10", 5), {
+        "2026-08-10": ["a", "b"],
+        "2026-08-11": ["a", "b"],
+        // Aug 12: no one away — the run breaks.
+        "2026-08-13": ["a", "b"],
+        "2026-08-14": ["a", "b"],
+      }),
+      "2026-08-30",
+    );
+    expect(episodes).toHaveLength(2);
+    expect(episodes.map((e) => [e.startDate, e.endDate])).toEqual([
+      ["2026-08-13", "2026-08-14"],
+      ["2026-08-10", "2026-08-11"],
+    ]);
+  });
+
+  it("records the lowest % and unions the away members across the run", () => {
+    const episodes = kahBreachEpisodes(
+      scan(["2026-08-10", "2026-08-11"], {
+        "2026-08-10": ["a", "b"], // 33%
+        "2026-08-11": ["a", "b", "c"], // 0%
+      }),
+      "2026-08-30",
+    );
+    expect(episodes).toHaveLength(1);
+    expect(episodes[0].worstPct).toBe(0);
+    expect(episodes[0].days).toBe(2);
+    expect([...episodes[0].awayIds].sort()).toEqual(["a", "b", "c"]);
+  });
+
+  it("flags runs clipped at the scanned window's edges", () => {
+    const fullWindow = kahBreachEpisodes(
+      scan(["2026-08-01", "2026-08-02", "2026-08-03"], {
+        "2026-08-01": ["a", "b"],
+        "2026-08-02": ["a", "b"],
+        "2026-08-03": ["a", "b"],
+      }),
+      "2026-08-30",
+    );
+    expect(fullWindow[0]).toMatchObject({ clippedStart: true, clippedEnd: true, status: "resolved" });
+
+    const clippedEndOnly = kahBreachEpisodes(
+      scan(["2026-08-28", "2026-08-29", "2026-08-30"], {
+        // Aug 28: no one away — the run starts mid-window.
+        "2026-08-29": ["a", "b"],
+        "2026-08-30": ["a", "b"],
+      }),
+      "2026-08-30",
+    );
+    expect(clippedEndOnly[0]).toMatchObject({
+      clippedStart: false,
+      clippedEnd: true,
+      status: "active",
+    });
+  });
+
+  it("never episodes an empty group", () => {
+    const days = ["2026-08-10", "2026-08-11"];
+    const perDay: KahDayStatus[] = days.map((date) => ({
+      date,
+      statuses: kahStatusForWindow(
+        [makeGroup({ id: "g-empty", memberIds: [] }), commandGroup],
+        new Set(["a", "b"]),
+      ),
+    }));
+    const episodes = kahBreachEpisodes(perDay, "2026-08-30");
+    expect(episodes.map((e) => e.groupId)).toEqual(["g1"]);
+  });
+
+  it("orders active (oldest first), upcoming (oldest first), then resolved (newest first)", () => {
+    const days = dateRange("2026-08-01", 37); // Aug 1 → Sep 6
+    const awayByDate: Record<string, string[]> = {
+      "2026-08-01": ["a", "b"],
+      "2026-08-02": ["a", "b"],
+      "2026-08-29": ["a", "b", "z"],
+      "2026-08-30": ["a", "b", "z"],
+      "2026-09-05": ["a", "b"],
+      "2026-09-06": ["a", "b"],
+    };
+    const perDay: KahDayStatus[] = days.map((date) => ({
+      date,
+      statuses: kahStatusForWindow([commandGroup, opsGroup], new Set(awayByDate[date] ?? [])),
+    }));
+    const episodes = kahBreachEpisodes(perDay, "2026-08-30");
+    expect(
+      episodes.map((e) => [e.groupId, e.status, e.startDate, e.endDate]),
+    ).toEqual([
+      ["g1", "active", "2026-08-29", "2026-08-30"],
+      ["g2", "active", "2026-08-29", "2026-08-30"],
+      ["g1", "upcoming", "2026-09-05", "2026-09-06"],
+      ["g1", "resolved", "2026-08-01", "2026-08-02"],
+    ]);
   });
 });

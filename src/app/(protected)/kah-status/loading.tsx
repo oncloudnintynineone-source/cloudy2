@@ -5,14 +5,11 @@ import { SettingsTableSkeleton } from "../settings/SettingsTableSkeleton";
 export default function KahStatusLoading() {
   return (
     <Stack gap="md" p="md">
-      {/* Day navigation */}
-      <Group align="center" gap="xs" wrap="nowrap">
-        <Skeleton width={43} height={43} radius="md" />
-        <Skeleton height={28} style={{ flex: 1 }} radius="sm" />
-        <Skeleton width={43} height={43} radius="md" />
-      </Group>
+      {/* Window header */}
+      <Skeleton height={28} width="45%" radius="sm" />
+      <Skeleton height={16} width="65%" radius="sm" />
 
-      {/* Mobile: card list */}
+      {/* Mobile: episode cards */}
       <Stack gap="sm" hiddenFrom="lg">
         {Array.from({ length: 3 }).map((_, i) => (
           <Paper key={i} withBorder p="sm">
@@ -22,14 +19,15 @@ export default function KahStatusLoading() {
                 <Skeleton height={22} width={64} radius="xl" />
               </Group>
               <Skeleton height={16} width="55%" />
+              <Skeleton height={16} width="70%" />
               <Skeleton height={16} width="80%" />
             </Stack>
           </Paper>
         ))}
       </Stack>
 
-      {/* Desktop: data table */}
-      <SettingsTableSkeleton columns={[2, 2, 3, 4]} rows={4} visibleFrom="lg" />
+      {/* Desktop: episode table */}
+      <SettingsTableSkeleton columns={[3, 2, 3, 2, 4]} rows={4} visibleFrom="lg" />
     </Stack>
   );
 }

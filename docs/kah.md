@@ -188,38 +188,53 @@ the schema column defaults (guarded by a unit test).
 
 ## 1.7 User-facing status page
 
-Users can check their group's live in-country standing from a read-only **KAH
-Status** page (`/kah-status`), reached from the bottom nav / desktop sidebar.
-The entry appears for **any member of at least one KAH group** (the server
-passes `hasKahGroup` into `AppShellShell` so it can't flicker) and **always for
-admins**, whose view lists **every KAH group** (`listKahGroupChecks()`), not
-just their memberships — marked with a dimmed "Admin view — showing all KAH
-groups" hint. It answers "is my group OK today?" before acting on leave/events —
-the same data the notify-only breach check reasons about, but shown proactively.
+Users can check their group's past and future KAH breaches from a read-only
+**KAH Status** page (`/kah-status`), reached from the bottom nav / desktop
+sidebar. The entry appears for **any member of at least one KAH group** (the
+server passes `hasKahGroup` into `AppShellShell` so it can't flicker) and
+**always for admins**, whose view lists **every KAH group**
+(`listKahGroupChecks()`), not just their memberships — marked with a dimmed
+"Admin view — showing all KAH groups" hint. It answers "did my group breach
+recently, or will it soon?" — the same data the notify-only breach check
+reasons about, but shown proactively as history plus forecast.
 
 ```mermaid
 flowchart LR
-    U["Logged-in viewer<br/>(member of ≥1 group, or admin)"] --> P["/kah-status?date=YYYY-MM-DD (server)"]
+    U["Logged-in viewer<br/>(member of ≥1 group, or admin)"] --> P["/kah-status (server)"]
     P -- "member" --> G["kahGroupsForUser(userId)"]
     P -- "admin" --> A["listKahGroupChecks() — all groups"]
-    P --> B["busyKahsIn(day window)"]
-    G --> S["kahStatusForWindow(groups, busy) (pure)"]
-    A --> S
-    B --> S
-    S --> V[KahStatusView: cards / table]
+    P --> W["window: 1st of (today − 3m) … last day of (today + 3m)"]
+    W --> B["overseasEventsInRange(window)<br/>— month cache, one read"]
+    B --> D["busyDaysInRange → per-day<br/>kahStatusForWindow (pure)"]
+    G --> E["kahBreachEpisodes(perDay, today) (pure)"]
+    A --> E
+    D --> E
+    E --> V["KahStatusView: episode table (desktop) /<br/>cards (mobile) + all-clear list"]
 ```
 
-- The window is a full selected day (default today; only an explicit `?date=`
-  wins, mirroring `/parade-state`). Confirmed color bands: **green** at/above the
-  requirement, **amber** below it but within 10 points, **red** below it by more
-  than 10 points. Away members are listed inline.
+- The page scans a **month-aligned ±3-month window** centered on today (the 1st
+  of the month 3 months back through the last day of the month 3 months ahead).
+  Each group's **breach periods** — maximal runs of consecutive days below the
+  requirement — are listed once each, with the date span, day count, the lowest
+  in-country % during the run, and the away members' union across the run.
+- Each period carries a status: **Resolved** (green — ended before today),
+  **Active** (red — includes today), or **Upcoming** (amber — starts after
+  today). Runs touching the scanned window's edge are shown clipped ("…") —
+  they may extend beyond the ±3-month window.
+- Groups with **no breached day** in the window are listed under "All clear", so
+  the page still answers "is my group OK?".
 - Every calendar read goes through the existing month cache (60s fresh / 30min
   SWR), NEVER raw `listEvents` — same freshness/consistency as the dashboard, no
   forced blocking refresh.
+- The per-day scan uses the same half-open UTC+8 day windows and the same
+  overseas-overlap rule as the notify path, so the history/forecast can never
+  diverge from what the breach check counts.
 - Shared plumbing lives in `src/lib/kah/status.ts` (`listKahGroupChecks`,
-  `busyKahsIn`, `kahStatusForWindow`, `kahGroupsForUser`, `userHasKahGroup`,
-  `resolveUserNames`); the notify path imports the first two from here so the two
-  never diverge on who counts as a member or away.
+  `busyKahsIn`, `overseasEventsInRange`, `busyDaysInRange`, `kahStatusForWindow`,
+  `kahBreachEpisodes`, `kahGroupsForUser`, `userHasKahGroup`,
+  `resolveUserNames`); the notify path imports `listKahGroupChecks` +
+  `busyKahsIn` from here so the two never diverge on who counts as a member or
+  away.
 
 ## 1.8 Files
 
@@ -231,10 +246,10 @@ flowchart LR
 | `src/lib/kah/email.ts` | Pure template renderer + combined breach-email builder |
 | `src/lib/kah/emailDefaults.ts` | Default subject/body templates shared with the schema defaults |
 | `src/lib/kah/queries.ts` | Group + member reads for the tab |
-| `src/lib/kah/status.ts` | Shared status reads: member groups, `busyKahsIn`, pure `kahStatusForWindow`, `userHasKahGroup`, `isUuid` session-id guard |
+| `src/lib/kah/status.ts` | Shared status reads: member groups, `overseasEventsInRange` + `busyKahsIn`, pure `busyDaysInRange`, `kahStatusForWindow`, `kahBreachEpisodes`, `userHasKahGroup`, `isUuid` session-id guard |
 | `src/lib/kah/actions.ts` | Audited group CRUD server actions |
 | `src/lib/kah/notify.ts` | `dispatchKahBreachCheck` — check, audit, email (imports reads from `status.ts`) |
-| `src/app/(protected)/kah-status/{page,loading,KahStatusView}.tsx` | Read-only status page with day selector (members: own groups; admins: all groups) |
+| `src/app/(protected)/kah-status/{page,loading,KahStatusView}.tsx` | Read-only status page: breach history & forecast over a ±3-month window (members: own groups; admins: all groups) |
 | `src/components/AppShellShell.tsx` | Conditional KAH Status nav entry (members: `hasKahGroup`; admins: always) |
 | `src/lib/email/send.ts` | Transport selection: Workspace delegation → SMTP → warn |
 | `src/lib/email/smtp.ts` | Pure `SMTP_URL` parser + nodemailer sender |
@@ -247,9 +262,9 @@ flowchart LR
 
 - **Notify-only** — there is deliberately no hard block on saving breaching events.
   The status page is similarly read-only: it never blocks or changes anything.
-- The check runs only at mutation time over the saved event's own window / the
-  status page's selected day; it does not continuously monitor "right now" apart
-  from whatever day is open, nor evaluate other windows automatically.
+- The check runs only at mutation time over the saved event's own window; the
+  status page scans its fixed ±3-month window on demand. Neither continuously
+  monitors "right now" nor evaluates other windows automatically.
 - Away-ness is tied to the **overseas** location category (see §1.1) — the busy-set
   computation filters on the overseas notes flag (`eventTakesMembersOverseas`) rather
   than counting every tagged event; if finer rules are needed later, extend that pure
@@ -257,5 +272,6 @@ flowchart LR
 - **Dedup** via `kah_breach_notifications`: each (group × window × breach-pct)
   combination triggers at most one email. The table is append-only during normal
   operation; rows cascade-delete when a group is removed.
-- **Not yet built:** a per-day forecast over a date range (same computation, wider
-  window) and a past-breach history view from `kah_breach_notifications`.
+- **Not yet built:** a past-breach history view from `kah_breach_notifications`
+  (the email dedup log — a different granularity than the status page's
+  day-aligned scan, which already covers the past/future breach forecast).

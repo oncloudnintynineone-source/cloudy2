@@ -120,6 +120,23 @@ export function monthGridMonths(month: string): string[] {
   return monthsInRange(gridStart, gridEnd);
 }
 
+/** The last day of a `YYYY-MM` month, as `YYYY-MM-DD`. */
+export function lastDayOfMonth(month: string): string {
+  const [year, monthIndex] = month.split("-").map(Number);
+  return utcToDateString(new Date(Date.UTC(year, monthIndex, 0)));
+}
+
+/** Every `YYYY-MM-DD` from start to end, inclusive (reversed range → empty). */
+export function daysBetween(start: string, end: string): string[] {
+  const days: string[] = [];
+  let cursor = start;
+  while (cursor <= end) {
+    days.push(cursor);
+    cursor = addOneDay(cursor);
+  }
+  return days;
+}
+
 /** Every `YYYY-MM` month a naive start/end range touches, inclusive. */
 export function monthsInRange(startNaive: string, endNaive: string): string[] {
   // Wall-clock months from the date part: the UTC+8 instant of a midnight

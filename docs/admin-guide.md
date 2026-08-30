@@ -154,7 +154,8 @@ app never blocks an event.
   preview; tokens `{event}` `{actor}` `{window}` `{breaches}`. The body must keep
   `{breaches}`.
 - Members also get the read-only **KAH Status** page automatically; **admins always
-  see it too**, listing every group.
+  see it too**, listing every group's breach periods (past & next 3 months,
+  resolved/active/upcoming).
 
 Design: [`kah.md`](kah.md).
 

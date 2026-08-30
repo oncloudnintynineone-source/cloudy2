@@ -5,7 +5,9 @@ import {
   addDays,
   addOneDay,
   dateToUtc,
+  daysBetween,
   formatInstantToNaive,
+  lastDayOfMonth,
   monthGridMonths,
   monthGridRows,
   monthRange,
@@ -139,6 +141,38 @@ describe("weekDays", () => {
       "2026-06",
       "2026-07",
     ]);
+  });
+});
+
+describe("lastDayOfMonth", () => {
+  it("returns the month's last calendar day", () => {
+    expect(lastDayOfMonth("2026-08")).toBe("2026-08-31");
+    expect(lastDayOfMonth("2026-05")).toBe("2026-05-31");
+  });
+
+  it("handles short months and leap years", () => {
+    expect(lastDayOfMonth("2026-02")).toBe("2026-02-28");
+    expect(lastDayOfMonth("2028-02")).toBe("2028-02-29");
+    expect(lastDayOfMonth("2026-12")).toBe("2026-12-31");
+  });
+});
+
+describe("daysBetween", () => {
+  it("lists every day from start to end, inclusive", () => {
+    expect(daysBetween("2026-08-30", "2026-09-02")).toEqual([
+      "2026-08-30",
+      "2026-08-31",
+      "2026-09-01",
+      "2026-09-02",
+    ]);
+  });
+
+  it("returns a single entry when start equals end", () => {
+    expect(daysBetween("2026-08-15", "2026-08-15")).toEqual(["2026-08-15"]);
+  });
+
+  it("returns nothing for a reversed range", () => {
+    expect(daysBetween("2026-09-01", "2026-08-31")).toEqual([]);
   });
 });
 

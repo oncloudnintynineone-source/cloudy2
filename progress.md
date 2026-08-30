@@ -32,8 +32,9 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
   mobile-first UI with a desktop layout at `lg`; remembered UI state across relaunch;
    audit-log viewer with retention + CSV export; admin-managed quick-links menu
    launched from an amber `IconLink` FAB (mobile) / nav-row chip (desktop) on the
-   Calendar page; user-facing KAH Status page (read-only, member's own groups,
-   live in-country % per selected day).
+    Calendar page; user-facing KAH Status page (read-only breach history &
+    forecast over a ±3-month window: resolved/active/upcoming breach periods,
+    member's own groups; admins: all).
 - Google integration is real for Calendar and Gmail-send once configured (service
   account + domain-wide delegation).
 
@@ -203,6 +204,7 @@ One line per phase; full write-ups (incl. Mermaid diagrams and verification note
 - 1.143 Wide-grid pan/zoom buttons are now `position: fixed` and **statically anchored** — the grid's visible-slice center + edge insets are measured once on view load (re-measured only on window resize / anchor size change), with **no scroll listener at all**, so the buttons hold perfectly still at the calendar's visible-area center and never leave the screen. Earlier attempts rejected: React state per scroll event (updates landed a frame late → wobble), a pure-CSS sticky rail (clamped to the grid's own box → rode out of view near its edges), and rAF-synced direct-DOM tracking (moved with the calendar on grids shorter than the viewport, stuttering when scroll frames coalesced) (bugfix; `docs/grid-pan.md` §1.2)
 - 1.144 Highlight my entries across all dashboard views: "mine" = created-by or tagged-on (the Myself filter's semantics, `eventMatchesUserFilter`) — Day/Week (H)/Week (D): the user's whole row tints amber via a `data-c2-my-row` label marker + structural CSS `:has()` rules targeting exactly the label cell + row (Week (D) adds a uniform day-cell tint via `myRowId`); Month: events pre-sorted by pure unit-tested `sortMineFirst` so my entries claim the top rows of each day + amber chip ring via `renderEvent` (incl. "+N more" popup); Agenda tab + day modal: amber bar/tint + semibold title via `renderEvent`, chronological order kept; unconditional, amber `accent` palette, roster members only for rows (Phase 3b8; `docs/dashboard-views.md` §1.5)
 - 1.145 Dark-mode my-entry tint fix: the 1.144 row/label/agenda tint used the near-white accent-0/1 creams, which glow on the dark body — the tints now switch on color scheme via `--c2-my-row-tint` / `--c2-my-label-tint` custom properties (dark: row `#3d3200` / label `#4a3c00`, matching Parade State's dark amber card), consumed by the `globals.css` rules and read inline by the Week (D) matrix, whose scheme-blind `myTint` prop chain was dropped; accent-6 bars/dot/ring unchanged (dark-mode fix; `docs/dashboard-views.md` §1.5)
+- 1.146 KAH Status becomes breach history & forecast: the selected-day view (day nav + per-group day table) is replaced by a month-aligned ±3-month scan that lists each group's consecutive breach periods once each — date span, day count, lowest in-country %, union of away members, edge-clipped runs — each marked Resolved (ended before today) / Active (includes today) / Upcoming (starts after today), plus an "All clear" list for breach-free groups; one `overseasEventsInRange` month-cache read feeds pure `busyDaysInRange` + per-day `kahStatusForWindow` + `kahBreachEpisodes` (all unit-tested), `busyKahsIn` is now a thin wrapper over the same read so the notify path and the status page never diverge, and the `?date=` param is gone (Phase 3b8; `docs/kah.md` §1.7)
 
 ## 1.4 Open items & next steps
 

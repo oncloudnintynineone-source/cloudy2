@@ -41,7 +41,7 @@ flowchart LR
 | **Calendar** | All events across departments — the main screen |
 | **Parade State** | Today's roll call by department, with attendance mode |
 | **Contacts** | Phone list with search and VCF export |
-| **KAH Status** | Live in-country percentage for your KAH groups (shown when you are in a KAH group; admins always see it with all groups) |
+| **KAH Status** | Past & future KAH breaches for your groups over ±3 months, with resolved/active/upcoming status (shown when you are in a KAH group; admins always see it with all groups) |
 | **Settings** | Admin only |
 
 On phones the pages sit in the bottom navigation bar; on desktop they move to the
@@ -147,13 +147,18 @@ download the currently-filtered list as a `.vcf` file to import into your phone.
 
 ## 1.9 KAH status
 
-Visible only when you belong to a KAH (Key Appointment Holder) group. For a
-selected day (default today) each of your groups shows:
+Visible only when you belong to a KAH (Key Appointment Holder) group (admins
+always see it too, with all groups). It answers "did my group breach recently,
+or will it soon?" over the **past and next 3 months**:
 
-- the required in-country percentage and the **live actual percentage**,
-- a status badge — **OK** (green), **Caution** (amber, within 10 points below
-  requirement), or **Breach** (red),
-- the members currently away (tagged on Overseas events).
+- Each **breach period** — consecutive days where the group's in-country
+  percentage fell below its requirement — is listed once, with its date range,
+  day count, lowest in-country % during the run, and the members who were away
+  (tagged on Overseas events).
+- Each period is marked **Resolved** (green — it ended before today), **Active**
+  (red — it includes today), or **Upcoming** (amber — it starts in the future).
+  A "…" at a period's edge means it runs past the 3-month scan window.
+- Groups with no breaches in the window are listed as **All clear**.
 
 ## 1.10 Install as an app & offline use
 
