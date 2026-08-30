@@ -52,8 +52,12 @@ secondary chrome lighter than the date-nav chevrons):
   top, a divider, then the right pan arrow; a single left-edge pan arrow stays
   edge-anchored on the left so "scroll left" still reads from the left edge (see
   [`dashboard-views.md`](dashboard-views.md#15-timeline-zoom-day-and-week-h)).
-  Unlike the pan arrows, the zoom pair renders whenever the schedule grid is shown
-  — zoom is useful even when the grid fits without overflowing.
+  The cluster hangs from its **bottom edge**, so the right pan arrow's center sits
+  on the visible-slice center — vertically aligned with the left pan arrow — and
+  the zoom pair's slot above does not depend on `canScrollRight`, so nothing
+  shifts when the arrow appears or disappears while panning. Unlike the pan
+  arrows, the zoom pair renders whenever the schedule grid is shown — zoom is
+  useful even when the grid fits without overflowing.
 
 ## 1.3 Wiring into the grids
 

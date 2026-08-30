@@ -97,9 +97,10 @@ slot granularity (still 60-minute columns) or the row height.
   in/out pair lives in the **same right-edge control cluster** as the right pan
   arrow (zoom +/− on top, a divider, then the pan arrow), with the left pan arrow
   edge-anchored on the left; the pair is the familiar map-controls layout and can
-  never overlap the pan arrow ([`grid-pan.md`](grid-pan.md)). Rendered whenever the
-  schedule grid is shown (skeleton/empty excluded) — unlike the pan arrows it shows
-  even when the grid fits without overflowing.
+  never overlap the pan arrow, and the cluster hangs from its bottom edge so both
+  pan arrows align vertically at the visible-slice center ([`grid-pan.md`](grid-pan.md)).
+  Rendered whenever the schedule grid is shown (skeleton/empty excluded) — unlike
+  the pan arrows it shows even when the grid fits without overflowing.
 - **Mechanism**: each view reads its slot width from a CSS variable on the view root
   (`--resources-week-view-slot-width` / `--resources-day-view-slot-width`). Mantine
   sizes the day container from that var and lays every event out as a **percentage**
