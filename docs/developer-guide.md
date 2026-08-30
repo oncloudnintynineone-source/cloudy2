@@ -187,22 +187,43 @@ flowchart LR
 
 ## 1.9 Deployment (Vercel)
 
-Vercel auto-builds on every push: `main` → production, `dev` → preview.
+Vercel auto-builds on every push: `main` → production, `dev` → preview. The two
+environments are **fully isolated**: every environment variable has separate
+Production and Preview values (Project → Settings → Environment Variables), pointing
+at a dedicated dev Neon project and a dedicated dev Google service account (separate
+accounts from prod). Dev activity — events, calendars, ACLs, emails — never touches
+prod data.
 
-Required configuration (Project → Settings → Environment Variables):
+| Variable | Production | Preview |
+| -------- | ---------- | ------- |
+| `DATABASE_URL` | prod Neon project | dev Neon project (separate Neon account) |
+| `GOOGLE_SERVICE_ACCOUNT_BASE64` | prod service-account key | dev service-account key (separate Google account) |
+| `NEXTAUTH_SECRET` | prod secret | separate dev secret |
+| `ADMIN_INITIAL_PASSWORD` | prod admin password | dev-only password |
+| `SMTP_URL` / `EMAIL_FROM` | prod email transport | test inbox (the dev Google account's own Gmail app password) |
+| `GOOGLE_DELEGATE_EMAIL` | Workspace delegate for Gmail send | unset — dev uses `SMTP_URL` |
+| `ENABLE_EXPERIMENTAL_COREPACK` | `1` | `1` |
+| `NEXTAUTH_URL` | unset | unset |
 
 - `ENABLE_EXPERIMENTAL_COREPACK` = `1` — makes Vercel honor the `packageManager`
   field (pnpm `11.18.0`). Without it, Vercel detects pnpm 10 from the lockfile,
   which ignores `allowBuilds` and emits "Ignored build scripts" warnings for
   `esbuild`, `sharp`, and `unrs-resolver`.
-- `DATABASE_URL` — Neon Postgres connection string.
-- `NEXTAUTH_SECRET` — session signing secret.
-- `ADMIN_INITIAL_PASSWORD` — seeds the admin password hash on first login.
-- Google service-account vars (§1.10) and, optionally, an email transport
-  (`GOOGLE_DELEGATE_EMAIL` or `SMTP_URL`) for KAH breach emails.
 - Leave `NEXTAUTH_URL` **unset** — Vercel injects `VERCEL_URL` and NextAuth falls
   back to it. An empty value fails the build with `TypeError: Invalid URL` during
   prerender.
+
+> **Warning:** never point a data-copied database (e.g. a Neon branch of prod) at a
+> different service account — the `calendars` table stores **Google calendar IDs**, so
+> copied rows would target the wrong calendars. The dev database is a fresh,
+> migrations-only database (`db:seed` is skipped — it inserts fake calendar IDs);
+> departments are recreated in-app so `createCalendar` makes real calendars under the
+> dev service account.
+
+Migrations reach each database via CI (`ci.yml`): pushes to `main` run `pnpm
+db:migrate` with the `DATABASE_URL` secret (prod DB); pushes to `dev` run it with
+`DATABASE_URL_PREVIEW` (dev DB). Both jobs are branch-gated with their own
+concurrency group.
 
 Native build scripts for `esbuild`, `sharp`, and `unrs-resolver` are approved via
 `allowBuilds` in `pnpm-workspace.yaml` (pnpm 11 format).

@@ -135,6 +135,7 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
 - [1.126 Offline UX: last saved view for every offline navigation; offline.html drops the picker (Phase 3b4)](#1126-offline-ux-last-saved-view-for-every-offline-navigation-offlinehtml-drops-the-picker-phase-3b4)
 - [1.131 Department hierarchy (Phase 3b6)](#1131-department-hierarchy-phase-3b6)
 - [1.138 Day/Week (H) timeline zoom (Phase 3b7)](#1138-dayweek-h-timeline-zoom-phase-3b7)
+- [1.140 Dev environment isolation (separate Neon + Google accounts)](#1140-dev-environment-isolation-separate-neon--google-accounts)
 
 ## 1.1 Status
 
@@ -5940,3 +5941,72 @@ Verification: `pnpm test` (775) + `pnpm lint` + `pnpm typecheck` pass; no
 schema change (`db:generate` clean). Manual QA debt: on-device sweep of the
 zoom levels (ruler/day-strip alignment at 0.5× and 2×, relaunch restore,
 breakpoint flip at a non-default zoom).
+
+## 1.140 Dev environment isolation (separate Neon + Google accounts)
+
+Report: deployments went straight to prod (`main`) because the `dev` branch's
+preview deployment shared every Vercel env var with production — same Neon DB,
+same Google service account, so dev activity would write to prod calendars
+and data.
+
+Decision (confirmed with the user): **account-level isolation** — a separate
+Neon account/project for the dev database and a separate Google account for
+the dev side, not just new projects inside the existing accounts. The dev DB
+is **fresh, migrations-only** (`db:seed` deliberately skipped — it inserts
+departments with fake calendar IDs like `dept-operations@cloudy.local`, which
+would break a real service account); departments/users are recreated in-app
+on the dev deployment so `createCalendar` makes real calendars under the dev
+SA. Dev KAH breach emails use the dev Google account's own Gmail app password
+via `SMTP_URL` (no Workspace delegation in dev).
+
+```mermaid
+flowchart LR
+    subgraph PROD["Production (main)"]
+        PV["Vercel prod env vars"] --> PDB[("Prod Neon<br/>(original account)")]
+        PV --> PGA["Prod service account<br/>(original Google account)"]
+    end
+    subgraph DEV["Preview (dev)"]
+        DV["Vercel preview env vars"] --> DDB[("Dev Neon<br/>(new account, migrations-only)")]
+        DV --> DGA["Dev service account<br/>(new Google account)"]
+        DGA --> DGC["Dev-owned calendars<br/>(created in-app)"]
+        DV --> DSM["SMTP_URL → dev Gmail<br/>app-password inbox"]
+    end
+    CI["CI"] -- "main push · DATABASE_URL" --> PDB
+    CI -- "dev push · DATABASE_URL_PREVIEW" --> DDB
+```
+
+Changes:
+
+1. **Neon (console)** — new account/project `cloudy2-dev` (pooled connection
+   string, matching prod's style); `pnpm db:migrate` applied locally — all 14
+   tables confirmed; no seed.
+2. **Google (console)** — new Google account: GCP project `cloudy2-dev`,
+   Calendar API enabled, service account `cloudy2-dev` + JSON key → base64
+   (`GOOGLE_SERVICE_ACCOUNT_BASE64` on Preview); Gmail app password for the
+   same account → `SMTP_URL` test inbox.
+3. **Vercel (console)** — every env var split into Production/Preview values
+   (table in [`developer-guide.md`](developer-guide.md#19-deployment-vercel));
+   `GOOGLE_DELEGATE_EMAIL` removed from Preview; `NEXTAUTH_URL` stays unset
+   everywhere; `ENABLE_EXPERIMENTAL_COREPACK = 1` unchanged.
+4. **CI (`.github/workflows/ci.yml`)** — new `migrate-preview` job, a clone of
+   the prod `migrate` job gated `if: github.ref == 'refs/heads/dev'` with its
+   own `concurrency.group: db-migrate-preview`, using the new
+   `DATABASE_URL_PREVIEW` repo secret.
+5. **Docs** — `AGENTS.md` Vercel gotchas bullet rewritten (isolation + the
+   calendars-table warning); `developer-guide.md` §1.9 gains the
+   Production/Preview env table + warning blockquote; `progress.md` §1.5
+   refreshed + changelog one-liner.
+
+> **Standing rule:** never point a data-copied DB (e.g. a Neon branch of prod)
+> at a different service account — the `calendars` table stores **Google
+> calendar IDs**, so copied rows would target the wrong calendars.
+
+Non-goals: no second Vercel project (per-env values on the single project keep
+the git-flow setup); no prod-data clone in dev (the calendar-ID trap above);
+no Workspace delegation for the dev account (SMTP covers dev emails).
+
+Verification: migration applied to the dev DB and tables confirmed over a
+read-only connection; `pnpm lint` + `pnpm typecheck` pass (docs/CI-only
+changes, no source touched). Deploy-side QA (env split + first dev-department
+calendar + breach email + migrate-preview job) tracked in §1.4 of progress.md
+until executed.

@@ -197,6 +197,7 @@ One line per phase; full write-ups (incl. Mermaid diagrams and verification note
 - 1.137 Pinned Events become an explicit event flag: a "Pin this event" switch on the wizard's Invited Attendees step (any user) sets the new notes `pinned` flag (`parseEventPinned`), and `selectUpcomingPinnedEvents` now keeps only explicitly-pinned events — tagging a whole department no longer pins by itself, so existing department-tagged events drop out of the panel until re-pinned; the flag rides the existing notes block (no migration), round-trips edit/duplicate, and joins the audit snapshot + webhook payloads so pin/unpin shows as a diff (Phase 3b6)
 - 1.138 Day/Week (H) timeline zoom: floating zoom-in/out buttons scale the hour-column width (levels 0.5–2 in 25% steps, default 1 = today's widths) by writing the zoomed value to the views' `--resources-*-view-slot-width` CSS var (Mantine re-lays out slots + percentage-based events with no JS geometry work); one shared level, remembered per device in `cloudy2.ui` as `dashboard.zoom` (not URL-backed — zooming never navigates, read from the raw cookie, seeded before first paint); the pinned hour ruler + Week (H) day-label strip re-measure on change (`zoom` in the layout-effect deps); pure `src/lib/ui/slotZoom.ts` (levels/clamp/width math) unit-tested; `docs/dashboard-views.md` §1.5 + `ui-state.md`/`grid-pan.md`/`desktop-responsive.md` updates (Phase 3b7)
 - 1.139 Audit log multi-value filters: Actors/Actions/Entity types become multi-selects through the shared `FilterModal` + `UserSelectModal` badge picker (Actors grouped by roster department, "Other" for Admin/deleted users), applied selections show as removable pills (parade-state pattern), URL params `actor`/`action`/`entity` are now comma-joined lists (`multi()` parser, `inArray` conditions, single-value URLs still parse) and flow through load-more and CSV export unchanged (Phase 3b7)
+- 1.140 Dev environment isolation: `dev` → preview now runs on a dedicated dev Neon project + dev Google service account (separate accounts from prod); Vercel env vars split per environment, CI `migrate-preview` job on `dev` pushes, docs updated
 
 ## 1.4 Open items & next steps
 
@@ -212,8 +213,12 @@ One line per phase; full write-ups (incl. Mermaid diagrams and verification note
 
 ## 1.5 Deployment & environments
 
-- Vercel auto-builds: `main` → production, `dev` → preview. Pending migrations
-  auto-apply on `main` push via the CI migrate job against the shared Neon DB.
-- Env vars: `DATABASE_URL`, `NEXTAUTH_SECRET`, `ADMIN_INITIAL_PASSWORD`, plus Google
-  service-account vars. Leave `NEXTAUTH_URL` unset; set
+- Vercel auto-builds: `main` → production, `dev` → preview, with **fully isolated
+  environments** — separate Neon account (dev DB is migrations-only; no `db:seed`, its
+  fake calendar IDs break a real SA) and separate Google account (dev service account;
+  departments recreated in-app so dev gets its own calendars). Pending migrations
+  auto-apply per environment via CI: `main` push → prod DB (`DATABASE_URL` secret),
+  `dev` push → dev DB (`DATABASE_URL_PREVIEW` secret).
+- Env vars are set per environment on Vercel — see `docs/developer-guide.md` §1.9 for
+  the Production/Preview table. Leave `NEXTAUTH_URL` unset; set
   `ENABLE_EXPERIMENTAL_COREPACK = 1`. Canonical gotchas live in AGENTS.md.

@@ -214,6 +214,13 @@ mechanics in the doc.
 - Set `ENABLE_EXPERIMENTAL_COREPACK = 1` so Vercel honors pnpm `11.18.0`; otherwise it
   detects pnpm 10 from the lockfile and ignores the pnpm-11 `allowBuilds` in
   `pnpm-workspace.yaml` (esbuild/sharp/unrs-resolver build scripts).
-- `main` → production, `dev` → preview. Copy `.env.example` → `.env.local` for local dev;
-  required vars: `DATABASE_URL`, `NEXTAUTH_SECRET`, `ADMIN_INITIAL_PASSWORD` (seeds the
-  admin password hash on first run), plus Google service-account vars.
+- `main` → production, `dev` → preview. **Environments are fully isolated**: every
+  Vercel env var has separate Production/Preview values — prod Neon project + prod
+  service account vs a dedicated dev Neon project + dev service account (separate
+  accounts). CI runs `pnpm db:migrate` on `main` pushes (`DATABASE_URL` secret) and on
+  `dev` pushes (`DATABASE_URL_PREVIEW` secret), each against its own DB. **Never point
+  a data-copied DB at a different service account** — the `calendars` table stores
+  Google calendar IDs (dev DB is migrations-only; departments are recreated in-app).
+  Copy `.env.example` → `.env.local` for local dev; required vars: `DATABASE_URL`,
+  `NEXTAUTH_SECRET`, `ADMIN_INITIAL_PASSWORD` (seeds the admin password hash on first
+  run), plus Google service-account vars.
