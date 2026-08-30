@@ -40,10 +40,9 @@ and Shift+wheel keep working alongside.
 
 `GridPanControls` (`src/components/GridPanControls.tsx`) renders circular grey
 filled-triangle buttons that call `panTo`. Two components share the same
-fixed-position / visible-slice tracking (pinned just inside the grid's own edges,
-vertically centered on its **on-screen visible slice**, re-measured on resize +
-page scroll, hidden when the grid scrolls out of view, intentionally subdued
-secondary chrome lighter than the date-nav chevrons):
+positioning (pinned just inside the grid's own edges, vertically centered on its
+**on-screen visible slice**, hidden when the grid scrolls out of view,
+intentionally subdued secondary chrome lighter than the date-nav chevrons):
 
 - **`GridPanControls`** — the **Week (D)** grid renders its own instance: a
   left/right pair of edge-anchored buttons (one per scrollable edge).
@@ -59,12 +58,45 @@ secondary chrome lighter than the date-nav chevrons):
   arrows, the zoom pair renders whenever the schedule grid is shown — zoom is
   useful even when the grid fits without overflowing.
 
+**Positioning: `position: fixed` + rAF-synced direct DOM writes — no React
+state on scroll.** The buttons are fixed to the viewport (so they can never
+scroll away from the grid's on-screen area) and follow the grid's visible slice
+through a `requestAnimationFrame`-throttled scroll handler that measures the
+anchor's rect (`getBoundingClientRect()` clamped to `[0, innerHeight]`) and
+writes `top`/`left`/`right` **straight to the element refs**. The rAF callback
+runs in the same frame as the scroll (before paint), so the buttons track the
+visible-slice center in lockstep with the content. Only the `hidden`/reveal
+flip (grid fully out of view) goes through React, and it fires only at the
+discrete scroll-extreme boundaries.
+
+Two earlier approaches were tried and rejected:
+
+- **React state per scroll event**: the offsets update landed a frame (or more)
+  behind the scroll (continuous-event updates are scheduled, not applied in the
+  handler), so the fixed buttons visibly wobbled while scrolling up/down —
+  worse on mobile, where `innerHeight` also changes as the URL bar collapses.
+- **Pure-CSS `position: sticky` rail**: a sticky element can only be pinned to
+  one edge of the scrollport and is clamped to its containing block, so near
+  the grid's top/bottom — and across the whole range for grids shorter than the
+  viewport — the rail rode with the grid and the buttons drifted from the
+  visible-slice center and eventually scrolled out of view with it.
+
+The rAF + direct-DOM approach gets the exact visible-slice center at every
+scroll position with no per-frame React work: tall grids hold the buttons
+steady at the viewport center (the visible strip center is constant), short
+grids keep them glued to the grid's visible center as it moves.
+
 ## 1.3 Wiring into the grids
 
 | Grid | Wiring |
 | ---- | ------ |
 | Day / Week (H) | through the schedule views' `scrollAreaProps`: `viewportProps` + a `viewportRef` merged with the ruler-sync ref — keep `scrollAreaProps` identity stable across scroll frames |
 | Week (D) | through its own `ScrollArea` |
+
+The button components are rendered as **siblings of the anchor element** —
+the Day/Week (H) content `Box` (`weekBoxRef`) and the Week (D) `Paper`
+(`rootRef`) — and receive it as `anchorRef`, which the scroll handler measures
+(see §1.2).
 
 ## 1.4 File index & related docs
 
