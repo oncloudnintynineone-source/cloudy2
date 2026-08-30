@@ -18,6 +18,19 @@ import { getCachedMonthEventsForCalendars } from "@/lib/google/eventsCache";
 import { inCountryPercentage, type KahGroupCheck } from "@/lib/kah/check";
 
 /**
+ * Whether the id is a real roster-user UUID. Session identities are not always
+ * roster rows — the bootstrap admin password signs in as the synthetic
+ * `id: "admin"` (`auth.ts` authorize), and a uuid-typed column query (e.g.
+ * `kah_group_members.user_id`) would fail Postgres's cast on such an id.
+ * Pure so it can be unit-tested without a database.
+ */
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+export function isUuid(id: string): boolean {
+  return UUID_RE.test(id);
+}
+
+/**
  * Whether an event's notes mark it as taking its tagged people out of the
  * country — the KAH "away" rule. Only events marked overseas count: in-camp
  * and out-of-camp-but-in-country events keep everyone in country, and legacy
@@ -105,6 +118,11 @@ export async function listKahGroupChecks(): Promise<KahGroupCheck[]> {
  * `listKahGroupChecks` (only the subset the user is in).
  */
 export async function kahGroupsForUser(userId: string): Promise<KahGroupCheck[]> {
+  // Non-UUID identities (the synthetic bootstrap admin) are not roster rows,
+  // hence belong to no KAH group — skip the uuid-typed query entirely.
+  if (!isUuid(userId)) {
+    return [];
+  }
   const all = await listKahGroupChecks();
   const userGroupRows = await db
     .select({ groupId: kahGroupMembers.groupId })
@@ -116,6 +134,11 @@ export async function kahGroupsForUser(userId: string): Promise<KahGroupCheck[]>
 
 /** Whether a user is listed as a member of at least one KAH group. */
 export async function userHasKahGroup(userId: string): Promise<boolean> {
+  // Non-UUID identities (the synthetic bootstrap admin) are not roster rows —
+  // skip the uuid-typed query entirely (this runs on every protected render).
+  if (!isUuid(userId)) {
+    return false;
+  }
   const rows = await db
     .select({ groupId: kahGroupMembers.groupId })
     .from(kahGroupMembers)

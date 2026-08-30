@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { encodeEventNotes, encodeNotesBlock } from "@/lib/events/notes";
 import type { KahGroupCheck } from "@/lib/kah/check";
 
-import { eventTakesMembersOverseas, kahStatusForWindow } from "./status";
+import { eventTakesMembersOverseas, isUuid, kahStatusForWindow } from "./status";
 
 /** A description carrying the given notes fields (an in-app internal event). */
 function notesDescription(notes: { outOfCamp?: boolean; overseas?: boolean }): string {
@@ -102,5 +102,19 @@ describe("eventTakesMembersOverseas", () => {
   it("is false for descriptions without a notes block (legacy/external)", () => {
     expect(eventTakesMembersOverseas("")).toBe(false);
     expect(eventTakesMembersOverseas("A plain Google event")).toBe(false);
+  });
+});
+
+describe("isUuid", () => {
+  it("accepts canonical UUIDs", () => {
+    expect(isUuid("0b8d5f2e-1c47-4a90-9d3e-6f1a2b3c4d5e")).toBe(true);
+    expect(isUuid("0B8D5F2E-1C47-4A90-9D3E-6F1A2B3C4D5E")).toBe(true);
+  });
+
+  it("rejects synthetic non-roster identities and malformed ids", () => {
+    expect(isUuid("admin")).toBe(false);
+    expect(isUuid("")).toBe(false);
+    expect(isUuid("0b8d5f2e1c474a909d3e6f1a2b3c4d5e")).toBe(false);
+    expect(isUuid("0b8d5f2e-1c47-4a90-9d3e-6f1a2b3c4d5")).toBe(false);
   });
 });

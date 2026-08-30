@@ -136,6 +136,7 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
 - [1.131 Department hierarchy (Phase 3b6)](#1131-department-hierarchy-phase-3b6)
 - [1.138 Day/Week (H) timeline zoom (Phase 3b7)](#1138-dayweek-h-timeline-zoom-phase-3b7)
 - [1.140 Dev environment isolation (separate Neon + Google accounts)](#1140-dev-environment-isolation-separate-neon--google-accounts)
+- [1.141 Bootstrap-admin KAH crash fix (bugfix)](#1141-bootstrap-admin-kah-crash-fix-bugfix)
 
 ## 1.1 Status
 
@@ -6010,3 +6011,54 @@ read-only connection; `pnpm lint` + `pnpm typecheck` pass (docs/CI-only
 changes, no source touched). Deploy-side QA (env split + first dev-department
 calendar + breach email + migrate-preview job) tracked in §1.4 of progress.md
 until executed.
+
+## 1.141 Bootstrap-admin KAH crash fix (bugfix)
+
+Report: the first admin login on the isolated dev preview 500s with
+"Cloudy hit a problem"; Vercel logs showed `select "group_id" from
+"kah_group_members" where "kah_group_members"."user_id" = $1` failing with
+Postgres `22P02: invalid input syntax for type uuid: "admin"`.
+
+Root cause: the admin-password login path (`auth.ts` authorize) returns a
+**synthetic identity** `{ id: "admin", name: "Admin", role: "admin", phone:
+null }` — by design, since the bootstrap admin can exist before any user
+rows do. But the protected layout (`layout.tsx`) calls
+`userHasKahGroup(session.user.id)` on **every authenticated render**, and
+`kahGroupsForUser` (kah-status page) does the same; both send the id straight
+against the uuid column `kah_group_members.user_id`, and Postgres rejects the
+cast. Phone logins are unaffected (they resolve real user UUIDs). `main`
+carried the same latent crash since the KAH integration (`1e0cabd` /
+`9bf2600`) — no admin-password login had happened on prod since.
+
+```mermaid
+flowchart LR
+    A["Admin password login"] --> B["authorize → id: 'admin' (synthetic)"]
+    B --> C["Protected layout"]
+    C --> D["userHasKahGroup('admin')"]
+    D --> E["kah_group_members.user_id = 'admin'"]
+    E --> F["Postgres 22P02<br/>(uuid cast)"]
+    F --> G["500 → 'Cloudy hit a problem'"]
+    D -. "guard: isUuid('admin') = false" .-> H["return false — no query"]
+```
+
+Fix: a pure `isUuid` helper in `src/lib/kah/status.ts` (canonical UUID
+regex, case-insensitive), guarding both `userHasKahGroup` (returns `false`)
+and `kahGroupsForUser` (returns `[]`) for non-UUID ids — the bootstrap admin
+is not a roster row, hence belongs to no KAH group, and the admin nav hides
+the KAH entry anyway. 4 unit tests added (`status.test.ts`).
+
+Reviewed alternatives: resolving the admin password to a real `role='admin'`
+user row when one exists (bigger blast radius — the synthetic identity is
+woven into audit payloads and snapshots) — deferred as a possible enhancement.
+Audited every other `session.user.id` usage: the rest feed text columns
+(audit actor, notes creator, webhook payloads) or string comparisons, where
+`"admin"` is valid.
+
+Non-goals: no change to the admin identity shape; no DB backfill (no data
+involvement); no behavioral change for phone logins.
+
+Docs: `progress.md` one-liner (this section).
+
+Verification: `pnpm test` (779, +4) + `pnpm lint` + `pnpm typecheck` pass;
+no schema change (`db:generate` clean). Deploy verification: admin login
+renders the shell on the dev preview (and prod after the dev → main merge).
