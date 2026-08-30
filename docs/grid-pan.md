@@ -41,7 +41,7 @@ and Shift+wheel keep working alongside.
 `GridPanControls` (`src/components/GridPanControls.tsx`) renders circular grey
 filled-triangle buttons that call `panTo`. Two components share the same
 positioning (pinned just inside the grid's own edges, vertically centered on its
-**on-screen visible slice**, hidden when the grid scrolls out of view,
+**on-screen visible slice**, always visible while the grid is shown,
 intentionally subdued secondary chrome lighter than the date-nav chevrons):
 
 - **`GridPanControls`** — the **Week (D)** grid renders its own instance: a
@@ -58,18 +58,16 @@ intentionally subdued secondary chrome lighter than the date-nav chevrons):
   arrows, the zoom pair renders whenever the schedule grid is shown — zoom is
   useful even when the grid fits without overflowing.
 
-**Positioning: `position: fixed` + rAF-synced direct DOM writes — no React
-state on scroll.** The buttons are fixed to the viewport (so they can never
-scroll away from the grid's on-screen area) and follow the grid's visible slice
-through a `requestAnimationFrame`-throttled scroll handler that measures the
-anchor's rect (`getBoundingClientRect()` clamped to `[0, innerHeight]`) and
-writes `top`/`left`/`right` **straight to the element refs**. The rAF callback
-runs in the same frame as the scroll (before paint), so the buttons track the
-visible-slice center in lockstep with the content. Only the `hidden`/reveal
-flip (grid fully out of view) goes through React, and it fires only at the
-discrete scroll-extreme boundaries.
+**Positioning: `position: fixed`, statically anchored — no scroll tracking.**
+The buttons are fixed to the viewport and their anchor — the grid's visible-slice
+center plus the 8px edge insets (`anchor.getBoundingClientRect()` clamped to
+`[0, innerHeight]`) — is measured **once** when the view loads, and re-measured
+only on window resize or anchor size change (`ResizeObserver`: breakpoint flips,
+sidebar collapse, grid load). There is **no scroll listener at all**, so the
+buttons hold perfectly still at the calendar's visible-area center while the
+page scrolls and never leave the screen.
 
-Two earlier approaches were tried and rejected:
+Three earlier approaches were tried and rejected:
 
 - **React state per scroll event**: the offsets update landed a frame (or more)
   behind the scroll (continuous-event updates are scheduled, not applied in the
@@ -80,11 +78,15 @@ Two earlier approaches were tried and rejected:
   the grid's top/bottom — and across the whole range for grids shorter than the
   viewport — the rail rode with the grid and the buttons drifted from the
   visible-slice center and eventually scrolled out of view with it.
+- **rAF-synced tracking (direct DOM writes)**: kept the exact visible-slice
+  center per frame, but on grids shorter than the viewport the buttons travelled
+  toward the screen edge as the calendar scrolled out, and the per-frame
+  repositioning stuttered when the browser coalesced scroll frames.
 
-The rAF + direct-DOM approach gets the exact visible-slice center at every
-scroll position with no per-frame React work: tall grids hold the buttons
-steady at the viewport center (the visible strip center is constant), short
-grids keep them glued to the grid's visible center as it moves.
+Static anchoring wins because the buttons' position is independent of the scroll
+position: a tall grid (its visible slice is the on-screen strip) keeps them at
+the visible-area center forever; a grid shorter than the viewport leaves them at
+the load-time center instead of chasing the calendar.
 
 ## 1.3 Wiring into the grids
 
