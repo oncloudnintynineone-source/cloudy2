@@ -338,8 +338,12 @@ function WeekDayLabelStrip({
       />
       <Box component="div" style={{ flex: 1, minWidth: 0, overflow: "hidden", position: "relative" }}>
         {/* Viewport-width wrapper, translated by -scrollLeft each frame; only
-            the intersecting day cells are rendered (absolute, clipped), so the
-            composited layer stays small and panning stays smooth. */}
+            the intersecting day cells are rendered (absolute), so the painted
+            recording stays small and panning stays smooth. The wrapper itself
+            must NOT clip (the parent box does): its cells sit at global day
+            offsets far beyond its own box, and an overflow:hidden here would
+            keep them out of the layer's paint entirely — invisible while
+            panning. */}
         <Box
           ref={innerRef}
           component="div"
@@ -349,7 +353,6 @@ function WeekDayLabelStrip({
             bottom: 0,
             left: 0,
             right: 0,
-            overflow: "hidden",
             willChange: "transform",
           }}
         >
@@ -516,8 +519,12 @@ function TimeRulerStrip({
         style={{ flex: 1, minWidth: 0, overflow: "hidden", position: "relative" }}
       >
         {/* Viewport-width wrapper, translated by -scrollLeft each frame; only
-            the intersecting slot cells are rendered (absolute, clipped), so the
-            composited layer stays small and the ruler tracks the pan smoothly. */}
+            the intersecting slot cells are rendered (absolute), so the painted
+            recording stays small and the ruler tracks the pan smoothly. The
+            wrapper itself must NOT clip (the parent box does): its cells sit at
+            global slot offsets far beyond its own box, and an overflow:hidden
+            here would keep them out of the layer's paint entirely — invisible
+            while panning. */}
         <Box
           ref={innerRef}
           component="div"
@@ -527,7 +534,6 @@ function TimeRulerStrip({
             bottom: 0,
             left: 0,
             right: 0,
-            overflow: "hidden",
             willChange: "transform",
           }}
         >

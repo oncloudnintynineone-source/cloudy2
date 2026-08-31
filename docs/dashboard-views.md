@@ -170,7 +170,11 @@ slot granularity (still 60-minute columns) or the row height.
   slot width through a `useLayoutEffect` that probes the var from the DOM and publishes
   it as `--ruler-slot`. Both are a **viewport-width wrapper**, translated by `-scrollLeft`
   via a direct DOM transform on the scroll frame — no re-renders — with only the cells
-  that can intersect the viewport rendered (absolutely positioned, clipped). The day
+  that can intersect the viewport rendered (absolutely positioned at their global day /
+  slot offsets). The wrapper itself must NOT clip (`overflow: visible`; the parent box
+  clips to the viewport): an `overflow: hidden` on the wrapper would keep every cell
+  beyond its own (viewport-width) box out of the layer's paint, so translating it could
+  never reveal them. The day
   window follows the leftmost visible day; the ruler window advances in 8-slot batches.
   Rendering just the visible window (instead of a full 168-slot / 7-day track) keeps the
   composited layer small, so the labels track the pan smoothly instead of re-rastering
