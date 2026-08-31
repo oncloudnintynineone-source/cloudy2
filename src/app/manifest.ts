@@ -8,7 +8,11 @@ export default function manifest(): MetadataRoute.Manifest {
     start_url: "/",
     display: "standalone",
     orientation: "any",
-    background_color: "#111111",
+    // Brand navy: the Android PWA splash (manifest icon + background_color)
+    // stays up until first paint, which can take a while on a Neon
+    // scale-to-zero cold start — matching the app header makes the wait read
+    // as part of the app rather than a black screen.
+    background_color: "#0D47A1",
     theme_color: "#0D47A1",
     icons: [
       {

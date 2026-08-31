@@ -28,9 +28,10 @@ import Link, { useLinkStatus } from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 
 import { PinnedEventsPanel } from "@/components/PinnedEventsPanel";
+import { ShellChromeContext, type ShellChromeValue } from "@/components/ShellChrome";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { UserMenu } from "@/components/UserMenu";
-import { type BannerConfig, BANNER_HEIGHT_PX, bannerColorOption } from "@/lib/banner/banner";
+import { BANNER_HEIGHT_PX } from "@/lib/banner/banner";
 import { BOTTOM_NAV_HEIGHT } from "@/lib/bottomNav";
 import { countPinnedEvents } from "@/lib/events/pinned";
 import type { Rect } from "@/lib/motion/origin";
@@ -178,60 +179,12 @@ function NavButton({ item, active, onTap }: { item: NavItem; active: boolean; on
 // announcement banner (admin-picked height preset) on top of it.
 const HEADER_HEIGHT_PX = 56;
 
-/**
- * The admin-managed announcement banner: a min-height strip (25px) above the
- * navy brand bar, filled with its curated palette color (`-filled` var, so
- * light/dark schemes both work) and the readable text color that option pins.
- * Text wraps and the banner grows taller when it overflows the base height.
- * The measured height is fed into `--app-banner-height` (set inline on the
- * AppShell root, see globals.css) so the shell's offset math stays exact.
- */
-function AnnouncementBanner({
-  config,
-  onMeasure,
-}: {
-  config: BannerConfig;
-  onMeasure: (px: number) => void;
-}) {
-  const ref = useRef<HTMLDivElement>(null);
-  const option = bannerColorOption(config.color);
-
-  useEffect(() => {
-    if (!ref.current) return;
-    onMeasure(ref.current.offsetHeight);
-  });
-
-  return (
-    <div
-      ref={ref}
-      role="status"
-      title={config.text}
-      style={{
-        flexShrink: 0,
-        minHeight: BANNER_HEIGHT_PX,
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        paddingInline: "var(--mantine-spacing-md)",
-        textAlign: "center",
-        background: `var(--mantine-color-${config.color}-filled)`,
-        color:
-          option.textColor === "dark" ? "var(--mantine-color-black)" : "var(--mantine-color-white)",
-        fontSize: "var(--mantine-font-size-sm)",
-        fontWeight: 500,
-      }}
-    >
-      <span style={{ width: "100%", overflowWrap: "break-word" }}>{config.text}</span>
-    </div>
-  );
-}
-
 export function AppShellShell({
   role,
   name,
   sidebarCollapsed,
-  banner,
-  hasKahGroup = false,
+  bannerSlot,
+  kahNavSlot,
   children,
 }: {
   role: "admin" | "user";
@@ -240,14 +193,15 @@ export function AppShellShell({
    *  (protected) layout before first paint (the server renders exactly what
    *  was remembered — no client restore, no flash). */
   sidebarCollapsed: boolean;
-  /** Admin-managed announcement banner, or null when disabled (no reserved
-   *  space — today's layout). Rendered inside the header above the navy bar;
-   *  `--app-shell-header-offset` grows via the inline `--app-banner-height`. */
-  banner?: BannerConfig | null;
-  /** True when the signed-in user belongs to at least one KAH group. Only
-   *  then does the KAH Status nav entry appear (server-computed so it can't
-   *  flicker). */
-  hasKahGroup?: boolean;
+  /** Streamed announcement-banner slot (a <Suspense> from the (protected)
+   *  layout). Renders the banner — or its pending placeholder — above the navy
+   *  bar; a null resolve collapses the reserved space. Streamed so the shell's
+   *  first paint never waits on the banner's DB read. */
+  bannerSlot?: React.ReactNode;
+  /** Streamed KAH-status probe (a <Suspense> from the (protected) layout);
+   *  reveals the KAH Status nav entry when the signed-in user belongs to a
+   *  group. Null for admins (they always see it). */
+  kahNavSlot?: React.ReactNode;
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
@@ -368,13 +322,28 @@ export function AppShellShell({
     [immersive, enter, exit],
   );
 
-  // Measured banner height (px). Starts at the base height; updated by
-  // AnnouncementBanner's onMeasure callback after layout so the shell's
-  // offset math stays exact when text wraps to multiple lines.
+  // Measured banner height (px). Starts at the base height; updated by the
+  // streamed AnnouncementBanner (via the shell chrome context) after layout so
+  // the shell's offset math stays exact when text wraps to multiple lines.
   const [bannerPx, setBannerPx] = useState(BANNER_HEIGHT_PX);
-  const measureBanner = useCallback((px: number) => {
-    if (px > 0) setBannerPx(px);
-  }, []);
+  // Whether a banner is present. Defaults true while the streamed slot is
+  // pending (the placeholder reserves BANNER_HEIGHT_PX); BannerLoaded collapses
+  // the reserved space when the stream resolves to null.
+  const [bannerActive, setBannerActive] = useState(true);
+  // Whether the signed-in non-admin user belongs to at least one KAH group —
+  // reveals the KAH Status nav entry once the streamed probe resolves true.
+  const [kahGroup, setKahGroup] = useState(false);
+
+  const shellChrome: ShellChromeValue = useMemo(
+    () => ({
+      setBannerActive,
+      setBannerHeight: (px) => {
+        if (px > 0) setBannerPx(px);
+      },
+      setKahGroup,
+    }),
+    [setBannerActive, setBannerPx, setKahGroup],
+  );
 
   // Desktop sidebar minimized to the icon rail, initialized from the
   // remembered state the (protected) layout read from the cookie before first
@@ -412,7 +381,7 @@ export function AppShellShell({
   const items: NavItem[] =
     role === "admin"
       ? [CALENDAR, PARADE_STATE, CONTACTS, KAH_STATUS, SETTINGS]
-      : hasKahGroup
+      : kahGroup
         ? [CALENDAR, PARADE_STATE, CONTACTS, KAH_STATUS]
         : [CALENDAR, PARADE_STATE, CONTACTS];
 
@@ -508,7 +477,7 @@ export function AppShellShell({
         // is hidden, so we omit the variable to keep --app-banner-height at
         // its CSS default of 0px.
         style={
-          banner && !immersive
+          bannerActive && !immersive
             ? ({ "--app-banner-height": `${bannerPx}px` } as React.CSSProperties)
             : undefined
         }
@@ -521,7 +490,7 @@ export function AppShellShell({
         // phantom main-content padding.
         header={{
           height:
-            banner && !immersive
+            bannerActive && !immersive
               ? `calc(env(safe-area-inset-top) + ${bannerPx}px + ${HEADER_HEIGHT_PX}px)`
               : `calc(${HEADER_HEIGHT_PX}px + env(safe-area-inset-top))`,
         }}
@@ -542,36 +511,39 @@ export function AppShellShell({
             // below it. Column layout only when a banner is stacked on top —
             // otherwise the single Group keeps today's row rendering.
             paddingTop: "env(safe-area-inset-top)",
-            display: banner && !immersive ? "flex" : undefined,
-            flexDirection: banner ? "column" : undefined,
+            display: bannerActive && !immersive ? "flex" : undefined,
+            flexDirection: bannerActive ? "column" : undefined,
           }}
         >
-          {banner ? <AnnouncementBanner config={banner} onMeasure={measureBanner} /> : null}
-          <Group h={HEADER_HEIGHT_PX} justify="space-between" px="md">
-            <Text fw={700} size="lg" component={Link} href="/dashboard" td="none" c="white">
-              Cloudy
-            </Text>
-            <Group gap="xs">
-              {pinnedCount > 0 ? (
-                <Indicator
-                  position="top-start"
-                  size={18}
-                  offset={4}
-                  color="accent"
-                  withBorder
-                  // The count already rides the button's aria-label; hide the
-                  // visual badge so screen readers don't read it twice.
-                  label={<span aria-hidden>{pinnedCount > 99 ? "99+" : pinnedCount}</span>}
-                >
-                  {pinnedButton}
-                </Indicator>
-              ) : (
-                pinnedButton
-              )}
-              <ThemeToggle />
-              <UserMenu name={name} />
+          <ShellChromeContext.Provider value={shellChrome}>
+            {kahNavSlot}
+            {bannerSlot}
+            <Group h={HEADER_HEIGHT_PX} justify="space-between" px="md">
+              <Text fw={700} size="lg" component={Link} href="/dashboard" td="none" c="white">
+                Cloudy
+              </Text>
+              <Group gap="xs">
+                {pinnedCount > 0 ? (
+                  <Indicator
+                    position="top-start"
+                    size={18}
+                    offset={4}
+                    color="accent"
+                    withBorder
+                    // The count already rides the button's aria-label; hide the
+                    // visual badge so screen readers don't read it twice.
+                    label={<span aria-hidden>{pinnedCount > 99 ? "99+" : pinnedCount}</span>}
+                  >
+                    {pinnedButton}
+                  </Indicator>
+                ) : (
+                  pinnedButton
+                )}
+                <ThemeToggle />
+                <UserMenu name={name} />
+              </Group>
             </Group>
-          </Group>
+          </ShellChromeContext.Provider>
         </AppShell.Header>
 
         <AppShell.Navbar

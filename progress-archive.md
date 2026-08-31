@@ -140,6 +140,7 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
 - [1.142 KAH Status: admins always see the page with all groups](#1142-kah-status-admins-always-see-the-page-with-all-groups)
 - [1.144 Highlight my entries across dashboard views (Phase 3b8)](#1144-highlight-my-entries-across-dashboard-views-phase-3b8)
 - [1.145 Dark-mode my-entry tint fix](#1145-dark-mode-my-entry-tint-fix)
+- [1.151 Cold-open splash fix: streamed banner/KAH shell chrome (Neon scale-to-zero)](#1151-cold-open-splash-fix-streamed-bannerkah-shell-chrome-neon-scale-to-zero)
 
 ## 1.1 Status
 
@@ -6346,3 +6347,54 @@ view/breakpoint/group-presence) and probes only on a real geometry change — a
 zoom derives both the new slot width and the re-anchor from pure arithmetic
 (`baseSlotPx * ratio`), leaving the zoom path as one `scrollLeft` write. The
 `measuredWidth` helper remains only for the mount/breakpoint probe.
+
+## 1.151 Cold-open splash fix: streamed banner/KAH shell chrome (Neon scale-to-zero)
+
+On Android, the PWA splash screen (manifest icon + background_color) sometimes
+stayed up for 10s+ after the Neon free plan scaled the compute back to zero,
+while iOS (no manifest splash — it uses a last-app snapshot) showed nothing.
+Root cause: the `(protected)/layout.tsx` awaited `getBanner()` +
+`userHasKahGroup()` (the first DB queries of the request) before it could render
+the AppShell at all. A layout must resolve before its children stream, so the
+browser received no meaningful HTML until the Neon cold start (which also
+coincides with a cold Vercel function and a stale Google L2 read) completed —
+no first paint, so the Android splash never dismissed. Cache-hit opens were
+unaffected (the SW serves the stamped document instantly), hence "sometimes".
+
+Fix: take the DB reads off the first-paint path and stream them:
+
+- `(protected)/layout.tsx` now awaits only `requireSession()` (JWT, no DB) + the
+  `cloudy2.ui` cookie, and passes the banner + KAH lookups to `AppShellShell` as
+  `<Suspense>`-bound server-component slots.
+- `(protected)/shellStream.tsx` (server): `ShellBanner` (awaits `getBanner()`),
+  `ShellKahNav` (awaits `userHasKahGroup()`, skipped for admins), and
+  `BannerPlaceholder` (a 25px spacer = the Suspense fallback).
+- `src/components/ShellChrome.tsx` (client): `ShellChromeContext` +
+  `useShellChrome` (the shell provides the setters; server-streamed client
+  components consume them — context flows client-to-client across the RSC
+  boundary), `AnnouncementBanner` (moved out of AppShellShell, measures its
+  height through the context), `BannerLoaded` (reports resolved presence in a
+  layout effect — a null result collapses the reserved slot before paint, so
+  warm no-banner loads never flash the gap), and `KahNavFlag` (reveals the KAH
+  Status nav entry).
+- `AppShellShell` replaced the `banner`/`hasKahGroup` props with
+  `bannerSlot`/`kahNavSlot` ReactNodes. `bannerActive` defaults true so the
+  slot is reserved from first paint (a configured banner never shifts the
+  header when its read resolves late); `bannerPx`/`--app-banner-height`/header
+  height math unchanged, just gated on `bannerActive`. KAH nav item renders in
+  sidebar + bottom nav once the probe resolves true (one-time pop-in for KAH
+  members on cold opens).
+- `manifest.ts` `background_color` → `#0D47A1` (brand navy), so the residual
+  splash (first-ever open / post-deploy cache wipe) matches the app header
+  instead of a black screen.
+
+Net effect: a cold cache-miss open after scale-to-zero now paints the navy
+shell + route skeleton in ~1-2s (function boot), dismissing the splash, while
+the DB wakes in the background and the banner/KAH/content stream in. The
+residual data wait is the free plan's cold start; second opens stay instant via
+the SW document cache. No SW / skeleton / fade changes.
+
+Docs: `docs/announcement-banner.md` §1.1/§1.3 (streaming + reserve/collapse +
+diagram); `progress.md` one-liner.
+Verification: `pnpm lint` + `pnpm typecheck` + `pnpm test` (811) + `pnpm build`
+(65 precache entries) all pass.

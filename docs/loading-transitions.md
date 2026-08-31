@@ -115,6 +115,15 @@ Suspense fallback), shaped to match the real content:
 | `(protected)/settings/event-types` | card skeletons |
 | `(protected)/settings/general` | form skeleton |
 
+The `(protected)` **layout itself no longer awaits DB work before rendering the
+AppShell** — the announcement-banner and KAH-status reads are streamed inside
+`<Suspense>` slots, so the shell chrome + the route skeleton above paint as soon
+as the (JWT-only) session resolves. This matters for first paint: the layout's
+old `getBanner()`/`userHasKahGroup()` awaits sat in front of every route's
+`loading.tsx`, so a Neon scale-to-zero cold start left the browser with nothing
+to paint (Android PWA splash stuck) for the whole wake-up. See
+[`announcement-banner.md`](announcement-banner.md) §1.1/§1.3.
+
 The row/card skeletons are extracted into small **shared components** so the
 route fallback and the in-page swap stay in sync: `dashboard/calendarSkeleton.tsx`
 (all five view grids — `MonthGridSkeleton`, `WeekMatrixSkeleton` (Week (D)
