@@ -6334,3 +6334,15 @@ guard), no per-frame work, no new scroll listeners.
 Docs: `docs/dashboard-views.md` §1.6 (re-anchoring bullet + diagram node).
 Verification: `pnpm lint` + `pnpm typecheck` + `pnpm test` (811) + `pnpm build`
 pass.
+
+### 1.150 follow-up — zoom latency fix
+
+Zooming the Day/Week (H) grids was delayed by the re-anchor + ruler layout
+effects: each `measuredWidth` probe appended/removed a `<span>` to the grid root
+and read `offsetWidth`, forcing repeated synchronous reflows of the large grid
+before paint. Consolidated into a single `useLayoutEffect` that caches the
+realized geometry (slot width at zoom 1 + label-column width, keyed by
+view/breakpoint/group-presence) and probes only on a real geometry change — a
+zoom derives both the new slot width and the re-anchor from pure arithmetic
+(`baseSlotPx * ratio`), leaving the zoom path as one `scrollLeft` write. The
+`measuredWidth` helper remains only for the mount/breakpoint probe.

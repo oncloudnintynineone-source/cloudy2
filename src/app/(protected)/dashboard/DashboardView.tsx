@@ -604,8 +604,9 @@ export function DashboardView({
   // latest tap always wins, and the cookie (hence the next server seed) has
   // already converged to it.
   const [zoom, setZoom] = useState<SlotZoom>(initialZoom);
-  // Tracks the previous zoom so the re-anchor effect (below) can only act on a
-  // genuine zoom change — never on mount, view switches or breakpoint flips.
+  // Tracks the previous zoom so the consolidated geometry effect (below) only
+  // re-anchors the scroll on a genuine zoom change — never on mount, view
+  // switches or breakpoint flips.
   const prevZoomRef = useRef(zoom);
 
   // Label-column widths for the schedule views: mobile-narrowed 48px/24px for
@@ -843,6 +844,17 @@ export function DashboardView({
   const weekDayWidthRef = useRef(WEEK_DAY_WIDTH_PX);
   const weekBoxRef = useRef<HTMLDivElement | null>(null);
   const [weekDayIndex, setWeekDayIndex] = useState(0);
+  // Cached realized geometry for the schedule grids: the hour-slot width in px
+  // at zoom 1 and the sticky label-column width in px. Probed once per geometry
+  // change (mount / view switch / breakpoint / group presence) — never on a
+  // zoom, where the slot width derives from the zoom ratio instead (re-probing
+  // on zoom forced several synchronous reflows of the grid and delayed the
+  // visible zoom — see the consolidated measurement effect below).
+  const scheduleGeometryRef = useRef<{
+    key: string;
+    baseSlotPx: number;
+    labelPx: number;
+  } | null>(null);
   // Inner tracks of the pinned rulers follow horizontal scroll via direct DOM
   // transforms (see TimeRulerStrip); their cell width rides the --ruler-slot
   // var set on the content box by the measurement effect below. Viewport refs
@@ -1580,104 +1592,90 @@ export function DashboardView({
       ? headerDate === today
       : shownMonth === todayMonth;
 
-  // Re-anchor the schedule grid's horizontal scroll on a timeline zoom so the
-  // time at the viewport's center stays centered (the browser would otherwise
-  // keep `scrollLeft` in px and the visible time shifts). Runs before the ruler
-  // measurement effect below so it reads the corrected `scrollLeft`. The old
-  // slot width is derived from the new width × ratio (`prevZoom`/`zoom`) rather
-  // than captured at tap time, so the effect owns the whole DOM measurement.
+  // Measure the schedule grids' realized geometry and keep the pinned rulers
+  // and scroll position in sync, pre-paint. Mantine sizes each hour slot in
+  // `rem` (`--resources-*-view-slot-width`), so a hardcoded px guess would
+  // drift with a non-default root font size or `--mantine-scale`; probe the
+  // CSS variable once when the geometry actually changes (mount, view switch,
+  // breakpoint flip, group presence) and cache it. A timeline zoom scales the
+  // slot width by exactly the zoom ratio, so its new width is derived from the
+  // cached base width — never re-probed — and the grid's horizontal scroll is
+  // re-anchored so the time at the viewport's center stays centered. Probing on
+  // every zoom (as before) appended/removed a probe element and forced several
+  // synchronous reflows of the large grid before paint, delaying the visible
+  // zoom; the cached geometry keeps the zoom path pure arithmetic + one write.
   useLayoutEffect(() => {
-    if (prevZoomRef.current === zoom) {
-      return;
-    }
+    const zoomChanged = prevZoomRef.current !== zoom;
     const oldZoom = prevZoomRef.current;
     prevZoomRef.current = zoom;
+
     const isWeekGrid = view === "week";
     const isDayGrid = isSchedule;
     if ((!isWeekGrid && !isDayGrid) || gridLoading) {
       return;
     }
-    const viewport = isWeekGrid ? weekViewportRef.current : dayViewportRef.current;
     const box = weekBoxRef.current;
-    if (!viewport || !box) {
+    const viewport = isWeekGrid ? weekViewportRef.current : dayViewportRef.current;
+    if (!box || !viewport) {
       return;
     }
-    const slotVar = isWeekGrid
-      ? "--resources-week-view-slot-width"
-      : "--resources-day-view-slot-width";
-    const root = Array.from(box.children).find(
-      (child) => getComputedStyle(child).getPropertyValue(slotVar).trim() !== "",
-    );
-    if (!root) {
-      return;
-    }
-    const newSlot = measuredWidth(root, `var(${slotVar})`);
-    if (newSlot <= 0) {
-      return;
-    }
-    const prefix = isWeekGrid ? "week" : "day";
-    const labelResource = measuredWidth(
-      root,
-      `var(--resources-${prefix}-view-resource-label-width)`,
-    );
-    const labelGroup =
-      scheduleResources.groups !== undefined
+
+    const hasGroups = scheduleResources.groups !== undefined;
+    const geometryKey = `${isWeekGrid ? "week" : "day"}:${isDesktop}:${hasGroups}`;
+    let geometry = scheduleGeometryRef.current;
+    if (!geometry || geometry.key !== geometryKey) {
+      const slotVar = isWeekGrid
+        ? "--resources-week-view-slot-width"
+        : "--resources-day-view-slot-width";
+      const root = Array.from(box.children).find(
+        (child) => getComputedStyle(child).getPropertyValue(slotVar).trim() !== "",
+      );
+      if (!root) {
+        return;
+      }
+      const slotPx = measuredWidth(root, `var(${slotVar})`);
+      if (slotPx <= 0) {
+        return;
+      }
+      const prefix = isWeekGrid ? "week" : "day";
+      const labelResource = measuredWidth(
+        root,
+        `var(--resources-${prefix}-view-resource-label-width)`,
+      );
+      const labelGroup = hasGroups
         ? measuredWidth(root, `var(--resources-${prefix}-view-group-label-width)`)
         : 0;
-    const oldSlot = newSlot * (oldZoom / zoom);
-    viewport.scrollLeft = reanchorScrollLeft(
-      viewport.scrollLeft,
-      viewport.clientWidth,
-      labelResource + labelGroup,
-      oldSlot,
-      newSlot,
-    );
-  }, [zoom, view, isSchedule, gridLoading, scheduleResources]);
+      geometry = {
+        key: geometryKey,
+        baseSlotPx: slotPx / zoom,
+        labelPx: labelResource + labelGroup,
+      };
+      scheduleGeometryRef.current = geometry;
+    }
 
-  // Measure the schedule views' actual hourly slot width and sync the pinned
-  // rulers with it. Mantine sizes each hour slot in `rem`
-  // (`--resources-*-view-slot-width`), so with a non-default root font size or
-  // --mantine-scale a hardcoded px guess would drift. Probe the CSS variable
-  // on the active view's root (found among the Box's children by the variable
-  // it declares); the Week (H) day index stores 24 slots' worth. The measured slot
-  // is published to the rulers as `--ruler-slot` on the content box — direct
-  // DOM writes, pre-paint (no state). Runs only when the Day/Week (H) grid is
-  // actually rendered (not the skeleton or the empty "No users" paper), and
-  // re-runs when the breakpoint flips (the Week (H) slot width widens at lg)
-  // or the timeline zoom changes (the slot width is re-derived below).
-  useLayoutEffect(() => {
-    const isWeekGrid = view === "week";
-    const isDayGrid = isSchedule;
-    if ((!isWeekGrid && !isDayGrid) || gridLoading) {
-      return;
+    const slot = geometry.baseSlotPx * zoom;
+    weekDayWidthRef.current = slot * 24;
+    box.style.setProperty("--ruler-slot", `${slot}px`);
+
+    if (zoomChanged) {
+      viewport.scrollLeft = reanchorScrollLeft(
+        viewport.scrollLeft,
+        viewport.clientWidth,
+        geometry.labelPx,
+        geometry.baseSlotPx * oldZoom,
+        slot,
+      );
     }
-    const box = weekBoxRef.current;
-    if (!box) {
-      return;
-    }
-    const varName = isWeekGrid
-      ? "--resources-week-view-slot-width"
-      : "--resources-day-view-slot-width";
-    const root = Array.from(box.children).find(
-      (child) => getComputedStyle(child).getPropertyValue(varName).trim() !== "",
-    );
-    if (!root) {
-      return;
-    }
-    const slot = measuredWidth(root, `var(${varName})`);
-    if (slot > 0) {
-      weekDayWidthRef.current = slot * 24;
-      box.style.setProperty("--ruler-slot", `${slot}px`);
-    }
+
     // The library's start-scroll effects (startScrollTime /
-    // startScrollDateTime) repositioned the grid before paint without a
-    // scroll event; align the ruler tracks with the real scroll offset.
-    const viewport = isWeekGrid ? weekViewportRef.current : dayViewportRef.current;
+    // startScrollDateTime) reposition the grid on mount/zoom without a scroll
+    // event; align the ruler track with the real scroll offset (this also
+    // picks up the re-anchored value above, since it runs after the write).
     const ruler = isWeekGrid ? weekRulerRef.current : dayRulerRef.current;
-    if (viewport && ruler) {
+    if (ruler) {
       ruler.style.transform = `translateX(${-viewport.scrollLeft}px)`;
     }
-  }, [view, gridLoading, isSchedule, isDesktop, zoom]);
+  }, [view, gridLoading, isSchedule, isDesktop, zoom, scheduleResources]);
 
   // Shared by the Day, Week (H) and Week (D) resource views: a department row
   // is a building icon (its name as tooltip/aria), a user row is the shortname
