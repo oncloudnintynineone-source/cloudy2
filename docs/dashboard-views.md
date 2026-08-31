@@ -168,12 +168,15 @@ slot granularity (still 60-minute columns) or the row height.
   [`desktop-responsive.md`](desktop-responsive.md)).
 - **Rulers follow**: the pinned hour ruler and the Week (H) day-label strip follow the
   slot width through a `useLayoutEffect` that probes the var from the DOM and publishes
-  it as `--ruler-slot`. The ruler track (one cell per hour slot) and the day-label
-  track (one `ddd D` cell per day, 24 slots wide) both translate by `-scrollLeft` via a
-  direct DOM transform, so the labels stay over their columns while the grid pans —
-  the day track scrolls with the content instead of swapping a single label on a day
-  boundary. `zoom` is in that effect's dependency list, so both strips re-measure on
-  every zoom change.
+  it as `--ruler-slot`. Both are a **viewport-width wrapper**, translated by `-scrollLeft`
+  via a direct DOM transform on the scroll frame — no re-renders — with only the cells
+  that can intersect the viewport rendered (absolutely positioned, clipped). The day
+  window follows the leftmost visible day; the ruler window advances in 8-slot batches.
+  Rendering just the visible window (instead of a full 168-slot / 7-day track) keeps the
+  composited layer small, so the labels track the pan smoothly instead of re-rastering
+  tiles on the fly. A window update re-renders only the small strip (each registers a
+  one-shot advance callback), never the whole dashboard. `zoom` is in that effect's
+  dependency list, so both strips re-measure on every zoom change.
 - **Persistence**: the level is remembered per device in the `cloudy2.ui` cookie as
   `dashboard.zoom` — not URL-backed (zooming never navigates), so it is read from the
   raw cookie and seeded into the client state before first paint (no width jump on

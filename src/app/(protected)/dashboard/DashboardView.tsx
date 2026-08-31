@@ -255,15 +255,20 @@ const DAY_SWIPE_THRESHOLD = 48;
  * Day-label strip for the Week (H) view. `ResourcesWeekView`'s own day labels are
  * centered in each full-width day column, so on a phone they are only visible
  * when the viewport happens to sit over the middle of a day. This strip
- * replaces that row and pins all 7 date labels beneath the shared chrome; its
- * inner track translates by -scrollLeft via a direct DOM transform (no
- * re-renders), so the labels stay over their day columns while the grid pans
- * horizontally — mirroring the TimeRulerStrip below — instead of a single label
- * being swapped on a day boundary (which leaves only one of two side-by-side
- * dates visible). The strip itself is sticky under the shared tabs+date-nav
- * chrome at every breakpoint, mirroring
+ * replaces that row and pins the date labels beneath the shared chrome; its
+ * inner wrapper translates by -scrollLeft via a direct DOM transform, so every
+ * label stays over its day column while the grid pans horizontally — instead of
+ * a single label being swapped on a day boundary (which left only one of two
+ * side-by-side dates visible). The cells thinly re-render only when the label
+ * window advances (see `WEEK_DAY_WINDOW`), never per frame. The strip itself is
+ * sticky under the shared tabs+date-nav chrome at every breakpoint, mirroring
  * the Week (D) day header.
  */
+// Day cells are 24 slots wide, so a narrow viewport can intersect at most two
+// day columns; a small fixed window around the leftmost visible day (base) is
+// enough to always show the labels of the columns on screen while they pan.
+const WEEK_DAY_WINDOW = 4;
+
 function WeekDayLabelStrip({
   days,
   hasGroups,
@@ -271,6 +276,7 @@ function WeekDayLabelStrip({
   groupLabelWidth,
   chromeOffset,
   innerRef,
+  windowChangeRef,
 }: {
   days: string[];
   hasGroups: boolean;
@@ -280,14 +286,31 @@ function WeekDayLabelStrip({
   chromeOffset: number;
   /** The inner day track; synced to the grid's scroll via a direct transform. */
   innerRef: RefObject<HTMLDivElement | null>;
+  /** Registers this strip's window-advance callback (called on scroll/zoom). */
+  windowChangeRef: RefObject<((x: number, slot: number) => void) | null>;
 }) {
+  // The leftmost visible day index (0-6); the rendered window follows it. Owned
+  // here so a scroll frame's window update re-renders only this small strip,
+  // never the whole dashboard.
+  const [base, setBase] = useState(0);
+  useLayoutEffect(() => {
+    windowChangeRef.current = (x, slot) => {
+      const next = Math.min(days.length - 1, Math.max(0, Math.floor(x / (slot * SLOTS_PER_DAY))));
+      setBase((prev) => (prev === next ? prev : next));
+    };
+    return () => {
+      windowChangeRef.current = null;
+    };
+  }, [windowChangeRef, days.length]);
   // The width of the sticky corner/label columns the grid scrolls beneath,
   // matching the ResourcesWeekView sizing overrides on the view itself.
-  // +1px accounts for the grid root's left border so the day track aligns
-  // with the grid's first day column.
+  // +1px accounts for the grid root's left border so the day cells align
+  // with the grid's day columns.
   const leftWidth = hasGroups
     ? `calc(${groupLabelWidth} + ${resourceLabelWidth} + 1px)`
     : `calc(${resourceLabelWidth} + 1px)`;
+  const start = Math.max(0, base - 1);
+  const end = Math.min(days.length - 1, start + WEEK_DAY_WINDOW - 1);
   return (
     <Box
       component="div"
@@ -311,20 +334,26 @@ function WeekDayLabelStrip({
           borderRight: "1px solid var(--mantine-color-default-border)",
         }}
       />
-      <Box component="div" style={{ flex: 1, minWidth: 0, overflow: "hidden" }}>
-        {/* One cell per day — the track is exactly as wide as the grid's 7-day
-            content (each day = 24 slots), so translating it by -scrollLeft
-            keeps every label over its day column during a horizontal pan. */}
+      <Box component="div" style={{ flex: 1, minWidth: 0, overflow: "hidden", position: "relative" }}>
+        {/* Viewport-width wrapper, translated by -scrollLeft each frame; only
+            the intersecting day cells are rendered (absolute, clipped), so the
+            composited layer stays small and panning stays smooth. */}
         <Box
           ref={innerRef}
           component="div"
           style={{
-            display: "flex",
-            width: `calc(var(--ruler-slot, 60px) * ${SLOTS_PER_DAY * days.length})`,
+            position: "absolute",
+            top: 0,
+            bottom: 0,
+            left: 0,
+            right: 0,
+            overflow: "hidden",
             willChange: "transform",
           }}
         >
-          {days.map((day) => {
+          {Array.from({ length: end - start + 1 }, (_, offset) => {
+            const index = start + offset;
+            const day = days[index];
             const dayObj = dayjs(day);
             const isToday = dayObj.isSame(dayjs(), "day");
             const isWeekend = dayObj.day() === 0 || dayObj.day() === 6;
@@ -333,8 +362,11 @@ function WeekDayLabelStrip({
                 key={day}
                 component="div"
                 style={{
+                  position: "absolute",
+                  top: 0,
+                  bottom: 0,
+                  left: `calc(var(--ruler-slot, 60px) * ${SLOTS_PER_DAY * index})`,
                   width: `calc(var(--ruler-slot, 60px) * ${SLOTS_PER_DAY})`,
-                  flexShrink: 0,
                   borderLeft: "1px solid var(--mantine-color-default-border)",
                   display: "flex",
                   alignItems: "center",
@@ -373,15 +405,31 @@ function WeekDayLabelStrip({
 /** Hourly slots per day in the schedule views (00:00–23:59 @ 60min). */
 const SLOTS_PER_DAY = 24;
 
+// The pinned ruler + day-label strips follow the grid's pan via a transform
+// on a viewport-width wrapper. Only the cells that can be visible are rendered
+// (absolutely positioned, clipped by the wrapper): painting a full-height week
+// of label/track cells (168 × 60px = 10080px+) into a `will-change: transform`
+// layer means the browser must re-raster tiles on the fly while panning, which
+// is the lag the strips showed. The rendered window keys off a coarse batch —
+// re-rendering on every day/hour boundary crossing like the old index math —
+// with enough cells past the batch to always cover the widest viewport.
+/** Slots per batch; the rendered window advances (and re-renders) once per batch. */
+const RULER_BATCH_SLOTS = 8;
+/** Cells rendered per batch — must cover 2 batches + the widest viewport. */
+const RULER_RENDER_SLOTS = 48;
+
 /**
  * Pinned hour ruler for the Day and Week (H) schedule views. The library's own
  * time-labels row is sticky only inside its ScrollArea viewport, which never
  * scrolls vertically (the page does), so during page scroll the axis scrolls
  * away with the grid. This strip replaces that row: it pins beneath the shared
  * chrome (like the Week (H) day-label strip) and its inner hour track translates
- * by -scrollLeft via a direct DOM transform — no re-renders — so labels stay
- * over their columns while the grid pans horizontally, mirroring the Week (D)
- * day-header mechanics.
+ * by -scrollLeft via a direct DOM transform — no per-frame re-renders — so
+ * labels stay over their columns while the grid pans horizontally, mirroring
+ * the Week (D) day-header mechanics. Only the slot cells that can intersect the
+ * viewport are rendered (a window that advances one batch at a time), since a
+ * full-height week (168 slots) painted into a `will-change` layer re-rasters on
+ * the fly and lags the pan.
  */
 function TimeRulerStrip({
   hasGroups,
@@ -393,6 +441,7 @@ function TimeRulerStrip({
   innerRef,
   /** Number of days the ruler spans (1 for Day view, 7 for Week (H) view). */
   days = 1,
+  windowChangeRef,
 }: {
   hasGroups: boolean;
   resourceLabelWidth: string;
@@ -401,7 +450,22 @@ function TimeRulerStrip({
   stackBelowHeight?: string;
   innerRef: RefObject<HTMLDivElement | null>;
   days?: number;
+  /** Registers this strip's window-advance callback (called on scroll/zoom). */
+  windowChangeRef: RefObject<((x: number, slot: number) => void) | null>;
 }) {
+  // The coarse scroll batch (in slots) that picks the rendered cell window.
+  // Owned here so a scroll frame's window update re-renders only this small
+  // strip, never the whole dashboard.
+  const [batch, setBatch] = useState(0);
+  useLayoutEffect(() => {
+    windowChangeRef.current = (x, slot) => {
+      const next = Math.max(0, Math.floor(x / (slot * RULER_BATCH_SLOTS)));
+      setBatch((prev) => (prev === next ? prev : next));
+    };
+    return () => {
+      windowChangeRef.current = null;
+    };
+  }, [windowChangeRef]);
   // The width of the sticky corner/label columns the grid scrolls beneath,
   // matching the ResourcesWeekView/ResourcesDayView sizing overrides.
   // +1px accounts for the grid root's left border so the ruler aligns with
@@ -410,6 +474,8 @@ function TimeRulerStrip({
     ? `calc(${groupLabelWidth} + ${resourceLabelWidth} + 1px)`
     : `calc(${resourceLabelWidth} + 1px)`;
   const totalSlots = SLOTS_PER_DAY * days;
+  const first = Math.max(0, Math.min(totalSlots - 1, (batch - 1) * RULER_BATCH_SLOTS));
+  const last = Math.min(totalSlots - 1, first + RULER_RENDER_SLOTS - 1);
   return (
     <Box
       component="div"
@@ -436,36 +502,53 @@ function TimeRulerStrip({
           borderRight: "1px solid var(--mantine-color-default-border)",
         }}
       />
-      <Box component="div" aria-hidden style={{ flex: 1, minWidth: 0, overflow: "hidden" }}>
+      <Box
+        component="div"
+        aria-hidden
+        style={{ flex: 1, minWidth: 0, overflow: "hidden", position: "relative" }}
+      >
+        {/* Viewport-width wrapper, translated by -scrollLeft each frame; only
+            the intersecting slot cells are rendered (absolute, clipped), so the
+            composited layer stays small and the ruler tracks the pan smoothly. */}
         <Box
           ref={innerRef}
           component="div"
           style={{
-            display: "flex",
-            width: `calc(var(--ruler-slot, 60px) * ${totalSlots})`,
+            position: "absolute",
+            top: 0,
+            bottom: 0,
+            left: 0,
+            right: 0,
+            overflow: "hidden",
             willChange: "transform",
           }}
         >
-          {Array.from({ length: totalSlots }, (_, slot) => (
-            <Box
-              key={slot}
-              component="div"
-              style={{
-                width: "var(--ruler-slot, 60px)",
-                flexShrink: 0,
-                borderLeft: "1px solid var(--mantine-color-default-border)",
-                padding: "2px 0 2px 4px",
-              }}
-            >
-              <Text
-                size="xs"
-                c="dimmed"
-                style={{ lineHeight: 1.2, userSelect: "none", whiteSpace: "nowrap" }}
+          {Array.from({ length: last - first + 1 }, (_, offset) => {
+            const slot = first + offset;
+            return (
+              <Box
+                key={slot}
+                component="div"
+                style={{
+                  position: "absolute",
+                  top: 0,
+                  bottom: 0,
+                  left: `calc(var(--ruler-slot, 60px) * ${slot})`,
+                  width: "var(--ruler-slot, 60px)",
+                  borderLeft: "1px solid var(--mantine-color-default-border)",
+                  padding: "2px 0 2px 4px",
+                }}
               >
-                {String(slot % SLOTS_PER_DAY).padStart(2, "0")}
-              </Text>
-            </Box>
-          ))}
+                <Text
+                  size="xs"
+                  c="dimmed"
+                  style={{ lineHeight: 1.2, userSelect: "none", whiteSpace: "nowrap" }}
+                >
+                  {String(slot % SLOTS_PER_DAY).padStart(2, "0")}
+                </Text>
+              </Box>
+            );
+          })}
         </Box>
       </Box>
     </Box>
@@ -863,10 +946,18 @@ export function DashboardView({
     }
   }, [shownView]);
 
-  // Week (H) view: the pinned day-label strip's inner track follows the grid's
-  // horizontal scroll via a direct DOM transform, same as the hour ruler. The
-  // track's cells are 24 slots wide (see WeekDayLabelStrip), so no JS index math
-  // or re-renders are needed to stay aligned with the day columns.
+  // Schedule strips (Week (H) day labels + the Day/Week hour rulers) follow
+  // the grid's horizontal scroll via a direct DOM transform on a small
+  // viewport-width wrapper; cells are only rendered for an advance-by-window
+  // (WeekDayLabelStrip / TimeRulerStrip) — never a full-height week of cells,
+  // which re-rasters while panning and lags. The strips own their window state;
+  // the scroll/geometry handlers push position + slot px through these registered
+  // callbacks (refs, so a scroll frame triggers no DashboardView render — only
+  // the small strip re-renders when its window advances a batch).
+  const rulerSlotPxRef = useRef(60);
+  const advanceWeekLabelRef = useRef<((x: number, slot: number) => void) | null>(null);
+  const advanceWeekRulerRef = useRef<((x: number, slot: number) => void) | null>(null);
+  const advanceDayRulerRef = useRef<((x: number, slot: number) => void) | null>(null);
   const weekBoxRef = useRef<HTMLDivElement | null>(null);
   // Cached realized geometry for the schedule grids: the hour-slot width in px
   // at zoom 1 and the sticky label-column width in px. Probed once per geometry
@@ -896,11 +987,15 @@ export function DashboardView({
     if (weekRulerRef.current) {
       weekRulerRef.current.style.transform = `translateX(${-pos.x}px)`;
     }
+    const slot = rulerSlotPxRef.current;
+    advanceWeekLabelRef.current?.(pos.x, slot);
+    advanceWeekRulerRef.current?.(pos.x, slot);
   }, []);
   const handleDayScroll = useCallback((pos: { x: number }) => {
     if (dayRulerRef.current) {
       dayRulerRef.current.style.transform = `translateX(${-pos.x}px)`;
     }
+    advanceDayRulerRef.current?.(pos.x, rulerSlotPxRef.current);
   }, []);
   // Drag-to-pan + edge pan buttons for the schedule grids (see useGridPan):
   // Mantine hides the native scrollbar and its 4px bar sits at the bottom of
@@ -1681,6 +1776,7 @@ export function DashboardView({
 
     const slot = geometry.baseSlotPx * zoom;
     box.style.setProperty("--ruler-slot", `${slot}px`);
+    rulerSlotPxRef.current = slot;
 
     if (zoomChanged) {
       viewport.scrollLeft = reanchorScrollLeft(
@@ -1696,13 +1792,20 @@ export function DashboardView({
     // startScrollDateTime) reposition the grid on mount/zoom without a scroll
     // event; align the ruler track and the week day-label track with the real
     // scroll offset (this also picks up the re-anchored value above, since it
-    // runs after the write).
+    // runs after the write) and advance their rendered-cell windows to the new
+    // position (a zoom changes the slot width, so the day/batch indices shift).
     const ruler = isWeekGrid ? weekRulerRef.current : dayRulerRef.current;
     if (ruler) {
       ruler.style.transform = `translateX(${-viewport.scrollLeft}px)`;
     }
     if (isWeekGrid && weekDayLabelRef.current) {
       weekDayLabelRef.current.style.transform = `translateX(${-viewport.scrollLeft}px)`;
+    }
+    if (isWeekGrid) {
+      advanceWeekLabelRef.current?.(viewport.scrollLeft, slot);
+      advanceWeekRulerRef.current?.(viewport.scrollLeft, slot);
+    } else {
+      advanceDayRulerRef.current?.(viewport.scrollLeft, slot);
     }
   }, [view, gridLoading, isSchedule, isDesktop, zoom, scheduleResources]);
 
@@ -2113,6 +2216,7 @@ export function DashboardView({
             groupLabelWidth={scheduleLabelWidths.group}
             chromeOffset={chromeHeight}
             innerRef={weekDayLabelRef}
+            windowChangeRef={advanceWeekLabelRef}
           />
         )}
         {/* Pinned hour rulers for the schedule views. Only rendered with the
@@ -2127,6 +2231,7 @@ export function DashboardView({
             stackBelowHeight="calc(var(--mantine-scale) * 2rem)"
             innerRef={weekRulerRef}
             days={7}
+            windowChangeRef={advanceWeekRulerRef}
           />
         )}
         {!gridLoading && view === "schedule" && scheduleResources.resources.length > 0 && (
@@ -2136,6 +2241,7 @@ export function DashboardView({
             groupLabelWidth={scheduleLabelWidths.group}
             chromeOffset={chromeHeight}
             innerRef={dayRulerRef}
+            windowChangeRef={advanceDayRulerRef}
           />
         )}
         {/* Pinned weekday-initials strip for the Month view (replaces Mantine's
