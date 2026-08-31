@@ -29,7 +29,16 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: "#111111",
+  // Android Chrome (standalone PWA) tints the status/navigation bars from the
+  // theme color — the per-page meta tag overrides the manifest's single
+  // `theme_color`. Scheme-aware variants keep the bars matching the bottom
+  // nav (`var(--mantine-color-body)`: white in light, Mantine dark-7 in dark;
+  // the app uses `defaultColorScheme="auto"`, so prefers-color-scheme stays
+  // in sync with Mantine's scheme).
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#ffffff" },
+    { media: "(prefers-color-scheme: dark)", color: "#1a1b1e" },
+  ],
   // Makes env(safe-area-inset-*) report real values on notched devices so
   // the header/bottom-nav/FAB clearance vars actually engage in the
   // standalone PWA (they evaluate to 0 without it).
