@@ -9,6 +9,8 @@ import {
   isCacheableRscRequest,
   isPageCacheName,
   isSessionExpiredResponse,
+  isStartUrlRequest,
+  launchDecision,
   newestSavedView,
   rscCacheName,
   shouldStoreDocumentResponse,
@@ -109,15 +111,14 @@ async function stampCachedResponse(cachedResponse: Response): Promise<Response> 
   }
 }
 
-// The URL of the most recently saved document in this build's document cache.
-// Used as the offline fallback target: when a navigation has no cache hit for
-// its exact URL and the network is down, we redirect to the newest saved view's
-// own URL (a guaranteed cache hit) instead of body-swapping a different view
-// under the requested URL. Body-swapping left the browser URL disagreeing with
-// the served page — the client then hydrated with mismatched view state, so
-// the rendered view didn't match what was asked for. A redirect keeps URL and
-// content in lockstep.
-async function lastSavedDocumentUrl(): Promise<string | null> {
+// The most recently saved document in this build's document cache, or null.
+// Shared by the offline fallback and the cold-launch route (which needs the
+// saved-at time to decide between instant cached content and the loading
+// skeleton). Redirecting (rather than body-swapping a different view under the
+// requested URL) keeps the browser URL agreeing with the served page, so the
+// served page hydrates cleanly — it already carries the amber OfflineBanner
+// and the "Saved · HH:MM" stamp (window.__C2_STAMP__).
+async function lastSavedViewEntry(): Promise<SavedViewEntry | null> {
   const cache = await caches.open(APP_DOCUMENT_CACHE);
   const entries: SavedViewEntry[] = [];
   for (const key of await cache.keys()) {
@@ -127,7 +128,11 @@ async function lastSavedDocumentUrl(): Promise<string | null> {
     const parsed = dateHeader ? Date.parse(dateHeader) : NaN;
     entries.push({ url: key.url, savedAtMs: Number.isNaN(parsed) ? null : parsed });
   }
-  return newestSavedView(entries)?.url ?? null;
+  return newestSavedView(entries);
+}
+
+async function lastSavedDocumentUrl(): Promise<string | null> {
+  return (await lastSavedViewEntry())?.url ?? null;
 }
 
 // The absolute-last-resort offline page: a self-contained branded copy of
@@ -173,6 +178,40 @@ p+p{margin-top:10px}
 </body>
 </html>`;
 
+// Offline navigation fallback. When a navigation has neither a cache hit for
+// its exact URL nor a working network, redirect to the most recently saved
+// view's own URL whenever one exists — for a query-less request (icon tap on
+// the start URL, bare F5) it is the obvious intent, and for a deep link with a
+// query (?view=…&date=…) that was never visited it is still far more useful
+// than a dead end. Redirecting (rather than serving the saved body under the
+// requested URL) keeps the browser URL agreeing with the rendered view, so the
+// served page hydrates cleanly. Exact-visit deep links resolve from the SWR
+// cache before this, and /login is never routed here
+// (isCacheableDocumentRequest excludes it). With nothing usable → the branded
+// explainer.
+async function serveOfflineDocument(request: Request): Promise<Response | undefined> {
+  if (request.method === "GET" && request.mode === "navigate") {
+    const lastSavedUrl = await lastSavedDocumentUrl().catch(() => null);
+    if (lastSavedUrl) return Response.redirect(lastSavedUrl, 302);
+  }
+  // `offline.html` is precached, but Serwist stores precache entries under a
+  // revisioned cache key (…?__WB_REVISION__=<hash>), so a bare
+  // `caches.match("/offline.html")` on the plain URL always misses. Resolve the
+  // precache key through the serwist instance instead.
+  try {
+    const fallback = await serwist.matchPrecache("/offline.html");
+    if (fallback) return fallback;
+    // Absolute last resort: a self-contained branded copy of offline.html,
+    // never a bare error string.
+    return new Response(OFFLINE_FALLBACK_HTML, {
+      status: 200,
+      headers: { "content-type": "text/html; charset=utf-8" },
+    });
+  } catch {
+    return undefined;
+  }
+}
+
 // Plugin that enforces document cacheability, handles session-expiry purging,
 // and stamps cached responses so the page can show "Saved · HH:MM".
 const documentPlugin = {
@@ -202,39 +241,7 @@ const documentPlugin = {
     return stampCachedResponse(cachedResponse);
   },
   handlerDidError: async ({ request }: { request: Request }): Promise<Response | undefined> => {
-    // Offline and no cached document for this exact URL. Redirect to the most
-    // recently saved view's own URL whenever one exists — for a query-less
-    // request (icon tap on the start URL, bare F5) it is the obvious intent,
-    // and for a deep link with a query (?view=…&date=…) that was never visited
-    // it is still far more useful than a dead end. Redirecting (rather than
-    // serving the saved body under the requested URL) keeps the browser URL
-    // agreeing with the rendered view, so the served page hydrates cleanly —
-    // it already carries the amber OfflineBanner and the "Saved · HH:MM" stamp
-    // (window.__C2_STAMP__), so the "this is an offline copy" context is
-    // on-page without a picker landing page. Exact-visit deep links resolve
-    // from the SWR cache before this, and /login is never routed here
-    // (isCacheableDocumentRequest excludes it).
-    if (request.method === "GET" && request.mode === "navigate") {
-      const lastSavedUrl = await lastSavedDocumentUrl().catch(() => null);
-      if (lastSavedUrl) return Response.redirect(lastSavedUrl, 302);
-    }
-    // Offline and nothing usable → branded explainer. `offline.html` is
-    // precached, but Serwist stores precache entries under a revisioned cache
-    // key (…?__WB_REVISION__=<hash>), so a bare `caches.match("/offline.html")`
-    // on the plain URL always misses. Resolve the precache key through the
-    // serwist instance instead.
-    try {
-      const fallback = await serwist.matchPrecache("/offline.html");
-      if (fallback) return fallback;
-      // Absolute last resort: a self-contained branded copy of offline.html,
-      // never a bare error string.
-      return new Response(OFFLINE_FALLBACK_HTML, {
-        status: 200,
-        headers: { "content-type": "text/html; charset=utf-8" },
-      });
-    } catch {
-      return undefined;
-    }
+    return serveOfflineDocument(request);
   },
   fetchDidSucceed: async ({
     request,
@@ -300,6 +307,72 @@ function isRscRequest(options: { request: Request; url: URL; sameOrigin: boolean
   return isCacheableRscRequest(options.url, self.location.origin, options.request.headers);
 }
 
+// --- Cold-launch path (start URL `/`) ---
+//
+// The start URL is never cached (it 307-redirects server-side), so every icon
+// tap used to force a serverless round trip before any paint — a cold function
+// boot after ~5 min idle is the long Android splash. The SW now handles `/`
+// itself (launchDecision in swRules):
+// - no saved view → the normal network path (first install / post-deploy wipe);
+// - recent saved view → 302 to it (SWR cache hit, no splash, no server call);
+// - stale saved view → the precached branded loading skeleton, whose page
+//   fetches the real start URL in the background (warming the function + Neon)
+//   and replaces with the resolved page. Offline, it falls back to the saved
+//   view after a few retries.
+
+// Serve the precached loading.html skeleton with the offline fallback URL
+// injected, so the page can redirect to the last-saved view when the network
+// fetch fails (offline launch).
+async function serveLaunchSkeleton(fallbackUrl: string): Promise<Response | null> {
+  try {
+    const fallback = await serwist.matchPrecache("/loading.html");
+    if (!fallback) return null;
+    const text = await fallback.clone().text();
+    const injected = text.replace(
+      "</head>",
+      `<script>window.__C2_LAUNCH__={fallbackUrl:${JSON.stringify(fallbackUrl)}}</script></head>`,
+    );
+    const headers = new Headers(fallback.headers);
+    headers.delete("content-length");
+    return new Response(injected, { status: 200, statusText: fallback.statusText, headers });
+  } catch {
+    return null;
+  }
+}
+
+// Handle a navigation to the bare start URL. Runs before the document SWR
+// route (first-match-wins), so `/` never reaches StaleWhileRevalidate — it is
+// never cached anyway.
+async function handleLaunchRequest({ request }: { request: Request }): Promise<Response> {
+  const saved = await lastSavedViewEntry().catch(() => null);
+  const decision = launchDecision(saved, Date.now());
+  if (decision === "instant" && saved) {
+    // A render happened within the threshold, so the DB can't be cold — the
+    // saved view is instant and safe; the SWR route serves it from cache and
+    // revalidates in the background.
+    return Response.redirect(saved.url, 302);
+  }
+  if (decision === "skeleton" && saved) {
+    const skeleton = await serveLaunchSkeleton(saved.url).catch(() => null);
+    if (skeleton) return skeleton;
+  }
+  // No saved view, or the skeleton is unavailable → today's network path: the
+  // server `/` resolves the remembered last page and 307-redirects there. The
+  // follow-up navigation goes through the document SWR route as usual.
+  try {
+    return await fetch(request);
+  } catch {
+    return (await serveOfflineDocument(request)) ?? new Response(null, { status: 504 });
+  }
+}
+
+function isLaunchRequest(options: { request: Request; url: URL; sameOrigin: boolean }): boolean {
+  if (!options.sameOrigin) return false;
+  if (options.request.method !== "GET") return false;
+  if (options.request.mode !== "navigate") return false;
+  return isStartUrlRequest(options.url);
+}
+
 const serwist = new Serwist({
   precacheEntries: self.__SW_MANIFEST,
   skipWaiting: true,
@@ -352,6 +425,13 @@ const serwist = new Serwist({
           rscPlugin,
         ],
       }),
+    },
+    // Cold-launch path (start URL `/`): instant cached view when fresh, the
+    // branded loading skeleton when stale, network otherwise. Registered before
+    // the document SWR route (first-match-wins) — `/` is never cached anyway.
+    {
+      matcher: isLaunchRequest,
+      handler: handleLaunchRequest,
     },
     // Document navigations (PWA cold open, F5, share link) — the main
     // "instant open" lever. Served instantly from cache when available,

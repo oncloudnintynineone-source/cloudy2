@@ -141,6 +141,7 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
 - [1.144 Highlight my entries across dashboard views (Phase 3b8)](#1144-highlight-my-entries-across-dashboard-views-phase-3b8)
 - [1.145 Dark-mode my-entry tint fix](#1145-dark-mode-my-entry-tint-fix)
 - [1.151 Cold-open splash fix: streamed banner/KAH shell chrome (Neon scale-to-zero)](#1151-cold-open-splash-fix-streamed-bannerkah-shell-chrome-neon-scale-to-zero)
+- [1.152 Cold-launch path: SW short-circuits the start URL (skeleton vs instant)](#1152-cold-launch-path-sw-short-circuits-the-start-url-skeleton-vs-instant)
 
 ## 1.1 Status
 
@@ -6398,3 +6399,46 @@ Docs: `docs/announcement-banner.md` §1.1/§1.3 (streaming + reserve/collapse +
 diagram); `progress.md` one-liner.
 Verification: `pnpm lint` + `pnpm typecheck` + `pnpm test` (811) + `pnpm build`
 (65 precache entries) all pass.
+
+## 1.152 Cold-launch path: SW short-circuits the start URL (skeleton vs instant)
+
+The layout fix (1.151) removed the DB from the server's first-paint path, but a
+cold launch still showed a very long Android splash. Root cause: the PWA start
+URL `/` is never cached — it 307-redirects server-side — so every icon tap fired
+a serverless round trip, and after ~5 min idle the function instance (like the
+Neon DB) is cold: the browser got no bytes until the cold boot finished, so the
+native splash covered it all and no skeleton ever appeared.
+
+Fix: the SW now handles `/` itself via a dedicated launch route (registered
+before the document SWR route, first-match-wins), driven by the pure
+`launchDecision(saved, now)` in `src/lib/pwa/swRules.ts`:
+
+- **No saved view** (fresh install, post-deploy wipe, sign-out) → `fetch('/')`,
+  the normal network path (server redirects to the last page / `/dashboard`).
+- **Recent saved view** (< `LAUNCH_REFRESH_THRESHOLD_MS` = 5 min — a render this
+  recent means the DB cannot have idled) → `302` to the saved view's own URL;
+  the document SWR route serves it from cache (stamped, "Saved · HH:MM") and
+  revalidates in the background. No splash, no server call — and warm launches
+  lose the `/` round trip they used to pay.
+- **Stale saved view** (≥ 5 min, DB likely scaled to zero) → the precached
+  branded `public/loading.html` (added to `__SW_MANIFEST`; build count 65 → 66),
+  served instantly with `window.__C2_LAUNCH__.fallbackUrl` injected. Its script
+  `fetch`es the real start URL in the background (warming the function + Neon),
+  then `location.replace`s to the resolved fresh page; Chrome's paint-holding
+  keeps the skeleton visible until the new page's first paint (no white flash).
+  Offline, it retries (1s/2s/4s/8s) then redirects to the injected saved view —
+  the §1.9 offline fallback, reached through the skeleton.
+
+Other `sw.ts` changes: `lastSavedDocumentUrl()` refactored into
+`lastSavedViewEntry()` (returns the entry with `savedAtMs`) + a thin wrapper;
+the offline fallback extracted into `serveOfflineDocument()` shared by
+`handlerDidError` and the launch route.
+
+New pure helpers in `swRules.ts` (unit-tested, suite 34 → 42 cases):
+`LAUNCH_REFRESH_THRESHOLD_MS`, `launchDecision(saved, now)`,
+`isStartUrlRequest(url)`.
+
+Docs: `docs/pwa-offline.md` §1.4 route list + new §1.5.1 (with diagram) + §1.9
+offline-launch note + §1.12/§1.13/§1.15; `progress.md` one-liner.
+Verification: `pnpm lint` + `pnpm typecheck` + `pnpm test` (819) + `pnpm build`
+(66 precache entries) all pass.

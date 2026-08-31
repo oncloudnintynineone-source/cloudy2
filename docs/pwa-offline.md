@@ -9,6 +9,7 @@ The PWA opens with calendar events visible instantly — even cold or offline �
 - [1.3 Architecture overview](#13-architecture-overview)
 - [1.4 Service worker routes](#14-service-worker-routes)
 - [1.5 Document cache — instant cold open](#15-document-cache--instant-cold-open)
+  - [1.5.1 Cold-launch path (start URL)](#151-cold-launch-path-start-url)
 - [1.6 RSC cache — instant in-app navigation & offline views](#16-rsc-cache--instant-in-app-navigation--offline-views)
 - [1.7 Cache invalidation after mutations](#17-cache-invalidation-after-mutations)
 - [1.8 New build (deploy) takeover](#18-new-build-deploy-takeover)
@@ -74,8 +75,9 @@ flowchart TB
 1. **Static images** — `StaleWhileRevalidate`, `static-image-assets` (64 entries, 30 d).
 2. **Fonts/CSS** — `CacheFirst`, `static-style-assets` (32 entries, 7 d).
 3. **RSC cache** — see §1.6.
-4. **Document cache** — see §1.5.
-5. **Same-origin fallback** — `NetworkOnly` (auth, `/api/*`, non-GET, and anything unmatched — auth responses must never be cached).
+4. **Cold-launch path (start URL `/`)** — see §1.5.1.
+5. **Document cache** — see §1.5.
+6. **Same-origin fallback** — `NetworkOnly` (auth, `/api/*`, non-GET, and anything unmatched — auth responses must never be cached).
 
 Matcher predicates are pure and imported from `src/lib/pwa/swRules.ts` (see §1.13), so they are unit-tested.
 
@@ -88,6 +90,51 @@ Matcher predicates are pure and imported from `src/lib/pwa/swRules.ts` (see §1.
 - **Stamping:** `cachedResponseWillBeUsed` reads the cached `Date` header as `cachedAt`, runs `stampDocument(html, cachedAt)` — injects `<script>window.__C2_STAMP__={cachedAt}</script>` after `<head>` — so the page can show a "Saved · HH:MM" chip (see §1.11).
 - **Background revalidation:** `StaleWhileRevalidate` fetches the network in parallel and updates the cache; the served document is the stamped stale copy. The next open is warmer without any client `router.refresh()` on mount (avoids a skeleton flash — the cached HTML already contains the full grid).
 - **Session-expiry guard:** `cacheWillUpdate` + `fetchDidSucceed` call `isSessionExpiredResponse` (final URL is `/login`) → purge both caches + `postMessage({type:"cloudy2:session-expired"})` → client in `AppProviders` hard-redirects to `/login`. The login page itself is never written under a protected page's key.
+
+### 1.5.1 Cold-launch path (start URL)
+
+The PWA start URL (`/`) is never cached — the server 307-redirects it to the
+remembered last page — so every icon tap used to force a serverless round trip
+before any paint: a cold function boot after ~5 min idle (like the Neon DB, the
+serverless instance also scales to zero) was the long Android splash. A dedicated
+launch route (`sw.ts`, registered before the document SWR route so first-match
+wins) now short-circuits `/` using the newest saved view
+(`lastSavedViewEntry` → pure `launchDecision`):
+
+- **No saved view** (fresh install, just after a deploy wipe, sign-out) →
+  today's network path: `fetch('/')`, the server redirects to the last page /
+  `/dashboard`.
+- **Recent saved view** (< `LAUNCH_REFRESH_THRESHOLD_MS`, 5 min) → `302` to the
+  saved view's own URL. A render that recent means the DB can't have idled, so
+  the document SWR route serves the page from cache (stamped, "Saved · HH:MM")
+  and revalidates in the background — no splash, no server call, and the
+  previous `/` round trip is gone even on warm launches.
+- **Stale saved view** (≥ 5 min, DB likely scaled to zero) → the precached
+  branded skeleton `public/loading.html` (in `__SW_MANIFEST`, served via
+  `serwist.matchPrecache`), with `window.__C2_LAUNCH__.fallbackUrl` injected
+  (the saved view's URL). The page fetches the real start URL in the background
+  — warming the function + Neon — then `location.replace`s to the resolved
+  (fresh) page; Chrome's paint-holding keeps the skeleton visible until the new
+  page's first paint, so there's no white flash. Offline, it retries a few times
+  then redirects to the injected saved view (the §1.9 fallback, reached through
+  the skeleton).
+
+```mermaid
+flowchart TD
+    T[Tap icon → navigate to /] --> SW[Launch route]
+    SW --> S{Newest saved view?}
+    S -->|none| NET[fetch / → server redirect → last page / dashboard]
+    S -->|recent| R[302 to saved view → SWR cache hit]
+    S -->|stale| SK[Serve loading.html skeleton instantly]
+    SK --> F[Page fetches / in background<br/>warms function + Neon]
+    F -->|ok| REP[location.replace final URL → fresh content]
+    F -->|offline| FB[location.replace saved view]
+```
+
+The threshold matches Neon's scale-to-zero autosuspend: a cached page younger
+than it is safe to show instantly, while older data is honestly re-fetched
+behind a skeleton rather than flashed stale. `launchDecision` / `isStartUrlRequest`
+are pure and unit-tested (§1.13).
 
 ## 1.6 RSC cache — instant in-app navigation & offline views
 
@@ -170,6 +217,7 @@ Only when there are **no saved views at all** (first-ever install, right after a
 **Why `matchPrecache`, not `caches.match`:** Serwist stores revisioned precache entries under a `?__WB_REVISION__=<hash>` cache key, so the plain `caches.match("/offline.html")` misses every time. `handlerDidError` therefore resolves the precache key via `serwist.matchPrecache("/offline.html")`. If that (or the precache itself) is ever unavailable, the SW serves a self-contained inline copy of the branded page (`OFFLINE_FALLBACK_HTML` in `src/app/sw.ts`, kept in sync with `public/offline.html`) — never a bare error string.
 
 - Offline with a previously visited view → served from the document/RSC SWR caches, no fallback needed.
+- Offline **launch** (start URL `/`) → the §1.5.1 skeleton is served first, its warm-up fetch fails, and after a few retries it `location.replace`s to the injected last-saved view — the same §1.9 redirect, reached through the skeleton.
 - `OfflineBanner` (`src/components/OfflineBanner.tsx`) still shows the amber "You're offline" strip globally.
 
 ## 1.10 Session expiry
@@ -200,6 +248,7 @@ The "Saved · HH:MM" label lives in the dashboard's ⋮ (kebab) menu as a muted 
 | RSC entries | 64, 30 d, `last-used` | `src/app/sw.ts` |
 | Image cache | 64, 30 d | `src/app/sw.ts` |
 | Font/CSS cache | 32, 7 d | `src/app/sw.ts` |
+| Launch refresh threshold | 5 min (`LAUNCH_REFRESH_THRESHOLD_MS`) | `src/lib/pwa/swRules.ts` |
 
 The document/RSC expiration plugins set `purgeOnQuotaError: true` so a cache-storage quota error evicts expired entries instead of silently failing writes.
 
@@ -214,11 +263,13 @@ Pure logic lives in `src/lib/pwa/swRules.ts` so it is unit-tested without a live
 - `keysForPathname(keys, origin, pathname)`
 - `stampDocument(html, cachedAtIso)` — idempotent: replaces an existing `__C2_STAMP__` script instead of stacking a second one
 - `newestSavedView(entries)` — newest-`Date` entry for the offline fallback (§1.9); missing timestamps sort oldest, ties to the first entry
+- `launchDecision(saved, now)` — `"network"` / `"instant"` / `"skeleton"` for the cold-launch route (§1.5.1)
+- `isStartUrlRequest(url)` — the bare query-less `/`
 - `swCacheVersion(manifest)`
 - `documentCacheName(version)` / `rscCacheName(version)`
 - `isPageCacheName(name)`
 
-Tests: `src/lib/pwa/swRules.test.ts` (34 cases). The SW bundle itself (`src/app/sw.ts`) is wiring only — no branching logic to test there. Integration is validated by `pnpm build` (precache count + inspecting the emitted SW bundle) + manual PWA checks: second open instant + chip, F5, force-refresh bypass, deep links, offline cold open, offline view switching, offline mutation error, sign-out isolation, killed-session purge, and the deploy-takeover reload (§1.8).
+Tests: `src/lib/pwa/swRules.test.ts` (42 cases). The SW bundle itself (`src/app/sw.ts`) is wiring only — no branching logic to test there. Integration is validated by `pnpm build` (precache count + inspecting the emitted SW bundle) + manual PWA checks: second open instant + chip, F5, force-refresh bypass, deep links, offline cold open, offline view switching, offline mutation error, sign-out isolation, killed-session purge, and the deploy-takeover reload (§1.8).
 
 ## 1.14 Sign-out
 
@@ -236,6 +287,7 @@ Tests: `src/lib/pwa/swRules.test.ts` (34 cases). The SW bundle itself (`src/app/
 | `src/components/AppProviders.tsx` | Session-expiry `message` listener + `controllerchange` build-swap reload (§1.8) |
 | `src/components/UserMenu.tsx` | Sign-out cache purge |
 | `public/offline.html` | Branded offline explainer (precached) — "You're offline" + Try again; no saved-views list (§1.9) |
+| `public/loading.html` | Branded cold-launch skeleton (precached) — skeleton + sr-only status; fetches the real start URL and replaces, offline falls back to the injected saved view (§1.5.1) |
 | `src/app/(protected)/settings/**` + `src/components/LoginForm.tsx` | Same invalidate-then-refresh migration |
 | `docs/pwa-offline.md` | This document |
 | `docs/events-cache.md` | Server-side Google Calendar cache (the background revalidation target) |

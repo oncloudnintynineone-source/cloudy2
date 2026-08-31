@@ -8,7 +8,10 @@ import {
   isCacheableRscRequest,
   isPageCacheName,
   isSessionExpiredResponse,
+  isStartUrlRequest,
   keysForPathname,
+  LAUNCH_REFRESH_THRESHOLD_MS,
+  launchDecision,
   newestSavedView,
   rscCacheName,
   shouldStoreDocumentResponse,
@@ -358,6 +361,54 @@ describe("swRules", () => {
         url: `${ORIGIN}/a`,
         savedAtMs: null,
       });
+    });
+  });
+
+  describe("launchDecision", () => {
+    const now = 1_000_000;
+
+    it("network when there is no saved view", () => {
+      expect(launchDecision(null, now)).toBe("network");
+    });
+
+    it("instant for a fresh saved view", () => {
+      expect(
+        launchDecision({ savedAtMs: now - LAUNCH_REFRESH_THRESHOLD_MS + 1 }, now),
+      ).toBe("instant");
+      expect(launchDecision({ savedAtMs: now }, now)).toBe("instant");
+    });
+
+    it("skeleton exactly at the threshold (inclusive)", () => {
+      expect(launchDecision({ savedAtMs: now - LAUNCH_REFRESH_THRESHOLD_MS }, now)).toBe(
+        "skeleton",
+      );
+    });
+
+    it("skeleton for a stale saved view", () => {
+      expect(
+        launchDecision({ savedAtMs: now - LAUNCH_REFRESH_THRESHOLD_MS - 1 }, now),
+      ).toBe("skeleton");
+    });
+
+    it("skeleton when the timestamp is missing", () => {
+      expect(launchDecision({ savedAtMs: null }, now)).toBe("skeleton");
+    });
+  });
+
+  describe("isStartUrlRequest", () => {
+    it("matches the bare root", () => {
+      expect(isStartUrlRequest(new URL(`${ORIGIN}/`))).toBe(true);
+    });
+
+    it("rejects query-bearing roots", () => {
+      expect(isStartUrlRequest(new URL(`${ORIGIN}/?view=week`))).toBe(false);
+      expect(isStartUrlRequest(new URL(`${ORIGIN}/?refresh=123`))).toBe(false);
+    });
+
+    it("rejects hashes and other paths", () => {
+      expect(isStartUrlRequest(new URL(`${ORIGIN}/#x`))).toBe(false);
+      expect(isStartUrlRequest(new URL(`${ORIGIN}/dashboard`))).toBe(false);
+      expect(isStartUrlRequest(new URL(`${ORIGIN}/login`))).toBe(false);
     });
   });
 
