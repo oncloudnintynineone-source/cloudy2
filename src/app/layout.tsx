@@ -29,16 +29,12 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  // Android Chrome (standalone PWA) tints the status/navigation bars from the
-  // theme color — the per-page meta tag overrides the manifest's single
-  // `theme_color`. Scheme-aware variants keep the bars matching the bottom
-  // nav (`var(--mantine-color-body)`: white in light, Mantine dark-7 in dark;
-  // the app uses `defaultColorScheme="auto"`, so prefers-color-scheme stays
-  // in sync with Mantine's scheme).
-  themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#ffffff" },
-    { media: "(prefers-color-scheme: dark)", color: "#1a1b1e" },
-  ],
+  // Brand navy, matching the AppShell header (`var(--mantine-color-brand-7)`)
+  // for the surfaces Android Chrome still derives bar chrome from — splash,
+  // task switcher, and opaque-bar environments. On Android 15+ (edge-to-edge)
+  // the system bars are transparent and simply show the fixed navy header
+  // behind them, so the two stay in sync in both color schemes.
+  themeColor: "#0D47A1",
   // Makes env(safe-area-inset-*) report real values on notched devices so
   // the header/bottom-nav/FAB clearance vars actually engage in the
   // standalone PWA (they evaluate to 0 without it).
