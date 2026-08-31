@@ -153,8 +153,12 @@ export async function getCachedMonthEventsForCalendars(
   }
 
   if (options.force) {
+    // Force must always block on a genuinely new Google fetch, so bypass the
+    // `inflight` coalescing that `refreshCachedMonth` would otherwise reuse —
+    // a background stale-refresh (from `after()`) started before the edit could
+    // otherwise be returned in place of fresh data.
     const refreshed = await mapWithConcurrency(ids, GOOGLE_FETCH_CONCURRENCY, async (id) => {
-      const items = await refreshCachedMonth(id, month);
+      const items = await refreshMonthEvents(id, month);
       return [id, items] as const;
     });
     for (const [id, items] of refreshed) {

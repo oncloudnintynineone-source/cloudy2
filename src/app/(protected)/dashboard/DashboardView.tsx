@@ -1130,7 +1130,14 @@ export function DashboardView({
     if (searchParams.get("refresh") === null) {
       return;
     }
-    router.push(buildHref({ refresh: null }));
+    // Clean the URL with a replace (no history entry) and then re-read from
+    // the server. `router.refresh()` bypasses the Client Router Cache — which
+    // `staleTimes.dynamic: 120` would otherwise serve for the base URL for up
+    // to 2 minutes — so the freshly force-fetched rows (already upserted to the
+    // server cache by the forced render) are what stays on screen. A plain
+    // `router.push` here re-served the pre-edit snapshot and reverted the edit.
+    router.replace(buildHref({ refresh: null }), { scroll: false });
+    router.refresh();
   }, [buildHref, router, searchParams]);
 
   // Force refresh: a transition of its own (the button's spinner) wrapping

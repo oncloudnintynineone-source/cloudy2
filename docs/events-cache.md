@@ -238,12 +238,17 @@ re-fetches from Google on demand. It works as a **one-shot URL nonce**:
 3. The page passes `force: true` through `fetchMonthEvents` / `fetchRangeEvents` into
    `getCachedMonthEventsForCalendars(ids, month, { force })` (`eventsCache.ts`): with
    `force`, **both L1 and L2 are skipped** and every requested calendar blocks on a fresh
-   `events.list` (coalesced, `GOOGLE_FETCH_CONCURRENCY` ≤ 4 in flight) for **every month
-   in the read** (1 for Day/Agenda, 2 for a boundary week, 2-3 for the Month grid),
-   upserting DB rows with `fetchedAt = now` and refilling L1.
-4. After the forced render mounts, a ref-guarded effect in `DashboardView.tsx` (mirroring
-   the `?edit=` param pattern) strips `refresh` from the URL so later month/day navigation
-   doesn't keep force-refreshing.
+   `events.list` (bounded by `GOOGLE_FETCH_CONCURRENCY` ≤ 4 in flight, and deliberately
+   **not** joined to an in-flight background refresh) for **every month in the read**
+   (1 for Day/Agenda, 2 for a boundary week, 2-3 for the Month grid), upserting DB rows
+   with `fetchedAt = now` and refilling L1.
+4. After the forced render mounts, a self-terminating effect in `DashboardView.tsx`
+   strips `refresh` from the URL so later month/day navigation doesn't keep
+   force-refreshing. It uses `router.replace` + `router.refresh()` — a bare
+   `router.push` to the clean URL would be served by the Client Router Cache
+   (`staleTimes.dynamic: 120`, `next.config.ts`), re-displaying the pre-edit RSC
+   snapshot and reverting the just-fetched data; `router.refresh()` bypasses that cache
+   and re-reads the fresh rows the forced render just upserted.
 
 ```mermaid
 sequenceDiagram
