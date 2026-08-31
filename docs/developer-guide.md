@@ -320,6 +320,7 @@ In CI, the schema-drift check runs `pnpm db:generate` then fails on any diff to
 | [`announcement-banner.md`](announcement-banner.md) | Announcement banner + height-var chain |
 | [`pinned-events.md`](pinned-events.md) | Pinned Events panel + badge refresh |
 | [`user-picker.md`](user-picker.md) | No-keyboard selects + the badge-dialog picker |
+| [`accessibility.md`](accessibility.md) | Skip link, live-region announcements, skeleton a11y |
 
 Working documents (not end-user documentation): [`AGENTS.md`](../AGENTS.md) (agent
 rules), [`progress.md`](../progress.md) (status + changelog),

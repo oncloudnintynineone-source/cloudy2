@@ -1,10 +1,13 @@
 import { Group, Paper, Skeleton, Stack } from "@mantine/core";
 
+import { LoadingStatus } from "@/components/LoadingStatus";
+
 import { SettingsTableSkeleton } from "../SettingsTableSkeleton";
 
 export default function EventTypesLoading() {
   return (
     <Stack pb="xl" gap="sm">
+      <LoadingStatus label="Loading event types" />
       {/* Mobile: card list */}
       <Stack gap="sm" hiddenFrom="lg">
         {Array.from({ length: 4 }).map((_, i) => (

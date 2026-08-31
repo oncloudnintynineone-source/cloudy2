@@ -1,10 +1,12 @@
 import { Group, Paper, Skeleton, Stack } from "@mantine/core";
 
+import { LoadingStatus } from "@/components/LoadingStatus";
 import { PageContainer } from "@/components/PageContainer";
 
 export default function ContactsLoading() {
   return (
     <PageContainer>
+      <LoadingStatus label="Loading contacts" />
       <Stack pb="xl">
         <Paper withBorder p="sm">
           <Skeleton height={43} />

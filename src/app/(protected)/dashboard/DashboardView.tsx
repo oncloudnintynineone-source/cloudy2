@@ -88,6 +88,7 @@ import {
   FloatingActionButton,
   FloatingToolbar,
 } from "@/components/FloatingToolbar";
+import { LoadingStatus } from "@/components/LoadingStatus";
 import { QuickLinksMenu, type QuickLinkMenuItem } from "@/components/QuickLinksMenu";
 import { eventsOnDay } from "@/lib/events/agenda";
 import { weekDays } from "@/lib/events/datetime";
@@ -111,6 +112,7 @@ import {
   type ScheduleResource,
   type ScheduleUser,
 } from "@/lib/events/schedule";
+import { announce } from "@/lib/ui/announcer";
 import { useGridPan } from "@/lib/ui/gridPan";
 import { useImmersiveMode } from "@/lib/ui/immersiveMode";
 import { daySlotWidth, stepZoom, weekSlotWidth, type SlotZoom } from "@/lib/ui/slotZoom";
@@ -631,8 +633,7 @@ export function DashboardView({
   const [prevDetailLinkId, setPrevDetailLinkId] = useState<string | null>(null);
   if (initialDetailEventId !== null && initialDetailEventId !== prevDetailLinkId) {
     setPrevDetailLinkId(initialDetailEventId);
-    const found =
-      events.find((event) => event.payload.eventId === initialDetailEventId) ?? null;
+    const found = events.find((event) => event.payload.eventId === initialDetailEventId) ?? null;
     setDetailEvent(found);
     setEditLinkFailed(found === null);
   }
@@ -890,6 +891,30 @@ export function DashboardView({
   const dayLabel = dayjs(shownDate).format("ddd, MMM D, YYYY");
   const week = shownView === "week" || shownView === "weekv2" ? weekDays(shownDate) : null;
   const weekLabel = week ? formatWeekLabel(week[0], week[6]) : "";
+  const periodLabel = shownIsAgenda
+    ? dayjs(viewedDay ?? shownDate).format("ddd, MMM D, YYYY")
+    : shownIsWeek
+      ? weekLabel
+      : shownIsAnchored
+        ? dayLabel
+        : monthLabel;
+
+  // Screen-reader announcement of view/period changes (tab taps, chevrons,
+  // Today, date picker, agenda swipes all flow through the optimistic chrome,
+  // so one watcher covers them). The first render only records the baseline —
+  // announcing on plain page load would be noise.
+  const lastAnnouncedChromeRef = useRef<string | null>(null);
+  useEffect(() => {
+    const message = `${VIEW_TAB_META[shownView].label} view, ${periodLabel}`;
+    if (lastAnnouncedChromeRef.current === null) {
+      lastAnnouncedChromeRef.current = message;
+      return;
+    }
+    if (lastAnnouncedChromeRef.current !== message) {
+      lastAnnouncedChromeRef.current = message;
+      announce(message);
+    }
+  }, [shownView, periodLabel]);
   const today = dayjs().format("YYYY-MM-DD");
   const todayMonth = dayjs().format("YYYY-MM");
   // Start-scroll anchor for the Day/Week (H) timelines: when the shown period
@@ -1323,6 +1348,18 @@ export function DashboardView({
   // Draggable minimized bubble: pointer-based so it works for both mouse and
   // touch. A tap (movement under the threshold) restores the form; a drag
   // repositions the pill, clamped to the viewport.
+  // Same group semantics as `activeFilterCount`: a partial Calendars
+  // selection, any Users selection and any Event Types selection each count
+  // as one active filter group.
+  function filterCountMessage(calCount: number, userCount: number, typeCount: number): string {
+    const count =
+      (calCount > 0 && calCount < calendars.length ? 1 : 0) +
+      (userCount > 0 ? 1 : 0) +
+      (typeCount > 0 ? 1 : 0);
+    if (count === 0) return "Filters cleared";
+    return count === 1 ? "1 filter active" : `${count} filters active`;
+  }
+
   function handleApplyFilters(values: Record<string, string[]>) {
     const cals = values.Calendars ?? [];
     const users = values.Users ?? [];
@@ -1332,6 +1369,7 @@ export function DashboardView({
       users: users.length > 0 ? users.join(",") : null,
       types: types.length > 0 ? types.join(",") : null,
     });
+    announce(filterCountMessage(cals.length, users.length, types.length));
   }
 
   const onlyMeActive = selectedUserIds.length === 1 && selectedUserIds[0] === currentUser;
@@ -1341,6 +1379,7 @@ export function DashboardView({
     // Search groups: empty selection means "no filter", so unchecked clears
     // the Users filter entirely.
     navigate({ users: checked ? currentUser : null });
+    announce(filterCountMessage(selectedCalendarIds.length, checked ? 1 : 0, selectedTypes.length));
   }
 
   function togglePinView() {
@@ -1359,6 +1398,7 @@ export function DashboardView({
     // Null params restore the server defaults (non-admins default to their
     // own department's calendar).
     navigate({ cal: null, users: null, types: null });
+    announce("Filters cleared");
   }
 
   function openCreate(dateValue: string, originRect: Rect | null = null) {
@@ -1429,11 +1469,11 @@ export function DashboardView({
   // --mantine-scale a hardcoded px guess would drift. Probe the CSS variable
   // on the active view's root (found among the Box's children by the variable
   // it declares); the Week (H) day index stores 24 slots' worth. The measured slot
-   // is published to the rulers as `--ruler-slot` on the content box — direct
-   // DOM writes, pre-paint (no state). Runs only when the Day/Week (H) grid is
-   // actually rendered (not the skeleton or the empty "No users" paper), and
-   // re-runs when the breakpoint flips (the Week (H) slot width widens at lg)
-   // or the timeline zoom changes (the slot width is re-derived below).
+  // is published to the rulers as `--ruler-slot` on the content box — direct
+  // DOM writes, pre-paint (no state). Runs only when the Day/Week (H) grid is
+  // actually rendered (not the skeleton or the empty "No users" paper), and
+  // re-runs when the breakpoint flips (the Week (H) slot width widens at lg)
+  // or the timeline zoom changes (the slot width is re-derived below).
   useLayoutEffect(() => {
     const isWeekGrid = view === "week";
     const isDayGrid = isSchedule;
@@ -1494,7 +1534,11 @@ export function DashboardView({
     const isMine = row.id === currentUser;
     const label =
       row.label === row.fullName ? (
-        <Text size="sm" fw={isMine ? 600 : undefined} aria-label={isMine ? `You — ${row.fullName}` : undefined}>
+        <Text
+          size="sm"
+          fw={isMine ? 600 : undefined}
+          aria-label={isMine ? `You — ${row.fullName}` : undefined}
+        >
           {row.label}
         </Text>
       ) : (
@@ -1661,13 +1705,7 @@ export function DashboardView({
                 even while its data is still in flight. The Agenda branch
                 still tracks `viewedDay` once the tab is live — a fresh entry
                 has none, so it falls back to the optimistic date (today). */}
-            {shownIsAgenda
-              ? dayjs(viewedDay ?? shownDate).format("ddd, MMM D, YYYY")
-              : shownIsWeek
-                ? weekLabel
-                : shownIsAnchored
-                  ? dayLabel
-                  : monthLabel}
+            {periodLabel}
           </Text>
           <ActionIcon
             size={36}
@@ -1910,17 +1948,20 @@ export function DashboardView({
           // Skeleton flavor follows the optimistic view: the shape you tapped
           // is what appears to load (same contract as loading.tsx, which
           // resolves the remembered view from the cookie).
-          shownView === "month" ? (
-            <MonthGridSkeleton rows={monthGridRows(shownMonth)} />
-          ) : shownIsWeekV2 ? (
-            <WeekMatrixSkeleton />
-          ) : shownIsWeek ? (
-            <WeekGridSkeleton />
-          ) : shownIsAgenda ? (
-            <AgendaListSkeleton />
-          ) : (
-            <ScheduleGridSkeleton />
-          )
+          <>
+            <LoadingStatus label="Loading calendar" />
+            {shownView === "month" ? (
+              <MonthGridSkeleton rows={monthGridRows(shownMonth)} />
+            ) : shownIsWeekV2 ? (
+              <WeekMatrixSkeleton />
+            ) : shownIsWeek ? (
+              <WeekGridSkeleton />
+            ) : shownIsAgenda ? (
+              <AgendaListSkeleton />
+            ) : (
+              <ScheduleGridSkeleton />
+            )}
+          </>
         ) : view === "month" ? (
           <MonthView
             date={`${month}-01 00:00:00`}
@@ -2201,8 +2242,16 @@ export function DashboardView({
             canScrollRight={schedulePan.canScrollRight}
             onPan={schedulePan.panTo}
             zoom={zoom}
-            onZoomIn={() => setZoom((z) => stepZoom(z, 1))}
-            onZoomOut={() => setZoom((z) => stepZoom(z, -1))}
+            onZoomIn={() => {
+              const next = stepZoom(zoom, 1);
+              setZoom(next);
+              announce(`Zoom ${Math.round(next * 100)}%`);
+            }}
+            onZoomOut={() => {
+              const next = stepZoom(zoom, -1);
+              setZoom(next);
+              announce(`Zoom ${Math.round(next * 100)}%`);
+            }}
           />
         )}
 

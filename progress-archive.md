@@ -6196,3 +6196,50 @@ one-liner.
 
 Verification: `pnpm lint` + `pnpm typecheck` + `pnpm test` (785) pass; no
 logic change (CSS variables + inline-style strings only).
+
+## 1.147 Accessibility quick wins
+
+Four assistive-tech gaps closed (stage 1 of the UI/UX improvement pass; the
+stage's research also listed actionable empty states, a sticky month weekday
+row and zoom time re-anchoring as later stages).
+
+**Skip-to-content link.** `AppShellShell` now renders a `.c2-skip-link`
+anchor as the app's first focusable element, before the AppShell root. It is
+transformed above the viewport until keyboard-focused (`:focus-visible`),
+then appears as a chip over the header; activating moves focus to
+`AppShell.Main`, which carries `id="main-content"` + `tabIndex={-1}`. Styles
+live in `globals.css` (`.c2-skip-link`). Stays functional in immersive mode.
+
+**Status announcements (live region).** State changes with no toast were
+invisible to screen readers. New `src/lib/ui/announcer.tsx`: `StatusAnnouncer`
+(a persistent sr-only `role="status"` + `aria-atomic` region) mounts once in
+`AppShell.Main` so it survives navigations, and module-level `announce()`
+pushes text into it. Identical consecutive messages re-announce via a
+clear-then-set timeout. Wired in `DashboardView`:
+- view/period: one watcher on the optimistic chrome (`shownView` + a new
+  `periodLabel` that also feeds the nav-row text) announces
+  `"Month view, March 2026"`-style messages for tab taps, chevrons, Today,
+  the date picker and agenda day changes; the first render only records a
+  baseline (no page-load noise);
+- filters: `filterCountMessage` (mirrors `activeFilterCount`'s group
+  semantics) announces `"2 filters active"` / `"Filters cleared"` from
+  More-Filters apply, the Myself toggle and Clear;
+- zoom: the in/out handlers announce `"Zoom 125%"`.
+
+**Loading announcements.** Skeletons are visual-only, so a new server-safe
+`src/components/LoadingStatus.tsx` (sr-only `role="status"`, "Loading
+calendar…" etc.) now rides every skeleton block: all 14 route `loading.tsx`
+files plus the client-side swaps (dashboard `gridLoading`, parade-state
+`contentLoading`, audit-log `listLoading`, pinned-events panel fetch).
+
+**Count-badge text alternatives.** `FilterButton`'s aria-label becomes
+`"Filters (2 active)"` with the visual Badge `aria-hidden`; the pinned-events
+`Indicator` label is wrapped `aria-hidden` (the count already rides the
+button's aria-label, so it isn't read twice).
+
+Docs: new `docs/accessibility.md`; AGENTS.md architecture bullet + loading
+rule; `docs/loading-transitions.md` §1.4/§1.13; `docs/developer-guide.md`
+index.
+
+Verification: `pnpm lint` + `pnpm typecheck` + `pnpm test` (806) +
+`pnpm build` all pass.

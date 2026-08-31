@@ -1,8 +1,11 @@
 import { Paper, Skeleton, Stack } from "@mantine/core";
 
+import { LoadingStatus } from "@/components/LoadingStatus";
+
 export default function BannerLoading() {
   return (
     <Stack>
+      <LoadingStatus label="Loading banner settings" />
       <Paper withBorder p="sm">
         <Stack gap="sm">
           <Skeleton height={20} width="30%" />

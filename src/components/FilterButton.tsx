@@ -15,7 +15,12 @@ interface FilterButtonProps {
 export function FilterButton({ activeCount, onClick }: FilterButtonProps) {
   return (
     <Box pos="relative">
-      <ActionIcon size={43} variant="default" aria-label="Filters" onClick={onClick}>
+      <ActionIcon
+        size={43}
+        variant="default"
+        aria-label={activeCount > 0 ? `Filters (${activeCount} active)` : "Filters"}
+        onClick={onClick}
+      >
         <IconFilter size={16} />
       </ActionIcon>
       {activeCount > 0 && (
@@ -25,6 +30,7 @@ export function FilterButton({ activeCount, onClick }: FilterButtonProps) {
           radius="xl"
           pos="absolute"
           style={{ top: -4, right: -4 }}
+          aria-hidden
         >
           {activeCount}
         </Badge>

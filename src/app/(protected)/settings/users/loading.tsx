@@ -1,10 +1,13 @@
 import { Group, Paper, Skeleton, Stack } from "@mantine/core";
 
+import { LoadingStatus } from "@/components/LoadingStatus";
+
 import { SettingsTableSkeleton } from "../SettingsTableSkeleton";
 
 export default function UsersLoading() {
   return (
     <Stack pb="xl">
+      <LoadingStatus label="Loading users" />
       <Paper withBorder p="sm">
         <Group justify="space-between" wrap="nowrap">
           <Skeleton height={36} style={{ flex: 1 }} />

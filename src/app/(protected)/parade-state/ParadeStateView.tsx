@@ -39,6 +39,7 @@ import {
 import { DateSelectorModal } from "@/components/DateSelectorModal";
 import { FilterModal, type FilterGroup } from "@/components/FilterModal";
 import { FAB_ICON_SIZE, FloatingActionButton, FloatingToolbar } from "@/components/FloatingToolbar";
+import { LoadingStatus } from "@/components/LoadingStatus";
 import type { CalendarEvent } from "@/lib/events/queries";
 import { CONTENT_ENTER_CLASS, useContentEnter } from "@/lib/loading/contentEnter";
 import { useMinSkeletonHold } from "@/lib/loading/minHoldLoading";
@@ -88,10 +89,7 @@ function sectionHasUsers(section: DepartmentSection): boolean {
   return section.children.some(sectionHasUsers);
 }
 
-function countCheckedIn(
-  section: DepartmentSection,
-  checkedIds: ReadonlySet<string>,
-): number {
+function countCheckedIn(section: DepartmentSection, checkedIds: ReadonlySet<string>): number {
   let count = section.users.filter((user) => checkedIds.has(user.id)).length;
   for (const child of section.children) {
     count += countCheckedIn(child, checkedIds);
@@ -489,9 +487,7 @@ export function ParadeStateView({
     const toReport = (section: DepartmentSection): AttendanceReportDepartment => ({
       name: section.name,
       users: section.users.map((user) => ({ id: user.id, name: user.name })),
-      ...(section.children.length > 0
-        ? { children: section.children.map(toReport) }
-        : {}),
+      ...(section.children.length > 0 ? { children: section.children.map(toReport) } : {}),
     });
     const text = buildAttendanceReport(sections.map(toReport), checkedIds);
     try {
@@ -568,10 +564,7 @@ export function ParadeStateView({
             {attendanceMode && (
               // Clicks stop here: toggling the checkbox must
               // not also fire the card-level toggle.
-              <Box
-                onClick={(event) => event.stopPropagation()}
-                style={{ flexShrink: 0 }}
-              >
+              <Box onClick={(event) => event.stopPropagation()} style={{ flexShrink: 0 }}>
                 <Checkbox
                   checked={checkedIds.has(user.id)}
                   onChange={() => toggleAttendance(user.id)}
@@ -615,12 +608,7 @@ export function ParadeStateView({
                   >
                     {formatEventTimeBadge(event, date)}
                   </Badge>
-                  <Text
-                    size="xs"
-                    fw={400}
-                    c="dimmed"
-                    style={{ flex: 1, minWidth: 0 }}
-                  >
+                  <Text size="xs" fw={400} c="dimmed" style={{ flex: 1, minWidth: 0 }}>
                     {event.title}
                   </Text>
                 </Group>
@@ -639,9 +627,7 @@ export function ParadeStateView({
   function renderSection(section: DepartmentSection, depth: number) {
     if (!sectionHasUsers(section)) return null;
     const headcount = departmentTreeHeadcount(section, eventsByUser);
-    const presentCount = attendanceMode
-      ? countCheckedIn(section, checkedIds)
-      : headcount.present;
+    const presentCount = attendanceMode ? countCheckedIn(section, checkedIds) : headcount.present;
     return (
       <Box key={section.id ?? "__unassigned__"} style={{ marginLeft: depth * 16 }}>
         <Text fw={700} size="sm" c="dimmed" mb="xs" tt="uppercase" lh={1}>
@@ -827,6 +813,7 @@ export function ParadeStateView({
       <Box ref={contentRef} className={CONTENT_ENTER_CLASS}>
         {contentLoading ? (
           <Stack gap="lg">
+            <LoadingStatus label="Loading parade state" />
             <ParadeStateDepartmentSkeleton users={2} />
             <ParadeStateDepartmentSkeleton users={3} />
           </Stack>
@@ -884,9 +871,7 @@ export function ParadeStateView({
         onClose={closePicker}
       />
       <Modal opened={resetOpened} onClose={closeResetConfirm} title="Reset attendance" centered>
-        <Text>
-          Clear attendance checks for every date? This cannot be undone.
-        </Text>
+        <Text>Clear attendance checks for every date? This cannot be undone.</Text>
         <Group justify="flex-end" mt="md">
           <Button variant="default" onClick={closeResetConfirm}>
             Cancel

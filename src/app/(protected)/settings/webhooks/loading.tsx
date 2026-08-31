@@ -1,10 +1,13 @@
 import { Group, Paper, Skeleton, Stack } from "@mantine/core";
 
+import { LoadingStatus } from "@/components/LoadingStatus";
+
 import { SettingsTableSkeleton } from "../SettingsTableSkeleton";
 
 export default function WebhooksLoading() {
   return (
     <Stack pb="xl" gap="sm">
+      <LoadingStatus label="Loading webhooks" />
       {/* Mobile: card list */}
       <Stack gap="sm" hiddenFrom="lg">
         {Array.from({ length: 3 }).map((_, i) => (

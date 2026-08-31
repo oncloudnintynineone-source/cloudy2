@@ -1,10 +1,13 @@
 import { Group, Paper, Skeleton, Stack } from "@mantine/core";
 
+import { LoadingStatus } from "@/components/LoadingStatus";
+
 import { SettingsTableSkeleton } from "../settings/SettingsTableSkeleton";
 
 export default function KahStatusLoading() {
   return (
     <Stack gap="md" p="md">
+      <LoadingStatus label="Loading KAH status" />
       {/* Window header */}
       <Skeleton height={28} width="45%" radius="sm" />
       <Skeleton height={16} width="65%" radius="sm" />

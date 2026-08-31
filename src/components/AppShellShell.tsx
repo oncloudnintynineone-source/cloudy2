@@ -1,6 +1,17 @@
 "use client";
 
-import { AppShell, Box, Button, Group, Indicator, NavLink, Stack, Text, Tooltip, UnstyledButton } from "@mantine/core";
+import {
+  AppShell,
+  Box,
+  Button,
+  Group,
+  Indicator,
+  NavLink,
+  Stack,
+  Text,
+  Tooltip,
+  UnstyledButton,
+} from "@mantine/core";
 import { useMediaQuery } from "@mantine/hooks";
 import {
   IconAddressBook,
@@ -24,8 +35,13 @@ import { BOTTOM_NAV_HEIGHT } from "@/lib/bottomNav";
 import { countPinnedEvents } from "@/lib/events/pinned";
 import type { Rect } from "@/lib/motion/origin";
 import { DESKTOP_MEDIA_QUERY } from "@/lib/theme";
+import { StatusAnnouncer } from "@/lib/ui/announcer";
 import { ImmersiveModeContext, type ImmersiveModeValue } from "@/lib/ui/immersiveMode";
-import { PinnedPanelContext, PINNED_EVENTS_CHANGED_EVENT, type PinnedPanelValue } from "@/lib/ui/pinnedPanel";
+import {
+  PinnedPanelContext,
+  PINNED_EVENTS_CHANGED_EVENT,
+  type PinnedPanelValue,
+} from "@/lib/ui/pinnedPanel";
 import { useRememberedPage, writeUiState } from "@/lib/ui/uiStateClient";
 
 interface NavItem {
@@ -200,9 +216,7 @@ function AnnouncementBanner({
         textAlign: "center",
         background: `var(--mantine-color-${config.color}-filled)`,
         color:
-          option.textColor === "dark"
-            ? "var(--mantine-color-black)"
-            : "var(--mantine-color-white)",
+          option.textColor === "dark" ? "var(--mantine-color-black)" : "var(--mantine-color-white)",
         fontSize: "var(--mantine-font-size-sm)",
         fontWeight: 500,
       }}
@@ -477,162 +491,173 @@ export function AppShellShell({
   );
 
   return (
-    <AppShell
-      ref={rootRef}
-      // `--app-banner-height` (absent by default → 0px from the class, the
-      // measured height when a banner is active) feeds
-      // `--app-shell-header-offset` in globals.css. Set as an inline custom
-      // property on the root so the cascade can't drift between class
-      // declarations. (Not the `vars` prop — in Mantine v9 that's a
-      // resolver *function*, not an object.) In immersive mode the banner
-      // is hidden, so we omit the variable to keep --app-banner-height at
-      // its CSS default of 0px.
-      style={
-        banner && !immersive
-          ? ({ "--app-banner-height": `${bannerPx}px` } as React.CSSProperties)
-          : undefined
-      }
-      // Extra top inset engages in standalone PWA mode on notched devices
-      // (`viewport-fit=cover`): the navy header extends edge-to-edge behind
-      // the status bar instead of letterboxing. Reports 0 in-browser. The
-      // banner (when active) stacks above the 56px brand bar inside the
-      // same header element. In immersive mode the header is hidden, so we
-      // drop the banner height from the prop to avoid Mantine allocating
-      // phantom main-content padding.
-      header={{
-        height: banner && !immersive
-          ? `calc(env(safe-area-inset-top) + ${bannerPx}px + ${HEADER_HEIGHT_PX}px)`
-          : `calc(${HEADER_HEIGHT_PX}px + env(safe-area-inset-top))`,
-      }}
-      navbar={{
-        width: collapsed ? SIDEBAR_RAIL_WIDTH : SIDEBAR_WIDTH,
-        breakpoint: "lg",
-        collapsed: { mobile: true },
-      }}
-      footer={{ height: `${BOTTOM_NAV_HEIGHT}px`, collapsed: isDesktop }}
-      padding="md"
-      className={immersive ? "app-shell-root app-shell-immersive" : "app-shell-root"}
-    >
-      <AppShell.Header
-        style={{
-          background: "var(--mantine-color-brand-7)",
-          borderColor: "var(--mantine-color-brand-8)",
-          // The safe-area region stays navy; the banner + brand bar render
-          // below it. Column layout only when a banner is stacked on top —
-          // otherwise the single Group keeps today's row rendering.
-          paddingTop: "env(safe-area-inset-top)",
-          display: banner && !immersive ? "flex" : undefined,
-          flexDirection: banner ? "column" : undefined,
+    <>
+      {/* Keyboard skip link: first focusable element in the app, targets the
+          main content region below (visible only while focused). */}
+      <a href="#main-content" className="c2-skip-link">
+        Skip to content
+      </a>
+      <AppShell
+        ref={rootRef}
+        // `--app-banner-height` (absent by default → 0px from the class, the
+        // measured height when a banner is active) feeds
+        // `--app-shell-header-offset` in globals.css. Set as an inline custom
+        // property on the root so the cascade can't drift between class
+        // declarations. (Not the `vars` prop — in Mantine v9 that's a
+        // resolver *function*, not an object.) In immersive mode the banner
+        // is hidden, so we omit the variable to keep --app-banner-height at
+        // its CSS default of 0px.
+        style={
+          banner && !immersive
+            ? ({ "--app-banner-height": `${bannerPx}px` } as React.CSSProperties)
+            : undefined
+        }
+        // Extra top inset engages in standalone PWA mode on notched devices
+        // (`viewport-fit=cover`): the navy header extends edge-to-edge behind
+        // the status bar instead of letterboxing. Reports 0 in-browser. The
+        // banner (when active) stacks above the 56px brand bar inside the
+        // same header element. In immersive mode the header is hidden, so we
+        // drop the banner height from the prop to avoid Mantine allocating
+        // phantom main-content padding.
+        header={{
+          height:
+            banner && !immersive
+              ? `calc(env(safe-area-inset-top) + ${bannerPx}px + ${HEADER_HEIGHT_PX}px)`
+              : `calc(${HEADER_HEIGHT_PX}px + env(safe-area-inset-top))`,
         }}
+        navbar={{
+          width: collapsed ? SIDEBAR_RAIL_WIDTH : SIDEBAR_WIDTH,
+          breakpoint: "lg",
+          collapsed: { mobile: true },
+        }}
+        footer={{ height: `${BOTTOM_NAV_HEIGHT}px`, collapsed: isDesktop }}
+        padding="md"
+        className={immersive ? "app-shell-root app-shell-immersive" : "app-shell-root"}
       >
-        {banner ? <AnnouncementBanner config={banner} onMeasure={measureBanner} /> : null}
-        <Group h={HEADER_HEIGHT_PX} justify="space-between" px="md">
-          <Text fw={700} size="lg" component={Link} href="/dashboard" td="none" c="white">
-            Cloudy
-          </Text>
-          <Group gap="xs">
-            {pinnedCount > 0 ? (
-              <Indicator
-                position="top-start"
-                size={18}
-                offset={4}
-                color="accent"
-                withBorder
-                label={pinnedCount > 99 ? "99+" : pinnedCount}
-              >
-                {pinnedButton}
-              </Indicator>
-            ) : (
-              pinnedButton
-            )}
-            <ThemeToggle />
-            <UserMenu name={name} />
+        <AppShell.Header
+          style={{
+            background: "var(--mantine-color-brand-7)",
+            borderColor: "var(--mantine-color-brand-8)",
+            // The safe-area region stays navy; the banner + brand bar render
+            // below it. Column layout only when a banner is stacked on top —
+            // otherwise the single Group keeps today's row rendering.
+            paddingTop: "env(safe-area-inset-top)",
+            display: banner && !immersive ? "flex" : undefined,
+            flexDirection: banner ? "column" : undefined,
+          }}
+        >
+          {banner ? <AnnouncementBanner config={banner} onMeasure={measureBanner} /> : null}
+          <Group h={HEADER_HEIGHT_PX} justify="space-between" px="md">
+            <Text fw={700} size="lg" component={Link} href="/dashboard" td="none" c="white">
+              Cloudy
+            </Text>
+            <Group gap="xs">
+              {pinnedCount > 0 ? (
+                <Indicator
+                  position="top-start"
+                  size={18}
+                  offset={4}
+                  color="accent"
+                  withBorder
+                  // The count already rides the button's aria-label; hide the
+                  // visual badge so screen readers don't read it twice.
+                  label={<span aria-hidden>{pinnedCount > 99 ? "99+" : pinnedCount}</span>}
+                >
+                  {pinnedButton}
+                </Indicator>
+              ) : (
+                pinnedButton
+              )}
+              <ThemeToggle />
+              <UserMenu name={name} />
+            </Group>
           </Group>
-        </Group>
-      </AppShell.Header>
+        </AppShell.Header>
 
-      <AppShell.Navbar
-        p="md"
-        style={{
-          background: "var(--mantine-color-body)",
-          borderRight: "1px solid var(--mantine-color-default-border)",
-          // Mantine animates transform/top/height on the navbar; add width so
-          // the rail resize animates in step with the main area's padding.
-          transitionProperty: "transform, top, height, width",
-        }}
-      >
-        <Stack gap="xs">
-          {items.map((item) =>
-            collapsed ? (
-              <RailNavButton
+        <AppShell.Navbar
+          p="md"
+          style={{
+            background: "var(--mantine-color-body)",
+            borderRight: "1px solid var(--mantine-color-default-border)",
+            // Mantine animates transform/top/height on the navbar; add width so
+            // the rail resize animates in step with the main area's padding.
+            transitionProperty: "transform, top, height, width",
+          }}
+        >
+          <Stack gap="xs">
+            {items.map((item) =>
+              collapsed ? (
+                <RailNavButton
+                  key={item.href}
+                  item={item}
+                  active={isActive(item)}
+                  onTap={() => handleTap(item.href)}
+                />
+              ) : (
+                <NavLink
+                  key={item.href}
+                  component={Link}
+                  href={item.href}
+                  label={item.label}
+                  leftSection={<PendingDim>{item.icon}</PendingDim>}
+                  active={isActive(item)}
+                  onClick={() => handleTap(item.href)}
+                />
+              ),
+            )}
+          </Stack>
+          <UnstyledButton
+            mt="auto"
+            onClick={() => setCollapsed((value) => !value)}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              padding: 4,
+              color: NAV_IDLE_COLOR,
+            }}
+            aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+          >
+            {collapsed ? (
+              <IconLayoutSidebarLeftExpand size={22} />
+            ) : (
+              <IconLayoutSidebarLeftCollapse size={22} />
+            )}
+          </UnstyledButton>
+        </AppShell.Navbar>
+
+        <AppShell.Main id="main-content" tabIndex={-1}>
+          <ImmersiveModeContext.Provider value={immersiveMode}>
+            <PinnedPanelContext.Provider value={pinnedPanelValue}>
+              <StatusAnnouncer />
+              {children}
+              <PinnedEventsPanel />
+            </PinnedPanelContext.Provider>
+          </ImmersiveModeContext.Provider>
+        </AppShell.Main>
+
+        <AppShell.Footer
+          style={{
+            background: "var(--mantine-color-body)",
+            borderTop: "1px solid var(--mantine-color-default-border)",
+          }}
+        >
+          <Box
+            style={{
+              display: "flex",
+            }}
+          >
+            {items.map((item) => (
+              <NavButton
                 key={item.href}
                 item={item}
                 active={isActive(item)}
                 onTap={() => handleTap(item.href)}
               />
-            ) : (
-              <NavLink
-                key={item.href}
-                component={Link}
-                href={item.href}
-                label={item.label}
-                leftSection={<PendingDim>{item.icon}</PendingDim>}
-                active={isActive(item)}
-                onClick={() => handleTap(item.href)}
-              />
-            ),
-          )}
-        </Stack>
-        <UnstyledButton
-          mt="auto"
-          onClick={() => setCollapsed((value) => !value)}
-          style={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            padding: 4,
-            color: NAV_IDLE_COLOR,
-          }}
-          aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-        >
-          {collapsed ? (
-            <IconLayoutSidebarLeftExpand size={22} />
-          ) : (
-            <IconLayoutSidebarLeftCollapse size={22} />
-          )}
-        </UnstyledButton>
-      </AppShell.Navbar>
-
-      <AppShell.Main>
-        <ImmersiveModeContext.Provider value={immersiveMode}>
-          <PinnedPanelContext.Provider value={pinnedPanelValue}>
-            {children}
-            <PinnedEventsPanel />
-          </PinnedPanelContext.Provider>
-        </ImmersiveModeContext.Provider>
-      </AppShell.Main>
-
-      <AppShell.Footer
-        style={{
-          background: "var(--mantine-color-body)",
-          borderTop: "1px solid var(--mantine-color-default-border)",
-        }}
-      >
-        <Box
-          style={{
-            display: "flex",
-          }}
-        >
-          {items.map((item) => (
-            <NavButton
-              key={item.href}
-              item={item}
-              active={isActive(item)}
-              onTap={() => handleTap(item.href)}
-            />
-          ))}
-        </Box>
-      </AppShell.Footer>
-    </AppShell>
+            ))}
+          </Box>
+        </AppShell.Footer>
+      </AppShell>
+    </>
   );
 }

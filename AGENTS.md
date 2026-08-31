@@ -111,6 +111,11 @@ mechanics in the doc.
   document + RSC caches; offline is read-only (no local write queue). Every
   `router.refresh()` site invalidates the current pathname first via
   `invalidateCurrentPathCaches()`. Design: [docs/pwa-offline.md](docs/pwa-offline.md).
+- **Accessibility:** skip-to-content link first in the shell; one polite live region
+  (`StatusAnnouncer`) announces toast-less state changes (view/period, filter counts,
+  zoom); every skeleton block carries a `LoadingStatus` sr-only announcement; count
+  badges ride the control's accessible name (visual badge `aria-hidden`).
+  Design: [docs/accessibility.md](docs/accessibility.md).
 
 ## Conventions
 
@@ -176,7 +181,8 @@ mechanics in the doc.
 - **Standard loading appearance: skeleton only + fade-in on reveal.** The skeleton is
   the ONLY loading indicator — never dim or darken content (`opacity: isPending ? …`
   is banned). Every data-awaiting route segment gets a `loading.tsx`; committed
-  content roots get `CONTENT_ENTER_CLASS`.
+  content roots get `CONTENT_ENTER_CLASS`. Every skeleton block includes a
+  `LoadingStatus` (sr-only `role="status"`) so screen readers hear the load.
   Design: [docs/loading-transitions.md](docs/loading-transitions.md).
 - **Buttons triggering async work show loading in the button itself:** Mantine `loading`
   prop + shared `loaderProps={BUTTON_LOADER_PROPS}` (`src/lib/theme.ts`);

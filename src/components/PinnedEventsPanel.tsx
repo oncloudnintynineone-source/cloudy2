@@ -18,12 +18,10 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import { fetchPinnedEvents, type PinnedEvent } from "@/lib/events/pinned";
-import {
-  modalContentWidth,
-  scaleFromRect,
-  transformOriginFromRect,
-} from "@/lib/motion/origin";
+import { modalContentWidth, scaleFromRect, transformOriginFromRect } from "@/lib/motion/origin";
 import { usePinnedPanel } from "@/lib/ui/pinnedPanel";
+
+import { LoadingStatus } from "./LoadingStatus";
 
 function formatDay(naive: string): string {
   const [y, m, d] = naive.slice(0, 10).split("-");
@@ -105,9 +103,7 @@ export function PinnedEventsPanel() {
     // Deep-link the event so the dashboard auto-opens its details; legacy
     // events without a group id fall back to landing on the date alone.
     router.push(
-      event.eventId
-        ? `/dashboard?date=${day}&event=${event.eventId}`
-        : `/dashboard?date=${day}`,
+      event.eventId ? `/dashboard?date=${day}&event=${event.eventId}` : `/dashboard?date=${day}`,
     );
   };
 
@@ -130,11 +126,14 @@ export function PinnedEventsPanel() {
     >
       <ScrollArea.Autosize mah="min(70dvh, 560px)" mx="-md" px="md">
         <Stack gap="xs">
-          {loading
-            ? Array.from({ length: 6 }).map((_, i) => (
+          {loading ? (
+            <>
+              <LoadingStatus label="Loading pinned events" />
+              {Array.from({ length: 6 }).map((_, i) => (
                 <Skeleton key={i} height={64} radius="md" />
-              ))
-            : null}
+              ))}
+            </>
+          ) : null}
           {!loading && events?.length === 0 ? (
             <Paper p="md" radius="md" withBorder>
               <Group gap="sm" wrap="nowrap" align="flex-start">

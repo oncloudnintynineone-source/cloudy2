@@ -2,6 +2,8 @@ import { cookies } from "next/headers";
 
 import { Box, Group, Skeleton, Stack } from "@mantine/core";
 
+import { LoadingStatus } from "@/components/LoadingStatus";
+
 // Straight from the source module: calendarSkeleton.tsx is "use client", so
 // its re-export of monthGridRows is a client reference that throws if called
 // during this server-side fallback render (rendering its components is fine).
@@ -40,6 +42,7 @@ export default async function DashboardLoading() {
     // Same shell-padding pull-up as DashboardView, so the skeleton chrome
     // starts flush under the fixed header exactly like the real render.
     <Stack pb="xl" gap="sm" style={{ marginTop: "calc(-1 * var(--app-shell-padding))" }}>
+      <LoadingStatus label="Loading calendar" />
       {/* Sticky view-tabs bar placeholder (five tabs, flex:1 each). */}
       <Box
         style={{

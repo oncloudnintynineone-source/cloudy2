@@ -1,5 +1,7 @@
 import { Group, Paper, Skeleton, Stack } from "@mantine/core";
 
+import { LoadingStatus } from "@/components/LoadingStatus";
+
 function TemplateCardSkeleton({ previewRows }: { previewRows: number }) {
   return (
     <Paper withBorder p="sm">
@@ -37,6 +39,7 @@ function TemplateCardSkeleton({ previewRows }: { previewRows: number }) {
 export default function TemplatesLoading() {
   return (
     <Stack>
+      <LoadingStatus label="Loading templates" />
       <TemplateCardSkeleton previewRows={3} />
       <TemplateCardSkeleton previewRows={2} />
     </Stack>

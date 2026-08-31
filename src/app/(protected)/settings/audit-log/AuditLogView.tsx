@@ -29,6 +29,7 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { FilterButton } from "@/components/FilterButton";
 import { FilterModal, type FilterGroup } from "@/components/FilterModal";
 import { FAB_ICON_SIZE, FloatingActionButton, FloatingToolbar } from "@/components/FloatingToolbar";
+import { LoadingStatus } from "@/components/LoadingStatus";
 import { purgeAuditLogs, loadMoreAuditLogs } from "@/lib/audit/actions";
 import { listAuditActions } from "@/lib/audit/build";
 import {
@@ -536,6 +537,7 @@ export function AuditLogView({
       <Stack gap="sm" ref={listRef} className={CONTENT_ENTER_CLASS}>
         {listLoading ? (
           <>
+            <LoadingStatus label="Loading audit log" />
             {/* Mobile: card list */}
             <Stack gap="sm" hiddenFrom="lg">
               {Array.from({ length: 5 }).map((_, i) => (

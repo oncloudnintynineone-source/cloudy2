@@ -1,5 +1,6 @@
 import { Group, Skeleton, Stack } from "@mantine/core";
 
+import { LoadingStatus } from "@/components/LoadingStatus";
 import { PageContainer } from "@/components/PageContainer";
 
 import { ParadeStateDepartmentSkeleton } from "./paradeStateSkeleton";
@@ -7,6 +8,7 @@ import { ParadeStateDepartmentSkeleton } from "./paradeStateSkeleton";
 export default function ParadeStateLoading() {
   return (
     <PageContainer>
+      <LoadingStatus label="Loading parade state" />
       <Stack gap="md" p="md" pb="xl">
         <Group align="center" gap="xs" wrap="nowrap">
           <Skeleton w={43} h={43} radius="md" />

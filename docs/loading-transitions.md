@@ -122,6 +122,14 @@ matrix), `WeekGridSkeleton` (Week (H)), `AgendaListSkeleton`, `ScheduleGridSkele
 `parade-state/paradeStateSkeleton.tsx`,
 `settings/audit-log/AuditLogRowSkeleton.tsx`.
 
+Every skeleton block also includes a **`LoadingStatus`**
+(`src/components/LoadingStatus.tsx`): a sr-only `role="status"` announcement
+("Loading calendar…" etc.), since skeletons are visual-only. Server-safe, so
+the same component serves the route `loading.tsx` files and the client-side
+skeleton swaps (dashboard `gridLoading`, parade-state `contentLoading`,
+audit-log `listLoading`, pinned-events panel). See
+[`accessibility.md`](accessibility.md) §1.3.
+
 The committed content's root carries `CONTENT_ENTER_CLASS`
 (`src/lib/loading/contentEnter.ts:12`): the class ships in the SSR HTML, so
 the fade plays on first paint (no JS, no hydration flash), segment remounts
@@ -337,6 +345,7 @@ and the non-remounting container means `useContentEnter` never replays.
 | ---- | ---- |
 | `src/lib/loading/minHoldLoading.ts` | `useMinSkeletonHold` + `MIN_SKELETON_HOLD_MS` |
 | `src/lib/loading/contentEnter.ts` | `CONTENT_ENTER_CLASS` + `useContentEnter` |
+| `src/components/LoadingStatus.tsx` | Sr-only `role="status"` announcement included with every skeleton block (§1.4, [`accessibility.md`](accessibility.md) §1.3) |
 | `src/app/globals.css` | `content-enter` / `agenda-slide-*` keyframes, reduced-motion guard |
 | `src/app/(protected)/*/loading.tsx` | Route-level skeletons (9 segments) |
 | `src/app/(protected)/dashboard/calendarSkeleton.tsx` | All five view grid skeletons (shared by route + in-page): `MonthGridSkeleton`, `WeekMatrixSkeleton`, `WeekGridSkeleton`, `AgendaListSkeleton`, `ScheduleGridSkeleton` |
@@ -351,6 +360,8 @@ and the non-remounting container means `useContentEnter` never replays.
 
 Related docs:
 
+- [`accessibility.md`](accessibility.md) — the `LoadingStatus` skeleton
+  announcement convention (§1.4) and the shell's live region.
 - [`ui-state.md`](ui-state.md) — the `?_fresh` marker's role in remembered-state
   removals.
 - [`events-cache.md`](events-cache.md) — what the loads load (the month cache)
