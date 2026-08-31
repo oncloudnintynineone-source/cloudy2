@@ -64,7 +64,10 @@ mechanics in the doc.
   Parsing lives in `src/lib/login.ts` as pure, I/O-free functions. Keep it pure — it's
   unit-tested without a DB.
 - Google access goes through `getGoogleIntegration()` (`src/lib/google/index.ts`) —
-  never call Google APIs directly; Gmail methods still throw.
+  never call Google APIs directly; Gmail methods still throw. It loads `./real`
+  via a **dynamic `import()`** — keep it that way: a static import drags the
+  ~200 MB `googleapis` package (~1.4s to `require`) into the eager chunk graph of
+  every route using the barrel, delaying cold-boot first byte.
   Design: [docs/google-integration.md](docs/google-integration.md).
 - **Calendar reads are cached server-side.** Read through `fetchMonthEvents()` /
   `fetchRangeEvents()` (`src/lib/events/queries.ts`) — **never call

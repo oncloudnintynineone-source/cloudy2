@@ -1,16 +1,23 @@
 /// <reference lib="esnext" />
  /// <reference lib="webworker" />
 import type { PrecacheEntry, SerwistGlobalConfig } from "serwist";
-import { CacheFirst, ExpirationPlugin, NetworkOnly, Serwist, StaleWhileRevalidate } from "serwist";
+import {
+  CacheFirst,
+  ExpirationPlugin,
+  NetworkFirst,
+  NetworkOnly,
+  Serwist,
+  StaleWhileRevalidate,
+} from "serwist";
 
 import {
   documentCacheName,
   isCacheableDocumentRequest,
   isCacheableRscRequest,
+  isDocumentFresh,
   isPageCacheName,
   isSessionExpiredResponse,
   isStartUrlRequest,
-  launchDecision,
   newestSavedView,
   rscCacheName,
   shouldStoreDocumentResponse,
@@ -307,58 +314,27 @@ function isRscRequest(options: { request: Request; url: URL; sameOrigin: boolean
   return isCacheableRscRequest(options.url, self.location.origin, options.request.headers);
 }
 
-// --- Cold-launch path (start URL `/`) ---
+// --- Launch path (start URL `/`) ---
 //
-// The start URL is never cached (it 307-redirects server-side), so every icon
-// tap used to force a serverless round trip before any paint — a cold function
-// boot after ~5 min idle is the long Android splash. The SW now handles `/`
-// itself (launchDecision in swRules):
-// - no saved view → the normal network path (first install / post-deploy wipe);
-// - recent saved view → 302 to it (SWR cache hit, no splash, no server call);
-// - stale saved view → the precached branded loading skeleton, whose page
-//   fetches the real start URL in the background (warming the function + Neon)
-//   and replaces with the resolved page. Offline, it falls back to the saved
-//   view after a few retries.
+// Every icon tap navigates to `/`. Letting that reach the network means the tap
+// waits on a serverless cold boot before a single byte arrives (`/` is dynamic:
+// it reads the remembered-page cookie and 307s), and Chrome keeps the Android
+// splash up until first paint — 10s+ when the function has scaled to zero. So
+// the SW answers `/` from the precache instead, and the shell resolves the
+// remembered page on the client, so `/` never reaches the server at all.
+//
+// This is deliberately unconditional. The runtime page caches are versioned per
+// build and wiped on activate, so any rule keyed on "is there a saved view?"
+// goes inert on the first launches after a deploy — exactly when the function
+// and Neon are coldest. The precache is written at install, so this path is
+// always available.
+const LAUNCH_SHELL_URL = "/loading.html";
 
-// Serve the precached loading.html skeleton with the offline fallback URL
-// injected, so the page can redirect to the last-saved view when the network
-// fetch fails (offline launch).
-async function serveLaunchSkeleton(fallbackUrl: string): Promise<Response | null> {
-  try {
-    const fallback = await serwist.matchPrecache("/loading.html");
-    if (!fallback) return null;
-    const text = await fallback.clone().text();
-    const injected = text.replace(
-      "</head>",
-      `<script>window.__C2_LAUNCH__={fallbackUrl:${JSON.stringify(fallbackUrl)}}</script></head>`,
-    );
-    const headers = new Headers(fallback.headers);
-    headers.delete("content-length");
-    return new Response(injected, { status: 200, statusText: fallback.statusText, headers });
-  } catch {
-    return null;
-  }
-}
-
-// Handle a navigation to the bare start URL. Runs before the document SWR
-// route (first-match-wins), so `/` never reaches StaleWhileRevalidate — it is
-// never cached anyway.
 async function handleLaunchRequest({ request }: { request: Request }): Promise<Response> {
-  const saved = await lastSavedViewEntry().catch(() => null);
-  const decision = launchDecision(saved, Date.now());
-  if (decision === "instant" && saved) {
-    // A render happened within the threshold, so the DB can't be cold — the
-    // saved view is instant and safe; the SWR route serves it from cache and
-    // revalidates in the background.
-    return Response.redirect(saved.url, 302);
-  }
-  if (decision === "skeleton" && saved) {
-    const skeleton = await serveLaunchSkeleton(saved.url).catch(() => null);
-    if (skeleton) return skeleton;
-  }
-  // No saved view, or the skeleton is unavailable → today's network path: the
-  // server `/` resolves the remembered last page and 307-redirects there. The
-  // follow-up navigation goes through the document SWR route as usual.
+  const shell = await serwist.matchPrecache(LAUNCH_SHELL_URL).catch(() => undefined);
+  if (shell) return shell;
+  // Precache miss — the very first navigation racing install, or an eviction.
+  // Fall back to the server's own `/`, which resolves the same target.
   try {
     return await fetch(request);
   } catch {
@@ -371,6 +347,75 @@ function isLaunchRequest(options: { request: Request; url: URL; sameOrigin: bool
   if (options.request.method !== "GET") return false;
   if (options.request.mode !== "navigate") return false;
   return isStartUrlRequest(options.url);
+}
+
+// --- Document navigations: freshness-routed ---
+//
+// Hard navigations (PWA launch, F5, share link) used to be unconditionally
+// stale-while-revalidate, so a launch could land on a page cached days ago with
+// only the "Saved · HH:MM" stamp to admit it. The cached entry's age now picks
+// the strategy:
+//
+// - younger than DOCUMENT_FRESH_WINDOW_MS → serve instantly, revalidate in the
+//   background (a render that recent cannot have come off a cold stack, so it
+//   is both fast and honest);
+// - older, or no entry at all → network-first, so the user gets fresh content.
+//   On a launch the precached shell (§1.5.1) stays painted for the entire wait
+//   — the browser holds the current document until the new navigation commits —
+//   so this reads as "skeleton, then fresh", never as a stale flash.
+//
+// NetworkFirst still falls back to the cache when the network *fails*, so
+// offline behaviour is unchanged; with both exhausted, `handlerDidError` lands
+// on serveOfflineDocument exactly as before. Navigation preload means the
+// browser has usually already started the request by the time we ask for it.
+//
+// The two strategies deliberately share ONE plugins array: ExpirationPlugin
+// keys its CacheExpiration by the cacheName passed to each callback, so a
+// single instance manages this cache correctly — two instances would
+// double-manage it (duplicate IndexedDB bookkeeping and redundant deletes).
+const documentPlugins = [
+  new ExpirationPlugin({
+    maxEntries: 48,
+    maxAgeSeconds: 30 * 24 * 60 * 60,
+    maxAgeFrom: "last-used",
+    purgeOnQuotaError: true,
+  }),
+  documentPlugin,
+];
+
+const documentSwr = new StaleWhileRevalidate({
+  cacheName: APP_DOCUMENT_CACHE,
+  plugins: documentPlugins,
+});
+
+const documentNetworkFirst = new NetworkFirst({
+  cacheName: APP_DOCUMENT_CACHE,
+  plugins: documentPlugins,
+});
+
+// Metadata-only peek: reads the stored entry's Date header without touching the
+// body, the same technique as lastSavedViewEntry(). null means "no entry" or
+// "no usable timestamp" — both count as not fresh.
+async function cachedDocumentSavedAtMs(request: Request): Promise<number | null> {
+  try {
+    const cache = await caches.open(APP_DOCUMENT_CACHE);
+    const cached = await cache.match(request);
+    if (!cached) return null;
+    const dateHeader = cached.headers.get("date");
+    if (!dateHeader) return null;
+    const parsed = Date.parse(dateHeader);
+    return Number.isNaN(parsed) ? null : parsed;
+  } catch {
+    return null;
+  }
+}
+
+async function handleDocumentRequest(
+  options: import("serwist").RouteHandlerCallbackOptions,
+): Promise<Response> {
+  const savedAtMs = await cachedDocumentSavedAtMs(options.request);
+  const strategy = isDocumentFresh(savedAtMs, Date.now()) ? documentSwr : documentNetworkFirst;
+  return strategy.handle(options);
 }
 
 const serwist = new Serwist({
@@ -426,31 +471,21 @@ const serwist = new Serwist({
         ],
       }),
     },
-    // Cold-launch path (start URL `/`): instant cached view when fresh, the
-    // branded loading skeleton when stale, network otherwise. Registered before
-    // the document SWR route (first-match-wins) — `/` is never cached anyway.
+    // Launch path (start URL `/`): the precached shell, always. Registered
+    // before the document SWR route (first-match-wins) — `/` is never cached
+    // by that route anyway, since the server only ever 307s from it.
     {
       matcher: isLaunchRequest,
       handler: handleLaunchRequest,
     },
-    // Document navigations (PWA cold open, F5, share link) — the main
-    // "instant open" lever. Served instantly from cache when available,
-    // revalidated in the background; offline with no cache → redirect to the
-    // last-saved view's URL, or offline.html when nothing is saved.
+    // Document navigations (PWA launch target, F5, share link) — the main
+    // "instant open" lever, routed by how recently the copy was cached: instant
+    // + background revalidate when fresh, network-first when stale. Offline
+    // with no cache → redirect to the last-saved view's URL, or offline.html
+    // when nothing is saved.
     {
       matcher: isDocRequest,
-      handler: new StaleWhileRevalidate({
-        cacheName: APP_DOCUMENT_CACHE,
-        plugins: [
-          new ExpirationPlugin({
-            maxEntries: 48,
-            maxAgeSeconds: 30 * 24 * 60 * 60,
-            maxAgeFrom: "last-used",
-            purgeOnQuotaError: true,
-          }),
-          documentPlugin,
-        ],
-      }),
+      handler: handleDocumentRequest,
     },
     // Everything else (auth, /api, non-GET, and unmatched same-origin) must
     // always hit the network — auth responses must never be cached.

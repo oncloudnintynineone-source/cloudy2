@@ -4,14 +4,14 @@ import {
   APP_DOCUMENT_CACHE_PREFIX,
   APP_RSC_CACHE_PREFIX,
   documentCacheName,
+  DOCUMENT_FRESH_WINDOW_MS,
   isCacheableDocumentRequest,
+  isDocumentFresh,
   isCacheableRscRequest,
   isPageCacheName,
   isSessionExpiredResponse,
   isStartUrlRequest,
   keysForPathname,
-  LAUNCH_REFRESH_THRESHOLD_MS,
-  launchDecision,
   newestSavedView,
   rscCacheName,
   shouldStoreDocumentResponse,
@@ -364,34 +364,32 @@ describe("swRules", () => {
     });
   });
 
-  describe("launchDecision", () => {
-    const now = 1_000_000;
+  describe("isDocumentFresh", () => {
+    const now = 1_000_000_000;
 
-    it("network when there is no saved view", () => {
-      expect(launchDecision(null, now)).toBe("network");
+    it("is not fresh without a timestamp (no entry, or no Date header)", () => {
+      expect(isDocumentFresh(null, now)).toBe(false);
     });
 
-    it("instant for a fresh saved view", () => {
-      expect(
-        launchDecision({ savedAtMs: now - LAUNCH_REFRESH_THRESHOLD_MS + 1 }, now),
-      ).toBe("instant");
-      expect(launchDecision({ savedAtMs: now }, now)).toBe("instant");
+    it("is fresh for a just-stored document", () => {
+      expect(isDocumentFresh(now, now)).toBe(true);
     });
 
-    it("skeleton exactly at the threshold (inclusive)", () => {
-      expect(launchDecision({ savedAtMs: now - LAUNCH_REFRESH_THRESHOLD_MS }, now)).toBe(
-        "skeleton",
-      );
+    it("is fresh just inside the window", () => {
+      expect(isDocumentFresh(now - DOCUMENT_FRESH_WINDOW_MS + 1, now)).toBe(true);
     });
 
-    it("skeleton for a stale saved view", () => {
-      expect(
-        launchDecision({ savedAtMs: now - LAUNCH_REFRESH_THRESHOLD_MS - 1 }, now),
-      ).toBe("skeleton");
+    it("is stale exactly at the window (exclusive)", () => {
+      expect(isDocumentFresh(now - DOCUMENT_FRESH_WINDOW_MS, now)).toBe(false);
     });
 
-    it("skeleton when the timestamp is missing", () => {
-      expect(launchDecision({ savedAtMs: null }, now)).toBe("skeleton");
+    it("is stale past the window", () => {
+      expect(isDocumentFresh(now - DOCUMENT_FRESH_WINDOW_MS - 1, now)).toBe(false);
+      expect(isDocumentFresh(now - 24 * 60 * 60_000, now)).toBe(false);
+    });
+
+    it("treats a future timestamp (clock skew) as age 0, not ancient", () => {
+      expect(isDocumentFresh(now + 60_000, now)).toBe(true);
     });
   });
 

@@ -142,12 +142,28 @@ export function googleCalendarConfigured(): boolean {
 }
 
 export async function getGoogleIntegration(): Promise<GoogleIntegration> {
-  return googleCalendarConfigured() ? createRealGoogleIntegration() : stubGoogleIntegration;
+  if (!googleCalendarConfigured()) return stubGoogleIntegration;
+  const { createRealGoogleIntegration } = await import("./real");
+  return createRealGoogleIntegration();
 }
 ```
 
 - The decision is per-call (env is read each time) — a credentials change takes
   effect on the next request, no restart needed.
+- **`./real` must stay behind a dynamic `import()`.** Its first line is
+  `import { google } from "googleapis"`, and that umbrella package measures
+  ~200 MB on disk and ~1.4 s to `require()`. A static import here put it in the
+  eagerly-loaded chunk graph of every route importing this barrel — including
+  `/dashboard`, which only wanted `googleCalendarConfigured()` — so each cold
+  serverless boot executed it *before rendering began*, delaying the first byte
+  and therefore first paint. (Measured on a Turbopack build: a 12.3 MB chunk,
+  `EAGER-FOR-DASHBOARD=True` with the static import, `False` with the dynamic
+  one.) That mattered most on the PWA launch path, where Chrome holds the
+  Android splash until first paint — see
+  [pwa-offline.md §1.5.1](pwa-offline.md#151-launch-path-start-url).
+  Keep `googleCalendarConfigured()` on `./config` (env-only, googleapis-free) so
+  callers can probe without paying the load, and a request served entirely from
+  the event cache never touches `googleapis` at all.
 - Callers that must **refuse** work when Google is absent check
   `googleCalendarConfigured()` first and return a user-visible error: the event
   create/update/delete actions ("Google Calendar is not configured"), the

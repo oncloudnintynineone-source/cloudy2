@@ -254,8 +254,11 @@ export function freshMarkerNeeded(
   return keys.some((key) => updates[key] === null);
 }
 
-const BASE_PAGES = ["/dashboard", "/parade-state", "/contacts"];
-const SETTINGS_SUBTABS = [
+// Exported because the PWA launch shell (public/loading.html) has to resolve
+// the same targets in plain inline JS, before any bundle loads. Its copy is
+// kept honest by src/lib/pwa/launchShell.test.ts.
+export const BASE_PAGES = ["/dashboard", "/parade-state", "/contacts"];
+export const SETTINGS_SUBTABS = [
   "/settings/users",
   "/settings/departments",
   "/settings/event-types",

@@ -141,7 +141,8 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
 - [1.144 Highlight my entries across dashboard views (Phase 3b8)](#1144-highlight-my-entries-across-dashboard-views-phase-3b8)
 - [1.145 Dark-mode my-entry tint fix](#1145-dark-mode-my-entry-tint-fix)
 - [1.151 Cold-open splash fix: streamed banner/KAH shell chrome (Neon scale-to-zero)](#1151-cold-open-splash-fix-streamed-bannerkah-shell-chrome-neon-scale-to-zero)
-- [1.152 Cold-launch path: SW short-circuits the start URL (skeleton vs instant)](#1152-cold-launch-path-sw-short-circuits-the-start-url-skeleton-vs-instant)
+- [1.152 Android PWA splash, take two: lazy googleapis + precached launch shell](#1152-android-pwa-splash-take-two-lazy-googleapis--precached-launch-shell)
+- [1.153 Document navigations routed by cache age (instant vs fresh)](#1153-document-navigations-routed-by-cache-age-instant-vs-fresh)
 
 ## 1.1 Status
 
@@ -6400,45 +6401,149 @@ diagram); `progress.md` one-liner.
 Verification: `pnpm lint` + `pnpm typecheck` + `pnpm test` (811) + `pnpm build`
 (65 precache entries) all pass.
 
-## 1.152 Cold-launch path: SW short-circuits the start URL (skeleton vs instant)
+## 1.152 Android PWA splash, take two: lazy googleapis + precached launch shell
 
-The layout fix (1.151) removed the DB from the server's first-paint path, but a
-cold launch still showed a very long Android splash. Root cause: the PWA start
-URL `/` is never cached — it 307-redirects server-side — so every icon tap fired
-a serverless round trip, and after ~5 min idle the function instance (like the
-Neon DB) is cold: the browser got no bytes until the cold boot finished, so the
-native splash covered it all and no skeleton ever appeared.
+1.151 streamed the shell's DB reads out of the layout, which was correct but did
+not shorten the splash: the user still saw the navy splash + icon for the whole
+10s. Re-measuring found the diagnosis had been wrong twice over.
 
-Fix: the SW now handles `/` itself via a dedicated launch route (registered
-before the document SWR route, first-match-wins), driven by the pure
-`launchDecision(saved, now)` in `src/lib/pwa/swRules.ts`:
+**What was actually blocking first paint.** Chrome dismisses the Android PWA
+splash on the launch page's *first non-empty paint* (Chromium's
+`WebappSplashScreenController`), so the splash's length is exactly
+time-to-first-paint. Nothing on the server's first-byte path touched the DB
+(`/` and the protected layout only decrypt a JWT and read cookies). What blocked
+it was **module load**: `dashboard/page.tsx` imports `googleCalendarConfigured`
+from the `@/lib/google` barrel, which statically imported `./real`, whose first
+line is `import { google } from "googleapis"`. That umbrella package is ~200 MB
+on disk and ~1.4 s to `require()`, and it executed on every cold serverless boot
+*before rendering started* — so streaming the layout could not help.
 
-- **No saved view** (fresh install, post-deploy wipe, sign-out) → `fetch('/')`,
-  the normal network path (server redirects to the last page / `/dashboard`).
-- **Recent saved view** (< `LAUNCH_REFRESH_THRESHOLD_MS` = 5 min — a render this
-  recent means the DB cannot have idled) → `302` to the saved view's own URL;
-  the document SWR route serves it from cache (stamped, "Saved · HH:MM") and
-  revalidates in the background. No splash, no server call — and warm launches
-  lose the `/` round trip they used to pay.
-- **Stale saved view** (≥ 5 min, DB likely scaled to zero) → the precached
-  branded `public/loading.html` (added to `__SW_MANIFEST`; build count 65 → 66),
-  served instantly with `window.__C2_LAUNCH__.fallbackUrl` injected. Its script
-  `fetch`es the real start URL in the background (warming the function + Neon),
-  then `location.replace`s to the resolved fresh page; Chrome's paint-holding
-  keeps the skeleton visible until the new page's first paint (no white flash).
-  Offline, it retries (1s/2s/4s/8s) then redirects to the injected saved view —
-  the §1.9 offline fallback, reached through the skeleton.
+**Why the previous launch route (removed) never fired.** It keyed the decision
+on the newest saved view, but the runtime page caches are versioned per build,
+wiped on `activate`, and additionally cleared by `clearAllSavedPages()` on
+controller change — so after every deploy there was no saved view,
+`launchDecision` returned `"network"`, and the skeleton never rendered. That is
+exactly the state a post-deploy test is in. Two further defects: the `"instant"`
+branch only fired when the saved view was *younger* than 5 min (i.e. when
+nothing was cold anyway), and the skeleton's `fetch(location.href)` was a
+non-navigate request, so it missed both the launch and document matchers, fell
+to `NetworkOnly`, and its freshly downloaded HTML was discarded — after which
+`location.replace` served the *stale* cached copy and fired a third revalidation.
 
-Other `sw.ts` changes: `lastSavedDocumentUrl()` refactored into
-`lastSavedViewEntry()` (returns the entry with `savedAtMs`) + a thin wrapper;
-the offline fallback extracted into `serveOfflineDocument()` shared by
-`handlerDidError` and the launch route.
+**Fix A — googleapis off the cold-boot path.** `getGoogleIntegration()` (already
+`async`) now loads `./real` with a dynamic `import()`; `googleCalendarConfigured()`
+stays on `./config` (env-only). `index.ts` was the sole static importer of
+`./real`, so this covers every route. Verified by A/B build rather than
+inspection: with the static import the 12.3 MB googleapis chunk is
+`EAGER-FOR-DASHBOARD=True`; with the dynamic import it is `False`, and the
+built selector compiles to `await a.A(448360)` (Turbopack's async module
+loader) inside a chunk containing zero `googleapis` references. A request served
+entirely from the event cache now never loads it.
 
-New pure helpers in `swRules.ts` (unit-tested, suite 34 → 42 cases):
-`LAUNCH_REFRESH_THRESHOLD_MS`, `launchDecision(saved, now)`,
-`isStartUrlRequest(url)`.
+**Fix B — the launch never touches the server.** `handleLaunchRequest` now
+returns `serwist.matchPrecache("/loading.html")` **unconditionally** (network
+`fetch` only on a precache miss). Because the precache is written at *install*,
+this path survives the deploy-time cache wipe that made the old rule inert.
+`public/loading.html` paints the branded shell — lifting the splash — then reads
+the client-owned `cloudy2.ui` cookie (base64url JSON, same codec as
+`decodeUiState`), whitelists `lastPage`, and `location.replace`s to it. So `/`,
+a dynamic route whose only job was a cookie read and a 307, is no longer
+requested at launch at all.
 
-Docs: `docs/pwa-offline.md` §1.4 route list + new §1.5.1 (with diagram) + §1.9
-offline-launch note + §1.12/§1.13/§1.15; `progress.md` one-liner.
+Two load-bearing details: the redirect is deferred behind **two nested
+`requestAnimationFrame`s**, because the parser can reach the script before a
+frame has been presented and navigating away pre-paint means the splash never
+lifts; and the shell's route whitelist is a duplicate of `BASE_PAGES` /
+`SETTINGS_SUBTABS` (now exported) held honest by
+`src/lib/pwa/launchShell.test.ts`, which also asserts the double-rAF structure
+and that the shell contains no `fetch(`. The whitelist only has to be *safe* —
+`requireAdmin()` still guards `/settings/*` server-side.
+
+Removed: `launchDecision`, `LAUNCH_REFRESH_THRESHOLD_MS`, `serveLaunchSkeleton`
+and its `window.__C2_LAUNCH__` injection. Kept from that pass:
+`isStartUrlRequest`, `lastSavedViewEntry`, and the `serveOfflineDocument`
+extraction. `swRules.test.ts` 42 → 40 cases; new `launchShell.test.ts` (5).
+
+Docs: `docs/pwa-offline.md` §1.5.1 rewritten (+ §1.4/§1.9/§1.12/§1.13/§1.15),
+`docs/google-integration.md` §1.6, AGENTS.md Google bullet, `progress.md`.
 Verification: `pnpm lint` + `pnpm typecheck` + `pnpm test` (819) + `pnpm build`
 (66 precache entries) all pass.
+
+**Still open:** the target navigation after the shell still uses the plain
+document SWR route, so a launch can land on a stale-but-stamped page. The agreed
+follow-up is a freshness rule there — cached instantly when recent, else
+network-first behind the still-painted shell. Neither fix has been measured on
+the real device yet; that is the next step.
+
+## 1.153 Document navigations routed by cache age (instant vs fresh)
+
+1.152 made the launch paint instantly, but the page the shell redirects to still
+went through an unconditional `StaleWhileRevalidate` — so a launch could land on
+a document cached days ago, with only the "Saved · HH:MM" stamp to admit it.
+This closes that: the document route now picks its strategy per request, from
+how recently the copy was stored.
+
+`handleDocumentRequest` does a **metadata-only peek** — `cache.match(request)`
+reading just the `Date` header, no body read, the same technique
+`lastSavedViewEntry()` already used — and hands the age to the pure
+`isDocumentFresh(savedAtMs, now)`:
+
+- **< `DOCUMENT_FRESH_WINDOW_MS` (5 min)** → `StaleWhileRevalidate`, i.e. exactly
+  today's behaviour: instant, revalidated in the background. A render that
+  recent cannot have come off a cold stack, so serving it immediately is both
+  fast and honest.
+- **older / no entry / no usable `Date`** → `NetworkFirst`: fresh content. On a
+  launch the precached shell stays painted for the entire wait, because the
+  browser holds the current document until the new navigation commits — so the
+  sequence reads "skeleton → fresh", never "stale flash".
+
+`null` counts as not fresh (matching `newestSavedView`'s "missing timestamps
+sort oldest"), and a future timestamp — server `Date` ahead of the device clock
+— clamps to age 0 instead of reading as ancient.
+
+Deliberately **no `networkTimeoutSeconds`**. Serwist supports it, but on a cold
+function plus cold Neon the fresh response routinely outlives any sane timeout,
+so a timeout would return stale data in precisely the case this rule exists to
+fix. Offline safety comes from `NetworkFirst`'s own behaviour instead: it falls
+back to `handler.cacheMatch()` when the network *fails* (which still runs the
+stamp plugin), and when both are exhausted `Strategy._getResponse` routes
+through `handlerDidError` to `serveOfflineDocument` exactly as before.
+
+The two strategies share **one** plugins array. Verified in serwist's source
+rather than assumed: `ExpirationPlugin` keys its `CacheExpiration` map by the
+`cacheName` passed into each callback, so a single instance manages the one
+cache correctly — two instances would double-manage it (duplicate IndexedDB
+bookkeeping and redundant deletes). Neither strategy gets
+`cacheOkAndOpaquePlugin` auto-prepended, since `documentPlugin` already defines
+`cacheWillUpdate`, so storability, session-expiry purging and stamping behave
+identically on both paths.
+
+Scope is uniform across all document navigations, not only launches — in an
+installed PWA nearly every hard load *is* a launch. The accepted trade-off: a
+share link to a >5 min stale page now waits on the network with nothing
+painted, where it previously showed stale content instantly.
+
+Also corrected a claim from 1.152: the launch does **not** avoid the server
+entirely. `navigationPreload: true` enables preload globally, so the browser
+still issues a `GET /` on every launch even though the SW answers from the
+precache. It is never awaited and never blocks paint — and it usefully warms the
+function and Neon while the shell paints, so the follow-up navigation often
+lands on an already-booting instance. The server is off the *critical path*, not
+uncontacted.
+
+Verified in the emitted service worker, not just at the source level:
+`var ts=5*6e4` with `function ot(e,t){return e===null?!1:Math.max(0,t-e)<ts}`,
+one shared plugins array `ht` feeding both `ps=new I({cacheName:R,plugins:ht})`
+and `fs=new b({cacheName:R,plugins:ht})`, and the delegation
+`async function ms(e){let t=await gs(e.request);return(ot(t,Date.now())?ps:fs).handle(e)}`.
+
+`swRules.test.ts` 40 → 46 cases. Docs: `docs/pwa-offline.md` §1.5 (strategy
+selection), §1.5.1 (preload caveat + target hand-off), §1.12/§1.13.
+Verification: `pnpm lint` + `pnpm typecheck` + `pnpm test` (825) + `pnpm build`
+(66 precache entries) all pass.
+
+**Still unmeasured on the device.** 1.152 and 1.153 are verified at the build,
+bundle and unit level only; the end-to-end splash improvement has not been
+timed on the phone. Test protocol: deploy → launch once so the new SW installs
+and precaches → background the app → wait >5 min (Neon autosuspend *and* the
+serverless instance idling) → launch.

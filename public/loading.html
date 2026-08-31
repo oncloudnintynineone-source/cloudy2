@@ -118,41 +118,92 @@
         <span class="sk sk-pulse"></span><span class="sk sk-pulse"></span><span class="sk sk-pulse"></span>
       </div>
     </main>
+    <!--
+      Launch targets the inline script is allowed to resolve to. Mirrors
+      BASE_PAGES + SETTINGS_SUBTABS in src/lib/ui/uiState.ts; the drift is
+      guarded by src/lib/pwa/launchShell.test.ts, which parses this block and
+      compares it against those constants. This list only has to be *safe*, not
+      authoritative — /settings/* is still enforced server-side by
+      requireAdmin(), so an over-permissive entry costs at most one redirect.
+    -->
+    <script type="application/json" id="c2-launch-routes">
+      [
+        "/dashboard",
+        "/parade-state",
+        "/contacts",
+        "/settings/users",
+        "/settings/departments",
+        "/settings/event-types",
+        "/settings/templates",
+        "/settings/general",
+        "/settings/audit-log"
+      ]
+    </script>
     <script>
-      // Served by the service worker for a cold launch (start URL `/` when the
-      // newest saved view is stale). Fetch the real start URL in the background
-      // — which also warms the serverless function + Neon compute — then
-      // replace with the resolved page. Offline, fall back to the last-saved
-      // view (injected by the SW as window.__C2_LAUNCH__.fallbackUrl).
+      // The service worker serves this page for every launch (start URL `/`),
+      // straight from the precache, so the Android splash lifts on this page's
+      // first paint instead of waiting on a serverless cold boot. We then
+      // resolve the remembered last page *on the client* — the `cloudy2.ui`
+      // cookie is client-owned and readable — and replace, so the launch never
+      // costs a server round trip for `/` at all.
+      //
+      // The redirect is deliberately deferred by two animation frames: the
+      // parser can otherwise reach this script before the browser has presented
+      // a frame, and navigating away pre-paint means the splash never lifts —
+      // which is precisely the bug this page exists to fix. Two frames because
+      // the first rAF fires *before* the paint it schedules; the second runs
+      // after that frame has been presented.
       (function () {
-        var fallbackUrl = (window.__C2_LAUNCH__ && window.__C2_LAUNCH__.fallbackUrl) || null;
-        var attempts = 0;
-        var MAX_ATTEMPTS = 4;
-        function retry() {
-          attempts += 1;
-          if (attempts > MAX_ATTEMPTS) {
-            location.replace(fallbackUrl || "/offline.html");
-            return;
+        var DEFAULT_TARGET = "/dashboard";
+
+        function allowedRoutes() {
+          try {
+            return JSON.parse(document.getElementById("c2-launch-routes").textContent);
+          } catch (err) {
+            return [];
           }
-          setTimeout(run, Math.min(1000 * Math.pow(2, attempts), 8000));
         }
-        function run() {
-          fetch(location.href, { cache: "no-store" })
-            .then(function (res) {
-              if (res.ok || res.redirected) {
-                location.replace(res.url);
-              } else {
-                retry();
-              }
-            })
-            .catch(retry);
+
+        // Mirrors fromBase64Url + decodeUiState in src/lib/ui/uiState.ts.
+        function readLastPage() {
+          try {
+            var match = /(?:^|;\s*)cloudy2\.ui=([^;]*)/.exec(document.cookie);
+            if (!match) return null;
+            var b64 = decodeURIComponent(match[1]).replace(/-/g, "+").replace(/_/g, "/");
+            while (b64.length % 4 !== 0) b64 += "=";
+            var json = new TextDecoder().decode(
+              Uint8Array.from(atob(b64), function (ch) {
+                return ch.charCodeAt(0);
+              }),
+            );
+            var page = JSON.parse(json).lastPage;
+            return typeof page === "string" ? page : null;
+          } catch (err) {
+            return null;
+          }
         }
-        run();
+
+        function resolveTarget() {
+          var page = readLastPage();
+          if (!page) return DEFAULT_TARGET;
+          // "/settings" alone is a tab group, not a route — send it to the
+          // first sub-tab, matching resolveLaunchTarget.
+          if (page === "/settings") return "/settings/users";
+          return allowedRoutes().indexOf(page) === -1 ? DEFAULT_TARGET : page;
+        }
+
+        var target = resolveTarget();
+        requestAnimationFrame(function () {
+          requestAnimationFrame(function () {
+            location.replace(target);
+          });
+        });
       })();
     </script>
     <noscript>
       <p style="padding: 24px; text-align: center; color: #b0b0b0">
-        Cloudy needs JavaScript to load. <a href="/" style="color: #8ca8e2">Reload</a>.
+        Cloudy needs JavaScript to load.
+        <a href="/dashboard" style="color: #8ca8e2">Continue</a>.
       </p>
     </noscript>
   </body>

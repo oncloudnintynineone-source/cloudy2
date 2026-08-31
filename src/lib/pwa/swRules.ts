@@ -204,42 +204,35 @@ export function newestSavedView(entries: readonly SavedViewEntry[]): SavedViewEn
 }
 
 /**
- * How old the newest saved view must be for a cold launch (a cache-miss
- * navigation to the start URL `/`) to serve the branded loading skeleton
- * instead of the cached page. Matches Neon's scale-to-zero autosuspend: if the
- * last render is newer than this the DB cannot have idled, so the cached page
- * is instant and safe; older means a fresh fetch will hit a cold start, so a
- * skeleton is the honest UI.
+ * How recently a cached document must have been stored for a hard navigation
+ * (PWA launch, F5, share link) to serve it instantly instead of refetching.
+ * Matches Neon's scale-to-zero autosuspend: a page rendered more recently than
+ * this cannot have come from a cold stack, so showing it immediately is both
+ * fast and honest. Older than this and we go to the network — on a launch the
+ * shell stays painted for the wait, so the user sees a skeleton rather than
+ * stale data. See docs/pwa-offline.md §1.5.
  */
-export const LAUNCH_REFRESH_THRESHOLD_MS = 5 * 60_000;
-
-export type LaunchDecision = "network" | "instant" | "skeleton";
+export const DOCUMENT_FRESH_WINDOW_MS = 5 * 60_000;
 
 /**
- * What a cold launch should serve, given the newest saved view (or null when
- * none exists):
- * - `"network"`: no saved view — the normal network path (the server `/`
- *   redirects to the last page / dashboard). Used on first install, right after
- *   a deploy wipes the caches, and after sign-out.
- * - `"instant"`: the saved view is recent enough that the DB is warm — a 302 to
- *   it, so the SWR document cache serves it with no splash and no server call.
- * - `"skeleton"`: the saved view is stale (DB likely scaled to zero) — the
- *   precached branded skeleton, which fetches the real page in the background.
+ * Whether a cached document may still be served instantly.
+ *
+ * `savedAtMs` is null when there is no cache entry, or when the stored response
+ * carried no usable `Date` header; both count as **not** fresh, matching
+ * `newestSavedView`'s "missing timestamps sort oldest". A timestamp in the
+ * future (clock skew between the server's `Date` and the device) clamps to age
+ * 0 rather than reading as ancient.
  */
-export function launchDecision(
-  saved: Pick<SavedViewEntry, "savedAtMs"> | null,
-  now: number,
-): LaunchDecision {
-  if (!saved) return "network";
-  const age =
-    saved.savedAtMs === null ? Number.POSITIVE_INFINITY : Math.max(0, now - saved.savedAtMs);
-  return age >= LAUNCH_REFRESH_THRESHOLD_MS ? "skeleton" : "instant";
+export function isDocumentFresh(savedAtMs: number | null, now: number): boolean {
+  if (savedAtMs === null) return false;
+  return Math.max(0, now - savedAtMs) < DOCUMENT_FRESH_WINDOW_MS;
 }
 
 /**
  * Whether a navigation URL is the bare PWA start URL — the exact `/` with no
- * query or hash. Every icon tap navigates here; it is never itself cached (it
- * 307-redirects server-side), so the launch route short-circuits it.
+ * query or hash. Every icon tap navigates here; the launch route answers it
+ * from the precache so no server round trip stands between the tap and first
+ * paint. See docs/pwa-offline.md §1.5.1.
  */
 export function isStartUrlRequest(url: URL): boolean {
   return url.pathname === "/" && url.search === "" && url.hash === "";
