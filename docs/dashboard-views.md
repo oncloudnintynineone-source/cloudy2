@@ -177,6 +177,16 @@ slot granularity (still 60-minute columns) or the row height.
   tiles on the fly. A window update re-renders only the small strip (each registers a
   one-shot advance callback), never the whole dashboard. `zoom` is in that effect's
   dependency list, so both strips re-measure on every zoom change.
+  - **Ruler height is explicit** (`1.15rem`): every ruler cell is absolutely positioned,
+    so without a set height the sticky strip would collapse to 0px and hide the hour
+    markers.
+  - **Day labels are anchored, not column-fixed.** A day column (24 slots) is far wider
+    than the viewport, so a label fixed at a column's left edge is only visible near
+    that edge and "scrolls away" while panning. Instead each label's `left` is clamped
+    against the per-frame `--c2-scroll-x` (published alongside the wrapper transform):
+    the leftmost visible day's label stays pinned at the strip's left edge while its
+    column pans through the viewport, handing off at the day boundary — so a date label
+    is always visible during a horizontal pan, on any viewport width.
 - **Persistence**: the level is remembered per device in the `cloudy2.ui` cookie as
   `dashboard.zoom` — not URL-backed (zooming never navigates), so it is read from the
   raw cookie and seeded into the client state before first paint (no width jump on

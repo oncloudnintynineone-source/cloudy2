@@ -254,15 +254,17 @@ const DAY_SWIPE_THRESHOLD = 48;
 /**
  * Day-label strip for the Week (H) view. `ResourcesWeekView`'s own day labels are
  * centered in each full-width day column, so on a phone they are only visible
- * when the viewport happens to sit over the middle of a day. This strip
- * replaces that row and pins the date labels beneath the shared chrome; its
- * inner wrapper translates by -scrollLeft via a direct DOM transform, so every
- * label stays over its day column while the grid pans horizontally — instead of
- * a single label being swapped on a day boundary (which left only one of two
- * side-by-side dates visible). The cells thinly re-render only when the label
- * window advances (see `WEEK_DAY_WINDOW`), never per frame. The strip itself is
- * sticky under the shared tabs+date-nav chrome at every breakpoint, mirroring
- * the Week (D) day header.
+ * when the viewport happens to sit over the middle of a day. This strip replaces
+ * that row and pins a date label beneath the shared chrome; its inner wrapper
+ * translates by -scrollLeft via a direct DOM transform and each label's `left` is
+ * clamped against the per-frame `--c2-scroll-x`, so the leftmost visible day's
+ * label stays anchored at the strip's left edge while its column pans through the
+ * viewport and hands off at the day boundary — instead of a label that only
+ * appears near a column's left edge and scrolls away, or one being swapped on a
+ * day boundary (which left only one of two side-by-side dates visible). The cells
+ * thinly re-render only when the label window advances (see `WEEK_DAY_WINDOW`),
+ * never per frame. The strip itself is sticky under the shared tabs+date-nav
+ * chrome at every breakpoint, mirroring the Week (D) day header.
  */
 // Day cells are 24 slots wide, so a narrow viewport can intersect at most two
 // day columns; a small fixed window around the leftmost visible day (base) is
@@ -368,14 +370,19 @@ function WeekDayLabelStrip({
                   left: `calc(var(--ruler-slot, 60px) * ${SLOTS_PER_DAY * index})`,
                   width: `calc(var(--ruler-slot, 60px) * ${SLOTS_PER_DAY})`,
                   borderLeft: "1px solid var(--mantine-color-default-border)",
-                  display: "flex",
-                  alignItems: "center",
-                  paddingInline: "0.5rem",
                 }}
               >
                 <Text
                   size="sm"
                   style={{
+                    position: "absolute",
+                    top: "50%",
+                    transform: "translateY(-50%)",
+                    left: `clamp(
+                      0.5rem,
+                      calc(var(--c2-scroll-x, 0px) - var(--ruler-slot, 60px) * ${SLOTS_PER_DAY * index} + 0.5rem),
+                      calc(var(--ruler-slot, 60px) * ${SLOTS_PER_DAY} - 3rem)
+                    )`,
                     lineHeight: 1.2,
                     whiteSpace: "nowrap",
                     textTransform: "capitalize",
@@ -488,6 +495,7 @@ function TimeRulerStrip({
         zIndex: 45,
         display: "flex",
         overflow: "hidden",
+        height: "calc(1.15rem * var(--mantine-scale))",
         background: "var(--mantine-color-body)",
         borderBottom: "1px solid var(--mantine-color-default-border)",
       }}
@@ -983,6 +991,7 @@ export function DashboardView({
   const handleWeekScroll = useCallback((pos: { x: number }) => {
     if (weekDayLabelRef.current) {
       weekDayLabelRef.current.style.transform = `translateX(${-pos.x}px)`;
+      weekDayLabelRef.current.style.setProperty("--c2-scroll-x", `${pos.x}px`);
     }
     if (weekRulerRef.current) {
       weekRulerRef.current.style.transform = `translateX(${-pos.x}px)`;
@@ -1800,6 +1809,7 @@ export function DashboardView({
     }
     if (isWeekGrid && weekDayLabelRef.current) {
       weekDayLabelRef.current.style.transform = `translateX(${-viewport.scrollLeft}px)`;
+      weekDayLabelRef.current.style.setProperty("--c2-scroll-x", `${viewport.scrollLeft}px`);
     }
     if (isWeekGrid) {
       advanceWeekLabelRef.current?.(viewport.scrollLeft, slot);
