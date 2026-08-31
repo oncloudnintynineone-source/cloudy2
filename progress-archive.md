@@ -6279,3 +6279,58 @@ Docs: `AGENTS.md` conventions bullet; `progress.md` one-liner.
 
 Verification: `pnpm lint` + `pnpm typecheck` + `pnpm test` (806) + `pnpm build`
 all pass.
+
+## 1.149 Sticky Month weekday-initials row
+
+Mantine's `MonthView` renders its weekday-initials row *inside* a content-height
+`ScrollArea`, so during page scroll the row scrolls away with the grid — the
+long-standing "cannot pin without restructuring" limitation. Fix: the view now
+passes `withWeekDays={false}` (a supported prop that suppresses the built-in row)
+and a new `MonthWeekdayStrip` pins in its place, using the same sibling-strip
+mechanics as the Week (H) day-label strip and the hour rulers.
+
+`MonthWeekdayStrip` (`DashboardView.tsx`) is `position: sticky` beneath the
+shared tabs+date-nav chrome (`top: calc(var(--app-shell-header-offset) + chromeHeightpx)`,
+`z-index: 45`, opaque body background). Its inner 7-column track mirrors the
+grid's geometry — `@mantine/schedule` enforces `--min-day-width: 5.25rem` (84px)
+per column, so seven columns need at least 588px and the grid scrolls
+horizontally on phones. The track gets `min-width: 588px` and each cell
+`flex-basis: 100%/7` + `min-width: 84px`, matching the grid's own flex model, and
+translates by `-scrollLeft` via `monthScrollAreaProps` (`viewportRef` +
+`onScrollPositionChange` on the `MonthView`) — no re-renders. Weekday labels
+come from the new pure `WEEKDAY_ABBREVIATIONS` constant (`Mon`…`Sun`, Monday-first,
+matching the library's `firstDayOfWeek: 1` + `weekdayFormat: "ddd"`).
+
+Only rendered with the real grid (`!gridLoading && view === "month"`); the month
+skeleton keeps its own `WeekdayRow`. Immersive mode and the 62em desktop layout
+work unchanged (the offset var zeroes/chrome-var model is shared).
+
+Docs: `docs/desktop-responsive.md` §1.4 (limitation removed). Verification:
+`pnpm lint` + `pnpm typecheck` + `pnpm test` + `pnpm build` pass.
+
+## 1.150 Timeline zoom re-anchoring
+
+Zooming the Day/Week (H) grids used to keep `scrollLeft` in px, so the visible
+time shifted (the browser preserves the pixel offset while the slot width — and
+thus the timeline's meaning — changes). Now zooming keeps the time at the
+viewport's _center_ centered.
+
+`reanchorScrollLeft(scrollLeft, viewportWidth, labelWidth, oldSlotPx, newSlotPx)`
+(`src/lib/ui/slotZoom.ts`, pure + unit-tested) computes
+`timePx = scrollLeft + viewportWidth/2 - labelWidth` (the center expressed in
+timeline px, after the zoom-invariant sticky label column) and returns
+`timePx * (newSlot/oldSlot) + labelWidth - viewportWidth/2`.
+
+Wiring (`DashboardView.tsx`): a `prevZoomRef` records the prior zoom, and a
+`useLayoutEffect` — declared *before* the ruler measurement effect so it reads the
+corrected `scrollLeft` — runs only on a genuine zoom change. It measures the
+realized new slot width via the shared `measuredWidth` probe (extracted from the
+ruler effect's inline probe), derives `oldSlot = newSlot * oldZoom/zoom` (exact:
+the widths scale by exactly the zoom ratio), measures the label-column width from
+`--resources-*-view-resource/group-label-width` (group only when present), and
+assigns the re-anchored `scrollLeft`. No re-anchor on mount/view-switch (the ref
+guard), no per-frame work, no new scroll listeners.
+
+Docs: `docs/dashboard-views.md` §1.6 (re-anchoring bullet + diagram node).
+Verification: `pnpm lint` + `pnpm typecheck` + `pnpm test` (811) + `pnpm build`
+pass.

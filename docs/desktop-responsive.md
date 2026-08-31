@@ -169,10 +169,15 @@ it via `top: calc(var(--app-shell-header-offset) + <chromeHeight>px)`:
    back to 07:00 / Monday 07:00 otherwise (`DashboardView`:
    `currentScrollTime`).
 
-The **Month weekday-initials row** still lives inside `MonthView`'s
-content-height `ScrollArea` and cannot pin during page scroll without
-restructuring that view — accepted limitation (each cell carries its date
-number). Agenda is intentionally header-less (the nav row shows the day).
+The **Month weekday-initials row** is replaced by a pinned `MonthWeekdayStrip`
+(like the Week (H) day-label strip): Mantine's own row lives inside `MonthView`'s
+content-height `ScrollArea` and scrolls away with the page, so the view passes
+`withWeekDays={false}` and a custom strip pins beneath the chrome. The Month grid
+enforces a 5.25rem (84px) minimum column width, so on narrow screens the 7-column
+grid (≥588px) scrolls horizontally — the strip's inner track mirrors that width
+and translates by `-scrollLeft` via `monthScrollAreaProps`, keeping the initials
+over their columns. Agenda is intentionally header-less (the nav row shows the
+day).
 
 **Schedule CSS-var gotcha:** `@mantine/schedule` declares its label/slot width
 variables on the **view root element** (hashed class), so a parent class cannot

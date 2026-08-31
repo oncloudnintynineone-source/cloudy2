@@ -70,6 +70,13 @@ export function monthRange(month: string): { start: Date; end: Date } {
 }
 
 /**
+ * Weekday abbreviations, Monday-first, matching `@mantine/schedule`'s default
+ * `firstDayOfWeek: 1` + `weekdayFormat: "ddd"` (English) used by the dashboard's
+ * Month view. Drives the pinned weekday-initials strip (`MonthWeekdayStrip`).
+ */
+export const WEEKDAY_ABBREVIATIONS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"] as const;
+
+/**
  * The seven `YYYY-MM-DD` days of the week containing `dateOnly`, Monday-first
  * (matching the Mantine dates default `firstDayOfWeek: 1` used by the schedule
  * views). Weekends included.

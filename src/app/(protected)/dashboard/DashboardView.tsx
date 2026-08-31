@@ -93,7 +93,7 @@ import {
 import { LoadingStatus } from "@/components/LoadingStatus";
 import { QuickLinksMenu, type QuickLinkMenuItem } from "@/components/QuickLinksMenu";
 import { eventsOnDay } from "@/lib/events/agenda";
-import { weekDays } from "@/lib/events/datetime";
+import { WEEKDAY_ABBREVIATIONS, weekDays } from "@/lib/events/datetime";
 import { sortMineFirst } from "@/lib/events/mineFirst";
 import type { CalendarEvent } from "@/lib/events/queries";
 import type { LocationCategory } from "@/lib/events/locationPolicy";
@@ -117,7 +117,13 @@ import {
 import { announce } from "@/lib/ui/announcer";
 import { useGridPan } from "@/lib/ui/gridPan";
 import { useImmersiveMode } from "@/lib/ui/immersiveMode";
-import { daySlotWidth, stepZoom, weekSlotWidth, type SlotZoom } from "@/lib/ui/slotZoom";
+import {
+  daySlotWidth,
+  reanchorScrollLeft,
+  stepZoom,
+  weekSlotWidth,
+  type SlotZoom,
+} from "@/lib/ui/slotZoom";
 import { DASHBOARD_STATE_KEYS, freshMarkerNeeded, orderDashboardViews } from "@/lib/ui/uiState";
 import { usePersistUiState } from "@/lib/ui/uiStateClient";
 import { PINNED_EVENTS_CHANGED_EVENT } from "@/lib/ui/pinnedPanel";
@@ -441,6 +447,96 @@ function TimeRulerStrip({
   );
 }
 
+/**
+ * Resolves a CSS `width` value against `root` by appending a temporary block
+ * probe and reading its offsetWidth (the same technique the ruler effect uses
+ * to measure the schedule slot width). Used to measure realized px widths for
+ * the timeline re-anchor and the month weekday strip.
+ */
+function measuredWidth(root: Element, cssWidth: string): number {
+  const probe = document.createElement("span");
+  probe.style.display = "block";
+  probe.style.width = cssWidth;
+  root.append(probe);
+  const width = probe.offsetWidth;
+  root.removeChild(probe);
+  return width;
+}
+
+// `@mantine/schedule`'s MonthView day/header cells enforce a minimum column
+// width of 5.25rem (84px) at scale 1 (`--min-day-width`), so seven columns need
+// at least 588px. The pinned strip below must reproduce that geometry so its
+// weekday initials stay over the day columns when the grid scrolls horizontally.
+const MONTH_MIN_DAY_WIDTH_PX = 84;
+const MONTH_COLUMNS = 7;
+
+/**
+ * Pinned weekday-initials strip for the Month view. Mantine's own weekday row
+ * lives inside the Month view's content-height ScrollArea and scrolls away with
+ * the page, so this strip replaces it (`withWeekDays={false}` on the MonthView).
+ * It pins beneath the shared chrome like the Week (H) day-label strip, and its
+ * inner 7-column track translates by -scrollLeft (driven by the MonthScrollArea's
+ * `onScrollPositionChange`) so the initials track the columns on the narrow
+ * screens where the 588px-wide grid scrolls horizontally.
+ */
+function MonthWeekdayStrip({
+  chromeOffset,
+  innerRef,
+}: {
+  chromeOffset: number;
+  innerRef: RefObject<HTMLDivElement | null>;
+}) {
+  return (
+    <Box
+      component="div"
+      style={{
+        position: "sticky",
+        top: `calc(var(--app-shell-header-offset) + ${chromeOffset}px)`,
+        zIndex: 45,
+        height: "calc(2.25rem * var(--mantine-scale))",
+        background: "var(--mantine-color-body)",
+        borderBottom: "1px solid var(--mantine-color-default-border)",
+        overflow: "hidden",
+      }}
+    >
+      <Box
+        ref={innerRef}
+        component="div"
+        style={{
+          display: "flex",
+          width: "100%",
+          // Mirrors the Month view's per-row min-width (7 × column width), so
+          // the track is exactly as wide as the scrollable grid content.
+          minWidth: `calc(${MONTH_MIN_DAY_WIDTH_PX}px * ${MONTH_COLUMNS})`,
+          willChange: "transform",
+        }}
+      >
+        {WEEKDAY_ABBREVIATIONS.map((day, index) => (
+          <Box
+            key={day}
+            component="div"
+            style={{
+              flex: `0 0 calc(100% / ${MONTH_COLUMNS})`,
+              minWidth: `${MONTH_MIN_DAY_WIDTH_PX}px`,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              fontSize: "var(--mantine-font-size-sm)",
+              fontWeight: "var(--mantine-font-weight-medium)",
+              textTransform: "capitalize",
+              color: "var(--mantine-color-dimmed)",
+              borderLeft: index === 0 ? undefined : "1px solid var(--mantine-color-default-border)",
+              userSelect: "none",
+            }}
+          >
+            {day}
+          </Box>
+        ))}
+      </Box>
+    </Box>
+  );
+}
+
 export function DashboardView({
   month,
   date,
@@ -508,6 +604,9 @@ export function DashboardView({
   // latest tap always wins, and the cookie (hence the next server seed) has
   // already converged to it.
   const [zoom, setZoom] = useState<SlotZoom>(initialZoom);
+  // Tracks the previous zoom so the re-anchor effect (below) can only act on a
+  // genuine zoom change — never on mount, view switches or breakpoint flips.
+  const prevZoomRef = useRef(zoom);
 
   // Label-column widths for the schedule views: mobile-narrowed 48px/24px for
   // phones, comfortable 96px/56px on desktop.
@@ -790,6 +889,22 @@ export function DashboardView({
       viewportProps: schedulePan.viewportProps,
     }),
     [handleDayScroll, dayGridViewportRef, schedulePan.viewportProps],
+  );
+  // Month view horizontal tracking: the pinned weekday-initials strip follows
+  // the MonthView's ScrollArea scroll (the grid overflows on narrow screens).
+  const monthViewportRef = useRef<HTMLDivElement | null>(null);
+  const monthWeekdayTrackRef = useRef<HTMLDivElement | null>(null);
+  const handleMonthScroll = useCallback((pos: { x: number }) => {
+    if (monthWeekdayTrackRef.current) {
+      monthWeekdayTrackRef.current.style.transform = `translateX(${-pos.x}px)`;
+    }
+  }, []);
+  const monthScrollAreaProps = useMemo(
+    () => ({
+      viewportRef: monthViewportRef,
+      onScrollPositionChange: handleMonthScroll,
+    }),
+    [handleMonthScroll],
   );
 
   const [isRefreshing, startRefresh] = useTransition();
@@ -1465,6 +1580,60 @@ export function DashboardView({
       ? headerDate === today
       : shownMonth === todayMonth;
 
+  // Re-anchor the schedule grid's horizontal scroll on a timeline zoom so the
+  // time at the viewport's center stays centered (the browser would otherwise
+  // keep `scrollLeft` in px and the visible time shifts). Runs before the ruler
+  // measurement effect below so it reads the corrected `scrollLeft`. The old
+  // slot width is derived from the new width × ratio (`prevZoom`/`zoom`) rather
+  // than captured at tap time, so the effect owns the whole DOM measurement.
+  useLayoutEffect(() => {
+    if (prevZoomRef.current === zoom) {
+      return;
+    }
+    const oldZoom = prevZoomRef.current;
+    prevZoomRef.current = zoom;
+    const isWeekGrid = view === "week";
+    const isDayGrid = isSchedule;
+    if ((!isWeekGrid && !isDayGrid) || gridLoading) {
+      return;
+    }
+    const viewport = isWeekGrid ? weekViewportRef.current : dayViewportRef.current;
+    const box = weekBoxRef.current;
+    if (!viewport || !box) {
+      return;
+    }
+    const slotVar = isWeekGrid
+      ? "--resources-week-view-slot-width"
+      : "--resources-day-view-slot-width";
+    const root = Array.from(box.children).find(
+      (child) => getComputedStyle(child).getPropertyValue(slotVar).trim() !== "",
+    );
+    if (!root) {
+      return;
+    }
+    const newSlot = measuredWidth(root, `var(${slotVar})`);
+    if (newSlot <= 0) {
+      return;
+    }
+    const prefix = isWeekGrid ? "week" : "day";
+    const labelResource = measuredWidth(
+      root,
+      `var(--resources-${prefix}-view-resource-label-width)`,
+    );
+    const labelGroup =
+      scheduleResources.groups !== undefined
+        ? measuredWidth(root, `var(--resources-${prefix}-view-group-label-width)`)
+        : 0;
+    const oldSlot = newSlot * (oldZoom / zoom);
+    viewport.scrollLeft = reanchorScrollLeft(
+      viewport.scrollLeft,
+      viewport.clientWidth,
+      labelResource + labelGroup,
+      oldSlot,
+      newSlot,
+    );
+  }, [zoom, view, isSchedule, gridLoading, scheduleResources]);
+
   // Measure the schedule views' actual hourly slot width and sync the pinned
   // rulers with it. Mantine sizes each hour slot in `rem`
   // (`--resources-*-view-slot-width`), so with a non-default root font size or
@@ -1495,12 +1664,7 @@ export function DashboardView({
     if (!root) {
       return;
     }
-    const probe = document.createElement("span");
-    probe.style.display = "block";
-    probe.style.width = `var(${varName})`;
-    root.append(probe);
-    const slot = probe.offsetWidth;
-    root.removeChild(probe);
+    const slot = measuredWidth(root, `var(${varName})`);
     if (slot > 0) {
       weekDayWidthRef.current = slot * 24;
       box.style.setProperty("--ruler-slot", `${slot}px`);
@@ -1946,6 +2110,11 @@ export function DashboardView({
             innerRef={dayRulerRef}
           />
         )}
+        {/* Pinned weekday-initials strip for the Month view (replaces Mantine's
+            own row, which scrolls away inside the grid's ScrollArea). */}
+        {!gridLoading && view === "month" && (
+          <MonthWeekdayStrip chromeOffset={chromeHeight} innerRef={monthWeekdayTrackRef} />
+        )}
         {gridLoading ? (
           // Skeleton flavor follows the optimistic view: the shape you tapped
           // is what appears to load (same contract as loading.tsx, which
@@ -1974,6 +2143,10 @@ export function DashboardView({
             // The page range-reads the whole 6-week grid (monthGridMonths), so
             // the dimmed adjacent-month days render their events too.
             withHeader={false}
+            // The built-in weekday row scrolls away (its ScrollArea is
+            // content-height); the pinned MonthWeekdayStrip replaces it.
+            withWeekDays={false}
+            scrollAreaProps={monthScrollAreaProps}
             maxEventsPerDay={isDesktop ? 4 : 3}
             renderEvent={renderMyMonthEvent}
             onEventClick={(event, e) => {

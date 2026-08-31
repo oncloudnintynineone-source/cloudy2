@@ -6,6 +6,7 @@ import {
   ZOOM_LEVELS,
   clampZoom,
   daySlotWidth,
+  reanchorScrollLeft,
   stepZoom,
   weekSlotWidth,
 } from "./slotZoom";
@@ -70,5 +71,39 @@ describe("daySlotWidth", () => {
     expect(daySlotWidth(0.5)).toBe("calc(2.5rem * var(--mantine-scale))");
     expect(daySlotWidth(1.5)).toBe("calc(7.5rem * var(--mantine-scale))");
     expect(daySlotWidth(2)).toBe("calc(10rem * var(--mantine-scale))");
+  });
+});
+
+describe("reanchorScrollLeft", () => {
+  it("keeps the viewport-center time stable when zooming in", () => {
+    // 60px slots → 120px. Center sits 200px into the timeline (after a 100px
+    // label column), i.e. hour 3.333; that hour must stay centered.
+    const next = reanchorScrollLeft(0, 600, 100, 60, 120);
+    expect(next).toBeCloseTo(200);
+  });
+
+  it("is symmetric zooming out", () => {
+    // Reverse of the previous case: 120px → 60px, center at hour 3.333 again.
+    const next = reanchorScrollLeft(200, 600, 100, 120, 60);
+    expect(next).toBeCloseTo(0);
+  });
+
+  it("reduces to the naive ratio when there is no label column", () => {
+    // Center is at 300px of a zero-offset timeline; doubling the slot width
+    // keeps that time centered at 300px (300 * 2 - 300).
+    expect(reanchorScrollLeft(0, 600, 0, 60, 120)).toBeCloseTo(300);
+  });
+
+  it("accounts for the label column separately from the timeline", () => {
+    // scrollLeft 0, viewport 500, no zoom change → identity regardless of label.
+    expect(reanchorScrollLeft(0, 500, 100, 80, 80)).toBeCloseTo(0);
+    // A non-zero scroll offset with equal slots returns the offset unchanged.
+    expect(reanchorScrollLeft(150, 500, 100, 80, 80)).toBeCloseTo(150);
+  });
+
+  it("returns the original offset for degenerate inputs", () => {
+    expect(reanchorScrollLeft(100, 0, 50, 60, 120)).toBe(100);
+    expect(reanchorScrollLeft(100, 500, 50, 0, 120)).toBe(100);
+    expect(reanchorScrollLeft(100, 500, 50, 60, 0)).toBe(100);
   });
 });

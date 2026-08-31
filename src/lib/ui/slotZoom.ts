@@ -74,3 +74,26 @@ export function weekSlotWidth(zoom: SlotZoom, isDesktop: boolean): string {
 export function daySlotWidth(zoom: SlotZoom): string {
   return slotWidthCss(DAY_BASE_REM * zoom);
 }
+
+/**
+ * Re-anchors the horizontal scroll position after a timeline zoom so the time
+ * that was at the viewport's center stays centered. The schedule grids scroll a
+ * [label column + hour timeline]; the sticky label column is a fixed width that
+ * does not zoom, so it must be subtracted from the scroll offset before scaling
+ * the timeline by the slot-width ratio and re-added afterward. Pure (no DOM) —
+ * the caller measures `labelWidth` / `oldSlotPx` / `newSlotPx` and the browser
+ * clamps the returned value to `[0, scrollWidth - clientWidth]` on assignment.
+ */
+export function reanchorScrollLeft(
+  scrollLeft: number,
+  viewportWidth: number,
+  labelWidth: number,
+  oldSlotPx: number,
+  newSlotPx: number,
+): number {
+  if (oldSlotPx <= 0 || newSlotPx <= 0 || viewportWidth <= 0) {
+    return scrollLeft;
+  }
+  const timePx = scrollLeft + viewportWidth / 2 - labelWidth;
+  return timePx * (newSlotPx / oldSlotPx) + labelWidth - viewportWidth / 2;
+}

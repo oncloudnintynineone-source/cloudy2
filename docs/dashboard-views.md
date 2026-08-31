@@ -175,8 +175,12 @@ slot granularity (still 60-minute columns) or the row height.
   raw cookie and seeded into the client state before first paint (no width jump on
   relaunch). See [`ui-state.md`](ui-state.md).
 - **Scope**: shared by Day and Week (H) only. Week (D) — its columns are
-  day-granularity, not hour slots — and Month and Agenda are unaffected. Zooming keeps
-  the grid's horizontal `scrollLeft` in px (no time re-anchoring).
+  day-granularity, not hour slots — and Month and Agenda are unaffected.
+- **Re-anchoring**: zooming keeps the time that was at the viewport's _center_
+  centered — a `useLayoutEffect` (declared before the ruler measurement effect)
+  re-anchors `scrollLeft` from the previous/next slot-width ratio via the pure
+  `reanchorScrollLeft` helper, subtracting the zoom-invariant label-column width
+  before scaling and re-adding it after. See `src/lib/ui/slotZoom.ts`.
 
 ```mermaid
 flowchart LR
@@ -186,6 +190,7 @@ flowchart LR
     V --> G["Mantine grid re-lays out<br/>slots + events (percentage-based)"]
     V --> M["useLayoutEffect re-measures<br/>(zoom in deps)"]
     M --> R["pinned hour ruler +<br/>Week (H) day-label strip"]
+    S --> A["reanchorScrollLeft effect<br/>(re-anchors scrollLeft)"]
     S --> C["dashboard.zoom cookie<br/>(usePersistUiState)"]
 ```
 
