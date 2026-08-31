@@ -123,6 +123,8 @@ mechanics in the doc.
   auto-migrate) → switch back to `dev`. Briefly mention what the push triggers per
   environment (§1.7/§1.9), then **ask if the user needs help** (e.g. running the
   pushes, or the `pnpm db:migrate` shell-env step if the schema changed — §1.11).
+  Before that, **suggest a commit message** summarizing the change, matching the
+  repo's concise style.
 - UI is **Mantine v9**; theme in `src/lib/theme.ts`, mounted by the client component
   `AppProviders` (`src/components/AppProviders.tsx`). The theme carries a function value
   (`components.Input.vars`), so `MantineProvider` (and `Notifications`) must stay in that
