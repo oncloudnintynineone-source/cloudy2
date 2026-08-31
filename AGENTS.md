@@ -71,8 +71,10 @@ mechanics in the doc.
   `integration.listEvents` directly for month/range views** (a Monday-first week can
   span two months — use `fetchRangeEvents`). In-app mutations must call
   `invalidateGcalCache()`. Warm L1 hits are verified against L2 with a **metadata-only
-  SELECT** (no JSONB), and cross-instance Google refreshes are coalesced by a Postgres
-  advisory lock — see §1.5.2.
+  SELECT** (no JSONB), and Google refreshes are coalesced in-process by the `inflight`
+  map. The refresh fetch runs **outside any transaction** — the Postgres pool is
+  `max: 1`, so holding a transaction across a Google round-trip would serialize every
+  other query.
   Design: [docs/events-cache.md](docs/events-cache.md).
 - **Event lifecycle & mutations:** staged wizard → Google copies with notes-block
   round-trip; cross-department copies reconciled by `findCopies` (deliberately

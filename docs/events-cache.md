@@ -77,10 +77,10 @@ Postgres row — and Neon's free tier (100 compute-hours/month, 5 GB egress) is 
 to exhaust than Google's 1M-requests/day. That is why the read path is deliberately
 DB-frugal: warm L1 hits are verified with a metadata-only `SELECT` (no JSONB re-ship,
 §1.5), full month rows are read only for L1 misses, duplicate per-render reads are
-`React.cache()`d (see `events/queries.ts`), and cross-instance Google refreshes are
-coalesced by a Postgres advisory lock (§1.5.2). In short: the system trades a generous
-external quota for a scarce internal one, and the cache is tuned to keep the scarce side
-cheap. See [`neon-usage.md`](neon-usage.md) for how to verify the DB-side numbers.
+`React.cache()`d (see `events/queries.ts`), and Google refreshes are coalesced in-process
+by the `inflight` map. In short: the system trades a generous external quota for a scarce
+internal one, and the cache is tuned to keep the scarce side cheap. See
+[`neon-usage.md`](neon-usage.md) for how to verify the DB-side numbers.
 
 ## 1.3 Architecture overview
 
@@ -215,27 +215,16 @@ sequenceDiagram
 3. **Google** — anything missing or expired blocks on a fresh `events.list` + upsert,
    executed with bounded concurrency (`GOOGLE_FETCH_CONCURRENCY` = 4). Concurrent callers
    of the same key within one process share a single promise via the `inflight` map, so a
-   thundering herd collapses to one Google call. Across processes the fetch+upsert runs
-   under a Postgres advisory lock keyed on `(googleCalendarId, month)` (see §1.5.2), so
-   only one serverless instance actually refreshes a given stale/expired key.
+   thundering herd collapses to one Google call. The fetch runs **outside any transaction**
+   (the app's Postgres pool is `max: 1`), so it never holds the single connection open
+   across the network round-trip; duplicate cross-instance refreshes are harmless because
+   the upsert is idempotent.
 
 `allServed` is `false` when at least one calendar needed a blocking Google refresh; the
 prefetch gate (see §1.8) uses it to avoid background work on fully-cached views.
 
 Stale hits schedule the refresh through `after()` (`next/server`), which runs after the
 response ships — the visible render is never delayed by a stale-entry refresh.
-
-### 1.5.2 Cross-instance refresh coalescing
-
-A stale or expired `(googleCalendarId, month)` is refreshed from Google by **every**
-instance that serves it during the stale window — on a multi-instance deployment that is
-duplicate Google calls plus duplicate JSONB upserts. `refreshMonthEvents`
-(`eventsCache.ts`) therefore runs its fetch+upsert inside a transaction that holds a
-Postgres advisory lock keyed on `(googleCalendarId, month)`. A waiter that acquires the
-lock and finds a row refreshed by another instance **within the fresh window** reuses that
-row instead of re-hitting Google; only the first instance (or a `{ force: true }` refresh,
-which always re-fetches) pays for the Google call. The lock is transaction-scoped, so a
-failed fetch releases it on abort.
 
 ### 1.5.1 Force refresh (manual, one-shot)
 
@@ -475,7 +464,7 @@ What the cache changed:
 - **Layered (current):** L1 hits cost a **metadata-only `SELECT`** (no JSONB payload) per
   month; full month rows are read only for L1 misses (one batched `SELECT`, ~60ms total
   regardless of calendar count); only true misses touch Google (parallel, ≤4, coalesced
-  per key in-process and across instances via the §1.5.2 advisory lock).
+  per key in-process via the `inflight` map).
 
 Two adjacent DB-load reductions complement the layered cache (they live outside this
 module, but they keep the render's total query count low):

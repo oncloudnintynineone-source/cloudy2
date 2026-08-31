@@ -1,4 +1,4 @@
-import { and, eq, inArray, sql } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import { after } from "next/server";
 
 import { db } from "@/db";
@@ -70,14 +70,13 @@ function remember(
 function refreshCachedMonth(
   googleCalendarId: string,
   month: string,
-  options: { force?: boolean } = {},
 ): Promise<GcalEventItem[]> {
   const key = memoryKey(googleCalendarId, month);
   const existing = inflight.get(key);
   if (existing) {
     return existing;
   }
-  const promise = refreshMonthEvents(googleCalendarId, month, options).finally(() => {
+  const promise = refreshMonthEvents(googleCalendarId, month).finally(() => {
     inflight.delete(key);
   });
   inflight.set(key, promise);
@@ -155,7 +154,7 @@ export async function getCachedMonthEventsForCalendars(
 
   if (options.force) {
     const refreshed = await mapWithConcurrency(ids, GOOGLE_FETCH_CONCURRENCY, async (id) => {
-      const items = await refreshCachedMonth(id, month, { force: true });
+      const items = await refreshCachedMonth(id, month);
       return [id, items] as const;
     });
     for (const [id, items] of refreshed) {
@@ -266,11 +265,21 @@ export async function getCachedMonthEventsForCalendars(
           inArray(googleEventCache.calendarGoogleId, [...needFullRow]),
         ),
       );
+    const served = new Set<string>();
     for (const row of rows) {
       const decoded = decodeCachedEvents(row.events);
       // Inherit the row's age so L1 can't extend past GCAL_CACHE_EXPIRE_MS.
       remember(row.calendarGoogleId, month, decoded, row.fetchedAt.getTime());
       events[row.calendarGoogleId] = decoded;
+      served.add(row.calendarGoogleId);
+    }
+    // A row that was usable in the metadata pass can be deleted by a
+    // cross-instance invalidateGcalCache before this SELECT runs; treat any id
+    // that came back empty as a blocking miss instead of silently omitting it.
+    for (const id of needFullRow) {
+      if (!served.has(id)) {
+        pending.push(id);
+      }
     }
   }
 
@@ -319,74 +328,36 @@ export async function invalidateGcalCache(
     );
 }
 
-/** Namespaced advisory-lock key for a `(googleCalendarId, month)` refresh. */
-function refreshLockKey(googleCalendarId: string, month: string): string {
-  return `cloudy2:gcal:${googleCalendarId}:${month}`;
-}
-
 /**
  * Fetch a calendar's month from Google and store it in DB + L1 memory.
  *
- * The fetch + upsert run inside a transaction holding a Postgres advisory lock
- * keyed on `(googleCalendarId, month)`, so across serverless instances only one
- * refreshes a given stale/expired key at a time: a waiter that acquires the
- * lock and finds a just-refreshed fresh row reuses it instead of re-hitting
- * Google. `{ force: true }` (the dashboard's one-shot refresh) skips the reuse
- * check and always fetches.
+ * The Google call runs outside any transaction so it never holds the (single)
+ * Postgres connection open across the network round-trip — the app's pool is
+ * `max: 1`, so a long-lived transaction here would serialize every other query
+ * and stall the whole app. Concurrent callers for the same key are already
+ * coalesced in-process by the `inflight` map; duplicate cross-instance
+ * refreshes are harmless (the upsert is idempotent).
  */
 async function refreshMonthEvents(
   googleCalendarId: string,
   month: string,
-  options: { force?: boolean } = {},
 ): Promise<GcalEventItem[]> {
-  return db.transaction(async (tx) => {
-    // Serialize cross-instance refreshes of the same (calendar, month). The
-    // lock is transaction-scoped and released when this block commits/aborts.
-    await tx.execute(
-      sql`SELECT pg_advisory_xact_lock(hashtextextended(${refreshLockKey(googleCalendarId, month)}, 0))`,
-    );
-
-    // Coalesce: another instance refreshed this key within the fresh window
-    // while we waited for the lock — reuse its row instead of re-fetching.
-    if (!options.force) {
-      const [row] = await tx
-        .select({ fetchedAt: googleEventCache.fetchedAt, events: googleEventCache.events })
-        .from(googleEventCache)
-        .where(
-          and(
-            eq(googleEventCache.calendarGoogleId, googleCalendarId),
-            eq(googleEventCache.month, month),
-          ),
-        )
-        .limit(1);
-      if (
-        row &&
-        cacheEntryState(row.fetchedAt, new Date(), GCAL_CACHE_FRESH_MS, GCAL_CACHE_EXPIRE_MS) ===
-          "fresh"
-      ) {
-        const decoded = decodeCachedEvents(row.events);
-        remember(googleCalendarId, month, decoded, row.fetchedAt.getTime());
-        return decoded;
-      }
-    }
-
-    const integration = await getGoogleIntegration();
-    const { start, end } = monthRange(month);
-    const items = await integration.listEvents(googleCalendarId, start, end);
-    const events = encodeCachedEvents(items);
-    await tx
-      .insert(googleEventCache)
-      .values({
-        calendarGoogleId: googleCalendarId,
-        month,
-        events,
-        fetchedAt: new Date(),
-      })
-      .onConflictDoUpdate({
-        target: [googleEventCache.calendarGoogleId, googleEventCache.month],
-        set: { events, fetchedAt: new Date() },
-      });
-    remember(googleCalendarId, month, items);
-    return items;
-  });
+  const integration = await getGoogleIntegration();
+  const { start, end } = monthRange(month);
+  const items = await integration.listEvents(googleCalendarId, start, end);
+  const events = encodeCachedEvents(items);
+  await db
+    .insert(googleEventCache)
+    .values({
+      calendarGoogleId: googleCalendarId,
+      month,
+      events,
+      fetchedAt: new Date(),
+    })
+    .onConflictDoUpdate({
+      target: [googleEventCache.calendarGoogleId, googleEventCache.month],
+      set: { events, fetchedAt: new Date() },
+    });
+  remember(googleCalendarId, month, items);
+  return items;
 }

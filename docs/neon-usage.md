@@ -54,8 +54,9 @@ the binding ceiling:
 Because the free suspend timeout is not configurable, the code-level levers are limited to
 *reducing how often* the DB is touched (fewer keep-alive reads, shorter bursts) — which is
 exactly what the events-cache optimizations do: metadata-only L1 verification, full rows
-only for misses, `React.cache`d per-render reads, and advisory-lock-coalesced Google
-refreshes (see [events-cache.md §1.5](events-cache.md#15-read-path)).
+only for misses, `React.cache`d per-render reads, and Google refreshes kept outside any
+transaction so the `max: 1` pool is never held open across a Google round-trip (see
+[events-cache.md §1.5](events-cache.md#15-read-path)).
 
 ## 1.3 Daily usage via the consumption API
 
