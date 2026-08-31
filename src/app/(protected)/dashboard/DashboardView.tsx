@@ -67,6 +67,7 @@ import {
   IconStar,
   IconStarFilled,
   IconUser,
+  IconUserOff,
   IconX,
 } from "@tabler/icons-react";
 
@@ -80,6 +81,7 @@ import {
 } from "./calendarSkeleton";
 import { formatWeekLabel } from "./clientDateTime";
 import { DateSelectorModal } from "@/components/DateSelectorModal";
+import { EmptyState } from "@/components/EmptyState";
 import { FilterModal, type FilterGroup } from "@/components/FilterModal";
 import { GridNavControls } from "@/components/GridNavControls";
 import {
@@ -2034,12 +2036,22 @@ export function DashboardView({
             </div>
           </div>
         ) : scheduleResources.resources.length === 0 ? (
-          <Paper withBorder radius="md" p="lg">
-            <Text size="sm" c="dimmed">
-              {userFilterActive
-                ? "No active users match the Users filter. Adjust the filter."
-                : "No users in the selected calendars yet. Assign users to a department (Admin Settings) or adjust the filters."}
-            </Text>
+          <Paper withBorder radius="md">
+            {userFilterActive ? (
+              <EmptyState
+                icon={<IconUserOff size={18} />}
+                description="No active users match the Users filter."
+                actionLabel="Clear filters"
+                onAction={clearFilters}
+              />
+            ) : (
+              <EmptyState
+                icon={<IconUserOff size={18} />}
+                description="No users in the selected calendars yet. Assign users to a department (Admin Settings) or adjust the filters."
+                actionLabel="Adjust filters"
+                onAction={openFilter}
+              />
+            )}
           </Paper>
         ) : isWeekV2 && week ? (
           <WeekMatrixView

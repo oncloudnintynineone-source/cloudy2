@@ -6243,3 +6243,39 @@ index.
 
 Verification: `pnpm lint` + `pnpm typecheck` + `pnpm test` (806) +
 `pnpm build` all pass.
+
+## 1.148 Actionable empty states
+
+Empty pages were dead ends: a bare dimmed `Text` ("No users found.", "No
+departments yet.", …) with no next step, even though nearly every one has an
+obvious action. A shared `EmptyState` component (`src/components/EmptyState.tsx`)
+now renders a muted icon, the message, and — where a natural next step exists —
+exactly one action (button via `onAction`, or a client-side Settings link via
+`actionHref`).
+
+Wired in:
+
+- **Settings tables** (all admin-only): the empty state carries the tab's own
+  "Add …" handler (`openCreate`) — Users, Event Types, Quick Links, Webhooks,
+  KAH Groups, Departments. Departments already had an inline button; it was
+  restyled onto the shared component for consistency.
+- **Users + Contacts** distinguish *filtered-to-zero* from *truly empty*: a
+  search/filter hit renders "Clear search & filters" (Users) / "Clear search"
+  (Contacts); the truly-empty state renders the Add/Manage action.
+- **Audit log** "No log entries match these filters." → "Clear filters"
+  (`resetFilters`, which clears search + all filter groups + dates).
+- **Dashboard** schedule views' "no users" guard now offers "Clear filters"
+  (Users filter active) or "Adjust filters" (opens the FilterModal) — the
+  DashboardView has no role, so both actions are role-agnostic.
+- **Role-aware Settings links** on admin-only fixes: Parade State
+  ("Manage departments"/"Manage users"), Contacts ("Manage users") and KAH
+  Status ("Manage KAH groups") link into the relevant `/settings/*` tab — but
+  only for admins, via a new `isAdmin` prop threaded from each page's
+  `requireSession()` role (KahStatusView reuses its existing `allGroups`
+  flag). Non-admins keep the plain message.
+
+Docs: `AGENTS.md` conventions bullet; `progress.md` one-liner.
+`docs/accessibility.md` is unchanged (this is UX, not assistive tech).
+
+Verification: `pnpm lint` + `pnpm typecheck` + `pnpm test` (806) + `pnpm build`
+all pass.

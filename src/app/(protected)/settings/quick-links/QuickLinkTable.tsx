@@ -17,15 +17,12 @@ import {
 } from "@mantine/core";
 import { useDisclosure, useMediaQuery } from "@mantine/hooks";
 import { useRouter } from "next/navigation";
-import { IconChevronDown, IconChevronUp, IconPlus, IconTrash } from "@tabler/icons-react";
+import { IconChevronDown, IconChevronUp, IconLink, IconPlus, IconTrash } from "@tabler/icons-react";
 import { notifications } from "@mantine/notifications";
 
+import { EmptyState } from "@/components/EmptyState";
 import type { QuickLink } from "@/db/schema";
-import {
-  FAB_ICON_SIZE,
-  FloatingActionButton,
-  FloatingToolbar,
-} from "@/components/FloatingToolbar";
+import { FAB_ICON_SIZE, FloatingActionButton, FloatingToolbar } from "@/components/FloatingToolbar";
 import { QuickLinkIcon } from "@/components/QuickLinkIcon";
 import { CONTENT_ENTER_CLASS } from "@/lib/loading/contentEnter";
 import { deleteQuickLink, moveQuickLink } from "@/lib/quickLinks/actions";
@@ -149,10 +146,12 @@ export function QuickLinkTable({ links }: QuickLinkTableProps) {
       </Paper>
 
       {links.length === 0 ? (
-        <Text c="dimmed" ta="center" py="lg">
-          No quick links yet. Enabled links appear in the quick-links menu on the
-          Calendar page.
-        </Text>
+        <EmptyState
+          icon={<IconLink size={18} />}
+          description="No quick links yet. Enabled links appear in the quick-links menu on the Calendar page."
+          actionLabel="Add quick link"
+          onAction={openCreate}
+        />
       ) : (
         <>
           {/* Mobile: card list */}
@@ -267,8 +266,8 @@ export function QuickLinkTable({ links }: QuickLinkTableProps) {
       >
         <Stack>
           <Text>
-            Delete &quot;{pendingDelete?.label}&quot;? It will no longer appear in the
-            quick-links menu.
+            Delete &quot;{pendingDelete?.label}&quot;? It will no longer appear in the quick-links
+            menu.
           </Text>
           <Group justify="flex-end" mt="md">
             <Button variant="default" onClick={() => setPendingDelete(null)}>

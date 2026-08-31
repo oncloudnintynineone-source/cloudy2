@@ -188,6 +188,11 @@ mechanics in the doc.
   prop + shared `loaderProps={BUTTON_LOADER_PROPS}` (`src/lib/theme.ts`);
   `loading={form.submitting}` for useForm submits; local `loading` state set before /
   cleared in `finally` around manual awaits, guarding re-entry (see `LoginForm.tsx`).
+- **Empty states are actionable:** use the shared `EmptyState`
+  (`src/components/EmptyState.tsx`; icon + message + one action) wherever a natural next
+  step exists (Add/Clear/Manage) instead of a bare dimmed `Text`. Actions are
+  role-aware — when the fix lives in admin Settings, non-admins get the plain message
+  (see the parade-state/contacts empty states).
 - **Form validation feedback:** every Mantine form sets `validateInputOnBlur: true`
   and passes the failure handler as the second `form.onSubmit` argument:
   `(errors) => showValidationFailure(errors, (field) => form.getInputNode(field))`

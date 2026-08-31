@@ -17,8 +17,9 @@ import {
   VisuallyHidden,
 } from "@mantine/core";
 import { useDisclosure, useMediaQuery } from "@mantine/hooks";
-import { IconPlus } from "@tabler/icons-react";
+import { IconPlus, IconSearchOff, IconUsers } from "@tabler/icons-react";
 
+import { EmptyState } from "@/components/EmptyState";
 import { FilterButton } from "@/components/FilterButton";
 import { FilterModal, type FilterGroup } from "@/components/FilterModal";
 import { FAB_ICON_SIZE, FloatingActionButton, FloatingToolbar } from "@/components/FloatingToolbar";
@@ -176,9 +177,24 @@ export function UserTable({ users, departments, nameTemplate }: UserTableProps) 
       </Paper>
 
       {filtered.length === 0 ? (
-        <Text c="dimmed" ta="center" py="lg">
-          No users found.
-        </Text>
+        search.trim() !== "" || activeFilterCount > 0 ? (
+          <EmptyState
+            icon={<IconSearchOff size={18} />}
+            description="No users match your search or filters."
+            actionLabel="Clear search & filters"
+            onAction={() => {
+              setSearch("");
+              clearAllFilters();
+            }}
+          />
+        ) : (
+          <EmptyState
+            icon={<IconUsers size={18} />}
+            description="No users yet."
+            actionLabel="Add user"
+            onAction={openCreate}
+          />
+        )
       ) : (
         <>
           {/* Mobile: card list */}

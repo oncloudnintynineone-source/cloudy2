@@ -16,8 +16,9 @@ import {
 } from "@mantine/core";
 
 import { useDisclosure, useMediaQuery } from "@mantine/hooks";
-import { IconPlus } from "@tabler/icons-react";
+import { IconPlus, IconWebhook } from "@tabler/icons-react";
 
+import { EmptyState } from "@/components/EmptyState";
 import type { Webhook } from "@/db/schema";
 import { FAB_ICON_SIZE, FloatingActionButton, FloatingToolbar } from "@/components/FloatingToolbar";
 import { CONTENT_ENTER_CLASS } from "@/lib/loading/contentEnter";
@@ -64,10 +65,12 @@ export function WebhookTable({ webhooks }: WebhookTableProps) {
       </Paper>
 
       {webhooks.length === 0 ? (
-        <Text c="dimmed" ta="center" py="lg">
-          No webhook endpoints yet. Every enabled endpoint is notified when an event is
-          created, modified, or deleted.
-        </Text>
+        <EmptyState
+          icon={<IconWebhook size={18} />}
+          description="No webhook endpoints yet. Every enabled endpoint is notified when an event is created, modified, or deleted."
+          actionLabel="Add webhook"
+          onAction={openCreate}
+        />
       ) : (
         <>
           {/* Mobile: card list */}

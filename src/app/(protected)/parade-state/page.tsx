@@ -128,6 +128,7 @@ export default async function ParadeStatePage({ searchParams }: ParadeStatePageP
         selectedUserIds={selectedUsers}
         filterUsers={filterUsers}
         nameTemplate={settings.nameTemplate}
+        isAdmin={session.user.role === "admin"}
       />
     </PageContainer>
   );

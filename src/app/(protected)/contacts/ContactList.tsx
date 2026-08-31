@@ -15,8 +15,16 @@ import {
   TextInput,
 } from "@mantine/core";
 import { useClipboard, useDisclosure } from "@mantine/hooks";
-import { IconCheck, IconCopy, IconDownload, IconPhone } from "@tabler/icons-react";
+import {
+  IconCheck,
+  IconCopy,
+  IconDownload,
+  IconPhone,
+  IconSearchOff,
+  IconUsers,
+} from "@tabler/icons-react";
 
+import { EmptyState } from "@/components/EmptyState";
 import { FAB_ICON_SIZE, FloatingActionButton, FloatingToolbar } from "@/components/FloatingToolbar";
 import { buildContactsVcf } from "@/lib/contacts/vcf";
 import { CONTENT_ENTER_CLASS } from "@/lib/loading/contentEnter";
@@ -27,6 +35,8 @@ import { BUTTON_LOADER_PROPS } from "@/lib/theme";
 interface ContactListProps {
   users: RosterUser[];
   nameTemplate: string;
+  /** Admin: the empty state links into Settings; non-admins get a plain message. */
+  isAdmin?: boolean;
 }
 
 interface CopyPhoneButtonProps {
@@ -49,7 +59,7 @@ function CopyPhoneButton({ phone, name }: CopyPhoneButtonProps) {
   );
 }
 
-export function ContactList({ users, nameTemplate }: ContactListProps) {
+export function ContactList({ users, nameTemplate, isAdmin = false }: ContactListProps) {
   const [search, setSearch] = useState("");
   const [confirmOpened, { open: openConfirm, close: closeConfirm }] = useDisclosure(false);
   const [downloading, setDownloading] = useState(false);
@@ -119,9 +129,25 @@ export function ContactList({ users, nameTemplate }: ContactListProps) {
       </Paper>
 
       {filtered.length === 0 ? (
-        <Text c="dimmed" ta="center" py="lg">
-          No contacts found.
-        </Text>
+        search.trim() !== "" ? (
+          <EmptyState
+            icon={<IconSearchOff size={18} />}
+            description="No contacts match your search."
+            actionLabel="Clear search"
+            onAction={() => setSearch("")}
+          />
+        ) : isAdmin ? (
+          <EmptyState
+            icon={<IconUsers size={18} />}
+            description="No contacts found."
+            actionLabel="Manage users"
+            actionHref="/settings/users"
+          />
+        ) : (
+          <Text c="dimmed" ta="center" py="lg">
+            No contacts found.
+          </Text>
+        )
       ) : (
         <Box component="div" className="card-grid">
           {filtered.map((user) => (

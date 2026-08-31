@@ -20,8 +20,9 @@ import { useForm } from "@mantine/form";
 import { notifications } from "@mantine/notifications";
 
 import { useDisclosure, useMediaQuery } from "@mantine/hooks";
-import { IconPlus } from "@tabler/icons-react";
+import { IconPlus, IconUsersGroup } from "@tabler/icons-react";
 
+import { EmptyState } from "@/components/EmptyState";
 import type { KahGroupWithMembers } from "@/lib/kah/queries";
 import { FAB_ICON_SIZE, FloatingActionButton, FloatingToolbar } from "@/components/FloatingToolbar";
 import { CONTENT_ENTER_CLASS } from "@/lib/loading/contentEnter";
@@ -131,10 +132,12 @@ export function KahGroupTable({
       </Paper>
 
       {groups.length === 0 ? (
-        <Text c="dimmed" ta="center" py="lg">
-          No KAH groups yet. When an event pushes a group below its required in-country
-          percentage, group members with email addresses are notified.
-        </Text>
+        <EmptyState
+          icon={<IconUsersGroup size={18} />}
+          description="No KAH groups yet. When an event pushes a group below its required in-country percentage, group members with email addresses are notified."
+          actionLabel="Add group"
+          onAction={openCreate}
+        />
       ) : (
         <>
           {/* Mobile: card list */}
@@ -214,9 +217,8 @@ export function KahGroupTable({
           <Stack gap="sm">
             <Text fw={600}>Breach Email Templates</Text>
             <Text fz="sm" c="dimmed">
-              When an event pushes a KAH group below its required in-country percentage, all
-              group members with an email address on their profile are notified using these
-              templates.
+              When an event pushes a KAH group below its required in-country percentage, all group
+              members with an email address on their profile are notified using these templates.
             </Text>
 
             <TextInput
@@ -255,11 +257,7 @@ export function KahGroupTable({
             </Paper>
 
             <Group justify="flex-end">
-              <Button
-                type="submit"
-                loading={kahForm.submitting}
-                loaderProps={BUTTON_LOADER_PROPS}
-              >
+              <Button type="submit" loading={kahForm.submitting} loaderProps={BUTTON_LOADER_PROPS}>
                 Save
               </Button>
             </Group>

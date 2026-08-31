@@ -32,11 +32,13 @@ import {
   IconFilter,
   IconMapPin,
   IconRefresh,
+  IconSitemap,
   IconUser,
   IconX,
 } from "@tabler/icons-react";
 
 import { DateSelectorModal } from "@/components/DateSelectorModal";
+import { EmptyState } from "@/components/EmptyState";
 import { FilterModal, type FilterGroup } from "@/components/FilterModal";
 import { FAB_ICON_SIZE, FloatingActionButton, FloatingToolbar } from "@/components/FloatingToolbar";
 import { LoadingStatus } from "@/components/LoadingStatus";
@@ -108,6 +110,8 @@ export interface ParadeStateViewProps {
   selectedUserIds: string[];
   filterUsers: { id: string; name: string; displayName: string; departmentName: string | null }[];
   nameTemplate: string;
+  /** Admin: the empty state links into Settings; non-admins get the plain message. */
+  isAdmin?: boolean;
 }
 
 function eventCoversDay(event: CalendarEvent, date: string): boolean {
@@ -149,6 +153,7 @@ export function ParadeStateView({
   selectedUserIds: initSelectedUsers,
   filterUsers,
   nameTemplate,
+  isAdmin = false,
 }: ParadeStateViewProps) {
   const router = useRouter();
   const pathname = usePathname();
@@ -818,9 +823,18 @@ export function ParadeStateView({
             <ParadeStateDepartmentSkeleton users={3} />
           </Stack>
         ) : !sections.some(sectionHasUsers) ? (
-          <Text c="dimmed" ta="center" py="lg">
-            {users.length === 0 ? "No departments found." : "No users found."}
-          </Text>
+          isAdmin ? (
+            <EmptyState
+              icon={users.length === 0 ? <IconSitemap size={18} /> : <IconUser size={18} />}
+              description={users.length === 0 ? "No departments found." : "No users found."}
+              actionLabel={users.length === 0 ? "Manage departments" : "Manage users"}
+              actionHref={users.length === 0 ? "/settings/departments" : "/settings/users"}
+            />
+          ) : (
+            <Text c="dimmed" ta="center" py="lg">
+              {users.length === 0 ? "No departments found." : "No users found."}
+            </Text>
+          )
         ) : (
           <Stack gap="lg">{sections.map((section) => renderSection(section, 0))}</Stack>
         )}

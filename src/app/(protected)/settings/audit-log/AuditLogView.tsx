@@ -23,9 +23,10 @@ import {
 import { DatePickerInput } from "@mantine/dates";
 import { useDisclosure, useMediaQuery } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
-import { IconDownload, IconFilter, IconTrash, IconX } from "@tabler/icons-react";
+import { IconDownload, IconFilter, IconFilterOff, IconTrash, IconX } from "@tabler/icons-react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
+import { EmptyState } from "@/components/EmptyState";
 import { FilterButton } from "@/components/FilterButton";
 import { FilterModal, type FilterGroup } from "@/components/FilterModal";
 import { FAB_ICON_SIZE, FloatingActionButton, FloatingToolbar } from "@/components/FloatingToolbar";
@@ -549,9 +550,12 @@ export function AuditLogView({
             <SettingsTableSkeleton columns={[2, 1.5, 1.5, 2, 2, 1.5]} rows={5} visibleFrom="lg" />
           </>
         ) : rows.length === 0 ? (
-          <Text c="dimmed" ta="center" py="lg">
-            No log entries match these filters.
-          </Text>
+          <EmptyState
+            icon={<IconFilterOff size={18} />}
+            description="No log entries match these filters."
+            actionLabel="Clear filters"
+            onAction={resetFilters}
+          />
         ) : (
           <>
             {/* Mobile: card list */}

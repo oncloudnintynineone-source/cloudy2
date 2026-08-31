@@ -16,8 +16,9 @@ import {
 } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
-import { IconChevronDown, IconChevronUp, IconPlus } from "@tabler/icons-react";
+import { IconChevronDown, IconChevronUp, IconPlus, IconSitemap } from "@tabler/icons-react";
 
+import { EmptyState } from "@/components/EmptyState";
 import type { Calendar } from "@/db/schema";
 import { CONTENT_ENTER_CLASS } from "@/lib/loading/contentEnter";
 import { deleteDepartment, moveDepartment } from "@/lib/roster/actions";
@@ -192,12 +193,12 @@ export function DepartmentTable({ departments }: DepartmentTableProps) {
       </Paper>
 
       {departments.length === 0 ? (
-        <Group justify="center" wrap="nowrap" py="lg">
-          <Text c="dimmed">No departments yet.</Text>
-          <Button variant="light" leftSection={<IconPlus size={16} />} onClick={openCreate}>
-            Add department
-          </Button>
-        </Group>
+        <EmptyState
+          icon={<IconSitemap size={18} />}
+          description="No departments yet. Create one to start assigning users and sharing its calendar."
+          actionLabel="Add department"
+          onAction={openCreate}
+        />
       ) : (
         <>
           {/* Mobile: card list — tap a card to open the details modal.
@@ -299,8 +300,8 @@ export function DepartmentTable({ departments }: DepartmentTableProps) {
           {deleting && deletingChildCount > 0 && (
             <>
               {" "}
-              Its {deletingChildCount} sub-department{deletingChildCount > 1 ? "s" : ""} will
-              become top level.
+              Its {deletingChildCount} sub-department{deletingChildCount > 1 ? "s" : ""} will become
+              top level.
             </>
           )}
         </Text>

@@ -15,8 +15,9 @@ import {
 } from "@mantine/core";
 
 import { useDisclosure, useMediaQuery } from "@mantine/hooks";
-import { IconPlus } from "@tabler/icons-react";
+import { IconCalendarEvent, IconPlus } from "@tabler/icons-react";
 
+import { EmptyState } from "@/components/EmptyState";
 import type { EventType } from "@/db/schema";
 import { FAB_ICON_SIZE, FloatingActionButton, FloatingToolbar } from "@/components/FloatingToolbar";
 import { formatColorLabel } from "@/lib/events/eventColors";
@@ -71,9 +72,12 @@ export function EventTypeTable({ types }: EventTypeTableProps) {
       </Paper>
 
       {types.length === 0 ? (
-        <Text c="dimmed" ta="center" py="lg">
-          No event types yet.
-        </Text>
+        <EmptyState
+          icon={<IconCalendarEvent size={18} />}
+          description="No event types yet. Create one to define its shortname, time options, allowed locations and visibility."
+          actionLabel="Add event type"
+          onAction={openCreate}
+        />
       ) : (
         <>
           {/* Mobile: card list */}

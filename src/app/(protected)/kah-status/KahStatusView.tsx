@@ -2,8 +2,9 @@
 
 import dayjs from "dayjs";
 import { Badge, Group, Paper, Stack, Table, Text } from "@mantine/core";
-import { IconCircleCheck } from "@tabler/icons-react";
+import { IconCircleCheck, IconUsersGroup } from "@tabler/icons-react";
 
+import { EmptyState } from "@/components/EmptyState";
 import { CONTENT_ENTER_CLASS } from "@/lib/loading/contentEnter";
 
 /** One breach period (consecutive breached days) for a group, names pre-resolved. */
@@ -57,8 +58,7 @@ function statusBadge(status: EpisodeStatus) {
 
 /** "Aug 12 – Aug 16" (year shown when the run crosses one); clipped edges show "…". */
 function periodLabel(episode: KahEpisodeRow): string {
-  const crossesYear =
-    dayjs(episode.startDate).year() !== dayjs(episode.endDate).year();
+  const crossesYear = dayjs(episode.startDate).year() !== dayjs(episode.endDate).year();
   const fmt = (date: string) => dayjs(date).format(crossesYear ? "MMM D, YYYY" : "MMM D");
   const start = episode.clippedStart ? "…" : fmt(episode.startDate);
   const end = episode.clippedEnd ? "…" : fmt(episode.endDate);
@@ -121,9 +121,18 @@ export function KahStatusView({
       ) : null}
 
       {episodes.length === 0 && allClearGroups.length === 0 ? (
-        <Text c="dimmed" ta="center" py="xl">
-          {allGroups ? "No KAH groups exist yet." : "You are not part of any KAH group."}
-        </Text>
+        allGroups ? (
+          <EmptyState
+            icon={<IconUsersGroup size={18} />}
+            description="No KAH groups exist yet."
+            actionLabel="Manage KAH groups"
+            actionHref="/settings/kah-groups"
+          />
+        ) : (
+          <Text c="dimmed" ta="center" py="xl">
+            You are not part of any KAH group.
+          </Text>
+        )
       ) : (
         <>
           {episodes.length > 0 ? (
