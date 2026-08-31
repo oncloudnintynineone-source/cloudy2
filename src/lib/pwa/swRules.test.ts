@@ -12,6 +12,7 @@ import {
   isSessionExpiredResponse,
   isStartUrlRequest,
   keysForPathname,
+  launchTargetFromCookieHeader,
   newestSavedView,
   rscCacheName,
   shouldStoreDocumentResponse,
@@ -407,6 +408,69 @@ describe("swRules", () => {
       expect(isStartUrlRequest(new URL(`${ORIGIN}/#x`))).toBe(false);
       expect(isStartUrlRequest(new URL(`${ORIGIN}/dashboard`))).toBe(false);
       expect(isStartUrlRequest(new URL(`${ORIGIN}/login`))).toBe(false);
+    });
+  });
+
+  describe("launchTargetFromCookieHeader", () => {
+    // Mirrors encodeUiState's codec: base64url(JSON), no padding, then the
+    // cookie value is URI-encoded when stored.
+    function uiCookie(state: Record<string, unknown>): string {
+      const b64 = btoa(JSON.stringify(state))
+        .replace(/\+/g, "-")
+        .replace(/\//g, "_")
+        .replace(/=+$/, "");
+      return `cloudy2.ui=${encodeURIComponent(b64)}`;
+    }
+
+    it("returns null without a header or cookie", () => {
+      expect(launchTargetFromCookieHeader(null)).toBeNull();
+      expect(launchTargetFromCookieHeader(undefined)).toBeNull();
+      expect(launchTargetFromCookieHeader("")).toBeNull();
+      expect(launchTargetFromCookieHeader("other=1; another=2")).toBeNull();
+    });
+
+    it("resolves the remembered page", () => {
+      expect(launchTargetFromCookieHeader(uiCookie({ lastPage: "/parade-state" }))).toBe(
+        "/parade-state",
+      );
+    });
+
+    it("resolves the remembered page among other cookies", () => {
+      const header = `next-auth.session-token=abc; ${uiCookie({ lastPage: "/contacts" })}; tz=8`;
+      expect(launchTargetFromCookieHeader(header)).toBe("/contacts");
+    });
+
+    it("rewrites the /settings tab group to its first sub-tab", () => {
+      expect(launchTargetFromCookieHeader(uiCookie({ lastPage: "/settings" }))).toBe(
+        "/settings/users",
+      );
+    });
+
+    it("passes whitelisted settings sub-tabs through", () => {
+      expect(launchTargetFromCookieHeader(uiCookie({ lastPage: "/settings/audit-log" }))).toBe(
+        "/settings/audit-log",
+      );
+    });
+
+    it("falls back to /dashboard for unknown or non-path pages", () => {
+      expect(launchTargetFromCookieHeader(uiCookie({ lastPage: "/kah-status" }))).toBe(
+        "/dashboard",
+      );
+      expect(launchTargetFromCookieHeader(uiCookie({ lastPage: "dashboard" }))).toBe("/dashboard");
+      expect(launchTargetFromCookieHeader(uiCookie({ lastPage: 7 }))).toBe("/dashboard");
+      expect(launchTargetFromCookieHeader(uiCookie({}))).toBe("/dashboard");
+    });
+
+    it("returns null for undecodable cookies", () => {
+      expect(launchTargetFromCookieHeader("cloudy2.ui=%ZZnot-base64")).toBeNull();
+      expect(launchTargetFromCookieHeader("cloudy2.ui=!!!")).toBeNull();
+    });
+
+    it("decodes dashboard.view for the shell's variant selection parity", () => {
+      // The shell's script reads the same shape; assert the codec survives a
+      // full ui-state payload (the SW only uses lastPage from it).
+      const state = { lastPage: "/dashboard", dashboard: { view: "agenda" } };
+      expect(launchTargetFromCookieHeader(uiCookie(state))).toBe("/dashboard");
     });
   });
 

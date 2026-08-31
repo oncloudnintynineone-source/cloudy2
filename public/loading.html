@@ -5,31 +5,111 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="theme-color" content="#0D47A1" />
     <title>Cloudy</title>
+    <script>
+      // Apply Mantine's manual color-scheme override before first paint: the
+      // app stores a ThemeToggle choice ("light"/"dark") under this key; with
+      // "auto" (or nothing) the CSS prefers-color-scheme rules below decide,
+      // matching the app's defaultColorScheme="auto".
+      (function () {
+        try {
+          var scheme = localStorage.getItem("mantine-color-scheme-value");
+          if (scheme === "light" || scheme === "dark") {
+            document.documentElement.setAttribute("data-c2-scheme", scheme);
+          }
+        } catch (err) {}
+      })();
+    </script>
     <style>
+      /*
+       * This shell is the launch path's first paint; the app's streamed route
+       * skeleton (loading.tsx) replaces it, so it mirrors that skeleton and
+       * the shell chrome exactly — same Mantine v9 palette values (theme.ts
+       * overrides only the brand colors), same geometry as
+       * dashboard/loading.tsx + calendarSkeleton.tsx — so the handoff reads
+       * as one continuous skeleton, never two different ones.
+       *
+       * Colors (Mantine v9 defaults):
+       *   light: body #fff · skeleton gray-3 #dee2e6 · border gray-4 #ced4da
+       *   dark:  body dark-7 #242424 · skeleton + border dark-4 #424242
+       */
       :root {
-        --navy: #0d47a1;
-        --bg: #111111;
+        --c2-body: #ffffff;
+        --c2-sk: #dee2e6;
+        --c2-border: #ced4da;
       }
-      * { box-sizing: border-box; margin: 0; padding: 0; }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --c2-body: #242424;
+          --c2-sk: #424242;
+          --c2-border: #424242;
+        }
+      }
+      :root[data-c2-scheme="dark"] {
+        --c2-body: #242424;
+        --c2-sk: #424242;
+        --c2-border: #424242;
+      }
+      :root[data-c2-scheme="light"] {
+        --c2-body: #ffffff;
+        --c2-sk: #dee2e6;
+        --c2-border: #ced4da;
+      }
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
       body {
-        font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
-        background: var(--bg);
-        color: #e0e0e0;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue",
+          Arial, sans-serif;
+        background: var(--c2-body);
         min-height: 100dvh;
-        display: flex;
-        flex-direction: column;
       }
+
+      /* Brand bar — AppShell.Header: brand-7 fill, brand-8 border, 56px +
+         safe-area, "Cloudy" (Mantine size-lg / weight 700) left, controls
+         right (pin · theme · avatar placeholders). */
       header {
-        background: var(--navy);
-        color: white;
-        padding: calc(14px + env(safe-area-inset-top, 0px)) 16px 14px;
+        height: calc(56px + env(safe-area-inset-top, 0px));
+        padding: env(safe-area-inset-top, 0px) 16px 0;
+        background: #0d47a1;
+        border-bottom: 1px solid #0a3a85;
         display: flex;
         align-items: center;
-        gap: 12px;
+        justify-content: space-between;
       }
-      header svg { flex-shrink: 0; }
-      header h1 { font-size: 1.1rem; font-weight: 700; letter-spacing: 0.02em; }
-      main { flex: 1; padding: 12px 16px 32px; overflow: hidden; }
+      header h1 {
+        font-size: 1.125rem;
+        font-weight: 700;
+        color: #fff;
+      }
+      .hdr-ctl {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+
+      /* Skeleton primitive — Mantine Skeleton (gray-3 / dark-4) with its exact
+         pulse (opacity 0.4 → 1, 1500ms linear), reduced-motion guarded. */
+      .sk {
+        background: var(--c2-sk);
+        border-radius: 8px;
+        display: block;
+      }
+      @media (prefers-reduced-motion: no-preference) {
+        .sk-pulse {
+          animation: c2-pulse 1500ms linear infinite;
+        }
+        @keyframes c2-pulse {
+          0%,
+          100% {
+            opacity: 0.4;
+          }
+          50% {
+            opacity: 1;
+          }
+        }
+      }
 
       .sr-only {
         position: absolute;
@@ -43,86 +123,296 @@
         border: 0;
       }
 
-      .sk { background: #2c2e33; border-radius: 6px; }
-      @media (prefers-reduced-motion: no-preference) {
-        .sk-pulse { animation: c2-pulse 1.4s ease-in-out infinite; }
-        @keyframes c2-pulse {
-          0%, 100% { opacity: 0.55; }
-          50% { opacity: 1; }
-        }
+      /* Content column — the app's Stack cancels AppShell's 16px top padding,
+         so the tabs row starts flush under the header; gap sm (12px), pb xl
+         (32px) + clearance for the fixed bottom nav. */
+      main {
+        padding: 0 16px calc(32px + 56px + env(safe-area-inset-bottom, 0px)) 16px;
+      }
+      .stack > * + * {
+        margin-top: 12px;
       }
 
+      /* View-tabs placeholder (dashboard/loading.tsx): five flex:1 columns,
+         alternating 45%/60% chips, border underneath. */
       .tabs {
         display: grid;
         grid-template-columns: repeat(5, 1fr);
-        gap: 8px;
-        padding: 10px 0;
-        border-bottom: 1px solid #2c2e33;
+        padding-bottom: 10px;
+        border-bottom: 1px solid var(--c2-border);
       }
-      .tabs .sk { height: 28px; margin: 0 auto; width: 55%; }
-      .nav { display: flex; align-items: center; gap: 10px; padding: 14px 0; }
-      .nav .sk:nth-child(1),
-      .nav .sk:nth-child(3) {
+
+      /* Date-nav row: chevrons + menu (43px rounded squares), period bar,
+         desktop-only "New event" placeholder (visibleFrom="lg"). */
+      .navrow {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+      .navrow .sq {
         width: 43px;
         height: 43px;
-        border-radius: 10px;
+        border-radius: 8px;
         flex-shrink: 0;
       }
-      .nav .sk:nth-child(2) { flex: 1; height: 24px; }
-      .week { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; margin-bottom: 8px; }
-      .week .sk { height: 14px; width: 70%; margin: 0 auto; }
-      .grid { display: grid; grid-template-columns: repeat(7, 1fr); grid-auto-rows: 54px; gap: 4px; }
-      .grid .sk { height: 100%; border-radius: 4px; }
+      .navrow .bar {
+        height: 24px;
+        flex: 1;
+      }
+      .navrow .desk {
+        display: none;
+        width: 104px;
+        height: 43px;
+        border-radius: 8px;
+        flex-shrink: 0;
+      }
+      @media (min-width: 62em) {
+        .navrow .desk {
+          display: block;
+        }
+      }
+
+      /* View variants — exactly one renders, chosen from the remembered
+         dashboard.view (main[data-view]); matches calendarSkeleton.tsx. */
+      .variant {
+        display: none;
+      }
+      main[data-view="month"] [data-variant="month"],
+      main[data-view="week"] [data-variant="week"],
+      main[data-view="weekv2"] [data-variant="weekv2"],
+      main[data-view="agenda"] [data-variant="agenda"],
+      main[data-view="schedule"] [data-variant="schedule"] {
+        display: block;
+      }
+      .paper {
+        border: 1px solid var(--c2-border);
+        border-radius: 8px;
+      }
+      .paper.pad {
+        padding: 12px;
+      }
+      .paper.flush {
+        overflow: hidden;
+      }
+
+      /* Month (MonthGridSkeleton): weekday row + 42 bordered day cells
+         (min-height 124, day number top-right, deterministic event chips). */
+      .m-weekdays {
+        display: grid;
+        grid-template-columns: repeat(7, 1fr);
+        gap: 3px;
+        margin-bottom: 4px;
+      }
+      .m-grid {
+        display: grid;
+        grid-template-columns: repeat(7, 1fr);
+        gap: 3px;
+      }
+      .m-cell {
+        border: 1px solid var(--c2-border);
+        border-radius: 4px;
+        padding: 4px;
+        min-height: 124px;
+        display: flex;
+        flex-direction: column;
+        gap: 3px;
+      }
+
+      /* Week (H) (WeekGridSkeleton): label + 7-day lane rows, sparse bars. */
+      .w-rows,
+      .s-rows {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
+      .w-row {
+        display: flex;
+        align-items: stretch;
+        gap: 8px;
+      }
+      .w-label {
+        width: 48px;
+        height: 44px;
+        border-radius: 4px;
+        flex-shrink: 0;
+      }
+      .w-days {
+        flex: 1;
+        display: grid;
+        grid-template-columns: repeat(7, 1fr);
+        align-items: stretch;
+      }
+      .w-day {
+        height: 44px;
+        display: flex;
+        align-items: center;
+        padding-inline: 2px;
+      }
+      .w-day + .w-day {
+        border-left: 1px solid var(--c2-border);
+      }
+
+      /* Week (D) matrix (WeekMatrixSkeleton): two-line day-header band, then
+         label column + day grid with a spanning banner per row. */
+      .x-head {
+        display: grid;
+        grid-template-columns: repeat(7, 1fr);
+        border-bottom: 1px solid var(--c2-border);
+      }
+      .x-head > div {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 3px;
+        padding: 5px 2px;
+      }
+      .x-row {
+        display: flex;
+      }
+      .x-row.bordered .x-lab,
+      .x-row.bordered .x-days {
+        border-bottom: 1px solid var(--c2-border);
+      }
+      .x-lab {
+        width: 48px;
+        flex-shrink: 0;
+        border-right: 1px solid var(--c2-border);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+      .x-days {
+        flex: 1;
+        min-width: 0;
+        display: grid;
+        grid-template-columns: repeat(7, 1fr);
+      }
+      .x-cell {
+        height: 36px;
+      }
+      .x-cell + .x-cell {
+        border-left: 1px solid var(--c2-border);
+      }
+      .x-banner {
+        z-index: 1;
+        padding: 2px;
+      }
+
+      /* Agenda (AgendaListSkeleton): date header + borderTop-separated event
+         rows (color strip + two-line text). */
+      .a-head {
+        padding: 8px 12px;
+      }
+      .a-row {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 8px 12px;
+        border-top: 1px solid var(--c2-border);
+      }
+      .a-col {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+      }
+
+      /* Schedule (ScheduleGridSkeleton): label + event-bar lane rows. */
+      .s-row {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+      .s-label {
+        width: 48px;
+        height: 44px;
+        border-radius: 4px;
+        flex-shrink: 0;
+      }
+      .s-lane {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+      }
+
+      /* Bottom nav (AppShell.Footer): mobile-only, 56px + safe-area. */
+      .bnav {
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        height: calc(56px + env(safe-area-inset-bottom, 0px));
+        padding: 0 8px env(safe-area-inset-bottom, 0px);
+        background: var(--c2-body);
+        border-top: 1px solid var(--c2-border);
+        display: flex;
+        align-items: center;
+        justify-content: space-around;
+      }
+      .bnav .item {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 2px;
+      }
+      @media (min-width: 62em) {
+        .bnav {
+          display: none;
+        }
+      }
     </style>
   </head>
   <body>
     <header>
-      <!-- Inline brand mark: cloud + calendar, no external asset -->
-      <svg width="28" height="28" viewBox="0 0 28 28" fill="none" aria-hidden="true">
-        <path d="M8 18a4 4 0 01-.7-7.92A5.5 5.5 0 0118 8.5 4 4 0 0122 18H8z" fill="white" opacity="0.95" />
-        <rect x="7" y="11" width="14" height="10" rx="2" fill="#0D47A1" stroke="white" stroke-width="1.2" />
-        <path d="M10 11V9M18 11V9M7 14h14" stroke="white" stroke-width="1.2" stroke-linecap="round" />
-      </svg>
       <h1>Cloudy</h1>
+      <div class="hdr-ctl" aria-hidden="true">
+        <span class="sk sk-pulse" style="width: 26px; height: 26px"></span>
+        <span class="sk sk-pulse" style="width: 26px; height: 26px"></span>
+        <span
+          class="sk sk-pulse"
+          style="width: 30px; height: 30px; border-radius: 50%"
+        ></span>
+      </div>
     </header>
     <div class="sr-only" role="status">Loading Cloudy…</div>
-    <main aria-hidden="true">
-      <div class="tabs">
-        <span class="sk sk-pulse"></span><span class="sk sk-pulse"></span>
-        <span class="sk sk-pulse"></span><span class="sk sk-pulse"></span>
-        <span class="sk sk-pulse"></span>
-      </div>
-      <div class="nav">
-        <span class="sk sk-pulse"></span><span class="sk sk-pulse"></span><span class="sk sk-pulse"></span>
-      </div>
-      <div class="week">
-        <span class="sk sk-pulse"></span><span class="sk sk-pulse"></span><span class="sk sk-pulse"></span>
-        <span class="sk sk-pulse"></span><span class="sk sk-pulse"></span><span class="sk sk-pulse"></span>
-        <span class="sk sk-pulse"></span>
-      </div>
-      <div class="grid">
-        <span class="sk sk-pulse"></span><span class="sk sk-pulse"></span><span class="sk sk-pulse"></span>
-        <span class="sk sk-pulse"></span><span class="sk sk-pulse"></span><span class="sk sk-pulse"></span>
-        <span class="sk sk-pulse"></span><span class="sk sk-pulse"></span><span class="sk sk-pulse"></span>
-        <span class="sk sk-pulse"></span><span class="sk sk-pulse"></span><span class="sk sk-pulse"></span>
-        <span class="sk sk-pulse"></span><span class="sk sk-pulse"></span><span class="sk sk-pulse"></span>
-        <span class="sk sk-pulse"></span><span class="sk sk-pulse"></span><span class="sk sk-pulse"></span>
-        <span class="sk sk-pulse"></span><span class="sk sk-pulse"></span><span class="sk sk-pulse"></span>
-        <span class="sk sk-pulse"></span><span class="sk sk-pulse"></span><span class="sk sk-pulse"></span>
-        <span class="sk sk-pulse"></span><span class="sk sk-pulse"></span><span class="sk sk-pulse"></span>
-        <span class="sk sk-pulse"></span><span class="sk sk-pulse"></span><span class="sk sk-pulse"></span>
-        <span class="sk sk-pulse"></span><span class="sk sk-pulse"></span><span class="sk sk-pulse"></span>
-        <span class="sk sk-pulse"></span><span class="sk sk-pulse"></span><span class="sk sk-pulse"></span>
-        <span class="sk sk-pulse"></span><span class="sk sk-pulse"></span><span class="sk sk-pulse"></span>
-        <span class="sk sk-pulse"></span><span class="sk sk-pulse"></span><span class="sk sk-pulse"></span>
-        <span class="sk sk-pulse"></span><span class="sk sk-pulse"></span><span class="sk sk-pulse"></span>
+    <main id="c2-main" data-view="month" aria-hidden="true">
+      <div class="stack">
+        <div class="tabs" id="c2-tabs"></div>
+        <div class="navrow">
+          <span class="sk sk-pulse sq"></span><span class="sk sk-pulse bar"></span
+          ><span class="sk sk-pulse sq"></span><span class="sk sk-pulse desk"></span
+          ><span class="sk sk-pulse sq"></span>
+        </div>
+        <section class="variant" data-variant="month">
+          <div class="paper pad" id="c2-month"></div>
+        </section>
+        <section class="variant" data-variant="week">
+          <div class="paper pad" id="c2-week"></div>
+        </section>
+        <section class="variant" data-variant="weekv2">
+          <div class="paper flush" id="c2-weekv2"></div>
+        </section>
+        <section class="variant" data-variant="agenda">
+          <div class="paper flush" id="c2-agenda"></div>
+        </section>
+        <section class="variant" data-variant="schedule">
+          <div class="paper pad s-rows" id="c2-schedule"></div>
+        </section>
       </div>
     </main>
+    <div class="bnav" aria-hidden="true">
+      <span class="item"><span class="sk sk-pulse" style="width: 24px; height: 24px; border-radius: 6px"></span><span class="sk sk-pulse" style="width: 44px; height: 10px; border-radius: 2px"></span></span>
+      <span class="item"><span class="sk sk-pulse" style="width: 24px; height: 24px; border-radius: 6px"></span><span class="sk sk-pulse" style="width: 44px; height: 10px; border-radius: 2px"></span></span>
+      <span class="item"><span class="sk sk-pulse" style="width: 24px; height: 24px; border-radius: 6px"></span><span class="sk sk-pulse" style="width: 44px; height: 10px; border-radius: 2px"></span></span>
+      <span class="item"><span class="sk sk-pulse" style="width: 24px; height: 24px; border-radius: 6px"></span><span class="sk sk-pulse" style="width: 44px; height: 10px; border-radius: 2px"></span></span>
+    </div>
     <!--
       Launch targets the inline script is allowed to resolve to. Mirrors
-      BASE_PAGES + SETTINGS_SUBTABS in src/lib/ui/uiState.ts; the drift is
-      guarded by src/lib/pwa/launchShell.test.ts, which parses this block and
-      compares it against those constants. This list only has to be *safe*, not
+      BASE_PAGES + SETTINGS_SUBTABS in src/lib/ui/uiState.ts (and
+      LAUNCH_ROUTE_WHITELIST in src/lib/pwa/swRules.ts); the drift is guarded
+      by src/lib/pwa/launchShell.test.ts, which parses this block and compares
+      it against those constants. This list only has to be *safe*, not
       authoritative — /settings/* is still enforced server-side by
       requireAdmin(), so an over-permissive entry costs at most one redirect.
     -->
@@ -145,14 +435,139 @@
       // first paint instead of waiting on a serverless cold boot. We then
       // resolve the remembered last page *on the client* — the `cloudy2.ui`
       // cookie is client-owned and readable — and replace, so the launch never
-      // costs a server round trip for `/` at all.
+      // costs a server round trip for `/` at all. (When the remembered page's
+      // cached document is still fresh the service worker skips this shell
+      // entirely and 302s straight to it — see handleLaunchRequest in
+      // src/app/sw.ts — so this script only runs on genuinely cold starts.)
       //
-      // The redirect is deliberately deferred by two animation frames: the
-      // parser can otherwise reach this script before the browser has presented
-      // a frame, and navigating away pre-paint means the splash never lifts —
+      // The skeleton cells are stamped out by the first IIFE below, which runs
+      // synchronously during parse — a classic script blocks the parser, so
+      // the full skeleton exists before the browser can present a frame. The
+      // redirect is deliberately deferred by two animation frames: the parser
+      // can otherwise reach the redirect before the browser has presented a
+      // frame, and navigating away pre-paint means the splash never lifts —
       // which is precisely the bug this page exists to fix. Two frames because
       // the first rAF fires *before* the paint it schedules; the second runs
       // after that frame has been presented.
+      (function () {
+        var VIEW_VALUES = ["month", "week", "weekv2", "schedule", "agenda"];
+
+        function el(tag, cls) {
+          var node = document.createElement(tag);
+          if (cls) node.className = cls;
+          return node;
+        }
+
+        // A Mantine-Skeleton-shaped block (pulse variant).
+        function skTo(parent, width, height, radius, extra) {
+          var node = el("span", "sk sk-pulse");
+          node.style.width = width;
+          node.style.height = height;
+          if (radius) node.style.borderRadius = radius;
+          if (extra) for (var key in extra) node.style[key] = extra[key];
+          parent.appendChild(node);
+          return node;
+        }
+
+        // View tabs (loading.tsx): alternating 45% / 60% chips.
+        var tabs = document.getElementById("c2-tabs");
+        for (var t = 0; t < 5; t++) {
+          skTo(tabs, t % 2 === 1 ? "60%" : "45%", "28px", "6px");
+        }
+
+        // Month (MonthGridSkeleton, always 6 weeks — MONTH_GRID_WEEKS): the
+        // same deterministic chip count formula as the app skeleton.
+        var month = document.getElementById("c2-month");
+        var weekdays = el("div", "m-weekdays");
+        for (var wd = 0; wd < 7; wd++) skTo(weekdays, "55%", "12px", "3px");
+        month.appendChild(weekdays);
+        var grid = el("div", "m-grid");
+        for (var i = 0; i < 42; i++) {
+          var cell = el("div", "m-cell");
+          skTo(cell, "16px", "12px", null, { alignSelf: "flex-end" });
+          var chips = (Math.floor(i / 7) * 3 + (i % 7) * 5 + 2) % 4;
+          for (var chip = 0; chip < chips; chip++) skTo(cell, "100%", "20px", "2px");
+          grid.appendChild(cell);
+        }
+        month.appendChild(grid);
+
+        // Week (H) (WeekGridSkeleton): label + 7-day lane, sparse event bars.
+        var week = document.getElementById("c2-week");
+        for (var wr = 0; wr < 6; wr++) {
+          var wrow = el("div", "w-row");
+          skTo(wrow, "48px", "44px", "4px");
+          var days = el("div", "w-days");
+          for (var d = 0; d < 7; d++) {
+            var day = el("div", "w-day");
+            if ((wr * 3 + d) % 7 < 2) skTo(day, "100%", "18px", "3px");
+            days.appendChild(day);
+          }
+          wrow.appendChild(days);
+          week.appendChild(wrow);
+        }
+
+        // Week (D) matrix (WeekMatrixSkeleton): header band + banner rows.
+        var matrix = document.getElementById("c2-weekv2");
+        var head = el("div", "x-head");
+        for (var hc = 0; hc < 7; hc++) {
+          var hcol = el("div");
+          skTo(hcol, "55%", "10px", "2px");
+          skTo(hcol, "25%", "8px", "2px");
+          head.appendChild(hcol);
+        }
+        matrix.appendChild(head);
+        for (var xr = 0; xr < 6; xr++) {
+          var xrow = el("div", "x-row" + (xr < 5 ? " bordered" : ""));
+          var lab = el("div", "x-lab");
+          skTo(lab, "60%", "10px", "2px");
+          xrow.appendChild(lab);
+          var xdays = el("div", "x-days");
+          for (var xc = 0; xc < 7; xc++) {
+            var xcell = el("div", "x-cell");
+            xcell.style.gridColumn = xc + 1 + " / " + (xc + 2);
+            xcell.style.gridRow = "1";
+            xdays.appendChild(xcell);
+          }
+          var startDay = (xr * 2 + 1) % 5;
+          var spanDays = 2 + ((xr + 1) % 2);
+          var banner = el("div", "x-banner");
+          banner.style.gridColumn = startDay + 1 + " / " + (startDay + 1 + spanDays);
+          banner.style.gridRow = "1";
+          skTo(banner, "100%", "28px", "8px");
+          xdays.appendChild(banner);
+          xrow.appendChild(xdays);
+          matrix.appendChild(xrow);
+        }
+
+        // Agenda (AgendaListSkeleton): date header + striped event rows.
+        var agenda = document.getElementById("c2-agenda");
+        var ahead = el("div", "a-head");
+        skTo(ahead, "45%", "14px", null);
+        agenda.appendChild(ahead);
+        for (var ar = 0; ar < 4; ar++) {
+          var arow = el("div", "a-row");
+          skTo(arow, "4px", "30px", "2px");
+          var acol = el("div", "a-col");
+          skTo(acol, 60 - (ar % 3) * 10 + "%", "14px", "2px");
+          skTo(acol, "35%", "10px", "2px");
+          arow.appendChild(acol);
+          agenda.appendChild(arow);
+        }
+
+        // Schedule (ScheduleGridSkeleton): label + bar lane rows.
+        var schedule = document.getElementById("c2-schedule");
+        for (var sr = 0; sr < 6; sr++) {
+          var srow = el("div", "s-row");
+          skTo(srow, "48px", "44px", "4px");
+          var lane = el("div", "s-lane");
+          var bars = (sr * 3 + 1) % 3;
+          for (var b = 0; b < bars; b++) skTo(lane, "72%", "22px", "3px");
+          skTo(lane, "100%", "10px", "2px");
+          srow.appendChild(lane);
+          schedule.appendChild(srow);
+        }
+      })();
+
       (function () {
         var DEFAULT_TARGET = "/dashboard";
 
@@ -165,7 +580,7 @@
         }
 
         // Mirrors fromBase64Url + decodeUiState in src/lib/ui/uiState.ts.
-        function readLastPage() {
+        function readUiState() {
           try {
             var match = /(?:^|;\s*)cloudy2\.ui=([^;]*)/.exec(document.cookie);
             if (!match) return null;
@@ -176,15 +591,29 @@
                 return ch.charCodeAt(0);
               }),
             );
-            var page = JSON.parse(json).lastPage;
-            return typeof page === "string" ? page : null;
+            return JSON.parse(json);
           } catch (err) {
             return null;
           }
         }
 
+        var state = readUiState();
+
+        // Pre-select the skeleton variant matching the remembered dashboard
+        // view, so the shell shows the same shape the route skeleton will.
+        // Unknown/absent values keep the month default, matching
+        // resolveDashboardView.
+        var view =
+          state &&
+          state.dashboard &&
+          typeof state.dashboard.view === "string" &&
+          VIEW_VALUES.indexOf(state.dashboard.view) !== -1
+            ? state.dashboard.view
+            : null;
+        if (view) document.getElementById("c2-main").setAttribute("data-view", view);
+
         function resolveTarget() {
-          var page = readLastPage();
+          var page = state && typeof state.lastPage === "string" ? state.lastPage : null;
           if (!page) return DEFAULT_TARGET;
           // "/settings" alone is a tab group, not a route — send it to the
           // first sub-tab, matching resolveLaunchTarget.

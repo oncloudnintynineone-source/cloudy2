@@ -131,6 +131,14 @@ matrix), `WeekGridSkeleton` (Week (H)), `AgendaListSkeleton`, `ScheduleGridSkele
 `parade-state/paradeStateSkeleton.tsx`,
 `settings/audit-log/AuditLogRowSkeleton.tsx`.
 
+The PWA **launch shell** (`public/loading.html`, served by the service worker
+for the start URL) mirrors the dashboard route skeleton — all five view
+variants, Mantine's exact palette values and pulse, brand-bar header, bottom-nav
+placeholders — so a stale launch's handoff from the precached shell to the
+streamed `loading.tsx` fallback reads as **one continuous skeleton**, not two
+different ones; warm launches skip the shell entirely via the fresh-document
+redirect (`pwa-offline.md` §1.5.1). `launchShell.test.ts` guards the drift.
+
 Every skeleton block also includes a **`LoadingStatus`**
 (`src/components/LoadingStatus.tsx`): a sr-only `role="status"` announcement
 ("Loading calendar…" etc.), since skeletons are visual-only. Server-safe, so

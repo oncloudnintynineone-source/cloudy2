@@ -239,6 +239,71 @@ export function isStartUrlRequest(url: URL): boolean {
 }
 
 /**
+ * Routes the launch path may resolve to. Mirrors `BASE_PAGES` +
+ * `SETTINGS_SUBTABS` (src/lib/ui/uiState.ts) and the `#c2-launch-routes`
+ * block in public/loading.html — three copies of the same list, kept honest
+ * by src/lib/pwa/launchShell.test.ts. The list only has to be *safe*, not
+ * authoritative: `/settings/*` is still enforced server-side by
+ * `requireAdmin()`, which redirects a signed-in non-admin to `/dashboard`, so
+ * an over-permissive entry costs at most one server round trip.
+ */
+export const LAUNCH_ROUTE_WHITELIST = [
+  "/dashboard",
+  "/parade-state",
+  "/contacts",
+  "/settings/users",
+  "/settings/departments",
+  "/settings/event-types",
+  "/settings/templates",
+  "/settings/general",
+  "/settings/audit-log",
+] as const;
+
+const LAUNCH_DEFAULT_TARGET = "/dashboard";
+
+function launchTargetFor(lastPage: unknown): string {
+  if (typeof lastPage !== "string" || !lastPage.startsWith("/")) return LAUNCH_DEFAULT_TARGET;
+  // "/settings" alone is a tab group, not a route — send it to the first
+  // sub-tab, matching resolveLaunchTarget.
+  if (lastPage === "/settings") return "/settings/users";
+  return (LAUNCH_ROUTE_WHITELIST as readonly string[]).includes(lastPage)
+    ? lastPage
+    : LAUNCH_DEFAULT_TARGET;
+}
+
+/**
+ * Resolve the launch target from a raw `Cookie` header string — the same
+ * `cloudy2.ui` codec (base64url JSON) and whitelist the launch shell's inline
+ * script uses. Lets the launch route skip the shell entirely when the
+ * remembered page's cached document is still fresh (a warm launch then paints
+ * the full grid with no skeleton at all). Returns null when the header is
+ * absent, the cookie undecodable, or the remembered value unusable — the
+ * caller falls back to the shell, whose own script re-resolves the target.
+ */
+export function launchTargetFromCookieHeader(header: string | null | undefined): string | null {
+  if (!header) return null;
+  const match = /(?:^|;\s*)cloudy2\.ui=([^;]*)/.exec(header);
+  if (!match) return null;
+  try {
+    let b64 = decodeURIComponent(match[1]).replace(/-/g, "+").replace(/_/g, "/");
+    while (b64.length % 4 !== 0) {
+      b64 += "=";
+    }
+    const json = new TextDecoder().decode(
+      Uint8Array.from(atob(b64), (char) => char.charCodeAt(0)),
+    );
+    const parsed: unknown = JSON.parse(json);
+    const lastPage =
+      parsed && typeof parsed === "object" && !Array.isArray(parsed)
+        ? (parsed as { lastPage?: unknown }).lastPage
+        : undefined;
+    return launchTargetFor(lastPage);
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Return the cache keys whose URL pathname equals the given pathname (origin
  * must match). Used to invalidate stale RSC/document entries after a mutation.
  */

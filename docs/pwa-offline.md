@@ -86,7 +86,7 @@ Matcher predicates are pure and imported from `src/lib/pwa/swRules.ts` (see §1.
 - **Cache:** `app-documents-swr-v<build>` — the `app-documents-swr` prefix plus a per-build version token (`swCacheVersion`, §1.8) — `ExpirationPlugin` (48 entries, 30 d, `maxAgeFrom: last-used`, `purgeOnQuotaError`).
 - **Strategy is chosen per request, by cache age** (`handleDocumentRequest`). A metadata-only peek reads the stored entry's `Date` header (no body read, same technique as `lastSavedViewEntry`) and `isDocumentFresh` decides:
   - **younger than `DOCUMENT_FRESH_WINDOW_MS` (5 min)** → `StaleWhileRevalidate`: instant, revalidated in the background. A render that recent cannot have come off a cold stack, so serving it immediately is both fast and honest.
-  - **older, or no entry, or no usable `Date`** → `NetworkFirst`: the user gets fresh content. On a launch the precached shell (§1.5.1) stays painted for the whole wait — the browser holds the current document until the new navigation commits — so this reads as "skeleton, then fresh" rather than a stale flash.
+  - **older, or no entry, or no usable `Date`** → `NetworkFirst`: the user gets fresh content. On a launch the precached shell (§1.5.1) stays painted for the whole wait — the browser holds the current document until the new navigation commits — and the shell is pixel-matched to the app's route skeleton (§1.5.1), so the streamed `loading.tsx` fallback replaces it invisibly: this reads as one continuous skeleton, then fresh — never a stale flash and never two different skeletons.
 
   `NetworkFirst` still falls back to the cache when the network *fails*, so offline behaviour is unchanged, and with both exhausted `handlerDidError` reaches the §1.9 fallback exactly as before. There is deliberately **no `networkTimeoutSeconds`**: on a cold function + cold Neon the fresh response routinely outlives any sane timeout, so a timeout would hand back stale data in precisely the case the rule exists to fix.
 
@@ -115,43 +115,76 @@ path to first paint**:
 
 1. `isLaunchRequest` (same-origin GET navigation, `isStartUrlRequest`) matches
    before the document SWR route (first-match-wins).
-2. `handleLaunchRequest` returns `serwist.matchPrecache("/loading.html")` —
-   **unconditionally**. Network `fetch` only on a precache miss.
-3. `public/loading.html` paints the branded skeleton → **splash lifts**.
-4. Its inline script reads the client-owned `cloudy2.ui` cookie
+2. `handleLaunchRequest` first tries the **fresh-document shortcut**:
+   `launchTargetFromCookieHeader` decodes the remembered page from the
+   request's own `Cookie` header (same `cloudy2.ui` codec + whitelist as the
+   shell's script), and when that page's cached document is still fresh
+   (`isDocumentFresh`, the §1.5 5-min window) the route answers
+   `Response.redirect(target, 302)` — the document route then serves the
+   cached copy instantly, so a **warm launch paints the full grid with no
+   skeleton at all**. The peek is local (no network), so this never delays a
+   cold launch.
+3. Otherwise `handleLaunchRequest` returns
+   `serwist.matchPrecache("/loading.html")` — the cold-launch shell.
+   Network `fetch` only on a precache miss.
+4. `public/loading.html` paints the branded skeleton → **splash lifts**.
+5. Its inline script reads the client-owned `cloudy2.ui` cookie
    (base64url JSON, same codec as `decodeUiState`), whitelists `lastPage`, and
-   `location.replace`s to it — default `/dashboard`.
+   `location.replace`s to it — default `/dashboard`. It also pre-selects the
+   skeleton variant matching the remembered `dashboard.view` and applies the
+   manual color-scheme override (see below).
 
 ```mermaid
 flowchart TD
     T[Tap icon → navigate to /] --> SW[Launch route]
-    SW --> P[matchPrecache /loading.html]
+    SW --> C{Cookie resolves target<br/>and cached doc is fresh?}
+    C -- yes --> R302[302 to target<br/>→ document route serves the<br/>cached copy instantly — no skeleton]
+    C -- no --> P[matchPrecache /loading.html]
     P --> PAINT[Skeleton paints → splash lifts]
-    PAINT --> C[Read cloudy2.ui cookie → whitelist lastPage]
-    C --> R[location.replace target]
+    PAINT --> CR[Read cloudy2.ui cookie → view variant + whitelist lastPage]
+    CR --> R[location.replace target]
     R --> D[Document SWR route serves the target]
     P -.precache miss.-> NET[fetch / → server 307 → target]
 ```
 
 Two properties are load-bearing; changing either reintroduces the original bug:
 
-- **Unconditional.** The runtime page caches are versioned per build and wiped
-  on `activate` (§1.8), and `clearAllSavedPages()` runs on controller change. Any
-  rule keyed on "is there a saved view?" is therefore inert on the first launches
-  after a deploy — precisely when the function and Neon are coldest. The
-  precache is written at **install**, so this path always exists.
+- **The shell path stays unconditional.** The runtime page caches are versioned
+  per build and wiped on `activate` (§1.8), and `clearAllSavedPages()` runs on
+  controller change. The fresh-document shortcut keys on exactly such a cache,
+  so it goes inert on the first launches after a deploy — precisely when the
+  function and Neon are coldest — and the precache (written at **install**)
+  always exists beneath it. The shortcut only ever *skips ahead*; it can never
+  take the shell out of the picture for a genuinely cold start.
 - **The redirect waits for a presented frame.** The script defers
   `location.replace` behind two nested `requestAnimationFrame`s. The parser can
   otherwise reach it before the browser has presented a frame, and navigating
   away pre-paint means the splash never lifts at all. `launchShell.test.ts`
-  guards this, the route whitelist (against `BASE_PAGES`/`SETTINGS_SUBTABS`), and
-  the absence of any `fetch(` in the shell.
+  guards this, the route whitelist (against `BASE_PAGES`/`SETTINGS_SUBTABS` and
+  `LAUNCH_ROUTE_WHITELIST`), and the absence of any `fetch(` in the shell.
 
 The shell's whitelist only needs to be *safe*, not authoritative — `/settings/*`
-is still enforced server-side by `requireAdmin()`, so an over-permissive entry
-costs at most one redirect. The server `/` route (`src/app/page.tsx`) stays as-is
+is still enforced server-side by `requireAdmin()` (a signed-in non-admin is
+redirected to `/dashboard`, not `/login`), so an over-permissive entry costs at
+most one redirect. The server `/` route (`src/app/page.tsx`) stays as-is
 for contexts the SW does not control: the first-ever visit, desktop browsers, and
 SW-less environments.
+
+**The shell is pixel-matched to the app's route skeleton.** Because a stale
+launch hands off from the shell to the streamed `loading.tsx` fallback (§1.5),
+the two must read as one skeleton, not two: `loading.html` mirrors
+`dashboard/loading.tsx` + `calendarSkeleton.tsx` — all five view variants
+(month / week (H) / week (D) matrix / agenda / schedule, pre-rendered and
+selected by `main[data-view]` from the remembered view), the same Mantine v9
+palette values (light `#fff` body / `#dee2e6` skeletons; dark `#242424` /
+`#424242`), the same skeleton pulse (opacity 0.4 → 1, 1500 ms), the same
+brand-bar header and mobile bottom-nav placeholders, and the manual
+`mantine-color-scheme-value` localStorage override applied pre-paint (matching
+`defaultColorScheme="auto"`). `launchShell.test.ts` guards the variant set, the
+default view, and the scheme override. Known gaps: the announcement banner's
+height can't be predicted (it shifts the header only when configured), and the
+desktop sidebar isn't mirrored (mobile-first; desktop is unaffected by the
+splash path).
 
 **One caveat on "no server round trip":** `navigationPreload: true` is enabled
 globally (`Serwist.ts` → `registration.navigationPreload.enable()`), so the
@@ -278,7 +311,8 @@ The "Saved · HH:MM" label lives in the dashboard's ⋮ (kebab) menu as a muted 
 | RSC entries | 64, 30 d, `last-used` | `src/app/sw.ts` |
 | Image cache | 64, 30 d | `src/app/sw.ts` |
 | Font/CSS cache | 32, 7 d | `src/app/sw.ts` |
-| Launch shell | `/loading.html` (precached, served unconditionally for `/`) | `src/app/sw.ts` |
+| Launch shell | `/loading.html` (precached; served for `/` unless the fresh-document shortcut 302s first, §1.5.1) | `src/app/sw.ts` |
+| Launch whitelist | 9 routes (`LAUNCH_ROUTE_WHITELIST`, mirrored by the shell's `#c2-launch-routes` JSON) | `src/lib/pwa/swRules.ts` |
 | Document fresh window | 5 min (`DOCUMENT_FRESH_WINDOW_MS`) — instant vs network-first (§1.5) | `src/lib/pwa/swRules.ts` |
 
 The document/RSC expiration plugins set `purgeOnQuotaError: true` so a cache-storage quota error evicts expired entries instead of silently failing writes.
@@ -296,14 +330,17 @@ Pure logic lives in `src/lib/pwa/swRules.ts` so it is unit-tested without a live
 - `newestSavedView(entries)` — newest-`Date` entry for the offline fallback (§1.9); missing timestamps sort oldest, ties to the first entry
 - `isDocumentFresh(savedAtMs, now)` — instant-vs-refetch for a hard navigation (§1.5); `null` (no entry / no `Date`) is not fresh, and a future timestamp clamps to age 0 rather than reading as ancient
 - `isStartUrlRequest(url)` — the bare query-less `/` (the launch route matcher, §1.5.1)
+- `launchTargetFromCookieHeader(header)` — the launch shell's cookie decode + whitelist as a pure function (§1.5.1's fresh-document shortcut); null when undecodable
+- `LAUNCH_ROUTE_WHITELIST` — the launch-target list shared with the shell's inline JSON (drift-guarded)
 - `swCacheVersion(manifest)`
 - `documentCacheName(version)` / `rscCacheName(version)`
 - `isPageCacheName(name)`
 
-Tests: `src/lib/pwa/swRules.test.ts` (46 cases) and
-`src/lib/pwa/launchShell.test.ts` (5 cases — parses `public/loading.html` and
-holds its inline copy of the route whitelist, its default target, and its
-paint-before-redirect structure to the server's definitions). The SW bundle itself (`src/app/sw.ts`) is wiring only — no branching logic to test there. Integration is validated by `pnpm build` (precache count + inspecting the emitted SW bundle) + manual PWA checks: second open instant + chip, F5, force-refresh bypass, deep links, offline cold open, offline view switching, offline mutation error, sign-out isolation, killed-session purge, and the deploy-takeover reload (§1.8).
+Tests: `src/lib/pwa/swRules.test.ts` (54 cases) and
+`src/lib/pwa/launchShell.test.ts` (8 cases — parses `public/loading.html` and
+holds its inline copy of the route whitelist (against both the server's and the
+SW's), its default target, its paint-before-redirect structure, its view-variant
+skeletons, and its color-scheme override to the app's definitions). The SW bundle itself (`src/app/sw.ts`) is wiring only — no branching logic to test there. Integration is validated by `pnpm build` (precache count + inspecting the emitted SW bundle) + manual PWA checks: second open instant + chip, F5, force-refresh bypass, deep links, offline cold open, offline view switching, offline mutation error, sign-out isolation, killed-session purge, and the deploy-takeover reload (§1.8).
 
 ## 1.14 Sign-out
 
@@ -321,8 +358,8 @@ paint-before-redirect structure to the server's definitions). The SW bundle itse
 | `src/components/AppProviders.tsx` | Session-expiry `message` listener + `controllerchange` build-swap reload (§1.8) |
 | `src/components/UserMenu.tsx` | Sign-out cache purge |
 | `public/offline.html` | Branded offline explainer (precached) — "You're offline" + Try again; no saved-views list (§1.9) |
-| `public/loading.html` | Branded launch shell (precached) — skeleton + sr-only status; resolves the remembered page from the `cloudy2.ui` cookie and redirects after a presented frame (§1.5.1) |
-| `src/lib/pwa/launchShell.test.ts` | Drift guard for the launch shell's inline copy of the route whitelist / redirect structure |
+| `public/loading.html` | Branded launch shell (precached) — view-aware skeleton mirroring the route skeleton + sr-only status; resolves the remembered page + view from the `cloudy2.ui` cookie and redirects after a presented frame (§1.5.1) |
+| `src/lib/pwa/launchShell.test.ts` | Drift guard for the launch shell's inline copy of the route whitelist / redirect structure / skeleton variants / scheme override |
 | `src/app/(protected)/settings/**` + `src/components/LoginForm.tsx` | Same invalidate-then-refresh migration |
 | `docs/pwa-offline.md` | This document |
 | `docs/events-cache.md` | Server-side Google Calendar cache (the background revalidation target) |

@@ -6582,3 +6582,63 @@ Files: `src/components/AppShellShell.tsx` (state default + comments),
 comment). Docs: `docs/announcement-banner.md` §1.3.1 (renamed + rewritten with a
 new sequence diagram) and the §1.5 file index; `progress.md` one-liner.
 Verification: `pnpm lint` + `pnpm typecheck` + `pnpm test` + `pnpm build`.
+
+## 1.155 Single-skeleton launch (unified shell + route skeleton, warm-launch shortcut)
+
+1.152's launch shell (dark, generic month-grid skeleton) composed badly with
+1.153's age-routed document navigations: on a launch whose cached document was
+older than `DOCUMENT_FRESH_WINDOW_MS` (5 min — nearly every morning launch) the
+flow became *launch shell → network-first wait → streamed HTML → `loading.tsx`
+Mantine skeleton → data*, i.e. **two visibly different skeletons** before any
+content. The `sw.ts` comment claiming "skeleton, then fresh" had missed that
+streaming SSR flushes the route fallback as soon as the document commits, while
+the dashboard's awaited data (`await fetchMonthEvents`) lands later in the
+stream.
+
+Fixed in two layers, keeping both of yesterday's wins (precache-first paint;
+fresh data on cold starts):
+
+1. **Pixel-matched skeletons.** `public/loading.html` was rewritten to mirror
+   `dashboard/loading.tsx` + `calendarSkeleton.tsx` exactly: all five view
+   variants (month / week (H) / week (D) matrix / agenda / schedule) pre-rendered
+   and selected via `main[data-view]` from the remembered `dashboard.view`
+   (same `cloudy2.ui` codec the shell already decoded), with the same
+   deterministic geometry as the app skeletons (chip-count formulas included —
+   the month grid is always 42 cells because `MONTH_GRID_WEEKS = 6`). Colors are
+   Mantine v9's exact values (light: `#fff` body / `#dee2e6` skeletons /
+   `#ced4da` borders; dark: `#242424` / `#424242` / `#424242`), defaulting to
+   `prefers-color-scheme` and overridden pre-paint by the manual
+   `mantine-color-scheme-value` localStorage choice, matching the app's
+   `defaultColorScheme="auto"`. The header is now the real brand bar (56px +
+   safe-area, navy `#0D47A1`, `#0a3a85` border, "Cloudy" at size-lg/700 — no
+   invented logo), and a mobile bottom-nav placeholder matches
+   `AppShell.Footer`. Skeleton cells are stamped out by a synchronous inline
+   script (a classic script blocks the parser, so the full skeleton exists
+   before first paint — the splash still lifts on the complete skeleton).
+2. **Fresh-document shortcut.** `handleLaunchRequest` first calls
+   `launchTargetFromCookieHeader(request.headers.get("cookie"))` — the shell's
+   decode+whitelist as a pure, unit-tested function in `swRules.ts`
+   (`LAUNCH_ROUTE_WHITELIST`). When the remembered page's cached document is
+   still fresh (`isDocumentFresh`, the same 5-min window), the launch route
+   answers `Response.redirect(target, 302)` and the document route serves the
+   cached copy instantly — **warm launches paint the full grid with no skeleton
+   at all**. The peek is a local metadata read (no network), and when it misses
+   or is stale the flow falls through to the precached shell unchanged, so the
+   shell path remains the unconditional cold-start safety net (page caches are
+   wiped on activate, making the shortcut inert exactly when the stack is
+   coldest — by design).
+
+Known gaps (accepted): a configured announcement banner's height can't be
+predicted by the shell (the header grows when it streams in); the desktop
+sidebar isn't mirrored (mobile-first; the splash path is mobile-only in
+practice); `requireAdmin()` still resolves admin-only targets server-side (a
+signed-in non-admin costs one redirect to `/dashboard`, not a login purge).
+
+Files: `public/loading.html` (rewritten), `src/app/sw.ts` (shortcut in
+`handleLaunchRequest`), `src/lib/pwa/swRules.ts` (`launchTargetFromCookieHeader`
++ `LAUNCH_ROUTE_WHITELIST`), `src/lib/pwa/swRules.test.ts` (+8 cases),
+`src/lib/pwa/launchShell.test.ts` (+3 drift guards: SW whitelist sync, view
+variants + default, scheme override). Docs: `docs/pwa-offline.md` §1.5/§1.5.1
+(fresh-redirect flowchart + shell-matching prose), §1.12/§1.13/§1.15;
+`docs/loading-transitions.md` §1.4; `progress.md` one-liner.
+Verification: `pnpm lint` + `pnpm typecheck` + `pnpm test` (836 passing).

@@ -18,6 +18,7 @@ import {
   isPageCacheName,
   isSessionExpiredResponse,
   isStartUrlRequest,
+  launchTargetFromCookieHeader,
   newestSavedView,
   rscCacheName,
   shouldStoreDocumentResponse,
@@ -331,6 +332,24 @@ function isRscRequest(options: { request: Request; url: URL; sameOrigin: boolean
 const LAUNCH_SHELL_URL = "/loading.html";
 
 async function handleLaunchRequest({ request }: { request: Request }): Promise<Response> {
+  // Fresh-document shortcut: resolve the remembered page from the request's
+  // Cookie header (the same `cloudy2.ui` cookie the shell's script reads).
+  // When that page's cached document is still fresh, redirect straight to it —
+  // the document route serves the cached copy instantly below this redirect,
+  // so a warm launch paints the full grid with no skeleton at all and the
+  // splash lifts on real content. When the cache peek (local, no network)
+  // misses or is stale, fall through to the precached shell as before —
+  // its own script re-resolves the target and the shell stays painted for the
+  // network-first wait.
+  const target = launchTargetFromCookieHeader(request.headers.get("cookie"));
+  if (target) {
+    const savedAtMs = await cachedDocumentSavedAtMs(
+      new Request(new URL(target, self.location.origin).href),
+    );
+    if (isDocumentFresh(savedAtMs, Date.now())) {
+      return Response.redirect(new URL(target, self.location.origin).href, 302);
+    }
+  }
   const shell = await serwist.matchPrecache(LAUNCH_SHELL_URL).catch(() => undefined);
   if (shell) return shell;
   // Precache miss — the very first navigation racing install, or an eviction.
