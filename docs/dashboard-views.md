@@ -166,10 +166,14 @@ slot granularity (still 60-minute columns) or the row height.
   `DashboardView` computes the zoomed width (`weekSlotWidth` / `daySlotWidth`) and
   writes it to the var through the view's `style` prop (the Schedule CSS-var gotcha —
   [`desktop-responsive.md`](desktop-responsive.md)).
-- **Rulers follow**: the pinned hour ruler and the Week (H) day-label strip track the
-  slot width through a `useLayoutEffect` that probes the var from the DOM and
-  publishes it as `--ruler-slot` / a 24-slot day width. `zoom` is in that effect's
-  dependency list, so both strips re-measure on every zoom change.
+- **Rulers follow**: the pinned hour ruler and the Week (H) day-label strip follow the
+  slot width through a `useLayoutEffect` that probes the var from the DOM and publishes
+  it as `--ruler-slot`. The ruler track (one cell per hour slot) and the day-label
+  track (one `ddd D` cell per day, 24 slots wide) both translate by `-scrollLeft` via a
+  direct DOM transform, so the labels stay over their columns while the grid pans —
+  the day track scrolls with the content instead of swapping a single label on a day
+  boundary. `zoom` is in that effect's dependency list, so both strips re-measure on
+  every zoom change.
 - **Persistence**: the level is remembered per device in the `cloudy2.ui` cookie as
   `dashboard.zoom` — not URL-backed (zooming never navigates), so it is read from the
   raw cookie and seeded into the client state before first paint (no width jump on

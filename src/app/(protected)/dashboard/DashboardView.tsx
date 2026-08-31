@@ -251,43 +251,40 @@ interface FormState {
 
 const DAY_SWIPE_THRESHOLD = 48;
 
-// Fallback for the Week (H) view's day-column width: 24 hourly slots × Mantine's
-// default 60px slot width at the default scale. The real value is measured
-// from the DOM (see the effect below) so non-default root font sizes still
-// derive the correct day index.
-const WEEK_DAY_WIDTH_PX = 24 * 60;
-
 /**
  * Day-label strip for the Week (H) view. `ResourcesWeekView`'s own day labels are
  * centered in each full-width day column, so on a phone they are only visible
  * when the viewport happens to sit over the middle of a day. This strip
- * replaces that row and pins the leftmost visible day (the caller tracks it
- * via `onScrollPositionChange`) to the grid's left edge, styled like Mantine's
- * own day labels (today filled/primary, weekends red). The strip itself is
- * sticky under the shared tabs+date-nav chrome at every breakpoint, mirroring
+ * replaces that row and pins all 7 date labels beneath the shared chrome; its
+ * inner track translates by -scrollLeft via a direct DOM transform (no
+ * re-renders), so the labels stay over their day columns while the grid pans
+ * horizontally — mirroring the TimeRulerStrip below — instead of a single label
+ * being swapped on a day boundary (which leaves only one of two side-by-side
+ * dates visible). The strip itself is sticky under the shared tabs+date-nav
+ * chrome at every breakpoint, mirroring
  * the Week (D) day header.
  */
 function WeekDayLabelStrip({
-  day,
+  days,
   hasGroups,
   resourceLabelWidth,
   groupLabelWidth,
   chromeOffset,
+  innerRef,
 }: {
-  day: string;
+  days: string[];
   hasGroups: boolean;
   resourceLabelWidth: string;
   groupLabelWidth: string;
   /** Height of the sticky tabs+date-nav chrome this strip docks below. */
   chromeOffset: number;
+  /** The inner day track; synced to the grid's scroll via a direct transform. */
+  innerRef: RefObject<HTMLDivElement | null>;
 }) {
-  const dayObj = dayjs(day);
-  const isToday = dayObj.isSame(dayjs(), "day");
-  const isWeekend = dayObj.day() === 0 || dayObj.day() === 6;
   // The width of the sticky corner/label columns the grid scrolls beneath,
   // matching the ResourcesWeekView sizing overrides on the view itself.
-  // +1px accounts for the grid root's left border so the day label aligns
-  // with the grid's first slot column.
+  // +1px accounts for the grid root's left border so the day track aligns
+  // with the grid's first day column.
   const leftWidth = hasGroups
     ? `calc(${groupLabelWidth} + ${resourceLabelWidth} + 1px)`
     : `calc(${resourceLabelWidth} + 1px)`;
@@ -298,6 +295,8 @@ function WeekDayLabelStrip({
         position: "sticky",
         top: `calc(var(--app-shell-header-offset) + ${chromeOffset}px)`,
         zIndex: 45,
+        display: "flex",
+        overflow: "hidden",
         height: "calc(2rem * var(--mantine-scale))",
         background: "var(--mantine-color-body)",
         borderBottom: "1px solid var(--mantine-color-default-border)",
@@ -307,40 +306,66 @@ function WeekDayLabelStrip({
       <Box
         component="div"
         style={{
-          position: "absolute",
-          top: 0,
-          bottom: 0,
-          left: 0,
+          flexShrink: 0,
           width: leftWidth,
           borderRight: "1px solid var(--mantine-color-default-border)",
         }}
       />
-      <span
-        style={{
-          position: "absolute",
-          top: 0,
-          bottom: 0,
-          left: leftWidth,
-          display: "flex",
-          alignItems: "center",
-          paddingInline: "0.5rem",
-          whiteSpace: "nowrap",
-          fontSize: "var(--mantine-font-size-sm)",
-          fontWeight: isToday
-            ? "var(--mantine-font-weight-bold)"
-            : "var(--mantine-font-weight-medium)",
-          textTransform: "capitalize",
-          userSelect: "none",
-          background: isToday ? "var(--mantine-primary-color-filled)" : "transparent",
-          color: isToday
-            ? "var(--mantine-primary-color-contrast)"
-            : isWeekend
-              ? "var(--mantine-color-red-6)"
-              : undefined,
-        }}
-      >
-        {dayObj.format("ddd D")}
-      </span>
+      <Box component="div" style={{ flex: 1, minWidth: 0, overflow: "hidden" }}>
+        {/* One cell per day — the track is exactly as wide as the grid's 7-day
+            content (each day = 24 slots), so translating it by -scrollLeft
+            keeps every label over its day column during a horizontal pan. */}
+        <Box
+          ref={innerRef}
+          component="div"
+          style={{
+            display: "flex",
+            width: `calc(var(--ruler-slot, 60px) * ${SLOTS_PER_DAY * days.length})`,
+            willChange: "transform",
+          }}
+        >
+          {days.map((day) => {
+            const dayObj = dayjs(day);
+            const isToday = dayObj.isSame(dayjs(), "day");
+            const isWeekend = dayObj.day() === 0 || dayObj.day() === 6;
+            return (
+              <Box
+                key={day}
+                component="div"
+                style={{
+                  width: `calc(var(--ruler-slot, 60px) * ${SLOTS_PER_DAY})`,
+                  flexShrink: 0,
+                  borderLeft: "1px solid var(--mantine-color-default-border)",
+                  display: "flex",
+                  alignItems: "center",
+                  paddingInline: "0.5rem",
+                }}
+              >
+                <Text
+                  size="sm"
+                  style={{
+                    lineHeight: 1.2,
+                    whiteSpace: "nowrap",
+                    textTransform: "capitalize",
+                    userSelect: "none",
+                    fontWeight: isToday
+                      ? "var(--mantine-font-weight-bold)"
+                      : "var(--mantine-font-weight-medium)",
+                    background: isToday ? "var(--mantine-primary-color-filled)" : "transparent",
+                    color: isToday
+                      ? "var(--mantine-primary-color-contrast)"
+                      : isWeekend
+                        ? "var(--mantine-color-red-6)"
+                        : undefined,
+                  }}
+                >
+                  {dayObj.format("ddd D")}
+                </Text>
+              </Box>
+            );
+          })}
+        </Box>
+      </Box>
     </Box>
   );
 }
@@ -838,12 +863,11 @@ export function DashboardView({
     }
   }, [shownView]);
 
-  // Week (H) view: which day (0-6) sits at the left edge of the horizontally
-  // scrolling grid. The index (not raw px) drives the pinned day-label strip,
-  // so a scroll frame only re-renders when the visible day actually changes.
-  const weekDayWidthRef = useRef(WEEK_DAY_WIDTH_PX);
+  // Week (H) view: the pinned day-label strip's inner track follows the grid's
+  // horizontal scroll via a direct DOM transform, same as the hour ruler. The
+  // track's cells are 24 slots wide (see WeekDayLabelStrip), so no JS index math
+  // or re-renders are needed to stay aligned with the day columns.
   const weekBoxRef = useRef<HTMLDivElement | null>(null);
-  const [weekDayIndex, setWeekDayIndex] = useState(0);
   // Cached realized geometry for the schedule grids: the hour-slot width in px
   // at zoom 1 and the sticky label-column width in px. Probed once per geometry
   // change (mount / view switch / breakpoint / group presence) — never on a
@@ -862,11 +886,13 @@ export function DashboardView({
   // already positioned the grids.
   const weekRulerRef = useRef<HTMLDivElement | null>(null);
   const dayRulerRef = useRef<HTMLDivElement | null>(null);
+  const weekDayLabelRef = useRef<HTMLDivElement | null>(null);
   const weekViewportRef = useRef<HTMLDivElement | null>(null);
   const dayViewportRef = useRef<HTMLDivElement | null>(null);
   const handleWeekScroll = useCallback((pos: { x: number }) => {
-    const index = Math.min(6, Math.max(0, Math.floor(pos.x / weekDayWidthRef.current)));
-    setWeekDayIndex((prev) => (prev === index ? prev : index));
+    if (weekDayLabelRef.current) {
+      weekDayLabelRef.current.style.transform = `translateX(${-pos.x}px)`;
+    }
     if (weekRulerRef.current) {
       weekRulerRef.current.style.transform = `translateX(${-pos.x}px)`;
     }
@@ -1654,7 +1680,6 @@ export function DashboardView({
     }
 
     const slot = geometry.baseSlotPx * zoom;
-    weekDayWidthRef.current = slot * 24;
     box.style.setProperty("--ruler-slot", `${slot}px`);
 
     if (zoomChanged) {
@@ -1669,11 +1694,15 @@ export function DashboardView({
 
     // The library's start-scroll effects (startScrollTime /
     // startScrollDateTime) reposition the grid on mount/zoom without a scroll
-    // event; align the ruler track with the real scroll offset (this also
-    // picks up the re-anchored value above, since it runs after the write).
+    // event; align the ruler track and the week day-label track with the real
+    // scroll offset (this also picks up the re-anchored value above, since it
+    // runs after the write).
     const ruler = isWeekGrid ? weekRulerRef.current : dayRulerRef.current;
     if (ruler) {
       ruler.style.transform = `translateX(${-viewport.scrollLeft}px)`;
+    }
+    if (isWeekGrid && weekDayLabelRef.current) {
+      weekDayLabelRef.current.style.transform = `translateX(${-viewport.scrollLeft}px)`;
     }
   }, [view, gridLoading, isSchedule, isDesktop, zoom, scheduleResources]);
 
@@ -2078,11 +2107,12 @@ export function DashboardView({
       <Box ref={weekBoxRef} className={CONTENT_ENTER_CLASS}>
         {view === "week" && week && (
           <WeekDayLabelStrip
-            day={week[weekDayIndex]}
+            days={week}
             hasGroups={scheduleResources.groups !== undefined}
             resourceLabelWidth={scheduleLabelWidths.resource}
             groupLabelWidth={scheduleLabelWidths.group}
             chromeOffset={chromeHeight}
+            innerRef={weekDayLabelRef}
           />
         )}
         {/* Pinned hour rulers for the schedule views. Only rendered with the
