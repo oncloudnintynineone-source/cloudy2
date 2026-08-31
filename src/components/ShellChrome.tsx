@@ -78,10 +78,10 @@ function AnnouncementBanner({ config }: { config: BannerConfig }) {
 
 /**
  * The resolved half of the streamed banner slot (mounted by ShellBanner after
- * `getBanner()` resolves): keeps the reserved height when a banner exists,
- * collapses it when none does, and renders the banner itself when present.
- * The layout effect collapses before paint, so warm no-banner loads never
- * flash the reserved gap.
+ * `getBanner()` resolves): grows the header to include the banner when one
+ * exists; a null result leaves the layout untouched. Nothing is reserved while
+ * the read is pending (see BannerPlaceholder), so this only ever moves the
+ * shell downward — it never collapses a phantom gap.
  */
 export function BannerLoaded({ config }: { config: BannerConfig | null }) {
   const { setBannerActive } = useShellChrome();

@@ -143,6 +143,7 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
 - [1.151 Cold-open splash fix: streamed banner/KAH shell chrome (Neon scale-to-zero)](#1151-cold-open-splash-fix-streamed-bannerkah-shell-chrome-neon-scale-to-zero)
 - [1.152 Android PWA splash, take two: lazy googleapis + precached launch shell](#1152-android-pwa-splash-take-two-lazy-googleapis--precached-launch-shell)
 - [1.153 Document navigations routed by cache age (instant vs fresh)](#1153-document-navigations-routed-by-cache-age-instant-vs-fresh)
+- [1.154 Reverse the banner-reservation decision (no phantom gap while pending)](#1154-reverse-the-banner-reservation-decision-no-phantom-gap-while-pending)
 
 ## 1.1 Status
 
@@ -6547,3 +6548,37 @@ bundle and unit level only; the end-to-end splash improvement has not been
 timed on the phone. Test protocol: deploy → launch once so the new SW installs
 and precaches → background the app → wait >5 min (Neon autosuspend *and* the
 serverless instance idling) → launch.
+
+## 1.154 Reverse the banner-reservation decision (no phantom gap while pending)
+
+1.151 reserved the announcement banner's 25px from the shell's first paint
+(`bannerActive` defaulted `true`; the `BannerPlaceholder` Suspense fallback was
+a 25px spacer) so a configured banner could never shift the header when its
+streamed DB read resolved late on a cold start.
+
+In practice that made the **no-banner** cold start (the common case) visibly
+double-shift. With the launch shell landing at a 56px navy bar, the redirect to
+the app skeleton grew the header to 81px (25px reserved + 56px bar) the moment
+the AppShell mounted, then collapsed it back to 56px when `getBanner()`
+resolved null — content jumped down, then up. The reservation optimised for the
+configured-banner case and penalised the (far more common) absent one.
+
+Change: reverse it. `AppShellShell.bannerActive` now defaults `false`, and
+`BannerPlaceholder` renders nothing. The header is the bare 56px brand bar from
+first paint, identical to a no-banner layout, so launch shell → app skeleton →
+first paint all share one header height, and a null resolve never shifts
+anything. When `ShellBanner` resolves present, `BannerLoaded` grows the header
+to include the banner in a layout effect (before paint), and the banner still
+measures its wrapped height into `--app-banner-height`.
+
+The trade-off, chosen deliberately: a **configured** banner now shifts the
+header downward when its read resolves — on cold starts *and* warm loads, since
+even a warm request renders the fallback (nothing) before the banner streams in.
+This is the opposite of 1.151's guarantee, and exactly what was asked for.
+
+Files: `src/components/AppShellShell.tsx` (state default + comments),
+`src/app/(protected)/shellStream.tsx` (`BannerPlaceholder` → null, dropped the
+`BANNER_HEIGHT_PX` import), `src/components/ShellChrome.tsx` (`BannerLoaded`
+comment). Docs: `docs/announcement-banner.md` §1.3.1 (renamed + rewritten with a
+new sequence diagram) and the §1.5 file index; `progress.md` one-liner.
+Verification: `pnpm lint` + `pnpm typecheck` + `pnpm test` + `pnpm build`.

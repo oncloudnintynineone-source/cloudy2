@@ -194,9 +194,9 @@ export function AppShellShell({
    *  was remembered — no client restore, no flash). */
   sidebarCollapsed: boolean;
   /** Streamed announcement-banner slot (a <Suspense> from the (protected)
-   *  layout). Renders the banner — or its pending placeholder — above the navy
-   *  bar; a null resolve collapses the reserved space. Streamed so the shell's
-   *  first paint never waits on the banner's DB read. */
+   *  layout). Renders the banner above the navy bar when its read resolves
+   *  present; nothing is reserved while pending. Streamed so the shell's first
+   *  paint never waits on the banner's DB read. */
   bannerSlot?: React.ReactNode;
   /** Streamed KAH-status probe (a <Suspense> from the (protected) layout);
    *  reveals the KAH Status nav entry when the signed-in user belongs to a
@@ -326,10 +326,12 @@ export function AppShellShell({
   // streamed AnnouncementBanner (via the shell chrome context) after layout so
   // the shell's offset math stays exact when text wraps to multiple lines.
   const [bannerPx, setBannerPx] = useState(BANNER_HEIGHT_PX);
-  // Whether a banner is present. Defaults true while the streamed slot is
-  // pending (the placeholder reserves BANNER_HEIGHT_PX); BannerLoaded collapses
-  // the reserved space when the stream resolves to null.
-  const [bannerActive, setBannerActive] = useState(true);
+  // Whether a banner is present. Defaults false — the streamed slot reserves
+  // nothing while pending, so the shell (and the route skeleton beneath the
+  // bare 56px bar) is identical to a no-banner layout from first paint.
+  // BannerLoaded grows the header when the stream resolves present; a null
+  // resolve leaves it unchanged (no reserved gap to collapse).
+  const [bannerActive, setBannerActive] = useState(false);
   // Whether the signed-in non-admin user belongs to at least one KAH group —
   // reveals the KAH Status nav entry once the streamed probe resolves true.
   const [kahGroup, setKahGroup] = useState(false);
@@ -475,7 +477,9 @@ export function AppShellShell({
         // declarations. (Not the `vars` prop — in Mantine v9 that's a
         // resolver *function*, not an object.) In immersive mode the banner
         // is hidden, so we omit the variable to keep --app-banner-height at
-        // its CSS default of 0px.
+        // its CSS default of 0px. The banner is NOT reserved while its
+        // streamed read is pending — the header only grows once a banner
+        // actually resolves present.
         style={
           bannerActive && !immersive
             ? ({ "--app-banner-height": `${bannerPx}px` } as React.CSSProperties)
@@ -487,7 +491,8 @@ export function AppShellShell({
         // banner (when active) stacks above the 56px brand bar inside the
         // same header element. In immersive mode the header is hidden, so we
         // drop the banner height from the prop to avoid Mantine allocating
-        // phantom main-content padding.
+        // phantom main-content padding. While the banner read is pending the
+        // header is the bare 56px bar (no reservation).
         header={{
           height:
             bannerActive && !immersive

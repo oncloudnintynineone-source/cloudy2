@@ -9,7 +9,7 @@ exactly as if the feature weren't there — no reserved space.
 - [1.1 Configuration](#11-configuration)
 - [1.2 Curated palette & validation (pure)](#12-curated-palette--validation-pure)
 - [1.3 Rendering & the height-var chain](#13-rendering--the-height-var-chain)
-  - [1.3.1 Reserved while pending, collapses when absent](#131-reserved-while-pending-collapses-when-absent)
+  - [1.3.1 Not reserved while pending; grows when resolved](#131-not-reserved-while-pending-grows-when-resolved)
 - [1.4 Interplay with immersive mode](#14-interplay-with-immersive-mode)
 - [1.5 File index & related docs](#15-file-index--related-docs)
 
@@ -54,14 +54,20 @@ paint immediately, and the banner streams in when the read lands.
   chain lives on `.app-shell-root` in `src/app/globals.css` — no class toggling —
   so main padding, navbar and all sticky chrome follow automatically.
 
-### 1.3.1 Reserved while pending, collapses when absent
+### 1.3.1 Not reserved while pending; grows when resolved
 
-`AppShellShell` reserves the banner slot from the first paint (`bannerActive`
-defaults true; the Suspense fallback `BannerPlaceholder` is a 25px spacer). That
-guarantees a configured banner never shifts the header when its DB read resolves
-late (cold start). `BannerLoaded` reports the resolved presence in a **layout
-effect**: a null result collapses the reserved space back to the bare 56px bar
-before the browser paints, so warm no-banner loads never flash the gap.
+`AppShellShell` does **not** reserve the banner slot while the streamed read is
+pending (`bannerActive` defaults `false`; the Suspense fallback
+`BannerPlaceholder` renders nothing). The header starts at the bare 56px brand
+bar — identical to a no-banner layout — so a cold start's launch shell, route
+skeleton and first paint all share the same header height (no phantom 25px gap,
+and a null resolve never shifts anything). When `ShellBanner` resolves present,
+`BannerLoaded` grows the header to include the banner in a layout effect (before
+paint), and the banner measures its wrapped height into `--app-banner-height`.
+
+The trade-off, deliberately chosen: a **configured** banner shifts the header
+downward when its read resolves — on cold starts *and* warm loads — rather than
+holding the space open from the start.
 
 ```mermaid
 sequenceDiagram
@@ -69,13 +75,13 @@ sequenceDiagram
     participant S as AppShellShell
     participant B as ShellBanner → getBanner()
     L->>S: bannerSlot = <Suspense fallback={BannerPlaceholder}>
-    S->>S: bannerActive=true (reserves 25px); header + route skeleton stream
-    Note over S: first paint — splash dismissed, no DB waited on
+    S->>S: bannerActive=false (no reservation); header = bare 56px bar
+    Note over S: first paint — splash dismissed, no DB waited on, no phantom gap
     B-->>S: resolve → BannerLoaded(config | null)
     alt config present
-        S->>S: AnnouncementBanner fills slot; measures height → --app-banner-height
+        S->>S: layout effect grows header; banner measures height → --app-banner-height
     else config null
-        S->>S: layout effect collapses slot before paint
+        S->>S: layout unchanged (nothing was reserved)
     end
 ```
 
@@ -94,7 +100,7 @@ main-content padding.
 | File | Role |
 | ---- | ---- |
 | `src/lib/banner/banner.ts` | Palette, normalization, validation (pure) |
-| `src/app/(protected)/shellStream.tsx` | `ShellBanner` (awaits `getBanner()`), `BannerPlaceholder` — streamed into the shell via Suspense |
+| `src/app/(protected)/shellStream.tsx` | `ShellBanner` (awaits `getBanner()`), `BannerPlaceholder` (renders nothing — the shell never reserves the banner height) — streamed into the shell via Suspense |
 | `src/components/ShellChrome.tsx` | `AnnouncementBanner`, `BannerLoaded`, `ShellChromeContext` (client) |
 | `src/components/AppShellShell.tsx` | Reserves/collapses the banner slot, height-var wiring |
 | `src/app/globals.css` | `.app-shell-root` height chain |
