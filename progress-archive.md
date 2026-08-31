@@ -6642,3 +6642,16 @@ variants + default, scheme override). Docs: `docs/pwa-offline.md` §1.5/§1.5.1
 (fresh-redirect flowchart + shell-matching prose), §1.12/§1.13/§1.15;
 `docs/loading-transitions.md` §1.4; `progress.md` one-liner.
 Verification: `pnpm lint` + `pnpm typecheck` + `pnpm test` (836 passing).
+
+Follow-up fix (same phase): the first cut trapped `VIEW_VALUES` inside the
+skeleton-builder IIFE, so the redirect IIFE threw `ReferenceError` on its first
+use and aborted `location.replace` — the launch painted the skeleton and never
+left it (reported as "the skeleton does not finish loading"). Fixed by hoisting
+`VIEW_VALUES` to the script's top level **and** restructuring the redirect IIFE
+so the two-rAF `location.replace` is registered before the optional view-variant
+tweak (which now runs in its own `try/catch`) — the shell is structurally
+guaranteed to navigate. `launchShell.test.ts` gained a **runtime smoke test**
+that executes the actual inline script under a `node:vm` DOM shim and asserts
+`location.replace` fires (with and without a `cloudy2.ui` cookie, and that a
+remembered `dashboard.view` is applied) — verified to fail when the scoping bug
+is reintroduced. `pnpm test` 839 passing.

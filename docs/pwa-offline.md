@@ -337,10 +337,13 @@ Pure logic lives in `src/lib/pwa/swRules.ts` so it is unit-tested without a live
 - `isPageCacheName(name)`
 
 Tests: `src/lib/pwa/swRules.test.ts` (54 cases) and
-`src/lib/pwa/launchShell.test.ts` (8 cases — parses `public/loading.html` and
+`src/lib/pwa/launchShell.test.ts` (11 cases — parses `public/loading.html` and
 holds its inline copy of the route whitelist (against both the server's and the
 SW's), its default target, its paint-before-redirect structure, its view-variant
-skeletons, and its color-scheme override to the app's definitions). The SW bundle itself (`src/app/sw.ts`) is wiring only — no branching logic to test there. Integration is validated by `pnpm build` (precache count + inspecting the emitted SW bundle) + manual PWA checks: second open instant + chip, F5, force-refresh bypass, deep links, offline cold open, offline view switching, offline mutation error, sign-out isolation, killed-session purge, and the deploy-takeover reload (§1.8).
+skeletons, and its color-scheme override to the app's definitions; it also
+**executes the shell's redirect script under a DOM shim** (`node:vm`) and
+asserts the launch always navigates — the guard that caught `VIEW_VALUES`
+leaking out of scope and stranding the launch on the skeleton). The SW bundle itself (`src/app/sw.ts`) is wiring only — no branching logic to test there. Integration is validated by `pnpm build` (precache count + inspecting the emitted SW bundle) + manual PWA checks: second open instant + chip, F5, force-refresh bypass, deep links, offline cold open, offline view switching, offline mutation error, sign-out isolation, killed-session purge, and the deploy-takeover reload (§1.8).
 
 ## 1.14 Sign-out
 

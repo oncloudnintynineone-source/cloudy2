@@ -449,9 +449,14 @@
       // which is precisely the bug this page exists to fix. Two frames because
       // the first rAF fires *before* the paint it schedules; the second runs
       // after that frame has been presented.
-      (function () {
-        var VIEW_VALUES = ["month", "week", "weekv2", "schedule", "agenda"];
+      //
+      // Shared by both IIFEs below — declared at script top level, NOT inside a
+      // function, or the redirect IIFE would throw a ReferenceError and the
+      // shell would never leave the skeleton (regression guarded by
+      // launchShell.test.ts's smoke test).
+      var VIEW_VALUES = ["month", "week", "weekv2", "schedule", "agenda"];
 
+      (function () {
         function el(tag, cls) {
           var node = document.createElement(tag);
           if (cls) node.className = cls;
@@ -599,19 +604,6 @@
 
         var state = readUiState();
 
-        // Pre-select the skeleton variant matching the remembered dashboard
-        // view, so the shell shows the same shape the route skeleton will.
-        // Unknown/absent values keep the month default, matching
-        // resolveDashboardView.
-        var view =
-          state &&
-          state.dashboard &&
-          typeof state.dashboard.view === "string" &&
-          VIEW_VALUES.indexOf(state.dashboard.view) !== -1
-            ? state.dashboard.view
-            : null;
-        if (view) document.getElementById("c2-main").setAttribute("data-view", view);
-
         function resolveTarget() {
           var page = state && typeof state.lastPage === "string" ? state.lastPage : null;
           if (!page) return DEFAULT_TARGET;
@@ -621,12 +613,31 @@
           return allowedRoutes().indexOf(page) === -1 ? DEFAULT_TARGET : page;
         }
 
+        // The redirect is registered FIRST, unconditionally: the shell must
+        // always leave the skeleton. The optional view-variant tweak below is
+        // isolated in its own try/catch so nothing after this point can strand
+        // the launch on the skeleton.
         var target = resolveTarget();
         requestAnimationFrame(function () {
           requestAnimationFrame(function () {
             location.replace(target);
           });
         });
+
+        // Pre-select the skeleton variant matching the remembered dashboard
+        // view, so the shell shows the same shape the route skeleton will.
+        // Unknown/absent values keep the month default, matching
+        // resolveDashboardView.
+        try {
+          var view =
+            state &&
+            state.dashboard &&
+            typeof state.dashboard.view === "string" &&
+            VIEW_VALUES.indexOf(state.dashboard.view) !== -1
+              ? state.dashboard.view
+              : null;
+          if (view) document.getElementById("c2-main").setAttribute("data-view", view);
+        } catch (err) {}
       })();
     </script>
     <noscript>
