@@ -21,9 +21,10 @@ month cache is covered in [`events-cache.md`](events-cache.md).
 - [1.8 Title rendering](#18-title-rendering)
 - [1.9 Location categories](#19-location-categories)
   - [1.9.1 Per-type field visibility](#191-per-type-field-visibility)
-- [1.10 Time options & datetime math](#110-time-options--datetime-math)
-- [1.11 Pure helpers & testing](#111-pure-helpers--testing)
-- [1.12 File index & related docs](#112-file-index--related-docs)
+- [1.10 Event type groups](#110-event-type-groups)
+- [1.11 Time options & datetime math](#111-time-options--datetime-math)
+- [1.12 Pure helpers & testing](#112-pure-helpers--testing)
+- [1.13 File index & related docs](#113-file-index--related-docs)
 
 ## 1.1 Problem
 
@@ -44,7 +45,7 @@ pipeline solves:
 - **Constraints**: admins restrict each event type's time options, allowed location
   categories, and remarks field;
   the form and the server must enforce the same rules so a stale form can never submit
-  an out-of-policy combination (§1.9, §1.10).
+   an out-of-policy combination (§1.9, §1.11).
 
 ## 1.2 Goals & non-goals
 
@@ -220,7 +221,7 @@ Google Calendar events created by the app carry an `Edit: <url>` line in their n
     (`resolveTimeOption`, `EventForm.tsx:168`); legacy full-day events without
     indicators default to AM→PM (`:183-184`).
   - Google's **exclusive** all-day end is converted back to the form's **inclusive**
-    end: `end = subOneDay(event.end) 00:00:00` (`EventForm.tsx:186`, §1.10.2).
+    end: `end = subOneDay(event.end) 00:00:00` (`EventForm.tsx:186`, §1.11.2).
   - Out of Camp + location re-clamped against the type's *current* policy, in case it
     tightened since the event was last edited (`:169-175`).
   - Invitees re-prefixed as `dept:`/`user:` values; `creatorId` from the payload.
@@ -558,9 +559,55 @@ The Location step always stays; for types whose matrix is exclusively `[in]` the
 selector collapses to a single disabled "In camp" segment and only the optional location
 input remains.
 
-## 1.10 Time options & datetime math
+## 1.10 Event type groups
 
-### 1.10.1 Time options (`src/lib/events/timeOptions.ts`)
+The wizard's type step was a flat, alphabetical list of every event type — overwhelming
+once the catalog grew. Event type **groups** (categories) let an admin organize that
+list: each event type belongs to at most one group, and the type step renders one
+labeled section per group.
+
+```mermaid
+flowchart LR
+    A[Admin: Settings → Event Types<br/>Manage groups] -->|create / rename / delete / reorder| G[(event_type_groups<br/>name unique, sort_order)]
+    A -->|Group select in the type form| T[(event_types.group_id<br/>nullable FK, ON DELETE SET NULL)]
+    G -->|listEventTypeGroups| P[buildEventTypePickerSections<br/>pure — eventTypes/groups.ts]
+    T -->|listEventTypes| P
+    P -->|ordered sections| W[Wizard type step:<br/>grouped badge picker]
+```
+
+- **Schema** (migration `0031`): the `event_type_groups` table (`name` unique,
+  `sort_order` display rank, timestamps) and `event_types.group_id` — a nullable FK
+  with `ON DELETE SET NULL` (the same pattern as `calendars.parent_id`), so deleting a
+  group never deletes a type: its types simply become ungrouped.
+- **Display order**: groups render in `sort_order` order (name as tiebreak); types
+  within a group stay alphabetical. `sort_order` is managed with up/down buttons in
+  the groups dialog; a move re-ranks the whole list (position = rank), which also
+  closes legacy gaps — the same convention as the department order
+  (`moveDepartment`, `roster/actions.ts`).
+- **Ungrouped types** render in a trailing "Ungrouped" section (`UNGROUPED_LABEL`),
+  mirroring "No department" being last in the user picker. A type whose `group_id`
+  doesn't resolve (stale prop) degrades to ungrouped rather than disappearing.
+- **Picker sections** come from the pure `buildEventTypePickerSections(types,
+  groups)` (`src/lib/eventTypes/groups.ts`, unit-tested in `groups.test.ts`): groups
+  in display order, empty groups skipped, and the ungrouped section present only when
+  some type has no group. The dashboard page fetches the groups in the same
+  `Promise.all` as the types (`listEventTypeGroups()`, per-request React-cached like
+  `listEventTypes`) and passes them through `DashboardView` to `EventForm`.
+- **Management** lives in Settings → Event Types under **Manage groups** (a dialog,
+  not a separate tab): create (appends after the last group), inline rename, delete
+  (the confirm states how many types become ungrouped), and up/down reordering. All
+  four are `requireAdmin()` server actions with audit rows
+  (`eventTypeGroup.create` / `eventTypeGroup.update` / `eventTypeGroup.delete`) in
+  `src/lib/eventTypes/groupActions.ts`; moves log as `update` with an `order` diff.
+- The **event type form** gained a Group `NoKeyboardSelect` (the "Ungrouped" option
+  stores `null`; the server verifies the id exists before writing), and the event
+  type table shows a Group column/badge. Grouping is **presentation-only**: the
+  `eventType` name in the notes block, target derivation, KAH checks, and type colors
+  are all unaffected.
+
+## 1.11 Time options & datetime math
+
+### 1.11.1 Time options (`src/lib/events/timeOptions.ts`)
 
 Per event type, `time_options` enables one or more of:
 
@@ -588,7 +635,7 @@ markers, switching to `half` (prefilled from the stored notes) keeps them.
   — the "time not yet chosen" state).
 - `amPmSuffix(startAmPm, endAmPm)` (`:111`): the shared marker, or `""`.
 
-### 1.10.2 Datetime conventions (`src/lib/events/datetime.ts`)
+### 1.11.2 Datetime conventions (`src/lib/events/datetime.ts`)
 
 All wall-clock times are interpreted in a **fixed UTC+8** (`Asia/Singapore`, no DST), so
 conversions are deterministic and unit-testable. Naive values are `YYYY-MM-DD HH:mm:ss`
@@ -611,7 +658,7 @@ Also in `datetime.ts` (used across views and the cache): `monthRange` (`:58`),
 `monthsInRange` (`:99`) — every `YYYY-MM` a naive range touches, with a guard that a
 malformed (reversed) range still yields the start month.
 
-## 1.11 Pure helpers & testing
+## 1.12 Pure helpers & testing
 
 Every decision-making part of the pipeline is a pure, I/O-free function unit-tested by
 Vitest without a DB or Google credentials; the I/O glue (DB lookups, the Google
@@ -626,6 +673,7 @@ writes, headers) is thin and lives in `actions.ts` / `queries.ts`.
 | `formatFullName` | `settings/formatName.ts` | `formatName.test.ts` |
 | `clampOutOfCamp` (all allowed-location sets), `flagsFromCategory` / `categoryFromFlags`, `normalizeAllowedLocations` | `events/locationPolicy.ts` | `locationPolicy.test.ts` |
 | `resolveTimeOption(s)`, `normalizeTimeOptions`, `naiveDatePart` / `naiveTimePart` / `joinDateTimeParts`, `amPmSuffix` | `events/timeOptions.ts` | `timeOptions.test.ts` |
+| `buildEventTypePickerSections` (grouped sections, empty-group skip, ungrouped last, dangling-id degrade), `sortEventTypeGroups`, `moveEventTypeGroupOrder` (§1.10) | `eventTypes/groups.ts` | `groups.test.ts` |
 | `absEventRange` (timed + all-day exclusive end), naive↔instant, `weekDays`, `monthsInRange`, `shiftMonth`, `monthRange`, `monthGridRows` | `events/datetime.ts` | `datetime.test.ts` |
 | `creatorGuard`, `ownershipGuard` | `events/guards.ts` | `guards.test.ts` |
 | `validateEventForm` (range time-part requirement, chronology), `withSelfCreator` / `withCreatorInvited` | `events/validate.ts` | `validate.test.ts` |
@@ -635,7 +683,7 @@ I/O-bound (not unit-tested, per the repo convention): `actions.ts` (the server
 actions), `queries.ts` (DB + cache reads, `mapCalendarItem`), `appUrl.ts`
 (`next/headers`), and the form/UI components.
 
-## 1.12 File index & related docs
+## 1.13 File index & related docs
 
 | File | Role |
 | ---- | ---- |
@@ -653,6 +701,8 @@ actions), `queries.ts` (DB + cache reads, `mapCalendarItem`), `appUrl.ts`
 | `src/lib/events/guards.ts` | Creator/ownership guards (pure) |
 | `src/lib/events/validate.ts` | Form validation + creator normalization (pure) |
 | `src/lib/events/targets.ts` | Target set, dedup, `EventRef` (pure) |
+| `src/lib/eventTypes/groups.ts` | Group ordering + picker sections (pure) |
+| `src/lib/eventTypes/groupActions.ts` | Group create/rename/delete/move server actions (§1.10) |
 | `src/lib/events/queries.ts` | `mapCalendarItem` — read-back into `CalendarEvent` |
 | `src/lib/appUrl.ts` | App origin for the `Edit:` link |
 

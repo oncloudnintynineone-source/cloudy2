@@ -94,7 +94,8 @@ badge; admins can still edit them.
 
 Tap the **+** button, then walk the wizard:
 
-1. **Type** — the event type (each type can restrict the steps below).
+1. **Type** — the event type, listed under its category (types without a category
+   appear at the bottom under "Ungrouped"); each type can restrict the steps below.
 2. **Time** — Start & End date pickers plus tap-select time dropdowns (15-minute
    steps), or Full day / Half day (AM/PM) options.
 3. **Location** — one category: **In camp**, **Out of camp**, or **Overseas**

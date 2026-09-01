@@ -6881,3 +6881,54 @@ Verification: lint/typecheck/872 tests/build. Manual: with an external
 (incl. "+N more"), on its Day/Week (H) block and Week (D) banner; purple
 bar/tint/bold in the Agenda tab and the month day modal; amber "mine" treatment
 and event body colors unaffected in light and dark.
+
+## 1.164 Event type groups (categories in the event wizard's type step)
+
+Users reported the event wizard's flat, alphabetical list of event types was
+overwhelming, and asked for the types to display in categories. Admins can now
+create **event type groups** and assign each type to one; the wizard's type step
+renders one labeled section per group.
+
+Schema (migration `0031_bouncy_queen_noir`): a new `event_type_groups` table
+(`id`, `name` unique, `sort_order`, timestamps) and `event_types.group_id` — a
+nullable FK with `ON DELETE SET NULL` (the `calendars.parent_id` pattern), so
+deleting a group never deletes a type: its types simply become ungrouped.
+
+Picker: the dashboard page fetches groups in the same `Promise.all` as the
+types (`listEventTypeGroups()`, per-request React-cached like
+`listEventTypes`) and passes them through `DashboardView` to `EventForm`,
+which renders sections via the pure `buildEventTypePickerSections(types,
+groups)` (`src/lib/eventTypes/groups.ts`, unit-tested in `groups.test.ts`):
+groups in display order (`sort_order`, name tiebreak), types within a group
+alphabetical, empty groups skipped, and a trailing "Ungrouped" section
+(`UNGROUPED_LABEL`) only when some type has no group (mirroring "No department"
+last in the user picker). A type whose `group_id` doesn't resolve degrades to
+ungrouped rather than disappearing. Grouping is presentation-only — the
+`eventType` name in the notes block, target derivation, KAH checks, and colors
+are all untouched.
+
+Admin UI: Settings → Event Types gains a **Manage groups** button (toolbar at
+lg, second FAB on mobile) opening `EventTypeGroupsModal` — create (name,
+appends after the last group), inline rename (check/cancel row), delete (the
+confirm states how many types become ungrouped), and up/down reordering.
+`sort_order` moves re-rank the whole list (position = rank), closing gaps —
+the same convention as `moveDepartment` (`moveEventTypeGroupOrder`, pure).
+The event type form gains a Group `NoKeyboardSelect` (the "Ungrouped" option
+stores `null`; `createEventType`/`renameEventType` verify the id exists before
+writing and record the group label in the audit details/diff), and the event
+type table shows a Group column (desktop) / badge (mobile). All four group
+mutations are `requireAdmin()` server actions in
+`src/lib/eventTypes/groupActions.ts` with audit rows
+(`eventTypeGroup.create` / `eventTypeGroup.update` / `eventTypeGroup.delete`;
+moves log as `update` with an `order` diff).
+
+Docs: `docs/event-lifecycle.md` gains §1.10 Event type groups (schema, order
+rules, management, mermaid data-flow); §1.10/1.11/1.12 renumber to
+§1.11/1.12/1.13 (cross-refs in this file and `event-mutations.md` updated);
+`admin-guide.md` §1.4 and `user-guide.md` §1.4.1 note the categories.
+
+Verification: lint/typecheck/891 tests (incl. 10 new groups cases)/build.
+Manual: create two groups + assign types, verify wizard sections in the admin
+order with ungrouped last; reorder groups (up/down, rank re-gap-closing),
+rename, delete (types ungroup in the wizard), and the event type form's Group
+select round-trips (including back to Ungrouped).

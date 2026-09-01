@@ -282,7 +282,7 @@ After the Google writes and the audit row, every action calls
 ## 1.10 Pure helpers & testing
 
 The algorithmic core is split out as pure, unit-tested helpers
-([`event-lifecycle.md` §1.11](event-lifecycle.md#111-pure-helpers--testing) covers the
+([`event-lifecycle.md` §1.12](event-lifecycle.md#112-pure-helpers--testing) covers the
 full list); the mutation-specific ones:
 
 | Helper | Module | Tests |

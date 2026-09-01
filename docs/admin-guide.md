@@ -71,6 +71,12 @@ Design: [`roster-sharing.md`](roster-sharing.md).
 
 Settings → Event Types. Each type constrains the event wizard:
 
+- **Groups** — **Manage groups** (toolbar button, second FAB on mobile) opens a
+  dialog to create, rename, delete, and reorder the display categories the event
+  wizard groups types under. Each type's form has a **Group** select; types
+  without a group appear in the wizard's trailing "Ungrouped" section. Deleting a
+  group never deletes a type — its types just become ungrouped. Groups are
+  presentation-only: colors, target derivation, and KAH are unaffected.
 - **Name + Shortname** — the shortname is the `{type:acronym}` title token; it must
   be unique.
 - **Time options** — which duration styles the type allows (e.g. range times,
@@ -85,7 +91,7 @@ Settings → Event Types. Each type constrains the event wizard:
 - **Color** — optional Mantine palette color for the type's events (null = a
   deterministic default derived from the type name).
 
-Design: [`event-lifecycle.md`](event-lifecycle.md) §1.9.
+Design: [`event-lifecycle.md`](event-lifecycle.md) §1.9, §1.10.
 
 ## 1.5 Templates
 

@@ -188,8 +188,10 @@ mechanics in the doc.
   first three). `SettingsTabs` stacks directly above it.
 - **Admin settings live under `/settings`** (admin-only): Users, Departments, Event
   Types, Templates, Webhooks, Quick Links, Banner, KAH Groups, General, Audit Log tabs.
-  Event-type policy (shortname, allowed-locations matrix, `show_remarks`/
-  `show_invitees`): [docs/event-lifecycle.md](docs/event-lifecycle.md). Colors (event
+  Event-type policy (shortname, display groups — managed in the Event Types tab's
+  "Manage groups" dialog and rendered as wizard type-step sections —,
+  allowed-locations matrix, `show_remarks`/`show_invitees`):
+  [docs/event-lifecycle.md](docs/event-lifecycle.md). Colors (event
   types + department fallback, applied at read time in `mapCalendarItem`, never cached):
   [docs/roster-sharing.md](docs/roster-sharing.md).
 - **Templates:** display-name + event-title templates (`formatEventTitle` tokens) with
