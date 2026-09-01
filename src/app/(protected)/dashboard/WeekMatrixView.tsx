@@ -459,6 +459,12 @@ function MatrixRow({
               >
                 <Box
                   component="span"
+                  // External events carry the purple ring (self-outline: the
+                  // banner box is the chip itself, unlike the ScheduleEvent
+                  // roots where the ring targets the inner child).
+                  className={
+                    span.event.payload.external === true ? "c2-ext-ring" : undefined
+                  }
                   style={{
                     display: "flex",
                     alignItems: "center",

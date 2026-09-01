@@ -319,3 +319,56 @@
 .c2-my-agenda-event p:first-of-type {
   font-weight: var(--mantine-font-weight-semibold);
 }
+
+/*
+  "External events" highlight (dashboard calendar views — see
+  docs/dashboard-views.md §1.6). Events created directly in Google Calendar
+  (no internal marker, no notes block) get a purple treatment per view, in
+  parallel with the amber "mine" language above: Month chips, Day / Week (H)
+  blocks and Week (D) banners get a ring; agenda rows get a left bar + light
+  tint + semibold title. purple-6 holds on both light and dark bodies for
+  the ring and bar; the agenda tint switches on color scheme via
+  --c2-ext-row-tint (light uses the near-white purple-0 cream; in dark mode
+  it would glow, so it goes to a deep purple mirroring the mine row's
+  olive-dark pattern).
+*/
+:root {
+  --c2-ext-row-tint: var(--mantine-color-purple-0);
+}
+
+[data-mantine-color-scheme="dark"] {
+  --c2-ext-row-tint: #241a45;
+}
+
+/* The ring goes on the inner chip element (the one carrying the rounded
+   background), which is the only element child of the event root in the
+   Month grid and the "+N more" popup (c2-ext-event) and in the Day /
+   Week (H) ScheduleEvent roots (c2-ext-slot-event). */
+.c2-ext-event {
+  z-index: 4;
+}
+
+.c2-ext-event > *,
+.c2-ext-slot-event > * {
+  outline: calc(0.125rem * var(--mantine-scale)) solid var(--mantine-color-purple-6);
+  outline-offset: calc(0.0625rem * var(--mantine-scale));
+}
+
+/* Self ring for chips that carry the rounded background themselves: the
+   Week (D) matrix banner box (it already has the event's 1px border, so
+   the outline sits clean outside it) and the Day view's all-day bar. */
+.c2-ext-ring {
+  outline: calc(0.125rem * var(--mantine-scale)) solid var(--mantine-color-purple-6);
+  outline-offset: calc(0.0625rem * var(--mantine-scale));
+}
+
+/* Agenda: external rows get a purple left bar + light tint, and their
+   title (the first <p> in the row) goes semibold. */
+.c2-ext-agenda-event {
+  background-color: var(--c2-ext-row-tint);
+  box-shadow: inset calc(0.1875rem * var(--mantine-scale)) 0 0 var(--mantine-color-purple-6);
+}
+
+.c2-ext-agenda-event p:first-of-type {
+  font-weight: var(--mantine-font-weight-semibold);
+}

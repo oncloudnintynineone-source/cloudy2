@@ -6824,3 +6824,60 @@ writer/stale bullets), §1.4.1, §1.7; `docs/dashboard-views.md` §1.2.
 Verification: lint/typecheck/871 tests/build; manual: per-view, filter View 1
 to A+B, leave View 2 untouched → View 2 shows no user filter; A+B stays only
 on View 1 across switch⇄ and F5.
+
+## 1.160 External-event highlight across all dashboard views (purple)
+
+External events (created directly in Google Calendar — no `Created in cloudy2`
+marker and no notes block, so `isExternalEvent`/`payload.external === true` at
+read time) get a **purple** per-view highlight, in parallel with the amber
+"mine" treatment from §1.144/§1.145. An external event can never be *mine*
+(it has no recorded creator), so the two highlight classes never collide on one
+event. The treatment is purely additive (ring / bar / tint) — event body colors
+are untouched, so untyped events keep their department-calendar color.
+
+Per-view mechanics (all client-side, same `renderEvent` / render-hook pattern as
+§1.144 — no cache or server impact):
+
+- **Month** — `renderMyMonthEvent` also adds `c2-ext-event`; globals.css outlines
+  the inner chip element (the child carrying the rounded background, exactly like
+  the amber `c2-my-event` ring), including the "+N more" popup copies.
+- **Agenda** (tab + month day modal) — `renderMyAgendaEvent` adds
+  `c2-ext-agenda-event` to external rows: purple left bar + tint + semibold
+  title, chronological order kept.
+- **Day / Week (H)** — a shared `renderScheduleEvent` hook (new on Week (H);
+  Day folds it into its existing all-day sticky-title hook) appends
+  `c2-ext-slot-event` to the event root for external events. The root's single
+  child is the chip in every shape (the ScheduleEvent inner box for timed events
+  and Week (H) all-day bars; Day's custom all-day Box), so one `> *` outline
+  rule covers all of them.
+- **Week (D)** — the matrix banner's inner Box carries the rounded background (and
+  the event's 1px border) itself, so it gets the self-ring class `c2-ext-ring`
+  instead of the `> *` variant.
+
+Color: Mantine's built-in `purple` family — deliberately distinct from the brand
+amber (`accent`, mine), brand blue (`brand`, today/primary) and red (errors / KAH
+warnings). `purple-6` holds on both light and dark bodies for the ring and bar;
+the agenda tint switches on color scheme via a new `--c2-ext-row-tint` custom
+property (light: near-white `purple-0`; dark: deep purple `#241a45`, mirroring the
+mine row's olive-dark pattern), defined next to `--c2-my-*` in `globals.css`.
+
+Files: `src/app/globals.css` (the `--c2-ext-row-tint` property + `c2-ext-event` /
+`c2-ext-slot-event` / `c2-ext-ring` / `c2-ext-agenda-event` rules),
+`src/app/(protected)/dashboard/DashboardView.tsx`
+(`isExternalRenderEvent` helper; external classes in `renderMyMonthEvent` /
+`renderMyAgendaEvent`; new `renderScheduleEvent`; Day all-day hook merged with
+`extClass`; Week (H) gains `renderEvent={renderScheduleEvent}`), and
+`src/app/(protected)/dashboard/WeekMatrixView.tsx` (`c2-ext-ring` on the banner
+Box).
+
+Docs: `docs/dashboard-views.md` gains §1.6 External-event highlight (mechanics +
+colors + mermaid); prior §1.6 Timeline zoom / §1.7 File index renumber to §1.7 /
+§1.8, and the three stale `#15-timeline-zoom-day-and-week-h` cross-refs in
+`desktop-responsive.md` / `grid-pan.md` are corrected to the new §1.7 anchor.
+AGENTS.md dashboard bullet notes the per-view mine/external highlight.
+
+Verification: lint/typecheck/872 tests/build. Manual: with an external
+(Google-created) event in a shared month — purple ring on its chip in Month
+(incl. "+N more"), on its Day/Week (H) block and Week (D) banner; purple
+bar/tint/bold in the Agenda tab and the month day modal; amber "mine" treatment
+and event body colors unaffected in light and dark.

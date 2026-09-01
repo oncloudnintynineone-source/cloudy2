@@ -1336,36 +1336,75 @@ export function DashboardView({
   // rows of every day.
   const monthEvents = useMemo(() => sortMineFirst(events, myEventIds), [events, myEventIds]);
 
+  // External flag from the underlying CalendarEvent payload (Mantine's
+  // renderEvent type only knows `id`). External events get the purple
+  // highlight classes (docs/dashboard-views.md §1.6); the styling lives in
+  // globals.css, next to the amber "mine" rules.
+  const isExternalRenderEvent = (event: { id: string | number }) =>
+    (event as unknown as CalendarEvent).payload?.external === true;
+
   // renderEvent replacements for Month + Agenda: the same default root, plus
-  // a highlight class on the user's events (the styling lives in globals.css).
-  // Month: c2-my-event = amber ring around the chip (also in the "+N more"
-  // popup). Agenda: c2-my-agenda-event = amber bar/tint + bold title.
+  // highlight classes on the user's events (amber) and external events
+  // (purple). Month: c2-my-event = amber ring / c2-ext-event = purple ring
+  // around the chip (also in the "+N more" popup). Agenda: c2-my-agenda-event
+  // = amber bar/tint + bold title, c2-ext-agenda-event = the purple version.
   const renderMyMonthEvent: MyEventRender = useCallback(
-    (event, props) => (
-      <UnstyledButton
-        {...props}
-        className={
-          myEventIds.has(String(event.id))
-            ? `${props.className ?? ""} c2-my-event`
-            : props.className
-        }
-      />
-    ),
+    (event, props) => {
+      if (!myEventIds.has(String(event.id)) && !isExternalRenderEvent(event)) {
+        return <UnstyledButton {...props} />;
+      }
+      const extra = [
+        myEventIds.has(String(event.id)) && "c2-my-event",
+        isExternalRenderEvent(event) && "c2-ext-event",
+      ]
+        .filter(Boolean)
+        .join(" ");
+      return (
+        <UnstyledButton
+          {...props}
+          className={`${props.className ?? ""} ${extra}`.trim()}
+        />
+      );
+    },
     [myEventIds],
   );
   const renderMyAgendaEvent: MyEventRender = useCallback(
-    (event, props) => (
-      <UnstyledButton
-        {...props}
-        className={
-          myEventIds.has(String(event.id))
-            ? `${props.className ?? ""} c2-my-agenda-event`
-            : props.className
-        }
-      />
-    ),
+    (event, props) => {
+      if (!myEventIds.has(String(event.id)) && !isExternalRenderEvent(event)) {
+        return <UnstyledButton {...props} />;
+      }
+      const extra = [
+        myEventIds.has(String(event.id)) && "c2-my-agenda-event",
+        isExternalRenderEvent(event) && "c2-ext-agenda-event",
+      ]
+        .filter(Boolean)
+        .join(" ");
+      return (
+        <UnstyledButton
+          {...props}
+          className={`${props.className ?? ""} ${extra}`.trim()}
+        />
+      );
+    },
     [myEventIds],
   );
+
+  // Day / Week (H) schedule events: the same pass-through root, plus
+  // c2-ext-slot-event on external events. The purple ring styles the chip
+  // element inside the root (the ScheduleEvent inner box for timed events and
+  // Week (H) all-day bars; the all-day sticky-title Box in the Day view), so
+  // no structural re-render is needed here.
+  const renderScheduleEvent: MyEventRender = useCallback((event, rootProps) => {
+    if (!isExternalRenderEvent(event)) {
+      return <UnstyledButton {...rootProps} />;
+    }
+    return (
+      <UnstyledButton
+        {...rootProps}
+        className={`${rootProps.className ?? ""} c2-ext-slot-event`.trim()}
+      />
+    );
+  }, []);
 
   const isWeekV2 = view === "weekv2";
   const isWeek = view === "week" || isWeekV2;
@@ -2480,6 +2519,9 @@ export function DashboardView({
             // ruler's translateX tracking; viewportRef syncs the ruler after
             // mount/loads (see the layout effect above).
             scrollAreaProps={weekScrollAreaProps}
+            // External events get the purple chip ring (pass-through otherwise,
+            // so timed and all-day bars keep their default rendering).
+            renderEvent={renderScheduleEvent}
             renderResourceLabel={renderResourceLabel}
             renderGroupLabel={renderGroupLabel}
           />
@@ -2531,17 +2573,26 @@ export function DashboardView({
             // All-day events render as full-width bars whose label would scroll
             // out of view; the renderEvent hook re-renders only those and pins the
             // title with position: sticky beside the sticky resource column.
+            // External events get c2-ext-slot-event on the root either way: the
+            // single root child is the chip in both shapes (the ScheduleEvent
+            // inner box for timed events, the all-day Box above), so the purple
+            // ring from globals.css lands on it.
             renderEvent={(event, rootProps) => {
-              const isAllDay = Boolean((event as unknown as CalendarEvent).payload.allDay);
+              const payload = (event as unknown as CalendarEvent).payload;
+              const extClass =
+                payload.external === true
+                  ? `${rootProps.className ?? ""} c2-ext-slot-event`.trim()
+                  : rootProps.className;
+              const isAllDay = Boolean(payload.allDay);
               if (!isAllDay) {
-                return <UnstyledButton {...rootProps} />;
+                return <UnstyledButton {...rootProps} className={extClass} />;
               }
               const stickyLeft =
                 scheduleResources.groups !== undefined
                   ? "calc(var(--resources-day-view-group-label-width) + var(--resources-day-view-resource-label-width) + 4px)"
                   : "calc(var(--resources-day-view-resource-label-width) + 4px)";
               return (
-                <UnstyledButton {...rootProps}>
+                <UnstyledButton {...rootProps} className={extClass}>
                   <Box
                     style={{
                       display: "flex",

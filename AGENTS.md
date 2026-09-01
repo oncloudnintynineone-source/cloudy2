@@ -90,7 +90,11 @@ mechanics in the doc.
   every view can hold its **own Cal/Users/Types memory** (`dashboard.filterMode` =
   per-view + a `views` map; pure `resolveDashboardFilters` in `ui-state.ts`; on
   `_fresh` only the current view falls back to defaults). Week (D) is a custom matrix
-  (pure `buildWeekLanes`).
+  (pure `buildWeekLanes`). **Entry highlights are client-side per view:** the
+  current user's entries get an amber treatment (row tint + chip/bar ring, mine can
+  also claim Month's top rows) and **external** (Google-created) events get the same
+  additive treatment in purple — never recolor the event body, keep rings/bars in
+  `globals.css` (`c2-my-*` / `c2-ext-*`).
   Design: [docs/dashboard-views.md](docs/dashboard-views.md).
 - **Wide grids pan** via `useGridPan` + `GridPanControls` (drag + edge buttons).
   Design: [docs/grid-pan.md](docs/grid-pan.md).

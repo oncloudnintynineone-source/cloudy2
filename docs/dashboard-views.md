@@ -4,7 +4,8 @@ The Calendar dashboard (`/dashboard`) renders one of six event views over the sh
 server-side events cache ([`events-cache.md`](events-cache.md)) and a shared or
 per-view filter state. This document covers the view inventory, the filters (one
 button + modal, syncable per view), the custom Week (D) matrix — the one view no
-Mantine Schedule component can render — and the Day / Week (H) timeline zoom.
+Mantine Schedule component can render — the per-view "mine" and external-entry
+highlights, and the Day / Week (H) timeline zoom.
 
 ## Table of contents
 
@@ -13,8 +14,9 @@ Mantine Schedule component can render — and the Day / Week (H) timeline zoom.
 - [1.3 Week (D): the custom week matrix](#13-week-d-the-custom-week-matrix)
 - [1.4 Data flow shared by all views](#14-data-flow-shared-by-all-views)
 - [1.5 My-entry highlight](#15-my-entry-highlight)
-- [1.6 Timeline zoom (Day and Week (H))](#16-timeline-zoom-day-and-week-h)
-- [1.7 File index & related docs](#17-file-index--related-docs)
+- [1.6 External-event highlight](#16-external-event-highlight)
+- [1.7 Timeline zoom (Day and Week (H))](#17-timeline-zoom-day-and-week-h)
+- [1.8 File index & related docs](#18-file-index--related-docs)
 
 ## 1.1 View inventory
 
@@ -176,7 +178,62 @@ flowchart LR
     U --> WM["myRowId → WeekMatrixView<br/>(uniform day-cell tint)"]
 ```
 
-## 1.6 Timeline zoom (Day and Week (H))
+## 1.6 External-event highlight
+
+Events created directly in Google Calendar (no `Created in cloudy2` marker and no
+notes block — `isExternalEvent`, [`event-lifecycle.md`](event-lifecycle.md)) carry
+`payload.external === true` at read time (`mapCalendarItem`,
+`src/lib/events/queries.ts`). Every dashboard view marks them with a **purple**
+treatment, in parallel with the amber "mine" language above: amber says "yours",
+purple says "created outside the app". An external event can never be *mine*
+(it has no recorded creator), so the two highlight classes never collide on one
+event.
+
+Per-view mechanics (all client-side over the same `renderEvent` / render-hook
+pattern as §1.5 — no cache or server impact):
+
+- **Month — purple chip ring.** `renderMyMonthEvent` (DashboardView) also adds
+  `c2-ext-event` to external events; `globals.css` outlines the inner chip
+  element (the child carrying the rounded background, exactly like the amber
+  `c2-my-event` ring) — including the copies in the "+N more" popup, which
+  share the `renderEvent` path.
+- **Agenda — purple row bar.** The Agenda tab and the month day modal both pass
+  `renderMyAgendaEvent`, which adds `c2-ext-agenda-event` to external rows:
+  purple left bar + tint + semibold title. Chronological order is kept, as with
+  §1.5.
+- **Day / Week (H) — purple block ring.** A shared `renderScheduleEvent` hook
+  (new on Week (H); Day folds it into its existing all-day sticky-title hook)
+  appends `c2-ext-slot-event` to the event root for external events. The root's
+  single child is the chip in every shape — the ScheduleEvent inner box for
+  timed events and Week (H) all-day bars, and Day's custom all-day Box — so one
+  `> *` outline rule covers all of them.
+- **Week (D) — purple banner ring.** The matrix banner's inner Box carries the
+  rounded background (and the event's 1px border) itself, so it gets the
+  self-ring class `c2-ext-ring` instead of the `> *` variant.
+
+Colors: Mantine's built-in `purple` family — deliberately distinct from the
+brand amber (`accent`, mine), the brand blue (`brand`, today/primary) and red
+(errors / KAH warnings), so the highlight can't be misread as any of those.
+`purple-6` holds on both light and dark bodies for the ring and bar; the agenda
+tint switches on color scheme via `--c2-ext-row-tint` (light: near-white
+`purple-0`; dark: deep purple `#241a45`, mirroring the mine row's olive-dark
+pattern) next to the `--c2-my-*` properties in `globals.css`. Event body colors
+are untouched — the highlight is purely additive (ring / bar / tint), so the
+department-calendar colors of untyped events keep their meaning.
+
+```mermaid
+flowchart LR
+    E["payload.external<br/>(isExternalEvent, read time)"] --> M["renderMyMonthEvent<br/>(+ c2-ext-event chip ring)"]
+    E --> A["renderMyAgendaEvent<br/>(+ c2-ext-agenda-event bar)"]
+    E --> S["renderScheduleEvent / Day all-day hook<br/>(+ c2-ext-slot-event block ring)"]
+    E --> W["WeekMatrixView banner<br/>(+ c2-ext-ring)"]
+    M --> C["globals.css<br/>(purple outline / bar / tint)"]
+    A --> C
+    S --> C
+    W --> C
+```
+
+## 1.7 Timeline zoom (Day and Week (H))
 
 The Day and Week (H) schedule views can zoom their hour columns in and out, so the
 user can fit more of the day/week in view (overview) or expand it for detail. One
@@ -250,7 +307,7 @@ flowchart LR
     S --> C["dashboard.zoom cookie<br/>(usePersistUiState)"]
 ```
 
-## 1.7 File index & related docs
+## 1.8 File index & related docs
 
 | File | Role |
 | ---- | ---- |

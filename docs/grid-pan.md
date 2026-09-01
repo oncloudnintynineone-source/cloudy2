@@ -50,7 +50,7 @@ intentionally subdued secondary chrome lighter than the date-nav chevrons):
   grids use one right-edge control cluster: the **timeline zoom** in/out pair on
   top, a divider, then the right pan arrow; a single left-edge pan arrow stays
   edge-anchored on the left so "scroll left" still reads from the left edge (see
-  [`dashboard-views.md`](dashboard-views.md#15-timeline-zoom-day-and-week-h)).
+  [`dashboard-views.md`](dashboard-views.md#17-timeline-zoom-day-and-week-h)).
   The cluster hangs from its **bottom edge**, so the right pan arrow's center sits
   on the visible-slice center — vertically aligned with the left pan arrow — and
   the zoom pair's slot above does not depend on `canScrollRight`, so nothing
