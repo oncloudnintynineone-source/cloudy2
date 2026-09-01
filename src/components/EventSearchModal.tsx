@@ -122,11 +122,13 @@ export default function EventSearchModal({ opened, onClose, originRect }: EventS
       params.set("event", event.payload.eventId);
     }
     router.push(`/dashboard?${params.toString()}`);
+    router.refresh();
   }
 
   function openEdit(event: CalendarEvent) {
     closeAll();
     router.push(`/dashboard?date=${event.start.slice(0, 10)}&edit=${event.payload.eventId}`);
+    router.refresh();
   }
 
   function handleEventClick(event: unknown, e: React.MouseEvent<HTMLButtonElement>) {
