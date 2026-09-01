@@ -4,9 +4,9 @@ A header-launched, free-text search over every department calendar. It reads
 events **directly from Google Calendar** (deliberately bypassing the month
 cache described in [`events-cache.md`](events-cache.md)), so results are
 authoritative within the date range the user picks. Results render in the
-lazily-loaded `@mantine/schedule` agenda; tapping one opens the **shared** event
-detail modal (the same component the dashboard uses) with a brief loading
-skeleton, then deep-links into the dashboard from there.
+lazily-loaded `@mantine/schedule` agenda; tapping one shows a **spinner on that
+row** while it navigates to the dashboard, which opens the **shared** full event
+detail modal (with in-place Duplicate/Edit/Delete).
 
 ## Table of contents
 
@@ -47,9 +47,9 @@ event across every department.
 - Not a structured query: the search term matches Google's `q` fields only
   (see §1.8) — no event-type/people filters beyond what the title carries.
 - No persistence, no index, no cache: results are recomputed on every search.
-- Not edit-in-place: the search-origin detail modal is **read-only** — it shows
-  the event's full info but defers edit/delete to the dashboard (its "Edit" and
-  "Open in calendar" actions deep-link there), which owns all mutation wiring.
+- No edit-in-place from search: tapping a result deep-links to the dashboard,
+  which owns the event detail (Duplicate/Edit/Delete) and all mutation wiring.
+  The search results are a lookup, not an editor.
 
 ## 1.3 Architecture overview
 
@@ -58,14 +58,13 @@ flowchart LR
     subgraph SHELL["AppShellShell (client)"]
         B["header Search ActionIcon<br/>(between pinned + theme)"]
         M["EventSearchModal<br/>dynamic(ssr: false)"]
-        DET["EventDetail (shared)<br/>loading skeleton → content"]
+        SPIN["row spinner<br/>(useTransition isPending)"]
     end
-    subgraph ACTION["Server actions (search.ts)"]
+    subgraph ACTION["Server action (search.ts)"]
         R["requireSession()"]
         C["listCalendars() + listEventTypes()"]
         F["mapWithConcurrency <= 4"]
         MAP["mapCalendarItem + dedupeEventsByGroupId"]
-        NAM["resolveEventDetailNames()<br/>(getUsersByIds + listCalendars)"]
     end
     subgraph G["Google Calendar"]
         LIST["events.list(q, timeMin, timeMax)<br/>per calendar"]
@@ -74,9 +73,8 @@ flowchart LR
     M -->|searchEvents(q, from, to)| R --> C --> F
     F --> LIST
     LIST --> MAP --> M
-    M -->|result click| DET
-    DET -->|names| NAM
-    DET -->|"Edit / Open"| DEEP["/dashboard?date=..&edit=.. / &event=.."]
+    M -->|result click| SPIN
+    SPIN -->|"/dashboard?date=..&event=.."| DEEP["dashboard EventDetail<br/>(Duplicate / Edit / Delete)"]
 ```
 
 Search calls `events.list` directly through `getGoogleIntegration()` — it never
@@ -110,20 +108,11 @@ are identical in shape. The stub returns `[]`.
    collapses cross-department copies with `dedupeEventsByGroupId`, so one
    logical event appears once regardless of how many department calendars it
    lives in.
-7. Sorts by `start` (stable) and returns
-   `{ ok: true, events, currentUserId, isAdmin }` — the viewer identity rides
-   along so the read-only detail modal can apply the same `isAdmin || creator`
-   gating as the dashboard.
+7. Sorts by `start` (stable) and returns `{ ok: true, events }`.
 
 Failure surfaces as `{ ok: false, error }` (the client shows it inline); there
 is no throw. The result events are `CalendarEvent[]`, the same shape the
 dashboard consumes, so `@mantine/schedule` needs no adapter.
-
-A second action, `resolveEventDetailNames({ creatorId, userIds, departmentIds })`,
-resolves display names for one event's people/departments (`getUsersByIds` +
-`listCalendars` + `formatFullName` with the display-name template) — a fast DB
-read (no Google), run when a result is tapped so the detail modal's skeleton is
-brief.
 
 ## 1.6 Search scope & security
 
@@ -195,14 +184,13 @@ index (a separate concern from this native-search feature; see
   an `AgendaView` result list grouped by day. `rangeStart`/`rangeEnd` are the
   first/last result's start day, so empty days in between aren't rendered as
   headers. Results are "No events match your search" when empty.
-- A result click opens the **shared** `EventDetail` (the same component the
-  dashboard imports) over the results: `loading` is true while
-  `resolveEventDetailNames` resolves the people/department names (a skeleton),
-  then the full content renders. The search-origin detail is `viewOnly` — its
-  action row is an "Open in calendar" deep-link (`?event=…&date=…`, or `?date=`
-  for legacy/external events) plus an "Edit" deep-link (`?edit=…`) for
-  internal events the viewer may edit — reusing the dashboard's existing deep-link
-  machinery (`page.tsx:63-66`).
+- A result click shows a **spinner on that row** (`renderEvent` swaps the agenda
+  entry for a `Loader`) and navigates `/dashboard?date=<start day>`
+  (`+ &event=<group id>` for internal events) inside a `useTransition`. The
+  search modal stays open while `isPending`, then closes once the navigation
+  commits — the dashboard's own full `EventDetail` (Duplicate/Edit/Delete) is
+  what the user lands on, reusing the existing `?event=`/`?date=` deep-link
+  machinery (`page.tsx:63-66`). There is no read-only detail step.
 
 ## 1.10 Pure helpers & testing
 
@@ -226,11 +214,11 @@ wiring) follows the repo convention of being I/O-bound and untested.
 | `src/lib/google/types.ts` | `searchEvents` contract |
 | `src/lib/google/real.ts` | `events.list({ ..., q })` implementation |
 | `src/lib/google/stub.ts` | `searchEvents` → `[]` |
-| `src/lib/events/search.ts` | `searchEvents` + `resolveEventDetailNames` server actions |
+| `src/lib/events/search.ts` | `searchEvents` server action |
 | `src/lib/events/searchRange.ts` | Pure date-range/default helpers (tested) |
 | `src/lib/events/queries.ts` | `mapCalendarItem` (now exported; reused by search) |
-| `src/app/(protected)/dashboard/EventDetail.tsx` | The shared detail modal (`loading` skeleton + `viewOnly` deep-link mode) |
-| `src/components/EventSearchModal.tsx` | Lazy-loaded search modal + agenda + shared detail overlay |
+| `src/app/(protected)/dashboard/EventDetail.tsx` | The shared detail modal the deep link lands on (unchanged) |
+| `src/components/EventSearchModal.tsx` | Lazy-loaded search modal + agenda + row-spinner deep link |
 | `src/components/AppShellShell.tsx` | Header search button + modal mount + origin rect |
 
 Related docs:

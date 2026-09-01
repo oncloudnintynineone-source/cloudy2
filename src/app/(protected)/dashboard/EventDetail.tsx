@@ -1,12 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import { Badge, Button, Group, Modal, Skeleton, Stack, Text, useMantineTheme } from "@mantine/core";
+import { Badge, Button, Group, Modal, Stack, Text, useMantineTheme } from "@mantine/core";
 import { useDisclosure, useMediaQuery } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
-import { IconCopy, IconExternalLink } from "@tabler/icons-react";
+import { IconCopy } from "@tabler/icons-react";
 
-import { LoadingStatus } from "@/components/LoadingStatus";
 import { deleteEvent } from "@/lib/events/actions";
 import { subOneDay } from "@/lib/events/datetime";
 import type { CalendarEvent } from "@/lib/events/queries";
@@ -36,13 +35,6 @@ interface EventDetailProps {
   currentUserId: string;
   /** Admins may edit/delete any event. */
   isAdmin: boolean;
-  /** Show a skeleton while the event's display context resolves (search-origin). */
-  loading?: boolean;
-  /** Read-only mode: a single "Open in calendar" (+ "Edit" deep-link) action row
-      instead of the dashboard's in-place Duplicate/Edit/Delete. */
-  viewOnly?: boolean;
-  /** Deep-link action shown in `viewOnly` mode. */
-  onOpenInCalendar?: (event: CalendarEvent) => void;
 }
 
 export function EventDetail({
@@ -56,9 +48,6 @@ export function EventDetail({
   originRect,
   currentUserId,
   isAdmin,
-  loading = false,
-  viewOnly = false,
-  onOpenInCalendar,
 }: EventDetailProps) {
   const [confirmOpen, { open, close }] = useDisclosure(false);
   const [deleting, setDeleting] = useState(false);
@@ -151,16 +140,7 @@ export function EventDetail({
         keepMounted
         transitionProps={transitionProps}
       >
-        {loading ? (
-          <Stack>
-            <LoadingStatus label="Loading event" />
-            <Skeleton height={22} width="70%" radius="sm" />
-            <Skeleton height={14} width="55%" mt="xs" />
-            <Skeleton height={14} width="85%" mt="xl" />
-            <Skeleton height={14} width="65%" mt="md" />
-            <Skeleton height={14} width="75%" mt="md" />
-          </Stack>
-        ) : showEvent && payload ? (
+        {showEvent && payload ? (
           <Stack>
             <Text fw={600}>{showEvent.title}</Text>
 
@@ -258,25 +238,7 @@ export function EventDetail({
               </Group>
             )}
 
-            {viewOnly ? (
-              <Group justify="flex-end" mt="md">
-                {payload.eventId !== null && (isAdmin || payload.creatorId === currentUserId) ? (
-                  <Button
-                    variant="light"
-                    onClick={(e) => onEdit(showEvent, e.currentTarget.getBoundingClientRect())}
-                  >
-                    Edit
-                  </Button>
-                ) : null}
-                <Button
-                  variant="light"
-                  leftSection={<IconExternalLink size={16} />}
-                  onClick={() => onOpenInCalendar?.(showEvent)}
-                >
-                  Open in calendar
-                </Button>
-              </Group>
-            ) : isAdmin || payload.creatorId === currentUserId ? (
+            {isAdmin || payload.creatorId === currentUserId ? (
               <Group justify="flex-end" mt="md">
                 <Button
                   variant="light"
