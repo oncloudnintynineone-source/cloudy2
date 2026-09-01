@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  ActionIcon,
   AppShell,
   Box,
   Button,
@@ -20,16 +21,24 @@ import {
   IconLayoutSidebarLeftCollapse,
   IconLayoutSidebarLeftExpand,
   IconPin,
+  IconSearch,
   IconSettings,
   IconUsersGroup,
 } from "@tabler/icons-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link, { useLinkStatus } from "next/link";
+import dynamic from "next/dynamic";
 import { usePathname, useRouter } from "next/navigation";
 
 import { PinnedEventsPanel } from "@/components/PinnedEventsPanel";
 import { ShellChromeContext, type ShellChromeValue } from "@/components/ShellChrome";
 import { ThemeToggle } from "@/components/ThemeToggle";
+
+// Lazy-loaded so the search modal (its AgendaView + DatePicker imports) stays
+// out of the shell's initial bundle — it only loads once the user opens search.
+const EventSearchModal = dynamic(() => import("@/components/EventSearchModal"), {
+  ssr: false,
+});
 import { UserMenu } from "@/components/UserMenu";
 import { BANNER_HEIGHT_PX } from "@/lib/banner/banner";
 import { BOTTOM_NAV_HEIGHT } from "@/lib/bottomNav";
@@ -215,6 +224,7 @@ export function AppShellShell({
   // tapping the pin from another page navigates to the dashboard first (the
   // shell stays mounted across the navigation, so the modal survives it).
   const [pinnedOpen, setPinnedOpen] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
   const router = useRouter();
   // The header button's rect at open time: the panel modal zooms out of /
   // shrinks back into it. Captured before any navigation — the header is
@@ -544,6 +554,15 @@ export function AppShellShell({
                 ) : (
                   pinnedButton
                 )}
+                <ActionIcon
+                  variant="transparent"
+                  c="white"
+                  size="lg"
+                  aria-label="Search events"
+                  onClick={() => setSearchOpen(true)}
+                >
+                  <IconSearch size={18} />
+                </ActionIcon>
                 <ThemeToggle />
                 <UserMenu name={name} />
               </Group>
@@ -609,6 +628,9 @@ export function AppShellShell({
               <StatusAnnouncer />
               {children}
               <PinnedEventsPanel />
+              {searchOpen && (
+                <EventSearchModal opened={searchOpen} onClose={() => setSearchOpen(false)} />
+              )}
             </PinnedPanelContext.Provider>
           </ImmersiveModeContext.Provider>
         </AppShell.Main>

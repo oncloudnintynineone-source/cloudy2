@@ -256,6 +256,27 @@ export function createRealGoogleIntegration(): GoogleIntegration {
         fail(error);
       }
     },
+    async searchEvents(
+      calendarId: string,
+      q: string,
+      timeMin: Date,
+      timeMax: Date,
+    ): Promise<GcalEventItem[]> {
+      try {
+        const res = await getClient().events.list({
+          calendarId,
+          q,
+          timeMin: timeMin.toISOString(),
+          timeMax: timeMax.toISOString(),
+          singleEvents: true,
+          orderBy: "startTime",
+          maxResults: 2500,
+        });
+        return (res.data.items ?? []).map(mapGoogleEvent(calendarId));
+      } catch (error) {
+        fail(error);
+      }
+    },
     async sendEmail(input): Promise<void> {
       try {
         await getGmailClient().users.messages.send({

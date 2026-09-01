@@ -122,7 +122,7 @@ const PREFETCH_ADJACENT_MONTHS = true;
  * types deleted after their events were created); untyped/external events
  * use the department calendar's pinned color, or its id-derived default.
  */
-function mapCalendarItem(
+export function mapCalendarItem(
   calendar: { id: string; name: string; color: string | null },
   item: GcalEventItem,
   filters: { typeFilter: string[]; userFilter: string[] },

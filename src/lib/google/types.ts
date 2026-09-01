@@ -51,6 +51,13 @@ export interface GoogleIntegration {
   deleteEvent(calendarId: string, eventId: string): Promise<void>;
   /** List events in a calendar overlapping the given [timeMin, timeMax] range. */
   listEvents(calendarId: string, timeMin: Date, timeMax: Date): Promise<GcalEventItem[]>;
+  /** Free-text search (`q`) for events in a calendar within [timeMin, timeMax]. */
+  searchEvents(
+    calendarId: string,
+    q: string,
+    timeMin: Date,
+    timeMax: Date,
+  ): Promise<GcalEventItem[]>;
   /** Create a new calendar owned by the service account. */
   createCalendar(name: string): Promise<{ id: string; calendarId: string }>;
   /** Rename a calendar. */

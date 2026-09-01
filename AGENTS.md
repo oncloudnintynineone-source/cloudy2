@@ -111,6 +111,14 @@ mechanics in the doc.
   events ("Pin this event" switch in the wizard); badge refreshes via the
   `cloudy2:pinned-events-changed` window event.
   Design: [docs/pinned-events.md](docs/pinned-events.md).
+- **Event search:** a header search icon (between the pinned-events button and the
+  theme toggle) opens a **lazy-loaded** (`dynamic` + `ssr: false`) modal that
+  free-text searches every department calendar **directly via Google Calendar**
+  (`events.list` with `q` — bypassing the month cache), mapped + deduped by logical
+  event and rendered in `@mantine/schedule`'s `AgendaView`; results deep-link
+  `/dashboard?date=…&event=…`. `q` matches `summary`/`location`/`description`, but
+  **not** the compressed notes (type/people), unless the title template renders them.
+  Design: [docs/event-search.md](docs/event-search.md).
 - **KAH constraints are notify-only.** After every successful create/update (never
   delete), `dispatchKahBreachCheck()` (`src/lib/kah/notify.ts`) runs inside `after()` —
   best-effort, it can never fail or delay the mutation.

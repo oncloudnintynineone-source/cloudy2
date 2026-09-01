@@ -303,6 +303,7 @@ In CI, the schema-drift check runs `pnpm db:generate` then fails on any diff to
 | [`admin-guide.md`](admin-guide.md) | Admin guide: every Settings tab, sharing, KAH, audit log |
 | [`google-integration.md`](google-integration.md) | Google layer contract, real client + stub, error mapping |
 | [`events-cache.md`](events-cache.md) | Google Calendar event caching — design, flows, freshness |
+| [`event-search.md`](event-search.md) | Free-text event search (direct Google `q`, lazy-loaded modal) |
 | [`event-lifecycle.md`](event-lifecycle.md) | Event wizard → Google: notes codec, titles, location policy |
 | [`event-mutations.md`](event-mutations.md) | Create/update/delete: copy reconciliation, rollbacks, audit |
 | [`roster-sharing.md`](roster-sharing.md) | Users/departments model, hierarchy, calendar ACL sharing, colors |

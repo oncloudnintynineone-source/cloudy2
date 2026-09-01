@@ -1,0 +1,217 @@
+# 1. Event search
+
+A header-launched, free-text search over every department calendar. It reads
+events **directly from Google Calendar** (deliberately bypassing the month
+cache described in [`events-cache.md`](events-cache.md)), so results are
+authoritative within the date range the user picks. Results render in the
+lazily-loaded `@mantine/schedule` agenda and deep-link back into the
+dashboard's existing event-detail flow.
+
+## Table of contents
+
+- [1.1 Problem](#11-problem)
+- [1.2 Goals & non-goals](#12-goals--non-goals)
+- [1.3 Architecture overview](#13-architecture-overview)
+- [1.4 The integration method](#14-the-integration-method)
+- [1.5 The server action](#15-the-server-action)
+- [1.6 Search scope & security](#16-search-scope--security)
+- [1.7 Date range & defaults](#17-date-range--defaults)
+- [1.8 Searchable surface & limitations](#18-searchable-surface--limitations)
+- [1.9 The search modal (lazy-loaded)](#19-the-search-modal-lazy-loaded)
+- [1.10 Pure helpers & testing](#110-pure-helpers--testing)
+- [1.11 File index & related docs](#111-file-index--related-docs)
+
+## 1.1 Problem
+
+The dashboard answers "what is happening this month in these departments", but
+it has no way to answer "where and when did we mention *X*" — the three views
+(five calendar views + filters) only show the currently fetched month range,
+and the event cache only holds months that have already been viewed. Finding an
+event means knowing roughly *when* it happened and paging to it. Search closes
+that gap: enter a term, choose a (defaulted) date window, and get every matching
+event across every department.
+
+## 1.2 Goals & non-goals
+
+**Goals**
+
+- Free-text lookup across **all** department calendars (any signed-in user).
+- Authoritative results: read live from Google, never a cached snapshot.
+- A user-chosen window with sensible defaults (1 month back, 3 months ahead).
+- A zero-cost entry point: the modal and its imports stay out of the shell's
+  initial bundle until the user opens search.
+
+**Non-goals**
+
+- Not a structured query: the search term matches Google's `q` fields only
+  (see §1.8) — no event-type/people filters beyond what the title carries.
+- No persistence, no index, no cache: results are recomputed on every search.
+- Not edit-in-place: results deep-link into the dashboard's detail modal, which
+  owns all edit/duplicate/delete wiring.
+
+## 1.3 Architecture overview
+
+```mermaid
+flowchart LR
+    subgraph SHELL["AppShellShell (client)"]
+        B["header Search ActionIcon<br/>(between pinned + theme)"]
+        M["EventSearchModal<br/>dynamic(ssr: false)"]
+    end
+    subgraph ACTION["Server action (search.ts)"]
+        R["requireSession()"]
+        C["listCalendars() + listEventTypes()"]
+        F["mapWithConcurrency <= 4"]
+        MAP["mapCalendarItem + dedupeEventsByGroupId"]
+    end
+    subgraph G["Google Calendar"]
+        LIST["events.list(q, timeMin, timeMax)<br/>per calendar"]
+    end
+    B -->|open| M
+    M -->|searchEvents(q, from, to)| R --> C --> F
+    F --> LIST
+    LIST --> MAP --> M
+    M -->|result click| DEEP["/dashboard?date=..&event=.."]
+```
+
+Search calls `events.list` directly through `getGoogleIntegration()` — it never
+touches `fetchRangeEvents` or the `google_event_cache` table.
+
+## 1.4 The integration method
+
+`searchEvents(calendarId, q, timeMin, timeMax)` is added to `GoogleIntegration`
+(`src/lib/google/types.ts`) and implemented in the real client
+(`src/lib/google/real.ts`) as:
+
+```ts
+events.list({ calendarId, q, timeMin, timeMax, singleEvents: true, orderBy: "startTime", maxResults: 2500 })
+```
+
+It shares `mapGoogleEvent` with `listEvents`, so the returned `GcalEventItem`s
+are identical in shape. The stub returns `[]`.
+
+## 1.5 The server action
+
+`searchEvents(q, from, to)` (`src/lib/events/search.ts`, `"use server"`):
+
+1. `requireSession()`.
+2. Trims and enforces `SEARCH_MIN_QUERY_LENGTH` (2) characters.
+3. Coerces the date window (§1.7).
+4. Loads `listCalendars()` and `listEventTypes()` (the type-color map).
+5. Fans out with `mapWithConcurrency` (`SEARCH_CONCURRENCY` = 4) — one
+   `events.list` per calendar, running outside any transaction (the Postgres
+   pool is `max: 1`, and no DB write happens here).
+6. Maps each item through the shared `mapCalendarItem` (empty filters) and
+   collapses cross-department copies with `dedupeEventsByGroupId`, so one
+   logical event appears once regardless of how many department calendars it
+   lives in.
+7. Sorts by `start` (stable) and returns `{ ok: true, events }`.
+
+Failure surfaces as `{ ok: false, error }` (the client shows it inline); there
+is no throw. The result is `CalendarEvent[]`, the same shape the dashboard
+consumes, so `@mantine/schedule` needs no adapter.
+
+## 1.6 Search scope & security
+
+Search runs over **every** registry calendar (`listCalendars()`), for **every
+authenticated user** — no admin/own-department narrowing. This mirrors "any
+user can invite anyone / tag any department" policy: calendar *visibility* is
+department scoped via Google ACLs, but the app does not hide other departments'
+events from signed-in users. Editing an event from a result is still gated by
+`ownershipGuard`/`creatorGuard` in the detail modal it deep-links to. Stub
+(unconfigured Google) returns an empty result set, so search degrades to "0
+matches" rather than erroring.
+
+Note: because reads go through the service account (owner of every calendar), a
+search result set is the union of every department calendar — it is not
+per-user ACL-filtered. That matches the existing dashboard read path (which the
+service account also serves un-scoped).
+
+## 1.7 Date range & defaults
+
+The window is an inclusive `[from, to]` pair of `YYYY-MM-DD` dates the user
+picks; defaults open 1 month back and 3 months ahead of "today" (UTC+8 naive).
+The pure helpers live in `src/lib/events/searchRange.ts`:
+
+- `defaultSearchFrom` / `defaultSearchTo` — month arithmetic with day-of-month
+  clamping (`Jan 31 − 1 month → Dec 31`).
+- `searchRangeBoundaries` — `from` → `timeMin = UTC-midnight`, `to` →
+  `timeMax = UTC-midnight of addOneDay(to)` (Google's exclusive all-day-end
+  convention), so an event on the `to` date is still included.
+- `coerceSearchRange` — swaps a reversed pair and clamps the forward span to
+  `SEARCH_MAX_RANGE_DAYS` (730).
+
+On the server, non-`YYYY-MM-DD` inputs fall back to the defaults; the span cap
+bounds the number of Google results a single search can pull.
+
+## 1.8 Searchable surface & limitations
+
+Google's `q` matches these event fields: `summary`, `description`, `location`,
+and attendee/organizer name+email. In this app:
+
+- **`location`** and the **rendered `summary`** (the title template's output —
+  by default just `{description}`, i.e. the raw remarks) are what actually
+  match. A blank title or a custom template that omits `{description}` means
+  the remarks are **not** searchable.
+- The event **type**, **people**, and **departments** are encoded in the
+  brotli+base64url notes block inside `description` (`event-lifecycle.md` §1.7)
+  and are therefore **not matched by `q`** — a type/people query only hits if
+  the title template renders those tokens into the summary.
+
+If exact type/people matching ever becomes a requirement, it needs a decoded
+index (a separate concern from this native-search feature; see
+`events-cache.md` §1.10 for the codec).
+
+## 1.9 The search modal (lazy-loaded)
+
+`EventSearchModal` (`src/components/EventSearchModal.tsx`):
+
+- Loaded with `dynamic(() => import(...), { ssr: false })` and mounted only
+  once `searchOpen` is true, so the modal — its `AgendaView`, `DatePickerInput`
+  and `@mantine/schedule` usage — never contributes to the shell's first paint.
+- Owned by `AppShellShell`: the header `ActionIcon` (between the pinned-events
+  button and `ThemeToggle`) toggles it, `{searchOpen && <EventSearchModal …/>}`
+  renders it next to `<PinnedEventsPanel />`.
+- Contents: a query `TextInput` (autofocus), two `DatePickerInput`s (From/To,
+  cleared → server defaults), a Search `Button` with `BUTTON_LOADER_PROPS`, and
+  an `AgendaView` result list grouped by day. `rangeStart`/`rangeEnd` are the
+  first/last result's start day, so empty days in between aren't rendered as
+  headers. Results are "No events match your search" when empty.
+- A result click closes the modal and navigates
+  `/dashboard?date=<start day>` (+ `&event=<group id>` for internal events),
+  reusing the existing `?event=`/`?date=` deep-link machinery (`page.tsx:
+  63-66`).
+
+## 1.10 Pure helpers & testing
+
+The decision-making parts are pure and unit-tested in
+`searchRange.test.ts` (`addMonthsClamped`, `defaultSearchFrom/To`,
+`searchRangeBoundaries`, `coerceSearchRange`). Everything that touches Google,
+Postgres, or the Next runtime (the `searchEvents` action, `mapCalendarItem`
+wiring) follows the repo convention of being I/O-bound and untested.
+
+| Helper | Module | Tests |
+| ------ | ------ | ----- |
+| `addMonthsClamped` | `events/searchRange.ts` | `searchRange.test.ts` |
+| `defaultSearchFrom` / `defaultSearchTo` | `events/searchRange.ts` | `searchRange.test.ts` |
+| `searchRangeBoundaries` | `events/searchRange.ts` | `searchRange.test.ts` |
+| `coerceSearchRange` | `events/searchRange.ts` | `searchRange.test.ts` |
+
+## 1.11 File index & related docs
+
+| File | Role |
+| ---- | ---- |
+| `src/lib/google/types.ts` | `searchEvents` contract |
+| `src/lib/google/real.ts` | `events.list({ ..., q })` implementation |
+| `src/lib/google/stub.ts` | `searchEvents` → `[]` |
+| `src/lib/events/search.ts` | `searchEvents` server action (`"use server"`) |
+| `src/lib/events/searchRange.ts` | Pure date-range/default helpers (tested) |
+| `src/lib/events/queries.ts` | `mapCalendarItem` (now exported; reused by search) |
+| `src/components/EventSearchModal.tsx` | Lazy-loaded search modal + agenda results |
+| `src/components/AppShellShell.tsx` | Header search button + modal mount |
+
+Related docs:
+
+- [`events-cache.md`](events-cache.md) — the month cache search deliberately bypasses.
+- [`event-lifecycle.md`](event-lifecycle.md) — the notes codec (§1.7) and title
+  template (§1.8), which determine what `q` can match.
+- [`developer-guide.md`](developer-guide.md#112-related-docs) — documentation index.
