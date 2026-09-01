@@ -174,6 +174,10 @@ index (a separate concern from this native-search feature; see
   afterward, so the shrink-out animation plays and repeat opens don't reload
   the chunk), so the modal — its `AgendaView`, `DatePickerInput` and
   `@mantine/schedule` usage — never contributes to the shell's first paint.
+  Because it mounts already-open on that first open, Mantine's `Transition`
+  would initialize to `entered` and skip the zoom-in; the modal therefore
+  starts closed and mirrors the `opened` prop one commit later (an internal
+  `mounted` state), so the enter animation always has an `exited` start state.
 - Owned by `AppShellShell`: the header `ActionIcon` (between the pinned-events
   button and `ThemeToggle`) toggles it; on click the shell captures the icon's
   rect and passes it down as `originRect`, and the modal zooms out of / shrinks

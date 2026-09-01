@@ -70,6 +70,19 @@ export default function EventSearchModal({ opened, onClose, originRect }: EventS
   const listRef = useRef<HTMLDivElement>(null);
   const [isPending, startTransition] = useTransition();
 
+  // The shell lazy-mounts this modal on its very first open, so the Modal's
+  // Mantine Transition would initialize to "entered" and the zoom-in from the
+  // header button would never play. Defer the open by one commit — start
+  // closed, then mirror the `opened` prop — so the enter animation has an
+  // "exited" state to start from. Later opens are unaffected (the prop-driven
+  // toggle already animates). This is genuine prop→state synchronization, so
+  // the state write belongs in the effect (see the sibling effect below).
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setMounted(opened);
+  }, [opened]);
+
   useEffect(() => {
     if (!isPending && opening !== null) {
       // The navigation transition finished — clear the row spinner and close
@@ -177,7 +190,7 @@ export default function EventSearchModal({ opened, onClose, originRect }: EventS
 
   return (
     <Modal
-      opened={opened}
+      opened={mounted}
       onClose={onClose}
       title="Search events"
       centered
