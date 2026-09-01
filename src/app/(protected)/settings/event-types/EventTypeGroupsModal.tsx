@@ -5,7 +5,6 @@ import {
   ActionIcon,
   Badge,
   Button,
-  Grid,
   Group,
   Modal,
   Stack,
@@ -170,42 +169,33 @@ export function EventTypeGroupsModal({
           with the arrows; event types keep their alphabetical order inside a group.
         </Text>
 
-        {/* Grid (not Group) so the "Add group" button bottom-aligns with the
-            field below the label instead of stretching over the label+field
-            height. `align="flex-end"` lines the button up with the input box;
-            span="auto"/"content" keep the input filling and the button
-            shrink-wrapped. */}
-        <Grid align="flex-end" gap="sm">
-          <Grid.Col span="auto">
-            <TextInput
-              label="Group name"
-              placeholder="Leave"
-              value={newName}
-              error={nameError}
-              onChange={(event) => {
-                setNewName(event.currentTarget.value);
-                setNameError(null);
-              }}
-              onKeyDown={(event) => {
-                if (event.key === "Enter") {
-                  event.preventDefault();
-                  void handleCreate();
-                }
-              }}
-            />
-          </Grid.Col>
-          <Grid.Col span="content">
-            <Button
-              leftSection={<IconPlus size={16} />}
-              loading={creating}
-              loaderProps={BUTTON_LOADER_PROPS}
-              __vars={{ "--button-height": "var(--input-height-sm)" }}
-              onClick={() => void handleCreate()}
-            >
-              Add group
-            </Button>
-          </Grid.Col>
-        </Grid>
+        <Stack gap="xs">
+          <TextInput
+            label="Group name"
+            placeholder="Leave"
+            value={newName}
+            error={nameError}
+            onChange={(event) => {
+              setNewName(event.currentTarget.value);
+              setNameError(null);
+            }}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") {
+                event.preventDefault();
+                void handleCreate();
+              }
+            }}
+          />
+          <Button
+            leftSection={<IconPlus size={16} />}
+            loading={creating}
+            loaderProps={BUTTON_LOADER_PROPS}
+            fullWidth
+            onClick={() => void handleCreate()}
+          >
+            Add group
+          </Button>
+        </Stack>
 
         {sorted.length === 0 ? (
           <Text size="sm" c="dimmed">
