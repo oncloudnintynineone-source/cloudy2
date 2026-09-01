@@ -176,8 +176,12 @@ index (a separate concern from this native-search feature; see
   `@mantine/schedule` usage — never contributes to the shell's first paint.
   Because it mounts already-open on that first open, Mantine's `Transition`
   would initialize to `entered` and skip the zoom-in; the modal therefore
-  starts closed and mirrors the `opened` prop one commit later (an internal
-  `mounted` state), so the enter animation always has an `exited` start state.
+  starts closed and mirrors the `opened` prop into an internal `mounted`
+  state. The open flip is deferred by one `requestAnimationFrame` — flipped
+  synchronously in an effect, the browser coalesces the enter rAFs into a
+  single paint and the zoom still never plays — so the enter animation always
+  starts from an `exited` state. Closing flips immediately so the shrink-out
+  doesn't lag.
 - Owned by `AppShellShell`: the header `ActionIcon` (between the pinned-events
   button and `ThemeToggle`) toggles it; on click the shell captures the icon's
   rect and passes it down as `originRect`, and the modal zooms out of / shrinks

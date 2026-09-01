@@ -168,7 +168,12 @@ mechanics in the doc.
   client components with `useMediaQuery(\`(min-width: ${theme.breakpoints.lg})\`)` — do
   **not** append px (it's an em string; appending makes an invalid query that always
   returns false). Pure-CSS switches go under `@media (min-width: 62em)` in
-  `globals.css`. Design: [docs/desktop-responsive.md](docs/desktop-responsive.md).
+  `globals.css`. **Very small phones (≤ 360px) get a compact tier** via the shared
+  `NARROW_MEDIA_QUERY` constant (`src/lib/theme.ts`) + `useMediaQuery` `isNarrow`:
+  it's a JS-only query (not a Mantine breakpoint, so it can't collide with `xs:`/`lg:`
+  min-width props) used to drop the header pinned button to an icon, the bottom nav to
+  icon-only, and shared modals one size step. Design:
+  [docs/desktop-responsive.md](docs/desktop-responsive.md).
 - **No mobile keyboard pop-up from dropdown taps:** never render a `searchable`
   `Select`/`MultiSelect` directly — use `NoKeyboardSelect`/`NoKeyboardMultiSelect`.
   Picking users (or any large option list) is a badge dialog (`UserSelectModal`), not a

@@ -16,7 +16,7 @@ import {
   transformOriginFromRect,
   type Rect,
 } from "@/lib/motion/origin";
-import { BUTTON_LOADER_PROPS } from "@/lib/theme";
+import { BUTTON_LOADER_PROPS, NARROW_MEDIA_QUERY } from "@/lib/theme";
 import { formatDateTime } from "./clientDateTime";
 
 interface EventDetailProps {
@@ -64,15 +64,17 @@ export function EventDetail({
 
   const theme = useMantineTheme();
   const isDesktop = useMediaQuery(`(min-width: ${theme.breakpoints.lg})`);
+  const isNarrow = useMediaQuery(NARROW_MEDIA_QUERY);
   // The modal is `centered` with a fixed size, so its content center is the
   // viewport center; the transform-origin can therefore be derived purely from
   // the clicked element's rect (see src/lib/motion/origin.ts). The modal
-  // widens sm (380px) -> md (440px) at lg, matching the shrink scale.
+  // widens xs (320px) -> sm (380px) -> md (440px): xs on very small phones,
+  // sm on regular mobile, md at lg, matching the shrink scale.
   const viewport = {
     w: typeof window === "undefined" ? 0 : window.innerWidth,
     h: typeof window === "undefined" ? 0 : window.innerHeight,
   };
-  const contentWidth = modalContentWidth(viewport, isDesktop ? 440 : 380);
+  const contentWidth = modalContentWidth(viewport, isNarrow ? 320 : isDesktop ? 440 : 380);
   const transitionProps = {
     transition: {
       in: { opacity: 1, transform: "scale(1)" },
@@ -136,7 +138,7 @@ export function EventDetail({
         onClose={onClose}
         title="Event"
         centered
-        size={isDesktop ? "md" : "sm"}
+        size={isNarrow ? "xs" : isDesktop ? "md" : "sm"}
         keepMounted
         transitionProps={transitionProps}
       >

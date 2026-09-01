@@ -22,6 +22,7 @@ import {
   sortOptionsInGroups,
   type PickerGroup,
 } from "@/lib/users/userSelect";
+import { NARROW_MEDIA_QUERY } from "@/lib/theme";
 
 interface UserSelectModalProps {
   opened: boolean;
@@ -60,13 +61,14 @@ export function UserSelectModal({
 }: UserSelectModalProps) {
   const theme = useMantineTheme();
   const isDesktop = useMediaQuery(`(min-width: ${theme.breakpoints.lg})`);
+  const isNarrow = useMediaQuery(NARROW_MEDIA_QUERY);
   return (
     <Modal
       opened={opened}
       onClose={onClose}
       title={title}
       centered
-      size={isDesktop ? "md" : "sm"}
+      size={isNarrow ? "xs" : isDesktop ? "md" : "sm"}
       zIndex={zIndex}
       // Fixed height so filtering never resizes the dialog: the search box
       // stays pinned at the top and the footer at the bottom while only the

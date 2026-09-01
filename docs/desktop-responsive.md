@@ -7,6 +7,11 @@ center in a bounded container, data-dense lists become tables, card lists flow i
 multi-column grids, and modals/forms widen. Below `lg` **nothing changes** — the
 mobile layout is byte-for-byte the same code path.
 
+On the **other end**, very small form-factor phones (≤ 360px — iPhone SE 1st gen,
+Galaxy Fold cover, small Androids) get a **compact tier**: the fixed-width chrome
+that overflows at that width (header button row, bottom-nav text labels, `sm`
+modals) renders tighter variants. See [1.10 Compact tier](#110-compact-tier).
+
 ## Table of contents
 
 - [1.1 Breakpoint & detection](#11-breakpoint--detection)
@@ -18,7 +23,8 @@ mobile layout is byte-for-byte the same code path.
 - [1.7 Modal sizes](#17-modal-sizes)
 - [1.8 Login & PWA](#18-login--pwa)
 - [1.9 File index](#19-file-index)
-- [1.10 Related docs](#110-related-docs)
+- [1.10 Compact tier](#110-compact-tier)
+- [1.11 Related docs](#111-related-docs)
 
 ## 1.1 Breakpoint & detection
 
@@ -35,8 +41,8 @@ shell switches to desktop chrome.
 | Medium | Where | Usage |
 | ------ | ----- | ----- |
 | CSS | `src/app/globals.css` | `@media (min-width: 36em)` (576px: card-grid ≥300px) + `@media (min-width: 62em)` block (62em = 992px at the default 16px root: shell + card-grid ≥320px) |
-| Theme | `src/lib/theme.ts` | `breakpoints.lg: "62em"` — aligns Mantine's `lg` with the CSS (`xs` is 36em) |
-| Client components | `@mantine/hooks` | `const theme = useMantineTheme(); const isDesktop = useMediaQuery(\`(min-width: ${theme.breakpoints.lg})\`)` (do **not** append `px` — `theme.breakpoints.lg` is an em string) |
+| Theme | `src/lib/theme.ts` | `breakpoints.lg: "62em"` — aligns Mantine's `lg` with the CSS (`xs` is 36em). `NARROW_MEDIA_QUERY` (`(max-width: 22.5em)`, 360px) is the compact-tier query — deliberately **not** a Mantine breakpoint, because responsive props like `{ base: … }` use min-width keys and can't express "below X" |
+| Client components | `@mantine/hooks` | `const theme = useMantineTheme(); const isDesktop = useMediaQuery(\`(min-width: ${theme.breakpoints.lg})\`)` (do **not** append `px` — `theme.breakpoints.lg` is an em string); `const isNarrow = useMediaQuery(NARROW_MEDIA_QUERY)` for the compact tier |
 | Mantine props | core | `visibleFrom="lg"` / `hiddenFrom="lg"` (note: v9 has no `hiddenDown`/`visibleDown`), responsive props like `maw={{ base: 380, lg: 440 }}`, `Grid.Col span={{ base: 12, lg: 6 }}` |
 
 Server components do not need the flag: they render both variants and let the
@@ -45,7 +51,9 @@ CSS/`visibleFrom`/`hiddenFrom` props decide.
 ```mermaid
 flowchart LR
     A[Viewport width] --> B{≥ 576px?}
-    B -- no --> C[Mobile single-column<br/>bottom nav · card lists · sm modals]
+    B -- no --> B0{≤ 360px?}
+    B0 -- yes --> C0[Compact tier<br/>header/nav/modals tighten]
+    B0 -- no --> C[Mobile single-column<br/>bottom nav · card lists · sm modals]
     B -- yes --> B2{≥ 992px?}
     B2 -- no --> C2[Mid-width grid<br/>bottom nav · 2-col card-grid]
     B2 -- yes --> D[Desktop layout]
@@ -87,6 +95,12 @@ flowchart LR
   below it no longer applies.
 - `isDesktop` comes from `useMediaQuery` (see 1.1); it only drives the footer's
   `collapsed` prop — the navbar collapse is Mantine's own `breakpoint`.
+- **Compact tier (`isNarrow`)** — at ≤ 360px the header's "Pinned events"
+  button collapses to an icon-only `ActionIcon` (the count badge still rides
+  its `aria-label`), the header gutters/typography tighten, and the bottom nav
+  drops its per-item text labels to icons only (each button keeps
+  `aria-label={item.label}`). This is the JS half of the compact tier; the
+  `NARROW_MEDIA_QUERY` hook sits next to `isDesktop` in `AppShellShell`.
 - The shell root carries `className="app-shell-root"`, the hook for the floating
   offset variable (1.3).
 
@@ -257,23 +271,28 @@ portals to `<body>`, so wrapper elements cannot hide it (see the gotcha in 1.4).
 ## 1.7 Modal sizes
 
 Modals stay **floating centered dialogs** (never `fullScreen`) at every width;
-only the `size` steps up at `lg` (detected with `useMediaQuery` inside the client
-components):
+only the `size` steps at each breakpoint (detected with `useMediaQuery` inside
+the client components). The compact tier (§1.10) drops the mobile sizes one
+step so the dialog never approaches the viewport edge:
 
-| Modal | Mobile | At `lg` |
-| ----- | ------ | ------- |
-| Event form (`DashboardView`) | `sm` (380px) | `md` (440px) |
-| Event detail (`EventDetail`) | `sm` | `md` |
-| Agenda day modal | `sm` | `md` (max-height `56dvh` → `70dvh`) |
-| Filter modal (`FilterModal`) | `sm` | `md` |
-| Date picker (`DateSelectorModal`) | `sm` | `md` |
-| User form | `md` | `lg` |
-| Event type form | `sm` | `md` |
-| Audit detail (`LogDetailModal`) | `md` | `lg` |
+| Modal | Compact ≤ 360px | Mobile | At `lg` |
+| ----- | --------------- | ------ | ------- |
+| Event form (`DashboardView`) | `xs` (320px) | `sm` (380px) | `md` (440px) |
+| Event detail (`EventDetail`) | `xs` | `sm` | `md` |
+| Agenda day modal | `xs` | `sm` | `md` (max-height `56dvh` → `70dvh`) |
+| Filter modal (`FilterModal`) | `xs` | `sm` | `md` |
+| Date picker (`DateSelectorModal`) | `xs` | `sm` | `md` |
+| User form | `md` | `md` | `lg` |
+| Event type form | `sm` | `sm` | `md` |
+| Event search (`EventSearchModal`) | `sm` | `md` | `lg` |
+| Pinned events (`PinnedEventsPanel`) | `sm` | `md` | `lg` |
+| Audit detail (`LogDetailModal`) | `md` | `md` | `lg` |
 
 `EventDetail`'s shrink animation sizes off the same value through
 `modalContentWidth(viewport, sizePx)` in `src/lib/motion/origin.ts`
-(`smModalContentWidth` = `modalContentWidth(viewport, 380)`).
+(`smModalContentWidth` = `modalContentWidth(viewport, 380)`); every component
+that animates now passes the same `isNarrow`-aware pixel width (320/380/440/620)
+that its `size` prop resolves to, so the shrink stays in sync at every tier.
 
 The event form's **Timestamp step** pairs Start/End side by side in a 2-column
 `Grid` at `lg` (both the range pickers and the full-day date+AM/PM pairs).
@@ -289,7 +308,8 @@ The event form's **Timestamp step** pairs Start/End side by side in a 2-column
 | File | Role |
 | ---- | ---- |
 | `src/app/globals.css` | `@media (min-width: 36em)` (card-grid ≥300px) + `@media (min-width: 62em)` block: offset vars, `.page-container`, `.card-grid` ≥320px |
-| `src/components/AppShellShell.tsx` | Navbar (240px ↔ 64px rail, `breakpoint: "lg"`, remembered via `sidebarCollapsed`), footer `collapsed: isDesktop`, `.app-shell-root` |
+| `src/lib/theme.ts` | `breakpoints.lg: "62em"`; `DESKTOP_MEDIA_QUERY` + `NARROW_MEDIA_QUERY` (compact tier) |
+| `src/components/AppShellShell.tsx` | Navbar (240px ↔ 64px rail, `breakpoint: "lg"`, remembered via `sidebarCollapsed`), footer `collapsed: isDesktop`, compact header/nav via `isNarrow`, `.app-shell-root` |
 | `src/components/PageContainer.tsx` | 1200px-centered wrapper |
 | `src/components/FloatingToolbar.tsx` | Default `bottomOffset` = `var(--app-floating-bottom-offset)` |
 | `src/lib/bottomNav.ts` | `BOTTOM_NAV_HEIGHT` / `BOTTOM_NAV_HEIGHT_CSS` (floating offset var moved to CSS) |
@@ -303,17 +323,51 @@ The event form's **Timestamp step** pairs Start/End side by side in a 2-column
 | `src/app/(protected)/settings/event-types/EventTypeForm.tsx` | 2-col `Grid` at `lg` |
 | `src/app/(protected)/settings/templates/TemplatesForm.tsx` | Side-by-side cards at `lg` |
 | `src/app/(protected)/settings/general/SettingsForm.tsx` | Side-by-side cards at `lg` |
-| `src/app/(protected)/dashboard/DashboardView.tsx` | Schedule label/slot widths, header New-event button, hidden FAB, modal sizes |
+| `src/app/(protected)/dashboard/DashboardView.tsx` | Schedule label/slot widths, header New-event button, hidden FAB, modal sizes (`isNarrow` → `xs`) |
 | `src/app/(protected)/dashboard/WeekMatrixView.tsx` | MOBILE_/DESKTOP_ label widths, responsive `contentMinWidth`/`labelLeft` |
 | `src/app/(protected)/dashboard/EventForm.tsx` | Timestamp step 2-col at `lg` |
-| `src/app/(protected)/dashboard/EventDetail.tsx`, `src/components/FilterModal.tsx`, `src/components/DateSelectorModal.tsx` | `sm` → `md` at `lg` |
+| `src/app/(protected)/dashboard/EventDetail.tsx`, `src/components/FilterModal.tsx`, `src/components/DateSelectorModal.tsx` | `xs` → `sm` → `md` (compact/mobile/lg) |
+| `src/components/EventSearchModal.tsx`, `src/components/PinnedEventsPanel.tsx`, `src/components/UserSelectModal.tsx` | Modal sizes via `isNarrow`/`isDesktop` |
 | `src/lib/motion/origin.ts` | `modalContentWidth(viewport, sizePx)` |
 | `src/app/(protected)/contacts/page.tsx` + `ContactList.tsx` | `PageContainer` + `.card-grid` |
 | `src/app/(protected)/parade-state/page.tsx` + `ParadeStateView.tsx` | `PageContainer` + `.card-grid` |
 | `src/components/LoginForm.tsx` | `maw={{ base: 380, lg: 440 }}` |
 | `src/app/manifest.ts` | `orientation: "any"` |
 
-## 1.10 Related docs
+## 1.10 Compact tier
+
+Very small form-factor phones (≤ 360px) overflow the mobile layout's
+fixed-width chrome: the header's brand + button row, the bottom nav's text
+labels under 4-5 items, and `sm` modals at the viewport edge. The **compact
+tier** tightens these with the `isNarrow` flag — `useMediaQuery(NARROW_MEDIA_QUERY)`
+(`(max-width: 22.5em)` from `src/lib/theme.ts`) — mirroring how `isDesktop`
+drives the wide layout:
+
+| Surface | Regular mobile | Compact ≤ 360px |
+| ------- | -------------- | ---------------- |
+| Header gutters / brand | `px="md"`, `gap="md"`, brand `size="lg"` | `px="xs"`, `gap` 4, brand `size="md"` (both `wrap="nowrap"`) |
+| "Pinned events" button | labelled `Button` (icon + text) | icon-only `ActionIcon` (badge count rides the `aria-label`) |
+| Bottom nav | icon + text label per item | icon only (`NavButton` `compact`; `aria-label` preserved) |
+| Modals (event form/detail, agenda, filter, date picker) | `sm` | `xs` |
+| Modals (event search, pinned events) | `md` | `sm` |
+| Shrink-animation widths | 380/440/620px per modal | same values via the `isNarrow` branch in `modalContentWidth(...)` |
+
+Deliberate limits:
+
+- **Not a Mantine breakpoint.** `NARROW_MEDIA_QUERY` is a JS-only query with no
+  theme counterpart, so it can't collide with `xs:` responsive props (those mean
+  ≥ 576px) or the `lg:` breakpoint. It can only be consumed by `useMediaQuery`
+  (and would need a JS match for any CSS mirror).
+- **Shell chrome only.** The compact tier is scoped to the persistent shell and
+  the shared modals — the things that overflow at every route. Page content
+  (cards, forms, grids) already reflows fluidly down to the grid's internal
+  minimums (the Month grid scrolls past 588px inside its own ScrollArea), so
+  pages need no per-view narrowing.
+- **A11y preserved.** Icon-only nav buttons and the icon-only pinned button keep
+  their `aria-label` (and the pinned count badge still rides it), so the compact
+  tier loses no announceable context.
+
+## 1.11 Related docs
 
 - [ui-state.md](ui-state.md) — remembered page/tab/filter state (the nav items
   both the sidebar and the bottom nav render).

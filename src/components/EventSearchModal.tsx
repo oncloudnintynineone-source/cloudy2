@@ -17,6 +17,7 @@ import { DatePickerInput } from "@mantine/dates";
 import { useMediaQuery } from "@mantine/hooks";
 import { AgendaView } from "@mantine/schedule";
 import { IconSearch } from "@tabler/icons-react";
+import { NARROW_MEDIA_QUERY } from "@/lib/theme";
 
 import { formatInstantToNaive } from "@/lib/events/datetime";
 import type { CalendarEvent } from "@/lib/events/queries";
@@ -46,6 +47,7 @@ export default function EventSearchModal({ opened, onClose, originRect }: EventS
   const router = useRouter();
   const theme = useMantineTheme();
   const isDesktop = useMediaQuery(`(min-width: ${theme.breakpoints.lg})`);
+  const isNarrow = useMediaQuery(NARROW_MEDIA_QUERY);
   const today = formatInstantToNaive(new Date()).slice(0, 10);
 
   const [query, setQuery] = useState("");
@@ -72,15 +74,21 @@ export default function EventSearchModal({ opened, onClose, originRect }: EventS
 
   // The shell lazy-mounts this modal on its very first open, so the Modal's
   // Mantine Transition would initialize to "entered" and the zoom-in from the
-  // header button would never play. Defer the open by one commit — start
-  // closed, then mirror the `opened` prop — so the enter animation has an
-  // "exited" state to start from. Later opens are unaffected (the prop-driven
-  // toggle already animates). This is genuine prop→state synchronization, so
-  // the state write belongs in the effect (see the sibling effect below).
+  // header button would never play. Mirror the `opened` prop into a local
+  // `mounted` state so the Transition always has an "exited" start state.
+  // The open flip is deferred by one animation frame: flipped synchronously in
+  // the effect, the browser coalesces the enter rAFs into a single paint and
+  // the zoom still never plays. Closing flips immediately so the shrink-out
+  // doesn't lag; later opens take the same deferred path.
   const [mounted, setMounted] = useState(false);
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setMounted(opened);
+    if (!opened) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setMounted(false);
+      return;
+    }
+    const raf = requestAnimationFrame(() => setMounted(true));
+    return () => cancelAnimationFrame(raf);
   }, [opened]);
 
   useEffect(() => {
@@ -114,7 +122,7 @@ export default function EventSearchModal({ opened, onClose, originRect }: EventS
     w: typeof window === "undefined" ? 0 : window.innerWidth,
     h: typeof window === "undefined" ? 0 : window.innerHeight,
   };
-  const contentWidth = modalContentWidth(viewport, isDesktop ? 620 : 440);
+  const contentWidth = modalContentWidth(viewport, isNarrow ? 380 : isDesktop ? 620 : 440);
   const transitionProps = {
     transition: {
       in: { opacity: 1, transform: "scale(1)" },
@@ -194,7 +202,7 @@ export default function EventSearchModal({ opened, onClose, originRect }: EventS
       onClose={onClose}
       title="Search events"
       centered
-      size={isDesktop ? "lg" : "md"}
+      size={isNarrow ? "sm" : isDesktop ? "lg" : "md"}
       transitionProps={transitionProps}
     >
       <Stack>

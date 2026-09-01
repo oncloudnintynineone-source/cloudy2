@@ -12,6 +12,7 @@ import {
   type FilterApplyGroup,
 } from "@/lib/filters/resolveFilterApply";
 import { buildUserGroups, type PickerGroup } from "@/lib/users/userSelect";
+import { NARROW_MEDIA_QUERY } from "@/lib/theme";
 
 export interface FilterOption {
   value: string;
@@ -143,8 +144,9 @@ function initialDraft(
 export function FilterModal({ opened, onClose, title, groups, values, onApply, collapsedGroupLabels, hint, modeControl }: FilterModalProps) {
   const theme = useMantineTheme();
   const isDesktop = useMediaQuery(`(min-width: ${theme.breakpoints.lg})`);
+  const isNarrow = useMediaQuery(NARROW_MEDIA_QUERY);
   return (
-    <Modal opened={opened} onClose={onClose} title={title} centered size={isDesktop ? "md" : "sm"}>
+    <Modal opened={opened} onClose={onClose} title={title} centered size={isNarrow ? "xs" : isDesktop ? "md" : "sm"}>
       <FilterModalBody
         groups={groups}
         values={values}

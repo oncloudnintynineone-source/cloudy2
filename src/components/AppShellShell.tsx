@@ -44,7 +44,7 @@ import { BANNER_HEIGHT_PX } from "@/lib/banner/banner";
 import { BOTTOM_NAV_HEIGHT } from "@/lib/bottomNav";
 import { countPinnedEvents } from "@/lib/events/pinned";
 import type { Rect } from "@/lib/motion/origin";
-import { DESKTOP_MEDIA_QUERY } from "@/lib/theme";
+import { DESKTOP_MEDIA_QUERY, NARROW_MEDIA_QUERY } from "@/lib/theme";
 import { StatusAnnouncer } from "@/lib/ui/announcer";
 import { ImmersiveModeContext, type ImmersiveModeValue } from "@/lib/ui/immersiveMode";
 import {
@@ -154,7 +154,21 @@ function RailNavButton({
   );
 }
 
-function NavButton({ item, active, onTap }: { item: NavItem; active: boolean; onTap: () => void }) {
+function NavButton({
+  item,
+  active,
+  onTap,
+  compact,
+}: {
+  item: NavItem;
+  active: boolean;
+  onTap: () => void;
+  /** Icon-only variant for very small form-factor phones (≤ 360px): the
+   *  label text can't fit beside 4-5 nav items, so it drops and the icon is
+   *  centered with slightly more vertical padding. The button already carries
+   *  `aria-label={item.label}`, so accessibility is preserved. */
+  compact?: boolean;
+}) {
   return (
     <UnstyledButton
       component={Link}
@@ -165,7 +179,7 @@ function NavButton({ item, active, onTap }: { item: NavItem; active: boolean; on
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
-        paddingBlock: 6,
+        paddingBlock: compact ? 8 : 6,
         minHeight: BOTTOM_NAV_HEIGHT,
         color: active ? NAV_ACTIVE_COLOR : NAV_IDLE_COLOR,
       }}
@@ -173,11 +187,13 @@ function NavButton({ item, active, onTap }: { item: NavItem; active: boolean; on
       aria-current={active ? "page" : undefined}
     >
       <PendingDim>
-        <Box style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 2 }}>
+        <Box style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: compact ? 0 : 2 }}>
           {item.icon}
-          <Text size="xs" fw={active ? 600 : 500}>
-            {item.label}
-          </Text>
+          {!compact && (
+            <Text size="xs" fw={active ? 600 : 500}>
+              {item.label}
+            </Text>
+          )}
         </Box>
       </PendingDim>
     </UnstyledButton>
@@ -299,6 +315,11 @@ export function AppShellShell({
   // sidebar takes over navigation (AppShell navbar, hidden below the
   // breakpoint). Both read the same theme value so they can't drift.
   const isDesktop = useMediaQuery(DESKTOP_MEDIA_QUERY);
+  // Very small form-factor phone (≤ 360px): the header's button row and the
+  // bottom nav's text labels don't fit, so they render compact variants
+  // (icon-only pinned button, icon-only nav). Independent of `isDesktop` —
+  // both queries are just matchMedia, and a tiny phone is never desktop.
+  const isNarrow = useMediaQuery(NARROW_MEDIA_QUERY);
 
   // Immersive ("fullscreen") mode: a Calendar button hides this shell's
   // chrome (header, bottom nav, desktop sidebar) and requests the page-level
@@ -461,7 +482,19 @@ export function AppShellShell({
     };
   }, [immersive]);
 
-  const pinnedButton = (
+  const pinnedButton = isNarrow ? (
+    <ActionIcon
+      variant="filled"
+      radius="xl"
+      size="lg"
+      bg="brand.8"
+      c="white"
+      onClick={(e) => openPinnedPanel(e.currentTarget.getBoundingClientRect())}
+      aria-label={pinnedCount > 0 ? `Pinned events (${pinnedCount})` : "Pinned events"}
+    >
+      <IconPin size={18} />
+    </ActionIcon>
+  ) : (
     <Button
       variant="filled"
       radius="xl"
@@ -538,11 +571,25 @@ export function AppShellShell({
           <ShellChromeContext.Provider value={shellChrome}>
             {kahNavSlot}
             {bannerSlot}
-            <Group h={HEADER_HEIGHT_PX} justify="space-between" px="md">
-              <Text fw={700} size="lg" component={Link} href="/dashboard" td="none" c="white">
+            <Group
+              h={HEADER_HEIGHT_PX}
+              justify="space-between"
+              px={isNarrow ? "xs" : "md"}
+              gap={isNarrow ? 4 : "md"}
+              wrap="nowrap"
+            >
+              <Text
+                fw={700}
+                size={isNarrow ? "md" : "lg"}
+                component={Link}
+                href="/dashboard"
+                td="none"
+                c="white"
+                style={{ whiteSpace: "nowrap" }}
+              >
                 Cloudy
               </Text>
-              <Group gap="xs">
+              <Group gap={isNarrow ? 2 : "xs"} wrap="nowrap">
                 {pinnedCount > 0 ? (
                   <Indicator
                     position="top-start"
@@ -665,6 +712,7 @@ export function AppShellShell({
                 item={item}
                 active={isActive(item)}
                 onTap={() => handleTap(item.href)}
+                compact={isNarrow}
               />
             ))}
           </Box>

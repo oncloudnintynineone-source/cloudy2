@@ -75,3 +75,15 @@ export const BUTTON_LOADER_PROPS: NonNullable<ButtonProps["loaderProps"]> = {
  * responsive props can't drift apart.
  */
 export const DESKTOP_MEDIA_QUERY = "(min-width: 62em)";
+
+/**
+ * Media query for the "compact" tier — very small form-factor phones
+ * (≤ 360px: iPhone SE 1st gen, Galaxy Fold cover, small Androids). Below this
+ * the mobile layout's fixed chrome (header button rows, bottom-nav labels,
+ * `sm` modals) starts overflowing, so components that hold fixed-width
+ * controls drop to tighter variants. Deliberately *above* Mantine's smallest
+ * breakpoint (xs = 36em): `useMediaQuery` only matches a JS query, and this
+ * query has no theme counterpart — it must not collide with any `xs:`
+ * responsive prop (those mean ≥ 576px).
+ */
+export const NARROW_MEDIA_QUERY = "(max-width: 22.5em)";

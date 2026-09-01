@@ -19,6 +19,7 @@ import { useRouter } from "next/navigation";
 
 import { fetchPinnedEvents, type PinnedEvent } from "@/lib/events/pinned";
 import { modalContentWidth, scaleFromRect, transformOriginFromRect } from "@/lib/motion/origin";
+import { NARROW_MEDIA_QUERY } from "@/lib/theme";
 import { usePinnedPanel } from "@/lib/ui/pinnedPanel";
 
 import { LoadingStatus } from "./LoadingStatus";
@@ -53,6 +54,7 @@ export function PinnedEventsPanel() {
   const router = useRouter();
   const theme = useMantineTheme();
   const isDesktop = useMediaQuery(`(min-width: ${theme.breakpoints.lg})`);
+  const isNarrow = useMediaQuery(NARROW_MEDIA_QUERY);
   const [events, setEvents] = useState<PinnedEvent[] | null>(null);
 
   useEffect(() => {
@@ -84,7 +86,7 @@ export function PinnedEventsPanel() {
   };
   // The panel widens md (440px) -> lg (620px) at lg, so the shrink-to-target
   // scale must use the matching content width.
-  const contentWidth = modalContentWidth(viewport, isDesktop ? 620 : 440);
+  const contentWidth = modalContentWidth(viewport, isNarrow ? 380 : isDesktop ? 620 : 440);
   const transitionProps = {
     transition: {
       in: { opacity: 1, transform: "scale(1)" },
@@ -117,7 +119,7 @@ export function PinnedEventsPanel() {
       opened={open}
       onClose={closePanel}
       centered
-      size={isDesktop ? "lg" : "md"}
+      size={isNarrow ? "sm" : isDesktop ? "lg" : "md"}
       title={
         <Group gap="xs">
           <ThemeIcon variant="light" size="sm">

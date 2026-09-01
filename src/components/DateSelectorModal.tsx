@@ -6,6 +6,7 @@ import { ActionIcon, Modal, Text, useMantineTheme } from "@mantine/core";
 import { useMediaQuery } from "@mantine/hooks";
 import { MobileMonthView } from "@mantine/schedule";
 import { IconChevronLeft, IconChevronRight } from "@tabler/icons-react";
+import { NARROW_MEDIA_QUERY } from "@/lib/theme";
 
 interface DateSelectorModalProps {
   opened: boolean;
@@ -17,6 +18,7 @@ interface DateSelectorModalProps {
 export function DateSelectorModal({ opened, date, onPick, onClose }: DateSelectorModalProps) {
   const theme = useMantineTheme();
   const isDesktop = useMediaQuery(`(min-width: ${theme.breakpoints.lg})`);
+  const isNarrow = useMediaQuery(NARROW_MEDIA_QUERY);
   const [pickerDate, setPickerDate] = useState(date);
   // Re-seed the displayed month every time the modal opens (render-phase
   // reset, same pattern as the agenda date in DashboardView).
@@ -37,7 +39,7 @@ export function DateSelectorModal({ opened, date, onPick, onClose }: DateSelecto
       onClose={onClose}
       title="Select date"
       centered
-      size={isDesktop ? "md" : "sm"}
+      size={isNarrow ? "xs" : isDesktop ? "md" : "sm"}
     >
       <MobileMonthView
         date={pickerDate}

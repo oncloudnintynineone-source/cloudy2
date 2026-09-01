@@ -84,6 +84,7 @@ import { EmptyState } from "@/components/EmptyState";
 import { FilterButton } from "@/components/FilterButton";
 import { FilterModal, type FilterGroup } from "@/components/FilterModal";
 import { GridNavControls } from "@/components/GridNavControls";
+import { NARROW_MEDIA_QUERY } from "@/lib/theme";
 import {
   FAB_ICON_SIZE,
   FAB_SIZE,
@@ -722,6 +723,7 @@ export function DashboardView({
   // widths on the view root (inline var / styles-API var), so the override
   // lives here — a parent CSS class can't shadow the root's own declaration.
   const isDesktop = useMediaQuery(`(min-width: ${theme.breakpoints.lg})`);
+  const isNarrow = useMediaQuery(NARROW_MEDIA_QUERY);
 
   // Immersive ("fullscreen") mode is owned by the AppShell — it renders the
   // header / bottom nav / sidebar being hidden. We only control it here and
@@ -1187,7 +1189,7 @@ export function DashboardView({
   };
   // The agenda-day and event-form modals widen sm (380px) -> md (440px) at lg,
   // so the shrink-to-target scale must use the matching content width.
-  const contentWidth = modalContentWidth(viewport, isDesktop ? 440 : 380);
+  const contentWidth = modalContentWidth(viewport, isNarrow ? 320 : isDesktop ? 440 : 380);
   const agendaTransitionProps = {
     transition: {
       in: { opacity: 1, transform: "scale(1)" },
@@ -2719,7 +2721,7 @@ export function DashboardView({
           )
         }
         centered
-        size={isDesktop ? "md" : "sm"}
+        size={isNarrow ? "xs" : isDesktop ? "md" : "sm"}
         transitionProps={agendaTransitionProps}
       >
         {agendaViewDate && (
@@ -2824,7 +2826,7 @@ export function DashboardView({
         onClose={minimizeForm}
         keepMounted
         centered
-        size={isDesktop ? "md" : "sm"}
+        size={isNarrow ? "xs" : isDesktop ? "md" : "sm"}
         zIndex={250}
         transitionProps={formTransitionProps}
       >
