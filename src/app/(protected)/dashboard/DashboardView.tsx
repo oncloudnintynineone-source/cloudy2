@@ -360,7 +360,10 @@ function WeekDayLabelStrip({
           borderRight: "1px solid var(--mantine-color-default-border)",
         }}
       />
-      <Box component="div" style={{ flex: 1, minWidth: 0, overflow: "hidden", position: "relative" }}>
+      <Box
+        component="div"
+        style={{ flex: 1, minWidth: 0, overflow: "hidden", position: "relative" }}
+      >
         {/* Viewport-width wrapper, translated by -scrollLeft each frame; only
             the intersecting day cells are rendered (absolute), so the painted
             recording stays small and panning stays smooth. The wrapper itself
@@ -801,56 +804,12 @@ export function DashboardView({
   // while `formMinimized` is true. The modal stays mounted (`keepMounted`) so
   // the draft survives.
   const [formMinimized, setFormMinimized] = useState(false);
-  // The "Tap outside to minimize" caption floats *below* the dialog box,
-  // outside of it, so its position is measured rather than styled in: the
-  // dialog Paper's offsetParent is the modal's fixed full-viewport inner
-  // layer, which makes offsetTop/offsetLeft viewport coordinates directly.
-  // They're layout coordinates, so they stay stable during the modal's
-  // transform-only open/close animation (getBoundingClientRect would return
-  // the mid-scale box while the animation runs).
-  // Callback ref for Modal.Content — useState so the measurement effect
-  // re-runs when React calls the ref callback.  Mantine v9.5.1 wraps the
-  // modal body in <Activity mode="hidden"> when keepMounted (the default);
-  // during the Activity transition the DOM node is detached and the ref
-  // fires with null.  A plain useRef wouldn't trigger a re-measure when
-  // Activity switches to visible, so we track the element in state.
-  const [contentEl, setContentEl] = useState<HTMLDivElement | null>(null);
-  const [hintPosition, setHintPosition] = useState<{
-    bottom: number;
-    left: number;
-    width: number;
-  } | null>(null);
   const formIsOpen = formState !== null;
-
-  useEffect(() => {
-    const el = contentEl;
-    if (!el) return;
-    const update = () => {
-      if (el.offsetParent === null) {
-        // Paper is Activity-hidden (modal fully closed) — hide the caption.
-        setHintPosition(null);
-        return;
-      }
-      setHintPosition({
-        bottom: el.offsetTop + el.offsetHeight,
-        left: el.offsetLeft,
-        width: el.offsetWidth,
-      });
-    };
-    update();
-    const observer = new ResizeObserver(update);
-    observer.observe(el);
-    // Viewport resizes (soft keyboard, rotation) re-center a dialog that
-    // doesn't fill its max height; the ResizeObserver alone won't fire.
-    window.addEventListener("resize", update);
-    window.visualViewport?.addEventListener("resize", update);
-    return () => {
-      observer.disconnect();
-      window.removeEventListener("resize", update);
-      window.visualViewport?.removeEventListener("resize", update);
-    };
-  }, [contentEl, formIsOpen, formMinimized]);
-  const hintVisible = formIsOpen && !formMinimized && hintPosition !== null;
+  // The "Tap outside to minimize" caption is anchored to the bottom of the
+  // viewport (not the dialog's bottom), so its position never depends on the
+  // dialog's measured size — resizing between wizard steps or opening the
+  // modal can't make it jump.
+  const hintVisible = formIsOpen && !formMinimized;
   const [agendaDate, setAgendaDate] = useState<string | null>(null);
   // Direction of the last in-modal day change, so the new agenda can slide in
   // from the swipe/chevron direction (1 = next day, -1 = previous day,
@@ -1385,12 +1344,7 @@ export function DashboardView({
       ]
         .filter(Boolean)
         .join(" ");
-      return (
-        <UnstyledButton
-          {...props}
-          className={`${props.className ?? ""} ${extra}`.trim()}
-        />
-      );
+      return <UnstyledButton {...props} className={`${props.className ?? ""} ${extra}`.trim()} />;
     },
     [myEventIds],
   );
@@ -1405,12 +1359,7 @@ export function DashboardView({
       ]
         .filter(Boolean)
         .join(" ");
-      return (
-        <UnstyledButton
-          {...props}
-          className={`${props.className ?? ""} ${extra}`.trim()}
-        />
-      );
+      return <UnstyledButton {...props} className={`${props.className ?? ""} ${extra}`.trim()} />;
     },
     [myEventIds],
   );
@@ -2835,7 +2784,7 @@ export function DashboardView({
         transitionProps={formTransitionProps}
       >
         <Modal.Overlay />
-        <Modal.Content ref={setContentEl}>
+        <Modal.Content>
           <Modal.Header>
             <Modal.Title>
               {formState?.event
@@ -2902,12 +2851,13 @@ export function DashboardView({
         </Modal.Content>
       </Modal.Root>
 
-      {/* Floating caption under the dialog box. It lives outside the Paper
-          deliberately — the Paper clips anything inside it (overflow-y) —
-          and portals to <body> (like the restore bubble's Affix) so its
-          z-index competes at the root level: 260 puts it above the modal's
-          250 overlay and below the 300 bubble. Pinned to the measured Paper
-          bottom, cross-fading with the modal's own 250ms transitions.
+      {/* "Tap outside to minimize" hint, anchored to the viewport bottom (not
+          the dialog's bottom) so its position is stable regardless of dialog
+          size. It lives outside the Paper deliberately — the Paper clips
+          anything inside it (overflow-y) — and portals to <body> (like the
+          restore bubble's Affix) so its z-index competes at the root level:
+          260 puts it above the modal's 250 overlay and below the 300 bubble,
+          cross-fading with the modal's own 250ms transitions.
           pointer-events: none, so tapping the caption lands on the overlay
           → minimizes, which is what it advertises. */}
       <Portal>
@@ -2916,9 +2866,9 @@ export function DashboardView({
           aria-hidden={!hintVisible}
           style={{
             position: "fixed",
-            top: hintPosition ? hintPosition.bottom + 8 : -9999,
-            left: hintPosition?.left ?? -9999,
-            width: hintPosition?.width ?? 0,
+            bottom: 16,
+            left: 0,
+            right: 0,
             textAlign: "center",
             margin: 0,
             zIndex: 260,
@@ -2969,7 +2919,9 @@ export function DashboardView({
         values={filterValues}
         onApply={handleApplyFilters}
         collapsedGroupLabels={["Event Types"]}
-        hint={perViewMode ? `These filters apply to ${DASHBOARD_VIEW_LABELS[view]} only.` : undefined}
+        hint={
+          perViewMode ? `These filters apply to ${DASHBOARD_VIEW_LABELS[view]} only.` : undefined
+        }
         modeControl={
           <Group justify="space-between" align="center" gap="xs" wrap="wrap" mt="xs">
             <Text size="xs" c="dimmed" fw={600}>
@@ -2981,7 +2933,11 @@ export function DashboardView({
               onChange={(value) => {
                 const next = value === "per-view" ? ("per-view" as const) : ("global" as const);
                 setFilterModeState(next);
-                announce(next === "per-view" ? "Filters now separate per view" : "Filters now shared across views");
+                announce(
+                  next === "per-view"
+                    ? "Filters now separate per view"
+                    : "Filters now shared across views",
+                );
               }}
               data={[
                 { value: "global", label: "Same for all views" },

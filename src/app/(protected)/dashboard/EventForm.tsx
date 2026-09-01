@@ -54,11 +54,7 @@ import {
   type AmPm,
   type TimeOption,
 } from "@/lib/events/timeOptions";
-import {
-  clampEventEnd,
-  validateEventForm,
-  type EventFormValues,
-} from "@/lib/events/validate";
+import { clampEventEnd, validateEventForm, type EventFormValues } from "@/lib/events/validate";
 import type { CalendarEvent } from "@/lib/events/queries";
 import {
   formatEventTitle,
@@ -407,15 +403,21 @@ export function EventForm({
   // changed on step 1, so the step index stays valid when the list re-derives.
   const steps = buildSteps(isAdmin, showRemarksStep, showInviteesStep);
   const [step, setStep] = useState(0);
+  // Direction of the last step change ("forward"/"backward"), used to slide the
+  // entering step in from the corresponding side (see `.wizard-step-enter` in
+  // globals.css). Defaults forward so the initial step enters from the right.
+  const [direction, setDirection] = useState<"forward" | "backward">("forward");
   const [inviteePickerOpen, setInviteePickerOpen] = useState(false);
   const currentStep = steps[step];
   const isLastStep = step === steps.length - 1;
 
   function goBack() {
+    setDirection("backward");
     setStep((index) => Math.max(index - 1, 0));
   }
 
   function goToSummary() {
+    setDirection("forward");
     setStep(steps.length - 1);
   }
 
@@ -424,10 +426,10 @@ export function EventForm({
   // commit the event mid-typing. Only the explicit Create/Save button
   // submits. Implicit submission only applies to single-line inputs and
   // selects, not textareas — so the Remarks Textarea keeps its natural
-   // newline behavior. This also covers the admin "On behalf of" select and
-   // the invitee input. Component key handlers (e.g. the date/time pickers)
-   // run before this bubbling handler, so only the native default — the
-   // submit — is cancelled.
+  // newline behavior. This also covers the admin "On behalf of" select and
+  // the invitee input. Component key handlers (e.g. the date/time pickers)
+  // run before this bubbling handler, so only the native default — the
+  // submit — is cancelled.
   function handleFormKeyDown(event: KeyboardEvent<HTMLFormElement>) {
     if (event.key !== "Enter") {
       return;
@@ -449,6 +451,7 @@ export function EventForm({
     } else if (currentStep.fields.some((field) => form.validateField(field).hasError)) {
       return;
     }
+    setDirection("forward");
     setStep((index) => Math.min(index + 1, steps.length - 1));
   }
 
@@ -457,12 +460,12 @@ export function EventForm({
     const draft = { ...form.values, ...patch } as EventFormValues;
     const clamped = clampEventEnd(draft);
     // Apply the patch fields first, then any clamped end corrections.
-    (Object.entries(patch) as [keyof EventFormValues, EventFormValues[keyof EventFormValues]][]).forEach(
-      ([key, value]) => {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        form.setFieldValue(key as string as any, value as any);
-      },
-    );
+    (
+      Object.entries(patch) as [keyof EventFormValues, EventFormValues[keyof EventFormValues]][]
+    ).forEach(([key, value]) => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      form.setFieldValue(key as string as any, value as any);
+    });
     if (clamped.end !== draft.end) {
       form.setFieldValue("end", clamped.end);
     }
@@ -522,8 +525,14 @@ export function EventForm({
     const next = clampEventEnd({
       ...form.values,
       timeOption: option,
-      start: option !== "range" && form.values.start ? `${form.values.start.slice(0, 10)} 00:00:00` : form.values.start,
-      end: option !== "range" && form.values.end ? `${form.values.end.slice(0, 10)} 00:00:00` : form.values.end,
+      start:
+        option !== "range" && form.values.start
+          ? `${form.values.start.slice(0, 10)} 00:00:00`
+          : form.values.start,
+      end:
+        option !== "range" && form.values.end
+          ? `${form.values.end.slice(0, 10)} 00:00:00`
+          : form.values.end,
       startAmPm: option === "half" ? form.values.startAmPm || "AM" : "",
       endAmPm: option === "half" ? form.values.endAmPm || "PM" : "",
     } as EventFormValues);
@@ -736,6 +745,7 @@ export function EventForm({
         // Land the user on the step that owns the failing field.
         const target = steps.findIndex((s) => s.id === STEP_BY_FIELD[failedField]);
         if (target >= 0) {
+          setDirection(target > step ? "forward" : "backward");
           setStep(target);
         }
       }
@@ -760,7 +770,9 @@ export function EventForm({
       form.values[field] ? form.errors[field] : undefined;
     // End must never be before start — clamp on every edit and also hint
     // via minDate so the picker greys out earlier dates.
-    const endMinDate = form.values.start ? naiveToDate(`${form.values.start.slice(0, 10)} 00:00:00`) : null;
+    const endMinDate = form.values.start
+      ? naiveToDate(`${form.values.start.slice(0, 10)} 00:00:00`)
+      : null;
     const startField =
       option === "range" ? (
         <Stack gap="xs">
@@ -888,184 +900,224 @@ export function EventForm({
       />
       <Stack gap="sm">
         {currentStep.id === "type" && (
-          <Stack gap="xs">
-            {sortedEventTypes.length === 0 ? (
-              <Text size="sm" c="dimmed">
-                No event types
-              </Text>
-            ) : (
-              <Stack gap="sm">
-                {pickerSections.map((section) => (
-                  <Box key={section.ungrouped ? "ungrouped" : section.name}>
-                    <Text size="xs" fw={600} c="dimmed" mb={4}>
-                      {section.name}
-                    </Text>
-                    <Group gap={6} wrap="wrap">
-                      {section.types.map((type) => {
-                        const selected = type.name === form.values.eventType;
-                        return (
-                          <Badge
-                            key={type.name}
-                            variant={selected ? "filled" : "light"}
-                            size="lg"
-                            style={{ height: "calc(var(--badge-height-lg) * 1.5)", cursor: "pointer" }}
-                            onClick={() => handleEventTypeChange(selected ? null : type.name)}
-                          >
-                            {type.name}
-                          </Badge>
-                        );
-                      })}
-                    </Group>
-                  </Box>
-                ))}
-              </Stack>
-            )}
-            {form.errors.eventType && (
-              <Text size="xs" c="red">
-                {form.errors.eventType}
-              </Text>
-            )}
-          </Stack>
+          <div
+            key={currentStep.id}
+            className="wizard-step-enter"
+            style={{ "--slide-dir": direction === "forward" ? 1 : -1 } as React.CSSProperties}
+          >
+            <Stack gap="xs">
+              {sortedEventTypes.length === 0 ? (
+                <Text size="sm" c="dimmed">
+                  No event types
+                </Text>
+              ) : (
+                <Stack gap="sm">
+                  {pickerSections.map((section) => (
+                    <Box key={section.ungrouped ? "ungrouped" : section.name}>
+                      <Text size="xs" fw={600} c="dimmed" mb={4}>
+                        {section.name}
+                      </Text>
+                      <Group gap={6} wrap="wrap">
+                        {section.types.map((type) => {
+                          const selected = type.name === form.values.eventType;
+                          return (
+                            <Badge
+                              key={type.name}
+                              variant={selected ? "filled" : "light"}
+                              size="lg"
+                              style={{
+                                height: "calc(var(--badge-height-lg) * 1.5)",
+                                cursor: "pointer",
+                              }}
+                              onClick={() => handleEventTypeChange(selected ? null : type.name)}
+                            >
+                              {type.name}
+                            </Badge>
+                          );
+                        })}
+                      </Group>
+                    </Box>
+                  ))}
+                </Stack>
+              )}
+              {form.errors.eventType && (
+                <Text size="xs" c="red">
+                  {form.errors.eventType}
+                </Text>
+              )}
+            </Stack>
+          </div>
         )}
 
         {currentStep.id === "time" &&
           (showTabs ? (
-            <Tabs
-              value={effectiveTimeOption}
-              onChange={(value) => value && switchTimeOption(value as TimeOption)}
-              aria-label="Time option"
+            <div
+              key={currentStep.id}
+              className="wizard-step-enter"
+              style={{ "--slide-dir": direction === "forward" ? 1 : -1 } as React.CSSProperties}
             >
-              <Tabs.List grow>
-                {allowedOptions.map((option) => (
-                  <Tabs.Tab key={option} value={option}>
-                    {TIME_OPTION_LABELS[option]}
-                  </Tabs.Tab>
-                ))}
-              </Tabs.List>
-              <Tabs.Panel value={effectiveTimeOption} pt="sm">
-                <Stack>{timeFields(effectiveTimeOption)}</Stack>
-              </Tabs.Panel>
-            </Tabs>
+              <Tabs
+                value={effectiveTimeOption}
+                onChange={(value) => value && switchTimeOption(value as TimeOption)}
+                aria-label="Time option"
+              >
+                <Tabs.List grow>
+                  {allowedOptions.map((option) => (
+                    <Tabs.Tab key={option} value={option}>
+                      {TIME_OPTION_LABELS[option]}
+                    </Tabs.Tab>
+                  ))}
+                </Tabs.List>
+                <Tabs.Panel value={effectiveTimeOption} pt="sm">
+                  <Stack>{timeFields(effectiveTimeOption)}</Stack>
+                </Tabs.Panel>
+              </Tabs>
+            </div>
           ) : (
-            timeFields(effectiveTimeOption)
+            <div
+              key={currentStep.id}
+              className="wizard-step-enter"
+              style={{ "--slide-dir": direction === "forward" ? 1 : -1 } as React.CSSProperties}
+            >
+              {timeFields(effectiveTimeOption)}
+            </div>
           ))}
 
         {currentStep.id === "location" && (
-          <Stack>
-            <Text fw={500} size="sm">
-              Location
-            </Text>
-            <SegmentedControl
-              aria-label="Location"
-              fullWidth
-              data={allowedCategoryOptions.map((category) => ({
-                value: category,
-                label: LOCATION_CATEGORY_LABELS[category],
-              }))}
-              value={effectiveCategory}
-              disabled={allowedCategoryOptions.length === 1}
-              onChange={(value) => {
-                const flags = flagsFromCategory(value as LocationCategory);
-                form.setFieldValue("outOfCamp", flags.outOfCamp);
-                form.setFieldValue("overseas", flags.overseas);
-              }}
-            />
-            <TextInput
-              label={effectiveCategory === "overseas" ? "Overseas location" : "Location"}
-              placeholder={
-                effectiveCategory === "overseas"
-                  ? "Where the event takes place overseas"
-                  : "Where the event takes place"
-              }
-              {...form.getInputProps("location")}
-            />
-            <Text size="xs" c="dimmed">
-              {LOCATION_CATEGORY_DESCRIPTIONS[effectiveCategory]}
-            </Text>
-          </Stack>
+          <div
+            key={currentStep.id}
+            className="wizard-step-enter"
+            style={{ "--slide-dir": direction === "forward" ? 1 : -1 } as React.CSSProperties}
+          >
+            <Stack>
+              <Text fw={500} size="sm">
+                Location
+              </Text>
+              <SegmentedControl
+                aria-label="Location"
+                fullWidth
+                data={allowedCategoryOptions.map((category) => ({
+                  value: category,
+                  label: LOCATION_CATEGORY_LABELS[category],
+                }))}
+                value={effectiveCategory}
+                disabled={allowedCategoryOptions.length === 1}
+                onChange={(value) => {
+                  const flags = flagsFromCategory(value as LocationCategory);
+                  form.setFieldValue("outOfCamp", flags.outOfCamp);
+                  form.setFieldValue("overseas", flags.overseas);
+                }}
+              />
+              <TextInput
+                label={effectiveCategory === "overseas" ? "Overseas location" : "Location"}
+                placeholder={
+                  effectiveCategory === "overseas"
+                    ? "Where the event takes place overseas"
+                    : "Where the event takes place"
+                }
+                {...form.getInputProps("location")}
+              />
+              <Text size="xs" c="dimmed">
+                {LOCATION_CATEGORY_DESCRIPTIONS[effectiveCategory]}
+              </Text>
+            </Stack>
+          </div>
         )}
 
         {currentStep.id === "invitees" && (
-          <Stack gap="sm">
-            {inviteePickerGroups.length > 0 ? (
-              <Stack gap="xs">
-                <Group justify="space-between" align="center" gap="xs">
-                  <Text fw={600} size="sm">
-                    Invited Attendees
-                  </Text>
-                  <Button
-                    size="xs"
-                    variant="light"
-                    leftSection={<IconPlus size={14} />}
-                    onClick={() => setInviteePickerOpen(true)}
-                  >
-                    Select
-                  </Button>
-                </Group>
-                <Text size="xs" c="dimmed">
-                  A copy of the event is created in each tagged person&apos;s department and in each
-                  tagged department
-                </Text>
-                {(selectedInvitees.userIds.length > 0 || selectedInvitees.departmentIds.length > 0) && (
-                  <Group gap={6} wrap="wrap" align="start">
-                    {selectedInvitees.userIds.map((id) => {
-                      const person = peopleById[id];
-                      if (!person) {
-                        return null;
-                      }
-                      return (
-                        <Badge
-                          key={id}
-                          variant="light"
-                          color={id === form.values.creatorId ? "brand" : undefined}
-                        >
-                          {person.full}
-                        </Badge>
-                      );
-                    })}
-                    {selectedInvitees.departmentIds.map((id) =>
-                      departmentNames[id] ? (
-                        <Badge key={id} variant="light" color="accent">
-                          {departmentNames[id]}
-                        </Badge>
-                      ) : null,
-                    )}
+          <div
+            key={currentStep.id}
+            className="wizard-step-enter"
+            style={{ "--slide-dir": direction === "forward" ? 1 : -1 } as React.CSSProperties}
+          >
+            <Stack gap="sm">
+              {inviteePickerGroups.length > 0 ? (
+                <Stack gap="xs">
+                  <Group justify="space-between" align="center" gap="xs">
+                    <Text fw={600} size="sm">
+                      Invited Attendees
+                    </Text>
+                    <Button
+                      size="xs"
+                      variant="light"
+                      leftSection={<IconPlus size={14} />}
+                      onClick={() => setInviteePickerOpen(true)}
+                    >
+                      Select
+                    </Button>
                   </Group>
-                )}
-                <UserSelectModal
-                  opened={inviteePickerOpen}
-                  onClose={() => setInviteePickerOpen(false)}
-                  groups={inviteePickerGroups}
-                  values={inviteePickerValues}
-                  onConfirm={applyInviteePicker}
-                  confirmLabel="Select"
-                  zIndex={300}
-                />
-              </Stack>
-            ) : (
-              <Text size="sm" c="dimmed">
-                No active users or departments to tag yet.
-              </Text>
-            )}
-            <Switch
-              label="Pin this event"
-              description="Shows this event in the Pinned Events panel on every page"
-              {...form.getInputProps("pinned", { type: "checkbox" })}
-            />
-          </Stack>
+                  <Text size="xs" c="dimmed">
+                    A copy of the event is created in each tagged person&apos;s department and in
+                    each tagged department
+                  </Text>
+                  {(selectedInvitees.userIds.length > 0 ||
+                    selectedInvitees.departmentIds.length > 0) && (
+                    <Group gap={6} wrap="wrap" align="start">
+                      {selectedInvitees.userIds.map((id) => {
+                        const person = peopleById[id];
+                        if (!person) {
+                          return null;
+                        }
+                        return (
+                          <Badge
+                            key={id}
+                            variant="light"
+                            color={id === form.values.creatorId ? "brand" : undefined}
+                          >
+                            {person.full}
+                          </Badge>
+                        );
+                      })}
+                      {selectedInvitees.departmentIds.map((id) =>
+                        departmentNames[id] ? (
+                          <Badge key={id} variant="light" color="accent">
+                            {departmentNames[id]}
+                          </Badge>
+                        ) : null,
+                      )}
+                    </Group>
+                  )}
+                  <UserSelectModal
+                    opened={inviteePickerOpen}
+                    onClose={() => setInviteePickerOpen(false)}
+                    groups={inviteePickerGroups}
+                    values={inviteePickerValues}
+                    onConfirm={applyInviteePicker}
+                    confirmLabel="Select"
+                    zIndex={300}
+                  />
+                </Stack>
+              ) : (
+                <Text size="sm" c="dimmed">
+                  No active users or departments to tag yet.
+                </Text>
+              )}
+              <Switch
+                label="Pin this event"
+                description="Shows this event in the Pinned Events panel on every page"
+                {...form.getInputProps("pinned", { type: "checkbox" })}
+              />
+            </Stack>
+          </div>
         )}
 
         {currentStep.id === "remarks" && (
-          <Textarea
-            label="Remarks"
-            description="Optional — the calendar title is rendered from the title template"
-            placeholder="Add remarks"
-            autosize
-            minRows={2}
-            maxRows={4}
-            style={{ resize: "none" }}
-            {...form.getInputProps("title")}
-          />
+          <div
+            key={currentStep.id}
+            className="wizard-step-enter"
+            style={{ "--slide-dir": direction === "forward" ? 1 : -1 } as React.CSSProperties}
+          >
+            <Textarea
+              label="Remarks"
+              description="Optional — the calendar title is rendered from the title template"
+              placeholder="Add remarks"
+              autosize
+              minRows={2}
+              maxRows={4}
+              style={{ resize: "none" }}
+              {...form.getInputProps("title")}
+            />
+          </div>
         )}
 
         {/* Admins only, after Remarks: who this event is recorded as created
@@ -1075,178 +1127,195 @@ export function EventForm({
             withSelfCreator normalization); the review step below reflects the
             effective owner. */}
         {currentStep.id === "creator" && (
-          <NoKeyboardSelect
-            label="On behalf of"
-            description="Optional — leave empty to create or edit this event as yourself"
-            placeholder="Yourself"
-            data={inviteeUsers.map((user) => ({ value: user.id, label: user.displayName }))}
-            value={form.values.creatorId || null}
-            onChange={(value) => {
-              const next = value ?? "";
-              const previous = form.values.creatorId;
-              const invitees = previous
-                ? form.values.invitees.filter((entry) => `${entry}` !== `user:${previous}`)
-                : [...form.values.invitees];
-              form.setFieldValue("creatorId", next);
-              form.setFieldValue(
-                "invitees",
-                next ? [...new Set([...invitees, `user:${next}`])] : invitees,
-              );
-            }}
-            error={form.errors.creatorId}
-            searchable
-          />
+          <div
+            key={currentStep.id}
+            className="wizard-step-enter"
+            style={{ "--slide-dir": direction === "forward" ? 1 : -1 } as React.CSSProperties}
+          >
+            <NoKeyboardSelect
+              label="On behalf of"
+              description="Optional — leave empty to create or edit this event as yourself"
+              placeholder="Yourself"
+              data={inviteeUsers.map((user) => ({ value: user.id, label: user.displayName }))}
+              value={form.values.creatorId || null}
+              onChange={(value) => {
+                const next = value ?? "";
+                const previous = form.values.creatorId;
+                const invitees = previous
+                  ? form.values.invitees.filter((entry) => `${entry}` !== `user:${previous}`)
+                  : [...form.values.invitees];
+                form.setFieldValue("creatorId", next);
+                form.setFieldValue(
+                  "invitees",
+                  next ? [...new Set([...invitees, `user:${next}`])] : invitees,
+                );
+              }}
+              error={form.errors.creatorId}
+              searchable
+            />
+          </div>
         )}
 
         {/* Last step: a read-only review of everything entered. The calendar
             preview lives here — it renders the exact title the server will
             write to Google. Submitting commits the event. */}
         {currentStep.id === "review" && (
-          <Stack gap="sm">
-            <Paper withBorder p="sm">
-              <Stack gap={4}>
-                <Text size="sm" fw={500} c="accent.6" tt="uppercase">
-                  Calendar preview
-                </Text>
-                <Stack gap={2}>
-                  <Text size="xs" c="dimmed">
-                    Google will store as:
+          <div
+            key={currentStep.id}
+            className="wizard-step-enter"
+            style={{ "--slide-dir": direction === "forward" ? 1 : -1 } as React.CSSProperties}
+          >
+            <Stack gap="sm">
+              <Paper withBorder p="sm">
+                <Stack gap={4}>
+                  <Text size="sm" fw={500} c="accent.6" tt="uppercase">
+                    Calendar preview
                   </Text>
-                  <Text size="sm" fw={600} style={{ overflowWrap: "anywhere" }}>
-                    {previewTitles.master || "—"}
-                  </Text>
-                </Stack>
-                {!previewTitles.isSame && (
                   <Stack gap={2}>
                     <Text size="xs" c="dimmed">
-                      {viewLabel ? `${viewLabel} view will display as:` : "This view will display as:"}
+                      Google will store as:
                     </Text>
                     <Text size="sm" fw={600} style={{ overflowWrap: "anywhere" }}>
-                      {previewTitles.view || "—"}
+                      {previewTitles.master || "—"}
                     </Text>
                   </Stack>
-                )}
-              </Stack>
-            </Paper>
+                  {!previewTitles.isSame && (
+                    <Stack gap={2}>
+                      <Text size="xs" c="dimmed">
+                        {viewLabel
+                          ? `${viewLabel} view will display as:`
+                          : "This view will display as:"}
+                      </Text>
+                      <Text size="sm" fw={600} style={{ overflowWrap: "anywhere" }}>
+                        {previewTitles.view || "—"}
+                      </Text>
+                    </Stack>
+                  )}
+                </Stack>
+              </Paper>
 
-            <Stack gap={4}>
-              <Text size="xs" c="dimmed" fw={600}>
-                When
-              </Text>
-              <Text size="sm">{whenText || "—"}</Text>
-            </Stack>
-
-            <Stack gap={4}>
-              <Text size="xs" c="dimmed" fw={600}>
-                Pinned
-              </Text>
-              {form.values.pinned ? (
-                <Badge variant="light" color="accent">
-                  Pinned to the Pinned Events panel
-                </Badge>
-              ) : (
-                <Text size="sm" c="dimmed">
-                  —
-                </Text>
-              )}
-            </Stack>
-
-            {showLocationStep && (
               <Stack gap={4}>
                 <Text size="xs" c="dimmed" fw={600}>
-                  Location
+                  When
                 </Text>
-                <Group gap={6} wrap="wrap">
-                  <Badge variant="light" color={effectiveOutOfCamp.outOfCamp ? "yellow" : "green"}>
-                    {effectiveOutOfCamp.outOfCamp ? "Out of Camp" : "In Camp"}
-                  </Badge>
-                  {effectiveOutOfCamp.overseas && (
-                    <Badge variant="light" color="blue">
-                      Overseas
-                    </Badge>
-                  )}
-                  {effectiveOutOfCamp.location && (
-                    <Text size="sm" c="dimmed">
-                      {effectiveOutOfCamp.location}
-                    </Text>
-                  )}
-                </Group>
+                <Text size="sm">{whenText || "—"}</Text>
               </Stack>
-            )}
 
-            <Stack gap={4}>
-              <Text size="xs" c="dimmed" fw={600}>
-                Event Type
-              </Text>
-              <Group gap={6} wrap="wrap">
-                {form.values.eventType ? (
-                  <Badge variant="light">{form.values.eventType}</Badge>
+              <Stack gap={4}>
+                <Text size="xs" c="dimmed" fw={600}>
+                  Pinned
+                </Text>
+                {form.values.pinned ? (
+                  <Badge variant="light" color="accent">
+                    Pinned to the Pinned Events panel
+                  </Badge>
                 ) : (
                   <Text size="sm" c="dimmed">
                     —
                   </Text>
                 )}
-              </Group>
-            </Stack>
+              </Stack>
 
-            {isAdmin && (
+              {showLocationStep && (
+                <Stack gap={4}>
+                  <Text size="xs" c="dimmed" fw={600}>
+                    Location
+                  </Text>
+                  <Group gap={6} wrap="wrap">
+                    <Badge
+                      variant="light"
+                      color={effectiveOutOfCamp.outOfCamp ? "yellow" : "green"}
+                    >
+                      {effectiveOutOfCamp.outOfCamp ? "Out of Camp" : "In Camp"}
+                    </Badge>
+                    {effectiveOutOfCamp.overseas && (
+                      <Badge variant="light" color="blue">
+                        Overseas
+                      </Badge>
+                    )}
+                    {effectiveOutOfCamp.location && (
+                      <Text size="sm" c="dimmed">
+                        {effectiveOutOfCamp.location}
+                      </Text>
+                    )}
+                  </Group>
+                </Stack>
+              )}
+
               <Stack gap={4}>
                 <Text size="xs" c="dimmed" fw={600}>
-                  On behalf of
+                  Event Type
                 </Text>
                 <Group gap={6} wrap="wrap">
-                  {creatorName ? (
-                    <Badge variant="light" color="brand">
-                      {creatorName}
-                    </Badge>
+                  {form.values.eventType ? (
+                    <Badge variant="light">{form.values.eventType}</Badge>
                   ) : (
-                    <Text size="sm">Yourself</Text>
+                    <Text size="sm" c="dimmed">
+                      —
+                    </Text>
                   )}
                 </Group>
               </Stack>
-            )}
 
-            {reviewPeople.length > 0 && (
-              <Stack gap={4}>
-                <Text size="xs" c="dimmed" fw={600}>
-                  Invited Attendees
-                </Text>
-                <Group gap={6} wrap="wrap">
-                  {reviewPeople.map((name) => (
-                    <Badge key={name} variant="light">
-                      {name}
-                    </Badge>
-                  ))}
-                </Group>
-              </Stack>
-            )}
+              {isAdmin && (
+                <Stack gap={4}>
+                  <Text size="xs" c="dimmed" fw={600}>
+                    On behalf of
+                  </Text>
+                  <Group gap={6} wrap="wrap">
+                    {creatorName ? (
+                      <Badge variant="light" color="brand">
+                        {creatorName}
+                      </Badge>
+                    ) : (
+                      <Text size="sm">Yourself</Text>
+                    )}
+                  </Group>
+                </Stack>
+              )}
 
-            {reviewDepartments.length > 0 && (
-              <Stack gap={4}>
-                <Text size="xs" c="dimmed" fw={600}>
-                  Departments
-                </Text>
-                <Group gap={6} wrap="wrap">
-                  {reviewDepartments.map((name) => (
-                    <Badge key={name} variant="light" color="accent">
-                      {name}
-                    </Badge>
-                  ))}
-                </Group>
-              </Stack>
-            )}
+              {reviewPeople.length > 0 && (
+                <Stack gap={4}>
+                  <Text size="xs" c="dimmed" fw={600}>
+                    Invited Attendees
+                  </Text>
+                  <Group gap={6} wrap="wrap">
+                    {reviewPeople.map((name) => (
+                      <Badge key={name} variant="light">
+                        {name}
+                      </Badge>
+                    ))}
+                  </Group>
+                </Stack>
+              )}
 
-            {showRemarksStep && (
-              <Stack gap={4}>
-                <Text size="xs" c="dimmed" fw={600}>
-                  Remarks
-                </Text>
-                <Text size="sm" style={{ overflowWrap: "anywhere", whiteSpace: "pre-wrap" }}>
-                  {form.values.title.trim() || "—"}
-                </Text>
-              </Stack>
-            )}
-          </Stack>
+              {reviewDepartments.length > 0 && (
+                <Stack gap={4}>
+                  <Text size="xs" c="dimmed" fw={600}>
+                    Departments
+                  </Text>
+                  <Group gap={6} wrap="wrap">
+                    {reviewDepartments.map((name) => (
+                      <Badge key={name} variant="light" color="accent">
+                        {name}
+                      </Badge>
+                    ))}
+                  </Group>
+                </Stack>
+              )}
+
+              {showRemarksStep && (
+                <Stack gap={4}>
+                  <Text size="xs" c="dimmed" fw={600}>
+                    Remarks
+                  </Text>
+                  <Text size="sm" style={{ overflowWrap: "anywhere", whiteSpace: "pre-wrap" }}>
+                    {form.values.title.trim() || "—"}
+                  </Text>
+                </Stack>
+              )}
+            </Stack>
+          </div>
         )}
 
         <Group justify={step === 0 ? "flex-end" : "space-between"} gap="sm">
