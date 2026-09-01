@@ -4,8 +4,9 @@ A header-launched, free-text search over every department calendar. It reads
 events **directly from Google Calendar** (deliberately bypassing the month
 cache described in [`events-cache.md`](events-cache.md)), so results are
 authoritative within the date range the user picks. Results render in the
-lazily-loaded `@mantine/schedule` agenda and deep-link back into the
-dashboard's existing event-detail flow.
+lazily-loaded `@mantine/schedule` agenda; tapping one opens the **shared** event
+detail modal (the same component the dashboard uses) with a brief loading
+skeleton, then deep-links into the dashboard from there.
 
 ## Table of contents
 
@@ -46,8 +47,9 @@ event across every department.
 - Not a structured query: the search term matches Google's `q` fields only
   (see §1.8) — no event-type/people filters beyond what the title carries.
 - No persistence, no index, no cache: results are recomputed on every search.
-- Not edit-in-place: results deep-link into the dashboard's detail modal, which
-  owns all edit/duplicate/delete wiring.
+- Not edit-in-place: the search-origin detail modal is **read-only** — it shows
+  the event's full info but defers edit/delete to the dashboard (its "Edit" and
+  "Open in calendar" actions deep-link there), which owns all mutation wiring.
 
 ## 1.3 Architecture overview
 
@@ -56,12 +58,14 @@ flowchart LR
     subgraph SHELL["AppShellShell (client)"]
         B["header Search ActionIcon<br/>(between pinned + theme)"]
         M["EventSearchModal<br/>dynamic(ssr: false)"]
+        DET["EventDetail (shared)<br/>loading skeleton → content"]
     end
-    subgraph ACTION["Server action (search.ts)"]
+    subgraph ACTION["Server actions (search.ts)"]
         R["requireSession()"]
         C["listCalendars() + listEventTypes()"]
         F["mapWithConcurrency <= 4"]
         MAP["mapCalendarItem + dedupeEventsByGroupId"]
+        NAM["resolveEventDetailNames()<br/>(getUsersByIds + listCalendars)"]
     end
     subgraph G["Google Calendar"]
         LIST["events.list(q, timeMin, timeMax)<br/>per calendar"]
@@ -70,7 +74,9 @@ flowchart LR
     M -->|searchEvents(q, from, to)| R --> C --> F
     F --> LIST
     LIST --> MAP --> M
-    M -->|result click| DEEP["/dashboard?date=..&event=.."]
+    M -->|result click| DET
+    DET -->|names| NAM
+    DET -->|"Edit / Open"| DEEP["/dashboard?date=..&edit=.. / &event=.."]
 ```
 
 Search calls `events.list` directly through `getGoogleIntegration()` — it never
@@ -104,11 +110,20 @@ are identical in shape. The stub returns `[]`.
    collapses cross-department copies with `dedupeEventsByGroupId`, so one
    logical event appears once regardless of how many department calendars it
    lives in.
-7. Sorts by `start` (stable) and returns `{ ok: true, events }`.
+7. Sorts by `start` (stable) and returns
+   `{ ok: true, events, currentUserId, isAdmin }` — the viewer identity rides
+   along so the read-only detail modal can apply the same `isAdmin || creator`
+   gating as the dashboard.
 
 Failure surfaces as `{ ok: false, error }` (the client shows it inline); there
-is no throw. The result is `CalendarEvent[]`, the same shape the dashboard
-consumes, so `@mantine/schedule` needs no adapter.
+is no throw. The result events are `CalendarEvent[]`, the same shape the
+dashboard consumes, so `@mantine/schedule` needs no adapter.
+
+A second action, `resolveEventDetailNames({ creatorId, userIds, departmentIds })`,
+resolves display names for one event's people/departments (`getUsersByIds` +
+`listCalendars` + `formatFullName` with the display-name template) — a fast DB
+read (no Google), run when a result is tapped so the detail modal's skeleton is
+brief.
 
 ## 1.6 Search scope & security
 
@@ -166,20 +181,28 @@ index (a separate concern from this native-search feature; see
 `EventSearchModal` (`src/components/EventSearchModal.tsx`):
 
 - Loaded with `dynamic(() => import(...), { ssr: false })` and mounted only
-  once `searchOpen` is true, so the modal — its `AgendaView`, `DatePickerInput`
-  and `@mantine/schedule` usage — never contributes to the shell's first paint.
+  once first opened (a `searchLoaded` flag in the shell keeps it mounted
+  afterward, so the shrink-out animation plays and repeat opens don't reload
+  the chunk), so the modal — its `AgendaView`, `DatePickerInput` and
+  `@mantine/schedule` usage — never contributes to the shell's first paint.
 - Owned by `AppShellShell`: the header `ActionIcon` (between the pinned-events
-  button and `ThemeToggle`) toggles it, `{searchOpen && <EventSearchModal …/>}`
-  renders it next to `<PinnedEventsPanel />`.
+  button and `ThemeToggle`) toggles it; on click the shell captures the icon's
+  rect and passes it down as `originRect`, and the modal zooms out of / shrinks
+  back into it via the app's standard `motion/origin` transition (mirroring
+  `PinnedEventsPanel`).
 - Contents: a query `TextInput` (autofocus), two `DatePickerInput`s (From/To,
   cleared → server defaults), a Search `Button` with `BUTTON_LOADER_PROPS`, and
   an `AgendaView` result list grouped by day. `rangeStart`/`rangeEnd` are the
   first/last result's start day, so empty days in between aren't rendered as
   headers. Results are "No events match your search" when empty.
-- A result click closes the modal and navigates
-  `/dashboard?date=<start day>` (+ `&event=<group id>` for internal events),
-  reusing the existing `?event=`/`?date=` deep-link machinery (`page.tsx:
-  63-66`).
+- A result click opens the **shared** `EventDetail` (the same component the
+  dashboard imports) over the results: `loading` is true while
+  `resolveEventDetailNames` resolves the people/department names (a skeleton),
+  then the full content renders. The search-origin detail is `viewOnly` — its
+  action row is an "Open in calendar" deep-link (`?event=…&date=…`, or `?date=`
+  for legacy/external events) plus an "Edit" deep-link (`?edit=…`) for
+  internal events the viewer may edit — reusing the dashboard's existing deep-link
+  machinery (`page.tsx:63-66`).
 
 ## 1.10 Pure helpers & testing
 
@@ -203,11 +226,12 @@ wiring) follows the repo convention of being I/O-bound and untested.
 | `src/lib/google/types.ts` | `searchEvents` contract |
 | `src/lib/google/real.ts` | `events.list({ ..., q })` implementation |
 | `src/lib/google/stub.ts` | `searchEvents` → `[]` |
-| `src/lib/events/search.ts` | `searchEvents` server action (`"use server"`) |
+| `src/lib/events/search.ts` | `searchEvents` + `resolveEventDetailNames` server actions |
 | `src/lib/events/searchRange.ts` | Pure date-range/default helpers (tested) |
 | `src/lib/events/queries.ts` | `mapCalendarItem` (now exported; reused by search) |
-| `src/components/EventSearchModal.tsx` | Lazy-loaded search modal + agenda results |
-| `src/components/AppShellShell.tsx` | Header search button + modal mount |
+| `src/app/(protected)/dashboard/EventDetail.tsx` | The shared detail modal (`loading` skeleton + `viewOnly` deep-link mode) |
+| `src/components/EventSearchModal.tsx` | Lazy-loaded search modal + agenda + shared detail overlay |
+| `src/components/AppShellShell.tsx` | Header search button + modal mount + origin rect |
 
 Related docs:
 

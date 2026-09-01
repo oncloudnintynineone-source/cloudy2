@@ -225,6 +225,11 @@ export function AppShellShell({
   // shell stays mounted across the navigation, so the modal survives it).
   const [pinnedOpen, setPinnedOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
+  // The lazy search modal stays mounted after its first open so the shrink-out
+  // animation can play (and later opens don't reload the chunk).
+  const [searchLoaded, setSearchLoaded] = useState(false);
+  // The search icon's rect at open time; the modal zooms out of / shrinks into it.
+  const [searchOriginRect, setSearchOriginRect] = useState<Rect | null>(null);
   const router = useRouter();
   // The header button's rect at open time: the panel modal zooms out of /
   // shrinks back into it. Captured before any navigation — the header is
@@ -559,7 +564,11 @@ export function AppShellShell({
                   c="white"
                   size="lg"
                   aria-label="Search events"
-                  onClick={() => setSearchOpen(true)}
+                  onClick={(e) => {
+                    setSearchOriginRect(e.currentTarget.getBoundingClientRect());
+                    setSearchLoaded(true);
+                    setSearchOpen(true);
+                  }}
                 >
                   <IconSearch size={18} />
                 </ActionIcon>
@@ -628,8 +637,12 @@ export function AppShellShell({
               <StatusAnnouncer />
               {children}
               <PinnedEventsPanel />
-              {searchOpen && (
-                <EventSearchModal opened={searchOpen} onClose={() => setSearchOpen(false)} />
+              {searchLoaded && (
+                <EventSearchModal
+                  opened={searchOpen}
+                  onClose={() => setSearchOpen(false)}
+                  originRect={searchOriginRect}
+                />
               )}
             </PinnedPanelContext.Provider>
           </ImmersiveModeContext.Provider>
