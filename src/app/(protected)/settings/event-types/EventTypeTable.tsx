@@ -252,7 +252,7 @@ export function EventTypeTable({ types, groups }: EventTypeTableProps) {
         onClose={closeForm}
         title={editing ? "Edit event type" : "Add event type"}
         centered
-        size={isDesktop ? "md" : "sm"}
+        size={isDesktop ? "lg" : "sm"}
       >
         <EventTypeForm
           key={editing?.id ?? "new"}

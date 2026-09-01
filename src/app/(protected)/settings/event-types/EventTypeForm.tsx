@@ -121,13 +121,16 @@ export function EventTypeForm({ eventType, groups, onDone }: EventTypeFormProps)
   return (
     <form onSubmit={onSubmit}>
       <Stack>
-        {/* At lg the modal is wide enough for a three-column field grid. */}
+        {/* At lg the modal is wide enough for a three-column field grid. All
+            three columns share the same label + field + description structure
+            so they align evenly. */}
         <Grid gap="md">
           <Grid.Col span={{ base: 12, sm: 6, lg: 4 }}>
             <TextInput
               label="Name"
               required
               placeholder="Event type name"
+              description="The name users pick in the event form"
               {...form.getInputProps("name")}
             />
           </Grid.Col>
@@ -203,42 +206,48 @@ export function EventTypeForm({ eventType, groups, onDone }: EventTypeFormProps)
                 ))}
               </Stack>
             </Checkbox.Group>
-            <Checkbox
-              mt="lg"
-              label="Show remarks in the event form"
-              description="Events of this type may carry a description; hide it for types that don't need one"
-              checked={form.values.showRemarks}
-              onChange={(event) => form.setFieldValue("showRemarks", event.currentTarget.checked)}
-            />
-            <Checkbox
-              mt="xs"
-              label="Show invited attendees in the event form"
-              description="Let users tag people and departments on events of this type; hide it for types that involve only the creator"
-              checked={form.values.showInvitees}
-              onChange={(event) => form.setFieldValue("showInvitees", event.currentTarget.checked)}
-            />
-          </Grid.Col>
-
-          {/* Swatch buttons (not an input), same no-keyboard rationale as the
-              Role/Department badges in UserForm: tapping a swatch on mobile
-              never raises the keyboard. */}
-          <Grid.Col span={12}>
-            <Stack gap={4}>
-              <Text fw={500} size="sm">
-                Event color
-              </Text>
-              <ColorSwatchPicker
-                value={form.values.color ?? ""}
-                onChange={(color) => form.setFieldValue("color", color)}
-                autoRefId={eventType?.name ?? null}
-              />
-              <Text size="sm" c="dimmed">
-                The color this type&apos;s events appear in. Auto uses a stable default derived
-                from the type name.
-              </Text>
-            </Stack>
           </Grid.Col>
         </Grid>
+
+        {/* Form-level visibility toggles, deliberately NOT inside the location
+            matrix above: they control the event wizard (remarks/invitees steps),
+            not where an event may take place. Rendered as their own labeled
+            block so they don't read as sub-options of Allowed locations. */}
+        <Stack gap={4}>
+          <Text fw={500} size="sm">
+            Event form
+          </Text>
+          <Checkbox
+            label="Show remarks in the event form"
+            description="Events of this type may carry a description; hide it for types that don't need one"
+            checked={form.values.showRemarks}
+            onChange={(event) => form.setFieldValue("showRemarks", event.currentTarget.checked)}
+          />
+          <Checkbox
+            label="Show invited attendees in the event form"
+            description="Let users tag people and departments on events of this type; hide it for types that involve only the creator"
+            checked={form.values.showInvitees}
+            onChange={(event) => form.setFieldValue("showInvitees", event.currentTarget.checked)}
+          />
+        </Stack>
+
+        {/* Swatch buttons (not an input), same no-keyboard rationale as the
+            Role/Department badges in UserForm: tapping a swatch on mobile
+            never raises the keyboard. */}
+        <Stack gap={4}>
+          <Text fw={500} size="sm">
+            Event color
+          </Text>
+          <ColorSwatchPicker
+            value={form.values.color ?? ""}
+            onChange={(color) => form.setFieldValue("color", color)}
+            autoRefId={eventType?.name ?? null}
+          />
+          <Text size="sm" c="dimmed">
+            The color this type&apos;s events appear in. Auto uses a stable default derived
+            from the type name.
+          </Text>
+        </Stack>
         <Group justify="flex-end" mt="md" wrap="nowrap">
           {isEdit && (
             <Button type="button" color="red" variant="light" onClick={openConfirm}>

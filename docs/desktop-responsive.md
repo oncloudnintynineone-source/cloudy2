@@ -232,7 +232,7 @@ Contacts/Audit-log "Export", Parade-state attendance).
   | ---- | --------------- |
   | Users (`UserTable`) | Name · Phone · Role · Department · Status · Edit (row click = edit) |
   | Departments (`DepartmentTable`) | Name · Calendar ID · Share · Rename · Delete |
-  | Event Types (`EventTypeTable`) | Name · Acronym · Time options · Allowed locations (row click = edit) |
+  | Event Types (`EventTypeTable`) | Name · Group · Acronym · Color · Time options · Allowed locations (row click = edit) |
   | Audit Log (`AuditLogView`) | Time · Actor · Action · Entity · Route · Details (row click = detail modal) |
 
 - **Audit Log filters** — mobile keeps them in the ⋮ menu; at `lg` they render as
@@ -240,10 +240,13 @@ Contacts/Audit-log "Export", Parade-state attendance).
   Reset + Export) above the table.
 - **Forms go 2-column** at `lg` via `Grid gap="md"` with
   `Grid.Col span={{ base: 12, lg: 6 }}` pairs: `UserForm` (Name/Shortname,
-  Phone/Email, Birthday half-width), `EventTypeForm` (Name/Acronym,
-  Time options/Allowed locations + remarks/invitees toggles), `TemplatesForm` and the
-  General tab's `SettingsForm` (keyword + audit-retention fields side by side; the KAH
-  breach-email template cards live on the KAH Groups tab).
+  Phone/Email, Birthday half-width), `TemplatesForm` and the General tab's
+  `SettingsForm` (keyword + audit-retention fields side by side; the KAH breach-email
+  template cards live on the KAH Groups tab). `EventTypeForm` is a **3-column top
+  row** at `lg` (`span {{ base: 12, sm: 6, lg: 4 }}` for Name/Acronym/Group — a
+  `description` on every field keeps the columns equal height and aligned) over a
+  2-column Time options/Allowed locations matrix, a separate **Event form** block
+  for the remarks/invitees toggles, and the color swatches.
 - Modals widen one size step (1.7); settings pages wrap their content in
   `PageContainer` from `settings/layout.tsx`.
 
@@ -283,7 +286,7 @@ step so the dialog never approaches the viewport edge:
 | Filter modal (`FilterModal`) | `xs` | `sm` | `md` |
 | Date picker (`DateSelectorModal`) | `xs` | `sm` | `md` |
 | User form | `md` | `md` | `lg` |
-| Event type form | `sm` | `sm` | `md` |
+| Event type form | `sm` | `sm` | `lg` |
 | Event search (`EventSearchModal`) | `sm` | `md` | `lg` |
 | Pinned events (`PinnedEventsPanel`) | `sm` | `md` | `lg` |
 | Audit detail (`LogDetailModal`) | `md` | `md` | `lg` |
