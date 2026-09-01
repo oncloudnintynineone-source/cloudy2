@@ -883,6 +883,20 @@ export function DashboardView({
     setDetailEvent(found);
     setEditLinkFailed(found === null);
   }
+  // Same-route `?edit=` deep link (the search modal's "Edit" action, or a
+  // Google Calendar note link opened while the dashboard is already mounted):
+  // the mount-time `formState` initializer above never re-runs, so re-open the
+  // edit form per new id, mirroring the detail link handling.
+  const [prevEditLinkId, setPrevEditLinkId] = useState<string | null>(null);
+  if (initialEditEventId !== null && initialEditEventId !== prevEditLinkId) {
+    setPrevEditLinkId(initialEditEventId);
+    const found = events.find((event) => event.payload.eventId === initialEditEventId) ?? null;
+    if (found) {
+      setFormMinimized(false);
+      setFormState({ event: found, templateEvent: null, defaultDate: found.start.slice(0, 10) });
+    }
+    setEditLinkFailed(found === null);
+  }
   const [filterOpened, { open: openFilter, close: closeFilter }] = useDisclosure(false);
   const [pickerOpened, { open: openPicker, close: closePicker }] = useDisclosure(false);
 
