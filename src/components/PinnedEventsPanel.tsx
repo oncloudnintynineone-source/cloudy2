@@ -101,9 +101,14 @@ export function PinnedEventsPanel() {
     closePanel();
     const day = formatDay(event.start);
     // Deep-link the event so the dashboard auto-opens its details; legacy
-    // events without a group id fall back to landing on the date alone.
+    // events without a group id fall back to landing on the date alone. The
+    // `_eventCal` hint mirrors event search so the dashboard's fetch always
+    // includes the pinned event's calendar even when the current filters
+    // exclude it.
     router.push(
-      event.eventId ? `/dashboard?date=${day}&event=${event.eventId}` : `/dashboard?date=${day}`,
+      event.eventId
+        ? `/dashboard?date=${day}&event=${event.eventId}&_eventCal=${event.calendarId}`
+        : `/dashboard?date=${day}`,
     );
   };
 

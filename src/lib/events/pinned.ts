@@ -20,6 +20,8 @@ export interface PinnedEvent {
   color: string;
   allDay: boolean;
   departments: string[];
+  /** Department calendar this pinned copy lives on (`_eventCal` deep link). */
+  calendarId: string;
   /** Group id shared by all department copies of the event (the dashboard's
    *  `?event=` deep link matches on it), or null for legacy events. */
   eventId: string | null;
@@ -165,6 +167,7 @@ export async function fetchPinnedEvents(): Promise<PinnedEvent[]> {
         color: e.color,
         allDay: e.payload.allDay,
         departments,
+        calendarId: e.payload.calendarId,
         eventId: e.payload.eventId,
       };
     });

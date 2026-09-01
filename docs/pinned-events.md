@@ -46,11 +46,11 @@ link auto-opens the event's details modal (Edit / Duplicate / Delete per the usu
 
 - `eventId` is the group id shared by all department copies of the event; legacy
   events without one fall back to the date alone.
+- The link also carries `&_eventCal=<calendar id>` (the pinned copy's department
+  calendar), so `page.tsx` adds that calendar to the fetch set only — a pinned
+  event outside the current view's filters still opens. This mirrors event search.
 - Opening from a non-dashboard page navigates to the dashboard first (the shell stays
   mounted, so the modal survives).
-- The dashboard resolves the group against the current view's filtered events first,
-  then an unfiltered lookup across all calendars (`page.tsx` `initialDetailEvent`), so
-  a pinned event outside the current filters still opens.
 
 ## 1.4 The count badge & refresh events
 

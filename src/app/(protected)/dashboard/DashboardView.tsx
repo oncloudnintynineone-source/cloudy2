@@ -243,13 +243,6 @@ interface DashboardViewProps {
    * fetched events include a copy of the group.
    */
   initialDetailEventId: string | null;
-  /**
-   * Server-resolved copy of the `?event=` deep link. The view's filtered
-   * events are tried first; when they exclude the group (search can surface
-   * cross-department events the current filters don't encompass) the server
-   * falls back to an unfiltered lookup so the details can always open.
-   */
-  initialDetailEvent: CalendarEvent | null;
   scheduleUsers: ScheduleUser[];
   /** Full active roster: row source when the Users filter narrows the rows. */
   allActiveUsers: ScheduleUser[];
@@ -708,7 +701,6 @@ export function DashboardView({
   isAdmin,
   initialEditEventId,
   initialDetailEventId,
-  initialDetailEvent,
   scheduleUsers,
   allActiveUsers,
   inviteeDepartments,
@@ -778,6 +770,10 @@ export function DashboardView({
   // month — so the edit form/banner initialize without a follow-up render.
   const initialEditEvent = initialEditEventId
     ? (events.find((event) => event.payload.eventId === initialEditEventId) ?? null)
+    : null;
+
+  const initialDetailEvent = initialDetailEventId
+    ? (events.find((event) => event.payload.eventId === initialDetailEventId) ?? null)
     : null;
 
   const [detailEvent, setDetailEvent] = useState<CalendarEvent | null>(initialDetailEvent);
@@ -881,10 +877,17 @@ export function DashboardView({
   // mount-time initializer above never re-runs). Track the last-handled id and
   // re-open the details for each new one; null (a stripped param) is ignored.
   const [prevDetailLinkId, setPrevDetailLinkId] = useState<string | null>(null);
+  // A stripped `event` param (the one-shot deep link is cleaned from the URL
+  // after opening) should re-arm the same-id guard below, so clicking the same
+  // search/pinned event again re-opens its details instead of silently no-oping.
+  if (initialDetailEventId === null && prevDetailLinkId !== null) {
+    setPrevDetailLinkId(null);
+  }
   if (initialDetailEventId !== null && initialDetailEventId !== prevDetailLinkId) {
     setPrevDetailLinkId(initialDetailEventId);
-    setDetailEvent(initialDetailEvent);
-    setEditLinkFailed(initialDetailEvent === null);
+    const found = events.find((event) => event.payload.eventId === initialDetailEventId) ?? null;
+    setDetailEvent(found);
+    setEditLinkFailed(found === null);
   }
   // Same-route `?edit=` deep link (the search modal's "Edit" action, or a
   // Google Calendar note link opened while the dashboard is already mounted):
@@ -1508,15 +1511,22 @@ export function DashboardView({
     router.push(buildHref({ edit: null }));
   }, [buildHref, initialEditEventId, router]);
 
-  // Strip the one-shot `event` param (Pinned Events deep link) the same way,
-  // so a refresh/back doesn't silently re-open the details modal.
+  // Strip the one-shot `event` param (search/Pinned deep link, plus the
+  // `_eventCal` that rides alongside it) so a refresh/back doesn't silently
+  // re-open the details modal. Re-arms when the param is gone, so clicking the
+  // same event again strips it again — otherwise a leftover `?event=` would
+  // keep re-opening the details on later day/month navigation.
   const detailParamClearedRef = useRef(false);
   useEffect(() => {
-    if (!initialDetailEventId || detailParamClearedRef.current) {
+    if (!initialDetailEventId) {
+      detailParamClearedRef.current = false;
+      return;
+    }
+    if (detailParamClearedRef.current) {
       return;
     }
     detailParamClearedRef.current = true;
-    router.push(buildHref({ event: null }));
+    router.push(buildHref({ event: null, _eventCal: null }));
   }, [buildHref, initialDetailEventId, router]);
 
   // Strip the one-shot `refresh` nonce as soon as the forced render has

@@ -1,11 +1,12 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import {
   Box,
   Button,
   Group,
+  Loader,
   Modal,
   Stack,
   Text,
@@ -33,6 +34,8 @@ import {
 } from "@/lib/motion/origin";
 import { BUTTON_LOADER_PROPS } from "@/lib/theme";
 
+import { LoadingStatus } from "./LoadingStatus";
+
 interface EventSearchModalProps {
   opened: boolean;
   onClose: () => void;
@@ -51,6 +54,46 @@ export default function EventSearchModal({ opened, onClose, originRect }: EventS
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [results, setResults] = useState<CalendarEvent[] | null>(null);
+
+  // The clicked result row whose deep-link navigation is in flight. Its position
+  // (in the results list's content coordinates) drives an overlay spinner that
+  // covers exactly that row — sized to the row, so nothing shifts — until the
+  // dashboard's event detail is ready, then the search modal closes. Positional
+  // (not id-based), so a multi-day event repeated under several date headers
+  // never lights more than the row the user actually clicked.
+  const [opening, setOpening] = useState<{
+    top: number;
+    left: number;
+    width: number;
+    height: number;
+  } | null>(null);
+  const listRef = useRef<HTMLDivElement>(null);
+  const [isPending, startTransition] = useTransition();
+
+  useEffect(() => {
+    if (!isPending && opening !== null) {
+      // The navigation transition finished — clear the row spinner and close
+      // the modal. `isPending` is React's external transition signal, so the
+      // state write here is genuine effect synchronization.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setOpening(null);
+      onClose();
+    }
+  }, [isPending, opening, onClose]);
+
+  // A closed modal should come back fresh, not with the previous search still
+  // listed (the shell keeps it mounted after first open). Track the last-seen
+  // `opened` value and reset the search state on the close transition.
+  const [prevOpened, setPrevOpened] = useState(opened);
+  if (opened !== prevOpened) {
+    setPrevOpened(opened);
+    if (!opened) {
+      setQuery("");
+      setResults(null);
+      setError(null);
+      setOpening(null);
+    }
+  }
 
   // The modal zooms out of / shrinks back into the header search button (the
   // app's standard grow/shrink animation; mirror PinnedEventsPanel).
@@ -97,18 +140,35 @@ export default function EventSearchModal({ opened, onClose, originRect }: EventS
     }
   }
 
-  // A result click closes the search modal and deep-links to the dashboard,
-  // which opens that event's full detail modal (Duplicate/Edit/Delete). Plain
-  // push, mirroring the Pinned Events panel — same-route param change, and the
-  // dashboard re-resolves the `?event=` deep link (see its render-phase sync).
-  function handleEventClick(event: unknown) {
+  // A result click navigates to the dashboard and opens that event's full
+  // detail modal (Duplicate/Edit/Delete). While the navigation is in flight an
+  // overlay spinner covers the clicked row (see `opening` above), then the
+  // search modal closes. The row itself stays clickable the whole time.
+  function handleEventClick(event: unknown, e: React.MouseEvent<HTMLButtonElement>) {
     const calendarEvent = event as CalendarEvent;
-    onClose();
+    const list = listRef.current;
+    if (list) {
+      const rowRect = e.currentTarget.getBoundingClientRect();
+      const listRect = list.getBoundingClientRect();
+      setOpening({
+        top: rowRect.top - listRect.top - list.clientTop + list.scrollTop,
+        left: rowRect.left - listRect.left - list.clientLeft + list.scrollLeft,
+        width: rowRect.width,
+        height: rowRect.height,
+      });
+    }
     const params = new URLSearchParams({ date: calendarEvent.start.slice(0, 10) });
     if (calendarEvent.payload.eventId) {
       params.set("event", calendarEvent.payload.eventId);
+      // The search covers every calendar, but the dashboard resolves its own
+      // filters (cookie is skipped on `?event=` deep links). Pass the event's
+      // calendar so page.tsx can include it regardless of the current view's
+      // filter set — otherwise the event can't be found and won't open.
+      params.set("_eventCal", calendarEvent.payload.calendarId);
     }
-    router.push(`/dashboard?${params.toString()}`);
+    startTransition(() => {
+      router.push(`/dashboard?${params.toString()}`);
+    });
   }
 
   const rangeStart = results && results.length > 0 ? results[0].start.slice(0, 10) : (from ?? "");
@@ -163,7 +223,9 @@ export default function EventSearchModal({ opened, onClose, originRect }: EventS
             </Text>
           ) : (
             <Box
+              ref={listRef}
               style={{
+                position: "relative",
                 border: "1px solid var(--mantine-color-default-border)",
                 borderRadius: "var(--mantine-radius-md)",
                 overflow: "hidden",
@@ -178,6 +240,25 @@ export default function EventSearchModal({ opened, onClose, originRect }: EventS
                 styles={{ agendaViewHeader: { display: "none" } }}
                 onEventClick={handleEventClick}
               />
+              {opened && opening && (
+                <Box
+                  style={{
+                    position: "absolute",
+                    top: opening.top,
+                    left: opening.left,
+                    width: opening.width,
+                    height: opening.height,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    background: "var(--mantine-color-body)",
+                    pointerEvents: "none",
+                  }}
+                >
+                  <Loader size="sm" color="gray" />
+                  <LoadingStatus label="Opening event" />
+                </Box>
+              )}
             </Box>
           ))}
       </Stack>
