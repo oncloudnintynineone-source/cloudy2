@@ -199,6 +199,7 @@ export function EventTypeGroupsModal({
               leftSection={<IconPlus size={16} />}
               loading={creating}
               loaderProps={BUTTON_LOADER_PROPS}
+              __vars={{ "--button-height": "var(--input-height-sm)" }}
               onClick={() => void handleCreate()}
             >
               Add group
