@@ -6712,3 +6712,40 @@ Verification: `pnpm lint` + `pnpm typecheck` + `pnpm test` (851 passing) +
 `pnpm build` clean. Outside scope: Parade State still has its own page-level
 filters (already separate from the dashboard); named saved presets remain a
 possible future layer over the same `views` state.
+
+## 1.157 Reset/Clear reverted by the stale `_fresh` strip (bugfix)
+
+Report: in per-view mode the filter dialog's Reset "does nothing" — the filters
+stay after Reset + Apply. Root cause was NOT the per-view resolution logic
+(which resolved correctly); it was the `_fresh` one-shot marker's strip:
+
+1. Reset + Apply navigates with all three filter params removed → `?_fresh=1` →
+   the server re-renders with role defaults (filters cleared) and
+   `usePersistUiState` persists the cleared state to the cookie.
+2. The self-terminating `_fresh` strip then did a **plain `router.push`** back to
+   the bare URL. With `experimental.staleTimes.dynamic: 120` and the SW's
+   `app-rsc-swr` cache, that soft navigation is answered by the **stale
+   client-router RSC snapshot saved earlier in the session** — which still
+   carries the old filters — so the grid reverted instantly and
+   `usePersistUiState` **re-seeded the just-cleared memory** with the old values
+   (per-view: `views.<view>`; global: top-level `cal/users/types`), making the
+   reset permanent even across reloads. The `?refresh=` strip already documented
+   this exact trap ("a plain `router.push` here re-served the pre-edit snapshot
+   and reverted the edit") and worked around it with `router.refresh()`.
+
+Fix: the `_fresh` strip in `DashboardView.tsx` and `ParadeStateView.tsx` now
+mirrors the `?refresh=` strip — `router.replace(buildHref({ _fresh: null }), {
+scroll: false }); router.refresh()` — so the bare URL is re-served from the
+server (bypassing the stale cache) and the freshly-persisted values stay on
+screen. Self-terminating (the param is gone → the effect won't re-run), no
+skeleton/fade (refresh isn't a transition). The `?edit=`/`?event=` strips stay
+plain pushes: they carry no filter state to resurrect.
+
+Files: `src/app/(protected)/dashboard/DashboardView.tsx`,
+`src/app/(protected)/parade-state/ParadeStateView.tsx` (both `_fresh` strips).
+Docs: `docs/loading-transitions.md` §1.7 (strip table + mermaid),
+`docs/ui-state.md` §1.9 (strip step + sequence diagram + why replace+refresh),
+`progress.md` one-liner.
+Verification: `pnpm lint`, `pnpm typecheck`, `pnpm test` pass; manual QA on
+the per-view Reset flow (grid clears, stays after the strip, survives reload,
+other views untouched).

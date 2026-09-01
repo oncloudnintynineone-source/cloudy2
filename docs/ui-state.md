@@ -394,8 +394,8 @@ sequenceDiagram
     P->>P: freshRender → uiState = null (whole-cookie skip)<br/>pure role defaults apply (pins read from raw cookie)
     P-->>V: fresh render (skeleton + fade)
     V->>C: usePersistUiState re-persists the resolved values (stale ids gone)
-    V->>P: plain router.push stripping ?_fresh=1 (no transition)
-    P-->>V: clean bare URL — cookie now matches the URL
+    V->>P: router.replace stripping ?_fresh=1 (no transition) + router.refresh()
+    P-->>V: bare URL re-served from the server (bypasses the stale client-router cache)
 ```
 
 1. **Detection** — `freshMarkerNeeded(updates, keys)` (`uiState.ts:230-235`):
@@ -414,11 +414,16 @@ sequenceDiagram
    defaults — while the other views' `views` memories (and the `filterMode`
    preference) keep being read from the raw cookie. Clearing Week's filters must
    never reset Month; `resolveDashboardFilters`' `fresh` flag encodes this.
-4. **Stripping** — a self-terminating effect pushes a plain (no-transition)
-   `router.push` removing the marker once its render mounted
-   (`DashboardView.tsx:611-619`, `ParadeStateView.tsx:238-246`), so it never
-   survives into back/forward history. The same pattern covers the `?edit=` strip
-   (`:621-631`) and the `?refresh=` nonce strip (`:633-644`).
+4. **Stripping** — a self-terminating effect removes the marker once its render
+   mounted (`DashboardView.tsx:611-619`, `ParadeStateView.tsx:238-246`) via
+   `router.replace(…, { scroll: false }); router.refresh()`, so it never
+   survives into back/forward history **and** the bare URL is re-served from
+   the *server*: `router.refresh()` bypasses the stale client-router/SW RSC
+   snapshot (`staleTimes.dynamic: 120`) that a plain push would have replayed,
+   which would revert the just-cleared filters and let `usePersistUiState`
+   re-seed them into the cookie. The `?refresh=` nonce strip uses the same
+   replace+refresh pattern (`:633-644`); the `?edit=`/`?event=` strips stay
+   plain pushes (they carry no filter state to resurrect).
    In per-view mode `switchView` writes the target view's filters explicitly
    (never `null`), so view switches never need `_fresh` — the URL carries the
    target's resolved set.

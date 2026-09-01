@@ -284,13 +284,17 @@ export function ParadeStateView({
   }, [searchParams, navigate]);
 
   // Strip the one-shot `_fresh` marker after its render has mounted (self-
-  // terminating, plain push — no skeleton for a URL-only change), so the
-  // marker never survives into back/forward history.
+  // terminating — stripping removes the param). The clean URL is served from
+  // the SERVER via `router.refresh()`, not a plain push: `staleTimes.dynamic:
+  // 120` / the SW's RSC cache would otherwise answer a push back to the bare
+  // URL with the STALE payload saved before the removal, reverting a just-
+  // cleared filter set and re-seeding it into the remembered-state cookie.
   useEffect(() => {
     if (searchParams.get("_fresh") === null) {
       return;
     }
-    router.push(buildHref({ _fresh: null }));
+    router.replace(buildHref({ _fresh: null }), { scroll: false });
+    router.refresh();
   }, [buildHref, router, searchParams]);
 
   function handleApplyFilters(values: Record<string, string[]>) {

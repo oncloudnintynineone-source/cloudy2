@@ -1418,13 +1418,21 @@ export function DashboardView({
   );
 
   // Strip the one-shot `_fresh` marker after its render has mounted (self-
-  // terminating, plain push — same pattern as the `refresh` strip below), so
-  // the marker never survives into back/forward history.
+  // terminating — stripping removes the param). The clean URL is served from
+  // the SERVER via `router.refresh()`, not a plain push: `staleTimes.dynamic:
+  // 120` / the SW's RSC cache would otherwise answer a push back to the bare
+  // URL with the STALE payload saved before the removal, reverting a just-
+  // cleared filter set and re-seeding it into the remembered-state cookie
+  // (the same trap the `?refresh=` strip below documents).
   useEffect(() => {
     if (searchParams.get("_fresh") === null) {
       return;
     }
-    router.push(buildHref({ _fresh: null }));
+    // Clean the URL with a replace (no history entry) and then re-read from
+    // the server, bypassing the Client Router Cache so the freshly-resolved
+    // values (already persisted by the `_fresh` render) are what stays.
+    router.replace(buildHref({ _fresh: null }), { scroll: false });
+    router.refresh();
   }, [buildHref, router, searchParams]);
 
   // Strip the one-shot `edit` param from the URL so a refresh doesn't reopen

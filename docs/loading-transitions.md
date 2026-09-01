@@ -201,15 +201,19 @@ change plays the slide *instead* of the skeleton (§1.8).
 ## 1.7 One-shot URL params
 
 Three params force a special render for exactly one request, then strip
-themselves. All strips are plain `router.push` **outside** `startTransition`
-(no skeleton, no fade), and all are ref-guarded or self-terminating so a
-stale history entry can't re-trigger the behavior.
+themselves. All strips run **outside** `startTransition` (no skeleton, no
+fade), and all are ref-guarded or self-terminating so a stale history entry
+can't re-trigger the behavior. The `edit`/`event` strips are plain
+`router.push`; the `refresh` and `_fresh` strips are `router.replace` +
+`router.refresh()` (a plain push back to the bare URL would be answered by
+the stale client-router/SW RSC snapshot saved before the special render —
+undone edits, resurrected filters).
 
 | Param | Purpose | Validity | Stripped by |
 | ----- | ------- | -------- | ----------- |
 | `?edit=<uuid>` | open the event's edit form (deep link from the `Edit:` note line) | `isUuid` — anything else ignored (`dashboard/page.tsx:47-48`); the link's `date` pins the fetched month; the remembered-UI-state cookie is skipped for the render ([`ui-state.md`](ui-state.md)) | ref-guarded effect after the forced render mounts (`DashboardView.tsx:655-665`) — a refresh won't reopen the form |
 | `?refresh=<epoch-ms>` | force-refresh: bypass the cache freshness windows and block on fresh Google reads **inside the same RSC request** | finite number younger than `REFRESH_NONCE_TTL_MS` (5 min, `page.tsx:29,89-90`) — a stale history entry can't silently re-force (`events-cache.md` §1.5.1) | self-terminating effect (`DashboardView.tsx:667-678`) — a ref guard would leak a second nonce if refresh is clicked before the first strip lands |
-| `?_fresh=1` | skip the remembered-UI-state cookie for this one render (a navigation that *removed* remembered keys — Clear, tab switch — must not re-apply the now-stale cookie) | any value — presence is enough (`dashboard/page.tsx:56`, `parade-state/page.tsx:34`) | self-terminating effect after mount (`DashboardView.tsx:645-653`, `ParadeStateView.tsx:269-274`) |
+| `?_fresh=1` | skip the remembered-UI-state cookie for this one render (a navigation that *removed* remembered keys — Clear, tab switch — must not re-apply the now-stale cookie) | any value — presence is enough (`dashboard/page.tsx:56`, `parade-state/page.tsx:34`) | self-terminating effect after mount: `router.replace(…, { scroll: false }); router.refresh()` — the fresh render already re-persisted the resolved values, and `router.refresh()` re-serves the bare URL from the server so a stale cached snapshot can't resurrect the just-removed filters into the cookie (`DashboardView.tsx:645-653`, `ParadeStateView.tsx:269-274`) |
 
 Injection of `_fresh` is automatic: `navigate()` checks
 `freshMarkerNeeded(updates, STATE_KEYS)` (a remembered key set to `null`) and
@@ -222,8 +226,8 @@ sequenceDiagram
     V->>P: router.push(?refresh=<epoch-ms>) — startTransition
     P->>P: nonce valid? → force: true → fresh Google reads in-request
     P-->>V: forced render (skeleton via isRefreshing)
-    V->>P: plain router.push stripping ?refresh= (no transition)
-    P-->>V: clean URL — history entry no longer carries the nonce
+    V->>P: router.replace stripping ?refresh= (no transition) + router.refresh()
+    P-->>V: clean URL — bypasses the stale client-router cache
 ```
 
 Doing the forced work **inside the same RSC render** (rather than
