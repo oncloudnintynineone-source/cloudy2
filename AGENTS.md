@@ -84,8 +84,14 @@ mechanics in the doc.
   uncached). Design: [docs/event-lifecycle.md](docs/event-lifecycle.md),
   [docs/event-mutations.md](docs/event-mutations.md).
 - **Dashboard views & filters:** Month / Week (H) / Week (D) / Day / Agenda over the
-  shared cache; quick-filter ⋮ menus; Week (D) is a custom matrix (pure
-  `buildWeekLanes`). Design: [docs/dashboard-views.md](docs/dashboard-views.md).
+  shared cache; one **filter button** (icon + badge) opens the filter modal
+  (Calendars + Users prominent, Event Types behind a Show/Hide disclosure); the
+  kebab keeps navigation/refresh only. Filters default to **one shared set** but
+  every view can hold its **own Cal/Users/Types memory** (`dashboard.filterMode` =
+  per-view + a `views` map; pure `resolveDashboardFilters` in `ui-state.ts`; on
+  `_fresh` only the current view falls back to defaults). Week (D) is a custom matrix
+  (pure `buildWeekLanes`).
+  Design: [docs/dashboard-views.md](docs/dashboard-views.md).
 - **Wide grids pan** via `useGridPan` + `GridPanControls` (drag + edge buttons).
   Design: [docs/grid-pan.md](docs/grid-pan.md).
 - **Fullscreen calendar (immersive mode):** hides shell chrome + requests page

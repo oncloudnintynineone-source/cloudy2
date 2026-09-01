@@ -1,15 +1,15 @@
 # 1. Dashboard views & filters
 
 The Calendar dashboard (`/dashboard`) renders one of six event views over the shared
-server-side events cache ([`events-cache.md`](events-cache.md)) and a shared filter
-state. This document covers the view inventory, the quick-filter ⋮ menus, the custom
-Week (D) matrix — the one view no Mantine Schedule component can render — and the
-Day / Week (H) timeline zoom.
+server-side events cache ([`events-cache.md`](events-cache.md)) and a shared or
+per-view filter state. This document covers the view inventory, the filters (one
+button + modal, syncable per view), the custom Week (D) matrix — the one view no
+Mantine Schedule component can render — and the Day / Week (H) timeline zoom.
 
 ## Table of contents
 
 - [1.1 View inventory](#11-view-inventory)
-- [1.2 Quick-filter menus](#12-quick-filter-menus)
+- [1.2 Filters](#12-filters)
 - [1.3 Week (D): the custom week matrix](#13-week-d-the-custom-week-matrix)
 - [1.4 Data flow shared by all views](#14-data-flow-shared-by-all-views)
 - [1.5 My-entry highlight](#15-my-entry-highlight)
@@ -31,24 +31,52 @@ The dashboard's view keys (`DASHBOARD_VIEW_VALUES`, `src/lib/ui/uiState.ts:70`):
 Mobile-month is the sub-`lg` rendering of the `month` view. The remembered view +
 pinned view tabs ride the `cloudy2.ui` cookie ([`ui-state.md`](ui-state.md)).
 
-## 1.2 Quick-filter menus
+## 1.2 Filters
 
-The dashboard and parade-state ⋮ menus hold quick filter actions:
+Filtering has **one primary affordance**: a dedicated filter button (funnel icon
++ active-group-count badge, `FilterButton`) beside the ⋮ menu in the nav row
+opens `FilterModal` (`src/components/FilterModal.tsx`). The ⋮ menu no longer
+carries filter actions — it keeps **Today / Select date / Pin tab / Force
+refresh** only. Dashboards' "Myself" quick action lives inside the filter modal
+beside the Users group; "Reset" clears (role defaults).
 
-- **Myself** — checkbox item; sets the Users filter to the current user.
-- **Clear** — resets the filters.
-- **More Filters** — opens `FilterModal` (`src/components/FilterModal.tsx`): Calendars
-  / Users / Event Types groups on the dashboard (Users is a badge-dialog picker
-  carrying a draft-scoped **Myself** quick action beside the group label).
+The modal promotes the filters most people reach — **Calendars** (chip grid) and
+**Users** (badge-dialog picker, `variant: "search"`) — and tucks **Event Types**
+behind a "Show"/"Hide" disclosure (`collapsedGroupLabels`; audit-log/user-table
+callers keep all groups expanded). A footer carries a scope hint plus the
+filter-scoping control:
+
+- **Same for all views** (default, "global") — one shared Calendars/Users/Event
+  Types set across Month / Week (H) / Week (D) / Day / Agenda, exactly the
+  pre-split behavior. Non-admins default to their own department but may filter
+  to any department.
+- **Different per view** ("per-view") — every view remembers its own selection;
+  the modal notes *"These filters apply to {view} only"*. Clearing one view's
+  filters never resets the others; flipping back to "same for all views"
+  collapses every view onto the current view's set.
 
 Filter semantics:
 
 - On the dashboard an active **Users** filter also narrows the rows of
   Day/Week (H)/Week (D) — `buildScheduleResources` takes a `userFilter`
   (`src/lib/events/schedule.ts:120`) and the Week (D) matrix reuses the same rows.
-- Non-admins default to their own department but may filter to any department.
-- FilterModal's Users picker uses the badge-dialog pattern with
-  `variant: "search"` groups ([`user-picker.md`](user-picker.md)).
+- The per-view model, its resolution order (URL → view memory → shared set →
+  role default), the explicit-empty "cleared" state, and the `_fresh`
+  current-view-only scoping live in the remembered-state system:
+  [`ui-state.md`](ui-state.md) §1.5.1 / §1.9. In per-view mode switching views
+  writes the target view's filters into the URL, so the URL always describes the
+  rendered view.
+
+```mermaid
+flowchart LR
+    FB["FilterButton (nav row)<br/>icon + active-group badge"] --> FM["FilterModal"]
+    FM --> CAL["Calendars<br/>(chip grid)"]
+    FM --> US["Users<br/>(badge picker + Myself)"]
+    FM --> ET["Event Types<br/>(behind Show/Hide)"]
+    FM --> SC["Filter scope<br/>Same for all views / Different per view"]
+    SC --> MODE["global | per-view<br/>(cookie dashboard.filterMode)"]
+    MODE --> RESOLVE["resolveDashboardFilters<br/>(server, per key)"]
+```
 
 ## 1.3 Week (D): the custom week matrix
 
@@ -226,7 +254,8 @@ flowchart LR
 | `src/lib/events/schedule.ts` | Resource rows (`buildScheduleResources`, `userFilter`) |
 | `src/lib/ui/slotZoom.ts` | Pure zoom levels + slot-width math (`clampZoom`, `stepZoom`, `weekSlotWidth`, `daySlotWidth`) |
 | `src/components/GridNavControls.tsx` | Day/Week (H) right-edge cluster: zoom +/− + right pan, plus left-edge pan |
-| `src/components/FilterModal.tsx` | More Filters dialog |
+| `src/components/FilterButton.tsx` | Dedicated filter button (icon + active-group badge) replacing the kebab's filter menu |
+| `src/components/FilterModal.tsx` | Filters dialog (collapsible groups, scope hint, per-view mode control) |
 
 Related docs:
 

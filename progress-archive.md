@@ -6655,3 +6655,60 @@ that executes the actual inline script under a `node:vm` DOM shim and asserts
 `location.replace` fires (with and without a `cloudy2.ui` cookie, and that a
 remembered `dashboard.view` is applied) — verified to fail when the scoping bug
 is reintroduced. `pnpm test` 839 passing.
+
+## 1.156 Per-view dashboard filters + one-button filter UI
+
+User feedback on the dashboard's filter surface: the ⋮-menu/modal system felt
+complex, most people reach only a couple of filter settings, and users wanted
+their filters to be *different per view* sometimes yet *synced* other times.
+Shipped in two halves:
+
+1. **One filter button.** The 3-dot kebab lost its entire "Filters" section
+   (Myself / Clear / More Filters + badge) — it now holds navigation + refresh
+   only. A dedicated `FilterButton` (funnel icon + active-group-count badge,
+   optional `size` prop so the Audit Log / Users tables keep the 43px form while
+   the nav row uses 36px) opens the same `FilterModal`. The modal keeps
+   Calendars (chips) + Users (badge picker with the Myself quick action)
+   visible and tucks Event Types behind a per-group "Show"/"Hide" disclosure
+   (`collapsedGroupLabels`, opt-in — Audit Log/Users are untouched).
+2. **Per-view or synced.** A "Filter scope" control in the modal footer toggles
+   between **Same for all views** (default, current behavior, zero change for
+   existing cookies) and **Different per view**. Per-view mode gives each of
+   Month / Week (H) / Week (D) / Day / Agenda its own absolute Calendars / Users
+   / Event Types memory in the cookie:
+
+   - `dashboard.filterMode` = `"per-view"` (absent = `"global"`) + a `views`
+     map of fully-resolved per-view sets; `normalizeUiState` keeps **explicit
+     empty lists** in per-view sets — a "cleared that filter" state that must
+     win over the shared set — and drops the map entirely in a global cookie.
+   - `resolveDashboardFilters` (pure, `ui-state.ts`) resolves a key as
+     `URL (current view) → views[view][key] → shared set → role default`; on
+     `_fresh` renders **only the current view** skips memory (clearing Week
+     never wipes Month). `filterMode` is a non-navigating preference read from
+     the raw cookie even on `_fresh`, like `pinnedViews`/`zoom`.
+   - In per-view mode `switchView` writes the target view's resolved filters
+     into the URL (empty selection as `?cal=`, never a removed key) so back/
+     forward and the no-`_fresh` rule hold; `usePersistUiState` writes the full
+     resolved `views` map back in one section-wholesale replace (and omitting
+     it in global mode prunes a stale map on revert). Stale ids are validated
+     in `dashboard/page.tsx` exactly like URL params before resolution; an
+     all-stale per-view list degrades to "absent" rather than pinning an empty
+     grid.
+   - Overflow degrade keeps `filterMode` but drops the (largest) per-view id
+     lists — per-view memories reset to the shared set, by design.
+
+Files: `src/lib/ui/uiState.ts` (+`resolveFilterMode`, `resolveDashboardFilters`,
+`DASHBOARD_VIEW_LABELS`, normalized `views`/`filterMode`), `uiState.test.ts`
+(+14 cases, 851 total), `uiStateClient.ts` (overflow keeps `filterMode`),
+`src/app/(protected)/dashboard/page.tsx` (per-view resolution + validation +
+props), `DashboardView.tsx` (props, mode state + render-phase sync, switchView
+filter writes, persist, kebab trim, FilterButton placement, modal scope/hint),
+`src/components/FilterModal.tsx` (collapsible groups, hint, modeControl),
+`src/components/FilterButton.tsx` (size prop). Docs: `docs/ui-state.md`
+(§1.4/§1.4.1/§1.4.2 shape+normalize, §1.5.1 resolution + mermaid, §1.7, §1.9
+`_fresh` scoping), `docs/dashboard-views.md` (§1.2 rewritten + mermaid),
+`progress.md` one-liner.
+Verification: `pnpm lint` + `pnpm typecheck` + `pnpm test` (851 passing) +
+`pnpm build` clean. Outside scope: Parade State still has its own page-level
+filters (already separate from the dashboard); named saved presets remain a
+possible future layer over the same `views` state.

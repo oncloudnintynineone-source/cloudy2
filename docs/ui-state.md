@@ -19,6 +19,7 @@ values, and the pinned-tabs mechanism.
 - [1.3 Architecture overview](#13-architecture-overview)
 - [1.4 The cookie: format & stored shape](#14-the-cookie-format--stored-shape)
 - [1.5 Server read: per-key fallback](#15-server-read-per-key-fallback)
+- [1.5.1 Dashboard filter scoping (`filterMode` / `views`)](#151-dashboard-filter-scoping-filtermode--views)
 - [1.6 Cold-start launch target](#16-cold-start-launch-target)
 - [1.7 Client write: convergence to what was rendered](#17-client-write-convergence-to-what-was-rendered)
 - [1.8 Pinned tabs](#18-pinned-tabs)
@@ -125,11 +126,14 @@ Division of labor:
 - **Overflow guard**: if the encoded value would exceed
   `SAFE_COOKIE_VALUE_LENGTH` (3500, headroom under the ~4 KiB browser cap —
   `uiStateClient.ts:23,34`), the writer re-encodes **dropping the id lists**
-   (`cal`/`users`/`types`) and keeping the small scalars that carry the most
-   "where am I" signal: `lastPage`, `sidebarCollapsed`, dashboard
-   `view`/`date`/`month`/`pinnedViews`/`zoom`. The parade section holds only filter id
-  lists, so it degrades to nothing there — its filters reset, and its day was
-  never remembered anyway (`uiStateClient.ts:30-49`).
+   (`cal`/`users`/`types` and the whole per-view `views` map) and keeping the
+   small scalars that carry the most "where am I" signal: `lastPage`,
+   `sidebarCollapsed`, dashboard `view`/`date`/`month`/`pinnedViews`/`zoom`,
+   plus the `filterMode` preference (the mode survives a degrade; the per-view
+   id lists reset to the shared set/role defaults next load). The parade
+   section holds only filter id lists, so it degrades to nothing there — its
+   filters reset, and its day was never remembered anyway
+   (`uiStateClient.ts:30-49`).
 
 ### 1.4.1 Stored JSON (`UiState`, `uiState.ts:52-58`)
 
@@ -145,7 +149,16 @@ Division of labor:
     "users": ["<user id>"],
      "types": ["<event type name>"],
      "pinnedViews": ["weekv2", "month"], // recency order: index 0 = leftmost tab
-     "zoom": 1.5                         // Day/Week (H) hour-slot zoom (see slotZoom.ts)
+     "zoom": 1.5,                        // Day/Week (H) hour-slot zoom (see slotZoom.ts)
+     "filterMode": "per-view",           // "global" (absent) = ONE shared filter set across
+                                          // every view; "per-view" = each view remembers its own
+     "views": {                          // present only in per-view mode; ABSOLUTE per-view sets —
+       "month":  { "cal": ["<calendar id>"], "users": [], "types": [] },
+                                          // empty lists are meaningful ("this view cleared that
+       "week":   { "cal": ["<calendar id>"], "users": ["<user id>"] },
+                                          // filter") and must win over the shared set
+       ...                               // the four remaining views share the same shape
+     }
    },
   "parade": {
     "cal": ["<calendar id>"],           // filters only — the day is NOT remembered:
@@ -171,6 +184,16 @@ Anything mismatched is **dropped, never thrown** — a corrupted cookie degrades
   (`normalizePinnedViews`, `:79-90`).
 - `zoom` is a finite number snapped to the nearest known level via `clampZoom`
   (`slotZoom.ts`); non-numeric / non-finite values drop.
+- `filterMode` keeps only `"per-view"` — an explicit `"global"` is dropped
+  (absent = global), keeping old cookies small and "no remembered preference"
+  canonical.
+- `views` is kept only while `filterMode === "per-view"` (a stale map in a
+  global cookie is dropped so it can't leak into the shared set). Only known
+  view keys survive; each sub-list keeps every non-empty string and — unlike
+  the shared `cal`/`users`/`types` lists — an **explicit empty list is kept**
+  because in per-view mode it records "this view cleared that filter" (a view
+  that never set a key falls back to the shared set). A view whose sub-lists
+  are all non-arrays vanishes; an empty whole map vanishes.
 - A section with no surviving keys vanishes entirely (`:150-152`, `:165-167`).
 - Note: `view`/`date`/`month` are **not** pattern-checked here — that lives in
   the consuming pages, which re-validate every key exactly like a URL param
@@ -205,6 +228,54 @@ filtered against live calendar/user/type data).
 - `users` / `types` (`:126-139`): same pattern against existing user ids / event
   type names. The ids dropped by validation are exactly what the client
   re-persists afterwards (§1.7).
+
+#### 1.5.1 Dashboard filter scoping (`filterMode` / `views`)
+
+The dashboard's Calendars/Users/Event Types filters resolve through one helper,
+`resolveDashboardFilters` (`uiState.ts`, pure, unit-tested):
+
+```
+current view:  URL (if present) → views[view] → shared set → role default
+other views:                    → views[view] → shared set → role default
+```
+
+- **Global mode** (the default, `filterMode` absent) is unchanged: the cookie
+  carries no `views`, so every view resolves `URL → shared set → role default`.
+- **Per-view mode** (`filterMode: "per-view"`) gives each of the five views its
+  own absolute remembered set. An **explicit empty list in `views[view]` wins**
+  over the shared set — it records "this view cleared that filter", so clearing
+  Week's Users filter never resurrects the shared set's users when Week is
+  revisited. An *absent* key (a view that never set it) falls through to the
+  shared set.
+- `filterMode` is a **non-navigating preference** like `pinnedViews`/`zoom`:
+  read from the **raw** `cookieState` even on `_fresh` renders, so a Clear never
+  silently flips the user back to the global default.
+- Stale ids are validated in the page exactly like URL ids — per-view and
+  shared lists are filtered against live calendar/user/type data **before** the
+  helper picks a value, so a deleted department/user drops out of both memories
+  (and the client re-persists the pruned sets). Side-effect of that validation:
+  a per-view list whose entries are all stale degrades to an absent key (falls
+  to the shared set/role default) rather than pinning an empty grid.
+- In per-view mode the URL always reflects the *current* view's resolved set:
+  `switchView` writes the target view's filters into the URL (empty selection as
+  `?cal=` — never a removed key, so no `_fresh`), which keeps back/forward and
+  deep links coherent.
+
+```mermaid
+flowchart TD
+    A["resolveDashboardFilters(view, url, views, global, defaults)"] --> B{"current view?"}
+    B -- yes --> C{"URL key present?"}
+    C -- yes --> OUT["URL value (wins)"]
+    C -- no --> D{"_fresh render?"}
+    D -- yes --> OUT2["role default (just cleared)"]
+    B -- no --> E
+    D -- no --> E["views[view]?.[key]"]
+    E --> F{"key stored? (explicit empty counts)"}
+    F -- yes --> OUT3["per-view memory"]
+    F -- no --> G{"shared set has key?"}
+    G -- yes --> OUT4["shared set"]
+    G -- no --> OUT5["role default"]
+```
 
 **Parade state** (`src/app/(protected)/parade-state/page.tsx`): same `_fresh`
 contract (`:33-34`). The day is deliberately **not** remembered — `date` = URL
@@ -264,7 +335,7 @@ remembered), and the shell's effect persists it back on every toggle.
 | ------ | ----- | ---------------- |
 | `useRememberedPage(pathname)` (`uiStateClient.ts:74`) | `AppShellShell.tsx` — every authenticated page | `{ lastPage: pathname }` on every pathname change, incl. `/settings` sub-tabs |
 | sidebar toggle effect (`AppShellShell.tsx:153-155`) | `AppShellShell.tsx` — every authenticated page | `{ sidebarCollapsed }` on mount (the remembered value) and on every toggle — writing `false` too, so the cookie converges when the sidebar is re-expanded |
-| `usePersistUiState("dashboard", values)` (`uiStateClient.ts:63`) | `DashboardView.tsx` | the **server-resolved props**: `view`, `date`, `month`, `cal`, `users`, `types`, plus local `pinnedViews` and `zoom` |
+| `usePersistUiState("dashboard", values)` (`uiStateClient.ts:63`) | `DashboardView.tsx` | the **server-resolved props**: `view`, `date`, `month`, `cal`, `users`, `types`, plus local `pinnedViews` and `zoom`; in per-view mode the same call carries `filterMode` and the full resolved `views` map so the section-wholesale replace re-persists every view's memory in one write (and omitting them in global mode prunes a stale map on revert) |
 | `usePersistUiState("parade", values)` | `ParadeStateView.tsx:166` | the server-resolved `cal`, `users` filters — the day is deliberately not persisted, so a bare /parade-state opens on today |
 
 The crucial detail is **what** gets written: the *server-resolved* props, not the
@@ -334,15 +405,23 @@ sequenceDiagram
    URL → return, so re-removing an absent key never round-trips), a removal
    navigation pushes `?_fresh=1` inside `startTransition`. Triggering actions:
    `clearFilters` (`:832-836`), `switchView` leaving an anchored view
-   (`:707-711`), `toggleOnlyMe` unchecked (`:817-821`); parade equivalents in
-   `ParadeStateView.tsx:248-275`.
+   (`:707-711`), and the FilterModal's Reset/empty-selection apply; parade
+   equivalents in `ParadeStateView.tsx:248-275`.
 3. **Server handling** — presence of `?_fresh` (any value) nulls the whole cookie
    state for that render: `dashboard/page.tsx:51-53`, `parade-state/page.tsx:33-34`.
+   **Per-view scoping (dashboard):** a `_fresh` render in per-view mode skips the
+   cookie for the *current view only* — it resolves from the URL or pure role
+   defaults — while the other views' `views` memories (and the `filterMode`
+   preference) keep being read from the raw cookie. Clearing Week's filters must
+   never reset Month; `resolveDashboardFilters`' `fresh` flag encodes this.
 4. **Stripping** — a self-terminating effect pushes a plain (no-transition)
    `router.push` removing the marker once its render mounted
    (`DashboardView.tsx:611-619`, `ParadeStateView.tsx:238-246`), so it never
    survives into back/forward history. The same pattern covers the `?edit=` strip
    (`:621-631`) and the `?refresh=` nonce strip (`:633-644`).
+   In per-view mode `switchView` writes the target view's filters explicitly
+   (never `null`), so view switches never need `_fresh` — the URL carries the
+   target's resolved set.
 
 After the fresh render commits, `usePersistUiState` re-persists the freshly
 resolved values, so the next render (marker stripped) reads a cookie that already

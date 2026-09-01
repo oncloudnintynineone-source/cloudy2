@@ -24,10 +24,15 @@ import { requireSession } from "@/lib/session";
 import { isUuid } from "@/lib/uuid";
 import { clampZoom } from "@/lib/ui/slotZoom";
 import {
+  DASHBOARD_VIEW_VALUES,
   UI_STATE_COOKIE,
   decodeUiState,
   normalizePinnedViews,
+  resolveDashboardFilters,
   resolveDashboardView,
+  resolveFilterMode,
+  type DashboardViewFilters,
+  type DashboardViewValue,
 } from "@/lib/ui/uiState";
 import { DashboardView } from "./DashboardView";
 
@@ -125,15 +130,10 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
   const defaultCalendars = isAdmin ? calendarIds : ownDepartmentId ? [ownDepartmentId] : [];
 
   const calParam = typeof params.cal === "string" ? params.cal.split(",").filter(Boolean) : [];
-  // No `cal` in the URL: the remembered selection (validated like a URL param,
-  // so stale ids drop) wins over the role default.
-  const cookieCal = ui?.cal ?? [];
-  const selectedCalendars =
-    params.cal !== undefined
-      ? calParam.filter((id) => calendarIds.includes(id))
-      : cookieCal.length > 0
-        ? cookieCal.filter((id) => calendarIds.includes(id))
-        : defaultCalendars;
+  const typesParam =
+    typeof params.types === "string" ? params.types.split(",").filter(Boolean) : [];
+  const usersParam =
+    typeof params.users === "string" ? params.users.split(",").filter(Boolean) : [];
 
   const typeNames = eventTypes.map((type) => type.name);
   const eventTypeOptions = eventTypes.map((type) => ({
@@ -144,20 +144,75 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
     showRemarks: type.showRemarks,
     showInvitees: type.showInvitees,
   }));
-  const typesParam =
-    typeof params.types === "string" ? params.types.split(",").filter(Boolean) : [];
-  const selectedTypes =
-    params.types !== undefined
-      ? typesParam.filter((name) => typeNames.includes(name))
-      : (ui?.types ?? []).filter((name) => typeNames.includes(name));
-
   const allUserIds = allUsers.map((user) => user.id);
-  const usersParam =
-    typeof params.users === "string" ? params.users.split(",").filter(Boolean) : [];
-  const selectedUsers =
-    params.users !== undefined
-      ? usersParam.filter((id) => allUserIds.includes(id))
-      : (ui?.users ?? []).filter((id) => allUserIds.includes(id));
+
+  // Dashboard filter state. One fallback order serves both scoping modes
+  // (src/lib/ui/uiState.ts `resolveDashboardFilters`): the URL (current view
+  // only) → that view's per-view memory → the shared remembered set → the role
+  // default. `filterMode` is a non-navigating preference like `pinnedViews`, so
+  // it — and the other views' per-view memories, which a Clear must never wipe
+  // — is read from the RAW cookie even on `_fresh` renders; the `fresh` flag
+  // there makes only the current view resolve from the URL/role defaults.
+  const filterMode = resolveFilterMode(cookieState?.dashboard?.filterMode);
+  const rememberedDashboard = cookieState?.dashboard;
+  // Stale remembered ids are validated against live data here (exactly like
+  // URL params), THEN dropped. An explicit EMPTY array survives as an empty
+  // set — in per-view mode it records "this view cleared that filter" and must
+  // keep resolving to nothing, not to the shared set. An all-stale list
+  // instead degrades to "nothing remembered" (undefined) and falls through to
+  // the role default, matching the pre-existing behavior for a cleared cookie.
+  const validCal = (ids: string[] | undefined): string[] | undefined => {
+    if (ids === undefined) return undefined;
+    const list = ids.filter((id) => calendarIds.includes(id));
+    return list.length > 0 || ids.length === 0 ? list : undefined;
+  };
+  const validUsers = (ids: string[] | undefined): string[] | undefined => {
+    if (ids === undefined) return undefined;
+    const list = (ids ?? []).filter((id) => allUserIds.includes(id));
+    return list.length > 0 || ids.length === 0 ? list : undefined;
+  };
+  const validTypes = (names: string[] | undefined): string[] | undefined => {
+    if (names === undefined) return undefined;
+    const list = (names ?? []).filter((name) => typeNames.includes(name));
+    return list.length > 0 || names.length === 0 ? list : undefined;
+  };
+  const validViews: Partial<Record<DashboardViewValue, DashboardViewFilters>> = {};
+  for (const target of DASHBOARD_VIEW_VALUES) {
+    const raw = rememberedDashboard?.views?.[target];
+    validViews[target] = {
+      cal: validCal(raw?.cal),
+      users: validUsers(raw?.users),
+      types: validTypes(raw?.types),
+    };
+  }
+  const { selected, viewFilters } = resolveDashboardFilters({
+    view,
+    url: {
+      cal:
+        params.cal === undefined
+          ? undefined
+          : calParam.filter((id) => calendarIds.includes(id)),
+      users:
+        params.users === undefined
+          ? undefined
+          : usersParam.filter((id) => allUserIds.includes(id)),
+      types:
+        params.types === undefined
+          ? undefined
+          : typesParam.filter((name) => typeNames.includes(name)),
+    },
+    views: validViews,
+    global: {
+      cal: validCal(rememberedDashboard?.cal),
+      users: validUsers(rememberedDashboard?.users),
+      types: validTypes(rememberedDashboard?.types),
+    },
+    defaults: { cal: defaultCalendars, users: [], types: [] },
+    fresh: freshRender,
+  });
+  const selectedCalendars = selected.cal;
+  const selectedTypes = selected.types;
+  const selectedUsers = selected.users;
 
   // Schedule view rows: active users whose department is among the selected
   // calendars. Invitee picker options are the full active roster for every
@@ -331,6 +386,8 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
       selectedCalendarIds={selectedCalendars}
       selectedTypes={selectedTypes}
       selectedUserIds={selectedUsers}
+      filterMode={filterMode}
+      viewFilters={viewFilters}
       currentUser={session.user.id}
       isAdmin={isAdmin}
       currentUserName={session.user.name ?? ""}

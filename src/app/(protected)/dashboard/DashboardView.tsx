@@ -19,7 +19,6 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
   ActionIcon,
   Alert,
-  Badge,
   Box,
   Button,
   Group,
@@ -28,6 +27,7 @@ import {
   Modal,
   Paper,
   Portal,
+  SegmentedControl,
   Stack,
   Tabs,
   Text,
@@ -58,7 +58,6 @@ import {
   IconChevronRight,
   IconChevronUp,
   IconDotsVertical,
-  IconFilter,
   IconLayoutGrid,
   IconListDetails,
   IconLink,
@@ -82,6 +81,7 @@ import {
 import { formatWeekLabel } from "./clientDateTime";
 import { DateSelectorModal } from "@/components/DateSelectorModal";
 import { EmptyState } from "@/components/EmptyState";
+import { FilterButton } from "@/components/FilterButton";
 import { FilterModal, type FilterGroup } from "@/components/FilterModal";
 import { GridNavControls } from "@/components/GridNavControls";
 import {
@@ -124,7 +124,14 @@ import {
   weekSlotWidth,
   type SlotZoom,
 } from "@/lib/ui/slotZoom";
-import { DASHBOARD_STATE_KEYS, freshMarkerNeeded, orderDashboardViews } from "@/lib/ui/uiState";
+import {
+  DASHBOARD_STATE_KEYS,
+  DASHBOARD_VIEW_LABELS,
+  freshMarkerNeeded,
+  orderDashboardViews,
+  type DashboardFilterMode,
+  type DashboardFilterSet,
+} from "@/lib/ui/uiState";
 import { usePersistUiState } from "@/lib/ui/uiStateClient";
 import { PINNED_EVENTS_CHANGED_EVENT } from "@/lib/ui/pinnedPanel";
 import { EventDetail } from "./EventDetail";
@@ -209,6 +216,19 @@ interface DashboardViewProps {
   selectedCalendarIds: string[];
   selectedTypes: string[];
   selectedUserIds: string[];
+  /**
+   * Filter scoping: "global" shares one filter set across every view;
+   * "per-view" gives each view its own remembered Calendars/Users/Event Types
+   * selection (the `viewFilters` map). A non-navigating preference — the
+   * server reads it from the raw cookie even on `_fresh` renders.
+   */
+  filterMode: DashboardFilterMode;
+  /**
+   * Server-resolved filter set for every dashboard view (URL wins for the
+   * current view; the others come from their per-view memory or the shared
+   * set/role default). The current view's entry equals the `selected*` props.
+   */
+  viewFilters: Record<ViewMode, DashboardFilterSet>;
   currentUser: string;
   /** Admin may create/edit events on behalf of any user. */
   isAdmin: boolean;
@@ -675,6 +695,8 @@ export function DashboardView({
   selectedCalendarIds,
   selectedTypes,
   selectedUserIds,
+  filterMode,
+  viewFilters,
   currentUser,
   isAdmin,
   initialEditEventId,
@@ -876,6 +898,20 @@ export function DashboardView({
     setPrevPinnedViews(pinnedViews);
     setPinned(pinnedViews);
   }
+
+  // Filter scoping (per-view vs synced) is a non-navigating preference: the
+  // toggle updates local state and persists to the cookie; the prop follows on
+  // the next server render (view switch, filter apply). Local state leads the
+  // prop by one toggle for the modal control and view-switch filter writes,
+  // exactly like `pinned` above.
+  const [filterModeState, setFilterModeState] = useState<DashboardFilterMode>(filterMode);
+  const [prevFilterModeProp, setPrevFilterModeProp] = useState(filterMode);
+  if (prevFilterModeProp !== filterMode) {
+    setPrevFilterModeProp(filterMode);
+    setFilterModeState(filterMode);
+  }
+
+  const perViewMode = filterModeState === "per-view";
 
   // Optimistic date-nav chrome (`shown*`): leads the server-resolved props so
   // tab taps, chevrons and Today answer instantly while the grid waits behind
@@ -1100,7 +1136,10 @@ export function DashboardView({
 
   // Remembered UI state: persist the server-resolved view/filters to the
   // per-device cookie every time the rendered state changes, so a relaunch
-  // (or F5) lands on exactly this view (see src/lib/ui/uiState.ts).
+  // (or F5) lands on exactly this view (see src/lib/ui/uiState.ts). In
+  // per-view mode the full resolved map is written back too (section-wholesale
+  // replace keeps every view's memory); in global mode those keys are omitted,
+  // which prunes a stale `views`/`filterMode` from the cookie while reverting.
   usePersistUiState("dashboard", {
     view,
     date,
@@ -1110,6 +1149,7 @@ export function DashboardView({
     types: selectedTypes,
     pinnedViews: pinned,
     zoom,
+    ...(perViewMode ? { filterMode: "per-view" as const, views: viewFilters } : {}),
   });
 
   // The date shown in the agenda day modal; persists through the exit
@@ -1471,6 +1511,19 @@ export function DashboardView({
     navigate({ date: next.format("YYYY-MM-DD"), month: next.format("YYYY-MM") });
   }
 
+  // In per-view mode the URL carries the *target* view's own filter set: the
+  // params are written explicitly (an empty selection as `?cal=`, never a
+  // removed key) so no `_fresh` fires and the next render resolves the target
+  // view's memory instead of the previous view's leftovers or the shared set.
+  function viewFilterParams(target: ViewMode): Record<string, string> {
+    const set = viewFilters[target];
+    return {
+      cal: set.cal.length > 0 ? set.cal.join(",") : "",
+      users: set.users.length > 0 ? set.users.join(",") : "",
+      types: set.types.length > 0 ? set.types.join(",") : "",
+    };
+  }
+
   function switchView(next: string) {
     const mode: ViewMode =
       next === "schedule"
@@ -1482,6 +1535,9 @@ export function DashboardView({
             : next === "agenda"
               ? "agenda"
               : "month";
+    // Filters travel with the view switch only in per-view mode; in the synced
+    // default the shared set stays in the URL untouched.
+    const filterUpdates = perViewMode ? viewFilterParams(mode) : {};
     if (mode !== "month") {
       if (mode === "agenda") {
         // A fresh entry re-follows the URL (the render-phase sync above
@@ -1496,7 +1552,7 @@ export function DashboardView({
       setShownView(mode);
       setShownDate(today);
       setShownMonth(todayMonth);
-      navigate({ view: mode, month: null, date: today });
+      navigate({ view: mode, month: null, date: today, ...filterUpdates });
       return;
     }
     if (isAgenda) {
@@ -1516,6 +1572,7 @@ export function DashboardView({
       view: null,
       month: anchorMonth,
       date: null,
+      ...filterUpdates,
     });
   }
 
@@ -1635,16 +1692,6 @@ export function DashboardView({
       types: types.length > 0 ? types.join(",") : null,
     });
     announce(filterCountMessage(cals.length, users.length, types.length));
-  }
-
-  const onlyMeActive = selectedUserIds.length === 1 && selectedUserIds[0] === currentUser;
-  const onlyMeAvailable = filterUsers.some((user) => user.id === currentUser);
-
-  function toggleOnlyMe(checked: boolean) {
-    // Search groups: empty selection means "no filter", so unchecked clears
-    // the Users filter entirely.
-    navigate({ users: checked ? currentUser : null });
-    announce(filterCountMessage(selectedCalendarIds.length, checked ? 1 : 0, selectedTypes.length));
   }
 
   function togglePinView() {
@@ -2088,6 +2135,9 @@ export function DashboardView({
               }
             />
           )}
+          {/* Filters live in their own primary affordance (icon + count badge),
+              not the overflow menu — the kebab keeps navigation/refresh only. */}
+          <FilterButton activeCount={activeFilterCount} onClick={openFilter} size={36} />
           <Menu
             shadow="md"
             width={200}
@@ -2095,22 +2145,9 @@ export function DashboardView({
             transitionProps={{ transition: "pop-top-right", duration: 150, timingFunction: "ease" }}
           >
             <Menu.Target>
-              <Box pos="relative">
-                <ActionIcon size={36} variant="default" aria-label="More options">
-                  <IconDotsVertical size={18} />
-                </ActionIcon>
-                {activeFilterCount > 0 && (
-                  <Badge
-                    size="sm"
-                    variant="filled"
-                    radius="xl"
-                    pos="absolute"
-                    style={{ top: -4, right: -4 }}
-                  >
-                    {activeFilterCount}
-                  </Badge>
-                )}
-              </Box>
+              <ActionIcon size={36} variant="default" aria-label="More options">
+                <IconDotsVertical size={18} />
+              </ActionIcon>
             </Menu.Target>
             <Menu.Dropdown>
               <Menu.Item
@@ -2132,33 +2169,6 @@ export function DashboardView({
                 onClick={togglePinView}
               >
                 {pinned.includes(view) ? "Unpin Tab" : "Pin Tab"}
-              </Menu.Item>
-              <Menu.Divider />
-              <Menu.Label>Filters</Menu.Label>
-              {onlyMeAvailable && (
-                <Menu.CheckboxItem checked={onlyMeActive} onChange={toggleOnlyMe} closeMenuOnClick>
-                  Myself
-                </Menu.CheckboxItem>
-              )}
-              <Menu.Item
-                leftSection={<IconX size={16} />}
-                disabled={activeFilterCount === 0}
-                onClick={clearFilters}
-              >
-                Clear
-              </Menu.Item>
-              <Menu.Item
-                leftSection={<IconFilter size={16} />}
-                onClick={openFilter}
-                rightSection={
-                  activeFilterCount > 0 ? (
-                    <Badge size="sm" variant="filled" radius="xl">
-                      {activeFilterCount}
-                    </Badge>
-                  ) : null
-                }
-              >
-                More Filters
               </Menu.Item>
               <Menu.Divider />
               {savedInfo ? (
@@ -2863,6 +2873,28 @@ export function DashboardView({
         groups={filterGroups}
         values={filterValues}
         onApply={handleApplyFilters}
+        collapsedGroupLabels={["Event Types"]}
+        hint={perViewMode ? `These filters apply to ${DASHBOARD_VIEW_LABELS[view]} only.` : undefined}
+        modeControl={
+          <Group justify="space-between" align="center" gap="xs" wrap="wrap" mt="xs">
+            <Text size="xs" c="dimmed" fw={600}>
+              Filter scope
+            </Text>
+            <SegmentedControl
+              size="xs"
+              value={perViewMode ? "per-view" : "global"}
+              onChange={(value) => {
+                const next = value === "per-view" ? ("per-view" as const) : ("global" as const);
+                setFilterModeState(next);
+                announce(next === "per-view" ? "Filters now separate per view" : "Filters now shared across views");
+              }}
+              data={[
+                { value: "global", label: "Same for all views" },
+                { value: "per-view", label: "Different per view" },
+              ]}
+            />
+          </Group>
+        }
       />
 
       {formState === null && (

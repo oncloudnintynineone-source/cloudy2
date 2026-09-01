@@ -6,17 +6,19 @@ import { IconFilter } from "@tabler/icons-react";
 interface FilterButtonProps {
   activeCount: number;
   onClick: () => void;
+  /** Icon button size in px (nav-row controls use 36; table toolbars 43). */
+  size?: number;
 }
 
 /**
  * Trigger button for the filter dialog. Shows the number of active filter
  * groups as a badge when any filter is applied.
  */
-export function FilterButton({ activeCount, onClick }: FilterButtonProps) {
+export function FilterButton({ activeCount, onClick, size = 43 }: FilterButtonProps) {
   return (
     <Box pos="relative">
       <ActionIcon
-        size={43}
+        size={size}
         variant="default"
         aria-label={activeCount > 0 ? `Filters (${activeCount} active)` : "Filters"}
         onClick={onClick}

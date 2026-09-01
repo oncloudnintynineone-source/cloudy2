@@ -73,10 +73,14 @@ grid:
 ### 1.3.2 Dates & filters
 
 - Date-nav arrows move day/week/month; the ⋮ menu has **Today** and **Select date**.
-- **Myself** (⋮ menu) narrows everything to your own events.
-- **More Filters** opens the filter dialog: Users (searchable badge list grouped by
-  department), Event Types, and Calendars/departments. You default to your own
-  department but may look at any department. **Clear** resets the filters.
+- The **filter button** (funnel icon, with a badge when filters are active) opens
+  the filter dialog: Calendars/departments and Users (searchable badge list grouped
+  by department) up front, Event Types behind a **Show** toggle, and a **Myself**
+  one-tap (your own events). **Reset** clears them (back to your role default).
+- **Same for all views** is the default — one filter set for Month/Week/Day/Agenda.
+  Turn on **Different per view** so each view remembers its own filters; the dialog
+  notes *"These filters apply to {view} only"*. Clearing one view never resets the
+  others, and "Same for all views" folds them back onto the current view's filters.
 - **Force refresh** (⋮ menu) bypasses the server cache and pulls the latest from
   Google Calendar. The muted *Saved · HH:MM* label shows when you're looking at a
   cached copy.

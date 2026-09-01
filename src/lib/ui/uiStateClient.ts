@@ -18,7 +18,9 @@ const COOKIE_MAX_AGE_SECONDS = 60 * 60 * 24 * 365; // one year
 // Browsers cap a cookie value around 4 KiB; keep headroom. A state that would
 // overflow drops its (largest) id lists and keeps
 // view/date/month/pinnedViews/zoom/lastPage/sidebarCollapsed (the small
-// scalars that carry the most "where am I" signal). The parade section holds
+// scalars that carry the most "where am I" signal) — plus the per-view
+// filter-scoping preference, so the mode survives while the (largest) per-view
+// id lists reset to the shared set next load. The parade section holds
 // only filter id lists, so it degrades to nothing — its filters reset, and
 // its day was never remembered anyway.
 const SAFE_COOKIE_VALUE_LENGTH = 3500;
@@ -42,6 +44,9 @@ export function writeUiState(patch: UiState): void {
                 month: merged.dashboard.month,
                 pinnedViews: merged.dashboard.pinnedViews,
                 zoom: merged.dashboard.zoom,
+                ...(merged.dashboard.filterMode === "per-view"
+                  ? { filterMode: "per-view" as const }
+                  : {}),
               }
             : undefined,
       parade: undefined,
