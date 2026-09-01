@@ -4,6 +4,7 @@ import { useMemo, useState, type KeyboardEvent } from "react";
 import {
   Anchor,
   Badge,
+  Box,
   Button,
   Grid,
   Group,
@@ -43,6 +44,7 @@ import {
   type LocationCategory,
 } from "@/lib/events/locationPolicy";
 import { eventRefFromCalendarEvent } from "@/lib/events/targets";
+import { buildEventTypePickerSections } from "@/lib/eventTypes/groups";
 import {
   joinDateTimeParts,
   naiveDatePart,
@@ -76,6 +78,7 @@ import { formatDateTime, naiveToDate } from "./clientDateTime";
 interface EventTypeOption {
   name: string;
   shortname: string | null;
+  groupId: string | null;
   timeOptions: TimeOption[];
   allowedLocations: LocationCategory[];
   showRemarks: boolean;
@@ -97,6 +100,8 @@ interface EventFormProps {
   templateEvent?: CalendarEvent | null;
   defaultDate: string;
   eventTypes: EventTypeOption[];
+  /** Event type groups in display order, for the grouped type picker. */
+  eventTypeGroups: { id: string; name: string; sortOrder: number }[];
   /** Master template (Google) and per-view display template. */
   eventTitleTemplate: string;
   viewEventTitleTemplate?: string;
@@ -171,6 +176,7 @@ export function EventForm({
   templateEvent,
   defaultDate,
   eventTypes,
+  eventTypeGroups,
   eventTitleTemplate,
   viewEventTitleTemplate,
   viewLabel,
@@ -347,6 +353,13 @@ export function EventForm({
   const sortedEventTypes = useMemo(
     () => [...eventTypes].sort((a, b) => a.name.localeCompare(b.name)),
     [eventTypes],
+  );
+
+  // The type step's sections: one per group (in the admin's display order)
+  // plus a trailing "Ungrouped" section; empty groups are skipped.
+  const pickerSections = useMemo(
+    () => buildEventTypePickerSections(eventTypes, eventTypeGroups),
+    [eventTypes, eventTypeGroups],
   );
 
   const selectedType = sortedEventTypes.find((type) => type.name === form.values.eventType) ?? null;
@@ -881,22 +894,31 @@ export function EventForm({
                 No event types
               </Text>
             ) : (
-              <Group gap={6} wrap="wrap">
-                {sortedEventTypes.map((type) => {
-                  const selected = type.name === form.values.eventType;
-                  return (
-                    <Badge
-                      key={type.name}
-                      variant={selected ? "filled" : "light"}
-                      size="lg"
-                      style={{ height: "calc(var(--badge-height-lg) * 1.5)", cursor: "pointer" }}
-                      onClick={() => handleEventTypeChange(selected ? null : type.name)}
-                    >
-                      {type.name}
-                    </Badge>
-                  );
-                })}
-              </Group>
+              <Stack gap="sm">
+                {pickerSections.map((section) => (
+                  <Box key={section.ungrouped ? "ungrouped" : section.name}>
+                    <Text size="xs" fw={600} c="dimmed" mb={4}>
+                      {section.name}
+                    </Text>
+                    <Group gap={6} wrap="wrap">
+                      {section.types.map((type) => {
+                        const selected = type.name === form.values.eventType;
+                        return (
+                          <Badge
+                            key={type.name}
+                            variant={selected ? "filled" : "light"}
+                            size="lg"
+                            style={{ height: "calc(var(--badge-height-lg) * 1.5)", cursor: "pointer" }}
+                            onClick={() => handleEventTypeChange(selected ? null : type.name)}
+                          >
+                            {type.name}
+                          </Badge>
+                        );
+                      })}
+                    </Group>
+                  </Box>
+                ))}
+              </Stack>
             )}
             {form.errors.eventType && (
               <Text size="xs" c="red">

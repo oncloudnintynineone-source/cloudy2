@@ -2,7 +2,7 @@
 
 Cloudy started as a strictly mobile-first app (bottom nav, card lists, floating
 modals). It now also presents a purpose-built layout for wide screens: at Mantine's
-`lg` breakpoint (**992px = 62em**) and above the shell gains a left sidebar, pages
+`lg` breakpoint (**800px = 50em**) and above the shell gains a left sidebar, pages
 center in a bounded container, data-dense lists become tables, card lists flow into
 multi-column grids, and modals/forms widen. Below `lg` **nothing changes** — the
 mobile layout is byte-for-byte the same code path.
@@ -28,20 +28,20 @@ modals) renders tighter variants. See [1.10 Compact tier](#110-compact-tier).
 
 ## 1.1 Breakpoint & detection
 
-One breakpoint governs the **shell**: Mantine `lg`, pinned to **992px** via a
-theme override (`src/lib/theme.ts` sets `breakpoints.lg` to `"62em"`, matching
+One breakpoint governs the **shell**: Mantine `lg`, pinned to **800px** via a
+theme override (`src/lib/theme.ts` sets `breakpoints.lg` to `"50em"`, matching
 the CSS block). Mantine's default `lg` is 75em (1200px); without the override
-the JS `isDesktop` query, the `visibleFrom="lg"` props, and the `62em` CSS
-would drift apart. The override makes every `lg:` reference mean 992px.
+the JS `isDesktop` query, the `visibleFrom="lg"` props, and the `50em` CSS
+would drift apart. The override makes every `lg:` reference mean 800px.
 The card grids (`ContactList`, `ParadeStateView`) add an **earlier**
 `36em` (576px) breakpoint so mid-width viewports (large phones in
-landscape / tablets around 640-900px) already reflow to a grid before the
+landscape / tablets around 640-799px) already reflow to a grid before the
 shell switches to desktop chrome.
 
 | Medium | Where | Usage |
 | ------ | ----- | ----- |
-| CSS | `src/app/globals.css` | `@media (min-width: 36em)` (576px: card-grid ≥300px) + `@media (min-width: 62em)` block (62em = 992px at the default 16px root: shell + card-grid ≥320px) |
-| Theme | `src/lib/theme.ts` | `breakpoints.lg: "62em"` — aligns Mantine's `lg` with the CSS (`xs` is 36em). `NARROW_MEDIA_QUERY` (`(max-width: 22.5em)`, 360px) is the compact-tier query — deliberately **not** a Mantine breakpoint, because responsive props like `{ base: … }` use min-width keys and can't express "below X" |
+| CSS | `src/app/globals.css` | `@media (min-width: 36em)` (576px: card-grid ≥300px) + `@media (min-width: 50em)` block (50em = 800px at the default 16px root: shell + card-grid ≥320px) |
+| Theme | `src/lib/theme.ts` | `breakpoints.lg: "50em"` — aligns Mantine's `lg` with the CSS (`xs` is 36em). `NARROW_MEDIA_QUERY` (`(max-width: 22.5em)`, 360px) is the compact-tier query — deliberately **not** a Mantine breakpoint, because responsive props like `{ base: … }` use min-width keys and can't express "below X" |
 | Client components | `@mantine/hooks` | `const theme = useMantineTheme(); const isDesktop = useMediaQuery(\`(min-width: ${theme.breakpoints.lg})\`)` (do **not** append `px` — `theme.breakpoints.lg` is an em string); `const isNarrow = useMediaQuery(NARROW_MEDIA_QUERY)` for the compact tier |
 | Mantine props | core | `visibleFrom="lg"` / `hiddenFrom="lg"` (note: v9 has no `hiddenDown`/`visibleDown`), responsive props like `maw={{ base: 380, lg: 440 }}`, `Grid.Col span={{ base: 12, lg: 6 }}` |
 
@@ -54,7 +54,7 @@ flowchart LR
     B -- no --> B0{≤ 360px?}
     B0 -- yes --> C0[Compact tier<br/>header/nav/modals tighten]
     B0 -- no --> C[Mobile single-column<br/>bottom nav · card lists · sm modals]
-    B -- yes --> B2{≥ 992px?}
+    B -- yes -->     B2{≥ 800px?}
     B2 -- no --> C2[Mid-width grid<br/>bottom nav · 2-col card-grid]
     B2 -- yes --> D[Desktop layout]
     D --> E[Left sidebar 240px, minimizes to a 64px icon rail<br/>bottom nav collapsed]
@@ -107,10 +107,10 @@ flowchart LR
 ## 1.3 Layout scaffolding (globals.css)
 
 Pure-CSS switches live in `@media (min-width: 36em)` (card-grid early grid)
-and `@media (min-width: 62em)` (desktop shell) blocks in
+and `@media (min-width: 50em)` (desktop shell) blocks in
 `src/app/globals.css`, plus a few base classes:
 
-| Class / var | Mobile `< 36em` | Mid `36em – 62em` | At `lg` `≥ 62em` | Consumed by |
+| Class / var | Mobile `< 36em` | Mid `36em – 50em` | At `lg` `≥ 50em` | Consumed by |
 | ----------- | -------------- | ----------------- | --------------- | ----------- |
 | `.app-shell-root` → `--app-floating-bottom-offset` | `calc(56px + env(safe-area-inset-bottom) + 16px)` (clears bottom nav) | same | `16px` | `FloatingToolbar` default `bottomOffset` |
 | `.settings-page-pad` → `--settings-fab-bottom` + `padding-bottom` | `calc(108px + env(safe-area-inset-bottom) + 16px)` (clears bottom nav + settings tab bar) | same | `16px` | settings `layout.tsx` wrapper; the four settings FABs pass it to `FloatingToolbar` |
@@ -255,7 +255,7 @@ Both pages wrap their content in `PageContainer`; their card lists
 `auto-fill` ≥300px columns at `36em` (~640px effective for 2 columns due to
 `p="md"` + `gap`) and ≥320px at `lg`. The grid therefore activates well
 before the desktop shell (sidebar / `PageContainer` max-width) does — mid-width
-viewports around 640-991px already show a 2-column grid instead of a single
+viewports around 640-799px already show a 2-column grid instead of a single
 elongated column while keeping the mobile bottom nav. Beyond that, the
 floating buttons swap for inline controls:
 
@@ -307,8 +307,8 @@ The event form's **Timestamp step** pairs Start/End side by side in a 2-column
 
 | File | Role |
 | ---- | ---- |
-| `src/app/globals.css` | `@media (min-width: 36em)` (card-grid ≥300px) + `@media (min-width: 62em)` block: offset vars, `.page-container`, `.card-grid` ≥320px |
-| `src/lib/theme.ts` | `breakpoints.lg: "62em"`; `DESKTOP_MEDIA_QUERY` + `NARROW_MEDIA_QUERY` (compact tier) |
+| `src/app/globals.css` | `@media (min-width: 36em)` (card-grid ≥300px) + `@media (min-width: 50em)` block: offset vars, `.page-container`, `.card-grid` ≥320px |
+| `src/lib/theme.ts` | `breakpoints.lg: "50em"`; `DESKTOP_MEDIA_QUERY` + `NARROW_MEDIA_QUERY` (compact tier) |
 | `src/components/AppShellShell.tsx` | Navbar (240px ↔ 64px rail, `breakpoint: "lg"`, remembered via `sidebarCollapsed`), footer `collapsed: isDesktop`, compact header/nav via `isNarrow`, `.app-shell-root` |
 | `src/components/PageContainer.tsx` | 1200px-centered wrapper |
 | `src/components/FloatingToolbar.tsx` | Default `bottomOffset` = `var(--app-floating-bottom-offset)` |

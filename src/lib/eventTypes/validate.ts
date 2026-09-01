@@ -19,6 +19,8 @@ export interface EventTypeFormValues {
   showInvitees: boolean;
   /** Pinned event color (Mantine palette name); "" = the name-derived default. */
   color?: string;
+  /** Display group for the type picker; null/"" = ungrouped. */
+  groupId?: string | null;
 }
 
 export interface EventTypeFormErrors {

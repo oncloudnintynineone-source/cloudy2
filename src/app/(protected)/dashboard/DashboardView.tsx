@@ -179,6 +179,7 @@ const VIEW_TAB_META: Record<ViewMode, { label: string; icon: ReactNode; nowrap?:
 interface EventTypeOption {
   name: string;
   shortname: string | null;
+  groupId: string | null;
   timeOptions: TimeOption[];
   allowedLocations: LocationCategory[];
   showRemarks: boolean;
@@ -205,6 +206,8 @@ interface DashboardViewProps {
   events: CalendarEvent[];
   calendars: { id: string; name: string; sortOrder: number }[];
   eventTypes: EventTypeOption[];
+  /** Event type groups in display order, for the grouped type picker. */
+  eventTypeGroups: { id: string; name: string; sortOrder: number }[];
   eventTitleTemplate: string;
   viewEventTitleTemplate: string;
   googleConfigured: boolean;
@@ -689,6 +692,7 @@ export function DashboardView({
   events,
   calendars,
   eventTypes,
+  eventTypeGroups,
   eventTitleTemplate,
   viewEventTitleTemplate,
   googleConfigured,
@@ -2877,6 +2881,7 @@ export function DashboardView({
                 templateEvent={formState.templateEvent}
                 defaultDate={formState.defaultDate}
                 eventTypes={eventTypes}
+                eventTypeGroups={eventTypeGroups}
                 eventTitleTemplate={eventTitleTemplate}
                 viewEventTitleTemplate={viewEventTitleTemplate}
                 viewLabel={VIEW_TAB_META[view].label}

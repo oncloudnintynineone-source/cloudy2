@@ -13,6 +13,7 @@ import {
   type EventTypeActionResult,
 } from "@/lib/eventTypes/actions";
 import { validateEventTypeForm, type EventTypeFormValues } from "@/lib/eventTypes/validate";
+import { NoKeyboardSelect } from "@/components/NoKeyboardSelect";
 import { BUTTON_LOADER_PROPS } from "@/lib/theme";
 import { showValidationFailure } from "@/lib/ui/validationFeedback";
 import {
@@ -34,16 +35,18 @@ interface EventTypeFormProps {
     id: string;
     name: string;
     shortname: string | null;
+    groupId: string | null;
     timeOptions: string[];
     allowedLocations: string[];
     showRemarks: boolean;
     showInvitees: boolean;
     color: string | null;
   } | null;
+  groups: { id: string; name: string }[];
   onDone: () => void;
 }
 
-export function EventTypeForm({ eventType, onDone }: EventTypeFormProps) {
+export function EventTypeForm({ eventType, groups, onDone }: EventTypeFormProps) {
   const isEdit = eventType !== null;
   const [confirmOpened, { open: openConfirm, close: closeConfirm }] = useDisclosure(false);
   const [deletingType, setDeletingType] = useState(false);
@@ -52,6 +55,7 @@ export function EventTypeForm({ eventType, onDone }: EventTypeFormProps) {
     initialValues: {
       name: eventType?.name ?? "",
       shortname: eventType?.shortname ?? "",
+      groupId: eventType?.groupId ?? "",
       timeOptions: eventType ? normalizeTimeOptions(eventType.timeOptions) : [],
       allowedLocations: eventType
         ? normalizeAllowedLocations(eventType.allowedLocations)
@@ -83,6 +87,8 @@ export function EventTypeForm({ eventType, onDone }: EventTypeFormProps) {
         form.setFieldError("name", result.error);
       } else if (result.field === "shortname") {
         form.setFieldError("shortname", result.error);
+      } else if (result.field === "groupId") {
+        form.setFieldError("groupId", result.error);
       } else if (result.field === "timeOptions") {
         form.setFieldError("timeOptions", result.error);
       } else if (result.field === "allowedLocations") {
@@ -115,9 +121,9 @@ export function EventTypeForm({ eventType, onDone }: EventTypeFormProps) {
   return (
     <form onSubmit={onSubmit}>
       <Stack>
-        {/* At lg the modal is wide enough for a two-column field grid. */}
+        {/* At lg the modal is wide enough for a three-column field grid. */}
         <Grid gap="md">
-          <Grid.Col span={{ base: 12, lg: 6 }}>
+          <Grid.Col span={{ base: 12, sm: 6, lg: 4 }}>
             <TextInput
               label="Name"
               required
@@ -125,13 +131,27 @@ export function EventTypeForm({ eventType, onDone }: EventTypeFormProps) {
               {...form.getInputProps("name")}
             />
           </Grid.Col>
-          <Grid.Col span={{ base: 12, lg: 6 }}>
+          <Grid.Col span={{ base: 12, sm: 6, lg: 4 }}>
             <TextInput
               label="Shortname"
               required
               placeholder="LV"
               description="Short acronym shown via the {type:acronym} event title token"
               {...form.getInputProps("shortname")}
+            />
+          </Grid.Col>
+          <Grid.Col span={{ base: 12, sm: 12, lg: 4 }}>
+            <NoKeyboardSelect
+              label="Group"
+              placeholder="Ungrouped"
+              description="The category this type appears under in the event form"
+              data={[
+                { value: "", label: "Ungrouped" },
+                ...groups.map((group) => ({ value: group.id, label: group.name })),
+              ]}
+              value={form.values.groupId ?? ""}
+              error={form.errors.groupId}
+              onChange={(value) => form.setFieldValue("groupId", value ?? "")}
             />
           </Grid.Col>
         </Grid>

@@ -1,6 +1,6 @@
 import { cookies } from "next/headers";
 
-import { listEventTypes } from "@/lib/eventTypes/queries";
+import { listEventTypes, listEventTypeGroups } from "@/lib/eventTypes/queries";
 import {
   formatInstantToNaive,
   monthGridMonths,
@@ -115,10 +115,11 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
   const forceRefresh =
     Number.isFinite(refreshNonce) && new Date().getTime() - refreshNonce < REFRESH_NONCE_TTL_MS;
 
-  const [calendars, eventTypes, allUsers, settings, quickLinks, eventTitleTemplates] =
+  const [calendars, eventTypes, eventTypeGroups, allUsers, settings, quickLinks, eventTitleTemplates] =
     await Promise.all([
       listCalendars(),
       listEventTypes(),
+      listEventTypeGroups(),
       listUsers(),
       getSettings(),
       listQuickLinks(),
@@ -139,10 +140,16 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
   const eventTypeOptions = eventTypes.map((type) => ({
     name: type.name,
     shortname: type.shortname,
+    groupId: type.groupId,
     timeOptions: type.timeOptions,
     allowedLocations: type.allowedLocations,
     showRemarks: type.showRemarks,
     showInvitees: type.showInvitees,
+  }));
+  const eventTypeGroupOptions = eventTypeGroups.map((group) => ({
+    id: group.id,
+    name: group.name,
+    sortOrder: group.sortOrder,
   }));
   const allUserIds = allUsers.map((user) => user.id);
 
@@ -384,6 +391,7 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
         sortOrder: calendar.sortOrder,
       }))}
       eventTypes={eventTypeOptions}
+      eventTypeGroups={eventTypeGroupOptions}
       eventTitleTemplate={settings.eventTitleTemplate}
       viewEventTitleTemplate={viewTemplate}
       googleConfigured={googleCalendarConfigured()}

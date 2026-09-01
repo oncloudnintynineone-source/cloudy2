@@ -1,7 +1,7 @@
-import { listEventTypes } from "@/lib/eventTypes/queries";
+import { listEventTypes, listEventTypeGroups } from "@/lib/eventTypes/queries";
 import { EventTypeTable } from "./EventTypeTable";
 
 export default async function EventTypesPage() {
-  const types = await listEventTypes();
-  return <EventTypeTable types={types} />;
+  const [types, groups] = await Promise.all([listEventTypes(), listEventTypeGroups()]);
+  return <EventTypeTable types={types} groups={groups} />;
 }

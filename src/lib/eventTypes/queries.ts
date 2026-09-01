@@ -2,7 +2,7 @@ import { asc, inArray } from "drizzle-orm";
 import { cache } from "react";
 
 import { db } from "@/db";
-import { eventTypes } from "@/db/schema";
+import { eventTypes, eventTypeGroups } from "@/db/schema";
 import {
   normalizeAllowedLocations,
   type LocationCategory,
@@ -27,6 +27,22 @@ export const listEventTypes = cache(async () => {
     timeOptions: resolveTimeOptions(normalizeTimeOptions(row.timeOptions)),
     allowedLocations: normalizeAllowedLocations(row.allowedLocations),
   }));
+});
+
+/**
+ * All event type groups in display order (sortOrder, then name), for the
+ * event form's grouped type picker and the admin group list. Same
+ * per-request `cache()` as `listEventTypes`.
+ */
+export const listEventTypeGroups = cache(async () => {
+  return db
+    .select({
+      id: eventTypeGroups.id,
+      name: eventTypeGroups.name,
+      sortOrder: eventTypeGroups.sortOrder,
+    })
+    .from(eventTypeGroups)
+    .orderBy(asc(eventTypeGroups.sortOrder), asc(eventTypeGroups.name));
 });
 
 export interface EventTypeDisplayInfo {

@@ -90,12 +90,35 @@ export const acronyms = pgTable("acronyms", {
   sortOrder: integer("sort_order").notNull().default(0),
 });
 
+export const eventTypeGroups = pgTable(
+  "event_type_groups",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    name: text("name").notNull(),
+    /** Display rank in the event form's grouped type picker. */
+    sortOrder: integer("sort_order").notNull().default(0),
+    ...timestamps,
+  },
+  (table) => [
+    uniqueIndex("event_type_groups_name_idx").on(table.name),
+    index("event_type_groups_sort_idx").on(table.sortOrder),
+  ],
+);
+
 export const eventTypes = pgTable(
   "event_types",
   {
     id: uuid("id").primaryKey().defaultRandom(),
     name: text("name").notNull(),
     shortname: text("shortname"),
+    /**
+     * Display group for the event form's type picker; null = ungrouped
+     * (rendered in a trailing "Ungrouped" section). Deleting a group leaves
+     * its types ungrouped.
+     */
+    groupId: uuid("group_id").references((): AnyPgColumn => eventTypeGroups.id, {
+      onDelete: "set null",
+    }),
     /** Selectable datetime options ("range" | "full"); empty = default range. */
     timeOptions: text("time_options")
       .array()
@@ -122,6 +145,7 @@ export const eventTypes = pgTable(
   (table) => [
     uniqueIndex("event_types_name_idx").on(table.name),
     uniqueIndex("event_types_shortname_idx").on(table.shortname),
+    index("event_types_group_idx").on(table.groupId),
   ],
 );
 
@@ -347,6 +371,7 @@ export type NewUser = typeof users.$inferInsert;
 export type Calendar = typeof calendars.$inferSelect;
 export type NewCalendar = typeof calendars.$inferInsert;
 export type Acronym = typeof acronyms.$inferSelect;
+export type EventTypeGroup = typeof eventTypeGroups.$inferSelect;
 export type EventType = typeof eventTypes.$inferSelect;
 export type ParadeState = typeof paradeStates.$inferSelect;
 export type EventTitleTemplate = typeof eventTitleTemplates.$inferSelect;

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   Badge,
@@ -15,7 +15,7 @@ import {
 } from "@mantine/core";
 
 import { useDisclosure, useMediaQuery } from "@mantine/hooks";
-import { IconCalendarEvent, IconPlus } from "@tabler/icons-react";
+import { IconCalendarEvent, IconCategory2, IconPlus } from "@tabler/icons-react";
 
 import { EmptyState } from "@/components/EmptyState";
 import type { EventType } from "@/db/schema";
@@ -31,18 +31,36 @@ import {
 import { CONTENT_ENTER_CLASS } from "@/lib/loading/contentEnter";
 import { activatable } from "@/lib/ui/activatable";
 import { EventTypeForm } from "./EventTypeForm";
+import { EventTypeGroupsModal } from "./EventTypeGroupsModal";
 import { invalidateCurrentPathCaches } from "@/lib/pwa/client";
 
 interface EventTypeTableProps {
   types: EventType[];
+  groups: { id: string; name: string; sortOrder: number }[];
 }
 
-export function EventTypeTable({ types }: EventTypeTableProps) {
+export function EventTypeTable({ types, groups }: EventTypeTableProps) {
   const router = useRouter();
   const theme = useMantineTheme();
   const isDesktop = useMediaQuery(`(min-width: ${theme.breakpoints.lg})`);
   const [formOpened, { open: openForm, close: closeForm }] = useDisclosure(false);
   const [editing, setEditing] = useState<EventType | null>(null);
+  const [groupsOpened, { open: openGroups, close: closeGroups }] = useDisclosure(false);
+
+  const groupById = useMemo(
+    () => new Map(groups.map((group) => [group.id, group.name])),
+    [groups],
+  );
+
+  const typeCounts = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const eventType of types) {
+      if (eventType.groupId) {
+        counts.set(eventType.groupId, (counts.get(eventType.groupId) ?? 0) + 1);
+      }
+    }
+    return counts;
+  }, [types]);
 
   function openCreate() {
     setEditing(null);
@@ -60,7 +78,15 @@ export function EventTypeTable({ types }: EventTypeTableProps) {
           Calendar page's "New event" button); the FAB below is mobile-only.
           Rendered above the list so it is still available when empty. */}
       <Paper withBorder p="sm" visibleFrom="lg">
-        <Group justify="flex-end" wrap="nowrap">
+        <Group justify="space-between" wrap="nowrap">
+          <Button
+            __vars={{ "--button-height": "43px" }}
+            variant="default"
+            leftSection={<IconCategory2 size={16} />}
+            onClick={openGroups}
+          >
+            Manage groups
+          </Button>
           <Button
             __vars={{ "--button-height": "43px" }}
             leftSection={<IconPlus size={16} />}
@@ -97,6 +123,11 @@ export function EventTypeTable({ types }: EventTypeTableProps) {
                     <Text fw={600}>{eventType.name}</Text>
                   </Group>
                   <Group gap="xs" wrap="wrap">
+                    {eventType.groupId && groupById.has(eventType.groupId) ? (
+                      <Badge size="sm" variant="light" color="blue">
+                        {groupById.get(eventType.groupId)}
+                      </Badge>
+                    ) : null}
                     {eventType.shortname ? (
                       <Badge size="sm" variant="light" color="accent">
                         {eventType.shortname}
@@ -136,6 +167,7 @@ export function EventTypeTable({ types }: EventTypeTableProps) {
               <Table.Thead>
                 <Table.Tr>
                   <Table.Th>Name</Table.Th>
+                  <Table.Th>Group</Table.Th>
                   <Table.Th>Acronym</Table.Th>
                   <Table.Th>Color</Table.Th>
                   <Table.Th>Time options</Table.Th>
@@ -152,6 +184,15 @@ export function EventTypeTable({ types }: EventTypeTableProps) {
                   >
                     <Table.Td>
                       <Text fw={600}>{eventType.name}</Text>
+                    </Table.Td>
+                    <Table.Td>
+                      {eventType.groupId && groupById.has(eventType.groupId) ? (
+                        <Badge size="sm" variant="light" color="blue">
+                          {groupById.get(eventType.groupId)}
+                        </Badge>
+                      ) : (
+                        <Text c="dimmed">—</Text>
+                      )}
                     </Table.Td>
                     <Table.Td>
                       {eventType.shortname ? (
@@ -216,6 +257,7 @@ export function EventTypeTable({ types }: EventTypeTableProps) {
         <EventTypeForm
           key={editing?.id ?? "new"}
           eventType={editing}
+          groups={groups}
           onDone={() => {
             closeForm();
             setEditing(null);
@@ -224,10 +266,23 @@ export function EventTypeTable({ types }: EventTypeTableProps) {
         />
       </Modal>
 
+      <EventTypeGroupsModal
+        opened={groupsOpened}
+        onClose={closeGroups}
+        groups={groups}
+        typeCounts={typeCounts}
+        onMutated={() => {
+          void invalidateCurrentPathCaches().then(() => router.refresh());
+        }}
+      />
+
       {/* Mobile-only: at lg the "Add event type" button in the toolbar replaces
           the FAB. hiddenFrom sits on the toolbar itself: its Affix portals to
           <body>, so a wrapper element could not hide it. */}
       <FloatingToolbar bottomOffset="var(--settings-fab-bottom)" hiddenFrom="lg">
+        <FloatingActionButton aria-label="Manage event type groups" onClick={openGroups}>
+          <IconCategory2 size={FAB_ICON_SIZE} />
+        </FloatingActionButton>
         <FloatingActionButton aria-label="Add event type" onClick={openCreate}>
           <IconPlus size={FAB_ICON_SIZE} />
         </FloatingActionButton>

@@ -5,7 +5,7 @@ import { revalidatePath } from "next/cache";
 
 import { db } from "@/db";
 import { findUniqueViolation } from "@/db/pgErrors";
-import { eventTypes, type EventType } from "@/db/schema";
+import { eventTypes, eventTypeGroups, type EventType } from "@/db/schema";
 import { AUDIT_ACTIONS, actorFromUser } from "@/lib/audit/build";
 import { diffFields } from "@/lib/audit/diff";
 import { logAction } from "@/lib/audit/log";
@@ -24,8 +24,21 @@ export type EventTypeActionResult =
   | {
       ok: false;
       error: string;
-      field?: "name" | "shortname" | "timeOptions" | "allowedLocations";
+      field?: "name" | "shortname" | "timeOptions" | "allowedLocations" | "groupId";
     };
+
+/** The display label a group id maps to in audit details (null = ungrouped). */
+async function getGroupNameOrNull(groupId: string | null): Promise<string | null> {
+  if (!groupId) {
+    return null;
+  }
+  const [row] = await db
+    .select({ name: eventTypeGroups.name })
+    .from(eventTypeGroups)
+    .where(eq(eventTypeGroups.id, groupId))
+    .limit(1);
+  return row ? row.name : null;
+}
 
 function actorFrom(session: Awaited<ReturnType<typeof requireAdmin>>) {
   return actorFromUser({
@@ -67,10 +80,24 @@ export async function createEventType(input: EventTypeFormValues): Promise<Event
   const showRemarks = input.showRemarks !== false;
   const showInvitees = input.showInvitees !== false;
   const color = normalizeEventColor(input.color);
+  const groupId = input.groupId?.trim() || null;
+  const groupName = await getGroupNameOrNull(groupId);
+  if (groupId !== null && groupName === null) {
+    return { ok: false, error: "Event type group not found", field: "groupId" };
+  }
   try {
     const [created] = await db
       .insert(eventTypes)
-      .values({ name, shortname, timeOptions, allowedLocations, showRemarks, showInvitees, color })
+      .values({
+        name,
+        shortname,
+        timeOptions,
+        allowedLocations,
+        showRemarks,
+        showInvitees,
+        color,
+        groupId,
+      })
       .returning({ id: eventTypes.id, name: eventTypes.name });
 
     await logAction({
@@ -83,6 +110,7 @@ export async function createEventType(input: EventTypeFormValues): Promise<Event
       details: {
         name,
         shortname,
+        group: groupName ?? "Ungrouped",
         timeOptions: timeOptionLabels(timeOptions),
         allowedLocations: allowedLocationLabels(allowedLocations),
         showRemarks,
@@ -134,6 +162,12 @@ export async function renameEventType(
   const showRemarks = input.showRemarks !== false;
   const showInvitees = input.showInvitees !== false;
   const color = normalizeEventColor(input.color);
+  const groupId = input.groupId?.trim() || null;
+  const groupName = await getGroupNameOrNull(groupId);
+  if (groupId !== null && groupName === null) {
+    return { ok: false, error: "Event type group not found", field: "groupId" };
+  }
+  const existingGroupLabel = (await getGroupNameOrNull(existing.groupId)) ?? "Ungrouped";
   try {
     await db
       .update(eventTypes)
@@ -145,6 +179,7 @@ export async function renameEventType(
         showRemarks,
         showInvitees,
         color,
+        groupId,
         updatedAt: new Date(),
       })
       .where(eq(eventTypes.id, id));
@@ -160,6 +195,7 @@ export async function renameEventType(
         {
           name: existing.name,
           shortname: existing.shortname,
+          group: existingGroupLabel,
           timeOptions: timeOptionLabels(existing.timeOptions),
           allowedLocations: allowedLocationLabels(normalizeAllowedLocations(existing.allowedLocations)),
           showRemarks: existing.showRemarks,
@@ -169,6 +205,7 @@ export async function renameEventType(
         {
           name,
           shortname,
+          group: groupName ?? "Ungrouped",
           timeOptions: timeOptionLabels(timeOptions),
           allowedLocations: allowedLocationLabels(allowedLocations),
           showRemarks,
