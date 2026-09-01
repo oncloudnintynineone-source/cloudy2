@@ -243,6 +243,13 @@ interface DashboardViewProps {
    * fetched events include a copy of the group.
    */
   initialDetailEventId: string | null;
+  /**
+   * Server-resolved copy of the `?event=` deep link. The view's filtered
+   * events are tried first; when they exclude the group (search can surface
+   * cross-department events the current filters don't encompass) the server
+   * falls back to an unfiltered lookup so the details can always open.
+   */
+  initialDetailEvent: CalendarEvent | null;
   scheduleUsers: ScheduleUser[];
   /** Full active roster: row source when the Users filter narrows the rows. */
   allActiveUsers: ScheduleUser[];
@@ -701,6 +708,7 @@ export function DashboardView({
   isAdmin,
   initialEditEventId,
   initialDetailEventId,
+  initialDetailEvent,
   scheduleUsers,
   allActiveUsers,
   inviteeDepartments,
@@ -770,10 +778,6 @@ export function DashboardView({
   // month — so the edit form/banner initialize without a follow-up render.
   const initialEditEvent = initialEditEventId
     ? (events.find((event) => event.payload.eventId === initialEditEventId) ?? null)
-    : null;
-
-  const initialDetailEvent = initialDetailEventId
-    ? (events.find((event) => event.payload.eventId === initialDetailEventId) ?? null)
     : null;
 
   const [detailEvent, setDetailEvent] = useState<CalendarEvent | null>(initialDetailEvent);
@@ -879,9 +883,8 @@ export function DashboardView({
   const [prevDetailLinkId, setPrevDetailLinkId] = useState<string | null>(null);
   if (initialDetailEventId !== null && initialDetailEventId !== prevDetailLinkId) {
     setPrevDetailLinkId(initialDetailEventId);
-    const found = events.find((event) => event.payload.eventId === initialDetailEventId) ?? null;
-    setDetailEvent(found);
-    setEditLinkFailed(found === null);
+    setDetailEvent(initialDetailEvent);
+    setEditLinkFailed(initialDetailEvent === null);
   }
   // Same-route `?edit=` deep link (the search modal's "Edit" action, or a
   // Google Calendar note link opened while the dashboard is already mounted):

@@ -12,6 +12,7 @@ import {
   fetchRangeEvents,
   getUserDepartmentId,
   listCalendars,
+  type CalendarEvent,
 } from "@/lib/events/queries";
 import { filterUserOptionIds } from "@/lib/filters/filterUserOptions";
 import { googleCalendarConfigured } from "@/lib/google";
@@ -356,6 +357,39 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
     calendarsById,
   });
 
+  // The `?event=` deep link (search results and the Pinned Events agenda): the
+  // view's filtered events are tried first so in-view events open instantly.
+  // Search deliberately scans every department, so the group can live in a
+  // calendar the current filters exclude (e.g. a non-admin's default = own
+  // department) — fall back to an unfiltered lookup across all calendars so
+  // the details can always open, before declaring the link unresolvable.
+  let initialDetailEvent: CalendarEvent | null = initialDetailEventId
+    ? (events.find((event) => event.payload.eventId === initialDetailEventId) ?? null)
+    : null;
+  if (initialDetailEventId !== null && initialDetailEvent === null) {
+    const rawAll = await fetchRangeEvents({
+      months: rangeMonths,
+      calendarIds: calendars.map((calendar) => calendar.id),
+      typeFilter: [],
+      userFilter: [],
+    });
+    const all = resolveDisplayTitles(rawAll, {
+      view,
+      nameTemplate: settings.nameTemplate,
+      masterTemplate: settings.eventTitleTemplate,
+      assignments: settings.eventTitleTemplateAssignments as Record<string, string>,
+      templates: eventTitleTemplates.map((t) => ({
+        id: t.id,
+        label: t.label,
+        template: t.template,
+      })),
+      usersById,
+      eventTypesByName,
+      calendarsById,
+    });
+    initialDetailEvent = all.find((event) => event.payload.eventId === initialDetailEventId) ?? null;
+  }
+
   return (
     <DashboardView
       month={month}
@@ -394,6 +428,7 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
       currentUserName={session.user.name ?? ""}
       initialEditEventId={initialEditEventId}
       initialDetailEventId={initialDetailEventId}
+      initialDetailEvent={initialDetailEvent}
       scheduleUsers={scheduleUsers}
       allActiveUsers={allActiveUsers}
       inviteeDepartments={inviteeDepartments}

@@ -115,12 +115,17 @@ mechanics in the doc.
   theme toggle) opens a **lazy-loaded** (`dynamic` + `ssr: false`) modal that
   free-text searches every department calendar **directly via Google Calendar**
   (`events.list` with `q` — bypassing the month cache), mapped + deduped by logical
-  event and rendered in `@mantine/schedule`'s `AgendaView`; tapping a result shows
-  a **spinner on that row** (`useTransition` `isPending`) and deep-links
-  `/dashboard?date=…&event=…`, landing on the shared full `EventDetail`
-  (Duplicate/Edit/Delete); the modal zooms out of / shrinks into the search button
-  (standard `motion/origin`). `q` matches `summary`/`location`/`description`, but
-  **not** the compressed notes (type/people), unless the title template renders them.
+  event and rendered in `@mantine/schedule`'s `AgendaView`; tapping a result
+  **closes the modal and plain-pushes** `/dashboard?date=…&event=…` (the same
+  pattern as Pinned Events — never `useTransition`, whose `isPending` doesn't track
+  Next's own navigation), landing on the shared full `EventDetail`
+  (Duplicate/Edit/Delete). The dashboard resolves the `?event=` deep link against
+  the current view's filtered events first, then an **unfiltered fallback across
+  all calendars** (`page.tsx` `initialDetailEvent`), so cross-department results the
+  filters exclude still open. The modal zooms out of / shrinks into the search
+  button (standard `motion/origin`). `q` matches `summary`/`location`/`description`,
+  but **not** the compressed notes (type/people), unless the title template renders
+  them.
   Design: [docs/event-search.md](docs/event-search.md).
 - **KAH constraints are notify-only.** After every successful create/update (never
   delete), `dispatchKahBreachCheck()` (`src/lib/kah/notify.ts`) runs inside `after()` —

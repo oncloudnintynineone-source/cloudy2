@@ -58,7 +58,7 @@ flowchart LR
     subgraph SHELL["AppShellShell (client)"]
         B["header Search ActionIcon<br/>(between pinned + theme)"]
         M["EventSearchModal<br/>dynamic(ssr: false)"]
-        SPIN["row spinner<br/>(useTransition isPending)"]
+        CLOSE["close modal + plain router.push"]
     end
     subgraph ACTION["Server action (search.ts)"]
         R["requireSession()"]
@@ -73,8 +73,8 @@ flowchart LR
     M -->|searchEvents(q, from, to)| R --> C --> F
     F --> LIST
     LIST --> MAP --> M
-    M -->|result click| SPIN
-    SPIN -->|"/dashboard?date=..&event=.."| DEEP["dashboard EventDetail<br/>(Duplicate / Edit / Delete)"]
+    M -->|result click| CLOSE
+    CLOSE -->|"/dashboard?date=..&event=.."| DEEP["dashboard EventDetail<br/>(Duplicate / Edit / Delete)"]
 ```
 
 Search calls `events.list` directly through `getGoogleIntegration()` — it never
@@ -184,16 +184,19 @@ index (a separate concern from this native-search feature; see
   an `AgendaView` result list grouped by day. `rangeStart`/`rangeEnd` are the
   first/last result's start day, so empty days in between aren't rendered as
   headers. Results are "No events match your search" when empty.
-- A result click shows a **spinner on that row** — an overlay sized to the
-  clicked row's box (positional, so multi-day events repeated under several
-  date headers never light more than the one row clicked; nothing shifts) — and
-  navigates `/dashboard?date=<start day>`
-  (`+ &event=<group id>` for internal events) inside a `useTransition`. The
-  search modal stays open while `isPending`, then closes once the navigation
-  commits — the dashboard's own full `EventDetail` (Duplicate/Edit/Delete) is
-  what the user lands on, reusing the existing `?event=`/`?date=` deep-link
-  machinery (`page.tsx:63-66`). Rows stay clickable throughout, so a re-click
-  re-triggers navigation. There is no read-only detail step.
+- A result click **closes the modal and deep-links** `/dashboard?date=<start day>`
+  (`+ &event=<group id>` for internal events) with a **plain `router.push`** —
+  the same pattern as the Pinned Events panel, deliberately *not* a
+  `useTransition` (the hook's `isPending` only tracks the modal's own
+  synchronous scope, not Next's internal navigation, so waiting on it made the
+  close timing race the navigation). The dashboard's loading skeleton covers
+  the transition; its own full `EventDetail` (Duplicate/Edit/Delete) is what the
+  user lands on, reusing the existing `?event=`/`?date=` deep-link machinery
+  (`page.tsx:63-66`). The dashboard resolves the deep link against the current
+  view's filtered events first, then falls back to an unfiltered lookup across
+  every calendar (`page.tsx` `initialDetailEvent`), so a cross-department result
+  the filters exclude can still open — "Could not open that event" only fires
+  for genuinely missing/stale groups. There is no read-only detail step.
 
 ## 1.10 Pure helpers & testing
 
@@ -221,7 +224,7 @@ wiring) follows the repo convention of being I/O-bound and untested.
 | `src/lib/events/searchRange.ts` | Pure date-range/default helpers (tested) |
 | `src/lib/events/queries.ts` | `mapCalendarItem` (now exported; reused by search) |
 | `src/app/(protected)/dashboard/EventDetail.tsx` | The shared detail modal the deep link lands on (unchanged) |
-| `src/components/EventSearchModal.tsx` | Lazy-loaded search modal + agenda + row-spinner deep link |
+| `src/components/EventSearchModal.tsx` | Lazy-loaded search modal + agenda + close-and-deep-link to the dashboard |
 | `src/components/AppShellShell.tsx` | Header search button + modal mount + origin rect |
 
 Related docs:
