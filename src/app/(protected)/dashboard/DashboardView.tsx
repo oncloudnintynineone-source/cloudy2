@@ -1136,20 +1136,25 @@ export function DashboardView({
 
   // Remembered UI state: persist the server-resolved view/filters to the
   // per-device cookie every time the rendered state changes, so a relaunch
-  // (or F5) lands on exactly this view (see src/lib/ui/uiState.ts). In
-  // per-view mode the full resolved map is written back too (section-wholesale
-  // replace keeps every view's memory); in global mode those keys are omitted,
-  // which prunes a stale `views`/`filterMode` from the cookie while reverting.
+  // (or F5) lands on exactly this view (see src/lib/ui/uiState.ts). The seed
+  // carries the resolved set + which filter params the current URL pins; the
+  // hook builds the next cookie section from the CURRENT cookie, so per-view
+  // memory merges only the current view's entry (never materializing views
+  // the user didn't configure — see buildDashboardPersist). In global mode
+  // views/filterMode are omitted, which prunes a stale map while reverting.
   usePersistUiState("dashboard", {
     view,
     date,
     month,
-    cal: selectedCalendarIds,
-    users: selectedUserIds,
-    types: selectedTypes,
+    selected: { cal: selectedCalendarIds, users: selectedUserIds, types: selectedTypes },
     pinnedViews: pinned,
     zoom,
-    ...(perViewMode ? { filterMode: "per-view" as const, views: viewFilters } : {}),
+    filterMode: perViewMode ? "per-view" : "global",
+    urlKeys: {
+      cal: searchParams.has("cal"),
+      users: searchParams.has("users"),
+      types: searchParams.has("types"),
+    },
   });
 
   // The date shown in the agenda day modal; persists through the exit

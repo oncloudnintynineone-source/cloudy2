@@ -66,6 +66,12 @@ Filter semantics:
   [`ui-state.md`](ui-state.md) §1.5.1 / §1.9. In per-view mode switching views
   writes the target view's filters into the URL, so the URL always describes the
   rendered view.
+- The per-view writer (`buildDashboardPersist`) records **only views the user
+  configured or cleared** — never the full resolved set — so a view that was
+  never touched keeps falling through to the shared set, and a large roster
+  cannot blow the remembered-state cookie past its size guard (the v1
+  materialize-then-drain bug that lost per-view Users filters is fixed by this;
+  see `ui-state.md` §1.4/§1.5.1).
 
 ```mermaid
 flowchart LR

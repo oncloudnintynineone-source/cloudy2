@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   DASHBOARD_VIEW_VALUES,
   UI_STATE_COOKIE,
+  buildDashboardPersist,
   decodeUiState,
   encodeUiState,
   freshMarkerNeeded,
@@ -10,10 +11,12 @@ import {
   normalizePinnedViews,
   normalizeUiState,
   orderDashboardViews,
+  reduceUiStateForCookie,
   resolveDashboardFilters,
   resolveDashboardView,
   resolveFilterMode,
   resolveLaunchTarget,
+  type DashboardPersistSeed,
 } from "./uiState";
 
 describe("encodeUiState/decodeUiState", () => {
@@ -528,6 +531,187 @@ describe("resolveLaunchTarget", () => {
   });
 });
 
+describe("cookie schema versioning", () => {
+  const current: [number, number] = [2, 0];
+  const cookie = (payload: unknown) => toBase64Url(JSON.stringify(payload));
+
+  it("decodeUiState reads a cookie stamped with the current version", () => {
+    expect(decodeUiState(cookie({ v: current, dashboard: { view: "week" } }))).toEqual({
+      dashboard: { view: "week" },
+    });
+  });
+
+  it("encodeUiState stamps the current [major, minor] (round-trip keeps fields)", () => {
+    const raw = decodeRaw(encodeUiState({ lastPage: "/contacts" }));
+    expect(raw.v).toEqual(current);
+    expect(decodeUiState(encodeUiState({ lastPage: "/contacts" }))).toEqual({
+      lastPage: "/contacts",
+    });
+  });
+
+  it("drops a legacy v1 cookie (no version field)", () => {
+    expect(decodeUiState(cookie({ dashboard: { view: "week" } }))).toBeNull();
+  });
+
+  it("drops a cookie with a different major in both directions", () => {
+    expect(decodeUiState(cookie({ v: [1, 0], dashboard: { view: "week" } }))).toBeNull();
+    expect(decodeUiState(cookie({ v: [3, 0], dashboard: { view: "week" } }))).toBeNull();
+  });
+
+  it("decodes a NEWER minor within the same major (forward-compatible)", () => {
+    expect(
+      decodeUiState(cookie({ v: [current[0], current[1] + 1], dashboard: { view: "week" } })),
+    ).toEqual({ dashboard: { view: "week" } });
+  });
+
+  it("drops a cookie whose minor requires a migration this build cannot run", () => {
+    expect(decodeUiState(cookie({ v: [current[0], -1], dashboard: { view: "week" } }))).toBeNull();
+  });
+
+  it("drops a malformed version field (treated as legacy)", () => {
+    expect(decodeUiState(cookie({ v: "2", dashboard: { view: "week" } }))).toBeNull();
+    expect(decodeUiState(cookie({ v: [2], dashboard: { view: "week" } }))).toBeNull();
+    expect(decodeUiState(cookie({ v: { major: 2, minor: 0 }, dashboard: { view: "week" } }))).toBeNull();
+    expect(decodeUiState(cookie({ v: [2, 0.5], dashboard: { view: "week" } }))).toBeNull();
+  });
+});
+
+describe("buildDashboardPersist", () => {
+  const seed = (over: Partial<DashboardPersistSeed> = {}): DashboardPersistSeed => ({
+    view: "week",
+    selected: { cal: ["c1"], users: [], types: [] },
+    pinnedViews: [],
+    zoom: null,
+    filterMode: "per-view",
+    urlKeys: { cal: false, users: false, types: false },
+    ...over,
+  });
+
+  it("never materializes a view the URL does not pin and the cookie does not know", () => {
+    expect(buildDashboardPersist(undefined, seed())).toEqual({
+      view: "week",
+      cal: ["c1"],
+      users: [],
+      types: [],
+      filterMode: "per-view",
+    });
+  });
+
+  it("records a resolved selection when the URL pins its key", () => {
+    expect(
+      buildDashboardPersist(undefined, seed({ urlKeys: { cal: false, users: true, types: false } })),
+    ).toEqual({
+      view: "week",
+      cal: ["c1"],
+      users: [],
+      types: [],
+      filterMode: "per-view",
+      views: { week: { users: [] } },
+    });
+  });
+
+  it("keeps a previously-remembered key fresh even when the URL is silent", () => {
+    const prev = { views: { week: { cal: ["c1"], users: ["u1"] } } };
+    const built = buildDashboardPersist(prev, seed({ selected: { cal: ["c1"], users: ["u1"], types: [] } }));
+    expect(built.views).toEqual({ week: { cal: ["c1"], users: ["u1"] } });
+  });
+
+  it("keeps an explicit CLEAR (empty) alive for a view that previously remembered the key", () => {
+    const prev = { views: { week: { users: ["u1"] } }, users: ["u1"] };
+    const built = buildDashboardPersist(prev, seed({ selected: { cal: ["c1"], users: [], types: [] } }));
+    expect(built.views).toEqual({ week: { users: [] } });
+  });
+
+  it("preserves other views' memory untouched while updating the current view", () => {
+    const prev = { views: { month: { users: ["m1"] } } };
+    const built = buildDashboardPersist(prev, seed({ urlKeys: { cal: false, users: true, types: false } }));
+    expect(built.views).toEqual({ month: { users: ["m1"] }, week: { users: [] } });
+  });
+
+  it("does not grow the views map for a view with no memory and nothing pinned", () => {
+    const prev = { views: { month: { users: ["m1"] } } };
+    const built = buildDashboardPersist(prev, seed({ selected: { cal: ["c1"], users: [], types: [] } }));
+    expect(built.views).toEqual({ month: { users: ["m1"] } });
+  });
+
+  it("global mode writes the shared set and prunes views/filterMode from a per-view cookie", () => {
+    const prev = { views: { week: { users: ["u1"] } }, filterMode: "per-view" as const };
+    expect(buildDashboardPersist(prev, seed({ filterMode: "global" }))).toEqual({
+      view: "week",
+      cal: ["c1"],
+      users: [],
+      types: [],
+    });
+  });
+
+  it("keeps scalars (date/month/pinnedViews/zoom) as given", () => {
+    expect(
+      buildDashboardPersist(undefined, seed({ date: "2026-09-01", month: "2026-09", pinnedViews: ["week"], zoom: 1.5 })),
+    ).toEqual(
+      expect.objectContaining({
+        date: "2026-09-01",
+        month: "2026-09",
+        pinnedViews: ["week"],
+        zoom: 1.5,
+      }),
+    );
+  });
+});
+
+describe("reduceUiStateForCookie", () => {
+  it("is a no-op (same reference) when only scalars remain", () => {
+    const state = { dashboard: { view: "month", date: "2026-09-01" } };
+    expect(reduceUiStateForCookie(state)).toBe(state);
+    expect(reduceUiStateForCookie({})).toEqual({});
+  });
+
+  it("drops parade lists before shared lists before per-view user lists", () => {
+    const state = {
+      parade: { cal: ["p1", "p2"], users: ["pu"] },
+      dashboard: {
+        users: ["s1", "s2"],
+        views: { week: { users: ["u1", "u2", "u3"] } } as Record<string, Record<string, string[]>>,
+      },
+    };
+    // Pass 1: parade.cal is the largest tier-0 list → dropped first.
+    let reduced = reduceUiStateForCookie(state);
+    expect(reduced.parade).toEqual({ users: ["pu"] });
+    expect(reduced.dashboard!.users).toEqual(["s1", "s2"]);
+    // Pass 2: parade.users + shared users tie tiers? tiers: parade(tier0) first.
+    reduced = reduceUiStateForCookie(reduced);
+    expect(reduced.parade).toBeUndefined();
+    expect(reduced.dashboard!.users).toEqual(["s1", "s2"]);
+    // Pass 3: shared users (tier1) before the per-view users (tier4).
+    reduced = reduceUiStateForCookie(reduced);
+    expect(reduced.dashboard!.users).toBeUndefined();
+    expect(reduced.dashboard!.views!.week!.users).toEqual(["u1", "u2", "u3"]);
+  });
+
+  it("drops the largest list first within a tier", () => {
+    const state = {
+      dashboard: { cal: ["c1"], types: ["t1"], users: ["u1", "u2", "u3"] },
+    };
+    expect(reduceUiStateForCookie(state).dashboard!.users).toBeUndefined(); // largest, same tier
+  });
+
+  it("prunes empty view stubs and containers after a drop", () => {
+    const state = { dashboard: { views: { week: { cal: ["c1", "c2"] } } } };
+    const reduced = reduceUiStateForCookie(state);
+    expect(reduced.dashboard!.views).toBeUndefined();
+    expect(reduced).toEqual({ dashboard: {} });
+  });
+
+  it("does not mutate its input", () => {
+    const state = {
+      parade: { cal: ["p1"] },
+      dashboard: { views: { week: { cal: ["c1"], users: ["u1"] } } },
+    };
+    const snapshot = JSON.parse(JSON.stringify(state));
+    reduceUiStateForCookie(state);
+    expect(state).toEqual(snapshot);
+  });
+});
+
 describe("UI_STATE_COOKIE", () => {
   it("is a stable, cookie-name-safe constant", () => {
     expect(UI_STATE_COOKIE).toMatch(/^[A-Za-z0-9._-]+$/);
@@ -539,4 +723,9 @@ function toBase64Url(value: string): string {
   // browser-only btoa (vitest runs in a bare node env).
   const binary = Buffer.from(value, "utf8").toString("base64");
   return binary.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+
+function decodeRaw(value: string): Record<string, unknown> {
+  const b64 = value.replace(/-/g, "+").replace(/_/g, "/");
+  return JSON.parse(Buffer.from(b64, "base64").toString("utf8"));
 }

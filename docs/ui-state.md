@@ -117,28 +117,45 @@ Division of labor:
 
 ## 1.4 The cookie: format & stored shape
 
-- **Name**: `cloudy2.ui` (`UI_STATE_COOKIE`, `src/lib/ui/uiState.ts:29`).
-- **Value**: `base64url(JSON)` without padding — `encodeUiState` / `decodeUiState`
-  (`uiState.ts:189` / `:194`). The encoder is `toBase64Url` (`:172`, UTF-8 →
-  `btoa` → `+`→`-`, `/`→`_`, padding stripped); the decoder re-pads and is total —
-  any failure (bad base64, broken JSON, non-object) returns `null`, never throws.
-- **Attributes**: `path=/; max-age=31536000` (one year, `uiStateClient.ts:17,49`).
-- **Overflow guard**: if the encoded value would exceed
-  `SAFE_COOKIE_VALUE_LENGTH` (3500, headroom under the ~4 KiB browser cap —
-  `uiStateClient.ts:23,34`), the writer re-encodes **dropping the id lists**
-   (`cal`/`users`/`types` and the whole per-view `views` map) and keeping the
-   small scalars that carry the most "where am I" signal: `lastPage`,
-   `sidebarCollapsed`, dashboard `view`/`date`/`month`/`pinnedViews`/`zoom`,
-   plus the `filterMode` preference (the mode survives a degrade; the per-view
-   id lists reset to the shared set/role defaults next load). The parade
-   section holds only filter id lists, so it degrades to nothing there — its
-   filters reset, and its day was never remembered anyway
-   (`uiStateClient.ts:30-49`).
+- **Name**: `cloudy2.ui` (`UI_STATE_COOKIE`, `src/lib/ui/uiState.ts`).
+- **Value**: `base64url(JSON)` without padding of `{ v: [major, minor], ...UiState }`
+  — `encodeUiState` / `decodeUiState`. The encoder is `toBase64Url` (UTF-8 →
+  `btoa` → `+`→`-`, `/`→`_`, padding stripped); the decoder re-pads and is
+  **version-checked then total** — bad base64, broken JSON, a non-object, OR an
+  incompatible major version all return `null`, never throw.
+- **Attributes**: `path=/; max-age=31536000` (one year, `uiStateClient.ts`).
+- **Schema versioning** (`v: [major, minor]`): a **major mismatch in either
+  direction drops the whole cookie** (`decodeUiState` → `null`) — the writer's
+  shape guarantees are per-major, so a rolled-back deploy never decodes a
+  future-major blob and a past-major blob is never tolerated. A **newer minor**
+  within the current major decodes as-is (minor bumps are forward-compatible,
+  unknown fields fall out in normalization); an **older minor** runs the pure
+  `MINOR_MIGRATIONS` chain before normalization. A **legacy v1 cookie** (no
+  `v` field) is dropped too — v1 shipped the materialized per-view `views`
+  blob whose overflow drain is exactly what versioning retires, so every
+  existing cookie gets a clean start on this build. `writeUiState` always
+  re-stamps the current version (self-healing after a drop). (The PWA launch
+  shell's `launchTargetFromCookieHeader` reads only `lastPage` leniently and
+  ignores the version — at most one launch may follow a pre-drop path; the app
+  self-heals on the next write.)
+- **Overflow guard**: if the encoded value exceeds `SAFE_COOKIE_VALUE_LENGTH`
+  (3500, headroom under the ~4 KiB browser cap), the writer **trims the least
+  intentful id lists first** via `reduceUiStateForCookie` (pure): parade filters,
+  then the shared `cal`/`types`/`users`, then per-view `cal` lists (re-derivable
+  from the role default), then per-view `types`, keeping per-view **user**
+  selections last — and only when everything else is gone do the scalar
+  "where am I" keys suffer. Once per-view memory stopped materializing
+  unconfigured views (§1.5.1), healthy cookies stay far under the limit; this
+  guard is the last-resort safety net for large explicit selections and no
+  longer wipes the `views` map it used to.
 
 ### 1.4.1 Stored JSON (`UiState`, `uiState.ts:52-58`)
 
 ```jsonc
 {
+  // decodeUiState strips the version before this shape is consumed; the wire
+  // value is `{ "v": [2, 0], ...this }`. Bump minor for a migration, major to
+  // drop the cookie (see §1.4). Update the jsonc + tests when bumping.
   "lastPage": "/settings/users",        // bottom-nav path, incl. /settings sub-tab
   "sidebarCollapsed": false,            // desktop sidebar minimized to the icon rail
   "dashboard": {
@@ -151,13 +168,14 @@ Division of labor:
      "pinnedViews": ["weekv2", "month"], // recency order: index 0 = leftmost tab
      "zoom": 1.5,                        // Day/Week (H) hour-slot zoom (see slotZoom.ts)
      "filterMode": "per-view",           // "global" (absent) = ONE shared filter set across
-                                          // every view; "per-view" = each view remembers its own
-     "views": {                          // present only in per-view mode; ABSOLUTE per-view sets —
+                                         // every view; "per-view" = each view remembers its own
+     "views": {                          // present only in per-view mode; holds ONLY views the user
+                                         // explicitly configured or cleared (buildDashboardPersist merges
        "month":  { "cal": ["<calendar id>"], "users": [], "types": [] },
-                                          // empty lists are meaningful ("this view cleared that
+                                         // the current view into the previous map) — an ABSENT view
        "week":   { "cal": ["<calendar id>"], "users": ["<user id>"] },
-                                          // filter") and must win over the shared set
-       ...                               // the four remaining views share the same shape
+                                         // keeps falling through to the shared set, so it is never
+       ...                               // materialized with a transient resolution
      }
    },
   "parade": {
@@ -247,6 +265,20 @@ other views:                    → views[view] → shared set → role default
   Week's Users filter never resurrects the shared set's users when Week is
   revisited. An *absent* key (a view that never set it) falls through to the
   shared set.
+- **The writer only records what the user configured.** `buildDashboardPersist`
+  (`uiState.ts`, pure — the seed `DashboardPersistSeed` carries the current
+  view's resolved set plus which filter params the current URL pins) merges the
+  current view's entry into the *previous* `views` map; it never persists the
+  full resolved set for every view, so a view the user never touched keeps
+  absent keys and genuinely falls through to the shared set. A key is recorded
+  when the URL pins it (an apply or a per-view view-switch wrote it — recorded
+  verbatim, including an explicit clear) or when the view already remembered it
+  (the value is refreshed); everything else stays absent. Besides matching the
+  documented absent-key semantics, this keeps a 15+ calendar org's cookie far
+  under the size guard — the v1 writer materialized `cal = <all calendars>`
+  into all five views per render, blowing past `SAFE_COOKIE_VALUE_LENGTH` and
+  triggering the old overflow drain that silently wiped the whole `views` map
+  (the Users-filter loss this fixed).
 - `filterMode` is a **non-navigating preference** like `pinnedViews`/`zoom`:
   read from the **raw** `cookieState` even on `_fresh` renders, so a Clear never
   silently flips the user back to the global default.
@@ -335,8 +367,14 @@ remembered), and the shell's effect persists it back on every toggle.
 | ------ | ----- | ---------------- |
 | `useRememberedPage(pathname)` (`uiStateClient.ts:74`) | `AppShellShell.tsx` — every authenticated page | `{ lastPage: pathname }` on every pathname change, incl. `/settings` sub-tabs |
 | sidebar toggle effect (`AppShellShell.tsx:153-155`) | `AppShellShell.tsx` — every authenticated page | `{ sidebarCollapsed }` on mount (the remembered value) and on every toggle — writing `false` too, so the cookie converges when the sidebar is re-expanded |
-| `usePersistUiState("dashboard", values)` (`uiStateClient.ts:63`) | `DashboardView.tsx` | the **server-resolved props**: `view`, `date`, `month`, `cal`, `users`, `types`, plus local `pinnedViews` and `zoom`; in per-view mode the same call carries `filterMode` and the full resolved `views` map so the section-wholesale replace re-persists every view's memory in one write (and omitting them in global mode prunes a stale map on revert) |
+| `usePersistUiState("dashboard", seed)` (`uiStateClient.ts:70`) | `DashboardView.tsx` | builds the next section from the **current cookie** via `buildDashboardPersist` (pure): the server-resolved `view`, `date`, `month`, `selected`→shared `cal/users/types`, plus local `pinnedViews`/`zoom`; in per-view mode `filterMode` and the current view's entry **merged** into the previous `views` map (never the full resolved map — §1.5.1); omitting them in global mode prunes a stale map on revert |
 | `usePersistUiState("parade", values)` | `ParadeStateView.tsx:166` | the server-resolved `cal`, `users` filters — the day is deliberately not persisted, so a bare /parade-state opens on today |
+
+The overflow guard described in §1.4 also lives in this read-modify-write: the
+writer encodes, and if the value exceeds `SAFE_COOKIE_VALUE_LENGTH` it trims
+the least-intentful id lists one pass at a time (`reduceUiStateForCookie`) and
+re-encodes until it fits — never silently dropping the per-view `views` map the
+way the v1 writer did.
 
 The crucial detail is **what** gets written: the *server-resolved* props, not the
 raw URL params. The server has already dropped stale ids and applied role

@@ -7,6 +7,10 @@
  * to apply the remembered values as per-key *defaults* — explicit URL params
  * always win — so restoration happens before first paint, no client redirect.
  *
+ * The encoded value is `{ v: [major, minor], ...state }` — see the COOKIE
+ * VERSIONING block below: a major mismatch drops the cookie entirely, a newer
+ * minor decodes as-is, an older minor runs the migration chain.
+ *
  * Stored shape (all values validated on the server again exactly like URL
  * params):
  *   {
@@ -21,6 +25,12 @@
  *     parade?:    { cal?: string[], users?: string[] },  // filters only — the day is NOT
  *                    remembered: a bare /parade-state always opens on today
  *   }
+ *
+ * Per-view `views` holds ONLY views the user explicitly configured/cleared:
+ * `buildDashboardPersist` merges the current view's entry into the previous
+ * map instead of persisting the full resolved set for every view, so an
+ * unconfigured view keeps absent keys and genuinely falls through to the
+ * shared set — and a large roster cannot blow the cookie past the size guard.
  *
  * One-shot URL params (`edit`, `refresh`, `_fresh`) are never stored. The
  * `_fresh` marker — auto-added by the views' `navigate()` whenever a
@@ -231,6 +241,101 @@ export function resolveDashboardFilters({
   return { selected: viewFilters[view], viewFilters };
 }
 
+/**
+ * What a dashboard render needs to compute the next remembered-state section:
+ * the server-resolved view/filters plus — for per-view mode — which filter
+ * params the current URL explicitly pins. Only those pinned keys (or keys a
+ * view already remembers) are written back into `views`, so a view the user
+ * never configured keeps *absent* keys and genuinely falls through to the
+ * shared set instead of being materialized with a transient resolution.
+ */
+export interface DashboardPersistSeed {
+  view: DashboardViewValue;
+  date?: string;
+  month?: string;
+  /** The current view's server-resolved filters; also becomes the shared set. */
+  selected: DashboardFilterSet;
+  pinnedViews: readonly string[];
+  zoom: number | null;
+  filterMode: DashboardFilterMode;
+  /** Presence (not value) of each filter param in the current URL: an explicit
+   *  apply/view-switch writes the key, an absent key on a never-set view does
+   *  not. */
+  urlKeys: Record<DashboardFilterKey, boolean>;
+}
+
+/**
+ * The `views` entry to remember for one view. A key is recorded only when the
+ * user's intent is unambiguous:
+ * - the URL pins the key (an apply or a per-view view-switch wrote it) — the
+ *   resolved value is remembered verbatim, including an explicit clear;
+ * - the view already remembered the key — the value is refreshed (keeps a
+ *   previous explicit selection / clear marker alive);
+ * - otherwise the key stays ABSENT, so the view falls through to the shared
+ *   set / role default on every read and is never stamped by a fall-through
+ *   resolution.
+ */
+function perViewEntry(
+  prev: DashboardUiState | undefined,
+  seed: DashboardPersistSeed,
+): DashboardViewFilters | null {
+  const previous = prev?.views?.[seed.view];
+  const entry: DashboardViewFilters = {};
+  for (const key of DASHBOARD_FILTER_KEYS) {
+    const resolved = seed.selected[key];
+    if (seed.urlKeys[key] || previous?.[key] !== undefined) {
+      entry[key] = resolved;
+    }
+  }
+  return Object.keys(entry).length > 0 ? entry : null;
+}
+
+/**
+ * Build the next remembered dashboard section for a render. The shared
+ * `cal/users/types` set becomes the current view's resolved set (unchanged
+ * semantics: flipping back to "Same for all views" collapses every view onto
+ * the current view's set). In per-view mode the `views` map is the previous
+ * map MERGED with only the current view's entry — never the full resolved map
+ * — so unconfigured views stay absent and a 15+ calendar org no longer blows
+ * the cookie past the size guard.
+ */
+export function buildDashboardPersist(
+  prev: DashboardUiState | undefined,
+  seed: DashboardPersistSeed,
+): DashboardUiState {
+  const section: DashboardUiState = {
+    view: seed.view,
+    cal: seed.selected.cal,
+    users: seed.selected.users,
+    types: seed.selected.types,
+  };
+  if (seed.date !== undefined) section.date = seed.date;
+  if (seed.month !== undefined) section.month = seed.month;
+  if (seed.pinnedViews.length > 0) section.pinnedViews = [...seed.pinnedViews];
+  if (seed.zoom !== null && Number.isFinite(seed.zoom)) section.zoom = seed.zoom;
+  if (seed.filterMode === "per-view") {
+    section.filterMode = "per-view";
+    const entry = perViewEntry(prev, seed);
+    const views: Partial<Record<DashboardViewValue, DashboardViewFilters>> = {
+      ...(prev?.views ?? {}),
+    };
+    if (entry !== null) {
+      views[seed.view] = entry;
+    } else {
+      delete views[seed.view];
+    }
+    // Prune any accidentally-empty stubs before deciding the map exists.
+    for (const [view, set] of Object.entries(views)) {
+      if (!set || Object.keys(set).length === 0) delete views[view as DashboardViewValue];
+    }
+    if (Object.keys(views).length > 0) section.views = views;
+  } else {
+    // Global mode omits views/filterMode; the section-wholesale replace below
+    // prunes a stale materialized map while reverting.
+  }
+  return section;
+}
+
 function isPlainObject(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
@@ -355,19 +460,226 @@ function fromBase64Url(value: string): string {
   return new TextDecoder().decode(Uint8Array.from(binary, (char) => char.charCodeAt(0)));
 }
 
-/** Encode state into the cookie value: base64url(JSON), no padding. */
-export function encodeUiState(state: UiState): string {
-  return toBase64Url(JSON.stringify(state));
+// --- Cookie schema versioning ---
+//
+// The encoded cookie carries `v: [major, minor]`. A major mismatch in EITHER
+// direction drops the whole cookie (decode → null): the writer's shape
+// guarantees are per-major, so a current build must never try to read a
+// future-major blob (a rolled-back deploy would otherwise decode garbage) and
+// never tolerate a past-major blob, however innocent it looks. A newer MINOR
+// within the same major is forward-compatible (minor bumps never break
+// readers, they only add/repair fields), so it decodes straight through.
+// An older minor runs the pure migration chain below before normalization.
+// A legacy v1 cookie (no `v` field) predates versioning and is dropped too —
+// this project's v1 state (materialized per-view `views`, overflow-drained
+// blobs) is exactly the bug this versioning exists to retire.
+const COOKIE_VERSION: readonly [number, number] = [2, 0];
+
+/** Minor migrations within the CURRENT major, keyed by the minor they upgrade
+ *  FROM. Each returns the raw (pre-normalization) object. v2 adds none. */
+const MINOR_MIGRATIONS: Record<number, (value: Record<string, unknown>) => Record<string, unknown>> =
+  {};
+
+function parseCookieVersion(raw: unknown): [number, number] | null {
+  if (!Array.isArray(raw) || raw.length !== 2) return null;
+  const [major, minor] = raw;
+  if (typeof major !== "number" || typeof minor !== "number") return null;
+  if (!Number.isInteger(major) || !Number.isInteger(minor)) return null;
+  return [major, minor];
 }
 
-/** Decode + normalize a cookie value; null when absent or undecodable. */
+/** Encode state into the cookie value: base64url(JSON) of
+ *  `{ v: [major, minor], ...state }`, no padding. */
+export function encodeUiState(state: UiState): string {
+  return toBase64Url(JSON.stringify({ v: COOKIE_VERSION, ...state }));
+}
+
+/**
+ * Decode + normalize a cookie value; null when absent, undecodable, or of an
+ * incompatible major version (or a legacy v1 cookie). A newer minor within the
+ * current major decodes as-is (forward-compatible); an older minor runs the
+ * migration chain first. Always total — never throws.
+ */
 export function decodeUiState(raw: string | null | undefined): UiState | null {
   if (!raw) return null;
   try {
-    return normalizeUiState(JSON.parse(fromBase64Url(raw)));
+    const parsed: unknown = JSON.parse(fromBase64Url(raw));
+    if (!isPlainObject(parsed)) return null;
+    const version = parseCookieVersion(parsed.v);
+    if (!version) return null; // legacy v1 cookie — predates this build's major
+    const [storedMajor, storedMinor] = version;
+    if (storedMajor !== COOKIE_VERSION[0]) return null; // past or future major
+    if (storedMinor > COOKIE_VERSION[1]) {
+      // newer minor from a future build: fields we know decode, the rest are
+      // dropped by normalizeUiState — never a migration target.
+      delete parsed.v;
+      return normalizeUiState(parsed);
+    }
+    let value: Record<string, unknown> = parsed;
+    for (let m = storedMinor; m < COOKIE_VERSION[1]; m++) {
+      const migration = MINOR_MIGRATIONS[m];
+      if (!migration) return null; // cannot migrate — programming error, drop
+      value = migration(value);
+    }
+    delete value.v;
+    return normalizeUiState(value);
   } catch {
     return null;
   }
+}
+
+// --- Cookie overflow reduction ---
+//
+// Browsers cap a cookie near 4 KiB; when the encoded state exceeds
+// SAFE_COOKIE_VALUE_LENGTH the writer trims it instead of silently dropping it.
+// Because per-view memory now only holds views the user configured (the
+// materialized cal=ALL×5 blob is gone), a healthy cookie stays small; this
+// reducer is the last-resort safety net for pathological explicit selections.
+// Each call drops the SINGLE least-intentful, largest present list: parade
+// filters first, then the shared set, then per-view cal lists (re-derivable
+// from the role default), then per-view types, keeping per-view USER selections
+// — the most intentful data — until last. Empty stubs and containers are
+// pruned as a side effect so the next pass starts clean.
+
+interface DropCandidate {
+  tier: number;
+  size: number;
+  drop: () => void;
+}
+
+function listSize(list: readonly string[] | null | undefined): number {
+  return (list ?? []).reduce((sum, id) => sum + id.length + 1, 0);
+}
+
+function reduceDashboardEntry(
+  views: Partial<Record<DashboardViewValue, DashboardViewFilters>>,
+  view: DashboardViewValue,
+  candidates: DropCandidate[],
+): void {
+  const entry = views[view];
+  if (!entry) return;
+  if (entry.cal?.length) {
+    candidates.push({
+      tier: 2,
+      size: listSize(entry.cal),
+      drop: () => {
+        delete entry.cal;
+        if (Object.keys(entry).length === 0) delete views[view];
+      },
+    });
+  }
+  if (entry.types?.length) {
+    candidates.push({
+      tier: 3,
+      size: listSize(entry.types),
+      drop: () => {
+        delete entry.types;
+        if (Object.keys(entry).length === 0) delete views[view];
+      },
+    });
+  }
+  if (entry.users?.length) {
+    candidates.push({
+      tier: 4,
+      size: listSize(entry.users),
+      drop: () => {
+        delete entry.users;
+        if (Object.keys(entry).length === 0) delete views[view];
+      },
+    });
+  }
+}
+
+/**
+ * One deterministic reduction pass: returns a cloned state with the largest
+ * list from the lowest drop tier removed; returns the SAME reference when
+ * there is nothing left to drop (the caller loops until the encoded size fits
+ * or this signals no progress). Never mutates its input.
+ */
+export function reduceUiStateForCookie(state: UiState): UiState {
+  const candidates: DropCandidate[] = [];
+  const next: UiState = {
+    ...state,
+    parade: state.parade ? { ...state.parade } : undefined,
+    dashboard: state.dashboard
+      ? {
+          ...state.dashboard,
+          views: state.dashboard.views
+            ? (Object.fromEntries(
+                Object.entries(state.dashboard.views).map(([view, set]) => [
+                  view,
+                  { ...(set ?? {}) },
+                ]),
+              ) as Partial<Record<DashboardViewValue, DashboardViewFilters>>)
+            : undefined,
+        }
+      : undefined,
+  };
+  if (next.parade) {
+    if (next.parade.cal?.length) {
+      candidates.push({
+        tier: 0,
+        size: listSize(next.parade.cal),
+        drop: () => {
+          delete next.parade!.cal;
+        },
+      });
+    }
+    if (next.parade.users?.length) {
+      candidates.push({
+        tier: 0,
+        size: listSize(next.parade.users),
+        drop: () => {
+          delete next.parade!.users;
+        },
+      });
+    }
+  }
+  const dashboard = next.dashboard;
+  if (dashboard) {
+    if (dashboard.cal?.length) {
+      candidates.push({
+        tier: 1,
+        size: listSize(dashboard.cal),
+        drop: () => {
+          delete dashboard.cal;
+        },
+      });
+    }
+    if (dashboard.types?.length) {
+      candidates.push({
+        tier: 1,
+        size: listSize(dashboard.types),
+        drop: () => {
+          delete dashboard.types;
+        },
+      });
+    }
+    if (dashboard.users?.length) {
+      candidates.push({
+        tier: 1,
+        size: listSize(dashboard.users),
+        drop: () => {
+          delete dashboard.users;
+        },
+      });
+    }
+    if (dashboard.views) {
+      for (const view of DASHBOARD_VIEW_VALUES) {
+        reduceDashboardEntry(dashboard.views, view, candidates);
+      }
+    }
+  }
+  if (candidates.length === 0) return state;
+  candidates.sort((a, b) => a.tier - b.tier || b.size - a.size);
+  candidates[0].drop();
+  // Prune empty containers after the drop so the next pass sees clean state.
+  const d = next.dashboard;
+  if (d) {
+    if (d.views && Object.keys(d.views).length === 0) delete d.views;
+  }
+  if (next.parade && Object.keys(next.parade).length === 0) delete next.parade;
+  return next;
 }
 
 /** Shallow merge: defined patch keys (incl. a whole section) replace. */

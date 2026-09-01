@@ -6749,3 +6749,47 @@ Docs: `docs/loading-transitions.md` §1.7 (strip table + mermaid),
 Verification: `pnpm lint`, `pnpm typecheck`, `pnpm test` pass; manual QA on
 the per-view Reset flow (grid clears, stays after the strip, survives reload,
 other views untouched).
+
+## 1.158 Per-view filters silently wiped by the overflow drain; cookie versioning (bugfix)
+
+Report: the Users filter "sometimes doesn't apply" — in per-view mode, applying
+A+B on view 1, switching to a no-filter view 2 and back, the filter is gone;
+an F5 does NOT restore it. Users specifically; both anchored⇄anchored and
+Month-involved switches; both filter scopes. Root cause (confirmed by the
+>150-roster size math): `usePersistUiState` persisted the FULL resolved
+`views` map (`views: viewFilters`), so every render materialized
+`cal = <all 15+ calendars>` into all five views. Adding the several shared
+lists pushed the encoded cookie past `SAFE_COOKIE_VALUE_LENGTH` (3500), and
+`writeUiState`'s all-or-nothing overflow guard dropped BOTH the shared id
+lists AND the entire `views` map — permanently, for every subsequent write.
+Users is the only filter whose loss was visible (Calendars reverting to the
+admin all-default is invisible), which matched the report exactly.
+
+Fixes:
+1. **Writer never materializes unconfigured views.** New pure
+   `buildDashboardPersist(prev, seed)` + `DashboardPersistSeed`: the persisted
+   `views` = the previous map MERGED with only the current view's entry; a key
+   is recorded when the URL pins it (an apply / per-view view-switch wrote it),
+   or when the view already remembered it, otherwise it stays ABSENT and falls
+   through to the shared set. `DashboardView` now passes a seed
+   (view/date/month/selected/pinned/zoom/filterMode/urlKeys); `usePersistUiState`
+   builds the section from the CURRENT cookie at effect time. Explicit clears
+   (empty) are still recorded for views that previously remembered the key.
+2. **Overflow guard trims instead of nuking.** New pure
+   `reduceUiStateForCookie` drops the least-intentful largest list per pass:
+   parade → shared → per-view cal → per-view types → per-view users last
+   (never silently wiping `views`); `writeUiState` loops it under the limit.
+3. **Cookie schema versioning `[major, minor]`.** `encodeUiState` stamps
+   `{ v: [2, 0], ...state }`; `decodeUiState` drops the whole cookie on a
+   major mismatch in either direction (also rollback-proof), decodes a newer
+   minor as-is, runs the `MINOR_MIGRATIONS` chain for older minors, and drops
+   legacy v1 cookies entirely — every existing (drained/materialized) cookie
+   gets a clean start. This ship is the v2 major bump the user requested
+   ("insert cookie, start clean").
+
+Tests: version drop/migrate/forward-compat, `buildDashboardPersist` semantics
+(no materialization, explicit-clear kept, other views preserved, global prune),
+`reduceUiStateForCookie` tiering/pruning/non-mutation. Docs: `ui-state.md`
+§1.4 (versioning + overflow), §1.5.1 (config-only writer), §1.7 (seed row +
+guard); `dashboard-views.md` §1.2. Verification: lint/typecheck/871 tests/build.
+No DB/migration impact — cookie-only.
