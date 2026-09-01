@@ -60,16 +60,17 @@ Filter semantics:
 - On the dashboard an active **Users** filter also narrows the rows of
   Day/Week (H)/Week (D) — `buildScheduleResources` takes a `userFilter`
   (`src/lib/events/schedule.ts:120`) and the Week (D) matrix reuses the same rows.
-- The per-view model, its resolution order (URL → view memory → shared set →
-  role default), the explicit-empty "cleared" state, and the `_fresh`
-  current-view-only scoping live in the remembered-state system:
+- The per-view model, its resolution order (URL → view memory → **role default** —
+  per-view never consults the shared set, so configuring one view can't leak
+  into another's untouched views), the explicit-empty "cleared" state, and the
+  `_fresh` current-view-only scoping live in the remembered-state system:
   [`ui-state.md`](ui-state.md) §1.5.1 / §1.9. In per-view mode switching views
   writes the target view's filters into the URL, so the URL always describes the
   rendered view.
 - The per-view writer (`buildDashboardPersist`) records **only views the user
   configured or cleared** — never the full resolved set — so a view that was
-  never touched keeps falling through to the shared set, and a large roster
-  cannot blow the remembered-state cookie past its size guard (the v1
+  never touched keeps absent keys and resolves to role defaults, and a large
+  roster cannot blow the remembered-state cookie past its size guard (the v1
   materialize-then-drain bug that lost per-view Users filters is fixed by this;
   see `ui-state.md` §1.4/§1.5.1).
 

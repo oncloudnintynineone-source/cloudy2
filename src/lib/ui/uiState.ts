@@ -197,20 +197,31 @@ export interface DashboardFiltersResolution {
    *  filters) while the other views keep their per-view memories — clearing
    *  one view must never wipe the others. */
   fresh?: boolean;
+  /** True in per-view filter scoping: the shared set (`global`) is NOT a
+   *  fallback — every view resolves `views[view] → role default`, so a view
+   *  the user never configured shows role defaults and configuring one view
+   *  never leaks into another. The shared set is a global-mode concept (and
+   *  the flip-back target when reverting to "Same for all views"). */
+  perView?: boolean;
 }
 
 /**
  * Resolve the dashboard's filter state. One fallback order works for both
  * scoping modes because a "global" cookie carries no `views`:
  *
- *   current view:  URL (if present) → `views[view]` → `global` → role default
- *   other views:   `views[view]`    → `global`     → role default
+ *   global:      current view:  URL (if present) → `views[view]` → `global` → role default
+ *                other views:   `views[view]`    → `global`     → role default
+ *   per-view:    current view:  URL (if present) → `views[view]` → role default
+ *                other views:   `views[view]`    → role default
  *
- * A per-view entry may explicitly hold an empty list ("this view cleared that
- * filter") — it wins over `global`; only an ABSENT key falls through. On a
- * `_fresh` render the current view skips `views`/`global` (its filters were
- * just removed) and resolves from the URL params or role defaults; the other
- * views are untouched.
+ * In PER-VIEW mode (`perView`) the shared set is never a fallback: a view the
+ * user never configured resolves to role defaults, so configuring one view
+ * never leaks into another — the shared set is a global-mode concept. In
+ * GLOBAL mode a per-view entry may explicitly hold an empty list (records "this
+ * view cleared that filter") that wins over `global`; only an ABSENT key falls
+ * through. On a `_fresh` render the current view skips `views`/`global` (its
+ * filters were just removed) and resolves from the URL params or role defaults;
+ * the other views are untouched.
  */
 export function resolveDashboardFilters({
   view,
@@ -219,6 +230,7 @@ export function resolveDashboardFilters({
   global,
   defaults,
   fresh = false,
+  perView = false,
 }: DashboardFiltersResolution): {
   selected: DashboardFilterSet;
   viewFilters: Record<DashboardViewValue, DashboardFilterSet>;
@@ -226,6 +238,7 @@ export function resolveDashboardFilters({
   const resolveKey = (target: DashboardViewValue, key: DashboardFilterKey): string[] => {
     if (target === view && url[key] !== undefined) return url[key];
     if (target === view && fresh) return defaults[key];
+    if (perView) return views[target]?.[key] ?? defaults[key];
     return views[target]?.[key] ?? global[key] ?? defaults[key];
   };
   const viewFilters = Object.fromEntries(

@@ -400,7 +400,7 @@ describe("resolveDashboardFilters", () => {
     expect(viewFilters.month.cal).toEqual(["shared-cal"]);
   });
 
-  it("falls back view → shared → role default in per-view mode", () => {
+  it("per-view mode resolves configured views from their memory, others to role defaults", () => {
     const { selected, viewFilters } = resolveDashboardFilters({
       view: "week",
       url: url(),
@@ -410,28 +410,44 @@ describe("resolveDashboardFilters", () => {
       },
       global,
       defaults,
+      perView: true,
     });
-    expect(selected).toEqual({ cal: ["week-cal"], users: ["week-user"], types: ["Leave"] });
-    // agenda overrides only types; its cal/users come from the shared set.
-    expect(viewFilters.agenda).toEqual({ cal: ["shared-cal"], users: ["shared-user"], types: ["Overseas"] });
-    // An unmasked view falls through to the shared set.
-    expect(viewFilters.month).toEqual(global);
-    expect(viewFilters.schedule).toEqual(global);
+    expect(selected).toEqual({ cal: ["week-cal"], users: ["week-user"], types: [] });
+    // agenda overrides only types; a view the user never configured shows the
+    // role default, NOT the shared set (per-view is fully independent).
+    expect(viewFilters.agenda).toEqual({ cal: ["default-cal"], users: [], types: ["Overseas"] });
+    expect(viewFilters.month).toEqual(defaults);
+    expect(viewFilters.schedule).toEqual(defaults);
   });
 
-  it("lets an explicit empty per-view list win over the shared set (cleared view)", () => {
+  it("per-view mode ignores the shared set entirely (config never leaks into other views)", () => {
+    const { viewFilters } = resolveDashboardFilters({
+      view: "week",
+      url: url(),
+      views: { week: { cal: ["week-cal"], users: ["week-user"] } },
+      // The shared set still carries someone else's selection; per-view never
+      // falls back to it.
+      global,
+      defaults,
+      perView: true,
+    });
+    expect(viewFilters.month).toEqual(defaults);
+    expect(viewFilters.agenda).toEqual(defaults);
+  });
+
+  it("keeps an explicit empty per-view list (a cleared filter stays cleared)", () => {
     const { selected, viewFilters } = resolveDashboardFilters({
       view: "week",
       url: url(),
-      // agenda explicitly cleared users while the shared set still picks someone.
       views: { agenda: { users: [] } },
-      global: { cal: ["shared-cal"], users: ["shared-user"], types: [] },
+      global,
       defaults,
+      perView: true,
     });
     expect(viewFilters.agenda.users).toEqual([]);
-    // An absent key still falls through to the shared set.
-    expect(viewFilters.agenda.cal).toEqual(["shared-cal"]);
-    expect(selected.users).toEqual(["shared-user"]);
+    // An absent key needs no "shared" guard — per-view resolves the default.
+    expect(viewFilters.agenda.cal).toEqual(["default-cal"]);
+    expect(selected.users).toEqual([]);
   });
 
   it("on _fresh the current view resolves from defaults (or URL), other views keep their memories", () => {
@@ -443,12 +459,13 @@ describe("resolveDashboardFilters", () => {
       global,
       defaults,
       fresh: true,
+      perView: true,
     });
     // Cleared view falls back to the role default (shared set skipped too).
     expect(selected).toEqual(defaults);
     // Other views must survive the clear untouched.
     expect(viewFilters.agenda.users).toEqual(["u9"]);
-    expect(viewFilters.agenda.cal).toEqual(["shared-cal"]);
+    expect(viewFilters.agenda.cal).toEqual(["default-cal"]);
   });
 
   it("keeps honoring the URL even on a _fresh render (explicit intent wins)", () => {

@@ -209,6 +209,7 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
     },
     defaults: { cal: defaultCalendars, users: [], types: [] },
     fresh: freshRender,
+    perView: filterMode === "per-view",
   });
   const selectedCalendars = selected.cal;
   const selectedTypes = selected.types;

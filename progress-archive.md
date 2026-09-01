@@ -6793,3 +6793,34 @@ Tests: version drop/migrate/forward-compat, `buildDashboardPersist` semantics
 §1.4 (versioning + overflow), §1.5.1 (config-only writer), §1.7 (seed row +
 guard); `dashboard-views.md` §1.2. Verification: lint/typecheck/871 tests/build.
 No DB/migration impact — cookie-only.
+
+## 1.159 Per-view filters leaked into untouched views via the moving shared set (bugfix)
+
+Report: with "Different per view" selected, configuring View 1 (e.g. Users
+A+B) made every untouched view show the same filters — per-view behaved like
+global. Root cause: per-view resolution still fell back `views[view] → SHARED
+set → role default`, and the shared set (`dashboard.cal/users/types`) was
+overwritten with the current view's selection on every render. So configuring
+View 1 wrote `views.view1` AND the shared set, and an untouched View 2 (no
+memory) inherited that shared set — including via `switchView`, whose
+`viewFilterParams` copied the shared-derived resolved set into the target's
+URL. v2's working memory made the leak visible (pre-v2 the overflow drain
+wiped everything, which is why the earlier report was "Users resets").
+
+Fix (chosen: role defaults for untouched views): per-view mode ignores the
+shared set entirely. `resolveDashboardFilters` gained `perView?: boolean`;
+when set, "other view" and current-view fallback become `views[view] → role
+default` (URL-wins and `_fresh` rules unchanged). The page passes
+`perView: filterMode === "per-view"`. The shared set remains the global-mode
+set and the "flip back to Same for all views" collapse target. Cleared views
+resolve to role defaults with nothing to resurrect; explicit-empty per-view
+lists still resolve empty.
+
+Files: `src/lib/ui/uiState.ts` (`DashboardFiltersResolution.perView`,
+`resolveDashboardFilters`), `src/app/(protected)/dashboard/page.tsx`,
+`src/lib/ui/uiState.test.ts` (per-view tests now assert shared-independent
+resolution). Docs: `docs/ui-state.md` §1.5.1 (resolution orders + mermaid +
+writer/stale bullets), §1.4.1, §1.7; `docs/dashboard-views.md` §1.2.
+Verification: lint/typecheck/871 tests/build; manual: per-view, filter View 1
+to A+B, leave View 2 untouched → View 2 shows no user filter; A+B stays only
+on View 1 across switch⇄ and F5.
