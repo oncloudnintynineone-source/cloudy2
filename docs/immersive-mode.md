@@ -15,8 +15,9 @@ hidden); only the dashboard controls it.
 
 ## 1.1 The toggle & state ownership
 
-- A 36px toggle in the dashboard date-nav row (`IconArrowsMaximize` /
-  `IconArrowsMinimize`, `aria-pressed`, tooltip "Fullscreen"/"Exit fullscreen").
+- A `Menu.Item` inside the calendar's "More options" kebab (`IconArrowsMaximize` /
+  `IconArrowsMinimize`, label "Enter fullscreen"/"Exit fullscreen"), between the
+  Pin Tab item and the Force refresh section.
 - `enter()` flips the shell chrome off **and** requests the page-level Fullscreen API
   (`requestFullscreen({ navigationUI: "hide" })`), so the OS status bar / browser UI
   disappear on devices that support it.

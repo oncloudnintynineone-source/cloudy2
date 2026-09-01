@@ -2090,25 +2090,6 @@ export function DashboardView({
           >
             <IconChevronRight size={18} />
           </ActionIcon>
-          {/* Immersive ("fullscreen") toggle: hides the shell chrome (header,
-              bottom nav, desktop sidebar) and requests the page-level
-              Fullscreen API so the status bar / browser UI go too. The icon
-              flips while active — this is the in-page exit path. */}
-          <Tooltip label={immersiveMode.active ? "Exit fullscreen" : "Fullscreen"}>
-            <ActionIcon
-              size={36}
-              variant="default"
-              aria-label={immersiveMode.active ? "Exit fullscreen" : "Enter fullscreen"}
-              aria-pressed={immersiveMode.active}
-              onClick={immersiveMode.active ? immersiveMode.exit : immersiveMode.enter}
-            >
-              {immersiveMode.active ? (
-                <IconArrowsMinimize size={18} />
-              ) : (
-                <IconArrowsMaximize size={18} />
-              )}
-            </ActionIcon>
-          </Tooltip>
           {/* Desktop: the "New event" FAB lives in the nav row instead of the
             bottom corner (the FAB is hidden at lg, below). */}
           <Button
@@ -2144,7 +2125,8 @@ export function DashboardView({
             />
           )}
           {/* Filters live in their own primary affordance (icon + count badge),
-              not the overflow menu — the kebab keeps navigation/refresh only. */}
+              not the overflow menu — the kebab keeps navigation, the fullscreen
+              toggle, and refresh. */}
           <FilterButton activeCount={activeFilterCount} onClick={openFilter} size={36} />
           <Menu
             shadow="md"
@@ -2177,6 +2159,21 @@ export function DashboardView({
                 onClick={togglePinView}
               >
                 {pinned.includes(view) ? "Unpin Tab" : "Pin Tab"}
+              </Menu.Item>
+              {/* Immersive ("fullscreen") mode hides the shell chrome and
+                  requests the page-level Fullscreen API; the icon flips while
+                  active — this is also the in-page exit path. */}
+              <Menu.Item
+                leftSection={
+                  immersiveMode.active ? (
+                    <IconArrowsMinimize size={16} />
+                  ) : (
+                    <IconArrowsMaximize size={16} />
+                  )
+                }
+                onClick={immersiveMode.active ? immersiveMode.exit : immersiveMode.enter}
+              >
+                {immersiveMode.active ? "Exit fullscreen" : "Enter fullscreen"}
               </Menu.Item>
               <Menu.Divider />
               {savedInfo ? (

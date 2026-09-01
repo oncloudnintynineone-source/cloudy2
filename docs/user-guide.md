@@ -66,9 +66,9 @@ grid:
 - **Pin tabs** you use most (⋮ menu → **Pin Tab**) — pinned views become quick tabs.
 - Wide desktop grids pan horizontally: drag with the mouse, or use the round arrow
   buttons at the grid's edges.
-- The **fullscreen toggle** in the date-nav row hides all app chrome (and the
-  browser UI where supported) for a wall-display calendar; press Esc or tap the
-  toggle again to exit.
+- **Fullscreen** (⋮ menu → **Enter fullscreen**, under Pin Tab) hides all app
+  chrome (and the browser UI where supported) for a wall-display calendar; press
+  Esc or use ⋮ menu → **Exit fullscreen** to go back.
 
 ### 1.3.2 Dates & filters
 
