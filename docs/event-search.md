@@ -184,13 +184,16 @@ index (a separate concern from this native-search feature; see
   an `AgendaView` result list grouped by day. `rangeStart`/`rangeEnd` are the
   first/last result's start day, so empty days in between aren't rendered as
   headers. Results are "No events match your search" when empty.
-- A result click shows a **spinner on that row** (`renderEvent` swaps the agenda
-  entry for a `Loader`) and navigates `/dashboard?date=<start day>`
+- A result click shows a **spinner on that row** — an overlay sized to the
+  clicked row's box (positional, so multi-day events repeated under several
+  date headers never light more than the one row clicked; nothing shifts) — and
+  navigates `/dashboard?date=<start day>`
   (`+ &event=<group id>` for internal events) inside a `useTransition`. The
   search modal stays open while `isPending`, then closes once the navigation
   commits — the dashboard's own full `EventDetail` (Duplicate/Edit/Delete) is
   what the user lands on, reusing the existing `?event=`/`?date=` deep-link
-  machinery (`page.tsx:63-66`). There is no read-only detail step.
+  machinery (`page.tsx:63-66`). Rows stay clickable throughout, so a re-click
+  re-triggers navigation. There is no read-only detail step.
 
 ## 1.10 Pure helpers & testing
 

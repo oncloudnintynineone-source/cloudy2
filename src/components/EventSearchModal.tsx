@@ -1,14 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import {
-  type ComponentPropsWithoutRef,
-  type ReactElement,
-  type ReactNode,
-  useEffect,
-  useState,
-  useTransition,
-} from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import {
   Box,
   Button,
@@ -18,7 +11,6 @@ import {
   Stack,
   Text,
   TextInput,
-  UnstyledButton,
   useMantineTheme,
 } from "@mantine/core";
 import { DatePickerInput } from "@mantine/dates";
@@ -42,6 +34,8 @@ import {
 } from "@/lib/motion/origin";
 import { BUTTON_LOADER_PROPS } from "@/lib/theme";
 
+import { LoadingStatus } from "./LoadingStatus";
+
 interface EventSearchModalProps {
   opened: boolean;
   onClose: () => void;
@@ -61,22 +55,31 @@ export default function EventSearchModal({ opened, onClose, originRect }: EventS
   const [error, setError] = useState<string | null>(null);
   const [results, setResults] = useState<CalendarEvent[] | null>(null);
 
-  // The result row whose deep-link navigation is in flight — it renders a
-  // spinner in place of the agenda entry until the dashboard's event detail
-  // modal is ready, then the search modal closes.
-  const [openingId, setOpeningId] = useState<string | null>(null);
+  // The clicked result row whose deep-link navigation is in flight. Its position
+  // (in the results list's content coordinates) drives an overlay spinner that
+  // covers exactly that row — sized to the row, so nothing shifts — until the
+  // dashboard's event detail is ready, then the search modal closes. Positional
+  // (not id-based), so a multi-day event repeated under several date headers
+  // never lights more than the row the user actually clicked.
+  const [opening, setOpening] = useState<{
+    top: number;
+    left: number;
+    width: number;
+    height: number;
+  } | null>(null);
+  const listRef = useRef<HTMLDivElement>(null);
   const [isPending, startTransition] = useTransition();
 
   useEffect(() => {
-    if (!isPending && openingId !== null) {
+    if (!isPending && opening !== null) {
       // The navigation transition finished — clear the row spinner and close
       // the modal. `isPending` is React's external transition signal, so the
       // state write here is genuine effect synchronization.
       // eslint-disable-next-line react-hooks/set-state-in-effect
-      setOpeningId(null);
+      setOpening(null);
       onClose();
     }
-  }, [isPending, openingId, onClose]);
+  }, [isPending, opening, onClose]);
 
   // The modal zooms out of / shrinks back into the header search button (the
   // app's standard grow/shrink animation; mirror PinnedEventsPanel).
@@ -124,11 +127,22 @@ export default function EventSearchModal({ opened, onClose, originRect }: EventS
   }
 
   // A result click navigates to the dashboard and opens that event's full
-  // detail modal (Duplicate/Edit/Delete). The clicked row shows a spinner while
-  // the navigation is in flight, then the search modal closes.
-  function handleEventClick(event: unknown) {
+  // detail modal (Duplicate/Edit/Delete). While the navigation is in flight an
+  // overlay spinner covers the clicked row (see `opening` above), then the
+  // search modal closes. The row itself stays clickable the whole time.
+  function handleEventClick(event: unknown, e: React.MouseEvent<HTMLButtonElement>) {
     const calendarEvent = event as CalendarEvent;
-    setOpeningId(String(calendarEvent.id));
+    const list = listRef.current;
+    if (list) {
+      const rowRect = e.currentTarget.getBoundingClientRect();
+      const listRect = list.getBoundingClientRect();
+      setOpening({
+        top: rowRect.top - listRect.top - list.clientTop + list.scrollTop,
+        left: rowRect.left - listRect.left - list.clientLeft + list.scrollLeft,
+        width: rowRect.width,
+        height: rowRect.height,
+      });
+    }
     const params = new URLSearchParams({ date: calendarEvent.start.slice(0, 10) });
     if (calendarEvent.payload.eventId) {
       params.set("event", calendarEvent.payload.eventId);
@@ -136,29 +150,6 @@ export default function EventSearchModal({ opened, onClose, originRect }: EventS
     startTransition(() => {
       router.push(`/dashboard?${params.toString()}`);
     });
-  }
-
-  function renderEvent(
-    event: { id: string | number },
-    props: ComponentPropsWithoutRef<"button"> & { children: ReactNode },
-  ): ReactElement {
-    if (openingId !== null && String(event.id) === openingId) {
-      return (
-        <UnstyledButton
-          {...props}
-          onClick={undefined}
-          style={{
-            ...props.style,
-            display: "flex",
-            justifyContent: "center",
-            cursor: "default",
-          }}
-        >
-          <Loader size="sm" color="gray" />
-        </UnstyledButton>
-      );
-    }
-    return <UnstyledButton {...props} />;
   }
 
   const rangeStart = results && results.length > 0 ? results[0].start.slice(0, 10) : (from ?? "");
@@ -213,7 +204,9 @@ export default function EventSearchModal({ opened, onClose, originRect }: EventS
             </Text>
           ) : (
             <Box
+              ref={listRef}
               style={{
+                position: "relative",
                 border: "1px solid var(--mantine-color-default-border)",
                 borderRadius: "var(--mantine-radius-md)",
                 overflow: "hidden",
@@ -226,9 +219,27 @@ export default function EventSearchModal({ opened, onClose, originRect }: EventS
                 rangeEnd={rangeEnd}
                 events={results}
                 styles={{ agendaViewHeader: { display: "none" } }}
-                renderEvent={renderEvent}
                 onEventClick={handleEventClick}
               />
+              {opened && opening && (
+                <Box
+                  style={{
+                    position: "absolute",
+                    top: opening.top,
+                    left: opening.left,
+                    width: opening.width,
+                    height: opening.height,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    background: "var(--mantine-color-body)",
+                    pointerEvents: "none",
+                  }}
+                >
+                  <Loader size="sm" color="gray" />
+                  <LoadingStatus label="Opening event" />
+                </Box>
+              )}
             </Box>
           ))}
       </Stack>
