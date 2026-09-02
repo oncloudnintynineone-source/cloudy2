@@ -1,7 +1,6 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
 import {
   Badge,
   Button,
@@ -32,7 +31,7 @@ import { CONTENT_ENTER_CLASS } from "@/lib/loading/contentEnter";
 import { activatable } from "@/lib/ui/activatable";
 import { EventTypeForm } from "./EventTypeForm";
 import { EventTypeGroupsModal } from "./EventTypeGroupsModal";
-import { invalidateCurrentPathCaches } from "@/lib/pwa/client";
+import { useActivityRefresh } from "@/components/ActivityBar";
 
 interface EventTypeTableProps {
   types: EventType[];
@@ -40,17 +39,14 @@ interface EventTypeTableProps {
 }
 
 export function EventTypeTable({ types, groups }: EventTypeTableProps) {
-  const router = useRouter();
+  const refreshAfterSave = useActivityRefresh("event-types:save");
   const theme = useMantineTheme();
   const isDesktop = useMediaQuery(`(min-width: ${theme.breakpoints.lg})`);
   const [formOpened, { open: openForm, close: closeForm }] = useDisclosure(false);
   const [editing, setEditing] = useState<EventType | null>(null);
   const [groupsOpened, { open: openGroups, close: closeGroups }] = useDisclosure(false);
 
-  const groupById = useMemo(
-    () => new Map(groups.map((group) => [group.id, group.name])),
-    [groups],
-  );
+  const groupById = useMemo(() => new Map(groups.map((group) => [group.id, group.name])), [groups]);
 
   const typeCounts = useMemo(() => {
     const counts = new Map<string, number>();
@@ -261,7 +257,7 @@ export function EventTypeTable({ types, groups }: EventTypeTableProps) {
           onDone={() => {
             closeForm();
             setEditing(null);
-            void invalidateCurrentPathCaches().then(() => router.refresh());
+            refreshAfterSave();
           }}
         />
       </Modal>
@@ -272,7 +268,7 @@ export function EventTypeTable({ types, groups }: EventTypeTableProps) {
         groups={groups}
         typeCounts={typeCounts}
         onMutated={() => {
-          void invalidateCurrentPathCaches().then(() => router.refresh());
+          refreshAfterSave();
         }}
       />
 

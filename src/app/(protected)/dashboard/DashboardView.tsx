@@ -80,6 +80,7 @@ import {
 } from "./calendarSkeleton";
 import { formatWeekLabel } from "./clientDateTime";
 import { DateSelectorModal } from "@/components/DateSelectorModal";
+import { useActivityRefresh, useReportActivity } from "@/components/ActivityBar";
 import { EmptyState } from "@/components/EmptyState";
 import { FilterButton } from "@/components/FilterButton";
 import { FilterModal, type FilterGroup } from "@/components/FilterModal";
@@ -1076,6 +1077,9 @@ export function DashboardView({
   );
 
   const [isRefreshing, startRefresh] = useTransition();
+  // Post-mutation refresh (event create/update/delete, detail actions): the
+  // shared bar reports the re-read that follows the saved state.
+  const refreshAfterSave = useActivityRefresh("dashboard:save");
 
   // Data freshness tracking: the label shows "Saved · HH:MM" whenever the data
   // may not be the latest — by default (the server-side events cache serves
@@ -1130,6 +1134,10 @@ export function DashboardView({
   // they never set the pending flag and never replay the fade.
   const gridLoading = useMinSkeletonHold(isPending || isRefreshing);
   useContentEnter(weekBoxRef, !gridLoading);
+
+  // The global activity bar mirrors the grid transition: view/date/filter
+  // navigations and the force-refresh are "busy" for the whole app chrome.
+  useReportActivity(isPending || isRefreshing, "dashboard:nav");
 
   // Remembered UI state: persist the server-resolved view/filters to the
   // per-device cookie every time the rendered state changes, so a relaunch
@@ -2777,7 +2785,7 @@ export function DashboardView({
           savedAtRef.current = Date.now();
           setIsDataFresh(true);
           window.dispatchEvent(new CustomEvent(PINNED_EVENTS_CHANGED_EVENT));
-          void invalidateCurrentPathCaches().then(() => router.refresh());
+          refreshAfterSave();
         }}
         peopleNames={peopleNames}
         calendarNames={calendarNames}
@@ -2855,7 +2863,7 @@ export function DashboardView({
                   savedAtRef.current = Date.now();
                   setIsDataFresh(true);
                   window.dispatchEvent(new CustomEvent(PINNED_EVENTS_CHANGED_EVENT));
-                  void invalidateCurrentPathCaches().then(() => router.refresh());
+                  refreshAfterSave();
                 }}
               />
             )}

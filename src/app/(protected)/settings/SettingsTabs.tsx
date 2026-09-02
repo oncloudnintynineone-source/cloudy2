@@ -3,7 +3,9 @@
 import { Box, Tabs, useMantineTheme } from "@mantine/core";
 import { useMediaQuery } from "@mantine/hooks";
 import { usePathname, useRouter } from "next/navigation";
+import { useTransition } from "react";
 
+import { useReportActivity } from "@/components/ActivityBar";
 import { BOTTOM_NAV_HEIGHT_CSS } from "@/lib/bottomNav";
 
 const tabs = [
@@ -24,6 +26,10 @@ export function SettingsTabs() {
   const router = useRouter();
   const theme = useMantineTheme();
   const isDesktop = useMediaQuery(`(min-width: ${theme.breakpoints.lg})`);
+  // Tab flips are server route navigations; on a slow network their request
+  // rides the shared activity bar while the per-segment skeleton loads.
+  const [isPending, startTransition] = useTransition();
+  useReportActivity(isPending, "settings:tab");
 
   const active = tabs.some((tab) => tab.value === pathname) ? pathname : "/settings/users";
 
@@ -32,7 +38,7 @@ export function SettingsTabs() {
       value={active}
       onChange={(value) => {
         if (value) {
-          router.push(value);
+          startTransition(() => router.push(value));
         }
       }}
     >

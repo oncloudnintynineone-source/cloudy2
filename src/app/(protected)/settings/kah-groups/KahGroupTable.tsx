@@ -1,7 +1,6 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
 import {
   Badge,
   Box,
@@ -43,7 +42,7 @@ import { BUTTON_LOADER_PROPS } from "@/lib/theme";
 import { showValidationFailure } from "@/lib/ui/validationFeedback";
 
 import { KahGroupForm } from "./KahGroupForm";
-import { invalidateCurrentPathCaches } from "@/lib/pwa/client";
+import { useActivityRefresh } from "@/components/ActivityBar";
 
 interface KahGroupTableProps {
   groups: KahGroupWithMembers[];
@@ -61,7 +60,7 @@ export function KahGroupTable({
   kahEmailSubjectTemplate,
   kahEmailBodyTemplate,
 }: KahGroupTableProps) {
-  const router = useRouter();
+  const refreshAfterSave = useActivityRefresh("kah:save");
   const theme = useMantineTheme();
   const isDesktop = useMediaQuery(`(min-width: ${theme.breakpoints.lg})`);
   const [formOpened, { open: openForm, close: closeForm }] = useDisclosure(false);
@@ -90,7 +89,7 @@ export function KahGroupTable({
 
       if (result.ok) {
         notifications.show({ color: "green", message: "KAH breach email templates updated" });
-        void invalidateCurrentPathCaches().then(() => router.refresh());
+        refreshAfterSave();
         return;
       }
 
@@ -289,7 +288,7 @@ export function KahGroupTable({
           onDone={() => {
             closeForm();
             setEditing(null);
-            void invalidateCurrentPathCaches().then(() => router.refresh());
+            refreshAfterSave();
           }}
         />
       </Modal>

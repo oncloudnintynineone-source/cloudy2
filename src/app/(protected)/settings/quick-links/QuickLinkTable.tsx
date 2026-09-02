@@ -16,7 +16,6 @@ import {
   useMantineTheme,
 } from "@mantine/core";
 import { useDisclosure, useMediaQuery } from "@mantine/hooks";
-import { useRouter } from "next/navigation";
 import { IconChevronDown, IconChevronUp, IconLink, IconPlus, IconTrash } from "@tabler/icons-react";
 import { notifications } from "@mantine/notifications";
 
@@ -29,14 +28,14 @@ import { deleteQuickLink, moveQuickLink } from "@/lib/quickLinks/actions";
 import { BUTTON_LOADER_PROPS } from "@/lib/theme";
 import { activatable } from "@/lib/ui/activatable";
 import { QuickLinkForm } from "./QuickLinkForm";
-import { invalidateCurrentPathCaches } from "@/lib/pwa/client";
+import { useActivityRefresh } from "@/components/ActivityBar";
 
 interface QuickLinkTableProps {
   links: QuickLink[];
 }
 
 export function QuickLinkTable({ links }: QuickLinkTableProps) {
-  const router = useRouter();
+  const refreshAfterSave = useActivityRefresh("quick-links:save");
   const theme = useMantineTheme();
   const isDesktop = useMediaQuery(`(min-width: ${theme.breakpoints.lg})`);
   const [formOpened, { open: openForm, close: closeForm }] = useDisclosure(false);
@@ -61,7 +60,7 @@ export function QuickLinkTable({ links }: QuickLinkTableProps) {
   async function move(link: QuickLink, direction: "up" | "down") {
     const result = await moveQuickLink(link.id, direction);
     if (result.ok) {
-      void invalidateCurrentPathCaches().then(() => router.refresh());
+      refreshAfterSave();
     } else {
       notifications.show({ color: "red", message: result.error });
     }
@@ -77,7 +76,7 @@ export function QuickLinkTable({ links }: QuickLinkTableProps) {
       setPendingDelete(null);
       if (result.ok) {
         notifications.show({ color: "green", message: "Quick link deleted" });
-        void invalidateCurrentPathCaches().then(() => router.refresh());
+        refreshAfterSave();
       } else {
         notifications.show({ color: "red", message: result.error });
       }
@@ -252,7 +251,7 @@ export function QuickLinkTable({ links }: QuickLinkTableProps) {
           onDone={() => {
             closeForm();
             setEditing(null);
-            void invalidateCurrentPathCaches().then(() => router.refresh());
+            refreshAfterSave();
           }}
         />
       </Modal>

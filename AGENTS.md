@@ -227,7 +227,15 @@ mechanics in the doc.
   is banned). Every data-awaiting route segment gets a `loading.tsx`; committed
   content roots get `CONTENT_ENTER_CLASS`. Every skeleton block includes a
   `LoadingStatus` (sr-only `role="status"`) so screen readers hear the load.
-  Design: [docs/loading-transitions.md](docs/loading-transitions.md).
+  The one complement to skeletons is the shared **global activity bar** (an
+  indeterminate amber strip flush under the header) for the busy moments a
+  skeleton can't cover — post-mutation `router.refresh()` (use the
+  `useActivityRefresh` hook, never a raw `invalidateCurrentPathCaches().then(…
+  router.refresh())`), same-shell tab flips, and in-page transitions. Report a
+  transition's `isPending` via `useReportActivity`; route `<Link>` nav is wired
+  automatically through `PendingDim`. Delayed show (200ms) + min hold (150ms),
+  hidden in immersive mode. Design:
+  [docs/loading-transitions.md](docs/loading-transitions.md) §1.13.
 - **Buttons triggering async work show loading in the button itself:** Mantine `loading`
   prop + shared `loaderProps={BUTTON_LOADER_PROPS}` (`src/lib/theme.ts`);
   `loading={form.submitting}` for useForm submits; local `loading` state set before /

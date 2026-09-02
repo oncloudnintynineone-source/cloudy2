@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import {
   Badge,
   Button,
@@ -19,23 +18,23 @@ import { useDisclosure, useMediaQuery } from "@mantine/hooks";
 import { IconPlus, IconWebhook } from "@tabler/icons-react";
 
 import { EmptyState } from "@/components/EmptyState";
+import { useActivityRefresh } from "@/components/ActivityBar";
 import type { Webhook } from "@/db/schema";
 import { FAB_ICON_SIZE, FloatingActionButton, FloatingToolbar } from "@/components/FloatingToolbar";
 import { CONTENT_ENTER_CLASS } from "@/lib/loading/contentEnter";
 import { activatable } from "@/lib/ui/activatable";
 import { WebhookForm } from "./WebhookForm";
-import { invalidateCurrentPathCaches } from "@/lib/pwa/client";
 
 interface WebhookTableProps {
   webhooks: Webhook[];
 }
 
 export function WebhookTable({ webhooks }: WebhookTableProps) {
-  const router = useRouter();
   const theme = useMantineTheme();
   const isDesktop = useMediaQuery(`(min-width: ${theme.breakpoints.lg})`);
   const [formOpened, { open: openForm, close: closeForm }] = useDisclosure(false);
   const [editing, setEditing] = useState<Webhook | null>(null);
+  const refreshAfterSave = useActivityRefresh("webhooks:save");
 
   function openCreate() {
     setEditing(null);
@@ -157,7 +156,7 @@ export function WebhookTable({ webhooks }: WebhookTableProps) {
           onDone={() => {
             closeForm();
             setEditing(null);
-            void invalidateCurrentPathCaches().then(() => router.refresh());
+            refreshAfterSave();
           }}
         />
       </Modal>

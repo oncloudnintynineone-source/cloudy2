@@ -25,7 +25,8 @@ where it is wired.
 - [1.10 Client-router reuse window](#110-client-router-reuse-window)
 - [1.11 Mutations are out of scope](#111-mutations-are-out-of-scope)
 - [1.12 Usage inventory](#112-usage-inventory)
-- [1.13 File index & related docs](#113-file-index--related-docs)
+- [1.13 Global activity bar](#113-global-activity-bar)
+- [1.14 File index & related docs](#114-file-index--related-docs)
 
 ## 1.1 Problem
 
@@ -63,9 +64,13 @@ Three failure modes, all observed before this system existed:
 
 **Non-goals**
 
-- No progress bars, no percentages, no per-resource loading states.
+- **No per-resource loading states** — no percentages, no bounded progress fills
+  tied to a measure of completion. The one sanctioned exception is the shared
+  **indeterminate activity bar** (§1.13): a single glanceable strip that says
+  "something in the chrome is busy" without pretending to know how much is left.
 - Mutations (server actions) do not use skeletons at all — the button's loader
-  covers them (§1.9).
+  covers them (§1.9), and the `router.refresh()` that follows is now surfaced by
+  the activity bar (§1.13).
 - Not a data cache: freshness/invalidation is
   [`events-cache.md`](events-cache.md)'s job; this doc only describes the
   *appearance* of a load.
@@ -363,7 +368,61 @@ and the non-remounting container means `useContentEnter` never replays.
 | `SettingsForm`, `DepartmentTable`, `ContactList`, `UserTable`, `EventTypeTable`, `TemplatesForm` | — | static `CONTENT_ENTER_CLASS` on the content root | server-rendered pages; the SSR fade plays on first paint |
 | all nine route segments | — | `loading.tsx` skeletons | §1.4 table |
 
-## 1.13 File index & related docs
+## 1.13 Global activity bar
+
+The skeleton sequence governs the **content** — but not every busy moment has a
+content-shaped skeleton:
+
+- the **post-mutation `router.refresh()`** — the button's loader blinks during
+  the server action, then the refresh that re-reads the route is silent on a
+  slow network;
+- **settings tab flips** and other same-shell `router.push` navigations (their
+  per-segment `loading.tsx` may take a moment to stream in, or resolve so fast
+  no skeleton ever paints);
+- the **brief warm-cache window** where a view lands faster than a skeleton
+  reads, where the only honest signal is "a request is in flight".
+
+The **activity bar** covers these as a complement — it never replaces a
+skeleton. It is a single **indeterminate amber strip** pinned flush to the
+shell header's bottom edge (`position: absolute; bottom: 0`, no margin/padding
+above it) while *any* named source is busy.
+
+```mermaid
+flowchart LR
+    A[route &lt;Link&gt; nav] --> C{ActivityProvider}
+    B[settings tab flip] --> C
+    D[dashboard/parade/audit transitions] --> C
+    E[post-mutation refresh] --> C
+    C -->|anyBusy for ≥200ms| F[indeterminate amber bar]
+    F -->|idle 150ms after clear| F
+```
+
+**Sources.** A refcounted `begin(key)`/`end(key)` context
+(`ActivityProvider`/`useActivity`, `src/components/ActivityBar.tsx`) lets
+overlapping sources (a route nav mid-refresh) share the bar without fighting:
+
+| Source | Wiring |
+| ------ | ------ |
+| Route `<Link>` navigation | each shell nav/rail/bottom/logo link renders `PendingDim`, which now reports its `useLinkStatus().pending` up via `useReportActivity` |
+| Settings tab flips | `SettingsTabs` wraps `router.push` in `useTransition` and reports `isPending` (tabs are `router.push`, not `<Link>`, so `useLinkStatus` alone can't see them) |
+| In-page view/filter transitions | dashboard reports `isPending \|\| isRefreshing`, parade reports the cross-month gate, audit reports its filter `isPending` |
+| Post-mutation `router.refresh()` | `useActivityRefresh(busyKey)` returns a `refresh()` that invalidates the SW caches then calls `router.refresh()` **inside** `useTransition`, so `isPending` stays true until the refreshed RSC payload commits (`router.refresh()` itself is not awaitable). Replaces the old `invalidateCurrentPathCaches().then(() => router.refresh())` at every settings table/form, the dashboard's `onDone`/`onDeleted`, and audit's purge |
+
+**Flicker control.** Like the min-hold rules above, the bar only appears after
+`ACTIVITY_SHOW_DELAY_MS` (200 ms) of *continuous* busy, and lingers
+`ACTIVITY_MIN_HOLD_MS` (150 ms) after busy clears — a warm-cache load that
+resolves in under 200 ms never flashes it. Timing runs in effects only
+(`performance.now()`), so SSR renders are unaffected.
+
+**Presentation & a11y.** The bar is a 2px amber track with a white thumb
+sliding across (280 ms of busy motion in `globals.css`
+`.c2-activity-bar-*`, under `prefers-reduced-motion: no-preference` for a
+static strip). It carries `role="progressbar"` (indeterminate — no
+`aria-valuenow`) and is `aria-hidden` while collapsed. Mounted inside
+`AppShell.Header` it is automatically hidden in immersive mode (the header
+itself is `display: none` there).
+
+## 1.14 File index & related docs
 
 | File | Role |
 | ---- | ---- |
@@ -379,6 +438,7 @@ and the non-remounting container means `useContentEnter` never replays.
 | `src/app/(protected)/dashboard/DashboardView.tsx` | Held loading, reveal fade, one-shot strips (`edit`/`refresh`/`_fresh`), agenda slide, optimistic date-nav chrome (`shown*`, §1.9.2) |
 | `src/app/(protected)/parade-state/ParadeStateView.tsx` | Month-gated hold, `_fresh` inject/strip |
 | `src/components/AppShellShell.tsx` | Optimistic nav highlight (`tappedHref`) + `PendingDim`/`useLinkStatus` (§1.9.1) |
+| `src/components/ActivityBar.tsx` | ActivityProvider + `useActivity` (refcounted `begin`/`end`), `useReportActivity`, `useActivityRefresh`, `ActivityBar` (delayed show + min hold, indeterminate strip) — §1.13 |
 | `next.config.ts` | `experimental.staleTimes.dynamic = 120` client-router reuse window (§1.10) |
 | `src/app/(protected)/dashboard/page.tsx` | `?edit=`/`?refresh=` nonce validation |
 
@@ -394,4 +454,4 @@ Related docs:
 - [`developer-guide.md`](developer-guide.md#112-related-docs) — documentation index.
 - `progress-archive.md` — phase write-ups: 1.52/1.53 (stale-while-navigating grid,
   cold-load reveal), 1.58/1.59 (skeleton-only loading across the app), 1.64/1.65
-  (agenda slide-in).
+  (agenda slide-in), 1.168 (the global activity bar).

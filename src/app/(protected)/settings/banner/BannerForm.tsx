@@ -1,7 +1,15 @@
 "use client";
 
-import { useRouter } from "next/navigation";
-import { Button, Group, Paper, Stack, Switch, Text, TextInput, UnstyledButton } from "@mantine/core";
+import {
+  Button,
+  Group,
+  Paper,
+  Stack,
+  Switch,
+  Text,
+  TextInput,
+  UnstyledButton,
+} from "@mantine/core";
 import { useForm } from "@mantine/form";
 import { notifications } from "@mantine/notifications";
 
@@ -18,7 +26,7 @@ import { CONTENT_ENTER_CLASS } from "@/lib/loading/contentEnter";
 import { updateBanner, type SettingsActionResult } from "@/lib/settings/actions";
 import { BUTTON_LOADER_PROPS } from "@/lib/theme";
 import { showValidationFailure } from "@/lib/ui/validationFeedback";
-import { invalidateCurrentPathCaches } from "@/lib/pwa/client";
+import { useActivityRefresh } from "@/components/ActivityBar";
 
 interface BannerFormProps {
   initial: { enabled: boolean; text: string; color: string };
@@ -40,9 +48,7 @@ function BannerPreview({ values }: { values: BannerFormValues }) {
         borderRadius: "var(--mantine-radius-md)",
         background: `var(--mantine-color-${option.key}-filled)`,
         color:
-          option.textColor === "dark"
-            ? "var(--mantine-color-black)"
-            : "var(--mantine-color-white)",
+          option.textColor === "dark" ? "var(--mantine-color-black)" : "var(--mantine-color-white)",
         fontSize: "var(--mantine-font-size-sm)",
         fontWeight: 500,
         opacity: values.enabled ? undefined : 0.55,
@@ -56,7 +62,7 @@ function BannerPreview({ values }: { values: BannerFormValues }) {
 }
 
 export function BannerForm({ initial }: BannerFormProps) {
-  const router = useRouter();
+  const refreshAfterSave = useActivityRefresh("banner:save");
 
   const form = useForm<BannerFormValues>({
     initialValues: { ...initial },
@@ -73,7 +79,7 @@ export function BannerForm({ initial }: BannerFormProps) {
           color: "green",
           message: values.enabled ? "Banner updated" : "Banner disabled",
         });
-        void invalidateCurrentPathCaches().then(() => router.refresh());
+        refreshAfterSave();
         return;
       }
 
@@ -125,9 +131,7 @@ export function BannerForm({ initial }: BannerFormProps) {
                       height: 34,
                       borderRadius: "50%",
                       background: `var(--mantine-color-${option.key}-filled)`,
-                      outline: selected
-                        ? "3px solid var(--mantine-primary-color-filled)"
-                        : "none",
+                      outline: selected ? "3px solid var(--mantine-primary-color-filled)" : "none",
                       outlineOffset: 2,
                     }}
                   />
@@ -144,11 +148,7 @@ export function BannerForm({ initial }: BannerFormProps) {
           </Stack>
 
           <Group justify="flex-end">
-            <Button
-              type="submit"
-              loading={form.submitting}
-              loaderProps={BUTTON_LOADER_PROPS}
-            >
+            <Button type="submit" loading={form.submitting} loaderProps={BUTTON_LOADER_PROPS}>
               Save
             </Button>
           </Group>

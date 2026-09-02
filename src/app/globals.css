@@ -56,6 +56,57 @@
   }
 }
 
+/* Global activity bar (docs/loading-transitions.md): an indeterminate amber
+   bar flush under the header, shown while any route nav / transition /
+   post-mutation refresh is in flight. The container is absolutely positioned
+   at the bottom of the shell header (mounted inside AppShell.Header), so it
+   rides the header's bottom edge with no margin/padding above it. Inactive =
+   0 height (collapsed); active = a 2px amber track with a sliding thumb. */
+.c2-activity-bar {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 0;
+  overflow: hidden;
+  z-index: 20;
+  pointer-events: none;
+}
+
+.c2-activity-bar-active {
+  height: calc(0.125rem * var(--mantine-scale));
+  background: var(--mantine-color-accent-6);
+}
+
+.c2-activity-bar-thumb {
+  height: 100%;
+  width: 30%;
+  background: var(--mantine-color-white);
+}
+
+@keyframes c2-activity-slide {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(calc(100% * 10 / 3));
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .c2-activity-bar-active .c2-activity-bar-thumb {
+    animation: c2-activity-slide 1.1s ease-in-out infinite;
+  }
+}
+
+/* Reduced motion: no sweep — the thumb sits hidden so the bar reads as a
+   plain amber strip. */
+@media (prefers-reduced-motion: reduce) {
+  .c2-activity-bar-thumb {
+    opacity: 0;
+  }
+}
+
 /* Day-agenda directional slide: the incoming day's agenda slides in from the
    direction of travel (next day from the right, previous day from the left). */
 @keyframes agenda-slide-in-next {

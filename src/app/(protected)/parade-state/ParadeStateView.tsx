@@ -39,6 +39,7 @@ import {
 
 import { DateSelectorModal } from "@/components/DateSelectorModal";
 import { EmptyState } from "@/components/EmptyState";
+import { useReportActivity } from "@/components/ActivityBar";
 import { FilterModal, type FilterGroup } from "@/components/FilterModal";
 import { FAB_ICON_SIZE, FloatingActionButton, FloatingToolbar } from "@/components/FloatingToolbar";
 import { LoadingStatus } from "@/components/LoadingStatus";
@@ -178,6 +179,8 @@ export function ParadeStateView({
   // correctly from local state, so a skeleton there would only hurt the snappy
   // feel.
   const contentLoading = useMinSkeletonHold(initialMonth !== month);
+  // The global activity bar mirrors the cross-month skeleton gate.
+  useReportActivity(initialMonth !== month, "parade:nav");
   const contentRef = useRef<HTMLDivElement | null>(null);
   useContentEnter(contentRef, !contentLoading);
 

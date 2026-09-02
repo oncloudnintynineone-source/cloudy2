@@ -1,7 +1,6 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
 import {
   Badge,
   Button,
@@ -20,6 +19,7 @@ import { useDisclosure, useMediaQuery } from "@mantine/hooks";
 import { IconPlus, IconSearchOff, IconUsers } from "@tabler/icons-react";
 
 import { EmptyState } from "@/components/EmptyState";
+import { useActivityRefresh } from "@/components/ActivityBar";
 import { FilterButton } from "@/components/FilterButton";
 import { FilterModal, type FilterGroup } from "@/components/FilterModal";
 import { FAB_ICON_SIZE, FloatingActionButton, FloatingToolbar } from "@/components/FloatingToolbar";
@@ -28,7 +28,6 @@ import type { RosterUser } from "@/lib/roster/queries";
 import { formatFullName } from "@/lib/settings/formatName";
 import { activatable } from "@/lib/ui/activatable";
 import { UserForm, type DepartmentOption } from "./UserForm";
-import { invalidateCurrentPathCaches } from "@/lib/pwa/client";
 
 interface UserTableProps {
   users: RosterUser[];
@@ -37,7 +36,7 @@ interface UserTableProps {
 }
 
 export function UserTable({ users, departments, nameTemplate }: UserTableProps) {
-  const router = useRouter();
+  const refreshAfterSave = useActivityRefresh("users:save");
   const theme = useMantineTheme();
   const isDesktop = useMediaQuery(`(min-width: ${theme.breakpoints.lg})`);
   const [opened, { open, close }] = useDisclosure(false);
@@ -342,7 +341,7 @@ export function UserTable({ users, departments, nameTemplate }: UserTableProps) 
           onDone={() => {
             close();
             setEditingUser(null);
-            void invalidateCurrentPathCaches().then(() => router.refresh());
+            refreshAfterSave();
           }}
         />
       </Modal>

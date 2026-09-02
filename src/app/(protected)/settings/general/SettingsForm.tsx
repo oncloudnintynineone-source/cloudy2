@@ -1,6 +1,5 @@
 "use client";
 
-import { useRouter } from "next/navigation";
 import { Button, Grid, Group, NumberInput, Paper, Stack, TextInput } from "@mantine/core";
 import { useForm } from "@mantine/form";
 import { notifications } from "@mantine/notifications";
@@ -21,7 +20,7 @@ import {
 } from "@/lib/settings/validate";
 import { BUTTON_LOADER_PROPS } from "@/lib/theme";
 import { showValidationFailure } from "@/lib/ui/validationFeedback";
-import { invalidateCurrentPathCaches } from "@/lib/pwa/client";
+import { useActivityRefresh } from "@/components/ActivityBar";
 
 interface SettingsFormProps {
   keyword: string;
@@ -29,7 +28,7 @@ interface SettingsFormProps {
 }
 
 export function SettingsForm({ keyword, retentionDays }: SettingsFormProps) {
-  const router = useRouter();
+  const refreshAfterSave = useActivityRefresh("settings:save");
 
   const keywordForm = useForm<KeywordFormValues>({
     initialValues: { keyword },
@@ -49,7 +48,7 @@ export function SettingsForm({ keyword, retentionDays }: SettingsFormProps) {
 
       if (result.ok) {
         notifications.show({ color: "green", message: "Login keyword updated" });
-        void invalidateCurrentPathCaches().then(() => router.refresh());
+        refreshAfterSave();
         return;
       }
 
@@ -67,7 +66,7 @@ export function SettingsForm({ keyword, retentionDays }: SettingsFormProps) {
 
       if (result.ok) {
         notifications.show({ color: "green", message: "Audit log retention updated" });
-        void invalidateCurrentPathCaches().then(() => router.refresh());
+        refreshAfterSave();
         return;
       }
 

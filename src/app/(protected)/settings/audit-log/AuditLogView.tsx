@@ -47,9 +47,9 @@ import { useMinSkeletonHold } from "@/lib/loading/minHoldLoading";
 import { BUTTON_LOADER_PROPS } from "@/lib/theme";
 import type { AuditLog } from "@/db/schema";
 
+import { useActivityRefresh, useReportActivity } from "@/components/ActivityBar";
 import { AuditLogRowSkeleton } from "./AuditLogRowSkeleton";
 import { SettingsTableSkeleton } from "../SettingsTableSkeleton";
-import { invalidateCurrentPathCaches } from "@/lib/pwa/client";
 
 interface AuditLogViewProps {
   initialRows: AuditLog[];
@@ -97,6 +97,10 @@ export function AuditLogView({
   const theme = useMantineTheme();
   const isDesktop = useMediaQuery(`(min-width: ${theme.breakpoints.lg})`);
   const [isPending, startTransition] = useTransition();
+  // The global activity bar mirrors the audit filter transitions and the
+  // post-delete refresh.
+  useReportActivity(isPending, "audit:filter");
+  const refreshAfterDelete = useActivityRefresh("audit:save");
 
   // Skeleton-only loading: filter changes (URL transitions) show a row-card
   // skeleton with a minimum ~350ms hold, then the list fades in on the reveal.
@@ -281,7 +285,7 @@ export function AuditLogView({
               : `Deleted ${result.deleted} old log entr${result.deleted === 1 ? "y" : "ies"}`,
         });
         closePurge();
-        void invalidateCurrentPathCaches().then(() => router.refresh());
+        refreshAfterDelete();
       } else {
         notifications.show({ color: "red", message: result.error });
       }

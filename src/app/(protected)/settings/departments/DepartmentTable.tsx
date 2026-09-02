@@ -1,7 +1,6 @@
 "use client";
 
 import { type KeyboardEvent, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
 import {
   ActionIcon,
   Box,
@@ -32,14 +31,14 @@ import { FAB_ICON_SIZE, FloatingActionButton, FloatingToolbar } from "@/componen
 import { formatColorLabel } from "@/lib/events/eventColors";
 import { ColorDot } from "@/components/ColorSwatchPicker";
 import { DepartmentDetail } from "./DepartmentDetail";
-import { invalidateCurrentPathCaches } from "@/lib/pwa/client";
+import { useActivityRefresh } from "@/components/ActivityBar";
 
 interface DepartmentTableProps {
   departments: Calendar[];
 }
 
 export function DepartmentTable({ departments }: DepartmentTableProps) {
-  const router = useRouter();
+  const refreshAfterSave = useActivityRefresh("departments:save");
   const [detailOpened, { open: openDetail, close: closeDetail }] = useDisclosure(false);
   const [confirmOpened, { open: openConfirm, close: closeConfirm }] = useDisclosure(false);
   const [selected, setSelected] = useState<Calendar | null>(null);
@@ -101,7 +100,7 @@ export function DepartmentTable({ departments }: DepartmentTableProps) {
         notifications.show({ color: "green", message: "Department deleted" });
         closeConfirm();
         setDeleting(null);
-        void invalidateCurrentPathCaches().then(() => router.refresh());
+        refreshAfterSave();
       } else {
         notifications.show({ color: "red", message: result.error });
       }
@@ -117,7 +116,7 @@ export function DepartmentTable({ departments }: DepartmentTableProps) {
     try {
       const result = await moveDepartment(calendar.id, direction);
       if (result.ok) {
-        void invalidateCurrentPathCaches().then(() => router.refresh());
+        refreshAfterSave();
       } else {
         notifications.show({ color: "red", message: result.error });
       }
@@ -288,7 +287,7 @@ export function DepartmentTable({ departments }: DepartmentTableProps) {
         onCreate={() => {
           closeDetail();
           setSelected(null);
-          void invalidateCurrentPathCaches().then(() => router.refresh());
+          refreshAfterSave();
         }}
         onRequestDelete={requestDelete}
       />

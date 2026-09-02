@@ -31,6 +31,7 @@ import dynamic from "next/dynamic";
 import { usePathname, useRouter } from "next/navigation";
 
 import { PinnedEventsPanel } from "@/components/PinnedEventsPanel";
+import { ActivityBar, ActivityProvider, useReportActivity } from "@/components/ActivityBar";
 import { ShellChromeContext, type ShellChromeValue } from "@/components/ShellChrome";
 import { ThemeToggle } from "@/components/ThemeToggle";
 
@@ -44,11 +45,7 @@ import { BANNER_HEIGHT_PX } from "@/lib/banner/banner";
 import { BOTTOM_NAV_HEIGHT } from "@/lib/bottomNav";
 import { countPinnedEvents } from "@/lib/events/pinned";
 import type { Rect } from "@/lib/motion/origin";
-import {
-  DESKTOP_MEDIA_QUERY,
-  DESKTOP_WIDE_MEDIA_QUERY,
-  NARROW_MEDIA_QUERY,
-} from "@/lib/theme";
+import { DESKTOP_MEDIA_QUERY, DESKTOP_WIDE_MEDIA_QUERY, NARROW_MEDIA_QUERY } from "@/lib/theme";
 import { StatusAnnouncer } from "@/lib/ui/announcer";
 import { ImmersiveModeContext, type ImmersiveModeValue } from "@/lib/ui/immersiveMode";
 import {
@@ -115,12 +112,14 @@ const NAV_TAP_REVERT_MS = 6000;
 
 /**
  * Subtle press feedback inside a nav `<Link>` while its navigation is in
- * flight: the icon dims until the route commits. `useLinkStatus` must run
- * within the Link's subtree, hence this wrapper rather than state in the
- * button itself.
+ * flight: the icon dims until the route commits, and the shared activity bar
+ * (`useLinkStatus`-driven) reports the navigation as busy. `useLinkStatus`
+ * must run within the Link's subtree, hence this wrapper rather than state in
+ * the button itself.
  */
-function PendingDim({ children }: { children: React.ReactNode }) {
+function PendingDim({ busyKey, children }: { busyKey: string; children: React.ReactNode }) {
   const { pending } = useLinkStatus();
+  useReportActivity(pending, busyKey);
   return (
     <Box style={{ opacity: pending ? 0.55 : 1, transition: "opacity 120ms ease" }}>{children}</Box>
   );
@@ -152,7 +151,7 @@ function RailNavButton({
         aria-label={item.label}
         aria-current={active ? "page" : undefined}
       >
-        <PendingDim>{item.icon}</PendingDim>
+        <PendingDim busyKey={`rail:${item.href}`}>{item.icon}</PendingDim>
       </UnstyledButton>
     </Tooltip>
   );
@@ -190,8 +189,15 @@ function NavButton({
       aria-label={item.label}
       aria-current={active ? "page" : undefined}
     >
-      <PendingDim>
-        <Box style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: compact ? 0 : 2 }}>
+      <PendingDim busyKey={`bottom:${item.href}`}>
+        <Box
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            gap: compact ? 0 : 2,
+          }}
+        >
           {item.icon}
           {!compact && (
             <Text size="xs" fw={active ? 600 : 500}>
@@ -548,208 +554,214 @@ export function AppShellShell({
       <a href="#main-content" className="c2-skip-link">
         Skip to content
       </a>
-      <AppShell
-        ref={rootRef}
-        // `--app-banner-height` (absent by default → 0px from the class, the
-        // measured height when a banner is active) feeds
-        // `--app-shell-header-offset` in globals.css. Set as an inline custom
-        // property on the root so the cascade can't drift between class
-        // declarations. (Not the `vars` prop — in Mantine v9 that's a
-        // resolver *function*, not an object.) In immersive mode the banner
-        // is hidden, so we omit the variable to keep --app-banner-height at
-        // its CSS default of 0px. The banner is NOT reserved while its
-        // streamed read is pending — the header only grows once a banner
-        // actually resolves present.
-        style={
-          bannerActive && !immersive
-            ? ({ "--app-banner-height": `${bannerPx}px` } as React.CSSProperties)
-            : undefined
-        }
-        // Extra top inset engages in standalone PWA mode on notched devices
-        // (`viewport-fit=cover`): the navy header extends edge-to-edge behind
-        // the status bar instead of letterboxing. Reports 0 in-browser. The
-        // banner (when active) stacks above the 56px brand bar inside the
-        // same header element. In immersive mode the header is hidden, so we
-        // drop the banner height from the prop to avoid Mantine allocating
-        // phantom main-content padding. While the banner read is pending the
-        // header is the bare 56px bar (no reservation).
-        header={{
-          height:
+      <ActivityProvider>
+        <AppShell
+          ref={rootRef}
+          // `--app-banner-height` (absent by default → 0px from the class, the
+          // measured height when a banner is active) feeds
+          // `--app-shell-header-offset` in globals.css. Set as an inline custom
+          // property on the root so the cascade can't drift between class
+          // declarations. (Not the `vars` prop — in Mantine v9 that's a
+          // resolver *function*, not an object.) In immersive mode the banner
+          // is hidden, so we omit the variable to keep --app-banner-height at
+          // its CSS default of 0px. The banner is NOT reserved while its
+          // streamed read is pending — the header only grows once a banner
+          // actually resolves present.
+          style={
             bannerActive && !immersive
-              ? `calc(env(safe-area-inset-top) + ${bannerPx}px + ${HEADER_HEIGHT_PX}px)`
-              : `calc(${HEADER_HEIGHT_PX}px + env(safe-area-inset-top))`,
-        }}
-        navbar={{
-          width: collapsed ? SIDEBAR_RAIL_WIDTH : SIDEBAR_WIDTH,
-          breakpoint: "lg",
-          collapsed: { mobile: true },
-        }}
-        footer={{ height: `${BOTTOM_NAV_HEIGHT}px`, collapsed: isDesktop }}
-        padding="md"
-        className={immersive ? "app-shell-root app-shell-immersive" : "app-shell-root"}
-      >
-        <AppShell.Header
-          style={{
-            background: "var(--mantine-color-brand-7)",
-            borderColor: "var(--mantine-color-brand-8)",
-            // The safe-area region stays navy; the banner + brand bar render
-            // below it. Column layout only when a banner is stacked on top —
-            // otherwise the single Group keeps today's row rendering.
-            paddingTop: "env(safe-area-inset-top)",
-            display: bannerActive && !immersive ? "flex" : undefined,
-            flexDirection: bannerActive ? "column" : undefined,
+              ? ({ "--app-banner-height": `${bannerPx}px` } as React.CSSProperties)
+              : undefined
+          }
+          // Extra top inset engages in standalone PWA mode on notched devices
+          // (`viewport-fit=cover`): the navy header extends edge-to-edge behind
+          // the status bar instead of letterboxing. Reports 0 in-browser. The
+          // banner (when active) stacks above the 56px brand bar inside the
+          // same header element. In immersive mode the header is hidden, so we
+          // drop the banner height from the prop to avoid Mantine allocating
+          // phantom main-content padding. While the banner read is pending the
+          // header is the bare 56px bar (no reservation).
+          header={{
+            height:
+              bannerActive && !immersive
+                ? `calc(env(safe-area-inset-top) + ${bannerPx}px + ${HEADER_HEIGHT_PX}px)`
+                : `calc(${HEADER_HEIGHT_PX}px + env(safe-area-inset-top))`,
           }}
+          navbar={{
+            width: collapsed ? SIDEBAR_RAIL_WIDTH : SIDEBAR_WIDTH,
+            breakpoint: "lg",
+            collapsed: { mobile: true },
+          }}
+          footer={{ height: `${BOTTOM_NAV_HEIGHT}px`, collapsed: isDesktop }}
+          padding="md"
+          className={immersive ? "app-shell-root app-shell-immersive" : "app-shell-root"}
         >
-          <ShellChromeContext.Provider value={shellChrome}>
-            {kahNavSlot}
-            {bannerSlot}
-            <Group
-              h={HEADER_HEIGHT_PX}
-              justify="space-between"
-              px={isNarrow ? "xs" : "md"}
-              gap={isNarrow ? 4 : "md"}
-              wrap="nowrap"
-            >
-              <Text
-                fw={700}
-                size={isNarrow ? "md" : "lg"}
-                component={Link}
-                href="/dashboard"
-                td="none"
-                c="white"
-                style={{ whiteSpace: "nowrap" }}
+          <AppShell.Header
+            style={{
+              background: "var(--mantine-color-brand-7)",
+              borderColor: "var(--mantine-color-brand-8)",
+              // The safe-area region stays navy; the banner + brand bar render
+              // below it. Column layout only when a banner is stacked on top —
+              // otherwise the single Group keeps today's row rendering.
+              paddingTop: "env(safe-area-inset-top)",
+              display: bannerActive && !immersive ? "flex" : undefined,
+              flexDirection: bannerActive ? "column" : undefined,
+            }}
+          >
+            <ShellChromeContext.Provider value={shellChrome}>
+              {kahNavSlot}
+              {bannerSlot}
+              <Group
+                h={HEADER_HEIGHT_PX}
+                justify="space-between"
+                px={isNarrow ? "xs" : "md"}
+                gap={isNarrow ? 4 : "md"}
+                wrap="nowrap"
               >
-                Cloudy
-              </Text>
-              <Group gap={isNarrow ? 2 : "xs"} wrap="nowrap">
-                {pinnedCount > 0 ? (
-                  <Indicator
-                    position="top-start"
-                    size={18}
-                    offset={4}
-                    color="accent"
-                    withBorder
-                    // The count already rides the button's aria-label; hide the
-                    // visual badge so screen readers don't read it twice.
-                    label={<span aria-hidden>{pinnedCount > 99 ? "99+" : pinnedCount}</span>}
-                  >
-                    {pinnedButton}
-                  </Indicator>
-                ) : (
-                  pinnedButton
-                )}
-                <ActionIcon
-                  variant="transparent"
+                <Text
+                  fw={700}
+                  size={isNarrow ? "md" : "lg"}
+                  component={Link}
+                  href="/dashboard"
+                  td="none"
                   c="white"
-                  size="lg"
-                  aria-label="Search events"
-                  onClick={(e) => {
-                    setSearchOriginRect(e.currentTarget.getBoundingClientRect());
-                    setSearchLoaded(true);
-                    setSearchOpen(true);
-                  }}
+                  style={{ whiteSpace: "nowrap" }}
                 >
-                  <IconSearch size={18} />
-                </ActionIcon>
-                <ThemeToggle />
-                <UserMenu name={name} />
+                  <PendingDim busyKey="logo:dashboard">Cloudy</PendingDim>
+                </Text>
+                <Group gap={isNarrow ? 2 : "xs"} wrap="nowrap">
+                  {pinnedCount > 0 ? (
+                    <Indicator
+                      position="top-start"
+                      size={18}
+                      offset={4}
+                      color="accent"
+                      withBorder
+                      // The count already rides the button's aria-label; hide the
+                      // visual badge so screen readers don't read it twice.
+                      label={<span aria-hidden>{pinnedCount > 99 ? "99+" : pinnedCount}</span>}
+                    >
+                      {pinnedButton}
+                    </Indicator>
+                  ) : (
+                    pinnedButton
+                  )}
+                  <ActionIcon
+                    variant="transparent"
+                    c="white"
+                    size="lg"
+                    aria-label="Search events"
+                    onClick={(e) => {
+                      setSearchOriginRect(e.currentTarget.getBoundingClientRect());
+                      setSearchLoaded(true);
+                      setSearchOpen(true);
+                    }}
+                  >
+                    <IconSearch size={18} />
+                  </ActionIcon>
+                  <ThemeToggle />
+                  <UserMenu name={name} />
+                </Group>
               </Group>
-            </Group>
-          </ShellChromeContext.Provider>
-        </AppShell.Header>
+              {/* Global activity bar: indeterminate amber strip pinned to the
+                header's bottom edge while any route navigation, in-page
+                transition, or post-mutation refresh is in flight. */}
+              <ActivityBar />
+            </ShellChromeContext.Provider>
+          </AppShell.Header>
 
-        <AppShell.Navbar
-          p="md"
-          style={{
-            background: "var(--mantine-color-body)",
-            borderRight: "1px solid var(--mantine-color-default-border)",
-            // Mantine animates transform/top/height on the navbar; add width so
-            // the rail resize animates in step with the main area's padding.
-            transitionProperty: "transform, top, height, width",
-          }}
-        >
-          <Stack gap="xs">
-            {items.map((item) =>
-              collapsed ? (
-                <RailNavButton
+          <AppShell.Navbar
+            p="md"
+            style={{
+              background: "var(--mantine-color-body)",
+              borderRight: "1px solid var(--mantine-color-default-border)",
+              // Mantine animates transform/top/height on the navbar; add width so
+              // the rail resize animates in step with the main area's padding.
+              transitionProperty: "transform, top, height, width",
+            }}
+          >
+            <Stack gap="xs">
+              {items.map((item) =>
+                collapsed ? (
+                  <RailNavButton
+                    key={item.href}
+                    item={item}
+                    active={isActive(item)}
+                    onTap={() => handleTap(item.href)}
+                  />
+                ) : (
+                  <NavLink
+                    key={item.href}
+                    component={Link}
+                    href={item.href}
+                    label={item.label}
+                    leftSection={<PendingDim busyKey={`side:${item.href}`}>{item.icon}</PendingDim>}
+                    active={isActive(item)}
+                    onClick={() => handleTap(item.href)}
+                  />
+                ),
+              )}
+            </Stack>
+            <UnstyledButton
+              mt="auto"
+              onClick={() => setCollapsed((value) => !value)}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                padding: 4,
+                color: NAV_IDLE_COLOR,
+              }}
+              aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+            >
+              {collapsed ? (
+                <IconLayoutSidebarLeftExpand size={22} />
+              ) : (
+                <IconLayoutSidebarLeftCollapse size={22} />
+              )}
+            </UnstyledButton>
+          </AppShell.Navbar>
+
+          <AppShell.Main id="main-content" tabIndex={-1}>
+            <ImmersiveModeContext.Provider value={immersiveMode}>
+              <PinnedPanelContext.Provider value={pinnedPanelValue}>
+                <StatusAnnouncer />
+                {children}
+                <PinnedEventsPanel />
+                {searchLoaded && (
+                  <EventSearchModal
+                    opened={searchOpen}
+                    onClose={() => setSearchOpen(false)}
+                    originRect={searchOriginRect}
+                  />
+                )}
+              </PinnedPanelContext.Provider>
+            </ImmersiveModeContext.Provider>
+          </AppShell.Main>
+
+          <AppShell.Footer
+            style={{
+              background: "var(--mantine-color-body)",
+              borderTop: "1px solid var(--mantine-color-default-border)",
+            }}
+          >
+            <Box
+              style={{
+                display: "flex",
+              }}
+            >
+              {items.map((item) => (
+                <NavButton
                   key={item.href}
                   item={item}
                   active={isActive(item)}
                   onTap={() => handleTap(item.href)}
+                  compact={isNarrow}
                 />
-              ) : (
-                <NavLink
-                  key={item.href}
-                  component={Link}
-                  href={item.href}
-                  label={item.label}
-                  leftSection={<PendingDim>{item.icon}</PendingDim>}
-                  active={isActive(item)}
-                  onClick={() => handleTap(item.href)}
-                />
-              ),
-            )}
-          </Stack>
-          <UnstyledButton
-            mt="auto"
-            onClick={() => setCollapsed((value) => !value)}
-            style={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              padding: 4,
-              color: NAV_IDLE_COLOR,
-            }}
-            aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-          >
-            {collapsed ? (
-              <IconLayoutSidebarLeftExpand size={22} />
-            ) : (
-              <IconLayoutSidebarLeftCollapse size={22} />
-            )}
-          </UnstyledButton>
-        </AppShell.Navbar>
-
-        <AppShell.Main id="main-content" tabIndex={-1}>
-          <ImmersiveModeContext.Provider value={immersiveMode}>
-            <PinnedPanelContext.Provider value={pinnedPanelValue}>
-              <StatusAnnouncer />
-              {children}
-              <PinnedEventsPanel />
-              {searchLoaded && (
-                <EventSearchModal
-                  opened={searchOpen}
-                  onClose={() => setSearchOpen(false)}
-                  originRect={searchOriginRect}
-                />
-              )}
-            </PinnedPanelContext.Provider>
-          </ImmersiveModeContext.Provider>
-        </AppShell.Main>
-
-        <AppShell.Footer
-          style={{
-            background: "var(--mantine-color-body)",
-            borderTop: "1px solid var(--mantine-color-default-border)",
-          }}
-        >
-          <Box
-            style={{
-              display: "flex",
-            }}
-          >
-            {items.map((item) => (
-              <NavButton
-                key={item.href}
-                item={item}
-                active={isActive(item)}
-                onTap={() => handleTap(item.href)}
-                compact={isNarrow}
-              />
-            ))}
-          </Box>
-        </AppShell.Footer>
-      </AppShell>
+              ))}
+            </Box>
+          </AppShell.Footer>
+        </AppShell>
+      </ActivityProvider>
     </>
   );
 }
