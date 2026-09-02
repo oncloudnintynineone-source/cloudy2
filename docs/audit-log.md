@@ -343,8 +343,15 @@ double-quotes fields containing `"`, `,`, `\r`, or `\n` and doubles inner quotes
   retention card with a red "Delete older than N days" confirm button, and a
   download `FloatingActionButton` (confirm modal → blob fetch of the export URL
   built from the current filters).
-  Loading follows the standard skeleton-only pattern (`useMinSkeletonHold` +
-  `useContentEnter`, see [`loading-transitions.md`](loading-transitions.md)).
+   Loading follows the standard skeleton-only pattern (`useMinSkeletonHold` +
+   `useContentEnter`, see [`loading-transitions.md`](loading-transitions.md)).
+   The fetched page is held in local state (so "Load more" can append to it),
+   which survives re-renders — so every server re-render (filter navigation,
+   post-purge `router.refresh()`) is re-synced via render-phase state
+   adjustment (`prevInitialRows !== initialRows` → reset `rows` + `cursor`),
+   the same pattern the dashboard uses for its `?event=` deep link. An
+   in-flight "Load more" whose filter set changed underneath it drops its
+   stale page instead of appending it.
 - **Detail modal** (`LogDetailModal`): action label + raw action badge, actor ·
   timestamp, entity, route · method, then the `formatAuditDetails` output.
 

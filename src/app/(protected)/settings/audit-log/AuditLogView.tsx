@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useRef, useState, useTransition } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import {
   ActionIcon,
   Badge,
@@ -107,9 +107,29 @@ export function AuditLogView({
   const listLoading = useMinSkeletonHold(isPending);
   const listRef = useRef<HTMLDivElement | null>(null);
   useContentEnter(listRef, !listLoading);
+  // Latest applied filters, so an in-flight "Load more" can detect that the
+  // filter set changed underneath it and drop its stale-filter page instead of
+  // appending it to the freshly reset list.
+  const filtersRef = useRef(filters);
+  useEffect(() => {
+    filtersRef.current = filters;
+  }, [filters]);
 
   const [rows, setRows] = useState(initialRows);
   const [cursor, setCursor] = useState(nextCursor);
+  // Filter navigations (and the post-purge refresh) re-render this component
+  // with fresh server props but never remount it, so the local list state must
+  // be re-synced from the props. Render-phase adjustment (React's "adjusting
+  // state when props change" pattern, same as the dashboard's ?event= link)
+  // applies the new page before paint — no stale-rows flash behind the
+  // skeleton reveal. Any server re-render resets "Load more" pagination back
+  // to the first page, which is the intended semantics.
+  const [prevInitialRows, setPrevInitialRows] = useState(initialRows);
+  if (prevInitialRows !== initialRows) {
+    setPrevInitialRows(initialRows);
+    setRows(initialRows);
+    setCursor(nextCursor);
+  }
   const [loadingMore, setLoadingMore] = useState(false);
   const [searchInput, setSearchInput] = useState(filters.query ?? "");
 
@@ -257,8 +277,12 @@ export function AuditLogView({
       return;
     }
     setLoadingMore(true);
+    const requestedFilters = filters;
     try {
       const page = await loadMoreAuditLogs({ ...filters, cursor });
+      if (filtersRef.current !== requestedFilters) {
+        return;
+      }
       setRows((previous) => [...previous, ...page.rows]);
       setCursor(page.nextCursor);
     } catch (error) {
