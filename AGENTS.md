@@ -228,7 +228,8 @@ mechanics in the doc.
   content roots get `CONTENT_ENTER_CLASS`. Every skeleton block includes a
   `LoadingStatus` (sr-only `role="status"`) so screen readers hear the load.
   The one complement to skeletons is the shared **global activity bar** (an
-  indeterminate amber strip flush under the header) for the busy moments a
+  indeterminate amber strip that pulses while in flight, flush under the
+  header) for the busy moments a
   skeleton can't cover — post-mutation `router.refresh()` (use the
   `useActivityRefresh` hook, never a raw `invalidateCurrentPathCaches().then(…
   router.refresh())`), same-shell tab flips, and in-page transitions. Report a

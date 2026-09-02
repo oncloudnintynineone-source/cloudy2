@@ -418,8 +418,8 @@ as a deliberate, completed sequence rather than a 1-frame blip (the
 immediate too, so no warm load can outrun the bar entirely). Timing lives in a
 flat `setTimeout` in an effect — SSR renders are unaffected.
 
-**Presentation & a11y.** The bar is a 2px amber track with a white thumb
-sliding across (280 ms of busy motion in `globals.css`
+**Presentation & a11y.** The bar is a 2px amber strip that **pulses** in
+opacity (~1.1 s breathing cycle, dim ≈ 0.35 → full, in `globals.css`
 `.c2-activity-bar-*`, under `prefers-reduced-motion: no-preference` for a
 static strip). It carries `role="progressbar"` (indeterminate — no
 `aria-valuenow`) and is `aria-hidden` while collapsed. Mounted inside

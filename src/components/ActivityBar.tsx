@@ -172,8 +172,6 @@ export function ActivityBar() {
       aria-hidden={!show}
       aria-valuemin={0}
       aria-valuemax={1}
-    >
-      <div className="c2-activity-bar-thumb" />
-    </div>
+    ></div>
   );
 }
