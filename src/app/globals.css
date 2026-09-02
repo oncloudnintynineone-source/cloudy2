@@ -91,7 +91,8 @@
 }
 
 /*
-  Responsive desktop layout (>= 50em = Mantine's custom lg breakpoint).
+  Responsive desktop layout (>= 40em = Mantine's custom lg breakpoint, 640px —
+  an unfolded foldable's inner screen).
 
   The app is mobile-first: below lg every page is a full-width single column
   with a bottom nav, and floating UI (FABs, the settings sub-tab bar) must
@@ -193,11 +194,11 @@
 }
 
 /* Card grids for the contacts and parade-state lists: single column on
-   narrow mobile, auto-filling columns on wider screens well before the
-   50em desktop shell switch — otherwise mid-width viewports (e.g. large
-   phones in landscape / tablets around 600-799px) render a single
-   elongated column. 300px at 36em lets 2 columns fit from ~640px;
-   320px at 50em is the desktop width. */
+   narrow mobile, auto-filling columns on wider screens. The 36em tier
+   predates the 40em desktop-shell switch: with desktop now starting at
+   640px it only covers the 576-639px mobile band, where two 300px
+   columns still don't fit — kept as harmless insurance (auto-fill
+   collapses to one column there). 320px at 40em is the desktop width. */
 .card-grid {
   display: grid;
   grid-template-columns: 1fr;
@@ -210,7 +211,7 @@
   }
 }
 
-@media (min-width: 50em) {
+@media (min-width: 40em) {
   :root {
     --app-floating-bottom-offset: 16px;
     --settings-fab-bottom: 16px;

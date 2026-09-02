@@ -164,10 +164,12 @@ mechanics in the doc.
 - **Brand colors:** primary `#0D47A1` (deep blue), secondary `#FBC02D` (amber) — use for
   badges, chips, highlights, event-type colors, etc. Authenticated routes live under
   `src/app/(protected)/`.
-- **Mobile-first; desktop layout at `lg` (pinned to 800px).** Detect the breakpoint in
-  client components with `useMediaQuery(\`(min-width: ${theme.breakpoints.lg})\`)` — do
+- **Mobile-first; desktop layout at `lg` (pinned to 640px — unfolded-foldable
+  width; sidebar auto-collapses to the icon rail until 800px).** Detect the
+  breakpoint in client components with
+  `useMediaQuery(\`(min-width: ${theme.breakpoints.lg})\`)` — do
   **not** append px (it's an em string; appending makes an invalid query that always
-  returns false). Pure-CSS switches go under `@media (min-width: 62em)` in
+  returns false). Pure-CSS switches go under `@media (min-width: 40em)` in
   `globals.css`. **Very small phones (≤ 360px) get a compact tier** via the shared
   `NARROW_MEDIA_QUERY` constant (`src/lib/theme.ts`) + `useMediaQuery` `isNarrow`:
   it's a JS-only query (not a Mantine breakpoint, so it can't collide with `xs:`/`lg:`

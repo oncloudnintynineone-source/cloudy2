@@ -32,16 +32,21 @@ export const theme = createTheme({
     brand,
     accent,
   },
-  // The app's "desktop" layout (sidebar, tables, card grids) kicks in at 800px
-  // — Mantine's `md`. `lg` is pinned to the same 50em so every `lg:` reference
-  // (responsive props, `visibleFrom="lg"`, the AppShell navbar breakpoint, and
-  // the `useMediaQuery` calls) stays consistent with the `@media (min-width:
-  // 50em)` block in globals.css. Mantine's default `lg` is 75em (1200px).
+  // The app's "desktop" layout (sidebar, tables, card grids) kicks in at 640px
+  // — the width of an unfolded foldable's inner screen (Galaxy Z Fold ≈ 653px,
+  // Pixel Fold ≈ 640px). `md`/`lg` are pinned to the same 40em so every `lg:`
+  // reference (responsive props, `visibleFrom="lg"`, the AppShell navbar
+  // breakpoint, and the `useMediaQuery` calls) stays consistent with the
+  // `@media (min-width: 40em)` block in globals.css. Mantine's default `lg` is
+  // 75em (1200px). Note: 40em sits *below* `sm` (48em) — the generated media
+  // queries are sorted by width so nothing breaks, but the names read in
+  // reverse: prefer `lg:` for every desktop-band prop and avoid mixing `sm:`
+  // and `md:` in one responsive value.
   breakpoints: {
     xs: "36em",
     sm: "48em",
-    md: "50em",
-    lg: "50em",
+    md: "40em",
+    lg: "40em",
     xl: "88em",
   },
   defaultRadius: "md",
@@ -74,7 +79,15 @@ export const BUTTON_LOADER_PROPS: NonNullable<ButtonProps["loaderProps"]> = {
  * `breakpoints.lg` above so JS matchMedia calls (`useMediaQuery`) and Mantine
  * responsive props can't drift apart.
  */
-export const DESKTOP_MEDIA_QUERY = "(min-width: 50em)";
+export const DESKTOP_MEDIA_QUERY = "(min-width: 40em)";
+
+/**
+ * Media query for the "wide desktop" band (≥ 800px). The desktop shell starts
+ * at 640px for unfolded foldables, but at 640–799px the 240px full sidebar
+ * would eat a third of the viewport, so the shell auto-collapses it to the
+ * 64px icon rail until this width is reached (AppShellShell.tsx).
+ */
+export const DESKTOP_WIDE_MEDIA_QUERY = "(min-width: 50em)";
 
 /**
  * Media query for the "compact" tier — very small form-factor phones
