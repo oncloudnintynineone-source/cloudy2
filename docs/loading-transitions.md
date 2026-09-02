@@ -393,7 +393,7 @@ flowchart LR
     B[settings tab flip] --> C
     D[dashboard/parade/audit transitions] --> C
     E[post-mutation refresh] --> C
-    C -->|anyBusy for ≥200ms| F[indeterminate amber bar]
+    C -->|anyBusy| F[indeterminate amber bar]
     F -->|idle 150ms after clear| F
 ```
 
@@ -408,11 +408,15 @@ overlapping sources (a route nav mid-refresh) share the bar without fighting:
 | In-page view/filter transitions | dashboard reports `isPending \|\| isRefreshing`, parade reports the cross-month gate, audit reports its filter `isPending` |
 | Post-mutation `router.refresh()` | `useActivityRefresh(busyKey)` returns a `refresh()` that invalidates the SW caches then calls `router.refresh()` **inside** `useTransition`, so `isPending` stays true until the refreshed RSC payload commits (`router.refresh()` itself is not awaitable). Replaces the old `invalidateCurrentPathCaches().then(() => router.refresh())` at every settings table/form, the dashboard's `onDone`/`onDeleted`, and audit's purge |
 
-**Flicker control.** Like the min-hold rules above, the bar only appears after
-`ACTIVITY_SHOW_DELAY_MS` (200 ms) of *continuous* busy, and lingers
-`ACTIVITY_MIN_HOLD_MS` (150 ms) after busy clears — a warm-cache load that
-resolves in under 200 ms never flashes it. Timing runs in effects only
-(`performance.now()`), so SSR renders are unaffected.
+**Flicker control.** The bar appears **immediately** on any busy edge — it is
+often the *only* signal that a warm-cache load or post-mutation refresh has
+started, so it must not wait for a "real load" to prove itself. The sole
+timing is a minimum hold: once busy clears, the bar lingers
+`ACTIVITY_MIN_HOLD_MS` (150 ms) so a load that ends just as it started reads
+as a deliberate, completed sequence rather than a 1-frame blip (the
+`useLinkStatus`-driven route navigations and the other sources are all
+immediate too, so no warm load can outrun the bar entirely). Timing lives in a
+flat `setTimeout` in an effect — SSR renders are unaffected.
 
 **Presentation & a11y.** The bar is a 2px amber track with a white thumb
 sliding across (280 ms of busy motion in `globals.css`
@@ -438,7 +442,7 @@ itself is `display: none` there).
 | `src/app/(protected)/dashboard/DashboardView.tsx` | Held loading, reveal fade, one-shot strips (`edit`/`refresh`/`_fresh`), agenda slide, optimistic date-nav chrome (`shown*`, §1.9.2) |
 | `src/app/(protected)/parade-state/ParadeStateView.tsx` | Month-gated hold, `_fresh` inject/strip |
 | `src/components/AppShellShell.tsx` | Optimistic nav highlight (`tappedHref`) + `PendingDim`/`useLinkStatus` (§1.9.1) |
-| `src/components/ActivityBar.tsx` | ActivityProvider + `useActivity` (refcounted `begin`/`end`), `useReportActivity`, `useActivityRefresh`, `ActivityBar` (delayed show + min hold, indeterminate strip) — §1.13 |
+| `src/components/ActivityBar.tsx` | ActivityProvider + `useActivity` (refcounted `begin`/`end`), `useReportActivity`, `useActivityRefresh`, `ActivityBar` (immediate show + min hold, indeterminate strip) — §1.13 |
 | `next.config.ts` | `experimental.staleTimes.dynamic = 120` client-router reuse window (§1.10) |
 | `src/app/(protected)/dashboard/page.tsx` | `?edit=`/`?refresh=` nonce validation |
 

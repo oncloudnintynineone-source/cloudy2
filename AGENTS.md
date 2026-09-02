@@ -233,7 +233,7 @@ mechanics in the doc.
   `useActivityRefresh` hook, never a raw `invalidateCurrentPathCaches().then(…
   router.refresh())`), same-shell tab flips, and in-page transitions. Report a
   transition's `isPending` via `useReportActivity`; route `<Link>` nav is wired
-  automatically through `PendingDim`. Delayed show (200ms) + min hold (150ms),
+  automatically through `PendingDim`. Immediate show + min hold (150ms),
   hidden in immersive mode. Design:
   [docs/loading-transitions.md](docs/loading-transitions.md) §1.13.
 - **Buttons triggering async work show loading in the button itself:** Mantine `loading`

@@ -35,17 +35,10 @@ import { invalidateCurrentPathCaches } from "@/lib/pwa/client";
  */
 
 /**
- * Minimum continuous-busy time before the bar appears. A warm-cache route nav
- * or an in-page flip can resolve in well under this — the bar would flash and
- * read as jank, the exact problem `MIN_SKELETON_HOLD_MS` was built to avoid.
- * Only once busy has persisted past this threshold does the bar show.
- */
-export const ACTIVITY_SHOW_DELAY_MS = 200;
-
-/**
- * How long the bar lingers once busy clears, so a load that ends right at the
- * show threshold still reads as a deliberate, completed sequence rather than a
- * 1-frame blip.
+ * How long the bar lingers once busy clears, so a load that ends just as it
+ * appeared still reads as a deliberate, completed sequence rather than a
+ * 1-frame blip. (The bar itself shows immediately on any busy edge — no show
+ * delay — because it is often the only signal a load has started.)
  */
 export const ACTIVITY_MIN_HOLD_MS = 150;
 
@@ -137,38 +130,39 @@ export function ActivityProvider({ children }: { children: ReactNode }) {
 /**
  * The bar itself — mount it inside `AppShell.Header`, flush at its bottom edge
  * (the CSS positions it `absolute; bottom: 0`, so it sits on the header's
- * bottom border with no margin/padding above it). Delayed show + min hold mean
- * a fast/warm load never makes it flicker.
+ * bottom border with no margin/padding above it). Shows immediately while any
+ * source is busy; a flat `ACTIVITY_MIN_HOLD_MS` linger keeps a load that ends
+ * right as it started from reading as a 1-frame blip.
  */
 export function ActivityBar() {
   const { anyBusy: busy } = useActivity();
-  const [show, setShow] = useState(false);
-  const shownStartRef = useRef<number | null>(null);
+  // The bar shows as soon as any source is busy. `held` extends a load that
+  // ends right as it started — the busy→false edge arms it for
+  // ACTIVITY_MIN_HOLD_MS, so the reveal reads as a deliberate, completed
+  // sequence instead of a 1-frame blip.
+  const [held, setHeld] = useState(false);
+  const show = busy || held;
 
-  useEffect(() => {
+  // Detect the busy→false edge during render (the React-sanctioned "adjust
+  // state when a prop changes" pattern — same as the shell's nav sync):
+  // drop the hold on the rising edge, arm it when busy clears.
+  const [prevBusy, setPrevBusy] = useState(busy);
+  if (prevBusy !== busy) {
+    setPrevBusy(busy);
     if (busy) {
-      shownStartRef.current = null;
-      const timer = window.setTimeout(() => setShow(true), ACTIVITY_SHOW_DELAY_MS);
-      return () => window.clearTimeout(timer);
+      setHeld(false);
+    } else {
+      setHeld(true);
     }
-    if (!show) return;
-    const shownAt = shownStartRef.current ?? performance.now();
-    const remaining = ACTIVITY_MIN_HOLD_MS - (performance.now() - shownAt);
-    if (remaining <= 0) {
-      setShow(false);
-      return;
-    }
-    const timer = window.setTimeout(() => setShow(false), remaining);
-    return () => window.clearTimeout(timer);
-  }, [busy, show]);
+  }
 
-  // Record the moment the bar actually became visible so the min-hold stays
-  // honest even when busy clears just after the show delay.
+  // Release the hold. SetState happens only inside the timer callback, never
+  // synchronously in the effect body.
   useEffect(() => {
-    if (show) {
-      shownStartRef.current = performance.now();
-    }
-  }, [show]);
+    if (!held) return;
+    const timer = window.setTimeout(() => setHeld(false), ACTIVITY_MIN_HOLD_MS);
+    return () => window.clearTimeout(timer);
+  }, [held]);
 
   return (
     <div
