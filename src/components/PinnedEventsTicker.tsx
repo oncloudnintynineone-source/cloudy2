@@ -1,7 +1,6 @@
 "use client";
 
 import { Box, UnstyledButton } from "@mantine/core";
-import { useMediaQuery } from "@mantine/hooks";
 import { IconPin } from "@tabler/icons-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
@@ -11,14 +10,23 @@ import type { Rect } from "@/lib/motion/origin";
 /** How long each title stays on screen before the next one slides in. */
 const ROTATE_INTERVAL_MS = 5000;
 
-/** Must cover the c2-ticker-* animation duration in globals.css. */
-const EXIT_ANIM_MS = 360;
+/**
+ * The title shown in the pill. `tickerTitle` (the `pinnedHeader` template) is
+ * preferred, but a freshly-deployed shell can briefly receive a cached pinned
+ * list shaped without the `tickerTitle` key (the list is cached server-side
+ * for 60s); falling back to `title` — the panel's `pinned` template, rendered
+ * through the exact same input — keeps the pill from rendering blank in that
+ * window and whenever the header template yields nothing.
+ */
+function tickerTitleOf(event: PinnedEvent): string {
+  return event.tickerTitle || event.title;
+}
 
 /**
  * The header's pinned-events pill, anchored at the header's left edge (where
  * the logo used to sit). Shows the pin icon, an inline amber count chip
  * (`1/N` — the old floating Indicator badge, inline now) and rotates through
- * the upcoming pinned events' `tickerTitle`s with a vertical ticker slide.
+ * the upcoming pinned events' `tickerTitle`s with a vertical slide-in.
  * Tapping it opens the Pinned Events panel, same as the old button.
  */
 export function PinnedEventsTicker({
@@ -33,13 +41,10 @@ export function PinnedEventsTicker({
   onOpen: (originRect: Rect) => void;
 }) {
   const [index, setIndex] = useState(0);
-  // The previous title, kept around only for the duration of the slide-out.
-  const [exiting, setExiting] = useState<PinnedEvent | null>(null);
   // Rotation pauses while hovered/focused so the title can be read, and while
   // the tab is hidden (checked in the tick).
   const [hovered, setHovered] = useState(false);
   const [focused, setFocused] = useState(false);
-  const reduceMotion = useMediaQuery("(prefers-reduced-motion: reduce)");
 
   const list = useMemo(() => events ?? [], [events]);
   const count = list.length;
@@ -48,14 +53,8 @@ export function PinnedEventsTicker({
 
   const advance = useCallback(() => {
     if (count < 2) return;
-    // The exit clone only renders when the slide animation actually runs
-    // (reduceMotion === false); without the animation it would sit opaque on
-    // top of the incoming title until its cleanup timer drops it.
-    if (reduceMotion === false) {
-      setExiting(list[safeIndex]);
-    }
     setIndex((i) => i + 1);
-  }, [count, list, safeIndex, reduceMotion]);
+  }, [count]);
 
   useEffect(() => {
     if (count < 2) return;
@@ -66,12 +65,6 @@ export function PinnedEventsTicker({
     }, ROTATE_INTERVAL_MS);
     return () => window.clearInterval(id);
   }, [count, paused, hovered, focused, advance]);
-
-  useEffect(() => {
-    if (exiting === null) return;
-    const id = window.setTimeout(() => setExiting(null), EXIT_ANIM_MS);
-    return () => window.clearTimeout(id);
-  }, [exiting]);
 
   return (
     <UnstyledButton
@@ -99,13 +92,11 @@ export function PinnedEventsTicker({
             {safeIndex + 1}/{count}
           </span>
           <span className="c2-pinned-ticker-title" aria-hidden>
-            {exiting !== null && reduceMotion === false ? (
-              <span key={`exit-${exiting.id}`} className="c2-pinned-ticker-line c2-ticker-exit">
-                {exiting.tickerTitle}
-              </span>
-            ) : null}
+            {/* Keyed by event id so a rotation remounts the line and replays
+                the slide-in; the line is a normal in-flow element (no
+                absolute overlay), so the title can never be clipped away. */}
             <span key={current.id} className="c2-pinned-ticker-line c2-ticker-enter">
-              {current.tickerTitle}
+              {tickerTitleOf(current)}
             </span>
           </span>
         </>

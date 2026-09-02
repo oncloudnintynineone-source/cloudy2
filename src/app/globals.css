@@ -114,8 +114,12 @@
   border-radius: var(--mantine-radius-xl);
   background: var(--mantine-color-brand-8);
   color: var(--mantine-color-white);
-  max-width: calc(13.75rem * var(--mantine-scale));
   min-width: 0;
+  /* Grow to fill the header's free space so the pill keeps a constant width;
+     the desktop media query caps it so it can't stretch across a wide header.
+     On mobile there is no cap, so the pill fills the free width (no wasted
+     gap) and the title truncates inside it. */
+  flex: 1 1 auto;
   transition: background-color 100ms ease;
 }
 
@@ -136,10 +140,6 @@
   .c2-pinned-ticker {
     max-width: calc(25rem * var(--mantine-scale));
   }
-
-  .c2-pinned-ticker-title {
-    flex-basis: calc(17rem * var(--mantine-scale));
-  }
 }
 
 /* Inline replacement for the old floating count badge: an amber chip riding
@@ -155,23 +155,20 @@
   line-height: calc(1.125rem * var(--mantine-scale));
 }
 
-/* One-line viewport for the rotating title: the outgoing/incoming lines are
-   absolutely stacking inside it and clipped. The explicit flex-basis matters:
-   the pill is shrink-to-fit and the lines are absolute, so a `flex: 1`
-   (0% basis) viewport would contribute nothing to the pill's intrinsic width
-   and resolve to zero. The fixed basis also keeps the pill's width stable
-   across rotations; flex-shrink lets very narrow headers squeeze it. */
+/* One-line viewport for the rotating title: the line is a normal in-flow
+   element (no absolute overlay, so a title can never be clipped away). It
+   fills the pill's width (the pill grows to a constant width capped by
+   max-width), and `min-width: 0` plus `overflow: hidden` let a long title
+   ellipsize inside it instead of expanding the pill. */
 .c2-pinned-ticker-title {
-  position: relative;
-  flex: 0 1 calc(9rem * var(--mantine-scale));
+  flex: 1 1 auto;
   min-width: 0;
   overflow: hidden;
   height: calc(1.25rem * var(--mantine-scale));
 }
 
 .c2-pinned-ticker-line {
-  position: absolute;
-  inset: 0;
+  display: block;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -191,29 +188,14 @@
   }
 }
 
-@keyframes c2-ticker-out {
-  from {
-    opacity: 1;
-    transform: translateY(0);
-  }
-  to {
-    opacity: 0;
-    transform: translateY(-100%);
-  }
-}
-
 @media (prefers-reduced-motion: no-preference) {
   .c2-ticker-enter {
     animation: c2-ticker-in 320ms cubic-bezier(0.22, 1, 0.36, 1);
   }
-
-  .c2-ticker-exit {
-    animation: c2-ticker-out 320ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
-  }
 }
 
-/* Reduced motion: no slide — the component skips the exit clone and titles
-   swap in place. */
+/* Reduced motion: no slide — titles swap in place (the keyed remount still
+   happens, just without the animation). */
 
 /* Day-agenda directional slide: the incoming day's agenda slides in from the
    direction of travel (next day from the right, previous day from the left). */
