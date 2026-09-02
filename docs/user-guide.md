@@ -118,13 +118,16 @@ original details; deleting asks for confirmation and removes every department co
 
 ## 1.5 Pinned events
 
-The header's **Pinned events** button opens a panel listing every explicitly-pinned
-upcoming event (today → 3 months out, all departments, ignoring your current
-filters). Tap one to jump straight to it on the calendar and open its details.
+The pill at the header's left edge is the **pinned-events ticker**: it rotates
+through your pinned events' titles (one every few seconds) behind an amber `1/N`
+chip that tells you how many events are pinned and which one is on screen. Tap it
+to open a panel listing every explicitly-pinned upcoming event (today → 3 months
+out, all departments, ignoring your current filters). Tap one there to jump
+straight to it on the calendar and open its details.
 
-Events get pinned through the **Pin this event** switch in the wizard (§1.4.1). The
-amber badge on the header button counts upcoming pinned events and refreshes after
-every create/update/delete.
+Events get pinned through the **Pin this event** switch in the wizard (§1.4.1).
+The ticker and its count refresh after every create/update/delete; with nothing
+pinned the pill shows a plain "Pinned events" label.
 
 ## 1.6 Quick links
 

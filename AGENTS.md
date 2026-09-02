@@ -107,11 +107,15 @@ mechanics in the doc.
   `--app-banner-height` **inline** on the AppShell root — do NOT use Mantine's `vars`
   prop (a resolver function in v9, not an object).
   Design: [docs/announcement-banner.md](docs/announcement-banner.md).
-- **Pinned Events:** header pin button opens the panel of explicitly-pinned upcoming
-  events ("Pin this event" switch in the wizard); badge refreshes via the
-  `cloudy2:pinned-events-changed` window event.
+- **Pinned Events:** the header's left edge is the **pinned-events ticker** — the
+  brand pill (pin icon, logo removed) that rotates through the upcoming pinned
+  events' titles every 5s behind an inline amber `1/N` count chip (replaced the
+  floating `Indicator`); tapping opens the panel of explicitly-pinned upcoming
+  events ("Pin this event" switch in the wizard). List refreshes via the
+  `cloudy2:pinned-events-changed` window event; ticker titles render through the
+  `pinnedHeader` template target (panel list: `pinned`).
   Design: [docs/pinned-events.md](docs/pinned-events.md).
-- **Event search:** a header search icon (between the pinned-events button and the
+- **Event search:** a header search icon (between the pinned-events ticker and the
   theme toggle) opens a **lazy-loaded** (`dynamic` + `ssr: false`) modal that
   free-text searches every department calendar **directly via Google Calendar**
   (`events.list` with `q` — bypassing the month cache), mapped + deduped by logical
@@ -181,8 +185,9 @@ mechanics in the doc.
   `globals.css`. **Very small phones (≤ 360px) get a compact tier** via the shared
   `NARROW_MEDIA_QUERY` constant (`src/lib/theme.ts`) + `useMediaQuery` `isNarrow`:
   it's a JS-only query (not a Mantine breakpoint, so it can't collide with `xs:`/`lg:`
-  min-width props) used to drop the header pinned button to an icon, the bottom nav to
-  icon-only, and shared modals one size step. Design:
+  min-width props) used to tighten the header gutters, drop the bottom nav to
+  icon-only, and step shared modals down one size (the pinned-events ticker keeps
+  rotating — the logo it replaced is gone, so it fits). Design:
   [docs/desktop-responsive.md](docs/desktop-responsive.md).
 - **No mobile keyboard pop-up from dropdown taps:** never render a `searchable`
   `Select`/`MultiSelect` directly — use `NoKeyboardSelect`/`NoKeyboardMultiSelect`.
@@ -205,7 +210,7 @@ mechanics in the doc.
   types + department fallback, applied at read time in `mapCalendarItem`, never cached):
   [docs/roster-sharing.md](docs/roster-sharing.md).
 - **Templates:** display-name + event-title templates (`formatEventTitle` tokens) with
-  per-target View assignments (incl. `pinned`).
+  per-target View assignments (incl. `pinned` panel + `pinnedHeader` ticker).
   Design: [docs/event-lifecycle.md](docs/event-lifecycle.md) §1.8.
 - **Event notes:** `Edit: <url>` line (a `?event=` deep link to the event's details
   modal, carrying the copy's calendar as `_eventCal`; older notes carry the legacy

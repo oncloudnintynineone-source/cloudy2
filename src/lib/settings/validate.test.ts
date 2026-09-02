@@ -129,10 +129,13 @@ describe("normalizeAssignments", () => {
     ).toEqual({ agenda: "tpl-1" });
   });
 
-  it("keeps the pinned target alongside the dashboard views", () => {
-    expect(normalizeAssignments({ schedule: "tpl-1", pinned: "tpl-2" })).toEqual({
+  it("keeps the pinned targets alongside the dashboard views", () => {
+    expect(
+      normalizeAssignments({ schedule: "tpl-1", pinned: "tpl-2", pinnedHeader: "tpl-1" }),
+    ).toEqual({
       schedule: "tpl-1",
       pinned: "tpl-2",
+      pinnedHeader: "tpl-1",
     });
   });
 
@@ -152,23 +155,26 @@ describe("normalizeAssignments", () => {
 describe("validateAssignments", () => {
   const knownIds = new Set(["tpl-1", "tpl-2"]);
 
-  it("accepts known template ids on any target including pinned", () => {
+  it("accepts known template ids on any target including the pinned ones", () => {
     expect(
-      validateAssignments({ schedule: "tpl-1", pinned: "tpl-2" }, knownIds),
+      validateAssignments({ schedule: "tpl-1", pinned: "tpl-2", pinnedHeader: "tpl-1" }, knownIds),
     ).toEqual({});
   });
 
   it("rejects unknown template ids with the target as the key", () => {
-    expect(validateAssignments({ pinned: "missing" }, knownIds)).toEqual({
+    expect(validateAssignments({ pinned: "missing", pinnedHeader: "nope" }, knownIds)).toEqual({
       pinned: "Unknown template",
+      pinnedHeader: "Unknown template",
     });
   });
 
   it("treats blanks as unassigned (master fallback)", () => {
-    expect(validateAssignments({ pinned: "", schedule: null }, knownIds)).toEqual({});
+    expect(
+      validateAssignments({ pinned: "", pinnedHeader: null, schedule: null }, knownIds),
+    ).toEqual({});
   });
 
-  it("defines the five dashboard views plus pinned", () => {
+  it("defines the five dashboard views plus the two pinned targets", () => {
     expect(EVENT_TITLE_ASSIGNMENT_TARGETS).toEqual([
       "month",
       "week",
@@ -176,6 +182,7 @@ describe("validateAssignments", () => {
       "schedule",
       "agenda",
       "pinned",
+      "pinnedHeader",
     ]);
   });
 });

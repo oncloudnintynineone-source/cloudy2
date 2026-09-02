@@ -135,8 +135,9 @@ SELECT pg_stat_statements_reset();
 After the DB-load reductions, expect:
 
 - **Active hours / egress (consumption API):** a downward trend once a workday's usage is
-  compared against the previous window — chiefly because the pinned badge's background
-  refreshes and duplicate per-render reads no longer touch the DB, so idle stretches can
+  compared against the previous window — chiefly because the pinned-events ticker's
+  background refreshes and duplicate per-render reads no longer touch the DB, so idle
+  stretches can
   actually reach Neon's 5-minute suspend.
 - **`pg_stat_statements`:** `calendars`/`event_types` reads roughly halve per render
   (page + `fetchRangeEvents` now share one `React.cache`d read each); the `google_event_cache`

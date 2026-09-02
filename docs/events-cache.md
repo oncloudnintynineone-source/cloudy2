@@ -476,9 +476,9 @@ module, but they keep the render's total query count low):
 
 - `listCalendars` / `listEventTypes` are React-`cache()`d per request, so the dashboard
   page and `fetchRangeEvents` share one read each instead of two.
-- `countPinnedEvents` / `fetchPinnedEvents` (global, user-independent values) are served
-  from a 60s in-memory TTL (`src/lib/cache.ts`), so the pinned badge's mount/refocus/
-  panel-close/CRUD refreshes collapse to one read per window; event mutations call
+- `fetchPinnedEvents` (a global, user-independent value) is served from a 60s in-memory
+  TTL (`src/lib/cache.ts`), so the header ticker's + panel's mount/refocus/panel-close/
+  CRUD refreshes collapse to one read per window; event mutations call
   `invalidatePinnedCache` for immediate freshness.
 
 ## 1.13 File index & related docs
@@ -495,7 +495,7 @@ module, but they keep the render's total query count low):
 | `src/app/(protected)/dashboard/DashboardView.tsx` | Force-refresh button + one-shot nonce strip (§1.5.1)       |
 | `src/lib/events/datetime.ts`                    | `monthRange`, `shiftMonth`, `monthsInRange`, `monthGridMonths`, `monthGridRows` |
 | `src/lib/async.ts`                              | `mapWithConcurrency`                                        |
-| `src/lib/cache.ts`                              | Generic TTL cache backing the pinned count/list reads       |
+| `src/lib/cache.ts`                              | Generic TTL cache backing the pinned list read              |
 | `src/app/sw.ts`                                 | Service worker: `NetworkOnly` for data (unchanged)          |
 
 Related docs:

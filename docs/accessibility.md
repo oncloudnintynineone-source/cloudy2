@@ -77,9 +77,11 @@ accessible name exactly once:
 - **Filter buttons** (`FilterButton`, used by Audit Log and Users): the
   `ActionIcon` aria-label becomes `"Filters (2 active)"` when filters are
   applied; the visual `Badge` is `aria-hidden`.
-- **Pinned events** header button: the count rides the button's aria-label
-  (`"Pinned events (3)"`); the `Indicator`'s visual label span is
-  `aria-hidden` so it isn't read twice.
+- **Pinned events** header ticker: the count rides the button's aria-label
+  (`"Pinned events (3)"`); the inline count chip and the rotating titles are
+  `aria-hidden` so the number is read once and the 5s title rotation never
+  spams the screen reader. The full list stays reachable in the panel it
+  opens.
 - The dashboard kebab's filter badge sits inside a `Menu.Target` whose
   `"More options"` name stays static — the filter state is announced via the
   live region instead (§1.2).
@@ -94,7 +96,8 @@ Icon-only controls across the app already carry `aria-label`s (the
 | ---- | ---- |
 | `src/lib/ui/announcer.tsx` | `StatusAnnouncer` live region + `announce()` singleton |
 | `src/components/LoadingStatus.tsx` | Sr-only loading announcement for skeleton blocks |
-| `src/components/AppShellShell.tsx` | Skip link, `#main-content` target, announcer mount, pinned-count aria |
+| `src/components/AppShellShell.tsx` | Skip link, `#main-content` target, announcer mount |
+| `src/components/PinnedEventsTicker.tsx` | Pinned-count aria-label; `aria-hidden` chip + rotating titles |
 | `src/components/FilterButton.tsx` | Dynamic filter-count aria-label |
 | `src/app/globals.css` | `.c2-sr-only` + `.c2-skip-link` styles |
 | `src/app/(protected)/dashboard/DashboardView.tsx` | View/period/filter/zoom announcements |

@@ -504,13 +504,16 @@ assignments modal (Settings → Templates):
   Keys are whitelisted to `EVENT_TITLE_ASSIGNMENT_TARGETS`
   (`src/lib/settings/validate.ts:60`) — the five dashboard views
   (`DASHBOARD_VIEW_VALUES`: `month`, `week`, `weekv2`, `schedule`, `agenda`) plus
-  `pinned`.
+  `pinned` (Pinned Events **panel**, label "Pinned events (panel)") and
+  `pinnedHeader` (the header's rotating pinned-events **ticker**, label "Pinned
+  events (header)").
 - Pure `normalizeAssignments` (`validate.ts:223`) keeps only whitelisted keys and
   drops empty/null entries; `validateAssignments` (`:237`) rejects unknown template
   ids (unit-tested in `validate.test.ts`).
 - **Unassigned target = Master fallback** (`settings.eventTitleTemplate`).
-- Dashboard views are display-only re-renders; the `pinned` target feeds
-  `fetchPinnedEvents` for the Pinned Events panel
+- Dashboard views are display-only re-renders; `fetchPinnedEvents` renders every
+  pinned event twice — `title` through the `pinned` target for the panel list and
+  `tickerTitle` through `pinnedHeader` for the header ticker
   ([`pinned-events.md`](pinned-events.md)).
 - Reads resolve assignments through `normalizeAssignments` and
   `getEventTitleTemplateMap()` (`src/lib/settings/queries.ts`); the update action

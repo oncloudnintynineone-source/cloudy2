@@ -158,6 +158,7 @@ export function TemplatesForm({
       schedule: assignments.schedule ?? "",
       agenda: assignments.agenda ?? "",
       pinned: assignments.pinned ?? "",
+      pinnedHeader: assignments.pinnedHeader ?? "",
     },
   });
 
@@ -169,6 +170,7 @@ export function TemplatesForm({
       schedule: assignments.schedule ?? "",
       agenda: assignments.agenda ?? "",
       pinned: assignments.pinned ?? "",
+      pinnedHeader: assignments.pinnedHeader ?? "",
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
@@ -178,6 +180,7 @@ export function TemplatesForm({
     assignments.schedule,
     assignments.agenda,
     assignments.pinned,
+    assignments.pinnedHeader,
   ]);
 
   const onSubmitNameTemplate = nameTemplateForm.onSubmit(
@@ -559,8 +562,9 @@ export function TemplatesForm({
       >
         <Stack>
           <Text size="sm" c="dimmed">
-            Choose which template each target displays: dashboard views and the Pinned Events panel.
-            Empty = Master (Default). Any target can use any token.
+            Choose which template each target displays: dashboard views, the Pinned Events panel
+            and the header&apos;s pinned-events ticker. Empty = Master (Default). Any target can
+            use any token.
           </Text>
 
           <Stack gap="sm">

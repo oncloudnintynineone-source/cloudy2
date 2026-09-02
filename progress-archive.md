@@ -145,6 +145,8 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
 - [1.153 Document navigations routed by cache age (instant vs fresh)](#1153-document-navigations-routed-by-cache-age-instant-vs-fresh)
 - [1.154 Reverse the banner-reservation decision (no phantom gap while pending)](#1154-reverse-the-banner-reservation-decision-no-phantom-gap-while-pending)
 - [1.167 PWA launch regression: cached-first documents + unconditional launch shell](#1167-pwa-launch-regression-cached-first-documents--unconditional-launch-shell)
+- [1.169 Notes "Edit:" link opens the event details modal (legacy `?edit=` kept)](#1169-notes-edit-link-opens-the-event-details-modal-legacy-edit-kept)
+- [1.170 Pinned-events header ticker (rotating titles + inline count + `pinnedHeader` template target)](#1170-pinned-events-header-ticker-rotating-titles--inline-count--pinnedheader-template-target)
 
 ## 1.1 Status
 
@@ -7083,3 +7085,70 @@ Verification: `pnpm lint` + `pnpm typecheck` + `pnpm test` (890 passing). Manual
 (needs the user): create an event in dev → its Google notes link reads
 `&event=…&_eventCal=…` → tap → the details modal opens (not the form); tap a
 pre-change event's `&edit=` link → the edit form still opens.
+
+## 1.170 Pinned-events header ticker (rotating titles + inline count + `pinnedHeader` template target)
+
+The static "Pinned events" header button became a **ticker** and moved to the
+header's left edge — the "Cloudy" wordmark was removed entirely. The pill keeps
+its rounded-rectangle shape and pin icon, and now displays, left to right: the
+pin icon, an **inline amber `1/N` count chip** (position within the rotation +
+total pinned; replaces the floating `Indicator` badge, which is deleted), and
+the **current pinned event's title**, rotating every **5s** with a vertical
+ticker slide (outgoing slides up/out, incoming slides up/in, ~320ms,
+`c2-ticker-in`/`c2-ticker-out` in `globals.css` under the app's
+`prefers-reduced-motion` guard).
+
+Rotation pauses while the pill is hovered or focused, while the tab is hidden,
+and while the panel modal is open (`paused` prop); a single pinned event never
+rotates; the index clamps modulo when the list changes. Loading / zero events
+degrades to the static icon + "Pinned events" label. The title viewport has a
+**fixed flex-basis** (~9rem phones, ~17rem from the 40em band) — the pill is
+shrink-to-fit and the sliding lines are absolutely positioned, so a `flex: 1`
+(0%-basis) viewport contributes nothing to the pill's intrinsic width and
+renders blank; the fixed basis keeps the pill's width stable across rotations,
+with `flex-shrink` letting very narrow headers squeeze it. A CSS `max-width`
+caps the pill (~220px phones, ~400px desktop) as the wide-screen safety net.
+The ≤360px compact tier keeps the pill now that the logo is gone (the old
+icon-only `ActionIcon` fallback is deleted).
+
+**Data:** the shell switched from `countPinnedEvents()` (deleted — its
+`PINNED_COUNT_KEY` cache key with it) to `fetchPinnedEvents()` on the same
+mount/panel-close/refocus/`PINNED_EVENTS_CHANGED_EVENT` triggers, deriving the
+count from the list length. The zero-event case stays cheap: the list read
+early-returns before resolving users/types.
+
+**Templates:** `fetchPinnedEvents` now renders every event twice — `title`
+through the existing `pinned` target (panel list) and the new `tickerTitle`
+through the new **`pinnedHeader`** target. `pinnedHeader` joins
+`EVENT_TITLE_ASSIGNMENT_TARGETS` (no migration — whitelisted jsonb); the
+Settings → Templates → View assignments modal gains its row automatically (the
+modal iterates the targets), labeled "Pinned events (header)" while the panel
+target was renamed "Pinned events (panel)" to disambiguate. Unassigned =
+Master, like every other target.
+
+**A11y:** the count rides the button's `aria-label` (`"Pinned events (5)"`);
+the chip and the rotating titles are `aria-hidden` so the number is read once
+and the 5s rotation never spams screen readers (the panel stays the accessible
+list). The pill is an `UnstyledButton` + `.c2-pinned-ticker` CSS (Mantine's
+`Button` label won't shrink/truncate inside a max-width — verified against v9's
+hashed CSS), with a `:focus-visible` amber outline.
+
+Files: `src/components/PinnedEventsTicker.tsx` (new),
+`src/components/AppShellShell.tsx` (logo/Indicator/button removed; ticker
+wired), `src/lib/events/pinned.ts` (`tickerTitle`, `countPinnedEvents`
+deleted), `src/app/globals.css` (pill/chip/title/keyframes),
+`src/lib/settings/validate.ts` + `validate.test.ts` (target + labels),
+`TemplatesForm.tsx` (form key + copy).
+
+Docs: `docs/pinned-events.md` §1.4 rewritten (ticker), §1.2/§1.5/§1.6 updated;
+`docs/event-lifecycle.md` §1.8.5; `AGENTS.md` (pinned/templates/compact-tier
+bullets); `docs/user-guide.md` §1.5; `docs/desktop-responsive.md` §1.2/§1.10;
+`docs/accessibility.md` §1.4/§1.5; `docs/events-cache.md` §1.12/§1.13;
+`docs/neon-usage.md` §1.5.
+
+Verification: `pnpm lint` + `pnpm typecheck` + `pnpm test` (890 passing,
+incl. the updated assignment-target expectations). Manual (needs the user):
+pin 2+ events → the pill rotates titles every 5s with the `1/N` chip counting
+along; hover pauses it; assign a template to "Pinned events (header)" in
+Settings → Templates → Manage assignments and the ticker re-renders through it
+while the panel keeps its own.

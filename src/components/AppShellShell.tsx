@@ -4,9 +4,7 @@ import {
   ActionIcon,
   AppShell,
   Box,
-  Button,
   Group,
-  Indicator,
   NavLink,
   Stack,
   Text,
@@ -20,7 +18,6 @@ import {
   IconClipboardList,
   IconLayoutSidebarLeftCollapse,
   IconLayoutSidebarLeftExpand,
-  IconPin,
   IconSearch,
   IconSettings,
   IconUsersGroup,
@@ -31,6 +28,7 @@ import dynamic from "next/dynamic";
 import { usePathname, useRouter } from "next/navigation";
 
 import { PinnedEventsPanel } from "@/components/PinnedEventsPanel";
+import { PinnedEventsTicker } from "@/components/PinnedEventsTicker";
 import { ActivityBar, ActivityProvider, useReportActivity } from "@/components/ActivityBar";
 import { ShellChromeContext, type ShellChromeValue } from "@/components/ShellChrome";
 import { ThemeToggle } from "@/components/ThemeToggle";
@@ -43,7 +41,7 @@ const EventSearchModal = dynamic(() => import("@/components/EventSearchModal"), 
 import { UserMenu } from "@/components/UserMenu";
 import { BANNER_HEIGHT_PX } from "@/lib/banner/banner";
 import { BOTTOM_NAV_HEIGHT } from "@/lib/bottomNav";
-import { countPinnedEvents } from "@/lib/events/pinned";
+import { fetchPinnedEvents, type PinnedEvent } from "@/lib/events/pinned";
 import type { Rect } from "@/lib/motion/origin";
 import { DESKTOP_MEDIA_QUERY, DESKTOP_WIDE_MEDIA_QUERY, NARROW_MEDIA_QUERY } from "@/lib/theme";
 import { StatusAnnouncer } from "@/lib/ui/announcer";
@@ -281,21 +279,22 @@ export function AppShellShell({
     [pinnedOpen, pinnedOriginRect, openPinnedPanel],
   );
 
-  // Header count badge: how many department-pinned events are upcoming. Fetched
-  // on mount (background, so it never blocks a page load), again after the
-  // panel closes (its fetch just pulled fresh data), on tab refocus (the
-  // rolling window drifts as events end), and whenever event CRUD runs
-  // (`PINNED_EVENTS_CHANGED_EVENT`). Best-effort — a failure keeps the last
-  // count.
-  const [pinnedCount, setPinnedCount] = useState(0);
-  const refreshPinnedCount = useCallback(() => {
-    void countPinnedEvents()
-      .then((count) => setPinnedCount(count))
+  // Header ticker data: the upcoming department-pinned events (titles
+  // pre-rendered server-side). Fetched on mount (background, so it never
+  // blocks a page load), again after the panel closes (its fetch just pulled
+  // fresh data), on tab refocus (the rolling window drifts as events end),
+  // and whenever event CRUD runs (`PINNED_EVENTS_CHANGED_EVENT`). Best-effort
+  // — a failure keeps the last list. The ticker derives its count from the
+  // list length.
+  const [pinnedEvents, setPinnedEvents] = useState<PinnedEvent[] | null>(null);
+  const refreshPinnedEvents = useCallback(() => {
+    void fetchPinnedEvents()
+      .then((events) => setPinnedEvents(events))
       .catch(() => {});
   }, []);
   useEffect(() => {
-    refreshPinnedCount();
-  }, [refreshPinnedCount]);
+    refreshPinnedEvents();
+  }, [refreshPinnedEvents]);
   const didOpenPanelRef = useRef(false);
   useEffect(() => {
     if (pinnedOpen) {
@@ -303,15 +302,15 @@ export function AppShellShell({
       return;
     }
     if (didOpenPanelRef.current) {
-      refreshPinnedCount();
+      refreshPinnedEvents();
     }
-  }, [pinnedOpen, refreshPinnedCount]);
+  }, [pinnedOpen, refreshPinnedEvents]);
   useEffect(() => {
-    const onChange = () => refreshPinnedCount();
+    const onChange = () => refreshPinnedEvents();
     window.addEventListener(PINNED_EVENTS_CHANGED_EVENT, onChange);
     const onVisible = () => {
       if (document.visibilityState === "visible") {
-        refreshPinnedCount();
+        refreshPinnedEvents();
       }
     };
     document.addEventListener("visibilitychange", onVisible);
@@ -319,7 +318,7 @@ export function AppShellShell({
       window.removeEventListener(PINNED_EVENTS_CHANGED_EVENT, onChange);
       document.removeEventListener("visibilitychange", onVisible);
     };
-  }, [refreshPinnedCount]);
+  }, [refreshPinnedEvents]);
 
   // Desktop = the theme's lg breakpoint: the bottom nav collapses and a left
   // sidebar takes over navigation (AppShell navbar, hidden below the
@@ -329,9 +328,9 @@ export function AppShellShell({
   // full 240px sidebar would eat a third of the viewport, so the rail takes
   // over automatically on entry (effect below).
   const isDesktopWide = useMediaQuery(DESKTOP_WIDE_MEDIA_QUERY);
-  // Very small form-factor phone (≤ 360px): the header's button row and the
+  // Very small form-factor phone (≤ 360px): the header's gutters and the
   // bottom nav's text labels don't fit, so they render compact variants
-  // (icon-only pinned button, icon-only nav). Independent of `isDesktop` —
+  // (tighter header padding, icon-only nav). Independent of `isDesktop` —
   // both queries are just matchMedia, and a tiny phone is never desktop.
   const isNarrow = useMediaQuery(NARROW_MEDIA_QUERY);
 
@@ -520,33 +519,6 @@ export function AppShellShell({
     };
   }, [immersive, isDesktop]);
 
-  const pinnedButton = isNarrow ? (
-    <ActionIcon
-      variant="filled"
-      radius="xl"
-      size="lg"
-      bg="brand.8"
-      c="white"
-      onClick={(e) => openPinnedPanel(e.currentTarget.getBoundingClientRect())}
-      aria-label={pinnedCount > 0 ? `Pinned events (${pinnedCount})` : "Pinned events"}
-    >
-      <IconPin size={18} />
-    </ActionIcon>
-  ) : (
-    <Button
-      variant="filled"
-      radius="xl"
-      size="compact-sm"
-      bg="brand.8"
-      c="white"
-      leftSection={<IconPin size={14} />}
-      onClick={(e) => openPinnedPanel(e.currentTarget.getBoundingClientRect())}
-      aria-label={pinnedCount > 0 ? `Pinned events (${pinnedCount})` : "Pinned events"}
-    >
-      Pinned events
-    </Button>
-  );
-
   return (
     <>
       {/* Keyboard skip link: first focusable element in the app, targets the
@@ -617,34 +589,12 @@ export function AppShellShell({
                 gap={isNarrow ? 4 : "md"}
                 wrap="nowrap"
               >
-                <Text
-                  fw={700}
-                  size={isNarrow ? "md" : "lg"}
-                  component={Link}
-                  href="/dashboard"
-                  td="none"
-                  c="white"
-                  style={{ whiteSpace: "nowrap" }}
-                >
-                  <PendingDim busyKey="logo:dashboard">Cloudy</PendingDim>
-                </Text>
+                <PinnedEventsTicker
+                  events={pinnedEvents}
+                  paused={pinnedOpen}
+                  onOpen={openPinnedPanel}
+                />
                 <Group gap={isNarrow ? 2 : "xs"} wrap="nowrap">
-                  {pinnedCount > 0 ? (
-                    <Indicator
-                      position="top-start"
-                      size={18}
-                      offset={4}
-                      color="accent"
-                      withBorder
-                      // The count already rides the button's aria-label; hide the
-                      // visual badge so screen readers don't read it twice.
-                      label={<span aria-hidden>{pinnedCount > 99 ? "99+" : pinnedCount}</span>}
-                    >
-                      {pinnedButton}
-                    </Indicator>
-                  ) : (
-                    pinnedButton
-                  )}
                   <ActionIcon
                     variant="transparent"
                     c="white"

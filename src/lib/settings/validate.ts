@@ -54,10 +54,14 @@ export type DashboardViewValue = (typeof DASHBOARD_VIEW_VALUES)[number];
 
 /**
  * Every target an event title template can be assigned to: the dashboard views
- * plus the Pinned Events panel (`pinned`). "Empty = Master (Default)" applies
- * to all of them.
+ * plus the Pinned Events panel (`pinned`) and the header's pinned-events
+ * ticker (`pinnedHeader`). "Empty = Master (Default)" applies to all of them.
  */
-export const EVENT_TITLE_ASSIGNMENT_TARGETS = [...DASHBOARD_VIEW_VALUES, "pinned"] as const;
+export const EVENT_TITLE_ASSIGNMENT_TARGETS = [
+  ...DASHBOARD_VIEW_VALUES,
+  "pinned",
+  "pinnedHeader",
+] as const;
 export type EventTitleAssignmentTarget = (typeof EVENT_TITLE_ASSIGNMENT_TARGETS)[number];
 
 export const EVENT_TITLE_TARGET_LABELS: Record<EventTitleAssignmentTarget, string> = {
@@ -66,7 +70,8 @@ export const EVENT_TITLE_TARGET_LABELS: Record<EventTitleAssignmentTarget, strin
   weekv2: "Week (D)",
   schedule: "Day",
   agenda: "Agenda",
-  pinned: "Pinned events",
+  pinned: "Pinned events (panel)",
+  pinnedHeader: "Pinned events (header)",
 };
 
 export interface EventTitleLibraryItemFormValues {

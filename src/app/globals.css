@@ -99,6 +99,122 @@
 
 /* Reduced motion: no pulse — the bar reads as a plain amber strip. */
 
+/* Header pinned-events ticker (docs/pinned-events.md): the brand pill anchored
+   at the header's left edge (where the logo used to sit). It shows the pin
+   icon, an inline amber count chip (1/N) and rotates through the upcoming
+   pinned events' titles with a vertical ticker slide. The max-width caps the
+   pill so it doesn't stretch across wide desktop headers; titles truncate
+   with an ellipsis inside it. */
+.c2-pinned-ticker {
+  display: flex;
+  align-items: center;
+  gap: var(--mantine-spacing-xs);
+  height: calc(1.875rem * var(--mantine-scale));
+  padding-inline: var(--mantine-spacing-sm);
+  border-radius: var(--mantine-radius-xl);
+  background: var(--mantine-color-brand-8);
+  color: var(--mantine-color-white);
+  max-width: calc(13.75rem * var(--mantine-scale));
+  min-width: 0;
+  transition: background-color 100ms ease;
+}
+
+.c2-pinned-ticker:hover {
+  background: var(--mantine-color-brand-7);
+}
+
+.c2-pinned-ticker:active {
+  background: var(--mantine-color-brand-9);
+}
+
+.c2-pinned-ticker:focus-visible {
+  outline: 2px solid var(--mantine-color-accent-6);
+  outline-offset: 2px;
+}
+
+@media (min-width: 40em) {
+  .c2-pinned-ticker {
+    max-width: calc(25rem * var(--mantine-scale));
+  }
+
+  .c2-pinned-ticker-title {
+    flex-basis: calc(17rem * var(--mantine-scale));
+  }
+}
+
+/* Inline replacement for the old floating count badge: an amber chip riding
+   the pill, styled like the Indicator's dot. */
+.c2-pinned-ticker-count {
+  flex-shrink: 0;
+  padding-inline: calc(0.4375rem * var(--mantine-scale));
+  border-radius: var(--mantine-radius-xl);
+  background: var(--mantine-color-accent-6);
+  color: var(--mantine-color-brand-9);
+  font-size: var(--mantine-font-size-xs);
+  font-weight: 700;
+  line-height: calc(1.125rem * var(--mantine-scale));
+}
+
+/* One-line viewport for the rotating title: the outgoing/incoming lines are
+   absolutely stacking inside it and clipped. The explicit flex-basis matters:
+   the pill is shrink-to-fit and the lines are absolute, so a `flex: 1`
+   (0% basis) viewport would contribute nothing to the pill's intrinsic width
+   and resolve to zero. The fixed basis also keeps the pill's width stable
+   across rotations; flex-shrink lets very narrow headers squeeze it. */
+.c2-pinned-ticker-title {
+  position: relative;
+  flex: 0 1 calc(9rem * var(--mantine-scale));
+  min-width: 0;
+  overflow: hidden;
+  height: calc(1.25rem * var(--mantine-scale));
+}
+
+.c2-pinned-ticker-line {
+  position: absolute;
+  inset: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: var(--mantine-font-size-sm);
+  font-weight: 600;
+  line-height: calc(1.25rem * var(--mantine-scale));
+}
+
+@keyframes c2-ticker-in {
+  from {
+    opacity: 0;
+    transform: translateY(100%);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes c2-ticker-out {
+  from {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(-100%);
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .c2-ticker-enter {
+    animation: c2-ticker-in 320ms cubic-bezier(0.22, 1, 0.36, 1);
+  }
+
+  .c2-ticker-exit {
+    animation: c2-ticker-out 320ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  }
+}
+
+/* Reduced motion: no slide — the component skips the exit clone and titles
+   swap in place. */
+
 /* Day-agenda directional slide: the incoming day's agenda slides in from the
    direction of travel (next day from the right, previous day from the left). */
 @keyframes agenda-slide-in-next {

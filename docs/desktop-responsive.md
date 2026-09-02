@@ -116,11 +116,11 @@ flowchart LR
 - `isDesktop` comes from `useMediaQuery` (see 1.1); it drives the footer's
   `collapsed` prop and the standalone-sync footer-offset guard — the navbar
   collapse is Mantine's own `breakpoint`.
-- **Compact tier (`isNarrow`)** — at ≤ 360px the header's "Pinned events"
-  button collapses to an icon-only `ActionIcon` (the count badge still rides
-  its `aria-label`), the header gutters/typography tighten, and the bottom nav
-  drops its per-item text labels to icons only (each button keeps
-  `aria-label={item.label}`). This is the JS half of the compact tier; the
+- **Compact tier (`isNarrow`)** — at ≤ 360px the header gutters tighten and
+  the bottom nav drops its per-item text labels to icons only (each button
+  keeps `aria-label={item.label}`). The header's pinned-events ticker keeps
+  rotating at this width (the logo it replaced is gone, so the pill fits) —
+  its max-width caps it in CSS. This is the JS half of the compact tier; the
   `NARROW_MEDIA_QUERY` hook sits next to `isDesktop` in `AppShellShell`.
 - The shell root carries `className="app-shell-root"`, the hook for the floating
   offset variable (1.3).
@@ -369,8 +369,8 @@ drives the wide layout:
 
 | Surface | Regular mobile | Compact ≤ 360px |
 | ------- | -------------- | ---------------- |
-| Header gutters / brand | `px="md"`, `gap="md"`, brand `size="lg"` | `px="xs"`, `gap` 4, brand `size="md"` (both `wrap="nowrap"`) |
-| "Pinned events" button | labelled `Button` (icon + text) | icon-only `ActionIcon` (badge count rides the `aria-label`) |
+| Header gutters | `px="md"`, `gap="md"` | `px="xs"`, `gap` 4 (both `wrap="nowrap"`) |
+| Pinned-events ticker | pill with count chip + rotating title (CSS max-width tier) | same pill — the removed logo freed the space |
 | Bottom nav | icon + text label per item | icon only (`NavButton` `compact`; `aria-label` preserved) |
 | Modals (event form/detail, agenda, filter, date picker) | `sm` | `xs` |
 | Modals (event search, pinned events) | `md` | `sm` |
@@ -387,9 +387,10 @@ Deliberate limits:
   (cards, forms, grids) already reflows fluidly down to the grid's internal
   minimums (the Month grid scrolls past 588px inside its own ScrollArea), so
   pages need no per-view narrowing.
-- **A11y preserved.** Icon-only nav buttons and the icon-only pinned button keep
-  their `aria-label` (and the pinned count badge still rides it), so the compact
-  tier loses no announceable context.
+- **A11y preserved.** Icon-only nav buttons keep their `aria-label`, and the
+  pinned-events ticker always carries its count in the accessible name (the
+  visual chip is `aria-hidden`), so the compact tier loses no announceable
+  context.
 
 ## 1.11 Related docs
 
