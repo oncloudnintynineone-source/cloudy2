@@ -3,7 +3,6 @@ import { runInNewContext } from "node:vm";
 
 import { describe, expect, it } from "vitest";
 
-import { LAUNCH_ROUTE_WHITELIST } from "@/lib/pwa/swRules";
 import { BASE_PAGES, SETTINGS_SUBTABS, resolveLaunchTarget } from "@/lib/ui/uiState";
 
 /**
@@ -29,11 +28,22 @@ describe("PWA launch shell", () => {
     expect(new Set(shellRoutes())).toEqual(new Set([...BASE_PAGES, ...SETTINGS_SUBTABS]));
   });
 
-  it("keeps the SW's cookie-header whitelist in sync with the shell's", () => {
-    // launchTargetFromCookieHeader (swRules) must resolve the same targets the
-    // shell's inline script does — otherwise the fresh-document 302 shortcut
-    // would bypass the shell for a page the shell itself wouldn't pick.
-    expect(new Set(LAUNCH_ROUTE_WHITELIST)).toEqual(new Set(shellRoutes()));
+  it("is the launch's only resolver: the SW route never redirects away from it", () => {
+    // The launch route must answer `/` with this shell, unconditionally. A
+    // redirect there replaces the guaranteed paint with a *second* navigation,
+    // and on a cold launch the only thing on screen while that one waits on the
+    // network is the Android splash — the exact bug this page exists to kill.
+    // (The route cannot peek at the remembered page instead either: `Cookie` is
+    // a forbidden request header, appended after service-worker interception,
+    // so `request.headers` never carries it.)
+    const sw = readFileSync(new URL("../../../src/app/sw.ts", import.meta.url), "utf8");
+    const start = sw.indexOf("async function handleLaunchRequest");
+    const end = sw.indexOf("function isLaunchRequest");
+    expect(start).toBeGreaterThan(-1);
+    const body = sw.slice(start, end);
+    expect(body).toContain("matchPrecache(LAUNCH_SHELL_URL)");
+    expect(body).not.toContain("Response.redirect");
+    expect(body.toLowerCase()).not.toContain("cookie");
   });
 
   it("renders one skeleton section per dashboard view, month by default", () => {
@@ -139,7 +149,7 @@ function runShellScript(cookie: string | null) {
       createElement: () => element(),
       getElementById: (id: string) =>
         id === "c2-launch-routes"
-          ? { textContent: JSON.stringify(LAUNCH_ROUTE_WHITELIST) }
+          ? { textContent: JSON.stringify(shellRoutes()) }
           : element(id),
       cookie: cookie ?? "",
       documentElement: { setAttribute() {} },

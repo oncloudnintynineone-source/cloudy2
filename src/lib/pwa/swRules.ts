@@ -204,18 +204,21 @@ export function newestSavedView(entries: readonly SavedViewEntry[]): SavedViewEn
 }
 
 /**
- * How recently a cached document must have been stored for a hard navigation
- * (PWA launch, F5, share link) to serve it instantly instead of refetching.
- * Matches Neon's scale-to-zero autosuspend: a page rendered more recently than
- * this cannot have come from a cold stack, so showing it immediately is both
- * fast and honest. Older than this and we go to the network — on a launch the
- * shell stays painted for the wait, so the user sees a skeleton rather than
- * stale data. See docs/pwa-offline.md §1.5.
+ * How recently a cached document must have been stored for it to count as up to
+ * date. A cached document is *always* served instantly (§1.5 of
+ * docs/pwa-offline.md — a launch must never block on a cold serverless round
+ * trip), but when its `Date` is older than this the page reconciles itself
+ * against the network right after paint: the user sees the last-saved grid
+ * immediately and fresh data a moment later, instead of either a stale page
+ * that never corrects itself or a splash that waits on the network.
+ *
+ * Matches Neon's scale-to-zero autosuspend: a document cached more recently
+ * than this cannot have come off a cold stack, so it needs no reconcile.
  */
 export const DOCUMENT_FRESH_WINDOW_MS = 5 * 60_000;
 
 /**
- * Whether a cached document may still be served instantly.
+ * Whether a cached document is recent enough to be considered up to date.
  *
  * `savedAtMs` is null when there is no cache entry, or when the stored response
  * carried no usable `Date` header; both count as **not** fresh, matching
@@ -229,78 +232,46 @@ export function isDocumentFresh(savedAtMs: number | null, now: number): boolean 
 }
 
 /**
- * Whether a navigation URL is the bare PWA start URL — the exact `/` with no
- * query or hash. Every icon tap navigates here; the launch route answers it
- * from the precache so no server round trip stands between the tap and first
- * paint. See docs/pwa-offline.md §1.5.1.
+ * Whether a rendered page should reconcile itself against the network.
+ *
+ * `cachedAtIso` is the document stamp the service worker injects when it serves
+ * a cached copy (`stampDocument` → `window.__C2_STAMP__.cachedAt`). A *missing*
+ * stamp means the document came straight off the network — already fresh, so
+ * there is nothing to reconcile and the page must not fire a pointless refresh.
+ * Anything older than `DOCUMENT_FRESH_WINDOW_MS` is reconciled in the
+ * background, after paint.
+ */
+export function needsReconcile(cachedAtIso: string | null | undefined, now: number): boolean {
+  if (!cachedAtIso) return false;
+  const savedAtMs = Date.parse(cachedAtIso);
+  if (Number.isNaN(savedAtMs)) return false;
+  return !isDocumentFresh(savedAtMs, now);
+}
+
+/**
+ * Launcher-injected tracking params that must not disqualify a `/` navigation
+ * from the launch route: Android/Chrome can append them when the app is opened
+ * from the home-screen icon, and the server ignores them anyway (it only ever
+ * 307s from `/`).
+ */
+const TRACKING_PARAM_PREFIX = "utm_";
+
+/**
+ * Whether a navigation URL is the PWA start URL — `/`, optionally carrying only
+ * launcher tracking params (a hash is ignored: no app route uses one). Every
+ * icon tap navigates here; the launch route answers it from the precache so no
+ * server round trip stands between the tap and first paint. Being lenient here
+ * is the whole point: a query the matcher did not expect used to drop the
+ * launch onto the blocking document route, which is the "splash never lifts"
+ * regression. See docs/pwa-offline.md §1.5.1.
  */
 export function isStartUrlRequest(url: URL): boolean {
-  return url.pathname === "/" && url.search === "" && url.hash === "";
-}
-
-/**
- * Routes the launch path may resolve to. Mirrors `BASE_PAGES` +
- * `SETTINGS_SUBTABS` (src/lib/ui/uiState.ts) and the `#c2-launch-routes`
- * block in public/loading.html — three copies of the same list, kept honest
- * by src/lib/pwa/launchShell.test.ts. The list only has to be *safe*, not
- * authoritative: `/settings/*` is still enforced server-side by
- * `requireAdmin()`, which redirects a signed-in non-admin to `/dashboard`, so
- * an over-permissive entry costs at most one server round trip.
- */
-export const LAUNCH_ROUTE_WHITELIST = [
-  "/dashboard",
-  "/parade-state",
-  "/contacts",
-  "/settings/users",
-  "/settings/departments",
-  "/settings/event-types",
-  "/settings/templates",
-  "/settings/general",
-  "/settings/audit-log",
-] as const;
-
-const LAUNCH_DEFAULT_TARGET = "/dashboard";
-
-function launchTargetFor(lastPage: unknown): string {
-  if (typeof lastPage !== "string" || !lastPage.startsWith("/")) return LAUNCH_DEFAULT_TARGET;
-  // "/settings" alone is a tab group, not a route — send it to the first
-  // sub-tab, matching resolveLaunchTarget.
-  if (lastPage === "/settings") return "/settings/users";
-  return (LAUNCH_ROUTE_WHITELIST as readonly string[]).includes(lastPage)
-    ? lastPage
-    : LAUNCH_DEFAULT_TARGET;
-}
-
-/**
- * Resolve the launch target from a raw `Cookie` header string — the same
- * `cloudy2.ui` codec (base64url JSON) and whitelist the launch shell's inline
- * script uses. Lets the launch route skip the shell entirely when the
- * remembered page's cached document is still fresh (a warm launch then paints
- * the full grid with no skeleton at all). Returns null when the header is
- * absent, the cookie undecodable, or the remembered value unusable — the
- * caller falls back to the shell, whose own script re-resolves the target.
- */
-export function launchTargetFromCookieHeader(header: string | null | undefined): string | null {
-  if (!header) return null;
-  const match = /(?:^|;\s*)cloudy2\.ui=([^;]*)/.exec(header);
-  if (!match) return null;
-  try {
-    let b64 = decodeURIComponent(match[1]).replace(/-/g, "+").replace(/_/g, "/");
-    while (b64.length % 4 !== 0) {
-      b64 += "=";
-    }
-    const json = new TextDecoder().decode(
-      Uint8Array.from(atob(b64), (char) => char.charCodeAt(0)),
-    );
-    const parsed: unknown = JSON.parse(json);
-    const lastPage =
-      parsed && typeof parsed === "object" && !Array.isArray(parsed)
-        ? (parsed as { lastPage?: unknown }).lastPage
-        : undefined;
-    return launchTargetFor(lastPage);
-  } catch {
-    return null;
+  if (url.pathname !== "/") return false;
+  if (url.search === "") return true;
+  for (const key of url.searchParams.keys()) {
+    if (!key.toLowerCase().startsWith(TRACKING_PARAM_PREFIX)) return false;
   }
+  return true;
 }
 
 /**

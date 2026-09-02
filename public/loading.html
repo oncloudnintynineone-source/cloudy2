@@ -409,10 +409,9 @@
     </div>
     <!--
       Launch targets the inline script is allowed to resolve to. Mirrors
-      BASE_PAGES + SETTINGS_SUBTABS in src/lib/ui/uiState.ts (and
-      LAUNCH_ROUTE_WHITELIST in src/lib/pwa/swRules.ts); the drift is guarded
-      by src/lib/pwa/launchShell.test.ts, which parses this block and compares
-      it against those constants. This list only has to be *safe*, not
+      BASE_PAGES + SETTINGS_SUBTABS in src/lib/ui/uiState.ts; the drift is
+      guarded by src/lib/pwa/launchShell.test.ts, which parses this block and
+      compares it against those constants. This list only has to be *safe*, not
       authoritative — /settings/* is still enforced server-side by
       requireAdmin(), so an over-permissive entry costs at most one redirect.
     -->
@@ -430,15 +429,15 @@
       ]
     </script>
     <script>
-      // The service worker serves this page for every launch (start URL `/`),
-      // straight from the precache, so the Android splash lifts on this page's
-      // first paint instead of waiting on a serverless cold boot. We then
-      // resolve the remembered last page *on the client* — the `cloudy2.ui`
-      // cookie is client-owned and readable — and replace, so the launch never
-      // costs a server round trip for `/` at all. (When the remembered page's
-      // cached document is still fresh the service worker skips this shell
-      // entirely and 302s straight to it — see handleLaunchRequest in
-      // src/app/sw.ts — so this script only runs on genuinely cold starts.)
+      // The service worker serves this page for EVERY launch (start URL `/`),
+      // straight from the precache and with no redirect, so the Android splash
+      // lifts on this page's first paint instead of waiting on a serverless
+      // cold boot. We then resolve the remembered last page *on the client* —
+      // the `cloudy2.ui` cookie is client-owned and readable — and replace, so
+      // the launch never costs a server round trip for `/` at all. The
+      // document route serves the target's cached copy instantly whenever one
+      // exists (any age), so this hand-off is usually a cache hit; when it has
+      // to go to the network, this skeleton is what stays painted for the wait.
       //
       // The skeleton cells are stamped out by the first IIFE below, which runs
       // synchronously during parse — a classic script blocks the parser, so

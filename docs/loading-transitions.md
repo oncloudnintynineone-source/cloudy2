@@ -131,13 +131,16 @@ matrix), `WeekGridSkeleton` (Week (H)), `AgendaListSkeleton`, `ScheduleGridSkele
 `parade-state/paradeStateSkeleton.tsx`,
 `settings/audit-log/AuditLogRowSkeleton.tsx`.
 
-The PWA **launch shell** (`public/loading.html`, served by the service worker
-for the start URL) mirrors the dashboard route skeleton — all five view
-variants, Mantine's exact palette values and pulse, brand-bar header, bottom-nav
-placeholders — so a stale launch's handoff from the precached shell to the
-streamed `loading.tsx` fallback reads as **one continuous skeleton**, not two
-different ones; warm launches skip the shell entirely via the fresh-document
-redirect (`pwa-offline.md` §1.5.1). `launchShell.test.ts` guards the drift.
+The PWA **launch shell** (`public/loading.html`, served unconditionally by the
+service worker for the start URL) mirrors the dashboard route skeleton — all five
+view variants, Mantine's exact palette values and pulse, brand-bar header,
+bottom-nav placeholders — so the handoff from the precached shell reads as **one
+continuous skeleton**, not two different ones: it either hands off to the
+document route's cached copy (served instantly, at any age) or, when nothing is
+cached, stays painted while the network read runs behind it, then gives way to
+the streamed `loading.tsx` fallback. Every launch paints the shell — the launch
+route never redirects, because on a cold launch nothing else has painted yet
+(`pwa-offline.md` §1.5.1). `launchShell.test.ts` guards the drift.
 
 Every skeleton block also includes a **`LoadingStatus`**
 (`src/components/LoadingStatus.tsx`): a sr-only `role="status"` announcement

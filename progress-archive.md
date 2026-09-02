@@ -144,6 +144,7 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
 - [1.152 Android PWA splash, take two: lazy googleapis + precached launch shell](#1152-android-pwa-splash-take-two-lazy-googleapis--precached-launch-shell)
 - [1.153 Document navigations routed by cache age (instant vs fresh)](#1153-document-navigations-routed-by-cache-age-instant-vs-fresh)
 - [1.154 Reverse the banner-reservation decision (no phantom gap while pending)](#1154-reverse-the-banner-reservation-decision-no-phantom-gap-while-pending)
+- [1.167 PWA launch regression: cached-first documents + unconditional launch shell](#1167-pwa-launch-regression-cached-first-documents--unconditional-launch-shell)
 
 ## 1.1 Status
 
@@ -6932,3 +6933,107 @@ Manual: create two groups + assign types, verify wizard sections in the admin
 order with ungrouped last; reorder groups (up/down, rank re-gap-closing),
 rename, delete (types ungroup in the wizard), and the event type form's Group
 select round-trips (including back to Ungrouped).
+
+## 1.167 PWA launch regression: cached-first documents + unconditional launch shell
+
+Reported as "the splash screen stays up for a long time until all content is
+loaded" — i.e. the 1.152–1.155 launch work had stopped holding up its end, and
+on the device the symptom was the *plain navy manifest splash*, not the launch
+shell: nothing was painting at all during the wait.
+
+Two defects from that burst composed into it:
+
+1. **The cache-age rule (1.153) made stale documents blocking.**
+   `handleDocumentRequest` peeked at the stored entry's `Date` and sent anything
+   older than `DOCUMENT_FRESH_WINDOW_MS` (5 min) to `NetworkFirst`. For an app
+   reopened after a coffee break that is *every* launch, so the launch was back
+   to waiting out a cold function + cold Neon before committing — the exact
+   opposite of §1.2's "cold PWA open shows the last-saved calendar instantly".
+2. **The fresh-document shortcut (1.155) could never fire — and when it did, it
+   was the branch with nothing painted.** It resolved the remembered page from
+   `request.headers.get("cookie")`, but `Cookie` is a **forbidden request
+   header**: the Fetch standard appends it in the network & cache layer
+   (§4.6 step 21), *after* service-worker interception, so a SW's `Request`
+   never carries it. Wherever a browser does leak it, the route answered
+   `Response.redirect(target, 302)` — skipping the shell for a second navigation
+   which, if its own cache peek disagreed, went to the network with the splash
+   as the only thing on screen.
+
+A third, latent one: `isStartUrlRequest` demanded `/` with **no query at all**,
+so any param a launcher tags onto the start URL (`?utm_source=homescreen`)
+dropped the launch out of the launch route and into the blocking document route
+with no error anywhere.
+
+Fix, in the order the launch now runs:
+
+- **`handleLaunchRequest` is unconditional**: precached `/loading.html`, network
+  only on a precache miss, and **no redirect, ever**. Documented as a rule in
+  `sw.ts` and in `docs/pwa-offline.md` §1.5.1 — on a cold launch the shell is
+  the only thing that can guarantee a paint, so it is always the answer.
+  `launchTargetFromCookieHeader` + `LAUNCH_ROUTE_WHITELIST` deleted from
+  `swRules.ts` (the shell's own client-side `document.cookie` decode still
+  works — the cookie is not HttpOnly — and it remains the single resolver of the
+  launch target).
+- **`isStartUrlRequest` is lenient**: `/` plus any `utm_*` params counts, hash
+  ignored; a non-tracking param still falls through to the document route (a
+  real deep link, not a launch).
+- **`handleDocumentRequest` is gone**: the document route is plain
+  `StaleWhileRevalidate`, serving a cached copy at any age. `NetworkFirst` is no
+  longer imported.
+- **Staleness moved to after paint.** `needsReconcile(cachedAtIso, now)` (pure)
+  reads the SW's `__C2_STAMP__` document stamp — *absent* means the document came
+  off the network, so no pointless refresh — and `useStaleDocumentReconcile`
+  (mounted in `AppProviders`, once per document load) waits 1.5 s, then runs one
+  `router.refresh()`. It clears **RSC entries only** via the new
+  `invalidateRscPathCaches`: deleting the cached *document* would destroy the
+  very entry that makes the next launch instant (the SW's background
+  revalidation already keeps it current). This is the one deliberate exception to
+  the invalidate-before-every-refresh rule, called out in `AGENTS.md`,
+  `docs/pwa-offline.md` §1.7, and the code comment.
+- The reconcile dispatches `cloudy2:document-reconciled`, which `DashboardView`
+  listens for to mark the data fresh exactly as a force-refresh does;
+  `initialSavedAt()` now reads the stamp through the shared
+  `documentCachedAtIso()` instead of poking `window.__C2_STAMP__` itself.
+- `invalidatePathCaches` was refactored so the document and RSC variants share
+  `deletePathEntries` (no duplicated key filtering).
+
+Net launch: tap → precached shell paints (splash lifts) → cookie-resolved target
+→ cached document served instantly → after-paint reconcile upgrades the view.
+The "warm launch skips the skeleton entirely" nicety that the deleted shortcut
+was meant to serve is *not* restored — the user chose to see how the unconditional
+shell reads first; the follow-up candidate is a shell-side `caches.match()` of the
+target document (Cache Storage is available to pages, unlike the SW's cookie
+problem) instead of anything cookie-based.
+
+Files: `src/app/sw.ts` (launch route, document route, comment rewrite),
+`src/lib/pwa/swRules.ts` (`isStartUrlRequest`, `needsReconcile`; shortcut
+helpers deleted), `src/lib/pwa/client.ts` (`invalidateRscPathCaches`,
+`documentCachedAtIso`, `useStaleDocumentReconcile`, `DOCUMENT_RECONCILED_EVENT`),
+`src/components/AppProviders.tsx` (hook mounted),
+`src/app/(protected)/dashboard/DashboardView.tsx` (reconcile listener + shared
+stamp reader), `public/loading.html` (comments: no SW 302, shell is always the
+answer).
+
+Tests: `swRules.test.ts` — `isStartUrlRequest` rewritten for the lenient rule
+(utm accepted, other params rejected, hash ignored), new `needsReconcile` block
+(5 cases), cookie-decode block removed (52 cases); `launchShell.test.ts` — the
+SW-whitelist sync guard is replaced by a **static guard on `src/app/sw.ts`**
+asserting the launch route answers from the precache and contains no
+`Response.redirect` and no cookie peek, and the DOM shim now feeds the shell its
+*own* parsed route list instead of the deleted constant (11 cases).
+
+Docs: `docs/pwa-offline.md` §1.4 (route list), §1.5 (cached-first + revert
+rationale, stamping feeds the reconcile), §1.5.1 (unconditional shell, the
+forbidden-`Cookie` explanation, lenient matcher, new flowchart, three
+load-bearing properties), §1.7 (the RSC-only exception), §1.11, §1.12, §1.13,
+§1.15; `docs/ui-state.md` (the cookie is decoded in the page, never by the SW);
+`AGENTS.md` PWA bullet.
+
+Verification: `pnpm lint` + `pnpm typecheck` + `pnpm test` (889 passing) +
+`pnpm build` (precache still carries `/loading.html` + `/offline.html`).
+Manual (device, needs the user): cold launch offline → **the branded skeleton
+must paint** (if the plain navy splash still sits, the SW is not answering `/`
+at all — check `chrome://inspect` / `chrome://serviceworker-internals` for the
+controlling SW and the launch request); cold launch online → skeleton → cached
+grid → view updates ~1.5 s later without a spinner; F5; force-refresh; a
+`?utm_source=homescreen` start URL; sign-out isolation; deploy takeover.

@@ -135,9 +135,11 @@ Division of labor:
   blob whose overflow drain is exactly what versioning retires, so every
   existing cookie gets a clean start on this build. `writeUiState` always
   re-stamps the current version (self-healing after a drop). (The PWA launch
-  shell's `launchTargetFromCookieHeader` reads only `lastPage` leniently and
-  ignores the version — at most one launch may follow a pre-drop path; the app
-  self-heals on the next write.)
+  shell's inline script reads only `lastPage` + `dashboard.view` leniently and
+  ignores the version — it cannot import the server codec, and at worst one
+  launch lands on the default target; the app self-heals on the next write.
+  The service worker does not decode this cookie at all: a SW never sees the
+  `Cookie` request header, so the launch target is resolved in the page.)
 - **Overflow guard**: if the encoded value exceeds `SAFE_COOKIE_VALUE_LENGTH`
   (3500, headroom under the ~4 KiB browser cap), the writer **trims the least
   intentful id lists first** via `reduceUiStateForCookie` (pure): parade filters,

@@ -6,7 +6,7 @@ import { Notifications } from "@mantine/notifications";
 import { useMediaQuery } from "@mantine/hooks";
 
 import { OfflineBanner } from "@/components/OfflineBanner";
-import { clearAllSavedPages } from "@/lib/pwa/client";
+import { clearAllSavedPages, useStaleDocumentReconcile } from "@/lib/pwa/client";
 import { DESKTOP_MEDIA_QUERY, theme } from "@/lib/theme";
 
 function useSWUpdateReload() {
@@ -89,6 +89,9 @@ export default function AppProviders({ children }: { children: ReactNode }) {
   // A deployed SW build took over this tab — clear stale page caches and
   // reload under the new build.
   useSWUpdateReload();
+  // A cached document is always served instantly, so a stale one reconciles
+  // itself against the network right after paint (docs/pwa-offline.md §1.5).
+  useStaleDocumentReconcile();
   // If the SW detected a session expiry while revalidating a cached page,
   // leave the stale view for /login — the caches are already purged in the SW.
   useSessionExpiryRedirect();

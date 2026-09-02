@@ -1,6 +1,9 @@
 "use client";
 
-import { isPageCacheName } from "./swRules";
+import { useRouter } from "next/navigation";
+import { useEffect } from "react";
+
+import { APP_RSC_CACHE_PREFIX, isPageCacheName, needsReconcile } from "./swRules";
 
 /**
  * Names of the page caches currently on disk — matched by prefix, because
@@ -12,15 +15,9 @@ async function pageCacheNames(): Promise<string[]> {
   return names.filter((name) => isPageCacheName(name));
 }
 
-/**
- * Delete cached entries whose URL pathname equals `pathname` in the page
- * caches. Best-effort — never throws. Call before router.refresh() after a
- * mutation so the subsequent RSC/document fetch cannot serve stale data.
- */
-export async function invalidatePathCaches(pathname: string): Promise<void> {
-  if (typeof window === "undefined" || !("caches" in window)) return;
+/** Delete the entries of `cacheNames` whose URL pathname equals `pathname`. */
+async function deletePathEntries(cacheNames: string[], pathname: string): Promise<void> {
   const origin = window.location.origin;
-  const cacheNames = await pageCacheNames().catch(() => [] as string[]);
   await Promise.all(
     cacheNames.map(async (cacheName) => {
       try {
@@ -43,6 +40,32 @@ export async function invalidatePathCaches(pathname: string): Promise<void> {
       }
     }),
   );
+}
+
+/**
+ * Delete cached entries whose URL pathname equals `pathname` in the page
+ * caches. Best-effort — never throws. Call before router.refresh() after a
+ * mutation so the subsequent RSC/document fetch cannot serve stale data.
+ */
+export async function invalidatePathCaches(pathname: string): Promise<void> {
+  if (typeof window === "undefined" || !("caches" in window)) return;
+  const cacheNames = await pageCacheNames().catch(() => [] as string[]);
+  await deletePathEntries(cacheNames, pathname);
+}
+
+/**
+ * RSC-only sibling of {@link invalidatePathCaches}. Used by the stale-document
+ * reconcile, which must NOT delete the cached *document*: that entry is what
+ * makes the next launch instant, and the service worker's own background
+ * revalidation already refreshes it. Deleting it would turn every launch after
+ * a reconcile back into a network wait.
+ */
+export async function invalidateRscPathCaches(pathname: string): Promise<void> {
+  if (typeof window === "undefined" || !("caches" in window)) return;
+  const cacheNames = (await pageCacheNames().catch(() => [] as string[])).filter((name) =>
+    name.startsWith(APP_RSC_CACHE_PREFIX),
+  );
+  await deletePathEntries(cacheNames, pathname);
 }
 
 /**
@@ -76,4 +99,66 @@ export async function refreshFresh(
 ): Promise<void> {
   await invalidatePathCaches(pathname);
   refresh();
+}
+
+// --- Stale-document reconcile -------------------------------------------------
+//
+// The service worker serves a cached document instantly at ANY age (§1.5 of
+// docs/pwa-offline.md) because a launch must never block on a cold serverless
+// round trip — but "instant" must not mean "silently stale". So the page fixes
+// it after paint: when the served document carries the SW's `__C2_STAMP__` and
+// that stamp is older than DOCUMENT_FRESH_WINDOW_MS, one non-blocking
+// `router.refresh()` pulls the current render. The user sees their last-saved
+// grid immediately and the live one a beat later, instead of a splash screen
+// that waits on the network.
+
+/** Window event dispatched when a stale cached document starts reconciling. */
+export const DOCUMENT_RECONCILED_EVENT = "cloudy2:document-reconciled";
+
+/** Wait out hydration + the launch's own work before touching the network. */
+const RECONCILE_DELAY_MS = 1500;
+
+interface StampedWindow {
+  __C2_STAMP__?: { cachedAt?: unknown };
+}
+
+/**
+ * The `cachedAt` the service worker injected into the served document
+ * (`stampDocument`), or null when the document came off the network — the SW
+ * stamps cache hits only, so no stamp means already fresh.
+ */
+export function documentCachedAtIso(): string | null {
+  if (typeof window === "undefined") return null;
+  const cachedAt = (window as StampedWindow).__C2_STAMP__?.cachedAt;
+  if (typeof cachedAt !== "string") return null;
+  return Number.isNaN(Date.parse(cachedAt)) ? null : cachedAt;
+}
+
+// Module scope, not a ref: a document load gets exactly one reconcile, and a
+// refresh does not reload the document, so the flag survives the refresh itself
+// (and React's dev-mode double effect invocation).
+let reconciledThisDocument = false;
+
+/**
+ * Reconcile a stale cached document once per document load. Mounted once in
+ * `AppProviders`, so every page under the root layout is covered; pages served
+ * straight from the network have no stamp and do nothing.
+ */
+export function useStaleDocumentReconcile(): void {
+  const router = useRouter();
+  useEffect(() => {
+    if (reconciledThisDocument) return;
+    if (!needsReconcile(documentCachedAtIso(), Date.now())) return;
+    reconciledThisDocument = true;
+    // No cleanup on purpose: the flag above means a re-run (or React's
+    // dev-mode double invocation) would clear the only scheduled reconcile and
+    // then refuse to schedule another. `AppProviders` lives exactly as long as
+    // the document, which is the window this fires in.
+    setTimeout(() => {
+      void invalidateRscPathCaches(window.location.pathname).then(() => {
+        window.dispatchEvent(new Event(DOCUMENT_RECONCILED_EVENT));
+        router.refresh();
+      });
+    }, RECONCILE_DELAY_MS);
+  }, [router]);
 }

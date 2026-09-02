@@ -135,9 +135,17 @@ mechanics in the doc.
   `?_fresh=1`; `clearUiState()` runs on sign-out.
   Design: [docs/ui-state.md](docs/ui-state.md).
 - **PWA offline & instant open** (Serwist, `src/app/sw.ts`): build-versioned SWR
-  document + RSC caches; offline is read-only (no local write queue). Every
-  `router.refresh()` site invalidates the current pathname first via
-  `invalidateCurrentPathCaches()`. Design: [docs/pwa-offline.md](docs/pwa-offline.md).
+  document + RSC caches; offline is read-only (no local write queue). The launch
+  route answers the start URL `/` with the **precached shell, unconditionally** —
+  never redirect from it (on a cold launch nothing is painted yet, so a redirect
+  that waits on the network just holds the Android splash up; and a SW cannot read
+  the `Cookie` request header to resolve the remembered page: it is appended after
+  interception). The document route serves a cached copy at **any age**; staleness
+  is fixed *after* paint by `useStaleDocumentReconcile`, which is the one
+  `router.refresh()` site that must **not** invalidate the document cache (it
+  clears RSC only via `invalidateRscPathCaches`) — every other site invalidates
+  the current pathname first via `invalidateCurrentPathCaches()`.
+  Design: [docs/pwa-offline.md](docs/pwa-offline.md).
 - **Accessibility:** skip-to-content link first in the shell; one polite live region
   (`StatusAnnouncer`) announces toast-less state changes (view/period, filter counts,
   zoom); every skeleton block carries a `LoadingStatus` sr-only announcement; count

@@ -12,7 +12,7 @@ import {
   isSessionExpiredResponse,
   isStartUrlRequest,
   keysForPathname,
-  launchTargetFromCookieHeader,
+  needsReconcile,
   newestSavedView,
   rscCacheName,
   shouldStoreDocumentResponse,
@@ -399,78 +399,60 @@ describe("swRules", () => {
       expect(isStartUrlRequest(new URL(`${ORIGIN}/`))).toBe(true);
     });
 
-    it("rejects query-bearing roots", () => {
-      expect(isStartUrlRequest(new URL(`${ORIGIN}/?view=week`))).toBe(false);
-      expect(isStartUrlRequest(new URL(`${ORIGIN}/?refresh=123`))).toBe(false);
+    it("still matches a root the launcher tagged with utm params", () => {
+      // Chrome/Android can append these to the start URL; refusing them used to
+      // drop the launch onto the blocking document route.
+      expect(isStartUrlRequest(new URL(`${ORIGIN}/?utm_source=homescreen`))).toBe(true);
+      expect(
+        isStartUrlRequest(
+          new URL(`${ORIGIN}/?utm_source=androidhome&utm_medium=app&utm_campaign=x`),
+        ),
+      ).toBe(true);
+      expect(isStartUrlRequest(new URL(`${ORIGIN}/?UTM_source=x`))).toBe(true);
     });
 
-    it("rejects hashes and other paths", () => {
-      expect(isStartUrlRequest(new URL(`${ORIGIN}/#x`))).toBe(false);
+    it("rejects query-bearing roots with any other param", () => {
+      expect(isStartUrlRequest(new URL(`${ORIGIN}/?view=week`))).toBe(false);
+      expect(isStartUrlRequest(new URL(`${ORIGIN}/?refresh=123`))).toBe(false);
+      expect(isStartUrlRequest(new URL(`${ORIGIN}/?utm_source=x&edit=1`))).toBe(false);
+    });
+
+    it("ignores the hash and rejects other paths", () => {
+      expect(isStartUrlRequest(new URL(`${ORIGIN}/#x`))).toBe(true);
       expect(isStartUrlRequest(new URL(`${ORIGIN}/dashboard`))).toBe(false);
       expect(isStartUrlRequest(new URL(`${ORIGIN}/login`))).toBe(false);
     });
   });
 
-  describe("launchTargetFromCookieHeader", () => {
-    // Mirrors encodeUiState's codec: base64url(JSON), no padding, then the
-    // cookie value is URI-encoded when stored.
-    function uiCookie(state: Record<string, unknown>): string {
-      const b64 = btoa(JSON.stringify(state))
-        .replace(/\+/g, "-")
-        .replace(/\//g, "_")
-        .replace(/=+$/, "");
-      return `cloudy2.ui=${encodeURIComponent(b64)}`;
-    }
+  describe("needsReconcile", () => {
+    const now = Date.parse("2026-03-04T05:06:07.000Z");
 
-    it("returns null without a header or cookie", () => {
-      expect(launchTargetFromCookieHeader(null)).toBeNull();
-      expect(launchTargetFromCookieHeader(undefined)).toBeNull();
-      expect(launchTargetFromCookieHeader("")).toBeNull();
-      expect(launchTargetFromCookieHeader("other=1; another=2")).toBeNull();
+    it("never reconciles an unstamped document (it came off the network)", () => {
+      expect(needsReconcile(null, now)).toBe(false);
+      expect(needsReconcile(undefined, now)).toBe(false);
+      expect(needsReconcile("", now)).toBe(false);
     });
 
-    it("resolves the remembered page", () => {
-      expect(launchTargetFromCookieHeader(uiCookie({ lastPage: "/parade-state" }))).toBe(
-        "/parade-state",
-      );
+    it("never reconciles a stamp inside the fresh window", () => {
+      expect(needsReconcile(new Date(now - 1000).toISOString(), now)).toBe(false);
+      expect(
+        needsReconcile(new Date(now - DOCUMENT_FRESH_WINDOW_MS + 1).toISOString(), now),
+      ).toBe(false);
     });
 
-    it("resolves the remembered page among other cookies", () => {
-      const header = `next-auth.session-token=abc; ${uiCookie({ lastPage: "/contacts" })}; tz=8`;
-      expect(launchTargetFromCookieHeader(header)).toBe("/contacts");
+    it("reconciles a stamp at or beyond the window", () => {
+      expect(
+        needsReconcile(new Date(now - DOCUMENT_FRESH_WINDOW_MS).toISOString(), now),
+      ).toBe(true);
+      expect(needsReconcile(new Date(now - 86_400_000).toISOString(), now)).toBe(true);
     });
 
-    it("rewrites the /settings tab group to its first sub-tab", () => {
-      expect(launchTargetFromCookieHeader(uiCookie({ lastPage: "/settings" }))).toBe(
-        "/settings/users",
-      );
+    it("treats an unparsable stamp as fresh rather than hammering the network", () => {
+      expect(needsReconcile("not-a-date", now)).toBe(false);
     });
 
-    it("passes whitelisted settings sub-tabs through", () => {
-      expect(launchTargetFromCookieHeader(uiCookie({ lastPage: "/settings/audit-log" }))).toBe(
-        "/settings/audit-log",
-      );
-    });
-
-    it("falls back to /dashboard for unknown or non-path pages", () => {
-      expect(launchTargetFromCookieHeader(uiCookie({ lastPage: "/kah-status" }))).toBe(
-        "/dashboard",
-      );
-      expect(launchTargetFromCookieHeader(uiCookie({ lastPage: "dashboard" }))).toBe("/dashboard");
-      expect(launchTargetFromCookieHeader(uiCookie({ lastPage: 7 }))).toBe("/dashboard");
-      expect(launchTargetFromCookieHeader(uiCookie({}))).toBe("/dashboard");
-    });
-
-    it("returns null for undecodable cookies", () => {
-      expect(launchTargetFromCookieHeader("cloudy2.ui=%ZZnot-base64")).toBeNull();
-      expect(launchTargetFromCookieHeader("cloudy2.ui=!!!")).toBeNull();
-    });
-
-    it("decodes dashboard.view for the shell's variant selection parity", () => {
-      // The shell's script reads the same shape; assert the codec survives a
-      // full ui-state payload (the SW only uses lastPage from it).
-      const state = { lastPage: "/dashboard", dashboard: { view: "agenda" } };
-      expect(launchTargetFromCookieHeader(uiCookie(state))).toBe("/dashboard");
+    it("clamps a future stamp (clock skew) to age 0", () => {
+      expect(needsReconcile(new Date(now + 60_000).toISOString(), now)).toBe(false);
     });
   });
 

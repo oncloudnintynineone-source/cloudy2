@@ -138,7 +138,11 @@ import { PINNED_EVENTS_CHANGED_EVENT } from "@/lib/ui/pinnedPanel";
 import { EventDetail } from "./EventDetail";
 import { EventForm } from "./EventForm";
 import { WeekMatrixView } from "./WeekMatrixView";
-import { invalidateCurrentPathCaches } from "@/lib/pwa/client";
+import {
+  DOCUMENT_RECONCILED_EVENT,
+  documentCachedAtIso,
+  invalidateCurrentPathCaches,
+} from "@/lib/pwa/client";
 
 type ViewMode = "month" | "week" | "weekv2" | "schedule" | "agenda";
 
@@ -156,14 +160,9 @@ type MyEventRender = (
 // its cachedAt is the most truthful data timestamp), else fall back to the
 // mount time.
 function initialSavedAt(): number {
-  if (typeof window === "undefined") return Date.now();
-  const w = window as unknown as { __C2_STAMP__?: { cachedAt: string } };
-  const s = w.__C2_STAMP__;
-  if (s && typeof s.cachedAt === "string") {
-    const d = new Date(s.cachedAt);
-    if (!Number.isNaN(d.getTime())) return d.getTime();
-  }
-  return Date.now();
+  const cachedAt = documentCachedAtIso();
+  // `documentCachedAtIso` only returns a value that `Date.parse` accepts.
+  return cachedAt === null ? Date.now() : Date.parse(cachedAt);
 }
 
 // Tab bar labels/icons in default (unpinned) order; pinned tabs are moved to
@@ -1108,6 +1107,19 @@ export function DashboardView({
     const timer = setTimeout(() => setIsDataFresh(false), 60_000);
     return () => clearTimeout(timer);
   }, [isDataFresh]);
+
+  // The launch served a stale cached document and `useStaleDocumentReconcile`
+  // is now pulling the live one: mark the data fresh the same way a
+  // force-refresh does, so the "Saved · HH:MM" chip stops claiming the grid is
+  // the old copy while the reconcile is in flight.
+  useEffect(() => {
+    const onReconciled = () => {
+      savedAtRef.current = Date.now();
+      setIsDataFresh(true);
+    };
+    window.addEventListener(DOCUMENT_RECONCILED_EVENT, onReconciled);
+    return () => window.removeEventListener(DOCUMENT_RECONCILED_EVENT, onReconciled);
+  }, []);
 
   // Skeleton-only loading: any pending data navigation or force refresh
   // shows the grid skeleton. `useMinSkeletonHold` keeps it up for a minimum
