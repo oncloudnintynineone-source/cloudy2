@@ -25,7 +25,7 @@ and the migration workflow. Subsystem design lives in the deep-dive docs indexed
 | Layer | Choice |
 | ----- | ------ |
 | Framework | Next.js 16 (App Router, Turbopack) + TypeScript |
-| UI | Mantine v9 (mobile-first; desktop layout at `lg` = 800px) |
+| UI | Mantine v9 (mobile-first; desktop layout at `lg` = 640px) |
 | Hosting | Vercel (`main` → production, `dev` → preview) |
 | Database | Neon Postgres + Drizzle ORM |
 | Auth | NextAuth v4 (Credentials provider, JWT sessions) |

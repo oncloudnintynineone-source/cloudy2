@@ -44,7 +44,11 @@ import { BANNER_HEIGHT_PX } from "@/lib/banner/banner";
 import { BOTTOM_NAV_HEIGHT } from "@/lib/bottomNav";
 import { countPinnedEvents } from "@/lib/events/pinned";
 import type { Rect } from "@/lib/motion/origin";
-import { DESKTOP_MEDIA_QUERY, NARROW_MEDIA_QUERY } from "@/lib/theme";
+import {
+  DESKTOP_MEDIA_QUERY,
+  DESKTOP_WIDE_MEDIA_QUERY,
+  NARROW_MEDIA_QUERY,
+} from "@/lib/theme";
 import { StatusAnnouncer } from "@/lib/ui/announcer";
 import { ImmersiveModeContext, type ImmersiveModeValue } from "@/lib/ui/immersiveMode";
 import {
@@ -315,6 +319,10 @@ export function AppShellShell({
   // sidebar takes over navigation (AppShell navbar, hidden below the
   // breakpoint). Both read the same theme value so they can't drift.
   const isDesktop = useMediaQuery(DESKTOP_MEDIA_QUERY);
+  // Wide-desktop band (≥ 800px): below it (unfolded foldables, 640–799px) the
+  // full 240px sidebar would eat a third of the viewport, so the rail takes
+  // over automatically on entry (effect below).
+  const isDesktopWide = useMediaQuery(DESKTOP_WIDE_MEDIA_QUERY);
   // Very small form-factor phone (≤ 360px): the header's button row and the
   // bottom nav's text labels don't fit, so they render compact variants
   // (icon-only pinned button, icon-only nav). Independent of `isDesktop` —
@@ -392,6 +400,20 @@ export function AppShellShell({
     writeUiState({ sidebarCollapsed: collapsed });
   }, [collapsed]);
 
+  // Auto-collapse to the icon rail whenever the viewport enters the
+  // desktop-but-not-wide band (640–799px): one-shot per band entry, so a
+  // manual expand inside the band survives until the next entry (resize
+  // across 800px and back, or a fresh load in the band). Above 800px or below
+  // the desktop breakpoint the remembered state rules untouched.
+  const inRailBand = isDesktop && !isDesktopWide;
+  const wasInRailBandRef = useRef<boolean | null>(null);
+  useEffect(() => {
+    if (wasInRailBandRef.current !== inRailBand && inRailBand) {
+      setCollapsed(true);
+    }
+    wasInRailBandRef.current = inRailBand;
+  }, [inRailBand]);
+
   // Optimistic nav highlight: `pathname` only moves when a navigation
   // commits, so on a slow connection taps used to read as dead. Track the
   // tapped href and light it immediately; two revert paths keep it honest —
@@ -452,11 +474,21 @@ export function AppShellShell({
             `${header.getBoundingClientRect().height}px`,
           );
         }
-        if (footer) {
+        // The collapsed (desktop) footer is only translated off-screen, so its
+        // measured height is still 56px. Writing that as the inline footer
+        // offset would shorten the navbar by 56px (a custom property declared
+        // on this element wins over Mantine's `:root { … 0px !important }` for
+        // every descendant) and pad Main's bottom — the "sidebar doesn't reach
+        // the bottom / huge calendar bottom padding" bug. Below lg the footer
+        // genuinely occupies that space, so only measure it while mobile; on
+        // desktop remove the override and let Mantine's 0px cascade apply.
+        if (footer && !isDesktop) {
           el.style.setProperty(
             "--app-shell-footer-offset",
             `${footer.getBoundingClientRect().height}px`,
           );
+        } else {
+          el.style.removeProperty("--app-shell-footer-offset");
         }
       } else {
         el.style.removeProperty("--app-shell-header-offset");
@@ -480,7 +512,7 @@ export function AppShellShell({
       el.style.removeProperty("--app-shell-header-offset");
       el.style.removeProperty("--app-shell-footer-offset");
     };
-  }, [immersive]);
+  }, [immersive, isDesktop]);
 
   const pinnedButton = isNarrow ? (
     <ActionIcon
