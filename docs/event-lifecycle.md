@@ -195,24 +195,32 @@ Mechanics worth knowing:
   what gets saved. There are no per-section edit links — fixing a mistake means walking
   Back through the intermediate steps.
 
-### 1.4.2 Edit prefill (`?edit=` deep link)
+### 1.4.2 Notes deep link (`?event=` details link, legacy `?edit=`)
 
 Google Calendar events created by the app carry an `Edit: <url>` line in their notes
-(§1.7.3) deep-linking back to `/dashboard?date=<event day>&edit=<group id>`.
+(§1.7.3) deep-linking back to `/dashboard?date=<event day>&event=<group id>` — it opens
+the **event details modal** (Duplicate / Edit / Delete), not the edit form directly
+(the visible label stays `Edit:`). The link is rebuilt on every create/edit, so
+**older events keep the legacy `?date=…&edit=…` URL** until then — the app still honors
+it: `initialEditEventId` (`page.tsx:61-64`) resolves it and opens the edit form
+straight away.
 
-- **Server** (`src/app/(protected)/dashboard/page.tsx:42-43`): `initialEditEventId` is
-  accepted only when `?edit=` is a valid UUID; the `date` in the same link pins the
-  fetched month so the event is in view. For an `edit` render (like `_fresh`) the
+- **Server** (`src/app/(protected)/dashboard/page.tsx:58-69`): `?event=` / `?edit=` are
+  accepted only when a valid UUID; the `date` in the same link pins the fetched month so
+  the event is in view. For an `event`/`edit` render (like `_fresh`) the
   remembered-UI-state cookie is **skipped entirely** — the link is explicit intent
-  (`page.tsx:51-53`; see [`ui-state.md`](ui-state.md)).
+  (`page.tsx:74-76`; see [`ui-state.md`](ui-state.md)).
 - **Client** (`DashboardView.tsx`): the event is resolved **synchronously at mount** by
-  matching the notes group id in the already-fetched month events
-  (`DashboardView.tsx:279-284`) and the form opens on first paint with no follow-up
-  render (`:292-296`). A valid id that matches nothing (filters/date exclude it) shows a
-  dismissible "not in your current view" alert (`:323-325`, `:1140-1150`). The one-shot
-  `edit` param is stripped after its render by a ref-guarded plain `router.push`
-  (`:621-631`).
-- **Form prefill** (`buildInitialValues`, `EventForm.tsx:175-228`):
+  matching the group id in the already-fetched month events
+  (`DashboardView.tsx:784-790`) — `?event=` opens the details modal, legacy `?edit=`
+  the edit form — with no follow-up render. A valid id that matches nothing (filters/
+  date exclude it) shows the dismissible "Could not open that event" banner. The one-shot
+  `event` / `edit` params are each stripped after their render by ref-guarded plain
+  `router.push`es (`:1482-1494`, `:1498-1511`); same-route re-taps (a notes link opened
+  while the dashboard is mounted, or a search/pinned tap) re-open via the render-phase
+  sync (`:853-875`).
+- **Form prefill** (Edit tapped in the details modal, or the legacy direct-edit path;
+  `buildInitialValues`, `EventForm.tsx:175-228`):
   - `title` = the notes' raw description (`payload.rawTitle`) — never the rendered
     calendar title; a deliberately blank description round-trips as `""` (legacy events
     without the field fall back to the summary, with `"(no title)"` normalized to `""`,
@@ -359,11 +367,12 @@ flowchart TB
     M --> D["Google event description"]
 ```
 
-- `withEditLink(block, url)` (`notes.ts:198`): `Edit: <url>` above the block; Google
-  Calendar linkifies plain URLs in notes. The URL is `eventEditUrl(baseUrl, start,
-  eventId)` (`notes.ts:245`) → `/dashboard?date=<first day>&edit=<group id>`; the app
-  origin comes from the request headers (`appBaseUrl`, `src/lib/appUrl.ts:9`), so the
-  link is rebuilt on every create/edit and always points at the deployed app.
+- `withEditLink(block, url)` (`notes.ts:211`): `Edit: <url>` above the block; Google
+  Calendar linkifies plain URLs in notes. The URL is `eventDetailUrl(baseUrl, start,
+  eventId)` (`notes.ts:258`) → `/dashboard?date=<first day>&event=<group id>`, which
+  opens the event's **details modal** (§1.4.2); the app origin comes from the request
+  headers (`appBaseUrl`, `src/lib/appUrl.ts:9`), so the link is rebuilt on every
+  create/edit and always points at the deployed app.
 - `withInternalMarker` (`notes.ts:223`) appends `INTERNAL_EVENT_MARKER` =
   `"Created in cloudy2"` (`notes.ts:211`) one blank line below, never duplicated.
 - `isExternalEvent(description)` (`notes.ts:236`): external = **no marker AND no
@@ -666,7 +675,7 @@ writes, headers) is thin and lives in `actions.ts` / `queries.ts`.
 
 | Helper | Module | Tests |
 | ------ | ------ | ----- |
-| `encodeEventNotes`, `parseEventNotes` (v1/v2/v3 + gzip fallback), `encodeNotesBlock`, `withEditLink`, `withInternalMarker`, `isExternalEvent`, `eventEditUrl`, all field parsers | `events/notes.ts` | `notes.test.ts` |
+| `encodeEventNotes`, `parseEventNotes` (v1/v2/v3 + gzip fallback), `encodeNotesBlock`, `withEditLink`, `withInternalMarker`, `isExternalEvent`, `eventDetailUrl`, all field parsers | `events/notes.ts` | `notes.test.ts` |
 | `renderEventTitle` | `events/eventTitle.ts` | `eventAudit.test.ts:270` |
 | `formatEventTitle` (every token/style, unknown pass-through) | `settings/formatEventTitle.ts` | `formatEventTitle.test.ts` |
 | `normalizeAssignments` (whitelist keys, drop empties), `validateAssignments` (unknown ids) (§1.8.5) | `settings/validate.ts` | `settings/validate.test.ts` |
@@ -688,8 +697,8 @@ actions), `queries.ts` (DB + cache reads, `mapCalendarItem`), `appUrl.ts`
 | File | Role |
 | ---- | ---- |
 | `src/app/(protected)/dashboard/EventForm.tsx` | The staged wizard (steps, prefill, preview, submit) |
-| `src/app/(protected)/dashboard/page.tsx` | `?edit=` / `_fresh` / `?refresh=` param resolution |
-| `src/app/(protected)/dashboard/DashboardView.tsx` | Edit deep-link resolution + one-shot param strips |
+| `src/app/(protected)/dashboard/page.tsx` | `?event=` / `?edit=` / `_fresh` / `?refresh=` param resolution |
+| `src/app/(protected)/dashboard/DashboardView.tsx` | Detail/edit deep-link resolution + one-shot param strips |
 | `src/lib/events/actions.ts` | Write path: guards → validate → targets → normalize → Google → audit → cache invalidation |
 | `src/lib/events/notes.ts` | Notes block codec + markers (pure) |
 | `src/lib/events/eventTitle.ts` | `renderEventTitle` (pure) |

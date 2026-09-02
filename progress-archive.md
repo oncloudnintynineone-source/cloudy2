@@ -7037,3 +7037,43 @@ at all — check `chrome://inspect` / `chrome://serviceworker-internals` for the
 controlling SW and the launch request); cold launch online → skeleton → cached
 grid → view updates ~1.5 s later without a spinner; F5; force-refresh; a
 `?utm_source=homescreen` start URL; sign-out isolation; deploy takeover.
+## 1.169 Notes "Edit:" link opens the event details modal (legacy `?edit=` kept)
+
+The notes `Edit: <url>` line on Google Calendar events deep-linked the *edit form*
+directly (`/dashboard?date=…&edit=<group id>`, `eventEditUrl`). It now deep-links the
+**event details modal** (`?date=…&event=<group id>`, `eventDetailUrl`) — the same
+`?event=` machinery the search modal and Pinned Events taps already use — so a tap
+from Google lands on the shared `EventDetail` (Duplicate / Edit / Delete), with the
+visible label intentionally unchanged.
+
+Because the link is only rebuilt on the event's next create/edit, **old events keep
+their `&edit=` URLs** — so the `?edit=` deep link (server resolve in `page.tsx`,
+mount-time `formState` open + one-shot strip in `DashboardView`) stays fully
+supported as a legacy path; nothing new writes it anymore.
+
+`event` joins `swRules.ts` `ONE_SHOT_PARAMS` (`refresh`/`edit`/`_fresh` →
+`refresh`/`edit`/`event`/`_fresh`): the client strips the param right after its
+render, so a stored `?event=` document/RSC entry would only be pollution the
+offline "last saved view" redirect could mis-pick. (This also closes a pre-existing
+gap — search/Pinned `?event=` deep links were previously being stored.)
+
+Files: `src/lib/events/notes.ts` (`eventEditUrl` → `eventDetailUrl`, `edit` →
+`event` param), `src/lib/events/actions.ts` (import/call + comment),
+`src/app/(protected)/dashboard/page.tsx` + `DashboardView.tsx` (comment updates only —
+behavior unchanged), `src/lib/pwa/swRules.ts` (+1 one-shot param).
+
+Tests: `notes.test.ts` (renamed describe, `&event=g-1` expectations, fixtures),
+`eventAudit.test.ts` (v3 fixture URL), `swRules.test.ts` (one-shot loops now cover
+`event=`).
+
+Docs: `docs/event-lifecycle.md` §1.4.2 (rewritten: `?event=` details link + legacy
+`?edit=`) and §1.7.3 (`eventDetailUrl`), §1.12/§1.13 maps; `docs/loading-transitions.md`
+§1.7 gains a `?event=` row (the table previously listed only 3 of the 4 one-shot
+params); `docs/ui-state.md`, `docs/pwa-offline.md`, `docs/event-search.md`
+(cross-ref: the notes link is the other `?event=` producer), `AGENTS.md` (notes +
+ui-state bullets).
+
+Verification: `pnpm lint` + `pnpm typecheck` + `pnpm test`. Manual (needs the
+user): create an event in dev → its Google notes link reads `&event=…` → tap → the
+details modal opens (not the form); tap a pre-change event's `&edit=` link → the
+edit form still opens.

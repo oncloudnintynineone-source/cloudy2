@@ -55,14 +55,16 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
   const params = await searchParams;
   const isAdmin = session.user.role === "admin";
 
-  // Deep link from a Google Calendar event's "Edit:" note; the `date` param in
-  // the same link makes the fetched month cover the event's day.
+  // Legacy deep link: older Google Calendar events' "Edit:" notes point at
+  // `?edit=` (the link is only rewritten when an event is next created/edited,
+  // so those URLs keep opening the edit form until then).
   const initialEditEventId =
     typeof params.edit === "string" && isUuid(params.edit) ? params.edit : null;
 
-  // Deep link from the Pinned Events agenda (header pin button): the tapped
-  // event's group id. The dashboard auto-opens its details (edit/duplicate)
-  // once the fetched events include a copy.
+  // Deep link to the event details modal — written into every Google Calendar
+  // "Edit:" note (`?date=` pins the fetched month to the event's day), and also
+  // used by event search + the Pinned Events agenda. The dashboard auto-opens
+  // the details once the fetched events include a copy.
   const initialDetailEventId =
     typeof params.event === "string" && isUuid(params.event) ? params.event : null;
 

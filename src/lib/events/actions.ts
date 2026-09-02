@@ -20,7 +20,7 @@ import {
 import {
   encodeEventNotes,
   encodeNotesBlock,
-  eventEditUrl,
+  eventDetailUrl,
   parseEventPeople,
   withEditLink,
   withInternalMarker,
@@ -326,9 +326,10 @@ async function buildGcalEventInput(
     endAmPm: input.endAmPm,
   });
   // The notes carry an "Edit:" link (shown on top of the opaque block) that
-  // opens this event's edit form; it is rebuilt on every create/edit so the
-  // embedded date stays current for in-app reschedules.
-  const editLink = eventEditUrl(await appBaseUrl(), input.start, eventId);
+  // opens this event's details modal (edit / duplicate / delete one tap in);
+  // it is rebuilt on every create/edit so the embedded date stays current for
+  // in-app reschedules.
+  const detailLink = eventDetailUrl(await appBaseUrl(), input.start, eventId);
   const block = encodeNotesBlock(
     encodeEventNotes({
       eventId,
@@ -347,7 +348,7 @@ async function buildGcalEventInput(
   );
   // The marker line at the bottom flags the event as created in the app, so
   // externally created (Google-only) events can be told apart on read.
-  const description = withInternalMarker(withEditLink(block, editLink));
+  const description = withInternalMarker(withEditLink(block, detailLink));
 
   const allDay = input.timeOption !== "range";
   const { start, end } = absEventRange(input.start, input.end, allDay);

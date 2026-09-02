@@ -131,8 +131,8 @@ mechanics in the doc.
   Design: [docs/kah.md](docs/kah.md).
 - **Remembered UI state** survives relaunch in one cookie, `cloudy2.ui`: the server
   applies it per-key as fallback only where the URL param is absent (URL always wins;
-  `?edit=` deep links skip it); navigations removing remembered keys inject one-shot
-  `?_fresh=1`; `clearUiState()` runs on sign-out.
+  `?event=`/`?edit=` deep links skip it); navigations removing remembered keys inject
+  one-shot `?_fresh=1`; `clearUiState()` runs on sign-out.
   Design: [docs/ui-state.md](docs/ui-state.md).
 - **PWA offline & instant open** (Serwist, `src/app/sw.ts`): build-versioned SWR
   document + RSC caches; offline is read-only (no local write queue). The launch
@@ -207,10 +207,12 @@ mechanics in the doc.
 - **Templates:** display-name + event-title templates (`formatEventTitle` tokens) with
   per-target View assignments (incl. `pinned`).
   Design: [docs/event-lifecycle.md](docs/event-lifecycle.md) §1.8.
-- **Event notes:** `Edit: <url>` line + brotli+base64url JSON block + `Created in
-  cloudy2` marker; events lacking the marker **and** the block are **external**.
-  `parseEventNotes` is the single reader (decodes legacy v1/v2); the `outOfCamp`/
-  `overseas` flags ride in notes, location in Google's first-class field.
+- **Event notes:** `Edit: <url>` line (a `?event=` deep link to the event's details
+  modal; older notes carry the legacy `?edit=` link, still honored) +
+  brotli+base64url JSON block + `Created in cloudy2` marker; events lacking the
+  marker **and** the block are **external**. `parseEventNotes` is the single reader
+  (decodes legacy v1/v2); the `outOfCamp`/`overseas` flags ride in notes, location in
+  Google's first-class field.
 - **General tab:** login keyword, `audit_log_retention_days` (default 90, clamp 7–365).
   **Audit Log:** URL-param filters, keyset pagination, CSV export; **rotation is
   on-read** + a manual delete button, no cron. Never call `listAuditLogs`-adjacent

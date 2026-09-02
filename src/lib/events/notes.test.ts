@@ -5,7 +5,7 @@ import { gzipSync } from "node:zlib";
 import {
   encodeEventNotes,
   encodeNotesBlock,
-  eventEditUrl,
+  eventDetailUrl,
   hasInternalEventMarker,
   isExternalEvent,
   parseEventEndAmPm,
@@ -130,9 +130,9 @@ describe("withEditLink", () => {
     expect(
       withEditLink(
         '{"eventId":"g-1"}',
-        "https://cal.example.com/dashboard?date=2026-08-18&edit=g-1",
+        "https://cal.example.com/dashboard?date=2026-08-18&event=g-1",
       ),
-    ).toBe('Edit: https://cal.example.com/dashboard?date=2026-08-18&edit=g-1\n\n{"eventId":"g-1"}');
+    ).toBe('Edit: https://cal.example.com/dashboard?date=2026-08-18&event=g-1\n\n{"eventId":"g-1"}');
   });
 
   it("yields just the link line for an empty notes block", () => {
@@ -188,16 +188,16 @@ describe("hasInternalEventMarker / isExternalEvent", () => {
   });
 });
 
-describe("eventEditUrl", () => {
+describe("eventDetailUrl", () => {
   it("builds the dashboard deep link from base url, start and event id", () => {
-    expect(eventEditUrl("https://cal.example.com", "2026-08-18 09:00:00", "g-1")).toBe(
-      "https://cal.example.com/dashboard?date=2026-08-18&edit=g-1",
+    expect(eventDetailUrl("https://cal.example.com", "2026-08-18 09:00:00", "g-1")).toBe(
+      "https://cal.example.com/dashboard?date=2026-08-18&event=g-1",
     );
   });
 
   it("omits the date param when the start is empty", () => {
-    expect(eventEditUrl("https://cal.example.com", "", "g-1")).toBe(
-      "https://cal.example.com/dashboard?edit=g-1",
+    expect(eventDetailUrl("https://cal.example.com", "", "g-1")).toBe(
+      "https://cal.example.com/dashboard?event=g-1",
     );
   });
 });
@@ -219,12 +219,12 @@ describe("encodeNotesBlock", () => {
 
 describe("parseEventNotes (v3: compressed block under the Edit line)", () => {
   it("round-trips notes stored above a compressed block", () => {
-    const editLink = "https://cal.example.com/dashboard?date=2026-08-18&edit=g-1";
+    const detailLink = "https://cal.example.com/dashboard?date=2026-08-18&event=g-1";
     const description = withEditLink(
       encodeNotesBlock(
         encodeEventNotes({ eventId: "g-1", eventType: "Leave", title: "Team offsite" }),
       ),
-      editLink,
+      detailLink,
     );
     expect(parseEventNotes(description)).toEqual({
       eventId: "g-1",

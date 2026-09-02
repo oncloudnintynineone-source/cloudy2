@@ -5,9 +5,9 @@ server cache) on small mobile screens, where a flash-of-skeleton or a content
 hard-cut reads as jank. This document describes the standard **loading
 appearance** — skeleton only, minimum hold, fade-in on reveal — the
 **optimistic navigation chrome** that keeps controls answering instantly while
-data loads (§1.9), and the **one-shot URL param** pattern (`?edit=` /
-`?refresh=` / `?_fresh=`) that drives forced renders without polluting
-history. The rules here are canonical for the repo (see also the checklist
+data loads (§1.9), and the **one-shot URL param** pattern (`?event=` /
+`?edit=` / `?refresh=` / `?_fresh=`) that drives forced renders without
+polluting history. The rules here are canonical for the repo (see also the checklist
 bullet in `AGENTS.md`); this is the reference for *why* each piece exists and
 where it is wired.
 
@@ -208,18 +208,20 @@ change plays the slide *instead* of the skeleton (§1.8).
 
 ## 1.7 One-shot URL params
 
-Three params force a special render for exactly one request, then strip
+Four params force a special render for exactly one request, then strip
 themselves. All strips run **outside** `startTransition` (no skeleton, no
 fade), and all are ref-guarded or self-terminating so a stale history entry
 can't re-trigger the behavior. The `edit`/`event` strips are plain
 `router.push`; the `refresh` and `_fresh` strips are `router.replace` +
 `router.refresh()` (a plain push back to the bare URL would be answered by
 the stale client-router/SW RSC snapshot saved before the special render —
-undone edits, resurrected filters).
+undone edits, resurrected filters). None of the four is ever written to the
+document/RSC caches ([`pwa-offline.md`](pwa-offline.md) — `ONE_SHOT_PARAMS`).
 
 | Param | Purpose | Validity | Stripped by |
 | ----- | ------- | -------- | ----------- |
-| `?edit=<uuid>` | open the event's edit form (deep link from the `Edit:` note line) | `isUuid` — anything else ignored (`dashboard/page.tsx:47-48`); the link's `date` pins the fetched month; the remembered-UI-state cookie is skipped for the render ([`ui-state.md`](ui-state.md)) | ref-guarded effect after the forced render mounts (`DashboardView.tsx:655-665`) — a refresh won't reopen the form |
+| `?event=<uuid>` | open the event's **details modal** — deep link from the `Edit:` note line (event search / Pinned Events ride the same param, adding `_eventCal` alongside) | `isUuid` — anything else ignored (`dashboard/page.tsx:68-69`); the link's `date` pins the fetched month; the remembered-UI-state cookie is skipped for the render ([`ui-state.md`](ui-state.md)) | ref-guarded effect (`DashboardView.tsx:1498-1511`) that also strips the accompanying `_eventCal`; re-arms when cleared, so tapping the same event again re-opens it |
+| `?edit=<uuid>` | **legacy** — open the event's edit form (older `Edit:` note lines; the app rewrites them to `?event=` on the next create/edit) | same as `?event=` (`dashboard/page.tsx:61-63`) | ref-guarded effect after the forced render mounts (`DashboardView.tsx:1482-1494`) — a refresh won't reopen the form |
 | `?refresh=<epoch-ms>` | force-refresh: bypass the cache freshness windows and block on fresh Google reads **inside the same RSC request** | finite number younger than `REFRESH_NONCE_TTL_MS` (5 min, `page.tsx:29,89-90`) — a stale history entry can't silently re-force (`events-cache.md` §1.5.1) | self-terminating effect (`DashboardView.tsx:667-678`) — a ref guard would leak a second nonce if refresh is clicked before the first strip lands |
 | `?_fresh=1` | skip the remembered-UI-state cookie for this one render (a navigation that *removed* remembered keys — Clear, tab switch — must not re-apply the now-stale cookie) | any value — presence is enough (`dashboard/page.tsx:56`, `parade-state/page.tsx:34`) | self-terminating effect after mount: `router.replace(…, { scroll: false }); router.refresh()` — the fresh render already re-persisted the resolved values, and `router.refresh()` re-serves the bare URL from the server so a stale cached snapshot can't resurrect the just-removed filters into the cookie (`DashboardView.tsx:645-653`, `ParadeStateView.tsx:269-274`) |
 
@@ -439,12 +441,12 @@ itself is `display: none` there).
 | `src/lib/ui/uiState.ts` | `resolveDashboardView` — shared view resolution for page + route fallback |
 | `src/app/(protected)/parade-state/paradeStateSkeleton.tsx` | Parade row skeletons (shared) |
 | `src/app/(protected)/settings/audit-log/AuditLogRowSkeleton.tsx` | Audit row skeleton (shared) |
-| `src/app/(protected)/dashboard/DashboardView.tsx` | Held loading, reveal fade, one-shot strips (`edit`/`refresh`/`_fresh`), agenda slide, optimistic date-nav chrome (`shown*`, §1.9.2) |
+| `src/app/(protected)/dashboard/DashboardView.tsx` | Held loading, reveal fade, one-shot strips (`event`/`edit`/`refresh`/`_fresh`), agenda slide, optimistic date-nav chrome (`shown*`, §1.9.2) |
 | `src/app/(protected)/parade-state/ParadeStateView.tsx` | Month-gated hold, `_fresh` inject/strip |
 | `src/components/AppShellShell.tsx` | Optimistic nav highlight (`tappedHref`) + `PendingDim`/`useLinkStatus` (§1.9.1) |
 | `src/components/ActivityBar.tsx` | ActivityProvider + `useActivity` (refcounted `begin`/`end`), `useReportActivity`, `useActivityRefresh`, `ActivityBar` (immediate show + min hold, indeterminate strip) — §1.13 |
 | `next.config.ts` | `experimental.staleTimes.dynamic = 120` client-router reuse window (§1.10) |
-| `src/app/(protected)/dashboard/page.tsx` | `?edit=`/`?refresh=` nonce validation |
+| `src/app/(protected)/dashboard/page.tsx` | `?event=`/`?edit=`/`?refresh=` param validation |
 
 Related docs:
 
@@ -454,6 +456,8 @@ Related docs:
   removals.
 - [`events-cache.md`](events-cache.md) — what the loads load (the month cache)
   and the force-refresh mechanism.
+- [`event-lifecycle.md`](event-lifecycle.md) — where the `?event=` / `?edit=`
+  deep links come from (the notes' `Edit:` line, §1.4.2).
 - `AGENTS.md` — the "Standard loading appearance" checklist (canonical rules).
 - [`developer-guide.md`](developer-guide.md#112-related-docs) — documentation index.
 - `progress-archive.md` — phase write-ups: 1.52/1.53 (stale-while-navigating grid,

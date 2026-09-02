@@ -204,12 +204,18 @@ index (a separate concern from this native-search feature; see
   event is found regardless of the current view's filters. The
   search modal stays open while `isPending`, then closes once the navigation
   commits — the dashboard's own full `EventDetail` (Duplicate/Edit/Delete) is
-  what the user lands on, reusing the existing `?event=`/`?date=` deep-link
-  machinery (`page.tsx:63-66`). The one-shot `event`/`_eventCal` params are
-  stripped after opening (re-armed per click, so the same event can be opened
-  again), and `DashboardView` re-arms its same-id guard when they clear. Rows
-  stay clickable throughout, so a re-click re-triggers navigation. There is no
-  read-only detail step.
+   what the user lands on, reusing the existing `?event=`/`?date=` deep-link
+   machinery (`page.tsx:63-66`). The one-shot `event`/`_eventCal` params are
+   stripped after opening (re-armed per click, so the same event can be opened
+   again), and `DashboardView` re-arms its same-id guard when they clear. Rows
+   stay clickable throughout, so a re-click re-triggers navigation. There is no
+   read-only detail step.
+
+The Google Calendar notes' `Edit:` link is the other producer of the same
+`?event=` deep link (it carries `?date=` but no `_eventCal` — the cookie-skip
+role defaults already include the tapped user's own department copies), and
+Pinned Events' tap-to-open a third. See
+[`event-lifecycle.md` §1.4.2](event-lifecycle.md#142-notes-deep-link-event-details-link-legacy-edit).
 
 ## 1.10 Pure helpers & testing
 

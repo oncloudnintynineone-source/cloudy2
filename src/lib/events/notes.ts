@@ -251,17 +251,17 @@ export function isExternalEvent(description: string): boolean {
 }
 
 /**
- * Build the dashboard URL that deep-links an event's edit form: the start
- * (naive `YYYY-MM-DD …`) pins the month the link arrives in, and the event
- * group id picks the event out of it.
+ * Build the dashboard URL that deep-links an event's details modal (edit /
+ * duplicate / delete one tap in): the start (naive `YYYY-MM-DD …`) pins the
+ * month the link arrives in, and the event group id picks the event out of it.
  */
-export function eventEditUrl(baseUrl: string, start: string, eventId: string): string {
+export function eventDetailUrl(baseUrl: string, start: string, eventId: string): string {
   const params = new URLSearchParams();
   const date = start.slice(0, 10);
   if (date) {
     params.set("date", date);
   }
-  params.set("edit", eventId);
+  params.set("event", eventId);
   return `${baseUrl}/dashboard?${params.toString()}`;
 }
 

@@ -70,7 +70,7 @@ The constraints that shape the design:
 - No cross-device sync, no server storage, no sharing between users on one device
   beyond the single cookie (the most recent writer's state wins per key).
 - Not a client-side cache of page data — only view/filters/page preferences.
-- One-shot URL params (`edit`, `refresh`, `_fresh`) are never stored.
+- One-shot URL params (`event`, `edit`, `refresh`, `_fresh`) are never stored.
 
 ## 1.3 Architecture overview
 
@@ -229,8 +229,10 @@ filtered against live calendar/user/type data).
 
 **Dashboard** (`src/app/(protected)/dashboard/page.tsx`):
 
-- **Whole-cookie skips** (`page.tsx:51-53`): a `_fresh` render or an `?edit=` deep
-  link (explicit intent) ignores the cookie entirely — `uiState = null`.
+- **Whole-cookie skips** (`page.tsx:74-80`): a `_fresh` render or an
+  `?event=` / `?edit=` deep link (explicit intent — the notes' `Edit:` link
+  writes `?event=`, older notes carry `?edit=`) ignores the cookie entirely —
+  `uiState = null`.
 - `zoom` (Day/Week (H) hour-slot width): not URL-backed like `pinnedViews`, so it
   is read from the **raw** `cookieState` (not the skipped `uiState`), snapped via
   `clampZoom` (`slotZoom.ts`), defaulting to `1`. It seeds the client zoom state
@@ -530,8 +532,8 @@ I/O-bound (not unit-tested): `uiStateClient.ts` (`document.cookie`), the
 Related docs:
 
 - [`loading-transitions.md`](loading-transitions.md) — the one-shot param pattern
-  (`?edit=` / `?refresh=` / `?_fresh=`) and skeleton/fade behavior these
-  navigations trigger.
+  (`?event=` / `?edit=` / `?refresh=` / `?_fresh=`) and skeleton/fade behavior
+  these navigations trigger.
 - [`events-cache.md`](events-cache.md) — the `?refresh=` force-refresh nonce this
   state system coexists with.
 - [`developer-guide.md`](developer-guide.md#112-related-docs) — documentation index.

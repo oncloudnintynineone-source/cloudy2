@@ -61,14 +61,16 @@ function isExcludedPath(pathname: string): boolean {
 
 /**
  * One-shot URL params that mint a unique cache key per visit (`?refresh=`
- * force-refresh nonce, `?edit=` deep link, `?_fresh=` cleared-state marker).
- * The client strips each of them right after its render, so the URL is never
- * requested again — storing its response only pollutes the document/RSC caches
- * and lets the offline fallback pick a stale nonce entry as "newest". Such
- * responses are therefore never stored (but the requests are still served
- * through the document route, so they keep the offline redirect fallback).
+ * force-refresh nonce, `?event=`/`?edit=` detail/edit deep links (the Google
+ * notes link writes `?event=`; older notes carry `?edit=`), `?_fresh=`
+ * cleared-state marker). The client strips each of them right after its
+ * render, so the URL is never requested again — storing its response only
+ * pollutes the document/RSC caches and lets the offline fallback pick a stale
+ * nonce entry as "newest". Such responses are therefore never stored (but the
+ * requests are still served through the document route, so they keep the
+ * offline redirect fallback).
  */
-const ONE_SHOT_PARAMS = new Set(["refresh", "edit", "_fresh"]);
+const ONE_SHOT_PARAMS = new Set(["refresh", "edit", "event", "_fresh"]);
 
 function hasOneShotParam(url: URL): boolean {
   for (const key of url.searchParams.keys()) {

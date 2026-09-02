@@ -190,8 +190,8 @@ describe("swRules", () => {
       ).toBe(false);
     });
 
-    it("rejects one-shot params (refresh/edit/_fresh)", () => {
-      for (const query of ["refresh=123", "edit=abc-123", "_fresh=1"]) {
+    it("rejects one-shot params (refresh/edit/event/_fresh)", () => {
+      for (const query of ["refresh=123", "edit=abc-123", "event=abc-123", "_fresh=1"]) {
         expect(
           shouldStoreDocumentResponse({
             status: 200,
@@ -254,8 +254,8 @@ describe("swRules", () => {
       ).toBe(false);
     });
 
-    it("rejects one-shot params (refresh/edit/_fresh)", () => {
-      for (const query of ["refresh=123", "edit=abc-123", "_fresh=1"]) {
+    it("rejects one-shot params (refresh/edit/event/_fresh)", () => {
+      for (const query of ["refresh=123", "edit=abc-123", "event=abc-123", "_fresh=1"]) {
         expect(
           shouldStoreRscResponse({
             status: 200,
