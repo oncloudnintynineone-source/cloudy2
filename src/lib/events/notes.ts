@@ -251,17 +251,28 @@ export function isExternalEvent(description: string): boolean {
 }
 
 /**
- * Build the dashboard URL that deep-links an event's details modal (edit /
- * duplicate / delete one tap in): the start (naive `YYYY-MM-DD …`) pins the
- * month the link arrives in, and the event group id picks the event out of it.
+ * Build the dashboard URL that deep-links an event's details modal: the start
+ * (naive `YYYY-MM-DD …`) pins the month the link arrives in, the event group
+ * id picks the event out of it, and the calendar id of the tapped copy
+ * (`_eventCal`, same hint as Pinned Events / event search) guarantees the
+ * dashboard's fetch includes that calendar even when the current filter
+ * selection excludes it — it joins the fetch set only, never the filters.
  */
-export function eventDetailUrl(baseUrl: string, start: string, eventId: string): string {
+export function eventDetailUrl(
+  baseUrl: string,
+  start: string,
+  eventId: string,
+  calendarId: string,
+): string {
   const params = new URLSearchParams();
   const date = start.slice(0, 10);
   if (date) {
     params.set("date", date);
   }
   params.set("event", eventId);
+  if (calendarId) {
+    params.set("_eventCal", calendarId);
+  }
   return `${baseUrl}/dashboard?${params.toString()}`;
 }
 

@@ -61,8 +61,8 @@ function isExcludedPath(pathname: string): boolean {
 
 /**
  * One-shot URL params that mint a unique cache key per visit (`?refresh=`
- * force-refresh nonce, `?event=`/`?edit=` detail/edit deep links (the Google
- * notes link writes `?event=`; older notes carry `?edit=`), `?_fresh=`
+ * force-refresh nonce, `?edit=` deep link, `?event=` details deep link —
+ * the Google Calendar "Edit:" note, Pinned Events, event search —, `?_fresh=`
  * cleared-state marker). The client strips each of them right after its
  * render, so the URL is never requested again — storing its response only
  * pollutes the document/RSC caches and lets the offline fallback pick a stale

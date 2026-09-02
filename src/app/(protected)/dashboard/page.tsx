@@ -55,16 +55,16 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
   const params = await searchParams;
   const isAdmin = session.user.role === "admin";
 
-  // Legacy deep link: older Google Calendar events' "Edit:" notes point at
-  // `?edit=` (the link is only rewritten when an event is next created/edited,
-  // so those URLs keep opening the edit form until then).
+  // Deep link that auto-opens the event's edit form (the event search modal's
+  // "Edit" action); the `date` param in the same link makes the fetched month
+  // cover the event's day.
   const initialEditEventId =
     typeof params.edit === "string" && isUuid(params.edit) ? params.edit : null;
 
-  // Deep link to the event details modal — written into every Google Calendar
-  // "Edit:" note (`?date=` pins the fetched month to the event's day), and also
-  // used by event search + the Pinned Events agenda. The dashboard auto-opens
-  // the details once the fetched events include a copy.
+  // Deep link that auto-opens the event's details modal: a Google Calendar
+  // event's "Edit:" note, the Pinned Events agenda, or an event search result.
+  // The dashboard opens the details (edit/duplicate/delete) once the fetched
+  // events include a copy.
   const initialDetailEventId =
     typeof params.event === "string" && isUuid(params.event) ? params.event : null;
 
@@ -224,11 +224,12 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
   const selectedTypes = selected.types;
   const selectedUsers = selected.users;
 
-  // Deep link from event search: `_eventCal` carries the target event's
-  // calendar, which the resolved filters may exclude (the search covers every
-  // calendar, but the cookie is skipped on `?event=` deep links). Add it to the
-  // read only — the filter selection (`selectedCalendars`, which drives the
-  // filter UI and the remembered state) stays untouched.
+  // `?event=` deep links (Google Calendar "Edit:" notes, Pinned Events, event
+  // search): `_eventCal` carries the target event's calendar, which the
+  // resolved filters may exclude (the links can target any calendar, but the
+  // cookie is skipped on `?event=` deep links). Add it to the read only — the
+  // filter selection (`selectedCalendars`, which drives the filter UI and the
+  // remembered state) stays untouched.
   const eventCalParam =
     typeof params._eventCal === "string" && calendarIds.includes(params._eventCal)
       ? params._eventCal

@@ -208,11 +208,11 @@ mechanics in the doc.
   per-target View assignments (incl. `pinned`).
   Design: [docs/event-lifecycle.md](docs/event-lifecycle.md) §1.8.
 - **Event notes:** `Edit: <url>` line (a `?event=` deep link to the event's details
-  modal; older notes carry the legacy `?edit=` link, still honored) +
-  brotli+base64url JSON block + `Created in cloudy2` marker; events lacking the
-  marker **and** the block are **external**. `parseEventNotes` is the single reader
-  (decodes legacy v1/v2); the `outOfCamp`/`overseas` flags ride in notes, location in
-  Google's first-class field.
+  modal, carrying the copy's calendar as `_eventCal`; older notes carry the legacy
+  `?edit=` link, still honored) + brotli+base64url JSON block + `Created in cloudy2`
+  marker; events lacking the marker **and** the block are **external**.
+  `parseEventNotes` is the single reader (decodes legacy v1/v2); the `outOfCamp`/
+  `overseas` flags ride in notes, location in Google's first-class field.
 - **General tab:** login keyword, `audit_log_retention_days` (default 90, clamp 7–365).
   **Audit Log:** URL-param filters, keyset pagination, CSV export; **rotation is
   on-read** + a manual delete button, no cron. Never call `listAuditLogs`-adjacent

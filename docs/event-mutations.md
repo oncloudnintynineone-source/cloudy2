@@ -128,8 +128,9 @@ sequenceDiagram
   nothing derives, create fails with "Assign yourself to a department or tag an
   invitee" (there is no fallback calendar for a brand-new event).
 - **Per-target input**: `buildGcalEventInput` (`actions.ts:243`) renders the title
-  (`renderEventTitle`), assembles the description (`Edit:` link + brotli notes block +
-  internal marker, [`event-lifecycle.md` §1.7.3](event-lifecycle.md#173-description-assembly--markers)),
+  (`renderEventTitle`), assembles the description (`Edit:` link — a `?event=` details
+  deep link carrying the copy's own calendar id — + brotli notes block + internal
+  marker, [`event-lifecycle.md` §1.7.3](event-lifecycle.md#173-description-assembly--markers)),
   converts the range via `absEventRange`, and puts the location in Google's first-class
   field.
 - **Rollback**: if any copy fails, the already-created copies are deleted

@@ -237,16 +237,15 @@ interface DashboardViewProps {
   /** Admin may create/edit events on behalf of any user. */
   isAdmin: boolean;
   /**
-   * Event group id from the legacy `?edit=` deep link (older Google Calendar
-   * "Edit:" notes — the link is rewritten to `?event=` when the event is next
-   * created/edited); its edit form opens automatically once the events are
+   * Event group id from the `?edit=` deep link (the event search modal's
+   * "Edit" action); its edit form opens automatically once the events are
    * loaded.
    */
   initialEditEventId: string | null;
   /**
    * Event group id from the `?event=` deep link (a Google Calendar "Edit:"
-   * note, event search, or the Pinned Events agenda's tap-to-open); the
-   * event's details modal opens automatically once the fetched events
+   * note, the Pinned Events agenda's tap-to-open, or an event search result);
+   * the event's details modal opens automatically once the fetched events
    * include a copy of the group.
    */
   initialDetailEventId: string | null;
@@ -777,10 +776,9 @@ export function DashboardView({
   const weekSlotWidthValue = weekSlotWidth(zoom, isDesktop);
   const daySlotWidthValue = daySlotWidth(zoom);
 
-  // The legacy `?edit=` deep link (older Google Calendar "Edit:" notes)
-  // resolves its target event synchronously at mount — the server has already
-  // fetched the month — so the edit form/banner initialize without a
-  // follow-up render.
+  // The `?edit=` deep link (the event search modal's "Edit" action) resolves
+  // its target event synchronously at mount — the server has already fetched
+  // the month — so the edit form/banner initialize without a follow-up render.
   const initialEditEvent = initialEditEventId
     ? (events.find((event) => event.payload.eventId === initialEditEventId) ?? null)
     : null;
@@ -842,10 +840,9 @@ export function DashboardView({
       (initialDetailEventId !== null && initialDetailEvent === null),
   );
   // A `?event=` deep link resolved while the component is already mounted (a
-  // Google notes link, search tap, or pinned-events tap on /dashboard is a
-  // same-route param change, so the mount-time initializer above never
-  // re-runs). Track the last-handled id and re-open the details for each new
-  // one; null (a stripped param) is ignored.
+  // pinned-events tap on /dashboard is a same-route param change, so the
+  // mount-time initializer above never re-runs). Track the last-handled id and
+  // re-open the details for each new one; null (a stripped param) is ignored.
   const [prevDetailLinkId, setPrevDetailLinkId] = useState<string | null>(null);
   // A stripped `event` param (the one-shot deep link is cleaned from the URL
   // after opening) should re-arm the same-id guard below, so clicking the same
@@ -859,8 +856,8 @@ export function DashboardView({
     setDetailEvent(found);
     setEditLinkFailed(found === null);
   }
-  // Same-route legacy `?edit=` deep link (an older Google Calendar note link
-  // opened while the dashboard is already mounted): the mount-time `formState`
+  // Same-route `?edit=` deep link (the search modal's "Edit" action opened
+  // while the dashboard is already mounted): the mount-time `formState`
   // initializer above never re-runs, so re-open the edit form per new id,
   // mirroring the detail link handling above.
   const [prevEditLinkId, setPrevEditLinkId] = useState<string | null>(initialEditEventId);
@@ -1491,11 +1488,12 @@ export function DashboardView({
     router.push(buildHref({ edit: null }));
   }, [buildHref, initialEditEventId, router]);
 
-  // Strip the one-shot `event` param (Google notes / search / Pinned deep
-  // link, plus the `_eventCal` that rides alongside the search + Pinned ones)
-  // so a refresh/back doesn't silently re-open the details modal. Re-arms when the param is gone, so clicking the
-  // same event again strips it again — otherwise a leftover `?event=` would
-  // keep re-opening the details on later day/month navigation.
+  // Strip the one-shot `event` param (Google Calendar note / search / Pinned
+  // deep link, plus the `_eventCal` that rides alongside it) so a
+  // refresh/back doesn't silently re-open the details modal. Re-arms when the
+  // param is gone, so clicking the same event again strips it again —
+  // otherwise a leftover `?event=` would keep re-opening the details on later
+  // day/month navigation.
   const detailParamClearedRef = useRef(false);
   useEffect(() => {
     if (!initialDetailEventId) {

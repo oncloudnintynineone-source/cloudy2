@@ -229,10 +229,8 @@ filtered against live calendar/user/type data).
 
 **Dashboard** (`src/app/(protected)/dashboard/page.tsx`):
 
-- **Whole-cookie skips** (`page.tsx:74-80`): a `_fresh` render or an
-  `?event=` / `?edit=` deep link (explicit intent — the notes' `Edit:` link
-  writes `?event=`, older notes carry `?edit=`) ignores the cookie entirely —
-  `uiState = null`.
+- **Whole-cookie skips** (`page.tsx:77-80`): a `_fresh` render or an `?event=` /
+  `?edit=` deep link (explicit intent) ignores the cookie entirely — `uiState = null`.
 - `zoom` (Day/Week (H) hour-slot width): not URL-backed like `pinnedViews`, so it
   is read from the **raw** `cookieState` (not the skipped `uiState`), snapped via
   `clampZoom` (`slotZoom.ts`), defaulting to `1`. It seeds the client zoom state

@@ -207,7 +207,9 @@ describe("buildEventSnapshot", () => {
 
 function v3Description(notes: EventNotes): string {
   const block = encodeNotesBlock(encodeEventNotes(notes));
-  return withInternalMarker(withEditLink(block, "https://example.com/dashboard?date=2026-08-21&event=e-1"));
+  return withInternalMarker(
+    withEditLink(block, "https://example.com/dashboard?date=2026-08-21&event=e-1&_eventCal=d-1"),
+  );
 }
 
 const REF: EventRef = {

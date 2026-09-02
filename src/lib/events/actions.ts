@@ -307,6 +307,8 @@ function resolveEventFields(input: EventFormValues, context: EventTitleContext):
 
 async function buildGcalEventInput(
   googleCalendarId: string,
+  /** App calendar (department) id this copy lives on — the `_eventCal` deep-link hint. */
+  calendarId: string,
   input: EventFormValues,
   eventId: string,
   titleContext: EventTitleContext,
@@ -326,10 +328,11 @@ async function buildGcalEventInput(
     endAmPm: input.endAmPm,
   });
   // The notes carry an "Edit:" link (shown on top of the opaque block) that
-  // opens this event's details modal (edit / duplicate / delete one tap in);
-  // it is rebuilt on every create/edit so the embedded date stays current for
-  // in-app reschedules.
-  const detailLink = eventDetailUrl(await appBaseUrl(), input.start, eventId);
+  // opens this event's details modal in the app (Edit lives inside it); it is
+  // rebuilt on every create/edit so the embedded date stays current for
+  // in-app reschedules. `_eventCal` names this copy's calendar so the fetch
+  // includes it even when the arriving user's filters exclude it.
+  const editLink = eventDetailUrl(await appBaseUrl(), input.start, eventId, calendarId);
   const block = encodeNotesBlock(
     encodeEventNotes({
       eventId,
@@ -348,7 +351,7 @@ async function buildGcalEventInput(
   );
   // The marker line at the bottom flags the event as created in the app, so
   // externally created (Google-only) events can be told apart on read.
-  const description = withInternalMarker(withEditLink(block, detailLink));
+  const description = withInternalMarker(withEditLink(block, editLink));
 
   const allDay = input.timeOption !== "range";
   const { start, end } = absEventRange(input.start, input.end, allDay);
@@ -459,7 +462,7 @@ export async function createEvent(input: EventFormValues): Promise<EventActionRe
         throw new Error("Calendar not found");
       }
       const event = await integration.createEvent(
-        await buildGcalEventInput(googleCalendarId, effectiveInput, eventId, titleContext),
+        await buildGcalEventInput(googleCalendarId, target, effectiveInput, eventId, titleContext),
       );
       created.push({ googleCalendarId, googleEventId: event.id });
     }
@@ -643,13 +646,25 @@ export async function updateEvent(
           for (const copy of found) {
             await integration.updateEvent(
               copy.id,
-              await buildGcalEventInput(googleCalendarId, effectiveInput, eventId, titleContext),
+              await buildGcalEventInput(
+                googleCalendarId,
+                target,
+                effectiveInput,
+                eventId,
+                titleContext,
+              ),
             );
             touchedGoogleEventIds.add(copy.id);
           }
         } else {
           const event = await integration.createEvent(
-            await buildGcalEventInput(googleCalendarId, effectiveInput, eventId, titleContext),
+            await buildGcalEventInput(
+              googleCalendarId,
+              target,
+              effectiveInput,
+              eventId,
+              titleContext,
+            ),
           );
           createdHere.push({ googleCalendarId, googleEventId: event.id });
           touchedGoogleEventIds.add(event.id);
