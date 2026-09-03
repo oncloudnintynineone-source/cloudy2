@@ -302,6 +302,17 @@ export async function getCachedMonthEventsForCalendars(
 }
 
 /**
+ * Purge every cached Google Calendar month (L1 memory + in-flight + full DB
+ * table).  Used by the admin "Purge Calendar Cache" button so the next view
+ * cold-fetches everything from Google.
+ */
+export async function purgeGcalCache(): Promise<void> {
+  memory.clear();
+  inflight.clear();
+  await db.delete(googleEventCache);
+}
+
+/**
  * Delete the Google month cache rows a mutation touched (DB + L1 + in-flight),
  * so the next view re-fetches and shows the change immediately. Over-invalidation
  * across the touched calendars and months is harmless.

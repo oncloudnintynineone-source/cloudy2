@@ -37,6 +37,7 @@ export const AUDIT_ACTIONS = {
   accessRevoke: "access.revoke",
   settingsUpdate: "settings.update",
   auditPurge: "audit.purge",
+  cachePurge: "cache.purge",
 } as const;
 
 export type AuditAction = (typeof AUDIT_ACTIONS)[keyof typeof AUDIT_ACTIONS];

@@ -14,11 +14,9 @@ import {
 import { AUDIT_ACTIONS, actorFromUser } from "@/lib/audit/build";
 import { diffFields } from "@/lib/audit/diff";
 import { logAction } from "@/lib/audit/log";
+import { purgeGcalCache } from "@/lib/google/eventsCache";
+import { validateKahNotificationsForm, type KahNotificationsFormValues } from "@/lib/kah/validate";
 import { requireAdmin } from "@/lib/session";
-import {
-  validateKahNotificationsForm,
-  type KahNotificationsFormValues,
-} from "@/lib/kah/validate";
 import {
   EVENT_TITLE_ASSIGNMENT_TARGETS,
   EVENT_TITLE_TARGET_LABELS,
@@ -467,4 +465,28 @@ export async function updateKahNotifications(
   revalidatePath("/settings/general");
   revalidatePath("/settings/kah-groups");
   return { ok: true };
+}
+
+export async function purgeCalendarCache(): Promise<SettingsActionResult> {
+  const session = await requireAdmin();
+
+  try {
+    await purgeGcalCache();
+    await logAction({
+      ...actorFromUser({
+        id: session.user.id,
+        name: session.user.name ?? null,
+        role: session.user.role,
+      }),
+      action: AUDIT_ACTIONS.cachePurge,
+      entityType: "cache",
+      entityName: "googleEventCache",
+      method: "purgeCalendarCache",
+    });
+    revalidatePath("/dashboard");
+    return { ok: true };
+  } catch (error) {
+    console.error("[settings] Failed to purge calendar cache", error);
+    return { ok: false, error: "Failed to purge calendar cache" };
+  }
 }
