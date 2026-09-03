@@ -33,6 +33,7 @@ import {
   transformOriginFromRect,
   type Rect,
 } from "@/lib/motion/origin";
+import { MOTION } from "@/lib/motion/timing";
 import { BUTTON_LOADER_PROPS } from "@/lib/theme";
 
 import { LoadingStatus } from "./LoadingStatus";
@@ -130,8 +131,8 @@ export default function EventSearchModal({ opened, onClose, originRect }: EventS
       common: { transformOrigin: transformOriginFromRect(originRect, viewport, "center") },
       transitionProperty: "transform, opacity",
     },
-    duration: 240,
-    exitDuration: 200,
+    duration: MOTION.modalZoom,
+    exitDuration: MOTION.modalZoomExit,
     timingFunction: "cubic-bezier(0.3, 1.2, 0.4, 1)",
   } as const;
 
@@ -217,8 +218,20 @@ export default function EventSearchModal({ opened, onClose, originRect }: EventS
             autoFocus
           />
           <Group mt="xs" grow>
-            <DatePickerInput label="From" value={from} valueFormat="YYYY-MM-DD" clearable onChange={setFrom} />
-            <DatePickerInput label="To" value={to} valueFormat="YYYY-MM-DD" clearable onChange={setTo} />
+            <DatePickerInput
+              label="From"
+              value={from}
+              valueFormat="YYYY-MM-DD"
+              clearable
+              onChange={setFrom}
+            />
+            <DatePickerInput
+              label="To"
+              value={to}
+              valueFormat="YYYY-MM-DD"
+              clearable
+              onChange={setTo}
+            />
           </Group>
           <Button
             type="submit"

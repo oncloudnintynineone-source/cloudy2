@@ -4,6 +4,7 @@ import { ActionIcon, Menu } from "@mantine/core";
 import { IconLogout, IconUser } from "@tabler/icons-react";
 import { signOut } from "next-auth/react";
 
+import { MOTION } from "@/lib/motion/timing";
 import { clearAllSavedPages } from "@/lib/pwa/client";
 import { clearUiState } from "@/lib/ui/uiStateClient";
 
@@ -14,7 +15,11 @@ export function UserMenu({ name }: { name: string }) {
       width={200}
       position="bottom-end"
       withinPortal
-      transitionProps={{ transition: "pop-top-right", duration: 150, timingFunction: "ease" }}
+      transitionProps={{
+        transition: "pop-top-right",
+        duration: MOTION.popover,
+        timingFunction: "ease",
+      }}
     >
       <Menu.Target>
         <ActionIcon variant="transparent" c="white" size="lg" aria-label="Profile">

@@ -43,6 +43,7 @@ import { BANNER_HEIGHT_PX } from "@/lib/banner/banner";
 import { BOTTOM_NAV_HEIGHT } from "@/lib/bottomNav";
 import { fetchPinnedEvents, type PinnedEvent } from "@/lib/events/pinned";
 import type { Rect } from "@/lib/motion/origin";
+import { MOTION } from "@/lib/motion/timing";
 import { DESKTOP_MEDIA_QUERY, DESKTOP_WIDE_MEDIA_QUERY, NARROW_MEDIA_QUERY } from "@/lib/theme";
 import { StatusAnnouncer } from "@/lib/ui/announcer";
 import { ImmersiveModeContext, type ImmersiveModeValue } from "@/lib/ui/immersiveMode";
@@ -119,7 +120,9 @@ function PendingDim({ busyKey, children }: { busyKey: string; children: React.Re
   const { pending } = useLinkStatus();
   useReportActivity(pending, busyKey);
   return (
-    <Box style={{ opacity: pending ? 0.55 : 1, transition: "opacity 120ms ease" }}>{children}</Box>
+    <Box style={{ opacity: pending ? 0.55 : 1, transition: `opacity ${MOTION.fade}ms ease` }}>
+      {children}
+    </Box>
   );
 }
 

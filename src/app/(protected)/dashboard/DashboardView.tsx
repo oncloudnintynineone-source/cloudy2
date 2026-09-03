@@ -109,6 +109,7 @@ import {
   transformOriginFromRect,
   type Rect,
 } from "@/lib/motion/origin";
+import { MOTION } from "@/lib/motion/timing";
 import {
   buildScheduleResources,
   expandScheduleEvents,
@@ -1182,8 +1183,8 @@ export function DashboardView({
       common: { transformOrigin: transformOriginFromRect(agendaOriginRect, viewport, "center") },
       transitionProperty: "transform, opacity",
     },
-    duration: 240,
-    exitDuration: 200,
+    duration: MOTION.modalZoom,
+    exitDuration: MOTION.modalZoomExit,
     timingFunction: "cubic-bezier(0.3, 1.2, 0.4, 1)",
   } as const;
   const formTransitionProps = {
@@ -1195,7 +1196,7 @@ export function DashboardView({
       },
       transitionProperty: "transform, opacity",
     },
-    duration: 250,
+    duration: MOTION.modalForm,
     timingFunction: "ease",
   } as const;
 
@@ -2181,7 +2182,11 @@ export function DashboardView({
             shadow="md"
             width={200}
             position="bottom-end"
-            transitionProps={{ transition: "pop-top-right", duration: 150, timingFunction: "ease" }}
+            transitionProps={{
+              transition: "pop-top-right",
+              duration: MOTION.popover,
+              timingFunction: "ease",
+            }}
           >
             <Menu.Target>
               <ActionIcon size={36} variant="default" aria-label="More options">
@@ -2897,7 +2902,7 @@ export function DashboardView({
             zIndex: 260,
             color: "rgba(255, 255, 255, 0.85)",
             opacity: hintVisible ? 1 : 0,
-            transition: "opacity 250ms ease",
+            transition: `opacity ${MOTION.fade}ms ease`,
             pointerEvents: "none",
             userSelect: "none",
           }}

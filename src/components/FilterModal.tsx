@@ -1,7 +1,18 @@
 "use client";
 
 import { useMemo, useState, type ReactNode } from "react";
-import { ActionIcon, Badge, Button, Chip, Group, Modal, Stack, Text, Tooltip, useMantineTheme } from "@mantine/core";
+import {
+  ActionIcon,
+  Badge,
+  Button,
+  Chip,
+  Group,
+  Modal,
+  Stack,
+  Text,
+  Tooltip,
+  useMantineTheme,
+} from "@mantine/core";
 import { useMediaQuery } from "@mantine/hooks";
 import { IconChevronDown, IconPlus, IconSquareCheck, IconSquareX } from "@tabler/icons-react";
 
@@ -12,6 +23,7 @@ import {
   type FilterApplyGroup,
 } from "@/lib/filters/resolveFilterApply";
 import { buildUserGroups, type PickerGroup } from "@/lib/users/userSelect";
+import { MOTION } from "@/lib/motion/timing";
 import { NARROW_MEDIA_QUERY } from "@/lib/theme";
 
 export interface FilterOption {
@@ -141,12 +153,28 @@ function initialDraft(
  * dialog opens. "No filter applied" is "all selected" in grid groups and
  * "nothing selected" in search groups.
  */
-export function FilterModal({ opened, onClose, title, groups, values, onApply, collapsedGroupLabels, hint, modeControl }: FilterModalProps) {
+export function FilterModal({
+  opened,
+  onClose,
+  title,
+  groups,
+  values,
+  onApply,
+  collapsedGroupLabels,
+  hint,
+  modeControl,
+}: FilterModalProps) {
   const theme = useMantineTheme();
   const isDesktop = useMediaQuery(`(min-width: ${theme.breakpoints.lg})`);
   const isNarrow = useMediaQuery(NARROW_MEDIA_QUERY);
   return (
-    <Modal opened={opened} onClose={onClose} title={title} centered size={isNarrow ? "xs" : isDesktop ? "md" : "sm"}>
+    <Modal
+      opened={opened}
+      onClose={onClose}
+      title={title}
+      centered
+      size={isNarrow ? "xs" : isDesktop ? "md" : "sm"}
+    >
       <FilterModalBody
         groups={groups}
         values={values}
@@ -168,7 +196,10 @@ function FilterModalBody({
   collapsedGroupLabels = [],
   hint,
   modeControl,
-}: Pick<FilterModalProps, "groups" | "values" | "onApply" | "onClose" | "collapsedGroupLabels" | "hint" | "modeControl">) {
+}: Pick<
+  FilterModalProps,
+  "groups" | "values" | "onApply" | "onClose" | "collapsedGroupLabels" | "hint" | "modeControl"
+>) {
   const [draft, setDraft] = useState<Record<string, string[]>>(() => initialDraft(groups, values));
   // Collapsed groups start hidden and expand per-group; the toggle is local
   // to the dialog session (re-opening resets to the collapsed start).
@@ -273,7 +304,7 @@ function FilterModalBody({
                         size={14}
                         style={{
                           transform: shown ? "rotate(180deg)" : undefined,
-                          transition: "transform 150ms ease",
+                          transition: `transform ${MOTION.micro}ms ease`,
                         }}
                       />
                     }
@@ -311,7 +342,9 @@ function FilterModalBody({
                     {group.action && (
                       <Button
                         size="xs"
-                        variant={group.action.isApplied(draft[group.label] ?? []) ? "light" : "default"}
+                        variant={
+                          group.action.isApplied(draft[group.label] ?? []) ? "light" : "default"
+                        }
                         color="brand"
                         leftSection={group.action.icon}
                         onClick={() =>

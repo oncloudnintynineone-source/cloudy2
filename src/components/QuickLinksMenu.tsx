@@ -2,6 +2,8 @@
 
 import { Menu, useMantineTheme } from "@mantine/core";
 
+import { MOTION } from "@/lib/motion/timing";
+
 import { QuickLinkIcon } from "./QuickLinkIcon";
 
 export interface QuickLinkMenuItem {
@@ -38,7 +40,7 @@ export function QuickLinksMenu({ links, trigger, position }: QuickLinksMenuProps
       position={position}
       transitionProps={{
         transition: position === "top-end" ? "pop-bottom-right" : "pop-top-right",
-        duration: 150,
+        duration: MOTION.popover,
         timingFunction: "ease",
       }}
       styles={{ item: { padding: "10px 12px", fontSize: "var(--mantine-font-size-md)" } }}
@@ -50,9 +52,7 @@ export function QuickLinksMenu({ links, trigger, position }: QuickLinksMenuProps
           return (
             <Menu.Item
               key={link.id}
-              leftSection={
-                <QuickLinkIcon iconKey={link.icon} size={20} color={palette?.[8]} />
-              }
+              leftSection={<QuickLinkIcon iconKey={link.icon} size={20} color={palette?.[8]} />}
               onClick={() => window.open(link.url, "_blank", "noopener,noreferrer")}
             >
               {link.label}

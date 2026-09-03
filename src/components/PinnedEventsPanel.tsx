@@ -19,6 +19,7 @@ import { useRouter } from "next/navigation";
 
 import { fetchPinnedEvents, type PinnedEvent } from "@/lib/events/pinned";
 import { modalContentWidth, scaleFromRect, transformOriginFromRect } from "@/lib/motion/origin";
+import { MOTION } from "@/lib/motion/timing";
 import { NARROW_MEDIA_QUERY } from "@/lib/theme";
 import { usePinnedPanel } from "@/lib/ui/pinnedPanel";
 
@@ -94,8 +95,8 @@ export function PinnedEventsPanel() {
       common: { transformOrigin: transformOriginFromRect(originRect, viewport, "center") },
       transitionProperty: "transform, opacity",
     },
-    duration: 240,
-    exitDuration: 200,
+    duration: MOTION.modalZoom,
+    exitDuration: MOTION.modalZoomExit,
     timingFunction: "cubic-bezier(0.3, 1.2, 0.4, 1)",
   } as const;
 

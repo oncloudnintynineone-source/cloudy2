@@ -16,6 +16,7 @@ import {
   transformOriginFromRect,
   type Rect,
 } from "@/lib/motion/origin";
+import { MOTION } from "@/lib/motion/timing";
 import { BUTTON_LOADER_PROPS, NARROW_MEDIA_QUERY } from "@/lib/theme";
 import { formatDateTime } from "./clientDateTime";
 
@@ -82,8 +83,8 @@ export function EventDetail({
       common: { transformOrigin: transformOriginFromRect(originRect, viewport, "center") },
       transitionProperty: "transform, opacity",
     },
-    duration: 240,
-    exitDuration: 200,
+    duration: MOTION.modalZoom,
+    exitDuration: MOTION.modalZoomExit,
     timingFunction: "cubic-bezier(0.3, 1.2, 0.4, 1)",
   } as const;
 

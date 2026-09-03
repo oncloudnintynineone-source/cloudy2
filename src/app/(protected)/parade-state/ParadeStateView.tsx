@@ -46,6 +46,7 @@ import { LoadingStatus } from "@/components/LoadingStatus";
 import type { CalendarEvent } from "@/lib/events/queries";
 import { CONTENT_ENTER_CLASS, useContentEnter } from "@/lib/loading/contentEnter";
 import { useMinSkeletonHold } from "@/lib/loading/minHoldLoading";
+import { MOTION } from "@/lib/motion/timing";
 import { buildDepartmentTree, type DepartmentTreeNode } from "@/lib/roster/hierarchy";
 import { formatFullName } from "@/lib/settings/formatName";
 import { activatable } from "@/lib/ui/activatable";
@@ -689,7 +690,11 @@ export function ParadeStateView({
             shadow="md"
             width={220}
             position="bottom-end"
-            transitionProps={{ transition: "pop-top-right", duration: 150, timingFunction: "ease" }}
+            transitionProps={{
+              transition: "pop-top-right",
+              duration: MOTION.popover,
+              timingFunction: "ease",
+            }}
           >
             <Menu.Target>{desktopAttendanceButton}</Menu.Target>
             <Menu.Dropdown>{attendanceMenuItems}</Menu.Dropdown>
@@ -701,7 +706,11 @@ export function ParadeStateView({
           shadow="md"
           width={200}
           position="bottom-end"
-          transitionProps={{ transition: "pop-top-right", duration: 150, timingFunction: "ease" }}
+          transitionProps={{
+            transition: "pop-top-right",
+            duration: MOTION.popover,
+            timingFunction: "ease",
+          }}
         >
           <Menu.Target>
             <Box pos="relative">
@@ -859,7 +868,7 @@ export function ParadeStateView({
             position="top-end"
             transitionProps={{
               transition: "pop-top-right",
-              duration: 150,
+              duration: MOTION.popover,
               timingFunction: "ease",
             }}
           >

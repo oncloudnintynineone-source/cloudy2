@@ -36,6 +36,16 @@
   transform: translateY(0);
 }
 
+/*
+  Motion cadence — mirrors src/lib/motion/timing.ts (keep in sync). CSS
+  keyframes can't read that TS module, so the few custom animation durations
+  below reference these custom properties instead of raw literals.
+*/
+:root {
+  --c2-dur-standard: 250ms;
+  --c2-dur-micro: 200ms;
+}
+
 @keyframes content-enter {
   from {
     opacity: 0;
@@ -120,7 +130,7 @@
      On mobile there is no cap, so the pill fills the free width (no wasted
      gap) and the title truncates inside it. */
   flex: 1 1 auto;
-  transition: background-color 100ms ease;
+  transition: background-color var(--c2-dur-micro) ease;
 }
 
 .c2-pinned-ticker:hover {
@@ -227,15 +237,15 @@
   }
 
   .agenda-slide-next {
-    animation: agenda-slide-in-next 220ms cubic-bezier(0.22, 1, 0.36, 1);
+    animation: agenda-slide-in-next var(--c2-dur-standard) cubic-bezier(0.22, 1, 0.36, 1);
   }
 
   .agenda-slide-prev {
-    animation: agenda-slide-in-prev 220ms cubic-bezier(0.22, 1, 0.36, 1);
+    animation: agenda-slide-in-prev var(--c2-dur-standard) cubic-bezier(0.22, 1, 0.36, 1);
   }
 
   .wizard-step-enter {
-    animation: wizard-step-enter 200ms cubic-bezier(0.22, 1, 0.36, 1);
+    animation: wizard-step-enter var(--c2-dur-standard) cubic-bezier(0.22, 1, 0.36, 1);
   }
 }
 

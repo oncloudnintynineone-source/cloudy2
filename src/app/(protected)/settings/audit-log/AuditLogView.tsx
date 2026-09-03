@@ -43,6 +43,7 @@ import {
 } from "@/lib/audit/format";
 import type { AuditFilters } from "@/lib/audit/queries";
 import { CONTENT_ENTER_CLASS, useContentEnter } from "@/lib/loading/contentEnter";
+import { MOTION } from "@/lib/motion/timing";
 import { useMinSkeletonHold } from "@/lib/loading/minHoldLoading";
 import { BUTTON_LOADER_PROPS } from "@/lib/theme";
 import type { AuditLog } from "@/db/schema";
@@ -447,7 +448,11 @@ export function AuditLogView({
             width={300}
             position="bottom-end"
             closeOnClickOutside={false}
-            transitionProps={{ transition: "pop-top-right", duration: 150, timingFunction: "ease" }}
+            transitionProps={{
+              transition: "pop-top-right",
+              duration: MOTION.popover,
+              timingFunction: "ease",
+            }}
           >
             <Menu.Target>
               <Box pos="relative">
