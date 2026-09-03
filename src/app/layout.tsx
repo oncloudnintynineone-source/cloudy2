@@ -29,12 +29,12 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  // Brand navy, matching the AppShell header (`var(--mantine-color-brand-7)`)
-  // for the surfaces Android Chrome still derives bar chrome from — splash,
-  // task switcher, and opaque-bar environments. On Android 15+ (edge-to-edge)
-  // the system bars are transparent and simply show the fixed navy header
-  // behind them, so the two stay in sync in both color schemes.
-  themeColor: "#0D47A1",
+  // Dark grey, matching the Android splash (`manifest.ts`) and the offline
+  // page palette for the surfaces Android Chrome still derives bar chrome
+  // from — splash, task switcher, and opaque-bar environments. On Android
+  // 15+ (edge-to-edge) the system bars are transparent and simply show the
+  // fixed header behind them, so the two stay in sync in both color schemes.
+  themeColor: "#111111",
   // Makes env(safe-area-inset-*) report real values on notched devices so
   // the header/bottom-nav/FAB clearance vars actually engage in the
   // standalone PWA (they evaluate to 0 without it).
