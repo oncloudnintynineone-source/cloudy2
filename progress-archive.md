@@ -147,6 +147,7 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
 - [1.167 PWA launch regression: cached-first documents + unconditional launch shell](#1167-pwa-launch-regression-cached-first-documents--unconditional-launch-shell)
 - [1.169 Notes "Edit:" link opens the event details modal (legacy `?edit=` kept)](#1169-notes-edit-link-opens-the-event-details-modal-legacy-edit-kept)
 - [1.170 Pinned-events header ticker (rotating titles + inline count + `pinnedHeader` template target)](#1170-pinned-events-header-ticker-rotating-titles--inline-count--pinnedheader-template-target)
+- [1.171 `db:seed` no longer seeds departments or users](#1171-dbseed-no-longer-seeds-departments-or-users)
 
 ## 1.1 Status
 
@@ -7152,3 +7153,38 @@ pin 2+ events → the pill rotates titles every 5s with the `1/N` chip counting
 along; hover pauses it; assign a template to "Pinned events (header)" in
 Settings → Templates → Manage assignments and the ticker re-renders through it
 while the panel keeps its own.
+
+## 1.171 `db:seed` no longer seeds departments or users
+
+The dev seed previously inserted four `calendars` rows (the department registry) with
+fabricated Google ids (`dept-operations@cloudy.local`, etc.) plus users assigned to
+them. A department row is only valid when its `google_calendar_id` mirrors a **real**
+Google calendar created through the app — `createDepartment` calls
+`integration.createCalendar(name)` first and stores the returned id
+(`src/lib/roster/actions.ts`). A DB-only seed cannot create those calendars, so the
+fabricated rows broke any environment attached to a configured service account:
+
+- Dashboard default fetch = all calendars for admins, own department for users
+  (`dashboard/page.tsx`), so the first month view issued Google `events.list` on a
+  nonexistent id → 404 → `fail()` throws "Calendar not found in Google Calendar"
+  (`src/lib/google/real.ts`) and the events cache propagates rather than serving data
+  (`src/lib/google/eventsCache.ts`).
+- Parade state, KAH status, event search, department rename/delete, and user access
+  reconciliation (`src/lib/roster/shares.ts`) all call Google with the same fake ids.
+
+This was already worked around organizationally in §1.140 (dev DBs migrations-only,
+`db:seed` skipped); this phase makes the seed itself safe to run.
+
+**Change:** `src/db/seed.ts` now only seeds DB defaults with no Google coupling — it
+ensures the settings singleton exists and defaults `userKeyword = 'leave'` when empty.
+When inserting the singleton on a fresh (never-authenticated) database it mirrors
+`ensureSettingsRow` by hashing `ADMIN_INITIAL_PASSWORD` if present, so admin-password
+login still bootstraps. Departments and users are created in-app on a migrations-only
+DB (`createDepartment` makes real calendars under the environment's service account).
+
+Docs/commands updated to say departments/users are created in-app only: `AGENTS.md`
+(seed command comment), `docs/developer-guide.md` §1.2/§1.3/§1.9 warning, `progress.md`.
+
+Verification: `pnpm lint` + `pnpm typecheck` + `pnpm test` + `pnpm build`. No schema
+change — no `db:generate`/migration. (Optional manual: run `pnpm db:seed` against a
+local `.env.local` DB twice — second run reports nothing new.)

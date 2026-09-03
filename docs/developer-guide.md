@@ -41,7 +41,7 @@ pnpm install
 cp .env.example .env.local
 # fill in .env.local — at minimum DATABASE_URL, NEXTAUTH_SECRET, ADMIN_INITIAL_PASSWORD
 pnpm db:migrate        # apply migrations to Neon (needs DATABASE_URL in the shell — see §1.11)
-pnpm db:seed           # optional: dev departments/users/memberships (idempotent)
+pnpm db:seed           # optional: default user login keyword (idempotent)
 pnpm dev
 ```
 
@@ -63,7 +63,7 @@ render empty and event mutations refuse with a clear message
 | `pnpm db:generate` | Generate Drizzle migrations from the schema (offline) | no      |
 | `pnpm db:migrate`  | Apply generated `drizzle/*.sql` migrations           | yes      |
 | `pnpm db:push`     | Push the schema directly — dev convenience only      | yes      |
-| `pnpm db:seed`     | Dev seed: departments/users/memberships (reads `.env.local` itself) | yes |
+| `pnpm db:seed`     | Dev seed: default user login keyword (reads `.env.local` itself) | yes |
 
 Run a single test: `pnpm vitest run src/lib/login.test.ts` (or `pnpm test -- <file>`).
 
@@ -235,7 +235,8 @@ prod data.
 > **Warning:** never point a data-copied database (e.g. a Neon branch of prod) at a
 > different service account — the `calendars` table stores **Google calendar IDs**, so
 > copied rows would target the wrong calendars. The dev database is a fresh,
-> migrations-only database (`db:seed` is skipped — it inserts fake calendar IDs);
+> migrations-only database with no seeded departments or users (`db:seed` only
+> defaults the user login keyword — it never fabricates calendar rows);
 > departments are recreated in-app so `createCalendar` makes real calendars under the
 > dev service account.
 

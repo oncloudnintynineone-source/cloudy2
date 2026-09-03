@@ -1,17 +1,23 @@
 /**
- * Dev-only seed script: creates calendars (the department registry) and users
- * assigned to a single department so the roster and departments screens have
- * data to render. Idempotent — safe to re-run.
+ * Dev-only seed: defaults the settings row's user login keyword so users
+ * created in-app can sign in as `[phone]<keyword>`. Departments and users are
+ * NOT seeded — a department (`calendars`) row must mirror a Google calendar
+ * created through the app (`createDepartment` → `integration.createCalendar`),
+ * so inserting fabricated calendar ids would break a real service account.
+ * Idempotent — safe to re-run.
  *
  * Usage: `pnpm db:seed` (reads DATABASE_URL from the environment or .env.local)
  */
 
+import { hash } from "bcryptjs";
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { eq } from "drizzle-orm";
 
 import { db } from "./index";
-import { calendars, settings, users } from "./schema";
+import { settings } from "./schema";
+
+const SETTINGS_ID = "singleton";
 
 function loadEnvFile(): void {
   if (process.env.DATABASE_URL) {
@@ -34,60 +40,6 @@ function loadEnvFile(): void {
   }
 }
 
-const calendarSeeds = [
-  { name: "Operations", googleCalendarId: "dept-operations@cloudy.local" },
-  { name: "Planning", googleCalendarId: "dept-planning@cloudy.local" },
-  { name: "HR", googleCalendarId: "dept-hr@cloudy.local" },
-  { name: "Finance", googleCalendarId: "dept-finance@cloudy.local" },
-];
-
-const userSeeds: {
-  name: string;
-  phone: string;
-  email: string | null;
-  birthday: string | null;
-  role: "admin" | "user";
-  status: "active" | "inactive";
-  departmentName: string | null;
-}[] = [
-  {
-    name: "Alice Tan",
-    phone: "81234567",
-    email: "alice@cloudy.local",
-    birthday: "1991-03-15",
-    role: "admin",
-    status: "active",
-    departmentName: "Operations",
-  },
-  {
-    name: "Bob Lim",
-    phone: "82345678",
-    email: "bob@cloudy.local",
-    birthday: "1992-07-22",
-    role: "user",
-    status: "active",
-    departmentName: "Planning",
-  },
-  {
-    name: "Carol Wong",
-    phone: "83456789",
-    email: "carol@cloudy.local",
-    birthday: "1989-11-02",
-    role: "user",
-    status: "active",
-    departmentName: "HR",
-  },
-  {
-    name: "David Ng",
-    phone: "84567890",
-    email: null,
-    birthday: null,
-    role: "user",
-    status: "inactive",
-    departmentName: null,
-  },
-];
-
 async function seed() {
   loadEnvFile();
 
@@ -96,52 +48,31 @@ async function seed() {
     process.exit(1);
   }
 
-  let createdCalendars = 0;
-  for (const cal of calendarSeeds) {
-    const inserted = await db
-      .insert(calendars)
-      .values({ ...cal, kind: "department" })
-      .onConflictDoNothing()
-      .returning({ id: calendars.id });
-    createdCalendars += inserted.length;
+  const [row] = await db.select().from(settings).where(eq(settings.id, SETTINGS_ID)).limit(1);
+
+  if (!row) {
+    // Mirror `ensureSettingsRow` (src/lib/bootstrap.ts): the singleton row is
+    // normally created on first auth with the admin password hash. Inserting
+    // it here (with the hash when ADMIN_INITIAL_PASSWORD is set) keeps admin
+    // login working on a fresh, never-authenticated database.
+    const initialPassword = process.env.ADMIN_INITIAL_PASSWORD;
+    const adminPasswordHash = initialPassword ? await hash(initialPassword, 10) : null;
+    await db
+      .insert(settings)
+      .values({ id: SETTINGS_ID, userKeyword: "leave", adminPasswordHash })
+      .onConflictDoNothing();
+    console.log("Created settings row with userKeyword = 'leave' so users can log in as [phone]leave");
+  } else if (!row.userKeyword) {
+    await db
+      .update(settings)
+      .set({ userKeyword: "leave", updatedAt: new Date() })
+      .where(eq(settings.id, row.id));
+    console.log("Set settings.userKeyword = 'leave' so users can log in as [phone]leave");
+  } else {
+    console.log("Settings already has a user keyword; nothing to seed.");
   }
 
-  const calendarByName = new Map((await db.select().from(calendars)).map((c) => [c.name, c]));
-
-  let createdUsers = 0;
-  for (const seedUser of userSeeds) {
-    const [existing] = await db
-      .select()
-      .from(users)
-      .where(eq(users.phone, seedUser.phone))
-      .limit(1);
-    if (existing) {
-      continue;
-    }
-
-    const department = seedUser.departmentName
-      ? calendarByName.get(seedUser.departmentName)
-      : undefined;
-
-    await db.insert(users).values({
-      name: seedUser.name,
-      phone: seedUser.phone,
-      email: seedUser.email,
-      birthday: seedUser.birthday,
-      role: seedUser.role,
-      status: seedUser.status,
-      departmentId: department?.id ?? null,
-    });
-    createdUsers += 1;
-  }
-
-  const [settingsRow] = await db.select().from(settings).limit(1);
-  if (settingsRow && !settingsRow.userKeyword) {
-    await db.update(settings).set({ userKeyword: "leave" }).where(eq(settings.id, settingsRow.id));
-    console.log("Set settings.userKeyword = 'leave' so seeded users can log in as [phone]leave");
-  }
-
-  console.log(`Seeded ${createdCalendars} calendars, ${createdUsers} users.`);
+  console.log("Seeded settings defaults (no departments/users — create them in-app).");
   console.log("Re-run anytime; existing rows are skipped.");
 }
 
