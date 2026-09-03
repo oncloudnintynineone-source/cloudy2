@@ -50,7 +50,15 @@ function formatDisplay(naive: string): string {
   return `${dateStr} · ${timeStr}`;
 }
 
-export function PinnedEventsPanel() {
+interface PinnedEventsPanelProps {
+  /** The shell's current list (the same `fetchPinnedEvents` read backing the
+   *  ticker). Seeds the very first open so the panel renders real rows at
+   *  their final height instead of a taller-than-content skeleton; the panel's
+   *  own fetch still confirms freshness underneath. */
+  seedEvents?: PinnedEvent[] | null;
+}
+
+export function PinnedEventsPanel({ seedEvents = null }: PinnedEventsPanelProps) {
   const { open, originRect, closePanel } = usePinnedPanel();
   const router = useRouter();
   const theme = useMantineTheme();
@@ -73,9 +81,15 @@ export function PinnedEventsPanel() {
     };
   }, [open]);
 
-  // Skeleton only on the first load (no data yet); later opens reuse the
-  // cached list while silently refreshing — no flicker between opens.
-  const loading = open && events === null;
+  // Two-tier list: `events` is this panel's confirmed-fresh copy (null until
+  // the first fetch resolves, retained across opens afterwards); `seedEvents`
+  // is the shell's list, already fetched for the ticker. The visible list is
+  // the confirmed copy when present, else the seed — so the normal first open
+  // already has content (same data the ticker pill shows) at its final size.
+  // The skeleton only appears in the cold-start race where neither the shell's
+  // mount fetch nor this panel's own fetch has resolved yet.
+  const visibleEvents = events ?? seedEvents;
+  const loading = open && visibleEvents === null;
 
   // The modal zooms out of / shrinks back into the header pin button — the
   // app's standard grow/shrink animation. It is `centered` with a fixed size,
@@ -137,12 +151,12 @@ export function PinnedEventsPanel() {
           {loading ? (
             <>
               <LoadingStatus label="Loading pinned events" />
-              {Array.from({ length: 6 }).map((_, i) => (
+              {Array.from({ length: 3 }).map((_, i) => (
                 <Skeleton key={i} height={64} radius="md" />
               ))}
             </>
           ) : null}
-          {!loading && events?.length === 0 ? (
+          {!loading && visibleEvents?.length === 0 ? (
             <Paper p="md" radius="md" withBorder>
               <Group gap="sm" wrap="nowrap" align="flex-start">
                 <ThemeIcon variant="light" color="gray" size="lg" radius="md">
@@ -152,7 +166,7 @@ export function PinnedEventsPanel() {
               </Group>
             </Paper>
           ) : null}
-          {events?.map((event) => (
+          {visibleEvents?.map((event) => (
             <Paper
               key={event.id}
               p="md"

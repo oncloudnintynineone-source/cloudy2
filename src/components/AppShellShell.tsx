@@ -679,7 +679,7 @@ export function AppShellShell({
               <PinnedPanelContext.Provider value={pinnedPanelValue}>
                 <StatusAnnouncer />
                 {children}
-                <PinnedEventsPanel />
+                <PinnedEventsPanel seedEvents={pinnedEvents} />
                 {searchLoaded && (
                   <EventSearchModal
                     opened={searchOpen}

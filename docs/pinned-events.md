@@ -111,7 +111,11 @@ Open/close state lives in `AppShellShell` and rides `PinnedPanelContext`
 (`src/lib/ui/pinnedPanel.ts`) — `openPanel(originRect)` carries the ticker pill's
 bounding rect so the modal zooms out of / back into it (the app's standard grow/shrink
 animation). The Modal itself is `src/components/PinnedEventsPanel.tsx`; the pill is
-`src/components/PinnedEventsTicker.tsx`.
+`src/components/PinnedEventsTicker.tsx`. The panel seeds its list from the shell's
+already-fetched ticker list (`seedEvents` prop), so the first open renders real rows at
+their final height — the loading skeleton (only shown in the cold-start race where the
+shell's mount fetch hasn't resolved yet) is sized to a short list so it can never
+overshoot the content and collapse the modal.
 
 ## 1.6 File index & related docs
 
