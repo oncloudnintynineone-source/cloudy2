@@ -1,9 +1,9 @@
 # 1. Dashboard views & filters
 
 The Calendar dashboard (`/dashboard`) renders one of six event views over the shared
-server-side events cache ([`events-cache.md`](events-cache.md)) and a shared or
-per-view filter state. This document covers the view inventory, the filters (one
-button + modal, syncable per view), the custom Week (D) matrix — the one view no
+server-side events cache ([`events-cache.md`](events-cache.md)) and a per-view
+filter state. This document covers the view inventory, the filters (one
+button + modal, scoped per view), the custom Week (D) matrix — the one view no
 Mantine Schedule component can render — the per-view "mine" and external-entry
 highlights, and the Day / Week (H) timeline zoom.
 
@@ -45,17 +45,11 @@ beside the Users group; "Reset" clears (role defaults).
 The modal promotes the filters most people reach — **Calendars** (chip grid) and
 **Users** (badge-dialog picker, `variant: "search"`) — and tucks **Event Types**
 behind a "Show"/"Hide" disclosure (`collapsedGroupLabels`; audit-log/user-table
-callers keep all groups expanded). A footer carries a scope hint plus the
-filter-scoping control:
-
-- **Same for all views** (default, "global") — one shared Calendars/Users/Event
-  Types set across Month / Week (H) / Week (D) / Day / Agenda, exactly the
-  pre-split behavior. Non-admins default to their own department but may filter
-  to any department.
-- **Different per view** ("per-view") — every view remembers its own selection;
-  the modal notes *"These filters apply to {view} only"*. Clearing one view's
-  filters never resets the others; flipping back to "same for all views"
-  collapses every view onto the current view's set.
+callers keep all groups expanded). A footer scope hint notes *"These filters
+apply to {view} only."* — filter scoping is **per view only** (the old
+"Same for all views"/shared-set mode is removed): every view remembers its own
+Calendars/Users/Event Types selection, and clearing one view's filters never
+resets the others.
 
 Filter semantics:
 
@@ -63,12 +57,11 @@ Filter semantics:
   Day/Week (H)/Week (D) — `buildScheduleResources` takes a `userFilter`
   (`src/lib/events/schedule.ts:120`) and the Week (D) matrix reuses the same rows.
 - The per-view model, its resolution order (URL → view memory → **role default** —
-  per-view never consults the shared set, so configuring one view can't leak
+  the removed shared set is never consulted, so configuring one view can't leak
   into another's untouched views), the explicit-empty "cleared" state, and the
   `_fresh` current-view-only scoping live in the remembered-state system:
-  [`ui-state.md`](ui-state.md) §1.5.1 / §1.9. In per-view mode switching views
-  writes the target view's filters into the URL, so the URL always describes the
-  rendered view.
+  [`ui-state.md`](ui-state.md) §1.5.1 / §1.9. Switching views writes the target
+  view's filters into the URL, so the URL always describes the rendered view.
 - The per-view writer (`buildDashboardPersist`) records **only views the user
   configured or cleared** — never the full resolved set — so a view that was
   never touched keeps absent keys and resolves to role defaults, and a large
@@ -82,9 +75,10 @@ flowchart LR
     FM --> CAL["Calendars<br/>(chip grid)"]
     FM --> US["Users<br/>(badge picker + Myself)"]
     FM --> ET["Event Types<br/>(behind Show/Hide)"]
-    FM --> SC["Filter scope<br/>Same for all views / Different per view"]
-    SC --> MODE["global | per-view<br/>(cookie dashboard.filterMode)"]
-    MODE --> RESOLVE["resolveDashboardFilters<br/>(server, per key)"]
+    FM --> HINT["Scope hint<br/>(these filters apply to {view} only)"]
+    HINT --> RESOLVE["resolveDashboardFilters<br/>(server, per view)"]
+    RESOLVE --> MEM["views[view]<br/>(cookie dashboard.views)"]
+    RESOLVE --> DEF["role default"]
 ```
 
 ## 1.3 Week (D): the custom week matrix
@@ -319,7 +313,7 @@ flowchart LR
 | `src/lib/ui/slotZoom.ts` | Pure zoom levels + slot-width math (`clampZoom`, `stepZoom`, `weekSlotWidth`, `daySlotWidth`) |
 | `src/components/GridNavControls.tsx` | Day/Week (H) right-edge cluster: zoom +/− + right pan, plus left-edge pan |
 | `src/components/FilterButton.tsx` | Dedicated filter button (icon + active-group badge) replacing the kebab's filter menu |
-| `src/components/FilterModal.tsx` | Filters dialog (collapsible groups, scope hint, per-view mode control) |
+| `src/components/FilterModal.tsx` | Filters dialog (collapsible groups, per-view scope hint) |
 
 Related docs:
 

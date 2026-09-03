@@ -148,6 +148,7 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
 - [1.169 Notes "Edit:" link opens the event details modal (legacy `?edit=` kept)](#1169-notes-edit-link-opens-the-event-details-modal-legacy-edit-kept)
 - [1.170 Pinned-events header ticker (rotating titles + inline count + `pinnedHeader` template target)](#1170-pinned-events-header-ticker-rotating-titles--inline-count--pinnedheader-template-target)
 - [1.171 `db:seed` no longer seeds departments or users](#1171-dbseed-no-longer-seeds-departments-or-users)
+- [1.172 Dashboard filters are per-view only (global/shared-set mode removed)](#1172-dashboard-filters-are-per-view-only-globalshared-set-mode-removed)
 
 ## 1.1 Status
 
@@ -7188,3 +7189,69 @@ Docs/commands updated to say departments/users are created in-app only: `AGENTS.
 Verification: `pnpm lint` + `pnpm typecheck` + `pnpm test` + `pnpm build`. No schema
 change â€” no `db:generate`/migration. (Optional manual: run `pnpm db:seed` against a
 local `.env.local` DB twice â€” second run reports nothing new.)
+
+## 1.172 Dashboard filters are per-view only (global/shared-set mode removed)
+
+The dashboard previously offered a "Filter scope" SegmentedControl in the filter
+modal — **Same for all views** (one shared Calendars/Users/Event Types set
+combined across Month / Week (H) / Week (D) / Day / Agenda) vs **Different per
+view**. Because the shared mode was the default (`dashboard.filterMode` absent ?
+`"global"`), filters set on one calendar view silently applied to every view —
+read by users as "filters leaking between views". This phase **removes the
+combine option entirely**: dashboard filters are per-view only, and a filter set
+on one view can never affect another.
+
+**Change** (`src/lib/ui/uiState.ts`, `dashboard/page.tsx`, `DashboardView.tsx`,
+`FilterModal.tsx`):
+
+- `resolveDashboardFilters` drops its `global` (shared-set) fallback and its
+  `perView` switch: every view resolves `URL ? views[view] ? role default`.
+  The shared set never exists as a fallback, so a view the user never configured
+  can only resolve to role defaults — the leak vector is structurally gone.
+- `buildDashboardPersist` no longer writes the legacy top-level shared
+  `cal/users/types` and always writes `filterMode: "per-view"`. The
+  section-wholesale cookie merge therefore prunes the shared set and any stale
+  `filterMode` from pre-removal cookies on the first persist.
+- `normalizeUiState` always keeps `views` (there is no shared set a stale map
+  could leak into) and drops any non-`"per-view"` `filterMode` value.
+  Pre-removal global-mode cookies degrade to per-view with no `views` — every
+  view resolves to role defaults (their old combined selection is not copied
+  into per-view memory; a deliberate choice that avoids re-materializing
+  `cal = <all calendars>` into all five views, the v1 blob bug this subsystem
+  retired, and matches the new "each view is independent" contract).
+- `DashboardView` loses the `filterMode` prop/state, the FilterModal
+  `modeControl` (SegmentedControl) and its conditional hint — the footer hint is
+  now unconditional: *"These filters apply to {view} only."* `switchView` always
+  writes the target view's resolved filters into the URL, so the URL describes
+  the rendered view (unchanged per-view mechanics).
+- `FilterModal` drops the now-unused `modeControl` prop (only the dashboard
+  passed it; audit-log / parade-state / user-table callers are untouched).
+
+The bug report ("filters leak between views" after `b6baf44`) was the shared-mode
+default + shared-set fallback: absent/corrupt `filterMode` resolved to `"global"`
+(`resolveFilterMode` only honored the literal string `"per-view"`), so one view's
+selection reached every view. With the global path removed, the only way a view
+shows filters is its own URL pin or its own `views[view]` memory — covered by new
+unit regressions ("a configured view's filters never leak into an untouched
+view", legacy-cookie normalization, and the `buildDashboardPersist` prune).
+
+Legacy cookie note: no schema/cookie version bump — the shape is unchanged, only
+the meaning of absent `filterMode` flips to per-view (the resolver ignores it
+now), and the writer always stores the explicit per-view marker so a pre-removal
+build reading a new cookie still treats it as per-view.
+
+Files: `src/lib/ui/uiState.ts` (resolver/persist/normalize/comments),
+`dashboard/page.tsx` (always-per-view resolution, prop removal),
+`DashboardView.tsx` (scope control + state removed, unconditional hint,
+always-filter-travel on `switchView`), `components/FilterModal.tsx`
+(`modeControl` removed), `uiState.test.ts` (global-mode tests reworked to the
+per-view contract + leak regressions).
+
+Docs: `AGENTS.md`, `docs/dashboard-views.md` §1.2 (+diagram), `docs/ui-state.md`
+§1.4/§1.4.1/§1.4.2/§1.5.1/§1.7/§1.9, `docs/user-guide.md`, `progress.md`.
+
+Verification: `pnpm lint` + `pnpm typecheck` + `pnpm test` (890 passing). Manual
+(needs the user): set a Calendars/Users filter on Month ? Week (H) / Week (D) /
+Day / Agenda show role defaults; configure each view independently; Reset one
+view without touching the others; confirm the filter modal has no scope control
+and always notes the current view.

@@ -14,9 +14,9 @@ import {
   reduceUiStateForCookie,
   resolveDashboardFilters,
   resolveDashboardView,
-  resolveFilterMode,
   resolveLaunchTarget,
   type DashboardPersistSeed,
+  type DashboardUiState,
 } from "./uiState";
 
 describe("encodeUiState/decodeUiState", () => {
@@ -220,19 +220,27 @@ describe("normalizeUiState", () => {
     });
   });
 
-  it("drops the whole views map in a global cookie (it can't leak into the shared set)", () => {
+  it("keeps the views map even from a legacy global cookie (per-view only — there is no shared set to leak into)", () => {
     expect(
       normalizeUiState({
         dashboard: { filterMode: "global", views: { month: { cal: ["c1"] } }, cal: ["c9"] },
       }),
-    ).toEqual({ dashboard: { cal: ["c9"] } });
+    ).toEqual({
+      dashboard: { cal: ["c9"], views: { month: { cal: ["c1"] } } },
+    });
   });
 
-  it("drops corrupted filterMode values (absent = global) and empty views", () => {
+  it("drops a stale non-per-view filterMode (the mode is per-view only) and empty views", () => {
     expect(normalizeUiState({ dashboard: { filterMode: "every-view-its-own" } })).toEqual({});
     expect(
       normalizeUiState({ dashboard: { filterMode: "per-view", views: {} } }),
     ).toEqual({ dashboard: { filterMode: "per-view" } });
+  });
+
+  it("keeps views without any filterMode marker (absent marker = per-view now)", () => {
+    expect(
+      normalizeUiState({ dashboard: { views: { week: { cal: ["c2"] } } } }),
+    ).toEqual({ dashboard: { views: { week: { cal: ["c2"] } } } });
   });
 });
 
@@ -353,37 +361,25 @@ describe("resolveDashboardView", () => {
   });
 });
 
-describe("resolveFilterMode", () => {
-  it("only per-view is truthy; anything else (incl. corrupt/absent) is global", () => {
-    expect(resolveFilterMode("per-view")).toBe("per-view");
-    expect(resolveFilterMode("global")).toBe("global");
-    expect(resolveFilterMode(undefined)).toBe("global");
-    expect(resolveFilterMode(42)).toBe("global");
-    expect(resolveFilterMode("both")).toBe("global");
-  });
-});
-
 describe("resolveDashboardFilters", () => {
   const defaults = { cal: ["default-cal"], users: [], types: [] };
-  const global = { cal: ["shared-cal"], users: ["shared-user"], types: ["Leave"] };
   const url = (overrides: { cal?: string[]; users?: string[]; types?: string[] } = {}) => ({
     cal: overrides.cal,
     users: overrides.users,
     types: overrides.types,
   });
 
-  it("resolves every view from the shared set and the role default (global mode)", () => {
+  it("resolves untouched views from the role default (filter scoping is per-view only)", () => {
     const { selected, viewFilters } = resolveDashboardFilters({
       view: "week",
       url: url(),
       views: {},
-      global,
       defaults,
     });
-    expect(selected).toEqual({ cal: ["shared-cal"], users: ["shared-user"], types: ["Leave"] });
-    expect(viewFilters.month).toEqual(selected);
-    expect(viewFilters.agenda).toEqual(selected);
-    expect(viewFilters.schedule).toEqual(selected);
+    expect(selected).toEqual(defaults);
+    expect(viewFilters.month).toEqual(defaults);
+    expect(viewFilters.agenda).toEqual(defaults);
+    expect(viewFilters.schedule).toEqual(defaults);
   });
 
   it("lets the URL win for the current view only", () => {
@@ -391,16 +387,15 @@ describe("resolveDashboardFilters", () => {
       view: "week",
       url: url({ cal: ["pinned-cal"], users: [] }),
       views: {},
-      global,
       defaults,
     });
     // `?cal=pinned-cal&users=` — an explicit empty users is honored.
-    expect(selected).toEqual({ cal: ["pinned-cal"], users: [], types: ["Leave"] });
-    // Other views are never URL-pinned.
-    expect(viewFilters.month.cal).toEqual(["shared-cal"]);
+    expect(selected).toEqual({ cal: ["pinned-cal"], users: [], types: [] });
+    // Other views are never URL-pinned; they resolve to the role default.
+    expect(viewFilters.month.cal).toEqual(["default-cal"]);
   });
 
-  it("per-view mode resolves configured views from their memory, others to role defaults", () => {
+  it("resolves configured views from their memory, others to role defaults", () => {
     const { selected, viewFilters } = resolveDashboardFilters({
       view: "week",
       url: url(),
@@ -408,44 +403,39 @@ describe("resolveDashboardFilters", () => {
         week: { cal: ["week-cal"], users: ["week-user"] },
         agenda: { types: ["Overseas"] },
       },
-      global,
       defaults,
-      perView: true,
     });
     expect(selected).toEqual({ cal: ["week-cal"], users: ["week-user"], types: [] });
     // agenda overrides only types; a view the user never configured shows the
-    // role default, NOT the shared set (per-view is fully independent).
+    // role default — a configured view's selection never leaks into another.
     expect(viewFilters.agenda).toEqual({ cal: ["default-cal"], users: [], types: ["Overseas"] });
     expect(viewFilters.month).toEqual(defaults);
     expect(viewFilters.schedule).toEqual(defaults);
   });
 
-  it("per-view mode ignores the shared set entirely (config never leaks into other views)", () => {
+  it("a configured view's filters never leak into an untouched view", () => {
     const { viewFilters } = resolveDashboardFilters({
       view: "week",
-      url: url(),
-      views: { week: { cal: ["week-cal"], users: ["week-user"] } },
-      // The shared set still carries someone else's selection; per-view never
-      // falls back to it.
-      global,
+      url: url({ cal: ["week-cal"], users: ["week-user"], types: ["Leave"] }),
+      views: { week: { cal: ["week-cal"] } },
       defaults,
-      perView: true,
     });
+    // The current view is pinned by the URL; the untouched views still resolve
+    // purely to the role default, whatever the week selection is.
     expect(viewFilters.month).toEqual(defaults);
     expect(viewFilters.agenda).toEqual(defaults);
+    expect(viewFilters.weekv2).toEqual(defaults);
   });
 
-  it("keeps an explicit empty per-view list (a cleared filter stays cleared)", () => {
+  it("keeps an explicit empty list (a cleared filter stays cleared)", () => {
     const { selected, viewFilters } = resolveDashboardFilters({
       view: "week",
       url: url(),
       views: { agenda: { users: [] } },
-      global,
       defaults,
-      perView: true,
     });
     expect(viewFilters.agenda.users).toEqual([]);
-    // An absent key needs no "shared" guard — per-view resolves the default.
+    // An absent key resolves to the role default.
     expect(viewFilters.agenda.cal).toEqual(["default-cal"]);
     expect(selected.users).toEqual([]);
   });
@@ -456,12 +446,10 @@ describe("resolveDashboardFilters", () => {
       view: "week",
       url: url(),
       views,
-      global,
       defaults,
       fresh: true,
-      perView: true,
     });
-    // Cleared view falls back to the role default (shared set skipped too).
+    // Cleared view falls back to the role default.
     expect(selected).toEqual(defaults);
     // Other views must survive the clear untouched.
     expect(viewFilters.agenda.users).toEqual(["u9"]);
@@ -473,7 +461,6 @@ describe("resolveDashboardFilters", () => {
       view: "week",
       url: url({ cal: ["pinned"] }),
       views: { week: { cal: ["week-cal"] } },
-      global,
       defaults,
       fresh: true,
     });
@@ -482,12 +469,11 @@ describe("resolveDashboardFilters", () => {
     expect(viewFilters.week.cal).toEqual(["pinned"]);
   });
 
-  it("produces a full five-view map covering the shared defaults", () => {
+  it("produces a full five-view map covering the role defaults", () => {
     const { viewFilters } = resolveDashboardFilters({
       view: "month",
       url: url(),
       views: {},
-      global: {},
       defaults,
     });
     expect(Object.keys(viewFilters).sort()).toEqual([...DASHBOARD_VIEW_VALUES].sort());
@@ -599,7 +585,6 @@ describe("buildDashboardPersist", () => {
     selected: { cal: ["c1"], users: [], types: [] },
     pinnedViews: [],
     zoom: null,
-    filterMode: "per-view",
     urlKeys: { cal: false, users: false, types: false },
     ...over,
   });
@@ -607,9 +592,7 @@ describe("buildDashboardPersist", () => {
   it("never materializes a view the URL does not pin and the cookie does not know", () => {
     expect(buildDashboardPersist(undefined, seed())).toEqual({
       view: "week",
-      cal: ["c1"],
-      users: [],
-      types: [],
+      // The per-view marker is always written; the legacy shared set is not.
       filterMode: "per-view",
     });
   });
@@ -619,9 +602,6 @@ describe("buildDashboardPersist", () => {
       buildDashboardPersist(undefined, seed({ urlKeys: { cal: false, users: true, types: false } })),
     ).toEqual({
       view: "week",
-      cal: ["c1"],
-      users: [],
-      types: [],
       filterMode: "per-view",
       views: { week: { users: [] } },
     });
@@ -651,13 +631,18 @@ describe("buildDashboardPersist", () => {
     expect(built.views).toEqual({ month: { users: ["m1"] } });
   });
 
-  it("global mode writes the shared set and prunes views/filterMode from a per-view cookie", () => {
-    const prev = { views: { week: { users: ["u1"] } }, filterMode: "per-view" as const };
-    expect(buildDashboardPersist(prev, seed({ filterMode: "global" }))).toEqual({
-      view: "week",
+  it("prunes the legacy shared set and stale filterMode from a pre-removal cookie", () => {
+    // A pre-removal cookie may still carry a "global" mode + the shared set.
+    const prev = {
       cal: ["c1"],
-      users: [],
-      types: [],
+      users: ["s1"],
+      types: ["Leave"],
+      filterMode: "global" as const,
+      views: {} as Record<string, Record<string, string[]>>,
+    } as unknown as DashboardUiState;
+    expect(buildDashboardPersist(prev, seed())).toEqual({
+      view: "week",
+      filterMode: "per-view",
     });
   });
 
@@ -682,7 +667,7 @@ describe("reduceUiStateForCookie", () => {
     expect(reduceUiStateForCookie({})).toEqual({});
   });
 
-  it("drops parade lists before shared lists before per-view user lists", () => {
+  it("drops parade lists before legacy top-level lists before per-view user lists", () => {
     const state = {
       parade: { cal: ["p1", "p2"], users: ["pu"] },
       dashboard: {
@@ -694,11 +679,11 @@ describe("reduceUiStateForCookie", () => {
     let reduced = reduceUiStateForCookie(state);
     expect(reduced.parade).toEqual({ users: ["pu"] });
     expect(reduced.dashboard!.users).toEqual(["s1", "s2"]);
-    // Pass 2: parade.users + shared users tie tiers? tiers: parade(tier0) first.
+    // Pass 2: parade.users + top-level users tie tiers? tiers: parade(tier0) first.
     reduced = reduceUiStateForCookie(reduced);
     expect(reduced.parade).toBeUndefined();
     expect(reduced.dashboard!.users).toEqual(["s1", "s2"]);
-    // Pass 3: shared users (tier1) before the per-view users (tier4).
+    // Pass 3: the legacy top-level users (tier1) before the per-view users (tier4).
     reduced = reduceUiStateForCookie(reduced);
     expect(reduced.dashboard!.users).toBeUndefined();
     expect(reduced.dashboard!.views!.week!.users).toEqual(["u1", "u2", "u3"]);

@@ -111,9 +111,6 @@ interface FilterModalProps {
   collapsedGroupLabels?: string[];
   /** Optional dimmed hint above the actions (e.g. the per-view scope note). */
   hint?: string;
-  /** Optional mode control rendered above the actions (e.g. the synced /
-   *  per-view scoping SegmentedControl the dashboard passes). */
-  modeControl?: ReactNode;
 }
 
 function allOptionValues(group: FilterGroup): string[] {
@@ -162,7 +159,6 @@ export function FilterModal({
   onApply,
   collapsedGroupLabels,
   hint,
-  modeControl,
 }: FilterModalProps) {
   const theme = useMantineTheme();
   const isDesktop = useMediaQuery(`(min-width: ${theme.breakpoints.lg})`);
@@ -182,7 +178,6 @@ export function FilterModal({
         onClose={onClose}
         collapsedGroupLabels={collapsedGroupLabels}
         hint={hint}
-        modeControl={modeControl}
       />
     </Modal>
   );
@@ -195,10 +190,9 @@ function FilterModalBody({
   onClose,
   collapsedGroupLabels = [],
   hint,
-  modeControl,
 }: Pick<
   FilterModalProps,
-  "groups" | "values" | "onApply" | "onClose" | "collapsedGroupLabels" | "hint" | "modeControl"
+  "groups" | "values" | "onApply" | "onClose" | "collapsedGroupLabels" | "hint"
 >) {
   const [draft, setDraft] = useState<Record<string, string[]>>(() => initialDraft(groups, values));
   // Collapsed groups start hidden and expand per-group; the toggle is local
@@ -434,7 +428,6 @@ function FilterModalBody({
         zIndex={200}
       />
 
-      {modeControl}
       {hint && (
         <Text size="xs" c="dimmed">
           {hint}

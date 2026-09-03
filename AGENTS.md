@@ -86,10 +86,12 @@ mechanics in the doc.
 - **Dashboard views & filters:** Month / Week (H) / Week (D) / Day / Agenda over the
   shared cache; one **filter button** (icon + badge) opens the filter modal
   (Calendars + Users prominent, Event Types behind a Show/Hide disclosure); the
-  kebab keeps navigation/refresh only. Filters default to **one shared set** but
-  every view can hold its **own Cal/Users/Types memory** (`dashboard.filterMode` =
-  per-view + a `views` map; pure `resolveDashboardFilters` in `ui-state.ts`; on
-  `_fresh` only the current view falls back to defaults). Week (D) is a custom matrix
+  kebab keeps navigation/refresh only. **Filters are scoped per view only** — each
+  of Month / Week (H) / Week (D) / Day / Agenda owns its own Cal/Users/Types
+  memory (`dashboard.views`, resolved by the pure `resolveDashboardFilters` in
+  `ui-state.ts` as URL → view memory → role default; an untouched view never
+  inherits another view's filters and `_fresh` clears only the current view).
+  The old "same for all views"/shared-set mode is gone. Week (D) is a custom matrix
   (pure `buildWeekLanes`). **Entry highlights are client-side per view:** the
   current user's entries get an amber treatment (row tint + chip/bar ring, mine can
   also claim Month's top rows) and **external** (Google-created) events get the same

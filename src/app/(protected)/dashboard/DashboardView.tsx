@@ -27,7 +27,6 @@ import {
   Modal,
   Paper,
   Portal,
-  SegmentedControl,
   Stack,
   Tabs,
   Text,
@@ -132,7 +131,6 @@ import {
   DASHBOARD_VIEW_LABELS,
   freshMarkerNeeded,
   orderDashboardViews,
-  type DashboardFilterMode,
   type DashboardFilterSet,
 } from "@/lib/ui/uiState";
 import { usePersistUiState } from "@/lib/ui/uiStateClient";
@@ -222,16 +220,10 @@ interface DashboardViewProps {
   selectedTypes: string[];
   selectedUserIds: string[];
   /**
-   * Filter scoping: "global" shares one filter set across every view;
-   * "per-view" gives each view its own remembered Calendars/Users/Event Types
-   * selection (the `viewFilters` map). A non-navigating preference — the
-   * server reads it from the raw cookie even on `_fresh` renders.
-   */
-  filterMode: DashboardFilterMode;
-  /**
    * Server-resolved filter set for every dashboard view (URL wins for the
-   * current view; the others come from their per-view memory or the shared
-   * set/role default). The current view's entry equals the `selected*` props.
+   * current view; the others come from their per-view memory or the role
+   * default — filters are scoped per view only). The current view's entry
+   * equals the `selected*` props.
    */
   viewFilters: Record<ViewMode, DashboardFilterSet>;
   currentUser: string;
@@ -706,7 +698,6 @@ export function DashboardView({
   selectedCalendarIds,
   selectedTypes,
   selectedUserIds,
-  filterMode,
   viewFilters,
   currentUser,
   isAdmin,
@@ -886,20 +877,6 @@ export function DashboardView({
     setPrevPinnedViews(pinnedViews);
     setPinned(pinnedViews);
   }
-
-  // Filter scoping (per-view vs synced) is a non-navigating preference: the
-  // toggle updates local state and persists to the cookie; the prop follows on
-  // the next server render (view switch, filter apply). Local state leads the
-  // prop by one toggle for the modal control and view-switch filter writes,
-  // exactly like `pinned` above.
-  const [filterModeState, setFilterModeState] = useState<DashboardFilterMode>(filterMode);
-  const [prevFilterModeProp, setPrevFilterModeProp] = useState(filterMode);
-  if (prevFilterModeProp !== filterMode) {
-    setPrevFilterModeProp(filterMode);
-    setFilterModeState(filterMode);
-  }
-
-  const perViewMode = filterModeState === "per-view";
 
   // Optimistic date-nav chrome (`shown*`): leads the server-resolved props so
   // tab taps, chevrons and Today answer instantly while the grid waits behind
@@ -1146,10 +1123,9 @@ export function DashboardView({
   // per-device cookie every time the rendered state changes, so a relaunch
   // (or F5) lands on exactly this view (see src/lib/ui/uiState.ts). The seed
   // carries the resolved set + which filter params the current URL pins; the
-  // hook builds the next cookie section from the CURRENT cookie, so per-view
-  // memory merges only the current view's entry (never materializing views
-  // the user didn't configure — see buildDashboardPersist). In global mode
-  // views/filterMode are omitted, which prunes a stale map while reverting.
+  // hook builds the next cookie section from the CURRENT cookie, so the
+  // per-view memory merges only the current view's entry (never materializing
+  // views the user didn't configure — see buildDashboardPersist).
   usePersistUiState("dashboard", {
     view,
     date,
@@ -1157,7 +1133,6 @@ export function DashboardView({
     selected: { cal: selectedCalendarIds, users: selectedUserIds, types: selectedTypes },
     pinnedViews: pinned,
     zoom,
-    filterMode: perViewMode ? "per-view" : "global",
     urlKeys: {
       cal: searchParams.has("cal"),
       users: searchParams.has("users"),
@@ -1569,10 +1544,11 @@ export function DashboardView({
     navigate({ date: next.format("YYYY-MM-DD"), month: next.format("YYYY-MM") });
   }
 
-  // In per-view mode the URL carries the *target* view's own filter set: the
-  // params are written explicitly (an empty selection as `?cal=`, never a
-  // removed key) so no `_fresh` fires and the next render resolves the target
-  // view's memory instead of the previous view's leftovers or the shared set.
+  // Filters are scoped per view only, so the URL always carries the *target*
+  // view's own filter set: the params are written explicitly (an empty
+  // selection as an empty value, never `null`) so the filter keys never count
+  // as removed and don't trigger `_fresh`; the next render resolves the target
+  // view's filters instead of the previous view's leftovers or the role default.
   function viewFilterParams(target: ViewMode): Record<string, string> {
     const set = viewFilters[target];
     return {
@@ -1593,9 +1569,9 @@ export function DashboardView({
             : next === "agenda"
               ? "agenda"
               : "month";
-    // Filters travel with the view switch only in per-view mode; in the synced
-    // default the shared set stays in the URL untouched.
-    const filterUpdates = perViewMode ? viewFilterParams(mode) : {};
+    // The URL takes the target view's own filter set (filters are scoped per
+    // view only), so the render describes exactly the view being shown.
+    const filterUpdates = viewFilterParams(mode);
     if (mode !== "month") {
       if (mode === "agenda") {
         // A fresh entry re-follows the URL (the render-phase sync above
@@ -2947,33 +2923,7 @@ export function DashboardView({
         values={filterValues}
         onApply={handleApplyFilters}
         collapsedGroupLabels={["Event Types"]}
-        hint={
-          perViewMode ? `These filters apply to ${DASHBOARD_VIEW_LABELS[view]} only.` : undefined
-        }
-        modeControl={
-          <Group justify="space-between" align="center" gap="xs" wrap="wrap" mt="xs">
-            <Text size="xs" c="dimmed" fw={600}>
-              Filter scope
-            </Text>
-            <SegmentedControl
-              size="xs"
-              value={perViewMode ? "per-view" : "global"}
-              onChange={(value) => {
-                const next = value === "per-view" ? ("per-view" as const) : ("global" as const);
-                setFilterModeState(next);
-                announce(
-                  next === "per-view"
-                    ? "Filters now separate per view"
-                    : "Filters now shared across views",
-                );
-              }}
-              data={[
-                { value: "global", label: "Same for all views" },
-                { value: "per-view", label: "Different per view" },
-              ]}
-            />
-          </Group>
-        }
+        hint={`These filters apply to ${DASHBOARD_VIEW_LABELS[view]} only.`}
       />
 
       {formState === null && (

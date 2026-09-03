@@ -19,18 +19,24 @@
  *     dashboard?: { view?, date?, month?, cal?: string[], users?: string[], types?: string[],
  *                    pinnedViews?: string[],  // pinned tabs, recency order (0 = leftmost)
  *                    zoom?: number },  // Day/Week (H) hour-slot zoom level (see slotZoom.ts)
- *                    filterMode?: "global" | "per-view",  // "global" (absent) = one filter set
- *                      shared by every view; "per-view" = each view remembers its own (see `views`)
- *                    views?: Record<viewKey, { cal?, users?, types? }>,  // only when per-view
+ *                    filterMode?: "per-view",  // legacy marker: filters are per-view only.
+ *                      "per-view" is always written so a pre-removal build reading this cookie
+ *                      keeps treating it as the per-view mode it supports
+ *                    views?: Record<viewKey, { cal?, users?, types? }>,  // each view's own memory
  *     parade?:    { cal?: string[], users?: string[] },  // filters only — the day is NOT
  *                    remembered: a bare /parade-state always opens on today
  *   }
  *
- * Per-view `views` holds ONLY views the user explicitly configured/cleared:
- * `buildDashboardPersist` merges the current view's entry into the previous
- * map instead of persisting the full resolved set for every view, so an
- * unconfigured view keeps absent keys and genuinely falls through to the
- * shared set — and a large roster cannot blow the cookie past the size guard.
+ * Filter scoping is **per-view only**: every calendar view owns its own
+ * Calendars/Users/Event Types selection. The old "global" mode — ONE shared
+ * filter set combined across every view — is removed, so `views` is the only
+ * filter memory and the top-level `cal/users/types` fields (a global-cookie
+ * legacy) are never consulted by the resolver. `views` holds ONLY views the
+ * user explicitly configured/cleared: `buildDashboardPersist` merges the
+ * current view's entry into the previous map instead of persisting the full
+ * resolved set for every view, so an unconfigured view keeps absent keys and
+ * genuinely falls through to the role default on every read — and a large
+ * roster cannot blow the cookie past the size guard.
  *
  * One-shot URL params (`edit`, `refresh`, `_fresh`) are never stored. The
  * `_fresh` marker — auto-added by the views' `navigate()` whenever a
@@ -53,16 +59,18 @@ export type DashboardFilterKey = (typeof DASHBOARD_FILTER_KEYS)[number];
 export type DashboardFilterSet = Record<DashboardFilterKey, string[]>;
 
 /**
- * Dashboard filter scoping: "global" (the default, absent in the cookie)
- * shares ONE filter set across every view; "per-view" gives each view its own
- * remembered Calendars/Users/Event Types selection (stored in `views`).
+ * Dashboard filter scoping is **per-view only** — each calendar view owns its
+ * own remembered Calendars/Users/Event Types selection (stored in `views`).
+ * The old "global" mode (one shared set combined across every view) is gone.
+ * `filterMode` survives in the cookie purely as a marker for pre-removal
+ * builds: this build always writes "per-view" and never reads the value to
+ * decide anything.
  */
-export type DashboardFilterMode = "global" | "per-view";
+export type DashboardFilterMode = "per-view";
 
-/** Remembered filter set for one dashboard view. Unlike the shared set, an
- *  EXPLICIT empty list is kept — it records "this view cleared that filter",
- *  which must not collapse back into the shared set. Absent keys fall back to
- *  the shared set / role default. */
+/** Remembered filter set for one dashboard view. An EXPLICIT empty list is
+ *  kept — it records "this view cleared that filter", distinct from an absent
+ *  key, which falls back to the role default. */
 export interface DashboardViewFilters {
   cal?: string[];
   users?: string[];
@@ -73,6 +81,9 @@ export interface DashboardUiState {
   view?: string;
   date?: string;
   month?: string;
+  /** Legacy shared filter set (only ever present in cookies written before
+   *  filter scoping became per-view only). Never consulted by the resolver;
+   *  pruned from the cookie on the next persist. */
   cal?: string[];
   users?: string[];
   types?: string[];
@@ -85,12 +96,13 @@ export interface DashboardUiState {
    *  both views. Not URL-backed like `pinnedViews`: zooming never navigates,
    *  so the server reads it from the raw cookie even on `_fresh` renders. */
   zoom?: number;
-  /** Filter scoping preference ("global" = absent). Not URL-backed like
-   *  `pinnedViews`/`zoom`: changing it never navigates, so the server reads it
-   *  from the raw cookie even on `_fresh` renders. */
+  /** Filter-scoping marker ("per-view" always, when present). Kept so a
+   *  pre-removal build that reads this cookie still treats it as per-view;
+   *  this build resolves per-view regardless. */
   filterMode?: DashboardFilterMode;
-  /** Per-view remembered filter sets, present only in per-view mode. A stale
-   *  map in a "global" cookie is dropped so it can't leak into the shared set. */
+  /** Per-view remembered filter sets. The only filter memory: never falls back
+   *  to the (removed) shared set, so a view the user never configured can
+   *  never inherit another view's selection. */
   views?: Partial<Record<DashboardViewValue, DashboardViewFilters>>;
 }
 
@@ -171,12 +183,6 @@ export const DASHBOARD_VIEW_LABELS: Record<DashboardViewValue, string> = {
   agenda: "Agenda",
 };
 
-/** Resolve the filter-scoping mode: only "per-view" is truthy, anything else
- *  (absent, corrupted, unknown) degrades to the "global" default. */
-export function resolveFilterMode(raw: unknown): DashboardFilterMode {
-  return raw === "per-view" ? "per-view" : "global";
-}
-
 export interface DashboardFiltersResolution {
   /** The view being rendered (URL/remembered). Its filters may also be pinned
    *  by the URL; the other views never are. */
@@ -187,8 +193,6 @@ export interface DashboardFiltersResolution {
   url: Partial<Record<DashboardFilterKey, string[]>>;
   /** Per-view remembered sets (`DashboardUiState.views`, already normalized). */
   views: Partial<Record<DashboardViewValue, DashboardViewFilters>>;
-  /** The shared remembered set (`DashboardUiState` cal/users/types). */
-  global: DashboardViewFilters;
   /** Role defaults (admin: all calendars; non-admin: own department; the
    *  Users/Event Types filters default to nothing). */
   defaults: DashboardFilterSet;
@@ -197,40 +201,29 @@ export interface DashboardFiltersResolution {
    *  filters) while the other views keep their per-view memories — clearing
    *  one view must never wipe the others. */
   fresh?: boolean;
-  /** True in per-view filter scoping: the shared set (`global`) is NOT a
-   *  fallback — every view resolves `views[view] → role default`, so a view
-   *  the user never configured shows role defaults and configuring one view
-   *  never leaks into another. The shared set is a global-mode concept (and
-   *  the flip-back target when reverting to "Same for all views"). */
-  perView?: boolean;
 }
 
 /**
- * Resolve the dashboard's filter state. One fallback order works for both
- * scoping modes because a "global" cookie carries no `views`:
+ * Resolve the dashboard's filter state. Filter scoping is per-view only — the
+ * shared/global mode is removed, so a view's remembered set (`views[view]`) is
+ * the ONLY memory and the fallback is always the role default:
  *
- *   global:      current view:  URL (if present) → `views[view]` → `global` → role default
- *                other views:   `views[view]`    → `global`     → role default
- *   per-view:    current view:  URL (if present) → `views[view]` → role default
- *                other views:   `views[view]`    → role default
+ *   current view:  URL (if present) → `views[view]` → role default
+ *   other views:                    → `views[view]` → role default
  *
- * In PER-VIEW mode (`perView`) the shared set is never a fallback: a view the
- * user never configured resolves to role defaults, so configuring one view
- * never leaks into another — the shared set is a global-mode concept. In
- * GLOBAL mode a per-view entry may explicitly hold an empty list (records "this
- * view cleared that filter") that wins over `global`; only an ABSENT key falls
- * through. On a `_fresh` render the current view skips `views`/`global` (its
- * filters were just removed) and resolves from the URL params or role defaults;
- * the other views are untouched.
+ * Because the shared set never exists as a fallback, configuring one view can
+ * never leak into another: a view the user never configured (absent keys)
+ * resolves to the role default, and an EXPLICIT empty list (records "this view
+ * cleared that filter") trivially resolves to empty. On a `_fresh` render the
+ * current view skips its memory (its filters were just removed) and resolves
+ * from the URL params or role defaults; the other views are untouched.
  */
 export function resolveDashboardFilters({
   view,
   url,
   views,
-  global,
   defaults,
   fresh = false,
-  perView = false,
 }: DashboardFiltersResolution): {
   selected: DashboardFilterSet;
   viewFilters: Record<DashboardViewValue, DashboardFilterSet>;
@@ -238,8 +231,7 @@ export function resolveDashboardFilters({
   const resolveKey = (target: DashboardViewValue, key: DashboardFilterKey): string[] => {
     if (target === view && url[key] !== undefined) return url[key];
     if (target === view && fresh) return defaults[key];
-    if (perView) return views[target]?.[key] ?? defaults[key];
-    return views[target]?.[key] ?? global[key] ?? defaults[key];
+    return views[target]?.[key] ?? defaults[key];
   };
   const viewFilters = Object.fromEntries(
     DASHBOARD_VIEW_VALUES.map((target) => [
@@ -256,21 +248,20 @@ export function resolveDashboardFilters({
 
 /**
  * What a dashboard render needs to compute the next remembered-state section:
- * the server-resolved view/filters plus — for per-view mode — which filter
- * params the current URL explicitly pins. Only those pinned keys (or keys a
- * view already remembers) are written back into `views`, so a view the user
- * never configured keeps *absent* keys and genuinely falls through to the
- * shared set instead of being materialized with a transient resolution.
+ * the server-resolved view/filters plus which filter params the current URL
+ * explicitly pins. Only those pinned keys (or keys a view already remembers)
+ * are written back into `views`, so a view the user never configured keeps
+ * *absent* keys and genuinely falls through to the role default instead of
+ * being materialized with a transient resolution.
  */
 export interface DashboardPersistSeed {
   view: DashboardViewValue;
   date?: string;
   month?: string;
-  /** The current view's server-resolved filters; also becomes the shared set. */
+  /** The current view's server-resolved filters. */
   selected: DashboardFilterSet;
   pinnedViews: readonly string[];
   zoom: number | null;
-  filterMode: DashboardFilterMode;
   /** Presence (not value) of each filter param in the current URL: an explicit
    *  apply/view-switch writes the key, an absent key on a never-set view does
    *  not. */
@@ -284,9 +275,8 @@ export interface DashboardPersistSeed {
  *   resolved value is remembered verbatim, including an explicit clear;
  * - the view already remembered the key — the value is refreshed (keeps a
  *   previous explicit selection / clear marker alive);
- * - otherwise the key stays ABSENT, so the view falls through to the shared
- *   set / role default on every read and is never stamped by a fall-through
- *   resolution.
+ * - otherwise the key stays ABSENT, so the view falls through to the role
+ *   default on every read and is never stamped by a fall-through resolution.
  */
 function perViewEntry(
   prev: DashboardUiState | undefined,
@@ -304,13 +294,15 @@ function perViewEntry(
 }
 
 /**
- * Build the next remembered dashboard section for a render. The shared
- * `cal/users/types` set becomes the current view's resolved set (unchanged
- * semantics: flipping back to "Same for all views" collapses every view onto
- * the current view's set). In per-view mode the `views` map is the previous
- * map MERGED with only the current view's entry — never the full resolved map
- * — so unconfigured views stay absent and a 15+ calendar org no longer blows
- * the cookie past the size guard.
+ * Build the next remembered dashboard section for a render. Filter memory is
+ * per-view only: the `views` map is the previous map MERGED with only the
+ * current view's entry — never the full resolved map — so unconfigured views
+ * keep absent keys (resolving to role defaults) and a 15+ calendar org no
+ * longer blows the cookie past the size guard. The legacy top-level
+ * `cal/users/types` (the removed "shared set") and any stale `filterMode` are
+ * omitted, which the section-wholesale merge below prunes from the cookie.
+ * `filterMode: "per-view"` is always written so a pre-removal build reading
+ * this cookie keeps treating it as the per-view mode it supports.
  */
 export function buildDashboardPersist(
   prev: DashboardUiState | undefined,
@@ -318,34 +310,26 @@ export function buildDashboardPersist(
 ): DashboardUiState {
   const section: DashboardUiState = {
     view: seed.view,
-    cal: seed.selected.cal,
-    users: seed.selected.users,
-    types: seed.selected.types,
+    filterMode: "per-view",
   };
   if (seed.date !== undefined) section.date = seed.date;
   if (seed.month !== undefined) section.month = seed.month;
   if (seed.pinnedViews.length > 0) section.pinnedViews = [...seed.pinnedViews];
   if (seed.zoom !== null && Number.isFinite(seed.zoom)) section.zoom = seed.zoom;
-  if (seed.filterMode === "per-view") {
-    section.filterMode = "per-view";
-    const entry = perViewEntry(prev, seed);
-    const views: Partial<Record<DashboardViewValue, DashboardViewFilters>> = {
-      ...(prev?.views ?? {}),
-    };
-    if (entry !== null) {
-      views[seed.view] = entry;
-    } else {
-      delete views[seed.view];
-    }
-    // Prune any accidentally-empty stubs before deciding the map exists.
-    for (const [view, set] of Object.entries(views)) {
-      if (!set || Object.keys(set).length === 0) delete views[view as DashboardViewValue];
-    }
-    if (Object.keys(views).length > 0) section.views = views;
+  const entry = perViewEntry(prev, seed);
+  const views: Partial<Record<DashboardViewValue, DashboardViewFilters>> = {
+    ...(prev?.views ?? {}),
+  };
+  if (entry !== null) {
+    views[seed.view] = entry;
   } else {
-    // Global mode omits views/filterMode; the section-wholesale replace below
-    // prunes a stale materialized map while reverting.
+    delete views[seed.view];
   }
+  // Prune any accidentally-empty stubs before deciding the map exists.
+  for (const [view, set] of Object.entries(views)) {
+    if (!set || Object.keys(set).length === 0) delete views[view as DashboardViewValue];
+  }
+  if (Object.keys(views).length > 0) section.views = views;
   return section;
 }
 
@@ -367,10 +351,10 @@ function idListOf(value: unknown): string[] | undefined {
 }
 
 // Per-view list normalizer: like `idListOf` (strings only, blank entries
-// dropped) but an EMPTY array is kept. In per-view mode an explicit empty list
-// is a meaningful state — "this view cleared that filter" — so it must survive
-// normalization instead of collapsing back into the shared set. Non-arrays are
-// undefined (the key falls back to the shared set / role default).
+// dropped) but an EMPTY array is kept. An explicit empty list is a meaningful
+// per-view state — "this view cleared that filter" — so it must survive
+// normalization instead of collapsing into an absent key. Non-arrays are
+// undefined (the key falls back to the role default).
 function perViewListOf(value: unknown): string[] | undefined {
   if (!Array.isArray(value)) return undefined;
   return value.filter((id): id is string => typeof id === "string" && id.length > 0);
@@ -402,18 +386,17 @@ export function normalizeUiState(value: unknown): UiState | null {
     const types = idListOf(dashboard.types);
     const pinnedViews = normalizePinnedViews(dashboard.pinnedViews);
     const zoom = clampZoom(dashboard.zoom);
-    // Filter scoping: only the two known strings survive; anything else (incl.
-    // an explicit "global") is dropped (absent = global), keeping old cookies
-    // small and "no remembered preference" canonical.
-    const filterMode = resolveFilterMode(dashboard.filterMode);
-    // Per-view filter sets are only meaningful while per-view mode is on; a
-    // stale map in a "global" cookie is dropped so it can't leak into the
-    // shared set. Unknown view keys are dropped, as is a view whose sub-lists
-    // are all non-arrays. An explicit EMPTY sub-list is kept — it records that
-    // the view cleared that filter, distinct from "never set" (which falls
-    // back to the shared set).
+    // Filter scoping is per-view only: the "per-view" marker survives for
+    // pre-removal builds that read this cookie; anything else (incl. a stale
+    // "global") is dropped. The `views` map is ALWAYS kept — the shared set it
+    // once could have leaked into is gone, so there is nothing to guard.
+    const filterMode = dashboard.filterMode === "per-view" ? ("per-view" as const) : undefined;
+    // Unknown view keys are dropped, as is a view whose sub-lists are all
+    // non-arrays. An explicit EMPTY sub-list is kept — it records that the
+    // view cleared that filter, distinct from "never set" (which falls back to
+    // the role default).
     let views: Partial<Record<DashboardViewValue, DashboardViewFilters>> | undefined;
-    if (filterMode === "per-view" && isPlainObject(dashboard.views)) {
+    if (isPlainObject(dashboard.views)) {
       const map: Partial<Record<DashboardViewValue, DashboardViewFilters>> = {};
       for (const view of DASHBOARD_VIEW_VALUES) {
         const raw = dashboard.views[view];
@@ -549,10 +532,11 @@ export function decodeUiState(raw: string | null | undefined): UiState | null {
 // materialized cal=ALL×5 blob is gone), a healthy cookie stays small; this
 // reducer is the last-resort safety net for pathological explicit selections.
 // Each call drops the SINGLE least-intentful, largest present list: parade
-// filters first, then the shared set, then per-view cal lists (re-derivable
-// from the role default), then per-view types, keeping per-view USER selections
-// — the most intentful data — until last. Empty stubs and containers are
-// pruned as a side effect so the next pass starts clean.
+// filters first, then the legacy top-level shared lists (no longer written —
+// only old global-mode cookies carry them), then per-view cal lists
+// (re-derivable from the role default), then per-view types, keeping per-view
+// USER selections — the most intentful data — until last. Empty stubs and
+// containers are pruned as a side effect so the next pass starts clean.
 
 interface DropCandidate {
   tier: number;

@@ -30,7 +30,6 @@ import {
   normalizePinnedViews,
   resolveDashboardFilters,
   resolveDashboardView,
-  resolveFilterMode,
   type DashboardViewFilters,
   type DashboardViewValue,
 } from "@/lib/ui/uiState";
@@ -155,21 +154,18 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
   }));
   const allUserIds = allUsers.map((user) => user.id);
 
-  // Dashboard filter state. One fallback order serves both scoping modes
-  // (src/lib/ui/uiState.ts `resolveDashboardFilters`): the URL (current view
-  // only) → that view's per-view memory → the shared remembered set → the role
-  // default. `filterMode` is a non-navigating preference like `pinnedViews`, so
-  // it — and the other views' per-view memories, which a Clear must never wipe
-  // — is read from the RAW cookie even on `_fresh` renders; the `fresh` flag
-  // there makes only the current view resolve from the URL/role defaults.
-  const filterMode = resolveFilterMode(cookieState?.dashboard?.filterMode);
+  // Dashboard filter state — scoped per view only (the "same for all views" /
+  // shared-set mode is removed). Fallback order: the URL (current view only) →
+  // that view's per-view memory → the role default. A view the user never
+  // configured keeps absent keys and resolves to the role default, so one
+  // view's filters can never leak into another's.
   const rememberedDashboard = cookieState?.dashboard;
   // Stale remembered ids are validated against live data here (exactly like
   // URL params), THEN dropped. An explicit EMPTY array survives as an empty
-  // set — in per-view mode it records "this view cleared that filter" and must
-  // keep resolving to nothing, not to the shared set. An all-stale list
-  // instead degrades to "nothing remembered" (undefined) and falls through to
-  // the role default, matching the pre-existing behavior for a cleared cookie.
+  // set — it records "this view cleared that filter" and must keep resolving
+  // to nothing, not to the role default. An all-stale list instead degrades to
+  // "nothing remembered" (undefined) and falls through to the role default,
+  // matching the pre-existing behavior for a cleared cookie.
   const validCal = (ids: string[] | undefined): string[] | undefined => {
     if (ids === undefined) return undefined;
     const list = ids.filter((id) => calendarIds.includes(id));
@@ -211,14 +207,8 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
           : typesParam.filter((name) => typeNames.includes(name)),
     },
     views: validViews,
-    global: {
-      cal: validCal(rememberedDashboard?.cal),
-      users: validUsers(rememberedDashboard?.users),
-      types: validTypes(rememberedDashboard?.types),
-    },
     defaults: { cal: defaultCalendars, users: [], types: [] },
     fresh: freshRender,
-    perView: filterMode === "per-view",
   });
   const selectedCalendars = selected.cal;
   const selectedTypes = selected.types;
@@ -412,7 +402,6 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
       selectedCalendarIds={selectedCalendars}
       selectedTypes={selectedTypes}
       selectedUserIds={selectedUsers}
-      filterMode={filterMode}
       viewFilters={viewFilters}
       currentUser={session.user.id}
       isAdmin={isAdmin}

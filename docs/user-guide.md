@@ -52,8 +52,8 @@ left sidebar (which can collapse to an icon rail). The header carries the
 
 ### 1.3.1 Views
 
-Five views share the same data and filters; switch them with the tabs above the
-grid:
+Five views show the same calendar data; each view keeps its own filters. Switch
+them with the tabs above the grid:
 
 | View | Shows |
 | ---- | ----- |
@@ -77,10 +77,11 @@ grid:
   the filter dialog: Calendars/departments and Users (searchable badge list grouped
   by department) up front, Event Types behind a **Show** toggle, and a **Myself**
   one-tap (your own events). **Reset** clears them (back to your role default).
-- **Same for all views** is the default — one filter set for Month/Week/Day/Agenda.
-  Turn on **Different per view** so each view remembers its own filters; the dialog
-  notes *"These filters apply to {view} only"*. Clearing one view never resets the
-  others, and "Same for all views" folds them back onto the current view's filters.
+- **Filters are per view** — each of Month / Week (H) / Week (D) / Day / Agenda
+  remembers its own Calendars/Users/Event Types selection, and the dialog notes
+  *"These filters apply to {view} only"*. Setting a filter on one view never
+  affects the others; clearing one view's filters never resets the rest.
+  An untouched view shows your role default (admin: all departments).
 - **Force refresh** (⋮ menu) bypasses the server cache and pulls the latest from
   Google Calendar. The muted *Saved · HH:MM* label shows when you're looking at a
   cached copy.
