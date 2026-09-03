@@ -197,8 +197,9 @@ index (a separate concern from this native-search feature; see
   date headers never light more than the one row clicked; nothing shifts) — and
   navigates `/dashboard?date=<start day>`
   (`+ &event=<group id>` for internal events) inside a `useTransition`. The
-  search covers every calendar, but the dashboard resolves its own filters
-  (the cookie is skipped on `?event=` deep links), so the link also carries
+  deep link opens the event on the user's **remembered view + filters** (`?event=`
+  deep links read the remembered-state cookie like any other render — only `_fresh`
+  skips it), and the search covers every calendar, so the link also carries
   `&_eventCal=<calendar id>` — `page.tsx` adds that one calendar to the fetch
   set only (never to the filter selection/remembered state), guaranteeing the
   event is found regardless of the current view's filters. The

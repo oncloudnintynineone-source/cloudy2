@@ -71,17 +71,17 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
   // Per-device remembered UI state: where the URL is silent, the last rendered
   // view/filters apply, so a cold open (or F5) lands where the user left off —
   // resolved here, before first paint, with no client redirect. URL params
-  // always win; the cookie is skipped entirely for the one-shot `_fresh`
-  // marker (a render that just removed remembered keys — Clear, tab switch)
-  // and for `edit`/`event` deep links (an explicit intent to see one event).
+  // always win; the cookie is skipped entirely only for the one-shot `_fresh`
+  // marker (a render that just removed remembered keys — Clear, tab switch).
+  // `edit`/`event` deep links read the remembered state too (see below), so an
+  // event search result or a Google Calendar "Edit:" note opens on the user's
+  // own view + filters — the link's `date` pins the fetched period and
+  // `_eventCal` adds the event's calendar regardless of the filter selection.
   const freshRender = typeof params._fresh === "string";
   const cookieState = decodeUiState((await cookies()).get(UI_STATE_COOKIE)?.value);
-  const uiState =
-    freshRender || initialEditEventId !== null || initialDetailEventId !== null
-      ? null
-      : cookieState;
+  const uiState = freshRender ? null : cookieState;
   const ui = uiState?.dashboard;
-  // Pinned tabs are not URL-backed, so the `_fresh`/`edit` cookie skip above
+  // Pinned tabs are not URL-backed, so the `_fresh` cookie skip above
   // must not drop them — every tab switch is a `_fresh` render, and skipping
   // the cookie there would wipe the pin list on the very next switch.
   const pinnedViews = normalizePinnedViews(cookieState?.dashboard?.pinnedViews);
@@ -226,10 +226,10 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
 
   // `?event=` deep links (Google Calendar "Edit:" notes, Pinned Events, event
   // search): `_eventCal` carries the target event's calendar, which the
-  // resolved filters may exclude (the links can target any calendar, but the
-  // cookie is skipped on `?event=` deep links). Add it to the read only — the
-  // filter selection (`selectedCalendars`, which drives the filter UI and the
-  // remembered state) stays untouched.
+  // resolved filters may exclude (the links can target any calendar, whatever
+  // the user's remembered view/filter selection). Add it to the read only —
+  // the filter selection (`selectedCalendars`, which drives the filter UI and
+  // the remembered state) stays untouched.
   const eventCalParam =
     typeof params._eventCal === "string" && calendarIds.includes(params._eventCal)
       ? params._eventCal

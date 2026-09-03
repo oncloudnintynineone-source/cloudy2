@@ -229,8 +229,12 @@ filtered against live calendar/user/type data).
 
 **Dashboard** (`src/app/(protected)/dashboard/page.tsx`):
 
-- **Whole-cookie skips** (`page.tsx:77-80`): a `_fresh` render or an `?event=` /
-  `?edit=` deep link (explicit intent) ignores the cookie entirely — `uiState = null`.
+- **Whole-cookie skip** (`page.tsx:77-82`): only the one-shot `_fresh` render — a
+  render that just removed remembered keys — ignores the cookie (`uiState = null`).
+  An `?event=` / `?edit=` deep link (Google Calendar "Edit:" note, Pinned Events,
+  event search) reads the remembered state like any other render, so it opens the
+  event on the user's own view + filters: the link's `date` pins the fetched period
+  (URL always wins) and `_eventCal` adds the event's calendar to the fetch set only.
 - `zoom` (Day/Week (H) hour-slot width): not URL-backed like `pinnedViews`, so it
   is read from the **raw** `cookieState` (not the skipped `uiState`), snapped via
   `clampZoom` (`slotZoom.ts`), defaulting to `1`. It seeds the client zoom state
@@ -518,7 +522,7 @@ I/O-bound (not unit-tested): `uiStateClient.ts` (`document.cookie`), the
 | `src/lib/ui/uiStateClient.ts` | Client writer: `writeUiState`, `clearUiState`, `usePersistUiState`, `useRememberedPage` |
 | `src/lib/ui/uiState.test.ts` | Unit tests for all pure helpers |
 | `src/app/page.tsx` | Cold-start launch redirect (`resolveLaunchTarget`) |
-| `src/app/(protected)/dashboard/page.tsx` | Dashboard per-key fallback + `_fresh`/`edit` skips + pin read |
+| `src/app/(protected)/dashboard/page.tsx` | Dashboard per-key fallback + `_fresh` skip + pin read + `?event=`/`?edit=` deep-link resolution |
 | `src/app/(protected)/parade-state/page.tsx` | Parade-state per-key fallback + `_fresh` skip |
 | `src/app/(protected)/dashboard/DashboardView.tsx` | Persist hook, `navigate` + `_fresh` inject/strip, pin toggle + sync, one-shot strips |
 | `src/app/(protected)/parade-state/ParadeStateView.tsx` | Parade persist hook + `_fresh` inject/strip |

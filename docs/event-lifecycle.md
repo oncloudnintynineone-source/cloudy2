@@ -210,10 +210,10 @@ directly.
 
 - **Server** (`src/app/(protected)/dashboard/page.tsx:61-68`): `initialDetailEventId`
   / `initialEditEventId` are accepted only when `?event=` / `?edit=` is a valid UUID;
-  the `date` in the same link pins the fetched month so the event is in view. For an
-  `event`/`edit` render (like `_fresh`) the remembered-UI-state cookie is **skipped
-  entirely** — the link is explicit intent (`page.tsx:77-80`; see
-  [`ui-state.md`](ui-state.md)).
+  the `date` in the same link pins the fetched month so the event is in view. An
+  `event`/`edit` render reads the remembered-UI-state cookie like any other render —
+  only the one-shot `_fresh` marker skips it — so the event opens on the arriving
+  user's own view + filters (`page.tsx:77-82`; see [`ui-state.md`](ui-state.md)).
 - **Client** (`DashboardView.tsx`): the event is resolved **synchronously at mount**
   by matching the notes group id in the already-fetched month events
   (`DashboardView.tsx:782-786`) and the details modal / edit form opens on first paint

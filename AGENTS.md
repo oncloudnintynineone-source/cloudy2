@@ -134,8 +134,12 @@ mechanics in the doc.
   best-effort, it can never fail or delay the mutation.
   Design: [docs/kah.md](docs/kah.md).
 - **Remembered UI state** survives relaunch in one cookie, `cloudy2.ui`: the server
-  applies it per-key as fallback only where the URL param is absent (URL always wins;
-  `?event=`/`?edit=` deep links skip it); navigations removing remembered keys inject
+  applies it per-key as fallback only where the URL param is absent (URL always wins);
+  the one-shot `_fresh` render is the only whole-cookie skip — `?event=`/`?edit=` deep
+  links read the remembered state too, so an event search result or a Google "Edit:"
+  note opens on the user's own view + filters (the link's `date` pins the fetched
+  period, `_eventCal` adds the event's calendar to the fetch set regardless of the
+  filter selection); navigations removing remembered keys inject
   one-shot `?_fresh=1`; `clearUiState()` runs on sign-out.
   Design: [docs/ui-state.md](docs/ui-state.md).
 - **PWA offline & instant open** (Serwist, `src/app/sw.ts`): build-versioned SWR

@@ -181,10 +181,11 @@ export default function EventSearchModal({ opened, onClose, originRect }: EventS
     const params = new URLSearchParams({ date: calendarEvent.start.slice(0, 10) });
     if (calendarEvent.payload.eventId) {
       params.set("event", calendarEvent.payload.eventId);
-      // The search covers every calendar, but the dashboard resolves its own
-      // filters (cookie is skipped on `?event=` deep links). Pass the event's
-      // calendar so page.tsx can include it regardless of the current view's
-      // filter set — otherwise the event can't be found and won't open.
+      // The search covers every calendar, but the dashboard resolves the
+      // remembered view/filters and the event may live on a calendar the
+      // current selection excludes. Pass the event's calendar so page.tsx can
+      // include it in the fetch regardless of the filter set — otherwise the
+      // event can't be found and won't open.
       params.set("_eventCal", calendarEvent.payload.calendarId);
     }
     startTransition(() => {
