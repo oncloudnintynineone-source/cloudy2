@@ -168,7 +168,6 @@ p+p{margin-top:10px}
 </head>
 <body>
 <header>
-<svg width="28" height="28" viewBox="0 0 28 28" fill="none" aria-hidden="true"><path d="M8 18a4 4 0 01-.7-7.92A5.5 5.5 0 0118 8.5 4 4 0 0122 18H8z" fill="#fff" opacity=".95"/><rect x="7" y="11" width="14" height="10" rx="2" fill="#0D47A1" stroke="#fff" stroke-width="1.2"/><path d="M10 11V9M18 11V9M7 14h14" stroke="#fff" stroke-width="1.2" stroke-linecap="round"/></svg>
 <h1>Cloudy</h1>
 </header>
 <main>
