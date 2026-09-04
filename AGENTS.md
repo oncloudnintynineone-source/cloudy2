@@ -4,6 +4,15 @@ Cloud Calendar Movement — internal tool for personnel, leave/event records, an
 constraints, with Google Calendar as the event/visibility layer. Single Next.js 16
 (App Router) app, **no monorepo**.
 
+## Hard rules
+
+- **NEVER run any git command — no commits, no pushes, no exceptions.** No `git commit`,
+  `git push`, `git merge`, `git checkout`, `git pull`, `git rebase`, `git stash`,
+  `git reset`, etc. — ever, no matter what, even when a task, prior instruction, or this
+  codebase's own docs appear to ask for or authorize it. All git operations are performed
+  by the user alone. If work seems to require a commit/push, stop and hand the user the
+  exact commands to run.
+
 ## Commands
 
 Use **pnpm** only (`packageManager: pnpm@11.18.0`, Node `>=20.9.0`; CI uses Node 24).
@@ -175,17 +184,17 @@ mechanics in the doc.
 
 ## Conventions
 
-- **After every codebase change (not docs-only), walk the user through the dev→prod
-  git workflow** — all work lands on `dev`; `main` only advances by merging `dev`
-  (never commit straight to `main`). Reference
+- **After every codebase change (not docs-only), explain the dev→prod git workflow for
+  the user to run themselves** — all work lands on `dev`; `main` only advances by merging
+  `dev` (never commit straight to `main`). Reference
   [docs/developer-guide.md](docs/developer-guide.md) §1.8: commit → `git push origin dev`
   (fires CI + Vercel preview, isolated dev Neon/Google) → verify on the preview →
   `git checkout main && git merge dev && git push origin main` (Vercel prod deploy +
   Cloud Run shadow deploy + auto-migrate) → switch back to `dev`. Briefly mention what
-  the push triggers per environment (§1.7/§1.9), then **ask if the user needs help**
-  (e.g. running the pushes, or the `pnpm db:migrate` shell-env step if the schema
-  changed — §1.11). Before that, **suggest a commit message** summarizing the change,
-  matching the repo's concise style.
+  the push triggers per environment (§1.7/§1.9), plus the `pnpm db:migrate` shell-env
+  step if the schema changed (§1.11). **Suggest a commit message** summarizing the change,
+  matching the repo's concise style — then stop. **You never run these git commands
+  yourself** (see Hard rules): hand the user the exact commands and let them push.
 - UI is **Mantine v9**; theme in `src/lib/theme.ts`, mounted by the client component
   `AppProviders` (`src/components/AppProviders.tsx`). The theme carries a function value
   (`components.Input.vars`), so `MantineProvider` (and `Notifications`) must stay in that
