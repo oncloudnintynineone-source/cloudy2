@@ -107,7 +107,7 @@ jobs:
       - name: Set up gcloud
         uses: google-github-actions/setup-gcloud@v2
         with:
-          project_id: ${{ secrets.GCP_PROJECT_ID }}
+          project_id: ${{ vars.GCP_PROJECT_ID }}
 
       # Service-account key auth: username _json_key + the key JSON as password.
       # The oauth2accesstoken/access_token pairing only works under Workload
@@ -125,7 +125,7 @@ jobs:
           context: .
           push: true
           tags: >-
-            ${{ env.CLOUD_RUN_REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/cloudy2/cloudy2:${{ github.sha }}
+            ${{ env.CLOUD_RUN_REGION }}-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/cloudy2/cloudy2:${{ github.sha }}
 
       - name: Deploy to Cloud Run
         id: deploy
@@ -133,7 +133,7 @@ jobs:
         with:
           service: ${{ env.CLOUD_RUN_SERVICE }}
           image: >-
-            ${{ env.CLOUD_RUN_REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/cloudy2/cloudy2:${{ github.sha }}
+            ${{ env.CLOUD_RUN_REGION }}-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/cloudy2/cloudy2:${{ github.sha }}
           region: ${{ env.CLOUD_RUN_REGION }}
           allow-unauthenticated: true
           # Request-based billing (CPU throttled, scale-to-zero): 1 vCPU, 1 GiB,
