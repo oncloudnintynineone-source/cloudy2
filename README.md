@@ -46,9 +46,9 @@ Vercel hosting (`main` → production, `dev` → preview) · Google service acco
 
 ```bash
 pnpm install
-cp .env.example .env.local   # fill in DATABASE_URL, NEXTAUTH_SECRET, ADMIN_INITIAL_PASSWORD
+cp .env.example .env.local   # fill in DATABASE_URL, NEXTAUTH_SECRET, ADMIN_INITIAL_PASSWORD, ADMIN_PIN
 pnpm db:migrate              # needs DATABASE_URL in the shell — see the developer guide §1.11
-pnpm dev                     # sign in with the admin password
+pnpm dev                     # sign in: Admin surface → phone + shared admin PIN (or phone-less emergency password)
 ```
 
 Full setup, environment, CI, deployment, and migration workflows:

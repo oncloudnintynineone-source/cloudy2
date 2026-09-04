@@ -1,7 +1,7 @@
 # 1. Admin guide
 
 Everything an administrator does in Cloudy: signing in as admin, acting on behalf of
-other users, and the ten Settings tabs. Everyday usage is covered in
+other users, and the eleven Settings tabs. Everyday usage is covered in
 [`user-guide.md`](user-guide.md); implementation detail lives in the linked
 deep-dive docs.
 
@@ -17,19 +17,28 @@ deep-dive docs.
 - [1.8 KAH Groups](#18-kah-groups)
 - [1.9 Banner](#19-banner)
 - [1.10 General](#110-general)
-- [1.11 Audit Log](#111-audit-log)
+- [1.11 Security](#111-security)
+- [1.12 Audit Log](#112-audit-log)
 
 ## 1.1 Admin sign-in & acting on behalf
 
-- Sign in with the **admin password** (single input, same field everyone uses).
-  The initial password comes from `ADMIN_INITIAL_PASSWORD`, seeded on first login.
+- Sign in on the **Admin** surface (`/login?mode=admin`, or the Admin/Staff toggle
+  on the login page). Two kinds of admin account:
+  - **Named admins** (users with the **Admin** role) sign in with their **phone
+    number + the shared admin PIN** — one PIN for every admin, configured only via
+    the `ADMIN_PIN` env var (no in-app way to set or change it).
+  - The **emergency admin** leaves the phone blank and enters the bootstrap
+    password (`ADMIN_INITIAL_PASSWORD` env). Used to set up the first admin users
+    and as a break-glass account.
+  Regular users keep signing in as `[phone][keyword]` on the **Staff** surface; the
+  staff keyword can never yield an admin session.
 - Admins can see and edit **every** event in every department — including
   **External** events created directly in Google Calendar.
 - In the event wizard, admins get an extra **Creator** step ("On behalf of") to
   create an event as another user; that user becomes the event's owner.
-- Settings is admin-only: ten tabs under `/settings`
+- Settings is admin-only: eleven tabs under `/settings`
   (Users, Departments, Event Types, Templates, Webhooks, Quick Links, KAH Groups,
-  Banner, General, Audit Log). Every settings mutation is audit-logged.
+  Banner, General, Security, Audit Log). Every settings mutation is audit-logged.
 
 ## 1.2 Users
 
@@ -187,12 +196,20 @@ Design: [`announcement-banner.md`](announcement-banner.md).
 
 Settings → General:
 
-- **User Login Keyword** — the suffix regular users append to their phone number
-  (`91234567leave`). 1–12 letters; changing it changes every user's login string
-  immediately.
 - **Audit Log Retention** — days, default 90, clamped 7–365.
 
-## 1.11 Audit Log
+## 1.11 Security
+
+Settings → Security — account & sign-in credentials:
+
+- **User Login Keyword** — the suffix regular users append to their phone number
+  (`91234567leave`). 1–12 letters; changing it changes every user's login string
+  immediately. Staff sign-in only — admins use the admin surface (§1.1).
+- The **admin PIN** and the **emergency admin password** are not editable here:
+  both are configured exclusively through their environment variables
+  (`ADMIN_PIN` / `ADMIN_INITIAL_PASSWORD`).
+
+## 1.12 Audit Log
 
 Settings → Audit Log — the full trail of every mutation (events, users,
 departments, settings, webhooks, quick links, banner, KAH).

@@ -63,16 +63,26 @@ mechanics in the doc.
   migration together whenever you change the schema; CI's drift check runs
   `pnpm db:generate` then fails on any diff to `drizzle/`.
 - The single `settings` row is enforced by a `settings_singleton` check constraint;
-  `ensureSettingsRow()` (`src/lib/bootstrap.ts`) lazily seeds it on first auth, hashing
-  `ADMIN_INITIAL_PASSWORD` (env) when no admin password exists yet.
+  `ensureSettingsRow()` (`src/lib/bootstrap.ts`) lazily seeds it on first auth. The two
+  admin secrets (`settings.admin_password_hash` ← `ADMIN_INITIAL_PASSWORD`, and
+  `settings.admin_pin_hash` ← `ADMIN_PIN`) are seeded on first run and **reconciled from
+  their env var on every login** (`syncAdminSecretsFromEnv`) — the env is authoritative,
+  there is no in-app path to set or change either secret.
 - Auth is **NextAuth v4** (Credentials provider, JWT sessions), not v5. Config in
   `src/lib/auth.ts`; `id`/`role`/`phone` carried via session callbacks, declared in
   `src/types/next-auth.d.ts`.
 - Role/session guards in `src/lib/session.ts`: `requireSession()`, `requireAdmin()`,
   `getSession()`. Use them in Server Components/route handlers.
-- Login is a **single input** auto-detected as admin password or `[phone][keyword]`.
-  Parsing lives in `src/lib/login.ts` as pure, I/O-free functions. Keep it pure — it's
-  unit-tested without a DB.
+- **Login has two explicit surfaces** (staff/admin toggle, deep-link `?mode=admin` in
+  `src/components/LoginForm.tsx`), submitting to one Credentials provider with a `mode`
+  discriminator:
+  - **Staff** (`role='user'` only): a single `[phone][keyword]` input — parsing lives in
+    `src/lib/login.ts` as pure, I/O-free functions. Keep it pure — it's unit-tested
+    without a DB. Admin-role users are **rejected** here (they use the admin surface), so
+    the org-wide keyword can never yield an admin session.
+  - **Admin**: named admins sign in with `phone` + the **shared admin PIN**
+    (`settings.admin_pin_hash`); the phone-less **break-glass root** leaves the phone
+    blank and enters `ADMIN_INITIAL_PASSWORD` (`settings.admin_password_hash`).
 - Google access goes through `getGoogleIntegration()` (`src/lib/google/index.ts`) —
   never call Google APIs directly; Gmail methods still throw. It loads `./real`
   via a **dynamic `import()`** — keep it that way: a static import drags the
@@ -238,7 +248,8 @@ mechanics in the doc.
   `/parade-state`, Contacts `/contacts`, Settings `/settings` (regular users get the
   first three). `SettingsTabs` stacks directly above it.
 - **Admin settings live under `/settings`** (admin-only): Users, Departments, Event
-  Types, Templates, Webhooks, Quick Links, Banner, KAH Groups, General, Audit Log tabs.
+  Types, Templates, Webhooks, Quick Links, Banner, KAH Groups, General, Security,
+  Audit Log tabs.
   Event-type policy (shortname, display groups — managed in the Event Types tab's
   "Manage groups" dialog and rendered as wizard type-step sections —,
   allowed-locations matrix, `show_remarks`/`show_invitees`):
@@ -254,8 +265,9 @@ mechanics in the doc.
   marker; events lacking the marker **and** the block are **external**.
   `parseEventNotes` is the single reader (decodes legacy v1/v2); the `outOfCamp`/
   `overseas` flags ride in notes, location in Google's first-class field.
-- **General tab:** login keyword, `audit_log_retention_days` (default 90, clamp 7–365).
-  **Audit Log:** URL-param filters, keyset pagination, CSV export; **rotation is
+- **General tab:** `audit_log_retention_days` (default 90, clamp 7–365). **Security tab:**
+  the user **login keyword** (staff-only sign-in; admin secrets are env-managed, never
+  in-app). **Audit Log:** URL-param filters, keyset pagination, CSV export; **rotation is
   on-read** + a manual delete button, no cron. Never call `listAuditLogs`-adjacent
   helpers with a live DB in tests — the pure parts are unit-tested. Payloads are flat
   + human-readable (display names, UTC+8 wall clock, rendered title) — keep new
@@ -357,7 +369,7 @@ mechanics in the doc.
   Google calendar IDs (dev DB is migrations-only; departments are recreated in-app).
   Copy `.env.example` → `.env.local` for local dev; required vars: `DATABASE_URL`,
   `NEXTAUTH_SECRET`, `ADMIN_INITIAL_PASSWORD` (seeds the admin password hash on first
-  run), plus Google service-account vars.
+  run), `ADMIN_PIN` (seeds the shared admin PIN hash), plus Google service-account vars.
 - **Dual-hosting (migration):** one codebase runs on Vercel (live prod + preview) and,
   from the same commit, on a Cloud Run **shadow** deployed `main`-only by the
   `deploy-cloudrun` job. Platform differences live in env/deploy files, never
@@ -370,5 +382,5 @@ mechanics in the doc.
   `GCP_SA_KEY` (Cloud Run + Artifact Registry service-account key), plus secret
   mirrors of Vercel prod (`DATABASE_URL`, `NEXTAUTH_SECRET`,
   `GOOGLE_SERVICE_ACCOUNT_BASE64`, `GOOGLE_DELEGATE_EMAIL`, `SMTP_URL`,
-  `EMAIL_FROM`, `ADMIN_INITIAL_PASSWORD`).
+  `EMAIL_FROM`, `ADMIN_INITIAL_PASSWORD`, `ADMIN_PIN`).
   Details + cutover/abort steps: [docs/developer-guide.md](docs/developer-guide.md) §1.9.1.

@@ -18,6 +18,7 @@ const tabs = [
   { value: "/settings/kah-groups", label: "KAH Groups" },
   { value: "/settings/banner", label: "Banner" },
   { value: "/settings/general", label: "General" },
+  { value: "/settings/security", label: "Security" },
   { value: "/settings/audit-log", label: "Audit Log" },
 ];
 

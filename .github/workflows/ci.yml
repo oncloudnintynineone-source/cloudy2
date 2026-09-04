@@ -154,6 +154,7 @@ jobs:
           SMTP_URL: ${{ secrets.SMTP_URL }}
           EMAIL_FROM: ${{ secrets.EMAIL_FROM }}
           ADMIN_INITIAL_PASSWORD: ${{ secrets.ADMIN_INITIAL_PASSWORD }}
+          ADMIN_PIN: ${{ secrets.ADMIN_PIN }}
         run: |
           jq -n \
             --arg db "$DATABASE_URL" \
@@ -163,8 +164,9 @@ jobs:
             --arg sm "$SMTP_URL" \
             --arg ef "$EMAIL_FROM" \
             --arg ad "$ADMIN_INITIAL_PASSWORD" \
+            --arg pin "$ADMIN_PIN" \
             --arg url "${{ steps.deploy.outputs.url }}" \
-            '{DATABASE_URL:$db,NEXTAUTH_SECRET:$sec,GOOGLE_SERVICE_ACCOUNT_BASE64:$gs,GOOGLE_DELEGATE_EMAIL:$gd,SMTP_URL:$sm,EMAIL_FROM:$ef,ADMIN_INITIAL_PASSWORD:$ad,NEXTAUTH_URL:$url}' \
+            '{DATABASE_URL:$db,NEXTAUTH_SECRET:$sec,GOOGLE_SERVICE_ACCOUNT_BASE64:$gs,GOOGLE_DELEGATE_EMAIL:$gd,SMTP_URL:$sm,EMAIL_FROM:$ef,ADMIN_INITIAL_PASSWORD:$ad,ADMIN_PIN:$pin,NEXTAUTH_URL:$url}' \
             > /tmp/env.json
           gcloud run services update "$CLOUD_RUN_SERVICE" \
             --region "$CLOUD_RUN_REGION" \

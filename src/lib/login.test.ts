@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { classifyLogin, parseUserLogin } from "./login";
+import { normalizePhoneDigits, parseUserLogin } from "./login";
 
 describe("parseUserLogin", () => {
   it("strips the keyword and returns the last 8 digits", () => {
@@ -19,22 +19,32 @@ describe("parseUserLogin", () => {
     expect(parseUserLogin("91234567leave", "")).toBeNull();
     expect(parseUserLogin("", "leave")).toBeNull();
   });
+
+  it("returns null when fewer than 8 digits precede the keyword", () => {
+    expect(parseUserLogin("1234567leave", "leave")).toBeNull();
+  });
 });
 
-describe("classifyLogin", () => {
-  it("classifies keyword-suffixed input as user", () => {
-    expect(classifyLogin("91234567leave", "leave", true)).toBe("user");
+describe("normalizePhoneDigits", () => {
+  it("keeps an 8-digit phone as-is", () => {
+    expect(normalizePhoneDigits("91234567")).toBe("91234567");
   });
 
-  it("classifies non-keyword input as admin when an admin password exists", () => {
-    expect(classifyLogin("secret", "leave", true)).toBe("admin");
+  it("drops spaces and punctuation", () => {
+    expect(normalizePhoneDigits("9123 4567")).toBe("91234567");
+    expect(normalizePhoneDigits("(9123) 456-7")).toBe("91234567");
   });
 
-  it("returns unknown for empty input", () => {
-    expect(classifyLogin("   ", "leave", true)).toBe("unknown");
+  it("reduces a country code down to the trailing 8 digits", () => {
+    expect(normalizePhoneDigits("+6591234567")).toBe("91234567");
   });
 
-  it("returns unknown when nothing can disambiguate", () => {
-    expect(classifyLogin("secret", "", false)).toBe("unknown");
+  it("returns null for blank input", () => {
+    expect(normalizePhoneDigits("")).toBeNull();
+    expect(normalizePhoneDigits("   ")).toBeNull();
+  });
+
+  it("returns null when fewer than 8 digits are present", () => {
+    expect(normalizePhoneDigits("abc1234567")).toBeNull();
   });
 });

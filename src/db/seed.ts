@@ -53,15 +53,19 @@ async function seed() {
   if (!row) {
     // Mirror `ensureSettingsRow` (src/lib/bootstrap.ts): the singleton row is
     // normally created on first auth with the admin password hash. Inserting
-    // it here (with the hash when ADMIN_INITIAL_PASSWORD is set) keeps admin
-    // login working on a fresh, never-authenticated database.
+    // it here (with the hashes when ADMIN_INITIAL_PASSWORD / ADMIN_PIN are
+    // set) keeps admin login working on a fresh, never-authenticated database.
     const initialPassword = process.env.ADMIN_INITIAL_PASSWORD;
     const adminPasswordHash = initialPassword ? await hash(initialPassword, 10) : null;
+    const adminPin = process.env.ADMIN_PIN;
+    const adminPinHash = adminPin ? await hash(adminPin, 10) : null;
     await db
       .insert(settings)
-      .values({ id: SETTINGS_ID, userKeyword: "leave", adminPasswordHash })
+      .values({ id: SETTINGS_ID, userKeyword: "leave", adminPasswordHash, adminPinHash })
       .onConflictDoNothing();
-    console.log("Created settings row with userKeyword = 'leave' so users can log in as [phone]leave");
+    console.log(
+      "Created settings row with userKeyword = 'leave' so users can log in as [phone]leave",
+    );
   } else if (!row.userKeyword) {
     await db
       .update(settings)

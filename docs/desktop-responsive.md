@@ -261,8 +261,9 @@ Contacts/Audit-log "Export", Parade-state attendance).
   Reset + Export) above the table.
 - **Forms go 2-column** at `lg` via `Grid gap="md"` with
   `Grid.Col span={{ base: 12, lg: 6 }}` pairs: `UserForm` (Name/Shortname,
-  Phone/Email, Birthday half-width), `TemplatesForm` and the General tab's
-  `SettingsForm` (keyword + audit-retention fields side by side; the KAH breach-email
+  Phone/Email, Birthday half-width) and `TemplatesForm` (the General tab's
+  `SettingsForm` and the Security tab's `SecurityForm` each render a single
+  settings card — audit retention and login keyword respectively; the KAH breach-email
   template cards live on the KAH Groups tab). `EventTypeForm` is a **3-column top
   row** at `lg` (`span {{ base: 12, sm: 6, lg: 4 }}` for Name/Acronym/Group — a
   `description` on every field keeps the columns equal height and aligned) over a

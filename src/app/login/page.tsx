@@ -11,7 +11,11 @@ export const metadata: Metadata = {
   title: "Sign in — Cloudy",
 };
 
-export default async function LoginPage() {
+interface LoginPageProps {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}
+
+export default async function LoginPage({ searchParams }: LoginPageProps) {
   // The stack's compiled client bundle only runs on browsers at or above the
   // Next 16 / React 19 floor (Safari 16.4 / Chrome 111 / Firefox 111 / Edge
   // 111). Below it, the page paints but never hydrates — the form renders,
@@ -29,9 +33,12 @@ export default async function LoginPage() {
       </LoginShell>
     );
   }
+
+  const params = await searchParams;
+  const mode = params.mode === "admin" ? "admin" : "staff";
   return (
     <LoginShell>
-      <LoginForm />
+      <LoginForm initialMode={mode} />
     </LoginShell>
   );
 }

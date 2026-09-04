@@ -39,14 +39,17 @@ and the migration workflow. Subsystem design lives in the deep-dive docs indexed
 git checkout dev        # day-to-day work happens here; main is production-only
 pnpm install
 cp .env.example .env.local
-# fill in .env.local — at minimum DATABASE_URL, NEXTAUTH_SECRET, ADMIN_INITIAL_PASSWORD
+# fill in .env.local — at minimum DATABASE_URL, NEXTAUTH_SECRET, ADMIN_INITIAL_PASSWORD, ADMIN_PIN
 pnpm db:migrate        # apply migrations to Neon (needs DATABASE_URL in the shell — see §1.11)
 pnpm db:seed           # optional: default user login keyword (idempotent)
 pnpm dev
 ```
 
-Sign in with the admin password (`ADMIN_INITIAL_PASSWORD` seeds the hash on first
-login). Without Google credentials the app runs fully on the stub — calendar views
+Sign in on the **Admin** surface (`/login?mode=admin`): named admins use `phone` +
+the shared admin PIN (`ADMIN_PIN`); the phone-less emergency admin enters the
+bootstrap password (`ADMIN_INITIAL_PASSWORD`). Both env vars seed their hash on
+first login and are reconciled on every login — changing one and redeploying
+rotates it. Without Google credentials the app runs fully on the stub — calendar views
 render empty and event mutations refuse with a clear message
 ([`google-integration.md`](google-integration.md)).
 
@@ -83,7 +86,8 @@ seed defaults on first run; admins manage them in-app afterwards (Settings).
 | `GOOGLE_DELEGATE_EMAIL` | Workspace account impersonated for Gmail send (KAH breach emails) and granted owner ACLs on department calendars. Leave empty when using `SMTP_URL` instead |
 | `SMTP_URL` | SMTP fallback for breach emails, e.g. a personal Gmail app password (`smtp://user:pass@smtp.gmail.com:465`; URL-encode special characters, `smtps:`/465 = implicit TLS) |
 | `EMAIL_FROM` | Optional From override (defaults to the SMTP username) |
-| `ADMIN_INITIAL_PASSWORD` | Bootstrap: initial admin password, bcrypt-hashed on first login when no admin password exists |
+| `ADMIN_INITIAL_PASSWORD` | Emergency (break-glass) root password. Bcrypt-hashed into `settings.admin_password_hash` on first login and reconciled on every login, so changing the env var + redeploying rotates it. Sign in on the Admin surface with the phone field left blank |
+| `ADMIN_PIN` | Shared sign-in PIN for every `role='admin'` user (named admins sign in with their phone + this PIN). Bcrypt-hashed into `settings.admin_pin_hash` on first login and reconciled on every login like `ADMIN_INITIAL_PASSWORD`; no in-app way to set or change it |
 
 ## 1.5 Project structure
 
@@ -96,8 +100,9 @@ src/
       contacts/             # Contact list + VCF export
       kah-status/           # Read-only KAH breach history & forecast, ±3 months (member's own groups; admins: all)
       settings/             # Admin hub: users, departments, event-types, templates,
-                            # webhooks, quick-links, kah-groups, banner, general, audit-log
-    login/                  # Single-input login
+                            # webhooks, quick-links, kah-groups, banner, general, security,
+                            # audit-log
+    login/                  # Login page (Staff/Admin surfaces; ?mode=admin deep link)
     api/auth/[...nextauth]  # NextAuth handler
     api/audit/export        # Audit log CSV export
     sw.ts                   # Serwist service worker (offline + instant open)
@@ -198,8 +203,10 @@ git checkout dev
 2. **Commit & push:** Source Control (`Ctrl+Shift+G`) → stage `＋` → short imperative
    message → **Commit** → **Sync Changes**. The push fires CI + the preview build.
 3. **Verify on the preview:** open the latest preview URL (Vercel dashboard), log in
-   with the **dev** admin password, exercise the changed flows — isolated dev Neon +
-   dev Google account, so prod is untouchable; CI already migrated the dev DB.
+   via the **Admin** surface with the **dev** emergency password (`ADMIN_INITIAL_PASSWORD`;
+   phone blank) or a dev admin's phone + the dev `ADMIN_PIN`, exercise the changed flows —
+   isolated dev Neon + dev Google account, so prod is untouchable; CI already migrated the
+   dev DB.
 4. **Ship:** status bar → switch to `main` → Source Control `…` → **Pull** → command
    palette → **Git: Merge Branch…** → `dev` → `…` → **Push**. Vercel prod deploys; CI
    runs the `migrate` job against the prod DB, then `deploy-cloudrun` ships the Cloud
@@ -236,7 +243,8 @@ prod data.
 | `DATABASE_URL` | prod Neon project | dev Neon project (separate Neon account) |
 | `GOOGLE_SERVICE_ACCOUNT_BASE64` | prod service-account key | dev service-account key (separate Google account) |
 | `NEXTAUTH_SECRET` | prod secret | separate dev secret |
-| `ADMIN_INITIAL_PASSWORD` | prod admin password | dev-only password |
+| `ADMIN_INITIAL_PASSWORD` | prod emergency-admin password | dev-only password |
+| `ADMIN_PIN` | prod shared admin PIN | dev-only admin PIN |
 | `SMTP_URL` / `EMAIL_FROM` | prod email transport | test inbox (the dev Google account's own Gmail app password) |
 | `GOOGLE_DELEGATE_EMAIL` | Workspace delegate for Gmail send | unset — dev uses `SMTP_URL` |
 | `ENABLE_EXPERIMENTAL_COREPACK` | `1` | `1` |
@@ -303,7 +311,8 @@ same prod Google service account).
   including `NEXTAUTH_URL` — a second, fully-configured revision seconds later.
 - **Env vars** mirror Vercel **Production**: `DATABASE_URL`, `NEXTAUTH_SECRET`
   (same value — harmless since sessions are per-origin), `GOOGLE_SERVICE_ACCOUNT_BASE64`,
-  `GOOGLE_DELEGATE_EMAIL`, `SMTP_URL`, `EMAIL_FROM`, `ADMIN_INITIAL_PASSWORD`.
+  `GOOGLE_DELEGATE_EMAIL`, `SMTP_URL`, `EMAIL_FROM`, `ADMIN_INITIAL_PASSWORD`,
+  `ADMIN_PIN`.
   Cloud Run does not block SMTP ports 465/587, so the nodemailer fallback works.
 - **One-time GCP setup** (console): project + billing account (card; Always-Free
   tier applies) → enable Cloud Run Admin + Artifact Registry → create Artifact
@@ -313,7 +322,7 @@ same prod Google service account).
   **variable** `GCP_PROJECT_ID` (not sensitive — unmasked in logs) + **secrets**
   `GCP_SA_KEY` and mirrors of Vercel prod (`DATABASE_URL`, `NEXTAUTH_SECRET`,
   `GOOGLE_SERVICE_ACCOUNT_BASE64`, `GOOGLE_DELEGATE_EMAIL`, `SMTP_URL`,
-  `EMAIL_FROM`, `ADMIN_INITIAL_PASSWORD`). Set a budget alert (~$5) as a guard.
+  `EMAIL_FROM`, `ADMIN_INITIAL_PASSWORD`, `ADMIN_PIN`). Set a budget alert (~$5) as a guard.
 - **Shadow caveats**: both instances share prod Neon + the prod service account.
   Read-only validation (login, month views, search, audit CSV, PWA) is
   zero-risk; mutation tests (create/edit events, adding departments — which

@@ -22,7 +22,8 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
 - Quality gates (`lint` / `typecheck` / `test` / schema-drift check) run in CI on every
   PR; pushes to `main` additionally auto-apply pending migrations against Neon. The
   per-phase "pnpm … pass" claims are therefore no longer repeated here.
-- Feature surface: admin-password + `[phone][keyword]` logins; departments as Google
+- Feature surface: staff `[phone][keyword]` login + admin shared-PIN / phone-less env-root
+  login; departments as Google
   Calendars with service-account ACL sharing; audit logging; event CRUD across department
   calendars with cross-department copies, invitees, templates, time options and location
   policy, with outbound webhooks to any number of admin-registered external endpoints on
@@ -46,12 +47,12 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
 | UI                 | Mantine v9                                                                                     |
 | Database           | Neon Postgres + Drizzle ORM                                                                    |
 | Auth               | NextAuth v4, Credentials provider, **JWT sessions**                                            |
-| Login UX           | Single input field, auto-detect: admin password vs `[phone][keyword]`                          |
+| Login UX           | Two surfaces: staff `[phone][keyword]`; admin `phone` + shared admin PIN (or phone-less env root) |
 | Google integration | GCP service account (Calendar v3 + Gmail v1); domain-wide delegation                           |
 | GCal notes         | JSON block stored on events                                                                    |
 | Calendars          | Department-level calendars; `calendars` table is the department registry (kind = `department`) |
 | Parade states      | `parade_states` lookup table (code/label/description)                                          |
-| Settings           | Single-row `settings` table (admin password hash, keyword, KAH default % + notification emails) |
+| Settings           | Single-row `settings` table (admin password hash + admin PIN hash, keyword, KAH default % + notification emails) |
 | User→dept          | One department per user: `users.department_id` → `calendars.id` (nullable, ON DELETE SET NULL) |
 | PWA / monorepo     | Deferred / not used                                                                            |
 
@@ -300,11 +301,27 @@ One line per phase; full write-ups (incl. Mermaid diagrams and verification note
     `buildOptimisticEvent` mirrors the action's normalization/time/title/color parity
     (`withSelfCreator`→`clampEventEnd`, exclusive all-day ends, view-template title,
     `eventTypes.color` now passed to the client). `docs/optimistic-mutations.md`
+- 1.178 Split login surfaces + shared admin PIN (migration 0033 `settings.admin_pin_hash`):
+    the single auto-detected box is gone — `/login` now has a **Staff/Admin** toggle
+    (`?mode=admin` deep link). **Staff** is `[phone][keyword]` for `role='user'` only;
+    admin-role users are rejected there so the org-wide keyword can never yield an admin
+    session. **Admin** authenticates a named admin as `phone` + the **shared admin PIN**
+    (`settings.admin_pin_hash`, seeded/reconciled from the **`ADMIN_PIN`** env var on
+    every login — env-authoritative, no in-app path), while the phone-less **break-glass
+    root** enters `ADMIN_INITIAL_PASSWORD` (`settings.admin_password_hash`, same
+    reconcile). `src/lib/bootstrap.ts` → `ensureSettingsRow` + `syncAdminSecretsFromEnv`
+    (both envs compared on login, re-hashed only on change); `login.ts` drops the dead
+    `classifyLogin`, adds pure `normalizePhoneDigits`; a new **Security** settings tab
+    (`/settings/security`) holds the User Login Keyword moved out of General (General
+    keeps retention + danger zone). `users.password_hash` remains unused; docs/`AGENTS.md`
+    updated
 
 ## 1.4 Open items & next steps
 
-1. **ADMIN_INITIAL_PASSWORD** must be set on Vercel (seeds the admin password hash on
-   first login) — the only unfinished item from the original deployment checklist.
+1. **`ADMIN_INITIAL_PASSWORD` + `ADMIN_PIN`** must be set on Vercel (Production +
+   Preview), the Cloud Run shadow's GH secret mirrors, and `.env.local` — both seed
+   their hash on first login and reconcile on every login afterwards (rotating = change
+   the env var + redeploy). Named admins can't sign in until `ADMIN_PIN` is set.
 2. **Breach email transport**: configure either Workspace domain-wide delegation
    (`gmail.send` scope for `GOOGLE_DELEGATE_EMAIL`) or the SMTP fallback (`SMTP_URL`,
    e.g. a personal Gmail app password) — without one, breaches stay audit-only.

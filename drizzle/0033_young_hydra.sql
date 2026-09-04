@@ -1,0 +1,1 @@
+ALTER TABLE "settings" ADD COLUMN "admin_pin_hash" text;

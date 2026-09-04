@@ -201,6 +201,13 @@ export const settings = pgTable(
   {
     id: text("id").primaryKey().default("singleton"),
     adminPasswordHash: text("admin_password_hash"),
+    /**
+     * Shared admin sign-in PIN for `role='admin'` users, seeded/reconciled from
+     * the `ADMIN_PIN` env var only — never managed in-app, never exposed by
+     * `getSettings`. Kept separate from `admin_password_hash` (the phone-less
+     * break-glass root secret) so the two env secrets rotate independently.
+     */
+    adminPinHash: text("admin_pin_hash"),
     userKeyword: text("user_keyword"),
     nameTemplate: text("name_template").notNull().default("{name}"),
     eventTitleTemplate: text("event_title_template").notNull().default("{description}"),

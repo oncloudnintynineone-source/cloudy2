@@ -183,7 +183,7 @@ raw enums, no machine datetimes. The shape is one of two things:
 | `access.grant` / `access.update` / `access.revoke` | role diff (previous role read from the ACLs before the mutation) |
 | `eventType.create` / `eventType.rename` / `eventType.delete` | field objects; time options / allowed locations as display labels |
 | `settings.update` | single-field diffs (e.g. `auditLogRetentionDays` before/after) |
-| `auth.login.failure` | `{ reason: "invalid_credentials" \| "unknown_input" }`; the derived phone (never the raw input) is the `actor_name` |
+| `auth.login.failure` | `{ reason: "invalid_credentials" \| "unknown_input" \| "admin.invalid_root_secret" \| "admin.invalid_account" \| "admin.invalid_pin" }`; the derived phone (never the raw input) is the `actor_name` |
 | `audit.purge` | `{ retentionDays, deleted }` |
 
 The **event snapshots** (`EventAuditSnapshot`, `src/lib/events/eventAudit.ts:23`)

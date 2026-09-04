@@ -80,13 +80,10 @@ export async function updateKeyword(keyword: string): Promise<SettingsActionResu
     entityType: "settings",
     entityName: "settings",
     method: "updateKeyword",
-    details: diffFields(
-      { userKeyword: before?.userKeyword ?? null },
-      { userKeyword: normalized },
-    ),
+    details: diffFields({ userKeyword: before?.userKeyword ?? null }, { userKeyword: normalized }),
   });
 
-  revalidatePath("/settings/general");
+  revalidatePath("/settings/security");
   return { ok: true };
 }
 
@@ -130,7 +127,8 @@ export async function updateNameTemplate(template: string): Promise<SettingsActi
   return { ok: true };
 }
 
-export async function updateEventTitleTemplate(template: string): Promise<SettingsActionResult> {  const session = await requireAdmin();
+export async function updateEventTitleTemplate(template: string): Promise<SettingsActionResult> {
+  const session = await requireAdmin();
 
   const errors = validateEventTitleTemplate({ eventTitleTemplate: template });
   if (errors.eventTitleTemplate) {
@@ -195,7 +193,11 @@ export async function createEventTitleTemplate(
     .returning();
 
   await logAction({
-    ...actorFromUser({ id: session.user.id, name: session.user.name ?? null, role: session.user.role }),
+    ...actorFromUser({
+      id: session.user.id,
+      name: session.user.name ?? null,
+      role: session.user.role,
+    }),
     action: AUDIT_ACTIONS.settingsUpdate,
     entityType: "settings",
     entityName: "settings",
@@ -229,7 +231,11 @@ export async function updateEventTitleTemplateById(
     .where(eq(eventTitleTemplates.id, id));
 
   await logAction({
-    ...actorFromUser({ id: session.user.id, name: session.user.name ?? null, role: session.user.role }),
+    ...actorFromUser({
+      id: session.user.id,
+      name: session.user.name ?? null,
+      role: session.user.role,
+    }),
     action: AUDIT_ACTIONS.settingsUpdate,
     entityType: "settings",
     entityName: "settings",
@@ -259,13 +265,20 @@ export async function deleteEventTitleTemplate(id: string): Promise<SettingsActi
     };
   }
 
-  const existing = await db.select().from(eventTitleTemplates).where(eq(eventTitleTemplates.id, id));
+  const existing = await db
+    .select()
+    .from(eventTitleTemplates)
+    .where(eq(eventTitleTemplates.id, id));
   if (existing.length === 0) return { ok: false, error: "Template not found" };
 
   await db.delete(eventTitleTemplates).where(eq(eventTitleTemplates.id, id));
 
   await logAction({
-    ...actorFromUser({ id: session.user.id, name: session.user.name ?? null, role: session.user.role }),
+    ...actorFromUser({
+      id: session.user.id,
+      name: session.user.name ?? null,
+      role: session.user.role,
+    }),
     action: AUDIT_ACTIONS.settingsUpdate,
     entityType: "settings",
     entityName: "settings",
@@ -299,7 +312,8 @@ export async function updateEventTitleTemplateAssignments(
 
   const [before] = await db.select().from(settings).limit(1);
   const beforeAssignments = normalizeAssignments(
-    (before as unknown as { eventTitleTemplateAssignments?: unknown })?.eventTitleTemplateAssignments,
+    (before as unknown as { eventTitleTemplateAssignments?: unknown })
+      ?.eventTitleTemplateAssignments,
   );
 
   await db
@@ -308,7 +322,11 @@ export async function updateEventTitleTemplateAssignments(
     .where(eq(settings.id, "singleton"));
 
   await logAction({
-    ...actorFromUser({ id: session.user.id, name: session.user.name ?? null, role: session.user.role }),
+    ...actorFromUser({
+      id: session.user.id,
+      name: session.user.name ?? null,
+      role: session.user.role,
+    }),
     action: AUDIT_ACTIONS.settingsUpdate,
     entityType: "settings",
     entityName: "settings",
