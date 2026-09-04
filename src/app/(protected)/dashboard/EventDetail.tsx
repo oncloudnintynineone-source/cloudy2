@@ -6,9 +6,10 @@ import { useDisclosure, useMediaQuery } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
 import { IconCopy } from "@tabler/icons-react";
 
-import { deleteEvent } from "@/lib/events/actions";
+import { deleteEvent, type EventActionOk } from "@/lib/events/actions";
 import { subOneDay } from "@/lib/events/datetime";
 import type { CalendarEvent } from "@/lib/events/queries";
+import { nextOptimisticOpId, optimisticRemove, type OptimisticRemoveOp } from "@/lib/events/optimistic";
 import { eventRefFromCalendarEvent } from "@/lib/events/targets";
 import {
   modalContentWidth,
@@ -26,6 +27,10 @@ interface EventDetailProps {
   onEdit: (event: CalendarEvent, originRect: Rect | null) => void;
   onDuplicate: (event: CalendarEvent, originRect: Rect | null) => void;
   onDeleted: () => void;
+  /** Optimistic deletion: the row disappears on confirm, before the action returns. */
+  onOptimistic: (op: OptimisticRemoveOp) => void;
+  onOptimisticSettled: (opId: string, result: EventActionOk) => void;
+  onOptimisticRollback: (opId: string) => void;
   /** User id to display name (active roster). */
   peopleNames: Record<string, string>;
   /** Calendar (department) id to display name. */
@@ -44,6 +49,9 @@ export function EventDetail({
   onEdit,
   onDuplicate,
   onDeleted,
+  onOptimistic,
+  onOptimisticSettled,
+  onOptimisticRollback,
   peopleNames,
   calendarNames,
   originRect,
@@ -118,14 +126,26 @@ export function EventDetail({
       return;
     }
     setDeleting(true);
+    const optimisticId = nextOptimisticOpId();
+    const ref = eventRefFromCalendarEvent(showEvent);
+    // Hide the row immediately; roll back only if the delete fails.
+    onOptimistic(
+      optimisticRemove(optimisticId, {
+        calendarId: ref.calendarId,
+        googleEventId: ref.googleEventId,
+        eventId: ref.eventId,
+      }),
+    );
     try {
-      const result = await deleteEvent(eventRefFromCalendarEvent(showEvent));
+      const result = await deleteEvent(ref);
       if (result.ok) {
         notifications.show({ color: "green", message: "Event deleted" });
+        onOptimisticSettled(optimisticId, result);
         close();
         onDeleted();
       } else {
         notifications.show({ color: "red", message: result.error });
+        onOptimisticRollback(optimisticId);
       }
     } finally {
       setDeleting(false);

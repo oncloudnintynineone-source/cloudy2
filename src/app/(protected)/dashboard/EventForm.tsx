@@ -29,10 +29,18 @@ import { UserSelectModal } from "@/components/UserSelectModal";
 import {
   createEvent,
   updateEvent,
+  type EventActionOk,
   type EventActionResult,
   type EventResultField,
 } from "@/lib/events/actions";
 import { subOneDay } from "@/lib/events/datetime";
+import {
+  buildOptimisticEvent,
+  nextOptimisticOpId,
+  optimisticUpsert,
+  type OptimisticEventIdentity,
+  type OptimisticUpsertOp,
+} from "@/lib/events/optimistic";
 import {
   categoryFromFlags,
   clampOutOfCamp,
@@ -79,6 +87,8 @@ interface EventTypeOption {
   allowedLocations: LocationCategory[];
   showRemarks: boolean;
   showInvitees: boolean;
+  /** Admin-pinned event color, null = the deterministic default. */
+  color: string | null;
 }
 
 interface InviteeUser {
@@ -109,6 +119,20 @@ interface EventFormProps {
   inviteeDepartments: { id: string; name: string }[];
   inviteeUsers: InviteeUser[];
   onDone: () => void;
+  /**
+   * Optimistic mutation support. The grid behind the wizard shows the
+   * submitted change immediately (see docs/optimistic-mutations.md); these
+   * callbacks drive the overlay's apply/settle/rollback lifecycle.
+   */
+  onOptimistic: (op: OptimisticUpsertOp) => void;
+  onOptimisticSettled: (opId: string, result: EventActionOk) => void;
+  onOptimisticRollback: (opId: string) => void;
+  /**
+   * Home department of the acting user — the representative calendar a
+   * brand-new optimistic event stands on until the server pins the real copy
+   * (cosmetic only: the chip's rows come from its tagged people/departments).
+   */
+  optimisticHome: { id: string; name: string } | null;
 }
 
 interface EventFormState extends EventFormValues {
@@ -181,6 +205,10 @@ export function EventForm({
   inviteeDepartments,
   inviteeUsers,
   onDone,
+  onOptimistic,
+  onOptimisticSettled,
+  onOptimisticRollback,
+  optimisticHome,
 }: EventFormProps) {
   const isEdit = event !== null;
   const theme = useMantineTheme();
@@ -726,6 +754,35 @@ export function EventForm({
         inviteeUserIds: userIds,
         inviteeDepartments: departmentIds,
       };
+      const optimisticId = nextOptimisticOpId();
+      // The stand-in chip mirrors the edit's real copy identity (so the old
+      // grid entry is replaced in place) or, on create, carries a client
+      // placeholder group id on the acting user's home department.
+      const identity: OptimisticEventIdentity =
+        isEdit && event
+          ? {
+              calendarId: event.payload.calendarId,
+              calendarName: event.payload.calendarName,
+              googleEventId: event.payload.googleEventId,
+              eventId: event.payload.eventId,
+            }
+          : {
+              calendarId: optimisticHome?.id ?? "",
+              calendarName: optimisticHome?.name ?? "",
+              googleEventId: "",
+              eventId: optimisticId,
+            };
+      const optimisticEvent = buildOptimisticEvent({
+        identity,
+        values: payload,
+        actingUserId: currentUser,
+        // The grid renders this view's display template; previewTitles.view is
+        // that exact string, so the stand-in matches the authoritative chip.
+        title: previewTitles.view,
+        eventTypeColor: selectedType?.color ?? null,
+      });
+      onOptimistic(optimisticUpsert(optimisticId, optimisticEvent));
+
       const result: EventActionResult = isEdit
         ? await updateEvent(eventRefFromCalendarEvent(event), payload)
         : await createEvent(payload);
@@ -735,9 +792,16 @@ export function EventForm({
           color: "green",
           message: isEdit ? "Event updated" : "Event created",
         });
+        // Pin the stand-in to the server's group/copy ids, then let the
+        // authoritative refresh swap it out (see DashboardView).
+        onOptimisticSettled(optimisticId, result);
         onDone();
         return;
       }
+
+      // The action rejected (field or server error) — drop the stand-in so the
+      // grid shows the pre-submit state while the form surfaces the error.
+      onOptimisticRollback(optimisticId);
 
       if (result.field) {
         const failedField = result.field;

@@ -93,6 +93,16 @@ mechanics in the doc.
   round-trip; cross-department copies reconciled by `findCopies` (deliberately
   uncached). Design: [docs/event-lifecycle.md](docs/event-lifecycle.md),
   [docs/event-mutations.md](docs/event-mutations.md).
+- **Optimistic event mutations:** the dashboard renders a short-lived stand-in chip at
+  confirm (not after the Google write + read-your-own-writes refresh) by merging an
+  `optimisticOps` overlay into the server `events` prop — the pure engine and the
+  stand-in builder live in `src/lib/events/optimistic.ts` (client-safe, unit-tested);
+  actions return the ids they already computed (`EventActionResult` success = group
+  `eventId` + per-copy `{calendarId, googleEventId}`); the wizard stays open through the
+  action (rejections keep the exact field-error UX) and settled ops are dropped by a
+  guarded render-phase reconcile on the next props arrival — never an effect. Stand-in
+  chips block detail taps until pinned. Design:
+  [docs/optimistic-mutations.md](docs/optimistic-mutations.md).
 - **Dashboard views & filters:** Month / Week (H) / Week (D) / Day / Agenda over the
   shared cache; one **filter button** (icon + badge) opens the filter modal
   (Calendars + Users prominent, Event Types behind a Show/Hide disclosure); the

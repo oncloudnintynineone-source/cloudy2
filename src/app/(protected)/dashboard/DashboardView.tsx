@@ -97,7 +97,13 @@ import { eventsOnDay } from "@/lib/events/agenda";
 import { WEEKDAY_ABBREVIATIONS, weekDays } from "@/lib/events/datetime";
 import { sortMineFirst } from "@/lib/events/mineFirst";
 import type { CalendarEvent } from "@/lib/events/queries";
+import type { EventActionOk } from "@/lib/events/actions";
 import type { LocationCategory } from "@/lib/events/locationPolicy";
+import {
+  applyOptimisticOps,
+  isOptimisticStandIn,
+  type OptimisticOp,
+} from "@/lib/events/optimistic";
 import type { TimeOption } from "@/lib/events/timeOptions";
 import { eventMatchesUserFilter } from "@/lib/events/userFilter";
 import { CONTENT_ENTER_CLASS, useContentEnter } from "@/lib/loading/contentEnter";
@@ -183,6 +189,8 @@ interface EventTypeOption {
   allowedLocations: LocationCategory[];
   showRemarks: boolean;
   showInvitees: boolean;
+  /** Admin-pinned event color, null = the deterministic default. */
+  color: string | null;
 }
 
 interface DashboardViewProps {
@@ -1216,6 +1224,79 @@ export function DashboardView({
   // (never emitted to the DOM), so the client-computed value is hydration-safe.
   const currentScrollTime = dayjs().format("HH:mm:ss");
 
+  // ---- Optimistic mutations -------------------------------------------------
+  // The grid data is the server `events` prop; while a create/edit/delete runs
+  // (serial Google writes, then a read-your-own-writes refresh) the client
+  // renders a stand-in through these overlay ops so the grid reflects the
+  // change immediately. All view memos below consume `viewEvents`, never the
+  // raw prop. Design: docs/optimistic-mutations.md.
+  const [optimisticOps, setOptimisticOps] = useState<OptimisticOp[]>([]);
+
+  const applyOptimistic = useCallback((op: OptimisticOp) => {
+    setOptimisticOps((current) => [...current, op]);
+  }, []);
+  const rollbackOptimistic = useCallback((opId: string) => {
+    setOptimisticOps((current) => current.filter((op) => op.id !== opId));
+  }, []);
+  const settleOptimistic = useCallback((opId: string, result: EventActionOk) => {
+    setOptimisticOps((current) =>
+      current.map((op) => {
+        if (op.id !== opId) {
+          return op;
+        }
+        if (op.kind === "remove") {
+          return { ...op, settled: true };
+        }
+        // Pin the stand-in to the server's group id and real copy ids so it
+        // stays clickable-safe and reconciles by identity, not by placeholder.
+        const copy = result.copies.find((c) => c.calendarId === op.event.payload.calendarId);
+        const eventId = result.eventId ?? op.event.payload.eventId;
+        return {
+          ...op,
+          settled: true,
+          event: {
+            ...op.event,
+            id: `${op.event.payload.calendarId}:${eventId ?? copy?.googleEventId ?? op.event.payload.googleEventId}`,
+            payload: {
+              ...op.event.payload,
+              eventId,
+              googleEventId: copy?.googleEventId ?? op.event.payload.googleEventId,
+            },
+          },
+        };
+      }),
+    );
+  }, []);
+
+  // Drop settled ops the moment an authoritative `events` prop arrives after
+  // the mutation's refresh (read-your-own-writes guarantees that prop already
+  // reflects the mutation, so the overlay can hand off without a flicker).
+  // This is a guarded render-phase state adjustment (the codebase's standard
+  // derived-state pattern — setState during render is allowed here, an effect
+  // is not), so no commit ever shows the overlay over the fresh data.
+  const [lastEvents, setLastEvents] = useState<readonly CalendarEvent[]>(events);
+  if (events !== lastEvents) {
+    setLastEvents(events);
+    if (optimisticOps.some((op) => op.settled)) {
+      setOptimisticOps((current) => current.filter((op) => !op.settled));
+    }
+  }
+
+  const viewEvents = useMemo(
+    () => applyOptimisticOps(events, optimisticOps),
+    [events, optimisticOps],
+  );
+
+  // The acting user's home department — the representative calendar a brand-new
+  // optimistic event stands on until the server pins the real copy. Cosmetic:
+  // the stand-in's rows come from its tagged people/departments, not this id.
+  const optimisticHome = useMemo(() => {
+    const user = allActiveUsers.find((row) => row.id === currentUser);
+    const calendarId = user?.departmentId ?? null;
+    const calendar = calendarId ? calendars.find((c) => c.id === calendarId) : null;
+    return calendar ? { id: calendar.id, name: calendar.name } : null;
+  }, [allActiveUsers, currentUser, calendars]);
+
   const filterGroups: FilterGroup[] = useMemo(() => {
     const groups: FilterGroup[] = [
       { label: "Calendars", options: calendars.map((c) => ({ value: c.id, label: c.name })) },
@@ -1286,7 +1367,7 @@ export function DashboardView({
       buildScheduleResources({
         departments: userFilterActive ? calendars : scheduleDepartments,
         users: userFilterActive ? allActiveUsers : scheduleUsers,
-        events,
+        events: viewEvents,
         userFilter: selectedUserIds,
       }),
     [
@@ -1295,11 +1376,11 @@ export function DashboardView({
       scheduleDepartments,
       scheduleUsers,
       allActiveUsers,
-      events,
+      viewEvents,
       selectedUserIds,
     ],
   );
-  const scheduleEvents = useMemo(() => expandScheduleEvents(events), [events]);
+  const scheduleEvents = useMemo(() => expandScheduleEvents(viewEvents), [viewEvents]);
 
   // "Highlight my entries": the events the current user created or is tagged
   // on — the same semantics as the Myself quick filter. Drives the per-view
@@ -1308,16 +1389,19 @@ export function DashboardView({
   const myEventIds = useMemo(
     () =>
       new Set(
-        events
+        viewEvents
           .filter((event) => eventMatchesUserFilter(event.payload, [currentUser]))
           .map((event) => event.id),
       ),
-    [events, currentUser],
+    [viewEvents, currentUser],
   );
   // The month grid assigns each day's rows greedily in input order, so feed
   // the user's events first (each block time-sorted) and they claim the top
   // rows of every day.
-  const monthEvents = useMemo(() => sortMineFirst(events, myEventIds), [events, myEventIds]);
+  const monthEvents = useMemo(() => sortMineFirst(viewEvents, myEventIds), [
+    viewEvents,
+    myEventIds,
+  ]);
 
   // External flag from the underlying CalendarEvent payload (Mantine's
   // renderEvent type only knows `id`). External events get the purple
@@ -1796,10 +1880,13 @@ export function DashboardView({
   // Mantine's AgendaView leaks adjacent-day all-day events into the selected
   // day (its day-granularity end check lets an exclusive end land exactly on
   // the viewed midnight), so pre-filter to exactly the occupying events.
-  const agendaTabEvents = useMemo(() => eventsOnDay(events, headerDate), [events, headerDate]);
+  const agendaTabEvents = useMemo(() => eventsOnDay(viewEvents, headerDate), [
+    viewEvents,
+    headerDate,
+  ]);
   const agendaModalEvents = useMemo(
-    () => (agendaViewDate ? eventsOnDay(events, agendaViewDate) : []),
-    [events, agendaViewDate],
+    () => (agendaViewDate ? eventsOnDay(viewEvents, agendaViewDate) : []),
+    [viewEvents, agendaViewDate],
   );
   // "Today" affordance state, keyed to the optimistic chrome like the label:
   // the menu item reflects where you're headed, not where the fetch is at.
@@ -2345,6 +2432,8 @@ export function DashboardView({
             maxEventsPerDay={isDesktop ? 4 : 3}
             renderEvent={renderMyMonthEvent}
             onEventClick={(event, e) => {
+              // Stand-ins have no real Google id yet — ignore taps on them.
+              if (isOptimisticStandIn(event as CalendarEvent)) return;
               setDetailOriginRect(e.currentTarget.getBoundingClientRect());
               setDetailEvent(event as unknown as CalendarEvent);
             }}
@@ -2397,6 +2486,7 @@ export function DashboardView({
                 // (c2-my-agenda-event, globals.css); time order is kept.
                 renderEvent={renderMyAgendaEvent}
                 onEventClick={(event, e) => {
+                  if (isOptimisticStandIn(event as CalendarEvent)) return;
                   setDetailOriginRect(e.currentTarget.getBoundingClientRect());
                   setDetailEvent(event as unknown as CalendarEvent);
                 }}
@@ -2426,11 +2516,12 @@ export function DashboardView({
             days={week}
             resources={scheduleResources.resources}
             groups={scheduleResources.groups}
-            events={events}
+            events={viewEvents}
             today={today}
             myRowId={currentUser}
             renderResourceLabel={renderResourceLabel}
             onEventClick={(event, e) => {
+              if (isOptimisticStandIn(event)) return;
               setDetailOriginRect(e.currentTarget.getBoundingClientRect());
               setDetailEvent(event);
             }}
@@ -2465,6 +2556,7 @@ export function DashboardView({
                 : undefined
             }
             onEventClick={(event, e) => {
+              if (isOptimisticStandIn(event as CalendarEvent)) return;
               setDetailOriginRect(e.currentTarget.getBoundingClientRect());
               setDetailEvent(event as unknown as CalendarEvent);
             }}
@@ -2528,6 +2620,7 @@ export function DashboardView({
             withHeader={false}
             withCurrentTimeIndicator
             onEventClick={(event, e) => {
+              if (isOptimisticStandIn(event as CalendarEvent)) return;
               setDetailOriginRect(e.currentTarget.getBoundingClientRect());
               setDetailEvent(event as unknown as CalendarEvent);
             }}
@@ -2719,6 +2812,7 @@ export function DashboardView({
                   styles={{ agendaViewHeader: { display: "none" } }}
                   renderEvent={renderMyAgendaEvent}
                   onEventClick={(event, e) => {
+                    if (isOptimisticStandIn(event as CalendarEvent)) return;
                     setDetailOriginRect(e.currentTarget.getBoundingClientRect());
                     setDetailEvent(event as unknown as CalendarEvent);
                   }}
@@ -2771,6 +2865,9 @@ export function DashboardView({
           window.dispatchEvent(new CustomEvent(PINNED_EVENTS_CHANGED_EVENT));
           refreshAfterSave();
         }}
+        onOptimistic={applyOptimistic}
+        onOptimisticSettled={settleOptimistic}
+        onOptimisticRollback={rollbackOptimistic}
         peopleNames={peopleNames}
         calendarNames={calendarNames}
         originRect={detailOriginRect}
@@ -2842,6 +2939,10 @@ export function DashboardView({
                 isAdmin={isAdmin}
                 inviteeDepartments={inviteeDepartments}
                 inviteeUsers={inviteeUsers}
+                onOptimistic={applyOptimistic}
+                onOptimisticSettled={settleOptimistic}
+                onOptimisticRollback={rollbackOptimistic}
+                optimisticHome={optimisticHome}
                 onDone={() => {
                   closeForm();
                   savedAtRef.current = Date.now();

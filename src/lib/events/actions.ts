@@ -61,8 +61,30 @@ import { WEBHOOK_ACTIONS } from "@/lib/webhooks/payload";
 
 export type EventResultField = "title" | "start" | "end" | "startAmPm" | "endAmPm" | "creatorId";
 
+/**
+ * One copy written (or retired) by an event mutation, keyed by its app-side
+ * registry calendar (department) id. Success results carry the copies so the
+ * dashboard's optimistic UI can pin its stand-in chip to the authoritative
+ * Google ids as soon as the action resolves (see docs/optimistic-mutations.md).
+ */
+export interface EventMutationCopy {
+  /** App registry calendar (department) id the copy lives on. */
+  calendarId: string;
+  googleEventId: string;
+}
+
+/**
+ * Result of an event create/update/delete. On success the mutation reports the
+ * logical event's group id (`eventId`, null only for a legacy delete that had
+ * none) plus the per-copy ids it wrote/retired, so the client never needs a
+ * second fetch just to identify what changed.
+ */
 export type EventActionResult =
-  { ok: true } | { ok: false; error: string; field?: EventResultField };
+  | { ok: true; eventId: string | null; copies: EventMutationCopy[] }
+  | { ok: false; error: string; field?: EventResultField };
+
+/** The narrowed success arm of {@link EventActionResult}. */
+export type EventActionOk = Extract<EventActionResult, { ok: true }>;
 
 /** User id → name map from a roster lookup, for audit snapshot display. */
 function namesById(rows: UserDisplayInfo[]): Record<string, string> {
@@ -453,7 +475,7 @@ export async function createEvent(input: EventFormValues): Promise<EventActionRe
       error: "Assign yourself to a department or tag an invitee",
     };
   }
-  const created: { googleCalendarId: string; googleEventId: string }[] = [];
+  const created: { calendarId: string; googleCalendarId: string; googleEventId: string }[] = [];
 
   try {
     for (const target of targets) {
@@ -464,7 +486,7 @@ export async function createEvent(input: EventFormValues): Promise<EventActionRe
       const event = await integration.createEvent(
         await buildGcalEventInput(googleCalendarId, target, effectiveInput, eventId, titleContext),
       );
-      created.push({ googleCalendarId, googleEventId: event.id });
+      created.push({ calendarId: target, googleCalendarId, googleEventId: event.id });
     }
   } catch (error) {
     // Roll back partial copies so a failed multi-department create never leaves
@@ -551,7 +573,11 @@ export async function createEvent(input: EventFormValues): Promise<EventActionRe
     actor: actorFrom(session),
   });
   revalidatePath("/dashboard");
-  return { ok: true };
+  return {
+    ok: true,
+    eventId,
+    copies: created.map(({ calendarId, googleEventId }) => ({ calendarId, googleEventId })),
+  };
 }
 
 /**
@@ -622,6 +648,9 @@ export async function updateEvent(
   const union = [...new Set([...oldTargets, ...newTargets])];
   const newSet = new Set(newTargets);
   const createdHere: { googleCalendarId: string; googleEventId: string }[] = [];
+  // Copies that survive the edit (updated in place or created) — returned with
+  // the success result so the client can pin its optimistic chip's Google ids.
+  const liveCopies: EventMutationCopy[] = [];
   const affectedGoogleIds = new Set<string>();
   // Google event ids touched by this run (updated, created, or retired) for
   // the webhook payload.
@@ -655,6 +684,7 @@ export async function updateEvent(
               ),
             );
             touchedGoogleEventIds.add(copy.id);
+            liveCopies.push({ calendarId: target, googleEventId: copy.id });
           }
         } else {
           const event = await integration.createEvent(
@@ -667,6 +697,7 @@ export async function updateEvent(
             ),
           );
           createdHere.push({ googleCalendarId, googleEventId: event.id });
+          liveCopies.push({ calendarId: target, googleEventId: event.id });
           touchedGoogleEventIds.add(event.id);
         }
       } else {
@@ -775,7 +806,7 @@ export async function updateEvent(
     actor: actorFrom(session),
   });
   revalidatePath("/dashboard");
-  return { ok: true };
+  return { ok: true, eventId, copies: liveCopies };
 }
 
 /** Delete every linked copy of a logical event. */
@@ -795,6 +826,7 @@ export async function deleteEvent(ref: EventRef): Promise<EventActionResult> {
   const integration = await getGoogleIntegration();
   const range = withMargin(absEventRange(ref.start, ref.end, ref.allDay));
   const deletedGoogleEventIds: string[] = [];
+  const deletedCopies: EventMutationCopy[] = [];
   const affectedGoogleIds = new Set<string>();
   // The first existing copy found is the event's state for the audit row.
   let firstCopy: GcalEventItem | null = null;
@@ -813,6 +845,7 @@ export async function deleteEvent(ref: EventRef): Promise<EventActionResult> {
       for (const copy of found) {
         await integration.deleteEvent(googleCalendarId, copy.id);
         deletedGoogleEventIds.push(copy.id);
+        deletedCopies.push({ calendarId: target, googleEventId: copy.id });
       }
     }
   } catch (error) {
@@ -857,5 +890,5 @@ export async function deleteEvent(ref: EventRef): Promise<EventActionResult> {
   await invalidateGcalCache([...affectedGoogleIds], monthsInRange(ref.start, ref.end));
   await invalidatePinnedCache();
   revalidatePath("/dashboard");
-  return { ok: true };
+  return { ok: true, eventId: ref.eventId, copies: deletedCopies };
 }

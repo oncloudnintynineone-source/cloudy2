@@ -146,6 +146,7 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
     allowedLocations: type.allowedLocations,
     showRemarks: type.showRemarks,
     showInvitees: type.showInvitees,
+    color: type.color,
   }));
   const eventTypeGroupOptions = eventTypeGroups.map((group) => ({
     id: group.id,

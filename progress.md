@@ -284,8 +284,22 @@ One line per phase; full write-ups (incl. Mermaid diagrams and verification note
     their own Google account. Data comes from the new `getMyCalendarAccess()` server action
     (any authenticated session; the roster-profile DB read, no Google round-trip), the modal
     fetches on open with a render-phase reset, and the global Admin login gets an explainer
-    instead of a roster. `phone` is threaded from the protected layout → `AppShellShell` →
+    instead of a roster.     `phone` is threaded from the protected layout → `AppShellShell` →
     `UserMenu`; no schema or Google changes
+- 1.177 Optimistic event mutations on the dashboard: creates/edits/deletes now show a
+    **stand-in chip immediately** at confirm instead of after the serial Google writes +
+    read-your-own-writes refresh (~0.5–3 s), via a short-lived client overlay (`optimisticOps`)
+    merged into the server `events` prop by the pure, unit-tested `applyOptimisticOps`
+    (`src/lib/events/optimistic.ts`); every view memo reads the derived `viewEvents`. The
+    server actions now return the ids they already computed (Decision 3): `EventActionResult`
+    success carries the group `eventId` + per-copy `{calendarId, googleEventId}` (`EventActionOk`),
+    so the chip is pinned to real ids at `ok` and handed off to the authoritative refresh with
+    no flicker. Wizard stays open through the action (Decision A) so rejections keep the exact
+    field-error UX; settled ops are dropped by a guarded render-phase reconcile on the next
+    props arrival; stand-in chips block detail taps (`isOptimisticStandIn`) until pinned.
+    `buildOptimisticEvent` mirrors the action's normalization/time/title/color parity
+    (`withSelfCreator`→`clampEventEnd`, exclusive all-day ends, view-template title,
+    `eventTypes.color` now passed to the client). `docs/optimistic-mutations.md`
 
 ## 1.4 Open items & next steps
 
