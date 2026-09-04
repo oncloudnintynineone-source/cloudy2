@@ -91,7 +91,7 @@ jobs:
       group: deploy-cloudrun
       cancel-in-progress: false
     env:
-      CLOUD_RUN_REGION: asia-east1
+      CLOUD_RUN_REGION: asia-southeast1
       CLOUD_RUN_SERVICE: cloudy2
     permissions:
       contents: read

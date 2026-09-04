@@ -278,7 +278,7 @@ same prod Google service account).
   `.dockerignore`. Pure-JS runtime deps (bcryptjs, no native modules).
 - **Service config** (request-based billing = CPU throttled, scale-to-zero):
   1 vCPU / 1 GiB / concurrency 20 / min-instances 0 / max-instances 4 /
-  allow-unauthenticated (login is public). Region `asia-east1`. The first deploy
+  allow-unauthenticated (login is public). Region `asia-southeast1`. The first deploy
   rolls a placeholder revision; the job then reads its `*.run.app` URL and issues
   `gcloud run services update` setting all env vars (via `--env-vars-file`, so
   values may contain commas/`=`) plus `NEXTAUTH_URL` — a second revision seconds
@@ -289,7 +289,7 @@ same prod Google service account).
   Cloud Run does not block SMTP ports 465/587, so the nodemailer fallback works.
 - **One-time GCP setup** (console): project + billing account (card; Always-Free
   tier applies) → enable Cloud Run Admin + Artifact Registry → create Artifact
-  Registry repo `cloudy2` in `asia-east1` → create a deploy service account
+  Registry repo `cloudy2` in `asia-southeast1` → create a deploy service account
   (`roles/run.admin` + `roles/artifactregistry.writer`), store its JSON key as the
   GitHub secret `GCP_SA_KEY`. Additional required GitHub secrets (mirroring Vercel
   prod): `GCP_PROJECT_ID`, `DATABASE_URL`, `NEXTAUTH_SECRET`,
