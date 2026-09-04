@@ -4,6 +4,7 @@ import { headers } from "next/headers";
 import { LoginForm } from "@/components/LoginForm";
 import { detectLegacyBrowser } from "@/lib/browserSupport";
 
+import { LoginShell } from "./LoginShell";
 import { UnsupportedBrowserNotice } from "./UnsupportedBrowserNotice";
 
 export const metadata: Metadata = {
@@ -22,7 +23,15 @@ export default async function LoginPage() {
   // URL answers with the precached shell. Fail-open detection: docs/browser-support.md
   const h = await headers();
   if (detectLegacyBrowser(h.get("user-agent"))) {
-    return <UnsupportedBrowserNotice />;
+    return (
+      <LoginShell>
+        <UnsupportedBrowserNotice />
+      </LoginShell>
+    );
   }
-  return <LoginForm />;
+  return (
+    <LoginShell>
+      <LoginForm />
+    </LoginShell>
+  );
 }

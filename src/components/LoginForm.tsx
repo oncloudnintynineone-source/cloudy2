@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { signIn } from "next-auth/react";
-import { Button, Center, Paper, PasswordInput, Stack, Text, Title } from "@mantine/core";
+import { Button, PasswordInput, Stack } from "@mantine/core";
 import { BUTTON_LOADER_PROPS } from "@/lib/theme";
 import { invalidateCurrentPathCaches } from "@/lib/pwa/client";
 
@@ -31,44 +31,30 @@ export function LoginForm() {
   }
 
   return (
-    <Center mih="100dvh">
-      <Paper withBorder radius="md" p="lg" shadow="sm" w="100%" maw={{ base: 380, lg: 440 }}>
-        <form onSubmit={onSubmit}>
-          <Stack>
-            <div>
-              <div
-                style={{
-                  width: 40,
-                  height: 4,
-                  borderRadius: 999,
-                  background: "var(--mantine-color-accent-6)",
-                  marginBottom: 8,
-                }}
-              />
-              <Title order={2} c="brand">
-                Cloudy
-              </Title>
-              <Text c="dimmed" size="sm">
-                Cloud Group Parade State
-              </Text>
-            </div>
-            <PasswordInput
-              aria-label="Password or phone number plus login keyword"
-              placeholder="Enter your credentials"
-              value={input}
-              onChange={(e) => setInput(e.currentTarget.value)}
-              // Rendered in Mantine's error slot under the input (wired to
-              // it via aria-describedby) instead of a detached red Text.
-              error={error ?? undefined}
-              required
-              autoFocus
-            />
-            <Button type="submit" loading={loading} loaderProps={BUTTON_LOADER_PROPS} fullWidth>
-              Sign in
-            </Button>
-          </Stack>
-        </form>
-      </Paper>
-    </Center>
+    <form onSubmit={onSubmit}>
+      <Stack gap="md">
+        <PasswordInput
+          aria-label="Admin password or phone number plus login keyword"
+          placeholder="Enter your credentials"
+          value={input}
+          onChange={(e) => setInput(e.currentTarget.value)}
+          // Rendered in Mantine's error slot under the input (wired to
+          // it via aria-describedby) instead of a detached red Text.
+          error={error ?? undefined}
+          size="lg"
+          required
+          autoFocus
+        />
+        <Button
+          type="submit"
+          loading={loading}
+          loaderProps={BUTTON_LOADER_PROPS}
+          fullWidth
+          size="lg"
+        >
+          Sign in
+        </Button>
+      </Stack>
+    </form>
   );
 }
