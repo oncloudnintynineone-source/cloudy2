@@ -1,7 +1,7 @@
 import { asc, eq, inArray } from "drizzle-orm";
 
 import { db } from "@/db";
-import { calendars, users } from "@/db/schema";
+import { calendars, userCalendarAccess, users } from "@/db/schema";
 import type { UserRole, UserStatus } from "@/lib/roster/validate";
 import { onlyUuidIds } from "@/lib/uuid";
 
@@ -98,8 +98,35 @@ export async function getUsersByIds(userIds: string[]): Promise<UserDisplayInfo[
 
 /** All departments (Google Calendar registry), ordered for display (sortOrder then name). */
 export async function listDepartments() {
-  return db
-    .select()
-    .from(calendars)
+  return db.select().from(calendars).orderBy(asc(calendars.sortOrder), asc(calendars.name));
+}
+
+export interface RosterAccessGrant {
+  calendarId: string;
+  /** The granted department's display name. */
+  name: string;
+  role: "reader" | "writer";
+}
+
+/**
+ * Every cross-department access grant, joined with its department name and
+ * ordered like the departments list. Callers group these by user id.
+ */
+export async function listUserAccess(): Promise<(RosterAccessGrant & { userId: string })[]> {
+  const rows = await db
+    .select({
+      userId: userCalendarAccess.userId,
+      calendarId: userCalendarAccess.calendarId,
+      name: calendars.name,
+      role: userCalendarAccess.role,
+    })
+    .from(userCalendarAccess)
+    .leftJoin(calendars, eq(calendars.id, userCalendarAccess.calendarId))
     .orderBy(asc(calendars.sortOrder), asc(calendars.name));
+  return rows.map((row) => ({
+    userId: row.userId,
+    calendarId: row.calendarId,
+    name: row.name ?? row.calendarId,
+    role: row.role,
+  }));
 }

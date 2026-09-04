@@ -421,8 +421,57 @@ function DepartmentDetailBody({
                 </Stack>
 
                 <Stack gap={6}>
+                  <Stack gap={2}>
+                    <Text fw={600} size="sm">
+                      Granted access
+                    </Text>
+                    <Text size="xs" c="dimmed">
+                      Users granted this calendar from their user settings. Change or remove the
+                      grant there.
+                    </Text>
+                  </Stack>
+                  {data && data.granted.length === 0 ? (
+                    <Text size="sm" c="dimmed">
+                      No cross-department grants.
+                    </Text>
+                  ) : (
+                    data?.granted.map((granted) => (
+                      <Paper key={granted.email} withBorder p="xs" radius="md">
+                        <Group justify="space-between" wrap="nowrap" align="center">
+                          <Stack gap={0} style={{ minWidth: 0, flex: 1 }}>
+                            <Text size="sm" fw={600}>
+                              {granted.name}
+                            </Text>
+                            <Text size="xs" c="dimmed" style={{ wordBreak: "break-all" }}>
+                              {granted.email}
+                              {granted.departmentName ? ` · ${granted.departmentName}` : ""}
+                            </Text>
+                          </Stack>
+                          <Badge
+                            variant="light"
+                            color={
+                              granted.role === "owner"
+                                ? "brand"
+                                : granted.role === "writer"
+                                  ? "blue"
+                                  : "gray"
+                            }
+                          >
+                            {roleLabel(granted.role)}
+                          </Badge>
+                        </Group>
+                      </Paper>
+                    ))
+                  )}
+                </Stack>
+
+                <Stack gap={6}>
                   <Text fw={600} size="sm">
                     Additional access
+                  </Text>
+                  <Text size="xs" c="dimmed">
+                    People without a user account. If the person is a roster user, grant them from
+                    Users instead.
                   </Text>
                   {data && data.additional.length === 0 ? (
                     <Text size="sm" c="dimmed">

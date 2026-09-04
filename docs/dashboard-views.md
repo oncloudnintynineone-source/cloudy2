@@ -56,6 +56,13 @@ Filter semantics:
 - On the dashboard an active **Users** filter also narrows the rows of
   Day/Week (H)/Week (D) — `buildScheduleResources` takes a `userFilter`
   (`src/lib/events/schedule.ts:120`) and the Week (D) matrix reuses the same rows.
+- **Access is unrelated to filters.** A user's department membership — or any
+  extra department calendars granted to them — has nothing to do with which
+  departments they can filter: every user can always select *every* department
+  in the Calendars filter (the reads are not access-gated). Cross-department
+  grants affect only Google Calendar sharing/roles
+  ([`roster-sharing.md`](roster-sharing.md) §1.5), and a non-admin's **role
+  default** stays their own department — extra grants never expand it.
 - The per-view model, its resolution order (URL → view memory → **role default** —
   the removed shared set is never consulted, so configuring one view can't leak
   into another's untouched views), the explicit-empty "cleared" state, and the

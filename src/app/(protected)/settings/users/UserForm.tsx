@@ -8,6 +8,8 @@ import {
   Grid,
   Group,
   Modal,
+  Paper,
+  Select,
   Stack,
   Text,
   TextInput,
@@ -15,6 +17,7 @@ import {
 } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
+import { IconPlus, IconX } from "@tabler/icons-react";
 
 import { BUTTON_LOADER_PROPS } from "@/lib/theme";
 import { showValidationFailure } from "@/lib/ui/validationFeedback";
@@ -25,8 +28,15 @@ import {
   updateUser,
   type RosterActionResult,
 } from "@/lib/roster/actions";
-import type { RosterUser } from "@/lib/roster/queries";
+import type { RosterAccessGrant, RosterUser } from "@/lib/roster/queries";
+import type { ManagedGrantRole, UserCalendarGrant } from "@/lib/roster/shares";
 import { validateUserForm, type UserFormValues } from "@/lib/roster/validate";
+import { NoKeyboardSelect } from "@/components/NoKeyboardSelect";
+
+const ACCESS_ROLE_OPTIONS: { value: ManagedGrantRole; label: string }[] = [
+  { value: "reader", label: "Read only" },
+  { value: "writer", label: "Can edit" },
+];
 
 export interface DepartmentOption {
   id: string;
@@ -36,10 +46,16 @@ export interface DepartmentOption {
 interface UserFormProps {
   user: RosterUser | null;
   departments: DepartmentOption[];
+  /** The user's current cross-department grants (from the server, per user). */
+  access: RosterAccessGrant[];
   onDone: () => void;
 }
 
-function initialValues(user: RosterUser | null): UserFormValues {
+function initialValues(user: RosterUser | null, access: RosterAccessGrant[]): UserFormValues {
+  const grants: UserCalendarGrant[] = access.map((grant) => ({
+    calendarId: grant.calendarId,
+    role: grant.role,
+  }));
   if (!user) {
     return {
       name: "",
@@ -50,6 +66,7 @@ function initialValues(user: RosterUser | null): UserFormValues {
       role: "user",
       status: "active",
       departmentId: null,
+      access: grants,
     };
   }
   return {
@@ -61,18 +78,21 @@ function initialValues(user: RosterUser | null): UserFormValues {
     role: user.role,
     status: user.status,
     departmentId: user.department?.id ?? null,
+    access: grants,
   };
 }
 
-export function UserForm({ user, departments, onDone }: UserFormProps) {
+export function UserForm({ user, departments, access, onDone }: UserFormProps) {
   const isEdit = user !== null;
   const [confirmOpened, { open: openConfirm, close: closeConfirm }] = useDisclosure(false);
   const [togglingStatus, setTogglingStatus] = useState(false);
+  const [addingCalendarId, setAddingCalendarId] = useState<string>("");
+  const [addingRole, setAddingRole] = useState<ManagedGrantRole>("reader");
 
   const form = useForm<UserFormValues>({
     // The parent remounts this component (key) when the target user changes,
     // so initialValues are computed once per mount and stay correct.
-    initialValues: initialValues(user),
+    initialValues: initialValues(user, access),
     validate: (values) => validateUserForm(values),
     // Validate as soon as a field loses focus: the inline error appears
     // without waiting for a submit (errors clear on the next edit).
@@ -132,6 +152,51 @@ export function UserForm({ user, departments, onDone }: UserFormProps) {
       }
     } finally {
       setTogglingStatus(false);
+    }
+  }
+
+  const granted = form.values.access ?? [];
+
+  /** Department display name for a grant (unknown ids fall back to the id). */
+  function departmentName(calendarId: string): string {
+    return departments.find((department) => department.id === calendarId)?.name ?? calendarId;
+  }
+
+  /** Departments that can still be granted (not the user's own, not added). */
+  const addableDepartments = departments.filter(
+    (department) =>
+      department.id !== form.values.departmentId &&
+      !granted.some((grant) => grant.calendarId === department.id),
+  );
+
+  function addGrant(calendarId: string, role: ManagedGrantRole) {
+    if (!calendarId || granted.some((grant) => grant.calendarId === calendarId)) {
+      return;
+    }
+    form.setFieldValue("access", [...granted, { calendarId, role }]);
+    setAddingCalendarId("");
+    setAddingRole("reader");
+  }
+
+  function removeGrant(calendarId: string) {
+    form.setFieldValue(
+      "access",
+      granted.filter((grant) => grant.calendarId !== calendarId),
+    );
+  }
+
+  function changeGrantRole(calendarId: string, role: ManagedGrantRole) {
+    form.setFieldValue(
+      "access",
+      granted.map((grant) => (grant.calendarId === calendarId ? { calendarId, role } : grant)),
+    );
+  }
+
+  /** The selected department becomes the user's own — drop any matching grant. */
+  function selectDepartment(departmentId: string | null) {
+    form.setFieldValue("departmentId", departmentId);
+    if (departmentId && granted.some((grant) => grant.calendarId === departmentId)) {
+      removeGrant(departmentId);
     }
   }
 
@@ -236,9 +301,7 @@ export function UserForm({ user, departments, onDone }: UserFormProps) {
                     key={department.id}
                     aria-pressed={selected}
                     aria-label={`Department: ${department.name}`}
-                    onClick={() =>
-                      form.setFieldValue("departmentId", selected ? null : department.id)
-                    }
+                    onClick={() => selectDepartment(selected ? null : department.id)}
                     style={{ cursor: "pointer", borderRadius: "var(--mantine-radius-md)" }}
                   >
                     <Badge
@@ -254,6 +317,100 @@ export function UserForm({ user, departments, onDone }: UserFormProps) {
             </Group>
           )}
         </Stack>
+
+        {/* Cross-department access: department calendars this user may see
+            beyond their own. Grants are managed here (never as anonymous
+            emails in a department's Additional access); their own department
+            is always shared automatically. Filter availability is unrelated —
+            every user can filter every department calendar anyway. */}
+        <Stack gap={6}>
+          <Stack gap={2}>
+            <Text fw={500} size="sm">
+              Department access
+            </Text>
+            <Text size="sm" c="dimmed">
+              Other department calendars this user can see — Read only or Can edit. Their own
+              department is always shared automatically.
+            </Text>
+          </Stack>
+
+          {granted.length === 0 ? (
+            <Text size="sm" c="dimmed">
+              No extra access yet.
+            </Text>
+          ) : (
+            granted.map((grant) => (
+              <Paper key={grant.calendarId} withBorder p="xs" radius="md">
+                <Group justify="space-between" wrap="nowrap" align="center">
+                  <Text size="sm" fw={500} style={{ minWidth: 0, flex: 1 }}>
+                    {departmentName(grant.calendarId)}
+                  </Text>
+                  <Select
+                    size="xs"
+                    aria-label={`Access level for ${departmentName(grant.calendarId)}`}
+                    data={ACCESS_ROLE_OPTIONS}
+                    value={grant.role}
+                    style={{ width: 132, flexShrink: 0 }}
+                    onChange={(value) => {
+                      if (value === "reader" || value === "writer") {
+                        changeGrantRole(grant.calendarId, value);
+                      }
+                    }}
+                  />
+                  <Button
+                    size="compact-xs"
+                    variant="subtle"
+                    color="red"
+                    px={4}
+                    aria-label={`Remove access to ${departmentName(grant.calendarId)}`}
+                    onClick={() => removeGrant(grant.calendarId)}
+                  >
+                    <IconX size={14} />
+                  </Button>
+                </Group>
+              </Paper>
+            ))
+          )}
+
+          {departments.length > 0 && (
+            <Group gap="xs" align="flex-end" wrap="wrap">
+              <NoKeyboardSelect
+                aria-label="Department to grant"
+                placeholder={
+                  addableDepartments.length > 0 ? "Add a department…" : "No more departments"
+                }
+                data={addableDepartments.map((department) => ({
+                  value: department.id,
+                  label: department.name,
+                }))}
+                value={addingCalendarId}
+                onChange={(value) => setAddingCalendarId(value ?? "")}
+                style={{ flex: 1, minWidth: 180 }}
+                disabled={addableDepartments.length === 0}
+              />
+              <NoKeyboardSelect
+                aria-label="Access level to grant"
+                data={ACCESS_ROLE_OPTIONS}
+                value={addingRole}
+                onChange={(value) => {
+                  if (value === "reader" || value === "writer") {
+                    setAddingRole(value);
+                  }
+                }}
+                style={{ width: 132, flexShrink: 0 }}
+              />
+              <Button
+                variant="light"
+                leftSection={<IconPlus size={16} />}
+                disabled={!addingCalendarId}
+                onClick={() => addGrant(addingCalendarId, addingRole)}
+              >
+                Add
+              </Button>
+            </Group>
+          )}
+        </Stack>
+
         <Group justify="flex-end" mt="md">
           {isEdit && (
             <Button

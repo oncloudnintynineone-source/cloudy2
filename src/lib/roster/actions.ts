@@ -1,11 +1,11 @@
 "use server";
 
-import { asc, eq, inArray } from "drizzle-orm";
+import { asc, eq, inArray, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
 import { db } from "@/db";
 import { describeError, findUniqueViolation } from "@/db/pgErrors";
-import { calendars, users, type Calendar, type User } from "@/db/schema";
+import { calendars, userCalendarAccess, users, type Calendar, type User } from "@/db/schema";
 import { AUDIT_ACTIONS, actorFromUser } from "@/lib/audit/build";
 import { diffFields } from "@/lib/audit/diff";
 import { logAction } from "@/lib/audit/log";
@@ -20,12 +20,16 @@ import {
   moveInTreeOrder,
 } from "@/lib/roster/hierarchy";
 import {
+  adoptExternalAccessForEmail,
+  formatManagedGrants,
   isDepartmentAccessRole,
   isValidEmail,
   listDepartmentAccess,
+  normalizeAccessSelection,
   reconcileUserAccessChange,
   type DepartmentAccess,
   type DepartmentAccessRole,
+  type UserCalendarGrant,
 } from "@/lib/roster/shares";
 import {
   normalizePhone,
@@ -56,7 +60,7 @@ function actorFrom(session: Awaited<ReturnType<typeof requireAdmin>>) {
 }
 
 /** Sanitized user snapshot for audit details (never includes the password hash). */
-function userSnapshot(user: User, departmentNames: Record<string, string>) {
+function userSnapshot(user: User, departmentNames: Record<string, string>, access: string[] = []) {
   return {
     name: user.name,
     shortname: user.shortname,
@@ -66,6 +70,7 @@ function userSnapshot(user: User, departmentNames: Record<string, string>) {
     role: user.role,
     status: user.status,
     department: user.departmentId ? (departmentNames[user.departmentId] ?? null) : null,
+    access,
   };
 }
 
@@ -95,6 +100,47 @@ async function calendarNamesByIds(ids: string[]): Promise<Record<string, string>
   return Object.fromEntries(rows.map((row) => [row.id, row.name]));
 }
 
+/**
+ * Resolve a client-submitted access selection against the live roster: drop
+ * unknown calendar ids (and the user's own department) and return the clean
+ * managed grants plus a `calendarId → name` map for audit display.
+ */
+async function resolveAccessGrants(
+  raw: unknown,
+  ownDepartmentId: string | null,
+): Promise<{ grants: UserCalendarGrant[]; names: Record<string, string> }> {
+  const cleaned = normalizeAccessSelection(raw, ownDepartmentId);
+  if (cleaned.length === 0) {
+    return { grants: [], names: {} };
+  }
+  const names = await calendarNamesByIds(cleaned.map((grant) => grant.calendarId));
+  const grants = cleaned.filter((grant) => names[grant.calendarId] !== undefined);
+  return { grants, names };
+}
+
+/** A user's current grant rows as `UserCalendarGrant`s (for audit/diff). */
+async function listUserGrants(userId: string): Promise<UserCalendarGrant[]> {
+  const rows = await db
+    .select({ calendarId: userCalendarAccess.calendarId, role: userCalendarAccess.role })
+    .from(userCalendarAccess)
+    .where(eq(userCalendarAccess.userId, userId));
+  return rows.map((row) => ({ calendarId: row.calendarId, role: row.role }));
+}
+
+/** Whether an email belongs to an existing roster user (case-insensitive). */
+async function findUserByEmail(email: string) {
+  const trimmed = email.trim();
+  if (!trimmed) {
+    return null;
+  }
+  const [match] = await db
+    .select({ id: users.id, name: users.name, departmentId: users.departmentId })
+    .from(users)
+    .where(sql`lower(${users.email}) = ${trimmed.toLowerCase()}`)
+    .limit(1);
+  return match ?? null;
+}
+
 // ---------------------------------------------------------------------------
 // Users
 // ---------------------------------------------------------------------------
@@ -108,21 +154,29 @@ export async function createUser(input: UserFormValues): Promise<RosterActionRes
   }
 
   const phone = normalizePhone(input.phone)!;
-  const department = await calendarNameOrNull(input.departmentId);
+  const departmentId = input.departmentId || null;
+  const email = input.email?.trim() || null;
+  const department = await calendarNameOrNull(departmentId);
+  const { grants: access, names: accessNames } = await resolveAccessGrants(
+    input.access,
+    departmentId,
+  );
+  let created: { id: string; name: string };
   try {
-    const [created] = await db
+    const [row] = await db
       .insert(users)
       .values({
         name: input.name.trim(),
         shortname: input.shortname,
         phone,
-        email: input.email?.trim() || null,
+        email,
         birthday: input.birthday || null,
         role: input.role,
         status: input.status,
-        departmentId: input.departmentId || null,
+        departmentId,
       })
       .returning({ id: users.id, name: users.name });
+    created = row;
 
     await logAction({
       ...actorFrom(session),
@@ -135,11 +189,12 @@ export async function createUser(input: UserFormValues): Promise<RosterActionRes
         name: input.name.trim(),
         shortname: input.shortname,
         phone,
-        email: input.email?.trim() || null,
+        email,
         birthday: input.birthday || null,
         role: input.role,
         status: input.status,
         department,
+        access: formatManagedGrants(access, accessNames),
       },
     });
   } catch (error) {
@@ -156,13 +211,19 @@ export async function createUser(input: UserFormValues): Promise<RosterActionRes
   }
 
   revalidatePath("/settings/users");
+  revalidatePath("/settings/departments");
 
   const warnings = await reconcileUserAccessChange({
     oldEmail: null,
-    newEmail: input.email?.trim() || null,
+    newEmail: email,
     oldDepartmentId: null,
-    newDepartmentId: input.departmentId || null,
+    newDepartmentId: departmentId,
+    userId: created.id,
+    desiredAccess: access,
   });
+  if (email) {
+    warnings.push(...(await adoptExternalAccessForEmail(created.id, email, departmentId)));
+  }
   return warnings.length > 0 ? { ok: true, warnings } : { ok: true };
 }
 
@@ -175,28 +236,43 @@ export async function updateUser(id: string, input: UserFormValues): Promise<Ros
   }
 
   const phone = normalizePhone(input.phone)!;
+  const newEmail = input.email?.trim() || null;
+  const newDepartmentId = input.departmentId || null;
   const [before] = await db.select().from(users).where(eq(users.id, id)).limit(1);
   if (!before) {
     return { ok: false, error: "User not found", field: "name" };
   }
 
-  const departmentNames = await calendarNamesByIds(
-    [...new Set([before.departmentId, input.departmentId].filter((value): value is string => value !== null))],
+  const departmentNames = await calendarNamesByIds([
+    ...new Set(
+      [before.departmentId, newDepartmentId].filter((value): value is string => value !== null),
+    ),
+  ]);
+  const beforeGrants = await listUserGrants(id);
+  const beforeAccessNames = await calendarNamesByIds(beforeGrants.map((grant) => grant.calendarId));
+  const beforeAccess = formatManagedGrants(beforeGrants, beforeAccessNames);
+  const { grants: afterGrants, names: afterAccessNames } = await resolveAccessGrants(
+    input.access,
+    newDepartmentId,
   );
+  const afterAccess = formatManagedGrants(afterGrants, afterAccessNames);
+
   const after = userSnapshot(
     {
       ...before,
       name: input.name.trim(),
       shortname: input.shortname,
       phone,
-      email: input.email?.trim() || null,
+      email: newEmail,
       birthday: input.birthday || null,
       role: input.role,
       status: input.status,
-      departmentId: input.departmentId || null,
+      departmentId: newDepartmentId,
     },
     departmentNames,
+    afterAccess,
   );
+  const beforeSnapshot = userSnapshot(before, departmentNames, beforeAccess);
 
   try {
     await db
@@ -205,11 +281,11 @@ export async function updateUser(id: string, input: UserFormValues): Promise<Ros
         name: input.name.trim(),
         shortname: input.shortname,
         phone,
-        email: input.email?.trim() || null,
+        email: newEmail,
         birthday: input.birthday || null,
         role: input.role,
         status: input.status,
-        departmentId: input.departmentId || null,
+        departmentId: newDepartmentId,
         updatedAt: new Date(),
       })
       .where(eq(users.id, id));
@@ -221,7 +297,7 @@ export async function updateUser(id: string, input: UserFormValues): Promise<Ros
       entityId: id,
       entityName: input.name.trim(),
       method: "updateUser",
-      details: diffFields(userSnapshot(before, departmentNames), after),
+      details: diffFields(beforeSnapshot, after),
     });
   } catch (error) {
     // Drizzle wraps the PostgresError in a DrizzleQueryError, so the
@@ -237,16 +313,23 @@ export async function updateUser(id: string, input: UserFormValues): Promise<Ros
   }
 
   revalidatePath("/settings/users");
+  revalidatePath("/settings/departments");
 
-  const emailChanged = (before.email ?? "") !== (after.email ?? "");
-  const departmentChanged = (before.departmentId ?? null) !== (input.departmentId || null);
-  if (emailChanged || departmentChanged) {
+  const emailChanged = (before.email?.trim() || null) !== newEmail;
+  const departmentChanged = (before.departmentId ?? null) !== newDepartmentId;
+  const accessChanged = JSON.stringify(beforeAccess) !== JSON.stringify(afterAccess);
+  if (emailChanged || departmentChanged || accessChanged) {
     const warnings = await reconcileUserAccessChange({
       oldEmail: before.email,
-      newEmail: after.email,
+      newEmail,
       oldDepartmentId: before.departmentId,
-      newDepartmentId: input.departmentId || null,
+      newDepartmentId,
+      userId: id,
+      desiredAccess: afterGrants,
     });
+    if (newEmail && emailChanged) {
+      warnings.push(...(await adoptExternalAccessForEmail(id, newEmail, newDepartmentId)));
+    }
     return warnings.length > 0 ? { ok: true, warnings } : { ok: true };
   }
 
@@ -268,10 +351,10 @@ export async function setUserStatus(id: string, status: UserStatus): Promise<Ros
     action: AUDIT_ACTIONS.userStatusChange,
     entityType: "user",
     entityId: id,
-      entityName: user.name,
-      method: "setUserStatus",
-      details: diffFields({ status: user.status }, { status }),
-    });
+    entityName: user.name,
+    method: "setUserStatus",
+    details: diffFields({ status: user.status }, { status }),
+  });
 
   revalidatePath("/settings/users");
   return { ok: true };
@@ -298,7 +381,12 @@ export async function createDepartment(input: CalendarFormValues): Promise<Roste
   const parentId = input.parentId || null;
 
   const existing = await db
-    .select({ id: calendars.id, name: calendars.name, sortOrder: calendars.sortOrder, parentId: calendars.parentId })
+    .select({
+      id: calendars.id,
+      name: calendars.name,
+      sortOrder: calendars.sortOrder,
+      parentId: calendars.parentId,
+    })
     .from(calendars)
     .orderBy(asc(calendars.sortOrder), asc(calendars.name));
 
@@ -322,7 +410,13 @@ export async function createDepartment(input: CalendarFormValues): Promise<Roste
     if (!parent) {
       return { ok: false, error: "Parent department not found", field: "parentId" };
     }
-    parent.children.push({ id: "__new__", name, sortOrder: Number.MAX_SAFE_INTEGER, parentId, children: [] });
+    parent.children.push({
+      id: "__new__",
+      name,
+      sortOrder: Number.MAX_SAFE_INTEGER,
+      parentId,
+      children: [],
+    });
     // The placeholder stands in for the new row, so each combined-preorder
     // index IS the final rank (the placeholder's own index is the new rank).
     const flat = flattenDepartmentTree(tree);
@@ -342,7 +436,10 @@ export async function createDepartment(input: CalendarFormValues): Promise<Roste
         for (const entry of ranked) {
           const current = existing.find((row) => row.id === entry.id);
           if (current && current.sortOrder !== entry.sortOrder) {
-            await tx.update(calendars).set({ sortOrder: entry.sortOrder }).where(eq(calendars.id, entry.id));
+            await tx
+              .update(calendars)
+              .set({ sortOrder: entry.sortOrder })
+              .where(eq(calendars.id, entry.id));
           }
         }
       }
@@ -376,7 +473,11 @@ export async function createDepartment(input: CalendarFormValues): Promise<Roste
         field: "name",
       };
     }
-    return { ok: false, error: describeError(error, "Could not create the department"), field: "name" };
+    return {
+      ok: false,
+      error: describeError(error, "Could not create the department"),
+      field: "name",
+    };
   }
 
   revalidatePath("/settings/departments");
@@ -410,18 +511,29 @@ export async function renameDepartment(
   // full list: validate existence + cycle-freedom, then renumber preorder
   // ranks in the same transaction.
   let ranked: { id: string; sortOrder: number }[] | null = null;
-  let rows: {
-    id: string;
-    name: string;
-    sortOrder: number;
-    parentId: string | null;
-  }[] | null = null;
+  let rows:
+    | {
+        id: string;
+        name: string;
+        sortOrder: number;
+        parentId: string | null;
+      }[]
+    | null = null;
   if (targetParentId !== calendar.parentId) {
     if (targetParentId === id) {
-      return { ok: false, error: "A department cannot be its own sub-department", field: "parentId" };
+      return {
+        ok: false,
+        error: "A department cannot be its own sub-department",
+        field: "parentId",
+      };
     }
     rows = await db
-      .select({ id: calendars.id, name: calendars.name, sortOrder: calendars.sortOrder, parentId: calendars.parentId })
+      .select({
+        id: calendars.id,
+        name: calendars.name,
+        sortOrder: calendars.sortOrder,
+        parentId: calendars.parentId,
+      })
       .from(calendars)
       .orderBy(asc(calendars.sortOrder), asc(calendars.name));
     if (!rows.some((row) => row.id === targetParentId)) {
@@ -435,7 +547,9 @@ export async function renameDepartment(
         field: "parentId",
       };
     }
-    const reordered = rows.map((row) => (row.id === id ? { ...row, parentId: targetParentId } : row));
+    const reordered = rows.map((row) =>
+      row.id === id ? { ...row, parentId: targetParentId } : row,
+    );
     ranked = flattenDepartmentTree(buildDepartmentTree(reordered)).map((node, index) => ({
       id: node.id,
       sortOrder: index,
@@ -456,7 +570,10 @@ export async function renameDepartment(
         for (const entry of ranked) {
           const current = rows.find((row) => row.id === entry.id);
           if (current && current.sortOrder !== entry.sortOrder) {
-            await tx.update(calendars).set({ sortOrder: entry.sortOrder }).where(eq(calendars.id, entry.id));
+            await tx
+              .update(calendars)
+              .set({ sortOrder: entry.sortOrder })
+              .where(eq(calendars.id, entry.id));
           }
         }
       }
@@ -483,7 +600,11 @@ export async function renameDepartment(
       ),
     });
   } catch (error) {
-    return { ok: false, error: describeError(error, "Could not update the department"), field: "name" };
+    return {
+      ok: false,
+      error: describeError(error, "Could not update the department"),
+      field: "name",
+    };
   }
 
   revalidatePath("/settings/departments");
@@ -542,7 +663,10 @@ export async function moveDepartment(
 ): Promise<RosterActionResult> {
   const session = await requireAdmin();
 
-  const rows = await db.select().from(calendars).orderBy(asc(calendars.sortOrder), asc(calendars.name));
+  const rows = await db
+    .select()
+    .from(calendars)
+    .orderBy(asc(calendars.sortOrder), asc(calendars.name));
   const index = rows.findIndex((row) => row.id === id);
   if (index === -1) {
     return { ok: false, error: "Department not found", field: "name" };
@@ -557,7 +681,10 @@ export async function moveDepartment(
     for (const entry of moved) {
       const current = rows.find((row) => row.id === entry.id);
       if (current && current.sortOrder !== entry.sortOrder) {
-        await tx.update(calendars).set({ sortOrder: entry.sortOrder }).where(eq(calendars.id, entry.id));
+        await tx
+          .update(calendars)
+          .set({ sortOrder: entry.sortOrder })
+          .where(eq(calendars.id, entry.id));
       }
     }
   });
@@ -614,6 +741,24 @@ export async function grantDepartmentAccess(
     return { ok: false, error: "Google Calendar is not configured" };
   }
 
+  // Access for roster users is managed from their user settings (the user's
+  // own "Department access"), never as an anonymous raw-email rule here — a raw
+  // rule would duplicate the user and break on email changes. A member of this
+  // very department already has automatic reader access.
+  const existingUser = await findUserByEmail(trimmed);
+  if (existingUser) {
+    if (existingUser.departmentId === calendarId) {
+      return {
+        ok: false,
+        error: `${existingUser.name} is already a member of ${calendar.name}`,
+      };
+    }
+    return {
+      ok: false,
+      error: `That email belongs to ${existingUser.name} — give them access from their user settings instead`,
+    };
+  }
+
   try {
     const integration = await getGoogleIntegration();
     await integration.setCalendarAccess(calendar.googleCalendarId, trimmed, role);
@@ -626,10 +771,10 @@ export async function grantDepartmentAccess(
     action: AUDIT_ACTIONS.accessGrant,
     entityType: "calendar",
     entityId: calendar.id,
-      entityName: calendar.name,
-      method: "grantDepartmentAccess",
-      details: { email: trimmed, ...diffFields({ role: null }, { role }) },
-    });
+    entityName: calendar.name,
+    method: "grantDepartmentAccess",
+    details: { email: trimmed, ...diffFields({ role: null }, { role }) },
+  });
 
   return { ok: true };
 }

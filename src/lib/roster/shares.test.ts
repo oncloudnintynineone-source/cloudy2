@@ -3,10 +3,15 @@ import { describe, expect, it } from "vitest";
 import {
   diffAccess,
   diffRevocable,
+  formatManagedGrants,
   isDepartmentAccessRole,
   isInherentOwnerEmail,
+  isManagedGrantRole,
   isValidEmail,
   needsAdminOwnerGrant,
+  needsManagedGrant,
+  normalizeAccessSelection,
+  normalizeGrantRole,
 } from "./shares";
 
 describe("isValidEmail", () => {
@@ -119,15 +124,126 @@ describe("needsAdminOwnerGrant", () => {
 
   it("is true when the admin only has a lower role (upgrade to owner)", () => {
     expect(
-      needsAdminOwnerGrant(
-        [{ email: "boss@example.com", role: "reader" }],
-        "boss@example.com",
-      ),
+      needsAdminOwnerGrant([{ email: "boss@example.com", role: "reader" }], "boss@example.com"),
     ).toBe(true);
   });
 
   it("is false for a blank email", () => {
     expect(needsAdminOwnerGrant(acls, "")).toBe(false);
     expect(needsAdminOwnerGrant(acls, "   ")).toBe(false);
+  });
+});
+
+describe("isManagedGrantRole", () => {
+  it("accepts reader and writer", () => {
+    expect(isManagedGrantRole("reader")).toBe(true);
+    expect(isManagedGrantRole("writer")).toBe(true);
+  });
+
+  it("rejects owner, freeBusyReader, and other values", () => {
+    expect(isManagedGrantRole("owner")).toBe(false);
+    expect(isManagedGrantRole("freeBusyReader")).toBe(false);
+    expect(isManagedGrantRole("")).toBe(false);
+    expect(isManagedGrantRole(undefined)).toBe(false);
+  });
+});
+
+describe("normalizeGrantRole", () => {
+  it("keeps writer and falls back to reader otherwise", () => {
+    expect(normalizeGrantRole("writer")).toBe("writer");
+    expect(normalizeGrantRole("reader")).toBe("reader");
+    expect(normalizeGrantRole("owner")).toBe("reader");
+    expect(normalizeGrantRole(null)).toBe("reader");
+    expect(normalizeGrantRole(undefined)).toBe("reader");
+    expect(normalizeGrantRole("")).toBe("reader");
+  });
+});
+
+describe("needsManagedGrant", () => {
+  it("is true when there is no rule", () => {
+    expect(needsManagedGrant(null, "reader")).toBe(true);
+    expect(needsManagedGrant(undefined, "writer")).toBe(true);
+    expect(needsManagedGrant("", "reader")).toBe(true);
+  });
+
+  it("is true when the rule sits below the intended role", () => {
+    expect(needsManagedGrant("reader", "writer")).toBe(true);
+  });
+
+  it("is false when the rule meets or exceeds the intended role", () => {
+    expect(needsManagedGrant("reader", "reader")).toBe(false);
+    expect(needsManagedGrant("writer", "writer")).toBe(false);
+    expect(needsManagedGrant("writer", "reader")).toBe(false);
+    expect(needsManagedGrant("owner", "writer")).toBe(false);
+  });
+});
+
+describe("normalizeAccessSelection", () => {
+  it("keeps reader/writer roles and trims calendar ids", () => {
+    expect(
+      normalizeAccessSelection(
+        [
+          { calendarId: " a ", role: "reader" },
+          { calendarId: "b", role: "writer" },
+        ],
+        null,
+      ),
+    ).toEqual([
+      { calendarId: "a", role: "reader" },
+      { calendarId: "b", role: "writer" },
+    ]);
+  });
+
+  it("drops invalid roles, blank ids, non-objects, and duplicates", () => {
+    expect(
+      normalizeAccessSelection(
+        [
+          { calendarId: "a", role: "owner" },
+          { calendarId: "", role: "reader" },
+          { calendarId: "a", role: "writer" },
+          null,
+          "nope",
+          { calendarId: undefined, role: "reader" },
+        ],
+        null,
+      ),
+    ).toEqual([{ calendarId: "a", role: "reader" }]);
+  });
+
+  it("excludes the user's own department", () => {
+    expect(
+      normalizeAccessSelection(
+        [{ calendarId: "own", role: "writer" }, { calendarId: "other" }],
+        "own",
+      ),
+    ).toEqual([{ calendarId: "other", role: "reader" }]);
+  });
+
+  it("returns an empty list for non-array input", () => {
+    expect(normalizeAccessSelection(undefined, null)).toEqual([]);
+    expect(normalizeAccessSelection(null, null)).toEqual([]);
+    expect(normalizeAccessSelection("a", null)).toEqual([]);
+  });
+});
+
+describe("formatManagedGrants", () => {
+  const names: Record<string, string> = { ops: "Operations", log: "Logistics" };
+
+  it("renders department + role labels, sorted by department name", () => {
+    expect(
+      formatManagedGrants(
+        [
+          { calendarId: "log", role: "reader" },
+          { calendarId: "ops", role: "writer" },
+        ],
+        names,
+      ),
+    ).toEqual(["Logistics (Read only)", "Operations (Can edit)"]);
+  });
+
+  it("falls back to the calendar id when the name is unknown", () => {
+    expect(formatManagedGrants([{ calendarId: "mystery", role: "writer" }], names)).toEqual([
+      "mystery (Can edit)",
+    ]);
   });
 });

@@ -7193,10 +7193,10 @@ local `.env.local` DB twice â€” second run reports nothing new.)
 ## 1.172 Dashboard filters are per-view only (global/shared-set mode removed)
 
 The dashboard previously offered a "Filter scope" SegmentedControl in the filter
-modal — **Same for all views** (one shared Calendars/Users/Event Types set
+modal ï¿½ **Same for all views** (one shared Calendars/Users/Event Types set
 combined across Month / Week (H) / Week (D) / Day / Agenda) vs **Different per
 view**. Because the shared mode was the default (`dashboard.filterMode` absent ?
-`"global"`), filters set on one calendar view silently applied to every view —
+`"global"`), filters set on one calendar view silently applied to every view ï¿½
 read by users as "filters leaking between views". This phase **removes the
 combine option entirely**: dashboard filters are per-view only, and a filter set
 on one view can never affect another.
@@ -7207,20 +7207,20 @@ on one view can never affect another.
 - `resolveDashboardFilters` drops its `global` (shared-set) fallback and its
   `perView` switch: every view resolves `URL ? views[view] ? role default`.
   The shared set never exists as a fallback, so a view the user never configured
-  can only resolve to role defaults — the leak vector is structurally gone.
+  can only resolve to role defaults ï¿½ the leak vector is structurally gone.
 - `buildDashboardPersist` no longer writes the legacy top-level shared
   `cal/users/types` and always writes `filterMode: "per-view"`. The
   section-wholesale cookie merge therefore prunes the shared set and any stale
   `filterMode` from pre-removal cookies on the first persist.
 - `normalizeUiState` always keeps `views` (there is no shared set a stale map
   could leak into) and drops any non-`"per-view"` `filterMode` value.
-  Pre-removal global-mode cookies degrade to per-view with no `views` — every
+  Pre-removal global-mode cookies degrade to per-view with no `views` ï¿½ every
   view resolves to role defaults (their old combined selection is not copied
   into per-view memory; a deliberate choice that avoids re-materializing
   `cal = <all calendars>` into all five views, the v1 blob bug this subsystem
   retired, and matches the new "each view is independent" contract).
 - `DashboardView` loses the `filterMode` prop/state, the FilterModal
-  `modeControl` (SegmentedControl) and its conditional hint — the footer hint is
+  `modeControl` (SegmentedControl) and its conditional hint ï¿½ the footer hint is
   now unconditional: *"These filters apply to {view} only."* `switchView` always
   writes the target view's resolved filters into the URL, so the URL describes
   the rendered view (unchanged per-view mechanics).
@@ -7231,11 +7231,11 @@ The bug report ("filters leak between views" after `b6baf44`) was the shared-mod
 default + shared-set fallback: absent/corrupt `filterMode` resolved to `"global"`
 (`resolveFilterMode` only honored the literal string `"per-view"`), so one view's
 selection reached every view. With the global path removed, the only way a view
-shows filters is its own URL pin or its own `views[view]` memory — covered by new
+shows filters is its own URL pin or its own `views[view]` memory ï¿½ covered by new
 unit regressions ("a configured view's filters never leak into an untouched
 view", legacy-cookie normalization, and the `buildDashboardPersist` prune).
 
-Legacy cookie note: no schema/cookie version bump — the shape is unchanged, only
+Legacy cookie note: no schema/cookie version bump ï¿½ the shape is unchanged, only
 the meaning of absent `filterMode` flips to per-view (the resolver ignores it
 now), and the writer always stores the explicit per-view marker so a pre-removal
 build reading a new cookie still treats it as per-view.
@@ -7247,11 +7247,58 @@ always-filter-travel on `switchView`), `components/FilterModal.tsx`
 (`modeControl` removed), `uiState.test.ts` (global-mode tests reworked to the
 per-view contract + leak regressions).
 
-Docs: `AGENTS.md`, `docs/dashboard-views.md` §1.2 (+diagram), `docs/ui-state.md`
-§1.4/§1.4.1/§1.4.2/§1.5.1/§1.7/§1.9, `docs/user-guide.md`, `progress.md`.
+Docs: `AGENTS.md`, `docs/dashboard-views.md` ï¿½1.2 (+diagram), `docs/ui-state.md`
+ï¿½1.4/ï¿½1.4.1/ï¿½1.4.2/ï¿½1.5.1/ï¿½1.7/ï¿½1.9, `docs/user-guide.md`, `progress.md`.
 
 Verification: `pnpm lint` + `pnpm typecheck` + `pnpm test` (890 passing). Manual
 (needs the user): set a Calendars/Users filter on Month ? Week (H) / Week (D) /
 Day / Agenda show role defaults; configure each view independently; Reset one
 view without touching the others; confirm the filter modal has no scope control
 and always notes the current view.
+
+## 1.175 Cross-department calendar access in Users
+
+**Feature**: an admin can grant a roster user access to department calendars
+other than their own, from Users â†’ edit-user â†’ "Department access". Grants carry
+a managed role (`reader | writer`); the user's own department is never a row
+(access there is implied by membership). The department detail modal now splits
+its Calendar access into assigned users (members, auto reader + role selector),
+a read-only **Granted access** group (cross-department users, changed in Users),
+and **Additional access** for people without a user account only.
+`grantDepartmentAccess` blocks a typed roster-user email (message points to
+Users) so a managed person can never be an anonymous ACL rule again.
+
+**Why a DB table now**: the old model stored no share rows â€” cross-dept access
+for a roster user was a raw email rule in "Additional access", invisible to the
+roster and orphaned on email change. New `user_calendar_access` rows
+(user Ã— calendar, role, PK on both, FKs cascade) record *intent*; Google stays
+the ACL source of truth. Reconcile paths became expectation-based: for a
+department, expectations = members (reader) + grant rows (their role);
+`reconcileUserAccessChange` takes `userId` + `desiredAccess`, diffs the rows,
+and per affected calendar (old/new dept âˆª added/updated/removed grant
+calendars âˆª all grant calendars on email change) grants rules missing/below
+their expected role (never downgrading an elevation) and revokes the user's
+emails no longer expected. Runs after the DB commit; failures are warnings.
+
+**Legacy adoption**: emails previously granted as raw "additional access" that
+later become a user's email get adopted into grant rows (access preserved,
+manageable) â€” eagerly on user create/email change (`adoptExternalAccessForEmail`,
+per-calendar ACL scan) and lazily on department read (an "additional" rule
+matching a roster user becomes a row and moves under Granted access).
+
+**Docs**: the filters/access independence clarification the product asked to
+record â€” membership/grants never restrict which departments a user can filter
+(everyone sees every department), and extra grants don't change the role
+default â€” was added to `dashboard-views.md` Â§1.2, `ui-state.md` Â§1.5.1,
+`user-guide.md`, `admin-guide.md`, and `roster-sharing.md` Â§1.5.
+`roster-sharing.md` was rewritten for the new model (goals, ER diagram,
+managed-vs-external model, Â§1.9/Â§1.10 flows, Â§1.11/Â§1.12/Â§1.13 tables).
+
+**Verification**: lint + typecheck + 909 unit tests pass; migration 0032
+generated (`db:generate` drift check clean). Manual QA still needed against dev
+Google: grant/revoke/role-change a user's extra departments and confirm the ACL
+moves; type a roster user's email in a department's Additional access (expect
+the block message); adopt a legacy raw rule by opening the department modal;
+move a user between departments and change their email and confirm only the
+correct rules appear/disappear.
+

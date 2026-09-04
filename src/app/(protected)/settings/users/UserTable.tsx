@@ -24,7 +24,7 @@ import { FilterButton } from "@/components/FilterButton";
 import { FilterModal, type FilterGroup } from "@/components/FilterModal";
 import { FAB_ICON_SIZE, FloatingActionButton, FloatingToolbar } from "@/components/FloatingToolbar";
 import { CONTENT_ENTER_CLASS } from "@/lib/loading/contentEnter";
-import type { RosterUser } from "@/lib/roster/queries";
+import type { RosterAccessGrant, RosterUser } from "@/lib/roster/queries";
 import { formatFullName } from "@/lib/settings/formatName";
 import { activatable } from "@/lib/ui/activatable";
 import { UserForm, type DepartmentOption } from "./UserForm";
@@ -32,10 +32,12 @@ import { UserForm, type DepartmentOption } from "./UserForm";
 interface UserTableProps {
   users: RosterUser[];
   departments: DepartmentOption[];
+  /** Cross-department grants grouped by user id (empty for a fresh user). */
+  accessByUser: Record<string, RosterAccessGrant[]>;
   nameTemplate: string;
 }
 
-export function UserTable({ users, departments, nameTemplate }: UserTableProps) {
+export function UserTable({ users, departments, accessByUser, nameTemplate }: UserTableProps) {
   const refreshAfterSave = useActivityRefresh("users:save");
   const theme = useMantineTheme();
   const isDesktop = useMediaQuery(`(min-width: ${theme.breakpoints.lg})`);
@@ -338,6 +340,7 @@ export function UserTable({ users, departments, nameTemplate }: UserTableProps) 
           key={editingUser?.id ?? "new"}
           user={editingUser}
           departments={departments}
+          access={editingUser ? (accessByUser[editingUser.id] ?? []) : []}
           onDone={() => {
             close();
             setEditingUser(null);

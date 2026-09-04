@@ -43,6 +43,11 @@ Settings → Users (`/settings/users`). One row per person:
   keep their history.
 - Email matters: KAH breach notifications go to the members' email addresses
   (§1.8) — members without an email can't be notified.
+- **Department access:** a "Department access" section in the user form grants a
+  user other department calendars beyond their own — **Read only** / **Can edit**
+  per calendar. Their own department is always shared automatically. Granting a
+  roster user's email in a department's "Additional access" is blocked — use the
+  user's form instead; access already given that way is adopted automatically.
 
 Design: [`roster-sharing.md`](roster-sharing.md).
 

@@ -260,6 +260,22 @@ One line per phase; full write-ups (incl. Mermaid diagrams and verification note
    PWA precached-shell invariant for `/` is untouched (the only route that flipped
    static→dynamic); legacy browsers are documented as unsupported, not downleveled
    (`docs/browser-support.md`, `AGENTS.md`, `docs/user-guide.md` §1.11)
+- 1.175 Cross-department calendar access in Users (migration 0032
+   `user_calendar_access`): a user form's "Department access" section grants other
+   department calendars at `reader|writer`; the rows record intent and the unified
+   reconcile (`reconcileUserAccessChange` with `userId`/`desiredAccess`) diffs rows,
+   then re-syncs the affected calendars' managed expectations (members + grants)
+   and revokes emails no longer expected — so removals/role changes/email changes/
+   department moves all reconcile. Department detail's "Calendar access" now shows a
+   read-only **Granted access** group between assigned users and **Additional
+   access** (which is for people without a user account only), and
+   `grantDepartmentAccess` **blocks** a roster user's email with a pointer to user
+   settings. Legacy anonymous rules matching roster users are **adopted** into grant
+   rows both on user create/email change (`adoptExternalAccessForEmail`, a
+   department-by-department ACL scan) and on department read, and audit
+   `user.create`/`user.update` payloads carry the sorted grant list (docs
+   `roster-sharing.md` §1.5/§1.9/§1.10/§1.11; filter/access independence documented
+   in `dashboard-views.md` §1.2 + `ui-state.md` §1.5.1 + `user-guide.md`/`admin-guide.md`)
 
 ## 1.4 Open items & next steps
 

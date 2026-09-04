@@ -81,7 +81,9 @@ them with the tabs above the grid:
   remembers its own Calendars/Users/Event Types selection, and the dialog notes
   *"These filters apply to {view} only"*. Setting a filter on one view never
   affects the others; clearing one view's filters never resets the rest.
-  An untouched view shows your role default (admin: all departments).
+  An untouched view shows your role default (admin: all departments). Filtering
+  is not tied to access: everyone can always select **every** department
+  calendar, whatever department they belong to or extra access they hold.
 - **Force refresh** (⋮ menu) bypasses the server cache and pulls the latest from
   Google Calendar. The muted *Saved · HH:MM* label shows when you're looking at a
   cached copy.

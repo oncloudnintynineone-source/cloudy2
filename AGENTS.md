@@ -282,6 +282,16 @@ mechanics in the doc.
   `sortOrder` is globally unique and encodes preorder tree rank; users belong to
   exactly one (direct) department.
   Design: [docs/roster-sharing.md](docs/roster-sharing.md) §1.7.
+- **Cross-department calendar access** lives in `user_calendar_access`
+  (user × calendar, role `reader|writer`) and is managed from Users →
+  edit-user "Department access" (the user's own department is never a row).
+  Google stays the ACL source of truth; the rows record intent so email/department
+  changes re-grant/revoke correctly. A roster user's email typed into a
+  department's "Additional access" is **blocked** (the message points to user
+  settings), and raw rules matching roster users are **adopted** into grant rows
+  on user create/email change and on department read. Membership/grants never
+  gate the dashboard filters (everyone sees every department).
+  Design: [docs/roster-sharing.md](docs/roster-sharing.md) §1.5.
 - **Prettier uses double quotes** (`singleQuote: false`) and `printWidth: 100`.
 - ESLint 9 flat config composes `eslint-config-next/core-web-vitals` +
   `next/typescript` (flat arrays, no FlatCompat) with `eslint-config-prettier`;

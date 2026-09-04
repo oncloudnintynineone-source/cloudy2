@@ -225,6 +225,13 @@
       "when": 1788273592454,
       "tag": "0031_bouncy_queen_noir",
       "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1788522222242,
+      "tag": "0032_material_gideon",
+      "breakpoints": true
     }
   ]
 }

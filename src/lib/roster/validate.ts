@@ -3,6 +3,8 @@
  * screens. Kept free of I/O so they can be unit-tested without a database.
  */
 
+import type { UserCalendarGrant } from "@/lib/roster/shares";
+
 export const PHONE_DIGIT_COUNT = 8;
 
 /**
@@ -29,6 +31,11 @@ export interface UserFormValues {
   role: UserRole;
   status: UserStatus;
   departmentId: string | null;
+  /**
+   * Cross-department calendar grants (department calendars other than the
+   * user's own). Validated/normalized server-side against the live roster.
+   */
+  access?: UserCalendarGrant[];
 }
 
 export interface UserFormErrors {

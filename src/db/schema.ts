@@ -82,6 +82,37 @@ export const calendars = pgTable(
   ],
 );
 
+/**
+ * Cross-department calendar grants: a roster user given access to a department
+ * calendar *other than* their own (`users.department_id`). Each row is the
+ * app-level intent behind one Google Calendar ACL rule (granted at `role`, which
+ * is one of the managed levels "reader" | "writer"). The user's own department is
+ * never represented here — it is implied by `users.department_id` and reconciled
+ * the usual way. Rows survive email changes (the reconcile paths re-grant the new
+ * email), deactivation (like the reader rules of assigned users), and cascade
+ * when the user or the department calendar is deleted.
+ */
+export const userCalendarAccess = pgTable(
+  "user_calendar_access",
+  {
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    calendarId: uuid("calendar_id")
+      .notNull()
+      .references(() => calendars.id, { onDelete: "cascade" }),
+    /** The managed ACL level to (re)grant: "reader" | "writer". */
+    role: text("role", { enum: ["reader", "writer"] })
+      .notNull()
+      .default("reader"),
+    ...timestamps,
+  },
+  (table) => [
+    primaryKey({ columns: [table.userId, table.calendarId] }),
+    index("user_calendar_access_calendar_idx").on(table.calendarId),
+  ],
+);
+
 export const acronyms = pgTable("acronyms", {
   id: uuid("id").primaryKey().defaultRandom(),
   acronym: text("acronym").notNull(),
@@ -197,11 +228,11 @@ export const settings = pgTable(
     kahEmailBodyTemplate: text("kah_email_body_template")
       .notNull()
       .default(
-        'Key Appointment Holder limit exceeded.\n\nAfter "{event}" was saved by {actor}, '
-        + "the following groups are below\ntheir required in-country percentage for the "
-        + "affected period:\n\n{breaches}\n\nEvent window: {window}\n\nThis is a notification "
-        + "only — the event was saved. Adjust the event or\nthe KAH groups in Settings if "
-        + "this was not intended.",
+        'Key Appointment Holder limit exceeded.\n\nAfter "{event}" was saved by {actor}, ' +
+          "the following groups are below\ntheir required in-country percentage for the " +
+          "affected period:\n\n{breaches}\n\nEvent window: {window}\n\nThis is a notification " +
+          "only — the event was saved. Adjust the event or\nthe KAH groups in Settings if " +
+          "this was not intended.",
       ),
     /** How many days of audit_logs to keep; older rows are purged on read. */
     auditLogRetentionDays: integer("audit_log_retention_days").notNull().default(90),
@@ -370,6 +401,8 @@ export type User = typeof users.$inferSelect;
 export type NewUser = typeof users.$inferInsert;
 export type Calendar = typeof calendars.$inferSelect;
 export type NewCalendar = typeof calendars.$inferInsert;
+export type UserCalendarAccess = typeof userCalendarAccess.$inferSelect;
+export type NewUserCalendarAccess = typeof userCalendarAccess.$inferInsert;
 export type Acronym = typeof acronyms.$inferSelect;
 export type EventTypeGroup = typeof eventTypeGroups.$inferSelect;
 export type EventType = typeof eventTypes.$inferSelect;

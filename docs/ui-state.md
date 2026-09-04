@@ -268,6 +268,13 @@ current view:  URL (if present) → views[view] → role default
 other views:                    → views[view] → role default
 ```
 
+- **Grants don't change the role default.** The role default is admin: all
+  calendars, non-admin: own department (`users.department_id`). Extra
+  cross-department calendar access granted in Users settings never expands a
+  non-admin's default view — and, like membership, neither ever restricts which
+  departments are selectable in the filter UI. Access and filter availability
+  are unrelated concepts ([`roster-sharing.md`](roster-sharing.md) §1.5,
+  [`dashboard-views.md`](dashboard-views.md) §1.2).
 - The **shared set never exists as a fallback**, so configuring one view can
   never leak into another: a view the user never configured (absent keys)
   resolves to **role defaults** (admin: all calendars; no user/event-type
