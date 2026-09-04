@@ -247,8 +247,19 @@ One line per phase; full write-ups (incl. Mermaid diagrams and verification note
   (unmasked in logs) not a secret; `--allow-unauthenticated` must ride the gcloud
   `flags` (dropped as an action input); all env vars incl. `NEXTAUTH_URL` land in one
   `--env-vars-file` `gcloud run services update`. Prod = Vercel Production + the
-  Cloud Run shadow sharing prod Neon + prod Google (region `asia-southeast1`);
-  environments matrix in `docs/developer-guide.md` §1.9/§1.9.1, `AGENTS.md`
+   Cloud Run shadow sharing prod Neon + prod Google (region `asia-southeast1`);
+   environments matrix in `docs/developer-guide.md` §1.9/§1.9.1, `AGENTS.md`
+- 1.174 Unsupported-browser gate on /login: the stack compiles for Next 16 / React 19's
+   Safari 16.4 / Chrome 111 floor, so on older engines (e.g. iPhone SE 1st gen on iOS
+   15.8.8) the login page paints but the client bundle throws during hydration — the
+   form looked alive but taps did nothing (no spinner, dead mask toggle). Pure
+   fail-open `detectLegacyBrowser` (`src/lib/browserSupport.ts`, unit-tested on real UA
+   fixtures) now gates `login/page.tsx` (async server component, `headers()` →
+   `User-Agent`) and swaps in the server-rendered `UnsupportedBrowserNotice` — works
+   with zero JS, replacing the form rather than decorating it. Scoped to /login so the
+   PWA precached-shell invariant for `/` is untouched (the only route that flipped
+   static→dynamic); legacy browsers are documented as unsupported, not downleveled
+   (`docs/browser-support.md`, `AGENTS.md`, `docs/user-guide.md` §1.11)
 
 ## 1.4 Open items & next steps
 

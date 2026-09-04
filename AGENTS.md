@@ -157,6 +157,16 @@ mechanics in the doc.
   clears RSC only via `invalidateRscPathCaches`) — every other site invalidates
   the current pathname first via `invalidateCurrentPathCaches()`.
   Design: [docs/pwa-offline.md](docs/pwa-offline.md).
+- **Unsupported-browser gate:** the app targets the Next 16 / React 19 floor
+  (Safari 16.4 / Chrome 111 / Firefox 111 / Edge 111) — deliberately **no
+  `.browserslistrc`** and no downleveling; legacy browsers are documented
+  unsupported. Below the floor no client JS runs at all, so `/login` is the one
+  **dynamic** route: its async server component reads the `User-Agent` header and
+  pure fail-open `detectLegacyBrowser` (`src/lib/browserSupport.ts`) swaps the form
+  for a server-rendered notice — a client-side banner could never appear on the
+  browsers it targets. Never move the gate into a client component or a shared
+  layout (`headers()` there would break the precached start-URL shell). Design:
+  [docs/browser-support.md](docs/browser-support.md).
 - **Accessibility:** skip-to-content link first in the shell; one polite live region
   (`StatusAnnouncer`) announces toast-less state changes (view/period, filter counts,
   zoom); every skeleton block carries a `LoadingStatus` sr-only announcement; count

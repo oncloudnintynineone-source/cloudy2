@@ -192,3 +192,7 @@ full-screen app icon.
 - **Two themes** — the sun/moon toggle in the header switches light/dark.
 - **Loading style** — pages show skeletons, never dimmed content; buttons show their
   own spinner while working.
+- **Modern browsers only** — Cloudy needs Safari 16.4 (iOS 16.4) or newer on Apple
+  devices, or a current Chrome / Edge / Firefox (version 111+, i.e. from 2023). On
+  older browsers the login page shows a short "unsupported browser" notice instead of
+  the sign-in form — updating your browser or device is the only way to sign in.
