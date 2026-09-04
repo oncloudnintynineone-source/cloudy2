@@ -35,8 +35,9 @@ pnpm db:migrate
 
 CI order matters: `lint -> typecheck -> test -> db:generate` (schema-drift check). On
 pushes to `main`, a `migrate` job additionally runs `pnpm db:migrate` against Neon using
-the `DATABASE_URL` repo secret — so pending migrations auto-apply on deploy. PRs only run
-the quality checks.
+the `DATABASE_URL` repo secret — so pending migrations auto-apply on deploy — and a
+`deploy-cloudrun` job then deploys the Cloud Run shadow (§1.9.1 of
+docs/developer-guide.md). PRs only run the quality checks.
 
 ## Architecture
 
@@ -169,12 +170,12 @@ mechanics in the doc.
   (never commit straight to `main`). Reference
   [docs/developer-guide.md](docs/developer-guide.md) §1.8: commit → `git push origin dev`
   (fires CI + Vercel preview, isolated dev Neon/Google) → verify on the preview →
-  `git checkout main && git merge dev && git push origin main` (prod deploy +
-  auto-migrate) → switch back to `dev`. Briefly mention what the push triggers per
-  environment (§1.7/§1.9), then **ask if the user needs help** (e.g. running the
-  pushes, or the `pnpm db:migrate` shell-env step if the schema changed — §1.11).
-  Before that, **suggest a commit message** summarizing the change, matching the
-  repo's concise style.
+  `git checkout main && git merge dev && git push origin main` (Vercel prod deploy +
+  Cloud Run shadow deploy + auto-migrate) → switch back to `dev`. Briefly mention what
+  the push triggers per environment (§1.7/§1.9), then **ask if the user needs help**
+  (e.g. running the pushes, or the `pnpm db:migrate` shell-env step if the schema
+  changed — §1.11). Before that, **suggest a commit message** summarizing the change,
+  matching the repo's concise style.
 - UI is **Mantine v9**; theme in `src/lib/theme.ts`, mounted by the client component
   `AppProviders` (`src/components/AppProviders.tsx`). The theme carries a function value
   (`components.Input.vars`), so `MantineProvider` (and `Notifications`) must stay in that
@@ -299,10 +300,12 @@ mechanics in the doc.
   specifically need historical detail** (e.g. why/when a decision was made); for current
   work AGENTS.md + progress.md are sufficient.
 
-## Vercel / env gotchas
+## Vercel / Cloud Run / env gotchas
 
 - On Vercel, leave `NEXTAUTH_URL` **unset** (empty value breaks `/login` prerender with
-  `TypeError: Invalid URL`). NextAuth falls back to `VERCEL_URL`.
+  `TypeError: Invalid URL`). NextAuth falls back to `VERCEL_URL`. On the Cloud Run
+  shadow it **must be set** to the service's `*.run.app` URL — no `VERCEL_URL`
+  fallback exists there (§1.9.1 of docs/developer-guide.md).
 - Set `ENABLE_EXPERIMENTAL_COREPACK = 1` so Vercel honors pnpm `11.18.0`; otherwise it
   detects pnpm 10 from the lockfile and ignores the pnpm-11 `allowBuilds` in
   `pnpm-workspace.yaml` (esbuild/sharp/unrs-resolver build scripts).
@@ -316,3 +319,15 @@ mechanics in the doc.
   Copy `.env.example` → `.env.local` for local dev; required vars: `DATABASE_URL`,
   `NEXTAUTH_SECRET`, `ADMIN_INITIAL_PASSWORD` (seeds the admin password hash on first
   run), plus Google service-account vars.
+- **Dual-hosting (migration):** one codebase runs on Vercel (live prod + preview) and,
+  from the same commit, on a Cloud Run **shadow** deployed `main`-only by the
+  `deploy-cloudrun` job. Platform differences live in env/deploy files, never
+  `next.config`/`src/`: the Docker image runs the regular `next start` over the full
+  `.next` build (deliberately not `output: "standalone"` — pnpm's isolated layout
+  breaks standalone tracing), so Vercel's build is unchanged. The shadow shares prod
+  Neon + the prod service account (read-only validation is safe; mutation testing
+  writes prod data twice). GitHub secrets for the deploy job: `GCP_PROJECT_ID`,
+  `GCP_SA_KEY` (Cloud Run + Artifact Registry service-account key), plus mirrors of
+  Vercel prod (`DATABASE_URL`, `NEXTAUTH_SECRET`, `GOOGLE_SERVICE_ACCOUNT_BASE64`,
+  `GOOGLE_DELEGATE_EMAIL`, `SMTP_URL`, `EMAIL_FROM`, `ADMIN_INITIAL_PASSWORD`).
+  Details + cutover/abort steps: [docs/developer-guide.md](docs/developer-guide.md) §1.9.1.

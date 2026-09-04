@@ -26,7 +26,7 @@ and the migration workflow. Subsystem design lives in the deep-dive docs indexed
 | ----- | ------ |
 | Framework | Next.js 16 (App Router, Turbopack) + TypeScript |
 | UI | Mantine v9 (mobile-first; desktop layout at `lg` = 640px) |
-| Hosting | Vercel (`main` → production, `dev` → preview) |
+| Hosting | Vercel (`main` → production, `dev` → preview) + Cloud Run shadow (`main`-only) — see §1.9 |
 | Database | Neon Postgres + Drizzle ORM |
 | Auth | NextAuth v4 (Credentials provider, JWT sessions) |
 | Google | Service account: Calendar v3 + Gmail v1 (real client when configured, no-op stub otherwise) |
@@ -143,6 +143,7 @@ flowchart LR
     A[lint] --> B[typecheck] --> C[test] --> D[db:generate<br/>schema-drift check]
     D -- "push to dev" --> E[migrate-preview<br/>pnpm db:migrate vs dev Neon]
     D -- "push to main" --> F[migrate<br/>pnpm db:migrate vs prod Neon]
+    F -- "main only" --> G[deploy-cloudrun<br/>build image + deploy Cloud Run shadow]
 ```
 
 - The schema-drift check runs `pnpm db:generate` and fails on any diff to
@@ -152,6 +153,10 @@ flowchart LR
   DB (`DATABASE_URL` secret) — pending migrations auto-apply per environment on
   deploy. Both jobs are branch-gated with their own concurrency group. PRs only run
   the quality checks.
+- `main` pushes additionally run `deploy-cloudrun` (after `migrate`, so migrations
+  land before traffic): Docker build → Artifact Registry → Cloud Run, plus env vars
+  that mirror Vercel prod (§1.9.1). This is the migration-shadow deployment; Vercel
+  keeps deploying independently of `ci.yml`.
 
 ## 1.8 Git workflow (cheatsheet)
 
@@ -228,9 +233,10 @@ prod data.
   field (pnpm `11.18.0`). Without it, Vercel detects pnpm 10 from the lockfile,
   which ignores `allowBuilds` and emits "Ignored build scripts" warnings for
   `esbuild`, `sharp`, and `unrs-resolver`.
-- Leave `NEXTAUTH_URL` **unset** — Vercel injects `VERCEL_URL` and NextAuth falls
-  back to it. An empty value fails the build with `TypeError: Invalid URL` during
-  prerender.
+- Leave `NEXTAUTH_URL` **unset on Vercel** — Vercel injects `VERCEL_URL` and
+  NextAuth falls back to it. An empty value fails the build with `TypeError:
+  Invalid URL` during prerender. On the Cloud Run shadow it **must be set** to the
+  service's `*.run.app` URL (§1.9.1) — there is no `VERCEL_URL` fallback there.
 
 > **Warning:** never point a data-copied database (e.g. a Neon branch of prod) at a
 > different service account — the `calendars` table stores **Google calendar IDs**, so
@@ -247,6 +253,58 @@ concurrency group.
 
 Native build scripts for `esbuild`, `sharp`, and `unrs-resolver` are approved via
 `allowBuilds` in `pnpm-workspace.yaml` (pnpm 11 format).
+
+## 1.9.1 Cloud Run shadow deployment
+
+While the Vercel → Cloud Run migration is ongoing, the **same commit** builds and
+runs on both platforms from one codebase. Vercel remains the live production and
+preview; a `main`-only GitHub Actions job (`deploy-cloudrun` in `ci.yml`) deploys a
+**shadow** Cloud Run service that mirrors Vercel prod (same code, same prod Neon,
+same prod Google service account).
+
+- **Platform split lives in env/config, never in `src/`.** The Docker image runs
+  the regular `next start` server over the full `.next` build — no
+  Cloud Run-specific config exists in `next.config.ts`, so Vercel's build is
+  byte-identical to a Vercel-only setup. There is no `VERCEL_URL` coupling
+  anywhere in `src/`.
+- **Container**: multi-stage `Dockerfile` (`node:24-slim`): `pnpm install
+  --frozen-lockfile` (`.npmrc` carries resilient fetch settings; `pnpm-workspace.yaml`
+  the `allowBuilds` list) → `pnpm build` → runtime copies the full `node_modules`,
+  `.next`, and `public/`, then `next start -H 0.0.0.0 -p 8080`. The full
+  `node_modules` copy is deliberate: pnpm's isolated (symlinked) layout makes
+  `output: "standalone"` tracing drop packages (e.g. `@swc/helpers` →
+  `MODULE_NOT_FOUND`), and forcing a hoisted layout would fork the repo's install
+  config — image size is the cheaper trade. Build context is trimmed by
+  `.dockerignore`. Pure-JS runtime deps (bcryptjs, no native modules).
+- **Service config** (request-based billing = CPU throttled, scale-to-zero):
+  1 vCPU / 1 GiB / concurrency 20 / min-instances 0 / max-instances 4 /
+  allow-unauthenticated (login is public). Region `asia-east1`. The first deploy
+  rolls a placeholder revision; the job then reads its `*.run.app` URL and issues
+  `gcloud run services update` setting all env vars (via `--env-vars-file`, so
+  values may contain commas/`=`) plus `NEXTAUTH_URL` — a second revision seconds
+  later.
+- **Env vars** mirror Vercel **Production**: `DATABASE_URL`, `NEXTAUTH_SECRET`
+  (same value — harmless since sessions are per-origin), `GOOGLE_SERVICE_ACCOUNT_BASE64`,
+  `GOOGLE_DELEGATE_EMAIL`, `SMTP_URL`, `EMAIL_FROM`, `ADMIN_INITIAL_PASSWORD`.
+  Cloud Run does not block SMTP ports 465/587, so the nodemailer fallback works.
+- **One-time GCP setup** (console): project + billing account (card; Always-Free
+  tier applies) → enable Cloud Run Admin + Artifact Registry → create Artifact
+  Registry repo `cloudy2` in `asia-east1` → create a deploy service account
+  (`roles/run.admin` + `roles/artifactregistry.writer`), store its JSON key as the
+  GitHub secret `GCP_SA_KEY`. Additional required GitHub secrets (mirroring Vercel
+  prod): `GCP_PROJECT_ID`, `DATABASE_URL`, `NEXTAUTH_SECRET`,
+  `GOOGLE_SERVICE_ACCOUNT_BASE64`, `GOOGLE_DELEGATE_EMAIL`, `SMTP_URL`,
+  `EMAIL_FROM`, `ADMIN_INITIAL_PASSWORD`. Set a budget alert (~$5) as a guard.
+- **Shadow caveats**: both instances share prod Neon + the prod service account.
+  Read-only validation (login, month views, search, audit CSV, PWA) is
+  zero-risk; mutation tests (create/edit events, adding departments — which
+  creates real Google calendars) touch prod data twice, so keep them to admins and
+  create-then-delete. Sessions are per-origin: a user logged into Vercel must log
+  in again on the `*.run.app` URL.
+- **Cutover** (when ready): disable/delete the Vercel project + delete
+  `vercel.json` (nothing to change in `next.config.ts` — no Cloud Run-specific
+  config exists). Abort path: delete the Cloud Run service — Vercel is untouched.
+  Both are deployment decisions, not code changes.
 
 ## 1.10 Google integration setup
 

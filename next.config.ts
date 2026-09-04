@@ -3,6 +3,12 @@ import { withSerwist } from "@serwist/turbopack";
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = withSerwist({
+  // Dual-platform hosting: Vercel (live) + a Cloud Run shadow built from the same
+  // source (see docs/developer-guide.md §1.9.1). The Cloud Run Docker image runs
+  // the regular `next start` server over the full `.next` build — no Cloud
+  // Run-specific config is needed here, so Vercel's build is byte-identical to a
+  // Vercel-only setup. Platform differences must live in the Dockerfile/env,
+  // never in next.config or src/.
   async redirects() {
     return [
       { source: "/users", destination: "/settings/users", permanent: true },

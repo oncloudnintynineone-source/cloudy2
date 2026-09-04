@@ -1,0 +1,19 @@
+# Build context for the Cloud Run Docker image. Keep out everything the
+# `pnpm build` step and the standalone runtime don't need.
+.git
+.github
+.next
+.opencode
+.vscode
+tasks
+docs
+drizzle
+progress.md
+progress-archive.md
+node_modules
+coverage
+*.md
+*.tsbuildinfo
+.env*
+.vercel
+.prettierrc.json
