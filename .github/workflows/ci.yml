@@ -135,10 +135,12 @@ jobs:
           image: >-
             ${{ env.CLOUD_RUN_REGION }}-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/cloudy2/cloudy2:${{ github.sha }}
           region: ${{ env.CLOUD_RUN_REGION }}
-          allow-unauthenticated: true
           # Request-based billing (CPU throttled, scale-to-zero): 1 vCPU, 1 GiB,
-          # concurrency 20, at most 4 instances as a cost guard.
-          flags: --cpu=1 --memory=1Gi --concurrency=20 --min-instances=0 --max-instances=4
+          # concurrency 20, at most 4 instances as a cost guard. allow-unauthenticated
+          # must ride here as a gcloud flag (not a separate action input anymore).
+          flags: >-
+            --cpu=1 --memory=1Gi --concurrency=20 --min-instances=0
+            --max-instances=4 --allow-unauthenticated
 
       # Mirror of the Vercel prod env vars plus NEXTAUTH_URL, whose value is only
       # known after the first deploy. Written via --env-vars-file so values may
@@ -161,9 +163,9 @@ jobs:
             --arg sm "$SMTP_URL" \
             --arg ef "$EMAIL_FROM" \
             --arg ad "$ADMIN_INITIAL_PASSWORD" \
-            '{DATABASE_URL:$db,NEXTAUTH_SECRET:$sec,GOOGLE_SERVICE_ACCOUNT_BASE64:$gs,GOOGLE_DELEGATE_EMAIL:$gd,SMTP_URL:$sm,EMAIL_FROM:$ef,ADMIN_INITIAL_PASSWORD:$ad}' \
+            --arg url "${{ steps.deploy.outputs.url }}" \
+            '{DATABASE_URL:$db,NEXTAUTH_SECRET:$sec,GOOGLE_SERVICE_ACCOUNT_BASE64:$gs,GOOGLE_DELEGATE_EMAIL:$gd,SMTP_URL:$sm,EMAIL_FROM:$ef,ADMIN_INITIAL_PASSWORD:$ad,NEXTAUTH_URL:$url}' \
             > /tmp/env.json
           gcloud run services update "$CLOUD_RUN_SERVICE" \
             --region "$CLOUD_RUN_REGION" \
-            --env-vars-file /tmp/env.json \
-            --update-env-vars="NEXTAUTH_URL=${{ steps.deploy.outputs.url }}"
+            --env-vars-file /tmp/env.json
