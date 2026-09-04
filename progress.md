@@ -230,7 +230,25 @@ One line per phase; full write-ups (incl. Mermaid diagrams and verification note
 - 1.169 Google Calendar note link opens details, not the edit form: the `Edit: <url>` line written into event notes now deep-links `/dashboard?date=…&event=<groupId>&_eventCal=<calendarId>` (the shared details deep link — `eventEditUrl` renamed `eventDetailUrl`, each copy's link carries its own calendar so the fetch includes it even when the arriving user's filters exclude it), landing on the full `EventDetail` modal with Edit/Duplicate/Delete inside instead of dropping straight into the wizard; older notes keep their `&edit=` URLs, which stay fully honored as a legacy deep link (also used by the search modal's "Edit" action), and `event` joins `ONE_SHOT_PARAMS` so the stripped deep-link responses never pollute the document/RSC caches (also closes that pre-existing gap for search/Pinned `?event=` links) (`docs/event-lifecycle.md` §1.4.2/§1.7.3, `docs/loading-transitions.md` §1.7 gains the missing `?event=` row, `docs/pwa-offline.md`, `docs/event-search.md`, `AGENTS.md`)
 - 1.170 Pinned-events header ticker: the header's left edge is now the pinned-events pill (`PinnedEventsTicker`) — pin icon kept, "Cloudy" logo removed — rotating through the upcoming pinned events' titles every 5s with a vertical ticker slide (paused on hover/focus/hidden tab/open panel, reduced-motion swaps in place), an inline amber `1/N` count chip replacing the floating `Indicator`, and a CSS max-width cap so wide headers don't stretch it; the shell now reads `fetchPinnedEvents` (count = list length; the count-only `countPinnedEvents` is deleted), and `fetchPinnedEvents` renders each event twice — panel `title` via the `pinned` target, ticker `tickerTitle` via the new **`pinnedHeader`** template assignment target (`EVENT_TITLE_ASSIGNMENT_TARGETS`, labels "Pinned events (panel)"/"Pinned events (header)", no migration; `docs/pinned-events.md` §1.4, `docs/event-lifecycle.md` §1.8.5)
 - 1.171 `db:seed` no longer seeds departments or users: a department (`calendars`) row must mirror a real Google calendar created in-app (`createDepartment` → `integration.createCalendar`), so the seed's fabricated ids (`dept-*@cloudy.local`) broke a configured service account — every Google-backed read (dashboard default fetch, parade/KAH, search, ACL reconcile) 404'd on them. The seed is now a safe, DB-only settings default: it ensures the settings row exists (mirroring `ensureSettingsRow`, hashing `ADMIN_INITIAL_PASSWORD` when set so first admin login still works) and defaults `userKeyword = 'leave'`; departments/users are created in-app on a migrations-only DB. Docs/`AGENTS.md` updated to say departments/users are created in-app only
-- 1.172 Remove the "Same for all views" filter mode — dashboard filters are **per view only**: the FilterModal's "Filter scope" SegmentedControl and the whole global/shared-set mode are deleted. `resolveDashboardFilters` drops its `global` fallback and `perView` switch (every view resolves URL → `views[view]` → role default), `buildDashboardPersist` stops writing the legacy shared `cal/users/types` (omitted, so the section-wholesale merge prunes them from pre-removal cookies) and always writes the per-view marker, `normalizeUiState` always keeps `views` (a stale `"global"` `filterMode` is dropped), and `switchView` always writes the target view's filters into the URL. A filter set on one calendar view can no longer leak into another view — an untouched view always resolves to the role default — and the dialog's scope hint is now unconditional ("These filters apply to {view} only.") (`docs/dashboard-views.md` §1.2, `docs/ui-state.md` §1.4/§1.5.1/§1.7/§1.9, `docs/user-guide.md`, `AGENTS.md`)
+- 1.172 Remove the "Same for all views" filter mode — dashboard filters are **per view only**: the FilterModal's "Filter scope" SegmentedControl and the whole global/shared-set mode are deleted. `resolveDashboardFilters` drops its `global` fallback and `perView` switch (every view resolves URL → `views[view]` → role default), `buildDashboardPersist` stops writing the legacy shared `cal/users/types` (omitted, so the section-wholesale merge prunes them from pre-removal cookies) and always writes the per-view marker, `normalizeUiState` always keeps `views` (a stale `"global"` `filterMode` is dropped), and `switchView` always writes the target view's filters into the URL. A filter set on one   calendar view can no longer leak into another view — an untouched view always
+  resolves to the role default — and the dialog's scope hint is now unconditional
+  ("These filters apply to {view} only.") (`docs/dashboard-views.md` §1.2,
+  `docs/ui-state.md` §1.4/§1.5.1/§1.7/§1.9, `docs/user-guide.md`, `AGENTS.md`)
+- 1.173 Cloud Run shadow deployment (dual-hosting): the same commit now also ships to a
+  Cloud Run **shadow** (`cloudy2`, `asia-southeast1`) via a `main`-only
+  `deploy-cloudrun` job in `ci.yml` (`quality` → `migrate` → Docker build/push to
+  Artifact Registry → deploy → env-var revision). The image runs the regular
+  `next start` over the full `.next` + `node_modules` — deliberately **not**
+  `output: standalone` (pnpm's isolated layout drops packages under standalone
+  tracing, e.g. `@swc/helpers`, and pnpm 11 ignores `.npmrc` linker overrides) — so
+  `next.config.ts` carries no platform config and Vercel's build is unchanged.
+  Lessons fixed live: Docker auth uses `_json_key` + the SA-key JSON (the
+  `oauth2accesstoken` pairing needs WIF); `GCP_PROJECT_ID` is a repo **variable**
+  (unmasked in logs) not a secret; `--allow-unauthenticated` must ride the gcloud
+  `flags` (dropped as an action input); all env vars incl. `NEXTAUTH_URL` land in one
+  `--env-vars-file` `gcloud run services update`. Prod = Vercel Production + the
+  Cloud Run shadow sharing prod Neon + prod Google (region `asia-southeast1`);
+  environments matrix in `docs/developer-guide.md` §1.9/§1.9.1, `AGENTS.md`
 
 ## 1.4 Open items & next steps
 
@@ -246,13 +264,19 @@ One line per phase; full write-ups (incl. Mermaid diagrams and verification note
 
 ## 1.5 Deployment & environments
 
+- Three tiers from one codebase — **Local** (`pnpm dev` with `.env.local`), **Dev**
+  (Vercel Preview branch, isolated dev Neon + dev Google), **Prod** (Vercel
+  Production + Cloud Run shadow `cloudy2` sharing prod Neon + prod Google). Full
+  matrix: `docs/developer-guide.md` §1.9; Cloud Run details in §1.9.1.
 - Vercel auto-builds: `main` → production, `dev` → preview, with **fully isolated
   environments** — separate Neon account (dev DB is migrations-only; `db:seed` never
-  fabricates calendars — it only defaults the user login keyword, so it is safe to run;
-  departments/users are created in-app so dev gets its own calendars) and separate
-  Google account (dev service account). Pending migrations
-  auto-apply per environment via CI: `main` push → prod DB (`DATABASE_URL` secret),
-  `dev` push → dev DB (`DATABASE_URL_PREVIEW` secret).
-- Env vars are set per environment on Vercel — see `docs/developer-guide.md` §1.9 for
-  the Production/Preview table. Leave `NEXTAUTH_URL` unset; set
-  `ENABLE_EXPERIMENTAL_COREPACK = 1`. Canonical gotchas live in AGENTS.md.
+  fabricates calendars — it only defaults the user login keyword, so it is safe to
+  run; departments/users are created in-app so dev gets its own calendars) and
+  separate Google account (dev service account).
+- Migrations auto-apply per environment via CI: `main` push → prod DB
+  (`DATABASE_URL` secret) then `deploy-cloudrun` ships the Cloud Run shadow; `dev`
+  push → dev DB (`DATABASE_URL_PREVIEW` secret).
+- Env vars are set per environment: the Vercel Production/Preview table is in
+  `docs/developer-guide.md` §1.9; the Cloud Run shadow mirrors Production and sets
+  `NEXTAUTH_URL` to its `*.run.app` URL (§1.9.1). Leave `NEXTAUTH_URL` unset on
+  Vercel; set `ENABLE_EXPERIMENTAL_COREPACK = 1`. Canonical gotchas live in AGENTS.md.

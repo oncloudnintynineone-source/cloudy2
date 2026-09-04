@@ -15,7 +15,7 @@ and the migration workflow. Subsystem design lives in the deep-dive docs indexed
 - [1.6 Testing](#16-testing)
 - [1.7 CI](#17-ci)
 - [1.8 Git workflow](#18-git-workflow)
-- [1.9 Deployment (Vercel)](#19-deployment-vercel)
+- [1.9 Deployment (hosting environments)](#19-deployment-hosting-environments)
 - [1.10 Google integration setup](#110-google-integration-setup)
 - [1.11 Database migrations](#111-database-migrations)
 - [1.12 Related docs](#112-related-docs)
@@ -170,7 +170,8 @@ flowchart LR
     C --> D["Vercel preview — isolated dev Neon + dev Google account"]
     D -- verify on preview --> B
     B -- merge --> E[main]
-    E -- push --> F["CI: migrate (prod Neon) → production"]
+    E -- push --> F["CI: migrate (prod Neon)"]
+    F --> G["Vercel prod deploy + Cloud Run shadow (deploy-cloudrun)"]
 ```
 
 ### Terminal
@@ -184,7 +185,7 @@ git push origin dev          # verify on the preview URL before shipping
 # 2. Ship to prod (only after the preview checks out)
 git checkout main && git pull origin main
 git merge dev                # merge, never cherry-pick (duplicate SHAs)
-git push origin main         # prod deploy + migrate job vs prod Neon
+git push origin main         # Vercel prod + Cloud Run shadow deploy + migrate job vs prod Neon
 
 # 3. Verify prod, then back to work
 git checkout dev
@@ -200,8 +201,9 @@ git checkout dev
    with the **dev** admin password, exercise the changed flows — isolated dev Neon +
    dev Google account, so prod is untouchable; CI already migrated the dev DB.
 4. **Ship:** status bar → switch to `main` → Source Control `…` → **Pull** → command
-   palette → **Git: Merge Branch…** → `dev` → `…` → **Push**. Prod deploys; CI runs
-   the `migrate` job against the prod DB.
+   palette → **Git: Merge Branch…** → `dev` → `…` → **Push**. Vercel prod deploys; CI
+   runs the `migrate` job against the prod DB, then `deploy-cloudrun` ships the Cloud
+   Run shadow.
 5. **Verify prod** (log in, confirm the change), then switch back to `dev`.
 6. **Before any branch switch:** commit or stash (Source Control `…` → **Pull, Push**
    → **Stash** / **Pop Stash**) — or uncommitted work gets stranded.
@@ -209,9 +211,20 @@ git checkout dev
 
 > Env var split per environment: §1.9 · migration mechanics: §1.11
 
-## 1.9 Deployment (Vercel)
+## 1.9 Deployment (hosting environments)
 
-Vercel auto-builds on every push: `main` → production, `dev` → preview. The two
+One codebase, three tiers — `main` is production and only advances by merging `dev`
+(§1.8). Environments are isolated per the split below; prod is served from **two**
+hosts (Vercel Production and the Cloud Run shadow) sharing the same data, so either
+can act as the other's fallback during the migration.
+
+| Tier | Host | Deploy trigger | Data / accounts |
+| ---- | ---- | -------------- | --------------- |
+| **Local** | `pnpm dev` on your machine (`.env.local`) | — | your local env (dev Neon + dev Google, per `.env.local`) |
+| **Dev** | Vercel **Preview** (branch `dev`) | Vercel git integration; CI runs quality + `migrate-preview` | isolated dev Neon + dev Google (separate accounts) |
+| **Prod** | Vercel **Production** (branch `main`) + Cloud Run **shadow** `cloudy2` (§1.9.1) | Vercel git integration; CI runs `migrate` → `deploy-cloudrun` | shared prod Neon + prod Google — same commit on both hosts |
+
+Vercel auto-builds on every push: `main` → production, `dev` → preview. The two Vercel
 environments are **fully isolated**: every environment variable has separate
 Production and Preview values (Project → Settings → Environment Variables), pointing
 at a dedicated dev Neon project and a dedicated dev Google service account (separate
@@ -228,6 +241,11 @@ prod data.
 | `GOOGLE_DELEGATE_EMAIL` | Workspace delegate for Gmail send | unset — dev uses `SMTP_URL` |
 | `ENABLE_EXPERIMENTAL_COREPACK` | `1` | `1` |
 | `NEXTAUTH_URL` | unset | unset |
+
+The Cloud Run shadow mirrors the **Production** column of the table above (env vars
+applied by the `deploy-cloudrun` job), with one difference: `NEXTAUTH_URL` **is set**
+there — to the service's `*.run.app` URL (no `VERCEL_URL` fallback exists on Cloud
+Run). See §1.9.1 for the full Cloud Run env/setup details.
 
 - `ENABLE_EXPERIMENTAL_COREPACK` = `1` — makes Vercel honor the `packageManager`
   field (pnpm `11.18.0`). Without it, Vercel detects pnpm 10 from the lockfile,
