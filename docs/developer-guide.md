@@ -278,11 +278,11 @@ same prod Google service account).
   `.dockerignore`. Pure-JS runtime deps (bcryptjs, no native modules).
 - **Service config** (request-based billing = CPU throttled, scale-to-zero):
   1 vCPU / 1 GiB / concurrency 20 / min-instances 0 / max-instances 4 /
-  allow-unauthenticated (login is public). Region `asia-southeast1`. The first deploy
-  rolls a placeholder revision; the job then reads its `*.run.app` URL and issues
-  `gcloud run services update` setting all env vars (via `--env-vars-file`, so
-  values may contain commas/`=`) plus `NEXTAUTH_URL` — a second revision seconds
-  later.
+  `--allow-unauthenticated` (login is public). Region `asia-southeast1`. The first
+  deploy (no env vars yet) rolls a placeholder revision; the job then reads its
+  `*.run.app` URL and issues a single `gcloud run services update` with
+  `--env-vars-file` (so values may contain commas/`=`) covering **all** env vars
+  including `NEXTAUTH_URL` — a second, fully-configured revision seconds later.
 - **Env vars** mirror Vercel **Production**: `DATABASE_URL`, `NEXTAUTH_SECRET`
   (same value — harmless since sessions are per-origin), `GOOGLE_SERVICE_ACCOUNT_BASE64`,
   `GOOGLE_DELEGATE_EMAIL`, `SMTP_URL`, `EMAIL_FROM`, `ADMIN_INITIAL_PASSWORD`.
@@ -291,10 +291,11 @@ same prod Google service account).
   tier applies) → enable Cloud Run Admin + Artifact Registry → create Artifact
   Registry repo `cloudy2` in `asia-southeast1` → create a deploy service account
   (`roles/run.admin` + `roles/artifactregistry.writer`), store its JSON key as the
-  GitHub secret `GCP_SA_KEY`. Additional required GitHub secrets (mirroring Vercel
-  prod): `GCP_PROJECT_ID`, `DATABASE_URL`, `NEXTAUTH_SECRET`,
+  GitHub **secret** `GCP_SA_KEY`. GitHub Actions settings for the deploy job:
+  **variable** `GCP_PROJECT_ID` (not sensitive — unmasked in logs) + **secrets**
+  `GCP_SA_KEY` and mirrors of Vercel prod (`DATABASE_URL`, `NEXTAUTH_SECRET`,
   `GOOGLE_SERVICE_ACCOUNT_BASE64`, `GOOGLE_DELEGATE_EMAIL`, `SMTP_URL`,
-  `EMAIL_FROM`, `ADMIN_INITIAL_PASSWORD`. Set a budget alert (~$5) as a guard.
+  `EMAIL_FROM`, `ADMIN_INITIAL_PASSWORD`). Set a budget alert (~$5) as a guard.
 - **Shadow caveats**: both instances share prod Neon + the prod service account.
   Read-only validation (login, month views, search, audit CSV, PWA) is
   zero-risk; mutation tests (create/edit events, adding departments — which

@@ -326,8 +326,10 @@ mechanics in the doc.
   `.next` build (deliberately not `output: "standalone"` — pnpm's isolated layout
   breaks standalone tracing), so Vercel's build is unchanged. The shadow shares prod
   Neon + the prod service account (read-only validation is safe; mutation testing
-  writes prod data twice). GitHub secrets for the deploy job: `GCP_PROJECT_ID`,
-  `GCP_SA_KEY` (Cloud Run + Artifact Registry service-account key), plus mirrors of
-  Vercel prod (`DATABASE_URL`, `NEXTAUTH_SECRET`, `GOOGLE_SERVICE_ACCOUNT_BASE64`,
-  `GOOGLE_DELEGATE_EMAIL`, `SMTP_URL`, `EMAIL_FROM`, `ADMIN_INITIAL_PASSWORD`).
+  writes prod data twice). GitHub Actions settings for the deploy job: repo
+  **variable** `GCP_PROJECT_ID` (not sensitive, so unmasked in logs), **secret**
+  `GCP_SA_KEY` (Cloud Run + Artifact Registry service-account key), plus secret
+  mirrors of Vercel prod (`DATABASE_URL`, `NEXTAUTH_SECRET`,
+  `GOOGLE_SERVICE_ACCOUNT_BASE64`, `GOOGLE_DELEGATE_EMAIL`, `SMTP_URL`,
+  `EMAIL_FROM`, `ADMIN_INITIAL_PASSWORD`).
   Details + cutover/abort steps: [docs/developer-guide.md](docs/developer-guide.md) §1.9.1.
