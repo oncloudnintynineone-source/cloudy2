@@ -22,8 +22,8 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
 - Quality gates (`lint` / `typecheck` / `test` / schema-drift check) run in CI on every
   PR; pushes to `main` additionally auto-apply pending migrations against Neon. The
   per-phase "pnpm … pass" claims are therefore no longer repeated here.
-- Feature surface: staff `[phone][keyword]` login + admin shared-PIN / phone-less env-root
-  login; departments as Google
+- Feature surface: single-field login (`[phone][keyword]`, admin PIN modal, phone-less
+  env root); departments as Google
   Calendars with service-account ACL sharing; audit logging; event CRUD across department
   calendars with cross-department copies, invitees, templates, time options and location
   policy, with outbound webhooks to any number of admin-registered external endpoints on
@@ -47,7 +47,7 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
 | UI                 | Mantine v9                                                                                     |
 | Database           | Neon Postgres + Drizzle ORM                                                                    |
 | Auth               | NextAuth v4, Credentials provider, **JWT sessions**                                            |
-| Login UX           | Two surfaces: staff `[phone][keyword]`; admin `phone` + shared admin PIN (or phone-less env root) |
+| Login UX           | Single clean field: `[phone][keyword]`; admin-role users get a shared-PIN modal; phone-less env root |
 | Google integration | GCP service account (Calendar v3 + Gmail v1); domain-wide delegation                           |
 | GCal notes         | JSON block stored on events                                                                    |
 | Calendars          | Department-level calendars; `calendars` table is the department registry (kind = `department`) |
@@ -301,20 +301,24 @@ One line per phase; full write-ups (incl. Mermaid diagrams and verification note
     `buildOptimisticEvent` mirrors the action's normalization/time/title/color parity
     (`withSelfCreator`→`clampEventEnd`, exclusive all-day ends, view-template title,
     `eventTypes.color` now passed to the client). `docs/optimistic-mutations.md`
-- 1.178 Split login surfaces + shared admin PIN (migration 0033 `settings.admin_pin_hash`):
-    the single auto-detected box is gone — `/login` now has a **Staff/Admin** toggle
-    (`?mode=admin` deep link). **Staff** is `[phone][keyword]` for `role='user'` only;
-    admin-role users are rejected there so the org-wide keyword can never yield an admin
-    session. **Admin** authenticates a named admin as `phone` + the **shared admin PIN**
-    (`settings.admin_pin_hash`, seeded/reconciled from the **`ADMIN_PIN`** env var on
-    every login — env-authoritative, no in-app path), while the phone-less **break-glass
-    root** enters `ADMIN_INITIAL_PASSWORD` (`settings.admin_password_hash`, same
-    reconcile). `src/lib/bootstrap.ts` → `ensureSettingsRow` + `syncAdminSecretsFromEnv`
-    (both envs compared on login, re-hashed only on change); `login.ts` drops the dead
-    `classifyLogin`, adds pure `normalizePhoneDigits`; a new **Security** settings tab
-    (`/settings/security`) holds the User Login Keyword moved out of General (General
-    keeps retention + danger zone). `users.password_hash` remains unused; docs/`AGENTS.md`
-    updated
+- 1.178 Shared admin PIN + clean single-field login (migration 0033
+    `settings.admin_pin_hash`): `/login` keeps its single masked input (no mode toggle)
+    and a lightweight routing probe `resolveLogin` (`src/lib/loginActions.ts`, hint
+    only) decides the flow. **Staff** (`role='user'` only) types `[phone][keyword]` and
+    is signed straight in — admin-role users are rejected on that path so the org-wide
+    keyword can never yield an admin session. An **admin-role user** is instead asked
+    for the **shared admin PIN** (`settings.admin_pin_hash`, seeded/reconciled from the
+    **`ADMIN_PIN`** env var on every login — env-authoritative, no in-app path) in a
+    modal before any session is issued; the phone-less **break-glass root** types
+    `ADMIN_INITIAL_PASSWORD` alone (`settings.admin_password_hash`, same reconcile).
+    `authorize` re-checks every credential and stays the sole session issuer + audit
+    point (distinct failure reasons `admin.invalid_root_secret`/`admin.invalid_account`/
+    `admin.invalid_pin`). `src/lib/bootstrap.ts` → `ensureSettingsRow` +
+    `syncAdminSecretsFromEnv` (both envs compared on login, re-hashed only on change);
+    `login.ts` drops the dead `classifyLogin`, adds pure `normalizePhoneDigits`; a new
+    **Security** settings tab (`/settings/security`) holds the User Login Keyword moved
+    out of General (General keeps retention + danger zone). `users.password_hash`
+    remains unused; docs/`AGENTS.md` updated
 
 ## 1.4 Open items & next steps
 

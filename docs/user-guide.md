@@ -20,23 +20,23 @@ should also read [`admin-guide.md`](admin-guide.md).
 
 ## 1.1 Signing in
 
-The login page has two surfaces — **Staff** and **Admin**. No usernames.
+One input field, no username.
 
 ```mermaid
 flowchart LR
-    A[Login page] --> B{Surface}
-    B -- Staff: "[phone][keyword]" --> C[Sign in as yourself]
-    B -- Admin --> E{Account}
-    E -- "phone + shared admin PIN" --> F[Named admin]
-    E -- "phone blank + emergency password" --> G[Emergency admin]
+    A[Single input] --> B{Route}
+    B -- "[phone][keyword] → role user" --> C[Sign in as yourself]
+    B -- "[phone][keyword] → role admin" --> E{Admin PIN modal}
+    E -- "shared admin PIN" --> F[Admin]
+    E -- "cancel" --> A
+    B -- "no keyword → emergency password" --> G[Emergency admin]
 ```
 
-- **Regular user** — on the **Staff** surface, type your phone number immediately
-  followed by the login keyword your administrator gives you, no spaces:
-  `91234567leave`.
-- **Admin** — switch to the **Admin** surface. A named admin types their phone
-  number + the shared admin PIN; the emergency admin leaves the phone blank and
-  enters the emergency password.
+- **Regular user** — type your phone number immediately followed by the login
+  keyword your administrator gives you, no spaces: `91234567leave`.
+- **Admin** — type your phone + keyword the same way; the app then asks for the
+  shared admin PIN. The emergency admin instead types the emergency password alone
+  (no keyword).
 
 ## 1.2 Getting around
 

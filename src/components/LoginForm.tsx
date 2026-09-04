@@ -1,126 +1,126 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { signIn } from "next-auth/react";
-import { Button, PasswordInput, SegmentedControl, Stack, Text, TextInput } from "@mantine/core";
+import { Button, Modal, PasswordInput, Stack, Text } from "@mantine/core";
 import { BUTTON_LOADER_PROPS } from "@/lib/theme";
 import { invalidateCurrentPathCaches } from "@/lib/pwa/client";
-
-export type LoginMode = "staff" | "admin";
-
-interface LoginFormProps {
-  initialMode?: LoginMode;
-}
+import { resolveLogin } from "@/lib/loginActions";
 
 /**
- * Two explicit sign-in surfaces on one page:
- * - Staff: a single `[phone]<keyword>` input (`mode: "staff"`).
- * - Admin: named admins sign in with phone + the shared admin PIN; the
- *   phone-less break-glass root leaves the phone blank and enters the
- *   bootstrap password (`mode: "admin"`).
- * Both submit to the same Credentials provider, which re-checks the mode.
+ * Single clean login field: one masked input + Sign in. Submitting routes the
+ * attempt:
+ * - a regular user (`[phone]<keyword>`) is signed in immediately;
+ * - the phone-less emergency admin (the input has no keyword) is signed in
+ *   immediately against the root password;
+ * - an admin-role user (phone + keyword) is asked for the shared admin PIN in a
+ *   modal before the admin session is issued.
+ * The routing probe (`resolveLogin`) is a hint only — `authorize` re-checks
+ * every credential and remains the sole session issuer and audit point.
  */
-export function LoginForm({ initialMode = "staff" }: LoginFormProps) {
+export function LoginForm() {
   const router = useRouter();
-  const [mode, setMode] = useState<LoginMode>(initialMode);
+  const fieldRef = useRef<HTMLInputElement>(null);
   const [input, setInput] = useState("");
-  const [phone, setPhone] = useState("");
-  const [secret, setSecret] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  async function handleModeChange(next: string) {
-    const nextMode: LoginMode = next === "admin" ? "admin" : "staff";
-    setMode(nextMode);
-    setError(null);
-    // Keep the deep link in sync so a refresh (or a pasted URL) lands on the
-    // same surface.
-    router.replace(nextMode === "admin" ? "/login?mode=admin" : "/login", {
-      scroll: false,
-    });
+  // Non-null while the shared-admin-PIN modal is open for that phone.
+  const [pendingPhone, setPendingPhone] = useState<string | null>(null);
+  const [pin, setPin] = useState("");
+  const [pinLoading, setPinLoading] = useState(false);
+  const [pinError, setPinError] = useState<string | null>(null);
+
+  function completeLogin() {
+    router.push("/dashboard");
+    void invalidateCurrentPathCaches().then(() => router.refresh());
   }
 
-  async function submit(modeArg: LoginMode) {
+  async function onSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (loading) {
+      return;
+    }
     setError(null);
     setLoading(true);
     try {
-      const credentials =
-        modeArg === "admin" ? { mode: "admin", phone, secret } : { mode: "staff", input };
-      const res = await signIn("credentials", { ...credentials, redirect: false });
+      const route = await resolveLogin(input);
+
+      // Admin-role users need the shared PIN before any session is issued.
+      if (route.kind === "admin") {
+        setPendingPhone(route.phone);
+        return;
+      }
+
+      const res =
+        route.kind === "root-candidate"
+          ? await signIn("credentials", {
+              mode: "admin",
+              phone: "",
+              secret: input,
+              redirect: false,
+            })
+          : await signIn("credentials", { mode: "staff", input, redirect: false });
+
       if (res?.error) {
         setError("Invalid credentials. Please try again.");
         return;
       }
-      router.push("/dashboard");
-      void invalidateCurrentPathCaches().then(() => router.refresh());
+      completeLogin();
     } finally {
       setLoading(false);
     }
   }
 
+  async function submitPin() {
+    if (pinLoading || !pendingPhone) {
+      return;
+    }
+    setPinError(null);
+    setPinLoading(true);
+    try {
+      const res = await signIn("credentials", {
+        mode: "admin",
+        phone: pendingPhone,
+        secret: pin,
+        redirect: false,
+      });
+      if (res?.error) {
+        setPinError("Invalid admin PIN. Please try again.");
+        return;
+      }
+      setPendingPhone(null);
+      completeLogin();
+    } finally {
+      setPinLoading(false);
+    }
+  }
+
+  function cancelPin() {
+    setPendingPhone(null);
+    setPin("");
+    setPinError(null);
+    setError(null);
+    setInput("");
+    fieldRef.current?.focus();
+  }
+
   return (
-    <Stack gap="md">
-      <SegmentedControl
-        fullWidth
-        value={mode}
-        onChange={handleModeChange}
-        data={[
-          { value: "staff", label: "Staff" },
-          { value: "admin", label: "Admin" },
-        ]}
-        aria-label="Sign-in type"
-      />
-
-      <form
-        onSubmit={(e) => {
-          e.preventDefault();
-          void submit(mode);
-        }}
-      >
+    <>
+      <form onSubmit={onSubmit}>
         <Stack gap="md">
-          {mode === "staff" ? (
-            <PasswordInput
-              aria-label="Phone number plus login keyword"
-              placeholder="Enter your phone number and keyword"
-              value={input}
-              onChange={(e) => setInput(e.currentTarget.value)}
-              size="lg"
-              required
-              autoFocus
-            />
-          ) : (
-            <>
-              <Stack gap={4}>
-                <TextInput
-                  label="Phone number"
-                  description="Your 8-digit roster phone. Leave blank to sign in as the emergency admin."
-                  placeholder="91234567"
-                  value={phone}
-                  onChange={(e) => setPhone(e.currentTarget.value)}
-                  size="lg"
-                  autoFocus
-                />
-                <PasswordInput
-                  label="Admin PIN or password"
-                  description="Named admin: the shared admin PIN. Emergency admin: the bootstrap password."
-                  placeholder="Enter your admin PIN or password"
-                  value={secret}
-                  onChange={(e) => setSecret(e.currentTarget.value)}
-                  size="lg"
-                  required
-                  autoComplete="current-password"
-                />
-              </Stack>
-            </>
-          )}
-
-          {error ? (
-            <Text size="sm" c="red" role="alert">
-              {error}
-            </Text>
-          ) : null}
-
+          <PasswordInput
+            ref={fieldRef}
+            aria-label="Password or phone number plus login keyword"
+            placeholder="Enter your credentials"
+            value={input}
+            onChange={(e) => setInput(e.currentTarget.value)}
+            error={error ?? undefined}
+            size="lg"
+            required
+            autoFocus
+          />
           <Button
             type="submit"
             loading={loading}
@@ -132,6 +132,39 @@ export function LoginForm({ initialMode = "staff" }: LoginFormProps) {
           </Button>
         </Stack>
       </form>
-    </Stack>
+
+      <Modal
+        opened={pendingPhone !== null}
+        onClose={cancelPin}
+        title="Admin sign-in"
+        centered
+        size="sm"
+      >
+        <Stack gap="md">
+          <Text size="sm">Enter the shared admin PIN to continue.</Text>
+          <PasswordInput
+            aria-label="Admin PIN"
+            value={pin}
+            onChange={(e) => setPin(e.currentTarget.value)}
+            error={pinError ?? undefined}
+            autoFocus
+            autoComplete="current-password"
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                void submitPin();
+              }
+            }}
+          />
+          <Button
+            onClick={() => void submitPin()}
+            loading={pinLoading}
+            loaderProps={BUTTON_LOADER_PROPS}
+            fullWidth
+          >
+            Continue
+          </Button>
+        </Stack>
+      </Modal>
+    </>
   );
 }

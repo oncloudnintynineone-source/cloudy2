@@ -22,16 +22,17 @@ deep-dive docs.
 
 ## 1.1 Admin sign-in & acting on behalf
 
-- Sign in on the **Admin** surface (`/login?mode=admin`, or the Admin/Staff toggle
-  on the login page). Two kinds of admin account:
-  - **Named admins** (users with the **Admin** role) sign in with their **phone
-    number + the shared admin PIN** — one PIN for every admin, configured only via
-    the `ADMIN_PIN` env var (no in-app way to set or change it).
-  - The **emergency admin** leaves the phone blank and enters the bootstrap
-    password (`ADMIN_INITIAL_PASSWORD` env). Used to set up the first admin users
-    and as a break-glass account.
-  Regular users keep signing in as `[phone][keyword]` on the **Staff** surface; the
-  staff keyword can never yield an admin session.
+- Sign in on the login page's single field. How the app routes what you type:
+  - **Regular users** type their phone immediately followed by the login keyword
+    (`91234567leave`) and are signed straight in.
+  - **Named admins** (users with the **Admin** role) do the same — the app then opens a
+    modal asking for the **shared admin PIN**, one PIN for every admin, configured only
+    via the `ADMIN_PIN` env var (no in-app way to set or change it). No session is
+    created until the PIN is entered.
+  - The **emergency admin** types the bootstrap password alone (no keyword) and is
+    signed in phone-less with no PIN step (`ADMIN_INITIAL_PASSWORD` env). Used to set
+    up the first admin users and as a break-glass account.
+  The staff keyword can never yield an admin session.
 - Admins can see and edit **every** event in every department — including
   **External** events created directly in Google Calendar.
 - In the event wizard, admins get an extra **Creator** step ("On behalf of") to
@@ -204,7 +205,8 @@ Settings → Security — account & sign-in credentials:
 
 - **User Login Keyword** — the suffix regular users append to their phone number
   (`91234567leave`). 1–12 letters; changing it changes every user's login string
-  immediately. Staff sign-in only — admins use the admin surface (§1.1).
+  immediately. Staff sign-in — admins type their phone + keyword and then the shared
+  admin PIN (§1.1).
 - The **admin PIN** and the **emergency admin password** are not editable here:
   both are configured exclusively through their environment variables
   (`ADMIN_PIN` / `ADMIN_INITIAL_PASSWORD`).

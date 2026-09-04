@@ -1,11 +1,11 @@
 /**
- * Pure helpers for resolving login inputs into a phone number. Kept free of
- * I/O so it can be unit tested without a database.
+ * Pure helpers for resolving a login input into a phone number. Kept free of
+ * I/O so they can be unit tested without a database.
  *
- * Sign-in has two explicit surfaces (`src/components/LoginForm.tsx`):
- * - staff: a single `[phone]<keyword>` input, parsed by `parseUserLogin`;
- * - admin: separate phone + secret fields, the phone normalized by
- *   `normalizePhoneDigits`.
+ * The login page is a single masked field (`src/components/LoginForm.tsx`):
+ * `parseUserLogin` handles the staff `[phone]<keyword>` form (an admin-role
+ * user is then prompted for the shared admin PIN), and `normalizePhoneDigits`
+ * normalizes the phone the PIN modal submits for a named admin.
  */
 
 /**

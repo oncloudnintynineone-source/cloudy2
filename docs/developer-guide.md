@@ -45,12 +45,12 @@ pnpm db:seed           # optional: default user login keyword (idempotent)
 pnpm dev
 ```
 
-Sign in on the **Admin** surface (`/login?mode=admin`): named admins use `phone` +
-the shared admin PIN (`ADMIN_PIN`); the phone-less emergency admin enters the
-bootstrap password (`ADMIN_INITIAL_PASSWORD`). Both env vars seed their hash on
-first login and are reconciled on every login — changing one and redeploying
-rotates it. Without Google credentials the app runs fully on the stub — calendar views
-render empty and event mutations refuse with a clear message
+Sign in on the single login field: regular users type `[phone][keyword]`; an admin-role
+user is then asked for the shared admin PIN (`ADMIN_PIN`); the phone-less emergency
+admin types the bootstrap password alone (`ADMIN_INITIAL_PASSWORD`). Both env vars
+seed their hash on first login and are reconciled on every login — changing one and
+redeploying rotates it. Without Google credentials the app runs fully on the stub —
+calendar views render empty and event mutations refuse with a clear message
 ([`google-integration.md`](google-integration.md)).
 
 ## 1.3 Scripts
@@ -102,7 +102,7 @@ src/
       settings/             # Admin hub: users, departments, event-types, templates,
                             # webhooks, quick-links, kah-groups, banner, general, security,
                             # audit-log
-    login/                  # Login page (Staff/Admin surfaces; ?mode=admin deep link)
+    login/                  # Login page (single field; admin PIN modal)
     api/auth/[...nextauth]  # NextAuth handler
     api/audit/export        # Audit log CSV export
     sw.ts                   # Serwist service worker (offline + instant open)
@@ -111,7 +111,8 @@ src/
   db/                       # Drizzle schema + lazy postgres-js client
   lib/
     auth.ts, session.ts     # NextAuth config; role/session guards
-    login.ts, bootstrap.ts  # Pure login parsing; settings-row bootstrap
+    login.ts, bootstrap.ts  # Pure login parsing; settings-row bootstrap (env-seeded secrets)
+    loginActions.ts         # Login routing probe (admin PIN detection — hint only)
     theme.ts                # Mantine theme (brand colors, breakpoints)
     google/                 # Google integration: contract, real client, stub
     events/                 # Event queries/cache reads, notes codec, title, week matrix
@@ -202,11 +203,11 @@ git checkout dev
    `dev` (or "Create new branch…" for risky work, merged back via PR).
 2. **Commit & push:** Source Control (`Ctrl+Shift+G`) → stage `＋` → short imperative
    message → **Commit** → **Sync Changes**. The push fires CI + the preview build.
-3. **Verify on the preview:** open the latest preview URL (Vercel dashboard), log in
-   via the **Admin** surface with the **dev** emergency password (`ADMIN_INITIAL_PASSWORD`;
-   phone blank) or a dev admin's phone + the dev `ADMIN_PIN`, exercise the changed flows —
-   isolated dev Neon + dev Google account, so prod is untouchable; CI already migrated the
-   dev DB.
+3. **Verify on the preview:** open the latest preview URL (Vercel dashboard), sign in
+   via the single login field — an admin user types phone+keyword then the shared
+   `ADMIN_PIN` in the modal, or the emergency admin types the dev
+   `ADMIN_INITIAL_PASSWORD` alone — and exercise the changed flows; isolated dev Neon +
+   dev Google account, so prod is untouchable; CI already migrated the dev DB.
 4. **Ship:** status bar → switch to `main` → Source Control `…` → **Pull** → command
    palette → **Git: Merge Branch…** → `dev` → `…` → **Push**. Vercel prod deploys; CI
    runs the `migrate` job against the prod DB, then `deploy-cloudrun` ships the Cloud

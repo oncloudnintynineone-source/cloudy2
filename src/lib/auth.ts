@@ -11,17 +11,20 @@ import { ensureAdminSecrets } from "@/lib/bootstrap";
 import { normalizePhoneDigits, parseUserLogin } from "@/lib/login";
 
 /**
- * Single Credentials provider behind two explicit login surfaces (see
- * `src/components/LoginForm.tsx`):
+ * Single Credentials provider behind the one-field login (see
+ * `src/components/LoginForm.tsx`), which picks a `mode` via the `resolveLogin`
+ * routing probe:
  * - `mode: "staff"`  — a regular user: `[phone]<keyword>` in one input.
- *   Only `role='user'` accounts are accepted; an admin-role user must use the
- *   admin surface, so the org-wide keyword can never yield an admin session.
- * - `mode: "admin"`  — a named admin (`phone` + shared admin PIN) or the
- *   phone-less break-glass root (`secret` matched against
+ *   Only `role='user'` accounts are accepted; an admin-role user is rejected on
+ *   this path (the probe routes them to the PIN flow instead), so the org-wide
+ *   keyword can never yield an admin session.
+ * - `mode: "admin"`  — a named admin (`phone` + shared admin PIN, prompted in a
+ *   modal) or the phone-less break-glass root (`secret` matched against
  *   `admin_password_hash`, phone left blank).
  *
- * `authorize` is the only place a session is issued and the only place login
- * failures are audit-logged (distinct reasons — never the raw secrets).
+ * `authorize` re-checks every credential itself and is the only place a session
+ * is issued and the only place login failures are audit-logged (distinct
+ * reasons — never the raw secrets). The probe is a hint only.
  */
 export const authOptions: NextAuthOptions = {
   session: { strategy: "jwt" },

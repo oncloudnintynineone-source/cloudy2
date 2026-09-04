@@ -73,16 +73,23 @@ mechanics in the doc.
   `src/types/next-auth.d.ts`.
 - Role/session guards in `src/lib/session.ts`: `requireSession()`, `requireAdmin()`,
   `getSession()`. Use them in Server Components/route handlers.
-- **Login has two explicit surfaces** (staff/admin toggle, deep-link `?mode=admin` in
-  `src/components/LoginForm.tsx`), submitting to one Credentials provider with a `mode`
-  discriminator:
+- **Login is a single clean masked input** (no hints, no mode toggle) in
+  `src/components/LoginForm.tsx`, submitting to one Credentials provider with a `mode`
+  discriminator. On submit a lightweight routing probe `resolveLogin`
+  (`src/lib/loginActions.ts`, `"use server"` — hint only, never an authority, no secret
+  comparison, no audit) tells the client which flow to run:
   - **Staff** (`role='user'` only): a single `[phone][keyword]` input — parsing lives in
     `src/lib/login.ts` as pure, I/O-free functions. Keep it pure — it's unit-tested
-    without a DB. Admin-role users are **rejected** here (they use the admin surface), so
-    the org-wide keyword can never yield an admin session.
-  - **Admin**: named admins sign in with `phone` + the **shared admin PIN**
-    (`settings.admin_pin_hash`); the phone-less **break-glass root** leaves the phone
-    blank and enters `ADMIN_INITIAL_PASSWORD` (`settings.admin_password_hash`).
+    without a DB. Admin-role users are **rejected** on this path, so the org-wide
+    keyword can never yield an admin session.
+  - **Admin-role user** (`[phone][keyword]` resolving to an active `role='admin'` user):
+    a **modal** prompts for the **shared admin PIN** (`settings.admin_pin_hash`) before
+    any session is issued.
+  - **Break-glass root**: the input has no keyword and matches
+    `ADMIN_INITIAL_PASSWORD` (`settings.admin_password_hash`); signed in phone-less
+    with no PIN step.
+  `authorize` (`src/lib/auth.ts`) re-checks every credential itself and is the only
+  place a session is issued or a failure audited.
 - Google access goes through `getGoogleIntegration()` (`src/lib/google/index.ts`) —
   never call Google APIs directly; Gmail methods still throw. It loads `./real`
   via a **dynamic `import()`** — keep it that way: a static import drags the
