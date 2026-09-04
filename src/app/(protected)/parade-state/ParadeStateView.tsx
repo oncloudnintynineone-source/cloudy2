@@ -46,6 +46,7 @@ import { LoadingStatus } from "@/components/LoadingStatus";
 import type { CalendarEvent } from "@/lib/events/queries";
 import { CONTENT_ENTER_CLASS, useContentEnter } from "@/lib/loading/contentEnter";
 import { useMinSkeletonHold } from "@/lib/loading/minHoldLoading";
+import { type Rect } from "@/lib/motion/origin";
 import { MOTION } from "@/lib/motion/timing";
 import { buildDepartmentTree, type DepartmentTreeNode } from "@/lib/roster/hierarchy";
 import { formatFullName } from "@/lib/settings/formatName";
@@ -167,6 +168,9 @@ export function ParadeStateView({
   const [selectedCalendars, setSelectedCalendars] = useState(initSelectedCalendars);
   const [selectedUsers, setSelectedUsers] = useState(initSelectedUsers);
   const [filterOpened, { open: openFilter, close: closeFilter }] = useDisclosure(false);
+  // Where the filter trigger sat on screen; the dialog grows out of / shrinks
+  // back into it (see src/lib/motion/origin.ts).
+  const [filterOriginRect, setFilterOriginRect] = useState<Rect | null>(null);
   const [pickerOpened, { open: openPicker, close: closePicker }] = useDisclosure(false);
   // Reset wipes attendance for every date, so it confirms first like every
   // other destructive action in the app.
@@ -757,7 +761,10 @@ export function ParadeStateView({
             </Menu.Item>
             <Menu.Item
               leftSection={<IconFilter size={16} />}
-              onClick={openFilter}
+              onClick={(e) => {
+                setFilterOriginRect(e.currentTarget.getBoundingClientRect());
+                openFilter();
+              }}
               rightSection={
                 activeFilterCount > 0 ? (
                   <Badge size="sm" variant="filled" radius="xl">
@@ -893,6 +900,7 @@ export function ParadeStateView({
         groups={filterGroups}
         values={filterValues}
         onApply={handleApplyFilters}
+        originRect={filterOriginRect}
       />
       <DateSelectorModal
         opened={pickerOpened}

@@ -1,11 +1,14 @@
 "use client";
 
+import type { MouseEvent } from "react";
 import { ActionIcon, Badge, Box } from "@mantine/core";
 import { IconFilter } from "@tabler/icons-react";
 
 interface FilterButtonProps {
   activeCount: number;
-  onClick: () => void;
+  /** Receives the click event so callers can capture the trigger's rect for the
+   *  modal's zoom-from-element animation. */
+  onClick: (event: MouseEvent<HTMLButtonElement>) => void;
   /** Icon button size in px (nav-row controls use 36; table toolbars 43). */
   size?: number;
 }

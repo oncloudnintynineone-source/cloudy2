@@ -871,6 +871,9 @@ export function DashboardView({
     setEditLinkFailed(found === null);
   }
   const [filterOpened, { open: openFilter, close: closeFilter }] = useDisclosure(false);
+  // Where the filter trigger sat on screen; the dialog grows out of / shrinks
+  // back into it (see src/lib/motion/origin.ts).
+  const [filterOriginRect, setFilterOriginRect] = useState<Rect | null>(null);
   const [pickerOpened, { open: openPicker, close: closePicker }] = useDisclosure(false);
 
   // Pinned tabs (index 0 = leftmost). The prop is the server's validated read
@@ -2240,7 +2243,14 @@ export function DashboardView({
           {/* Filters live in their own primary affordance (icon + count badge),
               not the overflow menu — the kebab keeps navigation, the fullscreen
               toggle, and refresh. */}
-          <FilterButton activeCount={activeFilterCount} onClick={openFilter} size={36} />
+          <FilterButton
+            activeCount={activeFilterCount}
+            onClick={(e) => {
+              setFilterOriginRect(e.currentTarget.getBoundingClientRect());
+              openFilter();
+            }}
+            size={36}
+          />
           <Menu
             shadow="md"
             width={200}
@@ -3025,6 +3035,7 @@ export function DashboardView({
         onApply={handleApplyFilters}
         collapsedGroupLabels={["Event Types"]}
         hint={`These filters apply to ${DASHBOARD_VIEW_LABELS[view]} only.`}
+        originRect={filterOriginRect}
       />
 
       {formState === null && (

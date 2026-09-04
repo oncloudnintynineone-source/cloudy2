@@ -24,6 +24,7 @@ import { FilterButton } from "@/components/FilterButton";
 import { FilterModal, type FilterGroup } from "@/components/FilterModal";
 import { FAB_ICON_SIZE, FloatingActionButton, FloatingToolbar } from "@/components/FloatingToolbar";
 import { CONTENT_ENTER_CLASS } from "@/lib/loading/contentEnter";
+import { type Rect } from "@/lib/motion/origin";
 import type { RosterAccessGrant, RosterUser } from "@/lib/roster/queries";
 import { formatFullName } from "@/lib/settings/formatName";
 import { activatable } from "@/lib/ui/activatable";
@@ -43,6 +44,9 @@ export function UserTable({ users, departments, accessByUser, nameTemplate }: Us
   const isDesktop = useMediaQuery(`(min-width: ${theme.breakpoints.lg})`);
   const [opened, { open, close }] = useDisclosure(false);
   const [filterOpened, { open: openFilter, close: closeFilter }] = useDisclosure(false);
+  // Where the filter trigger sat on screen; the dialog grows out of / shrinks
+  // back into it (see src/lib/motion/origin.ts).
+  const [filterOriginRect, setFilterOriginRect] = useState<Rect | null>(null);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<string[]>([]);
   const [departmentFilter, setDepartmentFilter] = useState<string[]>([]);
@@ -130,7 +134,13 @@ export function UserTable({ users, departments, accessByUser, nameTemplate }: Us
               onChange={(e) => setSearch(e.currentTarget.value)}
               style={{ flex: 1 }}
             />
-            <FilterButton activeCount={activeFilterCount} onClick={openFilter} />
+            <FilterButton
+              activeCount={activeFilterCount}
+              onClick={(e) => {
+                setFilterOriginRect(e.currentTarget.getBoundingClientRect());
+                openFilter();
+              }}
+            />
             {/* Desktop: full-size create button instead of the FAB (like the
                 Calendar page's "New event" button); the FAB below is mobile-only. */}
             <Button
@@ -356,6 +366,7 @@ export function UserTable({ users, departments, accessByUser, nameTemplate }: Us
         groups={filterGroups}
         values={filterValues}
         onApply={handleApplyFilters}
+        originRect={filterOriginRect}
       />
 
       {/* Mobile-only: at lg the "Add user" button in the toolbar replaces the

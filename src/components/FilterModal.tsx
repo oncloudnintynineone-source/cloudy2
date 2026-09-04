@@ -22,8 +22,14 @@ import {
   resolveFilterApply,
   type FilterApplyGroup,
 } from "@/lib/filters/resolveFilterApply";
-import { buildUserGroups, type PickerGroup } from "@/lib/users/userSelect";
+import {
+  modalContentWidth,
+  scaleFromRect,
+  transformOriginFromRect,
+  type Rect,
+} from "@/lib/motion/origin";
 import { MOTION } from "@/lib/motion/timing";
+import { buildUserGroups, type PickerGroup } from "@/lib/users/userSelect";
 import { NARROW_MEDIA_QUERY } from "@/lib/theme";
 
 export interface FilterOption {
@@ -103,6 +109,12 @@ interface FilterModalProps {
   values: Record<string, string[]>;
   onApply: (values: Record<string, string[]>) => void;
   /**
+   * Viewport rect of the trigger button, captured on tap. Drives the modal's
+   * standard grow/shrink-from-element zoom animation (see `lib/motion/origin`).
+   * Omit for a plain centered zoom.
+   */
+  originRect?: Rect | null;
+  /**
    * Group labels that start collapsed behind a "Show …" toggle. Only the
    * groups most users reach stay open (the dashboard promotes Calendars +
    * Users and tucks Event Types away); audit-log/user-table callers omit this
@@ -159,10 +171,31 @@ export function FilterModal({
   onApply,
   collapsedGroupLabels,
   hint,
+  originRect = null,
 }: FilterModalProps) {
   const theme = useMantineTheme();
   const isDesktop = useMediaQuery(`(min-width: ${theme.breakpoints.lg})`);
   const isNarrow = useMediaQuery(NARROW_MEDIA_QUERY);
+
+  // The modal zooms out of / shrinks back into the trigger button (the app's
+  // standard grow/shrink animation; mirror the other zoom modals).
+  const viewport = {
+    w: typeof window === "undefined" ? 0 : window.innerWidth,
+    h: typeof window === "undefined" ? 0 : window.innerHeight,
+  };
+  const contentWidth = modalContentWidth(viewport, isNarrow ? 300 : isDesktop ? 440 : 380);
+  const transitionProps = {
+    transition: {
+      in: { opacity: 1, transform: "scale(1)" },
+      out: { opacity: 0, transform: `scale(${scaleFromRect(originRect, contentWidth)})` },
+      common: { transformOrigin: transformOriginFromRect(originRect, viewport, "center") },
+      transitionProperty: "transform, opacity",
+    },
+    duration: MOTION.modalZoom,
+    exitDuration: MOTION.modalZoomExit,
+    timingFunction: "cubic-bezier(0.3, 1.2, 0.4, 1)",
+  } as const;
+
   return (
     <Modal
       opened={opened}
@@ -170,6 +203,7 @@ export function FilterModal({
       title={title}
       centered
       size={isNarrow ? "xs" : isDesktop ? "md" : "sm"}
+      transitionProps={transitionProps}
     >
       <FilterModalBody
         groups={groups}

@@ -43,6 +43,7 @@ import {
 } from "@/lib/audit/format";
 import type { AuditFilters } from "@/lib/audit/queries";
 import { CONTENT_ENTER_CLASS, useContentEnter } from "@/lib/loading/contentEnter";
+import { type Rect } from "@/lib/motion/origin";
 import { MOTION } from "@/lib/motion/timing";
 import { useMinSkeletonHold } from "@/lib/loading/minHoldLoading";
 import { BUTTON_LOADER_PROPS } from "@/lib/theme";
@@ -138,6 +139,9 @@ export function AuditLogView({
   const [purgeOpened, { open: openPurge, close: closePurge }] = useDisclosure(false);
   const [exportOpened, { open: openExport, close: closeExport }] = useDisclosure(false);
   const [filtersOpened, { open: openFilters, close: closeFilters }] = useDisclosure(false);
+  // Where the filter trigger sat on screen; the dialog grows out of / shrinks
+  // back into it (see src/lib/motion/origin.ts).
+  const [filtersOriginRect, setFiltersOriginRect] = useState<Rect | null>(null);
   const [purging, setPurging] = useState(false);
   const [exporting, setExporting] = useState(false);
 
@@ -382,7 +386,13 @@ export function AuditLogView({
               }
             />
           </form>
-          <FilterButton activeCount={activeFilterCount} onClick={openFilters} />
+          <FilterButton
+            activeCount={activeFilterCount}
+            onClick={(e) => {
+              setFiltersOriginRect(e.currentTarget.getBoundingClientRect());
+              openFilters();
+            }}
+          />
           <DatePickerInput
             label="From"
             value={inputToDate(filters.from)}
@@ -496,7 +506,10 @@ export function AuditLogView({
               <Menu.Divider />
               <Menu.Item
                 leftSection={<IconFilter size={16} />}
-                onClick={openFilters}
+                onClick={(e) => {
+                  setFiltersOriginRect(e.currentTarget.getBoundingClientRect());
+                  openFilters();
+                }}
                 rightSection={
                   activeFilterCount > 0 ? (
                     <Badge size="sm" variant="filled" radius="xl">
@@ -774,6 +787,7 @@ export function AuditLogView({
         groups={filterGroups}
         values={filterValues}
         onApply={handleApplyFilters}
+        originRect={filtersOriginRect}
       />
 
       <Modal
