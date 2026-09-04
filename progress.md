@@ -273,9 +273,19 @@ One line per phase; full write-ups (incl. Mermaid diagrams and verification note
    settings. Legacy anonymous rules matching roster users are **adopted** into grant
    rows both on user create/email change (`adoptExternalAccessForEmail`, a
    department-by-department ACL scan) and on department read, and audit
-   `user.create`/`user.update` payloads carry the sorted grant list (docs
-   `roster-sharing.md` §1.5/§1.9/§1.10/§1.11; filter/access independence documented
-   in `dashboard-views.md` §1.2 + `ui-state.md` §1.5.1 + `user-guide.md`/`admin-guide.md`)
+    `user.create`/`user.update` payloads carry the sorted grant list (docs
+    `roster-sharing.md` §1.5/§1.9/§1.10/§1.11; filter/access independence documented
+    in `dashboard-views.md` §1.2 + `ui-state.md` §1.5.1 + `user-guide.md`/`admin-guide.md`)
+- 1.176 User-menu Calendar Access self-service: the profile dropdown now shows the signed-in
+    user's full display name with a `role · phone` subtitle, and a "Calendar Access" item opens a
+    modal listing the calendars shared with them (own department as reader + cross-department
+    grants at their role) — each row links "Add to my Google Calendar" (the `cid=` web link,
+    mirroring the department modal) so non-admins can subscribe to their department calendars in
+    their own Google account. Data comes from the new `getMyCalendarAccess()` server action
+    (any authenticated session; the roster-profile DB read, no Google round-trip), the modal
+    fetches on open with a render-phase reset, and the global Admin login gets an explainer
+    instead of a roster. `phone` is threaded from the protected layout → `AppShellShell` →
+    `UserMenu`; no schema or Google changes
 
 ## 1.4 Open items & next steps
 

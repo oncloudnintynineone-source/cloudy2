@@ -218,6 +218,7 @@ const HEADER_HEIGHT_PX = 56;
 export function AppShellShell({
   role,
   name,
+  phone,
   sidebarCollapsed,
   bannerSlot,
   kahNavSlot,
@@ -225,6 +226,7 @@ export function AppShellShell({
 }: {
   role: "admin" | "user";
   name: string;
+  phone: string | null;
   /** The remembered rail state, read from the `cloudy2.ui` cookie by the
    *  (protected) layout before first paint (the server renders exactly what
    *  was remembered — no client restore, no flash). */
@@ -612,7 +614,7 @@ export function AppShellShell({
                     <IconSearch size={18} />
                   </ActionIcon>
                   <ThemeToggle />
-                  <UserMenu name={name} />
+                  <UserMenu name={name} role={role} phone={phone} />
                 </Group>
               </Group>
               {/* Global activity bar: indeterminate amber strip pinned to the

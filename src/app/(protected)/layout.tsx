@@ -22,6 +22,7 @@ export default async function ProtectedLayout({
     <AppShellShell
       role={session.user.role}
       name={session.user.name ?? ""}
+      phone={session.user.phone}
       sidebarCollapsed={uiState?.sidebarCollapsed === true}
       bannerSlot={
         <Suspense fallback={<BannerPlaceholder />}>

@@ -11,7 +11,7 @@ import { diffFields } from "@/lib/audit/diff";
 import { logAction } from "@/lib/audit/log";
 import { normalizeEventColor } from "@/lib/events/eventColors";
 import { getGoogleIntegration, googleCalendarConfigured } from "@/lib/google";
-import { requireAdmin } from "@/lib/session";
+import { requireAdmin, requireSession } from "@/lib/session";
 import {
   buildDepartmentTree,
   descendantIds,
@@ -864,4 +864,109 @@ export async function revokeDepartmentAccess(
   });
 
   return { ok: true };
+}
+
+// ---------------------------------------------------------------------------
+// Profile self-service (the "Calendar Access" modal in the user menu)
+// ---------------------------------------------------------------------------
+
+/** A calendar shared with the signed-in user, ready for the client. */
+export type MyCalendarRow = {
+  calendarId: string;
+  googleCalendarId: string;
+  name: string;
+  /** The managed access level: own department is always a reader; grants carry their role. */
+  role: "reader" | "writer";
+  /** Where the access comes from: the user's own department vs. a cross-department grant. */
+  source: "department" | "grant";
+};
+
+export type MyCalendarAccessResult =
+  | {
+      ok: true;
+      /** A roster profile backs this session; false for the global Admin login. */
+      hasProfile: true;
+      /** The user's roster email (the address department calendars are shared with). */
+      email: string | null;
+      /** The user's own department's display name, when assigned. */
+      departmentName: string | null;
+      calendars: MyCalendarRow[];
+    }
+  | { ok: true; hasProfile: false }
+  | { ok: false; error: string };
+
+/**
+ * The signed-in user's calendar access: their own department (automatic
+ * reader membership) plus any cross-department grants, read from the roster
+ * tables — the DB records intent; Google ACLs are reconciled separately by
+ * the sharing paths. Any authenticated account may call this.
+ */
+export async function getMyCalendarAccess(): Promise<MyCalendarAccessResult> {
+  const session = await requireSession();
+  try {
+    const [user] = await db
+      .select({ id: users.id, departmentId: users.departmentId, email: users.email })
+      .from(users)
+      .where(eq(users.id, session.user.id))
+      .limit(1);
+    if (!user) {
+      return { ok: true, hasProfile: false };
+    }
+
+    const rows: MyCalendarRow[] = [];
+
+    let departmentName: string | null = null;
+    if (user.departmentId) {
+      const [department] = await db
+        .select({
+          id: calendars.id,
+          googleCalendarId: calendars.googleCalendarId,
+          name: calendars.name,
+        })
+        .from(calendars)
+        .where(eq(calendars.id, user.departmentId))
+        .limit(1);
+      if (department) {
+        departmentName = department.name;
+        rows.push({
+          calendarId: department.id,
+          googleCalendarId: department.googleCalendarId,
+          name: department.name,
+          role: "reader",
+          source: "department",
+        });
+      }
+    }
+
+    // Cross-department grants, ordered like the departments list. A stale grant
+    // row pointing at the user's own department is skipped (never double-listed).
+    const grants = await db
+      .select({
+        calendarId: userCalendarAccess.calendarId,
+        role: userCalendarAccess.role,
+        googleCalendarId: calendars.googleCalendarId,
+        name: calendars.name,
+      })
+      .from(userCalendarAccess)
+      .leftJoin(calendars, eq(calendars.id, userCalendarAccess.calendarId))
+      .where(eq(userCalendarAccess.userId, user.id))
+      .orderBy(asc(calendars.sortOrder), asc(calendars.name));
+
+    for (const grant of grants) {
+      if (grant.calendarId === user.departmentId || !grant.googleCalendarId) {
+        continue;
+      }
+      rows.push({
+        calendarId: grant.calendarId,
+        googleCalendarId: grant.googleCalendarId,
+        name: grant.name ?? grant.calendarId,
+        role: grant.role,
+        source: "grant",
+      });
+    }
+
+    return { ok: true, hasProfile: true, email: user.email, departmentName, calendars: rows };
+  } catch (error) {
+    return { ok: false, error: describeError(error, "Couldn't load your calendar access") };
+  }
 }
