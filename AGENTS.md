@@ -168,6 +168,17 @@ mechanics in the doc.
   (standard `motion/origin`). `q` matches `summary`/`location`/`description`, but
   **not** the compressed notes (type/people), unless the title template renders them.
   Design: [docs/event-search.md](docs/event-search.md).
+- **Event clash warnings (pre-submit, notify-only):** the wizard's review step runs
+  the read-only `checkEventClashes` server action (`src/lib/events/clashActions.ts`),
+  which re-resolves the candidate exactly like a create/update (shared chain in
+  `src/lib/events/writeContext.ts`), reads overlapping events on the candidate's
+  **target calendars** from the month cache (`src/lib/events/clashQuery.ts`, never raw
+  `listEvents`), and runs the pure `computeClashes` engine (`src/lib/events/clashes.ts`):
+  an event occupies its creator + tagged users + every active member of each tagged
+  department, and an external/people-less event occupies the active members of its own
+  calendar; two events clash when their windows overlap AND they share an occupied
+  user. Warnings never block a save.
+  Design: [docs/event-clashes.md](docs/event-clashes.md).
 - **KAH constraints are notify-only.** After every successful create/update (never
   delete), `dispatchKahBreachCheck()` (`src/lib/kah/notify.ts`) runs inside `after()` —
   best-effort, it can never fail or delay the mutation.

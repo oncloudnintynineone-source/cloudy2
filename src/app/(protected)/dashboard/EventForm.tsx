@@ -33,6 +33,8 @@ import {
   type EventActionResult,
   type EventResultField,
 } from "@/lib/events/actions";
+import type { EventClashCheckRequest } from "@/lib/events/clashActions";
+import { EventClashCheck } from "./EventClashCheck";
 import { subOneDay } from "@/lib/events/datetime";
 import {
   buildOptimisticEvent,
@@ -737,6 +739,38 @@ export function EventForm({
     return `${formatDateTime(form.values.start, false)} – ${formatDateTime(form.values.end, false)}`;
   })();
 
+  // The exact payload a submit sends to create/update — reused verbatim by the
+  // review-step clash check so the advisory reasons about the saved event.
+  function valuesToPayload(values: EventFormState): EventFormValues {
+    const { invitees, ...rest } = values;
+    const { userIds, departmentIds } = splitInvitees(invitees);
+    return {
+      ...rest,
+      timeOption: effectiveTimeOption,
+      startAmPm: effectiveTimeOption === "half" ? rest.startAmPm || "AM" : "",
+      endAmPm: effectiveTimeOption === "half" ? rest.endAmPm || "PM" : "",
+      inviteeUserIds: userIds,
+      inviteeDepartments: departmentIds,
+    };
+  }
+
+  // Read-only clash advisory on the review step: rebuilt (new object identity)
+  // only when the candidate's effective window/people actually change, so the
+  // check panel re-runs on those changes and stays idle otherwise. The review
+  // step itself has no inputs, so in practice this runs once per arrival.
+  const clashRequest = useMemo<EventClashCheckRequest | null>(() => {
+    if (currentStep.id !== "review" || !form.values.start || !form.values.end) {
+      return null;
+    }
+    return {
+      values: valuesToPayload(form.values),
+      ref: isEdit && event ? eventRefFromCalendarEvent(event) : null,
+    };
+    // form.values is the natural dependency; its reference only changes on an
+    // actual field edit, which is exactly when the check must re-run.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentStep.id, isEdit, event, effectiveTimeOption, form.values, isAdmin]);
+
   const onSubmit = form.onSubmit(
     async (values) => {
       // The submit button only renders on the last step; guard against
@@ -744,16 +778,7 @@ export function EventForm({
       if (!isLastStep) {
         return;
       }
-      const { invitees, ...rest } = values;
-      const { userIds, departmentIds } = splitInvitees(invitees);
-      const payload: EventFormValues = {
-        ...rest,
-        timeOption: effectiveTimeOption,
-        startAmPm: effectiveTimeOption === "half" ? rest.startAmPm || "AM" : "",
-        endAmPm: effectiveTimeOption === "half" ? rest.endAmPm || "PM" : "",
-        inviteeUserIds: userIds,
-        inviteeDepartments: departmentIds,
-      };
+      const payload = valuesToPayload(values);
       const optimisticId = nextOptimisticOpId();
       // The stand-in chip mirrors the edit's real copy identity (so the old
       // grid entry is replaced in place) or, on create, carries a client
@@ -1257,6 +1282,8 @@ export function EventForm({
                   )}
                 </Stack>
               </Paper>
+
+              <EventClashCheck request={clashRequest} />
 
               <Stack gap={4}>
                 <Text size="xs" c="dimmed" fw={600}>

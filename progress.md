@@ -27,7 +27,7 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
   Calendars with service-account ACL sharing; audit logging; event CRUD across department
   calendars with cross-department copies, invitees, templates, time options and location
   policy, with outbound webhooks to any number of admin-registered external endpoints on
-  create/update/delete; dashboard Month/Mobile-month/Schedule-Day/Week/Week-v2-matrix/Agenda views over
+  create/update/delete and pre-submit event clash warnings on the wizard's review step; dashboard Month/Mobile-month/Schedule-Day/Week/Week-v2-matrix/Agenda views over
    a layered calendar cache; parade-state page with local attendance mode; contacts page;
    PWA installability with offline & instant open (SWR document + RSC, precached offline.html);
   mobile-first UI with a desktop layout at `lg`; remembered UI state across relaunch;
@@ -332,7 +332,15 @@ One line per phase; full write-ups (incl. Mermaid diagrams and verification note
     permission dropdowns in the section render at the readable `sm` size (were
     `xs`), the `Calendar Access` self-service modal labels Owner (brand badge), and
     the copy/`formatManagedGrants` audit labels/docs/tests cover the third level
-
+- 1.180 Pre-submit event clash warnings in the wizard: the review step runs the
+    read-only `checkEventClashes` action, which re-resolves the candidate exactly
+    like a create/update (shared chain moved to `src/lib/events/writeContext.ts`),
+    reads the overlapping events on its target calendars from the month cache
+    (`clashQuery.ts`), and runs the pure `computeClashes` engine — an event occupies
+    its creator + tagged users + every active member of each tagged department
+    (department-level event = everyone within), and external/people-less events
+    occupy their own calendar's members. Warnings (per conflicting event, affected
+    people, "you" chip) never block a save. `docs/event-clashes.md`
 
 ## 1.4 Open items & next steps
 

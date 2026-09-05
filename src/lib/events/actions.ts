@@ -1,11 +1,8 @@
 "use server";
 
-import { inArray } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
-import { db } from "@/db";
 import { describeError } from "@/db/pgErrors";
-import { calendars } from "@/db/schema";
 import { AUDIT_ACTIONS, actorFromUser } from "@/lib/audit/build";
 import { diffFields } from "@/lib/audit/diff";
 import { logAction } from "@/lib/audit/log";
@@ -25,21 +22,26 @@ import {
   withEditLink,
   withInternalMarker,
 } from "@/lib/events/notes";
-import { clampOutOfCamp, type LocationCategory } from "@/lib/events/locationPolicy";
 import { creatorGuard, ownershipGuard } from "@/lib/events/guards";
 import { dispatchKahBreachCheck } from "@/lib/kah/notify";
-import { naiveTimePart, resolveTimeOption, type TimeOption } from "@/lib/events/timeOptions";
+import { naiveTimePart } from "@/lib/events/timeOptions";
 import { renderEventTitle } from "@/lib/events/eventTitle";
-import { getUserDepartmentIds } from "@/lib/events/queries";
 import { invalidatePinnedCache } from "@/lib/events/pinned";
-import { deriveTargetCalendarIds, type EventRef } from "@/lib/events/targets";
+import {
+  buildEventTitleContext,
+  calendarNames,
+  refTargetCalendars,
+  resolveEffectiveInput,
+  resolveTargetCalendars,
+  type EventTitleContext,
+} from "@/lib/events/writeContext";
+import type { EventRef } from "@/lib/events/targets";
 import {
   clampEventEnd,
   validateEventForm,
   withSelfCreator,
   type EventFormValues,
 } from "@/lib/events/validate";
-import { getEventTypesByNames } from "@/lib/eventTypes/queries";
 import {
   getGoogleIntegration,
   googleCalendarConfigured,
@@ -49,12 +51,6 @@ import {
 import { invalidateGcalCache } from "@/lib/google/eventsCache";
 import { getUsersByIds, type UserDisplayInfo } from "@/lib/roster/queries";
 import { resolveGoogleCalendarId } from "@/lib/roster/shares";
-import {
-  type EventTitlePerson,
-  type EventTitleType,
-} from "@/lib/settings/formatEventTitle";
-import { formatFullName } from "@/lib/settings/formatName";
-import { getSettings } from "@/lib/settings/queries";
 import { requireSession } from "@/lib/session";
 import { dispatchEventWebhook } from "@/lib/webhooks/deliver";
 import { WEBHOOK_ACTIONS } from "@/lib/webhooks/payload";
@@ -134,197 +130,6 @@ function withMargin(range: AbsRange): AbsRange {
     start: new Date(range.start.getTime() - marginMs),
     end: new Date(range.end.getTime() + marginMs),
   };
-}
-
-/**
- * Department calendars a logical event must live in, from its creator +
- * invitees. When nothing derives (e.g. a legacy event with no creator stored)
- * and a fallback calendar is given, that calendar alone is the target set.
- */
-async function resolveTargetCalendars(
-  input: {
-    creatorId: string;
-    inviteeUserIds: string[];
-    inviteeDepartments: string[];
-  },
-  fallbackCalendarId: string | null,
-): Promise<string[]> {
-  const inviteeUserIds = Array.isArray(input.inviteeUserIds) ? input.inviteeUserIds : [];
-  const inviteeDepartments = Array.isArray(input.inviteeDepartments)
-    ? input.inviteeDepartments
-    : [];
-  const ids = [...new Set([...(input.creatorId ? [input.creatorId] : []), ...inviteeUserIds])];
-  const userDepartments = ids.length > 0 ? await getUserDepartmentIds(ids) : {};
-  const derived = deriveTargetCalendarIds({
-    creatorDepartmentId: input.creatorId ? (userDepartments[input.creatorId] ?? null) : null,
-    invitedUserDepartmentIds: inviteeUserIds.map((id) => userDepartments[id] ?? null),
-    invitedDepartmentIds: inviteeDepartments,
-  });
-  return derived.length > 0 ? derived : fallbackCalendarId ? [fallbackCalendarId] : [];
-}
-
-/** Target set for an existing (representative) copy, from its own people fields. */
-async function refTargetCalendars(ref: EventRef): Promise<string[]> {
-  return resolveTargetCalendars(
-    {
-      creatorId: ref.creatorId ?? "",
-      inviteeUserIds: ref.inviteeUserIds,
-      inviteeDepartments: ref.inviteeDepartmentIds,
-    },
-    ref.calendarId,
-  );
-}
-
-/** Resolve-once display data behind the event title template tokens. */
-interface EventTitleContext {
-  template: string;
-  eventType: EventTitleType | null;
-  people: EventTitlePerson[];
-  departments: string[];
-  /** Datetime options the event type allows; empty when the event has no type. */
-  timeOptions: TimeOption[];
-  /**
-   * The event type's allowed location categories; undefined when the event
-   * has no type (no restriction).
-   */
-  allowedLocations: LocationCategory[] | null;
-  /** Whether the event type shows the Remarks (description) field. */
-  showRemarks: boolean;
-  /** Whether the event type shows the Invited Attendees field. */
-  showInvitees: boolean;
-}
-
-/**
- * Resolve the invited people (plain name, acronym, fully qualified name via
- * the display-name template), the event type's shortname, and department names
- * a title template can render. Unknown ids are dropped; malformed invitee
- * arrays are coerced.
- */
-async function buildEventTitleContext(input: EventFormValues): Promise<EventTitleContext> {
-  const settings = await getSettings();
-  const inviteeUserIds = [
-    ...new Set(Array.isArray(input.inviteeUserIds) ? input.inviteeUserIds : []),
-  ];
-  const inviteeDepartments = Array.isArray(input.inviteeDepartments)
-    ? input.inviteeDepartments
-    : [];
-  const eventTypeName = input.eventType.trim();
-  const [userRows, departmentNames, eventTypesByName] = await Promise.all([
-    getUsersByIds(inviteeUserIds),
-    calendarNames(inviteeDepartments),
-    getEventTypesByNames(eventTypeName ? [eventTypeName] : []),
-  ]);
-  const eventTypeRow = eventTypeName ? eventTypesByName.get(eventTypeName) : undefined;
-  const inviteesHidden = eventTypeRow ? eventTypeRow.showInvitees === false : false;
-  // Types with invitees disabled carry no attendees beyond the creator, so the
-  // {people} token never names someone the event no longer has.
-  const peopleUserIds = inviteesHidden
-    ? input.creatorId
-      ? [input.creatorId]
-      : []
-    : inviteeUserIds;
-  const userById = new Map(userRows.map((user) => [user.id, user]));
-  const people = peopleUserIds.flatMap((id) => {
-    const user = userById.get(id);
-    if (!user) {
-      return [];
-    }
-    return [
-      {
-        full: user.name,
-        acronym: user.shortname || user.name,
-        fqn: formatFullName(
-          { name: user.name, departmentName: user.departmentName },
-          settings.nameTemplate,
-        ),
-      },
-    ];
-  });
-  const eventType: EventTitleType | null = eventTypeName
-    ? { name: eventTypeName, acronym: eventTypeRow?.shortname ?? eventTypeName }
-    : null;
-  return {
-    template: settings.eventTitleTemplate,
-    eventType,
-    people,
-    departments: inviteesHidden ? [] : inviteeDepartments.map((id) => departmentNames[id] ?? ""),
-    timeOptions: eventTypeRow?.timeOptions ?? [],
-    allowedLocations: eventTypeRow ? eventTypeRow.allowedLocations : null,
-    showRemarks: eventTypeRow ? eventTypeRow.showRemarks : true,
-    showInvitees: eventTypeRow ? eventTypeRow.showInvitees : true,
-  };
-}
-
-/**
- * Clamp the form's chosen datetime option to what the event type allows
- * (unknown names and untyped events fall back to the default "range"), and
- * default the start/end AM/PM indicators for "half" events.
- */
-function resolveEventTime(input: EventFormValues, context: EventTitleContext): EventFormValues {
-  const timeOption = resolveTimeOption(context.timeOptions, input.timeOption);
-  return {
-    ...input,
-    timeOption,
-    startAmPm: timeOption === "half" ? (input.startAmPm === "PM" ? "PM" : "AM") : "",
-    endAmPm: timeOption === "half" ? (input.endAmPm === "PM" ? "PM" : "AM") : "",
-  };
-}
-
-/**
- * Ensure `end` is never before `start` (e.g. stale client where start was
- * moved past end). Mirrors the client-side auto-clamp so a direct API call
- * cannot create an inverted range. No-ops on incomplete sides — validation
- * still reports required fields. Must run after `resolveEventTime` so
- * half-day indicators are normalized.
- */
-function resolveEventDates(input: EventFormValues): EventFormValues {
-  return clampEventEnd(input);
-}
-
-/**
- * Enforce the event type's allowed locations on the Out of Camp / overseas
- * flags and location (in-camp events keep an optional specific location; an
- * exclusively in-camp type forces both flags off; an out-of-camp-only type
- * forces the category out). Applied after {@link resolveEventTime} in both
- * create and update so a stale form state can never submit an out-of-policy
- * category.
- */
-function resolveEventLocation(input: EventFormValues, context: EventTitleContext): EventFormValues {
-  const location = input.location.trim();
-  const clamped = clampOutOfCamp(
-    context.allowedLocations,
-    input.outOfCamp,
-    input.overseas,
-    location,
-  );
-  return {
-    ...input,
-    outOfCamp: clamped.outOfCamp,
-    overseas: clamped.overseas,
-    location: clamped.location,
-  };
-}
-
-/**
- * Drop form fields the event type hides: a type with remarks disabled carries
- * no description, and a type with invitees disabled carries no attendees
- * beyond the creator. Runs after {@link resolveEventLocation} so the title the
- * template renders (from type/people/location tokens) is the only text a
- * no-remarks event gets.
- */
-function resolveEventFields(input: EventFormValues, context: EventTitleContext): EventFormValues {
-  let next = input;
-  if (!context.showRemarks) {
-    next = { ...next, title: "" };
-  }
-  if (!context.showInvitees) {
-    next = {
-      ...next,
-      inviteeUserIds: next.creatorId ? [next.creatorId] : [],
-      inviteeDepartments: [],
-    };
-  }
-  return next;
 }
 
 async function buildGcalEventInput(
@@ -426,17 +231,6 @@ async function legacyFallback(ref: EventRef): Promise<{
   return googleCalendarId ? { googleCalendarId, googleEventId: ref.googleEventId } : null;
 }
 
-async function calendarNames(calendarIds: string[]): Promise<Record<string, string>> {
-  if (calendarIds.length === 0) {
-    return {};
-  }
-  const rows = await db
-    .select({ id: calendars.id, name: calendars.name })
-    .from(calendars)
-    .where(inArray(calendars.id, calendarIds));
-  return Object.fromEntries(rows.map((row) => [row.id, row.name]));
-}
-
 export async function createEvent(input: EventFormValues): Promise<EventActionResult> {
   const session = await requireSession();
   // "On behalf of" is optional: a blank creator means the acting user.
@@ -462,10 +256,7 @@ export async function createEvent(input: EventFormValues): Promise<EventActionRe
   const eventId = crypto.randomUUID();
   const integration = await getGoogleIntegration();
   const titleContext = await buildEventTitleContext(normalized);
-  const effectiveInput = resolveEventFields(
-    resolveEventLocation(resolveEventDates(resolveEventTime(normalized, titleContext)), titleContext),
-    titleContext,
-  );
+  const effectiveInput = resolveEffectiveInput(normalized, titleContext);
   // Targets derive from the effective input so a type with invitees disabled
   // only ever lands in the creator's department.
   const targets = await resolveTargetCalendars(effectiveInput, null);
@@ -620,10 +411,7 @@ export async function updateEvent(
   const eventId = ref.eventId ?? crypto.randomUUID();
   const integration = await getGoogleIntegration();
   const titleContext = await buildEventTitleContext(normalized);
-  const effectiveInput = resolveEventFields(
-    resolveEventLocation(resolveEventDates(resolveEventTime(normalized, titleContext)), titleContext),
-    titleContext,
-  );
+  const effectiveInput = resolveEffectiveInput(normalized, titleContext);
   // Old targets come from the ref (its stored people); new targets from the
   // effective input, so a type with invitees disabled removes the other
   // departments' copies on save.
@@ -719,16 +507,14 @@ export async function updateEvent(
   const names: EventSnapshotNames = {
     departmentNames: await calendarNames([...new Set([...oldTargets, ...newTargets])]),
     userNames: namesById(
-      await getUsersByIds(
-        [
-          ...new Set([
-            ...(ref.creatorId ? [ref.creatorId] : []),
-            ...ref.inviteeUserIds,
-            normalized.creatorId,
-            ...normalized.inviteeUserIds,
-          ]),
-        ],
-      ),
+      await getUsersByIds([
+        ...new Set([
+          ...(ref.creatorId ? [ref.creatorId] : []),
+          ...ref.inviteeUserIds,
+          normalized.creatorId,
+          ...normalized.inviteeUserIds,
+        ]),
+      ]),
     ),
   };
   const before = snapshotFromCopy(ref, firstCopy, names, oldTargets);
@@ -858,7 +644,9 @@ export async function deleteEvent(ref: EventRef): Promise<EventActionResult> {
     {
       departmentNames: await calendarNames(targets),
       userNames: namesById(
-        await getUsersByIds([...new Set([...(ref.creatorId ? [ref.creatorId] : []), ...ref.inviteeUserIds])]),
+        await getUsersByIds([
+          ...new Set([...(ref.creatorId ? [ref.creatorId] : []), ...ref.inviteeUserIds]),
+        ]),
       ),
     },
     targets,

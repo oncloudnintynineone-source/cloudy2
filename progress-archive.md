@@ -7302,3 +7302,70 @@ the block message); adopt a legacy raw rule by opening the department modal;
 move a user between departments and change their email and confirm only the
 correct rules appear/disappear.
 
+## 1.180 Pre-submit event clash warnings in the event wizard
+
+**Feature**: creating or editing an event no longer silently double-books people.
+The wizard's review step now runs a read-only clash check against the existing
+events that overlap the candidate and shows, per conflicting event, which of the
+candidate's people are already occupied (the acting user gets a "You" chip). It is
+purely advisory — a warning never blocks a save — matching the notify-only KAH
+philosophy but surfacing *before* the event is written rather than after.
+
+**Semantics**: an event *occupies* its creator + each tagged user + every **active**
+member of each tagged department (a department-level event is an event for everyone
+within that department), and an external/people-less event (created directly in
+Google, no parseable notes) occupies every active member of the department calendar
+its copy sits on — the same department-row rule `expandScheduleEvents` applies in the
+schedule view. Two events clash when their half-open time windows overlap AND they
+occupy at least one common active roster user.
+
+**Why read only the target calendars**: every event that occupies a person carries a
+copy on that person's own department calendar (creator → own department, tagged user →
+their department, tagged department → that department), and external events sit on
+their own calendar, so the candidate's `deriveTargetCalendarIds` set — the calendars
+the save would write — is exactly the set that can contain a conflict.
+
+**Design** (`docs/event-clashes.md`):
+
+1. `EventForm.tsx` shares one `valuesToPayload` between the submit handler and the
+   check, so the advisory reasons about byte-identical values. A memoized
+   `clashRequest` (new identity only when the effective window/people change) drives
+   `EventClashCheck.tsx`, the panel rendered under the review step's calendar preview.
+2. `checkEventClashes` (`src/lib/events/clashActions.ts`, a `"use server"` action):
+   `requireSession()` + (on edit) `ownershipGuard`, then `withSelfCreator` →
+   `clampEventEnd` → `validateEventForm` → the **shared resolution chain** → target
+   derivation → `absEventRange` window → cache read → exclude the event being edited
+   (group id, or the legacy copy) → pure `computeClashes` → display-ready entries.
+3. The write-side resolution chain (`buildEventTitleContext`, the four `resolve*`
+   steps, `resolveTargetCalendars`/`refTargetCalendars`, `calendarNames`) moved out of
+   `actions.ts` into the plain module `src/lib/events/writeContext.ts` so both the
+   mutations and the check import one source of truth (a Next `"use server"` module
+   may only export async functions, so the helpers had to move to be importable by
+   the check). `actions.ts` behavior is unchanged; `createEvent`/`updateEvent` now
+   call `resolveEffectiveInput`.
+4. `clashingEventsFor` (`src/lib/events/clashQuery.ts`) reads the overlapping months
+   of the target calendars through `getCachedMonthEventsForCalendars` (never raw
+   `listEvents`); `clashWindowMonths` mirrors the KAH read's month arithmetic exactly.
+5. The pure engine `src/lib/events/clashes.ts` — `instantWindowsOverlap`,
+   `busyUsersOfEvent`, `candidateUsers` (roster-filtered), `buildActiveMembersByDepartment`,
+   `computeClashes` — collapses logical copies to one entry and is unit-tested
+   (`clashes.test.ts`, 20 tests).
+
+**Edge rules**: editing an event excludes its own copies (group id; legacy first-edit
+excluded by the original copy); duplicating warns normally against the source (a real
+overlap); inactive/unknown users are never occupied; a candidate that resolves to no
+department calendars returns an empty check (its create would be rejected anyway);
+back-to-back events do not clash.
+
+**Docs**: new `docs/event-clashes.md` (TOC, semantics table, Mermaid diagram, panel
+states, edge rules); `AGENTS.md` architecture bullet; `progress.md` changelog +
+feature-surface line.
+
+**Verification**: `pnpm lint` + `pnpm typecheck` + `pnpm build` clean; `pnpm test`
+(964 passing, +20 clash-engine tests). Manual QA still needed against dev Google:
+create a personal event overlapping your own; tag a user who is already busy; tag a
+department where a member is busy (whole-dept candidate); edit an event onto a clash;
+duplicate an event overlapping its source; overlap an external event; confirm the
+green no-clash state and that saving still succeeds with warnings present.
+
+

@@ -394,6 +394,7 @@ In CI, the schema-drift check runs `pnpm db:generate` then fails on any diff to
 | [`event-search.md`](event-search.md) | Free-text event search (direct Google `q`, lazy-loaded modal) |
 | [`event-lifecycle.md`](event-lifecycle.md) | Event wizard → Google: notes codec, titles, location policy |
 | [`event-mutations.md`](event-mutations.md) | Create/update/delete: copy reconciliation, rollbacks, audit |
+| [`event-clashes.md`](event-clashes.md) | Pre-submit double-booking warnings on the event wizard |
 | [`roster-sharing.md`](roster-sharing.md) | Users/departments model, hierarchy, calendar ACL sharing, colors |
 | [`kah.md`](kah.md) | KAH groups, breach check, email transports |
 | [`webhooks.md`](webhooks.md) | Event webhooks: payloads, HMAC signatures, fan-out delivery |
