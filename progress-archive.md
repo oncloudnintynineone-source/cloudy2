@@ -244,46 +244,46 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
   served from `/serwist/sw.js`. **Network-first policy:** the SW caches only immutable
   static assets; pages, RSC, auth, and any `/api/*` are `NetworkOnly` so data is always
   fresh from the DB/Google Calendar and never served stale. No push notifications yet.
-   `pnpm build` (SW bundled, 50 precache entries) + `lint/typecheck/test` (220) pass,
-   `db:generate` no drift. Manual iOS/Android install checks pending.
+  `pnpm build` (SW bundled, 50 precache entries) + `lint/typecheck/test` (220) pass,
+  `db:generate` no drift. Manual iOS/Android install checks pending.
 - **Phase 3b (touch-friendly input heights):** every single-line input (text boxes +
-   dropdowns) is 1.2× taller via one `components.Input.vars` override in the theme —
-   Mantine 9 drives input heights with `--input-height-*` CSS variables, and the base-
-   `Input` vars merge into all of `TextInput`/`PasswordInput`/`Select`/`MultiSelect`.
-   The login field's local 1.5× height hack was removed, so it now matches the global
-   scale. No schema changes; `pnpm lint/typecheck/test` (220) pass, `db:generate` no
-   drift.
+  dropdowns) is 1.2× taller via one `components.Input.vars` override in the theme —
+  Mantine 9 drives input heights with `--input-height-*` CSS variables, and the base-
+  `Input` vars merge into all of `TextInput`/`PasswordInput`/`Select`/`MultiSelect`.
+  The login field's local 1.5× height hack was removed, so it now matches the global
+  scale. No schema changes; `pnpm lint/typecheck/test` (220) pass, `db:generate` no
+  drift.
 - **Bugfix (grid-group apply semantics):** `FilterModal` no longer collapses a fully
   selected **grid** group to "no filter" when the user edited it — the explicit selection
   (including "all") is applied. Previously a non-admin who ticked every calendar got the
   "no filter" value, which the server resolves to their department default, so they could
   never view all calendars. "Clear" still restores the consumer default (department for
   non-admins, all for admins) and untouched groups re-apply their current values. The
-   apply resolution is a pure, unit-tested helper in `src/lib/filters/resolveFilterApply.ts`.
-   `pnpm lint/typecheck/test` (220) + `pnpm build` pass, `db:generate` no drift.
+  apply resolution is a pure, unit-tested helper in `src/lib/filters/resolveFilterApply.ts`.
+  `pnpm lint/typecheck/test` (220) + `pnpm build` pass, `db:generate` no drift.
 - **Bugfix (overview cross-dept filter):** Overview matrix rows no longer intersect the
-   `users` filter — a non-admin filtering to another department with a users filter (e.g.
-   "Only me") active now sees that department's rows instead of the "No users to show"
-   empty state. Row scoping moved to a pure helper (`src/lib/overview/scope.ts`, 6 unit
-   tests) mirroring the dashboard, where `users`/`types` narrow events only.
-   `pnpm lint/typecheck/test` (244) pass, no schema change.
+  `users` filter — a non-admin filtering to another department with a users filter (e.g.
+  "Only me") active now sees that department's rows instead of the "No users to show"
+  empty state. Row scoping moved to a pure helper (`src/lib/overview/scope.ts`, 6 unit
+  tests) mirroring the dashboard, where `users`/`types` narrow events only.
+  `pnpm lint/typecheck/test` (244) pass, no schema change.
 - **Bugfix (cross-dept user options in filter dialogs):** the filter dialog's **Users**
-   group now offers the users of the selected department(s) — plus the current user so
-   "Only me" still works — instead of being pinned to a non-admin's own department. This
-   applies to both the Overview and Dashboard filters (shared pure helper
-   `src/lib/filters/filterUserOptions.ts`, 6 unit tests). The event-form **invitee
-   picker** stays own-department-scoped (creation context). `pnpm lint/typecheck/test`
-   (250) pass, no schema change.
+  group now offers the users of the selected department(s) — plus the current user so
+  "Only me" still works — instead of being pinned to a non-admin's own department. This
+  applies to both the Overview and Dashboard filters (shared pure helper
+  `src/lib/filters/filterUserOptions.ts`, 6 unit tests). The event-form **invitee
+  picker** stays own-department-scoped (creation context). `pnpm lint/typecheck/test`
+  (250) pass, no schema change.
 - **Bugfix (overview full-selection rows):** the Overview matrix no longer collapses to a
-   non-admin's own department when they select **all** departments — rows always follow
-   the selected departments (dashboard parity). The `narrowed`-length heuristic in
-   `overviewRowUserIds` was replaced with a rule where a full selection is a real
-   selection; only the admin default/full-selection keeps unassigned users. 7 unit tests.
-   `pnpm lint/typecheck/test` (251) pass, no schema change.
+  non-admin's own department when they select **all** departments — rows always follow
+  the selected departments (dashboard parity). The `narrowed`-length heuristic in
+  `overviewRowUserIds` was replaced with a rule where a full selection is a real
+  selection; only the admin default/full-selection keeps unassigned users. 7 unit tests.
+  `pnpm lint/typecheck/test` (251) pass, no schema change.
 - **Tweak (overview shortname headers):** the Overview matrix column headers now render
-   the event-type **shortname** acronym (e.g. "LL", "OL") with the full name as a
-   tooltip; the filter dialog and `?types=`/counts still use full names. No schema
-   change.
+  the event-type **shortname** acronym (e.g. "LL", "OL") with the full name as a
+  tooltip; the filter dialog and `?types=`/counts still use full names. No schema
+  change.
 - **Deployment (Vercel):** build passes on `main`/`dev` with no warnings (Corepack +
   `NEXTAUTH_URL` unset). Migrations `0000` + `0001` applied to Neon (via CI migrate job);
   `0002`–`0005` pending (apply on next `main` push).
@@ -321,14 +321,14 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
   ⋮ menus now hold the one-tap filter actions directly (see §1.67) — a **"My Events"**
   toggle (Users filter = current user), a **Clear** item (restores the consumer's
   default), and **More Filters** (renamed from "Filters", opens the dialog). The
-   dialog keeps its own **"My Events"** quick action (`FilterGroup.action` beside the
-   Users group label, draft-scoped) and its draft-`Clear`. Audit log untouched (its ⋮
-   menu is the filter panel itself). No schema changes; `pnpm lint/typecheck/test` pass.
+  dialog keeps its own **"My Events"** quick action (`FilterGroup.action` beside the
+  Users group label, draft-scoped) and its draft-`Clear`. Audit log untouched (its ⋮
+  menu is the filter panel itself). No schema changes; `pnpm lint/typecheck/test` pass.
 - **Phase 3ad (legible audit log details):** every `audit_logs` `details` payload is now
-   human-readable (see §1.73) — event rows carry a name-based snapshot with a
-   pre-formatted datetime and the rendered Google title, event updates store a true
-   before/after diff, and the Details modal renders flat payloads as label/value lines
-   (legacy rows included). No schema changes; `pnpm lint/typecheck/test` pass.
+  human-readable (see §1.73) — event rows carry a name-based snapshot with a
+  pre-formatted datetime and the rendered Google title, event updates store a true
+  before/after diff, and the Details modal renders flat payloads as label/value lines
+  (legacy rows included). No schema changes; `pnpm lint/typecheck/test` pass.
 
 ## 1.2 Decisions locked in (Phase 0)
 
@@ -1548,7 +1548,7 @@ flowchart TB
   (`parseEventPeople`, `parseEventTitle`, …) funnels through this one entry point — no
   changes needed anywhere else.
 - **Write path** (`src/lib/events/actions.ts`) — `description =
-  withEditLink(encodeNotesBlock(encodeEventNotes(…)), editLink)`; `editLink` is no
+withEditLink(encodeNotesBlock(encodeEventNotes(…)), editLink)`; `editLink` is no
   longer a notes field (the v3 block stores it nowhere).
 - **Debug one-liner** — decode a stored block (the last line of the notes) with
   `echo "<block>" | base64 -d | brotli -d` (or `| zcat` if it was ever gzip-compressed).
@@ -1610,7 +1610,7 @@ flowchart LR
 - **Next config** (`next.config.ts`) — wrapped with `withSerwist` from
   `@serwist/turbopack`. The Turbopack setup serves the compiled SW via a **route
   handler** at `src/app/serwist/[path]/route.ts` (`createSerwistRoute`, `swSrc:
-  src/app/sw.ts`) → `/serwist/sw.js`, instead of emitting `public/sw.js`.
+src/app/sw.ts`) → `/serwist/sw.js`, instead of emitting `public/sw.js`.
 - **Service worker** (`src/app/sw.ts`) — Serwist with `precacheEntries`,
   `skipWaiting`, `clientsClaim`, `navigationPreload`, and explicit `runtimeCaching`:
   `CacheFirst` for fonts/CSS, `StaleWhileRevalidate` for images, and **`NetworkOnly`
@@ -1650,13 +1650,13 @@ flowchart TB
 
 New heights (Mantine default → after 1.2×):
 
-| size | before | after |
-| --- | --- | --- |
-| `xs` | 30px | 36px |
-| `sm` (app default — every input uses it) | 36px | 43.2px |
-| `md` | 42px | 50.4px |
-| `lg` | 50px | 60px |
-| `xl` | 60px | 72px |
+| size                                     | before | after  |
+| ---------------------------------------- | ------ | ------ |
+| `xs`                                     | 30px   | 36px   |
+| `sm` (app default — every input uses it) | 36px   | 43.2px |
+| `md`                                     | 42px   | 50.4px |
+| `lg`                                     | 50px   | 60px   |
+| `xl`                                     | 60px   | 72px   |
 
 - **Theme** (`src/lib/theme.ts`) — new `components.Input.vars` sets the wrapper's
   `--input-height-{xs,sm,md,lg,xl}` to `calc(<base> × 1.2 × var(--mantine-scale))`
@@ -1681,7 +1681,7 @@ New heights (Mantine default → after 1.2×):
 - **Verification** — `pnpm lint`, `pnpm typecheck`, and `pnpm test` (220) pass. Dev
   server (Turbopack): `/login` returns 200 and its SSR HTML shows the wrapper inline
   style `--input-height: var(--input-height-sm); --input-height-sm: calc(2.7rem *
-  var(--mantine-scale))` — i.e. 43.2px = 36px × 1.2 with `--mantine-scale: 1`; every
+var(--mantine-scale))` — i.e. 43.2px = 36px × 1.2 with `--mantine-scale: 1`; every
   other input consumes the same base-`Input` vars. `pnpm build` not run locally (a dev
   server held `.next`); CI's build job covers it. No schema change —
   `pnpm db:generate` shows no drift.
@@ -1739,7 +1739,7 @@ flowchart LR
 
 A non-admin who filtered Overview to a department **they are not in** while any users
 filter was active (the "Only me" quick action, a picked user, or a stale `users=` param)
-got the *"No users to show. Assign yourself to a department…"* card — the department
+got the _"No users to show. Assign yourself to a department…"_ card — the department
 filter appeared not to apply.
 
 ```mermaid
@@ -1764,14 +1764,14 @@ rows.
 **Fix** — match the dashboard semantics (user-confirmed):
 
 - **New pure helper** `src/lib/overview/scope.ts` — `overviewRowUserIds(users,
-  selectedCalendarIds, calendarCount, isAdmin, ownDepartmentId)`: active users only;
+selectedCalendarIds, calendarCount, isAdmin, ownDepartmentId)`: active users only;
   narrowed calendar selection → users of the selected departments; otherwise the role
   default (admins: everyone incl. unassigned, non-admins: own department). No users
   input — the contract that `?users=` never narrows rows is enforced by the API shape.
   `scope.test.ts` adds 6 unit tests incl. the cross-department regression guard.
 - **Overview page** — rows (count inputs + department grouping) come from the helper;
   the `rowUsers ∩ selectedUsers` intersection is gone. `fetchMonthEvents({ userFilter:
-  selectedUsers })` and the `selectedUserIds` prop are unchanged, so the users filter
+selectedUsers })` and the `selectedUserIds` prop are unchanged, so the users filter
   still narrows the counted events and the filter dialog keeps its state/badge.
 - No client changes — `OverviewView.tsx` and `FilterModal` untouched.
 
@@ -1941,10 +1941,10 @@ flowchart LR
 ```
 
 - **Domain** (`src/lib/roster/shares.ts`) — new `DepartmentAccessRole = "reader" |
-  "writer" | "owner"` type and pure `isDepartmentAccessRole(value)` guard (rejects
+"writer" | "owner"` type and pure `isDepartmentAccessRole(value)` guard (rejects
   `freeBusyReader` and anything else). 2 unit tests added in `shares.test.ts`.
 - **Actions** (`src/lib/roster/actions.ts`) — `grantDepartmentAccess(calendarId, email,
-  role)` takes the role (validated server-side, replacing the hardcoded `"reader"`) and
+role)` takes the role (validated server-side, replacing the hardcoded `"reader"`) and
   logs it in the audit `details`; new `updateDepartmentAccess(calendarId, email, role)`
   re-grants an existing rule's role via `setCalendarAccess` and logs it under a new
   `access.update` audit action (`AUDIT_ACTIONS.accessUpdate` in
@@ -2000,7 +2000,7 @@ sequenceDiagram
   composite PK `(calendar_google_id, month)`, `events` jsonb (`GcalEventItem`s with dates as
   ISO strings), `fetched_at` timestamptz.
 - **Cache layer** (`src/lib/google/eventsCache.ts`) — `getCachedMonthEventsForCalendars(ids,
-  month)` is a **layered** cache: an in-process L1 map (keyed `googleCalendarId:month`) serves
+month)` is a **layered** cache: an in-process L1 map (keyed `googleCalendarId:month`) serves
   warm-instance repeat views with zero I/O; misses fall through to a **single batched** `SELECT`
   on `google_event_cache` for the whole month (~one round-trip regardless of calendar count,
   was N × ~50ms serialized reads); anything absent/expired blocks on a fresh `events.list` +
@@ -2017,11 +2017,11 @@ sequenceDiagram
 - **Invalidation** (`src/lib/google/eventsCache.ts`) — `invalidateGcalCache()` purges the L1 +
   in-flight entries **and** deletes the touched DB rows (affected calendars' Google ids
   collected during the write loops × every month in the old+new ranges via `monthsInRange`),
-   so the mutating instance's own `router.refresh()` shows the change immediately. The L1 purge
-   is per-instance (map lives only where the mutation ran) while the DB delete is shared, so
-   other warm instances may serve the pre-change L1 copy for up to `GCAL_CACHE_FRESH_MS` (60s)
-   before their background refresh corrects it. `findCopies` keeps reading
-   the **uncached** integration during reconciles.
+  so the mutating instance's own `router.refresh()` shows the change immediately. The L1 purge
+  is per-instance (map lives only where the mutation ran) while the DB delete is shared, so
+  other warm instances may serve the pre-change L1 copy for up to `GCAL_CACHE_FRESH_MS` (60s)
+  before their background refresh corrects it. `findCopies` keeps reading
+  the **uncached** integration during reconciles.
 - **Helpers** — pure `cacheEntryState`, `encodeCachedEvents`, `decodeCachedEvents`
   (`src/lib/google/eventsCacheCodec.ts`), `monthsInRange`/`shiftMonth`
   (`src/lib/events/datetime.ts`), and `mapWithConcurrency` (`src/lib/async.ts`), each
@@ -2119,7 +2119,7 @@ legacy **"S. Month"** tab (`MobileMonthView`) and all of its contents were remov
   `(calendar, google event id)`** (a multi-day event appears in both month listings),
   then applies the usual type/user filters, sort, and the single
   `dedupeEventsByGroupId` pass — preserving the deterministic representative-copy
-  selection. The adjacent-month prefetch now warms the months outside the *range* (for a
+  selection. The adjacent-month prefetch now warms the months outside the _range_ (for a
   one-month range this is byte-for-byte the previous behavior). `fetchMonthEvents` is a
   thin wrapper over it, so Month/Day behavior is unchanged. A pure `weekDays()` helper
   (Monday-first, unit-tested) computes the seven days on both server and client.
@@ -2162,7 +2162,7 @@ flowchart LR
 
 In `ResourcesWeekView` each day-label box spans a full day column (24 × 60px = 1440px)
 with `justify-content: center`, so on a phone the label text ("Wed 19", …) is only
-visible when the viewport happens to sit over the *middle* of that day — in practice the
+visible when the viewport happens to sit over the _middle_ of that day — in practice the
 Week view had no visible day indicator for most of the horizontal scroll range.
 `@mantine/schedule` 9.5.1 (latest) offers no `renderDayLabel`-style hook, so the built-in
 row is replaced with a pinned strip.
@@ -2232,7 +2232,7 @@ flowchart LR
   the flag off; `"out"` clears the location and forces the flag on; `"both"` passes
   values through.
 - **Schema** — migration `0012` adds `event_types.location_policy` (`text`, `NOT
-  NULL` default `'both'`), following the `time_options` precedent (plain column,
+NULL` default `'both'`), following the `time_options` precedent (plain column,
   code-level normalization, no check constraint). `drizzle/meta/` journal + snapshot
   committed.
 - **Event type settings** — `EventTypeFormValues` gains `locationPolicy`
@@ -2263,7 +2263,7 @@ flowchart LR
   renders checked/unchecked + disabled with no extra state; checking (only possible
   when `both`) clears the location. `handleEventTypeChange` re-clamps both fields
   for the newly selected type (mirroring the time-option re-clamp). Edit prefill
-  clamps the stored values against the type's *current* policy. The live calendar
+  clamps the stored values against the type's _current_ policy. The live calendar
   preview renders `{location}` from the effective (clamped) value.
 - **Server enforcement** (`events/validate.ts`, `events/actions.ts`) —
   `EventFormValues` gains `outOfCamp: boolean` + `location: string` (pass-through,
@@ -2317,6 +2317,7 @@ flowchart LR
 ```
 
 Locked-in decisions (user-confirmed):
+
 - **One step at a time** with Back/Next navigation (not a reordered single
   scroll).
 - **`Next` validates the current step before advancing** (`goNext` runs
@@ -2390,9 +2391,9 @@ Remarks); the 6th "On behalf of" step is gone.
   sticks to the top while the body scrolls (tallest step = full-day Timestamp).
   The `Select` props + onChange (creators always sync into the invitee chips,
   matching the server's `withCreatorInvited`) are moved verbatim.
-- **Validation** — the admin-only *required* creator rule is unchanged but now
+- **Validation** — the admin-only _required_ creator rule is unchanged but now
   enforced purely at **submit** (via `validateEventForm(values,
-  { requireCreator: isAdmin })`), not as a step gate: `STEP_BY_FIELD` drops the
+{ requireCreator: isAdmin })`), not as a step gate: `STEP_BY_FIELD` drops the
   `creatorId` entry (there's no step to jump to), so a missing-creator error
   renders inline on the always-visible pinned `Select` (`form.errors.creatorId`)
   plus the existing red notification. Non-admin flow is untouched (they never
@@ -2425,7 +2426,7 @@ overflow menu** and the toolbar is a single, non-wrapping row.
   its icon swaps to a `Loader` while refreshing). Plain items close the menu
   on click (Mantine default); outside-tap and `Escape` close it.
 - **Animation** — `transitionProps={{ transition: "pop-top-right",
-  duration: 150, timingFunction: "ease" }}` on the `Menu` (a premade Mantine
+duration: 150, timingFunction: "ease" }}` on the `Menu` (a premade Mantine
   Transition, verified against the installed `@mantine/core`): the dropdown
   fades/scales from its top-right corner — the button's corner — on open and
   close; Mantine handles the exit phase and honors reduced motion.
@@ -2664,10 +2665,10 @@ flowchart LR
   also scrubs the param from older URLs), and a one-shot ref-guarded effect
   (the dashboard `?edit=` strip pattern) removes `?types=` from deep links on
   mount.
- - Not touched: dashboard and Event Types settings (the dashboard keeps its own
-   Event Types filter), event create/edit, the events cache. No schema change.
- - Verification: `pnpm lint`, `pnpm typecheck`, `pnpm test` (301) and
-   `pnpm build` all pass.
+- Not touched: dashboard and Event Types settings (the dashboard keeps its own
+  Event Types filter), event create/edit, the events cache. No schema change.
+- Verification: `pnpm lint`, `pnpm typecheck`, `pnpm test` (301) and
+  `pnpm build` all pass.
 
 ## 1.56 No-keyboard dropdowns (Phase 3s)
 
@@ -2691,10 +2692,10 @@ even when they only wanted to pick from the list.
   `NoKeyboardMultiSelect` so it stays consistent if adopted later.
   Non-searchable selects (role, access level) and `Menu`-based dropdowns were
   already button targets and needed no change.
-- **Trade-off** — desktop-only, typing into a *closed* focused select no
+- **Trade-off** — desktop-only, typing into a _closed_ focused select no
   longer opens+filters it; the list opens via click or Arrow-down first, then
   typing works. Mantine's own keyboard handling is untouched (it gates on the
-  `readOnly` *prop*, which is never set).
+  `readOnly` _prop_, which is never set).
 - New convention recorded in `AGENTS.md`: searchable dropdowns must use the
   `NoKeyboard*` wrappers, never a raw `searchable` Select/MultiSelect and
   never Mantine's `readOnly` prop.
@@ -2768,7 +2769,7 @@ flowchart LR
 
 The dashboard carried two opacity-based loading appearances on top of the
 skeleton: in-place navigation dimmed the stale grid to 60% while pending,
-and the grid faded in *from* 60% opacity on a fresh mount. Both are removed
+and the grid faded in _from_ 60% opacity on a fresh mount. Both are removed
 — the Mantine skeleton is now the **only** loading indicator on the page
 (no dimming/darkening ever), and the still-jarring skeleton → grid cut is
 softened by a fast fade-in of the **new** grid.
@@ -2793,7 +2794,7 @@ stateDiagram-v2
   so e.g. a month → week switch briefly shows the month skeleton before the
   week grid commits.
 - **Minimum ~350ms hold** — `useMinSkeletonHold` (`src/lib/loading/minHoldLoading.ts`)
-  keeps the skeleton up until 350ms after the load *started*, so warm cached
+  keeps the skeleton up until 350ms after the load _started_, so warm cached
   loads (sub-100ms round-trips in dev) read as a deliberate skeleton → reveal
   sequence instead of a flash. A new pending supersedes any outstanding hold,
   so holds never stack.
@@ -2806,7 +2807,7 @@ stateDiagram-v2
   paint with no hydration flash. The grid `Box` must stay mounted across
   commits (the week/schedule `ScrollArea` keeps its scroll position on
   week-to-week / day-to-day navigation), so `useContentEnter(weekBoxRef,
-  !gridLoading)` restarts the animation on the skeleton → content flip via a
+!gridLoading)` restarts the animation on the skeleton → content flip via a
   classList remove/reflow/re-add in a `useLayoutEffect` — before paint, so the
   reveal frame already shows the fade at frame 0.
 - **URL strips stay invisible** — the one-shot `edit`/`refresh` param strips
@@ -2867,7 +2868,7 @@ flowchart LR
   the shapes stay in sync) while `useMinSkeletonHold(isPending)`; the list
   `Stack` carries `CONTENT_ENTER_CLASS` + `useContentEnter`; `navigate()`
   gains the no-op-href guard.
-- **Parade state** (`ParadeStateView.tsx`) — previously showed *nothing*
+- **Parade state** (`ParadeStateView.tsx`) — previously showed _nothing_
   while in-place navigating (and cross-month day switches briefly rendered
   the stale month's events — usually an empty list — until commit). Now:
   `contentLoading = useMinSkeletonHold(initialMonth !== month)` shows a
@@ -2916,6 +2917,7 @@ flowchart TB
 ```
 
 Changes in `src/app/(protected)/dashboard/EventForm.tsx`:
+
 - **Cancel the step-advance click** — the Next `Button`'s `onClick` now calls
   `event.preventDefault()` before `goNext()`. A canceled click never runs the
   button's activation behavior, so the form cannot submit regardless of the
@@ -2944,6 +2946,7 @@ Changes in `src/app/(protected)/dashboard/EventForm.tsx`:
   `pnpm build` all pass. No schema change. Manual smoke owed: create + edit →
   walk all 5 steps; reaching Remarks must not submit; the event saves only on
   the Create/Save tap. Type multiline text, Enter inserts a newline (no submit).
+
 ## 1.61 Email change syncs Google Calendar access (bugfix)
 
 Editing a user's email (or department) previously left Google Calendar ACLs stale:
@@ -3052,7 +3055,7 @@ flowchart LR
   events with no invitees too).
 - **`calendarSkeleton.tsx`** — new exported `AgendaListSkeleton` (bordered radius-md
   box: one date-header stub plus deterministic event-row stubs — color-stripe sliver
-  + title/time bars) so the in-place swap and the shared grid pattern stay in sync.
+  - title/time bars) so the in-place swap and the shared grid pattern stay in sync.
 - **`loading.tsx`** — the route-level tab-strip skeleton is now 4 columns.
 - **Decisions** — the Month-view day-tap agenda modal is kept as-is (instant peek
   with swipe + scale animation); the Agenda tab is a separate full-screen mode.
@@ -3122,7 +3125,7 @@ flowchart LR
 - **Decisions (user-confirmed)** — the simple directional slide was chosen over a
   finger-follow carousel (no live 1:1 pan; the day still commits on release), and the
   button lives below the list rather than as a header icon.
-- **Not touched** — the Agenda *tab* view remained a separate full-screen mode without a
+- **Not touched** — the Agenda _tab_ view remained a separate full-screen mode without a
   swipe (it got the same treatment in [1.65](#165-agenda-tab-day-swipe--slide-phase-3y)),
   month grid, data flow/cache, `EventForm`, `EventDetail`. No schema change.
 - Verification: `pnpm lint`, `pnpm typecheck`, `pnpm test` (355), and `pnpm build` all
@@ -3205,7 +3208,7 @@ flowchart LR
   chevron/Today/picker parity, refresh/back/tab-re-entry day resolution, event taps
   after a botched swipe, and the FAB prefilling the viewed day.
 - **Bugfix (render-phase setState infinite loop):** switching to the Agenda tab crashed
-  with *"Too many re-renders"* (React limits renders at 50). The reconcile's final
+  with _"Too many re-renders"_ (React limits renders at 50). The reconcile's final
   branch called `setAgendaUrlBase(null)` on **every** agenda render (even when it was
   already `null`), and a render-phase `setState` never bails out on equal values — the
   eager-state `Object.is` bail-out in React's `dispatchSetState` only exists on the
@@ -3259,19 +3262,18 @@ flowchart LR
   ScrollArea `content minWidth`; the day header is a **pinned strip outside the scroll
   area** that sticks to the viewport below the view tabs (`DashboardView` measures the
   `Tabs.List` height and passes `tabBarOffset`; the strip is `top: calc(var(--app-shell-header-offset)
-  + tabBarOffset)`) and follows the table's horizontal scroll via a `translateX(-scrollLeft)`
-  transform applied directly on `onScrollPositionChange` (no per-frame re-render). The **left
-  labels are pinned during horizontal scroll** like the Day/Week schedule views: each
-  department block is a flex row with a sticky-left group label (`left: 0`, vertical-rl,
-  stretching the block's height) and each resource row is a flex row with a sticky-left
-  shortname label (`left: 1.5rem` when a group column exists) beside the shared day grid
-  (sticky labels paint above the banners at `z-index` 5/6 vs 1, but below the pinned header
-  at 10). Each resource row's day grid is the 
-  scrolling part; rows are ~36px-min lanes (compact but
-  still comfortable touch targets) with spanning
-  event banners (single title chip per event, occupying every covered day column), a
-  banner tap opens `EventDetail` (shared origin-rect pattern), and an empty-cell tap opens
-  the event form prefilled with that day (guarded by `googleConfigured` like the FAB).
+  - tabBarOffset)`) and follows the table's horizontal scroll via a `translateX(-scrollLeft)`transform applied directly on`onScrollPositionChange` (no per-frame re-render). The **left
+labels are pinned during horizontal scroll** like the Day/Week schedule views: each
+department block is a flex row with a sticky-left group label (`left: 0`, vertical-rl,
+stretching the block's height) and each resource row is a flex row with a sticky-left
+shortname label (`left: 1.5rem`when a group column exists) beside the shared day grid
+(sticky labels paint above the banners at`z-index`5/6 vs 1, but below the pinned header
+at 10). Each resource row's day grid is the 
+scrolling part; rows are ~36px-min lanes (compact but
+still comfortable touch targets) with spanning
+event banners (single title chip per event, occupying every covered day column), a
+banner tap opens`EventDetail`(shared origin-rect pattern), and an empty-cell tap opens
+the event form prefilled with that day (guarded by`googleConfigured` like the FAB).
 - **Wiring** (`DashboardView.tsx`) — `ViewMode` + a fifth tab (`IconLayoutGrid`, compact
   nowrap label) after Week. `isWeek` now covers both week views (week label, ‹/› =
   `shiftWeek`, `onToday`), and Week v2 joins `isAnchoredView` (day-anchored: starts on
@@ -3317,13 +3319,13 @@ Events"** toggle: narrowing the Users filter to the current user.
   Today / Select date / divider / Force refresh structure.
 - **Parade State** (`ParadeStateView.tsx`) — the view mirrors URL filter state locally
   for optimistic applies, so `toggleOnlyMe`/`clearFilters` update `selectedUsers`/
-  `selectedCalendars` *then* navigate (no skeleton), mirroring `handleApplyFilters`.
+  `selectedCalendars` _then_ navigate (no skeleton), mirroring `handleApplyFilters`.
 - **`FilterModal`** — unchanged from before this phase: the **"My Events"** quick action
   still renders via the `FilterGroup.action` slot as a button beside the Users group
   label (draft-scoped — `isApplied`/`apply` read the draft, not the applied URL state),
   and the dialog keeps its own draft **Clear** (reset + Apply). `resolveFilterApply` and
   its tests are untouched.
-- **Unchanged / out of scope** — the `/settings/audit-log` ⋮ menu (its dropdown *is* the
+- **Unchanged / out of scope** — the `/settings/audit-log` ⋮ menu (its dropdown _is_ the
   filter panel — inline selects + dates + "Reset filters"; nothing to extract or rename),
   the icon-only `FilterButton` in the Users settings header (no ⋮ menu), the trigger
   badge / `activeFilterCount` logic, and the dialog title ("Filters"). No schema change —
@@ -3341,8 +3343,8 @@ flowchart LR
 - Verification: `pnpm lint`, `pnpm typecheck`, `pnpm test` all pass. Manual dev-server
   smoke owed: dashboard + parade-state — toggle "My Events" on/off in the ⋮ menu (badge +
   checkmark, `?users=` in the URL), Clear (badge → 0, defaults restored), More Filters
-   opens the dialog where the "My Events" quick-action button and the in-dialog Clear
-   still work.
+  opens the dialog where the "My Events" quick-action button and the in-dialog Clear
+  still work.
 
 ## 1.68 Event location polarity fix (bugfix)
 
@@ -3445,7 +3447,7 @@ flowchart LR
   server, client, and node tests), `normalizeUiState` (drops mismatched
   shapes; empty id lists = "unfiltered" → role default), `mergeUiState`,
   `freshMarkerNeeded(updates, keys)`, and `resolveLaunchTarget(lastPage,
-  role)` — a whitelist of `/dashboard`, `/parade-state`, `/contacts` plus the
+role)` — a whitelist of `/dashboard`, `/parade-state`, `/contacts` plus the
   six `/settings/*` sub-tabs (admin-only; unknown/garbage → `/dashboard`).
   `src/lib/ui/uiStateClient.ts` ("use client"): `writeUiState` (RMW with a
   ~3.5 KB size guard that degrades by dropping id lists), `clearUiState`,
@@ -3461,11 +3463,11 @@ flowchart LR
   Agenda) — in Month view the remembered `month` drives the read; and the
   cookie is skipped entirely for `?edit=` deep links (explicit intent).
 - **The `_fresh` one-shot marker** — the subtle case: "Clear" and the tab
-  switch off an anchored view produce a *bare* URL, which the cookie fallback
+  switch off an anchored view produce a _bare_ URL, which the cookie fallback
   would immediately re-apply the just-deleted state on. Both views'
   `navigate()` auto-inject `?_fresh=1` whenever a remembered key maps to
   `null` in the updates (pure `freshMarkerNeeded`; the dashboard checks the
-  no-op condition *before* injecting, so "re-removing" an absent key stays a
+  no-op condition _before_ injecting, so "re-removing" an absent key stays a
   no-op); the server treats `_fresh` as "render with pure defaults this
   once", and a self-terminating strip effect (same pattern as the
   `refresh`/`edit` strips) removes it from the URL. Because
@@ -3496,8 +3498,8 @@ flowchart LR
   client redirect); the same cookie with `?_fresh=1` renders the default
   Month view; bare `/parade-state` with remembered `date=2026-08-10` renders
   that day; `?view=agenda&date=2026-09-05` beats the cookie (URL always
-   wins). Manual PWA relaunch on a phone (kill app → tap icon → last page with
-   filters) remains the final user-facing confirmation.
+  wins). Manual PWA relaunch on a phone (kill app → tap icon → last page with
+  filters) remains the final user-facing confirmation.
 
 ## 1.71 User filter narrows the resource rows (bugfix)
 
@@ -3506,9 +3508,9 @@ flowchart LR
 place and most events unchanged, so it "looked like no filter has been
 applied". Month/Agenda were unaffected (no rows to mislead).
 
-**Root cause** — the filter always narrowed the *event data* correctly
+**Root cause** — the filter always narrowed the _event data_ correctly
 (server-side `eventMatchesUserFilter` in `fetchRangeEvents`), but the three
-resource-row views ignored it for *rows*:
+resource-row views ignored it for _rows_:
 
 1. `buildScheduleResources` rendered every user of the selected departments
    plus the department rows — the Phase 2s scope decision ("the filter selects
@@ -3553,7 +3555,7 @@ rows" contract from its fix section stands).
 - **View wiring** — `dashboard/page.tsx` passes a new `allActiveUsers` prop
   (full active roster, `ScheduleUser` shape); `DashboardView` switches the
   row build to `{ departments: calendars, users: allActiveUsers, userFilter:
-  selectedUserIds }` when the filter is active, keeping the previous
+selectedUserIds }` when the filter is active, keeping the previous
   `scheduleDepartments`/`scheduleUsers` build otherwise.
 - **No expansion/lanes changes** — verified against `@mantine/schedule` 9.5.1
   (`get-resources-day-view-events`: events are keyed per rendered resource and
@@ -3582,7 +3584,7 @@ Users can pin their preferred calendar view tabs. A **"Pin Tab"** `Menu.Item`
 in the dashboard's header 3-dot menu (the same menu on every dashboard view,
 placed after "Select date" and before the Filters group; state-based — **"Pin
 Tab"** with an outlined `IconStar` when unpinned, **"Unpin Tab"** with a filled
-`IconStarFilled` when pinned) pins/unpins the *currently active* tab. Pinned
+`IconStarFilled` when pinned) pins/unpins the _currently active_ tab. Pinned
 tabs render **first** in the tab bar in pin-recency order — the last pinned tab
 is leftmost — with a filled star icon (`IconStarFilled`, 14px) prefixed to
 their tab name; unpinned tabs keep the default order (Month → Week → Week v2 →
@@ -3652,7 +3654,7 @@ flowchart LR
 
 ## 1.73 Legible audit log details (Phase 3ad)
 
-The audit log recorded *what happened* but often not *what it was about*.
+The audit log recorded _what happened_ but often not _what it was about_.
 Event creates had no date/time at all, event updates stored a flat "new
 state" (impossible to tell what changed), deletes named the entity by its raw
 Google event id, and every non-diff payload rendered as raw JSON in the
@@ -3683,21 +3685,21 @@ flowchart TD
 - **Pure snapshot module** (`src/lib/events/eventAudit.ts`, new, unit-tested in
   `eventAudit.test.ts`) — `EventAuditSnapshot` type
   (`{ title, description, type, time, outOfCamp, location, departments,
-  invitees, creator }`), `formatEventAuditTime(parts)` (range:
+invitees, creator }`), `formatEventAuditTime(parts)` (range:
   `2026-08-21 14:00 – 15:30` / `2026-08-21 14:00 – 2026-08-23 09:30`; full:
   `2026-08-21 (AM)`, `2026-08-21 (AM–PM)`, `2026-08-21 (AM) – 2026-08-23 (PM)`;
   zero seconds dropped), `buildEventSnapshot(...)` (after-state from form values
-  + id→name maps; blank title/description/type/location → null; unknown ids
-  dropped), and `snapshotFromCopy(ref, copy, names, departmentIds)`
-  (before-state from the edit/delete ref + the first Google copy found;
-  times/people from the ref; `title` from the copy's Google summary — visible
-  even for legacy/external/blank-description events — and
-  description/type/time-option/AM-PM/out-of-camp/location from its notes, shown
-  as `—` (`EMPTY_VALUE`) when the copy is missing or has no notes). The `title`
-  itself is computed by the new pure `renderEventTitle(...)` helper in
-  `src/lib/events/eventTitle.ts` (template substitution + raw-description
-  fallback + (AM)/(PM) suffix), shared by the write path and the audit so the
-  audited title always equals the Google summary.
+  - id→name maps; blank title/description/type/location → null; unknown ids
+    dropped), and `snapshotFromCopy(ref, copy, names, departmentIds)`
+    (before-state from the edit/delete ref + the first Google copy found;
+    times/people from the ref; `title` from the copy's Google summary — visible
+    even for legacy/external/blank-description events — and
+    description/type/time-option/AM-PM/out-of-camp/location from its notes, shown
+    as `—` (`EMPTY_VALUE`) when the copy is missing or has no notes). The `title`
+    itself is computed by the new pure `renderEventTitle(...)` helper in
+    `src/lib/events/eventTitle.ts` (template substitution + raw-description
+    fallback + (AM)/(PM) suffix), shared by the write path and the audit so the
+    audited title always equals the Google summary.
 - **Event actions** (`src/lib/events/actions.ts`) — `findCopies` now returns
   `GcalEventItem[]` (full items; callers use `item.id`) so update/delete can
   snapshot the pre-change state **without extra Google API calls** (the first
@@ -3780,7 +3782,7 @@ mode the active-tab underline was nearly invisible.
   shade 8 (`#0a3a85`) — nearly invisible on the dark body (`#141414`). One
   rule re-declares the variable on the active tab itself
   (`[data-mantine-color-scheme="dark"] [role="tablist"] [role="tab"][data-active]
-  { --tabs-color: var(--mantine-brand-color-4) }`): the variable is set inline
+{ --tabs-color: var(--mantine-brand-color-4) }`): the variable is set inline
   on the Tabs root, so a declaration on the descendant tab wins over
   inheritance without `!important`, and the `data-mantine-color-scheme`
   attribute is set pre-paint by `ColorSchemeScript` (no flash). Fixes the
@@ -3804,7 +3806,7 @@ tap did nothing.
   opens the tooltip the same way a mouse-enter does; the tooltip stays
   uncontrolled, so Mantine's `useDismiss` closes it on a tap outside or
   Escape. `events` replaces the whole default object (`{ hover: true,
-  focus: false, touch: false }`), hence the explicit `hover: true` restates
+focus: false, touch: false }`), hence the explicit `hover: true` restates
   desktop behavior. One change covers all three row-based views (Day, Week,
   Week v2) since they share the renderer; the tooltip is portal-rendered, so
   the sticky label column's `overflow: hidden` can't clip it.
@@ -3828,15 +3830,15 @@ self-contained design reference.
 TOC, hierarchically numbered headers, Mermaid where it clarifies, pure
 helpers & testing table, file index & related docs):
 
-| Document | Covers |
-| -------- | ------ |
-| `docs/event-lifecycle.md` | Event form → Google Calendar data model: the 5-step wizard, guards, notes block codec (v1/v2/v3 brotli+base64url), `INTERNAL_EVENT_MARKER` / external detection, title templates & tokens, location policy, time options |
-| `docs/event-mutations.md` | Create/update/delete: copy reconciliation, group-id identity, `findCopies`, legacy fallback, idempotent reconcile plans, rollback-of-only-new-copies, audit snapshots, cache invalidation |
-| `docs/ui-state.md` | The `cloudy2.ui` cookie: codec + degrade, per-key server reads, `resolveLaunchTarget`, client write path, pinned tabs, the `?_fresh=` one-shot marker, sign-out clear |
-| `docs/audit-log.md` | The audit subsystem: schema + indexes, retention, `logAction`, action taxonomy, `diffFields`, filters + keyset pagination, rotation-on-read, the three `formatAuditDetails` shapes, CSV export |
-| `docs/google-integration.md` | The integration layer: service-account config resolution, real client vs stub, error mapping, every calendar/event/ACL method, `sendEmail` |
-| `docs/roster-sharing.md` | Roster & sharing: flat org model (department = calendar, `users.department_id`), Google-only ACLs, the two reconcile paths (on read, on write), access-level actions |
-| `docs/loading-transitions.md` | Loading appearance: skeleton-only rule, route skeletons, `useMinSkeletonHold`, `useContentEnter` reveal fade, one-shot URL params, in-page exceptions |
+| Document                      | Covers                                                                                                                                                                                                                   |
+| ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `docs/event-lifecycle.md`     | Event form → Google Calendar data model: the 5-step wizard, guards, notes block codec (v1/v2/v3 brotli+base64url), `INTERNAL_EVENT_MARKER` / external detection, title templates & tokens, location policy, time options |
+| `docs/event-mutations.md`     | Create/update/delete: copy reconciliation, group-id identity, `findCopies`, legacy fallback, idempotent reconcile plans, rollback-of-only-new-copies, audit snapshots, cache invalidation                                |
+| `docs/ui-state.md`            | The `cloudy2.ui` cookie: codec + degrade, per-key server reads, `resolveLaunchTarget`, client write path, pinned tabs, the `?_fresh=` one-shot marker, sign-out clear                                                    |
+| `docs/audit-log.md`           | The audit subsystem: schema + indexes, retention, `logAction`, action taxonomy, `diffFields`, filters + keyset pagination, rotation-on-read, the three `formatAuditDetails` shapes, CSV export                           |
+| `docs/google-integration.md`  | The integration layer: service-account config resolution, real client vs stub, error mapping, every calendar/event/ACL method, `sendEmail`                                                                               |
+| `docs/roster-sharing.md`      | Roster & sharing: flat org model (department = calendar, `users.department_id`), Google-only ACLs, the two reconcile paths (on read, on write), access-level actions                                                     |
+| `docs/loading-transitions.md` | Loading appearance: skeleton-only rule, route skeletons, `useMinSkeletonHold`, `useContentEnter` reveal fade, one-shot URL params, in-page exceptions                                                                    |
 
 **Wiring:**
 
@@ -3989,7 +3991,7 @@ two root causes plus two independent ones.
   below `lg` the sidebar is fully hidden and the bottom nav is the only chrome.
 - **Bottom nav never collapsed on wide screens** — `theme.breakpoints.lg` in
   Mantine v9 is the string `"75em"` (1200px), so every
-  `` useMediaQuery(`(min-width: ${theme.breakpoints.lg}px)`) `` produced the
+  ``useMediaQuery(`(min-width: ${theme.breakpoints.lg}px)`)`` produced the
   **invalid query `(min-width: 75empx)`**, which never matches — `isDesktop`
   was always `false`, so the footer never collapsed, the settings tabs rendered
   their mobile bottom bar on desktop, and every schedule/modal width override
@@ -4024,7 +4026,6 @@ reload the dev session, re-navigate settings (skeleton error should be gone,
 console clean), and run the §1.77 width sweep — now expecting desktop layout to
 appear at ≥992px (sidebar visible, bottom nav collapsed).
 
-
 ## 1.80 Event form wizard: review step, relocated "On behalf of", optional creator (Phase 3ak)
 
 Three user-driven changes to `EventForm.tsx` plus one decision reversal.
@@ -4044,23 +4045,23 @@ Three user-driven changes to `EventForm.tsx` plus one decision reversal.
 - **DECISION REVERSED � "On behalf of" is now OPTIONAL for admins** (was
   required since 1.x: client gate `{ requireCreator: isAdmin }`, server
   `validateEventForm(..., { requireCreator })`). A blank select uniformly
-  means **the acting admin themselves**, on create *and* update (clearing an
+  means **the acting admin themselves**, on create _and_ update (clearing an
   existing owner reassigns the event to the editor; legacy ownerless events
   are adopted on first edit). Implementation:
-    - New pure `withSelfCreator(values, sessionUserId)` in
-      `events/validate.ts` (blank/whitespace ? session user, then
-      `withCreatorInvited`); applied in both actions right after
-      `requireSession()` � so targets, notes `createdBy`, ownership, and audit
-      snapshots all see the effective creator even when none was submitted.
-    - The `requireCreator` option and its "Choose who this event is on behalf
-      of" error were deleted from `validateEventForm`; the creator step has no
-      leave-gate; the select lost `required` (placeholder "Yourself",
-      description marks it optional); `STEP_BY_FIELD` keeps the defensive
-      `creatorId ? creator` mapping.
-    - Review falls back to the session user's display name, so it always shows
-      the effective owner.
-  Docs synced (`event-lifecycle.md` �1.3/�1.4/�1.4.1/�1.5.2/file tables,
-  `event-mutations.md` diagram + table).
+  - New pure `withSelfCreator(values, sessionUserId)` in
+    `events/validate.ts` (blank/whitespace ? session user, then
+    `withCreatorInvited`); applied in both actions right after
+    `requireSession()` � so targets, notes `createdBy`, ownership, and audit
+    snapshots all see the effective creator even when none was submitted.
+  - The `requireCreator` option and its "Choose who this event is on behalf
+    of" error were deleted from `validateEventForm`; the creator step has no
+    leave-gate; the select lost `required` (placeholder "Yourself",
+    description marks it optional); `STEP_BY_FIELD` keeps the defensive
+    `creatorId ? creator` mapping.
+  - Review falls back to the session user's display name, so it always shows
+    the effective owner.
+    Docs synced (`event-lifecycle.md` �1.3/�1.4/�1.4.1/�1.5.2/file tables,
+    `event-mutations.md` diagram + table).
 
 **Verification:** `pnpm lint`, `pnpm typecheck`, `pnpm test` (460, +4 net from
 the removed requireCreator case and the new `withSelfCreator` cases) pass.
@@ -4224,8 +4225,8 @@ The Parade State page gains **attendance mode** via an entry point that
 follows the app's responsive convention: a bottom-right FAB below `lg`, and a
 nav-row "Attendance" button beside the kebab menu at `lg`+ (same pattern as
 the dashboard's "New event"). Entering it puts a checkbox beside every user
-card (the checkbox *or* the card itself toggles), switches the department
-headers from *in-camp/total* to *checked/total*, and turns the entry point
+card (the checkbox _or_ the card itself toggles), switches the department
+headers from _in-camp/total_ to _checked/total_, and turns the entry point
 into a Mantine `Menu` with **Reset** (clears every date), **Copy to
 Clipboard** (roster text), and **Exit** (mode off, checks kept). Checked state
 lives only in `localStorage` (`cloudy2.parade-attendance` — the app's first
@@ -4245,7 +4246,7 @@ flowchart LR
 ```
 
 - `attendanceReport.ts` (new, pure) — `buildAttendanceReport(departments,
-  checkedIds)`: departments in page order (A→Z, Unassigned last), empty ones
+checkedIds)`: departments in page order (A→Z, Unassigned last), empty ones
   skipped; header `<name> (<checked> of <total>)`; one line per user in
   roster order using the raw roster `name` (full name, not the display-name
   template): unchecked users get ` - Absent` (even when event-tagged — absent
@@ -4293,7 +4294,7 @@ Review of the calendar page's loading skeletons against
 mismatches, all fixed:
 
 - **Week v2 showed the Week view's skeleton.** The in-page grid-swap ternary in
-  `DashboardView.tsx` branched on `isWeek` (week *or* weekv2), so Week v2 loads
+  `DashboardView.tsx` branched on `isWeek` (week _or_ weekv2), so Week v2 loads
   painted `WeekGridSkeleton` (weekday row + uniform 7-column lanes). A new
   `WeekMatrixSkeleton` (`calendarSkeleton.tsx`) now matches `WeekMatrixView`'s
   matrix: two-line-per-day header band inside the bordered paper, resource rows
@@ -4347,9 +4348,9 @@ five values; unknown/empty/non-string → month).
 
 **Runtime bug caught by verification:** importing `monthGridRows` through
 `calendarSkeleton.tsx`'s re-export made the loading fallback call a
-*"use client"* reference during server render —
+_"use client"_ reference during server render —
 `Error: Attempted to call monthGridRows() from the server…`. Rendering client
-*components* from a server fallback is fine; calling their exported functions
+_components_ from a server fallback is fine; calling their exported functions
 is not. Fixed by importing from `@/lib/events/datetime` directly. Neither
 typecheck nor unit tests can see client-reference proxies — only an actual SSR
 render exercises this path.
@@ -4402,7 +4403,7 @@ sequenceDiagram
 - **Payload** (`src/lib/webhooks/payload.ts`, pure): built from the same
   `EventAuditSnapshot` the audit log stores — rendered title, raw description,
   type, pre-formatted UTC+8 `time` plus structured `timeOption/start/end/
-  startAmPm/endAmPm` when the parts are known, outOfCamp/location,
+startAmPm/endAmPm` when the parts are known, outOfCamp/location,
   departments/invitees/creator by display name — plus `action`
   (`event.created|updated|deleted`), logical group `eventId`,
   `googleEventIds[]`, `occurredAt`, and `actor {name, role}`. Updates add
@@ -4442,7 +4443,7 @@ delivered independently.
 - **CRUD** (`src/lib/webhooks/actions.ts`): `createWebhook` / `updateWebhook` /
   `deleteWebhook`, requireAdmin → pure `validateWebhookForm` (required name ≤100,
   http(s) URL ≤500, secret ≤200) → DB write → audit rows `webhook.create/update/
-  delete` with flat name/url/enabled details (never the secret). Validators moved out
+delete` with flat name/url/enabled details (never the secret). Validators moved out
   of `settings/validate.ts`; the General tab card was removed.
 - **Delivery** (`deliver.ts`): one query for enabled endpoints; payload/body/timestamp
   built once; a single `after()` fans out via `Promise.allSettled`, signing each POST
@@ -4682,11 +4683,11 @@ in Google Calendar) fall back to the department calendar's color.
   color; audit details store the `formatColorLabel` label (create: absolute,
   rename: before/after diff).
 - **UI**: new shared `src/components/ColorSwatchPicker.tsx` (`ColorSwatchPicker`
-  + `ColorDot`; "Auto" swatch labeled with the id-derived default) replaces
-  `DepartmentColor.tsx`. Settings → Event Types gains the Event color section
-  in the form (Auto ref = the type name) and a Color column/dot in the list.
-  Settings → Departments keeps its picker, relabeled "External event color"
-  (form) / "External color" (list column) — typed events use the type's color.
+  - `ColorDot`; "Auto" swatch labeled with the id-derived default) replaces
+    `DepartmentColor.tsx`. Settings → Event Types gains the Event color section
+    in the form (Auto ref = the type name) and a Color column/dot in the list.
+    Settings → Departments keeps its picker, relabeled "External event color"
+    (form) / "External color" (list column) — typed events use the type's color.
 
 Tests: `eventColors.test.ts` (renamed + extended, 13 cases).
 Verification: lint/typecheck/test pass (542 tests); `pnpm db:generate`
@@ -4825,7 +4826,6 @@ was purely in the feedback layer.
 Tests: new `validationFeedback.test.ts` (3 cases). Verification:
 lint/typecheck/test pass.
 
-
 ## 1.101 Duplicate-key crashes fixed: drizzle-wrapped error inspection
 
 Creating or editing a user (or event type) with an already-used phone or
@@ -4890,7 +4890,7 @@ near-instant":
   60s-fresh + 30min-SWR tolerance).
 - `AppShellShell.tsx`: optimistic nav highlight — `tappedHref` lights the
   tapped item immediately (`active = matches(pathname) || href ===
-  tappedHref`), cleared by a render-phase sync on committed `pathname`, plus a
+tappedHref`), cleared by a render-phase sync on committed `pathname`, plus a
   6 s `NAV_TAP_REVERT_MS` timer so a stalled/offline tap can't stick. Each
   nav `<Link>` wraps its content in `PendingDim` (`useLinkStatus`) for a
   subtle dim-while-pending affordance.
@@ -4898,7 +4898,7 @@ near-instant":
   `shownMonth` / `shownDate` state leads the server props after any tab /
   chevron / Today / picker interaction; one render-phase sync keyed on
   `(view, month, date, isPending)` adopts committed props whenever the
-  transition ends (success *or* failure), healing offline navigations.
+  transition ends (success _or_ failure), healing offline navigations.
   Shifts compose on `shown*`, so rapid taps accumulate instead of being eaten
   by navigate()'s no-op guard. Grid/ruler/agenda rendering,
   `usePersistUiState`, and chevron click dispatch stay on committed props;
@@ -4915,7 +4915,7 @@ Admins register a list of quick links (label, URL, icon, icon color, enabled,
 order) that staff can open from the Calendar page. The launcher is
 deliberately non-customizable and deliberately distinct from the grey
 "More options" kebab: a light-`accent` FAB with an `IconLink` glyph beside
-the "New event" FAB (mobile) and a 36px *labelled* "Quick links"
+the "New event" FAB (mobile) and a 36px _labelled_ "Quick links"
 light-`accent` chip in the date-nav row (lg). Tapping always opens the menu
 — even with a single link, never a direct jump — with page-scale rows
 (16px text, ~44px touch targets) and a direction-aware pop transition
@@ -4994,7 +4994,7 @@ rows) and gave the dropdown the kebab's pop transition, direction-aware
 The Calendar's date-nav row gains a 36px **Fullscreen** toggle
 (`IconArrowsMaximize` / `IconArrowsMinimize`, `aria-label` + `aria-pressed`,
 hover/focus tooltip) sitting between the Next chevron and the "New event"
-button. Active mode — *immersive mode* — hides the shell header, the bottom
+button. Active mode — _immersive mode_ — hides the shell header, the bottom
 nav, and the lg sidebar, and enters the page-level Fullscreen API so the OS
 status bar / browser UI go with them. The icon flips while active, so the
 same button is the in-page exit path; `Esc` (desktop) and the Android
@@ -5004,14 +5004,14 @@ Why the shell owns the state:
 
 - The header / bottom nav / sidebar are rendered by `AppShellShell`, so it
   is the only component that can hide them and re-pin the main content.
-  `DashboardView` is a grandchild and only *controls* the mode through a
+  `DashboardView` is a grandchild and only _controls_ the mode through a
   context.
 - `src/lib/ui/immersiveMode.ts` (new): `ImmersiveModeContext` +
   `useImmersiveMode()` returning `{ active, enter, exit }` (throws outside
   the provider, like the other context helpers).
 - `AppShellShell` holds `immersive` state with two callbacks:
   `enter` = set state + `document.documentElement.requestFullscreen({
-  navigationUI: "hide" })` (`.catch(() => {})` — a browser that rejects or
+navigationUI: "hide" })` (`.catch(() => {})` — a browser that rejects or
   lacks page fullscreen, i.e. iOS, keeps the CSS-only focus mode;
   `navigationUI: "hide"` hides the mobile browser toolbar on Chrome/Edge);
   `exit` = clear state + `document.exitFullscreen()` when active
@@ -5059,11 +5059,11 @@ class's scope (same reason as the other FAB clearance vars).
 
 Exit paths, in priority of surprise:
 
-| Trigger                                    | Path                                                        |
-| ------------------------------------------ | ----------------------------------------------------------- |
-| Tap the toggle while active                | `exit()` → state off + `exitFullscreen()`                    |
-| `Esc` (desktop) / Android status-bar edge  | browser fires `fullscreenchange` → shell sync → state off    |
-| Navigate away from `/dashboard`            | `DashboardView` unmount cleanup calls `exit()` (shell stays mounted) |
+| Trigger                                   | Path                                                                 |
+| ----------------------------------------- | -------------------------------------------------------------------- |
+| Tap the toggle while active               | `exit()` → state off + `exitFullscreen()`                            |
+| `Esc` (desktop) / Android status-bar edge | browser fires `fullscreenchange` → shell sync → state off            |
+| Navigate away from `/dashboard`           | `DashboardView` unmount cleanup calls `exit()` (shell stays mounted) |
 
 Deliberately **not** remembered: the mode is transient (no `cloudy2.ui`
 cookie entry) — a refresh or navigation starts with the chrome up.
@@ -5107,10 +5107,10 @@ dashboard view.)
 The event form's **Invited Attendees** picker is no longer role-scoped: a
 regular user can now tag **any** active user and **any** department, not just
 people from their own department. This reverses the §1.38 decision that the
-*creation* picker "stays role-scoped (own-department scope for non-admins,
+_creation_ picker "stays role-scoped (own-department scope for non-admins,
 per creation permission semantics)" — inviting is a cross-department
 coordination act that every role may perform, not an admin-only one. The
-§1.38 change itself (cross-department *filter* options via `filterUsers`) is
+§1.38 change itself (cross-department _filter_ options via `filterUsers`) is
 untouched.
 
 Why it was safe to relax: a logical event already materializes as one Google
@@ -5124,7 +5124,7 @@ entirely in the option lists built in `dashboard/page.tsx`.
 - **Page** (`src/app/(protected)/dashboard/page.tsx`) — `pickerUsers` is now
   `activeUsers` for every role (the `ownUsers` block is gone) and
   `inviteeDepartments` is the full `calendars` list. The role default for the
-  *view* (a non-admin's default calendar = own department) is untouched —
+  _view_ (a non-admin's default calendar = own department) is untouched —
   `isAdmin`/`ownDepartmentId` still drive `defaultCalendars`, so only the
   creation picker widened. `peopleNames` derives from `pickerUsers`, so the
   event detail modal now resolves cross-department invitee/creator names
@@ -5135,7 +5135,7 @@ entirely in the option lists built in `dashboard/page.tsx`.
   (the old text described the removed restriction), and the empty-state line
   → "No active users or departments to tag yet." — reachable only with an
   empty roster now, and the old second clause was wrong for unassigned
-  users, who can *now* create by tagging someone else's department.
+  users, who can _now_ create by tagging someone else's department.
 - **EventDetail** — prop comment "(role-scoped roster)" → "(active roster)".
 - **Unchanged:** `creatorGuard`/`ownershipGuard` (`src/lib/events/guards.ts`)
   — non-admins still create only as themselves and edit/delete only their
@@ -5179,8 +5179,8 @@ group (variant `"search"`) of the dashboard / parade-state filter dialog.
 The dialog shows every option as a toggleable badge — users grouped under
 their department (section per department, "No department" last) — with a
 search box on top that removes non-matching badges immediately as you type
-(an option stays when its label, its extra search terms, *or its section
-label* match, so typing a department name keeps the whole department). The
+(an option stays when its label, its extra search terms, _or its section
+label_ match, so typing a department name keeps the whole department). The
 selection is staged in a draft and committed only on the confirm button
 (Clear / Cancel / Confirm footer); the draft lives in a child that mounts
 with the modal, so it re-initializes from the caller's `values` on every
@@ -5207,7 +5207,7 @@ tests in `userSelect.test.ts`. Badge visuals follow the existing toggle idiom
   re-appends previously selected ids that no longer appear in the picker
   (now-inactive users), so editing can't silently drop them — the only
   behavioral delta vs. the old dropdown is that such ids can no longer be
-  *removed* (they were visible only as raw chips there). The admin
+  _removed_ (they were visible only as raw chips there). The admin
   **"On behalf of"** single-select stays a `NoKeyboardSelect`.
 - **FilterModal** (`src/components/FilterModal.tsx`) — variant `"search"`
   groups no longer render `NoKeyboardMultiSelect`: the group shows the
@@ -5262,7 +5262,7 @@ never resizes it:
 
 - `Modal` styles: `content` gets
   `height: min(560px, calc(100dvh - 96px))` + `display: flex; flex-direction:
-  column`; `body` gets `flex: 1; min-height: 0; overflow: hidden`.
+column`; `body` gets `flex: 1; min-height: 0; overflow: hidden`.
 - Body is now a column: the search `TextInput` pinned at the top, a
   scrollable inner `Stack` (`flex: 1; overflowY: auto; minHeight: 0`) holding
   only the badge sections / "No matches" message, and the Clear / Cancel /
@@ -5287,7 +5287,7 @@ Follow-up to 1.107: tapping a badge dismissed the mobile soft keyboard.
 The badges are real `UnstyledButton`s, so pressing one transferred DOM
 focus off the search `TextInput` — the keyboard closed after every tap,
 forcing the user to re-open it before filtering for the next person. That
-broke the picker's core loop of *search → tap → search → tap*.
+broke the picker's core loop of _search → tap → search → tap_.
 
 Two complementary techniques keep the input focused (the same pattern
 Mantine's Combobox uses):
@@ -5357,7 +5357,7 @@ Reversal of 1.111's design. Hiding the adjacent-month days made the dimmed
 grid cells disappear, but the follow-up report showed Mantine still positions
 multi-day events across **full week rows** (`getWeeksInRange` expands the
 month range to the Monday on/before the 1st → Sunday on/after the last day,
-and `calculateEventPositionInWeek` only clips against the *week* edge). With
+and `calculateEventPositionInWeek` only clips against the _week_ edge). With
 the outside cells emptied out, a cross-month bar (e.g. Aug 30 – Sep 2 viewed
 in August) painted straight across the now-empty Sep 1/2 cells. The decision,
 revisited with the user: fetch the whole grid instead of hiding its days.
@@ -5367,7 +5367,7 @@ Changes:
 - `src/lib/events/datetime.ts`
   - `monthGridMonths(month)` (new, pure): the months the `MonthView` grid
     displays — the Monday on/before the 1st (`weekDays(\`${month}-01\`)[0]`)
-    through `MONTH_GRID_WEEKS` (6) full weeks, via `monthsInRange`. Two
+through `MONTH_GRID_WEEKS`(6) full weeks, via`monthsInRange`. Two
     months when the 1st is a Monday, three otherwise.
   - `addDays(dateOnly, n)` (new, pure): small signed-day helper.
   - `monthGridRows(month)`: back to the padded shape
@@ -5394,7 +5394,7 @@ Changes:
   same). It now reads the wall-clock months straight from the date part,
   matching its docblock; regression-tested.
 
-Tradeoff: a *cold* month view can block on up to 3 months × N calendars of
+Tradeoff: a _cold_ month view can block on up to 3 months × N calendars of
 Google `events.list` (concurrency ≤ 4 per month) versus one before; the
 existing adjacent-month prefetch warms the grid's neighbors after any miss,
 so subsequent month swipes mostly hit L1/L2.
@@ -5412,64 +5412,64 @@ events; detail/edit flows keep the full span; force-refresh works.
 
 ## 1.118 Departments settings: unified detail modal + assigned-user role overrides
 
- Rework of the admin Departments settings UX on top of the roster-sharing
- model. The list no longer shows the Google calendar ID or the per-row
- Share/Edit/Delete buttons; tapping a row (desktop) or card (mobile) opens one
- unified detail modal that replaces the three old modals, and the sharing
- section grows an inline role selector per assigned user so the admin can
- upgrade the assignment-auto-granted reader to writer/owner (or back down).
- The reconcile semantics needed no change — `diffAccess` only fills rules
- that are *missing*, so an upgraded assigned-user rule survives every
- reconcile-on-read/write; it is revoked like any other rule when the user
- leaves the department or changes email.
+Rework of the admin Departments settings UX on top of the roster-sharing
+model. The list no longer shows the Google calendar ID or the per-row
+Share/Edit/Delete buttons; tapping a row (desktop) or card (mobile) opens one
+unified detail modal that replaces the three old modals, and the sharing
+section grows an inline role selector per assigned user so the admin can
+upgrade the assignment-auto-granted reader to writer/owner (or back down).
+The reconcile semantics needed no change — `diffAccess` only fills rules
+that are _missing_, so an upgraded assigned-user rule survives every
+reconcile-on-read/write; it is revoked like any other rule when the user
+leaves the department or changes email.
 
- Changes:
+Changes:
 
- - `src/lib/roster/shares.ts`
-   - `DepartmentAccess` gains `assignedRoles: Record<string, string>` — each
-     assigned email's live Google ACL role, read from the post-reconcile ACL
-     list (empty `{}` on the department-missing and Google-unconfigured
-     returns, and on the catch path).
- - `src/app/(protected)/settings/departments/`
-   - `DepartmentTable.tsx`: the list reduces to name + external color
-     (two-column desktop table; dot + name + color-label mobile cards).
-     Rows/cards are keyboard-activatable (`role="button"`, `tabIndex=0`,
-     Enter/Space, `aria-haspopup="dialog"`) and open the detail modal; the
-     Share/Edit/Delete row buttons are gone. The delete confirmation modal
-     is kept as a separate modal, triggered from the detail modal's
-     "Delete department" button (the detail modal closes first). The create
-     flow reuses the same modal with `calendar={null}` (settings fields
-     only).
-   - `DepartmentDetail.tsx` (new): one centered `size="md"` modal with the
-     name + external-event-color form, a "Calendar access" section (calendar
-     ID + copy + add-to-Google link, the sync warning, the owner badge, the
-     assigned users each with an immediate-apply role `Select` wired to
-     `updateDepartmentAccess` — no Remove button, access is
-     assignment-managed —, the additional-access rows with role change +
-     remove, and the add-another-person row), and a footer
-     ("Save changes"/"Create department" + "Delete department"). All
-     non-submit controls are Mantine `type="button"` by default, so only the
-     footer submit saves the form. The body is a keyed child component:
-     Mantine unmounts the modal content on close, so the Mantine form state
-     and the access data reseed fresh on every open from the tapped row, and
-     a save updates the list row in place (create refreshes the list).
-   - `DepartmentForm.tsx`, `DepartmentShares.tsx`: removed (absorbed into
-     `DepartmentDetail.tsx`).
-   - `loading.tsx`: skeletons match the new shapes (single-line mobile cards,
-     two-column desktop table).
+- `src/lib/roster/shares.ts`
+  - `DepartmentAccess` gains `assignedRoles: Record<string, string>` — each
+    assigned email's live Google ACL role, read from the post-reconcile ACL
+    list (empty `{}` on the department-missing and Google-unconfigured
+    returns, and on the catch path).
+- `src/app/(protected)/settings/departments/`
+  - `DepartmentTable.tsx`: the list reduces to name + external color
+    (two-column desktop table; dot + name + color-label mobile cards).
+    Rows/cards are keyboard-activatable (`role="button"`, `tabIndex=0`,
+    Enter/Space, `aria-haspopup="dialog"`) and open the detail modal; the
+    Share/Edit/Delete row buttons are gone. The delete confirmation modal
+    is kept as a separate modal, triggered from the detail modal's
+    "Delete department" button (the detail modal closes first). The create
+    flow reuses the same modal with `calendar={null}` (settings fields
+    only).
+  - `DepartmentDetail.tsx` (new): one centered `size="md"` modal with the
+    name + external-event-color form, a "Calendar access" section (calendar
+    ID + copy + add-to-Google link, the sync warning, the owner badge, the
+    assigned users each with an immediate-apply role `Select` wired to
+    `updateDepartmentAccess` — no Remove button, access is
+    assignment-managed —, the additional-access rows with role change +
+    remove, and the add-another-person row), and a footer
+    ("Save changes"/"Create department" + "Delete department"). All
+    non-submit controls are Mantine `type="button"` by default, so only the
+    footer submit saves the form. The body is a keyed child component:
+    Mantine unmounts the modal content on close, so the Mantine form state
+    and the access data reseed fresh on every open from the tapped row, and
+    a save updates the list row in place (create refreshes the list).
+  - `DepartmentForm.tsx`, `DepartmentShares.tsx`: removed (absorbed into
+    `DepartmentDetail.tsx`).
+  - `loading.tsx`: skeletons match the new shapes (single-line mobile cards,
+    two-column desktop table).
 
- Docs updated: `docs/roster-sharing.md` (§1 intro, §1.2 goal, §1.3 diagram +
- warning, §1.5 `DepartmentAccess` bullet + line refs, §1.6 line refs +
- rename/delete notes, §1.8 renamed to the detail modal + assigned-override
- property + line refs, §1.9 revoke note, §1.10 override reuse + line refs,
- §1.12 file index + phase list; the stale `users/DepartmentShares.tsx` file
- entry dropped).
+Docs updated: `docs/roster-sharing.md` (§1 intro, §1.2 goal, §1.3 diagram +
+warning, §1.5 `DepartmentAccess` bullet + line refs, §1.6 line refs +
+rename/delete notes, §1.8 renamed to the detail modal + assigned-override
+property + line refs, §1.9 revoke note, §1.10 override reuse + line refs,
+§1.12 file index + phase list; the stale `users/DepartmentShares.tsx` file
+entry dropped).
 
- Verification: `pnpm typecheck`, `pnpm lint`, `pnpm test` (659) pass. Manual QA
- pending: open a department row on mobile + desktop; edit name/color and save;
- upgrade an assigned user to writer and reopen (role persists); add/remove an
- additional access; create + delete flows; empty state; keyboard row
- activation.
+Verification: `pnpm typecheck`, `pnpm lint`, `pnpm test` (659) pass. Manual QA
+pending: open a department row on mobile + desktop; edit name/color and save;
+upgrade an assigned user to writer and reopen (role persists); add/remove an
+additional access; create + delete flows; empty state; keyboard row
+activation.
 
 ## 1.119 Event wizard modal: outside clicks and Escape minimize instead of discarding
 
@@ -5505,7 +5505,7 @@ Changes (all in `DashboardView.tsx`):
   A `ref` on `Modal.Content` (delivered to the Paper `section` via
   `ModalBaseContent` → `FocusTrap innerRef`) feeds an effect keyed on
   `[formIsOpen, formMinimized]` that measures `offsetTop/offsetLeft/
-  offsetWidth` — layout coordinates, stable through the transform-only
+offsetWidth` — layout coordinates, stable through the transform-only
   open/close animation (`getBoundingClientRect` would read the mid-scale
   box), already viewport-relative because the Paper's offsetParent is the
   modal's fixed full-viewport inner layer. A `ResizeObserver` follows
@@ -5517,14 +5517,14 @@ Changes (all in `DashboardView.tsx`):
 
 The resulting gesture matrix:
 
-| Gesture              | Before | After               |
-| -------------------- | ------ | ------------------- |
-| Outside/overlay tap  | discard | minimize (bubble)  |
-| Escape               | discard | minimize (bubble)  |
-| Header X             | discard | discard            |
-| Header chevron       | minimize | minimize           |
-| Bubble chevron-up    | restore | restore            |
-| Bubble X             | discard | discard            |
+| Gesture             | Before   | After             |
+| ------------------- | -------- | ----------------- |
+| Outside/overlay tap | discard  | minimize (bubble) |
+| Escape              | discard  | minimize (bubble) |
+| Header X            | discard  | discard           |
+| Header chevron      | minimize | minimize          |
+| Bubble chevron-up   | restore  | restore           |
+| Bubble X            | discard  | discard           |
 
 ```mermaid
 stateDiagram-v2
@@ -5548,7 +5548,7 @@ from a restored state submits the event.
 Pinned dashboard view tabs were lost after switching views or reloading once
 the 1.121 SWR caches landed. A same-day label-only commit (renaming the
 Week/Week v2 tabs to Week (H)/Week (D)) was the first change noticed in the
-batch, but pinning is keyed on view *values*
+batch, but pinning is keyed on view _values_
 (`month`/`week`/`weekv2`/`schedule`/`agenda`) — never on labels — so the
 rename was ruled out by diff inspection + the 35 `uiState` unit tests. The
 real cause was the 1.121 `app-documents-swr` / `app-rsc-swr` caches.
@@ -5556,7 +5556,7 @@ real cause was the 1.121 `app-documents-swr` / `app-rsc-swr` caches.
 The pin toggle is a `cloudy2.ui` cookie-only state change: no navigation,
 no URL change, no `router.refresh()` — so none of the mutation-site
 invalidations fired. Both SWR caches are URL-keyed, so every `/dashboard`
-document or RSC payload rendered *before* the toggle still carries the
+document or RSC payload rendered _before_ the toggle still carries the
 pre-pin `pinnedViews` prop. When one is served afterwards (F5 / PWA cold
 start for documents, or a soft navigation back to a previously visited view
 URL for RSC), the render-phase prop sync in `DashboardView` re-seeds the
@@ -5594,7 +5594,7 @@ versions). After a Vercel deploy, the new SW (`skipWaiting` +
 serve the old build's cached documents — HTML whose `<script>` tags reference
 `/_next/static/chunks/<old-hash>.js`, which 404 against the new build. The
 page then renders stale or broken; the background revalidation fixes the
-cache entry for the *next* open, not the one just served.
+cache entry for the _next_ open, not the one just served.
 
 **Gap 2 — the running tab never learned about the build swap.** The SW file
 is served from a fixed URL (`/serwist/sw.js`), so
@@ -5635,7 +5635,7 @@ claimed has no `controllerchange` in its lifetime), the client clear covers
 the brief activate/claim race where an in-flight old-SW fetch could
 re-store an entry under the old name after the wipe.
 
-In-page "older data" *within the same build* (navigating back to a visited
+In-page "older data" _within the same build_ (navigating back to a visited
 URL within `staleTimes.dynamic` / the SWR window) is unchanged — that is the
 intended instant-open design, with the "Saved · HH:MM" chip and the
 force-refresh nonce as the escape hatch.
@@ -5761,7 +5761,7 @@ close/reopen the PWA once after deploy).
 
 Report: the saved-views picker page (added in 1.124) is confusing — a
 technical-looking list of labels + "Saved · 28 Aug 09:12" timestamps that
-forces the user to choose *which* offline copy they want.
+forces the user to choose _which_ offline copy they want.
 
 Decision: auto-serve instead of ask. Any offline navigation that isn't an
 exact cache hit now gets the **most recently saved document**, regardless of
@@ -5818,7 +5818,7 @@ members, so a parent department's true size was invisible, and neither the
 page nor the clipboard report could express the grouping.
 
 Decision (confirmed with the user): departments nest under a **parent
-department** (any depth); a user still belongs to exactly one *direct*
+department** (any depth); a user still belongs to exactly one _direct_
 department. On parade state the parent renders as a **nested section** whose
 `NAME (present/total)` header aggregates direct + all sub-department members;
 the attendance clipboard report stays **flat blocks in tree order** (parent
@@ -5831,8 +5831,8 @@ up/down swap), and deleting a parent **promotes its children to top level**
 Changes:
 
 1. **Schema** — `calendars.parent_id`: nullable self FK (`ON DELETE SET
-   NULL`), indexed. The self-reference needed the `references(():
-   AnyPgColumn => calendars.id)` getter-type annotation to break the
+NULL`), indexed. The self-reference needed the `references(():
+AnyPgColumn => calendars.id)` getter-type annotation to break the
    TypeScript inference cycle. Migration 0030 (+ committed
    `drizzle/meta/0030_snapshot.json`). `sort_order` stays globally unique and
    now encodes **preorder tree rank**, so every flat calendar listing
@@ -5927,7 +5927,7 @@ Changes:
    written back via `usePersistUiState`); the zoomed width is written to the
    views' `--resources-*-view-slot-width` CSS var through each view's `style`
    prop (Mantine sizes the day container from that var and lays events out as
-   percentages of it, so slots *and* events re-flow with no JS geometry
+   percentages of it, so slots _and_ events re-flow with no JS geometry
    work); `zoom` added to the ruler-measurement `useLayoutEffect` deps so the
    pinned hour ruler + Week (H) day-label strip re-measure on every change.
 5. **`src/components/GridZoomControls.tsx` (new)** — a floating vertical
@@ -6136,7 +6136,7 @@ Changes:
    (`getMonthPositionedEvents` → `findAvailableRow`), so feeding this order
    makes the user's events claim the top rows of every day (topmost
    non-conflicting row; an earlier-placed multi-day event can still hold row
-   1). With `maxEventsPerDay` this pushes more of *other* events behind
+   1). With `maxEventsPerDay` this pushes more of _other_ events behind
    "+N more" on dense days — the intended trade-off.
 2. **`DashboardView.tsx`** — `myEventIds` (`eventMatchesUserFilter` against
    `currentUser`) drives: `monthEvents = sortMineFirst(...)` into MonthView;
@@ -6225,6 +6225,7 @@ invisible to screen readers. New `src/lib/ui/announcer.tsx`: `StatusAnnouncer`
 `AppShell.Main` so it survives navigations, and module-level `announce()`
 pushes text into it. Identical consecutive messages re-announce via a
 clear-then-set timeout. Wired in `DashboardView`:
+
 - view/period: one watcher on the optimistic chrome (`shownView` + a new
   `periodLabel` that also feeds the nav-row text) announces
   `"Month view, March 2026"`-style messages for tab taps, chevrons, Today,
@@ -6268,7 +6269,7 @@ Wired in:
   "Add …" handler (`openCreate`) — Users, Event Types, Quick Links, Webhooks,
   KAH Groups, Departments. Departments already had an inline button; it was
   restyled onto the shared component for consistency.
-- **Users + Contacts** distinguish *filtered-to-zero* from *truly empty*: a
+- **Users + Contacts** distinguish _filtered-to-zero_ from _truly empty_: a
   search/filter hit renders "Clear search & filters" (Users) / "Clear search"
   (Contacts); the truly-empty state renders the Add/Manage action.
 - **Audit log** "No log entries match these filters." → "Clear filters"
@@ -6291,7 +6292,7 @@ all pass.
 
 ## 1.149 Sticky Month weekday-initials row
 
-Mantine's `MonthView` renders its weekday-initials row *inside* a content-height
+Mantine's `MonthView` renders its weekday-initials row _inside_ a content-height
 `ScrollArea`, so during page scroll the row scrolls away with the grid — the
 long-standing "cannot pin without restructuring" limitation. Fix: the view now
 passes `withWeekDays={false}` (a supported prop that suppresses the built-in row)
@@ -6331,7 +6332,7 @@ timeline px, after the zoom-invariant sticky label column) and returns
 `timePx * (newSlot/oldSlot) + labelWidth - viewportWidth/2`.
 
 Wiring (`DashboardView.tsx`): a `prevZoomRef` records the prior zoom, and a
-`useLayoutEffect` — declared *before* the ruler measurement effect so it reads the
+`useLayoutEffect` — declared _before_ the ruler measurement effect so it reads the
 corrected `scrollLeft` — runs only on a genuine zoom change. It measures the
 realized new slot width via the shared `measuredWidth` probe (extracted from the
 ruler effect's inline probe), derives `oldSlot = newSlot * oldZoom/zoom` (exact:
@@ -6414,7 +6415,7 @@ not shorten the splash: the user still saw the navy splash + icon for the whole
 10s. Re-measuring found the diagnosis had been wrong twice over.
 
 **What was actually blocking first paint.** Chrome dismisses the Android PWA
-splash on the launch page's *first non-empty paint* (Chromium's
+splash on the launch page's _first non-empty paint_ (Chromium's
 `WebappSplashScreenController`), so the splash's length is exactly
 time-to-first-paint. Nothing on the server's first-byte path touched the DB
 (`/` and the protected layout only decrypt a JWT and read cookies). What blocked
@@ -6422,7 +6423,7 @@ it was **module load**: `dashboard/page.tsx` imports `googleCalendarConfigured`
 from the `@/lib/google` barrel, which statically imported `./real`, whose first
 line is `import { google } from "googleapis"`. That umbrella package is ~200 MB
 on disk and ~1.4 s to `require()`, and it executed on every cold serverless boot
-*before rendering started* — so streaming the layout could not help.
+_before rendering started_ — so streaming the layout could not help.
 
 **Why the previous launch route (removed) never fired.** It keyed the decision
 on the newest saved view, but the runtime page caches are versioned per build,
@@ -6430,11 +6431,11 @@ wiped on `activate`, and additionally cleared by `clearAllSavedPages()` on
 controller change — so after every deploy there was no saved view,
 `launchDecision` returned `"network"`, and the skeleton never rendered. That is
 exactly the state a post-deploy test is in. Two further defects: the `"instant"`
-branch only fired when the saved view was *younger* than 5 min (i.e. when
+branch only fired when the saved view was _younger_ than 5 min (i.e. when
 nothing was cold anyway), and the skeleton's `fetch(location.href)` was a
 non-navigate request, so it missed both the launch and document matchers, fell
 to `NetworkOnly`, and its freshly downloaded HTML was discarded — after which
-`location.replace` served the *stale* cached copy and fired a third revalidation.
+`location.replace` served the _stale_ cached copy and fired a third revalidation.
 
 **Fix A — googleapis off the cold-boot path.** `getGoogleIntegration()` (already
 `async`) now loads `./real` with a dynamic `import()`; `googleCalendarConfigured()`
@@ -6448,7 +6449,7 @@ entirely from the event cache now never loads it.
 
 **Fix B — the launch never touches the server.** `handleLaunchRequest` now
 returns `serwist.matchPrecache("/loading.html")` **unconditionally** (network
-`fetch` only on a precache miss). Because the precache is written at *install*,
+`fetch` only on a precache miss). Because the precache is written at _install_,
 this path survives the deploy-time cache wipe that made the old rule inert.
 `public/loading.html` paints the branded shell — lifting the splash — then reads
 the client-owned `cloudy2.ui` cookie (base64url JSON, same codec as
@@ -6462,7 +6463,7 @@ frame has been presented and navigating away pre-paint means the splash never
 lifts; and the shell's route whitelist is a duplicate of `BASE_PAGES` /
 `SETTINGS_SUBTABS` (now exported) held honest by
 `src/lib/pwa/launchShell.test.ts`, which also asserts the double-rAF structure
-and that the shell contains no `fetch(`. The whitelist only has to be *safe* —
+and that the shell contains no `fetch(`. The whitelist only has to be _safe_ —
 `requireAdmin()` still guards `/settings/*` server-side.
 
 Removed: `launchDecision`, `LAUNCH_REFRESH_THRESHOLD_MS`, `serveLaunchSkeleton`
@@ -6511,7 +6512,7 @@ Deliberately **no `networkTimeoutSeconds`**. Serwist supports it, but on a cold
 function plus cold Neon the fresh response routinely outlives any sane timeout,
 so a timeout would return stale data in precisely the case this rule exists to
 fix. Offline safety comes from `NetworkFirst`'s own behaviour instead: it falls
-back to `handler.cacheMatch()` when the network *fails* (which still runs the
+back to `handler.cacheMatch()` when the network _fails_ (which still runs the
 stamp plugin), and when both are exhausted `Strategy._getResponse` routes
 through `handlerDidError` to `serveOfflineDocument` exactly as before.
 
@@ -6525,7 +6526,7 @@ bookkeeping and redundant deletes). Neither strategy gets
 identically on both paths.
 
 Scope is uniform across all document navigations, not only launches — in an
-installed PWA nearly every hard load *is* a launch. The accepted trade-off: a
+installed PWA nearly every hard load _is_ a launch. The accepted trade-off: a
 share link to a >5 min stale page now waits on the network with nothing
 painted, where it previously showed stale content instantly.
 
@@ -6534,7 +6535,7 @@ entirely. `navigationPreload: true` enables preload globally, so the browser
 still issues a `GET /` on every launch even though the SW answers from the
 precache. It is never awaited and never blocks paint — and it usefully warms the
 function and Neon while the shell paints, so the follow-up navigation often
-lands on an already-booting instance. The server is off the *critical path*, not
+lands on an already-booting instance. The server is off the _critical path_, not
 uncontacted.
 
 Verified in the emitted service worker, not just at the source level:
@@ -6551,7 +6552,7 @@ Verification: `pnpm lint` + `pnpm typecheck` + `pnpm test` (825) + `pnpm build`
 **Still unmeasured on the device.** 1.152 and 1.153 are verified at the build,
 bundle and unit level only; the end-to-end splash improvement has not been
 timed on the phone. Test protocol: deploy → launch once so the new SW installs
-and precaches → background the app → wait >5 min (Neon autosuspend *and* the
+and precaches → background the app → wait >5 min (Neon autosuspend _and_ the
 serverless instance idling) → launch.
 
 ## 1.154 Reverse the banner-reservation decision (no phantom gap while pending)
@@ -6577,7 +6578,7 @@ to include the banner in a layout effect (before paint), and the banner still
 measures its wrapped height into `--app-banner-height`.
 
 The trade-off, chosen deliberately: a **configured** banner now shifts the
-header downward when its read resolves — on cold starts *and* warm loads, since
+header downward when its read resolves — on cold starts _and_ warm loads, since
 even a warm request renders the fallback (nothing) before the banner streams in.
 This is the opposite of 1.151's guarantee, and exactly what was asked for.
 
@@ -6593,8 +6594,8 @@ Verification: `pnpm lint` + `pnpm typecheck` + `pnpm test` + `pnpm build`.
 1.152's launch shell (dark, generic month-grid skeleton) composed badly with
 1.153's age-routed document navigations: on a launch whose cached document was
 older than `DOCUMENT_FRESH_WINDOW_MS` (5 min — nearly every morning launch) the
-flow became *launch shell → network-first wait → streamed HTML → `loading.tsx`
-Mantine skeleton → data*, i.e. **two visibly different skeletons** before any
+flow became _launch shell → network-first wait → streamed HTML → `loading.tsx`
+Mantine skeleton → data_, i.e. **two visibly different skeletons** before any
 content. The `sw.ts` comment claiming "skeleton, then fresh" had missed that
 streaming SSR flushes the route fallback as soon as the document commits, while
 the dashboard's awaited data (`await fetchMonthEvents`) lands later in the
@@ -6641,12 +6642,13 @@ signed-in non-admin costs one redirect to `/dashboard`, not a login purge).
 
 Files: `public/loading.html` (rewritten), `src/app/sw.ts` (shortcut in
 `handleLaunchRequest`), `src/lib/pwa/swRules.ts` (`launchTargetFromCookieHeader`
-+ `LAUNCH_ROUTE_WHITELIST`), `src/lib/pwa/swRules.test.ts` (+8 cases),
-`src/lib/pwa/launchShell.test.ts` (+3 drift guards: SW whitelist sync, view
-variants + default, scheme override). Docs: `docs/pwa-offline.md` §1.5/§1.5.1
-(fresh-redirect flowchart + shell-matching prose), §1.12/§1.13/§1.15;
-`docs/loading-transitions.md` §1.4; `progress.md` one-liner.
-Verification: `pnpm lint` + `pnpm typecheck` + `pnpm test` (836 passing).
+
+- `LAUNCH_ROUTE_WHITELIST`), `src/lib/pwa/swRules.test.ts` (+8 cases),
+  `src/lib/pwa/launchShell.test.ts` (+3 drift guards: SW whitelist sync, view
+  variants + default, scheme override). Docs: `docs/pwa-offline.md` §1.5/§1.5.1
+  (fresh-redirect flowchart + shell-matching prose), §1.12/§1.13/§1.15;
+  `docs/loading-transitions.md` §1.4; `progress.md` one-liner.
+  Verification: `pnpm lint` + `pnpm typecheck` + `pnpm test` (836 passing).
 
 Follow-up fix (same phase): the first cut trapped `VIEW_VALUES` inside the
 skeleton-builder IIFE, so the redirect IIFE threw `ReferenceError` on its first
@@ -6665,7 +6667,7 @@ is reintroduced. `pnpm test` 839 passing.
 
 User feedback on the dashboard's filter surface: the ⋮-menu/modal system felt
 complex, most people reach only a couple of filter settings, and users wanted
-their filters to be *different per view* sometimes yet *synced* other times.
+their filters to be _different per view_ sometimes yet _synced_ other times.
 Shipped in two halves:
 
 1. **One filter button.** The 3-dot kebab lost its entire "Filters" section
@@ -6761,16 +6763,18 @@ Report: the Users filter "sometimes doesn't apply" — in per-view mode, applyin
 A+B on view 1, switching to a no-filter view 2 and back, the filter is gone;
 an F5 does NOT restore it. Users specifically; both anchored⇄anchored and
 Month-involved switches; both filter scopes. Root cause (confirmed by the
->150-roster size math): `usePersistUiState` persisted the FULL resolved
-`views` map (`views: viewFilters`), so every render materialized
-`cal = <all 15+ calendars>` into all five views. Adding the several shared
-lists pushed the encoded cookie past `SAFE_COOKIE_VALUE_LENGTH` (3500), and
-`writeUiState`'s all-or-nothing overflow guard dropped BOTH the shared id
-lists AND the entire `views` map — permanently, for every subsequent write.
-Users is the only filter whose loss was visible (Calendars reverting to the
-admin all-default is invisible), which matched the report exactly.
+
+> 150-roster size math): `usePersistUiState` persisted the FULL resolved
+> `views` map (`views: viewFilters`), so every render materialized
+> `cal = <all 15+ calendars>` into all five views. Adding the several shared
+> lists pushed the encoded cookie past `SAFE_COOKIE_VALUE_LENGTH` (3500), and
+> `writeUiState`'s all-or-nothing overflow guard dropped BOTH the shared id
+> lists AND the entire `views` map — permanently, for every subsequent write.
+> Users is the only filter whose loss was visible (Calendars reverting to the
+> admin all-default is invisible), which matched the report exactly.
 
 Fixes:
+
 1. **Writer never materializes unconfigured views.** New pure
    `buildDashboardPersist(prev, seed)` + `DashboardPersistSeed`: the persisted
    `views` = the previous map MERGED with only the current view's entry; a key
@@ -6835,7 +6839,7 @@ on View 1 across switch⇄ and F5.
 External events (created directly in Google Calendar — no `Created in cloudy2`
 marker and no notes block, so `isExternalEvent`/`payload.external === true` at
 read time) get a **purple** per-view highlight, in parallel with the amber
-"mine" treatment from §1.144/§1.145. An external event can never be *mine*
+"mine" treatment from §1.144/§1.145. An external event can never be _mine_
 (it has no recorded creator), so the two highlight classes never collide on one
 event. The treatment is purely additive (ring / bar / tint) — event body colors
 are untouched, so untyped events keep their department-calendar color.
@@ -6942,7 +6946,7 @@ select round-trips (including back to Ungrouped).
 
 Reported as "the splash screen stays up for a long time until all content is
 loaded" — i.e. the 1.152–1.155 launch work had stopped holding up its end, and
-on the device the symptom was the *plain navy manifest splash*, not the launch
+on the device the symptom was the _plain navy manifest splash_, not the launch
 shell: nothing was painting at all during the wait.
 
 Two defects from that burst composed into it:
@@ -6950,14 +6954,14 @@ Two defects from that burst composed into it:
 1. **The cache-age rule (1.153) made stale documents blocking.**
    `handleDocumentRequest` peeked at the stored entry's `Date` and sent anything
    older than `DOCUMENT_FRESH_WINDOW_MS` (5 min) to `NetworkFirst`. For an app
-   reopened after a coffee break that is *every* launch, so the launch was back
+   reopened after a coffee break that is _every_ launch, so the launch was back
    to waiting out a cold function + cold Neon before committing — the exact
    opposite of §1.2's "cold PWA open shows the last-saved calendar instantly".
 2. **The fresh-document shortcut (1.155) could never fire — and when it did, it
    was the branch with nothing painted.** It resolved the remembered page from
    `request.headers.get("cookie")`, but `Cookie` is a **forbidden request
    header**: the Fetch standard appends it in the network & cache layer
-   (§4.6 step 21), *after* service-worker interception, so a SW's `Request`
+   (§4.6 step 21), _after_ service-worker interception, so a SW's `Request`
    never carries it. Wherever a browser does leak it, the route answered
    `Response.redirect(target, 302)` — skipping the shell for a second navigation
    which, if its own cache peek disagreed, went to the network with the splash
@@ -6985,11 +6989,11 @@ Fix, in the order the launch now runs:
   `StaleWhileRevalidate`, serving a cached copy at any age. `NetworkFirst` is no
   longer imported.
 - **Staleness moved to after paint.** `needsReconcile(cachedAtIso, now)` (pure)
-  reads the SW's `__C2_STAMP__` document stamp — *absent* means the document came
+  reads the SW's `__C2_STAMP__` document stamp — _absent_ means the document came
   off the network, so no pointless refresh — and `useStaleDocumentReconcile`
   (mounted in `AppProviders`, once per document load) waits 1.5 s, then runs one
   `router.refresh()`. It clears **RSC entries only** via the new
-  `invalidateRscPathCaches`: deleting the cached *document* would destroy the
+  `invalidateRscPathCaches`: deleting the cached _document_ would destroy the
   very entry that makes the next launch instant (the SW's background
   revalidation already keeps it current). This is the one deliberate exception to
   the invalidate-before-every-refresh rule, called out in `AGENTS.md`,
@@ -7004,7 +7008,7 @@ Fix, in the order the launch now runs:
 Net launch: tap → precached shell paints (splash lifts) → cookie-resolved target
 → cached document served instantly → after-paint reconcile upgrades the view.
 The "warm launch skips the skeleton entirely" nicety that the deleted shortcut
-was meant to serve is *not* restored — the user chose to see how the unconditional
+was meant to serve is _not_ restored — the user chose to see how the unconditional
 shell reads first; the follow-up candidate is a shell-side `caches.match()` of the
 target document (Cache Storage is available to pages, unlike the SW's cookie
 problem) instead of anything cookie-based.
@@ -7024,7 +7028,7 @@ Tests: `swRules.test.ts` — `isStartUrlRequest` rewritten for the lenient rule
 SW-whitelist sync guard is replaced by a **static guard on `src/app/sw.ts`**
 asserting the launch route answers from the precache and contains no
 `Response.redirect` and no cookie peek, and the DOM shim now feeds the shell its
-*own* parsed route list instead of the deleted constant (11 cases).
+_own_ parsed route list instead of the deleted constant (11 cases).
 
 Docs: `docs/pwa-offline.md` §1.4 (route list), §1.5 (cached-first + revert
 rationale, stamping feeds the reconcile), §1.5.1 (unconditional shell, the
@@ -7044,7 +7048,7 @@ grid → view updates ~1.5 s later without a spinner; F5; force-refresh; a
 
 ## 1.169 Notes "Edit:" link opens the event details modal (legacy `?edit=` kept)
 
-The notes `Edit: <url>` line on Google Calendar events deep-linked the *edit form*
+The notes `Edit: <url>` line on Google Calendar events deep-linked the _edit form_
 directly (`/dashboard?date=…&edit=<group id>`, `eventEditUrl`). It now deep-links the
 **event details modal** (`?date=…&event=<group id>&_eventCal=<calendar id>`,
 `eventDetailUrl`) — the same `?event=` machinery the search modal and Pinned Events
@@ -7221,7 +7225,7 @@ on one view can never affect another.
   retired, and matches the new "each view is independent" contract).
 - `DashboardView` loses the `filterMode` prop/state, the FilterModal
   `modeControl` (SegmentedControl) and its conditional hint � the footer hint is
-  now unconditional: *"These filters apply to {view} only."* `switchView` always
+  now unconditional: _"These filters apply to {view} only."_ `switchView` always
   writes the target view's resolved filters into the URL, so the URL describes
   the rendered view (unchanged per-view mechanics).
 - `FilterModal` drops the now-unused `modeControl` prop (only the dashboard
@@ -7271,7 +7275,7 @@ Users) so a managed person can never be an anonymous ACL rule again.
 **Why a DB table now**: the old model stored no share rows — cross-dept access
 for a roster user was a raw email rule in "Additional access", invisible to the
 roster and orphaned on email change. New `user_calendar_access` rows
-(user × calendar, role, PK on both, FKs cascade) record *intent*; Google stays
+(user × calendar, role, PK on both, FKs cascade) record _intent_; Google stays
 the ACL source of truth. Reconcile paths became expectation-based: for a
 department, expectations = members (reader) + grant rows (their role);
 `reconcileUserAccessChange` takes `userId` + `desiredAccess`, diffs the rows,
@@ -7309,9 +7313,9 @@ The wizard's review step now runs a read-only clash check against the existing
 events that overlap the candidate and shows, per conflicting event, which of the
 candidate's people are already occupied (the acting user gets a "You" chip). It is
 purely advisory — a warning never blocks a save — matching the notify-only KAH
-philosophy but surfacing *before* the event is written rather than after.
+philosophy but surfacing _before_ the event is written rather than after.
 
-**Semantics**: an event *occupies* its creator + each tagged user + every **active**
+**Semantics**: an event _occupies_ its creator + each tagged user + every **active**
 member of each tagged department (a department-level event is an event for everyone
 within that department), and an external/people-less event (created directly in
 Google, no parseable notes) occupies every active member of the department calendar
@@ -7368,4 +7372,76 @@ department where a member is busy (whole-dept candidate); edit an event onto a c
 duplicate an event overlapping its source; overlap an external event; confirm the
 green no-clash state and that saving still succeeds with warnings present.
 
+## 1.181 Double Booking page (existing-event double-booking scan)
 
+**Feature**: a user can now check clashes among events that _already exist_ in their
+schedule — not just while drafting one. The new top-level **Double Booking** page
+(`/double-booking`, bottom nav + sidebar for every role) scans the next 30 days and
+lists every episode where two or more of the scanned user's existing events keep them
+busy at overlapping times: amber cards per episode with the shared-people chips (`You`
+emphasised when scanning yourself), and one row per offending event (title, `External`
+badge, when · department). Advisory and read-only: never writes, never audits. This
+complements the wizard's pre-submit warnings (1.180): that check compares a _draft_
+against existing events; this page compares existing events against each other.
+
+**Semantics**: "occupies" is the wizard's exact definition (same `busyUsersOfEvent`) —
+creator, tagged users, active members of each tagged department, and for external /
+people-less events the active members of their own calendar. An event that does not
+occupy the scanned user is irrelevant even when it overlaps (a colleague's separate
+absence on the shared department calendar never counts). Two occupying events clash
+when their half-open windows overlap; reports are the connected components (size ≥ 2)
+of the pairwise-overlap graph — a chain `A↔B↔C` is one report; a day's morning and
+afternoon episodes are two.
+
+**Why one calendar read suffices**: the same data-model invariant as 1.180 — every
+event that occupies a user carries a copy on that user's own department calendar — so
+the whole scan reads **only the scanned user's home calendar** over
+`[today, today + 30 days)` through the existing `clashingEventsFor` (`clashQuery.ts`,
+window months via the month cache, never raw `listEvents`), then lets `busyUsersOfEvent`
+decide who each copy occupies. Cross-department grants play no role (a non-member is
+never occupied).
+
+**Design** (`docs/user-clashes.md`):
+
+1. Pure `findUserClashGroups({ targetUserId, events, activeUsers })` added to
+   `src/lib/events/clashes.ts` next to `computeClashes` (I/O-free; the caller reads
+   the cache). Collapses logical copies, drops events that do not occupy the target,
+   union-finds the overlap graph, and returns one `UserClashGroup` per component
+   (`events` sorted + `sharedUserIds` = users busy in every member event). 11 new unit
+   tests (occupancy filter, cross-department tagging, external-on-home, two-episode
+   separation, chain grouping, back-to-back exclusion, copy collapse, inactive target,
+   shared-people intersection).
+2. Read-only `checkUserClashes({ targetUserId? })` in `clashActions.ts` (`"use
+server"`): `requireSession()`; a non-admin requesting another user is refused;
+   admins may scan any **active** roster user via a `NoKeyboardSelect` target picker.
+   Returns `{ currentUserId, targetUserId, targetName, rangeStartDate, rangeEndDate,
+groups, skipReason }` where `skipReason` is `no-department` / `no-active-user` /
+   `null` (so a target with no schedule shows a truthful notice, never a misleading
+   "all clear"). `USER_CLASH_SCAN_DAYS = 30` is exported from the plain `clashQuery.ts`
+   (a `"use server"` module may only export async functions, so the constant cannot
+   live in the action file).
+3. `src/app/(protected)/double-booking/` — `page.tsx` (server shell: session +
+   admin roster for the picker), `DoubleBookingView.tsx` (client: mount + target-change
+   fetch with the cancelled-flag/attempt pattern, derived loading view, skeleton +
+   `LoadingStatus`, error + Retry, `EmptyState` clean/skip states, amber report cards),
+   and `loading.tsx` (route skeleton).
+4. Nav: `AppShellShell.tsx` — a `DOUBLE_BOOKING` `NavItem` (`IconCalendarClock`) added
+   to all three role arrays after Contacts; the bottom-nav label text gained single-line
+   ellipsis so the extra item degrades gracefully on small phones.
+5. The wizard panel's private `conflictWhen`/`AffectedChips` were lifted into the
+   shared `src/components/clashUi.tsx` (`eventWhenLabel`, `ClashAffectedChips`) so both
+   surfaces render identically from one source; `EventClashCheck.tsx` now imports them.
+
+**Docs**: new `docs/user-clashes.md` (TOC, Mermaid pipeline, semantics, reader
+rationale, edge cases); `AGENTS.md` architecture bullet; `developer-guide.md` doc
+index row; `progress.md` changelog + feature-surface line.
+
+**Verification**: `pnpm lint` + `pnpm typecheck` + `pnpm build` clean; `pnpm test`
+(975 passing, +11 `findUserClashGroups` tests). Manual QA still needed against dev
+Google: open the page as a user with two overlapping own events (one report) and with
+a morning+afternoon pair (two reports); confirm a colleague's overlapping-but-separate
+event does not count; whole-department event vs a member's personal leave; external
+event on your department; an event that started before today and continues into the
+window; the green clean state; an admin scanning a colleague (plain name chips, no
+`You`) and a department-less target (the notice); bottom-nav fit at 375px and the ≤360px
+icon-only tier.

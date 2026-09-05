@@ -20,6 +20,14 @@ import type { ClashEventInput } from "@/lib/events/clashes";
 import { getCachedMonthEventsForCalendars } from "@/lib/google/eventsCache";
 
 /**
+ * Number of full days the existing-event "Double Booking" scan covers, from
+ * today inclusive. Plain-exported here (not from the `"use server"` module)
+ * so the server action and callers share one source. Keep the page prose in
+ * sync.
+ */
+export const USER_CLASH_SCAN_DAYS = 30;
+
+/**
  * The `YYYY-MM` month keys whose listings can contain an event overlapping the
  * half-open [windowStart, windowEnd) instant window. Mirrors the KAH read's
  * `windowMonths` (`src/lib/kah/status.ts`) exactly so the two never diverge on

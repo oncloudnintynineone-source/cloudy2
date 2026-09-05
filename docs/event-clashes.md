@@ -21,7 +21,7 @@ save — it exists to inform, exactly like the KAH breach notifications
 
 ## 1.1 Problem
 
-The app's calendar stores no event table — one logical event is *N copies* spread
+The app's calendar stores no event table — one logical event is _N copies_ spread
 over the involved department calendars. A user double-booking themselves, or a user
 tagging an attendee who already has an overlapping event, was previously invisible
 until someone looked at the calendar. We want the person creating or editing an
@@ -38,11 +38,11 @@ department (e.g. a full-team event overlapping a member's personal leave).
 
 Who an event **occupies**:
 
-| Event kind | Occupies |
-| ---------- | -------- |
-| Any in-app event | its creator + each tagged user + every **active** member of each tagged department |
-| Department-tagged event | additionally, the whole department (already covered by the row above) |
-| External / people-less event (created directly in Google, no parseable notes) | every active member of the **department calendar the copy sits on** |
+| Event kind                                                                    | Occupies                                                                           |
+| ----------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
+| Any in-app event                                                              | its creator + each tagged user + every **active** member of each tagged department |
+| Department-tagged event                                                       | additionally, the whole department (already covered by the row above)              |
+| External / people-less event (created directly in Google, no parseable notes) | every active member of the **department calendar the copy sits on**                |
 
 Two events **clash** when their time windows overlap AND they occupy at least one
 common active roster user. Time windows use the half-open instant convention the
@@ -156,7 +156,7 @@ paper. It runs the server check when it mounts and whenever `request` changes, a
 shows one of:
 
 - **Checking** — a small skeleton block with a `LoadingStatus` announcement.
-- **Clashes** — an amber panel: "This event clashes with *N* people", then one row
+- **Clashes** — an amber panel: "This event clashes with _N_ people", then one row
   per conflicting event (title, `External` badge when applicable, when + department,
   and the affected people as chips — the acting user's chip reads "You (name)" in the
   accent color). Many people from a whole-department clash are capped at six chips
@@ -172,7 +172,7 @@ advisory; submitting while it is in flight simply proceeds).
 
 - **Editing an event**: its own existing copies are excluded by group id, so an
   unchanged edit never warns about itself. Moving an event's time onto another event
-  of the same people *does* warn.
+  of the same people _does_ warn.
 - **Duplicating an event**: the copy is a genuinely overlapping new event, so it warns
   normally against the source event (the user is expected to retime the copy).
 - **Department-level candidate**: tagging a department makes every active member of
@@ -204,15 +204,15 @@ unit-tested, following the repo convention.
 
 ## 1.9 File index & related docs
 
-| File | Role |
-| ---- | ---- |
-| `src/lib/events/writeContext.ts` | Shared resolution chain (`actions.ts` + clash check) |
-| `src/lib/events/clashes.ts` | Pure clash engine + types (unit-tested) |
-| `src/lib/events/clashes.test.ts` | Engine tests |
-| `src/lib/events/clashQuery.ts` | Month-cache read over the candidate's target calendars |
-| `src/lib/events/clashActions.ts` | `checkEventClashes` server action (read-only) |
-| `src/app/(protected)/dashboard/EventClashCheck.tsx` | Review-step advisory panel |
-| `src/app/(protected)/dashboard/EventForm.tsx` | Review step mounts the panel with the submit payload |
+| File                                                | Role                                                   |
+| --------------------------------------------------- | ------------------------------------------------------ |
+| `src/lib/events/writeContext.ts`                    | Shared resolution chain (`actions.ts` + clash check)   |
+| `src/lib/events/clashes.ts`                         | Pure clash engine + types (unit-tested)                |
+| `src/lib/events/clashes.test.ts`                    | Engine tests                                           |
+| `src/lib/events/clashQuery.ts`                      | Month-cache read over the candidate's target calendars |
+| `src/lib/events/clashActions.ts`                    | `checkEventClashes` server action (read-only)          |
+| `src/app/(protected)/dashboard/EventClashCheck.tsx` | Review-step advisory panel                             |
+| `src/app/(protected)/dashboard/EventForm.tsx`       | Review step mounts the panel with the submit payload   |
 
 Related docs: [`event-lifecycle.md`](event-lifecycle.md) (wizard, resolution chain),
 [`event-mutations.md`](event-mutations.md) (the create/update path the check mirrors),

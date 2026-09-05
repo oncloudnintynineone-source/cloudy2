@@ -14,6 +14,7 @@ import {
 import { useMediaQuery } from "@mantine/hooks";
 import {
   IconAddressBook,
+  IconCalendarClock,
   IconCalendarMonth,
   IconClipboardList,
   IconLayoutSidebarLeftCollapse,
@@ -80,6 +81,13 @@ const CONTACTS: NavItem = {
   label: "Contacts",
   icon: <IconAddressBook size={22} />,
   matches: (pathname) => pathname === "/contacts" || pathname.startsWith("/contacts"),
+};
+
+const DOUBLE_BOOKING: NavItem = {
+  href: "/double-booking",
+  label: "Double Booking",
+  icon: <IconCalendarClock size={22} />,
+  matches: (pathname) => pathname === "/double-booking" || pathname.startsWith("/double-booking"),
 };
 
 const KAH_STATUS: NavItem = {
@@ -201,7 +209,17 @@ function NavButton({
         >
           {item.icon}
           {!compact && (
-            <Text size="xs" fw={active ? 600 : 500}>
+            <Text
+              size="xs"
+              fw={active ? 600 : 500}
+              style={{
+                maxWidth: "100%",
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                whiteSpace: "nowrap",
+                textAlign: "center",
+              }}
+            >
               {item.label}
             </Text>
           )}
@@ -450,10 +468,10 @@ export function AppShellShell({
 
   const items: NavItem[] =
     role === "admin"
-      ? [CALENDAR, PARADE_STATE, CONTACTS, KAH_STATUS, SETTINGS]
+      ? [CALENDAR, PARADE_STATE, CONTACTS, DOUBLE_BOOKING, KAH_STATUS, SETTINGS]
       : kahGroup
-        ? [CALENDAR, PARADE_STATE, CONTACTS, KAH_STATUS]
-        : [CALENDAR, PARADE_STATE, CONTACTS];
+        ? [CALENDAR, PARADE_STATE, CONTACTS, DOUBLE_BOOKING, KAH_STATUS]
+        : [CALENDAR, PARADE_STATE, CONTACTS, DOUBLE_BOOKING];
 
   // --- iOS PWA viewport sync ---
   // On some iOS versions, 100dvh/vh resolves to the full screen height but the

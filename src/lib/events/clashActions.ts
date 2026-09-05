@@ -1,8 +1,18 @@
 "use server";
 
-import { absEventRange, formatInstantToNaive, subOneDay } from "@/lib/events/datetime";
-import { clashingEventsFor } from "@/lib/events/clashQuery";
-import { computeClashes, type ClashCandidateInput } from "@/lib/events/clashes";
+import {
+  absEventRange,
+  addDays,
+  formatInstantToNaive,
+  parseNaiveToInstant,
+  subOneDay,
+} from "@/lib/events/datetime";
+import { clashingEventsFor, USER_CLASH_SCAN_DAYS } from "@/lib/events/clashQuery";
+import {
+  computeClashes,
+  findUserClashGroups,
+  type ClashCandidateInput,
+} from "@/lib/events/clashes";
 import { listUsers } from "@/lib/roster/queries";
 import { ownershipGuard } from "@/lib/events/guards";
 import {
@@ -187,5 +197,136 @@ export async function checkEventClashes(
   } catch (error) {
     console.error("[clashes] Clash check failed", error);
     return { ok: false, error: "Could not check for clashes" };
+  }
+}
+
+/**
+ * One detected double-booking for a scanned user: its overlapping events, each
+ * carrying the roster people double-booked by the whole group (always the
+ * scanned user, plus anyone every group event occupies).
+ */
+export interface UserClashGroupEntry {
+  events: EventClashEntry[];
+}
+
+export type UserClashCheckResult =
+  | {
+      ok: true;
+      /** Id of the acting session user (drives the "You" emphasis when self). */
+      currentUserId: string;
+      /** The roster user the scan covered. */
+      targetUserId: string;
+      targetName: string;
+      /** Covered date span, inclusive, UTC+8 wall clock (`YYYY-MM-DD`). */
+      rangeStartDate: string;
+      rangeEndDate: string;
+      groups: UserClashGroupEntry[];
+      /**
+       * Why nothing was scanned. `no-department` = the target has no department
+       * calendar (nothing can occupy them); `no-active-user` = the target is
+       * not on the active roster. null = a real scan ran and found no clashes.
+       */
+      skipReason: "no-department" | "no-active-user" | null;
+    }
+  | { ok: false; error: string };
+
+/**
+ * Read-only "Double Booking" scan of a user's *existing* events (see
+ * docs/user-clashes.md): every event that occupies the target user carries a
+ * copy on that user's own department calendar, so reading that one calendar
+ * over the next `USER_CLASH_SCAN_DAYS` and running the pure
+ * `findUserClashGroups` (events that occupy the target and overlap each other)
+ * is the complete picture. No candidate exists here — it is not the wizard's
+ * pre-submit advisory. Never writes, never audits, never invalidates a cache.
+ *
+ * Regular users may only scan themselves; admins may scan any active roster
+ * user.
+ */
+export async function checkUserClashes(request: {
+  targetUserId?: string;
+}): Promise<UserClashCheckResult> {
+  const session = await requireSession();
+  try {
+    const targetUserId = request.targetUserId ?? session.user.id;
+    if (targetUserId !== session.user.id && session.user.role !== "admin") {
+      return { ok: false, error: "You can only check your own schedule" };
+    }
+
+    const users = await listUsers();
+    const activeUserRows = users.filter((user) => user.status === "active");
+    const target = activeUserRows.find((user) => user.id === targetUserId) ?? null;
+
+    const now = new Date();
+    const today = formatInstantToNaive(now).slice(0, 10);
+    const rangeStartDate = today;
+    const rangeEndDate = addDays(today, USER_CLASH_SCAN_DAYS - 1);
+    const rangeStart = parseNaiveToInstant(`${rangeStartDate} 00:00:00`);
+    const rangeEnd = parseNaiveToInstant(`${addDays(today, USER_CLASH_SCAN_DAYS)} 00:00:00`);
+
+    const base: {
+      ok: true;
+      currentUserId: string;
+      targetUserId: string;
+      targetName: string;
+      rangeStartDate: string;
+      rangeEndDate: string;
+    } = {
+      ok: true,
+      currentUserId: session.user.id,
+      targetUserId,
+      targetName: target?.name ?? "",
+      rangeStartDate,
+      rangeEndDate,
+    };
+
+    if (!target) {
+      return { ...base, groups: [], skipReason: "no-active-user" };
+    }
+    if (!target.department) {
+      return { ...base, groups: [], skipReason: "no-department" };
+    }
+
+    const rosterUsers = activeUserRows.map((user) => ({
+      id: user.id,
+      departmentId: user.department?.id ?? null,
+    }));
+    const nameById = new Map(activeUserRows.map((user) => [user.id, user.name]));
+
+    const overlapping = await clashingEventsFor([target.department.id], rangeStart, rangeEnd);
+    const computed = findUserClashGroups({
+      targetUserId,
+      events: overlapping,
+      activeUsers: rosterUsers,
+    });
+
+    const groups: UserClashGroupEntry[] = computed.groups.map((group) => {
+      const shared = group.sharedUserIds
+        .map((userId) => ({ userId, name: nameById.get(userId) ?? "" }))
+        .filter((entry) => entry.name !== "")
+        .sort((a, b) => a.name.localeCompare(b.name));
+      return {
+        events: group.events.map((event) => {
+          const { startNaive, endNaive } = conflictWindowNaive(
+            event.start,
+            event.end,
+            event.allDay,
+          );
+          return {
+            title: event.title,
+            calendarName: event.calendarName,
+            startNaive,
+            endNaive,
+            allDay: event.allDay,
+            external: event.external,
+            affected: shared,
+          };
+        }),
+      };
+    });
+
+    return { ...base, groups, skipReason: null };
+  } catch (error) {
+    console.error("[clashes] Double-booking scan failed", error);
+    return { ok: false, error: "Could not check for double bookings" };
   }
 }

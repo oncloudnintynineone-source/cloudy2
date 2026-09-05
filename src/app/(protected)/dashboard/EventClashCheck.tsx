@@ -5,63 +5,17 @@ import { Badge, Box, Button, Group, Loader, Paper, Skeleton, Stack, Text } from 
 import { IconAlertTriangle, IconCircleCheck, IconRefresh } from "@tabler/icons-react";
 
 import { LoadingStatus } from "@/components/LoadingStatus";
+import { ClashAffectedChips, eventWhenLabel } from "@/components/clashUi";
 import {
   checkEventClashes,
   type EventClashCheckRequest,
   type EventClashCheckResult,
-  type EventClashEntry,
 } from "@/lib/events/clashActions";
-import { formatDateTime } from "./clientDateTime";
 
 type ClashCheckOk = Extract<EventClashCheckResult, { ok: true }>;
 
 /** The panel's current view, derived from `request` + the latest outcome. */
 type View = { kind: "checking" } | { kind: "error" } | { kind: "done"; result: ClashCheckOk };
-
-/** Human window label for a conflicting event (all-day ends are inclusive naive). */
-function conflictWhen(entry: EventClashEntry): string {
-  const start = formatDateTime(entry.startNaive, entry.allDay);
-  const end = formatDateTime(entry.endNaive, entry.allDay);
-  if (!end || end === start) {
-    return start || `${entry.startNaive} – ${entry.endNaive}`;
-  }
-  return `${start} – ${end}`;
-}
-
-/** The first few affected names plus a count summary when a whole dept is busy. */
-function AffectedChips({
-  entry,
-  currentUserId,
-}: {
-  entry: EventClashEntry;
-  currentUserId: string;
-}) {
-  const MAX_CHIPS = 6;
-  const visible = entry.affected.slice(0, MAX_CHIPS);
-  const rest = entry.affected.length - visible.length;
-  return (
-    <Group gap={4} wrap="wrap">
-      {visible.map((person) => {
-        const isYou = person.userId === currentUserId;
-        return (
-          <Badge
-            key={person.userId}
-            size="xs"
-            variant={isYou ? "filled" : "light"}
-            color={isYou ? "accent" : "brand"}
-          >
-            {isYou ? `You (${person.name})` : person.name}
-          </Badge>
-        );
-      })}
-      {rest > 0 && (
-        <Text size="xs" c="dimmed">
-          +{rest} more
-        </Text>
-      )}
-    </Group>
-  );
-}
 
 /**
  * Pre-submit clash advisory for the event wizard's review step. Runs the
@@ -197,9 +151,12 @@ export function EventClashCheck({ request }: { request: EventClashCheckRequest |
                     )}
                   </Group>
                   <Text size="xs" c="dimmed">
-                    {conflictWhen(entry)} · {entry.calendarName}
+                    {eventWhenLabel(entry)} · {entry.calendarName}
                   </Text>
-                  <AffectedChips entry={entry} currentUserId={result.currentUserId} />
+                  <ClashAffectedChips
+                    affected={entry.affected}
+                    currentUserId={result.currentUserId}
+                  />
                 </Stack>
               ))}
             </Stack>

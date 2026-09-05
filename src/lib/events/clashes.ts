@@ -264,3 +264,153 @@ export function computeClashes(params: {
 
   return { checkedPeople: affected.size, clashes };
 }
+
+/**
+ * One detected double-booking for a scanned user: a maximal set of events that
+ * all occupy that user and that form one connected component of the pairwise
+ * time-overlap graph. Any event in the group overlaps at least one other event
+ * in the group (so the user really is double-booked somewhere within it), but
+ * not necessarily every other one — a chain A↔B↔C is reported as one group.
+ */
+export interface UserClashGroup {
+  /** The overlapping occupying events, chronological then by calendar/title. */
+  events: ClashEventInput[];
+  /**
+   * Roster users occupied by *every* event in the group (always includes the
+   * scanned user) — people genuinely double-booked somewhere in the stretch.
+   * Sorted.
+   */
+  sharedUserIds: string[];
+}
+
+export interface UserClashScan {
+  /** One group per distinct clash episode, chronological by earliest event. */
+  groups: UserClashGroup[];
+}
+
+/**
+ * Existing-event double-booking scan for a single target user (the "Double
+ * Booking" page, see docs/user-clashes.md). Unlike `computeClashes` there is
+ * no candidate: an event is relevant when it *occupies* the target user, and
+ * two relevant events clash when their windows overlap — they share the target
+ * by construction. Events that do not occupy the target are ignored even when
+ * they overlap (e.g. a colleague's separate absence on the same calendar).
+ *
+ * The caller reads only the target's own department calendar, which is where
+ * every event occupying them carries a copy. Multiple copies of the same
+ * logical event (same group id) collapse to one; legacy/external events (no
+ * group id) stay per copy. Only active roster users are ever occupied, so a
+ * deactivated/unknown target scans to nothing. Pure.
+ */
+export function findUserClashGroups(params: {
+  targetUserId: string;
+  events: readonly ClashEventInput[];
+  /** Active roster users; drives membership expansion and the occupied set. */
+  activeUsers: readonly ClashRosterUser[];
+}): UserClashScan {
+  const { targetUserId, events, activeUsers } = params;
+  const activeUserIds = new Set(activeUsers.map((user) => user.id));
+  if (!activeUserIds.has(targetUserId)) {
+    return { groups: [] };
+  }
+  const membersByDepartment = buildActiveMembersByDepartment(activeUsers);
+
+  // Keep only events that occupy the target, merging logical copies (same
+  // group id) into one slot with the union of their occupied users.
+  const byKey = new Map<string, { event: ClashEventInput; busy: Set<string> }>();
+  for (const event of events) {
+    const busy = busyUsersOfEvent(event, membersByDepartment);
+    if (!busy.has(targetUserId)) {
+      continue;
+    }
+    const dedupeKey = event.eventId ?? `${event.calendarId}:${event.googleEventId}`;
+    const slot = byKey.get(dedupeKey);
+    if (slot) {
+      for (const userId of busy) {
+        slot.busy.add(userId);
+      }
+    } else {
+      byKey.set(dedupeKey, { event, busy: new Set(busy) });
+    }
+  }
+
+  const occupying = [...byKey.values()];
+  // Union-find over the pairwise time-overlap graph.
+  const parent = occupying.map((_, index) => index);
+  const find = (node: number): number => {
+    let root = node;
+    while (parent[root] !== root) {
+      root = parent[root];
+    }
+    while (parent[node] !== root) {
+      const next = parent[node];
+      parent[node] = root;
+      node = next;
+    }
+    return root;
+  };
+  const union = (a: number, b: number) => {
+    const rootA = find(a);
+    const rootB = find(b);
+    if (rootA !== rootB) {
+      parent[rootB] = rootA;
+    }
+  };
+  for (let i = 0; i < occupying.length; i++) {
+    for (let j = i + 1; j < occupying.length; j++) {
+      const a = occupying[i].event;
+      const b = occupying[j].event;
+      if (instantWindowsOverlap(a.start, a.end, b.start, b.end)) {
+        union(i, j);
+      }
+    }
+  }
+
+  const membersByRoot = new Map<number, number[]>();
+  for (let i = 0; i < occupying.length; i++) {
+    const root = find(i);
+    const list = membersByRoot.get(root);
+    if (list) {
+      list.push(i);
+    } else {
+      membersByRoot.set(root, [i]);
+    }
+  }
+
+  const groups: UserClashGroup[] = [];
+  for (const members of membersByRoot.values()) {
+    if (members.length < 2) {
+      continue;
+    }
+    const group = members.map((index) => occupying[index]);
+    group.sort(
+      (a, b) =>
+        a.event.start.getTime() - b.event.start.getTime() ||
+        a.event.calendarName.localeCompare(b.event.calendarName) ||
+        a.event.title.localeCompare(b.event.title),
+    );
+    const shared = new Set<string>();
+    let first = true;
+    for (const { busy } of group) {
+      if (first) {
+        for (const userId of busy) {
+          shared.add(userId);
+        }
+        first = false;
+      } else {
+        for (const userId of [...shared]) {
+          if (!busy.has(userId)) {
+            shared.delete(userId);
+          }
+        }
+      }
+    }
+    groups.push({
+      events: group.map(({ event }) => event),
+      sharedUserIds: [...shared].sort(),
+    });
+  }
+  groups.sort((a, b) => a.events[0].start.getTime() - b.events[0].start.getTime());
+
+  return { groups };
+}

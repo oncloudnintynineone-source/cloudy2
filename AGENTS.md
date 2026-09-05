@@ -88,8 +88,8 @@ mechanics in the doc.
   - **Break-glass root**: the input has no keyword and matches
     `ADMIN_INITIAL_PASSWORD` (`settings.admin_password_hash`); signed in phone-less
     with no PIN step.
-  `authorize` (`src/lib/auth.ts`) re-checks every credential itself and is the only
-  place a session is issued or a failure audited.
+    `authorize` (`src/lib/auth.ts`) re-checks every credential itself and is the only
+    place a session is issued or a failure audited.
 - Google access goes through `getGoogleIntegration()` (`src/lib/google/index.ts`) —
   never call Google APIs directly; Gmail methods still throw. It loads `./real`
   via a **dynamic `import()`** — keep it that way: a static import drags the
@@ -179,6 +179,17 @@ mechanics in the doc.
   calendar; two events clash when their windows overlap AND they share an occupied
   user. Warnings never block a save.
   Design: [docs/event-clashes.md](docs/event-clashes.md).
+- **Double Booking page (`/double-booking`, bottom nav + sidebar for every role):**
+  an existing-event scan of double-bookings. It reads only the **scanned user's own
+  department calendar** over the next 30 days (every event that occupies a user has a
+  copy there), runs the pure `findUserClashGroups` (`src/lib/events/clashes.ts`) — an
+  event matters when it occupies the user; each connected component of the
+  pairwise-overlap graph among occupying events is one report — and lists the overlap
+  groups (shared people chips via `src/components/clashUi.tsx`, amber cards, "External"
+  badges). The read-only `checkUserClashes` action (`clashActions.ts`) lets **admins
+  scan any active roster user** (a `NoKeyboardSelect` target picker); regular users may
+  only scan themselves. Advisory: never writes or audits.
+  Design: [docs/user-clashes.md](docs/user-clashes.md).
 - **KAH constraints are notify-only.** After every successful create/update (never
   delete), `dispatchKahBreachCheck()` (`src/lib/kah/notify.ts`) runs inside `after()` —
   best-effort, it can never fail or delay the mutation.
@@ -199,7 +210,7 @@ mechanics in the doc.
   that waits on the network just holds the Android splash up; and a SW cannot read
   the `Cookie` request header to resolve the remembered page: it is appended after
   interception). The document route serves a cached copy at **any age**; staleness
-  is fixed *after* paint by `useStaleDocumentReconcile`, which is the one
+  is fixed _after_ paint by `useStaleDocumentReconcile`, which is the one
   `router.refresh()` site that must **not** invalidate the document cache (it
   clears RSC only via `invalidateRscPathCaches`) — every other site invalidates
   the current pathname first via `invalidateCurrentPathCaches()`.
@@ -243,12 +254,11 @@ mechanics in the doc.
 - **Mobile-first; desktop layout at `lg` (pinned to 640px — unfolded-foldable
   width; sidebar auto-collapses to the icon rail until 800px).** Detect the
   breakpoint in client components with
-  `useMediaQuery(\`(min-width: ${theme.breakpoints.lg})\`)` — do
-  **not** append px (it's an em string; appending makes an invalid query that always
-  returns false). Pure-CSS switches go under `@media (min-width: 40em)` in
-  `globals.css`. **Very small phones (≤ 360px) get a compact tier** via the shared
-  `NARROW_MEDIA_QUERY` constant (`src/lib/theme.ts`) + `useMediaQuery` `isNarrow`:
-  it's a JS-only query (not a Mantine breakpoint, so it can't collide with `xs:`/`lg:`
+  `useMediaQuery(\`(min-width: ${theme.breakpoints.lg})\`)`— do
+**not** append px (it's an em string; appending makes an invalid query that always
+returns false). Pure-CSS switches go under`@media (min-width: 40em)`in`globals.css`. **Very small phones (≤ 360px) get a compact tier** via the shared
+`NARROW_MEDIA_QUERY` constant (`src/lib/theme.ts`) + `useMediaQuery` `isNarrow`:
+it's a JS-only query (not a Mantine breakpoint, so it can't collide with `xs:`/`lg:`
   min-width props) used to tighten the header gutters, drop the bottom nav to
   icon-only, and step shared modals down one size (the pinned-events ticker keeps
   rotating — the logo it replaced is gone, so it fits). Design:
@@ -288,8 +298,8 @@ mechanics in the doc.
   in-app). **Audit Log:** URL-param filters, keyset pagination, CSV export; **rotation is
   on-read** + a manual delete button, no cron. Never call `listAuditLogs`-adjacent
   helpers with a live DB in tests — the pure parts are unit-tested. Payloads are flat
-  + human-readable (display names, UTC+8 wall clock, rendered title) — keep new
-  payloads that way. Design: [docs/audit-log.md](docs/audit-log.md).
+  - human-readable (display names, UTC+8 wall clock, rendered title) — keep new
+    payloads that way. Design: [docs/audit-log.md](docs/audit-log.md).
 - **Event webhooks** notify external systems after every successful create/update/
   delete: fire-and-forget POST via `after()` — never delays/fails the mutation, no
   retry queue; dispatch only after the mutation's `logAction`; payloads come from the
@@ -305,7 +315,7 @@ mechanics in the doc.
   header) for the busy moments a
   skeleton can't cover — post-mutation `router.refresh()` (use the
   `useActivityRefresh` hook, never a raw `invalidateCurrentPathCaches().then(…
-  router.refresh())`), same-shell tab flips, and in-page transitions. Report a
+router.refresh())`), same-shell tab flips, and in-page transitions. Report a
   transition's `isPending` via `useReportActivity`; route `<Link>` nav is wired
   automatically through `PendingDim`. Immediate show + min hold (150ms),
   hidden in immersive mode. Design:

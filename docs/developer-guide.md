@@ -22,16 +22,16 @@ and the migration workflow. Subsystem design lives in the deep-dive docs indexed
 
 ## 1.1 Tech stack
 
-| Layer | Choice |
-| ----- | ------ |
-| Framework | Next.js 16 (App Router, Turbopack) + TypeScript |
-| UI | Mantine v9 (mobile-first; desktop layout at `lg` = 640px) |
-| Hosting | Vercel (`main` → production, `dev` → preview) + Cloud Run shadow (`main`-only) — see §1.9 |
-| Database | Neon Postgres + Drizzle ORM |
-| Auth | NextAuth v4 (Credentials provider, JWT sessions) |
-| Google | Service account: Calendar v3 + Gmail v1 (real client when configured, no-op stub otherwise) |
-| PWA | Serwist service worker (offline + instant open) |
-| Tests | Vitest (unit only, node environment) |
+| Layer     | Choice                                                                                      |
+| --------- | ------------------------------------------------------------------------------------------- |
+| Framework | Next.js 16 (App Router, Turbopack) + TypeScript                                             |
+| UI        | Mantine v9 (mobile-first; desktop layout at `lg` = 640px)                                   |
+| Hosting   | Vercel (`main` → production, `dev` → preview) + Cloud Run shadow (`main`-only) — see §1.9   |
+| Database  | Neon Postgres + Drizzle ORM                                                                 |
+| Auth      | NextAuth v4 (Credentials provider, JWT sessions)                                            |
+| Google    | Service account: Calendar v3 + Gmail v1 (real client when configured, no-op stub otherwise) |
+| PWA       | Serwist service worker (offline + instant open)                                             |
+| Tests     | Vitest (unit only, node environment)                                                        |
 
 ## 1.2 Getting started
 
@@ -55,39 +55,39 @@ calendar views render empty and event mutations refuse with a clear message
 
 ## 1.3 Scripts
 
-| Command            | Description                                          | Needs DB |
-| ------------------ | ---------------------------------------------------- | -------- |
-| `pnpm dev`         | Start the dev server (Turbopack)                     | no       |
-| `pnpm build`       | Production build                                     | no       |
-| `pnpm lint`        | ESLint (flat config)                                 | no       |
-| `pnpm typecheck`   | TypeScript check (`tsc --noEmit`)                    | no       |
-| `pnpm test`        | Vitest (run once)                                    | no       |
-| `pnpm test:watch`  | Vitest in watch mode                                 | no       |
-| `pnpm db:generate` | Generate Drizzle migrations from the schema (offline) | no      |
-| `pnpm db:migrate`  | Apply generated `drizzle/*.sql` migrations           | yes      |
-| `pnpm db:push`     | Push the schema directly — dev convenience only      | yes      |
-| `pnpm db:seed`     | Dev seed: default user login keyword (reads `.env.local` itself) | yes |
+| Command            | Description                                                      | Needs DB |
+| ------------------ | ---------------------------------------------------------------- | -------- |
+| `pnpm dev`         | Start the dev server (Turbopack)                                 | no       |
+| `pnpm build`       | Production build                                                 | no       |
+| `pnpm lint`        | ESLint (flat config)                                             | no       |
+| `pnpm typecheck`   | TypeScript check (`tsc --noEmit`)                                | no       |
+| `pnpm test`        | Vitest (run once)                                                | no       |
+| `pnpm test:watch`  | Vitest in watch mode                                             | no       |
+| `pnpm db:generate` | Generate Drizzle migrations from the schema (offline)            | no       |
+| `pnpm db:migrate`  | Apply generated `drizzle/*.sql` migrations                       | yes      |
+| `pnpm db:push`     | Push the schema directly — dev convenience only                  | yes      |
+| `pnpm db:seed`     | Dev seed: default user login keyword (reads `.env.local` itself) | yes      |
 
 Run a single test: `pnpm vitest run src/lib/login.test.ts` (or `pnpm test -- <file>`).
 
 ## 1.4 Environment variables
 
-The canonical list is [`.env.example`](../.env.example). Values marked *bootstrap*
+The canonical list is [`.env.example`](../.env.example). Values marked _bootstrap_
 seed defaults on first run; admins manage them in-app afterwards (Settings).
 
-| Variable | Purpose |
-| -------- | ------- |
-| `DATABASE_URL` | Neon Postgres connection string |
-| `NEXTAUTH_SECRET` | Session signing secret (`openssl rand -base64 32`) |
-| `NEXTAUTH_URL` | App URL for local dev (`http://localhost:3000`). **Leave unset on Vercel** — an empty value breaks prerender; NextAuth falls back to `VERCEL_URL` |
-| `GOOGLE_SERVICE_ACCOUNT_BASE64` | Base64-encoded GCP service-account JSON key (one env var keeps Vercel secret management simple) |
-| `GOOGLE_CLIENT_EMAIL` | Fallback: individual service-account email (used only when the base64 var is empty) |
-| `GOOGLE_PRIVATE_KEY` | Fallback: individual private key (`\n` escapes are unescaped automatically) |
-| `GOOGLE_DELEGATE_EMAIL` | Workspace account impersonated for Gmail send (KAH breach emails) and granted owner ACLs on department calendars. Leave empty when using `SMTP_URL` instead |
-| `SMTP_URL` | SMTP fallback for breach emails, e.g. a personal Gmail app password (`smtp://user:pass@smtp.gmail.com:465`; URL-encode special characters, `smtps:`/465 = implicit TLS) |
-| `EMAIL_FROM` | Optional From override (defaults to the SMTP username) |
-| `ADMIN_INITIAL_PASSWORD` | Emergency (break-glass) root password. Bcrypt-hashed into `settings.admin_password_hash` on first login and reconciled on every login, so changing the env var + redeploying rotates it. Sign in on the Admin surface with the phone field left blank |
-| `ADMIN_PIN` | Shared sign-in PIN for every `role='admin'` user (named admins sign in with their phone + this PIN). Bcrypt-hashed into `settings.admin_pin_hash` on first login and reconciled on every login like `ADMIN_INITIAL_PASSWORD`; no in-app way to set or change it |
+| Variable                        | Purpose                                                                                                                                                                                                                                                         |
+| ------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `DATABASE_URL`                  | Neon Postgres connection string                                                                                                                                                                                                                                 |
+| `NEXTAUTH_SECRET`               | Session signing secret (`openssl rand -base64 32`)                                                                                                                                                                                                              |
+| `NEXTAUTH_URL`                  | App URL for local dev (`http://localhost:3000`). **Leave unset on Vercel** — an empty value breaks prerender; NextAuth falls back to `VERCEL_URL`                                                                                                               |
+| `GOOGLE_SERVICE_ACCOUNT_BASE64` | Base64-encoded GCP service-account JSON key (one env var keeps Vercel secret management simple)                                                                                                                                                                 |
+| `GOOGLE_CLIENT_EMAIL`           | Fallback: individual service-account email (used only when the base64 var is empty)                                                                                                                                                                             |
+| `GOOGLE_PRIVATE_KEY`            | Fallback: individual private key (`\n` escapes are unescaped automatically)                                                                                                                                                                                     |
+| `GOOGLE_DELEGATE_EMAIL`         | Workspace account impersonated for Gmail send (KAH breach emails) and granted owner ACLs on department calendars. Leave empty when using `SMTP_URL` instead                                                                                                     |
+| `SMTP_URL`                      | SMTP fallback for breach emails, e.g. a personal Gmail app password (`smtp://user:pass@smtp.gmail.com:465`; URL-encode special characters, `smtps:`/465 = implicit TLS)                                                                                         |
+| `EMAIL_FROM`                    | Optional From override (defaults to the SMTP username)                                                                                                                                                                                                          |
+| `ADMIN_INITIAL_PASSWORD`        | Emergency (break-glass) root password. Bcrypt-hashed into `settings.admin_password_hash` on first login and reconciled on every login, so changing the env var + redeploying rotates it. Sign in on the Admin surface with the phone field left blank           |
+| `ADMIN_PIN`                     | Shared sign-in PIN for every `role='admin'` user (named admins sign in with their phone + this PIN). Bcrypt-hashed into `settings.admin_pin_hash` on first login and reconciled on every login like `ADMIN_INITIAL_PASSWORD`; no in-app way to set or change it |
 
 ## 1.5 Project structure
 
@@ -226,11 +226,11 @@ One codebase, three tiers — `main` is production and only advances by merging 
 hosts (Vercel Production and the Cloud Run shadow) sharing the same data, so either
 can act as the other's fallback during the migration.
 
-| Tier | Host | Deploy trigger | Data / accounts |
-| ---- | ---- | -------------- | --------------- |
-| **Local** | `pnpm dev` on your machine (`.env.local`) | — | your local env (dev Neon + dev Google, per `.env.local`) |
-| **Dev** | Vercel **Preview** (branch `dev`) | Vercel git integration; CI runs quality + `migrate-preview` | isolated dev Neon + dev Google (separate accounts) |
-| **Prod** | Vercel **Production** (branch `main`) + Cloud Run **shadow** `cloudy2` (§1.9.1) | Vercel git integration; CI runs `migrate` → `deploy-cloudrun` | shared prod Neon + prod Google — same commit on both hosts |
+| Tier      | Host                                                                            | Deploy trigger                                                | Data / accounts                                            |
+| --------- | ------------------------------------------------------------------------------- | ------------------------------------------------------------- | ---------------------------------------------------------- |
+| **Local** | `pnpm dev` on your machine (`.env.local`)                                       | —                                                             | your local env (dev Neon + dev Google, per `.env.local`)   |
+| **Dev**   | Vercel **Preview** (branch `dev`)                                               | Vercel git integration; CI runs quality + `migrate-preview`   | isolated dev Neon + dev Google (separate accounts)         |
+| **Prod**  | Vercel **Production** (branch `main`) + Cloud Run **shadow** `cloudy2` (§1.9.1) | Vercel git integration; CI runs `migrate` → `deploy-cloudrun` | shared prod Neon + prod Google — same commit on both hosts |
 
 Vercel auto-builds on every push: `main` → production, `dev` → preview. The two Vercel
 environments are **fully isolated**: every environment variable has separate
@@ -239,17 +239,17 @@ at a dedicated dev Neon project and a dedicated dev Google service account (sepa
 accounts from prod). Dev activity — events, calendars, ACLs, emails — never touches
 prod data.
 
-| Variable | Production | Preview |
-| -------- | ---------- | ------- |
-| `DATABASE_URL` | prod Neon project | dev Neon project (separate Neon account) |
-| `GOOGLE_SERVICE_ACCOUNT_BASE64` | prod service-account key | dev service-account key (separate Google account) |
-| `NEXTAUTH_SECRET` | prod secret | separate dev secret |
-| `ADMIN_INITIAL_PASSWORD` | prod emergency-admin password | dev-only password |
-| `ADMIN_PIN` | prod shared admin PIN | dev-only admin PIN |
-| `SMTP_URL` / `EMAIL_FROM` | prod email transport | test inbox (the dev Google account's own Gmail app password) |
-| `GOOGLE_DELEGATE_EMAIL` | Workspace delegate for Gmail send | unset — dev uses `SMTP_URL` |
-| `ENABLE_EXPERIMENTAL_COREPACK` | `1` | `1` |
-| `NEXTAUTH_URL` | unset | unset |
+| Variable                        | Production                        | Preview                                                      |
+| ------------------------------- | --------------------------------- | ------------------------------------------------------------ |
+| `DATABASE_URL`                  | prod Neon project                 | dev Neon project (separate Neon account)                     |
+| `GOOGLE_SERVICE_ACCOUNT_BASE64` | prod service-account key          | dev service-account key (separate Google account)            |
+| `NEXTAUTH_SECRET`               | prod secret                       | separate dev secret                                          |
+| `ADMIN_INITIAL_PASSWORD`        | prod emergency-admin password     | dev-only password                                            |
+| `ADMIN_PIN`                     | prod shared admin PIN             | dev-only admin PIN                                           |
+| `SMTP_URL` / `EMAIL_FROM`       | prod email transport              | test inbox (the dev Google account's own Gmail app password) |
+| `GOOGLE_DELEGATE_EMAIL`         | Workspace delegate for Gmail send | unset — dev uses `SMTP_URL`                                  |
+| `ENABLE_EXPERIMENTAL_COREPACK`  | `1`                               | `1`                                                          |
+| `NEXTAUTH_URL`                  | unset                             | unset                                                        |
 
 The Cloud Run shadow mirrors the **Production** column of the table above (env vars
 applied by the `deploy-cloudrun` job), with one difference: `NEXTAUTH_URL` **is set**
@@ -262,7 +262,7 @@ Run). See §1.9.1 for the full Cloud Run env/setup details.
   `esbuild`, `sharp`, and `unrs-resolver`.
 - Leave `NEXTAUTH_URL` **unset on Vercel** — Vercel injects `VERCEL_URL` and
   NextAuth falls back to it. An empty value fails the build with `TypeError:
-  Invalid URL` during prerender. On the Cloud Run shadow it **must be set** to the
+Invalid URL` during prerender. On the Cloud Run shadow it **must be set** to the
   service's `*.run.app` URL (§1.9.1) — there is no `VERCEL_URL` fallback there.
 
 > **Warning:** never point a data-copied database (e.g. a Neon branch of prod) at a
@@ -295,7 +295,7 @@ same prod Google service account).
   byte-identical to a Vercel-only setup. There is no `VERCEL_URL` coupling
   anywhere in `src/`.
 - **Container**: multi-stage `Dockerfile` (`node:24-slim`): `pnpm install
-  --frozen-lockfile` (`.npmrc` carries resilient fetch settings; `pnpm-workspace.yaml`
+--frozen-lockfile` (`.npmrc` carries resilient fetch settings; `pnpm-workspace.yaml`
   the `allowBuilds` list) → `pnpm build` → runtime copies the full `node_modules`,
   `.next`, and `public/`, then `next start -H 0.0.0.0 -p 8080`. The full
   `node_modules` copy is deliberate: pnpm's isolated (symlinked) layout makes
@@ -385,32 +385,33 @@ In CI, the schema-drift check runs `pnpm db:generate` then fails on any diff to
 
 ## 1.12 Related docs
 
-| Document | Covers |
-| -------- | ------ |
-| [`user-guide.md`](user-guide.md) | End-user guide: login, calendar views, events, PWA/offline |
-| [`admin-guide.md`](admin-guide.md) | Admin guide: every Settings tab, sharing, KAH, audit log |
-| [`google-integration.md`](google-integration.md) | Google layer contract, real client + stub, error mapping |
-| [`events-cache.md`](events-cache.md) | Google Calendar event caching — design, flows, freshness |
-| [`event-search.md`](event-search.md) | Free-text event search (direct Google `q`, lazy-loaded modal) |
-| [`event-lifecycle.md`](event-lifecycle.md) | Event wizard → Google: notes codec, titles, location policy |
-| [`event-mutations.md`](event-mutations.md) | Create/update/delete: copy reconciliation, rollbacks, audit |
-| [`event-clashes.md`](event-clashes.md) | Pre-submit double-booking warnings on the event wizard |
-| [`roster-sharing.md`](roster-sharing.md) | Users/departments model, hierarchy, calendar ACL sharing, colors |
-| [`kah.md`](kah.md) | KAH groups, breach check, email transports |
-| [`webhooks.md`](webhooks.md) | Event webhooks: payloads, HMAC signatures, fan-out delivery |
-| [`audit-log.md`](audit-log.md) | Audit log: schema, retention, pagination, CSV export |
-| [`pwa-offline.md`](pwa-offline.md) | Service worker: SWR caches, build versioning, offline fallback |
-| [`ui-state.md`](ui-state.md) | The `cloudy2.ui` cookie, launch targeting, pinned tabs |
-| [`loading-transitions.md`](loading-transitions.md) | Skeleton-only loading, fades, optimistic nav chrome |
-| [`desktop-responsive.md`](desktop-responsive.md) | The `lg` breakpoint, sidebar shell, tables/card-grids |
-| [`dashboard-views.md`](dashboard-views.md) | View inventory, filter menus, Week (D) matrix |
-| [`grid-pan.md`](grid-pan.md) | Drag-to-pan + edge buttons for the wide grids |
-| [`immersive-mode.md`](immersive-mode.md) | Fullscreen calendar mode |
-| [`quick-links.md`](quick-links.md) | Admin-managed quick links |
-| [`announcement-banner.md`](announcement-banner.md) | Announcement banner + height-var chain |
-| [`pinned-events.md`](pinned-events.md) | Pinned Events panel + badge refresh |
-| [`user-picker.md`](user-picker.md) | No-keyboard selects + the badge-dialog picker |
-| [`accessibility.md`](accessibility.md) | Skip link, live-region announcements, skeleton a11y |
+| Document                                           | Covers                                                           |
+| -------------------------------------------------- | ---------------------------------------------------------------- |
+| [`user-guide.md`](user-guide.md)                   | End-user guide: login, calendar views, events, PWA/offline       |
+| [`admin-guide.md`](admin-guide.md)                 | Admin guide: every Settings tab, sharing, KAH, audit log         |
+| [`google-integration.md`](google-integration.md)   | Google layer contract, real client + stub, error mapping         |
+| [`events-cache.md`](events-cache.md)               | Google Calendar event caching — design, flows, freshness         |
+| [`event-search.md`](event-search.md)               | Free-text event search (direct Google `q`, lazy-loaded modal)    |
+| [`event-lifecycle.md`](event-lifecycle.md)         | Event wizard → Google: notes codec, titles, location policy      |
+| [`event-mutations.md`](event-mutations.md)         | Create/update/delete: copy reconciliation, rollbacks, audit      |
+| [`event-clashes.md`](event-clashes.md)             | Pre-submit double-booking warnings on the event wizard           |
+| [`user-clashes.md`](user-clashes.md)               | The Double Booking page: existing-event double-booking scan      |
+| [`roster-sharing.md`](roster-sharing.md)           | Users/departments model, hierarchy, calendar ACL sharing, colors |
+| [`kah.md`](kah.md)                                 | KAH groups, breach check, email transports                       |
+| [`webhooks.md`](webhooks.md)                       | Event webhooks: payloads, HMAC signatures, fan-out delivery      |
+| [`audit-log.md`](audit-log.md)                     | Audit log: schema, retention, pagination, CSV export             |
+| [`pwa-offline.md`](pwa-offline.md)                 | Service worker: SWR caches, build versioning, offline fallback   |
+| [`ui-state.md`](ui-state.md)                       | The `cloudy2.ui` cookie, launch targeting, pinned tabs           |
+| [`loading-transitions.md`](loading-transitions.md) | Skeleton-only loading, fades, optimistic nav chrome              |
+| [`desktop-responsive.md`](desktop-responsive.md)   | The `lg` breakpoint, sidebar shell, tables/card-grids            |
+| [`dashboard-views.md`](dashboard-views.md)         | View inventory, filter menus, Week (D) matrix                    |
+| [`grid-pan.md`](grid-pan.md)                       | Drag-to-pan + edge buttons for the wide grids                    |
+| [`immersive-mode.md`](immersive-mode.md)           | Fullscreen calendar mode                                         |
+| [`quick-links.md`](quick-links.md)                 | Admin-managed quick links                                        |
+| [`announcement-banner.md`](announcement-banner.md) | Announcement banner + height-var chain                           |
+| [`pinned-events.md`](pinned-events.md)             | Pinned Events panel + badge refresh                              |
+| [`user-picker.md`](user-picker.md)                 | No-keyboard selects + the badge-dialog picker                    |
+| [`accessibility.md`](accessibility.md)             | Skip link, live-region announcements, skeleton a11y              |
 
 Working documents (not end-user documentation): [`AGENTS.md`](../AGENTS.md) (agent
 rules), [`progress.md`](../progress.md) (status + changelog),

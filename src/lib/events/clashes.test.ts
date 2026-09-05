@@ -4,6 +4,7 @@ import {
   busyUsersOfEvent,
   candidateUsers,
   computeClashes,
+  findUserClashGroups,
   instantWindowsOverlap,
   type ClashCandidateInput,
   type ClashEventInput,
@@ -388,5 +389,237 @@ describe("computeClashes", () => {
       instant("2026-08-17 09:00:00").toISOString(),
       instant("2026-08-17 15:00:00").toISOString(),
     ]);
+  });
+});
+
+describe("findUserClashGroups", () => {
+  const scan = (targetUserId: string, events: ClashEventInput[]) =>
+    findUserClashGroups({ targetUserId, events, activeUsers: rosterUsers() });
+
+  it("returns no groups when nothing occupies the target or nothing overlaps", () => {
+    const result = scan("u1", [
+      makeEvent({
+        start: instant("2026-08-17 09:00:00"),
+        end: instant("2026-08-17 10:00:00"),
+        people: { creatorId: "u2", userIds: [], departmentIds: [] },
+      }),
+    ]);
+    expect(result.groups).toEqual([]);
+  });
+
+  it("flags two overlapping events that both occupy the target", () => {
+    const result = scan("u1", [
+      makeEvent({
+        googleEventId: "g-1",
+        start: instant("2026-08-17 09:00:00"),
+        end: instant("2026-08-17 10:00:00"),
+        people: { creatorId: "u1", userIds: [], departmentIds: [] },
+      }),
+      makeEvent({
+        googleEventId: "g-2",
+        start: instant("2026-08-17 09:30:00"),
+        end: instant("2026-08-17 10:30:00"),
+        people: { creatorId: "u2", userIds: [], departmentIds: ["cal-1"] },
+      }),
+    ]);
+    expect(result.groups).toHaveLength(1);
+    expect(result.groups[0].events.map((e) => e.googleEventId)).toEqual(["g-1", "g-2"]);
+    expect(result.groups[0].sharedUserIds).toEqual(["u1"]);
+  });
+
+  it("a tagged user in another department double-books the target", () => {
+    const result = scan("u1", [
+      makeEvent({
+        googleEventId: "g-1",
+        start: instant("2026-08-17 09:00:00"),
+        end: instant("2026-08-17 10:00:00"),
+        people: { creatorId: "u1", userIds: [], departmentIds: [] },
+      }),
+      makeEvent({
+        calendarId: "cal-2",
+        calendarName: "HQ",
+        googleEventId: "g-2",
+        start: instant("2026-08-17 09:00:00"),
+        end: instant("2026-08-17 10:00:00"),
+        people: { creatorId: "u3", userIds: ["u1"], departmentIds: [] },
+      }),
+    ]);
+    expect(result.groups).toHaveLength(1);
+    expect(result.groups[0].sharedUserIds).toEqual(["u1"]);
+  });
+
+  it("external events on the target's calendar count towards occupancy", () => {
+    const result = scan("u1", [
+      makeEvent({
+        googleEventId: "g-1",
+        start: instant("2026-08-17 09:00:00"),
+        end: instant("2026-08-17 10:00:00"),
+        people: { creatorId: "u1", userIds: [], departmentIds: [] },
+      }),
+      makeEvent({
+        googleEventId: "g-ext",
+        external: true,
+        start: instant("2026-08-17 09:30:00"),
+        end: instant("2026-08-17 10:30:00"),
+        people: { creatorId: null, userIds: [], departmentIds: [] },
+      }),
+    ]);
+    expect(result.groups).toHaveLength(1);
+    expect(result.groups[0].sharedUserIds).toEqual(["u1"]);
+  });
+
+  it("ignores an overlapping event that does not occupy the target", () => {
+    const result = scan("u1", [
+      makeEvent({
+        googleEventId: "g-1",
+        start: instant("2026-08-17 09:00:00"),
+        end: instant("2026-08-17 10:00:00"),
+        people: { creatorId: "u1", userIds: [], departmentIds: [] },
+      }),
+      makeEvent({
+        googleEventId: "g-other",
+        start: instant("2026-08-17 09:00:00"),
+        end: instant("2026-08-17 10:00:00"),
+        people: { creatorId: "u2", userIds: [], departmentIds: [] },
+      }),
+    ]);
+    expect(result.groups).toEqual([]);
+  });
+
+  it("keeps two separate clash episodes as two groups in order", () => {
+    const result = scan("u1", [
+      makeEvent({
+        googleEventId: "g-am2",
+        start: instant("2026-08-17 09:30:00"),
+        end: instant("2026-08-17 10:30:00"),
+        people: { creatorId: "u1", userIds: [], departmentIds: [] },
+      }),
+      makeEvent({
+        googleEventId: "g-am1",
+        start: instant("2026-08-17 09:00:00"),
+        end: instant("2026-08-17 10:00:00"),
+        people: { creatorId: "u2", userIds: [], departmentIds: ["cal-1"] },
+      }),
+      makeEvent({
+        googleEventId: "g-pm1",
+        start: instant("2026-08-17 15:00:00"),
+        end: instant("2026-08-17 16:00:00"),
+        people: { creatorId: "u1", userIds: [], departmentIds: [] },
+      }),
+      makeEvent({
+        googleEventId: "g-pm2",
+        start: instant("2026-08-17 15:30:00"),
+        end: instant("2026-08-17 16:30:00"),
+        people: { creatorId: "u1", userIds: [], departmentIds: [] },
+      }),
+    ]);
+    expect(result.groups).toHaveLength(2);
+    expect(result.groups[0].events[0].googleEventId).toBe("g-am1");
+    expect(result.groups[1].events[0].googleEventId).toBe("g-pm1");
+  });
+
+  it("groups an overlap chain A-B-C as one episode", () => {
+    const result = scan("u1", [
+      makeEvent({
+        googleEventId: "g-a",
+        start: instant("2026-08-17 09:00:00"),
+        end: instant("2026-08-17 10:00:00"),
+        people: { creatorId: "u1", userIds: [], departmentIds: [] },
+      }),
+      makeEvent({
+        googleEventId: "g-b",
+        start: instant("2026-08-17 09:30:00"),
+        end: instant("2026-08-17 11:00:00"),
+        people: { creatorId: "u1", userIds: [], departmentIds: [] },
+      }),
+      makeEvent({
+        googleEventId: "g-c",
+        start: instant("2026-08-17 10:30:00"),
+        end: instant("2026-08-17 12:00:00"),
+        people: { creatorId: "u1", userIds: [], departmentIds: [] },
+      }),
+    ]);
+    expect(result.groups).toHaveLength(1);
+    expect(result.groups[0].events.map((e) => e.googleEventId)).toEqual(["g-a", "g-b", "g-c"]);
+    expect(result.groups[0].sharedUserIds).toEqual(["u1"]);
+  });
+
+  it("back-to-back occupying events do not clash", () => {
+    const result = scan("u1", [
+      makeEvent({
+        googleEventId: "g-1",
+        start: instant("2026-08-17 09:00:00"),
+        end: instant("2026-08-17 10:00:00"),
+        people: { creatorId: "u1", userIds: [], departmentIds: [] },
+      }),
+      makeEvent({
+        googleEventId: "g-2",
+        start: instant("2026-08-17 10:00:00"),
+        end: instant("2026-08-17 11:00:00"),
+        people: { creatorId: "u1", userIds: [], departmentIds: [] },
+      }),
+    ]);
+    expect(result.groups).toEqual([]);
+  });
+
+  it("collapses logical copies of the same event before grouping", () => {
+    const result = scan("u1", [
+      makeEvent({
+        calendarId: "cal-1",
+        calendarName: "Ops",
+        eventId: "grp-1",
+        googleEventId: "g-a",
+        start: instant("2026-08-17 09:00:00"),
+        end: instant("2026-08-17 10:00:00"),
+        people: { creatorId: "u1", userIds: [], departmentIds: ["cal-2"] },
+      }),
+      makeEvent({
+        calendarId: "cal-2",
+        calendarName: "HQ",
+        eventId: "grp-1",
+        googleEventId: "g-b",
+        start: instant("2026-08-17 09:00:00"),
+        end: instant("2026-08-17 10:00:00"),
+        people: { creatorId: "u1", userIds: [], departmentIds: ["cal-2"] },
+      }),
+      makeEvent({
+        googleEventId: "g-2",
+        start: instant("2026-08-17 09:30:00"),
+        end: instant("2026-08-17 10:30:00"),
+        people: { creatorId: "u2", userIds: [], departmentIds: ["cal-1"] },
+      }),
+    ]);
+    expect(result.groups).toHaveLength(1);
+    expect(result.groups[0].events.map((e) => e.googleEventId)).toEqual(["g-a", "g-2"]);
+    expect(result.groups[0].sharedUserIds).toEqual(["u1"]);
+  });
+
+  it("returns nothing when the target is not on the active roster", () => {
+    const result = scan("ghost", [
+      makeEvent({
+        start: instant("2026-08-17 09:00:00"),
+        end: instant("2026-08-17 10:00:00"),
+        people: { creatorId: "ghost", userIds: [], departmentIds: [] },
+      }),
+    ]);
+    expect(result.groups).toEqual([]);
+  });
+
+  it("shared users are those occupied by every event in the group", () => {
+    const result = scan("u1", [
+      makeEvent({
+        googleEventId: "g-1",
+        start: instant("2026-08-17 09:00:00"),
+        end: instant("2026-08-17 10:00:00"),
+        people: { creatorId: "u1", userIds: ["u2"], departmentIds: [] },
+      }),
+      makeEvent({
+        googleEventId: "g-2",
+        start: instant("2026-08-17 09:30:00"),
+        end: instant("2026-08-17 10:30:00"),
+        people: { creatorId: "u1", userIds: ["u2"], departmentIds: [] },
+      }),
+    ]);
+    expect(result.groups[0].sharedUserIds).toEqual(["u1", "u2"]);
   });
 });

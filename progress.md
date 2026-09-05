@@ -27,34 +27,36 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
   Calendars with service-account ACL sharing; audit logging; event CRUD across department
   calendars with cross-department copies, invitees, templates, time options and location
   policy, with outbound webhooks to any number of admin-registered external endpoints on
-  create/update/delete and pre-submit event clash warnings on the wizard's review step; dashboard Month/Mobile-month/Schedule-Day/Week/Week-v2-matrix/Agenda views over
-   a layered calendar cache; parade-state page with local attendance mode; contacts page;
-   PWA installability with offline & instant open (SWR document + RSC, precached offline.html);
+  create/update/delete and pre-submit event clash warnings on the wizard's review step;
+  a Double Booking page that scans an existing schedule for double-bookings over the next
+  30 days; dashboard Month/Mobile-month/Schedule-Day/Week/Week-v2-matrix/Agenda views over
+  a layered calendar cache; parade-state page with local attendance mode; contacts page;
+  PWA installability with offline & instant open (SWR document + RSC, precached offline.html);
   mobile-first UI with a desktop layout at `lg`; remembered UI state across relaunch;
-   audit-log viewer with retention + CSV export; admin-managed quick-links menu
-   launched from an amber `IconLink` FAB (mobile) / nav-row chip (desktop) on the
-    Calendar page; user-facing KAH Status page (read-only breach history &
-    forecast over a ±3-month window: resolved/active/upcoming breach periods,
-    member's own groups; admins: all).
+  audit-log viewer with retention + CSV export; admin-managed quick-links menu
+  launched from an amber `IconLink` FAB (mobile) / nav-row chip (desktop) on the
+  Calendar page; user-facing KAH Status page (read-only breach history &
+  forecast over a ±3-month window: resolved/active/upcoming breach periods,
+  member's own groups; admins: all).
 - Google integration is real for Calendar and Gmail-send once configured (service
   account + domain-wide delegation).
 
 ## 1.2 Decisions locked in (Phase 0)
 
-| Topic              | Decision                                                                                       |
-| ------------------ | ---------------------------------------------------------------------------------------------- |
-| Architecture       | Single Next.js 16 (App Router) app — no monorepo                                               |
-| UI                 | Mantine v9                                                                                     |
-| Database           | Neon Postgres + Drizzle ORM                                                                    |
-| Auth               | NextAuth v4, Credentials provider, **JWT sessions**                                            |
-| Login UX           | Single clean field: `[phone][keyword]`; admin-role users get a shared-PIN modal; phone-less env root |
-| Google integration | GCP service account (Calendar v3 + Gmail v1); domain-wide delegation                           |
-| GCal notes         | JSON block stored on events                                                                    |
-| Calendars          | Department-level calendars; `calendars` table is the department registry (kind = `department`) |
-| Parade states      | `parade_states` lookup table (code/label/description)                                          |
+| Topic              | Decision                                                                                                         |
+| ------------------ | ---------------------------------------------------------------------------------------------------------------- |
+| Architecture       | Single Next.js 16 (App Router) app — no monorepo                                                                 |
+| UI                 | Mantine v9                                                                                                       |
+| Database           | Neon Postgres + Drizzle ORM                                                                                      |
+| Auth               | NextAuth v4, Credentials provider, **JWT sessions**                                                              |
+| Login UX           | Single clean field: `[phone][keyword]`; admin-role users get a shared-PIN modal; phone-less env root             |
+| Google integration | GCP service account (Calendar v3 + Gmail v1); domain-wide delegation                                             |
+| GCal notes         | JSON block stored on events                                                                                      |
+| Calendars          | Department-level calendars; `calendars` table is the department registry (kind = `department`)                   |
+| Parade states      | `parade_states` lookup table (code/label/description)                                                            |
 | Settings           | Single-row `settings` table (admin password hash + admin PIN hash, keyword, KAH default % + notification emails) |
-| User→dept          | One department per user: `users.department_id` → `calendars.id` (nullable, ON DELETE SET NULL) |
-| PWA / monorepo     | Deferred / not used                                                                            |
+| User→dept          | One department per user: `users.department_id` → `calendars.id` (nullable, ON DELETE SET NULL)                   |
+| PWA / monorepo     | Deferred / not used                                                                                              |
 
 ## 1.3 Phase changelog
 
@@ -86,7 +88,7 @@ One line per phase; full write-ups (incl. Mermaid diagrams and verification note
 - 1.26 Git history snapshot (early commits only)
 - 1.27 Event time options + live title preview (Phase 2r)
 - 1.28 Calendar user filter (Phase 2s)
-- 1.28 Admin events on behalf of another user (Phase 2s) *(duplicate number)*
+- 1.28 Admin events on behalf of another user (Phase 2s) _(duplicate number)_
 - 1.29 Admin-id UUID guard fix
 - 1.30 Empty event title handling (Phase 2t)
 - 1.31 Google Calendar "Edit in app" deep link (Phase 2u)
@@ -128,7 +130,7 @@ One line per phase; full write-ups (incl. Mermaid diagrams and verification note
 - 1.67 Filter quick actions in the 3-dot menus (Phase 3aa)
 - 1.68 Event location polarity fix (bugfix)
 - 1.69 Remembered UI state across relaunch (Phase 3ab)
-- 1.71 User filter narrows the resource rows (bugfix) *(no 1.70)*
+- 1.71 User filter narrows the resource rows (bugfix) _(no 1.70)_
 - 1.72 Pinned dashboard view tabs (Phase 3ac)
 - 1.73 Legible audit log details (Phase 3ad)
 - 1.74 Week v2 event chips + dark-mode tab indicator (Phase 3ae)
@@ -212,8 +214,8 @@ One line per phase; full write-ups (incl. Mermaid diagrams and verification note
 - 1.150 Timeline zoom re-anchoring: zooming the Day/Week (H) grids now keeps the time at the viewport's center centered instead of leaving `scrollLeft` in px — a `useLayoutEffect` (declared before the ruler measurement effect) derives the old slot width from the new width × zoom ratio and re-anchors via the pure, unit-tested `reanchorScrollLeft` (which subtracts the zoom-invariant label column before scaling) (`docs/dashboard-views.md` §1.6)
 - 1.151 Cold-open splash fix: the protected layout no longer awaits the announcement-banner / KAH-group DB reads before rendering the AppShell — both stream via Suspense (`ShellBanner` / `ShellKahNav` + the `ShellChromeContext` in `src/components/ShellChrome.tsx`), so a Neon scale-to-zero cold start can't hold up first paint (the Android PWA splash no longer sits 10s+ on cache-miss opens; the shell + route skeleton paint immediately and the banner/KAH nav stream in). The banner slot reserves its 25px while pending (`BannerPlaceholder`) and collapses when the read resolves null; manifest splash `background_color` → brand navy (`docs/announcement-banner.md` §1.1/§1.3)
 - 1.152 Android PWA splash, take two — 1.151 streamed the layout correctly but missed the bottleneck: first byte was blocked by **module load**, not the DB. `getGoogleIntegration()` now loads `./real` through a dynamic `import()`, moving the ~200 MB `googleapis` package (~1.4s to `require`) out of `/dashboard`'s eager chunk graph (A/B-verified on a Turbopack build: a 12.3 MB chunk, `EAGER-FOR-DASHBOARD` True → False). The SW now answers the start URL `/` from the **precache unconditionally** — `public/loading.html` paints the branded shell (Chrome lifts the splash on first non-empty paint), then resolves the remembered page from the client-owned `cloudy2.ui` cookie and redirects behind a double `requestAnimationFrame`, so a launch costs no server round trip for `/` at all. Replaces the saved-view/threshold launch rule, which was inert after every deploy (page caches are wiped on activate) and ended on stale data after three round trips (`docs/pwa-offline.md` §1.5.1, `docs/google-integration.md` §1.6)
-- 1.153 Document navigations are now routed by cache age instead of always stale-while-revalidate: a metadata-only peek at the stored entry's `Date` feeds pure `isDocumentFresh` — under `DOCUMENT_FRESH_WINDOW_MS` (5 min) → `StaleWhileRevalidate` (instant + background revalidate), otherwise → `NetworkFirst` (fresh content; cache fallback only when the network *fails*, so offline is unchanged, and `handlerDidError` still reaches the offline fallback). No `networkTimeoutSeconds` on purpose — on a cold function + Neon the fresh response outlives any sane timeout, so one would hand back stale data in exactly the case the rule exists for. Both strategies share one plugins array (ExpirationPlugin keys its CacheExpiration by cacheName, so a second instance would double-manage the cache). Completes the launch story: shell paints → redirect → fresh content behind the still-painted skeleton, no stale flash (`docs/pwa-offline.md` §1.5)
-- 1.154 Reversed the §1.151 banner-reservation decision: the shell **no longer reserves** the announcement-banner's 25px while its streamed read is pending (`AppShellShell.bannerActive` defaults `false`; `BannerPlaceholder` renders nothing). The header is the bare 56px bar from first paint, so a cold start is launch-shell 56px → app skeleton 56px → no jump when the banner resolves null (previously a double 56→81→56 shift). Trade-off, deliberately chosen: a *configured* banner now shifts the header downward when it resolves present, on cold and warm loads alike (`docs/announcement-banner.md` §1.3.1)
+- 1.153 Document navigations are now routed by cache age instead of always stale-while-revalidate: a metadata-only peek at the stored entry's `Date` feeds pure `isDocumentFresh` — under `DOCUMENT_FRESH_WINDOW_MS` (5 min) → `StaleWhileRevalidate` (instant + background revalidate), otherwise → `NetworkFirst` (fresh content; cache fallback only when the network _fails_, so offline is unchanged, and `handlerDidError` still reaches the offline fallback). No `networkTimeoutSeconds` on purpose — on a cold function + Neon the fresh response outlives any sane timeout, so one would hand back stale data in exactly the case the rule exists for. Both strategies share one plugins array (ExpirationPlugin keys its CacheExpiration by cacheName, so a second instance would double-manage the cache). Completes the launch story: shell paints → redirect → fresh content behind the still-painted skeleton, no stale flash (`docs/pwa-offline.md` §1.5)
+- 1.154 Reversed the §1.151 banner-reservation decision: the shell **no longer reserves** the announcement-banner's 25px while its streamed read is pending (`AppShellShell.bannerActive` defaults `false`; `BannerPlaceholder` renders nothing). The header is the bare 56px bar from first paint, so a cold start is launch-shell 56px → app skeleton 56px → no jump when the banner resolves null (previously a double 56→81→56 shift). Trade-off, deliberately chosen: a _configured_ banner now shifts the header downward when it resolves present, on cold and warm loads alike (`docs/announcement-banner.md` §1.3.1)
 - 1.155 Single-skeleton launch: the double-skeleton reported on PWA launches (§1.152's dark generic launch shell → §1.153's network-first handoff → streamed `loading.tsx` skeleton → data) is fixed two ways — `public/loading.html` now **pixel-matches the app's route skeleton** (all five view variants selected from the remembered `dashboard.view`, Mantine v9 exact palette + pulse for light/dark/auto incl. the `mantine-color-scheme-value` override, brand-bar header + bottom-nav placeholders; cell geometry mirrors `calendarSkeleton.tsx`), so the shell→`loading.tsx` handoff reads as one continuous skeleton; and `handleLaunchRequest` gained a **fresh-document shortcut** — `launchTargetFromCookieHeader` (pure, in `swRules`) resolves the remembered page from the request's `Cookie` header and a still-fresh (≤5 min) cached doc for it 302s straight to the target, so warm launches paint the full grid with **no skeleton at all** (`docs/pwa-offline.md` §1.5.1, `docs/loading-transitions.md` §1.4)
 - 1.156 Per-view dashboard filters + one-button filter UI: the ⋮ kebab loses its Filters section (Today/Select date/Pin tab/Force refresh only) and a dedicated `FilterButton` (icon + active-count badge) opens the filter modal, which keeps Calendars + Users prominent and tucks Event Types behind a Show/Hide disclosure; a "Filter scope" control in the modal footer switches between **Same for all views** (default) and **Different per view** — per-view mode remembers each of Month/Week H/Week D/Day/Agenda its own Cal/Users/Types set in `dashboard.filterMode` + `dashboard.views` (explicit empty lists kept as "cleared"), resolved by the pure `resolveDashboardFilters` (URL → per-view → shared → role default; `_fresh` skips only the current view; `filterMode`/other views read from the raw cookie like pins), `switchView` writes the target view's filters into the URL in per-view mode, and stale ids are validated in the page before resolution (Phase 3b10; `docs/ui-state.md` §1.5.1, `docs/dashboard-views.md` §1.2)
 - 1.157 Reset/Clear reverted by the stale `_fresh` strip: the filter dialog's Reset (and parade Clear) "did nothing" in per-view mode because the self-terminating `_fresh` strip was a plain `router.push` back to the bare URL — the client-router/SW RSC cache (`staleTimes.dynamic: 120`) replayed the pre-clear snapshot, reverting the cleared filters and letting `usePersistUiState` re-seed the just-cleared memory. Both `_fresh` strips now mirror the `?refresh=` strip (`router.replace + router.refresh()`), re-serving the bare URL from the server (bugfix; `docs/ui-state.md` §1.9, `docs/loading-transitions.md` §1.7)
@@ -226,12 +228,12 @@ One line per phase; full write-ups (incl. Mermaid diagrams and verification note
 - 1.164 Event type groups: admin-defined display categories (`event_type_groups` + nullable `event_types.group_id` FK `ON DELETE SET NULL`, migration 0031) — the wizard's type step renders one labeled section per group in the admin's `sort_order` (types alphabetical, empty groups skipped, ungrouped types in a trailing "Ungrouped" section), groups are managed in Settings → Event Types' "Manage groups" dialog (create / inline rename / delete with ungroup-count confirm / up-down reorder with rank re-gap-closing), and the event type form gains a Group `NoKeyboardSelect` + the type table a Group column/badge; sections come from pure, unit-tested `buildEventTypePickerSections`, group actions audit as `eventTypeGroup.*` — presentation-only, notes/targets/KAH/colors untouched (`docs/event-lifecycle.md` §1.10)
 - 1.165 PWA-standalone desktop footer-offset bugfix: the iOS/Android viewport-sync effect measured the collapsed (desktop) bottom nav — still 56px tall, only translated off-screen — and wrote `--app-shell-footer-offset: 56px` **inline on the shell root**, where it beats Mantine's `:root { …: 0px !important }` for every descendant (custom-property cascade is per element); the installed-PWA navbar therefore stopped 56px above the viewport bottom and Main gained 56px of phantom bottom padding that read as huge FAB clearance at desktop widths (surfaced on foldables by the 800px breakpoint). The sync now skips the write (and removes any stale value) while `isDesktop`; browser-mode layouts were never affected (`docs/desktop-responsive.md` §1.2)
 - 1.166 Foldable desktop tier: the desktop breakpoint drops 800px → **640px (40em)** so unfolded foldables' inner screens (Galaxy Z Fold ≈653px, Pixel Fold ≈640px) get the shell instead of the mobile single column — `theme.ts` `md`/`lg` + `DESKTOP_MEDIA_QUERY`, `globals.css`'s `@media (min-width: 40em)` block, `postcss.config.cjs`, and `public/loading.html` moved together; a new JS-only `DESKTOP_WIDE_MEDIA_QUERY` (50em) drives one-shot **auto-collapse to the 64px icon rail** when entering the 640–799px band (manual expand inside the band survives until the next entry, ≥800px keeps the remembered cookie state); the 36em card-grid early tier is now vestigial but kept as harmless insurance; note `lg` (40em) sits below `sm` (48em) — prefer `lg:` props, don't mix `sm:`/`md:` in one responsive prop (`docs/desktop-responsive.md` §1.1/§1.2, `AGENTS.md`)
-- 1.167 PWA launch regression fixed — the Android splash was back to sitting through the whole cold boot, because the launch burst (§1.152–§1.155) had two defects: the document route's **cache-age rule** (§1.153) sent any copy older than 5 min to `NetworkFirst` (the common case for an app reopened after a coffee break), and §1.155's **fresh-document shortcut** could never fire — it read `request.headers.get("cookie")`, but `Cookie` is a *forbidden request header* the Fetch standard appends in the network layer **after** service-worker interception, so the one branch that skipped the shell navigated with nothing painted. Now: the launch route answers `/` with the precached shell **unconditionally, never redirecting** (`isStartUrlRequest` also tolerates launcher `utm_*` params, which had been able to drop the launch onto the blocking document route); the document route serves a cached copy at **any age** and revalidates in the background; and staleness is fixed **after** paint by `useStaleDocumentReconcile` (mounted in `AppProviders`) — one non-blocking `router.refresh()` per document load when the SW's stamp is older than `DOCUMENT_FRESH_WINDOW_MS`, clearing **RSC only** via `invalidateRscPathCaches` so the instant-launch document survives (the one exception to the invalidate-before-refresh rule), announcing `cloudy2:document-reconciled` so the "Saved · HH:MM" chip flips to fresh; `launchTargetFromCookieHeader`/`LAUNCH_ROUTE_WHITELIST` deleted (the shell keeps its own client-side decode), and `launchShell.test.ts` gains a static guard that the launch route has no redirect and no cookie peek (bugfix; `docs/pwa-offline.md` §1.4–§1.5.1/§1.7/§1.11–§1.13/§1.15, `docs/ui-state.md`, `AGENTS.md`)
+- 1.167 PWA launch regression fixed — the Android splash was back to sitting through the whole cold boot, because the launch burst (§1.152–§1.155) had two defects: the document route's **cache-age rule** (§1.153) sent any copy older than 5 min to `NetworkFirst` (the common case for an app reopened after a coffee break), and §1.155's **fresh-document shortcut** could never fire — it read `request.headers.get("cookie")`, but `Cookie` is a _forbidden request header_ the Fetch standard appends in the network layer **after** service-worker interception, so the one branch that skipped the shell navigated with nothing painted. Now: the launch route answers `/` with the precached shell **unconditionally, never redirecting** (`isStartUrlRequest` also tolerates launcher `utm_*` params, which had been able to drop the launch onto the blocking document route); the document route serves a cached copy at **any age** and revalidates in the background; and staleness is fixed **after** paint by `useStaleDocumentReconcile` (mounted in `AppProviders`) — one non-blocking `router.refresh()` per document load when the SW's stamp is older than `DOCUMENT_FRESH_WINDOW_MS`, clearing **RSC only** via `invalidateRscPathCaches` so the instant-launch document survives (the one exception to the invalidate-before-refresh rule), announcing `cloudy2:document-reconciled` so the "Saved · HH:MM" chip flips to fresh; `launchTargetFromCookieHeader`/`LAUNCH_ROUTE_WHITELIST` deleted (the shell keeps its own client-side decode), and `launchShell.test.ts` gains a static guard that the launch route has no redirect and no cookie peek (bugfix; `docs/pwa-offline.md` §1.4–§1.5.1/§1.7/§1.11–§1.13/§1.15, `docs/ui-state.md`, `AGENTS.md`)
 - 1.168 Global activity bar: an indeterminate amber strip pinned flush to the shell header's bottom edge appears whenever anything is loading elsewhere in the chrome — route `<Link>` navigations (shell nav/rail/bottom/logo via `useLinkStatus` in `PendingDim`), the settings tab flips (`startTransition` in `SettingsTabs`), in-page view/filter transitions (dashboard `isPending||isRefreshing`, parade cross-month gate, audit filter `isPending`), and the previously **invisible post-mutation `router.refresh()`** (a new `useActivityRefresh` wraps the SW-cache-invalidate + refresh in a transition so `isPending` tracks the RSC round trip; replaces `invalidateCurrentPathCaches().then(() => router.refresh())` in all 9 settings tables/forms + dashboard + audit). Shared `ActivityProvider`/`useActivity` refcount keys in `src/components/ActivityBar.tsx`; immediate show + min hold (150 ms) so fast loads never blip; hidden in immersive mode (header already hides); complements rather than replaces the skeleton-only system — reverses the old "no progress bars" non-goal in `docs/loading-transitions.md` §1.2 (`docs/loading-transitions.md` §1.13, `AGENTS.md`; Phase 3b12)
 - 1.169 Google Calendar note link opens details, not the edit form: the `Edit: <url>` line written into event notes now deep-links `/dashboard?date=…&event=<groupId>&_eventCal=<calendarId>` (the shared details deep link — `eventEditUrl` renamed `eventDetailUrl`, each copy's link carries its own calendar so the fetch includes it even when the arriving user's filters exclude it), landing on the full `EventDetail` modal with Edit/Duplicate/Delete inside instead of dropping straight into the wizard; older notes keep their `&edit=` URLs, which stay fully honored as a legacy deep link (also used by the search modal's "Edit" action), and `event` joins `ONE_SHOT_PARAMS` so the stripped deep-link responses never pollute the document/RSC caches (also closes that pre-existing gap for search/Pinned `?event=` links) (`docs/event-lifecycle.md` §1.4.2/§1.7.3, `docs/loading-transitions.md` §1.7 gains the missing `?event=` row, `docs/pwa-offline.md`, `docs/event-search.md`, `AGENTS.md`)
 - 1.170 Pinned-events header ticker: the header's left edge is now the pinned-events pill (`PinnedEventsTicker`) — pin icon kept, "Cloudy2" logo removed — rotating through the upcoming pinned events' titles every 5s with a vertical ticker slide (paused on hover/focus/hidden tab/open panel, reduced-motion swaps in place), an inline amber `1/N` count chip replacing the floating `Indicator`, and a CSS max-width cap so wide headers don't stretch it; the shell now reads `fetchPinnedEvents` (count = list length; the count-only `countPinnedEvents` is deleted), and `fetchPinnedEvents` renders each event twice — panel `title` via the `pinned` target, ticker `tickerTitle` via the new **`pinnedHeader`** template assignment target (`EVENT_TITLE_ASSIGNMENT_TARGETS`, labels "Pinned events (panel)"/"Pinned events (header)", no migration; `docs/pinned-events.md` §1.4, `docs/event-lifecycle.md` §1.8.5)
 - 1.171 `db:seed` no longer seeds departments or users: a department (`calendars`) row must mirror a real Google calendar created in-app (`createDepartment` → `integration.createCalendar`), so the seed's fabricated ids (`dept-*@cloudy.local`) broke a configured service account — every Google-backed read (dashboard default fetch, parade/KAH, search, ACL reconcile) 404'd on them. The seed is now a safe, DB-only settings default: it ensures the settings row exists (mirroring `ensureSettingsRow`, hashing `ADMIN_INITIAL_PASSWORD` when set so first admin login still works) and defaults `userKeyword = 'leave'`; departments/users are created in-app on a migrations-only DB. Docs/`AGENTS.md` updated to say departments/users are created in-app only
-- 1.172 Remove the "Same for all views" filter mode — dashboard filters are **per view only**: the FilterModal's "Filter scope" SegmentedControl and the whole global/shared-set mode are deleted. `resolveDashboardFilters` drops its `global` fallback and `perView` switch (every view resolves URL → `views[view]` → role default), `buildDashboardPersist` stops writing the legacy shared `cal/users/types` (omitted, so the section-wholesale merge prunes them from pre-removal cookies) and always writes the per-view marker, `normalizeUiState` always keeps `views` (a stale `"global"` `filterMode` is dropped), and `switchView` always writes the target view's filters into the URL. A filter set on one   calendar view can no longer leak into another view — an untouched view always
+- 1.172 Remove the "Same for all views" filter mode — dashboard filters are **per view only**: the FilterModal's "Filter scope" SegmentedControl and the whole global/shared-set mode are deleted. `resolveDashboardFilters` drops its `global` fallback and `perView` switch (every view resolves URL → `views[view]` → role default), `buildDashboardPersist` stops writing the legacy shared `cal/users/types` (omitted, so the section-wholesale merge prunes them from pre-removal cookies) and always writes the per-view marker, `normalizeUiState` always keeps `views` (a stale `"global"` `filterMode` is dropped), and `switchView` always writes the target view's filters into the URL. A filter set on one calendar view can no longer leak into another view — an untouched view always
   resolves to the role default — and the dialog's scope hint is now unconditional
   ("These filters apply to {view} only.") (`docs/dashboard-views.md` §1.2,
   `docs/ui-state.md` §1.4/§1.5.1/§1.7/§1.9, `docs/user-guide.md`, `AGENTS.md`)
@@ -248,99 +250,109 @@ One line per phase; full write-ups (incl. Mermaid diagrams and verification note
   (unmasked in logs) not a secret; `--allow-unauthenticated` must ride the gcloud
   `flags` (dropped as an action input); all env vars incl. `NEXTAUTH_URL` land in one
   `--env-vars-file` `gcloud run services update`. Prod = Vercel Production + the
-   Cloud Run shadow sharing prod Neon + prod Google (region `asia-southeast1`);
-   environments matrix in `docs/developer-guide.md` §1.9/§1.9.1, `AGENTS.md`
+  Cloud Run shadow sharing prod Neon + prod Google (region `asia-southeast1`);
+  environments matrix in `docs/developer-guide.md` §1.9/§1.9.1, `AGENTS.md`
 - 1.174 Unsupported-browser gate on /login: the stack compiles for Next 16 / React 19's
-   Safari 16.4 / Chrome 111 floor, so on older engines (e.g. iPhone SE 1st gen on iOS
-   15.8.8) the login page paints but the client bundle throws during hydration — the
-   form looked alive but taps did nothing (no spinner, dead mask toggle). Pure
-   fail-open `detectLegacyBrowser` (`src/lib/browserSupport.ts`, unit-tested on real UA
-   fixtures) now gates `login/page.tsx` (async server component, `headers()` →
-   `User-Agent`) and swaps in the server-rendered `UnsupportedBrowserNotice` — works
-   with zero JS, replacing the form rather than decorating it. Scoped to /login so the
-   PWA precached-shell invariant for `/` is untouched (the only route that flipped
-   static→dynamic); legacy browsers are documented as unsupported, not downleveled
-   (`docs/browser-support.md`, `AGENTS.md`, `docs/user-guide.md` §1.11)
+  Safari 16.4 / Chrome 111 floor, so on older engines (e.g. iPhone SE 1st gen on iOS
+  15.8.8) the login page paints but the client bundle throws during hydration — the
+  form looked alive but taps did nothing (no spinner, dead mask toggle). Pure
+  fail-open `detectLegacyBrowser` (`src/lib/browserSupport.ts`, unit-tested on real UA
+  fixtures) now gates `login/page.tsx` (async server component, `headers()` →
+  `User-Agent`) and swaps in the server-rendered `UnsupportedBrowserNotice` — works
+  with zero JS, replacing the form rather than decorating it. Scoped to /login so the
+  PWA precached-shell invariant for `/` is untouched (the only route that flipped
+  static→dynamic); legacy browsers are documented as unsupported, not downleveled
+  (`docs/browser-support.md`, `AGENTS.md`, `docs/user-guide.md` §1.11)
 - 1.175 Cross-department calendar access in Users (migration 0032
-   `user_calendar_access`): a user form's "Department access" section grants other
-   department calendars at `reader|writer`; the rows record intent and the unified
-   reconcile (`reconcileUserAccessChange` with `userId`/`desiredAccess`) diffs rows,
-   then re-syncs the affected calendars' managed expectations (members + grants)
-   and revokes emails no longer expected — so removals/role changes/email changes/
-   department moves all reconcile. Department detail's "Calendar access" now shows a
-   read-only **Granted access** group between assigned users and **Additional
-   access** (which is for people without a user account only), and
-   `grantDepartmentAccess` **blocks** a roster user's email with a pointer to user
-   settings. Legacy anonymous rules matching roster users are **adopted** into grant
-   rows both on user create/email change (`adoptExternalAccessForEmail`, a
-   department-by-department ACL scan) and on department read, and audit
-    `user.create`/`user.update` payloads carry the sorted grant list (docs
-    `roster-sharing.md` §1.5/§1.9/§1.10/§1.11; filter/access independence documented
-    in `dashboard-views.md` §1.2 + `ui-state.md` §1.5.1 + `user-guide.md`/`admin-guide.md`)
+  `user_calendar_access`): a user form's "Department access" section grants other
+  department calendars at `reader|writer`; the rows record intent and the unified
+  reconcile (`reconcileUserAccessChange` with `userId`/`desiredAccess`) diffs rows,
+  then re-syncs the affected calendars' managed expectations (members + grants)
+  and revokes emails no longer expected — so removals/role changes/email changes/
+  department moves all reconcile. Department detail's "Calendar access" now shows a
+  read-only **Granted access** group between assigned users and **Additional
+  access** (which is for people without a user account only), and
+  `grantDepartmentAccess` **blocks** a roster user's email with a pointer to user
+  settings. Legacy anonymous rules matching roster users are **adopted** into grant
+  rows both on user create/email change (`adoptExternalAccessForEmail`, a
+  department-by-department ACL scan) and on department read, and audit
+  `user.create`/`user.update` payloads carry the sorted grant list (docs
+  `roster-sharing.md` §1.5/§1.9/§1.10/§1.11; filter/access independence documented
+  in `dashboard-views.md` §1.2 + `ui-state.md` §1.5.1 + `user-guide.md`/`admin-guide.md`)
 - 1.176 User-menu Calendar Access self-service: the profile dropdown now shows the signed-in
-    user's full display name with a `role · phone` subtitle, and a "Calendar Access" item opens a
-    modal listing the calendars shared with them (own department as reader + cross-department
-    grants at their role) — each row links "Add to my Google Calendar" (the `cid=` web link,
-    mirroring the department modal) so non-admins can subscribe to their department calendars in
-    their own Google account. Data comes from the new `getMyCalendarAccess()` server action
-    (any authenticated session; the roster-profile DB read, no Google round-trip), the modal
-    fetches on open with a render-phase reset, and the global Admin login gets an explainer
-    instead of a roster.     `phone` is threaded from the protected layout → `AppShellShell` →
-    `UserMenu`; no schema or Google changes
+  user's full display name with a `role · phone` subtitle, and a "Calendar Access" item opens a
+  modal listing the calendars shared with them (own department as reader + cross-department
+  grants at their role) — each row links "Add to my Google Calendar" (the `cid=` web link,
+  mirroring the department modal) so non-admins can subscribe to their department calendars in
+  their own Google account. Data comes from the new `getMyCalendarAccess()` server action
+  (any authenticated session; the roster-profile DB read, no Google round-trip), the modal
+  fetches on open with a render-phase reset, and the global Admin login gets an explainer
+  instead of a roster. `phone` is threaded from the protected layout → `AppShellShell` →
+  `UserMenu`; no schema or Google changes
 - 1.177 Optimistic event mutations on the dashboard: creates/edits/deletes now show a
-    **stand-in chip immediately** at confirm instead of after the serial Google writes +
-    read-your-own-writes refresh (~0.5–3 s), via a short-lived client overlay (`optimisticOps`)
-    merged into the server `events` prop by the pure, unit-tested `applyOptimisticOps`
-    (`src/lib/events/optimistic.ts`); every view memo reads the derived `viewEvents`. The
-    server actions now return the ids they already computed (Decision 3): `EventActionResult`
-    success carries the group `eventId` + per-copy `{calendarId, googleEventId}` (`EventActionOk`),
-    so the chip is pinned to real ids at `ok` and handed off to the authoritative refresh with
-    no flicker. Wizard stays open through the action (Decision A) so rejections keep the exact
-    field-error UX; settled ops are dropped by a guarded render-phase reconcile on the next
-    props arrival; stand-in chips block detail taps (`isOptimisticStandIn`) until pinned.
-    `buildOptimisticEvent` mirrors the action's normalization/time/title/color parity
-    (`withSelfCreator`→`clampEventEnd`, exclusive all-day ends, view-template title,
-    `eventTypes.color` now passed to the client). `docs/optimistic-mutations.md`
+  **stand-in chip immediately** at confirm instead of after the serial Google writes +
+  read-your-own-writes refresh (~0.5–3 s), via a short-lived client overlay (`optimisticOps`)
+  merged into the server `events` prop by the pure, unit-tested `applyOptimisticOps`
+  (`src/lib/events/optimistic.ts`); every view memo reads the derived `viewEvents`. The
+  server actions now return the ids they already computed (Decision 3): `EventActionResult`
+  success carries the group `eventId` + per-copy `{calendarId, googleEventId}` (`EventActionOk`),
+  so the chip is pinned to real ids at `ok` and handed off to the authoritative refresh with
+  no flicker. Wizard stays open through the action (Decision A) so rejections keep the exact
+  field-error UX; settled ops are dropped by a guarded render-phase reconcile on the next
+  props arrival; stand-in chips block detail taps (`isOptimisticStandIn`) until pinned.
+  `buildOptimisticEvent` mirrors the action's normalization/time/title/color parity
+  (`withSelfCreator`→`clampEventEnd`, exclusive all-day ends, view-template title,
+  `eventTypes.color` now passed to the client). `docs/optimistic-mutations.md`
 - 1.178 Shared admin PIN + clean single-field login (migration 0033
-    `settings.admin_pin_hash`): `/login` keeps its single masked input (no mode toggle)
-    and a lightweight routing probe `resolveLogin` (`src/lib/loginActions.ts`, hint
-    only) decides the flow. **Staff** (`role='user'` only) types `[phone][keyword]` and
-    is signed straight in — admin-role users are rejected on that path so the org-wide
-    keyword can never yield an admin session. An **admin-role user** is instead asked
-    for the **shared admin PIN** (`settings.admin_pin_hash`, seeded/reconciled from the
-    **`ADMIN_PIN`** env var on every login — env-authoritative, no in-app path) in a
-    modal before any session is issued; the phone-less **break-glass root** types
-    `ADMIN_INITIAL_PASSWORD` alone (`settings.admin_password_hash`, same reconcile).
-    `authorize` re-checks every credential and stays the sole session issuer + audit
-    point (distinct failure reasons `admin.invalid_root_secret`/`admin.invalid_account`/
-    `admin.invalid_pin`). `src/lib/bootstrap.ts` → `ensureSettingsRow` +
-    `syncAdminSecretsFromEnv` (both envs compared on login, re-hashed only on change);
-    `login.ts` drops the dead `classifyLogin`, adds pure `normalizePhoneDigits`; a new
-    **Security** settings tab (`/settings/security`) holds the User Login Keyword moved
-    out of General (General keeps retention + danger zone). `users.password_hash`
-    remains unused; docs/`AGENTS.md` updated
+  `settings.admin_pin_hash`): `/login` keeps its single masked input (no mode toggle)
+  and a lightweight routing probe `resolveLogin` (`src/lib/loginActions.ts`, hint
+  only) decides the flow. **Staff** (`role='user'` only) types `[phone][keyword]` and
+  is signed straight in — admin-role users are rejected on that path so the org-wide
+  keyword can never yield an admin session. An **admin-role user** is instead asked
+  for the **shared admin PIN** (`settings.admin_pin_hash`, seeded/reconciled from the
+  **`ADMIN_PIN`** env var on every login — env-authoritative, no in-app path) in a
+  modal before any session is issued; the phone-less **break-glass root** types
+  `ADMIN_INITIAL_PASSWORD` alone (`settings.admin_password_hash`, same reconcile).
+  `authorize` re-checks every credential and stays the sole session issuer + audit
+  point (distinct failure reasons `admin.invalid_root_secret`/`admin.invalid_account`/
+  `admin.invalid_pin`). `src/lib/bootstrap.ts` → `ensureSettingsRow` +
+  `syncAdminSecretsFromEnv` (both envs compared on login, re-hashed only on change);
+  `login.ts` drops the dead `classifyLogin`, adds pure `normalizePhoneDigits`; a new
+  **Security** settings tab (`/settings/security`) holds the User Login Keyword moved
+  out of General (General keeps retention + danger zone). `users.password_hash`
+  remains unused; docs/`AGENTS.md` updated
 - 1.179 Department-access Owner grants + own-department row: the user form's
-    "Department access" grants can now be **Owner** — `ManagedGrantRole` widens to
-    `reader|writer|owner` (the `user_calendar_access` role column stays a bare
-    `text`, so no migration) and adoption paths keep a raw `owner` ACL rule instead
-    of clamping it to reader. The user's own ("home") department now appears as the
-    section's first **non-removable row** (no ✕) seeded from its live Google ACL
-    via the plain read `getAssignedAccessRole`; changing its level writes straight
-    to the ACL like the department modal's assigned-user selector (disabled with an
-    explanation for email-less users or a drafted department move — render-phase
-    reset + effect fetch only touch state in the async callback, no cascades). The
-    permission dropdowns in the section render at the readable `sm` size (were
-    `xs`), the `Calendar Access` self-service modal labels Owner (brand badge), and
-    the copy/`formatManagedGrants` audit labels/docs/tests cover the third level
+  "Department access" grants can now be **Owner** — `ManagedGrantRole` widens to
+  `reader|writer|owner` (the `user_calendar_access` role column stays a bare
+  `text`, so no migration) and adoption paths keep a raw `owner` ACL rule instead
+  of clamping it to reader. The user's own ("home") department now appears as the
+  section's first **non-removable row** (no ✕) seeded from its live Google ACL
+  via the plain read `getAssignedAccessRole`; changing its level writes straight
+  to the ACL like the department modal's assigned-user selector (disabled with an
+  explanation for email-less users or a drafted department move — render-phase
+  reset + effect fetch only touch state in the async callback, no cascades). The
+  permission dropdowns in the section render at the readable `sm` size (were
+  `xs`), the `Calendar Access` self-service modal labels Owner (brand badge), and
+  the copy/`formatManagedGrants` audit labels/docs/tests cover the third level
 - 1.180 Pre-submit event clash warnings in the wizard: the review step runs the
-    read-only `checkEventClashes` action, which re-resolves the candidate exactly
-    like a create/update (shared chain moved to `src/lib/events/writeContext.ts`),
-    reads the overlapping events on its target calendars from the month cache
-    (`clashQuery.ts`), and runs the pure `computeClashes` engine — an event occupies
-    its creator + tagged users + every active member of each tagged department
-    (department-level event = everyone within), and external/people-less events
-    occupy their own calendar's members. Warnings (per conflicting event, affected
-    people, "you" chip) never block a save. `docs/event-clashes.md`
+  read-only `checkEventClashes` action, which re-resolves the candidate exactly
+  like a create/update (shared chain moved to `src/lib/events/writeContext.ts`),
+  reads the overlapping events on its target calendars from the month cache
+  (`clashQuery.ts`), and runs the pure `computeClashes` engine — an event occupies
+  its creator + tagged users + every active member of each tagged department
+  (department-level event = everyone within), and external/people-less events
+  occupy their own calendar's members. Warnings (per conflicting event, affected
+  people, "you" chip) never block a save. `docs/event-clashes.md`
+- 1.181 Double Booking page (`/double-booking`, bottom nav + sidebar for every role):
+  an existing-event scan of double-bookings. It reads only the **scanned user's own
+  department calendar** over the next 30 days (every event that occupies a user has
+  a copy there), runs the pure `findUserClashGroups` — an event matters when it
+  occupies the user; each connected component of the pairwise-overlap graph among
+  occupying events is one report — and lists the overlap groups (shared people chips
+  via the shared `clashUi.tsx` extracted from the wizard panel, amber cards,
+  "External" badges). The read-only `checkUserClashes` action lets **admins scan any
+  active roster user** (a `NoKeyboardSelect` target picker); regular users may only
+  scan themselves. Advisory: never writes or audits. `docs/user-clashes.md`
 
 ## 1.4 Open items & next steps
 
