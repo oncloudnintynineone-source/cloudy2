@@ -73,7 +73,7 @@ async function upcomingPinnedCalendarEvents(
     typeFilter: [],
     userFilter: [],
   });
-  const nowNaive = formatInstantToNaive(new Date()).slice(0, 10);
+  const nowNaive = formatInstantToNaive(new Date());
   return selectUpcomingPinnedEvents(events, nowNaive);
 }
 
