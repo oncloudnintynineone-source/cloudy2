@@ -7445,3 +7445,23 @@ event on your department; an event that started before today and continues into 
 window; the green clean state; an admin scanning a colleague (plain name chips, no
 `You`) and a department-less target (the notice); bottom-nav fit at 375px and the ≤360px
 icon-only tier.
+
+**UI polish & live nav badge (follow-up, same phase)**: the page header is now a
+pure-CSS responsive row (`.c2-db-head`): title + target-aware subtitle left, admin
+picker **full column width on mobile** → right-aligned 340px from the 40em band
+(`.c2-db-picker`; the `maxWidth: 320` styles override was dropped). Every real-scan
+outcome opens with a polite `role="status"` summary (overlap count + covered dates);
+the loading skeleton mirrors a result card; copy was smoothed ("keep {you/name} busy",
+"You're / {name} is double-booked by N overlapping events") with a footnote that only
+occupying events are compared. The Double Booking nav entry now carries a **live amber
+count pill** showing the acting user's exact overlap count (no cap, hidden when
+0/none, count in each surface's `aria-label`): `AppShellShell` fetches it via
+`checkUserClashes({})` on mount, on tab refocus, and after every successful
+create/update/delete (trailing-debounced ~400ms) via the new `cloudy2:events-changed`
+window event (`src/lib/ui/eventChanges.ts`), dispatched from the dashboard's two
+post-mutation completion points (`DashboardView` `onDone`/`onDeleted`) next to the
+existing pinned-events dispatch. No engine/schema/action changes — the badge reuses
+the existing self-scan, so each refresh is the warm-cache month read + roster queries
+already described above. Docs updated: `docs/user-clashes.md` §1.2.1 (badge) + §1.8
+(responsive header/states), `AGENTS.md` bullet, `progress.md` 1.181-2. Verification
+above still green (no logic changes).

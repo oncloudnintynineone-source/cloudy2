@@ -595,3 +595,60 @@
     transform: translateY(calc(1rem * var(--mantine-scale)));
   }
 }
+
+/* Double Booking page header (docs/user-clashes.md §1.8): the title + admin
+   target picker stack on mobile (picker full column width) and split into a
+   title-left / 340px-picker-right row from the 40em desktop band on. */
+.c2-db-head {
+  display: flex;
+  flex-direction: column;
+  gap: var(--mantine-spacing-sm);
+}
+
+.c2-db-title {
+  min-width: 0;
+}
+
+.c2-db-picker {
+  width: 100%;
+}
+
+@media (min-width: 40em) {
+  .c2-db-head {
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: flex-end;
+    gap: var(--mantine-spacing-md);
+  }
+
+  .c2-db-title {
+    flex: 1 1 auto;
+  }
+
+  .c2-db-picker {
+    flex: 0 0 21.25rem;
+    width: 21.25rem;
+  }
+}
+
+/* "Double Booking" count pill on the nav entry (bottom nav, sidebar, rail):
+   amber, mirroring the pinned-events ticker chip. Absolutely positioned over
+   the entry's icon by a `position: relative; display: flex` icon wrapper. */
+.c2-db-nav-badge {
+  position: absolute;
+  top: -0.25rem;
+  right: -0.5rem;
+  min-width: calc(0.9375rem * var(--mantine-scale));
+  height: calc(0.9375rem * var(--mantine-scale));
+  padding-inline: calc(0.25rem * var(--mantine-scale));
+  border-radius: var(--mantine-radius-xl);
+  background: var(--mantine-color-accent-6);
+  color: var(--mantine-color-brand-9);
+  font-size: 0.5625rem;
+  font-weight: 700;
+  line-height: calc(0.9375rem * var(--mantine-scale));
+  text-align: center;
+  white-space: nowrap;
+  box-shadow: 0 0 0 1px var(--mantine-color-body);
+  pointer-events: none;
+}

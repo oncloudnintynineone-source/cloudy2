@@ -141,6 +141,7 @@ import {
 } from "@/lib/ui/uiState";
 import { usePersistUiState } from "@/lib/ui/uiStateClient";
 import { PINNED_EVENTS_CHANGED_EVENT } from "@/lib/ui/pinnedPanel";
+import { notifyEventsChanged } from "@/lib/ui/eventChanges";
 import { EventDetail } from "./EventDetail";
 import { EventForm } from "./EventForm";
 import { WeekMatrixView } from "./WeekMatrixView";
@@ -1401,10 +1402,10 @@ export function DashboardView({
   // The month grid assigns each day's rows greedily in input order, so feed
   // the user's events first (each block time-sorted) and they claim the top
   // rows of every day.
-  const monthEvents = useMemo(() => sortMineFirst(viewEvents, myEventIds), [
-    viewEvents,
-    myEventIds,
-  ]);
+  const monthEvents = useMemo(
+    () => sortMineFirst(viewEvents, myEventIds),
+    [viewEvents, myEventIds],
+  );
 
   // External flag from the underlying CalendarEvent payload (Mantine's
   // renderEvent type only knows `id`). External events get the purple
@@ -1883,10 +1884,10 @@ export function DashboardView({
   // Mantine's AgendaView leaks adjacent-day all-day events into the selected
   // day (its day-granularity end check lets an exclusive end land exactly on
   // the viewed midnight), so pre-filter to exactly the occupying events.
-  const agendaTabEvents = useMemo(() => eventsOnDay(viewEvents, headerDate), [
-    viewEvents,
-    headerDate,
-  ]);
+  const agendaTabEvents = useMemo(
+    () => eventsOnDay(viewEvents, headerDate),
+    [viewEvents, headerDate],
+  );
   const agendaModalEvents = useMemo(
     () => (agendaViewDate ? eventsOnDay(viewEvents, agendaViewDate) : []),
     [viewEvents, agendaViewDate],
@@ -2873,6 +2874,7 @@ export function DashboardView({
           savedAtRef.current = Date.now();
           setIsDataFresh(true);
           window.dispatchEvent(new CustomEvent(PINNED_EVENTS_CHANGED_EVENT));
+          notifyEventsChanged();
           refreshAfterSave();
         }}
         onOptimistic={applyOptimistic}
@@ -2958,6 +2960,7 @@ export function DashboardView({
                   savedAtRef.current = Date.now();
                   setIsDataFresh(true);
                   window.dispatchEvent(new CustomEvent(PINNED_EVENTS_CHANGED_EVENT));
+                  notifyEventsChanged();
                   refreshAfterSave();
                 }}
               />

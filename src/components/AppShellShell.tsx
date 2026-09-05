@@ -54,12 +54,19 @@ import {
   type PinnedPanelValue,
 } from "@/lib/ui/pinnedPanel";
 import { useRememberedPage, writeUiState } from "@/lib/ui/uiStateClient";
+import { EVENTS_CHANGED_EVENT } from "@/lib/ui/eventChanges";
+import { checkUserClashes } from "@/lib/events/clashActions";
 
 interface NavItem {
   href: string;
   label: string;
   icon: React.ReactNode;
   matches: (pathname: string) => boolean;
+  /**
+   * Optional count pill over the icon (currently the Double Booking nav entry:
+   * the acting user's double-booking overlap count). Rendered only when > 0.
+   */
+  badge?: number;
 }
 
 const CALENDAR: NavItem = {
@@ -134,6 +141,38 @@ function PendingDim({ busyKey, children }: { busyKey: string; children: React.Re
   );
 }
 
+/** Amber count pill for a nav entry with a `badge` (aria-hidden; the count
+ *  rides each surface's own `aria-label`). */
+function navCountPill(item: NavItem): React.ReactNode {
+  if (!item.badge || item.badge <= 0) {
+    return null;
+  }
+  return (
+    <span className="c2-db-nav-badge" aria-hidden>
+      {item.badge}
+    </span>
+  );
+}
+
+/** A nav icon in a `position: relative` wrapper so the count pill can ride its
+ *  top-right corner. */
+function NavIcon({ item }: { item: NavItem }) {
+  return (
+    <Box style={{ position: "relative", display: "flex", flexShrink: 0 }}>
+      {item.icon}
+      {navCountPill(item)}
+    </Box>
+  );
+}
+
+/** Accessible name for a nav surface, including the badge count when present. */
+function navAriaLabel(item: NavItem): string {
+  if (!item.badge || item.badge <= 0) {
+    return item.label;
+  }
+  return `${item.label} — ${item.badge} ${item.badge === 1 ? "double booking" : "double bookings"}`;
+}
+
 /** Icon-only nav entry for the minimized sidebar rail; the label rides a tooltip. */
 function RailNavButton({
   item,
@@ -157,10 +196,12 @@ function RailNavButton({
           padding: 4,
           color: active ? NAV_ACTIVE_COLOR : NAV_IDLE_COLOR,
         }}
-        aria-label={item.label}
+        aria-label={navAriaLabel(item)}
         aria-current={active ? "page" : undefined}
       >
-        <PendingDim busyKey={`rail:${item.href}`}>{item.icon}</PendingDim>
+        <PendingDim busyKey={`rail:${item.href}`}>
+          <NavIcon item={item} />
+        </PendingDim>
       </UnstyledButton>
     </Tooltip>
   );
@@ -195,7 +236,7 @@ function NavButton({
         minHeight: BOTTOM_NAV_HEIGHT,
         color: active ? NAV_ACTIVE_COLOR : NAV_IDLE_COLOR,
       }}
-      aria-label={item.label}
+      aria-label={navAriaLabel(item)}
       aria-current={active ? "page" : undefined}
     >
       <PendingDim busyKey={`bottom:${item.href}`}>
@@ -207,7 +248,7 @@ function NavButton({
             gap: compact ? 0 : 2,
           }}
         >
-          {item.icon}
+          <NavIcon item={item} />
           {!compact && (
             <Text
               size="xs"
@@ -473,6 +514,65 @@ export function AppShellShell({
         ? [CALENDAR, PARADE_STATE, CONTACTS, DOUBLE_BOOKING, KAH_STATUS]
         : [CALENDAR, PARADE_STATE, CONTACTS, DOUBLE_BOOKING];
 
+  // The Double Booking nav badge: the acting user's own double-booking overlap
+  // count (the same read-only scan the /double-booking page runs). Fetched
+  // once on mount (background, never blocking a page load), again on tab
+  // refocus, and after any event create/update/delete (debounced) via
+  // `cloudy2:events-changed`. Best-effort — a failure keeps the last value;
+  // `null` (not yet known) renders no pill, and a real clean scan (0) hides
+  // it too, so a missing pill means "none right now".
+  const [doubleBookingCount, setDoubleBookingCount] = useState<number | null>(null);
+  const doubleBookingDebounceRef = useRef<number | null>(null);
+  const refreshDoubleBooking = useCallback(() => {
+    void checkUserClashes({})
+      .then((result) => {
+        if (!result.ok) {
+          return;
+        }
+        setDoubleBookingCount(result.skipReason === null ? result.groups.length : 0);
+      })
+      .catch(() => {
+        // Keep the last known count.
+      });
+  }, []);
+  useEffect(() => {
+    void refreshDoubleBooking();
+  }, [refreshDoubleBooking]);
+  useEffect(() => {
+    const schedule = () => {
+      if (doubleBookingDebounceRef.current !== null) {
+        window.clearTimeout(doubleBookingDebounceRef.current);
+      }
+      doubleBookingDebounceRef.current = window.setTimeout(() => {
+        doubleBookingDebounceRef.current = null;
+        void refreshDoubleBooking();
+      }, 400);
+    };
+    const onChanged = () => schedule();
+    const onVisible = () => {
+      if (document.visibilityState === "visible") {
+        schedule();
+      }
+    };
+    window.addEventListener(EVENTS_CHANGED_EVENT, onChanged);
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      window.removeEventListener(EVENTS_CHANGED_EVENT, onChanged);
+      document.removeEventListener("visibilitychange", onVisible);
+      if (doubleBookingDebounceRef.current !== null) {
+        window.clearTimeout(doubleBookingDebounceRef.current);
+      }
+    };
+  }, [refreshDoubleBooking]);
+
+  // Attach the count to the Double Booking entry only (all other entries have
+  // no badge). Copying keeps the module-level consts pristine across renders.
+  const navItems: NavItem[] = items.map((item) =>
+    item.href === DOUBLE_BOOKING.href && doubleBookingCount && doubleBookingCount > 0
+      ? { ...item, badge: doubleBookingCount }
+      : item,
+  );
+
   // --- iOS PWA viewport sync ---
   // On some iOS versions, 100dvh/vh resolves to the full screen height but the
   // actual layout viewport is shorter (excludes the top safe-area inset). This
@@ -653,7 +753,7 @@ export function AppShellShell({
             }}
           >
             <Stack gap="xs">
-              {items.map((item) =>
+              {navItems.map((item) =>
                 collapsed ? (
                   <RailNavButton
                     key={item.href}
@@ -667,7 +767,12 @@ export function AppShellShell({
                     component={Link}
                     href={item.href}
                     label={item.label}
-                    leftSection={<PendingDim busyKey={`side:${item.href}`}>{item.icon}</PendingDim>}
+                    leftSection={
+                      <PendingDim busyKey={`side:${item.href}`}>
+                        <NavIcon item={item} />
+                      </PendingDim>
+                    }
+                    aria-label={item.badge ? navAriaLabel(item) : undefined}
                     active={isActive(item)}
                     onClick={() => handleTap(item.href)}
                   />
@@ -722,7 +827,7 @@ export function AppShellShell({
                 display: "flex",
               }}
             >
-              {items.map((item) => (
+              {navItems.map((item) => (
                 <NavButton
                   key={item.href}
                   item={item}

@@ -2,6 +2,7 @@
 
 - [1.1 Goal](#11-goal)
 - [1.2 Entry point & audience](#12-entry-point--audience)
+  - [1.2.1 The nav count badge](#121-the-nav-count-badge)
 - [1.3 Semantics](#13-semantics)
 - [1.4 Why one calendar read suffices](#14-why-one-calendar-read-suffices)
 - [1.5 Pipeline](#15-pipeline)
@@ -42,6 +43,25 @@ can switch targets without a navigation.
   user and can scan anyone's schedule. Inactive users are not offered.
 - The acting user is emphasised as `You` only when the target **is** the actor, so an
   admin scanning a colleague sees plain name chips.
+
+### 1.2.1 The nav count badge
+
+The Double Booking **nav entry** (bottom nav, sidebar, and collapsed rail) carries a
+live amber count pill so a double booking is visible without opening the page. The
+pill shows the acting user's _own_ overlap count — exactly `groups.length` the page
+reports (no cap: `999` renders as `999`) — only when it is > 0 (a clean scan and a
+"no schedule" state both hide it, so a missing pill means "none right now"). The count
+rides each surface's `aria-label`, never the visible label.
+
+It is fetched by `AppShellShell` (which stays mounted across SPA navigations, so there
+is **no per-navigation recompute**) via the same read-only `checkUserClashes({})`
+action, once on mount in the background, again on tab refocus, and after every
+successful create/update/delete: `DashboardView` dispatches the new
+`cloudy2:events-changed` window event (`src/lib/ui/eventChanges.ts`) from the same two
+post-mutation completion points that already dispatch the pinned-events event, and the
+shell re-runs the scan trailing-debounced (~400ms) so a save burst is one recompute.
+Best-effort, like the pinned-events ticker: a failure keeps the last count. Each
+refresh reuses the action's warm month cache where possible, so it is cheap (§1.4).
 
 ## 1.3 Semantics
 
@@ -164,13 +184,18 @@ render both. The per-event `affected` is the report's shared-people list.
 - **`page.tsx`** — server component: `requireSession()`; admins additionally load and
   shape the active roster (`id`, `name`, department) for the picker. Regular users get
   an empty list and never fetch the roster.
-- **`DoubleBookingView.tsx`** — client component: header (title + a target-aware
-  subtitle), the admin-only target `NoKeyboardSelect`, and the derived content states:
-  skeleton + `LoadingStatus` while loading; an error card with Retry; `EmptyState`s for
-  `no-department` / `no-active-user` / a clean scan (green check); otherwise one amber
-  `Paper` per overlap report — an "N overlapping events double-book {you/name}" heading,
-  the shared-people chips (`ClashAffectedChips`), and one row per event (title,
-  `External` badge, when · department).
+- **`DoubleBookingView.tsx`** — client component. The header is a responsive flex row
+  (`.c2-db-head` in `globals.css`): title + a target-aware subtitle on the left, and
+  the admin-only target `NoKeyboardSelect` on the right — **full column width on
+  mobile**, right-aligned at a fixed 340px from the 40em desktop band on (a pure-CSS
+  switch, so there is no `useMediaQuery` first-frame shift). Content states: skeleton +
+  `LoadingStatus` while loading (mirrors a result card); an error card with Retry; an
+  `EmptyState` for `no-department` / `no-active-user`; otherwise one amber `Paper` per
+  overlap report — a "You're / {name} is double-booked by N overlapping events"
+  heading, the shared-people chips (`ClashAffectedChips`), and one row per event
+  (title, `External` badge, when · department). Every real-scan outcome opens with a
+  polite `role="status"` summary line (counts + covered dates); clashes end with a
+  muted footnote ("Only events that occupy {you/name} are compared… warnings only").
 - **`loading.tsx`** — route skeleton in the standard shape (`LoadingStatus` + shaped
   `Skeleton`s inside `PageContainer`).
 

@@ -29,7 +29,7 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
   policy, with outbound webhooks to any number of admin-registered external endpoints on
   create/update/delete and pre-submit event clash warnings on the wizard's review step;
   a Double Booking page that scans an existing schedule for double-bookings over the next
-  30 days; dashboard Month/Mobile-month/Schedule-Day/Week/Week-v2-matrix/Agenda views over
+  30 days, surfaced by a live count pill on its nav entry; dashboard Month/Mobile-month/Schedule-Day/Week/Week-v2-matrix/Agenda views over
   a layered calendar cache; parade-state page with local attendance mode; contacts page;
   PWA installability with offline & instant open (SWR document + RSC, precached offline.html);
   mobile-first UI with a desktop layout at `lg`; remembered UI state across relaunch;
@@ -353,6 +353,16 @@ One line per phase; full write-ups (incl. Mermaid diagrams and verification note
   "External" badges). The read-only `checkUserClashes` action lets **admins scan any
   active roster user** (a `NoKeyboardSelect` target picker); regular users may only
   scan themselves. Advisory: never writes or audits. `docs/user-clashes.md`
+- 1.181-2 UI polish for the page: responsive header (admin picker full column width on
+  mobile, right-aligned 340px from the 40em band; pure-CSS `.c2-db-head` block), a
+  status-announced result summary (`role="status"`), mirror-the-card loading skeleton,
+  cleaner copy + footnote; and the **live Double Booking nav count pill** — the Double
+  Booking entry shows the acting user's exact overlap count (hidden when 0/none),
+  fetched by `AppShellShell` via `checkUserClashes({})` on mount, tab refocus, and
+  after every successful create/update/delete (trailing-debounced ~400ms) through the
+  new `cloudy2:events-changed` window event (`src/lib/ui/eventChanges.ts`, dispatched
+  from the dashboard's two post-mutation completion points). No engine/schema changes;
+  badge reuses the existing scan.
 
 ## 1.4 Open items & next steps
 
