@@ -39,18 +39,23 @@ of toggleable badges with a search box on top:
   on every open (the FilterModalBody pattern).
 - Pass `zIndex` when nested — the event wizard uses 300 over its z-250 dialog;
   FilterModal uses 200.
+- **`single` mode** (optional prop): for exactly-one-person picks (currently the
+  Double Booking admin "check another person" target). Tapping any badge _replaces_
+  the whole draft (one id across all sections; still re-seeded from `values` on each
+  open) and Confirm is disabled while nothing is selected. Without it the modal keeps
+  its free multi-select for invitees/filters/KAH members.
 
 ## 1.3 Pure helpers
 
 `src/lib/users/userSelect.ts` — unit-tested, I/O-free:
 
-| Helper | Behavior |
-| ------ | -------- |
-| `optionMatchesQuery` | case-insensitive label/`search` match |
-| `sortOptionsInGroups` | keeps section order; sorts options by label |
-| `buildUserGroups` | groups a flat roster by department ("No department" last) |
-| `filterPickerGroups` | narrows by query; keeps a whole section when its label matches; drops empties |
-| `selectionByGroup` | seeds a draft from a flat selection |
+| Helper                                    | Behavior                                                                                                                                 |
+| ----------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| `optionMatchesQuery`                      | case-insensitive label/`search` match                                                                                                    |
+| `sortOptionsInGroups`                     | keeps section order; sorts options by label                                                                                              |
+| `buildUserGroups`                         | groups a flat roster by department ("No department" last)                                                                                |
+| `filterPickerGroups`                      | narrows by query; keeps a whole section when its label matches; drops empties                                                            |
+| `selectionByGroup`                        | seeds a draft from a flat selection                                                                                                      |
 | `splitInvitees` / `mergeInviteeSelection` | split/merge the `user:<id>` / `dept:<id>` prefixed invitee list (keeps now-unlistable ids so edits don't drop them; creator stays first) |
 
 ## 1.4 Callers
@@ -60,15 +65,18 @@ of toggleable badges with a search box on top:
 - **FilterModal's `variant: "search"` groups** — Users on dashboard + parade state;
   options may carry `department` to get per-department sections, `search` for extra
   matching.
+- **Double Booking admin target** — a `single`-mode `UserSelectModal` (department
+  sections, shortname `search`) replacing the page's original `NoKeyboardSelect`
+  dropdown, since the roster is a large option list.
 - The admin **"On behalf of"** single-select stays a `NoKeyboardSelect`.
 
 ## 1.5 File index & related docs
 
-| File | Role |
-| ---- | ---- |
+| File                                  | Role                                      |
+| ------------------------------------- | ----------------------------------------- |
 | `src/components/NoKeyboardSelect.tsx` | Keyboard-safe Select/MultiSelect wrappers |
-| `src/components/UserSelectModal.tsx` | The badge-dialog picker |
-| `src/lib/users/userSelect.ts` | Pure grouping/matching/merging helpers |
+| `src/components/UserSelectModal.tsx`  | The badge-dialog picker                   |
+| `src/lib/users/userSelect.ts`         | Pure grouping/matching/merging helpers    |
 
 Related docs:
 

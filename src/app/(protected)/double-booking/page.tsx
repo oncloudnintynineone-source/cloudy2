@@ -21,6 +21,7 @@ export default async function DoubleBookingPage() {
         .map((user) => ({
           id: user.id,
           name: user.name,
+          shortname: user.shortname,
           departmentId: user.department?.id ?? null,
           departmentName: user.department?.name ?? null,
         }))

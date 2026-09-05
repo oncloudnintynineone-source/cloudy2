@@ -1,31 +1,23 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import {
-  Badge,
-  Button,
-  Group,
-  Loader,
-  Paper,
-  SelectProps,
-  Skeleton,
-  Stack,
-  Text,
-} from "@mantine/core";
+import { useEffect, useMemo, useState } from "react";
+import { Badge, Button, Group, Loader, Paper, Skeleton, Stack, Text } from "@mantine/core";
 import dayjs from "dayjs";
 import {
   IconAlertTriangle,
   IconCalendarClock,
   IconCircleCheck,
+  IconPlus,
   IconRefresh,
 } from "@tabler/icons-react";
 
-import { NoKeyboardSelect } from "@/components/NoKeyboardSelect";
+import { UserSelectModal } from "@/components/UserSelectModal";
 import { LoadingStatus } from "@/components/LoadingStatus";
 import { EmptyState } from "@/components/EmptyState";
 import { ClashAffectedChips, eventWhenLabel } from "@/components/clashUi";
 import { CONTENT_ENTER_CLASS } from "@/lib/loading/contentEnter";
 import { checkUserClashes, type UserClashCheckResult } from "@/lib/events/clashActions";
+import { buildUserGroups, selectionByGroup } from "@/lib/users/userSelect";
 
 type ClashOk = Extract<UserClashCheckResult, { ok: true }>;
 
@@ -33,6 +25,7 @@ type ClashOk = Extract<UserClashCheckResult, { ok: true }>;
 interface ScanTargetOption {
   id: string;
   name: string;
+  shortname: string | null;
   departmentId: string | null;
   departmentName: string | null;
 }
@@ -72,6 +65,34 @@ export function DoubleBookingView({
     ok: boolean;
     result: ClashOk | null;
   } | null>(null);
+
+  // Admin target picker (the shared UserSelectModal badge dialog, single
+  // select): options grouped by department with the shortname as a search
+  // term, seeded with the currently scanned person on every open.
+  const [targetPickerOpen, setTargetPickerOpen] = useState(false);
+  const targetPickerGroups = useMemo(
+    () =>
+      buildUserGroups(
+        users.map((user) => ({
+          id: user.id,
+          label: user.name,
+          department: user.departmentName,
+          search: user.shortname || undefined,
+        })),
+      ),
+    [users],
+  );
+  const targetPickerValues = useMemo(
+    () => selectionByGroup(targetPickerGroups, [targetUserId]),
+    [targetPickerGroups, targetUserId],
+  );
+  function handleTargetPicked(values: Record<string, string[]>) {
+    const picked = Object.values(values).flat();
+    const pickedId = picked[0];
+    if (pickedId && users.some((user) => user.id === pickedId)) {
+      setTargetUserId(pickedId);
+    }
+  }
 
   useEffect(() => {
     // Server actions are not cancellable; ignore the result of a superseded
@@ -121,11 +142,6 @@ export function DoubleBookingView({
   const targetName = selfScan ? null : (targetOption?.name ?? null);
   const personForHeader = selfScan ? "you" : (targetName ?? "this person");
 
-  const targetOptions: SelectProps["data"] = users.map((user) => ({
-    value: user.id,
-    label: user.departmentName ? `${user.name} · ${user.departmentName}` : user.name,
-  }));
-
   return (
     <Stack gap="md" p="md" pb="xl" className={CONTENT_ENTER_CLASS}>
       <div className="c2-db-head">
@@ -139,25 +155,54 @@ export function DoubleBookingView({
         </Stack>
         {isAdmin && (
           <div className="c2-db-picker">
-            <NoKeyboardSelect
-              label="Check another person"
-              value={targetUserId}
-              onChange={(value) => {
-                if (value && users.some((user) => user.id === value)) {
-                  setTargetUserId(value);
-                }
-              }}
-              data={targetOptions}
-              searchable
-              clearable={false}
-              maxDropdownHeight={300}
-              aria-label="Person to check for double bookings"
-            />
+            <Stack gap="xs">
+              <Group justify="space-between" align="center" gap="xs" wrap="wrap">
+                <Text fw={600} size="sm">
+                  Check another person
+                </Text>
+                <Button
+                  size="xs"
+                  variant="light"
+                  leftSection={<IconPlus size={14} />}
+                  onClick={() => setTargetPickerOpen(true)}
+                >
+                  Select
+                </Button>
+              </Group>
+              {selfScan ? (
+                <Text size="xs" c="dimmed">
+                  Checking your own schedule
+                </Text>
+              ) : (
+                <Group gap={6} wrap="wrap">
+                  <Badge variant="light" color="brand">
+                    {targetOption
+                      ? targetOption.departmentName
+                        ? `${targetOption.name} · ${targetOption.departmentName}`
+                        : targetOption.name
+                      : targetUserId}
+                  </Badge>
+                </Group>
+              )}
+            </Stack>
           </div>
         )}
       </div>
 
       {renderContent(view)}
+
+      {isAdmin && (
+        <UserSelectModal
+          opened={targetPickerOpen}
+          onClose={() => setTargetPickerOpen(false)}
+          groups={targetPickerGroups}
+          values={targetPickerValues}
+          onConfirm={handleTargetPicked}
+          title="Select a person to check"
+          confirmLabel="Check person"
+          single
+        />
+      )}
     </Stack>
   );
 

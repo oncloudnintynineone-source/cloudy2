@@ -598,7 +598,7 @@
 
 /* Double Booking page header (docs/user-clashes.md §1.8): the title + admin
    target picker stack on mobile (picker full column width) and split into a
-   title-left / 340px-picker-right row from the 40em desktop band on. */
+   title-left / content-sized picker-right row from the 40em desktop band on. */
 .c2-db-head {
   display: flex;
   flex-direction: column;
@@ -625,9 +625,13 @@
     flex: 1 1 auto;
   }
 
+  /* The admin target control is content-sized (a "Select" button + optional
+     current-target chip) — not a full-width input, so it no longer pins a
+     rigid 340px field. */
   .c2-db-picker {
-    flex: 0 0 21.25rem;
-    width: 21.25rem;
+    flex: 0 1 22rem;
+    width: auto;
+    min-width: 0;
   }
 }
 

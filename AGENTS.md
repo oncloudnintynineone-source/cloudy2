@@ -188,13 +188,15 @@ mechanics in the doc.
   pairwise-overlap graph among occupying events is one report — and lists the overlap
   groups (shared people chips via `src/components/clashUi.tsx`, amber cards, "External"
   badges). The read-only `checkUserClashes` action (`clashActions.ts`) lets **admins
-  scan any active roster user** (a `NoKeyboardSelect` target picker); regular users may
-  only scan themselves. The Double Booking **nav entry carries a live amber count
-  pill** (the acting user's own overlap count; exact, hidden when 0/none): `AppShellShell`
-  fetches it via `checkUserClashes({})` on mount, tab refocus, and after any successful
-  create/update/delete (trailing-debounced) via the `cloudy2:events-changed` window
-  event (`src/lib/ui/eventChanges.ts`, dispatched from the dashboard's two
-  post-mutation completion points). Advisory: never writes or audits.
+  scan any active roster user** (the shared **single-select `UserSelectModal`** badge
+  dialog — department sections + shortname search — never a dropdown on a large list);
+  regular users may only scan themselves. The Double Booking **nav entry carries a live
+  amber count pill** (the acting user's own overlap count; exact, hidden when 0/none):
+  `AppShellShell` fetches it via `checkUserClashes({})` on mount, tab refocus, and
+  after any successful create/update/delete (trailing-debounced) via the
+  `cloudy2:events-changed` window event (`src/lib/ui/eventChanges.ts`, dispatched from
+  the dashboard's two post-mutation completion points). Advisory: never writes or
+  audits.
   Design: [docs/user-clashes.md](docs/user-clashes.md).
 - **KAH constraints are notify-only.** After every successful create/update (never
   delete), `dispatchKahBreachCheck()` (`src/lib/kah/notify.ts`) runs inside `after()` —

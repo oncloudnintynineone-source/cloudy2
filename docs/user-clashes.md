@@ -38,9 +38,11 @@ active roster; the scan itself runs client-side through the server action so an 
 can switch targets without a navigation.
 
 - **Regular users** always scan themselves.
-- **Admins** get a `NoKeyboardSelect` target picker (never a raw searchable `Select`,
-  per the mobile-keyboard rule in `docs/user-picker.md`) over every **active** roster
-  user and can scan anyone's schedule. Inactive users are not offered.
+- **Admins** get the shared **`UserSelectModal` badge dialog in `single` mode** (a
+  `NoKeyboardSelect`-style dropdown would violate the large-option-list rule in
+  `docs/user-picker.md`): roster grouped into per-department badge sections with the
+  shortname as an extra search term. Picking one person (Confirm disabled until a
+  pick) switches the scan target. Inactive users are not offered.
 - The acting user is emphasised as `You` only when the target **is** the actor, so an
   admin scanning a colleague sees plain name chips.
 
@@ -182,13 +184,17 @@ render both. The per-event `affected` is the report's shared-people list.
 ## 1.8 The page & view
 
 - **`page.tsx`** — server component: `requireSession()`; admins additionally load and
-  shape the active roster (`id`, `name`, department) for the picker. Regular users get
-  an empty list and never fetch the roster.
+  shape the active roster (`id`, `name`, `shortname`, department) for the picker.
+  Regular users get an empty list and never fetch the roster.
 - **`DoubleBookingView.tsx`** — client component. The header is a responsive flex row
   (`.c2-db-head` in `globals.css`): title + a target-aware subtitle on the left, and
-  the admin-only target `NoKeyboardSelect` on the right — **full column width on
-  mobile**, right-aligned at a fixed 340px from the 40em desktop band on (a pure-CSS
-  switch, so there is no `useMediaQuery` first-frame shift). Content states: skeleton +
+  the admin-only target control on the right — **full column width on mobile**,
+  content-sized from the 40em desktop band on (a pure-CSS switch, so there is no
+  `useMediaQuery` first-frame shift). The control follows the event form's Invited
+  Attendees pattern: a "Check another person" label + a light **Select** button that
+  opens the `UserSelectModal` badge dialog (`single` mode; department sections,
+  shortname search), plus a chip for the current target (`Name · Department`) or a
+  dimmed "Checking your own schedule" when scanning self. Content states: skeleton +
   `LoadingStatus` while loading (mirrors a result card); an error card with Retry; an
   `EmptyState` for `no-department` / `no-active-user`; otherwise one amber `Paper` per
   overlap report — a "You're / {name} is double-booked by N overlapping events"

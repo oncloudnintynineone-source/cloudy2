@@ -372,6 +372,16 @@ One line per phase; full write-ups (incl. Mermaid diagrams and verification note
   redrawn to mirror `ci.yml` (quality → branch-gated migrate jobs → deploy-cloudrun +
   the independent Vercel build lane) and §1.9 gains a hosting-tier diagram; progress
   §1.1 quality-gate bullet names all three push paths
+- 1.183 Double Booking admin target picker: the page's `NoKeyboardSelect` dropdown was
+  replaced with the shared **`UserSelectModal` badge dialog in a new optional `single`
+  mode** (tapping a badge replaces the current pick; Confirm disabled while empty) —
+  per-department badge sections with the shortname as a search term (the admin roster
+  prop now carries `shortname`), opened from an Invited-Attendees-style "Check another
+  person" label + light Select button with a current-target chip ("Name · Department")
+  or a dimmed "Checking your own schedule" when scanning self; `.c2-db-picker` is
+  content-sized on desktop instead of a rigid field. Multi-select callers (event
+  invitees, dashboard/parade filters, KAH members) are unaffected.
+  `docs/user-picker.md` §1.2 documents `single`.
 
 ## 1.4 Open items & next steps
 

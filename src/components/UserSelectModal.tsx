@@ -34,6 +34,12 @@ interface UserSelectModalProps {
   onConfirm: (values: Record<string, string[]>) => void;
   title?: string;
   confirmLabel?: string;
+  /**
+   * Single-select mode: tapping any badge replaces the current selection (one
+   * id across all sections) and Confirm is disabled while nothing is picked.
+   * Defaults to the free multi-select used by invitees/filters/KAH members.
+   */
+  single?: boolean;
   /** z-index for stacking above the parent modal that opens this dialog. */
   zIndex?: number;
 }
@@ -57,6 +63,7 @@ export function UserSelectModal({
   onConfirm,
   title = "Select",
   confirmLabel = "Select",
+  single = false,
   zIndex,
 }: UserSelectModalProps) {
   const theme = useMantineTheme();
@@ -89,6 +96,7 @@ export function UserSelectModal({
         onConfirm={onConfirm}
         onClose={onClose}
         confirmLabel={confirmLabel}
+        single={single}
       />
     </Modal>
   );
@@ -100,7 +108,11 @@ function UserSelectModalBody({
   onConfirm,
   onClose,
   confirmLabel,
-}: Pick<UserSelectModalProps, "groups" | "values" | "onConfirm" | "onClose" | "confirmLabel">) {
+  single = false,
+}: Pick<
+  UserSelectModalProps,
+  "groups" | "values" | "onConfirm" | "onClose" | "confirmLabel" | "single"
+>) {
   const searchRef = useRef<HTMLInputElement>(null);
   const [query, setQuery] = useState("");
   const [draft, setDraft] = useState<Record<string, string[]>>(() =>
@@ -111,6 +123,11 @@ function UserSelectModalBody({
   const selectedCount = Object.values(draft).reduce((sum, ids) => sum + ids.length, 0);
 
   function toggle(section: PickerGroup, optionId: string) {
+    if (single) {
+      // Single-select: picking any badge replaces the whole selection.
+      setDraft(selectionByGroup(groups, [optionId]));
+      return;
+    }
     setDraft((prev) => {
       const current = prev[section.label] ?? [];
       return {
@@ -130,6 +147,8 @@ function UserSelectModalBody({
     onConfirm(draft);
     onClose();
   }
+
+  const canConfirm = !single || selectedCount > 0;
 
   return (
     <Stack h="100%" style={{ overflow: "hidden" }}>
@@ -207,7 +226,7 @@ function UserSelectModalBody({
           <Button variant="default" onClick={onClose}>
             Cancel
           </Button>
-          <Button onClick={handleConfirm}>
+          <Button onClick={handleConfirm} disabled={!canConfirm}>
             {confirmLabel}
           </Button>
         </Group>
