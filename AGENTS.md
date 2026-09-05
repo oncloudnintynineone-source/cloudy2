@@ -43,10 +43,11 @@ pnpm db:migrate
 ```
 
 CI order matters: `lint -> typecheck -> test -> db:generate` (schema-drift check). On
-pushes to `main`, a `migrate` job additionally runs `pnpm db:migrate` against Neon using
-the `DATABASE_URL` repo secret — so pending migrations auto-apply on deploy — and a
-`deploy-cloudrun` job then deploys the Cloud Run shadow (§1.9.1 of
-docs/developer-guide.md). PRs only run the quality checks.
+pushes to `dev`, a `migrate-preview` job runs `pnpm db:migrate` against the dev Neon
+using the `DATABASE_URL_PREVIEW` repo secret; on pushes to `main`, a `migrate` job runs
+it against prod Neon using `DATABASE_URL` — so pending migrations auto-apply on deploy
+per environment — and a `deploy-cloudrun` job then deploys the Cloud Run shadow
+(§1.9.1 of docs/developer-guide.md). PRs only run the quality checks.
 
 ## Architecture
 

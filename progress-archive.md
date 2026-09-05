@@ -7465,3 +7465,37 @@ the existing self-scan, so each refresh is the warm-cache month read + roster qu
 already described above. Docs updated: `docs/user-clashes.md` §1.2.1 (badge) + §1.8
 (responsive header/states), `AGENTS.md` bullet, `progress.md` 1.181-2. Verification
 above still green (no logic changes).
+
+## 1.182 Dev-ops documentation refresh
+
+**Docs-only change** aligning the dev-ops narrative across the repo with the actual
+toolchain after the Cloud Run shadow (1.173) and dev-environment isolation (1.140)
+ships.
+
+- **README.md** gains a **Development & deployment (at a glance)** section (§1.4,
+  three subsections): the moving parts (Vercel git integration, GitHub Actions
+  `ci.yml`, the two Neon projects, the two Google service accounts, the Cloud Run
+  shadow), an end-to-end diagram, a `ci.yml` pipeline diagram (quality job →
+  branch-gated migrate jobs → deploy-cloudrun, plus the independent Vercel build
+  lane), and a hosting-tier table (Local / Vercel Preview / Vercel Production + Cloud
+  Run shadow sharing prod Neon + prod Google). Documentation renumbered §1.5; the
+  tech-stack line now names the dual hosting (it previously mentioned only Vercel).
+- **docs/developer-guide.md**: §1.7's CI diagram redrawn to model the real jobs
+  (`quality` job → branch-gated `migrate`/`migrate-preview` → `deploy-cloudrun`)
+  instead of drawing the quality steps as a pipeline, with the independent Vercel
+  build lane added; §1.8's git-workflow diagram draws GitHub Actions and Vercel as
+  separate lanes per push; §1.9 gains a hosting-tier diagram (Local / Dev / Prod →
+  the two Neon projects + two Google service accounts); §1.7/§1.9 cross-link the
+  README overview.
+- **AGENTS.md**: the CI bullet now names the `dev` → `migrate-preview` path
+  (`DATABASE_URL_PREVIEW`) alongside `main` → `migrate` (`DATABASE_URL`) and
+  `deploy-cloudrun`.
+- **progress.md**: §1.1's quality-gate bullet now names all three push paths
+  (PR → quality only; dev → migrate-preview; main → migrate + deploy-cloudrun); the
+  status line points at the changelog tail (1.181-2) instead of the stale Phase 3b0
+  marker; §1.5 already covered the environment matrix and needed no change.
+
+Verification: every fact cross-checked against `.github/workflows/ci.yml` (job names,
+branch gates, secrets, region `asia-southeast1`, service `cloudy2`), the
+`Dockerfile`, and `vercel.json`; markdown code fences balanced; README /
+developer-guide / progress / AGENTS TOCs and cross-file anchors checked.

@@ -14,7 +14,7 @@ and the migration workflow. Subsystem design lives in the deep-dive docs indexed
 - [1.5 Project structure](#15-project-structure)
 - [1.6 Testing](#16-testing)
 - [1.7 CI](#17-ci)
-- [1.8 Git workflow](#18-git-workflow)
+- [1.8 Git workflow (cheatsheet)](#18-git-workflow-cheatsheet)
 - [1.9 Deployment (hosting environments)](#19-deployment-hosting-environments)
 - [1.10 Google integration setup](#110-google-integration-setup)
 - [1.11 Database migrations](#111-database-migrations)
@@ -142,27 +142,33 @@ docs/                       # Design deep-dives (indexed in §1.12)
 
 ## 1.7 CI
 
-GitHub Actions runs on every push/PR in this order:
+One GitHub Actions workflow (`ci.yml`) runs the quality checks on every push/PR and
+the environment-specific jobs on branch pushes. Vercel deploys **independently** of
+this workflow via its git integration (see the plain-English overview in the
+[`README` §1.4](../README.md#14-development--deployment-at-a-glance)).
 
 ```mermaid
 flowchart LR
-    A[lint] --> B[typecheck] --> C[test] --> D[db:generate<br/>schema-drift check]
-    D -- "push to dev" --> E[migrate-preview<br/>pnpm db:migrate vs dev Neon]
-    D -- "push to main" --> F[migrate<br/>pnpm db:migrate vs prod Neon]
-    F -- "main only" --> G[deploy-cloudrun<br/>build image + deploy Cloud Run shadow]
+    TRIG["push dev / push main / pull request"] --> Q["quality job<br/>1 lint → 2 typecheck → 3 test →<br/>4 schema-drift (pnpm db:generate vs committed drizzle/)"]
+    Q -->|"pull request — stop"| PR["quality only"]
+    Q -->|"ref = dev"| MP["migrate-preview job<br/>pnpm db:migrate<br/>(DATABASE_URL_PREVIEW secret) → dev Neon"]
+    Q -->|"ref = main"| MIG["migrate job<br/>pnpm db:migrate<br/>(DATABASE_URL secret) → prod Neon"]
+    MIG -->|"main only"| CR["deploy-cloudrun job<br/>Docker build → Artifact Registry →<br/>Cloud Run cloudy2 + env-var revision"]
+    TRIG -. "Vercel git integration (independent of ci.yml)" .-> VER["dev → Preview · main → Production"]
 ```
 
-- The schema-drift check runs `pnpm db:generate` and fails on any diff to
+- The **quality job** runs on every push and PR: `lint` → `typecheck` → `test` → a
+  schema-drift check that runs `pnpm db:generate` and fails on any diff to
   `drizzle/` — committed migrations must stay in sync with `src/db/schema.ts`.
-- Pushes run the matching `migrate` job: `dev` → `migrate-preview` against the dev
-  Neon DB (`DATABASE_URL_PREVIEW` secret), `main` → `migrate` against the prod Neon
-  DB (`DATABASE_URL` secret) — pending migrations auto-apply per environment on
-  deploy. Both jobs are branch-gated with their own concurrency group. PRs only run
-  the quality checks.
-- `main` pushes additionally run `deploy-cloudrun` (after `migrate`, so migrations
-  land before traffic): Docker build → Artifact Registry → Cloud Run, plus env vars
-  that mirror Vercel prod (§1.9.1). This is the migration-shadow deployment; Vercel
-  keeps deploying independently of `ci.yml`.
+- Branch pushes run the matching migration job: `dev` → `migrate-preview` against
+  the dev Neon DB (`DATABASE_URL_PREVIEW` secret), `main` → `migrate` against the
+  prod Neon DB (`DATABASE_URL` secret) — pending migrations auto-apply per
+  environment on deploy. Both jobs are branch-gated with their own concurrency group
+  and wait on `quality`. PRs only run the quality job.
+- `main` pushes additionally run `deploy-cloudrun` (after `quality` and `migrate`,
+  so migrations land before traffic): Docker build → Artifact Registry → Cloud Run,
+  plus env vars that mirror Vercel prod (§1.9.1). This is the migration-shadow
+  deployment; Vercel keeps deploying independently of `ci.yml`.
 
 ## 1.8 Git workflow (cheatsheet)
 
@@ -171,13 +177,16 @@ merging `dev`. Never commit directly to `main`.**
 
 ```mermaid
 flowchart LR
-    A[feature branch] -- PR --> B[dev]
-    B -- push --> C["CI: quality + migrate-preview (dev Neon)"]
-    C --> D["Vercel preview — isolated dev Neon + dev Google account"]
-    D -- verify on preview --> B
-    B -- merge --> E[main]
-    E -- push --> F["CI: migrate (prod Neon)"]
-    F --> G["Vercel prod deploy + Cloud Run shadow (deploy-cloudrun)"]
+    FB[feature branch] -- "PR (quality only)" --> DEV[dev]
+    DEV -- "push" --> A1["GitHub Actions — quality<br/>+ migrate-preview (dev Neon)"]
+    DEV -- "push" --> V1["Vercel Preview build"]
+    A1 & V1 --> PREV["Preview<br/>isolated dev Neon + dev Google"]
+    PREV -- "verify on the preview" --> DEV
+    DEV -- "merge" --> MAIN[main]
+    MAIN -- "push" --> A2["GitHub Actions — quality<br/>+ migrate (prod Neon)"]
+    MAIN -- "push" --> V2["Vercel Production build"]
+    A2 -- "after migrate: deploy-cloudrun" --> CR["Cloud Run shadow"]
+    V2 & CR --> P["Production<br/>shared prod Neon + prod Google"]
 ```
 
 ### Terminal
@@ -224,13 +233,34 @@ git checkout dev
 One codebase, three tiers — `main` is production and only advances by merging `dev`
 (§1.8). Environments are isolated per the split below; prod is served from **two**
 hosts (Vercel Production and the Cloud Run shadow) sharing the same data, so either
-can act as the other's fallback during the migration.
+can act as the other's fallback during the migration. A plain-English overview of
+the same tiers is in the [`README` §1.4](../README.md#14-development--deployment-at-a-glance).
 
 | Tier      | Host                                                                            | Deploy trigger                                                | Data / accounts                                            |
 | --------- | ------------------------------------------------------------------------------- | ------------------------------------------------------------- | ---------------------------------------------------------- |
 | **Local** | `pnpm dev` on your machine (`.env.local`)                                       | —                                                             | your local env (dev Neon + dev Google, per `.env.local`)   |
 | **Dev**   | Vercel **Preview** (branch `dev`)                                               | Vercel git integration; CI runs quality + `migrate-preview`   | isolated dev Neon + dev Google (separate accounts)         |
 | **Prod**  | Vercel **Production** (branch `main`) + Cloud Run **shadow** `cloudy2` (§1.9.1) | Vercel git integration; CI runs `migrate` → `deploy-cloudrun` | shared prod Neon + prod Google — same commit on both hosts |
+
+```mermaid
+flowchart TB
+    A["Local<br/>pnpm dev · .env.local"]
+    B["Vercel Preview<br/>(dev branch)"]
+    C["Vercel Production<br/>(main branch)"]
+    D["Cloud Run shadow<br/>(main-only, deploy-cloudrun)"]
+    NE1["dev Neon project<br/>(separate Neon account)"]
+    GO1["dev Google service account<br/>(separate Google account)"]
+    NE2["prod Neon project"]
+    GO2["prod Google service account"]
+    A --> NE1
+    A --> GO1
+    B --> NE1
+    B --> GO1
+    C --> NE2
+    C --> GO2
+    D --> NE2
+    D --> GO2
+```
 
 Vercel auto-builds on every push: `main` → production, `dev` → preview. The two Vercel
 environments are **fully isolated**: every environment variable has separate

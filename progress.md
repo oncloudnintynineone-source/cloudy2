@@ -14,14 +14,16 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
 - [1.2 Decisions locked in (Phase 0)](#12-decisions-locked-in-phase-0)
 - [1.3 Phase changelog](#13-phase-changelog)
 - [1.4 Open items & next steps](#14-open-items--next-steps)
-- [1.5 Deployment & environments](#15-deployment-environments)
+- [1.5 Deployment & environments](#15-deployment--environments)
 
 ## 1.1 Status
 
-- All phases through **Phase 3b0 (Cross-department event invites for non-admins)** are shipped.
+- All work through changelog **1.181-2 (Double Booking nav count pill)** is shipped.
 - Quality gates (`lint` / `typecheck` / `test` / schema-drift check) run in CI on every
-  PR; pushes to `main` additionally auto-apply pending migrations against Neon. The
-  per-phase "pnpm … pass" claims are therefore no longer repeated here.
+  push and PR. Pushes also auto-apply migrations per environment: `dev` →
+  `migrate-preview` against the dev Neon DB, `main` → `migrate` against the prod Neon
+  DB then `deploy-cloudrun` (Cloud Run shadow). The per-phase "pnpm … pass" claims are
+  therefore no longer repeated here.
 - Feature surface: single-field login (`[phone][keyword]`, admin PIN modal, phone-less
   env root); departments as Google
   Calendars with service-account ACL sharing; audit logging; event CRUD across department
@@ -363,6 +365,13 @@ One line per phase; full write-ups (incl. Mermaid diagrams and verification note
   new `cloudy2:events-changed` window event (`src/lib/ui/eventChanges.ts`, dispatched
   from the dashboard's two post-mutation completion points). No engine/schema changes;
   badge reuses the existing scan.
+- 1.182 Dev-ops docs refresh: README gains a **Development & deployment (at a glance)**
+  section (§1.4) — moving parts, the `ci.yml` pipeline, and a hosting-environments
+  table, with Mermaid diagrams and the Cloud Run shadow + env isolation surfaced
+  (Documentation renumbered §1.5); `docs/developer-guide.md` §1.7/§1.8/§1.9 diagrams
+  redrawn to mirror `ci.yml` (quality → branch-gated migrate jobs → deploy-cloudrun +
+  the independent Vercel build lane) and §1.9 gains a hosting-tier diagram; progress
+  §1.1 quality-gate bullet names all three push paths
 
 ## 1.4 Open items & next steps
 
