@@ -3,7 +3,7 @@
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { signIn } from "next-auth/react";
-import { Button, Modal, PasswordInput, Stack, Text } from "@mantine/core";
+import { Button, Modal, PasswordInput, Stack } from "@mantine/core";
 import { BUTTON_LOADER_PROPS } from "@/lib/theme";
 import { invalidateCurrentPathCaches } from "@/lib/pwa/client";
 import { resolveLogin } from "@/lib/loginActions";
@@ -141,7 +141,6 @@ export function LoginForm() {
         size="sm"
       >
         <Stack gap="md">
-          <Text size="sm">Enter the shared admin PIN to continue.</Text>
           <PasswordInput
             aria-label="Admin PIN"
             value={pin}

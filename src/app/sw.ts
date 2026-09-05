@@ -149,7 +149,7 @@ const OFFLINE_FALLBACK_HTML = `<!doctype html>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
 <meta name="theme-color" content="#111111" />
-<title>Offline — Cloudy</title>
+<title>Offline — Cloudy2</title>
 <style>
 :root{--navy:#0d47a1;--bg:#111111}
 *{box-sizing:border-box;margin:0;padding:0}
@@ -168,13 +168,13 @@ p+p{margin-top:10px}
 </head>
 <body>
 <header>
-<h1>Cloudy</h1>
+<h1>Cloudy2</h1>
 </header>
 <main>
 <div class="card">
 <div class="icon" aria-hidden="true"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#F9A825" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1018 0 9 9 0 00-18 0z"/><path d="M8 12h8M12 8v8"/></svg></div>
 <h2>You're offline</h2>
-<p>Cloudy couldn't reach the server. Reconnect to keep using the app. Once you've opened the app while online, it opens instantly — even offline.</p>
+<p>Cloudy2 couldn't reach the server. Reconnect to keep using the app. Once you've opened the app while online, it opens instantly — even offline.</p>
 <a class="btn" href="/">Try again</a>
 </div>
 </main>

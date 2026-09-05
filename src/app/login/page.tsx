@@ -8,7 +8,7 @@ import { LoginShell } from "./LoginShell";
 import { UnsupportedBrowserNotice } from "./UnsupportedBrowserNotice";
 
 export const metadata: Metadata = {
-  title: "Sign in — Cloudy",
+  title: "Sign in — Cloudy2",
 };
 
 export default async function LoginPage() {

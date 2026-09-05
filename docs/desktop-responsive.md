@@ -1,6 +1,6 @@
 # 1. Desktop responsive layout
 
-Cloudy started as a strictly mobile-first app (bottom nav, card lists, floating
+Cloudy2 started as a strictly mobile-first app (bottom nav, card lists, floating
 modals). It now also presents a purpose-built layout for wide screens: at Mantine's
 `lg` breakpoint (**640px = 40em** — the width of an unfolded foldable's inner
 screen) and above the shell gains a left sidebar, pages

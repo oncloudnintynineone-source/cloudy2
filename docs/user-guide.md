@@ -1,6 +1,6 @@
 # 1. User guide
 
-Cloudy is the company's cloud calendar: who is out, where, and when — plus parade
+Cloudy2 is the company's cloud calendar: who is out, where, and when — plus parade
 state, contacts, and KAH status. This guide is for everyday users; administrators
 should also read [`admin-guide.md`](admin-guide.md).
 
@@ -92,7 +92,7 @@ them with the tabs above the grid:
   Google Calendar. The muted *Saved · HH:MM* label shows when you're looking at a
   cached copy.
 
-Events created directly in Google Calendar (outside Cloudy) show an **External**
+Events created directly in Google Calendar (outside Cloudy2) show an **External**
 badge; admins can still edit them.
 
 ## 1.4 Events: create, view, edit
@@ -177,10 +177,10 @@ or will it soon?" over the **past and next 3 months**:
 
 ## 1.10 Install as an app & offline use
 
-Cloudy is a PWA — install it (browser menu → Install / Add to Home screen) for a
+Cloudy2 is a PWA — install it (browser menu → Install / Add to Home screen) for a
 full-screen app icon.
 
-- **Instant open:** an installed Cloudy opens your last-saved calendar immediately,
+- **Instant open:** an installed Cloudy2 opens your last-saved calendar immediately,
   then refreshes in the background.
 - **Offline:** previously viewed pages stay available. Offline copies carry an amber
   offline banner and a *Saved · HH:MM* stamp; any navigation falls back to your most
@@ -190,7 +190,7 @@ full-screen app icon.
 
 ## 1.11 Good to know
 
-- **Cloudy remembers where you left off** — your last page, view, date, and filters
+- **Cloudy2 remembers where you left off** — your last page, view, date, and filters
   come back on relaunch (the day on Parade State is the exception: it always opens
   on today).
 - **Event titles are templated** by your admin — what you type in Remarks is the
@@ -198,7 +198,7 @@ full-screen app icon.
 - **Two themes** — the sun/moon toggle in the header switches light/dark.
 - **Loading style** — pages show skeletons, never dimmed content; buttons show their
   own spinner while working.
-- **Modern browsers only** — Cloudy needs Safari 16.4 (iOS 16.4) or newer on Apple
+- **Modern browsers only** — Cloudy2 needs Safari 16.4 (iOS 16.4) or newer on Apple
   devices, or a current Chrome / Edge / Firefox (version 111+, i.e. from 2023). On
   older browsers the login page shows a short "unsupported browser" notice instead of
   the sign-in form — updating your browser or device is the only way to sign in.

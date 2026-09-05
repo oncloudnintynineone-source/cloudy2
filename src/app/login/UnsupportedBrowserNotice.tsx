@@ -11,9 +11,9 @@ import { Stack, Text } from "@mantine/core";
 export function UnsupportedBrowserNotice() {
   return (
     <Stack gap="sm">
-      <Text fw={600}>This browser is too old for Cloudy to run</Text>
+      <Text fw={600}>This browser is too old for Cloudy2 to run</Text>
       <Text c="dimmed" size="sm">
-        Cloudy requires a modern browser — Safari 16.4 (iOS 16.4) or newer on Apple devices, or
+        Cloudy2 requires a modern browser — Safari 16.4 (iOS 16.4) or newer on Apple devices, or
         a current Chrome, Edge, or Firefox (version 111+). Your browser can&apos;t run the app,
         so you see this notice instead of the sign-in form. Updating your browser or device is
         the only way to sign in.

@@ -11,9 +11,9 @@ import { SerwistProvider } from "@serwist/turbopack/react";
 import AppProviders from "@/components/AppProviders";
 
 export const metadata: Metadata = {
-  title: "Cloudy",
+  title: "Cloudy2",
   description: "Cloud Calendar Movement",
-  applicationName: "Cloudy",
+  applicationName: "Cloudy2",
   manifest: "/manifest.webmanifest",
   icons: {
     icon: "/icon.svg",
@@ -21,7 +21,7 @@ export const metadata: Metadata = {
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",
-    title: "Cloudy",
+    title: "Cloudy2",
   },
   formatDetection: {
     telephone: false,

@@ -1,6 +1,6 @@
 # 1. Browser support
 
-Cloudy runs on modern browsers only. The stack — Next.js 16 (App Router) + React
+Cloudy2 runs on modern browsers only. The stack — Next.js 16 (App Router) + React
 19 + Mantine v9 — compiles the client bundle for the "baseline widely available"
 floor, and below that floor the page paints but **no client JavaScript runs**: the
 hydration bundle throws during parse/execute, so forms look alive but do nothing

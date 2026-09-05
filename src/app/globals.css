@@ -544,23 +544,23 @@
 }
 
 /*
-  Public login page (src/app/login/LoginShell.tsx). A navy backdrop echoing
-  the app header (brand-7 → brand-9) behind a normal in-app style card —
-  opaque (the scheme's body color), bordered and shadowed like every other
-  surface in the app, no translucency or backdrop blur — carrying the app
-  icon, wordmark and the sign-in form (or the unsupported-browser notice).
+  Public login page (src/app/login/LoginShell.tsx). A scheme-matched backdrop
+  behind a normal in-app style card — opaque (the scheme's body color),
+  bordered and shadowed like every other surface in the app, no translucency
+  or backdrop blur — carrying the app icon, wordmark and the sign-in form
+  (or the unsupported-browser notice). Light mode is pure white; dark mode
+  is pure black.
 */
 .c2-login-wrap {
   position: relative;
   overflow: hidden;
   min-height: 100vh;
   min-height: 100dvh;
-  background: linear-gradient(
-    180deg,
-    var(--mantine-color-brand-7) 0%,
-    var(--mantine-color-brand-8) 55%,
-    var(--mantine-color-brand-9) 100%
-  );
+  background: #ffffff;
+}
+
+[data-mantine-color-scheme="dark"] .c2-login-wrap {
+  background: #000000;
 }
 
 .c2-login-center {
@@ -578,17 +578,9 @@
 }
 
 .c2-login-icon {
-  width: calc(4.5rem * var(--mantine-scale));
-  height: calc(4.5rem * var(--mantine-scale));
+  width: calc(6.75rem * var(--mantine-scale));
+  height: calc(6.75rem * var(--mantine-scale));
   user-select: none;
-}
-
-.c2-login-rule {
-  width: calc(2.75rem * var(--mantine-scale));
-  height: calc(0.25rem * var(--mantine-scale));
-  margin: var(--mantine-spacing-xs) auto;
-  border-radius: 999px;
-  background: linear-gradient(90deg, var(--mantine-color-accent-5), var(--mantine-color-accent-7));
 }
 
 @media (prefers-reduced-motion: no-preference) {

@@ -2,8 +2,8 @@ import type { MetadataRoute } from "next";
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "Cloudy",
-    short_name: "Cloudy",
+    name: "Cloudy2",
+    short_name: "Cloudy2",
     description: "Cloud Calendar Movement",
     start_url: "/",
     display: "standalone",

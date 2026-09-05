@@ -57,7 +57,7 @@ link auto-opens the event's details modal (Edit / Duplicate / Delete per the usu
 
 ## 1.4 The header ticker
 
-The pill at the header's **left edge** (it took the logo's slot — the "Cloudy"
+The pill at the header's **left edge** (it took the logo's slot — the "Cloudy2"
 wordmark was removed) keeps the rounded-rectangle shape and the pin icon, and
 shows, left to right:
 

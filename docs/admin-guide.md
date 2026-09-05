@@ -1,6 +1,6 @@
 # 1. Admin guide
 
-Everything an administrator does in Cloudy: signing in as admin, acting on behalf of
+Everything an administrator does in Cloudy2: signing in as admin, acting on behalf of
 other users, and the eleven Settings tabs. Everyday usage is covered in
 [`user-guide.md`](user-guide.md); implementation detail lives in the linked
 deep-dive docs.

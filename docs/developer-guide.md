@@ -1,6 +1,6 @@
 # 1. Developer guide
 
-Everything needed to develop, test, and deploy Cloudy: setup, scripts, environment,
+Everything needed to develop, test, and deploy Cloudy2: setup, scripts, environment,
 project layout, testing, CI, git workflow, Vercel deployment, Google configuration,
 and the migration workflow. Subsystem design lives in the deep-dive docs indexed in
 §1.12; agent-facing rules live in [`AGENTS.md`](../AGENTS.md).

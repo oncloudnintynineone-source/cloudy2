@@ -29,7 +29,7 @@ export default function GlobalError({
       <body>
         <MantineProvider theme={theme} defaultColorScheme="auto">
           <ErrorState
-            title="Cloudy hit a problem"
+            title="Cloudy2 hit a problem"
             description="An unexpected error occurred. Reloading the page usually fixes it — your data is unaffected."
             onReset={() => reset()}
           />
