@@ -14,6 +14,7 @@ import {
 const ROLE_LABELS: Record<MyCalendarRow["role"], string> = {
   reader: "Read only",
   writer: "Can edit",
+  owner: "Owner",
 };
 
 /** The Google "add calendar to my account" web link (same pattern as the
@@ -39,7 +40,13 @@ function CalendarRow({ calendar }: { calendar: MyCalendarRow }) {
             <Badge
               size="sm"
               variant="light"
-              color={calendar.role === "writer" ? "accent" : "gray"}
+              color={
+                calendar.role === "owner"
+                  ? "brand"
+                  : calendar.role === "writer"
+                    ? "accent"
+                    : "gray"
+              }
             >
               {ROLE_LABELS[calendar.role]}
             </Badge>

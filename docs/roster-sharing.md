@@ -57,8 +57,9 @@ actions reconcile immediately after the DB write.
 - Every department calendar has: the service account (owner, inherent), the
   admin account (`GOOGLE_DELEGATE_EMAIL`, owner — granted/upgraded on read),
   every assigned user with an email (reader, auto-granted — upgradable to
-  writer/owner from the detail modal), every cross-department-granted user (at
-  their row role, reader/writer, managed from Users), and any manual additional
+  writer/owner from the detail modal or from the user's own form, both writing
+  the ACL directly), every cross-department-granted user (at their row role,
+  reader/writer/owner, managed from Users), and any manual additional
   grants for people without a user account (reader/writer/owner).
 - Org changes sync immediately after the DB commit; failures degrade to
   human-readable warnings, never failing the already-committed roster change.
@@ -160,12 +161,14 @@ erDiagram
   tree rendering order everywhere calendars are listed.
 - `user_calendar_access` (`schema.ts`, migration 0032): **cross-department
   grants** — a roster user given a department calendar other than their own, at
-  a managed role (`reader` | `writer`, `schema.ts` enum). Composite PK
+  a managed role (`reader` | `writer` | `owner`, `schema.ts` enum). Composite PK
   `(user_id, calendar_id)`, both FKs `ON DELETE CASCADE` (a deleted user's rows
   vanish with them; deleting a department's calendar — which removes its Google
   ACL entirely — drops its rows too). The user's own department is **never** a
   row: access there is implied by `users.department_id` and reconciled the usual
-  way. Rows survive email changes (the reconcile paths re-grant the new email)
+  way — an elevated own-department role is a raw ACL override (department modal
+  or the user form's non-removable own-department row), never a row. Rows
+  survive email changes (the reconcile paths re-grant the new email)
   and deactivation (the reader-rule non-goal, below). These rows are what let
   user settings manage extra access instead of anonymous per-email rules.
 - **History**: the original schema (migration 0000) had a `departments` table
@@ -184,8 +187,9 @@ erDiagram
   Owner).   `isDepartmentAccessRole` (`:40`) deliberately rejects
   `freeBusyReader` even though the integration contract allows it — it is not a
   UI-selectable level.
-- **`ManagedGrantRole` / `UserCalendarGrant`** (`:14-22`) — `"reader" | "writer"`
-  and a `{ calendarId, role }` grant. `isManagedGrantRole`, `normalizeGrantRole`
+- **`ManagedGrantRole` / `UserCalendarGrant`** (`:14-22`) — `"reader" | "writer" |
+  "owner"` (an alias of `DepartmentAccessRole`) and a `{ calendarId, role }`
+  grant. `isManagedGrantRole`, `normalizeGrantRole`
   and `needsManagedGrant` (a rule below its intended role needs (re)granting; a
   rule **at or above** it is left alone, so a department-modal elevation to
   writer/owner survives every reconcile) and `normalizeAccessSelection` (drops
@@ -202,7 +206,7 @@ erDiagram
 
 **Managed vs external.** A department calendar's sharing falls into three kinds:
 membership (auto reader, `users.department_id`), **managed grants** (roster
-users given the calendar from their user form, at `reader`/`writer` — DB rows,
+users given the calendar from their user form, at `reader`/`writer`/`owner` — DB rows,
 because email changes and drift must re-reconcile them), and **external rules**
 (any email with no user account — nothing stored, managed only through the
 department modal's "Additional access"). The department modal shows exactly
@@ -222,7 +226,7 @@ The pure diff helpers (all case-insensitive, ignoring blanks):
 | `diffAccess(existing, expected)` (`:48`) | expected emails **missing** an ACL rule → to grant |
 | `diffRevocable(candidates, assigned)` (`:58`) | candidate emails no assigned user holds anymore → safe to revoke |
 | `needsAdminOwnerGrant(acls, adminEmail)` (`:68`) | true when the admin has no rule or a lower role (a manual reader grant gets upgraded to owner); blank email never needs one |
-| `isManagedGrantRole` / `normalizeGrantRole` / `needsManagedGrant` (`:108`) | the managed-role domain: accept `reader\|writer`, coerce any role down to it, and detect a rule below its intended role (never downgrade an elevated one) |
+| `isManagedGrantRole` / `normalizeGrantRole` / `needsManagedGrant` (`:108`) | the managed-role domain: accept `reader\|writer\|owner`, coerce anything else down to `reader`, and detect a rule below its intended role (never downgrade an elevated one) |
 | `normalizeAccessSelection(raw, ownDept)` (`:151`) | coerce a client access list into clean `UserCalendarGrant[]` (roles clamped, dupes dropped, own department excluded) |
 | `formatManagedGrants(grants, names)` (`:169`) | human-readable, department-sorted `["Ops (Can edit)"]` strings for audit payloads |
 | `isValidEmail` (`:35`) | simple email shape check, used server-side in grant/update and in user-form validation |
@@ -536,7 +540,7 @@ The rules, precisely:
 - **Adoption** runs after the reconcile in the actions: when a user is created
   with an email, or their email changes, `adoptExternalAccessForEmail` scans
   every department's ACLs for that email and turns matching rules on non-own,
-  non-inherent calendars into managed grant rows (role clamped to reader/writer)
+  non-inherent calendars into managed grant rows (role kept at reader/writer/owner)
   — so an email that previously held raw "additional access" keeps its access as
   a manageable, reconcile-safe grant (surfaced via the warnings toast).
 - **Failure isolation**: every grant/revoke is try/caught; failures accumulate

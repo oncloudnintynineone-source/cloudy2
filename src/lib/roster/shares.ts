@@ -9,7 +9,7 @@ import { getAdminGoogleEmail, getServiceAccountConfig } from "@/lib/google/confi
 export type DepartmentAccessRole = "reader" | "writer" | "owner";
 
 /** The managed levels a cross-department grant row may carry. */
-export type ManagedGrantRole = "reader" | "writer";
+export type ManagedGrantRole = DepartmentAccessRole;
 
 export interface CalendarAccessRule {
   email: string;
@@ -69,12 +69,15 @@ export function isDepartmentAccessRole(value: unknown): value is DepartmentAcces
 
 /** True when the value is one of the managed cross-department grant roles. */
 export function isManagedGrantRole(value: unknown): value is ManagedGrantRole {
-  return value === "reader" || value === "writer";
+  return value === "reader" || value === "writer" || value === "owner";
 }
 
-/** Coerce an ACL/raw role to a managed grant role ("writer" or the reader default). */
+/** Coerce an ACL/raw role to a managed grant role (owner/writer kept, else the reader default). */
 export function normalizeGrantRole(value: string | null | undefined): ManagedGrantRole {
-  return value === "writer" ? "writer" : "reader";
+  if (value === "writer" || value === "owner") {
+    return value;
+  }
+  return "reader";
 }
 
 /** Relative rank used to compare ACL roles (readers may be upgraded, never downgraded). */
@@ -104,8 +107,8 @@ export interface RawAccessGrant {
 
 /**
  * Coerce a client-submitted access selection into clean managed grants: only
- * reader/writer roles survive, the user's own department is never granted (its
- * access is implied by membership), and duplicate calendar ids collapse. Pure.
+ * reader/writer/owner roles survive, the user's own department is never granted
+ * (its access is implied by membership), and duplicate calendar ids collapse. Pure.
  */
 export function normalizeAccessSelection(
   raw: unknown,
@@ -140,6 +143,7 @@ export function normalizeAccessSelection(
 const MANAGED_ROLE_LABELS: Record<ManagedGrantRole, string> = {
   reader: "Read only",
   writer: "Can edit",
+  owner: "Owner",
 };
 
 /**
@@ -710,10 +714,10 @@ export async function reconcileUserAccessChange(change: UserAccessChange): Promi
  * Adopt pre-existing raw ACL rules for an email that a user account now owns:
  * scan every department calendar's ACLs and turn each matching rule on a
  * calendar that is not the user's own department into a managed grant row
- * (role clamped to reader/writer), so the access keeps working and becomes
- * manageable from user settings. Safe to run after a user is created or their
- * email changes. Returns human-readable warnings; per-calendar read failures
- * never abort the scan.
+ * (role clamped to reader/writer/owner), so the access keeps working and
+ * becomes manageable from user settings. Safe to run after a user is created
+ * or their email changes. Returns human-readable warnings; per-calendar read
+ * failures never abort the scan.
  */
 export async function adoptExternalAccessForEmail(
   userId: string,

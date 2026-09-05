@@ -26,9 +26,11 @@ import {
   isValidEmail,
   listDepartmentAccess,
   normalizeAccessSelection,
+  normalizeGrantRole,
   reconcileUserAccessChange,
   type DepartmentAccess,
   type DepartmentAccessRole,
+  type ManagedGrantRole,
   type UserCalendarGrant,
 } from "@/lib/roster/shares";
 import {
@@ -718,6 +720,34 @@ export async function getDepartmentAccess(calendarId: string): Promise<Departmen
   return listDepartmentAccess(calendarId);
 }
 
+/**
+ * A roster user's live ACL role on their own department calendar, for the user
+ * form's non-removable own-department row. Plain read (no reconcile): missing
+ * rules and unknown roles fall back to the membership default, "reader".
+ */
+export async function getAssignedAccessRole(
+  calendarId: string,
+  email: string,
+): Promise<ManagedGrantRole> {
+  await requireAdmin();
+  const trimmed = email.trim();
+  if (!trimmed || !googleCalendarConfigured()) {
+    return "reader";
+  }
+  const calendar = await getCalendarOrNull(calendarId);
+  if (!calendar) {
+    return "reader";
+  }
+  try {
+    const integration = await getGoogleIntegration();
+    const acls = await integration.listCalendarAccess(calendar.googleCalendarId);
+    const rule = acls.find((item) => item.email.toLowerCase() === trimmed.toLowerCase());
+    return normalizeGrantRole(rule?.role);
+  } catch {
+    return "reader";
+  }
+}
+
 export async function grantDepartmentAccess(
   calendarId: string,
   email: string,
@@ -876,7 +906,7 @@ export type MyCalendarRow = {
   googleCalendarId: string;
   name: string;
   /** The managed access level: own department is always a reader; grants carry their role. */
-  role: "reader" | "writer";
+  role: "reader" | "writer" | "owner";
   /** Where the access comes from: the user's own department vs. a cross-department grant. */
   source: "department" | "grant";
 };

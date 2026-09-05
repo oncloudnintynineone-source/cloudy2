@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useForm } from "@mantine/form";
 import {
   Badge,
@@ -24,7 +24,9 @@ import { showValidationFailure } from "@/lib/ui/validationFeedback";
 
 import {
   createUser,
+  getAssignedAccessRole,
   setUserStatus,
+  updateDepartmentAccess,
   updateUser,
   type RosterActionResult,
 } from "@/lib/roster/actions";
@@ -36,7 +38,12 @@ import { NoKeyboardSelect } from "@/components/NoKeyboardSelect";
 const ACCESS_ROLE_OPTIONS: { value: ManagedGrantRole; label: string }[] = [
   { value: "reader", label: "Read only" },
   { value: "writer", label: "Can edit" },
+  { value: "owner", label: "Owner" },
 ];
+
+function isAccessRole(value: string | null): value is ManagedGrantRole {
+  return value === "reader" || value === "writer" || value === "owner";
+}
 
 export interface DepartmentOption {
   id: string;
@@ -88,6 +95,10 @@ export function UserForm({ user, departments, access, onDone }: UserFormProps) {
   const [togglingStatus, setTogglingStatus] = useState(false);
   const [addingCalendarId, setAddingCalendarId] = useState<string>("");
   const [addingRole, setAddingRole] = useState<ManagedGrantRole>("reader");
+  // The user's own department's live ACL level, for its non-removable row.
+  const [ownRole, setOwnRole] = useState<ManagedGrantRole | null>(null);
+  const [ownFetchedKey, setOwnFetchedKey] = useState<string | null>(null);
+  const [updatingOwnRole, setUpdatingOwnRole] = useState(false);
 
   const form = useForm<UserFormValues>({
     // The parent remounts this component (key) when the target user changes,
@@ -197,6 +208,86 @@ export function UserForm({ user, departments, access, onDone }: UserFormProps) {
     form.setFieldValue("departmentId", departmentId);
     if (departmentId && granted.some((grant) => grant.calendarId === departmentId)) {
       removeGrant(departmentId);
+    }
+  }
+
+  // The department picked in the form: the own-department row tracks it (there
+  // is never a remove button), but its level can only be raised while it IS the
+  // user's saved membership — a drafted move isn't a member of the new calendar
+  // yet, and ACL writes before Save would be premature.
+  const selectedDepartmentId = form.values.departmentId;
+  const ownDepartmentIsCurrent =
+    isEdit && user !== null && selectedDepartmentId === (user.department?.id ?? null);
+  const ownDepartmentOption = departments.find(
+    (department) => department.id === selectedDepartmentId,
+  );
+
+  // Whose live ACL level seeds the own-department row: only an existing
+  // membership (saved department + saved email). Clearing the fetched role when
+  // the target changes is a render-phase reset (never an effect) so no cascade.
+  const ownFetchKey =
+    isEdit && user?.email && ownDepartmentIsCurrent
+      ? `${selectedDepartmentId}|${user.email}`
+      : null;
+  if (ownFetchedKey !== ownFetchKey) {
+    setOwnFetchedKey(ownFetchKey);
+    setOwnRole(null);
+  }
+
+  // Seed the row from the live Google ACL (a plain read — the full department
+  // reconcile would be heavier for an edit form). State only updates in the
+  // async callback; the row is disabled/loading until it lands.
+  useEffect(() => {
+    if (ownFetchedKey === null) {
+      return;
+    }
+    const separator = ownFetchedKey.indexOf("|");
+    const departmentId = ownFetchedKey.slice(0, separator);
+    const email = ownFetchedKey.slice(separator + 1);
+    let active = true;
+    getAssignedAccessRole(departmentId, email)
+      .then((role) => {
+        if (active) {
+          setOwnRole(role);
+        }
+      })
+      .catch(() => {
+        if (active) {
+          setOwnRole("reader");
+        }
+      });
+    return () => {
+      active = false;
+    };
+  }, [ownFetchedKey]);
+
+  const ownRoleValue = ownRole ?? "reader";
+  const ownRoleBusy = ownFetchKey !== null && ownRole === null;
+
+  /** Raising the own department's level writes straight to the Google ACL (same
+   *  mechanism and audit path as the department modal's assigned-user selector);
+   *  the row can never be removed — membership implies it. */
+  async function handleOwnRoleChange(nextRole: ManagedGrantRole) {
+    if (
+      !ownDepartmentIsCurrent ||
+      !user?.email ||
+      selectedDepartmentId === null ||
+      ownRoleBusy ||
+      updatingOwnRole
+    ) {
+      return;
+    }
+    setUpdatingOwnRole(true);
+    try {
+      const result = await updateDepartmentAccess(selectedDepartmentId, user.email, nextRole);
+      if (result.ok) {
+        notifications.show({ color: "green", message: "Access level updated" });
+        setOwnRole(nextRole);
+      } else {
+        notifications.show({ color: "red", message: result.error });
+      }
+    } finally {
+      setUpdatingOwnRole(false);
     }
   }
 
@@ -318,21 +409,72 @@ export function UserForm({ user, departments, access, onDone }: UserFormProps) {
           )}
         </Stack>
 
-        {/* Cross-department access: department calendars this user may see
-            beyond their own. Grants are managed here (never as anonymous
-            emails in a department's Additional access); their own department
-            is always shared automatically. Filter availability is unrelated —
-            every user can filter every department calendar anyway. */}
+        {/* Department access: department calendars this user may see. Their own
+            department appears as a non-removable row (its level can be raised —
+            written straight to the Google ACL like the department modal — but
+            never revoked here). Cross-department grants are managed below (never
+            as anonymous emails in a department's Additional access); grants can
+            be removed, their own department cannot. Filter availability is
+            unrelated — every user can filter every department calendar anyway. */}
         <Stack gap={6}>
           <Stack gap={2}>
             <Text fw={500} size="sm">
               Department access
             </Text>
             <Text size="sm" c="dimmed">
-              Other department calendars this user can see — Read only or Can edit. Their own
-              department is always shared automatically.
+              Calendars this user can access — Read only, Can edit, or Owner. Their own department
+              can&apos;t be removed; the extra departments below can.
             </Text>
           </Stack>
+
+          {isEdit && ownDepartmentOption ? (
+            <Paper withBorder p="xs" radius="md">
+              <Stack gap={4}>
+                <Group justify="space-between" wrap="nowrap" align="center">
+                  <Stack gap={2} style={{ minWidth: 0, flex: 1 }}>
+                    <Text size="sm" fw={500} style={{ minWidth: 0 }}>
+                      {ownDepartmentOption.name}
+                    </Text>
+                    {ownDepartmentIsCurrent ? (
+                      <Badge
+                        size="xs"
+                        variant="light"
+                        color="accent"
+                        style={{ width: "fit-content" }}
+                      >
+                        Their department
+                      </Badge>
+                    ) : null}
+                  </Stack>
+                  <Select
+                    size="sm"
+                    aria-label={`Access level for ${ownDepartmentOption.name}`}
+                    data={ACCESS_ROLE_OPTIONS}
+                    value={ownRoleValue}
+                    loading={ownRoleBusy || updatingOwnRole}
+                    disabled={!ownDepartmentIsCurrent || !user?.email || ownRoleBusy}
+                    style={{ width: 132, flexShrink: 0 }}
+                    onChange={(value) => {
+                      if (isAccessRole(value)) {
+                        handleOwnRoleChange(value);
+                      }
+                    }}
+                  />
+                </Group>
+                {ownDepartmentIsCurrent && !user?.email ? (
+                  <Text size="xs" c="orange">
+                    No email is linked to this user, so their department stays read-only — add an
+                    email to raise the level.
+                  </Text>
+                ) : null}
+                {ownDepartmentOption && !ownDepartmentIsCurrent ? (
+                  <Text size="xs" c="dimmed">
+                    Save the department change to make this their department.
+                  </Text>
+                ) : null}
+              </Stack>
+            </Paper>
+          ) : null}
 
           {granted.length === 0 ? (
             <Text size="sm" c="dimmed">
@@ -346,13 +488,13 @@ export function UserForm({ user, departments, access, onDone }: UserFormProps) {
                     {departmentName(grant.calendarId)}
                   </Text>
                   <Select
-                    size="xs"
+                    size="sm"
                     aria-label={`Access level for ${departmentName(grant.calendarId)}`}
                     data={ACCESS_ROLE_OPTIONS}
                     value={grant.role}
                     style={{ width: 132, flexShrink: 0 }}
                     onChange={(value) => {
-                      if (value === "reader" || value === "writer") {
+                      if (isAccessRole(value)) {
                         changeGrantRole(grant.calendarId, value);
                       }
                     }}
@@ -392,8 +534,9 @@ export function UserForm({ user, departments, access, onDone }: UserFormProps) {
                 aria-label="Access level to grant"
                 data={ACCESS_ROLE_OPTIONS}
                 value={addingRole}
+                size="sm"
                 onChange={(value) => {
-                  if (value === "reader" || value === "writer") {
+                  if (isAccessRole(value)) {
                     setAddingRole(value);
                   }
                 }}

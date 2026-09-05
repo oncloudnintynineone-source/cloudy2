@@ -54,8 +54,10 @@ Settings → Users (`/settings/users`). One row per person:
 - Email matters: KAH breach notifications go to the members' email addresses
   (§1.8) — members without an email can't be notified.
 - **Department access:** a "Department access" section in the user form grants a
-  user other department calendars beyond their own — **Read only** / **Can edit**
-  per calendar. Their own department is always shared automatically. Granting a
+  user other department calendars beyond their own — **Read only** / **Can edit** /
+  **Owner** per calendar. Their own department is shown first as a non-removable
+  row; its level can be raised (applied to Google immediately, like the department
+  modal) but never revoked here. Granting a
   roster user's email in a department's "Additional access" is blocked — use the
   user's form instead; access already given that way is adopted automatically.
 

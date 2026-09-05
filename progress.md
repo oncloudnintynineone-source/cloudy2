@@ -319,6 +319,20 @@ One line per phase; full write-ups (incl. Mermaid diagrams and verification note
     **Security** settings tab (`/settings/security`) holds the User Login Keyword moved
     out of General (General keeps retention + danger zone). `users.password_hash`
     remains unused; docs/`AGENTS.md` updated
+- 1.179 Department-access Owner grants + own-department row: the user form's
+    "Department access" grants can now be **Owner** — `ManagedGrantRole` widens to
+    `reader|writer|owner` (the `user_calendar_access` role column stays a bare
+    `text`, so no migration) and adoption paths keep a raw `owner` ACL rule instead
+    of clamping it to reader. The user's own ("home") department now appears as the
+    section's first **non-removable row** (no ✕) seeded from its live Google ACL
+    via the plain read `getAssignedAccessRole`; changing its level writes straight
+    to the ACL like the department modal's assigned-user selector (disabled with an
+    explanation for email-less users or a drafted department move — render-phase
+    reset + effect fetch only touch state in the async callback, no cascades). The
+    permission dropdowns in the section render at the readable `sm` size (were
+    `xs`), the `Calendar Access` self-service modal labels Owner (brand badge), and
+    the copy/`formatManagedGrants` audit labels/docs/tests cover the third level
+
 
 ## 1.4 Open items & next steps
 

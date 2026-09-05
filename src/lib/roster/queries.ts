@@ -105,7 +105,7 @@ export interface RosterAccessGrant {
   calendarId: string;
   /** The granted department's display name. */
   name: string;
-  role: "reader" | "writer";
+  role: "reader" | "writer" | "owner";
 }
 
 /**

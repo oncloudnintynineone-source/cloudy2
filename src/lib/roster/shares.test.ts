@@ -135,13 +135,13 @@ describe("needsAdminOwnerGrant", () => {
 });
 
 describe("isManagedGrantRole", () => {
-  it("accepts reader and writer", () => {
+  it("accepts reader, writer, and owner", () => {
     expect(isManagedGrantRole("reader")).toBe(true);
     expect(isManagedGrantRole("writer")).toBe(true);
+    expect(isManagedGrantRole("owner")).toBe(true);
   });
 
-  it("rejects owner, freeBusyReader, and other values", () => {
-    expect(isManagedGrantRole("owner")).toBe(false);
+  it("rejects freeBusyReader and other values", () => {
     expect(isManagedGrantRole("freeBusyReader")).toBe(false);
     expect(isManagedGrantRole("")).toBe(false);
     expect(isManagedGrantRole(undefined)).toBe(false);
@@ -149,10 +149,11 @@ describe("isManagedGrantRole", () => {
 });
 
 describe("normalizeGrantRole", () => {
-  it("keeps writer and falls back to reader otherwise", () => {
+  it("keeps owner and writer and falls back to reader otherwise", () => {
+    expect(normalizeGrantRole("owner")).toBe("owner");
     expect(normalizeGrantRole("writer")).toBe("writer");
     expect(normalizeGrantRole("reader")).toBe("reader");
-    expect(normalizeGrantRole("owner")).toBe("reader");
+    expect(normalizeGrantRole("freeBusyReader")).toBe("reader");
     expect(normalizeGrantRole(null)).toBe("reader");
     expect(normalizeGrantRole(undefined)).toBe("reader");
     expect(normalizeGrantRole("")).toBe("reader");
@@ -168,6 +169,8 @@ describe("needsManagedGrant", () => {
 
   it("is true when the rule sits below the intended role", () => {
     expect(needsManagedGrant("reader", "writer")).toBe(true);
+    expect(needsManagedGrant("reader", "owner")).toBe(true);
+    expect(needsManagedGrant("writer", "owner")).toBe(true);
   });
 
   it("is false when the rule meets or exceeds the intended role", () => {
@@ -175,22 +178,25 @@ describe("needsManagedGrant", () => {
     expect(needsManagedGrant("writer", "writer")).toBe(false);
     expect(needsManagedGrant("writer", "reader")).toBe(false);
     expect(needsManagedGrant("owner", "writer")).toBe(false);
+    expect(needsManagedGrant("owner", "owner")).toBe(false);
   });
 });
 
 describe("normalizeAccessSelection", () => {
-  it("keeps reader/writer roles and trims calendar ids", () => {
+  it("keeps reader/writer/owner roles and trims calendar ids", () => {
     expect(
       normalizeAccessSelection(
         [
           { calendarId: " a ", role: "reader" },
           { calendarId: "b", role: "writer" },
+          { calendarId: "c", role: "owner" },
         ],
         null,
       ),
     ).toEqual([
       { calendarId: "a", role: "reader" },
       { calendarId: "b", role: "writer" },
+      { calendarId: "c", role: "owner" },
     ]);
   });
 
@@ -198,7 +204,7 @@ describe("normalizeAccessSelection", () => {
     expect(
       normalizeAccessSelection(
         [
-          { calendarId: "a", role: "owner" },
+          { calendarId: "a", role: "freeBusyReader" },
           { calendarId: "", role: "reader" },
           { calendarId: "a", role: "writer" },
           null,
@@ -239,6 +245,12 @@ describe("formatManagedGrants", () => {
         names,
       ),
     ).toEqual(["Logistics (Read only)", "Operations (Can edit)"]);
+  });
+
+  it("labels an owner grant", () => {
+    expect(formatManagedGrants([{ calendarId: "ops", role: "owner" }], names)).toEqual([
+      "Operations (Owner)",
+    ]);
   });
 
   it("falls back to the calendar id when the name is unknown", () => {

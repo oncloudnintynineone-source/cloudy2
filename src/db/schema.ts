@@ -86,11 +86,13 @@ export const calendars = pgTable(
  * Cross-department calendar grants: a roster user given access to a department
  * calendar *other than* their own (`users.department_id`). Each row is the
  * app-level intent behind one Google Calendar ACL rule (granted at `role`, which
- * is one of the managed levels "reader" | "writer"). The user's own department is
- * never represented here — it is implied by `users.department_id` and reconciled
- * the usual way. Rows survive email changes (the reconcile paths re-grant the new
- * email), deactivation (like the reader rules of assigned users), and cascade
- * when the user or the department calendar is deleted.
+ * is one of the managed levels "reader" | "writer" | "owner"). The user's own
+ * department is never represented here — it is implied by `users.department_id`
+ * and reconciled the usual way (an elevated own-department role is a raw ACL
+ * override, managed from the department modal or the user form). Rows survive
+ * email changes (the reconcile paths re-grant the new email), deactivation (like
+ * the reader rules of assigned users), and cascade when the user or the
+ * department calendar is deleted.
  */
 export const userCalendarAccess = pgTable(
   "user_calendar_access",
@@ -101,8 +103,8 @@ export const userCalendarAccess = pgTable(
     calendarId: uuid("calendar_id")
       .notNull()
       .references(() => calendars.id, { onDelete: "cascade" }),
-    /** The managed ACL level to (re)grant: "reader" | "writer". */
-    role: text("role", { enum: ["reader", "writer"] })
+    /** The managed ACL level to (re)grant: "reader" | "writer" | "owner". */
+    role: text("role", { enum: ["reader", "writer", "owner"] })
       .notNull()
       .default("reader"),
     ...timestamps,
