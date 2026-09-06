@@ -36,10 +36,19 @@ import { useColdStartReady } from "@/components/ColdStartReady";
  */
 
 /**
- * How long the bar lingers once busy clears, so a load that ends just as it
- * appeared still reads as a deliberate, completed sequence rather than a
- * 1-frame blip. (The bar itself shows immediately on any busy edge — no show
- * delay — because it is often the only signal a load has started.)
+ * A load must stay continuously busy this long before the bar appears.
+ * Shorter loads — the typical quick warm-cache page switch or fast
+ * post-mutation refresh — are over before anyone needs a progress signal, so
+ * the bar never blips for them (the old immediate show flashed a split-second
+ * bar on every navigation, however quick).
+ */
+export const ACTIVITY_SHOW_DELAY_MS = 300;
+
+/**
+ * How long the bar lingers once busy clears, so a load that did earn the bar
+ * still reads as a deliberate, completed sequence rather than blinking out
+ * the instant its work finishes. The exit itself is a CSS retract/fade (see
+ * `globals.css`), so the removal never happens in a single frame.
  */
 export const ACTIVITY_MIN_HOLD_MS = 150;
 
@@ -131,47 +140,78 @@ export function ActivityProvider({ children }: { children: ReactNode }) {
 /**
  * The bar itself — mount it inside `AppShell.Header`, flush at its bottom edge
  * (the CSS positions it `absolute; bottom: 0`, so it sits on the header's
- * bottom border with no margin/padding above it). Shows immediately while any
- * source is busy; a flat `ACTIVITY_MIN_HOLD_MS` linger keeps a load that ends
- * right as it started from reading as a 1-frame blip.
+ * bottom border with no margin/padding above it). A busy source must persist
+ * `ACTIVITY_SHOW_DELAY_MS` before the bar pops in (quick warm loads never
+ * show); once busy clears, it lingers a flat `ACTIVITY_MIN_HOLD_MS`, then the
+ * class drops and CSS retracts/fades the strip instead of vanishing instantly.
+ * Both transitions live in effects (never during render), so SSR renders are
+ * unaffected.
  */
 export function ActivityBar() {
   const { anyBusy: busy } = useActivity();
   // While the once-per-launch cold-start readiness machine is loading or
   // confirming, it owns the header's bottom strip (see ColdStartReadyBar) —
-  // suppress the generic bar so two strips never share the same 2px slot. It
+  // suppress the generic bar so two strips never share the same 4px slot. It
   // resumes normal duty once the machine reaches `done`.
   const { phase } = useColdStartReady();
-  const [held, setHeld] = useState(false);
-  const show = (busy || held) && phase !== "loading" && phase !== "ready";
+  const [shown, setShown] = useState(false);
+  const showTimer = useRef<number | null>(null);
+  const holdTimer = useRef<number | null>(null);
+  // Render gate mirrors the timer gate: while the cold-start machine is
+  // loading/confirming it owns the strip, so even a `shown` state that outlived
+  // the phase flip stays hidden until the machine reaches `done`.
+  const visible = shown && phase !== "loading" && phase !== "ready";
 
-  // Detect the busy→false edge during render (the React-sanctioned "adjust
-  // state when a prop changes" pattern — same as the shell's nav sync):
-  // drop the hold on the rising edge, arm it when busy clears.
-  const [prevBusy, setPrevBusy] = useState(busy);
-  if (prevBusy !== busy) {
-    setPrevBusy(busy);
-    if (busy) {
-      setHeld(false);
-    } else {
-      setHeld(true);
-    }
-  }
-
-  // Release the hold. SetState happens only inside the timer callback, never
-  // synchronously in the effect body.
   useEffect(() => {
-    if (!held) return;
-    const timer = window.setTimeout(() => setHeld(false), ACTIVITY_MIN_HOLD_MS);
-    return () => window.clearTimeout(timer);
-  }, [held]);
+    const ownsSlot = phase !== "loading" && phase !== "ready";
+    if (!ownsSlot) return;
+
+    if (busy) {
+      // Rising edge (or busy returning mid-exit): cancel any pending hold and,
+      // if the bar isn't shown yet, arm the show-delay timer.
+      if (holdTimer.current !== null) {
+        window.clearTimeout(holdTimer.current);
+        holdTimer.current = null;
+      }
+      if (!shown && showTimer.current === null) {
+        showTimer.current = window.setTimeout(() => {
+          showTimer.current = null;
+          setShown(true);
+        }, ACTIVITY_SHOW_DELAY_MS);
+      }
+    } else {
+      // Falling edge: cancel a still-pending show (the load ended before it
+      // earned the bar — it never appears) and, if shown, arm the hold.
+      if (showTimer.current !== null) {
+        window.clearTimeout(showTimer.current);
+        showTimer.current = null;
+      }
+      if (shown && holdTimer.current === null) {
+        holdTimer.current = window.setTimeout(() => {
+          holdTimer.current = null;
+          setShown(false);
+        }, ACTIVITY_MIN_HOLD_MS);
+      }
+    }
+
+    return () => {
+      if (showTimer.current !== null) {
+        window.clearTimeout(showTimer.current);
+        showTimer.current = null;
+      }
+      if (holdTimer.current !== null) {
+        window.clearTimeout(holdTimer.current);
+        holdTimer.current = null;
+      }
+    };
+  }, [busy, shown, phase]);
 
   return (
     <div
-      className={show ? "c2-activity-bar c2-activity-bar-active" : "c2-activity-bar"}
+      className={visible ? "c2-activity-bar c2-activity-bar-active" : "c2-activity-bar"}
       role="progressbar"
       aria-label="Loading"
-      aria-hidden={!show}
+      aria-hidden={!visible}
       aria-valuemin={0}
       aria-valuemax={1}
     ></div>

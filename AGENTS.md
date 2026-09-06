@@ -338,8 +338,11 @@ it's a JS-only query (not a Mantine breakpoint, so it can't collide with `xs:`/`
   `useActivityRefresh` hook, never a raw `invalidateCurrentPathCaches().then(…
 router.refresh())`), same-shell tab flips, and in-page transitions. Report a
   transition's `isPending` via `useReportActivity`; route `<Link>` nav is wired
-  automatically through `PendingDim`.   Immediate show + min hold (150ms),
-  hidden in immersive mode. **Cold-start readiness** (once per launch) reuses
+  automatically through `PendingDim`.  The bar only appears once a busy source
+  has persisted ~300 ms (`ACTIVITY_SHOW_DELAY_MS`) — quick warm-cache page
+  switches never flash it — then holds 150 ms after the load clears and
+  retracts/fades out (~230 ms CSS) instead of vanishing; hidden in immersive
+  mode. **Cold-start readiness** (once per launch) reuses
   the bar's slot: its own legs (the shell's initial pinned + clash fetches)
   pulse amber, then a brief green `.c2-ready-bar` confirms when they settle
   and the landing route's content has streamed — the old "watch the pinned

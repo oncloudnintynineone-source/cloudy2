@@ -67,26 +67,39 @@
 }
 
 /* Global activity bar (docs/loading-transitions.md): an indeterminate amber
-   bar flush under the header, shown while any route nav / transition /
-   post-mutation refresh is in flight. The container is absolutely positioned
-   at the bottom of the shell header (mounted inside AppShell.Header), so it
-   rides the header's bottom edge with no margin/padding above it. Inactive =
-   0 height (collapsed); active = a 4px amber strip over which a bright
-   "comet" head sweeps while busy. */
+   bar flush under the header, shown while a route nav / transition /
+   post-mutation refresh has been busy long enough to matter (a ~300 ms
+   show-delay in ActivityBar keeps quick warm loads from flashing). The
+   container is absolutely positioned at the bottom of the shell header
+   (mounted inside AppShell.Header), so it rides the header's bottom edge with
+   no margin/padding above it. Inactive = 0 height/collapsed (opacity 0);
+   active = a 4px amber strip over which a bright "comet" head sweeps. The
+   entrance is a quick pop-in and the exit a slower retract + fade — CSS
+   transitions use the *target* state's `transition`, so the base rule (the
+   removal destination) carries the long duration and the active rule (the
+   addition destination) the short one — the bar never vanishes in a frame. */
 .c2-activity-bar {
   position: absolute;
   bottom: 0;
   left: 0;
   right: 0;
   height: 0;
+  opacity: 0;
   overflow: hidden;
   z-index: 20;
   pointer-events: none;
+  transition:
+    height 230ms ease,
+    opacity 220ms ease;
 }
 
 .c2-activity-bar-active {
   height: calc(0.25rem * var(--mantine-scale));
   background: var(--mantine-color-accent-6);
+  opacity: 1;
+  transition:
+    height 120ms ease-out,
+    opacity 120ms ease-out;
 }
 
 /* Traveling light: a warm-white comet head sweeps left → right across the
@@ -128,10 +141,16 @@
 }
 
 /* Reduced motion: no comet — the bar reads as a plain amber strip (hiding
-   the overlay rather than leaving it frozen over the strip's left edge). */
+   the overlay rather than leaving it frozen over the strip's left edge), and
+   no pop-in/retract transitions — the strip appears and disappears instantly
+   as before. */
 @media (prefers-reduced-motion: reduce) {
   .c2-activity-bar-active::after {
     opacity: 0;
+  }
+  .c2-activity-bar,
+  .c2-activity-bar-active {
+    transition: none;
   }
 }
 

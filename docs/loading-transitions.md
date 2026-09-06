@@ -396,8 +396,8 @@ flowchart LR
     B[settings tab flip] --> C
     D[dashboard/parade/audit transitions] --> C
     E[post-mutation refresh] --> C
-    C -->|anyBusy| F[indeterminate amber bar]
-    F -->|idle 150ms after clear| F
+    C -->|anyBusy >= 300ms| F[indeterminate amber bar]
+    F -->|idle, hold 150ms + fade| F
 ```
 
 **Sources.** A refcounted `begin(key)`/`end(key)` context
@@ -411,23 +411,29 @@ overlapping sources (a route nav mid-refresh) share the bar without fighting:
 | In-page view/filter transitions | dashboard reports `isPending \|\| isRefreshing`, parade reports the cross-month gate, audit reports its filter `isPending` |
 | Post-mutation `router.refresh()` | `useActivityRefresh(busyKey)` returns a `refresh()` that invalidates the SW caches then calls `router.refresh()` **inside** `useTransition`, so `isPending` stays true until the refreshed RSC payload commits (`router.refresh()` itself is not awaitable). Replaces the old `invalidateCurrentPathCaches().then(() => router.refresh())` at every settings table/form, the dashboard's `onDone`/`onDeleted`, and audit's purge |
 
-**Flicker control.** The bar appears **immediately** on any busy edge — it is
-often the *only* signal that a warm-cache load or post-mutation refresh has
-started, so it must not wait for a "real load" to prove itself. The sole
-timing is a minimum hold: once busy clears, the bar lingers
-`ACTIVITY_MIN_HOLD_MS` (150 ms) so a load that ends just as it started reads
-as a deliberate, completed sequence rather than a 1-frame blip (the
-`useLinkStatus`-driven route navigations and the other sources are all
-immediate too, so no warm load can outrun the bar entirely). Timing lives in a
-flat `setTimeout` in an effect — SSR renders are unaffected.
+**Flicker control.** The bar only appears once a busy source has persisted
+`ACTIVITY_SHOW_DELAY_MS` (300 ms) — an edge the `ActivityBar` watches with a
+rising-edge timer. Quick warm-cache page switches and fast refreshes end inside
+that window and the pending show is cancelled, so they never flash a
+split-second bar (the earlier immediate-show policy did, on every navigation).
+A load that does earn the bar pops in promptly (~120 ms) and, once busy clears,
+lingers `ACTIVITY_MIN_HOLD_MS` (150 ms) before its class drops; the exit is a
+CSS retract + fade (~230 ms, in `globals.css`), never a single-frame vanish.
+Both timers live in effects — SSR renders are unaffected. Sources that hold
+themselves visibly while pending (route `<Link>` icons dim via `PendingDim`)
+keep giving immediate feedback even for the sub-threshold loads the bar skips.
 
 **Presentation & a11y.** The bar is a 4px amber strip whose busy state is a
 bright warm-white **comet head sweeping left → right** across it (~1.4 s
 crossing; in `globals.css` `.c2-activity-bar-active::after` /
 `c2-activity-travel`, under `prefers-reduced-motion: no-preference` for a
 plain static strip). An in-place opacity pulse proved too subtle in peripheral
-vision; a moving highlight reads as indeterminate progress at a glance. It
-carries `role="progressbar"` (indeterminate — no
+vision; a moving highlight reads as indeterminate progress at a glance. Show
+and hide are animated CSS transitions (~120 ms pop-in, ~230 ms retract + fade;
+CSS transitions read the *target* state's `transition`, so the base and active
+rules carry different durations per direction) — all disabled under
+`prefers-reduced-motion: reduce`, where the strip appears/disappears
+instantly. It carries `role="progressbar"` (indeterminate — no
 `aria-valuenow`) and is `aria-hidden` while collapsed. Mounted inside
 `AppShell.Header` it is automatically hidden in immersive mode (the header
 itself is `display: none` there).
@@ -528,7 +534,7 @@ alone while that route's skeleton is still up.
 | `src/app/(protected)/dashboard/DashboardView.tsx` | Held loading, reveal fade, one-shot strips (`event`/`edit`/`refresh`/`_fresh`), agenda slide, optimistic date-nav chrome (`shown*`, §1.9.2) |
 | `src/app/(protected)/parade-state/ParadeStateView.tsx` | Month-gated hold, `_fresh` inject/strip |
 | `src/components/AppShellShell.tsx` | Optimistic nav highlight (`tappedHref`) + `PendingDim`/`useLinkStatus` (§1.9.1) |
-| `src/components/ActivityBar.tsx` | ActivityProvider + `useActivity` (refcounted `begin`/`end`), `useReportActivity`, `useActivityRefresh`, `ActivityBar` (immediate show + min hold, indeterminate strip, suppresses itself during the cold-start phases) — §1.13/§1.13.1 |
+| `src/components/ActivityBar.tsx` | ActivityProvider + `useActivity` (refcounted `begin`/`end`), `useReportActivity`, `useActivityRefresh`, `ActivityBar` (300 ms show delay + min hold, indeterminate strip, suppresses itself during the cold-start phases) — §1.13/§1.13.1 |
 | `src/lib/ui/coldStart.ts` | Pure readiness reducer (`coldStartReducer`), route allowlist + `coldStartRouteRequiresContent`, timing constants (MIN/MAX/dwell/check) — §1.13.1 |
 | `src/components/ColdStartReady.tsx` | `ColdStartReadyProvider` + `useColdStartReady`/`useColdStartContent` + `ColdStartReadyBar` (amber → green once-per-launch) — §1.13.1 |
 | `next.config.ts` | `experimental.staleTimes.dynamic = 120` client-router reuse window (§1.10) |
