@@ -28,17 +28,27 @@ function tickerTitleOf(event: PinnedEvent): string {
  * (`1/N` — the old floating Indicator badge, inline now) and rotates through
  * the upcoming pinned events' `tickerTitle`s with a vertical slide-in.
  * Tapping it opens the Pinned Events panel, same as the old button.
+ *
+ * The static "Pinned events" label is the pill's degraded look for both the
+ * in-flight and the loaded-but-empty cases; visually they are identical on
+ * purpose. `status` distinguishes them for the accessible name only (pending /
+ * error / empty), so a screen reader never hears a loaded-but-empty pill as
+ * "still loading" — or an errored one as loading forever.
  */
 export function PinnedEventsTicker({
   events,
   paused,
   onOpen,
+  status = "pending",
 }: {
   /** Upcoming pinned events; `null` while the first read is in flight. */
   events: PinnedEvent[] | null;
   /** True while the Pinned Events panel modal is open — rotation stops. */
   paused: boolean;
   onOpen: (originRect: Rect) => void;
+  /** Whether the first read has settled; selects the accessible name when no
+   *  events are shown. */
+  status?: "pending" | "ready" | "error";
 }) {
   const [index, setIndex] = useState(0);
   // Rotation pauses while hovered/focused so the title can be read, and while
@@ -50,6 +60,15 @@ export function PinnedEventsTicker({
   const count = list.length;
   const safeIndex = count > 0 ? index % count : 0;
   const current = count > 0 ? list[safeIndex] : null;
+
+  const accessibleLabel =
+    count > 0
+      ? `Pinned events (${count})`
+      : status === "error"
+        ? "Pinned events unavailable"
+        : status === "pending"
+          ? "Loading pinned events"
+          : "Pinned events";
 
   const advance = useCallback(() => {
     if (count < 2) return;
@@ -74,7 +93,7 @@ export function PinnedEventsTicker({
       onMouseLeave={() => setHovered(false)}
       onFocus={() => setFocused(true)}
       onBlur={() => setFocused(false)}
-      aria-label={count > 0 ? `Pinned events (${count})` : "Pinned events"}
+      aria-label={accessibleLabel}
     >
       <Box style={{ flexShrink: 0, display: "flex" }}>
         <IconPin size={14} />

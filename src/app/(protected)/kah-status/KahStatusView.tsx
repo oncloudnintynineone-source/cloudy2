@@ -5,6 +5,7 @@ import { Badge, Group, Paper, Stack, Table, Text } from "@mantine/core";
 import { IconCircleCheck, IconUsersGroup } from "@tabler/icons-react";
 
 import { EmptyState } from "@/components/EmptyState";
+import { useColdStartContent } from "@/components/ColdStartReady";
 import { CONTENT_ENTER_CLASS } from "@/lib/loading/contentEnter";
 
 /** One breach period (consecutive breached days) for a group, names pre-resolved. */
@@ -94,6 +95,9 @@ export function KahStatusView({
   const windowLabel = `${dayjs(windowStart).format("MMM D, YYYY")} – ${dayjs(windowEnd).format(
     "MMM D, YYYY",
   )}`;
+  // Cold-start readiness: this view only mounts after the server computed the
+  // whole window, so reporting on mount is exactly "content painted".
+  useColdStartContent();
 
   const counts = (["active", "upcoming", "resolved"] as const)
     .map((status) => {

@@ -31,6 +31,7 @@ import { FilterButton } from "@/components/FilterButton";
 import { FilterModal, type FilterGroup } from "@/components/FilterModal";
 import { FAB_ICON_SIZE, FloatingActionButton, FloatingToolbar } from "@/components/FloatingToolbar";
 import { LoadingStatus } from "@/components/LoadingStatus";
+import { useColdStartContent } from "@/components/ColdStartReady";
 import { purgeAuditLogs, loadMoreAuditLogs } from "@/lib/audit/actions";
 import { listAuditActions } from "@/lib/audit/build";
 import {
@@ -109,6 +110,9 @@ export function AuditLogView({
   const listLoading = useMinSkeletonHold(isPending);
   const listRef = useRef<HTMLDivElement | null>(null);
   useContentEnter(listRef, !listLoading);
+  // Cold-start readiness: mounts with the route's first (server-rendered) page
+  // of rows, so reporting on mount is exactly "content painted".
+  useColdStartContent();
   // Latest applied filters, so an in-flight "Load more" can detect that the
   // filter set changed underneath it and drop its stale-filter page instead of
   // appending it to the freshly reset list.

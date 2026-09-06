@@ -108,6 +108,7 @@ import type { TimeOption } from "@/lib/events/timeOptions";
 import { eventMatchesUserFilter } from "@/lib/events/userFilter";
 import { CONTENT_ENTER_CLASS, useContentEnter } from "@/lib/loading/contentEnter";
 import { useMinSkeletonHold } from "@/lib/loading/minHoldLoading";
+import { useColdStartContent } from "@/components/ColdStartReady";
 import {
   modalContentWidth,
   scaleFromRect,
@@ -725,6 +726,10 @@ export function DashboardView({
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const [isPending, startTransition] = useTransition();
+  // Cold-start readiness: the grid content is server-rendered into this
+  // component's props, so the view only mounts once the route's events have
+  // streamed — reporting on mount is exactly "content painted".
+  useColdStartContent();
 
   const theme = useMantineTheme();
   // Desktop = the theme's lg breakpoint: schedule label columns widen, the

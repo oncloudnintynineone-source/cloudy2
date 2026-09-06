@@ -325,9 +325,13 @@ it's a JS-only query (not a Mantine breakpoint, so it can't collide with `xs:`/`
   `useActivityRefresh` hook, never a raw `invalidateCurrentPathCaches().then(…
 router.refresh())`), same-shell tab flips, and in-page transitions. Report a
   transition's `isPending` via `useReportActivity`; route `<Link>` nav is wired
-  automatically through `PendingDim`. Immediate show + min hold (150ms),
-  hidden in immersive mode. Design:
-  [docs/loading-transitions.md](docs/loading-transitions.md) §1.13.
+  automatically through `PendingDim`.   Immediate show + min hold (150ms),
+  hidden in immersive mode. **Cold-start readiness** (once per launch) reuses
+  the bar's slot: its own legs (the shell's initial pinned + clash fetches)
+  pulse amber, then a brief green `.c2-ready-bar` confirms when they settle
+  and the landing route's content has streamed — the old "watch the pinned
+  pill text" gauge is gone. Design:
+  [docs/loading-transitions.md](docs/loading-transitions.md) §1.13/§1.13.1.
 - **Buttons triggering async work show loading in the button itself:** Mantine `loading`
   prop + shared `loaderProps={BUTTON_LOADER_PROPS}` (`src/lib/theme.ts`);
   `loading={form.submitting}` for useForm submits; local `loading` state set before /

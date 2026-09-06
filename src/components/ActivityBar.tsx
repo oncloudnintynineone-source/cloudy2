@@ -13,6 +13,7 @@ import {
 } from "react";
 import { useRouter } from "next/navigation";
 import { invalidateCurrentPathCaches } from "@/lib/pwa/client";
+import { useColdStartReady } from "@/components/ColdStartReady";
 
 /**
  * Shared global "something is loading" indicator (an indeterminate amber bar
@@ -136,12 +137,13 @@ export function ActivityProvider({ children }: { children: ReactNode }) {
  */
 export function ActivityBar() {
   const { anyBusy: busy } = useActivity();
-  // The bar shows as soon as any source is busy. `held` extends a load that
-  // ends right as it started — the busy→false edge arms it for
-  // ACTIVITY_MIN_HOLD_MS, so the reveal reads as a deliberate, completed
-  // sequence instead of a 1-frame blip.
+  // While the once-per-launch cold-start readiness machine is loading or
+  // confirming, it owns the header's bottom strip (see ColdStartReadyBar) —
+  // suppress the generic bar so two strips never share the same 2px slot. It
+  // resumes normal duty once the machine reaches `done`.
+  const { phase } = useColdStartReady();
   const [held, setHeld] = useState(false);
-  const show = busy || held;
+  const show = (busy || held) && phase !== "loading" && phase !== "ready";
 
   // Detect the busy→false edge during render (the React-sanctioned "adjust
   // state when a prop changes" pattern — same as the shell's nav sync):

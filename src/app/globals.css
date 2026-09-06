@@ -109,6 +109,40 @@
 
 /* Reduced motion: no pulse — the bar reads as a plain amber strip. */
 
+/* Cold-start ready confirmation (docs/loading-transitions.md §1.13.1): the
+   once-per-launch bar that takes over the activity bar's slot when the
+   cold-start data has fully loaded. Same geometry, filled green and drawn in
+   from the left so the amber → green flip reads as a positive completion;
+   the component removes it after the dwell, never to return this session. */
+.c2-ready-bar {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: calc(0.125rem * var(--mantine-scale));
+  background: var(--mantine-color-green-6);
+  z-index: 20;
+  pointer-events: none;
+  transform-origin: left;
+}
+
+@keyframes c2-ready-grow {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .c2-ready-bar {
+    animation: c2-ready-grow var(--c2-dur-standard) ease-out;
+  }
+}
+
+/* Reduced motion: no draw-in — the bar appears instantly. */
+
 /* Header pinned-events ticker (docs/pinned-events.md): the brand pill anchored
    at the header's left edge (where the logo used to sit). It shows the pin
    icon, an inline amber count chip (1/N) and rotates through the upcoming

@@ -149,6 +149,7 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
 - [1.170 Pinned-events header ticker (rotating titles + inline count + `pinnedHeader` template target)](#1170-pinned-events-header-ticker-rotating-titles--inline-count--pinnedheader-template-target)
 - [1.171 `db:seed` no longer seeds departments or users](#1171-dbseed-no-longer-seeds-departments-or-users)
 - [1.172 Dashboard filters are per-view only (global/shared-set mode removed)](#1172-dashboard-filters-are-per-view-only-globalshared-set-mode-removed)
+- [1.184 Cold-start readiness indicator (amber pulse → green confirm, once per launch)](#1184-cold-start-readiness-indicator-amber-pulse--green-confirm-once-per-launch)
 
 ## 1.1 Status
 
@@ -7499,3 +7500,84 @@ Verification: every fact cross-checked against `.github/workflows/ci.yml` (job n
 branch gates, secrets, region `asia-southeast1`, service `cloudy2`), the
 `Dockerfile`, and `vercel.json`; markdown code fences balanced; README /
 developer-guide / progress / AGENTS TOCs and cross-file anchors checked.
+
+## 1.184 Cold-start readiness indicator (amber pulse → green confirm, once per launch)
+
+**Problem.** For a quicker perceived cold start the shell paints its chrome and
+skeleton first, then pulls the remaining data asynchronously: the pinned-events
+list and the double-booking count are client fetches kicked off by shell mount
+effects, and the landing route's content streams over the RSC tree. None of that
+tail had an explicit signal — users inferred readiness from the pinned pill's
+static "Pinned events" text flipping to a rotating title, but that label is
+ambiguous (it also means "loaded, nothing pinned" or a failed fetch), and a
+failed initial fetch left the pill reading "still loading" forever.
+
+**Design.** A once-per-shell-mount readiness machine that reuses the global
+activity bar's slot (`docs/loading-transitions.md` §1.13.1): amber pulse while
+the cold-start legs are in flight, then a brief green `.c2-ready-bar` confirming
+everything is in, then nothing until the next full load. It can never re-arm on
+soft navigations because the provider persists and the phase machine reaches
+`done`.
+
+```mermaid
+sequenceDiagram
+    participant U as User
+    participant S as Shell (mount)
+    participant C as ColdStartReady
+    participant V as Landing view
+    U->>S: fresh document load (PWA / hard nav)
+    S->>C: beginLeg("pinned"), beginLeg("clashes") (mount fetches)
+    S->>C: fetch pinned events → settleLeg
+    S->>C: checkUserClashes → settleLeg
+    S->>V: route content streams (loading.tsx skeleton first)
+    V->>C: reportContentLanded (mount ≈ content painted)
+    C-->>C: all legs settled + content ready + ≥ MIN_COLD_LOAD_MS
+    C-->>U: amber pulse → green bar (READY_DWELL_MS) → done (never again)
+```
+
+**Legs & the content gate.** The machine waits for every *registered* leg to
+settle (success or failure) plus the landing route's content when that route
+streams independently of the chrome:
+
+| Gate | Registers / settles at | Source |
+| ---- | ---------------------- | ------ |
+| `pinned` | the shell's *initial* `fetchPinnedEvents()`; later refreshes (panel close, tab refocus, event CRUD) run untracked | `AppShellShell.tsx` |
+| `clashes` | the shell's *initial* `checkUserClashes({})` scan (same rule) | `AppShellShell.tsx` |
+| content | the landing data view reports content-shown on mount (`useColdStartContent`) — a view only mounts after its RSC data has streamed | `DashboardView`, `ParadeStateView`, `DoubleBookingView`, `KahStatusView`, `AuditLogView` |
+
+Routes that stream heavy content **require** the content report before the bar
+confirms (`COLD_CONTENT_ROUTES`, pure `coldStartRouteRequiresContent`) — a slow
+dashboard stream holds the amber pulse instead of flashing a false green while
+the grid skeleton is still up. Light routes (settings tabs, contacts) **waive**
+it. The banner/KAH stream slots are deliberately not tracked: their reads resolve
+server-side during the stream and their only UI effect is additive.
+
+**Pure core.** `src/lib/ui/coldStart.ts` (`docs/loading-transitions.md`
+§1.13.1) — `coldStartReducer` + `coldStartRouteRequiresContent` +
+`MIN_COLD_LOAD_MS` (250) / `MAX_LOAD_MS` (4 s) / `READY_DWELL_MS` (1.2 s) /
+`CHECK_INTERVAL_MS` (100), all unit-tested in `src/lib/ui/coldStart.test.ts`
+(11 cases: enter-loading, in-flight hold, confirm-ready, sub-threshold skip,
+content-gate wait, waived-route confirm, force-end, once-per-session).
+
+**Client wiring.** `src/components/ColdStartReady.tsx` — `ColdStartReadyProvider`
+mounts in the (protected) layout around `AppShellShell` (the shell's content and
+header slots all live under it); `useColdStartReady` gives the shell `beginLeg`/
+`settleLeg` and the views `reportContentLanded`; `ColdStartReadyBar` renders
+beside `ActivityBar` in the header and the generic `ActivityBar` suppresses
+itself while the machine is `loading`/`ready` so two strips never share the 2px
+slot. On entering `ready` the shell's live region announces *"Calendar up to
+date"*. `.c2-ready-bar` CSS (green draw-in `c2-ready-grow`, reduced-motion:
+instant) lives in `globals.css`.
+
+**Pinned pill a11y nuance.** The pill keeps its static look in all three
+no-events states but the shell now tracks `pinnedStatus` (`pending`/`ready`/
+`error`, passed to the ticker as `status`); only the accessible name changes:
+"Loading pinned events…" / "Pinned events" / "Pinned events unavailable". An
+errored initial fetch no longer reads as loading forever.
+
+**Docs.** `docs/loading-transitions.md` §1.13.1 (+ file-index rows), `docs/
+pinned-events.md` §1.4, `AGENTS.md` loading bullet, `progress.md` §1.3 (1.184).
+Verification: `pnpm lint`, `pnpm typecheck`, `pnpm vitest run` (all 986 tests
+including the new 11), `pnpm build`; manual DevTools-network-throttled cold
+start on the preview will confirm amber → green → gone once per launch and no
+green flash on warm opens.

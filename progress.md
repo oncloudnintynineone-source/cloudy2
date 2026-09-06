@@ -18,7 +18,7 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
 
 ## 1.1 Status
 
-- All work through changelog **1.181-2 (Double Booking nav count pill)** is shipped.
+- All work through changelog **1.184 (Cold-start readiness indicator)** is shipped.
 - Quality gates (`lint` / `typecheck` / `test` / schema-drift check) run in CI on every
   push and PR. Pushes also auto-apply migrations per environment: `dev` →
   `migrate-preview` against the dev Neon DB, `main` → `migrate` against the prod Neon
@@ -382,6 +382,17 @@ One line per phase; full write-ups (incl. Mermaid diagrams and verification note
   content-sized on desktop instead of a rigid field. Multi-select callers (event
   invitees, dashboard/parade filters, KAH members) are unaffected.
   `docs/user-picker.md` §1.2 documents `single`.
+- 1.184 Cold-start readiness indicator: a **once-per-launch** confirmation that all first-paint
+  data has loaded, replacing the ambiguous "watch the pinned pill text" gauge. The shell's two
+  mount fetches (pinned events, double-booking count) become tracked legs of a pure phase
+  machine (`coldStartReducer` + route allowlist in `src/lib/ui/coldStart.ts`, unit-tested):
+  amber in the activity bar's slot while they settle, then a brief green `.c2-ready-bar` +
+  live-region "Calendar up to date" once the landing route's content has streamed too (content
+  **required** for the heavy routes — dashboard/parade/double-booking/KAH/audit log via
+  `useColdStartContent`; light routes waive it). MIN 250 ms / MAX 4 s / dwell 1.2 s; runs once
+  per shell mount, never re-arms on soft navigations; the pinned pill keeps its static look but
+  its accessible name now distinguishes loading / settled-empty / failed (`pinnedStatus`).
+  `docs/loading-transitions.md` §1.13.1
 
 ## 1.4 Open items & next steps
 

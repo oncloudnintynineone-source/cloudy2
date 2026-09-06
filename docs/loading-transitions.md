@@ -26,6 +26,7 @@ where it is wired.
 - [1.11 Mutations are out of scope](#111-mutations-are-out-of-scope)
 - [1.12 Usage inventory](#112-usage-inventory)
 - [1.13 Global activity bar](#113-global-activity-bar)
+- [1.13.1 Cold-start readiness](#1131-cold-start-readiness)
 - [1.14 File index & related docs](#114-file-index--related-docs)
 
 ## 1.1 Problem
@@ -428,6 +429,86 @@ static strip). It carries `role="progressbar"` (indeterminate — no
 `AppShell.Header` it is automatically hidden in immersive mode (the header
 itself is `display: none` there).
 
+### 1.13.1 Cold-start readiness
+
+The activity bar covers navigations and mutations — but a **fresh document
+load** (PWA relaunch, hard navigation) has a tail it never sees. The shell
+paints its chrome and skeleton first for perceived-fast cold starts, then
+pulls the remaining data asynchronously, and none of it has an explicit
+"still working" signal:
+
+- the **pinned-events list** and the **double-booking count** are client-side
+  server-action fetches kicked off by shell mount effects (`AppShellShell`);
+- the **landing route's content** streams over the RSC tree (the dashboard's
+  month grid, parade state, etc.).
+
+Before this subsection, users inferred readiness from the pinned pill's text
+flipping from the static "Pinned events" label to a rotating title — an
+ambiguous gauge (the same label also means "loaded, nothing pinned", or a
+failed fetch). The **cold-start readiness indicator** replaces that guesswork
+with an explicit confirmation, reusing the activity bar's slot: amber while
+the cold-start legs are in flight, then a brief **green bar** (`.c2-ready-bar`)
+once the last leg settles, then nothing — it runs **once per shell mount** and
+never re-arms on soft navigations.
+
+```mermaid
+stateDiagram-v2
+    [*] --> idle: shell mounts
+    idle --> loading: first cold-start leg begins
+    loading --> loading: a leg still in flight
+    loading --> ready: all legs settled + content ready<br/>+ load >= MIN_COLD_LOAD_MS
+    loading --> done: load imperceptibly short<br/>or MAX_LOAD_MS force-end
+    ready --> done: READY_DWELL_MS dwell (green bar)
+    done --> [*]: never re-arms this session
+```
+
+**Legs & the content gate.** The machine waits for every *registered* leg to
+settle (success **or** failure), plus the route's content when that route
+streams independently of the chrome:
+
+| Gate | Registers / settles at | Source |
+| ---- | ---------------------- | ------ |
+| `pinned` | the shell's *initial* `fetchPinnedEvents()` — the mount effect wraps it; later refreshes (panel close, refocus, event CRUD) run untracked | `AppShellShell.tsx` |
+| `clashes` | the shell's *initial* `checkUserClashes({})` scan (same rule) | `AppShellShell.tsx` |
+| content | the landing data view reports content-shown on mount — a view only mounts after its RSC data has streamed, so mount ≈ painted | `DashboardView`, `ParadeStateView`, `DoubleBookingView`, `KahStatusView`, `AuditLogView` (`useColdStartContent`) |
+
+Routes that stream heavy content **require** the content report before the bar
+confirms (`COLD_CONTENT_ROUTES` in `src/lib/ui/coldStart.ts`, resolved by the
+pure `coldStartRouteRequiresContent`); a slow dashboard stream therefore holds
+the amber pulse instead of flashing a false green while the grid skeleton is
+still up. Light routes (settings tabs, contacts) **waive** the content
+requirement — their reads resolve with the layout/chrome stream, so the bar
+confirms when the client legs settle. The banner/KAH stream slots are not
+tracked: their reads resolve server-side during the stream, before/with the
+client legs, and their only UI effect is additive (header growth, a nav entry).
+
+**Decisions.** All timing lives in the pure `coldStartReducer`
+(`src/lib/ui/coldStart.ts`, unit-tested):
+
+- **MIN_COLD_LOAD_MS (250 ms)** — a load that ends sooner never promised
+  anything visible, so it goes straight to `done` without the green: a warm
+  open must not flash a meaningless confirmation.
+- **MAX_LOAD_MS (4 s)** — a leg whose fetch never settles (hung request)
+  force-ends silently; no false green, and the strip can't pulse forever.
+- **READY_DWELL_MS (1.2 s)** — how long the green bar stays before the machine
+  finishes for the session.
+
+**Presentation & a11y.** During `loading` the indicator renders the standard
+amber strip (`.c2-activity-bar c2-activity-bar-active`, `role="progressbar"`);
+during `ready` it renders `.c2-ready-bar` — the same 2px slot filled green and
+drawn in from the left (`c2-ready-grow`, reduced-motion: instant). The generic
+`ActivityBar` suppresses itself while the machine is `loading`/`ready` so two
+strips never share the slot, and resumes once it reaches `done`. On entering
+`ready` the shell's polite live region announces *"Calendar up to date"* via
+`announce()`. Immersive mode hides the bar with the header.
+
+**Wiring.** `ColdStartReadyProvider` mounts in the (protected) layout around
+`AppShellShell`; the shell consumes it for the two leg fetches and renders
+`ColdStartReadyBar` beside `ActivityBar` in the header. Adding a new data-heavy
+route: mount `useColdStartContent()` from its root client view **and** add its
+path to `COLD_CONTENT_ROUTES`, or readiness will confirm on the chrome legs
+alone while that route's skeleton is still up.
+
 ## 1.14 File index & related docs
 
 | File | Role |
@@ -444,7 +525,9 @@ itself is `display: none` there).
 | `src/app/(protected)/dashboard/DashboardView.tsx` | Held loading, reveal fade, one-shot strips (`event`/`edit`/`refresh`/`_fresh`), agenda slide, optimistic date-nav chrome (`shown*`, §1.9.2) |
 | `src/app/(protected)/parade-state/ParadeStateView.tsx` | Month-gated hold, `_fresh` inject/strip |
 | `src/components/AppShellShell.tsx` | Optimistic nav highlight (`tappedHref`) + `PendingDim`/`useLinkStatus` (§1.9.1) |
-| `src/components/ActivityBar.tsx` | ActivityProvider + `useActivity` (refcounted `begin`/`end`), `useReportActivity`, `useActivityRefresh`, `ActivityBar` (immediate show + min hold, indeterminate strip) — §1.13 |
+| `src/components/ActivityBar.tsx` | ActivityProvider + `useActivity` (refcounted `begin`/`end`), `useReportActivity`, `useActivityRefresh`, `ActivityBar` (immediate show + min hold, indeterminate strip, suppresses itself during the cold-start phases) — §1.13/§1.13.1 |
+| `src/lib/ui/coldStart.ts` | Pure readiness reducer (`coldStartReducer`), route allowlist + `coldStartRouteRequiresContent`, timing constants (MIN/MAX/dwell/check) — §1.13.1 |
+| `src/components/ColdStartReady.tsx` | `ColdStartReadyProvider` + `useColdStartReady`/`useColdStartContent` + `ColdStartReadyBar` (amber → green once-per-launch) — §1.13.1 |
 | `next.config.ts` | `experimental.staleTimes.dynamic = 120` client-router reuse window (§1.10) |
 | `src/app/(protected)/dashboard/page.tsx` | `?event=`/`?edit=`/`?refresh=` param validation |
 

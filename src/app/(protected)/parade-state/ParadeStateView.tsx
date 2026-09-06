@@ -40,6 +40,7 @@ import {
 import { DateSelectorModal } from "@/components/DateSelectorModal";
 import { EmptyState } from "@/components/EmptyState";
 import { useReportActivity } from "@/components/ActivityBar";
+import { useColdStartContent } from "@/components/ColdStartReady";
 import { FilterModal, type FilterGroup } from "@/components/FilterModal";
 import { FAB_ICON_SIZE, FloatingActionButton, FloatingToolbar } from "@/components/FloatingToolbar";
 import { LoadingStatus } from "@/components/LoadingStatus";
@@ -188,6 +189,9 @@ export function ParadeStateView({
   useReportActivity(initialMonth !== month, "parade:nav");
   const contentRef = useRef<HTMLDivElement | null>(null);
   useContentEnter(contentRef, !contentLoading);
+  // Cold-start readiness: this view only mounts after the route's events have
+  // streamed, so reporting on mount is exactly "content painted".
+  useColdStartContent();
 
   // Remembered UI state: persist the server-resolved filters to the
   // per-device cookie on every change, so a relaunch restores them (see

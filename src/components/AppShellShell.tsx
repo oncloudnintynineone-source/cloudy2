@@ -30,6 +30,7 @@ import { usePathname, useRouter } from "next/navigation";
 
 import { PinnedEventsPanel } from "@/components/PinnedEventsPanel";
 import { PinnedEventsTicker } from "@/components/PinnedEventsTicker";
+import { ColdStartReadyBar, useColdStartReady } from "@/components/ColdStartReady";
 import { ActivityBar, ActivityProvider, useReportActivity } from "@/components/ActivityBar";
 import { ShellChromeContext, type ShellChromeValue } from "@/components/ShellChrome";
 import { ThemeToggle } from "@/components/ThemeToggle";
@@ -306,6 +307,14 @@ export function AppShellShell({
   // relaunch from the start URL can land back here — read by / at launch.
   useRememberedPage(pathname);
 
+  // Cold-start readiness: the shell's two mount fetches (pinned events, clash
+  // count) are the client-side tail of a fresh load — the readiness indicator
+  // pulses while they settle and confirms when they're done (see
+  // docs/loading-transitions.md §1.13.1). Registration happens around the
+  // *initial* fetches only; the later refreshes (panel close, tab refocus,
+  // event CRUD) run untracked so the once-per-launch machine never re-arms.
+  const { beginLeg, settleLeg } = useColdStartReady();
+
   // The Pinned Events agenda: the shell owns the open/close state because it
   // renders the header button; the panel reads it through the context. Opening
   // is a transient client state — never persisted. The header is global, so
@@ -351,14 +360,25 @@ export function AppShellShell({
   // — a failure keeps the last list. The ticker derives its count from the
   // list length.
   const [pinnedEvents, setPinnedEvents] = useState<PinnedEvent[] | null>(null);
+  // Whether the *first* read has settled (and whether it failed). Only the
+  // pill's accessible name consumes this — pending/error/empty all share the
+  // static "Pinned events" look, but a screen reader must not hear a failed or
+  // settled-empty read as "still loading".
+  const [pinnedStatus, setPinnedStatus] = useState<"pending" | "ready" | "error">("pending");
   const refreshPinnedEvents = useCallback(() => {
-    void fetchPinnedEvents()
-      .then((events) => setPinnedEvents(events))
-      .catch(() => {});
+    return fetchPinnedEvents()
+      .then((events) => {
+        setPinnedEvents(events);
+        setPinnedStatus("ready");
+      })
+      .catch(() => setPinnedStatus("error"));
   }, []);
   useEffect(() => {
-    refreshPinnedEvents();
-  }, [refreshPinnedEvents]);
+    // The cold-start read doubles as a readiness leg: begin before the fetch,
+    // settle when it resolves *either way* (a failure still ends the load).
+    beginLeg("pinned");
+    void refreshPinnedEvents().finally(() => settleLeg("pinned"));
+  }, [refreshPinnedEvents, beginLeg, settleLeg]);
   const didOpenPanelRef = useRef(false);
   useEffect(() => {
     if (pinnedOpen) {
@@ -366,7 +386,7 @@ export function AppShellShell({
       return;
     }
     if (didOpenPanelRef.current) {
-      refreshPinnedEvents();
+      void refreshPinnedEvents();
     }
   }, [pinnedOpen, refreshPinnedEvents]);
   useEffect(() => {
@@ -524,7 +544,7 @@ export function AppShellShell({
   const [doubleBookingCount, setDoubleBookingCount] = useState<number | null>(null);
   const doubleBookingDebounceRef = useRef<number | null>(null);
   const refreshDoubleBooking = useCallback(() => {
-    void checkUserClashes({})
+    return checkUserClashes({})
       .then((result) => {
         if (!result.ok) {
           return;
@@ -536,8 +556,10 @@ export function AppShellShell({
       });
   }, []);
   useEffect(() => {
-    void refreshDoubleBooking();
-  }, [refreshDoubleBooking]);
+    // The cold-start scan doubles as a readiness leg (see `pinned` above).
+    beginLeg("clashes");
+    void refreshDoubleBooking().finally(() => settleLeg("clashes"));
+  }, [refreshDoubleBooking, beginLeg, settleLeg]);
   useEffect(() => {
     const schedule = () => {
       if (doubleBookingDebounceRef.current !== null) {
@@ -716,6 +738,7 @@ export function AppShellShell({
                   events={pinnedEvents}
                   paused={pinnedOpen}
                   onOpen={openPinnedPanel}
+                  status={pinnedEvents !== null ? "ready" : pinnedStatus}
                 />
                 <Group gap={isNarrow ? 2 : "xs"} wrap="nowrap">
                   <ActionIcon
@@ -739,6 +762,11 @@ export function AppShellShell({
                 header's bottom edge while any route navigation, in-page
                 transition, or post-mutation refresh is in flight. */}
               <ActivityBar />
+              {/* Cold-start readiness: shares the activity bar's slot — amber
+                while the once-per-launch client fetches settle, then a brief
+                green bar confirming all data is in. ActivityBar suppresses
+                itself during these phases so the two never double up. */}
+              <ColdStartReadyBar />
             </ShellChromeContext.Provider>
           </AppShell.Header>
 

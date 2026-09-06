@@ -89,6 +89,14 @@ Rotation (`PinnedEventsTicker.tsx`, client):
   point at a missing entry.
 - Loading / zero events: the pill degrades to the static `IconPin` +
   "Pinned events" label (the pre-ticker look).
+- The static label is shared by three states (first read in flight, settled
+  empty, failed read) **on purpose** — the pill is never the loading signal.
+  The shell passes a `status` (`pending`/`ready`/`error`) that only changes
+  the accessible name, so a screen reader hears "Loading pinned events…",
+  "Pinned events" or "Pinned events unavailable" instead of a misleading
+  permanent "still loading". The cold-start readiness indicator
+  ([`loading-transitions.md` §1.13.1](loading-transitions.md#1131-cold-start-readiness))
+  is the user-visible gauge for the once-per-launch data tail.
 
 Sizing & a11y:
 

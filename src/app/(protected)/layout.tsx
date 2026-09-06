@@ -2,6 +2,7 @@ import { Suspense } from "react";
 import { cookies } from "next/headers";
 
 import { AppShellShell } from "@/components/AppShellShell";
+import { ColdStartReadyProvider } from "@/components/ColdStartReady";
 import { requireSession } from "@/lib/session";
 import { UI_STATE_COOKIE, decodeUiState } from "@/lib/ui/uiState";
 import { BannerPlaceholder, ShellBanner, ShellKahNav } from "./shellStream";
@@ -19,26 +20,28 @@ export default async function ProtectedLayout({
   const uiState = decodeUiState((await cookies()).get(UI_STATE_COOKIE)?.value);
   const isAdmin = session.user.role === "admin";
   return (
-    <AppShellShell
-      role={session.user.role}
-      name={session.user.name ?? ""}
-      phone={session.user.phone}
-      sidebarCollapsed={uiState?.sidebarCollapsed === true}
-      bannerSlot={
-        <Suspense fallback={<BannerPlaceholder />}>
-          <ShellBanner />
-        </Suspense>
-      }
-      kahNavSlot={
-        // Admins always see KAH Status (all groups) — skip the membership probe.
-        isAdmin ? null : (
-          <Suspense fallback={null}>
-            <ShellKahNav userId={session.user.id} />
+    <ColdStartReadyProvider>
+      <AppShellShell
+        role={session.user.role}
+        name={session.user.name ?? ""}
+        phone={session.user.phone}
+        sidebarCollapsed={uiState?.sidebarCollapsed === true}
+        bannerSlot={
+          <Suspense fallback={<BannerPlaceholder />}>
+            <ShellBanner />
           </Suspense>
-        )
-      }
-    >
-      {children}
-    </AppShellShell>
+        }
+        kahNavSlot={
+          // Admins always see KAH Status (all groups) — skip the membership probe.
+          isAdmin ? null : (
+            <Suspense fallback={null}>
+              <ShellKahNav userId={session.user.id} />
+            </Suspense>
+          )
+        }
+      >
+        {children}
+      </AppShellShell>
+    </ColdStartReadyProvider>
   );
 }

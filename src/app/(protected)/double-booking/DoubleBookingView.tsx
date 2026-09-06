@@ -14,6 +14,7 @@ import {
 import { UserSelectModal } from "@/components/UserSelectModal";
 import { LoadingStatus } from "@/components/LoadingStatus";
 import { EmptyState } from "@/components/EmptyState";
+import { useColdStartContent } from "@/components/ColdStartReady";
 import { ClashAffectedChips, eventWhenLabel } from "@/components/clashUi";
 import { CONTENT_ENTER_CLASS } from "@/lib/loading/contentEnter";
 import { checkUserClashes, type UserClashCheckResult } from "@/lib/events/clashActions";
@@ -59,6 +60,9 @@ export function DoubleBookingView({
 }) {
   const [targetUserId, setTargetUserId] = useState(currentUserId);
   const [attempt, setAttempt] = useState(0);
+  // Cold-start readiness: the page/view mounts with the route's streamed
+  // content, so reporting on mount is exactly "content painted".
+  useColdStartContent();
   const [outcome, setOutcome] = useState<{
     targetUserId: string;
     attempt: number;
