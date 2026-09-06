@@ -1,0 +1,1 @@
+ALTER TABLE "event_types" ADD COLUMN "show_location" boolean DEFAULT true NOT NULL;

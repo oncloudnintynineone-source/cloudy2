@@ -107,9 +107,9 @@ Tap the **+** button, then walk the wizard:
    steps), or Full day / Half day (AM/PM) options.
 3. **Location** — one category: **In camp**, **Out of camp**, or **Overseas**
    (the type decides which are allowed), plus an optional specific place. Overseas
-   events are what KAH groups count as "away". Some event types **lock their
-   location** (set by your admin) — for those this step is skipped and the event is
-   saved with the locked category automatically.
+   events are what KAH groups count as "away". Some event types **hide the Location
+   step** (set by your admin, only for types restricted to one location) — for those
+   this step is skipped and the event is saved in that single category automatically.
 4. **Invited Attendees** — invite individual users and/or tag whole departments;
    the event appears on everyone's calendars. The **Pin this event** switch puts it
    in the Pinned Events panel (§1.5).

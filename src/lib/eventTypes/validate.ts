@@ -18,11 +18,12 @@ export interface EventTypeFormValues {
   /** Whether the event form shows the Invited Attendees step. */
   showInvitees: boolean;
   /**
-   * The location category events of this type are locked to; "" = users pick
-   * in the event form (within `allowedLocations`). A locked type skips the
-   * wizard's Location step and every event saves with this category.
+   * Whether the event form shows the Location step. When off, the wizard
+   * skips it and events save in the type's sole allowed category with no
+   * specific location — only valid when `allowedLocations` has exactly one
+   * entry.
    */
-  lockedLocation: LocationCategory | "";
+  showLocation: boolean;
   /** Pinned event color (Mantine palette name); "" = the name-derived default. */
   color?: string;
   /** Display group for the type picker; null/"" = ungrouped. */
@@ -34,7 +35,7 @@ export interface EventTypeFormErrors {
   shortname?: string;
   timeOptions?: string;
   allowedLocations?: string;
-  lockedLocation?: string;
+  showLocation?: string;
   [key: string]: string | undefined;
 }
 
@@ -55,9 +56,13 @@ export function validateEventTypeForm(values: EventTypeFormValues): EventTypeFor
     !values.allowedLocations.every(isLocationCategory)
   ) {
     errors.allowedLocations = "Select at least one location";
-  }
-  if (values.lockedLocation !== "" && !isLocationCategory(values.lockedLocation)) {
-    errors.lockedLocation = "Invalid locked location";
+  } else if (
+    values.showLocation === false &&
+    (values.allowedLocations.length !== 1 ||
+      !values.allowedLocations.every(isLocationCategory))
+  ) {
+    errors.allowedLocations =
+      "The Location step can only be hidden when exactly one location is allowed";
   }
   return errors;
 }

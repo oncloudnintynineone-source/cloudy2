@@ -18,7 +18,7 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
 
 ## 1.1 Status
 
-- All work through changelog **1.191 (Per-type locked location)** is shipped.
+- All work through changelog **1.191 (Per-type hidden Location step, revised)** is shipped.
 - Quality gates (`lint` / `typecheck` / `test` / schema-drift check) run in CI on every
   push and PR. Pushes also auto-apply migrations per environment: `dev` →
   `migrate-preview` against the dev Neon DB, `main` → `migrate` against the prod Neon
@@ -457,16 +457,19 @@ One line per phase; full write-ups (incl. Mermaid diagrams and verification note
   moves from render-time `prevBusy`/`held` tracking to effect-driven show/hold
   timers; cold-start readiness is untouched (its bar is mounted/dismounted whole
   elements, no class flip). `docs/loading-transitions.md` §1.13, `AGENTS.md`
-- 1.191 Per-type **locked location** (`event_types.locked_location`, migration 0034):
-  an admin may lock an event type to one category (In camp / Out of camp /
-  Overseas) from the event-type form (Settings → Event Types) — the wizard's
-  Location step is then **skipped entirely** for that type, and every event saves
-  in the locked category with no specific location (client seeds/re-clamps on type
+- 1.191 Per-type hidden Location step (revised: the category-lock in the original 1.191
+  was over-built — an admin can already restrict a type to one location via the matrix;
+  the ask was only to hide the Location step). `event_types.show_location` (boolean,
+  default true; migrations 0035 add / 0036 drop the superseded `locked_location` of the
+  original): a "Show location in the event form" toggle in Settings → Event Types
+  (Event form block), usable only when the Allowed locations matrix has exactly one
+  category (disabled otherwise; widening the matrix re-shows the step). When off, the
+  wizard's Location step is **skipped entirely** and every event of the type saves in
+  its sole allowed category with no specific place (client seeds/re-clamps on type
   change + edit/duplicate prefill; the server re-enforces in `resolveEventLocation`,
-  writeContext) so even re-saving a legacy event converts it — the show-remarks/
-  show-invitees hidden-field pattern applied to location. The allowed-locations
-  matrix still constrains unlocked types. `docs/event-lifecycle.md` §1.9.2,
-  `docs/admin-guide.md` §1.4
+  writeContext) so even re-saving a legacy event converts it — the
+  show-remarks/show-invitees hidden-field pattern applied to location.
+  `docs/event-lifecycle.md` §1.9.2, `docs/admin-guide.md` §1.4
 
 ## 1.4 Open items & next steps
 

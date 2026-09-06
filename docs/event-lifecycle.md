@@ -21,7 +21,7 @@ month cache is covered in [`events-cache.md`](events-cache.md).
 - [1.8 Title rendering](#18-title-rendering)
 - [1.9 Location categories](#19-location-categories)
   - [1.9.1 Per-type field visibility](#191-per-type-field-visibility)
-  - [1.9.2 Locked location](#192-locked-location)
+  - [1.9.2 Hiding the Location step](#192-hiding-the-location-step)
 - [1.10 Event type groups](#110-event-type-groups)
 - [1.11 Time options & datetime math](#111-time-options--datetime-math)
 - [1.12 Pure helpers & testing](#112-pure-helpers--testing)
@@ -125,8 +125,8 @@ steps, admins seven ("On behalf of" sits between Remarks and Review):
 | 6 | `creator`  | admins only | none — optional; blank means the acting user (§1.5.2)           |
 | 7 | `review`   | all         | submit only (last step) — read-only summary of everything entered |
 
-The `invitees` and `remarks` steps drop out per the selected type's config (§1.9.1); the
-`location` step drops when the type **locks its location** (§1.9.2) — otherwise it always
+The `invitees`, `remarks`, and `location` steps drop out per the selected type's config
+(§1.9.1): `show_location` off removes the Location step entirely — otherwise it always
 stays, and an exclusively in-camp type just collapses its category selector to one disabled
 segment while still recording an optional specific place. An untyped event walks all of
 them.
@@ -191,8 +191,8 @@ Mechanics worth knowing:
   even in-camp events may record an optional specific place (it never implies out of
   camp). The effective flag/location is always the
   `clampOutOfCamp` pair (`EventForm.tsx:365-370`), never the raw form value. The whole
-  step is skipped when the type locks its location (§1.9.2) — events of such a type
-  save with the locked category and no specific location.
+  step is skipped when the type hides it (§1.9.2) — events of such a type save with the
+  sole allowed category and no specific location.
 - **Invited Attendees** (`EventForm.tsx:658-679`): a `NoKeyboardMultiSelect` with two
   groups — Departments (`dept:<id>` values) and Invited Attendees (`user:<id>` values).
   The creator's chip is
@@ -581,8 +581,8 @@ matrix. Migration `0027` backfilled existing rows (`in`→`[in]`, `out`→`[out,
 
 ### 1.9.1 Per-type field visibility
 
-Besides the location matrix, each event type carries two boolean toggles (edited in the
-event-type form, Settings → Event Types), both defaulting to `true`:
+Besides the location matrix, each event type carries three boolean toggles (edited in the
+event-type form, Settings → Event Types), all defaulting to `true`:
 
 - `event_types.show_remarks`: when off, the wizard's Remarks step is omitted and the
   server clears the description (`resolveEventFields` in `actions.ts`), so the title
@@ -593,38 +593,44 @@ event-type form, Settings → Event Types), both defaulting to `true`:
   the event lives only in the creator's department calendar. Because target derivation
   (`resolveTargetCalendars`) runs on the *cleared* input, re-saving an existing
   multi-department event of such a type removes its other departments' copies.
+- `event_types.show_location`: when off, the wizard's **Location step is skipped
+  entirely** (§1.9.2). The toggle is disabled in the event-type form unless the
+  allowed-locations matrix has exactly one category (validated: hiding the step with
+  more than one allowed location is a field error).
 
-For types whose matrix is exclusively `[in]` the category selector collapses to a single
-disabled "In camp" segment and only the optional location input remains.
+For types whose matrix is exclusively `[in]` but still show the Location step, the
+category selector collapses to a single disabled "In camp" segment and only the optional
+location input remains.
 
-### 1.9.2 Locked location
+### 1.9.2 Hiding the Location step
 
-Some event types never need a location recorded (the creator's destination is irrelevant
-to the record, or the place is always the same). For those, an admin can **lock** the
-event type to one category — `event_types.locked_location` (nullable text, migration
-`0034`; one of `in` / `out` / `overseas`, null = unlocked), edited in the event-type form,
-Settings → Event Types ("Locked location" select next to the allowed-locations matrix).
+An admin may already restrict an event type to a single location category with the
+allowed-locations matrix — the wizard then offers no real choice in that step. The
+`event_types.show_location` toggle (migrations 0035 add / 0036 drop the superseded
+`locked_location` of the earlier lock design; default `true`, edited in the event-type
+form's Event form block next to Show remarks / Show invitees) goes one step further: it
+lets the admin **skip the Location step entirely** for a type.
 
-When an event type has a locked location:
+The toggle is only usable when the matrix allows exactly **one** category (it renders
+disabled otherwise, and widening the matrix while it is off re-shows the step). When a
+type hides its Location step:
 
 - The wizard's **Location step is omitted entirely** (`buildSteps` in `EventForm.tsx`
   drops it; the step strip and "Step X of Y" count shrink accordingly) — creators never
   choose a category or type a specific place.
-- Every event of the type saves with the **locked category** and an **empty location
-  string**. The client seeds/re-clamps to the lock on type change and on edit/duplicate
-  prefill (`handleEventTypeChange`, `buildInitialValues`), and the server enforces it in
-  `resolveEventLocation` (`writeContext.ts`) after `resolveEventTime`, in both create
-  and update — so a stale form state (or a legacy event with stored flags) can never
-  submit anything but the locked category.
-- The KAH flags still follow: an event type locked to `out` or `overseas` tags its
-  events out of camp / away respectively; locking to `in` produces plain in-camp events.
-  Because resolution runs on the *cleared* input, re-saving a legacy event of a type
-  that was locked after the event was created converts it to the locked category and
+- Every event of the type saves in its **sole allowed location category** with an
+  **empty location string**. The client seeds/re-clamps to that category on type change
+  and on edit/duplicate prefill (`handleEventTypeChange`, `buildInitialValues`), and the
+  server enforces it in `resolveEventLocation` (`writeContext.ts`) after
+  `resolveEventTime`, in both create and update — so a stale form state (or a legacy
+  event with stored flags) can never submit a category outside the single allowed one or
+  a stray specific location.
+- The KAH flags still follow: a type allowed `out` or `overseas` tags its events out of
+  camp / away respectively; an `[in]`-only type produces plain in-camp events. Because
+  resolution runs on the *cleared* input, re-saving a legacy event of a type whose step
+  was hidden after the event was created converts it to the sole allowed category and
   drops its stored specific location — the same re-save semantics as hidden invitees
   (§1.9.1).
-
-The allowed-locations matrix (§1.9) still applies to *unlocked* types; a locked type
-skips the matrix entirely (its category comes from the lock, never the allowlist).
 
 ## 1.10 Event type groups
 

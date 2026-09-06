@@ -47,11 +47,11 @@ export interface EventTitleContext {
   /** Whether the event type shows the Invited Attendees field. */
   showInvitees: boolean;
   /**
-   * The location category the event type locks every event to; null when
-   * users choose in the event form (a locked type skips the wizard's Location
-   * step and saves events with no specific location).
+   * Whether the wizard shows the Location step for this type. When false, the
+   * type has a sole allowed location and events save in it with no specific
+   * location.
    */
-  lockedLocation: LocationCategory | null;
+  showLocation: boolean;
 }
 
 /**
@@ -112,7 +112,7 @@ export async function buildEventTitleContext(input: EventFormValues): Promise<Ev
     allowedLocations: eventTypeRow ? eventTypeRow.allowedLocations : null,
     showRemarks: eventTypeRow ? eventTypeRow.showRemarks : true,
     showInvitees: eventTypeRow ? eventTypeRow.showInvitees : true,
-    lockedLocation: eventTypeRow ? eventTypeRow.lockedLocation : null,
+    showLocation: eventTypeRow ? eventTypeRow.showLocation : true,
   };
 }
 
@@ -196,11 +196,13 @@ export function resolveEventLocation(
   input: EventFormValues,
   context: EventTitleContext,
 ): EventFormValues {
-  // A type with a locked location pins its category and carries no specific
-  // location — the wizard has no Location step for it, so drop whatever a
-  // stale form state (or a legacy event) still held.
-  if (context.lockedLocation) {
-    const flags = flagsFromCategory(context.lockedLocation);
+  // A type whose Location step is hidden pins its sole allowed location and
+  // carries no specific location — the wizard has no Location step for it, so
+  // drop whatever a stale form state (or a legacy event) still held. When the
+  // flag is somehow set without a single allowed location, fall back to the
+  // normal matrix clamp rather than inventing a category.
+  if (context.showLocation === false && context.allowedLocations?.length === 1) {
+    const flags = flagsFromCategory(context.allowedLocations[0]);
     return { ...input, ...flags, location: "" };
   }
   const location = input.location.trim();

@@ -301,8 +301,8 @@ it's a JS-only query (not a Mantine breakpoint, so it can't collide with `xs:`/`
   Event-type policy (shortname, display groups — managed in the Event Types tab's
   "Manage groups" dialog and rendered as wizard type-step sections —,
   allowed-locations matrix, `show_remarks`/`show_invitees`, and the per-type
-  `locked_location` that skips the wizard's Location step, saving events in the locked
-  category with no specific place):
+  `show_location` that hides the wizard's Location step — usable only when the matrix
+  allows one category, saving events in that sole category with no specific place):
   [docs/event-lifecycle.md](docs/event-lifecycle.md). Colors (event
   types + department fallback, applied at read time in `mapCalendarItem`, never cached):
   [docs/roster-sharing.md](docs/roster-sharing.md).

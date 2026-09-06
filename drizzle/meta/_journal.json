@@ -246,6 +246,20 @@
       "when": 1788705458275,
       "tag": "0034_new_mentallo",
       "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "7",
+      "when": 1788707948121,
+      "tag": "0035_odd_barracuda",
+      "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1788707959400,
+      "tag": "0036_mature_blue_blade",
+      "breakpoints": true
     }
   ]
 }

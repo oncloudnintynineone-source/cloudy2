@@ -22,7 +22,6 @@ import { FAB_ICON_SIZE, FloatingActionButton, FloatingToolbar } from "@/componen
 import { formatColorLabel } from "@/lib/events/eventColors";
 import { ColorDot } from "@/components/ColorSwatchPicker";
 import {
-  isLocationCategory,
   LOCATION_CATEGORY_LABELS,
   normalizeAllowedLocations,
 } from "@/lib/events/locationPolicy";
@@ -155,9 +154,9 @@ export function EventTypeTable({ types, groups }: EventTypeTableProps) {
                         No invitees
                       </Badge>
                     )}
-                    {isLocationCategory(eventType.lockedLocation) && (
-                      <Badge size="sm" variant="light" color="blue">
-                        Locked: {LOCATION_CATEGORY_LABELS[eventType.lockedLocation]}
+                    {eventType.showLocation === false && (
+                      <Badge size="sm" variant="light" color="gray">
+                        No location
                       </Badge>
                     )}
                   </Group>
@@ -242,9 +241,9 @@ export function EventTypeTable({ types, groups }: EventTypeTableProps) {
                             No invitees
                           </Badge>
                         )}
-                        {isLocationCategory(eventType.lockedLocation) && (
-                          <Badge size="sm" variant="light" color="blue">
-                            Locked: {LOCATION_CATEGORY_LABELS[eventType.lockedLocation]}
+                        {eventType.showLocation === false && (
+                          <Badge size="sm" variant="light" color="gray">
+                            No location
                           </Badge>
                         )}
                       </Group>

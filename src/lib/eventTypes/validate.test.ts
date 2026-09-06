@@ -9,7 +9,7 @@ const base: EventTypeFormValues = {
   allowedLocations: ["in", "out", "overseas"],
   showRemarks: true,
   showInvitees: true,
-  lockedLocation: "",
+  showLocation: true,
 };
 
 describe("validateEventTypeForm", () => {
@@ -68,22 +68,32 @@ describe("validateEventTypeForm", () => {
     ).toEqual({ allowedLocations: "Select at least one location" });
   });
 
-  it("accepts an empty locked location (users choose)", () => {
-    expect(validateEventTypeForm({ ...base, lockedLocation: "" })).toEqual({});
+  it("shows the Location step by default with any allowed-location set", () => {
+    expect(validateEventTypeForm(base)).toEqual({});
+    expect(validateEventTypeForm({ ...base, allowedLocations: ["in"] })).toEqual({});
   });
 
-  it("accepts a canonical locked location", () => {
-    expect(validateEventTypeForm({ ...base, lockedLocation: "overseas" })).toEqual({});
-    expect(validateEventTypeForm({ ...base, lockedLocation: "in" })).toEqual({});
-    expect(validateEventTypeForm({ ...base, lockedLocation: "out" })).toEqual({});
-  });
-
-  it("rejects an unknown locked location", () => {
+  it("requires exactly one allowed location when the Location step is hidden", () => {
+    expect(validateEventTypeForm({ ...base, showLocation: false, allowedLocations: ["overseas"] })).toEqual(
+      {},
+    );
     expect(
       validateEventTypeForm({
         ...base,
-        lockedLocation: "abroad" as EventTypeFormValues["lockedLocation"],
+        showLocation: false,
+        allowedLocations: ["in", "out"],
       }),
-    ).toEqual({ lockedLocation: "Invalid locked location" });
+    ).toEqual({
+      allowedLocations: "The Location step can only be hidden when exactly one location is allowed",
+    });
+    expect(
+      validateEventTypeForm({
+        ...base,
+        showLocation: false,
+        allowedLocations: ["in", "out", "overseas"],
+      }),
+    ).toEqual({
+      allowedLocations: "The Location step can only be hidden when exactly one location is allowed",
+    });
   });
 });

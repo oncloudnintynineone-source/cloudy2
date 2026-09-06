@@ -151,6 +151,7 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
 - [1.172 Dashboard filters are per-view only (global/shared-set mode removed)](#1172-dashboard-filters-are-per-view-only-globalshared-set-mode-removed)
 - [1.184 Cold-start readiness indicator (amber pulse → green confirm, once per launch)](#1184-cold-start-readiness-indicator-amber-pulse--green-confirm-once-per-launch)
 - [1.191 Per-type locked location (skip the wizard Location step)](#1191-per-type-locked-location-skip-the-wizard-location-step)
+- [1.191-2 Per-type hidden Location step — redesign (supersedes 1.191)](#1191-2-per-type-hidden-location-step--redesign-supersedes-1191)
 
 ## 1.1 Status
 
@@ -7638,3 +7639,44 @@ policy bullet; `progress.md` §1.3 (1.191). Verification: `pnpm lint`, `pnpm typ
 `pnpm db:generate` (schema-drift clean). Manual: lock a type, create + edit an event of
 it (no Location step, step count shrinks), edit a legacy event of a type locked later
 (re-save converts it), unlock and confirm the step + matrix behavior returns.
+
+## 1.191-2 Per-type hidden Location step — redesign (supersedes 1.191)
+
+**Correction.** The 1.191 design above over-built the requirement: it added a
+`locked_location` column that made the admin *pick a category* to pin the type to. The
+actual ask was narrower — an admin can already restrict a type to one location via the
+Allowed locations matrix; the request was simply to go one step further and let the admin
+**hide the wizard's Location step entirely** for such a type. The redesigned feature:
+
+- Replaces `event_types.locked_location` (nullable text) with `event_types.show_location`
+  (boolean, default `true`), migrated forward as **0035** (add `show_location`) +
+  **0036** (drop `locked_location`) — the superseded 0034 migration stays committed as
+  history, so any environment that already applied it is corrected by 0036.
+- Settings → Event Types shows a **"Show location in the event form"** checkbox in the
+  Event form block (next to Show remarks / Show invitees). It is **disabled unless the
+  Allowed locations matrix has exactly one category**; widening the matrix while it is
+  off auto-re-shows the step (checkbox reverts to on). Pure validation
+  (`src/lib/eventTypes/validate.ts`) rejects `showLocation: false` with more than one
+  allowed location.
+- A type with `show_location` off **skips the wizard's Location step entirely**
+  (`buildSteps`, `EventForm.tsx`) and saves every event in its sole allowed category
+  with no specific location: client prefill/type-change seed that category
+  (`buildInitialValues`, `handleEventTypeChange`), and `resolveEventLocation`
+  (`writeContext.ts`) re-enforces it on create/update and in the pre-submit clash check.
+  Re-saving a legacy event of such a type converts it (same semantics as hidden
+  invitees/remarks, §1.9.1). KAH flags follow the sole allowed category (an `[overseas]`
+  type still tags events away).
+
+**Threading** matches `show_remarks`/`show_invitees`: schema → migrations 0035/0036 →
+event-type form + validation → actions + audit payload ("Show location" label in
+`audit/format.ts`) → "No location" table badge (`EventTypeTable.tsx`) → reads
+(`getEventTypesByNames` + `EventTypeDisplayInfo`) → dashboard projection + both
+`EventTypeOption` interfaces → wizard step list + `writeContext`.
+
+**Docs.** `docs/event-lifecycle.md` §1.4/§1.9.1/§1.9.2 (rewritten for the toggle),
+`docs/admin-guide.md` §1.4, `docs/user-guide.md` §1.4.1, `AGENTS.md`, `progress.md` §1.3
+(1.191 revised). Verification: `pnpm lint`, `pnpm typecheck`, `pnpm vitest run`,
+`pnpm db:generate` (clean), `pnpm build`. Manual: restrict a type to one allowed
+location → the Show location checkbox becomes usable; turn it off and create/edit an
+event of the type (no Location step, step count shrinks); re-show the step / widen the
+matrix and confirm normal behavior.

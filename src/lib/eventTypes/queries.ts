@@ -4,7 +4,6 @@ import { cache } from "react";
 import { db } from "@/db";
 import { eventTypes, eventTypeGroups } from "@/db/schema";
 import {
-  isLocationCategory,
   normalizeAllowedLocations,
   type LocationCategory,
 } from "@/lib/events/locationPolicy";
@@ -58,17 +57,18 @@ export interface EventTypeDisplayInfo {
   /** Whether the event form shows the Invited Attendees step. */
   showInvitees: boolean;
   /**
-   * The location category events of this type are locked to; null = users
-   * choose in the event form (a locked type skips the wizard's Location step).
+   * Whether the wizard shows the Location step; false means the type skips it
+   * and events save in its sole allowed location category with no specific
+   * location (valid only when the allowlist has one entry).
    */
-  lockedLocation: LocationCategory | null;
+  showLocation: boolean;
 }
 
 /**
  * Lookup of event types by name (name → shortname, time options, allowed
- * locations, remarks/invitees flags, locked location) for rendering event
- * title templates and enforcing the form's datetime selector and location
- * category rules. Names that don't match are omitted.
+ * locations, remarks/invitees/location flags) for rendering event title
+ * templates and enforcing the form's datetime selector and location category
+ * rules. Names that don't match are omitted.
  */
 export async function getEventTypesByNames(
   names: string[],
@@ -85,7 +85,7 @@ export async function getEventTypesByNames(
       allowedLocations: eventTypes.allowedLocations,
       showRemarks: eventTypes.showRemarks,
       showInvitees: eventTypes.showInvitees,
-      lockedLocation: eventTypes.lockedLocation,
+      showLocation: eventTypes.showLocation,
     })
     .from(eventTypes)
     .where(inArray(eventTypes.name, uniqueNames));
@@ -99,7 +99,7 @@ export async function getEventTypesByNames(
         allowedLocations: normalizeAllowedLocations(row.allowedLocations),
         showRemarks: row.showRemarks,
         showInvitees: row.showInvitees,
-        lockedLocation: isLocationCategory(row.lockedLocation) ? row.lockedLocation : null,
+        showLocation: row.showLocation,
       },
     ]),
   );

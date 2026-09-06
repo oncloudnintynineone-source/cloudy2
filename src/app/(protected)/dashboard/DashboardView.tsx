@@ -191,8 +191,8 @@ interface EventTypeOption {
   allowedLocations: LocationCategory[];
   showRemarks: boolean;
   showInvitees: boolean;
-  /** Location category events of this type are locked to; null = users choose. */
-  lockedLocation: LocationCategory | null;
+  /** Whether the wizard shows the Location step for this type (off = skip). */
+  showLocation: boolean;
   /** Admin-pinned event color, null = the deterministic default. */
   color: string | null;
 }

@@ -172,12 +172,13 @@ export const eventTypes = pgTable(
     /** Whether the event form shows the Invited Attendees step for this type. */
     showInvitees: boolean("show_invitees").notNull().default(true),
     /**
-     * When set, events of this type always take place in this category
-     * ("in" | "out" | "overseas") and the wizard's Location step is skipped —
-     * the admin locks the location so creators never choose. Null (default)
-     * lets users pick within {@link allowedLocations}.
+     * Whether the wizard shows the Location step for this type. When off, the
+     * step is skipped entirely and events save in the type's sole allowed
+     * location category with no specific place — only meaningful when
+     * {@link allowedLocations} has exactly one entry (enforced in the
+     * event-type form and validation).
      */
-    lockedLocation: text("locked_location"),
+    showLocation: boolean("show_location").notNull().default(true),
     /** Admin-set event color (Mantine palette name); null = deterministic default from the name. */
     color: text("color"),
     ...timestamps,

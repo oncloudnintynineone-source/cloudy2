@@ -16,7 +16,6 @@ import {
   isLocationCategory,
   LOCATION_CATEGORY_LABELS,
   normalizeAllowedLocations,
-  type LocationCategory,
 } from "@/lib/events/locationPolicy";
 import { isTimeOption, normalizeTimeOptions, TIME_OPTION_LABELS } from "@/lib/events/timeOptions";
 
@@ -66,16 +65,6 @@ function allowedLocationLabels(locations: string[]): string[] {
   );
 }
 
-/** Display label for the locked-location setting, stored in audit details. */
-function lockedLocationLabel(locked: string | null): string {
-  return locked && isLocationCategory(locked) ? LOCATION_CATEGORY_LABELS[locked] : "Users choose";
-}
-
-/** A locked-location form value ("" = unlocked) → nullable DB column. */
-function normalizeLockedLocation(locked: LocationCategory | ""): string | null {
-  return locked || null;
-}
-
 export async function createEventType(input: EventTypeFormValues): Promise<EventTypeActionResult> {
   const session = await requireAdmin();
 
@@ -90,7 +79,7 @@ export async function createEventType(input: EventTypeFormValues): Promise<Event
   const allowedLocations = normalizeAllowedLocations(input.allowedLocations);
   const showRemarks = input.showRemarks !== false;
   const showInvitees = input.showInvitees !== false;
-  const lockedLocation = normalizeLockedLocation(input.lockedLocation);
+  const showLocation = input.showLocation !== false;
   const color = normalizeEventColor(input.color);
   const groupId = input.groupId?.trim() || null;
   const groupName = await getGroupNameOrNull(groupId);
@@ -107,7 +96,7 @@ export async function createEventType(input: EventTypeFormValues): Promise<Event
         allowedLocations,
         showRemarks,
         showInvitees,
-        lockedLocation,
+        showLocation,
         color,
         groupId,
       })
@@ -128,7 +117,7 @@ export async function createEventType(input: EventTypeFormValues): Promise<Event
         allowedLocations: allowedLocationLabels(allowedLocations),
         showRemarks,
         showInvitees,
-        lockedLocation: lockedLocationLabel(lockedLocation),
+        showLocation,
         color: formatColorLabel(color, name),
       },
     });
@@ -175,7 +164,7 @@ export async function renameEventType(
   const allowedLocations = normalizeAllowedLocations(input.allowedLocations);
   const showRemarks = input.showRemarks !== false;
   const showInvitees = input.showInvitees !== false;
-  const lockedLocation = normalizeLockedLocation(input.lockedLocation);
+  const showLocation = input.showLocation !== false;
   const color = normalizeEventColor(input.color);
   const groupId = input.groupId?.trim() || null;
   const groupName = await getGroupNameOrNull(groupId);
@@ -193,7 +182,7 @@ export async function renameEventType(
         allowedLocations,
         showRemarks,
         showInvitees,
-        lockedLocation,
+        showLocation,
         color,
         groupId,
         updatedAt: new Date(),
@@ -216,7 +205,7 @@ export async function renameEventType(
           allowedLocations: allowedLocationLabels(normalizeAllowedLocations(existing.allowedLocations)),
           showRemarks: existing.showRemarks,
           showInvitees: existing.showInvitees,
-          lockedLocation: lockedLocationLabel(existing.lockedLocation),
+          showLocation: existing.showLocation,
           color: formatColorLabel(existing.color, existing.name),
         },
         {
@@ -227,7 +216,7 @@ export async function renameEventType(
           allowedLocations: allowedLocationLabels(allowedLocations),
           showRemarks,
           showInvitees,
-          lockedLocation: lockedLocationLabel(lockedLocation),
+          showLocation,
           color: formatColorLabel(color, name),
         },
       ),

@@ -13,9 +13,6 @@ import {
   getUserDepartmentId,
   listCalendars,
 } from "@/lib/events/queries";
-import {
-  isLocationCategory,
-} from "@/lib/events/locationPolicy";
 import { filterUserOptionIds } from "@/lib/filters/filterUserOptions";
 import { googleCalendarConfigured } from "@/lib/google";
 import { listQuickLinks } from "@/lib/quickLinks/queries";
@@ -156,7 +153,7 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
     allowedLocations: type.allowedLocations,
     showRemarks: type.showRemarks,
     showInvitees: type.showInvitees,
-    lockedLocation: isLocationCategory(type.lockedLocation) ? type.lockedLocation : null,
+    showLocation: type.showLocation,
     color: type.color,
   }));
   const eventTypeGroupOptions = eventTypeGroups.map((group) => ({

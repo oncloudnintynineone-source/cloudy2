@@ -20,7 +20,6 @@ import {
   LOCATION_CATEGORIES,
   LOCATION_CATEGORY_DESCRIPTIONS,
   LOCATION_CATEGORY_LABELS,
-  isLocationCategory,
   normalizeAllowedLocations,
 } from "@/lib/events/locationPolicy";
 import { ColorSwatchPicker } from "@/components/ColorSwatchPicker";
@@ -41,21 +40,13 @@ interface EventTypeFormProps {
     allowedLocations: string[];
     showRemarks: boolean;
     showInvitees: boolean;
-    /** Location category events of this type are locked to; null = users choose. */
-    lockedLocation: string | null;
+    /** Whether the wizard shows the Location step (off requires one allowed location). */
+    showLocation: boolean;
     color: string | null;
   } | null;
   groups: { id: string; name: string }[];
   onDone: () => void;
 }
-
-const LOCKED_LOCATION_OPTIONS = [
-  { value: "", label: "Users choose in the event form" },
-  ...LOCATION_CATEGORIES.map((category) => ({
-    value: category,
-    label: LOCATION_CATEGORY_LABELS[category],
-  })),
-];
 
 export function EventTypeForm({ eventType, groups, onDone }: EventTypeFormProps) {
   const isEdit = eventType !== null;
@@ -73,9 +64,15 @@ export function EventTypeForm({ eventType, groups, onDone }: EventTypeFormProps)
         : [...LOCATION_CATEGORIES],
       showRemarks: eventType ? eventType.showRemarks !== false : true,
       showInvitees: eventType ? eventType.showInvitees !== false : true,
-      lockedLocation: isLocationCategory(eventType?.lockedLocation)
-        ? eventType.lockedLocation
-        : "",
+      // A type with a hidden location step needs exactly one allowed location
+      // (validation enforces it), so default to showing unless the edited type
+      // already hides it with a single-category matrix.
+      showLocation:
+        eventType !== null &&
+        eventType.showLocation === false &&
+        eventType.allowedLocations.length === 1
+          ? false
+          : true,
       color: eventType?.color ?? "",
     },
     validate: (values) => validateEventTypeForm(values),
@@ -201,12 +198,15 @@ export function EventTypeForm({ eventType, groups, onDone }: EventTypeFormProps)
               label="Allowed locations"
               description="Where events of this type may take place (at least one)"
               value={form.values.allowedLocations}
-              onChange={(value) =>
-                form.setFieldValue(
-                  "allowedLocations",
-                  value as EventTypeFormValues["allowedLocations"],
-                )
-              }
+              onChange={(value) => {
+                const allowedLocations = value as EventTypeFormValues["allowedLocations"];
+                form.setFieldValue("allowedLocations", allowedLocations);
+                // Hiding the Location step is only valid with a single allowed
+                // location; widening the matrix re-shows the step.
+                if (allowedLocations.length !== 1 && form.values.showLocation === false) {
+                  form.setFieldValue("showLocation", true);
+                }
+              }}
               error={form.errors.allowedLocations}
             >
               <Stack gap="xs" mt="xs">
@@ -222,34 +222,6 @@ export function EventTypeForm({ eventType, groups, onDone }: EventTypeFormProps)
             </Checkbox.Group>
           </Grid.Col>
         </Grid>
-
-        {/* Locking the location removes the wizard's Location step: events of
-            this type are always saved in that category, so creators never
-            choose. Deliberately separate from the Allowed locations matrix —
-            that matrix only constrains the step when it is still shown. */}
-        <Stack gap={4}>
-          <Text fw={500} size="sm">
-            Locked location
-          </Text>
-          <NoKeyboardSelect
-            aria-label="Locked location"
-            placeholder="Users choose in the event form"
-            description={
-              form.values.lockedLocation
-                ? "The Location step is skipped in the event form; every event of this type is saved in this category."
-                : "Leave as-is to let users pick a location in the event form (within the allowed locations above). Locking a category skips the Location step entirely."
-            }
-            data={LOCKED_LOCATION_OPTIONS}
-            value={form.values.lockedLocation}
-            error={form.errors.lockedLocation}
-            onChange={(value) =>
-              form.setFieldValue(
-                "lockedLocation",
-                isLocationCategory(value) ? value : "",
-              )
-            }
-          />
-        </Stack>
 
         {/* Form-level visibility toggles, deliberately NOT inside the location
             matrix above: they control the event wizard (remarks/invitees steps),
@@ -270,6 +242,17 @@ export function EventTypeForm({ eventType, groups, onDone }: EventTypeFormProps)
             description="Let users tag people and departments on events of this type; hide it for types that involve only the creator"
             checked={form.values.showInvitees}
             onChange={(event) => form.setFieldValue("showInvitees", event.currentTarget.checked)}
+          />
+          <Checkbox
+            label="Show location in the event form"
+            description={
+              form.values.allowedLocations.length === 1
+                ? "When only one location is allowed, hide the Location step — every event of this type is saved in that location with no specific place."
+                : "Allow exactly one location above to hide the Location step."
+            }
+            disabled={form.values.allowedLocations.length !== 1}
+            checked={form.values.showLocation}
+            onChange={(event) => form.setFieldValue("showLocation", event.currentTarget.checked)}
           />
         </Stack>
 
