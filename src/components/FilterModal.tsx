@@ -43,6 +43,12 @@ export interface FilterOption {
    * list. Absent (undefined) = flat section.
    */
   department?: string | null;
+  /**
+   * The department's display order (calendars.sort_order) for search-variant
+   * groups: when present the department sections follow the Settings →
+   * Departments order instead of sorting alphabetically.
+   */
+  departmentSort?: number | null;
 }
 
 export interface FilterGroupAction {
@@ -85,6 +91,7 @@ function searchGroupPickerGroups(group: FilterGroup): PickerGroup[] {
         id: option.value,
         label: option.label,
         department: option.department ?? null,
+        departmentSort: option.departmentSort ?? null,
         search: option.search,
       })),
     );

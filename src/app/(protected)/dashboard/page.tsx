@@ -116,16 +116,23 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
   const forceRefresh =
     Number.isFinite(refreshNonce) && new Date().getTime() - refreshNonce < REFRESH_NONCE_TTL_MS;
 
-  const [calendars, eventTypes, eventTypeGroups, allUsers, settings, quickLinks, eventTitleTemplates] =
-    await Promise.all([
-      listCalendars(),
-      listEventTypes(),
-      listEventTypeGroups(),
-      listUsers(),
-      getSettings(),
-      listQuickLinks(),
-      listEventTitleTemplates(),
-    ]);
+  const [
+    calendars,
+    eventTypes,
+    eventTypeGroups,
+    allUsers,
+    settings,
+    quickLinks,
+    eventTitleTemplates,
+  ] = await Promise.all([
+    listCalendars(),
+    listEventTypes(),
+    listEventTypeGroups(),
+    listUsers(),
+    getSettings(),
+    listQuickLinks(),
+    listEventTitleTemplates(),
+  ]);
   const calendarIds = calendars.map((calendar) => calendar.id);
 
   const ownDepartmentId = isAdmin ? null : await getUserDepartmentId(session.user.id);
@@ -194,14 +201,9 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
   const { selected, viewFilters } = resolveDashboardFilters({
     view,
     url: {
-      cal:
-        params.cal === undefined
-          ? undefined
-          : calParam.filter((id) => calendarIds.includes(id)),
+      cal: params.cal === undefined ? undefined : calParam.filter((id) => calendarIds.includes(id)),
       users:
-        params.users === undefined
-          ? undefined
-          : usersParam.filter((id) => allUserIds.includes(id)),
+        params.users === undefined ? undefined : usersParam.filter((id) => allUserIds.includes(id)),
       types:
         params.types === undefined
           ? undefined
@@ -260,6 +262,7 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
     name: user.name,
     shortname: user.shortname,
     departmentName: user.department?.name ?? null,
+    departmentSort: user.department?.sortOrder ?? null,
     displayName: formatFullName(
       { name: user.name, departmentName: user.department?.name ?? null },
       settings.nameTemplate,
@@ -280,6 +283,7 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
       id: user.id,
       name: user.name,
       departmentName: user.department?.name ?? null,
+      departmentSort: user.department?.sortOrder ?? null,
     }));
 
   const inviteeDepartments = calendars.map((calendar) => ({

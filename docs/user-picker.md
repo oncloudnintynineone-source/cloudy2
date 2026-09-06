@@ -54,7 +54,7 @@ of toggleable badges with a search box on top:
 | ----------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
 | `optionMatchesQuery`                      | case-insensitive label/`search` match                                                                                                    |
 | `sortOptionsInGroups`                     | keeps section order; sorts options by label                                                                                              |
-| `buildUserGroups`                         | groups a flat roster by department ("No department" last)                                                                                |
+| `buildUserGroups`                         | groups a flat roster by department ("No department" last); when callers supply a `departmentSort` per user (the department's `sort_order`), sections follow the Settings → Departments order (flattened preorder) instead of alphabetical — sections without a rank sort alphabetically after the ranked ones |
 | `filterPickerGroups`                      | narrows by query; keeps a whole section when its label matches; drops empties                                                            |
 | `selectionByGroup`                        | seeds a draft from a flat selection                                                                                                      |
 | `splitInvitees` / `mergeInviteeSelection` | split/merge the `user:<id>` / `dept:<id>` prefixed invitee list (keeps now-unlistable ids so edits don't drop them; creator stays first) |
@@ -65,7 +65,9 @@ of toggleable badges with a search box on top:
   sections; the form's `invitees` field keeps its `user:`/`dept:` prefixed shape.
 - **FilterModal's `variant: "search"` groups** — Users on dashboard + parade state;
   options may carry `department` to get per-department sections, `search` for extra
-  matching.
+  matching. Department sections order by the caller-provided `departmentSort` (the
+  Settings → Departments sort order); the audit log's actors with no roster match
+  fall into an unranked trailing "Other" section.
 - **Double Booking admin target** — a `single`-mode `UserSelectModal` (department
   sections, shortname `search`) replacing the page's original `NoKeyboardSelect`
   dropdown, since the roster is a large option list.

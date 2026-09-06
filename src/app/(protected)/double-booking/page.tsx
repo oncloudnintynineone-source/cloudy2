@@ -24,6 +24,7 @@ export default async function DoubleBookingPage() {
           shortname: user.shortname,
           departmentId: user.department?.id ?? null,
           departmentName: user.department?.name ?? null,
+          departmentSort: user.department?.sortOrder ?? null,
         }))
     : [];
 

@@ -30,10 +30,19 @@ export default async function AuditLogPage({ searchParams }: AuditLogPageProps) 
   // in the log come from the DB; names that appear only in the applied filter
   // (purged from the log) are unioned in so their picker labels still render.
   // Unmatched names ("Admin", deleted users) map to null → "Other" section.
-  const departmentByName = new Map(roster.map((user) => [user.name, user.department?.name ?? null]));
+  const departmentByUser = new Map(roster.map((user) => [user.name, user.department]));
   const actorNames = [...new Set([...actors, ...filters.actor])].sort((a, b) => a.localeCompare(b));
-  const actorDepartments: Record<string, string | null> = Object.fromEntries(
-    actorNames.map((name) => [name, departmentByName.get(name) ?? null]),
+  const actorDepartments: Record<
+    string,
+    { department: string | null; departmentSort: number | null }
+  > = Object.fromEntries(
+    actorNames.map((name) => {
+      const department = departmentByUser.get(name) ?? null;
+      return [
+        name,
+        { department: department?.name ?? null, departmentSort: department?.sortOrder ?? null },
+      ];
+    }),
   );
 
   return (

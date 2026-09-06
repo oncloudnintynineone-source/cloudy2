@@ -112,7 +112,13 @@ export interface ParadeStateViewProps {
   currentUser: string;
   selectedCalendarIds: string[];
   selectedUserIds: string[];
-  filterUsers: { id: string; name: string; displayName: string; departmentName: string | null }[];
+  filterUsers: {
+    id: string;
+    name: string;
+    displayName: string;
+    departmentName: string | null;
+    departmentSort: number | null;
+  }[];
   nameTemplate: string;
   /** Admin: the empty state links into Settings; non-admins get the plain message. */
   isAdmin?: boolean;
@@ -346,8 +352,10 @@ export function ParadeStateView({
       value: user.id,
       label: user.name,
       // Carries the department into the picker dialog so users render as
-      // per-department badge sections instead of one flat list.
+      // per-department badge sections instead of one flat list; the sort order
+      // keeps the sections in Settings → Departments display order.
       department: user.departmentName,
+      departmentSort: user.departmentSort,
     }));
     if (userOptions.length > 0) {
       groups.push({

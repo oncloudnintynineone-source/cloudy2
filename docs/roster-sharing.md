@@ -309,7 +309,11 @@ flowchart TB
   traversal (children ranked right after their parent's subtree). Every flat
   list of calendars (`listCalendars`, `listDepartments`, filter options) is
   therefore already in tree order, and the parade-state nested render needs no
-  separate ordering.
+  separate ordering. The per-department **user sections in the badge pickers**
+  follow the same rank: `listUsers` returns each user's `department.sortOrder`,
+  and callers thread it as `departmentSort` into `buildUserGroups`
+  (`docs/user-picker.md` §1.3), so a picker's sections read top-to-bottom the
+  same way the Settings → Departments list does.
 - **Cycle safety**: the parent picker (`parentOptionsFor`) excludes the
   department itself and its descendants, and `renameDepartment` rejects a
   parent that is self or an own descendant (`descendantIds`); traversal

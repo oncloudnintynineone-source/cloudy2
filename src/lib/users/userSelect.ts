@@ -17,6 +17,12 @@ export interface UserGroupInput {
   label: string;
   department: string | null;
   search?: string;
+  /**
+   * The department's display order (calendars.sort_order). When present on any
+   * member of a department, that department's section is ordered by it instead
+   * of alphabetically — sections follow the Settings → Departments order.
+   */
+  departmentSort?: number | null;
 }
 
 export const NO_DEPARTMENT_LABEL = "No department";
@@ -50,12 +56,17 @@ export function sortOptionsInGroups(groups: PickerGroup[]): PickerGroup[] {
 
 /**
  * Group a flat roster into per-department sections. Users without a department
- * share a "No department" section that always sorts last; the remaining
- * sections and the options within every section sort alphabetically
+ * share a "No department" section that always sorts last. Sections whose users
+ * carry a `departmentSort` (the department's sort_order) sort by it ascending
+ * — the flat sequence shown in Settings → Departments — falling back to their
+ * name only when ranks tie. Sections without a rank sort alphabetically after
+ * every ranked section, keeping callers that don't supply one on today's
+ * alphabetical behavior. The options within every section sort alphabetically
  * (case-insensitive).
  */
 export function buildUserGroups(users: UserGroupInput[]): PickerGroup[] {
   const byDepartment = new Map<string, PickerOption[]>();
+  const ranks = new Map<string, number>();
   const undepartmented: PickerOption[] = [];
   for (const user of users) {
     const option: PickerOption = { id: user.id, label: user.label, search: user.search };
@@ -68,11 +79,25 @@ export function buildUserGroups(users: UserGroupInput[]): PickerGroup[] {
       } else {
         byDepartment.set(user.department, [option]);
       }
+      if (
+        user.departmentSort !== undefined &&
+        user.departmentSort !== null &&
+        !ranks.has(user.department)
+      ) {
+        ranks.set(user.department, user.departmentSort);
+      }
     }
   }
-  const groups: PickerGroup[] = [...byDepartment.entries()]
-    .map(([label, options]) => ({ label, options }))
-    .sort((a, b) => compareLabels(a.label, b.label));
+  const ranked: PickerGroup[] = [];
+  const unranked: PickerGroup[] = [];
+  for (const [label, options] of byDepartment) {
+    (ranks.has(label) ? ranked : unranked).push({ label, options });
+  }
+  ranked.sort(
+    (a, b) => ranks.get(a.label)! - ranks.get(b.label)! || compareLabels(a.label, b.label),
+  );
+  unranked.sort((a, b) => compareLabels(a.label, b.label));
+  const groups = [...ranked, ...unranked];
   if (undepartmented.length > 0) {
     groups.push({ label: NO_DEPARTMENT_LABEL, options: undepartmented });
   }
@@ -106,7 +131,10 @@ export function filterPickerGroups(groups: PickerGroup[], query: string): Picker
  * selected option ids in section order. Ids that belong to no section are
  * ignored.
  */
-export function selectionByGroup(groups: PickerGroup[], selected: string[]): Record<string, string[]> {
+export function selectionByGroup(
+  groups: PickerGroup[],
+  selected: string[],
+): Record<string, string[]> {
   const selectedIds = new Set(selected);
   const result: Record<string, string[]> = {};
   for (const group of groups) {
@@ -154,7 +182,8 @@ export function mergeInviteeSelection(
   departmentsSectionLabel: string = INVITEE_DEPARTMENTS_SECTION,
 ): string[] {
   const allOptionIds = new Set(groups.flatMap((group) => group.options.map((option) => option.id)));
-  const { userIds: previousUserIds, departmentIds: previousDepartmentIds } = splitInvitees(previousInvitees);
+  const { userIds: previousUserIds, departmentIds: previousDepartmentIds } =
+    splitInvitees(previousInvitees);
   const keepDepartmentIds = previousDepartmentIds.filter((id) => !allOptionIds.has(id));
   const keepUserIds = previousUserIds.filter((id) => !allOptionIds.has(id));
 
@@ -169,8 +198,5 @@ export function mergeInviteeSelection(
     ? [creatorId, ...uniqueUserIds.filter((id) => id !== creatorId)]
     : uniqueUserIds;
 
-  return [
-    ...departmentIds.map((id) => `dept:${id}`),
-    ...userIds.map((id) => `user:${id}`),
-  ];
+  return [...departmentIds.map((id) => `dept:${id}`), ...userIds.map((id) => `user:${id}`)];
 }

@@ -60,8 +60,8 @@ interface AuditLogViewProps {
   filters: AuditFilters;
   /** Distinct actor names seen in the log, plus any name in the applied filter. */
   actors: string[];
-  /** Actor name → roster department name (null for "Admin"/deleted users). */
-  actorDepartments: Record<string, string | null>;
+  /** Actor name → roster department (null name for "Admin"/deleted users). */
+  actorDepartments: Record<string, { department: string | null; departmentSort: number | null }>;
   entityTypes: string[];
   retentionDays: number;
 }
@@ -158,11 +158,15 @@ export function AuditLogView({
       {
         label: "Actors",
         variant: "search",
-        options: actors.map((name) => ({
-          value: name,
-          label: name,
-          department: actorDepartments[name] ?? "Other",
-        })),
+        options: actors.map((name) => {
+          const lookup = actorDepartments[name];
+          return {
+            value: name,
+            label: name,
+            department: lookup?.department ?? "Other",
+            departmentSort: lookup?.departmentSort ?? null,
+          };
+        }),
       },
       {
         label: "Actions",

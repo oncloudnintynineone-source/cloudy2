@@ -35,8 +35,12 @@ describe("optionMatchesQuery", () => {
   });
 
   it("matches the extra search terms", () => {
-    expect(optionMatchesQuery({ id: "a", label: "Some Name", search: "short" }, "SHORT")).toBe(true);
-    expect(optionMatchesQuery({ id: "a", label: "Some Name", search: "short" }, "missing")).toBe(false);
+    expect(optionMatchesQuery({ id: "a", label: "Some Name", search: "short" }, "SHORT")).toBe(
+      true,
+    );
+    expect(optionMatchesQuery({ id: "a", label: "Some Name", search: "short" }, "missing")).toBe(
+      false,
+    );
   });
 
   it("treats an empty or whitespace query as matching everything", () => {
@@ -52,7 +56,13 @@ describe("optionMatchesQuery", () => {
 describe("sortOptionsInGroups", () => {
   it("sorts options by label case-insensitively without reordering sections", () => {
     const input: PickerGroup[] = [
-      { label: "Second", options: [{ id: "b", label: "beta" }, { id: "a", label: "Alpha" }] },
+      {
+        label: "Second",
+        options: [
+          { id: "b", label: "beta" },
+          { id: "a", label: "Alpha" },
+        ],
+      },
       { label: "First", options: [{ id: "x", label: "zeta" }] },
     ];
     const sorted = sortOptionsInGroups(input);
@@ -82,6 +92,35 @@ describe("buildUserGroups", () => {
   it("omits the No department section when every user has a department", () => {
     const groups = buildUserGroups([{ id: "u1", label: "A", department: "Admin" }]);
     expect(groups.map((g) => g.label)).toEqual(["Admin"]);
+  });
+
+  it("orders sections by departmentSort ascending, breaking ties by name", () => {
+    const groups = buildUserGroups([
+      { id: "u1", label: "Zoe", department: "Alpha", departmentSort: 5 },
+      { id: "u2", label: "Yan", department: "Beta", departmentSort: 1 },
+      { id: "u3", label: "Xin", department: "Tie B", departmentSort: 3 },
+      { id: "u4", label: "Wei", department: "Tie A", departmentSort: 3 },
+    ]);
+    expect(groups.map((g) => g.label)).toEqual(["Beta", "Tie A", "Tie B", "Alpha"]);
+  });
+
+  it("sorts sections without a departmentSort after the ranked ones, alphabetically", () => {
+    const groups = buildUserGroups([
+      { id: "u1", label: "Zoe", department: "Alpha", departmentSort: 2 },
+      { id: "u2", label: "Yan", department: "Zulu" },
+      { id: "u3", label: "Xin", department: "Mike" },
+      { id: "u4", label: "Wei", department: "Beta", departmentSort: 1 },
+    ]);
+    expect(groups.map((g) => g.label)).toEqual(["Beta", "Alpha", "Mike", "Zulu"]);
+  });
+
+  it("keeps the unranked and No department sections after ranked ones", () => {
+    const groups = buildUserGroups([
+      { id: "u1", label: "Zoe", department: "Ops", departmentSort: 1 },
+      { id: "u2", label: "Yan", department: null },
+      { id: "u3", label: "Xin", department: "Adhoc" },
+    ]);
+    expect(groups.map((g) => g.label)).toEqual(["Ops", "Adhoc", NO_DEPARTMENT_LABEL]);
   });
 });
 
@@ -155,8 +194,20 @@ describe("splitInvitees", () => {
 
 describe("mergeInviteeSelection", () => {
   const GROUPS_WITH_DEPTS: PickerGroup[] = [
-    { label: INVITEE_DEPARTMENTS_SECTION, options: [{ id: "d1", label: "Dept 1" }, { id: "d2", label: "Dept 2" }] },
-    { label: "Engineering", options: [{ id: "u1", label: "Alice" }, { id: "u2", label: "Bob" }] },
+    {
+      label: INVITEE_DEPARTMENTS_SECTION,
+      options: [
+        { id: "d1", label: "Dept 1" },
+        { id: "d2", label: "Dept 2" },
+      ],
+    },
+    {
+      label: "Engineering",
+      options: [
+        { id: "u1", label: "Alice" },
+        { id: "u2", label: "Bob" },
+      ],
+    },
     { label: "Admin", options: [{ id: "u3", label: "Carol" }] },
   ];
 
@@ -167,7 +218,10 @@ describe("mergeInviteeSelection", () => {
       Engineering: ["u1"], // u2 deselected
       Admin: ["u3"],
     };
-    expect(mergeInviteeSelection(GROUPS_WITH_DEPTS, previous, draft, null)).toEqual(["user:u1", "user:u3"]);
+    expect(mergeInviteeSelection(GROUPS_WITH_DEPTS, previous, draft, null)).toEqual([
+      "user:u1",
+      "user:u3",
+    ]);
   });
 
   it("removes a deselected department", () => {
@@ -177,7 +231,10 @@ describe("mergeInviteeSelection", () => {
       Engineering: ["u1"],
       Admin: [] as string[],
     };
-    expect(mergeInviteeSelection(GROUPS_WITH_DEPTS, previous, draft, null)).toEqual(["dept:d1", "user:u1"]);
+    expect(mergeInviteeSelection(GROUPS_WITH_DEPTS, previous, draft, null)).toEqual([
+      "dept:d1",
+      "user:u1",
+    ]);
   });
 
   it("preserves inactive ids that no longer appear in picker groups", () => {
@@ -199,7 +256,10 @@ describe("mergeInviteeSelection", () => {
       Admin: [] as string[],
     };
     // creator u2 not in draft pick, but creator lock re-adds it first
-    expect(mergeInviteeSelection(GROUPS_WITH_DEPTS, previous, draft, "u2")).toEqual(["user:u2", "user:u1"]);
+    expect(mergeInviteeSelection(GROUPS_WITH_DEPTS, previous, draft, "u2")).toEqual([
+      "user:u2",
+      "user:u1",
+    ]);
   });
 
   it("deselect-all visible leaves only inactive and creator", () => {

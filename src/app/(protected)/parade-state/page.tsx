@@ -97,6 +97,7 @@ export default async function ParadeStatePage({ searchParams }: ParadeStatePageP
         settings.nameTemplate,
       ),
       departmentName: user.department?.name ?? null,
+      departmentSort: user.department?.sortOrder ?? null,
     }));
 
   return (

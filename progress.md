@@ -403,6 +403,19 @@ One line per phase; full write-ups (incl. Mermaid diagrams and verification note
   through the one component tree; badge look normalized to `variant="light"` md chips with
   semantic colors (creator=brand, departments=accent, target=brand) kept as data; each
   caller still owns its modal + confirm wiring (`docs/user-picker.md` §1.6)
+- 1.186 Department sections in the user pickers follow the Settings → Departments order:
+  `buildUserGroups` gained an optional per-user `departmentSort` (the department's
+  `calendars.sort_order`) — sections now sort by that rank ascending (the flattened
+  preorder read top-to-bottom like the Settings list), ties by name, sections without a
+  rank alphabetically after the ranked ones, "No department" last (callers that don't
+  supply a rank keep the old alphabetical order, so it is backward compatible). The
+  `sort_order` every server page already received from `listUsers()` is now threaded
+  instead of dropped: event-wizard invitees, dashboard + parade-state Users filter
+  options (`FilterOption.departmentSort` → `FilterModal.searchGroupPickerGroups`),
+  Double Booking scan targets, KAH `pickerUsers`, and audit-log Actors (whose unmatched
+  "Admin"/deleted names stay in a trailing unranked "Other" section); the
+  calendar/department grid chips were already `sortOrder`-ordered. Pure sorting +
+  section tail unit-tested (`docs/user-picker.md` §1.3, `docs/roster-sharing.md` §1.7)
 
 ## 1.4 Open items & next steps
 

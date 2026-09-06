@@ -19,6 +19,7 @@ export default async function KahGroupsPage() {
       label: user.name,
       search: [user.shortname, user.department?.name].filter(Boolean).join(" ") || undefined,
       department: user.department?.name ?? null,
+      departmentSort: user.department?.sortOrder ?? null,
     }));
 
   return (
