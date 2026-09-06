@@ -309,7 +309,7 @@ export function AppShellShell({
 
   // Cold-start readiness: the shell's two mount fetches (pinned events, clash
   // count) are the client-side tail of a fresh load — the readiness indicator
-  // pulses while they settle and confirms when they're done (see
+  // shows amber while they settle and confirms when they're done (see
   // docs/loading-transitions.md §1.13.1). Registration happens around the
   // *initial* fetches only; the later refreshes (panel close, tab refocus,
   // event CRUD) run untracked so the once-per-launch machine never re-arms.

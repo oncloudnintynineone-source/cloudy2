@@ -330,9 +330,10 @@ it's a JS-only query (not a Mantine breakpoint, so it can't collide with `xs:`/`
   is banned). Every data-awaiting route segment gets a `loading.tsx`; committed
   content roots get `CONTENT_ENTER_CLASS`. Every skeleton block includes a
   `LoadingStatus` (sr-only `role="status"`) so screen readers hear the load.
-  The one complement to skeletons is the shared **global activity bar** (an
-  indeterminate amber strip that pulses while in flight, flush under the
-  header) for the busy moments a
+  The one complement to skeletons is the shared **global activity bar** (a
+  4px amber strip flush under the header with a bright comet head sweeping
+  across it while in flight — the old opacity pulse was too subtle) for the
+  busy moments a
   skeleton can't cover — post-mutation `router.refresh()` (use the
   `useActivityRefresh` hook, never a raw `invalidateCurrentPathCaches().then(…
 router.refresh())`), same-shell tab flips, and in-page transitions. Report a

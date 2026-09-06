@@ -18,7 +18,7 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
 
 ## 1.1 Status
 
-- All work through changelog **1.188 (Dropdown → badge-picker sweep)** is shipped.
+- All work through changelog **1.189 (Activity bar visibility)** is shipped.
 - Quality gates (`lint` / `typecheck` / `test` / schema-drift check) run in CI on every
   push and PR. Pushes also auto-apply migrations per environment: `dev` →
   `migrate-preview` against the dev Neon DB, `main` → `migrate` against the prod Neon
@@ -435,6 +435,17 @@ One line per phase; full write-ups (incl. Mermaid diagrams and verification note
   and creator dialogs; fixed role/dropdown lists (reader/writer/owner, event-type
   group, template target) are untouched. `docs/user-picker.md`,
   `docs/event-lifecycle.md`
+- 1.189 Activity bar thickened + traveling light: the global activity bar's
+  indeterminate amber strip doubles 2px → **4px** (both `.c2-activity-bar-active`
+  and the cold-start green `.c2-ready-bar`, `globals.css`), and the old whole-bar
+  opacity pulse is replaced by a bright warm-white **comet head sweeping
+  left → right** across the strip (`::after` overlay, ~1.4 s crossing, clipped by
+  the container's `overflow:hidden`; reduced-motion = the plain 4px strip). The
+  in-place pulse was too thin/subtle to spot in peripheral vision; the thicker
+  bar + moving highlight read as indeterminate progress at a glance. Pure CSS —
+  no component/state/logic change, the cold-start `loading` phase inherits the
+  comet via the shared class. `docs/loading-transitions.md` §1.13/§1.13.1,
+  `AGENTS.md`
 
 ## 1.4 Open items & next steps
 

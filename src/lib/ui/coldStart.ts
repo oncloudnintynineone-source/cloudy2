@@ -8,8 +8,8 @@
  * and the landing route's content arrives over the RSC stream. None of that
  * tail has an explicit "still working" signal today, so users stare at a
  * static header pill and guess. This module powers a once-per-cold-start
- * readiness indicator: an amber pulse (same slot as the global activity bar)
- * while the cold-start legs are in flight, morphing into a green "✓" bar once
+ * readiness indicator: the global activity bar's amber strip (same slot)
+ * while the cold-start legs are in flight, morphing into a green bar once
  * the last leg settles.
  *
  * The reducer here is deliberately pure (no clock, no pathname) so it is

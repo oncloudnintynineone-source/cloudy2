@@ -71,8 +71,8 @@
    post-mutation refresh is in flight. The container is absolutely positioned
    at the bottom of the shell header (mounted inside AppShell.Header), so it
    rides the header's bottom edge with no margin/padding above it. Inactive =
-   0 height (collapsed); active = a 2px amber strip that pulses in opacity
-   while busy. */
+   0 height (collapsed); active = a 4px amber strip over which a bright
+   "comet" head sweeps while busy. */
 .c2-activity-bar {
   position: absolute;
   bottom: 0;
@@ -85,41 +85,68 @@
 }
 
 .c2-activity-bar-active {
-  height: calc(0.125rem * var(--mantine-scale));
+  height: calc(0.25rem * var(--mantine-scale));
   background: var(--mantine-color-accent-6);
 }
 
-/* Breathing pulse: dim → full amber so busy states read as a steady heartbeat
-   rather than a static line. */
-@keyframes c2-activity-pulse {
-  0%,
-  100% {
-    opacity: 0.35;
+/* Traveling light: a warm-white comet head sweeps left → right across the
+   amber strip (opacity "breathing" in place was too subtle — peripheral
+   vision tracks a moving highlight far better). The head is an absolutely
+   positioned overlay clipped to the strip by the container's overflow:hidden;
+   the keyframe translation is a percentage of the comet's own width (30% of
+   the strip), so 460% carries it one full crossing past the far edge and the
+   loop restart stays off-screen. */
+.c2-activity-bar-active::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 30%;
+  background: linear-gradient(
+    to right,
+    transparent,
+    rgba(255, 255, 255, 0.55) 45%,
+    rgba(255, 255, 255, 0.95) 75%
+  );
+  will-change: transform;
+}
+
+@keyframes c2-activity-travel {
+  from {
+    transform: translateX(-120%);
   }
-  50% {
-    opacity: 1;
+  to {
+    transform: translateX(460%);
   }
 }
 
 @media (prefers-reduced-motion: no-preference) {
-  .c2-activity-bar-active {
-    animation: c2-activity-pulse 1.1s ease-in-out infinite;
+  .c2-activity-bar-active::after {
+    animation: c2-activity-travel 1.4s linear infinite;
   }
 }
 
-/* Reduced motion: no pulse — the bar reads as a plain amber strip. */
+/* Reduced motion: no comet — the bar reads as a plain amber strip (hiding
+   the overlay rather than leaving it frozen over the strip's left edge). */
+@media (prefers-reduced-motion: reduce) {
+  .c2-activity-bar-active::after {
+    opacity: 0;
+  }
+}
 
 /* Cold-start ready confirmation (docs/loading-transitions.md §1.13.1): the
    once-per-launch bar that takes over the activity bar's slot when the
-   cold-start data has fully loaded. Same geometry, filled green and drawn in
-   from the left so the amber → green flip reads as a positive completion;
-   the component removes it after the dwell, never to return this session. */
+   cold-start data has fully loaded. Same geometry (4px), filled green and
+   drawn in from the left so the amber → green flip reads as a positive
+   completion; the component removes it after the dwell, never to return this
+   session. */
 .c2-ready-bar {
   position: absolute;
   bottom: 0;
   left: 0;
   right: 0;
-  height: calc(0.125rem * var(--mantine-scale));
+  height: calc(0.25rem * var(--mantine-scale));
   background: var(--mantine-color-green-6);
   z-index: 20;
   pointer-events: none;

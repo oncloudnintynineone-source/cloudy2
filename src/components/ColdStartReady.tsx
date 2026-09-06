@@ -28,7 +28,7 @@ import {
  * remaining data async (the pinned-events list and the double-booking count
  * are mount-effect fetches; the landing route's content streams server-side).
  * This provider tracks that once-per-launch tail and exposes a phase the bar
- * renders: an amber pulse (the global activity bar's own slot) while any
+ * renders: the global activity bar's amber strip (its own slot) while any
  * cold-start leg is in flight, then a brief green "ready" bar once the last
  * leg settles — the explicit "all data is loaded" moment the static chrome
  * never gave users. It runs exactly once per shell mount: the phase machine
@@ -141,7 +141,7 @@ export function ColdStartReadyProvider({ children }: { children: ReactNode }) {
  * flight it renders the standard amber activity strip; once every leg settles
  * it swaps to the green `c2-ready-bar` for the dwell, then unmounts. The
  * generic ActivityBar suppresses itself during the cold-start phases so the
- * two never double up in the same 2px slot.
+ * two never double up in the same 4px slot.
  */
 export function ColdStartReadyBar() {
   const { phase } = useColdStartReady();

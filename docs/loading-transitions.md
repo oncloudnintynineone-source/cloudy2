@@ -421,10 +421,13 @@ as a deliberate, completed sequence rather than a 1-frame blip (the
 immediate too, so no warm load can outrun the bar entirely). Timing lives in a
 flat `setTimeout` in an effect — SSR renders are unaffected.
 
-**Presentation & a11y.** The bar is a 2px amber strip that **pulses** in
-opacity (~1.1 s breathing cycle, dim ≈ 0.35 → full, in `globals.css`
-`.c2-activity-bar-*`, under `prefers-reduced-motion: no-preference` for a
-static strip). It carries `role="progressbar"` (indeterminate — no
+**Presentation & a11y.** The bar is a 4px amber strip whose busy state is a
+bright warm-white **comet head sweeping left → right** across it (~1.4 s
+crossing; in `globals.css` `.c2-activity-bar-active::after` /
+`c2-activity-travel`, under `prefers-reduced-motion: no-preference` for a
+plain static strip). An in-place opacity pulse proved too subtle in peripheral
+vision; a moving highlight reads as indeterminate progress at a glance. It
+carries `role="progressbar"` (indeterminate — no
 `aria-valuenow`) and is `aria-hidden` while collapsed. Mounted inside
 `AppShell.Header` it is automatically hidden in immersive mode (the header
 itself is `display: none` there).
@@ -495,7 +498,7 @@ client legs, and their only UI effect is additive (header growth, a nav entry).
 
 **Presentation & a11y.** During `loading` the indicator renders the standard
 amber strip (`.c2-activity-bar c2-activity-bar-active`, `role="progressbar"`);
-during `ready` it renders `.c2-ready-bar` — the same 2px slot filled green and
+during `ready` it renders `.c2-ready-bar` — the same 4px slot filled green and
 drawn in from the left (`c2-ready-grow`, reduced-motion: instant). The generic
 `ActivityBar` suppresses itself while the machine is `loading`/`ready` so two
 strips never share the slot, and resumes once it reaches `done`. On entering
