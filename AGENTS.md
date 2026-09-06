@@ -109,7 +109,12 @@ mechanics in the doc.
   Design: [docs/events-cache.md](docs/events-cache.md).
 - **Event lifecycle & mutations:** staged wizard → Google copies with notes-block
   round-trip; cross-department copies reconciled by `findCopies` (deliberately
-  uncached). Design: [docs/event-lifecycle.md](docs/event-lifecycle.md),
+  uncached). The wizard body is a fixed-height column with an internal scroll (its
+  `WIZARD_BODY_HEIGHT`) plus a bottom **step strip** above the Back/Next/Submit bar
+  (a caption naming the current step + a compact non-wrapping Mantine Stepper —
+  circles/connectors, tap = free jump to that step, walk length shifts per type) —
+  the modal no longer resizes between steps, so the buttons never jump.
+  Design: [docs/event-lifecycle.md](docs/event-lifecycle.md),
   [docs/event-mutations.md](docs/event-mutations.md).
 - **Optimistic event mutations:** the dashboard renders a short-lived stand-in chip at
   confirm (not after the Google write + read-your-own-writes refresh) by merging an

@@ -1,8 +1,7 @@
 "use client";
 
-import { useMemo, useState, type KeyboardEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import {
-  Anchor,
   Badge,
   Box,
   Button,
@@ -11,6 +10,7 @@ import {
   Paper,
   SegmentedControl,
   Stack,
+  Stepper,
   Switch,
   Tabs,
   Text,
@@ -73,6 +73,7 @@ import {
   type EventTitlePerson,
 } from "@/lib/settings/formatEventTitle";
 import { BUTTON_LOADER_PROPS } from "@/lib/theme";
+import { announce } from "@/lib/ui/announcer";
 import { showValidationFailure } from "@/lib/ui/validationFeedback";
 import {
   buildUserGroups,
@@ -191,6 +192,31 @@ const STEP_BY_FIELD: Partial<Record<EventResultField, StepId>> = {
   endAmPm: "time",
   creatorId: "creator",
 };
+
+/**
+ * Short display names for the step chip rail. They describe the *section*, not
+ * a position — the walk's length shifts when the selected type hides its
+ * remarks/invitees step, so numbered labels would renumber mid-flow.
+ */
+const STEP_LABELS: Record<StepId, string> = {
+  type: "Type",
+  time: "Time",
+  location: "Location",
+  invitees: "Attendees",
+  remarks: "Remarks",
+  creator: "Creator",
+  review: "Review",
+};
+
+/**
+ * The wizard's fixed body height. Steps scroll inside this box, so the modal
+ * never resizes between them and the Back/Next/Submit bar stays put. It is
+ * viewport-aware: capped by the modal's height budget (header + button bar +
+ * breathing room) so the dialog always fits on short screens, and by 56dvh /
+ * 540px so it never dominates a tall desktop viewport. 100dvh shrinks when the
+ * on-screen keyboard opens, so the cap follows.
+ */
+const WIZARD_BODY_HEIGHT = "min(56dvh, 540px, calc(100dvh - 200px))";
 
 /** Section label of the flat department list inside the invitee badge picker. */
 const PICKER_DEPARTMENTS_SECTION = "Departments";
@@ -443,15 +469,40 @@ export function EventForm({
   const [inviteePickerOpen, setInviteePickerOpen] = useState(false);
   const currentStep = steps[step];
   const isLastStep = step === steps.length - 1;
+  const stepPosition = `${step + 1} of ${steps.length}`;
+  // The step body's scroll container. Steps swap in place inside a fixed-height
+  // region (see `.c2-wizard-scroll`), so a step change must start scrolled to
+  // the top even if the previous step had scrolled deep (a long type list, the
+  // review step, ...).
+  const scrollRef = useRef<HTMLDivElement | null>(null);
+
+  // On a step change: reset the body scroll and announce the arrival through
+  // the shell's polite live region (the chip fill alone is not enough for
+  // screen-reader users).
+  useEffect(() => {
+    scrollRef.current?.scrollTo({ top: 0 });
+    announce(`Step ${stepPosition}: ${STEP_LABELS[currentStep.id]}`);
+    // Intentional: only re-run when the visible step actually changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentStep.id]);
 
   function goBack() {
     setDirection("backward");
     setStep((index) => Math.max(index - 1, 0));
   }
 
-  function goToSummary() {
-    setDirection("forward");
-    setStep(steps.length - 1);
+  /**
+   * Jump straight to any step (the bottom step strip / Stepper). Like the old
+   * "Go to Summary" link, this never validates the steps in between — the
+   * final submit still catches problems and returns the user to the owning
+   * step. Tapping the step you are already on is a no-op.
+   */
+  function goToStep(index: number) {
+    if (index === step) {
+      return;
+    }
+    setDirection(index > step ? "forward" : "backward");
+    setStep(index);
   }
 
   // Enter in a single-line input must never submit the form: the browser's
@@ -1003,14 +1054,22 @@ export function EventForm({
   };
 
   return (
-    <form onSubmit={onSubmit} onKeyDown={handleFormKeyDown}>
+    <form
+      onSubmit={onSubmit}
+      onKeyDown={handleFormKeyDown}
+      className="c2-event-wizard"
+      style={{ height: WIZARD_BODY_HEIGHT }}
+    >
       <div
         tabIndex={-1}
         data-autofocus
         aria-hidden="true"
         style={{ position: "fixed", top: 0, left: 0, opacity: 0, pointerEvents: "none" }}
       />
-      <Stack gap="sm">
+      {/* Step content. Fixed-height + internal scroll (see `.c2-wizard-scroll`):
+          the modal no longer resizes between steps, so the footer below never
+          moves. */}
+      <div ref={scrollRef} className="c2-wizard-scroll">
         {currentStep.id === "type" && (
           <div
             key={currentStep.id}
@@ -1391,66 +1450,84 @@ export function EventForm({
             </Stack>
           </div>
         )}
+      </div>
 
-        <Group justify={step === 0 ? "flex-end" : "space-between"} gap="sm">
-          {step > 0 && (
-            <Button
-              variant="subtle"
-              color="gray"
-              onClick={goBack}
-              leftSection={<IconChevronLeft size={16} />}
-              style={{ flexShrink: 0 }}
-            >
-              Back
-            </Button>
-          )}
-          {isLastStep ? (
-            <Button
-              key="submit"
-              type="submit"
-              loading={form.submitting}
-              loaderProps={BUTTON_LOADER_PROPS}
-              style={step > 0 ? { flexGrow: 1 } : undefined}
-            >
-              {isEdit ? "Save changes" : "Create event"}
-            </Button>
-          ) : (
-            <Button
-              key="next"
-              fullWidth={step === 0}
-              onClick={(event) => {
-                // The Next button and the Create/Save button are the same DOM
-                // node (one conditional, React reuses the element). Without
-                // this, the step-advance click leaves the button `type="submit"`
-                // by the time the browser runs the click's default action, so
-                // advancing into the Remarks step submits the form. A canceled
-                // click never activates the button, and the distinct keys force
-                // React to mount a fresh node (never re-typing the clicked one).
-                event.preventDefault();
-                goNext();
-              }}
-              rightSection={<IconChevronRight size={16} />}
-              style={step > 0 ? { flexGrow: 1 } : undefined}
-            >
-              Next
-            </Button>
-          )}
+      {/* Bottom step strip: a caption naming the current section plus a compact
+          Stepper, both anchored above the action bar so they live in the thumb
+          zone next to Back/Next. The circles are joined by connector lines so
+          the row reads unambiguously as a left→right step path; passed steps
+          show a check, the current circle is filled, future ones are outlined.
+          Tapping any circle is a free jump (see `goToStep`). Inline per-step
+          labels are omitted — the modal is too narrow for them — so the
+          current step's real name always shows in the caption instead. */}
+      <Stack gap={4} className="c2-wizard-steps">
+        <Group justify="space-between">
+          <Text size="sm" fw={600} style={{ lineHeight: 1.4 }}>
+            {STEP_LABELS[currentStep.id]}
+          </Text>
+          <Text size="xs" c="dimmed">
+            Step {step + 1} of {steps.length}
+          </Text>
         </Group>
-
-        {!isLastStep && (
-          <Anchor
-            component="button"
-            type="button"
-            size="sm"
-            c="dimmed"
-            onClick={goToSummary}
-            ta="center"
-            style={{ display: "block" }}
-          >
-            Go to Summary
-          </Anchor>
-        )}
+        <Stepper
+          active={step}
+          onStepClick={goToStep}
+          allowNextStepsSelect
+          wrap={false}
+          size="sm"
+          iconSize={24}
+          styles={{ separator: { marginInline: 6 } }}
+        >
+          {steps.map((s) => (
+            <Stepper.Step key={s.id} aria-label={STEP_LABELS[s.id]} />
+          ))}
+        </Stepper>
       </Stack>
+
+      <Group justify={step === 0 ? "flex-end" : "space-between"} gap="sm">
+        {step > 0 && (
+          <Button
+            variant="subtle"
+            color="gray"
+            onClick={goBack}
+            leftSection={<IconChevronLeft size={16} />}
+            style={{ flexShrink: 0 }}
+          >
+            Back
+          </Button>
+        )}
+        {isLastStep ? (
+          <Button
+            key="submit"
+            type="submit"
+            loading={form.submitting}
+            loaderProps={BUTTON_LOADER_PROPS}
+            style={step > 0 ? { flexGrow: 1 } : undefined}
+          >
+            {isEdit ? "Save changes" : "Create event"}
+          </Button>
+        ) : (
+          <Button
+            key="next"
+            fullWidth={step === 0}
+            onClick={(event) => {
+              // The Next button and the Create/Save button are the same DOM
+              // node (one conditional, React reuses the element). Without
+              // this, the step-advance click leaves the button `type="submit"`
+              // by the time the browser runs the click's default action, so
+              // advancing into the Remarks step submits the form. A canceled
+              // click never activates the button, and the distinct keys force
+              // React to mount a fresh node (never re-typing the clicked one).
+              event.preventDefault();
+              goNext();
+            }}
+            rightSection={<IconChevronRight size={16} />}
+            style={step > 0 ? { flexGrow: 1 } : undefined}
+          >
+            Next
+          </Button>
+        )}
+      </Group>
     </form>
   );
 }

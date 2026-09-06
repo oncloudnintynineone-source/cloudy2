@@ -18,7 +18,7 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
 
 ## 1.1 Status
 
-- All work through changelog **1.184 (Cold-start readiness indicator)** is shipped.
+- All work through changelog **1.187 (Event wizard UX: bottom step strip + fixed-height body)** is shipped.
 - Quality gates (`lint` / `typecheck` / `test` / schema-drift check) run in CI on every
   push and PR. Pushes also auto-apply migrations per environment: `dev` →
   `migrate-preview` against the dev Neon DB, `main` → `migrate` against the prod Neon
@@ -413,9 +413,18 @@ One line per phase; full write-ups (incl. Mermaid diagrams and verification note
   instead of dropped: event-wizard invitees, dashboard + parade-state Users filter
   options (`FilterOption.departmentSort` → `FilterModal.searchGroupPickerGroups`),
   Double Booking scan targets, KAH `pickerUsers`, and audit-log Actors (whose unmatched
-  "Admin"/deleted names stay in a trailing unranked "Other" section); the
-  calendar/department grid chips were already `sortOrder`-ordered. Pure sorting +
-  section tail unit-tested (`docs/user-picker.md` §1.3, `docs/roster-sharing.md` §1.7)
+   "Admin"/deleted names stay in a trailing unranked "Other" section); the
+   calendar/department grid chips were already `sortOrder`-ordered. Pure sorting +
+   section tail unit-tested (`docs/user-picker.md` §1.3, `docs/roster-sharing.md` §1.7)
+- 1.187 Create/edit event wizard UX: the wizard body is now a fixed-height flex column
+  (`WIZARD_BODY_HEIGHT`, viewport-aware) whose step content scrolls internally, so the
+  modal no longer resizes between steps and the Back/Next/Submit bar never jumps; a
+  bottom **step strip** above the action bar — a caption always naming the current step
+  and position plus a compact non-wrapping Mantine **Stepper** (numbered circles joined
+  by connector lines; passed = check, current = filled) — lets the user jump to any
+  section as a **free jump** (the old bottom "Go to Summary" anchor's semantics, now
+  gone); a step change resets the body scroll and announces `Step N of M: <name>`
+  via the shell's polite live region. `docs/event-lifecycle.md` §1.4
 
 ## 1.4 Open items & next steps
 

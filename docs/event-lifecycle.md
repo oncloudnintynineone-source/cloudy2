@@ -124,14 +124,31 @@ steps, admins seven ("On behalf of" sits between Remarks and Review):
 | 6 | `creator`  | admins only | none — optional; blank means the acting user (§1.5.2)           |
 | 7 | `review`   | all         | submit only (last step) — read-only summary of everything entered |
 
-The `location`, `invitees`, and `remarks` steps drop out per the selected type's config
-(§1.9.1); an untyped event walks all of them.
+The `invitees` and `remarks` steps drop out per the selected type's config (§1.9.1);
+`location` always stays — an exclusively in-camp type just collapses its category selector
+to one disabled segment while still recording an optional specific place. An untyped event
+walks all of them.
 
 Mechanics worth knowing:
 
-- **No progress indicator**: there are no step dots or "N of M" caption; the **Back**
-  button (`EventForm.tsx:838-849`) is the only backward navigation.
-- **Enter never submits**: `handleFormKeyDown` (`EventForm.tsx:296-303`) cancels the
+- **Bottom step strip + fixed-height body**: the wizard body is a fixed-height flex column
+  (its height is `WIZARD_BODY_HEIGHT`, a viewport-aware `min(56dvh, 540px,
+  calc(100dvh - 200px))` in `EventForm.tsx`): the active step's content in the middle on
+  an **internal scroll** (`.c2-wizard-scroll`), and, pinned at the bottom above the
+  **Back / Next / Create-Save bar**, the step strip — a caption naming the current step
+  plus a compact Mantine **Stepper**. The modal never resizes between steps, so the
+  buttons never jump. The Stepper (`.c2-wizard-steps`) is one non-wrapping row of
+  numbered circles joined by connector lines, so it reads unambiguously as a left→right
+  step path: passed steps show a check, the current circle is filled, future ones are
+  outlined. The **caption** always shows the current step's real name and position
+  (`Location` · `Step 3 of 6`); inline per-step labels are deliberately omitted — the
+  modal is too narrow for them, and the walk's length shifts when a type hides its
+  remarks/invitees step. Clicking any circle calls `goToStep` — a **free jump** (the
+  semantics of the old bottom "Go to Summary" link, now gone): nothing in between is
+  validated; the final submit still catches problems and returns the user to the owning
+  step. A step change resets the body scroll to the top and announces
+  `Step N of M: <name>` through the shell's polite live region.
+- **Enter never submits**: `handleFormKeyDown` (`EventForm.tsx`) cancels the
   browser's implicit form submission for `INPUT`/`SELECT` targets, so only the explicit
   Create/Save button (review step) commits — the Remarks `Textarea` keeps natural newline
   behavior. `onSubmit` re-guards with `if (!isLastStep) return` (`EventForm.tsx:447`),
@@ -191,9 +208,9 @@ Mechanics worth knowing:
   `reviewPeople` derives from the effective invitee list **minus the effective owner**
   (picked "On behalf of" user, or the acting user when blank), so the Invited
   Attendees row never duplicates the owner — who is badged in the On-behalf-of row for
-  admins and is the acting user themselves otherwise — so what is reviewed is exactly
-  what gets saved. There are no per-section edit links — fixing a mistake means walking
-  Back through the intermediate steps.
+   admins and is the acting user themselves otherwise — so what is reviewed is exactly
+   what gets saved. There are no per-section edit links on the review page itself, but
+   the bottom Stepper (§1.4) jumps straight back to any earlier step without walking.
 
 ### 1.4.2 Deep links back to the event
 

@@ -283,6 +283,32 @@
   }
 }
 
+/* ---- Create/Edit event wizard (docs/event-lifecycle.md §1.4) ----
+   The wizard body is a fixed-height flex column: the active step's content in
+   the middle (internal scroll), the bottom step strip (caption + Stepper) and
+   then the action bar. Because the whole column has one constant height (set
+   inline on the <form> via WIZARD_BODY_HEIGHT), the modal never resizes between
+   steps, so the Back/Next/Submit buttons never jump. */
+.c2-event-wizard {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  gap: var(--mantine-spacing-sm);
+}
+
+.c2-wizard-steps {
+  flex: 0 0 auto;
+}
+
+.c2-wizard-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+}
+
 /* In dark mode the active tab's underline (a 2px border in --tabs-color,
    defaulting to --mantine-primary-color-filled = brand shade 8, a dark navy)
    is nearly invisible on the dark body. The variable is set inline on the
