@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useForm } from "@mantine/form";
 import {
   Badge,
@@ -34,6 +34,8 @@ import type { RosterAccessGrant, RosterUser } from "@/lib/roster/queries";
 import type { ManagedGrantRole, UserCalendarGrant } from "@/lib/roster/shares";
 import { validateUserForm, type UserFormValues } from "@/lib/roster/validate";
 import { NoKeyboardSelect } from "@/components/NoKeyboardSelect";
+import { UserSelectModal } from "@/components/UserSelectModal";
+import { selectionByGroup } from "@/lib/users/userSelect";
 
 const ACCESS_ROLE_OPTIONS: { value: ManagedGrantRole; label: string }[] = [
   { value: "reader", label: "Read only" },
@@ -95,6 +97,7 @@ export function UserForm({ user, departments, access, onDone }: UserFormProps) {
   const [togglingStatus, setTogglingStatus] = useState(false);
   const [addingCalendarId, setAddingCalendarId] = useState<string>("");
   const [addingRole, setAddingRole] = useState<ManagedGrantRole>("reader");
+  const [addingPickerOpen, setAddingPickerOpen] = useState(false);
   // The user's own department's live ACL level, for its non-removable row.
   const [ownRole, setOwnRole] = useState<ManagedGrantRole | null>(null);
   const [ownFetchedKey, setOwnFetchedKey] = useState<string | null>(null);
@@ -179,6 +182,30 @@ export function UserForm({ user, departments, access, onDone }: UserFormProps) {
       department.id !== form.values.departmentId &&
       !granted.some((grant) => grant.calendarId === department.id),
   );
+
+  // The addable departments as one flat badge section for the single-select
+  // dialog; the staged candidate drives the Add row below.
+  const addablePickerGroups = useMemo(
+    () => [
+      {
+        label: "Departments",
+        options: addableDepartments.map((department) => ({
+          id: department.id,
+          label: department.name,
+        })),
+      },
+    ],
+    [addableDepartments],
+  );
+  const addingPickerValues = useMemo(
+    () => selectionByGroup(addablePickerGroups, addingCalendarId ? [addingCalendarId] : []),
+    [addablePickerGroups, addingCalendarId],
+  );
+
+  /** A department was confirmed in the picker — stage it for the Add row. */
+  function pickDepartmentToGrant(values: Record<string, string[]>) {
+    setAddingCalendarId(Object.values(values).flat()[0] ?? "");
+  }
 
   function addGrant(calendarId: string, role: ManagedGrantRole) {
     if (!calendarId || granted.some((grant) => grant.calendarId === calendarId)) {
@@ -516,20 +543,16 @@ export function UserForm({ user, departments, access, onDone }: UserFormProps) {
 
           {departments.length > 0 && (
             <Group gap="xs" align="flex-end" wrap="wrap">
-              <NoKeyboardSelect
+              <Button
+                variant="default"
                 aria-label="Department to grant"
-                placeholder={
-                  addableDepartments.length > 0 ? "Add a department…" : "No more departments"
-                }
-                data={addableDepartments.map((department) => ({
-                  value: department.id,
-                  label: department.name,
-                }))}
-                value={addingCalendarId}
-                onChange={(value) => setAddingCalendarId(value ?? "")}
-                style={{ flex: 1, minWidth: 180 }}
+                leftSection={<IconPlus size={16} />}
                 disabled={addableDepartments.length === 0}
-              />
+                onClick={() => setAddingPickerOpen(true)}
+                style={{ flex: 1, minWidth: 180 }}
+              >
+                {addingCalendarId ? departmentName(addingCalendarId) : "Add a department…"}
+              </Button>
               <NoKeyboardSelect
                 aria-label="Access level to grant"
                 data={ACCESS_ROLE_OPTIONS}
@@ -550,6 +573,19 @@ export function UserForm({ user, departments, access, onDone }: UserFormProps) {
               >
                 Add
               </Button>
+              {addingPickerOpen && (
+                <UserSelectModal
+                  opened
+                  onClose={() => setAddingPickerOpen(false)}
+                  title="Add department access"
+                  confirmLabel="Select"
+                  groups={addablePickerGroups}
+                  values={addingPickerValues}
+                  onConfirm={pickDepartmentToGrant}
+                  single
+                  zIndex={300}
+                />
+              )}
             </Group>
           )}
         </Stack>

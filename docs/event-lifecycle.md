@@ -157,11 +157,12 @@ Mechanics worth knowing:
 - **Server error → step**: a failed submit maps the server's `field` back onto the owning
   step via `STEP_BY_FIELD` (`EventForm.tsx:127-134`, including `creatorId` → `creator`)
   and lands the user there (`EventForm.tsx:477`).
-- **Admin "On behalf of"** (`EventForm.tsx:701-722`): its own step after Remarks rather
-  than a select pinned above every step; **optional** — a blank select means the acting
-  admin themselves (the server defaults it via `withSelfCreator`, §1.5.2). Picking a user
-  sets `creatorId` and keeps the invitee chips in sync (the creator is always an invitee).
-  Regular users have their own id locked in as `creatorId`.
+- **Admin "On behalf of"**: its own step after Remarks rather than a select pinned above
+  every step; **optional** — a blank creator means the acting admin themselves (the
+  server defaults it via `withSelfCreator`, §1.5.2), committed through the badge
+  picker's `allowEmptyConfirm`. Picking a user sets `creatorId` and keeps the invitee
+  chips in sync (the creator is always an invitee). Regular users have their own id
+  locked in as `creatorId`.
 
 ### 1.4.1 Step details
 
@@ -198,8 +199,11 @@ Mechanics worth knowing:
 - **Remarks** (`EventForm.tsx:681-697`): an autosize `Textarea` bound to the form's
   `title` field — the **raw description**. It is optional; the calendar title comes from
   the template (§1.8).
-- **On behalf of** (`EventForm.tsx:703-727`, admins only): the searchable user select,
-  entered as the last input before review (see §1.4). Optional — blank = acting user.
+- **On behalf of** (admins only): the badge-picker step entered as the last input
+  before review (see §1.4) — a `single` + `allowEmptyConfirm` `UserSelectModal` over
+  the same per-department user sections as the Invited Attendees picker (users only,
+  no Departments section), summarized by a `PickerField`. Optional — blank = acting
+  user; picking a user keeps the invitee chips in sync.
 - **Review** (`EventForm.tsx:739-848`): the read-only final page. It folds in the
   calendar preview Paper plus When / Location (In/Out-of-Camp badge + destination) /
   Event Type / On-behalf-of / Invited Attendees / Departments / Remarks rows, all

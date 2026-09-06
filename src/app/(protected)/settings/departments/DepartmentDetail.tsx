@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Anchor,
   Badge,
@@ -36,7 +36,9 @@ import { validateCalendarForm, type CalendarFormValues } from "@/lib/roster/vali
 import { BUTTON_LOADER_PROPS } from "@/lib/theme";
 import { showValidationFailure } from "@/lib/ui/validationFeedback";
 import { ColorSwatchPicker } from "@/components/ColorSwatchPicker";
-import { NoKeyboardSelect } from "@/components/NoKeyboardSelect";
+import { PickerField, type PickerBadgeItem } from "@/components/PickerField";
+import { UserSelectModal } from "@/components/UserSelectModal";
+import { selectionByGroup } from "@/lib/users/userSelect";
 
 const ACCESS_ROLE_OPTIONS = [
   { value: "reader", label: "Read only" },
@@ -135,13 +137,16 @@ function DepartmentDetailBody({
 
   // Self and descendants are excluded: choosing one of them would create a
   // cycle in the hierarchy.
-  const parentOptions = [
-    { value: "", label: "No parent (top level)" },
-    ...parentOptionsFor(departments, calendarId ?? "").map((dept) => ({
-      value: dept.id,
-      label: dept.name,
-    })),
-  ];
+  const parentOptions = useMemo(
+    () => [
+      { value: "", label: "No parent (top level)" },
+      ...parentOptionsFor(departments, calendarId ?? "").map((dept) => ({
+        value: dept.id,
+        label: dept.name,
+      })),
+    ],
+    [departments, calendarId],
+  );
 
   const [data, setData] = useState<DepartmentAccess | null>(null);
   const [email, setEmail] = useState("");
@@ -149,6 +154,34 @@ function DepartmentDetailBody({
   const [adding, setAdding] = useState(false);
   const [removingEmail, setRemovingEmail] = useState<string | null>(null);
   const [updatingEmail, setUpdatingEmail] = useState<string | null>(null);
+  const [parentPickerOpen, setParentPickerOpen] = useState(false);
+
+  // The same option set as a badge-picker section for the Parent dialog.
+  // "No parent (top level)" is a real selectable option (id ""), so the
+  // optional parent keeps the dialog's required-single semantics.
+  const parentPickerGroups = useMemo(
+    () => [
+      {
+        label: "Departments",
+        options: parentOptions.map((option) => ({ id: option.value, label: option.label })),
+      },
+    ],
+    [parentOptions],
+  );
+  const parentPickerValues = useMemo(
+    () => selectionByGroup(parentPickerGroups, [form.values.parentId ?? ""]),
+    [parentPickerGroups, form.values.parentId],
+  );
+  const parentSummaryItem: PickerBadgeItem = {
+    key: form.values.parentId ?? "",
+    label:
+      parentOptions.find((option) => option.value === form.values.parentId)?.label ??
+      "No parent (top level)",
+  };
+
+  function applyParentPicker(values: Record<string, string[]>) {
+    form.setFieldValue("parentId", Object.values(values).flat()[0] ?? "");
+  }
 
   useEffect(() => {
     if (calendarId) {
@@ -293,14 +326,31 @@ function DepartmentDetailBody({
           placeholder="Department name"
           {...form.getInputProps("name")}
         />
-        {/* Non-searchable on purpose: the department list is short, and a
-            button target never raises the mobile keyboard. */}
-        <NoKeyboardSelect
-          mt="md"
-          label="Parent department"
-          data={parentOptions}
-          {...form.getInputProps("parentId")}
-        />
+        <Stack gap={4} mt="md">
+          <PickerField
+            label="Parent department"
+            items={[parentSummaryItem]}
+            onOpen={() => setParentPickerOpen(true)}
+          />
+          {form.errors.parentId && (
+            <Text size="xs" c="red">
+              {form.errors.parentId}
+            </Text>
+          )}
+          {parentPickerOpen && (
+            <UserSelectModal
+              opened
+              onClose={() => setParentPickerOpen(false)}
+              title="Parent department"
+              confirmLabel="Select"
+              groups={parentPickerGroups}
+              values={parentPickerValues}
+              onConfirm={applyParentPicker}
+              single
+              zIndex={300}
+            />
+          )}
+        </Stack>
         <Text size="sm" c="dimmed">
           Sub-departments are grouped under their parent: in parade state, the parent&apos;s
           headcount includes every department below it.

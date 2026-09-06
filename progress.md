@@ -18,7 +18,7 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
 
 ## 1.1 Status
 
-- All work through changelog **1.187 (Event wizard UX: bottom step strip + fixed-height body)** is shipped.
+- All work through changelog **1.188 (Dropdown → badge-picker sweep)** is shipped.
 - Quality gates (`lint` / `typecheck` / `test` / schema-drift check) run in CI on every
   push and PR. Pushes also auto-apply migrations per environment: `dev` →
   `migrate-preview` against the dev Neon DB, `main` → `migrate` against the prod Neon
@@ -425,6 +425,16 @@ One line per phase; full write-ups (incl. Mermaid diagrams and verification note
   section as a **free jump** (the old bottom "Go to Summary" anchor's semantics, now
   gone); a step change resets the body scroll and announces `Step N of M: <name>`
   via the shell's polite live region. `docs/event-lifecycle.md` §1.4
+- 1.188 Dropdown → badge-picker sweep (user/department picks): the event wizard's admin
+  "On behalf of" creator step (the app's last `searchable` dropdown), UserForm's
+  "Department to grant" add row, and the Department create/edit "Parent department"
+  field all pick through `UserSelectModal` badge dialogs now — no searchable select or
+  user/department dropdown remains. `UserSelectModal` gains `allowEmptyConfirm` so an
+  optional single picker can commit a cleared selection ("blank = acting user" creator);
+  the wizard shares one per-department `userPickerGroups` build between the invitees
+  and creator dialogs; fixed role/dropdown lists (reader/writer/owner, event-type
+  group, template target) are untouched. `docs/user-picker.md`,
+  `docs/event-lifecycle.md`
 
 ## 1.4 Open items & next steps
 

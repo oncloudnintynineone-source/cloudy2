@@ -24,7 +24,6 @@ import { useForm } from "@mantine/form";
 import { notifications } from "@mantine/notifications";
 import { IconChevronLeft, IconChevronRight } from "@tabler/icons-react";
 
-import { NoKeyboardSelect } from "@/components/NoKeyboardSelect";
 import { PickerField, type PickerBadgeItem } from "@/components/PickerField";
 import { UserSelectModal } from "@/components/UserSelectModal";
 import {
@@ -353,11 +352,26 @@ export function EventForm({
     };
   }
 
-  // Badge picker content: a flat Departments section plus one user section per
-  // department (No department last), built from the same props the old
-  // multi-select used. Badges show the plain name — the section header already
-  // carries the department — so the search haystack only adds the shortname
-  // (section-label matching still finds whole departments).
+  // Badge picker user sections (one per department, No department last), shared
+  // by the invitees picker (which prepends a Departments section) and the admin
+  // "On behalf of" creator picker (users only). Badges show the plain name —
+  // the section header already carries the department — so the search haystack
+  // only adds the shortname (section-label matching still finds whole
+  // departments).
+  const userPickerGroups = useMemo(
+    () =>
+      buildUserGroups(
+        inviteeUsers.map((user) => ({
+          id: user.id,
+          label: user.name,
+          department: user.departmentName,
+          departmentSort: user.departmentSort,
+          search: user.shortname || undefined,
+        })),
+      ),
+    [inviteeUsers],
+  );
+
   const inviteePickerGroups = useMemo(
     () => [
       ...(inviteeDepartments.length > 0
@@ -368,17 +382,9 @@ export function EventForm({
             },
           ]
         : []),
-      ...buildUserGroups(
-        inviteeUsers.map((user) => ({
-          id: user.id,
-          label: user.name,
-          department: user.departmentName,
-          departmentSort: user.departmentSort,
-          search: user.shortname || undefined,
-        })),
-      ),
+      ...userPickerGroups,
     ],
-    [inviteeDepartments, inviteeUsers],
+    [inviteeDepartments, userPickerGroups],
   );
 
   // Seed the picker dialog draft from the current form value; re-derived every
@@ -404,6 +410,31 @@ export function EventForm({
       ),
     );
   }
+
+  // Admin "On behalf of": the optional single-user creator picker (blank = the
+  // acting admin). Seeded and committed exactly like the old dropdown — picking
+  // a user also keeps the invitee chips in sync (the creator is always an
+  // invitee); clearing removes the previous creator from them. `allowEmptyConfirm`
+  // lets the dialog commit a cleared/"yourself" result in single mode.
+  const creatorPickerValues = useMemo(
+    () => selectionByGroup(userPickerGroups, form.values.creatorId ? [form.values.creatorId] : []),
+    [userPickerGroups, form.values.creatorId],
+  );
+
+  function applyCreatorPicker(values: Record<string, string[]>) {
+    const next = Object.values(values).flat()[0] ?? "";
+    const previous = form.values.creatorId;
+    const invitees = previous
+      ? form.values.invitees.filter((entry) => entry !== `user:${previous}`)
+      : [...form.values.invitees];
+    form.setFieldValue("creatorId", next);
+    form.setFieldValue("invitees", next ? [...new Set([...invitees, `user:${next}`])] : invitees);
+  }
+
+  const creatorOption = inviteeUsers.find((user) => user.id === form.values.creatorId) ?? null;
+  const creatorSummaryItems: PickerBadgeItem[] = creatorOption
+    ? [{ key: creatorOption.id, label: creatorOption.displayName, color: "brand" }]
+    : [];
 
   const sortedEventTypes = useMemo(
     () => [...eventTypes].sort((a, b) => a.name.localeCompare(b.name)),
@@ -467,6 +498,7 @@ export function EventForm({
   // globals.css). Defaults forward so the initial step enters from the right.
   const [direction, setDirection] = useState<"forward" | "backward">("forward");
   const [inviteePickerOpen, setInviteePickerOpen] = useState(false);
+  const [creatorPickerOpen, setCreatorPickerOpen] = useState(false);
   const currentStep = steps[step];
   const isLastStep = step === steps.length - 1;
   const stepPosition = `${step + 1} of ${steps.length}`;
@@ -477,7 +509,7 @@ export function EventForm({
   const scrollRef = useRef<HTMLDivElement | null>(null);
 
   // On a step change: reset the body scroll and announce the arrival through
-  // the shell's polite live region (the chip fill alone is not enough for
+  // the shell's polite live region (the step indicator alone is not enough for
   // screen-reader users).
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: 0 });
@@ -510,8 +542,7 @@ export function EventForm({
   // commit the event mid-typing. Only the explicit Create/Save button
   // submits. Implicit submission only applies to single-line inputs and
   // selects, not textareas — so the Remarks Textarea keeps its natural
-  // newline behavior. This also covers the admin "On behalf of" select and
-  // the invitee input. Component key handlers (e.g. the date/time pickers)
+  // newline behavior. Component key handlers (e.g. the date/time pickers)
   // run before this bubbling handler, so only the native default — the
   // submit — is cancelled.
   function handleFormKeyDown(event: KeyboardEvent<HTMLFormElement>) {
@@ -1263,27 +1294,38 @@ export function EventForm({
             className="wizard-step-enter"
             style={{ "--slide-dir": direction === "forward" ? 1 : -1 } as React.CSSProperties}
           >
-            <NoKeyboardSelect
-              label="On behalf of"
-              description="Optional — leave empty to create or edit this event as yourself"
-              placeholder="Yourself"
-              data={inviteeUsers.map((user) => ({ value: user.id, label: user.displayName }))}
-              value={form.values.creatorId || null}
-              onChange={(value) => {
-                const next = value ?? "";
-                const previous = form.values.creatorId;
-                const invitees = previous
-                  ? form.values.invitees.filter((entry) => `${entry}` !== `user:${previous}`)
-                  : [...form.values.invitees];
-                form.setFieldValue("creatorId", next);
-                form.setFieldValue(
-                  "invitees",
-                  next ? [...new Set([...invitees, `user:${next}`])] : invitees,
-                );
-              }}
-              error={form.errors.creatorId}
-              searchable
-            />
+            <Stack gap="sm">
+              <PickerField
+                label="On behalf of"
+                description="Optional — leave empty to create or edit this event as yourself"
+                items={creatorSummaryItems}
+                empty={
+                  <Text size="xs" c="dimmed">
+                    Yourself
+                  </Text>
+                }
+                onOpen={() => setCreatorPickerOpen(true)}
+              />
+              {form.errors.creatorId && (
+                <Text size="xs" c="red">
+                  {form.errors.creatorId}
+                </Text>
+              )}
+              {creatorPickerOpen && (
+                <UserSelectModal
+                  opened
+                  onClose={() => setCreatorPickerOpen(false)}
+                  title="On behalf of"
+                  confirmLabel="Select"
+                  groups={userPickerGroups}
+                  values={creatorPickerValues}
+                  onConfirm={applyCreatorPicker}
+                  single
+                  allowEmptyConfirm
+                  zIndex={300}
+                />
+              )}
+            </Stack>
           </div>
         )}
 

@@ -40,6 +40,13 @@ interface UserSelectModalProps {
    * Defaults to the free multi-select used by invitees/filters/KAH members.
    */
   single?: boolean;
+  /**
+   * Optional single-select mode (only meaningful with `single`): Confirm stays
+   * enabled when nothing is picked, so the dialog can commit a cleared
+   * selection (e.g. EventForm's "On behalf of" creator, where blank means the
+   * acting user). Ignored in multi mode, where Confirm is always enabled.
+   */
+  allowEmptyConfirm?: boolean;
   /** z-index for stacking above the parent modal that opens this dialog. */
   zIndex?: number;
 }
@@ -64,6 +71,7 @@ export function UserSelectModal({
   title = "Select",
   confirmLabel = "Select",
   single = false,
+  allowEmptyConfirm = false,
   zIndex,
 }: UserSelectModalProps) {
   const theme = useMantineTheme();
@@ -97,6 +105,7 @@ export function UserSelectModal({
         onClose={onClose}
         confirmLabel={confirmLabel}
         single={single}
+        allowEmptyConfirm={allowEmptyConfirm}
       />
     </Modal>
   );
@@ -109,9 +118,10 @@ function UserSelectModalBody({
   onClose,
   confirmLabel,
   single = false,
+  allowEmptyConfirm = false,
 }: Pick<
   UserSelectModalProps,
-  "groups" | "values" | "onConfirm" | "onClose" | "confirmLabel" | "single"
+  "groups" | "values" | "onConfirm" | "onClose" | "confirmLabel" | "single" | "allowEmptyConfirm"
 >) {
   const searchRef = useRef<HTMLInputElement>(null);
   const [query, setQuery] = useState("");
@@ -148,7 +158,7 @@ function UserSelectModalBody({
     onClose();
   }
 
-  const canConfirm = !single || selectedCount > 0;
+  const canConfirm = !single || selectedCount > 0 || allowEmptyConfirm;
 
   return (
     <Stack h="100%" style={{ overflow: "hidden" }}>

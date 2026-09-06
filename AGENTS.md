@@ -279,10 +279,13 @@ it's a JS-only query (not a Mantine breakpoint, so it can't collide with `xs:`/`
 - **No mobile keyboard pop-up from dropdown taps:** never render a `searchable`
   `Select`/`MultiSelect` directly — use `NoKeyboardSelect`/`NoKeyboardMultiSelect`.
   Picking users (or any large option list) is a badge dialog (`UserSelectModal`), not a
-  searchable dropdown. The dialog's trigger + summary markup is shared too: every
-  `UserSelectModal` consumer renders its label row / trigger / selected badges through
-  `PickerField` / `PickerBadges` (`src/components/PickerField.tsx`) — never hand-roll
-  that markup.
+  searchable dropdown — every user picker (incl. the wizard's optional "On behalf of"
+  creator step, which passes `single` + `allowEmptyConfirm` for blank = acting user)
+  and every remaining department picker (UserForm "Department to grant", Department
+  create/edit "Parent department") is a dialog now. The dialog's trigger + summary
+  markup is shared too: every `UserSelectModal` consumer renders its label row /
+  trigger / selected badges through `PickerField` / `PickerBadges`
+  (`src/components/PickerField.tsx`) — never hand-roll that markup.
   Design: [docs/user-picker.md](docs/user-picker.md).
 - **Floating action buttons** use shared `FloatingActionButton` + `FloatingToolbar`
   (`src/components/FloatingToolbar.tsx`) anchored bottom-right — never a raw `Button`.

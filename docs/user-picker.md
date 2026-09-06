@@ -45,6 +45,10 @@ of toggleable badges with a search box on top:
   the whole draft (one id across all sections; still re-seeded from `values` on each
   open) and Confirm is disabled while nothing is selected. Without it the modal keeps
   its free multi-select for invitees/filters/KAH members.
+- **`allowEmptyConfirm`** (optional, meaningful only with `single`): Confirm stays
+  enabled when nothing is picked, so an optional picker can commit a cleared
+  selection — the event wizard's admin "On behalf of" creator step uses it (blank =
+  the acting user). Multi mode is unaffected.
 
 ## 1.3 Pure helpers
 
@@ -71,7 +75,16 @@ of toggleable badges with a search box on top:
 - **Double Booking admin target** — a `single`-mode `UserSelectModal` (department
   sections, shortname `search`) replacing the page's original `NoKeyboardSelect`
   dropdown, since the roster is a large option list.
-- The admin **"On behalf of"** single-select stays a `NoKeyboardSelect`.
+- **Event wizard's admin "On behalf of" step** — a `single` + `allowEmptyConfirm`
+  `UserSelectModal` over the same per-department user sections as the invitees
+  picker (users only, no Departments section); blank = the acting user. Replaced the
+  wizard's last remaining `searchable` dropdown.
+- **UserForm "Department access" add row** — a `single` `UserSelectModal` (flat
+  Departments section from the addable list) stages the department to grant; the
+  role select + Add button below commit it.
+- **Department create/edit "Parent department"** — a `single` `UserSelectModal` over
+  the same option set as the old select, including a selectable "No parent (top
+  level)" option (id `""`); self and descendants are still excluded.
 
 ## 1.5 File index & related docs
 
@@ -103,13 +116,17 @@ standalone as `PickerBadges`:
 
 The modal itself stays with each caller — open state, `zIndex`, and the `onConfirm`
 transform differ (prefixed invitees vs. flat member ids vs. FilterModal's staged draft
-vs. `single`-mode target). Every consumer of `UserSelectModal` renders through this
-component tree today:
+vs. `single`-mode target). Most consumers render through this component tree; the
+UserForm grant picker uses a plain trigger `Button` because its value is staged for a
+separate role + Add commit:
 
 | Consumer | Field | Notes |
 | -------- | ----- | ----- |
 | Event wizard (Invited Attendees step) | `PickerField` | creator badge `brand`, departments `accent`, explanatory description |
+| Event wizard (admin "On behalf of" step) | `PickerField` | `single` + `allowEmptyConfirm`; "Yourself" empty text; field error renders below |
 | KAH group form | `PickerField` | `Members (N)` count, "Choose" trigger, "No members selected." empty; field error renders below |
 | Double Booking admin target | `PickerField` | single `brand` chip "Name · Department"; self-scan shows the empty text instead |
+| Department create/edit (Parent department) | `PickerField` | summary always shows the current option incl. "No parent (top level)" |
+| UserForm (Department to grant) | trigger `Button` | stages the department; role select + Add commit it |
 | `FilterModal` search groups | `PickerBadges` only | `cap={5}` + `+N`, "All {label}" empty — the group's own heading/label row is FilterModal's |
 
