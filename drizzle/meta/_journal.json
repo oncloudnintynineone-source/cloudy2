@@ -239,6 +239,13 @@
       "when": 1788537190443,
       "tag": "0033_young_hydra",
       "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1788705458275,
+      "tag": "0034_new_mentallo",
+      "breakpoints": true
     }
   ]
 }

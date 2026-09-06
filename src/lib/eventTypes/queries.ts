@@ -4,6 +4,7 @@ import { cache } from "react";
 import { db } from "@/db";
 import { eventTypes, eventTypeGroups } from "@/db/schema";
 import {
+  isLocationCategory,
   normalizeAllowedLocations,
   type LocationCategory,
 } from "@/lib/events/locationPolicy";
@@ -56,13 +57,18 @@ export interface EventTypeDisplayInfo {
   showRemarks: boolean;
   /** Whether the event form shows the Invited Attendees step. */
   showInvitees: boolean;
+  /**
+   * The location category events of this type are locked to; null = users
+   * choose in the event form (a locked type skips the wizard's Location step).
+   */
+  lockedLocation: LocationCategory | null;
 }
 
 /**
  * Lookup of event types by name (name → shortname, time options, allowed
- * locations, remarks/invitees flags) for rendering event title templates and
- * enforcing the form's datetime selector and location category rules. Names
- * that don't match are omitted.
+ * locations, remarks/invitees flags, locked location) for rendering event
+ * title templates and enforcing the form's datetime selector and location
+ * category rules. Names that don't match are omitted.
  */
 export async function getEventTypesByNames(
   names: string[],
@@ -79,6 +85,7 @@ export async function getEventTypesByNames(
       allowedLocations: eventTypes.allowedLocations,
       showRemarks: eventTypes.showRemarks,
       showInvitees: eventTypes.showInvitees,
+      lockedLocation: eventTypes.lockedLocation,
     })
     .from(eventTypes)
     .where(inArray(eventTypes.name, uniqueNames));
@@ -92,6 +99,7 @@ export async function getEventTypesByNames(
         allowedLocations: normalizeAllowedLocations(row.allowedLocations),
         showRemarks: row.showRemarks,
         showInvitees: row.showInvitees,
+        lockedLocation: isLocationCategory(row.lockedLocation) ? row.lockedLocation : null,
       },
     ]),
   );

@@ -18,7 +18,7 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
 
 ## 1.1 Status
 
-- All work through changelog **1.190 (Activity bar: no flicker on quick loads)** is shipped.
+- All work through changelog **1.191 (Per-type locked location)** is shipped.
 - Quality gates (`lint` / `typecheck` / `test` / schema-drift check) run in CI on every
   push and PR. Pushes also auto-apply migrations per environment: `dev` →
   `migrate-preview` against the dev Neon DB, `main` → `migrate` against the prod Neon
@@ -457,6 +457,16 @@ One line per phase; full write-ups (incl. Mermaid diagrams and verification note
   moves from render-time `prevBusy`/`held` tracking to effect-driven show/hold
   timers; cold-start readiness is untouched (its bar is mounted/dismounted whole
   elements, no class flip). `docs/loading-transitions.md` §1.13, `AGENTS.md`
+- 1.191 Per-type **locked location** (`event_types.locked_location`, migration 0034):
+  an admin may lock an event type to one category (In camp / Out of camp /
+  Overseas) from the event-type form (Settings → Event Types) — the wizard's
+  Location step is then **skipped entirely** for that type, and every event saves
+  in the locked category with no specific location (client seeds/re-clamps on type
+  change + edit/duplicate prefill; the server re-enforces in `resolveEventLocation`,
+  writeContext) so even re-saving a legacy event converts it — the show-remarks/
+  show-invitees hidden-field pattern applied to location. The allowed-locations
+  matrix still constrains unlocked types. `docs/event-lifecycle.md` §1.9.2,
+  `docs/admin-guide.md` §1.4
 
 ## 1.4 Open items & next steps
 

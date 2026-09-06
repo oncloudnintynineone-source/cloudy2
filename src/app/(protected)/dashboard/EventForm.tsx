@@ -90,6 +90,8 @@ interface EventTypeOption {
   allowedLocations: LocationCategory[];
   showRemarks: boolean;
   showInvitees: boolean;
+  /** Location category events of this type are locked to; null = users choose. */
+  lockedLocation: LocationCategory | null;
   /** Admin-pinned event color, null = the deterministic default. */
   color: string | null;
 }
@@ -158,23 +160,26 @@ interface StepDef {
 }
 
 /**
- * The full wizard walk: the remarks and invitees steps drop out per the
- * selected type's config (a type with remarks or invitees disabled has
- * neither step). The location step always stays — even an exclusively
- * in-camp type offers an optional specific location (the category selector
- * collapses to a single, disabled option). Admins enter an optional "On
- * behalf of" after Remarks (blank = themselves); everyone ends on a
- * read-only review of everything entered so far.
+ * The full wizard walk: the location, remarks and invitees steps drop out per
+ * the selected type's config. A type with a locked location (admin-set
+ * category) has no Location step at all — every event saves in that category.
+ * An unlocked exclusively in-camp type keeps the step but collapses the
+ * category selector to a single, disabled option while still offering an
+ * optional specific location. Types with remarks or invitees disabled have
+ * neither step. Admins enter an optional "On behalf of" after Remarks (blank =
+ * themselves); everyone ends on a read-only review of everything entered so
+ * far.
  */
 function buildSteps(
   isAdmin: boolean,
+  showLocationStep: boolean,
   showRemarksStep: boolean,
   showInviteesStep: boolean,
 ): StepDef[] {
   return [
     { id: "type", fields: [] },
     { id: "time", fields: ["start", "end", "startAmPm", "endAmPm"] },
-    { id: "location", fields: [] },
+    ...(showLocationStep ? [{ id: "location", fields: [] } satisfies StepDef] : []),
     ...(showInviteesStep ? [{ id: "invitees", fields: [] } satisfies StepDef] : []),
     ...(showRemarksStep ? [{ id: "remarks", fields: [] } satisfies StepDef] : []),
     ...(isAdmin ? [{ id: "creator", fields: [] } satisfies StepDef] : []),
@@ -257,15 +262,18 @@ export function EventForm({
       const selectedType = eventTypes.find((type) => type.name === event.payload.eventType) ?? null;
       const allowed: TimeOption[] = selectedType ? selectedType.timeOptions : ["range"];
       const timeOption = resolveTimeOption(allowed, event.payload.timeOption);
-      // Clamp the stored Out of Camp / overseas flags against the type's
-      // allowed locations in case the matrix tightened since the event was
-      // last edited.
-      const clamped = clampOutOfCamp(
-        selectedType ? selectedType.allowedLocations : undefined,
-        event.payload.outOfCamp,
-        event.payload.overseas,
-        event.payload.location,
-      );
+      // A locked type pins its category and drops the specific location; an
+      // unlocked type clamps the stored flags against the type's current
+      // allowed locations in case the matrix tightened since last edited.
+      const locked = selectedType?.lockedLocation ?? null;
+      const clamped = locked
+        ? { ...flagsFromCategory(locked), location: "" }
+        : clampOutOfCamp(
+            selectedType ? selectedType.allowedLocations : undefined,
+            event.payload.outOfCamp,
+            event.payload.overseas,
+            event.payload.location,
+          );
       return {
         // Prefill the raw (pre-template) description when the notes block has
         // it, so editing never re-types the rendered calendar title.
@@ -301,12 +309,15 @@ export function EventForm({
       const selectedType = eventTypes.find((t) => t.name === src.payload.eventType) ?? null;
       const allowed: TimeOption[] = selectedType ? selectedType.timeOptions : ["range"];
       const timeOption = resolveTimeOption(allowed, src.payload.timeOption);
-      const clamped = clampOutOfCamp(
-        selectedType ? selectedType.allowedLocations : undefined,
-        src.payload.outOfCamp,
-        src.payload.overseas,
-        src.payload.location,
-      );
+      const locked = selectedType?.lockedLocation ?? null;
+      const clamped = locked
+        ? { ...flagsFromCategory(locked), location: "" }
+        : clampOutOfCamp(
+            selectedType ? selectedType.allowedLocations : undefined,
+            src.payload.outOfCamp,
+            src.payload.overseas,
+            src.payload.location,
+          );
       return {
         title: src.payload.rawTitle ?? (src.title === "(no title)" ? "" : src.title),
         timeOption,
@@ -459,22 +470,34 @@ export function EventForm({
     ? normalizeAllowedLocations(selectedType.allowedLocations)
     : [...LOCATION_CATEGORIES];
   /**
-   * The Location step always shows so an in-camp event can optionally record
-   * a specific location; an exclusively in-camp type just collapses the
-   * category selector to its single option.
+   * The Location step shows unless the type locks its location: a locked
+   * category removes the step entirely (every event saves in that category),
+   * while an unlocked in-camp-only type keeps it so an optional specific
+   * location can still be recorded.
    */
-  const showLocationStep = true;
+  const showLocationStep = selectedType ? selectedType.lockedLocation == null : true;
   /** Whether the wizard shows the Remarks step (per-type toggle). */
   const showRemarksStep = selectedType ? selectedType.showRemarks !== false : true;
   /** Whether the wizard shows the Invited Attendees step (per-type toggle). */
   const showInviteesStep = selectedType ? selectedType.showInvitees !== false : true;
-  /** The effective location flags + destination after the matrix is applied. */
-  const effectiveOutOfCamp = clampOutOfCamp(
-    allowedLocations,
-    form.values.outOfCamp,
-    form.values.overseas,
-    form.values.location,
-  );
+  /**
+   * The category a locked type pins every event to; null when the type is
+   * unlocked or no type is selected yet.
+   */
+  const lockedCategory: LocationCategory | null = selectedType?.lockedLocation ?? null;
+  /**
+   * The effective location flags + destination after the matrix is applied
+   * (or the locked category when the type pins one — a locked type carries no
+   * specific location, so the string is dropped).
+   */
+  const effectiveOutOfCamp = lockedCategory
+    ? { ...flagsFromCategory(lockedCategory), location: "" }
+    : clampOutOfCamp(
+        allowedLocations,
+        form.values.outOfCamp,
+        form.values.overseas,
+        form.values.location,
+      );
   /** The single category the effective flags resolve to (drives the selector). */
   const effectiveCategory: LocationCategory = categoryFromFlags(
     effectiveOutOfCamp.outOfCamp,
@@ -491,7 +514,7 @@ export function EventForm({
   // drop out per its config). Rebuilt each render (a handful of tiny objects)
   // because its deps derive from reactive form values; the type is only ever
   // changed on step 1, so the step index stays valid when the list re-derives.
-  const steps = buildSteps(isAdmin, showRemarksStep, showInviteesStep);
+  const steps = buildSteps(isAdmin, showLocationStep, showRemarksStep, showInviteesStep);
   const [step, setStep] = useState(0);
   // Direction of the last step change ("forward"/"backward"), used to slide the
   // entering step in from the corresponding side (see `.wizard-step-enter` in
@@ -674,12 +697,17 @@ export function EventForm({
     }
     // Re-clamp the location category against the new type's allowed locations
     // (an in-camp-only type forces the flags off; the location is preserved).
-    const clamped = clampOutOfCamp(
-      type ? type.allowedLocations : undefined,
-      form.values.outOfCamp,
-      form.values.overseas,
-      form.values.location,
-    );
+    // A type with a locked location pins its category and drops the specific
+    // location instead.
+    const locked = type?.lockedLocation ?? null;
+    const clamped = locked
+      ? { ...flagsFromCategory(locked), location: "" }
+      : clampOutOfCamp(
+          type ? type.allowedLocations : undefined,
+          form.values.outOfCamp,
+          form.values.overseas,
+          form.values.location,
+        );
     form.setFieldValue("outOfCamp", clamped.outOfCamp);
     form.setFieldValue("overseas", clamped.overseas);
     form.setFieldValue("location", clamped.location);

@@ -21,7 +21,11 @@ import type { EventType } from "@/db/schema";
 import { FAB_ICON_SIZE, FloatingActionButton, FloatingToolbar } from "@/components/FloatingToolbar";
 import { formatColorLabel } from "@/lib/events/eventColors";
 import { ColorDot } from "@/components/ColorSwatchPicker";
-import { LOCATION_CATEGORY_LABELS, normalizeAllowedLocations } from "@/lib/events/locationPolicy";
+import {
+  isLocationCategory,
+  LOCATION_CATEGORY_LABELS,
+  normalizeAllowedLocations,
+} from "@/lib/events/locationPolicy";
 import {
   TIME_OPTION_LABELS,
   normalizeTimeOptions,
@@ -151,6 +155,11 @@ export function EventTypeTable({ types, groups }: EventTypeTableProps) {
                         No invitees
                       </Badge>
                     )}
+                    {isLocationCategory(eventType.lockedLocation) && (
+                      <Badge size="sm" variant="light" color="blue">
+                        Locked: {LOCATION_CATEGORY_LABELS[eventType.lockedLocation]}
+                      </Badge>
+                    )}
                   </Group>
                 </Stack>
               </Paper>
@@ -231,6 +240,11 @@ export function EventTypeTable({ types, groups }: EventTypeTableProps) {
                         {eventType.showInvitees === false && (
                           <Badge size="sm" variant="light" color="gray">
                             No invitees
+                          </Badge>
+                        )}
+                        {isLocationCategory(eventType.lockedLocation) && (
+                          <Badge size="sm" variant="light" color="blue">
+                            Locked: {LOCATION_CATEGORY_LABELS[eventType.lockedLocation]}
                           </Badge>
                         )}
                       </Group>

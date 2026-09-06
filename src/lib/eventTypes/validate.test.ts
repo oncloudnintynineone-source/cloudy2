@@ -9,6 +9,7 @@ const base: EventTypeFormValues = {
   allowedLocations: ["in", "out", "overseas"],
   showRemarks: true,
   showInvitees: true,
+  lockedLocation: "",
 };
 
 describe("validateEventTypeForm", () => {
@@ -65,5 +66,24 @@ describe("validateEventTypeForm", () => {
         allowedLocations: ["camp" as EventTypeFormValues["allowedLocations"][number]],
       }),
     ).toEqual({ allowedLocations: "Select at least one location" });
+  });
+
+  it("accepts an empty locked location (users choose)", () => {
+    expect(validateEventTypeForm({ ...base, lockedLocation: "" })).toEqual({});
+  });
+
+  it("accepts a canonical locked location", () => {
+    expect(validateEventTypeForm({ ...base, lockedLocation: "overseas" })).toEqual({});
+    expect(validateEventTypeForm({ ...base, lockedLocation: "in" })).toEqual({});
+    expect(validateEventTypeForm({ ...base, lockedLocation: "out" })).toEqual({});
+  });
+
+  it("rejects an unknown locked location", () => {
+    expect(
+      validateEventTypeForm({
+        ...base,
+        lockedLocation: "abroad" as EventTypeFormValues["lockedLocation"],
+      }),
+    ).toEqual({ lockedLocation: "Invalid locked location" });
   });
 });

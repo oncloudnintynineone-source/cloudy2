@@ -267,8 +267,9 @@ Contacts/Audit-log "Export", Parade-state attendance).
   template cards live on the KAH Groups tab). `EventTypeForm` is a **3-column top
   row** at `lg` (`span {{ base: 12, sm: 6, lg: 4 }}` for Name/Acronym/Group — a
   `description` on every field keeps the columns equal height and aligned) over a
-  2-column Time options/Allowed locations matrix, a separate **Event form** block
-  for the remarks/invitees toggles, and the color swatches.
+  2-column Time options/Allowed locations matrix, a **Locked location** select
+  (skips the wizard Location step), a separate **Event form** block for the
+  remarks/invitees toggles, and the color swatches.
 - Modals widen one size step (1.7); settings pages wrap their content in
   `PageContainer` from `settings/layout.tsx`.
 

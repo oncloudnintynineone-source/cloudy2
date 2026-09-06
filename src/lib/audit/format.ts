@@ -101,6 +101,7 @@ const FIELD_LABELS: Record<string, string> = {
   timeOptions: "Time options",
   locationPolicy: "Location policy",
   allowedLocations: "Allowed locations",
+  lockedLocation: "Locked location",
   showRemarks: "Show remarks",
   userKeyword: "Login keyword",
   nameTemplate: "Name template",

@@ -17,6 +17,12 @@ export interface EventTypeFormValues {
   showRemarks: boolean;
   /** Whether the event form shows the Invited Attendees step. */
   showInvitees: boolean;
+  /**
+   * The location category events of this type are locked to; "" = users pick
+   * in the event form (within `allowedLocations`). A locked type skips the
+   * wizard's Location step and every event saves with this category.
+   */
+  lockedLocation: LocationCategory | "";
   /** Pinned event color (Mantine palette name); "" = the name-derived default. */
   color?: string;
   /** Display group for the type picker; null/"" = ungrouped. */
@@ -28,6 +34,7 @@ export interface EventTypeFormErrors {
   shortname?: string;
   timeOptions?: string;
   allowedLocations?: string;
+  lockedLocation?: string;
   [key: string]: string | undefined;
 }
 
@@ -48,6 +55,9 @@ export function validateEventTypeForm(values: EventTypeFormValues): EventTypeFor
     !values.allowedLocations.every(isLocationCategory)
   ) {
     errors.allowedLocations = "Select at least one location";
+  }
+  if (values.lockedLocation !== "" && !isLocationCategory(values.lockedLocation)) {
+    errors.lockedLocation = "Invalid locked location";
   }
   return errors;
 }

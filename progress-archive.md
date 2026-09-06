@@ -150,6 +150,7 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
 - [1.171 `db:seed` no longer seeds departments or users](#1171-dbseed-no-longer-seeds-departments-or-users)
 - [1.172 Dashboard filters are per-view only (global/shared-set mode removed)](#1172-dashboard-filters-are-per-view-only-globalshared-set-mode-removed)
 - [1.184 Cold-start readiness indicator (amber pulse → green confirm, once per launch)](#1184-cold-start-readiness-indicator-amber-pulse--green-confirm-once-per-launch)
+- [1.191 Per-type locked location (skip the wizard Location step)](#1191-per-type-locked-location-skip-the-wizard-location-step)
 
 ## 1.1 Status
 
@@ -7581,3 +7582,59 @@ Verification: `pnpm lint`, `pnpm typecheck`, `pnpm vitest run` (all 986 tests
 including the new 11), `pnpm build`; manual DevTools-network-throttled cold
 start on the preview will confirm amber → green → gone once per launch and no
 green flash on warm opens.
+
+## 1.191 Per-type locked location (skip the wizard Location step)
+
+**Problem.** Every event type forces creators through the wizard's Location step, even
+when the type's location is always the same or genuinely irrelevant to the record (e.g.
+an admin meeting that is always in camp, or a type whose destination never varies).
+The location category is also a KAH-relevant signal (out of camp / overseas = away), so
+a type that "doesn't need a location" still needs a category — just not a per-event
+choice.
+
+**Design.** A per-type nullable `event_types.locked_location` column (one of `in` /
+`out` / `overseas`, null = unlocked; migration 0034), edited in the event-type form
+(Settings → Event Types) as a "Locked location" `NoKeyboardSelect` ("Users choose in the
+event form" plus the three categories). A locked type:
+
+- **skips the wizard's Location step entirely** (`buildSteps` in `EventForm.tsx` drops
+  it; the step strip / "Step X of Y" count shrink), and
+- saves every event in the locked category with **no specific location string** —
+  client seeds/re-clamps to the lock on type change and on edit/duplicate prefill, and
+  the server re-enforces it in `resolveEventLocation` (`writeContext.ts`, shared by the
+  create/update actions and the pre-submit clash check) after `resolveEventTime`.
+
+Resolution runs on the cleared input, so re-saving a legacy event of a type that was
+locked after the event was created converts it to the locked category and drops its
+stored specific location — the same re-save semantics as hidden invitees/remarks
+(§1.9.1). The allowed-locations matrix still constrains *unlocked* types; a locked type
+ignores the matrix entirely (its category always comes from the lock).
+
+```mermaid
+flowchart LR
+    A[Admin: Settings → Event Types<br/>Locked location select] -->|in / out / overseas / unlock| T[(event_types.locked_location<br/>nullable text, migration 0034)]
+    T -->|listEventTypes / getEventTypesByNames| D[dashboard page + write context]
+    T -->|locked|null| W[Wizard buildSteps]
+    W -->|locked → no location step| F[EventForm: seeds flags from the lock<br/>on type change + prefill]
+    W -->|unlocked → matrix clamp as before| F2[EventForm: normal location step]
+    D --> S[resolveEventLocation: locked<br/>→ flagsFromCategory + empty location<br/>unlocked → clampOutOfCamp]
+```
+
+**Threading.** The new field follows the `show_remarks`/`show_invitees` chain exactly:
+schema (`src/db/schema.ts`) → migration → event-type form (`EventTypeForm.tsx`, incl. a
+`lockedLocation: LocationCategory | ""` form value + pure validation in
+`src/lib/eventTypes/validate.ts`) → actions (create/rename set the column, audit
+payloads carry a human-readable "Locked location" label → `audit/format.ts`) → table
+badges ("Locked: Overseas", `EventTypeTable.tsx`) → read helpers
+(`getEventTypesByNames` select/map + `EventTypeDisplayInfo`) → dashboard page projection
+and the duplicated `EventTypeOption` interfaces (`DashboardView.tsx`, `EventForm.tsx`).
+The client `EventTypeOption.lockedLocation` is normalized `LocationCategory | null`
+(`isLocationCategory` guard in `page.tsx` / `queries.ts`).
+
+**Docs.** `docs/event-lifecycle.md` §1.4 (location step drops when locked), §1.9.1 +
+new §1.9.2; `docs/admin-guide.md` §1.4 (Locked location bullet); `AGENTS.md` event-type
+policy bullet; `progress.md` §1.3 (1.191). Verification: `pnpm lint`, `pnpm typecheck`,
+`pnpm vitest run` (new locked-location validation cases in `validate.test.ts`),
+`pnpm db:generate` (schema-drift clean). Manual: lock a type, create + edit an event of
+it (no Location step, step count shrinks), edit a legacy event of a type locked later
+(re-save converts it), unlock and confirm the step + matrix behavior returns.

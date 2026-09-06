@@ -102,6 +102,11 @@ Settings → Event Types. Each type constrains the event wizard:
   **In camp**, **Out of camp**, **Overseas**. Enforced client- and server-side; an
   out-of-policy pick degrades to the first allowed category. Overseas is the KAH
   "away" signal.
+- **Locked location** — optional single category the type is locked to (In camp /
+  Out of camp / Overseas). When set, the event wizard's **Location step is skipped**
+  entirely: every event of the type saves in the locked category with no specific
+  location (re-saving a legacy event of such a type converts it — like hidden
+  invitees). Leave as "Users choose in the event form" for types whose creators pick.
 - **Show Remarks** — off hides the Remarks step and clears the description.
 - **Show Invitees** — off hides the Invited Attendees step and collapses attendees
   to the creator (re-saving such an event removes its other departments' copies).

@@ -17,7 +17,11 @@ import { calendars } from "@/db/schema";
 import { getUserDepartmentIds } from "@/lib/events/queries";
 import { clampEventEnd, type EventFormValues } from "@/lib/events/validate";
 import { deriveTargetCalendarIds, type EventRef } from "@/lib/events/targets";
-import { clampOutOfCamp, type LocationCategory } from "@/lib/events/locationPolicy";
+import {
+  clampOutOfCamp,
+  flagsFromCategory,
+  type LocationCategory,
+} from "@/lib/events/locationPolicy";
 import { resolveTimeOption, type TimeOption } from "@/lib/events/timeOptions";
 import { getEventTypesByNames } from "@/lib/eventTypes/queries";
 import { getUsersByIds } from "@/lib/roster/queries";
@@ -42,6 +46,12 @@ export interface EventTitleContext {
   showRemarks: boolean;
   /** Whether the event type shows the Invited Attendees field. */
   showInvitees: boolean;
+  /**
+   * The location category the event type locks every event to; null when
+   * users choose in the event form (a locked type skips the wizard's Location
+   * step and saves events with no specific location).
+   */
+  lockedLocation: LocationCategory | null;
 }
 
 /**
@@ -102,6 +112,7 @@ export async function buildEventTitleContext(input: EventFormValues): Promise<Ev
     allowedLocations: eventTypeRow ? eventTypeRow.allowedLocations : null,
     showRemarks: eventTypeRow ? eventTypeRow.showRemarks : true,
     showInvitees: eventTypeRow ? eventTypeRow.showInvitees : true,
+    lockedLocation: eventTypeRow ? eventTypeRow.lockedLocation : null,
   };
 }
 
@@ -185,6 +196,13 @@ export function resolveEventLocation(
   input: EventFormValues,
   context: EventTitleContext,
 ): EventFormValues {
+  // A type with a locked location pins its category and carries no specific
+  // location — the wizard has no Location step for it, so drop whatever a
+  // stale form state (or a legacy event) still held.
+  if (context.lockedLocation) {
+    const flags = flagsFromCategory(context.lockedLocation);
+    return { ...input, ...flags, location: "" };
+  }
   const location = input.location.trim();
   const clamped = clampOutOfCamp(
     context.allowedLocations,
