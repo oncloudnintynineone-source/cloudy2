@@ -11,6 +11,7 @@ dialog**, never a searchable dropdown.
 - [1.3 Pure helpers](#13-pure-helpers)
 - [1.4 Callers](#14-callers)
 - [1.5 File index & related docs](#15-file-index--related-docs)
+- [1.6 PickerField / PickerBadges — the shared trigger & summary](#16-pickerfield--pickerbadges--the-shared-trigger--summary)
 
 ## 1.1 No keyboard pop-up from dropdown taps
 
@@ -76,8 +77,37 @@ of toggleable badges with a search box on top:
 | ------------------------------------- | ----------------------------------------- |
 | `src/components/NoKeyboardSelect.tsx` | Keyboard-safe Select/MultiSelect wrappers |
 | `src/components/UserSelectModal.tsx`  | The badge-dialog picker                   |
+| `src/components/PickerField.tsx`      | Presentational trigger + summary layer    |
 | `src/lib/users/userSelect.ts`         | Pure grouping/matching/merging helpers    |
 
 Related docs:
 
 - [`dashboard-views.md`](dashboard-views.md) — the Users filter that uses this.
+
+## 1.6 PickerField / PickerBadges — the shared trigger & summary
+
+`UserSelectModal` is dialog-only: each consumer used to hand-roll its own "label row +
+trigger button + summary of the current selection" around it. That markup now lives once
+in `PickerField` (`src/components/PickerField.tsx`), with the badge row itself reusable
+standalone as `PickerBadges`:
+
+- **`PickerBadges`** renders the picked options as `variant="light"` badges from
+  `items: PickerBadgeItem[]` (`{ key, label, color? }`). A `cap` shows a `+N` overflow
+  badge instead of the tail; an `empty` node replaces the row when nothing is picked.
+  Pure presentation — callers resolve their own id domains into items.
+- **`PickerField`** composes the full affordance: an optional header (`label`, `count`
+  suffix `(N)`, `description`) with the `IconPlus` trigger button (`triggerLabel`,
+  default "Select") pinned right, then `PickerBadges`.
+
+The modal itself stays with each caller — open state, `zIndex`, and the `onConfirm`
+transform differ (prefixed invitees vs. flat member ids vs. FilterModal's staged draft
+vs. `single`-mode target). Every consumer of `UserSelectModal` renders through this
+component tree today:
+
+| Consumer | Field | Notes |
+| -------- | ----- | ----- |
+| Event wizard (Invited Attendees step) | `PickerField` | creator badge `brand`, departments `accent`, explanatory description |
+| KAH group form | `PickerField` | `Members (N)` count, "Choose" trigger, "No members selected." empty; field error renders below |
+| Double Booking admin target | `PickerField` | single `brand` chip "Name · Department"; self-scan shows the empty text instead |
+| `FilterModal` search groups | `PickerBadges` only | `cap={5}` + `+N`, "All {label}" empty — the group's own heading/label row is FilterModal's |
+

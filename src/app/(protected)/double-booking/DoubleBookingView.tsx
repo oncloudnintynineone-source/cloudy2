@@ -7,10 +7,10 @@ import {
   IconAlertTriangle,
   IconCalendarClock,
   IconCircleCheck,
-  IconPlus,
   IconRefresh,
 } from "@tabler/icons-react";
 
+import { PickerField, type PickerBadgeItem } from "@/components/PickerField";
 import { UserSelectModal } from "@/components/UserSelectModal";
 import { LoadingStatus } from "@/components/LoadingStatus";
 import { EmptyState } from "@/components/EmptyState";
@@ -145,6 +145,16 @@ export function DoubleBookingView({
   const targetOption = users.find((user) => user.id === targetUserId);
   const targetName = selfScan ? null : (targetOption?.name ?? null);
   const personForHeader = selfScan ? "you" : (targetName ?? "this person");
+  // The single summary badge for the admin picker (hidden while self-scanning).
+  const targetSummaryItem: PickerBadgeItem = {
+    key: targetUserId,
+    label: targetOption
+      ? targetOption.departmentName
+        ? `${targetOption.name} · ${targetOption.departmentName}`
+        : targetOption.name
+      : targetUserId,
+    color: "brand",
+  };
 
   return (
     <Stack gap="md" p="md" pb="xl" className={CONTENT_ENTER_CLASS}>
@@ -159,36 +169,18 @@ export function DoubleBookingView({
         </Stack>
         {isAdmin && (
           <div className="c2-db-picker">
-            <Stack gap="xs">
-              <Group justify="space-between" align="center" gap="xs" wrap="wrap">
-                <Text fw={600} size="sm">
-                  Check another person
-                </Text>
-                <Button
-                  size="xs"
-                  variant="light"
-                  leftSection={<IconPlus size={14} />}
-                  onClick={() => setTargetPickerOpen(true)}
-                >
-                  Select
-                </Button>
-              </Group>
-              {selfScan ? (
-                <Text size="xs" c="dimmed">
-                  Checking your own schedule
-                </Text>
-              ) : (
-                <Group gap={6} wrap="wrap">
-                  <Badge variant="light" color="brand">
-                    {targetOption
-                      ? targetOption.departmentName
-                        ? `${targetOption.name} · ${targetOption.departmentName}`
-                        : targetOption.name
-                      : targetUserId}
-                  </Badge>
-                </Group>
-              )}
-            </Stack>
+            <PickerField
+              label="Check another person"
+              items={selfScan ? [] : [targetSummaryItem]}
+              empty={
+                selfScan ? (
+                  <Text size="xs" c="dimmed">
+                    Checking your own schedule
+                  </Text>
+                ) : null
+              }
+              onOpen={() => setTargetPickerOpen(true)}
+            />
           </div>
         )}
       </div>

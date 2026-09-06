@@ -3,7 +3,6 @@
 import { useMemo, useState, type ReactNode } from "react";
 import {
   ActionIcon,
-  Badge,
   Button,
   Chip,
   Group,
@@ -16,6 +15,7 @@ import {
 import { useMediaQuery } from "@mantine/hooks";
 import { IconChevronDown, IconPlus, IconSquareCheck, IconSquareX } from "@tabler/icons-react";
 
+import { PickerBadges, type PickerBadgeItem } from "@/components/PickerField";
 import { UserSelectModal } from "@/components/UserSelectModal";
 import {
   isGroupUnfiltered,
@@ -296,6 +296,15 @@ function FilterModalBody({
     setCleared(false);
   }
 
+  // The search-group summary badges: the drafted selection resolved to option
+  // labels (ids that no longer resolve to an option are dropped).
+  function pickerSummaryItems(group: FilterGroup): PickerBadgeItem[] {
+    return (draft[group.label] ?? [])
+      .map((value) => group.options.find((option) => option.value === value))
+      .filter((option): option is FilterOption => option !== undefined)
+      .map((option) => ({ key: option.value, label: option.label }));
+  }
+
   const hasActiveFilter = groups.some(
     (group) => !isGroupUnfiltered(toApplyGroup(group), draft[group.label] ?? []),
   );
@@ -392,33 +401,15 @@ function FilterModalBody({
             {shown &&
               (group.variant === "search" ? (
                 <Group justify="space-between" align="center" gap="xs" mt="xs" wrap="wrap">
-                  {(draft[group.label] ?? []).length > 0 ? (
-                    (() => {
-                      const all = (draft[group.label] ?? [])
-                        .map((value) => group.options.find((option) => option.value === value))
-                        .filter((option): option is FilterOption => option !== undefined);
-                      const visible = all.slice(0, 5);
-                      const overflow = all.length - visible.length;
-                      return (
-                        <Group gap={4} wrap="wrap">
-                          {visible.map((option) => (
-                            <Badge key={option.value} variant="light" size="sm">
-                              {option.label}
-                            </Badge>
-                          ))}
-                          {overflow > 0 && (
-                            <Badge variant="light" size="sm">
-                              +{overflow}
-                            </Badge>
-                          )}
-                        </Group>
-                      );
-                    })()
-                  ) : (
-                    <Text size="xs" c="dimmed">
-                      All {group.label.toLowerCase()}
-                    </Text>
-                  )}
+                  <PickerBadges
+                    items={pickerSummaryItems(group)}
+                    cap={5}
+                    empty={
+                      <Text size="xs" c="dimmed">
+                        All {group.label.toLowerCase()}
+                      </Text>
+                    }
+                  />
                   <Button
                     size="xs"
                     variant="light"

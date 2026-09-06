@@ -1,20 +1,12 @@
 "use client";
 
 import { useState } from "react";
-import {
-  Badge,
-  Button,
-  Group,
-  Modal,
-  NumberInput,
-  Stack,
-  Text,
-  TextInput,
-} from "@mantine/core";
+import { Button, Group, Modal, NumberInput, Stack, Text, TextInput } from "@mantine/core";
 import { useForm } from "@mantine/form";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
 
+import { PickerField, type PickerBadgeItem } from "@/components/PickerField";
 import { UserSelectModal } from "@/components/UserSelectModal";
 import {
   createKahGroup,
@@ -74,6 +66,12 @@ export function KahGroupForm({ group, defaultPercentage, pickerUsers, onDone }: 
     }),
     validateInputOnBlur: true,
   });
+
+  // Summary badges for the currently selected members, in section order.
+  const memberItems: PickerBadgeItem[] = groups
+    .flatMap((section) => section.options)
+    .filter((option) => form.values.memberIds.includes(option.id))
+    .map((option) => ({ key: option.id, label: option.label }));
 
   const onSubmit = form.onSubmit(
     async (values) => {
@@ -141,33 +139,18 @@ export function KahGroupForm({ group, defaultPercentage, pickerUsers, onDone }: 
         />
 
         <Stack gap={4}>
-          <Group justify="space-between" wrap="nowrap">
-            <Text component="label" fw={500} fz="sm">
-              Members ({form.values.memberIds.length})
-            </Text>
-            <Button type="button" variant="light" size="compact-sm" onClick={openPicker}>
-              Choose
-            </Button>
-          </Group>
-          {form.values.memberIds.length > 0 ? (
-            <Group gap={6} wrap="wrap">
-              {groups.map((section) => (
-                <Group key={section.label} gap={6} wrap="wrap">
-                  {section.options
-                    .filter((option) => form.values.memberIds.includes(option.id))
-                    .map((option) => (
-                      <Badge key={option.id} size="lg" variant="light" color="blue">
-                        {option.label}
-                      </Badge>
-                    ))}
-                </Group>
-              ))}
-            </Group>
-          ) : (
-            <Text c="dimmed" fz="sm">
-              No members selected.
-            </Text>
-          )}
+          <PickerField
+            label="Members"
+            count={form.values.memberIds.length}
+            triggerLabel="Choose"
+            items={memberItems}
+            empty={
+              <Text c="dimmed" fz="sm">
+                No members selected.
+              </Text>
+            }
+            onOpen={openPicker}
+          />
           {form.errors.memberIds && (
             <Text c="red" fz="sm">
               {form.errors.memberIds}
@@ -191,11 +174,17 @@ export function KahGroupForm({ group, defaultPercentage, pickerUsers, onDone }: 
           </Button>
         </Group>
 
-        <Modal opened={confirmOpened} onClose={closeConfirm} title="Delete KAH group" centered size="sm">
+        <Modal
+          opened={confirmOpened}
+          onClose={closeConfirm}
+          title="Delete KAH group"
+          centered
+          size="sm"
+        >
           <Stack>
             <Text>
-              Delete &quot;{group?.name}&quot;? Its members stay on the roster; only the group and its
-              membership are removed.
+              Delete &quot;{group?.name}&quot;? Its members stay on the roster; only the group and
+              its membership are removed.
             </Text>
             <Group justify="flex-end" mt="md">
               <Button variant="default" onClick={closeConfirm}>

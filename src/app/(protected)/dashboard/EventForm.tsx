@@ -22,9 +22,10 @@ import { DatePickerInput, TimePicker } from "@mantine/dates";
 import { useMediaQuery } from "@mantine/hooks";
 import { useForm } from "@mantine/form";
 import { notifications } from "@mantine/notifications";
-import { IconChevronLeft, IconChevronRight, IconPlus } from "@tabler/icons-react";
+import { IconChevronLeft, IconChevronRight } from "@tabler/icons-react";
 
 import { NoKeyboardSelect } from "@/components/NoKeyboardSelect";
+import { PickerField, type PickerBadgeItem } from "@/components/PickerField";
 import { UserSelectModal } from "@/components/UserSelectModal";
 import {
   createEvent,
@@ -629,6 +630,26 @@ export function EventForm({
   // The currently selected attendees, for the invitee step's summary badges
   // and the badge picker's draft seeding.
   const selectedInvitees = splitInvitees(form.values.invitees);
+  // The invitee step's summary badges, in display order: users first (the
+  // creator in brand, everyone else default) then tagged departments in accent.
+  const inviteeSummaryItems: PickerBadgeItem[] = [
+    ...selectedInvitees.userIds.flatMap((id) => {
+      const person = peopleById[id];
+      return person
+        ? [
+            {
+              key: `user:${id}`,
+              label: person.full,
+              color: id === form.values.creatorId ? "brand" : undefined,
+            },
+          ]
+        : [];
+    }),
+    ...selectedInvitees.departmentIds.flatMap((id) => {
+      const name = departmentNames[id];
+      return name ? [{ key: `dept:${id}`, label: name, color: "accent" }] : [];
+    }),
+  ];
 
   // "On behalf of" is optional: a blank select means the acting user, who is
   // always invited (mirroring the server's withSelfCreator normalization).
@@ -1121,66 +1142,26 @@ export function EventForm({
           >
             <Stack gap="sm">
               {inviteePickerGroups.length > 0 ? (
-                <Stack gap="xs">
-                  <Group justify="space-between" align="center" gap="xs">
-                    <Text fw={600} size="sm">
-                      Invited Attendees
-                    </Text>
-                    <Button
-                      size="xs"
-                      variant="light"
-                      leftSection={<IconPlus size={14} />}
-                      onClick={() => setInviteePickerOpen(true)}
-                    >
-                      Select
-                    </Button>
-                  </Group>
-                  <Text size="xs" c="dimmed">
-                    A copy of the event is created in each tagged person&apos;s department and in
-                    each tagged department
-                  </Text>
-                  {(selectedInvitees.userIds.length > 0 ||
-                    selectedInvitees.departmentIds.length > 0) && (
-                    <Group gap={6} wrap="wrap" align="start">
-                      {selectedInvitees.userIds.map((id) => {
-                        const person = peopleById[id];
-                        if (!person) {
-                          return null;
-                        }
-                        return (
-                          <Badge
-                            key={id}
-                            variant="light"
-                            color={id === form.values.creatorId ? "brand" : undefined}
-                          >
-                            {person.full}
-                          </Badge>
-                        );
-                      })}
-                      {selectedInvitees.departmentIds.map((id) =>
-                        departmentNames[id] ? (
-                          <Badge key={id} variant="light" color="accent">
-                            {departmentNames[id]}
-                          </Badge>
-                        ) : null,
-                      )}
-                    </Group>
-                  )}
-                  <UserSelectModal
-                    opened={inviteePickerOpen}
-                    onClose={() => setInviteePickerOpen(false)}
-                    groups={inviteePickerGroups}
-                    values={inviteePickerValues}
-                    onConfirm={applyInviteePicker}
-                    confirmLabel="Select"
-                    zIndex={300}
-                  />
-                </Stack>
+                <PickerField
+                  label="Invited Attendees"
+                  description="A copy of the event is created in each tagged person's department and in each tagged department"
+                  items={inviteeSummaryItems}
+                  onOpen={() => setInviteePickerOpen(true)}
+                />
               ) : (
                 <Text size="sm" c="dimmed">
                   No active users or departments to tag yet.
                 </Text>
               )}
+              <UserSelectModal
+                opened={inviteePickerOpen}
+                onClose={() => setInviteePickerOpen(false)}
+                groups={inviteePickerGroups}
+                values={inviteePickerValues}
+                onConfirm={applyInviteePicker}
+                confirmLabel="Select"
+                zIndex={300}
+              />
               <Switch
                 label="Pin this event"
                 description="Shows this event in the Pinned Events panel on every page"

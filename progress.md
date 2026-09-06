@@ -393,6 +393,16 @@ One line per phase; full write-ups (incl. Mermaid diagrams and verification note
   per shell mount, never re-arms on soft navigations; the pinned pill keeps its static look but
   its accessible name now distinguishes loading / settled-empty / failed (`pinnedStatus`).
   `docs/loading-transitions.md` §1.13.1
+- 1.185 Shared trigger/summary layer above `UserSelectModal`: the duplicated "label row +
+  trigger button + selected-badge summary" markup is extracted into presentational
+  `PickerField`/`PickerBadges` (`src/components/PickerField.tsx`, `PickerBadgeItem` entries
+  carry per-item colors) — the event wizard's Invited Attendees, the KAH member field
+  (count label, "Choose" trigger, "No members selected." empty state), the Double Booking
+  admin "Check another person" picker (self-scan empty text) and FilterModal's
+  `search`-variant group summaries (cap 5 + "+N" overflow, "All …" empty text) all render
+  through the one component tree; badge look normalized to `variant="light"` md chips with
+  semantic colors (creator=brand, departments=accent, target=brand) kept as data; each
+  caller still owns its modal + confirm wiring (`docs/user-picker.md` §1.6)
 
 ## 1.4 Open items & next steps
 
