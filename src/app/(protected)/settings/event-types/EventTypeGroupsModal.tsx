@@ -7,21 +7,14 @@ import {
   Button,
   Group,
   Modal,
+  Paper,
   Stack,
   Text,
   TextInput,
   Tooltip,
 } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
-import {
-  IconCheck,
-  IconChevronDown,
-  IconChevronUp,
-  IconPencil,
-  IconPlus,
-  IconTrash,
-  IconX,
-} from "@tabler/icons-react";
+import { IconCheck, IconPencil, IconPlus, IconTrash, IconX } from "@tabler/icons-react";
 
 import {
   createEventTypeGroup,
@@ -31,6 +24,12 @@ import {
 } from "@/lib/eventTypes/groupActions";
 import { sortEventTypeGroups, UNGROUPED_LABEL } from "@/lib/eventTypes/groups";
 import { BUTTON_LOADER_PROPS } from "@/lib/theme";
+import {
+  ROW_ACTION_ICON_SIZE,
+  ROW_ACTION_SIZE,
+  ROW_CARD_GAP,
+  ReorderUpDown,
+} from "@/components/reorderUpDown";
 
 interface GroupRef {
   id: string;
@@ -165,8 +164,8 @@ export function EventTypeGroupsModal({
     <Modal opened={opened} onClose={close} title="Event type groups" centered size="md">
       <Stack>
         <Text size="sm" c="dimmed">
-          Groups are the categories event types appear under in the event form. Reorder them
-          with the arrows; event types keep their alphabetical order inside a group.
+          Groups are the categories event types appear under in the event form. Reorder them with
+          the arrows; event types keep their alphabetical order inside a group.
         </Text>
 
         <Stack gap="xs">
@@ -202,118 +201,106 @@ export function EventTypeGroupsModal({
             No groups yet. Without groups, event types appear in one alphabetical list.
           </Text>
         ) : (
-          <Stack gap={4}>
+          <Stack gap={ROW_CARD_GAP}>
             {sorted.map((group, index) => {
               const count = typeCounts.get(group.id) ?? 0;
               const isRenaming = renaming?.id === group.id;
               return (
-                <Group key={group.id} justify="space-between" align="center" wrap="nowrap">
-                  <Group wrap="nowrap" gap={4} align="center" style={{ minWidth: 0, flex: 1 }}>
-                    <Tooltip label="Move up" position="top">
-                      <ActionIcon
-                        variant="default"
-                        size="sm"
-                        aria-label={`Move ${group.name} up`}
-                        disabled={index === 0}
-                        loading={moving === `${group.id}:up`}
-                        loaderProps={BUTTON_LOADER_PROPS}
-                        onClick={() => void handleMove(group.id, group.name, "up")}
-                      >
-                        <IconChevronUp size={16} />
-                      </ActionIcon>
-                    </Tooltip>
-                    <Tooltip label="Move down" position="top">
-                      <ActionIcon
-                        variant="default"
-                        size="sm"
-                        aria-label={`Move ${group.name} down`}
-                        disabled={index === sorted.length - 1}
-                        loading={moving === `${group.id}:down`}
-                        loaderProps={BUTTON_LOADER_PROPS}
-                        onClick={() => void handleMove(group.id, group.name, "down")}
-                      >
-                        <IconChevronDown size={16} />
-                      </ActionIcon>
-                    </Tooltip>
-                    {isRenaming ? (
-                      <Group wrap="nowrap" gap={4} align="center" style={{ minWidth: 0, flex: 1 }}>
-                        <TextInput
-                          size="xs"
-                          value={renameDraft}
-                          aria-label={`Rename ${group.name}`}
-                          autoFocus
-                          style={{ flex: 1, minWidth: 0 }}
-                          onChange={(event) => setRenameDraft(event.currentTarget.value)}
-                          onKeyDown={(event) => {
-                            if (event.key === "Enter") {
-                              event.preventDefault();
-                              void handleRenameSave();
-                            }
-                            if (event.key === "Escape") {
-                              setRenaming(null);
-                            }
-                          }}
-                        />
-                        <Tooltip label="Save" position="top">
+                <Paper key={group.id} withBorder radius="md" p="sm">
+                  <Group justify="space-between" align="center" wrap="nowrap">
+                    <Group wrap="nowrap" gap="sm" align="center" style={{ minWidth: 0, flex: 1 }}>
+                      <ReorderUpDown
+                        name={group.name}
+                        upDisabled={index === 0}
+                        downDisabled={index === sorted.length - 1}
+                        busyUp={moving === `${group.id}:up`}
+                        busyDown={moving === `${group.id}:down`}
+                        onUp={() => void handleMove(group.id, group.name, "up")}
+                        onDown={() => void handleMove(group.id, group.name, "down")}
+                      />
+                      {isRenaming ? (
+                        <Group
+                          wrap="nowrap"
+                          gap={4}
+                          align="center"
+                          style={{ minWidth: 0, flex: 1 }}
+                        >
+                          <TextInput
+                            size="md"
+                            value={renameDraft}
+                            aria-label={`Rename ${group.name}`}
+                            autoFocus
+                            style={{ flex: 1, minWidth: 0 }}
+                            onChange={(event) => setRenameDraft(event.currentTarget.value)}
+                            onKeyDown={(event) => {
+                              if (event.key === "Enter") {
+                                event.preventDefault();
+                                void handleRenameSave();
+                              }
+                              if (event.key === "Escape") {
+                                setRenaming(null);
+                              }
+                            }}
+                          />
+                          <Tooltip label="Save" position="top">
+                            <ActionIcon
+                              size={ROW_ACTION_SIZE}
+                              aria-label={`Save renamed ${group.name}`}
+                              loading={renamingInProgress}
+                              loaderProps={BUTTON_LOADER_PROPS}
+                              onClick={() => void handleRenameSave()}
+                            >
+                              <IconCheck size={ROW_ACTION_ICON_SIZE} />
+                            </ActionIcon>
+                          </Tooltip>
+                          <Tooltip label="Cancel" position="top">
+                            <ActionIcon
+                              size={ROW_ACTION_SIZE}
+                              aria-label={`Cancel renaming ${group.name}`}
+                              onClick={() => setRenaming(null)}
+                            >
+                              <IconX size={ROW_ACTION_ICON_SIZE} />
+                            </ActionIcon>
+                          </Tooltip>
+                        </Group>
+                      ) : (
+                        <>
+                          <Text fw={600} size="md" truncate>
+                            {group.name}
+                          </Text>
+                          <Badge size="md" variant="light" color="gray" style={{ flexShrink: 0 }}>
+                            {count} type{count === 1 ? "" : "s"}
+                          </Badge>
+                        </>
+                      )}
+                    </Group>
+                    {!isRenaming && (
+                      <Group wrap="nowrap" gap={4} style={{ flexShrink: 0 }}>
+                        <Tooltip label="Rename" position="top">
                           <ActionIcon
-                            size="sm"
-                            aria-label={`Save renamed ${group.name}`}
-                            loading={renamingInProgress}
-                            loaderProps={BUTTON_LOADER_PROPS}
-                            onClick={() => void handleRenameSave()}
+                            variant="default"
+                            size={ROW_ACTION_SIZE}
+                            aria-label={`Rename ${group.name}`}
+                            onClick={() => startRename(group.id, group.name)}
                           >
-                            <IconCheck size={16} />
+                            <IconPencil size={ROW_ACTION_ICON_SIZE} />
                           </ActionIcon>
                         </Tooltip>
-                        <Tooltip label="Cancel" position="top">
+                        <Tooltip label="Delete" position="top">
                           <ActionIcon
-                            size="sm"
-                            aria-label={`Cancel renaming ${group.name}`}
-                            onClick={() => setRenaming(null)}
+                            variant="light"
+                            color="red"
+                            size={ROW_ACTION_SIZE}
+                            aria-label={`Delete ${group.name}`}
+                            onClick={() => setDeleting({ id: group.id, name: group.name, count })}
                           >
-                            <IconX size={16} />
+                            <IconTrash size={ROW_ACTION_ICON_SIZE} />
                           </ActionIcon>
                         </Tooltip>
                       </Group>
-                    ) : (
-                      <>
-                        <Text fw={600} truncate>
-                          {group.name}
-                        </Text>
-                        <Badge size="sm" variant="light" color="gray">
-                          {count} type{count === 1 ? "" : "s"}
-                        </Badge>
-                      </>
                     )}
                   </Group>
-                  {!isRenaming && (
-                    <Group wrap="nowrap" gap={4} style={{ flexShrink: 0 }}>
-                      <Tooltip label="Rename" position="top">
-                        <ActionIcon
-                          variant="default"
-                          size="sm"
-                          aria-label={`Rename ${group.name}`}
-                          onClick={() => startRename(group.id, group.name)}
-                        >
-                          <IconPencil size={16} />
-                        </ActionIcon>
-                      </Tooltip>
-                      <Tooltip label="Delete" position="top">
-                        <ActionIcon
-                          variant="light"
-                          color="red"
-                          size="sm"
-                          aria-label={`Delete ${group.name}`}
-                          onClick={() =>
-                            setDeleting({ id: group.id, name: group.name, count })
-                          }
-                        >
-                          <IconTrash size={16} />
-                        </ActionIcon>
-                      </Tooltip>
-                    </Group>
-                  )}
-                </Group>
+                </Paper>
               );
             })}
           </Stack>

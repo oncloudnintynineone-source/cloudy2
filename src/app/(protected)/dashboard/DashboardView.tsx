@@ -22,7 +22,6 @@ import {
   Box,
   Button,
   Group,
-  Loader,
   Menu,
   Modal,
   Paper,
@@ -51,21 +50,15 @@ import {
   IconBuilding,
   IconCalendarCheck,
   IconCalendarDot,
-  IconCalendarMonth,
-  IconCalendarUser,
-  IconCalendarWeek,
   IconCheck,
   IconChevronDown,
   IconChevronLeft,
   IconChevronRight,
   IconChevronUp,
   IconDotsVertical,
-  IconLayoutGrid,
-  IconListDetails,
   IconLink,
   IconPlus,
   IconSettings,
-  IconTrash,
   IconUser,
   IconUserOff,
   IconX,
@@ -86,11 +79,7 @@ import { EmptyState } from "@/components/EmptyState";
 import { FilterButton } from "@/components/FilterButton";
 import { FilterModal, type FilterGroup } from "@/components/FilterModal";
 import { GridNavControls } from "@/components/GridNavControls";
-import {
-  BUTTON_LOADER_PROPS,
-  DESKTOP_WIDE_MEDIA_QUERY,
-  NARROW_MEDIA_QUERY,
-} from "@/lib/theme";
+import { BUTTON_LOADER_PROPS, DESKTOP_WIDE_MEDIA_QUERY, NARROW_MEDIA_QUERY } from "@/lib/theme";
 import {
   FAB_ICON_SIZE,
   FAB_SIZE,
@@ -142,13 +131,7 @@ import {
 import { usePersistDashboardNav } from "@/lib/ui/uiStateClient";
 import { PINNED_EVENTS_CHANGED_EVENT } from "@/lib/ui/pinnedPanel";
 import { notifyEventsChanged } from "@/lib/ui/eventChanges";
-import {
-  createDashboardView,
-  deleteDashboardView,
-  renameDashboardView,
-  reorderDashboardViews,
-  saveDashboardViewFilters,
-} from "@/lib/dashboardViews/actions";
+import { createDashboardView, saveDashboardViewFilters } from "@/lib/dashboardViews/actions";
 import {
   DASHBOARD_VIEW_KIND_LABELS,
   DASHBOARD_VIEW_KINDS,
@@ -157,12 +140,12 @@ import {
   type DashboardViewTab,
 } from "@/lib/dashboardViews/views";
 import { setActiveDashboardView } from "@/lib/userPrefs/actions";
+import { EditViewsModal } from "./EditViewsModal";
 import { EventDetail } from "./EventDetail";
 import { EventForm } from "./EventForm";
 import { WeekMatrixView } from "./WeekMatrixView";
-import {
-  invalidateCurrentPathCaches,
-} from "@/lib/pwa/client";
+import { invalidateCurrentPathCaches } from "@/lib/pwa/client";
+import { VIEW_TAB_META } from "./viewMeta";
 
 type ViewMode = DashboardViewKind;
 
@@ -174,16 +157,6 @@ type MyEventRender = (
   event: { id: string | number },
   props: ComponentPropsWithoutRef<"button"> & { children: ReactNode },
 ) => ReactElement;
-
-// Kind → icon/label for the tab strip icons and the "Add view" type picker.
-// Tab strip labels themselves come from each tab's user-chosen name.
-const VIEW_TAB_META: Record<ViewMode, { label: string; icon: ReactNode; nowrap?: boolean }> = {
-  month: { label: "Month", icon: <IconCalendarMonth size={16} /> },
-  week: { label: "Week (H)", icon: <IconCalendarWeek size={16} /> },
-  weekv2: { label: "Week (D)", icon: <IconLayoutGrid size={16} />, nowrap: true },
-  schedule: { label: "Day", icon: <IconCalendarUser size={16} /> },
-  agenda: { label: "Agenda", icon: <IconListDetails size={16} /> },
-};
 
 interface EventTypeOption {
   name: string;
@@ -907,32 +880,16 @@ export function DashboardView({
   const [filterOriginRect, setFilterOriginRect] = useState<Rect | null>(null);
   const [pickerOpened, { open: openPicker, close: closePicker }] = useDisclosure(false);
 
-  // "Add view" dialog draft (kind picker + name) and the rename dialog target.
+  // "Add view" dialog draft (kind picker + name).
   const [createOpened, { open: openCreateView, close: closeCreateView }] = useDisclosure(false);
   const [createKind, setCreateKind] = useState<DashboardViewKind>("month");
   const [createName, setCreateName] = useState(DASHBOARD_VIEW_KIND_LABELS.month);
   const [createError, setCreateError] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
-  const [renaming, setRenaming] = useState<DashboardViewTab | null>(null);
-  const [renameValue, setRenameValue] = useState("");
-  const [renameError, setRenameError] = useState<string | null>(null);
-  const [renamingBusy, setRenamingBusy] = useState(false);
-  const [confirmDelete, setConfirmDelete] = useState<DashboardViewTab | null>(null);
 
-  // Tab-management ("Edit views") mode: the strip swaps to a manage list with
-  // reorder / rename / delete controls. A transient client state, never
-  // persisted (the order itself is saved server-side on each move).
-  const [managing, setManaging] = useState(false);
-  // A reorder in flight: `movingId` = the pill whose arrows are replaced by a
-  // spinner; all move arrows are disabled while `reorderBusy`. The server
-  // action + refresh round-trip is quick but visibly "working".
-  const [movingId, setMovingId] = useState<string | null>(null);
-  const reorderBusy = movingId !== null;
-
-  // Height (px) of the normal tab row, measured so the manage/edit rows match
-  // it exactly at every viewport/scheme (the two states swap the same chrome
-  // slot, so their strip height must not jump). Fallback until first measure.
-  const [tabStripHeight, setTabStripHeight] = useState(34);
+  // "Edit views" dialog (reorder / rename / delete). The list mutations run
+  // inside `EditViewsModal`; this disclosure just hosts it.
+  const [editOpened, { open: openEdit, close: closeEdit }] = useDisclosure(false);
 
   // Optimistic active-tab highlight (`shownTabId`): leads the server-resolved
   // `activeView` so a tab tap highlights instantly (even between two tabs of
@@ -1032,24 +989,6 @@ export function DashboardView({
       });
     }
   }, [shownTabId]);
-
-  // Measure the normal tab row's height so the manage/edit rows (which replace
-  // it in the same chrome slot) can be forced to exactly the same height —
-  // otherwise toggling "Edit views" changes the strip height and leaves a
-  // vertical gap above the date-nav row. The `Tabs.List` is present whenever
-  // `managing` is false (the default), so this is measured before first paint
-  // and kept; it re-measures on resize.
-  useLayoutEffect(() => {
-    const list = tabListElRef.current;
-    if (!list) {
-      return;
-    }
-    const update = () => setTabStripHeight(list.offsetHeight);
-    update();
-    const observer = new ResizeObserver(update);
-    observer.observe(list);
-    return () => observer.disconnect();
-  }, [managing]);
 
   // Schedule strips (Week (H) day labels + the Day/Week hour rulers) follow
   // the grid's horizontal scroll via a direct DOM transform on a small
@@ -1199,7 +1138,10 @@ export function DashboardView({
   const agendaTransitionProps = {
     transition: {
       in: { opacity: 1, transform: "scale(1)" },
-      out: { opacity: 0, transform: `scale(${scaleFromRect(agendaOriginRect, agendaContentWidth)})` },
+      out: {
+        opacity: 0,
+        transform: `scale(${scaleFromRect(agendaOriginRect, agendaContentWidth)})`,
+      },
       common: { transformOrigin: transformOriginFromRect(agendaOriginRect, viewport, "center") },
       transitionProperty: "transform, opacity",
     },
@@ -1210,7 +1152,10 @@ export function DashboardView({
   const formTransitionProps = {
     transition: {
       in: { opacity: 1, transform: "scale(1)" },
-      out: { opacity: 0, transform: `scale(${scaleFromRect(formOriginRect, formContentWidth, 0.5)})` },
+      out: {
+        opacity: 0,
+        transform: `scale(${scaleFromRect(formOriginRect, formContentWidth, 0.5)})`,
+      },
       common: {
         transformOrigin: transformOriginFromRect(formOriginRect, viewport, "bottom right"),
       },
@@ -1785,10 +1730,7 @@ export function DashboardView({
    * added later automatically appears — an explicit array (incl. a genuine
    * empty one) is stored verbatim.
    */
-  function overrideFor(
-    key: keyof DashboardTabFilters,
-    selected: string[],
-  ): string[] | null {
+  function overrideFor(key: keyof DashboardTabFilters, selected: string[]): string[] | null {
     const def = defaultFilters[key] ?? [];
     return selected.length === def.length && selected.every((id) => def.includes(id))
       ? null
@@ -1831,81 +1773,11 @@ export function DashboardView({
   }
 
   // ---- On-demand view (tab) CRUD ------------------------------------------
-  // All rows live server-side (src/lib/dashboardViews); these handlers call
-  // the actions and then navigate / refresh so the server re-renders the
-  // new tab list. Hidden entirely for accounts without stored views
-  // (canManageViews false).
-
-  function moveView(tab: DashboardViewTab, direction: "left" | "right") {
-    if (reorderBusy) {
-      return;
-    }
-    const index = tabs.findIndex((candidate) => candidate.id === tab.id);
-    const neighborIndex = direction === "left" ? index - 1 : index + 1;
-    if (index < 0 || neighborIndex < 0 || neighborIndex >= tabs.length) {
-      return;
-    }
-    const reordered = [...tabs];
-    const [moved] = reordered.splice(index, 1);
-    reordered.splice(neighborIndex, 0, moved);
-    void submitReorder(tab.id, reordered.map((view) => view.id));
-  }
-
-  async function submitReorder(movedId: string, orderedIds: string[]) {
-    setMovingId(movedId);
-    try {
-      const result = await reorderDashboardViews(orderedIds);
-      if (!result.ok) {
-        notifications.show({ color: "red", message: result.error });
-      }
-      refreshAfterViewsSave();
-    } finally {
-      setMovingId(null);
-    }
-  }
-
-  function openRenameView(tab: DashboardViewTab) {
-    setRenaming(tab);
-    setRenameValue(tab.name);
-    setRenameError(null);
-  }
-
-  async function submitRenameView() {
-    if (!renaming || renamingBusy) {
-      return;
-    }
-    setRenamingBusy(true);
-    try {
-      const result = await renameDashboardView(renaming.id, { name: renameValue });
-      if (!result.ok) {
-        setRenameError(result.error);
-        return;
-      }
-      setRenaming(null);
-      refreshAfterViewsSave();
-    } finally {
-      setRenamingBusy(false);
-    }
-  }
-
-  async function confirmDeleteView() {
-    const tab = confirmDelete;
-    setConfirmDelete(null);
-    if (!tab) {
-      return;
-    }
-    const result = await deleteDashboardView(tab.id);
-    if (!result.ok) {
-      notifications.show({ color: "red", message: result.error });
-      return;
-    }
-    const remaining = tabs.filter((candidate) => candidate.id !== tab.id);
-    if (tab.id === activeView.id && remaining.length > 0) {
-      switchTab(remaining[0]);
-    } else {
-      refreshAfterViewsSave();
-    }
-  }
+  // Reorder / rename / delete run inside `EditViewsModal` (they call the
+  // actions in src/lib/dashboardViews and report back via `onMutated` /
+  // `onNavigateToView`). This component owns the "Add view" dialog and the
+  // navigation side-effects. Hidden entirely for accounts without stored
+  // views (canManageViews false).
 
   async function submitCreateView() {
     if (creating) {
@@ -2229,10 +2101,10 @@ export function DashboardView({
         }}
       >
         {/* View tabs are chrome too — they vanish in fullscreen. The
-            Edit-views toggle is a sticky settings button to the LEFT of the
-            strip, outside the horizontal scroll area (so the scroll set starts
-            after it); in "Edit views" mode the strip swaps to a flat manage
-            list with the same look as the tabs — no pill/card chrome. */}
+            Edit-views trigger is a settings button to the RIGHT of the strip,
+            outside the horizontal scroll area (so the scroll set ends before
+            it); it opens the "Edit views" modal (add / reorder / rename /
+            delete — see below). */}
         {!immersiveMode.active && (
           <Group
             align="center"
@@ -2240,153 +2112,58 @@ export function DashboardView({
             gap={0}
             style={{ borderBottom: "1px solid var(--mantine-color-default-border)" }}
           >
+            <Box style={{ flex: 1, minWidth: 0 }}>
+              <Tabs
+                value={shownTabId}
+                onChange={(next) => {
+                  if (!next) return;
+                  const tab = tabs.find((candidate) => candidate.id === next);
+                  if (tab) switchTab(tab);
+                }}
+                aria-label="Calendar view"
+                styles={{ tab: { flex: "0 0 auto" } }}
+              >
+                <Tabs.List ref={tabListElRef} style={{ flexWrap: "nowrap", overflowX: "auto" }}>
+                  {tabs.map((tab) => {
+                    const meta = VIEW_TAB_META[tab.kind];
+                    return (
+                      <Tabs.Tab key={tab.id} value={tab.id} title={tab.name}>
+                        <Group gap="xs" justify="center" wrap="nowrap" style={{ minWidth: 0 }}>
+                          {meta.icon}
+                          <Text
+                            fw={600}
+                            size="sm"
+                            title={tab.name}
+                            style={{
+                              whiteSpace: "nowrap",
+                              overflow: "hidden",
+                              textOverflow: "ellipsis",
+                            }}
+                          >
+                            {tab.name}
+                          </Text>
+                        </Group>
+                      </Tabs.Tab>
+                    );
+                  })}
+                </Tabs.List>
+              </Tabs>
+            </Box>
             {canManageViews && (
               <ActionIcon
                 variant="subtle"
-                color={managing ? "accent" : "gray"}
+                color="gray"
                 size={30}
                 ml={4}
                 mr={4}
-                aria-label={managing ? "Done editing views" : "Edit views"}
-                title={managing ? "Done editing views" : "Edit views"}
-                onClick={() => setManaging((current) => !current)}
+                aria-label="Edit views"
+                title="Edit views"
+                onClick={openEdit}
                 style={{ flex: "0 0 auto" }}
               >
-                {managing ? <IconCheck size={16} /> : <IconSettings size={16} />}
+                <IconSettings size={16} />
               </ActionIcon>
             )}
-            <Box style={{ flex: 1, minWidth: 0 }}>
-              {managing ? (
-                <Group gap={0} align="center" wrap="nowrap" style={{ overflowX: "auto" }}>
-                  {tabs.map((tab, index) => {
-                    const busy = movingId === tab.id;
-                    return (
-                      <Group
-                        key={tab.id}
-                        gap={2}
-                        wrap="nowrap"
-                        align="center"
-                        px={4}
-                        style={{ flexShrink: 0, minHeight: tabStripHeight }}
-                      >
-                        {busy ? (
-                          <Loader size={16} color="accent" />
-                        ) : (
-                          <>
-                            <ActionIcon
-                              size={20}
-                              variant="subtle"
-                              aria-label={`Move ${tab.name} earlier`}
-                              disabled={reorderBusy || index === 0}
-                              onClick={() => moveView(tab, "left")}
-                            >
-                              <IconChevronLeft size={14} />
-                            </ActionIcon>
-                            <ActionIcon
-                              size={20}
-                              variant="subtle"
-                              aria-label={`Move ${tab.name} later`}
-                              disabled={reorderBusy || index === tabs.length - 1}
-                              onClick={() => moveView(tab, "right")}
-                            >
-                              <IconChevronRight size={14} />
-                            </ActionIcon>
-                          </>
-                        )}
-                        <UnstyledButton
-                          aria-label={`Rename ${tab.name}`}
-                          onClick={() => openRenameView(tab)}
-                        >
-                          <Group gap={4} wrap="nowrap" style={{ minWidth: 0 }}>
-                            {VIEW_TAB_META[tab.kind].icon}
-                            <Text
-                              fw={600}
-                              size="sm"
-                              maw={100}
-                              style={{
-                                whiteSpace: "nowrap",
-                                overflow: "hidden",
-                                textOverflow: "ellipsis",
-                              }}
-                            >
-                              {tab.name}
-                            </Text>
-                          </Group>
-                        </UnstyledButton>
-                        <ActionIcon
-                          size={20}
-                          variant="subtle"
-                          color="red"
-                          aria-label={`Delete ${tab.name}`}
-                          onClick={() => setConfirmDelete(tab)}
-                        >
-                          <IconTrash size={14} />
-                        </ActionIcon>
-                      </Group>
-                    );
-                  })}
-                  {canManageViews && (
-                    <ActionIcon
-                      size={26}
-                      variant="subtle"
-                      color="accent"
-                      aria-label="Add view"
-                      onClick={openAddView}
-                      style={{ flex: "0 0 auto", minHeight: tabStripHeight }}
-                    >
-                      <IconPlus size={18} />
-                    </ActionIcon>
-                  )}
-                </Group>
-              ) : (
-                <Tabs
-                  value={shownTabId}
-                  onChange={(next) => {
-                    if (!next) return;
-                    const tab = tabs.find((candidate) => candidate.id === next);
-                    if (tab) switchTab(tab);
-                  }}
-                  aria-label="Calendar view"
-                  styles={{ tab: { flex: "0 0 auto" } }}
-                >
-                  <Tabs.List ref={tabListElRef} style={{ flexWrap: "nowrap", overflowX: "auto" }}>
-                    {tabs.map((tab) => {
-                      const meta = VIEW_TAB_META[tab.kind];
-                      return (
-                        <Tabs.Tab key={tab.id} value={tab.id} title={tab.name}>
-                          <Group gap="xs" justify="center" wrap="nowrap" style={{ minWidth: 0 }}>
-                            {meta.icon}
-                            <Text
-                              fw={600}
-                              size="sm"
-                              title={tab.name}
-                              style={{
-                                whiteSpace: "nowrap",
-                                overflow: "hidden",
-                                textOverflow: "ellipsis",
-                              }}
-                            >
-                              {tab.name}
-                            </Text>
-                          </Group>
-                        </Tabs.Tab>
-                      );
-                    })}
-                    {canManageViews && (
-                      <ActionIcon
-                        variant="subtle"
-                        color="accent"
-                        aria-label="Add view"
-                        onClick={openAddView}
-                        style={{ alignSelf: "center", flex: "0 0 auto", marginLeft: 4 }}
-                      >
-                        <IconPlus size={18} />
-                      </ActionIcon>
-                    )}
-                  </Tabs.List>
-                </Tabs>
-              )}
-            </Box>
           </Group>
         )}
 
@@ -3257,6 +3034,22 @@ export function DashboardView({
         originRect={filterOriginRect}
       />
 
+      {/* Edit-views dialog: house-style management modal (src/components
+          conventions — see EventTypeGroupsModal). Reorder with ↑/↓, inline
+          rename with the pen, delete with the trash (nested confirm). Only
+          shown when the account owns stored views (canManageViews). */}
+      {canManageViews && (
+        <EditViewsModal
+          opened={editOpened}
+          onClose={closeEdit}
+          tabs={tabs}
+          activeView={activeView}
+          onMutated={refreshAfterViewsSave}
+          onNavigateToView={switchTab}
+          onAddView={openAddView}
+        />
+      )}
+
       {/* Add-view dialog: pick a renderer kind + a name. Only shown when the
           account owns stored views (canManageViews). */}
       {canManageViews && (
@@ -3292,7 +3085,9 @@ export function DashboardView({
                           <Text fw={selected ? 700 : 500} size="sm" style={{ flex: 1 }}>
                             {meta.label}
                           </Text>
-                          {selected && <IconCheck size={16} color="var(--mantine-color-accent-6)" />}
+                          {selected && (
+                            <IconCheck size={16} color="var(--mantine-color-accent-6)" />
+                          )}
                         </Group>
                       </Paper>
                     </UnstyledButton>
@@ -3333,72 +3128,6 @@ export function DashboardView({
           </Stack>
         </Modal>
       )}
-
-      {/* Rename-view dialog. */}
-      <Modal
-        opened={renaming !== null}
-        onClose={() => setRenaming(null)}
-        title="Rename view"
-        centered
-        transitionProps={{ transition: "pop", duration: MOTION.popover, timingFunction: "ease" }}
-      >
-        <Stack>
-          <TextInput
-            label="Name"
-            value={renameValue}
-            maxLength={40}
-            autoFocus
-            error={renameError ?? undefined}
-            onChange={(event) => {
-              setRenameValue(event.currentTarget.value);
-              setRenameError(null);
-            }}
-            onKeyDown={(event) => {
-              if (event.key === "Enter") {
-                event.preventDefault();
-                void submitRenameView();
-              }
-            }}
-          />
-          <Group justify="flex-end">
-            <Button variant="default" onClick={() => setRenaming(null)}>
-              Cancel
-            </Button>
-            <Button
-              onClick={() => void submitRenameView()}
-              loading={renamingBusy}
-              loaderProps={BUTTON_LOADER_PROPS}
-              disabled={renameValue.trim().length === 0}
-            >
-              Rename
-            </Button>
-          </Group>
-        </Stack>
-      </Modal>
-
-      {/* Delete-view confirmation (removes only the tab, never the events). */}
-      <Modal
-        opened={confirmDelete !== null}
-        onClose={() => setConfirmDelete(null)}
-        title="Delete view"
-        centered
-        transitionProps={{ transition: "pop", duration: MOTION.popover, timingFunction: "ease" }}
-      >
-        <Stack>
-          <Text size="sm">
-            Delete &ldquo;{confirmDelete?.name}&rdquo;? This only removes the view — your events
-            and their filters are untouched.
-          </Text>
-          <Group justify="flex-end">
-            <Button variant="default" onClick={() => setConfirmDelete(null)}>
-              Cancel
-            </Button>
-            <Button color="red" onClick={() => void confirmDeleteView()}>
-              Delete
-            </Button>
-          </Group>
-        </Stack>
-      </Modal>
 
       {formState === null && (
         // Mobile-only: at lg the "New event" button in the nav row replaces the

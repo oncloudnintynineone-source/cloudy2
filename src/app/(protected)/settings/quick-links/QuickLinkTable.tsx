@@ -16,13 +16,14 @@ import {
   useMantineTheme,
 } from "@mantine/core";
 import { useDisclosure, useMediaQuery } from "@mantine/hooks";
-import { IconChevronDown, IconChevronUp, IconLink, IconPlus, IconTrash } from "@tabler/icons-react";
+import { IconLink, IconPlus, IconTrash } from "@tabler/icons-react";
 import { notifications } from "@mantine/notifications";
 
 import { EmptyState } from "@/components/EmptyState";
 import type { QuickLink } from "@/db/schema";
 import { FAB_ICON_SIZE, FloatingActionButton, FloatingToolbar } from "@/components/FloatingToolbar";
 import { QuickLinkIcon } from "@/components/QuickLinkIcon";
+import { ROW_ACTION_ICON_SIZE, ROW_ACTION_SIZE, ReorderUpDown } from "@/components/reorderUpDown";
 import { CONTENT_ENTER_CLASS } from "@/lib/loading/contentEnter";
 import { deleteQuickLink, moveQuickLink } from "@/lib/quickLinks/actions";
 import { BUTTON_LOADER_PROPS } from "@/lib/theme";
@@ -85,42 +86,35 @@ export function QuickLinkTable({ links }: QuickLinkTableProps) {
     }
   }
 
-  // Shared row/card actions: move up/down + delete, with click propagation
-  // stopped so the row's own edit handler doesn't fire along with a tap.
-  function actionsFor(link: QuickLink, index: number) {
+  // Row actions — reorder chevrons lead (left), delete trails (right). Click
+  // propagation is stopped so the row/card's own edit handler doesn't fire
+  // along with a tap on a control.
+  function reorderFor(link: QuickLink, index: number) {
+    return (
+      <ReorderUpDown
+        name={link.label}
+        upDisabled={index === 0}
+        downDisabled={index === links.length - 1}
+        busyUp={false}
+        busyDown={false}
+        onUp={() => move(link, "up")}
+        onDown={() => move(link, "down")}
+      />
+    );
+  }
+
+  function deleteControl(link: QuickLink) {
     return (
       <Group gap={4} wrap="nowrap" onClick={(e) => e.stopPropagation()}>
-        <Tooltip label="Move up" position="top">
-          <ActionIcon
-            variant="default"
-            size="sm"
-            aria-label={`Move ${link.label} up`}
-            disabled={index === 0}
-            onClick={() => move(link, "up")}
-          >
-            <IconChevronUp size={16} />
-          </ActionIcon>
-        </Tooltip>
-        <Tooltip label="Move down" position="top">
-          <ActionIcon
-            variant="default"
-            size="sm"
-            aria-label={`Move ${link.label} down`}
-            disabled={index === links.length - 1}
-            onClick={() => move(link, "down")}
-          >
-            <IconChevronDown size={16} />
-          </ActionIcon>
-        </Tooltip>
         <Tooltip label="Delete" position="top">
           <ActionIcon
             variant="default"
             color="red"
-            size="sm"
+            size={ROW_ACTION_SIZE}
             aria-label={`Delete ${link.label}`}
             onClick={() => setPendingDelete(link)}
           >
-            <IconTrash size={16} />
+            <IconTrash size={ROW_ACTION_ICON_SIZE} />
           </ActionIcon>
         </Tooltip>
       </Group>
@@ -179,7 +173,10 @@ export function QuickLinkTable({ links }: QuickLinkTableProps) {
                   <Code fz="xs" style={{ wordBreak: "break-all" }}>
                     {link.url}
                   </Code>
-                  {actionsFor(link, index)}
+                  <Group justify="space-between" wrap="nowrap" align="center">
+                    {reorderFor(link, index)}
+                    {deleteControl(link)}
+                  </Group>
                 </Stack>
               </Paper>
             ))}
@@ -218,7 +215,12 @@ export function QuickLinkTable({ links }: QuickLinkTableProps) {
                         {link.enabled ? "Enabled" : "Disabled"}
                       </Badge>
                     </Table.Td>
-                    <Table.Td>{actionsFor(link, index)}</Table.Td>
+                    <Table.Td>
+                      <Group wrap="nowrap" gap={4} align="center">
+                        {reorderFor(link, index)}
+                        {deleteControl(link)}
+                      </Group>
+                    </Table.Td>
                   </Table.Tr>
                 ))}
               </Table.Tbody>

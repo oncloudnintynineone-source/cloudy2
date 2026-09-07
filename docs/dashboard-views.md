@@ -47,20 +47,27 @@ string maps to the first tab of that kind.
   tab (`ensureDefaultDashboardView`, mutex-guarded on the
   `user_preferences` row so racing requests can't double-insert) and points
   the remembered last-active tab at it.
-- **The (＋) button** at the end of the scrolling tab strip opens the **Add
-  view** modal (kind picker rows with icons + a name; the default name follows
-  the chosen kind until edited). Creating appends the tab and navigates to it.
-- **Edit views** (a sticky settings button to the LEFT of the tab strip,
-  outside the horizontal scroll area — so the scroll set starts after it) swaps
-  the strip to a manage list of flat, tab-shaped rows (no pill/card chrome):
-  ←/→ move a tab (commits `reorderDashboardViews`, which renumbers
-  every row in a transaction — the moved row shows an inline spinner while it
-  works), tap the name to rename, ✕ deletes (the last tab
-  can't be deleted; deleting the active tab navigates to the first remaining).
-  The old **pin/unpin** affordance and its star UI are gone — ordering is
-  fully user-controlled. Tabs themselves are **content-sized** — each shrink-wraps
-  its label (so the active underline hugs the text), they never stretch to fill the
-  row, and a long set overflows into natural horizontal scrolling.
+- **Edit views** (a settings button to the RIGHT of the tab strip, outside the
+  horizontal scroll area — so the scroll set ends before it) opens a **centered
+  modal** (`EditViewsModal.tsx`, sharing the app's **touch-friendly manage-row
+  recipe** — see `src/components/reorderUpDown.tsx`: each row is a bordered
+  card with a ~40px chevron pair leading, actions trailing) listing the created
+  tabs as a **vertical list**: each row shows the view's kind icon + name with
+  **↑/↓** arrows to reorder (commits `reorderDashboardViews`, which
+  renumbers every row in a transaction — the clicked arrow shows an inline
+  spinner while it works; the row's outward arrow is disabled at the list's
+  ends), a **pen** button that swaps the row into an inline rename field
+  (Enter saves, Escape cancels), and a **trash** button that deletes behind a
+  nested `size="sm"` confirm (the last tab can't be deleted — its trash is
+  disabled; deleting the active tab navigates to the first remaining).
+  **Add view** lives at the bottom of the same modal — its button opens the
+  kind-picker dialog (kind rows with icons + a name; the default name follows
+  the chosen kind until edited), and creating appends the tab and navigates to
+  it. The old **pin/unpin** affordance and its star UI are gone — ordering is
+  fully user-controlled. Tabs themselves are **content-sized** — each
+  shrink-wraps its label (so the active underline hugs the text), they never
+  stretch to fill the row, and a long set overflows into natural horizontal
+  scrolling.
 - **Period preservation on switch** (`switchTab` in `DashboardView.tsx`): a
   tab switch is a *filter/context* change, so switching between two tabs of the
   same kind (or any two day-anchored kinds) keeps the current date; leaving
@@ -370,7 +377,10 @@ flowchart LR
 | `src/lib/dashboardViews/queries.ts` | Tab reads + the mutex-guarded default "Month" seed |
 | `src/lib/dashboardViews/actions.ts` | Tab CRUD: `create/rename/delete/reorderDashboardViews`, `saveDashboardViewFilters` |
 | `src/lib/userPrefs/queries.ts` + `actions.ts` | `user_preferences` row: last-active tab + parade filters (incl. `saveParadeFilters`) |
-| `src/app/(protected)/dashboard/DashboardView.tsx` | Tab strip + (＋)/edit mode, tab switch + period rules, filter state, zoom state + slot widths |
+| `src/app/(protected)/dashboard/DashboardView.tsx` | Tab strip (+ right-side Edit-views trigger), tab switch + period rules, filter state, zoom state + slot widths |
+| `src/app/(protected)/dashboard/EditViewsModal.tsx` | Edit-views dialog: card manage list (↑/↓ reorder, inline rename, nested delete confirm, Add-view button) |
+| `src/app/(protected)/dashboard/viewMeta.tsx` | Kind → icon/label map shared by the strip, the Add-view picker and Edit-views rows |
+| `src/components/reorderUpDown.tsx` | Shared touch-friendly manage-row recipe: ~40px ↑/↓ chevron pair (`ReorderUpDown`) + row-action sizes |
 | `src/app/(protected)/dashboard/page.tsx` | Resolves tabs + active tab (`?view=` → remembered → first), validates per-tab filters |
 | `src/app/(protected)/dashboard/WeekMatrixView.tsx` | Week (D) matrix renderer |
 | `src/lib/events/weekMatrix.ts` | Pure Week (D) lane binning (`coveredDays`, `buildWeekLanes`) |

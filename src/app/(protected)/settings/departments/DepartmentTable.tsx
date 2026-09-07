@@ -1,21 +1,10 @@
 "use client";
 
 import { type KeyboardEvent, useMemo, useState } from "react";
-import {
-  ActionIcon,
-  Box,
-  Button,
-  Group,
-  Modal,
-  Paper,
-  Stack,
-  Table,
-  Text,
-  Tooltip,
-} from "@mantine/core";
+import { Box, Button, Group, Modal, Paper, Stack, Table, Text } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
-import { IconChevronDown, IconChevronUp, IconPlus, IconSitemap } from "@tabler/icons-react";
+import { IconPlus, IconSitemap } from "@tabler/icons-react";
 
 import { EmptyState } from "@/components/EmptyState";
 import type { Calendar } from "@/db/schema";
@@ -30,6 +19,7 @@ import { BUTTON_LOADER_PROPS } from "@/lib/theme";
 import { FAB_ICON_SIZE, FloatingActionButton, FloatingToolbar } from "@/components/FloatingToolbar";
 import { formatColorLabel } from "@/lib/events/eventColors";
 import { ColorDot } from "@/components/ColorSwatchPicker";
+import { ReorderUpDown } from "@/components/reorderUpDown";
 import { DepartmentDetail } from "./DepartmentDetail";
 import { useActivityRefresh } from "@/components/ActivityBar";
 
@@ -128,34 +118,15 @@ export function DepartmentTable({ departments }: DepartmentTableProps) {
   function actionsFor(calendar: Calendar) {
     const can = availability.get(calendar.id) ?? { up: false, down: false };
     return (
-      <Group gap={4} wrap="nowrap" onClick={(event) => event.stopPropagation()}>
-        <Tooltip label="Move up" position="top">
-          <ActionIcon
-            variant="default"
-            size="sm"
-            aria-label={`Move ${calendar.name} up`}
-            disabled={!can.up}
-            loading={moving === `${calendar.id}:up`}
-            loaderProps={BUTTON_LOADER_PROPS}
-            onClick={() => move(calendar, "up")}
-          >
-            <IconChevronUp size={16} />
-          </ActionIcon>
-        </Tooltip>
-        <Tooltip label="Move down" position="top">
-          <ActionIcon
-            variant="default"
-            size="sm"
-            aria-label={`Move ${calendar.name} down`}
-            disabled={!can.down}
-            loading={moving === `${calendar.id}:down`}
-            loaderProps={BUTTON_LOADER_PROPS}
-            onClick={() => move(calendar, "down")}
-          >
-            <IconChevronDown size={16} />
-          </ActionIcon>
-        </Tooltip>
-      </Group>
+      <ReorderUpDown
+        name={calendar.name}
+        upDisabled={!can.up}
+        downDisabled={!can.down}
+        busyUp={moving === `${calendar.id}:up`}
+        busyDown={moving === `${calendar.id}:down`}
+        onUp={() => move(calendar, "up")}
+        onDown={() => move(calendar, "down")}
+      />
     );
   }
 
@@ -201,30 +172,36 @@ export function DepartmentTable({ departments }: DepartmentTableProps) {
       ) : (
         <>
           {/* Mobile: card list — tap a card to open the details modal.
-              Children are indented and name their parent on a second line. */}
+              Children are indented and name their parent on a second line.
+              Reorder arrows sit at the card's left edge. */}
           <Stack gap="sm" hiddenFrom="lg">
             {displayRows.map(({ calendar, depth, parent }) => (
               <Paper key={calendar.id} withBorder p="sm" {...openRow(calendar)}>
                 <Group justify="space-between" wrap="nowrap" align="center">
-                  <Box style={{ minWidth: 0 }}>
-                    <Group wrap="nowrap" align="center" gap={6}>
-                      <ColorDot color={calendar.color} />
-                      <Text fw={600} truncate style={{ paddingLeft: depth * 12 }}>
-                        {calendar.name}
-                      </Text>
-                    </Group>
-                    {parent && (
-                      <Text size="xs" c="dimmed" truncate style={{ paddingLeft: 12 + depth * 12 }}>
-                        In {parent.name}
-                      </Text>
-                    )}
-                  </Box>
-                  <Group wrap="nowrap" gap="sm" align="center">
-                    <Text size="sm" c="dimmed" style={{ flexShrink: 0 }}>
-                      {formatColorLabel(calendar.color, calendar.id)}
-                    </Text>
+                  <Group wrap="nowrap" gap="sm" align="center" style={{ minWidth: 0, flex: 1 }}>
                     {actionsFor(calendar)}
+                    <Box style={{ minWidth: 0 }}>
+                      <Group wrap="nowrap" align="center" gap={6}>
+                        <ColorDot color={calendar.color} />
+                        <Text fw={600} truncate style={{ paddingLeft: depth * 12 }}>
+                          {calendar.name}
+                        </Text>
+                      </Group>
+                      {parent && (
+                        <Text
+                          size="xs"
+                          c="dimmed"
+                          truncate
+                          style={{ paddingLeft: 12 + depth * 12 }}
+                        >
+                          In {parent.name}
+                        </Text>
+                      )}
+                    </Box>
                   </Group>
+                  <Text size="sm" c="dimmed" style={{ flexShrink: 0 }}>
+                    {formatColorLabel(calendar.color, calendar.id)}
+                  </Text>
                 </Group>
               </Paper>
             ))}

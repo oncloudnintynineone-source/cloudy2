@@ -161,12 +161,17 @@ mechanics in the doc.
   dashboard Views** — per-account rows in `user_dashboard_views`
   (`src/lib/dashboardViews`), each a renderer **kind** (Month / Week (H) / Week (D) /
   Day / Agenda; duplicates allowed) plus a user name, strip order and that tab's own
-  Cal/Users/Types filters. A **(＋)** button at the end of the scrolling tab strip
-  opens "Add view" (kind picker + name); a sticky settings button to the **left**
-  of the strip (outside the scroll area) toggles **Edit views** — a flat manage
-  list with ←/→ reorder (inline spinner while working), tap-to-rename, per-tab
-  delete (the last tab can't go). Tabs are **content-sized** (no fill, so the
-  underline hugs the label; overflow scrolls).
+  Cal/Users/Types filters. A settings button to the **right** of the strip
+  (outside the scroll area) opens **Edit views** — a modal (`EditViewsModal.tsx`)
+  listing the tabs as bordered cards sharing the shared **touch-friendly
+  manage-row recipe** (`src/components/reorderUpDown.tsx`: ~40px row-action
+  buttons — the ↑/↓ chevron pair leading, pen/trash trailing; also used by the
+  event-type groups modal, departments and quick links): **↑/↓** reorder
+  chevrons (inline spinner while working), a **pen** per row (inline rename
+  field; Enter saves / Escape cancels) and a **trash** per row (nested delete
+  confirm; the last tab can't go), plus an **Add view** button at the bottom
+  (kind picker + name; no strip ＋). Tabs are **content-sized** (no fill,
+  so the underline hugs the label; overflow scrolls).
   **Filters are stored per tab** (server-side; a filter value `null` = role default,
   an explicit array incl. `[]` = that selection) and applied/cleared through server
   actions + `router.refresh()` — no `cal/users/types` URL params. The active tab
