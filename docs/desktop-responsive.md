@@ -295,14 +295,15 @@ portals to `<body>`, so wrapper elements cannot hide it (see the gotcha in 1.4).
 
 ## 1.7 Modal sizes
 
-Modals stay **floating centered dialogs** (never `fullScreen`) at every width;
-only the `size` steps at each breakpoint (detected with `useMediaQuery` inside
-the client components). The compact tier (§1.10) drops the mobile sizes one
-step so the dialog never approaches the viewport edge:
+Modals stay **floating centered dialogs** (never `fullScreen`) at every width — the
+**event form** is `centered` at every size too; on phones its body simply **fills the
+modal's vertical space** (equal gutters, see below). The `size` steps at each breakpoint
+are detected with `useMediaQuery` inside the client components. The compact tier (§1.10)
+drops the mobile sizes one step so the dialog never approaches the viewport edge:
 
 | Modal | Compact ≤ 360px | Mobile | At `lg` |
 | ----- | --------------- | ------ | ------- |
-| Event form (`DashboardView`) | `xs` (320px) | `sm` (380px) | `md` (440px) |
+| Event form (`DashboardView`) | `xs` (320px) | `sm` (380px) | `md` (440px) → `lg` (620px) ≥ 800px |
 | Event detail (`EventDetail`) | `xs` | `sm` | `md` |
 | Agenda day modal | `xs` | `sm` | `md` (max-height `56dvh` → `70dvh`) |
 | Filter modal (`FilterModal`) | `xs` | `sm` | `md` |
@@ -320,7 +321,17 @@ that animates now passes the same `isNarrow`-aware pixel width (320/380/440/620)
 that its `size` prop resolves to, so the shrink stays in sync at every tier.
 
 The event form's **Timestamp step** pairs Start/End side by side in a 2-column
-`Grid` at `lg` (both the range pickers and the full-day date+AM/PM pairs).
+`Grid` at `lg` (both the range pickers and the full-day date+AM/PM pairs). The host
+modal stays `centered` at every width (see event-lifecycle.md §1.4): on phones it sets
+`yOffset="44px"`, so Mantine centers inside a `100dvh - 88px` box and the body
+(`WIZARD_BODY_HEIGHT_MOBILE` = `calc(100dvh - 164px)`) fills it — equal ~44px top/bottom
+gutters remain, and the "Tap outside to minimize" caption sits in the bottom gutter. On
+the desktop shell
+the centered modal's body grows with the viewport up to
+`min(68dvh, 720px, calc(100dvh - 200px))`. The body height never depends on the active
+step's content, so the pinned step strip and Back/Next bar stay put. At the wide band
+(≥ 800px, where the form reaches its `lg` width) the review step's definition rows
+reflow into a 2-column grid under the full-width calendar preview.
 
 ## 1.8 Login & PWA
 
@@ -348,9 +359,9 @@ The event form's **Timestamp step** pairs Start/End side by side in a 2-column
 | `src/app/(protected)/settings/event-types/EventTypeForm.tsx` | 2-col `Grid` at `lg` |
 | `src/app/(protected)/settings/templates/TemplatesForm.tsx` | Side-by-side cards at `lg` |
 | `src/app/(protected)/settings/general/SettingsForm.tsx` | Side-by-side cards at `lg` |
-| `src/app/(protected)/dashboard/DashboardView.tsx` | Schedule label/slot widths, header New-event button, hidden FAB, modal sizes (`isNarrow` → `xs`) |
+| `src/app/(protected)/dashboard/DashboardView.tsx` | Schedule label/slot widths, header New-event button, hidden FAB, modal size tiers (`isNarrow` → `xs`; event form `md` → `lg` on the wide band); event-form host `centered` at every width with `yOffset="44px"` (equal gutters, caption at the bottom) |
 | `src/app/(protected)/dashboard/WeekMatrixView.tsx` | MOBILE_/DESKTOP_ label widths, responsive `contentMinWidth`/`labelLeft` |
-| `src/app/(protected)/dashboard/EventForm.tsx` | Timestamp step 2-col at `lg` |
+| `src/app/(protected)/dashboard/EventForm.tsx` | Body-height tiers (phone fills the centered box vs desktop capped growth), Timestamp 2-col at `lg`, Review 2-col at wide band |
 | `src/app/(protected)/dashboard/EventDetail.tsx`, `src/components/FilterModal.tsx`, `src/components/DateSelectorModal.tsx` | `xs` → `sm` → `md` (compact/mobile/lg) |
 | `src/components/EventSearchModal.tsx`, `src/components/PinnedEventsPanel.tsx`, `src/components/UserSelectModal.tsx` | Modal sizes via `isNarrow`/`isDesktop` |
 | `src/lib/motion/origin.ts` | `modalContentWidth(viewport, sizePx)` |

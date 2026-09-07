@@ -346,8 +346,9 @@ html {
    The wizard body is a fixed-height flex column: the active step's content in
    the middle (internal scroll), the bottom step strip (caption + Stepper) and
    then the action bar. Because the whole column has one constant height (set
-   inline on the <form> via WIZARD_BODY_HEIGHT), the modal never resizes between
-   steps, so the Back/Next/Submit buttons never jump. */
+   inline on the <form> via the tiered WIZARD_BODY_HEIGHT_* constants — the size
+   is a pure function of the viewport, never of the active step), the modal
+   never resizes between steps, so the Back/Next/Submit buttons never jump. */
 .c2-event-wizard {
   display: flex;
   flex-direction: column;

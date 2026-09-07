@@ -82,7 +82,7 @@ import { EmptyState } from "@/components/EmptyState";
 import { FilterButton } from "@/components/FilterButton";
 import { FilterModal, type FilterGroup } from "@/components/FilterModal";
 import { GridNavControls } from "@/components/GridNavControls";
-import { NARROW_MEDIA_QUERY } from "@/lib/theme";
+import { DESKTOP_WIDE_MEDIA_QUERY, NARROW_MEDIA_QUERY } from "@/lib/theme";
 import {
   FAB_ICON_SIZE,
   FAB_SIZE,
@@ -732,7 +732,16 @@ export function DashboardView({
   // widths on the view root (inline var / styles-API var), so the override
   // lives here — a parent CSS class can't shadow the root's own declaration.
   const isDesktop = useMediaQuery(`(min-width: ${theme.breakpoints.lg})`);
+  const isDesktopWide = useMediaQuery(DESKTOP_WIDE_MEDIA_QUERY);
   const isNarrow = useMediaQuery(NARROW_MEDIA_QUERY);
+
+  // The event wizard modal scales with the viewport: it keeps phone widths
+  // (xs/sm) below the desktop band, holds md (440px) across the narrow
+  // desktop band, and only widens to lg (620px) once the shell's "wide
+  // desktop" band (>= 800px) frees real horizontal space. The width is a
+  // pure function of the viewport — never of the active step's content — so
+  // the fixed-height body keeps the step strip and Back/Next bar from moving.
+  const formModalWidthPx = isNarrow ? 320 : isDesktopWide ? 620 : isDesktop ? 440 : 380;
 
   // Immersive ("fullscreen") mode is owned by the AppShell — it renders the
   // header / bottom nav / sidebar being hidden. We only control it here and
@@ -1116,13 +1125,15 @@ export function DashboardView({
     w: typeof window === "undefined" ? 0 : window.innerWidth,
     h: typeof window === "undefined" ? 0 : window.innerHeight,
   };
-  // The agenda-day and event-form modals widen sm (380px) -> md (440px) at lg,
-  // so the shrink-to-target scale must use the matching content width.
-  const contentWidth = modalContentWidth(viewport, isNarrow ? 320 : isDesktop ? 440 : 380);
+  // The agenda-day and event-form modals widen at lg (and the event form
+  // again at the wide-desktop band), so each shrink-to-target scale must use
+  // its own modal's matching content width.
+  const agendaContentWidth = modalContentWidth(viewport, isNarrow ? 320 : isDesktop ? 440 : 380);
+  const formContentWidth = modalContentWidth(viewport, formModalWidthPx);
   const agendaTransitionProps = {
     transition: {
       in: { opacity: 1, transform: "scale(1)" },
-      out: { opacity: 0, transform: `scale(${scaleFromRect(agendaOriginRect, contentWidth)})` },
+      out: { opacity: 0, transform: `scale(${scaleFromRect(agendaOriginRect, agendaContentWidth)})` },
       common: { transformOrigin: transformOriginFromRect(agendaOriginRect, viewport, "center") },
       transitionProperty: "transform, opacity",
     },
@@ -1133,7 +1144,7 @@ export function DashboardView({
   const formTransitionProps = {
     transition: {
       in: { opacity: 1, transform: "scale(1)" },
-      out: { opacity: 0, transform: `scale(${scaleFromRect(formOriginRect, contentWidth, 0.5)})` },
+      out: { opacity: 0, transform: `scale(${scaleFromRect(formOriginRect, formContentWidth, 0.5)})` },
       common: {
         transformOrigin: transformOriginFromRect(formOriginRect, viewport, "bottom right"),
       },
@@ -2807,7 +2818,13 @@ export function DashboardView({
         onClose={minimizeForm}
         keepMounted
         centered
-        size={isNarrow ? "xs" : isDesktop ? "md" : "sm"}
+        // A fixed vertical gutter keeps the centered wizard's top/bottom gaps
+        // equal (Mantine centers inside a `100dvh - 2*gutter` box) and leaves
+        // room for the "Tap outside to minimize" caption at the bottom. The
+        // wizard body fills the box (WIZARD_BODY_HEIGHT_MOBILE), so the gaps
+        // stay equal instead of collapsing to the bottom edge.
+        yOffset="44px"
+        size={isNarrow ? "xs" : isDesktopWide ? "lg" : isDesktop ? "md" : "sm"}
         zIndex={250}
         transitionProps={formTransitionProps}
       >
@@ -2883,11 +2900,11 @@ export function DashboardView({
       </Modal.Root>
 
       {/* "Tap outside to minimize" hint, anchored to the viewport bottom (not
-          the dialog's bottom) so its position is stable regardless of dialog
-          size. It lives outside the Paper deliberately — the Paper clips
-          anything inside it (overflow-y) — and portals to <body> (like the
-          restore bubble's Affix) so its z-index competes at the root level:
-          260 puts it above the modal's 250 overlay and below the 300 bubble,
+          the dialog's) so its position is stable regardless of dialog size.
+          It lives outside the Paper deliberately — the Paper clips anything
+          inside it (overflow-y) — and portals to <body> (like the restore
+          bubble's Affix) so its z-index competes at the root level: 260 puts
+          it above the modal's 250 overlay and below the 300 bubble,
           cross-fading with the modal's own 250ms transitions.
           pointer-events: none, so tapping the caption lands on the overlay
           → minimizes, which is what it advertises. */}

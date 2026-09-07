@@ -116,7 +116,11 @@ mechanics in the doc.
 - **Event lifecycle & mutations:** staged wizard → Google copies with notes-block
   round-trip; cross-department copies reconciled by `findCopies` (deliberately
   uncached). The wizard body is a fixed-height column with an internal scroll (its
-  `WIZARD_BODY_HEIGHT`) plus a bottom **step strip** above the Back/Next/Submit bar
+  viewport-tiered `WIZARD_BODY_HEIGHT_MOBILE` / `WIZARD_BODY_HEIGHT_DESKTOP`: the host
+  modal is always `centered` — on phones it fills the centered box with equal ~44px
+  gutters (`yOffset="44px"`), while the centered desktop modal widens on the
+  wide-desktop band, where the review step reflows to two columns)
+  plus a bottom **step strip** above the Back/Next/Submit bar
   (a caption naming the current step + a compact non-wrapping Mantine Stepper —
   circles/connectors, tap = free jump to that step, walk length shifts per type) —
   the modal no longer resizes between steps, so the buttons never jump.

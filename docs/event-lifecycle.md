@@ -110,9 +110,10 @@ the pure notes parsers over each `GcalEventItem` and produces a `CalendarEvent` 
 ## 1.4 The staged wizard
 
 The form is `EventForm` (`src/app/(protected)/dashboard/EventForm.tsx`), rendered in a
-floating `size="sm"` modal from `DashboardView.tsx:1509` and minimizable into a floating
-bubble that keeps its draft. It is a **staged walk** — one input group visible at a
-time, built via `buildSteps` (`EventForm.tsx`); every role walks the same steps
+centered modal from `DashboardView.tsx` whose size scales with the viewport (the width
+tiers are in the sizing bullet below) and minimizable into a floating bubble that keeps
+its draft. It is a **staged walk** — one input group visible at a time, built via
+`buildSteps` (`EventForm.tsx`); every role walks the same steps
 (no admin-only extras — there is no "On behalf of" creator step):
 
 | # | Step            | Who | Gate before advancing                                             |
@@ -135,12 +136,35 @@ the full set of them.
 Mechanics worth knowing:
 
 - **Bottom step strip + fixed-height body**: the wizard body is a fixed-height flex column
-  (its height is `WIZARD_BODY_HEIGHT`, a viewport-aware `min(56dvh, 540px,
-  calc(100dvh - 200px))` in `EventForm.tsx`): the active step's content in the middle on
-  an **internal scroll** (`.c2-wizard-scroll`), and, pinned at the bottom above the
-  **Back / Next / Create-Save bar**, the step strip — a caption naming the current step
-  plus a compact Mantine **Stepper**. The modal never resizes between steps, so the
-  buttons never jump. The Stepper (`.c2-wizard-steps`) is one non-wrapping row of
+  in `EventForm.tsx` (`WIZARD_BODY_HEIGHT_MOBILE` / `WIZARD_BODY_HEIGHT_DESKTOP` below):
+  the active step's content in the middle on an **internal scroll** (`.c2-wizard-scroll`),
+  and, pinned at the bottom above the **Back / Next / Create-Save bar**, the step strip —
+  a caption naming the current step plus a compact Mantine **Stepper**. Because the body
+  height is a pure function of the viewport — never of the active step's content — the
+  modal never resizes between steps and the buttons never jump. The sizing is tiered so
+  the modal actually uses the space a given screen has:
+  - **Width** (`DashboardView.tsx`): `xs` (320px) on ≤360px phones, `sm` (380px) across
+    the rest of the phone band, `md` (440px) on the narrow desktop band (640–799px), and
+    `lg` (620px) on the wide-desktop band (≥800px). The shrink-out motion feeds on the
+    matching width (`formContentWidth`), so it always lands on the originating button.
+  - **Centered at every width**: the host modal is `centered` on all screens, so the
+    wizard always has **equal top/bottom gutters**. On phones (< 640px) the body
+    **fills the modal's box** to take up as much vertical space as possible:
+    `DashboardView` sets `yOffset="44px"`, so Mantine centers inside a
+    `100dvh - 88px` (2 × 44px gutter) box, and `WIZARD_BODY_HEIGHT_MOBILE` =
+    `calc(100dvh - 164px)` fills it — the 88px of gutters plus the modal's own chrome
+    (sticky header ~60px + body bottom padding ~16px = 76px). Equal ~44px gutters
+    remain, and the "Tap outside to minimize" caption sits in the bottom gutter (it
+    stays at the viewport bottom; the header's minimize chevron / X also stay).
+    `100dvh` shrinking with the on-screen keyboard just shortens the body.
+  - **Desktop height**: the centered modal's body grows with the viewport up to
+    `min(68dvh, 720px, calc(100dvh - 200px))` so a tall screen is actually used up to a
+    comfortable cap.
+  - **Wide review step**: at `lg` width the review's definition rows (When, Location,
+    Event Type, Organizer, Participants, Departments, Remarks) reflow into a two-column
+    grid beneath the full-width calendar preview and clash check — the extra width reads
+    as structure, not a stretched single column.
+  The Stepper (`.c2-wizard-steps`) is one non-wrapping row of
   numbered circles joined by connector lines, so it reads unambiguously as a left→right
   step path: passed steps show a check, the current circle is filled, future ones are
   outlined. The **caption** always shows the current step's real name and position

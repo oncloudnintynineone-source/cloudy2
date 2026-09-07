@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import {
   Badge,
   Box,
@@ -71,7 +71,7 @@ import {
   type EventTitleInput,
   type EventTitlePerson,
 } from "@/lib/settings/formatEventTitle";
-import { BUTTON_LOADER_PROPS } from "@/lib/theme";
+import { BUTTON_LOADER_PROPS, DESKTOP_WIDE_MEDIA_QUERY } from "@/lib/theme";
 import { announce } from "@/lib/ui/announcer";
 import { showValidationFailure } from "@/lib/ui/validationFeedback";
 import {
@@ -218,13 +218,23 @@ const STEP_LABELS: Record<StepId, string> = {
 
 /**
  * The wizard's fixed body height. Steps scroll inside this box, so the modal
- * never resizes between them and the Back/Next/Submit bar stays put. It is
- * viewport-aware: capped by the modal's height budget (header + button bar +
- * breathing room) so the dialog always fits on short screens, and by 56dvh /
- * 540px so it never dominates a tall desktop viewport. 100dvh shrinks when the
- * on-screen keyboard opens, so the cap follows.
+ * never resizes between them and the Back/Next/Submit bar stays put. The size
+ * is a pure function of the viewport (never of the active step's content):
+ * 100dvh shrinks when the on-screen keyboard opens, so the cap follows. The
+ * host modal is `centered` at every width, so the body height tiers on how
+ * the available space is used (see docs/event-lifecycle.md §1.4):
+ * - Mobile: the body **fills the centered modal's box**, taking up as much
+ *   vertical space as possible. The host sets `yOffset="44px"`, so Mantine
+ *   centers inside a `100dvh - 88px` (2 × 44px gutter) box; subtracting the
+ *   modal's own chrome (sticky header ~60px + body bottom padding ~16px =
+ *   76px) gives `calc(100dvh - 88px - 76px)` = `calc(100dvh - 164px)`. That
+ *   keeps the top/bottom gutters equal (~44px each) and leaves room for the
+ *   "Tap outside to minimize" caption at the bottom.
+ * - Desktop: the centered modal's body grows with the viewport up to
+ *   68dvh / 720px so a tall screen is actually used.
  */
-const WIZARD_BODY_HEIGHT = "min(56dvh, 540px, calc(100dvh - 200px))";
+const WIZARD_BODY_HEIGHT_MOBILE = "calc(100dvh - 164px)";
+const WIZARD_BODY_HEIGHT_DESKTOP = "min(68dvh, 720px, calc(100dvh - 200px))";
 
 /** Section label of the flat department list inside the invitee badge picker. */
 const PICKER_DEPARTMENTS_SECTION = "Departments";
@@ -251,6 +261,16 @@ export function EventForm({
   const isEdit = event !== null;
   const theme = useMantineTheme();
   const isDesktop = useMediaQuery(`(min-width: ${theme.breakpoints.lg})`);
+  // The modal's wide-desktop tier (>= 800px, where the host widens to lg and
+  // the review step reflows into two columns below). Layout gating must match
+  // DashboardView's form modal sizing exactly — this is that same query.
+  const isDesktopWide = useMediaQuery(DESKTOP_WIDE_MEDIA_QUERY);
+  // The body height follows the screen size: phones fill the centered
+  // modal's box entirely (`WIZARD_BODY_HEIGHT_MOBILE`), the desktop shell
+  // uses the taller capped center (`WIZARD_BODY_HEIGHT_DESKTOP`). Either way
+  // it stays constant for the whole walk, so the step strip and
+  // Back/Next/Submit bar never move.
+  const bodyHeight = isDesktop ? WIZARD_BODY_HEIGHT_DESKTOP : WIZARD_BODY_HEIGHT_MOBILE;
 
   const form = useForm<EventFormState>({
     initialValues: buildInitialValues(),
@@ -1149,12 +1169,149 @@ export function EventForm({
     );
   };
 
+  // Review-step definition rows: each is a caption + value pair. On the wide
+  // modal (>= 800px viewport, lg host width) they reflow into a two-column
+  // grid so the added width reads as structure — the calendar preview and
+  // clash check above stay full-width.
+  const reviewDef = (label: string, node: ReactNode) => (
+    <Stack gap={4}>
+      <Text size="xs" c="dimmed" fw={600}>
+        {label}
+      </Text>
+      {node}
+    </Stack>
+  );
+  const reviewSections: Array<{ key: string; span: number; node: ReactNode }> = [
+    {
+      key: "when",
+      span: 6,
+      node: reviewDef("When", <Text size="sm">{whenText || "—"}</Text>),
+    },
+    ...(showLocationStep
+      ? [
+          {
+            key: "location",
+            span: 6,
+            node: reviewDef(
+              "Location",
+              <Group gap={6} wrap="wrap">
+                <Badge
+                  variant="light"
+                  color={effectiveOutOfCamp.outOfCamp ? "yellow" : "green"}
+                >
+                  {effectiveOutOfCamp.outOfCamp ? "Out of Camp" : "In Camp"}
+                </Badge>
+                {effectiveOutOfCamp.overseas && (
+                  <Badge variant="light" color="blue">
+                    Overseas
+                  </Badge>
+                )}
+                {effectiveOutOfCamp.location && (
+                  <Text size="sm" c="dimmed">
+                    {effectiveOutOfCamp.location}
+                  </Text>
+                )}
+              </Group>,
+            ),
+          },
+        ]
+      : []),
+    {
+      key: "type",
+      span: 6,
+      node: reviewDef(
+        "Event Type",
+        <Group gap={6} wrap="wrap">
+          {form.values.eventType ? (
+            <Badge variant="light">{form.values.eventType}</Badge>
+          ) : (
+            <Text size="sm" c="dimmed">
+              —
+            </Text>
+          )}
+        </Group>,
+      ),
+    },
+    {
+      key: "organizer",
+      span: 6,
+      node: reviewDef(
+        "Organizer",
+        <Group gap={6} wrap="wrap">
+          {creatorName ? (
+            <Badge variant="light" color="brand">
+              {creatorName}
+            </Badge>
+          ) : (
+            <Text size="sm" c="dimmed">
+              {effectiveCreatorId === currentUser ? "You" : "—"}
+            </Text>
+          )}
+        </Group>,
+      ),
+    },
+    ...(reviewPeople.length > 0
+      ? [
+          {
+            key: "people",
+            span: 6,
+            node: reviewDef(
+              "Participants",
+              <Group gap={6} wrap="wrap">
+                {reviewPeople.map((person) => (
+                  <Badge
+                    key={person.id}
+                    variant="light"
+                    className={person.id === currentUser ? "c2-my-badge" : undefined}
+                  >
+                    {person.id === currentUser ? `${person.name} (You)` : person.name}
+                  </Badge>
+                ))}
+              </Group>,
+            ),
+          },
+        ]
+      : []),
+    ...(reviewDepartments.length > 0
+      ? [
+          {
+            key: "departments",
+            span: 6,
+            node: reviewDef(
+              "Departments",
+              <Group gap={6} wrap="wrap">
+                {reviewDepartments.map((name) => (
+                  <Badge key={name} variant="light" color="accent">
+                    {name}
+                  </Badge>
+                ))}
+              </Group>,
+            ),
+          },
+        ]
+      : []),
+    ...(showRemarksStep
+      ? [
+          {
+            key: "remarks",
+            span: 12,
+            node: reviewDef(
+              "Remarks",
+              <Text size="sm" style={{ overflowWrap: "anywhere", whiteSpace: "pre-wrap" }}>
+                {form.values.title.trim() || "—"}
+              </Text>,
+            ),
+          },
+        ]
+      : []),
+  ];
+
   return (
     <form
       onSubmit={onSubmit}
       onKeyDown={handleFormKeyDown}
       className="c2-event-wizard"
-      style={{ height: WIZARD_BODY_HEIGHT }}
+      style={{ height: bodyHeight }}
     >
       <div
         tabIndex={-1}
@@ -1436,114 +1593,16 @@ export function EventForm({
 
               <EventClashCheck request={clashRequest} />
 
-              <Stack gap={4}>
-                <Text size="xs" c="dimmed" fw={600}>
-                  When
-                </Text>
-                <Text size="sm">{whenText || "—"}</Text>
-              </Stack>
-
-              {showLocationStep && (
-                <Stack gap={4}>
-                  <Text size="xs" c="dimmed" fw={600}>
-                    Location
-                  </Text>
-                  <Group gap={6} wrap="wrap">
-                    <Badge
-                      variant="light"
-                      color={effectiveOutOfCamp.outOfCamp ? "yellow" : "green"}
-                    >
-                      {effectiveOutOfCamp.outOfCamp ? "Out of Camp" : "In Camp"}
-                    </Badge>
-                    {effectiveOutOfCamp.overseas && (
-                      <Badge variant="light" color="blue">
-                        Overseas
-                      </Badge>
-                    )}
-                    {effectiveOutOfCamp.location && (
-                      <Text size="sm" c="dimmed">
-                        {effectiveOutOfCamp.location}
-                      </Text>
-                    )}
-                  </Group>
-                </Stack>
-              )}
-
-              <Stack gap={4}>
-                <Text size="xs" c="dimmed" fw={600}>
-                  Event Type
-                </Text>
-                <Group gap={6} wrap="wrap">
-                  {form.values.eventType ? (
-                    <Badge variant="light">{form.values.eventType}</Badge>
-                  ) : (
-                    <Text size="sm" c="dimmed">
-                      —
-                    </Text>
-                  )}
-                </Group>
-              </Stack>
-
-              <Stack gap={4}>
-                <Text size="xs" c="dimmed" fw={600}>
-                  Organizer
-                </Text>
-                <Group gap={6} wrap="wrap">
-                  {creatorName ? (
-                    <Badge variant="light" color="brand">
-                      {creatorName}
-                    </Badge>
-                  ) : (
-                    <Text size="sm" c="dimmed">
-                      {effectiveCreatorId === currentUser ? "You" : "—"}
-                    </Text>
-                  )}
-                </Group>
-              </Stack>
-
-              {reviewPeople.length > 0 && (
-                <Stack gap={4}>
-                  <Text size="xs" c="dimmed" fw={600}>
-                    Participants
-                  </Text>
-                  <Group gap={6} wrap="wrap">
-                    {reviewPeople.map((person) => (
-                      <Badge
-                        key={person.id}
-                        variant="light"
-                        className={person.id === currentUser ? "c2-my-badge" : undefined}
-                      >
-                        {person.id === currentUser ? `${person.name} (You)` : person.name}
-                      </Badge>
-                    ))}
-                  </Group>
-                </Stack>
-              )}
-
-              {reviewDepartments.length > 0 && (
-                <Stack gap={4}>
-                  <Text size="xs" c="dimmed" fw={600}>
-                    Departments
-                  </Text>
-                  <Group gap={6} wrap="wrap">
-                    {reviewDepartments.map((name) => (
-                      <Badge key={name} variant="light" color="accent">
-                        {name}
-                      </Badge>
-                    ))}
-                  </Group>
-                </Stack>
-              )}
-
-              {showRemarksStep && (
-                <Stack gap={4}>
-                  <Text size="xs" c="dimmed" fw={600}>
-                    Remarks
-                  </Text>
-                  <Text size="sm" style={{ overflowWrap: "anywhere", whiteSpace: "pre-wrap" }}>
-                    {form.values.title.trim() || "—"}
-                  </Text>
-                </Stack>
+              {isDesktopWide ? (
+                <Grid gap="sm">
+                  {reviewSections.map(({ key, span, node }) => (
+                    <Grid.Col key={key} span={span}>
+                      {node}
+                    </Grid.Col>
+                  ))}
+                </Grid>
+              ) : (
+                reviewSections.map(({ key, node }) => <div key={key}>{node}</div>)
               )}
             </Stack>
           </div>

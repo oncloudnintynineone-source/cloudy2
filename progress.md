@@ -18,7 +18,7 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
 
 ## 1.1 Status
 
-- All work through changelog **1.197 (refresh re-homed + pull-to-refresh disabled)** is shipped.
+- All work through changelog **1.201 (event wizard centered, fills phone height)** is shipped.
 - Quality gates (`lint` / `typecheck` / `test` / schema-drift check) run in CI on every
   push and PR. Pushes also auto-apply migrations per environment: `dev` →
   `migrate-preview` against the dev Neon DB, `main` → `migrate` against the prod Neon
@@ -531,9 +531,54 @@ One line per phase; full write-ups (incl. Mermaid diagrams and verification note
    stripped after the reloaded document mounts by the new global `useOneShotRefreshStrip`
    (`src/lib/pwa/client.ts`, mounted in `AppShellShell`, RSC path entries cleared before the
    clean-URL `router.replace`). `googleConfigured` threads layout → shell → profile menu so
-   the item greys out on the calendar when Google is unconfigured. `docs/events-cache.md`
+   the item greys out on the calendar when Google is unconfigured.    `docs/events-cache.md`
    §1.5.1, `docs/pwa-offline.md` §1.11, `docs/loading-transitions.md` §1.5/§1.7/§1.12/§1.13,
    `docs/immersive-mode.md`, `docs/dashboard-views.md`, `docs/user-guide.md`, `AGENTS.md`
+- 1.198 Create/edit event modal makes use of the viewport: the wizard's sizing is no
+   longer locked to phone tiers everywhere. The host modal keeps `xs`/`sm` on phones
+   but widens `md` (440px) → `lg` (620px) once the shell reaches the wide-desktop band
+   (≥800px, `DESKTOP_WIDE_MEDIA_QUERY`, `DashboardView`), and the fixed body height
+   grows on the desktop shell (`WIZARD_BODY_HEIGHT_DESKTOP` = `min(68dvh, 720px,
+   calc(100dvh - 200px))`) while phones keep the compact `WIZARD_BODY_HEIGHT_MOBILE` —
+   the height stays a pure function of the viewport, never of the active step, so the
+   pinned step strip and Back/Next/Submit bar never move. At `lg` the review step's
+   definition rows reflow into a two-column grid beneath the full-width calendar
+   preview / clash check; the shrink-out motion feeds on the form's own
+   `formContentWidth` so the zoom still lands on the originating button.
+   `docs/event-lifecycle.md` §1.4, `docs/desktop-responsive.md` §1.7, `AGENTS.md`
+- 1.199 Event wizard is a bottom sheet on phones: below the desktop band the host
+   modal (`DashboardView`) stops centering and bottom-docks — `.c2-event-form-sheet`
+   (`globals.css`) bottom-aligns Mantine's modal inner and drops its symmetric y
+   gutter (`yOffset="0px"`), so the sheet sits flush with the screen's bottom edge and
+   the body fills from there up (`WIZARD_BODY_HEIGHT_SHEET` = `calc(100dvh - 132px)`,
+   replacing the phone half-sheet cap), leaving a ~56px top gutter as the overlay's
+   tap-to-minimize zone (the header's minimize chevron / X remain). The motion's
+   grow/shrink collapses to the sheet's `center bottom` origin (the rect-pinned pivot
+   assumes a centered modal); the bottom action bar clears gesture bars via an
+   `env(safe-area-inset-bottom)` pad. Desktop (centered `md`/`lg`) is unchanged.
+   `docs/event-lifecycle.md` §1.4, `docs/desktop-responsive.md` §1.7, `AGENTS.md`
+- 1.200 Mobile bottom-sheet polish (sheet read too low): the "Tap outside to minimize"
+   caption — which sat at the viewport bottom and now overlapped the docked sheet — is
+   moved into the sheet's **top gutter** on phones (`DashboardView` branches it on
+   `isDesktop`: bottom caption for the centered desktop modal, a `safe-area-inset-top`-
+   aware top caption for the sheet). The gutter grows to ~68px:
+   `WIZARD_BODY_HEIGHT_SHEET` = `calc(100dvh - env(safe-area-inset-top, 0px) - 144px)`
+   (was `calc(100dvh - 132px)`), so the caption is clearly visible and there's a
+   comfortable tap target above the sheet; the action bar's bottom clearance is bumped
+   (`safe-area-inset-bottom` + `sm` spacing) so the Back/Next/Create bar isn't glued to
+   the screen edge. Desktop centered modal is unchanged. `docs/event-lifecycle.md` §1.4,
+   `docs/desktop-responsive.md` §1.7, `AGENTS.md`
+- 1.201 Event wizard back to a centered modal (the bottom-sheet model was wrong — it gave
+   unequal gutters and dragged the caption to the top). The host modal is `centered` at
+   every width again; on phones the body **fills the centered box** to use as much
+   vertical space as possible: `DashboardView` sets `yOffset="44px"` so Mantine centers
+   inside a `100dvh - 88px` box and `WIZARD_BODY_HEIGHT_MOBILE` = `calc(100dvh - 164px)`
+   fills it, leaving equal ~44px top/bottom gutters. The "Tap outside to minimize"
+   caption returns to `bottom: 16` (it was over the sheet / at the top). The rect-pinned
+   motion origin is restored (a centered modal again), and the `.c2-event-form-sheet`
+   CSS + `WIZARD_BODY_HEIGHT_SHEET` are removed. Desktop keeps its capped height
+   (`min(68dvh, 720px, calc(100dvh - 200px))`) unchanged. `docs/event-lifecycle.md` §1.4,
+   `docs/desktop-responsive.md` §1.7, `AGENTS.md`
 
 ## 1.4 Open items & next steps
 
