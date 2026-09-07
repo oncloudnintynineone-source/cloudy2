@@ -22,7 +22,7 @@ import {
   withEditLink,
   withInternalMarker,
 } from "@/lib/events/notes";
-import { creatorGuard, ownershipGuard } from "@/lib/events/guards";
+import { modifyGuard, canChangeLock } from "@/lib/events/guards";
 import { dispatchKahBreachCheck } from "@/lib/kah/notify";
 import { naiveTimePart } from "@/lib/events/timeOptions";
 import { renderEventTitle } from "@/lib/events/eventTitle";
@@ -38,8 +38,8 @@ import {
 import type { EventRef } from "@/lib/events/targets";
 import {
   clampEventEnd,
+  resolveEventAuthor,
   validateEventForm,
-  withSelfCreator,
   type EventFormValues,
 } from "@/lib/events/validate";
 import {
@@ -49,13 +49,13 @@ import {
   type GcalEventItem,
 } from "@/lib/google";
 import { invalidateGcalCache } from "@/lib/google/eventsCache";
-import { getUsersByIds, type UserDisplayInfo } from "@/lib/roster/queries";
+import { getUsersByIds, activeMembershipsByDepartment, type UserDisplayInfo } from "@/lib/roster/queries";
 import { resolveGoogleCalendarId } from "@/lib/roster/shares";
 import { requireSession } from "@/lib/session";
 import { dispatchEventWebhook } from "@/lib/webhooks/deliver";
 import { WEBHOOK_ACTIONS } from "@/lib/webhooks/payload";
 
-export type EventResultField = "title" | "start" | "end" | "startAmPm" | "endAmPm" | "creatorId";
+export type EventResultField = "title" | "start" | "end" | "startAmPm" | "endAmPm";
 
 /**
  * One copy written (or retired) by an event mutation, keyed by its app-side
@@ -167,6 +167,7 @@ async function buildGcalEventInput(
       createdBy: input.creatorId || undefined,
       inviteeUsers: input.inviteeUserIds,
       inviteeDepartments: input.inviteeDepartments,
+      ownerOnlyEdits: input.ownerOnlyEdits || undefined,
       title: rawTitle,
       timeOption: input.timeOption,
       startAmPm: input.timeOption === "half" ? input.startAmPm : undefined,
@@ -233,15 +234,13 @@ async function legacyFallback(ref: EventRef): Promise<{
 
 export async function createEvent(input: EventFormValues): Promise<EventActionResult> {
   const session = await requireSession();
-  // "On behalf of" is optional: a blank creator means the acting user.
-  // Clamp end to start before validation so a stale client with an inverted
-  // range auto-corrects instead of surfacing "End must be on or after start".
-  const normalized = clampEventEnd(withSelfCreator(input, session.user.id));
-
-  const creatorError = creatorGuard(session, normalized.creatorId, null);
-  if (creatorError) {
-    return { ok: false, error: creatorError };
-  }
+  // The organizer is always the acting session user — admins can no longer
+  // create events on behalf of other users. Clamp end to start before
+  // validation so a stale client with an inverted range auto-corrects instead
+  // of surfacing "End must be on or after start".
+  const normalized = clampEventEnd(
+    resolveEventAuthor(input, session.user.id, null, true),
+  );
 
   const errors = validateEventForm(normalized);
   if (Object.keys(errors).length > 0) {
@@ -257,6 +256,15 @@ export async function createEvent(input: EventFormValues): Promise<EventActionRe
   const integration = await getGoogleIntegration();
   const titleContext = await buildEventTitleContext(normalized);
   const effectiveInput = resolveEffectiveInput(normalized, titleContext);
+  // Every event must occupy someone: after field resolution a type with
+  // invitees disabled always carries the organizer as its sole attendee, so
+  // an empty result means the actor tagged no people and no departments.
+  if (
+    effectiveInput.inviteeUserIds.length === 0 &&
+    effectiveInput.inviteeDepartments.length === 0
+  ) {
+    return { ok: false, error: "Add at least one participant or department" };
+  }
   // Targets derive from the effective input so a type with invitees disabled
   // only ever lands in the creator's department.
   const targets = await resolveTargetCalendars(effectiveInput, null);
@@ -383,20 +391,31 @@ export async function updateEvent(
   input: EventFormValues,
 ): Promise<EventActionResult> {
   const session = await requireSession();
-  // "On behalf of" is optional: a blank creator means the acting user (a
-  // cleared select reassigns the event to the editor). Clamp before
-  // validation so inverted ranges auto-correct.
-  const normalized = clampEventEnd(withSelfCreator(input, session.user.id));
-
-  const ownershipError = ownershipGuard(session, ref.creatorId);
-  if (ownershipError) {
-    return { ok: false, error: ownershipError };
+  // Editing is open to the organizer, tagged attendees, and active members of
+  // the event's tagged departments — unless the organizer locked the event to
+  // themselves (admins bypass everything). Membership resolves against the
+  // *current* active roster over the departments the event is tagged on.
+  const memberships = await activeMembershipsByDepartment(ref.inviteeDepartmentIds);
+  const guardError = modifyGuard(
+    session,
+    {
+      creatorId: ref.creatorId,
+      inviteeUserIds: ref.inviteeUserIds,
+      inviteeDepartmentIds: ref.inviteeDepartmentIds,
+      ownerOnlyEdits: ref.ownerOnlyEdits,
+    },
+    memberships,
+  );
+  if (guardError) {
+    return { ok: false, error: guardError };
   }
-
-  const creatorError = creatorGuard(session, normalized.creatorId, ref.creatorId);
-  if (creatorError) {
-    return { ok: false, error: creatorError };
-  }
+  // The organizer is fixed: an edit keeps the stored organizer (adopting the
+  // acting user on a creator-less legacy/external first edit). Only the
+  // organizer or an admin may change the owner-only lock — every other editor
+  // keeps the stored value.
+  const normalized = clampEventEnd(
+    resolveEventAuthor(input, session.user.id, ref, canChangeLock(session, ref.creatorId)),
+  );
 
   const errors = validateEventForm(normalized);
   if (Object.keys(errors).length > 0) {
@@ -412,6 +431,14 @@ export async function updateEvent(
   const integration = await getGoogleIntegration();
   const titleContext = await buildEventTitleContext(normalized);
   const effectiveInput = resolveEffectiveInput(normalized, titleContext);
+  // Same nobody-guard as createEvent (see its note): the resolved attendees
+  // must not be empty, or the saved copies would occupy no one.
+  if (
+    effectiveInput.inviteeUserIds.length === 0 &&
+    effectiveInput.inviteeDepartments.length === 0
+  ) {
+    return { ok: false, error: "Add at least one participant or department" };
+  }
   // Old targets come from the ref (its stored people); new targets from the
   // effective input, so a type with invitees disabled removes the other
   // departments' copies on save.
@@ -598,10 +625,22 @@ export async function updateEvent(
 /** Delete every linked copy of a logical event. */
 export async function deleteEvent(ref: EventRef): Promise<EventActionResult> {
   const session = await requireSession();
-
-  const ownershipError = ownershipGuard(session, ref.creatorId);
-  if (ownershipError) {
-    return { ok: false, error: ownershipError };
+  // Same modification guard as updateEvent: organizer / attendees / active
+  // members of tagged departments, blocked by the owner-only lock, admins
+  // always pass, creator-less people-less (external) events are admin-only.
+  const memberships = await activeMembershipsByDepartment(ref.inviteeDepartmentIds);
+  const guardError = modifyGuard(
+    session,
+    {
+      creatorId: ref.creatorId,
+      inviteeUserIds: ref.inviteeUserIds,
+      inviteeDepartmentIds: ref.inviteeDepartmentIds,
+      ownerOnlyEdits: ref.ownerOnlyEdits,
+    },
+    memberships,
+  );
+  if (guardError) {
+    return { ok: false, error: guardError };
   }
 
   if (!googleCalendarConfigured()) {

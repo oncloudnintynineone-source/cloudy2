@@ -29,7 +29,7 @@ event to be told, **before saving**, which of the event's people already have an
 overlapping event.
 
 There is a second, subtler need. A **department-level event** (an event that tags a
-department in Invited Attendees) is shown on that department's schedule row — but for
+department in Participants) is shown on that department's schedule row — but for
 availability purposes it must count as an event for **every active user within that
 department**. Two events that only look fine per-person can still double-book a whole
 department (e.g. a full-team event overlapping a member's personal leave).
@@ -40,8 +40,7 @@ Who an event **occupies**:
 
 | Event kind                                                                    | Occupies                                                                           |
 | ----------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
-| Any in-app event                                                              | its creator + each tagged user + every **active** member of each tagged department |
-| Department-tagged event                                                       | additionally, the whole department (already covered by the row above)              |
+| In-app event with attendees                                                   | each tagged attendee + every **active** member of each tagged department (the **organizer counts only when they tagged themselves**; a no-invitee-type event keeps the organizer as its sole attendee) |
 | External / people-less event (created directly in Google, no parseable notes) | every active member of the **department calendar the copy sits on**                |
 
 Two events **clash** when their time windows overlap AND they occupy at least one
@@ -51,9 +50,9 @@ all-day events carry their exclusive end date, exactly as in `absEventRange`
 ([`datetime.ts`](event-lifecycle.md#1112-datetime-conventions-datetimets)).
 
 > Membership expansion only ever counts **active** roster users, and the candidate
-> itself is always normalized through the same `withSelfCreator` chain as a real
-> create/update, so the advisory reasons about the exact people/calendars that save
-> would write.
+> itself is always normalized through the same `resolveEventAuthor` chain as a real
+> create/update (fixed organizer), so the advisory reasons about the exact
+> people/calendars that save would write.
 
 ## 1.3 Goals & non-goals
 
@@ -85,8 +84,8 @@ flowchart LR
         P["EventClashCheck panel"]
     end
     subgraph SERVER["checkEventClashes (clashActions.ts)"]
-        S["requireSession + ownershipGuard (edit)"]
-        N["withSelfCreator → clampEventEnd → validateEventForm"]
+        S["requireSession + modifyGuard (edit)"]
+        N["resolveEventAuthor → clampEventEnd → validateEventForm"]
         R["shared resolution chain (writeContext.ts):<br/>time → location → fields"]
         T["resolveTargetCalendars"]
         Q["clashQuery.ts — month-cache read over target calendars"]
@@ -121,12 +120,12 @@ sees byte-identical values. A memoized `clashRequest` (a new object only when th
 effective window/people actually change) feeds `EventClashCheck`
 (`src/app/(protected)/dashboard/EventClashCheck.tsx`), which calls the server action:
 
-1. `requireSession()`; on edit, `ownershipGuard(session, ref.creatorId)` — the
-   advisory is never richer than the mutation the actor may perform (a failed guard
-   simply returns no clashes).
-2. `normalized = clampEventEnd(withSelfCreator(values, session.user.id))`, then the
-   shared `resolveEffectiveInput` chain from `src/lib/events/writeContext.ts` — the
-   same chain `createEvent`/`updateEvent` run, so event types that hide invitees or
+1. `requireSession()`; on edit, `modifyGuard` against the ref (organizer/attendees/
+   tagged-department members, owner-lock aware) — the advisory is never richer than the
+   mutation the actor may perform (a failed guard simply returns no clashes).
+2. `normalized = clampEventEnd(resolveEventAuthor(values, session, ref, canChangeLock))`,
+   then the shared `resolveEffectiveInput` chain from `src/lib/events/writeContext.ts` —
+   the same chain `createEvent`/`updateEvent` run, so event types that hide invitees or
    restrict time options resolve identically.
 3. `resolveTargetCalendars(effectiveInput, ref?.calendarId)` (create → no fallback;
    update → the ref's calendar, exactly like the mutations).

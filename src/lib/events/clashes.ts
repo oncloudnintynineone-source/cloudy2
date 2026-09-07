@@ -2,12 +2,14 @@
  * Pure clash (double-booking) engine for the event create/edit wizard.
  *
  * Semantics (see docs/event-clashes.md): a calendar event *occupies* the
- * people it affects — its creator, each tagged person, and every active
- * member of each tagged department (a department-level event is an event for
- * everyone within that department). An event with no identifiable people at
- * all (externally created in Google, or a people-less legacy copy) occupies
- * every active member of the department calendar it sits on, mirroring how
- * the schedule view pins such events to their calendar's department row
+ * people it affects — each tagged attendee and every active member of each
+ * tagged department (a department-level event is an event for everyone within
+ * that department). The organizer is occupied only when they tagged themselves
+ * as an attendee or belong to a tagged department — creating an event for
+ * others does not book the organizer's own time. An event with no identifiable
+ * people at all (externally created in Google, or a people-less legacy copy)
+ * occupies every active member of the department calendar it sits on, mirroring
+ * how the schedule view pins such events to their calendar's department row
  * (`expandScheduleEvents` in ./schedule.ts).
  *
  * Two events clash when their time windows overlap AND they share at least
@@ -52,7 +54,11 @@ export interface ClashCandidateInput {
   start: Date;
   /** Absolute end instant, exclusive. */
   end: Date;
-  /** Effective creator (after `withSelfCreator`); null when unknown. */
+  /**
+   * Effective organizer id (fixed: the acting user on create, the stored
+   * organizer on edit); informational here — the organizer is occupied only
+   * when present in `inviteeUserIds`.
+   */
   creatorId: string | null;
   /** Effective tagged users (schedule rows). */
   inviteeUserIds: string[];
@@ -144,9 +150,6 @@ export function busyUsersOfEvent(
     }
     return busy;
   }
-  if (people.creatorId) {
-    busy.add(people.creatorId);
-  }
   for (const userId of people.userIds) {
     busy.add(userId);
   }
@@ -159,11 +162,12 @@ export function busyUsersOfEvent(
 }
 
 /**
- * The candidate's occupied users: the creator and each tagged user who is on
- * the active roster, plus every active member of each tagged department.
- * Returns id → the department id it came through (null for the creator/tagged
- * users). Unknown/synthetic ids (e.g. the phone-less bootstrap admin) and
- * deactivated users are never affected. Pure.
+ * The candidate's occupied users: each tagged user on the active roster plus
+ * every active member of each tagged department. The organizer is included
+ * only when they tagged themselves as an attendee (or belong to a tagged
+ * department). Returns id → the department id it came through (null for
+ * explicitly tagged users). Unknown/synthetic ids (e.g. the phone-less
+ * bootstrap admin) and deactivated users are never affected. Pure.
  */
 export function candidateUsers(
   candidate: ClashCandidateInput,
@@ -176,9 +180,6 @@ export function candidateUsers(
       users.set(userId, null);
     }
   };
-  if (candidate.creatorId) {
-    addExplicit(candidate.creatorId);
-  }
   for (const userId of candidate.inviteeUserIds) {
     addExplicit(userId);
   }

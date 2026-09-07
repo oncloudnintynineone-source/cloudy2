@@ -23,7 +23,7 @@
 import type { CalendarEvent, CalendarEventPayload } from "./queries";
 import { addOneDay } from "./datetime";
 import { effectiveCalendarColor, effectiveEventTypeColor } from "./eventColors";
-import { clampEventEnd, withSelfCreator, type EventFormValues } from "./validate";
+import { clampEventEnd, type EventFormValues } from "./validate";
 
 /**
  * A fresh client id for a pending mutation and its stand-in event (the create
@@ -179,7 +179,7 @@ export interface OptimisticBuildParams {
   identity: OptimisticEventIdentity;
   /** The (client-validated) submit payload, matching the action's input shape. */
   values: EventFormValues;
-  /** Acting session user; a blank `creatorId` resolves to them (withSelfCreator). */
+  /** Acting session user; a blank `creatorId` falls back to them. */
   actingUserId: string;
   /**
    * The display title the grid will render for this event — already run
@@ -195,9 +195,12 @@ export interface OptimisticBuildParams {
  * Build a schedule-ready stand-in `CalendarEvent` mirroring what the server
  * action will write and what the read path will map back:
  *
- * - The same client normalization chain the action re-runs
- *   (`withSelfCreator` → `clampEventEnd`), so creator defaulting, the
- *   creator-is-invited rule and end-after-start clamping are identical.
+ * - The same client normalization the action mirrors (`clampEventEnd`), with
+ *   the organizer id defaulted to the acting user only when blank. The wizard
+ *   already carries the fixed organizer (acting user on create/duplicate, the
+ *   stored organizer on edit), so the stand-in matches the server's resolved
+ *   author without any creator→invitee merge — the organizer participates only
+ *   when in `inviteeUserIds`.
  * - Naive `start`/`end` in the read path's shape: timed events keep their wall
  *   clock; all-day (full/half) events are day-midnight values whose `end` is
  *   the *exclusive* day after the last day (the form stores the inclusive
@@ -207,7 +210,10 @@ export interface OptimisticBuildParams {
  */
 export function buildOptimisticEvent(params: OptimisticBuildParams): CalendarEvent {
   const { identity, values, actingUserId, title, eventTypeColor } = params;
-  const normalized = clampEventEnd(withSelfCreator(values, actingUserId));
+  const normalized = clampEventEnd({
+    ...values,
+    creatorId: values.creatorId.trim() || actingUserId,
+  });
   const typeName = normalized.eventType.trim();
   const allDay = normalized.timeOption !== "range";
   const groupKey = identity.eventId ?? identity.googleEventId;
@@ -232,6 +238,7 @@ export function buildOptimisticEvent(params: OptimisticBuildParams): CalendarEve
       creatorId: normalized.creatorId,
       inviteeUserIds: normalized.inviteeUserIds,
       inviteeDepartmentIds: normalized.inviteeDepartments,
+      ownerOnlyEdits: normalized.ownerOnlyEdits,
       rawTitle: normalized.title,
       timeOption: normalized.timeOption,
       startAmPm: normalized.timeOption === "half" ? amPmOf(normalized.startAmPm) : null,

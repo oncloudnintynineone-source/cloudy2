@@ -169,7 +169,7 @@ export const eventTypes = pgTable(
       .default(sql`'{in,out,overseas}'::text[]`),
     /** Whether the event form shows the Remarks (description) step for this type. */
     showRemarks: boolean("show_remarks").notNull().default(true),
-    /** Whether the event form shows the Invited Attendees step for this type. */
+    /** Whether the event form shows the Participants step for this type. */
     showInvitees: boolean("show_invitees").notNull().default(true),
     /**
      * Whether the wizard shows the Location step for this type. When off, the

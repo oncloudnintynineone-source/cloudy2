@@ -68,20 +68,26 @@ All actions are `"use server"` and follow the same opening sequence (create:
 
 ```mermaid
 flowchart LR
-    S["requireSession()"] --> N["withSelfCreator(input, session.user.id)<br/>(create/update)"]
-    N --> G["ownershipGuard (update/delete)<br/>creatorGuard (create/update)"]
+    S["requireSession()"] --> N["resolveEventAuthor(input, session, ref)<br/>(create/update — fixed organizer)"]
+    N --> G["modifyGuard (update/delete)"]
     G --> V["validateEventForm<br/>(create/update)"]
     V --> C["googleCalendarConfigured()<br/>— gate when unconfigured"]
     C --> R["target resolution<br/>(resolveTargetCalendars / refTargetCalendars)"]
 ```
 
-- **Guards** (`events/guards.ts`): non-admins may only act on their own events and may
-  never introduce a different creator; creator-less legacy/external events are
-  admin-only (details in [`event-lifecycle.md` §1.5](event-lifecycle.md#15-guards--validation)).
+- **Guards** (`events/guards.ts`): `modifyGuard` opens edit/delete/duplicate to the
+  organizer, tagged attendees, and active members of tagged departments — unless the
+  organizer set the `ownerOnlyEdits` lock (only the organizer, or an admin who always
+  bypasses). Creator-less, people-less legacy/external events are admin-only. Create
+  needs no guard: the organizer is always the acting session user (there is no admin
+  "on behalf of"), and an edit keeps the stored organizer (see
+  [`event-lifecycle.md` §1.5](event-lifecycle.md#15-guards--validation)).
 - **Validation** (`events/validate.ts`): required fields, AM/PM for `full` events, and
   chronological order. On failure the action returns
   `{ ok: false, error, field }` with the *first* failing field so the form can jump to
-  the owning step.
+  the owning step. Separately, both create and update refuse an event whose *effective*
+  attendees and tagged departments are both empty ("Add at least one participant or
+  department", no `field`) — such an event would occupy no one.
 - **Google gate**: without service-account credentials the actions refuse with
   "Google Calendar is not configured" (the stub integration would otherwise "succeed"
   and audit-log phantom events).
@@ -200,7 +206,7 @@ location, and times. Update is a **full replace** in Google
 
 `deleteEvent(ref)` (`actions.ts:624`):
 
-1. `ownershipGuard` (admin-only for creator-less events), Google gate.
+1. `modifyGuard` against the ref (admin-only for creator-less events), Google gate.
 2. `refTargetCalendars(ref)` + `legacyFallback(ref)` in parallel; range = the ref's
    `absEventRange` ±1 day (`actions.ts:636-638`).
 3. For each target calendar: `findCopies`, then delete every match, collecting the
@@ -289,8 +295,8 @@ full list); the mutation-specific ones:
 | Helper | Module | Tests |
 | ------ | ------ | ----- |
 | `deriveTargetCalendarIds`, `diffEventTargets`, `dedupeEventsByGroupId`, `eventRefFromCalendarEvent` | `events/targets.ts` | `targets.test.ts` |
-| `creatorGuard`, `ownershipGuard` | `events/guards.ts` | `guards.test.ts` |
-| `validateEventForm`, `withSelfCreator` | `events/validate.ts` | `validate.test.ts` |
+| `modifyGuard`, `canChangeLock` | `events/guards.ts` | `guards.test.ts` |
+| `validateEventForm`, `resolveEventAuthor` | `events/validate.ts` | `validate.test.ts` |
 | `resolveTimeOption`, `amPmSuffix` | `events/timeOptions.ts` | `timeOptions.test.ts` |
 | `clampOutOfCamp`, `flagsFromCategory` / `categoryFromFlags`, `normalizeAllowedLocations` | `events/locationPolicy.ts` | `locationPolicy.test.ts` |
 | `absEventRange`, `monthsInRange` | `events/datetime.ts` | `datetime.test.ts` |

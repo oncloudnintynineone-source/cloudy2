@@ -17,6 +17,7 @@ import {
   parseEventEndAmPm,
   parseEventOutOfCamp,
   parseEventOverseas,
+  parseEventOwnerOnlyEdits,
   parseEventPeople,
   parseEventPinned,
   parseEventStartAmPm,
@@ -42,6 +43,8 @@ export interface CalendarEventPayload {
   inviteeUserIds: string[];
   /** Department (calendar) ids tagged on the event (schedule view rows). */
   inviteeDepartmentIds: string[];
+  /** Organizer-only modification lock (admins bypass); absence means open to attendees. */
+  ownerOnlyEdits: boolean;
   /** Raw (pre-template) description from the notes block; null for legacy events. */
   rawTitle: string | null;
   /** Datetime option used to create the event; defaults to the timed "range". */
@@ -160,6 +163,7 @@ export function mapCalendarItem(
       creatorId: people.creatorId,
       inviteeUserIds: people.userIds,
       inviteeDepartmentIds: people.departmentIds,
+      ownerOnlyEdits: parseEventOwnerOnlyEdits(item.description),
       rawTitle: parseEventTitle(item.description),
       timeOption: parseEventTimeOption(item.description) ?? (item.allDay ? "full" : "range"),
       startAmPm: parseEventStartAmPm(item.description),

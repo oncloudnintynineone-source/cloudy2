@@ -23,6 +23,8 @@ export interface EventRef {
   creatorId: string | null;
   inviteeUserIds: string[];
   inviteeDepartmentIds: string[];
+  /** Organizer-only modification lock (admins bypass); authorization reads it. */
+  ownerOnlyEdits: boolean;
 }
 
 /**
@@ -102,5 +104,6 @@ export function eventRefFromCalendarEvent(event: CalendarEvent): EventRef {
     creatorId: event.payload.creatorId,
     inviteeUserIds: event.payload.inviteeUserIds,
     inviteeDepartmentIds: event.payload.inviteeDepartmentIds,
+    ownerOnlyEdits: event.payload.ownerOnlyEdits,
   };
 }

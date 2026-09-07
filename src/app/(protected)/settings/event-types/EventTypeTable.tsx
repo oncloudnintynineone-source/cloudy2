@@ -151,7 +151,7 @@ export function EventTypeTable({ types, groups }: EventTypeTableProps) {
                     )}
                     {eventType.showInvitees === false && (
                       <Badge size="sm" variant="light" color="gray">
-                        No invitees
+                        No participants
                       </Badge>
                     )}
                     {eventType.showLocation === false && (
@@ -238,7 +238,7 @@ export function EventTypeTable({ types, groups }: EventTypeTableProps) {
                         )}
                         {eventType.showInvitees === false && (
                           <Badge size="sm" variant="light" color="gray">
-                            No invitees
+                            No participants
                           </Badge>
                         )}
                         {eventType.showLocation === false && (

@@ -10,6 +10,11 @@ export interface PickerBadgeItem {
   label: string;
   /** Mantine color name (e.g. "brand"/"accent"); undefined = default badge color. */
   color?: string;
+  /**
+   * True when this badge names the signed-in user: it renders as the amber
+   * "mine" badge (ring + cream tint + "(You)" suffix) and ignores `color`.
+   */
+  self?: boolean;
 }
 
 export interface PickerBadgesProps {
@@ -35,8 +40,13 @@ export function PickerBadges({ items, cap, empty }: PickerBadgesProps) {
   return (
     <Group gap={6} wrap="wrap">
       {visible.map((item) => (
-        <Badge key={item.key} variant="light" color={item.color}>
-          {item.label}
+        <Badge
+          key={item.key}
+          variant="light"
+          color={item.self ? undefined : item.color}
+          className={item.self ? "c2-my-badge" : undefined}
+        >
+          {item.self ? `${item.label} (You)` : item.label}
         </Badge>
       ))}
       {overflow > 0 && <Badge variant="light">+{overflow}</Badge>}

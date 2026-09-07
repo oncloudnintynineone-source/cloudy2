@@ -121,7 +121,7 @@ authenticated user** — no admin/own-department narrowing. This mirrors "any
 user can invite anyone / tag any department" policy: calendar *visibility* is
 department scoped via Google ACLs, but the app does not hide other departments'
 events from signed-in users. Editing an event from a result is still gated by
-`ownershipGuard`/`creatorGuard` in the detail modal it deep-links to. Stub
+`modifyGuard` in the detail modal it deep-links to. Stub
 (unconfigured Google) returns an empty result set, so search degrades to "0
 matches" rather than erroring.
 

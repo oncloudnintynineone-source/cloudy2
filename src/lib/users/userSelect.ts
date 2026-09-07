@@ -169,7 +169,8 @@ export function splitInvitees(invitees: string[]): {
  *
  * Previously selected ids that no longer appear in the picker (e.g.
  * now-inactive users/departments) are kept so editing can't silently drop
- * them; the locked creator (if any) is kept first.
+ * them. Nothing is auto-added: the organizer joins the list only when they
+ * picked their own name.
  *
  * The Departments section yields department ids, every other section yields
  * user ids.
@@ -178,7 +179,6 @@ export function mergeInviteeSelection(
   groups: PickerGroup[],
   previousInvitees: string[],
   draft: Record<string, string[]>,
-  creatorId: string | null,
   departmentsSectionLabel: string = INVITEE_DEPARTMENTS_SECTION,
 ): string[] {
   const allOptionIds = new Set(groups.flatMap((group) => group.options.map((option) => option.id)));
@@ -193,10 +193,19 @@ export function mergeInviteeSelection(
   const pickedUserIds = Object.keys(draft)
     .filter((label) => label !== departmentsSectionLabel)
     .flatMap((label) => draft[label] ?? []);
-  const uniqueUserIds = [...new Set([...pickedUserIds, ...keepUserIds])];
-  const userIds = creatorId
-    ? [creatorId, ...uniqueUserIds.filter((id) => id !== creatorId)]
-    : uniqueUserIds;
+  const userIds = [...new Set([...pickedUserIds, ...keepUserIds])];
 
   return [...departmentIds.map((id) => `dept:${id}`), ...userIds.map((id) => `user:${id}`)];
+}
+
+/**
+ * Quick self add/remove on the prefixed invitee list: drop the `user:<userId>`
+ * entry when it is already present, otherwise append it. Other entries
+ * (departments, other users) are untouched and never reordered.
+ */
+export function toggleInviteeUser(invitees: string[], userId: string): string[] {
+  const entry = `user:${userId}`;
+  return invitees.includes(entry)
+    ? invitees.filter((value) => value !== entry)
+    : [...invitees, entry];
 }

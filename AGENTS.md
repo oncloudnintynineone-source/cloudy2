@@ -116,6 +116,26 @@ mechanics in the doc.
   the modal no longer resizes between steps, so the buttons never jump.
   Design: [docs/event-lifecycle.md](docs/event-lifecycle.md),
   [docs/event-mutations.md](docs/event-mutations.md).
+- **Event organizer, editors & the owner-only lock:** the **organizer** (`createdBy` in
+  the notes) is fixed to the acting session user at create — there is no admin
+  "on behalf of" step and no way to reassign it later (an edit always keeps the stored
+  organizer, adopting the acting editor on a creator-less legacy/external first edit).
+  The organizer is not merged into the attendees at save time, but a fresh create
+  pre-selects the acting user as a participant by default (deselectable; they otherwise
+  participate — rows, clash/KAH busy, `{people}`, Myself filter, "mine" highlight — only
+  when tagged). An event whose type shows the Participants step must tag at least one
+  person or department (the one exception: an event type with invitees disabled stores
+  the organizer as its sole attendee). Edit/delete/duplicate authorization is pure `modifyGuard`
+  (`src/lib/events/guards.ts`): admins always; otherwise blocked when the organizer set
+  the notes `ownerOnlyEdits` flag (only the organizer — or an admin — may set/clear it,
+  on the wizard's Other settings step); then the organizer, individually tagged
+  attendees, and
+  active members of tagged departments (resolved per action from the active roster,
+  `activeMembershipsByDepartment`) may modify. Creator-less, people-less events are
+  admin-only. Read side (`CalendarEventPayload`) carries `ownerOnlyEdits` through to
+  the detail modal's client gate.
+  Design: [docs/event-lifecycle.md](docs/event-lifecycle.md),
+  [docs/event-mutations.md](docs/event-mutations.md).
 - **Optimistic event mutations:** the dashboard renders a short-lived stand-in chip at
   confirm (not after the Google write + read-your-own-writes refresh) by merging an
   `optimisticOps` overlay into the server `events` prop — the pure engine and the
@@ -156,7 +176,8 @@ mechanics in the doc.
   brand pill (pin icon, logo removed) that rotates through the upcoming pinned
   events' titles every 5s behind an inline amber `1/N` count chip (replaced the
   floating `Indicator`); tapping opens the panel of explicitly-pinned upcoming
-  events ("Pin this event" switch in the wizard). List refreshes via the
+  events ("Pin this event" switch on the wizard's Other settings step). List refreshes
+  via the
   `cloudy2:pinned-events-changed` window event; ticker titles render through the
   `pinnedHeader` template target (panel list: `pinned`).
   Design: [docs/pinned-events.md](docs/pinned-events.md).
@@ -180,8 +201,9 @@ mechanics in the doc.
   `src/lib/events/writeContext.ts`), reads overlapping events on the candidate's
   **target calendars** from the month cache (`src/lib/events/clashQuery.ts`, never raw
   `listEvents`), and runs the pure `computeClashes` engine (`src/lib/events/clashes.ts`):
-  an event occupies its creator + tagged users + every active member of each tagged
-  department, and an external/people-less event occupies the active members of its own
+  an event occupies its tagged attendees + every active member of each tagged
+  department (the organizer counts only when they self-invite), and an
+  external/people-less event occupies the active members of its own
   calendar; two events clash when their windows overlap AND they share an occupied
   user. Warnings never block a save.
   Design: [docs/event-clashes.md](docs/event-clashes.md).
@@ -279,9 +301,9 @@ it's a JS-only query (not a Mantine breakpoint, so it can't collide with `xs:`/`
 - **No mobile keyboard pop-up from dropdown taps:** never render a `searchable`
   `Select`/`MultiSelect` directly — use `NoKeyboardSelect`/`NoKeyboardMultiSelect`.
   Picking users (or any large option list) is a badge dialog (`UserSelectModal`), not a
-  searchable dropdown — every user picker (incl. the wizard's optional "On behalf of"
-  creator step, which passes `single` + `allowEmptyConfirm` for blank = acting user)
-  and every remaining department picker (UserForm "Department to grant", Department
+  searchable dropdown — every user picker (the event wizard's Participants
+  multi-pick, the Double Booking admin scan target) and every remaining department
+  picker (UserForm "Department to grant", Department
   create/edit "Parent department") is a dialog now. The dialog's trigger + summary
   markup is shared too: every `UserSelectModal` consumer renders its label row /
   trigger / selected badges through `PickerField` / `PickerBadges`

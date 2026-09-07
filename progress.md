@@ -18,7 +18,7 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
 
 ## 1.1 Status
 
-- All work through changelog **1.191 (Per-type hidden Location step, revised)** is shipped.
+- All work through changelog **1.196 (organizer/participant rework hygiene)** is shipped.
 - Quality gates (`lint` / `typecheck` / `test` / schema-drift check) run in CI on every
   push and PR. Pushes also auto-apply migrations per environment: `dev` →
   `migrate-preview` against the dev Neon DB, `main` → `migrate` against the prod Neon
@@ -469,7 +469,58 @@ One line per phase; full write-ups (incl. Mermaid diagrams and verification note
   change + edit/duplicate prefill; the server re-enforces in `resolveEventLocation`,
   writeContext) so even re-saving a legacy event converts it — the
   show-remarks/show-invitees hidden-field pattern applied to location.
-  `docs/event-lifecycle.md` §1.9.2, `docs/admin-guide.md` §1.4
+   `docs/event-lifecycle.md` §1.9.2, `docs/admin-guide.md` §1.4
+- 1.192 Event organizer & collaborative editing rework: the organizer (`createdBy`) is
+   fixed to the acting user at create and never changes — the admin "On behalf of"
+   wizard step is gone. The organizer is no longer auto-added as an attendee
+   (`withCreatorInvited`/creator lock removed; edit prefill keeps stored attendees,
+   deselectable). Edit/delete/duplicate now opens to the organizer, individually tagged
+   attendees, and active members of tagged departments via pure `modifyGuard` (+ new
+   notes `ownerOnlyEdits` organizer-only lock the organizer/admin may set; admins always
+   bypass). Occupancy is decoupled — the organizer counts only when self-invited — across
+   schedule rows, the clash/double-booking engine, KAH away counts, the Myself filter +
+   amber "mine" highlights, `{people}` title tokens and Parade State. `guards.ts`
+   replaces `creatorGuard`/`ownershipGuard`; `validate.ts` replaces
+   `withSelfCreator`/`withCreatorInvited` with `resolveEventAuthor`. Docs:
+   `docs/event-lifecycle.md`, `docs/event-mutations.md`, `docs/event-clashes.md`,
+   `docs/admin-guide.md`, `docs/user-guide.md`
+- 1.193 Event wizard "Other settings" step + Participants rename: the wizard's always-
+   present "Pin this event" and "Only the organizer can edit this event" switches move
+   onto a new **Other settings** step between Remarks and Review (so even invitees-hidden
+   types can pin/lock; the review step drops its redundant Pinned row). "Invited
+   Attendees" is renamed **Participants** everywhere user-facing (wizard picker + step
+   chip + review row, EventDetail, audit detail labels/counts, event-type settings
+   toggle "Show participants", table badge "No participants", webhook payload guide);
+   internal identifiers (`invitees`, `showInvitees`) unchanged. No behavior/logic
+   change.
+- 1.194 Participants "Add myself" toggle + clearer owner-lock wording: the wizard's
+   Participants step gains a compact **Add myself / Remove myself** button below the
+   badges (pure `toggleInviteeUser` in `userSelect.ts`) so the organizer (or anyone)
+   self-invites without opening the picker dialog. The Other settings owner-lock switch
+   is per-actor labelled: "Only I can edit this event" to the organizer (create flow and
+   own events), "Only the organizer can edit this event" to an admin editing someone
+   else's event — server semantics unchanged (`guards.ts` message + EventDetail badge
+   keep the organizer wording). Docs/changelog below.
+- 1.195 "(You)" participant highlight: the signed-in user's badge is marked wherever
+   participants are listed — wizard Participants step, wizard Review Participants row,
+   and the EventDetail modal's Participants list — via a shared `.c2-my-badge` amber
+   mine treatment (cream `--c2-my-row-tint` fill + `accent-6` ring + a "(You)" suffix;
+   `globals.css`, double-scoped to beat Mantine and work in modal portals). `PickerBadgeItem`
+   gains an optional `self` flag; EventForm's review People and EventDetail's Participants
+   resolve id-keyed (not name-keyed) so the current user is detected even with duplicate
+    display names. Presentational only.
+- 1.196 Post-review hygiene on the organizer/participant rework: the owner-lock switch on
+   the wizard's Other settings step is keyed off the **stored** organizer
+   (`payload.creatorId`, mirroring `canChangeLock`), so a non-admin editing a creator-less
+   event no longer sees a switch the server would silently drop (they are adopted as the
+   stored organizer on that save, so the switch appears from their next edit). Events can
+   no longer be saved with no one on them: a fresh create **pre-selects the acting user as
+   a participant by default** (deselectable), and an all-empty invitee set is rejected both
+   in the wizard (bounce back to the Participants step before any optimistic chip is
+   staged) and server-side (`createEvent`/`updateEvent` refuse an effective input with no
+   attendees and no tagged departments, "Add at least one participant or department").
+   Docs/comments: organizer adoption reworded to "acting editor"; AGENTS.md, event-lifecycle,
+   user-guide, user-picker, event-mutations.
 
 ## 1.4 Open items & next steps
 

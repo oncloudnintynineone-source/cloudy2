@@ -16,7 +16,7 @@ explicitly-pinned upcoming event. Both stay fresh across mutations.
 
 ## 1.1 Pinning an event
 
-- The wizard's Invited Attendees step carries a **"Pin this event" switch** (any
+- The wizard's **Other settings** step carries a **"Pin this event" switch** (any
   user) that sets the `pinned` notes flag. Tagging a whole department no longer pins
   by itself.
 - The panel shows a **rolling today → 3-months window** (today through the end of the

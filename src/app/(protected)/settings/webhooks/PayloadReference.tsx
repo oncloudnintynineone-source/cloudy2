@@ -73,7 +73,7 @@ const FIELDS = [
   ["event.overseas", "boolean", "Out-of-country flag (only set when out of camp)"],
   ["event.location", "string | null", "Out-of-camp destination; null in camp"],
   ["event.departments", "string[]", "Department names the event lives in"],
-  ["event.invitees", "string[]", "Invited attendees by display name (includes owner)"],
+  ["event.invitees", "string[]", "Participants by display name (includes the organizer when they tagged themselves)"],
   ["event.creator", "string | null", "Event owner's display name"],
   ["changes", "{field: [before, after]}?", "Present on updates only — what changed"],
 ] as const;

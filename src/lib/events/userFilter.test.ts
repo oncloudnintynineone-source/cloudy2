@@ -3,9 +3,9 @@ import { describe, expect, it } from "vitest";
 import { eventMatchesUserFilter } from "./userFilter";
 
 describe("eventMatchesUserFilter", () => {
-  it("matches when the selected user created the event", () => {
+  it("does not match merely because the user created the event (must be an attendee)", () => {
     expect(eventMatchesUserFilter({ creatorId: "alice", inviteeUserIds: [] }, ["alice"])).toBe(
-      true,
+      false,
     );
   });
 
@@ -15,7 +15,13 @@ describe("eventMatchesUserFilter", () => {
     ).toBe(true);
   });
 
-  it("matches on any of several selected users (creator or tagged)", () => {
+  it("matches a self-invited organizer", () => {
+    expect(
+      eventMatchesUserFilter({ creatorId: "alice", inviteeUserIds: ["alice", "bob"] }, ["alice"]),
+    ).toBe(true);
+  });
+
+  it("matches on any of several selected users", () => {
     expect(
       eventMatchesUserFilter(
         { creatorId: "carol", inviteeUserIds: ["alice", "dave"] },

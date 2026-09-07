@@ -40,15 +40,11 @@ of toggleable badges with a search box on top:
   on every open (the FilterModalBody pattern).
 - Pass `zIndex` when nested — the event wizard uses 300 over its z-250 dialog;
   FilterModal uses 200.
-- **`single` mode** (optional prop): for exactly-one-person picks (currently the
-  Double Booking admin "check another person" target). Tapping any badge _replaces_
+- **`single` mode** (optional prop): for exactly-one-person picks (the Double Booking
+  admin "check another person" target). Tapping any badge _replaces_
   the whole draft (one id across all sections; still re-seeded from `values` on each
   open) and Confirm is disabled while nothing is selected. Without it the modal keeps
-  its free multi-select for invitees/filters/KAH members.
-- **`allowEmptyConfirm`** (optional, meaningful only with `single`): Confirm stays
-  enabled when nothing is picked, so an optional picker can commit a cleared
-  selection — the event wizard's admin "On behalf of" creator step uses it (blank =
-  the acting user). Multi mode is unaffected.
+  its free multi-select for participants/filters/KAH members.
 
 ## 1.3 Pure helpers
 
@@ -61,11 +57,11 @@ of toggleable badges with a search box on top:
 | `buildUserGroups`                         | groups a flat roster by department ("No department" last); when callers supply a `departmentSort` per user (the department's `sort_order`), sections follow the Settings → Departments order (flattened preorder) instead of alphabetical — sections without a rank sort alphabetically after the ranked ones |
 | `filterPickerGroups`                      | narrows by query; keeps a whole section when its label matches; drops empties                                                            |
 | `selectionByGroup`                        | seeds a draft from a flat selection                                                                                                      |
-| `splitInvitees` / `mergeInviteeSelection` | split/merge the `user:<id>` / `dept:<id>` prefixed invitee list (keeps now-unlistable ids so edits don't drop them; creator stays first) |
+| `splitInvitees` / `mergeInviteeSelection` | split/merge the `user:<id>` / `dept:<id>` prefixed invitee list (keeps now-unlistable ids so edits don't drop them; nothing is auto-added by the helpers — a fresh create's form seeds the acting user as a participant, but that is `buildInitialValues`, not the picker) |
 
 ## 1.4 Callers
 
-- **Event wizard's Invited Attendees step** — a flat `Departments` section + user
+- **Event wizard's Participants step** — a flat `Departments` section + user
   sections; the form's `invitees` field keeps its `user:`/`dept:` prefixed shape.
 - **FilterModal's `variant: "search"` groups** — Users on dashboard + parade state;
   options may carry `department` to get per-department sections, `search` for extra
@@ -75,10 +71,6 @@ of toggleable badges with a search box on top:
 - **Double Booking admin target** — a `single`-mode `UserSelectModal` (department
   sections, shortname `search`) replacing the page's original `NoKeyboardSelect`
   dropdown, since the roster is a large option list.
-- **Event wizard's admin "On behalf of" step** — a `single` + `allowEmptyConfirm`
-  `UserSelectModal` over the same per-department user sections as the invitees
-  picker (users only, no Departments section); blank = the acting user. Replaced the
-  wizard's last remaining `searchable` dropdown.
 - **UserForm "Department access" add row** — a `single` `UserSelectModal` (flat
   Departments section from the addable list) stages the department to grant; the
   role select + Add button below commit it.
@@ -122,8 +114,7 @@ separate role + Add commit:
 
 | Consumer | Field | Notes |
 | -------- | ----- | ----- |
-| Event wizard (Invited Attendees step) | `PickerField` | creator badge `brand`, departments `accent`, explanatory description |
-| Event wizard (admin "On behalf of" step) | `PickerField` | `single` + `allowEmptyConfirm`; "Yourself" empty text; field error renders below |
+| Event wizard (Participants step) | `PickerField` | departments `accent`, explanatory description (participants can edit; a fresh create pre-selects the acting user; an event must keep ≥1 participant/department) |
 | KAH group form | `PickerField` | `Members (N)` count, "Choose" trigger, "No members selected." empty; field error renders below |
 | Double Booking admin target | `PickerField` | single `brand` chip "Name · Department"; self-scan shows the empty text instead |
 | Department create/edit (Parent department) | `PickerField` | summary always shows the current option incl. "No parent (top level)" |

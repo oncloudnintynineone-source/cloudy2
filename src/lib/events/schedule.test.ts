@@ -27,6 +27,7 @@ function makeEvent(overrides: Partial<CalendarEvent["payload"]> = {}): CalendarE
     outOfCamp: overrides.outOfCamp ?? false,
     overseas: overrides.overseas ?? false,
     pinned: overrides.pinned ?? false,
+    ownerOnlyEdits: overrides.ownerOnlyEdits ?? false,
     location: overrides.location ?? "",
     external: overrides.external ?? false,
   };
@@ -50,19 +51,17 @@ describe("departmentRowId / isDepartmentRowId", () => {
 });
 
 describe("rowsForEvent", () => {
-  it("returns only the creator row when no one is tagged", () => {
-    expect(rowsForEvent({ creatorId: "u1", userIds: [], departmentIds: [] })).toEqual(["u1"]);
+  it("returns no row for a creator-only event (organizer is not an attendee)", () => {
+    expect(rowsForEvent({ creatorId: "u1", userIds: [], departmentIds: [] })).toEqual([]);
   });
 
-  it("combines creator, users, and departments", () => {
-    expect(rowsForEvent({ creatorId: "u1", userIds: ["u2"], departmentIds: ["cal-9"] })).toEqual([
-      "u1",
-      "u2",
-      "dept:cal-9",
-    ]);
+  it("combines self-invited users and departments", () => {
+    expect(
+      rowsForEvent({ creatorId: "u1", userIds: ["u2", "u1"], departmentIds: ["cal-9"] }),
+    ).toEqual(["u2", "u1", "dept:cal-9"]);
   });
 
-  it("dedupes when the creator is also tagged", () => {
+  it("dedupes a creator who is also tagged", () => {
     expect(
       rowsForEvent({ creatorId: "u1", userIds: ["u1", "u2"], departmentIds: ["cal-9", "cal-9"] }),
     ).toEqual(["u1", "u2", "dept:cal-9"]);
@@ -76,7 +75,11 @@ describe("rowsForEvent", () => {
 describe("expandScheduleEvents", () => {
   it("expands one event per row with unique ids", () => {
     const expanded = expandScheduleEvents([
-      makeEvent({ creatorId: "u1", inviteeUserIds: ["u2"], inviteeDepartmentIds: ["cal-9"] }),
+      makeEvent({
+        creatorId: "u1",
+        inviteeUserIds: ["u1", "u2"],
+        inviteeDepartmentIds: ["cal-9"],
+      }),
     ]);
     expect(expanded).toHaveLength(3);
     expect(expanded.map((event) => event.resourceId)).toEqual(["u1", "u2", "dept:cal-9"]);
@@ -84,8 +87,9 @@ describe("expandScheduleEvents", () => {
     expect(new Set(expanded.map((event) => event.id)).size).toBe(3);
   });
 
-  it("drops events linked to no one", () => {
+  it("drops events linked to no one (incl. a creator-only event)", () => {
     expect(expandScheduleEvents([makeEvent()])).toEqual([]);
+    expect(expandScheduleEvents([makeEvent({ creatorId: "u1" })])).toEqual([]);
   });
 
   it("pins an external event with no people to its calendar's department row", () => {
@@ -97,7 +101,7 @@ describe("expandScheduleEvents", () => {
 
   it("keeps an external event's people rows when it has any", () => {
     const expanded = expandScheduleEvents([
-      makeEvent({ external: true, creatorId: "u1", inviteeUserIds: ["u2"] }),
+      makeEvent({ external: true, creatorId: "u1", inviteeUserIds: ["u1", "u2"] }),
     ]);
     expect(expanded.map((event) => event.resourceId)).toEqual(["u1", "u2"]);
   });

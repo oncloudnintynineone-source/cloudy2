@@ -26,9 +26,9 @@ export interface EventTitleInput {
   description: string;
   /** Event type name + shortname, or null when the event has none. */
   eventType: EventTitleType | null;
-  /** Invited personnel, in form order. */
+  /** Participant names, in form order (the organizer only when self-invited). */
   people: EventTitlePerson[];
-  /** Invited department names, in form order. */
+  /** Tagged department names, in form order. */
   departments: string[];
   /** The event's location; "" when unset (out-of-camp events are always ""). */
   location: string;

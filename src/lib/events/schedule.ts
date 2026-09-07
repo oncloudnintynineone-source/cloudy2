@@ -55,8 +55,10 @@ export function isDepartmentRowId(id: string | number): boolean {
 }
 
 /**
- * Row keys an event must appear in: the creator's row (when known) plus every
- * tagged user and tagged department, deduped.
+ * Row keys an event must appear in: every tagged user plus one department row
+ * per tagged department, deduped. The organizer gets a personal row only when
+ * they tagged themselves as an attendee — an organizer who is not attending
+ * (not self-invited and outside any tagged department) has no row.
  */
 export function rowsForEvent(people: {
   creatorId: string | null;
@@ -64,9 +66,6 @@ export function rowsForEvent(people: {
   departmentIds: string[];
 }): string[] {
   const rows = new Set<string>();
-  if (people.creatorId) {
-    rows.add(people.creatorId);
-  }
   for (const userId of people.userIds) {
     rows.add(userId);
   }

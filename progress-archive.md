@@ -152,6 +152,10 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
 - [1.184 Cold-start readiness indicator (amber pulse â†’ green confirm, once per launch)](#1184-cold-start-readiness-indicator-amber-pulse--green-confirm-once-per-launch)
 - [1.191 Per-type locked location (skip the wizard Location step)](#1191-per-type-locked-location-skip-the-wizard-location-step)
 - [1.191-2 Per-type hidden Location step â€” redesign (supersedes 1.191)](#1191-2-per-type-hidden-location-step--redesign-supersedes-1191)
+- [1.192 Event organizer & collaborative editing rework (creator fixed, invitees/members may edit, owner-only lock)](#1192-event-organizer--collaborative-editing-rework-creator-fixed-inviteesmembers-may-edit-owner-only-lock)
+- [1.193 Event wizard "Other settings" step + Participants rename](#1193-event-wizard-other-settings-step--participants-rename)
+- [1.194 Participants "Add myself" toggle + owner-lock wording](#1194-participants-add-myself-toggle--owner-lock-wording)
+- [1.195 "(You)" participant highlight](#1195-you-participant-highlight)
 
 ## 1.1 Status
 
@@ -7680,3 +7684,86 @@ event-type form + validation â†’ actions + audit payload ("Show location" label 
 location â†’ the Show location checkbox becomes usable; turn it off and create/edit an
 event of the type (no Location step, step count shrinks); re-show the step / widen the
 matrix and confirm normal behavior.
+
+## 1.192 Event organizer & collaborative editing rework (creator fixed, invitees/members may edit, owner-only lock)
+
+Changes who owns/edits an event and who counts as "on" it. The organizer (creator) is now a **fixed, separate** concept from the invitees; creation "on behalf of" is gone.
+
+**Model**
+- **Organizer (createdBy)**: always the acting session user on create (the admin "On behalf of" wizard step is removed); immutable on edit ï¿½ update re-resolves the organizer from the event itself (ef.creatorId, adopting the acting user on a creator-less legacy/external first edit) and ignores any submitted creatorId. Admins can no longer create or reassign events to another user.
+- **Attendees (inviteeUsers + inviteeDepartments)**: exactly what was picked ï¿½ the organizer is **no longer auto-merged** in (server withCreatorInvited removed; wizard no longer seeds/locks the self chip; mergeInviteeSelection drops the creator-lock). To attend, the organizer selects their own name. Existing events keep their stored organizer-in-attendees, and editing prefills it (deselectable).
+- **Owner-only lock (new notes flag ownerOnlyEdits, written only when true)**: when set, only the organizer (and admins) may edit/delete/duplicate. Toggle shown on the wizard's review step, editable only by the organizer or an admin; other editors keep the stored value (server clamps via canChangeLock). Read back via parseEventOwnerOnlyEdits ? CalendarEventPayload.ownerOnlyEdits ? EventRef.
+- **Modify rights (edit/delete/duplicate)** = modifyGuard (guards.ts, replaces creatorGuard/ownershipGuard): admins always; otherwise blocked when ownerOnlyEdits; then organizer, individually tagged attendees, and **active members of tagged departments** may act. Creator-less people-less (legacy/external) events stay admin-only. Memberships resolve per action from the active roster (ctiveMembershipsByDepartment in roster queries).
+- **Occupancy decoupled**: an event occupies only attendees + active members of tagged departments. The organizer is no longer always-busy. Updated: owsForEvent (no unconditional creator row), clashes usyUsersOfEvent/candidateUsers, KAH usyKahsIn/usyDaysInRange, eventMatchesUserFilter (Myself filter + amber "mine" = occupancy only), display-title {people} (stored attendees), Parade State involvedUserIds. Hidden-invitee event types keep the organizer as sole attendee (server esolveEventFields collapse unchanged). External/people-less events still occupy their own calendar's members.
+- Client permission gate: EventDetail buttons now use an isAdmin/owner/lock/attendee/department-membership predicate fed by myActiveDepartmentIds; wizard review shows an Organizer row + lock switch; organizer is kept in the Invited Attendees display only when self-invited.
+
+**Verified**: pnpm typecheck, pnpm lint, pnpm test (992 pass) ï¿½ guards/validate/userSelect/schedule/clashes/weekMatrix/userFilter/targets tests rewritten for the new semantics.
+
+## 1.193 Event wizard "Other settings" step + Participants rename
+
+Pure wizard/UI copy change ï¿½ no behavior, logic, notes format, or permissions touched.
+
+- **New "Other settings" step** (EventForm.tsx, step id settings): always present
+  between Remarks and Review, grouping the **"Pin this event"** switch (moved off the
+  invitees/Participants step) and the **"Only the organizer can edit this event"**
+  switch (moved off the review step, still shown only for the organizer/admin via
+  canSetOwnerLock). Because it is always present, invitees-hidden event types can now
+  be pinned and locked too. Review stays read-only and drops its redundant "Pinned"
+  summary row.
+- **"Invited Attendees" ? "Participants"** everywhere user-facing: wizard picker label,
+  step-chip label, review row, EventDetail section header, audit detail labels and
+  count labels (udit/format.ts), event-type settings toggle ("Show participants in
+  the event form") and table badge ("No participants"), and the webhook payload guide
+  description. Internal identifiers and types (inviteeUserIds, invitees,
+  showInvitees, notes fields) are unchanged.
+- Docs (event-lifecycle.md step table/details, user-guide.md, dmin-guide.md,
+  pinned-events.md, event-clashes.md, user-picker.md, AGENTS.md) updated.
+
+**Verified**: pnpm typecheck, pnpm lint, pnpm test (992 pass; only the
+udit/format.test.ts label assertions were updated).
+
+## 1.194 Participants "Add myself" toggle + owner-lock wording
+
+Pure wizard copy/UX change ï¿½ no behavior, logic, notes format, or permissions touched.
+
+- **Participants step "Add myself / Remove myself"**: below the participant badges the
+  wizard now renders a compact subtle brand button that self-invites the acting user
+  without opening the badge dialog. Pure helper 	oggleInviteeUser(invitees, userId)
+  (userSelect.ts, unit-tested) drops the user:<id> entry when present, appends it
+  otherwise, and never touches departments or other users. Shown only while the acting
+  user is representable in the picker (peopleById[currentUser]); the section
+  description now points at the shortcut. Everything downstream (badges, {people}
+  title tokens, review rows, clash/KAH occupancy) flows from the existing
+  effectiveInvitees/selectedInvitees derivations.
+- **Per-actor owner-lock switch wording** (Other settings step): reads **"Only I can
+  edit this event"** when the acting user is the event's organizer (create flow and own
+  events); an **admin editing someone else's event** still sees **"Only the organizer
+  can edit this event"** ï¿½ accurate, since the lock always binds to the event's
+  organizer and admins bypass it. guards.ts rejection message and the EventDetail
+  "Organizer-only editing" badge keep the organizer wording (viewer-accurate, and the
+  modal already shows the person under Owner).
+
+**Verified**: pnpm typecheck, pnpm lint, pnpm test (new 	oggleInviteeUser
+tests; 992+ pass).
+
+## 1.195 "(You)" participant highlight
+
+Pure presentational change — no behavior, logic, notes format, or permissions touched.
+
+- **Where**: the signed-in user's own badge is now marked wherever participants are
+  listed — the event wizard's Participants step badges, the wizard Review step's
+  Participants row, and the EventDetail modal's Participants list. Department-tag-only
+  coverage produces no personal badge, so there is nothing to mark.
+- **Look**: shared .c2-my-badge treatment (globals.css) reusing the app's amber
+  "mine" language — cream fill via --c2-my-row-tint (theme-aware light/dark) plus an
+  ccent-6 inset ring and a "(You)" suffix on the label. The rule is double-scoped
+  (.mantine-Badge-root.c2-my-badge) to beat Mantine's runtime-injected styles and
+  still apply inside modal portals (no .app-shell-root ancestor there).
+- **Plumbing**: PickerBadgeItem gains an optional self flag (PickerField.tsx) —
+  self badges ignore their color and render ring+tint+"(You)"; other picker consumers
+  (KAH members, Double Booking target, filter summaries) don't set it and are
+  untouched. EventForm's review People and EventDetail's Participants switched from
+  name-deduped string lists to id-keyed { id, name } lists so the current user is
+  detected reliably even when display names collide across users.
+
+**Verified**: pnpm typecheck, pnpm lint, pnpm test.

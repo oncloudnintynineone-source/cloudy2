@@ -47,19 +47,10 @@ export function resolveDisplayTitles(
     const viewTemplate = assignedId ? templateMap.get(assignedId) : undefined;
     const template = viewTemplate ?? opts.masterTemplate;
 
-    const peopleIds: string[] = [];
-    const seen = new Set<string>();
-    if (event.payload.creatorId && !seen.has(event.payload.creatorId)) {
-      seen.add(event.payload.creatorId);
-      peopleIds.push(event.payload.creatorId);
-    }
-    for (const uid of event.payload.inviteeUserIds) {
-      if (!seen.has(uid)) {
-        seen.add(uid);
-        peopleIds.push(uid);
-      }
-    }
-    const people = peopleIds.flatMap((id) => {
+    // People for the {people} token = the stored attendees exactly: the
+    // organizer is shown only when they tagged themselves (legacy events that
+    // auto-invited the organizer still carry them in `inviteeUserIds`).
+    const people = event.payload.inviteeUserIds.flatMap((id) => {
       const user = opts.usersById.get(id);
       if (!user) return [];
       return [

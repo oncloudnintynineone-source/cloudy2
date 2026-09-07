@@ -135,14 +135,10 @@ function eventCoversDay(event: CalendarEvent, date: string): boolean {
 }
 
 function involvedUserIds(event: ParadeStateEvent): string[] {
-  const ids = new Set<string>();
-  if (event.creatorId) {
-    ids.add(event.creatorId);
-  }
-  for (const id of event.inviteeUserIds) {
-    ids.add(id);
-  }
-  return [...ids];
+  // The attendees only: an organizer who is not attending (not self-invited,
+  // outside any tagged department) is not counted on their own out-of-camp
+  // listing — they merely own the event.
+  return [...new Set(event.inviteeUserIds)];
 }
 
 function sortEvents(events: ParadeStateEvent[]): ParadeStateEvent[] {

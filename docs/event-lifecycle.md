@@ -77,11 +77,11 @@ pipeline solves:
 ```mermaid
 flowchart LR
     subgraph FORM["EventForm (client wizard)"]
-        W["staged steps: type / time / location / invitees / remarks<br/>(+ on behalf of for admins) → review"]
+        W["staged steps: type / time / location / participants / remarks<br/>/ other settings → review"]
         P["calendar preview on the review step"]
     end
     subgraph GUARD["Server action (actions.ts)"]
-        G["creatorGuard / ownershipGuard"]
+        G["modifyGuard (edit/delete)<br/>organizer resolution (create/update)"]
         V["validateEventForm"]
         T["resolveTargetCalendars"]
         RT["resolveEventTime"]
@@ -112,24 +112,25 @@ the pure notes parsers over each `GcalEventItem` and produces a `CalendarEvent` 
 The form is `EventForm` (`src/app/(protected)/dashboard/EventForm.tsx`), rendered in a
 floating `size="sm"` modal from `DashboardView.tsx:1509` and minimizable into a floating
 bubble that keeps its draft. It is a **staged walk** — one input group visible at a
-time, built by role via `buildSteps` (`EventForm.tsx:118-125`): regular users get six
-steps, admins seven ("On behalf of" sits between Remarks and Review):
+time, built via `buildSteps` (`EventForm.tsx`); every role walks the same steps
+(no admin-only extras — there is no "On behalf of" creator step):
 
-| # | Step       | Who         | Gate before advancing                                           |
-| - | ---------- | ----------- | --------------------------------------------------------------- |
-| 1 | `type`     | all         | custom: a type must be selected (`EventForm.tsx:308-313`)       |
-| 2 | `time`     | all         | `start`, `end`, `startAmPm`, `endAmPm` validate cleanly         |
-| 3 | `location` | all         | none (policy clamping is live, §1.9)                            |
-| 4 | `invitees` | all         | none                                                            |
-| 5 | `remarks`  | all         | none                                                            |
-| 6 | `creator`  | admins only | none — optional; blank means the acting user (§1.5.2)           |
-| 7 | `review`   | all         | submit only (last step) — read-only summary of everything entered |
+| # | Step            | Who | Gate before advancing                                             |
+| - | --------------- | --- | ----------------------------------------------------------------- |
+| 1 | `type`          | all | custom: a type must be selected                                   |
+| 2 | `time`          | all | `start`, `end`, `startAmPm`, `endAmPm` validate cleanly           |
+| 3 | `location`      | all | none (policy clamping is live, §1.9)                              |
+| 4 | `invitees` (Participants) | all | none                                                      |
+| 5 | `remarks`       | all | none                                                              |
+| 6 | `settings` (Other settings) | all | none — the "Pin this event" + organizer-only edit-lock switches |
+| 7 | `review`        | all | submit only (last step) — read-only summary of everything entered |
 
 The `invitees`, `remarks`, and `location` steps drop out per the selected type's config
 (§1.9.1): `show_location` off removes the Location step entirely — otherwise it always
 stays, and an exclusively in-camp type just collapses its category selector to one disabled
-segment while still recording an optional specific place. An untyped event walks all of
-them.
+segment while still recording an optional specific place. The `settings` step is always
+present (so even invitees-hidden types can be pinned and locked); an untyped event walks
+the full set of them.
 
 Mechanics worth knowing:
 
@@ -157,14 +158,20 @@ Mechanics worth knowing:
   and the Next/submit buttons use distinct React keys so a step-advance click can never
   activate a leftover `type="submit"` node (`EventForm.tsx:852, 862`).
 - **Server error → step**: a failed submit maps the server's `field` back onto the owning
-  step via `STEP_BY_FIELD` (`EventForm.tsx:127-134`, including `creatorId` → `creator`)
-  and lands the user there (`EventForm.tsx:477`).
-- **Admin "On behalf of"**: its own step after Remarks rather than a select pinned above
-  every step; **optional** — a blank creator means the acting admin themselves (the
-  server defaults it via `withSelfCreator`, §1.5.2), committed through the badge
-  picker's `allowEmptyConfirm`. Picking a user sets `creatorId` and keeps the invitee
-  chips in sync (the creator is always an invitee). Regular users have their own id
-  locked in as `creatorId`.
+  step via `STEP_BY_FIELD` (`EventForm.tsx`) and lands the user there.
+- **Organizer is always the acting user**: there is no admin "On behalf of" step — every
+  event's organizer (`creatorId` → notes `createdBy`) is the session user, fixed at
+  creation and never changed by an edit (the server re-derives it from the event itself,
+  §1.5.2). Review always shows an **Organizer** row (the stored organizer, or "You" on a
+  new/legacy-adopting event).
+- **Other settings**: the always-present "settings" step groups the two switches —
+  **Pin this event** (sets the notes `pinned` flag, §Pinned Events) and the
+  **organizer-only edit lock** — a switch shown only when the acting user is the
+  organizer or an admin that sets the notes `ownerOnlyEdits` flag. It reads
+  **"Only I can edit this event"** to the organizer (an admin editing someone else's
+  event sees **"Only the organizer can edit this event"** — the lock always binds to
+  the event's organizer). Attendees/editors who are not the organizer never see the
+  lock and cannot change it (§1.5.1).
 
 ### 1.4.1 Step details
 
@@ -193,32 +200,34 @@ Mechanics worth knowing:
   `clampOutOfCamp` pair (`EventForm.tsx:365-370`), never the raw form value. The whole
   step is skipped when the type hides it (§1.9.2) — events of such a type save with the
   sole allowed category and no specific location.
-- **Invited Attendees** (`EventForm.tsx:658-679`): a `NoKeyboardMultiSelect` with two
-  groups — Departments (`dept:<id>` values) and Invited Attendees (`user:<id>` values).
-  The creator's chip is
-  **locked** and re-added on every change (`lockedUserValue`, `EventForm.tsx:173,
-  669`) so it can never be deselected. The value prefixes are split into
+- **Participants** (`EventForm.tsx`): a `PickerField` + `UserSelectModal`
+  (free multi-select) with two groups — Departments (`dept:<id>` values) and
+  Participants (`user:<id>` values). A fresh create pre-selects the acting user as a
+  participant by default (deselectable) — to attend (get a personal row, be counted
+  busy, appear in `{people}`), the organizer must stay tagged, and every event of a type
+  that shows this step must keep at least one person or department (both client and
+  server reject an empty selection).
+  A compact **Add myself / Remove myself** toggle below the badges (`toggleInviteeUser`,
+  `userSelect.ts`) self-invites the acting user without opening the dialog. The current
+  user's own badge (when self-invited) renders with the amber "mine" treatment — cream
+  tint + `accent-6` ring + a **(You)** suffix (`.c2-my-badge`, `globals.css`) — marking
+  them apart from the other participants. The value
+  prefixes are split into
   `inviteeUserIds` / `inviteeDepartments` on submit (`splitInvitees`,
-  `EventForm.tsx:137-148`).
+  `EventForm.tsx`).
 - **Remarks** (`EventForm.tsx:681-697`): an autosize `Textarea` bound to the form's
   `title` field — the **raw description**. It is optional; the calendar title comes from
   the template (§1.8).
-- **On behalf of** (admins only): the badge-picker step entered as the last input
-  before review (see §1.4) — a `single` + `allowEmptyConfirm` `UserSelectModal` over
-  the same per-department user sections as the Invited Attendees picker (users only,
-  no Departments section), summarized by a `PickerField`. Optional — blank = acting
-  user; picking a user keeps the invitee chips in sync.
-- **Review** (`EventForm.tsx:739-848`): the read-only final page. It folds in the
+- **Other settings** (`EventForm.tsx`): the Pin + organizer-only-lock switches (§1.4).
+- **Review** (`EventForm.tsx`): the read-only final page. It folds in the
   calendar preview Paper plus When / Location (In/Out-of-Camp badge + destination) /
-  Event Type / On-behalf-of / Invited Attendees / Departments / Remarks rows, all
-  resolved from the same effective state the submit payload uses (`reviewPeople`,
-  `reviewDepartments`, `creatorName`, `whenText`, `EventForm.tsx:425-456`).
-  `reviewPeople` derives from the effective invitee list **minus the effective owner**
-  (picked "On behalf of" user, or the acting user when blank), so the Invited
-  Attendees row never duplicates the owner — who is badged in the On-behalf-of row for
-   admins and is the acting user themselves otherwise — so what is reviewed is exactly
-   what gets saved. There are no per-section edit links on the review page itself, but
-   the bottom Stepper (§1.4) jumps straight back to any earlier step without walking.
+  Event Type / Organizer / Participants / Departments / Remarks rows, all
+  resolved from the same effective state the submit payload uses. The Participants
+  row is the full attendee selection (an organizer who tagged themselves appears both as
+  Organizer and among the participants — the current user's name there gets the same
+  amber `(You)` badge as on the Participants step). There are no per-section edit links on the review
+  page itself, but the bottom Stepper (§1.4) jumps straight back to any earlier step
+  without walking.
 
 ### 1.4.2 Deep links back to the event
 
@@ -226,8 +235,8 @@ Google Calendar events created by the app carry an `Edit: <url>` line in their n
 (§1.7.3) deep-linking back to
 `/dashboard?date=<event day>&event=<group id>&_eventCal=<calendar id>` — the
 **details** deep link (same shape as Pinned Events / event search). The dashboard
-auto-opens the event's details modal; Edit is one tap inside it (per the usual
-`isAdmin || creator` rule). `_eventCal` names the tapped copy's calendar so the
+auto-opens the event's details modal; Edit is one tap inside it (per the event's
+edit rights, §1.5.1). `_eventCal` names the tapped copy's calendar so the
 fetch always includes it even when the arriving user's filters exclude it (it
 joins the fetch set only, never the filter selection). The event search modal's
 "Edit" action instead deep-links `?edit=<group id>`, which opens the edit form
@@ -258,10 +267,14 @@ directly.
     end: `end = subOneDay(event.end) 00:00:00` (`EventForm.tsx:186`, §1.11.2).
   - Out of Camp + location re-clamped against the type's *current* policy, in case it
     tightened since the event was last edited (`:169-175`).
-  - Invitees re-prefixed as `dept:`/`user:` values; `creatorId` from the payload.
-- **New events** (`EventForm.tsx:199-215`): start `09:00:00` / end `10:00:00` on
-  `defaultDate`, `range`, `creatorId` = own id for regular users (locked) / `""` for
-  admins, and the own `user:<id>` chip pre-added for non-admins.
+  - Invitees re-prefixed as `dept:`/`user:` values; `creatorId` = the stored organizer
+    (falling back to the acting user on a creator-less legacy event); `ownerOnlyEdits`
+    from the payload. Attendees are kept exactly as stored — a legacy event's organizer
+    who was auto-invited stays in the list, deselectable.
+- **New events** (`EventForm.tsx`): start `09:00:00` / end `10:00:00` on
+  `defaultDate`, `range`, `creatorId` = the acting session user (every role — no admin
+  on-behalf), `ownerOnlyEdits` = false, and no self chip: the attendee list starts
+  empty.
 
 ## 1.5 Guards & validation
 
@@ -271,37 +284,48 @@ Two layers, both pure and unit-tested.
 
 | Guard | Rule | Error |
 | ----- | ---- | ----- |
-| `creatorGuard(session, pendingCreatorId, originalCreatorId)` (`guards.ts:17`) | Admins pass. A non-admin may use an empty/self creator, or (on edit) *keep* the event's existing creator — never introduce a different one. | "You can only create or edit events for yourself" |
-| `ownershipGuard(session, creatorId)` (`guards.ts:39`) | Admins pass. A non-admin may only edit/delete events whose recorded creator is themselves; creator-less (legacy/external) events are admin-only. | "You can only edit or delete your own events" |
+| `modifyGuard(session, event, activeMembersByDepartment)` (`guards.ts`) | The single edit/delete/duplicate authorization (there is no "on behalf of" any more). Admins always pass, ignoring the owner lock. A creator-less event with no people (legacy/external) is admin-only. When the notes `ownerOnlyEdits` lock is set, only the organizer passes. Otherwise the organizer, every tagged attendee, and every **active member of each tagged department** (resolved from the active roster per action) pass. | "Only the organizer can edit this event" / "You can only edit or delete events you're on" / "You can only edit or delete events you created" |
+| `canChangeLock(session, creatorId)` (`guards.ts`) | Whether the actor may set/clear `ownerOnlyEdits`: the organizer or an admin. | — |
 
-Server application: `createEvent` runs `creatorGuard(..., null)`; `updateEvent` runs
-`ownershipGuard` then `creatorGuard(..., ref.creatorId)`; `deleteEvent` runs
-`ownershipGuard` (`actions.ts:349, 464-472, 627`). The client mirrors this in the event
-detail modal — Edit/Delete buttons render only for admins or the creator.
+Server application: `createEvent` needs no guard (every signed-in user may create; the
+organizer is the acting session user). `updateEvent` and `deleteEvent` run
+`modifyGuard` against the ref's stored people + lock (`actions.ts`). The client mirrors
+this in the event detail modal — Edit/Delete/Duplicate buttons render when the acting
+user is an admin, the organizer, a tagged attendee, or an active member of a tagged
+department (and only the organizer/admin when the lock is on).
 
 ### 1.5.2 Field validation (`src/lib/events/validate.ts`)
 
-`validateEventForm(values)` (`validate.ts:79`) checks, in order:
+`validateEventForm(values)` checks, in order:
 
 1. `full` events: both `startAmPm` and `endAmPm` required → "Select AM or PM".
 2. `start` / `end` required.
-3. **Cross-field chronology** via `sortKey` (`validate.ts:51-58`): for `full` events the
+3. **Cross-field chronology** via `sortKey`: for `full` events the
    half-of-day indicator is folded into the sort key (`YYYY-MM-DD AM` < `YYYY-MM-DD PM`,
    since the time part is always `00:00:00`), so same-day AM→PM is valid and PM→AM is not;
    for `range` the full naive strings compare. Violation → "End must be on or after
    start".
 
-Deliberately **not** validated: `title` (may be blank — the template produces the
-title), `eventType` (the wizard's custom gate covers it), invitee arrays, `outOfCamp`,
-and `location` (policy clamping covers it, §1.9).
+Deliberately **not** validated in `validateEventForm`: `title` (may be blank — the
+template produces the title), `eventType` (the wizard's custom gate covers it), invitee
+arrays, `ownerOnlyEdits`, `outOfCamp`, and `location` (policy clamping covers it, §1.9).
+An all-empty invitee selection is still rejected — after the effective-input
+resolution of the write chain (see docs/event-mutations.md) — so an event that would
+occupy no one never saves. Both `createEvent` and
+`updateEvent` refuse when the resolved attendees and tagged departments are both empty
+("Add at least one participant or department"); the wizard bounces the same submission
+back to the Participants step before any optimistic chip is staged.
 
-Creator normalization happens before the guards and this validation: `withSelfCreator`
-(`validate.ts:75`) defaults a blank/whitespace `creatorId` to the **session user** — "on
-behalf of" is optional, and a cleared select uniformly means the acting admin — then
-dedupes the creator into the invitee list via `withCreatorInvited` (`validate.ts:60`).
-Both actions apply it right after `requireSession()` (`actions.ts`, create & update), so
-targets (§1.6), the notes' `createdBy`, ownership, and the audit snapshot all see the
-effective creator even when the form submitted none.
+Organizer resolution happens before validation via `resolveEventAuthor`
+(`validate.ts`): on create the organizer is always the **acting session user**; on
+update it is the **stored organizer** (`ref.creatorId`, adopting the acting user on a
+creator-less legacy/external first edit) — a submitted `creatorId` is never trusted, so
+the organizer is fixed for the life of the event. The organizer is **not** merged into
+the invitee list. The `ownerOnlyEdits` lock is taken from the form only when
+`canChangeLock` is true (organizer/admin) and kept from the ref otherwise, so an
+attendee editing an event can never lock it. Create and update both apply it right
+after `requireSession()`, so targets (§1.6), the notes' `createdBy`, the lock, and the
+audit snapshot all see the effective organizer.
 
 ## 1.6 Target derivation
 
@@ -349,9 +373,10 @@ The machine-readable state lives in the Google event **description**; the visibl
 | `eventType` | set | The type's name |
 | `title` | always (even `""`) | The raw pre-template description; a blank value round-trips to distinguish "no text typed" from legacy |
 | `eventId` | always (app events) | The logical group id shared by all department copies |
-| `createdBy` | set | Creator user id (schedule view: the event's row always shows it) |
-| `inviteeUsers` | non-empty | Tagged user ids (the event shows in each user's row) |
-| `inviteeDepartments` | non-empty | Tagged department ids (shows in each department row) |
+| `createdBy` | set | Organizer user id — fixed at creation to the acting user; NOT an attendee unless they tagged themselves |
+| `inviteeUsers` | non-empty | Tagged attendee user ids (the event shows in each user's row; attendees can edit) |
+| `inviteeDepartments` | non-empty | Tagged department ids (shows in each department row; every active member can edit) |
+| `ownerOnlyEdits` | only when `true` | Organizer-only modification lock (admins bypass; absence = open to attendees/members) |
 | `timeOption` | set | `"range"` \| `"full"` \| `"half"` |
 | `startAmPm` / `endAmPm` | `half` only (legacy `full` events may still carry them) | Half-of-day indicators |
 | `outOfCamp` | **only when `true`** | Absence (legacy) or `false` means in camp; the destination itself goes to Google's `location` field, not the notes |
@@ -502,12 +527,13 @@ audit snapshots (`actions.ts:405, 574`), so the two can never diverge.
 `EventForm` shows a "Calendar preview" Paper with the exact title the server will write,
 recomputed from form values (`EventForm.tsx:397-421`). The Paper lives **on the review
 step only** (`EventForm.tsx:741-749`) — earlier steps render no preview card. The
-preview derives its people from the **effective** invitee list (`effectiveInvitees`,
-`EventForm.tsx:385-393`): the creator — picked user, or the acting admin when "On
-behalf of" is blank — is prepended first, mirroring the server's `withSelfCreator` +
-`withCreatorInvited` ordering exactly, so `{people}` / `{people:acronym}` tokens render
-identically to what gets written (the review step's Invited Attendees row uses the same
-list **minus the effective owner** — the title token deliberately keeps the owner).
+preview derives its people from the **effective** invitee list — exactly the stored
+attendees, with no organizer prepended (the organizer appears in `{people}` only when
+they tagged themselves; the sole exception is an invitees-hidden type, which keeps the
+organizer as its only attendee), mirroring what the server writes, so
+`{people}` / `{people:acronym}` tokens render identically to what gets written. The
+review step's Participants row uses the same full list (an organizer who
+self-invited appears both as Organizer and among the attendees).
 Note: the preview **re-implements** the fallback + AM/PM suffix rules inline rather than
 importing the pure `renderEventTitle` — kept in sync by convention, a drift risk to be
 aware of when changing the title rules.
@@ -587,7 +613,7 @@ event-type form, Settings → Event Types), all defaulting to `true`:
 - `event_types.show_remarks`: when off, the wizard's Remarks step is omitted and the
   server clears the description (`resolveEventFields` in `actions.ts`), so the title
   template's other tokens supply the text.
-- `event_types.show_invitees`: when off, the wizard's Invited Attendees step is omitted
+- `event_types.show_invitees`: when off, the wizard's Participants step is omitted
   and the server drops every attendee beyond the creator (`inviteeUserIds` collapses to
   the creator, `inviteeDepartments` empties), so `{people}` renders just the creator and
   the event lives only in the creator's department calendar. Because target derivation
@@ -748,8 +774,8 @@ writes, headers) is thin and lives in `actions.ts` / `queries.ts`.
 | `resolveTimeOption(s)`, `normalizeTimeOptions`, `naiveDatePart` / `naiveTimePart` / `joinDateTimeParts`, `amPmSuffix` | `events/timeOptions.ts` | `timeOptions.test.ts` |
 | `buildEventTypePickerSections` (grouped sections, empty-group skip, ungrouped last, dangling-id degrade), `sortEventTypeGroups`, `moveEventTypeGroupOrder` (§1.10) | `eventTypes/groups.ts` | `groups.test.ts` |
 | `absEventRange` (timed + all-day exclusive end), naive↔instant, `weekDays`, `monthsInRange`, `shiftMonth`, `monthRange`, `monthGridRows` | `events/datetime.ts` | `datetime.test.ts` |
-| `creatorGuard`, `ownershipGuard` | `events/guards.ts` | `guards.test.ts` |
-| `validateEventForm` (range time-part requirement, chronology), `withSelfCreator` / `withCreatorInvited` | `events/validate.ts` | `validate.test.ts` |
+| `modifyGuard`, `canChangeLock` | `events/guards.ts` | `guards.test.ts` |
+| `validateEventForm` (range time-part requirement, chronology), `resolveEventAuthor` | `events/validate.ts` | `validate.test.ts` |
 | `deriveTargetCalendarIds`, `diffEventTargets`, `dedupeEventsByGroupId`, `eventRefFromCalendarEvent` | `events/targets.ts` | `targets.test.ts` |
 
 I/O-bound (not unit-tested, per the repo convention): `actions.ts` (the server

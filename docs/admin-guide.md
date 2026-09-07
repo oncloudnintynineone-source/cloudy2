@@ -1,13 +1,14 @@
 # 1. Admin guide
 
-Everything an administrator does in Cloudy2: signing in as admin, acting on behalf of
-other users, and the eleven Settings tabs. Everyday usage is covered in
+Everything an administrator does in Cloudy2: signing in as admin, the admin-only
+settings, and admins' event privileges (they edit every event — there is no "on behalf
+of"). Everyday usage is covered in
 [`user-guide.md`](user-guide.md); implementation detail lives in the linked
 deep-dive docs.
 
 ## Table of contents
 
-- [1.1 Admin sign-in & acting on behalf](#11-admin-sign-in--acting-on-behalf)
+- [1.1 Admin sign-in & event privileges](#11-admin-sign-in--event-privileges)
 - [1.2 Users](#12-users)
 - [1.3 Departments](#13-departments)
 - [1.4 Event Types](#14-event-types)
@@ -20,7 +21,7 @@ deep-dive docs.
 - [1.11 Security](#111-security)
 - [1.12 Audit Log](#112-audit-log)
 
-## 1.1 Admin sign-in & acting on behalf
+## 1.1 Admin sign-in & event privileges
 
 - Sign in on the login page's single field. How the app routes what you type:
   - **Regular users** type their phone immediately followed by the login keyword
@@ -34,9 +35,13 @@ deep-dive docs.
     up the first admin users and as a break-glass account.
   The staff keyword can never yield an admin session.
 - Admins can see and edit **every** event in every department — including
-  **External** events created directly in Google Calendar.
-- In the event wizard, admins get an extra **Creator** step ("On behalf of") to
-  create an event as another user; that user becomes the event's owner.
+  **External** events created directly in Google Calendar. There is no "on behalf of":
+  an event's organizer is always the account that created it and never changes.
+- An event's **organizer** (owner) and any **participants / members of tagged
+  departments** can edit, delete, or duplicate it; the organizer can switch on
+  "Only I can edit this event" on the Other settings step (an admin editing someone
+  else's event sees it as "Only the organizer can edit this event"), which locks it to
+  the organizer — admins always bypass that lock.
 - Settings is admin-only: eleven tabs under `/settings`
   (Users, Departments, Event Types, Templates, Webhooks, Quick Links, KAH Groups,
   Banner, General, Security, Audit Log). Every settings mutation is audit-logged.
@@ -105,10 +110,11 @@ Settings → Event Types. Each type constrains the event wizard:
 - **Show Location** — off hides the wizard's Location step entirely, so creators
   never choose a category or type a specific place. Usable only when exactly one
   location is allowed in the matrix; such events always save in that sole category
-  (re-saving a legacy event of such a type converts it — like hidden invitees).
+   (re-saving a legacy event of such a type converts it — like hidden participants).
 - **Show Remarks** — off hides the Remarks step and clears the description.
-- **Show Invitees** — off hides the Invited Attendees step and collapses attendees
-  to the creator (re-saving such an event removes its other departments' copies).
+- **Show participants** — off hides the wizard's Participants step and collapses
+  participants to the organizer (re-saving such an event removes its other
+  departments' copies).
 - **Color** — optional Mantine palette color for the type's events (null = a
   deterministic default derived from the type name).
 

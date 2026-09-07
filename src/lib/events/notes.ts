@@ -27,12 +27,23 @@ export interface EventNotes {
   title?: string;
   /** Logical event group id; all linked copies (one per department calendar) share it. */
   eventId?: string;
-  /** Id of the user who created the event (schedule view: its row always shows the event). */
+  /**
+   * Id of the organizer who created the event. The organizer is fixed at
+   * creation and is NOT an attendee unless they tagged themselves in
+   * `inviteeUsers`. Shown as the Owner/Organizer of the event.
+   */
   createdBy?: string;
-  /** Ids of users tagged on the event (schedule view: the event shows in each of their rows). */
+  /** Ids of users tagged on the event (attendees; schedule view: the event shows in each of their rows). */
   inviteeUsers?: string[];
   /** Department (calendar) ids tagged on the event (schedule view: shows in each department row). */
   inviteeDepartments?: string[];
+  /**
+   * Organizer-only modification lock: when true, only the organizer (and
+   * admins) may edit/delete/duplicate this event — invitees and members of
+   * tagged departments cannot. Written only when true — absence or false
+   * means anyone on the event can edit.
+   */
+  ownerOnlyEdits?: boolean;
   /**
    * Whether the event is explicitly marked as pinned (shown in the Pinned
    * Events panel). Written only when true — absence (legacy events) or false
@@ -328,4 +339,9 @@ export function parseEventOverseas(description: string): boolean {
 /** Extract the pinned flag from the notes block; false when absent (legacy). */
 export function parseEventPinned(description: string): boolean {
   return parseEventNotes(description)?.pinned === true;
+}
+
+/** Extract the organizer-only edit lock from the notes block; false when absent. */
+export function parseEventOwnerOnlyEdits(description: string): boolean {
+  return parseEventNotes(description)?.ownerOnlyEdits === true;
 }

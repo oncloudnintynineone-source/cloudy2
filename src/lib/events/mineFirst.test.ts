@@ -27,6 +27,7 @@ function makeEvent(id: string, start: string, end: string): CalendarEvent {
       outOfCamp: false,
       overseas: false,
       pinned: false,
+      ownerOnlyEdits: false,
       location: "",
       external: false,
     },

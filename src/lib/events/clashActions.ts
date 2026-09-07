@@ -13,8 +13,8 @@ import {
   findUserClashGroups,
   type ClashCandidateInput,
 } from "@/lib/events/clashes";
-import { listUsers } from "@/lib/roster/queries";
-import { ownershipGuard } from "@/lib/events/guards";
+import { activeMembershipsByDepartment, listUsers } from "@/lib/roster/queries";
+import { canChangeLock, modifyGuard } from "@/lib/events/guards";
 import {
   buildEventTitleContext,
   resolveEffectiveInput,
@@ -23,8 +23,8 @@ import {
 import type { EventRef } from "@/lib/events/targets";
 import {
   clampEventEnd,
+  resolveEventAuthor,
   validateEventForm,
-  withSelfCreator,
   type EventFormValues,
 } from "@/lib/events/validate";
 import { requireSession } from "@/lib/session";
@@ -32,7 +32,7 @@ import { requireSession } from "@/lib/session";
 /**
  * Read-only, pre-submit clash advisory for the event wizard's review step
  * (see docs/event-clashes.md). It re-resolves the candidate exactly like a
- * create/update would (same `withSelfCreator` → validation → shared
+ * create/update would (same organizer resolution → validation → shared
  * resolution chain → target derivation), reads the overlapping events off the
  * month cache, and reports which of the candidate's people would be
  * double-booked. It never writes, never audits, never invalidates a cache.
@@ -106,12 +106,32 @@ export async function checkEventClashes(
 ): Promise<EventClashCheckResult> {
   const session = await requireSession();
   try {
-    const normalized = clampEventEnd(withSelfCreator(request.values, session.user.id));
+    const normalized = clampEventEnd(
+      resolveEventAuthor(
+        request.values,
+        session.user.id,
+        request.ref,
+        canChangeLock(session, request.ref?.creatorId ?? null),
+      ),
+    );
 
-    // Editing: mirror updateEvent's ownership guard so the advisory is not
+    // Editing: mirror updateEvent's modification guard so the advisory is not
     // richer than the mutation the actor is allowed to perform.
-    if (request.ref && ownershipGuard(session, request.ref.creatorId)) {
-      return { ok: true, checkedPeople: 0, clashes: [], currentUserId: session.user.id };
+    if (request.ref) {
+      const memberships = await activeMembershipsByDepartment(request.ref.inviteeDepartmentIds);
+      const guardError = modifyGuard(
+        session,
+        {
+          creatorId: request.ref.creatorId,
+          inviteeUserIds: request.ref.inviteeUserIds,
+          inviteeDepartmentIds: request.ref.inviteeDepartmentIds,
+          ownerOnlyEdits: request.ref.ownerOnlyEdits,
+        },
+        memberships,
+      );
+      if (guardError) {
+        return { ok: true, checkedPeople: 0, clashes: [], currentUserId: session.user.id };
+      }
     }
 
     const errors = validateEventForm(normalized);

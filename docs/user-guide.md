@@ -99,7 +99,10 @@ badge; admins can still edit them.
 
 ### 1.4.1 Creating an event
 
-Tap the **+** button, then walk the wizard:
+Tap the **+** button, then walk the wizard. You are the event's **organizer**
+(owner) — it is always created as you; there is no "create on behalf of". You are
+**not** added to the participants automatically, so select your own name if you will
+attend:
 
 1. **Type** — the event type, listed under its category (types without a category
    appear at the bottom under "Ungrouped"); each type can restrict the steps below.
@@ -110,20 +113,29 @@ Tap the **+** button, then walk the wizard:
    events are what KAH groups count as "away". Some event types **hide the Location
    step** (set by your admin, only for types restricted to one location) — for those
    this step is skipped and the event is saved in that single category automatically.
-4. **Invited Attendees** — invite individual users and/or tag whole departments;
-   the event appears on everyone's calendars. The **Pin this event** switch puts it
-   in the Pinned Events panel (§1.5).
+4. **Participants** — invite individual users and/or tag whole departments; the event
+   appears on everyone's calendars. Participants (and members of a tagged department)
+   can edit this event too. You're pre-selected by default — remove yourself only if you
+   won't take part (an event must keep at least one participant or department). Your own
+   badge carries an amber ring and a **(You)** marker wherever participants are listed —
+   on this step, the review, and the event's details.
 5. **Remarks** — the free-text description.
-6. **Review** — a summary with a live calendar-title preview, then Create.
+6. **Other settings** — the **Pin this event** switch (puts the event in the Pinned
+   Events panel, §1.5) and, when you're the organizer, "Only I can edit this event"
+   (locks editing to you; admins always keep it).
+7. **Review** — a summary with a live calendar-title preview, then Create.
 
 Tapping outside the wizard minimizes it to a floating bubble — your draft survives
 until you resume or discard it.
 
 ### 1.4.2 Viewing and editing
 
-Tap any event for its details. If you created it (or you're an admin) you get
-**Edit**, **Duplicate**, and **Delete**. Editing prefills the wizard with the
-original details; deleting asks for confirmation and removes every department copy.
+Tap any event for its details. If you are its **organizer**, one of its
+**participants**, or a **member of a department it tags** — or an admin — you get
+**Edit**, **Duplicate**, and **Delete**. (If the organizer locked the event to
+themselves, only they and admins can do these.) Editing prefills the wizard with the
+original details and always keeps the original organizer; deleting asks for
+confirmation and removes every department copy.
 
 ## 1.5 Pinned events
 
@@ -134,7 +146,8 @@ to open a panel listing every explicitly-pinned upcoming event (today → 3 mont
 out, all departments, ignoring your current filters). Tap one there to jump
 straight to it on the calendar and open its details.
 
-Events get pinned through the **Pin this event** switch in the wizard (§1.4.1).
+Events get pinned through the **Pin this event** switch on the wizard's Other
+settings step (§1.4.1).
 The ticker and its count refresh after every create/update/delete; with nothing
 pinned the pill shows a plain "Pinned events" label.
 

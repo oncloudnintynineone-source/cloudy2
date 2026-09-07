@@ -168,9 +168,10 @@ the action will write and what the read path maps back (`mapCalendarItem`,
 `src/lib/events/queries.ts`):
 
 - **Normalization parity.** It re-runs the same pure client chain the action re-runs on the
-  server: `withSelfCreator` (blank creator → acting user, creator always invited) then
-  `clampEventEnd` (`src/lib/events/validate.ts`), so creator defaulting and end clamping
-  can never diverge.
+  server: the wizard already carries the fixed organizer (acting user on create/duplicate,
+  the stored organizer on edit), defaulting a blank organizer to the acting user, then
+  `clampEventEnd` (`src/lib/events/validate.ts`) — no creator→invitee merge, so the
+  stand-in's attendees match what saves.
 - **Naive time parity.** Timed events keep their wall-clock `start`/`end`. All-day
   (full/half) events are stored midnight-valued with an **exclusive end** — the day after
   the inclusive last day the form stores — mirroring `absEventRange` on write and

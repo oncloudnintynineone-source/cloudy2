@@ -37,10 +37,15 @@ interface EventDetailProps {
   calendarNames: Record<string, string>;
   /** Bounding rect of the clicked event chip; the modal grows out of / shrinks back into it. */
   originRect: Rect | null;
-  /** Id of the currently signed-in user; edit/delete are limited to the creator unless admin. */
+  /** Id of the currently signed-in user; editing also opens to attendees/members. */
   currentUserId: string;
-  /** Admins may edit/delete any event. */
+  /** Admins may edit/delete any event and always bypass the organizer lock. */
   isAdmin: boolean;
+  /**
+   * Department (calendar) ids the current user actively belongs to, for the
+   * "members of a tagged department may edit" check (mirrors the server guard).
+   */
+  myActiveDepartmentIds: string[];
 }
 
 export function EventDetail({
@@ -57,6 +62,7 @@ export function EventDetail({
   originRect,
   currentUserId,
   isAdmin,
+  myActiveDepartmentIds,
 }: EventDetailProps) {
   const [confirmOpen, { open, close }] = useDisclosure(false);
   const [deleting, setDeleting] = useState(false);
@@ -100,12 +106,15 @@ export function EventDetail({
   const payload = showEvent?.payload;
 
   const ownerName = payload && payload.creatorId ? (peopleNames[payload.creatorId] ?? null) : null;
-  // The owner is badged above; keep them out of the invited-attendee list.
-  const peopleNamesResolved = payload
-    ? [...new Set(payload.inviteeUserIds)]
-        .filter((id) => id !== payload.creatorId)
-        .map((id) => peopleNames[id])
-        .filter((name, index, all): name is string => Boolean(name) && all.indexOf(name) === index)
+  // Attendees are the full invitee list — an organizer who tagged themselves
+  // appears here too (the organizer's own Owner row above is about who manages
+  // the event, not attendance). Id-keyed (not name-keyed) so the signed-in
+  // user's badge is detectable even when display names collide.
+  const peopleResolved = payload
+    ? [...new Set(payload.inviteeUserIds)].flatMap((id) => {
+        const name = peopleNames[id];
+        return name ? [{ id, name }] : [];
+      })
     : [];
   // The event's own calendar is already badged below; don't show it twice.
   const departmentNamesResolved = payload
@@ -114,6 +123,18 @@ export function EventDetail({
         .map((id) => calendarNames[id])
         .filter((name, index, all): name is string => Boolean(name) && all.indexOf(name) === index)
     : [];
+  // Who may edit/delete/duplicate: admins always; otherwise the organizer, any
+  // attendee, and active members of tagged departments — unless the organizer
+  // locked the event to themselves (admins bypass the lock). Mirrors the
+  // server-side modifyGuard.
+  const isCreator = payload ? payload.creatorId === currentUserId : false;
+  const isOnEvent = payload
+    ? payload.inviteeUserIds.includes(currentUserId) ||
+      payload.inviteeDepartmentIds.some((id) => myActiveDepartmentIds.includes(id))
+    : false;
+  const canModify =
+    isAdmin ||
+    (payload !== undefined && (payload.ownerOnlyEdits ? isCreator : true) && (isCreator || isOnEvent));
   const endDisplay =
     showEvent && payload
       ? payload.allDay
@@ -229,19 +250,28 @@ export function EventDetail({
                   <Badge variant="light" color="brand">
                     {ownerName}
                   </Badge>
+                  {payload.ownerOnlyEdits && (
+                    <Badge variant="light" color="red">
+                      Organizer-only editing
+                    </Badge>
+                  )}
                 </Group>
               </>
             )}
 
-            {peopleNamesResolved.length > 0 && (
+            {peopleResolved.length > 0 && (
               <>
                 <Text size="xs" c="dimmed" fw={600}>
-                  Invited Attendees
+                  Participants
                 </Text>
                 <Group gap={6} wrap="wrap">
-                  {peopleNamesResolved.map((name) => (
-                    <Badge key={name} variant="light">
-                      {name}
+                  {peopleResolved.map(({ id, name }) => (
+                    <Badge
+                      key={id}
+                      variant="light"
+                      className={id === currentUserId ? "c2-my-badge" : undefined}
+                    >
+                      {id === currentUserId ? `${name} (You)` : name}
                     </Badge>
                   ))}
                 </Group>
@@ -261,7 +291,7 @@ export function EventDetail({
               </Group>
             )}
 
-            {isAdmin || payload.creatorId === currentUserId ? (
+            {canModify ? (
               <Group justify="flex-end" mt="md">
                 <Button
                   variant="light"

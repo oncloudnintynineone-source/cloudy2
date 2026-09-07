@@ -596,6 +596,18 @@
   font-weight: var(--mantine-font-weight-semibold);
 }
 
+/* "You" participant badges (the wizard's Participants step + Review row and
+   the EventDetail modal's Participants list): a light badge naming the current
+   user gets the amber mine ring over the cream row tint (--c2-my-row-tint,
+   theme-aware like the row language above) plus a "(You)" suffix. The rule is
+   double-scoped to beat Mantine's runtime-injected .mantine-Badge-root and
+   still applies inside modal portals (no .app-shell-root ancestor there). */
+.mantine-Badge-root.c2-my-badge {
+  background-color: var(--c2-my-row-tint);
+  box-shadow: inset 0 0 0 calc(0.125rem * var(--mantine-scale))
+    var(--mantine-color-accent-6);
+}
+
 /*
   "External events" highlight (dashboard calendar views — see
   docs/dashboard-views.md §1.6). Events created directly in Google Calendar

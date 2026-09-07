@@ -15,7 +15,7 @@ export interface EventTypeFormValues {
   allowedLocations: LocationCategory[];
   /** Whether the event form shows the Remarks (description) step. */
   showRemarks: boolean;
-  /** Whether the event form shows the Invited Attendees step. */
+  /** Whether the event form shows the Participants step. */
   showInvitees: boolean;
   /**
    * Whether the event form shows the Location step. When off, the wizard

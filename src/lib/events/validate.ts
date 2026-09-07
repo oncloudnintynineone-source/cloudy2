@@ -21,12 +21,23 @@ export interface EventFormValues {
   start: string;
   end: string;
   eventType: string;
-  /** Event creator (kept on edit; set from the session on create). No validation. */
+  /**
+   * Event organizer id — fixed at creation to the acting session user and never
+   * changed by an edit (the server derives it; this field is informational on
+   * submit). The organizer is NOT merged into the invitee list. No validation.
+   */
   creatorId: string;
   /** User ids tagged on the event (schedule view rows). No validation. */
   inviteeUserIds: string[];
   /** Department (calendar) ids tagged on the event (schedule view rows). No validation. */
   inviteeDepartments: string[];
+  /**
+   * Whether only the organizer (and admins) may edit/delete/duplicate this
+   * event. Absent/false lets attendees and active members of tagged
+   * departments edit too. The organizer (or an admin) may toggle it on edit;
+   * other editors keep the stored value. No validation.
+   */
+  ownerOnlyEdits: boolean;
   /** Whether the event takes place out of camp (in-camp events may still record an optional location). */
   outOfCamp: boolean;
   /** Whether the out-of-camp event is outside the country (KAH "away"). */
@@ -42,7 +53,6 @@ export interface EventFormErrors {
   endAmPm?: string;
   start?: string;
   end?: string;
-  creatorId?: string;
   [key: string]: string | undefined;
 }
 
@@ -109,27 +119,29 @@ export function needsClamp(values: EventFormValues): boolean {
 }
 
 /**
- * Guarantee the event creator is always one of the tagged invitees, so the
- * creator can never be excluded from an event they created. The creator's id
- * is deduped into the invitee list; empty creators are left untouched.
+ * Resolve the event's organizer and edit lock for the write path. The
+ * organizer is fixed at creation: a new event always records the acting
+ * session user; an edit keeps the stored organizer (adopting the acting
+ * editor on a creator-less legacy/external first edit). The organizer is never
+ * merged into the invitee list — it participates only when explicitly invited.
+ *
+ * The owner-only edit lock may only change when the actor is the organizer or
+ * an admin (`canChangeLock`); every other editor keeps the stored value, so an
+ * attendee editing an event can never lock it. Pure — session id/role arrive
+ * pre-decided from the caller.
  */
-export function withCreatorInvited(values: EventFormValues): EventFormValues {
-  const creatorId = values.creatorId;
-  if (!creatorId) {
-    return values;
-  }
-  const inviteeUserIds = [...new Set([creatorId, ...values.inviteeUserIds])];
-  return { ...values, inviteeUserIds };
-}
-
-/**
- * "On behalf of" is optional for admins: a blank creator means the acting
- * session user. Defaults the creator to `sessionUserId` when unset (trimmed),
- * then keeps them invited via {@link withCreatorInvited}. Applied in both
- * create and update so a cleared select uniformly means "for yourself".
- */
-export function withSelfCreator(values: EventFormValues, sessionUserId: string): EventFormValues {
-  return withCreatorInvited({ ...values, creatorId: values.creatorId.trim() || sessionUserId });
+export function resolveEventAuthor(
+  values: EventFormValues,
+  sessionUserId: string,
+  ref: { creatorId: string | null; ownerOnlyEdits: boolean } | null,
+  canChangeLock: boolean,
+): EventFormValues {
+  const creatorId = ref ? ref.creatorId || sessionUserId : sessionUserId;
+  return {
+    ...values,
+    creatorId,
+    ownerOnlyEdits: ref ? (canChangeLock ? values.ownerOnlyEdits : ref.ownerOnlyEdits) : values.ownerOnlyEdits,
+  };
 }
 
 export function validateEventForm(values: EventFormValues): EventFormErrors {

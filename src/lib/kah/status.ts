@@ -168,9 +168,9 @@ export interface KahOverseasEvent {
   start: Date;
   /** Absolute instant the event ends (exclusive). */
   end: Date;
-  /** Id of the user who created the event (from the notes block), or null. */
+  /** Id of the organizer who created the event (from the notes block), or null. */
   creatorId: string | null;
-  /** Ids of users tagged on the event (schedule view rows). */
+  /** Ids of tagged attendees (the organizer is away only when among them). */
   userIds: string[];
 }
 
@@ -230,18 +230,17 @@ export async function overseasEventsInRange(
 }
 
 /**
- * KAH members tagged on internal events overlapping [windowStart, windowEnd):
- * each overseas event's creator/invitees join the set. Only events marked
- * overseas make a member "away" (out of country); in-camp and local
- * out-of-camp events never do.
+ * KAH members taken "away" (out of country) by overseas events overlapping
+ * [windowStart, windowEnd): the tagged attendees of each overseas event join
+ * the set — the organizer counts only when they tagged themselves (or the
+ * event type hides invitees, which keeps the organizer as the sole attendee).
+ * Only events marked overseas make a member away; in-camp and local out-of-camp
+ * events never do.
  */
 export async function busyKahsIn(windowStart: Date, windowEnd: Date): Promise<Set<string>> {
   const events = await overseasEventsInRange(windowStart, windowEnd);
   const busy = new Set<string>();
   for (const event of events) {
-    if (event.creatorId) {
-      busy.add(event.creatorId);
-    }
     for (const userId of event.userIds) {
       busy.add(userId);
     }
@@ -273,9 +272,6 @@ export function busyDaysInRange(events: KahOverseasEvent[], days: string[]): Kah
     for (const event of events) {
       if (event.start > dayEnd || event.end < dayStart) {
         continue;
-      }
-      if (event.creatorId) {
-        away.add(event.creatorId);
       }
       for (const userId of event.userIds) {
         away.add(userId);

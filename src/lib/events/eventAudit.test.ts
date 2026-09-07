@@ -222,6 +222,7 @@ const REF: EventRef = {
   creatorId: "u-1",
   inviteeUserIds: ["u-1", "u-2"],
   inviteeDepartmentIds: [],
+  ownerOnlyEdits: false,
 };
 
 function copy(description: string, location = ""): GcalEventItem {

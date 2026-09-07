@@ -238,8 +238,8 @@ export function EventTypeForm({ eventType, groups, onDone }: EventTypeFormProps)
             onChange={(event) => form.setFieldValue("showRemarks", event.currentTarget.checked)}
           />
           <Checkbox
-            label="Show invited attendees in the event form"
-            description="Let users tag people and departments on events of this type; hide it for types that involve only the creator"
+            label="Show participants in the event form"
+            description="Let users tag people and departments on events of this type; hide it for types that involve only the organizer"
             checked={form.values.showInvitees}
             onChange={(event) => form.setFieldValue("showInvitees", event.currentTarget.checked)}
           />

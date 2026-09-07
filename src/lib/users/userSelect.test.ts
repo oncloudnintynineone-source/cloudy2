@@ -10,6 +10,7 @@ import {
   selectionByGroup,
   sortOptionsInGroups,
   splitInvitees,
+  toggleInviteeUser,
   type PickerGroup,
 } from "./userSelect";
 
@@ -218,7 +219,7 @@ describe("mergeInviteeSelection", () => {
       Engineering: ["u1"], // u2 deselected
       Admin: ["u3"],
     };
-    expect(mergeInviteeSelection(GROUPS_WITH_DEPTS, previous, draft, null)).toEqual([
+    expect(mergeInviteeSelection(GROUPS_WITH_DEPTS, previous, draft)).toEqual([
       "user:u1",
       "user:u3",
     ]);
@@ -231,7 +232,7 @@ describe("mergeInviteeSelection", () => {
       Engineering: ["u1"],
       Admin: [] as string[],
     };
-    expect(mergeInviteeSelection(GROUPS_WITH_DEPTS, previous, draft, null)).toEqual([
+    expect(mergeInviteeSelection(GROUPS_WITH_DEPTS, previous, draft)).toEqual([
       "dept:d1",
       "user:u1",
     ]);
@@ -244,32 +245,28 @@ describe("mergeInviteeSelection", () => {
       Engineering: ["u1"],
       Admin: [] as string[],
     };
-    const result = mergeInviteeSelection(GROUPS_WITH_DEPTS, previous, draft, null);
+    const result = mergeInviteeSelection(GROUPS_WITH_DEPTS, previous, draft);
     expect(result).toEqual(["dept:ghostDept", "user:u1", "user:ghost"]);
   });
 
-  it("keeps the locked creator first even when draft deselects them", () => {
+  it("honors deselecting the organizer — nothing is auto-re-added", () => {
     const previous = ["user:u1", "user:u2"];
     const draft = {
       [INVITEE_DEPARTMENTS_SECTION]: [] as string[],
-      Engineering: ["u1"], // u2 (creator) is not in draft but should stay via creator lock
+      Engineering: ["u1"], // u2 (organizer) deselected
       Admin: [] as string[],
     };
-    // creator u2 not in draft pick, but creator lock re-adds it first
-    expect(mergeInviteeSelection(GROUPS_WITH_DEPTS, previous, draft, "u2")).toEqual([
-      "user:u2",
-      "user:u1",
-    ]);
+    expect(mergeInviteeSelection(GROUPS_WITH_DEPTS, previous, draft)).toEqual(["user:u1"]);
   });
 
-  it("deselect-all visible leaves only inactive and creator", () => {
+  it("deselect-all visible leaves only inactive ids", () => {
     const previous = ["user:u1", "user:ghost", "dept:d1"];
     const draft = {
       [INVITEE_DEPARTMENTS_SECTION]: [] as string[],
       Engineering: [] as string[],
       Admin: [] as string[],
     };
-    expect(mergeInviteeSelection(GROUPS_WITH_DEPTS, previous, draft, null)).toEqual(["user:ghost"]);
+    expect(mergeInviteeSelection(GROUPS_WITH_DEPTS, previous, draft)).toEqual(["user:ghost"]);
   });
 
   it("adds newly selected users and departments", () => {
@@ -279,10 +276,44 @@ describe("mergeInviteeSelection", () => {
       Engineering: ["u2"],
       Admin: ["u3"],
     };
-    expect(mergeInviteeSelection(GROUPS_WITH_DEPTS, previous, draft, null)).toEqual([
+    expect(mergeInviteeSelection(GROUPS_WITH_DEPTS, previous, draft)).toEqual([
       "dept:d2",
       "user:u2",
       "user:u3",
     ]);
+  });
+});
+
+describe("toggleInviteeUser", () => {
+  it("appends the user entry when absent", () => {
+    expect(toggleInviteeUser(["user:u1", "dept:d1"], "u2")).toEqual([
+      "user:u1",
+      "dept:d1",
+      "user:u2",
+    ]);
+  });
+
+  it("appends to an empty list", () => {
+    expect(toggleInviteeUser([], "u1")).toEqual(["user:u1"]);
+  });
+
+  it("removes the user entry when present", () => {
+    expect(toggleInviteeUser(["user:u1", "dept:d1", "user:u2"], "u1")).toEqual([
+      "dept:d1",
+      "user:u2",
+    ]);
+  });
+
+  it("leaves departments and other users untouched when removing", () => {
+    expect(toggleInviteeUser(["dept:d1", "user:u1", "user:u2"], "u2")).toEqual([
+      "dept:d1",
+      "user:u1",
+    ]);
+  });
+
+  it("returns a new array", () => {
+    const input = ["user:u1"];
+    expect(toggleInviteeUser(input, "u1")).not.toBe(input);
+    expect(toggleInviteeUser(input, "u2")).not.toBe(input);
   });
 });

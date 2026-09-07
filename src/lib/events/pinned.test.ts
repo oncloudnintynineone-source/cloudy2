@@ -27,6 +27,7 @@ function event(start: string, end: string, pinned: boolean, allDay = false): Cal
       outOfCamp: false,
       overseas: false,
       pinned,
+      ownerOnlyEdits: false,
       location: "",
       external: false,
     },

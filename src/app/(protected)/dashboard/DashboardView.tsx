@@ -239,7 +239,7 @@ interface DashboardViewProps {
    */
   viewFilters: Record<ViewMode, DashboardFilterSet>;
   currentUser: string;
-  /** Admin may create/edit events on behalf of any user. */
+  /** Admin may edit any event and bypass the organizer-only lock. */
   isAdmin: boolean;
   /**
    * Event group id from the `?edit=` deep link (the event search modal's
@@ -1413,6 +1413,15 @@ export function DashboardView({
           .map((event) => event.id),
       ),
     [viewEvents, currentUser],
+  );
+  // Active department ids of the acting user — the event detail modal uses
+  // this to let a member of a tagged department edit (mirrors the server guard).
+  const myActiveDepartmentIds = useMemo(
+    () =>
+      allActiveUsers
+        .filter((user) => user.id === currentUser)
+        .flatMap((user) => (user.departmentId ? [user.departmentId] : [])),
+    [allActiveUsers, currentUser],
   );
   // The month grid assigns each day's rows greedily in input order, so feed
   // the user's events first (each block time-sorted) and they claim the top
@@ -2900,6 +2909,7 @@ export function DashboardView({
         originRect={detailOriginRect}
         currentUserId={currentUser}
         isAdmin={isAdmin}
+        myActiveDepartmentIds={myActiveDepartmentIds}
       />
 
       <Modal.Root

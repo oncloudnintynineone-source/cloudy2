@@ -32,6 +32,7 @@ function makeEvent(
     outOfCamp: overrides.outOfCamp ?? false,
     overseas: overrides.overseas ?? false,
     pinned: overrides.pinned ?? false,
+    ownerOnlyEdits: overrides.ownerOnlyEdits ?? false,
     location: overrides.location ?? "",
     external: overrides.external ?? false,
   };
@@ -87,9 +88,14 @@ describe("coveredDays", () => {
 });
 
 describe("buildWeekLanes", () => {
-  it("places a creator-only event in one span in the creator's row", () => {
+  it("places a self-invited creator-only event in one span in the creator's row", () => {
     const lanes = buildWeekLanes(
-      [makeEvent(`${WEEK[2]} 09:00:00`, `${WEEK[2]} 10:00:00`, { creatorId: "u1" })],
+      [
+        makeEvent(`${WEEK[2]} 09:00:00`, `${WEEK[2]} 10:00:00`, {
+          creatorId: "u1",
+          inviteeUserIds: ["u1"],
+        }),
+      ],
       WEEK,
     );
     expect([...lanes.keys()]).toEqual(["u1"]);
@@ -106,7 +112,7 @@ describe("buildWeekLanes", () => {
       [
         makeEvent(`${WEEK[1]} 09:00:00`, `${WEEK[1]} 10:00:00`, {
           creatorId: "u1",
-          inviteeUserIds: ["u2"],
+          inviteeUserIds: ["u1", "u2"],
           inviteeDepartmentIds: ["cal-9"],
         }),
       ],
@@ -151,7 +157,13 @@ describe("buildWeekLanes", () => {
 
   it("produces one multi-day span with correct startDay/endDay", () => {
     const lanes = buildWeekLanes(
-      [makeEvent(`${WEEK[0]} 00:00:00`, `${WEEK[3]} 00:00:00`, { allDay: true, creatorId: "u1" })],
+      [
+        makeEvent(`${WEEK[0]} 00:00:00`, `${WEEK[3]} 00:00:00`, {
+          allDay: true,
+          creatorId: "u1",
+          inviteeUserIds: ["u1"],
+        }),
+      ],
       WEEK,
     );
     const row = lanes.get("u1")!;
@@ -168,11 +180,13 @@ describe("buildWeekLanes", () => {
           allDay: true,
           title: "A",
           creatorId: "u1",
+          inviteeUserIds: ["u1"],
         }),
         makeEvent(`${WEEK[1]} 00:00:00`, `${WEEK[4]} 00:00:00`, {
           allDay: true,
           title: "B",
           creatorId: "u1",
+          inviteeUserIds: ["u1"],
         }),
       ],
       WEEK,
@@ -194,11 +208,13 @@ describe("buildWeekLanes", () => {
           allDay: true,
           title: "A",
           creatorId: "u1",
+          inviteeUserIds: ["u1"],
         }),
         makeEvent(`${WEEK[2]} 00:00:00`, `${WEEK[3]} 00:00:00`, {
           allDay: true,
           title: "B",
           creatorId: "u1",
+          inviteeUserIds: ["u1"],
         }),
       ],
       WEEK,
@@ -213,7 +229,11 @@ describe("buildWeekLanes", () => {
   it("sorts spans within a row by startDay, then start time, then title", () => {
     const withCreator = (event: CalendarEvent): CalendarEvent => ({
       ...event,
-      payload: { ...event.payload, creatorId: "u1" },
+      payload: {
+        ...event.payload,
+        creatorId: "u1",
+        inviteeUserIds: [...event.payload.inviteeUserIds, "u1"],
+      },
     });
     const later = makeEvent(`${WEEK[4]} 15:00:00`, `${WEEK[4]} 16:00:00`, { title: "Zulu" });
     const earlier = makeEvent(`${WEEK[4]} 08:00:00`, `${WEEK[4]} 09:00:00`, { title: "Alpha" });

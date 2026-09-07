@@ -106,11 +106,20 @@ describe("busyUsersOfEvent", () => {
     { id: "u3", departmentId: "cal-2" },
   ]);
 
-  it("occupies only the creator when no one else is tagged", () => {
+  it("does not occupy a creator who did not self-invite", () => {
     const event = makeEvent({
       start: instant("2026-08-17 09:00:00"),
       end: instant("2026-08-17 10:00:00"),
-      people: { creatorId: "u1", userIds: [], departmentIds: [] },
+      people: { creatorId: "u9", userIds: [], departmentIds: [] },
+    });
+    expect([...busyUsersOfEvent(event, members)]).toEqual([]);
+  });
+
+  it("occupies a creator who tagged themselves as an attendee", () => {
+    const event = makeEvent({
+      start: instant("2026-08-17 09:00:00"),
+      end: instant("2026-08-17 10:00:00"),
+      people: { creatorId: "u1", userIds: ["u1"], departmentIds: [] },
     });
     expect([...busyUsersOfEvent(event, members)]).toEqual(["u1"]);
   });
@@ -139,7 +148,7 @@ describe("busyUsersOfEvent", () => {
     const event = makeEvent({
       start: instant("2026-08-17 09:00:00"),
       end: instant("2026-08-17 10:00:00"),
-      people: { creatorId: "u1", userIds: [], departmentIds: ["cal-missing"] },
+      people: { creatorId: "u1", userIds: ["u1"], departmentIds: ["cal-missing"] },
     });
     expect([...busyUsersOfEvent(event, members)]).toEqual(["u1"]);
   });
@@ -151,7 +160,7 @@ describe("candidateUsers", () => {
     { id: "u2", departmentId: "cal-1" },
   ]);
 
-  it("includes the creator, tagged users, and members of tagged departments", () => {
+  it("includes tagged users and members of tagged departments", () => {
     const candidate: ClashCandidateInput = {
       start: instant("2026-08-17 09:00:00"),
       end: instant("2026-08-17 10:00:00"),
@@ -161,9 +170,23 @@ describe("candidateUsers", () => {
     };
     const active = new Set(["u1", "u2", "u3"]);
     const users = candidateUsers(candidate, active, members);
+    // u1 is occupied only because it is a member of the tagged cal-1, not
+    // because it is the creator.
     expect([...users.keys()].sort()).toEqual(["u1", "u2", "u3"]);
-    expect(users.get("u1")).toBeNull();
+    expect(users.get("u1")).toBe("cal-1");
     expect(users.get("u2")).toBe("cal-1");
+    expect(users.get("u3")).toBeNull();
+  });
+
+  it("does not count a creator who did not self-invite", () => {
+    const candidate: ClashCandidateInput = {
+      start: instant("2026-08-17 09:00:00"),
+      end: instant("2026-08-17 10:00:00"),
+      creatorId: "u1",
+      inviteeUserIds: [],
+      inviteeDepartments: [],
+    };
+    expect(candidateUsers(candidate, new Set(["u1"]), members).size).toBe(0);
   });
 
   it("drops explicit users not on the active roster", () => {
@@ -171,7 +194,7 @@ describe("candidateUsers", () => {
       start: instant("2026-08-17 09:00:00"),
       end: instant("2026-08-17 10:00:00"),
       creatorId: "u1",
-      inviteeUserIds: ["ghost"],
+      inviteeUserIds: ["u1", "ghost"],
       inviteeDepartments: [],
     };
     const users = candidateUsers(candidate, new Set(["u1"]), members);
@@ -180,11 +203,12 @@ describe("candidateUsers", () => {
 });
 
 describe("computeClashes", () => {
+  // Creator u1 self-invited (attending), plus tagged u3.
   const candidate: ClashCandidateInput = {
     start: instant("2026-08-17 09:00:00"),
     end: instant("2026-08-17 11:00:00"),
     creatorId: "u1",
-    inviteeUserIds: ["u3"],
+    inviteeUserIds: ["u1", "u3"],
     inviteeDepartments: [],
   };
 
@@ -195,7 +219,7 @@ describe("computeClashes", () => {
         makeEvent({
           start: instant("2026-08-17 11:00:00"),
           end: instant("2026-08-17 12:00:00"),
-          people: { creatorId: "u1", userIds: [], departmentIds: [] },
+          people: { creatorId: "u1", userIds: ["u1"], departmentIds: [] },
         }),
       ],
       activeUsers: rosterUsers(),
@@ -211,7 +235,7 @@ describe("computeClashes", () => {
         makeEvent({
           start: instant("2026-08-17 10:00:00"),
           end: instant("2026-08-17 12:00:00"),
-          people: { creatorId: "u1", userIds: [], departmentIds: [] },
+          people: { creatorId: "u1", userIds: ["u1"], departmentIds: [] },
         }),
       ],
       activeUsers: rosterUsers(),
@@ -229,7 +253,7 @@ describe("computeClashes", () => {
           calendarName: "HQ",
           start: instant("2026-08-17 09:30:00"),
           end: instant("2026-08-17 10:30:00"),
-          people: { creatorId: "u3", userIds: [], departmentIds: [] },
+          people: { creatorId: "u3", userIds: ["u3"], departmentIds: [] },
         }),
       ],
       activeUsers: rosterUsers(),
@@ -251,7 +275,7 @@ describe("computeClashes", () => {
         makeEvent({
           start: instant("2026-08-17 09:00:00"),
           end: instant("2026-08-17 10:00:00"),
-          people: { creatorId: "u2", userIds: [], departmentIds: [] },
+          people: { creatorId: "u2", userIds: ["u2"], departmentIds: [] },
         }),
       ],
       activeUsers: rosterUsers(),
@@ -337,7 +361,7 @@ describe("computeClashes", () => {
           calendarName: "HQ",
           start: instant("2026-08-17 09:00:00"),
           end: instant("2026-08-17 10:00:00"),
-          people: { creatorId: "u4", userIds: [], departmentIds: [] },
+          people: { creatorId: "u4", userIds: ["u4"], departmentIds: [] },
         }),
       ],
       activeUsers: rosterUsers(),
@@ -352,7 +376,7 @@ describe("computeClashes", () => {
         makeEvent({
           start: instant("2026-08-17 09:00:00"),
           end: instant("2026-08-17 10:00:00"),
-          people: { creatorId: "u1", userIds: [], departmentIds: [] },
+          people: { creatorId: "u1", userIds: ["u1"], departmentIds: [] },
         }),
       ],
       activeUsers: [],
@@ -374,13 +398,13 @@ describe("computeClashes", () => {
           googleEventId: "g-late",
           start: instant("2026-08-17 15:00:00"),
           end: instant("2026-08-17 16:00:00"),
-          people: { creatorId: "u2", userIds: [], departmentIds: [] },
+          people: { creatorId: "u2", userIds: ["u2"], departmentIds: [] },
         }),
         makeEvent({
           googleEventId: "g-early",
           start: instant("2026-08-17 09:00:00"),
           end: instant("2026-08-17 10:00:00"),
-          people: { creatorId: "u2", userIds: [], departmentIds: [] },
+          people: { creatorId: "u2", userIds: ["u2"], departmentIds: [] },
         }),
       ],
       activeUsers: rosterUsers(),
@@ -401,7 +425,7 @@ describe("findUserClashGroups", () => {
       makeEvent({
         start: instant("2026-08-17 09:00:00"),
         end: instant("2026-08-17 10:00:00"),
-        people: { creatorId: "u2", userIds: [], departmentIds: [] },
+        people: { creatorId: "u2", userIds: ["u2"], departmentIds: [] },
       }),
     ]);
     expect(result.groups).toEqual([]);
@@ -413,7 +437,7 @@ describe("findUserClashGroups", () => {
         googleEventId: "g-1",
         start: instant("2026-08-17 09:00:00"),
         end: instant("2026-08-17 10:00:00"),
-        people: { creatorId: "u1", userIds: [], departmentIds: [] },
+        people: { creatorId: "u1", userIds: ["u1"], departmentIds: [] },
       }),
       makeEvent({
         googleEventId: "g-2",
@@ -433,7 +457,7 @@ describe("findUserClashGroups", () => {
         googleEventId: "g-1",
         start: instant("2026-08-17 09:00:00"),
         end: instant("2026-08-17 10:00:00"),
-        people: { creatorId: "u1", userIds: [], departmentIds: [] },
+        people: { creatorId: "u1", userIds: ["u1"], departmentIds: [] },
       }),
       makeEvent({
         calendarId: "cal-2",
@@ -454,7 +478,7 @@ describe("findUserClashGroups", () => {
         googleEventId: "g-1",
         start: instant("2026-08-17 09:00:00"),
         end: instant("2026-08-17 10:00:00"),
-        people: { creatorId: "u1", userIds: [], departmentIds: [] },
+        people: { creatorId: "u1", userIds: ["u1"], departmentIds: [] },
       }),
       makeEvent({
         googleEventId: "g-ext",
@@ -474,13 +498,13 @@ describe("findUserClashGroups", () => {
         googleEventId: "g-1",
         start: instant("2026-08-17 09:00:00"),
         end: instant("2026-08-17 10:00:00"),
-        people: { creatorId: "u1", userIds: [], departmentIds: [] },
+        people: { creatorId: "u1", userIds: ["u1"], departmentIds: [] },
       }),
       makeEvent({
         googleEventId: "g-other",
         start: instant("2026-08-17 09:00:00"),
         end: instant("2026-08-17 10:00:00"),
-        people: { creatorId: "u2", userIds: [], departmentIds: [] },
+        people: { creatorId: "u2", userIds: ["u2"], departmentIds: [] },
       }),
     ]);
     expect(result.groups).toEqual([]);
@@ -492,7 +516,7 @@ describe("findUserClashGroups", () => {
         googleEventId: "g-am2",
         start: instant("2026-08-17 09:30:00"),
         end: instant("2026-08-17 10:30:00"),
-        people: { creatorId: "u1", userIds: [], departmentIds: [] },
+        people: { creatorId: "u1", userIds: ["u1"], departmentIds: [] },
       }),
       makeEvent({
         googleEventId: "g-am1",
@@ -504,13 +528,13 @@ describe("findUserClashGroups", () => {
         googleEventId: "g-pm1",
         start: instant("2026-08-17 15:00:00"),
         end: instant("2026-08-17 16:00:00"),
-        people: { creatorId: "u1", userIds: [], departmentIds: [] },
+        people: { creatorId: "u1", userIds: ["u1"], departmentIds: [] },
       }),
       makeEvent({
         googleEventId: "g-pm2",
         start: instant("2026-08-17 15:30:00"),
         end: instant("2026-08-17 16:30:00"),
-        people: { creatorId: "u1", userIds: [], departmentIds: [] },
+        people: { creatorId: "u1", userIds: ["u1"], departmentIds: [] },
       }),
     ]);
     expect(result.groups).toHaveLength(2);
@@ -524,19 +548,19 @@ describe("findUserClashGroups", () => {
         googleEventId: "g-a",
         start: instant("2026-08-17 09:00:00"),
         end: instant("2026-08-17 10:00:00"),
-        people: { creatorId: "u1", userIds: [], departmentIds: [] },
+        people: { creatorId: "u1", userIds: ["u1"], departmentIds: [] },
       }),
       makeEvent({
         googleEventId: "g-b",
         start: instant("2026-08-17 09:30:00"),
         end: instant("2026-08-17 11:00:00"),
-        people: { creatorId: "u1", userIds: [], departmentIds: [] },
+        people: { creatorId: "u1", userIds: ["u1"], departmentIds: [] },
       }),
       makeEvent({
         googleEventId: "g-c",
         start: instant("2026-08-17 10:30:00"),
         end: instant("2026-08-17 12:00:00"),
-        people: { creatorId: "u1", userIds: [], departmentIds: [] },
+        people: { creatorId: "u1", userIds: ["u1"], departmentIds: [] },
       }),
     ]);
     expect(result.groups).toHaveLength(1);
@@ -550,13 +574,13 @@ describe("findUserClashGroups", () => {
         googleEventId: "g-1",
         start: instant("2026-08-17 09:00:00"),
         end: instant("2026-08-17 10:00:00"),
-        people: { creatorId: "u1", userIds: [], departmentIds: [] },
+        people: { creatorId: "u1", userIds: ["u1"], departmentIds: [] },
       }),
       makeEvent({
         googleEventId: "g-2",
         start: instant("2026-08-17 10:00:00"),
         end: instant("2026-08-17 11:00:00"),
-        people: { creatorId: "u1", userIds: [], departmentIds: [] },
+        people: { creatorId: "u1", userIds: ["u1"], departmentIds: [] },
       }),
     ]);
     expect(result.groups).toEqual([]);
@@ -571,7 +595,7 @@ describe("findUserClashGroups", () => {
         googleEventId: "g-a",
         start: instant("2026-08-17 09:00:00"),
         end: instant("2026-08-17 10:00:00"),
-        people: { creatorId: "u1", userIds: [], departmentIds: ["cal-2"] },
+        people: { creatorId: "u1", userIds: ["u1"], departmentIds: ["cal-2"] },
       }),
       makeEvent({
         calendarId: "cal-2",
@@ -580,7 +604,7 @@ describe("findUserClashGroups", () => {
         googleEventId: "g-b",
         start: instant("2026-08-17 09:00:00"),
         end: instant("2026-08-17 10:00:00"),
-        people: { creatorId: "u1", userIds: [], departmentIds: ["cal-2"] },
+        people: { creatorId: "u1", userIds: ["u1"], departmentIds: ["cal-2"] },
       }),
       makeEvent({
         googleEventId: "g-2",
@@ -599,7 +623,7 @@ describe("findUserClashGroups", () => {
       makeEvent({
         start: instant("2026-08-17 09:00:00"),
         end: instant("2026-08-17 10:00:00"),
-        people: { creatorId: "ghost", userIds: [], departmentIds: [] },
+        people: { creatorId: "ghost", userIds: ["ghost"], departmentIds: [] },
       }),
     ]);
     expect(result.groups).toEqual([]);
@@ -611,13 +635,13 @@ describe("findUserClashGroups", () => {
         googleEventId: "g-1",
         start: instant("2026-08-17 09:00:00"),
         end: instant("2026-08-17 10:00:00"),
-        people: { creatorId: "u1", userIds: ["u2"], departmentIds: [] },
+        people: { creatorId: "u1", userIds: ["u1", "u2"], departmentIds: [] },
       }),
       makeEvent({
         googleEventId: "g-2",
         start: instant("2026-08-17 09:30:00"),
         end: instant("2026-08-17 10:30:00"),
-        people: { creatorId: "u1", userIds: ["u2"], departmentIds: [] },
+        people: { creatorId: "u1", userIds: ["u1", "u2"], departmentIds: [] },
       }),
     ]);
     expect(result.groups[0].sharedUserIds).toEqual(["u1", "u2"]);

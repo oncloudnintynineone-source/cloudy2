@@ -44,7 +44,7 @@ export interface EventTitleContext {
   allowedLocations: LocationCategory[] | null;
   /** Whether the event type shows the Remarks (description) field. */
   showRemarks: boolean;
-  /** Whether the event type shows the Invited Attendees field. */
+  /** Whether the event type shows the Participants field. */
   showInvitees: boolean;
   /**
    * Whether the wizard shows the Location step for this type. When false, the

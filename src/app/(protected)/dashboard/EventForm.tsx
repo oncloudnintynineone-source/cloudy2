@@ -22,7 +22,7 @@ import { DatePickerInput, TimePicker } from "@mantine/dates";
 import { useMediaQuery } from "@mantine/hooks";
 import { useForm } from "@mantine/form";
 import { notifications } from "@mantine/notifications";
-import { IconChevronLeft, IconChevronRight } from "@tabler/icons-react";
+import { IconChevronLeft, IconChevronRight, IconUserMinus, IconUserPlus } from "@tabler/icons-react";
 
 import { PickerField, type PickerBadgeItem } from "@/components/PickerField";
 import { UserSelectModal } from "@/components/UserSelectModal";
@@ -79,6 +79,7 @@ import {
   mergeInviteeSelection,
   selectionByGroup,
   splitInvitees,
+  toggleInviteeUser,
 } from "@/lib/users/userSelect";
 import { formatDateTime, naiveToDate } from "./clientDateTime";
 
@@ -118,9 +119,13 @@ interface EventFormProps {
   eventTitleTemplate: string;
   viewEventTitleTemplate?: string;
   viewLabel?: string;
-  /** Session user id; stored as the event creator on create. */
+  /** Session user id; stored as the event organizer on create. */
   currentUser: string;
-  /** Admin may create/edit events on behalf of any user (via the creator select). */
+  /**
+   * Admins may edit any event and may toggle the organizer-only lock — they
+   * never create events "on behalf of" another user (the organizer is always
+   * the acting user).
+   */
   isAdmin: boolean;
   inviteeDepartments: { id: string; name: string }[];
   inviteeUsers: InviteeUser[];
@@ -151,7 +156,7 @@ const AMPM_OPTIONS = [
 ];
 
 /** Wizard step ids for the staged event form. */
-type StepId = "type" | "time" | "location" | "invitees" | "remarks" | "creator" | "review";
+type StepId = "type" | "time" | "location" | "invitees" | "remarks" | "settings" | "review";
 
 interface StepDef {
   id: StepId;
@@ -166,12 +171,12 @@ interface StepDef {
  * Location step at all — every event saves in that sole category. An unlocked
  * exclusively in-camp type keeps the step but collapses the category selector
  * to a single, disabled option while still offering an optional specific
- * location. Types with remarks or invitees disabled have neither step. Admins
- * enter an optional "On behalf of" after Remarks (blank = themselves);
- * everyone ends on a read-only review of everything entered so far.
+ * location. Types with remarks or invitees disabled have neither step.
+ * Everyone passes through the always-present "Other settings" step (Pin +
+ * organizer-only edit lock) and ends on a read-only review of everything
+ * entered so far.
  */
 function buildSteps(
-  isAdmin: boolean,
   showLocationStep: boolean,
   showRemarksStep: boolean,
   showInviteesStep: boolean,
@@ -182,7 +187,7 @@ function buildSteps(
     ...(showLocationStep ? [{ id: "location", fields: [] } satisfies StepDef] : []),
     ...(showInviteesStep ? [{ id: "invitees", fields: [] } satisfies StepDef] : []),
     ...(showRemarksStep ? [{ id: "remarks", fields: [] } satisfies StepDef] : []),
-    ...(isAdmin ? [{ id: "creator", fields: [] } satisfies StepDef] : []),
+    { id: "settings", fields: [] },
     { id: "review", fields: [] },
   ];
 }
@@ -194,7 +199,6 @@ const STEP_BY_FIELD: Partial<Record<EventResultField, StepId>> = {
   end: "time",
   startAmPm: "time",
   endAmPm: "time",
-  creatorId: "creator",
 };
 
 /**
@@ -206,9 +210,9 @@ const STEP_LABELS: Record<StepId, string> = {
   type: "Type",
   time: "Time",
   location: "Location",
-  invitees: "Attendees",
+  invitees: "Participants",
   remarks: "Remarks",
-  creator: "Creator",
+  settings: "Other settings",
   review: "Review",
 };
 
@@ -289,7 +293,11 @@ export function EventForm({
         start: event.start,
         end: allDay ? `${subOneDay(event.end.slice(0, 10))} 00:00:00` : event.end,
         eventType: event.payload.eventType ?? "",
-        creatorId: event.payload.creatorId ?? "",
+        // The stored organizer is fixed (server-side authoritative); a
+        // creator-less legacy event shows the acting user (any allowed editor
+        // is adopted as the organizer on that first edit), whom the server
+        // records.
+        creatorId: event.payload.creatorId ?? currentUser,
         inviteeUserIds: [],
         inviteeDepartments: [],
         invitees:
@@ -297,11 +305,14 @@ export function EventForm({
             ? []
             : [
                 ...event.payload.inviteeDepartmentIds.map((id) => `dept:${id}`),
+                // Attendees are pre-seeded as stored (a legacy event that
+                // auto-invited the organizer keeps them here, deselectable).
                 ...event.payload.inviteeUserIds.map((id) => `user:${id}`),
               ],
         outOfCamp: clamped.outOfCamp,
         overseas: clamped.overseas,
         pinned: event.payload.pinned,
+        ownerOnlyEdits: event.payload.ownerOnlyEdits,
         location: clamped.location,
       };
     }
@@ -333,7 +344,9 @@ export function EventForm({
         start: src.start,
         end: allDay ? `${subOneDay(src.end.slice(0, 10))} 00:00:00` : src.end,
         eventType: src.payload.eventType ?? "",
-        creatorId: src.payload.creatorId ?? "",
+        // A duplicate is a brand-new event owned by the acting user — the
+        // source organizer never carries over (source attendees do).
+        creatorId: currentUser,
         inviteeUserIds: [],
         inviteeDepartments: [],
         invitees:
@@ -346,6 +359,7 @@ export function EventForm({
         outOfCamp: clamped.outOfCamp,
         overseas: clamped.overseas,
         pinned: src.payload.pinned,
+        ownerOnlyEdits: false,
         location: clamped.location,
       };
     }
@@ -357,25 +371,28 @@ export function EventForm({
       start: `${defaultDate} 09:00:00`,
       end: `${defaultDate} 10:00:00`,
       eventType: "",
-      // Admins pick who the event is on behalf of; regular users create as
-      // themselves (their own id is always locked as an invitee).
-      creatorId: isAdmin ? "" : currentUser,
+      // Every event is created by the acting user — admins no longer create
+      // "on behalf of" anyone. The acting user is PRE-tagged as a participant
+      // by default (deselectable in the Participants step) so a newly created
+      // event occupies at least its organizer; deselecting everyone is
+      // rejected at submit.
+      creatorId: currentUser,
       inviteeUserIds: [],
       inviteeDepartments: [],
-      invitees: isAdmin ? [] : currentUser ? [`user:${currentUser}`] : [],
+      invitees: [`user:${currentUser}`],
       outOfCamp: false,
       overseas: false,
       pinned: false,
+      ownerOnlyEdits: false,
       location: "",
     };
   }
 
-  // Badge picker user sections (one per department, No department last), shared
-  // by the invitees picker (which prepends a Departments section) and the admin
-  // "On behalf of" creator picker (users only). Badges show the plain name —
-  // the section header already carries the department — so the search haystack
-  // only adds the shortname (section-label matching still finds whole
-  // departments).
+  // Badge picker user sections (one per department, No department last) for
+  // the invitees picker (which prepends a Departments section). Badges show
+  // the plain name — the section header already carries the department — so
+  // the search haystack only adds the shortname (section-label matching still
+  // finds whole departments).
   const userPickerGroups = useMemo(
     () =>
       buildUserGroups(
@@ -413,9 +430,9 @@ export function EventForm({
   }, [inviteePickerGroups, form.values.invitees]);
 
   // Commits the badge picker draft into the form. Previously selected ids
-  // that no longer appear in the picker (e.g. now-inactive users) are kept
-  // so editing can't silently drop them, and the locked creator is kept
-  // first — see `mergeInviteeSelection` for the pure logic.
+  // that no longer appear in the picker (e.g. now-inactive users) are kept so
+  // editing can't silently drop them — see `mergeInviteeSelection`. The
+  // organizer is NOT forced in: attendees are exactly what was picked.
   function applyInviteePicker(values: Record<string, string[]>) {
     form.setFieldValue(
       "invitees",
@@ -423,36 +440,10 @@ export function EventForm({
         inviteePickerGroups,
         form.values.invitees,
         values,
-        form.values.creatorId || null,
         PICKER_DEPARTMENTS_SECTION,
       ),
     );
   }
-
-  // Admin "On behalf of": the optional single-user creator picker (blank = the
-  // acting admin). Seeded and committed exactly like the old dropdown — picking
-  // a user also keeps the invitee chips in sync (the creator is always an
-  // invitee); clearing removes the previous creator from them. `allowEmptyConfirm`
-  // lets the dialog commit a cleared/"yourself" result in single mode.
-  const creatorPickerValues = useMemo(
-    () => selectionByGroup(userPickerGroups, form.values.creatorId ? [form.values.creatorId] : []),
-    [userPickerGroups, form.values.creatorId],
-  );
-
-  function applyCreatorPicker(values: Record<string, string[]>) {
-    const next = Object.values(values).flat()[0] ?? "";
-    const previous = form.values.creatorId;
-    const invitees = previous
-      ? form.values.invitees.filter((entry) => entry !== `user:${previous}`)
-      : [...form.values.invitees];
-    form.setFieldValue("creatorId", next);
-    form.setFieldValue("invitees", next ? [...new Set([...invitees, `user:${next}`])] : invitees);
-  }
-
-  const creatorOption = inviteeUsers.find((user) => user.id === form.values.creatorId) ?? null;
-  const creatorSummaryItems: PickerBadgeItem[] = creatorOption
-    ? [{ key: creatorOption.id, label: creatorOption.displayName, color: "brand" }]
-    : [];
 
   const sortedEventTypes = useMemo(
     () => [...eventTypes].sort((a, b) => a.name.localeCompare(b.name)),
@@ -485,7 +476,7 @@ export function EventForm({
   const showLocationStep = selectedType ? selectedType.showLocation !== false : true;
   /** Whether the wizard shows the Remarks step (per-type toggle). */
   const showRemarksStep = selectedType ? selectedType.showRemarks !== false : true;
-  /** Whether the wizard shows the Invited Attendees step (per-type toggle). */
+  /** Whether the wizard shows the Participants step (per-type toggle). */
   const showInviteesStep = selectedType ? selectedType.showInvitees !== false : true;
   /**
    * The category a hidden-location type pins every event to (its sole allowed
@@ -517,19 +508,18 @@ export function EventForm({
   );
 
   // Wizard state: a stepped walk through the form so the user only ever sees
-  // one input group at a time. The step list depends on the role (admins get
-  // the "On behalf of" step) and the selected type (location/remarks steps
-  // drop out per its config). Rebuilt each render (a handful of tiny objects)
-  // because its deps derive from reactive form values; the type is only ever
-  // changed on step 1, so the step index stays valid when the list re-derives.
-  const steps = buildSteps(isAdmin, showLocationStep, showRemarksStep, showInviteesStep);
+  // one input group at a time. The step list depends on the selected type
+  // (location/remarks/invitees steps drop out per its config). Rebuilt each
+  // render (a handful of tiny objects) because its deps derive from reactive
+  // form values; the type is only ever changed on step 1, so the step index
+  // stays valid when the list re-derives.
+  const steps = buildSteps(showLocationStep, showRemarksStep, showInviteesStep);
   const [step, setStep] = useState(0);
   // Direction of the last step change ("forward"/"backward"), used to slide the
   // entering step in from the corresponding side (see `.wizard-step-enter` in
   // globals.css). Defaults forward so the initial step enters from the right.
   const [direction, setDirection] = useState<"forward" | "backward">("forward");
   const [inviteePickerOpen, setInviteePickerOpen] = useState(false);
-  const [creatorPickerOpen, setCreatorPickerOpen] = useState(false);
   const currentStep = steps[step];
   const isLastStep = step === steps.length - 1;
   const stepPosition = `${step + 1} of ${steps.length}`;
@@ -753,7 +743,8 @@ export function EventForm({
   // and the badge picker's draft seeding.
   const selectedInvitees = splitInvitees(form.values.invitees);
   // The invitee step's summary badges, in display order: users first (the
-  // creator in brand, everyone else default) then tagged departments in accent.
+  // creator in brand, the signed-in user as an amber "mine" badge, everyone
+  // else default) then tagged departments in accent.
   const inviteeSummaryItems: PickerBadgeItem[] = [
     ...selectedInvitees.userIds.flatMap((id) => {
       const person = peopleById[id];
@@ -763,6 +754,7 @@ export function EventForm({
               key: `user:${id}`,
               label: person.full,
               color: id === form.values.creatorId ? "brand" : undefined,
+              self: id === currentUser,
             },
           ]
         : [];
@@ -772,20 +764,17 @@ export function EventForm({
       return name ? [{ key: `dept:${id}`, label: name, color: "accent" }] : [];
     }),
   ];
+  // Quick self add/remove state for the Participants step's toggle button.
+  const selfIncluded = selectedInvitees.userIds.includes(currentUser);
 
-  // "On behalf of" is optional: a blank select means the acting user, who is
-  // always invited (mirroring the server's withSelfCreator normalization).
-  // Preview and review derive their people from this effective list, so
-  // {people} tokens match exactly what gets written. Types with invitees
-  // disabled only ever carry the creator.
+  // The organizer is never auto-added as a participant — {people} tokens and
+  // the review derive from the actual invitee selection. The one exception: a
+  // type whose Participants step is hidden stores the organizer as its sole
+  // attendee (there is no step on which they could self-invite), so preview
+  // and review mirror the server's field collapse for those types.
   const effectiveCreatorId = form.values.creatorId || currentUser;
   const effectiveInvitees = showInviteesStep
-    ? [
-        ...new Set([
-          ...(effectiveCreatorId ? [`user:${effectiveCreatorId}`] : []),
-          ...form.values.invitees,
-        ]),
-      ]
+    ? form.values.invitees
     : effectiveCreatorId
       ? [`user:${effectiveCreatorId}`]
       : [];
@@ -829,17 +818,24 @@ export function EventForm({
 
   // Review-step display values — resolved from the same effective state the
   // submit payload uses, so what the user reviews is exactly what gets saved.
-  // The effective owner is shown in the "On behalf of" row (or is the acting
-  // user themselves), so keep them out of the invited-attendee list.
-  const reviewPeople = [
-    ...new Set(
-      effectiveInvitees
-        .filter((value) => value.startsWith("user:"))
-        .filter((value) => value !== `user:${effectiveCreatorId}`)
-        .map((value) => peopleById[value.slice("user:".length)]?.fqn)
-        .filter((name): name is string => Boolean(name)),
-    ),
-  ];
+  // The organizer is shown in its own row below; participants (the review's
+  // Participants row) are exactly the tagged people, so an organizer who
+  // self-invited appears among them too. Id-keyed (not name-keyed) so the
+  // signed-in user is detectable even when display names collide.
+  const reviewPeople = (() => {
+    const entries = new Map<string, string>();
+    for (const value of effectiveInvitees) {
+      if (!value.startsWith("user:")) {
+        continue;
+      }
+      const id = value.slice("user:".length);
+      const person = peopleById[id];
+      if (person && !entries.has(id)) {
+        entries.set(id, person.fqn);
+      }
+    }
+    return [...entries].map(([id, name]) => ({ id, name }));
+  })();
   const reviewDepartments = [
     ...new Set(
       form.values.invitees
@@ -848,8 +844,19 @@ export function EventForm({
         .filter((name): name is string => Boolean(name)),
     ),
   ];
-  // The review always shows the effective owner (blank select = acting user).
+  // The review always names the organizer (fixed at creation to the acting
+  // user; stored on the event thereafter).
   const creatorName = peopleById[effectiveCreatorId]?.fqn ?? null;
+  // The organizer-only edit lock may only be changed by the organizer (or an
+  // admin) — invitees editing the event keep the stored lock server-side.
+  // Keyed off the STORED organizer (not the form's seed fallback, which shows
+  // the acting user on a creator-less event): a non-admin editing a
+  // creator-less event would otherwise see a switch the server silently drops
+  // (canChangeLock is false while no organizer is stored). The acting user is
+  // adopted as the stored organizer on that save, so the switch appears from
+  // their next edit.
+  const storedCreatorId = isEdit ? (event?.payload.creatorId ?? null) : null;
+  const canSetOwnerLock = isEdit ? isAdmin || storedCreatorId === currentUser : true;
   const whenText = (() => {
     if (!form.values.start || !form.values.end) {
       return "";
@@ -922,6 +929,26 @@ export function EventForm({
         return;
       }
       const payload = valuesToPayload(values);
+      // Every saved event must occupy someone (a type with invitees disabled
+      // always carries the organizer, so only the Participants step's type can
+      // reach zero). Bounce back to the step before building any optimistic
+      // chip — a blocked save must leave no stand-in behind.
+      if (
+        showInviteesStep &&
+        payload.inviteeUserIds.length === 0 &&
+        payload.inviteeDepartments.length === 0
+      ) {
+        notifications.show({
+          color: "red",
+          message: "Add at least one participant or department",
+        });
+        const inviteesIndex = steps.findIndex((s) => s.id === "invitees");
+        if (inviteesIndex >= 0) {
+          setDirection(inviteesIndex > step ? "forward" : "backward");
+          setStep(inviteesIndex);
+        }
+        return;
+      }
       const optimisticId = nextOptimisticOpId();
       // The stand-in chip mirrors the edit's real copy identity (so the old
       // grid entry is replaced in place) or, on create, carries a client
@@ -1273,8 +1300,8 @@ export function EventForm({
             <Stack gap="sm">
               {inviteePickerGroups.length > 0 ? (
                 <PickerField
-                  label="Invited Attendees"
-                  description="A copy of the event is created in each tagged person's department and in each tagged department"
+                  label="Participants"
+                  description="Participants can edit this event too. You're in by default — remove yourself if you won't take part; an event must keep at least one participant or department"
                   items={inviteeSummaryItems}
                   onOpen={() => setInviteePickerOpen(true)}
                 />
@@ -1282,6 +1309,29 @@ export function EventForm({
                 <Text size="sm" c="dimmed">
                   No active users or departments to tag yet.
                 </Text>
+              )}
+              {peopleById[currentUser] && (
+                <Button
+                  variant="subtle"
+                  color="brand"
+                  size="compact-xs"
+                  style={{ alignSelf: "flex-start" }}
+                  leftSection={
+                    selfIncluded ? (
+                      <IconUserMinus size={14} stroke={1.5} />
+                    ) : (
+                      <IconUserPlus size={14} stroke={1.5} />
+                    )
+                  }
+                  onClick={() =>
+                    form.setFieldValue(
+                      "invitees",
+                      toggleInviteeUser(form.values.invitees, currentUser),
+                    )
+                  }
+                >
+                  {selfIncluded ? "Remove myself" : "Add myself"}
+                </Button>
               )}
               <UserSelectModal
                 opened={inviteePickerOpen}
@@ -1291,11 +1341,6 @@ export function EventForm({
                 onConfirm={applyInviteePicker}
                 confirmLabel="Select"
                 zIndex={300}
-              />
-              <Switch
-                label="Pin this event"
-                description="Shows this event in the Pinned Events panel on every page"
-                {...form.getInputProps("pinned", { type: "checkbox" })}
               />
             </Stack>
           </div>
@@ -1320,47 +1365,31 @@ export function EventForm({
           </div>
         )}
 
-        {/* Admins only, after Remarks: who this event is recorded as created
-            or edited by. Optional — leaving it blank means the event belongs
-            to the acting admin. Picking a user keeps the invitee chips in sync
-            (the creator is always an invitee, mirroring the server's
-            withSelfCreator normalization); the review step below reflects the
-            effective owner. */}
-        {currentStep.id === "creator" && (
+        {/* Other settings: pin + the organizer-only edit lock, grouped on their
+            own always-present step before the read-only review. The lock is
+            only relevant when the acting user is the organizer or an admin
+            (`canSetOwnerLock`); other editors never see it. */}
+        {currentStep.id === "settings" && (
           <div
             key={currentStep.id}
             className="wizard-step-enter"
             style={{ "--slide-dir": direction === "forward" ? 1 : -1 } as React.CSSProperties}
           >
             <Stack gap="sm">
-              <PickerField
-                label="On behalf of"
-                description="Optional — leave empty to create or edit this event as yourself"
-                items={creatorSummaryItems}
-                empty={
-                  <Text size="xs" c="dimmed">
-                    Yourself
-                  </Text>
-                }
-                onOpen={() => setCreatorPickerOpen(true)}
+              <Switch
+                label="Pin this event"
+                description="Shows this event in the Pinned Events panel on every page"
+                {...form.getInputProps("pinned", { type: "checkbox" })}
               />
-              {form.errors.creatorId && (
-                <Text size="xs" c="red">
-                  {form.errors.creatorId}
-                </Text>
-              )}
-              {creatorPickerOpen && (
-                <UserSelectModal
-                  opened
-                  onClose={() => setCreatorPickerOpen(false)}
-                  title="On behalf of"
-                  confirmLabel="Select"
-                  groups={userPickerGroups}
-                  values={creatorPickerValues}
-                  onConfirm={applyCreatorPicker}
-                  single
-                  allowEmptyConfirm
-                  zIndex={300}
+              {canSetOwnerLock && (
+                <Switch
+                  label={
+                    effectiveCreatorId === currentUser
+                      ? "Only I can edit this event"
+                      : "Only the organizer can edit this event"
+                  }
+                  description="Participants and tagged department members lose edit rights; admins always keep them"
+                  {...form.getInputProps("ownerOnlyEdits", { type: "checkbox" })}
                 />
               )}
             </Stack>
@@ -1414,21 +1443,6 @@ export function EventForm({
                 <Text size="sm">{whenText || "—"}</Text>
               </Stack>
 
-              <Stack gap={4}>
-                <Text size="xs" c="dimmed" fw={600}>
-                  Pinned
-                </Text>
-                {form.values.pinned ? (
-                  <Badge variant="light" color="accent">
-                    Pinned to the Pinned Events panel
-                  </Badge>
-                ) : (
-                  <Text size="sm" c="dimmed">
-                    —
-                  </Text>
-                )}
-              </Stack>
-
               {showLocationStep && (
                 <Stack gap={4}>
                   <Text size="xs" c="dimmed" fw={600}>
@@ -1470,32 +1484,36 @@ export function EventForm({
                 </Group>
               </Stack>
 
-              {isAdmin && (
-                <Stack gap={4}>
-                  <Text size="xs" c="dimmed" fw={600}>
-                    On behalf of
-                  </Text>
-                  <Group gap={6} wrap="wrap">
-                    {creatorName ? (
-                      <Badge variant="light" color="brand">
-                        {creatorName}
-                      </Badge>
-                    ) : (
-                      <Text size="sm">Yourself</Text>
-                    )}
-                  </Group>
-                </Stack>
-              )}
+              <Stack gap={4}>
+                <Text size="xs" c="dimmed" fw={600}>
+                  Organizer
+                </Text>
+                <Group gap={6} wrap="wrap">
+                  {creatorName ? (
+                    <Badge variant="light" color="brand">
+                      {creatorName}
+                    </Badge>
+                  ) : (
+                    <Text size="sm" c="dimmed">
+                      {effectiveCreatorId === currentUser ? "You" : "—"}
+                    </Text>
+                  )}
+                </Group>
+              </Stack>
 
               {reviewPeople.length > 0 && (
                 <Stack gap={4}>
                   <Text size="xs" c="dimmed" fw={600}>
-                    Invited Attendees
+                    Participants
                   </Text>
                   <Group gap={6} wrap="wrap">
-                    {reviewPeople.map((name) => (
-                      <Badge key={name} variant="light">
-                        {name}
+                    {reviewPeople.map((person) => (
+                      <Badge
+                        key={person.id}
+                        variant="light"
+                        className={person.id === currentUser ? "c2-my-badge" : undefined}
+                      >
+                        {person.id === currentUser ? `${person.name} (You)` : person.name}
                       </Badge>
                     ))}
                   </Group>

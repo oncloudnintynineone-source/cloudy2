@@ -87,6 +87,7 @@ function makeEvent(eventId: string | null, calendarId = "cal-1"): CalendarEvent 
       outOfCamp: false,
       overseas: false,
       pinned: false,
+      ownerOnlyEdits: false,
       location: "",
       external: false,
     },
@@ -117,6 +118,7 @@ describe("eventRefFromCalendarEvent", () => {
         creatorId: "u9",
         inviteeUserIds: ["u2"],
         inviteeDepartmentIds: ["cal-9"],
+        ownerOnlyEdits: true,
       },
     });
     expect(ref).toEqual({
@@ -129,6 +131,7 @@ describe("eventRefFromCalendarEvent", () => {
       creatorId: "u9",
       inviteeUserIds: ["u2"],
       inviteeDepartmentIds: ["cal-9"],
+      ownerOnlyEdits: true,
     });
   });
 

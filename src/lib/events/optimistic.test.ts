@@ -54,6 +54,7 @@ function baseEvent(
       outOfCamp: false,
       overseas: false,
       pinned: false,
+      ownerOnlyEdits: false,
       location: "",
       external: false,
     },
@@ -292,6 +293,7 @@ function formValues(overrides: Partial<EventFormValues> = {}): EventFormValues {
     creatorId: "",
     inviteeUserIds: [],
     inviteeDepartments: [],
+    ownerOnlyEdits: false,
     outOfCamp: false,
     overseas: false,
     pinned: false,
@@ -308,7 +310,7 @@ describe("buildOptimisticEvent", () => {
     eventId: "placeholder-1",
   };
 
-  it("defaults a blank creator to the acting user and keeps them invited", () => {
+  it("defaults a blank creator to the acting user without auto-inviting them", () => {
     const event = buildOptimisticEvent({
       identity,
       values: formValues(),
@@ -317,7 +319,7 @@ describe("buildOptimisticEvent", () => {
       eventTypeColor: null,
     });
     expect(event.payload.creatorId).toBe("user-7");
-    expect(event.payload.inviteeUserIds).toContain("user-7");
+    expect(event.payload.inviteeUserIds).toEqual([]);
     expect(event.payload.external).toBe(false);
   });
 

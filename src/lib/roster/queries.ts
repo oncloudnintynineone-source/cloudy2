@@ -1,4 +1,4 @@
-import { asc, eq, inArray } from "drizzle-orm";
+import { and, asc, eq, inArray } from "drizzle-orm";
 
 import { db } from "@/db";
 import { calendars, userCalendarAccess, users } from "@/db/schema";
@@ -99,6 +99,40 @@ export async function getUsersByIds(userIds: string[]): Promise<UserDisplayInfo[
 /** All departments (Google Calendar registry), ordered for display (sortOrder then name). */
 export async function listDepartments() {
   return db.select().from(calendars).orderBy(asc(calendars.sortOrder), asc(calendars.name));
+}
+
+/**
+ * Active roster user ids grouped by their (single) department, restricted to
+ * the given department ids. Used to authorize event edits/reads by department
+ * membership (an event tagged on a department is editable by every active
+ * member of it). Unknown/inactive members contribute nothing.
+ */
+export async function activeMembershipsByDepartment(
+  departmentIds: string[],
+): Promise<Map<string, string[]>> {
+  const uniqueIds = [...new Set(departmentIds)];
+  if (uniqueIds.length === 0) {
+    return new Map();
+  }
+  const rows = await db
+    .select({ departmentId: users.departmentId, id: users.id })
+    .from(users)
+    .where(
+      and(eq(users.status, "active"), inArray(users.departmentId, uniqueIds)),
+    );
+  const memberships = new Map<string, string[]>();
+  for (const row of rows) {
+    if (!row.departmentId) {
+      continue;
+    }
+    const list = memberships.get(row.departmentId);
+    if (list) {
+      list.push(row.id);
+    } else {
+      memberships.set(row.departmentId, [row.id]);
+    }
+  }
+  return memberships;
 }
 
 export interface RosterAccessGrant {

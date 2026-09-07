@@ -1,9 +1,8 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  resolveEventAuthor,
   validateEventForm,
-  withCreatorInvited,
-  withSelfCreator,
   type EventFormValues,
 } from "./validate";
 
@@ -18,6 +17,7 @@ const base: EventFormValues = {
   creatorId: "user-1",
   inviteeUserIds: [],
   inviteeDepartments: [],
+  ownerOnlyEdits: false,
   outOfCamp: false,
   overseas: false,
   pinned: false,
@@ -187,67 +187,60 @@ describe("validateEventForm", () => {
   });
 });
 
-describe("withCreatorInvited", () => {
-  it("adds the creator as an invitee", () => {
-    expect(withCreatorInvited(base).inviteeUserIds).toEqual(["user-1"]);
+describe("resolveEventAuthor", () => {
+  const ref = { creatorId: "user-1", ownerOnlyEdits: false };
+
+  it("records the acting session user on create (no ref) and never merges them into invitees", () => {
+    const result = resolveEventAuthor(base, "actor-1", null, true);
+    expect(result.creatorId).toBe("actor-1");
+    expect(result.inviteeUserIds).toEqual([]);
   });
 
-  it("dedupes the creator already in the invitee list", () => {
+  it("takes the submitted owner-only lock on create", () => {
     expect(
-      withCreatorInvited({ ...base, inviteeUserIds: ["user-1", "user-2"] }).inviteeUserIds,
-    ).toEqual(["user-1", "user-2"]);
+      resolveEventAuthor({ ...base, creatorId: "ignored", ownerOnlyEdits: true }, "actor-1", null, true)
+        .ownerOnlyEdits,
+    ).toBe(true);
   });
 
-  it("leaves other invitees in form order", () => {
+  it("keeps the stored organizer on edit, ignoring any submitted creator", () => {
+    const result = resolveEventAuthor(
+      { ...base, creatorId: "someone-else", ownerOnlyEdits: false },
+      "actor-1",
+      ref,
+      false,
+    );
+    expect(result.creatorId).toBe("user-1");
+  });
+
+  it("adopts the acting user on a creator-less (legacy/external) first edit", () => {
+    const result = resolveEventAuthor(
+      { ...base, creatorId: "" },
+      "actor-1",
+      { creatorId: null, ownerOnlyEdits: false },
+      true,
+    );
+    expect(result.creatorId).toBe("actor-1");
+  });
+
+  it("lets the organizer (or admin) change the lock, but keeps it for other editors", () => {
     expect(
-      withCreatorInvited({ ...base, inviteeUserIds: ["user-2", "user-3"] }).inviteeUserIds,
-    ).toEqual(["user-1", "user-2", "user-3"]);
-  });
-
-  it("no-ops when there is no creator", () => {
-    const input = { ...base, creatorId: "" };
-    expect(withCreatorInvited(input)).toEqual(input);
+      resolveEventAuthor({ ...base, ownerOnlyEdits: true }, "actor-1", ref, true).ownerOnlyEdits,
+    ).toBe(true);
+    // A non-organizer editing keeps the stored lock value.
+    expect(
+      resolveEventAuthor({ ...base, ownerOnlyEdits: true }, "actor-1", ref, false).ownerOnlyEdits,
+    ).toBe(false);
+    expect(
+      resolveEventAuthor({ ...base, ownerOnlyEdits: false }, "actor-1", { ...ref, ownerOnlyEdits: true }, false)
+        .ownerOnlyEdits,
+    ).toBe(true);
   });
 
   it("preserves the remaining form fields", () => {
-    expect(withCreatorInvited(base)).toEqual({
+    expect(resolveEventAuthor(base, "actor-1", null, true)).toEqual({
       ...base,
-      inviteeUserIds: ["user-1"],
-    });
-  });
-});
-
-describe("withSelfCreator", () => {
-  it("defaults a blank creator to the session user and keeps them invited", () => {
-    const result = withSelfCreator({ ...base, creatorId: "" }, "admin-9");
-    expect(result.creatorId).toBe("admin-9");
-    expect(result.inviteeUserIds).toEqual(["admin-9"]);
-  });
-
-  it("trims whitespace before defaulting", () => {
-    expect(withSelfCreator({ ...base, creatorId: "   " }, "admin-9").creatorId).toBe("admin-9");
-  });
-
-  it("keeps an explicitly chosen creator untouched", () => {
-    expect(withSelfCreator(base, "admin-9").creatorId).toBe("user-1");
-  });
-
-  it("dedupes the defaulted creator into existing invitees in form order", () => {
-    expect(
-      withSelfCreator({ ...base, creatorId: "", inviteeUserIds: ["user-2"] }, "user-2")
-        .inviteeUserIds,
-    ).toEqual(["user-2"]);
-    expect(
-      withSelfCreator({ ...base, creatorId: "", inviteeUserIds: ["user-3"] }, "admin-9")
-        .inviteeUserIds,
-    ).toEqual(["admin-9", "user-3"]);
-  });
-
-  it("preserves the remaining form fields", () => {
-    expect(withSelfCreator({ ...base, creatorId: "" }, "admin-9")).toEqual({
-      ...base,
-      creatorId: "admin-9",
-      inviteeUserIds: ["admin-9"],
+      creatorId: "actor-1",
     });
   });
 });
