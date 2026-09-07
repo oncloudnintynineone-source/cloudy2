@@ -1,21 +1,17 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Badge, Button, Group, Loader, Paper, Skeleton, Stack, Text } from "@mantine/core";
+import { Button, Group, Loader, Paper, Skeleton, Stack, Text } from "@mantine/core";
 import dayjs from "dayjs";
-import {
-  IconAlertTriangle,
-  IconCalendarClock,
-  IconCircleCheck,
-  IconRefresh,
-} from "@tabler/icons-react";
+import { IconCalendarClock, IconCircleCheck, IconRefresh } from "@tabler/icons-react";
 
 import { PickerField, type PickerBadgeItem } from "@/components/PickerField";
 import { UserSelectModal } from "@/components/UserSelectModal";
 import { LoadingStatus } from "@/components/LoadingStatus";
 import { EmptyState } from "@/components/EmptyState";
 import { useColdStartContent } from "@/components/ColdStartReady";
-import { ClashAffectedChips, eventWhenLabel } from "@/components/clashUi";
+import { ClashAffectedChips } from "@/components/clashUi";
+import { ClashCard, ClashEventRow } from "@/components/clashCards";
 import { CONTENT_ENTER_CLASS } from "@/lib/loading/contentEnter";
 import { checkUserClashes, type UserClashCheckResult } from "@/lib/events/clashActions";
 import { buildUserGroups, selectionByGroup } from "@/lib/users/userSelect";
@@ -329,56 +325,23 @@ export function DoubleBookingView({
                   count === 1 ? "event" : "events"
                 }`;
           return (
-            <Paper
+            <ClashCard
               key={groupIndex}
-              withBorder
-              p="sm"
-              role="status"
-              aria-live="polite"
-              style={{ borderColor: "var(--mantine-color-orange-4)" }}
+              heading={doubleBooked(group.events.length)}
+              summaryBelow={
+                <ClashAffectedChips
+                  affected={group.events[0].affected}
+                  currentUserId={currentUserId}
+                />
+              }
             >
-              <Stack gap="xs">
-                <Group gap="sm" align="flex-start" wrap="nowrap">
-                  <IconAlertTriangle
-                    size={18}
-                    style={{ flexShrink: 0, marginTop: 2 }}
-                    color="var(--mantine-color-orange-6)"
-                    aria-hidden
-                  />
-                  <Stack gap={4} style={{ flexGrow: 1 }}>
-                    <Text size="sm" fw={500} c="orange.8">
-                      {doubleBooked(group.events.length)}
-                    </Text>
-                    <ClashAffectedChips
-                      affected={group.events[0].affected}
-                      currentUserId={currentUserId}
-                    />
-                    <Stack gap="sm" mt={4}>
-                      {group.events.map((entry, eventIndex) => (
-                        <Stack
-                          key={`${entry.calendarName}:${entry.startNaive}:${entry.title}:${eventIndex}`}
-                          gap={2}
-                        >
-                          <Group gap={6} wrap="wrap">
-                            <Text size="sm" fw={600} style={{ overflowWrap: "anywhere" }}>
-                              {entry.title}
-                            </Text>
-                            {entry.external && (
-                              <Badge size="xs" variant="light" color="gray">
-                                External
-                              </Badge>
-                            )}
-                          </Group>
-                          <Text size="xs" c="dimmed">
-                            {eventWhenLabel(entry)} · {entry.calendarName}
-                          </Text>
-                        </Stack>
-                      ))}
-                    </Stack>
-                  </Stack>
-                </Group>
-              </Stack>
-            </Paper>
+              {group.events.map((entry, eventIndex) => (
+                <ClashEventRow
+                  key={`${entry.calendarName}:${entry.startNaive}:${entry.title}:${eventIndex}`}
+                  entry={entry}
+                />
+              ))}
+            </ClashCard>
           );
         })}
         <Text fz="xs" c="dimmed">

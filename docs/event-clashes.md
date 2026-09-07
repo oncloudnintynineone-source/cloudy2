@@ -155,12 +155,15 @@ paper. It runs the server check when it mounts and whenever `request` changes, a
 shows one of:
 
 - **Checking** — a small skeleton block with a `LoadingStatus` announcement.
-- **Clashes** — an amber panel: "This event clashes with _N_ people", then one row
-  per conflicting event (title, `External` badge when applicable, when + department,
-  and the affected people as chips — the acting user's chip reads "You (name)" in the
-  accent color). Many people from a whole-department clash are capped at six chips
-  with a `+N more` summary. A closing line reminds the user the event can still be
-  saved.
+- **Clashes** — a shared **`ClashCard`** amber panel, collapsed by default to the
+  summary line "This event clashes with _N_ people" (a chevron shows it expands);
+  tapping the summary reveals one row per conflicting event (title, `External`
+  badge when applicable, when + department, and the affected people as chips — the
+  acting user's chip reads "You (name)" in the accent color). Many people from a
+  whole-department clash are capped at six chips with a `+N more` summary. A
+  closing line reminds the user the event can still be saved. The polite
+  `role="status"` announcement covers only the summary line, so the clash count is
+  announced on arrival while expanding stays a quiet user action.
 - **No clashes** — a green confirmation naming how many people were checked.
 - **Error** — a muted one-liner with a Retry button.
 
@@ -210,6 +213,7 @@ unit-tested, following the repo convention.
 | `src/lib/events/clashes.test.ts`                    | Engine tests                                           |
 | `src/lib/events/clashQuery.ts`                      | Month-cache read over the candidate's target calendars |
 | `src/lib/events/clashActions.ts`                    | `checkEventClashes` server action (read-only)          |
+| `src/components/clashCards.tsx` | Shared collapsible amber card + per-event row (page + wizard) |
 | `src/app/(protected)/dashboard/EventClashCheck.tsx` | Review-step advisory panel                             |
 | `src/app/(protected)/dashboard/EventForm.tsx`       | Review step mounts the panel with the submit payload   |
 

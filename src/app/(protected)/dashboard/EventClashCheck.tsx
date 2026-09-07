@@ -1,11 +1,12 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Badge, Box, Button, Group, Loader, Paper, Skeleton, Stack, Text } from "@mantine/core";
-import { IconAlertTriangle, IconCircleCheck, IconRefresh } from "@tabler/icons-react";
+import { Box, Button, Group, Loader, Paper, Skeleton, Stack, Text } from "@mantine/core";
+import { IconCircleCheck, IconRefresh } from "@tabler/icons-react";
 
 import { LoadingStatus } from "@/components/LoadingStatus";
-import { ClashAffectedChips, eventWhenLabel } from "@/components/clashUi";
+import { ClashAffectedChips } from "@/components/clashUi";
+import { ClashCard, ClashEventRow } from "@/components/clashCards";
 import {
   checkEventClashes,
   type EventClashCheckRequest,
@@ -119,53 +120,27 @@ export function EventClashCheck({ request }: { request: EventClashCheckRequest |
       result.clashes.flatMap((clash) => clash.affected.map((person) => person.userId)),
     ).size;
     return (
-      <Paper
-        withBorder
-        p="sm"
-        role="status"
-        aria-live="polite"
-        style={{ borderColor: "var(--mantine-color-orange-4)" }}
+      <ClashCard
+        heading={`This event clashes with ${affectedCount} ${
+          affectedCount === 1 ? "person" : "people"
+        }`}
       >
-        <Group gap="sm" align="flex-start" wrap="nowrap">
-          <IconAlertTriangle
-            size={18}
-            style={{ flexShrink: 0, marginTop: 2 }}
-            color="var(--mantine-color-orange-6)"
-            aria-hidden
+        {result.clashes.map((entry) => (
+          <ClashEventRow
+            key={`${entry.calendarName}:${entry.startNaive}:${entry.title}`}
+            entry={entry}
+            chips={
+              <ClashAffectedChips
+                affected={entry.affected}
+                currentUserId={result.currentUserId}
+              />
+            }
           />
-          <Stack gap="xs" style={{ flexGrow: 1 }}>
-            <Text size="sm" fw={500} c="orange.8">
-              This event clashes with {affectedCount} {affectedCount === 1 ? "person" : "people"}
-            </Text>
-            <Stack gap="sm">
-              {result.clashes.map((entry) => (
-                <Stack key={`${entry.calendarName}:${entry.startNaive}:${entry.title}`} gap={4}>
-                  <Group gap={6} wrap="wrap">
-                    <Text size="sm" fw={600} style={{ overflowWrap: "anywhere" }}>
-                      {entry.title}
-                    </Text>
-                    {entry.external && (
-                      <Badge size="xs" variant="light" color="gray">
-                        External
-                      </Badge>
-                    )}
-                  </Group>
-                  <Text size="xs" c="dimmed">
-                    {eventWhenLabel(entry)} · {entry.calendarName}
-                  </Text>
-                  <ClashAffectedChips
-                    affected={entry.affected}
-                    currentUserId={result.currentUserId}
-                  />
-                </Stack>
-              ))}
-            </Stack>
-            <Text size="xs" c="dimmed">
-              You can still save this event — these are warnings only.
-            </Text>
-          </Stack>
-        </Group>
-      </Paper>
+        ))}
+        <Text size="xs" c="dimmed">
+          You can still save this event — these are warnings only.
+        </Text>
+      </ClashCard>
     );
   }
 
