@@ -5,7 +5,7 @@ import { Box, Button, Group, Loader, Paper, Skeleton, Stack, Text } from "@manti
 import { IconCircleCheck, IconRefresh } from "@tabler/icons-react";
 
 import { LoadingStatus } from "@/components/LoadingStatus";
-import { ClashAffectedChips } from "@/components/clashUi";
+import { ClashAffectedChips, clashTitlesPreview } from "@/components/clashUi";
 import { ClashCard, ClashEventRow } from "@/components/clashCards";
 import {
   checkEventClashes,
@@ -121,9 +121,9 @@ export function EventClashCheck({ request }: { request: EventClashCheckRequest |
     ).size;
     return (
       <ClashCard
-        heading={`This event clashes with ${affectedCount} ${
+        heading={`Double booking: ${affectedCount} ${
           affectedCount === 1 ? "person" : "people"
-        }`}
+        } · ${clashTitlesPreview(result.clashes)}`}
       >
         {result.clashes.map((entry) => (
           <ClashEventRow

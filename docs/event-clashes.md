@@ -156,7 +156,8 @@ shows one of:
 
 - **Checking** — a small skeleton block with a `LoadingStatus` announcement.
 - **Clashes** — a shared **`ClashCard`** amber panel, collapsed by default to the
-  summary line "This event clashes with _N_ people" (a chevron shows it expands);
+  summary line `Double booking: N people · <titles preview>` — the first two
+  conflicting-event titles, then `· +N more` (a chevron shows it expands);
   tapping the summary reveals one row per conflicting event (title, `External`
   badge when applicable, when + department, and the affected people as chips — the
   acting user's chip reads "You (name)" in the accent color). Many people from a

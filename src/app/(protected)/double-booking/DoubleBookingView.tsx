@@ -10,7 +10,7 @@ import { UserSelectModal } from "@/components/UserSelectModal";
 import { LoadingStatus } from "@/components/LoadingStatus";
 import { EmptyState } from "@/components/EmptyState";
 import { useColdStartContent } from "@/components/ColdStartReady";
-import { ClashAffectedChips } from "@/components/clashUi";
+import { ClashAffectedChips, clashTitlesPreview } from "@/components/clashUi";
 import { ClashCard, ClashEventRow } from "@/components/clashCards";
 import { CONTENT_ENTER_CLASS } from "@/lib/loading/contentEnter";
 import { checkUserClashes, type UserClashCheckResult } from "@/lib/events/clashActions";
@@ -318,16 +318,15 @@ export function DoubleBookingView({
           {formatDateOnly(result.rangeStartDate)} to {formatDateOnly(result.rangeEndDate)}.
         </Text>
         {result.groups.map((group, groupIndex) => {
-          const doubleBooked = (count: number) =>
-            isSelf
-              ? `You're double-booked by ${count} overlapping ${count === 1 ? "event" : "events"}`
-              : `${result.targetName} is double-booked by ${count} overlapping ${
-                  count === 1 ? "event" : "events"
-                }`;
+          const count = group.events.length;
+          const countLabel = `${count} overlapping ${count === 1 ? "event" : "events"}`;
+          const heading = isSelf
+            ? `${countLabel} · ${clashTitlesPreview(group.events)}`
+            : `${result.targetName} · ${countLabel} · ${clashTitlesPreview(group.events)}`;
           return (
             <ClashCard
               key={groupIndex}
-              heading={doubleBooked(group.events.length)}
+              heading={heading}
               summaryBelow={
                 <ClashAffectedChips
                   affected={group.events[0].affected}

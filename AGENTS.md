@@ -217,8 +217,8 @@ mechanics in the doc.
   external/people-less event occupies the active members of its own
   calendar; two events clash when their windows overlap AND they share an occupied
   user. The review-step advisory is a shared collapsible amber `ClashCard`
-  (`src/components/clashCards.tsx`) collapsed to its "clashes with N people"
-  summary line by default. Warnings never block a save.
+  (`src/components/clashCards.tsx`) collapsed to a `Double booking: N people ·
+  <titles preview>` summary line by default. Warnings never block a save.
   Design: [docs/event-clashes.md](docs/event-clashes.md).
 - **Double Booking page (`/double-booking`, bottom nav + sidebar for every role):**
   an existing-event scan of double-bookings. It reads only the **scanned user's own
@@ -228,8 +228,9 @@ mechanics in the doc.
   pairwise-overlap graph among occupying events is one report — and lists the overlap
   groups as collapsible amber `ClashCard`s (shared people chips via
   `src/components/clashUi.tsx`, per-event rows via `src/components/clashCards.tsx`;
-  "External" badges). Cards are collapsed to their summary heading by default — the
-  shared-people chips stay visible — and expand on tap. The read-only
+  "External" badges). Cards are collapsed to a count-first summary heading by default
+  (`N overlapping events · <titles preview>` — `{name} · N …` for an admin scan) with
+  the shared-people chips still visible beneath; they expand on tap. The read-only
   `checkUserClashes` action (`clashActions.ts`) lets **admins
   scan any active roster user** (the shared **single-select `UserSelectModal`** badge
   dialog — department sections + shortname search — never a dropdown on a large list);

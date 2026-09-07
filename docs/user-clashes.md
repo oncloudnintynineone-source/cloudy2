@@ -197,10 +197,11 @@ render both. The per-event `affected` is the report's shared-people list.
   dimmed "Checking your own schedule" when scanning self. Content states: skeleton +
   `LoadingStatus` while loading (mirrors a result card); an error card with Retry; an
   `EmptyState` for `no-department` / `no-active-user`; otherwise one amber
-  **`ClashCard`** per overlap report — collapsed by default to a clickable summary
-  row (a "You're / {name} is double-booked by N overlapping events" heading plus a
-  chevron) with the shared-people chips (`ClashAffectedChips`) always visible
-  beneath it; tapping the heading expands the per-event rows (title, `External`
+  **`ClashCard`** per overlap report — collapsed by default to a clickable,
+  count-first summary row (`N overlapping events · <titles preview>`, prefixed
+  `{name} ·` for an admin scan — the first two event titles, then `· +N more`),
+  with the shared-people chips (`ClashAffectedChips`) always visible beneath it;
+  tapping the heading expands the per-event rows (title, `External`
   badge, when · department). Every real-scan outcome opens with a
   polite `role="status"` summary line (counts + covered dates); clashes end with a
   muted footnote ("Only events that occupy {you/name} are compared… warnings only").
@@ -208,7 +209,8 @@ render both. The per-event `affected` is the report's shared-people list.
   `Skeleton`s inside `PageContainer`).
 
 Shared clash UI was lifted out of `EventClashCheck.tsx` so the wizard panel and
-this page render identically from one source: the chips and when-labels live in
+this page render identically from one source: the chips and labels (incl. the
+`clashTitlesPreview` teaser builder) live in
 `src/components/clashUi.tsx`, and the collapsible card shell (`ClashCard`) plus
 the per-event row (`ClashEventRow`) live in `src/components/clashCards.tsx`. The
 card's polite live-region announcement is scoped to the always-visible summary
