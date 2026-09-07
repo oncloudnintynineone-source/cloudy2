@@ -373,7 +373,7 @@ function isLaunchRequest(options: { request: Request; url: URL; sameOrigin: bool
 // `useStaleDocumentReconcile` (src/lib/pwa/client.ts) fires one non-blocking
 // `router.refresh()` when the stamp is older than `DOCUMENT_FRESH_WINDOW_MS`.
 // Fresh data therefore arrives a beat later rather than in front of a blank
-// screen. (Refreshing on demand is the header's "Force refresh" button — a full
+// screen. (Refreshing on demand is the profile menu's "Force refresh" — a full
 // reload carrying a one-shot `?refresh` nonce that the SW never serves from
 // cache.)
 //

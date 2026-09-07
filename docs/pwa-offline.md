@@ -384,7 +384,7 @@ two invariants: it answers from the precache, and it contains no redirect and no
 cookie peek). The rest of the SW bundle (`src/app/sw.ts`) is wiring only.
 Integration is validated by `pnpm build` (precache count + inspecting the emitted
 SW bundle) + manual PWA checks: second open instant, cold launch (the
-skeleton must paint before any content), F5, header force-refresh bypass,
+skeleton must paint before any content), F5, profile-menu force-refresh bypass,
 deep links, offline cold open, offline view switching, offline mutation error,
 sign-out isolation, and the deploy-takeover reload (§1.8).
 

@@ -165,8 +165,8 @@ mechanics in the doc.
   opens "Add view" (kind picker + name); a sticky settings button to the **left**
   of the strip (outside the scroll area) toggles **Edit views** — a flat manage
   list with ←/→ reorder (inline spinner while working), tap-to-rename, per-tab
-  delete (the last tab can't go). Tabs are a **fixed width** (no fill; overflow
-  scrolls).
+  delete (the last tab can't go). Tabs are **content-sized** (no fill, so the
+  underline hugs the label; overflow scrolls).
   **Filters are stored per tab** (server-side; a filter value `null` = role default,
   an explicit array incl. `[]` = that selection) and applied/cleared through server
   actions + `router.refresh()` — no `cal/users/types` URL params. The active tab

@@ -315,10 +315,9 @@ export function AppShellShell({
   // relaunch from the start URL can land back here — read by / at launch.
   useRememberedPage(pathname);
 
-  // A document that hard-loaded with the header Force refresh's one-shot
-  // `?refresh` nonce strips it here (RSC entries cleared first, so the
-  // clean-URL replace can't re-serve a stale payload). See
-  // useOneShotRefreshStrip in pwa/client.
+  // A document that hard-loaded with the profile menu's one-shot `?refresh`
+  // nonce strips it here (RSC entries cleared first, so the clean-URL replace
+  // can't re-serve a stale payload). See useOneShotRefreshStrip in pwa/client.
   useOneShotRefreshStrip();
 
   // Cold-start readiness: the shell's two mount fetches (pinned events, clash

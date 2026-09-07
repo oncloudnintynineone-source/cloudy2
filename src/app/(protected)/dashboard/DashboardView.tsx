@@ -292,11 +292,6 @@ interface FormState {
 
 const DAY_SWIPE_THRESHOLD = 48;
 
-// Fixed width (px) of each tab in the strip: tabs never stretch to fill the
-// row, so a short set leaves empty space on the right and a long one overflows
-// into natural horizontal scrolling. Names truncate with an ellipsis.
-const TAB_STRIP_TAB_WIDTH = 112;
-
 /**
  * Day-label strip for the Week (H) view. `ResourcesWeekView`'s own day labels are
  * centered in each full-width day column, so on a phone they are only visible
@@ -1162,7 +1157,7 @@ export function DashboardView({
   // class ships in the SSR HTML and plays on first paint. The one-shot
   // `edit`/`event` strips are plain pushes (no transition), so they never set
   // the pending flag and never replay the fade. (Force refresh is a full page
-  // reload from the header button now — its wait is the route loading.tsx, not
+  // reload from the profile menu now — its wait is the route loading.tsx, not
   // this skeleton.)
   const gridLoading = useMinSkeletonHold(isPending);
   useContentEnter(weekBoxRef, !gridLoading);
@@ -2352,7 +2347,7 @@ export function DashboardView({
                     if (tab) switchTab(tab);
                   }}
                   aria-label="Calendar view"
-                  styles={{ tab: { flex: "0 0 auto", width: TAB_STRIP_TAB_WIDTH } }}
+                  styles={{ tab: { flex: "0 0 auto" } }}
                 >
                   <Tabs.List ref={tabListElRef} style={{ flexWrap: "nowrap", overflowX: "auto" }}>
                     {tabs.map((tab) => {
@@ -2484,7 +2479,7 @@ export function DashboardView({
           {/* Filters live in their own primary affordance (icon + count badge),
               not the overflow menu — the kebab keeps navigation, the "Edit
               views" management mode and the fullscreen toggle (Force refresh
-              lives in the header). */}
+              lives in the profile menu). */}
           <FilterButton
             activeCount={activeFilterCount}
             onClick={(e) => {

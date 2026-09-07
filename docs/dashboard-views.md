@@ -58,9 +58,9 @@ string maps to the first tab of that kind.
   works), tap the name to rename, ✕ deletes (the last tab
   can't be deleted; deleting the active tab navigates to the first remaining).
   The old **pin/unpin** affordance and its star UI are gone — ordering is
-  fully user-controlled. Tabs themselves are a **fixed width** (they never
-  stretch to fill the row; a long set overflows into natural horizontal
-  scrolling).
+  fully user-controlled. Tabs themselves are **content-sized** — each shrink-wraps
+  its label (so the active underline hugs the text), they never stretch to fill the
+  row, and a long set overflows into natural horizontal scrolling.
 - **Period preservation on switch** (`switchTab` in `DashboardView.tsx`): a
   tab switch is a *filter/context* change, so switching between two tabs of the
   same kind (or any two day-anchored kinds) keeps the current date; leaving

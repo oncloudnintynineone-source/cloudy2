@@ -600,18 +600,6 @@ One line per phase; full write-ups (incl. Mermaid diagrams and verification note
    CSS + `WIZARD_BODY_HEIGHT_SHEET` are removed. Desktop keeps its capped height
    (`min(68dvh, 720px, calc(100dvh - 200px))`) unchanged. `docs/event-lifecycle.md` §1.4,
    `docs/desktop-responsive.md` §1.7, `AGENTS.md`
-- 1.203 Header Force refresh + theme switch into the profile menu: the header's light/dark
-   cycle icon (`ThemeToggle`, `src/components/ThemeToggle.tsx`, deleted) is replaced by the
-   profile menu's **Force refresh** promoted to a header `IconRefresh` button in the theme
-   toggle's old slot (right of Search, left of the profile icon) — same one-shot
-   `?refresh=<epoch-ms>` full-reload nonce + double-click guard, logic now living in
-   `AppShellShell`; disabled only on `/dashboard` when Google is unconfigured. The profile
-   menu (all pages) gains the theme switch as three radio rows — **Light / Dark / System**,
-   the active scheme ticked (`useMantineColorScheme`, unset/unknown normalized to System) —
-   between the profile header and Calendar Access. `googleConfigured` no longer threads to
-   `UserMenu`. `AGENTS.md`, `docs/events-cache.md` §1.5.1, `docs/pwa-offline.md` §1.11/§1.15,
-   `docs/loading-transitions.md`, `docs/immersive-mode.md`, `docs/dashboard-views.md`,
-   `docs/event-search.md`, `docs/user-guide.md`
 
 ## 1.4 Open items & next steps
 

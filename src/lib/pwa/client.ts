@@ -114,7 +114,7 @@ export async function refreshFresh(
 
 // --- One-shot ?refresh strip ------------------------------------------------
 //
-// The header's "Force refresh" reloads the current URL with a fresh
+// The profile menu's "Force refresh" reloads the current URL with a fresh
 // `?refresh=<epoch-ms>` nonce, so the service worker never answers it from the
 // document/RSC caches (`ONE_SHOT_PARAMS`) — every page gets a network render,
 // and on /dashboard the server additionally force-reads Google. The nonce must
