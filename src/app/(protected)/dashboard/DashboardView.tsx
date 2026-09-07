@@ -29,11 +29,13 @@ import {
   Stack,
   Tabs,
   Text,
+  TextInput,
   Tooltip,
   UnstyledButton,
   useMantineTheme,
 } from "@mantine/core";
 import { useDisclosure, useDrag, useMediaQuery, useMergedRef } from "@mantine/hooks";
+import { notifications } from "@mantine/notifications";
 import {
   AgendaView,
   MonthView,
@@ -51,6 +53,7 @@ import {
   IconCalendarMonth,
   IconCalendarUser,
   IconCalendarWeek,
+  IconCheck,
   IconChevronDown,
   IconChevronLeft,
   IconChevronRight,
@@ -59,9 +62,9 @@ import {
   IconLayoutGrid,
   IconListDetails,
   IconLink,
+  IconPencil,
   IconPlus,
-  IconStar,
-  IconStarFilled,
+  IconTrash,
   IconUser,
   IconUserOff,
   IconX,
@@ -82,7 +85,11 @@ import { EmptyState } from "@/components/EmptyState";
 import { FilterButton } from "@/components/FilterButton";
 import { FilterModal, type FilterGroup } from "@/components/FilterModal";
 import { GridNavControls } from "@/components/GridNavControls";
-import { DESKTOP_WIDE_MEDIA_QUERY, NARROW_MEDIA_QUERY } from "@/lib/theme";
+import {
+  BUTTON_LOADER_PROPS,
+  DESKTOP_WIDE_MEDIA_QUERY,
+  NARROW_MEDIA_QUERY,
+} from "@/lib/theme";
 import {
   FAB_ICON_SIZE,
   FAB_SIZE,
@@ -131,16 +138,24 @@ import {
   weekSlotWidth,
   type SlotZoom,
 } from "@/lib/ui/slotZoom";
-import {
-  DASHBOARD_STATE_KEYS,
-  DASHBOARD_VIEW_LABELS,
-  freshMarkerNeeded,
-  orderDashboardViews,
-  type DashboardFilterSet,
-} from "@/lib/ui/uiState";
-import { usePersistUiState } from "@/lib/ui/uiStateClient";
+import { usePersistDashboardNav } from "@/lib/ui/uiStateClient";
 import { PINNED_EVENTS_CHANGED_EVENT } from "@/lib/ui/pinnedPanel";
 import { notifyEventsChanged } from "@/lib/ui/eventChanges";
+import {
+  createDashboardView,
+  deleteDashboardView,
+  renameDashboardView,
+  reorderDashboardViews,
+  saveDashboardViewFilters,
+} from "@/lib/dashboardViews/actions";
+import {
+  DASHBOARD_VIEW_KIND_LABELS,
+  DASHBOARD_VIEW_KINDS,
+  type DashboardTabFilters,
+  type DashboardViewKind,
+  type DashboardViewTab,
+} from "@/lib/dashboardViews/views";
+import { setActiveDashboardView } from "@/lib/userPrefs/actions";
 import { EventDetail } from "./EventDetail";
 import { EventForm } from "./EventForm";
 import { WeekMatrixView } from "./WeekMatrixView";
@@ -148,7 +163,7 @@ import {
   invalidateCurrentPathCaches,
 } from "@/lib/pwa/client";
 
-type ViewMode = "month" | "week" | "weekv2" | "schedule" | "agenda";
+type ViewMode = DashboardViewKind;
 
 /**
  * Mantine's `RenderEvent` signature (the type itself is not re-exported from
@@ -159,8 +174,8 @@ type MyEventRender = (
   props: ComponentPropsWithoutRef<"button"> & { children: ReactNode },
 ) => ReactElement;
 
-// Tab bar labels/icons in default (unpinned) order; pinned tabs are moved to
-// the front by `orderDashboardViews` (see the pinnedViews prop).
+// Kind → icon/label for the tab strip icons and the "Add view" type picker.
+// Tab strip labels themselves come from each tab's user-chosen name.
 const VIEW_TAB_META: Record<ViewMode, { label: string; icon: ReactNode; nowrap?: boolean }> = {
   month: { label: "Month", icon: <IconCalendarMonth size={16} /> },
   week: { label: "Week (H)", icon: <IconCalendarWeek size={16} /> },
@@ -186,14 +201,20 @@ interface EventTypeOption {
 interface DashboardViewProps {
   month: string;
   date: string;
-  view: ViewMode;
   /**
-   * Pinned tabs in recency order (index 0 = most recently pinned, renders
-   * leftmost); unpinned tabs keep their default order. The server resolves
-   * this from the remembered-state cookie on every render — including
-   * `_fresh` renders, since pins are not URL-backed.
+   * The dashboard's on-demand tabs in strip order (server-side per account —
+   * src/lib/dashboardViews). The server resolves the active tab from the URL
+   * `?view=` / remembered state and passes it below.
    */
-  pinnedViews: string[];
+  tabs: DashboardViewTab[];
+  /**
+   * The tab being rendered: its kind picks the renderer/anchored semantics,
+   * its stored filters resolve to the `selected*` props.
+   */
+  activeView: DashboardViewTab;
+  /** Whether the user can create/rename/reorder/delete tabs (false for the
+   *  break-glass admin session, which has no stored views). */
+  canManageViews: boolean;
   /**
    * Remembered Day/Week (H) hour-slot zoom level, resolved from the UI-state
    * cookie before first paint (a relaunch restores the last zoom with no
@@ -217,13 +238,9 @@ interface DashboardViewProps {
   selectedCalendarIds: string[];
   selectedTypes: string[];
   selectedUserIds: string[];
-  /**
-   * Server-resolved filter set for every dashboard view (URL wins for the
-   * current view; the others come from their per-view memory or the role
-   * default — filters are scoped per view only). The current view's entry
-   * equals the `selected*` props.
-   */
-  viewFilters: Record<ViewMode, DashboardFilterSet>;
+  /** The role defaults this user's tab filters fall back to (admin: all
+   *  calendars; non-admin: their own department; users/types: none). */
+  defaultFilters: DashboardTabFilters;
   currentUser: string;
   /** Admin may edit any event and bypass the organizer-only lock. */
   isAdmin: boolean;
@@ -688,8 +705,9 @@ function MonthWeekdayStrip({
 export function DashboardView({
   month,
   date,
-  view,
-  pinnedViews,
+  tabs,
+  activeView,
+  canManageViews,
   initialZoom,
   events,
   calendars,
@@ -702,7 +720,7 @@ export function DashboardView({
   selectedCalendarIds,
   selectedTypes,
   selectedUserIds,
-  viewFilters,
+  defaultFilters,
   currentUser,
   isAdmin,
   initialEditEventId,
@@ -720,6 +738,9 @@ export function DashboardView({
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const [isPending, startTransition] = useTransition();
+  // The active tab's renderer kind (Month/Week (H)/…). Booleans, the skeleton
+  // chain and the period label key off this exactly like the old `view` prop.
+  const view: ViewMode = activeView.kind;
   // Cold-start readiness: the grid content is server-rendered into this
   // component's props, so the view only mounts once the route's events have
   // streamed — reporting on mount is exactly "content painted".
@@ -763,8 +784,8 @@ export function DashboardView({
     : undefined;
 
   // Timeline zoom (Day/Week (H) hour-slot width). Purely client-owned, seeded
-  // once from the remembered cookie; `usePersistUiState` below writes every
-  // change back so a relaunch restores it. No render-phase sync: the user's
+  // once from the remembered cookie; `usePersistDashboardNav` below writes the
+  // level back so a relaunch restores it. No render-phase sync: the user's
   // latest tap always wins, and the cookie (hence the next server seed) has
   // already converged to it.
   const [zoom, setZoom] = useState<SlotZoom>(initialZoom);
@@ -885,42 +906,62 @@ export function DashboardView({
   const [filterOriginRect, setFilterOriginRect] = useState<Rect | null>(null);
   const [pickerOpened, { open: openPicker, close: closePicker }] = useDisclosure(false);
 
-  // Pinned tabs (index 0 = leftmost). The prop is the server's validated read
-  // of the remembered-state cookie; local state leads it by one toggle. The
-  // render-phase sync below (the standard "adjust state on prop change"
-  // pattern) follows external prop changes — back/forward, a cleared cookie —
-  // without clobbering a local toggle the cookie hasn't re-confirmed yet
-  // (compared by content, not reference).
-  const [pinned, setPinned] = useState<string[]>(pinnedViews);
-  const [prevPinnedViews, setPrevPinnedViews] = useState<string[]>(pinnedViews);
-  if (JSON.stringify(prevPinnedViews) !== JSON.stringify(pinnedViews)) {
-    setPrevPinnedViews(pinnedViews);
-    setPinned(pinnedViews);
-  }
+  // "Add view" dialog draft (kind picker + name) and the rename dialog target.
+  const [createOpened, { open: openCreateView, close: closeCreateView }] = useDisclosure(false);
+  const [createKind, setCreateKind] = useState<DashboardViewKind>("month");
+  const [createName, setCreateName] = useState(DASHBOARD_VIEW_KIND_LABELS.month);
+  const [createError, setCreateError] = useState<string | null>(null);
+  const [creating, setCreating] = useState(false);
+  const [renaming, setRenaming] = useState<DashboardViewTab | null>(null);
+  const [renameValue, setRenameValue] = useState("");
+  const [renameError, setRenameError] = useState<string | null>(null);
+  const [renamingBusy, setRenamingBusy] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState<DashboardViewTab | null>(null);
+
+  // Tab-management ("Edit views") mode: the strip swaps to a manage list with
+  // reorder / rename / delete controls. A transient client state, never
+  // persisted (the order itself is saved server-side on each move).
+  const [managing, setManaging] = useState(false);
+
+  // Optimistic active-tab highlight (`shownTabId`): leads the server-resolved
+  // `activeView` so a tab tap highlights instantly (even between two tabs of
+  // the same kind) while the grid waits behind its skeleton. Render-phase
+  // sync follows external prop changes — back/forward, deep links, server
+  // re-renders after create/delete — and re-snaps to the committed props
+  // whenever our navigation transition has ended.
+  const [shownTabId, setShownTabId] = useState(activeView.id);
 
   // Optimistic date-nav chrome (`shown*`): leads the server-resolved props so
   // tab taps, chevrons and Today answer instantly while the grid waits behind
-  // its skeleton for real data. Taps write these directly (shift*/switchView/
+  // its skeleton for real data. Taps write these directly (shift*/switchTab/
   // goToday/pickDate); the render-phase sync below follows external prop
-  // changes (back/forward, deep links, remembered-state cold starts) and —
-  // whenever our navigation transition has ended — re-snaps to the committed
-  // props, healing a failed or offline navigation instead of stranding the
-  // chrome on an intent that never landed. Same "adjust state during render"
-  // pattern as `pinned` above.
+  // changes (back/forward, deep links, cold starts) and — whenever our
+  // navigation transition has ended — re-snaps to the committed props,
+  // healing a failed or offline navigation instead of stranding the chrome on
+  // an intent that never landed. Same "adjust state during render" pattern as
+  // `shownTabId` above.
   const [shownView, setShownView] = useState(view);
   const [shownMonth, setShownMonth] = useState(month);
   const [shownDate, setShownDate] = useState(date);
-  const [prevNavSync, setPrevNavSync] = useState({ view, month, date, isPending });
+  const [prevNavSync, setPrevNavSync] = useState({
+    tabId: activeView.id,
+    view,
+    month,
+    date,
+    isPending,
+  });
   if (
+    prevNavSync.tabId !== activeView.id ||
     prevNavSync.view !== view ||
     prevNavSync.month !== month ||
     prevNavSync.date !== date ||
     prevNavSync.isPending !== isPending
   ) {
-    setPrevNavSync({ view, month, date, isPending });
+    setPrevNavSync({ tabId: activeView.id, view, month, date, isPending });
     // While our transition is in flight the optimistic values stand; once it
     // ends (commit or failure), whatever the server resolved wins.
     if (!isPending) {
+      setShownTabId(activeView.id);
       setShownView(view);
       setShownMonth(month);
       setShownDate(date);
@@ -951,11 +992,11 @@ export function DashboardView({
     return () => observer.disconnect();
   }, []);
 
-  // The tab bar scrolls horizontally on narrow screens. After a view change
-  // (tab tap, `?view=` deep link, remembered-state cold start) bring the
-  // active tab into view if it sits outside the visible strip; a direct tap
-  // is already visible so this is a no-op there. `block: "nearest"` keeps the
-  // scroll inside the strip instead of moving the page vertically.
+  // The tab bar scrolls horizontally on narrow screens. After a tab change
+  // (tab tap, `?view=` deep link, cold start) bring the active tab into view
+  // if it sits outside the visible strip; a direct tap is already visible so
+  // this is a no-op there. `block: "nearest"` keeps the scroll inside the
+  // strip instead of moving the page vertically.
   const tabListElRef = useRef<HTMLDivElement | null>(null);
   useLayoutEffect(() => {
     const list = tabListElRef.current;
@@ -979,7 +1020,7 @@ export function DashboardView({
         block: "nearest",
       });
     }
-  }, [shownView]);
+  }, [shownTabId]);
 
   // Schedule strips (Week (H) day labels + the Day/Week hour rulers) follow
   // the grid's horizontal scroll via a direct DOM transform on a small
@@ -1085,10 +1126,10 @@ export function DashboardView({
   // (cached) loads read as a deliberate sequence instead of a flash.
   // `useContentEnter` fades the grid in on the reveal; on a cold mount the
   // class ships in the SSR HTML and plays on first paint. The one-shot
-  // `edit`/`event`/`_fresh` strips are plain pushes (no transition), so they
-  // never set the pending flag and never replay the fade. (Force refresh is a
-  // full page reload from the profile menu now — its wait is the route
-  // loading.tsx, not this skeleton.)
+  // `edit`/`event` strips are plain pushes (no transition), so they never set
+  // the pending flag and never replay the fade. (Force refresh is a full page
+  // reload from the profile menu now — its wait is the route loading.tsx, not
+  // this skeleton.)
   const gridLoading = useMinSkeletonHold(isPending);
   useContentEnter(weekBoxRef, !gridLoading);
 
@@ -1096,26 +1137,22 @@ export function DashboardView({
   // navigations are "busy" for the whole app chrome.
   useReportActivity(isPending, "dashboard:nav");
 
-  // Remembered UI state: persist the server-resolved view/filters to the
-  // per-device cookie every time the rendered state changes, so a relaunch
-  // (or F5) lands on exactly this view (see src/lib/ui/uiState.ts). The seed
-  // carries the resolved set + which filter params the current URL pins; the
-  // hook builds the next cookie section from the CURRENT cookie, so the
-  // per-view memory merges only the current view's entry (never materializing
-  // views the user didn't configure — see buildDashboardPersist).
-  usePersistUiState("dashboard", {
-    view,
-    date,
+  // Device-local "where you are": persist the resolved date/month anchor and
+  // the Day/Week (H) zoom to the per-device cookie whenever the rendered state
+  // changes, so a cold start (or F5) lands on the same period + zoom. The
+  // date is stored only when the URL pins one (day-anchored views); in Month
+  // view the remembered month drives the read. The tabs + their filters are
+  // server-side and need no cookie.
+  usePersistDashboardNav({
+    ...(searchParams.has("date") ? { date } : {}),
     month,
-    selected: { cal: selectedCalendarIds, users: selectedUserIds, types: selectedTypes },
-    pinnedViews: pinned,
     zoom,
-    urlKeys: {
-      cal: searchParams.has("cal"),
-      users: searchParams.has("users"),
-      types: searchParams.has("types"),
-    },
   });
+
+  // Post-mutation refresh reporter for the view (tab) CRUD: renames, reorder
+  // and non-active deletes re-read the route so the server renders the new tab
+  // list (the activity bar covers the otherwise-invisible refresh).
+  const refreshAfterViewsSave = useActivityRefresh("dashboard:views");
 
   // The date shown in the agenda day modal; persists through the exit
   // animation so the shrinking box still has content.
@@ -1171,13 +1208,17 @@ export function DashboardView({
         ? dayLabel
         : monthLabel;
 
+  // The name of the tab currently highlighted (optimistic during a switch);
+  // drives the sr announcement so a renamed tab is announced by its name.
+  const shownTabName = tabs.find((tab) => tab.id === shownTabId)?.name ?? activeView.name;
+
   // Screen-reader announcement of view/period changes (tab taps, chevrons,
   // Today, date picker, agenda swipes all flow through the optimistic chrome,
   // so one watcher covers them). The first render only records the baseline —
   // announcing on plain page load would be noise.
   const lastAnnouncedChromeRef = useRef<string | null>(null);
   useEffect(() => {
-    const message = `${VIEW_TAB_META[shownView].label} view, ${periodLabel}`;
+    const message = `${shownTabName} view, ${periodLabel}`;
     if (lastAnnouncedChromeRef.current === null) {
       lastAnnouncedChromeRef.current = message;
       return;
@@ -1186,7 +1227,7 @@ export function DashboardView({
       lastAnnouncedChromeRef.current = message;
       announce(message);
     }
-  }, [shownView, periodLabel]);
+  }, [shownTabName, shownView, periodLabel]);
   const today = dayjs().format("YYYY-MM-DD");
   const todayMonth = dayjs().format("YYYY-MM");
   // Start-scroll anchor for the Day/Week (H) timelines: when the shown period
@@ -1453,10 +1494,6 @@ export function DashboardView({
   // fetch (Week (D) shows the Monday-first week containing the anchor day).
   const isAnchoredView = isSchedule || isWeekV2 || isAgenda;
 
-  // Tab bar order: pinned tabs first (in recency order), then the rest in
-  // their default order. Re-validates the stored list (drops unknown values).
-  const orderedViews = useMemo(() => orderDashboardViews(pinned), [pinned]);
-
   const buildHref = useCallback(
     (updates: Record<string, string | null>) => {
       const params = new URLSearchParams(searchParams.toString());
@@ -1478,46 +1515,18 @@ export function DashboardView({
       const query = searchParams.toString();
       const currentHref = query ? `${pathname}?${query}` : pathname;
       const plainHref = buildHref(updates);
-      // A no-op navigation (e.g. tapping "Today" while already there) would
-      // still run a transition, flashing the grid skeleton for nothing.
-      // Checked before the `_fresh` injection below so "re-removing" an
-      // already-absent key stays a no-op instead of a render round-trip.
+      // A no-op navigation (e.g. tapping the already-active tab, or "Today"
+      // while already there) would still run a transition, flashing the grid
+      // skeleton for nothing.
       if (plainHref === currentHref) {
         return;
       }
-      // When this navigation drops remembered keys (Clear, tab switch off an
-      // anchored view), the next bare URL would fall back to the stale
-      // remembered-state cookie — the one-shot `_fresh` marker makes this one
-      // render use pure defaults; the state effect below re-persists the
-      // freshly resolved values right after.
-      const nextHref = freshMarkerNeeded(updates, DASHBOARD_STATE_KEYS)
-        ? buildHref({ ...updates, _fresh: "1" })
-        : plainHref;
       startTransition(() => {
-        router.push(nextHref);
+        router.push(plainHref);
       });
     },
     [buildHref, router, startTransition, pathname, searchParams],
   );
-
-  // Strip the one-shot `_fresh` marker after its render has mounted (self-
-  // terminating — stripping removes the param). The clean URL is served from
-  // the SERVER via `router.refresh()`, not a plain push: `staleTimes.dynamic:
-  // 120` / the SW's RSC cache would otherwise answer a push back to the bare
-  // URL with the STALE payload saved before the removal, reverting a just-
-  // cleared filter set and re-seeding it into the remembered-state cookie
-  // (the same trap the `edit` strip and the global `?refresh=` strip in
-  // `useOneShotRefreshStrip` document).
-  useEffect(() => {
-    if (searchParams.get("_fresh") === null) {
-      return;
-    }
-    // Clean the URL with a replace (no history entry) and then re-read from
-    // the server, bypassing the Client Router Cache so the freshly-resolved
-    // values (already persisted by the `_fresh` render) are what stays.
-    router.replace(buildHref({ _fresh: null }), { scroll: false });
-    router.refresh();
-  }, [buildHref, router, searchParams]);
 
   // Strip the one-shot `edit` param from the URL so a refresh doesn't reopen
   // the edit form. A plain push (no transition): the grid shows no skeleton
@@ -1573,70 +1582,66 @@ export function DashboardView({
     navigate({ date: next.format("YYYY-MM-DD"), month: next.format("YYYY-MM") });
   }
 
-  // Filters are scoped per view only, so the URL always carries the *target*
-  // view's own filter set: the params are written explicitly (an empty
-  // selection as an empty value, never `null`) so the filter keys never count
-  // as removed and don't trigger `_fresh`; the next render resolves the target
-  // view's filters instead of the previous view's leftovers or the role default.
-  function viewFilterParams(target: ViewMode): Record<string, string> {
-    const set = viewFilters[target];
-    return {
-      cal: set.cal.length > 0 ? set.cal.join(",") : "",
-      users: set.users.length > 0 ? set.users.join(",") : "",
-      types: set.types.length > 0 ? set.types.join(",") : "",
-    };
-  }
-
-  function switchView(next: string) {
-    const mode: ViewMode =
-      next === "schedule"
-        ? "schedule"
-        : next === "week"
-          ? "week"
-          : next === "weekv2"
-            ? "weekv2"
-            : next === "agenda"
-              ? "agenda"
-              : "month";
-    // The URL takes the target view's own filter set (filters are scoped per
-    // view only), so the render describes exactly the view being shown.
-    const filterUpdates = viewFilterParams(mode);
-    if (mode !== "month") {
-      if (mode === "agenda") {
-        // A fresh entry re-follows the URL (the render-phase sync above
-        // re-seeds viewedDay) and plays the reveal fade, not a stale slide.
-        setViewedDay(null);
-        setAgendaUrlBase(null);
-        setAgendaSlideDir(0);
-      }
-      // Entering an anchored view (day/week/agenda) always starts on today; the
-      // month is derived from the date by the page. The chrome flips now —
-      // tab highlight and period label answer before the fetch resolves.
-      setShownView(mode);
-      setShownDate(today);
-      setShownMonth(todayMonth);
-      navigate({ view: mode, month: null, date: today, ...filterUpdates });
-      return;
-    }
-    if (isAgenda) {
-      // Leaving the Agenda tab drops the local day so a later entry (which
-      // navigates to today) seeds it cleanly instead of resurrecting a stale
-      // view or a half-committed URL write.
+  /**
+   * Tab-bar taps land here. Tabs are on-demand instances (server rows, see
+   * src/lib/dashboardViews) so switching carries `?view=<tab id>`; the period
+   * follows the KIND transition (each tab of a kind renders the same engine):
+   * - same kind (two Month tabs, two Agenda tabs) or two day-anchored kinds
+   *   (Day → Week (H) …) keeps the current date — a tab switch is a
+   *   filter/context change, never a date reset;
+   * - leaving Month for an anchored kind starts on today (Month has no day
+   *   anchor to carry over);
+   * - leaving an anchored kind for Month keeps the anchor's month.
+   * The tab's own filters are read server-side on the next render, so no
+   * filter params travel in the URL. The last-active tab is remembered
+   * server-side (fire-and-forget) for cross-device resume.
+   */
+  function switchTab(tab: Pick<DashboardViewTab, "id" | "kind">) {
+    void setActiveDashboardView(tab.id);
+    const mode = tab.kind;
+    if (mode === "agenda") {
+      // A fresh entry re-follows the URL (the render-phase sync above
+      // re-seeds viewedDay) and plays the reveal fade, not a stale slide.
+      setViewedDay(null);
+      setAgendaUrlBase(null);
+      setAgendaSlideDir(0);
+    } else if (isAgenda) {
+      // Leaving the Agenda tab drops the local day so a later entry seeds it
+      // cleanly instead of resurrecting a stale view or a half-committed URL.
       setViewedDay(null);
       setAgendaUrlBase(null);
     }
-    // Leaving a date-anchored view keeps the currently viewed month visible;
-    // the month is derived from the anchor date for week and agenda/day alike.
-    // Anchoring reads the optimistic chrome so leaving mid-flight (tap Week (H) or Week (D),
-    // then Month before commit) still lands on the month you were shown.
-    const anchorMonth = shownIsWeek || shownIsAnchored ? shownDate.slice(0, 7) : null;
-    setShownView("month");
-    navigate({
-      view: null,
-      month: anchorMonth,
-      date: null,
-      ...filterUpdates,
-    });
+    setShownTabId(tab.id);
+    if (mode === "month") {
+      if (view === "month") {
+        // Month → Month: keep the shown month.
+        navigate({ view: tab.id });
+      } else {
+        // Anchored → Month: keep the currently viewed month.
+        const anchorMonth = shownDate.slice(0, 7);
+        setShownView("month");
+        setShownMonth(anchorMonth);
+        navigate({ view: tab.id, month: anchorMonth, date: null });
+      }
+      return;
+    }
+    if (view === "month") {
+      // Month → anchored: start on today (the chrome flips before the fetch
+      // resolves; the server derives the month from the date).
+      setShownView(mode);
+      setShownDate(today);
+      setShownMonth(todayMonth);
+      navigate({ view: tab.id, date: today, month: null });
+      return;
+    }
+    if (mode !== view) {
+      // Anchored → different anchored kind: keep the anchor day.
+      setShownView(mode);
+      navigate({ view: tab.id, date: shownDate, month: null });
+      return;
+    }
+    // Same kind, anchored (Day → Day, Agenda → Agenda): keep the current day.
+    navigate({ view: tab.id });
   }
 
   function goToday() {
@@ -1685,7 +1690,7 @@ export function DashboardView({
     }
     setAgendaSlideDir(dayjs(next).isAfter(dayjs(current)) ? 1 : -1);
     // Plain push outside startTransition: it never sets the pending flag
-    // (same pattern as the ?edit=/?event=/?_fresh= URL strips), so no skeleton.
+    // (same pattern as the ?edit=/?event= URL strips), so no skeleton.
     router.push(buildHref({ date: next }));
   }
 
@@ -1745,35 +1750,164 @@ export function DashboardView({
     return count === 1 ? "1 filter active" : `${count} filters active`;
   }
 
+  /**
+   * Map an applied filter group onto its stored form. A selection that equals
+   * the role default is stored as `null` ("role default"), so a department
+   * added later automatically appears — an explicit array (incl. a genuine
+   * empty one) is stored verbatim.
+   */
+  function overrideFor(
+    key: keyof DashboardTabFilters,
+    selected: string[],
+  ): string[] | null {
+    const def = defaultFilters[key] ?? [];
+    return selected.length === def.length && selected.every((id) => def.includes(id))
+      ? null
+      : selected;
+  }
+
+  /**
+   * Persist the ACTIVE tab's filters server-side, then re-render from the
+   * server so the events refetch under the new filter set (the grid shows its
+   * skeleton through the refresh transition). Filters are per-tab rows now —
+   * they never travel in the URL.
+   */
+  async function persistFilters(overrides: DashboardTabFilters): Promise<boolean> {
+    const result = await saveDashboardViewFilters(activeView.id, overrides);
+    if (!result.ok) {
+      notifications.show({ color: "red", message: result.error });
+      return false;
+    }
+    void invalidateCurrentPathCaches().then(() => startTransition(() => router.refresh()));
+    return true;
+  }
+
   function handleApplyFilters(values: Record<string, string[]>) {
     const cals = values.Calendars ?? [];
     const users = values.Users ?? [];
     const types = values["Event Types"] ?? [];
-    navigate({
-      cal: cals.length > 0 ? cals.join(",") : null,
-      users: users.length > 0 ? users.join(",") : null,
-      types: types.length > 0 ? types.join(",") : null,
+    void persistFilters({
+      cal: overrideFor("cal", cals),
+      users: overrideFor("users", users),
+      types: overrideFor("types", types),
     });
     announce(filterCountMessage(cals.length, users.length, types.length));
   }
 
-  function togglePinView() {
-    // Pinning moves the active tab to the front (last pinned = leftmost);
-    // unpinning drops it back into the default tab order. Pure display order —
-    // no navigation, so no skeleton and no `_fresh` marker. The toggle only
-    // writes the cookie, so SWR-cached /dashboard payloads rendered before it
-    // still carry the old order — invalidating the current pathname keeps the
-    // next reload/navigation from serving one (a stale commit would re-seed
-    // the prop and the state writer would clobber the fresh pin in the cookie).
-    void invalidateCurrentPathCaches();
-    setPinned(pinned.includes(view) ? pinned.filter((mode) => mode !== view) : [view, ...pinned]);
+  function clearFilters() {
+    // Role-default overrides (null): non-admins fall back to their own
+    // department's calendar.
+    void persistFilters({ cal: null, users: null, types: null });
+    announce("Filters cleared");
   }
 
-  function clearFilters() {
-    // Null params restore the server defaults (non-admins default to their
-    // own department's calendar).
-    navigate({ cal: null, users: null, types: null });
-    announce("Filters cleared");
+  // ---- On-demand view (tab) CRUD ------------------------------------------
+  // All rows live server-side (src/lib/dashboardViews); these handlers call
+  // the actions and then navigate / refresh so the server re-renders the
+  // new tab list. Hidden entirely for accounts without stored views
+  // (canManageViews false).
+
+  function moveView(tab: DashboardViewTab, direction: "up" | "down") {
+    const index = tabs.findIndex((candidate) => candidate.id === tab.id);
+    const neighborIndex = direction === "up" ? index - 1 : index + 1;
+    if (index < 0 || neighborIndex < 0 || neighborIndex >= tabs.length) {
+      return;
+    }
+    const reordered = [...tabs];
+    const [moved] = reordered.splice(index, 1);
+    reordered.splice(neighborIndex, 0, moved);
+    void submitReorder(reordered.map((view) => view.id));
+  }
+
+  async function submitReorder(orderedIds: string[]) {
+    const result = await reorderDashboardViews(orderedIds);
+    if (!result.ok) {
+      notifications.show({ color: "red", message: result.error });
+    }
+    refreshAfterViewsSave();
+  }
+
+  function openRenameView(tab: DashboardViewTab) {
+    setRenaming(tab);
+    setRenameValue(tab.name);
+    setRenameError(null);
+  }
+
+  async function submitRenameView() {
+    if (!renaming || renamingBusy) {
+      return;
+    }
+    setRenamingBusy(true);
+    try {
+      const result = await renameDashboardView(renaming.id, { name: renameValue });
+      if (!result.ok) {
+        setRenameError(result.error);
+        return;
+      }
+      setRenaming(null);
+      refreshAfterViewsSave();
+    } finally {
+      setRenamingBusy(false);
+    }
+  }
+
+  async function confirmDeleteView() {
+    const tab = confirmDelete;
+    setConfirmDelete(null);
+    if (!tab) {
+      return;
+    }
+    const result = await deleteDashboardView(tab.id);
+    if (!result.ok) {
+      notifications.show({ color: "red", message: result.error });
+      return;
+    }
+    const remaining = tabs.filter((candidate) => candidate.id !== tab.id);
+    if (tab.id === activeView.id && remaining.length > 0) {
+      switchTab(remaining[0]);
+    } else {
+      refreshAfterViewsSave();
+    }
+  }
+
+  async function submitCreateView() {
+    if (creating) {
+      return;
+    }
+    setCreating(true);
+    try {
+      const result = await createDashboardView({ viewType: createKind, name: createName });
+      if (!result.ok) {
+        setCreateError(result.error);
+        return;
+      }
+      if (!result.id) {
+        setCreateError("Could not create the view");
+        return;
+      }
+      closeCreateView();
+      switchTab({ id: result.id, kind: createKind });
+    } finally {
+      setCreating(false);
+    }
+  }
+
+  /** Pick a kind in the Add-view dialog; names that still equal the previous
+   *  kind's default follow along, a custom name is kept. */
+  function pickCreateKind(kind: DashboardViewKind) {
+    if (createName === DASHBOARD_VIEW_KIND_LABELS[createKind]) {
+      setCreateName(DASHBOARD_VIEW_KIND_LABELS[kind]);
+    }
+    setCreateKind(kind);
+    setCreateError(null);
+  }
+
+  /** Open the "Add view" dialog with fresh defaults. */
+  function openAddView() {
+    setCreateKind("month");
+    setCreateName(DASHBOARD_VIEW_KIND_LABELS.month);
+    setCreateError(null);
+    openCreateView();
   }
 
   function openCreate(dateValue: string, originRect: Rect | null = null) {
@@ -2058,43 +2192,144 @@ export function DashboardView({
         }}
       >
         {/* View tabs are chrome too — they vanish in fullscreen, leaving only
-            the grid and the date-nav row above it. */}
-        {!immersiveMode.active && (
-          <Tabs
-            value={shownView}
-            onChange={(next) => switchView(next ?? "month")}
-            aria-label="Calendar view"
-            styles={{ tab: { flex: 1 } }}
-          >
-            <Tabs.List
-              ref={tabListElRef}
+            the grid and the date-nav row above it. In "Edit views" mode the
+            strip swaps to a manage list (reorder / rename / delete). */}
+        {!immersiveMode.active &&
+          (managing ? (
+            <Group
+              gap={6}
+              align="center"
+              wrap="nowrap"
+              px={2}
+              pb={8}
+              pt={2}
               style={{
-                flexWrap: "nowrap",
                 overflowX: "auto",
                 borderBottom: "1px solid var(--mantine-color-default-border)",
               }}
             >
-              {orderedViews.map((mode) => {
-                const meta = VIEW_TAB_META[mode];
-                return (
-                  <Tabs.Tab key={mode} value={mode}>
-                    <Group gap="xs" justify="center" wrap="nowrap">
-                      {meta.icon}
-                      {pinned.includes(mode) && <IconStarFilled size={14} />}
+              {tabs.map((tab, index) => (
+                <Paper
+                  key={tab.id}
+                  withBorder
+                  radius="xl"
+                  px={6}
+                  py={2}
+                  bg="var(--mantine-color-default)"
+                  style={{ display: "inline-flex", alignItems: "center", gap: 2 }}
+                >
+                  <ActionIcon
+                    size={22}
+                    variant="subtle"
+                    aria-label={`Move ${tab.name} earlier`}
+                    disabled={index === 0}
+                    onClick={() => moveView(tab, "up")}
+                  >
+                    <IconChevronUp size={14} />
+                  </ActionIcon>
+                  <ActionIcon
+                    size={22}
+                    variant="subtle"
+                    aria-label={`Move ${tab.name} later`}
+                    disabled={index === tabs.length - 1}
+                    onClick={() => moveView(tab, "down")}
+                  >
+                    <IconChevronDown size={14} />
+                  </ActionIcon>
+                  <UnstyledButton
+                    aria-label={`Rename ${tab.name}`}
+                    onClick={() => openRenameView(tab)}
+                  >
+                    <Group gap={4} wrap="nowrap">
+                      {VIEW_TAB_META[tab.kind].icon}
                       <Text
                         fw={600}
                         size="sm"
-                        style={meta.nowrap ? { whiteSpace: "nowrap" } : undefined}
+                        maw={110}
+                        style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}
                       >
-                        {meta.label}
+                        {tab.name}
                       </Text>
                     </Group>
-                  </Tabs.Tab>
-                );
-              })}
-            </Tabs.List>
-          </Tabs>
-        )}
+                  </UnstyledButton>
+                  <ActionIcon
+                    size={22}
+                    variant="subtle"
+                    color="red"
+                    aria-label={`Delete ${tab.name}`}
+                    onClick={() => setConfirmDelete(tab)}
+                  >
+                    <IconTrash size={14} />
+                  </ActionIcon>
+                </Paper>
+              ))}
+              {canManageViews && (
+                  <ActionIcon
+                    size={26}
+                    variant="subtle"
+                    color="accent"
+                    aria-label="Add view"
+                    onClick={openAddView}
+                  >
+                    <IconPlus size={18} />
+                  </ActionIcon>
+                )}
+              </Group>
+            ) : (
+            <Tabs
+              value={shownTabId}
+              onChange={(next) => {
+                if (!next) return;
+                const tab = tabs.find((candidate) => candidate.id === next);
+                if (tab) switchTab(tab);
+              }}
+              aria-label="Calendar view"
+              styles={{ tab: { flex: 1, minWidth: 0 } }}
+            >
+              <Tabs.List
+                ref={tabListElRef}
+                style={{
+                  flexWrap: "nowrap",
+                  overflowX: "auto",
+                  borderBottom: "1px solid var(--mantine-color-default-border)",
+                }}
+              >
+                {tabs.map((tab) => {
+                  const meta = VIEW_TAB_META[tab.kind];
+                  return (
+                    <Tabs.Tab key={tab.id} value={tab.id} title={tab.name}>
+                      <Group gap="xs" justify="center" wrap="nowrap" style={{ minWidth: 0 }}>
+                        {meta.icon}
+                        <Text
+                          fw={600}
+                          size="sm"
+                          title={tab.name}
+                          style={{
+                            whiteSpace: "nowrap",
+                            overflow: "hidden",
+                            textOverflow: "ellipsis",
+                          }}
+                        >
+                          {tab.name}
+                        </Text>
+                      </Group>
+                    </Tabs.Tab>
+                  );
+                })}
+                {canManageViews && (
+                  <ActionIcon
+                    variant="subtle"
+                    color="accent"
+                    aria-label="Add view"
+                    onClick={openAddView}
+                    style={{ alignSelf: "center", flex: "0 0 auto" }}
+                  >
+                    <IconPlus size={18} />
+                  </ActionIcon>
+                )}
+              </Tabs.List>
+            </Tabs>
+          ))}
 
         {/* Date navigation: pinned together with the tabs above so the period
             label and prev/next stay reachable while the grid scrolls. Kept
@@ -2183,9 +2418,9 @@ export function DashboardView({
             />
           )}
           {/* Filters live in their own primary affordance (icon + count badge),
-              not the overflow menu — the kebab keeps navigation and the
-              fullscreen toggle only (Force refresh now lives in the profile
-              menu). */}
+              not the overflow menu — the kebab keeps navigation, the "Edit
+              views" management mode and the fullscreen toggle (Force refresh
+              lives in the profile menu). */}
           <FilterButton
             activeCount={activeFilterCount}
             onClick={(e) => {
@@ -2222,14 +2457,14 @@ export function DashboardView({
                   Select date
                 </Menu.Item>
               )}
-              <Menu.Item
-                leftSection={
-                  pinned.includes(view) ? <IconStarFilled size={16} /> : <IconStar size={16} />
-                }
-                onClick={togglePinView}
-              >
-                {pinned.includes(view) ? "Unpin Tab" : "Pin Tab"}
-              </Menu.Item>
+              {canManageViews && (
+                <Menu.Item
+                  leftSection={managing ? <IconCheck size={16} /> : <IconPencil size={16} />}
+                  onClick={() => setManaging((current) => !current)}
+                >
+                  {managing ? "Done editing views" : "Edit views"}
+                </Menu.Item>
+              )}
               {/* Immersive ("fullscreen") mode hides the shell chrome and
                   requests the page-level Fullscreen API; the icon flips while
                   active — this is also the in-page exit path. */}
@@ -2878,7 +3113,7 @@ export function DashboardView({
                 eventTypeGroups={eventTypeGroups}
                 eventTitleTemplate={eventTitleTemplate}
                 viewEventTitleTemplate={viewEventTitleTemplate}
-                viewLabel={VIEW_TAB_META[view].label}
+                viewLabel={activeView.name}
                 currentUser={currentUser}
                 isAdmin={isAdmin}
                 inviteeDepartments={inviteeDepartments}
@@ -2967,9 +3202,152 @@ export function DashboardView({
         values={filterValues}
         onApply={handleApplyFilters}
         collapsedGroupLabels={["Event Types"]}
-        hint={`These filters apply to ${DASHBOARD_VIEW_LABELS[view]} only.`}
+        hint={`These filters apply to ${activeView.name} only.`}
         originRect={filterOriginRect}
       />
+
+      {/* Add-view dialog: pick a renderer kind + a name. Only shown when the
+          account owns stored views (canManageViews). */}
+      {canManageViews && (
+        <Modal
+          opened={createOpened}
+          onClose={closeCreateView}
+          title="Add view"
+          centered
+          transitionProps={{ transition: "pop", duration: MOTION.popover, timingFunction: "ease" }}
+        >
+          <Stack>
+            <div>
+              <Text fw={600} size="sm" mb={6}>
+                View type
+              </Text>
+              <Stack gap={6}>
+                {DASHBOARD_VIEW_KINDS.map((kind) => {
+                  const meta = VIEW_TAB_META[kind];
+                  const selected = createKind === kind;
+                  return (
+                    <UnstyledButton key={kind} onClick={() => pickCreateKind(kind)}>
+                      <Paper
+                        withBorder
+                        p="xs"
+                        radius="md"
+                        bg={selected ? "var(--mantine-color-accent-light)" : undefined}
+                        style={{
+                          borderColor: selected ? "var(--mantine-color-accent-4)" : undefined,
+                        }}
+                      >
+                        <Group gap="sm" wrap="nowrap">
+                          {meta.icon}
+                          <Text fw={selected ? 700 : 500} size="sm" style={{ flex: 1 }}>
+                            {meta.label}
+                          </Text>
+                          {selected && <IconCheck size={16} color="var(--mantine-color-accent-6)" />}
+                        </Group>
+                      </Paper>
+                    </UnstyledButton>
+                  );
+                })}
+              </Stack>
+            </div>
+            <TextInput
+              label="Name"
+              value={createName}
+              maxLength={40}
+              error={createError ?? undefined}
+              onChange={(event) => {
+                setCreateName(event.currentTarget.value);
+                setCreateError(null);
+              }}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") {
+                  event.preventDefault();
+                  void submitCreateView();
+                }
+              }}
+              autoFocus
+            />
+            <Group justify="flex-end">
+              <Button variant="default" onClick={closeCreateView}>
+                Cancel
+              </Button>
+              <Button
+                onClick={() => void submitCreateView()}
+                loading={creating}
+                loaderProps={BUTTON_LOADER_PROPS}
+                disabled={createName.trim().length === 0}
+              >
+                Add view
+              </Button>
+            </Group>
+          </Stack>
+        </Modal>
+      )}
+
+      {/* Rename-view dialog. */}
+      <Modal
+        opened={renaming !== null}
+        onClose={() => setRenaming(null)}
+        title="Rename view"
+        centered
+        transitionProps={{ transition: "pop", duration: MOTION.popover, timingFunction: "ease" }}
+      >
+        <Stack>
+          <TextInput
+            label="Name"
+            value={renameValue}
+            maxLength={40}
+            autoFocus
+            error={renameError ?? undefined}
+            onChange={(event) => {
+              setRenameValue(event.currentTarget.value);
+              setRenameError(null);
+            }}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") {
+                event.preventDefault();
+                void submitRenameView();
+              }
+            }}
+          />
+          <Group justify="flex-end">
+            <Button variant="default" onClick={() => setRenaming(null)}>
+              Cancel
+            </Button>
+            <Button
+              onClick={() => void submitRenameView()}
+              loading={renamingBusy}
+              loaderProps={BUTTON_LOADER_PROPS}
+              disabled={renameValue.trim().length === 0}
+            >
+              Rename
+            </Button>
+          </Group>
+        </Stack>
+      </Modal>
+
+      {/* Delete-view confirmation (removes only the tab, never the events). */}
+      <Modal
+        opened={confirmDelete !== null}
+        onClose={() => setConfirmDelete(null)}
+        title="Delete view"
+        centered
+        transitionProps={{ transition: "pop", duration: MOTION.popover, timingFunction: "ease" }}
+      >
+        <Stack>
+          <Text size="sm">
+            Delete &ldquo;{confirmDelete?.name}&rdquo;? This only removes the view — your events
+            and their filters are untouched.
+          </Text>
+          <Group justify="flex-end">
+            <Button variant="default" onClick={() => setConfirmDelete(null)}>
+              Cancel
+            </Button>
+            <Button color="red" onClick={() => void confirmDeleteView()}>
+              Delete
+            </Button>
+          </Group>
+        </Stack>
+      </Modal>
 
       {formState === null && (
         // Mobile-only: at lg the "New event" button in the nav row replaces the

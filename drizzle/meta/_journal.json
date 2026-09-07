@@ -260,6 +260,13 @@
       "when": 1788707959400,
       "tag": "0036_mature_blue_blade",
       "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "7",
+      "when": 1788816098985,
+      "tag": "0037_slippery_namorita",
+      "breakpoints": true
     }
   ]
 }

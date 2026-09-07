@@ -1,5 +1,3 @@
-import { cookies } from "next/headers";
-
 import { PageContainer } from "@/components/PageContainer";
 import { formatInstantToNaive } from "@/lib/events/datetime";
 import { fetchMonthEvents, listCalendars } from "@/lib/events/queries";
@@ -8,7 +6,7 @@ import { listUsers } from "@/lib/roster/queries";
 import { formatFullName } from "@/lib/settings/formatName";
 import { getSettings } from "@/lib/settings/queries";
 import { requireSession } from "@/lib/session";
-import { UI_STATE_COOKIE, decodeUiState } from "@/lib/ui/uiState";
+import { getUserPreferences } from "@/lib/userPrefs/queries";
 import { ParadeStateView } from "./ParadeStateView";
 import { scopeParadeUsers } from "./scopeUsers";
 
@@ -26,17 +24,12 @@ export default async function ParadeStatePage({ searchParams }: ParadeStatePageP
   const session = await requireSession();
   const params = await searchParams;
 
-  // Per-device remembered UI state, same contract as the dashboard page: URL
-  // params win, and the one-shot `_fresh` marker (a render that just removed
-  // remembered keys) skips the cookie so a Clear/tab-switch never re-applies
-  // the stale values for that one render.
-  const freshRender = typeof params._fresh === "string";
-  const uiState = freshRender ? null : decodeUiState((await cookies()).get(UI_STATE_COOKIE)?.value);
-  const ui = uiState?.parade;
+  // The Parade Calendars/Users filters are stored server-side per account
+  // (src/lib/userPrefs) so they follow the user across devices. The day is
+  // deliberately NOT remembered (unlike the dashboard): a bare /parade-state
+  // always opens on today; only an explicit ?date= wins.
+  const prefs = await getUserPreferences(session.user.id);
 
-  // The day is deliberately NOT remembered (unlike the dashboard): a bare
-  // /parade-state always opens on today; only an explicit ?date= wins. The
-  // cookie still restores the Calendars/Users filters below.
   const urlDate =
     typeof params.date === "string" && DATE_PATTERN.test(params.date) ? params.date : null;
   const dateParam = urlDate ?? today();
@@ -51,23 +44,15 @@ export default async function ParadeStatePage({ searchParams }: ParadeStatePageP
   const calendarIds = calendars.map((calendar) => calendar.id);
 
   // Every role opens on every department; narrowing is purely opt-in via the
-  // Calendars filter ("all selected" = no filter).
-  const calParam = typeof params.cal === "string" ? params.cal.split(",").filter(Boolean) : [];
-  const cookieCal = ui?.cal ?? [];
+  // Calendars filter (an empty remembered list = all departments).
+  const rememberedCal = prefs?.paradeCal ?? [];
   const selectedCalendars =
-    params.cal !== undefined
-      ? calParam.filter((id) => calendarIds.includes(id))
-      : cookieCal.length > 0
-        ? cookieCal.filter((id) => calendarIds.includes(id))
-        : calendarIds;
+    rememberedCal.length > 0
+      ? rememberedCal.filter((id) => calendarIds.includes(id))
+      : calendarIds;
 
   const allUserIds = allUsers.map((user) => user.id);
-  const usersParam =
-    typeof params.users === "string" ? params.users.split(",").filter(Boolean) : [];
-  const selectedUsers =
-    params.users !== undefined
-      ? usersParam.filter((id) => allUserIds.includes(id))
-      : (ui?.users ?? []).filter((id) => allUserIds.includes(id));
+  const selectedUsers = (prefs?.paradeUsers ?? []).filter((id) => allUserIds.includes(id));
 
   const events = await fetchMonthEvents({
     month,

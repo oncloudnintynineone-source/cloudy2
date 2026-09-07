@@ -52,8 +52,8 @@ import { MOTION } from "@/lib/motion/timing";
 import { buildDepartmentTree, type DepartmentTreeNode } from "@/lib/roster/hierarchy";
 import { formatFullName } from "@/lib/settings/formatName";
 import { activatable } from "@/lib/ui/activatable";
-import { PARADE_STATE_KEYS, freshMarkerNeeded } from "@/lib/ui/uiState";
-import { usePersistUiState } from "@/lib/ui/uiStateClient";
+import { saveParadeFilters } from "@/lib/userPrefs/actions";
+import { invalidateCurrentPathCaches } from "@/lib/pwa/client";
 
 import { buildAttendanceReport, type AttendanceReportDepartment } from "./attendanceReport";
 import { clearAttendance, loadAttendanceRecord, saveAttendanceIds } from "./attendanceStorage";
@@ -195,15 +195,6 @@ export function ParadeStateView({
   // streamed, so reporting on mount is exactly "content painted".
   useColdStartContent();
 
-  // Remembered UI state: persist the server-resolved filters to the
-  // per-device cookie on every change, so a relaunch restores them (see
-  // src/lib/ui/uiState.ts). The day is deliberately not persisted — a bare
-  // /parade-state always opens on today; only an explicit ?date= wins.
-  usePersistUiState("parade", {
-    cal: initSelectedCalendars,
-    users: initSelectedUsers,
-  });
-
   // Attendance mode: checked users are kept per shown date in localStorage
   // (never the database). The full record is read when the mode is entered
   // and kept in memory from then on; `checkedIds` is derived for the shown
@@ -235,16 +226,8 @@ export function ParadeStateView({
 
   const navigate = useCallback(
     (updates: Record<string, string | null>) => {
-      // When this navigation removes remembered keys (Clear, unchecking
-      // "My Events"), the one-shot `_fresh` marker makes this one render use
-      // pure defaults instead of the now-stale remembered-state cookie; the
-      // state effect re-persists the freshly resolved values right after.
       startTransition(() => {
-        router.push(
-          freshMarkerNeeded(updates, PARADE_STATE_KEYS)
-            ? buildHref({ ...updates, _fresh: "1" })
-            : buildHref(updates),
-        );
+        router.push(buildHref(updates));
       });
     },
     [buildHref, router, startTransition],
@@ -297,30 +280,12 @@ export function ParadeStateView({
     navigate({ types: null });
   }, [searchParams, navigate]);
 
-  // Strip the one-shot `_fresh` marker after its render has mounted (self-
-  // terminating — stripping removes the param). The clean URL is served from
-  // the SERVER via `router.refresh()`, not a plain push: `staleTimes.dynamic:
-  // 120` / the SW's RSC cache would otherwise answer a push back to the bare
-  // URL with the STALE payload saved before the removal, reverting a just-
-  // cleared filter set and re-seeding it into the remembered-state cookie.
-  useEffect(() => {
-    if (searchParams.get("_fresh") === null) {
-      return;
-    }
-    router.replace(buildHref({ _fresh: null }), { scroll: false });
-    router.refresh();
-  }, [buildHref, router, searchParams]);
-
   function handleApplyFilters(values: Record<string, string[]>) {
     const calIds = values["Calendars"] ?? [];
     const userIds = values["Users"] ?? [];
     setSelectedCalendars(calIds);
     setSelectedUsers(userIds);
-    navigate({
-      cal: calIds.length > 0 ? calIds.join(",") : null,
-      users: userIds.length > 0 ? userIds.join(",") : null,
-      types: null,
-    });
+    void persistFilters(calIds, userIds);
   }
 
   const onlyMeActive = selectedUsers.length === 1 && selectedUsers[0] === currentUser;
@@ -331,13 +296,29 @@ export function ParadeStateView({
     // the Users filter entirely. Mirrored optimistically (no skeleton).
     const next = checked ? [currentUser] : [];
     setSelectedUsers(next);
-    navigate({ users: next.length > 0 ? next.join(",") : null });
+    void persistFilters(selectedCalendars, next);
   }
 
   function clearFilters() {
     setSelectedCalendars([]);
     setSelectedUsers([]);
-    navigate({ cal: null, users: null, types: null });
+    void persistFilters([], []);
+  }
+
+  /**
+   * Persist the Parade filters server-side (per account), then re-render from
+   * the server so the department rows + events refetch under the new filter
+   * set. Empty lists mean "all calendars / no user filter" — the day is never
+   * remembered, so a bare /parade-state always opens on today.
+   */
+  function persistFilters(calIds: string[], userIds: string[]) {
+    void saveParadeFilters({ cal: calIds, users: userIds }).then((result) => {
+      if (!result.ok) {
+        notifications.show({ color: "red", message: result.error });
+        return;
+      }
+      void invalidateCurrentPathCaches().then(() => startTransition(() => router.refresh()));
+    });
   }
 
   const filterGroups: FilterGroup[] = useMemo(() => {

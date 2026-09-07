@@ -115,6 +115,74 @@ export const userCalendarAccess = pgTable(
   ],
 );
 
+/**
+ * A user's on-demand dashboard calendar view (tab). Each row is one tab the
+ * user created: a renderer kind (`month` | `week` | `weekv2` | `schedule` |
+ * `agenda` — the same five engines the dashboard always had), a user-chosen
+ * display `name`, a per-user `sortOrder` for the tab strip, and the tab's own
+ * filter overrides. Duplicates of the same kind are allowed (two Agenda tabs
+ * with different names/filters); the tab's UUID is its identity, carried in
+ * the URL as `?view=<id>`.
+ *
+ * Filter semantics: each of `calFilter`/`usersFilter`/`typesFilter` is a JSON
+ * array of selected calendar ids / roster user ids / event-type *names*, or
+ * SQL NULL meaning "role default" (admin: all calendars; non-admin: their own
+ * department) — an explicit `[]` is a genuine empty selection, distinct from
+ * NULL. Values are re-validated against live data on every dashboard read
+ * (stale ids drop out), exactly like the URL params they replaced.
+ */
+export const userDashboardViews = pgTable(
+  "user_dashboard_views",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    viewType: text("view_type").notNull(),
+    name: text("name").notNull(),
+    sortOrder: integer("sort_order").notNull().default(0),
+    calFilter: jsonb("cal_filter"),
+    usersFilter: jsonb("users_filter"),
+    typesFilter: jsonb("types_filter"),
+    ...timestamps,
+  },
+  (table) => [index("user_dashboard_views_user_sort_idx").on(table.userId, table.sortOrder)],
+);
+
+/**
+ * Per-user application preferences stored server-side so they follow the
+ * account across devices: the remembered (last-active) dashboard tab and the
+ * Parade State Calendars/Users filters. Lazily ensured on first read.
+ * Device-local preferences (sidebar rail state, Day/Week (H) zoom, the
+ * dashboard date/month anchor, last visited page) deliberately stay in the
+ * `cloudy2.ui` cookie — see docs/ui-state.md.
+ */
+export const userPreferences = pgTable(
+  "user_preferences",
+  {
+    userId: uuid("user_id")
+      .primaryKey()
+      .references(() => users.id, { onDelete: "cascade" }),
+    /** The user's last-active dashboard tab; null = the first tab in order.
+     *  Deleted tabs set this to null (the delete path then resolves to the
+     *  first remaining tab). */
+    dashboardActiveViewId: uuid("dashboard_active_view_id").references(
+      () => userDashboardViews.id,
+      { onDelete: "set null" },
+    ),
+    /** Parade State Calendars filter — an explicit list (empty = all). */
+    paradeCal: jsonb("parade_cal")
+      .notNull()
+      .default(sql`'[]'::jsonb`),
+    /** Parade State Users filter — an explicit list (empty = no user filter). */
+    paradeUsers: jsonb("parade_users")
+      .notNull()
+      .default(sql`'[]'::jsonb`),
+    ...timestamps,
+  },
+  (table) => [index("user_preferences_active_view_idx").on(table.dashboardActiveViewId)],
+);
+
 export const acronyms = pgTable("acronyms", {
   id: uuid("id").primaryKey().defaultRandom(),
   acronym: text("acronym").notNull(),
@@ -441,3 +509,7 @@ export type KahGroupMember = typeof kahGroupMembers.$inferSelect;
 export type NewKahGroupMember = typeof kahGroupMembers.$inferInsert;
 export type KahBreachNotification = typeof kahBreachNotifications.$inferSelect;
 export type NewKahBreachNotification = typeof kahBreachNotifications.$inferInsert;
+export type UserDashboardView = typeof userDashboardViews.$inferSelect;
+export type NewUserDashboardView = typeof userDashboardViews.$inferInsert;
+export type UserPreference = typeof userPreferences.$inferSelect;
+export type NewUserPreference = typeof userPreferences.$inferInsert;

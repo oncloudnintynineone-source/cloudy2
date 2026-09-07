@@ -1,543 +1,265 @@
-# 1. Remembered UI state
+# 1. User preferences & device state
 
-Relaunching the PWA (or an F5) should land the user exactly where they left off:
-the last page, the dashboard's view/tab, date or month, and the Cal/Users/Types
-filters — plus the pinned view tabs and the desktop sidebar's minimized state.
-One deliberate exception: the parade state page remembers only its
-Cal/Users filters — its day is never restored, so it always opens on today.
-This document describes the
-**per-device remembered UI state** subsystem: one small cookie the **client owns
-writing** and the **server reads** as per-key defaults before first paint, the
-trust/normalization rules that keep a user-editable cookie from breaking renders,
-the one-shot `_fresh` marker that keeps state removals from re-applying stale
-values, and the pinned-tabs mechanism.
+Where does the app remember things? Two scopes with one hard rule:
+
+- **Cross-account preferences follow the user to any device** — they live in
+  Postgres: the dashboard's on-demand **Views (tabs)** and their per-tab
+  filters (`user_dashboard_views`), the last-active tab, and the Parade State
+  Calendars/Users filters (`user_preferences`).
+- **"Where you are" is device-local** — it lives in one small cookie
+  `cloudy2.ui`: the last visited page, the sidebar rail state, the dashboard
+  `date`/`month` anchor and the Day/Week (H) `zoom`.
+
+This document covers the split, the two Postgres tables and their lazy seeding,
+the tab-resolution order the dashboard page follows, the reduced cookie and
+its writers, and the sign-out path. The dashboard's tab management UI and
+filter semantics are described in [`dashboard-views.md`](dashboard-views.md).
 
 ## Table of contents
 
-- [1.1 Problem](#11-problem)
-- [1.2 Goals & non-goals](#12-goals--non-goals)
-- [1.3 Architecture overview](#13-architecture-overview)
-- [1.4 The cookie: format & stored shape](#14-the-cookie-format--stored-shape)
-- [1.5 Server read: per-key fallback](#15-server-read-per-key-fallback)
-- [1.5.1 Dashboard filters (per-view scoping)](#151-dashboard-filters-per-view-scoping)
-- [1.6 Cold-start launch target](#16-cold-start-launch-target)
-- [1.7 Client write: convergence to what was rendered](#17-client-write-convergence-to-what-was-rendered)
-- [1.8 Pinned tabs](#18-pinned-tabs)
-- [1.9 The `_fresh` one-shot marker](#19-the-_fresh-one-shot-marker)
-- [1.10 Sign-out & clearing](#110-sign-out--clearing)
-- [1.11 Pure helpers & testing](#111-pure-helpers--testing)
-- [1.12 File index & related docs](#112-file-index--related-docs)
+- [1.1 Why the split](#11-why-the-split)
+- [1.2 Server-side storage](#12-server-side-storage)
+- [1.2.1 Dashboard Views (`user_dashboard_views`)](#121-dashboard-views-user_dashboard_views)
+- [1.2.2 Scalar preferences (`user_preferences`)](#122-scalar-preferences-user_preferences)
+- [1.2.3 Lazy seeding & concurrency](#123-lazy-seeding--concurrency)
+- [1.3 Active-tab resolution](#13-active-tab-resolution)
+- [1.4 Per-tab filter storage](#14-per-tab-filter-storage)
+- [1.5 The device cookie](#15-the-device-cookie)
+- [1.5.1 Stored JSON](#151-stored-json)
+- [1.5.2 Versioning & trust](#152-versioning--trust)
+- [1.6 Server read: per-key fallback](#16-server-read-per-key-fallback)
+- [1.7 Client writers](#17-client-writers)
+- [1.8 Parade filters](#18-parade-filters)
+- [1.9 Sign-out](#19-sign-out)
+- [1.10 Pure helpers & testing](#110-pure-helpers--testing)
+- [1.11 File index & related docs](#111-file-index--related-docs)
 
-## 1.1 Problem
+## 1.1 Why the split
 
-The app is a mobile PWA: a genuine cold start (installed shortcut, `start_url /`)
-goes through the server. Without remembered state, every cold start and every F5
-would reset the user to "Month view, today, role-default filters" — losing the
-view, date, and filters they had set, which on a daily-driver tool is a real
-friction.
+The app is a mobile PWA: a genuine cold start (installed shortcut,
+`start_url /`) goes through the service worker, and the launch shell
+(`public/loading.html`) must decide *where to go* on the client before any
+bundle or network — it cannot query Postgres. So the launch target
+(`lastPage`) and the dashboard's period anchor stay in a cookie the inline
+shell script can read. Everything the user *configures* — their view tabs,
+which calendars/users/types each tab shows, parade filters — is a preference
+that should follow the account, so it lives server-side and syncs across
+devices (the old cookie carried all of it and was per-device).
 
-The constraints that shape the design:
+## 1.2 Server-side storage
 
-- **No extra backend round-trip**: the state must restore before first paint, with
-  no client redirect.
-- **Per-device, not per-account**: the browser persists cookies per origin, which
-  is exactly the right scope for UI preferences; there is no schema/table work.
-- **The cookie is user-editable**: it must never be trusted — a corrupted or
-  malicious value must degrade to "no remembered state", never break a render or
-  redirect somewhere unknown.
-- **Removals are ambiguous**: a bare URL (no `?users=`) means both "no user
-  filter" *and* "use whatever the cookie remembers". When a navigation *removes*
-  remembered state (Clear, unchecking "My Events"), the bare URL must **not**
-  re-apply the now-stale cookie for that one render.
+### 1.2.1 Dashboard Views (`user_dashboard_views`)
 
-## 1.2 Goals & non-goals
+One row per tab: `userId` (FK `users.id`, cascade), `viewType` (one of the
+five renderer kinds — `src/lib/dashboardViews/views.ts`), `name` (user
+chosen), `sortOrder` (per-user strip order), the three filter overrides
+`calFilter`/`usersFilter`/`typesFilter` (each JSON array or SQL `NULL`, §1.4),
+timestamps. Index `(user_id, sort_order)`. Rows cascade-delete with the user.
+Duplicates of the same kind are allowed — the row UUID is the tab's identity.
 
-**Goals**
+### 1.2.2 Scalar preferences (`user_preferences`)
 
-- PWA cold start lands on the remembered page; a bare/F5 load of a page renders the
-  remembered view before first paint — no client redirect, no flash.
-- URL params always win over the cookie; the cookie fills gaps per key.
-- Stored values are re-validated server-side exactly like URL params (patterns,
-  whitelist, ids against live data), so stale/unknown ids drop out.
-- The cookie always converges to **exactly what was last rendered** — including
-  dropped stale ids and role defaults after a Clear.
-- Pinned tabs survive tab switches (every tab switch is a `_fresh` render).
-- Sign-out clears the state so the next account on the device starts from pure
-  defaults.
+Singleton row per user (`userId` PK, FK cascade):
 
-**Non-goals**
+- `dashboardActiveViewId` — the last-active tab, FK to
+  `user_dashboard_views.id` with `ON DELETE SET NULL` (deleting the active tab
+  leaves the pointer null; the next render resolves the first tab).
+- `paradeCal` / `paradeUsers` — Parade State filter lists (empty = all
+  departments / no user filter; parade has no role-default distinction).
+- timestamps.
 
-- No cross-device sync, no server storage, no sharing between users on one device
-  beyond the single cookie (the most recent writer's state wins per key).
-- Not a client-side cache of page data — only view/filters/page preferences.
-- One-shot URL params (`event`, `edit`, `refresh`, `_fresh`) are never stored.
+### 1.2.3 Lazy seeding & concurrency
 
-## 1.3 Architecture overview
+There is no registration-time seeding — rows appear on first use:
+
+- `getUserPreferences(userId)` (React-`cache()`d) upserts the
+  `user_preferences` row on first read.
+- `ensureDefaultDashboardView(userId)` (inside `getDashboardViews`) runs a
+  transaction that upserts the preferences row, `SELECT … FOR UPDATE`s it as a
+  serialization point, and inserts a single **"Month"** tab only when the user
+  has none (pointing `dashboardActiveViewId` at it). The row lock stops two
+  racing renders (cold start + an early navigation) from double-inserting two
+  identical default tabs.
+
+All queries short-circuit for the **virtual break-glass admin** session
+(`session.user.id === "admin"`, no `users` row — the FK/uuid columns can never
+match it): it has no stored tabs or prefs, and the dashboard renders a static
+single Month tab with view management hidden (`canManageViews = false`).
+
+## 1.3 Active-tab resolution
+
+The dashboard page (`dashboard/page.tsx`) resolves the tab to render, in order:
+
+1. **URL `?view=<tab id>`** — the tab's UUID, wins when it is one of the
+   user's tabs. A legacy `?view=<kind>` string (a pre-feature deep link /
+   bookmark) maps to the **first tab of that kind**.
+2. **Remembered last-active tab** — `user_preferences.dashboardActiveViewId`.
+3. **First tab** in strip order.
+
+Pure `resolveActiveTab` (`src/lib/dashboardViews/views.ts`) encodes the order
+and is unit-tested. The tab's `kind` then drives the renderer, the skeleton
+flavor, anchored/date semantics and the event-title template assignment; its
+filters resolve to the fetch (next section). A bare `/dashboard` (no `?view=`)
+lands on the remembered/first tab — the URL therefore only carries a tab when
+the user has been navigating, and reloads restore the account's last tab.
+
+## 1.4 Per-tab filter storage
+
+Each of a tab's three filters is either:
+
+- **SQL `NULL`** — *role default*, re-resolved on every render (admin: all
+  calendars; non-admin: their own department; Users/Event Types: nothing). A
+  department added later appears in a `NULL` tab without any edit.
+- **An explicit array** — that exact selection, stored verbatim. An explicit
+  **`[]`** is a genuine "cleared" selection (an empty grid), distinct from
+  `NULL`.
+
+`saveDashboardViewFilters` (a server action) persists the active tab's filters;
+the client maps a selection that equals the role default onto `NULL` before
+calling it. Reads validate stored ids/names against live calendars/users/types
+each render (`dashboard/page.tsx`) and drop stale entries — an all-stale list
+degrades to the role default. There are **no `cal`/`users`/`types` URL params**
+any more: applying/clearing is an action followed by a server re-render that
+refetches the events under the new set. See [`dashboard-views.md`](dashboard-views.md) §1.2.
 
 ```mermaid
 flowchart LR
-    subgraph CLIENT["Client (owner of the write)"]
-        RP["useRememberedPage(pathname)<br/>(AppShellShell)"]
-        SB["sidebarCollapsed toggle effect<br/>(AppShellShell)"]
-        PU["usePersistUiState(section, values)<br/>(DashboardView / ParadeStateView)"]
-        W["writeUiState(patch)<br/>read-modify-write"]
-        RP --> W
-        SB --> W
-        PU --> W
-    end
-    CK["cookie 'cloudy2.ui'<br/>base64url(JSON), 1y max-age"]
-    W --> CK
-    subgraph SERVER["Server (read-only)"]
-        D["dashboard/page.tsx<br/>per-key fallback, re-validated"]
-        P["parade-state/page.tsx<br/>per-key fallback, re-validated"]
-        L["(protected)/layout.tsx<br/>sidebarCollapsed restore"]
-        H["app/page.tsx<br/>resolveLaunchTarget on cold start"]
-        D --> DASH["DashboardView props"]
-        P --> PAR["ParadeStateView props"]
-        L --> SHELL["AppShellShell initial state"]
-    end
-    CK --> D
-    CK --> P
-    CK --> L
-    CK --> H
+    T["tabs (user_dashboard_views)"] --> ROW["cal_filter / users_filter / types_filter<br/>NULL = role default · [] = cleared"]
+    PREF["user_preferences"] --> ACTIVE["dashboardActiveViewId"]
+    T --> ACTIVE
+    PAGE["dashboard/page.tsx"] --> R1["?view=&lt;tab id&gt; / kind"]
+    R1 --> R2["remembered active tab"]
+    R2 --> R3["first tab in strip order"]
+    PAGE --> FILT["validated per-tab filters"]
+    FILT --> FETCH["events read (role default fallback)"]
 ```
 
-Division of labor:
+## 1.5 The device cookie
 
-- **The client owns the write.** Three independent writers feed one
-  read-modify-write `writeUiState`: `useRememberedPage` (the app shell, on every
-  pathname change), the sidebar toggle effect (the app shell, on the
-  `sidebarCollapsed` change), and `usePersistUiState` (each page, on
-  resolved-prop change). `mergeUiState`'s section-wholesale semantics keep them
-  from clobbering each other (§1.7).
-- **The server only reads**, via `cookies()` in the page components (and the
-  (protected) layout for the sidebar key), and applies the state as **per-key
-  fallbacks where the URL param is absent** — so restoration happens in the
-  same RSC request, before first paint.
+**Name**: `cloudy2.ui` (`UI_STATE_COOKIE`, `src/lib/ui/uiState.ts`). Value:
+`base64url(JSON)` of `{ v: [major, minor], ...state }`. Attributes:
+`path=/; max-age=31536000` (one year). Server components read it with
+`decodeUiState`; the client owns writes (`writeUiState`, a read-modify-write).
 
-## 1.4 The cookie: format & stored shape
-
-- **Name**: `cloudy2.ui` (`UI_STATE_COOKIE`, `src/lib/ui/uiState.ts`).
-- **Value**: `base64url(JSON)` without padding of `{ v: [major, minor], ...UiState }`
-  — `encodeUiState` / `decodeUiState`. The encoder is `toBase64Url` (UTF-8 →
-  `btoa` → `+`→`-`, `/`→`_`, padding stripped); the decoder re-pads and is
-  **version-checked then total** — bad base64, broken JSON, a non-object, OR an
-  incompatible major version all return `null`, never throw.
-- **Attributes**: `path=/; max-age=31536000` (one year, `uiStateClient.ts`).
-- **Schema versioning** (`v: [major, minor]`): a **major mismatch in either
-  direction drops the whole cookie** (`decodeUiState` → `null`) — the writer's
-  shape guarantees are per-major, so a rolled-back deploy never decodes a
-  future-major blob and a past-major blob is never tolerated. A **newer minor**
-  within the current major decodes as-is (minor bumps are forward-compatible,
-  unknown fields fall out in normalization); an **older minor** runs the pure
-  `MINOR_MIGRATIONS` chain before normalization. A **legacy v1 cookie** (no
-  `v` field) is dropped too — v1 shipped the materialized per-view `views`
-  blob whose overflow drain is exactly what versioning retires, so every
-  existing cookie gets a clean start on this build. `writeUiState` always
-  re-stamps the current version (self-healing after a drop). (The PWA launch
-  shell's inline script reads only `lastPage` + `dashboard.view` leniently and
-  ignores the version — it cannot import the server codec, and at worst one
-  launch lands on the default target; the app self-heals on the next write.
-  The service worker does not decode this cookie at all: a SW never sees the
-  `Cookie` request header, so the launch target is resolved in the page.)
-- **Overflow guard**: if the encoded value exceeds `SAFE_COOKIE_VALUE_LENGTH`
-  (3500, headroom under the ~4 KiB browser cap), the writer **trims the least
-  intentful id lists first** via `reduceUiStateForCookie` (pure): parade filters,
-  then the legacy top-level `cal`/`types`/`users` lists (only pre-per-view-only
-  cookies carry them — §1.5.1), then per-view `cal` lists (re-derivable
-  from the role default), then per-view `types`, keeping per-view **user**
-  selections last — and only when everything else is gone do the scalar
-  "where am I" keys suffer. Once per-view memory stopped materializing
-  unconfigured views (§1.5.1), healthy cookies stay far under the limit; this
-  guard is the last-resort safety net for large explicit selections and no
-  longer wipes the `views` map it used to.
-
-### 1.4.1 Stored JSON (`UiState`, `uiState.ts:52-58`)
+### 1.5.1 Stored JSON
 
 ```jsonc
 {
-  // decodeUiState strips the version before this shape is consumed; the wire
-  // value is `{ "v": [2, 0], ...this }`. Bump minor for a migration, major to
-  // drop the cookie (see §1.4). Update the jsonc + tests when bumping.
   "lastPage": "/settings/users",        // bottom-nav path, incl. /settings sub-tab
   "sidebarCollapsed": false,            // desktop sidebar minimized to the icon rail
-  "dashboard": {
-    "view": "weekv2",                   // month | week (H) | weekv2 (Week D) | schedule | agenda — labels are "Week (H)" / "Week (D)"
-    "date": "2026-08-21",               // day-anchored views
-    "month": "2026-08",                 // Month view
-    "cal": ["<calendar id>", "..."],    // LEGACY shared set — only pre-per-view-only
-    "users": ["<user id>"],             // cookies carry these top-level lists; the
-    "types": ["<event type name>"],     // current build never writes or reads them
-    "pinnedViews": ["weekv2", "month"], // recency order: index 0 = leftmost tab
-    "zoom": 1.5,                        // Day/Week (H) hour-slot zoom (see slotZoom.ts)
-    "filterMode": "per-view",           // legacy marker — always "per-view" (filters are
-                                        // per-view only; the "global" combine mode is removed).
-                                        // Written so a pre-removal build reading this cookie
-                                        // keeps treating it as the per-view mode it supports
-    "views": {                          // each view's OWN filter memory; holds ONLY views the user
-                                        // explicitly configured or cleared (buildDashboardPersist merges
-      "month":  { "cal": ["<calendar id>"], "users": [], "types": [] },
-                                        // the current view into the previous map) — an ABSENT view
-      "week":   { "cal": ["<calendar id>"], "users": ["<user id>"] },
-                                        // resolves to the ROLE DEFAULT (the removed shared set is never
-      ...                               // consulted — configuring one view can't leak into another)
-    }
-   },
-  "parade": {
-    "cal": ["<calendar id>"],           // filters only — the day is NOT remembered:
-    "users": ["<user id>"]              // a bare /parade-state always opens on today
+  "dashboard": {                        // per-device "where you are"
+    "date": "2026-08-21",               //   day-anchored views
+    "month": "2026-08",                 //   Month view
+    "zoom": 1.5                         //   Day/Week (H) hour-slot zoom (slotZoom.ts)
   }
 }
 ```
 
-### 1.4.2 Normalization (`normalizeUiState`, `uiState.ts:120`)
+Everything the pre-feature cookie carried on top of this — the active view,
+`pinnedViews`, per-view `views` memory, `filterMode`, the parade section — is
+either server-side now or deleted. `normalizeUiState` drops those keys if a
+legacy cookie still carries them, and the versioned decode below refuses the
+old majors wholesale on first read (see §1.5.2).
 
-Anything mismatched is **dropped, never thrown** — a corrupted cookie degrades to
-"no remembered state":
+### 1.5.2 Versioning & trust
 
-- Non-plain-object top level → `null`.
-- `lastPage` must be a string starting with `/` (`:126-128`) — blocks relative
-  paths and `https://…` open-redirect attempts.
-- `sidebarCollapsed` must be a real boolean — both `true` and `false` survive
-  (an explicit `false` is "expanded", which the writer persists on re-expand).
-- Id lists: only arrays of non-empty strings survive (`idListOf`, `:112-116`); an
-  **empty list is dropped** — empty means "unfiltered", and dropping it makes
-  consumers fall back to their role default.
-- `pinnedViews` keeps only known view values, de-duplicated in stored order
-  (`normalizePinnedViews`, `:79-90`).
-- `zoom` is a finite number snapped to the nearest known level via `clampZoom`
-  (`slotZoom.ts`); non-numeric / non-finite values drop.
-- `filterMode` keeps only `"per-view"` — an explicit `"global"` (or anything
-  else) is dropped. It is a **legacy marker** written for pre-removal builds:
-  this build never reads it to decide anything (filters are per-view only).
-- `views` is always kept (there is no global mode whose shared set a stale map
-  could leak into). Only known view keys survive; each sub-list keeps every
-  non-empty string and — unlike the legacy top-level `cal`/`users`/`types`
-  lists — an **explicit empty list is kept** because it records "this view
-  cleared that filter" (a view that never set a key falls back to the role
-  default). A view whose sub-lists are all non-arrays vanishes; an empty whole
-  map vanishes.
-- A section with no surviving keys vanishes entirely (`:150-152`, `:165-167`).
-- Note: `view`/`date`/`month` are **not** pattern-checked here — that lives in
-  the consuming pages, which re-validate every key exactly like a URL param
-  (§1.5). The parade section has no scalars left at all: a stale `date`/`month`
-  in an old cookie is dropped outright, because the day is never restored.
+- The cookie is **user-editable** and never trusted: `decodeUiState` is total
+  (bad base64, broken JSON, a non-object, or an incompatible **major** — in
+  either direction — all return `null`, never throw). Major 3 dropped the v2
+  shape (per-view filters + pinned tabs), so every pre-feature cookie decodes
+  to `null` once and is re-stamped fresh on the next write.
+- Within the current major, a **newer minor** decodes as-is (forward
+  compatible, unknown fields dropped by `normalizeUiState`); an **older
+  minor** runs the pure `MINOR_MIGRATIONS` chain first.
+- The cookie is tiny (scalars + short id lists nowhere near the ~4 KiB browser
+  cap), so the old overflow-trimming machinery is gone.
 
-## 1.5 Server read: per-key fallback
+## 1.6 Server read: per-key fallback
 
-Both pages implement the same contract: **URL param wins; else the remembered
-value, re-validated; else the role default.** A remembered value is only applied
-after it survives the same validation a URL param would (date/month regexes, ids
-filtered against live calendar/user/type data).
+Contract: **URL param wins; else the remembered value, re-validated; else the
+default.**
 
-**Dashboard** (`src/app/(protected)/dashboard/page.tsx`):
+- **Dashboard** (`dashboard/page.tsx`): `date` — URL wins; a remembered cookie
+  `date` anchors the **day views only** (`view !== "month"`); in Month view the
+  remembered `month` (else current) drives the read. `zoom` is read from the
+  raw cookie and snapped via `clampZoom` before first paint (no width jump on
+  relaunch). The **active tab is not cookie state** — it resolves server-side
+  (§1.3).
+- **`?event=` / `?edit=` deep links** (Google "Edit:" notes, Pinned Events,
+  event search) land on the user's active tab + its filters; the link's `date`
+  pins the fetched period and `_eventCal` adds the event's calendar to the
+  fetch set regardless of the tab's filter selection.
+- **Protected layout** (`(protected)/layout.tsx`) reads `sidebarCollapsed`
+  from the cookie before first paint and passes it to the shell as initial
+  state (no client restore, no flash); the shell persists every toggle back.
 
-- **Whole-cookie skip** (`page.tsx:77-82`): only the one-shot `_fresh` render — a
-  render that just removed remembered keys — ignores the cookie (`uiState = null`).
-  An `?event=` / `?edit=` deep link (Google Calendar "Edit:" note, Pinned Events,
-  event search) reads the remembered state like any other render, so it opens the
-  event on the user's own view + filters: the link's `date` pins the fetched period
-  (URL always wins) and `_eventCal` adds the event's calendar to the fetch set only.
-- `zoom` (Day/Week (H) hour-slot width): not URL-backed like `pinnedViews`, so it
-  is read from the **raw** `cookieState` (not the skipped `uiState`), snapped via
-  `clampZoom` (`slotZoom.ts`), defaulting to `1`. It seeds the client zoom state
-  before first paint so a relaunch restores the last zoom with no width jump.
-- `view` (`:60-70`): whitelisted to the five tab values, else `"month"`.
-- `date` (`:72-78`): URL date (pattern `YYYY-MM-DD`) wins; a remembered date is
-  used **only for day-anchored views** (`view !== "month"`) — in Month view the
-  remembered *month* drives the read.
-- `month` (`:82-88`): derived from the resolved date, else URL month
-  (`YYYY-MM`), else remembered month, else the current month.
-- `cal` (`:105-117`): **presence** of the `cal` param decides (an empty `?cal=`
-  means "no filter" and wins) → URL ids filtered against real calendar ids; else
-  remembered ids filtered the same way; else the role default (admin: all
-  calendars; non-admin: own department's calendar).
-- `users` / `types` (`:126-139`): same pattern against existing user ids / event
-  type names. The ids dropped by validation are exactly what the client
-  re-persists afterwards (§1.7).
-
-#### 1.5.1 Dashboard filters (per-view scoping)
-
-The dashboard's Calendars/Users/Event Types filters resolve through one helper,
-`resolveDashboardFilters` (`uiState.ts`, pure, unit-tested). Scoping is
-**per view only** — the old "Same for all views" / global mode (ONE shared set
-combined across every view) is removed:
-
-```
-current view:  URL (if present) → views[view] → role default
-other views:                    → views[view] → role default
-```
-
-- **Grants don't change the role default.** The role default is admin: all
-  calendars, non-admin: own department (`users.department_id`). Extra
-  cross-department calendar access granted in Users settings never expands a
-  non-admin's default view — and, like membership, neither ever restricts which
-  departments are selectable in the filter UI. Access and filter availability
-  are unrelated concepts ([`roster-sharing.md`](roster-sharing.md) §1.5,
-  [`dashboard-views.md`](dashboard-views.md) §1.2).
-- The **shared set never exists as a fallback**, so configuring one view can
-  never leak into another: a view the user never configured (absent keys)
-  resolves to **role defaults** (admin: all calendars; no user/event-type
-  filter), and an **explicit empty list in `views[view]`** (records "this view
-  cleared that filter") resolves to empty trivially — there is no shared set to
-  resurrect it from. `filterMode`/the legacy top-level `cal/users/types` are
-  never consulted; the resolver does not even receive them.
-- **The writer only records what the user configured.** `buildDashboardPersist`
-  (`uiState.ts`, pure — the seed `DashboardPersistSeed` carries the current
-  view's resolved set plus which filter params the current URL pins) merges the
-  current view's entry into the *previous* `views` map; it never persists the
-  full resolved set for every view, so a view the user never touched keeps
-  absent keys and resolves to role defaults. A key is recorded when the URL pins
-  it (an apply or a view-switch wrote it — recorded verbatim) or when
-  the view already remembered it (the value is refreshed); everything else stays
-  absent. It always writes `filterMode: "per-view"` and never the legacy shared
-  `cal/users/types` (the section-wholesale merge prunes those from old cookies).
-  Besides matching the absent-key semantics, this keeps a 15+ calendar
-  org's cookie far under the size guard — the v1 writer materialized
-  `cal = <all calendars>` into all five views per render, blowing past
-  `SAFE_COOKIE_VALUE_LENGTH` and triggering the old overflow drain that silently
-  wiped the whole `views` map (the Users-filter loss this fixed).
-- Stale ids are validated in the page exactly like URL ids — the per-view
-  lists are filtered against live calendar/user/type data **before** the helper
-  picks a value, so a deleted department/user drops out (and the client
-  re-persists the pruned sets). Side-effect of that validation:
-  a per-view list whose entries are all stale degrades to an absent key (resolves
-  to the role default) rather than pinning an empty grid.
-- The URL always reflects the *current* view's resolved set: `switchView` writes
-  the target view's filters into the URL (an empty selection as an empty value,
-  never `null`, so the filter keys never count as removed and don't trigger
-  `_fresh`), which keeps back/forward and deep links coherent.
-
-```mermaid
-flowchart TD
-    A["resolveDashboardFilters(view, url, views, defaults)"] --> B{"current view?"}
-    B -- yes --> C{"URL key present?"}
-    C -- yes --> OUT["URL value (wins)"]
-    C -- no --> D{"_fresh render?"}
-    D -- yes --> OUT2["role default (just cleared)"]
-    B -- no --> E
-    D -- no --> E["views[view]?.[key]"]
-    E --> F{"key stored? (explicit empty counts)"}
-    F -- yes --> OUT3["per-view memory"]
-    F -- no --> OUT5["role default<br/>(the shared set is removed — never a fallback)"]
-```
-
-**Parade state** (`src/app/(protected)/parade-state/page.tsx`): same `_fresh`
-contract (`:33-34`). The day is deliberately **not** remembered — `date` = URL
-(pattern-checked) ?? today (`:37-43`), `month` derived from it — so a bare
-/parade-state always opens on today while an explicit `?date=` still wins
-(in-session day switches, back/forward, F5 on a picked-day URL). Remembered
-state is filters only: `cal` — **every role defaults to all calendars**,
-narrowing is opt-in (`:53-62`) — and `users` (`:64-70`) use the identical
-URL-wins/validate-remembered/default pattern.
-
-## 1.6 Cold-start launch target
-
-The PWA `start_url` is `/` (`src/app/manifest.ts`), and `src/app/page.tsx` is a
-tiny server component that resolves the launch **before first paint**:
-
-```mermaid
-sequenceDiagram
-    participant B as Browser (PWA launch)
-    participant H as app/page.tsx (server)
-    participant T as Target page (server)
-    B->>H: GET / (cookie cloudy2.ui attached)
-    H->>H: getSession() + decodeUiState(cookie)
-    H->>T: redirect(resolveLaunchTarget(lastPage, role))
-    T->>T: requireSession() — /login when signed out
-    T-->>B: remembered page, remembered view — no client redirect
-```
-
-`resolveLaunchTarget(lastPage, role)` (`uiState.ts:243`) is a pure whitelist:
-
-- `/dashboard`, `/parade-state`, `/contacts` → as remembered (both roles).
-- `/settings` → `/settings/users` for admins, `/dashboard` for everyone else.
-- `/settings/<subtab>` → admin-only; known subtabs kept (users, departments,
-  event-types, templates, general, audit-log — `SETTINGS_SUBTABS`, `:229-236`),
-  unknown subtabs → `/settings/users`.
-- Anything else — unknown page, relative path, `https://…`, `undefined` →
-  `/dashboard`.
-
-Role scoping is enforced a second time by `requireAdmin()` in the settings layout,
-so a tampered cookie can never launch a non-admin into admin routes.
-
-## 1.7 Client write: convergence to what was rendered
-
-`writeUiState(patch)` (`src/lib/ui/uiStateClient.ts:29-50`) is a read-modify-write:
-decode the current cookie, `mergeUiState(current, patch)`, encode, set.
-`mergeUiState` (`uiState.ts:204`) merges **per section**: a patch's section
-replaces that section wholesale; `lastPage` and `sidebarCollapsed` patch-win;
-absent keys are untouched.
-That is what keeps the writer hooks from clobbering each other.
-
-The sidebar key is the one state the **shell** owns end-to-end: the (protected)
-layout reads `sidebarCollapsed` from the cookie before first paint
-(`(protected)/layout.tsx:17`) and passes it to `AppShellShell` as the
-initial state (no client-side restore — the server renders exactly what was
-remembered), and the shell's effect persists it back on every toggle.
+## 1.7 Client writers
 
 | Writer | Where | What it persists |
 | ------ | ----- | ---------------- |
-| `useRememberedPage(pathname)` (`uiStateClient.ts:74`) | `AppShellShell.tsx` — every authenticated page | `{ lastPage: pathname }` on every pathname change, incl. `/settings` sub-tabs |
-| sidebar toggle effect (`AppShellShell.tsx:153-155`) | `AppShellShell.tsx` — every authenticated page | `{ sidebarCollapsed }` on mount (the remembered value) and on every toggle — writing `false` too, so the cookie converges when the sidebar is re-expanded |
-| `usePersistUiState("dashboard", seed)` (`uiStateClient.ts:70`) | `DashboardView.tsx` | builds the next section from the **current cookie** via `buildDashboardPersist` (pure): the server-resolved `view`, `date`, `month`, the local `pinnedViews`/`zoom`, `filterMode: "per-view"`, and the current view's entry **merged** into the previous `views` map (never the full resolved map — §1.5.1). The legacy shared `cal/users/types` are deliberately omitted, so the section-wholesale merge prunes them from pre-removal cookies |
-| `usePersistUiState("parade", values)` | `ParadeStateView.tsx:166` | the server-resolved `cal`, `users` filters — the day is deliberately not persisted, so a bare /parade-state opens on today |
+| `useRememberedPage(pathname)` | `AppShellShell` — every authenticated page | `{ lastPage: pathname }` (incl. `/settings` sub-tabs) |
+| sidebar toggle effect | `AppShellShell` | `{ sidebarCollapsed }` on mount + every toggle |
+| `usePersistDashboardNav({ date?, month, zoom })` | `DashboardView` | the dashboard section; `date` is stored only when the URL pins one (day views), `month`/`zoom` always |
 
-The overflow guard described in §1.4 also lives in this read-modify-write: the
-writer encodes, and if the value exceeds `SAFE_COOKIE_VALUE_LENGTH` it trims
-the least-intentful id lists one pass at a time (`reduceUiStateForCookie`) and
-re-encodes until it fits — never silently dropping the per-view `views` map the
-way the v1 writer did.
+Server-side writes happen through server actions (the client never writes
+Postgres directly): tab CRUD + per-tab filters via `src/lib/dashboardViews`,
+`setActiveDashboardView` + `saveParadeFilters` via `src/lib/userPrefs`. The
+last-active tab write is fire-and-forget from `switchTab` — the URL carries the
+current render, so a failed write just resumes the previous tab on the next
+bare load.
 
-The crucial detail is **what** gets written: the *server-resolved* props, not the
-raw URL params. The server has already dropped stale ids and applied role
-defaults, so persisting the resolved values makes the cookie converge to exactly
-what was on screen — no special handling in the navigation code
-(`uiStateClient.ts:55-61`). `usePersistUiState` snapshots via `JSON.stringify` in
-a `useMemo` and writes in an effect on change, so React re-renders with identical
-resolved state never rewrite the cookie.
+## 1.8 Parade filters
 
-## 1.8 Pinned tabs
+Parade State resolves its Calendars/Users filters from
+`user_preferences.parade_cal` / `parade_users` (empty = all). The **day is
+deliberately not remembered**: a bare `/parade-state` always opens on today;
+only an explicit `?date=` wins. Applying/clearing is a server action
+(`saveParadeFilters`) followed by a re-render, mirroring the dashboard.
 
-The dashboard's view tabs can be pinned: the "Pin Tab" / "Unpin Tab" item in the
-3-dot menu (`DashboardView.tsx:1085`) toggles the **active** tab.
+## 1.9 Sign-out
 
-- **Storage**: `dashboard.pinnedViews` in the cookie — **recency order**, index 0
-  = most recently pinned = renders **leftmost**, with a filled star icon prefixed
-  to the tab name (`DashboardView.tsx:983-996`). `orderDashboardViews`
-  (`uiState.ts:96`) computes the tab bar order: pinned first (stored order), then
-  unpinned in the default order (`DASHBOARD_VIEW_VALUES`, `uiState.ts:68`).
-- **Not URL-backed** — unlike every other dashboard key. `DASHBOARD_STATE_KEYS`
-  deliberately excludes `pinnedViews` (and `zoom`, the Day/Week (H) slot zoom —
-  which follows this exact pattern: a non-navigating local state, read from the
-  raw cookie, never needing `_fresh`), and a pin toggle
-  **navigates nowhere**: `togglePinView` (`DashboardView.tsx:823-830`) just
-  updates local state (prepend on pin, filter-out on unpin) — no skeleton, no
-  `_fresh`.
-- **Why pins survive `_fresh` renders**: every tab *switch* off an anchored view
-  is a `_fresh` navigation, and the server's whole-cookie skip there would wipe
-  everything read from the cookie. The page therefore reads pins from the **raw**
-  `cookieState`, not the skipped `uiState` (`dashboard/page.tsx:55-58`), and the
-  client keeps persisting `pinnedViews` on every render
-  (`DashboardView.tsx:431`, incl. the overflow-degrade branch).
-- **Local state vs prop**: `pinned` is local state seeded from the server-validated
-  prop, with a render-phase sync that adopts the prop when its *content* changes
-  (`DashboardView.tsx:329-340`) — back/forward and cleared cookies win, while a
-  local toggle leads the prop by one render (the cookie write happens in a
-  post-render effect, so content comparison avoids clobbering it).
+`clearUiState()` expires the cookie; the **Log out** item in `UserMenu` calls
+it right before NextAuth's `signOut` so the next account on the device starts
+from pure defaults. (Server-side prefs are per-account and follow the user, so
+they are not cleared on sign-out.)
 
-## 1.9 The `_fresh` one-shot marker
+## 1.10 Pure helpers & testing
 
-**Problem**: a bare URL produced by a *removal* (Clear, "My Events" off, tab
-switch off an anchored view) would, for one render, fall back to the now-stale
-cookie for the removed keys.
+| Helper | Behavior |
+| ------ | -------- |
+| `src/lib/dashboardViews/views.ts` | kind vocabulary/labels, name sanitization, filter-override normalization, `resolveActiveTab` (URL id → kind string → remembered → first) — unit-tested |
+| `src/lib/ui/uiState.ts` | cookie codec (`encodeUiState`/`decodeUiState`), `normalizeUiState`, `mergeUiState`, `resolveLaunchTarget` + route whitelists — unit-tested |
+| `src/lib/ui/slotZoom.ts` | `clampZoom` snapping (imported by the cookie normalizer) |
 
-**Mechanism**:
+I/O-bound (not unit-tested): the `db` calls in `src/lib/userPrefs` /
+`src/lib/dashboardViews` (incl. the transactional seed), the `cookies()` reads
+in the pages/layout, and the writer hooks.
 
-```mermaid
-sequenceDiagram
-    participant V as View (client)
-    participant P as Page (server)
-    participant C as cookie
-    V->>V: Clear → navigate({ cal: null, users: null, types: null })
-    Note over V: freshMarkerNeeded(updates, keys) === true
-    V->>P: router.push(?_fresh=1) inside startTransition
-    P->>P: freshRender → uiState = null (whole-cookie skip)<br/>pure role defaults apply (pins read from raw cookie)
-    P-->>V: fresh render (skeleton + fade)
-    V->>C: usePersistUiState re-persists the resolved values (stale ids gone)
-    V->>P: router.replace stripping ?_fresh=1 (no transition) + router.refresh()
-    P-->>V: bare URL re-served from the server (bypasses the stale client-router cache)
-```
-
-1. **Detection** — `freshMarkerNeeded(updates, keys)` (`uiState.ts:230-235`):
-   true when any remembered key is set to `null` in the navigation's updates.
-2. **Injection** — `navigate()` in `DashboardView` (`:584-609`) and
-   `ParadeStateView` (`:174-189`): after a no-op guard (built href === current
-   URL → return, so re-removing an absent key never round-trips), a removal
-   navigation pushes `?_fresh=1` inside `startTransition`. Triggering actions:
-   `clearFilters` (`:832-836`), `switchView` leaving an anchored view
-   (`:707-711`), and the FilterModal's Reset/empty-selection apply; parade
-   equivalents in `ParadeStateView.tsx:248-275`.
-3. **Server handling** — presence of `?_fresh` (any value) nulls the whole cookie
-   state for that render: `dashboard/page.tsx:51-53`, `parade-state/page.tsx:33-34`.
-   **Per-view scoping (dashboard):** a `_fresh` render skips the cookie for the
-   *current view only* — it resolves from the URL or pure role defaults — while
-   the other views' `views` memories keep being read from the raw cookie.
-   Clearing Week's filters must never reset Month;
-   `resolveDashboardFilters`' `fresh` flag encodes this.
-4. **Stripping** — a self-terminating effect removes the marker once its render
-   mounted (`DashboardView.tsx:611-619`, `ParadeStateView.tsx:238-246`) via
-   `router.replace(…, { scroll: false }); router.refresh()`, so it never
-   survives into back/forward history **and** the bare URL is re-served from
-   the *server*: `router.refresh()` bypasses the stale client-router/SW RSC
-   snapshot (`staleTimes.dynamic: 120`) that a plain push would have replayed,
-   which would revert the just-cleared filters and let `usePersistUiState`
-    re-seed them into the cookie. The `?refresh=` nonce strip uses the same
-    replace+refresh pattern (`:633-644`); the `?edit=`/`?event=` strips stay
-    plain pushes (they carry no filter state to resurrect).
-    `switchView` writes the target view's filters explicitly
-    (never `null`), so view switches never need `_fresh` — the URL carries the
-    target's resolved set.
-
-After the fresh render commits, `usePersistUiState` re-persists the freshly
-resolved values, so the next render (marker stripped) reads a cookie that already
-matches the URL — the stale entries are gone.
-
-## 1.10 Sign-out & clearing
-
-- `clearUiState()` (`uiStateClient.ts:52-54`) expires the cookie (`max-age=0`).
-- It is called by the **Log out** menu item in `UserMenu.tsx:19-26` right before
-  NextAuth's `signOut`: the state is per-device, so the next account on the device
-  must start from pure defaults (the sidebar rail preference goes with it).
-  `UserMenu` is the only caller.
-
-## 1.11 Pure helpers & testing
-
-All decision logic is pure and unit-tested in `src/lib/ui/uiState.test.ts`
-(334 lines); the writer hooks and the page-level reads are thin glue.
-
-| Helper (`src/lib/ui/uiState.ts`) | Behavior | Tests |
-| -------------------------------- | -------- | ----- |
-| `encodeUiState` / `decodeUiState` (`:189` / `:194`) | base64url round-trip; total decode (garbage → `null`) | round-trip (incl. `pinnedViews`), alphabet check, padded-input tolerance, garbage cases |
-| `normalizeUiState` (`:123`) | type/shape coercion; drops mismatched values, empty lists, empty sections; `lastPage` absolute-path check; `sidebarCollapsed` boolean-only | well-formed keep, mismatched drop, mixed-type lists, open-redirect block, `sidebarCollapsed` keep/drop |
-| `mergeUiState` (`:204`) | section-wholesale merge, `lastPage`/`sidebarCollapsed` patch-wins | patch-only-section, whole-section replace, `sidebarCollapsed` both directions + absence |
-| `normalizePinnedViews` (`:79`) | known values only, de-duped, stored order | non-arrays, unknown/duplicate drop, order |
-| `orderDashboardViews` (`:96`) | pinned first (recency), then default order | default order, single/multiple pins, all-pinned uniqueness |
-| `freshMarkerNeeded` (`:230`) | true iff any remembered key removed | single/multiple removals, set-only, empty |
-| `resolveLaunchTarget` (`:252`) | whitelist + role scoping for the cold start | base pages, `/settings` per role, all subtabs, unknown/relative/`https`/`undefined` fallbacks |
-
-Test environment note: vitest runs in bare node without `btoa`/`atob`, so the test
-file carries a `Buffer`-based mirror of the base64url encoder
-(`uiState.test.ts:321-326`).
-
-I/O-bound (not unit-tested): `uiStateClient.ts` (`document.cookie`), the
-`cookies()` reads in `page.tsx`/`dashboard/page.tsx`/`parade-state/page.tsx`/
-`(protected)/layout.tsx`, and the writer hooks.
-
-## 1.12 File index & related docs
+## 1.11 File index & related docs
 
 | File | Role |
 | ---- | ---- |
-| `src/lib/ui/uiState.ts` | Pure state model, codec, normalization, launch target, pin ordering |
-| `src/lib/ui/uiStateClient.ts` | Client writer: `writeUiState`, `clearUiState`, `usePersistUiState`, `useRememberedPage` |
-| `src/lib/ui/uiState.test.ts` | Unit tests for all pure helpers |
-| `src/app/page.tsx` | Cold-start launch redirect (`resolveLaunchTarget`) |
-| `src/app/(protected)/dashboard/page.tsx` | Dashboard per-key fallback + `_fresh` skip + pin read + `?event=`/`?edit=` deep-link resolution |
-| `src/app/(protected)/parade-state/page.tsx` | Parade-state per-key fallback + `_fresh` skip |
-| `src/app/(protected)/dashboard/DashboardView.tsx` | Persist hook, `navigate` + `_fresh` inject/strip, pin toggle + sync, one-shot strips |
-| `src/app/(protected)/parade-state/ParadeStateView.tsx` | Parade persist hook + `_fresh` inject/strip |
-| `src/app/(protected)/layout.tsx` | Reads `sidebarCollapsed` from the cookie before first paint, passes it to the shell as initial state |
-| `src/components/AppShellShell.tsx` | `useRememberedPage` on every pathname change; sidebar `sidebarCollapsed` initial state (from the layout prop) + persist (effect) |
+| `src/lib/dashboardViews/views.ts` | Kind vocabulary, tab DTO, `resolveActiveTab`, filter normalizers (pure) |
+| `src/lib/dashboardViews/queries.ts` | `getDashboardViews` (+ mutex-guarded default seed) |
+| `src/lib/dashboardViews/actions.ts` | Tab CRUD + per-tab filter saves |
+| `src/lib/userPrefs/queries.ts` | `getUserPreferences` (cached ensure + read) |
+| `src/lib/userPrefs/actions.ts` | `setActiveDashboardView`, `saveParadeFilters` |
+| `src/db/schema.ts` | `user_dashboard_views`, `user_preferences` |
+| `src/app/(protected)/dashboard/page.tsx` | Active-tab resolution + per-tab filter validation + date/month fallback |
+| `src/app/(protected)/parade-state/page.tsx` | Parade filters from `user_preferences` |
+| `src/app/(protected)/layout.tsx` | `sidebarCollapsed` read before first paint |
+| `src/components/AppShellShell.tsx` | `useRememberedPage`, sidebar toggle persist |
 | `src/components/UserMenu.tsx` | Sign-out → `clearUiState` |
-| `src/app/manifest.ts` | PWA `start_url /` |
+| `src/lib/ui/uiState.ts` / `uiStateClient.ts` | Cookie model/codec + client writers |
+| `src/app/(protected)/dashboard/DashboardView.tsx` | Tab strip/manage UI, `usePersistDashboardNav`, `switchTab` (+ active-tab action) |
 
 Related docs:
 
-- [`loading-transitions.md`](loading-transitions.md) — the one-shot param pattern
-  (`?event=` / `?edit=` / `?refresh=` / `?_fresh=`) and skeleton/fade behavior
-  these navigations trigger.
-- [`events-cache.md`](events-cache.md) — the `?refresh=` force-refresh nonce this
-  state system coexists with.
+- [`dashboard-views.md`](dashboard-views.md) — the tabs themselves: kinds,
+  management UI, per-tab filter semantics, period-preservation rules.
+- [`loading-transitions.md`](loading-transitions.md) — plain-box route/cold-start
+  loading and the in-page skeletons.
 - [`developer-guide.md`](developer-guide.md#112-related-docs) — documentation index.
 - `progress-archive.md` — phase write-ups: 1.69 (remembered UI state), 1.71 (user filter
-  row narrowing), 1.72 (pinned tabs), 1.81 (collapsible sidebar rail).
+  row narrowing), 1.72 (pinned tabs — replaced by on-demand views), 1.81 (collapsible
+  sidebar rail).

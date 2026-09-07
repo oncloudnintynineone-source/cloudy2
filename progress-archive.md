@@ -7827,3 +7827,50 @@ Files: `globals.css`, `UserMenu.tsx`, `AppShellShell.tsx`, `(protected)/layout.t
 profile Force refresh visible on all pages and greyed on the calendar when Google is
 unconfigured; network-fresh reload in Settings and force-fresh on the calendar; `?refresh`
 stripped from the URL after load; no Saved chip.
+
+## 1.202 On-demand dashboard Views (tabs), server-side prefs
+
+The fixed five-view dashboard is replaced by a per-account set of **on-demand
+Views**. Each row of the new `user_dashboard_views` table is one tab: a
+renderer kind (`month` / `week` / `weekv2` / `schedule` / `agenda`, duplicates
+allowed), a user-chosen name, a per-user `sortOrder`, and that tab's own filter
+overrides. A new `user_preferences` singleton row per user holds the last-active
+tab and the Parade State filters. Both tables cascade-delete with the user;
+reads are React-`cache()`d and lazily seed (single default "Month" tab + the
+preferences row) under a `SELECT … FOR UPDATE` on the preferences row so racing
+requests can't double-insert. The break-glass admin (`id="admin"`, no `users`
+row) short-circuits every query and renders a static Month tab with no
+management.
+
+**Server-side per account**: tabs + per-tab filters (`NULL` = role default;
+array incl. `[]` = explicit/cleared), last-active tab, parade filters. The
+device cookie `cloudy2.ui` (major v3) now carries only "where you are":
+`lastPage`, `sidebarCollapsed`, `dashboard { date, month, zoom }` — the
+per-view `views`, `pinnedViews`, `filterMode` and parade sections are gone, and
+the v2 shape decodes to null once (re-stamped on next write).
+
+**Resolution**: active tab = URL `?view=<tab id>` (legacy `<kind>` maps to the
+first tab of that kind) → remembered last-active → first tab in strip order.
+Tab switches keep the period for same-kind and anchored↔anchored hops;
+Month→anchored starts today; anchored→Month keeps the anchor month. Filters are
+applied/cleared via `saveDashboardViewFilters` / `saveParadeFilters` server
+actions + `router.refresh()`; the `cal/users/types` URL params, the `_fresh`
+machinery and the pin/unpin star UI are deleted.
+
+**Chrome**: a (＋) button at the end of the scrolling tab strip opens "Add
+view" (kind picker + name); **Edit views** (⋮ menu) swaps the strip to a
+manage list (↑/↓ reorder via transactional renumbering, tap-to-rename, delete;
+the last tab can't go). Route/cold-start loading became one plain full-page
+box (`loading.tsx` + `public/loading.html` — the static shell can no longer
+shape to a remembered kind); in-page transition skeletons still shape to the
+active tab's kind. Event-title-template assignments stay keyed by kind.
+
+**Files**: `src/db/schema.ts` (+ migration `0037_*`), `src/lib/dashboardViews/`
+(views/queries/actions + tests), `src/lib/userPrefs/` (queries/actions),
+reworked `dashboard/page.tsx`, `DashboardView.tsx`, `parade-state/page.tsx` +
+`ParadeStateView.tsx`, reduced `uiState.ts`/`uiStateClient.ts`, `loading.tsx`,
+`public/loading.html` + `launchShell.test.ts`. Docs: `ui-state.md` rewritten,
+`dashboard-views.md` §1.1/§1.2/§1.8, `AGENTS.md`, `progress.md`.
+
+**Verified**: pnpm typecheck, pnpm lint, pnpm test (964 pass), pnpm build,
+pnpm db:generate (no drift).

@@ -46,14 +46,16 @@ describe("PWA launch shell", () => {
     expect(body.toLowerCase()).not.toContain("cookie");
   });
 
-  it("renders one skeleton section per dashboard view, month by default", () => {
-    // The shell mirrors dashboard/loading.tsx + calendarSkeleton.tsx so the
-    // handoff reads as one continuous skeleton; the variant chosen is driven
-    // by the remembered dashboard.view (main[data-view], default "month").
-    expect(SHELL_HTML).toContain('id="c2-main" data-view="month"');
-    for (const view of ["month", "week", "weekv2", "agenda", "schedule"]) {
-      expect(SHELL_HTML).toContain(`data-variant="${view}"`);
-    }
+  it("renders one plain loading block, not a view-shaped skeleton", () => {
+    // Dashboard views are on-demand tabs whose renderer kind is only known
+    // after the server resolves the active tab, so the launch shell can no
+    // longer shape its skeleton to the remembered view. It paints one neutral
+    // block matching dashboard/loading.tsx's plain box instead (which also
+    // reads correctly when the launch redirects to parade/contacts/settings).
+    expect(SHELL_HTML).toContain('id="c2-main"');
+    expect(SHELL_HTML).toContain("plainbox");
+    expect(SHELL_HTML).not.toContain("data-variant=");
+    expect(SHELL_HTML).not.toContain("data-view=");
   });
 
   it("follows the app's manual color-scheme override", () => {
@@ -175,16 +177,5 @@ describe("launch shell redirect executes", () => {
     expect(runShellScript(uiCookie({ lastPage: "/parade-state" })).replaced).toEqual([
       "/parade-state",
     ]);
-  });
-
-  it("pre-selects the remembered view variant without aborting the redirect", () => {
-    // Exercises the VIEW_VALUES path in the redirect IIFE: if it were trapped
-    // in the builder IIFE again, `data-view` would be left at "month" — and a
-    // hard throw would abort the navigation entirely.
-    const { replaced, attrsById } = runShellScript(
-      uiCookie({ lastPage: "/dashboard", dashboard: { view: "agenda" } }),
-    );
-    expect(replaced).toEqual(["/dashboard"]);
-    expect(attrsById.get("c2-main")?.["data-view"]).toBe("agenda");
   });
 });

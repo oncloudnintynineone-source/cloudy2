@@ -1,0 +1,131 @@
+/**
+ * The user-created dashboard "Views" (tabs) domain — pure vocabulary, shape
+ * and normalization. A tab is a server row in `user_dashboard_views`: one
+ * renderer kind (the same five engines the dashboard always had), a
+ * user-chosen display name, a per-user strip order, and that tab's own filter
+ * overrides. Tabs are stored server-side per account (design:
+ * docs/dashboard-views.md, docs/ui-state.md).
+ *
+ * Filter semantics (this module + the read-time validation in the dashboard
+ * page): each of `cal`/`users`/`types` is either `null` — meaning "role
+ * default" (admin: all calendars; non-admin: their own department; users and
+ * event types default to nothing) — or an explicit array of selections,
+ * including an empty array (a genuine "cleared" selection). Stored ids/names
+ * are re-validated against live data on every dashboard render.
+ */
+
+/** The five dashboard view renderer kinds a tab can be. */
+export const DASHBOARD_VIEW_KINDS = ["month", "week", "weekv2", "schedule", "agenda"] as const;
+export type DashboardViewKind = (typeof DASHBOARD_VIEW_KINDS)[number];
+
+/** Display labels for the kinds (the default tab names + type-picker rows). */
+export const DASHBOARD_VIEW_KIND_LABELS: Record<DashboardViewKind, string> = {
+  month: "Month",
+  week: "Week (H)",
+  weekv2: "Week (D)",
+  schedule: "Day",
+  agenda: "Agenda",
+};
+
+export function isDashboardViewKind(value: unknown): value is DashboardViewKind {
+  return typeof value === "string" && (DASHBOARD_VIEW_KINDS as readonly string[]).includes(value);
+}
+
+/** Longest allowed user-chosen tab name. */
+export const DASHBOARD_VIEW_NAME_MAX_LENGTH = 40;
+
+/**
+ * A tab's own filter overrides as stored: `null` = role default, an array
+ * (including `[]` = cleared) = an explicit selection.
+ */
+export interface DashboardTabFilters {
+  cal: string[] | null;
+  users: string[] | null;
+  types: string[] | null;
+}
+
+export function emptyTabFilters(): DashboardTabFilters {
+  return { cal: null, users: null, types: null };
+}
+
+/** Client/view shape of one tab (no timestamps, filters parsed). */
+export interface DashboardViewTab {
+  id: string;
+  kind: DashboardViewKind;
+  name: string;
+  sortOrder: number;
+  filters: DashboardTabFilters;
+}
+
+export type DashboardViewNameResult =
+  | { ok: true; value: string }
+  | { ok: false; error: string };
+
+/**
+ * Trim + length-limit a user-chosen tab name. Blanks and over-long names are
+ * rejected with a user-facing message.
+ */
+export function sanitizeDashboardViewName(raw: unknown): DashboardViewNameResult {
+  if (typeof raw !== "string") {
+    return { ok: false, error: "Enter a name" };
+  }
+  const value = raw.trim();
+  if (value.length === 0) {
+    return { ok: false, error: "Enter a name" };
+  }
+  if (value.length > DASHBOARD_VIEW_NAME_MAX_LENGTH) {
+    return {
+      ok: false,
+      error: `Keep the name under ${DASHBOARD_VIEW_NAME_MAX_LENGTH} characters`,
+    };
+  }
+  return { ok: true, value };
+}
+
+/**
+ * A stored filter override: only arrays of non-empty strings pass through; a
+ * non-array / garbage decodes to `null` (role default). An explicit empty
+ * array is preserved — it records a genuine "cleared" selection.
+ */
+export function normalizeFilterOverride(raw: unknown): string[] | null {
+  if (!Array.isArray(raw)) {
+    return null;
+  }
+  return raw.filter((entry): entry is string => typeof entry === "string" && entry.length > 0);
+}
+
+/**
+ * Pick the tab a dashboard render should show. Candidate order: the URL
+ * `?view=` (a tab id, or a legacy kind string → the first tab of that kind),
+ * then the remembered last-active tab id, then the first tab in strip order.
+ * Unknown/foreign values all fall through to the remembered/first tab; the
+ * function never throws and returns `undefined` only when there are no tabs.
+ */
+export function resolveActiveTab(
+  candidate: string | null | undefined,
+  rememberedId: string | null,
+  tabs: readonly DashboardViewTab[],
+): DashboardViewTab | undefined {
+  if (tabs.length === 0) {
+    return undefined;
+  }
+  if (typeof candidate === "string" && candidate.length > 0) {
+    const byId = tabs.find((tab) => tab.id === candidate);
+    if (byId) {
+      return byId;
+    }
+    if (isDashboardViewKind(candidate)) {
+      const byKind = tabs.find((tab) => tab.kind === candidate);
+      if (byKind) {
+        return byKind;
+      }
+    }
+  }
+  if (rememberedId !== null) {
+    const remembered = tabs.find((tab) => tab.id === rememberedId);
+    if (remembered) {
+      return remembered;
+    }
+  }
+  return tabs[0];
+}

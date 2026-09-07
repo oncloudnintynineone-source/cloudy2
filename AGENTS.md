@@ -156,16 +156,25 @@ mechanics in the doc.
   guarded render-phase reconcile on the next props arrival — never an effect. Stand-in
   chips block detail taps until pinned. Design:
   [docs/optimistic-mutations.md](docs/optimistic-mutations.md).
-- **Dashboard views & filters:** Month / Week (H) / Week (D) / Day / Agenda over the
-  shared cache; one **filter button** (icon + badge) opens the filter modal
-  (Calendars + Users prominent, Event Types behind a Show/Hide disclosure); the
-  kebab keeps navigation + the fullscreen toggle only (refresh lives in the
-  profile menu — see the events-cache bullet). **Filters are scoped per view only** — each
-  of Month / Week (H) / Week (D) / Day / Agenda owns its own Cal/Users/Types
-  memory (`dashboard.views`, resolved by the pure `resolveDashboardFilters` in
-  `ui-state.ts` as URL → view memory → role default; an untouched view never
-  inherits another view's filters and `_fresh` clears only the current view).
-  The old "same for all views"/shared-set mode is gone. Week (D) is a custom matrix
+- **Dashboard views (tabs) & filters:** the calendar is a set of **on-demand
+  dashboard Views** — per-account rows in `user_dashboard_views`
+  (`src/lib/dashboardViews`), each a renderer **kind** (Month / Week (H) / Week (D) /
+  Day / Agenda; duplicates allowed) plus a user name, strip order and that tab's own
+  Cal/Users/Types filters. A **(＋)** button at the end of the scrolling tab strip
+  opens "Add view" (kind picker + name); **Edit views** (⋮ menu) swaps the strip to a
+  manage list — ↑/↓ reorder, tap-to-rename, per-tab delete (the last tab can't go).
+  **Filters are stored per tab** (server-side; a filter value `null` = role default,
+  an explicit array incl. `[]` = that selection) and applied/cleared through server
+  actions + `router.refresh()` — no `cal/users/types` URL params. The active tab
+  lives in the URL as `?view=<tab id>` (legacy `?view=<kind>` maps to the first tab
+  of that kind) and is remembered **server-side** (`user_preferences.dashboardActiveViewId`);
+  a single "Month" tab is seeded on first read (mutex-guarded). Switching tabs keeps
+  the period for same-kind and anchored↔anchored hops; Month→anchored starts today;
+  anchored→Month keeps the anchor month. Event-title-template assignments stay keyed
+  by kind. Route/cold-start loading is one plain box (kind is unknowable pre-server);
+  the in-page transition skeletons still shape to the active tab's kind. The
+  break-glass admin (`id="admin"`) has no rows — it renders a static Month tab with
+  no view management. Week (D) is a custom matrix
   (pure `buildWeekLanes`). **Entry highlights are client-side per view:** the
   current user's entries get an amber treatment (row tint + chip/bar ring, mine can
   also claim Month's top rows) and **external** (Google-created) events get the same
@@ -246,14 +255,18 @@ mechanics in the doc.
   delete), `dispatchKahBreachCheck()` (`src/lib/kah/notify.ts`) runs inside `after()` —
   best-effort, it can never fail or delay the mutation.
   Design: [docs/kah.md](docs/kah.md).
-- **Remembered UI state** survives relaunch in one cookie, `cloudy2.ui`: the server
-  applies it per-key as fallback only where the URL param is absent (URL always wins);
-  the one-shot `_fresh` render is the only whole-cookie skip — `?event=`/`?edit=` deep
-  links read the remembered state too, so an event search result or a Google "Edit:"
-  note opens on the user's own view + filters (the link's `date` pins the fetched
-  period, `_eventCal` adds the event's calendar to the fetch set regardless of the
-  filter selection); navigations removing remembered keys inject
-  one-shot `?_fresh=1`; `clearUiState()` runs on sign-out.
+- **User preferences are split by scope.** Cross-account preferences live in
+  Postgres (`user_preferences`: last-active dashboard tab + parade filters; and the
+  `user_dashboard_views` tab rows with their per-tab filters — src/lib/userPrefs +
+  src/lib/dashboardViews), so a logged-in user's views/filters follow them across
+  devices. The one **device-local cookie** `cloudy2.ui` keeps only "where you are":
+  `lastPage` (the PWA start shell must resolve it client-side, zero network),
+  `sidebarCollapsed`, and the dashboard `date`/`month` anchor + Day/Week (H) `zoom`.
+  The server applies the cookie per-key as fallback only where the URL param is
+  absent (URL always wins); `?event=`/`?edit=` deep links land on the user's own
+  active tab + filters (the link's `date` pins the fetched period, `_eventCal` adds
+  the event's calendar to the fetch set regardless of the filter selection);
+  `clearUiState()` runs on sign-out.
   Design: [docs/ui-state.md](docs/ui-state.md).
 - **PWA offline & instant open** (Serwist, `src/app/sw.ts`): build-versioned SWR
   document + RSC caches; offline is read-only (no local write queue). The launch

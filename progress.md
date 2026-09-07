@@ -18,7 +18,7 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
 
 ## 1.1 Status
 
-- All work through changelog **1.201 (event wizard centered, fills phone height)** is shipped.
+- All work through changelog **1.202 (on-demand server-side dashboard Views/tabs)** is shipped.
 - Quality gates (`lint` / `typecheck` / `test` / schema-drift check) run in CI on every
   push and PR. Pushes also auto-apply migrations per environment: `dev` →
   `migrate-preview` against the dev Neon DB, `main` → `migrate` against the prod Neon
@@ -31,8 +31,10 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
   policy, with outbound webhooks to any number of admin-registered external endpoints on
   create/update/delete and pre-submit event clash warnings on the wizard's review step;
   a Double Booking page that scans an existing schedule for double-bookings over the next
-  30 days, surfaced by a live count pill on its nav entry; dashboard Month/Mobile-month/Schedule-Day/Week/Week-v2-matrix/Agenda views over
-  a layered calendar cache; parade-state page with local attendance mode; contacts page;
+   30 days, surfaced by a live count pill on its nav entry; an on-demand set of user-created
+   dashboard **Views (tabs)** over the five renderer kinds (Month / Week (H) / Week (D) / Day /
+   Agenda; each tab has its own name, order and Cal/Users/Types filters, stored server-side) over
+   a layered calendar cache; parade-state page with local attendance mode; contacts page;
   PWA installability with offline & instant open (SWR document + RSC, precached offline.html);
   mobile-first UI with a desktop layout at `lg`; remembered UI state across relaunch;
   audit-log viewer with retention + CSV export; admin-managed quick-links menu
@@ -568,6 +570,25 @@ One line per phase; full write-ups (incl. Mermaid diagrams and verification note
    (`safe-area-inset-bottom` + `sm` spacing) so the Back/Next/Create bar isn't glued to
    the screen edge. Desktop centered modal is unchanged. `docs/event-lifecycle.md` §1.4,
    `docs/desktop-responsive.md` §1.7, `AGENTS.md`
+- 1.202 On-demand dashboard Views (tabs): the fixed five-view dashboard is gone — the calendar
+   is a per-account set of views (`user_dashboard_views`: renderer kind + user name + strip
+   order + that tab's own Cal/Users/Types filters; duplicates allowed), created via a (＋)
+   button at the end of the scrolling tab strip ("Add view": kind picker + name) and managed
+   through an **Edit views** mode (↑/↓ reorder, tap-to-rename, delete — the last tab can't
+   go). Filters are **server-side per tab** (`NULL` = role default, explicit array = the
+   selection), applied/cleared via `saveDashboardViewFilters` + `router.refresh()` — the
+   `cal/users/types` URL params, the `_fresh` machinery and the pin/unpin star UI are
+   deleted. The active tab rides the URL as `?view=<tab id>` (legacy `<kind>` maps to the
+   first tab of that kind), is remembered server-side (`user_preferences.dashboardActiveViewId`),
+   and resolves URL → remembered → first tab; a single "Month" tab is seeded lazily under a
+   `user_preferences` row lock. Scalar preferences moved server-side too (`user_preferences`:
+   last-active tab + parade filters; zoom/sidebar/lastPage/date/month stay in the reduced
+   device `cloudy2.ui` cookie — major v3). Period is preserved on same-kind and
+   anchored↔anchored tab switches; route/cold-start loading is one plain box
+   (`loading.tsx` + `public/loading.html`); in-page skeletons still shape to the kind.
+   Break-glass admin has no rows (static Month tab, no management). Migrations 0037 +
+   `user_preferences`/`user_dashboard_views`; `docs/ui-state.md` rewritten,
+   `docs/dashboard-views.md` §1.1/§1.2/§1.8, `AGENTS.md`, `progress-archive.md`
 - 1.201 Event wizard back to a centered modal (the bottom-sheet model was wrong — it gave
    unequal gutters and dragged the caption to the top). The host modal is `centered` at
    every width again; on phones the body **fills the centered box** to use as much

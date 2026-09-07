@@ -1,15 +1,20 @@
 # 1. Dashboard views & filters
 
-The Calendar dashboard (`/dashboard`) renders one of six event views over the shared
-server-side events cache ([`events-cache.md`](events-cache.md)) and a per-view
-filter state. This document covers the view inventory, the filters (one
-button + modal, scoped per view), the custom Week (D) matrix — the one view no
-Mantine Schedule component can render — the per-view "mine" and external-entry
-highlights, and the Day / Week (H) timeline zoom.
+The Calendar dashboard (`/dashboard`) renders one of the five event-view
+**kinds** (Month / Week (H) / Week (D) / Day / Agenda) over the shared
+server-side events cache ([`events-cache.md`](events-cache.md)). The dashboard
+does **not** show one fixed instance of each kind: the user builds an on-demand
+set of **views (tabs)** — one per-account row per tab (kind + user name + strip
+order + that tab's own filter state), stored server-side in
+`user_dashboard_views` (`src/lib/dashboardViews`). This document covers the tab
+inventory & management, the filters (one button + modal, scoped per tab), the
+custom Week (D) matrix — the one view no Mantine Schedule component can render —
+the per-view "mine" and external-entry highlights, and the Day / Week (H)
+timeline zoom.
 
 ## Table of contents
 
-- [1.1 View inventory](#11-view-inventory)
+- [1.1 View inventory & tab management](#11-view-inventory--tab-management)
 - [1.2 Filters](#12-filters)
 - [1.3 Week (D): the custom week matrix](#13-week-d-the-custom-week-matrix)
 - [1.4 Data flow shared by all views](#14-data-flow-shared-by-all-views)
@@ -18,11 +23,11 @@ highlights, and the Day / Week (H) timeline zoom.
 - [1.7 Timeline zoom (Day and Week (H))](#17-timeline-zoom-day-and-week-h)
 - [1.8 File index & related docs](#18-file-index--related-docs)
 
-## 1.1 View inventory
+## 1.1 View inventory & tab management
 
-The dashboard's view keys (`DASHBOARD_VIEW_VALUES`, `src/lib/ui/uiState.ts:70`):
+The renderer kinds (`DASHBOARD_VIEW_KINDS`, `src/lib/dashboardViews/views.ts`):
 
-| Key | Label | Renderer |
+| Kind | Label | Renderer |
 | --- | ----- | -------- |
 | `month` | Month | Mantine calendar month grid (six fixed weeks — see [`events-cache.md`](events-cache.md)) |
 | `week` | Week (H) | Mantine Schedule, hour columns per resource row |
@@ -30,16 +35,54 @@ The dashboard's view keys (`DASHBOARD_VIEW_VALUES`, `src/lib/ui/uiState.ts:70`):
 | `schedule` | Day | Mantine Schedule, single day per resource row |
 | `agenda` | Agenda | list view |
 
-Mobile-month is the sub-`lg` rendering of the `month` view. The remembered view +
-pinned view tabs ride the `cloudy2.ui` cookie ([`ui-state.md`](ui-state.md)).
+Mobile-month is the sub-`lg` rendering of the `month` kind. Tabs are **not**
+the kinds themselves: each `user_dashboard_views` row binds one of these kinds
+to a user-chosen **name**, a per-user `sortOrder`, and that tab's own filter
+overrides (see `src/db/schema.ts`). **Duplicates of the same kind are allowed**
+(two "Agenda" tabs with different names/filters), so a tab's **UUID is its
+identity** — carried in the URL as `?view=<tab id>`; a legacy `?view=<kind>`
+string maps to the first tab of that kind.
+
+- **Seed**: the first dashboard read per account lazily creates one "Month"
+  tab (`ensureDefaultDashboardView`, mutex-guarded on the
+  `user_preferences` row so racing requests can't double-insert) and points
+  the remembered last-active tab at it.
+- **The (＋) button** at the end of the scrolling tab strip opens the **Add
+  view** modal (kind picker rows with icons + a name; the default name follows
+  the chosen kind until edited). Creating appends the tab and navigates to it.
+- **Edit views** (the ⋮ menu item) swaps the strip to a manage list of
+  pills: ↑/↓ move a tab (commits `reorderDashboardViews`, which renumbers
+  every row in a transaction), tap the name to rename, ✕ deletes (the last tab
+  can't be deleted; deleting the active tab navigates to the first remaining).
+  The old **pin/unpin** affordance and its star UI are gone — ordering is
+  fully user-controlled.
+- **Period preservation on switch** (`switchTab` in `DashboardView.tsx`): a
+  tab switch is a *filter/context* change, so switching between two tabs of the
+  same kind (or any two day-anchored kinds) keeps the current date; leaving
+  Month for an anchored kind starts on today; leaving an anchored kind for
+  Month keeps the anchor's month. Each switch also fire-and-forgets
+  `setActiveDashboardView` so the account resumes the last tab across devices.
+- **The active tab resolves** (`dashboard/page.tsx`) as URL `?view=` → the
+  remembered last-active tab (`user_preferences.dashboardActiveViewId`) → the
+  first tab in strip order. Title-template assignments (§ of
+  [`event-lifecycle.md`](event-lifecycle.md)) stay keyed by **kind**, so all
+  tabs of a kind share that kind's display template.
+
+`/?view=` is now an id, and the remembered cookie no longer carries a view, so
+**route/cold-start loading cannot shape its skeleton to the arriving kind**:
+`loading.tsx` and the PWA launch shell (`public/loading.html`) show one plain
+full-page loading box; the in-page transition skeletons inside `DashboardView`
+still shape to the active tab's kind. The break-glass admin session
+(`id="admin"`, no `users` row) renders a static single Month tab with view
+management hidden.
 
 ## 1.2 Filters
 
 Filtering has **one primary affordance**: a dedicated filter button (funnel icon
 + active-group-count badge, `FilterButton`) beside the ⋮ menu in the nav row
-opens `FilterModal` (`src/components/FilterModal.tsx`). The ⋮ menu no longer
-carries filter actions — it keeps **Today / Select date / Pin tab / Enter
-fullscreen** only (Force refresh moved to the profile menu). Dashboards'
+opens `FilterModal` (`src/components/FilterModal.tsx`). The ⋮ menu keeps
+**Today / Select date / Edit views / Enter fullscreen** only (Force refresh
+moved to the profile menu). Dashboards'
 "Myself" quick action lives inside the filter modal
 beside the Users group; "Reset" clears (role defaults).
 
@@ -47,16 +90,28 @@ The modal promotes the filters most people reach — **Calendars** (chip grid) a
 **Users** (badge-dialog picker, `variant: "search"`) — and tucks **Event Types**
 behind a "Show"/"Hide" disclosure (`collapsedGroupLabels`; audit-log/user-table
 callers keep all groups expanded). A footer scope hint notes *"These filters
-apply to {view} only."* — filter scoping is **per view only** (the old
-"Same for all views"/shared-set mode is removed): every view remembers its own
-Calendars/Users/Event Types selection, and clearing one view's filters never
-resets the others.
+apply to {view name} only."* — filter scoping is **per tab**: each tab stores
+its own Calendars/Users/Event Types selection, and clearing one tab's filters
+never touches the others.
 
-Filter semantics:
+Filter storage & resolution:
 
 - On the dashboard an active **Users** filter also narrows the rows of
   Day/Week (H)/Week (D) — `buildScheduleResources` takes a `userFilter`
   (`src/lib/events/schedule.ts:120`) and the Week (D) matrix reuses the same rows.
+- A tab's filter state lives **on the tab row** (`user_dashboard_views.cal_filter`
+  / `users_filter` / `types_filter`), each JSON array or SQL `NULL`. `NULL`
+  means **role default** (admin: all calendars; non-admin: their own department;
+  Users/Event Types: none) and is re-resolved on every render — a department
+  added later shows up without touching the tab. An **explicit array** (including
+  `[]` = a genuine "cleared" selection) is stored verbatim.
+- **Applying or clearing is a server action**, not a URL navigation: the client
+  calls `saveDashboardViewFilters` (empty/role-default selections are stored as
+  `NULL`), then re-renders from the server so the events refetch under the new
+  filter set. Filters never travel in `cal/users/types` URL params.
+- Stored ids/names are re-validated against live calendars/users/types on every
+  dashboard read (stale entries drop out; an all-stale list degrades to the role
+  default), exactly like the URL params they replaced.
 - **Access is unrelated to filters.** A user's department membership — or any
   extra department calendars granted to them — has nothing to do with which
   departments they can filter: every user can always select *every* department
@@ -64,18 +119,9 @@ Filter semantics:
   grants affect only Google Calendar sharing/roles
   ([`roster-sharing.md`](roster-sharing.md) §1.5), and a non-admin's **role
   default** stays their own department — extra grants never expand it.
-- The per-view model, its resolution order (URL → view memory → **role default** —
-  the removed shared set is never consulted, so configuring one view can't leak
-  into another's untouched views), the explicit-empty "cleared" state, and the
-  `_fresh` current-view-only scoping live in the remembered-state system:
-  [`ui-state.md`](ui-state.md) §1.5.1 / §1.9. Switching views writes the target
-  view's filters into the URL, so the URL always describes the rendered view.
-- The per-view writer (`buildDashboardPersist`) records **only views the user
-  configured or cleared** — never the full resolved set — so a view that was
-  never touched keeps absent keys and resolves to role defaults, and a large
-  roster cannot blow the remembered-state cookie past its size guard (the v1
-  materialize-then-drain bug that lost per-view Users filters is fixed by this;
-  see `ui-state.md` §1.4/§1.5.1).
+- The Parade State page mirrors the same split: its filters live on the
+  `user_preferences.parade_cal` / `parade_users` row (empty = all), applied via
+  `saveParadeFilters` ([`ui-state.md`](ui-state.md)).
 
 ```mermaid
 flowchart LR
@@ -83,15 +129,16 @@ flowchart LR
     FM --> CAL["Calendars<br/>(chip grid)"]
     FM --> US["Users<br/>(badge picker + Myself)"]
     FM --> ET["Event Types<br/>(behind Show/Hide)"]
-    FM --> HINT["Scope hint<br/>(these filters apply to {view} only)"]
-    HINT --> RESOLVE["resolveDashboardFilters<br/>(server, per view)"]
-    RESOLVE --> MEM["views[view]<br/>(cookie dashboard.views)"]
+    FM --> HINT["Scope hint<br/>(these filters apply to {tab} only)"]
+    HINT --> APPLY["saveDashboardViewFilters<br/>(server action)"]
+    APPLY --> ROW["active tab row<br/>(cal/users/types, NULL = role default)"]
+    ROW --> RESOLVE["dashboard/page.tsx<br/>validates ids vs live data"]
     RESOLVE --> DEF["role default"]
 ```
 
 ## 1.3 Week (D): the custom week matrix
 
-`?view=weekv2` renders a custom week matrix — **7 day-columns × the same resource
+A tab whose kind is `weekv2` renders a custom week matrix — **7 day-columns × the same resource
 rows as Day/Week (H)** — in `WeekMatrixView.tsx`
 (`src/app/(protected)/dashboard/WeekMatrixView.tsx`). No Mantine Schedule component
 fits this shape, so the view is hand-built.
@@ -306,14 +353,19 @@ flowchart LR
     V --> M["useLayoutEffect re-measures<br/>(zoom in deps)"]
     M --> R["pinned hour ruler +<br/>Week (H) day-label strip"]
     S --> A["reanchorScrollLeft effect<br/>(re-anchors scrollLeft)"]
-    S --> C["dashboard.zoom cookie<br/>(usePersistUiState)"]
+    S --> C["dashboard.zoom cookie<br/>(usePersistDashboardNav)"]
 ```
 
 ## 1.8 File index & related docs
 
 | File | Role |
 | ---- | ---- |
-| `src/app/(protected)/dashboard/DashboardView.tsx` | View switch, date-nav chrome, filter state, zoom state + slot widths |
+| `src/lib/dashboardViews/views.ts` | Kind vocabulary + labels, tab DTO, filter-override normalizers, `resolveActiveTab` (pure) |
+| `src/lib/dashboardViews/queries.ts` | Tab reads + the mutex-guarded default "Month" seed |
+| `src/lib/dashboardViews/actions.ts` | Tab CRUD: `create/rename/delete/reorderDashboardViews`, `saveDashboardViewFilters` |
+| `src/lib/userPrefs/queries.ts` + `actions.ts` | `user_preferences` row: last-active tab + parade filters (incl. `saveParadeFilters`) |
+| `src/app/(protected)/dashboard/DashboardView.tsx` | Tab strip + (＋)/edit mode, tab switch + period rules, filter state, zoom state + slot widths |
+| `src/app/(protected)/dashboard/page.tsx` | Resolves tabs + active tab (`?view=` → remembered → first), validates per-tab filters |
 | `src/app/(protected)/dashboard/WeekMatrixView.tsx` | Week (D) matrix renderer |
 | `src/lib/events/weekMatrix.ts` | Pure Week (D) lane binning (`coveredDays`, `buildWeekLanes`) |
 | `src/lib/events/mineFirst.ts` | Pure "mine first" sort for the month view's greedy row assignment |
@@ -321,7 +373,7 @@ flowchart LR
 | `src/lib/ui/slotZoom.ts` | Pure zoom levels + slot-width math (`clampZoom`, `stepZoom`, `weekSlotWidth`, `daySlotWidth`) |
 | `src/components/GridNavControls.tsx` | Day/Week (H) right-edge cluster: zoom +/− + right pan, plus left-edge pan |
 | `src/components/FilterButton.tsx` | Dedicated filter button (icon + active-group badge) replacing the kebab's filter menu |
-| `src/components/FilterModal.tsx` | Filters dialog (collapsible groups, per-view scope hint) |
+| `src/components/FilterModal.tsx` | Filters dialog (collapsible groups, per-tab scope hint) |
 
 Related docs:
 
@@ -330,4 +382,4 @@ Related docs:
 - [`immersive-mode.md`](immersive-mode.md) — fullscreen calendar chrome.
 - [`user-picker.md`](user-picker.md) — the Users filter's badge-dialog picker.
 - [`desktop-responsive.md`](desktop-responsive.md) — the slot/label width table and the Schedule CSS-var gotcha zoom builds on.
-- [`ui-state.md`](ui-state.md) — remembered view + pinned view tabs + the `zoom` level.
+- [`ui-state.md`](ui-state.md) — server-side prefs (tabs + filters) vs the device-local cookie (`zoom`, date/month, sidebar).

@@ -111,7 +111,7 @@ Suspense fallback), shaped to match the real content:
 
 | Segment | `loading.tsx` |
 | ------- | ------------- |
-| `(protected)/dashboard` | view-aware: reads the `cloudy2.ui` cookie (validated by the shared `resolveDashboardView`) and renders the matching per-view grid skeleton; month rows from `monthGridRows()` on the remembered/URL-silent month. Loading files receive no URL props, so an explicit `?view=` link or `edit` deep link can briefly disagree with a divergent remembered view |
+| `(protected)/dashboard` | one plain full-page skeleton box. Views are on-demand tabs whose renderer kind is only known after the server resolves the active tab (and loading files receive no URL props), so the route skeleton can no longer shape to a kind — the in-page transition skeletons inside `DashboardView` still do |
 | `(protected)/parade-state` | day card + rows from `paradeStateSkeleton.tsx` |
 | `(protected)/contacts` | list skeleton |
 | `(protected)/settings/users` | user card skeletons |
@@ -133,15 +133,18 @@ to paint (Android PWA splash stuck) for the whole wake-up. See
 The row/card skeletons are extracted into small **shared components** so the
 route fallback and the in-page swap stay in sync: `dashboard/calendarSkeleton.tsx`
 (all five view grids — `MonthGridSkeleton`, `WeekMatrixSkeleton` (Week (D)
-matrix), `WeekGridSkeleton` (Week (H)), `AgendaListSkeleton`, `ScheduleGridSkeleton`),
-`parade-state/paradeStateSkeleton.tsx`,
+matrix), `WeekGridSkeleton` (Week (H)), `AgendaListSkeleton`, `ScheduleGridSkeleton`;
+used by the dashboard's **in-page** kind-shaped transitions, not the plain-box
+route fallback), `parade-state/paradeStateSkeleton.tsx`,
 `settings/audit-log/AuditLogRowSkeleton.tsx`.
 
 The PWA **launch shell** (`public/loading.html`, served unconditionally by the
-service worker for the start URL) mirrors the dashboard route skeleton — all five
-view variants, Mantine's exact palette values and pulse, brand-bar header,
-bottom-nav placeholders — so the handoff from the precached shell reads as **one
-continuous skeleton**, not two different ones: it either hands off to the
+service worker for the start URL) mirrors that plain-box route skeleton — one
+neutral full-page loading block with Mantine's exact palette values and pulse,
+brand-bar header, bottom-nav placeholders — so the handoff from the precached
+shell reads as **one continuous loading surface** whatever page the launch
+resolves to (it cannot know the arriving dashboard tab's kind, and non-dashboard
+targets share the same chrome anyway): it either hands off to the
 document route's cached copy (served instantly, at any age) or, when nothing is
 cached, stays painted while the network read runs behind it, then gives way to
 the streamed `loading.tsx` fallback. Every launch paints the shell — the launch
@@ -336,14 +339,14 @@ pickDate`; reconciled by one render-phase sync keyed on
 
 What deliberately stays on **committed** props: grid/ruler/agenda rendering
 and their guards (`isWeekV2`, `isAnchoredView`, `headerDate`),
-`usePersistUiState` (relaunch restores last *committed* state), chevron click
+`usePersistDashboardNav` (a relaunch restores last *committed* state), chevron click
 dispatch. The invariant that makes this safe: whenever the data renders
 (`!gridLoading`), the sync guarantees `shown === committed`.
 
 The grid **skeleton flavor** and the period label both select by the
 optimistic view — the shape and text you asked for are what appear while it
-loads (same contract as `loading.tsx` resolving the remembered view from the
-cookie).
+loads (the in-page skeleton follows the target tab's kind; the route/cold-start
+fallback cannot know it and shows the plain box instead).
 
 ## 1.10 Client-router reuse window
 

@@ -23,16 +23,15 @@ import { getSettings, listEventTitleTemplates } from "@/lib/settings/queries";
 import { requireSession } from "@/lib/session";
 import { isUuid } from "@/lib/uuid";
 import { clampZoom } from "@/lib/ui/slotZoom";
+import { UI_STATE_COOKIE, decodeUiState } from "@/lib/ui/uiState";
+import { getDashboardViews } from "@/lib/dashboardViews/queries";
 import {
-  DASHBOARD_VIEW_VALUES,
-  UI_STATE_COOKIE,
-  decodeUiState,
-  normalizePinnedViews,
-  resolveDashboardFilters,
-  resolveDashboardView,
-  type DashboardViewFilters,
-  type DashboardViewValue,
-} from "@/lib/ui/uiState";
+  emptyTabFilters,
+  resolveActiveTab,
+  type DashboardTabFilters,
+  type DashboardViewTab,
+} from "@/lib/dashboardViews/views";
+import { getUserPreferences } from "@/lib/userPrefs/queries";
 import { DashboardView } from "./DashboardView";
 
 interface DashboardPageProps {
@@ -44,6 +43,18 @@ const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 // The one-shot force-refresh nonce is honored only within this window, so a
 // stale history entry (back/forward) can't silently re-force a fetch.
 const REFRESH_NONCE_TTL_MS = 5 * 60_000;
+
+// The break-glass admin session has no `users` row (id "admin"), so it has no
+// stored views; it renders this static single Month view, and the UI hides all
+// view management. Same fallback for any account whose stored views somehow
+// failed to seed.
+const STATIC_DEFAULT_TAB: DashboardViewTab = {
+  id: "default",
+  kind: "month",
+  name: "Month",
+  sortOrder: 0,
+  filters: emptyTabFilters(),
+};
 
 function currentMonth(): string {
   return formatInstantToNaive(new Date()).slice(0, 7);
@@ -67,33 +78,34 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
   const initialDetailEventId =
     typeof params.event === "string" && isUuid(params.event) ? params.event : null;
 
-  // Per-device remembered UI state: where the URL is silent, the last rendered
-  // view/filters apply, so a cold open (or F5) lands where the user left off —
-  // resolved here, before first paint, with no client redirect. URL params
-  // always win; the cookie is skipped entirely only for the one-shot `_fresh`
-  // marker (a render that just removed remembered keys — Clear, tab switch).
-  // `edit`/`event` deep links read the remembered state too (see below), so an
-  // event search result or a Google Calendar "Edit:" note opens on the user's
-  // own view + filters — the link's `date` pins the fetched period and
-  // `_eventCal` adds the event's calendar regardless of the filter selection.
-  const freshRender = typeof params._fresh === "string";
-  const cookieState = decodeUiState((await cookies()).get(UI_STATE_COOKIE)?.value);
-  const uiState = freshRender ? null : cookieState;
-  const ui = uiState?.dashboard;
-  // Pinned tabs are not URL-backed, so the `_fresh` cookie skip above
-  // must not drop them — every tab switch is a `_fresh` render, and skipping
-  // the cookie there would wipe the pin list on the very next switch.
-  const pinnedViews = normalizePinnedViews(cookieState?.dashboard?.pinnedViews);
-  // Timeline zoom (Day/Week (H)) is remembered the same way: not URL-backed,
-  // so it is read from the raw cookie (survives `_fresh`) and resolved before
-  // first paint to avoid a width jump on cold open.
-  const initialZoom = clampZoom(cookieState?.dashboard?.zoom) ?? 1;
+  // On-demand dashboard tabs are stored server-side per account. The active
+  // tab is resolved: URL `?view=<tab id>` wins (a legacy `?view=<kind>`
+  // string maps to the first tab of that kind), else the remembered
+  // last-active tab (server-side), else the first tab in strip order. The
+  // page renders whichever tab the URL/remembered state selects; the tab's
+  // kind picks the renderer, its filters resolve to the fetch below.
+  const urlView =
+    typeof params.view === "string" && params.view.length > 0 ? params.view : null;
+  const storedTabs = await getDashboardViews(session.user.id);
+  const prefs = await getUserPreferences(session.user.id);
+  const canManageViews = storedTabs.length > 0;
+  const tabs = storedTabs.length > 0 ? storedTabs : [STATIC_DEFAULT_TAB];
+  const activeTab =
+    resolveActiveTab(urlView, prefs?.dashboardActiveViewId ?? null, tabs) ?? STATIC_DEFAULT_TAB;
+  const view = activeTab.kind;
 
-  const view = resolveDashboardView(params.view ?? ui?.view);
+  // Per-device "where you are" state: where the URL is silent, the last
+  // rendered date/month anchor (and Day/Week (H) zoom) apply, so a cold open
+  // (or F5) lands where the user left off. URL params always win.
+  const cookieState = decodeUiState((await cookies()).get(UI_STATE_COOKIE)?.value);
+  const nav = cookieState?.dashboard;
+  // Timeline zoom (Day/Week (H)) is not URL-backed, so it is read from the raw
+  // cookie and resolved before first paint to avoid a width jump on cold open.
+  const initialZoom = clampZoom(nav?.zoom) ?? 1;
 
   const urlDate =
     typeof params.date === "string" && DATE_PATTERN.test(params.date) ? params.date : null;
-  const cookieDate = typeof ui?.date === "string" && DATE_PATTERN.test(ui.date) ? ui.date : null;
+  const cookieDate = typeof nav?.date === "string" && DATE_PATTERN.test(nav.date) ? nav.date : null;
   // A remembered `date` only anchors the day views (Week (H), Week (D), Day,
   // Agenda); in Month view the remembered month — not a remembered day —
   // drives the read.
@@ -104,7 +116,7 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
   const urlMonth =
     typeof params.month === "string" && MONTH_PATTERN.test(params.month) ? params.month : null;
   const cookieMonth =
-    typeof ui?.month === "string" && MONTH_PATTERN.test(ui.month) ? ui.month : null;
+    typeof nav?.month === "string" && MONTH_PATTERN.test(nav.month) ? nav.month : null;
   const month =
     dateParam !== null ? dateParam.slice(0, 7) : (urlMonth ?? cookieMonth ?? currentMonth());
   const date = dateParam ?? formatInstantToNaive(new Date()).slice(0, 10);
@@ -140,12 +152,6 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
   const ownDepartmentId = isAdmin ? null : await getUserDepartmentId(session.user.id);
   const defaultCalendars = isAdmin ? calendarIds : ownDepartmentId ? [ownDepartmentId] : [];
 
-  const calParam = typeof params.cal === "string" ? params.cal.split(",").filter(Boolean) : [];
-  const typesParam =
-    typeof params.types === "string" ? params.types.split(",").filter(Boolean) : [];
-  const usersParam =
-    typeof params.users === "string" ? params.users.split(",").filter(Boolean) : [];
-
   const typeNames = eventTypes.map((type) => type.name);
   const eventTypeOptions = eventTypes.map((type) => ({
     name: type.name,
@@ -165,18 +171,12 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
   }));
   const allUserIds = allUsers.map((user) => user.id);
 
-  // Dashboard filter state — scoped per view only (the "same for all views" /
-  // shared-set mode is removed). Fallback order: the URL (current view only) →
-  // that view's per-view memory → the role default. A view the user never
-  // configured keeps absent keys and resolves to the role default, so one
-  // view's filters can never leak into another's.
-  const rememberedDashboard = cookieState?.dashboard;
-  // Stale remembered ids are validated against live data here (exactly like
-  // URL params), THEN dropped. An explicit EMPTY array survives as an empty
-  // set — it records "this view cleared that filter" and must keep resolving
-  // to nothing, not to the role default. An all-stale list instead degrades to
-  // "nothing remembered" (undefined) and falls through to the role default,
-  // matching the pre-existing behavior for a cleared cookie.
+  // Dashboard filter state — stored per tab server-side. Each of the active
+  // tab's three filters is `null` ("role default") or an explicit array. The
+  // arrays are re-validated against live data here (exactly like the URL
+  // params they replaced), THEN dropped when all-stale. An explicit EMPTY
+  // array survives — it records "this tab cleared that filter" and must keep
+  // resolving to nothing, not to the role default.
   const validCal = (ids: string[] | undefined): string[] | undefined => {
     if (ids === undefined) return undefined;
     const list = ids.filter((id) => calendarIds.includes(id));
@@ -192,40 +192,27 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
     const list = (names ?? []).filter((name) => typeNames.includes(name));
     return list.length > 0 || names.length === 0 ? list : undefined;
   };
-  const validViews: Partial<Record<DashboardViewValue, DashboardViewFilters>> = {};
-  for (const target of DASHBOARD_VIEW_VALUES) {
-    const raw = rememberedDashboard?.views?.[target];
-    validViews[target] = {
-      cal: validCal(raw?.cal),
-      users: validUsers(raw?.users),
-      types: validTypes(raw?.types),
-    };
-  }
-  const { selected, viewFilters } = resolveDashboardFilters({
-    view,
-    url: {
-      cal: params.cal === undefined ? undefined : calParam.filter((id) => calendarIds.includes(id)),
-      users:
-        params.users === undefined ? undefined : usersParam.filter((id) => allUserIds.includes(id)),
-      types:
-        params.types === undefined
-          ? undefined
-          : typesParam.filter((name) => typeNames.includes(name)),
-    },
-    views: validViews,
-    defaults: { cal: defaultCalendars, users: [], types: [] },
-    fresh: freshRender,
-  });
-  const selectedCalendars = selected.cal;
-  const selectedTypes = selected.types;
-  const selectedUsers = selected.users;
+  const resolveFilter = (
+    stored: string[] | null,
+    validator: (ids: string[] | undefined) => string[] | undefined,
+    fallback: string[],
+  ): string[] => (stored === null ? fallback : (validator(stored) ?? fallback));
+
+  const selectedCalendars = resolveFilter(activeTab.filters.cal, validCal, defaultCalendars);
+  const selectedUsers = resolveFilter(activeTab.filters.users, validUsers, []);
+  const selectedTypes = resolveFilter(activeTab.filters.types, validTypes, []);
+  const defaultFilters: DashboardTabFilters = {
+    cal: defaultCalendars,
+    users: [],
+    types: [],
+  };
 
   // `?event=` deep links (Google Calendar "Edit:" notes, Pinned Events, event
   // search): `_eventCal` carries the target event's calendar, which the
   // resolved filters may exclude (the links can target any calendar, whatever
-  // the user's remembered view/filter selection). Add it to the read only —
-  // the filter selection (`selectedCalendars`, which drives the filter UI and
-  // the remembered state) stays untouched.
+  // the user's active tab/filter selection). Add it to the read only — the
+  // filter selection (`selectedCalendars`, which drives the filter UI and the
+  // remembered state) stays untouched.
   const eventCalParam =
     typeof params._eventCal === "string" && calendarIds.includes(params._eventCal)
       ? params._eventCal
@@ -338,7 +325,9 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
         });
 
   // Display-only per-view title: re-render each internal event via the
-  // view-assigned template (fallback to master). External events keep Google title.
+  // kind-assigned template (fallback to master). External events keep Google
+  // title. Assignments stay keyed by renderer kind (all tabs of a kind share
+  // the template the settings UI assigns to that kind).
   const templateMapForDisplay = new Map(
     eventTitleTemplates.map((t) => [t.id, t.template] as const),
   );
@@ -382,8 +371,9 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
     <DashboardView
       month={month}
       date={date}
-      view={view}
-      pinnedViews={pinnedViews}
+      tabs={tabs}
+      activeView={activeTab}
+      canManageViews={canManageViews}
       initialZoom={initialZoom}
       events={events}
       calendars={calendars.map((calendar) => ({
@@ -410,7 +400,7 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
       selectedCalendarIds={selectedCalendars}
       selectedTypes={selectedTypes}
       selectedUserIds={selectedUsers}
-      viewFilters={viewFilters}
+      defaultFilters={defaultFilters}
       currentUser={session.user.id}
       isAdmin={isAdmin}
       currentUserName={session.user.name ?? ""}
