@@ -50,7 +50,9 @@ flowchart LR
 
 On phones the pages sit in the bottom navigation bar; on desktop they move to the
 left sidebar (which can collapse to an icon rail). The header carries the
-**Pinned events** button (with an amber count badge) and the light/dark toggle.
+**Pinned events** ticker on the left and, on the right, search, the **Force
+refresh** button, and the profile menu — the light/dark theme switch lives inside
+that menu.
 
 ## 1.3 The calendar
 
@@ -88,7 +90,7 @@ them with the tabs above the grid:
   An untouched view shows your role default (admin: all departments). Filtering
   is not tied to access: everyone can always select **every** department
   calendar, whatever department they belong to or extra access they hold.
-- **Force refresh** — in your profile menu (tap the avatar, top-right), on every
+- **Force refresh** — the refresh arrow in the header (top-right), on every
   page. It reloads the page from the network (never a saved copy); on the Calendar
   it also pulls the very latest from Google Calendar.
 
@@ -210,7 +212,8 @@ full-screen app icon.
   on today).
 - **Event titles are templated** by your admin — what you type in Remarks is the
   description; the calendar title combines it with type, people, and location.
-- **Two themes** — the sun/moon toggle in the header switches light/dark.
+- **Themes** — open your profile menu (avatar, top-right) and pick **Light**,
+  **Dark**, or **System** (follows the device) — the active one is ticked.
 - **Loading style** — pages show skeletons, never dimmed content; buttons show their
   own spinner while working.
 - **Modern browsers only** — Cloudy2 needs Safari 16.4 (iOS 16.4) or newer on Apple

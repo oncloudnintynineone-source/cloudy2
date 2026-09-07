@@ -182,8 +182,8 @@ index (a separate concern from this native-search feature; see
   single paint and the zoom still never plays — so the enter animation always
   starts from an `exited` state. Closing flips immediately so the shrink-out
   doesn't lag.
-- Owned by `AppShellShell`: the header `ActionIcon` (between the pinned-events
-  button and `ThemeToggle`) toggles it; on click the shell captures the icon's
+- Owned by `AppShellShell`: the header `ActionIcon` (left of the header Force
+  refresh button and the profile menu) toggles it; on click the shell captures the icon's
   rect and passes it down as `originRect`, and the modal zooms out of / shrinks
   back into it via the app's standard `motion/origin` transition (mirroring
   `PinnedEventsPanel`).

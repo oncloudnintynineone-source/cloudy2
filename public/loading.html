@@ -7,9 +7,9 @@
     <title>Cloudy2</title>
     <script>
       // Apply Mantine's manual color-scheme override before first paint: the
-      // app stores a ThemeToggle choice ("light"/"dark") under this key; with
-      // "auto" (or nothing) the CSS prefers-color-scheme rules below decide,
-      // matching the app's defaultColorScheme="auto".
+      // app stores the profile menu's theme choice ("light"/"dark") under this
+      // key; with "auto" (or nothing) the CSS prefers-color-scheme rules below
+      // decide, matching the app's defaultColorScheme="auto".
       (function () {
         try {
           var scheme = localStorage.getItem("mantine-color-scheme-value");

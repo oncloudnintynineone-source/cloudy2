@@ -87,7 +87,7 @@ Filtering has **one primary affordance**: a dedicated filter button (funnel icon
 + active-group-count badge, `FilterButton`) beside the ⋮ menu in the nav row
 opens `FilterModal` (`src/components/FilterModal.tsx`). The ⋮ menu keeps
 **Today / Select date / Enter fullscreen** only (Force refresh
-moved to the profile menu; view management lives on the strip's left settings
+is a header button; view management lives on the strip's left settings
 button). Dashboards'
 "Myself" quick action lives inside the filter modal
 beside the Users group; "Reset" clears (role defaults).

@@ -1162,7 +1162,7 @@ export function DashboardView({
   // class ships in the SSR HTML and plays on first paint. The one-shot
   // `edit`/`event` strips are plain pushes (no transition), so they never set
   // the pending flag and never replay the fade. (Force refresh is a full page
-  // reload from the profile menu now — its wait is the route loading.tsx, not
+  // reload from the header button now — its wait is the route loading.tsx, not
   // this skeleton.)
   const gridLoading = useMinSkeletonHold(isPending);
   useContentEnter(weekBoxRef, !gridLoading);
@@ -2484,7 +2484,7 @@ export function DashboardView({
           {/* Filters live in their own primary affordance (icon + count badge),
               not the overflow menu — the kebab keeps navigation, the "Edit
               views" management mode and the fullscreen toggle (Force refresh
-              lives in the profile menu). */}
+              lives in the header). */}
           <FilterButton
             activeCount={activeFilterCount}
             onClick={(e) => {

@@ -276,7 +276,7 @@ sequenceDiagram
 Notes:
 
 - The activate wipe and the client-side clear are deliberately redundant: the wipe closes the "fresh tab after deploy" hole (a tab opened after v2 claimed has no `controllerchange` in its lifetime, so only the wipe guarantees an empty cache), while the client clear covers the brief activate/claim race where an in-flight v1 fetch could re-store an entry under the old name after the wipe.
-- In-page "older data" *within the same build* (navigating back to a visited URL) is still the intended SWR behavior (§1.5/§1.6) plus `staleTimes.dynamic = 120`; the profile menu's **Force refresh** (§1.11) is the user-facing escape hatch for that.
+- In-page "older data" *within the same build* (navigating back to a visited URL) is still the intended SWR behavior (§1.5/§1.6) plus `staleTimes.dynamic = 120`; the header's **Force refresh** button (§1.11) is the user-facing escape hatch for that.
 
 ## 1.9 Offline fallback
 
@@ -311,10 +311,11 @@ Shared devices are covered by the sign-out purge as well (see §1.14).
 Native browser pull-to-refresh is **disabled app-wide** (`overscroll-behavior-y: contain`
 on the root scroller, `globals.css`) — the browser gesture that used to hard-reload the
 page would otherwise keep showing a SWR-served cached copy (§1.5). The app's refresh
-affordance is the **Force refresh** item in the profile menu (every page):
+affordance is the **Force refresh** button in the header, right of Search and left of the
+profile menu (every page):
 
 - It **full-page reloads** the current URL with a one-shot `?refresh=<epoch-ms>` nonce
-  (`UserMenu.tsx`). Because `?refresh` is an `ONE_SHOT_PARAMS` key, the service worker has
+  (`AppShellShell.tsx`). Because `?refresh` is an `ONE_SHOT_PARAMS` key, the service worker has
   **no cached document or RSC entry for that URL** — the reload is always a network render,
   fresh on every page (Settings included), never a cached copy.
 - On `/dashboard` the server additionally honors the nonce and force-reads Google
@@ -383,7 +384,7 @@ two invariants: it answers from the precache, and it contains no redirect and no
 cookie peek). The rest of the SW bundle (`src/app/sw.ts`) is wiring only.
 Integration is validated by `pnpm build` (precache count + inspecting the emitted
 SW bundle) + manual PWA checks: second open instant, cold launch (the
-skeleton must paint before any content), F5, profile-menu force-refresh bypass,
+skeleton must paint before any content), F5, header force-refresh bypass,
 deep links, offline cold open, offline view switching, offline mutation error,
 sign-out isolation, and the deploy-takeover reload (§1.8).
 
@@ -401,8 +402,8 @@ sign-out isolation, and the deploy-takeover reload (§1.8).
 | `src/lib/pwa/client.ts` | Client cache helpers (prefix-matched across build versions): `invalidatePathCaches`, `invalidateRscPathCaches`, `invalidateCurrentPathCaches`, `clearAllSavedPages`, `documentCachedAtIso`, + the `useStaleDocumentReconcile` after-paint reconcile (§1.5) + `useOneShotRefreshStrip` (§1.11) |
 | `src/app/(protected)/dashboard/DashboardView.tsx` | Route-level one-shot strips (`_fresh`/`edit`/`event`) + `router.refresh` → invalidate-then-refresh + pin-toggle cache invalidation (§1.7); no longer hosts Force refresh or a "Saved" chip (§1.11) |
 | `src/components/AppProviders.tsx` | Session-expiry `message` listener + `controllerchange` build-swap reload (§1.8) + mounts `useStaleDocumentReconcile` (§1.5) |
-| `src/components/UserMenu.tsx` | Profile menu: Force refresh (full reload + `?refresh` nonce, §1.11) + sign-out cache purge |
-| `src/components/AppShellShell.tsx` | Mounts `useOneShotRefreshStrip` (§1.11) |
+| `src/components/UserMenu.tsx` | Profile menu: theme switcher (light/dark/system rows) + sign-out cache purge |
+| `src/components/AppShellShell.tsx` | Header Force refresh (full reload + `?refresh` nonce, §1.11) + mounts `useOneShotRefreshStrip` (§1.11) |
 | `public/offline.html` | Branded offline explainer (precached) — "You're offline" + Try again; no saved-views list (§1.9) |
 | `public/loading.html` | Branded launch shell (precached) — view-aware skeleton mirroring the route skeleton + sr-only status; resolves the remembered page + view from the `cloudy2.ui` cookie and redirects after a presented frame (§1.5.1) |
 | `src/lib/pwa/launchShell.test.ts` | Drift guard for the launch shell's inline copy of the route whitelist / redirect structure / skeleton variants / scheme override, its runtime smoke test under a DOM shim, and the SW launch route's invariants (precached shell, no redirect, no cookie peek) |

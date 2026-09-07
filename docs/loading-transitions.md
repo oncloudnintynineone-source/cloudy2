@@ -183,7 +183,7 @@ replay it.
 
 Callers gate their *in-page* skeleton on the held value, e.g.
 `gridLoading = useMinSkeletonHold(isPending)` (`DashboardView.tsx`) — data
-navigations only. Force refresh no longer participates: the profile menu
+navigations only. Force refresh no longer participates: the header button
 reloads the whole document, so its wait is the route `loading.tsx` skeleton
 (§1.4), not this hold.
 
@@ -230,7 +230,7 @@ still forcing). None of the four is ever written to the document/RSC caches
 | ----- | ------- | -------- | ----------- |
 | `?event=<uuid>` | open the event's details modal (deep link from the Google Calendar `Edit:` note line, Pinned Events, event search; `_eventCal` rides alongside so the fetch includes the event's calendar) | `isUuid` — anything else ignored (`dashboard/page.tsx:66-68`); the link's `date` pins the fetched month; the render reads the remembered-UI-state cookie (only `_fresh` skips it — [`ui-state.md`](ui-state.md)), opening the event on the user's own view + filters | ref-guarded effect after the forced render mounts (`DashboardView.tsx:1496-1507`) — a refresh won't reopen the modal; re-arms once stripped so the same event can open again |
 | `?edit=<uuid>` | open the event's edit form directly (the event search modal's "Edit" action) | `isUuid` — anything else ignored (`dashboard/page.tsx:59-61`); the link's `date` pins the fetched month; the render reads the remembered-UI-state cookie (only `_fresh` skips it — [`ui-state.md`](ui-state.md)) | ref-guarded effect after the forced render mounts (`DashboardView.tsx:1482-1489`) — a refresh won't reopen the form |
-| `?refresh=<epoch-ms>` | Force refresh (profile menu, every page): a **full page reload** to the nonce URL — the SW never caches it, so every page gets a network render; on the dashboard the server additionally bypasses the events-cache freshness windows and blocks on fresh Google reads **inside the same request** | finite number younger than `REFRESH_NONCE_TTL_MS` (5 min, `page.tsx`) — a stale history entry can't silently re-force (`events-cache.md` §1.5.1) | `useOneShotRefreshStrip` after the reloaded document mounts (`src/lib/pwa/client.ts`, mounted in `AppShellShell`) — clears the pathname's RSC entries first, then `router.replace`s to the clean URL (once per document load) |
+| `?refresh=<epoch-ms>` | Force refresh (header button, every page): a **full page reload** to the nonce URL — the SW never caches it, so every page gets a network render; on the dashboard the server additionally bypasses the events-cache freshness windows and blocks on fresh Google reads **inside the same request** | finite number younger than `REFRESH_NONCE_TTL_MS` (5 min, `page.tsx`) — a stale history entry can't silently re-force (`events-cache.md` §1.5.1) | `useOneShotRefreshStrip` after the reloaded document mounts (`src/lib/pwa/client.ts`, mounted in `AppShellShell`) — clears the pathname's RSC entries first, then `router.replace`s to the clean URL (once per document load) |
 | `?_fresh=1` | skip the remembered-UI-state cookie for this one render (a navigation that *removed* remembered keys — Clear, tab switch — must not re-apply the now-stale cookie) | any value — presence is enough (`dashboard/page.tsx:56`, `parade-state/page.tsx:34`) | self-terminating effect after mount: `router.replace(…, { scroll: false }); router.refresh()` — the fresh render already re-persisted the resolved values, and `router.refresh()` re-serves the bare URL from the server so a stale cached snapshot can't resurrect the just-removed filters into the cookie (`DashboardView.tsx:645-653`, `ParadeStateView.tsx:269-274`) |
 
 Injection of `_fresh` is automatic: `navigate()` checks
@@ -239,7 +239,7 @@ adds the marker to that one navigation ([`ui-state.md` §1.9](ui-state.md#19-the
 
 ```mermaid
 sequenceDiagram
-    participant V as UserMenu (client)
+    participant V as Shell header Force refresh (client)
     participant SW as Service worker
     participant P as Page (server)
     participant R as useOneShotRefreshStrip (client)

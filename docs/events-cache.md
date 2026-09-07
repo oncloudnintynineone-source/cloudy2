@@ -228,17 +228,18 @@ response ships — the visible render is never delayed by a stale-entry refresh.
 
 ### 1.5.1 Force refresh (manual, one-shot)
 
-The **profile menu's "Force refresh"** (the ⋮ calendar kebab no longer hosts it) bypasses
+The **header's "Force refresh"** button (right of Search, left of the profile menu; the ⋮
+calendar kebab no longer hosts it) bypasses
 the freshness windows and re-fetches fresh data on demand — on every page. It is a **full
 page reload** of the current URL carrying a **one-shot URL nonce** (`?refresh=<epoch-ms>`),
 not an in-app navigation:
 
-1. `UserMenu` reloads `window.location.href` + `?refresh=<epoch-ms>` (`UserMenu.tsx`).
-   The nonce URL is **never answered by the service worker**: `?refresh` is in
-   `ONE_SHOT_PARAMS` (`swRules.ts`), so there is no cached document/RSC entry for it —
-   the reload is always a **network render**. On non-calendar pages that alone is the
-   refresh (fresh server data on any page — Settings included). On `/dashboard` the
-   server additionally honors the nonce:
+1. The shell's header button (`AppShellShell`) reloads `window.location.href` +
+   `?refresh=<epoch-ms>`. The nonce URL is **never answered by the service worker**:
+   `?refresh` is in `ONE_SHOT_PARAMS` (`swRules.ts`), so there is no cached document/RSC
+   entry for it — the reload is always a **network render**. On non-calendar pages that
+   alone is the refresh (fresh server data on any page — Settings included). On
+   `/dashboard` the server additionally honors the nonce:
 2. `page.tsx` parses it: the nonce is honored only while it is a finite number younger
    than `REFRESH_NONCE_TTL_MS` (5min, `page.tsx`) — so a stale history entry
    (back/forward) can't silently re-force a fetch.
@@ -260,7 +261,7 @@ not an in-app navigation:
 
 ```mermaid
 sequenceDiagram
-    participant U as UserMenu (profile, any page)
+    participant U as Shell header Force refresh (any page)
     participant SW as Service worker
     participant P as Dashboard page (RSC render)
     participant C as events cache (L1/L2)
@@ -289,11 +290,11 @@ entry for the same key, which would shadow the fresh rows for up to `GCAL_CACHE_
 (§1.7.2 covers the analogous mutation case; the nonce approach eliminates the window for
 the user who pressed refresh entirely).
 
-The menu item is disabled while Google is unconfigured **only on the calendar** (the stub
+The button is disabled while Google is unconfigured **only on the calendar** (the stub
 integration returns no events, so a forced refresh would cache empties and blank the
 view); on other pages it always reloads. Native browser pull-to-refresh is disabled
 app-wide (`overscroll-behavior-y: contain` on the root scroller, `globals.css`) — the
-profile-menu item is the app's refresh affordance.
+header button is the app's refresh affordance.
 
 ## 1.6 Write / invalidation path
 
@@ -506,7 +507,7 @@ module, but they keep the render's total query count low):
 | `src/lib/events/queries.ts`                     | `fetchMonthEvents` / `fetchRangeEvents` — read path + gated prefetch |
 | `src/lib/events/actions.ts`                     | Mutations → `invalidateGcalCache`                           |
 | `src/app/(protected)/dashboard/page.tsx`        | `?refresh=` nonce parsing → `force` flag (§1.5.1)           |
-| `src/components/UserMenu.tsx`                   | Profile-menu "Force refresh" — full reload + `?refresh=` nonce (§1.5.1) |
+| `src/components/AppShellShell.tsx`              | Header "Force refresh" button — full reload + `?refresh=` nonce (§1.5.1) |
 | `src/lib/pwa/client.ts`                         | `useOneShotRefreshStrip` — global post-reload nonce strip (§1.5.1) |
 | `src/app/globals.css`                           | Native pull-to-refresh disabled (`overscroll-behavior-y: contain`) |
 | `src/lib/events/datetime.ts`                    | `monthRange`, `shiftMonth`, `monthsInRange`, `monthGridMonths`, `monthGridRows` |

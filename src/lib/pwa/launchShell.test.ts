@@ -59,9 +59,9 @@ describe("PWA launch shell", () => {
   });
 
   it("follows the app's manual color-scheme override", () => {
-    // The app (defaultColorScheme="auto") persists a ThemeToggle choice under
-    // this localStorage key; the shell's head script must apply it pre-paint
-    // so the skeleton doesn't flash the wrong scheme.
+    // The app (defaultColorScheme="auto") persists the profile menu's theme
+    // choice under this localStorage key; the shell's head script must apply it
+    // pre-paint so the skeleton doesn't flash the wrong scheme.
     expect(SHELL_HTML).toContain('localStorage.getItem("mantine-color-scheme-value")');
     expect(SHELL_HTML).toContain('data-c2-scheme');
   });

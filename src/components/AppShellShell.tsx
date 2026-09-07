@@ -19,6 +19,7 @@ import {
   IconClipboardList,
   IconLayoutSidebarLeftCollapse,
   IconLayoutSidebarLeftExpand,
+  IconRefresh,
   IconSearch,
   IconSettings,
   IconUsersGroup,
@@ -33,7 +34,6 @@ import { PinnedEventsTicker } from "@/components/PinnedEventsTicker";
 import { ColdStartReadyBar, useColdStartReady } from "@/components/ColdStartReady";
 import { ActivityBar, ActivityProvider, useReportActivity } from "@/components/ActivityBar";
 import { ShellChromeContext, type ShellChromeValue } from "@/components/ShellChrome";
-import { ThemeToggle } from "@/components/ThemeToggle";
 
 // Lazy-loaded so the search modal (its AgendaView + DatePicker imports) stays
 // out of the shell's initial bundle — it only loads once the user opens search.
@@ -291,8 +291,8 @@ export function AppShellShell({
   phone: string | null;
   /**
    * Whether the Google Calendar integration is configured (env-backed, read by
-   * the (protected) layout). Gates the profile menu's Force refresh while on
-   * the dashboard — a forced fetch with Google unconfigured would cache empties.
+   * the (protected) layout). Gates the header Force refresh while on the
+   * dashboard — a forced fetch with Google unconfigured would cache empties.
    */
   googleConfigured: boolean;
   /** The remembered rail state, read from the `cloudy2.ui` cookie by the
@@ -315,9 +315,10 @@ export function AppShellShell({
   // relaunch from the start URL can land back here — read by / at launch.
   useRememberedPage(pathname);
 
-  // A document that hard-loaded with the profile menu's one-shot `?refresh`
-  // nonce strips it here (RSC entries cleared first, so the clean-URL replace
-  // can't re-serve a stale payload). See useOneShotRefreshStrip in pwa/client.
+  // A document that hard-loaded with the header Force refresh's one-shot
+  // `?refresh` nonce strips it here (RSC entries cleared first, so the
+  // clean-URL replace can't re-serve a stale payload). See
+  // useOneShotRefreshStrip in pwa/client.
   useOneShotRefreshStrip();
 
   // Cold-start readiness: the shell's two mount fetches (pinned events, clash
@@ -364,6 +365,25 @@ export function AppShellShell({
     }),
     [pinnedOpen, pinnedOriginRect, openPinnedPanel],
   );
+
+  // Header Force refresh: a full document reload to a one-shot `?refresh`
+  // nonce URL that the service worker never caches (ONE_SHOT_PARAMS) — always
+  // a network render; on /dashboard the server parses the nonce and force-reads
+  // Google. `useOneShotRefreshStrip` (below) drops the param right after the
+  // reloaded document mounts. The ref only stops a double-click from
+  // scheduling two navigations. Disabled on the calendar while Google is
+  // unconfigured (a forced fetch there would cache empties and blank the grid);
+  // everywhere else the nonce URL is never SW-cached, so the reload is a
+  // network-fresh render there too.
+  const isDashboard = pathname === "/dashboard";
+  const refreshScheduled = useRef(false);
+  const handleForceRefresh = useCallback(() => {
+    if (refreshScheduled.current) return;
+    refreshScheduled.current = true;
+    const url = new URL(window.location.href);
+    url.searchParams.set("refresh", String(Date.now()));
+    window.location.assign(url.toString());
+  }, []);
 
   // Header ticker data: the upcoming department-pinned events (titles
   // pre-rendered server-side). Fetched on mount (background, so it never
@@ -767,8 +787,17 @@ export function AppShellShell({
                   >
                     <IconSearch size={18} />
                   </ActionIcon>
-                  <ThemeToggle />
-                  <UserMenu name={name} role={role} phone={phone} googleConfigured={googleConfigured} />
+                  <ActionIcon
+                    variant="transparent"
+                    c="white"
+                    size="lg"
+                    aria-label="Force refresh"
+                    disabled={isDashboard && !googleConfigured}
+                    onClick={handleForceRefresh}
+                  >
+                    <IconRefresh size={18} />
+                  </ActionIcon>
+                  <UserMenu name={name} role={role} phone={phone} />
                 </Group>
               </Group>
               {/* Global activity bar: indeterminate amber strip pinned to the

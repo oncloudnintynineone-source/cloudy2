@@ -106,8 +106,9 @@ mechanics in the doc.
   map. The refresh fetch runs **outside any transaction** — the Postgres pool is
   `max: 1`, so holding a transaction across a Google round-trip would serialize every
   other query. **Native pull-to-refresh is disabled app-wide** (root-scroller
-  `overscroll-behavior-y: contain`); the refresh affordance is the profile menu's
-  **Force refresh** — a full document reload carrying a one-shot `?refresh=<epoch-ms>`
+  `overscroll-behavior-y: contain`); the refresh affordance is the header's
+  **Force refresh** button (right of Search, left of the profile menu) — a full
+  document reload carrying a one-shot `?refresh=<epoch-ms>`
   nonce that the SW never caches (network-fresh on every page; `/dashboard` honors the
   nonce → `force` Google read). `useOneShotRefreshStrip` (`src/lib/pwa/client.ts`,
   mounted in `AppShellShell`) strips the nonce after the reloaded document mounts.
@@ -204,8 +205,8 @@ mechanics in the doc.
   `cloudy2:pinned-events-changed` window event; ticker titles render through the
   `pinnedHeader` template target (panel list: `pinned`).
   Design: [docs/pinned-events.md](docs/pinned-events.md).
-- **Event search:** a header search icon (between the pinned-events ticker and the
-  theme toggle) opens a **lazy-loaded** (`dynamic` + `ssr: false`) modal that
+- **Event search:** a header search icon (left of the header Force refresh button
+  and the profile menu) opens a **lazy-loaded** (`dynamic` + `ssr: false`) modal that
   free-text searches every department calendar **directly via Google Calendar**
   (`events.list` with `q` — bypassing the month cache), mapped + deduped by logical
   event and rendered in `@mantine/schedule`'s `AgendaView`; tapping a result shows
