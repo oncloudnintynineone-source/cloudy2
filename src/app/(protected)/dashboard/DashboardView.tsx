@@ -22,6 +22,7 @@ import {
   Box,
   Button,
   Group,
+  Loader,
   Menu,
   Modal,
   Paper,
@@ -62,8 +63,8 @@ import {
   IconLayoutGrid,
   IconListDetails,
   IconLink,
-  IconPencil,
   IconPlus,
+  IconSettings,
   IconTrash,
   IconUser,
   IconUserOff,
@@ -290,6 +291,11 @@ interface FormState {
 }
 
 const DAY_SWIPE_THRESHOLD = 48;
+
+// Fixed width (px) of each tab in the strip: tabs never stretch to fill the
+// row, so a short set leaves empty space on the right and a long one overflows
+// into natural horizontal scrolling. Names truncate with an ellipsis.
+const TAB_STRIP_TAB_WIDTH = 112;
 
 /**
  * Day-label strip for the Week (H) view. `ResourcesWeekView`'s own day labels are
@@ -922,6 +928,16 @@ export function DashboardView({
   // reorder / rename / delete controls. A transient client state, never
   // persisted (the order itself is saved server-side on each move).
   const [managing, setManaging] = useState(false);
+  // A reorder in flight: `movingId` = the pill whose arrows are replaced by a
+  // spinner; all move arrows are disabled while `reorderBusy`. The server
+  // action + refresh round-trip is quick but visibly "working".
+  const [movingId, setMovingId] = useState<string | null>(null);
+  const reorderBusy = movingId !== null;
+
+  // Height (px) of the normal tab row, measured so the manage/edit rows match
+  // it exactly at every viewport/scheme (the two states swap the same chrome
+  // slot, so their strip height must not jump). Fallback until first measure.
+  const [tabStripHeight, setTabStripHeight] = useState(34);
 
   // Optimistic active-tab highlight (`shownTabId`): leads the server-resolved
   // `activeView` so a tab tap highlights instantly (even between two tabs of
@@ -1021,6 +1037,24 @@ export function DashboardView({
       });
     }
   }, [shownTabId]);
+
+  // Measure the normal tab row's height so the manage/edit rows (which replace
+  // it in the same chrome slot) can be forced to exactly the same height —
+  // otherwise toggling "Edit views" changes the strip height and leaves a
+  // vertical gap above the date-nav row. The `Tabs.List` is present whenever
+  // `managing` is false (the default), so this is measured before first paint
+  // and kept; it re-measures on resize.
+  useLayoutEffect(() => {
+    const list = tabListElRef.current;
+    if (!list) {
+      return;
+    }
+    const update = () => setTabStripHeight(list.offsetHeight);
+    update();
+    const observer = new ResizeObserver(update);
+    observer.observe(list);
+    return () => observer.disconnect();
+  }, [managing]);
 
   // Schedule strips (Week (H) day labels + the Day/Week hour rulers) follow
   // the grid's horizontal scroll via a direct DOM transform on a small
@@ -1807,24 +1841,32 @@ export function DashboardView({
   // new tab list. Hidden entirely for accounts without stored views
   // (canManageViews false).
 
-  function moveView(tab: DashboardViewTab, direction: "up" | "down") {
+  function moveView(tab: DashboardViewTab, direction: "left" | "right") {
+    if (reorderBusy) {
+      return;
+    }
     const index = tabs.findIndex((candidate) => candidate.id === tab.id);
-    const neighborIndex = direction === "up" ? index - 1 : index + 1;
+    const neighborIndex = direction === "left" ? index - 1 : index + 1;
     if (index < 0 || neighborIndex < 0 || neighborIndex >= tabs.length) {
       return;
     }
     const reordered = [...tabs];
     const [moved] = reordered.splice(index, 1);
     reordered.splice(neighborIndex, 0, moved);
-    void submitReorder(reordered.map((view) => view.id));
+    void submitReorder(tab.id, reordered.map((view) => view.id));
   }
 
-  async function submitReorder(orderedIds: string[]) {
-    const result = await reorderDashboardViews(orderedIds);
-    if (!result.ok) {
-      notifications.show({ color: "red", message: result.error });
+  async function submitReorder(movedId: string, orderedIds: string[]) {
+    setMovingId(movedId);
+    try {
+      const result = await reorderDashboardViews(orderedIds);
+      if (!result.ok) {
+        notifications.show({ color: "red", message: result.error });
+      }
+      refreshAfterViewsSave();
+    } finally {
+      setMovingId(null);
     }
-    refreshAfterViewsSave();
   }
 
   function openRenameView(tab: DashboardViewTab) {
@@ -2191,145 +2233,167 @@ export function DashboardView({
             : "1px solid var(--mantine-color-default-border)",
         }}
       >
-        {/* View tabs are chrome too — they vanish in fullscreen, leaving only
-            the grid and the date-nav row above it. In "Edit views" mode the
-            strip swaps to a manage list (reorder / rename / delete). */}
-        {!immersiveMode.active &&
-          (managing ? (
-            <Group
-              gap={6}
-              align="center"
-              wrap="nowrap"
-              px={2}
-              pb={8}
-              pt={2}
-              style={{
-                overflowX: "auto",
-                borderBottom: "1px solid var(--mantine-color-default-border)",
-              }}
-            >
-              {tabs.map((tab, index) => (
-                <Paper
-                  key={tab.id}
-                  withBorder
-                  radius="xl"
-                  px={6}
-                  py={2}
-                  bg="var(--mantine-color-default)"
-                  style={{ display: "inline-flex", alignItems: "center", gap: 2 }}
-                >
-                  <ActionIcon
-                    size={22}
-                    variant="subtle"
-                    aria-label={`Move ${tab.name} earlier`}
-                    disabled={index === 0}
-                    onClick={() => moveView(tab, "up")}
-                  >
-                    <IconChevronUp size={14} />
-                  </ActionIcon>
-                  <ActionIcon
-                    size={22}
-                    variant="subtle"
-                    aria-label={`Move ${tab.name} later`}
-                    disabled={index === tabs.length - 1}
-                    onClick={() => moveView(tab, "down")}
-                  >
-                    <IconChevronDown size={14} />
-                  </ActionIcon>
-                  <UnstyledButton
-                    aria-label={`Rename ${tab.name}`}
-                    onClick={() => openRenameView(tab)}
-                  >
-                    <Group gap={4} wrap="nowrap">
-                      {VIEW_TAB_META[tab.kind].icon}
-                      <Text
-                        fw={600}
-                        size="sm"
-                        maw={110}
-                        style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}
-                      >
-                        {tab.name}
-                      </Text>
-                    </Group>
-                  </UnstyledButton>
-                  <ActionIcon
-                    size={22}
-                    variant="subtle"
-                    color="red"
-                    aria-label={`Delete ${tab.name}`}
-                    onClick={() => setConfirmDelete(tab)}
-                  >
-                    <IconTrash size={14} />
-                  </ActionIcon>
-                </Paper>
-              ))}
-              {canManageViews && (
-                  <ActionIcon
-                    size={26}
-                    variant="subtle"
-                    color="accent"
-                    aria-label="Add view"
-                    onClick={openAddView}
-                  >
-                    <IconPlus size={18} />
-                  </ActionIcon>
-                )}
-              </Group>
-            ) : (
-            <Tabs
-              value={shownTabId}
-              onChange={(next) => {
-                if (!next) return;
-                const tab = tabs.find((candidate) => candidate.id === next);
-                if (tab) switchTab(tab);
-              }}
-              aria-label="Calendar view"
-              styles={{ tab: { flex: 1, minWidth: 0 } }}
-            >
-              <Tabs.List
-                ref={tabListElRef}
-                style={{
-                  flexWrap: "nowrap",
-                  overflowX: "auto",
-                  borderBottom: "1px solid var(--mantine-color-default-border)",
-                }}
+        {/* View tabs are chrome too — they vanish in fullscreen. The
+            Edit-views toggle is a sticky settings button to the LEFT of the
+            strip, outside the horizontal scroll area (so the scroll set starts
+            after it); in "Edit views" mode the strip swaps to a flat manage
+            list with the same look as the tabs — no pill/card chrome. */}
+        {!immersiveMode.active && (
+          <Group
+            align="center"
+            wrap="nowrap"
+            gap={0}
+            style={{ borderBottom: "1px solid var(--mantine-color-default-border)" }}
+          >
+            {canManageViews && (
+              <ActionIcon
+                variant="subtle"
+                color={managing ? "accent" : "gray"}
+                size={30}
+                ml={4}
+                mr={4}
+                aria-label={managing ? "Done editing views" : "Edit views"}
+                title={managing ? "Done editing views" : "Edit views"}
+                onClick={() => setManaging((current) => !current)}
+                style={{ flex: "0 0 auto" }}
               >
-                {tabs.map((tab) => {
-                  const meta = VIEW_TAB_META[tab.kind];
-                  return (
-                    <Tabs.Tab key={tab.id} value={tab.id} title={tab.name}>
-                      <Group gap="xs" justify="center" wrap="nowrap" style={{ minWidth: 0 }}>
-                        {meta.icon}
-                        <Text
-                          fw={600}
-                          size="sm"
-                          title={tab.name}
-                          style={{
-                            whiteSpace: "nowrap",
-                            overflow: "hidden",
-                            textOverflow: "ellipsis",
-                          }}
+                {managing ? <IconCheck size={16} /> : <IconSettings size={16} />}
+              </ActionIcon>
+            )}
+            <Box style={{ flex: 1, minWidth: 0 }}>
+              {managing ? (
+                <Group gap={0} align="center" wrap="nowrap" style={{ overflowX: "auto" }}>
+                  {tabs.map((tab, index) => {
+                    const busy = movingId === tab.id;
+                    return (
+                      <Group
+                        key={tab.id}
+                        gap={2}
+                        wrap="nowrap"
+                        align="center"
+                        px={4}
+                        style={{ flexShrink: 0, minHeight: tabStripHeight }}
+                      >
+                        {busy ? (
+                          <Loader size={16} color="accent" />
+                        ) : (
+                          <>
+                            <ActionIcon
+                              size={20}
+                              variant="subtle"
+                              aria-label={`Move ${tab.name} earlier`}
+                              disabled={reorderBusy || index === 0}
+                              onClick={() => moveView(tab, "left")}
+                            >
+                              <IconChevronLeft size={14} />
+                            </ActionIcon>
+                            <ActionIcon
+                              size={20}
+                              variant="subtle"
+                              aria-label={`Move ${tab.name} later`}
+                              disabled={reorderBusy || index === tabs.length - 1}
+                              onClick={() => moveView(tab, "right")}
+                            >
+                              <IconChevronRight size={14} />
+                            </ActionIcon>
+                          </>
+                        )}
+                        <UnstyledButton
+                          aria-label={`Rename ${tab.name}`}
+                          onClick={() => openRenameView(tab)}
                         >
-                          {tab.name}
-                        </Text>
+                          <Group gap={4} wrap="nowrap" style={{ minWidth: 0 }}>
+                            {VIEW_TAB_META[tab.kind].icon}
+                            <Text
+                              fw={600}
+                              size="sm"
+                              maw={100}
+                              style={{
+                                whiteSpace: "nowrap",
+                                overflow: "hidden",
+                                textOverflow: "ellipsis",
+                              }}
+                            >
+                              {tab.name}
+                            </Text>
+                          </Group>
+                        </UnstyledButton>
+                        <ActionIcon
+                          size={20}
+                          variant="subtle"
+                          color="red"
+                          aria-label={`Delete ${tab.name}`}
+                          onClick={() => setConfirmDelete(tab)}
+                        >
+                          <IconTrash size={14} />
+                        </ActionIcon>
                       </Group>
-                    </Tabs.Tab>
-                  );
-                })}
-                {canManageViews && (
-                  <ActionIcon
-                    variant="subtle"
-                    color="accent"
-                    aria-label="Add view"
-                    onClick={openAddView}
-                    style={{ alignSelf: "center", flex: "0 0 auto" }}
-                  >
-                    <IconPlus size={18} />
-                  </ActionIcon>
-                )}
-              </Tabs.List>
-            </Tabs>
-          ))}
+                    );
+                  })}
+                  {canManageViews && (
+                    <ActionIcon
+                      size={26}
+                      variant="subtle"
+                      color="accent"
+                      aria-label="Add view"
+                      onClick={openAddView}
+                      style={{ flex: "0 0 auto", minHeight: tabStripHeight }}
+                    >
+                      <IconPlus size={18} />
+                    </ActionIcon>
+                  )}
+                </Group>
+              ) : (
+                <Tabs
+                  value={shownTabId}
+                  onChange={(next) => {
+                    if (!next) return;
+                    const tab = tabs.find((candidate) => candidate.id === next);
+                    if (tab) switchTab(tab);
+                  }}
+                  aria-label="Calendar view"
+                  styles={{ tab: { flex: "0 0 auto", width: TAB_STRIP_TAB_WIDTH } }}
+                >
+                  <Tabs.List ref={tabListElRef} style={{ flexWrap: "nowrap", overflowX: "auto" }}>
+                    {tabs.map((tab) => {
+                      const meta = VIEW_TAB_META[tab.kind];
+                      return (
+                        <Tabs.Tab key={tab.id} value={tab.id} title={tab.name}>
+                          <Group gap="xs" justify="center" wrap="nowrap" style={{ minWidth: 0 }}>
+                            {meta.icon}
+                            <Text
+                              fw={600}
+                              size="sm"
+                              title={tab.name}
+                              style={{
+                                whiteSpace: "nowrap",
+                                overflow: "hidden",
+                                textOverflow: "ellipsis",
+                              }}
+                            >
+                              {tab.name}
+                            </Text>
+                          </Group>
+                        </Tabs.Tab>
+                      );
+                    })}
+                    {canManageViews && (
+                      <ActionIcon
+                        variant="subtle"
+                        color="accent"
+                        aria-label="Add view"
+                        onClick={openAddView}
+                        style={{ alignSelf: "center", flex: "0 0 auto", marginLeft: 4 }}
+                      >
+                        <IconPlus size={18} />
+                      </ActionIcon>
+                    )}
+                  </Tabs.List>
+                </Tabs>
+              )}
+            </Box>
+          </Group>
+        )}
 
         {/* Date navigation: pinned together with the tabs above so the period
             label and prev/next stay reachable while the grid scrolls. Kept
@@ -2455,14 +2519,6 @@ export function DashboardView({
               {isAnchoredView && (
                 <Menu.Item leftSection={<IconCalendarDot size={16} />} onClick={openPicker}>
                   Select date
-                </Menu.Item>
-              )}
-              {canManageViews && (
-                <Menu.Item
-                  leftSection={managing ? <IconCheck size={16} /> : <IconPencil size={16} />}
-                  onClick={() => setManaging((current) => !current)}
-                >
-                  {managing ? "Done editing views" : "Edit views"}
                 </Menu.Item>
               )}
               {/* Immersive ("fullscreen") mode hides the shell chrome and

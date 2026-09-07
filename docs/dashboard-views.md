@@ -50,12 +50,17 @@ string maps to the first tab of that kind.
 - **The (＋) button** at the end of the scrolling tab strip opens the **Add
   view** modal (kind picker rows with icons + a name; the default name follows
   the chosen kind until edited). Creating appends the tab and navigates to it.
-- **Edit views** (the ⋮ menu item) swaps the strip to a manage list of
-  pills: ↑/↓ move a tab (commits `reorderDashboardViews`, which renumbers
-  every row in a transaction), tap the name to rename, ✕ deletes (the last tab
+- **Edit views** (a sticky settings button to the LEFT of the tab strip,
+  outside the horizontal scroll area — so the scroll set starts after it) swaps
+  the strip to a manage list of flat, tab-shaped rows (no pill/card chrome):
+  ←/→ move a tab (commits `reorderDashboardViews`, which renumbers
+  every row in a transaction — the moved row shows an inline spinner while it
+  works), tap the name to rename, ✕ deletes (the last tab
   can't be deleted; deleting the active tab navigates to the first remaining).
   The old **pin/unpin** affordance and its star UI are gone — ordering is
-  fully user-controlled.
+  fully user-controlled. Tabs themselves are a **fixed width** (they never
+  stretch to fill the row; a long set overflows into natural horizontal
+  scrolling).
 - **Period preservation on switch** (`switchTab` in `DashboardView.tsx`): a
   tab switch is a *filter/context* change, so switching between two tabs of the
   same kind (or any two day-anchored kinds) keeps the current date; leaving
@@ -81,8 +86,9 @@ management hidden.
 Filtering has **one primary affordance**: a dedicated filter button (funnel icon
 + active-group-count badge, `FilterButton`) beside the ⋮ menu in the nav row
 opens `FilterModal` (`src/components/FilterModal.tsx`). The ⋮ menu keeps
-**Today / Select date / Edit views / Enter fullscreen** only (Force refresh
-moved to the profile menu). Dashboards'
+**Today / Select date / Enter fullscreen** only (Force refresh
+moved to the profile menu; view management lives on the strip's left settings
+button). Dashboards'
 "Myself" quick action lives inside the filter modal
 beside the Users group; "Reset" clears (role defaults).
 

@@ -161,8 +161,11 @@ mechanics in the doc.
   (`src/lib/dashboardViews`), each a renderer **kind** (Month / Week (H) / Week (D) /
   Day / Agenda; duplicates allowed) plus a user name, strip order and that tab's own
   Cal/Users/Types filters. A **(＋)** button at the end of the scrolling tab strip
-  opens "Add view" (kind picker + name); **Edit views** (⋮ menu) swaps the strip to a
-  manage list — ↑/↓ reorder, tap-to-rename, per-tab delete (the last tab can't go).
+  opens "Add view" (kind picker + name); a sticky settings button to the **left**
+  of the strip (outside the scroll area) toggles **Edit views** — a flat manage
+  list with ←/→ reorder (inline spinner while working), tap-to-rename, per-tab
+  delete (the last tab can't go). Tabs are a **fixed width** (no fill; overflow
+  scrolls).
   **Filters are stored per tab** (server-side; a filter value `null` = role default,
   an explicit array incl. `[]` = that selection) and applied/cleared through server
   actions + `router.refresh()` — no `cal/users/types` URL params. The active tab
