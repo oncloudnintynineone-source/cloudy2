@@ -9,11 +9,11 @@ import {
   Box,
   Button,
   Checkbox,
+  Divider,
   Group,
   Menu,
   Modal,
   Paper,
-  Pill,
   Stack,
   Text,
   useComputedColorScheme,
@@ -57,7 +57,7 @@ import { usePersistUiState } from "@/lib/ui/uiStateClient";
 
 import { buildAttendanceReport, type AttendanceReportDepartment } from "./attendanceReport";
 import { clearAttendance, loadAttendanceRecord, saveAttendanceIds } from "./attendanceStorage";
-import { departmentTreeHeadcount } from "./headcount";
+import { departmentSummaryRows, departmentTreeHeadcount } from "./headcount";
 import { formatEventTimeBadge } from "./eventTimeBadge";
 import { ParadeStateDepartmentSkeleton } from "./paradeStateSkeleton";
 
@@ -386,23 +386,6 @@ export function ParadeStateView({
     (selectedCalendars.length > 0 && selectedCalendars.length < calendars.length ? 1 : 0) +
     (selectedUsers.length > 0 ? 1 : 0);
 
-  const calendarsFiltered =
-    selectedCalendars.length > 0 && selectedCalendars.length < calendars.length;
-
-  // Per-chip removal mirrors the Users tab: drop one value from the applied
-  // filter and navigate with the remainder (empty → param removed).
-  function removeFilterValue(group: "cal" | "users", value: string) {
-    if (group === "cal") {
-      const next = selectedCalendars.filter((id) => id !== value);
-      setSelectedCalendars(next);
-      navigate({ cal: next.length > 0 ? next.join(",") : null });
-      return;
-    }
-    const next = selectedUsers.filter((id) => id !== value);
-    setSelectedUsers(next);
-    navigate({ users: next.length > 0 ? next.join(",") : null });
-  }
-
   const dayEvents = useMemo(
     () =>
       events
@@ -480,6 +463,16 @@ export function ParadeStateView({
       { id: null, name: "Unassigned", users: unassigned, children: [] },
     ];
   }, [users, calendars]);
+
+  // The read-only headcount summary shown above the roster: one row per
+  // section in tree order (skipping empty subtrees, so it mirrors the body),
+  // where present is the checked-in count in attendance mode and the in-camp
+  // count otherwise — exactly like the section headers below.
+  const summary = useMemo(() => {
+    const isPresent = (userId: string) =>
+      attendanceMode ? checkedIds.has(userId) : (eventsByUser.get(userId)?.length ?? 0) === 0;
+    return departmentSummaryRows(sections, isPresent);
+  }, [sections, eventsByUser, attendanceMode, checkedIds]);
 
   function enterAttendance() {
     setAttendance(loadAttendanceRecord());
@@ -787,28 +780,6 @@ export function ParadeStateView({
         </Menu>
       </Group>
 
-      {(calendarsFiltered || selectedUsers.length > 0) && (
-        <Group gap={6} wrap="wrap">
-          {calendarsFiltered &&
-            selectedCalendars.map((id) => {
-              const cal = calendars.find((entry) => entry.id === id);
-              return (
-                <Pill key={id} withRemoveButton onRemove={() => removeFilterValue("cal", id)}>
-                  {cal?.name ?? id}
-                </Pill>
-              );
-            })}
-          {selectedUsers.map((id) => {
-            const user = filterUsers.find((entry) => entry.id === id);
-            return (
-              <Pill key={id} withRemoveButton onRemove={() => removeFilterValue("users", id)}>
-                {user?.displayName ?? id}
-              </Pill>
-            );
-          })}
-        </Group>
-      )}
-
       {/* Status legend + attendance day total: the card colors carry real
           meaning, so they are named in text (color-blind safe) and the
           overall present count is visible without scanning departments. */}
@@ -867,7 +838,49 @@ export function ParadeStateView({
             </Text>
           )
         ) : (
-          <Stack gap="lg">{sections.map((section) => renderSection(section, 0))}</Stack>
+          <Stack gap="lg">
+            {/* Roll-call summary: a Total plus one line per section in tree
+                order (sub-departments indented under their parent, with the
+                count of every section covering its whole subtree). Read-only
+                — the roster below is where people are listed. */}
+            {summary.rows.length > 0 && (
+              <Paper withBorder p="sm">
+                <Stack gap={6}>
+                  <Group justify="space-between" align="baseline" gap="xs" wrap="nowrap">
+                    <Text fw={700} size="sm">
+                      Total
+                    </Text>
+                    <Text fw={700} size="sm">
+                      ({summary.total.present}/{summary.total.total})
+                    </Text>
+                  </Group>
+                  <Divider />
+                  <Stack gap={2}>
+                    {summary.rows.map((row, index) => (
+                      <Text
+                        key={`${row.depth}:${row.name}:${index}`}
+                        size="sm"
+                        fw={row.depth === 0 ? 600 : 400}
+                        lh={1.5}
+                        pl={row.depth * 28}
+                      >
+                        {row.depth > 0 && (
+                          <Text component="span" c="dimmed" inherit>
+                            ›{" "}
+                          </Text>
+                        )}
+                        {row.name}{" "}
+                        <Text component="span" c="dimmed" inherit>
+                          ({row.present}/{row.total})
+                        </Text>
+                      </Text>
+                    ))}
+                  </Stack>
+                </Stack>
+              </Paper>
+            )}
+            {sections.map((section) => renderSection(section, 0))}
+          </Stack>
         )}
       </Box>
 
