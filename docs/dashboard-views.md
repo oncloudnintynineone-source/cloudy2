@@ -38,8 +38,9 @@ pinned view tabs ride the `cloudy2.ui` cookie ([`ui-state.md`](ui-state.md)).
 Filtering has **one primary affordance**: a dedicated filter button (funnel icon
 + active-group-count badge, `FilterButton`) beside the ⋮ menu in the nav row
 opens `FilterModal` (`src/components/FilterModal.tsx`). The ⋮ menu no longer
-carries filter actions — it keeps **Today / Select date / Pin tab / Force
-refresh** only. Dashboards' "Myself" quick action lives inside the filter modal
+carries filter actions — it keeps **Today / Select date / Pin tab / Enter
+fullscreen** only (Force refresh moved to the profile menu). Dashboards'
+"Myself" quick action lives inside the filter modal
 beside the Users group; "Reset" clears (role defaults).
 
 The modal promotes the filters most people reach — **Calendars** (chip grid) and

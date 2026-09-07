@@ -109,9 +109,11 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
     dateParam !== null ? dateParam.slice(0, 7) : (urlMonth ?? cookieMonth ?? currentMonth());
   const date = dateParam ?? formatInstantToNaive(new Date()).slice(0, 10);
 
-  // One-shot force-refresh nonce (dashboard refresh button): for this render
+  // One-shot force-refresh nonce (profile-menu "Force refresh"): the client
+  // hard-reloads the current URL with `?refresh=<epoch-ms>`. For this render
   // only, bypass the cache freshness window and block on fresh Google reads.
-  // The client strips the param right after the forced render.
+  // The global useOneShotRefreshStrip (AppShellShell) strips the param right
+  // after the forced render mounts.
   const refreshNonce = typeof params.refresh === "string" ? Number(params.refresh) : NaN;
   const forceRefresh =
     Number.isFinite(refreshNonce) && new Date().getTime() - refreshNonce < REFRESH_NONCE_TTL_MS;

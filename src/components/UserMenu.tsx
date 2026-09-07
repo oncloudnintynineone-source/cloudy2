@@ -1,10 +1,11 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { ActionIcon, Menu, Stack, Text } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
-import { IconCalendarPlus, IconLogout, IconUser } from "@tabler/icons-react";
+import { IconCalendarPlus, IconLogout, IconRefresh, IconUser } from "@tabler/icons-react";
 import { signOut } from "next-auth/react";
+import { usePathname } from "next/navigation";
 
 import { MOTION } from "@/lib/motion/timing";
 import { clearAllSavedPages } from "@/lib/pwa/client";
@@ -18,6 +19,12 @@ interface UserMenuProps {
   name: string;
   role: "admin" | "user";
   phone: string | null;
+  /**
+   * Whether the Google Calendar integration is configured (env-backed). On the
+   * dashboard a forced refresh with Google unconfigured would cache empties and
+   * blank the grid, so the item is disabled there; other pages just reload.
+   */
+  googleConfigured: boolean;
 }
 
 /**
@@ -31,16 +38,37 @@ interface UserMenuProps {
  */
 const SIGN_OUT_WATCHDOG_MS = 10_000;
 
-export function UserMenu({ name, role, phone }: UserMenuProps) {
+export function UserMenu({ name, role, phone, googleConfigured }: UserMenuProps) {
   const [accessOpen, setAccessOpen] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
   const roleLabel = role === "admin" ? "Admin" : "User";
   const subtitle = [roleLabel, phone].filter(Boolean).join(" · ");
+  const pathname = usePathname();
+  // The force-fresh semantics only exist on the calendar (the server honors the
+  // nonce there); on every other page the item is still shown — the nonce URL
+  // is never SW-cached, so the reload is a network-fresh render there too.
+  const isDashboard = pathname === "/dashboard";
+  // A full-page reload follows, so the menu's click closes and the page leaves;
+  // the ref only stops a double-click from scheduling two navigations.
+  const refreshScheduled = useRef(false);
 
   // The global amber activity bar mirrors the sign-out flight (the dropdown's
   // close and the hard navigation otherwise give no in-page signal until the
   // browser's own tab spinner appears on the way to /login).
   useReportActivity(loggingOut, "auth:signout");
+
+  const handleForceRefresh = useCallback(() => {
+    if (refreshScheduled.current) return;
+    refreshScheduled.current = true;
+    // One-shot nonce: reload the current URL with ?refresh=<epoch-ms>. The
+    // service worker never caches URLs carrying it (ONE_SHOT_PARAMS), so this
+    // is always a network render; on /dashboard the server parses the nonce
+    // and force-reads Google. `useOneShotRefreshStrip` (AppShellShell) drops
+    // the param right after the reloaded document mounts.
+    const url = new URL(window.location.href);
+    url.searchParams.set("refresh", String(Date.now()));
+    window.location.assign(url.toString());
+  }, []);
 
   const handleLogout = useCallback(async () => {
     if (loggingOut) return;
@@ -112,6 +140,13 @@ export function UserMenu({ name, role, phone }: UserMenuProps) {
             )}
           </Stack>
           <Menu.Divider />
+          <Menu.Item
+            leftSection={<IconRefresh size={16} />}
+            disabled={loggingOut || (isDashboard && !googleConfigured)}
+            onClick={handleForceRefresh}
+          >
+            Force refresh
+          </Menu.Item>
           <Menu.Item
             leftSection={<IconCalendarPlus size={16} />}
             onClick={() => setAccessOpen(true)}

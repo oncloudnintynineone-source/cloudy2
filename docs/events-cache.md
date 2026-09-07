@@ -228,58 +228,72 @@ response ships — the visible render is never delayed by a stale-entry refresh.
 
 ### 1.5.1 Force refresh (manual, one-shot)
 
-The dashboard header has a force-refresh button that bypasses the freshness windows and
-re-fetches from Google on demand. It works as a **one-shot URL nonce**:
+The **profile menu's "Force refresh"** (the ⋮ calendar kebab no longer hosts it) bypasses
+the freshness windows and re-fetches fresh data on demand — on every page. It is a **full
+page reload** of the current URL carrying a **one-shot URL nonce** (`?refresh=<epoch-ms>`),
+not an in-app navigation:
 
-1. The button navigates with `?refresh=<epoch-ms>` (`DashboardView.tsx`).
-2. `page.tsx` parses it: the nonce is honored only while it is a finite number younger than
-   `REFRESH_NONCE_TTL_MS` (5min, `page.tsx`) — so a stale history entry (back/forward)
-   can't silently re-force a fetch.
+1. `UserMenu` reloads `window.location.href` + `?refresh=<epoch-ms>` (`UserMenu.tsx`).
+   The nonce URL is **never answered by the service worker**: `?refresh` is in
+   `ONE_SHOT_PARAMS` (`swRules.ts`), so there is no cached document/RSC entry for it —
+   the reload is always a **network render**. On non-calendar pages that alone is the
+   refresh (fresh server data on any page — Settings included). On `/dashboard` the
+   server additionally honors the nonce:
+2. `page.tsx` parses it: the nonce is honored only while it is a finite number younger
+   than `REFRESH_NONCE_TTL_MS` (5min, `page.tsx`) — so a stale history entry
+   (back/forward) can't silently re-force a fetch.
 3. The page passes `force: true` through `fetchMonthEvents` / `fetchRangeEvents` into
    `getCachedMonthEventsForCalendars(ids, month, { force })` (`eventsCache.ts`): with
    `force`, **both L1 and L2 are skipped** and every requested calendar blocks on a fresh
    `events.list` (bounded by `GOOGLE_FETCH_CONCURRENCY` ≤ 4 in flight, and deliberately
    **not** joined to an in-flight background refresh) for **every month in the read**
    (1 for Day/Agenda, 2 for a boundary week, 2-3 for the Month grid), upserting DB rows
-   with `fetchedAt = now` and refilling L1.
-4. After the forced render mounts, a self-terminating effect in `DashboardView.tsx`
-   strips `refresh` from the URL so later month/day navigation doesn't keep
-   force-refreshing. It uses `router.replace` + `router.refresh()` — a bare
-   `router.push` to the clean URL would be served by the Client Router Cache
-   (`staleTimes.dynamic: 120`, `next.config.ts`), re-displaying the pre-edit RSC
-   snapshot and reverting the just-fetched data; `router.refresh()` bypasses that cache
-   and re-reads the fresh rows the forced render just upserted.
+   with `fetchedAt = now` and refilling L1. During the reload the wait is covered by the
+   route `loading.tsx` skeleton.
+4. After the forced document mounts, the **global** one-shot strip
+   (`useOneShotRefreshStrip`, mounted in `AppShellShell`, `src/lib/pwa/client.ts`)
+   removes `refresh` from the URL so later navigation doesn't keep force-refreshing. It
+   clears the pathname's RSC cache entries first (`invalidateRscPathCaches`) and then
+   `router.replace`s to the clean URL — the cached *document* is left alone so instant/
+   offline launch keeps working, and the clean-URL replace can't be answered by a stale
+   SWR RSC payload.
 
 ```mermaid
 sequenceDiagram
-    participant V as DashboardView (client)
-    participant P as Page (RSC render)
+    participant U as UserMenu (profile, any page)
+    participant SW as Service worker
+    participant P as Dashboard page (RSC render)
     participant C as events cache (L1/L2)
     participant G as Google Calendar
-    V->>P: router.push(?refresh=<epoch-ms>)
-    P->>C: getCachedMonthEventsForCalendars(ids, month, { force: true })
-    C->>G: events.list per selected calendar (≤4 concurrent)
-    G-->>C: items → upsert L2 (fetchedAt=now) + refill L1
-    C-->>P: fresh items — same request
-    P-->>V: fresh render; then strip ?refresh=
+    U->>U: window.location.assign(?refresh=<epoch-ms>)
+    U->>SW: navigation (cache miss — nonce URL never stored)
+    SW-->>P: network render
+    alt /dashboard (nonce honored)
+        P->>C: getCachedMonthEventsForCalendars(ids, month, { force: true })
+        C->>G: events.list per selected calendar (≤4 concurrent)
+        G-->>C: items → upsert L2 (fetchedAt=now) + refill L1
+    else other pages
+        P->>P: normal server render (no events cache)
+    end
+    P-->>U: fresh document; useOneShotRefreshStrip drops ?refresh=
 ```
 
-Scope is the **selected calendars × displayed month** only (what the user sees); hidden
-calendars and other months keep their normal freshness window, and `force` returns
-`allServed: false` so the adjacent-month prefetch (§1.8) fires like any miss.
+Scope on the calendar is the **selected calendars × displayed month** only (what the user
+sees); hidden calendars and other months keep their normal freshness window, and `force`
+returns `allServed: false` so the adjacent-month prefetch (§1.8) fires like any miss.
 
-Doing the force **inside the same RSC render** — rather than invalidating in a server
-action and issuing `router.refresh()` — guarantees the response carries the just-fetched
-data. A separate re-read could be served by another instance whose L1 still holds a warm
-(≤ 60s) entry for the same key, which would shadow the fresh rows for up to
-`GCAL_CACHE_FRESH_MS` (§1.7.2 covers the analogous mutation case; the nonce approach
-eliminates the window for the user who pressed the button entirely).
+Doing the force **inside the same request** — rather than invalidating in a server action
+and issuing `router.refresh()` — guarantees the response carries the just-fetched data. A
+separate re-read could be served by another instance whose L1 still holds a warm (≤ 60s)
+entry for the same key, which would shadow the fresh rows for up to `GCAL_CACHE_FRESH_MS`
+(§1.7.2 covers the analogous mutation case; the nonce approach eliminates the window for
+the user who pressed refresh entirely).
 
-The button is disabled while Google is unconfigured (the stub integration returns no
-events, so a forced refresh would cache empties and blank the view), and shows a loading
-spinner (`BUTTON_LOADER_PROPS`) from a dedicated `useTransition` that wraps the
-`router.push` directly (the same shape as the page's other nav transitions); the page
-skeleton renders on `isPending || isRefreshing` so the load is covered either way.
+The menu item is disabled while Google is unconfigured **only on the calendar** (the stub
+integration returns no events, so a forced refresh would cache empties and blank the
+view); on other pages it always reloads. Native browser pull-to-refresh is disabled
+app-wide (`overscroll-behavior-y: contain` on the root scroller, `globals.css`) — the
+profile-menu item is the app's refresh affordance.
 
 ## 1.6 Write / invalidation path
 
@@ -492,7 +506,9 @@ module, but they keep the render's total query count low):
 | `src/lib/events/queries.ts`                     | `fetchMonthEvents` / `fetchRangeEvents` — read path + gated prefetch |
 | `src/lib/events/actions.ts`                     | Mutations → `invalidateGcalCache`                           |
 | `src/app/(protected)/dashboard/page.tsx`        | `?refresh=` nonce parsing → `force` flag (§1.5.1)           |
-| `src/app/(protected)/dashboard/DashboardView.tsx` | Force-refresh button + one-shot nonce strip (§1.5.1)       |
+| `src/components/UserMenu.tsx`                   | Profile-menu "Force refresh" — full reload + `?refresh=` nonce (§1.5.1) |
+| `src/lib/pwa/client.ts`                         | `useOneShotRefreshStrip` — global post-reload nonce strip (§1.5.1) |
+| `src/app/globals.css`                           | Native pull-to-refresh disabled (`overscroll-behavior-y: contain`) |
 | `src/lib/events/datetime.ts`                    | `monthRange`, `shiftMonth`, `monthsInRange`, `monthGridMonths`, `monthGridRows` |
 | `src/lib/async.ts`                              | `mapWithConcurrency`                                        |
 | `src/lib/cache.ts`                              | Generic TTL cache backing the pinned list read              |

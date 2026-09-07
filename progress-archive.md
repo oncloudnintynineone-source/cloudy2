@@ -156,6 +156,7 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
 - [1.193 Event wizard "Other settings" step + Participants rename](#1193-event-wizard-other-settings-step--participants-rename)
 - [1.194 Participants "Add myself" toggle + owner-lock wording](#1194-participants-add-myself-toggle--owner-lock-wording)
 - [1.195 "(You)" participant highlight](#1195-you-participant-highlight)
+- [1.197 Refresh re-homed + pull-to-refresh disabled](#1197-refresh-re-homed--pull-to-refresh-disabled)
 
 ## 1.1 Status
 
@@ -7748,18 +7749,18 @@ tests; 992+ pass).
 
 ## 1.195 "(You)" participant highlight
 
-Pure presentational change � no behavior, logic, notes format, or permissions touched.
+Pure presentational change � no behavior, logic, notes format, or permissions touched.
 
 - **Where**: the signed-in user's own badge is now marked wherever participants are
-  listed � the event wizard's Participants step badges, the wizard Review step's
+  listed � the event wizard's Participants step badges, the wizard Review step's
   Participants row, and the EventDetail modal's Participants list. Department-tag-only
   coverage produces no personal badge, so there is nothing to mark.
 - **Look**: shared .c2-my-badge treatment (globals.css) reusing the app's amber
-  "mine" language � cream fill via --c2-my-row-tint (theme-aware light/dark) plus an
+  "mine" language � cream fill via --c2-my-row-tint (theme-aware light/dark) plus an
   ccent-6 inset ring and a "(You)" suffix on the label. The rule is double-scoped
   (.mantine-Badge-root.c2-my-badge) to beat Mantine's runtime-injected styles and
   still apply inside modal portals (no .app-shell-root ancestor there).
-- **Plumbing**: PickerBadgeItem gains an optional self flag (PickerField.tsx) �
+- **Plumbing**: PickerBadgeItem gains an optional self flag (PickerField.tsx) —
   self badges ignore their color and render ring+tint+"(You)"; other picker consumers
   (KAH members, Double Booking target, filter summaries) don't set it and are
   untouched. EventForm's review People and EventDetail's Participants switched from
@@ -7767,3 +7768,62 @@ Pure presentational change � no behavior, logic, notes format, or permissions to
   detected reliably even when display names collide across users.
 
 **Verified**: pnpm typecheck, pnpm lint, pnpm test.
+
+## 1.197 Refresh re-homed + pull-to-refresh disabled
+
+Replaces the dashboard-only "Force refresh" (⋮ kebab) with a **global** refresh in the
+profile menu, disables native pull-to-refresh app-wide, and deletes the "Saved · HH:MM"
+freshness indicator. Root cause this closes: on every page the SW serves cached
+documents "at any age" and cached RSC payloads, so a pull-to-refresh (or a Settings tab
+flip) could surface data that changed out-of-band on another device — Settings included —
+with only the dashboard hosting an escape hatch.
+
+```mermaid
+flowchart LR
+    PTR["native pull-to-refresh (all pages)"] -->|"disabled: html { overscroll-behavior-y: contain }"| OFF
+    subgraph REFRESH["profile menu Force refresh (all pages)"]
+        R["full reload: current URL + ?refresh=<now>"]
+        SW["SW: nonce URL never cached → network render"]
+        DASH["/dashboard: nonce honored → force Google read"]
+        STRIP["useOneShotRefreshStrip: RSC invalidation + router.replace to clean URL"]
+    end
+    R --> SW --> DASH
+    SW --> STRIP
+```
+
+- **Gesture disabled** (`globals.css`): `html { overscroll-behavior-y: contain }` — the
+  app scrolls as one shared document on every route, so the root scroller governs the
+  gesture app-wide (Android Chrome/Edge). Inner scrollers already contained themselves.
+- **Profile-menu item** (`UserMenu.tsx`, every page): builds
+  `window.location.href + ?refresh=<epoch-ms>` and assigns it (re-entry-guarded). Because
+  `refresh` is an `ONE_SHOT_PARAMS` key the SW has no cached entry for that URL, so the
+  reload is a network render on **every** page; on `/dashboard` `page.tsx` still parses the
+  nonce (≤ `REFRESH_NONCE_TTL_MS`, 5 min) and passes `force: true` → the events cache
+  skips L1/L2 and blocks on Google for the visible months (unchanged mechanics, §1.5.1).
+  The item is disabled on the calendar while Google is unconfigured (a forced fetch would
+  cache empties); `googleConfigured` is read in the protected layout (env-only) and threaded
+  → `AppShellShell` → `UserMenu`.
+- **Global nonce strip** (`useOneShotRefreshStrip`, `src/lib/pwa/client.ts`, mounted in
+  `AppShellShell`, once per document load): clears the pathname's **RSC** cache entries
+  (`invalidateRscPathCaches`) then `router.replace`s to the clean URL (no history entry) —
+  so no later navigation keeps re-forcing and the clean-URL replace can't be answered by a
+  stale SWR RSC payload. The cached *document* is deliberately left alone (it powers
+  instant/offline launch). `DashboardView` no longer owns a `?refresh` strip.
+- **"Saved · HH:MM" removed**: the kebab chip, `DashboardView`'s freshness state
+  (`savedAtRef`/`isDataFresh`/60s timer), `initialSavedAt()`, the reconcile-event listener,
+  the post-mutation "mark fresh" writes, and `refreshNow()`'s `isRefreshing` transition are
+  gone (the grid skeleton now only gates on nav `isPending`; force refresh is a full reload
+  whose wait is the route `loading.tsx`). The SW `__C2_STAMP__` stamping survives — it still
+  drives `useStaleDocumentReconcile`'s after-paint reconcile (which still dispatches
+  `cloudy2:document-reconciled`, now with no listener).
+
+Files: `globals.css`, `UserMenu.tsx`, `AppShellShell.tsx`, `(protected)/layout.tsx`,
+`src/lib/pwa/client.ts`, `DashboardView.tsx` (+ `sw.ts`/`swRules.ts` comment-only), plus
+`docs/events-cache.md` §1.5.1, `docs/pwa-offline.md` §1.5/§1.9/§1.11/§1.13/§1.15,
+`docs/loading-transitions.md` §1.5/§1.7/§1.12/§1.13, `docs/immersive-mode.md`,
+`docs/dashboard-views.md` §1.2, `docs/user-guide.md`, `AGENTS.md`.
+
+**Verified**: pnpm typecheck, pnpm lint, pnpm test (997 pass). Manual: pull gesture inert;
+profile Force refresh visible on all pages and greyed on the calendar when Google is
+unconfigured; network-fresh reload in Settings and force-fresh on the calendar; `?refresh`
+stripped from the URL after load; no Saved chip.

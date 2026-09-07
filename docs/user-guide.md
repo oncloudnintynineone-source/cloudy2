@@ -88,9 +88,9 @@ them with the tabs above the grid:
   An untouched view shows your role default (admin: all departments). Filtering
   is not tied to access: everyone can always select **every** department
   calendar, whatever department they belong to or extra access they hold.
-- **Force refresh** (⋮ menu) bypasses the server cache and pulls the latest from
-  Google Calendar. The muted *Saved · HH:MM* label shows when you're looking at a
-  cached copy.
+- **Force refresh** — in your profile menu (tap the avatar, top-right), on every
+  page. It reloads the page from the network (never a saved copy); on the Calendar
+  it also pulls the very latest from Google Calendar.
 
 Events created directly in Google Calendar (outside Cloudy2) show an **External**
 badge; admins can still edit them.
@@ -197,10 +197,10 @@ full-screen app icon.
 
 - **Instant open:** an installed Cloudy2 opens your last-saved calendar immediately,
   then refreshes in the background.
-- **Offline:** previously viewed pages stay available. Offline copies carry an amber
-  offline banner and a *Saved · HH:MM* stamp; any navigation falls back to your most
-  recently saved view. Offline is **read-only** — creating or editing shows an error
-  until you're back online.
+- **Offline:** previously viewed pages stay available, marked with an amber
+  offline banner; any navigation falls back to your most recently saved view.
+  Offline is **read-only** — creating or editing shows an error until you're
+  back online.
 - Signing out clears the saved pages.
 
 ## 1.11 Good to know

@@ -294,8 +294,9 @@ export function keysForPathname(cacheKeys: string[], origin: string, pathname: s
 
 /**
  * Inject a small <script> that exposes the cache timestamp to the page so the
- * "Saved · HH:MM" chip can render. Done by string-replace on the HTML text —
- * no DOM needed. If <head> is absent, prepend the script.
+ * client can detect a cached document and reconcile stale copies after paint
+ * (`documentCachedAtIso` → `needsReconcile`). Done by string-replace on the
+ * HTML text — no DOM needed. If <head> is absent, prepend the script.
  */
 export function stampDocument(html: string, cachedAtIso: string): string {
   const script = `<script>window.__C2_STAMP__={cachedAt:${JSON.stringify(cachedAtIso)}}<\/script>`;

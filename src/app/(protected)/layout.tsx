@@ -3,6 +3,7 @@ import { cookies } from "next/headers";
 
 import { AppShellShell } from "@/components/AppShellShell";
 import { ColdStartReadyProvider } from "@/components/ColdStartReady";
+import { googleCalendarConfigured } from "@/lib/google";
 import { requireSession } from "@/lib/session";
 import { UI_STATE_COOKIE, decodeUiState } from "@/lib/ui/uiState";
 import { BannerPlaceholder, ShellBanner, ShellKahNav } from "./shellStream";
@@ -25,6 +26,7 @@ export default async function ProtectedLayout({
         role={session.user.role}
         name={session.user.name ?? ""}
         phone={session.user.phone}
+        googleConfigured={googleCalendarConfigured()}
         sidebarCollapsed={uiState?.sidebarCollapsed === true}
         bannerSlot={
           <Suspense fallback={<BannerPlaceholder />}>

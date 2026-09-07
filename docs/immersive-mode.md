@@ -16,8 +16,8 @@ hidden); only the dashboard controls it.
 ## 1.1 The toggle & state ownership
 
 - A `Menu.Item` inside the calendar's "More options" kebab (`IconArrowsMaximize` /
-  `IconArrowsMinimize`, label "Enter fullscreen"/"Exit fullscreen"), between the
-  Pin Tab item and the Force refresh section.
+  `IconArrowsMinimize`, label "Enter fullscreen"/"Exit fullscreen"), the last item after
+  Pin Tab (Force refresh moved out of the kebab into the profile menu).
 - `enter()` flips the shell chrome off **and** requests the page-level Fullscreen API
   (`requestFullscreen({ navigationUI: "hide" })`), so the OS status bar / browser UI
   disappear on devices that support it.

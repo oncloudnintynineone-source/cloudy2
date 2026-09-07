@@ -37,6 +37,19 @@
 }
 
 /*
+  Disable the browser's native pull-to-refresh gesture (Android Chrome/Edge).
+  Every route scrolls as one shared document, so the root scroller governs the
+  gesture app-wide: `contain` stops a top-edge pull from reloading the page.
+  Refreshing is done in-app instead — the profile menu's Force refresh (a full
+  reload carrying a one-shot `?refresh` nonce so the SW never serves a cached
+  copy). Inner scroll containers (wizard body, agenda list) already set their
+  own `overscroll-behavior`; this covers the page scroll itself.
+*/
+html {
+  overscroll-behavior-y: contain;
+}
+
+/*
   Motion cadence — mirrors src/lib/motion/timing.ts (keep in sync). CSS
   keyframes can't read that TS module, so the few custom animation durations
   below reference these custom properties instead of raw literals.

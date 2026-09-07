@@ -18,7 +18,7 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
 
 ## 1.1 Status
 
-- All work through changelog **1.196 (organizer/participant rework hygiene)** is shipped.
+- All work through changelog **1.197 (refresh re-homed + pull-to-refresh disabled)** is shipped.
 - Quality gates (`lint` / `typecheck` / `test` / schema-drift check) run in CI on every
   push and PR. Pushes also auto-apply migrations per environment: `dev` →
   `migrate-preview` against the dev Neon DB, `main` → `migrate` against the prod Neon
@@ -521,6 +521,19 @@ One line per phase; full write-ups (incl. Mermaid diagrams and verification note
    attendees and no tagged departments, "Add at least one participant or department").
    Docs/comments: organizer adoption reworded to "acting editor"; AGENTS.md, event-lifecycle,
    user-guide, user-picker, event-mutations.
+- 1.197 Refresh re-homed + pull-to-refresh disabled: the dashboard ⋮ kebab's Force refresh
+   and the "Saved · HH:MM" freshness indicator are removed, and native pull-to-refresh is
+   disabled app-wide (root-scroller `overscroll-behavior-y: contain`, `globals.css`). The
+   profile menu (all pages) gains **Force refresh**: a full-page reload to a one-shot
+   `?refresh=<epoch-ms>` URL the SW never caches (`ONE_SHOT_PARAMS`) — a network render on
+   every page (Settings included, fixing the stale-data-on-pull symptom that was SWR-served
+   cached docs/RSC); `/dashboard` still honors the nonce → forced Google read. The nonce is
+   stripped after the reloaded document mounts by the new global `useOneShotRefreshStrip`
+   (`src/lib/pwa/client.ts`, mounted in `AppShellShell`, RSC path entries cleared before the
+   clean-URL `router.replace`). `googleConfigured` threads layout → shell → profile menu so
+   the item greys out on the calendar when Google is unconfigured. `docs/events-cache.md`
+   §1.5.1, `docs/pwa-offline.md` §1.11, `docs/loading-transitions.md` §1.5/§1.7/§1.12/§1.13,
+   `docs/immersive-mode.md`, `docs/dashboard-views.md`, `docs/user-guide.md`, `AGENTS.md`
 
 ## 1.4 Open items & next steps
 

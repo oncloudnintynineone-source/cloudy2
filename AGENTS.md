@@ -105,8 +105,14 @@ mechanics in the doc.
   SELECT** (no JSONB), and Google refreshes are coalesced in-process by the `inflight`
   map. The refresh fetch runs **outside any transaction** — the Postgres pool is
   `max: 1`, so holding a transaction across a Google round-trip would serialize every
-  other query.
-  Design: [docs/events-cache.md](docs/events-cache.md).
+  other query. **Native pull-to-refresh is disabled app-wide** (root-scroller
+  `overscroll-behavior-y: contain`); the refresh affordance is the profile menu's
+  **Force refresh** — a full document reload carrying a one-shot `?refresh=<epoch-ms>`
+  nonce that the SW never caches (network-fresh on every page; `/dashboard` honors the
+  nonce → `force` Google read). `useOneShotRefreshStrip` (`src/lib/pwa/client.ts`,
+  mounted in `AppShellShell`) strips the nonce after the reloaded document mounts.
+  Design: [docs/events-cache.md](docs/events-cache.md) §1.5.1,
+  [docs/pwa-offline.md](docs/pwa-offline.md) §1.11.
 - **Event lifecycle & mutations:** staged wizard → Google copies with notes-block
   round-trip; cross-department copies reconciled by `findCopies` (deliberately
   uncached). The wizard body is a fixed-height column with an internal scroll (its
@@ -149,7 +155,8 @@ mechanics in the doc.
 - **Dashboard views & filters:** Month / Week (H) / Week (D) / Day / Agenda over the
   shared cache; one **filter button** (icon + badge) opens the filter modal
   (Calendars + Users prominent, Event Types behind a Show/Hide disclosure); the
-  kebab keeps navigation/refresh only. **Filters are scoped per view only** — each
+  kebab keeps navigation + the fullscreen toggle only (refresh lives in the
+  profile menu — see the events-cache bullet). **Filters are scoped per view only** — each
   of Month / Week (H) / Week (D) / Day / Agenda owns its own Cal/Users/Types
   memory (`dashboard.views`, resolved by the pure `resolveDashboardFilters` in
   `ui-state.ts` as URL → view memory → role default; an untouched view never

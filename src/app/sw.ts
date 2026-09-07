@@ -89,8 +89,9 @@ function docStorableCheck(request: Request, response: Response) {
   };
 }
 
-// Stamp a cached HTML document so the page can show "Saved · HH:MM" (reads
-// the cache entry's Date header as cachedAt). Runs on the serve path (via
+// Stamp a cached HTML document so the client can tell a cache hit from a
+// network render and reconcile stale copies after paint (reads the cache
+// entry's Date header as cachedAt). Runs on the serve path (via
 // `cachedResponseWillBeUsed`); never mutates the stored copy.
 async function stampCachedResponse(cachedResponse: Response): Promise<Response> {
   try {
@@ -121,7 +122,7 @@ async function stampCachedResponse(cachedResponse: Response): Promise<Response> 
 // newest entry). Redirecting (rather than body-swapping a different view under
 // the requested URL) keeps the browser URL agreeing with the served page, so
 // the served page hydrates cleanly — it already carries the amber OfflineBanner
-// and the "Saved · HH:MM" stamp (window.__C2_STAMP__).
+// (and the `window.__C2_STAMP__` reconcile stamp).
 async function lastSavedViewEntry(): Promise<SavedViewEntry | null> {
   const cache = await caches.open(APP_DOCUMENT_CACHE);
   const entries: SavedViewEntry[] = [];
@@ -216,7 +217,8 @@ async function serveOfflineDocument(request: Request): Promise<Response | undefi
 }
 
 // Plugin that enforces document cacheability, handles session-expiry purging,
-// and stamps cached responses so the page can show "Saved · HH:MM".
+// and stamps cached responses so the client can detect a cache hit and
+// reconcile stale copies after paint (`window.__C2_STAMP__`).
 const documentPlugin = {
   cacheWillUpdate: async ({
     request,
@@ -367,11 +369,13 @@ function isLaunchRequest(options: { request: Request; url: URL; sameOrigin: bool
 // serverless round trip.
 //
 // Staleness is handled *after* paint, not before it: a cached copy is served
-// stamped (`stampDocument` → `window.__C2_STAMP__.cachedAt`), the page shows the
-// truthful "Saved · HH:MM" chip, and `useStaleDocumentReconcile`
-// (src/lib/pwa/client.ts) fires one non-blocking `router.refresh()` when the
-// stamp is older than `DOCUMENT_FRESH_WINDOW_MS`. Fresh data therefore arrives
-// a beat later rather than in front of a blank screen.
+// stamped (`stampDocument` → `window.__C2_STAMP__.cachedAt`), and
+// `useStaleDocumentReconcile` (src/lib/pwa/client.ts) fires one non-blocking
+// `router.refresh()` when the stamp is older than `DOCUMENT_FRESH_WINDOW_MS`.
+// Fresh data therefore arrives a beat later rather than in front of a blank
+// screen. (Refreshing on demand is the profile menu's "Force refresh" — a full
+// reload carrying a one-shot `?refresh` nonce that the SW never serves from
+// cache.)
 //
 // Routing by cache age instead (instant when young, `NetworkFirst` when older)
 // was tried and reverted: on the launch path the "older" branch *is* the common

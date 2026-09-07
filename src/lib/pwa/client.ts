@@ -112,6 +112,50 @@ export async function refreshFresh(
 // grid immediately and the live one a beat later, instead of a splash screen
 // that waits on the network.
 
+// --- One-shot ?refresh strip ------------------------------------------------
+//
+// The profile menu's "Force refresh" reloads the current URL with a fresh
+// `?refresh=<epoch-ms>` nonce, so the service worker never answers it from the
+// document/RSC caches (`ONE_SHOT_PARAMS`) — every page gets a network render,
+// and on /dashboard the server additionally force-reads Google. The nonce must
+// then leave the URL, or every later soft navigation keeps re-forcing.
+
+// Module scope, not a ref: a full reload resets the module, so one document
+// load gets exactly one strip (a `router.replace` does not reload the
+// document), and the flag survives React's dev-mode double effect invocation.
+let strippedRefreshThisDocument = false;
+
+/**
+ * Strip the one-shot `?refresh=` nonce once per document load. Mounted in the
+ * protected shell (AppShellShell): on mount, if the URL carries a `refresh`
+ * param, clear the pathname's RSC cache entries (so the clean-URL replace
+ * below can't be answered by a stale SWR payload — the same trap the dashboard's
+ * per-page one-shot strips document) and `router.replace` to the clean URL with
+ * no history entry. The cached *document* is deliberately left alone: it is
+ * what makes the next launch instant, and this document came off the network
+ * anyway (the nonce URL is never stored).
+ */
+export function useOneShotRefreshStrip(): void {
+  const router = useRouter();
+  useEffect(() => {
+    if (strippedRefreshThisDocument) return;
+    let url: URL;
+    try {
+      url = new URL(window.location.href);
+    } catch {
+      return;
+    }
+    if (!url.searchParams.has("refresh")) return;
+    strippedRefreshThisDocument = true;
+    url.searchParams.delete("refresh");
+    const clean = `${url.pathname}${url.search}`;
+    const pathname = url.pathname;
+    void invalidateRscPathCaches(pathname).then(() => {
+      router.replace(clean, { scroll: false });
+    });
+  }, [router]);
+}
+
 /** Window event dispatched when a stale cached document starts reconciling. */
 export const DOCUMENT_RECONCILED_EVENT = "cloudy2:document-reconciled";
 

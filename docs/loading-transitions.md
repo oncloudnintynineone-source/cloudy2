@@ -179,9 +179,10 @@ replay it.
   enough to read as a deliberate pause, short enough not to feel slow.
 
 Callers gate their *in-page* skeleton on the held value, e.g.
-`gridLoading = useMinSkeletonHold(isPending || isRefreshing)`
-(`DashboardView.tsx:450`) — the force-refresh transition's `isRefreshing`
-participates in the same hold.
+`gridLoading = useMinSkeletonHold(isPending)` (`DashboardView.tsx`) — data
+navigations only. Force refresh no longer participates: the profile menu
+reloads the whole document, so its wait is the route `loading.tsx` skeleton
+(§1.4), not this hold.
 
 ## 1.6 Reveal fade
 
@@ -213,17 +214,20 @@ Four params force a special render for exactly one request, then strip
 themselves. All strips run **outside** `startTransition` (no skeleton, no
 fade), and all are ref-guarded or self-terminating so a stale history entry
 can't re-trigger the behavior. The `edit`/`event` strips are plain
-`router.push`; the `refresh` and `_fresh` strips are `router.replace` +
-`router.refresh()` (a plain push back to the bare URL would be answered by
-the stale client-router/SW RSC snapshot saved before the special render —
-undone edits, resurrected filters). None of the four is ever written to the
-document/RSC caches ([`pwa-offline.md`](pwa-offline.md) — `ONE_SHOT_PARAMS`).
+`router.push`; the `_fresh` strip is `router.replace` + `router.refresh()`, and
+the `refresh` strip is a **global** per-document `router.replace` that first
+clears the pathname's RSC cache entries (`useOneShotRefreshStrip`,
+`src/lib/pwa/client.ts`, mounted in `AppShellShell` — a plain replace back to
+the bare URL would be answered by the stale client-router/SW RSC snapshot saved
+before the special render: undone edits, resurrected filters, an old nonce
+still forcing). None of the four is ever written to the document/RSC caches
+([`pwa-offline.md`](pwa-offline.md) — `ONE_SHOT_PARAMS`).
 
 | Param | Purpose | Validity | Stripped by |
 | ----- | ------- | -------- | ----------- |
 | `?event=<uuid>` | open the event's details modal (deep link from the Google Calendar `Edit:` note line, Pinned Events, event search; `_eventCal` rides alongside so the fetch includes the event's calendar) | `isUuid` — anything else ignored (`dashboard/page.tsx:66-68`); the link's `date` pins the fetched month; the render reads the remembered-UI-state cookie (only `_fresh` skips it — [`ui-state.md`](ui-state.md)), opening the event on the user's own view + filters | ref-guarded effect after the forced render mounts (`DashboardView.tsx:1496-1507`) — a refresh won't reopen the modal; re-arms once stripped so the same event can open again |
 | `?edit=<uuid>` | open the event's edit form directly (the event search modal's "Edit" action) | `isUuid` — anything else ignored (`dashboard/page.tsx:59-61`); the link's `date` pins the fetched month; the render reads the remembered-UI-state cookie (only `_fresh` skips it — [`ui-state.md`](ui-state.md)) | ref-guarded effect after the forced render mounts (`DashboardView.tsx:1482-1489`) — a refresh won't reopen the form |
-| `?refresh=<epoch-ms>` | force-refresh: bypass the cache freshness windows and block on fresh Google reads **inside the same RSC request** | finite number younger than `REFRESH_NONCE_TTL_MS` (5 min, `page.tsx:29,89-90`) — a stale history entry can't silently re-force (`events-cache.md` §1.5.1) | self-terminating effect (`DashboardView.tsx:667-678`) — a ref guard would leak a second nonce if refresh is clicked before the first strip lands |
+| `?refresh=<epoch-ms>` | Force refresh (profile menu, every page): a **full page reload** to the nonce URL — the SW never caches it, so every page gets a network render; on the dashboard the server additionally bypasses the events-cache freshness windows and blocks on fresh Google reads **inside the same request** | finite number younger than `REFRESH_NONCE_TTL_MS` (5 min, `page.tsx`) — a stale history entry can't silently re-force (`events-cache.md` §1.5.1) | `useOneShotRefreshStrip` after the reloaded document mounts (`src/lib/pwa/client.ts`, mounted in `AppShellShell`) — clears the pathname's RSC entries first, then `router.replace`s to the clean URL (once per document load) |
 | `?_fresh=1` | skip the remembered-UI-state cookie for this one render (a navigation that *removed* remembered keys — Clear, tab switch — must not re-apply the now-stale cookie) | any value — presence is enough (`dashboard/page.tsx:56`, `parade-state/page.tsx:34`) | self-terminating effect after mount: `router.replace(…, { scroll: false }); router.refresh()` — the fresh render already re-persisted the resolved values, and `router.refresh()` re-serves the bare URL from the server so a stale cached snapshot can't resurrect the just-removed filters into the cookie (`DashboardView.tsx:645-653`, `ParadeStateView.tsx:269-274`) |
 
 Injection of `_fresh` is automatic: `navigate()` checks
@@ -232,16 +236,22 @@ adds the marker to that one navigation ([`ui-state.md` §1.9](ui-state.md#19-the
 
 ```mermaid
 sequenceDiagram
-    participant V as View (client)
+    participant V as UserMenu (client)
+    participant SW as Service worker
     participant P as Page (server)
-    V->>P: router.push(?refresh=<epoch-ms>) — startTransition
-    P->>P: nonce valid? → force: true → fresh Google reads in-request
-    P-->>V: forced render (skeleton via isRefreshing)
-    V->>P: router.replace stripping ?refresh= (no transition) + router.refresh()
-    P-->>V: clean URL — bypasses the stale client-router cache
+    participant R as useOneShotRefreshStrip (client)
+    V->>V: window.location.assign(?refresh=<epoch-ms>)
+    V->>SW: navigation — nonce URL never cached → network
+    SW-->>P: full document render (route loading.tsx skeleton)
+    alt /dashboard
+        P->>P: nonce valid? → force: true → fresh Google reads in-request
+    end
+    P-->>R: fresh document mounts
+    R->>P: invalidate RSC path entries + router.replace stripping ?refresh=
+    P-->>V: clean URL
 ```
 
-Doing the forced work **inside the same RSC render** (rather than
+Doing the forced work **inside the same request** (rather than
 invalidate-then-`router.refresh()`) guarantees the response carries the
 just-fetched data — a separate re-read could be served by another instance
 whose warm L1 entry still shadows the fresh rows
@@ -365,7 +375,7 @@ and the non-remounting container means `useContentEnter` never replays.
 
 | Consumer | Minimum hold | Reveal fade | Notes |
 | -------- | ------------ | ----------- | ----- |
-| `DashboardView` (week/schedule grid) | `useMinSkeletonHold(isPending \|\| isRefreshing)` (`:450`) | `useContentEnter(weekBoxRef, …)` (`:451`) | stable `ScrollArea` keeps scroll position; force-refresh participates in the hold |
+| `DashboardView` (week/schedule grid) | `useMinSkeletonHold(isPending)` | `useContentEnter(weekBoxRef, …)` | stable `ScrollArea` keeps scroll position; force refresh is a full page reload (route `loading.tsx`), not an in-app transition |
 | `ParadeStateView` | `useMinSkeletonHold(initialMonth !== month)` (`:154`) | `useContentEnter` (`:156`) | in-month changes are optimistic — no skeleton |
 | `AuditLogView` | `useMinSkeletonHold(isPending)` (`:94`) | `useContentEnter` (`:96`) | filter navigations; no-op guard skips the transition |
 | `SettingsForm`, `DepartmentTable`, `ContactList`, `UserTable`, `EventTypeTable`, `TemplatesForm` | — | static `CONTENT_ENTER_CLASS` on the content root | server-rendered pages; the SSR fade plays on first paint |
@@ -408,7 +418,7 @@ overlapping sources (a route nav mid-refresh) share the bar without fighting:
 | ------ | ------ |
 | Route `<Link>` navigation | each shell nav/rail/bottom/logo link renders `PendingDim`, which now reports its `useLinkStatus().pending` up via `useReportActivity` |
 | Settings tab flips | `SettingsTabs` wraps `router.push` in `useTransition` and reports `isPending` (tabs are `router.push`, not `<Link>`, so `useLinkStatus` alone can't see them) |
-| In-page view/filter transitions | dashboard reports `isPending \|\| isRefreshing`, parade reports the cross-month gate, audit reports its filter `isPending` |
+| In-page view/filter transitions | dashboard reports its `isPending`, parade reports the cross-month gate, audit reports its filter `isPending` |
 | Post-mutation `router.refresh()` | `useActivityRefresh(busyKey)` returns a `refresh()` that invalidates the SW caches then calls `router.refresh()` **inside** `useTransition`, so `isPending` stays true until the refreshed RSC payload commits (`router.refresh()` itself is not awaitable). Replaces the old `invalidateCurrentPathCaches().then(() => router.refresh())` at every settings table/form, the dashboard's `onDone`/`onDeleted`, and audit's purge |
 
 **Flicker control.** The bar only appears once a busy source has persisted

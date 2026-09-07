@@ -22,7 +22,6 @@ import {
   Box,
   Button,
   Group,
-  Loader,
   Menu,
   Modal,
   Paper,
@@ -61,7 +60,6 @@ import {
   IconListDetails,
   IconLink,
   IconPlus,
-  IconRefresh,
   IconStar,
   IconStarFilled,
   IconUser,
@@ -147,8 +145,6 @@ import { EventDetail } from "./EventDetail";
 import { EventForm } from "./EventForm";
 import { WeekMatrixView } from "./WeekMatrixView";
 import {
-  DOCUMENT_RECONCILED_EVENT,
-  documentCachedAtIso,
   invalidateCurrentPathCaches,
 } from "@/lib/pwa/client";
 
@@ -162,16 +158,6 @@ type MyEventRender = (
   event: { id: string | number },
   props: ComponentPropsWithoutRef<"button"> & { children: ReactNode },
 ) => ReactElement;
-
-// Initial "saved at" timestamp for the data-freshness label: prefer the SW's
-// injected document stamp (when the HTML shell was served from the SW cache,
-// its cachedAt is the most truthful data timestamp), else fall back to the
-// mount time.
-function initialSavedAt(): number {
-  const cachedAt = documentCachedAtIso();
-  // `documentCachedAtIso` only returns a value that `Date.parse` accepts.
-  return cachedAt === null ? Date.now() : Date.parse(cachedAt);
-}
 
 // Tab bar labels/icons in default (unpinned) order; pinned tabs are moved to
 // the front by `orderDashboardViews` (see the pinnedViews prop).
@@ -1081,68 +1067,25 @@ export function DashboardView({
     [handleMonthScroll],
   );
 
-  const [isRefreshing, startRefresh] = useTransition();
   // Post-mutation refresh (event create/update/delete, detail actions): the
   // shared bar reports the re-read that follows the saved state.
   const refreshAfterSave = useActivityRefresh("dashboard:save");
 
-  // Data freshness tracking: the label shows "Saved · HH:MM" whenever the data
-  // may not be the latest — by default (the server-side events cache serves
-  // stale data most of the time) and after a cached-document open (the SW's
-  // injected `__C2_STAMP__` gives the truthful saved-at time via
-  // `initialSavedAt`). It is hidden only while data was recently confirmed
-  // fresh — for 60s after a force-refresh or a mutation, matching
-  // GCAL_CACHE_FRESH_MS.
-  const savedAtRef = useRef(initialSavedAt());
-  const [isDataFresh, setIsDataFresh] = useState(false);
-
-  const savedInfo = useMemo(() => {
-    if (isDataFresh) return null;
-    const d = new Date(savedAtRef.current);
-    if (Number.isNaN(d.getTime())) return null;
-    const time = d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-    return {
-      label: `Saved · ${time}`,
-      full: `Showing saved data from ${d.toLocaleString()}. Pull to refresh or tap Force refresh for the latest.`,
-    };
-  }, [isDataFresh]);
-
-  // After a force-refresh or mutation marks the data fresh, revert to the
-  // "Saved" state once the server-side events cache freshness window elapses —
-  // after that, reads may again be served from the cache, so the data is
-  // plausibly saved again. Matches GCAL_CACHE_FRESH_MS (60s).
-  useEffect(() => {
-    if (!isDataFresh) return;
-    const timer = setTimeout(() => setIsDataFresh(false), 60_000);
-    return () => clearTimeout(timer);
-  }, [isDataFresh]);
-
-  // The launch served a stale cached document and `useStaleDocumentReconcile`
-  // is now pulling the live one: mark the data fresh the same way a
-  // force-refresh does, so the "Saved · HH:MM" chip stops claiming the grid is
-  // the old copy while the reconcile is in flight.
-  useEffect(() => {
-    const onReconciled = () => {
-      savedAtRef.current = Date.now();
-      setIsDataFresh(true);
-    };
-    window.addEventListener(DOCUMENT_RECONCILED_EVENT, onReconciled);
-    return () => window.removeEventListener(DOCUMENT_RECONCILED_EVENT, onReconciled);
-  }, []);
-
-  // Skeleton-only loading: any pending data navigation or force refresh
-  // shows the grid skeleton. `useMinSkeletonHold` keeps it up for a minimum
-  // ~350ms so fast (cached) loads read as a deliberate sequence instead of a
-  // flash. `useContentEnter` fades the grid in on the reveal; on a cold
-  // mount the class ships in the SSR HTML and plays on first paint. The
-  // one-shot `edit`/`refresh` strips are plain pushes (no transition), so
-  // they never set the pending flag and never replay the fade.
-  const gridLoading = useMinSkeletonHold(isPending || isRefreshing);
+  // Skeleton-only loading: any pending data navigation shows the grid
+  // skeleton. `useMinSkeletonHold` keeps it up for a minimum ~350ms so fast
+  // (cached) loads read as a deliberate sequence instead of a flash.
+  // `useContentEnter` fades the grid in on the reveal; on a cold mount the
+  // class ships in the SSR HTML and plays on first paint. The one-shot
+  // `edit`/`event`/`_fresh` strips are plain pushes (no transition), so they
+  // never set the pending flag and never replay the fade. (Force refresh is a
+  // full page reload from the profile menu now — its wait is the route
+  // loading.tsx, not this skeleton.)
+  const gridLoading = useMinSkeletonHold(isPending);
   useContentEnter(weekBoxRef, !gridLoading);
 
   // The global activity bar mirrors the grid transition: view/date/filter
-  // navigations and the force-refresh are "busy" for the whole app chrome.
-  useReportActivity(isPending || isRefreshing, "dashboard:nav");
+  // navigations are "busy" for the whole app chrome.
+  useReportActivity(isPending, "dashboard:nav");
 
   // Remembered UI state: persist the server-resolved view/filters to the
   // per-device cookie every time the rendered state changes, so a relaunch
@@ -1552,7 +1495,8 @@ export function DashboardView({
   // 120` / the SW's RSC cache would otherwise answer a push back to the bare
   // URL with the STALE payload saved before the removal, reverting a just-
   // cleared filter set and re-seeding it into the remembered-state cookie
-  // (the same trap the `?refresh=` strip below documents).
+  // (the same trap the `edit` strip and the global `?refresh=` strip in
+  // `useOneShotRefreshStrip` document).
   useEffect(() => {
     if (searchParams.get("_fresh") === null) {
       return;
@@ -1594,44 +1538,6 @@ export function DashboardView({
     detailParamClearedRef.current = true;
     router.push(buildHref({ event: null, _eventCal: null }));
   }, [buildHref, initialDetailEventId, router]);
-
-  // Strip the one-shot `refresh` nonce as soon as the forced render has
-  // mounted, so later month/day navigation doesn't keep force-refreshing.
-  // Self-terminating (stripping removes the param), and re-arms on every new
-  // nonce — a ref guard would leak a second nonce if refresh is clicked
-  // before the first strip lands. Plain push (no transition), same as the
-  // edit strip above.
-  useEffect(() => {
-    if (searchParams.get("refresh") === null) {
-      return;
-    }
-    // Clean the URL with a replace (no history entry) and then re-read from
-    // the server. `router.refresh()` bypasses the Client Router Cache — which
-    // `staleTimes.dynamic: 120` would otherwise serve for the base URL for up
-    // to 2 minutes — so the freshly force-fetched rows (already upserted to the
-    // server cache by the forced render) are what stays on screen. A plain
-    // `router.push` here re-served the pre-edit snapshot and reverted the edit.
-    router.replace(buildHref({ refresh: null }), { scroll: false });
-    router.refresh();
-  }, [buildHref, router, searchParams]);
-
-  // Force refresh: a transition of its own (the button's spinner) wrapping
-  // router.push directly — the transition Next runs inside push stays pending
-  // for the whole navigation, so `isRefreshing` covers the load. The server
-  // renders that same request with `force: true`; the grid skeleton shows for
-  // the same window. Ordinary data navigations (month/week/day/view/filter)
-  // show the same grid skeleton while pending and swap the new grid in place
-  // (with a one-shot fade-in) when it commits.
-  function refreshNow() {
-    // Force-refresh bypasses the cache freshness window and blocks on fresh
-    // Google reads, so the data is fresh once the transition lands. Mark it
-    // now (the 60s timeout below reverts it to "Saved" afterwards).
-    savedAtRef.current = Date.now();
-    setIsDataFresh(true);
-    startRefresh(() => {
-      router.push(buildHref({ refresh: String(Date.now()) }));
-    });
-  }
 
   // Shifts compose on the optimistic chrome values (not the committed props),
   // so rapid taps during a pending navigation accumulate instead of being
@@ -1768,7 +1674,7 @@ export function DashboardView({
     }
     setAgendaSlideDir(dayjs(next).isAfter(dayjs(current)) ? 1 : -1);
     // Plain push outside startTransition: it never sets the pending flag
-    // (same pattern as the ?edit=/?refresh= URL strips), so no skeleton.
+    // (same pattern as the ?edit=/?event=/?_fresh= URL strips), so no skeleton.
     router.push(buildHref({ date: next }));
   }
 
@@ -2266,8 +2172,9 @@ export function DashboardView({
             />
           )}
           {/* Filters live in their own primary affordance (icon + count badge),
-              not the overflow menu — the kebab keeps navigation, the fullscreen
-              toggle, and refresh. */}
+              not the overflow menu — the kebab keeps navigation and the
+              fullscreen toggle only (Force refresh now lives in the profile
+              menu). */}
           <FilterButton
             activeCount={activeFilterCount}
             onClick={(e) => {
@@ -2326,21 +2233,6 @@ export function DashboardView({
                 onClick={immersiveMode.active ? immersiveMode.exit : immersiveMode.enter}
               >
                 {immersiveMode.active ? "Exit fullscreen" : "Enter fullscreen"}
-              </Menu.Item>
-              <Menu.Divider />
-              {savedInfo ? (
-                <Tooltip label={savedInfo.full} multiline maw={260} withArrow>
-                  <Menu.Label style={{ cursor: "default" }}>{savedInfo.label}</Menu.Label>
-                </Tooltip>
-              ) : null}
-              <Menu.Item
-                leftSection={
-                  isRefreshing ? <Loader size="sm" color="gray" /> : <IconRefresh size={16} />
-                }
-                disabled={!googleConfigured || isRefreshing}
-                onClick={refreshNow}
-              >
-                Force refresh
               </Menu.Item>
             </Menu.Dropdown>
           </Menu>
@@ -2895,8 +2787,6 @@ export function DashboardView({
         onDeleted={() => {
           setDetailEvent(null);
           setAgendaDate(null);
-          savedAtRef.current = Date.now();
-          setIsDataFresh(true);
           window.dispatchEvent(new CustomEvent(PINNED_EVENTS_CHANGED_EVENT));
           notifyEventsChanged();
           refreshAfterSave();
@@ -2982,8 +2872,6 @@ export function DashboardView({
                 optimisticHome={optimisticHome}
                 onDone={() => {
                   closeForm();
-                  savedAtRef.current = Date.now();
-                  setIsDataFresh(true);
                   window.dispatchEvent(new CustomEvent(PINNED_EVENTS_CHANGED_EVENT));
                   notifyEventsChanged();
                   refreshAfterSave();

@@ -46,6 +46,7 @@ import { BOTTOM_NAV_HEIGHT } from "@/lib/bottomNav";
 import { fetchPinnedEvents, type PinnedEvent } from "@/lib/events/pinned";
 import type { Rect } from "@/lib/motion/origin";
 import { MOTION } from "@/lib/motion/timing";
+import { useOneShotRefreshStrip } from "@/lib/pwa/client";
 import { DESKTOP_MEDIA_QUERY, DESKTOP_WIDE_MEDIA_QUERY, NARROW_MEDIA_QUERY } from "@/lib/theme";
 import { StatusAnnouncer } from "@/lib/ui/announcer";
 import { ImmersiveModeContext, type ImmersiveModeValue } from "@/lib/ui/immersiveMode";
@@ -279,6 +280,7 @@ export function AppShellShell({
   role,
   name,
   phone,
+  googleConfigured,
   sidebarCollapsed,
   bannerSlot,
   kahNavSlot,
@@ -287,6 +289,12 @@ export function AppShellShell({
   role: "admin" | "user";
   name: string;
   phone: string | null;
+  /**
+   * Whether the Google Calendar integration is configured (env-backed, read by
+   * the (protected) layout). Gates the profile menu's Force refresh while on
+   * the dashboard — a forced fetch with Google unconfigured would cache empties.
+   */
+  googleConfigured: boolean;
   /** The remembered rail state, read from the `cloudy2.ui` cookie by the
    *  (protected) layout before first paint (the server renders exactly what
    *  was remembered — no client restore, no flash). */
@@ -306,6 +314,11 @@ export function AppShellShell({
   // Remember the last visited page (incl. the /settings sub-tab) so a PWA
   // relaunch from the start URL can land back here — read by / at launch.
   useRememberedPage(pathname);
+
+  // A document that hard-loaded with the profile menu's one-shot `?refresh`
+  // nonce strips it here (RSC entries cleared first, so the clean-URL replace
+  // can't re-serve a stale payload). See useOneShotRefreshStrip in pwa/client.
+  useOneShotRefreshStrip();
 
   // Cold-start readiness: the shell's two mount fetches (pinned events, clash
   // count) are the client-side tail of a fresh load — the readiness indicator
@@ -755,7 +768,7 @@ export function AppShellShell({
                     <IconSearch size={18} />
                   </ActionIcon>
                   <ThemeToggle />
-                  <UserMenu name={name} role={role} phone={phone} />
+                  <UserMenu name={name} role={role} phone={phone} googleConfigured={googleConfigured} />
                 </Group>
               </Group>
               {/* Global activity bar: indeterminate amber strip pinned to the

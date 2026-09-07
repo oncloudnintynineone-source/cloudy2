@@ -15,7 +15,7 @@ The PWA opens with calendar events visible instantly — even cold or offline �
 - [1.8 New build (deploy) takeover](#18-new-build-deploy-takeover)
 - [1.9 Offline fallback](#19-offline-fallback)
 - [1.10 Session expiry](#110-session-expiry)
-- [1.11 Staleness indicator](#111-staleness-indicator)
+- [1.11 On-demand refresh (pull-to-refresh disabled)](#111-on-demand-refresh-pull-to-refresh-disabled)
 - [1.12 Constants & configuration](#112-constants--configuration)
 - [1.13 Pure helpers & testing](#113-pure-helpers--testing)
 - [1.14 Sign-out](#114-sign-out)
@@ -88,13 +88,13 @@ Matcher predicates are pure and imported from `src/lib/pwa/swRules.ts` (see §1.
 
   **Routing by cache age was tried and reverted** (instant when younger than `DOCUMENT_FRESH_WINDOW_MS`, `NetworkFirst` when older). Two reasons it broke: the "older" branch *is* the common case — an app reopened after a coffee break is always >5 min stale — so the launch blocked on the cold stack again; and because the launch shell hands off with a real navigation (§1.5.1), that wait presented as the **Android splash sitting through the entire cold boot**, which is the bug §1.5.1 exists to kill.
 
-  Staleness is instead handled **after** paint, not before it: the served copy is stamped (§1.5 "Stamping"), the kebab shows the truthful "Saved · HH:MM" chip (§1.11), and `useStaleDocumentReconcile` (`src/lib/pwa/client.ts`, mounted in `AppProviders`) fires **one** non-blocking `router.refresh()` per document load when the stamp is older than `DOCUMENT_FRESH_WINDOW_MS` (5 min). The user sees the last-saved grid immediately and the live one a beat later. The reconcile clears only the **RSC** entries for the pathname (`invalidateRscPathCaches`) — it must not delete the cached *document*, or the next launch would have nothing instant to serve; the SW's own background revalidation already refreshes that entry. This is the one intentional exception to the "invalidate before every `router.refresh()`" rule (§1.7).
+  Staleness is instead handled **after** paint, not before it: the served copy is stamped (§1.5 "Stamping") and `useStaleDocumentReconcile` (`src/lib/pwa/client.ts`, mounted in `AppProviders`) fires **one** non-blocking `router.refresh()` per document load when the stamp is older than `DOCUMENT_FRESH_WINDOW_MS` (5 min). The user sees the last-saved grid immediately and the live one a beat later. The reconcile clears only the **RSC** entries for the pathname (`invalidateRscPathCaches`) — it must not delete the cached *document*, or the next launch would have nothing instant to serve; the SW's own background revalidation already refreshes that entry. This is the one intentional exception to the "invalidate before every `router.refresh()`" rule (§1.7).
 
   Both document and RSC caches keep **one** plugins array per strategy instance on purpose: `ExpirationPlugin` keys its `CacheExpiration` by the `cacheName` handed to each callback, so a single instance manages its cache correctly — two would double-manage it (duplicate IndexedDB bookkeeping and redundant deletes).
 - **Matcher:** same-origin `GET` with `request.mode === "navigate"` and `isCacheableDocumentRequest(url, origin)` — i.e. not `/login`, `/api/*`, `/serwist/*`, `/_next/*`.
 - **Key:** exact URL including query — `?refresh=` nonce, `?event=` / `?edit=` deep links, `_fresh` marker are therefore naturally always-fresh (different keys).
 - **Stored responses:** `shouldStoreDocumentResponse` — 200 + `text/html` + not a login redirect + not an excluded pathname + no one-shot param (`refresh`/`edit`/`event`/`_fresh`). One-shot URLs are stripped by the client right after their render and never requested again, so storing them would only pollute the cache and let the offline fallback pick a stale nonce entry as "newest".
-- **Stamping:** `cachedResponseWillBeUsed` reads the cached `Date` header as `cachedAt`, runs `stampDocument(html, cachedAt)` — injects `<script>window.__C2_STAMP__={cachedAt}</script>` after `<head>` — so the page can (a) show the "Saved · HH:MM" chip (§1.11) and (b) decide whether to reconcile (§1.5, `documentCachedAtIso` → `needsReconcile`). A document served straight off the network carries **no** stamp, which is how the client tells "already fresh" from "cached".
+- **Stamping:** `cachedResponseWillBeUsed` reads the cached `Date` header as `cachedAt`, runs `stampDocument(html, cachedAt)` — injects `<script>window.__C2_STAMP__={cachedAt}</script>` after `<head>` — so the client can tell a cache hit from a network render and reconcile stale copies after paint (§1.5, `documentCachedAtIso` → `needsReconcile`). A document served straight off the network carries **no** stamp, which is how the client tells "already fresh" from "cached".
 - **Background revalidation:** `StaleWhileRevalidate` fetches the network in parallel and updates the cache, so the next open is warmer on its own. The *current* render is brought up to date by the after-paint reconcile above — never in front of the first paint.
 - **Session-expiry guard:** `cacheWillUpdate` + `fetchDidSucceed` call `isSessionExpiredResponse` (final URL is `/login`) → purge both caches + `postMessage({type:"cloudy2:session-expired"})` → client in `AppProviders` hard-redirects to `/login`. The login page itself is never written under a protected page's key.
 
@@ -276,14 +276,14 @@ sequenceDiagram
 Notes:
 
 - The activate wipe and the client-side clear are deliberately redundant: the wipe closes the "fresh tab after deploy" hole (a tab opened after v2 claimed has no `controllerchange` in its lifetime, so only the wipe guarantees an empty cache), while the client clear covers the brief activate/claim race where an in-flight v1 fetch could re-store an entry under the old name after the wipe.
-- In-page "older data" *within the same build* (navigating back to a visited URL) is still the intended SWR behavior (§1.5/§1.6) plus `staleTimes.dynamic = 120`; the "Saved · HH:MM" chip (§1.11) and the force-refresh nonce are the user-facing escape hatch for that.
+- In-page "older data" *within the same build* (navigating back to a visited URL) is still the intended SWR behavior (§1.5/§1.6) plus `staleTimes.dynamic = 120`; the profile menu's **Force refresh** (§1.11) is the user-facing escape hatch for that.
 
 ## 1.9 Offline fallback
 
-When a navigation has neither a cache hit for its exact URL nor a working network, the document handler's `handlerDidError` **redirects to the most recently saved view's own URL** (`lastSavedDocumentUrl`, `src/app/sw.ts`) — for any navigation, query-less or deep-linked. The pure `newestSavedView` (§1.13) picks the document-cache entry with the newest `Date` header; the SW then returns a 302 to that entry's URL. Redirecting (rather than serving the saved body under the requested URL) keeps the browser URL agreeing with the rendered view, so the page hydrates cleanly instead of reconciling mismatched view state. The follow-up navigation is a guaranteed cache hit, served by the SWR route with its stamp; the page already carries the amber `OfflineBanner` and the "Saved · HH:MM" stamp, so the "this is an offline copy" context is on-page without a picker landing page. This covers:
+When a navigation has neither a cache hit for its exact URL nor a working network, the document handler's `handlerDidError` **redirects to the most recently saved view's own URL** (`lastSavedDocumentUrl`, `src/app/sw.ts`) — for any navigation, query-less or deep-linked. The pure `newestSavedView` (§1.13) picks the document-cache entry with the newest `Date` header; the SW then returns a 302 to that entry's URL. Redirecting (rather than serving the saved body under the requested URL) keeps the browser URL agreeing with the rendered view, so the page hydrates cleanly instead of reconciling mismatched view state. The follow-up navigation is a guaranteed cache hit, served by the SWR route with its stamp; the amber `OfflineBanner` supplies the "this is an offline copy" context on-page without a picker landing page. This covers:
 
 - **Icon taps / bare F5s** (start URL `/`): a page-level intent with no specific view — the last-saved view is the obvious content.
-- **Deep links with a query** (`?view=…&date=…`) that were *never visited*: the exact URL isn't cached, and redirecting to the newest saved view is far more useful than a dead end. The redirected-to page already carries the amber `OfflineBanner` and the "Saved · HH:MM" stamp, so the "this is an offline copy" context is on-page — there is no separate picker landing page to explain. Exact-visit deep links are served by the SWR cache before `handlerDidError` runs; `/login` is never routed here (`isCacheableDocumentRequest` excludes it).
+- **Deep links with a query** (`?view=…&date=…`) that were *never visited*: the exact URL isn't cached, and redirecting to the newest saved view is far more useful than a dead end. The redirected-to page shows the amber `OfflineBanner`, so the "this is an offline copy" context is on-page — there is no separate picker landing page to explain. Exact-visit deep links are served by the SWR cache before `handlerDidError` runs; `/login` is never routed here (`isCacheableDocumentRequest` excludes it).
 
 Only when there are **no saved views at all** (first-ever install, right after a deploy wipe or sign-out) does the fallback serve `offline.html`, a branded, self-contained explainer (navy header, no external assets, included in `__SW_MANIFEST` as `/offline.html` — the `pnpm build` log prints the precache entry count): "You're offline — reconnect to keep using the app" with a Try again (`/`) button. There is no saved-views list on it — when it appears, the document cache is empty, so a list would be dead UI.
 
@@ -306,9 +306,27 @@ Guard (both caches, both `cacheWillUpdate` and `fetchDidSucceed`):
 
 Shared devices are covered by the sign-out purge as well (see §1.14).
 
-## 1.11 Staleness indicator
+## 1.11 On-demand refresh (pull-to-refresh disabled)
 
-The "Saved · HH:MM" label lives in the dashboard's ⋮ (kebab) menu as a muted `Menu.Label` with a tooltip. It shows whenever the data may not be the latest: by default (the server-side events cache serves stale data most of the time) and after a cached-document open (the SW's injected `window.__C2_STAMP__.cachedAt` — read via `documentCachedAtIso()` in `src/lib/pwa/client.ts`, surfaced by `initialSavedAt()` in `DashboardView` — gives the truthful saved-at time). It is hidden only while data was recently confirmed fresh — for 60 s after a force-refresh, a mutation, or the §1.5 background reconcile (which announces itself with the `cloudy2:document-reconciled` window event), matching `GCAL_CACHE_FRESH_MS`. The tooltip shows the full timestamp and a hint to force-refresh.
+Native browser pull-to-refresh is **disabled app-wide** (`overscroll-behavior-y: contain`
+on the root scroller, `globals.css`) — the browser gesture that used to hard-reload the
+page would otherwise keep showing a SWR-served cached copy (§1.5). The app's refresh
+affordance is the **Force refresh** item in the profile menu (every page):
+
+- It **full-page reloads** the current URL with a one-shot `?refresh=<epoch-ms>` nonce
+  (`UserMenu.tsx`). Because `?refresh` is an `ONE_SHOT_PARAMS` key, the service worker has
+  **no cached document or RSC entry for that URL** — the reload is always a network render,
+  fresh on every page (Settings included), never a cached copy.
+- On `/dashboard` the server additionally honors the nonce and force-reads Google
+  (details + the `force` mechanics: [`events-cache.md` §1.5.1](events-cache.md#151-force-refresh-manual-one-shot)).
+- After the reloaded document mounts, `useOneShotRefreshStrip` (`src/lib/pwa/client.ts`,
+  mounted in `AppShellShell`) clears the pathname's **RSC** entries and
+  `router.replace`s to the clean URL, so later navigations don't keep re-forcing and no
+  stale SWR RSC payload can surface for the clean URL. The cached *document* is left
+  alone (it powers instant/offline launch, §1.5).
+- The old "Saved · HH:MM" freshness indicator (and its freshness state in
+  `DashboardView`) has been **removed**; the stamp still drives §1.5's reconcile, and
+  the `cloudy2:document-reconciled` event is still dispatched, but nothing renders it.
 
 ## 1.12 Constants & configuration
 
@@ -349,7 +367,8 @@ Pure logic lives in `src/lib/pwa/swRules.ts` so it is unit-tested without a live
 
 Client-side helpers live in `src/lib/pwa/client.ts`: `invalidatePathCaches` /
 `invalidateCurrentPathCaches` / `refreshFresh` (§1.7), the RSC-only
-`invalidateRscPathCaches` and the `useStaleDocumentReconcile` hook (§1.5), and
+`invalidateRscPathCaches` and the `useStaleDocumentReconcile` hook (§1.5),
+`useOneShotRefreshStrip` (the post-reload `?refresh` strip, §1.11), and
 `documentCachedAtIso()` — the single reader of the SW's document stamp.
 
 Tests: `src/lib/pwa/swRules.test.ts` (52 cases) and
@@ -363,10 +382,10 @@ on the skeleton — and **parses `src/app/sw.ts`** to hold the launch route to i
 two invariants: it answers from the precache, and it contains no redirect and no
 cookie peek). The rest of the SW bundle (`src/app/sw.ts`) is wiring only.
 Integration is validated by `pnpm build` (precache count + inspecting the emitted
-SW bundle) + manual PWA checks: second open instant + chip, cold launch (the
-skeleton must paint before any content), F5, force-refresh bypass, deep links,
-offline cold open, offline view switching, offline mutation error, sign-out
-isolation, and the deploy-takeover reload (§1.8).
+SW bundle) + manual PWA checks: second open instant, cold launch (the
+skeleton must paint before any content), F5, profile-menu force-refresh bypass,
+deep links, offline cold open, offline view switching, offline mutation error,
+sign-out isolation, and the deploy-takeover reload (§1.8).
 
 ## 1.14 Sign-out
 
@@ -379,10 +398,11 @@ isolation, and the deploy-takeover reload (§1.8).
 | `src/app/sw.ts` | Serwist SW: precache + 6 runtime routes (images, fonts, RSC, launch shell, documents, NetworkOnly fallback) + activate-time page-cache wipe (§1.8) + offline last-saved-view fallback (§1.9) |
 | `src/lib/pwa/swRules.ts` | Pure predicates, constants & build-version helpers (see §1.13) |
 | `src/lib/pwa/swRules.test.ts` | Unit tests for the above |
-| `src/lib/pwa/client.ts` | Client cache helpers (prefix-matched across build versions): `invalidatePathCaches`, `invalidateRscPathCaches`, `invalidateCurrentPathCaches`, `clearAllSavedPages`, `documentCachedAtIso`, + the `useStaleDocumentReconcile` after-paint reconcile (§1.5) |
-| `src/app/(protected)/dashboard/DashboardView.tsx` | "Saved · HH:MM" stamp chip (incl. the reconcile's `cloudy2:document-reconciled` reset) + `router.refresh` → invalidate-then-refresh + pin-toggle cache invalidation (§1.7) |
+| `src/lib/pwa/client.ts` | Client cache helpers (prefix-matched across build versions): `invalidatePathCaches`, `invalidateRscPathCaches`, `invalidateCurrentPathCaches`, `clearAllSavedPages`, `documentCachedAtIso`, + the `useStaleDocumentReconcile` after-paint reconcile (§1.5) + `useOneShotRefreshStrip` (§1.11) |
+| `src/app/(protected)/dashboard/DashboardView.tsx` | Route-level one-shot strips (`_fresh`/`edit`/`event`) + `router.refresh` → invalidate-then-refresh + pin-toggle cache invalidation (§1.7); no longer hosts Force refresh or a "Saved" chip (§1.11) |
 | `src/components/AppProviders.tsx` | Session-expiry `message` listener + `controllerchange` build-swap reload (§1.8) + mounts `useStaleDocumentReconcile` (§1.5) |
-| `src/components/UserMenu.tsx` | Sign-out cache purge |
+| `src/components/UserMenu.tsx` | Profile menu: Force refresh (full reload + `?refresh` nonce, §1.11) + sign-out cache purge |
+| `src/components/AppShellShell.tsx` | Mounts `useOneShotRefreshStrip` (§1.11) |
 | `public/offline.html` | Branded offline explainer (precached) — "You're offline" + Try again; no saved-views list (§1.9) |
 | `public/loading.html` | Branded launch shell (precached) — view-aware skeleton mirroring the route skeleton + sr-only status; resolves the remembered page + view from the `cloudy2.ui` cookie and redirects after a presented frame (§1.5.1) |
 | `src/lib/pwa/launchShell.test.ts` | Drift guard for the launch shell's inline copy of the route whitelist / redirect structure / skeleton variants / scheme override, its runtime smoke test under a DOM shim, and the SW launch route's invariants (precached shell, no redirect, no cookie peek) |
