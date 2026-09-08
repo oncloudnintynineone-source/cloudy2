@@ -68,7 +68,7 @@ mechanics in the doc.
   admin secrets (`settings.admin_password_hash` ← `ADMIN_INITIAL_PASSWORD`, and
   `settings.admin_pin_hash` ← `ADMIN_PIN`) are seeded on first run and **reconciled from
   their env var on every login** (`syncAdminSecretsFromEnv`) — the env is authoritative,
-  there is no in-app path to set or change either secret.
+  there is no in-app path to set or change either secret. 
 - Auth is **NextAuth v4** (Credentials provider, JWT sessions), not v5. Config in
   `src/lib/auth.ts`; `id`/`role`/`phone` carried via session callbacks, declared in
   `src/types/next-auth.d.ts`.
