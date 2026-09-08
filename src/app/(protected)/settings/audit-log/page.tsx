@@ -1,3 +1,4 @@
+import { listCalendars } from "@/lib/events/queries";
 import { listUsers } from "@/lib/roster/queries";
 import {
   listAuditActors,
@@ -16,12 +17,17 @@ export default async function AuditLogPage({ searchParams }: AuditLogPageProps) 
   const params = await searchParams;
   const filters = parseAuditFilters(params);
 
-  const [settings, actors, entityTypes, roster] = await Promise.all([
+  const [settings, actors, entityTypes, roster, calendars] = await Promise.all([
     getSettings(),
     listAuditActors(),
     listAuditEntityTypes(),
     listUsers(),
+    listCalendars(),
   ]);
+
+  const departmentParentById = new Map(
+    calendars.map((calendar) => [calendar.id, calendar.parentId ?? null]),
+  );
 
   const logPage = await listAuditLogs(filters, { retentionDays: settings.auditLogRetentionDays });
 
@@ -34,13 +40,25 @@ export default async function AuditLogPage({ searchParams }: AuditLogPageProps) 
   const actorNames = [...new Set([...actors, ...filters.actor])].sort((a, b) => a.localeCompare(b));
   const actorDepartments: Record<
     string,
-    { department: string | null; departmentSort: number | null }
+    {
+      department: string | null;
+      departmentSort: number | null;
+      departmentId: string | null;
+      departmentParentId: string | null;
+    }
   > = Object.fromEntries(
     actorNames.map((name) => {
       const department = departmentByUser.get(name) ?? null;
       return [
         name,
-        { department: department?.name ?? null, departmentSort: department?.sortOrder ?? null },
+        {
+          department: department?.name ?? null,
+          departmentSort: department?.sortOrder ?? null,
+          departmentId: department?.id ?? null,
+          departmentParentId: department?.id
+            ? (departmentParentById.get(department.id) ?? null)
+            : null,
+        },
       ];
     }),
   );

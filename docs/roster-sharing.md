@@ -313,7 +313,16 @@ flowchart TB
   follow the same rank: `listUsers` returns each user's `department.sortOrder`,
   and callers thread it as `departmentSort` into `buildUserGroups`
   (`docs/user-picker.md` §1.3), so a picker's sections read top-to-bottom the
-  same way the Settings → Departments list does.
+  same way the Settings → Departments list does. Callers also thread each
+  user's `department.id` + `department.parent_id` (`departmentId` /
+  `departmentParentId`) so `buildUserGroups` can tag each section with its
+  nesting **depth** — a per-department user section renders indented under its
+  parent's section. **Department pills/chips** (a department as a selectable
+  option — "Calendars"/Department filters, Participants departments, Parent /
+  grant pickers) stay compact wrapped badges whose labels carry the full
+  ancestor chain ("HQ › Logistics › Stores" via `departmentPathLabels`), so the
+  hierarchy reads inside the badge itself rather than as indentation
+  (`docs/user-picker.md` §1.2–§1.4).
 - **Cycle safety**: the parent picker (`parentOptionsFor`) excludes the
   department itself and its descendants, and `renameDepartment` rejects a
   parent that is self or an own descendant (`descendantIds`); traversal
@@ -345,6 +354,8 @@ flowchart TB
 | Helper | Computes |
 | ------ | -------- |
 | `buildDepartmentTree(depts)` | nested tree (children sorted by sortOrder, then name); missing parents and cycles degrade to top level |
+| `departmentTreeRows(depts)` | preorder rows each carrying its nesting `depth` (0 = top level) — the display order for the pickers/filters that mirror the hierarchy |
+| `departmentPathLabels(rows)` | full ancestor-chain label per department id ("HQ › Logistics › Stores"); top level = its plain name; self/mutual parents degrade to the plain name |
 | `findDepartmentNode(tree, id)` | a node by id anywhere in the tree |
 | `flattenDepartmentTree(tree)` | preorder (parent before children) |
 | `descendantIds(depts, rootId)` | every transitive descendant (cycle-safe) |

@@ -18,7 +18,7 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
 
 ## 1.1 Status
 
-- All work through changelog **1.209 (dashboard-views ergonomics: All-views jump popover + changeable view type)** is shipped.
+- All work through changelog **1.213 (department hierarchy mirrored in the user & department pickers/filters)** is shipped.
 - Quality gates (`lint` / `typecheck` / `test` / schema-drift check) run in CI on every
   push and PR. Pushes also auto-apply migrations per environment: `dev` →
   `migrate-preview` against the dev Neon DB, `main` → `migrate` against the prod Neon
@@ -743,6 +743,20 @@ One line per phase; full write-ups (incl. Mermaid diagrams and verification note
   be **duplicated** (row copy icon + edit-dialog Duplicate → `duplicateEventTitleTemplate`,
   unique "Copy of X" labels). `docs/event-notifications.md` §1.11 rewritten,
   `docs/event-lifecycle.md` §1.8/§1.8.5, `AGENTS.md`, `progress-archive.md`
+- 1.213 Department hierarchy reaches the user & department pickers/filters: the shared
+  `buildUserGroups` (`src/lib/users/userSelect.ts`) now keys id-carrying members by their
+  department **id** and tags each section with a nesting `depth` (ancestors that also have
+  members in the picker), so per-department **user sections** in the badge dialogs render
+  indented under their parent. **Department pills/chips** (Calendars/Department filters,
+  Participants departments, Parent/grant pickers, own-department badges) stay compact
+  wrapped badges whose labels carry the full **ancestor chain** ("HQ › Logistics › Stores"
+  via `departmentPathLabels` + `departmentPickerOptions`) — hierarchy reads inside the
+  badge, not as indentation. Server pages thread `parentId` + per-user
+  `departmentId`/`departmentParentId` (from `listCalendars()`) into the dashboard/parade
+  filters, event invitees, double-booking targets, KAH members and audit-log Actors;
+  `roster/hierarchy.ts` gains preorder `departmentTreeRows` + `departmentPathLabels`.
+  Pure grouping/rows/labels unit-tested (`docs/user-picker.md` §1.2–§1.4,
+  `docs/roster-sharing.md` §1.7)
 
 ## 1.4 Open items & next steps
 

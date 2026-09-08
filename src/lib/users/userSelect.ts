@@ -1,15 +1,32 @@
+import { departmentPathLabels, type DepartmentRow } from "@/lib/roster/hierarchy";
+
 /** One selectable option inside a picker group. */
 export interface PickerOption {
   id: string;
   label: string;
   /** Optional case-insensitive search terms beyond the label (e.g. shortname). */
   search?: string;
+  /**
+   * Nesting depth of a department-as-option row (a department list rendered in
+   * tree preorder). When present on any option of a section, that section
+   * renders its options as indented rows in the given order instead of as
+   * wrapped, alphabetically-sorted badges.
+   */
+  depth?: number;
 }
 
 /** A labeled section of options rendered as one block of badges. */
 export interface PickerGroup {
   label: string;
   options: PickerOption[];
+  /**
+   * Nesting depth of this section's department in the department tree (0 =
+   * top level; a nested section is indented under its parent's section). Set
+   * by `buildUserGroups` only for sections keyed by a real department id —
+   * name-keyed fallbacks ("Other", legacy callers) and "No department" are
+   * flat.
+   */
+  depth?: number;
 }
 
 export interface UserGroupInput {
@@ -23,6 +40,19 @@ export interface UserGroupInput {
    * of alphabetically — sections follow the Settings → Departments order.
    */
   departmentSort?: number | null;
+  /**
+   * The department's registry id (calendars.id). When present, it becomes the
+   * grouping key (stable across renames) and lets the builder nest the section
+   * under its parents; absent members group by `department` name as before.
+   */
+  departmentId?: string | null;
+  /**
+   * The department's parent department id (calendars.parent_id), used with
+   * `departmentId` to compute each section's nesting depth — an indent counts
+   * only ancestors that also have members in this picker, so it never floats
+   * under a section that is not shown.
+   */
+  departmentParentId?: string | null;
 }
 
 export const NO_DEPARTMENT_LABEL = "No department";
@@ -49,9 +79,18 @@ export function optionMatchesQuery(option: PickerOption, query: string): boolean
   );
 }
 
-/** Keeps section order; sorts each section's options by label (case-insensitive). */
+/**
+ * Keeps section order; sorts each section's options by label (case-insensitive)
+ * — except sections whose options carry a `depth` (department rows in tree
+ * preorder), which are left in the given order.
+ */
 export function sortOptionsInGroups(groups: PickerGroup[]): PickerGroup[] {
-  return groups.map((group) => ({ ...group, options: sortOptions(group.options) }));
+  return groups.map((group) => ({
+    ...group,
+    options: group.options.some((option) => option.depth !== undefined)
+      ? group.options
+      : sortOptions(group.options),
+  }));
 }
 
 /**
@@ -63,45 +102,109 @@ export function sortOptionsInGroups(groups: PickerGroup[]): PickerGroup[] {
  * every ranked section, keeping callers that don't supply one on today's
  * alphabetical behavior. The options within every section sort alphabetically
  * (case-insensitive).
+ *
+ * When members carry a `departmentId` (+ `departmentParentId`), the section is
+ * keyed by the department id and given a `depth`: the number of ancestors that
+ * also have members in this picker. The preorder `sortOrder` already orders
+ * ranked sections parent-before-children, so indenting each section by its
+ * depth renders the roster as a nested department tree (a parent with no
+ * members of its own simply isn't shown, and its children then sit at the
+ * shallower depth of their nearest shown ancestor).
  */
 export function buildUserGroups(users: UserGroupInput[]): PickerGroup[] {
-  const byDepartment = new Map<string, PickerOption[]>();
-  const ranks = new Map<string, number>();
+  interface Bucket {
+    key: string;
+    label: string;
+    options: PickerOption[];
+    rank: number | null;
+    id: string | null;
+    parentId: string | null;
+  }
+  const buckets = new Map<string, Bucket>();
   const undepartmented: PickerOption[] = [];
+  const hasValue = (value: string | null | undefined): value is string =>
+    value !== undefined && value !== null && value !== "";
+
   for (const user of users) {
     const option: PickerOption = { id: user.id, label: user.label, search: user.search };
     if (user.department === null || user.department === "") {
       undepartmented.push(option);
-    } else {
-      const list = byDepartment.get(user.department);
-      if (list) {
-        list.push(option);
-      } else {
-        byDepartment.set(user.department, [option]);
-      }
-      if (
-        user.departmentSort !== undefined &&
-        user.departmentSort !== null &&
-        !ranks.has(user.department)
-      ) {
-        ranks.set(user.department, user.departmentSort);
-      }
+      continue;
+    }
+    const byId = hasValue(user.departmentId);
+    const key = byId ? user.departmentId! : user.department;
+    let bucket = buckets.get(key);
+    if (!bucket) {
+      bucket = {
+        key,
+        label: user.department,
+        options: [],
+        rank: null,
+        id: byId ? user.departmentId! : null,
+        parentId: byId ? user.departmentParentId ?? null : null,
+      };
+      buckets.set(key, bucket);
+    }
+    bucket.options.push(option);
+    if (bucket.rank === null && user.departmentSort !== undefined && user.departmentSort !== null) {
+      bucket.rank = user.departmentSort;
     }
   }
-  const ranked: PickerGroup[] = [];
-  const unranked: PickerGroup[] = [];
-  for (const [label, options] of byDepartment) {
-    (ranks.has(label) ? ranked : unranked).push({ label, options });
+
+  // Nesting depth per id-keyed section: count ancestors that also have members
+  // in this picker. Cycle-safe via the seen set.
+  const depthByKey = new Map<string, number>();
+  for (const bucket of buckets.values()) {
+    if (bucket.id === null) continue;
+    const seen = new Set<string>([bucket.key]);
+    let depth = 0;
+    let parentId = bucket.parentId;
+    while (parentId !== null && !seen.has(parentId)) {
+      const parent = buckets.get(parentId);
+      if (parent && parent.id === parentId) {
+        depth += 1;
+        seen.add(parentId);
+        parentId = parent.parentId;
+        continue;
+      }
+      break;
+    }
+    depthByKey.set(bucket.key, depth);
   }
-  ranked.sort(
-    (a, b) => ranks.get(a.label)! - ranks.get(b.label)! || compareLabels(a.label, b.label),
-  );
+
+  const ranked: Bucket[] = [];
+  const unranked: Bucket[] = [];
+  for (const bucket of buckets.values()) {
+    (bucket.rank !== null ? ranked : unranked).push(bucket);
+  }
+  ranked.sort((a, b) => (a.rank ?? 0) - (b.rank ?? 0) || compareLabels(a.label, b.label));
   unranked.sort((a, b) => compareLabels(a.label, b.label));
-  const groups = [...ranked, ...unranked];
+  const groups: PickerGroup[] = [...ranked, ...unranked].map((bucket) => ({
+    label: bucket.label,
+    depth: bucket.id !== null ? depthByKey.get(bucket.key) : undefined,
+    options: sortOptions(bucket.options),
+  }));
   if (undepartmented.length > 0) {
-    groups.push({ label: NO_DEPARTMENT_LABEL, options: undepartmented });
+    groups.push({ label: NO_DEPARTMENT_LABEL, options: sortOptions(undepartmented) });
   }
-  return sortOptionsInGroups(groups);
+  return groups;
+}
+
+/**
+ * Build the options for a department-as-option list (badge picker sections /
+ * chip filters): one option per department row in tree preorder. Each option's
+ * label carries its **full ancestor chain** ("HQ › Logistics › Stores"), so the
+ * hierarchy reads inside the pill itself; top-level departments are their plain
+ * name. The `depth` is kept purely as a "tree rows — don't re-alphabetize"
+ * marker for `sortOptionsInGroups` (renderers no longer indent on it).
+ */
+export function departmentPickerOptions(rows: readonly DepartmentRow[]): PickerOption[] {
+  const labels = departmentPathLabels(rows);
+  return rows.map((row) => ({
+    id: row.id,
+    label: labels.get(row.id) ?? row.name,
+    depth: row.depth,
+  }));
 }
 
 /**

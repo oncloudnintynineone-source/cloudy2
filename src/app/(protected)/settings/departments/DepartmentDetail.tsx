@@ -30,7 +30,7 @@ import {
   updateDepartmentAccess,
   type RosterActionResult,
 } from "@/lib/roster/actions";
-import { parentOptionsFor } from "@/lib/roster/hierarchy";
+import { departmentTreeRows, parentOptionsFor } from "@/lib/roster/hierarchy";
 import type { DepartmentAccess, DepartmentAccessRole } from "@/lib/roster/shares";
 import { validateCalendarForm, type CalendarFormValues } from "@/lib/roster/validate";
 import { BUTTON_LOADER_PROPS } from "@/lib/theme";
@@ -38,7 +38,7 @@ import { showValidationFailure } from "@/lib/ui/validationFeedback";
 import { ColorSwatchPicker } from "@/components/ColorSwatchPicker";
 import { PickerField, type PickerBadgeItem } from "@/components/PickerField";
 import { UserSelectModal } from "@/components/UserSelectModal";
-import { selectionByGroup } from "@/lib/users/userSelect";
+import { departmentPickerOptions, selectionByGroup } from "@/lib/users/userSelect";
 
 const ACCESS_ROLE_OPTIONS = [
   { value: "reader", label: "Read only" },
@@ -156,18 +156,33 @@ function DepartmentDetailBody({
   const [updatingEmail, setUpdatingEmail] = useState<string | null>(null);
   const [parentPickerOpen, setParentPickerOpen] = useState(false);
 
-  // The same option set as a badge-picker section for the Parent dialog.
-  // "No parent (top level)" is a real selectable option (id ""), so the
-  // optional parent keeps the dialog's required-single semantics.
-  const parentPickerGroups = useMemo(
-    () => [
+  // The same option set as a badge-picker section for the Parent dialog:
+  // parentable departments (self + descendants excluded) as nested tree rows,
+  // so sub-departments indent under their parent. "No parent (top level)" is a
+  // real selectable option (id ""), so the optional parent keeps the dialog's
+  // required-single semantics.
+  const parentPickerGroups = useMemo(() => {
+    const allowedIds = new Set(
+      parentOptionsFor(departments, calendarId ?? "").map((dept) => dept.id),
+    );
+    const rows = departmentTreeRows(
+      departments.map((dept) => ({
+        id: dept.id,
+        name: dept.name,
+        sortOrder: dept.sortOrder,
+        parentId: dept.parentId,
+      })),
+    ).filter((row) => allowedIds.has(row.id));
+    return [
       {
         label: "Departments",
-        options: parentOptions.map((option) => ({ id: option.value, label: option.label })),
+        options: [
+          { id: "", label: "No parent (top level)", depth: 0 },
+          ...departmentPickerOptions(rows),
+        ],
       },
-    ],
-    [parentOptions],
-  );
+    ];
+  }, [departments, calendarId]);
   const parentPickerValues = useMemo(
     () => selectionByGroup(parentPickerGroups, [form.values.parentId ?? ""]),
     [parentPickerGroups, form.values.parentId],

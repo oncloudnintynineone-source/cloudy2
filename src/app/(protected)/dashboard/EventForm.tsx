@@ -77,11 +77,13 @@ import { announce } from "@/lib/ui/announcer";
 import { showValidationFailure } from "@/lib/ui/validationFeedback";
 import {
   buildUserGroups,
+  departmentPickerOptions,
   mergeInviteeSelection,
   selectionByGroup,
   splitInvitees,
   toggleInviteeUser,
 } from "@/lib/users/userSelect";
+import { departmentTreeRows } from "@/lib/roster/hierarchy";
 import { formatDateTime, naiveToDate } from "./clientDateTime";
 
 interface EventTypeOption {
@@ -104,6 +106,8 @@ interface InviteeUser {
   shortname: string | null;
   departmentName: string | null;
   departmentSort: number | null;
+  departmentId: string | null;
+  departmentParentId: string | null;
   displayName: string;
 }
 
@@ -128,7 +132,7 @@ interface EventFormProps {
    * the acting user).
    */
   isAdmin: boolean;
-  inviteeDepartments: { id: string; name: string }[];
+  inviteeDepartments: { id: string; name: string; sortOrder: number; parentId: string | null }[];
   inviteeUsers: InviteeUser[];
   onDone: () => void;
   /**
@@ -413,7 +417,8 @@ export function EventForm({
   // the invitees picker (which prepends a Departments section). Badges show
   // the plain name — the section header already carries the department — so
   // the search haystack only adds the shortname (section-label matching still
-  // finds whole departments).
+  // finds whole departments). The department id + parent id let the sections
+  // nest under their parent departments (indented, mirroring the tree).
   const userPickerGroups = useMemo(
     () =>
       buildUserGroups(
@@ -422,26 +427,35 @@ export function EventForm({
           label: user.name,
           department: user.departmentName,
           departmentSort: user.departmentSort,
+          departmentId: user.departmentId,
+          departmentParentId: user.departmentParentId,
           search: user.shortname || undefined,
         })),
       ),
     [inviteeUsers],
   );
 
-  const inviteePickerGroups = useMemo(
-    () => [
-      ...(inviteeDepartments.length > 0
+  const inviteePickerGroups = useMemo(() => {
+    const rows = departmentTreeRows(
+      inviteeDepartments.map((dept) => ({
+        id: dept.id,
+        name: dept.name,
+        sortOrder: dept.sortOrder,
+        parentId: dept.parentId,
+      })),
+    );
+    return [
+      ...(rows.length > 0
         ? [
             {
               label: PICKER_DEPARTMENTS_SECTION,
-              options: inviteeDepartments.map((dept) => ({ id: dept.id, label: dept.name })),
+              options: departmentPickerOptions(rows),
             },
           ]
         : []),
       ...userPickerGroups,
-    ],
-    [inviteeDepartments, userPickerGroups],
-  );
+    ];
+  }, [inviteeDepartments, userPickerGroups]);
 
   // Seed the picker dialog draft from the current form value; re-derived every
   // render so the dialog always opens on the latest selection.

@@ -152,6 +152,9 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
     listEventTitleTemplates(),
   ]);
   const calendarIds = calendars.map((calendar) => calendar.id);
+  const departmentParentById = new Map(
+    calendars.map((calendar) => [calendar.id, calendar.parentId ?? null]),
+  );
 
   const ownDepartmentId = isAdmin ? null : await getUserDepartmentId(session.user.id);
   const defaultCalendars = isAdmin ? calendarIds : ownDepartmentId ? [ownDepartmentId] : [];
@@ -257,6 +260,10 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
     shortname: user.shortname,
     departmentName: user.department?.name ?? null,
     departmentSort: user.department?.sortOrder ?? null,
+    departmentId: user.department?.id ?? null,
+    departmentParentId: user.department?.id
+      ? (departmentParentById.get(user.department.id) ?? null)
+      : null,
     displayName: formatFullName(
       { name: user.name, departmentName: user.department?.name ?? null },
       settings.nameTemplate,
@@ -278,12 +285,17 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
       name: user.name,
       departmentName: user.department?.name ?? null,
       departmentSort: user.department?.sortOrder ?? null,
+      departmentId: user.department?.id ?? null,
+      departmentParentId: user.department?.id
+        ? (departmentParentById.get(user.department.id) ?? null)
+        : null,
     }));
 
   const inviteeDepartments = calendars.map((calendar) => ({
     id: calendar.id,
     name: calendar.name,
     sortOrder: calendar.sortOrder,
+    parentId: calendar.parentId,
   }));
 
   const peopleNames: Record<string, string> = Object.fromEntries(
@@ -385,6 +397,7 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
         id: calendar.id,
         name: calendar.name,
         sortOrder: calendar.sortOrder,
+        parentId: calendar.parentId,
       }))}
       eventTypes={eventTypeOptions}
       eventTypeGroups={eventTypeGroupOptions}

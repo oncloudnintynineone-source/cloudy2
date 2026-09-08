@@ -33,9 +33,10 @@ import {
 import type { RosterAccessGrant, RosterUser } from "@/lib/roster/queries";
 import type { ManagedGrantRole, UserCalendarGrant } from "@/lib/roster/shares";
 import { validateUserForm, type UserFormValues } from "@/lib/roster/validate";
+import { departmentTreeRows } from "@/lib/roster/hierarchy";
 import { NoKeyboardSelect } from "@/components/NoKeyboardSelect";
 import { UserSelectModal } from "@/components/UserSelectModal";
-import { selectionByGroup } from "@/lib/users/userSelect";
+import { departmentPickerOptions, selectionByGroup } from "@/lib/users/userSelect";
 
 const ACCESS_ROLE_OPTIONS: { value: ManagedGrantRole; label: string }[] = [
   { value: "reader", label: "Read only" },
@@ -50,6 +51,10 @@ function isAccessRole(value: string | null): value is ManagedGrantRole {
 export interface DepartmentOption {
   id: string;
   name: string;
+  /** The department's display order (calendars.sort_order), for tree building. */
+  sortOrder?: number;
+  /** The department's parent department id (calendars.parent_id), for nesting. */
+  parentId: string | null;
 }
 
 interface UserFormProps {
@@ -183,20 +188,37 @@ export function UserForm({ user, departments, access, onDone }: UserFormProps) {
       !granted.some((grant) => grant.calendarId === department.id),
   );
 
-  // The addable departments as one flat badge section for the single-select
-  // dialog; the staged candidate drives the Add row below.
-  const addablePickerGroups = useMemo(
-    () => [
+  // The whole department list as tree rows in preorder. Option labels carry the
+  // full ancestor chain ("HQ › Logistics"), so the own-department badges and
+  // the grant picker show the hierarchy inline inside each pill (no indentation).
+  const departmentRows = useMemo(
+    () =>
+      departmentTreeRows(
+        departments.map((department) => ({
+          id: department.id,
+          name: department.name,
+          sortOrder: department.sortOrder ?? 0,
+          parentId: department.parentId,
+        })),
+      ),
+    [departments],
+  );
+  const departmentBadgeOptions = useMemo(
+    () => departmentPickerOptions(departmentRows),
+    [departmentRows],
+  );
+
+  // The addable departments as one badge section for the single-select dialog;
+  // the staged candidate drives the Add row below.
+  const addablePickerGroups = useMemo(() => {
+    const addableIds = new Set(addableDepartments.map((department) => department.id));
+    return [
       {
         label: "Departments",
-        options: addableDepartments.map((department) => ({
-          id: department.id,
-          label: department.name,
-        })),
+        options: departmentBadgeOptions.filter((option) => addableIds.has(option.id)),
       },
-    ],
-    [addableDepartments],
-  );
+    ];
+  }, [addableDepartments, departmentBadgeOptions]);
   const addingPickerValues = useMemo(
     () => selectionByGroup(addablePickerGroups, addingCalendarId ? [addingCalendarId] : []),
     [addablePickerGroups, addingCalendarId],
@@ -410,15 +432,16 @@ export function UserForm({ user, departments, access, onDone }: UserFormProps) {
             </Text>
           ) : (
             <Group gap={6} wrap="wrap">
-              {departments.map((department) => {
+              {departmentBadgeOptions.map((department) => {
                 const selected = form.values.departmentId === department.id;
                 return (
                   // Real toggle button (aria-pressed), Badge visual — same
                   // keyboard/no-keyboard rationale as the Role badges above.
+                  // The label carries the full ancestor chain when nested.
                   <UnstyledButton
                     key={department.id}
                     aria-pressed={selected}
-                    aria-label={`Department: ${department.name}`}
+                    aria-label={`Department: ${department.label}`}
                     onClick={() => selectDepartment(selected ? null : department.id)}
                     style={{ cursor: "pointer", borderRadius: "var(--mantine-radius-md)" }}
                   >
@@ -427,7 +450,7 @@ export function UserForm({ user, departments, access, onDone }: UserFormProps) {
                       size="lg"
                       style={{ height: "calc(var(--badge-height-lg) * 1.5)" }}
                     >
-                      {department.name}
+                      {department.label}
                     </Badge>
                   </UnstyledButton>
                 );

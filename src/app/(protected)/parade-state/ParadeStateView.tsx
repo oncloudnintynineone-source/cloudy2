@@ -49,7 +49,12 @@ import { CONTENT_ENTER_CLASS, useContentEnter } from "@/lib/loading/contentEnter
 import { useMinSkeletonHold } from "@/lib/loading/minHoldLoading";
 import { type Rect } from "@/lib/motion/origin";
 import { MOTION } from "@/lib/motion/timing";
-import { buildDepartmentTree, type DepartmentTreeNode } from "@/lib/roster/hierarchy";
+import {
+  buildDepartmentTree,
+  departmentPathLabels,
+  departmentTreeRows,
+  type DepartmentTreeNode,
+} from "@/lib/roster/hierarchy";
 import { formatFullName } from "@/lib/settings/formatName";
 import { activatable } from "@/lib/ui/activatable";
 import { saveParadeFilters } from "@/lib/userPrefs/actions";
@@ -118,6 +123,8 @@ export interface ParadeStateViewProps {
     displayName: string;
     departmentName: string | null;
     departmentSort: number | null;
+    departmentId: string | null;
+    departmentParentId: string | null;
   }[];
   nameTemplate: string;
   /** Admin: the empty state links into Settings; non-admins get the plain message. */
@@ -322,17 +329,38 @@ export function ParadeStateView({
   }
 
   const filterGroups: FilterGroup[] = useMemo(() => {
+    // Department picker rows: the calendars prop is already in display
+    // (preorder) order; re-tree it and label each option with its full
+    // ancestor chain ("HQ › Logistics"), so the hierarchy reads in the chip.
+    const calendarRows = departmentTreeRows(
+      calendars.map((calendar) => ({
+        id: calendar.id,
+        name: calendar.name,
+        sortOrder: calendar.sortOrder ?? 0,
+        parentId: calendar.parentId,
+      })),
+    );
+    const calendarPathLabels = departmentPathLabels(calendarRows);
     const groups: FilterGroup[] = [
-      { label: "Calendars", options: calendars.map((c) => ({ value: c.id, label: c.name })) },
+      {
+        label: "Calendars",
+        options: calendarRows.map((row) => ({
+          value: row.id,
+          label: calendarPathLabels.get(row.id) ?? row.name,
+        })),
+      },
     ];
     const userOptions = filterUsers.map((user) => ({
       value: user.id,
       label: user.name,
       // Carries the department into the picker dialog so users render as
       // per-department badge sections instead of one flat list; the sort order
-      // keeps the sections in Settings → Departments display order.
+      // keeps the sections in Settings → Departments display order and the id +
+      // parent id let the sections nest under their parents.
       department: user.departmentName,
       departmentSort: user.departmentSort,
+      departmentId: user.departmentId,
+      departmentParentId: user.departmentParentId,
     }));
     if (userOptions.length > 0) {
       groups.push({

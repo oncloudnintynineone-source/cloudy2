@@ -104,6 +104,7 @@ import type { TimeOption } from "@/lib/events/timeOptions";
 import { eventMatchesUserFilter } from "@/lib/events/userFilter";
 import { CONTENT_ENTER_CLASS, useContentEnter } from "@/lib/loading/contentEnter";
 import { useMinSkeletonHold } from "@/lib/loading/minHoldLoading";
+import { departmentPathLabels, departmentTreeRows } from "@/lib/roster/hierarchy";
 import { useColdStartContent } from "@/components/ColdStartReady";
 import {
   modalContentWidth,
@@ -209,7 +210,7 @@ interface DashboardViewProps {
    */
   initialMonthZoom: MonthZoom;
   events: CalendarEvent[];
-  calendars: { id: string; name: string; sortOrder: number }[];
+  calendars: { id: string; name: string; sortOrder: number; parentId: string | null }[];
   eventTypes: EventTypeOption[];
   /** Event type groups in display order, for the grouped type picker. */
   eventTypeGroups: { id: string; name: string; sortOrder: number }[];
@@ -247,13 +248,15 @@ interface DashboardViewProps {
   scheduleUsers: ScheduleUser[];
   /** Full active roster: row source when the Users filter narrows the rows. */
   allActiveUsers: ScheduleUser[];
-  inviteeDepartments: { id: string; name: string }[];
+  inviteeDepartments: { id: string; name: string; sortOrder: number; parentId: string | null }[];
   inviteeUsers: {
     id: string;
     name: string;
     shortname: string | null;
     departmentName: string | null;
     departmentSort: number | null;
+    departmentId: string | null;
+    departmentParentId: string | null;
     displayName: string;
   }[];
   /** Filter dialog user options: users of the selected departments + self. */
@@ -262,6 +265,8 @@ interface DashboardViewProps {
     name: string;
     departmentName: string | null;
     departmentSort: number | null;
+    departmentId: string | null;
+    departmentParentId: string | null;
   }[];
   peopleNames: Record<string, string>;
   calendarNames: Record<string, string>;
@@ -1321,17 +1326,38 @@ export function DashboardView({
   }, [allActiveUsers, currentUser, calendars]);
 
   const filterGroups: FilterGroup[] = useMemo(() => {
+    // Department picker rows: the calendars prop is already in display
+    // (preorder) order; re-tree it and label each option with its full
+    // ancestor chain ("HQ › Logistics"), so the hierarchy reads in the chip.
+    const calendarRows = departmentTreeRows(
+      calendars.map((calendar) => ({
+        id: calendar.id,
+        name: calendar.name,
+        sortOrder: calendar.sortOrder,
+        parentId: calendar.parentId,
+      })),
+    );
+    const calendarPathLabels = departmentPathLabels(calendarRows);
     const groups: FilterGroup[] = [
-      { label: "Calendars", options: calendars.map((c) => ({ value: c.id, label: c.name })) },
+      {
+        label: "Calendars",
+        options: calendarRows.map((row) => ({
+          value: row.id,
+          label: calendarPathLabels.get(row.id) ?? row.name,
+        })),
+      },
     ];
     const userOptions = filterUsers.map((user) => ({
       value: user.id,
       label: user.name,
       // Carries the department into the picker dialog so users render as
       // per-department badge sections instead of one flat list; the sort order
-      // keeps the sections in Settings → Departments display order.
+      // keeps the sections in Settings → Departments display order and the id +
+      // parent id let the sections nest under their parents.
       department: user.departmentName,
       departmentSort: user.departmentSort,
+      departmentId: user.departmentId,
+      departmentParentId: user.departmentParentId,
     }));
     if (userOptions.length > 0) {
       groups.push({

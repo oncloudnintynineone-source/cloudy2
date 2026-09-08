@@ -29,8 +29,8 @@ import {
   type Rect,
 } from "@/lib/motion/origin";
 import { MOTION } from "@/lib/motion/timing";
-import { buildUserGroups, type PickerGroup } from "@/lib/users/userSelect";
 import { NARROW_MEDIA_QUERY } from "@/lib/theme";
+import { buildUserGroups, type PickerGroup } from "@/lib/users/userSelect";
 
 export interface FilterOption {
   value: string;
@@ -49,6 +49,17 @@ export interface FilterOption {
    * Departments order instead of sorting alphabetically.
    */
   departmentSort?: number | null;
+  /**
+   * The department's registry id (calendars.id) for search-variant groups.
+   * Together with `departmentParentId` it lets the picker nest a department's
+   * section under its parents (id-keyed grouping, stable across renames).
+   */
+  departmentId?: string | null;
+  /**
+   * The department's parent department id (calendars.parent_id), used with
+   * `departmentId` to compute each section's nesting depth.
+   */
+  departmentParentId?: string | null;
 }
 
 export interface FilterGroupAction {
@@ -92,6 +103,8 @@ function searchGroupPickerGroups(group: FilterGroup): PickerGroup[] {
         label: option.label,
         department: option.department ?? null,
         departmentSort: option.departmentSort ?? null,
+        departmentId: option.departmentId ?? null,
+        departmentParentId: option.departmentParentId ?? null,
         search: option.search,
       })),
     );

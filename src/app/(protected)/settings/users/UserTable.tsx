@@ -26,6 +26,7 @@ import { FAB_ICON_SIZE, FloatingActionButton, FloatingToolbar } from "@/componen
 import { CONTENT_ENTER_CLASS } from "@/lib/loading/contentEnter";
 import { type Rect } from "@/lib/motion/origin";
 import type { RosterAccessGrant, RosterUser } from "@/lib/roster/queries";
+import { departmentPathLabels, departmentTreeRows } from "@/lib/roster/hierarchy";
 import { formatFullName } from "@/lib/settings/formatName";
 import { activatable } from "@/lib/ui/activatable";
 import { UserForm, type DepartmentOption } from "./UserForm";
@@ -52,6 +53,21 @@ export function UserTable({ users, departments, accessByUser, nameTemplate }: Us
   const [departmentFilter, setDepartmentFilter] = useState<string[]>([]);
   const [editingUser, setEditingUser] = useState<RosterUser | null>(null);
 
+  // Department rows (preorder + full ancestor-path labels) for the Department
+  // chip filter — children read as "HQ › Logistics" inside the chip itself.
+  const departmentOptions = useMemo(() => {
+    const rows = departmentTreeRows(
+      departments.map((department) => ({
+        id: department.id,
+        name: department.name,
+        sortOrder: department.sortOrder ?? 0,
+        parentId: department.parentId,
+      })),
+    );
+    const labels = departmentPathLabels(rows);
+    return rows.map((row) => ({ value: row.id, label: labels.get(row.id) ?? row.name }));
+  }, [departments]);
+
   const filterGroups: FilterGroup[] = useMemo(
     () => [
       {
@@ -63,10 +79,10 @@ export function UserTable({ users, departments, accessByUser, nameTemplate }: Us
       },
       {
         label: "Department",
-        options: departments.map((d) => ({ value: d.id, label: d.name })),
+        options: departmentOptions,
       },
     ],
-    [departments],
+    [departmentOptions],
   );
 
   const filterValues: Record<string, string[]> = useMemo(

@@ -29,7 +29,12 @@ export default async function UsersPage() {
   return (
     <UserTable
       users={users}
-      departments={departments.map((d) => ({ id: d.id, name: d.name }))}
+      departments={departments.map((d) => ({
+        id: d.id,
+        name: d.name,
+        sortOrder: d.sortOrder,
+        parentId: d.parentId,
+      }))}
       accessByUser={accessByUser}
       nameTemplate={settings.nameTemplate}
     />

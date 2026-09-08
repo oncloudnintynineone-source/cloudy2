@@ -26,6 +26,7 @@ interface ScanTargetOption {
   departmentId: string | null;
   departmentName: string | null;
   departmentSort: number | null;
+  departmentParentId: string | null;
 }
 
 type View =
@@ -79,6 +80,8 @@ export function DoubleBookingView({
           label: user.name,
           department: user.departmentName,
           departmentSort: user.departmentSort,
+          departmentId: user.departmentId,
+          departmentParentId: user.departmentParentId,
           search: user.shortname || undefined,
         })),
       ),

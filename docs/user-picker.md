@@ -38,6 +38,15 @@ of toggleable badges with a search box on top:
   **ids in, ids out**, so each caller keeps its own id domain.
 - The draft lives in a child that mounts with the modal, so it re-seeds from `values`
   on every open (the FilterModalBody pattern).
+- Sections carry the department tree: an id-keyed per-department section has a
+  `depth` (0 = top level) and is rendered indented under its parent's section, so the
+  roster reads as nested department blocks. **Department options** (each a department,
+  not a user) keep their labels wrapped as normal badges; their nesting is shown
+  **inside the label** as the full ancestor chain ("HQ › Logistics › Stores"),
+  produced by `departmentPickerOptions`. A `depth` on such options is only an order
+  marker — `sortOptionsInGroups` leaves them in tree preorder instead of
+  re-alphabetizing. Depth is display-only — the draft/summary/merge helpers key by
+  section label and option id, so nesting never changes a caller's id semantics.
 - Pass `zIndex` when nested — the event wizard uses 300 over its z-250 dialog;
   FilterModal uses 200.
 - **`single` mode** (optional prop): for exactly-one-person picks (the Double Booking
@@ -53,30 +62,37 @@ of toggleable badges with a search box on top:
 | Helper                                    | Behavior                                                                                                                                 |
 | ----------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
 | `optionMatchesQuery`                      | case-insensitive label/`search` match                                                                                                    |
-| `sortOptionsInGroups`                     | keeps section order; sorts options by label                                                                                              |
-| `buildUserGroups`                         | groups a flat roster by department ("No department" last); when callers supply a `departmentSort` per user (the department's `sort_order`), sections follow the Settings → Departments order (flattened preorder) instead of alphabetical — sections without a rank sort alphabetically after the ranked ones |
+| `sortOptionsInGroups`                     | keeps section order; sorts options by label — except sections whose options carry a `depth` (department rows in tree preorder), which keep the given order |
+| `buildUserGroups`                         | groups a flat roster by department ("No department" last); when callers supply a `departmentSort` per user (the department's `sort_order`), sections follow the Settings → Departments order (flattened preorder) instead of alphabetical — sections without a rank sort alphabetically after the ranked ones. When callers also supply `departmentId` + `departmentParentId` per user (the department registry id and `calendars.parent_id`), the section is keyed by the department id and tagged with a `depth` — the number of ancestors that also have members in this picker — so nested departments render indented under their parent's section (a parent with no members is simply not shown, and its children sit at the depth of their nearest shown ancestor) |
+| `departmentPickerOptions(rows)`           | builds the options for a department-as-option list (wrapped badges / chip filters) from preorder `departmentTreeRows` (`roster/hierarchy.ts`); each option's label carries its **full ancestor chain** ("HQ › Logistics › Stores", via `departmentPathLabels`), top level = its plain name, and its `depth` is kept only as the "keep tree preorder, don't re-alphabetize" marker |
 | `filterPickerGroups`                      | narrows by query; keeps a whole section when its label matches; drops empties                                                            |
 | `selectionByGroup`                        | seeds a draft from a flat selection                                                                                                      |
 | `splitInvitees` / `mergeInviteeSelection` | split/merge the `user:<id>` / `dept:<id>` prefixed invitee list (keeps now-unlistable ids so edits don't drop them; nothing is auto-added by the helpers — a fresh create's form seeds the acting user as a participant, but that is `buildInitialValues`, not the picker) |
 
 ## 1.4 Callers
 
-- **Event wizard's Participants step** — a flat `Departments` section + user
-  sections; the form's `invitees` field keeps its `user:`/`dept:` prefixed shape.
+- **Event wizard's Participants step** — a `Departments` section whose badges carry
+  the ancestor path (wrapped pills) + per-department user sections (id-keyed,
+  indented under their parent); the form's `invitees` field keeps
+  its `user:`/`dept:` prefixed shape.
 - **FilterModal's `variant: "search"` groups** — Users on dashboard + parade state;
   options may carry `department` to get per-department sections, `search` for extra
   matching. Department sections order by the caller-provided `departmentSort` (the
-  Settings → Departments sort order); the audit log's actors with no roster match
-  fall into an unranked trailing "Other" section.
+  Settings → Departments sort order) and nest via `departmentId`/`departmentParentId`;
+  the audit log's actors with no roster match fall into an unranked trailing "Other"
+  section. Grid ("Calendars"/department) chip groups stay wrapped pills whose labels
+  carry the full ancestor chain.
 - **Double Booking admin target** — a `single`-mode `UserSelectModal` (department
-  sections, shortname `search`) replacing the page's original `NoKeyboardSelect`
-  dropdown, since the roster is a large option list.
-- **UserForm "Department access" add row** — a `single` `UserSelectModal` (flat
-  Departments section from the addable list) stages the department to grant; the
-  role select + Add button below commit it.
+  sections nested by tree depth, shortname `search`) replacing the page's original
+  `NoKeyboardSelect` dropdown, since the roster is a large option list.
+- **UserForm "Department access" add row** — a `single` `UserSelectModal` (Departments
+  section of ancestor-path badges over the grantable rows) stages the department to
+  grant; the role select + Add button below commit it. The form's own-department field
+  is the same ancestor-path badge row.
 - **Department create/edit "Parent department"** — a `single` `UserSelectModal` over
-  the same option set as the old select, including a selectable "No parent (top
-  level)" option (id `""`); self and descendants are still excluded.
+  the same option set as the old select ("No parent (top level)" first, then
+  ancestor-path department badges), including a selectable "No parent (top level)"
+  option (id `""`); self and descendants are still excluded.
 
 ## 1.5 File index & related docs
 

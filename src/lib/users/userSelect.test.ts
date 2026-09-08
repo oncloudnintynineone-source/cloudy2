@@ -4,6 +4,7 @@ import {
   INVITEE_DEPARTMENTS_SECTION,
   NO_DEPARTMENT_LABEL,
   buildUserGroups,
+  departmentPickerOptions,
   filterPickerGroups,
   mergeInviteeSelection,
   optionMatchesQuery,
@@ -69,6 +70,100 @@ describe("sortOptionsInGroups", () => {
     const sorted = sortOptionsInGroups(input);
     expect(sorted.map((g) => g.label)).toEqual(["Second", "First"]);
     expect(sorted[0].options.map((o) => o.id)).toEqual(["a", "b"]);
+  });
+
+  it("leaves department-row options (carrying a depth) in tree preorder", () => {
+    const rows: PickerGroup = {
+      label: "Departments",
+      options: [
+        { id: "log", label: "Zulu Logistics", depth: 1 },
+        { id: "stores", label: "Alpha Stores", depth: 2 },
+      ],
+    };
+    const sorted = sortOptionsInGroups([rows]);
+    expect(sorted[0].options.map((o) => o.id)).toEqual(["log", "stores"]);
+  });
+});
+
+/**
+ * HQ (0)
+ * ├── Logistics (1) — owns one user
+ * │   └── Stores (2) — owns one user
+ * └── Ops (3) — owns one user
+ * Field (4) — owns one user
+ */
+const HIERARCHY_MEMBERS = [
+  { id: "u-hq", label: "HQ User", department: "HQ", departmentId: "hq", departmentSort: 0, departmentParentId: null },
+  { id: "u-log", label: "Log User", department: "Logistics", departmentId: "log", departmentSort: 1, departmentParentId: "hq" },
+  { id: "u-stores", label: "Stores User", department: "Stores", departmentId: "stores", departmentSort: 2, departmentParentId: "log" },
+  { id: "u-ops", label: "Ops User", department: "Ops", departmentId: "ops", departmentSort: 3, departmentParentId: "hq" },
+  { id: "u-field", label: "Field User", department: "Field", departmentId: "field", departmentSort: 4, departmentParentId: null },
+];
+
+describe("buildUserGroups hierarchy nesting", () => {
+  it("orders id-keyed sections by rank and tags each with its nesting depth", () => {
+    const groups = buildUserGroups(HIERARCHY_MEMBERS);
+    expect(groups.map((g) => [g.label, g.depth])).toEqual([
+      ["HQ", 0],
+      ["Logistics", 1],
+      ["Stores", 2],
+      ["Ops", 1],
+      ["Field", 0],
+    ]);
+  });
+
+  it("keeps the whole flat behavior (name keys, no depth) when ids are absent", () => {
+    const groups = buildUserGroups([
+      { id: "u1", label: "A", department: "Zulu" },
+      { id: "u2", label: "B", department: "Alpha", departmentSort: 1 },
+    ]);
+    expect(groups.map((g) => [g.label, g.depth])).toEqual([
+      ["Alpha", undefined],
+      ["Zulu", undefined],
+    ]);
+  });
+
+  it("drops a hidden ancestor from the depth chain (no floating indents)", () => {
+    // Only the two children of HQ are present — HQ itself has no member here.
+    const groups = buildUserGroups(HIERARCHY_MEMBERS.filter((u) => u.departmentId !== "hq"));
+    expect(groups.map((g) => [g.label, g.depth])).toEqual([
+      ["Logistics", 0],
+      ["Stores", 1],
+      ["Ops", 0],
+      ["Field", 0],
+    ]);
+  });
+
+  it("ignores a self-referential parent chain (cycle-safe)", () => {
+    const groups = buildUserGroups([
+      { id: "u1", label: "A", department: "Loop", departmentId: "loop", departmentSort: 0, departmentParentId: "loop" },
+    ]);
+    expect(groups.map((g) => [g.label, g.depth])).toEqual([["Loop", 0]]);
+  });
+
+  it("keeps No department flat at the end next to id-keyed sections", () => {
+    const groups = buildUserGroups([
+      ...HIERARCHY_MEMBERS,
+      { id: "u-none", label: "Lone", department: null },
+    ]);
+    const last = groups[groups.length - 1];
+    expect(last.label).toBe(NO_DEPARTMENT_LABEL);
+    expect(last.depth).toBeUndefined();
+  });
+});
+
+describe("departmentPickerOptions", () => {
+  it("labels preorder department rows with their full ancestor chain", () => {
+    const options = departmentPickerOptions([
+      { id: "hq", name: "HQ", sortOrder: 0, parentId: null, depth: 0 },
+      { id: "log", name: "Logistics", sortOrder: 1, parentId: "hq", depth: 1 },
+      { id: "stores", name: "Stores", sortOrder: 2, parentId: "log", depth: 2 },
+    ]);
+    expect(options).toEqual([
+      { id: "hq", label: "HQ", depth: 0 },
+      { id: "log", label: "HQ › Logistics", depth: 1 },
+      { id: "stores", label: "HQ › Logistics › Stores", depth: 2 },
+    ]);
   });
 });
 

@@ -21,8 +21,10 @@ import {
   selectionByGroup,
   sortOptionsInGroups,
   type PickerGroup,
+  type PickerOption,
 } from "@/lib/users/userSelect";
 import { NARROW_MEDIA_QUERY } from "@/lib/theme";
+import { hierarchyIndent } from "@/lib/ui/pickerHierarchy";
 
 interface UserSelectModalProps {
   opened: boolean;
@@ -194,37 +196,39 @@ function UserSelectModalBody({
             No matches for &ldquo;{query.trim()}&rdquo;
           </Text>
         ) : (
-          visible.map((section) => (
-            <div key={section.label}>
-              <Text fw={600} size="sm" mb={6}>
-                {section.label}
-              </Text>
-              <Group gap={6} wrap="wrap">
-                {section.options.map((option) => {
-                  const selected = (draft[section.label] ?? []).includes(option.id);
-                  return (
-                    // A real button (not an onClick Badge): keyboard-operable and
-                    // announces its pressed state. The Badge keeps the visual.
-                    <UnstyledButton
-                      key={option.id}
-                      aria-pressed={selected}
-                      aria-label={`${option.label}${selected ? ", selected" : ""}`}
-                      onClick={() => toggle(section, option.id)}
-                      style={{ cursor: "pointer", borderRadius: "var(--mantine-radius-md)" }}
-                    >
-                      <Badge
-                        variant={selected ? "filled" : "light"}
-                        size="lg"
-                        style={{ height: "calc(var(--badge-height-lg) * 1.5)" }}
-                      >
-                        {option.label}
-                      </Badge>
-                    </UnstyledButton>
-                  );
-                })}
-              </Group>
-            </div>
-          ))
+          visible.map((section) => {
+            // The whole section indents by its own `depth`, so a nested
+            // per-department section sits visually under its parent's. Options
+            // always render as wrapped badges — department options carry their
+            // ancestor chain ("HQ › Logistics") in the label itself.
+            const sectionIndent =
+              section.depth !== undefined && section.depth > 0
+                ? hierarchyIndent(section.depth)
+                : 0;
+            return (
+              <div
+                key={section.label}
+                style={sectionIndent > 0 ? { paddingLeft: sectionIndent } : undefined}
+              >
+                <Text fw={600} size="sm" mb={6}>
+                  {section.label}
+                </Text>
+                <Group gap={6} wrap="wrap">
+                  {section.options.map((option) => {
+                    const selected = (draft[section.label] ?? []).includes(option.id);
+                    return (
+                      <PickerOptionButton
+                        key={option.id}
+                        option={option}
+                        selected={selected}
+                        onToggle={() => toggle(section, option.id)}
+                      />
+                    );
+                  })}
+                </Group>
+              </div>
+            );
+          })
         )}
       </Stack>
 
@@ -242,5 +246,36 @@ function UserSelectModalBody({
         </Group>
       </Group>
     </Stack>
+  );
+}
+
+/**
+ * A toggleable picker badge. A real button (not an onClick Badge):
+ * keyboard-operable and announces its pressed state. The Badge keeps the visual.
+ */
+function PickerOptionButton({
+  option,
+  selected,
+  onToggle,
+}: {
+  option: PickerOption;
+  selected: boolean;
+  onToggle: () => void;
+}) {
+  return (
+    <UnstyledButton
+      aria-pressed={selected}
+      aria-label={`${option.label}${selected ? ", selected" : ""}`}
+      onClick={onToggle}
+      style={{ cursor: "pointer", borderRadius: "var(--mantine-radius-md)" }}
+    >
+      <Badge
+        variant={selected ? "filled" : "light"}
+        size="lg"
+        style={{ height: "calc(var(--badge-height-lg) * 1.5)" }}
+      >
+        {option.label}
+      </Badge>
+    </UnstyledButton>
   );
 }

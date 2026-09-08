@@ -1,4 +1,5 @@
 import { PageContainer } from "@/components/PageContainer";
+import { listCalendars } from "@/lib/events/queries";
 import { listUsers } from "@/lib/roster/queries";
 import { requireSession } from "@/lib/session";
 
@@ -15,6 +16,11 @@ export default async function DoubleBookingPage() {
   const session = await requireSession();
   const isAdmin = session.user.role === "admin";
 
+  const calendars = await listCalendars();
+  const departmentParentById = new Map(
+    calendars.map((calendar) => [calendar.id, calendar.parentId ?? null]),
+  );
+
   const users = isAdmin
     ? (await listUsers())
         .filter((user) => user.status === "active")
@@ -25,6 +31,9 @@ export default async function DoubleBookingPage() {
           departmentId: user.department?.id ?? null,
           departmentName: user.department?.name ?? null,
           departmentSort: user.department?.sortOrder ?? null,
+          departmentParentId: user.department?.id
+            ? (departmentParentById.get(user.department.id) ?? null)
+            : null,
         }))
     : [];
 

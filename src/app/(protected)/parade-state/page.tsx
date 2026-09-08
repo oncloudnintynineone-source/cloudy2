@@ -42,6 +42,9 @@ export default async function ParadeStatePage({ searchParams }: ParadeStatePageP
   ]);
 
   const calendarIds = calendars.map((calendar) => calendar.id);
+  const departmentParentById = new Map(
+    calendars.map((calendar) => [calendar.id, calendar.parentId ?? null]),
+  );
 
   // Every role opens on every department; narrowing is purely opt-in via the
   // Calendars filter (an empty remembered list = all departments).
@@ -83,6 +86,10 @@ export default async function ParadeStatePage({ searchParams }: ParadeStatePageP
       ),
       departmentName: user.department?.name ?? null,
       departmentSort: user.department?.sortOrder ?? null,
+      departmentId: user.department?.id ?? null,
+      departmentParentId: user.department?.id
+        ? (departmentParentById.get(user.department.id) ?? null)
+        : null,
     }));
 
   return (

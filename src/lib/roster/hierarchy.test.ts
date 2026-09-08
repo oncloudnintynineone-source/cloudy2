@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 
 import {
   buildDepartmentTree,
+  departmentPathLabels,
+  departmentTreeRows,
   descendantIds,
   flattenDepartmentTree,
   moveAvailability,
@@ -90,6 +92,74 @@ describe("flattenDepartmentTree", () => {
       "ops",
       "field",
     ]);
+  });
+});
+
+describe("departmentTreeRows", () => {
+  it("flattens preorder with the depth of each node", () => {
+    const rows = departmentTreeRows(tree);
+    expect(rows.map((row) => [row.id, row.depth])).toEqual([
+      ["hq", 0],
+      ["log", 1],
+      ["stores", 2],
+      ["ops", 1],
+      ["field", 0],
+    ]);
+  });
+
+  it("keeps a flat list flat at depth 0", () => {
+    const rows = departmentTreeRows(flat);
+    expect(rows.every((row) => row.depth === 0)).toBe(true);
+    expect(idsOf(rows)).toEqual(["a", "b", "c"]);
+  });
+
+  it("carries parent id and display order through", () => {
+    const rows = departmentTreeRows(tree);
+    expect(rows.find((row) => row.id === "stores")).toMatchObject({
+      parentId: "log",
+      sortOrder: 2,
+      name: "Stores",
+    });
+  });
+
+  it("degrades corrupt data like buildDepartmentTree (no infinite depth)", () => {
+    const cyclic: HierarchyDepartment[] = [
+      { id: "x", name: "X", sortOrder: 0, parentId: "y" },
+      { id: "y", name: "Y", sortOrder: 1, parentId: "x" },
+      { id: "z", name: "Z", sortOrder: 2, parentId: "ghost" },
+    ];
+    const rows = departmentTreeRows(cyclic);
+    expect(rows.every((row) => row.depth === 0)).toBe(true);
+    expect(idsOf(rows).sort()).toEqual(["x", "y", "z"]);
+  });
+});
+
+describe("departmentPathLabels", () => {
+  it("labels each department with its full ancestor chain", () => {
+    const labels = departmentPathLabels(departmentTreeRows(tree));
+    expect(labels.get("hq")).toBe("HQ");
+    expect(labels.get("log")).toBe("HQ › Logistics");
+    expect(labels.get("stores")).toBe("HQ › Logistics › Stores");
+    expect(labels.get("ops")).toBe("HQ › Ops");
+    expect(labels.get("field")).toBe("Field");
+  });
+
+  it("returns a plain name for top-level rows in a flat list", () => {
+    const labels = departmentPathLabels(departmentTreeRows(flat));
+    expect(labels.get("a")).toBe("Alpha");
+    expect(labels.get("b")).toBe("Bravo");
+  });
+
+  it("degrades self/mutual parents to plain names (cycle-safe)", () => {
+    const corrupt: HierarchyDepartment[] = [
+      { id: "s", name: "Selfy", sortOrder: 0, parentId: "s" },
+      { id: "x", name: "X", sortOrder: 1, parentId: "y" },
+      { id: "y", name: "Y", sortOrder: 2, parentId: "x" },
+    ];
+    const labels = departmentPathLabels(departmentTreeRows(corrupt));
+    expect(labels.get("s")).toBe("Selfy");
+    expect(labels.get("y")).toBe("Y");
+    expect(labels.get("x")).toBe("X");
   });
 });
 

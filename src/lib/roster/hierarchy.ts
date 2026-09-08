@@ -124,6 +124,76 @@ export function flattenDepartmentTree(
   return out;
 }
 
+/** A department in preorder display order carrying its tree depth. */
+export interface DepartmentRow {
+  id: string;
+  name: string;
+  parentId: string | null;
+  sortOrder: number;
+  /** Nesting depth: 0 = top level, +1 per ancestor. */
+  depth: number;
+}
+
+/**
+ * Preorder (parent before children) flattening of the department tree with each
+ * node's depth attached — the display order for the pickers/filters that mirror
+ * the hierarchy as indented sections or rows. Cycle safety and the "missing
+ * parent/cycle -> top level" degradation are inherited from `buildDepartmentTree`.
+ */
+export function departmentTreeRows(
+  departments: readonly HierarchyDepartment[],
+): DepartmentRow[] {
+  const rows: DepartmentRow[] = [];
+  const visit = (node: DepartmentTreeNode, depth: number) => {
+    rows.push({
+      id: node.id,
+      name: node.name,
+      parentId: node.parentId,
+      sortOrder: node.sortOrder,
+      depth,
+    });
+    for (const child of node.children) visit(child, depth + 1);
+  };
+  for (const node of buildDepartmentTree(departments)) visit(node, 0);
+  return rows;
+}
+
+/** Separator joining a department to its ancestor chain in picker labels. */
+export const DEPARTMENT_PATH_SEPARATOR = " › ";
+
+/**
+ * Full ancestor-chain label per department id (top level = its own name;
+ * nested = "HQ › Logistics › Stores"), computed from preorder `departmentTreeRows`
+ * so a parent row always precedes its children. Cycle/self-parent-safe via a
+ * visited guard. Picker/department-filter pills and chips use these labels to
+ * convey the hierarchy inline instead of indentation.
+ */
+export function departmentPathLabels(rows: readonly DepartmentRow[]): Map<string, string> {
+  const byId = new Map(rows.map((row) => [row.id, row]));
+  const labels = new Map<string, string>();
+  for (const row of rows) {
+    // Walk up the parent chain collecting names; a revisit (self/mutual parent,
+    // corrupt data) degrades the whole node to its plain name.
+    const seen = new Set<string>([row.id]);
+    const path = [row.name];
+    let ok = true;
+    let parentId = row.parentId;
+    while (parentId !== null) {
+      if (seen.has(parentId)) {
+        ok = false;
+        break;
+      }
+      const parent = byId.get(parentId);
+      if (!parent) break;
+      seen.add(parentId);
+      path.push(parent.name);
+      parentId = parent.parentId;
+    }
+    labels.set(row.id, ok ? path.reverse().join(DEPARTMENT_PATH_SEPARATOR) : row.name);
+  }
+  return labels;
+}
+
 /**
  * Ids of every transitive descendant of `rootId` (never the root itself).
  * Cycle-safe; unknown ids simply produce no descendants.

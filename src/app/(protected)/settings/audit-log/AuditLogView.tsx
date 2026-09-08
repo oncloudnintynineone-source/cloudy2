@@ -61,7 +61,15 @@ interface AuditLogViewProps {
   /** Distinct actor names seen in the log, plus any name in the applied filter. */
   actors: string[];
   /** Actor name → roster department (null name for "Admin"/deleted users). */
-  actorDepartments: Record<string, { department: string | null; departmentSort: number | null }>;
+  actorDepartments: Record<
+    string,
+    {
+      department: string | null;
+      departmentSort: number | null;
+      departmentId: string | null;
+      departmentParentId: string | null;
+    }
+  >;
   entityTypes: string[];
   retentionDays: number;
 }
@@ -165,6 +173,8 @@ export function AuditLogView({
             label: name,
             department: lookup?.department ?? "Other",
             departmentSort: lookup?.departmentSort ?? null,
+            departmentId: lookup?.departmentId ?? null,
+            departmentParentId: lookup?.departmentParentId ?? null,
           };
         }),
       },
