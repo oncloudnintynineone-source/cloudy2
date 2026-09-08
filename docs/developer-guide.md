@@ -86,6 +86,9 @@ seed defaults on first run; admins manage them in-app afterwards (Settings).
 | `GOOGLE_DELEGATE_EMAIL`         | Workspace account impersonated for Gmail send (KAH breach emails) and granted owner ACLs on department calendars. Leave empty when using `SMTP_URL` instead                                                                                                     |
 | `SMTP_URL`                      | SMTP fallback for breach emails, e.g. a personal Gmail app password (`smtp://user:pass@smtp.gmail.com:465`; URL-encode special characters, `smtps:`/465 = implicit TLS)                                                                                         |
 | `EMAIL_FROM`                    | Optional From override (defaults to the SMTP username)                                                                                                                                                                                                          |
+| `NEXT_PUBLIC_VAPID_PUBLIC_KEY`  | Web Push VAPID **public** key (event participant notifications). Inlined into the client (`pushManager.subscribe`) and read by the server. Generate once with `npx web-push generate-vapid-keys`; the same pair serves every environment                                   |
+| `VAPID_PRIVATE_KEY`             | Web Push VAPID **private** key (server-only). Same pair on every environment; mirror to the Cloud Run shadow's GH secret                                                                                                                                        |
+| `VAPID_SUBJECT`                 | Web Push `mailto:` (or `https:`) contact identifying the application server, e.g. `mailto:cloudy2@example.com`. Required alongside the keys — without all three, participant push is skipped (no crash)                                                           |
 | `ADMIN_INITIAL_PASSWORD`        | Emergency (break-glass) root password. Bcrypt-hashed into `settings.admin_password_hash` on first login and reconciled on every login, so changing the env var + redeploying rotates it. Sign in on the Admin surface with the phone field left blank           |
 | `ADMIN_PIN`                     | Shared sign-in PIN for every `role='admin'` user (named admins sign in with their phone + this PIN). Bcrypt-hashed into `settings.admin_pin_hash` on first login and reconciled on every login like `ADMIN_INITIAL_PASSWORD`; no in-app way to set or change it |
 
@@ -278,6 +281,9 @@ prod data.
 | `ADMIN_PIN`                     | prod shared admin PIN             | dev-only admin PIN                                           |
 | `SMTP_URL` / `EMAIL_FROM`       | prod email transport              | test inbox (the dev Google account's own Gmail app password) |
 | `GOOGLE_DELEGATE_EMAIL`         | Workspace delegate for Gmail send | unset — dev uses `SMTP_URL`                                  |
+| `NEXT_PUBLIC_VAPID_PUBLIC_KEY`  | Web Push VAPID public key         | same key pair (shared across environments)                   |
+| `VAPID_PRIVATE_KEY`             | Web Push VAPID private key        | same key pair                                                |
+| `VAPID_SUBJECT`                 | Web Push `mailto:` contact        | same contact                                                 |
 | `ENABLE_EXPERIMENTAL_COREPACK`  | `1`                               | `1`                                                          |
 | `NEXTAUTH_URL`                  | unset                             | unset                                                        |
 
@@ -343,7 +349,9 @@ same prod Google service account).
 - **Env vars** mirror Vercel **Production**: `DATABASE_URL`, `NEXTAUTH_SECRET`
   (same value — harmless since sessions are per-origin), `GOOGLE_SERVICE_ACCOUNT_BASE64`,
   `GOOGLE_DELEGATE_EMAIL`, `SMTP_URL`, `EMAIL_FROM`, `ADMIN_INITIAL_PASSWORD`,
-  `ADMIN_PIN`.
+  `ADMIN_PIN`, `NEXT_PUBLIC_VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT`
+  (the Web Push pair is **shared** with Vercel — same keys, so a device subscribed
+  through one origin's push still validates against the other's).
   Cloud Run does not block SMTP ports 465/587, so the nodemailer fallback works.
 - **One-time GCP setup** (console): project + billing account (card; Always-Free
   tier applies) → enable Cloud Run Admin + Artifact Registry → create Artifact
@@ -353,7 +361,9 @@ same prod Google service account).
   **variable** `GCP_PROJECT_ID` (not sensitive — unmasked in logs) + **secrets**
   `GCP_SA_KEY` and mirrors of Vercel prod (`DATABASE_URL`, `NEXTAUTH_SECRET`,
   `GOOGLE_SERVICE_ACCOUNT_BASE64`, `GOOGLE_DELEGATE_EMAIL`, `SMTP_URL`,
-  `EMAIL_FROM`, `ADMIN_INITIAL_PASSWORD`, `ADMIN_PIN`). Set a budget alert (~$5) as a guard.
+  `EMAIL_FROM`, `ADMIN_INITIAL_PASSWORD`, `ADMIN_PIN`, `VAPID_PRIVATE_KEY`;
+  `NEXT_PUBLIC_VAPID_PUBLIC_KEY` and `VAPID_SUBJECT` are not sensitive and may ride
+  the env-var list). Set a budget alert (~$5) as a guard.
 - **Shadow caveats**: both instances share prod Neon + the prod service account.
   Read-only validation (login, month views, search, audit CSV, PWA) is
   zero-risk; mutation tests (create/edit events, adding departments — which
@@ -429,6 +439,7 @@ In CI, the schema-drift check runs `pnpm db:generate` then fails on any diff to
 | [`roster-sharing.md`](roster-sharing.md)           | Users/departments model, hierarchy, calendar ACL sharing, colors |
 | [`kah.md`](kah.md)                                 | KAH groups, breach check, email transports                       |
 | [`webhooks.md`](webhooks.md)                       | Event webhooks: payloads, HMAC signatures, fan-out delivery      |
+| [`event-notifications.md`](event-notifications.md) | Web Push: notify users added as participants to events           |
 | [`audit-log.md`](audit-log.md)                     | Audit log: schema, retention, pagination, CSV export             |
 | [`pwa-offline.md`](pwa-offline.md)                 | Service worker: SWR caches, build versioning, offline fallback   |
 | [`ui-state.md`](ui-state.md)                       | The `cloudy2.ui` cookie, launch targeting, pinned tabs           |

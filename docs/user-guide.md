@@ -208,6 +208,11 @@ full-screen app icon.
   offline banner; any navigation falls back to your most recently saved view.
   Offline is **read-only** — creating or editing shows an error until you're
   back online.
+- **Notifications:** your profile menu (avatar, top-right) → **Notifications** lets
+  you allow event notifications — you'll get a banner when you're added as a
+  participant to an event. On iPhone/iPad this works only from the **installed**
+  app (iOS 16.4+), not from a Safari tab, so install Cloudy2 from the Share menu
+  first. The same screen has an account-wide pause switch.
 - Signing out clears the saved pages.
 
 ## 1.11 Good to know

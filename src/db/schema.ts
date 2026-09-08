@@ -178,9 +178,43 @@ export const userPreferences = pgTable(
     paradeUsers: jsonb("parade_users")
       .notNull()
       .default(sql`'[]'::jsonb`),
+    /**
+     * The per-profile master switch for event participant push
+     * notifications ("notify me when I'm added to an event"). Independent of
+     * the OS/browser permission: when false, no push is sent even for a
+     * subscribed device. Defaults to true; only meaningful once a device is
+     * actually subscribed.
+     */
+    eventInvitePush: boolean("event_invite_push").notNull().default(true),
     ...timestamps,
   },
   (table) => [index("user_preferences_active_view_idx").on(table.dashboardActiveViewId)],
+);
+
+/**
+ * A browser's Web Push subscription, owned by the roster account whose device
+ * it is. One row per push endpoint (a device/browser pair); a user on several
+ * devices has several rows, and a device shared by two accounts has its row
+ * re-`userId`d to the currently signed-in account on every sync. `keys` holds
+ * the subscription's `{ p256dh, auth }` secrets needed to send to it.
+ */
+export const pushSubscriptions = pgTable(
+  "push_subscriptions",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    /** The push service endpoint; the row's identity (unique per device). */
+    endpoint: text("endpoint").notNull(),
+    /** The subscription's `{ p256dh, auth }` keys (JSONB). */
+    keys: jsonb("keys").notNull(),
+    ...timestamps,
+  },
+  (table) => [
+    uniqueIndex("push_subscriptions_endpoint_idx").on(table.endpoint),
+    index("push_subscriptions_user_idx").on(table.userId),
+  ],
 );
 
 export const acronyms = pgTable("acronyms", {
@@ -513,3 +547,5 @@ export type UserDashboardView = typeof userDashboardViews.$inferSelect;
 export type NewUserDashboardView = typeof userDashboardViews.$inferInsert;
 export type UserPreference = typeof userPreferences.$inferSelect;
 export type NewUserPreference = typeof userPreferences.$inferInsert;
+export type PushSubscription = typeof pushSubscriptions.$inferSelect;
+export type NewPushSubscription = typeof pushSubscriptions.$inferInsert;

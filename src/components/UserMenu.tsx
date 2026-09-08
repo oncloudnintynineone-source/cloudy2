@@ -4,6 +4,7 @@ import { useCallback, useState } from "react";
 import { ActionIcon, Menu, Stack, Text, useMantineColorScheme } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
 import {
+  IconBell,
   IconCalendarPlus,
   IconCheck,
   IconLogout,
@@ -20,6 +21,7 @@ import { clearUiState } from "@/lib/ui/uiStateClient";
 
 import { useReportActivity } from "./ActivityBar";
 import { CalendarAccessModal } from "./CalendarAccessModal";
+import { NotificationSettings } from "./NotificationSettings";
 
 interface UserMenuProps {
   /** The user's full display name. */
@@ -50,6 +52,7 @@ const SCHEMES: { value: Scheme; label: string; icon: typeof IconSun }[] = [
 
 export function UserMenu({ name, role, phone }: UserMenuProps) {
   const [accessOpen, setAccessOpen] = useState(false);
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
   const { colorScheme, setColorScheme } = useMantineColorScheme();
   // The stored scheme may be unset/unknown before first pick — normalize to
@@ -157,6 +160,12 @@ export function UserMenu({ name, role, phone }: UserMenuProps) {
             Calendar Access
           </Menu.Item>
           <Menu.Item
+            leftSection={<IconBell size={16} />}
+            onClick={() => setNotificationsOpen(true)}
+          >
+            Notifications
+          </Menu.Item>
+          <Menu.Item
             leftSection={<IconLogout size={16} />}
             onClick={() => void handleLogout()}
           >
@@ -165,6 +174,10 @@ export function UserMenu({ name, role, phone }: UserMenuProps) {
         </Menu.Dropdown>
       </Menu>
       <CalendarAccessModal opened={accessOpen} onClose={() => setAccessOpen(false)} />
+      <NotificationSettings
+        opened={notificationsOpen}
+        onClose={() => setNotificationsOpen(false)}
+      />
     </>
   );
 }

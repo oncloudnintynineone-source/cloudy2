@@ -41,7 +41,9 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
   launched from an amber `IconLink` FAB (mobile) / nav-row chip (desktop) on the
   Calendar page; user-facing KAH Status page (read-only breach history &
   forecast over a ±3-month window: resolved/active/upcoming breach periods,
-  member's own groups; admins: all).
+  member's own groups; admins: all); Web Push notifications to users newly added
+  as participants to an event (create/update only, per-device permission + an
+  account-wide pause switch in Profile → Notifications).
 - Google integration is real for Calendar and Gmail-send once configured (service
   account + domain-wide delegation).
 
@@ -613,8 +615,31 @@ One line per phase; full write-ups (incl. Mermaid diagrams and verification note
    remembered per device as `dashboard.monthZoom` (cookie minor v3.1, distinct from the
    Day/Week (H) `zoom`), read pre-paint and seeded server-side. Columns only —
    `maxEventsPerDay`, cell height and the day modal are unchanged. `docs/dashboard-views.md`
-   §1.8 (the file index becomes §1.9), `docs/grid-pan.md`, `docs/ui-state.md`,
-   `docs/user-guide.md`, `AGENTS.md`
+    §1.8 (the file index becomes §1.9), `docs/grid-pan.md`, `docs/ui-state.md`,
+    `docs/user-guide.md`, `AGENTS.md`
+- 1.204 Participant notifications via Web Push (migration 0038 `push_subscriptions`
+  + `user_preferences.event_invite_push`): after every successful event
+  **create/update** (never delete), users **newly included** as participants are
+  notified by browser push through `dispatchParticipantNotifications`
+  (`src/lib/events/participantNotify/`, the `after()` best-effort pattern — never
+  blocks/fails the mutation). "Included" = tagged users + **active members of
+  tagged departments** (the clash occupancy model); the pure unit-tested
+  `computeAddedUserIds` diffs old vs new occupancy against the mutation-time
+  membership map, so a no-op/time-only edit adds nobody and the acting user is
+  never notified. Recipients are filtered to active roster users with the
+  account-wide master switch on and a stored `push_subscriptions` row
+  (per-device endpoints, upsert-by-endpoint and re-`userId`d to the signed-in
+  account on sync so a shared device never leaks another account's pushes; 404/410
+  endpoints prune their row). Delivery needs the VAPID env trio
+  (`NEXT_PUBLIC_VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` / `VAPID_SUBJECT`, one
+  shared pair — without it push is skipped gracefully). The Serwist SW
+  (`sw.ts`) gains `push`/`notificationclick` handlers that show the small payload
+  and deep-link the event's details on tap; UX is the profile menu's
+  **Notifications** dialog (`NotificationSettings.tsx`): enable on this device
+  (permission + subscribe) + the pause switch, with iOS-installed-PWA-only and
+  denied-state guidance. Audit rows `event.participantNotify`.
+  `docs/event-notifications.md`, `AGENTS.md`, `.env.example`,
+  `docs/developer-guide.md` §1.4/§1.9/§1.9.1/§1.12
 
 ## 1.4 Open items & next steps
 
@@ -629,6 +654,11 @@ One line per phase; full write-ups (incl. Mermaid diagrams and verification note
    on event titles, VCF contacts export, masquerade permissions beyond "on behalf of".
 4. Per-phase manual-QA debts recorded in the archive's verification notes (PWA device
    installs, on-device swipe checks, width sweeps) were never systematically cleared.
+5. **Event participant push** needs the VAPID trio set per surface
+   (Vercel Production/Preview, Cloud Run shadow GH secrets, `.env.local`) — generate
+   once with `npx web-push generate-vapid-keys` and share the same pair; iOS users
+   must run iOS/iPadOS 16.4+ from the **installed** home-screen app (remove + re-add
+   once if added before 16.4) and tap Enable in Profile → Notifications.
 
 ## 1.5 Deployment & environments
 

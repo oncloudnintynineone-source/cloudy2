@@ -24,6 +24,7 @@ import {
 } from "@/lib/events/notes";
 import { modifyGuard, canChangeLock } from "@/lib/events/guards";
 import { dispatchKahBreachCheck } from "@/lib/kah/notify";
+import { dispatchParticipantNotifications } from "@/lib/events/participantNotify/notify";
 import { naiveTimePart } from "@/lib/events/timeOptions";
 import { renderEventTitle } from "@/lib/events/eventTitle";
 import { invalidatePinnedCache } from "@/lib/events/pinned";
@@ -371,6 +372,27 @@ export async function createEvent(input: EventFormValues): Promise<EventActionRe
     eventTitle: renderedTitle,
     actor: actorFrom(session),
   });
+  // Notify everyone newly included in this event as a participant (best-effort
+  // Web Push via after(); the organizer/actor is never notified).
+  const notifyActor = actorFrom(session);
+  dispatchParticipantNotifications({
+    actorId: notifyActor.actorId,
+    actorName: notifyActor.actorName,
+    actorRole: notifyActor.actorRole,
+    eventId,
+    title: renderedTitle,
+    eventType: effectiveInput.eventType,
+    location: effectiveInput.location,
+    timeParts: timePartsOf(effectiveInput),
+    reason: "created",
+    before: null,
+    after: {
+      inviteeUserIds: effectiveInput.inviteeUserIds,
+      inviteeDepartments: effectiveInput.inviteeDepartments,
+    },
+    copies: created.map(({ calendarId, googleEventId }) => ({ calendarId, googleEventId })),
+    baseUrl: await appBaseUrl(),
+  });
   revalidatePath("/dashboard");
   return {
     ok: true,
@@ -617,6 +639,31 @@ export async function updateEvent(
     windowEnd: updatedWindow.end,
     eventTitle: renderedTitle,
     actor: actorFrom(session),
+  });
+  // Notify users newly added as participants by this edit (best-effort Web Push
+  // via after(); never the acting user). A no-op participant change resolves to
+  // an empty added set inside the dispatch and sends nothing.
+  const notifyActor = actorFrom(session);
+  dispatchParticipantNotifications({
+    actorId: notifyActor.actorId,
+    actorName: notifyActor.actorName,
+    actorRole: notifyActor.actorRole,
+    eventId,
+    title: renderedTitle,
+    eventType: effectiveInput.eventType,
+    location: effectiveInput.location,
+    timeParts: timePartsOf(effectiveInput),
+    reason: "added",
+    before: {
+      inviteeUserIds: ref.inviteeUserIds,
+      inviteeDepartments: ref.inviteeDepartmentIds,
+    },
+    after: {
+      inviteeUserIds: effectiveInput.inviteeUserIds,
+      inviteeDepartments: effectiveInput.inviteeDepartments,
+    },
+    copies: liveCopies,
+    baseUrl: await appBaseUrl(),
   });
   revalidatePath("/dashboard");
   return { ok: true, eventId, copies: liveCopies };

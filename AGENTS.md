@@ -399,6 +399,23 @@ it's a JS-only query (not a Mantine breakpoint, so it can't collide with `xs:`/`
   retry queue; dispatch only after the mutation's `logAction`; payloads come from the
   same audit snapshots (never hand-copy JSON into UI).
   Design: [docs/webhooks.md](docs/webhooks.md).
+- **Participant notifications (Web Push):** after every successful create/update
+  (never delete), users **newly included** as participants are notified by browser
+  push via `dispatchParticipantNotifications` (`src/lib/events/participantNotify/`,
+  same `after()` best-effort pattern as KAH/webhooks). "Included" = tagged users +
+  **active members of tagged departments** (the clash occupancy model; pure
+  `computeAddedUserIds` diffs old vs new occupancy against the mutation-time
+  membership map, so a no-op/time-only edit adds nobody; the acting user is never
+  notified). Recipients are filtered to active roster users with the
+  `userPreferences.eventInvitePush` master switch on and a stored
+  `push_subscriptions` row (per-device endpoints upserted by `syncPushSubscription`,
+  re-`userId`d to the signed-in account so a shared device never leaks another
+  account's pushes); 404/410 endpoints prune their row. Delivery needs the VAPID env
+  trio (§env gotchas); the Serwist SW (`sw.ts`) shows the payload and deep-links the
+  event's details on tap. UX lives in the profile menu's **Notifications** modal
+  (`NotificationSettings.tsx`): enable on this device (permission + subscribe) +
+  the account-wide pause switch.
+  Design: [docs/event-notifications.md](docs/event-notifications.md).
 - **Standard loading appearance: skeleton only + fade-in on reveal.** The skeleton is
   the ONLY loading indicator — never dim or darken content (`opacity: isPending ? …`
   is banned). Every data-awaiting route segment gets a `loading.tsx`; committed
@@ -490,6 +507,13 @@ router.refresh())`), same-shell tab flips, and in-page transitions. Report a
 - Set `ENABLE_EXPERIMENTAL_COREPACK = 1` so Vercel honors pnpm `11.18.0`; otherwise it
   detects pnpm 10 from the lockfile and ignores the pnpm-11 `allowBuilds` in
   `pnpm-workspace.yaml` (esbuild/sharp/unrs-resolver build scripts).
+- **Web Push (event participant notifications):** needs `NEXT_PUBLIC_VAPID_PUBLIC_KEY`,
+  `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT` set together on **every** deploy surface —
+  Vercel Production + Preview, the Cloud Run shadow, and `.env.local`. Generate the
+  pair once with `npx web-push generate-vapid-keys`; the **same pair is shared across
+  environments** (they identify the app server, so a client's subscription stays
+  valid whichever origin pushes). Until all three are set the feature is skipped
+  gracefully — no crash, no notifications. Design: `docs/event-notifications.md`.
 - `main` → production, `dev` → preview. **Environments are fully isolated**: every
   Vercel env var has separate Production/Preview values — prod Neon project + prod
   service account vs a dedicated dev Neon project + dev service account (separate

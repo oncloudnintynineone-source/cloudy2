@@ -483,3 +483,86 @@ const serwist = new Serwist({
 });
 
 serwist.addEventListeners();
+
+// --- Web Push (participant notifications) ---
+//
+// The server sends a small encrypted JSON payload (title/body/tag/url) for
+// every participant-invite notification; this handler shows it and, on tap,
+// opens (or focuses + navigates) the event's dashboard deep link. Payloads are
+// kept tiny on purpose (iOS web push discourages large payloads), so nothing is
+// fetched from the network inside the push event. A payload-less push (rare:
+// e.g. some services strip data) still shows a branded generic so the user
+// isn't left with a silent notification.
+
+interface ParticipantPushPayload {
+  title?: unknown;
+  body?: unknown;
+  url?: unknown;
+  tag?: unknown;
+}
+
+function pushString(value: unknown): string | undefined {
+  return typeof value === "string" && value.length > 0 ? value : undefined;
+}
+
+self.addEventListener("push", (event) => {
+  let data: ParticipantPushPayload | null = null;
+  try {
+    const parsed = event.data ? event.data.json() : null;
+    if (parsed && typeof parsed === "object") {
+      data = parsed as ParticipantPushPayload;
+    }
+  } catch {
+    // Non-JSON or absent payload — show the generic fallback.
+  }
+  const title = pushString(data?.title) ?? "Cloudy2";
+  const body =
+    pushString(data?.body) ?? "You have an event update — open the calendar to see it.";
+  const url = pushString(data?.url) ?? "/dashboard";
+  const tag = pushString(data?.tag) ?? undefined;
+  event.waitUntil(
+    self.registration.showNotification(title, {
+      body,
+      icon: "/icon-192x192.png",
+      badge: "/icon-192x192.png",
+      tag,
+      data: { url },
+    }),
+  );
+});
+
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+  const rawUrl =
+    (event.notification.data &&
+      typeof event.notification.data === "object" &&
+      pushString((event.notification.data as { url?: unknown }).url)) ||
+    "/dashboard";
+  let url: string;
+  try {
+    url = new URL(rawUrl, self.location.origin).href;
+  } catch {
+    url = new URL("/dashboard", self.location.origin).href;
+  }
+  event.waitUntil(
+    (async () => {
+      const clients = await self.clients.matchAll({
+        type: "window",
+        includeUncontrolled: true,
+      });
+      for (const client of clients) {
+        const windowClient = client as WindowClient;
+        if (typeof windowClient.focus === "function") {
+          await windowClient.focus();
+          try {
+            await windowClient.navigate(url);
+          } catch {
+            // Navigation failed (e.g. cross-origin guard) — focus only.
+          }
+          return;
+        }
+      }
+      await self.clients.openWindow(url);
+    })(),
+  );
+});

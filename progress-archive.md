@@ -7926,3 +7926,80 @@ before ship: Month at 100% fits all seven columns on phone + desktop; +/− step
 100→300% keeping the center day anchored and the weekday initials aligned; pan
 arrows + drag appear only when zoomed; the level survives F5; Day/Week (H) zoom
 is unaffected.
+
+## 1.204 Participant notifications via Web Push (added-to-event invites)
+
+Roster users are notified by **browser push** when they are **included as
+participants** in a newly-created event, or **added** to an existing event.
+Channel is standard Web Push (the Push API + VAPID), which reaches the installed
+PWA on Android Chrome and the installed home-screen web app on iOS/iPadOS 16.4+
+(the app's browser floor is already Safari 16.4) — there is no native app and no
+email fallback. Notify-only and best-effort, exactly like the KAH breach check
+and webhook fan-out.
+
+**Trigger semantics** (pure `computeAddedUserIds`, `diff.ts`): a user is newly
+"included" when the event's occupancy grows to include them — occupancy =
+tagged users + active members of tagged departments (the clash model). Create
+notifies everyone (before = null); an edit notifies only the users the
+before→after diff newly occupies, so a time/title/location-only edit adds
+nobody; delete never notifies. The acting user is filtered out. The diff uses the
+mutation-time roster snapshot for both states, so an already-tagged
+department's members are never re-notified by later edits, and removing then
+re-adding a user re-notifies them.
+
+**Data model** (migration `0038_late_ultimates`): `push_subscriptions` — one row
+per browser push endpoint (`user_id` cascade, unique `endpoint`, JSONB `keys`
+{p256dh, auth}) — and `user_preferences.event_invite_push`, the account-wide
+pause switch (default true). Subscriptions are upserted **by endpoint** and
+re-`userId`d to the signed-in account on every sync, so a device shared by two
+accounts never leaks another account's pushes; a row without the current user's
+department is not a problem because membership is resolved at send time.
+
+**Server path**: `createEvent`/`updateEvent` (never delete) call
+`dispatchParticipantNotifications({ before, after, copies, baseUrl, … })` before
+`revalidatePath`; the payload (copies, title, time parts, base URL, before/after
+people) is fully resolved at action time and the real work runs inside
+`after()`. It resolves the added set, drops the actor + inactive users + master-
+switch-off users, loads subscriptions, writes the `event.participantNotify`
+audit row, then sends one push per subscription (`web-push`, TTL 7 d, 10 s
+timeout, small JSON payload `{ title, body, tag: eventId, url }`). 404/410 prune
+the dead endpoint row; other errors log and swallow. The per-recipient URL is the
+deep link to the copy on the recipient's own department calendar (else the first
+copy) so the dashboard's fetch includes the event whatever the user's filters.
+
+**Service worker**: `sw.ts` gains `push` (showNotification from the JSON
+payload, `tag` collapses repeats, generic fallback for payload-less pushes —
+nothing fetched in the push event, payloads kept small for iOS) and
+`notificationclick` (close → focus an existing window client and navigate it to
+the deep link, else open a new one).
+
+**User surface**: Profile menu → **Notifications** dialog
+(`NotificationSettings.tsx`) — enable on this device (requestPermission called
+synchronously in the tap as iOS requires, then subscribe with the inlined VAPID
+public key, then `syncPushSubscription`), turn off on this device, and the
+account-wide pause switch. Clear guidance for unsupported (Safari tab/old iOS →
+"add to Home Screen"), denied (browser/phone settings), and the global-Admin
+account (no `users` row).
+
+**Env**: one VAPID pair shared across environments
+(`NEXT_PUBLIC_VAPID_PUBLIC_KEY` inlined to the client + read server-side,
+`VAPID_PRIVATE_KEY` server-only, `VAPID_SUBJECT` mailto contact). Without all
+three the feature is skipped gracefully. Rotating the pair invalidates existing
+subscriptions (next send 404/410s and prunes; user re-enables once).
+
+**Files**: `src/lib/events/participantNotify/{vapid,diff,message,subscriptions,
+notify,actions,client}.ts` (+ pure tests for vapid/diff/message),
+`src/components/NotificationSettings.tsx`, `UserMenu.tsx`, `src/app/sw.ts`,
+`src/lib/events/actions.ts`, `src/lib/audit/build.ts`
+(`event.participantNotify`), `src/db/schema.ts` + `drizzle/0038_late_ultimates.sql`,
+`.env.example`, `docs/event-notifications.md` (new), `docs/developer-guide.md`
+§1.4/§1.9/§1.9.1/§1.12, `AGENTS.md`, `progress.md`.
+
+**Verified**: pnpm typecheck, pnpm lint, pnpm test (996 pass — 25 new: VAPID
+parser, occupancy diff, message builder). Manual to run before ship (real push
+cannot be automated): enable on Android PWA → create an event tagging another
+user + a department → banner appears on the recipient devices; edit the event to
+tag a new department → only its members get a banner; a no-op edit sends
+nothing; remove + re-add sends again; tapping the banner opens the event's
+details; iOS installed app (16.4+, re-add once if added pre-16.4) and Safari-tab
+negative case.

@@ -22,6 +22,7 @@ export const AUDIT_ACTIONS = {
   eventCreate: "event.create",
   eventUpdate: "event.update",
   eventDelete: "event.delete",
+  eventParticipantNotify: "event.participantNotify",
   webhookCreate: "webhook.create",
   webhookUpdate: "webhook.update",
   webhookDelete: "webhook.delete",
