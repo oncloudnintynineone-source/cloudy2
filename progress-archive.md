@@ -8075,3 +8075,37 @@ env gotchas (Cloud Run build-arg note).
 ci.yml parses. Manual to run after a `main` deploy: the `*.run.app` PWA dialog
 should leave the server-not-configured state → Enable → green → Send test banner;
 then the two-account event flow.
+
+## 1.207 Notification art on Android (dedicated icon/badge instead of the app tile)
+
+Real-device QA of participant push showed the Android notification avatar as an
+"opaque square". Root cause: `sw.ts` passed `icon` **and** `badge` =
+`/icon-192x192.png`, the app tile — a near-white rounded plate (white→`#999999`
+vertical gradient) whose opaque interior is indistinguishable from Android's
+light notification surface, and which the status-bar badge slot rendered as a
+filled light square.
+
+Fix: dedicated notification art derived from `public/icon.svg` by a committed
+regenerator (`scripts/gen-notification-icons.py`, stdlib-only textual recolor +
+`rsvg-convert`):
+
+- `public/notification-icon-192x192.png` (+ `.svg` source) — the whole
+  cloud+movement mark recolored white over a **full-bleed** square in the
+  logo's own blue gradient (`paint1_linear_3196_2101`, `#0C69D5→#06376F`).
+  Full-bleed (no baked corners) so an unmasked render never shows white corners/
+  halo; Android's circle crop produces the intended "blue disc + white logo".
+  Numeric checks: corners opaque blue, white logo 30.5%, centered (bbox center
+  (95,95) vs canvas (96,96)).
+- `public/notification-badge-96x96.png` (+ `.svg` source) — the same white
+  silhouette on a transparent canvas (RGBA corners alpha 0) for the status bar,
+  which Android tints monochrome from the alpha channel.
+
+`src/app/sw.ts` `showNotification` now references the two new assets. No
+manifest/launcher-icon changes. Docs `event-notifications.md` §1.7 (Notification
+art paragraph) + §1.11 file table; progress changelog.
+
+**Verified**: generator output pixel checks (corner alpha, palette coverage,
+centering); `pnpm typecheck`, `pnpm lint`, `pnpm test`, `pnpm build` (and the
+built SW precache manifest includes both new `public/` files). Manual to run
+after deploy: Android PWA → Profile → Notifications → Send test notification →
+confirm round blue avatar + clean status-bar glyph.

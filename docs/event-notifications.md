@@ -177,6 +177,18 @@ registers one `after(async () => …)` and returns immediately. Inside:
   client (navigating it to the deep link) or opens a new one. Tapping a
   notification lands on the event's details modal.
 
+**Notification art.** The `icon` is `public/notification-icon-192x192.png` (the
+brand cloud+movement mark recolored white over a full-bleed blue-gradient tile —
+a full-bleed square so an unmasked render shows a clean tile with no white halo,
+and Android's own crop turns it into the round "app icon" look) and the status-bar
+`badge` is `public/notification-badge-96x96.png` (the same white silhouette on
+transparent, which Android tints monochrome). The app tile
+(`public/icon-192x192.png`) is a near-white rounded square and reads as a
+blank/opaque square on Android's light notification surface — do **not** use it
+here. Both files plus their `.svg` sources are derived from `public/icon.svg` by
+`python3 scripts/gen-notification-icons.py` (textual recolor + `rsvg-convert`);
+re-run it when the brand icon changes and commit the outputs.
+
 ## 1.8 User surface (Notifications dialog)
 
 `Profile menu → Notifications` (`NotificationSettings.tsx`, mounted in
@@ -289,4 +301,7 @@ check in order:
 | `src/app/sw.ts`                                                 | `push` / `notificationclick` handlers                         |
 | `src/lib/events/actions.ts`                                     | Dispatch calls in `createEvent` / `updateEvent`               |
 | `src/db/schema.ts`, `drizzle/0038_late_ultimates.sql`           | `push_subscriptions`, `user_preferences.event_invite_push`    |
-| `.env.example`, `docs/developer-guide.md`, `AGENTS.md`          | Env + deployment docs                                         |
+| `public/notification-icon-192x192.png` (+ `.svg` source)       | Push `icon` — white logo on blue tile (see §1.7)              |
+| `public/notification-badge-96x96.png` (+ `.svg` source)        | Push `badge` — white silhouette (see §1.7)                    |
+| `scripts/gen-notification-icons.py`                            | Regenerates the notification art from `public/icon.svg`       |
+| `.env.example`, `docs/developer-guide.md`, `AGENTS.md`         | Env + deployment docs                                         |

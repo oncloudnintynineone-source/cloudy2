@@ -670,6 +670,18 @@ One line per phase; full write-ups (incl. Mermaid diagrams and verification note
   race so a fresh install's first-open can't spuriously report the background
   service as not running. Docs `developer-guide.md` §1.9.1 + `AGENTS.md` gotchas
   updated (Cloud Run build-arg note)
+- 1.207 Notification art on Android: the push `icon`/`badge` used the app tile
+  (`icon-192x192.png`), a near-white rounded square that read as a blank/opaque
+  square on Android's light notification surface and as a filled square in the
+  status-bar badge slot. New dedicated assets — `notification-icon-192x192.png`
+  (the cloud+movement mark recolored white over a full-bleed blue-gradient tile,
+  so Android's crop turns it into the round app-icon look with no white halo)
+  and `notification-badge-96x96.png` (same white silhouette on transparent,
+  tinted monochrome in the status bar) — are wired into `sw.ts`'s
+  `showNotification`. Both plus `.svg` sources are derived from `public/icon.svg`
+  by the new `scripts/gen-notification-icons.py` (textual recolor +
+  `rsvg-convert`, committed for regeneration); documented in
+  `docs/event-notifications.md` §1.7/§1.11
 
 ## 1.4 Open items & next steps
 
