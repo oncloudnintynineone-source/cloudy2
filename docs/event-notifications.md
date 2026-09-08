@@ -23,7 +23,8 @@ and can never delay or fail the mutation.
 - [1.9 Audit trail](#19-audit-trail)
 - [1.10 Platform notes & limits](#110-platform-notes--limits)
 - [1.10.1 Troubleshooting](#1101-troubleshooting)
-- [1.11 Files](#111-files)
+- [1.11 Customizing the notification content](#111-customizing-the-notification-content)
+- [1.12 Files](#112-files)
 
 ## 1.1 When a notification is sent
 
@@ -284,13 +285,111 @@ check in order:
    row (never completed Enable on that account), the master switch is off for
    them, or their account is inactive. Re-check step 4's setup.
 
-## 1.11 Files
+## 1.11 Customizing the notification content
+
+The push copy is **admin-customizable** — Settings → Templates →
+"Event Notification Templates". It follows the KAH breach-email template
+pattern: per-reason title/body text templates stored on the `settings` row,
+rendered at dispatch time from the saved event's fields, with a live sample
+preview in the admin form.
+
+```mermaid
+flowchart LR
+  A["settings row: participant_notify_* templates"] --> R
+  B["saved event fields (title/type/time/location)"] --> R
+  R["renderTokenTemplate (tokenTemplate.ts)"] --> M["{ title, body }"]
+  M --> S["showNotification(title, body) in sw.ts"]
+```
+
+### 1.11.1 Stored templates
+
+Four `settings` columns (migration `0039_mighty_the_stranger`):
+
+- `participant_notify_created_title` / `participant_notify_created_body`
+  — shown when a **new** event is created.
+- `participant_notify_added_title` / `participant_notify_added_body`
+  — shown when an edit **adds** the recipient to an existing event.
+
+Each is a single-line template whose column default is the built-in wording.
+The runtime single source of truth lives in
+`src/lib/events/participantNotify/templates.ts`
+(`PARTICIPANT_NOTIFY_TEMPLATES_DEFAULT`), and
+`resolveParticipantNotifyTemplates` maps stored → effective values, falling
+back to the defaults for any blank/absent field — a cleared field never yields
+an empty notification.
+
+### 1.11.2 Tokens & grammar
+
+Notification content renders through the **shared token-template engine**
+(`src/lib/settings/tokenTemplate.ts`, `renderTokenTemplate`) — the same
+tokens / `< >` conditional grammar / escapes as the event-title templates
+(`docs/event-lifecycle.md` §1.8.1). Tokens:
+
+| Token      | Value                                                        |
+| ---------- | ------------------------------------------------------------ |
+| `{title}`  | the rendered Google Calendar event title                     |
+| `{type}`   | the event-type name                                          |
+| `{time}`   | the event window in the UTC+8 wall clock (the audit "time" string) |
+| `{location}` | the event's location                                       |
+
+Styles are not supported. Unknown tokens stay literal; empty token values drop
+their `< ... >` group. The built-in wording (identical to the pre-template
+copy) is:
+
+```
+created: title "{title}"
+         body  "You're included in a new event< · {time}>< · {location}>"
+added:   title "{title}"
+         body  "You've been added to this event< · {time}>< · {location}>"
+```
+
+### 1.11.3 Rendering & dispatch
+
+`buildParticipantNotification` (`message.ts`, pure) renders the reason's title
+and body templates with the event's token context and returns `{ title, body }`
+for the OS. When a rendered title comes out empty it falls back to the event
+type name, then to the generic reason headline (`New event` / `Event update`),
+so an admin template that renders nothing still shows a sensible headline.
+
+`dispatchParticipantNotifications` (`notify.ts`) reads the four columns inside
+`after()` (falling back to the defaults on a read failure), formats `{time}`
+via `formatEventAuditTime`, and sends `title`/`body` unchanged — the push
+payload schema (`{ title, body, tag, url }`) is untouched, so no client or SW
+change is needed.
+
+### 1.11.4 Admin surface
+
+The Templates tab (`/settings/templates`) mounts
+`NotificationTemplatesEditor.tsx` beneath the event-title cards — one
+"Event Notification Templates" card with a section per reason:
+
+- a **Title template** `TextInput` and a **Body template** `Textarea`
+  (single-line validation, since the OS notification collapses newlines),
+- **Insert token** chips + **Wrap in < >** (the same editing helpers as the
+  master event-title template form),
+- **Reset to default** per section,
+- two live previews per reason — a full-detail sample event and a
+  minimal/empty one — rendered through the real `buildParticipantNotification`
+  so the headline fallbacks and conditional drops preview accurately.
+
+Saving calls `updateParticipantNotificationTemplates`
+(`src/lib/settings/actions.ts`; admin-only) which validates
+(`validateParticipantNotifyTemplates` — non-blank, single-line, title ≤ 140,
+body ≤ 300), writes the four columns, audits a `settingsUpdate` diff, and
+revalidates `/settings/templates`. The profile dialog's **Send test** is
+unchanged — it exercises the plumbing, not the event content, so it keeps
+fixed test copy.
+
+## 1.12 Files
 
 | File                                                            | Role                                                          |
 | --------------------------------------------------------------- | ------------------------------------------------------------- |
 | `src/lib/events/participantNotify/vapid.ts` (+ test)            | Pure VAPID env parsing                                        |
 | `src/lib/events/participantNotify/diff.ts` (+ test)             | Pure occupancy diff (`computeAddedUserIds`)                   |
-| `src/lib/events/participantNotify/message.ts` (+ test)          | Pure notification text builder                                |
+| `src/lib/events/participantNotify/message.ts` (+ test)          | Pure notification text builder (renders admin content templates) |
+| `src/lib/events/participantNotify/templates.ts`                 | Default content templates + resolver (shared with schema)    |
+| `src/lib/events/participantNotify/validate.ts` (+ test)         | Notification content-template validation                     |
+| `src/lib/settings/tokenTemplate.ts`                             | Shared token-template engine (tokens/conditionals/escapes)   |
 | `src/lib/events/participantNotify/subscriptions.ts`             | `push_subscriptions` DB access (list/upsert/delete/by-endpoint) |
 | `src/lib/events/participantNotify/sender.ts`                    | Shared one-shot `web-push` send (used by notify + test action)   |
 | `src/lib/events/participantNotify/notify.ts`                    | `dispatchParticipantNotifications` (`after()` send path)         |
@@ -300,7 +399,10 @@ check in order:
 | `src/components/UserMenu.tsx`                                   | Menu entry + modal mount                                      |
 | `src/app/sw.ts`                                                 | `push` / `notificationclick` handlers                         |
 | `src/lib/events/actions.ts`                                     | Dispatch calls in `createEvent` / `updateEvent`               |
+| `src/app/(protected)/settings/templates/NotificationTemplatesEditor.tsx` | Admin content editor (Settings → Templates)      |
+| `src/lib/settings/actions.ts`                                   | `updateParticipantNotificationTemplates` server action        |
 | `src/db/schema.ts`, `drizzle/0038_late_ultimates.sql`           | `push_subscriptions`, `user_preferences.event_invite_push`    |
+| `src/db/schema.ts`, `drizzle/0039_mighty_the_stranger.sql`      | Four `participant_notify_*` content-template columns          |
 | `public/notification-icon-192x192.png` (+ `.svg` source)       | Push `icon` — white logo on blue tile (see §1.7)              |
 | `public/notification-badge-96x96.png` (+ `.svg` source)        | Push `badge` — white silhouette (see §1.7)                    |
 | `scripts/gen-notification-icons.py`                            | Regenerates the notification art from `public/icon.svg`       |

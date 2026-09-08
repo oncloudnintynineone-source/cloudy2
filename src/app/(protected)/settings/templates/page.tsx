@@ -1,7 +1,10 @@
+import { Stack } from "@mantine/core";
+
 import { listEventTypes } from "@/lib/eventTypes/queries";
 import { listUsers } from "@/lib/roster/queries";
 import { getSettings, listEventTitleTemplates } from "@/lib/settings/queries";
 import { TemplatesForm } from "./TemplatesForm";
+import { NotificationTemplatesEditor } from "./NotificationTemplatesEditor";
 
 export default async function TemplatesPage() {
   const [settings, users, eventTypes, templates] = await Promise.all([
@@ -16,16 +19,19 @@ export default async function TemplatesPage() {
     departmentName: user.department?.name ?? null,
   }));
   return (
-    <TemplatesForm
-      nameTemplate={settings.nameTemplate}
-      eventTitleTemplate={settings.eventTitleTemplate}
-      templates={templates.map((t) => ({ id: t.id, label: t.label, template: t.template }))}
-      assignments={settings.eventTitleTemplateAssignments as Record<string, string>}
-      previewUsers={previewUsers}
-      previewEventTypes={eventTypes.map((type) => ({
-        name: type.name,
-        shortname: type.shortname,
-      }))}
-    />
+    <Stack gap="md">
+      <TemplatesForm
+        nameTemplate={settings.nameTemplate}
+        eventTitleTemplate={settings.eventTitleTemplate}
+        templates={templates.map((t) => ({ id: t.id, label: t.label, template: t.template }))}
+        assignments={settings.eventTitleTemplateAssignments as Record<string, string>}
+        previewUsers={previewUsers}
+        previewEventTypes={eventTypes.map((type) => ({
+          name: type.name,
+          shortname: type.shortname,
+        }))}
+      />
+      <NotificationTemplatesEditor initial={settings.participantNotifyTemplates} />
+    </Stack>
   );
 }

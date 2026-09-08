@@ -14,6 +14,8 @@ import {
 import { AUDIT_ACTIONS, actorFromUser } from "@/lib/audit/build";
 import { diffFields } from "@/lib/audit/diff";
 import { logAction } from "@/lib/audit/log";
+import { validateParticipantNotifyTemplates } from "@/lib/events/participantNotify/validate";
+import type { ParticipantNotifyTemplates } from "@/lib/events/participantNotify/templates";
 import { purgeGcalCache } from "@/lib/google/eventsCache";
 import { validateKahNotificationsForm, type KahNotificationsFormValues } from "@/lib/kah/validate";
 import { requireAdmin } from "@/lib/session";
@@ -46,6 +48,10 @@ export type SettingsActionResult =
         | "kahEmails"
         | "kahSubject"
         | "kahBody"
+        | "createdTitle"
+        | "createdBody"
+        | "addedTitle"
+        | "addedBody"
         | "templateLabel"
         | "template"
         | "assignments";
@@ -482,6 +488,68 @@ export async function updateKahNotifications(
 
   revalidatePath("/settings/general");
   revalidatePath("/settings/kah-groups");
+  return { ok: true };
+}
+
+export async function updateParticipantNotificationTemplates(
+  values: ParticipantNotifyTemplates,
+): Promise<SettingsActionResult> {
+  const session = await requireAdmin();
+
+  const normalized: ParticipantNotifyTemplates = {
+    createdTitle: values.createdTitle.trim(),
+    createdBody: values.createdBody.trim(),
+    addedTitle: values.addedTitle.trim(),
+    addedBody: values.addedBody.trim(),
+  };
+  const errors = validateParticipantNotifyTemplates(normalized);
+  const errorField = (["createdTitle", "createdBody", "addedTitle", "addedBody"] as const).find(
+    (field) => errors[field],
+  );
+  if (errorField) {
+    return { ok: false, error: errors[errorField]!, field: errorField };
+  }
+
+  const [before] = await db.select().from(settings).limit(1);
+
+  await db
+    .update(settings)
+    .set({
+      participantNotifyCreatedTitle: normalized.createdTitle,
+      participantNotifyCreatedBody: normalized.createdBody,
+      participantNotifyAddedTitle: normalized.addedTitle,
+      participantNotifyAddedBody: normalized.addedBody,
+      updatedAt: new Date(),
+    })
+    .where(eq(settings.id, "singleton"));
+
+  await logAction({
+    ...actorFromUser({
+      id: session.user.id,
+      name: session.user.name ?? null,
+      role: session.user.role,
+    }),
+    action: AUDIT_ACTIONS.settingsUpdate,
+    entityType: "settings",
+    entityName: "settings",
+    method: "updateParticipantNotificationTemplates",
+    details: diffFields(
+      {
+        participantNotifyCreatedTitle: before?.participantNotifyCreatedTitle ?? null,
+        participantNotifyCreatedBody: before?.participantNotifyCreatedBody ?? null,
+        participantNotifyAddedTitle: before?.participantNotifyAddedTitle ?? null,
+        participantNotifyAddedBody: before?.participantNotifyAddedBody ?? null,
+      },
+      {
+        participantNotifyCreatedTitle: normalized.createdTitle,
+        participantNotifyCreatedBody: normalized.createdBody,
+        participantNotifyAddedTitle: normalized.addedTitle,
+        participantNotifyAddedBody: normalized.addedBody,
+      },
+    ),
+  });
+
+  revalidatePath("/settings/templates");
   return { ok: true };
 }
 

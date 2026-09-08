@@ -682,6 +682,20 @@ One line per phase; full write-ups (incl. Mermaid diagrams and verification note
   by the new `scripts/gen-notification-icons.py` (textual recolor +
   `rsvg-convert`, committed for regeneration); documented in
   `docs/event-notifications.md` §1.7/§1.11
+- 1.208 Admin-customizable participant-notification content (migration 0039): the
+  push title/body is no longer fixed copy — Settings → Templates gains an
+  "Event Notification Templates" card (`NotificationTemplatesEditor.tsx`) editing
+  per-reason (created/added) title+body templates stored on the `settings` row
+  (`participant_notify_*`), rendered at dispatch time by `buildParticipantNotification`
+  through the newly-shared `renderTokenTemplate` engine
+  (`src/lib/settings/tokenTemplate.ts`, extracted from `formatEventTitle`, which now
+  just supplies its event-title resolver) with `{title}`/`{type}`/`{time}`/`{location}`
+  tokens + `< >` conditional groups; defaults + blank-field fallback live in
+  `participantNotify/templates.ts`; `updateParticipantNotificationTemplates` server
+  action (admin, audit diff, revalidate) with pure `validateParticipantNotifyTemplates`
+  (single-line, ≤140 title / ≤300 body); live sample previews reuse the real builder.
+  `docs/event-notifications.md` §1.11/§1.12, `docs/event-lifecycle.md` §1.8.1,
+  `AGENTS.md`, `progress-archive.md`
 
 ## 1.4 Open items & next steps
 

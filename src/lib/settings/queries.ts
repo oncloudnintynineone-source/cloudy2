@@ -7,6 +7,10 @@ import {
   isBannerColor,
   type BannerConfig,
 } from "@/lib/banner/banner";
+import {
+  resolveParticipantNotifyTemplates,
+  type ParticipantNotifyTemplates,
+} from "@/lib/events/participantNotify/templates";
 import { AUDIT_RETENTION_DEFAULT } from "@/lib/settings/validate";
 import {
   KAH_EMAIL_BODY_TEMPLATE_DEFAULT,
@@ -44,6 +48,8 @@ export interface SettingsView {
   /** Admin-customized KAH breach email templates ({event}/{actor}/{window}/{breaches}). */
   kahEmailSubjectTemplate: string;
   kahEmailBodyTemplate: string;
+  /** Admin-customized participant-notification content (title/body per reason). */
+  participantNotifyTemplates: ParticipantNotifyTemplates;
 }
 
 /**
@@ -76,6 +82,16 @@ export async function getSettings(): Promise<SettingsView> {
     kahEmailSubjectTemplate:
       row?.kahEmailSubjectTemplate?.trim() || KAH_EMAIL_SUBJECT_TEMPLATE_DEFAULT,
     kahEmailBodyTemplate: row?.kahEmailBodyTemplate?.trim() || KAH_EMAIL_BODY_TEMPLATE_DEFAULT,
+    participantNotifyTemplates: resolveParticipantNotifyTemplates(
+      row
+        ? {
+            createdTitle: row.participantNotifyCreatedTitle,
+            createdBody: row.participantNotifyCreatedBody,
+            addedTitle: row.participantNotifyAddedTitle,
+            addedBody: row.participantNotifyAddedBody,
+          }
+        : undefined,
+    ),
   };
 }
 

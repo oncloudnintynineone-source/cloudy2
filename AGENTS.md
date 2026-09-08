@@ -418,6 +418,14 @@ it's a JS-only query (not a Mantine breakpoint, so it can't collide with `xs:`/`
   account-wide pause switch. The dialog never hangs — the SW probe (`pushSwState`)
   races `navigator.serviceWorker.ready` against a timeout and explains each failure
   state; server actions return structured errors (migration hint included).
+  **The notification copy is admin-customizable** — Settings → Templates →
+  "Event Notification Templates": per-reason (created/added) title + body
+  templates on the `settings` row (`participant_notify_*`, migration 0039),
+  rendered at dispatch time through the shared `renderTokenTemplate` engine
+  (`src/lib/settings/tokenTemplate.ts`, also the event-title grammar) with
+  `{title}`/`{type}`/`{time}`/`{location}` tokens and `< >` conditional groups;
+  defaults live in `src/lib/events/participantNotify/templates.ts`. The send
+  test keeps fixed copy (it proves plumbing, not content).
   Design: [docs/event-notifications.md](docs/event-notifications.md).
 - **Standard loading appearance: skeleton only + fade-in on reveal.** The skeleton is
   the ONLY loading indicator — never dim or darken content (`opacity: isPending ? …`

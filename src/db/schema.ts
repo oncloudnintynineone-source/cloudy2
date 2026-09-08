@@ -15,6 +15,8 @@ import {
   type AnyPgColumn,
 } from "drizzle-orm/pg-core";
 
+import { PARTICIPANT_NOTIFY_TEMPLATES_DEFAULT } from "@/lib/events/participantNotify/templates";
+
 const timestamps = {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
@@ -353,6 +355,26 @@ export const settings = pgTable(
           "only — the event was saved. Adjust the event or\nthe KAH groups in Settings if " +
           "this was not intended.",
       ),
+    /**
+     * Admin-customized participant-notification content templates (title/body
+     * per reason, rendered with `{title}` `{type}` `{time}` `{location}` and
+     * `< ... >` conditional groups). Defaults are the shipped wording — keep in
+     * sync with `src/lib/events/participantNotify/templates.ts`, whose
+     * constants are the runtime fallback for blank/absent fields (these column
+     * defaults only seed new rows).
+     */
+    participantNotifyCreatedTitle: text("participant_notify_created_title")
+      .notNull()
+      .default(PARTICIPANT_NOTIFY_TEMPLATES_DEFAULT.createdTitle),
+    participantNotifyCreatedBody: text("participant_notify_created_body")
+      .notNull()
+      .default(PARTICIPANT_NOTIFY_TEMPLATES_DEFAULT.createdBody),
+    participantNotifyAddedTitle: text("participant_notify_added_title")
+      .notNull()
+      .default(PARTICIPANT_NOTIFY_TEMPLATES_DEFAULT.addedTitle),
+    participantNotifyAddedBody: text("participant_notify_added_body")
+      .notNull()
+      .default(PARTICIPANT_NOTIFY_TEMPLATES_DEFAULT.addedBody),
     /** How many days of audit_logs to keep; older rows are purged on read. */
     auditLogRetentionDays: integer("audit_log_retention_days").notNull().default(90),
     /**

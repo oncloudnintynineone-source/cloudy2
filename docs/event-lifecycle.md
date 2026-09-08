@@ -476,10 +476,16 @@ so editing never re-types the templated calendar title.
 
 ## 1.8 Title rendering
 
-### 1.8.1 `formatEventTitle` — the token engine (`src/lib/settings/formatEventTitle.ts:46`)
+### 1.8.1 `formatEventTitle` — the event-title resolver (`src/lib/settings/formatEventTitle.ts`)
 
 Substitutes `{...}` tokens in the admin template (`settings.event_title_template`,
-default `"{description}"`, max 300 chars) case-insensitively:
+default `"{description}"`, max 300 chars) case-insensitively. `formatEventTitle`
+is a thin resolver over the **shared token-template engine** in
+`src/lib/settings/tokenTemplate.ts` (`renderTokenTemplate`) — the same engine
+renders the participant-notification content templates (§1.12 of
+`docs/event-notifications.md`) and the KAH email templates use a simpler regex
+substitution. The grammar (tokens, `< >` conditionals, escapes) is engine-wide;
+this module only maps the event-title token set to its values:
 
 | Token | Renders |
 | ----- | ------- |
@@ -496,8 +502,8 @@ default `"{description}"`, max 300 chars) case-insensitively:
 List tokens join with `", "`; empty lists/absent values resolve to `""`; **unknown
 tokens and unknown styles are left as literal text**; the result is trimmed.
 People arrive pre-resolved as `EventTitlePerson { full, acronym, fqn
-}` (`formatEventTitle.ts:8`) and the type as `EventTitleType { name, acronym }`
-(`:17`), so the formatter is pure string substitution. The FQN style uses
+}` (`formatEventTitle.ts`) and the type as `EventTitleType { name, acronym }`,
+so the formatter is pure string substitution. The FQN style uses
 `formatFullName` (`src/lib/settings/formatName.ts:20`), which substitutes
 `{name}`/`{department}` in `settings.name_template` the same way.
 

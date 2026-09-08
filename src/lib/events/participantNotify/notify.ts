@@ -17,10 +17,10 @@ import { after } from "next/server";
 import { inArray } from "drizzle-orm";
 
 import { db } from "@/db";
-import { userPreferences, users } from "@/db/schema";
+import { settings, userPreferences, users } from "@/db/schema";
 import { AUDIT_ACTIONS } from "@/lib/audit/build";
 import { logAction } from "@/lib/audit/log";
-import type { EventTimeParts } from "@/lib/events/eventAudit";
+import { formatEventAuditTime, type EventTimeParts } from "@/lib/events/eventAudit";
 import type { EventMutationCopy } from "@/lib/events/actions";
 import { eventDetailUrl } from "@/lib/events/notes";
 import { activeMembershipsByDepartment } from "@/lib/roster/queries";
@@ -33,6 +33,7 @@ import {
   listSubscriptionsByUserIds,
   type StoredPushSubscription,
 } from "./subscriptions";
+import { resolveParticipantNotifyTemplates } from "./templates";
 import { parseVapidConfig, type VapidConfig } from "./vapid";
 
 export interface ParticipantNotifyInput {
@@ -129,6 +130,24 @@ async function runParticipantNotify(input: ParticipantNotifyInput): Promise<void
     return;
   }
 
+  // Admin content templates (Settings → Templates). A failed read falls back
+  // to the built-in defaults so delivery is never blocked by a settings hiccup.
+  let templates = resolveParticipantNotifyTemplates(null);
+  try {
+    const [settingsRow] = await db
+      .select({
+        createdTitle: settings.participantNotifyCreatedTitle,
+        createdBody: settings.participantNotifyCreatedBody,
+        addedTitle: settings.participantNotifyAddedTitle,
+        addedBody: settings.participantNotifyAddedBody,
+      })
+      .from(settings)
+      .limit(1);
+    templates = resolveParticipantNotifyTemplates(settingsRow ?? undefined);
+  } catch (error) {
+    console.error("[push] Failed to read participant notification templates", error);
+  }
+
   const userRows = await db
     .select({
       id: users.id,
@@ -172,8 +191,9 @@ async function runParticipantNotify(input: ParticipantNotifyInput): Promise<void
     reason: input.reason,
     title: input.title,
     eventType: input.eventType,
-    timeParts: input.timeParts,
+    time: formatEventAuditTime(input.timeParts),
     location: input.location,
+    templates,
   });
 
   // Audit first so the notification is on record even when a send fails.

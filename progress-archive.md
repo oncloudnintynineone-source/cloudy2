@@ -8109,3 +8109,22 @@ centering); `pnpm typecheck`, `pnpm lint`, `pnpm test`, `pnpm build` (and the
 built SW precache manifest includes both new `public/` files). Manual to run
 after deploy: Android PWA → Profile → Notifications → Send test notification →
 confirm round blue avatar + clean status-bar glyph.
+
+## 1.208 Admin-customizable participant push copy (Settings → Templates)
+
+Until this phase the participant-invite push text was fixed: title = the rendered event title, body = "You're included in a new event / You've been added to this event · {time} · {location}". Admins could only influence the headline indirectly through the event-title template.
+
+**Decision**: reuse the KAH breach-email pattern (settings-row subject/body templates + token substitution + defaults module + live preview) but scoped to the two-reason OS notification (created vs added), surfaced on the existing Settings → Templates tab with the same token/`< >` grammar admins already know from event-title templates.
+
+**Storage** (migration `0039_mighty_the_stranger`, 4 new `settings` columns, defaults = the previous wording rewritten in template grammar):
+`participant_notify_created_title` `{title}`, `participant_notify_created_body` "You're included in a new event< · {time}>< · {location}>", `participant_notify_added_title` `{title}`, `participant_notify_added_body` "You've been added to this event< · {time}>< · {location}>". Single source of truth `PARTICIPANT_NOTIFY_TEMPLATES_DEFAULT` + `resolveParticipantNotifyTemplates` in `src/lib/events/participantNotify/templates.ts` (blank/absent stored fields fall back to the defaults).
+
+**Shared engine extraction**: the parser/conditional renderer previously embedded in `formatEventTitle.ts` moved unchanged into `src/lib/settings/tokenTemplate.ts` (`renderTokenTemplate(template, resolve)`; resolver returns a substitution string, or null = unknown token/style rendered literal + counts as content). `formatEventTitle` now delegates, supplying its event-title resolver — behavior-preserving, verified by its existing suite (all 68 settings tests green).
+
+**Message builder**: `buildParticipantNotification` (`participantNotify/message.ts`) now renders the reason's title/body templates with `{title}`/`{type}`/`{time}`/`{location}` values; a fully-empty rendered title still falls back to the event type then the generic reason headline. The builder receives the time pre-formatted from the dispatch path (still the audit UTC+8 clock) and is now dependency-free/client-safe. Dispatch (`notify.ts`) reads the four columns inside `after()` (fallback on read failure).
+
+**Admin UI**: `NotificationTemplatesEditor.tsx` mounted on `/settings/templates` — per-reason Title template + Body template, insert-token chips + Wrap in < >, Reset to default, and two live previews (full-detail + minimal) rendered through the real builder so fallbacks/drops preview accurately. Save → `updateParticipantNotificationTemplates` (admin, audit settingsUpdate diff, revalidate) with pure `validateParticipantNotifyTemplates` (non-blank, single-line, title ≤140, body ≤300). The profile Send-test keeps fixed copy.
+
+**Docs**: `docs/event-notifications.md` §1.11 (content customization) + §1.12 file table (renumbered), `docs/event-lifecycle.md` §1.8.1 (engine location), AGENTS.md participant-notifications bullet, progress changelog.
+
+**Verified**: pnpm typecheck, pnpm lint, pnpm test (1005 pass incl. new message/validate cases), pnpm db:generate (clean drift). Manual to run after deploy: Settings → Templates → edit a notification template → send an event tagging a second user → confirm the device shows the new copy; blank-title event shows the type/headline fallback.
