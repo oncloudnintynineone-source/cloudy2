@@ -7691,11 +7691,14 @@ matrix and confirm normal behavior.
 Changes who owns/edits an event and who counts as "on" it. The organizer (creator) is now a **fixed, separate** concept from the invitees; creation "on behalf of" is gone.
 
 **Model**
-- **Organizer (createdBy)**: always the acting session user on create (the admin "On behalf of" wizard step is removed); immutable on edit � update re-resolves the organizer from the event itself (ef.creatorId, adopting the acting user on a creator-less legacy/external first edit) and ignores any submitted creatorId. Admins can no longer create or reassign events to another user.
+- **Organizer (createdBy)**: always the acting session user on create (the admin "On behalf of" wizard step is removed); immutable on edit � update re-resolves the organizer from the event itself (
+ef.creatorId, adopting the acting user on a creator-less legacy/external first edit) and ignores any submitted creatorId. Admins can no longer create or reassign events to another user.
 - **Attendees (inviteeUsers + inviteeDepartments)**: exactly what was picked � the organizer is **no longer auto-merged** in (server withCreatorInvited removed; wizard no longer seeds/locks the self chip; mergeInviteeSelection drops the creator-lock). To attend, the organizer selects their own name. Existing events keep their stored organizer-in-attendees, and editing prefills it (deselectable).
 - **Owner-only lock (new notes flag ownerOnlyEdits, written only when true)**: when set, only the organizer (and admins) may edit/delete/duplicate. Toggle shown on the wizard's review step, editable only by the organizer or an admin; other editors keep the stored value (server clamps via canChangeLock). Read back via parseEventOwnerOnlyEdits ? CalendarEventPayload.ownerOnlyEdits ? EventRef.
 - **Modify rights (edit/delete/duplicate)** = modifyGuard (guards.ts, replaces creatorGuard/ownershipGuard): admins always; otherwise blocked when ownerOnlyEdits; then organizer, individually tagged attendees, and **active members of tagged departments** may act. Creator-less people-less (legacy/external) events stay admin-only. Memberships resolve per action from the active roster (ctiveMembershipsByDepartment in roster queries).
-- **Occupancy decoupled**: an event occupies only attendees + active members of tagged departments. The organizer is no longer always-busy. Updated: owsForEvent (no unconditional creator row), clashes usyUsersOfEvent/candidateUsers, KAH usyKahsIn/usyDaysInRange, eventMatchesUserFilter (Myself filter + amber "mine" = occupancy only), display-title {people} (stored attendees), Parade State involvedUserIds. Hidden-invitee event types keep the organizer as sole attendee (server esolveEventFields collapse unchanged). External/people-less events still occupy their own calendar's members.
+- **Occupancy decoupled**: an event occupies only attendees + active members of tagged departments. The organizer is no longer always-busy. Updated: 
+owsForEvent (no unconditional creator row), clashes usyUsersOfEvent/candidateUsers, KAH usyKahsIn/usyDaysInRange, eventMatchesUserFilter (Myself filter + amber "mine" = occupancy only), display-title {people} (stored attendees), Parade State involvedUserIds. Hidden-invitee event types keep the organizer as sole attendee (server 
+esolveEventFields collapse unchanged). External/people-less events still occupy their own calendar's members.
 - Client permission gate: EventDetail buttons now use an isAdmin/owner/lock/attendee/department-membership predicate fed by myActiveDepartmentIds; wizard review shows an Organizer row + lock switch; organizer is kept in the Invited Attendees display only when self-invited.
 
 **Verified**: pnpm typecheck, pnpm lint, pnpm test (992 pass) � guards/validate/userSelect/schedule/clashes/weekMatrix/userFilter/targets tests rewritten for the new semantics.
@@ -7874,3 +7877,52 @@ reworked `dashboard/page.tsx`, `DashboardView.tsx`, `parade-state/page.tsx` +
 
 **Verified**: pnpm typecheck, pnpm lint, pnpm test (964 pass), pnpm build,
 pnpm db:generate (no drift).
+
+## 1.203 Month-grid zoom (fit-to-width default)
+
+The Month view gains a zoom. Its **default (100%) now fits all seven day
+columns into the viewport width** — the phone experience of a fixed 588px-wide
+grid (Mantine's 84px `--min-day-width` × 7) with no way to zoom is gone — and
+the user can zoom in from there.
+
+**Mechanism**: Mantine's MonthView sizes each day column as a percentage of its
+week row, which fills the ScrollArea content (`monthViewInner`). `DashboardView`
+therefore sizes that content by the zoom multiplier — `monthViewInnerStyle` =
+`width: zoom × 100%` via the MonthView `styles` API, with `--min-day-width`
+zeroed — so columns, chips and the "+N" popup all scale together, no JS geometry.
+Zoom 1 leaves the grid exactly viewport-width (no overflow); zooming in pushes
+it past the viewport into the existing overflow/pan path.
+
+**Zoom & pan**: levels `1, 1.25, 1.5, 2, 2.5, 3` (`MONTH_ZOOM_LEVELS`, pure
+`src/lib/ui/monthZoom.ts`); 1 is the floor (the grid can't be narrower than the
+viewport), so zoom-out disables there. The MonthView's ScrollArea receives its
+own `useGridPan` instance (`monthPan`, drag + edge state) through
+`scrollAreaProps`, and the shared `GridNavControls` right-edge cluster is
+rendered for the month with `zoomMin`/`zoomMax` (the component now takes those
+as props; its defaults stay the timeline zoom's 0.5–2). The pinned
+`MonthWeekdayStrip` track is sized to the same zoomed width (cells
+`flex: 0 0 100%/7`, no floor) so initials stay over their columns. Zooming keeps
+the day at the viewport center anchored (`reanchorScrollLeft`, no label column,
+ratio = oldZoom→newZoom).
+
+**Persistence**: the level is remembered per device as `dashboard.monthZoom`, a
+key separate from the Day/Week (H) `zoom`, read from the raw cookie and seeded
+pre-paint (`clampMonthZoom` in `dashboard/page.tsx`). Cookie minor bumped to
+v3.1 with an identity migration from v3.0; a v3.0 cookie simply lacks the key.
+
+**Scope**: columns only — `maxEventsPerDay`, cell height and the day modal are
+unchanged.
+
+**Files**: `src/lib/ui/monthZoom.ts` (+ test), `uiState.ts`/`uiState.test.ts`
+(`monthZoom` key, v3.1), `dashboard/page.tsx` (`initialMonthZoom`),
+`DashboardView.tsx` (`monthZoom` state + persist, `monthPan`, geometry/zoom
+re-anchor layout effect, `MonthView` inner style + weekday-strip width,
+`GridNavControls` month block), `GridNavControls.tsx` (`zoomMin`/`zoomMax`).
+Docs: `dashboard-views.md` §1.8 (file index → §1.9), `grid-pan.md`,
+`ui-state.md`, `user-guide.md`, `AGENTS.md`, `progress.md`.
+
+**Verified**: pnpm typecheck, pnpm lint, pnpm test (971 pass). Manual to run
+before ship: Month at 100% fits all seven columns on phone + desktop; +/− steps
+100→300% keeping the center day anchored and the weekday initials aligned; pan
+arrows + drag appear only when zoomed; the level survives F5; Day/Week (H) zoom
+is unaffected.

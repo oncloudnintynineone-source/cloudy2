@@ -1,10 +1,12 @@
 # 1. Wide-grid horizontal pan
 
-The dashboard's Day/Week (H)/Week (D) grids are wider than the viewport, but Mantine
-hides the native scrollbars and its own 4px bar sits at the bottom of a table that is
-usually taller than the screen (the page scrolls vertically, not the area) — without
-extra affordances there is no discoverable horizontal pan on any breakpoint.
-`useGridPan` + `GridPanControls` remedy this for all three grids at every breakpoint.
+The dashboard's Day/Week (H)/Week (D) grids are wider than the viewport, and the
+Month grid becomes wider than the viewport once its fit-width zoom is raised past
+100%, but Mantine hides the native scrollbars and its own 4px bar sits at the
+bottom of a table that is usually taller than the screen (the page scrolls
+vertically, not the area) — without extra affordances there is no discoverable
+horizontal pan on any breakpoint. `useGridPan` + `GridPanControls` remedy this for
+all the grids at every breakpoint.
 
 ## Table of contents
 
@@ -51,11 +53,15 @@ intentionally subdued secondary chrome lighter than the date-nav chevrons):
   top, a divider, then the right pan arrow; a single left-edge pan arrow stays
   edge-anchored on the left so "scroll left" still reads from the left edge (see
   [`dashboard-views.md`](dashboard-views.md#17-timeline-zoom-day-and-week-h)).
+  The **Month** grid's fit-width zoom (§1.8 of
+  [`dashboard-views.md`](dashboard-views.md#18-month-grid-zoom-fit-to-width)) uses
+  the same cluster with its own zoom levels (`zoomMin`/`zoomMax`) and its own pan
+  instance — its pan arrows appear only once a zoom level overflows the viewport.
   The cluster hangs from its **bottom edge**, so the right pan arrow's center sits
   on the visible-slice center — vertically aligned with the left pan arrow — and
   the zoom pair's slot above does not depend on `canScrollRight`, so nothing
   shifts when the arrow appears or disappears while panning. Unlike the pan
-  arrows, the zoom pair renders whenever the schedule grid is shown — zoom is
+  arrows, the zoom pair renders whenever the schedule/grid is shown — zoom is
   useful even when the grid fits without overflowing.
 
 **Positioning: `position: fixed`, statically anchored — no scroll tracking.**
@@ -94,9 +100,10 @@ the load-time center instead of chasing the calendar.
 | ---- | ------ |
 | Day / Week (H) | through the schedule views' `scrollAreaProps`: `viewportProps` + a `viewportRef` merged with the ruler-sync ref — keep `scrollAreaProps` identity stable across scroll frames |
 | Week (D) | through its own `ScrollArea` |
+| Month (zoomed) | through the MonthView's own `ScrollArea` `scrollAreaProps` (its pan state is a separate `useGridPan` instance, `monthPan`) |
 
 The button components are rendered as **siblings of the anchor element** —
-the Day/Week (H) content `Box` (`weekBoxRef`) and the Week (D) `Paper`
+the Day/Week (H)/Month content `Box` (`weekBoxRef`) and the Week (D) `Paper`
 (`rootRef`) — and receive it as `anchorRef`, which the scroll handler measures
 (see §1.2).
 
@@ -106,8 +113,9 @@ the Day/Week (H) content `Box` (`weekBoxRef`) and the Week (D) `Paper`
 | ---- | ---- |
 | `src/lib/ui/gridPan.ts` | `useGridPan` hook (drag, edge state, `panTo`) |
 | `src/components/GridPanControls.tsx` | Week (D) edge pan buttons |
-| `src/components/GridNavControls.tsx` | Day/Week (H) right-edge cluster: zoom +/− + right pan, plus left-edge pan |
+| `src/components/GridNavControls.tsx` | Day/Week (H) + Month right-edge cluster: zoom +/− + right pan, plus left-edge pan |
 
 Related docs:
 
-- [`dashboard-views.md`](dashboard-views.md) — the three wide grids this serves.
+- [`dashboard-views.md`](dashboard-views.md) — the grids this serves (§1.8 covers
+  the Month fit-width zoom that makes the Month grid pan).

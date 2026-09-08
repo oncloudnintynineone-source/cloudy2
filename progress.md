@@ -18,7 +18,7 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
 
 ## 1.1 Status
 
-- All work through changelog **1.202 (on-demand server-side dashboard Views/tabs)** is shipped.
+- All work through changelog **1.203 (Month-grid zoom, fit-to-width)** is shipped.
 - Quality gates (`lint` / `typecheck` / `test` / schema-drift check) run in CI on every
   push and PR. Pushes also auto-apply migrations per environment: `dev` →
   `migrate-preview` against the dev Neon DB, `main` → `migrate` against the prod Neon
@@ -599,7 +599,22 @@ One line per phase; full write-ups (incl. Mermaid diagrams and verification note
    motion origin is restored (a centered modal again), and the `.c2-event-form-sheet`
    CSS + `WIZARD_BODY_HEIGHT_SHEET` are removed. Desktop keeps its capped height
    (`min(68dvh, 720px, calc(100dvh - 200px))`) unchanged. `docs/event-lifecycle.md` §1.4,
-   `docs/desktop-responsive.md` §1.7, `AGENTS.md`
+    `docs/desktop-responsive.md` §1.7, `AGENTS.md`
+- 1.203 Month-grid zoom (fit-to-width): the Month view's default is now **zoom 100% =
+   all seven day columns fit the viewport width** — Mantine's 84px `--min-day-width`
+   floor is zeroed and the MonthView ScrollArea content (`monthViewInner`) is widened to
+   `zoom × 100%`, so every column/event scales together. Zooming in (levels
+   1/1.25/1.5/2/2.5/3, pure `src/lib/ui/monthZoom.ts`) overflows the grid into the
+   dashboard's horizontal pan: the MonthView's ScrollArea gets its own `useGridPan`
+   instance (`monthPan`) and the shared `GridNavControls` right-edge cluster (zoom +/−
+   + pan arrows), which now takes a caller `zoomMin`/`zoomMax` range. Zooming keeps the
+   centered day anchored (`reanchorScrollLeft`, no label column); the pinned weekday
+   strip is sized to the same zoomed width so initials stay over their columns. Level
+   remembered per device as `dashboard.monthZoom` (cookie minor v3.1, distinct from the
+   Day/Week (H) `zoom`), read pre-paint and seeded server-side. Columns only —
+   `maxEventsPerDay`, cell height and the day modal are unchanged. `docs/dashboard-views.md`
+   §1.8 (the file index becomes §1.9), `docs/grid-pan.md`, `docs/ui-state.md`,
+   `docs/user-guide.md`, `AGENTS.md`
 
 ## 1.4 Open items & next steps
 

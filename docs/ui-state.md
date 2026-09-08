@@ -8,7 +8,8 @@ Where does the app remember things? Two scopes with one hard rule:
   Calendars/Users filters (`user_preferences`).
 - **"Where you are" is device-local** — it lives in one small cookie
   `cloudy2.ui`: the last visited page, the sidebar rail state, the dashboard
-  `date`/`month` anchor and the Day/Week (H) `zoom`.
+  `date`/`month` anchor and the two zooms — the Day/Week (H) hour-slot `zoom`
+  and the Month grid's fit-width `monthZoom`.
 
 This document covers the split, the two Postgres tables and their lazy seeding,
 the tab-resolution order the dashboard page follows, the reduced cookie and
@@ -150,7 +151,8 @@ flowchart LR
   "dashboard": {                        // per-device "where you are"
     "date": "2026-08-21",               //   day-anchored views
     "month": "2026-08",                 //   Month view
-    "zoom": 1.5                         //   Day/Week (H) hour-slot zoom (slotZoom.ts)
+    "zoom": 1.5,                        //   Day/Week (H) hour-slot zoom (slotZoom.ts)
+    "monthZoom": 1.5                    //   Month-grid zoom, fit-width multiplier (monthZoom.ts)
   }
 }
 ```
@@ -181,10 +183,10 @@ default.**
 
 - **Dashboard** (`dashboard/page.tsx`): `date` — URL wins; a remembered cookie
   `date` anchors the **day views only** (`view !== "month"`); in Month view the
-  remembered `month` (else current) drives the read. `zoom` is read from the
-  raw cookie and snapped via `clampZoom` before first paint (no width jump on
-  relaunch). The **active tab is not cookie state** — it resolves server-side
-  (§1.3).
+  remembered `month` (else current) drives the read. `zoom` (Day/Week (H)) and
+  `monthZoom` (Month grid) are read from the raw cookie and snapped via
+  `clampZoom`/`clampMonthZoom` before first paint (no width jump on relaunch).
+  The **active tab is not cookie state** — it resolves server-side (§1.3).
 - **`?event=` / `?edit=` deep links** (Google "Edit:" notes, Pinned Events,
   event search) land on the user's active tab + its filters; the link's `date`
   pins the fetched period and `_eventCal` adds the event's calendar to the
@@ -199,7 +201,7 @@ default.**
 | ------ | ----- | ---------------- |
 | `useRememberedPage(pathname)` | `AppShellShell` — every authenticated page | `{ lastPage: pathname }` (incl. `/settings` sub-tabs) |
 | sidebar toggle effect | `AppShellShell` | `{ sidebarCollapsed }` on mount + every toggle |
-| `usePersistDashboardNav({ date?, month, zoom })` | `DashboardView` | the dashboard section; `date` is stored only when the URL pins one (day views), `month`/`zoom` always |
+| `usePersistDashboardNav({ date?, month, zoom, monthZoom })` | `DashboardView` | the dashboard section; `date` is stored only when the URL pins one (day views), `month`/`zoom`/`monthZoom` always |
 
 Server-side writes happen through server actions (the client never writes
 Postgres directly): tab CRUD + per-tab filters via `src/lib/dashboardViews`,

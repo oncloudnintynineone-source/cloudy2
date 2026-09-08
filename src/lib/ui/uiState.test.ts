@@ -25,7 +25,7 @@ describe("encodeUiState/decodeUiState", () => {
     const state = {
       lastPage: "/settings/users",
       sidebarCollapsed: true,
-      dashboard: { date: "2026-08-21", month: "2026-08", zoom: 1.5 },
+      dashboard: { date: "2026-08-21", month: "2026-08", zoom: 1.5, monthZoom: 2 },
     };
     expect(decodeUiState(encodeUiState(state))).toEqual(state);
   });
@@ -68,6 +68,20 @@ describe("cookie versioning", () => {
       JSON.stringify({ v: [3, 1], lastPage: "/contacts", mystery: "x" }),
     );
     expect(decodeUiState(value)).toEqual({ lastPage: "/contacts" });
+  });
+
+  it("migrates a v3.0 cookie (no monthZoom) to the current shape", () => {
+    const value = b64url(
+      JSON.stringify({
+        v: [3, 0],
+        lastPage: "/dashboard",
+        dashboard: { month: "2026-08", zoom: 1.5 },
+      }),
+    );
+    expect(decodeUiState(value)).toEqual({
+      lastPage: "/dashboard",
+      dashboard: { month: "2026-08", zoom: 1.5 },
+    });
   });
 });
 
@@ -119,6 +133,23 @@ describe("normalizeUiState (shape safety)", () => {
     // clampZoom caps at the max level; date is any non-empty string here (the
     // consuming page re-validates the pattern); a non-string month is dropped.
     expect(state).toEqual({ dashboard: { zoom: 2, date: "not-a-date" } });
+  });
+
+  it("snaps monthZoom to a known fit multiplier and drops junk values", () => {
+    // A month zoom above 1 is remembered as-is; off-level or non-numeric
+    // values snap to a level or degrade to the fit default (1).
+    expect(
+      normalizeUiState({ dashboard: { monthZoom: 2 } }),
+    ).toEqual({ dashboard: { monthZoom: 2 } });
+    expect(
+      normalizeUiState({ dashboard: { monthZoom: 99 } }),
+    ).toEqual({ dashboard: { monthZoom: 3 } });
+    expect(
+      normalizeUiState({ dashboard: { monthZoom: "2" } }),
+    ).toEqual({});
+    expect(
+      normalizeUiState({ dashboard: { monthZoom: 1.4 } }),
+    ).toEqual({ dashboard: { monthZoom: 1.5 } });
   });
 });
 

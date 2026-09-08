@@ -122,6 +122,12 @@ import { announce } from "@/lib/ui/announcer";
 import { useGridPan } from "@/lib/ui/gridPan";
 import { useImmersiveMode } from "@/lib/ui/immersiveMode";
 import {
+  MAX_MONTH_ZOOM,
+  MIN_MONTH_ZOOM,
+  stepMonthZoom,
+  type MonthZoom,
+} from "@/lib/ui/monthZoom";
+import {
   daySlotWidth,
   reanchorScrollLeft,
   stepZoom,
@@ -195,6 +201,12 @@ interface DashboardViewProps {
    * width jump). Seeding value for the client zoom state only.
    */
   initialZoom: SlotZoom;
+  /**
+   * Remembered Month-grid zoom level (a fit-width multiplier, 1 = the whole
+   * week fits the viewport width), resolved from the UI-state cookie before
+   * first paint the same way. Seeding value for the client month-zoom state.
+   */
+  initialMonthZoom: MonthZoom;
   events: CalendarEvent[];
   calendars: { id: string; name: string; sortOrder: number }[];
   eventTypes: EventTypeOption[];
@@ -602,27 +614,34 @@ function measuredWidth(root: Element, cssWidth: string): number {
   return width;
 }
 
-// `@mantine/schedule`'s MonthView day/header cells enforce a minimum column
-// width of 5.25rem (84px) at scale 1 (`--min-day-width`), so seven columns need
-// at least 588px. The pinned strip below must reproduce that geometry so its
-// weekday initials stay over the day columns when the grid scrolls horizontally.
-const MONTH_MIN_DAY_WIDTH_PX = 84;
+// Seven day columns per week row. Mantine's MonthView sizes each column as a
+// percentage of the row (`flex: 0 0 calc(100% / 7)`), so a zoom knob on the
+// grid's *width* alone scales every column and event — see the
+// `monthViewInnerStyle` in DashboardView below. The Month view overrides the
+// library's `--min-day-width` floor (84px per column) so the fit-to-width zoom
+// 1 can squeeze all seven days into any viewport, down to ~50px columns on
+// phones.
 const MONTH_COLUMNS = 7;
 
 /**
  * Pinned weekday-initials strip for the Month view. Mantine's own weekday row
  * lives inside the Month view's content-height ScrollArea and scrolls away with
  * the page, so this strip replaces it (`withWeekDays={false}` on the MonthView).
- * It pins beneath the shared chrome like the Week (H) day-label strip, and its
- * inner 7-column track translates by -scrollLeft (driven by the MonthScrollArea's
- * `onScrollPositionChange`) so the initials track the columns on the narrow
- * screens where the 588px-wide grid scrolls horizontally.
+ * It pins beneath the shared chrome like the Week (H) day-label strip. Its
+ * inner 7-column track is sized to the zoomed grid width (7 day columns at the
+ * same width the grid renders) and translates by -scrollLeft (driven by the
+ * MonthView ScrollArea's `onScrollPositionChange`), so the initials stay over
+ * their columns whenever the grid overflows the viewport — at zoom 1 the track
+ * simply fills the strip, and zooming in widens both together.
  */
 function MonthWeekdayStrip({
   chromeOffset,
+  zoom,
   innerRef,
 }: {
   chromeOffset: number;
+  /** Month-grid zoom multiplier (1 = fit to viewport width). */
+  zoom: MonthZoom;
   innerRef: RefObject<HTMLDivElement | null>;
 }) {
   return (
@@ -643,10 +662,10 @@ function MonthWeekdayStrip({
         component="div"
         style={{
           display: "flex",
-          width: "100%",
-          // Mirrors the Month view's per-row min-width (7 × column width), so
-          // the track is exactly as wide as the scrollable grid content.
-          minWidth: `calc(${MONTH_MIN_DAY_WIDTH_PX}px * ${MONTH_COLUMNS})`,
+          // Mirrors the Month grid's zoomed content width (see
+          // monthViewInnerStyle in DashboardView), so each column below lands
+          // exactly over the grid's day column.
+          width: `${zoom * 100}%`,
           willChange: "transform",
         }}
       >
@@ -656,7 +675,6 @@ function MonthWeekdayStrip({
             component="div"
             style={{
               flex: `0 0 calc(100% / ${MONTH_COLUMNS})`,
-              minWidth: `${MONTH_MIN_DAY_WIDTH_PX}px`,
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
@@ -683,6 +701,7 @@ export function DashboardView({
   activeView,
   canManageViews,
   initialZoom,
+  initialMonthZoom,
   events,
   calendars,
   eventTypes,
@@ -767,6 +786,13 @@ export function DashboardView({
   // re-anchors the scroll on a genuine zoom change — never on mount, view
   // switches or breakpoint flips.
   const prevZoomRef = useRef(zoom);
+
+  // Month-grid zoom: a multiplier of the "fit to viewport width" day columns
+  // (1 = all seven days fit; the grid can never be narrower). Same ownership
+  // contract as the timeline zoom: client state seeded from the cookie,
+  // persisted back by `usePersistDashboardNav` below.
+  const [monthZoom, setMonthZoom] = useState<MonthZoom>(initialMonthZoom);
+  const prevMonthZoomRef = useRef(monthZoom);
 
   // Label-column widths for the schedule views: mobile-narrowed 48px/24px for
   // phones, comfortable 96px/56px on desktop.
@@ -1069,20 +1095,29 @@ export function DashboardView({
     [handleDayScroll, dayGridViewportRef, schedulePan.viewportProps],
   );
   // Month view horizontal tracking: the pinned weekday-initials strip follows
-  // the MonthView's ScrollArea scroll (the grid overflows on narrow screens).
+  // the MonthView's ScrollArea scroll. The grid fits the viewport width at
+  // zoom 1; zooming in widens it past the viewport (overflowing the same way
+  // narrow screens always did), which is when this pan applies. The strip's
+  // own pan/drag + edge buttons are the month instance of useGridPan — the
+  // same affordances the schedule grids get.
+  const monthPan = useGridPan();
   const monthViewportRef = useRef<HTMLDivElement | null>(null);
+  const monthGridViewportRef = useMergedRef(monthViewportRef, monthPan.viewportRef);
   const monthWeekdayTrackRef = useRef<HTMLDivElement | null>(null);
   const handleMonthScroll = useCallback((pos: { x: number }) => {
     if (monthWeekdayTrackRef.current) {
       monthWeekdayTrackRef.current.style.transform = `translateX(${-pos.x}px)`;
     }
   }, []);
+  // Stable identity (see weekScrollAreaProps above): the MonthView must not
+  // receive fresh `scrollAreaProps` objects on every scroll frame.
   const monthScrollAreaProps = useMemo(
     () => ({
-      viewportRef: monthViewportRef,
+      viewportRef: monthGridViewportRef,
       onScrollPositionChange: handleMonthScroll,
+      viewportProps: monthPan.viewportProps,
     }),
-    [handleMonthScroll],
+    [handleMonthScroll, monthGridViewportRef, monthPan.viewportProps],
   );
 
   // Post-mutation refresh (event create/update/delete, detail actions): the
@@ -1106,15 +1141,16 @@ export function DashboardView({
   useReportActivity(isPending, "dashboard:nav");
 
   // Device-local "where you are": persist the resolved date/month anchor and
-  // the Day/Week (H) zoom to the per-device cookie whenever the rendered state
-  // changes, so a cold start (or F5) lands on the same period + zoom. The
-  // date is stored only when the URL pins one (day-anchored views); in Month
-  // view the remembered month drives the read. The tabs + their filters are
-  // server-side and need no cookie.
+  // the Day/Week (H) + Month-grid zooms to the per-device cookie whenever the
+  // rendered state changes, so a cold start (or F5) lands on the same period
+  // and zooms. The date is stored only when the URL pins one (day-anchored
+  // views); in Month view the remembered month drives the read. The tabs +
+  // their filters are server-side and need no cookie.
   usePersistDashboardNav({
     ...(searchParams.has("date") ? { date } : {}),
     month,
     zoom,
+    monthZoom,
   });
 
   // Post-mutation refresh reporter for the view (tab) CRUD: renames, reorder
@@ -1467,6 +1503,23 @@ export function DashboardView({
   // Day-anchored views (Day, Week (D), Agenda): a `?date=` anchor drives the
   // fetch (Week (D) shows the Monday-first week containing the anchor day).
   const isAnchoredView = isSchedule || isWeekV2 || isAgenda;
+
+  // Month-grid zoom knob. Mantine sizes every day column as a percentage of
+  // the week row, which fills the ScrollArea content (`monthViewInner`), so
+  // widening that content by the zoom multiplier widens all columns and events
+  // alike (no JS geometry) and pushes the grid past the viewport into the
+  // horizontal pan. 100% = all seven days fit the viewport width; the
+  // `--min-day-width` floor is zeroed so columns may go below Mantine's 84px
+  // on narrow screens. The same width drives the pinned weekday strip
+  // (MonthWeekdayStrip) so initials track the columns.
+  const monthViewInnerStyle = useMemo(
+    () =>
+      ({
+        width: `${monthZoom * 100}%`,
+        "--min-day-width": "0px",
+      }) as CSSProperties,
+    [monthZoom],
+  );
 
   const buildHref = useCallback(
     (updates: Record<string, string | null>) => {
@@ -1981,6 +2034,35 @@ export function DashboardView({
     }
   }, [view, gridLoading, isSchedule, isDesktop, zoom, scheduleResources]);
 
+  // Month-grid zoom re-anchor: widening the grid (monthViewInnerStyle above)
+  // would otherwise keep the scroll offset fixed, so the columns visibly jump
+  // away from the viewport center. Re-anchor `scrollLeft` so the column under
+  // the viewport's center stays centered, mirroring the schedule timeline zoom
+  // (reanchorScrollLeft with no label column: the scale ratio is just
+  // oldZoom→newZoom — the per-day width is (viewportWidth × zoom) / 7, which
+  // cancels out of the ratio). Only on a genuine zoom change — never on mount,
+  // month navigation or breakpoint flips.
+  useLayoutEffect(() => {
+    const zoomChanged = prevMonthZoomRef.current !== monthZoom;
+    const oldZoom = prevMonthZoomRef.current;
+    prevMonthZoomRef.current = monthZoom;
+    if (!zoomChanged || view !== "month" || gridLoading) {
+      return;
+    }
+    const viewport = monthViewportRef.current;
+    if (!viewport || viewport.clientWidth <= 0) {
+      return;
+    }
+    const width = viewport.clientWidth;
+    viewport.scrollLeft = reanchorScrollLeft(
+      viewport.scrollLeft,
+      width,
+      0,
+      (width * oldZoom) / 7,
+      (width * monthZoom) / 7,
+    );
+  }, [view, gridLoading, monthZoom]);
+
   // Shared by the Day, Week (H) and Week (D) resource views: a department row
   // is a building icon (its name as tooltip/aria), a user row is the shortname
   // label. The current user's row carries a `data-c2-my-row` marker span
@@ -2394,9 +2476,14 @@ export function DashboardView({
           />
         )}
         {/* Pinned weekday-initials strip for the Month view (replaces Mantine's
-            own row, which scrolls away inside the grid's ScrollArea). */}
+            own row, which scrolls away inside the grid's ScrollArea). Its track
+            is sized to the zoomed grid so the initials stay over their columns. */}
         {!gridLoading && view === "month" && (
-          <MonthWeekdayStrip chromeOffset={chromeHeight} innerRef={monthWeekdayTrackRef} />
+          <MonthWeekdayStrip
+            chromeOffset={chromeHeight}
+            zoom={monthZoom}
+            innerRef={monthWeekdayTrackRef}
+          />
         )}
         {gridLoading ? (
           // Skeleton flavor follows the optimistic view: the shape you tapped
@@ -2429,6 +2516,9 @@ export function DashboardView({
             // The built-in weekday row scrolls away (its ScrollArea is
             // content-height); the pinned MonthWeekdayStrip replaces it.
             withWeekDays={false}
+            // Zoomed scroll-content width (see monthViewInnerStyle above): 100%
+            // at zoom 1 (the whole week fits), wider when zoomed in.
+            styles={{ monthViewInner: monthViewInnerStyle }}
             scrollAreaProps={monthScrollAreaProps}
             maxEventsPerDay={isDesktop ? 4 : 3}
             renderEvent={renderMyMonthEvent}
@@ -2740,6 +2830,33 @@ export function DashboardView({
             }}
           />
         )}
+
+      {/* Month-grid navigation: the same right-edge cluster (zoom in/out over
+          the right pan arrow) plus the left pan arrow, driven by the month
+          grid's own pan state (monthPan). The zoom pair always shows; the pan
+          arrows appear only once a zoom level makes the grid overflow the
+          viewport. Zooming out stops at 100% — the fit-to-width floor. */}
+      {!gridLoading && view === "month" && (
+        <GridNavControls
+          anchorRef={weekBoxRef}
+          canScrollLeft={monthPan.canScrollLeft}
+          canScrollRight={monthPan.canScrollRight}
+          onPan={monthPan.panTo}
+          zoom={monthZoom}
+          zoomMin={MIN_MONTH_ZOOM}
+          zoomMax={MAX_MONTH_ZOOM}
+          onZoomIn={() => {
+            const next = stepMonthZoom(monthZoom, 1);
+            setMonthZoom(next);
+            announce(`Zoom ${Math.round(next * 100)}%`);
+          }}
+          onZoomOut={() => {
+            const next = stepMonthZoom(monthZoom, -1);
+            setMonthZoom(next);
+            announce(`Zoom ${Math.round(next * 100)}%`);
+          }}
+        />
+      )}
 
       <Modal
         opened={agendaDate !== null}

@@ -15,6 +15,7 @@
  *       date?: string,              //   day-anchored views
  *       month?: string,             //   Month view
  *       zoom?: number               //   Day/Week (H) hour-slot zoom (slotZoom.ts)
+ *       monthZoom?: number          //   Month grid zoom (monthZoom.ts)
  *     }
  *   }
  *
@@ -31,14 +32,20 @@
  */
 
 import { clampZoom } from "./slotZoom";
+import { clampMonthZoom } from "./monthZoom";
 
 export const UI_STATE_COOKIE = "cloudy2.ui";
 
-/** Day/Week (H) hour-slot zoom is remembered per device alongside date/month. */
+/**
+ * Per-device dashboard "where you are". `zoom` is the Day/Week (H) hour-slot
+ * zoom (slotZoom.ts); `monthZoom` is the Month grid's fit-width multiplier
+ * (monthZoom.ts) — two separate keys because each view remembers its own level.
+ */
 export interface DashboardNavState {
   date?: string;
   month?: string;
   zoom?: number;
+  monthZoom?: number;
 }
 
 export interface UiState {
@@ -77,9 +84,11 @@ export function normalizeUiState(value: unknown): UiState | null {
     const date = stringOf(dashboard.date);
     const month = stringOf(dashboard.month);
     const zoom = clampZoom(dashboard.zoom);
+    const monthZoom = clampMonthZoom(dashboard.monthZoom);
     if (date !== undefined) section.date = date;
     if (month !== undefined) section.month = month;
     if (zoom !== null) section.zoom = zoom;
+    if (monthZoom !== null) section.monthZoom = monthZoom;
     if (Object.keys(section).length > 0) {
       state.dashboard = section;
     }
@@ -112,12 +121,19 @@ function fromBase64Url(value: string): string {
 // are unchanged: a major mismatch in EITHER direction drops the cookie, a
 // newer minor decodes as-is (forward-compatible), an older minor runs the
 // migration chain before normalization.
-const COOKIE_VERSION: readonly [number, number] = [3, 0];
+const COOKIE_VERSION: readonly [number, number] = [3, 1];
 
-/** Minor migrations within the CURRENT major, keyed by the minor they upgrade
- *  FROM. Each returns the raw (pre-normalization) object. v3 adds none. */
+/**
+ * Minor migrations within the CURRENT major, keyed by the minor they upgrade
+ * FROM. Each returns the raw (pre-normalization) object. v3.1 adds the Month
+ * grid zoom (`monthZoom`); a v3.0 cookie carries no such key, so the migration
+ * is a pass-through and normalization fills the gap (no monthZoom = the fit
+ * default).
+ */
 const MINOR_MIGRATIONS: Record<number, (value: Record<string, unknown>) => Record<string, unknown>> =
-  {};
+  {
+    0: (value) => value,
+  };
 
 function parseCookieVersion(raw: unknown): [number, number] | null {
   if (!Array.isArray(raw) || raw.length !== 2) return null;

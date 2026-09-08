@@ -63,16 +63,21 @@ them with the tabs above the grid:
 
 | View | Shows |
 | ---- | ----- |
-| **Month** | The whole month grid; bars span multiple days |
+| **Month** | The whole month grid; bars span multiple days. By default the seven days fit the screen width; the round **+/−** controls zoom the day columns in and out |
 | **Week (H)** | One week, hour-by-hour, one row per person/department |
 | **Week (D)** | One week as day columns — events as spanning banners per row |
 | **Day** | A single day, hour-by-hour |
 | **Agenda** | A day-by-day list |
 
+- **Zoom**: the Day and Week (H) views zoom their hour columns in and out; the
+  Month view's columns start at **fit-to-width** (all seven days on screen) and
+  zoom in from there. Use the round **+/−** buttons at the right edge of the
+  grid — the same cluster where the right pan arrow lives.
+- **Pan**: wide grids pan horizontally — drag with the mouse, or use the round
+  arrow buttons at the grid's edges (they appear when a grid is wider than the
+  screen, e.g. a zoomed-in Month view).
 - **Pin tabs** you use most (⋮ menu → **Pin Tab**) — pinned views become quick tabs.
-- Wide desktop grids pan horizontally: drag with the mouse, or use the round arrow
-  buttons at the grid's edges.
-- **Fullscreen** (⋮ menu → **Enter fullscreen**, under Pin Tab) hides all app
+- **Fullscreen** (⋮ menu → **Enter fullscreen**) hides all app
   chrome (and the browser UI where supported) for a wall-display calendar; press
   Esc or use ⋮ menu → **Exit fullscreen** to go back.
 

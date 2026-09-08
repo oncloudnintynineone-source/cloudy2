@@ -22,6 +22,7 @@ import { formatFullName } from "@/lib/settings/formatName";
 import { getSettings, listEventTitleTemplates } from "@/lib/settings/queries";
 import { requireSession } from "@/lib/session";
 import { isUuid } from "@/lib/uuid";
+import { clampMonthZoom } from "@/lib/ui/monthZoom";
 import { clampZoom } from "@/lib/ui/slotZoom";
 import { UI_STATE_COOKIE, decodeUiState } from "@/lib/ui/uiState";
 import { getDashboardViews } from "@/lib/dashboardViews/queries";
@@ -102,6 +103,9 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
   // Timeline zoom (Day/Week (H)) is not URL-backed, so it is read from the raw
   // cookie and resolved before first paint to avoid a width jump on cold open.
   const initialZoom = clampZoom(nav?.zoom) ?? 1;
+  // Month-grid zoom: the remembered fit-width multiplier (1 = fit the whole
+  // week into the viewport), likewise read from the cookie pre-paint.
+  const initialMonthZoom = clampMonthZoom(nav?.monthZoom) ?? 1;
 
   const urlDate =
     typeof params.date === "string" && DATE_PATTERN.test(params.date) ? params.date : null;
@@ -375,6 +379,7 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
       activeView={activeTab}
       canManageViews={canManageViews}
       initialZoom={initialZoom}
+      initialMonthZoom={initialMonthZoom}
       events={events}
       calendars={calendars.map((calendar) => ({
         id: calendar.id,

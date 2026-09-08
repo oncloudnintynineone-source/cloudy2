@@ -3,7 +3,7 @@
 import { type RefObject, useEffect, useState } from "react";
 import { ActionIcon, Box } from "@mantine/core";
 import { IconTriangleFilled, IconZoomIn, IconZoomOut } from "@tabler/icons-react";
-import { MAX_ZOOM, MIN_ZOOM, type SlotZoom } from "@/lib/ui/slotZoom";
+import { MAX_ZOOM, MIN_ZOOM } from "@/lib/ui/slotZoom";
 
 // Shared geometry for the edge controls: 40px round buttons; inside the right
 // cluster an 8px gap between elements and a 1px divider between the zoom pair
@@ -15,10 +15,12 @@ const DIVIDER_HEIGHT = 1;
 const EDGE_INSET = 8;
 
 /**
- * Floating grid-navigation controls for the dashboard's wide schedules
- * (Day / Week (H)): the timeline zoom in/out pair and the horizontal pan
- * arrows, presented as one right-edge control cluster (the familiar map
- * convention) plus a single left-edge pan arrow.
+ * Floating grid-navigation controls for the dashboard's wide grids: the zoom
+ * in/out pair and the horizontal pan arrows, presented as one right-edge
+ * control cluster (the familiar map convention) plus a single left-edge pan
+ * arrow. Served by the Day/Week (H) **timeline** zoom (slotZoom.ts) and by
+ * the Month grid's fit-width zoom (monthZoom.ts) — the caller passes its own
+ * level range via `zoomMin`/`zoomMax`, since the two use different level sets.
  *
  * Why one cluster: a timeline zoom is expected beside the pan controls, not as
  * a second floating widget competing for the right edge, and a single stacked
@@ -52,17 +54,25 @@ export function GridNavControls({
   zoom,
   onZoomIn,
   onZoomOut,
+  zoomMin = MIN_ZOOM,
+  zoomMax = MAX_ZOOM,
 }: {
   anchorRef: RefObject<HTMLDivElement | null>;
   canScrollLeft: boolean;
   canScrollRight: boolean;
   onPan: (edge: "start" | "end") => void;
-  zoom: SlotZoom;
+  /** Current zoom level (a pure number — the day/week and month views use
+   *  different level sets, see slotZoom.ts / monthZoom.ts). */
+  zoom: number;
   onZoomIn: () => void;
   onZoomOut: () => void;
+  /** Level extremes that disable the pair; default to the timeline zoom's.
+   *  The Month grid passes its own fit-width floor (1) and max. */
+  zoomMin?: number;
+  zoomMax?: number;
 }) {
-  const canZoomIn = zoom < MAX_ZOOM;
-  const canZoomOut = zoom > MIN_ZOOM;
+  const canZoomIn = zoom < zoomMax;
+  const canZoomOut = zoom > zoomMin;
 
   // Static anchor: the visible-slice center/bounds plus the 8px edge insets,
   // measured once (null before first paint so the controls never flash

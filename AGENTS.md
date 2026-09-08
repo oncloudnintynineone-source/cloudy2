@@ -184,13 +184,23 @@ mechanics in the doc.
   the in-page transition skeletons still shape to the active tab's kind. The
   break-glass admin (`id="admin"`) has no rows — it renders a static Month tab with
   no view management. Week (D) is a custom matrix
-  (pure `buildWeekLanes`). **Entry highlights are client-side per view:** the
+  (pure `buildWeekLanes`). **Month grids zoom from a fit-to-width default:** zoom 1
+  squeezes all seven day columns into the viewport width (the Mantine 84px
+  `--min-day-width` floor is zeroed and the ScrollArea content — `monthViewInner`
+  — is widened to `zoom × 100%`, so every column/event scales together);
+  zooming in makes the grid overflow into the shared pan affordances. Pure levels
+  in `src/lib/ui/monthZoom.ts`; remembered per device as `dashboard.monthZoom`
+  (a separate key from the Day/Week (H) `zoom`). **Entry highlights are client-side per view:** the
   current user's entries get an amber treatment (row tint + chip/bar ring, mine can
   also claim Month's top rows) and **external** (Google-created) events get the same
   additive treatment in purple — never recolor the event body, keep rings/bars in
   `globals.css` (`c2-my-*` / `c2-ext-*`).
   Design: [docs/dashboard-views.md](docs/dashboard-views.md).
-- **Wide grids pan** via `useGridPan` + `GridPanControls` (drag + edge buttons).
+- **Wide grids pan** via `useGridPan` + `GridPanControls` (drag + edge buttons); the
+  Month grid joins in through its own pan instance once its zoom overflows the
+  viewport. The zoom +/− pair lives in the shared `GridNavControls` right-edge
+  cluster (Day/Week (H) timeline zoom and the Month fit-width zoom pass their own
+  level ranges via `zoomMin`/`zoomMax`).
   Design: [docs/grid-pan.md](docs/grid-pan.md).
 - **Fullscreen calendar (immersive mode):** hides shell chrome + requests page
   fullscreen; owned by `AppShellShell`, only `DashboardView` controls it and always
@@ -270,7 +280,8 @@ mechanics in the doc.
   src/lib/dashboardViews), so a logged-in user's views/filters follow them across
   devices. The one **device-local cookie** `cloudy2.ui` keeps only "where you are":
   `lastPage` (the PWA start shell must resolve it client-side, zero network),
-  `sidebarCollapsed`, and the dashboard `date`/`month` anchor + Day/Week (H) `zoom`.
+  `sidebarCollapsed`, and the dashboard `date`/`month` anchor + the Day/Week (H)
+  `zoom` and Month-grid `monthZoom`.
   The server applies the cookie per-key as fallback only where the URL param is
   absent (URL always wins); `?event=`/`?edit=` deep links land on the user's own
   active tab + filters (the link's `date` pins the fetched period, `_eventCal` adds

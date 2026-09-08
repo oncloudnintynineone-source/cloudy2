@@ -10,7 +10,7 @@ order + that tab's own filter state), stored server-side in
 inventory & management, the filters (one button + modal, scoped per tab), the
 custom Week (D) matrix — the one view no Mantine Schedule component can render —
 the per-view "mine" and external-entry highlights, and the Day / Week (H)
-timeline zoom.
+timeline zoom plus the Month grid's fit-to-width zoom.
 
 ## Table of contents
 
@@ -21,7 +21,8 @@ timeline zoom.
 - [1.5 My-entry highlight](#15-my-entry-highlight)
 - [1.6 External-event highlight](#16-external-event-highlight)
 - [1.7 Timeline zoom (Day and Week (H))](#17-timeline-zoom-day-and-week-h)
-- [1.8 File index & related docs](#18-file-index--related-docs)
+- [1.8 Month-grid zoom (fit-to-width)](#18-month-grid-zoom-fit-to-width)
+- [1.9 File index & related docs](#19-file-index--related-docs)
 
 ## 1.1 View inventory & tab management
 
@@ -179,9 +180,10 @@ directly ([`events-cache.md`](events-cache.md)):
   by Week (D).
 - The Month view range-reads the months its 6-week grid displays
   (`monthGridMonths()`, `src/lib/events/datetime.ts`).
-- Wide grids (Day/Week (H)/Week (D)) pan horizontally through `useGridPan` +
-  `GridPanControls` ([`grid-pan.md`](grid-pan.md)); the dashboard chrome can go
-  fullscreen through immersive mode ([`immersive-mode.md`](immersive-mode.md)).
+- Wide grids (Day/Week (H)/Week (D), plus Month once its fit-width zoom makes it
+  overflow) pan horizontally through `useGridPan` + `GridPanControls`
+  ([`grid-pan.md`](grid-pan.md)); the dashboard chrome can go fullscreen
+  through immersive mode ([`immersive-mode.md`](immersive-mode.md)).
 
 ## 1.5 My-entry highlight
 
@@ -369,7 +371,57 @@ flowchart LR
     S --> C["dashboard.zoom cookie<br/>(usePersistDashboardNav)"]
 ```
 
-## 1.8 File index & related docs
+## 1.8 Month-grid zoom (fit-to-width)
+
+The Month view can zoom its day columns in and out. The **default (zoom 100%) is
+"fit to viewport"**: all seven columns are sized to exactly 1/7 of the grid's
+width, so the whole week is visible on any screen with no horizontal scroll.
+Zooming in widens every day column from there (columns only — `maxEventsPerDay`,
+cell height and the "+N more" day modal are unchanged), overflowing the grid into
+the same horizontal pan the other views use.
+
+- **Mechanism**: Mantine's MonthView lays each day column out as a percentage of
+  its week row (`flex: 0 0 calc(100% / 7)`), which fills the ScrollArea content
+  (`monthViewInner`). `DashboardView` therefore sizes that content by the zoom
+  multiplier — `width: ${zoom × 100}%` via the MonthView `styles` API — so every
+  column, chip and "+N" popup scales together with no JS geometry. The library's
+  84px `--min-day-width` floor is zeroed on the same element (`monthViewInnerStyle`)
+  so the fit width can squeeze all seven columns into a phone (~50px each).
+- **Levels**: discrete `1, 1.25, 1.5, 2, 2.5, 3` (`MONTH_ZOOM_LEVELS`,
+  `src/lib/ui/monthZoom.ts`). `1` (fit) is the **floor** — the grid can never be
+  narrower than the viewport, so zoom-out is disabled there — and the buttons step
+  one level at a time and clamp at the extremes.
+- **Controls**: the same right-edge `GridNavControls` cluster as the timeline zoom
+  (zoom +/− over the right pan arrow, plus the left pan arrow), fed by the Month
+  view's own `useGridPan` instance (`monthPan`). The zoom pair always shows; the pan
+  arrows and drag-to-pan appear only once a zoom level overflows the viewport.
+  `GridNavControls` takes the month's level range via `zoomMin`/`zoomMax` (the
+  component's defaults remain the timeline zoom's 0.5–2).
+- **Pinned weekday strip**: the `MonthWeekdayStrip` track is sized to the same
+  zoomed content width (`width: ${zoom × 100}%`, cells `flex: 0 0 100%/7` — no
+  84px floor), so the initials stay exactly over their day columns at every zoom
+  level while the strip translates by `-scrollLeft`.
+- **Re-anchoring**: zooming keeps the day at the viewport's _center_ centered. A
+  `useLayoutEffect` re-anchors `scrollLeft` from the previous/next zoom ratio via
+  the pure `reanchorScrollLeft` helper (no label column — the ratio is just
+  oldZoom→newZoom, since per-day width = viewportWidth × zoom / 7).
+- **Persistence**: the level is remembered per device in the `cloudy2.ui` cookie as
+  `dashboard.monthZoom` — a key separate from the Day/Week (H) `zoom` so each view
+  keeps its own level — read from the raw cookie and seeded before first paint.
+  See [`ui-state.md`](ui-state.md).
+
+```mermaid
+flowchart LR
+    B["Zoom in / out<br/>(GridNavControls cluster)"] --> S["monthZoom state<br/>(DashboardView)"]
+    S --> I["monthViewInnerStyle<br/>(monthViewInner width %, --min-day-width 0)"]
+    I --> G["Mantine grid re-lays out<br/>columns + events (percentage-based)"]
+    S --> A["reanchorScrollLeft effect<br/>(re-anchors scrollLeft)"]
+    S --> P["monthPan → pan arrows/drag<br/>(only when the grid overflows)"]
+    S --> T["MonthWeekdayStrip track<br/>(same zoomed width)"]
+    S --> C["dashboard.monthZoom cookie<br/>(usePersistDashboardNav)"]
+```
+
+## 1.9 File index & related docs
 
 | File | Role |
 | ---- | ---- |
@@ -377,7 +429,7 @@ flowchart LR
 | `src/lib/dashboardViews/queries.ts` | Tab reads + the mutex-guarded default "Month" seed |
 | `src/lib/dashboardViews/actions.ts` | Tab CRUD: `create/rename/delete/reorderDashboardViews`, `saveDashboardViewFilters` |
 | `src/lib/userPrefs/queries.ts` + `actions.ts` | `user_preferences` row: last-active tab + parade filters (incl. `saveParadeFilters`) |
-| `src/app/(protected)/dashboard/DashboardView.tsx` | Tab strip (+ right-side Edit-views trigger), tab switch + period rules, filter state, zoom state + slot widths |
+| `src/app/(protected)/dashboard/DashboardView.tsx` | Tab strip (+ right-side Edit-views trigger), tab switch + period rules, filter state, schedule zoom + month zoom state & widths |
 | `src/app/(protected)/dashboard/EditViewsModal.tsx` | Edit-views dialog: card manage list (↑/↓ reorder, inline rename, nested delete confirm, Add-view button) |
 | `src/app/(protected)/dashboard/viewMeta.tsx` | Kind → icon/label map shared by the strip, the Add-view picker and Edit-views rows |
 | `src/components/reorderUpDown.tsx` | Shared touch-friendly manage-row recipe: ~40px ↑/↓ chevron pair (`ReorderUpDown`) + row-action sizes |
@@ -387,7 +439,8 @@ flowchart LR
 | `src/lib/events/mineFirst.ts` | Pure "mine first" sort for the month view's greedy row assignment |
 | `src/lib/events/schedule.ts` | Resource rows (`buildScheduleResources`, `userFilter`) |
 | `src/lib/ui/slotZoom.ts` | Pure zoom levels + slot-width math (`clampZoom`, `stepZoom`, `weekSlotWidth`, `daySlotWidth`) |
-| `src/components/GridNavControls.tsx` | Day/Week (H) right-edge cluster: zoom +/− + right pan, plus left-edge pan |
+| `src/lib/ui/monthZoom.ts` | Pure Month fit-width zoom levels + stepping (`clampMonthZoom`, `stepMonthZoom`) |
+| `src/components/GridNavControls.tsx` | Day/Week (H) + Month right-edge cluster: zoom +/− + right pan, plus left-edge pan |
 | `src/components/FilterButton.tsx` | Dedicated filter button (icon + active-group badge) replacing the kebab's filter menu |
 | `src/components/FilterModal.tsx` | Filters dialog (collapsible groups, per-tab scope hint) |
 
