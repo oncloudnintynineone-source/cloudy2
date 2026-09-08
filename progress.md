@@ -18,7 +18,7 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
 
 ## 1.1 Status
 
-- All work through changelog **1.213 (department hierarchy mirrored in the user & department pickers/filters)** is shipped.
+- All work through changelog **1.214 (FLIP reorder animation on every manageable list)** is shipped.
 - Quality gates (`lint` / `typecheck` / `test` / schema-drift check) run in CI on every
   push and PR. Pushes also auto-apply migrations per environment: `dev` →
   `migrate-preview` against the dev Neon DB, `main` → `migrate` against the prod Neon
@@ -757,6 +757,22 @@ One line per phase; full write-ups (incl. Mermaid diagrams and verification note
   `roster/hierarchy.ts` gains preorder `departmentTreeRows` + `departmentPathLabels`.
   Pure grouping/rows/labels unit-tested (`docs/user-picker.md` §1.2–§1.4,
   `docs/roster-sharing.md` §1.7)
+- 1.214 FLIP reorder animation on every manageable list: the title-recipe builder's slide
+  (CSS FLIP in `src/lib/ui/flipReorder.ts`) now covers **all** reorderable lists through
+  one shared hook `useReorderRows` (`src/lib/ui/reorderRows.ts`) — dashboard views
+  (Edit views), event-type groups, departments and quick links — as an **optimistic**
+  reorder: tapping an arrow slides the row instantly (snapshot → local re-order → play),
+  the server write runs in the background and the list reconciles to the server order
+  when the refresh lands (a failed write snaps back), so the chevron spinners are gone
+  and reorder arrows disable while a write is in flight. Server-backed lists keep a pure
+  key override until the authoritative props catch up (render-phase reconcile, never an
+  effect); whole-subtree department moves and event-type-group/quick-link swaps reuse the
+  existing pure `moveInTreeOrder`/`moveEventTypeGroupOrder`/adjacent-swap predictors, and
+  surfaces with mobile-card + desktop-table twins measure each `data-flip-container`
+  separately (hidden lists never animate). Pure helpers (`keysEqualOrder`,
+  `sameKeyMembership`, `overrideIsStale`, `swapAdjacent`) unit-tested; the dashboard-views
+  Edit-views modal persists the full predicted order, so chained moves stay exact;
+  `AGENTS.md` manage-row bullets updated
 
 ## 1.4 Open items & next steps
 

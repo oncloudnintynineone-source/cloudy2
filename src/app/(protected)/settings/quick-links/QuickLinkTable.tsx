@@ -27,6 +27,7 @@ import { ROW_ACTION_ICON_SIZE, ROW_ACTION_SIZE, ReorderUpDown } from "@/componen
 import { CONTENT_ENTER_CLASS } from "@/lib/loading/contentEnter";
 import { deleteQuickLink, moveQuickLink } from "@/lib/quickLinks/actions";
 import { BUTTON_LOADER_PROPS } from "@/lib/theme";
+import { swapAdjacent, useReorderRows } from "@/lib/ui/reorderRows";
 import { activatable } from "@/lib/ui/activatable";
 import { QuickLinkForm } from "./QuickLinkForm";
 import { useActivityRefresh } from "@/components/ActivityBar";
@@ -44,6 +45,26 @@ export function QuickLinkTable({ links }: QuickLinkTableProps) {
   const [pendingDelete, setPendingDelete] = useState<QuickLink | null>(null);
   const [deleting, setDeleting] = useState(false);
 
+  const {
+    displayRows: displayLinks,
+    containerRef,
+    move: reorderLink,
+    busy,
+  } = useReorderRows({
+    rows: links,
+    keyOf: (link) => link.id,
+    predict: (current, id, delta) => swapAdjacent(current, (link) => link.id, id, delta),
+    persist: async (_next, id, delta) => {
+      const result = await moveQuickLink(id, delta === -1 ? "up" : "down");
+      if (result.ok) {
+        refreshAfterSave();
+        return true;
+      }
+      notifications.show({ color: "red", message: result.error });
+      return false;
+    },
+  });
+
   function openCreate() {
     setEditing(null);
     openForm();
@@ -56,15 +77,6 @@ export function QuickLinkTable({ links }: QuickLinkTableProps) {
 
   function iconTint(color: string | null): string | undefined {
     return color && theme.colors[color] ? theme.colors[color][8] : undefined;
-  }
-
-  async function move(link: QuickLink, direction: "up" | "down") {
-    const result = await moveQuickLink(link.id, direction);
-    if (result.ok) {
-      refreshAfterSave();
-    } else {
-      notifications.show({ color: "red", message: result.error });
-    }
   }
 
   async function confirmDelete() {
@@ -93,12 +105,12 @@ export function QuickLinkTable({ links }: QuickLinkTableProps) {
     return (
       <ReorderUpDown
         name={link.label}
-        upDisabled={index === 0}
-        downDisabled={index === links.length - 1}
+        upDisabled={busy || index === 0}
+        downDisabled={busy || index === links.length - 1}
         busyUp={false}
         busyDown={false}
-        onUp={() => move(link, "up")}
-        onDown={() => move(link, "down")}
+        onUp={() => void reorderLink(link.id, -1)}
+        onDown={() => void reorderLink(link.id, 1)}
       />
     );
   }
@@ -122,7 +134,7 @@ export function QuickLinkTable({ links }: QuickLinkTableProps) {
   }
 
   return (
-    <Stack pb="xl" gap="sm" className={CONTENT_ENTER_CLASS}>
+    <Stack pb="xl" gap="sm" className={CONTENT_ENTER_CLASS} ref={containerRef}>
       {/* Desktop: full-size create button instead of the FAB (like the
           webhook tab); rendered above the list so it is still available
           when empty. */}
@@ -148,12 +160,13 @@ export function QuickLinkTable({ links }: QuickLinkTableProps) {
       ) : (
         <>
           {/* Mobile: card list */}
-          <Stack gap="sm" hiddenFrom="lg">
-            {links.map((link, index) => (
+          <Stack gap="sm" hiddenFrom="lg" data-flip-container>
+            {displayLinks.map((link, index) => (
               <Paper
                 key={link.id}
                 withBorder
                 p="sm"
+                data-flip-id={link.id}
                 onClick={() => openEdit(link)}
                 {...activatable(() => openEdit(link))}
                 style={{ cursor: "pointer" }}
@@ -183,7 +196,7 @@ export function QuickLinkTable({ links }: QuickLinkTableProps) {
           </Stack>
 
           {/* Desktop: data table */}
-          <Paper withBorder visibleFrom="lg">
+          <Paper withBorder visibleFrom="lg" data-flip-container>
             <Table withRowBorders={false} highlightOnHover>
               <Table.Thead>
                 <Table.Tr>
@@ -194,9 +207,10 @@ export function QuickLinkTable({ links }: QuickLinkTableProps) {
                 </Table.Tr>
               </Table.Thead>
               <Table.Tbody>
-                {links.map((link, index) => (
+                {displayLinks.map((link, index) => (
                   <Table.Tr
                     key={link.id}
+                    data-flip-id={link.id}
                     onClick={() => openEdit(link)}
                     {...activatable(() => openEdit(link))}
                     style={{ cursor: "pointer" }}

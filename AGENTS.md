@@ -167,7 +167,14 @@ mechanics in the doc.
   manage-row recipe** (`src/components/reorderUpDown.tsx`: ~40px row-action
   buttons — the ↑/↓ chevron pair leading, type/pen/trash trailing; also used by the
   event-type groups modal, departments and quick links): **↑/↓** reorder
-  chevrons (inline spinner while working), a **type** control per row opening
+  chevrons — every reorderable list (dashboard views, event-type groups,
+  departments, quick links and the title-recipe segments) slides the row
+  instantly on tap via the shared optimistic `useReorderRows`
+  (`src/lib/ui/reorderRows.ts`, FLIP from `src/lib/ui/flipReorder.ts`):
+  the list re-orders locally and animates, the write happens in the
+  background, and the view reconciles to the server order when the refresh
+  lands (a failed write snaps back). Reorder chevrons disable while a write is
+  in flight — no inline spinner — a **type** control per row opening
   the shared five-kind picker `ViewTypePicker` (Change-type keeps the tab's
   filters/order; a name still equal to the old kind's default follows the new
   default — applied server-side by `changeDashboardViewKind`), a **pen** per row (inline rename
@@ -390,8 +397,9 @@ it's a JS-only query (not a Mantine breakpoint, so it can't collide with `xs:`/`
   `notifyAdded` — default copy in `src/lib/events/notifyRecipes.ts`). The Settings →
   Templates page is manage-row groups opening centered dialogs
   (`TemplatesManager.tsx`); title templates are composed as chip rows (fields via a
-  card picker, options via chip toggles — no stacked dropdowns) reordered with a
-  CSS FLIP (`src/lib/ui/flipReorder.ts`, reduced-motion safe).
+  card picker, options via chip toggles — no stacked dropdowns) reordered through the
+  shared optimistic `useReorderRows` FLIP (`src/lib/ui/reorderRows.ts` +
+  `src/lib/ui/flipReorder.ts`, reduced-motion safe).
   Design: [docs/event-lifecycle.md](docs/event-lifecycle.md) §1.8.
 - **Event notes:** `Edit: <url>` line (a `?event=` deep link to the event's details
   modal, carrying the copy's calendar as `_eventCal`; older notes carry the legacy

@@ -56,7 +56,7 @@ import {
   type TitleTypeStyle,
 } from "@/lib/settings/titleRecipe";
 import { BUTTON_LOADER_PROPS } from "@/lib/theme";
-import { useFlipReorder } from "@/lib/ui/flipReorder";
+import { swapAdjacent, useReorderRows } from "@/lib/ui/reorderRows";
 
 interface TitleRecipeBuilderProps {
   mode: "master" | "create" | "edit";
@@ -252,25 +252,23 @@ export function TitleRecipeBuilder({
   const [pickerOpen, setPickerOpen] = useState(false);
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
 
-  const { containerRef, snapshot, play } = useFlipReorder();
+  const { displayRows, containerRef, snapshot, play, move: reorderRow } = useReorderRows({
+    rows,
+    keyOf: (row) => String(row.key),
+    predict: (current, id, delta) => swapAdjacent(current, (row) => String(row.key), id, delta),
+    onApply: setRows,
+  });
 
   const setRow = (index: number, patch: Partial<Row>) => {
     setRows((current) => current.map((row, i) => (i === index ? { ...row, ...patch } : row)));
   };
 
   const move = (index: number, delta: -1 | 1) => {
-    const target = index + delta;
-    if (target < 0 || target >= rows.length) {
+    const row = rows[index];
+    if (!row) {
       return;
     }
-    snapshot();
-    setRows((current) => {
-      const next = [...current];
-      const [row] = next.splice(index, 1);
-      next.splice(target, 0, row);
-      return next;
-    });
-    requestAnimationFrame(() => requestAnimationFrame(play));
+    void reorderRow(String(row.key), delta);
   };
 
   const remove = (index: number) => {
@@ -368,7 +366,7 @@ export function TitleRecipeBuilder({
   const editingRow = editingIndex !== null ? rows[editingIndex] : null;
 
   return (
-    <Stack gap="sm">
+    <Stack gap="sm" ref={containerRef}>
       {mode !== "master" && (
         <TextInput
           label="Name"
@@ -383,8 +381,8 @@ export function TitleRecipeBuilder({
         />
       )}
 
-      <Stack gap={6} ref={containerRef}>
-        {rows.map((row, index) => (
+      <Stack gap={6} data-flip-container>
+        {displayRows.map((row, index) => (
           <Paper
             key={row.key}
             withBorder

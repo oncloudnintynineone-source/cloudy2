@@ -33,6 +33,7 @@ import {
 } from "@/lib/dashboardViews/actions";
 import type { DashboardViewTab, DashboardViewKind } from "@/lib/dashboardViews/views";
 import { BUTTON_LOADER_PROPS, NARROW_MEDIA_QUERY } from "@/lib/theme";
+import { swapAdjacent, useReorderRows } from "@/lib/ui/reorderRows";
 import {
   ROW_ACTION_ICON_SIZE,
   ROW_ACTION_SIZE,
@@ -78,7 +79,26 @@ export function EditViewsModal({
   const [changing, setChanging] = useState<DashboardViewTab | null>(null);
   const [changeKind, setChangeKind] = useState<DashboardViewKind>("month");
   const [changingBusy, setChangingBusy] = useState(false);
-  const [moving, setMoving] = useState<string | null>(null);
+
+  const {
+    displayRows: displayTabs,
+    containerRef,
+    move: reorderView,
+    busy,
+  } = useReorderRows({
+    rows: tabs,
+    keyOf: (tab) => tab.id,
+    predict: (current, id, delta) => swapAdjacent(current, (tab) => tab.id, id, delta),
+    persist: async (next) => {
+      const result = await reorderDashboardViews(next.map((view) => view.id));
+      if (result.ok) {
+        onMutated();
+        return true;
+      }
+      notifications.show({ color: "red", message: result.error });
+      return false;
+    },
+  });
 
   function close() {
     setRenaming(null);
@@ -118,32 +138,6 @@ export function EditViewsModal({
       }
     } finally {
       setRenamingBusy(false);
-    }
-  }
-
-  async function moveView(tab: DashboardViewTab, direction: "up" | "down") {
-    const key = `${tab.id}:${direction}`;
-    if (moving) {
-      return;
-    }
-    const index = tabs.findIndex((candidate) => candidate.id === tab.id);
-    const neighborIndex = direction === "up" ? index - 1 : index + 1;
-    if (index < 0 || neighborIndex < 0 || neighborIndex >= tabs.length) {
-      return;
-    }
-    const reordered = [...tabs];
-    const [moved] = reordered.splice(index, 1);
-    reordered.splice(neighborIndex, 0, moved);
-    setMoving(key);
-    try {
-      const result = await reorderDashboardViews(reordered.map((view) => view.id));
-      if (result.ok) {
-        onMutated();
-      } else {
-        notifications.show({ color: "red", message: result.error });
-      }
-    } finally {
-      setMoving(null);
     }
   }
 
@@ -208,34 +202,34 @@ export function EditViewsModal({
       centered
       size={isNarrow ? "xs" : isDesktop ? "md" : "sm"}
     >
-      <Stack>
+      <Stack ref={containerRef}>
         <Text size="sm" c="dimmed">
           Your calendar tabs, in strip order. Move them with the arrows; the first and last tabs
           can&rsquo;t move past the end. Rename or delete any tab.
         </Text>
 
-        {tabs.length === 0 ? (
+        {displayTabs.length === 0 ? (
           <Text size="sm" c="dimmed">
             No views yet. Add one below.
           </Text>
         ) : (
           <ScrollArea.Autosize mah="min(60vh, 420px)" mx="-sm" px="sm">
-            <Stack gap={ROW_CARD_GAP}>
-              {tabs.map((tab, index) => {
+            <Stack gap={ROW_CARD_GAP} data-flip-container>
+              {displayTabs.map((tab, index) => {
                 const isRenaming = renaming?.id === tab.id;
                 const meta = VIEW_TAB_META[tab.kind];
                 return (
-                  <Paper key={tab.id} withBorder radius="md" p="sm">
+                  <Paper key={tab.id} withBorder radius="md" p="sm" data-flip-id={tab.id}>
                     <Group justify="space-between" align="center" wrap="nowrap">
                       <Group wrap="nowrap" gap="sm" align="center" style={{ minWidth: 0, flex: 1 }}>
                         <ReorderUpDown
                           name={tab.name}
-                          upDisabled={index === 0}
-                          downDisabled={index === tabs.length - 1}
-                          busyUp={moving === `${tab.id}:up`}
-                          busyDown={moving === `${tab.id}:down`}
-                          onUp={() => void moveView(tab, "up")}
-                          onDown={() => void moveView(tab, "down")}
+                          upDisabled={busy || index === 0}
+                          downDisabled={busy || index === displayTabs.length - 1}
+                          busyUp={false}
+                          busyDown={false}
+                          onUp={() => void reorderView(tab.id, -1)}
+                          onDown={() => void reorderView(tab.id, 1)}
                         />
                         {isRenaming ? (
                           <Group

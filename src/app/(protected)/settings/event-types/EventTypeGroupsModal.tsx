@@ -22,8 +22,13 @@ import {
   moveEventTypeGroup,
   renameEventTypeGroup,
 } from "@/lib/eventTypes/groupActions";
-import { sortEventTypeGroups, UNGROUPED_LABEL } from "@/lib/eventTypes/groups";
+import {
+  moveEventTypeGroupOrder,
+  sortEventTypeGroups,
+  UNGROUPED_LABEL,
+} from "@/lib/eventTypes/groups";
 import { BUTTON_LOADER_PROPS } from "@/lib/theme";
+import { useReorderRows } from "@/lib/ui/reorderRows";
 import {
   ROW_ACTION_ICON_SIZE,
   ROW_ACTION_SIZE,
@@ -64,9 +69,29 @@ export function EventTypeGroupsModal({
     null,
   );
   const [deletingInProgress, setDeletingInProgress] = useState(false);
-  const [moving, setMoving] = useState<string | null>(null);
 
   const sorted = sortEventTypeGroups(groups);
+
+  const {
+    displayRows: displaySorted,
+    containerRef,
+    move: reorderGroup,
+    busy,
+  } = useReorderRows({
+    rows: sorted,
+    keyOf: (group) => group.id,
+    predict: (current, id, delta) =>
+      moveEventTypeGroupOrder(current, id, delta === -1 ? "up" : "down"),
+    persist: async (_next, id, delta) => {
+      const result = await moveEventTypeGroup(id, delta === -1 ? "up" : "down");
+      if (result.ok) {
+        onMutated();
+        return true;
+      }
+      notifications.show({ color: "red", message: result.error });
+      return false;
+    },
+  });
 
   function close() {
     setNewName("");
@@ -123,24 +148,6 @@ export function EventTypeGroupsModal({
     }
   }
 
-  async function handleMove(id: string, name: string, direction: "up" | "down") {
-    const key = `${id}:${direction}`;
-    if (moving) {
-      return;
-    }
-    setMoving(key);
-    try {
-      const result = await moveEventTypeGroup(id, direction);
-      if (result.ok) {
-        onMutated();
-      } else {
-        notifications.show({ color: "red", message: result.error });
-      }
-    } finally {
-      setMoving(null);
-    }
-  }
-
   async function confirmDelete() {
     if (!deleting || deletingInProgress) {
       return;
@@ -162,7 +169,7 @@ export function EventTypeGroupsModal({
 
   return (
     <Modal opened={opened} onClose={close} title="Event type groups" centered size="md">
-      <Stack>
+      <Stack ref={containerRef}>
         <Text size="sm" c="dimmed">
           Groups are the categories event types appear under in the event form. Reorder them with
           the arrows; event types keep their alphabetical order inside a group.
@@ -196,27 +203,27 @@ export function EventTypeGroupsModal({
           </Button>
         </Stack>
 
-        {sorted.length === 0 ? (
+        {displaySorted.length === 0 ? (
           <Text size="sm" c="dimmed">
             No groups yet. Without groups, event types appear in one alphabetical list.
           </Text>
         ) : (
-          <Stack gap={ROW_CARD_GAP}>
-            {sorted.map((group, index) => {
+          <Stack gap={ROW_CARD_GAP} data-flip-container>
+            {displaySorted.map((group, index) => {
               const count = typeCounts.get(group.id) ?? 0;
               const isRenaming = renaming?.id === group.id;
               return (
-                <Paper key={group.id} withBorder radius="md" p="sm">
+                <Paper key={group.id} withBorder radius="md" p="sm" data-flip-id={group.id}>
                   <Group justify="space-between" align="center" wrap="nowrap">
                     <Group wrap="nowrap" gap="sm" align="center" style={{ minWidth: 0, flex: 1 }}>
                       <ReorderUpDown
                         name={group.name}
-                        upDisabled={index === 0}
-                        downDisabled={index === sorted.length - 1}
-                        busyUp={moving === `${group.id}:up`}
-                        busyDown={moving === `${group.id}:down`}
-                        onUp={() => void handleMove(group.id, group.name, "up")}
-                        onDown={() => void handleMove(group.id, group.name, "down")}
+                        upDisabled={busy || index === 0}
+                        downDisabled={busy || index === displaySorted.length - 1}
+                        busyUp={false}
+                        busyDown={false}
+                        onUp={() => void reorderGroup(group.id, -1)}
+                        onDown={() => void reorderGroup(group.id, 1)}
                       />
                       {isRenaming ? (
                         <Group

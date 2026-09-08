@@ -13,9 +13,11 @@ import { deleteDepartment, moveDepartment } from "@/lib/roster/actions";
 import {
   buildDepartmentTree,
   moveAvailability,
+  moveInTreeOrder,
   type DepartmentTreeNode,
 } from "@/lib/roster/hierarchy";
 import { BUTTON_LOADER_PROPS } from "@/lib/theme";
+import { useReorderRows } from "@/lib/ui/reorderRows";
 import { FAB_ICON_SIZE, FloatingActionButton, FloatingToolbar } from "@/components/FloatingToolbar";
 import { formatColorLabel } from "@/lib/events/eventColors";
 import { ColorDot } from "@/components/ColorSwatchPicker";
@@ -34,7 +36,35 @@ export function DepartmentTable({ departments }: DepartmentTableProps) {
   const [selected, setSelected] = useState<Calendar | null>(null);
   const [deleting, setDeleting] = useState<Calendar | null>(null);
   const [deletingInProgress, setDeletingInProgress] = useState(false);
-  const [moving, setMoving] = useState<string | null>(null);
+
+  const {
+    displayRows: displayDepartments,
+    containerRef,
+    move: reorderDepartment,
+    busy,
+  } = useReorderRows({
+    rows: departments,
+    keyOf: (calendar) => calendar.id,
+    predict: (rows, id, delta) => {
+      const moved = moveInTreeOrder(rows, id, delta === -1 ? "up" : "down");
+      if (!moved) {
+        return null;
+      }
+      const byId = new Map(rows.map((calendar) => [calendar.id, calendar] as const));
+      return moved
+        .map((entry) => byId.get(entry.id))
+        .filter((calendar): calendar is Calendar => calendar !== undefined);
+    },
+    persist: async (_next, id, delta) => {
+      const result = await moveDepartment(id, delta === -1 ? "up" : "down");
+      if (result.ok) {
+        refreshAfterSave();
+        return true;
+      }
+      notifications.show({ color: "red", message: result.error });
+      return false;
+    },
+  });
 
   const deletingChildCount = deleting
     ? departments.filter((calendar) => calendar.parentId === deleting.id).length
@@ -43,7 +73,7 @@ export function DepartmentTable({ departments }: DepartmentTableProps) {
   // Preorder display (parent, then its children, indented by depth) and each
   // row's move availability (a department only moves among its siblings).
   const displayRows = useMemo(() => {
-    const byId = new Map(departments.map((calendar) => [calendar.id, calendar]));
+    const byId = new Map(displayDepartments.map((calendar) => [calendar.id, calendar]));
     const rows: { calendar: Calendar; depth: number; parent: Calendar | null }[] = [];
     const walk = (nodes: DepartmentTreeNode[], depth: number) => {
       for (const node of nodes) {
@@ -57,9 +87,9 @@ export function DepartmentTable({ departments }: DepartmentTableProps) {
         walk(node.children, depth + 1);
       }
     };
-    walk(buildDepartmentTree(departments), 0);
+    walk(buildDepartmentTree(displayDepartments), 0);
     return rows;
-  }, [departments]);
+  }, [displayDepartments]);
 
   const availability = useMemo(() => moveAvailability(departments), [departments]);
 
@@ -99,33 +129,17 @@ export function DepartmentTable({ departments }: DepartmentTableProps) {
     }
   }
 
-  async function move(calendar: Calendar, direction: "up" | "down") {
-    const key = `${calendar.id}:${direction}`;
-    if (moving) return;
-    setMoving(key);
-    try {
-      const result = await moveDepartment(calendar.id, direction);
-      if (result.ok) {
-        refreshAfterSave();
-      } else {
-        notifications.show({ color: "red", message: result.error });
-      }
-    } finally {
-      setMoving(null);
-    }
-  }
-
   function actionsFor(calendar: Calendar) {
     const can = availability.get(calendar.id) ?? { up: false, down: false };
     return (
       <ReorderUpDown
         name={calendar.name}
-        upDisabled={!can.up}
-        downDisabled={!can.down}
-        busyUp={moving === `${calendar.id}:up`}
-        busyDown={moving === `${calendar.id}:down`}
-        onUp={() => move(calendar, "up")}
-        onDown={() => move(calendar, "down")}
+        upDisabled={busy || !can.up}
+        downDisabled={busy || !can.down}
+        busyUp={false}
+        busyDown={false}
+        onUp={() => void reorderDepartment(calendar.id, -1)}
+        onDown={() => void reorderDepartment(calendar.id, 1)}
       />
     );
   }
@@ -146,7 +160,7 @@ export function DepartmentTable({ departments }: DepartmentTableProps) {
   });
 
   return (
-    <Stack pb="xl" className={CONTENT_ENTER_CLASS}>
+    <Stack pb="xl" className={CONTENT_ENTER_CLASS} ref={containerRef}>
       {/* Desktop: full-size create button instead of the FAB (like the
           Calendar page's "New event" button); the FAB below is mobile-only.
           Rendered above the list so it is still available when empty. */}
@@ -174,9 +188,15 @@ export function DepartmentTable({ departments }: DepartmentTableProps) {
           {/* Mobile: card list — tap a card to open the details modal.
               Children are indented and name their parent on a second line.
               Reorder arrows sit at the card's left edge. */}
-          <Stack gap="sm" hiddenFrom="lg">
+          <Stack gap="sm" hiddenFrom="lg" data-flip-container>
             {displayRows.map(({ calendar, depth, parent }) => (
-              <Paper key={calendar.id} withBorder p="sm" {...openRow(calendar)}>
+              <Paper
+                key={calendar.id}
+                withBorder
+                p="sm"
+                data-flip-id={calendar.id}
+                {...openRow(calendar)}
+              >
                 <Group justify="space-between" wrap="nowrap" align="center">
                   <Group wrap="nowrap" gap="sm" align="center" style={{ minWidth: 0, flex: 1 }}>
                     {actionsFor(calendar)}
@@ -209,7 +229,7 @@ export function DepartmentTable({ departments }: DepartmentTableProps) {
 
           {/* Desktop: data table — tap a row to open the details modal.
               Hierarchy is carried by the indent depth + the Parent column. */}
-          <Paper withBorder visibleFrom="lg">
+          <Paper withBorder visibleFrom="lg" data-flip-container>
             <Table withRowBorders={false} highlightOnHover tabularNums>
               <Table.Thead>
                 <Table.Tr>
@@ -221,7 +241,7 @@ export function DepartmentTable({ departments }: DepartmentTableProps) {
               </Table.Thead>
               <Table.Tbody>
                 {displayRows.map(({ calendar, depth, parent }) => (
-                  <Table.Tr key={calendar.id} {...openRow(calendar)}>
+                  <Table.Tr key={calendar.id} data-flip-id={calendar.id} {...openRow(calendar)}>
                     <Table.Td>
                       <Text fw={600} style={{ paddingLeft: depth * 16 }}>
                         {calendar.name}
