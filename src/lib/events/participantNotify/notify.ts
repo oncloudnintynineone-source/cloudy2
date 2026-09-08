@@ -7,33 +7,39 @@
  * delivery. Sends only to roster users whose `userPreferences.eventInvitePush`
  * is on and who have a stored push subscription, never to the acting user.
  *
- * Payloads are small (title + body + deep-link URL); the service worker shows
- * them and opens the event's details on tap. Dead endpoints (HTTP 404/410)
- * prune the subscription row.
+ * Notification copy is template-driven (Settings → Templates): the push title
+ * is the event's rendered title; the body renders the recipe assigned to the
+ * `notifyCreated` / `notifyAdded` target (or the built-in default copy in
+ * `notifyRecipes.ts`). See docs/event-notifications.md §1.11.
  */
 
 import { after } from "next/server";
 
-import { inArray } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 
 import { db } from "@/db";
-import { settings, userPreferences, users } from "@/db/schema";
+import { eventTitleTemplates, settings, userPreferences, users } from "@/db/schema";
 import { AUDIT_ACTIONS } from "@/lib/audit/build";
 import { logAction } from "@/lib/audit/log";
 import { formatEventAuditTime, type EventTimeParts } from "@/lib/events/eventAudit";
 import type { EventMutationCopy } from "@/lib/events/actions";
 import { eventDetailUrl } from "@/lib/events/notes";
+import {
+  NOTIFY_PHRASE_ADDED,
+  NOTIFY_PHRASE_CREATED,
+  notificationTarget,
+  resolveNotificationRecipe,
+} from "@/lib/events/notifyRecipes";
 import { activeMembershipsByDepartment } from "@/lib/roster/queries";
+import { renderTitleRecipe, type TitleRecipe } from "@/lib/settings/titleRecipe";
 import { onlyUuidIds } from "@/lib/uuid";
 import { computeAddedUserIds, type ParticipantPeople } from "./diff";
-import { buildParticipantNotification, type ParticipantNotifyReason } from "./message";
 import { sendPush } from "./sender";
 import {
   deletePushSubscriptionById,
   listSubscriptionsByUserIds,
   type StoredPushSubscription,
 } from "./subscriptions";
-import { resolveParticipantNotifyTemplates } from "./templates";
 import { parseVapidConfig, type VapidConfig } from "./vapid";
 
 export interface ParticipantNotifyInput {
@@ -43,16 +49,18 @@ export interface ParticipantNotifyInput {
   actorRole: string;
   /** The logical event's group id. */
   eventId: string;
+  /** The raw (pre-template) description typed into the event form. */
+  description: string;
   /** The rendered Google Calendar title (may be blank). */
   title: string;
   /** The event type name (may be blank). */
   eventType: string;
   /** The event's optional location. */
   location: string | null;
-  /** The event's naive datetime parts (for the UTC+8 wall-clock text + deep link). */
+  /** The event's naive datetime parts (for the wall-clock text + deep link). */
   timeParts: EventTimeParts;
   /** Whether this is a create (whole event new) or an update (newly added). */
-  reason: ParticipantNotifyReason;
+  reason: "created" | "added";
   /** The pre-edit people (null on create — everyone is new). */
   before: ParticipantPeople | null;
   /** The post-save people (the event's effective participant set). */
@@ -108,6 +116,84 @@ async function sendToSubscription(
   return "sent";
 }
 
+/**
+ * Build the { title, body } shown by the OS. The title is the event's rendered
+ * Google title (falling back to the event type, then a generic reason
+ * headline); the body renders the notification target's recipe.
+ */
+function buildPushMessage(input: ParticipantNotifyInput, recipe: TitleRecipe): {
+  title: string;
+  body: string;
+} {
+  const fallbackTitle = input.reason === "created" ? "New event" : "Event update";
+  const title = input.title.trim() || input.eventType.trim() || fallbackTitle;
+  const phrase = input.reason === "created" ? NOTIFY_PHRASE_CREATED : NOTIFY_PHRASE_ADDED;
+
+  const body = renderTitleRecipe(
+    {
+      description: input.description.trim(),
+      eventType: input.eventType.trim()
+        ? { name: input.eventType.trim(), acronym: input.eventType.trim() }
+        : null,
+      people: [],
+      departments: [],
+      location: input.location?.trim() ?? "",
+      timeOption: input.timeParts.timeOption,
+      startTime: "",
+      endTime: "",
+      startAmPm: input.timeParts.startAmPm,
+      endAmPm: input.timeParts.endAmPm,
+      timeFull: formatEventAuditTime(input.timeParts),
+    },
+    recipe,
+  );
+
+  return { title, body: body || phrase };
+}
+
+/**
+ * Resolve the recipe a notification target uses (assigned template or the
+ * built-in default). Best-effort: a failed settings/template read falls back to
+ * the built-in copy so delivery is never blocked by a settings hiccup.
+ */
+async function notificationRecipeFor(
+  reason: "created" | "added",
+): Promise<{ recipe: TitleRecipe; source: string | null }> {
+  let assignedId: string | null = null;
+  try {
+    const [settingsRow] = await db
+      .select({ assignments: settings.eventTitleTemplateAssignments })
+      .from(settings)
+      .limit(1);
+    const assignments = (settingsRow?.assignments ?? {}) as Record<string, unknown>;
+    const value = assignments[notificationTarget(reason)];
+    if (typeof value === "string" && value.trim()) {
+      assignedId = value.trim();
+    }
+  } catch (error) {
+    console.error("[push] Failed to read notification template assignment", error);
+  }
+
+  if (assignedId) {
+    try {
+      const [row] = await db
+        .select({ recipe: eventTitleTemplates.recipe })
+        .from(eventTitleTemplates)
+        .where(eq(eventTitleTemplates.id, assignedId))
+        .limit(1);
+      const recipe = row
+        ? resolveNotificationRecipe(reason, assignedId, new Map([[assignedId, row.recipe as TitleRecipe]]))
+        : undefined;
+      if (recipe) {
+        return { recipe, source: assignedId };
+      }
+    } catch (error) {
+      console.error("[push] Failed to read notification template recipe", error);
+    }
+  }
+  return { recipe: resolveNotificationRecipe(reason, null, new Map()), source: null };
+}
+
 /** The after() body. Never throws — every failure is caught and logged. */
 async function runParticipantNotify(input: ParticipantNotifyInput): Promise<void> {
   const config = parseVapidConfig();
@@ -115,6 +201,8 @@ async function runParticipantNotify(input: ParticipantNotifyInput): Promise<void
     // Not configured (dev without VAPID keys): nothing to do.
     return;
   }
+
+  const { recipe } = await notificationRecipeFor(input.reason);
 
   const deptIds = [
     ...new Set([
@@ -128,24 +216,6 @@ async function runParticipantNotify(input: ParticipantNotifyInput): Promise<void
   );
   if (addedIds.length === 0) {
     return;
-  }
-
-  // Admin content templates (Settings → Templates). A failed read falls back
-  // to the built-in defaults so delivery is never blocked by a settings hiccup.
-  let templates = resolveParticipantNotifyTemplates(null);
-  try {
-    const [settingsRow] = await db
-      .select({
-        createdTitle: settings.participantNotifyCreatedTitle,
-        createdBody: settings.participantNotifyCreatedBody,
-        addedTitle: settings.participantNotifyAddedTitle,
-        addedBody: settings.participantNotifyAddedBody,
-      })
-      .from(settings)
-      .limit(1);
-    templates = resolveParticipantNotifyTemplates(settingsRow ?? undefined);
-  } catch (error) {
-    console.error("[push] Failed to read participant notification templates", error);
   }
 
   const userRows = await db
@@ -187,14 +257,7 @@ async function runParticipantNotify(input: ParticipantNotifyInput): Promise<void
     return;
   }
 
-  const message = buildParticipantNotification({
-    reason: input.reason,
-    title: input.title,
-    eventType: input.eventType,
-    time: formatEventAuditTime(input.timeParts),
-    location: input.location,
-    templates,
-  });
+  const message = buildPushMessage(input, recipe);
 
   // Audit first so the notification is on record even when a send fails.
   await logAction({

@@ -285,100 +285,64 @@ check in order:
    row (never completed Enable on that account), the master switch is off for
    them, or their account is inactive. Re-check step 4's setup.
 
-## 1.11 Customizing the notification content
+## 1.11 Notification copy is template-driven
 
-The push copy is **admin-customizable** — Settings → Templates →
-"Event Notification Templates". It follows the KAH breach-email template
-pattern: per-reason title/body text templates stored on the `settings` row,
-rendered at dispatch time from the saved event's fields, with a live sample
-preview in the admin form.
+Push copy is no longer managed separately — it uses the **same recipe templates**
+as event titles (Settings → Templates). The push **title** is the event's rendered
+title (already produced by templates); the **body** renders the recipe assigned to
+one of two notification targets, exactly like a dashboard view gets a template.
 
 ```mermaid
 flowchart LR
-  A["settings row: participant_notify_* templates"] --> R
-  B["saved event fields (title/type/time/location)"] --> R
-  R["renderTokenTemplate (tokenTemplate.ts)"] --> M["{ title, body }"]
+  A["assignments: notifyCreated / notifyAdded -> template"] --> R
+  B["saved event fields (description/type/location/time)"] --> R
+  R["renderTitleRecipe (titleRecipe.ts)"] --> M["{ title, body }"]
   M --> S["showNotification(title, body) in sw.ts"]
 ```
 
-### 1.11.1 Stored templates
+### 1.11.1 Targets & defaults
 
-Four `settings` columns (migration `0039_mighty_the_stranger`):
+Two assignable targets extend `EVENT_TITLE_ASSIGNMENT_TARGETS`
+(`src/lib/settings/validate.ts`):
 
-- `participant_notify_created_title` / `participant_notify_created_body`
-  — shown when a **new** event is created.
-- `participant_notify_added_title` / `participant_notify_added_body`
-  — shown when an edit **adds** the recipient to an existing event.
+- `notifyCreated` — "Notification — new event".
+- `notifyAdded` — "Notification — added to event".
 
-Each is a single-line template whose column default is the built-in wording.
-The runtime single source of truth lives in
-`src/lib/events/participantNotify/templates.ts`
-(`PARTICIPANT_NOTIFY_TEMPLATES_DEFAULT`), and
-`resolveParticipantNotifyTemplates` maps stored → effective values, falling
-back to the defaults for any blank/absent field — a cleared field never yields
-an empty notification.
-
-### 1.11.2 Tokens & grammar
-
-Notification content renders through the **token-template engine**
-(`src/lib/settings/tokenTemplate.ts`, `renderTokenTemplate`) — the free-text
-tokens / `< >` conditional grammar that event titles once used before they moved to
-structured recipes. Tokens:
-
-| Token      | Value                                                        |
-| ---------- | ------------------------------------------------------------ |
-| `{title}`  | the rendered Google Calendar event title                     |
-| `{type}`   | the event-type name                                          |
-| `{time}`   | the event window in the UTC+8 wall clock (the audit "time" string) |
-| `{location}` | the event's location                                       |
-
-Styles are not supported. Unknown tokens stay literal; empty token values drop
-their `< ... >` group. The built-in wording (identical to the pre-template
-copy) is:
+An **unassigned** notification target uses the built-in copy in
+`src/lib/events/notifyRecipes.ts` (NOT the master title template). The default
+recipes lead with a `text` segment (the intro sentence) followed by the
+description, location and the wall-clock time:
 
 ```
-created: title "{title}"
-         body  "You're included in a new event< · {time}>< · {location}>"
-added:   title "{title}"
-         body  "You've been added to this event< · {time}>< · {location}>"
+notifyCreated: Text "You're included in a new event" · Description · Location · (Time)
+notifyAdded:   Text "You've been added to this event" · Description · Location · (Time)
 ```
 
-### 1.11.3 Rendering & dispatch
+Because recipes support a **literal Text field**, an assigned template can carry
+its own intro sentence and any combination of fields; notification-rendered
+recipes use the event's raw description, type name, location and full wall-clock
+time (a `timeFull` override makes a `time` segment render the dated audit
+string). People/department segments render empty in push.
 
-`buildParticipantNotification` (`message.ts`, pure) renders the reason's title
-and body templates with the event's token context and returns `{ title, body }`
-for the OS. When a rendered title comes out empty it falls back to the event
-type name, then to the generic reason headline (`New event` / `Event update`),
-so an admin template that renders nothing still shows a sensible headline.
+### 1.11.2 Rendering & dispatch
 
-`dispatchParticipantNotifications` (`notify.ts`) reads the four columns inside
-`after()` (falling back to the defaults on a read failure), formats `{time}`
-via `formatEventAuditTime`, and sends `title`/`body` unchanged — the push
-payload schema (`{ title, body, tag, url }`) is untouched, so no client or SW
-change is needed.
+`dispatchParticipantNotifications` (`participantNotify/notify.ts`) runs inside
+`after()`: it reads the settings assignment for the reason's target, loads the
+assigned library template (falling back to `notifyRecipes` defaults on any read
+failure), and renders the body via `renderTitleRecipe`. The title falls back to
+the event type, then `New event` / `Event update`. The push payload schema
+(`{ title, body, tag, url }`) is unchanged, so the SW is untouched.
 
-### 1.11.4 Admin surface
+### 1.11.3 Admin surface
 
-The Templates tab (`/settings/templates`) mounts
-`NotificationTemplatesEditor.tsx` beneath the event-title cards — one
-"Event Notification Templates" card with a section per reason:
+No separate copy editor. Templates are managed once in Settings → Templates:
+the master row (unremovable, duplicatable) plus saved templates, and the
+"Assign templates" dialog lists the notification targets alongside the views
+and pinned ticker (each with its preview). Notification targets show
+"Default copy" as their unassigned state.
 
-- a **Title template** `TextInput` and a **Body template** `Textarea`
-  (single-line validation, since the OS notification collapses newlines),
-- **Insert token** chips + **Wrap in < >** (the same editing helpers as the
-  master event-title template form),
-- **Reset to default** per section,
-- two live previews per reason — a full-detail sample event and a
-  minimal/empty one — rendered through the real `buildParticipantNotification`
-  so the headline fallbacks and conditional drops preview accurately.
-
-Saving calls `updateParticipantNotificationTemplates`
-(`src/lib/settings/actions.ts`; admin-only) which validates
-(`validateParticipantNotifyTemplates` — non-blank, single-line, title ≤ 140,
-body ≤ 300), writes the four columns, audits a `settingsUpdate` diff, and
-revalidates `/settings/templates`. The profile dialog's **Send test** is
-unchanged — it exercises the plumbing, not the event content, so it keeps
-fixed test copy.
+The profile dialog's **Send test** keeps fixed copy — it exercises the plumbing,
+not the content.
 
 ## 1.12 Files
 
@@ -386,23 +350,20 @@ fixed test copy.
 | --------------------------------------------------------------- | ------------------------------------------------------------- |
 | `src/lib/events/participantNotify/vapid.ts` (+ test)            | Pure VAPID env parsing                                        |
 | `src/lib/events/participantNotify/diff.ts` (+ test)             | Pure occupancy diff (`computeAddedUserIds`)                   |
-| `src/lib/events/participantNotify/message.ts` (+ test)          | Pure notification text builder (renders admin content templates) |
-| `src/lib/events/participantNotify/templates.ts`                 | Default content templates + resolver (shared with schema)    |
-| `src/lib/events/participantNotify/validate.ts` (+ test)         | Notification content-template validation                     |
-| `src/lib/settings/tokenTemplate.ts`                             | Shared token-template engine (tokens/conditionals/escapes)   |
+| `src/lib/events/participantNotify/notify.ts`                    | `dispatchParticipantNotifications` (`after()` send path; template-driven body) |
+| `src/lib/events/notifyRecipes.ts`                               | Built-in notification copy (default recipes per target)      |
+| `src/lib/settings/titleRecipe.ts` (+ test)                      | Recipe types + `renderTitleRecipe` (incl. `text`/`timeFull`) |
 | `src/lib/events/participantNotify/subscriptions.ts`             | `push_subscriptions` DB access (list/upsert/delete/by-endpoint) |
 | `src/lib/events/participantNotify/sender.ts`                    | Shared one-shot `web-push` send (used by notify + test action)   |
-| `src/lib/events/participantNotify/notify.ts`                    | `dispatchParticipantNotifications` (`after()` send path)         |
-| `src/lib/events/participantNotify/actions.ts`                   | Server actions (settings read/write, subscribe/unsync, test send)|
+| `src/lib/events/participantNotify/actions.ts`                   | Server actions (subscribe/unsync, settings read, test send)      |
 | `src/lib/events/participantNotify/client.ts`                    | Browser-side push helpers (no-hang SW probe, subscribe)          |
 | `src/components/NotificationSettings.tsx`                       | Profile-menu Notifications dialog (incl. Send test)              |
 | `src/components/UserMenu.tsx`                                   | Menu entry + modal mount                                      |
 | `src/app/sw.ts`                                                 | `push` / `notificationclick` handlers                         |
 | `src/lib/events/actions.ts`                                     | Dispatch calls in `createEvent` / `updateEvent`               |
-| `src/app/(protected)/settings/templates/NotificationTemplatesEditor.tsx` | Admin content editor (Settings → Templates)      |
-| `src/lib/settings/actions.ts`                                   | `updateParticipantNotificationTemplates` server action        |
+| `src/app/(protected)/settings/templates/TemplatesManager.tsx`   | Template groups + Assign templates dialog (incl. notify targets) |
 | `src/db/schema.ts`, `drizzle/0038_late_ultimates.sql`           | `push_subscriptions`, `user_preferences.event_invite_push`    |
-| `src/db/schema.ts`, `drizzle/0039_mighty_the_stranger.sql`      | Four `participant_notify_*` content-template columns          |
+| `src/db/schema.ts` (`participant_notify_*` columns, deprecated) | Legacy free-text copy columns — never read (0039 migration)  |
 | `public/notification-icon-192x192.png` (+ `.svg` source)       | Push `icon` — white logo on blue tile (see §1.7)              |
 | `public/notification-badge-96x96.png` (+ `.svg` source)        | Push `badge` — white silhouette (see §1.7)                    |
 | `scripts/gen-notification-icons.py`                            | Regenerates the notification art from `public/icon.svg`       |

@@ -149,6 +149,37 @@ describe("renderTitleRecipe", () => {
     );
   });
 
+  it("renders literal text segments verbatim and joins them", () => {
+    expect(
+      renderTitleRecipe(
+        input,
+        recipe([
+          { field: "text", text: "You're included in a new event", connector: "middot" },
+          { field: "description", connector: "middot" },
+          { field: "time", wrapper: "paren" },
+        ]),
+      ),
+    ).toBe("You're included in a new event · Team offsite · (09:00-17:00)");
+  });
+
+  it("renders the full wall-clock string for a time segment when timeFull is set", () => {
+    expect(
+      renderTitleRecipe(
+        { ...input, timeFull: "2026-08-21 14:00 – 15:30" },
+        recipe([{ field: "time", wrapper: "paren" }]),
+      ),
+    ).toBe("(2026-08-21 14:00 – 15:30)");
+  });
+
+  it("skips a text segment whose text is blank", () => {
+    expect(
+      renderTitleRecipe(
+        input,
+        recipe([{ field: "text", text: "   " }, { field: "description", connector: "space" }]),
+      ),
+    ).toBe("Team offsite");
+  });
+
   it("returns an empty string when every segment is empty", () => {
     expect(renderTitleRecipe({ ...input, description: "", people: [] }, recipe([{ field: "description" }, { field: "people" }]))).toBe("");
   });
@@ -180,6 +211,17 @@ describe("sanitizeTitleRecipe", () => {
       ],
     });
     expect(result.segments[0]).toEqual({ field: "type", typeStyle: "acronym", connector: "comma" });
+  });
+
+  it("keeps text only on text segments (trimmed)", () => {
+    const result = sanitizeTitleRecipe({
+      segments: [
+        { field: "text", text: "  Hello world  " },
+        { field: "type", text: "ignored" },
+      ],
+    });
+    expect(result.segments[0].text).toBe("Hello world");
+    expect(result.segments[1].text).toBeUndefined();
   });
 
   it("caps the segment count", () => {

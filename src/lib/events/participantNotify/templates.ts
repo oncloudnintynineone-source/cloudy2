@@ -1,12 +1,9 @@
 /**
- * Admin-customizable content templates for participant-invite push
- * notifications (title + body per reason). Defaults are the wording the app
- * shipped with before templates existed, rewritten in the shared template
- * grammar (`tokenTemplate.ts`): `{title}` is the rendered event title,
- * `{type}` the event-type name, `{time}` the UTC+8 wall-clock window string,
- * `{location}` the place — empty token values drop their surrounding
- * `< ... >` group. Kept in a dependency-free module so the Drizzle schema
- * column defaults and the runtime fallback share one source of truth.
+ * DEPRECATED free-text notification content templates. Push copy is now
+ * template-driven (Settings → Templates → recipes assigned to the
+ * `notifyCreated`/`notifyAdded` targets; see `src/lib/events/notifyRecipes.ts`).
+ * These constants remain only because the Drizzle schema column defaults
+ * reference them — the columns are never read at runtime.
  */
 
 /** The two template fields per reason an admin edits in Settings → Templates. */

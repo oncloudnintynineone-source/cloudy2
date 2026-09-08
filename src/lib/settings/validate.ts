@@ -29,14 +29,18 @@ export const DASHBOARD_VIEW_VALUES = ["month", "week", "weekv2", "schedule", "ag
 export type DashboardViewValue = (typeof DASHBOARD_VIEW_VALUES)[number];
 
 /**
- * Every target an event title template can be assigned to: the dashboard views
- * plus the Pinned Events panel (`pinned`) and the header's pinned-events
- * ticker (`pinnedHeader`). "Empty = Master (Default)" applies to all of them.
+ * Every target a template can be assigned to: the dashboard views, the Pinned
+ * Events panel (`pinned`), the header's pinned-events ticker (`pinnedHeader`),
+ * and the two push-notification bodies (`notifyCreated` / `notifyAdded`).
+ * "Empty = default" applies to all of them (notification targets fall back to
+ * their built-in copy, not Master).
  */
 export const EVENT_TITLE_ASSIGNMENT_TARGETS = [
   ...DASHBOARD_VIEW_VALUES,
   "pinned",
   "pinnedHeader",
+  "notifyCreated",
+  "notifyAdded",
 ] as const;
 export type EventTitleAssignmentTarget = (typeof EVENT_TITLE_ASSIGNMENT_TARGETS)[number];
 
@@ -48,6 +52,8 @@ export const EVENT_TITLE_TARGET_LABELS: Record<EventTitleAssignmentTarget, strin
   agenda: "Agenda",
   pinned: "Pinned events (panel)",
   pinnedHeader: "Pinned events (header)",
+  notifyCreated: "Notification — new event",
+  notifyAdded: "Notification — added to event",
 };
 
 export interface KeywordFormErrors {

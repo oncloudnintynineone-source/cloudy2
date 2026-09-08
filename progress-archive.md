@@ -8183,3 +8183,37 @@ Until this phase the master event-title template and every library view template
 **Docs**: `docs/event-lifecycle.md` §1.8 rewritten (recipe model, table of fields/options, renderer, assignments), file index/table updated; AGENTS.md Templates bullet; progress changelog 1.210.
 
 **Verified**: pnpm typecheck, pnpm lint, pnpm test (1001 pass incl. new `titleRecipe.test.ts` + updated `eventAudit`/`settings/validate` suites), pnpm db:generate clean drift. Manual after deploy: Settings → Templates → rebuild the master + one view template in the picker; save an event with a blank description and confirm no dangling separators; confirm notifications copy unchanged.
+
+## 1.211 Templates UI overhaul (manage-row groups, chip recipe builder, FLIP reorder)
+
+Product feedback on the structured-recipe feature (1.210): the Settings → Templates page and its recipe editor did not match the app's UI conventions — oversized/stacked `Select` dropdown ladders, always-expanded editors, and a cluttered page. This phase aligns Templates with the app's established manage-row/dialog language (Edit views, Event types groups, Departments, Webhooks, KAH) and its badge/card preference over dropdowns.
+
+**Page**: `/settings/templates` is now three compact manage-row group cards (`TemplatesManager.tsx`):
+- **Event title templates** — a Master row (rendered preview) plus one row per saved template, each opening a centered dialog; header actions **Add template** and **Assign to views** (assignments dialog restyled with per-target previews).
+- **Display names** — one row with live `formatFullName` preview opening a small name-template dialog.
+- **Event notification copy** — one row previewing the created/added push copy opening the copy dialog.
+Editors (recipe builder, name form, assignments, notification copy) are centered modals sized xs/sm/md; delete uses an inline confirm dialog. Old `TemplatesForm`, `RecipeTemplateForm`, `NotificationTemplatesEditor` deleted.
+
+**Recipe builder** (`TitleRecipeBuilder.tsx`): segments render as chip rows (field badge + style summary), reordered with chevrons, options via a pencil (chip/Segmented toggles for style/wrapper/connector — no dropdowns), removal via ✕; **Add field** opens a six-field card picker (icon + label, like `ViewTypePicker`). Reorder uses a new reduced-motion-safe **CSS FLIP** helper (`src/lib/ui/flipReorder.ts`: snapshot rects before the move, invert to the old spot, animate to rest over ~220ms with the app's ease-out curve) — no animation library added.
+
+**Notification copy** (`NotificationCopyEditor.tsx`): dialog body with a New-event/Added **SegmentedControl**, a single contextual **token-insert strip** that targets the focused field (title/body), auto **"uses:" token badges** under each field, and live previews for the active reason. Free-text + `< >` semantics and stored templates unchanged.
+
+**Consistency pass**: audited the remaining settings tabs (Event Types + groups, Departments, Webhooks, Quick Links, KAH Groups, Users, Banner, General, Security) against the same conventions — they already use manage rows, badges and dialogs; no dropdown-ladder or sizing deviations found, so no rewrites were needed.
+
+**Docs**: AGENTS.md Templates bullet (page structure + chip/FLIP conventions), progress changelog 1.211.
+
+**Verified**: pnpm typecheck, pnpm lint, pnpm test (1001 pass), pnpm build. Manual after deploy: Settings → Templates → reorder template fields (chips slide), add a field via the card picker, edit options with the chip toggles, and confirm the notification copy dialog previews both reasons.
+
+## 1.212 Unified template-driven notifications + text segments + master/duplicate
+
+Follow-up to 1.210/1.211: the separate notification-copy editor is gone — push copy now uses the SAME recipe templates as event titles, so admins manage one system.
+
+**Text segments**: recipes gained a literal **Text** field (`titleRecipe.ts`) — an ordered segment with typed words, shown only when non-blank, with the normal wrapper/connector options. Usable in any template (titles and notifications). The recipe builder's Add-field picker gained a Text card; segment options show a "Words to show" input.
+
+**Notifications are template-driven**: two new assignable targets `notifyCreated` / `notifyAdded` (labels "Notification — new event" / "… added to event") render the push body via `renderTitleRecipe`; the push title stays the event's rendered title. Unassigned targets fall back to the built-in copy in `src/lib/events/notifyRecipes.ts` — an intro `text` segment ("You're included in a new event" / "You've been added to this event") + description · location · the full wall-clock time (renderer `timeFull` override renders the dated audit string instead of bare HH:MM). People/department segments render empty in push. Dispatch (`notify.ts`) resolves the target assignment → library recipe, never the master title recipe. Removed: `NotificationCopyEditor`, `updateParticipantNotificationTemplates` action, the participantNotify token text builder/templates resolver/validate + their tests, and `tokenTemplate.ts`; the `participant_notify_*` settings columns are deprecated/never read (schema unchanged).
+
+**Master + duplicate**: the Master template now renders as the first template row in the Templates group — editable, duplicatable, but **unremovable** (disabled delete with a lock tooltip; it isn't a library row). Templates can be duplicated from the row copy icon or the edit dialog's Duplicate button via `duplicateEventTitleTemplate(id)` (unique "Copy of X" / "Copy of X 2" labels, audit + revalidate); Master's copy opens the Add dialog pre-seeded as "Copy of Master".
+
+**Docs**: event-notifications §1.11 rewritten (targets/defaults/rendering), event-lifecycle §1.8 (text field + timeFull) and §1.8.5 (notification targets, duplicate), AGENTS.md, progress changelog 1.212.
+
+**Verified**: pnpm typecheck, pnpm lint, pnpm test (990 pass incl. new text/timeFull/sanitizer cases), pnpm build. Manual after deploy: Settings → Templates → add a Text field to a template, assign it to "Notification — new event", then create an event tagging a user and confirm the push shows the intro + fields; duplicate a template and delete-lock Master.

@@ -383,9 +383,15 @@ it's a JS-only query (not a Mantine breakpoint, so it can't collide with `xs:`/`
   [docs/event-lifecycle.md](docs/event-lifecycle.md). Colors (event
   types + department fallback, applied at read time in `mapCalendarItem`, never cached):
   [docs/roster-sharing.md](docs/roster-sharing.md).
-- **Templates:** display-name template + **structured event-title recipes** (no free
-  text: ordered fields with per-field decoration, `src/lib/settings/titleRecipe.ts`)
-  with per-target View assignments (incl. `pinned` panel + `pinnedHeader` ticker).
+- **Templates:** display-name template + **structured recipes** (no free text beyond an
+  optional per-segment literal **Text** field: ordered fields with per-field decoration,
+  `src/lib/settings/titleRecipe.ts`) with per-target assignments (incl. `pinned` panel,
+  `pinnedHeader` ticker, and the two push-notification bodies `notifyCreated` /
+  `notifyAdded` — default copy in `src/lib/events/notifyRecipes.ts`). The Settings →
+  Templates page is manage-row groups opening centered dialogs
+  (`TemplatesManager.tsx`); title templates are composed as chip rows (fields via a
+  card picker, options via chip toggles — no stacked dropdowns) reordered with a
+  CSS FLIP (`src/lib/ui/flipReorder.ts`, reduced-motion safe).
   Design: [docs/event-lifecycle.md](docs/event-lifecycle.md) §1.8.
 - **Event notes:** `Edit: <url>` line (a `?event=` deep link to the event's details
   modal, carrying the copy's calendar as `_eventCal`; older notes carry the legacy
@@ -424,14 +430,11 @@ it's a JS-only query (not a Mantine breakpoint, so it can't collide with `xs:`/`
   account-wide pause switch. The dialog never hangs — the SW probe (`pushSwState`)
   races `navigator.serviceWorker.ready` against a timeout and explains each failure
   state; server actions return structured errors (migration hint included).
-  **The notification copy is admin-customizable** — Settings → Templates →
-  "Event Notification Templates": per-reason (created/added) title + body
-  templates on the `settings` row (`participant_notify_*`, migration 0039),
-  rendered at dispatch time through the `renderTokenTemplate` engine
-  (`src/lib/settings/tokenTemplate.ts`) with
-  `{title}`/`{type}`/`{time}`/`{location}` tokens and `< >` conditional groups;
-  defaults live in `src/lib/events/participantNotify/templates.ts`. The send
-  test keeps fixed copy (it proves plumbing, not content).
+  **Notification copy is template-driven** — Settings → Templates: the push title is the
+  event's rendered title and the body renders the recipe assigned to `notifyCreated` /
+  `notifyAdded` (an unassigned target uses the built-in copy in
+  `src/lib/events/notifyRecipes.ts`, whose `text` segments carry the intro sentence).
+  The send test keeps fixed copy (it proves plumbing, not content).
   Design: [docs/event-notifications.md](docs/event-notifications.md).
 - **Standard loading appearance: skeleton only + fade-in on reveal.** The skeleton is
   the ONLY loading indicator — never dim or darken content (`opacity: isPending ? …`

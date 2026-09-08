@@ -50,6 +50,12 @@ export interface EventTitleRecipeInput {
   startAmPm: "AM" | "PM" | "";
   /** End half-of-day indicator for half-day events. */
   endAmPm: "AM" | "PM" | "";
+  /**
+   * Optional pre-rendered wall-clock window (e.g. the audit "time" string with
+   * its date). When set, a `time` segment renders this instead of the raw
+   * HH:MM text — used by the push-notification bodies.
+   */
+  timeFull?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -63,6 +69,7 @@ export const TITLE_RECIPE_FIELDS = [
   "departments",
   "location",
   "time",
+  "text",
 ] as const;
 export type TitleRecipeField = (typeof TITLE_RECIPE_FIELDS)[number];
 
@@ -73,6 +80,7 @@ export const TITLE_FIELD_LABELS: Record<TitleRecipeField, string> = {
   departments: "Departments",
   location: "Location",
   time: "Time",
+  text: "Text",
 };
 
 export const TITLE_TYPE_STYLES = ["name", "acronym"] as const;
@@ -113,6 +121,8 @@ export interface TitleRecipeSegment {
   typeStyle?: TitleTypeStyle;
   /** People style — only meaningful for a `people` segment. */
   peopleStyle?: TitlePeopleStyle;
+  /** Literal words — only meaningful for a `text` segment. */
+  text?: string;
   /** Wrap the rendered value in ( ) or [ ]; `none` (default) = no wrap. */
   wrapper?: TitleRecipeWrapper;
   /**
@@ -160,6 +170,9 @@ function sanitizeSegment(raw: unknown): TitleRecipeSegment | null {
   }
   if (segment.field === "people" && isOneOf(TITLE_PEOPLE_STYLES, segment.peopleStyle)) {
     out.peopleStyle = segment.peopleStyle;
+  }
+  if (segment.field === "text" && typeof segment.text === "string") {
+    out.text = segment.text.trim();
   }
   if (isOneOf(TITLE_RECIPE_WRAPPERS, segment.wrapper)) {
     out.wrapper = segment.wrapper;
@@ -213,8 +226,11 @@ function typeText(style: TitleTypeStyle, eventType: EventTitleType | null): stri
   return (eventType.acronym || eventType.name).trim();
 }
 
-/** The wall-clock text for `{time}`-style rendering (mirrors the audit clock). */
+/** The wall-clock text for a `time` segment (mirrors the audit clock). */
 function timeText(input: EventTitleRecipeInput): string {
+  if (input.timeFull) {
+    return input.timeFull.trim();
+  }
   if (input.timeOption === "range" && input.startTime && input.endTime) {
     return `${input.startTime}-${input.endTime}`;
   }
@@ -238,6 +254,8 @@ function segmentText(segment: TitleRecipeSegment, input: EventTitleRecipeInput):
       return input.location.trim();
     case "time":
       return timeText(input);
+    case "text":
+      return (segment.text ?? "").trim();
   }
 }
 

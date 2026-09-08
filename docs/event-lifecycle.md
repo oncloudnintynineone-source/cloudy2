@@ -493,6 +493,11 @@ an empty field can no longer leave dangling punctuation (`OL:, …`, `(LZH )`).
 | `departments`| tagged department names joined with `", "`               | —                                   |
 | `location`   | the location string                                      | —                                   |
 | `time`       | `HH:MM-HH:MM` (range) / `AM`/`PM` (half) / `""` (full)    | —                                   |
+| `text`       | the segment's literal words (a blank text hides the segment) | — (typed in the Text field)     |
+
+`time` segments also honor a `timeFull` override: when the caller passes a
+pre-rendered wall-clock string (push bodies do), it renders that instead of the
+raw `HH:MM` text.
 
 Each segment may set `wrapper` (`none`/`paren`/`bracket`) and `connector`
 (`none`/`space`/`comma`/`dash`/`colon`/`middot`). A connector sits **after** its
@@ -553,22 +558,27 @@ assignments modal (Settings → Templates):
 
 - The assignments live on the settings row as `eventTitleTemplateAssignments` (jsonb).
   Keys are whitelisted to `EVENT_TITLE_ASSIGNMENT_TARGETS`
-  (`src/lib/settings/validate.ts:60`) — the five dashboard views
-  (`DASHBOARD_VIEW_VALUES`: `month`, `week`, `weekv2`, `schedule`, `agenda`) plus
-  `pinned` (Pinned Events **panel**, label "Pinned events (panel)") and
-  `pinnedHeader` (the header's rotating pinned-events **ticker**, label "Pinned
-  events (header)").
-- Pure `normalizeAssignments` (`validate.ts:223`) keeps only whitelisted keys and
-  drops empty/null entries; `validateAssignments` (`:237`) rejects unknown template
+  (`src/lib/settings/validate.ts`) — the five dashboard views
+  (`DASHBOARD_VIEW_VALUES`: `month`, `week`, `weekv2`, `schedule`, `agenda`), the
+  `pinned` Pinned Events panel, the `pinnedHeader` ticker, and the two push
+  bodies `notifyCreated` / `notifyAdded` ("Notification — new event" / "Added to event").
+- Pure `normalizeAssignments` (`validate.ts`) keeps only whitelisted keys and
+  drops empty/null entries; `validateAssignments` rejects unknown template
   ids (unit-tested in `validate.test.ts`).
-- **Unassigned target = Master fallback** (`settings.event_title_recipe`).
+- **Unassigned target = Master fallback** (`settings.event_title_recipe`) for views,
+  pinned and the ticker; notification targets fall back to the **built-in copy** in
+  `src/lib/events/notifyRecipes.ts` instead (the master title recipe has no intro
+  sentence).
 - Dashboard views are display-only re-renders; `fetchPinnedEvents` renders every
   pinned event twice — `title` through the `pinned` target for the panel list and
   `tickerTitle` through `pinnedHeader` for the header ticker
-  ([`pinned-events.md`](pinned-events.md)).
+  ([`pinned-events.md`](pinned-events.md)). Push bodies render through the same
+  recipes at dispatch time (docs/event-notifications.md §1.11).
 - Reads resolve assignments through `normalizeAssignments` and
   `getEventTitleTemplateMap()` (`src/lib/settings/queries.ts`); the update action
-  normalizes + validates before saving (`src/lib/settings/actions.ts`).
+  normalizes + validates before saving (`src/lib/settings/actions.ts`). Duplicating a
+  saved template (row copy or the edit dialog's Duplicate) creates a new library row
+  named "Copy of X" (`duplicateEventTitleTemplate`).
 
 ## 1.9 Location categories (the allowed-locations matrix)
 

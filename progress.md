@@ -719,6 +719,30 @@ One line per phase; full write-ups (incl. Mermaid diagrams and verification note
   recipe (migration deletes library rows + clears assignments); notification content
   templates keep their own free-text editor. `docs/event-lifecycle.md` §1.8,
   `AGENTS.md`, `progress-archive.md`
+- 1.211 Templates UI overhaul to the app's manage-row/dialog conventions: the Settings →
+  Templates page is now three manage-row group cards (Event title templates with Master +
+  saved rows + Add/Assign, Display names, Event notification copy) whose editors open in
+  centered dialogs (`TemplatesManager.tsx`); title templates are authored as chip rows with
+  a six-field card picker (add) and chip/Segmented options (style/wrapper/connector) — no
+  stacked dropdowns — reordered with a reduced-motion-safe CSS FLIP (`src/lib/ui/flipReorder.ts`);
+  notification copy editing moves into a dialog with a New-event/Added reason switch and a
+  contextual token-insert strip with auto "uses:" token badges (`NotificationCopyEditor.tsx`);
+  old `TemplatesForm`/`RecipeTemplateForm`/`NotificationTemplatesEditor` deleted. A pass across
+  the other settings tabs confirmed they already follow the manage-row/badge conventions.
+  `AGENTS.md`, `progress-archive.md`
+- 1.212 Unified, template-driven notifications + recipe text segments: recipes gain a literal
+  **Text** field (prose segment, shown only when non-blank) usable by every template;
+  **notifications now reuse the same template system** — two new assignable targets
+  `notifyCreated`/`notifyAdded` render the push body (title = the event's rendered title)
+  with built-in default copy in `notifyRecipes.ts` (intro `text` segment + description ·
+  location · full wall-clock time via a `timeFull` renderer override), so the separate
+  notification-copy editor/action/modules are gone (`NotificationCopyEditor`,
+  `updateParticipantNotificationTemplates`, participantNotify token message/validate/tests
+  deleted; `participant_notify_*` columns deprecated, never read). The Master template now
+  sits in the list as an **unremovable** row (disabled delete + lock hint) and templates can
+  be **duplicated** (row copy icon + edit-dialog Duplicate → `duplicateEventTitleTemplate`,
+  unique "Copy of X" labels). `docs/event-notifications.md` §1.11 rewritten,
+  `docs/event-lifecycle.md` §1.8/§1.8.5, `AGENTS.md`, `progress-archive.md`
 
 ## 1.4 Open items & next steps
 
