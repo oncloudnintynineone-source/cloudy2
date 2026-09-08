@@ -515,7 +515,12 @@ router.refresh())`), same-shell tab flips, and in-page transitions. Report a
   Vercel Production + Preview, the Cloud Run shadow, and `.env.local`. Generate the
   pair once with `npx web-push generate-vapid-keys`; the **same pair is shared across
   environments** (they identify the app server, so a client's subscription stays
-  valid whichever origin pushes). Until all three are set the feature is skipped
+  valid whichever origin pushes). `NEXT_PUBLIC_*` is inlined at build time: Vercel
+  does this at its own build, and the Cloud Run image must get it as a **Docker
+  build arg** (ci.yml `build-args` + the `Dockerfile` builder stage `ARG`/`ENV` —
+  GitHub Actions secrets `NEXT_PUBLIC_VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` /
+  `VAPID_SUBJECT` feed both the build arg and the runtime `--env-vars-file`).
+  Until all three are set the feature is skipped
   gracefully — no crash, no notifications. Design: `docs/event-notifications.md`.
 - `main` → production, `dev` → preview. **Environments are fully isolated**: every
   Vercel env var has separate Production/Preview values — prod Neon project + prod

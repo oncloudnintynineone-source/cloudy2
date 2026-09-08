@@ -25,6 +25,11 @@ RUN npm install -g pnpm@11.18.0
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
+# NEXT_PUBLIC_* values are inlined into the client bundle at build time. The
+# deploy job (ci.yml) passes the VAPID public key as a build arg so the Cloud
+# Run image's clients can subscribe to push, exactly like Vercel's own build.
+ARG NEXT_PUBLIC_VAPID_PUBLIC_KEY
+ENV NEXT_PUBLIC_VAPID_PUBLIC_KEY=${NEXT_PUBLIC_VAPID_PUBLIC_KEY}
 RUN pnpm build
 
 FROM base AS runner

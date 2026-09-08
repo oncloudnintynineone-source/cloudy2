@@ -351,7 +351,12 @@ same prod Google service account).
   `GOOGLE_DELEGATE_EMAIL`, `SMTP_URL`, `EMAIL_FROM`, `ADMIN_INITIAL_PASSWORD`,
   `ADMIN_PIN`, `NEXT_PUBLIC_VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT`
   (the Web Push pair is **shared** with Vercel — same keys, so a device subscribed
-  through one origin's push still validates against the other's).
+  through one origin's push still validates against the other's). Unlike Vercel
+  (which inlines `NEXT_PUBLIC_*` at its own build), the Cloud Run image is built in
+  GitHub Actions, so the deploy job passes `NEXT_PUBLIC_VAPID_PUBLIC_KEY` as a
+  **Docker build arg** and the `Dockerfile` builder stage declares `ARG`/`ENV` for it
+  — without that the client bundle in the image has no VAPID public key and the PWA
+  reports push as unconfigured.
   Cloud Run does not block SMTP ports 465/587, so the nodemailer fallback works.
 - **One-time GCP setup** (console): project + billing account (card; Always-Free
   tier applies) → enable Cloud Run Admin + Artifact Registry → create Artifact
@@ -361,9 +366,11 @@ same prod Google service account).
   **variable** `GCP_PROJECT_ID` (not sensitive — unmasked in logs) + **secrets**
   `GCP_SA_KEY` and mirrors of Vercel prod (`DATABASE_URL`, `NEXTAUTH_SECRET`,
   `GOOGLE_SERVICE_ACCOUNT_BASE64`, `GOOGLE_DELEGATE_EMAIL`, `SMTP_URL`,
-  `EMAIL_FROM`, `ADMIN_INITIAL_PASSWORD`, `ADMIN_PIN`, `VAPID_PRIVATE_KEY`;
-  `NEXT_PUBLIC_VAPID_PUBLIC_KEY` and `VAPID_SUBJECT` are not sensitive and may ride
-  the env-var list). Set a budget alert (~$5) as a guard.
+  `EMAIL_FROM`, `ADMIN_INITIAL_PASSWORD`, `ADMIN_PIN`, `VAPID_PRIVATE_KEY`,
+  `NEXT_PUBLIC_VAPID_PUBLIC_KEY`, `VAPID_SUBJECT`). `NEXT_PUBLIC_VAPID_PUBLIC_KEY`
+  is not sensitive — if you prefer, store it (and `VAPID_SUBJECT`) as repo
+  **variables** (`vars.*`) instead and adjust `ci.yml` accordingly; the private key
+  must stay a secret. Set a budget alert (~$5) as a guard.
 - **Shadow caveats**: both instances share prod Neon + the prod service account.
   Read-only validation (login, month views, search, audit CSV, PWA) is
   zero-risk; mutation tests (create/edit events, adding departments — which

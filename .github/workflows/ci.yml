@@ -124,6 +124,12 @@ jobs:
         with:
           context: .
           push: true
+          # NEXT_PUBLIC_* values are inlined into the client bundle at build
+          # time, so the Cloud Run image must bake the VAPID public key here
+          # (Vercel inlines it at its own build). The Dockerfile's builder
+          # stage declares ARG/ENV for it.
+          build-args: >-
+            NEXT_PUBLIC_VAPID_PUBLIC_KEY=${{ secrets.NEXT_PUBLIC_VAPID_PUBLIC_KEY }}
           tags: >-
             ${{ env.CLOUD_RUN_REGION }}-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/cloudy2/cloudy2:${{ github.sha }}
 
@@ -145,6 +151,7 @@ jobs:
       # Mirror of the Vercel prod env vars plus NEXTAUTH_URL, whose value is only
       # known after the first deploy. Written via --env-vars-file so values may
       # contain commas/'='; rolls a second revision moments after the first.
+      # The VAPID trio is read from the same secrets Vercel prod mirrors.
       - name: Set service environment variables
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
@@ -155,6 +162,9 @@ jobs:
           EMAIL_FROM: ${{ secrets.EMAIL_FROM }}
           ADMIN_INITIAL_PASSWORD: ${{ secrets.ADMIN_INITIAL_PASSWORD }}
           ADMIN_PIN: ${{ secrets.ADMIN_PIN }}
+          NEXT_PUBLIC_VAPID_PUBLIC_KEY: ${{ secrets.NEXT_PUBLIC_VAPID_PUBLIC_KEY }}
+          VAPID_PRIVATE_KEY: ${{ secrets.VAPID_PRIVATE_KEY }}
+          VAPID_SUBJECT: ${{ secrets.VAPID_SUBJECT }}
         run: |
           jq -n \
             --arg db "$DATABASE_URL" \
@@ -165,8 +175,11 @@ jobs:
             --arg ef "$EMAIL_FROM" \
             --arg ad "$ADMIN_INITIAL_PASSWORD" \
             --arg pin "$ADMIN_PIN" \
+            --arg pub "$NEXT_PUBLIC_VAPID_PUBLIC_KEY" \
+            --arg priv "$VAPID_PRIVATE_KEY" \
+            --arg subj "$VAPID_SUBJECT" \
             --arg url "${{ steps.deploy.outputs.url }}" \
-            '{DATABASE_URL:$db,NEXTAUTH_SECRET:$sec,GOOGLE_SERVICE_ACCOUNT_BASE64:$gs,GOOGLE_DELEGATE_EMAIL:$gd,SMTP_URL:$sm,EMAIL_FROM:$ef,ADMIN_INITIAL_PASSWORD:$ad,ADMIN_PIN:$pin,NEXTAUTH_URL:$url}' \
+            '{DATABASE_URL:$db,NEXTAUTH_SECRET:$sec,GOOGLE_SERVICE_ACCOUNT_BASE64:$gs,GOOGLE_DELEGATE_EMAIL:$gd,SMTP_URL:$sm,EMAIL_FROM:$ef,ADMIN_INITIAL_PASSWORD:$ad,ADMIN_PIN:$pin,NEXT_PUBLIC_VAPID_PUBLIC_KEY:$pub,VAPID_PRIVATE_KEY:$priv,VAPID_SUBJECT:$subj,NEXTAUTH_URL:$url}' \
             > /tmp/env.json
           gcloud run services update "$CLOUD_RUN_SERVICE" \
             --region "$CLOUD_RUN_REGION" \

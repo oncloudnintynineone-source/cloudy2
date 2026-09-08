@@ -8040,3 +8040,38 @@ prompted); otherwise the status/network error is shown.
 Manual to re-run: on a fresh device open Profile → Notifications (dialog must
 never spin); Send test → banner or an exact reason; then the two-account event
 flow (§1.10.1 of docs/event-notifications.md).
+
+## 1.206 Participant push on the Cloud Run shadow (VAPID env + build-arg)
+
+Real-device QA of 1.205 on the Cloud Run shadow (`*.run.app`) showed the
+Notifications dialog stuck at "Event notifications aren't turned on for this
+server yet" (`serverPushEnabled` false). Cause: the `deploy-cloudrun` job
+mirrors env vars by an **explicit** list — the VAPID trio was never added to it,
+so adding the values to GitHub secrets changed nothing. Two independent gaps:
+
+- **Runtime env**: the `gcloud run services update --env-vars-file` step (ci.yml)
+  hardcoded 8 vars; `NEXT_PUBLIC_VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`,
+  `VAPID_SUBJECT` are now added to the step env and the jq map, fed from the same
+  three GitHub secrets.
+- **Build-time inlining**: the Cloud Run image is built inside GitHub Actions
+  (`docker/build-push-action`), where no `NEXT_PUBLIC_*` values exist unless
+  passed explicitly — so the client bundle the image ships had no VAPID public
+  key (Vercel inlines at its own build; the Docker build does not). ci.yml now
+  passes `NEXT_PUBLIC_VAPID_PUBLIC_KEY` as a **build arg** to the image build,
+  and the Dockerfile `builder` stage declares `ARG NEXT_PUBLIC_VAPID_PUBLIC_KEY`
+  + `ENV NEXT_PUBLIC_VAPID_PUBLIC_KEY=${NEXT_PUBLIC_VAPID_PUBLIC_KEY}` before
+  `pnpm build` (runner stage is unaffected — it copies only `.next`/`public`).
+
+Also hardened `pushSwState` (client.ts): it now polls
+`navigator.serviceWorker.getRegistration()` five times (~1 s) before falling
+back to the `.ready` race, so a freshly-installed PWA whose service worker is
+still registering on the very first launch can't be misreported as "background
+service isn't running".
+
+Docs: `developer-guide.md` §1.9.1 (env list + build-arg + GH settings), AGENTS.md
+env gotchas (Cloud Run build-arg note).
+
+**Verified**: pnpm typecheck, pnpm lint, pnpm test (996 pass), pnpm build,
+ci.yml parses. Manual to run after a `main` deploy: the `*.run.app` PWA dialog
+should leave the server-not-configured state → Enable → green → Send test banner;
+then the two-account event flow.

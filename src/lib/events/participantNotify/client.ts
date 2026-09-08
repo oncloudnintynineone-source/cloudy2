@@ -77,16 +77,9 @@ export async function pushSwState(): Promise<PushSwState> {
   if (!pushSupported()) {
     return "unsupported";
   }
-  try {
-    // A registration whose scope covers this page — resolves immediately when
-    // the service worker has been registered before, without waiting for it to
-    // control this load.
-    const existing = await navigator.serviceWorker.getRegistration();
-    if (existing) {
-      return "ok";
-    }
-  } catch {
-    // Fall through to `.ready` below.
+  const existing = await findExistingRegistration();
+  if (existing) {
+    return "ok";
   }
   try {
     const ready = await Promise.race([
@@ -99,6 +92,27 @@ export async function pushSwState(): Promise<PushSwState> {
   } catch {
     return "missing";
   }
+}
+
+/**
+ * A registration whose scope covers this page, polling briefly before giving
+ * up: on the very first launch after an install the service worker may still
+ * be registering while the UI asks for push state, so a single synchronous
+ * probe can miss it even though it becomes ready a beat later.
+ */
+async function findExistingRegistration(): Promise<ServiceWorkerRegistration | null> {
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    try {
+      const registration = await navigator.serviceWorker.getRegistration();
+      if (registration) {
+        return registration;
+      }
+    } catch {
+      return null;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 250));
+  }
+  return null;
 }
 
 /**

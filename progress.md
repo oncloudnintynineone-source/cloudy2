@@ -653,9 +653,23 @@ One line per phase; full write-ups (incl. Mermaid diagrams and verification note
   **Send test notification** button (`sendTestPush` server action) pushes one
   notification through the identical `web-push` path (shared `sender.ts`) and
   reports 403/401 (VAPID pair mismatch), 404/410 (stale endpoint → prune +
-  re-enable prompt), or success. `docs/event-notifications.md` gains §1.10.1
+  re-enable prompt), or success.   `docs/event-notifications.md` gains §1.10.1
   troubleshooting (NEXT_PUBLIC rebuild, key-pair mismatch, two-account test,
   migration, audit/log tell-tales)
+- 1.206 Participant push on the Cloud Run shadow: device QA showed the `*.run.app`
+  PWA reporting "notifications aren't turned on for this server yet" because the
+  `deploy-cloudrun` job (ci.yml) never passed the VAPID trio to the runtime
+  `--env-vars-file` **or** the Docker build — and the image is built in GitHub
+  Actions, so `NEXT_PUBLIC_VAPID_PUBLIC_KEY` was never inlined into the client
+  bundle it ships (Vercel inlines at its own build; the Docker build needs an
+  explicit build arg). ci.yml now feeds `NEXT_PUBLIC_VAPID_PUBLIC_KEY` as a
+  `build-arg` to `docker/build-push-action` and adds all three VAPID vars to the
+  service env map; the Dockerfile `builder` stage declares
+  `ARG NEXT_PUBLIC_VAPID_PUBLIC_KEY` + `ENV` before `pnpm build`. `pushSwState`
+  (`client.ts`) also polls `getRegistration()` a few times before the `.ready`
+  race so a fresh install's first-open can't spuriously report the background
+  service as not running. Docs `developer-guide.md` §1.9.1 + `AGENTS.md` gotchas
+  updated (Cloud Run build-arg note)
 
 ## 1.4 Open items & next steps
 
