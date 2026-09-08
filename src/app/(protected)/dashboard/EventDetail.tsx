@@ -116,10 +116,8 @@ export function EventDetail({
         return name ? [{ id, name }] : [];
       })
     : [];
-  // The event's own calendar is already badged below; don't show it twice.
   const departmentNamesResolved = payload
     ? [...new Set(payload.inviteeDepartmentIds)]
-        .filter((id) => id !== payload.calendarId)
         .map((id) => calendarNames[id])
         .filter((name, index, all): name is string => Boolean(name) && all.indexOf(name) === index)
     : [];
