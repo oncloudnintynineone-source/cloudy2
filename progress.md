@@ -18,7 +18,7 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
 
 ## 1.1 Status
 
-- All work through changelog **1.203 (Month-grid zoom, fit-to-width)** is shipped.
+- All work through changelog **1.209 (dashboard-views ergonomics: All-views jump popover + changeable view type)** is shipped.
 - Quality gates (`lint` / `typecheck` / `test` / schema-drift check) run in CI on every
   push and PR. Pushes also auto-apply migrations per environment: `dev` →
   `migrate-preview` against the dev Neon DB, `main` → `migrate` against the prod Neon
@@ -696,6 +696,15 @@ One line per phase; full write-ups (incl. Mermaid diagrams and verification note
   (single-line, ≤140 title / ≤300 body); live sample previews reuse the real builder.
   `docs/event-notifications.md` §1.11/§1.12, `docs/event-lifecycle.md` §1.8.1,
   `AGENTS.md`, `progress-archive.md`
+- 1.209 Dashboard-views ergonomics: a chevron **All-views popover** beside the strip
+  gear (accounts with >1 tab) lists every tab (kind icon + name, active ticked) for a
+  one-tap jump without scrolling an overflowed strip; and Edit views rows gain a
+  **type** control opening the shared five-kind picker (`ViewTypePicker.tsx`, now also
+  used by Add view) so a tab's renderer kind can be changed after creation —
+  `changeDashboardViewKind` server action keeps the tab's id/order/filters and follows
+  the old kind's default label when the name never left it (pure `nameAfterKindChange`,
+  unit-tested); changing the active tab's type re-navigates through the usual
+  tab-switch period rules (`docs/dashboard-views.md` §1.1)
 
 ## 1.4 Open items & next steps
 

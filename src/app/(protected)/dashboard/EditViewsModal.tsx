@@ -16,14 +16,22 @@ import {
 } from "@mantine/core";
 import { useMediaQuery } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
-import { IconCheck, IconPencil, IconPlus, IconTrash, IconX } from "@tabler/icons-react";
+import {
+  IconCheck,
+  IconPencil,
+  IconPlus,
+  IconSwitchHorizontal,
+  IconTrash,
+  IconX,
+} from "@tabler/icons-react";
 
 import {
+  changeDashboardViewKind,
   deleteDashboardView,
   renameDashboardView,
   reorderDashboardViews,
 } from "@/lib/dashboardViews/actions";
-import type { DashboardViewTab } from "@/lib/dashboardViews/views";
+import type { DashboardViewTab, DashboardViewKind } from "@/lib/dashboardViews/views";
 import { BUTTON_LOADER_PROPS, NARROW_MEDIA_QUERY } from "@/lib/theme";
 import {
   ROW_ACTION_ICON_SIZE,
@@ -32,6 +40,7 @@ import {
   ReorderUpDown,
 } from "@/components/reorderUpDown";
 import { VIEW_TAB_META } from "./viewMeta";
+import { ViewTypePicker } from "./ViewTypePicker";
 
 interface EditViewsModalProps {
   opened: boolean;
@@ -66,17 +75,27 @@ export function EditViewsModal({
   const [renamingBusy, setRenamingBusy] = useState(false);
   const [deleting, setDeleting] = useState<DashboardViewTab | null>(null);
   const [deletingBusy, setDeletingBusy] = useState(false);
+  const [changing, setChanging] = useState<DashboardViewTab | null>(null);
+  const [changeKind, setChangeKind] = useState<DashboardViewKind>("month");
+  const [changingBusy, setChangingBusy] = useState(false);
   const [moving, setMoving] = useState<string | null>(null);
 
   function close() {
     setRenaming(null);
     setDeleting(null);
+    setChanging(null);
     onClose();
   }
 
   function startRename(tab: DashboardViewTab) {
     setRenaming({ id: tab.id, name: tab.name });
     setRenameDraft(tab.name);
+  }
+
+  /** Open the "Change type" dialog for a row, pre-selected to its kind. */
+  function startChangeType(tab: DashboardViewTab) {
+    setChanging(tab);
+    setChangeKind(tab.kind);
   }
 
   async function submitRename() {
@@ -150,6 +169,34 @@ export function EditViewsModal({
       }
     } finally {
       setDeletingBusy(false);
+    }
+  }
+
+  async function submitChangeType() {
+    if (!changing || changingBusy || changeKind === changing.kind) {
+      return;
+    }
+    const target = changing;
+    const kind = changeKind;
+    setChangingBusy(true);
+    try {
+      const result = await changeDashboardViewKind(target.id, { kind });
+      if (!result.ok) {
+        notifications.show({ color: "red", message: result.error });
+        return;
+      }
+      notifications.show({ color: "green", message: "View type changed" });
+      setChanging(null);
+      if (target.id === activeView.id) {
+        // The active tab re-navigates to the same id under its new kind, so
+        // the dashboard re-renders through the usual tab-switch period rules
+        // (Month → anchored starts today, anchored → Month keeps the month…).
+        onNavigateToView({ ...target, kind });
+      } else {
+        onMutated();
+      }
+    } finally {
+      setChangingBusy(false);
     }
   }
 
@@ -252,6 +299,16 @@ export function EditViewsModal({
                       </Group>
                       {!isRenaming && (
                         <Group wrap="nowrap" gap={4} style={{ flexShrink: 0 }}>
+                          <Tooltip label="Change type" position="top">
+                            <ActionIcon
+                              variant="default"
+                              size={ROW_ACTION_SIZE}
+                              aria-label={`Change type of ${tab.name}`}
+                              onClick={() => startChangeType(tab)}
+                            >
+                              <IconSwitchHorizontal size={ROW_ACTION_ICON_SIZE} />
+                            </ActionIcon>
+                          </Tooltip>
                           <Tooltip label="Rename" position="top">
                             <ActionIcon
                               variant="default"
@@ -324,6 +381,42 @@ export function EditViewsModal({
               onClick={() => void confirmDelete()}
             >
               Delete
+            </Button>
+          </Group>
+        </Stack>
+      </Modal>
+
+      <Modal
+        opened={changing !== null}
+        onClose={() => setChanging(null)}
+        title="Change view type"
+        centered
+        size={isNarrow ? "xs" : isDesktop ? "md" : "sm"}
+      >
+        <Stack>
+          <Text size="sm" c="dimmed">
+            &ldquo;{changing?.name}&rdquo; is currently a {changing ? VIEW_TAB_META[changing.kind].label : ""}{" "}
+            view. Pick its new type — the tab keeps its name (unless it is still the type&rsquo;s
+            default), filters and position.
+          </Text>
+          {changing && (
+            <ViewTypePicker
+              value={changeKind}
+              disabledKind={changing.kind}
+              onSelect={setChangeKind}
+            />
+          )}
+          <Group justify="flex-end" mt="md">
+            <Button variant="default" onClick={() => setChanging(null)}>
+              Cancel
+            </Button>
+            <Button
+              disabled={!changing || changeKind === changing.kind}
+              loading={changingBusy}
+              loaderProps={BUTTON_LOADER_PROPS}
+              onClick={() => void submitChangeType()}
+            >
+              Change type
             </Button>
           </Group>
         </Stack>

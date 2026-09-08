@@ -10,6 +10,7 @@ import { isUuid } from "@/lib/uuid";
 import { ensureDefaultDashboardView } from "./queries";
 import {
   isDashboardViewKind,
+  nameAfterKindChange,
   sanitizeDashboardViewName,
   type DashboardTabFilters,
   type DashboardViewKind,
@@ -106,6 +107,44 @@ export async function renameDashboardView(
   await db
     .update(userDashboardViews)
     .set({ name: name.value, updatedAt: new Date() })
+    .where(eq(userDashboardViews.id, id));
+  revalidatePath("/dashboard");
+  return { ok: true };
+}
+
+/**
+ * Change the renderer kind of a tab (e.g. turn a "Month" tab into a "Week
+ * (D)" tab). The tab keeps its id, strip order, stored filters and its custom
+ * name; a name that is still the old kind's default label follows to the new
+ * kind's default (the mirror of the Add-view dialog's rule — see
+ * `nameAfterKindChange`). The active tab's caller re-navigates to the same id
+ * so the dashboard re-renders under the new kind with the usual tab-switch
+ * period rules.
+ */
+export async function changeDashboardViewKind(
+  id: string,
+  input: { kind?: unknown },
+): Promise<DashboardViewActionResult> {
+  const session = await requireSession();
+  const userId = session.user.id;
+  if (!isUuid(userId)) {
+    return { ok: false, error: "Not available for this account" };
+  }
+  const owned = await requireOwnedView(userId, id);
+  if (!owned.view) {
+    return { ok: false, error: owned.error };
+  }
+  if (!isDashboardViewKind(input.kind)) {
+    return { ok: false, error: "Pick a view type", field: "kind" };
+  }
+  const kind = input.kind as DashboardViewKind;
+  const oldKind = isDashboardViewKind(owned.view.viewType)
+    ? owned.view.viewType
+    : "month";
+  const name = nameAfterKindChange(owned.view.name, oldKind, kind);
+  await db
+    .update(userDashboardViews)
+    .set({ viewType: kind, name, updatedAt: new Date() })
     .where(eq(userDashboardViews.id, id));
   revalidatePath("/dashboard");
   return { ok: true };

@@ -2,7 +2,9 @@ import { describe, expect, it } from "vitest";
 
 import {
   DASHBOARD_VIEW_KINDS,
+  DASHBOARD_VIEW_KIND_LABELS,
   isDashboardViewKind,
+  nameAfterKindChange,
   normalizeFilterOverride,
   resolveActiveTab,
   sanitizeDashboardViewName,
@@ -77,6 +79,28 @@ describe("normalizeFilterOverride", () => {
   it("decodes non-arrays to null (role default)", () => {
     for (const raw of [null, undefined, "c1", { cal: [] }, 3]) {
       expect(normalizeFilterOverride(raw)).toBeNull();
+    }
+  });
+});
+
+describe("nameAfterKindChange", () => {
+  it("adopts the new kind's default label when the name is still the old default", () => {
+    expect(nameAfterKindChange("Month", "month", "agenda")).toBe("Agenda");
+    expect(nameAfterKindChange("Week (D)", "weekv2", "month")).toBe("Month");
+  });
+  it("keeps a custom name", () => {
+    expect(nameAfterKindChange("Ops Month", "month", "week")).toBe("Ops Month");
+  });
+  it("keeps the name when a kind is renamed to its own default label", () => {
+    expect(nameAfterKindChange("Agenda", "month", "agenda")).toBe("Agenda");
+  });
+  it("is a no-op when the kind does not change", () => {
+    for (const kind of DASHBOARD_VIEW_KINDS) {
+      const custom = `My ${DASHBOARD_VIEW_KIND_LABELS[kind]}`;
+      expect(nameAfterKindChange(custom, kind, kind)).toBe(custom);
+      expect(nameAfterKindChange(DASHBOARD_VIEW_KIND_LABELS[kind], kind, kind)).toBe(
+        DASHBOARD_VIEW_KIND_LABELS[kind],
+      );
     }
   });
 });

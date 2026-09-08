@@ -57,18 +57,34 @@ string maps to the first tab of that kind.
   **↑/↓** arrows to reorder (commits `reorderDashboardViews`, which
   renumbers every row in a transaction — the clicked arrow shows an inline
   spinner while it works; the row's outward arrow is disabled at the list's
-  ends), a **pen** button that swaps the row into an inline rename field
-  (Enter saves, Escape cancels), and a **trash** button that deletes behind a
-  nested `size="sm"` confirm (the last tab can't be deleted — its trash is
-  disabled; deleting the active tab navigates to the first remaining).
+  ends), a **type** button (swap icon) that opens the shared five-kind picker
+  (`ViewTypePicker`, below) so a tab's renderer kind can be changed after
+  creation — the tab keeps its id, strip order and stored filters, and a name
+  that is still the old kind's default label follows to the new kind's default
+  (a custom name is kept; the rule is applied server-side by
+  `changeDashboardViewKind`), a **pen** button that swaps the row into an
+  inline rename field (Enter saves, Escape cancels), and a **trash** button
+  that deletes behind a nested `size="sm"` confirm (the last tab can't be
+  deleted — its trash is disabled; deleting the active tab navigates to the
+  first remaining). Changing the **active** tab's type re-navigates to the
+  same id under its new kind, so the tab-switch period rules below apply
+  (Month → anchored starts today; anchored → Month keeps the month); changing
+  an inactive tab just refreshes the list.
   **Add view** lives at the bottom of the same modal — its button opens the
   kind-picker dialog (kind rows with icons + a name; the default name follows
   the chosen kind until edited), and creating appends the tab and navigates to
-  it. The old **pin/unpin** affordance and its star UI are gone — ordering is
-  fully user-controlled. Tabs themselves are **content-sized** — each
-  shrink-wraps its label (so the active underline hugs the text), they never
-  stretch to fill the row, and a long set overflows into natural horizontal
-  scrolling.
+  it. The Add-view dialog and the Change-type flow share the **five-kind
+  picker** component `ViewTypePicker.tsx`. The old **pin/unpin** affordance and
+  its star UI are gone — ordering is fully user-controlled. Tabs themselves are
+  **content-sized** — each shrink-wraps its label (so the active underline hugs
+  the text), they never stretch to fill the row, and a long set overflows into
+  natural horizontal scrolling.
+- **All-views jump list** (a chevron button between the strip and the Edit-views
+  gear, only when the account has more than one tab): for users with many tabs
+  the overflowed strip is a long horizontal scroll to reach a specific view, so
+  the chevron opens a `Menu` popover listing **every** tab in strip order —
+  kind icon + name, the active tab ticked — for a one-tap `switchTab` without
+  scrolling the strip.
 - **Period preservation on switch** (`switchTab` in `DashboardView.tsx`): a
   tab switch is a *filter/context* change, so switching between two tabs of the
   same kind (or any two day-anchored kinds) keeps the current date; leaving
@@ -429,8 +445,9 @@ flowchart LR
 | `src/lib/dashboardViews/queries.ts` | Tab reads + the mutex-guarded default "Month" seed |
 | `src/lib/dashboardViews/actions.ts` | Tab CRUD: `create/rename/delete/reorderDashboardViews`, `saveDashboardViewFilters` |
 | `src/lib/userPrefs/queries.ts` + `actions.ts` | `user_preferences` row: last-active tab + parade filters (incl. `saveParadeFilters`) |
-| `src/app/(protected)/dashboard/DashboardView.tsx` | Tab strip (+ right-side Edit-views trigger), tab switch + period rules, filter state, schedule zoom + month zoom state & widths |
-| `src/app/(protected)/dashboard/EditViewsModal.tsx` | Edit-views dialog: card manage list (↑/↓ reorder, inline rename, nested delete confirm, Add-view button) |
+| `src/app/(protected)/dashboard/DashboardView.tsx` | Tab strip (+ right-side Edit-views trigger and All-views jump popover), tab switch + period rules, filter state, schedule zoom + month zoom state & widths |
+| `src/app/(protected)/dashboard/EditViewsModal.tsx` | Edit-views dialog: card manage list (↑/↓ reorder, Change-type picker, inline rename, nested delete confirm, Add-view button) |
+| `src/app/(protected)/dashboard/ViewTypePicker.tsx` | Shared five-kind picker (Month/Week (H)/Week (D)/Day/Agenda) used by Add view and Edit-views Change type |
 | `src/app/(protected)/dashboard/viewMeta.tsx` | Kind → icon/label map shared by the strip, the Add-view picker and Edit-views rows |
 | `src/components/reorderUpDown.tsx` | Shared touch-friendly manage-row recipe: ~40px ↑/↓ chevron pair (`ReorderUpDown`) + row-action sizes |
 | `src/app/(protected)/dashboard/page.tsx` | Resolves tabs + active tab (`?view=` → remembered → first), validates per-tab filters |

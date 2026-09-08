@@ -140,7 +140,6 @@ import { notifyEventsChanged } from "@/lib/ui/eventChanges";
 import { createDashboardView, saveDashboardViewFilters } from "@/lib/dashboardViews/actions";
 import {
   DASHBOARD_VIEW_KIND_LABELS,
-  DASHBOARD_VIEW_KINDS,
   type DashboardTabFilters,
   type DashboardViewKind,
   type DashboardViewTab,
@@ -150,6 +149,7 @@ import { EditViewsModal } from "./EditViewsModal";
 import { EventDetail } from "./EventDetail";
 import { EventForm } from "./EventForm";
 import { WeekMatrixView } from "./WeekMatrixView";
+import { ViewTypePicker } from "./ViewTypePicker";
 import { invalidateCurrentPathCaches } from "@/lib/pwa/client";
 import { VIEW_TAB_META } from "./viewMeta";
 
@@ -2231,6 +2231,68 @@ export function DashboardView({
                 </Tabs.List>
               </Tabs>
             </Box>
+            {/* Quick "All views" jump list: with many content-sized tabs the
+                strip overflows into a long horizontal scroll, so this menu
+                lists every tab (kind icon + name, the active one ticked) for
+                a one-tap switch — no scrolling the strip. */}
+            {canManageViews && tabs.length > 1 && (
+              <Menu
+                shadow="md"
+                width={240}
+                position="bottom-end"
+                withinPortal
+                transitionProps={{
+                  transition: "pop-top-right",
+                  duration: MOTION.popover,
+                  timingFunction: "ease",
+                }}
+                styles={{
+                  dropdown: { maxHeight: "min(60vh, 380px)", overflowY: "auto" },
+                }}
+              >
+                <Menu.Target>
+                  <ActionIcon
+                    variant="subtle"
+                    color="gray"
+                    size={30}
+                    ml={4}
+                    aria-label="All views"
+                    title="All views"
+                    style={{ flex: "0 0 auto" }}
+                  >
+                    <IconChevronDown size={16} />
+                  </ActionIcon>
+                </Menu.Target>
+                <Menu.Dropdown>
+                  {tabs.map((tab) => {
+                    const meta = VIEW_TAB_META[tab.kind];
+                    const isActive = tab.id === shownTabId;
+                    return (
+                      <Menu.Item
+                        key={tab.id}
+                        leftSection={meta.icon}
+                        rightSection={
+                          isActive ? <IconCheck size={14} aria-hidden /> : undefined
+                        }
+                        role="menuitemradio"
+                        aria-checked={isActive}
+                        onClick={() => switchTab(tab)}
+                      >
+                        <Text
+                          size="sm"
+                          fw={isActive ? 700 : 500}
+                          truncate
+                          title={tab.name}
+                          style={{ maxWidth: 160 }}
+                        >
+                          {tab.name}
+                        </Text>
+                      </Menu.Item>
+                    );
+                  })}
+                </Menu.Dropdown>
+              </Menu>
+            )}
             {canManageViews && (
               <ActionIcon
                 variant="subtle"
@@ -3182,35 +3244,7 @@ export function DashboardView({
               <Text fw={600} size="sm" mb={6}>
                 View type
               </Text>
-              <Stack gap={6}>
-                {DASHBOARD_VIEW_KINDS.map((kind) => {
-                  const meta = VIEW_TAB_META[kind];
-                  const selected = createKind === kind;
-                  return (
-                    <UnstyledButton key={kind} onClick={() => pickCreateKind(kind)}>
-                      <Paper
-                        withBorder
-                        p="xs"
-                        radius="md"
-                        bg={selected ? "var(--mantine-color-accent-light)" : undefined}
-                        style={{
-                          borderColor: selected ? "var(--mantine-color-accent-4)" : undefined,
-                        }}
-                      >
-                        <Group gap="sm" wrap="nowrap">
-                          {meta.icon}
-                          <Text fw={selected ? 700 : 500} size="sm" style={{ flex: 1 }}>
-                            {meta.label}
-                          </Text>
-                          {selected && (
-                            <IconCheck size={16} color="var(--mantine-color-accent-6)" />
-                          )}
-                        </Group>
-                      </Paper>
-                    </UnstyledButton>
-                  );
-                })}
-              </Stack>
+              <ViewTypePicker value={createKind} onSelect={pickCreateKind} />
             </div>
             <TextInput
               label="Name"

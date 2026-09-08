@@ -31,6 +31,25 @@ export function isDashboardViewKind(value: unknown): value is DashboardViewKind 
   return typeof value === "string" && (DASHBOARD_VIEW_KINDS as readonly string[]).includes(value);
 }
 
+/**
+ * The display name a tab keeps when its kind is changed (Edit views → Change
+ * type). The mirror of the Add-view dialog's "the default name follows the
+ * chosen kind": a tab whose name still equals its old kind's default label
+ * (i.e. it was never customized past the default) adopts the new kind's
+ * default label; a custom name is left untouched. Applied server-side from
+ * the stored row so the client can't drift from the rule.
+ */
+export function nameAfterKindChange(
+  currentName: string,
+  oldKind: DashboardViewKind,
+  newKind: DashboardViewKind,
+): string {
+  if (oldKind === newKind || currentName !== DASHBOARD_VIEW_KIND_LABELS[oldKind]) {
+    return currentName;
+  }
+  return DASHBOARD_VIEW_KIND_LABELS[newKind];
+}
+
 /** Longest allowed user-chosen tab name. */
 export const DASHBOARD_VIEW_NAME_MAX_LENGTH = 40;
 

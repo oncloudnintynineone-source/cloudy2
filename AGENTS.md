@@ -165,13 +165,18 @@ mechanics in the doc.
   (outside the scroll area) opens **Edit views** — a modal (`EditViewsModal.tsx`)
   listing the tabs as bordered cards sharing the shared **touch-friendly
   manage-row recipe** (`src/components/reorderUpDown.tsx`: ~40px row-action
-  buttons — the ↑/↓ chevron pair leading, pen/trash trailing; also used by the
+  buttons — the ↑/↓ chevron pair leading, type/pen/trash trailing; also used by the
   event-type groups modal, departments and quick links): **↑/↓** reorder
-  chevrons (inline spinner while working), a **pen** per row (inline rename
+  chevrons (inline spinner while working), a **type** control per row opening
+  the shared five-kind picker `ViewTypePicker` (Change-type keeps the tab's
+  filters/order; a name still equal to the old kind's default follows the new
+  default — applied server-side by `changeDashboardViewKind`), a **pen** per row (inline rename
   field; Enter saves / Escape cancels) and a **trash** per row (nested delete
   confirm; the last tab can't go), plus an **Add view** button at the bottom
   (kind picker + name; no strip ＋). Tabs are **content-sized** (no fill,
-  so the underline hugs the label; overflow scrolls).
+  so the underline hugs the label; overflow scrolls); with >1 tab a chevron
+  **All-views** popover beside the gear lists every tab (icon + name, active
+  ticked) for a one-tap jump without scrolling the strip.
   **Filters are stored per tab** (server-side; a filter value `null` = role default,
   an explicit array incl. `[]` = that selection) and applied/cleared through server
   actions + `router.refresh()` — no `cal/users/types` URL params. The active tab

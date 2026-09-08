@@ -157,6 +157,7 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
 - [1.194 Participants "Add myself" toggle + owner-lock wording](#1194-participants-add-myself-toggle--owner-lock-wording)
 - [1.195 "(You)" participant highlight](#1195-you-participant-highlight)
 - [1.197 Refresh re-homed + pull-to-refresh disabled](#1197-refresh-re-homed--pull-to-refresh-disabled)
+- [1.209 Dashboard-views ergonomics: All-views popover + changeable view type](#1209-dashboard-views-ergonomics-all-views-popover--changeable-view-type)
 
 ## 1.1 Status
 
@@ -8128,3 +8129,43 @@ Until this phase the participant-invite push text was fixed: title = the rendere
 **Docs**: `docs/event-notifications.md` §1.11 (content customization) + §1.12 file table (renumbered), `docs/event-lifecycle.md` §1.8.1 (engine location), AGENTS.md participant-notifications bullet, progress changelog.
 
 **Verified**: pnpm typecheck, pnpm lint, pnpm test (1005 pass incl. new message/validate cases), pnpm db:generate (clean drift). Manual to run after deploy: Settings → Templates → edit a notification template → send an event tagging a second user → confirm the device shows the new copy; blank-title event shows the type/headline fallback.
+## 1.209 Dashboard-views ergonomics: All-views popover + changeable view type
+
+Two gaps reported against the on-demand dashboard Views (tabs) shipped in §1.202:
+(1) with many tabs the content-sized strip overflows into a long horizontal scroll, so
+reaching a specific view is slow; (2) a tab's renderer kind was fixed at creation
+(rename/delete/reorder existed, but a tab created as Month could never become Week (D)
+without deleting and rebuilding it — including its filters and strip position).
+
+**All-views jump list.** A chevron `Menu` button sits between the scrollable strip and the
+Edit-views gear (rendered only when the account manages views **and** has more than one
+tab). It lists every tab in strip order — `VIEW_TAB_META` kind icon + truncated name, the
+active tab ticked (`aria-checked`, `role="menuitemradio"`, mirroring `UserMenu`) — and a
+tap calls the existing `switchTab`, so all the kind-transition period rules (same-kind
+keeps the date, Month→anchored starts today, anchored→Month keeps the month) apply
+unchanged. The dropdown is `withinPortal` with a max-height + inner scroll so even the
+20-tab cap fits the viewport.
+
+**Changeable view type.** Each Edit views row gains a **type** row action (swap icon,
+40px per the shared manage-row recipe) opening a nested "Change view type" modal. The
+kind list is the new shared **`ViewTypePicker.tsx`** component — the five kind rows with
+icons + the accent selection highlight previously inlined in the Add-view dialog, now
+extracted and used by both flows; the Change-type instance shows the tab's current kind
+as a disabled "(current)" row. The server action `changeDashboardViewKind(id, { kind })`
+(`src/lib/dashboardViews/actions.ts`) validates ownership + kind, then updates
+`view_type` (and, when the stored name still equals the old kind's default label,
+`name` → the new kind's default via the pure, unit-tested `nameAfterKindChange` in
+`src/lib/dashboardViews/views.ts` — the server applies the rule so the client can't
+drift), then `revalidatePath("/dashboard")`. Id, strip order and stored Cal/Users/Types
+filters are untouched. Client side-effects mirror the delete path: changing an
+**inactive** tab calls `onMutated()` (list refresh); changing the **active** tab calls
+`onNavigateToView({ ...tab, kind })`, i.e. the same `switchTab` the jump list uses, so
+the period transitions apply rather than a bare refresh (which could strand a stale
+`month` URL param against a day-anchored kind).
+
+**Verified**: pnpm typecheck, pnpm lint, pnpm test (1009 pass incl. the new
+`nameAfterKindChange` cases), pnpm build. Manual to run after deploy: create a second
+view → the chevron popover lists both and jumps; Edit views → type button → change the
+active Month tab to Week (D) and confirm it lands on today; change an inactive Agenda
+tab to Month with its default name and confirm the name follows; confirm a custom-named
+tab keeps its name.
