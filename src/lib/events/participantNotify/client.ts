@@ -59,28 +59,91 @@ export async function requestPushPermission(): Promise<NotificationPermission> {
   return Notification.requestPermission();
 }
 
-/** The registration that controls this page (the Serwist SW, scope "/"). */
-async function serviceWorkerRegistration(): Promise<ServiceWorkerRegistration> {
-  const registration = await navigator.serviceWorker.ready;
-  if (!registration || !registration.pushManager) {
-    throw new Error("Push is not available on this device");
+/** How far this device's push plumbing got, used to show a specific message. */
+export type PushSwState = "unsupported" | "ok" | "missing" | "timeout";
+
+/** How long to wait for the service worker to become ready before giving up. */
+const SW_READY_TIMEOUT_MS = 8000;
+
+/**
+ * Resolve the controlling service worker registration without ever hanging:
+ * a present registration is used immediately; only when none exists do we wait
+ * on `navigator.serviceWorker.ready`, raced against a timeout (an installed-but-
+ * never-activating worker would otherwise block the caller forever). Resolves
+ * null on timeout / no registration / unsupported — callers then show guidance
+ * instead of an eternal spinner.
+ */
+export async function pushSwState(): Promise<PushSwState> {
+  if (!pushSupported()) {
+    return "unsupported";
   }
-  return registration;
+  try {
+    // A registration whose scope covers this page — resolves immediately when
+    // the service worker has been registered before, without waiting for it to
+    // control this load.
+    const existing = await navigator.serviceWorker.getRegistration();
+    if (existing) {
+      return "ok";
+    }
+  } catch {
+    // Fall through to `.ready` below.
+  }
+  try {
+    const ready = await Promise.race([
+      navigator.serviceWorker.ready,
+      new Promise<null>((resolve) => {
+        setTimeout(() => resolve(null), SW_READY_TIMEOUT_MS);
+      }),
+    ]);
+    return ready ? "ok" : "timeout";
+  } catch {
+    return "missing";
+  }
+}
+
+/**
+ * The registration to subscribe/send against, or null when the service worker
+ * is not reachable on this device (see {@link pushSwState}).
+ */
+async function serviceWorkerRegistration(): Promise<ServiceWorkerRegistration | null> {
+  const state = await pushSwState();
+  if (state !== "ok") {
+    return null;
+  }
+  try {
+    const registration = await navigator.serviceWorker.getRegistration();
+    if (registration) {
+      return registration;
+    }
+    return (await Promise.race([
+      navigator.serviceWorker.ready,
+      new Promise<null>((resolve) => {
+        setTimeout(() => resolve(null), SW_READY_TIMEOUT_MS);
+      }),
+    ])) as ServiceWorkerRegistration | null;
+  } catch {
+    return null;
+  }
 }
 
 /** This device's current push subscription (browser-side), or null. */
 export async function currentPushSubscription(): Promise<PushSubscription | null> {
-  if (!pushSupported()) {
+  const registration = await serviceWorkerRegistration();
+  if (!registration) {
     return null;
   }
-  const registration = await serviceWorkerRegistration();
-  return registration.pushManager.getSubscription();
+  try {
+    return await registration.pushManager.getSubscription();
+  } catch {
+    return null;
+  }
 }
 
 /**
  * Subscribe this device to push (no permission prompt — the caller must have
  * already obtained it via {@link requestPushPermission}). Returns the
- * subscription, or null when already-subscribed state could not be (re)used.
+ * subscription, or null when the service worker is unreachable or the
+ * subscription could not be created.
  */
 export async function subscribeToPush(): Promise<PushSubscription | null> {
   const publicKey = clientVapidPublicKey();
@@ -88,6 +151,9 @@ export async function subscribeToPush(): Promise<PushSubscription | null> {
     return null;
   }
   const registration = await serviceWorkerRegistration();
+  if (!registration) {
+    return null;
+  }
   const existing = await registration.pushManager.getSubscription();
   if (existing) {
     return existing;
@@ -99,21 +165,25 @@ export async function subscribeToPush(): Promise<PushSubscription | null> {
     });
   } catch (error) {
     // InvalidStateError: an existing subscription on another key is in the
-    // way — drop it and retry once.
+    // way, or the registration isn't activatable yet.
     console.error("[push] Subscribe failed", error);
     return null;
   }
 }
 
-/** Unsubscribe this device from push (no-op when not subscribed). */
+/** Unsubscribe this device from push (no-op when not subscribed/reachable). */
 export async function unsubscribeFromPush(): Promise<boolean> {
-  if (!pushSupported()) {
-    return false;
-  }
   const registration = await serviceWorkerRegistration();
-  const subscription = await registration.pushManager.getSubscription();
-  if (!subscription) {
+  if (!registration) {
     return false;
   }
-  return subscription.unsubscribe();
+  try {
+    const subscription = await registration.pushManager.getSubscription();
+    if (!subscription) {
+      return false;
+    }
+    return subscription.unsubscribe();
+  } catch {
+    return false;
+  }
 }

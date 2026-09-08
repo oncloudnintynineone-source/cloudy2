@@ -640,6 +640,22 @@ One line per phase; full write-ups (incl. Mermaid diagrams and verification note
   denied-state guidance. Audit rows `event.participantNotify`.
   `docs/event-notifications.md`, `AGENTS.md`, `.env.example`,
   `docs/developer-guide.md` §1.4/§1.9/§1.9.1/§1.12
+- 1.205 Participant-push hardening + self-test: real-device QA found the
+  Notifications dialog could spin forever when the service worker never became
+  active (an unraced `navigator.serviceWorker.ready`), and every delivery
+  failure was silent. The SW probe now resolves via `getRegistration()` with
+  `.ready` raced against a timeout (`pushSwState`, `client.ts`), so the dialog
+  always reaches a terminal state with specific copy for each failure (SW not
+  ready → reopen/reinstall; server push unconfigured → VAPID env hint; blocked;
+  unsupported; global Admin). Server actions return structured errors instead
+  of throwing (with a "run the migrations" hint for a missing
+  `push_subscriptions` table), settings expose `serverPushEnabled`, and a
+  **Send test notification** button (`sendTestPush` server action) pushes one
+  notification through the identical `web-push` path (shared `sender.ts`) and
+  reports 403/401 (VAPID pair mismatch), 404/410 (stale endpoint → prune +
+  re-enable prompt), or success. `docs/event-notifications.md` gains §1.10.1
+  troubleshooting (NEXT_PUBLIC rebuild, key-pair mismatch, two-account test,
+  migration, audit/log tell-tales)
 
 ## 1.4 Open items & next steps
 

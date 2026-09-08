@@ -18,6 +18,7 @@ import {
   getParticipantPushSettings,
   setEventInvitePush,
   syncPushSubscription,
+  sendTestPush,
   unsyncPushSubscription,
   type ParticipantPushSettings,
   type ClientPushSubscription,
@@ -26,6 +27,8 @@ import {
   currentPushSubscription,
   pushPermissionState,
   pushSupported,
+  pushSwState,
+  type PushSwState,
   requestPushPermission,
   subscribeToPush,
   unsubscribeFromPush,
@@ -40,33 +43,15 @@ interface NotificationSettingsProps {
 interface BrowserState {
   supported: boolean;
   permission: NotificationPermission | null;
+  /** Service-worker reachability on this device ("unsupported" when !supported). */
+  sw: PushSwState;
   subscribed: boolean;
   endpoint: string | null;
+  /** A server-side error from the silent re-own of the device row, if any. */
+  syncError: string | null;
 }
 
-/** Snapshot the browser-side push state (never throws). */
-async function readBrowserState(): Promise<BrowserState> {
-  const supported = pushSupported();
-  const permission = pushPermissionState();
-  let subscribed = false;
-  let endpoint: string | null = null;
-  if (supported && permission === "granted") {
-    const subscription = await currentPushSubscription().catch(() => null);
-    subscribed = subscription !== null;
-    endpoint = subscription?.endpoint ?? null;
-    if (subscription) {
-      // Re-own the device's endpoint row for the signed-in account whenever
-      // this dialog opens — covers a shared device where a different account
-      // is now logged in (the browser subscription is already granted). No-op
-      // when the row already belongs to this account (upsert-by-endpoint).
-      const payload = subscriptionPayload(subscription);
-      if (payload) {
-        void syncPushSubscription(payload).catch(() => undefined);
-      }
-    }
-  }
-  return { supported, permission, subscribed, endpoint };
-}
+type BusyAction = "enable" | "turnoff" | "test" | null;
 
 /** Pull the subscription's { endpoint, keys } for the server action. */
 function subscriptionPayload(subscription: PushSubscription): ClientPushSubscription | null {
@@ -89,6 +74,52 @@ function subscriptionPayload(subscription: PushSubscription): ClientPushSubscrip
   };
 }
 
+/** Snapshot the browser-side push state. Never throws, never hangs. */
+async function readBrowserState(): Promise<BrowserState> {
+  const supported = pushSupported();
+  const permission = pushPermissionState();
+  const base: BrowserState = {
+    supported,
+    permission,
+    sw: "unsupported",
+    subscribed: false,
+    endpoint: null,
+    syncError: null,
+  };
+  if (!supported) {
+    return base;
+  }
+  const sw = await pushSwState();
+  if (sw !== "ok") {
+    return { ...base, sw };
+  }
+  if (permission !== "granted") {
+    return { ...base, sw };
+  }
+  const subscription = await currentPushSubscription();
+  if (!subscription) {
+    return { ...base, sw };
+  }
+  const payload = subscriptionPayload(subscription);
+  if (!payload) {
+    return { ...base, sw, subscribed: true, endpoint: subscription.endpoint };
+  }
+  // Re-own the device's endpoint row for the signed-in account whenever this
+  // dialog opens — covers a shared device where a different account is now
+  // logged in (the browser subscription is already granted). No-op when the
+  // row already belongs to this account (upsert-by-endpoint).
+  let syncError: string | null = null;
+  try {
+    const result = await syncPushSubscription(payload);
+    if (!result.ok) {
+      syncError = result.error;
+    }
+  } catch {
+    syncError = "Couldn't save this device — tap Enable notifications to retry.";
+  }
+  return { ...base, sw, subscribed: true, endpoint: subscription.endpoint, syncError };
+}
+
 /** Fetch the server settings + browser push state together. */
 async function fetchSettingsAndBrowser(): Promise<{
   settings: ParticipantPushSettings;
@@ -103,10 +134,10 @@ async function fetchSettingsAndBrowser(): Promise<{
 
 /**
  * Profile-menu dialog for event participant Web Push notifications: enable /
- * disable on this device (the browser permission + subscription) and the
- * per-profile master switch that pauses them app-wide. The device half only
- * exists on browsers that support Web Push (the installed PWA on Android and
- * iOS 16.4+); the master switch is account-wide.
+ * disable on this device (the browser permission + subscription), a "Send test"
+ * that exercises the real send path, and the per-profile master switch that
+ * pauses them app-wide. Every branch reaches a terminal state — a service
+ * worker that never activates surfaces guidance instead of an eternal spinner.
  */
 export function NotificationSettings({ opened, onClose }: NotificationSettingsProps) {
   const theme = useMantineTheme();
@@ -114,8 +145,8 @@ export function NotificationSettings({ opened, onClose }: NotificationSettingsPr
   const isNarrow = useMediaQuery(NARROW_MEDIA_QUERY);
   const [settings, setSettings] = useState<ParticipantPushSettings | null>(null);
   const [browser, setBrowser] = useState<BrowserState | null>(null);
-  const [busy, setBusy] = useState(false);
-  const [loadError, setLoadError] = useState(false);
+  const [busy, setBusy] = useState<BusyAction>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   // Render-phase reset on every open (CalendarAccessModal pattern): a fresh
   // open starts from a loading state, not the last fetch's result.
@@ -125,48 +156,67 @@ export function NotificationSettings({ opened, onClose }: NotificationSettingsPr
     if (opened) {
       setSettings(null);
       setBrowser(null);
-      setLoadError(false);
+      setLoadError(null);
     }
   }
 
-  const reload = useCallback(async () => {
-    try {
-      const { settings: nextSettings, browser: nextBrowser } = await fetchSettingsAndBrowser();
-      setSettings(nextSettings);
-      setBrowser(nextBrowser);
-      setLoadError(false);
-    } catch {
-      setLoadError(true);
-    }
+  const applyResult = useCallback(
+    (result: { settings: ParticipantPushSettings; browser: BrowserState }) => {
+      setSettings(result.settings);
+      setBrowser(result.browser);
+      setLoadError(null);
+    },
+    [],
+  );
+
+  const showLoadError = useCallback(() => {
+    setLoadError("Couldn't load your notification settings. Check your connection and try again.");
   }, []);
+
+  const reload = useCallback(async (): Promise<void> => {
+    try {
+      applyResult(await fetchSettingsAndBrowser());
+    } catch (error) {
+      console.error("[push] Failed to load notification settings", error);
+      showLoadError();
+    }
+  }, [applyResult, showLoadError]);
 
   useEffect(() => {
     if (opened) {
       fetchSettingsAndBrowser()
-        .then(({ settings: nextSettings, browser: nextBrowser }) => {
-          setSettings(nextSettings);
-          setBrowser(nextBrowser);
-          setLoadError(false);
-        })
-        .catch(() => {
-          setLoadError(true);
+        .then(applyResult)
+        .catch((error) => {
+          console.error("[push] Failed to load notification settings", error);
+          showLoadError();
         });
     }
-  }, [opened]);
+  }, [opened, applyResult, showLoadError]);
 
   const handleEnable = useCallback(async () => {
     if (busy) {
       return;
     }
-    setBusy(true);
+    setBusy("enable");
     try {
       let permission = pushPermissionState();
       if (permission === "default") {
         permission = await requestPushPermission();
       }
-      if (permission === "granted") {
+      if (permission === "denied") {
+        notifications.show({
+          color: "red",
+          message: "Notifications are blocked — allow them in your browser settings, then retry.",
+        });
+      } else if (permission === "granted") {
         const subscription = await subscribeToPush();
-        if (subscription) {
+        if (!subscription) {
+          notifications.show({
+            color: "red",
+            message:
+              "Couldn't set up notifications on this device — the background service isn't ready. Reopen the installed app and try again.",
+          });
+        } else {
           const payload = subscriptionPayload(subscription);
           if (payload) {
             const result = await syncPushSubscription(payload);
@@ -177,8 +227,14 @@ export function NotificationSettings({ opened, onClose }: NotificationSettingsPr
         }
       }
       await reload();
+    } catch (error) {
+      console.error("[push] Enable failed", error);
+      notifications.show({
+        color: "red",
+        message: "Couldn't enable notifications — please try again.",
+      });
     } finally {
-      setBusy(false);
+      setBusy(null);
     }
   }, [busy, reload]);
 
@@ -187,17 +243,47 @@ export function NotificationSettings({ opened, onClose }: NotificationSettingsPr
       return;
     }
     const endpoint = browser?.endpoint ?? null;
-    setBusy(true);
+    setBusy("turnoff");
     try {
       await unsubscribeFromPush();
       if (endpoint) {
-        await unsyncPushSubscription(endpoint);
+        const result = await unsyncPushSubscription(endpoint);
+        if (!result.ok) {
+          notifications.show({ color: "red", message: result.error });
+        }
       }
       await reload();
+    } catch (error) {
+      console.error("[push] Turn off failed", error);
+      notifications.show({ color: "red", message: "Couldn't turn notifications off — try again." });
     } finally {
-      setBusy(false);
+      setBusy(null);
     }
   }, [browser, busy, reload]);
+
+  const handleSendTest = useCallback(async () => {
+    if (busy) {
+      return;
+    }
+    const endpoint = browser?.endpoint ?? null;
+    if (!endpoint) {
+      return;
+    }
+    setBusy("test");
+    try {
+      const result = await sendTestPush(endpoint);
+      if (result.ok) {
+        notifications.show({ color: "green", message: "Test notification sent — check your device." });
+      } else {
+        notifications.show({ color: "red", message: result.error });
+      }
+    } catch (error) {
+      console.error("[push] Send test failed", error);
+      notifications.show({ color: "red", message: "Couldn't send the test notification — try again." });
+    } finally {
+      setBusy(null);
+    }
+  }, [browser, busy]);
 
   const handleMasterToggle = useCallback(async (enabled: boolean) => {
     setSettings((current) =>
@@ -209,13 +295,19 @@ export function NotificationSettings({ opened, onClose }: NotificationSettingsPr
     }
   }, []);
 
-  const canUseDevicePush =
-    browser !== null && browser.supported && browser.permission === "granted";
-  const showEnable =
+  const okSettings = settings?.ok ? settings : null;
+  const readyForDevice =
     browser !== null &&
     browser.supported &&
-    (browser.permission === "default" ||
-      (browser.permission === "granted" && !browser.subscribed));
+    browser.sw === "ok" &&
+    okSettings?.serverPushEnabled === true;
+  const deviceActive =
+    readyForDevice && browser?.permission === "granted" && browser?.subscribed === true;
+  const showEnable =
+    readyForDevice &&
+    browser?.permission !== "denied" &&
+    (browser?.permission === "default" ||
+      (browser?.permission === "granted" && browser?.subscribed === false));
 
   return (
     <Modal
@@ -225,10 +317,10 @@ export function NotificationSettings({ opened, onClose }: NotificationSettingsPr
       centered
       size={isNarrow ? "xs" : isDesktop ? "md" : "sm"}
     >
-      {loadError ? (
+      {loadError || (settings !== null && !settings.ok) ? (
         <Stack gap="sm" align="flex-start">
           <Text size="sm" c="red">
-            Couldn&apos;t load your notification settings.
+            {settings && !settings.ok ? settings.error : loadError}
           </Text>
           <Button size="xs" variant="light" onClick={() => void reload()}>
             Try again
@@ -255,6 +347,16 @@ export function NotificationSettings({ opened, onClose }: NotificationSettingsPr
               This is the global Admin account, not a roster profile, so notifications can&apos;t be
               sent to it. Log in with your own account to set these up.
             </Text>
+          ) : !settings.serverPushEnabled ? (
+            <Stack gap={2}>
+              <Text size="sm" c="orange">
+                Event notifications aren&apos;t turned on for this server yet.
+              </Text>
+              <Text size="xs" c="dimmed">
+                An admin needs to set the VAPID environment variables before any notification can be
+                sent.
+              </Text>
+            </Stack>
           ) : !browser.supported ? (
             <Stack gap={2}>
               <Text size="sm" c="orange">
@@ -266,34 +368,62 @@ export function NotificationSettings({ opened, onClose }: NotificationSettingsPr
                 On Android, install the app from Chrome.
               </Text>
             </Stack>
+          ) : browser.sw !== "ok" ? (
+            <Stack gap={2}>
+              <Text size="sm" c="orange">
+                Cloudy2&apos;s background service isn&apos;t running on this device.
+              </Text>
+              <Text size="xs" c="dimmed">
+                Close the installed app completely and reopen it, then open this screen again. If it
+                still can&apos;t connect, reinstall the app.
+              </Text>
+              <Button size="xs" variant="light" onClick={() => window.location.reload()}>
+                Reload app
+              </Button>
+            </Stack>
           ) : browser.permission === "denied" ? (
             <Stack gap={2}>
               <Text size="sm" c="orange">
                 Notifications are blocked for this app.
               </Text>
               <Text size="xs" c="dimmed">
-                Allow notifications in your browser or phone settings (Safari: app name → Notifications
-                → Allow), then reopen this screen.
+                Allow notifications in your browser or phone settings, then reopen this screen.
               </Text>
             </Stack>
           ) : (
             <Stack gap={2}>
-              {canUseDevicePush && browser.subscribed ? (
+              {deviceActive ? (
                 <>
                   <Text size="sm" c="green">
                     Notifications are on for this device.
                   </Text>
-                  <Button
-                    variant="subtle"
-                    color="red"
-                    size="xs"
-                    px={0}
-                    loading={busy}
-                    loaderProps={{ type: "oval" }}
-                    onClick={() => void handleTurnOffDevice()}
-                  >
-                    Turn off on this device
-                  </Button>
+                  {browser.syncError && (
+                    <Text size="xs" c="orange">
+                      {browser.syncError}
+                    </Text>
+                  )}
+                  <Group gap="xs" wrap="wrap">
+                    <Button
+                      size="xs"
+                      variant="light"
+                      loading={busy === "test"}
+                      loaderProps={{ type: "oval" }}
+                      onClick={() => void handleSendTest()}
+                    >
+                      Send test notification
+                    </Button>
+                    <Button
+                      size="xs"
+                      variant="subtle"
+                      color="red"
+                      px={0}
+                      loading={busy === "turnoff"}
+                      loaderProps={{ type: "oval" }}
+                      onClick={() => void handleTurnOffDevice()}
+                    >
+                      Turn off on this device
+                    </Button>
+                  </Group>
                 </>
               ) : showEnable ? (
                 <>
@@ -304,7 +434,7 @@ export function NotificationSettings({ opened, onClose }: NotificationSettingsPr
                   </Text>
                   <Button
                     size="xs"
-                    loading={busy}
+                    loading={busy === "enable"}
                     loaderProps={{ type: "oval" }}
                     onClick={() => void handleEnable()}
                   >
@@ -320,7 +450,7 @@ export function NotificationSettings({ opened, onClose }: NotificationSettingsPr
               <Switch
                 label="Receive event-invite notifications"
                 description="Pauses these notifications on every device signed in as you (the browser permission stays on)."
-                checked={settings.eventInvitePush}
+                checked={settings.ok ? settings.eventInvitePush : true}
                 onChange={(event) => void handleMasterToggle(event.currentTarget.checked)}
               />
             </Stack>

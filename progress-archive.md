@@ -8003,3 +8003,40 @@ tag a new department → only its members get a banner; a no-op edit sends
 nothing; remove + re-add sends again; tapping the banner opens the event's
 details; iOS installed app (16.4+, re-add once if added pre-16.4) and Safari-tab
 negative case.
+
+## 1.205 Participant-push hardening + Send-test self-test
+
+Real-device QA of 1.204 surfaced two usability gaps: the Notifications dialog
+could spin forever (an unraced `navigator.serviceWorker.ready` when the service
+worker never became active on a device), and every delivery failure was silent
+(no UI feedback, only console logs).
+
+**No-hang service-worker probe** (`client.ts`): `pushSwState()` resolves
+immediately via `navigator.serviceWorker.getRegistration()` when a registration
+exists, otherwise waits on `.ready` raced against a timeout — the dialog always
+reaches a terminal state and shows distinct copy for: the background service
+not ready (close/reopen or reinstall the installed app, with a Reload button),
+server push unconfigured (VAPID env trio missing), permission denied, browser
+unsupported (Safari tab / old iOS → add to Home Screen), and the global-Admin
+account (cannot subscribe). The silent re-own of a shared device's subscription
+row still runs on dialog open but surfaces its error inline.
+
+**Visible errors**: the server actions (`getParticipantPushSettings`,
+`setEventInvitePush`, `syncPushSubscription`, `unsyncPushSubscription`) no
+longer throw — they catch and return `{ ok:false, error }`, including a friendly
+"run the database migrations" hint when `push_subscriptions` is missing.
+`getParticipantPushSettings` also reports `serverPushEnabled` so the dialog can
+distinguish "server not configured" from a device problem.
+
+**Send test notification**: a `sendTestPush(endpoint)` server action (profile
+dialog button) pushes one notification to the current device through the exact
+same path event notifications use — VAPID config → `web-push`, via a new shared
+`sender.ts` (`sendPush`, used by both the dispatcher and the test). Failures
+map to actionable copy: 403/401 = the server's VAPID keys don't match the key
+the device subscribed with; 404/410 = stale endpoint (row pruned, re-enable
+prompted); otherwise the status/network error is shown.
+
+**Verified**: pnpm typecheck, pnpm lint, pnpm test (996 pass), pnpm build.
+Manual to re-run: on a fresh device open Profile → Notifications (dialog must
+never spin); Send test → banner or an exact reason; then the two-account event
+flow (§1.10.1 of docs/event-notifications.md).

@@ -27,12 +27,13 @@ import { activeMembershipsByDepartment } from "@/lib/roster/queries";
 import { onlyUuidIds } from "@/lib/uuid";
 import { computeAddedUserIds, type ParticipantPeople } from "./diff";
 import { buildParticipantNotification, type ParticipantNotifyReason } from "./message";
+import { sendPush } from "./sender";
 import {
   deletePushSubscriptionById,
   listSubscriptionsByUserIds,
   type StoredPushSubscription,
 } from "./subscriptions";
-import { parseVapidConfig } from "./vapid";
+import { parseVapidConfig, type VapidConfig } from "./vapid";
 
 export interface ParticipantNotifyInput {
   /** Audit actor columns (the session user's; null id for the admin pseudo-account). */
@@ -82,35 +83,28 @@ function recipientUrl(input: ParticipantNotifyInput, departmentId: string | null
   return eventDetailUrl(input.baseUrl, input.timeParts.start, input.eventId, calendarId);
 }
 
-/** Send one payload to one subscription; resolves on any outcome. */
+/** Send one payload to one subscription; prunes a dead endpoint row. */
 async function sendToSubscription(
-  config: NonNullable<ReturnType<typeof parseVapidConfig>>,
+  config: VapidConfig,
   subscription: StoredPushSubscription,
   payload: Record<string, string>,
 ): Promise<"sent" | "gone"> {
-  try {
-    const webpush = (await import("web-push")).default;
-    await webpush.sendNotification(
-      { endpoint: subscription.endpoint, keys: subscription.keys },
-      JSON.stringify(payload),
-      {
-        TTL: 7 * 24 * 60 * 60, // 7 days: an invite still matters a few days out
-        timeout: 10_000,
-        vapidDetails: config,
-      },
-    );
-    return "sent";
-  } catch (error) {
-    const status = (error as { statusCode?: number }).statusCode;
-    if (status === 404 || status === 410) {
-      // Subscription no longer valid (device unsubscribed / push service
-      // dropped it) — prune the row.
-      await deletePushSubscriptionById(subscription.id).catch(() => undefined);
-      return "gone";
-    }
-    console.error(`[push] Delivery to ${subscription.endpoint} failed`, error);
+  const result = await sendPush(config, subscription, payload);
+  if (result.ok) {
     return "sent";
   }
+  if (result.gone) {
+    // Subscription no longer valid (device unsubscribed / push service
+    // dropped it) — prune the row.
+    await deletePushSubscriptionById(subscription.id).catch(() => undefined);
+    return "gone";
+  }
+  console.error(
+    `[push] Delivery to ${subscription.endpoint} failed` +
+      (result.statusCode ? ` (HTTP ${result.statusCode})` : "") +
+      `: ${result.message}`,
+  );
+  return "sent";
 }
 
 /** The after() body. Never throws — every failure is caught and logged. */

@@ -7,7 +7,7 @@
  * pushes leak to a device now used by another account.
  */
 
-import { eq, inArray } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 
 import { db } from "@/db";
 import { pushSubscriptions, type PushSubscription } from "@/db/schema";
@@ -69,6 +69,19 @@ export async function listSubscriptionsByUserIds(
     }
   }
   return out;
+}
+
+/** One endpoint row owned by `userId`, keys decoded; null when absent. */
+export async function findSubscriptionByEndpoint(
+  userId: string,
+  endpoint: string,
+): Promise<StoredPushSubscription | null> {
+  const [row] = await db
+    .select()
+    .from(pushSubscriptions)
+    .where(and(eq(pushSubscriptions.userId, userId), eq(pushSubscriptions.endpoint, endpoint)))
+    .limit(1);
+  return row ? toStored(row) : null;
 }
 
 /**

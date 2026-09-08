@@ -413,8 +413,11 @@ it's a JS-only query (not a Mantine breakpoint, so it can't collide with `xs:`/`
   account's pushes); 404/410 endpoints prune their row. Delivery needs the VAPID env
   trio (§env gotchas); the Serwist SW (`sw.ts`) shows the payload and deep-links the
   event's details on tap. UX lives in the profile menu's **Notifications** modal
-  (`NotificationSettings.tsx`): enable on this device (permission + subscribe) +
-  the account-wide pause switch.
+  (`NotificationSettings.tsx`): enable on this device (permission + subscribe), a
+  "Send test notification" self-test (`sendTestPush` → shared `sender.ts`), and the
+  account-wide pause switch. The dialog never hangs — the SW probe (`pushSwState`)
+  races `navigator.serviceWorker.ready` against a timeout and explains each failure
+  state; server actions return structured errors (migration hint included).
   Design: [docs/event-notifications.md](docs/event-notifications.md).
 - **Standard loading appearance: skeleton only + fade-in on reveal.** The skeleton is
   the ONLY loading indicator — never dim or darken content (`opacity: isPending ? …`
