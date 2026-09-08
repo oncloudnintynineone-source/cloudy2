@@ -28,13 +28,13 @@ timeline zoom plus the Month grid's fit-to-width zoom.
 
 The renderer kinds (`DASHBOARD_VIEW_KINDS`, `src/lib/dashboardViews/views.ts`):
 
-| Kind | Label | Renderer |
-| --- | ----- | -------- |
-| `month` | Month | Mantine calendar month grid (six fixed weeks — see [`events-cache.md`](events-cache.md)) |
-| `week` | Week (H) | Mantine Schedule, hour columns per resource row |
-| `weekv2` | Week (D) | custom week matrix (§1.3) |
-| `schedule` | Day | Mantine Schedule, single day per resource row |
-| `agenda` | Agenda | list view |
+| Kind       | Label    | Renderer                                                                                 |
+| ---------- | -------- | ---------------------------------------------------------------------------------------- |
+| `month`    | Month    | Mantine calendar month grid (six fixed weeks — see [`events-cache.md`](events-cache.md)) |
+| `week`     | Week (H) | Mantine Schedule, hour columns per resource row                                          |
+| `weekv2`   | Week (D) | custom week matrix (§1.3)                                                                |
+| `schedule` | Day      | Mantine Schedule, single day per resource row                                            |
+| `agenda`   | Agenda   | list view                                                                                |
 
 Mobile-month is the sub-`lg` rendering of the `month` kind. Tabs are **not**
 the kinds themselves: each `user_dashboard_views` row binds one of these kinds
@@ -66,10 +66,15 @@ string maps to the first tab of that kind.
   inline rename field (Enter saves, Escape cancels), and a **trash** button
   that deletes behind a nested `size="sm"` confirm (the last tab can't be
   deleted — its trash is disabled; deleting the active tab navigates to the
-  first remaining). Changing the **active** tab's type re-navigates to the
-  same id under its new kind, so the tab-switch period rules below apply
-  (Month → anchored starts today; anchored → Month keeps the month); changing
-  an inactive tab just refreshes the list.
+  first remaining). Five fixed ~40px controls on one line squeeze the tab name
+  out of a phone-width modal, so **below `lg` each row reflows to two lines**:
+  the kind icon + name lead on the first (inline rename replaces the name there),
+  and **all five controls — the chevron pair plus type/pen/trash — sit together
+  on a second left-aligned line**;
+  at `lg`+ the row keeps its single line. Changing the **active** tab's type
+  re-navigates to the same id under its new kind, so the tab-switch period rules
+  below apply (Month → anchored starts today; anchored → Month keeps the month);
+  changing an inactive tab just refreshes the list.
   **Add view** lives at the bottom of the same modal — its button opens the
   kind-picker dialog (kind rows with icons + a name; the default name follows
   the chosen kind until edited), and creating appends the tab and navigates to
@@ -86,7 +91,7 @@ string maps to the first tab of that kind.
   kind icon + name, the active tab ticked — for a one-tap `switchTab` without
   scrolling the strip.
 - **Period preservation on switch** (`switchTab` in `DashboardView.tsx`): a
-  tab switch is a *filter/context* change, so switching between two tabs of the
+  tab switch is a _filter/context_ change, so switching between two tabs of the
   same kind (or any two day-anchored kinds) keeps the current date; leaving
   Month for an anchored kind starts on today; leaving an anchored kind for
   Month keeps the anchor's month. Each switch also fire-and-forgets
@@ -108,19 +113,20 @@ management hidden.
 ## 1.2 Filters
 
 Filtering has **one primary affordance**: a dedicated filter button (funnel icon
-+ active-group-count badge, `FilterButton`) beside the ⋮ menu in the nav row
-opens `FilterModal` (`src/components/FilterModal.tsx`). The ⋮ menu keeps
-**Today / Select date / Enter fullscreen** only (Force refresh
-is a header button; view management lives on the strip's left settings
-button). Dashboards'
-"Myself" quick action lives inside the filter modal
-beside the Users group; "Reset" clears (role defaults).
+
+- active-group-count badge, `FilterButton`) beside the ⋮ menu in the nav row
+  opens `FilterModal` (`src/components/FilterModal.tsx`). The ⋮ menu keeps
+  **Today / Select date / Enter fullscreen** only (Force refresh
+  is a header button; view management lives on the strip's left settings
+  button). Dashboards'
+  "Myself" quick action lives inside the filter modal
+  beside the Users group; "Reset" clears (role defaults).
 
 The modal promotes the filters most people reach — **Calendars** (chip grid) and
 **Users** (badge-dialog picker, `variant: "search"`) — and tucks **Event Types**
 behind a "Show"/"Hide" disclosure (`collapsedGroupLabels`; audit-log/user-table
-callers keep all groups expanded). A footer scope hint notes *"These filters
-apply to {view name} only."* — filter scoping is **per tab**: each tab stores
+callers keep all groups expanded). A footer scope hint notes _"These filters
+apply to {view name} only."_ — filter scoping is **per tab**: each tab stores
 its own Calendars/Users/Event Types selection, and clearing one tab's filters
 never touches the others.
 
@@ -144,7 +150,7 @@ Filter storage & resolution:
   default), exactly like the URL params they replaced.
 - **Access is unrelated to filters.** A user's department membership — or any
   extra department calendars granted to them — has nothing to do with which
-  departments they can filter: every user can always select *every* department
+  departments they can filter: every user can always select _every_ department
   in the Calendars filter (the reads are not access-gated). Cross-department
   grants affect only Google Calendar sharing/roles
   ([`roster-sharing.md`](roster-sharing.md) §1.5), and a non-admin's **role
@@ -176,7 +182,7 @@ fits this shape, so the view is hand-built.
 Cell binning is pure and unit-tested in `src/lib/events/weekMatrix.ts`:
 
 - **`coveredDays(event, week)`** (`:40`) — the week days an event's naive start/end
-  range occupies; all-day events carry an *exclusive* end date, so the final covered
+  range occupies; all-day events carry an _exclusive_ end date, so the final covered
   day is the end date minus one.
 - **`buildWeekLanes(events, week)`** (`:56`) — one `WeekSpan` per event per row,
   merged into non-overlapping lanes by greedy interval partitioning (sorted by
@@ -228,9 +234,9 @@ Per-view mechanics (all client-side — no cache or server impact):
   greedily in input order, so the events array is pre-sorted with
   `sortMineFirst()` (`src/lib/events/mineFirst.ts`, pure and unit-tested):
   the user's events first, each block time-sorted — they claim the top rows
-  of every day (the topmost *non-conflicting* row: an earlier-placed multi-day
+  of every day (the topmost _non-conflicting_ row: an earlier-placed multi-day
   event can still hold row 1). With `maxEventsPerDay` this pushes more of
-  *other* events behind "+N more" on dense days — the intended trade-off.
+  _other_ events behind "+N more" on dense days — the intended trade-off.
   The user's chips (and their copies in the "+N more" popup) get an amber
   ring via the `renderEvent` hook (`c2-my-event`, `globals.css`).
 - **Agenda — row highlight, time order kept.** The Agenda tab and the month
@@ -265,7 +271,7 @@ notes block — `isExternalEvent`, [`event-lifecycle.md`](event-lifecycle.md)) c
 `payload.external === true` at read time (`mapCalendarItem`,
 `src/lib/events/queries.ts`). Every dashboard view marks them with a **purple**
 treatment, in parallel with the amber "mine" language above: amber says "yours",
-purple says "created outside the app". An external event can never be *mine*
+purple says "created outside the app". An external event can never be _mine_
 (it has no recorded creator), so the two highlight classes never collide on one
 event.
 
@@ -334,7 +340,7 @@ slot granularity (still 60-minute columns) or the row height.
 - **Mechanism**: each view reads its slot width from a CSS variable on the view root
   (`--resources-week-view-slot-width` / `--resources-day-view-slot-width`). Mantine
   sizes the day container from that var and lays every event out as a **percentage**
-  of it, so changing the var re-lays out slots *and* events with no JS geometry work.
+  of it, so changing the var re-lays out slots _and_ events with no JS geometry work.
   `DashboardView` computes the zoomed width (`weekSlotWidth` / `daySlotWidth`) and
   writes it to the var through the view's `style` prop (the Schedule CSS-var gotcha —
   [`desktop-responsive.md`](desktop-responsive.md)).
@@ -439,27 +445,27 @@ flowchart LR
 
 ## 1.9 File index & related docs
 
-| File | Role |
-| ---- | ---- |
-| `src/lib/dashboardViews/views.ts` | Kind vocabulary + labels, tab DTO, filter-override normalizers, `resolveActiveTab` (pure) |
-| `src/lib/dashboardViews/queries.ts` | Tab reads + the mutex-guarded default "Month" seed |
-| `src/lib/dashboardViews/actions.ts` | Tab CRUD: `create/rename/delete/reorderDashboardViews`, `saveDashboardViewFilters` |
-| `src/lib/userPrefs/queries.ts` + `actions.ts` | `user_preferences` row: last-active tab + parade filters (incl. `saveParadeFilters`) |
-| `src/app/(protected)/dashboard/DashboardView.tsx` | Tab strip (+ right-side Edit-views trigger and All-views jump popover), tab switch + period rules, filter state, schedule zoom + month zoom state & widths |
-| `src/app/(protected)/dashboard/EditViewsModal.tsx` | Edit-views dialog: card manage list (↑/↓ reorder, Change-type picker, inline rename, nested delete confirm, Add-view button) |
-| `src/app/(protected)/dashboard/ViewTypePicker.tsx` | Shared five-kind picker (Month/Week (H)/Week (D)/Day/Agenda) used by Add view and Edit-views Change type |
-| `src/app/(protected)/dashboard/viewMeta.tsx` | Kind → icon/label map shared by the strip, the Add-view picker and Edit-views rows |
-| `src/components/reorderUpDown.tsx` | Shared touch-friendly manage-row recipe: ~40px ↑/↓ chevron pair (`ReorderUpDown`) + row-action sizes |
-| `src/app/(protected)/dashboard/page.tsx` | Resolves tabs + active tab (`?view=` → remembered → first), validates per-tab filters |
-| `src/app/(protected)/dashboard/WeekMatrixView.tsx` | Week (D) matrix renderer |
-| `src/lib/events/weekMatrix.ts` | Pure Week (D) lane binning (`coveredDays`, `buildWeekLanes`) |
-| `src/lib/events/mineFirst.ts` | Pure "mine first" sort for the month view's greedy row assignment |
-| `src/lib/events/schedule.ts` | Resource rows (`buildScheduleResources`, `userFilter`) |
-| `src/lib/ui/slotZoom.ts` | Pure zoom levels + slot-width math (`clampZoom`, `stepZoom`, `weekSlotWidth`, `daySlotWidth`) |
-| `src/lib/ui/monthZoom.ts` | Pure Month fit-width zoom levels + stepping (`clampMonthZoom`, `stepMonthZoom`) |
-| `src/components/GridNavControls.tsx` | Day/Week (H) + Month right-edge cluster: zoom +/− + right pan, plus left-edge pan |
-| `src/components/FilterButton.tsx` | Dedicated filter button (icon + active-group badge) replacing the kebab's filter menu |
-| `src/components/FilterModal.tsx` | Filters dialog (collapsible groups, per-tab scope hint) |
+| File                                               | Role                                                                                                                                                       |
+| -------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `src/lib/dashboardViews/views.ts`                  | Kind vocabulary + labels, tab DTO, filter-override normalizers, `resolveActiveTab` (pure)                                                                  |
+| `src/lib/dashboardViews/queries.ts`                | Tab reads + the mutex-guarded default "Month" seed                                                                                                         |
+| `src/lib/dashboardViews/actions.ts`                | Tab CRUD: `create/rename/delete/reorderDashboardViews`, `saveDashboardViewFilters`                                                                         |
+| `src/lib/userPrefs/queries.ts` + `actions.ts`      | `user_preferences` row: last-active tab + parade filters (incl. `saveParadeFilters`)                                                                       |
+| `src/app/(protected)/dashboard/DashboardView.tsx`  | Tab strip (+ right-side Edit-views trigger and All-views jump popover), tab switch + period rules, filter state, schedule zoom + month zoom state & widths |
+| `src/app/(protected)/dashboard/EditViewsModal.tsx` | Edit-views dialog: card manage list (↑/↓ reorder, Change-type picker, inline rename, nested delete confirm, Add-view button)                               |
+| `src/app/(protected)/dashboard/ViewTypePicker.tsx` | Shared five-kind picker (Month/Week (H)/Week (D)/Day/Agenda) used by Add view and Edit-views Change type                                                   |
+| `src/app/(protected)/dashboard/viewMeta.tsx`       | Kind → icon/label map shared by the strip, the Add-view picker and Edit-views rows                                                                         |
+| `src/components/reorderUpDown.tsx`                 | Shared touch-friendly manage-row recipe: ~40px ↑/↓ chevron pair (`ReorderUpDown`) + row-action sizes                                                       |
+| `src/app/(protected)/dashboard/page.tsx`           | Resolves tabs + active tab (`?view=` → remembered → first), validates per-tab filters                                                                      |
+| `src/app/(protected)/dashboard/WeekMatrixView.tsx` | Week (D) matrix renderer                                                                                                                                   |
+| `src/lib/events/weekMatrix.ts`                     | Pure Week (D) lane binning (`coveredDays`, `buildWeekLanes`)                                                                                               |
+| `src/lib/events/mineFirst.ts`                      | Pure "mine first" sort for the month view's greedy row assignment                                                                                          |
+| `src/lib/events/schedule.ts`                       | Resource rows (`buildScheduleResources`, `userFilter`)                                                                                                     |
+| `src/lib/ui/slotZoom.ts`                           | Pure zoom levels + slot-width math (`clampZoom`, `stepZoom`, `weekSlotWidth`, `daySlotWidth`)                                                              |
+| `src/lib/ui/monthZoom.ts`                          | Pure Month fit-width zoom levels + stepping (`clampMonthZoom`, `stepMonthZoom`)                                                                            |
+| `src/components/GridNavControls.tsx`               | Day/Week (H) + Month right-edge cluster: zoom +/− + right pan, plus left-edge pan                                                                          |
+| `src/components/FilterButton.tsx`                  | Dedicated filter button (icon + active-group badge) replacing the kebab's filter menu                                                                      |
+| `src/components/FilterModal.tsx`                   | Filters dialog (collapsible groups, per-tab scope hint)                                                                                                    |
 
 Related docs:
 

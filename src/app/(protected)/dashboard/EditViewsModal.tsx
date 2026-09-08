@@ -218,119 +218,137 @@ export function EditViewsModal({
               {displayTabs.map((tab, index) => {
                 const isRenaming = renaming?.id === tab.id;
                 const meta = VIEW_TAB_META[tab.kind];
+                const chevrons = (
+                  <ReorderUpDown
+                    name={tab.name}
+                    upDisabled={busy || index === 0}
+                    downDisabled={busy || index === displayTabs.length - 1}
+                    busyUp={false}
+                    busyDown={false}
+                    onUp={() => void reorderView(tab.id, -1)}
+                    onDown={() => void reorderView(tab.id, 1)}
+                  />
+                );
+                const title = isRenaming ? (
+                  <Group wrap="nowrap" gap={4} align="center" style={{ minWidth: 0, flex: 1 }}>
+                    <TextInput
+                      size="md"
+                      value={renameDraft}
+                      maxLength={40}
+                      aria-label={`Rename ${tab.name}`}
+                      autoFocus
+                      style={{ flex: 1, minWidth: 0 }}
+                      onChange={(event) => setRenameDraft(event.currentTarget.value)}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter") {
+                          event.preventDefault();
+                          void submitRename();
+                        }
+                        if (event.key === "Escape") {
+                          setRenaming(null);
+                        }
+                      }}
+                    />
+                    <Tooltip label="Save" position="top">
+                      <ActionIcon
+                        size={ROW_ACTION_SIZE}
+                        aria-label={`Save renamed ${tab.name}`}
+                        loading={renamingBusy}
+                        loaderProps={BUTTON_LOADER_PROPS}
+                        onClick={() => void submitRename()}
+                      >
+                        <IconCheck size={ROW_ACTION_ICON_SIZE} />
+                      </ActionIcon>
+                    </Tooltip>
+                    <Tooltip label="Cancel" position="top">
+                      <ActionIcon
+                        size={ROW_ACTION_SIZE}
+                        aria-label={`Cancel renaming ${tab.name}`}
+                        onClick={() => setRenaming(null)}
+                      >
+                        <IconX size={ROW_ACTION_ICON_SIZE} />
+                      </ActionIcon>
+                    </Tooltip>
+                  </Group>
+                ) : (
+                  <Group wrap="nowrap" gap="sm" align="center" style={{ minWidth: 0, flex: 1 }}>
+                    {meta.icon}
+                    <Text fw={600} size="md" truncate>
+                      {tab.name}
+                    </Text>
+                  </Group>
+                );
+                const actions = (
+                  <>
+                    <Tooltip label="Change type" position="top">
+                      <ActionIcon
+                        variant="default"
+                        size={ROW_ACTION_SIZE}
+                        aria-label={`Change type of ${tab.name}`}
+                        onClick={() => startChangeType(tab)}
+                      >
+                        <IconSwitchHorizontal size={ROW_ACTION_ICON_SIZE} />
+                      </ActionIcon>
+                    </Tooltip>
+                    <Tooltip label="Rename" position="top">
+                      <ActionIcon
+                        variant="default"
+                        size={ROW_ACTION_SIZE}
+                        aria-label={`Rename ${tab.name}`}
+                        onClick={() => startRename(tab)}
+                      >
+                        <IconPencil size={ROW_ACTION_ICON_SIZE} />
+                      </ActionIcon>
+                    </Tooltip>
+                    <Tooltip
+                      label={tabs.length === 1 ? "Your last view can't be deleted" : "Delete"}
+                      position="top"
+                    >
+                      <ActionIcon
+                        variant="light"
+                        color="red"
+                        size={ROW_ACTION_SIZE}
+                        aria-label={`Delete ${tab.name}`}
+                        disabled={tabs.length === 1}
+                        onClick={() => setDeleting(tab)}
+                      >
+                        <IconTrash size={ROW_ACTION_ICON_SIZE} />
+                      </ActionIcon>
+                    </Tooltip>
+                  </>
+                );
                 return (
                   <Paper key={tab.id} withBorder radius="md" p="sm" data-flip-id={tab.id}>
-                    <Group justify="space-between" align="center" wrap="nowrap">
-                      <Group wrap="nowrap" gap="sm" align="center" style={{ minWidth: 0, flex: 1 }}>
-                        <ReorderUpDown
-                          name={tab.name}
-                          upDisabled={busy || index === 0}
-                          downDisabled={busy || index === displayTabs.length - 1}
-                          busyUp={false}
-                          busyDown={false}
-                          onUp={() => void reorderView(tab.id, -1)}
-                          onDown={() => void reorderView(tab.id, 1)}
-                        />
-                        {isRenaming ? (
-                          <Group
-                            wrap="nowrap"
-                            gap={4}
-                            align="center"
-                            style={{ minWidth: 0, flex: 1 }}
-                          >
-                            <TextInput
-                              size="md"
-                              value={renameDraft}
-                              maxLength={40}
-                              aria-label={`Rename ${tab.name}`}
-                              autoFocus
-                              style={{ flex: 1, minWidth: 0 }}
-                              onChange={(event) => setRenameDraft(event.currentTarget.value)}
-                              onKeyDown={(event) => {
-                                if (event.key === "Enter") {
-                                  event.preventDefault();
-                                  void submitRename();
-                                }
-                                if (event.key === "Escape") {
-                                  setRenaming(null);
-                                }
-                              }}
-                            />
-                            <Tooltip label="Save" position="top">
-                              <ActionIcon
-                                size={ROW_ACTION_SIZE}
-                                aria-label={`Save renamed ${tab.name}`}
-                                loading={renamingBusy}
-                                loaderProps={BUTTON_LOADER_PROPS}
-                                onClick={() => void submitRename()}
-                              >
-                                <IconCheck size={ROW_ACTION_ICON_SIZE} />
-                              </ActionIcon>
-                            </Tooltip>
-                            <Tooltip label="Cancel" position="top">
-                              <ActionIcon
-                                size={ROW_ACTION_SIZE}
-                                aria-label={`Cancel renaming ${tab.name}`}
-                                onClick={() => setRenaming(null)}
-                              >
-                                <IconX size={ROW_ACTION_ICON_SIZE} />
-                              </ActionIcon>
-                            </Tooltip>
-                          </Group>
-                        ) : (
-                          <Group
-                            wrap="nowrap"
-                            gap="sm"
-                            align="center"
-                            style={{ minWidth: 0, flex: 1 }}
-                          >
-                            {meta.icon}
-                            <Text fw={600} size="md" truncate>
-                              {tab.name}
-                            </Text>
+                    {isDesktop ? (
+                      <Group justify="space-between" align="center" wrap="nowrap">
+                        <Group
+                          wrap="nowrap"
+                          gap="sm"
+                          align="center"
+                          style={{ minWidth: 0, flex: 1 }}
+                        >
+                          {chevrons}
+                          {title}
+                        </Group>
+                        {!isRenaming && (
+                          <Group wrap="nowrap" gap={4} style={{ flexShrink: 0 }}>
+                            {actions}
                           </Group>
                         )}
                       </Group>
-                      {!isRenaming && (
-                        <Group wrap="nowrap" gap={4} style={{ flexShrink: 0 }}>
-                          <Tooltip label="Change type" position="top">
-                            <ActionIcon
-                              variant="default"
-                              size={ROW_ACTION_SIZE}
-                              aria-label={`Change type of ${tab.name}`}
-                              onClick={() => startChangeType(tab)}
-                            >
-                              <IconSwitchHorizontal size={ROW_ACTION_ICON_SIZE} />
-                            </ActionIcon>
-                          </Tooltip>
-                          <Tooltip label="Rename" position="top">
-                            <ActionIcon
-                              variant="default"
-                              size={ROW_ACTION_SIZE}
-                              aria-label={`Rename ${tab.name}`}
-                              onClick={() => startRename(tab)}
-                            >
-                              <IconPencil size={ROW_ACTION_ICON_SIZE} />
-                            </ActionIcon>
-                          </Tooltip>
-                          <Tooltip
-                            label={tabs.length === 1 ? "Your last view can't be deleted" : "Delete"}
-                            position="top"
-                          >
-                            <ActionIcon
-                              variant="light"
-                              color="red"
-                              size={ROW_ACTION_SIZE}
-                              aria-label={`Delete ${tab.name}`}
-                              disabled={tabs.length === 1}
-                              onClick={() => setDeleting(tab)}
-                            >
-                              <IconTrash size={ROW_ACTION_ICON_SIZE} />
-                            </ActionIcon>
-                          </Tooltip>
+                    ) : (
+                      <Stack gap={6}>
+                        <Group wrap="nowrap" gap="sm" align="center" style={{ minWidth: 0 }}>
+                          {title}
                         </Group>
-                      )}
-                    </Group>
+                        {!isRenaming && (
+                          <Group wrap="nowrap" gap={4} align="center">
+                            {chevrons}
+                            {actions}
+                          </Group>
+                        )}
+                      </Stack>
+                    )}
                   </Paper>
                 );
               })}
@@ -389,9 +407,9 @@ export function EditViewsModal({
       >
         <Stack>
           <Text size="sm" c="dimmed">
-            &ldquo;{changing?.name}&rdquo; is currently a {changing ? VIEW_TAB_META[changing.kind].label : ""}{" "}
-            view. Pick its new type — the tab keeps its name (unless it is still the type&rsquo;s
-            default), filters and position.
+            &ldquo;{changing?.name}&rdquo; is currently a{" "}
+            {changing ? VIEW_TAB_META[changing.kind].label : ""} view. Pick its new type — the tab
+            keeps its name (unless it is still the type&rsquo;s default), filters and position.
           </Text>
           {changing && (
             <ViewTypePicker

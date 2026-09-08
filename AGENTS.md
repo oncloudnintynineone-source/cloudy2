@@ -165,7 +165,9 @@ mechanics in the doc.
   (outside the scroll area) opens **Edit views** — a modal (`EditViewsModal.tsx`)
   listing the tabs as bordered cards sharing the shared **touch-friendly
   manage-row recipe** (`src/components/reorderUpDown.tsx`: ~40px row-action
-  buttons — the ↑/↓ chevron pair leading, type/pen/trash trailing; also used by the
+  buttons — the ↑/↓ chevron pair leading, type/pen/trash trailing; below `lg`
+  all five controls reflow to a second left-aligned line under the tab name so
+  they can't squeeze it on phones; also used by the
   event-type groups modal, departments and quick links): **↑/↓** reorder
   chevrons — every reorderable list (dashboard views, event-type groups,
   departments, quick links and the title-recipe segments) slides the row
