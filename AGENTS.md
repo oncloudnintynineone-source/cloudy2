@@ -383,8 +383,9 @@ it's a JS-only query (not a Mantine breakpoint, so it can't collide with `xs:`/`
   [docs/event-lifecycle.md](docs/event-lifecycle.md). Colors (event
   types + department fallback, applied at read time in `mapCalendarItem`, never cached):
   [docs/roster-sharing.md](docs/roster-sharing.md).
-- **Templates:** display-name + event-title templates (`formatEventTitle` tokens) with
-  per-target View assignments (incl. `pinned` panel + `pinnedHeader` ticker).
+- **Templates:** display-name template + **structured event-title recipes** (no free
+  text: ordered fields with per-field decoration, `src/lib/settings/titleRecipe.ts`)
+  with per-target View assignments (incl. `pinned` panel + `pinnedHeader` ticker).
   Design: [docs/event-lifecycle.md](docs/event-lifecycle.md) §1.8.
 - **Event notes:** `Edit: <url>` line (a `?event=` deep link to the event's details
   modal, carrying the copy's calendar as `_eventCal`; older notes carry the legacy
@@ -426,8 +427,8 @@ it's a JS-only query (not a Mantine breakpoint, so it can't collide with `xs:`/`
   **The notification copy is admin-customizable** — Settings → Templates →
   "Event Notification Templates": per-reason (created/added) title + body
   templates on the `settings` row (`participant_notify_*`, migration 0039),
-  rendered at dispatch time through the shared `renderTokenTemplate` engine
-  (`src/lib/settings/tokenTemplate.ts`, also the event-title grammar) with
+  rendered at dispatch time through the `renderTokenTemplate` engine
+  (`src/lib/settings/tokenTemplate.ts`) with
   `{title}`/`{type}`/`{time}`/`{location}` tokens and `< >` conditional groups;
   defaults live in `src/lib/events/participantNotify/templates.ts`. The send
   test keeps fixed copy (it proves plumbing, not content).

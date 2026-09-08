@@ -5,27 +5,12 @@
 
 export const KEYWORD_MAX_LENGTH = 12;
 export const NAME_TEMPLATE_MAX_LENGTH = 200;
-export const EVENT_TITLE_TEMPLATE_MAX_LENGTH = 300;
-export const EVENT_TITLE_TEMPLATE_LABEL_MAX_LENGTH = 40;
 export const EVENT_TITLE_TEMPLATES_MAX_COUNT = 20;
 export const AUDIT_RETENTION_MIN = 7;
 export const AUDIT_RETENTION_MAX = 365;
 export const AUDIT_RETENTION_DEFAULT = 90;
 
 export const NAME_TEMPLATE_PLACEHOLDERS = ["{name}", "{department}"] as const;
-
-export const EVENT_TITLE_PLACEHOLDERS = [
-  "{description}",
-  "{type}",
-  "{type:acronym}",
-  "{time}",
-  "{people}",
-  "{people:full}",
-  "{people:acronym}",
-  "{people:fqn}",
-  "{departments}",
-  "{location}",
-] as const;
 
 export interface KeywordFormValues {
   keyword: string;
@@ -37,15 +22,6 @@ export interface NameTemplateFormValues {
 
 export interface NameTemplateFormErrors {
   nameTemplate?: string;
-  [key: string]: string | undefined;
-}
-
-export interface EventTitleTemplateFormValues {
-  eventTitleTemplate: string;
-}
-
-export interface EventTitleTemplateFormErrors {
-  eventTitleTemplate?: string;
   [key: string]: string | undefined;
 }
 
@@ -73,17 +49,6 @@ export const EVENT_TITLE_TARGET_LABELS: Record<EventTitleAssignmentTarget, strin
   pinned: "Pinned events (panel)",
   pinnedHeader: "Pinned events (header)",
 };
-
-export interface EventTitleLibraryItemFormValues {
-  label: string;
-  template: string;
-}
-
-export interface EventTitleLibraryItemFormErrors {
-  label?: string;
-  template?: string;
-  [key: string]: string | undefined;
-}
 
 export interface KeywordFormErrors {
   keyword?: string;
@@ -175,56 +140,6 @@ export function validateNameTemplate(values: NameTemplateFormValues): NameTempla
   return errors;
 }
 
-export function validateEventTitleTemplate(
-  values: EventTitleTemplateFormValues,
-): EventTitleTemplateFormErrors {
-  const errors: EventTitleTemplateFormErrors = {};
-  const template = values.eventTitleTemplate.trim();
-
-  if (!template) {
-    errors.eventTitleTemplate = "Event title template is required";
-  } else if (/\r|\n/.test(values.eventTitleTemplate)) {
-    errors.eventTitleTemplate = "Template must be a single line";
-  } else if (template.length > EVENT_TITLE_TEMPLATE_MAX_LENGTH) {
-    errors.eventTitleTemplate = `Event title template must be ${EVENT_TITLE_TEMPLATE_MAX_LENGTH} characters or fewer`;
-  }
-
-  return errors;
-}
-
-export function validateEventTitleLibraryItem(
-  values: EventTitleLibraryItemFormValues,
-  existingLabels: string[] = [],
-): EventTitleLibraryItemFormErrors {
-  const errors: EventTitleLibraryItemFormErrors = {};
-  const label = values.label.trim();
-  const template = values.template.trim();
-
-  if (!label) {
-    errors.label = "Label is required";
-  } else if (/\r|\n/.test(values.label)) {
-    errors.label = "Label must be a single line";
-  } else if (label.length > EVENT_TITLE_TEMPLATE_LABEL_MAX_LENGTH) {
-    errors.label = `Label must be ${EVENT_TITLE_TEMPLATE_LABEL_MAX_LENGTH} characters or fewer`;
-  } else {
-    const lower = label.toLowerCase();
-    const duplicate = existingLabels.some((l) => l.toLowerCase() === lower);
-    if (duplicate) {
-      errors.label = "Label must be unique";
-    }
-  }
-
-  if (!template) {
-    errors.template = "Template is required";
-  } else if (/\r|\n/.test(values.template)) {
-    errors.template = "Template must be a single line";
-  } else if (template.length > EVENT_TITLE_TEMPLATE_MAX_LENGTH) {
-    errors.template = `Template must be ${EVENT_TITLE_TEMPLATE_MAX_LENGTH} characters or fewer`;
-  }
-
-  return errors;
-}
-
 export function normalizeAssignments(
   raw: unknown,
 ): Partial<Record<EventTitleAssignmentTarget, string>> {
@@ -252,40 +167,4 @@ export function validateAssignments(
     }
   }
   return errors;
-}
-
-/**
- * Non-blocking warnings for the event title template. Unmatched `<`/`>` are
- * rendered fail-soft as literal text, but the admin should be warned so they
- * can fix the grouping or escape with `\<`/`\>`.
- */
-export function getEventTitleTemplateWarnings(template: string): string[] {
-  const warnings: string[] = [];
-  let depth = 0;
-  let i = 0;
-  while (i < template.length) {
-    const ch = template[i];
-    if (ch === "\\" && i + 1 < template.length) {
-      const next = template[i + 1];
-      if (next === "<" || next === ">" || next === "{" || next === "}" || next === "\\") {
-        i += 2;
-        continue;
-      }
-    }
-    if (ch === "<") {
-      depth += 1;
-    } else if (ch === ">") {
-      if (depth > 0) {
-        depth -= 1;
-      } else {
-        warnings.push("Unmatched '>' — escape as \\> for a literal '>'");
-        break;
-      }
-    }
-    i += 1;
-  }
-  if (depth > 0) {
-    warnings.push("Unmatched '<' — escape as \\< for a literal '<' or close with '>'");
-  }
-  return warnings;
 }

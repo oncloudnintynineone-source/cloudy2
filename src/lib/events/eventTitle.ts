@@ -7,10 +7,11 @@
  */
 
 import {
-  formatEventTitle,
+  renderTitleRecipe,
   type EventTitlePerson,
   type EventTitleType,
-} from "@/lib/settings/formatEventTitle";
+  type TitleRecipe,
+} from "@/lib/settings/titleRecipe";
 import { type AmPm, type TimeOption } from "./timeOptions";
 
 export interface RenderEventTitleInput {
@@ -24,8 +25,8 @@ export interface RenderEventTitleInput {
   departments: string[];
   /** The event's location; "" when unset. */
   location: string;
-  /** The admin-defined event title template. */
-  template: string;
+  /** The admin-defined event title recipe. */
+  recipe: TitleRecipe;
   timeOption: TimeOption;
   /** Start time as HH:MM (24h) for range events; "" for full/half. */
   startTime: string;
@@ -36,16 +37,17 @@ export interface RenderEventTitleInput {
 }
 
 /**
- * Render the event's Google summary: substitute the template tokens, fall
- * back to the raw description when the template renders nothing (which may
- * itself be empty, producing an intentionally untitled event). Half-day
- * AM/PM markers come from the `{time}` token in the template, never a
- * hardcoded suffix. Legacy full-day events may still carry markers in their
- * stored Google title — those are read back as-is and never re-rendered here.
+ * Render the event's Google summary from its recipe: each present field shows
+ * once, wrappers/connectors belong to their own segment (never dangling).
+ * Falls back to the raw description when the recipe renders nothing (which may
+ * itself be empty, producing an intentionally untitled event). Half-day AM/PM
+ * markers come from a `time` segment in the recipe, never a hardcoded suffix.
+ * Legacy full-day events may still carry markers in their stored Google title
+ * — those are read back as-is and never re-rendered here.
  */
 export function renderEventTitle(input: RenderEventTitleInput): string {
   const rawTitle = input.description.trim();
-  const renderedTitle = formatEventTitle(
+  const renderedTitle = renderTitleRecipe(
     {
       description: rawTitle,
       eventType: input.eventType,
@@ -58,7 +60,7 @@ export function renderEventTitle(input: RenderEventTitleInput): string {
       startAmPm: input.startAmPm,
       endAmPm: input.endAmPm,
     },
-    input.template,
+    input.recipe,
   );
   return renderedTitle || rawTitle;
 }

@@ -16,6 +16,7 @@ import {
   KAH_EMAIL_BODY_TEMPLATE_DEFAULT,
   KAH_EMAIL_SUBJECT_TEMPLATE_DEFAULT,
 } from "@/lib/kah/emailDefaults";
+import { sanitizeTitleRecipe, type TitleRecipe } from "@/lib/settings/titleRecipe";
 import {
   normalizeAssignments,
   type EventTitleAssignmentTarget,
@@ -24,7 +25,7 @@ import {
 export interface EventTitleTemplateView {
   id: string;
   label: string;
-  template: string;
+  recipe: TitleRecipe;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -32,7 +33,8 @@ export interface EventTitleTemplateView {
 export interface SettingsView {
   userKeyword: string;
   nameTemplate: string;
-  eventTitleTemplate: string;
+  /** The structured master event-title recipe. */
+  eventTitleRecipe: TitleRecipe;
   /** Per-target library assignment: target -> templateId (empty string means use master). */
   eventTitleTemplateAssignments: Partial<Record<EventTitleAssignmentTarget, string>>;
   auditLogRetentionDays: number;
@@ -70,7 +72,9 @@ export async function getSettings(): Promise<SettingsView> {
   return {
     userKeyword: row?.userKeyword ?? "",
     nameTemplate: row?.nameTemplate ?? "{name}",
-    eventTitleTemplate: row?.eventTitleTemplate ?? "{description}",
+    eventTitleRecipe: sanitizeTitleRecipe(
+      (row as unknown as { eventTitleRecipe?: unknown })?.eventTitleRecipe,
+    ),
     eventTitleTemplateAssignments: normalizeAssignments(
       (row as unknown as { eventTitleTemplateAssignments?: unknown })?.eventTitleTemplateAssignments,
     ),
@@ -103,7 +107,7 @@ export async function listEventTitleTemplates(): Promise<EventTitleTemplateView[
   return rows.map((r) => ({
     id: r.id,
     label: r.label,
-    template: r.template,
+    recipe: sanitizeTitleRecipe((r as unknown as { recipe?: unknown })?.recipe),
     createdAt: r.createdAt,
     updatedAt: r.updatedAt,
   }));

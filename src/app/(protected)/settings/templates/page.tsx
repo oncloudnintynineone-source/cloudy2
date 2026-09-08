@@ -22,8 +22,8 @@ export default async function TemplatesPage() {
     <Stack gap="md">
       <TemplatesForm
         nameTemplate={settings.nameTemplate}
-        eventTitleTemplate={settings.eventTitleTemplate}
-        templates={templates.map((t) => ({ id: t.id, label: t.label, template: t.template }))}
+        eventTitleRecipe={settings.eventTitleRecipe}
+        templates={templates.map((t) => ({ id: t.id, label: t.label, recipe: t.recipe }))}
         assignments={settings.eventTitleTemplateAssignments as Record<string, string>}
         previewUsers={previewUsers}
         previewEventTypes={eventTypes.map((type) => ({

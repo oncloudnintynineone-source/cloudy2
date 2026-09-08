@@ -1,5 +1,5 @@
 import { formatFullName } from "@/lib/settings/formatName";
-import { formatEventTitle } from "@/lib/settings/formatEventTitle";
+import { renderTitleRecipe, type EventTitlePerson, type TitleRecipe } from "@/lib/settings/titleRecipe";
 import { naiveTimePart } from "@/lib/events/timeOptions";
 import type { CalendarEvent } from "@/lib/events/queries";
 
@@ -22,8 +22,8 @@ export interface DisplayTitleCalendar {
 
 export interface DisplayTitleTemplate {
   id: string;
-  template: string;
   label: string;
+  recipe: TitleRecipe;
 }
 
 export function resolveDisplayTitles(
@@ -31,7 +31,7 @@ export function resolveDisplayTitles(
   opts: {
     view: string;
     nameTemplate: string;
-    masterTemplate: string;
+    masterRecipe: TitleRecipe;
     assignments: Record<string, string>;
     templates: DisplayTitleTemplate[];
     usersById: Map<string, DisplayTitleUser>;
@@ -39,18 +39,18 @@ export function resolveDisplayTitles(
     calendarsById: Map<string, string>;
   },
 ): CalendarEvent[] {
-  const templateMap = new Map(opts.templates.map((t) => [t.id, t.template] as const));
+  const recipeMap = new Map(opts.templates.map((t) => [t.id, t.recipe] as const));
   return events.map((event) => {
     if (event.payload.external) return event;
     const rawTitle = event.payload.rawTitle ?? "";
     const assignedId = opts.assignments[opts.view] ?? null;
-    const viewTemplate = assignedId ? templateMap.get(assignedId) : undefined;
-    const template = viewTemplate ?? opts.masterTemplate;
+    const viewRecipe = assignedId ? recipeMap.get(assignedId) : undefined;
+    const recipe = viewRecipe ?? opts.masterRecipe;
 
-    // People for the {people} token = the stored attendees exactly: the
-    // organizer is shown only when they tagged themselves (legacy events that
-    // auto-invited the organizer still carry them in `inviteeUserIds`).
-    const people = event.payload.inviteeUserIds.flatMap((id) => {
+    // People for the recipe's people segment = the stored attendees exactly:
+    // the organizer is shown only when they tagged themselves (legacy events
+    // that auto-invited the organizer still carry them in `inviteeUserIds`).
+    const people: EventTitlePerson[] = event.payload.inviteeUserIds.flatMap((id) => {
       const user = opts.usersById.get(id);
       if (!user) return [];
       return [
@@ -75,7 +75,7 @@ export function resolveDisplayTitles(
       ? { name: eventTypeName, acronym: eventTypeRow?.shortname || eventTypeName }
       : null;
 
-    const rendered = formatEventTitle(
+    const rendered = renderTitleRecipe(
       {
         description: rawTitle.trim(),
         eventType,
@@ -88,7 +88,7 @@ export function resolveDisplayTitles(
         startAmPm: event.payload.startAmPm ?? "",
         endAmPm: event.payload.endAmPm ?? "",
       },
-      template,
+      recipe,
     );
     const displayTitle = rendered || rawTitle.trim();
 

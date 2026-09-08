@@ -10,6 +10,7 @@ import { naiveTimePart } from "@/lib/events/timeOptions";
 import { formatInstantToNaive, monthsInRange } from "@/lib/events/datetime";
 import { formatFullName } from "@/lib/settings/formatName";
 import { getSettings, getEventTitleTemplateMap } from "@/lib/settings/queries";
+import type { TitleRecipe } from "@/lib/settings/titleRecipe";
 import { requireSession } from "@/lib/session";
 
 export interface PinnedEvent {
@@ -105,17 +106,17 @@ export async function fetchPinnedEvents(): Promise<PinnedEvent[]> {
     const userById = new Map(users.map((u) => [u.id, u]));
     const typeAcronym = new Map(eventTypes.map((t) => [t.name, t.shortname]));
 
-    // Each consumer renders through its own template assignment (Settings →
+    // Each consumer renders through its own recipe assignment (Settings →
     // Templates → View assignments): the panel list via `pinned`, the header
     // ticker via `pinnedHeader`. Unassigned = Master, exactly like the
     // dashboard views.
-    const templateForTarget = (target: "pinned" | "pinnedHeader"): string => {
+    const recipeForTarget = (target: "pinned" | "pinnedHeader"): TitleRecipe => {
       const assignedId = settings.eventTitleTemplateAssignments[target] ?? "";
-      if (!assignedId) return settings.eventTitleTemplate;
-      return templateMap.get(assignedId)?.template ?? settings.eventTitleTemplate;
+      if (!assignedId) return settings.eventTitleRecipe;
+      return templateMap.get(assignedId)?.recipe ?? settings.eventTitleRecipe;
     };
-    const panelTemplate = templateForTarget("pinned");
-    const tickerTemplate = templateForTarget("pinnedHeader");
+    const panelRecipe = recipeForTarget("pinned");
+    const tickerRecipe = recipeForTarget("pinnedHeader");
 
     return pinned.map((e) => {
       const people = e.payload.inviteeUserIds.flatMap((id) => {
@@ -153,8 +154,8 @@ export async function fetchPinnedEvents(): Promise<PinnedEvent[]> {
 
       return {
         id: e.id,
-        title: renderEventTitle({ ...titleInput, template: panelTemplate }),
-        tickerTitle: renderEventTitle({ ...titleInput, template: tickerTemplate }),
+        title: renderEventTitle({ ...titleInput, recipe: panelRecipe }),
+        tickerTitle: renderEventTitle({ ...titleInput, recipe: tickerRecipe }),
         start: e.start,
         end: e.end,
         color: e.color,

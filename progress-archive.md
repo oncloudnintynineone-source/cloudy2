@@ -8169,3 +8169,17 @@ view → the chevron popover lists both and jumps; Edit views → type button �
 active Month tab to Week (D) and confirm it lands on today; change an inactive Agenda
 tab to Month with its default name and confirm the name follows; confirm a custom-named
 tab keeps its name.
+
+## 1.210 Structured event-title recipes (replacing free-text token templates)
+
+Until this phase the master event-title template and every library view template were single raw strings (`settings.event_title_template`, `event_title_templates.template`) rendered by the token engine (`formatEventTitle`) with `{token}` substitution and `< ... >` conditional groups. Admin QA found the free-text model confusing and failure-prone: emptiness is decided per token, so punctuation that "belongs" to a neighboring field dangles when that field is blank (`OL:, India - Bengaluru`) and nested groups leave stray spaces (`(LZH )`).
+
+**Decision** (confirmed by product): event titles move to a **structured recipe** model with no free text at all. A recipe is an ordered list of fields — type / description / people / departments / location / time — each with optional style (type name/acronym; people fqn/full/acronym), a wrapper (`( )`, `[ ]`, none) tied to its own value, and a connector (none/space/comma/dash/colon/dot) that joins a field to the NEXT shown field, never leading or trailing. Because separators are never hand-typed into a grammar, an empty field cannot leave stray punctuation. Participant-notification content keeps its own free-text token editor (prose, not a data join). Existing event-title templates are **reset to the default recipe** on deploy (admins re-author via the new picker).
+
+**Storage** (migration `0040_sturdy_deadpool`): `settings.event_title_recipe` and `event_title_templates.recipe` (JSONB, default `{"segments":[{"field":"description"}]}`). The migration also deletes the library rows and clears `event_title_template_assignments` to the defaults. The legacy text columns remain only for rollback and are never read.
+
+**Code**: new pure `src/lib/settings/titleRecipe.ts` (recipe types, per-field constants, `renderTitleRecipe`, `sanitizeTitleRecipe`, `validateTitleRecipe`) replaces `formatEventTitle.ts`; consumers rewired to recipes — `renderEventTitle` (`eventTitle.ts`), `eventTitleDisplay.ts`, `pinned.ts`, `writeContext.ts` (context now carries the master recipe), `settings/queries.ts` + `settings/actions.ts` (`updateEventTitleRecipe`; create/update/delete/assignments take recipes), the dashboard page/`DashboardView`/`EventForm` preview props, and the Settings → Templates UI (`RecipeTemplateForm.tsx` picker with reorder/up-down rows, field/style/wrapper/connector selects, live full + minimal previews; old `MasterTemplateForm`/`ViewTemplateForm` deleted). `tokenTemplate.ts` remains for notification content only.
+
+**Docs**: `docs/event-lifecycle.md` §1.8 rewritten (recipe model, table of fields/options, renderer, assignments), file index/table updated; AGENTS.md Templates bullet; progress changelog 1.210.
+
+**Verified**: pnpm typecheck, pnpm lint, pnpm test (1001 pass incl. new `titleRecipe.test.ts` + updated `eventAudit`/`settings/validate` suites), pnpm db:generate clean drift. Manual after deploy: Settings → Templates → rebuild the master + one view template in the picker; save an event with a blank description and confirm no dangling separators; confirm notifications copy unchanged.

@@ -92,6 +92,7 @@ import { eventsOnDay } from "@/lib/events/agenda";
 import { WEEKDAY_ABBREVIATIONS, weekDays } from "@/lib/events/datetime";
 import { sortMineFirst } from "@/lib/events/mineFirst";
 import type { CalendarEvent } from "@/lib/events/queries";
+import type { TitleRecipe } from "@/lib/settings/titleRecipe";
 import type { EventActionOk } from "@/lib/events/actions";
 import type { LocationCategory } from "@/lib/events/locationPolicy";
 import {
@@ -212,8 +213,8 @@ interface DashboardViewProps {
   eventTypes: EventTypeOption[];
   /** Event type groups in display order, for the grouped type picker. */
   eventTypeGroups: { id: string; name: string; sortOrder: number }[];
-  eventTitleTemplate: string;
-  viewEventTitleTemplate: string;
+  eventTitleRecipe: TitleRecipe;
+  viewEventTitleRecipe: TitleRecipe;
   googleConfigured: boolean;
   /**
    * Enabled quick links in menu order (Settings → Quick Links); the amber
@@ -706,8 +707,8 @@ export function DashboardView({
   calendars,
   eventTypes,
   eventTypeGroups,
-  eventTitleTemplate,
-  viewEventTitleTemplate,
+  eventTitleRecipe,
+  viewEventTitleRecipe,
   googleConfigured,
   quickLinks,
   selectedCalendarIds,
@@ -3118,8 +3119,8 @@ export function DashboardView({
                 defaultDate={formState.defaultDate}
                 eventTypes={eventTypes}
                 eventTypeGroups={eventTypeGroups}
-                eventTitleTemplate={eventTitleTemplate}
-                viewEventTitleTemplate={viewEventTitleTemplate}
+                eventTitleRecipe={eventTitleRecipe}
+                viewEventTitleRecipe={viewEventTitleRecipe}
                 viewLabel={activeView.name}
                 currentUser={currentUser}
                 isAdmin={isAdmin}

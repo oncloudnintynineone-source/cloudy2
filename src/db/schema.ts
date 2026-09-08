@@ -306,7 +306,12 @@ export const paradeStates = pgTable("parade_states", {
 export const eventTitleTemplates = pgTable("event_title_templates", {
   id: uuid("id").primaryKey().defaultRandom(),
   label: text("label").notNull(),
-  template: text("template").notNull(),
+  /** DEPRECATED free-text template (kept for rollback); recipes live in `recipe`. */
+  template: text("template").notNull().default(""),
+  /** The structured title recipe (ordered fields + decoration). */
+  recipe: jsonb("recipe")
+    .notNull()
+    .default(sql`'{"segments":[{"field":"description"}]}'::jsonb`),
   ...timestamps,
 });
 
@@ -324,7 +329,12 @@ export const settings = pgTable(
     adminPinHash: text("admin_pin_hash"),
     userKeyword: text("user_keyword"),
     nameTemplate: text("name_template").notNull().default("{name}"),
+    /** DEPRECATED free-text template (kept for rollback); recipes live in `event_title_recipe`. */
     eventTitleTemplate: text("event_title_template").notNull().default("{description}"),
+    /** Structured master event-title recipe (ordered fields + decoration). */
+    eventTitleRecipe: jsonb("event_title_recipe")
+      .notNull()
+      .default(sql`'{"segments":[{"field":"description"}]}'::jsonb`),
     eventTitleTemplateAssignments: jsonb("event_title_template_assignments")
       .notNull()
       .default(sql`'{}'::jsonb`),

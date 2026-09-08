@@ -89,7 +89,7 @@ flowchart LR
         B["buildGcalEventInput"]
     end
     subgraph PURE["Pure helpers"]
-        TE["renderEventTitle → formatEventTitle"]
+        TE["renderEventTitle → renderTitleRecipe"]
         NB["encodeEventNotes → encodeNotesBlock"]
         AR["absEventRange"]
     end
@@ -476,81 +476,51 @@ so editing never re-types the templated calendar title.
 
 ## 1.8 Title rendering
 
-### 1.8.1 `formatEventTitle` — the event-title resolver (`src/lib/settings/formatEventTitle.ts`)
+### 1.8.1 Title recipes — structured, not free text
 
-Substitutes `{...}` tokens in the admin template (`settings.event_title_template`,
-default `"{description}"`, max 300 chars) case-insensitively. `formatEventTitle`
-is a thin resolver over the **shared token-template engine** in
-`src/lib/settings/tokenTemplate.ts` (`renderTokenTemplate`) — the same engine
-renders the participant-notification content templates (§1.12 of
-`docs/event-notifications.md`) and the KAH email templates use a simpler regex
-substitution. The grammar (tokens, `< >` conditionals, escapes) is engine-wide;
-this module only maps the event-title token set to its values:
+Event titles are authored as a **recipe** (`src/lib/settings/titleRecipe.ts`) instead of
+a hand-written token string: an ordered list of **fields** plus per-field decoration. A
+field shows only when its value has content; a wrapper (`( )` / `[ ]`) belongs to its
+own field; and a **connector** joins a field to the *next shown* field — never leading
+or trailing. Because the admin never types separators into a `{token}< ... >` grammar,
+an empty field can no longer leave dangling punctuation (`OL:, …`, `(LZH )`).
 
-| Token | Renders |
-| ----- | ------- |
-| `{description}` | the raw typed text |
-| `{type}` | the type's name (null type → `""`) |
-| `{type:acronym}` | the type's shortname, falling back to the name when blank |
-| `{people}` (bare) | **FQN style** — fully qualified names via the display-name template |
-| `{people:full}` | plain names |
-| `{people:acronym}` | user shortnames, falling back to names |
-| `{people:fqn}` | `formatFullName` rendering (`{name}`/`{department}`) |
-| `{departments}` | department names joined with `", "` |
-| `{location}` | the location string (optional even for in-camp events); `""` when unset |
+| Field        | Renders (empty when absent)                              | Style options                       |
+| ------------ | -------------------------------------------------------- | ----------------------------------- |
+| `type`       | the event type's name, or acronym                        | `name` / `acronym`                  |
+| `description`| the raw typed description                                | —                                   |
+| `people`     | invitees joined with `", "` (organizer only when self-invited) | `fqn` (default) / `full` / `acronym` |
+| `departments`| tagged department names joined with `", "`               | —                                   |
+| `location`   | the location string                                      | —                                   |
+| `time`       | `HH:MM-HH:MM` (range) / `AM`/`PM` (half) / `""` (full)    | —                                   |
 
-List tokens join with `", "`; empty lists/absent values resolve to `""`; **unknown
-tokens and unknown styles are left as literal text**; the result is trimmed.
-People arrive pre-resolved as `EventTitlePerson { full, acronym, fqn
-}` (`formatEventTitle.ts`) and the type as `EventTitleType { name, acronym }`,
-so the formatter is pure string substitution. The FQN style uses
-`formatFullName` (`src/lib/settings/formatName.ts:20`), which substitutes
-`{name}`/`{department}` in `settings.name_template` the same way.
+Each segment may set `wrapper` (`none`/`paren`/`bracket`) and `connector`
+(`none`/`space`/`comma`/`dash`/`colon`/`middot`). A connector sits **after** its
+segment and is applied only while a later segment renders — so `type` + connector
+`colon:` yields `M: description`, and with no description simply `M: location`, never a
+dangling `:`. The final result is trimmed. `renderTitleRecipe` (`titleRecipe.ts`) is
+the pure renderer; `sanitizeTitleRecipe` coerces any stored value to a valid recipe
+(unknown segments dropped, empty → the default `{ field: "description" }` recipe).
 
-#### 1.8.1.1 Conditional sections `< >`
+A recipe is stored as JSONB: `settings.event_title_recipe` (master) and
+`event_title_templates.recipe` (library rows). The old free-text columns
+(`settings.event_title_template`, `event_title_templates.template`) are kept only for
+rollback and are never read.
 
-To avoid dangling punctuation when a field is empty, any content wrapped in `< >`
-is **conditional** — it is kept only when at least one token inside it resolves
-to non-empty (OR rule). This lets the admin tie surrounding punctuation to its
-field:
-
-```
-{description}< - {location}>                // " - Hall A" only when location set
-{type}: {description}< ({people:acronym})>  // " (JL, ML)" only when someone invited
-{description}<, {departments}>< @ {location}>
-<{type} — >{description}                    // prefix only when type set
-```
-
-* Nestable: `<outer <inner {location}> end>` — inner emptiness bubbles; the
-  outer is hidden when every token inside (recursively) is empty.
-* If a `< >` pair contains **no tokens at all** (e.g. `Status <urgent>`), it is
-  treated as literal text — so existing titles with literal angle brackets are
-  unaffected.
-* Escaping: `\<` `\>` `\{` `\}` `\\` render as literal characters; an unmatched
-  `<` or `>` is rendered fail-soft as literal text. The Settings tab shows a
-  non-blocking yellow warning for unmatched delimiters (see `getEventTitleTemplateWarnings`
-  in `src/lib/settings/validate.ts`).
-* Whitespace is verbatim — put the leading space **inside** the group
-  (`< - {location}>` not ` < - {location}>`) and the group carries its space
-  when shown. The final result is still trimmed.
-
-### 1.8.2 `renderEventTitle` — the single source of truth (`src/lib/events/eventTitle.ts:40`)
+### 1.8.2 `renderEventTitle` — the single source of truth (`src/lib/events/eventTitle.ts`)
 
 1. trims the raw description;
-2. renders the template via `formatEventTitle`;
-3. **falls back to the raw (trimmed) description when the template renders nothing** —
-   an empty result yields an intentionally untitled event;
-4. appends ` (AM)` / ` (PM)` **only** when `timeOption === "half"`, the base title is
-   non-empty, and `amPmSuffix(startAmPm, endAmPm)` (`timeOptions.ts:74`) is non-empty —
-   i.e. only when start and end **share** the same indicator. AM→PM and PM→AM spans get
-   no suffix, and an empty title gets no bare "(AM)". Full-day events render plain dates
-   with no marker (legacy `full` events keep the markers already baked into their stored
-   Google titles — this function only renders on writes).
+2. renders the recipe via `renderTitleRecipe`;
+3. **falls back to the raw (trimmed) description when the recipe renders nothing** —
+   an empty result yields an intentionally untitled event.
 
-There are deliberately **no AM/PM tokens in the template** — the time marker is appended
-solely by this wrapper. This function is the single source of truth for both the title
-written to Google (`buildGcalEventInput`, `actions.ts:250`) and the `title` field of
-audit snapshots (`actions.ts:405, 574`), so the two can never diverge.
+Half-day AM/PM markers come only from a `time` segment in the recipe, never a
+hardcoded suffix — a recipe without `time` never adds `(AM)`. Full-day events render
+no marker (legacy `full` events keep the markers already baked into their stored
+Google titles — this function only renders on writes). This function is the single
+source of truth for both the title written to Google (`buildGcalEventInput`,
+`actions.ts:250`) and the `title` field of audit snapshots (`actions.ts:405, 574`), so
+the two can never diverge.
 
 ### 1.8.3 The form's live preview
 
@@ -558,23 +528,23 @@ audit snapshots (`actions.ts:405, 574`), so the two can never diverge.
 recomputed from form values (`EventForm.tsx:397-421`). The Paper lives **on the review
 step only** (`EventForm.tsx:741-749`) — earlier steps render no preview card. The
 preview derives its people from the **effective** invitee list — exactly the stored
-attendees, with no organizer prepended (the organizer appears in `{people}` only when
-they tagged themselves; the sole exception is an invitees-hidden type, which keeps the
-organizer as its only attendee), mirroring what the server writes, so
-`{people}` / `{people:acronym}` tokens render identically to what gets written. The
-review step's Participants row uses the same full list (an organizer who
-self-invited appears both as Organizer and among the attendees).
-Note: the preview **re-implements** the fallback + AM/PM suffix rules inline rather than
-importing the pure `renderEventTitle` — kept in sync by convention, a drift risk to be
-aware of when changing the title rules.
+attendees, with no organizer prepended (the organizer appears in a `people` segment only
+when they tagged themselves; the sole exception is an invitees-hidden type, which keeps
+the organizer as its only attendee), mirroring what the server writes, so `people`/people
+styles render identically to what gets written. The review step's Participants row uses
+the same full list (an organizer who self-invited appears both as Organizer and among the
+attendees).
+The preview builds the same `EventTitleRecipeInput` the server derives and calls the pure
+`renderEventTitle` — so the fallback and field/connector rules cannot drift from the
+write path.
 
 ### 1.8.4 Context resolution (I/O)
 
-`buildEventTitleContext` (`actions.ts:166-209`) resolves everything the tokens need in
-one `Promise.all`: the settings (both templates), the invitee users (`getUsersByIds`),
-the department names, and the event-type row (shortname, `timeOptions`,
-`allowedLocations`, `showRemarks`). Unknown ids are dropped; a blank type shortname
-falls back to the name.
+`buildEventTitleContext` (`src/lib/events/writeContext.ts`) resolves everything a recipe
+needs in one `Promise.all`: the settings (the master recipe), the invitee users
+(`getUsersByIds`), the department names, and the event-type row (shortname, `timeOptions`,
+`allowedLocations`, `showRemarks`). Unknown ids are dropped; a blank type shortname falls
+back to the name.
 
 ### 1.8.5 View assignments (per-target templates)
 
@@ -591,7 +561,7 @@ assignments modal (Settings → Templates):
 - Pure `normalizeAssignments` (`validate.ts:223`) keeps only whitelisted keys and
   drops empty/null entries; `validateAssignments` (`:237`) rejects unknown template
   ids (unit-tested in `validate.test.ts`).
-- **Unassigned target = Master fallback** (`settings.eventTitleTemplate`).
+- **Unassigned target = Master fallback** (`settings.event_title_recipe`).
 - Dashboard views are display-only re-renders; `fetchPinnedEvents` renders every
   pinned event twice — `title` through the `pinned` target for the panel list and
   `tickerTitle` through `pinnedHeader` for the header ticker
@@ -796,8 +766,8 @@ writes, headers) is thin and lives in `actions.ts` / `queries.ts`.
 | Helper | Module | Tests |
 | ------ | ------ | ----- |
 | `encodeEventNotes`, `parseEventNotes` (v1/v2/v3 + gzip fallback), `encodeNotesBlock`, `withEditLink`, `withInternalMarker`, `isExternalEvent`, `eventDetailUrl`, all field parsers | `events/notes.ts` | `notes.test.ts` |
-| `renderEventTitle` | `events/eventTitle.ts` | `eventAudit.test.ts:270` |
-| `formatEventTitle` (every token/style, unknown pass-through) | `settings/formatEventTitle.ts` | `formatEventTitle.test.ts` |
+| `renderEventTitle`, `renderTitleRecipe` | `events/eventTitle.ts`, `settings/titleRecipe.ts` | `eventAudit.test.ts`, `titleRecipe.test.ts` |
+| `sanitizeTitleRecipe`, recipe validation | `settings/titleRecipe.ts` | `titleRecipe.test.ts` |
 | `normalizeAssignments` (whitelist keys, drop empties), `validateAssignments` (unknown ids) (§1.8.5) | `settings/validate.ts` | `settings/validate.test.ts` |
 | `formatFullName` | `settings/formatName.ts` | `formatName.test.ts` |
 | `clampOutOfCamp` (all allowed-location sets), `flagsFromCategory` / `categoryFromFlags`, `normalizeAllowedLocations` | `events/locationPolicy.ts` | `locationPolicy.test.ts` |
@@ -822,7 +792,8 @@ actions), `queries.ts` (DB + cache reads, `mapCalendarItem`), `appUrl.ts`
 | `src/lib/events/actions.ts` | Write path: guards → validate → targets → normalize → Google → audit → cache invalidation |
 | `src/lib/events/notes.ts` | Notes block codec + markers (pure) |
 | `src/lib/events/eventTitle.ts` | `renderEventTitle` (pure) |
-| `src/lib/settings/formatEventTitle.ts` | Template token engine (pure) |
+| `src/lib/settings/titleRecipe.ts` | Structured title-recipe types + `renderTitleRecipe` / sanitizer (pure) |
+| `src/lib/settings/tokenTemplate.ts` | Token engine for participant-notification content (pure) |
 | `src/lib/settings/formatName.ts` | Display-name template (pure) |
 | `src/lib/events/locationPolicy.ts` | Location categories / allowed-locations clamping (pure) |
 | `src/lib/events/timeOptions.ts` | Time options + AM/PM marker (pure) |

@@ -27,12 +27,15 @@ import {
   normalizeKeyword,
   normalizeRetentionDays,
   validateAssignments,
-  validateEventTitleLibraryItem,
-  validateEventTitleTemplate,
   validateNameTemplate,
   validateRetentionForm,
   type EventTitleAssignmentTarget,
 } from "@/lib/settings/validate";
+import {
+  sanitizeTitleRecipe,
+  validateTitleRecipe,
+  type TitleRecipe,
+} from "@/lib/settings/titleRecipe";
 
 export type SettingsActionResult =
   | { ok: true }
@@ -42,7 +45,7 @@ export type SettingsActionResult =
       field?:
         | "keyword"
         | "nameTemplate"
-        | "eventTitleTemplate"
+        | "recipe"
         | "retentionDays"
         | "bannerText"
         | "kahEmails"
@@ -53,9 +56,36 @@ export type SettingsActionResult =
         | "addedTitle"
         | "addedBody"
         | "templateLabel"
-        | "template"
         | "assignments";
     };
+
+/** The label of a library template: required, single line, unique, ≤40 chars. */
+function validateTitleTemplateLabel(label: string, otherLabels: string[]): string | undefined {
+  const trimmed = label.trim();
+  if (!trimmed) {
+    return "Label is required";
+  }
+  if (/\r|\n/.test(label)) {
+    return "Label must be a single line";
+  }
+  if (trimmed.length > 40) {
+    return "Label must be 40 characters or fewer";
+  }
+  const lower = trimmed.toLowerCase();
+  if (otherLabels.some((l) => l.toLowerCase() === lower)) {
+    return "Label must be unique";
+  }
+  return undefined;
+}
+
+/** Validate + sanitize an incoming recipe for storage, or return an error string. */
+function preparedRecipe(recipe: TitleRecipe): { recipe: TitleRecipe } | { error: string } {
+  const errors = validateTitleRecipe(recipe);
+  if (errors.recipe) {
+    return { error: errors.recipe };
+  }
+  return { recipe: sanitizeTitleRecipe(recipe) };
+}
 
 export async function updateKeyword(keyword: string): Promise<SettingsActionResult> {
   const session = await requireAdmin();
@@ -133,24 +163,19 @@ export async function updateNameTemplate(template: string): Promise<SettingsActi
   return { ok: true };
 }
 
-export async function updateEventTitleTemplate(template: string): Promise<SettingsActionResult> {
+export async function updateEventTitleRecipe(recipe: TitleRecipe): Promise<SettingsActionResult> {
   const session = await requireAdmin();
 
-  const errors = validateEventTitleTemplate({ eventTitleTemplate: template });
-  if (errors.eventTitleTemplate) {
-    return {
-      ok: false,
-      error: errors.eventTitleTemplate,
-      field: "eventTitleTemplate",
-    };
+  const prepared = preparedRecipe(recipe);
+  if ("error" in prepared) {
+    return { ok: false, error: prepared.error, field: "recipe" };
   }
-
-  const normalized = template.trim();
+  const normalized = prepared.recipe;
   const [before] = await db.select().from(settings).limit(1);
 
   await db
     .update(settings)
-    .set({ eventTitleTemplate: normalized, updatedAt: new Date() })
+    .set({ eventTitleRecipe: normalized, updatedAt: new Date() })
     .where(eq(settings.id, "singleton"));
 
   await logAction({
@@ -162,20 +187,25 @@ export async function updateEventTitleTemplate(template: string): Promise<Settin
     action: AUDIT_ACTIONS.settingsUpdate,
     entityType: "settings",
     entityName: "settings",
-    method: "updateEventTitleTemplate",
+    method: "updateEventTitleRecipe",
     details: diffFields(
-      { eventTitleTemplate: before?.eventTitleTemplate ?? null },
-      { eventTitleTemplate: normalized },
+      {
+        eventTitleRecipe: sanitizeTitleRecipe(
+          (before as unknown as { eventTitleRecipe?: unknown })?.eventTitleRecipe,
+        ),
+      },
+      { eventTitleRecipe: normalized },
     ),
   });
 
   revalidatePath("/settings/templates");
+  revalidatePath("/dashboard");
   return { ok: true };
 }
 
 export async function createEventTitleTemplate(
   label: string,
-  template: string,
+  recipe: TitleRecipe,
 ): Promise<SettingsActionResult> {
   const session = await requireAdmin();
   const existing = await db.select().from(eventTitleTemplates);
@@ -186,16 +216,16 @@ export async function createEventTitleTemplate(
       field: "templateLabel",
     };
   }
-  const errors = validateEventTitleLibraryItem(
-    { label, template },
-    existing.map((r) => r.label),
-  );
-  if (errors.label) return { ok: false, error: errors.label, field: "templateLabel" };
-  if (errors.template) return { ok: false, error: errors.template, field: "template" };
+  const labelError = validateTitleTemplateLabel(label, existing.map((r) => r.label));
+  if (labelError) return { ok: false, error: labelError, field: "templateLabel" };
+  const prepared = preparedRecipe(recipe);
+  if ("error" in prepared) {
+    return { ok: false, error: prepared.error, field: "recipe" };
+  }
 
   const [created] = await db
     .insert(eventTitleTemplates)
-    .values({ label: label.trim(), template: template.trim() })
+    .values({ label: label.trim(), recipe: prepared.recipe })
     .returning();
 
   await logAction({
@@ -208,7 +238,7 @@ export async function createEventTitleTemplate(
     entityType: "settings",
     entityName: "settings",
     method: "createEventTitleTemplate",
-    details: { label: created.label, template: created.template, id: created.id },
+    details: { label: created.label, recipe: prepared.recipe, id: created.id },
   });
 
   revalidatePath("/settings/templates");
@@ -219,21 +249,29 @@ export async function createEventTitleTemplate(
 export async function updateEventTitleTemplateById(
   id: string,
   label: string,
-  template: string,
+  recipe: TitleRecipe,
 ): Promise<SettingsActionResult> {
   const session = await requireAdmin();
   const existing = await db.select().from(eventTitleTemplates);
   const target = existing.find((r) => r.id === id);
   if (!target) return { ok: false, error: "Template not found" };
-  const otherLabels = existing.filter((r) => r.id !== id).map((r) => r.label);
-  const errors = validateEventTitleLibraryItem({ label, template }, otherLabels);
-  if (errors.label) return { ok: false, error: errors.label, field: "templateLabel" };
-  if (errors.template) return { ok: false, error: errors.template, field: "template" };
+  const labelError = validateTitleTemplateLabel(
+    label,
+    existing.filter((r) => r.id !== id).map((r) => r.label),
+  );
+  if (labelError) return { ok: false, error: labelError, field: "templateLabel" };
+  const prepared = preparedRecipe(recipe);
+  if ("error" in prepared) {
+    return { ok: false, error: prepared.error, field: "recipe" };
+  }
 
-  const before = { label: target.label, template: target.template };
+  const before = {
+    label: target.label,
+    recipe: sanitizeTitleRecipe((target as unknown as { recipe?: unknown })?.recipe),
+  };
   await db
     .update(eventTitleTemplates)
-    .set({ label: label.trim(), template: template.trim(), updatedAt: new Date() })
+    .set({ label: label.trim(), recipe: prepared.recipe, updatedAt: new Date() })
     .where(eq(eventTitleTemplates.id, id));
 
   await logAction({
@@ -246,7 +284,7 @@ export async function updateEventTitleTemplateById(
     entityType: "settings",
     entityName: "settings",
     method: "updateEventTitleTemplateById",
-    details: diffFields(before, { label: label.trim(), template: template.trim() }),
+    details: diffFields(before, { label: label.trim(), recipe: prepared.recipe }),
   });
 
   revalidatePath("/settings/templates");

@@ -333,9 +333,9 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
   // title. Assignments stay keyed by renderer kind (all tabs of a kind share
   // the template the settings UI assigns to that kind).
   const templateMapForDisplay = new Map(
-    eventTitleTemplates.map((t) => [t.id, t.template] as const),
+    eventTitleTemplates.map((t) => [t.id, t.recipe] as const),
   );
-  const viewTemplate =
+  const viewRecipe =
     (settings.eventTitleTemplateAssignments as Record<string, string>)[view] &&
     templateMapForDisplay.get(
       (settings.eventTitleTemplateAssignments as Record<string, string>)[view],
@@ -343,7 +343,7 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
       ? templateMapForDisplay.get(
           (settings.eventTitleTemplateAssignments as Record<string, string>)[view],
         )!
-      : settings.eventTitleTemplate;
+      : settings.eventTitleRecipe;
 
   const usersById = new Map(
     allUsers.map((u) => [
@@ -363,9 +363,9 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
   const events = resolveDisplayTitles(rawEvents, {
     view,
     nameTemplate: settings.nameTemplate,
-    masterTemplate: settings.eventTitleTemplate,
+    masterRecipe: settings.eventTitleRecipe,
     assignments: settings.eventTitleTemplateAssignments as Record<string, string>,
-    templates: eventTitleTemplates.map((t) => ({ id: t.id, label: t.label, template: t.template })),
+    templates: eventTitleTemplates.map((t) => ({ id: t.id, label: t.label, recipe: t.recipe })),
     usersById,
     eventTypesByName,
     calendarsById,
@@ -388,8 +388,8 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
       }))}
       eventTypes={eventTypeOptions}
       eventTypeGroups={eventTypeGroupOptions}
-      eventTitleTemplate={settings.eventTitleTemplate}
-      viewEventTitleTemplate={viewTemplate}
+      eventTitleRecipe={settings.eventTitleRecipe}
+      viewEventTitleRecipe={viewRecipe}
       googleConfigured={googleCalendarConfigured()}
       // Only enabled links reach the client; an empty list hides the
       // quick-links launcher on the Calendar page entirely.

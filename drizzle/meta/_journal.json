@@ -281,6 +281,13 @@
       "when": 1788895407336,
       "tag": "0039_mighty_the_stranger",
       "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "7",
+      "when": 1788897728636,
+      "tag": "0040_sturdy_deadpool",
+      "breakpoints": true
     }
   ]
 }

@@ -25,15 +25,15 @@ import {
   type SettingsActionResult,
 } from "@/lib/settings/actions";
 import {
-  formatEventTitle,
-  type EventTitleInput,
+  renderTitleRecipe,
   type EventTitlePerson,
-} from "@/lib/settings/formatEventTitle";
+  type EventTitleRecipeInput,
+  type TitleRecipe,
+} from "@/lib/settings/titleRecipe";
 import { formatFullName } from "@/lib/settings/formatName";
 import {
   EVENT_TITLE_ASSIGNMENT_TARGETS,
   EVENT_TITLE_TARGET_LABELS,
-  getEventTitleTemplateWarnings,
   NAME_TEMPLATE_PLACEHOLDERS,
   validateNameTemplate,
   type NameTemplateFormValues,
@@ -42,8 +42,7 @@ import { BUTTON_LOADER_PROPS } from "@/lib/theme";
 import { showValidationFailure } from "@/lib/ui/validationFeedback";
 import { NoKeyboardSelect } from "@/components/NoKeyboardSelect";
 
-import { MasterTemplateForm } from "./MasterTemplateForm";
-import { ViewTemplateForm } from "./ViewTemplateForm";
+import { RecipeTemplateForm } from "./RecipeTemplateForm";
 import { useActivityRefresh } from "@/components/ActivityBar";
 
 interface PreviewUser {
@@ -60,12 +59,12 @@ interface PreviewEventType {
 interface EventTitleTemplateView {
   id: string;
   label: string;
-  template: string;
+  recipe: TitleRecipe;
 }
 
 interface TemplatesFormProps {
   nameTemplate: string;
-  eventTitleTemplate: string;
+  eventTitleRecipe: TitleRecipe;
   templates: EventTitleTemplateView[];
   assignments: Record<string, string>;
   previewUsers: PreviewUser[];
@@ -85,26 +84,6 @@ const FALLBACK_SAMPLE_USERS: PreviewUser[] = [
 
 const FALLBACK_SAMPLE_EVENT_TYPE: PreviewEventType = { name: "Training", shortname: "TRN" };
 
-function insertTokenAtCursor(
-  current: string,
-  setValue: (value: string) => void,
-  input: HTMLTextAreaElement | null,
-  token: string,
-) {
-  if (!input) {
-    setValue(current + token);
-    return;
-  }
-  const start = input.selectionStart ?? current.length;
-  const end = input.selectionEnd ?? current.length;
-  setValue(current.slice(0, start) + token + current.slice(end));
-  requestAnimationFrame(() => {
-    input.focus();
-    const pos = start + token.length;
-    input.setSelectionRange(pos, pos);
-  });
-}
-
 function activatable(onActivate: () => void) {
   return {
     role: "button" as const,
@@ -120,7 +99,7 @@ function activatable(onActivate: () => void) {
 
 export function TemplatesForm({
   nameTemplate,
-  eventTitleTemplate,
+  eventTitleRecipe,
   templates,
   assignments,
   previewUsers,
@@ -135,6 +114,7 @@ export function TemplatesForm({
   const [libraryOpened, { open: openLibrary, close: closeLibrary }] = useDisclosure(false);
   const [formOpened, { open: openForm, close: closeForm }] = useDisclosure(false);
   const [editing, setEditing] = useState<EventTitleTemplateView | null>(null);
+  const [creating, setCreating] = useState(false);
   const [assignmentsOpened, { open: openAssignments, close: closeAssignments }] =
     useDisclosure(false);
   const [masterOpened, { open: openMaster, close: closeMaster }] = useDisclosure(false);
@@ -149,6 +129,8 @@ export function TemplatesForm({
     nameTemplateForm.setValues({ nameTemplate });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [nameTemplate]);
+
+  const template = nameTemplateForm.values.nameTemplate;
 
   const assignmentForm = useForm<Record<string, string>>({
     initialValues: {
@@ -199,9 +181,6 @@ export function TemplatesForm({
     (errors) => showValidationFailure(errors, (field) => nameTemplateForm.getInputNode(field)),
   );
 
-  const template = nameTemplateForm.values.nameTemplate;
-  const masterWarnings = getEventTitleTemplateWarnings(eventTitleTemplate);
-
   const sampleUsers = (previewUsers.length > 0 ? previewUsers : FALLBACK_SAMPLE_USERS).slice(0, 2);
   const samplePeople: EventTitlePerson[] = sampleUsers.map((user) => ({
     full: user.name,
@@ -216,7 +195,7 @@ export function TemplatesForm({
     ),
   ].slice(0, 2);
   const sampleEventType = previewEventTypes[0] ?? FALLBACK_SAMPLE_EVENT_TYPE;
-  const eventTitleSample: EventTitleInput = {
+  const eventTitleSample: EventTitleRecipeInput = {
     description: SAMPLE_EVENT_DESCRIPTION,
     eventType: {
       name: sampleEventType.name,
@@ -231,7 +210,7 @@ export function TemplatesForm({
     startAmPm: "",
     endAmPm: "",
   };
-  const eventTitleEmptySample: EventTitleInput = {
+  const eventTitleEmptySample: EventTitleRecipeInput = {
     description: SAMPLE_EVENT_DESCRIPTION,
     eventType: null,
     people: [],
@@ -243,17 +222,17 @@ export function TemplatesForm({
     startAmPm: "",
     endAmPm: "",
   };
-  const eventTitlePreview = formatEventTitle(eventTitleSample, eventTitleTemplate);
-  const eventTitleEmptyPreview = formatEventTitle(eventTitleEmptySample, eventTitleTemplate);
 
-  const templateMap = new Map(templates.map((t) => [t.id, t.template]));
-  const masterTemplate = eventTitleTemplate;
+  const templateMap = new Map(templates.map((t) => [t.id, t.recipe]));
+  const masterTemplate = eventTitleRecipe;
 
   const openCreate = () => {
+    setCreating(true);
     setEditing(null);
     openForm();
   };
   const openEdit = (t: EventTitleTemplateView) => {
+    setCreating(false);
     setEditing(t);
     openForm();
   };
@@ -286,10 +265,11 @@ export function TemplatesForm({
     ...templates.map((t) => ({ value: t.id, label: t.label })),
   ];
 
-  // Use live assignments prop for summary (not form draft) so page summary reflects saved state
   const savedAssignedCount = EVENT_TITLE_ASSIGNMENT_TARGETS.filter(
     (target) => assignments[target],
   ).length;
+
+  const masterPreview = renderTitleRecipe(eventTitleSample, masterTemplate);
 
   return (
     <>
@@ -383,20 +363,13 @@ export function TemplatesForm({
               <Stack>
                 <Group justify="space-between" wrap="nowrap" align="flex-start">
                   <Stack gap={2} style={{ flex: 1, minWidth: 0 }}>
-                    <Group gap="xs" wrap="nowrap">
-                      <Text fw={600}>Master Event Title Template (Google)</Text>
-                      {masterWarnings.length > 0 && (
-                        <Badge color="yellow" variant="light" size="xs">
-                          Warning
-                        </Badge>
-                      )}
-                    </Group>
+                    <Text fw={600}>Master Event Title Template (Google)</Text>
                     <Text size="sm" c="dimmed">
-                      Written to Google Calendar and used as fallback when a view has no assignment.
-                      Raw description stays editable in the event form.
+                      Written to Google Calendar and used as fallback when a view has no
+                      assignment. Pick the fields to show and their order — no typing required.
                     </Text>
-                    <Text size="sm" c="dimmed" lineClamp={2} style={{ overflowWrap: "anywhere" }}>
-                      {eventTitleTemplate || "—"}
+                    <Text size="sm" fw={600} style={{ overflowWrap: "anywhere" }}>
+                      {masterPreview || "—"}
                     </Text>
                   </Stack>
                   <Button
@@ -408,47 +381,6 @@ export function TemplatesForm({
                     Edit master
                   </Button>
                 </Group>
-
-                <Divider />
-
-                <Stack gap={4}>
-                  <Text size="xs" fw={600} c="dimmed" tt="uppercase">
-                    Preview (Master)
-                  </Text>
-                  <Text size="xs" c="dimmed">
-                    {eventTitleSample.description}
-                    {eventTitleSample.eventType
-                      ? ` · ${eventTitleSample.eventType.name}`
-                      : ""} ·{" "}
-                    {samplePeople.map((person) => person.acronym).join(", ") || "no invitees"} ·{" "}
-                    {sampleDepartments.join(", ") || "no departments"} · {eventTitleSample.location}{" "}
-                    · time{" "}
-                    {eventTitleSample.startTime && eventTitleSample.endTime
-                      ? `${eventTitleSample.startTime}-${eventTitleSample.endTime}`
-                      : "—"}
-                  </Text>
-                  <Stack gap={2}>
-                    <Text size="xs" c="dimmed">
-                      All fields:
-                    </Text>
-                    <Text size="sm" fw={600} style={{ overflowWrap: "anywhere" }}>
-                      {eventTitlePreview || "—"}
-                    </Text>
-                  </Stack>
-                  <Stack gap={2}>
-                    <Text size="xs" c="dimmed">
-                      When optional fields empty:
-                    </Text>
-                    <Text size="sm" fw={600} c="dimmed" style={{ overflowWrap: "anywhere" }}>
-                      {eventTitleEmptyPreview || "—"}
-                    </Text>
-                  </Stack>
-                  {masterWarnings.length > 0 && (
-                    <Text size="xs" c="yellow">
-                      {masterWarnings[0]}
-                    </Text>
-                  )}
-                </Stack>
               </Stack>
             </Paper>
           </Grid.Col>
@@ -476,7 +408,7 @@ export function TemplatesForm({
         </Paper>
       </Stack>
 
-      {/* Library modal — entire library behind a button */}
+      {/* Library modal */}
       <Modal
         opened={libraryOpened}
         onClose={closeLibrary}
@@ -518,12 +450,11 @@ export function TemplatesForm({
                         {t.label}
                       </Text>
                       <Badge variant="light" style={{ flexShrink: 0 }}>
-                        {formatEventTitle(eventTitleSample, t.template).slice(0, 24) || "—"}
+                        {renderTitleRecipe(eventTitleSample, t.recipe).slice(0, 24) || "—"}
                       </Badge>
                     </Group>
-                    <Text size="xs" c="dimmed" lineClamp={1} style={{ overflowWrap: "anywhere" }}>
-                      {formatEventTitle(eventTitleSample, t.template) || "—"} · empty:{" "}
-                      {formatEventTitle(eventTitleEmptySample, t.template) || "—"}
+                    <Text size="xs" c="dimmed" style={{ overflowWrap: "anywhere" }}>
+                      {renderTitleRecipe(eventTitleSample, t.recipe) || "—"}
                     </Text>
                   </Stack>
                 </Paper>
@@ -533,19 +464,21 @@ export function TemplatesForm({
         </Stack>
       </Modal>
 
-      {/* Add/Edit form modal (layered above library) */}
+      {/* Add/Edit template modal */}
       <Modal
         opened={formOpened}
         onClose={closeForm}
-        title={editing ? "Edit template" : "Add template"}
+        title={creating ? "Add template" : "Edit template"}
         centered
-        size={isDesktop ? "md" : "sm"}
+        size={isDesktop ? "lg" : "md"}
         zIndex={310}
       >
-        <ViewTemplateForm
+        <RecipeTemplateForm
           key={editing?.id ?? "new"}
-          template={editing}
-          existingLabels={templates.filter((x) => x.id !== editing?.id).map((x) => x.label)}
+          mode={creating ? "create" : "edit"}
+          templateId={editing?.id}
+          label={editing?.label ?? ""}
+          recipe={editing?.recipe ?? { segments: [{ field: "description" }] }}
           sample={eventTitleSample}
           emptySample={eventTitleEmptySample}
           onDone={handleFormDone}
@@ -563,8 +496,7 @@ export function TemplatesForm({
         <Stack>
           <Text size="sm" c="dimmed">
             Choose which template each target displays: dashboard views, the Pinned Events panel
-            and the header&apos;s pinned-events ticker. Empty = Master (Default). Any target can
-            use any token.
+            and the header&apos;s pinned-events ticker. Empty = Master (Default).
           </Text>
 
           <Stack gap="sm">
@@ -586,8 +518,7 @@ export function TemplatesForm({
                     clearable
                   />
                   <Text size="xs" c="dimmed" style={{ overflowWrap: "anywhere" }}>
-                    Preview: {formatEventTitle(eventTitleSample, tpl) || "—"} · Empty:{" "}
-                    {formatEventTitle(eventTitleEmptySample, tpl) || "—"}
+                    Preview: {renderTitleRecipe(eventTitleSample, tpl) || "—"}
                   </Text>
                 </Stack>
               );
@@ -605,16 +536,17 @@ export function TemplatesForm({
         </Stack>
       </Modal>
 
+      {/* Master template modal */}
       <Modal
         opened={masterOpened}
         onClose={closeMaster}
         title="Master Event Title Template"
         centered
-        size={isDesktop ? "md" : "sm"}
+        size={isDesktop ? "lg" : "md"}
       >
-        <MasterTemplateForm
-          key={eventTitleTemplate}
-          initialTemplate={eventTitleTemplate}
+        <RecipeTemplateForm
+          mode="master"
+          recipe={masterTemplate}
           sample={eventTitleSample}
           emptySample={eventTitleEmptySample}
           onDone={() => {
@@ -625,4 +557,24 @@ export function TemplatesForm({
       </Modal>
     </>
   );
+}
+
+function insertTokenAtCursor(
+  current: string,
+  setValue: (value: string) => void,
+  input: HTMLTextAreaElement | null,
+  token: string,
+) {
+  if (!input) {
+    setValue(current + token);
+    return;
+  }
+  const start = input.selectionStart ?? current.length;
+  const end = input.selectionEnd ?? current.length;
+  setValue(current.slice(0, start) + token + current.slice(end));
+  requestAnimationFrame(() => {
+    input.focus();
+    const pos = start + token.length;
+    input.setSelectionRange(pos, pos);
+  });
 }

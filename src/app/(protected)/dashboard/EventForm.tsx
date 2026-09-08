@@ -67,10 +67,11 @@ import {
 import { clampEventEnd, validateEventForm, type EventFormValues } from "@/lib/events/validate";
 import type { CalendarEvent } from "@/lib/events/queries";
 import {
-  formatEventTitle,
-  type EventTitleInput,
+  renderTitleRecipe,
   type EventTitlePerson,
-} from "@/lib/settings/formatEventTitle";
+  type EventTitleRecipeInput,
+  type TitleRecipe,
+} from "@/lib/settings/titleRecipe";
 import { BUTTON_LOADER_PROPS, DESKTOP_WIDE_MEDIA_QUERY } from "@/lib/theme";
 import { announce } from "@/lib/ui/announcer";
 import { showValidationFailure } from "@/lib/ui/validationFeedback";
@@ -115,9 +116,9 @@ interface EventFormProps {
   eventTypes: EventTypeOption[];
   /** Event type groups in display order, for the grouped type picker. */
   eventTypeGroups: { id: string; name: string; sortOrder: number }[];
-  /** Master template (Google) and per-view display template. */
-  eventTitleTemplate: string;
-  viewEventTitleTemplate?: string;
+  /** Master recipe (Google) and per-view display recipe. */
+  eventTitleRecipe: TitleRecipe;
+  viewEventTitleRecipe?: TitleRecipe;
   viewLabel?: string;
   /** Session user id; stored as the event organizer on create. */
   currentUser: string;
@@ -245,8 +246,8 @@ export function EventForm({
   defaultDate,
   eventTypes,
   eventTypeGroups,
-  eventTitleTemplate,
-  viewEventTitleTemplate,
+  eventTitleRecipe,
+  viewEventTitleRecipe,
   viewLabel,
   currentUser,
   isAdmin,
@@ -813,7 +814,7 @@ export function EventForm({
       .map((value) => value.slice("dept:".length))
       .map((id) => departmentNames[id])
       .filter((name): name is string => Boolean(name));
-    const input: EventTitleInput = {
+    const input: EventTitleRecipeInput = {
       description: form.values.title,
       eventType: selectedType
         ? { name: selectedType.name, acronym: selectedType.shortname || selectedType.name }
@@ -827,13 +828,14 @@ export function EventForm({
       startAmPm: effectiveTimeOption === "half" ? form.values.startAmPm || "AM" : "",
       endAmPm: effectiveTimeOption === "half" ? form.values.endAmPm || "PM" : "",
     };
-    const render = (tpl: string) => {
-      return formatEventTitle(input, tpl) || form.values.title.trim();
+    const render = (recipe: TitleRecipe) => {
+      return renderTitleRecipe(input, recipe) || form.values.title.trim();
     };
-    const master = render(eventTitleTemplate);
-    const viewTpl = viewEventTitleTemplate ?? eventTitleTemplate;
-    const view = viewTpl === eventTitleTemplate ? master : render(viewTpl);
-    return { master, view, viewTpl, isSame: viewTpl === eventTitleTemplate };
+    const viewRecipe = viewEventTitleRecipe ?? eventTitleRecipe;
+    const isSame = JSON.stringify(viewRecipe) === JSON.stringify(eventTitleRecipe);
+    const master = render(eventTitleRecipe);
+    const view = isSame ? master : render(viewRecipe);
+    return { master, view, isSame };
   })();
 
   // Review-step display values — resolved from the same effective state the

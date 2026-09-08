@@ -1,7 +1,7 @@
 /**
- * Shared, pure token-template engine used wherever an admin template must
- * render text with conditional groups. It powers the event-title templates
- * (`formatEventTitle`) and the participant-notification content templates.
+ * Pure token-template engine for the participant-notification content
+ * templates (free text with conditional groups; event titles moved to
+ * structured recipes in `titleRecipe.ts`).
  *
  * Grammar (same across both surfaces):
  * - `{token}` / `{token:style}` substitute the resolver's value for that token

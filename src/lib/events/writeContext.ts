@@ -25,13 +25,16 @@ import {
 import { resolveTimeOption, type TimeOption } from "@/lib/events/timeOptions";
 import { getEventTypesByNames } from "@/lib/eventTypes/queries";
 import { getUsersByIds } from "@/lib/roster/queries";
-import type { EventTitlePerson, EventTitleType } from "@/lib/settings/formatEventTitle";
+import type { EventTitlePerson, EventTitleType } from "@/lib/settings/titleRecipe";
 import { formatFullName } from "@/lib/settings/formatName";
 import { getSettings } from "@/lib/settings/queries";
+import type { TitleRecipe } from "@/lib/settings/titleRecipe";
+import { sanitizeTitleRecipe } from "@/lib/settings/titleRecipe";
 
-/** Resolve-once display data behind the event title template tokens. */
+/** Resolve-once display data behind the event title recipe segments. */
 export interface EventTitleContext {
-  template: string;
+  /** The structured master event-title recipe. */
+  recipe: TitleRecipe;
   eventType: EventTitleType | null;
   people: EventTitlePerson[];
   departments: string[];
@@ -104,7 +107,7 @@ export async function buildEventTitleContext(input: EventFormValues): Promise<Ev
     ? { name: eventTypeName, acronym: eventTypeRow?.shortname ?? eventTypeName }
     : null;
   return {
-    template: settings.eventTitleTemplate,
+    recipe: sanitizeTitleRecipe(settings.eventTitleRecipe),
     eventType,
     people,
     departments: inviteesHidden ? [] : inviteeDepartments.map((id) => departmentNames[id] ?? ""),

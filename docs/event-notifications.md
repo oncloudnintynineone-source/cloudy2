@@ -320,10 +320,10 @@ an empty notification.
 
 ### 1.11.2 Tokens & grammar
 
-Notification content renders through the **shared token-template engine**
-(`src/lib/settings/tokenTemplate.ts`, `renderTokenTemplate`) — the same
-tokens / `< >` conditional grammar / escapes as the event-title templates
-(`docs/event-lifecycle.md` §1.8.1). Tokens:
+Notification content renders through the **token-template engine**
+(`src/lib/settings/tokenTemplate.ts`, `renderTokenTemplate`) — the free-text
+tokens / `< >` conditional grammar that event titles once used before they moved to
+structured recipes. Tokens:
 
 | Token      | Value                                                        |
 | ---------- | ------------------------------------------------------------ |

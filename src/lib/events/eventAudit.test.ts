@@ -308,7 +308,7 @@ describe("snapshotFromCopy", () => {
 describe("renderEventTitle", () => {
   const people = [{ full: "Tan Wei Liang", acronym: "TWL", fqn: "Tan Wei Liang" }];
 
-  it("renders a template with description and type tokens", () => {
+  it("renders a recipe with description and type fields", () => {
     expect(
       renderEventTitle({
         description: "Trip to Singapore",
@@ -316,7 +316,12 @@ describe("renderEventTitle", () => {
         people: [],
         departments: [],
         location: "Singapore",
-        template: "{type:acronym} {description}",
+        recipe: {
+          segments: [
+            { field: "type", typeStyle: "acronym", connector: "space" },
+            { field: "description" },
+          ],
+        },
         timeOption: "range",
         startTime: "09:00",
         endTime: "17:00",
@@ -326,7 +331,7 @@ describe("renderEventTitle", () => {
     ).toBe("OUT Trip to Singapore");
   });
 
-  it("renders a visible title from the template even when the description is blank", () => {
+  it("renders a visible title from the recipe even when the description is blank", () => {
     expect(
       renderEventTitle({
         description: "",
@@ -334,7 +339,12 @@ describe("renderEventTitle", () => {
         people,
         departments: ["COU"],
         location: "",
-        template: "{type:acronym} {people:full}",
+        recipe: {
+          segments: [
+            { field: "type", typeStyle: "acronym", connector: "space" },
+            { field: "people", peopleStyle: "full" },
+          ],
+        },
         timeOption: "range",
         startTime: "",
         endTime: "",
@@ -344,7 +354,7 @@ describe("renderEventTitle", () => {
     ).toBe("OUT Tan Wei Liang");
   });
 
-  it("does not hardcode AM/PM marker for half-day events (template controls it)", () => {
+  it("does not hardcode AM/PM marker for half-day events (recipe controls it)", () => {
     expect(
       renderEventTitle({
         description: "Duty",
@@ -352,7 +362,7 @@ describe("renderEventTitle", () => {
         people: [],
         departments: [],
         location: "",
-        template: "{description}",
+        recipe: { segments: [{ field: "description" }] },
         timeOption: "half",
         startTime: "",
         endTime: "",
@@ -370,7 +380,7 @@ describe("renderEventTitle", () => {
         people: [],
         departments: [],
         location: "",
-        template: "{description}",
+        recipe: { segments: [{ field: "description" }] },
         timeOption: "full",
         startTime: "",
         endTime: "",
@@ -380,7 +390,7 @@ describe("renderEventTitle", () => {
     ).toBe("Duty");
   });
 
-  it("falls back to the raw description when the template renders nothing", () => {
+  it("falls back to the raw description when the recipe renders nothing", () => {
     expect(
       renderEventTitle({
         description: "Trip to Singapore",
@@ -388,7 +398,7 @@ describe("renderEventTitle", () => {
         people: [],
         departments: [],
         location: "",
-        template: "{location}",
+        recipe: { segments: [{ field: "location" }] },
         timeOption: "range",
         startTime: "",
         endTime: "",
@@ -398,7 +408,7 @@ describe("renderEventTitle", () => {
     ).toBe("Trip to Singapore");
   });
 
-  it("produces an empty title when the description and template both render nothing", () => {
+  it("produces an empty title when the description and recipe both render nothing", () => {
     expect(
       renderEventTitle({
         description: "   ",
@@ -406,7 +416,7 @@ describe("renderEventTitle", () => {
         people: [],
         departments: [],
         location: "",
-        template: "{description}",
+        recipe: { segments: [{ field: "description" }] },
         timeOption: "range",
         startTime: "",
         endTime: "",

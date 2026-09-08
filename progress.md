@@ -705,6 +705,20 @@ One line per phase; full write-ups (incl. Mermaid diagrams and verification note
   the old kind's default label when the name never left it (pure `nameAfterKindChange`,
   unit-tested); changing the active tab's type re-navigates through the usual
   tab-switch period rules (`docs/dashboard-views.md` §1.1)
+- 1.210 Structured event-title recipes replace the free-text token/`< >` templates
+  (migration 0040): a title is now an ordered list of fields (`type`/`description`/
+  `people`/`departments`/`location`/`time`) with per-field style/wrapper/connector,
+  authored in a picker (`RecipeTemplateForm.tsx`) instead of hand-typed `{token}< … >`
+  text — so an empty field can never leave dangling punctuation (`OL:, …`, `(LZH )`);
+  pure `titleRecipe.ts` (types, `renderTitleRecipe`, `sanitizeTitleRecipe`,
+  `validateTitleRecipe`) replaces `formatEventTitle.ts`, stored as JSONB
+  (`settings.event_title_recipe`, `event_title_templates.recipe`; legacy text columns
+  kept for rollback, never read); consumers rewired (`eventTitle`,
+  `eventTitleDisplay`, `pinned`, `writeContext`, dashboard page/`DashboardView`/
+  `EventForm`, settings queries/actions/UI); existing templates reset to the default
+  recipe (migration deletes library rows + clears assignments); notification content
+  templates keep their own free-text editor. `docs/event-lifecycle.md` §1.8,
+  `AGENTS.md`, `progress-archive.md`
 
 ## 1.4 Open items & next steps
 
