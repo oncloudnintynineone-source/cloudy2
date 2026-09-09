@@ -183,3 +183,37 @@ export function absEventRange(
   }
   return { start: parseNaiveToInstant(naiveStart), end: parseNaiveToInstant(naiveEnd) };
 }
+
+/**
+ * The 12-hour wall-clock offset of an AM/PM indicator within its day:
+ * "AM" = `00:00:00`, "PM" = `12:00:00`.
+ */
+const HALF_OFFSETS: Record<string, number> = { AM: 0, PM: 1 };
+
+/**
+ * Absolute instants a half-day (`timeOption = "half"`) event occupies, honoring
+ * the (AM)/(PM) indicators that `absEventRange` discards. It uses the shared
+ * UTC+8 naive wall-clock and the same inclusive-date semantics as the form:
+ * the start side begins at its day's half (AM = `00:00`, PM = `12:00`), and the
+ * end side's *exclusive* last instant is its day's next boundary (AM = `12:00`,
+ * PM = next-day `00:00`). So an AM-only event covers the morning
+ * (`00:00`–`12:00`), a PM-only event the afternoon (`12:00`–`24:00`), individual
+ * civil half-days never overlap, and a `PM`→`AM` pair tiles a full day back-to-back.
+ *
+ * Calls only make sense for day-based (`full`/`half`) events whose inclusive
+ * dates are known; `startAmPm`/`endAmPm` absent on a side fall back to
+ * `"AM"`/`"PM"` respectively (the full-day degradation).
+ */
+export function halfDayRange(
+  startDate: string,
+  endDate: string,
+  startAmPm: string | null | undefined,
+  endAmPm: string | null | undefined,
+): { start: Date; end: Date } {
+  const startHalf = startAmPm ? (HALF_OFFSETS[startAmPm] ?? 0) : 0;
+  const endHalf = endAmPm ? (HALF_OFFSETS[endAmPm] ?? 1) : 1;
+  const start = parseNaiveToInstant(`${startDate} ${startHalf === 1 ? "12:00:00" : "00:00:00"}`);
+  const endDatePart = endHalf === 0 ? endDate : addOneDay(endDate);
+  const end = parseNaiveToInstant(`${endDatePart} ${endHalf === 0 ? "12:00:00" : "00:00:00"}`);
+  return { start, end };
+}

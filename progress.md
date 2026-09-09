@@ -773,6 +773,16 @@ One line per phase; full write-ups (incl. Mermaid diagrams and verification note
   `sameKeyMembership`, `overrideIsStale`, `swapAdjacent`) unit-tested; the dashboard-views
   Edit-views modal persists the full predicted order, so chained moves stay exact;
   `AGENTS.md` manage-row bullets updated
+- 1.215 Half-day-aware clash detection: `half` events now occupy only their AM/PM half
+  (`halfDayRange` in `datetime.ts`, UTC+8 `00:00`–`12:00` / `12:00`–`24:00`) when the
+  wizard pre-submit advisory (`checkEventClashes`) and the Double Booking scan
+  (`checkUserClashes`) compare windows — an AM half-day no longer warns against a PM
+  event on the same day, while two same-half overlaps (and any half vs a `full` day)
+  still Clash. The engine (`clashes.ts`) carries `timeOption`/`startAmPm`/`endAmPm` on
+  both existing-event inputs and the candidate, resolving the effective sub-day window
+  via `effectiveEventWindow`/`effectiveCandidateWindow`; a legacy `full` event with
+  stray markers keeps its full-day window. Purely detection-side — grading, storage
+  and KAH (day-level busy-days) are untouched.
 
 ## 1.4 Open items & next steps
 

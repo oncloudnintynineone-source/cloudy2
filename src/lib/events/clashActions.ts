@@ -182,6 +182,9 @@ export async function checkEventClashes(
     const candidate: ClashCandidateInput = {
       start: window.start,
       end: window.end,
+      timeOption: effectiveInput.timeOption,
+      startAmPm: effectiveInput.startAmPm || null,
+      endAmPm: effectiveInput.endAmPm || null,
       creatorId: effectiveInput.creatorId || null,
       inviteeUserIds: effectiveInput.inviteeUserIds,
       inviteeDepartments: effectiveInput.inviteeDepartments,

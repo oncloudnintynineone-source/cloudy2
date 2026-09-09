@@ -15,7 +15,13 @@
 
 import { formatInstantToNaive, monthsInRange } from "@/lib/events/datetime";
 import { listCalendars } from "@/lib/events/queries";
-import { isExternalEvent, parseEventPeople } from "@/lib/events/notes";
+import {
+  isExternalEvent,
+  parseEventEndAmPm,
+  parseEventPeople,
+  parseEventStartAmPm,
+  parseEventTimeOption,
+} from "@/lib/events/notes";
 import type { ClashEventInput } from "@/lib/events/clashes";
 import { getCachedMonthEventsForCalendars } from "@/lib/google/eventsCache";
 
@@ -95,6 +101,9 @@ export async function clashingEventsFor(
           end: item.end,
           allDay: item.allDay,
           external: isExternalEvent(item.description),
+          timeOption: parseEventTimeOption(item.description) ?? (item.allDay ? "full" : "range"),
+          startAmPm: parseEventStartAmPm(item.description),
+          endAmPm: parseEventEndAmPm(item.description),
           people: {
             creatorId: people.creatorId,
             userIds: people.userIds,

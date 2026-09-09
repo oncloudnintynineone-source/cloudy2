@@ -49,6 +49,17 @@ calendar cache already uses (`start < end`; back-to-back events do not clash);
 all-day events carry their exclusive end date, exactly as in `absEventRange`
 ([`datetime.ts`](event-lifecycle.md#1112-datetime-conventions-datetimets)).
 
+**Half-day (`half`) events clash at half-day resolution, not whole-day.** A
+day-based event stores no time on Google — the (AM)/(PM) markers live only in
+the notes block — so the overlap test compares the *effective* window each
+event actually occupies: `halfDayRange` (`datetime.ts`) maps AM to
+`00:00`–`12:00` and PM to `12:00`–`24:00` (UTC+8 wall clock). Two adjacent
+halves of the same day therefore fit back-to-back and do **not** clash, while
+an AM event still clashes with another AM event (and a `full` event with
+anything that day). The engine only applies this for a `half` event carrying
+*both* markers; a legacy `full` event whose notes still carry stray (AM)/(PM)
+markers keeps its full-day window.
+
 > Membership expansion only ever counts **active** roster users, and the candidate
 > itself is always normalized through the same `resolveEventAuthor` chain as a real
 > create/update (fixed organizer), so the advisory reasons about the exact
@@ -182,6 +193,11 @@ advisory; submitting while it is in flight simply proceeds).
   it an affected candidate, so a member's overlapping personal event is reported.
 - **Department-level existing event**: it occupies all members of its tagged
   departments, so any overlapping candidate that involves one of them clashes.
+- **Half-day events**: the candidate and each existing event are compared by
+  their effective AM/PM sub-day windows (§1.2), so an AM half-day does not warn
+  against a PM half-day on the same day, while two AM (or AM-vs-full-day)
+  overlaps still do. The advisory is advisory only, so the boundary between
+  morning and afternoon is exact (`12:00` UTC+8) rather than rounded.
 - **External events**: no parseable people → treated as occupying every active member
   of their calendar (the schedule view pins them to the department row, and
   department-row events are events for everyone within).

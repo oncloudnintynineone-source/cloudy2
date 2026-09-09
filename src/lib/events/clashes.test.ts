@@ -1,9 +1,12 @@
 import { describe, expect, it } from "vitest";
 
+import { addOneDay, dateToUtc } from "./datetime";
 import {
   busyUsersOfEvent,
   candidateUsers,
   computeClashes,
+  effectiveCandidateWindow,
+  effectiveEventWindow,
   findUserClashGroups,
   instantWindowsOverlap,
   type ClashCandidateInput,
@@ -29,6 +32,9 @@ function makeEvent(
     title: "Existing event",
     allDay: false,
     external: false,
+    timeOption: "range",
+    startAmPm: null,
+    endAmPm: null,
     people: { creatorId: null, userIds: [], departmentIds: [] },
     ...overrides,
   };
@@ -40,6 +46,29 @@ const rosterUsers = () => [
   { id: "u3", departmentId: "cal-2" },
   { id: "u4", departmentId: "cal-2" },
 ];
+
+/**
+ * A day-based event as the cache shapes it: `start`/`end` are UTC-midnight
+ * all-day instants (exclusive end date), and the (AM)/(PM) markers ride in
+ * `startAmPm`/`endAmPm` with `timeOption: "half"`.
+ */
+function makeHalfEvent(
+  startDate: string,
+  endDate: string,
+  startAmPm: "AM" | "PM",
+  endAmPm: "AM" | "PM",
+  overrides: Partial<ClashEventInput> = {},
+): ClashEventInput {
+  return makeEvent({
+    allDay: true,
+    start: dateToUtc(startDate),
+    end: dateToUtc(addOneDay(endDate)),
+    timeOption: "half",
+    startAmPm,
+    endAmPm,
+    ...overrides,
+  });
+}
 
 const roster = (rows: { id: string; departmentId: string | null }[]) => {
   const members = new Map<string, string[]>();
@@ -96,6 +125,210 @@ describe("instantWindowsOverlap", () => {
         instant("2026-08-17 10:00:00"),
       ),
     ).toBe(true);
+  });
+});
+
+describe("effectiveEventWindow / effectiveCandidateWindow", () => {
+  it("keeps the stored window for range events", () => {
+    const event = makeEvent({
+      start: instant("2026-08-17 09:00:00"),
+      end: instant("2026-08-17 10:00:00"),
+    });
+    expect(effectiveEventWindow(event)).toEqual({ start: event.start, end: event.end });
+  });
+
+  it("keeps the stored full-day window for full events even with stray markers", () => {
+    const event = makeEvent({
+      allDay: true,
+      start: dateToUtc("2026-08-17"),
+      end: dateToUtc("2026-08-18"),
+      timeOption: "full",
+      startAmPm: "AM",
+      endAmPm: "PM",
+    });
+    expect(effectiveEventWindow(event)).toEqual({ start: event.start, end: event.end });
+  });
+
+  it("collapses a half AM→AM event to the morning half", () => {
+    const event = makeHalfEvent("2026-08-17", "2026-08-17", "AM", "AM");
+    expect(effectiveEventWindow(event)).toEqual({
+      start: new Date("2026-08-16T16:00:00.000Z"),
+      end: new Date("2026-08-17T04:00:00.000Z"),
+    });
+  });
+
+  it("collapses a half PM→PM event to the afternoon half", () => {
+    const event = makeHalfEvent("2026-08-17", "2026-08-17", "PM", "PM");
+    expect(effectiveEventWindow(event)).toEqual({
+      start: new Date("2026-08-17T04:00:00.000Z"),
+      end: new Date("2026-08-17T16:00:00.000Z"),
+    });
+  });
+
+  it("resolves a half candidate with the same sub-day window", () => {
+    const candidate: ClashCandidateInput = {
+      start: dateToUtc("2026-08-17"),
+      end: dateToUtc("2026-08-18"),
+      timeOption: "half",
+      startAmPm: "AM",
+      endAmPm: "AM",
+      creatorId: "u1",
+      inviteeUserIds: ["u1"],
+      inviteeDepartments: [],
+    };
+    expect(effectiveCandidateWindow(candidate)).toEqual({
+      start: new Date("2026-08-16T16:00:00.000Z"),
+      end: new Date("2026-08-17T04:00:00.000Z"),
+    });
+  });
+});
+
+describe("half-day clashes", () => {
+  it("clashes two AM half-days on the same day", () => {
+    const result = computeClashes({
+      candidate: {
+        start: dateToUtc("2026-08-17"),
+        end: dateToUtc("2026-08-18"),
+        timeOption: "half",
+        startAmPm: "AM",
+        endAmPm: "AM",
+        creatorId: "u1",
+        inviteeUserIds: ["u1"],
+        inviteeDepartments: [],
+      },
+      events: [
+        makeHalfEvent("2026-08-17", "2026-08-17", "AM", "AM", {
+          people: { creatorId: "u1", userIds: ["u1"], departmentIds: [] },
+        }),
+      ],
+      activeUsers: rosterUsers(),
+    });
+    expect(result.clashes).toHaveLength(1);
+    expect(result.clashes[0].affectedUserIds).toEqual(["u1"]);
+  });
+
+  it("clashes two PM half-days on the same day", () => {
+    const result = computeClashes({
+      candidate: {
+        start: dateToUtc("2026-08-17"),
+        end: dateToUtc("2026-08-18"),
+        timeOption: "half",
+        startAmPm: "PM",
+        endAmPm: "PM",
+        creatorId: "u1",
+        inviteeUserIds: ["u1"],
+        inviteeDepartments: [],
+      },
+      events: [
+        makeHalfEvent("2026-08-17", "2026-08-17", "PM", "PM", {
+          people: { creatorId: "u1", userIds: ["u1"], departmentIds: [] },
+        }),
+      ],
+      activeUsers: rosterUsers(),
+    });
+    expect(result.clashes).toHaveLength(1);
+  });
+
+  it("does not clash an AM half-day against a PM half-day on the same day", () => {
+    const result = computeClashes({
+      candidate: {
+        start: dateToUtc("2026-08-17"),
+        end: dateToUtc("2026-08-18"),
+        timeOption: "half",
+        startAmPm: "AM",
+        endAmPm: "AM",
+        creatorId: "u1",
+        inviteeUserIds: ["u1"],
+        inviteeDepartments: [],
+      },
+      events: [
+        makeHalfEvent("2026-08-17", "2026-08-17", "PM", "PM", {
+          people: { creatorId: "u1", userIds: ["u1"], departmentIds: [] },
+        }),
+      ],
+      activeUsers: rosterUsers(),
+    });
+    expect(result.clashes).toEqual([]);
+  });
+
+  it("clashes a PM half-day against a full-day event on the same day", () => {
+    const result = computeClashes({
+      candidate: {
+        start: dateToUtc("2026-08-17"),
+        end: dateToUtc("2026-08-18"),
+        timeOption: "half",
+        startAmPm: "PM",
+        endAmPm: "PM",
+        creatorId: "u1",
+        inviteeUserIds: ["u1"],
+        inviteeDepartments: [],
+      },
+      events: [
+        makeEvent({
+          allDay: true,
+          start: dateToUtc("2026-08-17"),
+          end: dateToUtc("2026-08-18"),
+          timeOption: "full",
+          people: { creatorId: "u1", userIds: ["u1"], departmentIds: [] },
+        }),
+      ],
+      activeUsers: rosterUsers(),
+    });
+    expect(result.clashes).toHaveLength(1);
+    expect(result.clashes[0].affectedUserIds).toEqual(["u1"]);
+  });
+
+  it("clashes a cross-midnight PM→AM half-day against a timed evening event", () => {
+    // Candidate occupies 17th PM + 18th AM. A timed 17th 23:00–23:30 SGT event
+    // (17:00–17:30 UTC) falls inside the 17th PM half, so it clashes.
+    const result = computeClashes({
+      candidate: {
+        start: dateToUtc("2026-08-17"),
+        end: dateToUtc("2026-08-19"),
+        timeOption: "half",
+        startAmPm: "PM",
+        endAmPm: "AM",
+        creatorId: "u1",
+        inviteeUserIds: ["u1"],
+        inviteeDepartments: [],
+      },
+      events: [
+        makeEvent({
+          start: instant("2026-08-17 23:00:00"),
+          end: instant("2026-08-17 23:30:00"),
+          people: { creatorId: "u1", userIds: ["u1"], departmentIds: [] },
+        }),
+      ],
+      activeUsers: rosterUsers(),
+    });
+    expect(result.clashes).toHaveLength(1);
+  });
+
+  it("does not clash a cross-midnight half-day against a back-to-back next-day event", () => {
+    // Candidate occupies 17th PM + 18th AM and ends at 18th 12:00 SGT
+    // (04:00 UTC). A timed event starting exactly at 18th 12:00 SGT is
+    // back-to-back, so it does not clash.
+    const result = computeClashes({
+      candidate: {
+        start: dateToUtc("2026-08-17"),
+        end: dateToUtc("2026-08-19"),
+        timeOption: "half",
+        startAmPm: "PM",
+        endAmPm: "AM",
+        creatorId: "u1",
+        inviteeUserIds: ["u1"],
+        inviteeDepartments: [],
+      },
+      events: [
+        makeEvent({
+          start: instant("2026-08-18 12:00:00"),
+          end: instant("2026-08-18 13:00:00"),
+          people: { creatorId: "u1", userIds: ["u1"], departmentIds: [] },
+        }),
+      ],
+      activeUsers: rosterUsers(),
+    });
+    expect(result.clashes).toEqual([]);
   });
 });
 
@@ -164,6 +397,9 @@ describe("candidateUsers", () => {
     const candidate: ClashCandidateInput = {
       start: instant("2026-08-17 09:00:00"),
       end: instant("2026-08-17 10:00:00"),
+      timeOption: "range",
+      startAmPm: null,
+      endAmPm: null,
       creatorId: "u1",
       inviteeUserIds: ["u3"],
       inviteeDepartments: ["cal-1"],
@@ -182,6 +418,9 @@ describe("candidateUsers", () => {
     const candidate: ClashCandidateInput = {
       start: instant("2026-08-17 09:00:00"),
       end: instant("2026-08-17 10:00:00"),
+      timeOption: "range",
+      startAmPm: null,
+      endAmPm: null,
       creatorId: "u1",
       inviteeUserIds: [],
       inviteeDepartments: [],
@@ -193,6 +432,9 @@ describe("candidateUsers", () => {
     const candidate: ClashCandidateInput = {
       start: instant("2026-08-17 09:00:00"),
       end: instant("2026-08-17 10:00:00"),
+      timeOption: "range",
+      startAmPm: null,
+      endAmPm: null,
       creatorId: "u1",
       inviteeUserIds: ["u1", "ghost"],
       inviteeDepartments: [],
@@ -207,6 +449,9 @@ describe("computeClashes", () => {
   const candidate: ClashCandidateInput = {
     start: instant("2026-08-17 09:00:00"),
     end: instant("2026-08-17 11:00:00"),
+    timeOption: "range",
+    startAmPm: null,
+    endAmPm: null,
     creatorId: "u1",
     inviteeUserIds: ["u1", "u3"],
     inviteeDepartments: [],

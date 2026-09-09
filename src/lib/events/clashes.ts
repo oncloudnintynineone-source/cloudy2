@@ -20,6 +20,9 @@
  * Kept free of any I/O so it can be unit-tested without a database.
  */
 
+import { halfDayRange, subOneDay, utcToDateString } from "@/lib/events/datetime";
+import type { TimeOption } from "@/lib/events/timeOptions";
+
 /** One existing calendar event, pre-read and shaped for the engine. */
 export interface ClashEventInput {
   /** Registry (department) calendar id this copy was read from. */
@@ -40,6 +43,12 @@ export interface ClashEventInput {
   allDay: boolean;
   /** True when the event was created directly in Google (no app notes). */
   external: boolean;
+  /** Datetime option used to create the event ("range" | "full" | "half"). */
+  timeOption: TimeOption;
+  /** Start half-of-day indicator for "half" events, else null. */
+  startAmPm: "AM" | "PM" | null;
+  /** End half-of-day indicator for "half" events, else null. */
+  endAmPm: "AM" | "PM" | null;
   /** People from the notes block: creator, tagged users, tagged departments. */
   people: {
     creatorId: string | null;
@@ -54,6 +63,12 @@ export interface ClashCandidateInput {
   start: Date;
   /** Absolute end instant, exclusive. */
   end: Date;
+  /** Datetime option used to create the event; drives the half-aware window. */
+  timeOption: TimeOption;
+  /** Start half-of-day indicator for "half" events, else null. */
+  startAmPm: "AM" | "PM" | null;
+  /** End half-of-day indicator for "half" events, else null. */
+  endAmPm: "AM" | "PM" | null;
   /**
    * Effective organizer id (fixed: the acting user on create, the stored
    * organizer on edit); informational here — the organizer is occupied only
@@ -105,6 +120,44 @@ export interface ClashComputation {
  */
 export function instantWindowsOverlap(startA: Date, endA: Date, startB: Date, endB: Date): boolean {
   return startA < endB && startB < endA;
+}
+
+/**
+ * The instants an existing event actually occupies for clash purposes. For
+ * `range` events (and every non-`half` event) this is the stored window; for a
+ * `half` event carrying both AM/PM markers it is the sub-day window honoring
+ * them (`halfDayRange` always uses the UTC-midnight all-day date basis, which
+ * is exactly what `start`/`end` carry for day-based events). A `full` event —
+ * and a legacy `full` event whose notes still carry stray markers — keeps its
+ * stored full-day window.
+ */
+export function effectiveEventWindow(event: ClashEventInput): { start: Date; end: Date } {
+  if (event.timeOption === "half" && event.startAmPm && event.endAmPm) {
+    const endDate = subOneDay(utcToDateString(event.end));
+    return halfDayRange(utcToDateString(event.start), endDate, event.startAmPm, event.endAmPm);
+  }
+  return { start: event.start, end: event.end };
+}
+
+/**
+ * The instants a candidate event would occupy, honoring the same half-day rule
+ * as `effectiveEventWindow` (for a `half` candidate, `start`/`end` are the
+ * all-day instants the mutation would write, so the same UTC-midnight basis
+ * applies).
+ */
+export function effectiveCandidateWindow(
+  candidate: Pick<ClashCandidateInput, "start" | "end" | "timeOption" | "startAmPm" | "endAmPm">,
+): { start: Date; end: Date } {
+  if (candidate.timeOption === "half" && candidate.startAmPm && candidate.endAmPm) {
+    const endDate = subOneDay(utcToDateString(candidate.end));
+    return halfDayRange(
+      utcToDateString(candidate.start),
+      endDate,
+      candidate.startAmPm,
+      candidate.endAmPm,
+    );
+  }
+  return { start: candidate.start, end: candidate.end };
 }
 
 /**
@@ -214,12 +267,14 @@ export function computeClashes(params: {
   const membersByDepartment = buildActiveMembersByDepartment(activeUsers);
   const activeUserIds = new Set(activeUsers.map((user) => user.id));
   const affected = candidateUsers(candidate, activeUserIds, membersByDepartment);
+  const candidateWindow = effectiveCandidateWindow(candidate);
 
   // One accumulation slot per dedup key (logical event, else the raw copy).
   const byKey = new Map<string, { event: ClashEventInput; affected: Set<string> }>();
 
   for (const event of events) {
-    if (!instantWindowsOverlap(candidate.start, candidate.end, event.start, event.end)) {
+    const window = effectiveEventWindow(event);
+    if (!instantWindowsOverlap(candidateWindow.start, candidateWindow.end, window.start, window.end)) {
       continue;
     }
     const busy = busyUsersOfEvent(event, membersByDepartment);
@@ -359,8 +414,8 @@ export function findUserClashGroups(params: {
   };
   for (let i = 0; i < occupying.length; i++) {
     for (let j = i + 1; j < occupying.length; j++) {
-      const a = occupying[i].event;
-      const b = occupying[j].event;
+      const a = effectiveEventWindow(occupying[i].event);
+      const b = effectiveEventWindow(occupying[j].event);
       if (instantWindowsOverlap(a.start, a.end, b.start, b.end)) {
         union(i, j);
       }

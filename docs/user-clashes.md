@@ -77,9 +77,13 @@ counts against the user.
 
 A **double booking** for the user is two or more occupying events whose half-open
 instant windows overlap (`instantWindowsOverlap`; back-to-back events do not clash).
-Reports are maximal **connected components** of the pairwise-overlap graph among
-occupying events — an overlap chain `A↔B↔C` is one report even when `A` and `C` do not
-touch each other. Components of size one are dropped. The shared chips of a report are
+Half-day (`timeOption = "half"`) events are compared at half-day resolution — the
+(AM)/(PM) markers stored in the notes map to `00:00`–`12:00` / `12:00`–`24:00`
+UTC+8 (`halfDayRange`, `datetime.ts`), so a morning leave does not clash with an
+afternoon event on the same day, but two morning events do. Reports are maximal
+**connected components** of the pairwise-overlap graph among
+occupying events — an overlap chain `A↔B↔C` is one report even when `A` and `C` do
+not touch each other. Components of size one are dropped. The shared chips of a report are
 the roster users occupied by _every_ event in it (a subset always containing the
 scanned user).
 

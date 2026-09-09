@@ -8232,3 +8232,54 @@ Users and departments nested under a parent were shown FLAT everywhere a picker/
 **Docs**: `docs/user-picker.md` §1.2–§1.4 rewritten for depth + path labels; `docs/roster-sharing.md` §1.7 (pick-order paragraph + pure-helper table), progress changelog 1.213.
 
 **Verified**: pnpm typecheck, pnpm lint, pnpm vitest run (full), pnpm build. Manual after deploy: dashboard Calendars chips read "HQ › Ops" for children, the Users picker sections indent nested departments under their parent's section, and event Participants / KAH members / audit Actors / users Department filter + grant picker + own-department field / a department's Parent picker all show the ancestor chain on the department pills.
+
+## 1.215 Half-day-aware clash detection
+
+A `half` event is written to Google as a whole-day all-day entry — its (AM)/(PM)
+markers live only in the notes block and the rendered title — so the clash engine
+previously compared cast every half-day as a full-day buyout: an AM half-day leave
+warned against a PM event on the same day (false positive), and the Double Booking
+scan reported the same. This phase makes both clash consumers (the wizard
+pre-submit advisory `checkEventClashes` and the Double Booking scan
+`checkUserClashes`) compare the **effective AM/PM sub-day windows** instead.
+
+**Semantics**: a half-day occupies exactly the UTC+8 civil half named by its
+indicator — AM = `00:00`–`12:00`, PM = `12:00`–`24:00` (half-open). Adjacent
+halves of the same day are back-to-back (no clash); two same-half events still
+clash; any half vs a `full` day (or a timed event inside the half) still clashes.
+
+**Pure helpers**: `halfDayRange(startDate, endDate, startAmPm, endAmPm)`
+(`src/lib/events/datetime.ts`) maps the inclusive date pair + indicators to
+instants via the shared UTC+8 naive-clock parse (`parseNaiveToInstant`); a side
+missing its marker falls back to the full-day boundary. `effectiveEventWindow` /
+`effectiveCandidateWindow` (`src/lib/events/clashes.ts`) return the stored window
+for `range`/`full`/external events, and the half-mapped window for a `half` event
+carrying both markers — a legacy `full` event whose notes still carry stray
+markers keeps its full-day window. The engine's overlap tests
+(`computeClashes`, `findUserClashGroups`) now always compare these effective
+windows; ordering/display still use the stored instants.
+
+**Data threading**: `ClashEventInput` and `ClashCandidateInput` gain
+`timeOption`/`startAmPm`/`endAmPm`. `clashQuery.ts` populates them from the same
+notes parses `mapCalendarItem` uses (`parseEventTimeOption`/`parseEventStartAmPm`/
+`parseEventEndAmPm`, falling back to the all-day `"full"` default); `clashActions.ts`
+passes the resolved `effectiveInput` markers into the candidate. The month-cache read
+window stays the whole-day superset — only the overlap comparison is half-aware.
+
+**Out of scope by design**: KAH busy-days stay day-level (`src/lib/kah/status.ts`),
+storage/display unchanged, and legacy `full`+marker events remain full-day.
+
+**Tests**: `datetime.test.ts` covers `halfDayRange` (AM→PM full day, AM→AM morning,
+PM→PM afternoon, PM→AM cross-midnight, marker-less fallback); `clashes.test.ts`
+covers `effectiveEventWindow`/`effectiveCandidateWindow` (range passthrough, full +
+stray markers, morning/afternoon halves) and end-to-end half-day clashes (AM-vs-AM
+clashes, PM-vs-PM clashes, AM-vs-PM does not, PM-half vs full-day clashes,
+cross-midnight PM→AM vs a timed evening event clashes, back-to-back next-day event
+does not).
+
+**Docs**: `docs/event-clashes.md` §1.2 (half-day clash semantics) + §1.7 (half-day
+edge case), `docs/user-clashes.md` §1.3 (half-day resolution in the scan),
+progress changelog 1.215.
+
+**Verified**: pnpm typecheck, pnpm lint, pnpm vitest run (full, 1029 pass). No
+schema or migration change.

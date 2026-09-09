@@ -7,6 +7,7 @@ import {
   dateToUtc,
   daysBetween,
   formatInstantToNaive,
+  halfDayRange,
   lastDayOfMonth,
   monthGridMonths,
   monthGridRows,
@@ -217,6 +218,46 @@ describe("absEventRange", () => {
     expect(absEventRange("2026-08-17 00:00:00", "2026-08-18 00:00:00", true)).toEqual({
       start: new Date("2026-08-17T00:00:00.000Z"),
       end: new Date("2026-08-19T00:00:00.000Z"),
+    });
+  });
+});
+
+describe("halfDayRange", () => {
+  it("resolves an AM→PM same-day pair to a full SGT day", () => {
+    expect(halfDayRange("2026-08-15", "2026-08-15", "AM", "PM")).toEqual({
+      start: new Date("2026-08-14T16:00:00.000Z"),
+      end: new Date("2026-08-15T16:00:00.000Z"),
+    });
+  });
+
+  it("covers only the morning for a same-day AM→AM event", () => {
+    // 12:00 SGT == 04:00 UTC.
+    expect(halfDayRange("2026-08-15", "2026-08-15", "AM", "AM")).toEqual({
+      start: new Date("2026-08-14T16:00:00.000Z"),
+      end: new Date("2026-08-15T04:00:00.000Z"),
+    });
+  });
+
+  it("covers only the afternoon for a same-day PM→PM event", () => {
+    // 12:00 SGT == 04:00 UTC.
+    expect(halfDayRange("2026-08-15", "2026-08-15", "PM", "PM")).toEqual({
+      start: new Date("2026-08-15T04:00:00.000Z"),
+      end: new Date("2026-08-15T16:00:00.000Z"),
+    });
+  });
+
+  it("handles a cross-midnight PM→AM span", () => {
+    // Start 15th 12:00 SGT (04:00 UTC), end 16th 12:00 SGT (04:00 UTC).
+    expect(halfDayRange("2026-08-15", "2026-08-16", "PM", "AM")).toEqual({
+      start: new Date("2026-08-15T04:00:00.000Z"),
+      end: new Date("2026-08-16T04:00:00.000Z"),
+    });
+  });
+
+  it("degenerates to a full SGT day with both markers absent", () => {
+    expect(halfDayRange("2026-08-15", "2026-08-15", null, null)).toEqual({
+      start: new Date("2026-08-14T16:00:00.000Z"),
+      end: new Date("2026-08-15T16:00:00.000Z"),
     });
   });
 });
