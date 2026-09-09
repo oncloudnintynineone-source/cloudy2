@@ -66,6 +66,8 @@
           Arial, sans-serif;
         background: var(--c2-body);
         min-height: 100dvh;
+        display: flex;
+        flex-direction: column;
       }
 
       /* Brand bar — AppShell.Header: brand-7 fill, brand-8 border, 56px +
@@ -125,10 +127,18 @@
         border: 0;
       }
 
-      /* Content column — the app's Stack cancels AppShell's 16px top padding
-         and pads below for the fixed bottom nav. */
+      /* Content column — fills the region between the header and the fixed
+         bottom nav with an even 16px gutter on every side (mirrors the AppShell
+         main's `md` padding that dashboard/loading.tsx relies on). */
       main {
-        padding: 0 16px calc(32px + 56px + env(safe-area-inset-bottom, 0px)) 16px;
+        flex: 1;
+        display: flex;
+        padding: 16px 16px calc(56px + 16px + env(safe-area-inset-bottom, 0px));
+      }
+      .stack {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
       }
       .stack > * + * {
         margin-top: 12px;
@@ -137,7 +147,7 @@
       /* One plain loading block — mirrors dashboard/loading.tsx. */
       .plainbox {
         width: 100%;
-        height: min(70dvh, 640px);
+        flex: 1 1 auto;
       }
 
       /* Bottom nav (AppShell.Footer): mobile-only, 56px + safe-area. */
