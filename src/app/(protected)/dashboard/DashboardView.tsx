@@ -2281,13 +2281,13 @@ export function DashboardView({
                   <ActionIcon
                     variant="subtle"
                     color="gray"
-                    size={30}
+                    size={36}
                     ml={4}
                     aria-label="All views"
                     title="All views"
                     style={{ flex: "0 0 auto" }}
                   >
-                    <IconChevronDown size={16} />
+                    <IconChevronDown size={18} />
                   </ActionIcon>
                 </Menu.Target>
                 <Menu.Dropdown>
@@ -2324,7 +2324,7 @@ export function DashboardView({
               <ActionIcon
                 variant="subtle"
                 color="gray"
-                size={30}
+                size={36}
                 ml={4}
                 mr={4}
                 aria-label="Edit views"
@@ -2332,7 +2332,7 @@ export function DashboardView({
                 onClick={openEdit}
                 style={{ flex: "0 0 auto" }}
               >
-                <IconSettings size={16} />
+                <IconSettings size={18} />
               </ActionIcon>
             )}
           </Group>
