@@ -2610,6 +2610,21 @@ export function DashboardView({
             styles={{ monthViewInner: monthViewInnerStyle }}
             scrollAreaProps={monthScrollAreaProps}
             maxEventsPerDay={isDesktop ? 4 : 3}
+            moreEventsProps={{
+              // On the fit-to-width zoom the 7 columns drop to ~45-51px on
+              // narrow phones; the library's "+ more" button has no nowrap /
+              // ellipsis (unlike the event chips), so a wrapped label bleeds
+              // into the week below. Pin it to a single line via the Styles
+              // API root (never `style` — the library spreads its absolute
+              // positioning inline and that would override it).
+              styles: {
+                moreEventsButton: {
+                  whiteSpace: "nowrap",
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                },
+              },
+            }}
             renderEvent={renderMyMonthEvent}
             onEventClick={(event, e) => {
               // Stand-ins have no real Google id yet — ignore taps on them.
