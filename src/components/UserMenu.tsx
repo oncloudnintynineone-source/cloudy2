@@ -11,10 +11,12 @@ import {
   IconMoon,
   IconSun,
   IconSunMoon,
+  IconTag,
   IconUser,
 } from "@tabler/icons-react";
 import { signOut } from "next-auth/react";
 
+import { APP_VERSION } from "@/lib/appVersion";
 import { MOTION } from "@/lib/motion/timing";
 import { clearAllSavedPages } from "@/lib/pwa/client";
 import { clearUiState } from "@/lib/ui/uiStateClient";
@@ -137,6 +139,10 @@ export function UserMenu({ name, role, phone }: UserMenuProps) {
               </Text>
             )}
           </Stack>
+          <Menu.Divider />
+          <Menu.Item disabled leftSection={<IconTag size={16} />}>
+            Version {APP_VERSION}
+          </Menu.Item>
           <Menu.Divider />
           {SCHEMES.map(({ value, label, icon: Icon }) => (
             <Menu.Item

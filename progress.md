@@ -18,7 +18,7 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
 
 ## 1.1 Status
 
-- All work through changelog **1.214 (FLIP reorder animation on every manageable list)** is shipped.
+- All work through changelog **1.216 (auto-refresh on return from background)** is shipped.
 - Quality gates (`lint` / `typecheck` / `test` / schema-drift check) run in CI on every
   push and PR. Pushes also auto-apply migrations per environment: `dev` →
   `migrate-preview` against the dev Neon DB, `main` → `migrate` against the prod Neon
@@ -783,6 +783,14 @@ One line per phase; full write-ups (incl. Mermaid diagrams and verification note
   via `effectiveEventWindow`/`effectiveCandidateWindow`; a legacy `full` event with
   stray markers keeps its full-day window. Purely detection-side — grading, storage
   and KAH (day-level busy-days) are untouched.
+- 1.216 Auto-refresh on return from background: a tab left running goes stale and
+  misses deploys, so `useInactivityRefresh` (`AppShellShell`) soft-refreshes (RSC-only
+  `router.refresh()`) when the tab becomes visible after >5 min hidden, and
+  `useSWUpdateReload` (`AppProviders`) calls `registration.update()` on the same
+  `visibilitychange` so a deploy that landed meanwhile triggers the existing
+  `controllerchange` takeover reload instead of an old-build 404 hang. Pure
+  `INACTIVITY_REFRESH_MS`/`needsInactivityRefresh` in `swRules.ts`, unit-tested
+  (`docs/pwa-offline.md` §1.17).
 
 ## 1.4 Open items & next steps
 

@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 
-import { APP_RSC_CACHE_PREFIX, isPageCacheName, needsReconcile } from "./swRules";
+import { APP_RSC_CACHE_PREFIX, isPageCacheName, needsInactivityRefresh, needsReconcile } from "./swRules";
 
 /**
  * Names of the page caches currently on disk — matched by prefix, because
@@ -204,5 +204,54 @@ export function useStaleDocumentReconcile(): void {
         router.refresh();
       });
     }, RECONCILE_DELAY_MS);
+  }, [router]);
+}
+
+// --- Inactivity refresh ----------------------------------------------------
+//
+// A tab left in the background never reconciles (the reconcile above is a
+// once-per-document-load affair, and navigation-driven refreshes only run when
+// the user navigates). So a backgrounded PWA can sit stale for hours: the
+// server's event cache has long expired, and any deploy that landed meanwhile
+// never reached the tab. This hook remembers when the document went hidden and,
+// when it becomes visible again after more than INACTIVITY_REFRESH_MS, pulls
+// fresh data — a soft, non-destructive `router.refresh()` that clears only the
+// RSC entries (the cached *document* is preserved for instant launch, matching
+// the reconcile). Actively reading the timestamp instead of a timer matters:
+// background tabs freeze timers, but they still fire `visibilitychange`.
+// The deploy side is handled separately (useSWUpdateReload triggers a SW
+// update() on the same transition).
+
+// Module scope, not a ref: the hidden timestamp only ever means "the instant
+// this document most recently went hidden", and a document load resets it — so
+// one value scopes cleanly to one document's lifetime (and React's dev-mode
+// double effect invocation cannot double-count it).
+let lastHiddenAt = 0;
+
+/**
+ * Refresh the current route when the tab returns to the foreground after being
+ * hidden longer than `INACTIVITY_REFRESH_MS`. Mounted once in `AppShellShell`
+ * (protected routes only), so every authenticated page is covered and `/login`
+ * — plus the pre-JS browser gate — is untouched. A quick app-switch (hidden for
+ * less than the window) keeps the in-memory render; longer absences pull fresh
+ * RSC without a full reload (scroll/state preserved).
+ */
+export function useInactivityRefresh(): void {
+  const router = useRouter();
+  useEffect(() => {
+    if (document.visibilityState === "hidden") lastHiddenAt = Date.now();
+    const onVisibility = () => {
+      if (document.visibilityState === "hidden") {
+        lastHiddenAt = Date.now();
+        return;
+      }
+      const hiddenAt = lastHiddenAt;
+      lastHiddenAt = 0;
+      if (hiddenAt === 0) return;
+      if (!needsInactivityRefresh(Date.now() - hiddenAt)) return;
+      void invalidateRscPathCaches(window.location.pathname).then(() => router.refresh());
+    };
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => document.removeEventListener("visibilitychange", onVisibility);
   }, [router]);
 }

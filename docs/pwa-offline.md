@@ -21,6 +21,7 @@ The PWA opens with calendar events visible instantly — even cold or offline �
 - [1.14 Sign-out](#114-sign-out)
 - [1.15 File index & related docs](#115-file-index--related-docs)
 - [1.16 Limitations & follow-ups](#116-limitations--follow-ups)
+- [1.17 Auto-refresh on return from background](#117-auto-refresh-on-return-from-background)
 
 ## 1.1 Problem
 
@@ -344,6 +345,7 @@ profile menu (every page):
 | Launch whitelist | 9 routes, in the shell's `#c2-launch-routes` JSON (drift-guarded against `BASE_PAGES`/`SETTINGS_SUBTABS`) | `public/loading.html` |
 | Start-URL leniency | `/` + any `utm_*` params counts; hash ignored (§1.5.1) | `src/lib/pwa/swRules.ts` |
 | Document fresh window | 5 min (`DOCUMENT_FRESH_WINDOW_MS`) — beyond it a cached document reconciles after paint (§1.5) | `src/lib/pwa/swRules.ts` |
+| Inactivity refresh window | 5 min (`INACTIVITY_REFRESH_MS`) — a tab hidden longer refreshes on return (§1.17) | `src/lib/pwa/swRules.ts` |
 | Reconcile delay | 1500 ms after mount, once per document load (§1.5) | `src/lib/pwa/client.ts` |
 
 The document/RSC expiration plugins set `purgeOnQuotaError: true` so a cache-storage quota error evicts expired entries instead of silently failing writes.
@@ -399,7 +401,7 @@ sign-out isolation, and the deploy-takeover reload (§1.8).
 | `src/app/sw.ts` | Serwist SW: precache + 6 runtime routes (images, fonts, RSC, launch shell, documents, NetworkOnly fallback) + activate-time page-cache wipe (§1.8) + offline last-saved-view fallback (§1.9) |
 | `src/lib/pwa/swRules.ts` | Pure predicates, constants & build-version helpers (see §1.13) |
 | `src/lib/pwa/swRules.test.ts` | Unit tests for the above |
-| `src/lib/pwa/client.ts` | Client cache helpers (prefix-matched across build versions): `invalidatePathCaches`, `invalidateRscPathCaches`, `invalidateCurrentPathCaches`, `clearAllSavedPages`, `documentCachedAtIso`, + the `useStaleDocumentReconcile` after-paint reconcile (§1.5) + `useOneShotRefreshStrip` (§1.11) |
+| `src/lib/pwa/client.ts` | Client cache helpers (prefix-matched across build versions): `invalidatePathCaches`, `invalidateRscPathCaches`, `invalidateCurrentPathCaches`, `clearAllSavedPages`, `documentCachedAtIso`, + the `useStaleDocumentReconcile` after-paint reconcile (§1.5) + `useOneShotRefreshStrip` (§1.11) + `useInactivityRefresh` (§1.17) |
 | `src/app/(protected)/dashboard/DashboardView.tsx` | Route-level one-shot strips (`_fresh`/`edit`/`event`) + `router.refresh` → invalidate-then-refresh + pin-toggle cache invalidation (§1.7); no longer hosts Force refresh or a "Saved" chip (§1.11) |
 | `src/components/AppProviders.tsx` | Session-expiry `message` listener + `controllerchange` build-swap reload (§1.8) + mounts `useStaleDocumentReconcile` (§1.5) |
 | `src/components/UserMenu.tsx` | Profile menu: theme switcher (light/dark/system rows) + sign-out cache purge |
@@ -418,3 +420,71 @@ sign-out isolation, and the deploy-takeover reload (§1.8).
 - First-ever open on a brand-new device needs one online visit before instant/offline works (the caches are populated on that first successful render). An IndexedDB snapshot rendered before the first RSC would cover this, but the value is low given the install flow already requires connectivity.
 - Push notifications remain deferred (needs VAPID + backend) — unchanged from Phase 3a.
 - The deploy-takeover reload (§1.8) interrupts whatever the user was doing on the old build (scroll position, form drafts in flight). An explicit "New version available — reload" banner would be the refinement if that ever bites; today the takeover is correct-by-default and silent.
+
+## 1.17 Auto-refresh on return from background
+
+A PWA left running — tab switched away, app sent to the background, screen
+locked — does **not** keep itself fresh. The after-paint reconcile (§1.5) is a
+once-per-document-load affair, and every other refresh site (navigation,
+mutation, the header's Force refresh) requires user action. So a backgrounded
+app can sit stale indefinitely, and worse: a deploy that lands while it is idle
+never reaches it, leaving the **old build** running whose in-flight RSC /
+`/_next/static` chunk requests then 404 against the new deploy when the user
+returns — a stuck (infinite) load with no recovery except a manual reload.
+
+Two small client pieces fix both, keyed on the Page Visibility API
+(`visibilitychange` / `document.visibilityState`):
+
+- **Deploy catch-up** — `AppProviders`' `useSWUpdateReload` (§1.8) gains a
+  `visibilitychange` listener that calls `navigator.serviceWorker.getRegistration()`
+  → `update()` whenever the tab regains visibility. The browser otherwise only
+  checks for a new SW on navigation/page load — which a backgrounded PWA never
+  does. If a new build exists, `skipWaiting` + `clientsClaim` fire the existing
+  `controllerchange` → `clearAllSavedPages()` + `reload()` sequence; if not,
+  the check is a cheap no-op.
+- **Data refresh** — `useInactivityRefresh` (`AppShellShell`, protected routes
+  only) records the timestamp when the document goes `hidden` and, when it
+  returns `visible` after more than `INACTIVITY_REFRESH_MS` (5 min), clears
+  the current pathname's **RSC** cache entries and runs a soft
+  `router.refresh()` — non-destructive (scroll/state preserved), and the
+  cached *document* is deliberately left intact for instant launch, exactly
+  like the reconcile (§1.5). A quick app-switch (hidden < 5 min) keeps the
+  in-memory render.
+
+The timestamp is read actively on the visibility transition — never a timer —
+because background tabs freeze timers but still dispatch `visibilitychange`.
+The action always runs at the moment of return (never while hidden), which is
+what makes it reliable across desktop tabs, Android PWA (Home / app-switch /
+lock), and iOS PWA; an Android WebView killed under memory pressure instead
+comes back as a cold launch through the §1.5.1 shell, which already reconciles.
+
+```mermaid
+sequenceDiagram
+    participant T as Tab (document)
+    participant V as visibilitychange
+    participant C as Client hooks
+    participant SW as Service worker
+    participant S as Server (RSC)
+
+    Note over T: user backgrounds app → hidden
+    T->>T: lastHiddenAt = Date.now()
+    Note over T: … minutes/hours pass …
+    T->>V: visible (fo-reground)
+    V->>C: update() (deploy check)
+    C->>SW: getRegistration().update()
+    alt new build published
+        SW->>C: skipWaiting + clientsClaim → controllerchange
+        C->>C: clearAllSavedPages() + location.reload()
+    end
+    V->>C: hidden duration ≥ 5 min?
+    alt yes
+        C->>C: invalidateRscPathCaches(pathname)
+        C->>S: router.refresh() (soft, fresh RSC)
+    else no
+        C->>C: keep in-memory render
+    end
+```
+
+Files: the pure `INACTIVITY_REFRESH_MS` / `needsInactivityRefresh`
+(`swRules.ts`, unit-tested), `useInactivityRefresh` (`pwa/client.ts`), and the
+SW `update()` check inside `useSWUpdateReload` (`AppProviders.tsx`).

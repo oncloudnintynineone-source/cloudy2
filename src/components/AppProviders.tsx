@@ -36,6 +36,28 @@ function useSWUpdateReload() {
     return () =>
       navigator.serviceWorker.removeEventListener("controllerchange", handleChange);
   }, []);
+
+  // The browser only checks for a new SW (and therefore a deploy) on a
+  // navigation or page load. A backgrounded PWA does neither, so a deploy that
+  // lands while the app sits idle leaves the old build running — and when the
+  // user returns, the old build's in-flight RSC / `/_next/static` chunk
+  // requests hit hashes that 404 against the new deploy, presenting as a stuck
+  // (infinite) load. Trigger a manual `update()` when the tab regains
+  // visibility: if a new build exists, `skipWaiting` + `clientsClaim` fire
+  // `controllerchange` and the reload handler above takes over; otherwise the
+  // check is a cheap no-op.
+  useEffect(() => {
+    if (!("serviceWorker" in navigator)) return;
+    const onVisible = () => {
+      if (document.visibilityState !== "visible") return;
+      void navigator.serviceWorker
+        .getRegistration()
+        .then((reg) => reg?.update())
+        .catch(() => {});
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => document.removeEventListener("visibilitychange", onVisible);
+  }, []);
 }
 
 function useSessionExpiryRedirect() {

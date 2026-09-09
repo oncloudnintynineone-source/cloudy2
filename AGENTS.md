@@ -313,6 +313,11 @@ mechanics in the doc.
   `router.refresh()` site that must **not** invalidate the document cache (it
   clears RSC only via `invalidateRscPathCaches`) — every other site invalidates
   the current pathname first via `invalidateCurrentPathCaches()`.
+  **Auto-refresh on return from background** (§1.17): a tab left running stays
+  stale and misses deploys; on `visibilitychange` → visible after >5 min,
+  `useInactivityRefresh` (`AppShellShell`) soft-refreshes (RSC-only), while
+  `useSWUpdateReload` (`AppProviders`) calls `registration.update()` so a new
+  deploy triggers the §1.8 takeover instead of an old-build 404 hang.
   Design: [docs/pwa-offline.md](docs/pwa-offline.md).
 - **Unsupported-browser gate:** the app targets the Next 16 / React 19 floor
   (Safari 16.4 / Chrome 111 / Firefox 111 / Edge 111) — deliberately **no
@@ -343,6 +348,11 @@ mechanics in the doc.
   step if the schema changed (§1.11). **Suggest a commit message** summarizing the change,
   matching the repo's concise style — then stop. **You never run these git commands
   yourself** (see Hard rules): hand the user the exact commands and let them push.
+- **App build version:** after every codebase change (not docs-only), bump `APP_VERSION` in
+  `src/lib/appVersion.ts` before handing over the git commands. Format `YYYY.MM.DD-N`; on
+  the first change of a new day advance the date to today and reset the counter to `1`,
+  otherwise increment `N` by `1`. It renders read-only as the first menu row in the profile
+  menu (`src/components/UserMenu.tsx`) — no other consumer.
 - UI is **Mantine v9**; theme in `src/lib/theme.ts`, mounted by the client component
   `AppProviders` (`src/components/AppProviders.tsx`). The theme carries a function value
   (`components.Input.vars`), so `MantineProvider` (and `Notifications`) must stay in that

@@ -11,7 +11,9 @@ import {
   isPageCacheName,
   isSessionExpiredResponse,
   isStartUrlRequest,
+  INACTIVITY_REFRESH_MS,
   keysForPathname,
+  needsInactivityRefresh,
   needsReconcile,
   newestSavedView,
   rscCacheName,
@@ -453,6 +455,23 @@ describe("swRules", () => {
 
     it("clamps a future stamp (clock skew) to age 0", () => {
       expect(needsReconcile(new Date(now + 60_000).toISOString(), now)).toBe(false);
+    });
+  });
+
+  describe("needsInactivityRefresh", () => {
+    it("does not refresh a brief (sub-window) absence", () => {
+      expect(needsInactivityRefresh(0)).toBe(false);
+      expect(needsInactivityRefresh(INACTIVITY_REFRESH_MS - 1)).toBe(false);
+    });
+
+    it("refreshes at or beyond the window", () => {
+      expect(needsInactivityRefresh(INACTIVITY_REFRESH_MS)).toBe(true);
+      expect(needsInactivityRefresh(INACTIVITY_REFRESH_MS + 1)).toBe(true);
+      expect(needsInactivityRefresh(24 * 60 * 60_000)).toBe(true);
+    });
+
+    it("refuses a negative duration (clock skew)", () => {
+      expect(needsInactivityRefresh(-1)).toBe(false);
     });
   });
 

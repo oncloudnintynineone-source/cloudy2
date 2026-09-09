@@ -220,6 +220,15 @@ export function newestSavedView(entries: readonly SavedViewEntry[]): SavedViewEn
 export const DOCUMENT_FRESH_WINDOW_MS = 5 * 60_000;
 
 /**
+ * How long the tab must have been hidden (backgrounded / not visible) before
+ * the page refreshes itself when it returns to the foreground. Matches
+ * `DOCUMENT_FRESH_WINDOW_MS`: the same "cold enough to be stale" intuition
+ * applies — a tab hidden this long has left the server's freshness windows and
+ * any deploy that landed meanwhile is worth picking up.
+ */
+export const INACTIVITY_REFRESH_MS = 5 * 60_000;
+
+/**
  * Whether a cached document is recent enough to be considered up to date.
  *
  * `savedAtMs` is null when there is no cache entry, or when the stored response
@@ -248,6 +257,18 @@ export function needsReconcile(cachedAtIso: string | null | undefined, now: numb
   const savedAtMs = Date.parse(cachedAtIso);
   if (Number.isNaN(savedAtMs)) return false;
   return !isDocumentFresh(savedAtMs, now);
+}
+
+/**
+ * Whether a tab that has just returned to the foreground, after being hidden
+ * for `hiddenDurationMs`, should refresh its data. A tab hidden for less than
+ * `INACTIVITY_REFRESH_MS` (a quick app switch) keeps its in-memory render —
+ * it is still within the server's freshness windows; longer than that, its
+ * view is stale and worth pulling fresh (and a deploy that landed in the gap
+ * should be picked up, which the SW update check handles separately).
+ */
+export function needsInactivityRefresh(hiddenDurationMs: number): boolean {
+  return hiddenDurationMs >= INACTIVITY_REFRESH_MS;
 }
 
 /**

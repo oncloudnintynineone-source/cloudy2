@@ -46,7 +46,7 @@ import { BOTTOM_NAV_HEIGHT } from "@/lib/bottomNav";
 import { fetchPinnedEvents, type PinnedEvent } from "@/lib/events/pinned";
 import type { Rect } from "@/lib/motion/origin";
 import { MOTION } from "@/lib/motion/timing";
-import { useOneShotRefreshStrip } from "@/lib/pwa/client";
+import { useInactivityRefresh, useOneShotRefreshStrip } from "@/lib/pwa/client";
 import { DESKTOP_MEDIA_QUERY, DESKTOP_WIDE_MEDIA_QUERY, NARROW_MEDIA_QUERY } from "@/lib/theme";
 import { StatusAnnouncer } from "@/lib/ui/announcer";
 import { ImmersiveModeContext, type ImmersiveModeValue } from "@/lib/ui/immersiveMode";
@@ -319,6 +319,11 @@ export function AppShellShell({
   // nonce strips it here (RSC entries cleared first, so the clean-URL replace
   // can't re-serve a stale payload). See useOneShotRefreshStrip in pwa/client.
   useOneShotRefreshStrip();
+
+  // Refresh the current view when the tab returns to the foreground after a
+  // long idle (see useInactivityRefresh in pwa/client). A backgrounded PWA
+  // accumulates staleness that no navigation-driven refresh ever corrects.
+  useInactivityRefresh();
 
   // Cold-start readiness: the shell's two mount fetches (pinned events, clash
   // count) are the client-side tail of a fresh load — the readiness indicator
