@@ -444,14 +444,23 @@ Two small client pieces fix both, keyed on the Page Visibility API
   the check is a cheap no-op.
 - **Data refresh** — `useInactivityRefresh` (`AppShellShell`, protected routes
   only) records the timestamp when the document goes `hidden` and, when it
-  returns `visible` after more than `INACTIVITY_REFRESH_MS` (5 min), clears
-  the current pathname's **RSC** cache entries and runs a soft
-  `router.refresh()` — non-destructive (scroll/state preserved), and the
-  cached *document* is deliberately left intact for instant launch, exactly
-  like the reconcile (§1.5). A quick app-switch (hidden < 5 min) keeps the
-  in-memory render.
+  returns after more than `INACTIVITY_REFRESH_MS` (5 min), drives the **same
+  one-shot `?refresh` force-read** the header's Force refresh uses: a soft
+  `router.replace` to a `?refresh=<now>` URL so the dashboard's server read
+  bypasses its cache freshness window and blocks on fresh Google data
+  (`page.tsx`'s `force`), then strips the nonce once the forced render commits.
+  A bare `router.refresh()` would return the **same stale grid** — after 5 min
+  hidden the events cache is stale-but-usable (60 s fresh / 30 min expire, see
+  `docs/events-cache.md`), so a plain re-read is a no-op in pixels. The refresh
+  is non-destructive (scroll/state preserved) and the cached *document* is
+  deliberately left intact for instant launch, exactly like the reconcile
+  (§1.5); its transition pending flag is reported on the activity bar (a
+  same-path soft navigation has no skeleton). A quick app-switch (hidden < 5
+  min) keeps the in-memory render. The absence is also recorded on `blur` and
+  the return detected on `focus` and bfcache `pageshow` (`event.persisted`) —
+  some platforms skip the visibility transition entirely.
 
-The timestamp is read actively on the visibility transition — never a timer —
+The timestamp is read actively on the return transition — never a timer —
 because background tabs freeze timers but still dispatch `visibilitychange`.
 The action always runs at the moment of return (never while hidden), which is
 what makes it reliable across desktop tabs, Android PWA (Home / app-switch /
@@ -461,15 +470,15 @@ comes back as a cold launch through the §1.5.1 shell, which already reconciles.
 ```mermaid
 sequenceDiagram
     participant T as Tab (document)
-    participant V as visibilitychange
+    participant V as visible / focus / pageshow(persisted)
     participant C as Client hooks
     participant SW as Service worker
     participant S as Server (RSC)
 
-    Note over T: user backgrounds app → hidden
+    Note over T: user backgrounds app → hidden / blur
     T->>T: lastHiddenAt = Date.now()
     Note over T: … minutes/hours pass …
-    T->>V: visible (fo-reground)
+    T->>V: foreground return
     V->>C: update() (deploy check)
     C->>SW: getRegistration().update()
     alt new build published
@@ -478,13 +487,16 @@ sequenceDiagram
     end
     V->>C: hidden duration ≥ 5 min?
     alt yes
-        C->>C: invalidateRscPathCaches(pathname)
-        C->>S: router.refresh() (soft, fresh RSC)
+        C->>C: router.replace(?refresh=now) in a transition
+        C->>S: forced RSC read (dashboard force-reads Google)
+        C->>C: strip ?refresh after commit
     else no
         C->>C: keep in-memory render
     end
 ```
 
 Files: the pure `INACTIVITY_REFRESH_MS` / `needsInactivityRefresh`
-(`swRules.ts`, unit-tested), `useInactivityRefresh` (`pwa/client.ts`), and the
-SW `update()` check inside `useSWUpdateReload` (`AppProviders.tsx`).
+(`swRules.ts`, unit-tested), `useInactivityRefresh` + the shared
+`stripRefreshNonce` (`pwa/client.ts`), the shell's `InactivityActivityReporter`
+(`AppShellShell.tsx`), and the SW `update()` check inside `useSWUpdateReload`
+(`AppProviders.tsx`).

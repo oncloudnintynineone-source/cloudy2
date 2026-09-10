@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useEffect } from "react";
+import { useCallback, useEffect, useRef, useTransition } from "react";
 
 import { APP_RSC_CACHE_PREFIX, isPageCacheName, needsInactivityRefresh, needsReconcile } from "./swRules";
 
@@ -126,33 +126,51 @@ export async function refreshFresh(
 let strippedRefreshThisDocument = false;
 
 /**
+ * Remove the current URL's one-shot `?refresh` nonce: clear the pathname's RSC
+ * cache entries first (so the clean-URL `router.replace` can't be answered by a
+ * stale SWR payload — the same trap the dashboard's per-page one-shot strips
+ * document) and `router.replace` to the clean URL with no history entry. The
+ * cached *document* is deliberately left alone: it is what makes the next
+ * launch instant, and the nonce URL is never stored by the SW anyway. Shared by
+ * the mount-time strip (`useOneShotRefreshStrip`) and the inactivity refresh's
+ * post-commit strip.
+ */
+function stripRefreshNonce(router: ReturnType<typeof useRouter>): void {
+  let url: URL;
+  try {
+    url = new URL(window.location.href);
+  } catch {
+    return;
+  }
+  if (!url.searchParams.has("refresh")) return;
+  url.searchParams.delete("refresh");
+  const clean = `${url.pathname}${url.search}`;
+  void invalidateRscPathCaches(url.pathname).then(() => {
+    router.replace(clean, { scroll: false });
+  });
+}
+
+/**
  * Strip the one-shot `?refresh=` nonce once per document load. Mounted in the
  * protected shell (AppShellShell): on mount, if the URL carries a `refresh`
- * param, clear the pathname's RSC cache entries (so the clean-URL replace
- * below can't be answered by a stale SWR payload — the same trap the dashboard's
- * per-page one-shot strips document) and `router.replace` to the clean URL with
- * no history entry. The cached *document* is deliberately left alone: it is
- * what makes the next launch instant, and this document came off the network
- * anyway (the nonce URL is never stored).
+ * param, clear the pathname's RSC cache entries and `router.replace` to the
+ * clean URL. A nonce that arrives *mid-document* (the inactivity refresh's soft
+ * navigation) is stripped by that hook itself — this effect runs once per mount
+ * (`[router]`), so it never races the reload-less URL change.
  */
 export function useOneShotRefreshStrip(): void {
   const router = useRouter();
   useEffect(() => {
     if (strippedRefreshThisDocument) return;
-    let url: URL;
+    let hasNonce = false;
     try {
-      url = new URL(window.location.href);
+      hasNonce = new URL(window.location.href).searchParams.has("refresh");
     } catch {
       return;
     }
-    if (!url.searchParams.has("refresh")) return;
+    if (!hasNonce) return;
     strippedRefreshThisDocument = true;
-    url.searchParams.delete("refresh");
-    const clean = `${url.pathname}${url.search}`;
-    const pathname = url.pathname;
-    void invalidateRscPathCaches(pathname).then(() => {
-      router.replace(clean, { scroll: false });
-    });
+    stripRefreshNonce(router);
   }, [router]);
 }
 
@@ -214,11 +232,19 @@ export function useStaleDocumentReconcile(): void {
 // the user navigates). So a backgrounded PWA can sit stale for hours: the
 // server's event cache has long expired, and any deploy that landed meanwhile
 // never reached the tab. This hook remembers when the document went hidden and,
-// when it becomes visible again after more than INACTIVITY_REFRESH_MS, pulls
-// fresh data — a soft, non-destructive `router.refresh()` that clears only the
-// RSC entries (the cached *document* is preserved for instant launch, matching
-// the reconcile). Actively reading the timestamp instead of a timer matters:
-// background tabs freeze timers, but they still fire `visibilitychange`.
+// when it becomes visible again after more than INACTIVITY_REFRESH_MS, drives
+// the same one-shot `?refresh` force-read the header's Force refresh uses — a
+// soft `router.replace` to a `?refresh=<now>` URL, so the dashboard's server
+// read bypasses its cache freshness window and blocks on fresh Google data
+// (page.tsx), then strips the nonce once the forced render commits (the URL
+// must not linger: the SW never caches it and it would re-force every later
+// refresh within its TTL). A bare `router.refresh()` would be useless here —
+// after 5 min hidden the events cache is stale-but-usable (60 s fresh / 30 min
+// expire), so a plain re-read returns the same grid. Actively reading the
+// timestamp instead of a timer matters: background tabs freeze timers, but they
+// still fire `visibilitychange` (and a bfcache restore fires `pageshow` with
+// `event.persisted`, and a window regains `focus` — all three are listened for,
+// since some platforms skip the visibility transition entirely).
 // The deploy side is handled separately (useSWUpdateReload triggers a SW
 // update() on the same transition).
 
@@ -234,10 +260,44 @@ let lastHiddenAt = 0;
  * (protected routes only), so every authenticated page is covered and `/login`
  * — plus the pre-JS browser gate — is untouched. A quick app-switch (hidden for
  * less than the window) keeps the in-memory render; longer absences pull fresh
- * RSC without a full reload (scroll/state preserved).
+ * RSC without a full reload (scroll/state preserved). Returns the forced-refresh
+ * navigation's transition pending flag so the shell can report it on the shared
+ * activity bar (a same-path soft navigation has no skeleton of its own).
  */
-export function useInactivityRefresh(): void {
+export function useInactivityRefresh(): boolean {
   const router = useRouter();
+  const [isPending, startTransition] = useTransition();
+  // Set once a forced-refresh navigation is kicked off; when its transition
+  // commits (isPending drops) the `?refresh` nonce is stripped so it can't keep
+  // re-forcing later refreshes. Only this hook's own navigation sets it, so an
+  // unrelated transition can never strip early.
+  const stripAfterNav = useRef(false);
+
+  useEffect(() => {
+    if (stripAfterNav.current && !isPending) {
+      stripAfterNav.current = false;
+      stripRefreshNonce(router);
+    }
+  }, [isPending, router]);
+
+  const onReturn = useCallback(() => {
+    const hiddenAt = lastHiddenAt;
+    lastHiddenAt = 0;
+    if (hiddenAt === 0) return;
+    if (!needsInactivityRefresh(Date.now() - hiddenAt)) return;
+    let url: URL;
+    try {
+      url = new URL(window.location.href);
+    } catch {
+      return;
+    }
+    url.searchParams.set("refresh", String(Date.now()));
+    stripAfterNav.current = true;
+    startTransition(() => {
+      router.replace(`${url.pathname}${url.search}`, { scroll: false });
+    });
+  }, [router, startTransition]);
+
   useEffect(() => {
     if (document.visibilityState === "hidden") lastHiddenAt = Date.now();
     const onVisibility = () => {
@@ -245,13 +305,34 @@ export function useInactivityRefresh(): void {
         lastHiddenAt = Date.now();
         return;
       }
-      const hiddenAt = lastHiddenAt;
-      lastHiddenAt = 0;
-      if (hiddenAt === 0) return;
-      if (!needsInactivityRefresh(Date.now() - hiddenAt)) return;
-      void invalidateRscPathCaches(window.location.pathname).then(() => router.refresh());
+      onReturn();
+    };
+    // A window can lose focus without the document going hidden (alt-tab, a
+    // second monitor, an overlay window), and some WebViews background without
+    // `visibilitychange` at all — so `blur` records the absence and `focus`
+    // (like a bfcache-restoring `pageshow` with `event.persisted`) is a return
+    // signal. All three route through the same idempotent check: `onReturn`
+    // zeroes `lastHiddenAt`, so whichever fires first wins and the rest no-op.
+    const onBlur = () => {
+      lastHiddenAt = Date.now();
+    };
+    const onFocus = () => {
+      onReturn();
+    };
+    const onPageshow = (event: PageTransitionEvent) => {
+      if (event.persisted) onReturn();
     };
     document.addEventListener("visibilitychange", onVisibility);
-    return () => document.removeEventListener("visibilitychange", onVisibility);
-  }, [router]);
+    window.addEventListener("blur", onBlur);
+    window.addEventListener("focus", onFocus);
+    window.addEventListener("pageshow", onPageshow);
+    return () => {
+      document.removeEventListener("visibilitychange", onVisibility);
+      window.removeEventListener("blur", onBlur);
+      window.removeEventListener("focus", onFocus);
+      window.removeEventListener("pageshow", onPageshow);
+    };
+  }, [onReturn]);
+
+  return isPending;
 }

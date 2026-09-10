@@ -314,10 +314,15 @@ mechanics in the doc.
   clears RSC only via `invalidateRscPathCaches`) — every other site invalidates
   the current pathname first via `invalidateCurrentPathCaches()`.
   **Auto-refresh on return from background** (§1.17): a tab left running stays
-  stale and misses deploys; on `visibilitychange` → visible after >5 min,
-  `useInactivityRefresh` (`AppShellShell`) soft-refreshes (RSC-only), while
-  `useSWUpdateReload` (`AppProviders`) calls `registration.update()` so a new
-  deploy triggers the §1.8 takeover instead of an old-build 404 hang.
+  stale and misses deploys; after >5 min hidden, `useInactivityRefresh`
+  (`AppShellShell`) soft-navigates to a one-shot `?refresh=<now>` URL (the
+  header Force refresh's force-read — a bare `router.refresh()` would re-serve
+  the still-usable events cache, so the grid never changed) and strips the nonce
+  after the forced render commits, reporting the transition on the activity bar;
+  firing is hardened with `blur`/`focus`/bfcache `pageshow` fallbacks, while
+  `useSWUpdateReload` (`AppProviders`) calls `registration.update()` on the same
+  return so a new deploy triggers the §1.8 takeover instead of an old-build 404
+  hang.
   Design: [docs/pwa-offline.md](docs/pwa-offline.md).
 - **Unsupported-browser gate:** the app targets the Next 16 / React 19 floor
   (Safari 16.4 / Chrome 111 / Firefox 111 / Edge 111) — deliberately **no

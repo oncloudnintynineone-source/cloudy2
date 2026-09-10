@@ -156,6 +156,19 @@ function navCountPill(item: NavItem): React.ReactNode {
   );
 }
 
+/**
+ * Reports the inactivity refresh's forced navigation on the shared activity
+ * bar. It must live *inside* the `ActivityProvider` (the hook itself runs in
+ * `AppShellShell`'s body, outside its own provider), so the shell passes the
+ * pending flag down into the provider subtree. The forced nav is a same-path
+ * soft navigation — no skeleton — so without this the refresh would be
+ * invisible for its whole (cold serverless + Google) round trip.
+ */
+function InactivityActivityReporter({ pending }: { pending: boolean }) {
+  useReportActivity(pending, "dashboard:background");
+  return null;
+}
+
 /** A nav icon in a `position: relative` wrapper so the count pill can ride its
  *  top-right corner. */
 function NavIcon({ item }: { item: NavItem }) {
@@ -322,8 +335,10 @@ export function AppShellShell({
 
   // Refresh the current view when the tab returns to the foreground after a
   // long idle (see useInactivityRefresh in pwa/client). A backgrounded PWA
-  // accumulates staleness that no navigation-driven refresh ever corrects.
-  useInactivityRefresh();
+  // accumulates staleness that no navigation-driven refresh ever corrects. The
+  // returned pending flag reports the forced refresh on the activity bar
+  // (see InactivityActivityReporter below).
+  const inactivityPending = useInactivityRefresh();
 
   // Cold-start readiness: the shell's two mount fetches (pinned events, clash
   // count) are the client-side tail of a fresh load — the readiness indicator
@@ -709,6 +724,7 @@ export function AppShellShell({
         Skip to content
       </a>
       <ActivityProvider>
+        <InactivityActivityReporter pending={inactivityPending} />
         <AppShell
           ref={rootRef}
           // `--app-banner-height` (absent by default → 0px from the class, the

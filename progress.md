@@ -784,11 +784,17 @@ One line per phase; full write-ups (incl. Mermaid diagrams and verification note
   stray markers keeps its full-day window. Purely detection-side — grading, storage
   and KAH (day-level busy-days) are untouched.
 - 1.216 Auto-refresh on return from background: a tab left running goes stale and
-  misses deploys, so `useInactivityRefresh` (`AppShellShell`) soft-refreshes (RSC-only
-  `router.refresh()`) when the tab becomes visible after >5 min hidden, and
+  misses deploys, so `useInactivityRefresh` (`AppShellShell`) soft-refreshes when
+  the tab returns after >5 min hidden and
   `useSWUpdateReload` (`AppProviders`) calls `registration.update()` on the same
   `visibilitychange` so a deploy that landed meanwhile triggers the existing
-  `controllerchange` takeover reload instead of an old-build 404 hang. Pure
+  `controllerchange` takeover reload instead of an old-build 404 hang. Fixed:
+  the data refresh now drives the **same one-shot `?refresh` force-read** as the
+  header Force refresh (soft `router.replace` to a nonce URL → dashboard
+  force-reads Google → nonce stripped after commit; a bare `router.refresh()`
+  returned the same stale events cache, so the grid never visibly changed), the
+  transition pending flag is reported on the activity bar, and the firing is
+  hardened with `blur`/`focus`/bfcache `pageshow` fallbacks. Pure
   `INACTIVITY_REFRESH_MS`/`needsInactivityRefresh` in `swRules.ts`, unit-tested
   (`docs/pwa-offline.md` §1.17).
 
