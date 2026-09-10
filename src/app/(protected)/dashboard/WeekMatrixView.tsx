@@ -32,6 +32,12 @@ export interface WeekMatrixViewProps {
   groups: ScheduleResourceGroup[] | undefined;
   /** The week's events (already calendar/type/user filtered). */
   events: CalendarEvent[];
+  /**
+   * Department id → active member user ids. Department-tagged events expand to
+   * each member's row (so members see them in their own cell), in addition to
+   * the department row.
+   */
+  memberships?: ReadonlyMap<string, string[]>;
   /** Today (`YYYY-MM-DD`) for the highlighted day column. */
   today: string;
   /**
@@ -85,6 +91,7 @@ export function WeekMatrixView({
   resources,
   groups,
   events,
+  memberships,
   today,
   myRowId,
   renderResourceLabel,
@@ -123,7 +130,7 @@ export function WeekMatrixView({
     }
   }, []);
 
-  const laneMap = useMemo(() => buildWeekLanes(events, days), [events, days]);
+  const laneMap = useMemo(() => buildWeekLanes(events, days, memberships), [events, days, memberships]);
 
   // One block per department group (the group label spans the group's rows);
   // resources not covered by any group still get rows (defensive).

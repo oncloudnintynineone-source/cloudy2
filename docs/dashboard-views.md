@@ -184,13 +184,17 @@ Cell binning is pure and unit-tested in `src/lib/events/weekMatrix.ts`:
 - **`coveredDays(event, week)`** (`:40`) — the week days an event's naive start/end
   range occupies; all-day events carry an _exclusive_ end date, so the final covered
   day is the end date minus one.
-- **`buildWeekLanes(events, week)`** (`:56`) — one `WeekSpan` per event per row,
+- **`buildWeekLanes(events, week, memberships)`** (`:56`) — one `WeekSpan` per event per row,
   merged into non-overlapping lanes by greedy interval partitioning (sorted by
   startDay → start time → title). Lane `n` renders on grid row `n + 1` of the
   resource row's nested grid. Row semantics (`rowsForEvent`, `departmentRowId`)
   match the schedule views exactly: events with no row still appear when they are
   **external** (pinned to their calendar's department row); unlinked non-external
   events are dropped. A multi-day event is a single span across its covered columns.
+  A `memberships` map (department id → active member user ids) expands each tagged
+  department to its active members' rows, so a department-level event shows in
+  every member's cell, not just the department row — matching the clash occupancy
+  model ([`event-clashes.md`](event-clashes.md) §1.2).
 
 ## 1.4 Data flow shared by all views
 

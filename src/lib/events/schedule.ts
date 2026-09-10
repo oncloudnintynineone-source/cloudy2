@@ -59,18 +59,33 @@ export function isDepartmentRowId(id: string | number): boolean {
  * per tagged department, deduped. The organizer gets a personal row only when
  * they tagged themselves as an attendee — an organizer who is not attending
  * (not self-invited and outside any tagged department) has no row.
+ *
+ * With a `memberships` map (department id → active member user ids), each
+ * tagged department also expands to its active members' personal rows, so a
+ * department-level event shows in every member's cell, not just the department
+ * row — matching the clash occupancy model (a department-tagged event occupies
+ * every active member). Members are deduped against individually tagged users.
  */
-export function rowsForEvent(people: {
-  creatorId: string | null;
-  userIds: string[];
-  departmentIds: string[];
-}): string[] {
+export function rowsForEvent(
+  people: {
+    creatorId: string | null;
+    userIds: string[];
+    departmentIds: string[];
+  },
+  memberships?: ReadonlyMap<string, string[]>,
+): string[] {
   const rows = new Set<string>();
   for (const userId of people.userIds) {
     rows.add(userId);
   }
   for (const departmentId of people.departmentIds) {
     rows.add(departmentRowId(departmentId));
+    const members = memberships?.get(departmentId);
+    if (members) {
+      for (const memberId of members) {
+        rows.add(memberId);
+      }
+    }
   }
   return [...rows];
 }
@@ -80,15 +95,23 @@ export function rowsForEvent(people: {
  * with the row key keeps ids unique across rows of the same Google event.
  * Events linked to no one expand to nothing — except externally created ones,
  * which are pinned to their own calendar's department row so they stay visible.
+ * A `memberships` map also expands each tagged department to its active
+ * members' rows (see `rowsForEvent`).
  */
-export function expandScheduleEvents(events: CalendarEvent[]): ScheduleEvent[] {
+export function expandScheduleEvents(
+  events: CalendarEvent[],
+  memberships?: ReadonlyMap<string, string[]>,
+): ScheduleEvent[] {
   const out: ScheduleEvent[] = [];
   for (const event of events) {
-    const rows = rowsForEvent({
-      creatorId: event.payload.creatorId,
-      userIds: event.payload.inviteeUserIds,
-      departmentIds: event.payload.inviteeDepartmentIds,
-    });
+    const rows = rowsForEvent(
+      {
+        creatorId: event.payload.creatorId,
+        userIds: event.payload.inviteeUserIds,
+        departmentIds: event.payload.inviteeDepartmentIds,
+      },
+      memberships,
+    );
     if (rows.length === 0 && event.payload.external) {
       rows.push(departmentRowId(event.payload.calendarId));
     }

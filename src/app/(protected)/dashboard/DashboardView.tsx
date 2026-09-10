@@ -1431,7 +1431,30 @@ export function DashboardView({
       selectedUserIds,
     ],
   );
-  const scheduleEvents = useMemo(() => expandScheduleEvents(viewEvents), [viewEvents]);
+  // Active roster members grouped by department — the row expansion for
+  // department-tagged events (a department-level event occupies every active
+  // member, so it must also land in each member's cell, not just the
+  // department row). Mirrors the clash occupancy model
+  // (`activeMembershipsByDepartment`).
+  const departmentMemberships = useMemo(() => {
+    const map = new Map<string, string[]>();
+    for (const user of allActiveUsers) {
+      if (!user.departmentId) {
+        continue;
+      }
+      const list = map.get(user.departmentId);
+      if (list) {
+        list.push(user.id);
+      } else {
+        map.set(user.departmentId, [user.id]);
+      }
+    }
+    return map;
+  }, [allActiveUsers]);
+  const scheduleEvents = useMemo(
+    () => expandScheduleEvents(viewEvents, departmentMemberships),
+    [viewEvents, departmentMemberships],
+  );
 
   // "Highlight my entries": the events the current user created or is tagged
   // on — the same semantics as the Myself quick filter. Drives the per-view
@@ -2713,6 +2736,7 @@ export function DashboardView({
             resources={scheduleResources.resources}
             groups={scheduleResources.groups}
             events={viewEvents}
+            memberships={departmentMemberships}
             today={today}
             myRowId={currentUser}
             renderResourceLabel={renderResourceLabel}

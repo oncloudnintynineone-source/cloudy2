@@ -127,6 +127,44 @@ describe("buildWeekLanes", () => {
     }
   });
 
+  it("expands a department-tagged event to the department's members' rows", () => {
+    const lanes = buildWeekLanes(
+      [
+        makeEvent(`${WEEK[1]} 09:00:00`, `${WEEK[1]} 10:00:00`, {
+          creatorId: "u1",
+          inviteeDepartmentIds: ["cal-9"],
+        }),
+      ],
+      WEEK,
+      new Map([
+        ["cal-9", ["u2", "u3"]],
+        ["cal-other", ["u9"]],
+      ]),
+    );
+    expect([...lanes.keys()]).toEqual(["dept:cal-9", "u2", "u3"]);
+    for (const rowId of ["dept:cal-9", "u2", "u3"]) {
+      const row = lanes.get(rowId)!;
+      expect(row).toHaveLength(1);
+      expect(row[0][0].startDay).toBe(1);
+      expect(row[0][0].endDay).toBe(1);
+    }
+  });
+
+  it("dedupes a department member who is also individually tagged", () => {
+    const lanes = buildWeekLanes(
+      [
+        makeEvent(`${WEEK[1]} 09:00:00`, `${WEEK[1]} 10:00:00`, {
+          creatorId: "u1",
+          inviteeUserIds: ["u2"],
+          inviteeDepartmentIds: ["cal-9"],
+        }),
+      ],
+      WEEK,
+      new Map([["cal-9", ["u2", "u3"]]]),
+    );
+    expect([...lanes.keys()]).toEqual(["u2", "dept:cal-9", "u3"]);
+  });
+
   it("pins an external event with no rows to its calendar's department row", () => {
     const lanes = buildWeekLanes(
       [makeEvent(`${WEEK[3]} 09:00:00`, `${WEEK[3]} 10:00:00`, { external: true })],

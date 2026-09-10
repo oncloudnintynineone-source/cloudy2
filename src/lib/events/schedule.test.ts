@@ -70,6 +70,36 @@ describe("rowsForEvent", () => {
   it("returns nothing when no one is linked", () => {
     expect(rowsForEvent({ creatorId: null, userIds: [], departmentIds: [] })).toEqual([]);
   });
+
+  it("expands a tagged department to its members when a memberships map is given", () => {
+    expect(
+      rowsForEvent(
+        { creatorId: "u1", userIds: [], departmentIds: ["cal-9"] },
+        new Map([
+          ["cal-9", ["u2", "u3"]],
+          ["cal-other", ["u9"]],
+        ]),
+      ),
+    ).toEqual(["dept:cal-9", "u2", "u3"]);
+  });
+
+  it("keeps only the department row when a tagged department is missing from the map", () => {
+    expect(
+      rowsForEvent(
+        { creatorId: "u1", userIds: [], departmentIds: ["cal-missing"] },
+        new Map([["cal-9", ["u2"]]]),
+      ),
+    ).toEqual(["dept:cal-missing"]);
+  });
+
+  it("dedupes a department member who is also individually tagged", () => {
+    expect(
+      rowsForEvent(
+        { creatorId: "u1", userIds: ["u2"], departmentIds: ["cal-9"] },
+        new Map([["cal-9", ["u2", "u3"]]]),
+      ),
+    ).toEqual(["u2", "dept:cal-9", "u3"]);
+  });
 });
 
 describe("expandScheduleEvents", () => {
@@ -104,6 +134,20 @@ describe("expandScheduleEvents", () => {
       makeEvent({ external: true, creatorId: "u1", inviteeUserIds: ["u1", "u2"] }),
     ]);
     expect(expanded.map((event) => event.resourceId)).toEqual(["u1", "u2"]);
+  });
+
+  it("expands a department-tagged event to its members when a memberships map is given", () => {
+    const expanded = expandScheduleEvents(
+      [
+        makeEvent({
+          creatorId: "u1",
+          inviteeDepartmentIds: ["cal-9"],
+        }),
+      ],
+      new Map([["cal-9", ["u2", "u3"]]]),
+    );
+    expect(expanded.map((event) => event.resourceId)).toEqual(["dept:cal-9", "u2", "u3"]);
+    expect(new Set(expanded.map((event) => event.id)).size).toBe(3);
   });
 });
 

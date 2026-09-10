@@ -51,18 +51,27 @@ export function coveredDays(event: CalendarEvent, week: string[]): string[] {
  * Events with no row still appear when they are external (pinned to their
  * calendar's department row).  Unlinked non-external events are dropped.
  * A multi-day event produces a single `WeekSpan` that spans its covered
- * columns; single-day events also produce a one-column span.
+ * columns; single-day events also produce a one-column span. A `memberships`
+ * map (department id → active member user ids) expands each tagged department
+ * to its active members' rows, matching the schedule views.
  */
-export function buildWeekLanes(events: CalendarEvent[], week: string[]): WeekLanes {
+export function buildWeekLanes(
+  events: CalendarEvent[],
+  week: string[],
+  memberships?: ReadonlyMap<string, string[]>,
+): WeekLanes {
   // Phase 1: collect one WeekSpan per event per row.
   const spansByRow = new Map<string, WeekSpan[]>();
 
   for (const event of events) {
-    const rows = rowsForEvent({
-      creatorId: event.payload.creatorId,
-      userIds: event.payload.inviteeUserIds,
-      departmentIds: event.payload.inviteeDepartmentIds,
-    });
+    const rows = rowsForEvent(
+      {
+        creatorId: event.payload.creatorId,
+        userIds: event.payload.inviteeUserIds,
+        departmentIds: event.payload.inviteeDepartmentIds,
+      },
+      memberships,
+    );
     if (rows.length === 0 && event.payload.external) {
       rows.push(departmentRowId(event.payload.calendarId));
     }
