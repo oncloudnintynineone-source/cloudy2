@@ -121,13 +121,13 @@ Suspense fallback), shaped to match the real content:
 | `(protected)/settings/event-types` | card skeletons |
 | `(protected)/settings/general` | form skeleton |
 
-The `(protected)` **layout itself no longer awaits DB work before rendering the
-AppShell** — the announcement-banner and KAH-status reads are streamed inside
-`<Suspense>` slots, so the shell chrome + the route skeleton above paint as soon
-as the (JWT-only) session resolves. This matters for first paint: the layout's
-old `getBanner()`/`userHasKahGroup()` awaits sat in front of every route's
-`loading.tsx`, so a Neon scale-to-zero cold start left the browser with nothing
-to paint (Android PWA splash stuck) for the whole wake-up. See
+The `(protected)` **layout awaits only the banner read (a cheap single-row
+SELECT, in parallel with the JWT-only session) before rendering the AppShell** —
+the announcement banner is passed to the shell as a resolved prop so the header
+carries it from first paint — while the **KAH-status probe is streamed** inside a
+`<Suspense>` slot. The shell chrome + the route skeleton above paint as soon as
+the session resolves; a Neon scale-to-zero cold start never holds up the Android
+PWA splash (the precached launch shell covers that wait — §1.5.1). See
 [`announcement-banner.md`](announcement-banner.md) §1.1/§1.3.
 
 The row/card skeletons are extracted into small **shared components** so the
@@ -500,9 +500,9 @@ pure `coldStartRouteRequiresContent`); a slow dashboard stream therefore holds
 the amber pulse instead of flashing a false green while the grid skeleton is
 still up. Light routes (settings tabs, contacts) **waive** the content
 requirement — their reads resolve with the layout/chrome stream, so the bar
-confirms when the client legs settle. The banner/KAH stream slots are not
-tracked: their reads resolve server-side during the stream, before/with the
-client legs, and their only UI effect is additive (header growth, a nav entry).
+confirms when the client legs settle. The banner read resolves with the layout
+(prop-seeded, before the shell renders) and the KAH probe is streamed; neither
+is tracked — their only UI effect is additive (header growth, a nav entry).
 
 **Decisions.** All timing lives in the pure `coldStartReducer`
 (`src/lib/ui/coldStart.ts`, unit-tested):

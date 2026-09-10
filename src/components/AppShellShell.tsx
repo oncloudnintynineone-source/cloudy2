@@ -33,7 +33,11 @@ import { PinnedEventsPanel } from "@/components/PinnedEventsPanel";
 import { PinnedEventsTicker } from "@/components/PinnedEventsTicker";
 import { ColdStartReadyBar, useColdStartReady } from "@/components/ColdStartReady";
 import { ActivityBar, ActivityProvider, useReportActivity } from "@/components/ActivityBar";
-import { ShellChromeContext, type ShellChromeValue } from "@/components/ShellChrome";
+import {
+  AnnouncementBanner,
+  ShellChromeContext,
+  type ShellChromeValue,
+} from "@/components/ShellChrome";
 
 // Lazy-loaded so the search modal (its AgendaView + DatePicker imports) stays
 // out of the shell's initial bundle — it only loads once the user opens search.
@@ -41,7 +45,7 @@ const EventSearchModal = dynamic(() => import("@/components/EventSearchModal"), 
   ssr: false,
 });
 import { UserMenu } from "@/components/UserMenu";
-import { BANNER_HEIGHT_PX } from "@/lib/banner/banner";
+import { BANNER_HEIGHT_PX, type BannerConfig } from "@/lib/banner/banner";
 import { BOTTOM_NAV_HEIGHT } from "@/lib/bottomNav";
 import { fetchPinnedEvents, type PinnedEvent } from "@/lib/events/pinned";
 import type { Rect } from "@/lib/motion/origin";
@@ -295,7 +299,7 @@ export function AppShellShell({
   phone,
   googleConfigured,
   sidebarCollapsed,
-  bannerSlot,
+  bannerConfig,
   kahNavSlot,
   children,
 }: {
@@ -312,11 +316,14 @@ export function AppShellShell({
    *  (protected) layout before first paint (the server renders exactly what
    *  was remembered — no client restore, no flash). */
   sidebarCollapsed: boolean;
-  /** Streamed announcement-banner slot (a <Suspense> from the (protected)
-   *  layout). Renders the banner above the navy bar when its read resolves
-   *  present; nothing is reserved while pending. Streamed so the shell's first
-   *  paint never waits on the banner's DB read. */
-  bannerSlot?: React.ReactNode;
+  /** The active announcement banner, resolved by the (protected) layout (in
+   *  parallel with the session) and passed as a prop — never streamed. The
+   *  shell derives its banner state from this on the very first render, so the
+   *  header (banner stacked above the navy bar, or the bare 56px bar) and the
+   *  route skeleton are aligned with the steady-state layout from first paint:
+   *  no reservation while a read is pending, and no post-hydration shift in
+   *  either direction (the server already knows whether a banner exists). */
+  bannerConfig: BannerConfig | null;
   /** Streamed KAH-status probe (a <Suspense> from the (protected) layout);
    *  reveals the KAH Status nav entry when the signed-in user belongs to a
    *  group. Null for admins (they always see it). */
@@ -508,28 +515,28 @@ export function AppShellShell({
   );
 
   // Measured banner height (px). Starts at the base height; updated by the
-  // streamed AnnouncementBanner (via the shell chrome context) after layout so
+  // rendered AnnouncementBanner (via the shell chrome context) after layout so
   // the shell's offset math stays exact when text wraps to multiple lines.
   const [bannerPx, setBannerPx] = useState(BANNER_HEIGHT_PX);
-  // Whether a banner is present. Defaults false — the streamed slot reserves
-  // nothing while pending, so the shell (and the route skeleton beneath the
-  // bare 56px bar) is identical to a no-banner layout from first paint.
-  // BannerLoaded grows the header when the stream resolves present; a null
-  // resolve leaves it unchanged (no reserved gap to collapse).
-  const [bannerActive, setBannerActive] = useState(false);
+  // Whether a banner is present. Derived from the (protected) layout's resolved
+  // `bannerConfig` prop — known before the shell's first render, so the header
+  // and route skeleton are aligned with the steady-state layout from first
+  // paint. There is no pending state to guess about: a configured banner grows
+  // the header in the very first SSR render (no post-hydration jump), and a
+  // null config leaves the bare 56px bar (no phantom gap, nothing to collapse).
+  const bannerActive = bannerConfig !== null;
   // Whether the signed-in non-admin user belongs to at least one KAH group —
   // reveals the KAH Status nav entry once the streamed probe resolves true.
   const [kahGroup, setKahGroup] = useState(false);
 
   const shellChrome: ShellChromeValue = useMemo(
     () => ({
-      setBannerActive,
       setBannerHeight: (px) => {
         if (px > 0) setBannerPx(px);
       },
       setKahGroup,
     }),
-    [setBannerActive, setBannerPx, setKahGroup],
+    [setBannerPx, setKahGroup],
   );
 
   // Desktop sidebar minimized to the icon rail, initialized from the
@@ -734,9 +741,10 @@ export function AppShellShell({
           // declarations. (Not the `vars` prop — in Mantine v9 that's a
           // resolver *function*, not an object.) In immersive mode the banner
           // is hidden, so we omit the variable to keep --app-banner-height at
-          // its CSS default of 0px. The banner is NOT reserved while its
-          // streamed read is pending — the header only grows once a banner
-          // actually resolves present.
+          // its CSS default of 0px. `bannerActive` derives from the layout's
+          // resolved `bannerConfig` prop, so the very first render already
+          // carries the banner height — no pending reservation, no
+          // post-hydration growth.
           style={
             bannerActive && !immersive
               ? ({ "--app-banner-height": `${bannerPx}px` } as React.CSSProperties)
@@ -748,8 +756,7 @@ export function AppShellShell({
           // banner (when active) stacks above the 56px brand bar inside the
           // same header element. In immersive mode the header is hidden, so we
           // drop the banner height from the prop to avoid Mantine allocating
-          // phantom main-content padding. While the banner read is pending the
-          // header is the bare 56px bar (no reservation).
+          // phantom main-content padding.
           header={{
             height:
               bannerActive && !immersive
@@ -779,7 +786,7 @@ export function AppShellShell({
           >
             <ShellChromeContext.Provider value={shellChrome}>
               {kahNavSlot}
-              {bannerSlot}
+              {bannerConfig && !immersive ? <AnnouncementBanner config={bannerConfig} /> : null}
               <Group
                 h={HEADER_HEIGHT_PX}
                 justify="space-between"

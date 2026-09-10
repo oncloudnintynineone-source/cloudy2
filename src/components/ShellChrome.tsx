@@ -5,18 +5,15 @@ import { createContext, useContext, useEffect, useLayoutEffect, useRef } from "r
 import { type BannerConfig, BANNER_HEIGHT_PX, bannerColorOption } from "@/lib/banner/banner";
 
 /**
- * Client-side channel between AppShellShell and the shell chrome it streams
- * from the (protected) layout — the announcement banner and the KAH-status nav
- * entry. AppShellShell provides the setters; the streamed flag/banner
- * components call them once their DB-backed data resolves, so the shell can
- * reserve the banner slot up front (placeholder), collapse it when no banner
- * exists, and reveal the KAH nav item — all without blocking first paint on a
- * database read (the Neon scale-to-zero cold start must not hold up the
- * Android PWA splash screen).
+ * Client-side channel between AppShellShell and the shell chrome it renders —
+ * the announcement banner and the KAH-status nav entry. AppShellShell provides
+ * the setters; the rendered components call them so the shell can track the
+ * banner's measured (wrapped) height and reveal the KAH nav item. The banner's
+ * presence itself is no longer negotiated here: the (protected) layout resolves
+ * the config (in parallel with the session) and passes it to the shell as a
+ * prop, so the header is correct from the very first render.
  */
 export interface ShellChromeValue {
-  /** Called by the resolved banner slot: false collapses the reserved space. */
-  setBannerActive: (active: boolean) => void;
   /** Called by the banner on measure, so the header offset tracks wrapped text. */
   setBannerHeight: (px: number) => void;
   /** Called by the KAH probe when the signed-in user belongs to a group. */
@@ -40,8 +37,12 @@ export function useShellChrome(): ShellChromeValue {
  * Text wraps and the banner grows taller when it overflows the base height.
  * The measured height is reported through the shell chrome context so the
  * shell's `--app-banner-height` / header-offset math stays exact.
+ *
+ * Rendered directly by AppShellShell from the (protected) layout's resolved
+ * `bannerConfig` prop — never streamed, so the header carries the banner from
+ * first paint.
  */
-function AnnouncementBanner({ config }: { config: BannerConfig }) {
+export function AnnouncementBanner({ config }: { config: BannerConfig }) {
   const ref = useRef<HTMLDivElement>(null);
   const { setBannerHeight } = useShellChrome();
   const option = bannerColorOption(config.color);
@@ -74,22 +75,6 @@ function AnnouncementBanner({ config }: { config: BannerConfig }) {
       <span style={{ width: "100%", overflowWrap: "break-word" }}>{config.text}</span>
     </div>
   );
-}
-
-/**
- * The resolved half of the streamed banner slot (mounted by ShellBanner after
- * `getBanner()` resolves): grows the header to include the banner when one
- * exists; a null result leaves the layout untouched. Nothing is reserved while
- * the read is pending (see BannerPlaceholder), so this only ever moves the
- * shell downward — it never collapses a phantom gap.
- */
-export function BannerLoaded({ config }: { config: BannerConfig | null }) {
-  const { setBannerActive } = useShellChrome();
-  useLayoutEffect(() => {
-    setBannerActive(config !== null);
-  }, [config, setBannerActive]);
-  if (!config) return null;
-  return <AnnouncementBanner config={config} />;
 }
 
 /**

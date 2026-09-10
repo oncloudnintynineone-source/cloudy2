@@ -195,10 +195,13 @@ same Mantine v9 palette values (light `#fff` body / `#dee2e6` skeletons; dark
 same brand-bar header and mobile bottom-nav placeholders, and the manual
 `mantine-color-scheme-value` localStorage override applied pre-paint (matching
 `defaultColorScheme="auto"`). `launchShell.test.ts` guards the variant set, the
-default view, and the scheme override. Known gaps: the announcement banner's
-height can't be predicted (it shifts the header only when configured), and the
-desktop sidebar isn't mirrored (mobile-first; desktop is unaffected by the
-splash path).
+default view, and the scheme override. Known gaps: a configured announcement
+banner's height can't be mirrored in this static shell — the shell always draws
+the bare 56px bar, so a banner-configured deployment shifts by the banner
+height exactly at the shell→app handoff (the app itself is aligned from first
+paint, `announcement-banner.md` §1.3.1; warm launches served straight from the
+document cache skip the shell entirely), and the desktop sidebar isn't mirrored
+(mobile-first; desktop is unaffected by the splash path).
 
 **One caveat on "no server round trip":** `navigationPreload: true` is enabled
 globally (`Serwist.ts` → `registration.navigationPreload.enable()`), so the

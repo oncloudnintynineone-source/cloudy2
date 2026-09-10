@@ -807,10 +807,22 @@ One line per phase; full write-ups (incl. Mermaid diagrams and verification note
   keyboard via the shared `activatable`); section headers + summary Total now say
   `X/Y present` in attendance mode vs `X/Y in camp` otherwise (same format, explicit
   metric); the copied report headers read `(X of Y present)`; the mode survives a reload
-  via `?attendance=1` and `attendanceStorage` became a `useSyncExternalStore` external
-  store (stable snapshot identity, cross-tab storage events); "Saved on this device only"
-  caption in the mode bar (pure store snapshots unit-tested;
-  `docs/user-guide.md` §1.7, `docs/roster-sharing.md` §1.7)
+via `?attendance=1` and `attendanceStorage` became a `useSyncExternalStore` external
+   store (stable snapshot identity, cross-tab storage events); "Saved on this device only"
+   caption in the mode bar (pure store snapshots unit-tested;
+   `docs/user-guide.md` §1.7, `docs/roster-sharing.md` §1.7)
+- 1.218 Banner/initial-loading alignment fix: the announcement banner is no longer
+  **streamed** — `(protected)/layout.tsx` resolves `getBanner()` in parallel with the
+  session and passes `bannerConfig` to `AppShellShell` as a prop, so `bannerActive`
+  (`bannerConfig !== null`) is known on the shell's very first render. A configured
+  banner therefore grows the header and positions the route skeleton correctly from
+  first SSR paint (no post-hydration jump), and a null config still reserves nothing —
+  the old streamed design's trade-off between "phantom-gap collapse when no banner"
+  and "mid-load shift when one appears" is gone entirely (the KAH probe stays
+  streamed). `ShellBanner`/`BannerPlaceholder`/`BannerLoaded`/`setBannerActive` are
+  deleted; `AnnouncementBanner` is exported and rendered directly by the shell
+  (`docs/announcement-banner.md` §1.1/§1.3/§1.3.1, `docs/loading-transitions.md`
+  §1.4/§1.13.1)
 
 ## 1.4 Open items & next steps
 
