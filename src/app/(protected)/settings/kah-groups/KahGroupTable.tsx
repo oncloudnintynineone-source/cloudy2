@@ -114,7 +114,7 @@ export function KahGroupTable({
   }
 
   return (
-    <Stack pb="xl" gap="sm" className={CONTENT_ENTER_CLASS}>
+    <Stack pb="xl" className={CONTENT_ENTER_CLASS}>
       {/* Desktop: full-size create button instead of the FAB (like the
           webhooks tab); rendered above the list so it is still available
           when empty. */}

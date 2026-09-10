@@ -25,6 +25,7 @@ import {
 } from "@tabler/icons-react";
 
 import { EmptyState } from "@/components/EmptyState";
+import { PageHeader } from "@/components/PageHeader";
 import { FAB_ICON_SIZE, FloatingActionButton, FloatingToolbar } from "@/components/FloatingToolbar";
 import { buildContactsVcf } from "@/lib/contacts/vcf";
 import { CONTENT_ENTER_CLASS } from "@/lib/loading/contentEnter";
@@ -106,6 +107,7 @@ export function ContactList({ users, nameTemplate, isAdmin = false }: ContactLis
     // fab-page-pad replaces pb="xl": reserves clearance for the mobile
     // export FAB below the last contact card, restores plain xl at lg.
     <Stack className={`${CONTENT_ENTER_CLASS} fab-page-pad`}>
+      <PageHeader title="Contacts" subtitle="Roster directory — call, copy, or export contact details." />
       <Paper withBorder p="sm">
         <Group justify="space-between" wrap="nowrap" gap="sm">
           <TextInput
@@ -144,9 +146,10 @@ export function ContactList({ users, nameTemplate, isAdmin = false }: ContactLis
             actionHref="/settings/users"
           />
         ) : (
-          <Text c="dimmed" ta="center" py="lg">
-            No contacts found.
-          </Text>
+          <EmptyState
+            icon={<IconUsers size={18} />}
+            description="No contacts found."
+          />
         )
       ) : (
         <Box component="div" className="card-grid">
@@ -188,7 +191,9 @@ export function ContactList({ users, nameTemplate, isAdmin = false }: ContactLis
                   <Text size="sm" c="dimmed">
                     {user.phone}
                   </Text>
-                  <Badge color={user.role === "admin" ? "brand" : "gray"}>{user.role}</Badge>
+                  <Badge color={user.role === "admin" ? "brand" : "gray"}>
+                    {user.role === "admin" ? "Admin" : "User"}
+                  </Badge>
                   {user.department ? (
                     <Badge variant="light" color="accent">
                       {user.department.name}

@@ -1,8 +1,6 @@
 import { ActionIcon, Group, Tooltip } from "@mantine/core";
 import { IconChevronDown, IconChevronUp } from "@tabler/icons-react";
 
-import { BUTTON_LOADER_PROPS } from "@/lib/theme";
-
 /** Touch-friendly row action size (px). Apple/Android guidance is ~44px;
  *  40px keeps rows from ballooning while staying well above the old 22px
  *  `size="sm"` targets. Icons are sized relative to the hit area. */
@@ -16,25 +14,15 @@ interface ReorderUpDownProps {
   name: string;
   upDisabled: boolean;
   downDisabled: boolean;
-  busyUp: boolean;
-  busyDown: boolean;
   onUp: () => void;
   onDown: () => void;
 }
 
 /** The app's standard "move earlier / move later" chevron pair for touch:
- *  two `variant="default"` 40px `ActionIcon`s in `Tooltip`s, with per-button
- *  loading. Used by every manageable list row (dashboard views, event-type
- *  groups, departments, quick links) so the recipe can't drift. */
-export function ReorderUpDown({
-  name,
-  upDisabled,
-  downDisabled,
-  busyUp,
-  busyDown,
-  onUp,
-  onDown,
-}: ReorderUpDownProps) {
+ *  two `variant="default"` 40px `ActionIcon`s in `Tooltip`s. Used by every
+ *  manageable list row (dashboard views, event-type groups, departments,
+ *  quick links, title-recipe segments) so the recipe can't drift. */
+export function ReorderUpDown({ name, upDisabled, downDisabled, onUp, onDown }: ReorderUpDownProps) {
   return (
     <Group wrap="nowrap" gap={4} onClick={(event) => event.stopPropagation()}>
       <Tooltip label="Move up" position="top">
@@ -43,8 +31,6 @@ export function ReorderUpDown({
           size={ROW_ACTION_SIZE}
           aria-label={`Move ${name} up`}
           disabled={upDisabled}
-          loading={busyUp}
-          loaderProps={BUTTON_LOADER_PROPS}
           onClick={onUp}
         >
           <IconChevronUp size={ROW_ACTION_ICON_SIZE} />
@@ -56,8 +42,6 @@ export function ReorderUpDown({
           size={ROW_ACTION_SIZE}
           aria-label={`Move ${name} down`}
           disabled={downDisabled}
-          loading={busyDown}
-          loaderProps={BUTTON_LOADER_PROPS}
           onClick={onDown}
         >
           <IconChevronDown size={ROW_ACTION_ICON_SIZE} />

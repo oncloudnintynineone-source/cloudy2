@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Button, Group, Loader, Paper, Skeleton, Stack, Text } from "@mantine/core";
+import { Button, Group, Paper, Skeleton, Stack, Text } from "@mantine/core";
 import dayjs from "dayjs";
 import { IconCalendarClock, IconCircleCheck, IconRefresh } from "@tabler/icons-react";
 
@@ -9,6 +9,7 @@ import { PickerField, type PickerBadgeItem } from "@/components/PickerField";
 import { UserSelectModal } from "@/components/UserSelectModal";
 import { LoadingStatus } from "@/components/LoadingStatus";
 import { EmptyState } from "@/components/EmptyState";
+import { PageHeader } from "@/components/PageHeader";
 import { useColdStartContent } from "@/components/ColdStartReady";
 import { ClashAffectedChips, clashTitlesPreview } from "@/components/clashUi";
 import { ClashCard, ClashEventRow } from "@/components/clashCards";
@@ -158,16 +159,11 @@ export function DoubleBookingView({
   };
 
   return (
-    <Stack gap="md" p="md" pb="xl" className={CONTENT_ENTER_CLASS}>
+    <Stack gap="md" pb="xl" className={CONTENT_ENTER_CLASS}>
       <div className="c2-db-head">
-        <Stack gap={2} className="c2-db-title">
-          <Text fw={600} size="lg">
-            Double Booking
-          </Text>
-          <Text fz="sm" c="dimmed">
-            {subtitleFor(view)}
-          </Text>
-        </Stack>
+        <div className="c2-db-title">
+          <PageHeader title="Double Booking" subtitle={subtitleFor(view)} />
+        </div>
         {isAdmin && (
           <div className="c2-db-picker">
             <PickerField
@@ -231,10 +227,6 @@ export function DoubleBookingView({
         <Paper withBorder p="sm">
           <LoadingStatus label="Checking for double bookings" />
           <Stack gap={6}>
-            <Group gap={6} c="dimmed">
-              <Loader size="xs" />
-              <Text size="xs">Checking for double bookings…</Text>
-            </Group>
             <Skeleton height={10} radius="sm" />
             <Skeleton height={10} radius="sm" width="85%" />
             <Skeleton height={10} radius="sm" width="65%" />

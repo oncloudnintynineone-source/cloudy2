@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Box, Button, Group, Loader, Paper, Skeleton, Stack, Text } from "@mantine/core";
+import { Box, Button, Group, Paper, Skeleton, Stack, Text } from "@mantine/core";
 import { IconCircleCheck, IconRefresh } from "@tabler/icons-react";
 
 import { LoadingStatus } from "@/components/LoadingStatus";
@@ -82,10 +82,6 @@ export function EventClashCheck({ request }: { request: EventClashCheckRequest |
       <Paper withBorder p="sm">
         <LoadingStatus label="Checking for clashes" />
         <Stack gap={6}>
-          <Group gap={6} c="dimmed">
-            <Loader size="xs" />
-            <Text size="xs">Checking for clashes…</Text>
-          </Group>
           <Skeleton height={10} radius="sm" />
           <Skeleton height={10} radius="sm" width="80%" />
         </Stack>

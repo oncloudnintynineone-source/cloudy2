@@ -172,7 +172,7 @@ export function EventTypeTable({ types, groups }: EventTypeTableProps) {
                 <Table.Tr>
                   <Table.Th>Name</Table.Th>
                   <Table.Th>Group</Table.Th>
-                  <Table.Th>Acronym</Table.Th>
+                  <Table.Th>Shortname</Table.Th>
                   <Table.Th>Color</Table.Th>
                   <Table.Th>Time options</Table.Th>
                   <Table.Th>Allowed locations</Table.Th>

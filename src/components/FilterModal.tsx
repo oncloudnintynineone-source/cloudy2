@@ -481,7 +481,7 @@ function FilterModalBody({
 
       <Group justify="space-between" mt="md" wrap="wrap">
         <Button variant="subtle" color="gray" onClick={handleClear} disabled={!hasActiveFilter}>
-          Reset
+          Clear
         </Button>
         <Group gap="xs">
           <Button variant="default" onClick={onClose}>

@@ -46,6 +46,7 @@ import {
 
 import { DateSelectorModal } from "@/components/DateSelectorModal";
 import { EmptyState } from "@/components/EmptyState";
+import { PageHeader } from "@/components/PageHeader";
 import { useReportActivity } from "@/components/ActivityBar";
 import { useColdStartContent } from "@/components/ColdStartReady";
 import { FilterModal, type FilterGroup } from "@/components/FilterModal";
@@ -700,7 +701,8 @@ export function ParadeStateView({
   return (
     // fab-page-pad replaces pb="xl": reserves clearance for the mobile
     // attendance FAB below the last card row, restores plain xl at lg.
-    <Stack gap="md" p="md" className="fab-page-pad">
+    <Stack gap="md" className="fab-page-pad">
+      <PageHeader title="Parade State" subtitle="Roster whereabouts and attendance, by day." />
       <Group align="center" gap="xs" wrap="nowrap">
         <ActionIcon
           size={43}
@@ -913,9 +915,10 @@ export function ParadeStateView({
               actionHref={users.length === 0 ? "/settings/departments" : "/settings/users"}
             />
           ) : (
-            <Text c="dimmed" ta="center" py="lg">
-              {users.length === 0 ? "No departments found." : "No users found."}
-            </Text>
+            <EmptyState
+              icon={users.length === 0 ? <IconSitemap size={18} /> : <IconUser size={18} />}
+              description={users.length === 0 ? "No departments found." : "No users found."}
+            />
           )
         ) : (
           <Stack gap="lg">

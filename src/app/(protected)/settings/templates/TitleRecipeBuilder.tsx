@@ -21,8 +21,6 @@ import { notifications } from "@mantine/notifications";
 import {
   IconAlignLeft,
   IconBuildingCommunity,
-  IconChevronDown,
-  IconChevronUp,
   IconClock,
   IconMapPin,
   IconNotes,
@@ -57,6 +55,7 @@ import {
 } from "@/lib/settings/titleRecipe";
 import { BUTTON_LOADER_PROPS } from "@/lib/theme";
 import { swapAdjacent, useReorderRows } from "@/lib/ui/reorderRows";
+import { ROW_ACTION_ICON_SIZE, ROW_ACTION_SIZE, ReorderUpDown } from "@/components/reorderUpDown";
 
 interface TitleRecipeBuilderProps {
   mode: "master" | "create" | "edit";
@@ -392,30 +391,13 @@ export function TitleRecipeBuilder({
           >
             <Group justify="space-between" wrap="nowrap" gap="sm">
               <Group wrap="nowrap" gap="xs" align="center" style={{ minWidth: 0, flex: 1 }}>
-                <Group gap={4} wrap="nowrap">
-                  <Tooltip label="Move earlier" position="top">
-                    <ActionIcon
-                      variant="default"
-                      size={28}
-                      aria-label={`Move ${rowSummary(row)} earlier`}
-                      disabled={index === 0}
-                      onClick={() => move(index, -1)}
-                    >
-                      <IconChevronUp size={16} />
-                    </ActionIcon>
-                  </Tooltip>
-                  <Tooltip label="Move later" position="top">
-                    <ActionIcon
-                      variant="default"
-                      size={28}
-                      aria-label={`Move ${rowSummary(row)} later`}
-                      disabled={index === rows.length - 1}
-                      onClick={() => move(index, 1)}
-                    >
-                      <IconChevronDown size={16} />
-                    </ActionIcon>
-                  </Tooltip>
-                </Group>
+                <ReorderUpDown
+                  name={rowSummary(row)}
+                  upDisabled={index === 0}
+                  downDisabled={index === rows.length - 1}
+                  onUp={() => move(index, -1)}
+                  onDown={() => move(index, 1)}
+                />
                 <Badge
                   variant="light"
                   size="md"
@@ -432,23 +414,23 @@ export function TitleRecipeBuilder({
                 <Tooltip label="Options" position="top">
                   <ActionIcon
                     variant="default"
-                    size={28}
+                    size={ROW_ACTION_SIZE}
                     aria-label={`Edit ${rowSummary(row)}`}
                     onClick={() => setEditingIndex(index)}
                   >
-                    <IconPencil size={16} />
+                    <IconPencil size={ROW_ACTION_ICON_SIZE} />
                   </ActionIcon>
                 </Tooltip>
                 <Tooltip label={rows.length <= 1 ? "At least one field" : "Remove"}>
                   <ActionIcon
                     variant="light"
                     color="red"
-                    size={28}
+                    size={ROW_ACTION_SIZE}
                     aria-label={`Remove ${rowSummary(row)}`}
                     disabled={rows.length <= 1}
                     onClick={() => remove(index)}
                   >
-                    <IconTrash size={15} />
+                    <IconTrash size={ROW_ACTION_ICON_SIZE} />
                   </ActionIcon>
                 </Tooltip>
               </Group>

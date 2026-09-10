@@ -4,7 +4,7 @@ import { useState } from "react";
 import { Badge, Button, Group, Modal, Stack, Text, useMantineTheme } from "@mantine/core";
 import { useDisclosure, useMediaQuery } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
-import { IconCopy } from "@tabler/icons-react";
+import { IconCopy, IconPencil, IconTrash } from "@tabler/icons-react";
 
 import { deleteEvent, type EventActionOk } from "@/lib/events/actions";
 import { subOneDay } from "@/lib/events/datetime";
@@ -277,16 +277,18 @@ export function EventDetail({
             )}
 
             {departmentNamesResolved.length > 0 && (
-              <Group gap={6} wrap="wrap" align="center">
+              <>
                 <Text size="xs" c="dimmed" fw={600}>
-                  Departments:
+                  Departments
                 </Text>
-                {departmentNamesResolved.map((name) => (
-                  <Badge key={name} variant="light" color="accent">
-                    {name}
-                  </Badge>
-                ))}
-              </Group>
+                <Group gap={6} wrap="wrap">
+                  {departmentNamesResolved.map((name) => (
+                    <Badge key={name} variant="light" color="accent">
+                      {name}
+                    </Badge>
+                  ))}
+                </Group>
+              </>
             )}
 
             {canModify ? (
@@ -300,15 +302,22 @@ export function EventDetail({
                 </Button>
                 <Button
                   variant="light"
+                  leftSection={<IconPencil size={16} />}
                   onClick={(e) => onEdit(showEvent, e.currentTarget.getBoundingClientRect())}
                 >
                   Edit
                 </Button>
-                <Button variant="light" color="red" onClick={open}>
+                <Button variant="light" color="red" leftSection={<IconTrash size={16} />} onClick={open}>
                   Delete
                 </Button>
               </Group>
-            ) : null}
+            ) : (
+              <Text size="xs" c="dimmed" mt="xs">
+                {payload.ownerOnlyEdits && !isCreator
+                  ? "Only the organizer can edit this event."
+                  : "You can view this event but not edit it."}
+              </Text>
+            )}
           </Stack>
         ) : null}
       </Modal>

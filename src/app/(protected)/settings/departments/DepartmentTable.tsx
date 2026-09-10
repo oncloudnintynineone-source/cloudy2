@@ -1,7 +1,7 @@
 "use client";
 
 import { type KeyboardEvent, useMemo, useState } from "react";
-import { Box, Button, Group, Modal, Paper, Stack, Table, Text } from "@mantine/core";
+import { Box, Button, Group, Modal, Paper, Stack, Table, Text, VisuallyHidden } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
 import { IconPlus, IconSitemap } from "@tabler/icons-react";
@@ -136,8 +136,6 @@ export function DepartmentTable({ departments }: DepartmentTableProps) {
         name={calendar.name}
         upDisabled={busy || !can.up}
         downDisabled={busy || !can.down}
-        busyUp={false}
-        busyDown={false}
         onUp={() => void reorderDepartment(calendar.id, -1)}
         onDown={() => void reorderDepartment(calendar.id, 1)}
       />
@@ -236,7 +234,9 @@ export function DepartmentTable({ departments }: DepartmentTableProps) {
                   <Table.Th>Name</Table.Th>
                   <Table.Th>Parent</Table.Th>
                   <Table.Th>External color</Table.Th>
-                  <Table.Th>Actions</Table.Th>
+                  <Table.Th ta="right">
+                    <VisuallyHidden>Actions</VisuallyHidden>
+                  </Table.Th>
                 </Table.Tr>
               </Table.Thead>
               <Table.Tbody>

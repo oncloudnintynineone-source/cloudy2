@@ -204,8 +204,8 @@ export function EditViewsModal({
     >
       <Stack ref={containerRef}>
         <Text size="sm" c="dimmed">
-          Your calendar tabs, in strip order. Move them with the arrows; the first and last tabs
-          can&rsquo;t move past the end. Rename or delete any tab.
+          Your calendar views, in strip order. Move them with the arrows; the first and last views
+          can&rsquo;t move past the end. Rename or delete any view.
         </Text>
 
         {displayTabs.length === 0 ? (
@@ -223,8 +223,6 @@ export function EditViewsModal({
                     name={tab.name}
                     upDisabled={busy || index === 0}
                     downDisabled={busy || index === displayTabs.length - 1}
-                    busyUp={false}
-                    busyDown={false}
                     onUp={() => void reorderView(tab.id, -1)}
                     onDown={() => void reorderView(tab.id, 1)}
                   />

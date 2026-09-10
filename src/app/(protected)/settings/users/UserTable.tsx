@@ -245,7 +245,9 @@ export function UserTable({ users, departments, accessByUser, nameTemplate }: Us
                       )}
                     </Text>
                   </Stack>
-                  <Badge color={user.status === "active" ? "teal" : "gray"}>{user.status}</Badge>
+                  <Badge color={user.status === "active" ? "green" : "gray"}>
+                    {user.status === "active" ? "Active" : "Inactive"}
+                  </Badge>
                 </Group>
                 <Group gap={6} wrap="wrap" mt={4}>
                   {user.shortname ? (
@@ -256,7 +258,9 @@ export function UserTable({ users, departments, accessByUser, nameTemplate }: Us
                   <Text size="sm" c="dimmed">
                     {user.phone}
                   </Text>
-                  <Badge color={user.role === "admin" ? "brand" : "gray"}>{user.role}</Badge>
+                      <Badge color={user.role === "admin" ? "brand" : "gray"}>
+                        {user.role === "admin" ? "Admin" : "User"}
+                      </Badge>
                   {user.department ? (
                     <Badge variant="light" color="accent">
                       {user.department.name}
@@ -277,7 +281,7 @@ export function UserTable({ users, departments, accessByUser, nameTemplate }: Us
               <Table.Thead>
                 <Table.Tr>
                   <Table.Th>Name</Table.Th>
-                  <Table.Th>Short Name</Table.Th>
+                  <Table.Th>Shortname</Table.Th>
                   <Table.Th>Phone</Table.Th>
                   <Table.Th>Role</Table.Th>
                   <Table.Th>Department</Table.Th>
@@ -317,7 +321,9 @@ export function UserTable({ users, departments, accessByUser, nameTemplate }: Us
                     </Table.Td>
                     <Table.Td>{user.phone}</Table.Td>
                     <Table.Td>
-                      <Badge color={user.role === "admin" ? "brand" : "gray"}>{user.role}</Badge>
+                  <Badge color={user.role === "admin" ? "brand" : "gray"}>
+                    {user.role === "admin" ? "Admin" : "User"}
+                  </Badge>
                     </Table.Td>
                     <Table.Td>
                       {user.department ? (
@@ -331,8 +337,8 @@ export function UserTable({ users, departments, accessByUser, nameTemplate }: Us
                       )}
                     </Table.Td>
                     <Table.Td>
-                      <Badge color={user.status === "active" ? "teal" : "gray"}>
-                        {user.status}
+                      <Badge color={user.status === "active" ? "green" : "gray"}>
+                        {user.status === "active" ? "Active" : "Inactive"}
                       </Badge>
                     </Table.Td>
                     <Table.Td ta="right">

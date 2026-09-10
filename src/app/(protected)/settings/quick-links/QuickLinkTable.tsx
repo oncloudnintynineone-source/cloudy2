@@ -14,6 +14,7 @@ import {
   Text,
   Tooltip,
   useMantineTheme,
+  VisuallyHidden,
 } from "@mantine/core";
 import { useDisclosure, useMediaQuery } from "@mantine/hooks";
 import { IconLink, IconPlus, IconTrash } from "@tabler/icons-react";
@@ -107,8 +108,6 @@ export function QuickLinkTable({ links }: QuickLinkTableProps) {
         name={link.label}
         upDisabled={busy || index === 0}
         downDisabled={busy || index === links.length - 1}
-        busyUp={false}
-        busyDown={false}
         onUp={() => void reorderLink(link.id, -1)}
         onDown={() => void reorderLink(link.id, 1)}
       />
@@ -120,7 +119,7 @@ export function QuickLinkTable({ links }: QuickLinkTableProps) {
       <Group gap={4} wrap="nowrap" onClick={(e) => e.stopPropagation()}>
         <Tooltip label="Delete" position="top">
           <ActionIcon
-            variant="default"
+            variant="light"
             color="red"
             size={ROW_ACTION_SIZE}
             aria-label={`Delete ${link.label}`}
@@ -134,7 +133,7 @@ export function QuickLinkTable({ links }: QuickLinkTableProps) {
   }
 
   return (
-    <Stack pb="xl" gap="sm" className={CONTENT_ENTER_CLASS} ref={containerRef}>
+    <Stack pb="xl" className={CONTENT_ENTER_CLASS} ref={containerRef}>
       {/* Desktop: full-size create button instead of the FAB (like the
           webhook tab); rendered above the list so it is still available
           when empty. */}
@@ -203,7 +202,9 @@ export function QuickLinkTable({ links }: QuickLinkTableProps) {
                   <Table.Th>Label</Table.Th>
                   <Table.Th>URL</Table.Th>
                   <Table.Th>Status</Table.Th>
-                  <Table.Th>Actions</Table.Th>
+                  <Table.Th ta="right">
+                    <VisuallyHidden>Actions</VisuallyHidden>
+                  </Table.Th>
                 </Table.Tr>
               </Table.Thead>
               <Table.Tbody>

@@ -1,9 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Anchor, Badge, Button, Group, Loader, Modal, Paper, Stack, Text, useMantineTheme } from "@mantine/core";
+import { Anchor, Badge, Button, Group, Modal, Paper, Skeleton, Stack, Text, useMantineTheme } from "@mantine/core";
 import { useMediaQuery } from "@mantine/hooks";
 
+import { LoadingStatus } from "@/components/LoadingStatus";
 import { NARROW_MEDIA_QUERY } from "@/lib/theme";
 import {
   getMyCalendarAccess,
@@ -109,9 +110,13 @@ export function CalendarAccessModal({ opened, onClose }: CalendarAccessModalProp
       size={isNarrow ? "xs" : isDesktop ? "md" : "sm"}
     >
       {!data ? (
-        <Group justify="center" py="lg">
-          <Loader size="sm" />
-        </Group>
+        <Stack gap="sm">
+          <LoadingStatus label="Loading calendar access" />
+          <Skeleton height={14} radius="sm" width="60%" />
+          <Skeleton height={40} radius="sm" />
+          <Skeleton height={40} radius="sm" />
+          <Skeleton height={40} radius="sm" />
+        </Stack>
       ) : data.ok ? (
         data.hasProfile ? (
           <Stack gap="md">

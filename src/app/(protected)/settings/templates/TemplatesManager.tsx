@@ -21,6 +21,7 @@ import { IconCopy, IconPencil, IconTrash } from "@tabler/icons-react";
 
 import { useActivityRefresh } from "@/components/ActivityBar";
 import { NoKeyboardSelect } from "@/components/NoKeyboardSelect";
+import { ROW_ACTION_ICON_SIZE, ROW_ACTION_SIZE } from "@/components/reorderUpDown";
 import { CONTENT_ENTER_CLASS } from "@/lib/loading/contentEnter";
 import { defaultNotificationRecipe } from "@/lib/events/notifyRecipes";
 import {
@@ -124,28 +125,28 @@ function Row({
             <Tooltip label={duplicateLabel}>
               <ActionIcon
                 variant="default"
-                size={40}
+                size={ROW_ACTION_SIZE}
                 aria-label={duplicateLabel}
                 onClick={(event) => {
                   event.stopPropagation();
                   onDuplicate();
                 }}
               >
-                <IconCopy size={20} />
+                <IconCopy size={ROW_ACTION_ICON_SIZE} />
               </ActionIcon>
             </Tooltip>
           )}
           <Tooltip label={editLabel}>
             <ActionIcon
               variant="default"
-              size={40}
+              size={ROW_ACTION_SIZE}
               aria-label={editLabel}
               onClick={(event) => {
                 event.stopPropagation();
                 onEdit();
               }}
             >
-              <IconPencil size={20} />
+              <IconPencil size={ROW_ACTION_ICON_SIZE} />
             </ActionIcon>
           </Tooltip>
           {onDelete && deleteLabel && !deleteLocked && (
@@ -153,14 +154,14 @@ function Row({
               <ActionIcon
                 variant="light"
                 color="red"
-                size={40}
+                size={ROW_ACTION_SIZE}
                 aria-label={deleteLabel}
                 onClick={(event) => {
                   event.stopPropagation();
                   onDelete();
                 }}
               >
-                <IconTrash size={19} />
+                <IconTrash size={ROW_ACTION_ICON_SIZE} />
               </ActionIcon>
             </Tooltip>
           )}
@@ -169,11 +170,11 @@ function Row({
               <ActionIcon
                 variant="light"
                 color="gray"
-                size={40}
+                size={ROW_ACTION_SIZE}
                 aria-label={deleteLockedLabel ?? "Can't be deleted"}
                 disabled
               >
-                <IconTrash size={19} />
+                <IconTrash size={ROW_ACTION_ICON_SIZE} />
               </ActionIcon>
             </Tooltip>
           )}
@@ -377,11 +378,11 @@ export function TemplatesManager({
           <Tooltip label="Edit display-name template">
             <ActionIcon
               variant="default"
-              size={40}
+              size={ROW_ACTION_SIZE}
               aria-label="Edit display-name template"
               onClick={openName}
             >
-              <IconPencil size={20} />
+              <IconPencil size={ROW_ACTION_ICON_SIZE} />
             </ActionIcon>
           </Tooltip>
         </Group>

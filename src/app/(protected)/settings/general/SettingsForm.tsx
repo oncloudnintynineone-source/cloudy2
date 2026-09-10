@@ -80,7 +80,7 @@ export function SettingsForm({ retentionDays }: SettingsFormProps) {
         <form onSubmit={onSubmitRetention}>
           <Stack>
             <NumberInput
-              label="Audit Log Retention"
+              label="Audit log retention"
               description="How many days of audit log entries to keep. Older entries are purged automatically when the log is viewed."
               min={AUDIT_RETENTION_MIN}
               max={AUDIT_RETENTION_MAX}

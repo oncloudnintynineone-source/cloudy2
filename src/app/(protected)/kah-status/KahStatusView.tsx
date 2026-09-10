@@ -5,6 +5,7 @@ import { Badge, Group, Paper, Stack, Table, Text } from "@mantine/core";
 import { IconCircleCheck, IconUsersGroup } from "@tabler/icons-react";
 
 import { EmptyState } from "@/components/EmptyState";
+import { PageHeader } from "@/components/PageHeader";
 import { useColdStartContent } from "@/components/ColdStartReady";
 import { CONTENT_ENTER_CLASS } from "@/lib/loading/contentEnter";
 
@@ -109,14 +110,12 @@ export function KahStatusView({
 
   return (
     <Stack gap="md" pb="xl" className={CONTENT_ENTER_CLASS}>
-      {/* Window header: the scanned span + how many periods fall in each state. */}
-      <Text fw={600} size="lg" lineClamp={1}>
-        {windowLabel}
-      </Text>
-      <Text fz="sm" c="dimmed">
-        KAH breaches across the past &amp; next 3 months
-        {counts ? ` · ${counts}` : ""}
-      </Text>
+      <PageHeader
+        title="KAH Status"
+        subtitle={`${windowLabel} · KAH breaches across the past & next 3 months${
+          counts ? ` · ${counts}` : ""
+        }`}
+      />
 
       {allGroups ? (
         <Text fz="sm" c="dimmed">
@@ -133,9 +132,10 @@ export function KahStatusView({
             actionHref="/settings/kah-groups"
           />
         ) : (
-          <Text c="dimmed" ta="center" py="xl">
-            You are not part of any KAH group.
-          </Text>
+          <EmptyState
+            icon={<IconUsersGroup size={18} />}
+            description="You are not part of any KAH group."
+          />
         )
       ) : (
         <>

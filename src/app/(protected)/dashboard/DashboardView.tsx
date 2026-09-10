@@ -1369,7 +1369,7 @@ export function DashboardView({
         action: filterUsers.some((user) => user.id === currentUser)
           ? {
               label: "Myself",
-              icon: <IconUser size={14} />,
+              icon: <IconUser size={16} />,
               isApplied: (selected) => selected.length === 1 && selected[0] === currentUser,
               apply: (setValues, { selected }) => {
                 const isActive = selected.length === 1 && selected[0] === currentUser;
@@ -2435,6 +2435,7 @@ export function DashboardView({
               openFilter();
             }}
             size={36}
+            iconSize={18}
           />
           <Menu
             shadow="md"
@@ -2447,7 +2448,7 @@ export function DashboardView({
             }}
           >
             <Menu.Target>
-              <ActionIcon size={36} variant="default" aria-label="More options">
+              <ActionIcon size={36} variant="default" aria-label="More options" title="More options">
                 <IconDotsVertical size={18} />
               </ActionIcon>
             </Menu.Target>

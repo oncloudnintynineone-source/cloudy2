@@ -8,15 +8,16 @@ import {
   CopyButton,
   Divider,
   Group,
-  Loader,
   Modal,
   Paper,
   Select,
+  Skeleton,
   Stack,
   Text,
   TextInput,
 } from "@mantine/core";
 import { useForm } from "@mantine/form";
+import { useMediaQuery } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
 import { IconCheck, IconCopy, IconPlus } from "@tabler/icons-react";
 
@@ -33,9 +34,10 @@ import {
 import { departmentTreeRows, parentOptionsFor } from "@/lib/roster/hierarchy";
 import type { DepartmentAccess, DepartmentAccessRole } from "@/lib/roster/shares";
 import { validateCalendarForm, type CalendarFormValues } from "@/lib/roster/validate";
-import { BUTTON_LOADER_PROPS } from "@/lib/theme";
+import { BUTTON_LOADER_PROPS, DESKTOP_MEDIA_QUERY } from "@/lib/theme";
 import { showValidationFailure } from "@/lib/ui/validationFeedback";
 import { ColorSwatchPicker } from "@/components/ColorSwatchPicker";
+import { LoadingStatus } from "@/components/LoadingStatus";
 import { PickerField, type PickerBadgeItem } from "@/components/PickerField";
 import { UserSelectModal } from "@/components/UserSelectModal";
 import { departmentPickerOptions, selectionByGroup } from "@/lib/users/userSelect";
@@ -91,13 +93,14 @@ export function DepartmentDetail({
   onCreate,
   onRequestDelete,
 }: DepartmentDetailProps) {
+  const isDesktop = useMediaQuery(DESKTOP_MEDIA_QUERY);
   return (
     <Modal
       opened={opened}
       onClose={onClose}
-      title={calendar ? "Manage department" : "Add department"}
+      title={calendar ? "Edit department" : "Add department"}
       centered
-      size="md"
+      size={isDesktop ? "lg" : "md"}
     >
       {/* Keyed per department: the modal unmounts its content when closed, so
           the body (form state + access data) is remounted fresh on every open
@@ -429,9 +432,12 @@ function DepartmentDetailBody({
             </Text>
 
             {calendarId && !data ? (
-              <Group justify="center" py="lg">
-                <Loader size="sm" />
-              </Group>
+              <Stack gap="sm">
+                <LoadingStatus label="Loading calendar access" />
+                <Skeleton height={40} radius="sm" />
+                <Skeleton height={40} radius="sm" />
+                <Skeleton height={40} radius="sm" />
+              </Stack>
             ) : (
               <>
                 {data?.admin ? (
@@ -625,9 +631,9 @@ function DepartmentDetailBody({
           </>
         )}
 
-        <Group justify={isEdit ? "space-between" : "flex-end"} mt="md" wrap="nowrap">
+        <Group justify="flex-end" mt="md" wrap="nowrap">
           {isEdit && calendar && (
-            <Button variant="subtle" color="red" onClick={() => onRequestDelete(calendar)}>
+            <Button type="button" variant="light" color="red" onClick={() => onRequestDelete(calendar)}>
               Delete department
             </Button>
           )}

@@ -1320,6 +1320,29 @@ export function EventForm({
           },
         ]
       : []),
+    ...(form.values.pinned || form.values.ownerOnlyEdits
+      ? [
+          {
+            key: "other-settings",
+            span: 12,
+            node: reviewDef(
+              "Other settings",
+              <Group gap={6} wrap="wrap">
+                {form.values.pinned && (
+                  <Badge variant="light" color="accent">
+                    Pinned
+                  </Badge>
+                )}
+                {form.values.ownerOnlyEdits && (
+                  <Badge variant="light" color="red">
+                    Organizer-only editing
+                  </Badge>
+                )}
+              </Group>,
+            ),
+          },
+        ]
+      : []),
   ];
 
   return (

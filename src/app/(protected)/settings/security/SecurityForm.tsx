@@ -47,7 +47,7 @@ export function SecurityForm({ keyword }: SecurityFormProps) {
       <form onSubmit={onSubmitKeyword}>
         <Stack>
           <TextInput
-            label="User Login Keyword"
+            label="User login keyword"
             description="Regular users sign in as their 8-digit phone followed by the keyword — e.g. 81234567leave. Admins use the admin sign-in instead."
             placeholder="leave"
             {...keywordForm.getInputProps("keyword")}

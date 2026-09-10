@@ -14,6 +14,7 @@ import {
 } from "@mantine/core";
 import { useMediaQuery } from "@mantine/hooks";
 import { IconCalendarEvent, IconPin } from "@tabler/icons-react";
+import dayjs from "dayjs";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
@@ -26,28 +27,13 @@ import { usePinnedPanel } from "@/lib/ui/pinnedPanel";
 import { LoadingStatus } from "./LoadingStatus";
 
 function formatDay(naive: string): string {
-  const [y, m, d] = naive.slice(0, 10).split("-");
-  return `${y}-${m}-${d}`;
+  return naive.slice(0, 10);
 }
 
-function formatTime(naive: string): string {
-  const hhmm = naive.slice(11, 16);
-  const [hh, mm] = hhmm.split(":").map(Number);
-  const ampm = hh >= 12 ? "PM" : "AM";
-  const hour = hh % 12 === 0 ? 12 : hh % 12;
-  return `${hour}:${String(mm).padStart(2, "0")} ${ampm}`;
-}
-
+/** "Wed, Sep 10 · 8:00 AM" — the weekday matters for an upcoming-events list,
+ *  and the year is dropped to keep rows compact. */
 function formatDisplay(naive: string): string {
-  const [y, m, d] = naive.slice(0, 10).split("-").map(Number);
-  const date = new Date(y, m - 1, d);
-  const dateStr = date.toLocaleDateString(undefined, {
-    weekday: "short",
-    month: "short",
-    day: "numeric",
-  });
-  const timeStr = formatTime(naive);
-  return `${dateStr} · ${timeStr}`;
+  return dayjs(naive).format("ddd, MMM D · h:mm A");
 }
 
 interface PinnedEventsPanelProps {
@@ -134,7 +120,7 @@ export function PinnedEventsPanel({ seedEvents = null }: PinnedEventsPanelProps)
       opened={open}
       onClose={closePanel}
       centered
-      size={isNarrow ? "sm" : isDesktop ? "lg" : "md"}
+      size={isNarrow ? "xs" : isDesktop ? "lg" : "md"}
       title={
         <Group gap="xs">
           <ThemeIcon variant="light" size="sm">

@@ -11,13 +11,21 @@ interface FilterButtonProps {
   onClick: (event: MouseEvent<HTMLButtonElement>) => void;
   /** Icon button size in px (nav-row controls use 36; table toolbars 43). */
   size?: number;
+  /** Icon glyph size in px (the dashboard's 36px nav row uses 18 to match its
+   *  sibling chevrons; table toolbars keep the default 16). */
+  iconSize?: number;
 }
 
 /**
  * Trigger button for the filter dialog. Shows the number of active filter
  * groups as a badge when any filter is applied.
  */
-export function FilterButton({ activeCount, onClick, size = 43 }: FilterButtonProps) {
+export function FilterButton({
+  activeCount,
+  onClick,
+  size = 43,
+  iconSize = 16,
+}: FilterButtonProps) {
   return (
     <Box pos="relative">
       <ActionIcon
@@ -26,7 +34,7 @@ export function FilterButton({ activeCount, onClick, size = 43 }: FilterButtonPr
         aria-label={activeCount > 0 ? `Filters (${activeCount} active)` : "Filters"}
         onClick={onClick}
       >
-        <IconFilter size={16} />
+        <IconFilter size={iconSize} />
       </ActionIcon>
       {activeCount > 0 && (
         <Badge

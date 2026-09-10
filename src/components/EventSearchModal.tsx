@@ -204,7 +204,7 @@ export default function EventSearchModal({ opened, onClose, originRect }: EventS
       onClose={onClose}
       title="Search events"
       centered
-      size={isNarrow ? "sm" : isDesktop ? "lg" : "md"}
+      size={isNarrow ? "xs" : isDesktop ? "lg" : "md"}
       transitionProps={transitionProps}
     >
       <Stack>

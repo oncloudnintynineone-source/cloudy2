@@ -50,8 +50,8 @@ export function DateSelectorModal({ opened, date, onPick, onClose }: DateSelecto
         }}
         renderHeader={({ date: displayedDate }) => (
           <>
-            {/* 43px targets: the app-wide minimum touch size (the rest of
-                the app's date nav chevrons use the same). */}
+            {/* 43px month chevrons: a roomier target inside the modal than the
+                36px page date-nav chevrons. */}
             <ActionIcon
               variant="subtle"
               size={43}

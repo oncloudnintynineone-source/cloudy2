@@ -220,8 +220,6 @@ export function EventTypeGroupsModal({
                         name={group.name}
                         upDisabled={busy || index === 0}
                         downDisabled={busy || index === displaySorted.length - 1}
-                        busyUp={false}
-                        busyDown={false}
                         onUp={() => void reorderGroup(group.id, -1)}
                         onDown={() => void reorderGroup(group.id, 1)}
                       />
