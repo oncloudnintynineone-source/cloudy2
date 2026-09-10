@@ -63,25 +63,26 @@ shows, left to right:
 
 1. the pin icon,
 2. an inline amber **count chip** — `1/N`, position within the rotation plus how
-   many events are pinned (this replaced the floating amber `Indicator` badge,
-   same accent color, now inline with the text), and
+ many events are pinned (this replaced the floating amber `Indicator` badge,
+ same accent color, now inline with the text), and
 3. the **current event's `tickerTitle`**, one line, ellipsis-truncated.
 
 ```mermaid
 flowchart LR
   subgraph pill["pinned-events pill (max-width capped)"]
-    direction LR
-    I["IconPin"] --> C["1/5 chip"] --> T["rotating title"]
+ direction LR
+ I["IconPin"] --> C["1/5 chip"] --> T["rotating title"]
   end
   T -. every 5s .-> T
 ```
 
 Rotation (`PinnedEventsTicker.tsx`, client):
 
-- Every **5s** (`ROTATE_INTERVAL_MS`) the next title slides in from below while
-  the outgoing one slides up and out (`c2-ticker-in`/`c2-ticker-out` keyframes in
-  `globals.css`, ~320ms, inside the app's `prefers-reduced-motion` guard — with
-  reduced motion titles swap in place and the exit clone never renders).
+- Every **5s** (`ROTATE_INTERVAL_MS`) the next title slides in from below (the
+  `c2-ticker-in` keyframe in `globals.css`, ~320ms, inside the app's
+  `prefers-reduced-motion` guard — with reduced motion titles swap in place and
+  the exit clone never renders); the outgoing title is swapped out instantly by
+  the keyed remount (there is no exit animation).
 - Rotation pauses while the pill is hovered or focused, while the tab is hidden,
   and while the panel modal is open (`paused` prop); a single pinned event never
   rotates.

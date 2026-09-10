@@ -78,26 +78,26 @@ actions reconcile immediately after the DB write.
 
 ```mermaid
 flowchart TB
-    subgraph DB["Postgres"]
-        U["users (department_id FK)"]
-        C["calendars (google_calendar_id)"]
-    end
-    subgraph RECONCILE["Reconciliation (shares.ts)"]
-        READ["listDepartmentAccess — reconcile-on-read<br/>(detail modal Calendar access open)"]
-        WRITE["reconcileUserAccessChange — reconcile-on-write<br/>(after user create/update)"]
-    end
-    subgraph G["Google Calendar (source of truth)"]
-        ACL["ACL rules per department calendar"]
-    end
-    CR["createUser / updateUser"] --> WRITE
-    SM["getDepartmentAccess (admin)"] --> READ
-    U --> READ
-    U --> WRITE
-    C --> READ
-    C --> WRITE
-    READ <--> ACL
-    WRITE <--> ACL
-    GA["grant / update / revokeDepartmentAccess (admin, manual)"] <--> ACL
+ subgraph DB["Postgres"]
+ U["users (department_id FK)"]
+ C["calendars (google_calendar_id)"]
+ end
+ subgraph RECONCILE["Reconciliation (shares.ts)"]
+ READ["listDepartmentAccess — reconcile-on-read<br/>(detail modal Calendar access open)"]
+ WRITE["reconcileUserAccessChange — reconcile-on-write<br/>(after user create/update)"]
+ end
+ subgraph G["Google Calendar (source of truth)"]
+ ACL["ACL rules per department calendar"]
+ end
+ CR["createUser / updateUser"] --> WRITE
+ SM["getDepartmentAccess (admin)"] --> READ
+ U --> READ
+ U --> WRITE
+ C --> READ
+ C --> WRITE
+ READ <--> ACL
+ WRITE <--> ACL
+ GA["grant / update / revokeDepartmentAccess (admin, manual)"] <--> ACL
 ```
 
 All Google I/O goes through `getGoogleIntegration()`
@@ -109,49 +109,49 @@ unconfigured, reconcile paths short-circuit and the detail modal surfaces a
 
 ```mermaid
 erDiagram
-    calendars {
-        uuid id PK
-        text google_calendar_id UK "Google Calendar id"
-        text name
-        text kind "department | shared (only department used)"
-        text color "nullable — fallback for untyped/external events (event colors, §1.8)"
-        uuid parent_id FK "nullable self FK — parent department (hierarchy, §1.7)"
-    }
-    users {
-        uuid id PK
-        text name
-        text shortname UK
-        text phone UK "canonical 8 digits"
-        text email "drives ACL grants"
-        date birthday
-        text role "admin | user"
-        text password_hash "never exposed in audit/UI"
-        text status "active | inactive"
-        uuid department_id FK "calendars.id, ON DELETE SET NULL"
-    }
-    users }o--o| calendars : "department_id (set null)"
-    calendars }o--o| calendars : "parent_id (set null)"
-    user_calendar_access {
-        uuid user_id PK, FK "users.id (cascade)"
-        uuid calendar_id PK, FK "calendars.id (cascade)"
-        text role "reader | writer"
-    }
-    users ||--o{ user_calendar_access : "grants"
-    calendars ||--o{ user_calendar_access : "granted to"
+ calendars {
+ uuid id PK
+ text google_calendar_id UK "Google Calendar id"
+ text name
+ text kind "department | shared (only department used)"
+ text color "nullable — fallback for untyped/external events (event colors, §1.8)"
+ uuid parent_id FK "nullable self FK — parent department (hierarchy, §1.7)"
+ }
+ users {
+ uuid id PK
+ text name
+ text shortname UK
+ text phone UK "canonical 8 digits"
+ text email "drives ACL grants"
+ date birthday
+ text role "admin | user"
+ text password_hash "never exposed in audit/UI"
+ text status "active | inactive"
+ uuid department_id FK "calendars.id, ON DELETE SET NULL"
+ }
+ users }o--o| calendars : "department_id (set null)"
+ calendars }o--o| calendars : "parent_id (set null)"
+ user_calendar_access {
+ uuid user_id PK, FK "users.id (cascade)"
+ uuid calendar_id PK, FK "calendars.id (cascade)"
+ text role "reader | writer | owner"
+ }
+ users ||--o{ user_calendar_access : "grants"
+ calendars ||--o{ user_calendar_access : "granted to"
 ```
 
-- `users` (`src/db/schema.ts:22`): `phone` and `shortname` carry unique indexes
+- `users` (`src/db/schema.ts`): `phone` and `shortname` carry unique indexes
   (the duplicate UX is constraint-driven, §1.6); `department_id` is a nullable
   FK to `calendars` with `ON DELETE SET NULL` — deleting a department
   unassigns its users, it never deletes them.
-- `calendars` (`schema.ts:51`): the **department registry**;
+- `calendars` (`schema.ts`): the **department registry**;
   `google_calendar_id` is unique (a department with the same Google calendar
   can't be created twice). `kind` is `department` (used) or `shared` (reserved).
   `color` is the admin-pinned **fallback** color for untyped/external events
   (a Mantine palette name) — nullable, where null means "use the
   deterministic per-calendar default" (§1.8). Typed events take their color
   from the event type instead.
-- `calendars.parent_id` (`schema.ts:72`): nullable **self FK** forming the
+- `calendars.parent_id` (`schema.ts`): nullable **self FK** forming the
   department hierarchy (§1.7) — null = top level, `ON DELETE SET NULL` (deleting
   a parent promotes its children to top level). Cycles are impossible to create
   through the UI or the server actions (self/descendant parents are excluded /
@@ -182,12 +182,12 @@ erDiagram
 
 `src/lib/roster/shares.ts` types:
 
-- **`DepartmentAccessRole`** (`shares.ts:9`) — `"reader" | "writer" | "owner"`:
+- **`DepartmentAccessRole`** (`shares.ts`) — `"reader" | "writer" | "owner"`:
   the selectable levels, mapping 1:1 to Google ACL roles (Read only / Can edit /
-  Owner).   `isDepartmentAccessRole` (`:40`) deliberately rejects
+  Owner). `isDepartmentAccessRole`  deliberately rejects
   `freeBusyReader` even though the integration contract allows it — it is not a
   UI-selectable level.
-- **`ManagedGrantRole` / `UserCalendarGrant`** (`:14-22`) — `"reader" | "writer" |
+- **`ManagedGrantRole` / `UserCalendarGrant`** — `"reader" | "writer" |
   "owner"` (an alias of `DepartmentAccessRole`) and a `{ calendarId, role }`
   grant. `isManagedGrantRole`, `normalizeGrantRole`
   and `needsManagedGrant` (a rule below its intended role needs (re)granting; a
@@ -195,7 +195,7 @@ erDiagram
   writer/owner survives every reconcile) and `normalizeAccessSelection` (drops
   invalid roles, dupes, and the user's own department) keep the managed-role
   domain closed.
-- **`DepartmentAccess`** (`:16`) — what the detail modal renders:
+- **`DepartmentAccess`** — what the detail modal renders:
   `assigned` (emails of the department's users — auto-readers),
   `assignedRoles` (each assigned email's live ACL role, so an admin-upgraded
   writer/owner shows through the selector), `granted` (cross-department-granted
@@ -214,7 +214,7 @@ these three groups; a roster user's email typed into "Additional access" is
 **blocked** by `grantDepartmentAccess` with a message pointing at Users, so a
 user-managed person can never be represented by an anonymous rule going forward.
 
-**Inherent owners** — `isInherentOwnerEmail` (`shares.ts:81`) — three email
+**Inherent owners** — `isInherentOwnerEmail` (`shares.ts`) — three email
 identities are owner rules that are **never revoked and never surfaced as
 removable shares**: the calendar resource id itself, the owning service account
 (`getServiceAccountConfig().clientEmail`), and the configured admin account.
@@ -223,14 +223,14 @@ The pure diff helpers (all case-insensitive, ignoring blanks):
 
 | Helper (`shares.ts`) | Computes |
 | -------------------- | -------- |
-| `diffAccess(existing, expected)` (`:48`) | expected emails **missing** an ACL rule → to grant |
-| `diffRevocable(candidates, assigned)` (`:58`) | candidate emails no assigned user holds anymore → safe to revoke |
-| `needsAdminOwnerGrant(acls, adminEmail)` (`:68`) | true when the admin has no rule or a lower role (a manual reader grant gets upgraded to owner); blank email never needs one |
-| `isManagedGrantRole` / `normalizeGrantRole` / `needsManagedGrant` (`:108`) | the managed-role domain: accept `reader\|writer\|owner`, coerce anything else down to `reader`, and detect a rule below its intended role (never downgrade an elevated one) |
-| `normalizeAccessSelection(raw, ownDept)` (`:151`) | coerce a client access list into clean `UserCalendarGrant[]` (roles clamped, dupes dropped, own department excluded) |
-| `formatManagedGrants(grants, names)` (`:169`) | human-readable, department-sorted `["Ops (Can edit)"]` strings for audit payloads |
-| `isValidEmail` (`:35`) | simple email shape check, used server-side in grant/update and in user-form validation |
-| `resolveGoogleCalendarId(calendarId)` (`:98`) | registry id → Google calendar id (null when missing); also reused by the events layer |
+| `diffAccess(existing, expected)`  | expected emails **missing** an ACL rule → to grant |
+| `diffRevocable(candidates, assigned)`  | candidate emails no assigned user holds anymore → safe to revoke |
+| `needsAdminOwnerGrant(acls, adminEmail)`  | true when the admin has no rule or a lower role (a manual reader grant gets upgraded to owner); blank email never needs one |
+| `isManagedGrantRole` / `normalizeGrantRole` / `needsManagedGrant`  | the managed-role domain: accept `reader\|writer\|owner`, coerce anything else down to `reader`, and detect a rule below its intended role (never downgrade an elevated one) |
+| `normalizeAccessSelection(raw, ownDept)`  | coerce a client access list into clean `UserCalendarGrant[]` (roles clamped, dupes dropped, own department excluded) |
+| `formatManagedGrants(grants, names)`  | human-readable, department-sorted `["Ops (Can edit)"]` strings for audit payloads |
+| `isValidEmail`  | simple email shape check, used server-side in grant/update and in user-form validation |
+| `resolveGoogleCalendarId(calendarId)`  | registry id → Google calendar id (null when missing); also reused by the events layer |
 
 **Legacy adoption.** Cross-department access for roster users *used* to be given
 by typing their email into a department's Additional access — leaving an
@@ -247,16 +247,16 @@ warnings toast.
 
 All in `src/lib/roster/actions.ts` (`"use server"`, all `requireAdmin()`-gated).
 Result types: `RosterActionResult = { ok: true; warnings? } | { ok: false; error, field? }`
-(`:39`) — `warnings` carries partial Google-sync failures (yellow toast in the
-form); and `ShareActionResult` (`:47`).
+ — `warnings` carries partial Google-sync failures (yellow toast in the
+form); and `ShareActionResult`.
 
 **User actions**
 
 | Action | Behavior | Audit row |
 | ------ | -------- | --------- |
-| `createUser` (`:102`) | validate → `normalizePhone` → resolve `access` against live calendars → INSERT (returning id+name) → audit → `revalidatePath` → **`reconcileUserAccessChange` with old values null** (new user's email is granted on their department **and** on every submitted grant row at its role) → **`adoptExternalAccessForEmail`** when an email was set | `user.create` — flat details incl. department **name** and `access: ["Ops (Can edit)", …]` |
-| `updateUser` (`:169`) | validate → load before (+ its grant rows) → resolve `access` → build before/after `userSnapshot`s (sanitized, incl. the `access` list) → UPDATE → audit **`diffFields(before, after)`** → reconcile **when email, department, or the access list changed** — the row diff revokes removed grants, and the affected calendars' expectations are re-synced → **`adoptExternalAccessForEmail`** when the email changed | `user.update` — diff incl. `access` (removed/added/role-changed grants show as `[before] → [after]` lists) |
-| `setUserStatus` (`:256`) | toggle active/inactive; **no ACL reconcile** — status doesn't affect sharing (grant rows and reader rules both survive deactivation) | `user.status.change` — status diff |
+| `createUser`  | validate → `normalizePhone` → resolve `access` against live calendars → INSERT (returning id+name) → audit → `revalidatePath` → **`reconcileUserAccessChange` with old values null** (new user's email is granted on their department **and** on every submitted grant row at its role) → **`adoptExternalAccessForEmail`** when an email was set | `user.create` — flat details incl. department **name** and `access: ["Ops (Can edit)", …]` |
+| `updateUser`  | validate → load before (+ its grant rows) → resolve `access` → build before/after `userSnapshot`s (sanitized, incl. the `access` list) → UPDATE → audit **`diffFields(before, after)`** → reconcile **when email, department, or the access list changed** — the row diff revokes removed grants, and the affected calendars' expectations are re-synced → **`adoptExternalAccessForEmail`** when the email changed | `user.update` — diff incl. `access` (removed/added/role-changed grants show as `[before] → [after]` lists) |
+| `setUserStatus`  | toggle active/inactive; **no ACL reconcile** — status doesn't affect sharing (grant rows and reader rules both survive deactivation) | `user.status.change` — status diff |
 
 There is **no `deleteUser`**: users are deactivated, never deleted (the UI has a
 Deactivate/Activate button).
@@ -264,17 +264,16 @@ Deactivate/Activate button).
 Duplicate UX is **constraint-driven, not pre-queried**: the INSERT/UPDATE catch
 Postgres SQLSTATE `23505` and map the violated constraint to a field error —
 `users_shortname_idx` → "A user with this shortname already exists" (field
-`shortname`), any other unique violation → phone duplicate (`:148-156`,
-`:229-237`).
+`shortname`), any other unique violation → phone duplicate.
 
 **Department (calendar) actions**
 
 | Action | Behavior | Audit row |
 | ------ | -------- | --------- |
-| `createDepartment` (`:284`) | requires Google configured → **creates the calendar in Google first**, then inserts the registry row (name + `color`, normalized via `normalizeEventColor`); an optional `parentId` must exist — a new child is ranked at the end of its parent's subtree (shifted rows renumbered in the same transaction), a new top level ranks last overall → unique `google_calendar_id` violation → "A department with this Google Calendar already exists" | `calendar.create` — `{ googleCalendarId, color, parent }` |
-| `renameDepartment` (`:389`) | the detail modal's Save: renames in Google **only when the name actually changed** (color is app-local — no Google call for color-only edits), then updates name + color (+ `parentId` when the parent changed) in the DB; a parent change is cycle-validated (self / own descendant rejected, moving to top level always allowed) and renumbers the affected preorder ranks in the same transaction | `calendar.update` — `diffFields({ name, color, parent })` (legacy rows: `calendar.rename` — name diff) |
-| `deleteDepartment` (`:363`) | deletes the Google calendar (404 tolerated) then the registry row — the FK cascade **unassigns its users** and **promotes its sub-departments to top level** (`parent_id` set null); the detail modal's Delete button opens a separate confirm modal for it (warning about the promotion when it has children) | `calendar.delete` — `{ googleCalendarId }` |
-| `moveDepartment` (`:539`) | the list's up/down arrows: swap with the adjacent **sibling** only (same parent, or both top level — first/last child of a group is a no-op); the whole subtree moves, and the result is re-ranked in preorder (also closing legacy sortOrder gaps) | `calendar.update` — order diff (preorder position, 1-based) |
+| `createDepartment`  | requires Google configured → **creates the calendar in Google first**, then inserts the registry row (name + `color`, normalized via `normalizeEventColor`); an optional `parentId` must exist — a new child is ranked at the end of its parent's subtree (shifted rows renumbered in the same transaction), a new top level ranks last overall → unique `google_calendar_id` violation → "A department with this Google Calendar already exists" | `calendar.create` — `{ googleCalendarId, color, parent }` |
+| `renameDepartment`  | the detail modal's Save: renames in Google **only when the name actually changed** (color is app-local — no Google call for color-only edits), then updates name + color (+ `parentId` when the parent changed) in the DB; a parent change is cycle-validated (self / own descendant rejected, moving to top level always allowed) and renumbers the affected preorder ranks in the same transaction | `calendar.update` — `diffFields({ name, color, parent })` (legacy rows: `calendar.rename` — name diff) |
+| `deleteDepartment`  | deletes the Google calendar (404 tolerated) then the registry row — the FK cascade **unassigns its users** and **promotes its sub-departments to top level** (`parent_id` set null); the detail modal's Delete button opens a separate confirm modal for it (warning about the promotion when it has children) | `calendar.delete` — `{ googleCalendarId }` |
+| `moveDepartment`  | the list's up/down arrows: swap with the adjacent **sibling** only (same parent, or both top level — first/last child of a group is a no-op); the whole subtree moves, and the result is re-ranked in preorder (also closing legacy sortOrder gaps) | `calendar.update` — order diff (preorder position, 1-based) |
 
 ## 1.7 Department hierarchy & parade-state aggregation
 
@@ -287,17 +286,17 @@ mirrors it as flat blocks in tree order.
 
 ```mermaid
 flowchart TB
-    subgraph TREE["calendars hierarchy (preorder sortOrder 0-5)"]
-        HQ["HQ (0)<br/>John"]
-        LOG["Logistics (1)<br/>Alice, Bob"]
-        STO["Stores (2)<br/>Carol"]
-        OPS["Ops (3)<br/>David"]
-        FLD["Field (4)<br/>Eve"]
-    end
-    LOG -->|parent| HQ
-    STO -->|parent| LOG
-    OPS -->|parent| HQ
-    HQ --- AGG["parade-state: HQ (4 of 5)<br/>John<br/>└ Logistics (2 of 3)<br/>└└ Alice, Bob, Carol - Absent<br/>└ Ops (1 of 1)<br/>└└ David"]
+ subgraph TREE["calendars hierarchy (preorder sortOrder 0-5)"]
+ HQ["HQ (0)<br/>John"]
+ LOG["Logistics (1)<br/>Alice, Bob"]
+ STO["Stores (2)<br/>Carol"]
+ OPS["Ops (3)<br/>David"]
+ FLD["Field (4)<br/>Eve"]
+ end
+ LOG -->|parent| HQ
+ STO -->|parent| LOG
+ OPS -->|parent| HQ
+ HQ --- AGG["parade-state: HQ (4 of 5)<br/>John<br/>└ Logistics (2 of 3)<br/>└└ Alice, Bob, Carol - Absent<br/>└ Ops (1 of 1)<br/>└└ David"]
 ```
 
 **The model**
@@ -407,13 +406,13 @@ it).
 
 ```mermaid
 flowchart LR
-    T["event_types.color<br/>(admin-pinned, nullable)"] -->|typed event| E1{effectiveEventTypeColor}
-    TN["event type name<br/>deterministic hash"] -->|"color is null"| E1
-    C["calendars.color<br/>(admin-pinned, nullable)"] -->|untyped/external| E2{effectiveCalendarColor}
-    CI["calendars.id (UUID)<br/>deterministic hash"] -->|"color is null"| E2
-    E1 --> CE["CalendarEvent.color<br/>(queries.ts mapCalendarItem)"]
-    E2 --> CE
-    CE --> V["@mantine/schedule views<br/>+ WeekMatrixView"]
+ T["event_types.color<br/>(admin-pinned, nullable)"] -->|typed event| E1{effectiveEventTypeColor}
+ TN["event type name<br/>deterministic hash"] -->|"color is null"| E1
+ C["calendars.color<br/>(admin-pinned, nullable)"] -->|untyped/external| E2{effectiveCalendarColor}
+ CI["calendars.id (UUID)<br/>deterministic hash"] -->|"color is null"| E2
+ E1 --> CE["CalendarEvent.color<br/>(queries.ts mapCalendarItem)"]
+ E2 --> CE
+ CE --> V["@mantine/schedule views<br/>+ WeekMatrixView"]
 ```
 
 - **The value** is one of the fixed 10-color Mantine palette
@@ -449,33 +448,33 @@ flowchart LR
 
 ## 1.9 Reconcile-on-read: the department detail modal
 
-`listDepartmentAccess(calendarId)` (`shares.ts:112`) is called by the admin-gated
-`getDepartmentAccess` (`actions.ts:589`) when a department's detail modal opens
+`listDepartmentAccess(calendarId)` (`shares.ts`) is called by the admin-gated
+`getDepartmentAccess` (`actions.ts`) when a department's detail modal opens
 (its "Calendar access" section — the sharing view that used to be a separate
 Shares modal):
 
 ```mermaid
 sequenceDiagram
-    participant M as Detail modal
-    participant S as listDepartmentAccess
-    participant D as DB (users + user_calendar_access)
-    participant G as Google ACL
-    M->>S: getDepartmentAccess(calendarId)
-    S->>D: expectations = department members (reader)<br/>+ grant rows (their role)
-    alt Google unconfigured
-        S-->>M: assigned + granted + syncWarning "not configured"
-    else configured
-        S->>G: listCalendarAccess
-        opt admin lacks owner
-            S->>G: setCalendarAccess(admin, owner)  [failure → warning]
-        end
-        loop each expectation missing or below its role
-            S->>G: setCalendarAccess(email, expected role)  [failures collected]
-        end
-        S->>G: re-read ACLs if anything changed
-        Note over S: adopt-on-read: an "additional" rule whose email matches a<br/>roster user (no grant row yet) becomes one — moved to "granted"
-        S-->>M: assigned + assignedRoles + granted (live roles)<br/>+ additional (externals) + admin [+ syncWarning]
-    end
+ participant M as Detail modal
+ participant S as listDepartmentAccess
+ participant D as DB (users + user_calendar_access)
+ participant G as Google ACL
+ M->>S: getDepartmentAccess(calendarId)
+ S->>D: expectations = department members (reader)<br/>+ grant rows (their role)
+ alt Google unconfigured
+ S-->>M: assigned + granted + syncWarning "not configured"
+ else configured
+ S->>G: listCalendarAccess
+ opt admin lacks owner
+ S->>G: setCalendarAccess(admin, owner)  [failure → warning]
+ end
+ loop each expectation missing or below its role
+ S->>G: setCalendarAccess(email, expected role)  [failures collected]
+ end
+ S->>G: re-read ACLs if anything changed
+ Note over S: adopt-on-read: an "additional" rule whose email matches a<br/>roster user (no grant row yet) becomes one — moved to "granted"
+ S-->>M: assigned + assignedRoles + granted (live roles)<br/>+ additional (externals) + admin [+ syncWarning]
+ end
 ```
 
 Properties:
@@ -514,26 +513,26 @@ removals revoke and additions/role changes grant:
 
 ```mermaid
 sequenceDiagram
-    participant A as createUser / updateUser
-    participant D as DB (users + user_calendar_access)
-    participant S as reconcileUserAccessChange
-    participant G as Google ACL
-    A->>D: INSERT/UPDATE + grant-row diff committed
-    A->>S: { oldEmail, newEmail, oldDept, newDept, userId, desiredAccess }
-    Note over S: affected = oldDept ∪ newDept ∪ changed grant-row calendars<br/>∪ all grant-row calendars when the email changed
-    loop per affected department calendar
-        S->>D: expectations = members + grant rows (fresh)
-        S->>G: listCalendarAccess
-        loop expectations missing or below their role
-            S->>G: setCalendarAccess(email, expected role)
-        end
-        opt givenUp email = oldEmail and/or email (user no longer expected here)<br/>and no expectation holds it and not an inherent owner
-            S->>G: removeCalendarAccess(givenUp)
-        end
-        Note over S: per-email failures → human-readable warnings
-    end
-    Note over S: then createUser / updateUser run adoptExternalAccessForEmail<br/>(email set/changed): raw rules for that email on other calendars → grant rows
-    S-->>A: warnings → yellow toast (DB change already committed)
+ participant A as createUser / updateUser
+ participant D as DB (users + user_calendar_access)
+ participant S as reconcileUserAccessChange
+ participant G as Google ACL
+ A->>D: INSERT/UPDATE + grant-row diff committed
+ A->>S: { oldEmail, newEmail, oldDept, newDept, userId, desiredAccess }
+ Note over S: affected = oldDept ∪ newDept ∪ changed grant-row calendars<br/>∪ all grant-row calendars when the email changed
+ loop per affected department calendar
+ S->>D: expectations = members + grant rows (fresh)
+ S->>G: listCalendarAccess
+ loop expectations missing or below their role
+ S->>G: setCalendarAccess(email, expected role)
+ end
+ opt givenUp email = oldEmail and/or email (user no longer expected here)<br/>and no expectation holds it and not an inherent owner
+ S->>G: removeCalendarAccess(givenUp)
+ end
+ Note over S: per-email failures → human-readable warnings
+ end
+ Note over S: then createUser / updateUser run adoptExternalAccessForEmail<br/>(email set/changed): raw rules for that email on other calendars → grant rows
+ S-->>A: warnings → yellow toast (DB change already committed)
 ```
 
 The rules, precisely:
@@ -558,7 +557,7 @@ The rules, precisely:
   with an email, or their email changes, `adoptExternalAccessForEmail` scans
   every department's ACLs for that email and turns matching rules on non-own,
   non-inherent calendars into managed grant rows (role kept at reader/writer/owner)
-  — so an email that previously held raw "additional access" keeps its access as
+ — so an email that previously held raw "additional access" keeps its access as
   a manageable, reconcile-safe grant (surfaced via the warnings toast).
 - **Failure isolation**: every grant/revoke is try/caught; failures accumulate
   into warnings like "Could not sync calendar access for: …" that surface as a
@@ -574,9 +573,9 @@ admin-gated, all validating email + role server-side (`isValidEmail`,
 
 | Action (`actions.ts`) | Behavior | Audit row |
 | --------------------- | -------- | --------- |
-| `grantDepartmentAccess(calendarId, email, role)` (`:594`) | **blocks emails belonging to roster users** (message points to Users; members of the same department get "already a member"), then `setCalendarAccess` (upsert) for true externals | `access.grant` — `{ email, role: null → role }` diff |
-| `updateDepartmentAccess(calendarId, email, role)` (`:638`) | reads ACLs for the **previous role** (case-insensitive), then upserts | `access.update` — `{ email, role: prev → new }` diff |
-| `revokeDepartmentAccess(calendarId, email)` (`:685`) | reads ACLs for the previous role, then `removeCalendarAccess` | `access.revoke` — `{ email, role: prev → null }` diff |
+| `grantDepartmentAccess(calendarId, email, role)`  | **blocks emails belonging to roster users** (message points to Users; members of the same department get "already a member"), then `setCalendarAccess` (upsert) for true externals | `access.grant` — `{ email, role: null → role }` diff |
+| `updateDepartmentAccess(calendarId, email, role)`  | reads ACLs for the **previous role** (case-insensitive), then upserts | `access.update` — `{ email, role: prev → new }` diff |
+| `revokeDepartmentAccess(calendarId, email)`  | reads ACLs for the previous role, then `removeCalendarAccess` | `access.revoke` — `{ email, role: prev → null }` diff |
 
 The **assigned-user role override** reuses `updateDepartmentAccess` with the
 user's department email — the same upsert, the same `access.update` audit row,
@@ -614,7 +613,7 @@ I/O-bound (not unit-tested, per the repo convention): `resolveGoogleCalendarId`,
 
 | File | Role |
 | ---- | ---- |
-| `src/db/schema.ts:22-83` | `users` + `calendars` tables (incl. `calendars.parent_id` hierarchy §1.7 and `calendars.color` external fallback, §1.8); `user_calendar_access` (cross-department grants, §1.5) |
+| `src/db/schema.ts` | `users` + `calendars` tables (incl. `calendars.parent_id` hierarchy §1.7 and `calendars.color` external fallback, §1.8); `user_calendar_access` (cross-department grants, §1.5) |
 | `src/lib/roster/shares.ts` | ACL model, pure diff/grant helpers, managed expectations, both reconcile paths, legacy adoption |
 | `src/lib/roster/hierarchy.ts` | Pure department-hierarchy helpers: tree build, preorder flatten, descendants, parent options, sibling move (§1.7) |
 | `src/lib/roster/validate.ts` | Phone/user/calendar validation (pure) |

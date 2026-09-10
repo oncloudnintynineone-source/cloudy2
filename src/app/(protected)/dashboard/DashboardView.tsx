@@ -1315,6 +1315,19 @@ export function DashboardView({
     [events, optimisticOps],
   );
 
+  // Open the details modal for a just-saved event (the toast "View event"
+  // action). Resolves from the optimistic overlay so it opens instantly, even
+  // while the post-save refresh is still in flight; a null origin grows from
+  // center (there is no chip to originate from).
+  function openSavedEventDetail(eventId: string | null) {
+    const found = viewEvents.find((event) => event.payload.eventId === eventId) ?? null;
+    if (!found) {
+      return;
+    }
+    setDetailOriginRect(null);
+    setDetailEvent(found);
+  }
+
   // The acting user's home department — the representative calendar a brand-new
   // optimistic event stands on until the server pins the real copy. Cosmetic:
   // the stand-in's rows come from its tagged people/departments, not this id.
@@ -3195,6 +3208,7 @@ export function DashboardView({
                 onOptimistic={applyOptimistic}
                 onOptimisticSettled={settleOptimistic}
                 onOptimisticRollback={rollbackOptimistic}
+                onViewSaved={openSavedEventDetail}
                 optimisticHome={optimisticHome}
                 onDone={() => {
                   closeForm();

@@ -25,14 +25,14 @@ deep-dive docs.
 
 - Sign in on the login page's single field. How the app routes what you type:
   - **Regular users** type their phone immediately followed by the login keyword
-    (`91234567leave`) and are signed straight in.
+ (`91234567leave`) and are signed straight in.
   - **Named admins** (users with the **Admin** role) do the same — the app then opens a
-    modal asking for the **shared admin PIN**, one PIN for every admin, configured only
-    via the `ADMIN_PIN` env var (no in-app way to set or change it). No session is
-    created until the PIN is entered.
+ modal asking for the **shared admin PIN**, one PIN for every admin, configured only
+ via the `ADMIN_PIN` env var (no in-app way to set or change it). No session is
+ created until the PIN is entered.
   - The **emergency admin** types the bootstrap password alone (no keyword) and is
-    signed in phone-less with no PIN step (`ADMIN_INITIAL_PASSWORD` env). Used to set
-    up the first admin users and as a break-glass account.
+ signed in phone-less with no PIN step (`ADMIN_INITIAL_PASSWORD` env). Used to set
+ up the first admin users and as a break-glass account.
   The staff keyword can never yield an admin session.
 - Admins can see and edit **every** event in every department — including
   **External** events created directly in Google Calendar. There is no "on behalf of":
@@ -110,7 +110,7 @@ Settings → Event Types. Each type constrains the event wizard:
 - **Show Location** — off hides the wizard's Location step entirely, so creators
   never choose a category or type a specific place. Usable only when exactly one
   location is allowed in the matrix; such events always save in that sole category
-   (re-saving a legacy event of such a type converts it — like hidden participants).
+ (re-saving a legacy event of such a type converts it — like hidden participants).
 - **Show Remarks** — off hides the Remarks step and clears the description.
 - **Show participants** — off hides the wizard's Participants step and collapses
   participants to the organizer (re-saving such an event removes its other
@@ -180,7 +180,7 @@ app never blocks an event.
   group whose floored in-country % drops strictly below its requirement triggers:
   1. an audited `kah.breachNotify` row (always), and
   2. **one combined email** to the breached groups' members (their `users.email`),
-     if any resolve and an email transport is configured.
+ if any resolve and an email transport is configured.
 - **Email transports (first configured wins):** Workspace delegation
   (`GOOGLE_DELEGATE_EMAIL` + `gmail.send` scope) → SMTP (`SMTP_URL`) → audit-only.
 - **Breach Email Templates** (same tab): admin-editable subject/body with live

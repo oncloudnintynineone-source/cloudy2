@@ -31,13 +31,13 @@ and can never delay or fail the mutation.
 A notification goes out after a successful event **create** or **update**
 (never delete), for every roster user who is newly included as a participant:
 
-| Situation                                                          | Notified                                                          |
+| Situation | Notified |
 | ------------------------------------------------------------------ | ----------------------------------------------------------------- |
-| New event created                                                  | every participant (tagged users + active members of tagged depts) |
-| Existing event edited — a user is tagged                           | that user                                                         |
-| Existing event edited — a department is newly tagged               | every active member of that department                            |
-| Existing event edited (time/title/location only)                   | nobody (the added-set is empty)                                   |
-| User removed from an event / event deleted                         | nobody                                                            |
+| New event created | every participant (tagged users + active members of tagged depts) |
+| Existing event edited — a user is tagged | that user |
+| Existing event edited — a department is newly tagged | every active member of that department |
+| Existing event edited (time/title/location only) | nobody (the added-set is empty) |
+| User removed from an event / event deleted | nobody |
 
 Semantics follow the clash **occupancy** model (`busyUsersOfEvent` in
 `src/lib/events/clashes.ts`): a user is "included" when they are tagged by id
@@ -99,11 +99,11 @@ Migration `0038_late_ultimates`:
 
 - **`push_subscriptions`** — one row per browser push endpoint:
   - `user_id` → `users.id` (cascade delete), `endpoint` (unique), `keys` JSONB
-    (`{ p256dh, auth }`), timestamps.
+ (`{ p256dh, auth }`), timestamps.
   - A user on several devices has several rows. Because the *endpoint* is unique,
-    a device shared by two accounts is **re-`userId`d** to the currently signed-in
-    account by `syncPushSubscription` (an upsert-by-endpoint), so no account's
-    pushes leak to a device now used by another account.
+ a device shared by two accounts is **re-`userId`d** to the currently signed-in
+ account by `syncPushSubscription` (an upsert-by-endpoint), so no account's
+ pushes leak to a device now used by another account.
 - **`user_preferences.event_invite_push`** — the account-wide **master switch**
   (boolean, default `true`, independent of the OS permission). Row is lazily
   ensured on first write; an absent row means enabled.
@@ -120,11 +120,11 @@ device subscribed through the Vercel origin keeps validating when the same
 keypair signs from the Cloud Run shadow. Required on every deploy surface
 (Vercel Production + Preview, Cloud Run shadow, `.env.local`):
 
-| Variable                       | Purpose                                                              |
+| Variable | Purpose |
 | ------------------------------ | -------------------------------------------------------------------- |
 | `NEXT_PUBLIC_VAPID_PUBLIC_KEY` | VAPID public key — inlined into the client (`pushManager.subscribe`) |
-| `VAPID_PRIVATE_KEY`            | VAPID private key (server-only secret)                               |
-| `VAPID_SUBJECT`                | `mailto:` (or `https:`) contact identifying the app to the push service |
+| `VAPID_PRIVATE_KEY` | VAPID private key (server-only secret) |
+| `VAPID_SUBJECT` | `mailto:` (or `https:`) contact identifying the app to the push service |
 
 Without all three the feature is **disabled gracefully**: no crash, no sends.
 Rotating the pair invalidates existing subscriptions; their next delivery fails
@@ -147,22 +147,22 @@ registers one `after(async () => …)` and returns immediately. Inside:
 
 1. `parseVapidConfig()` (pure, `vapid.ts`) — bail when unconfigured.
 2. `activeMembershipsByDepartment(old ∪ new dept ids)` →
-   `computeAddedUserIds(before, after, memberships)` (pure, `diff.ts`) →
-   drop the **acting user**.
+ `computeAddedUserIds(before, after, memberships)` (pure, `diff.ts`) →
+ drop the **acting user**.
 3. Resolve the added ids against `users` (keep `status = 'active'`), drop rows
-   whose `userPreferences.eventInvitePush` is `false`, then load their
-   `push_subscriptions`. Empty at any step → no-op.
+ whose `userPreferences.eventInvitePush` is `false`, then load their
+ `push_subscriptions`. Empty at any step → no-op.
 4. Build the shared text (`message.ts`, pure; reuses the audit log's UTC+8 wall
-   clock via `formatEventAuditTime`) and a **per-recipient** deep link: the copy
-   on the recipient's own department calendar when it exists, else the first
-   copy — `/dashboard?date=<start>&event=<eventId>&_eventCal=<calendarId>` so the
-   dashboard's fetch includes the event regardless of the user's filters.
+ clock via `formatEventAuditTime`) and a **per-recipient** deep link: the copy
+ on the recipient's own department calendar when it exists, else the first
+ copy — `/dashboard?date=<start>&event=<eventId>&_eventCal=<calendarId>` so the
+ dashboard's fetch includes the event regardless of the user's filters.
 5. **Audit first** (`AUDIT_ACTIONS.eventParticipantNotify` —
-   `event.participantNotify`) so the send is on record even when delivery fails.
+ `event.participantNotify`) so the send is on record even when delivery fails.
 6. Send one push per subscription (`web-push`, `sendNotification`, TTL 7 days,
-   10s timeout, payload `{ title, body, tag: eventId, url }`). 404/410 →
-   `deletePushSubscriptionById` (endpoint gone); other errors are logged and
-   swallowed.
+ 10s timeout, payload `{ title, body, tag: eventId, url }`). 404/410 →
+ `deletePushSubscriptionById` (endpoint gone); other errors are logged and
+ swallowed.
 
 ## 1.7 Service worker
 
@@ -259,31 +259,31 @@ exercises the exact delivery path and returns the concrete reason. Failing that,
 check in order:
 
 1. **The dialog spins forever** → the page isn't controlled by an active service
-   worker. Reopen the installed app (fully close it first); if it persists,
-   reinstall the PWA. (The dialog now times out its probe and shows this
-   guidance instead of hanging.)
+ worker. Reopen the installed app (fully close it first); if it persists,
+ reinstall the PWA. (The dialog now times out its probe and shows this
+ guidance instead of hanging.)
 2. **"Notifications aren't turned on for this server yet"** → the VAPID env trio
-   is missing server-side. Set `NEXT_PUBLIC_VAPID_PUBLIC_KEY`,
-   `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT` on the deploy surface and redeploy.
-   `NEXT_PUBLIC_*` is inlined **at build time** — the running deployment must
-   have been built after the variable was set.
+ is missing server-side. Set `NEXT_PUBLIC_VAPID_PUBLIC_KEY`,
+ `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT` on the deploy surface and redeploy.
+ `NEXT_PUBLIC_*` is inlined **at build time** — the running deployment must
+ have been built after the variable was set.
 3. **"VAPID keys don't match" (403/401 on the test)** → the client subscribed
-   with a different application-server key than the server now signs with (the
-   pair was changed or a public/private mismatch was pasted). Use one pair from a
-   single `npx web-push generate-vapid-keys` run on every surface, then turn
-   notifications off/on on the device to re-subscribe.
+ with a different application-server key than the server now signs with (the
+ pair was changed or a public/private mismatch was pasted). Use one pair from a
+ single `npx web-push generate-vapid-keys` run on every surface, then turn
+ notifications off/on on the device to re-subscribe.
 4. **Test succeeds but event notifications don't arrive** → verify the
-   two-account rule: the acting user is never notified, and the *recipient* must
-   have push enabled on their own account/device. Create/edit the event as one
-   user tagging a second user whose device has push on; a `event.participantNotify`
-   audit row should appear (Settings → Audit Log) and a `[push]` line in the
-   function logs if a send failed. A no-op participant edit adds nobody by design.
+ two-account rule: the acting user is never notified, and the *recipient* must
+ have push enabled on their own account/device. Create/edit the event as one
+ user tagging a second user whose device has push on; a `event.participantNotify`
+ audit row should appear (Settings → Audit Log) and a `[push]` line in the
+ function logs if a send failed. A no-op participant edit adds nobody by design.
 5. **"push_subscriptions table is missing"** → the schema migration (0038) has
-   not run on this environment's DB; push `dev`/`main` so the CI migrate job
-   applies it, or run `pnpm db:migrate` with that `DATABASE_URL` in the shell.
+ not run on this environment's DB; push `dev`/`main` so the CI migrate job
+ applies it, or run `pnpm db:migrate` with that `DATABASE_URL` in the shell.
 6. **Nothing happened and no error** → the recipient had no stored subscription
-   row (never completed Enable on that account), the master switch is off for
-   them, or their account is inactive. Re-check step 4's setup.
+ row (never completed Enable on that account), the master switch is off for
+ them, or their account is inactive. Re-check step 4's setup.
 
 ## 1.11 Notification copy is template-driven
 
@@ -315,7 +315,7 @@ description, location and the wall-clock time:
 
 ```
 notifyCreated: Text "You're included in a new event" · Description · Location · (Time)
-notifyAdded:   Text "You've been added to this event" · Description · Location · (Time)
+notifyAdded: Text "You've been added to this event" · Description · Location · (Time)
 ```
 
 Because recipes support a **literal Text field**, an assigned template can carry
@@ -346,25 +346,25 @@ not the content.
 
 ## 1.12 Files
 
-| File                                                            | Role                                                          |
+| File | Role |
 | --------------------------------------------------------------- | ------------------------------------------------------------- |
-| `src/lib/events/participantNotify/vapid.ts` (+ test)            | Pure VAPID env parsing                                        |
-| `src/lib/events/participantNotify/diff.ts` (+ test)             | Pure occupancy diff (`computeAddedUserIds`)                   |
-| `src/lib/events/participantNotify/notify.ts`                    | `dispatchParticipantNotifications` (`after()` send path; template-driven body) |
-| `src/lib/events/notifyRecipes.ts`                               | Built-in notification copy (default recipes per target)      |
-| `src/lib/settings/titleRecipe.ts` (+ test)                      | Recipe types + `renderTitleRecipe` (incl. `text`/`timeFull`) |
-| `src/lib/events/participantNotify/subscriptions.ts`             | `push_subscriptions` DB access (list/upsert/delete/by-endpoint) |
-| `src/lib/events/participantNotify/sender.ts`                    | Shared one-shot `web-push` send (used by notify + test action)   |
-| `src/lib/events/participantNotify/actions.ts`                   | Server actions (subscribe/unsync, settings read, test send)      |
-| `src/lib/events/participantNotify/client.ts`                    | Browser-side push helpers (no-hang SW probe, subscribe)          |
-| `src/components/NotificationSettings.tsx`                       | Profile-menu Notifications dialog (incl. Send test)              |
-| `src/components/UserMenu.tsx`                                   | Menu entry + modal mount                                      |
-| `src/app/sw.ts`                                                 | `push` / `notificationclick` handlers                         |
-| `src/lib/events/actions.ts`                                     | Dispatch calls in `createEvent` / `updateEvent`               |
-| `src/app/(protected)/settings/templates/TemplatesManager.tsx`   | Template groups + Assign templates dialog (incl. notify targets) |
-| `src/db/schema.ts`, `drizzle/0038_late_ultimates.sql`           | `push_subscriptions`, `user_preferences.event_invite_push`    |
+| `src/lib/events/participantNotify/vapid.ts` (+ test) | Pure VAPID env parsing |
+| `src/lib/events/participantNotify/diff.ts` (+ test) | Pure occupancy diff (`computeAddedUserIds`) |
+| `src/lib/events/participantNotify/notify.ts` | `dispatchParticipantNotifications` (`after()` send path; template-driven body) |
+| `src/lib/events/notifyRecipes.ts` | Built-in notification copy (default recipes per target) |
+| `src/lib/settings/titleRecipe.ts` (+ test) | Recipe types + `renderTitleRecipe` (incl. `text`/`timeFull`) |
+| `src/lib/events/participantNotify/subscriptions.ts` | `push_subscriptions` DB access (list/upsert/delete/by-endpoint) |
+| `src/lib/events/participantNotify/sender.ts` | Shared one-shot `web-push` send (used by notify + test action) |
+| `src/lib/events/participantNotify/actions.ts` | Server actions (subscribe/unsync, settings read, test send) |
+| `src/lib/events/participantNotify/client.ts` | Browser-side push helpers (no-hang SW probe, subscribe) |
+| `src/components/NotificationSettings.tsx` | Profile-menu Notifications dialog (incl. Send test) |
+| `src/components/UserMenu.tsx` | Menu entry + modal mount |
+| `src/app/sw.ts` | `push` / `notificationclick` handlers |
+| `src/lib/events/actions.ts` | Dispatch calls in `createEvent` / `updateEvent` |
+| `src/app/(protected)/settings/templates/TemplatesManager.tsx` | Template groups + Assign templates dialog (incl. notify targets) |
+| `src/db/schema.ts`, `drizzle/0038_late_ultimates.sql` | `push_subscriptions`, `user_preferences.event_invite_push` |
 | `src/db/schema.ts` (`participant_notify_*` columns, deprecated) | Legacy free-text copy columns — never read (0039 migration)  |
-| `public/notification-icon-192x192.png` (+ `.svg` source)       | Push `icon` — white logo on blue tile (see §1.7)              |
-| `public/notification-badge-96x96.png` (+ `.svg` source)        | Push `badge` — white silhouette (see §1.7)                    |
-| `scripts/gen-notification-icons.py`                            | Regenerates the notification art from `public/icon.svg`       |
-| `.env.example`, `docs/developer-guide.md`, `AGENTS.md`         | Env + deployment docs                                         |
+| `public/notification-icon-192x192.png` (+ `.svg` source) | Push `icon` — white logo on blue tile (see §1.7) |
+| `public/notification-badge-96x96.png` (+ `.svg` source) | Push `badge` — white silhouette (see §1.7) |
+| `scripts/gen-notification-icons.py` | Regenerates the notification art from `public/icon.svg` |
+| `.env.example`, `docs/developer-guide.md`, `AGENTS.md` | Env + deployment docs |

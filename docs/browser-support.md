@@ -54,10 +54,10 @@ JS that never runs.
 
 ```mermaid
 flowchart TD
-    A["GET /login"] --> B["await headers() → User-Agent"]
-    B --> C["detectLegacyBrowser(ua) — pure, fail-open"]
-    C -- "legacy" --> D["UnsupportedBrowserNotice<br/>(static SSR HTML, zero JS needed)"]
-    C -- "supported / unknown" --> E["LoginForm (client, hydrates normally)"]
+ A["GET /login"] --> B["await headers() → User-Agent"]
+ B --> C["detectLegacyBrowser(ua) — pure, fail-open"]
+ C -- "legacy" --> D["UnsupportedBrowserNotice<br/>(static SSR HTML, zero JS needed)"]
+ C -- "supported / unknown" --> E["LoginForm (client, hydrates normally)"]
 ```
 
 Design constraints:
@@ -81,15 +81,15 @@ unparseable, or unrecognised UAs are treated as *supported*, so a parsing quirk 
 never show a false "unsupported" banner to a real user.
 
 1. **Chromium engines** — `Chrome/`, `Chromium/`, `Edg/`, `EdgiOS/`, `CriOS/`
-   tokens: major < **111** → legacy. The **engine token is the signal, never the OS**
-   (Chrome on Android self-updates independently of the OS). `Chrome/` is checked as
-   it appears first in Edge/WebView/OPR UAs and is the true engine version there.
+ tokens: major < **111** → legacy. The **engine token is the signal, never the OS**
+ (Chrome on Android self-updates independently of the OS). `Chrome/` is checked as
+ it appears first in Edge/WebView/OPR UAs and is the true engine version there.
 2. **Firefox** — `Firefox/` major < **111** → legacy.
 3. **Non-Chromium WebKit** (Safari, Apple in-app WebViews) — the frozen
-   `AppleWebKit/605.1.15` / `Safari/605.1.15` build strings carry no version signal;
-   use the OS token (`CPU iPhone OS 15_8` / `CPU OS 15_7_8`) first, falling back to
-   the Safari `Version/` token where no OS token exists (desktop Safari). Below
-   **16.4** → legacy.
+ `AppleWebKit/605.1.15` / `Safari/605.1.15` build strings carry no version signal;
+ use the OS token (`CPU iPhone OS 15_8` / `CPU OS 15_7_8`) first, falling back to
+ the Safari `Version/` token where no OS token exists (desktop Safari). Below
+ **16.4** → legacy.
 4. **Anything else** → supported (fail open). Bots included.
 
 ## 1.5 Android: gate on the browser, not the OS

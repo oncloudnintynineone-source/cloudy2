@@ -55,26 +55,26 @@ event across every department.
 
 ```mermaid
 flowchart LR
-    subgraph SHELL["AppShellShell (client)"]
-        B["header Search ActionIcon<br/>(between pinned + theme)"]
-        M["EventSearchModal<br/>dynamic(ssr: false)"]
-        SPIN["row spinner<br/>(useTransition isPending)"]
-    end
-    subgraph ACTION["Server action (search.ts)"]
-        R["requireSession()"]
-        C["listCalendars() + listEventTypes()"]
-        F["mapWithConcurrency <= 4"]
-        MAP["mapCalendarItem + dedupeEventsByGroupId"]
-    end
-    subgraph G["Google Calendar"]
-        LIST["events.list(q, timeMin, timeMax)<br/>per calendar"]
-    end
-    B -->|open| M
-    M -->|searchEvents(q, from, to)| R --> C --> F
-    F --> LIST
-    LIST --> MAP --> M
-    M -->|result click| SPIN
-    SPIN -->|"/dashboard?date=..&event=.."| DEEP["dashboard EventDetail<br/>(Duplicate / Edit / Delete)"]
+ subgraph SHELL["AppShellShell (client)"]
+ B["header Search ActionIcon<br/>(between pinned + theme)"]
+ M["EventSearchModal<br/>dynamic(ssr: false)"]
+ SPIN["row spinner<br/>(useTransition isPending)"]
+ end
+ subgraph ACTION["Server action (search.ts)"]
+ R["requireSession()"]
+ C["listCalendars() + listEventTypes()"]
+ F["mapWithConcurrency <= 4"]
+ MAP["mapCalendarItem + dedupeEventsByGroupId"]
+ end
+ subgraph G["Google Calendar"]
+ LIST["events.list(q, timeMin, timeMax)<br/>per calendar"]
+ end
+ B -->|open| M
+ M -->|searchEvents(q, from, to)| R --> C --> F
+ F --> LIST
+ LIST --> MAP --> M
+ M -->|result click| SPIN
+ SPIN -->|"/dashboard?date=..&event=.."| DEEP["dashboard EventDetail<br/>(Duplicate / Edit / Delete)"]
 ```
 
 Search calls `events.list` directly through `getGoogleIntegration()` — it never
@@ -102,12 +102,12 @@ are identical in shape. The stub returns `[]`.
 3. Coerces the date window (§1.7).
 4. Loads `listCalendars()` and `listEventTypes()` (the type-color map).
 5. Fans out with `mapWithConcurrency` (`SEARCH_CONCURRENCY` = 4) — one
-   `events.list` per calendar, running outside any transaction (the Postgres
-   pool is `max: 1`, and no DB write happens here).
+ `events.list` per calendar, running outside any transaction (the Postgres
+ pool is `max: 3` by default, and no DB write happens here).
 6. Maps each item through the shared `mapCalendarItem` (empty filters) and
-   collapses cross-department copies with `dedupeEventsByGroupId`, so one
-   logical event appears once regardless of how many department calendars it
-   lives in.
+ collapses cross-department copies with `dedupeEventsByGroupId`, so one
+ logical event appears once regardless of how many department calendars it
+ lives in.
 7. Sorts by `start` (stable) and returns `{ ok: true, events }`.
 
 Failure surfaces as `{ ok: false, error }` (the client shows it inline); there
@@ -197,16 +197,16 @@ index (a separate concern from this native-search feature; see
   date headers never light more than the one row clicked; nothing shifts) — and
   navigates `/dashboard?date=<start day>`
   (`+ &event=<group id>` for internal events) inside a `useTransition`. The
-  deep link opens the event on the user's **remembered view + filters** (`?event=`
-  deep links read the remembered-state cookie like any other render — only `_fresh`
-  skips it), and the search covers every calendar, so the link also carries
+ deep link opens the event on the user's **remembered view + filters** (`?event=`
+ deep links read the remembered-state cookie like any other render), and the
+ search covers every calendar, so the link also carries
   `&_eventCal=<calendar id>` — `page.tsx` adds that one calendar to the fetch
   set only (never to the filter selection/remembered state), guaranteeing the
   event is found regardless of the current view's filters. The
   search modal stays open while `isPending`, then closes once the navigation
   commits — the dashboard's own full `EventDetail` (Duplicate/Edit/Delete) is
-  what the user lands on, reusing the existing `?event=`/`?date=` deep-link
-  machinery (`page.tsx:66-68`). The one-shot `event`/`_eventCal` params are
+ what the user lands on, reusing the existing `?event=`/`?date=` deep-link
+ machinery (`page.tsx`). The one-shot `event`/`_eventCal` params are
   stripped after opening (re-armed per click, so the same event can be opened
   again), and `DashboardView` re-arms its same-id guard when they clear. Rows
   stay clickable throughout, so a re-click re-triggers navigation. There is no

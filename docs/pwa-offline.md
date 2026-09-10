@@ -48,25 +48,25 @@ Until this phase the service worker (`src/app/sw.ts`) ran a blanket `NetworkOnly
 
 ```mermaid
 flowchart TB
-    PWA[PWA cold open / F5 / share link<br/>navigation GET] --> SW[Service worker]
-    IMG[Images] -. precached / runtime .-> SW
-    FONT[Fonts/CSS] -. precached .-> SW
+ PWA[PWA cold open / F5 / share link<br/>navigation GET] --> SW[Service worker]
+ IMG[Images] -. precached / runtime .-> SW
+ FONT[Fonts/CSS] -. precached .-> SW
 
-    SW -->|document hit| DOC[Serve stamped HTML from app-documents-swr<br/>+ revalidate in background]
-    SW -->|document miss, online| NET[Network fetch<br/>store if 200 text/html<br/>+ date stamp]
-    SW -->|document miss, offline| LASTSAVED[302 redirect to most recently<br/>saved view's own URL]
-    LASTSAVED -->|no saved views| OFF[Branded /offline.html<br/>precached fallback — plain<br/>"You're offline" explainer]
+ SW -->|document hit| DOC[Serve stamped HTML from app-documents-swr<br/>+ revalidate in background]
+ SW -->|document miss, online| NET[Network fetch<br/>store if 200 text/html<br/>+ date stamp]
+ SW -->|document miss, offline| LASTSAVED[302 redirect to most recently<br/>saved view's own URL]
+ LASTSAVED -->|no saved views| OFF[Branded /offline.html<br/>precached fallback — plain<br/>"You're offline" explainer]
 
-    SW -->|RSC hit| RSC[Serve RSC from app-rsc-swr<br/>+ revalidate]
-    SW -->|RSC miss, offline & hit| RSC
-    SW -->|RSC miss, offline & miss| FAIL[Navigation fails<br/>chrome reverts, OfflineBanner visible]
+ SW -->|RSC hit| RSC[Serve RSC from app-rsc-swr<br/>+ revalidate]
+ SW -->|RSC miss, offline & hit| RSC
+ SW -->|RSC miss, offline & miss| FAIL[Navigation fails<br/>chrome reverts, OfflineBanner visible]
 
-    NET --> PURGE{Session expired?<br/>landed on /login}
-    RSC --> PURGE
-    PURGE -->|yes| PURGE2[Purge both caches<br/>postMessage to clients]
-    PURGE -->|no| STORE[(SW caches)]
+ NET --> PURGE{Session expired?<br/>landed on /login}
+ RSC --> PURGE
+ PURGE -->|yes| PURGE2[Purge both caches<br/>postMessage to clients]
+ PURGE -->|no| STORE[(SW caches)]
 
-    STORE -. next open is fresh .-> PWA
+ STORE -. next open is fresh .-> PWA
 ```
 
 ## 1.4 Service worker routes
@@ -93,7 +93,7 @@ Matcher predicates are pure and imported from `src/lib/pwa/swRules.ts` (see §1.
 
   Both document and RSC caches keep **one** plugins array per strategy instance on purpose: `ExpirationPlugin` keys its `CacheExpiration` by the `cacheName` handed to each callback, so a single instance manages its cache correctly — two would double-manage it (duplicate IndexedDB bookkeeping and redundant deletes).
 - **Matcher:** same-origin `GET` with `request.mode === "navigate"` and `isCacheableDocumentRequest(url, origin)` — i.e. not `/login`, `/api/*`, `/serwist/*`, `/_next/*`.
-- **Key:** exact URL including query — `?refresh=` nonce, `?event=` / `?edit=` deep links, `_fresh` marker are therefore naturally always-fresh (different keys).
+- **Key:** exact URL including query — `?refresh=` nonce, `?event=` / `?edit=` deep links are therefore naturally always-fresh (different keys).
 - **Stored responses:** `shouldStoreDocumentResponse` — 200 + `text/html` + not a login redirect + not an excluded pathname + no one-shot param (`refresh`/`edit`/`event`/`_fresh`). One-shot URLs are stripped by the client right after their render and never requested again, so storing them would only pollute the cache and let the offline fallback pick a stale nonce entry as "newest".
 - **Stamping:** `cachedResponseWillBeUsed` reads the cached `Date` header as `cachedAt`, runs `stampDocument(html, cachedAt)` — injects `<script>window.__C2_STAMP__={cachedAt}</script>` after `<head>` — so the client can tell a cache hit from a network render and reconcile stale copies after paint (§1.5, `documentCachedAtIso` → `needsReconcile`). A document served straight off the network carries **no** stamp, which is how the client tells "already fresh" from "cached".
 - **Background revalidation:** `StaleWhileRevalidate` fetches the network in parallel and updates the cache, so the next open is warmer on its own. The *current* render is brought up to date by the after-paint reconcile above — never in front of the first paint.
@@ -113,38 +113,38 @@ resolves the target on the client, so **nothing on the server is on the critical
 path to first paint**:
 
 1. `isLaunchRequest` (same-origin GET navigation, `isStartUrlRequest`) matches
-   before the document route (first-match-wins). `isStartUrlRequest` is
-   deliberately **lenient**: `/` plus any `utm_*` params counts (a launcher can
-   tag the start URL), and a hash is ignored. The first version demanded an
-   exactly query-less `/`, and one unexpected param was enough to fall through
-   to the document route — i.e. back to a blocking network read with the splash
-   still up.
+ before the document route (first-match-wins). `isStartUrlRequest` is
+ deliberately **lenient**: `/` plus any `utm_*` params counts (a launcher can
+ tag the start URL), and a hash is ignored. The first version demanded an
+ exactly query-less `/`, and one unexpected param was enough to fall through
+ to the document route — i.e. back to a blocking network read with the splash
+ still up.
 2. `handleLaunchRequest` returns `serwist.matchPrecache("/loading.html")` — the
-   launch shell. **Always.** Network `fetch` only on a precache miss (the very
-   first navigation racing `install`, or an eviction).
+ launch shell. **Always.** Network `fetch` only on a precache miss (the very
+ first navigation racing `install`, or an eviction).
 3. `public/loading.html` paints the branded skeleton → **splash lifts**.
 4. Its inline script reads the client-owned `cloudy2.ui` cookie (base64url JSON,
-   same codec as `decodeUiState`), whitelists `lastPage`, and `location.replace`s
-   to it — default `/dashboard`. It also pre-selects the skeleton variant
-   matching the remembered `dashboard.view` and applies the manual color-scheme
-   override (see below).
+ same codec as `decodeUiState`), whitelists `lastPage`, and `location.replace`s
+ to it — default `/dashboard`. It also pre-selects the skeleton variant
+ matching the remembered `dashboard.view` and applies the manual color-scheme
+ override (see below).
 5. The document route (§1.5) then serves that target: instantly from the cache
-   whenever a copy exists (any age), from the network only when none does. A
-   cached copy is stamped, so the after-paint reconcile (§1.5) upgrades the view
-   when it is older than 5 minutes.
+ whenever a copy exists (any age), from the network only when none does. A
+ cached copy is stamped, so the after-paint reconcile (§1.5) upgrades the view
+ when it is older than 5 minutes.
 
 ```mermaid
 flowchart TD
-    T[Tap icon → navigate to /] --> SW[Launch route<br/>precached shell, always]
-    SW --> PAINT[Skeleton paints → splash lifts]
-    PAINT --> CR[Read cloudy2.ui cookie →<br/>view variant + whitelisted lastPage]
-    CR -->|after 2 rAFs| R[location.replace target]
-    R --> D{Document cached?}
-    D -- yes --> I[Serve stamped copy instantly<br/>+ background revalidate]
-    I --> REC{Stamp older than 5 min?}
-    REC -- yes --> RC[router.refresh after paint<br/>RSC-only invalidation]
-    D -- no --> N[Network behind the still-painted shell]
-    SW -.precache miss.-> NET[fetch / → server 307 → target]
+ T[Tap icon → navigate to /] --> SW[Launch route<br/>precached shell, always]
+ SW --> PAINT[Skeleton paints → splash lifts]
+ PAINT --> CR[Read cloudy2.ui cookie →<br/>view variant + whitelisted lastPage]
+ CR -->|after 2 rAFs| R[location.replace target]
+ R --> D{Document cached?}
+ D -- yes --> I[Serve stamped copy instantly<br/>+ background revalidate]
+ I --> REC{Stamp older than 5 min?}
+ REC -- yes --> RC[router.refresh after paint<br/>RSC-only invalidation]
+ D -- no --> N[Network behind the still-painted shell]
+ SW -.precache miss.-> NET[fetch / → server 307 → target]
 ```
 
 Three properties are load-bearing; changing either reintroduces the original
@@ -226,24 +226,23 @@ is never contacted.
 
 ```mermaid
 sequenceDiagram
-    participant U as User
-    participant C as Client (mutation handler)
-    participant SW as Service worker caches
-    participant S as Server (RSC)
+ participant U as User
+ participant C as Client (mutation handler)
+ participant SW as Service worker caches
+ participant S as Server (RSC)
 
-    U->>C: Create / edit / delete
-    C->>C: await action / server mutation
-    C->>SW: invalidateCurrentPathCaches()<br/>delete keys where pathname == location.pathname
-    C->>S: router.refresh() (network RSC GET, now uncached)
-    S-->>C: Fresh RSC payload
-    SW-->>SW: Store fresh RSC + document on next document fetch
+ U->>C: Create / edit / delete
+ C->>C: await action / server mutation
+ C->>SW: invalidateCurrentPathCaches()<br/>delete keys where pathname == location.pathname
+ C->>S: router.refresh() (network RSC GET, now uncached)
+ S-->>C: Fresh RSC payload
+ SW-->>SW: Store fresh RSC + document on next document fetch
 ```
 
 - Helper: `invalidatePathCaches(pathname)` / `invalidateCurrentPathCaches()` in `src/lib/pwa/client.ts` (reads `caches`, matches page caches by prefix across every build version, filters keys by `origin + pathname`, fire-and-forget, never throws).
-- 22 `router.refresh()` call sites across 12 files were migrated to `void invalidateCurrentPathCaches().then(() => router.refresh())`.
+- Post-mutation `router.refresh()` call sites now go through the shared `useActivityRefresh` hook (see [`loading-transitions.md` §1.13](loading-transitions.md)), which calls `invalidateCurrentPathCaches()` before refreshing.
 - The same helper is used for the document cache — a hard reload (F5) after a mutation also cannot serve the pre-mutation document.
 - **The one exception is the after-paint reconcile (§1.5)**, which calls `invalidateRscPathCaches` instead: it wants a live RSC read but must leave the cached *document* in place, because that entry is what makes the next launch instant (and the SW's background revalidation keeps it current).
-- The dashboard's **Pin/Unpin tab** toggle fires the same invalidation, fire-and-forget and without a refresh: pinning only writes the `cloudy2.ui` cookie (no navigation, no URL change), so every SWR-cached `/dashboard` document and RSC payload rendered before the toggle still carries the old tab order. Serving one on the next reload or soft navigation would re-seed the `pinnedViews` prop and the state writer would then clobber the fresh pin in the cookie — losing it for good. `togglePinView` therefore calls `invalidateCurrentPathCaches()` before `setPinned`; the cost is that the next dashboard load after a toggle bypasses the instant cache (pin toggles are rare).
 
 ## 1.8 New build (deploy) takeover
 
@@ -260,21 +259,21 @@ The fix has three parts:
 
 ```mermaid
 sequenceDiagram
-    participant D as Vercel deploy (new build)
-    participant B as Browser
-    participant V1 as SW build v1 (controlling)
-    participant V2 as SW build v2
-    participant C as Page client (AppProviders)
+ participant D as Vercel deploy (new build)
+ participant B as Browser
+ participant V1 as SW build v1 (controlling)
+ participant V2 as SW build v2
+ participant C as Page client (AppProviders)
 
-    D->>B: /serwist/sw.js bytes change
-    B->>V2: install + precache new manifest
-    V2->>V2: activate: skipWaiting + wipe page caches<br/>(every build version, by prefix)
-    V2->>C: clientsClaim → controllerchange
-    C->>C: controller object ≠ mount-time controller<br/>(and tab was already under control)
-    C->>C: clearAllSavedPages() (all build versions)
-    C->>B: window.location.reload()
-    B->>V2: fresh document GET → no cache entry → network
-    V2-->>C: fresh HTML + new chunks (new build running)
+ D->>B: /serwist/sw.js bytes change
+ B->>V2: install + precache new manifest
+ V2->>V2: activate: skipWaiting + wipe page caches<br/>(every build version, by prefix)
+ V2->>C: clientsClaim → controllerchange
+ C->>C: controller object ≠ mount-time controller<br/>(and tab was already under control)
+ C->>C: clearAllSavedPages() (all build versions)
+ C->>B: window.location.reload()
+ B->>V2: fresh document GET → no cache entry → network
+ V2-->>C: fresh HTML + new chunks (new build running)
 ```
 
 Notes:
@@ -405,7 +404,7 @@ sign-out isolation, and the deploy-takeover reload (§1.8).
 | `src/lib/pwa/swRules.ts` | Pure predicates, constants & build-version helpers (see §1.13) |
 | `src/lib/pwa/swRules.test.ts` | Unit tests for the above |
 | `src/lib/pwa/client.ts` | Client cache helpers (prefix-matched across build versions): `invalidatePathCaches`, `invalidateRscPathCaches`, `invalidateCurrentPathCaches`, `clearAllSavedPages`, `documentCachedAtIso`, + the `useStaleDocumentReconcile` after-paint reconcile (§1.5) + `useOneShotRefreshStrip` (§1.11) + `useInactivityRefresh` (§1.17) |
-| `src/app/(protected)/dashboard/DashboardView.tsx` | Route-level one-shot strips (`_fresh`/`edit`/`event`) + `router.refresh` → invalidate-then-refresh + pin-toggle cache invalidation (§1.7); no longer hosts Force refresh or a "Saved" chip (§1.11) |
+| `src/app/(protected)/dashboard/DashboardView.tsx` | Route-level one-shot strips (`edit`/`event`) + `router.refresh` → invalidate-then-refresh (§1.7); no longer hosts Force refresh or a "Saved" chip (§1.11) |
 | `src/components/AppProviders.tsx` | Session-expiry `message` listener + `controllerchange` build-swap reload (§1.8) + mounts `useStaleDocumentReconcile` (§1.5) |
 | `src/components/UserMenu.tsx` | Profile menu: theme switcher (light/dark/system rows) + sign-out cache purge |
 | `src/components/AppShellShell.tsx` | Header Force refresh (full reload + `?refresh` nonce, §1.11) + mounts `useOneShotRefreshStrip` (§1.11) |
@@ -472,30 +471,30 @@ comes back as a cold launch through the §1.5.1 shell, which already reconciles.
 
 ```mermaid
 sequenceDiagram
-    participant T as Tab (document)
-    participant V as visible / focus / pageshow(persisted)
-    participant C as Client hooks
-    participant SW as Service worker
-    participant S as Server (RSC)
+ participant T as Tab (document)
+ participant V as visible / focus / pageshow(persisted)
+ participant C as Client hooks
+ participant SW as Service worker
+ participant S as Server (RSC)
 
-    Note over T: user backgrounds app → hidden / blur
-    T->>T: lastHiddenAt = Date.now()
-    Note over T: … minutes/hours pass …
-    T->>V: foreground return
-    V->>C: update() (deploy check)
-    C->>SW: getRegistration().update()
-    alt new build published
-        SW->>C: skipWaiting + clientsClaim → controllerchange
-        C->>C: clearAllSavedPages() + location.reload()
-    end
-    V->>C: hidden duration ≥ 5 min?
-    alt yes
-        C->>C: router.replace(?refresh=now) in a transition
-        C->>S: forced RSC read (dashboard force-reads Google)
-        C->>C: strip ?refresh after commit
-    else no
-        C->>C: keep in-memory render
-    end
+ Note over T: user backgrounds app → hidden / blur
+ T->>T: lastHiddenAt = Date.now()
+ Note over T: … minutes/hours pass …
+ T->>V: foreground return
+ V->>C: update() (deploy check)
+ C->>SW: getRegistration().update()
+ alt new build published
+ SW->>C: skipWaiting + clientsClaim → controllerchange
+ C->>C: clearAllSavedPages() + location.reload()
+ end
+ V->>C: hidden duration ≥ 5 min?
+ alt yes
+ C->>C: router.replace(?refresh=now) in a transition
+ C->>S: forced RSC read (dashboard force-reads Google)
+ C->>C: strip ?refresh after commit
+ else no
+ C->>C: keep in-memory render
+ end
 ```
 
 Files: the pure `INACTIVITY_REFRESH_MS` / `needsInactivityRefresh`

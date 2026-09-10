@@ -24,12 +24,12 @@ One input field, no username.
 
 ```mermaid
 flowchart LR
-    A[Single input] --> B{Route}
-    B -- "[phone][keyword] → role user" --> C[Sign in as yourself]
-    B -- "[phone][keyword] → role admin" --> E{Admin PIN modal}
-    E -- "shared admin PIN" --> F[Admin]
-    E -- "cancel" --> A
-    B -- "no keyword → emergency password" --> G[Emergency admin]
+ A[Single input] --> B{Route}
+ B -- "[phone][keyword] → role user" --> C[Sign in as yourself]
+ B -- "[phone][keyword] → role admin" --> E{Admin PIN modal}
+ E -- "shared admin PIN" --> F[Admin]
+ E -- "cancel" --> A
+ B -- "no keyword → emergency password" --> G[Emergency admin]
 ```
 
 - **Regular user** — type your phone number immediately followed by the login
@@ -76,7 +76,8 @@ them with the tabs above the grid:
 - **Pan**: wide grids pan horizontally — drag with the mouse, or use the round
   arrow buttons at the grid's edges (they appear when a grid is wider than the
   screen, e.g. a zoomed-in Month view).
-- **Pin tabs** you use most (⋮ menu → **Pin Tab**) — pinned views become quick tabs.
+- **Manage views**: use the settings gear beside the tab strip to add, rename,
+  reorder, or delete your dashboard tabs (each tab keeps its own filters).
 - **Fullscreen** (⋮ menu → **Enter fullscreen**) hides all app
   chrome (and the browser UI where supported) for a wall-display calendar; press
   Esc or use ⋮ menu → **Exit fullscreen** to go back.
@@ -112,24 +113,24 @@ Tap the **+** button, then walk the wizard. You are the event's **organizer**
 attend:
 
 1. **Type** — the event type, listed under its category (types without a category
-   appear at the bottom under "Ungrouped"); each type can restrict the steps below.
+ appear at the bottom under "Ungrouped"); each type can restrict the steps below.
 2. **Time** — Start & End date pickers plus tap-select time dropdowns (15-minute
-   steps), or Full day / Half day (AM/PM) options.
+ steps), or Full day / Half day (AM/PM) options.
 3. **Location** — one category: **In camp**, **Out of camp**, or **Overseas**
-   (the type decides which are allowed), plus an optional specific place. Overseas
-   events are what KAH groups count as "away". Some event types **hide the Location
-   step** (set by your admin, only for types restricted to one location) — for those
-   this step is skipped and the event is saved in that single category automatically.
+ (the type decides which are allowed), plus an optional specific place. Overseas
+ events are what KAH groups count as "away". Some event types **hide the Location
+ step** (set by your admin, only for types restricted to one location) — for those
+ this step is skipped and the event is saved in that single category automatically.
 4. **Participants** — invite individual users and/or tag whole departments; the event
-   appears on everyone's calendars. Participants (and members of a tagged department)
-   can edit this event too. You're pre-selected by default — remove yourself only if you
-   won't take part (an event must keep at least one participant or department). Your own
-   badge carries an amber ring and a **(You)** marker wherever participants are listed —
-   on this step, the review, and the event's details.
+ appears on everyone's calendars. Participants (and members of a tagged department)
+ can edit this event too. You're pre-selected by default — remove yourself only if you
+ won't take part (an event must keep at least one participant or department). Your own
+ badge carries an amber ring and a **(You)** marker wherever participants are listed —
+ on this step, the review, and the event's details.
 5. **Remarks** — the free-text description.
 6. **Other settings** — the **Pin this event** switch (puts the event in the Pinned
-   Events panel, §1.5) and, when you're the organizer, "Only I can edit this event"
-   (locks editing to you; admins always keep it).
+ Events panel, §1.5) and, when you're the organizer, "Only I can edit this event"
+ (locks editing to you; admins always keep it).
 7. **Review** — a summary with a live calendar-title preview, then Create.
 
 Tapping outside the wizard minimizes it to a floating bubble — your draft survives

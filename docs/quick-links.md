@@ -14,7 +14,7 @@ opens its URL in a new tab.
 
 ## 1.1 Data model
 
-`quick_links` table (`src/db/schema.ts:219`): `label`, `url`, `icon` (key into the
+`quick_links` table (`src/db/schema.ts`): `label`, `url`, `icon` (key into the
 curated tabler icon set, default `external-link`), `color` (Mantine palette name
 tinting the menu item's icon), `enabled`, `sortOrder` (indexed). The menu lists
 enabled rows in `sortOrder` order; the launcher only appears when at least one row is
@@ -27,9 +27,9 @@ enabled.
   `moveQuickLink` renumbers to unique ascending `sortOrder` inside its transaction.
 - Validation in `src/lib/quickLinks/validate.ts` — **http/https URLs only**
   (unit-tested).
-- Reads: `src/lib/quickLinks/queries.ts` (enabled rows ordered by `sortOrder`);
-  `page.tsx` (dashboard) passes only **enabled** links to `DashboardView` (the
-  `quickLinks` prop).
+- Reads: `src/lib/quickLinks/queries.ts` (`listQuickLinks` returns **all** rows
+  ordered by `sortOrder` then `createdAt`); `page.tsx` (dashboard) passes only
+  **enabled** links to `DashboardView` (the `quickLinks` prop).
 
 ## 1.3 Icon registry & components
 
@@ -56,7 +56,7 @@ enabled.
 | ---- | ---- |
 | `src/db/schema.ts` | `quick_links` table |
 | `src/lib/quickLinks/actions.ts` | Audited CRUD + `moveQuickLink` reorder |
-| `src/lib/quickLinks/queries.ts` | Enabled-links read |
+| `src/lib/quickLinks/queries.ts` | `listQuickLinks` — all rows, ordered |
 | `src/lib/quickLinks/icons.ts` | Curated icon registry (pure) |
 | `src/lib/quickLinks/validate.ts` | http/https URL validation (pure) |
 | `src/components/QuickLinkIcon.tsx`, `QuickLinkIconPicker.tsx`, `QuickLinksMenu.tsx` | Client-only icon + menu components |

@@ -43,12 +43,12 @@ billing threshold on post-May-2026 projects) is far above this app's traffic; me
 usage on the production project is ~0%. The real ceilings are:
 
 1. **Per-user per-minute rate limit.** Every Google call here is made by the **service
-   account**, which Google charges as a single "user" (~600 requests/min on new projects).
-   An uncached admin view of all departments fans out to N `events.list` calls per render,
-   so a busy multi-user minute can burst past that cap. The cache collapses "N Google
-   calls per render" into "zero on a warm hit".
+ account**, which Google charges as a single "user" (~600 requests/min on new projects).
+ An uncached admin view of all departments fans out to N `events.list` calls per render,
+ so a busy multi-user minute can burst past that cap. The cache collapses "N Google
+ calls per render" into "zero on a warm hit".
 2. **Render latency.** Each `events.list` round-trip costs hundreds of milliseconds and
-   the uncached fan-out was serial, hiding the wait behind the loading skeleton.
+ the uncached fan-out was serial, hiding the wait behind the loading skeleton.
 
 ## 1.2 Goals & non-goals
 
@@ -86,29 +86,29 @@ internal one, and the cache is tuned to keep the scarce side cheap. See
 
 ```mermaid
 flowchart LR
-    subgraph RSC["Server render (per request)"]
-        D["/dashboard page"]
-        FM["fetchMonthEvents() / fetchRangeEvents()<br/>(queries.ts)"]
-    end
-    subgraph CACHE["Layered events cache (eventsCache.ts)"]
-        L1["L1 in-process Map<br/>(0 I/O on hit)"]
-        L2["L2 Postgres table<br/>google_event_cache"]
-        L2q["one batched SELECT<br/>per month"]
-        G["Google Calendar<br/>events.list (cold only)"]
-        L1 -.-> L2
-        L2q --> L2
-        L2q -. "fill" .-> L1
-        G -. "refresh + upsert" .-> L2
-        G -. "fill" .-> L1
-    end
-    subgraph MUT["Server actions (actions.ts)"]
-        CRUD["createEvent / updateEvent / deleteEvent"]
-        INV["invalidateGcalCache()"]
-        CRUD --> INV
-        INV -. "purge L1 + delete rows" .-> L1
-        INV -. "purge L1 + delete rows" .-> L2
-    end
-    D --> FM --> L1
+ subgraph RSC["Server render (per request)"]
+ D["/dashboard page"]
+ FM["fetchMonthEvents() / fetchRangeEvents()<br/>(queries.ts)"]
+ end
+ subgraph CACHE["Layered events cache (eventsCache.ts)"]
+ L1["L1 in-process Map<br/>(0 I/O on hit)"]
+ L2["L2 Postgres table<br/>google_event_cache"]
+ L2q["one batched SELECT<br/>per month"]
+ G["Google Calendar<br/>events.list (cold only)"]
+ L1 -.-> L2
+ L2q --> L2
+ L2q -. "fill" .-> L1
+ G -. "refresh + upsert" .-> L2
+ G -. "fill" .-> L1
+ end
+ subgraph MUT["Server actions (actions.ts)"]
+ CRUD["createEvent / updateEvent / deleteEvent"]
+ INV["invalidateGcalCache()"]
+ CRUD --> INV
+ INV -. "purge L1 + delete rows" .-> L1
+ INV -. "purge L1 + delete rows" .-> L2
+ end
+ D --> FM --> L1
 ```
 
 The central design decision: **filters are applied after the fetch.** `fetchMonthEvents`
@@ -123,7 +123,7 @@ month)` serves all users and all filter combinations.
 
 `(googleCalendarId, month)` where `month` is the `YYYY-MM` string of the viewed month
 (`fetchMonthEvents` derives the range via `monthRange()` in
-`src/lib/events/datetime.ts:57`). Events are fetched for the exclusive `[monthStart,
+`src/lib/events/datetime.ts`). Events are fetched for the exclusive `[monthStart,
 nextMonthStart)` window. The dashboard Month view reads the months its 6-week grid
 displays in one range pass — `fetchRangeEvents` over `monthGridMonths()` (the Monday
 on/before the 1st through six full weeks, 2-3 cache entries per calendar) — so the
@@ -132,24 +132,24 @@ month via `fetchMonthEvents`.
 
 ### 1.4.2 Table
 
-Defined in `src/db/schema.ts:152` (migration `0011_panoramic_mariko_yashida.sql`):
+Defined in `src/db/schema.ts` (migration `0011_panoramic_mariko_yashida.sql`):
 
 ```mermaid
 erDiagram
-    google_event_cache {
-        text calendar_google_id PK "Google calendar id"
-        text month PK "YYYY-MM"
-        jsonb events NOT NULL "encoded GcalEventItem[]"
-        timestamp_tz fetched_at NOT NULL "last successful fetch"
-    }
+ google_event_cache {
+ text calendar_google_id PK "Google calendar id"
+ text month PK "YYYY-MM"
+ jsonb events NOT NULL "encoded GcalEventItem[]"
+ timestamp_tz fetched_at NOT NULL "last successful fetch"
+ }
 ```
 
-| Column                | Type             | Notes                                                       |
+| Column | Type | Notes |
 | --------------------- | ---------------- | ------------------------------------------------------------ |
-| `calendar_google_id`  | `text`           | Google calendar id (from the `calendars` registry row)       |
-| `month`               | `text`           | `YYYY-MM`                                                    |
-| `events`              | `jsonb`          | `CachedEvent[]` — `GcalEventItem`s with dates as ISO strings |
-| `fetched_at`          | `timestamptz`    | Set on every successful refresh (drives TTL)                 |
+| `calendar_google_id`  | `text` | Google calendar id (from the `calendars` registry row) |
+| `month` | `text` | `YYYY-MM` |
+| `events` | `jsonb` | `CachedEvent[]` — `GcalEventItem`s with dates as ISO strings |
+| `fetched_at` | `timestamptz` | Set on every successful refresh (drives TTL) |
 
 Primary key: `(calendar_google_id, month)`. No foreign key — the row is keyed by the
 Google id, not the registry UUID, so the cache is independent of the `calendars` table.
@@ -163,62 +163,62 @@ strings for storage and reconstructs `Date`s on read:
 ```ts
 interface CachedEvent {
   id: string; calendarId: string; title: string; description: string;
-  allDay: boolean; start: string; end: string;   // ISO 8601
+  allDay: boolean; location: string; start: string; end: string; // ISO 8601 dates
 }
 ```
 
 ## 1.5 Read path
 
 Entry point: `getCachedMonthEventsForCalendars(googleCalendarIds, month)`
-(`src/lib/google/eventsCache.ts:115`), returns `{ events: Record<googleId, GcalEventItem[]>,
+(`src/lib/google/eventsCache.ts`), returns `{ events: Record<googleId, GcalEventItem[]>,
 allServed }`. It walks three layers, each cheaper than the last:
 
 ```mermaid
 sequenceDiagram
-    participant R as RSC render
-    participant L1 as L1 memory (Map)
-    participant L2 as L2 Postgres (google_event_cache)
-    participant G as Google Calendar
-    R->>L1: getCachedMonthEventsForCalendars(ids, month)
-    loop per calendar id
-        alt L1 hit (fresh or stale)
-            L1-->>R: events (stale → after() background refresh)
-        else L1 miss/expired
-            Note over R,L2: collect into missing[]
-        end
-    end
-    Note over R,L2: ONE batched SELECT: month = ? AND calendar_google_id IN (...)
-    R->>L2: batched SELECT
-    L2-->>R: rows
-    loop missing ids with a usable row
-        L2-->>R: decoded events (stale → after() refresh), fill L1
-    end
-    loop ids still pending (absent or expired)
-        R->>G: events.list (bounded concurrency ≤4, in-flight coalesced)
-        G-->>R: items → upsert L2 + fill L1
-        R-->>R: allServed = false
-    end
+ participant R as RSC render
+ participant L1 as L1 memory (Map)
+ participant L2 as L2 Postgres (google_event_cache)
+ participant G as Google Calendar
+ R->>L1: getCachedMonthEventsForCalendars(ids, month)
+ loop per calendar id
+ alt L1 hit (fresh or stale)
+ L1-->>R: events (stale → after() background refresh)
+ else L1 miss/expired
+ Note over R,L2: collect into missing[]
+ end
+ end
+ Note over R,L2: ONE batched SELECT: month = ? AND calendar_google_id IN (...)
+ R->>L2: batched SELECT
+ L2-->>R: rows
+ loop missing ids with a usable row
+ L2-->>R: decoded events (stale → after() refresh), fill L1
+ end
+ loop ids still pending (absent or expired)
+ R->>G: events.list (bounded concurrency ≤4, in-flight coalesced)
+ G-->>R: items → upsert L2 + fill L1
+ R-->>R: allServed = false
+ end
 ```
 
 1. **L1 in-process map** (`memory`, keyed `` `${googleCalendarId}:${month}` ``) — a warm
-   instance serves repeat views with **no Google I/O** and, since the `events` JSONB is
-   never re-shipped for a warm hit, minimal DB transfer. Entries hold the already-decoded
-   `GcalEventItem[]` plus an epoch `fetchedAt`. A size cap (`MAX_MEMORY_ENTRIES`) evicts
-   the oldest-inserted entry when the map exceeds 512 rows.
+ instance serves repeat views with **no Google I/O** and, since the `events` JSONB is
+ never re-shipped for a warm hit, minimal DB transfer. Entries hold the already-decoded
+ `GcalEventItem[]` plus an epoch `fetchedAt`. A size cap (`MAX_MEMORY_ENTRIES`) evicts
+ the oldest-inserted entry when the map exceeds 512 rows.
 2. **L2 Postgres** — every L1 hit is verified against the shared row with a
-   **metadata-only `SELECT`** (`calendar_google_id`, `fetched_at` — no `events` payload),
-   so a cross-instance `invalidateGcalCache` (DELETE on another lambda) is visible without
-   re-downloading whole months; full `events` rows are fetched **only for L1 misses** (one
-   batched `SELECT` regardless of calendar count), plus the rare L1 hit whose shared row is
-   meaningfully newer than the local copy. Usable rows (fresh or stale) are decoded and
-   promoted into L1.
+ **metadata-only `SELECT`** (`calendar_google_id`, `fetched_at` — no `events` payload),
+ so a cross-instance `invalidateGcalCache` (DELETE on another lambda) is visible without
+ re-downloading whole months; full `events` rows are fetched **only for L1 misses** (one
+ batched `SELECT` regardless of calendar count), plus the rare L1 hit whose shared row is
+ meaningfully newer than the local copy. Usable rows (fresh or stale) are decoded and
+ promoted into L1.
 3. **Google** — anything missing or expired blocks on a fresh `events.list` + upsert,
-   executed with bounded concurrency (`GOOGLE_FETCH_CONCURRENCY` = 4). Concurrent callers
-   of the same key within one process share a single promise via the `inflight` map, so a
-   thundering herd collapses to one Google call. The fetch runs **outside any transaction**
-   (the app's Postgres pool is `max: 1`), so it never holds the single connection open
-   across the network round-trip; duplicate cross-instance refreshes are harmless because
-   the upsert is idempotent.
+ executed with bounded concurrency (`GOOGLE_FETCH_CONCURRENCY` = 4). Concurrent callers
+ of the same key within one process share a single promise via the `inflight` map, so a
+ thundering herd collapses to one Google call. The fetch runs **outside any transaction**
+ (the app's Postgres pool is `max: 3` by default, configurable via `DB_POOL_MAX`), so it
+ never holds the connection open across the network round-trip; duplicate cross-instance
+ refreshes are harmless because the upsert is idempotent.
 
 `allServed` is `false` when at least one calendar needed a blocking Google refresh; the
 prefetch gate (see §1.8) uses it to avoid background work on fully-cached views.
@@ -235,53 +235,54 @@ page reload** of the current URL carrying a **one-shot URL nonce** (`?refresh=<e
 not an in-app navigation:
 
 1. The shell's header button (`AppShellShell`) reloads `window.location.href` +
-   `?refresh=<epoch-ms>`. The nonce URL is **never answered by the service worker**:
-   `?refresh` is in `ONE_SHOT_PARAMS` (`swRules.ts`), so there is no cached document/RSC
-   entry for it — the reload is always a **network render**. On non-calendar pages that
-   alone is the refresh (fresh server data on any page — Settings included). On
-   `/dashboard` the server additionally honors the nonce:
+ `?refresh=<epoch-ms>`. The nonce URL is **never answered by the service worker**:
+ `?refresh` is in `ONE_SHOT_PARAMS` (`swRules.ts`), so there is no cached document/RSC
+ entry for it — the reload is always a **network render**. On non-calendar pages that
+ alone is the refresh (fresh server data on any page — Settings included). On
+ `/dashboard` the server additionally honors the nonce:
 2. `page.tsx` parses it: the nonce is honored only while it is a finite number younger
-   than `REFRESH_NONCE_TTL_MS` (5min, `page.tsx`) — so a stale history entry
-   (back/forward) can't silently re-force a fetch.
+ than `REFRESH_NONCE_TTL_MS` (5min, `page.tsx`) — so a stale history entry
+ (back/forward) can't silently re-force a fetch.
 3. The page passes `force: true` through `fetchMonthEvents` / `fetchRangeEvents` into
-   `getCachedMonthEventsForCalendars(ids, month, { force })` (`eventsCache.ts`): with
-   `force`, **both L1 and L2 are skipped** and every requested calendar blocks on a fresh
-   `events.list` (bounded by `GOOGLE_FETCH_CONCURRENCY` ≤ 4 in flight, and deliberately
-   **not** joined to an in-flight background refresh) for **every month in the read**
-   (1 for Day/Agenda, 2 for a boundary week, 2-3 for the Month grid), upserting DB rows
-   with `fetchedAt = now` and refilling L1. During the reload the wait is covered by the
-   route `loading.tsx` skeleton.
+ `getCachedMonthEventsForCalendars(ids, month, { force })` (`eventsCache.ts`): with
+ `force`, **both L1 and L2 are skipped** and every requested calendar blocks on a fresh
+ `events.list` (bounded by `GOOGLE_FETCH_CONCURRENCY` ≤ 4 in flight, and deliberately
+ **not** joined to an in-flight background refresh) for **every month in the read**
+ (1 for Day/Agenda, 2 for a boundary week, 2-3 for the Month grid), upserting DB rows
+ with `fetchedAt = now` and refilling L1. During the reload the wait is covered by the
+ route `loading.tsx` skeleton.
 4. After the forced document mounts, the **global** one-shot strip
-   (`useOneShotRefreshStrip`, mounted in `AppShellShell`, `src/lib/pwa/client.ts`)
-   removes `refresh` from the URL so later navigation doesn't keep force-refreshing. It
-   clears the pathname's RSC cache entries first (`invalidateRscPathCaches`) and then
-   `router.replace`s to the clean URL — the cached *document* is left alone so instant/
-   offline launch keeps working, and the clean-URL replace can't be answered by a stale
-   SWR RSC payload.
+ (`useOneShotRefreshStrip`, mounted in `AppShellShell`, `src/lib/pwa/client.ts`)
+ removes `refresh` from the URL so later navigation doesn't keep force-refreshing. It
+ clears the pathname's RSC cache entries first (`invalidateRscPathCaches`) and then
+ `router.replace`s to the clean URL — the cached *document* is left alone so instant/
+ offline launch keeps working, and the clean-URL replace can't be answered by a stale
+ SWR RSC payload.
 
 ```mermaid
 sequenceDiagram
-    participant U as Shell header Force refresh (any page)
-    participant SW as Service worker
-    participant P as Dashboard page (RSC render)
-    participant C as events cache (L1/L2)
-    participant G as Google Calendar
-    U->>U: window.location.assign(?refresh=<epoch-ms>)
-    U->>SW: navigation (cache miss — nonce URL never stored)
-    SW-->>P: network render
-    alt /dashboard (nonce honored)
-        P->>C: getCachedMonthEventsForCalendars(ids, month, { force: true })
-        C->>G: events.list per selected calendar (≤4 concurrent)
-        G-->>C: items → upsert L2 (fetchedAt=now) + refill L1
-    else other pages
-        P->>P: normal server render (no events cache)
-    end
-    P-->>U: fresh document; useOneShotRefreshStrip drops ?refresh=
+ participant U as Shell header Force refresh (any page)
+ participant SW as Service worker
+ participant P as Dashboard page (RSC render)
+ participant C as events cache (L1/L2)
+ participant G as Google Calendar
+ U->>U: window.location.assign(?refresh=<epoch-ms>)
+ U->>SW: navigation (cache miss — nonce URL never stored)
+ SW-->>P: network render
+ alt /dashboard (nonce honored)
+ P->>C: getCachedMonthEventsForCalendars(ids, month, { force: true })
+ C->>G: events.list per selected calendar (≤4 concurrent)
+ G-->>C: items → upsert L2 (fetchedAt=now) + refill L1
+ else other pages
+ P->>P: normal server render (no events cache)
+ end
+ P-->>U: fresh document; useOneShotRefreshStrip drops ?refresh=
 ```
 
 Scope on the calendar is the **selected calendars × displayed month** only (what the user
-sees); hidden calendars and other months keep their normal freshness window, and `force`
-returns `allServed: false` so the adjacent-month prefetch (§1.8) fires like any miss.
+sees); hidden calendars and other months keep their normal freshness window. `force`
+skips the adjacent-month prefetch (§1.8) — a forced reload re-reads the visible range only
+and does not warm neighbors in the background.
 
 Doing the force **inside the same request** — rather than invalidating in a server action
 and issuing `router.refresh()` — guarantees the response carries the just-fetched data. A
@@ -305,18 +306,18 @@ then call `invalidateGcalCache(googleCalendarIds, months)` before
 
 ```mermaid
 flowchart LR
-    A["mutation (create/update/delete)"] --> B["Google writes"]
-    B --> C["audit log"]
-    C --> D["invalidateGcalCache(ids, months)"]
-    D --> E["purge L1 + in-flight entries"]
-    D --> F["DELETE rows (id × month)"]
-    C --> G["revalidatePath('/dashboard')"]
+ A["mutation (create/update/delete)"] --> B["Google writes"]
+ B --> C["audit log"]
+ C --> D["invalidateGcalCache(ids, months)"]
+ D --> E["purge L1 + in-flight entries"]
+ D --> F["DELETE rows (id × month)"]
+ C --> G["revalidatePath('/dashboard')"]
 ```
 
 - **Affected ids** are the Google calendar ids the mutation wrote to, collected during the
   write loops (`created.map(...)`, `affectedGoogleIds`).
 - **Affected months** are every `YYYY-MM` the event's old and new date ranges touch, via
-  `monthsInRange()` (`datetime.ts:74`) — so a reschedule that moves an event into a new
+  `monthsInRange()` (`datetime.ts`) — so a reschedule that moves an event into a new
   month invalidates both months.
 - `invalidateGcalCache` purges the corresponding L1 and in-flight entries **and** deletes
   the DB rows (`WHERE calendar_google_id IN (...) AND month IN (...)`). Over-invalidation
@@ -341,24 +342,24 @@ the latest Google state, not a cached snapshot.
 
 ### 1.7.1 State machine
 
-`cacheEntryState(fetchedAt, now, freshMs, expireMs)` (`eventsCacheCodec.ts:18`) classifies
+`cacheEntryState(fetchedAt, now, freshMs, expireMs)` (`eventsCacheCodec.ts`) classifies
 every entry (in L1 or L2) by age:
 
 ```mermaid
 stateDiagram-v2
-    [*] --> fresh: age < freshMs (60s)
-    fresh --> stale: freshMs <= age < expireMs
-    stale --> expired: age >= expireMs (30min)
-    fresh --> [*]: served directly
-    stale --> [*]: served + after() background refresh
-    expired --> [*]: blocking re-fetch before serving
+ [*] --> fresh: age < freshMs (60s)
+ fresh --> stale: freshMs <= age < expireMs
+ stale --> expired: age >= expireMs (30min)
+ fresh --> [*]: served directly
+ stale --> [*]: served + after() background refresh
+ expired --> [*]: blocking re-fetch before serving
 ```
 
-| State    | Age window         | Served?        | Refresh                                    |
+| State | Age window | Served? | Refresh |
 | -------- | ------------------ | -------------- | ------------------------------------------ |
-| `fresh`  | `< 60s`            | immediately    | none                                       |
-| `stale`  | `60s – 30min`      | immediately    | background via `after()` (stale-while-revalidate) |
-| `expired`| `>= 30min`         | no             | blocking `events.list` + upsert            |
+| `fresh`  | `< 60s` | immediately | none |
+| `stale`  | `60s – 30min` | immediately | background via `after()` (stale-while-revalidate) |
+| `expired`| `>= 30min` | no | blocking `events.list` + upsert |
 
 ### 1.7.2 Guarantees
 
@@ -386,20 +387,20 @@ stateDiagram-v2
 ## 1.8 Adjacent-month prefetch
 
 After a month/range view that **missed** the cache (`allServed === false` — i.e. the
-user is actually navigating), `fetchRangeEvents` schedules an `after()` callback that
-warms the months adjacent to the **whole range** (`shiftMonth(firstMonth, -1)` /
-`shiftMonth(lastMonth, 1)`, `datetime.ts:67`) with the same batched function
-(`queries.ts:118`):
+user is actually navigating) and was **not** a force refresh, `fetchRangeEvents` schedules
+an `after()` callback that warms the months adjacent to the **whole range**
+(`shiftMonth(firstMonth, -1)` / `shiftMonth(lastMonth, 1)`, `datetime.ts`) with the same
+batched function (`queries.ts`):
 
 ```mermaid
 sequenceDiagram
-    participant P as Page
-    participant A as after() (post-response)
-    participant C as Cache
-    P->>P: current month served (some blocking refreshes → allServed=false)
-    P-->>A: schedule warm M−1, M+1
-    A->>C: getCachedMonthEventsForCalendars(ids, M−1)
-    A->>C: getCachedMonthEventsForCalendars(ids, M+1)
+ participant P as Page
+ participant A as after() (post-response)
+ participant C as Cache
+ P->>P: current month served (some blocking refreshes → allServed=false)
+ P-->>A: schedule warm M−1, M+1
+ A->>C: getCachedMonthEventsForCalendars(ids, M−1)
+ A->>C: getCachedMonthEventsForCalendars(ids, M+1)
 ```
 
 Gate `PREFETCH_ADJACENT_MONTHS` (default `true`) plus the `allServed` condition keep
@@ -410,14 +411,14 @@ month swiping render from cache on the next navigation.
 
 All constants live at the top of `src/lib/google/eventsCache.ts` unless noted.
 
-| Constant                  | Value     | Purpose                                                        |
+| Constant | Value | Purpose |
 | ------------------------- | --------- | -------------------------------------------------------------- |
-| `GCAL_CACHE_FRESH_MS`     | `60_000`  | Fresh window: served directly, no refresh (60s)                |
-| `GCAL_CACHE_EXPIRE_MS`    | `1_800_000` | Hard expire: stale-while-revalidate until this age (30min)   |
-| `GOOGLE_FETCH_CONCURRENCY`| `4`       | Max Google `events.list` calls in flight for a cold refresh    |
-| `MAX_MEMORY_ENTRIES`      | `512`     | L1 size cap (oldest-inserted entry evicted first)              |
-| `PREFETCH_ADJACENT_MONTHS`| `true`    | `queries.ts` — enable neighbor-month prefetch (gated on miss)  |
-| `REFRESH_NONCE_TTL_MS`    | `300_000` | `page.tsx` — max age of a valid `?refresh=` nonce (5min, §1.5.1) |
+| `GCAL_CACHE_FRESH_MS` | `60_000`  | Fresh window: served directly, no refresh (60s) |
+| `GCAL_CACHE_EXPIRE_MS` | `1_800_000` | Hard expire: stale-while-revalidate until this age (30min) |
+| `GOOGLE_FETCH_CONCURRENCY`| `4` | Max Google `events.list` calls in flight for a cold refresh |
+| `MAX_MEMORY_ENTRIES` | `512` | L1 size cap (oldest-inserted entry evicted first) |
+| `PREFETCH_ADJACENT_MONTHS`| `true` | `queries.ts` — enable neighbor-month prefetch (gated on miss)  |
+| `REFRESH_NONCE_TTL_MS` | `300_000` | `page.tsx` — max age of a valid `?refresh=` nonce (5min, §1.5.1) |
 
 No Next.js cache configuration is used: `next.config.ts` and `(protected)/layout.tsx`
 contain no `cacheComponents`, `cacheLife`, or `instant` settings (see §1.11).
@@ -428,12 +429,12 @@ The cache logic is split so the decision-making parts are pure, I/O-free functio
 Vitest can exercise without a database or Next runtime. The glue (DB queries, `after()`,
 the Google call) is deliberately thin.
 
-| Helper                                | Module                          | Tests                        |
+| Helper | Module | Tests |
 | ------------------------------------- | ------------------------------- | ---------------------------- |
-| `cacheEntryState` (fresh/stale/expired) | `eventsCacheCodec.ts:18`      | `eventsCacheCodec.test.ts`   |
-| `encodeCachedEvents` / `decodeCachedEvents` | `eventsCacheCodec.ts:45/:58` | `eventsCacheCodec.test.ts`   |
-| `monthsInRange` / `shiftMonth` / `monthRange` | `events/datetime.ts:74/:67/:57` | `events/datetime.test.ts` |
-| `mapWithConcurrency`                   | `async.ts`                     | `async.test.ts`              |
+| `cacheEntryState` (fresh/stale/expired) | `eventsCacheCodec.ts` | `eventsCacheCodec.test.ts` |
+| `encodeCachedEvents` / `decodeCachedEvents` | `eventsCacheCodec.ts` | `eventsCacheCodec.test.ts` |
+| `monthsInRange` / `shiftMonth` / `monthRange` | `events/datetime.ts` | `events/datetime.test.ts` |
+| `mapWithConcurrency` | `async.ts` | `async.test.ts` |
 
 Testing strategy, matching the repo convention: pure helpers are unit-tested; the
 Next/Postgres/Google-glue functions (`getCachedMonthEventsForCalendars`,
@@ -464,13 +465,13 @@ Vercel, and self-hosted. See `progress-archive.md` §1.42 for the full history.
 Measured on an authenticated `next dev` (Node 26) against the real Neon pooler + Google
 Calendar, after the layered optimization:
 
-| Page                          | Before caching | DB-only cache | Layered cache (current) |
+| Page | Before caching | DB-only cache | Layered cache (current) |
 | ----------------------------- | -------------- | ------------- | ----------------------- |
-| `/dashboard` warm hit         | ~1.0–1.9s      | ~1.0s         | **~0.35–0.46s**         |
+| `/dashboard` warm hit | ~1.0–1.9s | ~1.0s | **~0.35–0.46s** |
 
 Where the remaining time goes (pre-existing app floor, unchanged by the cache):
 
-- Every query is serialized on the `postgres` client's single connection (`max: 1` in
+- Every query is serialized on the `postgres` client's small pool (`max: 3` by default in
   `src/db/index.ts`) — the base dashboard queries (`listCalendars`, `listEventTypes`,
   `listUsers`, `getSettings`) run in `Promise.all` but execute serially.
 - Per-query round-trip to Neon from this environment is ~45–65ms warm, ~600ms for the
@@ -498,22 +499,22 @@ module, but they keep the render's total query count low):
 
 ## 1.13 File index & related docs
 
-| File                                            | Role                                                       |
+| File | Role |
 | ----------------------------------------------- | ---------------------------------------------------------- |
-| `src/lib/google/eventsCache.ts`                 | Layered cache read + invalidation (L1/L2/Google)           |
-| `src/lib/google/eventsCacheCodec.ts`            | Pure state + codec helpers (unit-tested)                   |
-| `src/db/schema.ts:152`                          | `google_event_cache` table                                  |
-| `drizzle/0011_panoramic_mariko_yashida.sql`     | Migration creating the table                                 |
-| `src/lib/events/queries.ts`                     | `fetchMonthEvents` / `fetchRangeEvents` — read path + gated prefetch |
-| `src/lib/events/actions.ts`                     | Mutations → `invalidateGcalCache`                           |
-| `src/app/(protected)/dashboard/page.tsx`        | `?refresh=` nonce parsing → `force` flag (§1.5.1)           |
-| `src/components/AppShellShell.tsx`              | Header "Force refresh" button — full reload + `?refresh=` nonce (§1.5.1) |
-| `src/lib/pwa/client.ts`                         | `useOneShotRefreshStrip` — global post-reload nonce strip (§1.5.1) |
-| `src/app/globals.css`                           | Native pull-to-refresh disabled (`overscroll-behavior-y: contain`) |
-| `src/lib/events/datetime.ts`                    | `monthRange`, `shiftMonth`, `monthsInRange`, `monthGridMonths`, `monthGridRows` |
-| `src/lib/async.ts`                              | `mapWithConcurrency`                                        |
-| `src/lib/cache.ts`                              | Generic TTL cache backing the pinned list read              |
-| `src/app/sw.ts`                                 | Service worker: `NetworkOnly` for data (unchanged)          |
+| `src/lib/google/eventsCache.ts` | Layered cache read + invalidation (L1/L2/Google) |
+| `src/lib/google/eventsCacheCodec.ts` | Pure state + codec helpers (unit-tested) |
+| `src/db/schema.ts` | `google_event_cache` table |
+| `drizzle/0011_panoramic_mariko_yashida.sql` | Migration creating the table |
+| `src/lib/events/queries.ts` | `fetchMonthEvents` / `fetchRangeEvents` — read path + gated prefetch |
+| `src/lib/events/actions.ts` | Mutations → `invalidateGcalCache` |
+| `src/app/(protected)/dashboard/page.tsx` | `?refresh=` nonce parsing → `force` flag (§1.5.1) |
+| `src/components/AppShellShell.tsx` | Header "Force refresh" button — full reload + `?refresh=` nonce (§1.5.1) |
+| `src/lib/pwa/client.ts` | `useOneShotRefreshStrip` — global post-reload nonce strip (§1.5.1) |
+| `src/app/globals.css` | Native pull-to-refresh disabled (`overscroll-behavior-y: contain`) |
+| `src/lib/events/datetime.ts` | `monthRange`, `shiftMonth`, `monthsInRange`, `monthGridMonths`, `monthGridRows` |
+| `src/lib/async.ts` | `mapWithConcurrency` |
+| `src/lib/cache.ts` | Generic TTL cache backing the pinned list read |
+| `src/app/sw.ts` | Service worker: `NetworkOnly` for data (unchanged) |
 
 Related docs:
 

@@ -38,11 +38,11 @@ department (e.g. a full-team event overlapping a member's personal leave).
 
 Who an event **occupies**:
 
-| Event kind                                                                    | Occupies                                                                           |
+| Event kind | Occupies |
 | ----------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
-| In-app event with attendees                                                   | each tagged attendee + every **active** member of each tagged department (the **organizer counts only when they tagged themselves**; a no-invitee-type event keeps the organizer as its sole attendee) |
-| External / people-less event (created directly in Google, no parseable notes) | every active member of the **department calendar the copy sits on**                |
-| **Informational** event (type has *Exclude from conflict checks* enabled)     | **nobody** — the event is ignored entirely: it never triggers a conflict and is never checked itself (the candidate check is skipped) |
+| In-app event with attendees | each tagged attendee + every **active** member of each tagged department (the **organizer counts only when they tagged themselves**; a no-invitee-type event keeps the organizer as its sole attendee) |
+| External / people-less event (created directly in Google, no parseable notes) | every active member of the **department calendar the copy sits on** |
+| **Informational** event (type has *Exclude from conflict checks* enabled) | **nobody** — the event is ignored entirely: it never triggers a conflict and is never checked itself (the candidate check is skipped) |
 
 Two events **clash** when their time windows overlap AND they occupy at least one
 common active roster user. Time windows use the half-open instant convention the
@@ -92,29 +92,29 @@ markers keeps its full-day window.
 
 ```mermaid
 flowchart LR
-    subgraph CLIENT["EventForm review step"]
-        P["EventClashCheck panel"]
-    end
-    subgraph SERVER["checkEventClashes (clashActions.ts)"]
-        S["requireSession + modifyGuard (edit)"]
-        N["resolveEventAuthor → clampEventEnd → validateEventForm"]
-        R["shared resolution chain (writeContext.ts):<br/>time → location → fields"]
-        T["resolveTargetCalendars"]
-        Q["clashQuery.ts — month-cache read over target calendars"]
-        X["exclude the event being edited"]
-        C["computeClashes (clashes.ts) — pure"]
-    end
-    subgraph DATA["Reads"]
-        E["getCachedMonthEventsForCalendars"]
-        DB["listUsers (active roster)"]
-    end
+ subgraph CLIENT["EventForm review step"]
+ P["EventClashCheck panel"]
+ end
+ subgraph SERVER["checkEventClashes (clashActions.ts)"]
+ S["requireSession + modifyGuard (edit)"]
+ N["resolveEventAuthor → clampEventEnd → validateEventForm"]
+ R["shared resolution chain (writeContext.ts):<br/>time → location → fields"]
+ T["resolveTargetCalendars"]
+ Q["clashQuery.ts — month-cache read over target calendars"]
+ X["exclude the event being edited"]
+ C["computeClashes (clashes.ts) — pure"]
+ end
+ subgraph DATA["Reads"]
+ E["getCachedMonthEventsForCalendars"]
+ DB["listUsers (active roster)"]
+ end
 
-    P --> S --> N --> R --> T --> Q
-    T --> DB
-    Q --> E
-    Q --> X --> C --> P
-    R --> T
-    DB --> C
+ P --> S --> N --> R --> T --> Q
+ T --> DB
+ Q --> E
+ Q --> X --> C --> P
+ R --> T
+ DB --> C
 ```
 
 The read is bounded to the candidate's **target calendars** — the same
@@ -133,27 +133,27 @@ effective window/people actually change) feeds `EventClashCheck`
 (`src/app/(protected)/dashboard/EventClashCheck.tsx`), which calls the server action:
 
 1. `requireSession()`; on edit, `modifyGuard` against the ref (organizer/attendees/
-   tagged-department members, owner-lock aware) — the advisory is never richer than the
-   mutation the actor may perform (a failed guard simply returns no clashes).
+ tagged-department members, owner-lock aware) — the advisory is never richer than the
+ mutation the actor may perform (a failed guard simply returns no clashes).
 2. `normalized = clampEventEnd(resolveEventAuthor(values, session, ref, canChangeLock))`,
-   then the shared `resolveEffectiveInput` chain from `src/lib/events/writeContext.ts` —
-   the same chain `createEvent`/`updateEvent` run, so event types that hide invitees or
-   restrict time options resolve identically.
+ then the shared `resolveEffectiveInput` chain from `src/lib/events/writeContext.ts` —
+ the same chain `createEvent`/`updateEvent` run, so event types that hide invitees or
+ restrict time options resolve identically.
 3. `resolveTargetCalendars(effectiveInput, ref?.calendarId)` (create → no fallback;
-   update → the ref's calendar, exactly like the mutations).
+ update → the ref's calendar, exactly like the mutations).
 4. `absEventRange` gives the candidate window; `clashingEventsFor`
-   (`src/lib/events/clashQuery.ts`) reads those calendars' overlapping months from
-   the layered month cache (`clashWindowMonths` mirrors the KAH read's month
-   arithmetic exactly) and shapes each item with its parsed people.
+ (`src/lib/events/clashQuery.ts`) reads those calendars' overlapping months from
+ the layered month cache (`clashWindowMonths` mirrors the KAH read's month
+ arithmetic exactly) and shapes each item with its parsed people.
 5. Copies of the event **being edited** are dropped (all copies share the group
-   `eventId`; a legacy event with no group id is dropped by its original
-   `(calendar, googleEventId)` copy).
+ `eventId`; a legacy event with no group id is dropped by its original
+ `(calendar, googleEventId)` copy).
 6. The pure `computeClashes` (`src/lib/events/clashes.ts`) intersects the candidate's
-   occupied users with each overlapping event's occupied users and returns one entry
-   per conflicting logical event (logical copies collapse to one) with the affected
-   candidate user ids.
+ occupied users with each overlapping event's occupied users and returns one entry
+ per conflicting logical event (logical copies collapse to one) with the affected
+ candidate user ids.
 7. Display names are resolved from the active roster and the entries return to the
-   panel with a UTC+8 naive window (all-day ends converted to inclusive).
+ panel with a UTC+8 naive window (all-day ends converted to inclusive).
 
 The shared chain lives in `writeContext.ts` (a plain module, never `"use server"`)
 precisely so `actions.ts` and `clashActions.ts` import the same resolution — a Next
@@ -229,16 +229,16 @@ unit-tested, following the repo convention.
 
 ## 1.9 File index & related docs
 
-| File                                                | Role                                                   |
+| File | Role |
 | --------------------------------------------------- | ------------------------------------------------------ |
-| `src/lib/events/writeContext.ts`                    | Shared resolution chain (`actions.ts` + clash check)   |
-| `src/lib/events/clashes.ts`                         | Pure clash engine + types (unit-tested)                |
-| `src/lib/events/clashes.test.ts`                    | Engine tests                                           |
-| `src/lib/events/clashQuery.ts`                      | Month-cache read over the candidate's target calendars; flags informational events from their type name |
-| `src/lib/events/clashActions.ts`                    | `checkEventClashes` server action (read-only)          |
+| `src/lib/events/writeContext.ts` | Shared resolution chain (`actions.ts` + clash check) |
+| `src/lib/events/clashes.ts` | Pure clash engine + types (unit-tested) |
+| `src/lib/events/clashes.test.ts` | Engine tests |
+| `src/lib/events/clashQuery.ts` | Month-cache read over the candidate's target calendars; flags informational events from their type name |
+| `src/lib/events/clashActions.ts` | `checkEventClashes` server action (read-only) |
 | `src/components/clashCards.tsx` | Shared collapsible amber card + per-event row (page + wizard) |
-| `src/app/(protected)/dashboard/EventClashCheck.tsx` | Review-step advisory panel                             |
-| `src/app/(protected)/dashboard/EventForm.tsx`       | Review step mounts the panel with the submit payload   |
+| `src/app/(protected)/dashboard/EventClashCheck.tsx` | Review-step advisory panel |
+| `src/app/(protected)/dashboard/EventForm.tsx` | Review step mounts the panel with the submit payload |
 
 Related docs: [`event-lifecycle.md`](event-lifecycle.md) (wizard, resolution chain),
 [`event-mutations.md`](event-mutations.md) (the create/update path the check mirrors),

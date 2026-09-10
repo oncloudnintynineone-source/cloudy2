@@ -46,33 +46,32 @@ created**, so a retry self-heals a half-failed attempt.
 ## 1.2 Identity & the group id
 
 - On **create**, `createEvent` mints `eventId = crypto.randomUUID()`
-  (`actions.ts:372`) and writes it into every copy's notes.
+  (`actions.ts`) and writes it into every copy's notes.
 - All copies of a logical event therefore share the same `eventId`;
   `parseEventPeople(item.description).eventId` is how a copy is recognized
-  (`actions.ts:311`).
+  (`actions.ts`).
 - **Legacy events** (no group id) are found differently: `legacyFallback(ref)`
-  (`actions.ts:323`) resolves the representative copy's registry calendar to its Google
+  (`actions.ts`) resolves the representative copy's registry calendar to its Google
   id and matches **by Google event id** within the search range. On the first edit of a
   legacy event, `updateEvent` mints a group id (`ref.eventId ?? crypto.randomUUID()`,
-  `actions.ts:484`) and backfills it into the copies it writes.
+  `actions.ts`) and backfills it into the copies it writes.
 - For **display**, the read path collapses the copies: `dedupeEventsByGroupId`
-  (`targets.ts:75`) keeps the first copy per group id (legacy events always pass), fed
+  (`targets.ts`) keeps the first copy per group id (legacy events always pass), fed
   in deterministic calendar-name order.
-- `EventRef` (`targets.ts:13`) is the unit of identity an edit/delete operates on: one
+- `EventRef` (`targets.ts`) is the unit of identity an edit/delete operates on: one
   representative copy plus its people fields, which define the target set.
 
 ## 1.3 Shared prelude (all three actions)
 
-All actions are `"use server"` and follow the same opening sequence (create:
-`actions.ts:345-372`, update: `:461-495`, delete: `:624-638`):
+All actions are `"use server"` and follow the same opening sequence (create/update/delete in `actions.ts`):
 
 ```mermaid
 flowchart LR
-    S["requireSession()"] --> N["resolveEventAuthor(input, session, ref)<br/>(create/update — fixed organizer)"]
-    N --> G["modifyGuard (update/delete)"]
-    G --> V["validateEventForm<br/>(create/update)"]
-    V --> C["googleCalendarConfigured()<br/>— gate when unconfigured"]
-    C --> R["target resolution<br/>(resolveTargetCalendars / refTargetCalendars)"]
+ S["requireSession()"] --> N["resolveEventAuthor(input, session, ref)<br/>(create/update — fixed organizer)"]
+ N --> G["modifyGuard (update/delete)"]
+ G --> V["validateEventForm<br/>(create/update)"]
+ V --> C["googleCalendarConfigured()<br/>— gate when unconfigured"]
+ C --> R["target resolution<br/>(resolveTargetCalendars / refTargetCalendars)"]
 ```
 
 - **Guards** (`events/guards.ts`): `modifyGuard` opens edit/delete/duplicate to the
@@ -82,7 +81,7 @@ flowchart LR
   needs no guard: the organizer is always the acting session user (there is no admin
   "on behalf of"), and an edit keeps the stored organizer (see
   [`event-lifecycle.md` §1.5](event-lifecycle.md#15-guards--validation)).
-- **Validation** (`events/validate.ts`): required fields, AM/PM for `full` events, and
+- **Validation** (`events/validate.ts`): required fields, AM/PM for `half` events, and
   chronological order. On failure the action returns
   `{ ok: false, error, field }` with the *first* failing field so the form can jump to
   the owning step. Separately, both create and update refuse an event whose *effective*
@@ -102,38 +101,38 @@ flowchart LR
   helpers the form uses, so a stale or tampered form can't submit an out-of-policy
   combination.
 - **Result type**: `EventActionResult = { ok: true } | { ok: false; error: string;
-  field?: EventResultField }` (`actions.ts:54`) — actions never throw for expected
+  field?: EventResultField }` (`actions.ts`) — actions never throw for expected
   failures; the client maps the error back onto the wizard.
 
 ## 1.4 createEvent
 
-`createEvent(input)` (`actions.ts:345`):
+`createEvent(input)` (`actions.ts`):
 
 ```mermaid
 sequenceDiagram
-    participant A as createEvent
-    participant D as DB (departments)
-    participant G as Google Calendar
-    participant L as audit log
-    participant C as events cache
-    A->>D: getUserDepartmentIds(creator + invitees)
-    A->>A: deriveTargetCalendarIds → targets (error if empty)
-    A->>A: eventId = uuid, titleContext, effective input
-    loop per target calendar (serial)
-        A->>G: createEvent(buildGcalEventInput(...))
-        G-->>A: { id, calendarId } → created[]
-    end
-    Note over A,G: on failure: delete the copies created so far (rollback)
-    A->>L: event.create — full snapshot + eventId + googleEventIds
-    A->>C: invalidateGcalCache(googleCalendarIds, monthsInRange)
-    A->>A: revalidatePath("/dashboard")
+ participant A as createEvent
+ participant D as DB (departments)
+ participant G as Google Calendar
+ participant L as audit log
+ participant C as events cache
+ A->>D: getUserDepartmentIds(creator + invitees)
+ A->>A: deriveTargetCalendarIds → targets (error if empty)
+ A->>A: eventId = uuid, titleContext, effective input
+ loop per target calendar (serial)
+ A->>G: createEvent(buildGcalEventInput(...))
+ G-->>A: { id, calendarId } → created[]
+ end
+ Note over A,G: on failure: delete the copies created so far (rollback)
+ A->>L: event.create — full snapshot + eventId + googleEventIds
+ A->>C: invalidateGcalCache(googleCalendarIds, monthsInRange)
+ A->>A: revalidatePath("/dashboard")
 ```
 
-- **Target resolution** (`resolveTargetCalendars`, `actions.ts:111`): creator's
+- **Target resolution** (`resolveTargetCalendars`, `writeContext.ts`): creator's
   department + each invitee user's department + tagged departments, deduped. When
   nothing derives, create fails with "Assign yourself to a department or tag an
   invitee" (there is no fallback calendar for a brand-new event).
-- **Per-target input**: `buildGcalEventInput` (`actions.ts:243`) renders the title
+- **Per-target input**: `buildGcalEventInput` (`actions.ts`) renders the title
   (`renderEventTitle`), assembles the description (`Edit:` link — a `?event=` details
   deep link carrying the copy's own calendar id — + brotli notes block + internal
   marker, [`event-lifecycle.md` §1.7.3](event-lifecycle.md#173-description-assembly--markers)),
@@ -141,59 +140,59 @@ sequenceDiagram
   field.
 - **Rollback**: if any copy fails, the already-created copies are deleted
   (best-effort, `.catch(() => {})`) and the error is returned — a failed
-  multi-department create never leaves orphan events (`actions.ts:392-399`).
+  multi-department create never leaves orphan events (`actions.ts`).
 - **Audit**: `event.create` with a flat `EventAuditSnapshot` (the rendered title, raw
   description, type, pre-formatted `time`, out-of-camp/location, department + invitee
   **names**, creator name) plus `eventId` and the per-copy `googleEventIds`
-  (`actions.ts:416-440`, §1.8).
+  (`actions.ts`, §1.8).
 - **Cache**: invalidate every written Google calendar id × every touched month
-  (`actions.ts:442-445`).
+  (`actions.ts`).
 
 ## 1.5 updateEvent — reconciling copies
 
-`updateEvent(ref, input)` (`actions.ts:457`) is the heart of the subsystem. It
+`updateEvent(ref, input)` (`actions.ts`) is the heart of the subsystem. It
 **reconciles** the copy set: the target set is derived from the *old* people fields
-(`refTargetCalendars`, `actions.ts:134`) and the *new* form values
+(`refTargetCalendars`, `writeContext.ts`) and the *new* form values
 (`resolveTargetCalendars` with `ref.calendarId` as fallback), and the plan is applied
 per calendar in the **union** of both sets.
 
 ```mermaid
 flowchart TB
-    O["oldTargets (from ref's people)"] --> U["union = oldTargets ∪ newTargets"]
-    N["newTargets (from new form values)"] --> U
-    U --> L["for each target calendar (serial)"]
-    L --> F["findCopies(gcalId, eventId, range, legacyFallback)<br/>— uncached listEvents, notes eventId match<br/>or legacy Google-id match"]
-    F --> IN{target in newTargets?}
-    IN -- yes + copies found --> UP["updateEvent per copy<br/>(backfills group id on legacy first edit)"]
-    IN -- yes + none found --> CR["createEvent — new department gained"]
-    IN -- no --> DE["deleteEvent per copy — department no longer involved"]
-    UP --> NEXT["next target"]
-    CR --> NEXT
-    DE --> NEXT
+ O["oldTargets (from ref's people)"] --> U["union = oldTargets ∪ newTargets"]
+ N["newTargets (from new form values)"] --> U
+ U --> L["for each target calendar (serial)"]
+ L --> F["findCopies(gcalId, eventId, range, legacyFallback)<br/>— uncached listEvents, notes eventId match<br/>or legacy Google-id match"]
+ F --> IN{target in newTargets?}
+ IN -- yes + copies found --> UP["updateEvent per copy<br/>(backfills group id on legacy first edit)"]
+ IN -- yes + none found --> CR["createEvent — new department gained"]
+ IN -- no --> DE["deleteEvent per copy — department no longer involved"]
+ UP --> NEXT["next target"]
+ CR --> NEXT
+ DE --> NEXT
 ```
 
 Key mechanics:
 
-- **Search range** (`actions.ts:496-507`): the union of the old and new
+- **Search range** (`actions.ts`): the union of the old and new
   `absEventRange`s grown by **±1 day** (`withMargin`) so a copy that drifted slightly in
   Google, or an event whose date changed, is still found. `findCopies`
-  (`actions.ts:302`) reads `integration.listEvents` **uncached** — a reconcile must
+  (`actions.ts`) reads `integration.listEvents` **uncached** — a reconcile must
   always see the latest Google state, never a cached snapshot
   ([`events-cache.md` §1.6](events-cache.md#16-write--invalidation-path)).
 - **The plan is idempotent**: it is derived from the current Google state, not from
   bookkeeping. If a run fails halfway, a retry re-derives the same plan and finishes
-  it — "a half-failed attempt self-heals on retry" (`actions.ts:453-456`).
+  it — "a half-failed attempt self-heals on retry" (`actions.ts`).
 - **First found copy = the before state**: the first existing copy found anywhere
-  (`firstCopy`, `actions.ts:516, 526-528`) is captured for the audit diff — all copies
+  (`firstCopy`, `actions.ts`) is captured for the audit diff — all copies
   of a logical event are identical, so any of them represents the pre-edit state
   (§1.8).
 - **Rollback** (§1.7): only the copies *created by this run* (`createdHere`) are rolled
   back on failure; copies that were already updated before the failure keep the new
   state, and the retry's re-derived plan converges them anyway
-  (`actions.ts:549-556`).
+  (`actions.ts`).
 - **Group-id backfill**: on the first edit of a legacy event the freshly minted
   `eventId` is written into the notes of every copy this run writes, adopting the event
-  into the group-id world (`actions.ts:484`).
+  into the group-id world (`actions.ts`).
 
 ### 1.5.1 What each copy operation writes
 
@@ -204,16 +203,16 @@ location, and times. Update is a **full replace** in Google
 
 ## 1.6 deleteEvent
 
-`deleteEvent(ref)` (`actions.ts:624`):
+`deleteEvent(ref)` (`actions.ts`):
 
 1. `modifyGuard` against the ref (admin-only for creator-less events), Google gate.
 2. `refTargetCalendars(ref)` + `legacyFallback(ref)` in parallel; range = the ref's
-   `absEventRange` ±1 day (`actions.ts:636-638`).
+ `absEventRange` ±1 day (`actions.ts`).
 3. For each target calendar: `findCopies`, then delete every match, collecting the
-   Google event ids and affected calendar ids; the first copy found is captured for the
-   audit snapshot (`actions.ts:644-662`).
+ Google event ids and affected calendar ids; the first copy found is captured for the
+ audit snapshot (`actions.ts`).
 4. Audit `event.delete` with the flat snapshot (+ `eventId`, `googleEventIds`), then
-   cache invalidation + `revalidatePath("/dashboard")` (`actions.ts:664-691`).
+ cache invalidation + `revalidatePath("/dashboard")` (`actions.ts`).
 
 No rollback is needed: deleting a second time is a 404, and the integration's
 `deleteEvent` treats 404 as success.
@@ -225,8 +224,8 @@ No rollback is needed: deleting a second time is a 404, and the integration's
 | One copy of a multi-calendar **create** fails | All copies created so far in this run are deleted (rollback); the error is returned; nothing is left behind. |
 | A **create** fails after some copies exist | The retry re-derives targets from the (unchanged) form and creates again; the rolled-back copies are gone, so no duplicates. |
 | **Update** fails after updating some copies | Only this run's *new* copies are rolled back; pre-existing updated copies keep the new state. The retry re-derives the plan from Google's current state and converges the rest. |
-| A calendar id in the target set has no Google calendar (`resolveGoogleCalendarId` → null) | Skipped in update/delete loops (`actions.ts:520-523, 646-648`); throws "Calendar not found" in create (`:383-386`). |
-| Google error (401/403/429/404) | Mapped to a human message by the integration's `fail()` (`src/lib/google/real.ts:42`) and returned as the action error. |
+| A calendar id in the target set has no Google calendar (`resolveGoogleCalendarId` → null) | Skipped in update/delete loops (`actions.ts`); throws "Calendar not found" in create. |
+| Google error (401/403/429/404) | Mapped to a human message by the integration's `fail()` (`src/lib/google/real.ts`) and returned as the action error. |
 | Audit or cache-invalidation failure | Propagates as an unhandled error from the action (the primary Google writes already happened) — there is no retry/queue for audit writes; `logAction` itself is best-effort and swallows its own failures. |
 
 The governing rule: **a mutation is best-effort eventually-consistent across Google,
@@ -246,25 +245,25 @@ Every mutation writes one `audit_logs` row via `logAction`
 
 The snapshots are built by the pure helpers in `src/lib/events/eventAudit.ts`:
 
-- **`EventAuditSnapshot`** (`eventAudit.ts:23`) — display names, never ids:
+- **`EventAuditSnapshot`** (`eventAudit.ts`) — display names, never ids:
   `title` (the **rendered Google title** — the same string written to Google),
   `description` (raw typed text), `type`, `time` (pre-formatted in the app's UTC+8
-  wall clock by `formatEventAuditTime`, `eventAudit.ts:83` — e.g. `2026-08-21 14:00 –
-  15:30`, `2026-08-21 (AM) – 2026-08-23 (PM)`), `outOfCamp`, `location`,
-  `departments[]`, `invitees[]`, `creator`.
-- **`buildEventSnapshot`** (`eventAudit.ts:110`) builds the *after* state from form
+  wall clock by `formatEventAuditTime`, `eventAudit.ts` — e.g. `2026-08-21 14:00 –
+  15:30`, `2026-08-21 (AM) – 2026-08-23 (PM)`), `outOfCamp`, `overseas`, `pinned`,
+  `location`, `departments[]`, `invitees[]`, `creator`.
+- **`buildEventSnapshot`** (`eventAudit.ts`) builds the *after* state from form
   values + resolved id→name maps (unknown ids dropped, blanks → null).
-- **`snapshotFromCopy`** (`eventAudit.ts:150`) builds the *before* state for
+- **`snapshotFromCopy`** (`eventAudit.ts`) builds the *before* state for
   update/delete from the `EventRef` plus the first copy read back from Google: the
   visible title comes from the copy's **summary** (so legacy/external/blank-description
   events still show the visible title), while description/type/time-option/AM-PM/
   out-of-camp come from the copy's **notes** — fields the notes can't supply (legacy
-   event, or the copy was already gone) render as the empty marker `—`
-   ([`audit-log.md` §1.8](audit-log.md#18-display-formatting)).
+ event, or the copy was already gone) render as the empty marker `—`
+ ([`audit-log.md` §1.8](audit-log.md#18-display-formatting)).
 - `title` uses `renderEventTitle` in both the write path and the audit, so the two
   cannot diverge ([`event-lifecycle.md` §1.8.2](event-lifecycle.md#18-title-rendering)).
 
-The update diff is computed with `diffFields` (`src/lib/audit/diff.ts:17`): union of
+The update diff is computed with `diffFields` (`src/lib/audit/diff.ts`): union of
 keys, JSON-equality per field, changed fields as `[before, after]` pairs — the display
 layer renders them as before→after lines plus a "Resulting state" section from the
 stored `after` record.
@@ -278,8 +277,8 @@ After the Google writes and the audit row, every action calls
 - **Calendars**: every Google calendar id the mutation wrote to (create: `created`,
   update/delete: `affectedGoogleIds`).
 - **Months**: every `YYYY-MM` the old *and* new date ranges touch
-  (`monthsInRange`, `datetime.ts:99`) — so a reschedule into a new month invalidates
-  both months (`actions.ts:610-618`).
+  (`monthsInRange`, `datetime.ts`) — so a reschedule into a new month invalidates
+  both months (`actions.ts`).
 - The purge deletes the L1 in-process entries and the DB rows for those
   calendar×month keys; on the mutating instance the next view is a blocking re-fetch,
   so the `router.refresh()` after the server action shows the change immediately
@@ -297,7 +296,7 @@ full list); the mutation-specific ones:
 | `deriveTargetCalendarIds`, `diffEventTargets`, `dedupeEventsByGroupId`, `eventRefFromCalendarEvent` | `events/targets.ts` | `targets.test.ts` |
 | `modifyGuard`, `canChangeLock` | `events/guards.ts` | `guards.test.ts` |
 | `validateEventForm`, `resolveEventAuthor` | `events/validate.ts` | `validate.test.ts` |
-| `resolveTimeOption`, `amPmSuffix` | `events/timeOptions.ts` | `timeOptions.test.ts` |
+| `resolveTimeOption` | `events/timeOptions.ts` | `timeOptions.test.ts` |
 | `clampOutOfCamp`, `flagsFromCategory` / `categoryFromFlags`, `normalizeAllowedLocations` | `events/locationPolicy.ts` | `locationPolicy.test.ts` |
 | `absEventRange`, `monthsInRange` | `events/datetime.ts` | `datetime.test.ts` |
 | `buildEventSnapshot`, `snapshotFromCopy`, `formatEventAuditTime`, `renderEventTitle` | `events/eventAudit.ts` / `events/eventTitle.ts` | `eventAudit.test.ts` |

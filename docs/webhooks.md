@@ -3,8 +3,9 @@
 When an event is created, modified, or deleted inside the app, a JSON notification is
 POSTed to every enabled admin-registered webhook endpoint so external systems can
 mirror the change. The payload carries **everything the event form collects** —
-rendered title, raw description, type, times, out-of-camp/location, departments,
-invitees, creator — with display names resolved exactly like the audit log. Delivery
+rendered title, raw description, type, times, out-of-camp/overseas/pinned,
+location, departments, invitees, creator — with display names resolved exactly like
+the audit log. Delivery
 is fire-and-forget: it never delays or fails the mutation. What an event *is* lives in
 [`event-lifecycle.md`](event-lifecycle.md); the mutations that trigger the webhook live
 in [`event-mutations.md`](event-mutations.md).
@@ -45,27 +46,27 @@ in [`event-mutations.md`](event-mutations.md).
 Endpoints live in the dedicated `webhooks` table and are managed in Settings →
 Webhooks (admin-only), which also renders the in-app integration guide (§1.6):
 
-| Column       | Meaning                                                                        |
+| Column | Meaning |
 | ------------ | ------------------------------------------------------------------------------ |
-| `name`       | Display label used in this list and the audit log                              |
-| `url`        | The HTTPS endpoint that receives deliveries                                     |
-| `secret`     | Optional per-endpoint shared secret used to sign its deliveries (§1.4)          |
-| `enabled`    | Disabled rows receive nothing but keep their configuration                      |
+| `name` | Display label used in this list and the audit log |
+| `url` | The HTTPS endpoint that receives deliveries |
+| `secret` | Optional per-endpoint shared secret used to sign its deliveries (§1.4) |
+| `enabled` | Disabled rows receive nothing but keep their configuration |
 
 CRUD goes through `createWebhook` / `updateWebhook` / `deleteWebhook`
 (`src/lib/webhooks/actions.ts`) following the settings/event-types pattern:
 `requireAdmin()` → pure validation (`src/lib/webhooks/validate.ts`: required name,
 http(s) URL, secret length cap) → DB write → audit row (`webhook.create/update/delete`,
 details of name/url/enabled — **never the secret**) → `revalidatePath`. The original
-single-endpoint config (`settings.webhook_url/secret/enabled`, Phase 3ap) was migrated
-into this table by `drizzle/0015_chubby_sentinel.sql`, which then dropped those
-columns.
+single-endpoint config (`settings.webhook_url`/`webhook_secret`/`webhook_enabled`,
+Phase 3ap) was migrated into this table by `drizzle/0015_chubby_sentinel.sql`, which
+then dropped those columns.
 
 ```mermaid
 flowchart LR
-    A["Admin manages endpoints<br/>(Settings - Webhooks)"] --> V["validateWebhookForm<br/>(pure)"]
-    V --> D["webhook.create / update / delete<br/>requireAdmin → webhooks row + audit"]
-    A --> G["Integration guide accordion:<br/>schema, examples, signatures"]
+ A["Admin manages endpoints<br/>(Settings - Webhooks)"] --> V["validateWebhookForm<br/>(pure)"]
+ V --> D["webhook.create / update / delete<br/>requireAdmin → webhooks row + audit"]
+ A --> G["Integration guide accordion:<br/>schema, examples, signatures"]
 ```
 
 ## 1.3 Payload
@@ -82,24 +83,26 @@ diverge between audit and webhook:
   "occurredAt": "2026-08-23T01:02:03.000Z",
   "actor": { "name": "Alice Tan", "role": "admin" },
   "event": {
-    "title": "Range Alpha",
-    "description": "Field training",
-    "type": "Exercise",
-    "time": "2026-08-21 (AM) – 2026-08-23 (PM)",
-    "outOfCamp": true,
-    "location": "Range North",
-    "departments": ["Alpha", "Bravo"],
-    "invitees": ["Bob Lim", "Alice Tan"],
-    "creator": "Alice Tan",
-    "timeOption": "half",
-    "start": "2026-08-21 00:00:00",
-    "end": "2026-08-23 00:00:00",
-    "startAmPm": "AM",
-    "endAmPm": "PM"
+ "title": "Range Alpha",
+ "description": "Field training",
+ "type": "Exercise",
+ "time": "2026-08-21 (AM) – 2026-08-23 (PM)",
+ "outOfCamp": true,
+ "overseas": true,
+ "pinned": false,
+ "location": "Range North",
+ "departments": ["Alpha", "Bravo"],
+ "invitees": ["Bob Lim", "Alice Tan"],
+ "creator": "Alice Tan",
+ "timeOption": "half",
+ "start": "2026-08-21 00:00:00",
+ "end": "2026-08-23 00:00:00",
+ "startAmPm": "AM",
+ "endAmPm": "PM"
   },
   "changes": {
-    "location": ["Range North", "Range South"],
-    "time": ["2026-08-21 (AM)", "2026-08-21 (AM) – 2026-08-23 (PM)"]
+ "location": ["Range North", "Range South"],
+ "time": ["2026-08-21 (AM)", "2026-08-21 (AM) – 2026-08-23 (PM)"]
   }
 }
 ```
@@ -127,22 +130,22 @@ successful mutation:
 
 ```mermaid
 sequenceDiagram
-    participant A as server action
-    participant W as dispatchEventWebhook
-    participant D as webhooks table
-    participant R as receivers
-    A->>W: input (snapshot, eventId, changes, actor…)
-    W->>D: select enabled endpoints
-    alt no enabled endpoints
-        W-->>A: no-op
-    else one or more
-        W->>W: buildEventWebhookPayload (once) + sign per endpoint secret
-        Note over W: after(() => …) — the action returns now
-        par per endpoint (Promise.allSettled)
-            W->>R: POST application/json<br/>10s AbortSignal timeout
-            R-->>W: any response / network error → console only
-        end
-    end
+ participant A as server action
+ participant W as dispatchEventWebhook
+ participant D as webhooks table
+ participant R as receivers
+ A->>W: input (snapshot, eventId, changes, actor…)
+ W->>D: select enabled endpoints
+ alt no enabled endpoints
+ W-->>A: no-op
+ else one or more
+ W->>W: buildEventWebhookPayload (once) + sign per endpoint secret
+ Note over W: after(() => …) — the action returns now
+ par per endpoint (Promise.allSettled)
+ W->>R: POST application/json<br/>10s AbortSignal timeout
+ R-->>W: any response / network error → console only
+ end
+ end
 ```
 
 - **Fan-out**: the payload and body are built once; every enabled endpoint gets its
@@ -168,9 +171,9 @@ One dispatch per action in `src/lib/events/actions.ts`, placed immediately after
 audit `logAction` call — so a webhook fires **only for successful Google writes**, and
 never for rolled-back attempts:
 
-| Action        | Dispatch extras                                                              |
+| Action | Dispatch extras |
 | ------------- | ---------------------------------------------------------------------------- |
-| `createEvent` | `timePartsOf(effectiveInput)`; `googleEventIds` = the copies created          |
+| `createEvent` | `timePartsOf(effectiveInput)`; `googleEventIds` = the copies created |
 | `updateEvent` | `changes` = the same `diffFields(before, after)` the audit row stores; `googleEventIds` = every copy touched this run (updated, newly created, retired) collected in the reconcile loop |
 | `deleteEvent` | `snapshotFromCopy` result; `timeParts: null`; `googleEventIds` = the deleted copy ids |
 

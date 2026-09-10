@@ -19,11 +19,11 @@ statistics (`pg_stat_statements`).
 Measured against the production Google Cloud project, Calendar API usage is **~0%** of
 every quota. The post-May-2026 limits are:
 
-| Limit                       | Value                | Reached? |
+| Limit | Value | Reached? |
 | --------------------------- | -------------------- | -------- |
-| Per minute per project      | 10,000 requests      | No (0)   |
-| Per minute per user/project | 600 requests         | No (0)   |
-| Per day per project         | 1,000,000 (billing threshold) | No |
+| Per minute per project | 10,000 requests | No (0) |
+| Per minute per user/project | 600 requests | No (0) |
+| Per day per project | 1,000,000 (billing threshold) | No |
 
 The one cap an uncached design could hit is the **per-user-per-minute** rate: every call
 runs through the **service account**, which Google charges as a *single user*. An admin
@@ -36,9 +36,9 @@ minutes can burst past 600/min. The cache collapses that to one re-fetch per exp
 
 ```mermaid
 flowchart LR
-    A["Google Calendar API<br/>(per-user burst cap, daily ~free)"] -->|"uncached fan-out"| B["N events.list per render"]
-    B -->|"cache replaces calls with L2 reads/writes"| C["Neon Postgres<br/>google_event_cache"]
-    C -->|"reads keep compute awake + ship JSONB"| D["Neon free caps:<br/>100 compute-hrs/mo<br/>5 GB egress/mo"]
+ A["Google Calendar API<br/>(per-user burst cap, daily ~free)"] -->|"uncached fan-out"| B["N events.list per render"]
+ B -->|"cache replaces calls with L2 reads/writes"| C["Neon Postgres<br/>google_event_cache"]
+ C -->|"reads keep compute awake + ship JSONB"| D["Neon free caps:<br/>100 compute-hrs/mo<br/>5 GB egress/mo"]
 ```
 
 The cache trades a generous external quota for a scarce internal one. Neon's free tier is
@@ -55,7 +55,7 @@ Because the free suspend timeout is not configurable, the code-level levers are 
 *reducing how often* the DB is touched (fewer keep-alive reads, shorter bursts) — which is
 exactly what the events-cache optimizations do: metadata-only L1 verification, full rows
 only for misses, `React.cache`d per-render reads, and Google refreshes kept outside any
-transaction so the `max: 1` pool is never held open across a Google round-trip (see
+transaction so the small connection pool is never held open across a Google round-trip (see
 [events-cache.md §1.5](events-cache.md#15-read-path)).
 
 ## 1.3 Daily usage via the consumption API
@@ -66,9 +66,9 @@ no extra packages (Node ≥ 20 `fetch`).
 
 ```powershell
 # 1. In .env.local (or the shell) set:
-#    NEON_API_KEY=<console.neon.tech → Account → API keys>
-#    NEON_ORG_ID=<your organization id>
-#    NEON_PROJECT_ID=<optional: filter to one project>
+# NEON_API_KEY=<console.neon.tech → Account → API keys>
+# NEON_ORG_ID=<your organization id>
+# NEON_PROJECT_ID=<optional: filter to one project>
 
 # 2. Load the values and run:
 $line = Get-Content .env.local | Where-Object { $_ -match '^NEON_API_KEY=' } | Select-Object -First 1
@@ -108,9 +108,9 @@ LIMIT 15;
 
 -- Most time spent (total and average ms):
 SELECT query,
-       calls,
-       round(total_exec_time::numeric, 1)        AS total_ms,
-       round((total_exec_time / calls)::numeric, 1) AS avg_ms
+ calls,
+ round(total_exec_time::numeric, 1) AS total_ms,
+ round((total_exec_time / calls)::numeric, 1) AS avg_ms
 FROM pg_stat_statements
 WHERE calls > 0
 ORDER BY total_exec_time DESC

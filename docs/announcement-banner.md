@@ -80,16 +80,16 @@ from the server eliminates the guess entirely.
 
 ```mermaid
 sequenceDiagram
-    participant L as (protected) layout
-    participant S as AppShellShell
-    L->>L: Promise.all(requireSession(), getBanner())
-    L-->>S: bannerConfig prop (config | null)
-    alt config present
-        S->>S: header = banner + 56px bar from first render<br/>(--app-banner-height inline)
-        Note over S: route skeleton already aligned — no post-hydration jump
-    else config null
-        S->>S: bare 56px bar; nothing reserved, nothing to collapse
-    end
+ participant L as (protected) layout
+ participant S as AppShellShell
+ L->>L: Promise.all(requireSession(), getBanner())
+ L-->>S: bannerConfig prop (config | null)
+ alt config present
+ S->>S: header = banner + 56px bar from first render<br/>(--app-banner-height inline)
+ Note over S: route skeleton already aligned — no post-hydration jump
+ else config null
+ S->>S: bare 56px bar; nothing reserved, nothing to collapse
+ end
 ```
 
 > **Do NOT pass the height via Mantine's `vars` prop** — in v9 that is a resolver

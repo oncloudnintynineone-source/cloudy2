@@ -102,55 +102,55 @@ never touches another department.
 
 ```mermaid
 flowchart LR
-    U["/double-booking page<br/>(session + roster for admin picker)"]
-    V["DoubleBookingView (client)"]
-    A["checkUserClashes (server action, read-only)"]
-    S["requireSession + self/admin guard"]
-    R["active roster snapshot<br/>(listUsers)"]
-    C["user's home department calendar id"]
-    M["clashingEventsFor([home])<br/>window months via month cache"]
-    E["findUserClashGroups (pure)"]
-    P["display mapping (naive windows, names)"]
+ U["/double-booking page<br/>(session + roster for admin picker)"]
+ V["DoubleBookingView (client)"]
+ A["checkUserClashes (server action, read-only)"]
+ S["requireSession + self/admin guard"]
+ R["active roster snapshot<br/>(listUsers)"]
+ C["user's home department calendar id"]
+ M["clashingEventsFor([home])<br/>window months via month cache"]
+ E["findUserClashGroups (pure)"]
+ P["display mapping (naive windows, names)"]
 
-    U --> V
-    V -- "checkUserClashes({targetUserId})" --> A
-    A --> S
-    S --> R
-    S --> C
-    C --> M
-    R --> M
-    M --> E
-    R --> E
-    E --> P
-    P -- "ok result" --> V
+ U --> V
+ V -- "checkUserClashes({targetUserId})" --> A
+ A --> S
+ S --> R
+ S --> C
+ C --> M
+ R --> M
+ M --> E
+ R --> E
+ E --> P
+ P -- "ok result" --> V
 ```
 
 ## 1.5 Pipeline
 
 1. The page (`src/app/(protected)/double-booking/page.tsx`, a server component)
-   resolves the session and, for admins, loads the active roster for the target
-   picker, then renders `DoubleBookingView`.
+ resolves the session and, for admins, loads the active roster for the target
+ picker, then renders `DoubleBookingView`.
 2. On mount (and on every target change / Retry) the view calls the server action
-   `checkUserClashes({ targetUserId })` — the same cancelled-flag + `attempt` pattern
-   `EventClashCheck` uses, with the loading/error views derived from the
-   request/outcome pair (state is only set in the async callbacks, so the
-   `react-hooks/set-state-in-effect` rule stays satisfied).
+ `checkUserClashes({ targetUserId })` — the same cancelled-flag + `attempt` pattern
+ `EventClashCheck` uses, with the loading/error views derived from the
+ request/outcome pair (state is only set in the async callbacks, so the
+ `react-hooks/set-state-in-effect` rule stays satisfied).
 3. The action guards: `requireSession()`; a non-admin requesting a user other than
-   themselves is refused.
+ themselves is refused.
 4. The scan window is **today → +30 days**, inclusive dates in the UTC+8 wall clock:
-   `[parseNaiveToInstant(today + " 00:00:00"), +30 days)` — a half-open instant window
-   (`USER_CLASH_SCAN_DAYS = 30`, exported from `clashQuery.ts`). An event that started
-   before today but still overlaps the window is included.
+ `[parseNaiveToInstant(today + " 00:00:00"), +30 days)` — a half-open instant window
+ (`USER_CLASH_SCAN_DAYS = 30`, exported from `clashQuery.ts`). An event that started
+ before today but still overlaps the window is included.
 5. `clashingEventsFor([homeDepartment.id], from, to)` reads the overlapping months
-   through the layered month cache (`clashWindowMonths` → `getCachedMonthEventsForCalendars`,
-   never raw `listEvents`), dedupes by (calendar row, Google id), and shapes each item
-   with its parsed notes people — the exact reader the wizard advisory uses.
+ through the layered month cache (`clashWindowMonths` → `getCachedMonthEventsForCalendars`,
+ never raw `listEvents`), dedupes by (calendar row, Google id), and shapes each item
+ with its parsed notes people — the exact reader the wizard advisory uses.
 6. `findUserClashGroups` collapses logical copies, keeps events that occupy the
-   target, and computes the overlap components.
+ target, and computes the overlap components.
 7. The action maps the groups to display entries (per-event title / calendar /
-   inclusive-naive window via the shared `conflictWindowNaive`, plus the shared-people
-   names) and returns them with the target id/name, the covered dates, and the acting
-   user's id (for the `You` emphasis).
+ inclusive-naive window via the shared `conflictWindowNaive`, plus the shared-people
+ names) and returns them with the target id/name, the covered dates, and the acting
+ user's id (for the `You` emphasis).
 
 ## 1.6 The pure engine (`findUserClashGroups`)
 
@@ -160,13 +160,13 @@ unit-tested (`clashes.test.ts`). Steps:
 
 1. Guard: the target must be on the **active** roster, else nothing is scanned.
 2. For each event compute `busyUsersOfEvent`; drop events that do not occupy the
-   target. Multiple copies of the same logical event (same group id) collapse into one
-   slot carrying the union of their occupied users (belt-and-braces: a single-calendar
-   read already yields at most one copy per group).
+ target. Multiple copies of the same logical event (same group id) collapse into one
+ slot carrying the union of their occupied users (belt-and-braces: a single-calendar
+ read already yields at most one copy per group).
 3. Union-find over the pairwise `instantWindowsOverlap` graph among the survivors.
 4. Each component of size ≥ 2 is one report: its events sorted chronologically (then
-   calendar/title), and its shared people = the roster users busy in **every** member
-   event (always includes the target), sorted.
+ calendar/title), and its shared people = the roster users busy in **every** member
+ event (always includes the target), sorted.
 
 ## 1.7 The read-only action (`checkUserClashes`)
 
@@ -177,9 +177,9 @@ unit-tested (`clashes.test.ts`). Steps:
 - `{ ok: true, currentUserId, targetUserId, targetName, rangeStartDate,
 rangeEndDate, groups, skipReason }` where `skipReason` is:
   - `"no-department"` — the target belongs to no department calendar (e.g. an
-    email-less bootstrap admin), so nothing can occupy them;
+ email-less bootstrap admin), so nothing can occupy them;
   - `"no-active-user"` — the requested target is not on the active roster (only
-    reachable through a stale admin pick); or
+ reachable through a stale admin pick); or
   - `null` — a real scan ran (possibly with zero groups).
 
 Each `groups[]` entry is `{ events: EventClashEntry[] }` — the same `EventClashEntry`

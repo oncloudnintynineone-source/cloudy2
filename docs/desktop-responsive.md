@@ -54,18 +54,18 @@ CSS/`visibleFrom`/`hiddenFrom` props decide.
 
 ```mermaid
 flowchart LR
-    A[Viewport width] --> B{≥ 576px?}
-    B -- no --> B0{≤ 360px?}
-    B0 -- yes --> C0[Compact tier<br/>header/nav/modals tighten]
-    B0 -- no --> C[Mobile single-column<br/>bottom nav · card lists · sm modals]
-    B -- yes --> B2{≥ 640px?}
-    B2 -- no --> C2[Mid-width band<br/>bottom nav · card-grid]
-    B2 -- yes --> D[Desktop layout]
-    D --> D2{≥ 800px?}
-    D2 -- no --> E2[Sidebar auto-collapsed<br/>64px icon rail]
-    D2 -- yes --> E[Left sidebar 240px, minimizes to a 64px icon rail<br/>bottom nav collapsed]
-    D --> F[PageContainer ≤ 1200px]
-    D --> G[Tables / 320px card-grid<br/>md-lg modals · 2-col forms]
+ A[Viewport width] --> B{≥ 576px?}
+ B -- no --> B0{≤ 360px?}
+ B0 -- yes --> C0[Compact tier<br/>header/nav/modals tighten]
+ B0 -- no --> C[Mobile single-column<br/>bottom nav · card lists · sm modals]
+ B -- yes --> B2{≥ 640px?}
+ B2 -- no --> C2[Mid-width band<br/>bottom nav · card-grid]
+ B2 -- yes --> D[Desktop layout]
+ D --> D2{≥ 800px?}
+ D2 -- no --> E2[Sidebar auto-collapsed<br/>64px icon rail]
+ D2 -- yes --> E[Left sidebar 240px, minimizes to a 64px icon rail<br/>bottom nav collapsed]
+ D --> F[PageContainer ≤ 1200px]
+ D --> G[Tables / 320px card-grid<br/>md-lg modals · 2-col forms]
 ```
 
 ## 1.2 App shell (sidebar + collapsed bottom nav)
@@ -96,13 +96,13 @@ flowchart LR
   cookie on every toggle. The rail never affects < `lg` (the navbar is hidden
   there by Mantine's `collapsed.mobile`).
   - **Auto-collapse in the foldable band:** entering the 640–799px band
-    (`isDesktop && !isDesktopWide`, `DESKTOP_WIDE_MEDIA_QUERY` = 800px)
-    one-shot sets `collapsed = true`, since 240px of full sidebar would eat a
-    third of a 640px viewport. The effect only fires on *entry* into the band,
-    so a manual expand inside it survives until the next entry (resize across
-    800px and back, or a fresh load in the band); above 800px the remembered
-    cookie state rules untouched.
-- **Footer** — `footer={{ height: BOTTOM_NAV_HEIGHT_CSS, collapsed: isDesktop }}`:
+ (`isDesktop && !isDesktopWide`, `DESKTOP_WIDE_MEDIA_QUERY` = 800px)
+ one-shot sets `collapsed = true`, since 240px of full sidebar would eat a
+ third of a 640px viewport. The effect only fires on *entry* into the band,
+ so a manual expand inside it survives until the next entry (resize across
+ 800px and back, or a fresh load in the band); above 800px the remembered
+ cookie state rules untouched.
+- **Footer** — `footer={{ height: `${BOTTOM_NAV_HEIGHT}px`, collapsed: isDesktop }}`:
   the bottom nav stays for mobile; at `lg` it collapses off-screen and its layout
   offset drops to 0 (Mantine's `collapsed` footer behavior), so the FAB clearance
   below it no longer applies. A collapsed footer is only *translated* off-screen,
@@ -197,12 +197,12 @@ it via `top: calc(var(--app-shell-header-offset) + <chromeHeight>px)`:
   views' `scrollAreaProps.viewportRef` lets a layout effect re-sync the track
   after mounts/loads, since the libraries' `startScrollTime` /
   `startScrollDateTime` effects reposition the grid without a scroll event.
-   (Side fix: Week (H) now passes the supported `startScrollDateTime` instead of a
-   bogus `startScrollPosition: {y}` prop that was silently ignored.) The anchor
-   is dynamic: the Day view uses the current time when its date is today, the
-   Week (H) view uses `{today} {now}` when the shown week contains today — both fall
-   back to 07:00 / Monday 07:00 otherwise (`DashboardView`:
-   `currentScrollTime`).
+ (Side fix: Week (H) now passes the supported `startScrollDateTime` instead of a
+ bogus `startScrollPosition: {y}` prop that was silently ignored.) The anchor
+ is dynamic: the Day view uses the current time when its date is today, the
+ Week (H) view uses `{today} {now}` when the shown week contains today — both fall
+ back to 07:00 / Monday 07:00 otherwise (`DashboardView`:
+ `currentScrollTime`).
 
 The **Month weekday-initials row** is replaced by a pinned `MonthWeekdayStrip`
 (like the Week (H) day-label strip): Mantine's own row lives inside `MonthView`'s

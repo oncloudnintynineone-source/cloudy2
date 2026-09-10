@@ -46,7 +46,7 @@ pipeline solves:
 - **Constraints**: admins restrict each event type's time options, allowed location
   categories, and remarks field;
   the form and the server must enforce the same rules so a stale form can never submit
-   an out-of-policy combination (§1.9, §1.11).
+ an out-of-policy combination (§1.9, §1.11).
 
 ## 1.2 Goals & non-goals
 
@@ -76,36 +76,36 @@ pipeline solves:
 
 ```mermaid
 flowchart LR
-    subgraph FORM["EventForm (client wizard)"]
-        W["staged steps: type / time / location / participants / remarks<br/>/ other settings → review"]
-        P["calendar preview on the review step"]
-    end
-    subgraph GUARD["Server action (actions.ts)"]
-        G["modifyGuard (edit/delete)<br/>organizer resolution (create/update)"]
-        V["validateEventForm"]
-        T["resolveTargetCalendars"]
-        RT["resolveEventTime"]
-        RL["resolveEventLocation (clampOutOfCamp)"]
-        B["buildGcalEventInput"]
-    end
-    subgraph PURE["Pure helpers"]
-        TE["renderEventTitle → renderTitleRecipe"]
-        NB["encodeEventNotes → encodeNotesBlock"]
-        AR["absEventRange"]
-    end
-    Gcal["Google Calendar<br/>(one copy per target calendar)"]
+ subgraph FORM["EventForm (client wizard)"]
+ W["staged steps: type / time / location / participants / remarks<br/>/ other settings → review"]
+ P["calendar preview on the review step"]
+ end
+ subgraph GUARD["Server action (actions.ts)"]
+ G["modifyGuard (edit/delete)<br/>organizer resolution (create/update)"]
+ V["validateEventForm"]
+ T["resolveTargetCalendars"]
+ RT["resolveEventTime"]
+ RL["resolveEventLocation (clampOutOfCamp)"]
+ B["buildGcalEventInput"]
+ end
+ subgraph PURE["Pure helpers"]
+ TE["renderEventTitle → renderTitleRecipe"]
+ NB["encodeEventNotes → encodeNotesBlock"]
+ AR["absEventRange"]
+ end
+ Gcal["Google Calendar<br/>(one copy per target calendar)"]
 
-    W --> P
-    W --> G --> V --> T --> RT --> RL --> B
-    B --> TE
-    B --> NB
-    B --> AR
-    B --> Gcal
+ W --> P
+ W --> G --> V --> T --> RT --> RL --> B
+ B --> TE
+ B --> NB
+ B --> AR
+ B --> Gcal
 ```
 
-Read-back goes the other way: `mapCalendarItem` (`src/lib/events/queries.ts:127`) runs
+Read-back goes the other way: `mapCalendarItem` (`src/lib/events/queries.ts`) runs
 the pure notes parsers over each `GcalEventItem` and produces a `CalendarEvent` with a
-`CalendarEventPayload` (`queries.ts:26`) that the views and the edit form consume.
+`CalendarEventPayload` (`queries.ts`) that the views and the edit form consume.
 
 ## 1.4 The staged wizard
 
@@ -116,15 +116,15 @@ its draft. It is a **staged walk** — one input group visible at a time, built 
 `buildSteps` (`EventForm.tsx`); every role walks the same steps
 (no admin-only extras — there is no "On behalf of" creator step):
 
-| # | Step            | Who | Gate before advancing                                             |
+| # | Step | Who | Gate before advancing |
 | - | --------------- | --- | ----------------------------------------------------------------- |
-| 1 | `type`          | all | custom: a type must be selected                                   |
-| 2 | `time`          | all | `start`, `end`, `startAmPm`, `endAmPm` validate cleanly           |
-| 3 | `location`      | all | none (policy clamping is live, §1.9)                              |
-| 4 | `invitees` (Participants) | all | none                                                      |
-| 5 | `remarks`       | all | none                                                              |
+| 1 | `type` | all | custom: a type must be selected |
+| 2 | `time` | all | `start`, `end`, `startAmPm`, `endAmPm` validate cleanly |
+| 3 | `location` | all | none (policy clamping is live, §1.9) |
+| 4 | `invitees` (Participants) | all | none |
+| 5 | `remarks` | all | none |
 | 6 | `settings` (Other settings) | all | none — the "Pin this event" + organizer-only edit-lock switches |
-| 7 | `review`        | all | submit only (last step) — read-only summary of everything entered |
+| 7 | `review` | all | submit only (last step) — read-only summary of everything entered |
 
 The `invitees`, `remarks`, and `location` steps drop out per the selected type's config
 (§1.9.1): `show_location` off removes the Location step entirely — otherwise it always
@@ -144,26 +144,26 @@ Mechanics worth knowing:
   modal never resizes between steps and the buttons never jump. The sizing is tiered so
   the modal actually uses the space a given screen has:
   - **Width** (`DashboardView.tsx`): `xs` (320px) on ≤360px phones, `sm` (380px) across
-    the rest of the phone band, `md` (440px) on the narrow desktop band (640–799px), and
-    `lg` (620px) on the wide-desktop band (≥800px). The shrink-out motion feeds on the
-    matching width (`formContentWidth`), so it always lands on the originating button.
+ the rest of the phone band, `md` (440px) on the narrow desktop band (640–799px), and
+ `lg` (620px) on the wide-desktop band (≥800px). The shrink-out motion feeds on the
+ matching width (`formContentWidth`), so it always lands on the originating button.
   - **Centered at every width**: the host modal is `centered` on all screens, so the
-    wizard always has **equal top/bottom gutters**. On phones (< 640px) the body
-    **fills the modal's box** to take up as much vertical space as possible:
-    `DashboardView` sets `yOffset="44px"`, so Mantine centers inside a
-    `100dvh - 88px` (2 × 44px gutter) box, and `WIZARD_BODY_HEIGHT_MOBILE` =
-    `calc(100dvh - 164px)` fills it — the 88px of gutters plus the modal's own chrome
-    (sticky header ~60px + body bottom padding ~16px = 76px). Equal ~44px gutters
-    remain, and the "Tap outside to minimize" caption sits in the bottom gutter (it
-    stays at the viewport bottom; the header's minimize chevron / X also stay).
-    `100dvh` shrinking with the on-screen keyboard just shortens the body.
+ wizard always has **equal top/bottom gutters**. On phones (< 640px) the body
+ **fills the modal's box** to take up as much vertical space as possible:
+ `DashboardView` sets `yOffset="44px"`, so Mantine centers inside a
+ `100dvh - 88px` (2 × 44px gutter) box, and `WIZARD_BODY_HEIGHT_MOBILE` =
+ `calc(100dvh - 164px)` fills it — the 88px of gutters plus the modal's own chrome
+ (sticky header ~60px + body bottom padding ~16px = 76px). Equal ~44px gutters
+ remain, and the "Tap outside to minimize" caption sits in the bottom gutter (it
+ stays at the viewport bottom; the header's minimize chevron / X also stay).
+ `100dvh` shrinking with the on-screen keyboard just shortens the body.
   - **Desktop height**: the centered modal's body grows with the viewport up to
-    `min(68dvh, 720px, calc(100dvh - 200px))` so a tall screen is actually used up to a
-    comfortable cap.
+ `min(68dvh, 720px, calc(100dvh - 200px))` so a tall screen is actually used up to a
+ comfortable cap.
   - **Wide review step**: at `lg` width the review's definition rows (When, Location,
-    Event Type, Organizer, Participants, Departments, Remarks) reflow into a two-column
-    grid beneath the full-width calendar preview and clash check — the extra width reads
-    as structure, not a stretched single column.
+ Event Type, Organizer, Participants, Departments, Remarks) reflow into a two-column
+ grid beneath the full-width calendar preview and clash check — the extra width reads
+ as structure, not a stretched single column.
   The Stepper (`.c2-wizard-steps`) is one non-wrapping row of
   numbered circles joined by connector lines, so it reads unambiguously as a left→right
   step path: passed steps show a check, the current circle is filled, future ones are
@@ -178,9 +178,9 @@ Mechanics worth knowing:
 - **Enter never submits**: `handleFormKeyDown` (`EventForm.tsx`) cancels the
   browser's implicit form submission for `INPUT`/`SELECT` targets, so only the explicit
   Create/Save button (review step) commits — the Remarks `Textarea` keeps natural newline
-  behavior. `onSubmit` re-guards with `if (!isLastStep) return` (`EventForm.tsx:447`),
+  behavior. `onSubmit` re-guards with `if (!isLastStep) return` (`EventForm.tsx`),
   and the Next/submit buttons use distinct React keys so a step-advance click can never
-  activate a leftover `type="submit"` node (`EventForm.tsx:852, 862`).
+  activate a leftover `type="submit"` node (`EventForm.tsx`).
 - **Server error → step**: a failed submit maps the server's `field` back onto the owning
   step via `STEP_BY_FIELD` (`EventForm.tsx`) and lands the user there.
 - **Organizer is always the acting user**: there is no admin "On behalf of" step — every
@@ -199,11 +199,11 @@ Mechanics worth knowing:
 
 ### 1.4.1 Step details
 
-- **Type** (`EventForm.tsx:578-608`): alphabetically sorted toggleable `Badge` chips
+- **Type** (`EventForm.tsx`): alphabetically sorted toggleable `Badge` chips
   (no searchable select — the list is short). Selecting a type re-resolves the time
   option against the type's allowed set and re-clamps the location category against the
-  type's allowed locations (`handleEventTypeChange`, `EventForm.tsx:339-360`).
-- **Timestamp** (`EventForm.tsx:575-660, 753-773`): when the type allows more than one
+  type's allowed locations (`handleEventTypeChange`, `EventForm.tsx`).
+- **Timestamp** (`EventForm.tsx`): when the type allows more than one
   option the step shows a `Tabs` control ("Start & End" / "Full Day" / "Half Day");
   otherwise the single option's fields render directly. `range` = a `DatePickerInput`
   plus a `TimePicker` per side — date pickers carry no time, and the time is set
@@ -213,15 +213,15 @@ Mechanics worth knowing:
   date, which `validateEventForm` rejects ("Start time is required" / "End time is
   required"). `full` = two `DatePickerInput`s (plain dates, no half-day markers);
   `half` = two `DatePickerInput`s plus an AM/PM `SegmentedControl` per side.
-  `switchTimeOption` (`EventForm.tsx:365`) zeroes the time part to `00:00:00` when
+  `switchTimeOption` (`EventForm.tsx`) zeroes the time part to `00:00:00` when
   entering any day-based option and defaults the indicators to AM→PM on `half`, so a
   mixed span renders with no title suffix.
-- **Location** (`EventForm.tsx:923-961`): a `SegmentedControl` over the type's allowed
+- **Location** (`EventForm.tsx`): a `SegmentedControl` over the type's allowed
   categories (single-option types show one disabled segment), switching it sets the
   `outOfCamp`/`overseas` flags. The location `TextInput` below is **always enabled** —
   even in-camp events may record an optional specific place (it never implies out of
   camp). The effective flag/location is always the
-  `clampOutOfCamp` pair (`EventForm.tsx:365-370`), never the raw form value. The whole
+  `clampOutOfCamp` pair (`EventForm.tsx`), never the raw form value. The whole
   step is skipped when the type hides it (§1.9.2) — events of such a type save with the
   sole allowed category and no specific location.
 - **Participants** (`EventForm.tsx`): a `PickerField` + `UserSelectModal`
@@ -239,7 +239,7 @@ Mechanics worth knowing:
   prefixes are split into
   `inviteeUserIds` / `inviteeDepartments` on submit (`splitInvitees`,
   `EventForm.tsx`).
-- **Remarks** (`EventForm.tsx:681-697`): an autosize `Textarea` bound to the form's
+- **Remarks** (`EventForm.tsx`): an autosize `Textarea` bound to the form's
   `title` field — the **raw description**. It is optional; the calendar title comes from
   the template (§1.8).
 - **Other settings** (`EventForm.tsx`): the Pin + organizer-only-lock switches (§1.4).
@@ -266,35 +266,35 @@ joins the fetch set only, never the filter selection). The event search modal's
 "Edit" action instead deep-links `?edit=<group id>`, which opens the edit form
 directly.
 
-- **Server** (`src/app/(protected)/dashboard/page.tsx:61-68`): `initialDetailEventId`
+- **Server** (`src/app/(protected)/dashboard/page.tsx`): `initialDetailEventId`
   / `initialEditEventId` are accepted only when `?event=` / `?edit=` is a valid UUID;
   the `date` in the same link pins the fetched month so the event is in view. An
-  `event`/`edit` render reads the remembered-UI-state cookie like any other render —
-  only the one-shot `_fresh` marker skips it — so the event opens on the arriving
-  user's own view + filters (`page.tsx:77-82`; see [`ui-state.md`](ui-state.md)).
+  `event`/`edit` render reads the remembered-UI-state cookie like any other render — so
+  the event opens on the arriving user's own view + filters (`page.tsx`; see
+  [`ui-state.md`](ui-state.md)).
 - **Client** (`DashboardView.tsx`): the event is resolved **synchronously at mount**
   by matching the notes group id in the already-fetched month events
-  (`DashboardView.tsx:782-786`) and the details modal / edit form opens on first paint
-  with no follow-up render (`:788`, `:794-802`). A valid id that matches nothing
-  (filters/date exclude it) shows a dismissible "not in your current view" alert
-  (`:837-839`). The one-shot `event`/`edit` params are stripped after their render by
-  ref-guarded plain `router.push` calls (`:1482-1507`).
-- **Form prefill** (`buildInitialValues`, `EventForm.tsx:175-228`):
+  (`DashboardView.tsx`) and the details modal / edit form opens on first paint
+  with no follow-up render. A valid id that matches nothing
+  (filters/date exclude it) shows a dismissible "not in your current view" alert.
+  The one-shot `event`/`edit` params are stripped after their render by
+  ref-guarded plain `router.push` calls.
+- **Form prefill** (`buildInitialValues`, `EventForm.tsx`):
   - `title` = the notes' raw description (`payload.rawTitle`) — never the rendered
-    calendar title; a deliberately blank description round-trips as `""` (legacy events
-    without the field fall back to the summary, with `"(no title)"` normalized to `""`,
-    `EventForm.tsx:191`).
+ calendar title; a deliberately blank description round-trips as `""` (legacy events
+ without the field fall back to the summary, with `"(no title)"` normalized to `""`,
+ `EventForm.tsx`).
   - time option resolved against the stored type's allowed set
-    (`resolveTimeOption`, `EventForm.tsx:168`); legacy full-day events without
-    indicators default to AM→PM (`:183-184`).
+  (`resolveTimeOption`, `EventForm.tsx`); legacy full-day events without
+  indicators default to AM→PM.
   - Google's **exclusive** all-day end is converted back to the form's **inclusive**
-    end: `end = subOneDay(event.end) 00:00:00` (`EventForm.tsx:186`, §1.11.2).
+ end: `end = subOneDay(event.end) 00:00:00` (`EventForm.tsx`, §1.11.2).
   - Out of Camp + location re-clamped against the type's *current* policy, in case it
-    tightened since the event was last edited (`:169-175`).
+  tightened since the event was last edited.
   - Invitees re-prefixed as `dept:`/`user:` values; `creatorId` = the stored organizer
-    (falling back to the acting user on a creator-less legacy event); `ownerOnlyEdits`
-    from the payload. Attendees are kept exactly as stored — a legacy event's organizer
-    who was auto-invited stays in the list, deselectable.
+ (falling back to the acting user on a creator-less legacy event); `ownerOnlyEdits`
+ from the payload. Attendees are kept exactly as stored — a legacy event's organizer
+ who was auto-invited stays in the list, deselectable.
 - **New events** (`EventForm.tsx`): start `09:00:00` / end `10:00:00` on
   `defaultDate`, `range`, `creatorId` = the acting session user (every role — no admin
   on-behalf), `ownerOnlyEdits` = false, and no self chip: the attendee list starts
@@ -322,13 +322,13 @@ department (and only the organizer/admin when the lock is on).
 
 `validateEventForm(values)` checks, in order:
 
-1. `full` events: both `startAmPm` and `endAmPm` required → "Select AM or PM".
+1. `half` events: both `startAmPm` and `endAmPm` required → "Select AM or PM".
 2. `start` / `end` required.
-3. **Cross-field chronology** via `sortKey`: for `full` events the
-   half-of-day indicator is folded into the sort key (`YYYY-MM-DD AM` < `YYYY-MM-DD PM`,
-   since the time part is always `00:00:00`), so same-day AM→PM is valid and PM→AM is not;
-   for `range` the full naive strings compare. Violation → "End must be on or after
-   start".
+3. **Cross-field chronology** via `sortKey`: for `half` events the
+ half-of-day indicator is folded into the sort key (`YYYY-MM-DD AM` < `YYYY-MM-DD PM`,
+ since the time part is always `00:00:00`), so same-day AM→PM is valid and PM→AM is not;
+ for `range` the full naive strings compare. Violation → "End must be on or after
+ start".
 
 Deliberately **not** validated in `validateEventForm`: `title` (may be blank — the
 template produces the title), `eventType` (the wizard's custom gate covers it), invitee
@@ -354,33 +354,33 @@ audit snapshot all see the effective organizer.
 ## 1.6 Target derivation
 
 A logical event lives in **one copy per involved department calendar**.
-`deriveTargetCalendarIds` (`src/lib/events/targets.ts:33`) computes that set purely:
+`deriveTargetCalendarIds` (`src/lib/events/targets.ts`) computes that set purely:
 
 ```mermaid
 flowchart LR
-    C["creator's department"] --> U["union"]
-    U2["each tagged user's department<br/>(nulls contribute nothing)"] --> U
-    D["each explicitly tagged department"] --> U
-    U --> R["order-preserving dedupe → target set"]
+ C["creator's department"] --> U["union"]
+ U2["each tagged user's department<br/>(nulls contribute nothing)"] --> U
+ D["each explicitly tagged department"] --> U
+ U --> R["order-preserving dedupe → target set"]
 ```
 
-The I/O wrapper `resolveTargetCalendars` (`actions.ts:111-131`) batch-resolves the
-creator's and invitees' departments (`getUserDepartmentIds`, `queries.ts:106`) and calls
+The I/O wrapper `resolveTargetCalendars` (`writeContext.ts`) batch-resolves the
+creator's and invitees' departments (`getUserDepartmentIds`, `queries.ts`) and calls
 the pure helper; when nothing derives (no department, no tags) it falls back to a single
 calendar on update (`ref.calendarId`) or fails with "Assign yourself to a department or
-tag an invitee" on create (`actions.ts:364-370`).
+tag an invitee" on create (`actions.ts`).
 
 Related pure helpers in `targets.ts`:
 
-- `EventRef` (`targets.ts:13`) — the reference to one (representative) copy passed to
+- `EventRef` (`targets.ts`) — the reference to one (representative) copy passed to
   update/delete: registry `calendarId`, Google `googleEventId`, group `eventId` (null for
   legacy), naive start/end, `allDay`, creator + invitee ids.
-- `eventRefFromCalendarEvent(event)` (`targets.ts:94`) — builds it from a schedule-ready
+- `eventRefFromCalendarEvent(event)` (`targets.ts`) — builds it from a schedule-ready
   `CalendarEvent` (used by the form on submit).
-- `diffEventTargets(old, new)` (`targets.ts:57`) — splits into `create`/`keep`/`remove`;
-   the update action inlines the equivalent union/set logic
-   ([`event-mutations.md` §1.5](event-mutations.md#15-updateevent--reconciling-copies)).
-- `dedupeEventsByGroupId(events)` (`targets.ts:75`) — display dedup: the first event
+- `diffEventTargets(old, new)` (`targets.ts`) — splits into `create`/`keep`/`remove`;
+ the update action inlines the equivalent union/set logic
+ ([`event-mutations.md` §1.5](event-mutations.md#15-updateevent--reconciling-copies)).
+- `dedupeEventsByGroupId(events)` (`targets.ts`) — display dedup: the first event
   seen per non-null group id wins, legacy (null-id) events always pass. Input order
   defines the representative, so callers feed it deterministically (the dashboard reads
   calendars in name order).
@@ -390,7 +390,7 @@ Related pure helpers in `targets.ts`:
 The machine-readable state lives in the Google event **description**; the visible
 **title (summary)** carries the rendered template.
 
-### 1.7.1 Fields (`EventNotes`, `src/lib/events/notes.ts:19`)
+### 1.7.1 Fields (`EventNotes`, `src/lib/events/notes.ts`)
 
 | Field | Stored when | Notes |
 | ----- | ----------- | ----- |
@@ -405,7 +405,7 @@ The machine-readable state lives in the Google event **description**; the visibl
 | `startAmPm` / `endAmPm` | `half` only (legacy `full` events may still carry them) | Half-of-day indicators |
 | `outOfCamp` | **only when `true`** | Absence (legacy) or `false` means in camp; the destination itself goes to Google's `location` field, not the notes |
 
-`encodeEventNotes` (`notes.ts:53`) drops `undefined`/`null`/empty-array values and keeps
+`encodeEventNotes` (`notes.ts`) drops `undefined`/`null`/empty-array values and keeps
 a blank value **only for `title`**; it returns `""` when nothing survives. The block is a
 JSON object (not a fixed schema), so fields can be added later without a format
 migration.
@@ -418,12 +418,12 @@ migration.
 | **v2** | `Edit: <url>` line, blank line, one **raw JSON** line | intermediate era |
 | **v1** | the description **is** the JSON object alone | earliest era |
 
-`encodeNotesBlock(json)` (`notes.ts:131`) brotli-compresses and base64url-encodes
+`encodeNotesBlock(json)` (`notes.ts`) brotli-compresses and base64url-encodes
 (no padding) — one short, **opaque**, deterministic line. Decoding
-(`inflateNotesBlock`, `notes.ts:141`) tries brotli first (the current writer) then gzip
+(`inflateNotesBlock`, `notes.ts`) tries brotli first (the current writer) then gzip
 as a codec fallback.
 
-`parseEventNotes(description)` (`notes.ts:166`) is the single reader for all three
+`parseEventNotes(description)` (`notes.ts`) is the single reader for all three
 formats: if the whole string parses as a JSON object it is v1; otherwise the lines are
 scanned **bottom-up**, and the first line that is either raw JSON (v2, starts with `{`)
 or an inflatable block (v3) wins. Any failure (bad base64, bad JSON, non-object) returns
@@ -432,26 +432,26 @@ or an inflatable block (v3) wins. Any failure (bad base64, bad JSON, non-object)
 ### 1.7.3 Description assembly & markers
 
 The write path assembles the description in `buildGcalEventInput`
-(`actions.ts:264-281`):
+(`actions.ts`):
 
 ```mermaid
 flowchart TB
-    N["encodeEventNotes(fields)"] --> B["encodeNotesBlock (brotli + base64url)"]
-    B --> E["withEditLink(block, url) — 'Edit: <url>' on top"]
-    E --> M["withInternalMarker — 'Created in cloudy2' at the bottom"]
-    M --> D["Google event description"]
+ N["encodeEventNotes(fields)"] --> B["encodeNotesBlock (brotli + base64url)"]
+ B --> E["withEditLink(block, url) — 'Edit: <url>' on top"]
+ E --> M["withInternalMarker — 'Created in cloudy2' at the bottom"]
+ M --> D["Google event description"]
 ```
 
-- `withEditLink(block, url)` (`notes.ts:211`): `Edit: <url>` above the block; Google
+- `withEditLink(block, url)` (`notes.ts`): `Edit: <url>` above the block; Google
   Calendar linkifies plain URLs in notes. The URL is `eventDetailUrl(baseUrl, start,
-  eventId, calendarId)` (`notes.ts:261`) →
+  eventId, calendarId)` (`notes.ts`) →
   `/dashboard?date=<first day>&event=<group id>&_eventCal=<calendar id>` — the
   details deep link (§1.4.2); each copy's link names its own calendar. The app
-  origin comes from the request headers (`appBaseUrl`, `src/lib/appUrl.ts:9`), so the
+  origin comes from the request headers (`appBaseUrl`, `src/lib/appUrl.ts`), so the
   link is rebuilt on every create/edit and always points at the deployed app.
-- `withInternalMarker` (`notes.ts:236`) appends `INTERNAL_EVENT_MARKER` =
-  `"Created in cloudy2"` (`notes.ts:224`) one blank line below, never duplicated.
-- `isExternalEvent(description)` (`notes.ts:249`): external = **no marker AND no
+- `withInternalMarker` (`notes.ts`) appends `INTERNAL_EVENT_MARKER` =
+  `"Created in cloudy2"` (`notes.ts`) one blank line below, never duplicated.
+- `isExternalEvent(description)` (`notes.ts`): external = **no marker AND no
   parseable notes block**. Older in-app events predate the marker but still carry a
   block, so they stay internal. External events get an "External" badge in the detail
   view and are admin-only to edit (§1.5.1).
@@ -462,15 +462,15 @@ All pure, all total (never throw, tolerate malformed values):
 
 | Parser (`notes.ts`) | Returns |
 | ------------------- | ------- |
-| `parseEventPeople` (`:99`) | `{ eventId, creatorId, userIds, departmentIds }` — the identity used by copy reconciliation and the user filter |
-| `parseEventType` (`:256`) | type name or null |
-| `parseEventTitle` (`:267`) | raw description: `""` for a deliberately blank one, `null` for legacy (field absent) |
-| `parseEventTimeOption` (`:274`) | `"range"` \| `"full"` \| null |
-| `parseEventStartAmPm` / `parseEventEndAmPm` (`:281` / `:288`) | `"AM"` \| `"PM"` \| null |
-| `parseEventOutOfCamp` (`:295`) | `true` only when the flag is exactly `true` |
+| `parseEventPeople`  | `{ eventId, creatorId, userIds, departmentIds }` — the identity used by copy reconciliation and the user filter |
+| `parseEventType`  | type name or null |
+| `parseEventTitle`  | raw description: `""` for a deliberately blank one, `null` for legacy (field absent) |
+| `parseEventTimeOption`  | `"range"` \| `"full"` \| null |
+| `parseEventStartAmPm` / `parseEventEndAmPm` | `"AM"` \| `"PM"` \| null |
+| `parseEventOutOfCamp`  | `true` only when the flag is exactly `true` |
 
-`mapCalendarItem` (`queries.ts:127`) wires these into the `CalendarEventPayload`
-(`queries.ts:26`), and the edit form reads them back (§1.4.2) — that is the full
+`mapCalendarItem` (`queries.ts`) wires these into the `CalendarEventPayload`
+(`queries.ts`), and the edit form reads them back (§1.4.2) — that is the full
 round-trip: raw text typed in Remarks is stored in notes `title` and prefilled on edit,
 so editing never re-types the templated calendar title.
 
@@ -485,15 +485,15 @@ own field; and a **connector** joins a field to the *next shown* field — never
 or trailing. Because the admin never types separators into a `{token}< ... >` grammar,
 an empty field can no longer leave dangling punctuation (`OL:, …`, `(LZH )`).
 
-| Field        | Renders (empty when absent)                              | Style options                       |
+| Field | Renders (empty when absent) | Style options |
 | ------------ | -------------------------------------------------------- | ----------------------------------- |
-| `type`       | the event type's name, or acronym                        | `name` / `acronym`                  |
-| `description`| the raw typed description                                | —                                   |
-| `people`     | invitees joined with `", "` (organizer only when self-invited) | `fqn` (default) / `full` / `acronym` |
-| `departments`| tagged department names joined with `", "`               | —                                   |
-| `location`   | the location string                                      | —                                   |
-| `time`       | `HH:MM-HH:MM` (range) / `AM`/`PM` (half) / `""` (full)    | —                                   |
-| `text`       | the segment's literal words (a blank text hides the segment) | — (typed in the Text field)     |
+| `type` | the event type's name, or acronym | `name` / `acronym` |
+| `description`| the raw typed description | — |
+| `people` | invitees joined with `", "` (organizer only when self-invited) | `fqn` (default) / `full` / `acronym` |
+| `departments`| tagged department names joined with `", "` | — |
+| `location` | the location string | — |
+| `time` | `HH:MM-HH:MM` (range) / `AM`/`PM` (half) / `""` (full) | — |
+| `text` | the segment's literal words (a blank text hides the segment) | — (typed in the Text field) |
 
 `time` segments also honor a `timeFull` override: when the caller passes a
 pre-rendered wall-clock string (push bodies do), it renders that instead of the
@@ -517,21 +517,21 @@ rollback and are never read.
 1. trims the raw description;
 2. renders the recipe via `renderTitleRecipe`;
 3. **falls back to the raw (trimmed) description when the recipe renders nothing** —
-   an empty result yields an intentionally untitled event.
+ an empty result yields an intentionally untitled event.
 
 Half-day AM/PM markers come only from a `time` segment in the recipe, never a
 hardcoded suffix — a recipe without `time` never adds `(AM)`. Full-day events render
 no marker (legacy `full` events keep the markers already baked into their stored
 Google titles — this function only renders on writes). This function is the single
 source of truth for both the title written to Google (`buildGcalEventInput`,
-`actions.ts:250`) and the `title` field of audit snapshots (`actions.ts:405, 574`), so
+`actions.ts`) and the `title` field of audit snapshots (`actions.ts`), so
 the two can never diverge.
 
 ### 1.8.3 The form's live preview
 
 `EventForm` shows a "Calendar preview" Paper with the exact title the server will write,
-recomputed from form values (`EventForm.tsx:397-421`). The Paper lives **on the review
-step only** (`EventForm.tsx:741-749`) — earlier steps render no preview card. The
+recomputed from form values (`EventForm.tsx`). The Paper lives **on the review
+step only** (`EventForm.tsx`) — earlier steps render no preview card. The
 preview derives its people from the **effective** invitee list — exactly the stored
 attendees, with no organizer prepended (the organizer appears in a `people` segment only
 when they tagged themselves; the sole exception is an invitees-hidden type, which keeps
@@ -602,7 +602,7 @@ category itself: an `overseas` event is out of camp and out of the country.
 `clampOutOfCamp` is the **single source of truth applied client- and server-side**: the
 form derives the effective flags live and re-clamps on type change
 (`EventForm.tsx`), and the write path re-applies it in `resolveEventLocation`
-(`actions.ts`) after `resolveEventTime`, in both create and update — so a stale form state
+(`writeContext.ts`) after `resolveEventTime`, in both create and update — so a stale form state
 can never submit an out-of-policy category. A category outside the type's allowlist clamps
 to the **first allowed category in canonical order** (`in` → `out` → `overseas`; in-camp is
 the terminal fallback), and an out-of-policy pick therefore degrades to in camp. The clamp
@@ -621,7 +621,7 @@ Besides the location matrix, each event type carries three boolean toggles (edit
 event-type form, Settings → Event Types), all defaulting to `true`:
 
 - `event_types.show_remarks`: when off, the wizard's Remarks step is omitted and the
-  server clears the description (`resolveEventFields` in `actions.ts`), so the title
+  server clears the description (`resolveEventFields` in `writeContext.ts`), so the title
   template's other tokens supply the text.
 - `event_types.show_invitees`: when off, the wizard's Participants step is omitted
   and the server drops every attendee beyond the creator (`inviteeUserIds` collapses to
@@ -683,11 +683,11 @@ labeled section per group.
 
 ```mermaid
 flowchart LR
-    A[Admin: Settings → Event Types<br/>Manage groups] -->|create / rename / delete / reorder| G[(event_type_groups<br/>name unique, sort_order)]
-    A -->|Group select in the type form| T[(event_types.group_id<br/>nullable FK, ON DELETE SET NULL)]
-    G -->|listEventTypeGroups| P[buildEventTypePickerSections<br/>pure — eventTypes/groups.ts]
-    T -->|listEventTypes| P
-    P -->|ordered sections| W[Wizard type step:<br/>grouped badge picker]
+ A[Admin: Settings → Event Types<br/>Manage groups] -->|create / rename / delete / reorder| G[(event_type_groups<br/>name unique, sort_order)]
+ A -->|Group select in the type form| T[(event_types.group_id<br/>nullable FK, ON DELETE SET NULL)]
+ G -->|listEventTypeGroups| P[buildEventTypePickerSections<br/>pure — eventTypes/groups.ts]
+ T -->|listEventTypes| P
+ P -->|ordered sections| W[Wizard type step:<br/>grouped badge picker]
 ```
 
 - **Schema** (migration `0031`): the `event_type_groups` table (`name` unique,
@@ -737,18 +737,19 @@ still carry `"full"` + markers in their notes and display them as-is. Editing su
 event re-clamps to the type's current allowed set; saving under `full` drops the
 markers, switching to `half` (prefilled from the stored notes) keeps them.
 
-- `normalizeTimeOptions` (`timeOptions.ts:40`) dedupes and drops unknown values (e.g. a
+- `normalizeTimeOptions` (`timeOptions.ts`) dedupes and drops unknown values (e.g. a
   legacy `"ampm"`).
-- `resolveTimeOptions` (`:59`): empty/unrecorded types fall back to `["range"]`.
-- `resolveTimeOption(allowed, selected)` (`:68`): unknown/empty selection → first
+- `resolveTimeOptions` : empty/unrecorded types fall back to `["range"]`.
+- `resolveTimeOption(allowed, selected)` : unknown/empty selection → first
   allowed; a selection the type no longer allows → first allowed. The server applies it
-  in `resolveEventTime` (`actions.ts:216`), which also defaults `half`-event indicators
+  in `resolveEventTime` (`writeContext.ts`), which also defaults `half`-event indicators
   to AM→PM when unset and blanks them for every other option.
-- `naiveDatePart` / `naiveTimePart` / `joinDateTimeParts` (`:77` / `:86` / `:100`):
+- `naiveDatePart` / `naiveTimePart` / `joinDateTimeParts`:
   split/join the Start & End form's one-string-per-side storage into the date picker's
   `YYYY-MM-DD` half and the time picker's `HH:mm` half (a blank time stores a bare date
-  — the "time not yet chosen" state).
-- `amPmSuffix(startAmPm, endAmPm)` (`:111`): the shared marker, or `""`.
+ — the "time not yet chosen" state).
+- The title's `(AM)`/`(PM)` marker comes from the recipe's `time` segment (§1.8.1), not a
+  hardcoded helper.
 
 ### 1.11.2 Datetime conventions (`src/lib/events/datetime.ts`)
 
@@ -756,21 +757,21 @@ All wall-clock times are interpreted in a **fixed UTC+8** (`Asia/Singapore`, no 
 conversions are deterministic and unit-testable. Naive values are `YYYY-MM-DD HH:mm:ss`
 strings; date-only values are `YYYY-MM-DD`.
 
-- `parseNaiveToInstant` / `formatInstantToNaive` (`datetime.ts:17` / `:27`) convert
+- `parseNaiveToInstant` / `formatInstantToNaive` (`datetime.ts`) convert
   naive ↔ UTC instant via the fixed 8-hour offset.
-- **`absEventRange(naiveStart, naiveEnd, allDay)`** (`datetime.ts:121`) — the instants
+- **`absEventRange(naiveStart, naiveEnd, allDay)`** (`datetime.ts`) — the instants
   the event occupies on Google:
   - timed: both sides parsed as UTC+8 wall clock;
   - all-day: `start = dateToUtc(startDate)`, **`end = dateToUtc(addOneDay(endDate))`** —
-    Google's **exclusive all-day end date** convention (the day after the last day).
+ Google's **exclusive all-day end date** convention (the day after the last day).
 
 The form stores `full`-day ends *inclusively*; `buildGcalEventInput` expands via
-`absEventRange` (`actions.ts:284`), and reads convert back (`EventForm.tsx:186`; the
+`absEventRange` (`actions.ts`), and reads convert back (`EventForm.tsx`; the
 detail view displays the inclusive day via `subOneDay`).
 
-Also in `datetime.ts` (used across views and the cache): `monthRange` (`:58`),
-`weekDays` (Monday-first, `:71`), `shiftMonth` (`:80`), `monthGridRows` (`:91`), and
-`monthsInRange` (`:99`) — every `YYYY-MM` a naive range touches, with a guard that a
+Also in `datetime.ts` (used across views and the cache): `monthRange`,
+`weekDays` (Monday-first), `shiftMonth`, `monthGridRows`, and
+`monthsInRange` — every `YYYY-MM` a naive range touches, with a guard that a
 malformed (reversed) range still yields the start month.
 
 ## 1.12 Pure helpers & testing
@@ -787,7 +788,7 @@ writes, headers) is thin and lives in `actions.ts` / `queries.ts`.
 | `normalizeAssignments` (whitelist keys, drop empties), `validateAssignments` (unknown ids) (§1.8.5) | `settings/validate.ts` | `settings/validate.test.ts` |
 | `formatFullName` | `settings/formatName.ts` | `formatName.test.ts` |
 | `clampOutOfCamp` (all allowed-location sets), `flagsFromCategory` / `categoryFromFlags`, `normalizeAllowedLocations` | `events/locationPolicy.ts` | `locationPolicy.test.ts` |
-| `resolveTimeOption(s)`, `normalizeTimeOptions`, `naiveDatePart` / `naiveTimePart` / `joinDateTimeParts`, `amPmSuffix` | `events/timeOptions.ts` | `timeOptions.test.ts` |
+| `resolveTimeOption(s)`, `normalizeTimeOptions`, `naiveDatePart` / `naiveTimePart` / `joinDateTimeParts` | `events/timeOptions.ts` | `timeOptions.test.ts` |
 | `buildEventTypePickerSections` (grouped sections, empty-group skip, ungrouped last, dangling-id degrade), `sortEventTypeGroups`, `moveEventTypeGroupOrder` (§1.10) | `eventTypes/groups.ts` | `groups.test.ts` |
 | `absEventRange` (timed + all-day exclusive end), naive↔instant, `weekDays`, `monthsInRange`, `shiftMonth`, `monthRange`, `monthGridRows` | `events/datetime.ts` | `datetime.test.ts` |
 | `modifyGuard`, `canChangeLock` | `events/guards.ts` | `guards.test.ts` |
@@ -803,7 +804,7 @@ actions), `queries.ts` (DB + cache reads, `mapCalendarItem`), `appUrl.ts`
 | File | Role |
 | ---- | ---- |
 | `src/app/(protected)/dashboard/EventForm.tsx` | The staged wizard (steps, prefill, preview, submit) |
-| `src/app/(protected)/dashboard/page.tsx` | `?event=` / `?edit=` / `_fresh` / `?refresh=` param resolution |
+| `src/app/(protected)/dashboard/page.tsx` | `?event=` / `?edit=` / `?refresh=` param resolution |
 | `src/app/(protected)/dashboard/DashboardView.tsx` | Details/edit deep-link resolution + one-shot param strips |
 | `src/lib/events/actions.ts` | Write path: guards → validate → targets → normalize → Google → audit → cache invalidation |
 | `src/lib/events/notes.ts` | Notes block codec + markers (pure) |

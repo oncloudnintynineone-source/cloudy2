@@ -92,8 +92,8 @@ single Month tab with view management hidden (`canManageViews = false`).
 The dashboard page (`dashboard/page.tsx`) resolves the tab to render, in order:
 
 1. **URL `?view=<tab id>`** — the tab's UUID, wins when it is one of the
-   user's tabs. A legacy `?view=<kind>` string (a pre-feature deep link /
-   bookmark) maps to the **first tab of that kind**.
+ user's tabs. A legacy `?view=<kind>` string (a pre-feature deep link /
+ bookmark) maps to the **first tab of that kind**.
 2. **Remembered last-active tab** — `user_preferences.dashboardActiveViewId`.
 3. **First tab** in strip order.
 
@@ -125,14 +125,14 @@ refetches the events under the new set. See [`dashboard-views.md`](dashboard-vie
 
 ```mermaid
 flowchart LR
-    T["tabs (user_dashboard_views)"] --> ROW["cal_filter / users_filter / types_filter<br/>NULL = role default · [] = cleared"]
-    PREF["user_preferences"] --> ACTIVE["dashboardActiveViewId"]
-    T --> ACTIVE
-    PAGE["dashboard/page.tsx"] --> R1["?view=&lt;tab id&gt; / kind"]
-    R1 --> R2["remembered active tab"]
-    R2 --> R3["first tab in strip order"]
-    PAGE --> FILT["validated per-tab filters"]
-    FILT --> FETCH["events read (role default fallback)"]
+ T["tabs (user_dashboard_views)"] --> ROW["cal_filter / users_filter / types_filter<br/>NULL = role default · [] = cleared"]
+ PREF["user_preferences"] --> ACTIVE["dashboardActiveViewId"]
+ T --> ACTIVE
+ PAGE["dashboard/page.tsx"] --> R1["?view=&lt;tab id&gt; / kind"]
+ R1 --> R2["remembered active tab"]
+ R2 --> R3["first tab in strip order"]
+ PAGE --> FILT["validated per-tab filters"]
+ FILT --> FETCH["events read (role default fallback)"]
 ```
 
 ## 1.5 The device cookie
@@ -146,13 +146,13 @@ flowchart LR
 
 ```jsonc
 {
-  "lastPage": "/settings/users",        // bottom-nav path, incl. /settings sub-tab
-  "sidebarCollapsed": false,            // desktop sidebar minimized to the icon rail
-  "dashboard": {                        // per-device "where you are"
-    "date": "2026-08-21",               //   day-anchored views
-    "month": "2026-08",                 //   Month view
-    "zoom": 1.5,                        //   Day/Week (H) hour-slot zoom (slotZoom.ts)
-    "monthZoom": 1.5                    //   Month-grid zoom, fit-width multiplier (monthZoom.ts)
+  "lastPage": "/settings/users", // bottom-nav path, incl. /settings sub-tab
+  "sidebarCollapsed": false, // desktop sidebar minimized to the icon rail
+  "dashboard": { // per-device "where you are"
+ "date": "2026-08-21", // day-anchored views
+ "month": "2026-08", // Month view
+ "zoom": 1.5, // Day/Week (H) hour-slot zoom (slotZoom.ts)
+ "monthZoom": 1.5 // Month-grid zoom, fit-width multiplier (monthZoom.ts)
   }
 }
 ```

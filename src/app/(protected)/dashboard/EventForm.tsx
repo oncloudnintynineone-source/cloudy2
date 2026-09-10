@@ -135,6 +135,8 @@ interface EventFormProps {
   inviteeDepartments: { id: string; name: string; sortOrder: number; parentId: string | null }[];
   inviteeUsers: InviteeUser[];
   onDone: () => void;
+  /** Open the just-saved event's details modal (the toast "View event" action). */
+  onViewSaved?: (eventId: string | null) => void;
   /**
    * Optimistic mutation support. The grid behind the wizard shows the
    * submitted change immediately (see docs/optimistic-mutations.md); these
@@ -244,6 +246,9 @@ const WIZARD_BODY_HEIGHT_DESKTOP = "min(68dvh, 720px, calc(100dvh - 200px))";
 /** Section label of the flat department list inside the invitee badge picker. */
 const PICKER_DEPARTMENTS_SECTION = "Departments";
 
+/** Fixed id of the post-save "View event" toast, so its action can dismiss it. */
+const SAVE_VIEW_TOAST_ID = "event-save-view";
+
 export function EventForm({
   event,
   templateEvent,
@@ -258,6 +263,7 @@ export function EventForm({
   inviteeDepartments,
   inviteeUsers,
   onDone,
+  onViewSaved,
   onOptimistic,
   onOptimisticSettled,
   onOptimisticRollback,
@@ -1019,14 +1025,34 @@ export function EventForm({
         : await createEvent(payload);
 
       if (result.ok) {
-        notifications.show({
-          color: "green",
-          message: isEdit ? "Event updated" : "Event created",
-        });
         // Pin the stand-in to the server's group/copy ids, then let the
         // authoritative refresh swap it out (see DashboardView).
         onOptimisticSettled(optimisticId, result);
         onDone();
+        // Timed confirmation toast with a "View event" action that opens the
+        // details modal (resolved from the optimistic stand-in, so it works
+        // before the post-save refresh lands). A fixed id lets the action
+        // dismiss its own toast without a self-referencing id.
+        notifications.show({
+          id: SAVE_VIEW_TOAST_ID,
+          color: "green",
+          title: isEdit ? "Event updated" : "Event created",
+          autoClose: 5000,
+          message: (
+            <Button
+              variant="light"
+              color="green"
+              size="compact-sm"
+              mt={6}
+              onClick={() => {
+                notifications.hide(SAVE_VIEW_TOAST_ID);
+                onViewSaved?.(result.eventId);
+              }}
+            >
+              View event
+            </Button>
+          ),
+        });
         return;
       }
 

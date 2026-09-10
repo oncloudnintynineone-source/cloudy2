@@ -67,90 +67,94 @@ The constraints:
 
 ```mermaid
 flowchart LR
-    subgraph WRITE["Write path (best-effort)"]
-        M["mutation server actions<br/>(roster / events / eventTypes / settings / auth)"]
-        LA["logAction() — resolves route + IP<br/>from headers, swallows failures"]
-        BL["buildAuditLog() (pure)"]
-        M --> LA --> BL
-    end
-    DB[("audit_logs")]
-    BL --> DB
-    subgraph READ["Read path (admin-only)"]
-        PG["audit-log/page.tsx<br/>parseAuditFilters + listAuditLogs<br/>(purge-on-read)"]
-        LDM["loadMoreAuditLogs (server action)"]
-        EXP["/api/audit/export (CSV)"]
-        PG --> DB
-        LDM --> DB
-        EXP --> DB
-    end
-    DB --> PG
-    PG --> UI["AuditLogView — formatAuditDetails<br/>(3 display shapes)"]
+ subgraph WRITE["Write path (best-effort)"]
+ M["mutation server actions<br/>(roster / events / eventTypes / settings / auth)"]
+ LA["logAction() — resolves route + IP<br/>from headers, swallows failures"]
+ BL["buildAuditLog() (pure)"]
+ M --> LA --> BL
+ end
+ DB[("audit_logs")]
+ BL --> DB
+ subgraph READ["Read path (admin-only)"]
+ PG["audit-log/page.tsx<br/>parseAuditFilters + listAuditLogs<br/>(purge-on-read)"]
+ LDM["loadMoreAuditLogs (server action)"]
+ EXP["/api/audit/export (CSV)"]
+ PG --> DB
+ LDM --> DB
+ EXP --> DB
+ end
+ DB --> PG
+ PG --> UI["AuditLogView — formatAuditDetails<br/>(3 display shapes)"]
 ```
 
 ## 1.4 Data model
 
-`audit_logs` (`src/db/schema.ts:127`, migration `drizzle/0004_married_sleeper.sql`):
+`audit_logs` (`src/db/schema.ts`, migration `drizzle/0004_married_sleeper.sql`):
 
 ```mermaid
 erDiagram
-    audit_logs {
-        uuid id PK "gen_random_uuid()"
-        uuid actor_id "FK users.id, ON DELETE SET NULL (null for Admin)"
-        text actor_name "snapshot — survives user deletion"
-        text actor_role "snapshot (admin/user)"
-        text action NOT NULL "dotted action key"
-        text entity_type "user / calendar / eventType / settings / auditLog"
-        uuid entity_id "plain column, no FK"
-        text entity_name
-        text route "from referer header"
-        text method "server action name, e.g. createEvent"
-        jsonb details "opaque, human-readable by design"
-        text ip
-        timestamptz created_at NOT NULL "default now()"
-    }
-    users ||o--o{ audit_logs : "actor_id (set null)"
+ audit_logs {
+ uuid id PK "gen_random_uuid()"
+ uuid actor_id "FK users.id, ON DELETE SET NULL (null for Admin)"
+ text actor_name "snapshot — survives user deletion"
+ text actor_role "snapshot (admin/user)"
+ text action NOT NULL "dotted action key"
+ text entity_type "user / calendar / eventType / eventTypeGroup / webhook / quickLink / kah_group / settings / auditLog / cache"
+ uuid entity_id "plain column, no FK"
+ text entity_name
+ text route "from referer header"
+ text method "server action name, e.g. createEvent"
+ jsonb details "opaque, human-readable by design"
+ text ip
+ timestamptz created_at NOT NULL "default now()"
+ }
+ users ||o--o{ audit_logs : "actor_id (set null)"
 ```
 
 Indexes: `audit_logs_actor_idx (actor_id)`, `audit_logs_action_idx (action)`,
 `audit_logs_created_idx (created_at)` — used by the retention purge — and
 `audit_logs_entity_idx (entity_type, entity_id)`.
 
-**Retention setting**: `settings.audit_log_retention_days` (`schema.ts:121`,
+**Retention setting**: `settings.audit_log_retention_days` (`schema.ts`,
 `integer NOT NULL DEFAULT 90`), edited on the General settings tab.
-`normalizeRetentionDays` (`src/lib/settings/validate.ts:68`) rounds, falls back to
+`normalizeRetentionDays` (`src/lib/settings/validate.ts`) rounds, falls back to
 90 on non-finite input, and clamps to `AUDIT_RETENTION_MIN` (7) ..
 `AUDIT_RETENTION_MAX` (365).
 
 ## 1.5 Writing a row
 
-**`logAction(input)`** (`src/lib/audit/log.ts:12`) is the single entry point, used by
+**`logAction(input)`** (`src/lib/audit/log.ts`) is the single entry point, used by
 every mutation site:
 
 - **Best-effort by construction**: the whole body is in a try/catch; any failure is
   `console.error`'d and swallowed, so logging can never break the primary action.
 - **Route**: from the `referer` header via the pure `pathFromReferer`
-  (`build.ts:73`, null on garbage), falling back to `input.route`.
+  (`build.ts`, null on garbage), falling back to `input.route`.
 - **IP**: first `x-forwarded-for` entry → `x-real-ip` → `input.ip`.
 - **Insert**: `db.insert(auditLogs).values(buildAuditLog(...))`.
 
 **Row construction** is the pure `build.ts`:
 
-- `AUDIT_ACTIONS` (`build.ts:6`) — the 19 known dotted action keys:
+- `AUDIT_ACTIONS` (`build.ts`) — the 35 known dotted action keys:
   `auth.login.success`, `auth.login.failure`, `user.create`, `user.update`,
-  `user.status.change`, `calendar.create`, `calendar.rename`, `calendar.delete`,
-  `eventType.create`, `eventType.rename`, `eventType.delete`, `event.create`,
-  `event.update`, `event.delete`, `access.grant`, `access.update`,
-  `access.revoke`, `settings.update`, `audit.purge`. `listAuditActions()` (`:31`)
-  feeds the filter dropdown.
-- `actorFromUser(user)` (`build.ts:60`) maps a session user to the actor columns;
+  `user.status.change`, `calendar.create`, `calendar.rename`, `calendar.update`,
+  `calendar.delete`, `eventType.create`, `eventType.rename`, `eventType.delete`,
+  `eventTypeGroup.create`, `eventTypeGroup.update`, `eventTypeGroup.delete`,
+  `event.create`, `event.update`, `event.delete`, `event.participantNotify`,
+  `webhook.create`, `webhook.update`, `webhook.delete`, `quickLink.create`,
+  `quickLink.update`, `quickLink.delete`, `kahGroup.create`, `kahGroup.update`,
+  `kahGroup.delete`, `kah.breachNotify`, `access.grant`, `access.update`,
+  `access.revoke`, `settings.update`, `audit.purge`, `cache.purge`.
+  `listAuditActions()` feeds the filter dropdown.
+- `actorFromUser(user)` (`build.ts`) maps a session user to the actor columns;
   the **admin pseudo-account** (`id === "admin"`, which has no users row) stores
   `actor_id: null` with `actor_name: "Admin"`, `actor_role: "admin"`.
-- `buildAuditLog(input)` (`build.ts:86`) maps input → insert values, all optional
+- `buildAuditLog(input)` (`build.ts`) maps input → insert values, all optional
   fields defaulting to null.
 - `entity_type` values actually written: `user`, `calendar`, `eventType`,
-  `settings`, `auditLog`. Note: *event* mutations use `entityType: "calendar"` —
-  the entity is the department calendar the event lives in
-  (`events/actions.ts:431, 600, 678`).
+  `eventTypeGroup`, `webhook`, `quickLink`, `kah_group`, `settings`, `auditLog`,
+  `cache`. Note: *event* mutations use `entityType: "calendar"` — the entity is
+  the department calendar the event lives in (`events/actions.ts`).
 
 Call sites: `auth.ts` (login success/failure), `roster/actions.ts` (users,
 calendars, access), `events/actions.ts` (create/update/delete),
@@ -163,7 +167,7 @@ itself, §1.7).
 raw enums, no machine datetimes. The shape is one of two things:
 
 - a **flat field object** (label/value lines on display), or
-- a **`FieldDiff`** from `diffFields` (`src/lib/audit/diff.ts:17`):
+- a **`FieldDiff`** from `diffFields` (`src/lib/audit/diff.ts`):
   `{ before, after, changes }` where `changes[key] = [beforeValue, afterValue]` for
   each changed field. `diffFields` iterates the **union of keys** (added/removed
   fields are detected), compares with `JSON.stringify` (deep), and omits
@@ -186,15 +190,15 @@ raw enums, no machine datetimes. The shape is one of two things:
 | `auth.login.failure` | `{ reason: "invalid_credentials" \| "unknown_input" \| "admin.invalid_root_secret" \| "admin.invalid_account" \| "admin.invalid_pin" }`; the derived phone (never the raw input) is the `actor_name` |
 | `audit.purge` | `{ retentionDays, deleted }` |
 
-The **event snapshots** (`EventAuditSnapshot`, `src/lib/events/eventAudit.ts:23`)
-are the richest payload: `{ title, description, type, time, outOfCamp, location,
-departments, invitees, creator }` where `title` is the **rendered Google Calendar
+The **event snapshots** (`EventAuditSnapshot`, `src/lib/events/eventAudit.ts`)
+are the richest payload: `{ title, description, type, time, outOfCamp, overseas,
+pinned, location, departments, invitees, creator }` where `title` is the **rendered Google Calendar
 title** (the same string written to Google — see
 [`event-mutations.md` §1.8](event-mutations.md#18-audit-integration)), `time` is
 pre-formatted in the app's UTC+8 wall clock (`2026-08-21 14:00 – 15:30`,
 `2026-08-21 (AM) – 2026-08-23 (PM)`), and people/departments are display names.
 The *before* snapshot for update/delete is built from the first existing Google
-copy found (`snapshotFromCopy`, `eventAudit.ts:150`), so legacy/external/
+copy found (`snapshotFromCopy`, `eventAudit.ts`), so legacy/external/
 blank-description events still show their visible title, and fields the notes can't
 supply render as the empty marker `—`.
 
@@ -205,10 +209,10 @@ renders them as label/value lines with no code changes.
 
 ### 1.7.1 Filters
 
-`parseAuditFilters(params)` (`src/lib/audit/queries.ts:81`, pure) maps URL params
+`parseAuditFilters(params)` (`src/lib/audit/queries.ts`, pure) maps URL params
 to `AuditFilters`, trimming and dropping empty values. The three multi-value
 filters are **comma-joined lists** (the same convention as the dashboard /
-parade-state `users`/`cal` params): `multi()` (`:60`) splits on `,`, trims each
+parade-state `users`/`cal` params): `multi()`  splits on `,`, trims each
 entry, drops empties, and dedupes while preserving order. An empty list means
 "no filter"; a legacy single-value URL still parses as a one-element list.
 
@@ -218,12 +222,12 @@ entry, drops empties, and dedupes while preserving order. An empty list means
 | `action` | `action: string[]` | `in array (action)` |
 | `entity` | `entityType: string[]` | `in array (entity_type)` |
 | `q` | `query` | `ilike` OR across `actor_name, entity_name, route, method, action` |
-| `from` / `to` | `from` / `to` | inclusive UTC day bounds — `T00:00:00.000Z` / `T23:59:59.999Z` (`dayBounds`, `:124`) |
+| `from` / `to` | `from` / `to` | inclusive UTC day bounds — `T00:00:00.000Z` / `T23:59:59.999Z` (`dayBounds`) |
 | `cursor` | `cursor` | keyset cursor (below) |
 
-Dates pass a **round-trip calendar check** (`validDate`, `:61-75`): `2026-13-45`
+Dates pass a **round-trip calendar check** (`validDate`): `2026-13-45`
 and `2026-02-31` are dropped, not just pattern-rejected. The cursor is kept only
-if it decodes. `auditFilterConditions` (`:132`) builds the Drizzle `where`
+if it decodes. `auditFilterConditions`  builds the Drizzle `where`
 expressions (`inArray` guarded by a `length > 0` check for the three lists).
 
 The picker **options** are built on the server page: the distinct actor names
@@ -234,30 +238,29 @@ still renders its pill/picker label) and mapped to roster department names via
 
 ### 1.7.2 Keyset pagination
 
-- **Cursor**: `encodeAuditCursor(row)` (`:97`) = base64url of
+- **Cursor**: `encodeAuditCursor(row)`  = base64url of
   `JSON.stringify([createdAtMs, id])` — URL-safe, no padding. `decodeAuditCursor`
-  (`:103`) validates the shape (finite number + string) and returns null on any
+ validates the shape (finite number + string) and returns null on any
   malformation.
 - **Ordering**: `desc(created_at), desc(id)` — the `id` tiebreaker makes the keyset
   stable for rows sharing a timestamp.
-- **`listAuditLogs(filters, opts)`** (`:191`): applies the cursor condition
-  `or(created_at < cursorTs, and(created_at = cursorTs, id < cursorId))` (`:202-209`),
+- **`listAuditLogs(filters, opts)`** : applies the cursor condition
+  `or(created_at < cursorTs, and(created_at = cursorTs, id < cursorId))` ,
   fetches `pageSize + 1`, and returns `{ rows, nextCursor }` — `nextCursor` is the
   encoded last row, or `null` when exhausted. Page size defaults to
   `AUDIT_PAGE_SIZE` (30).
 
 ### 1.7.3 Retention: rotation on read + manual purge
 
-- **On read**: `listAuditLogs` purges first when `retentionDays` is given
-  (`:195-197`) — the page render passes
+- **On read**: `listAuditLogs` purges first when `retentionDays` is given — the page render passes
   `settings.auditLogRetentionDays`, so **every page render** deletes rows older
-  than the window via `purgeExpiredAuditLogs` (`:172`, indexed `DELETE` on
+  than the window via `purgeExpiredAuditLogs` (indexed `DELETE` on
   `created_at`). No cron job is needed: the log rotates whenever anyone looks at
   it.
-- **Load more**: `loadMoreAuditLogs` (`audit/actions.ts:25`, admin-gated, page size
+- **Load more**: `loadMoreAuditLogs` (`audit/actions.ts`, admin-gated, page size
   clamped 1–50) deliberately **skips** the purge — it already ran on the preceding
   page render.
-- **Manual**: `purgeAuditLogs(days)` (`audit/actions.ts:38`) clamps via
+- **Manual**: `purgeAuditLogs(days)` (`audit/actions.ts`) clamps via
   `normalizeRetentionDays`, purges, and **audit-logs the purge itself**
   (`audit.purge`, `entityType: "auditLog"`, `details: { retentionDays, deleted }`)
   so admins can see it happened. Returns `{ ok, deleted }` without throwing.
@@ -268,7 +271,7 @@ still renders its pill/picker label) and mapped to roster department names via
 
 `src/lib/audit/format.ts` (pure) turns rows into display strings.
 
-**`formatAuditDetails(details)`** (`format.ts:179`) renders three shapes:
+**`formatAuditDetails(details)`** (`format.ts`) renders three shapes:
 
 | Kind | Recognized as | Rendered as |
 | ---- | ------------- | ----------- |
@@ -278,18 +281,18 @@ still renders its pill/picker label) and mapped to roster department names via
 
 Supporting helpers:
 
-- `actionLabel(action)` (`:42`) — all 19 known actions map to labels ("User
+- `actionLabel(action)` — all known actions map to labels ("User
   created", "Login failed", …); unknown actions are prettified per segment
   (`"report.generate"` → "Report Generate").
-- `fieldLabel(key)` (`:96`) — a ~39-entry key→label map (`departmentId` →
+- `fieldLabel(key)` — a 49-entry key→label map (`departmentId` →
   "Department", `userKeyword` → "Login keyword", `googleEventIds` → "Google event
   IDs"); unknown keys render verbatim.
-- `valueString(key, value)` (`:127`) — null/undefined → `EMPTY_VALUE` (`—`,
-  `:123`); domain enums mapped by key (`timeOption`/`timeOptions` → "Start &
+- `valueString(key, value)` — null/undefined → `EMPTY_VALUE` (`—`);
+  domain enums mapped by key (`timeOption`/`timeOptions` → "Start &
   End"/"Full Day"/"Half Day", `allowedLocations` → "In camp, Overseas", etc.); booleans →
   "Yes"/"No"; strings as-is; arrays joined with `", "`; anything else JSON-stringified.
-- `actorLabel(row)` (`:206`) — `"{name} ({role})"`, "Unknown" for a null name.
-- `formatLogTimestamp(createdAt)` (`:212`) — `YYYY-MM-DD HH:MM` in
+- `actorLabel(row)` — `"{name} ({role})"`, "Unknown" for a null name.
+- `formatLogTimestamp(createdAt)` — `YYYY-MM-DD HH:MM` in
   Asia/Singapore (UTC+8, no DST), computed with a fixed offset.
 
 The client renders these in `AuditLogView` (row cards + a detail modal with the
@@ -311,10 +314,10 @@ state" section; `json` kind in a `pre` inside a scroll area).
   attachment; filename="audit-log-YYYY-MM-DD.csv"` (UTC date), `Cache-Control:
   no-store`.
 
-The body is built by the pure `buildAuditLogCsv(rows)` (`src/lib/audit/export.ts:38`):
+The body is built by the pure `buildAuditLogCsv(rows)` (`src/lib/audit/export.ts`):
 header `created_at,actor,actor_role,action,entity_type,entity_id,entity_name,route,
 method,ip,details` plus one line per row; `createdAt` as ISO string; `details`
-embedded as a stringified-JSON field so nothing is lost. `csvField` (`:9`)
+embedded as a stringified-JSON field so nothing is lost. `csvField` 
 double-quotes fields containing `"`, `,`, `\r`, or `\n` and doubles inner quotes.
 
 ## 1.10 The UI
@@ -349,15 +352,15 @@ double-quotes fields containing `"`, `,`, `\r`, or `\n` and doubles inner quotes
   retention card with a red "Delete older than N days" confirm button, and a
   download `FloatingActionButton` (confirm modal → blob fetch of the export URL
   built from the current filters).
-   Loading follows the standard skeleton-only pattern (`useMinSkeletonHold` +
-   `useContentEnter`, see [`loading-transitions.md`](loading-transitions.md)).
-   The fetched page is held in local state (so "Load more" can append to it),
-   which survives re-renders — so every server re-render (filter navigation,
-   post-purge `router.refresh()`) is re-synced via render-phase state
-   adjustment (`prevInitialRows !== initialRows` → reset `rows` + `cursor`),
-   the same pattern the dashboard uses for its `?event=` deep link. An
-   in-flight "Load more" whose filter set changed underneath it drops its
-   stale page instead of appending it.
+ Loading follows the standard skeleton-only pattern (`useMinSkeletonHold` +
+ `useContentEnter`, see [`loading-transitions.md`](loading-transitions.md)).
+ The fetched page is held in local state (so "Load more" can append to it),
+ which survives re-renders — so every server re-render (filter navigation,
+ post-purge `router.refresh()`) is re-synced via render-phase state
+ adjustment (`prevInitialRows !== initialRows` → reset `rows` + `cursor`),
+ the same pattern the dashboard uses for its `?event=` deep link. An
+ in-flight "Load more" whose filter set changed underneath it drops its
+ stale page instead of appending it.
 - **Detail modal** (`LogDetailModal`): action label + raw action badge, actor ·
   timestamp, entity, route · method, then the `formatAuditDetails` output.
 
@@ -381,7 +384,7 @@ actions in `actions.ts`, the export route, and the page/client components.
 
 | File | Role |
 | ---- | ---- |
-| `src/db/schema.ts:127` | `audit_logs` table + indexes |
+| `src/db/schema.ts` | `audit_logs` table + indexes |
 | `drizzle/0004_married_sleeper.sql` | Migration creating the table |
 | `src/lib/audit/build.ts` | Action keys, actor mapping, row builder (pure) |
 | `src/lib/audit/log.ts` | `logAction` — best-effort write |
@@ -391,7 +394,7 @@ actions in `actions.ts`, the export route, and the page/client components.
 | `src/lib/audit/format.ts` | Display formatting, three detail shapes (pure) |
 | `src/lib/audit/export.ts` | CSV builder (pure) |
 | `src/app/api/audit/export/route.ts` | CSV export route |
-| `src/app/(protected)/settings/audit-log/` | Page + `AuditLogView` + `LogDetailModal` + `loading.tsx` |
+| `src/app/(protected)/settings/audit-log/` | Page + `AuditLogView` (incl. the internal `LogDetailModal`) + `AuditLogRowSkeleton` + `loading.tsx` |
 | `src/lib/settings/validate.ts` | Retention bounds + normalization |
 | `src/lib/events/eventAudit.ts` | Event snapshot builders used by the event rows |
 

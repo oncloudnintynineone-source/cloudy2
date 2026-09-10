@@ -45,9 +45,9 @@ instead of silently writing to nothing.
 
 **Non-goals**
 
-- Gmail is not wired yet: `sendEmail` exists in the contract but the real client
-  **throws** ("not implemented yet") so nothing is silently dropped; it needs
-  Workspace domain-wide delegation, which is not provisioned.
+- Gmail send is wired but needs Workspace domain-wide delegation granting the
+  service account the `gmail.send` scope; a 401/403 surfaces a delegation error
+  rather than being silently dropped.
 - No OAuth/user-delegated access — service account only.
 - No retry/backoff here: callers (e.g. the mutations' rollback) decide retry
   policy.
@@ -56,26 +56,26 @@ instead of silently writing to nothing.
 
 ```mermaid
 flowchart LR
-    subgraph ENV["Environment"]
-        E1["GOOGLE_SERVICE_ACCOUNT_BASE64"]
-        E2["GOOGLE_CLIENT_EMAIL + GOOGLE_PRIVATE_KEY"]
-        E3["GOOGLE_DELEGATE_EMAIL"]
-    end
-    CFG["getServiceAccountConfig (pure)"]
-    E1 --> CFG
-    E2 --> CFG
-    SEL["getGoogleIntegration()"]
-    CFG --> SEL
-    E3 --> SEL
-    subgraph IMPL["Implementations of GoogleIntegration"]
-        REAL["real.ts — Calendar v3 client<br/>(JWT auth)"]
-        STUB["stub.ts — no-op"]
-    end
-    SEL -- "credentials present" --> REAL
-    SEL -- "no credentials" --> STUB
-    CALL["callers: events actions, roster shares,<br/>events cache, page gates"] --> SEL
-    CFGC["googleCalendarConfigured()"] --> CFG
-    CALL -. "availability check" .-> CFGC
+ subgraph ENV["Environment"]
+ E1["GOOGLE_SERVICE_ACCOUNT_BASE64"]
+ E2["GOOGLE_CLIENT_EMAIL + GOOGLE_PRIVATE_KEY"]
+ E3["GOOGLE_DELEGATE_EMAIL"]
+ end
+ CFG["getServiceAccountConfig (pure)"]
+ E1 --> CFG
+ E2 --> CFG
+ SEL["getGoogleIntegration()"]
+ CFG --> SEL
+ E3 --> SEL
+ subgraph IMPL["Implementations of GoogleIntegration"]
+ REAL["real.ts — Calendar v3 client<br/>(JWT auth)"]
+ STUB["stub.ts — no-op"]
+ end
+ SEL -- "credentials present" --> REAL
+ SEL -- "no credentials" --> STUB
+ CALL["callers: events actions, roster shares,<br/>events cache, page gates"] --> SEL
+ CFGC["googleCalendarConfigured()"] --> CFG
+ CALL -. "availability check" .-> CFGC
 ```
 
 Rule for callers: **never import `real.ts` or `stub.ts` directly** — always go
@@ -84,7 +84,7 @@ through `getGoogleIntegration()` / `googleCalendarConfigured()`
 
 ## 1.4 The contract
 
-`GoogleIntegration` (`src/lib/google/types.ts:45`):
+`GoogleIntegration` (`src/lib/google/types.ts`):
 
 | Method | Purpose | Notes |
 | ------ | ------- | ----- |
@@ -92,6 +92,7 @@ through `getGoogleIntegration()` / `googleCalendarConfigured()`
 | `updateEvent(eventId, input)` | full-replace an event | same return shape |
 | `deleteEvent(calendarId, eventId)` | delete an event | 404 = no-op |
 | `listEvents(calendarId, timeMin, timeMax)` | events overlapping the range | ordered by start time |
+| `searchEvents(calendarId, q, timeMin, timeMax)` | free-text search (`q`) over the range | ordered by start time |
 | `createCalendar(name)` | new calendar owned by the service account | returns `{ id, calendarId }` |
 | `renameCalendar(calendarId, name)` | rename | — |
 | `deleteCalendar(calendarId)` | delete | 404 = no-op |
@@ -100,21 +101,21 @@ through `getGoogleIntegration()` / `googleCalendarConfigured()`
 | `setCalendarAccess(calendarId, email, role)` | grant **or update** a user ACL rule | upsert semantics |
 | `listCalendarAccess(calendarId)` | user-scope ACL rules | `{ email, role }[]` |
 | `removeCalendarAccess(calendarId, email)` | remove a user ACL rule | 404 = no-op |
-| `sendEmail(input)` | send on behalf of the delegate | **unimplemented in the real client** |
+| `sendEmail(input)` | send on behalf of the delegate | `gmail.users.messages.send` (`gmail.send` scope) |
 
 Payload types (`types.ts`):
 
-- `GcalEventInput` (`:8`) — `calendarId`, `title`, `description?`, `start`, `end`,
+- `GcalEventInput` — `calendarId`, `title`, `description?`, `start`, `end`,
   `allDay?`, `attendees?` (unused by the app), `location?`.
-- `GcalEventItem` (`:28`) — what reads return: `id`, `calendarId`, `title`,
+- `GcalEventItem` — what reads return: `id`, `calendarId`, `title`,
   `description`, `start`/`end` as `Date`s, `allDay`, `location` (or `""`).
-- `GoogleCalendarInfo` (`:40`) — `{ calendarId, name }`.
+- `GoogleCalendarInfo` — `{ calendarId, name }`.
 
 ## 1.5 Credential parsing
 
 `src/lib/google/config.ts` (pure, env injectable, unit-tested):
 
-- **`getServiceAccountConfig(env)`** (`config.ts:21`) — prefers
+- **`getServiceAccountConfig(env)`** (`config.ts`) — prefers
   `GOOGLE_SERVICE_ACCOUNT_BASE64` (a base64-encoded service-account JSON key; a
   single env var keeps Vercel secret management simple) and reads
   `client_email`/`private_key` from it; a malformed key **falls through** to the
@@ -122,11 +123,12 @@ Payload types (`types.ts`):
   `GOOGLE_PRIVATE_KEY`, with `\\n` in the pasted key unescaped to real newlines
   (keys pasted into env files commonly arrive escaped). Returns `null` when
   nothing usable is configured — including "only one of email/key set".
-- **`hasGoogleCredentials(env)`** (`:52`) — the selector's predicate.
-- **`getAdminGoogleEmail(env)`** (`:60`) — `GOOGLE_DELEGATE_EMAIL`: the admin
-   Google account that gets owner access to every department calendar
-   ([`roster-sharing.md` §1.5](roster-sharing.md#15-the-acl-model)).
-- **`GOOGLE_CALENDAR_SCOPE`** (`:13`) — the full `calendar` scope.
+- **`hasGoogleCredentials(env)`** — the selector's predicate.
+- **`getAdminGoogleEmail(env)`** — `GOOGLE_DELEGATE_EMAIL`: the admin
+ Google account that gets owner access to every department calendar
+ ([`roster-sharing.md` §1.5](roster-sharing.md#15-the-acl-model)).
+- **`GOOGLE_CALENDAR_SCOPE`** — the full `calendar` scope (plus `GMAIL_SEND_SCOPE`
+ for `sendEmail`).
 
 Why base64-first: on Vercel, a multi-line private key in one env var is fiddly;
 base64 collapses the whole JSON key into one line. The individual-field fallback
@@ -134,7 +136,7 @@ covers local dev.
 
 ## 1.6 The selector
 
-`src/lib/google/index.ts` (26 lines):
+`src/lib/google/index.ts`:
 
 ```ts
 export function googleCalendarConfigured(): boolean {
@@ -173,14 +175,14 @@ export async function getGoogleIntegration(): Promise<GoogleIntegration> {
 
 ## 1.7 The real client
 
-`createRealGoogleIntegration()` (`src/lib/google/real.ts:19`) builds a
+`createRealGoogleIntegration()` (`src/lib/google/real.ts`) builds a
 `googleapis` `calendar_v3` client:
 
-- **Lazy JWT auth** (`:22-36`): the client is constructed on first use from
+- **Lazy JWT auth**: the client is constructed on first use from
   `getServiceAccountConfig()` (throws "Google Calendar is not configured" if the
   env vanished mid-process) with the full calendar scope. The returned object
   caches it.
-- **Error mapping — `fail(error)`** (`:42-54`): the single choke point for all
+- **Error mapping — `fail(error)`**: the single choke point for all
   Google failures.
 
   | HTTP status | Mapped error |
@@ -191,28 +193,32 @@ export async function getGoogleIntegration(): Promise<GoogleIntegration> {
   | other | the original error message, or "Google Calendar request failed" |
 
 - **Calendar lifecycle**: `calendars.insert/update/delete`; `deleteCalendar` and
-  `getCalendar` treat 404 as success/null (`:83-118`).
+  `getCalendar` treat 404 as success/null.
 - **Events**:
-  - `createEvent`/`updateEvent` build the body with `buildEventBody`
-    (`:231-243`): `summary`, `description`, and **`location` always sent (even
-    empty)** — an in-app update is a full replace, so an empty location actively
-    clears a previously set one. All-day events send `start.date`/`end.date`
-    (`YYYY-MM-DD`, exclusive end convention); timed events send `dateTime`
-    ISO strings.
-  - `deleteEvent` treats 404 as success (`:199-208`).
-  - `listEvents` (`:209-223`): `singleEvents: true`, `orderBy: startTime`,
-    `maxResults: 2500`; `mapGoogleEvent` (`:251-269`) maps raw events to
-    `GcalEventItem` — `allDay = Boolean(event.start.date)`, dates reconstructed
-    as UTC-midnight `Date`s for all-day events.
+  - `createEvent`/`updateEvent` build the body with `buildEventBody`:
+ `summary`, `description`, and **`location` always sent (even
+ empty)** — an in-app update is a full replace, so an empty location actively
+ clears a previously set one. All-day events send `start.date`/`end.date`
+ (`YYYY-MM-DD`, exclusive end convention); timed events send `dateTime`
+ ISO strings.
+  - `deleteEvent` treats 404 as success.
+  - `listEvents`: `singleEvents: true`, `orderBy: startTime`,
+ `maxResults: 2500`; `mapGoogleEvent` maps raw events to
+ `GcalEventItem` — `allDay = Boolean(event.start.date)`, dates reconstructed
+ as UTC-midnight `Date`s for all-day events.
+  - `searchEvents` — same `events.list` call with a `q` free-text parameter.
 - **ACL sharing** ([`roster-sharing.md`](roster-sharing.md) is the consumer):
-  - `setCalendarAccess` (`:120-137`) — **upsert**: finds the existing user-scope
-    rule (case-insensitive, `findAclRule` `:286-297`) and `acl.update`s it, else
-    `acl.insert`s — so a reader→writer change is an update, not a duplicate.
-  - `listCalendarAccess` (`:139-152`) — paginated `acl.list`
-    (`listAllAclRules` `:271-283`, 100/page), filtered to user-scope rules with
-    non-empty email+role.
-  - `removeCalendarAccess` (`:154-166`) — deletes the rule if present; 404 = no-op.
-- **`sendEmail`** (`:224-226`) — throws "sendEmail is not implemented yet".
+  - `setCalendarAccess` — **upsert**: finds the existing user-scope
+ rule (case-insensitive, `findAclRule`) and `acl.update`s it, else
+ `acl.insert`s — so a reader→writer change is an update, not a duplicate.
+  - `listCalendarAccess` — paginated `acl.list`
+ (`listAllAclRules`, 100/page), filtered to user-scope rules with
+ non-empty email+role.
+  - `removeCalendarAccess` — deletes the rule if present; 404 = no-op.
+- **`sendEmail`** — builds a `gmail_v1.Gmail` client via `getGmailClient()`
+  (subject = the delegate admin email) and calls `users.messages.send` with a
+  `buildTextEmail` raw body; a 401/403 maps to a "check domain-wide delegation
+  grants the gmail.send scope" error.
 
 ## 1.8 The stub
 
@@ -222,8 +228,9 @@ successfully with no external side effects:
 | Method | Stub result | Effect on the app (unconfigured) |
 | ------ | ----------- | -------------------------------- |
 | `createEvent` / `updateEvent` / `createCalendar` | `{ id: "stub", calendarId: "stub" }` | event mutations are **gated** by `googleCalendarConfigured()` and refuse before reaching the stub |
-| `deleteEvent` / `renameCalendar` / `deleteCalendar` / `setCalendarAccess` / `removeCalendarAccess` / `sendEmail` | no-op | — |
-| `listEvents` | `[]` | calendar views render empty; the month cache caches empties (why the force-refresh button is disabled) |
+| `deleteEvent` / `renameCalendar` / `deleteCalendar` / `setCalendarAccess` / `removeCalendarAccess` | no-op | — |
+| `sendEmail` | logs to console | — |
+| `listEvents` / `searchEvents` | `[]` | calendar views render empty; the month cache caches empties (why the force-refresh button is disabled) |
 | `listCalendars` / `listCalendarAccess` | `[]` | no calendars to share; shares modal shows the `syncWarning` |
 | `getCalendar` | `null` | — |
 
@@ -237,6 +244,7 @@ failing.
 | Helper | Module | Tests |
 | ------ | ------ | ----- |
 | `getServiceAccountConfig` (base64 parse, precedence, `\\n` repair, malformed → null, partial config → null), `hasGoogleCredentials` | `google/config.ts` | `google/config.test.ts` |
+| `buildTextEmail` (text/plain MIME builder for `sendEmail`) | `google/mime.ts` | `google/mime.test.ts` |
 
 The real client and the stub are I/O-bound (Google API / no-ops) and not
 unit-tested; the interface itself is the test seam — the rest of the app is
@@ -251,7 +259,9 @@ developed and tested against it without credentials.
 | `src/lib/google/config.ts` | Credential parsing (pure) |
 | `src/lib/google/real.ts` | Calendar v3 client (JWT), error mapping, ACL upserts |
 | `src/lib/google/stub.ts` | No-op implementation |
+| `src/lib/google/mime.ts` | Pure `buildTextEmail` MIME builder |
 | `src/lib/google/config.test.ts` | Unit tests for config parsing |
+| `src/lib/google/mime.test.ts` | Unit tests for the MIME builder |
 
 Related docs:
 

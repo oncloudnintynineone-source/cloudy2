@@ -62,18 +62,18 @@ Google holds.
 
 ```mermaid
 flowchart LR
-    subgraph Props["server `events` prop (authoritative)"]
-        E1[events A] --> E2[events B after refresh]
-    end
-    subgraph Ops["client overlay `optimisticOps`"]
-        U[upsert op<br/>create/edit]
-        R[remove op<br/>delete]
-    end
-    E1 --> Merge["applyOptimisticOps"]
-    U --> Merge
-    R --> Merge
-    Merge --> Views["viewEvents<br/>(every view memo reads this)"]
-    Views --> Grids[Month / Week D / Week H / Day / Agenda]
+ subgraph Props["server `events` prop (authoritative)"]
+ E1[events A] --> E2[events B after refresh]
+ end
+ subgraph Ops["client overlay `optimisticOps`"]
+ U[upsert op<br/>create/edit]
+ R[remove op<br/>delete]
+ end
+ E1 --> Merge["applyOptimisticOps"]
+ U --> Merge
+ R --> Merge
+ Merge --> Views["viewEvents<br/>(every view memo reads this)"]
+ Views --> Grids[Month / Week D / Week H / Day / Agenda]
 ```
 
 An **op** (`OptimisticOp` in `src/lib/events/optimistic.ts`) is one pending mutation:
@@ -105,20 +105,20 @@ after `ok`* and then drop the settled ops.
 
 ```mermaid
 sequenceDiagram
-    participant F as Wizard / Detail
-    participant V as DashboardView
-    participant S as Server action
+ participant F as Wizard / Detail
+ participant V as DashboardView
+ participant S as Server action
 
-    F->>V: onOptimistic(upsert/remove)
-    V->>V: ops += op (chip visible now)
-    F->>S: createEvent/updateEvent/deleteEvent
-    S-->>F: { ok:true, eventId, copies }
-    F->>V: onOptimisticSettled(opId, result)
-    V->>V: pin chip (real group/google ids) + settled = true
-    F->>V: onDone() -> router.refresh()
-    S-->>V: new events prop (includes the change)
-    V->>V: render-phase guard clears settled ops
-    Note over V: hand-off: overlay gone, authoritative chip shown
+ F->>V: onOptimistic(upsert/remove)
+ V->>V: ops += op (chip visible now)
+ F->>S: createEvent/updateEvent/deleteEvent
+ S-->>F: { ok:true, eventId, copies }
+ F->>V: onOptimisticSettled(opId, result)
+ V->>V: pin chip (real group/google ids) + settled = true
+ F->>V: onDone() -> router.refresh()
+ S-->>V: new events prop (includes the change)
+ V->>V: render-phase guard clears settled ops
+ Note over V: hand-off: overlay gone, authoritative chip shown
 ```
 
 The clearing happens as a **guarded render-phase state adjustment** (the codebase's
@@ -130,7 +130,7 @@ const [lastEvents, setLastEvents] = useState<readonly CalendarEvent[]>(events);
 if (events !== lastEvents) {
   setLastEvents(events);
   if (optimisticOps.some((op) => op.settled)) {
-    setOptimisticOps((current) => current.filter((op) => !op.settled));
+ setOptimisticOps((current) => current.filter((op) => !op.settled));
   }
 }
 ```

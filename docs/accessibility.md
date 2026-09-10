@@ -35,8 +35,8 @@ client.
 
 ```mermaid
 flowchart LR
-    D["DashboardView<br/>view / period / filters / zoom"] -->|announce()| A["StatusAnnouncer<br/>(role=status, sr-only)"]
-    A --> SR["Screen reader<br/>(polite, no interruption)"]
+ D["DashboardView<br/>view / period / filters / zoom"] -->|announce()| A["StatusAnnouncer<br/>(role=status, sr-only)"]
+ A --> SR["Screen reader<br/>(polite, no interruption)"]
 ```
 
 Mechanics:
@@ -62,7 +62,7 @@ Skeletons are visual-only, so every skeleton block includes a
 `role="status"` element with a label like "Loading calendar…". It is
 server-safe (no hooks), so the same component serves:
 
-- every route `loading.tsx` (14 segments), and
+- every route `loading.tsx` (16 segments), and
 - the client-side skeleton swaps — the dashboard's `gridLoading` branch,
   Parade State's `contentLoading` branch, the Audit Log's `listLoading`
   branch, and the Pinned Events panel's fetch skeleton.

@@ -59,14 +59,14 @@ of toggleable badges with a search box on top:
 
 `src/lib/users/userSelect.ts` — unit-tested, I/O-free:
 
-| Helper                                    | Behavior                                                                                                                                 |
+| Helper | Behavior |
 | ----------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
-| `optionMatchesQuery`                      | case-insensitive label/`search` match                                                                                                    |
-| `sortOptionsInGroups`                     | keeps section order; sorts options by label — except sections whose options carry a `depth` (department rows in tree preorder), which keep the given order |
-| `buildUserGroups`                         | groups a flat roster by department ("No department" last); when callers supply a `departmentSort` per user (the department's `sort_order`), sections follow the Settings → Departments order (flattened preorder) instead of alphabetical — sections without a rank sort alphabetically after the ranked ones. When callers also supply `departmentId` + `departmentParentId` per user (the department registry id and `calendars.parent_id`), the section is keyed by the department id and tagged with a `depth` — the number of ancestors that also have members in this picker — so nested departments render indented under their parent's section (a parent with no members is simply not shown, and its children sit at the depth of their nearest shown ancestor) |
-| `departmentPickerOptions(rows)`           | builds the options for a department-as-option list (wrapped badges / chip filters) from preorder `departmentTreeRows` (`roster/hierarchy.ts`); each option's label carries its **full ancestor chain** ("HQ › Logistics › Stores", via `departmentPathLabels`), top level = its plain name, and its `depth` is kept only as the "keep tree preorder, don't re-alphabetize" marker |
-| `filterPickerGroups`                      | narrows by query; keeps a whole section when its label matches; drops empties                                                            |
-| `selectionByGroup`                        | seeds a draft from a flat selection                                                                                                      |
+| `optionMatchesQuery` | case-insensitive label/`search` match |
+| `sortOptionsInGroups` | keeps section order; sorts options by label — except sections whose options carry a `depth` (department rows in tree preorder), which keep the given order |
+| `buildUserGroups` | groups a flat roster by department ("No department" last); when callers supply a `departmentSort` per user (the department's `sort_order`), sections follow the Settings → Departments order (flattened preorder) instead of alphabetical — sections without a rank sort alphabetically after the ranked ones. When callers also supply `departmentId` + `departmentParentId` per user (the department registry id and `calendars.parent_id`), the section is keyed by the department id and tagged with a `depth` — the number of ancestors that also have members in this picker — so nested departments render indented under their parent's section (a parent with no members is simply not shown, and its children sit at the depth of their nearest shown ancestor) |
+| `departmentPickerOptions(rows)` | builds the options for a department-as-option list (wrapped badges / chip filters) from preorder `departmentTreeRows` (`roster/hierarchy.ts`); each option's label carries its **full ancestor chain** ("HQ › Logistics › Stores", via `departmentPathLabels`), top level = its plain name, and its `depth` is kept only as the "keep tree preorder, don't re-alphabetize" marker |
+| `filterPickerGroups` | narrows by query; keeps a whole section when its label matches; drops empties |
+| `selectionByGroup` | seeds a draft from a flat selection |
 | `splitInvitees` / `mergeInviteeSelection` | split/merge the `user:<id>` / `dept:<id>` prefixed invitee list (keeps now-unlistable ids so edits don't drop them; nothing is auto-added by the helpers — a fresh create's form seeds the acting user as a participant, but that is `buildInitialValues`, not the picker) |
 
 ## 1.4 Callers
@@ -96,12 +96,12 @@ of toggleable badges with a search box on top:
 
 ## 1.5 File index & related docs
 
-| File                                  | Role                                      |
+| File | Role |
 | ------------------------------------- | ----------------------------------------- |
 | `src/components/NoKeyboardSelect.tsx` | Keyboard-safe Select/MultiSelect wrappers |
-| `src/components/UserSelectModal.tsx`  | The badge-dialog picker                   |
-| `src/components/PickerField.tsx`      | Presentational trigger + summary layer    |
-| `src/lib/users/userSelect.ts`         | Pure grouping/matching/merging helpers    |
+| `src/components/UserSelectModal.tsx`  | The badge-dialog picker |
+| `src/components/PickerField.tsx` | Presentational trigger + summary layer |
+| `src/lib/users/userSelect.ts` | Pure grouping/matching/merging helpers |
 
 Related docs:
 

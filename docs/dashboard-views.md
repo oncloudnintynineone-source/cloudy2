@@ -28,13 +28,13 @@ timeline zoom plus the Month grid's fit-to-width zoom.
 
 The renderer kinds (`DASHBOARD_VIEW_KINDS`, `src/lib/dashboardViews/views.ts`):
 
-| Kind       | Label    | Renderer                                                                                 |
+| Kind | Label | Renderer |
 | ---------- | -------- | ---------------------------------------------------------------------------------------- |
-| `month`    | Month    | Mantine calendar month grid (six fixed weeks — see [`events-cache.md`](events-cache.md)) |
-| `week`     | Week (H) | Mantine Schedule, hour columns per resource row                                          |
-| `weekv2`   | Week (D) | custom week matrix (§1.3)                                                                |
-| `schedule` | Day      | Mantine Schedule, single day per resource row                                            |
-| `agenda`   | Agenda   | list view                                                                                |
+| `month` | Month | Mantine calendar month grid (six fixed weeks — see [`events-cache.md`](events-cache.md)) |
+| `week` | Week (H) | Mantine Schedule, hour columns per resource row |
+| `weekv2` | Week (D) | custom week matrix (§1.3) |
+| `schedule` | Day | Mantine Schedule, single day per resource row |
+| `agenda` | Agenda | list view |
 
 Mobile-month is the sub-`lg` rendering of the `month` kind. Tabs are **not**
 the kinds themselves: each `user_dashboard_views` row binds one of these kinds
@@ -117,7 +117,7 @@ Filtering has **one primary affordance**: a dedicated filter button (funnel icon
 - active-group-count badge, `FilterButton`) beside the ⋮ menu in the nav row
   opens `FilterModal` (`src/components/FilterModal.tsx`). The ⋮ menu keeps
   **Today / Select date / Enter fullscreen** only (Force refresh
-  is a header button; view management lives on the strip's left settings
+  is a header button; view management lives on the strip's right settings
   button). Dashboards'
   "Myself" quick action lives inside the filter modal
   beside the Users group; "Reset" clears (role defaults).
@@ -134,7 +134,7 @@ Filter storage & resolution:
 
 - On the dashboard an active **Users** filter also narrows the rows of
   Day/Week (H)/Week (D) — `buildScheduleResources` takes a `userFilter`
-  (`src/lib/events/schedule.ts:120`) and the Week (D) matrix reuses the same rows.
+  (`src/lib/events/schedule.ts`) and the Week (D) matrix reuses the same rows.
 - A tab's filter state lives **on the tab row** (`user_dashboard_views.cal_filter`
   / `users_filter` / `types_filter`), each JSON array or SQL `NULL`. `NULL`
   means **role default** (admin: all calendars; non-admin: their own department;
@@ -161,15 +161,15 @@ Filter storage & resolution:
 
 ```mermaid
 flowchart LR
-    FB["FilterButton (nav row)<br/>icon + active-group badge"] --> FM["FilterModal"]
-    FM --> CAL["Calendars<br/>(chip grid)"]
-    FM --> US["Users<br/>(badge picker + Myself)"]
-    FM --> ET["Event Types<br/>(behind Show/Hide)"]
-    FM --> HINT["Scope hint<br/>(these filters apply to {tab} only)"]
-    HINT --> APPLY["saveDashboardViewFilters<br/>(server action)"]
-    APPLY --> ROW["active tab row<br/>(cal/users/types, NULL = role default)"]
-    ROW --> RESOLVE["dashboard/page.tsx<br/>validates ids vs live data"]
-    RESOLVE --> DEF["role default"]
+ FB["FilterButton (nav row)<br/>icon + active-group badge"] --> FM["FilterModal"]
+ FM --> CAL["Calendars<br/>(chip grid)"]
+ FM --> US["Users<br/>(badge picker + Myself)"]
+ FM --> ET["Event Types<br/>(behind Show/Hide)"]
+ FM --> HINT["Scope hint<br/>(these filters apply to {tab} only)"]
+ HINT --> APPLY["saveDashboardViewFilters<br/>(server action)"]
+ APPLY --> ROW["active tab row<br/>(cal/users/types, NULL = role default)"]
+ ROW --> RESOLVE["dashboard/page.tsx<br/>validates ids vs live data"]
+ RESOLVE --> DEF["role default"]
 ```
 
 ## 1.3 Week (D): the custom week matrix
@@ -181,10 +181,10 @@ fits this shape, so the view is hand-built.
 
 Cell binning is pure and unit-tested in `src/lib/events/weekMatrix.ts`:
 
-- **`coveredDays(event, week)`** (`:40`) — the week days an event's naive start/end
+- **`coveredDays(event, week)`** — the week days an event's naive start/end
   range occupies; all-day events carry an _exclusive_ end date, so the final covered
   day is the end date minus one.
-- **`buildWeekLanes(events, week, memberships)`** (`:56`) — one `WeekSpan` per event per row,
+- **`buildWeekLanes(events, week, memberships)`** — one `WeekSpan` per event per row,
   merged into non-overlapping lanes by greedy interval partitioning (sorted by
   startDay → start time → title). Lane `n` renders on grid row `n + 1` of the
   resource row's nested grid. Row semantics (`rowsForEvent`, `departmentRowId`)
@@ -229,7 +229,7 @@ Per-view mechanics (all client-side — no cache or server impact):
   marker span (amber dot + semibold shortname). Structural CSS `:has()` rules
   in `globals.css` — the label cell is the only element containing the marker
   directly, and the row the only element containing it through a direct child
-  — tint exactly those two elements (label cell: accent-1 + inset accent-6
+ — tint exactly those two elements (label cell: accent-1 + inset accent-6
   bar; row: accent-0). Mantine rows/slots are transparent by default, so the
   row background shows through and events sit above it. The Week (D) matrix
   additionally tints its day cells uniformly (the row tint wins over the
@@ -260,12 +260,12 @@ The accent-6 bars, dot and chip ring are unchanged across schemes.
 
 ```mermaid
 flowchart LR
-    U["currentUser<br/>(session)"] --> M["myEventIds<br/>(eventMatchesUserFilter)"]
-    M --> SM["sortMineFirst → MonthView events<br/>(top rows per day)"]
-    M --> RE["renderMyMonthEvent / renderMyAgendaEvent<br/>(c2-my-event / c2-my-agenda-event)"]
-    U --> ML["renderResourceLabel<br/>(data-c2-my-row marker)"]
-    ML --> CSS[":has() rules (globals.css)<br/>(row + label cell tint)"]
-    U --> WM["myRowId → WeekMatrixView<br/>(uniform day-cell tint)"]
+ U["currentUser<br/>(session)"] --> M["myEventIds<br/>(eventMatchesUserFilter)"]
+ M --> SM["sortMineFirst → MonthView events<br/>(top rows per day)"]
+ M --> RE["renderMyMonthEvent / renderMyAgendaEvent<br/>(c2-my-event / c2-my-agenda-event)"]
+ U --> ML["renderResourceLabel<br/>(data-c2-my-row marker)"]
+ ML --> CSS[":has() rules (globals.css)<br/>(row + label cell tint)"]
+ U --> WM["myRowId → WeekMatrixView<br/>(uniform day-cell tint)"]
 ```
 
 ## 1.6 External-event highlight
@@ -313,14 +313,14 @@ department-calendar colors of untyped events keep their meaning.
 
 ```mermaid
 flowchart LR
-    E["payload.external<br/>(isExternalEvent, read time)"] --> M["renderMyMonthEvent<br/>(+ c2-ext-event chip ring)"]
-    E --> A["renderMyAgendaEvent<br/>(+ c2-ext-agenda-event bar)"]
-    E --> S["renderScheduleEvent / Day all-day hook<br/>(+ c2-ext-slot-event block ring)"]
-    E --> W["WeekMatrixView banner<br/>(+ c2-ext-ring)"]
-    M --> C["globals.css<br/>(purple outline / bar / tint)"]
-    A --> C
-    S --> C
-    W --> C
+ E["payload.external<br/>(isExternalEvent, read time)"] --> M["renderMyMonthEvent<br/>(+ c2-ext-event chip ring)"]
+ E --> A["renderMyAgendaEvent<br/>(+ c2-ext-agenda-event bar)"]
+ E --> S["renderScheduleEvent / Day all-day hook<br/>(+ c2-ext-slot-event block ring)"]
+ E --> W["WeekMatrixView banner<br/>(+ c2-ext-ring)"]
+ M --> C["globals.css<br/>(purple outline / bar / tint)"]
+ A --> C
+ S --> C
+ W --> C
 ```
 
 ## 1.7 Timeline zoom (Day and Week (H))
@@ -364,15 +364,15 @@ slot granularity (still 60-minute columns) or the row height.
   one-shot advance callback), never the whole dashboard. `zoom` is in that effect's
   dependency list, so both strips re-measure on every zoom change.
   - **Ruler height is explicit** (`1.15rem`): every ruler cell is absolutely positioned,
-    so without a set height the sticky strip would collapse to 0px and hide the hour
-    markers.
+ so without a set height the sticky strip would collapse to 0px and hide the hour
+ markers.
   - **Day labels are anchored, not column-fixed.** A day column (24 slots) is far wider
-    than the viewport, so a label fixed at a column's left edge is only visible near
-    that edge and "scrolls away" while panning. Instead each label's `left` is clamped
-    against the per-frame `--c2-scroll-x` (published alongside the wrapper transform):
-    the leftmost visible day's label stays pinned at the strip's left edge while its
-    column pans through the viewport, handing off at the day boundary — so a date label
-    is always visible during a horizontal pan, on any viewport width.
+ than the viewport, so a label fixed at a column's left edge is only visible near
+ that edge and "scrolls away" while panning. Instead each label's `left` is clamped
+ against the per-frame `--c2-scroll-x` (published alongside the wrapper transform):
+ the leftmost visible day's label stays pinned at the strip's left edge while its
+ column pans through the viewport, handing off at the day boundary — so a date label
+ is always visible during a horizontal pan, on any viewport width.
 - **Persistence**: the level is remembered per device in the `cloudy2.ui` cookie as
   `dashboard.zoom` — not URL-backed (zooming never navigates), so it is read from the
   raw cookie and seeded into the client state before first paint (no width jump on
@@ -387,14 +387,14 @@ slot granularity (still 60-minute columns) or the row height.
 
 ```mermaid
 flowchart LR
-    B["Zoom in / out<br/>(GridNavControls cluster)"] --> S["zoom state<br/>(DashboardView)"]
-    S --> W["weekSlotWidth / daySlotWidth<br/>(slotZoom.ts)"]
-    W --> V["CSS var --resources-*-view-slot-width<br/>(view root style)"]
-    V --> G["Mantine grid re-lays out<br/>slots + events (percentage-based)"]
-    V --> M["useLayoutEffect re-measures<br/>(zoom in deps)"]
-    M --> R["pinned hour ruler +<br/>Week (H) day-label strip"]
-    S --> A["reanchorScrollLeft effect<br/>(re-anchors scrollLeft)"]
-    S --> C["dashboard.zoom cookie<br/>(usePersistDashboardNav)"]
+ B["Zoom in / out<br/>(GridNavControls cluster)"] --> S["zoom state<br/>(DashboardView)"]
+ S --> W["weekSlotWidth / daySlotWidth<br/>(slotZoom.ts)"]
+ W --> V["CSS var --resources-*-view-slot-width<br/>(view root style)"]
+ V --> G["Mantine grid re-lays out<br/>slots + events (percentage-based)"]
+ V --> M["useLayoutEffect re-measures<br/>(zoom in deps)"]
+ M --> R["pinned hour ruler +<br/>Week (H) day-label strip"]
+ S --> A["reanchorScrollLeft effect<br/>(re-anchors scrollLeft)"]
+ S --> C["dashboard.zoom cookie<br/>(usePersistDashboardNav)"]
 ```
 
 ## 1.8 Month-grid zoom (fit-to-width)
@@ -438,38 +438,38 @@ the same horizontal pan the other views use.
 
 ```mermaid
 flowchart LR
-    B["Zoom in / out<br/>(GridNavControls cluster)"] --> S["monthZoom state<br/>(DashboardView)"]
-    S --> I["monthViewInnerStyle<br/>(monthViewInner width %, --min-day-width 0)"]
-    I --> G["Mantine grid re-lays out<br/>columns + events (percentage-based)"]
-    S --> A["reanchorScrollLeft effect<br/>(re-anchors scrollLeft)"]
-    S --> P["monthPan → pan arrows/drag<br/>(only when the grid overflows)"]
-    S --> T["MonthWeekdayStrip track<br/>(same zoomed width)"]
-    S --> C["dashboard.monthZoom cookie<br/>(usePersistDashboardNav)"]
+ B["Zoom in / out<br/>(GridNavControls cluster)"] --> S["monthZoom state<br/>(DashboardView)"]
+ S --> I["monthViewInnerStyle<br/>(monthViewInner width %, --min-day-width 0)"]
+ I --> G["Mantine grid re-lays out<br/>columns + events (percentage-based)"]
+ S --> A["reanchorScrollLeft effect<br/>(re-anchors scrollLeft)"]
+ S --> P["monthPan → pan arrows/drag<br/>(only when the grid overflows)"]
+ S --> T["MonthWeekdayStrip track<br/>(same zoomed width)"]
+ S --> C["dashboard.monthZoom cookie<br/>(usePersistDashboardNav)"]
 ```
 
 ## 1.9 File index & related docs
 
-| File                                               | Role                                                                                                                                                       |
+| File | Role |
 | -------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `src/lib/dashboardViews/views.ts`                  | Kind vocabulary + labels, tab DTO, filter-override normalizers, `resolveActiveTab` (pure)                                                                  |
-| `src/lib/dashboardViews/queries.ts`                | Tab reads + the mutex-guarded default "Month" seed                                                                                                         |
-| `src/lib/dashboardViews/actions.ts`                | Tab CRUD: `create/rename/delete/reorderDashboardViews`, `saveDashboardViewFilters`                                                                         |
-| `src/lib/userPrefs/queries.ts` + `actions.ts`      | `user_preferences` row: last-active tab + parade filters (incl. `saveParadeFilters`)                                                                       |
+| `src/lib/dashboardViews/views.ts` | Kind vocabulary + labels, tab DTO, filter-override normalizers, `resolveActiveTab` (pure) |
+| `src/lib/dashboardViews/queries.ts` | Tab reads + the mutex-guarded default "Month" seed |
+| `src/lib/dashboardViews/actions.ts` | Tab CRUD: `create/rename/delete/reorderDashboardViews`, `saveDashboardViewFilters` |
+| `src/lib/userPrefs/queries.ts` + `actions.ts` | `user_preferences` row: last-active tab + parade filters (incl. `saveParadeFilters`) |
 | `src/app/(protected)/dashboard/DashboardView.tsx`  | Tab strip (+ right-side Edit-views trigger and All-views jump popover), tab switch + period rules, filter state, schedule zoom + month zoom state & widths |
-| `src/app/(protected)/dashboard/EditViewsModal.tsx` | Edit-views dialog: card manage list (↑/↓ reorder, Change-type picker, inline rename, nested delete confirm, Add-view button)                               |
-| `src/app/(protected)/dashboard/ViewTypePicker.tsx` | Shared five-kind picker (Month/Week (H)/Week (D)/Day/Agenda) used by Add view and Edit-views Change type                                                   |
-| `src/app/(protected)/dashboard/viewMeta.tsx`       | Kind → icon/label map shared by the strip, the Add-view picker and Edit-views rows                                                                         |
-| `src/components/reorderUpDown.tsx`                 | Shared touch-friendly manage-row recipe: ~40px ↑/↓ chevron pair (`ReorderUpDown`) + row-action sizes                                                       |
-| `src/app/(protected)/dashboard/page.tsx`           | Resolves tabs + active tab (`?view=` → remembered → first), validates per-tab filters                                                                      |
-| `src/app/(protected)/dashboard/WeekMatrixView.tsx` | Week (D) matrix renderer                                                                                                                                   |
-| `src/lib/events/weekMatrix.ts`                     | Pure Week (D) lane binning (`coveredDays`, `buildWeekLanes`)                                                                                               |
-| `src/lib/events/mineFirst.ts`                      | Pure "mine first" sort for the month view's greedy row assignment                                                                                          |
-| `src/lib/events/schedule.ts`                       | Resource rows (`buildScheduleResources`, `userFilter`)                                                                                                     |
-| `src/lib/ui/slotZoom.ts`                           | Pure zoom levels + slot-width math (`clampZoom`, `stepZoom`, `weekSlotWidth`, `daySlotWidth`)                                                              |
-| `src/lib/ui/monthZoom.ts`                          | Pure Month fit-width zoom levels + stepping (`clampMonthZoom`, `stepMonthZoom`)                                                                            |
-| `src/components/GridNavControls.tsx`               | Day/Week (H) + Month right-edge cluster: zoom +/− + right pan, plus left-edge pan                                                                          |
-| `src/components/FilterButton.tsx`                  | Dedicated filter button (icon + active-group badge) replacing the kebab's filter menu                                                                      |
-| `src/components/FilterModal.tsx`                   | Filters dialog (collapsible groups, per-tab scope hint)                                                                                                    |
+| `src/app/(protected)/dashboard/EditViewsModal.tsx` | Edit-views dialog: card manage list (↑/↓ reorder, Change-type picker, inline rename, nested delete confirm, Add-view button) |
+| `src/app/(protected)/dashboard/ViewTypePicker.tsx` | Shared five-kind picker (Month/Week (H)/Week (D)/Day/Agenda) used by Add view and Edit-views Change type |
+| `src/app/(protected)/dashboard/viewMeta.tsx` | Kind → icon/label map shared by the strip, the Add-view picker and Edit-views rows |
+| `src/components/reorderUpDown.tsx` | Shared touch-friendly manage-row recipe: ~40px ↑/↓ chevron pair (`ReorderUpDown`) + row-action sizes |
+| `src/app/(protected)/dashboard/page.tsx` | Resolves tabs + active tab (`?view=` → remembered → first), validates per-tab filters |
+| `src/app/(protected)/dashboard/WeekMatrixView.tsx` | Week (D) matrix renderer |
+| `src/lib/events/weekMatrix.ts` | Pure Week (D) lane binning (`coveredDays`, `buildWeekLanes`) |
+| `src/lib/events/mineFirst.ts` | Pure "mine first" sort for the month view's greedy row assignment |
+| `src/lib/events/schedule.ts` | Resource rows (`buildScheduleResources`, `userFilter`) |
+| `src/lib/ui/slotZoom.ts` | Pure zoom levels + slot-width math (`clampZoom`, `stepZoom`, `weekSlotWidth`, `daySlotWidth`) |
+| `src/lib/ui/monthZoom.ts` | Pure Month fit-width zoom levels + stepping (`clampMonthZoom`, `stepMonthZoom`) |
+| `src/components/GridNavControls.tsx` | Day/Week (H) + Month right-edge cluster: zoom +/− + right pan, plus left-edge pan |
+| `src/components/FilterButton.tsx` | Dedicated filter button (icon + active-group badge) replacing the kebab's filter menu |
+| `src/components/FilterModal.tsx` | Filters dialog (collapsible groups, per-tab scope hint) |
 
 Related docs:
 

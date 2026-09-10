@@ -25,19 +25,20 @@ window, and compare the remaining share against the group's required percentage:
 
 ```mermaid
 flowchart LR
-    A[Event create / update succeeds] --> B["dispatchKahBreachCheck(window, title, actor)"]
-    B --> C[Load KAH groups<br/>+ active members]
-    B --> D[Month-cache reads across<br/>all calendars × window months]
-    C --> E["computeKahBreaches(groups, busy) (pure)"]
-    D --> E
-    E -->|breaches| F["after(): audit row + one combined email"]
-    E -->|no breach| G[no-op]
+ A[Event create / update succeeds] --> B["dispatchKahBreachCheck(window, title, actor)"]
+ B --> C[Load KAH groups<br/>+ active members]
+ B --> D[Month-cache reads across<br/>all calendars × window months]
+ C --> E["computeKahBreaches(groups, busy) (pure)"]
+ D --> E
+ E -->|breaches| F["after(): audit row + one combined email"]
+ E -->|no breach| G[no-op]
 ```
 
-A member is **away** when they are the **creator or an invitee** (`inviteeUsers`) of an
+A member is **away** when they are a tagged **invitee** (`event.userIds`) of an
 in-app internal event overlapping the window `[event.start, event.end]` **whose location
 category is `overseas`** (the `overseas` notes flag; `eventTakesMembersOverseas` in
-`src/lib/kah/status.ts`). In-camp events, local out-of-camp events, external events, and
+`src/lib/kah/status.ts`). The organizer counts as away only when they also tagged
+themselves (i.e. they appear in the invitee set). In-camp events, local out-of-camp events, external events, and
 legacy events without the overseas flag never make anyone away — the flag is only written
 for events recorded as overseas, so legacy data stays in-country by default. Deactivated
 users stop counting even if still listed as members.
@@ -46,30 +47,30 @@ users stop counting even if still listed as members.
 
 ```mermaid
 erDiagram
-    kah_groups ||--o{ kah_group_members : has
-    kah_groups ||--o{ kah_breach_notifications : "dedup records"
-    users ||--o{ kah_group_members : "member of"
-    settings {
-        text kah_percentage "default % prefill for NEW groups"
-        text kah_email_subject_template "breach email subject template"
-        text kah_email_body_template "breach email body template"
-    }
-    kah_groups {
-        uuid id PK
-        text name UK
-        int min_percentage "required in-country %"
-    }
-    kah_group_members {
-        uuid group_id PK,FK
-        uuid user_id PK,FK
-    }
-    kah_breach_notifications {
-        uuid id PK
-        uuid group_id FK
-        timestamp window_start
-        timestamp window_end
-        int breach_pct "floored in-country % at notify time"
-    }
+ kah_groups ||--o{ kah_group_members : has
+ kah_groups ||--o{ kah_breach_notifications : "dedup records"
+ users ||--o{ kah_group_members : "member of"
+ settings {
+ text kah_percentage "default % prefill for NEW groups"
+ text kah_email_subject_template "breach email subject template"
+ text kah_email_body_template "breach email body template"
+ }
+ kah_groups {
+ uuid id PK
+ text name UK
+ int min_percentage "required in-country %"
+ }
+ kah_group_members {
+ uuid group_id PK,FK
+ uuid user_id PK,FK
+ }
+ kah_breach_notifications {
+ uuid id PK
+ uuid group_id FK
+ timestamp window_start
+ timestamp window_end
+ int breach_pct "floored in-country % at notify time"
+ }
 ```
 
 - `kah_group_members` cascades on both FKs: deleting a group or user cleans membership.
@@ -100,28 +101,28 @@ builder in `src/lib/kah/email.ts`. All three modules are pure and unit-tested wi
 
 ```mermaid
 sequenceDiagram
-    participant U as User (event form)
-    participant A as createEvent/updateEvent
-    participant G as Google Calendar
-    participant N as dispatchKahBreachCheck
-    participant M as after() queue
-    U->>A: submit form values
-    A->>G: create/update all copies
-    A->>G: invalidateGcalCache (months touched)
-    A->>N: register check (window = saved range)
-    A-->>U: ok (response never waits for KAH)
-    Note over N,M: runs after the response ships,
-    after the invalidation above, so its reads see the saved copies
-    N->>N: listKahGroupChecks (active members only)
-    N->>N: busyKahsIn — getCachedMonthEventsForCalendars over all calendars × window months
-    N->>N: computeKahBreaches (pure)
-    N->>N: dedup — filter breaches already in kah_breach_notifications
-    alt new breaches exist
-        N->>N: logAction(kah.breachNotify) — flat human-readable details
-        N->>N: insert dedup rows (group × window × pct)
-        N->>N: buildKahBreachEmail (one combined message)
-        N->>M: sendNotificationEmail(to=breached members' emails)
-    end
+ participant U as User (event form)
+ participant A as createEvent/updateEvent
+ participant G as Google Calendar
+ participant N as dispatchKahBreachCheck
+ participant M as after() queue
+ U->>A: submit form values
+ A->>G: create/update all copies
+ A->>G: invalidateGcalCache (months touched)
+ A->>N: register check (window = saved range)
+ A-->>U: ok (response never waits for KAH)
+ Note over N,M: runs after the response ships,
+ after the invalidation above, so its reads see the saved copies
+ N->>N: listKahGroupChecks (active members only)
+ N->>N: busyKahsIn — getCachedMonthEventsForCalendars over all calendars × window months
+ N->>N: computeKahBreaches (pure)
+ N->>N: dedup — filter breaches already in kah_breach_notifications
+ alt new breaches exist
+ N->>N: logAction(kah.breachNotify) — flat human-readable details
+ N->>N: insert dedup rows (group × window × pct)
+ N->>N: buildKahBreachEmail (one combined message)
+ N->>M: sendNotificationEmail(to=breached members' emails)
+ end
 ```
 
 Guarantees:
@@ -141,11 +142,11 @@ Guarantees:
 Transport selection happens at dispatch time (`src/lib/email/send.ts`), first match wins:
 
 1. **Workspace delegation** — `GOOGLE_DELEGATE_EMAIL` set → the integration's real
-   `sendEmail`: service-account JWT with the `gmail.send` scope impersonating that
-   account (domain-wide delegation; Workspace admins must grant the scope).
+ `sendEmail`: service-account JWT with the `gmail.send` scope impersonating that
+ account (domain-wide delegation; Workspace admins must grant the scope).
 2. **SMTP** — `SMTP_URL` set (e.g. a personal Gmail account with an app password, no
-   Workspace needed) → nodemailer (`smtp.gmail.com:465`). See `.env.example` for the
-   app-password setup.
+ Workspace needed) → nodemailer (`smtp.gmail.com:465`). See `.env.example` for the
+ app-password setup.
 3. **Neither** → one warn log; the audit row below is still written.
 
 MIME messages for the Gmail path are built by pure `buildTextEmail`
@@ -200,16 +201,16 @@ reasons about, but shown proactively as history plus forecast.
 
 ```mermaid
 flowchart LR
-    U["Logged-in viewer<br/>(member of ≥1 group, or admin)"] --> P["/kah-status (server)"]
-    P -- "member" --> G["kahGroupsForUser(userId)"]
-    P -- "admin" --> A["listKahGroupChecks() — all groups"]
-    P --> W["window: 1st of (today − 3m) … last day of (today + 3m)"]
-    W --> B["overseasEventsInRange(window)<br/>— month cache, one read"]
-    B --> D["busyDaysInRange → per-day<br/>kahStatusForWindow (pure)"]
-    G --> E["kahBreachEpisodes(perDay, today) (pure)"]
-    A --> E
-    D --> E
-    E --> V["KahStatusView: episode table (desktop) /<br/>cards (mobile) + all-clear list"]
+ U["Logged-in viewer<br/>(member of ≥1 group, or admin)"] --> P["/kah-status (server)"]
+ P -- "member" --> G["kahGroupsForUser(userId)"]
+ P -- "admin" --> A["listKahGroupChecks() — all groups"]
+ P --> W["window: 1st of (today − 3m) … last day of (today + 3m)"]
+ W --> B["overseasEventsInRange(window)<br/>— month cache, one read"]
+ B --> D["busyDaysInRange → per-day<br/>kahStatusForWindow (pure)"]
+ G --> E["kahBreachEpisodes(perDay, today) (pure)"]
+ A --> E
+ D --> E
+ E --> V["KahStatusView: episode table (desktop) /<br/>cards (mobile) + all-clear list"]
 ```
 
 - The page scans a **month-aligned ±3-month window** centered on today (the 1st

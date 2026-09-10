@@ -17,7 +17,7 @@ hidden); only the dashboard controls it.
 
 - A `Menu.Item` inside the calendar's "More options" kebab (`IconArrowsMaximize` /
   `IconArrowsMinimize`, label "Enter fullscreen"/"Exit fullscreen"), the last item after
-  Pin Tab (Force refresh moved out of the kebab into a header button).
+  **Select date** (Force refresh moved out of the kebab into a header button).
 - `enter()` flips the shell chrome off **and** requests the page-level Fullscreen API
   (`requestFullscreen({ navigationUI: "hide" })`), so the OS status bar / browser UI
   disappear on devices that support it.
@@ -59,7 +59,7 @@ The CSS half is the `app-shell-immersive` class on the AppShell root
 | ---- | ---- |
 | `src/lib/ui/immersiveMode.ts` | `ImmersiveModeContext` + `useImmersiveMode` |
 | `src/components/AppShellShell.tsx` | State owner, fullscreen listener, chrome hiding |
-| `src/globals.css` | `app-shell-immersive` class + immersive bottom-offset var |
+| `src/app/globals.css` | `app-shell-immersive` class + immersive bottom-offset var |
 
 Related docs:
 
