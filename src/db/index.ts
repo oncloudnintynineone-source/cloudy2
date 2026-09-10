@@ -16,7 +16,9 @@ function getDb(): PostgresJsDatabase<typeof schema> {
       throw new Error("DATABASE_URL is not set");
     }
     const client = postgres(connectionString, {
-      max: 1,
+      max: Number(process.env.DB_POOL_MAX ?? 3),
+      idle_timeout: 20,
+      connect_timeout: 10,
       ssl: connectionString.includes("localhost") ? false : "require",
     });
     globalForDb.conn = client;

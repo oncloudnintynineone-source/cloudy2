@@ -227,6 +227,25 @@ export async function resolveGoogleCalendarId(calendarId: string): Promise<strin
   return calendar?.googleCalendarId ?? null;
 }
 
+/**
+ * Resolve several registry rows (department ids) to their Google Calendar ids
+ * in one query, keyed by registry id. Unknown ids are omitted (callers fall
+ * back to null, same as {@link resolveGoogleCalendarId}).
+ */
+export async function resolveGoogleCalendarIds(
+  calendarIds: string[],
+): Promise<Record<string, string>> {
+  const uniqueIds = [...new Set(calendarIds)];
+  if (uniqueIds.length === 0) {
+    return {};
+  }
+  const rows = await db
+    .select({ id: calendars.id, googleCalendarId: calendars.googleCalendarId })
+    .from(calendars)
+    .where(inArray(calendars.id, uniqueIds));
+  return Object.fromEntries(rows.map((row) => [row.id, row.googleCalendarId]));
+}
+
 /** One managed (DB-derived) expectation of who should hold an ACL rule. */
 export interface AccessExpectation {
   /** The exact email to grant. */

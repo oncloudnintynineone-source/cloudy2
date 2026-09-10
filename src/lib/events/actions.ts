@@ -49,9 +49,10 @@ import {
   type GcalEventInput,
   type GcalEventItem,
 } from "@/lib/google";
+import { mapWithConcurrency } from "@/lib/async";
 import { invalidateGcalCache } from "@/lib/google/eventsCache";
 import { getUsersByIds, activeMembershipsByDepartment, type UserDisplayInfo } from "@/lib/roster/queries";
-import { resolveGoogleCalendarId } from "@/lib/roster/shares";
+import { resolveGoogleCalendarId, resolveGoogleCalendarIds } from "@/lib/roster/shares";
 import { requireSession } from "@/lib/session";
 import { dispatchEventWebhook } from "@/lib/webhooks/deliver";
 import { WEBHOOK_ACTIONS } from "@/lib/webhooks/payload";
@@ -498,13 +499,26 @@ export async function updateEvent(
   let firstCopy: GcalEventItem | null = null;
 
   try {
-    for (const target of union) {
-      const googleCalendarId = await resolveGoogleCalendarId(target);
+    // Resolve every target's Google calendar id in one query, then read each
+    // target's copies concurrently — the reads are side-effect-free, so a
+    // bounded batch collapses N serial `listEvents` round-trips into ~one.
+    // Writes stay serial below so the `createdHere` rollback bookkeeping is
+    // unchanged.
+    const unionGoogleIds = await resolveGoogleCalendarIds(union);
+    const reads = await mapWithConcurrency(union, 4, async (target) => {
+      const googleCalendarId = unionGoogleIds[target] ?? null;
+      if (!googleCalendarId) {
+        return { target, googleCalendarId: null, found: [] as GcalEventItem[] };
+      }
+      const found = await findCopies(googleCalendarId, eventId, range, fallback);
+      return { target, googleCalendarId, found };
+    });
+
+    for (const { target, googleCalendarId, found } of reads) {
       if (!googleCalendarId) {
         continue;
       }
       affectedGoogleIds.add(googleCalendarId);
-      const found = await findCopies(googleCalendarId, eventId, range, fallback);
       if (firstCopy === null && found.length > 0) {
         firstCopy = found[0];
       }
@@ -706,13 +720,23 @@ export async function deleteEvent(ref: EventRef): Promise<EventActionResult> {
   let firstCopy: GcalEventItem | null = null;
 
   try {
-    for (const target of targets) {
-      const googleCalendarId = await resolveGoogleCalendarId(target);
+    // Read every target's copies concurrently (side-effect-free); the deletes
+    // themselves stay serial below so `deletedCopies` bookkeeping is unchanged.
+    const targetGoogleIds = await resolveGoogleCalendarIds(targets);
+    const reads = await mapWithConcurrency(targets, 4, async (target) => {
+      const googleCalendarId = targetGoogleIds[target] ?? null;
+      if (!googleCalendarId) {
+        return { target, googleCalendarId: null, found: [] as GcalEventItem[] };
+      }
+      const found = await findCopies(googleCalendarId, ref.eventId ?? "", range, fallback);
+      return { target, googleCalendarId, found };
+    });
+
+    for (const { target, googleCalendarId, found } of reads) {
       if (!googleCalendarId) {
         continue;
       }
       affectedGoogleIds.add(googleCalendarId);
-      const found = await findCopies(googleCalendarId, ref.eventId ?? "", range, fallback);
       if (firstCopy === null && found.length > 0) {
         firstCopy = found[0];
       }

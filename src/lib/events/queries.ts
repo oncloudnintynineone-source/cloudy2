@@ -9,7 +9,10 @@ import { calendars, users } from "@/db/schema";
 import { effectiveCalendarColor, effectiveEventTypeColor } from "@/lib/events/eventColors";
 import { formatInstantToNaive, shiftMonth, utcToDateString } from "@/lib/events/datetime";
 import { listEventTypes } from "@/lib/eventTypes/queries";
-import { getCachedMonthEventsForCalendars } from "@/lib/google/eventsCache";
+import {
+  getCachedMonthEventsForCalendars,
+  getCachedMonthEventsForCalendarsMulti,
+} from "@/lib/google/eventsCache";
 import type { GcalEventItem } from "@/lib/google/types";
 import { onlyUuidIds } from "@/lib/uuid";
 import {
@@ -219,22 +222,17 @@ export async function fetchRangeEvents(params: {
 
   const seen = new Set<string>();
   const events: CalendarEvent[] = [];
-  let allServed = true;
-  // Fetch the months in parallel; the flatten order below stays chronological
+  // Fetch all months in one batched cache read (metadata + full-row SELECTs are
+  // shared across months); the flatten order below stays chronological
   // (month-major, calendar display order within each month) so the deterministic
   // representative-copy selection is preserved.
-  const cachedPerMonth = await Promise.all(
-    months.map((month) =>
-      getCachedMonthEventsForCalendars(googleCalendarIds, month, {
-        force: params.force === true,
-      }),
-    ),
-  );
-  for (let i = 0; i < months.length; i++) {
-    const cached = cachedPerMonth[i];
-    allServed &&= cached.allServed;
+  const cached = await getCachedMonthEventsForCalendarsMulti(googleCalendarIds, months, {
+    force: params.force === true,
+  });
+  const allServed = cached.allServed;
+  for (const month of months) {
     for (const calendar of rows) {
-      for (const item of cached.events[calendar.googleCalendarId] ?? []) {
+      for (const item of cached.events[month]?.[calendar.googleCalendarId] ?? []) {
         const key = `${calendar.id}:${item.id}`;
         if (seen.has(key)) {
           continue;
@@ -252,7 +250,7 @@ export async function fetchRangeEvents(params: {
   // missed the cache (i.e. the user is actually navigating), so
   // fully-cached views don't churn extra Google/DB work after the response
   // ships.
-  if (PREFETCH_ADJACENT_MONTHS && !allServed) {
+  if (PREFETCH_ADJACENT_MONTHS && !allServed && params.force !== true) {
     const beforeRange = shiftMonth(months[0], -1);
     const afterRange = shiftMonth(months[months.length - 1], 1);
     after(() => {

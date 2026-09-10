@@ -1,5 +1,6 @@
 import { sql } from "drizzle-orm";
 import {
+  bigint,
   boolean,
   check,
   date,
@@ -398,6 +399,23 @@ export const settings = pgTable(
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [check("settings_singleton", sql`${table.id} = 'singleton'`)],
+);
+
+/**
+ * Single-row monotonic epoch guarding the Google event month cache against
+ * stale-refresh resurrection. `invalidateGcalCache` / `purgeGcalCache` bump it;
+ * a background `refreshMonthEvents` snapshots it before its Google fetch and
+ * skips the DB/L1 upsert when it advanced mid-flight (an invalidation ran on
+ * another instance while the fetch was in the air). See docs/events-cache.md.
+ */
+export const cacheInvalidation = pgTable(
+  "cache_invalidation",
+  {
+    id: text("id").primaryKey().default("singleton"),
+    epoch: bigint("epoch", { mode: "number" }).notNull().default(0),
+    ...timestamps,
+  },
+  (table) => [check("cache_invalidation_singleton", sql`${table.id} = 'singleton'`)],
 );
 
 /**

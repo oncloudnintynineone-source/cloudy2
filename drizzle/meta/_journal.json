@@ -288,6 +288,13 @@
       "when": 1788897728636,
       "tag": "0040_sturdy_deadpool",
       "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "7",
+      "when": 1789026262622,
+      "tag": "0041_lovely_black_bird",
+      "breakpoints": true
     }
   ]
 }
