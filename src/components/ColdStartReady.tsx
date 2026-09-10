@@ -13,7 +13,6 @@ import { usePathname } from "next/navigation";
 
 import { announce } from "@/lib/ui/announcer";
 import {
-  CHECK_INTERVAL_MS,
   READY_DWELL_MS,
   coldStartInitialState,
   coldStartReducer,
@@ -100,18 +99,6 @@ export function ColdStartReadyProvider({ children }: { children: ReactNode }) {
     () => dispatch({ type: "CONTENT_LANDED", now: Date.now() }),
     [],
   );
-
-  // While loading, re-evaluate on a cadence so the MAX force-end threshold
-  // fires even if no leg state changes (e.g. a leg whose fetch never settles —
-  // the strip must not pulse forever).
-  useEffect(() => {
-    if (state.phase !== "loading") return;
-    const id = window.setInterval(
-      () => dispatch({ type: "CHECK", now: Date.now() }),
-      CHECK_INTERVAL_MS,
-    );
-    return () => window.clearInterval(id);
-  }, [state.phase]);
 
   // On entering the ready phase: announce the confirmation and dwell on the
   // green bar, then finish — the machine stays `done` for the whole session.

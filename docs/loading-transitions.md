@@ -479,7 +479,7 @@ stateDiagram-v2
     idle --> loading: first cold-start leg begins
     loading --> loading: a leg still in flight
     loading --> ready: all legs settled + content ready<br/>+ load >= MIN_COLD_LOAD_MS
-    loading --> done: load imperceptibly short<br/>or MAX_LOAD_MS force-end
+    loading --> done: load imperceptibly short
     ready --> done: READY_DWELL_MS dwell (green bar)
     done --> [*]: never re-arms this session
 ```
@@ -510,8 +510,12 @@ is tracked — their only UI effect is additive (header growth, a nav entry).
 - **MIN_COLD_LOAD_MS (250 ms)** — a load that ends sooner never promised
   anything visible, so it goes straight to `done` without the green: a warm
   open must not flash a meaningless confirmation.
-- **MAX_LOAD_MS (4 s)** — a leg whose fetch never settles (hung request)
-  force-ends silently; no false green, and the strip can't pulse forever.
+- **No time cap** — the amber strip pulses for as long as any leg is genuinely
+  in flight, so it only disappears once the work actually settles; a cold
+  backend (Neon scale-to-zero + serverless/Cloud Run cold start + Google reads)
+  is simply a long, legitimate load, never a reason to hide the indicator.
+  Both legs settle on resolve **or** reject (the shell wraps them in `.finally`),
+  so they cannot hang indefinitely.
 - **READY_DWELL_MS (1.2 s)** — how long the green bar stays before the machine
   finishes for the session.
 

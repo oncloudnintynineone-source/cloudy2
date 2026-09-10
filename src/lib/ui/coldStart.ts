@@ -20,16 +20,8 @@
  *  perceptibly loading, so a "ready" flash would read as noise on warm opens. */
 export const MIN_COLD_LOAD_MS = 250;
 
-/** Force-end the loading phase after this long even if a leg never settles
- *  (a hung request must not leave the strip pulsing forever). */
-export const MAX_LOAD_MS = 4000;
-
 /** How long the green "ready" bar stays before it disappears for the session. */
 export const READY_DWELL_MS = 1200;
-
-/** Re-evaluation cadence while the loading phase is active (drives the
- *  MIN/MAX thresholds — legs settling dispatch their own transitions). */
-export const CHECK_INTERVAL_MS = 100;
 
 /**
  * Route prefixes whose content streams server-side and must *land* before the
@@ -81,27 +73,24 @@ export type ColdStartAction =
   | { type: "LEG_BEGIN"; leg: string; now: number }
   | { type: "LEG_SETTLE"; leg: string; now: number }
   | { type: "CONTENT_LANDED"; now: number }
-  | { type: "CHECK"; now: number }
   | { type: "FINISH"; now: number };
 
 /**
- * The loading → ready decision, evaluated after every mutation and on each
- * CHECK tick:
+ * The loading → ready decision, evaluated after every leg settle and content
+ * report:
  *
  * - `contentReady`: the route's content has either landed or is waived.
  * - The bar turns green only when *all* pending legs settled AND content is
  *   ready AND the load has been perceptible (≥ MIN_COLD_LOAD_MS). A load that
  *   ends sooner never promised anything visible, so it skips straight to
  *   `done` — a warm open must not flash a meaningless confirmation.
- * - A leg that never settles force-ends at MAX_LOAD_MS, silently (no false
- *   green for a hung request).
+ * - There is no time cap: a cold backend keeps the amber strip pulsing for as
+ *   long as the legs are genuinely still in flight, and it only disappears
+ *   once they settle. Both legs settle on resolve *or* reject (the shell wraps
+ *   them in `.finally`), so they cannot hang indefinitely.
  */
 function advance(state: ColdStartState, now: number): ColdStartState {
   if (state.phase !== "loading" || state.startedAt === null) return state;
-
-  if (now - state.startedAt > MAX_LOAD_MS) {
-    return { ...state, phase: "done" };
-  }
 
   const allLegsSettled = Object.keys(state.pending).length === 0;
   const contentReady = state.contentWaived || state.contentLandedAt !== null;
@@ -145,9 +134,6 @@ export function coldStartReducer(state: ColdStartState, action: ColdStartAction)
         contentLandedAt: state.contentLandedAt ?? action.now,
       };
       return advance(next, action.now);
-    }
-    case "CHECK": {
-      return advance(state, action.now);
     }
     case "FINISH": {
       return state.phase === "ready" ? { ...state, phase: "done" } : state;

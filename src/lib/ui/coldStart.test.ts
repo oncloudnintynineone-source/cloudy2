@@ -90,15 +90,22 @@ describe("coldStartReducer", () => {
     expect(state.phase).toBe("ready");
   });
 
-  it("force-ends a load whose legs never settle without showing a false ready", () => {
+  it("keeps loading (no force-end) while any leg is still in flight, however long", () => {
     let state = coldStartReducer(stateAt(), {
       type: "LEG_BEGIN",
       leg: "pinned",
       now: T0,
     });
+    state = coldStartReducer(state, { type: "LEG_BEGIN", leg: "clashes", now: T0 });
     state = coldStartReducer(state, { type: "CONTENT_LANDED", now: T0 + 100 });
-    state = coldStartReducer(state, { type: "CHECK", now: T0 + 5000 });
-    expect(state.phase).toBe("done");
+    // A cold backend keeps the amber strip pulsing for as long as a leg is
+    // genuinely pending — settling one leg long after the old 4s cap must not
+    // force-end the machine while another is still in flight.
+    state = coldStartReducer(state, { type: "LEG_SETTLE", leg: "clashes", now: T0 + 60_000 });
+    expect(state.phase).toBe("loading");
+    expect(state.pending).toEqual({ pinned: true });
+    state = coldStartReducer(state, { type: "LEG_SETTLE", leg: "pinned", now: T0 + 60_000 });
+    expect(state.phase).toBe("ready");
   });
 
   it("finishes the ready dwell and then ignores everything (once per session)", () => {
