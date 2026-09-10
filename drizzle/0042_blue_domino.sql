@@ -1,0 +1,1 @@
+ALTER TABLE "event_types" ADD COLUMN "exclude_from_clash" boolean DEFAULT false NOT NULL;

@@ -42,6 +42,8 @@ interface EventTypeFormProps {
     showInvitees: boolean;
     /** Whether the wizard shows the Location step (off requires one allowed location). */
     showLocation: boolean;
+    /** Whether events of this type are informational (excluded from clash checks). */
+    excludeFromClash: boolean;
     color: string | null;
   } | null;
   groups: { id: string; name: string }[];
@@ -73,6 +75,7 @@ export function EventTypeForm({ eventType, groups, onDone }: EventTypeFormProps)
         eventType.allowedLocations.length === 1
           ? false
           : true,
+      excludeFromClash: eventType ? eventType.excludeFromClash === true : false,
       color: eventType?.color ?? "",
     },
     validate: (values) => validateEventTypeForm(values),
@@ -253,6 +256,20 @@ export function EventTypeForm({ eventType, groups, onDone }: EventTypeFormProps)
             disabled={form.values.allowedLocations.length !== 1}
             checked={form.values.showLocation}
             onChange={(event) => form.setFieldValue("showLocation", event.currentTarget.checked)}
+          />
+        </Stack>
+
+        <Stack gap={4}>
+          <Text fw={500} size="sm">
+            Schedule conflicts
+          </Text>
+          <Checkbox
+            label="Exclude from conflict checks"
+            description="Events of this type are informational — they are ignored when checking for schedule conflicts (double bookings), in both directions."
+            checked={form.values.excludeFromClash}
+            onChange={(event) =>
+              form.setFieldValue("excludeFromClash", event.currentTarget.checked)
+            }
           />
         </Stack>
 

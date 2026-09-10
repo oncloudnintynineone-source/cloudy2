@@ -18,7 +18,7 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
 
 ## 1.1 Status
 
-- All work through changelog **1.217 (clarified parade-state attendance mode)** is shipped.
+- All work through changelog **1.219 (informational event types excluded from conflict checks)** is shipped.
 - Quality gates (`lint` / `typecheck` / `test` / schema-drift check) run in CI on every
   push and PR. Pushes also auto-apply migrations per environment: `dev` →
   `migrate-preview` against the dev Neon DB, `main` → `migrate` against the prod Neon
@@ -823,6 +823,17 @@ via `?attendance=1` and `attendanceStorage` became a `useSyncExternalStore` exte
   deleted; `AnnouncementBanner` is exported and rendered directly by the shell
   (`docs/announcement-banner.md` §1.1/§1.3/§1.3.1, `docs/loading-transitions.md`
   §1.4/§1.13.1)
+- 1.219 Informational event types excluded from conflict checks (migration 0042
+  `event_types.exclude_from_clash`, default false): a "Exclude from conflict checks"
+  toggle in the event-type form marks a type informational, and its events are ignored
+  by the clash engine in **both** directions — they never trigger a conflict and are
+  never checked themselves (`computeClashes` skips an informational candidate;
+  `busyUsersOfEvent` occupies nobody) — and drop out of the Double Booking scan. The
+  flag is resolved **live** from the type name stored in the notes block
+  (`clashQuery.ts` → `listEventTypes`; `writeContext.ts` threads the candidate's flag),
+  so toggling reclassifies every event of that type, past and future. Form/table badge,
+  audit diff/labels, pure-engine tests, and docs (`event-clashes.md`,
+  `user-clashes.md`, `event-lifecycle.md` §1.9.1) updated.
 
 ## 1.4 Open items & next steps
 

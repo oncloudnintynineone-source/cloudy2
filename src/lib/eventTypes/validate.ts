@@ -24,6 +24,11 @@ export interface EventTypeFormValues {
    * entry.
    */
   showLocation: boolean;
+  /**
+   * Whether events of this type are informational and excluded from clash
+   * (double-booking) checks. Default false.
+   */
+  excludeFromClash?: boolean;
   /** Pinned event color (Mantine palette name); "" = the name-derived default. */
   color?: string;
   /** Display group for the type picker; null/"" = ungrouped. */

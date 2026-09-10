@@ -634,6 +634,12 @@ event-type form, Settings → Event Types), all defaulting to `true`:
   allowed-locations matrix has exactly one category (validated: hiding the step with
   more than one allowed location is a field error).
 
+A fourth toggle, `event_types.exclude_from_clash` (default `false`, "Exclude from
+conflict checks" in the event-type form), marks a type **informational**: its events
+are ignored by the clash engine in both directions — they never trigger a conflict and
+are never checked themselves — and are dropped from the Double Booking scan. See
+[`event-clashes.md`](event-clashes.md) §1.2/§1.7.
+
 For types whose matrix is exclusively `[in]` but still show the Location step, the
 category selector collapses to a single disabled "In camp" segment and only the optional
 location input remains.

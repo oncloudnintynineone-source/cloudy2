@@ -21,8 +21,10 @@ import {
   parseEventPeople,
   parseEventStartAmPm,
   parseEventTimeOption,
+  parseEventType,
 } from "@/lib/events/notes";
 import type { ClashEventInput } from "@/lib/events/clashes";
+import { listEventTypes } from "@/lib/eventTypes/queries";
 import { getCachedMonthEventsForCalendars } from "@/lib/google/eventsCache";
 
 /**
@@ -67,6 +69,15 @@ export async function clashingEventsFor(
     return [];
   }
 
+  // Event types marked "exclude from conflict checks" are informational: their
+  // events occupy nobody for clash purposes. Resolve the name set once so each
+  // item below can be flagged from its parsed type name.
+  const infoOnlyTypeNames = new Set(
+    (await listEventTypes())
+      .filter((eventType) => eventType.excludeFromClash)
+      .map((eventType) => eventType.name),
+  );
+
   const months = clashWindowMonths(windowStart, windowEnd);
   const cachedPerMonth = await Promise.all(
     months.map((month) =>
@@ -91,6 +102,7 @@ export async function clashingEventsFor(
         }
         seen.add(key);
         const people = parseEventPeople(item.description);
+        const typeName = parseEventType(item.description);
         events.push({
           calendarId: row.id,
           googleEventId: item.id,
@@ -104,6 +116,7 @@ export async function clashingEventsFor(
           timeOption: parseEventTimeOption(item.description) ?? (item.allDay ? "full" : "range"),
           startAmPm: parseEventStartAmPm(item.description),
           endAmPm: parseEventEndAmPm(item.description),
+          excludeFromClash: typeName !== null && infoOnlyTypeNames.has(typeName),
           people: {
             creatorId: people.creatorId,
             userIds: people.userIds,

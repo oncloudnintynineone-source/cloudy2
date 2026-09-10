@@ -42,6 +42,7 @@ Who an event **occupies**:
 | ----------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
 | In-app event with attendees                                                   | each tagged attendee + every **active** member of each tagged department (the **organizer counts only when they tagged themselves**; a no-invitee-type event keeps the organizer as its sole attendee) |
 | External / people-less event (created directly in Google, no parseable notes) | every active member of the **department calendar the copy sits on**                |
+| **Informational** event (type has *Exclude from conflict checks* enabled)     | **nobody** — the event is ignored entirely: it never triggers a conflict and is never checked itself (the candidate check is skipped) |
 
 Two events **clash** when their time windows overlap AND they occupy at least one
 common active roster user. Time windows use the half-open instant convention the
@@ -201,6 +202,11 @@ advisory; submitting while it is in flight simply proceeds).
 - **External events**: no parseable people → treated as occupying every active member
   of their calendar (the schedule view pins them to the department row, and
   department-row events are events for everyone within).
+- **Informational events** (type has *Exclude from conflict checks* enabled): they
+  occupy nobody, so they never appear as a conflicting event — and a candidate whose
+  own type is informational skips the check entirely (no warnings either way). The
+  flag is resolved **live** from the event-type config (by the type name stored in the
+  notes block), so toggling it reclassifies every event of that type, past and future.
 - **Inactive/unknown users** are never occupied; a candidate whose creator is not on
   the roster (e.g. the phone-less bootstrap admin) affects only the people the event
   actually names.
@@ -228,7 +234,7 @@ unit-tested, following the repo convention.
 | `src/lib/events/writeContext.ts`                    | Shared resolution chain (`actions.ts` + clash check)   |
 | `src/lib/events/clashes.ts`                         | Pure clash engine + types (unit-tested)                |
 | `src/lib/events/clashes.test.ts`                    | Engine tests                                           |
-| `src/lib/events/clashQuery.ts`                      | Month-cache read over the candidate's target calendars |
+| `src/lib/events/clashQuery.ts`                      | Month-cache read over the candidate's target calendars; flags informational events from their type name |
 | `src/lib/events/clashActions.ts`                    | `checkEventClashes` server action (read-only)          |
 | `src/components/clashCards.tsx` | Shared collapsible amber card + per-event row (page + wizard) |
 | `src/app/(protected)/dashboard/EventClashCheck.tsx` | Review-step advisory panel                             |

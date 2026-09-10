@@ -80,6 +80,7 @@ export async function createEventType(input: EventTypeFormValues): Promise<Event
   const showRemarks = input.showRemarks !== false;
   const showInvitees = input.showInvitees !== false;
   const showLocation = input.showLocation !== false;
+  const excludeFromClash = input.excludeFromClash === true;
   const color = normalizeEventColor(input.color);
   const groupId = input.groupId?.trim() || null;
   const groupName = await getGroupNameOrNull(groupId);
@@ -97,6 +98,7 @@ export async function createEventType(input: EventTypeFormValues): Promise<Event
         showRemarks,
         showInvitees,
         showLocation,
+        excludeFromClash,
         color,
         groupId,
       })
@@ -118,6 +120,7 @@ export async function createEventType(input: EventTypeFormValues): Promise<Event
         showRemarks,
         showInvitees,
         showLocation,
+        excludeFromClash,
         color: formatColorLabel(color, name),
       },
     });
@@ -165,6 +168,7 @@ export async function renameEventType(
   const showRemarks = input.showRemarks !== false;
   const showInvitees = input.showInvitees !== false;
   const showLocation = input.showLocation !== false;
+  const excludeFromClash = input.excludeFromClash === true;
   const color = normalizeEventColor(input.color);
   const groupId = input.groupId?.trim() || null;
   const groupName = await getGroupNameOrNull(groupId);
@@ -183,6 +187,7 @@ export async function renameEventType(
         showRemarks,
         showInvitees,
         showLocation,
+        excludeFromClash,
         color,
         groupId,
         updatedAt: new Date(),
@@ -206,6 +211,7 @@ export async function renameEventType(
           showRemarks: existing.showRemarks,
           showInvitees: existing.showInvitees,
           showLocation: existing.showLocation,
+          excludeFromClash: existing.excludeFromClash,
           color: formatColorLabel(existing.color, existing.name),
         },
         {
@@ -217,6 +223,7 @@ export async function renameEventType(
           showRemarks,
           showInvitees,
           showLocation,
+          excludeFromClash,
           color: formatColorLabel(color, name),
         },
       ),

@@ -55,6 +55,11 @@ export interface EventTitleContext {
    * location.
    */
   showLocation: boolean;
+  /**
+   * Whether the event type is informational and excluded from clash
+   * (double-booking) checks. False when the event has no type.
+   */
+  excludeFromClash: boolean;
 }
 
 /**
@@ -116,6 +121,7 @@ export async function buildEventTitleContext(input: EventFormValues): Promise<Ev
     showRemarks: eventTypeRow ? eventTypeRow.showRemarks : true,
     showInvitees: eventTypeRow ? eventTypeRow.showInvitees : true,
     showLocation: eventTypeRow ? eventTypeRow.showLocation : true,
+    excludeFromClash: eventTypeRow ? eventTypeRow.excludeFromClash === true : false,
   };
 }
 

@@ -188,6 +188,7 @@ export async function checkEventClashes(
       creatorId: effectiveInput.creatorId || null,
       inviteeUserIds: effectiveInput.inviteeUserIds,
       inviteeDepartments: effectiveInput.inviteeDepartments,
+      excludeFromClash: titleContext.excludeFromClash,
     };
     const computed = computeClashes({
       candidate,

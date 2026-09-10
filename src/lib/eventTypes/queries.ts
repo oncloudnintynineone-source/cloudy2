@@ -62,6 +62,11 @@ export interface EventTypeDisplayInfo {
    * location (valid only when the allowlist has one entry).
    */
   showLocation: boolean;
+  /**
+   * Whether events of this type are informational and excluded from clash
+   * (double-booking) checks.
+   */
+  excludeFromClash: boolean;
 }
 
 /**
@@ -86,6 +91,7 @@ export async function getEventTypesByNames(
       showRemarks: eventTypes.showRemarks,
       showInvitees: eventTypes.showInvitees,
       showLocation: eventTypes.showLocation,
+      excludeFromClash: eventTypes.excludeFromClash,
     })
     .from(eventTypes)
     .where(inArray(eventTypes.name, uniqueNames));
@@ -100,6 +106,7 @@ export async function getEventTypesByNames(
         showRemarks: row.showRemarks,
         showInvitees: row.showInvitees,
         showLocation: row.showLocation,
+        excludeFromClash: row.excludeFromClash,
       },
     ]),
   );

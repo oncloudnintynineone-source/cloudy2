@@ -159,6 +159,11 @@ export function EventTypeTable({ types, groups }: EventTypeTableProps) {
                         No location
                       </Badge>
                     )}
+                    {eventType.excludeFromClash === true && (
+                      <Badge size="sm" variant="light" color="red">
+                        Info only
+                      </Badge>
+                    )}
                   </Group>
                 </Stack>
               </Paper>
@@ -244,6 +249,11 @@ export function EventTypeTable({ types, groups }: EventTypeTableProps) {
                         {eventType.showLocation === false && (
                           <Badge size="sm" variant="light" color="gray">
                             No location
+                          </Badge>
+                        )}
+                        {eventType.excludeFromClash === true && (
+                          <Badge size="sm" variant="light" color="red">
+                            Info only
                           </Badge>
                         )}
                       </Group>

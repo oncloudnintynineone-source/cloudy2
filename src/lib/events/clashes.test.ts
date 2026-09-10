@@ -385,6 +385,16 @@ describe("busyUsersOfEvent", () => {
     });
     expect([...busyUsersOfEvent(event, members)]).toEqual(["u1"]);
   });
+
+  it("informational (exclude-from-clash) events occupy nobody", () => {
+    const event = makeEvent({
+      start: instant("2026-08-17 09:00:00"),
+      end: instant("2026-08-17 10:00:00"),
+      excludeFromClash: true,
+      people: { creatorId: "u1", userIds: ["u1", "u3"], departmentIds: ["cal-1"] },
+    });
+    expect([...busyUsersOfEvent(event, members)]).toEqual([]);
+  });
 });
 
 describe("candidateUsers", () => {
@@ -487,6 +497,39 @@ describe("computeClashes", () => {
     });
     expect(result.clashes).toHaveLength(1);
     expect(result.clashes[0].affectedUserIds).toEqual(["u1"]);
+  });
+
+  it("an informational existing event never clashes", () => {
+    const result = computeClashes({
+      candidate,
+      events: [
+        makeEvent({
+          start: instant("2026-08-17 10:00:00"),
+          end: instant("2026-08-17 12:00:00"),
+          excludeFromClash: true,
+          people: { creatorId: "u1", userIds: ["u1"], departmentIds: [] },
+        }),
+      ],
+      activeUsers: rosterUsers(),
+    });
+    expect(result.clashes).toEqual([]);
+    expect(result.checkedPeople).toBe(2);
+  });
+
+  it("an informational candidate skips the whole check", () => {
+    const result = computeClashes({
+      candidate: { ...candidate, excludeFromClash: true },
+      events: [
+        makeEvent({
+          start: instant("2026-08-17 10:00:00"),
+          end: instant("2026-08-17 12:00:00"),
+          people: { creatorId: "u1", userIds: ["u1"], departmentIds: [] },
+        }),
+      ],
+      activeUsers: rosterUsers(),
+    });
+    expect(result.clashes).toEqual([]);
+    expect(result.checkedPeople).toBe(0);
   });
 
   it("flags an overlap with a tagged invitee in another department", () => {
@@ -750,6 +793,25 @@ describe("findUserClashGroups", () => {
         start: instant("2026-08-17 09:00:00"),
         end: instant("2026-08-17 10:00:00"),
         people: { creatorId: "u2", userIds: ["u2"], departmentIds: [] },
+      }),
+    ]);
+    expect(result.groups).toEqual([]);
+  });
+
+  it("ignores an informational event even when it overlaps the target", () => {
+    const result = scan("u1", [
+      makeEvent({
+        googleEventId: "g-1",
+        start: instant("2026-08-17 09:00:00"),
+        end: instant("2026-08-17 10:00:00"),
+        people: { creatorId: "u1", userIds: ["u1"], departmentIds: [] },
+      }),
+      makeEvent({
+        googleEventId: "g-info",
+        start: instant("2026-08-17 09:30:00"),
+        end: instant("2026-08-17 10:30:00"),
+        excludeFromClash: true,
+        people: { creatorId: "u1", userIds: ["u1"], departmentIds: [] },
       }),
     ]);
     expect(result.groups).toEqual([]);

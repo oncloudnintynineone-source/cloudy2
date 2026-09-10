@@ -103,6 +103,7 @@ const FIELD_LABELS: Record<string, string> = {
   allowedLocations: "Allowed locations",
   showLocation: "Show location",
   showRemarks: "Show remarks",
+  excludeFromClash: "Exclude from conflict checks",
   userKeyword: "Login keyword",
   nameTemplate: "Name template",
   eventTitleRecipe: "Event title template",

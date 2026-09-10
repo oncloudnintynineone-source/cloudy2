@@ -284,6 +284,12 @@ export const eventTypes = pgTable(
      * event-type form and validation).
      */
     showLocation: boolean("show_location").notNull().default(true),
+    /**
+     * Whether events of this type are informational and therefore excluded
+     * from clash (double-booking) checks — they never trigger a conflict and
+     * are never checked themselves.
+     */
+    excludeFromClash: boolean("exclude_from_clash").notNull().default(false),
     /** Admin-set event color (Mantine palette name); null = deterministic default from the name. */
     color: text("color"),
     ...timestamps,

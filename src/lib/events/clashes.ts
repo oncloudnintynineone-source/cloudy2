@@ -49,6 +49,13 @@ export interface ClashEventInput {
   startAmPm: "AM" | "PM" | null;
   /** End half-of-day indicator for "half" events, else null. */
   endAmPm: "AM" | "PM" | null;
+  /**
+   * True when the event's type is informational and excluded from clash
+   * checks — it occupies nobody, so it never conflicts (and never shows up in
+   * a Double Booking scan). Resolved live from the event type config by the
+   * caller (`clashQuery.ts`).
+   */
+  excludeFromClash?: boolean;
   /** People from the notes block: creator, tagged users, tagged departments. */
   people: {
     creatorId: string | null;
@@ -79,6 +86,12 @@ export interface ClashCandidateInput {
   inviteeUserIds: string[];
   /** Effective tagged departments (their active members count as affected). */
   inviteeDepartments: string[];
+  /**
+   * True when the candidate's type is informational — the whole check is
+   * skipped (no clashes reported) because the event is not accounted for in
+   * schedule conflicts.
+   */
+  excludeFromClash?: boolean;
 }
 
 /** Active roster user — the only users an event can "occupy". */
@@ -193,6 +206,9 @@ export function busyUsersOfEvent(
   event: ClashEventInput,
   activeMembersByDepartment: ActiveMembersByDepartment,
 ): ReadonlySet<string> {
+  if (event.excludeFromClash) {
+    return new Set<string>();
+  }
   const people = event.people;
   const hasPeople =
     people.creatorId !== null || people.userIds.length > 0 || people.departmentIds.length > 0;
@@ -264,6 +280,9 @@ export function computeClashes(params: {
   activeUsers: readonly ClashRosterUser[];
 }): ClashComputation {
   const { candidate, events, activeUsers } = params;
+  if (candidate.excludeFromClash) {
+    return { checkedPeople: 0, clashes: [] };
+  }
   const membersByDepartment = buildActiveMembersByDepartment(activeUsers);
   const activeUserIds = new Set(activeUsers.map((user) => user.id));
   const affected = candidateUsers(candidate, activeUserIds, membersByDepartment);

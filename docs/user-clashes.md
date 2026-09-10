@@ -73,7 +73,8 @@ every **active** member of each tagged department (a department-level event is a
 for everyone within), and external / people-less events occupy every active member of
 the department calendar their copy sits on. An event that does **not** occupy the scanned user is irrelevant even when it
 overlaps — e.g. a colleague's separate absence on the shared department calendar never
-counts against the user.
+counts against the user. **Informational** events (whose type has *Exclude from conflict
+checks* enabled) occupy nobody, so they are dropped the same way.
 
 A **double booking** for the user is two or more occupying events whose half-open
 instant windows overlap (`instantWindowsOverlap`; back-to-back events do not clash).
@@ -232,6 +233,8 @@ headings; expansion is a user action and is never re-announced.
   personal event on the shared calendar — exactly the schedule-view rule.
 - **External events** on the user's calendar occupy the user and count like any other
   event; they are labelled `External` and have no `eventId`, so they never collapse.
+- **Informational events** (type has *Exclude from conflict checks* enabled) are
+  ignored: they occupy nobody, so they never form or join a double-booking report.
 - **Target with no department / deactivated** produces no scan and a specific notice
   rather than a misleading "no double bookings".
 - **Roster changes** (someone deactivated mid-scan) are handled by the active-only
