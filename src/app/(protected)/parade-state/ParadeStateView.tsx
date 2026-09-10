@@ -1,14 +1,21 @@
 "use client";
 
 import dayjs from "dayjs";
-import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+  useTransition,
+} from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
   ActionIcon,
   Badge,
   Box,
   Button,
-  Checkbox,
   Divider,
   Group,
   Menu,
@@ -61,7 +68,13 @@ import { saveParadeFilters } from "@/lib/userPrefs/actions";
 import { invalidateCurrentPathCaches } from "@/lib/pwa/client";
 
 import { buildAttendanceReport, type AttendanceReportDepartment } from "./attendanceReport";
-import { clearAttendance, loadAttendanceRecord, saveAttendanceIds } from "./attendanceStorage";
+import {
+  clearAttendance,
+  getAttendanceServerSnapshot,
+  getAttendanceSnapshot,
+  saveAttendanceIds,
+  subscribeAttendance,
+} from "./attendanceStorage";
 import { departmentSummaryRows, departmentTreeHeadcount } from "./headcount";
 import { formatEventTimeBadge } from "./eventTimeBadge";
 import { ParadeStateDepartmentSkeleton } from "./paradeStateSkeleton";
@@ -203,14 +216,24 @@ export function ParadeStateView({
   useColdStartContent();
 
   // Attendance mode: checked users are kept per shown date in localStorage
-  // (never the database). The full record is read when the mode is entered
-  // and kept in memory from then on; `checkedIds` is derived for the shown
-  // date, so day switches swap rosters without any reload.
-  const [attendanceMode, setAttendanceMode] = useState(false);
-  const [attendance, setAttendance] = useState<Record<string, string[]>>({});
+  // (never the database), read live through the attendance external store so
+  // day switches swap rosters without any reload and the mode itself survives
+  // a reload (it rides the `?attendance=1` URL param).
+  const [attendanceMode, setAttendanceMode] = useState(
+    () => searchParams.get("attendance") === "1",
+  );
+  const attendance = useSyncExternalStore(
+    subscribeAttendance,
+    getAttendanceSnapshot,
+    getAttendanceServerSnapshot,
+  );
   const clipboard = useClipboard();
 
   const checkedIds = useMemo(() => new Set(attendance[date] ?? []), [attendance, date]);
+  const presentTotal = useMemo(
+    () => users.filter((user) => checkedIds.has(user.id)).length,
+    [users, checkedIds],
+  );
 
   const colorScheme = useComputedColorScheme("light");
   const today = dayjs().format("YYYY-MM-DD");
@@ -484,8 +507,13 @@ export function ParadeStateView({
   }, [sections, eventsByUser, attendanceMode, checkedIds]);
 
   function enterAttendance() {
-    setAttendance(loadAttendanceRecord());
     setAttendanceMode(true);
+    navigate({ attendance: "1" });
+  }
+
+  function exitAttendance() {
+    setAttendanceMode(false);
+    navigate({ attendance: null });
   }
 
   function toggleAttendance(userId: string) {
@@ -495,15 +523,18 @@ export function ParadeStateView({
     } else {
       current.add(userId);
     }
-    const ids = [...current];
-    saveAttendanceIds(date, ids);
-    setAttendance((prev) => ({ ...prev, [date]: ids }));
+    saveAttendanceIds(date, [...current]);
+  }
+
+  // Clearing wipes only the shown day (the working unit); the destructive
+  // all-dates wipe lives behind its own confirm.
+  function resetDay() {
+    saveAttendanceIds(date, []);
   }
 
   // Reset clears every date's checks, not just the shown day's.
   function resetAttendance() {
     clearAttendance();
-    setAttendance({});
   }
 
   async function copyAttendanceReport() {
@@ -525,35 +556,20 @@ export function ParadeStateView({
     }
   }
 
-  const attendanceMenuItems = (
-    <>
-      <Menu.Item leftSection={<IconRefresh size={16} />} onClick={openResetConfirm}>
-        Reset
-      </Menu.Item>
-      <Menu.Item
-        leftSection={<IconClipboard size={16} />}
-        onClick={() => void copyAttendanceReport()}
-      >
-        Copy to Clipboard
-      </Menu.Item>
-      <Menu.Divider />
-      <Menu.Item leftSection={<IconX size={16} />} onClick={() => setAttendanceMode(false)}>
-        Exit
-      </Menu.Item>
-    </>
-  );
-
   // Desktop: the attendance entry point lives beside the kebab menu instead of
   // the bottom corner FAB — same convention as the dashboard's nav-row
-  // "New event" button. In attendance mode it becomes the options menu target.
+  // "New event" button. It is a true toggle: entering turns it into the
+  // "Done" exit button, while Reset/Copy live in the mode bar.
   const desktopAttendanceButton = (
     <Button
       visibleFrom="lg"
       __vars={{ "--button-height": "43px" }}
-      leftSection={<IconClipboardCheck size={16} />}
-      onClick={attendanceMode ? undefined : enterAttendance}
+      variant={attendanceMode ? "light" : undefined}
+      color={attendanceMode ? "teal" : undefined}
+      leftSection={attendanceMode ? <IconCheck size={16} /> : <IconClipboardCheck size={16} />}
+      onClick={attendanceMode ? exitAttendance : enterAttendance}
     >
-      Attendance
+      {attendanceMode ? "Done" : "Attendance"}
     </Button>
   );
 
@@ -571,6 +587,7 @@ export function ParadeStateView({
         p="sm"
         onClick={attendanceMode ? () => toggleAttendance(user.id) : undefined}
         {...(attendanceMode ? activatable(() => toggleAttendance(user.id)) : {})}
+        aria-pressed={attendanceMode ? checked : undefined}
         style={{
           cursor: attendanceMode ? "pointer" : undefined,
           ...(checked
@@ -589,14 +606,26 @@ export function ParadeStateView({
         <Stack gap={2}>
           <Group gap="xs" wrap="nowrap" align="center">
             {attendanceMode && (
-              // Clicks stop here: toggling the checkbox must
-              // not also fire the card-level toggle.
-              <Box onClick={(event) => event.stopPropagation()} style={{ flexShrink: 0 }}>
-                <Checkbox
-                  checked={checkedIds.has(user.id)}
-                  onChange={() => toggleAttendance(user.id)}
-                  aria-label={`Mark ${user.name} as present`}
-                />
+              // Status glyph only — the card itself is the toggle, so this
+              // must not be an interactive child (a nested control would split
+              // focus and double-fire through activatable).
+              <Box
+                aria-hidden
+                style={{
+                  flexShrink: 0,
+                  width: 18,
+                  height: 18,
+                  borderRadius: 4,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  border: checked
+                    ? "none"
+                    : "1.5px solid var(--mantine-color-gray-5)",
+                  background: checked ? "var(--mantine-color-teal-6)" : "transparent",
+                }}
+              >
+                {checked && <IconCheck size={13} stroke={3} color="white" />}
               </Box>
             )}
             {/* Icon twin of the amber card background (the
@@ -606,14 +635,6 @@ export function ParadeStateView({
               <IconMapPin
                 size={14}
                 color="var(--mantine-color-dimmed)"
-                aria-hidden
-                style={{ flexShrink: 0 }}
-              />
-            )}
-            {attendanceMode && checkedIds.has(user.id) && (
-              <IconCheck
-                size={14}
-                color="var(--mantine-color-teal-6)"
                 aria-hidden
                 style={{ flexShrink: 0 }}
               />
@@ -658,7 +679,8 @@ export function ParadeStateView({
     return (
       <Box key={section.id ?? "__unassigned__"} style={{ marginLeft: depth * 16 }}>
         <Text fw={700} size="sm" c="dimmed" mb="xs" tt="uppercase" lh={1}>
-          {section.name} ({presentCount}/{headcount.total})
+          {section.name} — {presentCount}/{headcount.total}{" "}
+          {attendanceMode ? "present" : "in camp"}
         </Text>
         {section.users.length > 0 && (
           // Single column on mobile; auto-filling card grid at lg
@@ -699,23 +721,7 @@ export function ParadeStateView({
         <ActionIcon size={43} variant="default" aria-label="Next day" onClick={() => shiftDay(1)}>
           <IconChevronRight size={18} />
         </ActionIcon>
-        {attendanceMode ? (
-          <Menu
-            shadow="md"
-            width={220}
-            position="bottom-end"
-            transitionProps={{
-              transition: "pop-top-right",
-              duration: MOTION.popover,
-              timingFunction: "ease",
-            }}
-          >
-            <Menu.Target>{desktopAttendanceButton}</Menu.Target>
-            <Menu.Dropdown>{attendanceMenuItems}</Menu.Dropdown>
-          </Menu>
-        ) : (
-          desktopAttendanceButton
-        )}
+        {desktopAttendanceButton}
         <Menu
           shadow="md"
           width={200}
@@ -789,40 +795,105 @@ export function ParadeStateView({
         </Menu>
       </Group>
 
-      {/* Status legend + attendance day total: the card colors carry real
-          meaning, so they are named in text (color-blind safe) and the
-          overall present count is visible without scanning departments. */}
-      <Group justify="space-between" gap="sm" wrap="nowrap">
-        <Group gap="md" wrap="nowrap">
+      {/* Attendance mode bar: a visible, bounded mode with its own exit (the
+          entry button toggles to Done), the live present count, Copy, and a
+          Reset overflow. The destructive all-dates wipe stays behind its own
+          confirm. */}
+      {attendanceMode && (
+        <Paper
+          withBorder
+          p="xs"
+          style={{
+            borderColor: "var(--mantine-color-teal-4)",
+            backgroundColor: colorScheme === "dark" ? "#0b2b21" : "#e6fcf5",
+          }}
+        >
+          <Group justify="space-between" gap="xs" wrap="wrap">
+            <Group gap="xs" wrap="nowrap" style={{ minWidth: 0 }}>
+              <IconClipboardCheck size={18} color="var(--mantine-color-teal-6)" aria-hidden />
+              <Stack gap={0} style={{ minWidth: 0 }}>
+                <Text fw={600} size="sm" lineClamp={1}>
+                  Attendance mode
+                </Text>
+                <Text size="xs" c="dimmed" lineClamp={1}>
+                  Saved on this device only
+                </Text>
+              </Stack>
+            </Group>
+            <Group gap="xs" wrap="nowrap" style={{ flexShrink: 0 }}>
+              <Text size="sm" fw={700} style={{ flexShrink: 0 }}>
+                {presentTotal}/{users.length} present
+              </Text>
+              <Button
+                size="compact-sm"
+                variant="light"
+                color="teal"
+                leftSection={<IconClipboard size={14} />}
+                onClick={() => void copyAttendanceReport()}
+              >
+                Copy
+              </Button>
+              <Menu
+                shadow="md"
+                width={220}
+                position="bottom-end"
+                transitionProps={{
+                  transition: "pop-top-right",
+                  duration: MOTION.popover,
+                  timingFunction: "ease",
+                }}
+              >
+                <Menu.Target>
+                  <ActionIcon size={32} variant="subtle" aria-label="Attendance options">
+                    <IconDotsVertical size={16} />
+                  </ActionIcon>
+                </Menu.Target>
+                <Menu.Dropdown>
+                  <Menu.Label>Attendance</Menu.Label>
+                  <Menu.Item leftSection={<IconX size={16} />} onClick={resetDay} closeMenuOnClick>
+                    Clear this day
+                  </Menu.Item>
+                  <Menu.Item
+                    leftSection={<IconRefresh size={16} />}
+                    onClick={openResetConfirm}
+                    closeMenuOnClick
+                  >
+                    Clear all dates…
+                  </Menu.Item>
+                </Menu.Dropdown>
+              </Menu>
+            </Group>
+          </Group>
+        </Paper>
+      )}
+
+      {/* Status legend: the card colors carry real meaning, so they are named
+          in text (color-blind safe). The live present count lives in the
+          mode bar above. */}
+      <Group gap="md" wrap="nowrap">
+        <Group gap={6} wrap="nowrap">
+          <Box
+            aria-hidden
+            w={10}
+            h={10}
+            style={{ background: "var(--mantine-color-yellow-4)", borderRadius: 2 }}
+          />
+          <Text size="xs" c="dimmed">
+            Out of camp
+          </Text>
+        </Group>
+        {attendanceMode && (
           <Group gap={6} wrap="nowrap">
             <Box
               aria-hidden
               w={10}
               h={10}
-              style={{ background: "var(--mantine-color-yellow-4)", borderRadius: 2 }}
+              style={{ background: "var(--mantine-color-green-4)", borderRadius: 2 }}
             />
             <Text size="xs" c="dimmed">
-              Out of camp
+              Marked present
             </Text>
           </Group>
-          {attendanceMode && (
-            <Group gap={6} wrap="nowrap">
-              <Box
-                aria-hidden
-                w={10}
-                h={10}
-                style={{ background: "var(--mantine-color-green-4)", borderRadius: 2 }}
-              />
-              <Text size="xs" c="dimmed">
-                Marked present
-              </Text>
-            </Group>
-          )}
-        </Group>
-        {attendanceMode && (
-          <Text size="xs" fw={600} style={{ flexShrink: 0 }}>
-            {users.filter((user) => checkedIds.has(user.id)).length}/{users.length} present
-          </Text>
         )}
       </Group>
 
@@ -860,7 +931,8 @@ export function ParadeStateView({
                       Total
                     </Text>
                     <Text fw={700} size="sm">
-                      ({summary.total.present}/{summary.total.total})
+                      ({summary.total.present}/{summary.total.total}{" "}
+                      {attendanceMode ? "present" : "in camp"})
                     </Text>
                   </Group>
                   <Divider />
@@ -898,29 +970,14 @@ export function ParadeStateView({
           itself: its Affix portals to <body>, so a wrapper element could not
           hide it. */}
       <FloatingToolbar hiddenFrom="lg">
-        {attendanceMode ? (
-          <Menu
-            shadow="md"
-            width={220}
-            position="top-end"
-            transitionProps={{
-              transition: "pop-top-right",
-              duration: MOTION.popover,
-              timingFunction: "ease",
-            }}
-          >
-            <Menu.Target>
-              <FloatingActionButton aria-label="Attendance options">
-                <IconClipboardCheck size={FAB_ICON_SIZE} />
-              </FloatingActionButton>
-            </Menu.Target>
-            <Menu.Dropdown>{attendanceMenuItems}</Menu.Dropdown>
-          </Menu>
-        ) : (
-          <FloatingActionButton aria-label="Start attendance" onClick={enterAttendance}>
-            <IconClipboardCheck size={FAB_ICON_SIZE} />
-          </FloatingActionButton>
-        )}
+        <FloatingActionButton
+          aria-label={attendanceMode ? "Exit attendance mode" : "Start attendance"}
+          variant={attendanceMode ? "light" : undefined}
+          color={attendanceMode ? "teal" : undefined}
+          onClick={attendanceMode ? exitAttendance : enterAttendance}
+        >
+          {attendanceMode ? <IconCheck size={FAB_ICON_SIZE} /> : <IconClipboardCheck size={FAB_ICON_SIZE} />}
+        </FloatingActionButton>
       </FloatingToolbar>
 
       <FilterModal
@@ -938,7 +995,7 @@ export function ParadeStateView({
         onPick={pickDate}
         onClose={closePicker}
       />
-      <Modal opened={resetOpened} onClose={closeResetConfirm} title="Reset attendance" centered>
+      <Modal opened={resetOpened} onClose={closeResetConfirm} title="Clear all dates" centered>
         <Text>Clear attendance checks for every date? This cannot be undone.</Text>
         <Group justify="flex-end" mt="md">
           <Button variant="default" onClick={closeResetConfirm}>
@@ -951,7 +1008,7 @@ export function ParadeStateView({
               closeResetConfirm();
             }}
           >
-            Reset
+            Clear all
           </Button>
         </Group>
       </Modal>

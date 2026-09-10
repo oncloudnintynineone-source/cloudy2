@@ -171,11 +171,19 @@ sub-departments, with aggregated counts):
 
 - Each person shows their status for the day (out-of-camp/overseas events are
   highlighted).
+- Department headers show `X/Y` — **in camp** (no out-of-camp event) by default,
+  **present** (marked) during attendance mode — aggregated over every
+  sub-department.
 - The day never auto-drifts: Parade State always opens on today; navigate days
   explicitly with the arrows or date picker.
-- **Attendance mode** (clipboard icon): tick the people physically present, then
-  copy a formatted attendance report to the clipboard. Attendance checks are stored
-  on your device per date; **Reset attendance** clears them.
+- **Attendance mode** (clipboard icon): tap to start, then tap each person's card
+  to mark them present (the card tints green; a live `X/Y present` count sits in
+  the teal **mode bar**). The button becomes **Done** while active — tap it to
+  finish. Use **Copy** in the mode bar for a formatted attendance report, and the
+  mode bar's overflow menu to **Clear this day** (just today) or **Clear all
+  dates…** (every day, with confirmation). Attendance checks are stored **on this
+  device only**, per date; the mode survives a reload, but another device or
+  person won't see your checks.
 
 ## 1.8 Contacts
 

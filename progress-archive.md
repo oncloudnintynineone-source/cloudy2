@@ -8283,3 +8283,55 @@ progress changelog 1.215.
 
 **Verified**: pnpm typecheck, pnpm lint, pnpm vitest run (full, 1029 pass). No
 schema or migration change.
+## 1.217 Parade State attendance-mode clarity
+
+The Parade State attendance UX confused users on five fronts, all fixed in a
+UI-only pass (binary present/absent model kept, no schema change):
+
+- **Entry point was a menu, not a toggle.** In attendance mode the desktop
+  "Attendance" button / mobile FAB became a Mantine `Menu` (Reset / Copy /
+  Exit) with the same clipboard icon in both modes — tapping it to exit did the
+  opposite of what the affordance promised. It is now a **true toggle**: off →
+  "Attendance"/`IconClipboardCheck` enters; on → "Done"/`IconCheck` (teal
+  variant) exits. `attendanceMenuItems` deleted; Reset/Copy moved into the mode
+  bar.
+- **No visible mode state.** A teal **attendance mode bar** now renders under
+  the date row while active: `Attendance mode`, "Saved on this device only"
+  caption, the live `X/Y present` count, a **Copy** button, and an overflow
+  menu with **Clear this day** (immediate) vs **Clear all dates…** (existing
+  confirm, retitled). The old standalone day total next to the legend is
+  folded into the bar (removes a third duplicate count surface).
+- **Two competing tap targets per card.** The whole `Paper` toggled *and* an
+  inner `Checkbox` toggled (`stopPropagation`-gated). The checkbox is now a
+  **non-interactive status glyph** (`aria-hidden`, `pointer-events` none, teal
+  check when checked / grey outline when not) so the card is the single toggle,
+  with `aria-pressed={checked}` + the shared `activatable` keyboard support.
+- **Identical `(X/Y)` headers meant two different metrics.** Section headers
+  and the summary Total now spell the metric out: `NAME — X/Y in camp`
+  (normal) vs `NAME — X/Y present` (attendance). The clipboard report headers
+  likewise read `(X of Y present)`.
+- **Reset wiped every date.** Reset is now scoped: the mode bar's default
+  clear action touches only the shown day (`resetDay`); the all-dates wipe
+  stays behind its own confirm.
+
+Mode persistence & the storage module:
+
+- The mode now survives a reload via a `?attendance=1` URL param (initialized
+  from `searchParams`; `enterAttendance`/`exitAttendance` push/clear it through
+  the existing `navigate`). The one-shot `loadAttendanceRecord()`-on-enter is
+  gone: `attendanceStorage.ts` became a **`useSyncExternalStore` external
+  store** — `subscribeAttendance` / `getAttendanceSnapshot` (stable identity
+  via a raw-string cache) / `getAttendanceServerSnapshot` (`{}`), with
+  `saveAttendanceIds` / `clearAttendance` emitting to subscribers and
+  cross-tab `storage` events handled — avoiding the known
+  `react-hooks/set-state-in-effect` lint trap (see 1.85).
+
+**Tests**: `attendanceStorage.test.ts` gains snapshot-identity tests (stable
+empty outside the browser); `attendanceReport.test.ts` headers updated to
+`(X of Y present)`. Full suite passes (1034).
+
+**Docs**: `docs/user-guide.md` §1.7, `docs/roster-sharing.md` §1.7, progress
+changelog 1.217.
+
+**Verified**: pnpm typecheck, pnpm lint, pnpm test (full, 1034 pass). No
+schema or migration change.

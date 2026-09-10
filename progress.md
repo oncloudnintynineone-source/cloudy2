@@ -18,7 +18,7 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
 
 ## 1.1 Status
 
-- All work through changelog **1.216 (auto-refresh on return from background)** is shipped.
+- All work through changelog **1.217 (clarified parade-state attendance mode)** is shipped.
 - Quality gates (`lint` / `typecheck` / `test` / schema-drift check) run in CI on every
   push and PR. Pushes also auto-apply migrations per environment: `dev` →
   `migrate-preview` against the dev Neon DB, `main` → `migrate` against the prod Neon
@@ -797,6 +797,20 @@ One line per phase; full write-ups (incl. Mermaid diagrams and verification note
   hardened with `blur`/`focus`/bfcache `pageshow` fallbacks. Pure
   `INACTIVITY_REFRESH_MS`/`needsInactivityRefresh` in `swRules.ts`, unit-tested
   (`docs/pwa-offline.md` §1.17).
+- 1.217 Parade State attendance-mode clarity (UI-only, binary model kept): the entry
+  button (desktop nav-row "Attendance", mobile FAB) is now a **true toggle** — in mode it
+  becomes "Done"/check (mobile FAB) and no longer hides Exit inside a menu; a teal
+  **attendance mode bar** under the date row carries the live `X/Y present` count, a
+  Copy button, and a Reset overflow with **Clear this day** (per-date, immediate) vs
+  **Clear all dates…** (the destructive confirm); the per-card `Checkbox` is replaced by a
+  non-interactive status glyph so the **card itself is the single toggle** (`aria-pressed`,
+  keyboard via the shared `activatable`); section headers + summary Total now say
+  `X/Y present` in attendance mode vs `X/Y in camp` otherwise (same format, explicit
+  metric); the copied report headers read `(X of Y present)`; the mode survives a reload
+  via `?attendance=1` and `attendanceStorage` became a `useSyncExternalStore` external
+  store (stable snapshot identity, cross-tab storage events); "Saved on this device only"
+  caption in the mode bar (pure store snapshots unit-tested;
+  `docs/user-guide.md` §1.7, `docs/roster-sharing.md` §1.7)
 
 ## 1.4 Open items & next steps
 

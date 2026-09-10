@@ -40,11 +40,11 @@ function aggregateTotal(dept: AttendanceReportDepartment): number {
  * Departments render as flat blocks in tree order (a department, then its
  * sub-departments depth-first), and departments without direct users are
  * skipped (their people still count toward the ancestor's header). Each block
- * gets a `<name> (<checked> of <total>)` header where both numbers include
- * every sub-department below it, then one line per direct user in the given
- * order: unchecked users get a ` - Absent` suffix; checked users render bare
- * — checking overrides everything else (no event tags, no absent), whatever
- * the user's calendar says. Blocks are separated by a blank line.
+ * gets a `<name> (<checked> of <total> present)` header where both numbers
+ * include every sub-department below it, then one line per direct user in the
+ * given order: unchecked users get a ` - Absent` suffix; checked users render
+ * bare — checking overrides everything else (no event tags, no absent),
+ * whatever the user's calendar says. Blocks are separated by a blank line.
  */
 export function buildAttendanceReport(
   departments: readonly AttendanceReportDepartment[],
@@ -58,7 +58,7 @@ export function buildAttendanceReport(
       const lines = dept.users.map((user) =>
         checkedIds.has(user.id) ? user.name : `${user.name} - Absent`,
       );
-      blocks.push([`${dept.name} (${checked} of ${total})`, ...lines].join("\n"));
+      blocks.push([`${dept.name} (${checked} of ${total} present)`, ...lines].join("\n"));
     }
     for (const child of dept.children ?? []) {
       visit(child);

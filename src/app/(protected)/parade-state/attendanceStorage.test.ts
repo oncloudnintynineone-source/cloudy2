@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 
 import {
   ATTENDANCE_STORAGE_KEY,
+  getAttendanceServerSnapshot,
+  getAttendanceSnapshot,
   parseAttendanceRecord,
   serializeAttendanceRecord,
 } from "./attendanceStorage";
@@ -56,5 +58,15 @@ describe("serializeAttendanceRecord", () => {
 describe("ATTENDANCE_STORAGE_KEY", () => {
   it("is scoped to the app", () => {
     expect(ATTENDANCE_STORAGE_KEY).toBe("cloudy2.parade-attendance");
+  });
+});
+
+describe("external store snapshots", () => {
+  it("returns a stable empty snapshot outside the browser", () => {
+    expect(getAttendanceSnapshot()).toBe(getAttendanceServerSnapshot());
+  });
+
+  it("hands useSyncExternalStore a stable identity across reads", () => {
+    expect(getAttendanceSnapshot()).toBe(getAttendanceSnapshot());
   });
 });

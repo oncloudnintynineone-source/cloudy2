@@ -22,12 +22,12 @@ describe("buildAttendanceReport", () => {
     const text = buildAttendanceReport(departments, new Set(["u1", "u2"]));
     expect(text).toBe(
       [
-        "Logistics (2 of 3)",
+        "Logistics (2 of 3 present)",
         "Alice Tan",
         "Bob Ng",
         "Carol Lim - Absent",
         "",
-        "Operations (0 of 1)",
+        "Operations (0 of 1 present)",
         "David Koh - Absent",
       ].join("\n"),
     );
@@ -35,7 +35,7 @@ describe("buildAttendanceReport", () => {
 
   it("marks every user absent when nothing is checked", () => {
     expect(buildAttendanceReport(departments, new Set())).toContain(
-      "Operations (0 of 1)\nDavid Koh - Absent",
+      "Operations (0 of 1 present)\nDavid Koh - Absent",
     );
   });
 
@@ -43,12 +43,12 @@ describe("buildAttendanceReport", () => {
     const text = buildAttendanceReport(departments, new Set(["u2", "u3"]));
     expect(text).toBe(
       [
-        "Logistics (2 of 3)",
+        "Logistics (2 of 3 present)",
         "Alice Tan - Absent",
         "Bob Ng",
         "Carol Lim",
         "",
-        "Operations (0 of 1)",
+        "Operations (0 of 1 present)",
         "David Koh - Absent",
       ].join("\n"),
     );
@@ -61,9 +61,9 @@ describe("buildAttendanceReport", () => {
     ];
     const text = buildAttendanceReport(reversed, new Set());
     const lines = text.split("\n");
-    expect(lines[0]).toBe("Operations (0 of 1)");
+    expect(lines[0]).toBe("Operations (0 of 1 present)");
     expect(lines[1]).toBe("David Koh - Absent");
-    expect(lines[3]).toBe("Logistics (0 of 3)");
+    expect(lines[3]).toBe("Logistics (0 of 3 present)");
     expect(lines[4]).toBe("Carol Lim - Absent");
     expect(lines[6]).toBe("Alice Tan - Absent");
   });
@@ -85,7 +85,7 @@ describe("buildAttendanceReport", () => {
 
   it("ignores checked ids of users outside the given departments", () => {
     expect(buildAttendanceReport(departments, new Set(["u1", "ghost"]))).toContain(
-      "Logistics (1 of 3)",
+      "Logistics (1 of 3 present)",
     );
   });
 });
@@ -117,20 +117,20 @@ describe("buildAttendanceReport with hierarchy", () => {
     const text = buildAttendanceReport(nested, new Set(["u0", "u1"]));
     expect(text).toBe(
       [
-        "HQ (2 of 5)",
+        "HQ (2 of 5 present)",
         "John Doe",
         "",
-        "Logistics (1 of 2)",
+        "Logistics (1 of 2 present)",
         "Alice Tan",
         "Bob Ng - Absent",
         "",
-        "Operations (0 of 2)",
+        "Operations (0 of 2 present)",
         "David Koh - Absent",
         "",
-        "Night shift (0 of 1)",
+        "Night shift (0 of 1 present)",
         "Eve Wong - Absent",
         "",
-        "Field (0 of 1)",
+        "Field (0 of 1 present)",
         "Frank Goh - Absent",
       ].join("\n"),
     );
@@ -138,8 +138,8 @@ describe("buildAttendanceReport with hierarchy", () => {
 
   it("counts transitive descendants in the topmost header", () => {
     const text = buildAttendanceReport(nested, new Set(["u1", "u4", "u5"]));
-    expect(text).toContain("HQ (3 of 5)");
-    expect(text).toContain("Operations (2 of 2)");
+    expect(text).toContain("HQ (3 of 5 present)");
+    expect(text).toContain("Operations (2 of 2 present)");
   });
 
   it("omits the block of a parent without direct users but keeps its children", () => {
@@ -151,8 +151,8 @@ describe("buildAttendanceReport with hierarchy", () => {
       },
     ];
     const text = buildAttendanceReport(groupless, new Set());
-    expect(text).toContain("HQ (0 of 5)");
+    expect(text).toContain("HQ (0 of 5 present)");
     expect(text).not.toContain("Group");
-    expect(text.startsWith("HQ (0 of 5)")).toBe(true);
+    expect(text.startsWith("HQ (0 of 5 present)")).toBe(true);
   });
 });

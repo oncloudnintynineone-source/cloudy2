@@ -368,11 +368,13 @@ flowchart TB
 - The page passes each calendar's `parentId` to `ParadeStateView`, which
   builds the section tree (`buildDepartmentTree` + direct members per node;
   "Unassigned" stays a terminal top-level section).
-- Rendering is recursive: a section header `NAME (present/total)` where both
+- Rendering is recursive: a section header `NAME — X/Y in camp` where both
   numbers are **aggregated over direct + all descendant members**
   (`departmentTreeHeadcount`, recursive over the out-of-camp events), the
   direct members' card grid, then the nested sub-departments indented one
-  level. In attendance mode the header counts checked users the same way.
+  level. In attendance mode the header reads `NAME — X/Y present` and counts
+  manually checked users the same way — the metric word disambiguates the two
+  otherwise-identical counts.
 - The attendance clipboard report (`buildAttendanceReport`) takes the same
   tree and emits **flat blocks in tree order** (a department, then its
   sub-departments depth-first; no indentation): a department's header counts
@@ -382,15 +384,15 @@ flowchart TB
   ancestor's header). Example:
 
   ```text
-  HQ (4 of 5)
+  HQ (4 of 5 present)
   John
-  Logistics (2 of 3)
+  Logistics (2 of 3 present)
   Alice
   Bob
   Carol - Absent
-  Ops (1 of 1)
+  Ops (1 of 1 present)
   David
-  Field (0 of 1)
+  Field (0 of 1 present)
   Eve - Absent
   ```
 
