@@ -1642,7 +1642,7 @@ export function DashboardView({
   function shiftMonth(delta: number) {
     const next = dayjs(`${shownMonth}-01`).add(delta, "month").format("YYYY-MM");
     setShownMonth(next);
-    navigate({ month: next });
+    navigate({ month: next, date: null });
   }
 
   function shiftDay(delta: number) {
@@ -1732,7 +1732,7 @@ export function DashboardView({
       navigate({ date: today, month: todayMonth });
     } else {
       setShownMonth(todayMonth);
-      navigate({ month: todayMonth });
+      navigate({ month: todayMonth, date: null });
     }
   }
 
