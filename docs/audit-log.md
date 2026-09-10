@@ -337,8 +337,14 @@ double-quotes fields containing `"`, `,`, `\r`, or `\n` and doubles inner quotes
   Actors get per-department sections from the roster map ("Other" for
   unmatched). Applied selections show as a removable `Pill` row under the filter
   row (one pill per value: actor name, `actionLabel(action)`, entity type,
-  search term, From/To dates). Card rows (action label, UTC+8 timestamp, actor,
-  entity badge, route/method badges, Details button), a "Load more" button
+  search term, From/To dates). Mobile card rows (action label, UTC+8 timestamp,
+  actor, entity badge, route/method badges, Details button); the desktop data
+  table (Time / Actor / Action / Entity / Route / Details) uses a **fixed table
+  layout** — pinned Time/Details column widths and ellipsized long
+  actor/action/entity/route values (full value on hover) — so it never outgrows
+  the container at narrow desktop widths (the previous auto layout let the
+  nowrap timestamp and untruncated text push the page into horizontal
+  overflow). A "Load more" button
   (server action, re-entry guarded, `loading` + `BUTTON_LOADER_PROPS`), a
   retention card with a red "Delete older than N days" confirm button, and a
   download `FloatingActionButton` (confirm modal → blob fetch of the export URL

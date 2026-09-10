@@ -675,17 +675,21 @@ export function AuditLogView({
               ))}
             </Stack>
 
-            {/* Desktop: data table */}
+            {/* Desktop: data table. Fixed table layout pins the Time/Details
+                widths and ellipsizes long actor/action/entity/route values
+                instead of letting the auto-layout table grow past the
+                container (which scrolled the page horizontally at narrow
+                desktop widths). */}
             <Paper withBorder visibleFrom="lg">
-              <Table withRowBorders={false} highlightOnHover tabularNums>
+              <Table withRowBorders={false} highlightOnHover tabularNums layout="fixed">
                 <Table.Thead>
                   <Table.Tr>
-                    <Table.Th>Time</Table.Th>
+                    <Table.Th w={160}>Time</Table.Th>
                     <Table.Th>Actor</Table.Th>
                     <Table.Th>Action</Table.Th>
                     <Table.Th>Entity</Table.Th>
                     <Table.Th>Route</Table.Th>
-                    <Table.Th ta="right">
+                    <Table.Th ta="right" w={110}>
                       <VisuallyHidden>Details</VisuallyHidden>
                     </Table.Th>
                   </Table.Tr>
@@ -699,10 +703,12 @@ export function AuditLogView({
                         </Text>
                       </Table.Td>
                       <Table.Td>
-                        <Text size="sm">{actorLabel(row)}</Text>
+                        <Text size="sm" truncate title={actorLabel(row)}>
+                          {actorLabel(row)}
+                        </Text>
                       </Table.Td>
                       <Table.Td>
-                        <Text size="sm" fw={600}>
+                        <Text size="sm" fw={600} truncate title={actionLabel(row.action)}>
                           {actionLabel(row.action)}
                         </Text>
                       </Table.Td>
@@ -715,7 +721,7 @@ export function AuditLogView({
                               </Badge>
                             ) : null}
                             {row.entityName ? (
-                              <Text size="sm" truncate>
+                              <Text size="sm" truncate title={row.entityName}>
                                 {row.entityName}
                               </Text>
                             ) : null}
@@ -735,7 +741,7 @@ export function AuditLogView({
                               </Badge>
                             ) : null}
                             {row.route ? (
-                              <Text size="sm" c="dimmed" truncate>
+                              <Text size="sm" c="dimmed" truncate title={row.route}>
                                 {row.route}
                               </Text>
                             ) : null}
