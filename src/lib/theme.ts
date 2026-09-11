@@ -100,3 +100,10 @@ export const DESKTOP_WIDE_MEDIA_QUERY = "(min-width: 50em)";
  * responsive prop (those mean ≥ 576px).
  */
 export const NARROW_MEDIA_QUERY = "(max-width: 22.5em)";
+
+/**
+ * Media query matching touch-first devices (coarse pointer). Used to show
+ * touch-only affordances like the agenda swipe hint, which would be noise on
+ * a desktop mouse.
+ */
+export const COARSE_POINTER_MEDIA_QUERY = "(pointer: coarse)";

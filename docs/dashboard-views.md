@@ -250,6 +250,15 @@ Per-view mechanics (all client-side — no cache or server impact):
   day modal pass a `renderEvent` that adds `c2-my-agenda-event` to the
   user's rows: amber left bar + light tint + semibold title. The
   chronological order is intentionally not changed.
+- **Agenda — swipe hint.** Both agenda listings (the tab and the day modal)
+  support a horizontal swipe to change day (`useDrag`, `DAY_SWIPE_THRESHOLD`).
+  On touch-first devices only (`(pointer: coarse)`,
+  `COARSE_POINTER_MEDIA_QUERY` in `src/lib/theme.ts`) a small centered caption
+  — "Swipe left or right to change day" — sits beneath the list, styled like
+  the wizard's "Tap outside to minimize" hint (xs, dimmed, `pointer-events:
+  none`). It is shown at most **once per browser session**: a `sessionStorage`
+  flag (`cloudy2.agenda-swipe-hint`) is set on the first successful swipe, so
+  the caption never returns once the gesture is discovered.
 
 Colors: the brand amber `accent` family (secondary `#FBC02D`) — distinct from
 the event-type colors and the blue `brand` accents used for today/primary. The

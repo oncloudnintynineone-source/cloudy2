@@ -13,6 +13,7 @@ import {
   useMemo,
   useRef,
   useState,
+  useSyncExternalStore,
   useTransition,
 } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
@@ -76,7 +77,12 @@ import { FilterButton } from "@/components/FilterButton";
 import { FilterModal, type FilterGroup } from "@/components/FilterModal";
 import { GridNavControls } from "@/components/GridNavControls";
 import { FullscreenToggle } from "@/components/FullscreenToggle";
-import { BUTTON_LOADER_PROPS, DESKTOP_WIDE_MEDIA_QUERY, NARROW_MEDIA_QUERY } from "@/lib/theme";
+import {
+  BUTTON_LOADER_PROPS,
+  COARSE_POINTER_MEDIA_QUERY,
+  DESKTOP_WIDE_MEDIA_QUERY,
+  NARROW_MEDIA_QUERY,
+} from "@/lib/theme";
 import {
   FAB_ICON_SIZE,
   FAB_SIZE,
@@ -117,6 +123,12 @@ import {
   type ScheduleResource,
   type ScheduleUser,
 } from "@/lib/events/schedule";
+import {
+  getAgendaSwipeHintServerSnapshot,
+  getAgendaSwipeHintSnapshot,
+  markAgendaSwipeHintSeen,
+  subscribeAgendaSwipeHint,
+} from "@/lib/ui/agendaSwipeHint";
 import { announce } from "@/lib/ui/announcer";
 import { useGridPan } from "@/lib/ui/gridPan";
 import { useImmersiveMode } from "@/lib/ui/immersiveMode";
@@ -274,6 +286,25 @@ interface FormState {
 }
 
 const DAY_SWIPE_THRESHOLD = 48;
+
+/**
+ * Touch-only caption advertising the agenda swipe-to-change-day gesture.
+ * Styled like the wizard's "Tap outside to minimize" hint: small, centered and
+ * non-interactive (pointer-events: none) so it never steals a swipe.
+ */
+function AgendaSwipeHint() {
+  return (
+    <Text
+      size="xs"
+      c="dimmed"
+      ta="center"
+      mt="xs"
+      style={{ pointerEvents: "none", userSelect: "none" }}
+    >
+      Swipe left or right to change day
+    </Text>
+  );
+}
 
 /**
  * Day-label strip for the Week (H) view. `ResourcesWeekView`'s own day labels are
@@ -746,6 +777,8 @@ export function DashboardView({
   const isDesktop = useMediaQuery(`(min-width: ${theme.breakpoints.lg})`);
   const isDesktopWide = useMediaQuery(DESKTOP_WIDE_MEDIA_QUERY);
   const isNarrow = useMediaQuery(NARROW_MEDIA_QUERY);
+  // Touch-first devices: only they get the agenda swipe hint (see below).
+  const isCoarsePointer = useMediaQuery(COARSE_POINTER_MEDIA_QUERY);
 
   // The event wizard modal scales with the viewport: it keeps phone widths
   // (xs/sm) below the desktop band, holds md (440px) across the narrow
@@ -862,6 +895,18 @@ export function DashboardView({
     setPrevAgendaDate(agendaDate);
     setDisplayAgendaDate(agendaDate);
   }
+  // Agenda swipe hint: touch-only and shown at most once per browser session.
+  // The flag is an external store over sessionStorage (see
+  // `src/lib/ui/agendaSwipeHint.ts`), so it survives a reload within the
+  // session and updates without a setState-in-effect.
+  const agendaHintSeen = useSyncExternalStore(
+    subscribeAgendaSwipeHint,
+    getAgendaSwipeHintSnapshot,
+    getAgendaSwipeHintServerSnapshot,
+  );
+  // Only touch devices see the caption, and only until the first successful
+  // swipe (or a prior visit in this session) marks it seen.
+  const showAgendaHint = isCoarsePointer && !agendaHintSeen;
   const [editLinkFailed, setEditLinkFailed] = useState(
     () =>
       (initialEditEventId !== null && initialEditEvent === null) ||
@@ -1798,6 +1843,7 @@ export function DashboardView({
       if (!state.last || state.canceled || state.tap) return;
       if (Math.abs(state.movement[0]) < DAY_SWIPE_THRESHOLD) return;
       swipedRef.current = true;
+      markAgendaSwipeHintSeen();
       shiftAgendaDay(state.movement[0] < 0 ? 1 : -1);
     },
     { axis: "lock", axisThreshold: 8, threshold: 10, filterTaps: true },
@@ -1812,6 +1858,7 @@ export function DashboardView({
       if (!isAgenda) return;
       if (Math.abs(state.movement[0]) < DAY_SWIPE_THRESHOLD) return;
       swipedRef.current = true;
+      markAgendaSwipeHintSeen();
       const base = viewedDay ?? date;
       applyAgendaDay(
         dayjs(base)
@@ -2684,6 +2731,7 @@ export function DashboardView({
                 }}
               />
             </div>
+            {showAgendaHint && <AgendaSwipeHint />}
           </div>
         ) : scheduleResources.resources.length === 0 ? (
           <Paper withBorder radius="md">
@@ -3050,6 +3098,7 @@ export function DashboardView({
                 />
               </div>
             </div>
+            {showAgendaHint && <AgendaSwipeHint />}
             <Button
               w="100%"
               mt="sm"
