@@ -149,7 +149,7 @@ const OFFLINE_FALLBACK_HTML = `<!doctype html>
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
-<meta name="theme-color" content="#111111" />
+<meta name="theme-color" content="#0D47A1" />
 <title>Offline — Cloudy2</title>
 <style>
 :root{--navy:#0d47a1;--bg:#111111}

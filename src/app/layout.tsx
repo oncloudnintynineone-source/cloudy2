@@ -29,12 +29,16 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  // Dark grey, matching the Android splash (`manifest.ts`) and the offline
-  // page palette for the surfaces Android Chrome still derives bar chrome
-  // from — splash, task switcher, and opaque-bar environments. On Android
-  // 15+ (edge-to-edge) the system bars are transparent and simply show the
-  // fixed header behind them, so the two stay in sync in both color schemes.
-  themeColor: "#111111",
+  // Brand navy: the Android status bar (top) is tinted with `theme-color`,
+  // matching the always-navy AppShell header behind it in both color schemes
+  // (and the edge-to-edge transparent bar on Android 15+). The bottom
+  // navigation bar is not set here — it follows the page's `color-scheme`
+  // (black in dark mode, white in light), which Mantine resolves per theme.
+  themeColor: "#0D47A1",
+  // Declare the page supports both schemes before CSS loads so the Android
+  // navigation bar resolves to the right black/white as early as possible
+  // (Mantine's `color-scheme` on :root takes over once its CSS parses).
+  colorScheme: "light dark",
   // Makes env(safe-area-inset-*) report real values on notched devices so
   // the header/bottom-nav/FAB clearance vars actually engage in the
   // standalone PWA (they evaluate to 0 without it).
