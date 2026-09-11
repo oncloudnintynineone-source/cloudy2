@@ -2371,6 +2371,19 @@ export function DashboardView({
             compact (36px controls) — it is part of the permanently visible
             chrome on every breakpoint. */}
         <Group align="center" gap="xs" wrap="nowrap" mt="xs">
+          <Text
+            fw={600}
+            size="md"
+            lineClamp={1}
+            style={{ flex: 1, minWidth: 0, textAlign: "left" }}
+          >
+            {/* Label flavor follows the optimistic chrome (same contract as
+                the skeleton below): the period you asked for is what reads,
+                even while its data is still in flight. The Agenda branch
+                still tracks `viewedDay` once the tab is live — a fresh entry
+                has none, so it falls back to the optimistic date (today). */}
+            {periodLabel}
+          </Text>
           <ActionIcon
             size={36}
             variant="default"
@@ -2389,19 +2402,6 @@ export function DashboardView({
           >
             <IconChevronLeft size={18} />
           </ActionIcon>
-          <Text
-            fw={600}
-            size="md"
-            lineClamp={1}
-            style={{ flex: 1, minWidth: 0, textAlign: "center" }}
-          >
-            {/* Label flavor follows the optimistic chrome (same contract as
-                the skeleton below): the period you asked for is what reads,
-                even while its data is still in flight. The Agenda branch
-                still tracks `viewedDay` once the tab is live — a fresh entry
-                has none, so it falls back to the optimistic date (today). */}
-            {periodLabel}
-          </Text>
           <ActionIcon
             size={36}
             variant="default"
@@ -2977,6 +2977,9 @@ export function DashboardView({
         title={
           agendaViewDate ? (
             <Group gap="xs" justify="center" w="100%">
+              <Text fw={600} size="sm" style={{ flex: 1, minWidth: 0, textAlign: "left" }}>
+                {dayjs(agendaViewDate).format("dddd, MMMM D, YYYY")}
+              </Text>
               <ActionIcon
                 variant="subtle"
                 size="sm"
@@ -2985,9 +2988,6 @@ export function DashboardView({
               >
                 <IconChevronLeft size={16} />
               </ActionIcon>
-              <Text fw={600} size="sm">
-                {dayjs(agendaViewDate).format("dddd, MMMM D, YYYY")}
-              </Text>
               <ActionIcon
                 variant="subtle"
                 size="sm"
