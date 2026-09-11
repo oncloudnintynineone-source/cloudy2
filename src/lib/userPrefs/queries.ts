@@ -21,6 +21,8 @@ export interface UserPreferencesView {
   paradeCal: string[];
   /** Parade State Users filter — an explicit list (empty = no user filter). */
   paradeUsers: string[];
+  /** Recent event-search queries, most-recent-first (empty = none). */
+  searchHistory: string[];
 }
 
 /** Non-empty strings only; garbage entries drop out of a remembered list. */
@@ -66,6 +68,7 @@ export const getUserPreferences = cache(
       dashboardActiveViewId: row.dashboardActiveViewId,
       paradeCal: toStringList(row.paradeCal),
       paradeUsers: toStringList(row.paradeUsers),
+      searchHistory: toStringList(row.searchHistory),
     };
   },
 );

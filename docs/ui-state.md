@@ -4,8 +4,8 @@ Where does the app remember things? Two scopes with one hard rule:
 
 - **Cross-account preferences follow the user to any device** — they live in
   Postgres: the dashboard's on-demand **Views (tabs)** and their per-tab
-  filters (`user_dashboard_views`), the last-active tab, and the Parade State
-  Calendars/Users filters (`user_preferences`).
+  filters (`user_dashboard_views`), the last-active tab, the Parade State
+  Calendars/Users filters and the event-search history (`user_preferences`).
 - **"Where you are" is device-local** — it lives in one small cookie
   `cloudy2.ui`: the last visited page, the sidebar rail state, the dashboard
   `date`/`month` anchor and the two zooms — the Day/Week (H) hour-slot `zoom`
@@ -67,6 +67,9 @@ Singleton row per user (`userId` PK, FK cascade):
   leaves the pointer null; the next render resolves the first tab).
 - `paradeCal` / `paradeUsers` — Parade State filter lists (empty = all
   departments / no user filter; parade has no role-default distinction).
+- `searchHistory` — the user's recent event-search queries (most-recent-first,
+  deduped, capped at 8) surfaced as "Recent searches" badges in the search
+  modal ([`event-search.md`](event-search.md) §1.10).
 - timestamps.
 
 ### 1.2.3 Lazy seeding & concurrency
@@ -246,6 +249,7 @@ in the pages/layout, and the writer hooks.
 | `src/lib/dashboardViews/actions.ts` | Tab CRUD + per-tab filter saves |
 | `src/lib/userPrefs/queries.ts` | `getUserPreferences` (cached ensure + read) |
 | `src/lib/userPrefs/actions.ts` | `setActiveDashboardView`, `saveParadeFilters` |
+| `src/lib/events/searchHistoryActions.ts` | `getSearchHistory` / `recordSearchHistory` / `removeSearchHistory` (search-history prefs) |
 | `src/db/schema.ts` | `user_dashboard_views`, `user_preferences` |
 | `src/app/(protected)/dashboard/page.tsx` | Active-tab resolution + per-tab filter validation + date/month fallback |
 | `src/app/(protected)/parade-state/page.tsx` | Parade filters from `user_preferences` |

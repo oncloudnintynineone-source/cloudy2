@@ -182,6 +182,15 @@ export const userPreferences = pgTable(
       .notNull()
       .default(sql`'[]'::jsonb`),
     /**
+     * The user's recent event-search queries, most-recent-first (a bounded,
+     * deduped string list — see `src/lib/events/searchHistory.ts`). Empty = no
+     * history. Stored server-side so the shortcuts follow the account across
+     * devices.
+     */
+    searchHistory: jsonb("search_history")
+      .notNull()
+      .default(sql`'[]'::jsonb`),
+    /**
      * The per-profile master switch for event participant push
      * notifications ("notify me when I'm added to an event"). Independent of
      * the OS/browser permission: when false, no push is sent even for a

@@ -44,6 +44,14 @@ import {
 const EventSearchModal = dynamic(() => import("@/components/EventSearchModal"), {
   ssr: false,
 });
+
+// `next/dynamic` returns a `React.ComponentType`, but the runtime Loadable also
+// carries a `.preload()` static that fetches the chunk without mounting. Preload
+// in the background so the modal's first open is instant rather than a
+// chunk-download round trip.
+const preloadSearchModal = () => {
+  (EventSearchModal as unknown as { preload?: () => void }).preload?.();
+};
 import { UserMenu } from "@/components/UserMenu";
 import { BANNER_HEIGHT_PX, type BannerConfig } from "@/lib/banner/banner";
 import { BOTTOM_NAV_HEIGHT } from "@/lib/bottomNav";
@@ -368,6 +376,31 @@ export function AppShellShell({
   // The search icon's rect at open time; the modal zooms out of / shrinks into it.
   const [searchOriginRect, setSearchOriginRect] = useState<Rect | null>(null);
   const router = useRouter();
+
+  // Preload the search modal's chunk shortly after first paint (idle, so it
+  // never competes with the launch-critical work), so the first open is instant
+  // instead of a chunk download. The header button also preloads on
+  // hover/focus (below) as a second, nearer signal.
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+    const hasIdle = typeof window.requestIdleCallback === "function";
+    let id: number;
+    if (hasIdle) {
+      id = window.requestIdleCallback(preloadSearchModal);
+    } else {
+      id = window.setTimeout(preloadSearchModal, 0);
+    }
+    return () => {
+      if (hasIdle) {
+        window.cancelIdleCallback(id);
+      } else {
+        window.clearTimeout(id);
+      }
+    };
+  }, []);
+
   // The header button's rect at open time: the panel modal zooms out of /
   // shrinks back into it. Captured before any navigation — the header is
   // persistent, so the origin stays correct across the jump to /dashboard.
@@ -806,6 +839,8 @@ export function AppShellShell({
                     c="white"
                     size="lg"
                     aria-label="Search events"
+                    onPointerEnter={preloadSearchModal}
+                    onFocus={preloadSearchModal}
                     onClick={(e) => {
                       setSearchOriginRect(e.currentTarget.getBoundingClientRect());
                       setSearchLoaded(true);

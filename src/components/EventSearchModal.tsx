@@ -3,6 +3,8 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, useTransition } from "react";
 import {
+  ActionIcon,
+  Badge,
   Box,
   Button,
   Group,
@@ -16,12 +18,21 @@ import {
 import { DatePickerInput } from "@mantine/dates";
 import { useMediaQuery } from "@mantine/hooks";
 import { AgendaView } from "@mantine/schedule";
-import { IconSearch } from "@tabler/icons-react";
+import { IconSearch, IconX } from "@tabler/icons-react";
 import { NARROW_MEDIA_QUERY } from "@/lib/theme";
 
 import { formatInstantToNaive } from "@/lib/events/datetime";
 import type { CalendarEvent } from "@/lib/events/queries";
 import { searchEvents } from "@/lib/events/search";
+import {
+  addSearchHistoryEntry,
+  removeSearchHistoryEntry,
+} from "@/lib/events/searchHistory";
+import {
+  getSearchHistory,
+  recordSearchHistory,
+  removeSearchHistory,
+} from "@/lib/events/searchHistoryActions";
 import {
   defaultSearchFrom,
   defaultSearchTo,
@@ -57,6 +68,9 @@ export default function EventSearchModal({ opened, onClose, originRect }: EventS
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [results, setResults] = useState<CalendarEvent[] | null>(null);
+  // The user's recent queries (`null` = not yet fetched), refreshed on each open
+  // so new searches on other devices surface here too.
+  const [history, setHistory] = useState<string[] | null>(null);
 
   // The clicked result row whose deep-link navigation is in flight. Its position
   // (in the results list's content coordinates) drives an overlay spinner that
@@ -117,6 +131,24 @@ export default function EventSearchModal({ opened, onClose, originRect }: EventS
     }
   }
 
+  // Refresh the recent-searches shortcuts on every open so queries run on other
+  // devices (or cleared elsewhere) surface here. Best-effort; a failure keeps
+  // the last list.
+  useEffect(() => {
+    if (!opened) {
+      return;
+    }
+    getSearchHistory()
+      .then((result) => {
+        if (result.ok) {
+          setHistory(result.history);
+        }
+      })
+      .catch(() => {
+        // Keep the last known list.
+      });
+  }, [opened]);
+
   // The modal zooms out of / shrinks back into the header search button (the
   // app's standard grow/shrink animation; mirror PinnedEventsPanel).
   const viewport = {
@@ -136,9 +168,8 @@ export default function EventSearchModal({ opened, onClose, originRect }: EventS
     timingFunction: "cubic-bezier(0.3, 1.2, 0.4, 1)",
   } as const;
 
-  async function handleSubmit(event: React.FormEvent) {
-    event.preventDefault();
-    const trimmed = query.trim();
+  async function runSearch(term: string) {
+    const trimmed = term.trim();
     if (trimmed.length < SEARCH_MIN_QUERY_LENGTH) {
       setError(`Enter at least ${SEARCH_MIN_QUERY_LENGTH} characters to search`);
       return;
@@ -152,6 +183,10 @@ export default function EventSearchModal({ opened, onClose, originRect }: EventS
       const result = await searchEvents(trimmed, from ?? "", to ?? "");
       if (result.ok) {
         setResults(result.events);
+        // Remember the query server-side (fire-and-forget) and update the local
+        // badge list optimistically.
+        void recordSearchHistory(trimmed);
+        setHistory((prev) => addSearchHistoryEntry(prev ?? [], trimmed));
       } else {
         setError(result.error);
       }
@@ -160,6 +195,11 @@ export default function EventSearchModal({ opened, onClose, originRect }: EventS
     } finally {
       setLoading(false);
     }
+  }
+
+  async function handleSubmit(event: React.FormEvent) {
+    event.preventDefault();
+    await runSearch(query);
   }
 
   // A result click navigates to the dashboard and opens that event's full
@@ -208,6 +248,44 @@ export default function EventSearchModal({ opened, onClose, originRect }: EventS
       transitionProps={transitionProps}
     >
       <Stack>
+        {history !== null && history.length > 0 && (
+          <Stack gap={4}>
+            <Text size="xs" c="dimmed" fw={500}>
+              Recent searches
+            </Text>
+            <Group gap={4} wrap="wrap">
+              {history.map((term) => (
+                <Group key={term} gap={0} wrap="nowrap">
+                  <Badge
+                    component="button"
+                    type="button"
+                    variant="light"
+                    color="brand"
+                    onClick={() => {
+                      setQuery(term);
+                      void runSearch(term);
+                    }}
+                    styles={{ root: { cursor: "pointer", textTransform: "none" } }}
+                  >
+                    {term}
+                  </Badge>
+                  <ActionIcon
+                    size="sm"
+                    variant="subtle"
+                    color="gray"
+                    aria-label={`Remove "${term}" from recent searches`}
+                    onClick={() => {
+                      setHistory((prev) => removeSearchHistoryEntry(prev ?? [], term));
+                      void removeSearchHistory(term);
+                    }}
+                  >
+                    <IconX size={12} />
+                  </ActionIcon>
+                </Group>
+              ))}
+            </Group>
+          </Stack>
+        )}
         <form onSubmit={handleSubmit}>
           <TextInput
             label="Search"

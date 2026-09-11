@@ -19,8 +19,9 @@ detail modal (with in-place Duplicate/Edit/Delete).
 - [1.7 Date range & defaults](#17-date-range--defaults)
 - [1.8 Searchable surface & limitations](#18-searchable-surface--limitations)
 - [1.9 The search modal (lazy-loaded)](#19-the-search-modal-lazy-loaded)
-- [1.10 Pure helpers & testing](#110-pure-helpers--testing)
-- [1.11 File index & related docs](#111-file-index--related-docs)
+- [1.10 Search history](#110-search-history)
+- [1.11 Pure helpers & testing](#111-pure-helpers--testing)
+- [1.12 File index & related docs](#112-file-index--related-docs)
 
 ## 1.1 Problem
 
@@ -46,7 +47,9 @@ event across every department.
 
 - Not a structured query: the search term matches Google's `q` fields only
   (see §1.8) — no event-type/people filters beyond what the title carries.
-- No persistence, no index, no cache: results are recomputed on every search.
+- No index, no result cache: results are recomputed on every search. (The
+  *query history* is a small per-account preference — see §1.10 — not a
+  results cache.)
 - No edit-in-place from search: tapping a result deep-links to the dashboard,
   which owns the event detail (Duplicate/Edit/Delete) and all mutation wiring.
   The search results are a lookup, not an editor.
@@ -174,6 +177,11 @@ index (a separate concern from this native-search feature; see
   afterward, so the shrink-out animation plays and repeat opens don't reload
   the chunk), so the modal — its `AgendaView`, `DatePickerInput` and
   `@mantine/schedule` usage — never contributes to the shell's first paint.
+  The chunk is **prefetched in the background** — `requestIdleCallback` after
+  the shell's first paint plus `onPointerEnter`/`onFocus` on the header button
+  (the runtime Loadable's `.preload()`, reached through a cast since the TS
+  type omits it) — so the first open is instant without pulling the modal into
+  the initial bundle.
   Because it mounts already-open on that first open, Mantine's `Transition`
   would initialize to `entered` and skip the zoom-in; the modal therefore
   starts closed and mirrors the `opened` prop into an internal `mounted`
@@ -218,13 +226,40 @@ copy's calendar, exactly like this search link), and Pinned Events'
 tap-to-open a third. See
 [`event-lifecycle.md` §1.4.2](event-lifecycle.md#142-deep-links-back-to-the-event).
 
-## 1.10 Pure helpers & testing
+## 1.10 Search history
+
+The modal shows the user's recent queries as tappable **"Recent searches"
+badges** above the form (only when non-empty). History is **per-account** — it
+lives in `user_preferences.search_history` (see
+[`ui-state.md`](ui-state.md)), a most-recent-first string list that is
+case-insensitively deduped and capped at `SEARCH_HISTORY_MAX` (8). Tapping a
+badge fills the query and runs the search immediately; a small × on each badge
+removes it.
+
+- **Pure helpers** (`src/lib/events/searchHistory.ts`): `addSearchHistoryEntry`
+  / `removeSearchHistoryEntry` / `cleanSearchHistoryList` — trim, dedupe, cap.
+- **Server actions** (`src/lib/events/searchHistoryActions.ts`, `"use server"`):
+  `getSearchHistory`, `recordSearchHistory` (fire-and-forget after a successful
+  search), `removeSearchHistory`. The virtual break-glass admin (`id ===
+  "admin"`, no `users` row) returns an empty history and no-op writes.
+- **Modal wiring**: `EventSearchModal` fetches history on every open (so
+  queries run on other devices surface here), records a query + updates the
+  local badge list optimistically after a successful search, and removes both
+  server-side and locally on ×. History is *not* cleared by the close/reset
+  path (which only resets the query/results).
+
+This history is a convenience shortcut, not a results cache — a badge re-runs
+the live Google search with the current (defaulted) date window.
+
+## 1.11 Pure helpers & testing
 
 The decision-making parts are pure and unit-tested in
 `searchRange.test.ts` (`addMonthsClamped`, `defaultSearchFrom/To`,
-`searchRangeBoundaries`, `coerceSearchRange`). Everything that touches Google,
-Postgres, or the Next runtime (the `searchEvents` action, `mapCalendarItem`
-wiring) follows the repo convention of being I/O-bound and untested.
+`searchRangeBoundaries`, `coerceSearchRange`) and `searchHistory.test.ts`
+(`addSearchHistoryEntry`, `removeSearchHistoryEntry`, `cleanSearchHistoryList`,
+the cap). Everything that touches Google, Postgres, or the Next runtime (the
+`searchEvents` action, `mapCalendarItem` wiring, the `searchHistoryActions`
+actions) follows the repo convention of being I/O-bound and untested.
 
 | Helper | Module | Tests |
 | ------ | ------ | ----- |
@@ -232,8 +267,9 @@ wiring) follows the repo convention of being I/O-bound and untested.
 | `defaultSearchFrom` / `defaultSearchTo` | `events/searchRange.ts` | `searchRange.test.ts` |
 | `searchRangeBoundaries` | `events/searchRange.ts` | `searchRange.test.ts` |
 | `coerceSearchRange` | `events/searchRange.ts` | `searchRange.test.ts` |
+| `addSearchHistoryEntry` / `removeSearchHistoryEntry` / `cleanSearchHistoryList` | `events/searchHistory.ts` | `searchHistory.test.ts` |
 
-## 1.11 File index & related docs
+## 1.12 File index & related docs
 
 | File | Role |
 | ---- | ---- |
@@ -242,10 +278,13 @@ wiring) follows the repo convention of being I/O-bound and untested.
 | `src/lib/google/stub.ts` | `searchEvents` → `[]` |
 | `src/lib/events/search.ts` | `searchEvents` server action |
 | `src/lib/events/searchRange.ts` | Pure date-range/default helpers (tested) |
+| `src/lib/events/searchHistory.ts` | Pure history-list helpers (tested) |
+| `src/lib/events/searchHistoryActions.ts` | `getSearchHistory` / `recordSearchHistory` / `removeSearchHistory` actions |
+| `src/lib/userPrefs/queries.ts` | `getUserPreferences` (now exposes `searchHistory`) |
 | `src/lib/events/queries.ts` | `mapCalendarItem` (now exported; reused by search) |
 | `src/app/(protected)/dashboard/EventDetail.tsx` | The shared detail modal the deep link lands on (unchanged) |
-| `src/components/EventSearchModal.tsx` | Lazy-loaded search modal + agenda + row-spinner deep link |
-| `src/components/AppShellShell.tsx` | Header search button + modal mount + origin rect |
+| `src/components/EventSearchModal.tsx` | Lazy-loaded search modal + agenda + history badges + row-spinner deep link |
+| `src/components/AppShellShell.tsx` | Header search button + modal mount + origin rect + chunk preload |
 
 Related docs:
 

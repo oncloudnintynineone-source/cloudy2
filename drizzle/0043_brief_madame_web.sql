@@ -1,0 +1,1 @@
+ALTER TABLE "user_preferences" ADD COLUMN "search_history" jsonb DEFAULT '[]'::jsonb NOT NULL;
