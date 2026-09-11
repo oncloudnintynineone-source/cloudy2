@@ -137,7 +137,7 @@ describe("effectiveEventWindow / effectiveCandidateWindow", () => {
     expect(effectiveEventWindow(event)).toEqual({ start: event.start, end: event.end });
   });
 
-  it("keeps the stored full-day window for full events even with stray markers", () => {
+  it("realigns a full event's stored UTC-midnight window to the SGT civil day", () => {
     const event = makeEvent({
       allDay: true,
       start: dateToUtc("2026-08-17"),
@@ -146,7 +146,10 @@ describe("effectiveEventWindow / effectiveCandidateWindow", () => {
       startAmPm: "AM",
       endAmPm: "PM",
     });
-    expect(effectiveEventWindow(event)).toEqual({ start: event.start, end: event.end });
+    expect(effectiveEventWindow(event)).toEqual({
+      start: new Date("2026-08-16T16:00:00.000Z"),
+      end: new Date("2026-08-17T16:00:00.000Z"),
+    });
   });
 
   it("collapses a half AM→AM event to the morning half", () => {
@@ -329,6 +332,103 @@ describe("half-day clashes", () => {
       activeUsers: rosterUsers(),
     });
     expect(result.clashes).toEqual([]);
+  });
+});
+
+describe("full-day clashes", () => {
+  it("does not clash a full-day against an AM half-day on the next day", () => {
+    const result = computeClashes({
+      candidate: {
+        start: dateToUtc("2026-08-17"),
+        end: dateToUtc("2026-08-18"),
+        timeOption: "full",
+        startAmPm: null,
+        endAmPm: null,
+        creatorId: "u1",
+        inviteeUserIds: ["u1"],
+        inviteeDepartments: [],
+      },
+      events: [
+        makeHalfEvent("2026-08-18", "2026-08-18", "AM", "AM", {
+          people: { creatorId: "u1", userIds: ["u1"], departmentIds: [] },
+        }),
+      ],
+      activeUsers: rosterUsers(),
+    });
+    expect(result.clashes).toEqual([]);
+  });
+
+  it("clashes a full-day against an AM half-day on the same day", () => {
+    const result = computeClashes({
+      candidate: {
+        start: dateToUtc("2026-08-17"),
+        end: dateToUtc("2026-08-18"),
+        timeOption: "full",
+        startAmPm: null,
+        endAmPm: null,
+        creatorId: "u1",
+        inviteeUserIds: ["u1"],
+        inviteeDepartments: [],
+      },
+      events: [
+        makeHalfEvent("2026-08-17", "2026-08-17", "AM", "AM", {
+          people: { creatorId: "u1", userIds: ["u1"], departmentIds: [] },
+        }),
+      ],
+      activeUsers: rosterUsers(),
+    });
+    expect(result.clashes).toHaveLength(1);
+    expect(result.clashes[0].affectedUserIds).toEqual(["u1"]);
+  });
+
+  it("does not clash back-to-back full-day events on adjacent days", () => {
+    const result = computeClashes({
+      candidate: {
+        start: dateToUtc("2026-08-17"),
+        end: dateToUtc("2026-08-18"),
+        timeOption: "full",
+        startAmPm: null,
+        endAmPm: null,
+        creatorId: "u1",
+        inviteeUserIds: ["u1"],
+        inviteeDepartments: [],
+      },
+      events: [
+        makeEvent({
+          allDay: true,
+          start: dateToUtc("2026-08-18"),
+          end: dateToUtc("2026-08-19"),
+          timeOption: "full",
+          people: { creatorId: "u1", userIds: ["u1"], departmentIds: [] },
+        }),
+      ],
+      activeUsers: rosterUsers(),
+    });
+    expect(result.clashes).toEqual([]);
+  });
+
+  it("clashes a full-day against a timed event in the SGT early morning", () => {
+    const result = computeClashes({
+      candidate: {
+        start: dateToUtc("2026-08-17"),
+        end: dateToUtc("2026-08-18"),
+        timeOption: "full",
+        startAmPm: null,
+        endAmPm: null,
+        creatorId: "u1",
+        inviteeUserIds: ["u1"],
+        inviteeDepartments: [],
+      },
+      events: [
+        makeEvent({
+          start: instant("2026-08-17 00:30:00"),
+          end: instant("2026-08-17 01:00:00"),
+          people: { creatorId: "u1", userIds: ["u1"], departmentIds: [] },
+        }),
+      ],
+      activeUsers: rosterUsers(),
+    });
+    expect(result.clashes).toHaveLength(1);
   });
 });
 

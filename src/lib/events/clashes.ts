@@ -20,7 +20,12 @@
  * Kept free of any I/O so it can be unit-tested without a database.
  */
 
-import { halfDayRange, subOneDay, utcToDateString } from "@/lib/events/datetime";
+import {
+  halfDayRange,
+  subOneDay,
+  utcMidnightToSgt,
+  utcToDateString,
+} from "@/lib/events/datetime";
 import type { TimeOption } from "@/lib/events/timeOptions";
 
 /** One existing calendar event, pre-read and shaped for the engine. */
@@ -139,15 +144,19 @@ export function instantWindowsOverlap(startA: Date, endA: Date, startB: Date, en
  * The instants an existing event actually occupies for clash purposes. For
  * `range` events (and every non-`half` event) this is the stored window; for a
  * `half` event carrying both AM/PM markers it is the sub-day window honoring
- * them (`halfDayRange` always uses the UTC-midnight all-day date basis, which
- * is exactly what `start`/`end` carry for day-based events). A `full` event —
- * and a legacy `full` event whose notes still carry stray markers — keeps its
- * stored full-day window.
+ * them (`halfDayRange`). A `full` event — and a legacy `full` event whose notes
+ * still carry stray markers — keeps its full-day window, but its stored
+ * UTC-midnight instants are realigned to the SGT civil day (`utcMidnightToSgt`)
+ * so day-based events share the same wall-clock basis as half-day and timed
+ * windows.
  */
 export function effectiveEventWindow(event: ClashEventInput): { start: Date; end: Date } {
   if (event.timeOption === "half" && event.startAmPm && event.endAmPm) {
     const endDate = subOneDay(utcToDateString(event.end));
     return halfDayRange(utcToDateString(event.start), endDate, event.startAmPm, event.endAmPm);
+  }
+  if (event.allDay) {
+    return { start: utcMidnightToSgt(event.start), end: utcMidnightToSgt(event.end) };
   }
   return { start: event.start, end: event.end };
 }
@@ -156,7 +165,8 @@ export function effectiveEventWindow(event: ClashEventInput): { start: Date; end
  * The instants a candidate event would occupy, honoring the same half-day rule
  * as `effectiveEventWindow` (for a `half` candidate, `start`/`end` are the
  * all-day instants the mutation would write, so the same UTC-midnight basis
- * applies).
+ * applies). A `full` candidate's UTC-midnight window is realigned to the SGT
+ * civil day exactly like an existing full-day event.
  */
 export function effectiveCandidateWindow(
   candidate: Pick<ClashCandidateInput, "start" | "end" | "timeOption" | "startAmPm" | "endAmPm">,
@@ -169,6 +179,9 @@ export function effectiveCandidateWindow(
       candidate.startAmPm,
       candidate.endAmPm,
     );
+  }
+  if (candidate.timeOption === "full") {
+    return { start: utcMidnightToSgt(candidate.start), end: utcMidnightToSgt(candidate.end) };
   }
   return { start: candidate.start, end: candidate.end };
 }

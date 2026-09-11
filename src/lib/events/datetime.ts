@@ -42,6 +42,17 @@ export function utcToDateString(date: Date): string {
   return date.toISOString().slice(0, 10);
 }
 
+/**
+ * Shift a UTC-midnight all-day instant back to the SGT-midnight instant of the
+ * same civil day (UTC+8 is ahead, so SGT midnight is 8 h earlier in UTC). Day-
+ * based events are *stored* at UTC midnight (so `utcToDateString` round-trips
+ * the date), but timed and half-day windows live on the SGT wall clock — this
+ * realigns a full-day window onto that shared basis for overlap comparison.
+ */
+export function utcMidnightToSgt(date: Date): Date {
+  return new Date(date.getTime() - APP_TIMEZONE_OFFSET_MINUTES * 60 * 1000);
+}
+
 /** Add one day to a `YYYY-MM-DD` date. */
 export function addOneDay(dateOnly: string): string {
   const [year, month, day] = dateOnly.split("-").map(Number);

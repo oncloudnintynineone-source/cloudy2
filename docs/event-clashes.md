@@ -50,6 +50,12 @@ calendar cache already uses (`start < end`; back-to-back events do not clash);
 all-day events carry their exclusive end date, exactly as in `absEventRange`
 ([`datetime.ts`](event-lifecycle.md#1112-datetime-conventions-datetimets)).
 
+Day-based (`full`/`half`) events are *stored* at UTC-midnight (so the date
+round-trips for display), but the clash engine compares them on the **SGT civil
+day** basis shared with timed and half-day windows: a `full` event's UTC-midnight
+window is realigned via `utcMidnightToSgt` (−8 h), so a full-day on day `D` ends
+exactly where the next day's AM half begins — adjacent days never overlap.
+
 **Half-day (`half`) events clash at half-day resolution, not whole-day.** A
 day-based event stores no time on Google — the (AM)/(PM) markers live only in
 the notes block — so the overlap test compares the *effective* window each
@@ -199,6 +205,9 @@ advisory; submitting while it is in flight simply proceeds).
   against a PM half-day on the same day, while two AM (or AM-vs-full-day)
   overlaps still do. The advisory is advisory only, so the boundary between
   morning and afternoon is exact (`12:00` UTC+8) rather than rounded.
+- **Full-day vs next-day half-day**: because day-based events compare on the SGT
+  civil day (§1.2), a full-day on one day is back-to-back with an AM half-day on
+  the following day and does **not** warn — only same-day overlaps do.
 - **External events**: no parseable people → treated as occupying every active member
   of their calendar (the schedule view pins them to the department row, and
   department-row events are events for everyone within).
