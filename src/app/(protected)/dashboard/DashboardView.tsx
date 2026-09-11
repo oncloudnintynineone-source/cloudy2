@@ -1866,15 +1866,25 @@ export function DashboardView({
     return true;
   }
 
-  function handleApplyFilters(values: Record<string, string[]>) {
+  function handleApplyFilters(
+    values: Record<string, string[]>,
+    { cleared }: { cleared: boolean },
+  ) {
     const cals = values.Calendars ?? [];
     const users = values.Users ?? [];
     const types = values["Event Types"] ?? [];
-    void persistFilters({
-      cal: overrideFor("cal", cals),
-      users: overrideFor("users", users),
-      types: overrideFor("types", types),
-    });
+    // "Clear" (then Apply) restores the role defaults (NULL) — NOT an explicit
+    // empty array, which the server deliberately resolves to "no events". Only
+    // an explicit Deselect All reaches the empty-array case below.
+    void persistFilters(
+      cleared
+        ? { cal: null, users: null, types: null }
+        : {
+            cal: overrideFor("cal", cals),
+            users: overrideFor("users", users),
+            types: overrideFor("types", types),
+          },
+    );
     announce(filterCountMessage(cals.length, users.length, types.length));
   }
 

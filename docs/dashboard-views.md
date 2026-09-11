@@ -144,7 +144,10 @@ Filter storage & resolution:
 - **Applying or clearing is a server action**, not a URL navigation: the client
   calls `saveDashboardViewFilters` (empty/role-default selections are stored as
   `NULL`), then re-renders from the server so the events refetch under the new
-  filter set. Filters never travel in `cal/users/types` URL params.
+  filter set. Filters never travel in `cal/users/types` URL params. The modal's
+  **Clear** button (then Apply) restores the role defaults (`NULL`); a per-group
+  **Deselect All** stores the explicit empty array (an empty grid), which is the
+  only path that resolves to "no events".
 - Stored ids/names are re-validated against live calendars/users/types on every
   dashboard read (stale entries drop out; an all-stale list degrades to the role
   default), exactly like the URL params they replaced.

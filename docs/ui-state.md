@@ -120,7 +120,9 @@ Each of a tab's three filters is either:
 
 `saveDashboardViewFilters` (a server action) persists the active tab's filters;
 the client maps a selection that equals the role default onto `NULL` before
-calling it. Reads validate stored ids/names against live calendars/users/types
+calling it. The filter modal's **Clear** button maps every group to `NULL` (role
+default); only a per-group **Deselect All** stores the explicit `[]`. Reads
+validate stored ids/names against live calendars/users/types
 each render (`dashboard/page.tsx`) and drop stale entries — an all-stale list
 degrades to the role default. There are **no `cal`/`users`/`types` URL params**
 any more: applying/clearing is an action followed by a server re-render that

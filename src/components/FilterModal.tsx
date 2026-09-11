@@ -121,13 +121,23 @@ function searchGroupPickerGroups(group: FilterGroup): PickerGroup[] {
   ];
 }
 
+/** Result of an Apply: the resolved values plus whether "Clear" produced them. */
+export interface FilterApplyMeta {
+  /**
+   * True when the user pressed "Clear" (then Apply). Grid groups resolve to an
+   * empty array either way, so a consumer that distinguishes "role default"
+   * from a genuine empty selection (the dashboard) reads this flag instead.
+   */
+  cleared: boolean;
+}
+
 interface FilterModalProps {
   opened: boolean;
   onClose: () => void;
   title: string;
   groups: FilterGroup[];
   values: Record<string, string[]>;
-  onApply: (values: Record<string, string[]>) => void;
+  onApply: (values: Record<string, string[]>, meta: FilterApplyMeta) => void;
   /**
    * Viewport rect of the trigger button, captured on tap. Drives the modal's
    * standard grow/shrink-from-element zoom animation (see `lib/motion/origin`).
@@ -296,7 +306,9 @@ function FilterModalBody({
   }
 
   function handleApply() {
-    onApply(resolveFilterApply(groups.map(toApplyGroup), draft, values, changed, cleared));
+    onApply(resolveFilterApply(groups.map(toApplyGroup), draft, values, changed, cleared), {
+      cleared,
+    });
     onClose();
   }
 
