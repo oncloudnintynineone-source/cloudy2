@@ -1,17 +1,12 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useSyncExternalStore } from "react";
 import { useComputedColorScheme } from "@mantine/core";
 
-/**
- * Marker on the `theme-color` meta this component owns. The meta is deliberately
- * NOT declared via Next's `viewport.themeColor` (see `src/app/layout.tsx`): that
- * renders it as a React-hoisted node, and removing/re-creating a React-owned
- * node crashes React (`finishedRoot.parentNode.removeChild`) when React later
- * deletes it during a `<head>` re-render. Owning the node here keeps the
- * remove-and-recreate below safe.
- */
-const THEME_COLOR_META_ATTR = "data-c2-theme-color";
+/** No-op subscribe — the snapshot only ever flips once, on hydration. */
+const subscribeNoop = () => () => {};
+const getHydratedSnapshot = () => true;
+const getServerHydratedSnapshot = () => false;
 
 /**
  * Android Chrome's WebAPK initializes the system bars from OS defaults at cold
@@ -20,28 +15,36 @@ const THEME_COLOR_META_ATTR = "data-c2-theme-color";
  * the user happens to toggle the system theme. This component re-asserts both
  * values from JS on every launch (and whenever the resolved scheme changes).
  *
- * - Status bar: `theme-color` (#0D47A1, the navy header color). Chrome derives
- *   the icon color from the dark-blue luminance → white icons. Chrome ignores
- *   `setAttribute()` on an existing meta element, so the node is removed and
- *   re-created to force a change it will actually observe. (In system dark mode
- *   Chrome forces the status bar black — crbug #40634649 — no web workaround.)
+ * - Status bar: a `theme-color` meta (#0D47A1, the navy header color). Chrome
+ *   derives the icon color from the dark-blue luminance → white icons. Chrome
+ *   ignores `setAttribute()` on an existing meta, so the node has to be removed
+ *   and re-created for Chrome to observe the change. Rather than mutate the DOM
+ *   behind React's back (which detaches a React-hoisted node and crashes React
+ *   on the next `<head>` re-render), the meta is rendered here and remounted via
+ *   its `key`: React itself removes the old node and inserts a fresh one, both
+ *   after hydration and on every scheme change. (In system dark mode Chrome
+ *   forces the status bar black — crbug #40634649 — no web workaround.)
  * - Navigation bar: the page's `color-scheme`, written as a concrete
  *   `dark`/`light` inline style (Mantine's `var(--mantine-color-scheme)` form
  *   is not reliably consumed for nav-bar theming at cold start).
+ *
+ * The meta is deliberately NOT declared via Next's `viewport.themeColor` (see
+ * `src/app/layout.tsx`): that would render a second, React-metadata-owned meta.
+ * This component's SSR output is the pre-hydration meta instead.
  */
 export function SystemBarSync() {
   const scheme = useComputedColorScheme("light");
+  // Flips false → true after hydration, forcing one remount of the meta so the
+  // node Chrome sees is always freshly inserted (never the SSR one).
+  const hydrated = useSyncExternalStore(
+    subscribeNoop,
+    getHydratedSnapshot,
+    getServerHydratedSnapshot,
+  );
 
   useEffect(() => {
     document.documentElement.style.colorScheme = scheme;
-
-    document.querySelector(`meta[${THEME_COLOR_META_ATTR}]`)?.remove();
-    const meta = document.createElement("meta");
-    meta.setAttribute(THEME_COLOR_META_ATTR, "");
-    meta.name = "theme-color";
-    meta.content = "#0D47A1";
-    document.head.appendChild(meta);
   }, [scheme]);
 
-  return null;
+  return <meta key={`${scheme}-${hydrated ? "h" : "s"}`} name="theme-color" content="#0D47A1" />;
 }

@@ -859,10 +859,11 @@ via `?attendance=1` and `attendanceStorage` became a `useSyncExternalStore` exte
    React-hoisted `<meta name="theme-color">` (from `viewport.themeColor`) and appended its
    own node, so React's later `<head>` re-render (soft navigation) deleted a detached
    hoistable fiber → repeated `can't access property "removeChild", finishedRoot.parentNode
-   is null`. The meta is now owned solely by `SystemBarSync` (removed from `viewport`,
-   tagged `data-c2-theme-color`, and only that node is ever removed/re-created — the
-   manifest's `theme_color` covers pre-hydration), preserving the Android status/nav-bar
-   fix byte-for-byte (bugfix)
+   is null`. The meta is now rendered by `SystemBarSync` and remounted via React (a
+   hydration-flipped `key`): `viewport.themeColor` is gone, the component's SSR output is
+   the pre-hydration meta (manifest `theme_color` still backs the splash), and React
+   itself removes/inserts the node at hydration and on each scheme change — the same
+   fresh-node swap Chrome needs, with no detached-node deletion (bugfix)
 
 ## 1.4 Open items & next steps
 
