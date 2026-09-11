@@ -994,8 +994,10 @@ export function ParadeStateView({
       />
       <DateSelectorModal
         opened={pickerOpened}
+        kind="day"
         date={date}
         onPick={pickDate}
+        onToday={goToday}
         onClose={closePicker}
       />
       <Modal opened={resetOpened} onClose={closeResetConfirm} title="Clear all dates" centered>

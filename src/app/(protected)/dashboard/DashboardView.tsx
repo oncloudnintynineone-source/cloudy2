@@ -45,17 +45,13 @@ import {
   type ScheduleResourceGroup,
 } from "@mantine/schedule";
 import {
-  IconArrowsMaximize,
-  IconArrowsMinimize,
   IconBuilding,
-  IconCalendarCheck,
   IconCalendarDot,
   IconCheck,
   IconChevronDown,
   IconChevronLeft,
   IconChevronRight,
   IconChevronUp,
-  IconDotsVertical,
   IconLink,
   IconPlus,
   IconSettings,
@@ -79,6 +75,7 @@ import { EmptyState } from "@/components/EmptyState";
 import { FilterButton } from "@/components/FilterButton";
 import { FilterModal, type FilterGroup } from "@/components/FilterModal";
 import { GridNavControls } from "@/components/GridNavControls";
+import { FullscreenToggle } from "@/components/FullscreenToggle";
 import { BUTTON_LOADER_PROPS, DESKTOP_WIDE_MEDIA_QUERY, NARROW_MEDIA_QUERY } from "@/lib/theme";
 import {
   FAB_ICON_SIZE,
@@ -1755,6 +1752,11 @@ export function DashboardView({
     navigate({ date: picked, month: picked.slice(0, 7) });
   }
 
+  function pickMonth(picked: string) {
+    setShownMonth(picked);
+    navigate({ month: picked, date: null });
+  }
+
   /**
    * Applies a day change in the Agenda tab. The viewed day and the slide
    * direction update locally and immediately; `?date=` is kept in sync — with
@@ -1992,14 +1994,6 @@ export function DashboardView({
     () => (agendaViewDate ? eventsOnDay(viewEvents, agendaViewDate) : []),
     [viewEvents, agendaViewDate],
   );
-  // "Today" affordance state, keyed to the optimistic chrome like the label:
-  // the menu item reflects where you're headed, not where the fetch is at.
-  const onToday = shownIsWeek
-    ? week !== null && week.some((day) => day === today)
-    : shownIsAnchored
-      ? headerDate === today
-      : shownMonth === todayMonth;
-
   // Measure the schedule grids' realized geometry and keep the pinned rulers
   // and scroll position in sync, pre-paint. Mantine sizes each hour slot in
   // `rem` (`--resources-*-view-slot-width`), so a hardcoded px guess would
@@ -2460,10 +2454,10 @@ export function DashboardView({
               }
             />
           )}
-          {/* Filters live in their own primary affordance (icon + count badge),
-              not the overflow menu — the kebab keeps navigation, the "Edit
-              views" management mode and the fullscreen toggle (Force refresh
-              lives in the profile menu). */}
+          {/* Filters live in their own primary affordance (icon + count badge).
+              Date/Today navigation sits in the combined calendar button next
+              door; the fullscreen toggle is a floating button on the calendar
+              (Force refresh lives in the profile menu). */}
           <FilterButton
             activeCount={activeFilterCount}
             onClick={(e) => {
@@ -2473,51 +2467,19 @@ export function DashboardView({
             size={36}
             iconSize={18}
           />
-          <Menu
-            shadow="md"
-            width={200}
-            position="bottom-end"
-            transitionProps={{
-              transition: "pop-top-right",
-              duration: MOTION.popover,
-              timingFunction: "ease",
-            }}
+          {/* Date + Today combined: a single calendar button (the old kebab's
+              slot) opens the view-aware date selector, which also carries the
+              "Today" action. The fullscreen toggle moved to a floating button
+              on the calendar (FullscreenToggle, below). */}
+          <ActionIcon
+            size={36}
+            variant="default"
+            aria-label="Select date"
+            title="Select date"
+            onClick={openPicker}
           >
-            <Menu.Target>
-              <ActionIcon size={36} variant="default" aria-label="More options" title="More options">
-                <IconDotsVertical size={18} />
-              </ActionIcon>
-            </Menu.Target>
-            <Menu.Dropdown>
-              <Menu.Item
-                leftSection={<IconCalendarCheck size={16} />}
-                disabled={onToday}
-                onClick={goToday}
-              >
-                Today
-              </Menu.Item>
-              {isAnchoredView && (
-                <Menu.Item leftSection={<IconCalendarDot size={16} />} onClick={openPicker}>
-                  Select date
-                </Menu.Item>
-              )}
-              {/* Immersive ("fullscreen") mode hides the shell chrome and
-                  requests the page-level Fullscreen API; the icon flips while
-                  active — this is also the in-page exit path. */}
-              <Menu.Item
-                leftSection={
-                  immersiveMode.active ? (
-                    <IconArrowsMinimize size={16} />
-                  ) : (
-                    <IconArrowsMaximize size={16} />
-                  )
-                }
-                onClick={immersiveMode.active ? immersiveMode.exit : immersiveMode.enter}
-              >
-                {immersiveMode.active ? "Exit fullscreen" : "Enter fullscreen"}
-              </Menu.Item>
-            </Menu.Dropdown>
-          </Menu>
+            <IconCalendarDot size={18} />
+          </ActionIcon>
         </Group>
       </Box>
 
@@ -3000,6 +2962,17 @@ export function DashboardView({
         />
       )}
 
+      {/* Floating fullscreen (immersive) toggle — anchored to the top-right of
+          the calendar, beside the zoom/pan cluster. Always present (it is the
+          in-page exit path in immersive mode), so it is not gated on grid
+          content like GridNavControls. */}
+      <FullscreenToggle
+        anchorRef={weekBoxRef}
+        chromeRef={tabsListRef}
+        active={immersiveMode.active}
+        onToggle={immersiveMode.active ? immersiveMode.exit : immersiveMode.enter}
+      />
+
       <Modal
         opened={agendaDate !== null}
         onClose={() => setAgendaDate(null)}
@@ -3277,8 +3250,10 @@ export function DashboardView({
 
       <DateSelectorModal
         opened={pickerOpened}
-        date={isAgenda ? headerDate : date}
-        onPick={isAgenda ? applyAgendaDay : pickDate}
+        kind={view === "month" ? "month" : isWeek ? "week" : "day"}
+        date={view === "month" ? month : isAgenda ? headerDate : date}
+        onPick={view === "month" ? pickMonth : isAgenda ? applyAgendaDay : pickDate}
+        onToday={goToday}
         onClose={closePicker}
       />
 
