@@ -853,8 +853,16 @@ via `?attendance=1` and `attendanceStorage` became a `useSyncExternalStore` exte
   `TimeChipSelector` (horizontally scrollable hour row 00–23 + fixed minute row
   00/15/30/45) sits above each `TimePicker` for two-tap times; and the Location step
   gains a "Recent locations" chip row of the acting user's own past destinations
-  (`fetchRecentLocations` server action, month cache, most recent first, at most 8) that
-  fills the `TextInput` on tap (`docs/event-lifecycle.md` §1.4.1)
+   (`fetchRecentLocations` server action, month cache, most recent first, at most 8) that
+   fills the `TextInput` on tap (`docs/event-lifecycle.md` §1.4.1)
+- 1.222 System-bar sync `removeChild` crash fix: `SystemBarSync` removed Next's
+   React-hoisted `<meta name="theme-color">` (from `viewport.themeColor`) and appended its
+   own node, so React's later `<head>` re-render (soft navigation) deleted a detached
+   hoistable fiber → repeated `can't access property "removeChild", finishedRoot.parentNode
+   is null`. The meta is now owned solely by `SystemBarSync` (removed from `viewport`,
+   tagged `data-c2-theme-color`, and only that node is ever removed/re-created — the
+   manifest's `theme_color` covers pre-hydration), preserving the Android status/nav-bar
+   fix byte-for-byte (bugfix)
 
 ## 1.4 Open items & next steps
 
