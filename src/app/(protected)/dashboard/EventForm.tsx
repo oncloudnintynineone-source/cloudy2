@@ -1114,12 +1114,6 @@ export function EventForm({
             attributes={{ input: { readOnly: true } }}
             popoverProps={{ trapFocus: false }}
           />
-          <TimeChipSelector
-            value={naiveTimePart(form.values.start)}
-            onChange={(time) =>
-              setStartField(joinDateTimeParts(naiveDatePart(form.values.start), time))
-            }
-          />
           <TimePicker
             label="Start time"
             value={naiveTimePart(form.values.start)}
@@ -1131,6 +1125,12 @@ export function EventForm({
             attributes={{ field: { readOnly: true } }}
             error={timeError("start")}
             popoverProps={{ trapFocus: false }}
+          />
+          <TimeChipSelector
+            value={naiveTimePart(form.values.start)}
+            onChange={(time) =>
+              setStartField(joinDateTimeParts(naiveDatePart(form.values.start), time))
+            }
           />
         </Stack>
       ) : (
@@ -1173,12 +1173,6 @@ export function EventForm({
             attributes={{ input: { readOnly: true } }}
             popoverProps={{ trapFocus: false }}
           />
-          <TimeChipSelector
-            value={naiveTimePart(form.values.end)}
-            onChange={(time) =>
-              setEndField(joinDateTimeParts(naiveDatePart(form.values.end), time))
-            }
-          />
           <TimePicker
             label="End time"
             value={naiveTimePart(form.values.end)}
@@ -1190,6 +1184,12 @@ export function EventForm({
             attributes={{ field: { readOnly: true } }}
             error={timeError("end")}
             popoverProps={{ trapFocus: false }}
+          />
+          <TimeChipSelector
+            value={naiveTimePart(form.values.end)}
+            onChange={(time) =>
+              setEndField(joinDateTimeParts(naiveDatePart(form.values.end), time))
+            }
           />
         </Stack>
       ) : (

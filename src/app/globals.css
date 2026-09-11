@@ -371,13 +371,21 @@ html {
 
 /* Horizontal chip rows (the event wizard's quick time selector): scroll the
    hour chips without showing a scrollbar, so a full 24-hour range stays a
-   single finger-swipe row. */
+   single finger-swipe row. The row is the flex container itself (not a nested
+   Group), and its chips never shrink — otherwise flex would compress each chip
+   below its label width and the Badge's overflow clip would hide the digits. */
 .c2-chip-scroll {
+  display: flex;
+  gap: 6px;
+  align-items: center;
   flex: 1 1 auto;
   min-width: 0;
   overflow-x: auto;
   scrollbar-width: none;
   overscroll-behavior-x: contain;
+}
+.c2-chip-scroll > * {
+  flex: 0 0 auto;
 }
 .c2-chip-scroll::-webkit-scrollbar {
   display: none;

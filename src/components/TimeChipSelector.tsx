@@ -8,7 +8,7 @@ const MINUTES = ["00", "15", "30", "45"];
 /**
  * Tap-to-set `HH:mm` clock: a horizontally scrollable hour row (00–23) plus a
  * fixed minute row (00/15/30/45 — the 15-min step the event wizard enforces),
- * so a time can be picked with two taps and no keyboard or dropdown. Used above
+ * so a time can be picked with two taps and no keyboard or dropdown. Used below
  * the `TimePicker` (which stays for exact/typed values) on the event wizard's
  * Start & End step.
  *
@@ -41,17 +41,15 @@ export function TimeChipSelector({
           H
         </Text>
         <div className="c2-chip-scroll">
-          <Group gap={6} wrap="nowrap">
-            {HOURS.map((h) => (
-              <TimeChip
-                key={h}
-                selected={h === hour}
-                label={h}
-                ariaLabel={`${Number(h)} o'clock`}
-                onClick={() => onChange(`${h}:${minute || "00"}`)}
-              />
-            ))}
-          </Group>
+          {HOURS.map((h) => (
+            <TimeChip
+              key={h}
+              selected={h === hour}
+              label={h}
+              ariaLabel={`${Number(h)} o'clock`}
+              onClick={() => onChange(`${h}:${minute || "00"}`)}
+            />
+          ))}
         </div>
       </Group>
       <Group align="center" gap={6} wrap="nowrap" mt={6}>
@@ -90,15 +88,7 @@ function TimeChip({
       onClick={onClick}
       style={{ cursor: "pointer", borderRadius: "var(--mantine-radius-md)" }}
     >
-      <Badge
-        variant={selected ? "filled" : "light"}
-        size="lg"
-        style={{
-          height: "calc(var(--badge-height-lg) * 1.5)",
-          minWidth: "calc(var(--badge-height-lg) * 1.5)",
-          justifyContent: "center",
-        }}
-      >
+      <Badge variant={selected ? "filled" : "light"} size="lg">
         {label}
       </Badge>
     </UnstyledButton>

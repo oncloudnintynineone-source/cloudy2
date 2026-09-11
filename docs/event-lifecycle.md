@@ -208,8 +208,8 @@ Mechanics worth knowing:
   otherwise the single option's fields render directly. `range` = a `DatePickerInput`
   plus a time control per side — date pickers carry no time. Time is set
   keyboard-free: a shared **`TimeChipSelector`** (`src/components/TimeChipSelector.tsx`,
-  a horizontally scrollable hour row 00–23 + a fixed minute row 00/15/30/45 — two taps,
-  no dropdown) sits above the 24h `TimePicker` (kept for exact values, tap-to-select
+  a horizontally scrollable hour row 00–23 +   a fixed minute row 00/15/30/45 — two taps,
+  no dropdown) sits below the 24h `TimePicker` (kept for exact values, tap-to-select
   hour/minute lists with `minutesStep={15}`); the two halves join into the naive
   `YYYY-MM-DD HH:mm:ss` string via `joinDateTimeParts`, a cleared time stores a bare
   date, which `validateEventForm` rejects ("Start time is required" / "End time is
