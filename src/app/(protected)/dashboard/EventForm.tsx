@@ -16,6 +16,7 @@ import {
   Text,
   Textarea,
   TextInput,
+  UnstyledButton,
   useMantineTheme,
 } from "@mantine/core";
 import { DatePickerInput, TimePicker } from "@mantine/dates";
@@ -26,6 +27,7 @@ import { IconChevronLeft, IconChevronRight, IconUserMinus, IconUserPlus } from "
 
 import { PickerField, type PickerBadgeItem } from "@/components/PickerField";
 import { useActionPill } from "@/components/ActionPill";
+import { TimeChipSelector } from "@/components/TimeChipSelector";
 import { UserSelectModal } from "@/components/UserSelectModal";
 import {
   createEvent,
@@ -35,6 +37,7 @@ import {
   type EventResultField,
 } from "@/lib/events/actions";
 import type { EventClashCheckRequest } from "@/lib/events/clashActions";
+import { fetchRecentLocations } from "@/lib/events/recentLocations";
 import { EventClashCheck } from "./EventClashCheck";
 import { subOneDay } from "@/lib/events/datetime";
 import {
@@ -560,6 +563,10 @@ export function EventForm({
   // globals.css). Defaults forward so the initial step enters from the right.
   const [direction, setDirection] = useState<"forward" | "backward">("forward");
   const [inviteePickerOpen, setInviteePickerOpen] = useState(false);
+  // Tap-to-fill "recent locations" chips for the Location step. Fetched once,
+  // best-effort, when the wizard mounts — empty on failure (chips just don't
+  // render), so the TextInput always remains the custom fallback.
+  const [recentLocations, setRecentLocations] = useState<string[]>([]);
   const currentStep = steps[step];
   const isLastStep = step === steps.length - 1;
   const stepPosition = `${step + 1} of ${steps.length}`;
@@ -578,6 +585,22 @@ export function EventForm({
     // Intentional: only re-run when the visible step actually changes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentStep.id]);
+
+  // Load the Location step's recent-location suggestions once per open. Server
+  // actions are not cancellable; ignore the result if the wizard unmounts.
+  useEffect(() => {
+    let cancelled = false;
+    fetchRecentLocations()
+      .then((locations) => {
+        if (!cancelled) {
+          setRecentLocations(locations);
+        }
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   function goBack() {
     setDirection("backward");
@@ -1088,7 +1111,14 @@ export function EventForm({
               setStartField(joinDateTimeParts(value ?? "", naiveTimePart(form.values.start)))
             }
             error={dateError("start")}
+            attributes={{ input: { readOnly: true } }}
             popoverProps={{ trapFocus: false }}
+          />
+          <TimeChipSelector
+            value={naiveTimePart(form.values.start)}
+            onChange={(time) =>
+              setStartField(joinDateTimeParts(naiveDatePart(form.values.start), time))
+            }
           />
           <TimePicker
             label="Start time"
@@ -1098,6 +1128,7 @@ export function EventForm({
             }
             withDropdown
             minutesStep={15}
+            attributes={{ field: { readOnly: true } }}
             error={timeError("start")}
             popoverProps={{ trapFocus: false }}
           />
@@ -1109,6 +1140,7 @@ export function EventForm({
             value={naiveToDate(form.values.start)}
             onChange={(value) => setStartField(value ? `${value} 00:00:00` : "")}
             error={form.errors.start}
+            attributes={{ input: { readOnly: true } }}
           />
           {showAmPm && (
             <Stack gap={4}>
@@ -1138,7 +1170,14 @@ export function EventForm({
             }
             error={dateError("end")}
             minDate={endMinDate ?? undefined}
+            attributes={{ input: { readOnly: true } }}
             popoverProps={{ trapFocus: false }}
+          />
+          <TimeChipSelector
+            value={naiveTimePart(form.values.end)}
+            onChange={(time) =>
+              setEndField(joinDateTimeParts(naiveDatePart(form.values.end), time))
+            }
           />
           <TimePicker
             label="End time"
@@ -1148,6 +1187,7 @@ export function EventForm({
             }
             withDropdown
             minutesStep={15}
+            attributes={{ field: { readOnly: true } }}
             error={timeError("end")}
             popoverProps={{ trapFocus: false }}
           />
@@ -1160,6 +1200,7 @@ export function EventForm({
             onChange={(value) => setEndField(value ? `${value} 00:00:00` : "")}
             error={form.errors.end}
             minDate={endMinDate ?? undefined}
+            attributes={{ input: { readOnly: true } }}
           />
           {showAmPm && (
             <Stack gap={4}>
@@ -1481,6 +1522,33 @@ export function EventForm({
                   form.setFieldValue("overseas", flags.overseas);
                 }}
               />
+              {recentLocations.length > 0 && (
+                <Stack gap={6}>
+                  <Text size="xs" c="dimmed" fw={500}>
+                    Recent locations
+                  </Text>
+                  <Group gap={6} wrap="wrap">
+                    {recentLocations.map((location) => {
+                      const selected =
+                        location.trim().toLocaleLowerCase() ===
+                        form.values.location.trim().toLocaleLowerCase();
+                      return (
+                        <UnstyledButton
+                          key={location}
+                          aria-pressed={selected}
+                          aria-label={`${location}${selected ? ", selected" : ""}`}
+                          onClick={() => form.setFieldValue("location", location)}
+                          style={{ cursor: "pointer", borderRadius: "var(--mantine-radius-md)" }}
+                        >
+                          <Badge variant={selected ? "filled" : "light"} size="lg">
+                            {location}
+                          </Badge>
+                        </UnstyledButton>
+                      );
+                    })}
+                  </Group>
+                </Stack>
+              )}
               <TextInput
                 label={effectiveCategory === "overseas" ? "Overseas location" : "Location"}
                 placeholder={

@@ -369,6 +369,20 @@ html {
   scrollbar-width: thin;
 }
 
+/* Horizontal chip rows (the event wizard's quick time selector): scroll the
+   hour chips without showing a scrollbar, so a full 24-hour range stays a
+   single finger-swipe row. */
+.c2-chip-scroll {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+  overscroll-behavior-x: contain;
+}
+.c2-chip-scroll::-webkit-scrollbar {
+  display: none;
+}
+
 /* In dark mode the active tab's underline (a 2px border in --tabs-color,
    defaulting to --mantine-primary-color-filled = brand shade 8, a dark navy)
    is nearly invisible on the dark body. The variable is set inline on the

@@ -18,7 +18,7 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
 
 ## 1.1 Status
 
-- All work through changelog **1.220 (bespoke action-pill toast)** is shipped.
+- All work through changelog **1.221 (keyboard-free event wizard)** is shipped.
 - Quality gates (`lint` / `typecheck` / `test` / schema-drift check) run in CI on every
   push and PR. Pushes also auto-apply migrations per environment: `dev` →
   `migrate-preview` against the dev Neon DB, `main` → `migrate` against the prod Neon
@@ -846,6 +846,15 @@ via `?attendance=1` and `attendanceStorage` became a `useSyncExternalStore` exte
   `showActionPill({ title, label: "View event", onAction })` (plain green/red
   notifications untouched); `.c2-action-pill*` CSS in globals.css; reduced-motion snaps
   the sweep.
+- 1.221 Keyboard-free event wizard: the create/edit modal no longer needs the on-screen
+  keyboard for anything except the optional Remarks textarea — the date/time inputs are
+  natively read-only via the styles-API `attributes` (never the `readOnly` prop, which
+  also disables their popovers), so tapping opens only the calendar/time dropdown; a new
+  `TimeChipSelector` (horizontally scrollable hour row 00–23 + fixed minute row
+  00/15/30/45) sits above each `TimePicker` for two-tap times; and the Location step
+  gains a "Recent locations" chip row of the acting user's own past destinations
+  (`fetchRecentLocations` server action, month cache, most recent first, at most 8) that
+  fills the `TextInput` on tap (`docs/event-lifecycle.md` §1.4.1)
 
 ## 1.4 Open items & next steps
 

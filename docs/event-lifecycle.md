@@ -206,19 +206,29 @@ Mechanics worth knowing:
 - **Timestamp** (`EventForm.tsx`): when the type allows more than one
   option the step shows a `Tabs` control ("Start & End" / "Full Day" / "Half Day");
   otherwise the single option's fields render directly. `range` = a `DatePickerInput`
-  plus a `TimePicker` per side — date pickers carry no time, and the time is set
-  keyboard-free: a 24h `TimePicker` with `withDropdown` (tap-to-select hour/minute
-  lists) and `minutesStep={15}`; the two halves join into the naive
+  plus a time control per side — date pickers carry no time. Time is set
+  keyboard-free: a shared **`TimeChipSelector`** (`src/components/TimeChipSelector.tsx`,
+  a horizontally scrollable hour row 00–23 + a fixed minute row 00/15/30/45 — two taps,
+  no dropdown) sits above the 24h `TimePicker` (kept for exact values, tap-to-select
+  hour/minute lists with `minutesStep={15}`); the two halves join into the naive
   `YYYY-MM-DD HH:mm:ss` string via `joinDateTimeParts`, a cleared time stores a bare
   date, which `validateEventForm` rejects ("Start time is required" / "End time is
   required"). `full` = two `DatePickerInput`s (plain dates, no half-day markers);
-  `half` = two `DatePickerInput`s plus an AM/PM `SegmentedControl` per side.
+  `half` = two `DatePickerInput`s plus an AM/PM `SegmentedControl` per side. Every
+  date/time input is made natively read-only via the styles-API `attributes`
+  (`attributes.input` / `attributes.field`) — **never** the component `readOnly` prop,
+  which would also disable the popover/dropdown — so tapping opens only the
+  calendar/time dropdown and never raises the on-screen keyboard.
   `switchTimeOption` (`EventForm.tsx`) zeroes the time part to `00:00:00` when
   entering any day-based option and defaults the indicators to AM→PM on `half`, so a
   mixed span renders with no title suffix.
 - **Location** (`EventForm.tsx`): a `SegmentedControl` over the type's allowed
   categories (single-option types show one disabled segment), switching it sets the
-  `outOfCamp`/`overseas` flags. The location `TextInput` below is **always enabled** —
+  `outOfCamp`/`overseas` flags. Below it a **Recent locations** row of tappable
+  suggestion chips fills the location `TextInput` on tap — the acting user's own past
+  destinations, fetched once per open by `fetchRecentLocations`
+  (`src/lib/events/recentLocations.ts`, read-only, best-effort, most recent first, at
+  most 8, through the month cache) — while the input itself is **always enabled**:
   even in-camp events may record an optional specific place (it never implies out of
   camp). The effective flag/location is always the
   `clampOutOfCamp` pair (`EventForm.tsx`), never the raw form value. The whole
@@ -821,6 +831,8 @@ actions), `queries.ts` (DB + cache reads, `mapCalendarItem`), `appUrl.ts`
 | `src/lib/eventTypes/groups.ts` | Group ordering + picker sections (pure) |
 | `src/lib/eventTypes/groupActions.ts` | Group create/rename/delete/move server actions (§1.10) |
 | `src/lib/events/queries.ts` | `mapCalendarItem` — read-back into `CalendarEvent` |
+| `src/lib/events/recentLocations.ts` | `fetchRecentLocations` — per-user location suggestions (server action) |
+| `src/components/TimeChipSelector.tsx` | Tap-to-set `HH:mm` chip grid (hour + minute rows) |
 | `src/lib/appUrl.ts` | App origin for the `Edit:` link |
 
 Related docs:
@@ -835,4 +847,5 @@ Related docs:
 - `progress-archive.md` — phase write-ups: 1.16 (events), 1.20 (copies), 1.23/1.24 (title
   template), 1.27 (time options), 1.31 (edit link), 1.32 (opaque notes), 1.40
   (external events), 1.46 (location policy), 1.47 (staged wizard), 1.127 (location
-  categories matrix + remarks toggle).
+  categories matrix + remarks toggle), 1.221 (keyboard-free wizard: quick time chips +
+  recent-location suggestions).
