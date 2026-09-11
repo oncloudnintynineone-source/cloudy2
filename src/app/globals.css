@@ -788,3 +788,134 @@ html {
   box-shadow: 0 0 0 1px var(--mantine-color-body);
   pointer-events: none;
 }
+
+/*
+  Floating action pill (docs/action-pill.md): the bespoke actionable toast that
+  replaces Mantine's `message: <Button/>` "View event" notification. A pill
+  button anchored bottom-center (above the bottom nav on mobile via the FAB
+  clearance var, 16px from the viewport edge on desktop). Two-tone: the body is
+  the darker color with white text; a lighter fill sweeps across as a progress
+  indicator. The fill is a full-size layer whose `clip-path` reveals its leading
+  edge, so the label is rendered twice — white over the dark body and a dark
+  copy clipped to the light fill — keeping the text legible on both tones.
+
+  `--c2-pill-dark`, `--c2-pill-light`, `--c2-pill-progress` and
+  `--c2-pill-duration` are set inline by the component (colors are per-call
+  overridable, defaulting to the brand blue pair). The fill's `clip-path`
+  transition runs the full `--c2-pill-duration`, so a "empty" countdown drains
+  in step with the auto-dismiss timer and a "fill" growth completes exactly
+  when the fill is full.
+*/
+.c2-action-pill-host {
+  position: fixed;
+  left: 50%;
+  bottom: var(--app-floating-bottom-offset);
+  transform: translateX(-50%);
+  z-index: 400;
+  max-width: calc(100vw - 2 * var(--mantine-spacing-md));
+  /* Keep the centered pill clear of the FloatingToolbar FABs (bottom-right) on
+     the rare occasion both are visible at once. */
+  pointer-events: auto;
+}
+
+.c2-action-pill {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: calc(2rem * var(--mantine-scale));
+  background: var(--c2-pill-dark);
+  color: var(--mantine-color-white);
+  cursor: pointer;
+  overflow: hidden;
+  box-shadow: var(--mantine-shadow-md);
+  font-family: var(--mantine-font-family);
+  max-width: 100%;
+}
+
+.c2-action-pill:focus-visible {
+  outline: 2px solid var(--mantine-color-accent-6);
+  outline-offset: 2px;
+}
+
+/* The label (and optional title) — the in-flow copy defines the pill's size.
+   Both tones render this same structure with identical padding so the light
+   fill's clipped dark copy stays perfectly aligned over the white copy. */
+.c2-action-pill-copy {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  gap: calc(0.125rem * var(--mantine-scale));
+  padding: var(--mantine-spacing-xs) var(--mantine-spacing-xl);
+  line-height: 1.2;
+  text-align: center;
+}
+
+.c2-action-pill-title {
+  font-size: var(--mantine-font-size-xs);
+  opacity: 0.85;
+}
+
+.c2-action-pill-label {
+  font-size: var(--mantine-font-size-sm);
+  font-weight: var(--mantine-font-weight-semibold);
+}
+
+/* Light progress fill: full-size, left-anchored, clipped to the progress width
+   so its inner dark copy stays aligned with the white copy underneath. */
+.c2-action-pill-fill {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--c2-pill-light);
+  clip-path: inset(0 calc(100% - var(--c2-pill-progress, 0%)) 0 0);
+  transition: clip-path var(--c2-pill-duration, 5000ms) linear;
+  pointer-events: none;
+}
+
+.c2-action-pill-copy-invert {
+  color: var(--c2-pill-dark);
+}
+
+/* Entrance: quick pop-in from just below the resting spot. */
+@keyframes c2-pill-enter {
+  from {
+    opacity: 0;
+    transform: translateY(calc(0.75rem * var(--mantine-scale))) scale(0.96);
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .c2-action-pill {
+    animation: c2-pill-enter var(--c2-dur-standard) cubic-bezier(0.22, 1, 0.36, 1);
+  }
+}
+
+/* Exit: fade + slide down a touch (the target state carries the transition, so
+   the pill never vanishes in a single frame). */
+.c2-action-pill-closing {
+  opacity: 0;
+  transform: translateY(calc(0.75rem * var(--mantine-scale))) scale(0.98);
+  pointer-events: none;
+  transition:
+    opacity var(--c2-dur-micro) ease,
+    transform var(--c2-dur-micro) ease;
+}
+
+/* Reduced motion: no pop-in/fade and no fill sweep — the pill appears
+   instantly and the fill snaps to its target; the "empty" auto-dismiss timer
+   still runs. */
+@media (prefers-reduced-motion: reduce) {
+  .c2-action-pill {
+    animation: none;
+  }
+  .c2-action-pill-fill {
+    transition: none;
+  }
+  .c2-action-pill-closing {
+    transition: none;
+  }
+}

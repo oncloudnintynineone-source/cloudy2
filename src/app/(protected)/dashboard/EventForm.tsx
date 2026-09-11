@@ -25,6 +25,7 @@ import { notifications } from "@mantine/notifications";
 import { IconChevronLeft, IconChevronRight, IconUserMinus, IconUserPlus } from "@tabler/icons-react";
 
 import { PickerField, type PickerBadgeItem } from "@/components/PickerField";
+import { useActionPill } from "@/components/ActionPill";
 import { UserSelectModal } from "@/components/UserSelectModal";
 import {
   createEvent,
@@ -246,9 +247,6 @@ const WIZARD_BODY_HEIGHT_DESKTOP = "min(68dvh, 720px, calc(100dvh - 200px))";
 /** Section label of the flat department list inside the invitee badge picker. */
 const PICKER_DEPARTMENTS_SECTION = "Departments";
 
-/** Fixed id of the post-save "View event" toast, so its action can dismiss it. */
-const SAVE_VIEW_TOAST_ID = "event-save-view";
-
 export function EventForm({
   event,
   templateEvent,
@@ -282,6 +280,7 @@ export function EventForm({
   // it stays constant for the whole walk, so the step strip and
   // Back/Next/Submit bar never move.
   const bodyHeight = isDesktop ? WIZARD_BODY_HEIGHT_DESKTOP : WIZARD_BODY_HEIGHT_MOBILE;
+  const { show: showActionPill } = useActionPill();
 
   const form = useForm<EventFormState>({
     initialValues: buildInitialValues(),
@@ -1029,29 +1028,14 @@ export function EventForm({
         // authoritative refresh swap it out (see DashboardView).
         onOptimisticSettled(optimisticId, result);
         onDone();
-        // Timed confirmation toast with a "View event" action that opens the
+        // Post-save actionable pill: clicking opens the just-saved event's
         // details modal (resolved from the optimistic stand-in, so it works
-        // before the post-save refresh lands). A fixed id lets the action
-        // dismiss its own toast without a self-referencing id.
-        notifications.show({
-          id: SAVE_VIEW_TOAST_ID,
-          color: "green",
+        // before the post-save refresh lands). The pill auto-dismisses on
+        // click and on its own countdown.
+        showActionPill({
           title: isEdit ? "Event updated" : "Event created",
-          autoClose: 5000,
-          message: (
-            <Button
-              variant="light"
-              color="green"
-              size="compact-sm"
-              mt={6}
-              onClick={() => {
-                notifications.hide(SAVE_VIEW_TOAST_ID);
-                onViewSaved?.(result.eventId);
-              }}
-            >
-              View event
-            </Button>
-          ),
+          label: "View event",
+          onAction: () => onViewSaved?.(result.eventId),
         });
         return;
       }

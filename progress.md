@@ -18,7 +18,7 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
 
 ## 1.1 Status
 
-- All work through changelog **1.219 (informational event types excluded from conflict checks)** is shipped.
+- All work through changelog **1.220 (bespoke action-pill toast)** is shipped.
 - Quality gates (`lint` / `typecheck` / `test` / schema-drift check) run in CI on every
   push and PR. Pushes also auto-apply migrations per environment: `dev` →
   `migrate-preview` against the dev Neon DB, `main` → `migrate` against the prod Neon
@@ -830,10 +830,22 @@ via `?attendance=1` and `attendanceStorage` became a `useSyncExternalStore` exte
   never checked themselves (`computeClashes` skips an informational candidate;
   `busyUsersOfEvent` occupies nobody) — and drop out of the Double Booking scan. The
   flag is resolved **live** from the type name stored in the notes block
-  (`clashQuery.ts` → `listEventTypes`; `writeContext.ts` threads the candidate's flag),
+  (`clashQuery.ts` + `listEventTypes`; `writeContext.ts` threads the candidate's flag),
   so toggling reclassifies every event of that type, past and future. Form/table badge,
   audit diff/labels, pure-engine tests, and docs (`event-clashes.md`,
   `user-clashes.md`, `event-lifecycle.md` §1.9.1) updated.
+- 1.220 Bespoke action-pill toast (docs/action-pill.md): the Mantine
+  `notifications.show({ message: <Button/> })` "View event" toast is replaced by a
+  reusable, themeable floating pill — a centered `<button>` above the bottom nav whose
+  body is a **darker** color with white text and whose **lighter** color sweeps across as
+  a progress fill (`empty` = countdown to auto-dismiss, `fill` = grow then persist;
+  per-call `lightColor`/`darkColor`/`duration`, defaulting to the brand blue pair
+  `brand-3`/`brand-7`). Legibility on both tones uses a duplicated label: white over the
+  dark body + a dark copy clipped to the light fill via `clip-path`. `ActionPillProvider`
+  + `useActionPill()` mount in `AppProviders`; EventForm's post-save success now calls
+  `showActionPill({ title, label: "View event", onAction })` (plain green/red
+  notifications untouched); `.c2-action-pill*` CSS in globals.css; reduced-motion snaps
+  the sweep.
 
 ## 1.4 Open items & next steps
 

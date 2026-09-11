@@ -224,6 +224,10 @@ doc content here.
   (`src/components/FloatingToolbar.tsx`) anchored bottom-right — never a raw `Button`.
   Mobile-only toolbars hide via `hiddenFrom="lg"` **on `FloatingToolbar` itself** (its Affix
   portals to `<body>`, so a wrapper's `display:none` can't reach it).
+- **Actionable toasts** use the shared **action pill** (`ActionPillProvider` +
+  `useActionPill()`, `src/components/ActionPill.tsx`) — a bottom-floating two-tone pill
+  with a light progress fill — never `notifications.show({ message: <Button/> })`.
+  Design: [docs/action-pill.md](docs/action-pill.md).
 - **Global bottom nav** (`AppShell.Footer`): Calendar `/dashboard`, Parade State
   `/parade-state`, Contacts `/contacts`, Double Booking `/double-booking` (every role);
   admins/KAH members additionally get KAH Status `/kah-status`; Settings `/settings` is
