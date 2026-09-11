@@ -2,7 +2,7 @@
 
 import dayjs from "dayjs";
 import { useState } from "react";
-import { ActionIcon, Button, Modal, Text, useMantineTheme } from "@mantine/core";
+import { ActionIcon, Box, Button, Modal, Text, useMantineTheme } from "@mantine/core";
 import { useMediaQuery } from "@mantine/hooks";
 import { MonthPicker } from "@mantine/dates";
 import { MobileMonthView } from "@mantine/schedule";
@@ -86,17 +86,19 @@ export function DateSelectorModal({
       size={isNarrow ? "xs" : isDesktop ? "md" : "sm"}
     >
       {kind === "month" ? (
-        <MonthPicker
-          defaultDate={`${date}-01`}
-          onChange={(value) => {
-            const picked = value ? dayjs(value) : null;
-            if (!picked) {
-              return;
-            }
-            onPick(picked.format("YYYY-MM"));
-            onClose();
-          }}
-        />
+        <Box style={{ display: "flex", justifyContent: "center" }}>
+          <MonthPicker
+            defaultDate={`${date}-01`}
+            onChange={(value) => {
+              const picked = value ? dayjs(value) : null;
+              if (!picked) {
+                return;
+              }
+              onPick(picked.format("YYYY-MM"));
+              onClose();
+            }}
+          />
+        </Box>
       ) : (
         <MobileMonthView
           date={pickerDate}

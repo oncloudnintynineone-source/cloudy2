@@ -15,9 +15,11 @@ hidden); only the dashboard controls it.
 
 ## 1.1 The toggle & state ownership
 
-- A `Menu.Item` inside the calendar's "More options" kebab (`IconArrowsMaximize` /
-  `IconArrowsMinimize`, label "Enter fullscreen"/"Exit fullscreen"), the last item after
-  **Select date** (Force refresh moved out of the kebab into a header button).
+- A floating circular button (`FullscreenToggle`, `src/components/FullscreenToggle.tsx`)
+  anchored to the top-right of the calendar view — beside the zoom/pan cluster, not in the
+  old kebab menu. It flips `IconArrowsMaximize` / `IconArrowsMinimize`
+  ("Enter fullscreen" / "Exit fullscreen") and is always rendered (it is the in-page exit
+  path while immersive).
 - `enter()` flips the shell chrome off **and** requests the page-level Fullscreen API
   (`requestFullscreen({ navigationUI: "hide" })`), so the OS status bar / browser UI
   disappear on devices that support it.
@@ -50,6 +52,9 @@ The CSS half is the `app-shell-immersive` class on the AppShell root
 
 - **Not persisted** in `cloudy2.ui` — it is a transient focus mode; refresh /
   navigation always starts with the chrome up.
+- **Dashboard chrome stays up**: only the shell chrome (header / bottom nav / desktop
+  sidebar / banner) is hidden — the calendar's own view tabs, "All views" jump list and
+  Edit-views gear remain visible so view switching still works in fullscreen.
 - The announcement banner's inline height style and header contribution are omitted
   while immersive, so the CSS-default 0px applies ([`announcement-banner.md`](announcement-banner.md)).
 

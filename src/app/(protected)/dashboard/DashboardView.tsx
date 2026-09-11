@@ -120,12 +120,7 @@ import {
 import { announce } from "@/lib/ui/announcer";
 import { useGridPan } from "@/lib/ui/gridPan";
 import { useImmersiveMode } from "@/lib/ui/immersiveMode";
-import {
-  MAX_MONTH_ZOOM,
-  MIN_MONTH_ZOOM,
-  stepMonthZoom,
-  type MonthZoom,
-} from "@/lib/ui/monthZoom";
+import { MAX_MONTH_ZOOM, MIN_MONTH_ZOOM, stepMonthZoom, type MonthZoom } from "@/lib/ui/monthZoom";
 import {
   daySlotWidth,
   reanchorScrollLeft,
@@ -2232,141 +2227,134 @@ export function DashboardView({
           paddingBottom: "var(--mantine-spacing-xs)",
           // Marks the chrome's bottom edge while content scrolls beneath it
           // (the tabs list's own border now sits mid-block, above the nav).
-          // In immersive the tabs are hidden, so the border would orphan above
-          // the date-nav row — drop it.
-          borderBottom: immersiveMode.active
-            ? undefined
-            : "1px solid var(--mantine-color-default-border)",
+          borderBottom: "1px solid var(--mantine-color-default-border)",
         }}
       >
-        {/* View tabs are chrome too — they vanish in fullscreen. The
-            Edit-views trigger is a settings button to the RIGHT of the strip,
-            outside the horizontal scroll area (so the scroll set ends before
-            it); it opens the "Edit views" modal (add / reorder / rename /
-            delete — see below). */}
-        {!immersiveMode.active && (
-          <Group
-            align="center"
-            wrap="nowrap"
-            gap={0}
-            style={{ borderBottom: "1px solid var(--mantine-color-default-border)" }}
-          >
-            <Box style={{ flex: 1, minWidth: 0 }}>
-              <Tabs
-                value={shownTabId}
-                onChange={(next) => {
-                  if (!next) return;
-                  const tab = tabs.find((candidate) => candidate.id === next);
-                  if (tab) switchTab(tab);
-                }}
-                aria-label="Calendar view"
-                styles={{ tab: { flex: "0 0 auto" } }}
-              >
-                <Tabs.List ref={tabListElRef} style={{ flexWrap: "nowrap", overflowX: "auto" }}>
-                  {tabs.map((tab) => {
-                    const meta = VIEW_TAB_META[tab.kind];
-                    return (
-                      <Tabs.Tab key={tab.id} value={tab.id} title={tab.name}>
-                        <Group gap="xs" justify="center" wrap="nowrap" style={{ minWidth: 0 }}>
-                          {meta.icon}
-                          <Text
-                            fw={600}
-                            size="sm"
-                            title={tab.name}
-                            style={{
-                              whiteSpace: "nowrap",
-                              overflow: "hidden",
-                              textOverflow: "ellipsis",
-                            }}
-                          >
-                            {tab.name}
-                          </Text>
-                        </Group>
-                      </Tabs.Tab>
-                    );
-                  })}
-                </Tabs.List>
-              </Tabs>
-            </Box>
-            {/* Quick "All views" jump list: with many content-sized tabs the
-                strip overflows into a long horizontal scroll, so this menu
-                lists every tab (kind icon + name, the active one ticked) for
-                a one-tap switch — no scrolling the strip. */}
-            {canManageViews && tabs.length > 1 && (
-              <Menu
-                shadow="md"
-                width={240}
-                position="bottom-end"
-                withinPortal
-                transitionProps={{
-                  transition: "pop-top-right",
-                  duration: MOTION.popover,
-                  timingFunction: "ease",
-                }}
-                styles={{
-                  dropdown: { maxHeight: "min(60vh, 380px)", overflowY: "auto" },
-                }}
-              >
-                <Menu.Target>
-                  <ActionIcon
-                    variant="subtle"
-                    color="gray"
-                    size={36}
-                    ml={4}
-                    aria-label="All views"
-                    title="All views"
-                    style={{ flex: "0 0 auto" }}
-                  >
-                    <IconChevronDown size={18} />
-                  </ActionIcon>
-                </Menu.Target>
-                <Menu.Dropdown>
-                  {tabs.map((tab) => {
-                    const meta = VIEW_TAB_META[tab.kind];
-                    const isActive = tab.id === shownTabId;
-                    return (
-                      <Menu.Item
-                        key={tab.id}
-                        leftSection={meta.icon}
-                        rightSection={
-                          isActive ? <IconCheck size={14} aria-hidden /> : undefined
-                        }
-                        role="menuitemradio"
-                        aria-checked={isActive}
-                        onClick={() => switchTab(tab)}
-                      >
+        {/* View tabs stay visible in fullscreen — they (plus the "All views"
+            jump list and the Edit-views gear) are the dashboard's own chrome,
+            not the shell chrome immersive mode hides. The Edit-views trigger
+            sits to the RIGHT of the strip, outside the horizontal scroll area
+            (so the scroll set ends before it); it opens the "Edit views" modal
+            (add / reorder / rename / delete — see below). */}
+        <Group
+          align="center"
+          wrap="nowrap"
+          gap={0}
+          style={{ borderBottom: "1px solid var(--mantine-color-default-border)" }}
+        >
+          <Box style={{ flex: 1, minWidth: 0 }}>
+            <Tabs
+              value={shownTabId}
+              onChange={(next) => {
+                if (!next) return;
+                const tab = tabs.find((candidate) => candidate.id === next);
+                if (tab) switchTab(tab);
+              }}
+              aria-label="Calendar view"
+              styles={{ tab: { flex: "0 0 auto" } }}
+            >
+              <Tabs.List ref={tabListElRef} style={{ flexWrap: "nowrap", overflowX: "auto" }}>
+                {tabs.map((tab) => {
+                  const meta = VIEW_TAB_META[tab.kind];
+                  return (
+                    <Tabs.Tab key={tab.id} value={tab.id} title={tab.name}>
+                      <Group gap="xs" justify="center" wrap="nowrap" style={{ minWidth: 0 }}>
+                        {meta.icon}
                         <Text
+                          fw={600}
                           size="sm"
-                          fw={isActive ? 700 : 500}
-                          truncate
                           title={tab.name}
-                          style={{ maxWidth: 160 }}
+                          style={{
+                            whiteSpace: "nowrap",
+                            overflow: "hidden",
+                            textOverflow: "ellipsis",
+                          }}
                         >
                           {tab.name}
                         </Text>
-                      </Menu.Item>
-                    );
-                  })}
-                </Menu.Dropdown>
-              </Menu>
-            )}
-            {canManageViews && (
-              <ActionIcon
-                variant="subtle"
-                color="gray"
-                size={36}
-                ml={4}
-                mr={4}
-                aria-label="Edit views"
-                title="Edit views"
-                onClick={openEdit}
-                style={{ flex: "0 0 auto" }}
-              >
-                <IconSettings size={18} />
-              </ActionIcon>
-            )}
-          </Group>
-        )}
+                      </Group>
+                    </Tabs.Tab>
+                  );
+                })}
+              </Tabs.List>
+            </Tabs>
+          </Box>
+          {/* Quick "All views" jump list: with many content-sized tabs the
+                strip overflows into a long horizontal scroll, so this menu
+                lists every tab (kind icon + name, the active one ticked) for
+                a one-tap switch — no scrolling the strip. */}
+          {canManageViews && tabs.length > 1 && (
+            <Menu
+              shadow="md"
+              width={240}
+              position="bottom-end"
+              withinPortal
+              transitionProps={{
+                transition: "pop-top-right",
+                duration: MOTION.popover,
+                timingFunction: "ease",
+              }}
+              styles={{
+                dropdown: { maxHeight: "min(60vh, 380px)", overflowY: "auto" },
+              }}
+            >
+              <Menu.Target>
+                <ActionIcon
+                  variant="subtle"
+                  color="gray"
+                  size={36}
+                  ml={4}
+                  aria-label="All views"
+                  title="All views"
+                  style={{ flex: "0 0 auto" }}
+                >
+                  <IconChevronDown size={18} />
+                </ActionIcon>
+              </Menu.Target>
+              <Menu.Dropdown>
+                {tabs.map((tab) => {
+                  const meta = VIEW_TAB_META[tab.kind];
+                  const isActive = tab.id === shownTabId;
+                  return (
+                    <Menu.Item
+                      key={tab.id}
+                      leftSection={meta.icon}
+                      rightSection={isActive ? <IconCheck size={14} aria-hidden /> : undefined}
+                      role="menuitemradio"
+                      aria-checked={isActive}
+                      onClick={() => switchTab(tab)}
+                    >
+                      <Text
+                        size="sm"
+                        fw={isActive ? 700 : 500}
+                        truncate
+                        title={tab.name}
+                        style={{ maxWidth: 160 }}
+                      >
+                        {tab.name}
+                      </Text>
+                    </Menu.Item>
+                  );
+                })}
+              </Menu.Dropdown>
+            </Menu>
+          )}
+          {canManageViews && (
+            <ActionIcon
+              variant="subtle"
+              color="gray"
+              size={36}
+              ml={4}
+              mr={4}
+              aria-label="Edit views"
+              title="Edit views"
+              onClick={openEdit}
+              style={{ flex: "0 0 auto" }}
+            >
+              <IconSettings size={18} />
+            </ActionIcon>
+          )}
+        </Group>
 
         {/* Date navigation: pinned together with the tabs above so the period
             label and prev/next stay reachable while the grid scrolls. Kept

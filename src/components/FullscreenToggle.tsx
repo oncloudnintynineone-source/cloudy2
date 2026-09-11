@@ -85,9 +85,10 @@ export function FullscreenToggle({
         position: "fixed",
         top: pos.top,
         right: pos.right,
-        // Below the sticky date-nav chrome (50) and the modals; above the
-        // grids' internal stickies (<= 20).
-        zIndex: 30,
+        // Above the pinned weekday/ruler strips (45) so the button never hides
+        // behind them, but below the sticky date-nav chrome (50) and the
+        // modals.
+        zIndex: 46,
       }}
       size={BUTTON_SIZE}
       radius="50%"
