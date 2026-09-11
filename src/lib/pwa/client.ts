@@ -210,6 +210,12 @@ export function useStaleDocumentReconcile(): void {
   const router = useRouter();
   useEffect(() => {
     if (reconciledThisDocument) return;
+    // The dashboard owns its own revalidation now (DashboardScreen's
+    // loadDashboardData action, docs/pwa-offline.md): its document cache holds
+    // only the thin shell, so a router.refresh() here would re-render the shell
+    // without refreshing the data. Skip it.
+    const pathname = window.location.pathname;
+    if (pathname === "/dashboard" || pathname.startsWith("/dashboard/")) return;
     if (!needsReconcile(documentCachedAtIso(), Date.now())) return;
     reconciledThisDocument = true;
     // No cleanup on purpose: the flag above means a re-run (or React's

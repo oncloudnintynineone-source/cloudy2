@@ -71,8 +71,7 @@ import {
 } from "./calendarSkeleton";
 import { formatWeekLabel } from "./clientDateTime";
 import { DateSelectorModal } from "@/components/DateSelectorModal";
-import { useActivityRefresh, useReportActivity } from "@/components/ActivityBar";
-import { EmptyState } from "@/components/EmptyState";
+import { useReportActivity } from "@/components/ActivityBar";import { EmptyState } from "@/components/EmptyState";
 import { FilterButton } from "@/components/FilterButton";
 import { FilterModal, type FilterGroup } from "@/components/FilterModal";
 import { GridNavControls } from "@/components/GridNavControls";
@@ -156,8 +155,8 @@ import { EventDetail } from "./EventDetail";
 import { EventForm } from "./EventForm";
 import { WeekMatrixView } from "./WeekMatrixView";
 import { ViewTypePicker } from "./ViewTypePicker";
-import { invalidateCurrentPathCaches } from "@/lib/pwa/client";
 import { VIEW_TAB_META } from "./viewMeta";
+import { useDashboardData } from "./DashboardDataContext";
 
 type ViewMode = DashboardViewKind;
 
@@ -184,7 +183,7 @@ interface EventTypeOption {
   color: string | null;
 }
 
-interface DashboardViewProps {
+export interface DashboardViewProps {
   month: string;
   date: string;
   /**
@@ -760,6 +759,11 @@ export function DashboardView({
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const [isPending, startTransition] = useTransition();
+  // The route is now a thin client shell (docs/pwa-offline.md): data lives in
+  // DashboardScreen, which revalidates in place. Mutations call `revalidate()`
+  // instead of `router.refresh()` (which no longer carries data), and a
+  // context-change fetch drives the grid skeleton via `isNavigating`.
+  const { revalidate, isNavigating } = useDashboardData();
   // The active tab's renderer kind (Month/Week (H)/…). Booleans, the skeleton
   // chain and the period label key off this exactly like the old `view` prop.
   const view: ViewMode = activeView.kind;
@@ -1165,7 +1169,7 @@ export function DashboardView({
 
   // Post-mutation refresh (event create/update/delete, detail actions): the
   // shared bar reports the re-read that follows the saved state.
-  const refreshAfterSave = useActivityRefresh("dashboard:save");
+  const refreshAfterSave = revalidate;
 
   // Skeleton-only loading: any pending data navigation shows the grid
   // skeleton. `useMinSkeletonHold` keeps it up for a minimum ~350ms so fast
@@ -1176,7 +1180,7 @@ export function DashboardView({
   // the pending flag and never replay the fade. (Force refresh is a full page
   // reload from the profile menu now — its wait is the route loading.tsx, not
   // this skeleton.)
-  const gridLoading = useMinSkeletonHold(isPending);
+  const gridLoading = useMinSkeletonHold(isPending || isNavigating);
   useContentEnter(weekBoxRef, !gridLoading);
 
   // The global activity bar mirrors the grid transition: view/date/filter
@@ -1199,7 +1203,7 @@ export function DashboardView({
   // Post-mutation refresh reporter for the view (tab) CRUD: renames, reorder
   // and non-active deletes re-read the route so the server renders the new tab
   // list (the activity bar covers the otherwise-invisible refresh).
-  const refreshAfterViewsSave = useActivityRefresh("dashboard:views");
+  const refreshAfterViewsSave = revalidate;
 
   // The date shown in the agenda day modal; persists through the exit
   // animation so the shrinking box still has content.
@@ -1909,7 +1913,7 @@ export function DashboardView({
       notifications.show({ color: "red", message: result.error });
       return false;
     }
-    void invalidateCurrentPathCaches().then(() => startTransition(() => router.refresh()));
+    revalidate();
     return true;
   }
 

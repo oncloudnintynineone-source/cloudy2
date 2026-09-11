@@ -17,6 +17,7 @@ import {
 import { signOut } from "next-auth/react";
 
 import { APP_VERSION } from "@/lib/appVersion";
+import { clearAllDashboardSnapshots } from "@/lib/dashboard/localStore";
 import { MOTION } from "@/lib/motion/timing";
 import { clearAllSavedPages } from "@/lib/pwa/client";
 import { clearUiState } from "@/lib/ui/uiStateClient";
@@ -86,7 +87,9 @@ export function UserMenu({ name, role, phone }: UserMenuProps) {
     try {
       // Purge the page caches BEFORE the sign-out fetches/navigation so the SW
       // can never serve the previous user's cached calendar mid-transition.
-      await clearAllSavedPages();
+      // The device-local dashboard snapshot is purged alongside it so the next
+      // account on a shared device can't paint the previous user's calendar.
+      await Promise.all([clearAllSavedPages(), clearAllDashboardSnapshots()]);
       // On success next-auth assigns window.location.href = "/login"; this page
       // is normally gone before the await settles, and the watchdog dies with it.
       await signOut({ callbackUrl: "/login" });

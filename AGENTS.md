@@ -89,15 +89,20 @@ doc content here.
   call Google APIs directly. It loads `./real` via a **dynamic
   `import()`** — keep it that way (a static import drags the ~200 MB `googleapis` package
   into every route's eager chunk). Design: [docs/google-integration.md](docs/google-integration.md).
-- **Calendar reads are cached server-side.** Read via `fetchMonthEvents()` /
-  `fetchRangeEvents()` (`src/lib/events/queries.ts`) — **never call `integration.listEvents`
+- **Calendar reads are cached server-side.** Read via `fetchMonthEvents()` / `fetchRangeEvents()`
+  (`src/lib/events/queries.ts`) — **never call `integration.listEvents`
   directly** for month/range views (a Monday-first week spans two months → use
   `fetchRangeEvents`); in-app mutations call `invalidateGcalCache()`. The refresh fetch runs
   **outside any transaction** (Postgres pool is small — `max: 3` by default, via
   `DB_POOL_MAX`). Header **Force refresh** = full
   reload + one-shot `?refresh=<epoch-ms>` nonce (SW never caches it; `useOneShotRefreshStrip`
-  strips it). Design: [docs/events-cache.md](docs/events-cache.md) §1.5.1,
-  [docs/pwa-offline.md](docs/pwa-offline.md) §1.11.
+  strips it). The `/dashboard` route is a **thin server shell** (`page.tsx`): all
+  dashboard reads moved into the `loadDashboardData` server action via
+  `buildDashboardData` (`src/lib/dashboard/data.ts`), and the client `DashboardScreen`
+  paints the last **device-local snapshot** (IndexedDB, `src/lib/dashboard/localStore.ts`)
+  instantly, then always revalidates and swaps in place — mutations call the
+  provider's `revalidate()`, never `router.refresh()`. Design:
+  [docs/events-cache.md](docs/events-cache.md) §1.5.1, [docs/pwa-offline.md](docs/pwa-offline.md) §1.11/§1.18.
 - **Event lifecycle & mutations:** staged wizard → Google copies with notes-block
   round-trip; cross-department copies reconciled by `findCopies` (deliberately uncached).
   Wizard body is a fixed-height column + bottom **step strip** (caption + non-wrapping

@@ -22,6 +22,7 @@ The PWA opens with calendar events visible instantly — even cold or offline �
 - [1.15 File index & related docs](#115-file-index--related-docs)
 - [1.16 Limitations & follow-ups](#116-limitations--follow-ups)
 - [1.17 Auto-refresh on return from background](#117-auto-refresh-on-return-from-background)
+- [1.18 Device-local dashboard snapshot](#118-device-local-dashboard-snapshot)
 
 ## 1.1 Problem
 
@@ -419,7 +420,7 @@ sign-out isolation, and the deploy-takeover reload (§1.8).
 ## 1.16 Limitations & follow-ups
 
 - Offline mutations remain an error (no local queue / background sync). A future phase could add a `BackgroundSync` queue for event creates/updates and a conflict UI — deliberately not included here.
-- First-ever open on a brand-new device needs one online visit before instant/offline works (the caches are populated on that first successful render). An IndexedDB snapshot rendered before the first RSC would cover this, but the value is low given the install flow already requires connectivity.
+- First-ever open on a brand-new device needs one online visit before instant/offline works (the caches are populated on that first successful render). The device-local dashboard snapshot (§1.18) covers the dashboard after that first visit; the general first-ever case remains a network render.
 - Push notifications remain deferred (needs VAPID + backend) — unchanged from Phase 3a.
 - The deploy-takeover reload (§1.8) interrupts whatever the user was doing on the old build (scroll position, form drafts in flight). An explicit "New version available — reload" banner would be the refinement if that ever bites; today the takeover is correct-by-default and silent.
 
@@ -502,3 +503,84 @@ Files: the pure `INACTIVITY_REFRESH_MS` / `needsInactivityRefresh`
 `stripRefreshNonce` (`pwa/client.ts`), the shell's `InactivityActivityReporter`
 (`AppShellShell.tsx`), and the SW `update()` check inside `useSWUpdateReload`
 (`AppProviders.tsx`).
+
+## 1.18 Device-local dashboard snapshot
+
+The document/RSC caches (§1.5/§1.6) are keyed by exact URL and hold whole SSR
+payloads. That makes a *previously visited exact URL* instant, but a cold open
+onto a different URL — a first visit after a deploy (caches wiped), a new
+param combination, or a device whose document entry was evicted — still waits on
+a server render, and the Calendar route used to be fully **server-gated**: the
+page awaited every read (tabs, filters, calendars, users, settings, events)
+before the client component mounted, so the whole wait showed as the one solid
+`loading.tsx` skeleton.
+
+The dashboard now owns a **device-local data cache** in front of that path,
+independent of the URL:
+
+```mermaid
+sequenceDiagram
+ participant P as Dashboard page (thin shell)
+ participant S as DashboardScreen (client)
+ participant I as IndexedDB (cloudy2/dashboardSnapshots)
+ participant A as loadDashboardData (server action)
+ participant Q as queries + events cache
+ P->>S: requireSession + cookie zoom only
+ S->>I: read last snapshot
+ I-->>S: cached snapshot (if any)
+ S->>S: paint DashboardView from cache
+ S->>A: revalidate (always)
+ A->>Q: same reads the page used to do
+ Q-->>A: snapshot
+ A-->>S: fresh snapshot
+ S->>I: overwrite cache
+ S->>S: swap data in place (no skeleton)
+```
+
+- **Thin route.** `page.tsx` resolves only the session (JWT) and the per-device
+  zoom from the `cloudy2.ui` cookie, then renders `DashboardScreen`. All heavy
+  reads moved into the `loadDashboardData` server action via
+  `buildDashboardData` (`src/lib/dashboard/data.ts`) — the exact resolution the
+  page used to run inline (including the events cache and adjacent-month
+  prefetch). The route's `loading.tsx` is now only the pre-hydration shell.
+- **Cached first paint.** `DashboardScreen` reads the last snapshot for the
+  account from IndexedDB (`src/lib/dashboard/localStore.ts`) and renders the
+  grid immediately. It then **always** revalidates and swaps the fresh snapshot
+  in place — no skeleton, no fade, no remount, so scroll/zoom/selection/open
+  modals survive. The amber activity bar is the only signal.
+- **In-place, never interrupting.** A revalidation of the *current* context
+  never shows the grid skeleton (`isNavigating` is false). Only a
+  context-changing fetch on already-fresh data (a month/tab/date navigation)
+  shows the skeleton, matching the old route-transition UX. A cached record is
+  shown *through* a context change (instant, then corrected).
+- **Deep links resolve against fresh data.** A `?event=`/`?edit=` link may
+  target an event the cached snapshot doesn't contain, so `DashboardScreen`
+  skips the cached paint while a deep link is present and shows the skeleton
+  until the fresh snapshot arrives (the event is then found and the modal
+  opens).
+- **Mutations revalidate through context.** `DashboardView` no longer calls
+  `router.refresh()` (which would re-render only the thin shell); it calls the
+  provider's `revalidate()`. The optimistic overlay still covers the immediate
+  paint, then the fresh snapshot reconciles it.
+- **Force/inactivity refresh.** The header Force refresh (full reload with a
+  one-shot `?refresh=` nonce) and `useInactivityRefresh`'s soft navigation both
+  drive a **forced** `loadDashboardData` read (the server honors the nonce
+  within `REFRESH_NONCE_TTL_MS`), then the nonce is stripped as before.
+  `useStaleDocumentReconcile` is skipped on `/dashboard` — the provider owns
+  refresh, and the cached document is only the shell.
+- **Freshness/versioning.** The record carries a `version`; a shape change
+  (bumped constant) makes old records unusable, so a deploy can never feed the
+  new UI a stale record. `clearAllDashboardSnapshots()` runs on sign-out beside
+  the page-cache purge, so a shared device can't paint the previous account's
+  calendar. A failed read keeps the cached render (offline reads keep working).
+
+Pure logic (key derivation, version guard, refresh-nonce window) lives in
+`src/lib/dashboard/snapshot.ts` and is unit-tested (`snapshot.test.ts`); the
+IndexedDB glue is deliberately thin and no-ops when unavailable.
+
+Files: `src/app/(protected)/dashboard/page.tsx` (thin shell),
+`DashboardScreen.tsx` (provider), `DashboardDataContext.tsx`, `loading.tsx` /
+`DashboardShellSkeleton.tsx`, `DashboardView.tsx` (consumes `revalidate` /
+`isNavigating`), `src/lib/dashboard/{data,actions,snapshot,localStore}.ts`,
+`src/lib/pwa/client.ts` (reconcile skip), `src/components/UserMenu.tsx`
+(sign-out purge).
