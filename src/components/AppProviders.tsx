@@ -6,6 +6,7 @@ import { Notifications } from "@mantine/notifications";
 import { useMediaQuery } from "@mantine/hooks";
 
 import { OfflineBanner } from "@/components/OfflineBanner";
+import { SystemBarSync } from "@/components/SystemBarSync";
 import { ActionPillProvider } from "@/components/ActionPill";
 import { clearAllSavedPages, useStaleDocumentReconcile } from "@/lib/pwa/client";
 import { DESKTOP_MEDIA_QUERY, theme } from "@/lib/theme";
@@ -126,6 +127,7 @@ export default function AppProviders({ children }: { children: ReactNode }) {
   const isDesktop = useMediaQuery(DESKTOP_MEDIA_QUERY);
   return (
     <MantineProvider theme={theme} defaultColorScheme="auto">
+      <SystemBarSync />
       <Notifications position={isDesktop ? "bottom-right" : "top-center"} />
       <OfflineBanner />
       <ActionPillProvider>{children}</ActionPillProvider>
