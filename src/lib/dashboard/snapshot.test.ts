@@ -3,12 +3,14 @@ import { describe, expect, it } from "vitest";
 import {
   DASHBOARD_SNAPSHOT_VERSION,
   REFRESH_NONCE_TTL_MS,
+  dashboardCandidateRequestKey,
   dashboardRequestKey,
   isRefreshNonceFresh,
   isSnapshotRecordUsable,
   requiredMonths,
   type DashboardSnapshotRecord,
 } from "./snapshot";
+import type { DashboardViewTab } from "@/lib/dashboardViews/views";
 
 function record(overrides: Partial<DashboardSnapshotRecord> = {}): DashboardSnapshotRecord {
   return {
@@ -78,6 +80,46 @@ describe("dashboardRequestKey", () => {
 
   it("handles an empty month set", () => {
     expect(dashboardRequestKey({ viewId: "default", months: [] })).toBe("default|");
+  });
+});
+
+describe("dashboardCandidateRequestKey", () => {
+  function candidateRecord(): DashboardSnapshotRecord {
+    const tab: DashboardViewTab = {
+      id: "tab-1",
+      kind: "schedule",
+      name: "Day",
+      sortOrder: 0,
+      filters: { cal: null, users: null, types: null },
+    };
+    return {
+      version: DASHBOARD_SNAPSHOT_VERSION,
+      savedAt: 1_700_000_000_000,
+      context: { month: "2026-09", date: "2026-09-12", viewId: "tab-1", requestKey: "" },
+      data: { activeView: tab, tabs: [tab] } as unknown as DashboardSnapshotRecord["data"],
+    };
+  }
+
+  it("returns null before the first record is available", () => {
+    expect(dashboardCandidateRequestKey(null, null, null, null)).toBeNull();
+  });
+
+  it("is stable across an in-month day move", () => {
+    expect(dashboardCandidateRequestKey(candidateRecord(), null, null, "2026-09-01")).toBe(
+      dashboardCandidateRequestKey(candidateRecord(), null, null, "2026-09-30"),
+    );
+  });
+
+  it("prefers the ?date= month over ?month= (mirrors the server)", () => {
+    expect(dashboardCandidateRequestKey(candidateRecord(), null, "2026-10", "2026-09-15")).toBe(
+      "tab-1|2026-09",
+    );
+  });
+
+  it("uses ?month= when no ?date= is present", () => {
+    expect(dashboardCandidateRequestKey(candidateRecord(), null, "2026-10", null)).toBe(
+      "tab-1|2026-10",
+    );
   });
 });
 

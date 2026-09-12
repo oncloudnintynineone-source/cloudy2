@@ -16,7 +16,7 @@ import {
   weekDays,
 } from "@/lib/events/datetime";
 import type { CalendarEvent } from "@/lib/events/queries";
-import type { DashboardViewKind } from "@/lib/dashboardViews/views";
+import { resolveActiveTab, type DashboardViewKind } from "@/lib/dashboardViews/views";
 
 /**
  * Bump when the snapshot shape changes incompatibly. A stored record whose
@@ -106,6 +106,38 @@ export function requiredMonths(kind: DashboardViewKind, month: string, date: str
 export function dashboardRequestKey(params: { viewId: string; months: string[] }): string {
   const months = [...new Set(params.months)].sort();
   return `${params.viewId}|${months.join(",")}`;
+}
+
+/**
+ * The fetch signature the current URL asks for, given the last loaded record:
+ * the resolved tab id plus the months that tab needs (see `requiredMonths`).
+ *
+ * The day within a month is intentionally absent, so an in-month day move
+ * produces the same signature as the held record and triggers no fetch — the
+ * URL day still drives the rendered grid/chrome directly (`DashboardScreen`
+ * passes it as the URL-first `date` prop), it just never reaches the server.
+ *
+ * Month precedence mirrors the server (`buildDashboardData`): an explicit
+ * `?date=` wins (its month is authoritative), then `?month=`, then the held
+ * record's context. Returns null before the first record is available (the
+ * mount read always runs).
+ */
+export function dashboardCandidateRequestKey(
+  record: DashboardSnapshotRecord | null,
+  urlView: string | null,
+  urlMonth: string | null,
+  urlDate: string | null,
+): string | null {
+  if (!record) return null;
+  const tab =
+    resolveActiveTab(urlView, record.data.activeView.id, record.data.tabs) ??
+    record.data.activeView;
+  const month = urlDate ? urlDate.slice(0, 7) : (urlMonth ?? record.context.month);
+  const date = urlDate ?? record.context.date;
+  return dashboardRequestKey({
+    viewId: tab.id,
+    months: requiredMonths(tab.kind, month, date),
+  });
 }
 
 /** Whether a stored record matches the current snapshot shape. */

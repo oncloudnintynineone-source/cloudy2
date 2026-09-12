@@ -7,12 +7,10 @@ import { useReportActivity } from "@/components/ActivityBar";
 import { loadDashboardData } from "@/lib/dashboard/actions";
 import { readDashboardSnapshot, writeDashboardSnapshot } from "@/lib/dashboard/localStore";
 import {
-  dashboardRequestKey,
+  dashboardCandidateRequestKey,
   isRefreshNonceFresh,
-  requiredMonths,
   type DashboardSnapshotRecord,
 } from "@/lib/dashboard/snapshot";
-import { resolveActiveTab } from "@/lib/dashboardViews/views";
 import { isUuid } from "@/lib/uuid";
 import type { MonthZoom } from "@/lib/ui/monthZoom";
 import type { SlotZoom } from "@/lib/ui/slotZoom";
@@ -37,33 +35,6 @@ function inputFromParams(params: URLSearchParams) {
     eventCal: params.get("_eventCal"),
     refresh: params.get("refresh"),
   };
-}
-
-/**
- * The fetch signature the current URL asks for, given the last loaded record:
- * the resolved tab id plus the months that tab needs (see `requiredMonths`).
- * The day within a month is intentionally absent, so an in-month day move
- * produces the same signature as the held record and triggers no fetch — the
- * URL day still drives the rendered grid/chrome directly (see `effectiveDate`
- * below), it just never reaches the server. Returns null before the first
- * record is available (the mount read always runs).
- */
-function candidateRequestKey(
-  record: DashboardSnapshotRecord | null,
-  urlView: string | null,
-  urlMonth: string | null,
-  urlDate: string | null,
-): string | null {
-  if (!record) return null;
-  const tab =
-    resolveActiveTab(urlView, record.data.activeView.id, record.data.tabs) ??
-    record.data.activeView;
-  const month = urlMonth ?? (urlDate ? urlDate.slice(0, 7) : record.context.month);
-  const date = urlDate ?? record.context.date;
-  return dashboardRequestKey({
-    viewId: tab.id,
-    months: requiredMonths(tab.kind, month, date),
-  });
 }
 
 /**
@@ -113,7 +84,7 @@ export function DashboardScreen({
   // not change for an in-month day move, so such a move never fetches. `urlKey`
   // is the raw URL fingerprint that re-runs the fetch-decision effect below.
   const candidateKey = useMemo(
-    () => candidateRequestKey(record, view, month, date),
+    () => dashboardCandidateRequestKey(record, view, month, date),
     [record, view, month, date],
   );
   const urlKey = `${view ?? ""}|${month ?? ""}|${date ?? ""}`;
@@ -168,7 +139,7 @@ export function DashboardScreen({
   useEffect(() => {
     if (isRefreshNonceFresh(paramsRef.current.get("refresh"), Date.now())) return;
     const current = recordRef.current;
-    const candidate = candidateRequestKey(
+    const candidate = dashboardCandidateRequestKey(
       current,
       paramsRef.current.get("view"),
       paramsRef.current.get("month"),

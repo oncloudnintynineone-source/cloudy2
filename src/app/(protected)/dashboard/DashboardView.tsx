@@ -1063,9 +1063,9 @@ export function DashboardView({
   const shownIsAgenda = shownView === "agenda";
   const shownIsWeekV2 = shownView === "weekv2";
   const shownIsWeek = shownView === "week" || shownIsWeekV2;
-  // Day-anchored chrome flag mirroring `isAnchoredView`, which stays bound to
-  // the committed props because it drives data rendering below.
-  const shownIsAnchored = shownView === "schedule" || shownIsWeekV2 || shownIsAgenda;
+  // Day/week-anchored chrome flag mirroring `isAnchoredView`, which stays bound
+  // to the committed props because it drives data rendering below.
+  const shownIsAnchored = shownView === "schedule" || shownIsWeek || shownIsAgenda;
 
   // Height of the sticky chrome block (view tabs + date-nav row, one sticky
   // unit), so the Week (D) pinned day header and the Week (H) day-label strip can
@@ -1670,9 +1670,11 @@ export function DashboardView({
   const isWeek = view === "week" || isWeekV2;
   const isSchedule = view === "schedule";
   const isAgenda = view === "agenda";
-  // Day-anchored views (Day, Week (D), Agenda): a `?date=` anchor drives the
-  // fetch (Week (D) shows the Monday-first week containing the anchor day).
-  const isAnchoredView = isSchedule || isWeekV2 || isAgenda;
+  // Day/week-anchored views (Day, Week (H), Week (D), Agenda): a `?date=` anchor
+  // drives the fetch and the rendered grid (Week (H) and Week (D) show the
+  // Monday-first week containing the anchor day). `isWeek` already includes
+  // Week (D), so all date-anchored kinds are covered here.
+  const isAnchoredView = isSchedule || isWeek || isAgenda;
 
   // Month-grid zoom knob. Mantine sizes every day column as a percentage of
   // the week row, which fills the ScrollArea content (`monthViewInner`), so
@@ -2101,15 +2103,18 @@ export function DashboardView({
   // Keep the Agenda tab's local day in sync with the URL (setState during
   // render, the same pattern as the modal's displayAgendaDate hold): null
   // seeds it on entry; an external `?date=` change (back/forward, deep link,
-  // re-entry after leaving the tab) wins; while one of our own writes is
-  // still in flight (the prop still holds the pre-write value) the local day
-  // is kept.
+  // re-entry after leaving the tab) wins and drops any stale slide direction;
+  // while one of our own writes is still in flight (the prop still holds the
+  // pre-write value) the local day is kept.
   if (isAgenda) {
     if (viewedDay === null) {
       setViewedDay(date);
     } else if (viewedDay !== date) {
       if (agendaUrlBase === null || date !== agendaUrlBase) {
         setViewedDay(date);
+        if (agendaSlideDir !== 0) {
+          setAgendaSlideDir(0);
+        }
       }
     } else if (agendaUrlBase !== null) {
       // Our write committed; clear the in-flight marker. Guarded: a
