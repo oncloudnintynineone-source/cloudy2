@@ -16,7 +16,12 @@ import {
   weekDays,
 } from "@/lib/events/datetime";
 import type { CalendarEvent } from "@/lib/events/queries";
-import { resolveActiveTab, type DashboardViewKind } from "@/lib/dashboardViews/views";
+import {
+  resolveActiveTab,
+  type DashboardTabFilters,
+  type DashboardViewKind,
+  type DashboardViewTab,
+} from "@/lib/dashboardViews/views";
 
 /**
  * Bump when the snapshot shape changes incompatibly. A stored record whose
@@ -138,6 +143,67 @@ export function dashboardCandidateRequestKey(
     viewId: tab.id,
     months: requiredMonths(tab.kind, month, date),
   });
+}
+
+/** Null-aware, order-insensitive equality of a stored filter override. */
+function filterArraysEqual(a: string[] | null, b: string[] | null): boolean {
+  if (a === null || b === null) return a === b;
+  if (a.length !== b.length) return false;
+  const set = new Set(b);
+  return a.every((id) => set.has(id));
+}
+
+/**
+ * Whether two tabs' stored filter overrides are equivalent. `null` means "role
+ * default" and is deliberately distinct from `[]` (an explicit empty selection),
+ * which the server resolves to "no events".
+ */
+export function dashboardTabFiltersEqual(a: DashboardTabFilters, b: DashboardTabFilters): boolean {
+  return (
+    filterArraysEqual(a.cal, b.cal) &&
+    filterArraysEqual(a.users, b.users) &&
+    filterArraysEqual(a.types, b.types)
+  );
+}
+
+/** Set equality for two month lists (order-insensitive). */
+function monthSetsEqual(a: string[], b: string[]): boolean {
+  if (a.length !== b.length) return false;
+  const set = new Set(b);
+  return a.every((month) => set.has(month));
+}
+
+/**
+ * The target tab when switching to it can reuse the held record's data: same
+ * kind, same required months, and equivalent stored filter overrides. The
+ * server resolves those overrides against the same live data, so equal raw
+ * overrides resolve to the same selection — `events`, `selected*` and the
+ * kind-keyed title recipe are unchanged; only the tab identity differs, which
+ * `DashboardScreen` swaps locally instead of re-reading. Returns null when the
+ * target is unknown, is the held tab, or differs in any data-affecting way.
+ */
+export function equivalentDashboardTab(
+  record: DashboardSnapshotRecord,
+  urlView: string | null,
+  urlMonth: string | null,
+  urlDate: string | null,
+): DashboardViewTab | null {
+  const held = record.data.activeView;
+  const target = resolveActiveTab(urlView, held.id, record.data.tabs);
+  if (!target || target.id === held.id) return null;
+  if (target.kind !== held.kind) return null;
+  if (!dashboardTabFiltersEqual(target.filters, held.filters)) return null;
+  const month = urlDate ? urlDate.slice(0, 7) : (urlMonth ?? record.context.month);
+  const date = urlDate ?? record.context.date;
+  if (
+    !monthSetsEqual(
+      requiredMonths(target.kind, month, date),
+      requiredMonths(held.kind, record.context.month, record.context.date),
+    )
+  ) {
+    return null;
+  }
+  return target;
 }
 
 /** Whether a stored record matches the current snapshot shape. */

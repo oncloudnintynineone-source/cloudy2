@@ -5,12 +5,14 @@ import {
   REFRESH_NONCE_TTL_MS,
   dashboardCandidateRequestKey,
   dashboardRequestKey,
+  dashboardTabFiltersEqual,
+  equivalentDashboardTab,
   isRefreshNonceFresh,
   isSnapshotRecordUsable,
   requiredMonths,
   type DashboardSnapshotRecord,
 } from "./snapshot";
-import type { DashboardViewTab } from "@/lib/dashboardViews/views";
+import type { DashboardTabFilters, DashboardViewTab } from "@/lib/dashboardViews/views";
 
 function record(overrides: Partial<DashboardSnapshotRecord> = {}): DashboardSnapshotRecord {
   return {
@@ -120,6 +122,84 @@ describe("dashboardCandidateRequestKey", () => {
     expect(dashboardCandidateRequestKey(candidateRecord(), null, "2026-10", null)).toBe(
       "tab-1|2026-10",
     );
+  });
+});
+
+describe("dashboardTabFiltersEqual", () => {
+  const f = (over: Partial<DashboardTabFilters> = {}): DashboardTabFilters => ({
+    cal: null,
+    users: null,
+    types: null,
+    ...over,
+  });
+
+  it("treats two role-default (null) tabs as equal", () => {
+    expect(dashboardTabFiltersEqual(f(), f())).toBe(true);
+  });
+
+  it("distinguishes null (role default) from an explicit empty array", () => {
+    expect(dashboardTabFiltersEqual(f({ cal: null }), f({ cal: [] }))).toBe(false);
+  });
+
+  it("is order-insensitive", () => {
+    expect(dashboardTabFiltersEqual(f({ cal: ["a", "b"] }), f({ cal: ["b", "a"] }))).toBe(true);
+  });
+
+  it("detects a differing selection", () => {
+    expect(dashboardTabFiltersEqual(f({ cal: ["a"] }), f({ cal: ["a", "b"] }))).toBe(false);
+  });
+});
+
+describe("equivalentDashboardTab", () => {
+  function tab(over: Partial<DashboardViewTab> = {}): DashboardViewTab {
+    return {
+      id: "tab-1",
+      kind: "month",
+      name: "Month",
+      sortOrder: 0,
+      filters: { cal: null, users: null, types: null },
+      ...over,
+    };
+  }
+
+  function twoTabRecord(a: DashboardViewTab, b: DashboardViewTab): DashboardSnapshotRecord {
+    return {
+      version: DASHBOARD_SNAPSHOT_VERSION,
+      savedAt: 1_700_000_000_000,
+      context: { month: "2026-09", date: "2026-09-12", viewId: a.id, requestKey: "" },
+      data: { activeView: a, tabs: [a, b] } as unknown as DashboardSnapshotRecord["data"],
+    };
+  }
+
+  it("returns the target for a same-kind, same-filter, same-month tab", () => {
+    const a = tab({ id: "tab-a", name: "A" });
+    const b = tab({ id: "tab-b", name: "B" });
+    expect(equivalentDashboardTab(twoTabRecord(a, b), "tab-b", null, null)?.id).toBe("tab-b");
+  });
+
+  it("returns null for the held tab", () => {
+    const a = tab({ id: "tab-a" });
+    const b = tab({ id: "tab-b" });
+    expect(equivalentDashboardTab(twoTabRecord(a, b), "tab-a", null, null)).toBeNull();
+  });
+
+  it("returns null when the filters differ", () => {
+    const a = tab({ id: "tab-a" });
+    const b = tab({ id: "tab-b", filters: { cal: ["dept-1"], users: null, types: null } });
+    expect(equivalentDashboardTab(twoTabRecord(a, b), "tab-b", null, null)).toBeNull();
+  });
+
+  it("returns null when the kind differs", () => {
+    const a = tab({ id: "tab-a", kind: "month" });
+    const b = tab({ id: "tab-b", kind: "agenda" });
+    expect(equivalentDashboardTab(twoTabRecord(a, b), "tab-b", null, null)).toBeNull();
+  });
+
+  it("returns null when the required months differ", () => {
+    const a = tab({ id: "tab-a", kind: "month" });
+    const b = tab({ id: "tab-b", kind: "month" });
+    // Held context is 2026-09; the URL asks for 2026-11 -> different grid months.
+    expect(equivalentDashboardTab(twoTabRecord(a, b), "tab-b", "2026-11", null)).toBeNull();
   });
 });
 

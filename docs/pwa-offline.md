@@ -566,7 +566,11 @@ sequenceDiagram
   still drives the rendered grid and chrome directly: `DashboardScreen` passes
   the `?date=` param as the URL-first `date` prop (falling back to the
   server-resolved day when absent), so the Day/Week (H) grids reposition and
-  back/forward / deep links stay in sync without any read.
+  back/forward / deep links stay in sync without any read. Switching to a tab
+  whose data the held record already covers (same kind, required months and
+  filters — `equivalentDashboardTab`) likewise makes no server read: the tab
+  identity is swapped locally (`activeView` + `requestKey`) and the snapshot is
+  rewritten, guarded on fresh, idle data so it never races an in-flight read.
 - **Deep links resolve against fresh data.** A `?event=`/`?edit=` link may
   target an event the cached snapshot doesn't contain, so `DashboardScreen`
   skips the cached paint while a deep link is present and shows the skeleton

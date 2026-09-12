@@ -8,6 +8,7 @@ import { loadDashboardData } from "@/lib/dashboard/actions";
 import { readDashboardSnapshot, writeDashboardSnapshot } from "@/lib/dashboard/localStore";
 import {
   dashboardCandidateRequestKey,
+  equivalentDashboardTab,
   isRefreshNonceFresh,
   type DashboardSnapshotRecord,
 } from "@/lib/dashboard/snapshot";
@@ -73,6 +74,12 @@ export function DashboardScreen({
   // context change read as a navigation and show the grid skeleton.
   const [source, setSource] = useState<"cache" | "fresh">("fresh");
   const [busy, setBusy] = useState(false);
+  // The latest busy flag, read by the fetch-decision effect so an equivalent-tab
+  // local swap never races an in-flight read (see the effect below).
+  const busyRef = useRef(busy);
+  useEffect(() => {
+    busyRef.current = busy;
+  }, [busy]);
   const requestIdRef = useRef(0);
   const hasFreshRef = useRef(false);
   const lastRefreshRef = useRef<string | null>(null);
@@ -139,14 +146,32 @@ export function DashboardScreen({
   useEffect(() => {
     if (isRefreshNonceFresh(paramsRef.current.get("refresh"), Date.now())) return;
     const current = recordRef.current;
-    const candidate = dashboardCandidateRequestKey(
-      current,
-      paramsRef.current.get("view"),
-      paramsRef.current.get("month"),
-      paramsRef.current.get("date"),
-    );
-    if (current && candidate !== null && current.context.requestKey === candidate) {
-      return;
+    const urlView = paramsRef.current.get("view");
+    const urlMonth = paramsRef.current.get("month");
+    const urlDate = paramsRef.current.get("date");
+    const candidate = dashboardCandidateRequestKey(current, urlView, urlMonth, urlDate);
+    if (current && candidate !== null) {
+      if (current.context.requestKey === candidate) {
+        return;
+      }
+      // A switch to a tab whose data the held record already covers (same kind,
+      // required months and filters) needs no server read: swap the tab identity
+      // locally. Guarded on fresh, idle data so the swap never races an
+      // in-flight read that would otherwise land afterwards and revert the tab.
+      if (hasFreshRef.current && !busyRef.current) {
+        const target = equivalentDashboardTab(current, urlView, urlMonth, urlDate);
+        if (target) {
+          const data = { ...current.data, activeView: target };
+          const context = { ...current.context, viewId: target.id, requestKey: candidate };
+          // Yield first: an effect must not call setState synchronously (same
+          // pattern as `fetchFresh`).
+          void Promise.resolve().then(() => {
+            setRecord({ ...current, data, context });
+            void writeDashboardSnapshot(userId, data, context);
+          });
+          return;
+        }
+      }
     }
     void fetchFresh();
     // eslint-disable-next-line react-hooks/exhaustive-deps
