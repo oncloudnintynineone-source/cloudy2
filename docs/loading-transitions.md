@@ -308,6 +308,16 @@ whose warm L1 entry still shadows the fresh rows
   transient 10% offset. The pinned strips/rulers and pan controls stay outside,
   static. Reduced motion drops the slide (`globals.css`, `DashboardView.tsx`,
   `src/lib/dashboardViews/views.ts`).
+- **Date-nav swipe**: the same wrapper also slides on a date move within a view
+  (chevrons, Today, the date/month pickers): forward in time enters from the
+  right, backward from the left (`periodSwitchDirection`, matching the Agenda
+  slide). It is driven by the optimistic chrome (`shown*`), so it starts on tap
+  while the skeleton is up — a fetching month change slides the skeleton, then
+  the new grid fades in; a cached in-month week/day move slides the real grid.
+  A tab switch takes precedence, and the date branch is suppressed while a tab
+  transition is in flight, so a Month↔anchored switch (which also resets the
+  date) slides once. The Agenda tab is excluded — it keeps its own inner keyed
+  slide (`DashboardView.tsx`, `src/lib/dashboardViews/views.ts`).
 
 ## 1.9 Optimistic navigation chrome
 

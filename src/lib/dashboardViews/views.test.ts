@@ -6,6 +6,7 @@ import {
   isDashboardViewKind,
   nameAfterKindChange,
   normalizeFilterOverride,
+  periodSwitchDirection,
   resolveActiveTab,
   sanitizeDashboardViewName,
   viewSwitchDirection,
@@ -147,5 +148,25 @@ describe("viewSwitchDirection", () => {
   it("is 0 when either id is unknown", () => {
     expect(viewSwitchDirection("m", "missing", tabs)).toBe(0);
     expect(viewSwitchDirection("missing", "m", tabs)).toBe(0);
+  });
+});
+
+describe("periodSwitchDirection", () => {
+  it("is 1 (enters from the right) moving forward in time", () => {
+    expect(periodSwitchDirection("2026-09", "2026-10")).toBe(1);
+    expect(periodSwitchDirection("2026-09-04", "2026-09-05")).toBe(1);
+    expect(periodSwitchDirection("2026-09-30", "2026-10-01")).toBe(1);
+  });
+
+  it("is -1 (enters from the left) moving backward in time", () => {
+    expect(periodSwitchDirection("2026-10", "2026-09")).toBe(-1);
+    expect(periodSwitchDirection("2026-09-05", "2026-09-04")).toBe(-1);
+  });
+
+  it("is 0 without both keys or on an unchanged period", () => {
+    expect(periodSwitchDirection(null, "2026-09")).toBe(0);
+    expect(periodSwitchDirection("2026-09", null)).toBe(0);
+    expect(periodSwitchDirection(null, null)).toBe(0);
+    expect(periodSwitchDirection("2026-09", "2026-09")).toBe(0);
   });
 });

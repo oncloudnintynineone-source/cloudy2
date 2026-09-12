@@ -145,6 +145,7 @@ import { notifyEventsChanged } from "@/lib/ui/eventChanges";
 import { createDashboardView, saveDashboardViewFilters } from "@/lib/dashboardViews/actions";
 import {
   DASHBOARD_VIEW_KIND_LABELS,
+  periodSwitchDirection,
   viewSwitchDirection,
   type DashboardTabFilters,
   type DashboardViewKind,
@@ -1242,15 +1243,30 @@ export function DashboardView({
   const gridLoading = useMinSkeletonHold(isNavigating);
   useContentEnter(weekBoxRef, !gridLoading);
 
-  // Directional swipe on a view (tab) switch: the incoming grid/skeleton enters
-  // from the side the target sits on (a target earlier in the strip enters from
-  // the right, later from the left). Fires on the tab change — a warm switch
-  // keeps `gridLoading` false, so a reveal-triggered animation would never run.
-  const prevViewIdRef = useRef(activeView.id);
+  // Directional swipe on the grid/skeleton wrapper, for two kinds of change:
+  // - a view (tab) switch: the target's side in the strip picks the direction
+  //   (a target earlier in the strip enters from the right, later from the left);
+  // - a date move within the same view (chevron/Today/picker): forward in time
+  //   enters from the right, backward from the left — matching the Agenda slide.
+  // Driven by the optimistic chrome (`shown*`), so the slide starts on tap while
+  // the skeleton is up (a warm switch keeps `gridLoading` false, so a
+  // reveal-triggered animation would never run). The Agenda tab is excluded
+  // (`slidePeriodKey` null): it owns its own inner keyed slide. A tab switch
+  // takes precedence, and the date branch is suppressed while a tab transition
+  // is still in flight (`shownTabId` leading `activeView.id`), so a
+  // Month↔anchored switch — which also resets the date — slides only once.
+  const slidePeriodKey =
+    shownView === "agenda" ? null : shownView === "month" ? shownMonth : shownDate;
+  const prevSlideRef = useRef({ viewId: activeView.id, periodKey: slidePeriodKey });
   useLayoutEffect(() => {
-    const previousId = prevViewIdRef.current;
-    prevViewIdRef.current = activeView.id;
-    const dir = viewSwitchDirection(previousId, activeView.id, tabs);
+    const prev = prevSlideRef.current;
+    prevSlideRef.current = { viewId: activeView.id, periodKey: slidePeriodKey };
+    let dir: 1 | -1 | 0 = 0;
+    if (prev.viewId !== activeView.id) {
+      dir = viewSwitchDirection(prev.viewId, activeView.id, tabs);
+    } else if (shownTabId === activeView.id) {
+      dir = periodSwitchDirection(prev.periodKey, slidePeriodKey);
+    }
     if (dir === 0) return;
     const el = gridSlideRef.current;
     if (!el) return;
@@ -1259,7 +1275,7 @@ export function DashboardView({
     // Force a style flush so the re-add below restarts the animation.
     void el.offsetWidth;
     el.classList.add("view-slide-enter");
-  }, [activeView.id, tabs]);
+  }, [activeView.id, slidePeriodKey, shownTabId, tabs]);
 
   // The global activity bar mirrors the grid transition: view/date/filter
   // navigations are "busy" for the whole app chrome.

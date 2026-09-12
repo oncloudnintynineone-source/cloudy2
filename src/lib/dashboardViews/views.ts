@@ -171,3 +171,22 @@ export function viewSwitchDirection(
   }
   return nextIndex < previousIndex ? 1 : -1;
 }
+
+/**
+ * The direction of a period (date) move, for the content swipe animation:
+ * `1` when the target is later in time — the new period enters from the
+ * **right** and travels right-to-left (matching the Agenda slide) — `-1` when it
+ * is earlier (enters from the left), and `0` when either key is absent or
+ * unchanged. Keys are ISO `YYYY-MM` (Month) or `YYYY-MM-DD` (day-anchored), so a
+ * lexicographic compare is a chronological one. Pure so the mapping is
+ * unit-tested.
+ */
+export function periodSwitchDirection(
+  previousKey: string | null,
+  nextKey: string | null,
+): 1 | -1 | 0 {
+  if (previousKey === null || nextKey === null || previousKey === nextKey) {
+    return 0;
+  }
+  return nextKey > previousKey ? 1 : -1;
+}
