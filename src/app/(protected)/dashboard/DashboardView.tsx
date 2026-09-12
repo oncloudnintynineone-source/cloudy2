@@ -91,7 +91,7 @@ import {
 import { LoadingStatus } from "@/components/LoadingStatus";
 import { QuickLinksMenu, type QuickLinkMenuItem } from "@/components/QuickLinksMenu";
 import { eventsOnDay } from "@/lib/events/agenda";
-import { WEEKDAY_ABBREVIATIONS, weekDays } from "@/lib/events/datetime";
+import { WEEKDAY_ABBREVIATIONS, monthGridMonths, weekDays } from "@/lib/events/datetime";
 import { sortMineFirst } from "@/lib/events/mineFirst";
 import type { CalendarEvent } from "@/lib/events/queries";
 import type { TitleRecipe } from "@/lib/settings/titleRecipe";
@@ -1246,14 +1246,22 @@ export function DashboardView({
   // its wait is the route loading.tsx, not this skeleton.)
   //
   // The month grid renders the committed record's month (`month`), which lags
-  // the URL while a new month is read; `isNavigating` can itself lag during the
-  // router transition (its `searchParams` source updates only when the RSC
-  // payload lands). `monthPending` treats that lag as loading so the skeleton
-  // covers it instead of flashing the previous month. Anchored views don't need
-  // it: their `date` prop is URL-first, and a cross-month move is already
-  // `isNavigating`.
-  const monthPending = shownView === "month" && shownMonth !== month;
-  const gridLoading = useMinSkeletonHold(isNavigating || monthPending);
+  // the URL while a new month is read — and `isNavigating` can itself lag
+  // through the router transition (its `searchParams` source updates only when
+  // the RSC payload lands, so even a device-cached month would flash its
+  // skeleton during that gap). When the record we already hold shares a month
+  // with the destination grid (adjacent months, the usual case), draw the
+  // tapped month immediately from the held events and let the read swap them in
+  // place — no skeleton, no previous-month flash. A far jump (no shared month)
+  // has no usable in-memory events, so it keeps the skeleton. Anchored views
+  // don't need this: their `date` prop is URL-first, and a cross-month move is
+  // already `isNavigating`.
+  const monthChanging = shownView === "month" && shownMonth !== month;
+  const monthOptimistic =
+    monthChanging &&
+    monthGridMonths(shownMonth).some((candidate) => monthGridMonths(month).includes(candidate));
+  const monthPending = monthChanging && !monthOptimistic;
+  const gridLoading = useMinSkeletonHold((isNavigating && !monthOptimistic) || monthPending);
   useContentEnter(weekBoxRef, !gridLoading);
 
   // Directional swipe on the grid/skeleton wrapper, for two kinds of change:
@@ -2792,7 +2800,11 @@ export function DashboardView({
           </>
         ) : view === "month" ? (
           <MonthView
-            date={`${month}-01 00:00:00`}
+            // While an adjacent month is loading, anchor the grid to the tapped
+            // month (`shownMonth`) so it draws immediately from the held events
+            // (which already cover it) instead of showing the previous month;
+            // the read then swaps the full event set in place.
+            date={`${monthOptimistic ? shownMonth : month}-01 00:00:00`}
             // Pre-sorted so the user's events claim the top rows of each day
             // (the grid assigns rows greedily in input order); their chips get
             // the amber ring via renderEvent.

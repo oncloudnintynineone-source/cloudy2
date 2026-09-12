@@ -133,12 +133,12 @@ describe("resolveActiveTab", () => {
 });
 
 describe("viewSwitchDirection", () => {
-  it("is 1 (enters from the right) when the target sits earlier in the strip", () => {
-    expect(viewSwitchDirection("a2", "m", tabs)).toBe(1);
+  it("is -1 (enters from the left) when the target sits earlier in the strip", () => {
+    expect(viewSwitchDirection("a2", "m", tabs)).toBe(-1);
   });
 
-  it("is -1 (enters from the left) when the target sits later in the strip", () => {
-    expect(viewSwitchDirection("m", "a2", tabs)).toBe(-1);
+  it("is 1 (enters from the right) when the target sits later in the strip", () => {
+    expect(viewSwitchDirection("m", "a2", tabs)).toBe(1);
   });
 
   it("is 0 for the same tab", () => {

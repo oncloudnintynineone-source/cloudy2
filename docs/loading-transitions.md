@@ -301,7 +301,7 @@ whose warm L1 entry still shadows the fresh rows
   (`DashboardScreen.tsx`, `src/lib/dashboard/snapshot.ts`.)
 - **View-switch swipe**: on a tab change the grid/skeleton wrapper plays a
   directional slide (`.view-slide-enter`, `--slide-dir`) — a target earlier in
-  the strip enters from the right, later from the left — fired on the tab change
+  the strip enters from the left, later from the right — fired on the tab change
   (not the reveal, so a warm switch animates too). `viewSwitchDirection` maps the
   `tabs` order to the direction; the class is restarted on the stable wrapper
   (remove → reflow → add) and `weekBoxRef`'s `overflow: clip` contains the
@@ -312,8 +312,9 @@ whose warm L1 entry still shadows the fresh rows
   (chevrons, Today, the date/month pickers): forward in time enters from the
   right, backward from the left (`periodSwitchDirection`, matching the Agenda
   slide). It is driven by the optimistic chrome (`shown*`), so it starts on tap
-  while the skeleton is up — a fetching month change slides the skeleton, then
-  the new grid fades in; a cached in-month week/day move slides the real grid.
+  while the skeleton is up — an adjacent month change slides the newly drawn
+  grid, a far-jump month change slides the skeleton (then the grid fades in),
+  and a cached in-month week/day move slides the real grid.
   A tab switch takes precedence, and the date branch is suppressed while a tab
   transition is in flight, so a Month↔anchored switch (which also resets the
   date) slides once. The Agenda tab is excluded — it keeps its own inner keyed
@@ -321,14 +322,16 @@ whose warm L1 entry still shadows the fresh rows
 - **Month load gate**: the month grid renders the committed record's `month`,
   which lags the URL while a new month is read — and `isNavigating` can itself
   lag through the router transition (`useSearchParams` updates only when the RSC
-  payload lands). `monthPending` (`shownView === "month" && shownMonth !== month`)
-  folds that lag into `gridLoading`, so the skeleton covers the read instead of
-  flashing the previous month; the render-phase chrome sync is likewise held
-  while `isNavigating`, so the optimistic month/kind isn't snapped back mid-load
-  (a failed read still heals). `DashboardScreen`'s `cached` flag suppresses the
-  skeleton only for a genuinely warm candidate record, so an uncached
-  destination reads as a navigation even while a device-cached record is shown
-  (`DashboardView.tsx`, `DashboardScreen.tsx`).
+  payload lands, so even a device-cached month would flash its skeleton during
+  that gap). When the held record shares a month with the destination grid
+  (adjacent months — the usual case), `monthOptimistic` anchors the grid to the
+  tapped `shownMonth` and draws it from the held events, suppressing the
+  skeleton; the read swaps the full event set in place. Only a far jump with no
+  shared month (`monthPending`) has no usable in-memory events and keeps the
+  skeleton. The render-phase chrome sync is held while `isNavigating`, so the
+  optimistic month/kind isn't snapped back mid-load (a failed read still heals),
+  and `DashboardScreen`'s `cached` flag suppresses the skeleton only for a
+  genuinely warm candidate record (`DashboardView.tsx`, `DashboardScreen.tsx`).
 
 ## 1.9 Optimistic navigation chrome
 
