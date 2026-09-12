@@ -252,7 +252,7 @@ half-day-aware occupancy window the timeline positions bars by (the stored
   calendar), which reads the copy through the sanctioned month cache
   (`fetchRangeEvents`) and returns the full `CalendarEvent` plus the `peopleNames` /
   `calendarNames` / `myActiveDepartmentIds` the shared `EventDetail` needs. The
-  details then fade in (`content-enter`, after a ~350 ms minimum skeleton hold). The
+  details then fade in (`content-enter`, after a ~150 ms minimum skeleton hold). The
   modal renders in **read-only mode** (`readOnly`): it hides Edit/Duplicate/Delete and
   offers a single **"Open in calendar"** button — the only navigation on the page, an
   explicit secondary action via `buildEventDeepLink`. `EventDetail` stays mounted

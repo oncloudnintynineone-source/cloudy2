@@ -2,15 +2,20 @@ import { describe, expect, it } from "vitest";
 
 import {
   DASHBOARD_SNAPSHOT_VERSION,
+  MAX_SNAPSHOTS_PER_USER,
   REFRESH_NONCE_TTL_MS,
+  WARM_SNAPSHOT_FRESH_MS,
   dashboardCandidateRequestKey,
   dashboardRequestKey,
   dashboardTabFiltersEqual,
   equivalentDashboardTab,
   isRefreshNonceFresh,
   isSnapshotRecordUsable,
+  isWarmSnapshotFresh,
   requiredMonths,
   resolveDashboardPresentation,
+  selectSnapshotsToEvict,
+  snapshotStorageKey,
   type DashboardSnapshotRecord,
 } from "./snapshot";
 import type { DashboardTabFilters, DashboardViewTab } from "@/lib/dashboardViews/views";
@@ -333,5 +338,52 @@ describe("isRefreshNonceFresh", () => {
     expect(isRefreshNonceFresh(undefined, now)).toBe(false);
     expect(isRefreshNonceFresh("", now)).toBe(false);
     expect(isRefreshNonceFresh("not-a-number", now)).toBe(false);
+  });
+});
+
+describe("snapshotStorageKey", () => {
+  it("namespaces the request key by account", () => {
+    expect(snapshotStorageKey("user-1", "tab-a|2026-09")).toBe("user-1::tab-a|2026-09");
+  });
+});
+
+describe("isWarmSnapshotFresh", () => {
+  const now = 1_700_000_000_000;
+
+  it("is fresh inside the window and stale outside it", () => {
+    expect(isWarmSnapshotFresh(now - 1_000, now)).toBe(true);
+    expect(isWarmSnapshotFresh(now - WARM_SNAPSHOT_FRESH_MS - 1, now)).toBe(false);
+  });
+});
+
+describe("selectSnapshotsToEvict", () => {
+  const entry = (key: string, savedAt: number) => ({ key, savedAt });
+
+  it("returns nothing while at or under the cap", () => {
+    expect(
+      selectSnapshotsToEvict([entry("u::a", 1), entry("u::b", 2)], "u", 2),
+    ).toEqual([]);
+  });
+
+  it("evicts the oldest beyond the cap, ignoring other accounts", () => {
+    expect(
+      selectSnapshotsToEvict(
+        [
+          entry("u::a", 30),
+          entry("u::b", 10),
+          entry("u::c", 20),
+          entry("other::x", 1),
+        ],
+        "u",
+        2,
+      ),
+    ).toEqual(["u::b"]);
+  });
+
+  it("uses MAX_SNAPSHOTS_PER_USER as the default cap", () => {
+    const entries = Array.from({ length: MAX_SNAPSHOTS_PER_USER + 2 }, (_, i) =>
+      entry(`u::${i}`, i),
+    );
+    expect(selectSnapshotsToEvict(entries, "u")).toEqual(["u::0", "u::1"]);
   });
 });

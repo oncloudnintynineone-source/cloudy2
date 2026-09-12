@@ -248,18 +248,19 @@ export function resolveDashboardPresentation(
   return { activeView, covered, isNavigating };
 }
 
-/** Whether a stored record matches the current snapshot shape. */
-export function isSnapshotRecordUsable(
-  record: DashboardSnapshotRecord | null | undefined,
-): record is DashboardSnapshotRecord {
+/** Whether a stored value matches the current snapshot shape. */
+export function isSnapshotRecordUsable(record: unknown): record is DashboardSnapshotRecord {
+  if (typeof record !== "object" || record === null) {
+    return false;
+  }
+  const candidate = record as DashboardSnapshotRecord;
   return (
-    !!record &&
-    record.version === DASHBOARD_SNAPSHOT_VERSION &&
-    !!record.context &&
-    typeof record.context.month === "string" &&
-    typeof record.context.date === "string" &&
-    typeof record.context.requestKey === "string" &&
-    !!record.data
+    candidate.version === DASHBOARD_SNAPSHOT_VERSION &&
+    !!candidate.context &&
+    typeof candidate.context.month === "string" &&
+    typeof candidate.context.date === "string" &&
+    typeof candidate.context.requestKey === "string" &&
+    !!candidate.data
   );
 }
 
@@ -272,4 +273,48 @@ export function isRefreshNonceFresh(raw: string | null | undefined, now: number)
   if (!raw) return false;
   const nonce = Number(raw);
   return Number.isFinite(nonce) && now - nonce < REFRESH_NONCE_TTL_MS;
+}
+
+/**
+ * How long a device-cached context is treated as fresh, so switching back to a
+ * recently viewed tab paints instantly without a background re-read. Aligned
+ * with the server events cache's fresh window (`GCAL_CACHE_FRESH_MS`).
+ */
+export const WARM_SNAPSHOT_FRESH_MS = 60_000;
+
+/**
+ * How many device-cached contexts to keep per account. Contexts are
+ * `tab × visited period`, so they grow without bound, and each record is a full
+ * snapshot (events plus the duplicated config), so the cap bounds disk usage,
+ * the cold-start hydration parse, and the risk of silently hitting the
+ * IndexedDB quota (`localStore` swallows write failures).
+ */
+export const MAX_SNAPSHOTS_PER_USER = 6;
+
+/** The IndexedDB key for one account's cached context. */
+export function snapshotStorageKey(userId: string, requestKey: string): string {
+  return `${userId}::${requestKey}`;
+}
+
+/** Whether a cached context is recent enough to serve without a re-read. */
+export function isWarmSnapshotFresh(savedAt: number, now: number): boolean {
+  return now - savedAt < WARM_SNAPSHOT_FRESH_MS;
+}
+
+/**
+ * The keys to delete so at most `max` contexts remain for `userId`, oldest
+ * first. Entries for other accounts are ignored. Pure so the LRU policy is
+ * unit-tested without IndexedDB.
+ */
+export function selectSnapshotsToEvict(
+  entries: readonly { key: string; savedAt: number }[],
+  userId: string,
+  max: number = MAX_SNAPSHOTS_PER_USER,
+): string[] {
+  const prefix = `${userId}::`;
+  const mine = entries
+    .filter((entry) => entry.key.startsWith(prefix))
+    .sort((a, b) => a.savedAt - b.savedAt);
+  const excess = mine.length - max;
+  return excess > 0 ? mine.slice(0, excess).map((entry) => entry.key) : [];
 }

@@ -53,7 +53,7 @@ Three failure modes, all observed before this system existed:
   darkened while loading (the `opacity: isPending ? 0.6 : 1` pattern is banned).
 - Every skeleton→content reveal reads as a deliberate, perceptible sequence,
   even for sub-100 ms loads (minimum hold, §1.5).
-- Content fades in over ~300 ms on reveal, **and** on cold first paint — the
+- Content fades in over ~200 ms on reveal, **and** on cold first paint — the
   class ships in the SSR HTML, so no JS is needed for the first fade
   (§1.6).
 - Containers that must not remount (scroll position) keep their identity; the
@@ -82,10 +82,10 @@ Three failure modes, all observed before this system existed:
 stateDiagram-v2
  [*] --> loading: navigation starts (startTransition)
  loading --> loading: pending stays true
- loading --> hold: pending false, but < 350ms since start
+ loading --> hold: pending false, but < 150ms since start
  hold --> revealed: hold expires
- loading --> revealed: pending false after >= 350ms
- revealed --> [*]: content-enter fade plays (~300ms)
+ loading --> revealed: pending false after >= 150ms
+ revealed --> [*]: content-enter fade plays (~200ms)
  note right of hold
  holds never stack:
  a new pending supersedes
@@ -97,7 +97,7 @@ stateDiagram-v2
  server fetch) runs inside `startTransition`; the route's `loading.tsx`
  (or the in-page skeleton swap) shows while `isPending`.
 2. `useMinSkeletonHold` extends the hold to a minimum of
- `MIN_SKELETON_HOLD_MS` (350 ms) from the load's start.
+ `MIN_SKELETON_HOLD_MS` (150 ms) from the load's start.
 3. On reveal, `useContentEnter` (or the SSR-shipped class) plays the
  `content-enter` fade.
 4. URL-only changes (one-shot param strips, in-month day sync) use **plain
@@ -174,7 +174,7 @@ replay it.
 
 ## 1.5 Minimum skeleton hold
 
-`useMinSkeletonHold(pending, holdMs = 350)`
+`useMinSkeletonHold(pending, holdMs = 150)`
 (`src/lib/loading/minHoldLoading.ts`):
 
 - Returns `pending || holdRemaining`. While `pending`, it records
@@ -189,8 +189,9 @@ replay it.
   just-loaded content is never shown for a single frame between the skeleton and
   the held skeleton (a passive `useEffect` let that one-frame flash through —
   same reasoning as `useContentEnter`, §1.6).
-- The 350 ms constant is `MIN_SKELETON_HOLD_MS` — deliberately long
-  enough to read as a deliberate pause, short enough not to feel slow.
+- The 150 ms constant is `MIN_SKELETON_HOLD_MS` — long enough to read as a
+  deliberate beat, short enough not to feel slow (most warm revisits skip the
+  skeleton entirely via the device cache, so this only shapes first-time loads).
 
 Callers gate their *in-page* skeleton on the held value, e.g.
 `gridLoading = useMinSkeletonHold(isNavigating)` (`DashboardView.tsx`) — data
@@ -201,7 +202,7 @@ reloads the whole document, so its wait is the route `loading.tsx` skeleton
 ## 1.6 Reveal fade
 
 **Cold mount**: `CONTENT_ENTER_CLASS` on the content root (see §1.4). The
-animation is `content-enter` — `opacity: 0 → 1`, 300 ms ease-out
+animation is `content-enter` — `opacity: 0 → 1`, 200 ms ease-out
 (`src/app/globals.css`) — inside the
 `prefers-reduced-motion: no-preference` guard.
 

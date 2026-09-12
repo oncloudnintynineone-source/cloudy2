@@ -543,16 +543,23 @@ sequenceDiagram
   `buildDashboardData` (`src/lib/dashboard/data.ts`) — the exact resolution the
   page used to run inline (including the events cache and adjacent-month
   prefetch). The route's `loading.tsx` is now only the pre-hydration shell.
-- **Cached first paint.** `DashboardScreen` reads the last snapshot for the
-  account from IndexedDB (`src/lib/dashboard/localStore.ts`) and renders the
-  grid immediately. It then **always** revalidates and swaps the fresh snapshot
-  in place — no skeleton, no fade, no remount, so scroll/zoom/selection/open
-  modals survive. The amber activity bar is the only signal.
+- **Cached first paint & warm revisits.** `DashboardScreen` hydrates a
+  per-account map of cached *contexts* from IndexedDB
+  (`src/lib/dashboard/localStore.ts`) on mount and renders the newest one
+  immediately. Every successful read writes its context (keyed by the account id
+  + `requestKey`), capped at `MAX_SNAPSHOTS_PER_USER` (6) by LRU
+  (`selectSnapshotsToEvict`), which bounds disk, the cold-start hydration parse
+  and the IndexedDB quota (write failures are swallowed, so an unbounded store
+  would silently stop caching). Switching back to a previously loaded context
+  paints it instantly from the map and revalidates only when the cached record is
+  older than `WARM_SNAPSHOT_FRESH_MS` (60s, aligned with the server events-cache
+  window) — a warm paint shows no skeleton. A mutation / filter apply / tab CRUD
+  (`revalidate()`) and a force refresh drop every cached context before
+  re-reading, so no stale record survives a write.
 - **In-place, never interrupting.** A revalidation of the *current* context
-  never shows the grid skeleton (`isNavigating` is false). Only a
-  context-changing fetch on already-fresh data (a tab switch or a month-set
-  change) shows the skeleton, matching the old route-transition UX. A cached
-  record is shown *through* a context change (instant, then corrected).
+  never shows the grid skeleton (`isNavigating` is false). A context-changing
+  fetch shows the skeleton only when the target isn't served from the warm cache;
+  a cached context is painted instantly through the change (then corrected).
 - **Fetch identity is the months a view needs, not the day.** The request key
   (`dashboardRequestKey`) is the resolved tab id plus `requiredMonths(kind,
   month, date)` — the Month grid's 2-3 months, a week's 1-2 months, or the

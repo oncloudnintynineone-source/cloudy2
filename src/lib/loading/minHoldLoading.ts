@@ -9,7 +9,7 @@ import { useLayoutEffect, useRef, useState } from "react";
  * as a hard cut. Holding the skeleton for this window makes every
  * skeleton → content reveal a deliberate, perceptible sequence.
  */
-export const MIN_SKELETON_HOLD_MS = 350;
+export const MIN_SKELETON_HOLD_MS = 150;
 
 /**
  * Returns `pending` with a minimum hold applied: true while `pending` is

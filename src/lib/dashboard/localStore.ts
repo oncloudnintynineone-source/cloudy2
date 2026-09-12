@@ -1,25 +1,31 @@
 /**
- * IndexedDB persistence for the dashboard snapshot (docs/pwa-offline.md).
+ * IndexedDB persistence for the dashboard snapshots (docs/pwa-offline.md).
  *
- * One latest record per account is stored under the `cloudy2` database. The
- * record is read on a cold open to paint the last-known grid immediately, then
- * overwritten by the next successful revalidation. This is a pure performance
- * cache — it is never authoritative, and every read is guarded so a missing /
- * corrupt / unavailable IndexedDB degrades to "no cache" instead of an error.
+ * The device keeps up to {@link MAX_SNAPSHOTS_PER_USER} recent *contexts* per
+ * account, each keyed by the account id + the context's request key. A cold open
+ * paints the newest one immediately; switching back to a previously loaded view
+ * paints its cached context instantly and revalidates in the background. This is
+ * a pure performance cache — never authoritative — and every read is guarded so
+ * a missing / corrupt / unavailable IndexedDB degrades to "no cache" instead of
+ * an error.
  *
- * All functions are safe to call on the server (they no-op) so the module can
- * be imported from shared code without a `typeof window` dance at every call
- * site.
+ * All functions are safe to call on the server (they no-op) so the module can be
+ * imported from shared code without a `typeof window` dance at every call site.
  */
 
 import {
   DASHBOARD_SNAPSHOT_VERSION,
   isSnapshotRecordUsable,
+  selectSnapshotsToEvict,
+  snapshotStorageKey,
   type DashboardSnapshotRecord,
 } from "./snapshot";
 
 const DB_NAME = "cloudy2";
-const DB_VERSION = 1;
+// v2: one record per context (composite key) instead of one per account. The
+// upgrade drops the legacy single-record store, so a deploy can't read an
+// old-shape entry (the next load revalidates).
+const DB_VERSION = 2;
 const STORE_NAME = "dashboardSnapshots";
 
 function hasIndexedDb(): boolean {
@@ -31,9 +37,10 @@ function openDb(): Promise<IDBDatabase> {
     const request = indexedDB.open(DB_NAME, DB_VERSION);
     request.onupgradeneeded = () => {
       const db = request.result;
-      if (!db.objectStoreNames.contains(STORE_NAME)) {
-        db.createObjectStore(STORE_NAME);
+      if (db.objectStoreNames.contains(STORE_NAME)) {
+        db.deleteObjectStore(STORE_NAME);
       }
+      db.createObjectStore(STORE_NAME);
     };
     request.onsuccess = () => resolve(request.result);
     request.onerror = () => reject(request.error);
@@ -63,22 +70,106 @@ function runRequest<T>(
   );
 }
 
-/** The last snapshot stored for this account, or null when none/usable-mismatch. */
-export async function readDashboardSnapshot(
-  userId: string,
-): Promise<DashboardSnapshotRecord | null> {
-  if (!hasIndexedDb()) return null;
-  try {
-    const record = await runRequest<DashboardSnapshotRecord>("readonly", (store) =>
-      store.get(userId) as IDBRequest<DashboardSnapshotRecord>,
-    );
-    return isSnapshotRecordUsable(record) ? record : null;
-  } catch {
-    return null;
-  }
+/** Every usable stored record with its storage key (best-effort, never throws). */
+function readAllRecords(): Promise<{ key: string; record: DashboardSnapshotRecord }[]> {
+  return openDb().then(
+    (db) =>
+      new Promise((resolve) => {
+        try {
+          const tx = db.transaction(STORE_NAME, "readonly");
+          const store = tx.objectStore(STORE_NAME);
+          // Both requests are issued synchronously so the transaction can't
+          // auto-commit between them.
+          const keysRequest = store.getAllKeys();
+          const valuesRequest = store.getAll();
+          let keys: IDBValidKey[] = [];
+          let values: unknown[] = [];
+          let pending = 2;
+          const settle = () => {
+            if (--pending > 0) return;
+            const out: { key: string; record: DashboardSnapshotRecord }[] = [];
+            for (let i = 0; i < keys.length; i += 1) {
+              const key = keys[i];
+              const record = values[i];
+              if (typeof key === "string" && isSnapshotRecordUsable(record)) {
+                out.push({ key, record });
+              }
+            }
+            resolve(out);
+          };
+          keysRequest.onsuccess = () => {
+            keys = keysRequest.result;
+            settle();
+          };
+          valuesRequest.onsuccess = () => {
+            values = valuesRequest.result;
+            settle();
+          };
+          const fail = () => resolve([]);
+          keysRequest.onerror = fail;
+          valuesRequest.onerror = fail;
+          tx.oncomplete = () => db.close();
+          tx.onerror = fail;
+          tx.onabort = fail;
+        } catch {
+          db.close();
+          resolve([]);
+        }
+      }),
+  );
 }
 
-/** Persist the latest snapshot for this account (best-effort). */
+/** Delete the given storage keys in one transaction (best-effort). */
+function deleteKeys(keys: readonly string[]): Promise<void> {
+  if (keys.length === 0) return Promise.resolve();
+  return openDb().then(
+    (db) =>
+      new Promise<void>((resolve) => {
+        try {
+          const tx = db.transaction(STORE_NAME, "readwrite");
+          const store = tx.objectStore(STORE_NAME);
+          for (const key of keys) {
+            store.delete(key);
+          }
+          tx.oncomplete = () => {
+            db.close();
+            resolve();
+          };
+          tx.onerror = () => {
+            db.close();
+            resolve();
+          };
+          tx.onabort = () => {
+            db.close();
+            resolve();
+          };
+        } catch {
+          db.close();
+          resolve();
+        }
+      }),
+  );
+}
+
+/** Every cached context for this account (for the in-memory hydration). */
+export async function readDashboardSnapshots(userId: string): Promise<DashboardSnapshotRecord[]> {
+  if (!hasIndexedDb()) return [];
+  const prefix = `${userId}::`;
+  const all = await readAllRecords();
+  return all.filter((entry) => entry.key.startsWith(prefix)).map((entry) => entry.record);
+}
+
+/** Drop this account's oldest contexts so at most the cap remain. */
+async function pruneSnapshots(userId: string): Promise<void> {
+  const all = await readAllRecords();
+  const evict = selectSnapshotsToEvict(
+    all.map((entry) => ({ key: entry.key, savedAt: entry.record.savedAt })),
+    userId,
+  );
+  await deleteKeys(evict);
+}
+
+/** Persist one context's snapshot (best-effort), evicting the oldest beyond the cap. */
 export async function writeDashboardSnapshot(
   userId: string,
   data: DashboardSnapshotRecord["data"],
@@ -92,13 +183,24 @@ export async function writeDashboardSnapshot(
     data,
   };
   try {
-    await runRequest("readwrite", (store) => store.put(record, userId));
+    await runRequest("readwrite", (store) =>
+      store.put(record, snapshotStorageKey(userId, context.requestKey)),
+    );
+    await pruneSnapshots(userId);
   } catch {
     // Quota / private-mode / transient failures: the in-memory render stands.
   }
 }
 
-/** Drop every stored snapshot (sign-out, shared-device isolation). */
+/** Drop every cached context for this account (mutation / force-refresh invalidation). */
+export async function clearDashboardSnapshots(userId: string): Promise<void> {
+  if (!hasIndexedDb()) return;
+  const prefix = `${userId}::`;
+  const all = await readAllRecords();
+  await deleteKeys(all.filter((entry) => entry.key.startsWith(prefix)).map((entry) => entry.key));
+}
+
+/** Drop every stored snapshot for every account (sign-out, shared-device isolation). */
 export async function clearAllDashboardSnapshots(): Promise<void> {
   if (!hasIndexedDb()) return;
   try {
