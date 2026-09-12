@@ -183,13 +183,17 @@ replay it.
 - **Holds never stack**: a new `pending` supersedes any outstanding hold —
   fast consecutive navigations each hold from their own start, so the
   skeleton can't accumulate delays.
-- Timing uses `performance.now()` **in effects only**, so SSR renders are
-  unaffected.
+- Timing uses `performance.now()` **in a layout effect only**, so SSR renders
+  are unaffected. The layout effect is deliberate: it engages the hold on the
+  render where `pending` flips false **before the browser paints**, so the
+  just-loaded content is never shown for a single frame between the skeleton and
+  the held skeleton (a passive `useEffect` let that one-frame flash through —
+  same reasoning as `useContentEnter`, §1.6).
 - The 350 ms constant is `MIN_SKELETON_HOLD_MS` — deliberately long
   enough to read as a deliberate pause, short enough not to feel slow.
 
 Callers gate their *in-page* skeleton on the held value, e.g.
-`gridLoading = useMinSkeletonHold(isPending)` (`DashboardView.tsx`) — data
+`gridLoading = useMinSkeletonHold(isNavigating)` (`DashboardView.tsx`) — data
 navigations only. Force refresh no longer participates: the header button
 reloads the whole document, so its wait is the route `loading.tsx` skeleton
 (§1.4), not this hold.
@@ -397,7 +401,7 @@ and the non-remounting container means `useContentEnter` never replays.
 
 | Consumer | Minimum hold | Reveal fade | Notes |
 | -------- | ------------ | ----------- | ----- |
-| `DashboardView` (week/schedule grid) | `useMinSkeletonHold(isPending)` | `useContentEnter(weekBoxRef, …)` | stable `ScrollArea` keeps scroll position; force refresh is a full page reload (route `loading.tsx`), not an in-app transition |
+| `DashboardView` (week/schedule grid) | `useMinSkeletonHold(isNavigating)` | `useContentEnter(weekBoxRef, …)` | stable `ScrollArea` keeps scroll position; force refresh is a full page reload (route `loading.tsx`), not an in-app transition |
 | `ParadeStateView` | `useMinSkeletonHold(initialMonth !== month)`  | `useContentEnter`  | in-month changes are optimistic — no skeleton |
 | `AuditLogView` | `useMinSkeletonHold(isPending)`  | `useContentEnter`  | filter navigations; no-op guard skips the transition |
 | `SettingsForm`, `DepartmentTable`, `ContactList`, `UserTable`, `EventTypeTable`, `TemplatesForm` | — | static `CONTENT_ENTER_CLASS` on the content root | server-rendered pages; the SSR fade plays on first paint |

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 
 /**
  * Minimum time a loading skeleton stays visible after its load begins. With
@@ -18,8 +18,13 @@ export const MIN_SKELETON_HOLD_MS = 350;
  *
  * A new pending supersedes any outstanding hold (the skeleton is shown by
  * `pending` itself), so holds never stack across fast consecutive
- * navigations. Timing uses `performance.now()` in effects only, so SSR
+ * navigations. Timing uses `performance.now()` in a layout effect only, so SSR
  * renders are unaffected.
+ *
+ * The hold engages in a **layout** effect: on the render where `pending` flips
+ * false it re-renders before the browser paints, so the just-loaded content is
+ * never shown for a single frame between the skeleton and the held skeleton
+ * (a passive `useEffect` would let that one-frame flash through).
  */
 export function useMinSkeletonHold(
   pending: boolean,
@@ -28,7 +33,7 @@ export function useMinSkeletonHold(
   const [holdRemaining, setHoldRemaining] = useState(false);
   const loadStartRef = useRef<number | null>(null);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (pending) {
       // Only the start timestamp matters while loading; a superseded hold
       // needs no state update here — `pending` alone keeps the skeleton
