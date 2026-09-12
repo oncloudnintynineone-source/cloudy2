@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
+import { useCallback, useMemo, useRef, useState, useTransition } from "react";
 import {
   ActionIcon,
   Badge,
@@ -10,6 +10,7 @@ import {
   Group,
   Menu,
   Modal,
+  Pagination,
   Paper,
   Pill,
   ScrollArea,
@@ -32,7 +33,7 @@ import { FilterModal, type FilterGroup } from "@/components/FilterModal";
 import { FAB_ICON_SIZE, FloatingActionButton, FloatingToolbar } from "@/components/FloatingToolbar";
 import { LoadingStatus } from "@/components/LoadingStatus";
 import { useColdStartContent } from "@/components/ColdStartReady";
-import { purgeAuditLogs, loadMoreAuditLogs } from "@/lib/audit/actions";
+import { purgeAuditLogs } from "@/lib/audit/actions";
 import { listAuditActions } from "@/lib/audit/build";
 import {
   actionLabel,
@@ -56,7 +57,12 @@ import { SettingsTableSkeleton } from "../SettingsTableSkeleton";
 
 interface AuditLogViewProps {
   initialRows: AuditLog[];
-  nextCursor: string | null;
+  /** 1-based current page (clamped to `pageCount`). */
+  page: number;
+  /** Total number of pages for the current filters. */
+  pageCount: number;
+  /** Total number of matching entries across all pages. */
+  total: number;
   filters: AuditFilters;
   /** Distinct actor names seen in the log, plus any name in the applied filter. */
   actors: string[];
@@ -95,7 +101,9 @@ function inputToDate(value: string | null): Date | null {
 
 export function AuditLogView({
   initialRows,
-  nextCursor,
+  page,
+  pageCount,
+  total,
   filters,
   actors,
   actorDepartments,
@@ -121,30 +129,7 @@ export function AuditLogView({
   // Cold-start readiness: mounts with the route's first (server-rendered) page
   // of rows, so reporting on mount is exactly "content painted".
   useColdStartContent();
-  // Latest applied filters, so an in-flight "Load more" can detect that the
-  // filter set changed underneath it and drop its stale-filter page instead of
-  // appending it to the freshly reset list.
-  const filtersRef = useRef(filters);
-  useEffect(() => {
-    filtersRef.current = filters;
-  }, [filters]);
 
-  const [rows, setRows] = useState(initialRows);
-  const [cursor, setCursor] = useState(nextCursor);
-  // Filter navigations (and the post-purge refresh) re-render this component
-  // with fresh server props but never remount it, so the local list state must
-  // be re-synced from the props. Render-phase adjustment (React's "adjusting
-  // state when props change" pattern, same as the dashboard's ?event= link)
-  // applies the new page before paint — no stale-rows flash behind the
-  // skeleton reveal. Any server re-render resets "Load more" pagination back
-  // to the first page, which is the intended semantics.
-  const [prevInitialRows, setPrevInitialRows] = useState(initialRows);
-  if (prevInitialRows !== initialRows) {
-    setPrevInitialRows(initialRows);
-    setRows(initialRows);
-    setCursor(nextCursor);
-  }
-  const [loadingMore, setLoadingMore] = useState(false);
   const [searchInput, setSearchInput] = useState(filters.query ?? "");
 
   const [detail, setDetail] = useState<AuditLog | null>(null);
@@ -206,8 +191,14 @@ export function AuditLogView({
   );
 
   const buildHref = useCallback(
-    (updates: Record<string, string | null>) => {
+    (updates: Record<string, string | null>, options?: { resetPage?: boolean }) => {
       const params = new URLSearchParams(searchParams.toString());
+      // Any filter change resets pagination to the first page; page navigation
+      // opts out so it can set `page` itself.
+      if (options?.resetPage !== false) {
+        params.delete("page");
+      }
+      params.delete("cursor");
       for (const [key, value] of Object.entries(updates)) {
         if (value === null || value === "") {
           params.delete(key);
@@ -215,7 +206,6 @@ export function AuditLogView({
           params.set(key, value);
         }
       }
-      params.delete("cursor");
       const query = params.toString();
       return query ? `${pathname}?${query}` : pathname;
     },
@@ -223,9 +213,9 @@ export function AuditLogView({
   );
 
   const navigate = useCallback(
-    (updates: Record<string, string | null>) => {
+    (updates: Record<string, string | null>, options?: { resetPage?: boolean }) => {
       const query = searchParams.toString();
-      const next = buildHref(updates);
+      const next = buildHref(updates, options);
       // A no-op navigation (picking the filter value already applied) would
       // still run a transition, flashing the list skeleton for nothing.
       if (next === (query ? `${pathname}?${query}` : pathname)) {
@@ -236,6 +226,13 @@ export function AuditLogView({
       });
     },
     [buildHref, router, startTransition, pathname, searchParams],
+  );
+
+  const goToPage = useCallback(
+    (nextPage: number) => {
+      navigate({ page: nextPage <= 1 ? null : String(nextPage) }, { resetPage: false });
+    },
+    [navigate],
   );
 
   const applyFilters = useCallback(
@@ -294,27 +291,6 @@ export function AuditLogView({
     const query = params.toString();
     return query ? `/api/audit/export?${query}` : "/api/audit/export";
   }, [filters]);
-
-  const handleLoadMore = async () => {
-    if (!cursor || loadingMore) {
-      return;
-    }
-    setLoadingMore(true);
-    const requestedFilters = filters;
-    try {
-      const page = await loadMoreAuditLogs({ ...filters, cursor });
-      if (filtersRef.current !== requestedFilters) {
-        return;
-      }
-      setRows((previous) => [...previous, ...page.rows]);
-      setCursor(page.nextCursor);
-    } catch (error) {
-      console.error("[audit] Failed to load more", error);
-      notifications.show({ color: "red", message: "Failed to load more entries" });
-    } finally {
-      setLoadingMore(false);
-    }
-  };
 
   const handlePurge = async () => {
     if (purging) {
@@ -613,7 +589,7 @@ export function AuditLogView({
             {/* Desktop: data table (Time / Actor / Action / Entity / Route / Details) */}
             <SettingsTableSkeleton columns={[2, 1.5, 1.5, 2, 2, 1.5]} rows={5} visibleFrom="lg" />
           </>
-        ) : rows.length === 0 ? (
+        ) : initialRows.length === 0 ? (
           <EmptyState
             icon={<IconFilterOff size={18} />}
             description="No log entries match these filters."
@@ -624,7 +600,7 @@ export function AuditLogView({
           <>
             {/* Mobile: card list */}
             <Stack gap="sm" hiddenFrom="lg">
-              {rows.map((row) => (
+              {initialRows.map((row) => (
                 <Paper key={row.id} withBorder p="sm">
                   <Stack gap={4}>
                     <Group justify="space-between" wrap="nowrap" align="flex-start">
@@ -695,7 +671,7 @@ export function AuditLogView({
                   </Table.Tr>
                 </Table.Thead>
                 <Table.Tbody>
-                  {rows.map((row) => (
+                  {initialRows.map((row) => (
                     <Table.Tr key={row.id}>
                       <Table.Td style={{ whiteSpace: "nowrap" }}>
                         <Text size="sm" c="dimmed">
@@ -765,17 +741,23 @@ export function AuditLogView({
           </>
         )}
 
-        {cursor ? (
-          <Group justify="center">
-            <Button
-              variant="default"
-              loading={loadingMore}
-              loaderProps={BUTTON_LOADER_PROPS}
-              onClick={handleLoadMore}
-            >
-              Load more
-            </Button>
-          </Group>
+        {!listLoading && initialRows.length > 0 ? (
+          <Stack gap={4} align="center" mt="xs">
+            {pageCount > 1 ? (
+              <Pagination
+                total={pageCount}
+                value={page}
+                onChange={goToPage}
+                siblings={1}
+                boundaries={1}
+                withEdges
+              />
+            ) : null}
+            <Text size="xs" c="dimmed">
+              Page {page} of {pageCount} · {total.toLocaleString()}{" "}
+              {total === 1 ? "entry" : "entries"}
+            </Text>
+          </Stack>
         ) : null}
       </Stack>
 

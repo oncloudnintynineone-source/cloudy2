@@ -9,6 +9,7 @@
 import {
   and,
   asc,
+  count,
   desc,
   eq,
   gte,
@@ -42,6 +43,8 @@ export interface AuditFilters {
   from: string | null;
   /** Inclusive upper date bound, `YYYY-MM-DD` (UTC). */
   to: string | null;
+  /** 1-based page number for offset pagination (clamped to >= 1). */
+  page: number;
   /** Encoded keyset cursor (base64url of `[createdAtMs, id]`). */
   cursor: string | null;
 }
@@ -58,6 +61,7 @@ export const EMPTY_AUDIT_FILTERS: AuditFilters = {
   query: null,
   from: null,
   to: null,
+  page: 1,
   cursor: null,
 };
 
@@ -108,6 +112,18 @@ function validDate(value: string | null): string | null {
 }
 
 /**
+ * Normalize a `page` param into a positive integer. Non-numeric, zero,
+ * negative, and fractional values fall back to `1`.
+ */
+export function parsePage(value: string | null): number {
+  if (!value) {
+    return 1;
+  }
+  const parsed = Number.parseInt(value, 10);
+  return Number.isFinite(parsed) && parsed >= 1 ? parsed : 1;
+}
+
+/**
  * Normalize an `AuditFilters`-style record (usually a parsed `searchParams`
  * object) into a fully-validated `AuditFilters`. Invalid values are dropped.
  */
@@ -122,6 +138,7 @@ export function parseAuditFilters(
     query: single(params, "q"),
     from: validDate(single(params, "from")),
     to: validDate(single(params, "to")),
+    page: parsePage(single(params, "page")),
     cursor: decodeAuditCursor(cursor) ? cursor : null,
   };
 }
@@ -218,12 +235,14 @@ export interface AuditLogPage {
 
 /**
  * Fetch one page of audit logs, newest first. When `retentionDays` is given
- * the expired rows are purged first (rotation on read). Returns an encoded
- * cursor for the next page, or null when there are no more rows.
+ * the expired rows are purged first (rotation on read). Pass `offset` for
+ * offset-based (numbered) pagination; omit it to use the keyset `filters.cursor`
+ * instead (the CSV export path). Returns an encoded cursor for the next page,
+ * or null when there are no more rows.
  */
 export async function listAuditLogs(
   filters: AuditFilters,
-  opts: { pageSize?: number; retentionDays?: number | null } = {},
+  opts: { pageSize?: number; retentionDays?: number | null; offset?: number } = {},
 ): Promise<AuditLogPage> {
   if (opts.retentionDays != null && opts.retentionDays > 0) {
     await purgeExpiredAuditLogs(opts.retentionDays);
@@ -246,12 +265,22 @@ export async function listAuditLogs(
     .from(auditLogs)
     .where(and(...conditions))
     .orderBy(desc(auditLogs.createdAt), desc(auditLogs.id))
-    .limit(pageSize + 1);
+    .limit(pageSize + 1)
+    .offset(opts.offset ?? 0);
 
   const hasMore = rows.length > pageSize;
   const pageRows = hasMore ? rows.slice(0, pageSize) : rows;
   const last = pageRows[pageRows.length - 1];
   return { rows: pageRows, nextCursor: hasMore && last ? encodeAuditCursor(last) : null };
+}
+
+/** Total number of audit rows matching the filters (ignores any cursor). */
+export async function countAuditLogs(filters: AuditFilters): Promise<number> {
+  const [row] = await db
+    .select({ n: count() })
+    .from(auditLogs)
+    .where(and(...auditFilterConditions(filters)));
+  return row?.n ?? 0;
 }
 
 /** Distinct `entity_type` values seen in the log, sorted. */

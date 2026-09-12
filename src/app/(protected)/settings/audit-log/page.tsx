@@ -1,10 +1,13 @@
 import { listCalendars } from "@/lib/events/queries";
 import { listUsers } from "@/lib/roster/queries";
 import {
+  AUDIT_PAGE_SIZE,
+  countAuditLogs,
   listAuditActors,
   listAuditEntityTypes,
   listAuditLogs,
   parseAuditFilters,
+  purgeExpiredAuditLogs,
 } from "@/lib/audit/queries";
 import { getSettings } from "@/lib/settings/queries";
 import { AuditLogView } from "./AuditLogView";
@@ -29,7 +32,17 @@ export default async function AuditLogPage({ searchParams }: AuditLogPageProps) 
     calendars.map((calendar) => [calendar.id, calendar.parentId ?? null]),
   );
 
-  const logPage = await listAuditLogs(filters, { retentionDays: settings.auditLogRetentionDays });
+  // Rotation-on-read fires here (before the count, so the total reflects the
+  // purged set). Offset pagination then fetches exactly the requested page.
+  if (settings.auditLogRetentionDays > 0) {
+    await purgeExpiredAuditLogs(settings.auditLogRetentionDays);
+  }
+
+  const total = await countAuditLogs(filters);
+  const pageCount = Math.max(1, Math.ceil(total / AUDIT_PAGE_SIZE));
+  const page = Math.min(Math.max(filters.page, 1), pageCount);
+  const offset = (page - 1) * AUDIT_PAGE_SIZE;
+  const logPage = await listAuditLogs(filters, { offset });
 
   // Actor filter values are name snapshots (they survive user deletion), so the
   // picker needs a department for each distinct actor name. Names still present
@@ -66,7 +79,9 @@ export default async function AuditLogPage({ searchParams }: AuditLogPageProps) 
   return (
     <AuditLogView
       initialRows={logPage.rows}
-      nextCursor={logPage.nextCursor}
+      page={page}
+      pageCount={pageCount}
+      total={total}
       filters={filters}
       actors={actorNames}
       actorDepartments={actorDepartments}

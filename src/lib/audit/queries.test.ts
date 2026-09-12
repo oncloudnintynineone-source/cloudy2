@@ -1,6 +1,13 @@
 import { describe, expect, it } from "vitest";
 
-import { dayBounds, decodeAuditCursor, encodeAuditCursor, multi, parseAuditFilters } from "./queries";
+import {
+  dayBounds,
+  decodeAuditCursor,
+  encodeAuditCursor,
+  multi,
+  parseAuditFilters,
+  parsePage,
+} from "./queries";
 
 describe("parseAuditFilters", () => {
   it("parses all supported params", () => {
@@ -15,6 +22,7 @@ describe("parseAuditFilters", () => {
       q: "Bob",
       from: "2026-08-01",
       to: "2026-08-20",
+      page: "3",
       cursor,
     });
     expect(filters).toEqual({
@@ -24,6 +32,7 @@ describe("parseAuditFilters", () => {
       query: "Bob",
       from: "2026-08-01",
       to: "2026-08-20",
+      page: 3,
       cursor,
     });
   });
@@ -36,6 +45,7 @@ describe("parseAuditFilters", () => {
       q: undefined,
       from: "not-a-date",
       to: "2026-13-45",
+      page: "0",
       cursor: "%%%not-base64url%%%",
     });
     expect(filters).toEqual({
@@ -45,6 +55,7 @@ describe("parseAuditFilters", () => {
       query: null,
       from: null,
       to: null,
+      page: 1,
       cursor: null,
     });
   });
@@ -86,6 +97,21 @@ describe("multi", () => {
 
   it("dedupes while preserving first-seen order", () => {
     expect(multi({ actor: "Admin,Alice Tan,Admin" }, "actor")).toEqual(["Admin", "Alice Tan"]);
+  });
+});
+
+describe("parsePage", () => {
+  it("defaults to 1 for absent or invalid values", () => {
+    expect(parsePage(null)).toBe(1);
+    expect(parsePage("")).toBe(1);
+    expect(parsePage("0")).toBe(1);
+    expect(parsePage("-4")).toBe(1);
+    expect(parsePage("nope")).toBe(1);
+  });
+
+  it("parses positive integers", () => {
+    expect(parsePage("1")).toBe(1);
+    expect(parsePage("12")).toBe(12);
   });
 });
 

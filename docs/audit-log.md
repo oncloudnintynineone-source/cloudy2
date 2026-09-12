@@ -4,7 +4,7 @@ Every state-changing action in the app — logins, user/calendar/event-type
 changes, event create/update/delete, access grants, settings updates — writes a
 row to `audit_logs`. This document describes the subsystem end to end: the table,
 the best-effort write path, the human-readable `details` design, the read side
-(filter parsing, keyset pagination, rotation-on-read), the three display
+(filter parsing, pagination, rotation-on-read), the three display
 shapes, and the CSV export.
 
 ## Table of contents
@@ -76,11 +76,9 @@ flowchart LR
  DB[("audit_logs")]
  BL --> DB
  subgraph READ["Read path (admin-only)"]
- PG["audit-log/page.tsx<br/>parseAuditFilters + listAuditLogs<br/>(purge-on-read)"]
- LDM["loadMoreAuditLogs (server action)"]
+ PG["audit-log/page.tsx<br/>parseAuditFilters + countAuditLogs<br/>+ listAuditLogs(offset)<br/>(purge-on-read)"]
  EXP["/api/audit/export (CSV)"]
  PG --> DB
- LDM --> DB
  EXP --> DB
  end
  DB --> PG
@@ -223,7 +221,8 @@ entry, drops empties, and dedupes while preserving order. An empty list means
 | `entity` | `entityType: string[]` | `in array (entity_type)` |
 | `q` | `query` | `ilike` OR across `actor_name, entity_name, route, method, action` |
 | `from` / `to` | `from` / `to` | inclusive UTC day bounds — `T00:00:00.000Z` / `T23:59:59.999Z` (`dayBounds`) |
-| `cursor` | `cursor` | keyset cursor (below) |
+| `page` | `page` | 1-based page number for offset pagination (`parsePage`) |
+| `cursor` | `cursor` | keyset cursor (CSV export only) |
 
 Dates pass a **round-trip calendar check** (`validDate`): `2026-13-45`
 and `2026-02-31` are dropped, not just pattern-rejected. The cursor is kept only
@@ -236,30 +235,36 @@ still renders its pill/picker label) and mapped to roster department names via
 `listUsers()` — names with no roster match (`Admin`, deleted users) land in an
 "Other" picker section.
 
-### 1.7.2 Keyset pagination
+### 1.7.2 Pagination
 
-- **Cursor**: `encodeAuditCursor(row)`  = base64url of
+The viewer uses **offset pagination** so the UI can render numbered pages
+(§1.10). The keyset cursor is retained only for the CSV export, which walks the
+whole filtered set internally.
+
+- **Page param**: `?page=N` — `parsePage` (`queries.ts`, pure) parses it as a
+  positive integer; absent, non-numeric, zero, or negative values fall back to
+  `1`. The page render clamps the effective page to `[1, pageCount]`.
+- **Count**: `countAuditLogs(filters)` returns the total matching rows via
+  `count()` over the same `auditFilterConditions`, so the UI can compute
+  `pageCount = ceil(total / AUDIT_PAGE_SIZE)`. It ignores any cursor.
+- **Offset fetch**: `listAuditLogs(filters, { offset })` applies
+  `.offset((page - 1) * AUDIT_PAGE_SIZE)` and orders
+  `desc(created_at), desc(id)` (the `id` tiebreaker keeps the ordering stable
+  for rows sharing a timestamp). Page size defaults to `AUDIT_PAGE_SIZE` (30).
+- **Keyset (export only)**: `encodeAuditCursor(row)` = base64url of
   `JSON.stringify([createdAtMs, id])` — URL-safe, no padding. `decodeAuditCursor`
- validates the shape (finite number + string) and returns null on any
-  malformation.
-- **Ordering**: `desc(created_at), desc(id)` — the `id` tiebreaker makes the keyset
-  stable for rows sharing a timestamp.
-- **`listAuditLogs(filters, opts)`** : applies the cursor condition
-  `or(created_at < cursorTs, and(created_at = cursorTs, id < cursorId))` ,
-  fetches `pageSize + 1`, and returns `{ rows, nextCursor }` — `nextCursor` is the
-  encoded last row, or `null` when exhausted. Page size defaults to
-  `AUDIT_PAGE_SIZE` (30).
+  validates the shape (finite number + string) and returns null on any
+  malformation. When `filters.cursor` is set, `listAuditLogs` applies the cursor
+  condition `or(created_at < cursorTs, and(created_at = cursorTs, id < cursorId))`,
+  fetches `pageSize + 1`, and returns `{ rows, nextCursor }` for the next loop
+  iteration. The `/api/audit/export` route is the only consumer of this path.
 
 ### 1.7.3 Retention: rotation on read + manual purge
 
-- **On read**: `listAuditLogs` purges first when `retentionDays` is given — the page render passes
-  `settings.auditLogRetentionDays`, so **every page render** deletes rows older
-  than the window via `purgeExpiredAuditLogs` (indexed `DELETE` on
-  `created_at`). No cron job is needed: the log rotates whenever anyone looks at
-  it.
-- **Load more**: `loadMoreAuditLogs` (`audit/actions.ts`, admin-gated, page size
-  clamped 1–50) deliberately **skips** the purge — it already ran on the preceding
-  page render.
+- **On read**: the page render calls `purgeExpiredAuditLogs` first (before the
+  count), so **every page render** deletes rows older than the window via
+  `purgeExpiredAuditLogs` (indexed `DELETE` on `created_at`). No cron job is
+  needed: the log rotates whenever anyone looks at it.
 - **Manual**: `purgeAuditLogs(days)` (`audit/actions.ts`) clamps via
   `normalizeRetentionDays`, purges, and **audit-logs the purge itself**
   (`audit.purge`, `entityType: "auditLog"`, `details: { retentionDays, deleted }`)
@@ -327,10 +332,13 @@ double-quotes fields containing `"`, `,`, `\r`, or `\n` and doubles inner quotes
 - **Server page** (`settings/audit-log/page.tsx`): `parseAuditFilters` on the URL
   params, then in parallel `getSettings()` + `listAuditActors()` +
   `listAuditEntityTypes()` + `listUsers()` (the filter options and the
-  actor→department map), then `listAuditLogs(filters, { retentionDays })` —
-  **this is where rotation-on-read fires** — rendered into `AuditLogView` with
-  the first page, the next cursor, the parsed filters, the option lists, and the
-  retention window.
+  actor→department map). It then purges expired rows
+  (`purgeExpiredAuditLogs` — **this is where rotation-on-read fires**), counts
+  the matching rows (`countAuditLogs`), clamps the requested `?page=` to the
+  resulting `pageCount`, and fetches exactly that offset page
+  (`listAuditLogs(filters, { offset })`). `AuditLogView` receives the page rows,
+  the page number, `pageCount`, `total`, the parsed filters, the option lists,
+  and the retention window.
 - **Client view** (`AuditLogView.tsx`): a search box (`?q=` on submit) and
   From/To date pickers, plus the **multi-value filters shared with the rest of
   the app** — a `FilterButton` (desktop) or the mobile filter menu's "More
@@ -347,20 +355,18 @@ double-quotes fields containing `"`, `,`, `\r`, or `\n` and doubles inner quotes
   actor/action/entity/route values (full value on hover) — so it never outgrows
   the container at narrow desktop widths (the previous auto layout let the
   nowrap timestamp and untruncated text push the page into horizontal
-  overflow). A "Load more" button
-  (server action, re-entry guarded, `loading` + `BUTTON_LOADER_PROPS`), a
-  retention card with a red "Delete older than N days" confirm button, and a
-  download `FloatingActionButton` (confirm modal → blob fetch of the export URL
-  built from the current filters).
+  overflow). A centered Mantine `Pagination` control (numbered pages, first/
+  prev/next/last) plus a "Page X of Y · N entries" caption sits below the list;
+  changing page pushes `?page=N` (page 1 drops the param) so the page is
+  server-rendered and back/forward works. Every filter change resets to page 1.
+  Also a retention card with a red "Delete older than N days" confirm button,
+  and a download `FloatingActionButton` (confirm modal → blob fetch of the
+  export URL built from the current filters).
  Loading follows the standard skeleton-only pattern (`useMinSkeletonHold` +
  `useContentEnter`, see [`loading-transitions.md`](loading-transitions.md)).
- The fetched page is held in local state (so "Load more" can append to it),
- which survives re-renders — so every server re-render (filter navigation,
- post-purge `router.refresh()`) is re-synced via render-phase state
- adjustment (`prevInitialRows !== initialRows` → reset `rows` + `cursor`),
- the same pattern the dashboard uses for its `?event=` deep link. An
- in-flight "Load more" whose filter set changed underneath it drops its
- stale page instead of appending it.
+ The view renders the server-provided page directly — there is no local row
+ accumulation, so each navigation (filter change, page change, post-purge
+ `router.refresh()`) simply re-renders with the new props behind the skeleton.
 - **Detail modal** (`LogDetailModal`): action label + raw action badge, actor ·
   timestamp, entity, route · method, then the `formatAuditDetails` output.
 
@@ -370,15 +376,16 @@ double-quotes fields containing `"`, `,`, `\r`, or `\n` and doubles inner quotes
 | ------ | ------ | ----- |
 | `buildAuditLog`, `actorFromUser` (incl. admin → null id), `pathFromReferer`, `listAuditActions` | `audit/build.ts` | `audit/build.test.ts` |
 | `diffFields` (union keys, JSON-equality, added/removed, null vs `""`) | `audit/diff.ts` | `audit/diff.test.ts` |
-| `parseAuditFilters` (all params, comma-list splitting via `multi`, trimming, malformed dates/cursors dropped), `encodeAuditCursor`/`decodeAuditCursor` (round-trip + rejection), `dayBounds` | `audit/queries.ts` | `audit/queries.test.ts` |
+| `parseAuditFilters` (all params, comma-list splitting via `multi`, trimming, malformed dates/cursors dropped), `parsePage` (defaults to 1, rejects zero/negative/non-numeric), `encodeAuditCursor`/`decodeAuditCursor` (round-trip + rejection), `dayBounds` | `audit/queries.ts` | `audit/queries.test.ts` |
 | `actionLabel`, `fieldLabel`, `valueString`, `formatAuditDetails` (all three shapes, incl. legacy flat rows and empty diffs), `actorLabel`, `formatLogTimestamp` | `audit/format.ts` | `audit/format.test.ts` |
 | `csvField` (escaping), `buildAuditLogCsv`, `auditCsvFilename` | `audit/export.ts` | `audit/export.test.ts` |
 | `normalizeRetentionDays` (clamp 7–365, default 90), `validateRetentionForm` | `settings/validate.ts` | `settings/validate.test.ts` |
 
 I/O-bound (not unit-tested, per the repo convention): `logAction` (`log.ts`), the
-DB functions in `queries.ts` (`listAuditLogs`, `purgeExpiredAuditLogs`,
-`listAuditActors`, `listAuditEntityTypes`, `auditFilterConditions`), the two server
-actions in `actions.ts`, the export route, and the page/client components.
+DB functions in `queries.ts` (`listAuditLogs`, `countAuditLogs`,
+`purgeExpiredAuditLogs`, `listAuditActors`, `listAuditEntityTypes`,
+`auditFilterConditions`), the `purgeAuditLogs` server action in `actions.ts`, the
+export route, and the page/client components.
 
 ## 1.12 File index & related docs
 
@@ -389,8 +396,8 @@ actions in `actions.ts`, the export route, and the page/client components.
 | `src/lib/audit/build.ts` | Action keys, actor mapping, row builder (pure) |
 | `src/lib/audit/log.ts` | `logAction` — best-effort write |
 | `src/lib/audit/diff.ts` | `diffFields` before/after diff (pure) |
-| `src/lib/audit/queries.ts` | Filter parsing, cursor codec, pagination, purge |
-| `src/lib/audit/actions.ts` | `loadMoreAuditLogs`, `purgeAuditLogs` server actions |
+| `src/lib/audit/queries.ts` | Filter parsing, offset/keyset pagination, count, purge |
+| `src/lib/audit/actions.ts` | `purgeAuditLogs` server action |
 | `src/lib/audit/format.ts` | Display formatting, three detail shapes (pure) |
 | `src/lib/audit/export.ts` | CSV builder (pure) |
 | `src/app/api/audit/export/route.ts` | CSV export route |
