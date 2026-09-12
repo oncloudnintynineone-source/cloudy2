@@ -1356,12 +1356,23 @@ export function DashboardView({
     [events, optimisticOps],
   );
 
+  // The latest merged events, so the post-save "View event" pill resolves
+  // against current data. The pill stores its `onAction` in provider state, so
+  // the callback it captured at submit time still closes over the pre-mutation
+  // `viewEvents` (the create's new group id is absent, the edit's is stale);
+  // reading this ref at click time finds the settled stand-in / authoritative
+  // event instead. (Latest-ref idiom, as in AuditLogView.)
+  const viewEventsRef = useRef(viewEvents);
+  useEffect(() => {
+    viewEventsRef.current = viewEvents;
+  }, [viewEvents]);
+
   // Open the details modal for a just-saved event (the toast "View event"
   // action). Resolves from the optimistic overlay so it opens instantly, even
   // while the post-save refresh is still in flight; a null origin grows from
   // center (there is no chip to originate from).
   function openSavedEventDetail(eventId: string | null) {
-    const found = viewEvents.find((event) => event.payload.eventId === eventId) ?? null;
+    const found = viewEventsRef.current.find((event) => event.payload.eventId === eventId) ?? null;
     if (!found) {
       return;
     }

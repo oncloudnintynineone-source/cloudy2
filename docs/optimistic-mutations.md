@@ -234,6 +234,14 @@ real Google id, because Edit/Delete on an unreal chip would reference an empty i
 the submit the wizard modal blocks the grid anyway; the guard covers the short
 post-`ok`/pre-refresh window.)
 
+The post-save **"View event" action pill** (`docs/action-pill.md`) resolves its target
+through `viewEventsRef` — a latest-value ref kept in sync with `viewEvents` — rather than
+the `viewEvents` captured when `openSavedEventDetail` was created. The pill stores its
+`onAction` in provider state and that callback is built inside the async submit handler, so
+a direct closure read would see the *pre-mutation* list and silently no-op (a create's new
+group id is absent; an edit's is stale). Reading the ref at click time finds the settled
+stand-in (real ids) or the authoritative event after the refresh.
+
 **`page.tsx`** extends the event-type option list with `color` so both the dashboard and
 the wizard can resolve chip colors exactly.
 

@@ -22,6 +22,12 @@ next" moment (e.g. **View event** after a save, or an undo action).
   route navigations.
 - Clicking the pill dismisses it and runs the configured `onAction`.
 - Only one pill shows at a time; a new `show(...)` replaces the current one.
+- The pill **stores** `onAction` in provider state, so the callback must not read
+  React state captured at `show(...)` time — a pill shown from inside an async
+  handler keeps the *pre-mutation* closure (the "View event" create/edit bug:
+  the just-saved id was absent from the stale event list). Resolve such state at
+  click time instead, e.g. through a latest-value ref
+  (`optimistic-mutations.md` §1.7).
 
 ```mermaid
 flowchart LR
