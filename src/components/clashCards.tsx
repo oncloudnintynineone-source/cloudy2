@@ -1,4 +1,5 @@
 import { useState, useId, type ReactNode } from "react";
+import Link from "next/link";
 import {
   Badge,
   Box,
@@ -9,9 +10,9 @@ import {
   Text,
   UnstyledButton,
 } from "@mantine/core";
-import { IconAlertTriangle, IconChevronDown } from "@tabler/icons-react";
+import { IconAlertTriangle, IconChevronDown, IconChevronRight } from "@tabler/icons-react";
 
-import { eventWhenLabel } from "@/components/clashUi";
+import { clashWhenLabel } from "@/lib/events/clashDisplay";
 import type { EventClashEntry } from "@/lib/events/clashActions";
 import { MOTION } from "@/lib/motion/timing";
 
@@ -29,12 +30,15 @@ import { MOTION } from "@/lib/motion/timing";
  */
 export function ClashCard({
   heading,
+  headingSecondary,
   summaryBelow,
   children,
   defaultOpen = false,
   live = true,
 }: {
   heading: ReactNode;
+  /** Optional muted second line under the heading (still part of the toggle). */
+  headingSecondary?: ReactNode;
   /** Content kept visible under the heading in both states (e.g. people chips). */
   summaryBelow?: ReactNode;
   /** The full report detail — shown only while expanded. */
@@ -54,7 +58,7 @@ export function ClashCard({
             color="var(--mantine-color-orange-6)"
             aria-hidden
           />
-          <Stack gap={6} style={{ flexGrow: 1 }}>
+          <Stack gap={6} style={{ flexGrow: 1, minWidth: 0 }}>
             <UnstyledButton
               type="button"
               onClick={() => setOpen((value) => !value)}
@@ -62,19 +66,27 @@ export function ClashCard({
               aria-controls={regionId}
               style={{ width: "100%", textAlign: "left" }}
             >
-              <Group justify="space-between" align="center" gap="xs" wrap="nowrap">
-                <Text
-                  size="sm"
-                  fw={500}
-                  c="orange.8"
-                  style={{ flexGrow: 1, flexShrink: 1, minWidth: 0 }}
-                >
-                  {heading}
-                </Text>
+              <Group justify="space-between" align="flex-start" gap="xs" wrap="nowrap">
+                <Stack gap={2} style={{ flexGrow: 1, minWidth: 0 }}>
+                  <Text
+                    size="sm"
+                    fw={500}
+                    c="orange.8"
+                    style={{ overflowWrap: "anywhere" }}
+                  >
+                    {heading}
+                  </Text>
+                  {headingSecondary ? (
+                    <Text size="xs" c="dimmed" style={{ overflowWrap: "anywhere" }}>
+                      {headingSecondary}
+                    </Text>
+                  ) : null}
+                </Stack>
                 <IconChevronDown
                   size={16}
                   style={{
                     flexShrink: 0,
+                    marginTop: 2,
                     transform: open ? "rotate(180deg)" : undefined,
                     transition: `transform ${MOTION.micro}ms ease`,
                   }}
@@ -99,16 +111,23 @@ export function ClashCard({
  * One conflicting/double-booking event inside an expanded clash card: title
  * (+ `External` badge), the human when-label · department line, and optional
  * per-entry content (e.g. the affected-people chips in the wizard panel).
+ * When `href` is given the whole row is a link (the Double Booking page deep-
+ * links to the event on the dashboard); without it the row is inert (the
+ * wizard's advisory).
  */
 export function ClashEventRow({
   entry,
   chips,
+  href,
 }: {
   entry: EventClashEntry;
   /** Extra per-entry content shown under the when-line. */
   chips?: ReactNode;
+  /** Optional dashboard deep link; renders the row as a link when present. */
+  href?: string;
 }) {
-  return (
+  const when = clashWhenLabel(entry);
+  const body = (
     <Stack gap={2}>
       <Group gap={6} wrap="wrap">
         <Text size="sm" fw={600} style={{ overflowWrap: "anywhere" }}>
@@ -120,10 +139,33 @@ export function ClashEventRow({
           </Badge>
         )}
       </Group>
-      <Text size="xs" c="dimmed">
-        {eventWhenLabel(entry)} · {entry.calendarName}
-      </Text>
+      <Group gap={4} wrap="nowrap" align="center">
+        <Text size="xs" c="dimmed" style={{ minWidth: 0, overflowWrap: "anywhere" }}>
+          {when} · {entry.calendarName}
+        </Text>
+        {href ? (
+          <IconChevronRight
+            size={12}
+            style={{ flexShrink: 0 }}
+            color="var(--mantine-color-dimmed)"
+            aria-hidden
+          />
+        ) : null}
+      </Group>
       {chips && <Box mt={2}>{chips}</Box>}
     </Stack>
+  );
+  if (!href) {
+    return body;
+  }
+  return (
+    <UnstyledButton
+      component={Link}
+      href={href}
+      aria-label={`Open ${entry.title} — ${when}`}
+      style={{ display: "block", width: "100%", textAlign: "left" }}
+    >
+      {body}
+    </UnstyledButton>
   );
 }

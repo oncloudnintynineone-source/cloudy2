@@ -61,6 +61,10 @@ export interface EventClashAffected {
 export interface EventClashEntry {
   /** The stored Google Calendar summary of the conflicting event. */
   title: string;
+  /** Logical event group id (drives the dashboard deep link), or null for external. */
+  eventId: string | null;
+  /** Registry (department) calendar id of the conflicting copy (deep-link hint). */
+  calendarId: string;
   /** Department name the conflicting copy was read from. */
   calendarName: string;
   /** Display window, UTC+8 wall clock (all-day ends are converted to inclusive). */
@@ -200,6 +204,8 @@ export async function checkEventClashes(
       const { startNaive, endNaive } = conflictWindowNaive(clash.start, clash.end, clash.allDay);
       return {
         title: clash.title,
+        eventId: clash.eventId,
+        calendarId: clash.calendarId,
         calendarName: clash.calendarName,
         startNaive,
         endNaive,
@@ -337,6 +343,8 @@ export async function checkUserClashes(request: {
           );
           return {
             title: event.title,
+            eventId: event.eventId,
+            calendarId: event.calendarId,
             calendarName: event.calendarName,
             startNaive,
             endNaive,

@@ -264,6 +264,7 @@ function NavButton({
         color: active ? NAV_ACTIVE_COLOR : NAV_IDLE_COLOR,
       }}
       aria-label={navAriaLabel(item)}
+      title={item.badge ? navAriaLabel(item) : undefined}
       aria-current={active ? "page" : undefined}
     >
       <PendingDim busyKey={`bottom:${item.href}`}>

@@ -53,7 +53,9 @@ live amber count pill so a double booking is visible without opening the page. T
 pill shows the acting user's _own_ overlap count — exactly `groups.length` the page
 reports (no cap: `999` renders as `999`) — only when it is > 0 (a clean scan and a
 "no schedule" state both hide it, so a missing pill means "none right now"). The count
-rides each surface's `aria-label`, never the visible label.
+rides each surface's `aria-label`, never the visible label; the bottom-nav/sidebar
+surface also carries it as a `title`, so sighted mouse users read the same
+"Double Booking — N double bookings" wording the screen reader announces.
 
 It is fetched by `AppShellShell` (which stays mounted across SPA navigations, so there
 is **no per-navigation recompute**) via the same read-only `checkUserClashes({})`
@@ -184,7 +186,9 @@ rangeEndDate, groups, skipReason }` where `skipReason` is:
 
 Each `groups[]` entry is `{ events: EventClashEntry[] }` — the same `EventClashEntry`
 shape the wizard advisory returns, so the shared `clashUi.tsx` chips and when-labels
-render both. The per-event `affected` is the report's shared-people list.
+render both. The per-event `affected` is the report's shared-people list, and each
+entry also carries `eventId` / `calendarId` (the row deep-link target) plus
+`external`.
 
 ## 1.8 The page & view
 
@@ -192,8 +196,8 @@ render both. The per-event `affected` is the report's shared-people list.
   shape the active roster (`id`, `name`, `shortname`, department) for the picker.
   Regular users get an empty list and never fetch the roster.
 - **`DoubleBookingView.tsx`** — client component. The header is a responsive flex row
-  (`.c2-db-head` in `globals.css`): title + a target-aware subtitle on the left, and
-  the admin-only target control on the right — **full column width on mobile**,
+  (`.c2-db-head` in `globals.css`): title + a short target-aware subtitle on the left,
+  and the admin-only target control on the right — **full column width on mobile**,
   content-sized from the 40em desktop band on (a pure-CSS switch, so there is no
   `useMediaQuery` first-frame shift). The control follows the event form's Invited
   Attendees pattern: a "Check another person" label + a light **Select** button that
@@ -201,15 +205,29 @@ render both. The per-event `affected` is the report's shared-people list.
   shortname search), plus a chip for the current target (`Name · Department`) or a
   dimmed "Checking your own schedule" when scanning self. Content states: skeleton +
   `LoadingStatus` while loading (mirrors a result card); an error card with Retry; an
-  `EmptyState` for `no-department` / `no-active-user`; otherwise one amber
-  **`ClashCard`** per overlap report — collapsed by default to a clickable,
-  count-first summary row (`N overlapping events · <titles preview>`, prefixed
-  `{name} ·` for an admin scan — the first two event titles, then `· +N more`),
-  with the shared-people chips (`ClashAffectedChips`) always visible beneath it;
-  tapping the heading expands the per-event rows (title, `External`
-  badge, when · department). Every real-scan outcome opens with a
-  polite `role="status"` summary line (counts + covered dates); clashes end with a
-  muted footnote ("Only events that occupy {you/name} are compared… warnings only").
+  `EmptyState` for `no-department` / `no-active-user`; a single actionable
+  `EmptyState` (with an "Open calendar" link) for a clean scan.
+- **Result layout — time-first and day-grouped.** A real scan opens with one concise
+  `role="status"` line (`N double bookings in the next 30 days`), then buckets the
+  reports into consecutive days (an episode is filed under its first day) behind a
+  short day heading (`Today` / `Tomorrow` / `Mon 14 Sep`, via `clashDayLabel`). Each
+  day renders one amber **`ClashCard`** per overlap report, collapsed by default: the
+  heading leads with the episode's **time** (`9:00 AM – 11:30 AM`, `All day`, or a
+  date range — `clashTimeLabel` over `clashEpisodeWindow`), and a muted second line
+  carries the count + titles preview (`N events · <titles preview>`, prefixed
+  `{name} ·` for an admin scan). Tapping the heading expands the per-event rows
+  (title, `External` badge, when · department). Each row is a **deep link** to that
+  event on the dashboard (`buildEventDeepLink`; an external event falls back to
+  landing on its day). `ClashAffectedChips` renders beneath the heading only for
+  people *other than* the scanned target (`omitUserId`) — a self-scan therefore shows
+  no lone `You` chip. The cards are not their own live regions (`live={false}`): the
+  single status line announces the count, so a many-report scan is one concise
+  announcement, not N.
+- **Display helpers** are pure and unit-tested in
+  `src/lib/events/clashDisplay.ts` (`clashDisplay.test.ts`): day keys/labels, the
+  episode window, and the time/when labels (a same-day timed range collapses the
+  repeated date). The shared `clashWhenLabel` replaces the old `eventWhenLabel`, so
+  the wizard's rows get the same tighter labels.
 - **`loading.tsx`** — route skeleton in the standard shape (`LoadingStatus` + shaped
   `Skeleton`s inside `PageContainer`).
 

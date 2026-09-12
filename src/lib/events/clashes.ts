@@ -112,6 +112,10 @@ export type ActiveMembersByDepartment = ReadonlyMap<string, ReadonlyArray<string
 export interface EventClash {
   /** Representative copy id `${calendarId}:${googleEventId}` (logical events deduped). */
   copyId: string;
+  /** Logical group id shared by all department copies, or null (legacy/external). */
+  eventId: string | null;
+  /** Registry (department) calendar id of the representative copy. */
+  calendarId: string;
   /** Department name of the representative copy, for display. */
   calendarName: string;
   /** The stored Google Calendar summary of the conflicting event. */
@@ -334,6 +338,8 @@ export function computeClashes(params: {
   for (const { event, affected } of byKey.values()) {
     clashes.push({
       copyId: `${event.calendarId}:${event.googleEventId}`,
+      eventId: event.eventId,
+      calendarId: event.calendarId,
       calendarName: event.calendarName,
       title: event.title,
       start: event.start,

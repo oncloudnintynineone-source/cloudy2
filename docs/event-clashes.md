@@ -182,7 +182,11 @@ shows one of:
   whole-department clash are capped at six chips with a `+N more` summary. A
   closing line reminds the user the event can still be saved. The polite
   `role="status"` announcement covers only the summary line, so the clash count is
-  announced on arrival while expanding stays a quiet user action.
+  announced on arrival while expanding stays a quiet user action. Row when-labels
+  come from the shared `clashWhenLabel` (`clashDisplay.ts`), which collapses a
+  same-day range to a single date; each entry also carries `eventId`/`calendarId`,
+  which only the Double Booking page uses (its rows deep-link; the wizard's stay
+  inert).
 - **No clashes** — a green confirmation naming how many people were checked.
 - **Error** — a muted one-liner with a Retry button.
 
@@ -243,6 +247,7 @@ unit-tested, following the repo convention.
 | `src/lib/events/writeContext.ts` | Shared resolution chain (`actions.ts` + clash check) |
 | `src/lib/events/clashes.ts` | Pure clash engine + types (unit-tested) |
 | `src/lib/events/clashes.test.ts` | Engine tests |
+| `src/lib/events/clashDisplay.ts` | Pure when/time/day label helpers (unit-tested) |
 | `src/lib/events/clashQuery.ts` | Month-cache read over the candidate's target calendars; flags informational events from their type name |
 | `src/lib/events/clashActions.ts` | `checkEventClashes` server action (read-only) |
 | `src/components/clashCards.tsx` | Shared collapsible amber card + per-event row (page + wizard) |

@@ -1,41 +1,6 @@
 import { Badge, Group, Text } from "@mantine/core";
-import dayjs from "dayjs";
 
 import type { EventClashAffected, EventClashEntry } from "@/lib/events/clashActions";
-
-/** Parse a naive `YYYY-MM-DD HH:mm:ss` string to a local `Date` (for labels). */
-function naiveToDate(naive: string): Date | null {
-  if (!naive) {
-    return null;
-  }
-  const [datePart, timePart] = naive.split(" ");
-  const [year, month, day] = datePart.split("-").map(Number);
-  const [hours, minutes, seconds] = (timePart ?? "00:00:00").split(":").map(Number);
-  return new Date(year, month - 1, day, hours, minutes, seconds);
-}
-
-/** Human-friendly naive datetime — date-only for all-day entries. */
-function fmtNaive(naive: string, allDay: boolean): string {
-  const date = naiveToDate(naive);
-  if (!date) {
-    return "";
-  }
-  return allDay ? dayjs(date).format("MMM D, YYYY") : dayjs(date).format("MMM D, YYYY h:mm A");
-}
-
-/**
- * Human window label for a clash entry (all-day ends arrive as inclusive naive
- * dates), e.g. `Aug 17, 2026 9:00 AM – 10:30 AM`. Shared by the wizard's
- * review-step advisory and the Double Booking page.
- */
-export function eventWhenLabel(entry: EventClashEntry): string {
-  const start = fmtNaive(entry.startNaive, entry.allDay);
-  const end = fmtNaive(entry.endNaive, entry.allDay);
-  if (!end || end === start) {
-    return start || (entry.startNaive ? `${entry.startNaive} – ${entry.endNaive}` : "");
-  }
-  return `${start} – ${end}`;
-}
 
 /**
  * Collapsed one-liner preview of a clash's offending events: up to `max`
@@ -56,20 +21,30 @@ export function clashTitlesPreview(entries: EventClashEntry[], max = 2): string 
 
 /**
  * The affected people chips for one clash, with the acting session user
- * emphasised as `You (name)` in the amber brand treatment.
+ * emphasised as `You (name)` in the amber brand treatment. `omitUserId` drops
+ * one person from the chips (the Double Booking page omits the scanned target,
+ * whose involvement is already implied by the report itself); the row renders
+ * nothing when no one else remains.
  */
 export function ClashAffectedChips({
   affected,
   currentUserId,
+  omitUserId,
   max = 6,
 }: {
   affected: EventClashAffected[];
   currentUserId: string;
+  /** Drop this user from the chips; renders nothing when no one else remains. */
+  omitUserId?: string;
   /** Cap on rendered chips before the `+N more` summary kicks in. */
   max?: number;
 }) {
-  const visible = affected.slice(0, max);
-  const rest = affected.length - visible.length;
+  const filtered = omitUserId ? affected.filter((person) => person.userId !== omitUserId) : affected;
+  if (filtered.length === 0) {
+    return null;
+  }
+  const visible = filtered.slice(0, max);
+  const rest = filtered.length - visible.length;
   return (
     <Group gap={4} wrap="wrap">
       {visible.map((person) => {

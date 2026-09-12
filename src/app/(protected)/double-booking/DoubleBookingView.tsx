@@ -1,8 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Button, Group, Paper, Skeleton, Stack, Text } from "@mantine/core";
-import dayjs from "dayjs";
+import { Box, Button, Group, Paper, Skeleton, Stack, Text } from "@mantine/core";
 import { IconCalendarClock, IconCircleCheck, IconRefresh } from "@tabler/icons-react";
 
 import { PickerField, type PickerBadgeItem } from "@/components/PickerField";
@@ -15,6 +14,14 @@ import { ClashAffectedChips, clashTitlesPreview } from "@/components/clashUi";
 import { ClashCard, ClashEventRow } from "@/components/clashCards";
 import { CONTENT_ENTER_CLASS } from "@/lib/loading/contentEnter";
 import { checkUserClashes, type UserClashCheckResult } from "@/lib/events/clashActions";
+import { buildEventDeepLink } from "@/lib/events/deepLink";
+import {
+  clashDayKey,
+  clashDayLabel,
+  clashEpisodeWindow,
+  clashTimeLabel,
+} from "@/lib/events/clashDisplay";
+import { formatInstantToNaive } from "@/lib/events/datetime";
 import { buildUserGroups, selectionByGroup } from "@/lib/users/userSelect";
 
 type ClashOk = Extract<UserClashCheckResult, { ok: true }>;
@@ -32,10 +39,6 @@ interface ScanTargetOption {
 
 type View =
   { kind: "loading" } | { kind: "error" } | { kind: "done"; result: ClashOk; selfScan: boolean };
-
-function formatDateOnly(dateOnly: string): string {
-  return dayjs(dateOnly).format("MMM D, YYYY");
-}
 
 function plural(count: number, singular: string, pluralWord: string): string {
   return `${count} ${count === 1 ? singular : pluralWord}`;
@@ -142,12 +145,9 @@ export function DoubleBookingView({
     view = { kind: "loading" };
   }
 
-  // The name of the currently scanned person, for the admin picker + header.
+  // The single summary badge for the admin picker (hidden while self-scanning).
   const selfScan = targetUserId === currentUserId;
   const targetOption = users.find((user) => user.id === targetUserId);
-  const targetName = selfScan ? null : (targetOption?.name ?? null);
-  const personForHeader = selfScan ? "you" : (targetName ?? "this person");
-  // The single summary badge for the admin picker (hidden while self-scanning).
   const targetSummaryItem: PickerBadgeItem = {
     key: targetUserId,
     label: targetOption
@@ -199,26 +199,21 @@ export function DoubleBookingView({
     </Stack>
   );
 
-  function subtitleFor(current: View): string {
+  function subtitleFor(current: View): string | undefined {
     if (current.kind === "loading") {
-      return `Checking existing events for ${personForHeader} over the next 30 days…`;
+      return "Checking existing events…";
     }
     if (current.kind === "error") {
-      return "Could not check for double bookings.";
+      return undefined;
     }
-    if (current.result.skipReason === "no-department") {
-      return selfScan
-        ? "Your schedule can't be checked right now."
-        : `${current.result.targetName}'s schedule can't be checked right now.`;
-    }
-    if (current.result.skipReason === "no-active-user") {
+    if (current.result.skipReason !== null) {
       return selfScan
         ? "Your schedule can't be checked right now."
         : `${current.result.targetName}'s schedule can't be checked right now.`;
     }
     return selfScan
-      ? "Existing events that keep you busy at overlapping times — the next 30 days."
-      : `Existing events that keep ${current.result.targetName} busy at overlapping times — the next 30 days.`;
+      ? "Existing overlaps in your next 30 days."
+      : `Existing overlaps in ${current.result.targetName}'s next 30 days.`;
   }
 
   function renderContent(current: View) {
@@ -284,63 +279,86 @@ export function DoubleBookingView({
 
     if (result.groups.length === 0) {
       return (
-        <Stack gap="sm">
-          <Text fz="sm" c="dimmed" role="status" aria-live="polite">
-            No double bookings from {formatDateOnly(result.rangeStartDate)} to{" "}
-            {formatDateOnly(result.rangeEndDate)}.
-          </Text>
+        <Box role="status" aria-live="polite">
           <EmptyState
             icon={<IconCircleCheck size={18} />}
             description={
               isSelf
-                ? "All clear — none of your existing events overlap for the next 30 days."
-                : `${result.targetName} is all clear — none of their existing events overlap for the next 30 days.`
+                ? "No double bookings in the next 30 days — your schedule is clear."
+                : `${result.targetName} has no double bookings in the next 30 days.`
             }
+            actionLabel="Open calendar"
+            actionHref="/dashboard"
           />
-        </Stack>
+        </Box>
       );
     }
 
-    const clashingEventCount = result.groups.reduce(
-      (total, group) => total + group.events.length,
-      0,
-    );
+    // Groups arrive chronological by earliest event, so a single forward pass
+    // buckets them into consecutive days (an episode is filed under its first
+    // day, even when it runs past midnight).
+    const todayKey = formatInstantToNaive(new Date()).slice(0, 10);
+    const dayGroups: { dayKey: string; groups: typeof result.groups }[] = [];
+    for (const group of result.groups) {
+      const dayKey = clashDayKey(group.events[0].startNaive);
+      const last = dayGroups[dayGroups.length - 1];
+      if (last && last.dayKey === dayKey) {
+        last.groups.push(group);
+      } else {
+        dayGroups.push({ dayKey, groups: [group] });
+      }
+    }
+
     return (
-      <Stack gap="md">
+      <Stack gap="lg">
         <Text fz="sm" c="dimmed" role="status" aria-live="polite">
-          {plural(result.groups.length, "overlap found", "overlaps found")} across{" "}
-          {plural(clashingEventCount, "event", "events")}, from{" "}
-          {formatDateOnly(result.rangeStartDate)} to {formatDateOnly(result.rangeEndDate)}.
+          {plural(result.groups.length, "double booking", "double bookings")} in the next 30 days.
         </Text>
-        {result.groups.map((group, groupIndex) => {
-          const count = group.events.length;
-          const countLabel = `${count} overlapping ${count === 1 ? "event" : "events"}`;
-          const heading = isSelf
-            ? `${countLabel} · ${clashTitlesPreview(group.events)}`
-            : `${result.targetName} · ${countLabel} · ${clashTitlesPreview(group.events)}`;
-          return (
-            <ClashCard
-              key={groupIndex}
-              heading={heading}
-              summaryBelow={
-                <ClashAffectedChips
-                  affected={group.events[0].affected}
-                  currentUserId={currentUserId}
-                />
-              }
-            >
-              {group.events.map((entry, eventIndex) => (
-                <ClashEventRow
-                  key={`${entry.calendarName}:${entry.startNaive}:${entry.title}:${eventIndex}`}
-                  entry={entry}
-                />
-              ))}
-            </ClashCard>
-          );
-        })}
+        {dayGroups.map(({ dayKey, groups }) => (
+          <Stack key={dayKey} gap="sm">
+            <Text component="h3" fw={600} size="sm" c="dimmed">
+              {clashDayLabel(dayKey, todayKey)}
+            </Text>
+            {groups.map((group, groupIndex) => {
+              const count = group.events.length;
+              const titles = clashTitlesPreview(group.events);
+              const countLabel = plural(count, "event", "events");
+              const secondary = isSelf
+                ? `${countLabel}${titles ? ` · ${titles}` : ""}`
+                : `${result.targetName} · ${countLabel}${titles ? ` · ${titles}` : ""}`;
+              return (
+                <ClashCard
+                  key={`${dayKey}:${groupIndex}`}
+                  heading={clashTimeLabel(clashEpisodeWindow(group.events))}
+                  headingSecondary={secondary}
+                  live={false}
+                  summaryBelow={
+                    <ClashAffectedChips
+                      affected={group.events[0].affected}
+                      currentUserId={currentUserId}
+                      omitUserId={result.targetUserId}
+                    />
+                  }
+                >
+                  {group.events.map((entry, eventIndex) => (
+                    <ClashEventRow
+                      key={`${entry.calendarName}:${entry.startNaive}:${entry.title}:${eventIndex}`}
+                      entry={entry}
+                      href={buildEventDeepLink({
+                        view: null,
+                        start: entry.startNaive,
+                        eventId: entry.eventId,
+                        calendarId: entry.calendarId,
+                      })}
+                    />
+                  ))}
+                </ClashCard>
+              );
+            })}
+          </Stack>
+        ))}
         <Text fz="xs" c="dimmed">
-          Only events that occupy {personLabel} are compared — unrelated events that merely overlap
-          in time are ignored. Double bookings are warnings only; nothing here is changed or saved.
+          Only events involving {personLabel} are listed. Warnings only — nothing here is changed.
         </Text>
       </Stack>
     );

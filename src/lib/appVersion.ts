@@ -5,4 +5,4 @@
  * version`): on the first change of a new day, advance the date to today and
  * reset the counter to 1; otherwise increment the counter by 1.
  */
-export const APP_VERSION = "2026.09.12-3";
+export const APP_VERSION = "2026.09.12-4";
