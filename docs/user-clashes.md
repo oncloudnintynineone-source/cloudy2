@@ -218,7 +218,10 @@ entry also carries `eventId` / `calendarId` (the row deep-link target) plus
   `{name} ·` for an admin scan). Tapping the heading expands the per-event rows
   (title, `External` badge, when · department). Each row is a **deep link** to that
   event on the dashboard (`buildEventDeepLink`; an external event falls back to
-  landing on its day). `ClashAffectedChips` renders beneath the heading only for
+  landing on its day) and carries an explicit trailing affordance — a pencil `Open`
+  for an in-app event, a calendar `Open day` for an external one — with a hover tint
+  and focus ring (`.c2-clash-row`), so the tap target is obvious. The wizard's inert
+  rows show neither. `ClashAffectedChips` renders beneath the heading only for
   people *other than* the scanned target (`omitUserId`) — a self-scan therefore shows
   no lone `You` chip. The cards are not their own live regions (`live={false}`): the
   single status line announces the count, so a many-report scan is one concise

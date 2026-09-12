@@ -358,7 +358,8 @@ export function DoubleBookingView({
           </Stack>
         ))}
         <Text fz="xs" c="dimmed">
-          Only events involving {personLabel} are listed. Warnings only — nothing here is changed.
+          Only events involving {personLabel} are listed. Select an event to open it — warnings
+          only.
         </Text>
       </Stack>
     );

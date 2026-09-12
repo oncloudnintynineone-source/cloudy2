@@ -811,6 +811,34 @@ html {
   pointer-events: none;
 }
 
+/* A deep-linked event row inside an expanded Double Booking card
+   (docs/user-clashes.md §1.8): padded/rounded so the whole row reads as a
+   pressable target, with a hover tint and a focus ring for keyboard users. */
+.c2-clash-row {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: calc(0.4rem * var(--mantine-scale)) calc(0.5rem * var(--mantine-scale));
+  margin-inline: calc(-0.5rem * var(--mantine-scale));
+  border-radius: var(--mantine-radius-sm);
+  transition: background-color 120ms ease;
+}
+
+.c2-clash-row:hover {
+  background-color: var(--mantine-color-orange-0);
+}
+
+.c2-clash-row:focus-visible {
+  outline: 2px solid var(--mantine-color-orange-5);
+  outline-offset: 1px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .c2-clash-row {
+    transition: none;
+  }
+}
+
 /*
   Floating action pill (docs/action-pill.md): the bespoke actionable toast that
   replaces Mantine's `message: <Button/>` "View event" notification. A pill

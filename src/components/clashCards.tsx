@@ -10,7 +10,12 @@ import {
   Text,
   UnstyledButton,
 } from "@mantine/core";
-import { IconAlertTriangle, IconChevronDown, IconChevronRight } from "@tabler/icons-react";
+import {
+  IconAlertTriangle,
+  IconCalendarEvent,
+  IconChevronDown,
+  IconPencil,
+} from "@tabler/icons-react";
 
 import { clashWhenLabel } from "@/lib/events/clashDisplay";
 import type { EventClashEntry } from "@/lib/events/clashActions";
@@ -128,7 +133,7 @@ export function ClashEventRow({
 }) {
   const when = clashWhenLabel(entry);
   const body = (
-    <Stack gap={2}>
+    <Stack gap={2} style={{ flexGrow: 1, minWidth: 0 }}>
       <Group gap={6} wrap="wrap">
         <Text size="sm" fw={600} style={{ overflowWrap: "anywhere" }}>
           {entry.title}
@@ -139,33 +144,38 @@ export function ClashEventRow({
           </Badge>
         )}
       </Group>
-      <Group gap={4} wrap="nowrap" align="center">
-        <Text size="xs" c="dimmed" style={{ minWidth: 0, overflowWrap: "anywhere" }}>
-          {when} · {entry.calendarName}
-        </Text>
-        {href ? (
-          <IconChevronRight
-            size={12}
-            style={{ flexShrink: 0 }}
-            color="var(--mantine-color-dimmed)"
-            aria-hidden
-          />
-        ) : null}
-      </Group>
+      <Text size="xs" c="dimmed" style={{ overflowWrap: "anywhere" }}>
+        {when} · {entry.calendarName}
+      </Text>
       {chips && <Box mt={2}>{chips}</Box>}
     </Stack>
   );
   if (!href) {
     return body;
   }
+  // An external event has no detail to open, so the link falls back to its day
+  // and the affordance says so rather than implying an edit.
+  const isDayLink = entry.eventId === null;
   return (
     <UnstyledButton
       component={Link}
       href={href}
-      aria-label={`Open ${entry.title} — ${when}`}
-      style={{ display: "block", width: "100%", textAlign: "left" }}
+      className="c2-clash-row"
+      aria-label={`${isDayLink ? "Open day for" : "Open"} ${entry.title} — ${when}`}
     >
-      {body}
+      <Group gap="xs" wrap="nowrap" align="flex-start" justify="space-between">
+        {body}
+        <Group gap={4} wrap="nowrap" align="center" style={{ flexShrink: 0, marginTop: 1 }}>
+          {isDayLink ? (
+            <IconCalendarEvent size={14} color="var(--mantine-color-orange-7)" aria-hidden />
+          ) : (
+            <IconPencil size={14} color="var(--mantine-color-orange-7)" aria-hidden />
+          )}
+          <Text size="xs" fw={600} c="orange.7" aria-hidden>
+            {isDayLink ? "Open day" : "Open"}
+          </Text>
+        </Group>
+      </Group>
     </UnstyledButton>
   );
 }
