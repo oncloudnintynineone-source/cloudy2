@@ -130,6 +130,13 @@ on/before the 1st through six full weeks, 2-3 cache entries per calendar) — so
 dimmed adjacent-month days carry their events; Day/Agenda/parade-state stay single
 month via `fetchMonthEvents`.
 
+The dashboard's client fetch identity mirrors this: `requiredMonths(kind, month, date)`
+(`src/lib/dashboard/snapshot.ts`) returns the same month set the server would read, and
+`DashboardScreen` only calls `loadDashboardData` when that set changes. An in-month day
+move (same month set) is a pure client re-filter — it never reaches this cache or the DB.
+The day inside the loaded month comes from the URL: `DashboardScreen` passes `?date=` as
+the URL-first `date` prop, so the Day/Week (H) grids and chrome move without a read.
+
 ### 1.4.2 Table
 
 Defined in `src/db/schema.ts` (migration `0011_panoramic_mariko_yashida.sql`):

@@ -185,6 +185,12 @@ interface EventTypeOption {
 
 export interface DashboardViewProps {
   month: string;
+  /**
+   * The rendered day anchor. URL-first: `DashboardScreen` passes the `?date=`
+   * param when present (so back/forward, deep links and in-month day moves
+   * reposition the Day/Week (H) grids and chrome even though no fetch runs),
+   * falling back to the server-resolved day when the URL omits it.
+   */
   date: string;
   /**
    * The dashboard's on-demand tabs in strip order (server-side per account —
@@ -1238,9 +1244,12 @@ export function DashboardView({
   // rendered state changes, so a cold start (or F5) lands on the same period
   // and zooms. The date is stored only when the URL pins one (day-anchored
   // views); in Month view the remembered month drives the read. The tabs +
-  // their filters are server-side and need no cookie.
+  // their filters are server-side and need no cookie. An in-month day move no
+  // longer refetches, so the committed `date` prop lags the URL — persist the
+  // client-effective date instead.
+  const effectiveDate = view === "agenda" ? (viewedDay ?? date) : shownDate;
   usePersistDashboardNav({
-    ...(searchParams.has("date") ? { date } : {}),
+    ...(searchParams.has("date") ? { date: effectiveDate } : {}),
     month,
     zoom,
     monthZoom,
@@ -1716,6 +1725,24 @@ export function DashboardView({
     [buildHref, router, startTransition, pathname, searchParams],
   );
 
+  // A data-neutral URL update — an in-month day/week move. A plain push, never a
+  // transition, so `isPending` stays false and no skeleton flashes. The month
+  // set is unchanged, so `DashboardScreen` performs no read; the date anchors
+  // (chrome + cookie) update locally and the cross-month case still fetches and
+  // shows the skeleton via `isNavigating`.
+  const navigateLocal = useCallback(
+    (updates: Record<string, string | null>) => {
+      const query = searchParams.toString();
+      const currentHref = query ? `${pathname}?${query}` : pathname;
+      const plainHref = buildHref(updates);
+      if (plainHref === currentHref) {
+        return;
+      }
+      router.push(plainHref);
+    },
+    [buildHref, router, pathname, searchParams],
+  );
+
   // Strip the one-shot `edit` param from the URL so a refresh doesn't reopen
   // the edit form. A plain push (no transition): the grid shows no skeleton
   // and no fade for a URL-only change.
@@ -1760,14 +1787,14 @@ export function DashboardView({
     const next = dayjs(shownDate).add(delta, "day");
     setShownDate(next.format("YYYY-MM-DD"));
     setShownMonth(next.format("YYYY-MM"));
-    navigate({ date: next.format("YYYY-MM-DD"), month: next.format("YYYY-MM") });
+    navigateLocal({ date: next.format("YYYY-MM-DD"), month: next.format("YYYY-MM") });
   }
 
   function shiftWeek(delta: number) {
     const next = dayjs(shownDate).add(delta, "week");
     setShownDate(next.format("YYYY-MM-DD"));
     setShownMonth(next.format("YYYY-MM"));
-    navigate({ date: next.format("YYYY-MM-DD"), month: next.format("YYYY-MM") });
+    navigateLocal({ date: next.format("YYYY-MM-DD"), month: next.format("YYYY-MM") });
   }
 
   /**
@@ -1840,7 +1867,7 @@ export function DashboardView({
     if (isAnchoredView) {
       setShownDate(today);
       setShownMonth(todayMonth);
-      navigate({ date: today, month: todayMonth });
+      navigateLocal({ date: today, month: todayMonth });
     } else {
       setShownMonth(todayMonth);
       navigate({ month: todayMonth, date: null });
@@ -1850,7 +1877,7 @@ export function DashboardView({
   function pickDate(picked: string) {
     setShownDate(picked);
     setShownMonth(picked.slice(0, 7));
-    navigate({ date: picked, month: picked.slice(0, 7) });
+    navigateLocal({ date: picked, month: picked.slice(0, 7) });
   }
 
   function pickMonth(picked: string) {
@@ -1863,8 +1890,9 @@ export function DashboardView({
    * direction update locally and immediately; `?date=` is kept in sync — with
    * a plain no-transition push in-month (no new fetch identity, so the page
    * re-renders silently behind the slide) or a data navigation across a month
-   * edge (skeleton + reveal fade, no slide). Refresh/back/deep links always
-   * resolve to the viewed day.
+   * edge (skeleton + reveal fade, no slide). External URL changes
+   * (back/forward, deep links) reach the tab through the URL-first `date`
+   * prop, which the render-phase sync above follows.
    */
   function applyAgendaDay(next: string) {
     const current = viewedDay ?? date;

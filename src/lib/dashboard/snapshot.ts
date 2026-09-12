@@ -10,7 +10,13 @@
  */
 
 import type { DashboardViewProps } from "@/app/(protected)/dashboard/DashboardView";
+import {
+  monthGridMonths,
+  monthsInRange,
+  weekDays,
+} from "@/lib/events/datetime";
 import type { CalendarEvent } from "@/lib/events/queries";
+import type { DashboardViewKind } from "@/lib/dashboardViews/views";
 
 /**
  * Bump when the snapshot shape changes incompatibly. A stored record whose
@@ -40,10 +46,10 @@ export type DashboardSnapshot = Omit<
 >;
 
 /**
- * What the snapshot was rendered for. `requestKey` is the data-affecting URL
- * fingerprint (view/month/date only — never the one-shot edit/event/refresh
- * params), so a background revalidation of the same context doesn't read as a
- * navigation.
+ * What the snapshot was rendered for. `requestKey` is the data-affecting
+ * fingerprint (the resolved tab id + the months it spans — never the day or the
+ * one-shot edit/event/refresh params), so a background revalidation of the same
+ * context doesn't read as a navigation, and an in-month day move doesn't fetch.
  */
 export interface DashboardSnapshotContext {
   month: string;
@@ -66,24 +72,40 @@ export interface DashboardSnapshotRecord {
   deepLinkEvent?: CalendarEvent | null;
 }
 
-/** The data-affecting URL params a dashboard render depends on. */
-export interface DashboardRequestParams {
-  view?: string | null;
-  month?: string | null;
-  date?: string | null;
+/**
+ * The months a view's data actually depends on. This is the unit the server
+ * reads and the client's fetch identity is built from, so a day move inside an
+ * already-loaded month is not a data change:
+ *
+ * - Month: the 6-week grid's months (`monthGridMonths`, 2-3).
+ * - Week (H) / Week (D): the months the Monday-first week touches (1-2).
+ * - Day / Agenda: the single containing month.
+ *
+ * Pure and client-safe (reuses the `datetime.ts` helpers), so the server
+ * (`buildDashboardData`) and the client (`DashboardScreen`) compute the same
+ * set for the same input.
+ */
+export function requiredMonths(kind: DashboardViewKind, month: string, date: string): string[] {
+  if (kind === "month") {
+    return monthGridMonths(month);
+  }
+  if (kind === "week" || kind === "weekv2") {
+    const week = weekDays(date);
+    return monthsInRange(week[0], week[6]);
+  }
+  return [month];
 }
 
 /**
- * Stable fingerprint of the data-affecting params. The one-shot `edit`/`event`/
- * `_eventCal`/`refresh` params are deliberately absent: changing or stripping
- * them must not be treated as a context change (no refetch, no skeleton).
+ * Stable fingerprint of the data a dashboard render holds: the active tab id
+ * plus the months it spans. The day within a month is deliberately absent (and
+ * so are the one-shot `edit`/`event`/`_eventCal`/`refresh` params), so an
+ * in-month day move is never treated as a context change — no refetch, no
+ * skeleton.
  */
-export function dashboardRequestKey(params: DashboardRequestParams): string {
-  const search = new URLSearchParams();
-  if (params.view) search.set("view", params.view);
-  if (params.month) search.set("month", params.month);
-  if (params.date) search.set("date", params.date);
-  return search.toString();
+export function dashboardRequestKey(params: { viewId: string; months: string[] }): string {
+  const months = [...new Set(params.months)].sort();
+  return `${params.viewId}|${months.join(",")}`;
 }
 
 /** Whether a stored record matches the current snapshot shape. */

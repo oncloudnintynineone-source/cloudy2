@@ -550,9 +550,23 @@ sequenceDiagram
   modals survive. The amber activity bar is the only signal.
 - **In-place, never interrupting.** A revalidation of the *current* context
   never shows the grid skeleton (`isNavigating` is false). Only a
-  context-changing fetch on already-fresh data (a month/tab/date navigation)
-  shows the skeleton, matching the old route-transition UX. A cached record is
-  shown *through* a context change (instant, then corrected).
+  context-changing fetch on already-fresh data (a tab switch or a month-set
+  change) shows the skeleton, matching the old route-transition UX. A cached
+  record is shown *through* a context change (instant, then corrected).
+- **Fetch identity is the months a view needs, not the day.** The request key
+  (`dashboardRequestKey`) is the resolved tab id plus `requiredMonths(kind,
+  month, date)` — the Month grid's 2-3 months, a week's 1-2 months, or the
+  single containing month for Day/Agenda (`src/lib/dashboard/snapshot.ts`). The
+  server (`buildDashboardData`) and the client (`DashboardScreen`) compute it
+  from the same pure helper, and the client only calls `loadDashboardData` when
+  the URL's signature differs from the held record. An in-month day move is
+  therefore a pure client re-filter: no server action, no DB read, no skeleton —
+  the Day/Week/Agenda date nav uses a plain (non-transition) push and the
+  effective date is persisted to the `cloudy2.ui` cookie locally. The URL day
+  still drives the rendered grid and chrome directly: `DashboardScreen` passes
+  the `?date=` param as the URL-first `date` prop (falling back to the
+  server-resolved day when absent), so the Day/Week (H) grids reposition and
+  back/forward / deep links stay in sync without any read.
 - **Deep links resolve against fresh data.** A `?event=`/`?edit=` link may
   target an event the cached snapshot doesn't contain, so `DashboardScreen`
   skips the cached paint while a deep link is present and shows the skeleton

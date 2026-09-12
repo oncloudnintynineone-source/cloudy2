@@ -9,8 +9,10 @@ import { readDashboardSnapshot, writeDashboardSnapshot } from "@/lib/dashboard/l
 import {
   dashboardRequestKey,
   isRefreshNonceFresh,
+  requiredMonths,
   type DashboardSnapshotRecord,
 } from "@/lib/dashboard/snapshot";
+import { resolveActiveTab } from "@/lib/dashboardViews/views";
 import { isUuid } from "@/lib/uuid";
 import type { MonthZoom } from "@/lib/ui/monthZoom";
 import type { SlotZoom } from "@/lib/ui/slotZoom";
@@ -38,6 +40,33 @@ function inputFromParams(params: URLSearchParams) {
 }
 
 /**
+ * The fetch signature the current URL asks for, given the last loaded record:
+ * the resolved tab id plus the months that tab needs (see `requiredMonths`).
+ * The day within a month is intentionally absent, so an in-month day move
+ * produces the same signature as the held record and triggers no fetch — the
+ * URL day still drives the rendered grid/chrome directly (see `effectiveDate`
+ * below), it just never reaches the server. Returns null before the first
+ * record is available (the mount read always runs).
+ */
+function candidateRequestKey(
+  record: DashboardSnapshotRecord | null,
+  urlView: string | null,
+  urlMonth: string | null,
+  urlDate: string | null,
+): string | null {
+  if (!record) return null;
+  const tab =
+    resolveActiveTab(urlView, record.data.activeView.id, record.data.tabs) ??
+    record.data.activeView;
+  const month = urlMonth ?? (urlDate ? urlDate.slice(0, 7) : record.context.month);
+  const date = urlDate ?? record.context.date;
+  return dashboardRequestKey({
+    viewId: tab.id,
+    months: requiredMonths(tab.kind, month, date),
+  });
+}
+
+/**
  * The Calendar route's client data layer (docs/pwa-offline.md).
  *
  * On mount it paints the last snapshot stored on this device, then always
@@ -61,6 +90,12 @@ export function DashboardScreen({
   }, [searchParams]);
 
   const [record, setRecord] = useState<DashboardSnapshotRecord | null>(null);
+  // The latest record, read by the fetch-decision effect without re-triggering
+  // it when the record changes (a completed fetch must not schedule another).
+  const recordRef = useRef(record);
+  useEffect(() => {
+    recordRef.current = record;
+  }, [record]);
   // Whether the displayed record came from the device cache or a fresh server
   // read. A cached record is shown through a context-changing revalidation
   // (instant paint, update in place); only once we're on fresh data does a
@@ -74,10 +109,14 @@ export function DashboardScreen({
   const view = searchParams.get("view");
   const month = searchParams.get("month");
   const date = searchParams.get("date");
-  const dataKey = useMemo(
-    () => dashboardRequestKey({ view, month, date }),
-    [view, month, date],
+  // The data identity the current URL asks for (tab + required months). It does
+  // not change for an in-month day move, so such a move never fetches. `urlKey`
+  // is the raw URL fingerprint that re-runs the fetch-decision effect below.
+  const candidateKey = useMemo(
+    () => candidateRequestKey(record, view, month, date),
+    [record, view, month, date],
   );
+  const urlKey = `${view ?? ""}|${month ?? ""}|${date ?? ""}`;
   const refreshParam = searchParams.get("refresh");
 
   useReportActivity(busy, "dashboard:revalidate");
@@ -122,14 +161,25 @@ export function DashboardScreen({
     };
   }, [userId]);
 
-  // Always revalidate when the data-bearing context changes (mount, month/date
-  // navigation, tab switch). A fresh `?refresh=` nonce is handled separately so
-  // it also forces a read when only the nonce changed.
+  // Fetch only when the URL asks for data the held record doesn't already
+  // cover (mount, tab switch, month-set change) — never for an in-month day
+  // move. A fresh `?refresh=` nonce is handled separately so it also forces a
+  // read when only the nonce changed.
   useEffect(() => {
     if (isRefreshNonceFresh(paramsRef.current.get("refresh"), Date.now())) return;
+    const current = recordRef.current;
+    const candidate = candidateRequestKey(
+      current,
+      paramsRef.current.get("view"),
+      paramsRef.current.get("month"),
+      paramsRef.current.get("date"),
+    );
+    if (current && candidate !== null && current.context.requestKey === candidate) {
+      return;
+    }
     void fetchFresh();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dataKey]);
+  }, [urlKey]);
 
   // A fresh `?refresh=` nonce (header Force refresh reload, or the inactivity
   // refresh's soft navigation) forces a read even though the data key is
@@ -155,9 +205,9 @@ export function DashboardScreen({
       revalidate,
       isRevalidating: busy,
       isNavigating:
-        busy && source === "fresh" && record !== null && record.context.requestKey !== dataKey,
+        busy && source === "fresh" && record !== null && record.context.requestKey !== candidateKey,
     }),
-    [revalidate, busy, source, record, dataKey],
+    [revalidate, busy, source, record, candidateKey],
   );
 
   const editParam = searchParams.get("edit");
@@ -171,10 +221,10 @@ export function DashboardScreen({
   const hasDeepLink = initialEditEventId !== null || initialDetailEventId !== null;
 
   // `_eventCal`/`event` are deliberately absent from the request key, so a deep
-  // link whose view/month/date is unchanged triggers no fetch. When the record
-  // is already for the current context but lacks the target, resolve it once
-  // (the server reads the target separately from the grid); the attempted-id
-  // ref prevents a loop when the event no longer exists.
+  // link whose tab/month set is unchanged triggers no fetch. When the record is
+  // already for the current context but lacks the target, resolve it once (the
+  // server reads the target separately from the grid); the attempted-id ref
+  // prevents a loop when the event no longer exists.
   const deepLinkId = initialEditEventId ?? initialDetailEventId;
   const attemptedDeepLinkRef = useRef<string | null>(null);
   useEffect(() => {
@@ -187,7 +237,7 @@ export function DashboardScreen({
     // needs the extra read; a context-changing link is covered by the normal
     // revalidation (which carries `_eventCal`).
     if (!hasFreshRef.current) return;
-    if (!record || record.context.requestKey !== dataKey) return;
+    if (!record || record.context.requestKey !== candidateKey) return;
     attemptedDeepLinkRef.current = deepLinkId;
     const inEvents = record.data.events.some((event) => event.payload.eventId === deepLinkId);
     const inDeepLink = record.deepLinkEvent?.payload.eventId === deepLinkId;
@@ -197,18 +247,25 @@ export function DashboardScreen({
       // eslint-disable-next-line react-hooks/set-state-in-effect
       void fetchFresh();
     }
-  }, [deepLinkId, record, dataKey, fetchFresh]);
+  }, [deepLinkId, record, candidateKey, fetchFresh]);
 
   if (!record || (hasDeepLink && source === "cache")) {
     return <DashboardShellSkeleton />;
   }
+
+  // The day the view renders. The URL wins when it pins one: an in-month move
+  // never fetches, so `record.context.date` would otherwise stay on the last
+  // read's day and the Day/Week (H) grids, chrome and back/forward would not
+  // move. Falls back to the server-resolved day when the URL omits `?date=`
+  // (Month view, or a cold anchored start).
+  const effectiveDate = date ?? record.context.date;
 
   return (
     <DashboardDataProvider value={context}>
       <DashboardView
         {...record.data}
         month={record.context.month}
-        date={record.context.date}
+        date={effectiveDate}
         initialZoom={initialZoom}
         initialMonthZoom={initialMonthZoom}
         initialEditEventId={initialEditEventId}

@@ -13,12 +13,7 @@ import { cookies } from "next/headers";
 import type { Session } from "next-auth";
 
 import { listEventTypes, listEventTypeGroups } from "@/lib/eventTypes/queries";
-import {
-  formatInstantToNaive,
-  monthGridMonths,
-  monthsInRange,
-  weekDays,
-} from "@/lib/events/datetime";
+import { formatInstantToNaive } from "@/lib/events/datetime";
 import {
   fetchMonthEvents,
   fetchRangeEvents,
@@ -44,7 +39,7 @@ import {
   type DashboardViewTab,
 } from "@/lib/dashboardViews/views";
 import { getUserPreferences } from "@/lib/userPrefs/queries";
-import { dashboardRequestKey, type DashboardSnapshot } from "./snapshot";
+import { dashboardRequestKey, requiredMonths, type DashboardSnapshot } from "./snapshot";
 
 const MONTH_PATTERN = /^\d{4}-\d{2}$/;
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
@@ -278,12 +273,10 @@ export async function buildDashboardData(
     calendars.map((calendar) => [calendar.id, calendar.name]),
   );
 
-  const week = view === "week" || view === "weekv2" ? weekDays(date) : null;
-  const rangeMonths = week
-    ? monthsInRange(week[0], week[6])
-    : view === "month"
-      ? monthGridMonths(month)
-      : [month];
+  // The months this view actually needs (Month grid: 2-3; Week: 1-2 at a
+  // boundary; Day/Agenda: one). Shared with the client's fetch signature so an
+  // in-month day move never triggers a server read.
+  const rangeMonths = requiredMonths(view, month, date);
   const rawEvents =
     rangeMonths.length > 1
       ? await fetchRangeEvents({
@@ -405,9 +398,8 @@ export async function buildDashboardData(
     date,
     viewId: activeTab.id,
     requestKey: dashboardRequestKey({
-      view: input.view,
-      month: input.month,
-      date: input.date,
+      viewId: activeTab.id,
+      months: rangeMonths,
     }),
     deepLinkEvent,
   };

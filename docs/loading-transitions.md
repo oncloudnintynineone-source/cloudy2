@@ -271,11 +271,17 @@ whose warm L1 entry still shadows the fresh rows
   cross-month switch (the server must fetch the new month) is a data
   navigation — hence `useMinSkeletonHold(initialMonth !== month)`
   (`ParadeStateView.tsx`).
-- **Dashboard Agenda tab**: in-month day changes (swipe/chevrons/Today/picker)
-  apply to local state instantly and sync `?date=` with a plain no-transition
-  push; the new day plays the **directional slide-in** classes instead of the
-  skeleton. Only a cross-month change is a data navigation with the skeleton
-  (`DashboardView.tsx`).
+- **Dashboard day-anchored views (Day / Week / Agenda)**: an in-month day/week
+  move applies to local state instantly and syncs `?date=` with a plain
+  no-transition push (`navigateLocal`), so no skeleton flashes; the Agenda also
+  plays its **directional slide-in**. The fetch is gated on the required month
+  set (`requiredMonths`, `src/lib/dashboard/snapshot.ts`), so these moves make no
+  server read at all. The `?date=` param is passed down as the URL-first `date`
+  prop (`DashboardScreen`), so the Day/Week (H) grids and the chrome follow it —
+  and so do back/forward and deep links — even without a read. Only a month-set
+  change (a cross-month move, or a week crossing a boundary into a new month) is
+  a data navigation with the skeleton, driven by `isNavigating` rather than
+  `isPending` (`DashboardView.tsx`, `DashboardScreen.tsx`).
 
 ## 1.9 Optimistic navigation chrome
 
