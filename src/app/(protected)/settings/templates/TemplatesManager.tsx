@@ -518,8 +518,9 @@ function AssignmentsDialog({
     <Modal opened={opened} onClose={onClose} title="Assign templates to targets" centered size={isDesktop ? "md" : "sm"}>
       <Stack>
         <Text size="sm" c="dimmed">
-          Each calendar view and pinned ticker uses the assigned template, or Master when
-          empty. Notifications fall back to their built-in copy when empty.
+          Each calendar view, the pinned ticker, and the Double Booking report use the assigned
+          template, or Master when empty. Notifications fall back to their built-in copy when
+          empty.
         </Text>
         <ScrollArea.Autosize mah="min(60vh, 420px)" mx="-sm" px="sm">
           <Stack gap="sm">

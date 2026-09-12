@@ -186,9 +186,14 @@ rangeEndDate, groups, skipReason }` where `skipReason` is:
 
 Each `groups[]` entry is `{ events: EventClashEntry[] }` — the same `EventClashEntry`
 shape the wizard advisory returns, so the shared `clashUi.tsx` chips and when-labels
-render both. The per-event `affected` is the report's shared-people list, and each
-entry also carries `eventId` / `calendarId` (the row deep-link target) plus
-`external`.
+render both. The per-event `affected` is the report's shared-people list. Each entry
+also carries display/geometry fields the Double Booking page uses (and the wizard
+ignores): `eventId` / `calendarId` (the row deep-link target), `external`, `typeName`
+/ `typeShortname` / `rawTitle` (type-first labelling), `color` (the event type's
+color, else the department fallback), `occupiesFullDay`, `timeOption` /
+`startAmPm` / `endAmPm`, and `effectiveStartNaive` / `effectiveEndNaive` — the
+half-day-aware occupancy window the timeline positions bars by (the stored
+`startNaive` / `endNaive` remain the inclusive display window).
 
 ## 1.8 The page & view
 
@@ -207,30 +212,52 @@ entry also carries `eventId` / `calendarId` (the row deep-link target) plus
   `LoadingStatus` while loading (mirrors a result card); an error card with Retry; an
   `EmptyState` for `no-department` / `no-active-user`; a single actionable
   `EmptyState` (with an "Open calendar" link) for a clean scan.
-- **Result layout — time-first and day-grouped.** A real scan opens with one concise
-  `role="status"` line (`N double bookings in the next 30 days`), then buckets the
-  reports into consecutive days (an episode is filed under its first day) behind a
-  short day heading (`Today` / `Tomorrow` / `Mon 14 Sep`, via `clashDayLabel`). Each
-  day renders one amber **`ClashCard`** per overlap report, collapsed by default: the
-  heading leads with the episode's **time** (`9:00 AM – 11:30 AM`, `All day`, or a
-  date range — `clashTimeLabel` over `clashEpisodeWindow`), and a muted second line
-  carries the count + titles preview (`N events · <titles preview>`, prefixed
-  `{name} ·` for an admin scan). Tapping the heading expands the per-event rows
-  (title, `External` badge, when · department). Each row is a **deep link** to that
-  event on the dashboard (`buildEventDeepLink`; an external event falls back to
-  landing on its day) and carries an explicit trailing affordance — a pencil `Open`
-  for an in-app event, a calendar `Open day` for an external one — with a hover tint
-  and focus ring (`.c2-clash-row`), so the tap target is obvious. The wizard's inert
-  rows show neither. `ClashAffectedChips` renders beneath the heading only for
-  people *other than* the scanned target (`omitUserId`) — a self-scan therefore shows
-  no lone `You` chip. The cards are not their own live regions (`live={false}`): the
-  single status line announces the count, so a many-report scan is one concise
-  announcement, not N.
+- **Result layout — visual, time-first and day-grouped.** A real scan opens with one
+  concise `role="status"` line (`N double bookings in the next 30 days`), then a
+  **30-day overview strip** (`ClashDayStrip`): one cell per day from the scan range
+  with its conflict count; busy cells are tappable and scroll to that day's section
+  (`jumpToDay`). Reports are then bucketed into consecutive days (an episode is filed
+  under its first day) behind a short day heading (`Today` / `Tomorrow` / `Mon 14 Sep`,
+  via `clashDayLabel`).
+- **The conflict timeline.** Each day renders one amber **`ClashCard`** per overlap
+  report, collapsed by default. Its always-visible visual is a **`ClashTimeline`**
+  (`src/components/clashTimeline.tsx`): a time axis with a colored bar per event —
+  positioned and sized by the entry's effective window and lane-packed by greedy
+  interval partitioning (`buildClashTimeline`, `clashTimeline.ts`) — plus shaded
+  overlap regions (a tinted band with dashed edges, theme-aware), and a separate band
+  for whole-day events. Bars are colored by event type (department fallback) with a
+  **`light-dark()`** palette (pastel fill + dark text in light mode, deep fill + light
+  text in dark mode), and each bar is a deep link to the event. The heading leads with
+  the episode's **time** (`9:00 AM – 5:00 PM`, `All day`, or a date range —
+  `clashEpisodeTimeLabel`; a group mixing a whole-day and a timed event names both,
+  e.g. `9:00 AM – 10:00 AM · All day`) and a muted `N events` count (prefixed
+  `{name} ·` for an admin scan); the old titles-preview line is gone.
+- **Template-driven labels.** Each event's bar/row label is rendered server-side in
+  `checkUserClashes` through the admin's **title-template engine** — the
+  `doubleBooking` assignment target when set, else Master (`clashLabelFor`,
+  `src/lib/events/clashLabel.ts`; Settings → Templates → Assign templates). So admins
+  choose exactly which fields show (type, description, people, departments, location,
+  time) and how they are decorated, and the clash report reads like the calendar
+  titles. When the recipe renders nothing, it falls back to the raw title, then the
+  stored summary.
+- **Rows.** Tapping the heading expands the per-event rows: the same rendered label
+  primary, the stored composite title demoted to a muted line, then the date-free time
+  · department (`clashEntryTimeLabel`). Each row is a **deep link** to that event on
+  the dashboard (`buildEventDeepLink`; an external event falls back to landing on its
+  day) and carries an explicit trailing affordance — a pencil `Open` for an in-app
+  event, a calendar `Open day` for an external one — with a hover tint and focus ring
+  (`.c2-clash-row`), so the tap target is obvious. The wizard's inert rows show
+  neither and keep the stored title primary. `ClashAffectedChips` renders beneath the
+  heading only for people *other than* the scanned target (`omitUserId`) — a self-scan
+  therefore shows no lone `You` chip. The cards are not their own live regions
+  (`live={false}`): the single status line announces the count, so a many-report scan
+  is one concise announcement, not N.
 - **Display helpers** are pure and unit-tested in
   `src/lib/events/clashDisplay.ts` (`clashDisplay.test.ts`): day keys/labels, the
-  episode window, and the time/when labels (a same-day timed range collapses the
-  repeated date). The shared `clashWhenLabel` replaces the old `eventWhenLabel`, so
-  the wizard's rows get the same tighter labels.
+  episode/strip builders, type-first labels, date-free time labels, and axis ticks (a
+  same-day timed range collapses the repeated date). The shared `clashWhenLabel`
+  replaces the old `eventWhenLabel`, so the wizard's rows get the same tighter labels.
+  Timeline geometry lives in `src/lib/events/clashTimeline.ts` (`clashTimeline.test.ts`).
 - **`loading.tsx`** — route skeleton in the standard shape (`LoadingStatus` + shaped
   `Skeleton`s inside `PageContainer`).
 

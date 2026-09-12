@@ -839,6 +839,145 @@ html {
   }
 }
 
+/* Conflict timeline inside a Double Booking card (docs/user-clashes.md §1.8):
+   a time axis with lane-packed colored bars + shaded overlap regions. */
+.c2-clash-track {
+  position: relative;
+  width: 100%;
+  margin-top: 2px;
+}
+
+.c2-clash-bar {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  padding: 0 6px;
+  border: 1px solid;
+  border-radius: var(--mantine-radius-sm);
+  overflow: hidden;
+  text-decoration: none;
+  transition: filter 120ms ease;
+}
+
+.c2-clash-bar:hover {
+  filter: brightness(0.95);
+}
+
+[data-mantine-color-scheme="dark"] .c2-clash-bar:hover {
+  filter: brightness(1.12);
+}
+
+.c2-clash-bar:focus-visible,
+.c2-clash-allday:focus-visible {
+  outline: 2px solid var(--mantine-color-orange-5);
+  outline-offset: 1px;
+}
+
+.c2-clash-allday {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  padding: 4px 8px;
+  border: 1px solid;
+  border-radius: var(--mantine-radius-sm);
+  text-decoration: none;
+}
+
+.c2-clash-overlap {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  background: light-dark(var(--mantine-color-orange-2), rgba(255, 255, 255, 0.08));
+  border-inline: 1px dashed
+    light-dark(var(--mantine-color-orange-3), var(--mantine-color-orange-6));
+  border-radius: var(--mantine-radius-sm);
+  pointer-events: none;
+}
+
+.c2-clash-axis {
+  position: relative;
+  height: 14px;
+  margin-top: 3px;
+}
+
+.c2-clash-tick {
+  position: absolute;
+  transform: translateX(-50%);
+  font-size: 0.5625rem;
+  line-height: 1;
+  color: var(--mantine-color-dimmed);
+  white-space: nowrap;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .c2-clash-bar {
+    transition: none;
+  }
+}
+
+/* 30-day overview strip above the Double Booking day list. */
+.c2-clash-strip {
+  display: flex;
+  gap: 2px;
+  overflow-x: auto;
+  padding-bottom: 2px;
+  scrollbar-width: thin;
+}
+
+.c2-clash-strip-cell {
+  flex: 0 0 auto;
+  width: calc(1.9rem * var(--mantine-scale));
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 3px 0;
+  border: 1px solid transparent;
+  border-radius: var(--mantine-radius-sm);
+  background: transparent;
+  color: var(--mantine-color-dimmed);
+  cursor: default;
+}
+
+.c2-clash-strip-cell--busy {
+  background: var(--mantine-color-orange-0);
+  border-color: var(--mantine-color-orange-3);
+  color: var(--mantine-color-orange-9);
+  cursor: pointer;
+}
+
+.c2-clash-strip-cell--busy:hover {
+  background: var(--mantine-color-orange-1);
+}
+
+.c2-clash-strip-cell--today {
+  border-color: var(--mantine-color-brand-6);
+  box-shadow: inset 0 0 0 1px var(--mantine-color-brand-6);
+}
+
+.c2-clash-strip-dow {
+  font-size: 0.5625rem;
+  line-height: 1.1;
+}
+
+.c2-clash-strip-day {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+.c2-clash-strip-dot {
+  font-size: 0.5625rem;
+  font-weight: 700;
+  line-height: 1.1;
+  min-height: 0.6rem;
+}
+
+/* Day sections are scroll targets for the strip. */
+.c2-db-day {
+  scroll-margin-top: 5rem;
+}
+
 /*
   Floating action pill (docs/action-pill.md): the bespoke actionable toast that
   replaces Mantine's `message: <Button/>` "View event" notification. A pill

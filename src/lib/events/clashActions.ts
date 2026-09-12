@@ -1,5 +1,7 @@
 "use server";
 
+import type { MantineColor } from "@mantine/core";
+
 import {
   absEventRange,
   addDays,
@@ -10,10 +12,15 @@ import {
 import { clashingEventsFor, USER_CLASH_SCAN_DAYS } from "@/lib/events/clashQuery";
 import {
   computeClashes,
+  effectiveEventWindow,
   findUserClashGroups,
   type ClashCandidateInput,
 } from "@/lib/events/clashes";
+import { clashLabelFor, type ClashLabelContext } from "@/lib/events/clashLabel";
+import { listCalendars } from "@/lib/events/queries";
+import type { TimeOption } from "@/lib/events/timeOptions";
 import { activeMembershipsByDepartment, listUsers } from "@/lib/roster/queries";
+import { getEventTitleTemplateMap, getSettings } from "@/lib/settings/queries";
 import { canChangeLock, modifyGuard } from "@/lib/events/guards";
 import {
   buildEventTitleContext,
@@ -74,6 +81,31 @@ export interface EventClashEntry {
   external: boolean;
   /** Candidate people this event double-books (sorted by name). */
   affected: EventClashAffected[];
+  /** Event type name from the notes block, or null (untyped/external). */
+  typeName: string | null;
+  /** Event type shortname (acronym), or null when unset/unknown. */
+  typeShortname: string | null;
+  /** The raw (pre-template) title from the notes block; null for legacy/external. */
+  rawTitle: string | null;
+  /** Display color: the event type's color, else the department fallback. */
+  color: MantineColor;
+  /** True when the event occupies whole days (`timeOption: "full"`). */
+  occupiesFullDay: boolean;
+  /** Effective occupancy window (half-day aware), naive UTC+8. */
+  effectiveStartNaive: string;
+  effectiveEndNaive: string;
+  /** Datetime option used to create the event. */
+  timeOption: TimeOption;
+  /** Start half-of-day indicator for "half" events, else null. */
+  startAmPm: "AM" | "PM" | null;
+  /** End half-of-day indicator for "half" events, else null. */
+  endAmPm: "AM" | "PM" | null;
+  /**
+   * Template-rendered label for the Double Booking report (the `doubleBooking`
+   * assignment target, else Master). Unset on the wizard advisory, which keeps
+   * the stored summary.
+   */
+  displayLabel?: string;
 }
 
 export type EventClashCheckResult =
@@ -202,6 +234,7 @@ export async function checkEventClashes(
 
     const clashes: EventClashEntry[] = computed.clashes.map((clash) => {
       const { startNaive, endNaive } = conflictWindowNaive(clash.start, clash.end, clash.allDay);
+      const effective = effectiveEventWindow(clash);
       return {
         title: clash.title,
         eventId: clash.eventId,
@@ -215,6 +248,16 @@ export async function checkEventClashes(
           .map((userId) => ({ userId, name: nameById.get(userId) ?? "" }))
           .filter((entry) => entry.name !== "")
           .sort((a, b) => a.name.localeCompare(b.name)),
+        typeName: clash.typeName,
+        typeShortname: clash.typeShortname,
+        rawTitle: clash.rawTitle,
+        color: clash.color,
+        occupiesFullDay: clash.occupiesFullDay,
+        effectiveStartNaive: formatInstantToNaive(effective.start),
+        effectiveEndNaive: formatInstantToNaive(effective.end),
+        timeOption: clash.timeOption,
+        startAmPm: clash.startAmPm,
+        endAmPm: clash.endAmPm,
       };
     });
 
@@ -329,6 +372,31 @@ export async function checkUserClashes(request: {
       activeUsers: rosterUsers,
     });
 
+    // The report's event labels render through the title-template engine: the
+    // `doubleBooking` assignment target when set, else Master (docs §1.8).
+    const [settings, templateMap, calendars] = await Promise.all([
+      getSettings(),
+      getEventTitleTemplateMap(),
+      listCalendars(),
+    ]);
+    const assignedId = settings.eventTitleTemplateAssignments.doubleBooking;
+    const labelRecipe =
+      (assignedId ? templateMap.get(assignedId)?.recipe : undefined) ?? settings.eventTitleRecipe;
+    const labelCtx: ClashLabelContext = {
+      nameTemplate: settings.nameTemplate,
+      usersById: new Map(
+        activeUserRows.map((user) => [
+          user.id,
+          {
+            name: user.name,
+            shortname: user.shortname,
+            departmentName: user.department?.name ?? null,
+          },
+        ]),
+      ),
+      calendarNames: new Map(calendars.map((calendar) => [calendar.id, calendar.name])),
+    };
+
     const groups: UserClashGroupEntry[] = computed.groups.map((group) => {
       const shared = group.sharedUserIds
         .map((userId) => ({ userId, name: nameById.get(userId) ?? "" }))
@@ -341,6 +409,7 @@ export async function checkUserClashes(request: {
             event.end,
             event.allDay,
           );
+          const effective = effectiveEventWindow(event);
           return {
             title: event.title,
             eventId: event.eventId,
@@ -351,6 +420,17 @@ export async function checkUserClashes(request: {
             allDay: event.allDay,
             external: event.external,
             affected: shared,
+            typeName: event.typeName ?? null,
+            typeShortname: event.typeShortname ?? null,
+            rawTitle: event.rawTitle ?? null,
+            color: event.color ?? "gray",
+            occupiesFullDay: event.occupiesFullDay ?? event.timeOption === "full",
+            effectiveStartNaive: formatInstantToNaive(effective.start),
+            effectiveEndNaive: formatInstantToNaive(effective.end),
+            timeOption: event.timeOption,
+            startAmPm: event.startAmPm,
+            endAmPm: event.endAmPm,
+            displayLabel: clashLabelFor(event, labelRecipe, labelCtx),
           };
         }),
       };

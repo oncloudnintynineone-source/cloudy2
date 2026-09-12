@@ -14,6 +14,7 @@
  */
 
 import { formatInstantToNaive, monthsInRange } from "@/lib/events/datetime";
+import { effectiveCalendarColor, effectiveEventTypeColor } from "@/lib/events/eventColors";
 import { listCalendars } from "@/lib/events/queries";
 import {
   isExternalEvent,
@@ -21,6 +22,7 @@ import {
   parseEventPeople,
   parseEventStartAmPm,
   parseEventTimeOption,
+  parseEventTitle,
   parseEventType,
 } from "@/lib/events/notes";
 import type { ClashEventInput } from "@/lib/events/clashes";
@@ -72,8 +74,10 @@ export async function clashingEventsFor(
   // Event types marked "exclude from conflict checks" are informational: their
   // events occupy nobody for clash purposes. Resolve the name set once so each
   // item below can be flagged from its parsed type name.
+  const allEventTypes = await listEventTypes();
+  const typeByName = new Map(allEventTypes.map((eventType) => [eventType.name, eventType]));
   const infoOnlyTypeNames = new Set(
-    (await listEventTypes())
+    allEventTypes
       .filter((eventType) => eventType.excludeFromClash)
       .map((eventType) => eventType.name),
   );
@@ -103,6 +107,8 @@ export async function clashingEventsFor(
         seen.add(key);
         const people = parseEventPeople(item.description);
         const typeName = parseEventType(item.description);
+        const typeInfo = typeName ? typeByName.get(typeName) : undefined;
+        const timeOption = parseEventTimeOption(item.description) ?? (item.allDay ? "full" : "range");
         events.push({
           calendarId: row.id,
           googleEventId: item.id,
@@ -113,10 +119,18 @@ export async function clashingEventsFor(
           end: item.end,
           allDay: item.allDay,
           external: isExternalEvent(item.description),
-          timeOption: parseEventTimeOption(item.description) ?? (item.allDay ? "full" : "range"),
+          timeOption,
           startAmPm: parseEventStartAmPm(item.description),
           endAmPm: parseEventEndAmPm(item.description),
           excludeFromClash: typeName !== null && infoOnlyTypeNames.has(typeName),
+          typeName,
+          typeShortname: typeInfo?.shortname ?? null,
+          rawTitle: parseEventTitle(item.description),
+          color: typeName
+            ? effectiveEventTypeColor(typeName, typeInfo?.color ?? null)
+            : effectiveCalendarColor(row.id, row.color),
+          occupiesFullDay: timeOption === "full",
+          location: item.location ?? "",
           people: {
             creatorId: people.creatorId,
             userIds: people.userIds,

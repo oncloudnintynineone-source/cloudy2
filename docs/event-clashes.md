@@ -247,7 +247,10 @@ unit-tested, following the repo convention.
 | `src/lib/events/writeContext.ts` | Shared resolution chain (`actions.ts` + clash check) |
 | `src/lib/events/clashes.ts` | Pure clash engine + types (unit-tested) |
 | `src/lib/events/clashes.test.ts` | Engine tests |
-| `src/lib/events/clashDisplay.ts` | Pure when/time/day label helpers (unit-tested) |
+| `src/lib/events/clashDisplay.ts` | Pure when/time/day/type label helpers (unit-tested) |
+| `src/lib/events/clashLabel.ts` | Server-side title-template rendering for Double Booking labels (unit-tested) |
+| `src/lib/events/clashTimeline.ts` | Pure timeline geometry + lane packing (unit-tested) |
+| `src/components/clashTimeline.tsx` | Double Booking timeline + 30-day strip visuals |
 | `src/lib/events/clashQuery.ts` | Month-cache read over the candidate's target calendars; flags informational events from their type name |
 | `src/lib/events/clashActions.ts` | `checkEventClashes` server action (read-only) |
 | `src/components/clashCards.tsx` | Shared collapsible amber card + per-event row (page + wizard) |

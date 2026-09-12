@@ -31,14 +31,16 @@ export type DashboardViewValue = (typeof DASHBOARD_VIEW_VALUES)[number];
 /**
  * Every target a template can be assigned to: the dashboard views, the Pinned
  * Events panel (`pinned`), the header's pinned-events ticker (`pinnedHeader`),
- * and the two push-notification bodies (`notifyCreated` / `notifyAdded`).
- * "Empty = default" applies to all of them (notification targets fall back to
- * their built-in copy, not Master).
+ * the Double Booking report's event labels (`doubleBooking`), and the two
+ * push-notification bodies (`notifyCreated` / `notifyAdded`). "Empty = default"
+ * applies to all of them (notification targets fall back to their built-in
+ * copy; everything else falls back to Master).
  */
 export const EVENT_TITLE_ASSIGNMENT_TARGETS = [
   ...DASHBOARD_VIEW_VALUES,
   "pinned",
   "pinnedHeader",
+  "doubleBooking",
   "notifyCreated",
   "notifyAdded",
 ] as const;
@@ -52,6 +54,7 @@ export const EVENT_TITLE_TARGET_LABELS: Record<EventTitleAssignmentTarget, strin
   agenda: "Agenda",
   pinned: "Pinned events (panel)",
   pinnedHeader: "Pinned events (header)",
+  doubleBooking: "Double booking (clash report)",
   notifyCreated: "Notification — new event",
   notifyAdded: "Notification — added to event",
 };

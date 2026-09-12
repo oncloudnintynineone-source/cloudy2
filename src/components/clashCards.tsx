@@ -17,7 +17,7 @@ import {
   IconPencil,
 } from "@tabler/icons-react";
 
-import { clashWhenLabel } from "@/lib/events/clashDisplay";
+import { clashEntryTimeLabel, clashTypeLabel, clashWhenLabel } from "@/lib/events/clashDisplay";
 import type { EventClashEntry } from "@/lib/events/clashActions";
 import { MOTION } from "@/lib/motion/timing";
 
@@ -36,6 +36,7 @@ import { MOTION } from "@/lib/motion/timing";
 export function ClashCard({
   heading,
   headingSecondary,
+  visual,
   summaryBelow,
   children,
   defaultOpen = false,
@@ -44,6 +45,8 @@ export function ClashCard({
   heading: ReactNode;
   /** Optional muted second line under the heading (still part of the toggle). */
   headingSecondary?: ReactNode;
+  /** Always-visible visual (e.g. the conflict timeline), above the summary. */
+  visual?: ReactNode;
   /** Content kept visible under the heading in both states (e.g. people chips). */
   summaryBelow?: ReactNode;
   /** The full report detail — shown only while expanded. */
@@ -99,6 +102,7 @@ export function ClashCard({
                 />
               </Group>
             </UnstyledButton>
+            {visual}
             {summaryBelow}
           </Stack>
         </Group>
@@ -124,19 +128,28 @@ export function ClashEventRow({
   entry,
   chips,
   href,
+  typeFirst = false,
 }: {
   entry: EventClashEntry;
   /** Extra per-entry content shown under the when-line. */
   chips?: ReactNode;
   /** Optional dashboard deep link; renders the row as a link when present. */
   href?: string;
+  /**
+   * Lead with the event type shortname and demote the stored composite title to
+   * a muted second line (the Double Booking page). Default keeps the stored
+   * title primary (the wizard's advisory).
+   */
+  typeFirst?: boolean;
 }) {
-  const when = clashWhenLabel(entry);
+  const primary = typeFirst ? (entry.displayLabel ?? clashTypeLabel(entry)) : entry.title;
+  const secondary = typeFirst && entry.title !== primary ? entry.title : null;
+  const when = typeFirst ? clashEntryTimeLabel(entry) : clashWhenLabel(entry);
   const body = (
     <Stack gap={2} style={{ flexGrow: 1, minWidth: 0 }}>
       <Group gap={6} wrap="wrap">
         <Text size="sm" fw={600} style={{ overflowWrap: "anywhere" }}>
-          {entry.title}
+          {primary}
         </Text>
         {entry.external && (
           <Badge size="xs" variant="light" color="gray">
@@ -144,6 +157,11 @@ export function ClashEventRow({
           </Badge>
         )}
       </Group>
+      {secondary ? (
+        <Text size="xs" c="dimmed" style={{ overflowWrap: "anywhere" }}>
+          {secondary}
+        </Text>
+      ) : null}
       <Text size="xs" c="dimmed" style={{ overflowWrap: "anywhere" }}>
         {when} · {entry.calendarName}
       </Text>

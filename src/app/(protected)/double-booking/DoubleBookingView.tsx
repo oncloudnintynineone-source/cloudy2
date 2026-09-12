@@ -10,16 +10,22 @@ import { LoadingStatus } from "@/components/LoadingStatus";
 import { EmptyState } from "@/components/EmptyState";
 import { PageHeader } from "@/components/PageHeader";
 import { useColdStartContent } from "@/components/ColdStartReady";
-import { ClashAffectedChips, clashTitlesPreview } from "@/components/clashUi";
+import { ClashAffectedChips } from "@/components/clashUi";
 import { ClashCard, ClashEventRow } from "@/components/clashCards";
+import {
+  ClashDayStrip,
+  ClashTimeline,
+  type ClashTimelineEntry,
+} from "@/components/clashTimeline";
 import { CONTENT_ENTER_CLASS } from "@/lib/loading/contentEnter";
 import { checkUserClashes, type UserClashCheckResult } from "@/lib/events/clashActions";
 import { buildEventDeepLink } from "@/lib/events/deepLink";
 import {
+  buildClashDayStrip,
   clashDayKey,
   clashDayLabel,
-  clashEpisodeWindow,
-  clashTimeLabel,
+  clashEpisodeTimeLabel,
+  clashTypeLabel,
 } from "@/lib/events/clashDisplay";
 import { formatInstantToNaive } from "@/lib/events/datetime";
 import { buildUserGroups, selectionByGroup } from "@/lib/users/userSelect";
@@ -200,20 +206,18 @@ export function DoubleBookingView({
   );
 
   function subtitleFor(current: View): string | undefined {
-    if (current.kind === "loading") {
-      return "Checking existing events…";
+    // The result states carry their own summary (the status line, the strip, or
+    // the empty state), so the header only orients while loading.
+    return current.kind === "loading" ? "Checking existing events…" : undefined;
+  }
+
+  function jumpToDay(dayKey: string) {
+    const target = document.getElementById(`c2-db-day-${dayKey}`);
+    if (!target) {
+      return;
     }
-    if (current.kind === "error") {
-      return undefined;
-    }
-    if (current.result.skipReason !== null) {
-      return selfScan
-        ? "Your schedule can't be checked right now."
-        : `${current.result.targetName}'s schedule can't be checked right now.`;
-    }
-    return selfScan
-      ? "Existing overlaps in your next 30 days."
-      : `Existing overlaps in ${current.result.targetName}'s next 30 days.`;
+    const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    target.scrollIntoView({ behavior: reduce ? "auto" : "smooth", block: "start" });
   }
 
   function renderContent(current: View) {
@@ -300,7 +304,7 @@ export function DoubleBookingView({
     const todayKey = formatInstantToNaive(new Date()).slice(0, 10);
     const dayGroups: { dayKey: string; groups: typeof result.groups }[] = [];
     for (const group of result.groups) {
-      const dayKey = clashDayKey(group.events[0].startNaive);
+      const dayKey = clashDayKey(group.events[0].effectiveStartNaive);
       const last = dayGroups[dayGroups.length - 1];
       if (last && last.dayKey === dayKey) {
         last.groups.push(group);
@@ -308,29 +312,47 @@ export function DoubleBookingView({
         dayGroups.push({ dayKey, groups: [group] });
       }
     }
+    const strip = buildClashDayStrip(
+      result.rangeStartDate,
+      result.rangeEndDate,
+      dayGroups.map((day) => day.dayKey),
+    );
 
     return (
       <Stack gap="lg">
         <Text fz="sm" c="dimmed" role="status" aria-live="polite">
           {plural(result.groups.length, "double booking", "double bookings")} in the next 30 days.
         </Text>
+        <ClashDayStrip days={strip} todayKey={todayKey} onJump={jumpToDay} />
         {dayGroups.map(({ dayKey, groups }) => (
-          <Stack key={dayKey} gap="sm">
+          <Stack key={dayKey} gap="sm" id={`c2-db-day-${dayKey}`} className="c2-db-day">
             <Text component="h3" fw={600} size="sm" c="dimmed">
               {clashDayLabel(dayKey, todayKey)}
             </Text>
             {groups.map((group, groupIndex) => {
               const count = group.events.length;
-              const titles = clashTitlesPreview(group.events);
+              const timelineEntries: ClashTimelineEntry[] = group.events.map((entry) => ({
+                startNaive: entry.effectiveStartNaive,
+                endNaive: entry.effectiveEndNaive,
+                occupiesFullDay: entry.occupiesFullDay,
+                label: entry.displayLabel ?? clashTypeLabel(entry),
+                title: entry.title,
+                color: entry.color,
+                href: buildEventDeepLink({
+                  view: null,
+                  start: entry.startNaive,
+                  eventId: entry.eventId,
+                  calendarId: entry.calendarId,
+                }),
+              }));
               const countLabel = plural(count, "event", "events");
-              const secondary = isSelf
-                ? `${countLabel}${titles ? ` · ${titles}` : ""}`
-                : `${result.targetName} · ${countLabel}${titles ? ` · ${titles}` : ""}`;
+              const secondary = isSelf ? countLabel : `${result.targetName} · ${countLabel}`;
               return (
                 <ClashCard
                   key={`${dayKey}:${groupIndex}`}
-                  heading={clashTimeLabel(clashEpisodeWindow(group.events))}
+                  heading={clashEpisodeTimeLabel(group.events)}
                   headingSecondary={secondary}
+                  visual={<ClashTimeline entries={timelineEntries} dayKey={dayKey} />}
                   live={false}
                   summaryBelow={
                     <ClashAffectedChips
@@ -344,6 +366,7 @@ export function DoubleBookingView({
                     <ClashEventRow
                       key={`${entry.calendarName}:${entry.startNaive}:${entry.title}:${eventIndex}`}
                       entry={entry}
+                      typeFirst
                       href={buildEventDeepLink({
                         view: null,
                         start: entry.startNaive,

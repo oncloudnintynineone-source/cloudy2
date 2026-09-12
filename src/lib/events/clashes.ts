@@ -20,6 +20,8 @@
  * Kept free of any I/O so it can be unit-tested without a database.
  */
 
+import type { MantineColor } from "@mantine/core";
+
 import {
   halfDayRange,
   subOneDay,
@@ -67,6 +69,18 @@ export interface ClashEventInput {
     userIds: string[];
     departmentIds: string[];
   };
+  /** Event type name from the notes block, or null (untyped/external). Display only. */
+  typeName?: string | null;
+  /** Event type shortname (acronym), or null when unset/unknown. Display only. */
+  typeShortname?: string | null;
+  /** The raw (pre-template) title from the notes block; null for legacy/external. Display only. */
+  rawTitle?: string | null;
+  /** Display color: the event type's color, else the department fallback. Display only. */
+  color?: MantineColor;
+  /** True when the event occupies whole days (`timeOption: "full"`). Display only. */
+  occupiesFullDay?: boolean;
+  /** The event's location (Google field); "" when unset. Display only. */
+  location?: string;
 }
 
 /** The event being created/edited, as the engine sees it. */
@@ -126,6 +140,22 @@ export interface EventClash {
   external: boolean;
   /** Candidate user ids double-booked by this event (sorted). */
   affectedUserIds: string[];
+  /** Event type name from the notes block, or null (untyped/external). Display only. */
+  typeName: string | null;
+  /** Event type shortname (acronym), or null when unset/unknown. Display only. */
+  typeShortname: string | null;
+  /** The raw (pre-template) title from the notes block; null for legacy/external. Display only. */
+  rawTitle: string | null;
+  /** Display color: the event type's color, else the department fallback. Display only. */
+  color: MantineColor;
+  /** True when the event occupies whole days (`timeOption: "full"`). Display only. */
+  occupiesFullDay: boolean;
+  /** Datetime option used to create the event. Display only. */
+  timeOption: TimeOption;
+  /** Start half-of-day indicator for "half" events, else null. Display only. */
+  startAmPm: "AM" | "PM" | null;
+  /** End half-of-day indicator for "half" events, else null. Display only. */
+  endAmPm: "AM" | "PM" | null;
 }
 
 export interface ClashComputation {
@@ -154,7 +184,12 @@ export function instantWindowsOverlap(startA: Date, endA: Date, startB: Date, en
  * so day-based events share the same wall-clock basis as half-day and timed
  * windows.
  */
-export function effectiveEventWindow(event: ClashEventInput): { start: Date; end: Date } {
+export function effectiveEventWindow(
+  event: Pick<
+    ClashEventInput,
+    "timeOption" | "startAmPm" | "endAmPm" | "allDay" | "start" | "end"
+  >,
+): { start: Date; end: Date } {
   if (event.timeOption === "half" && event.startAmPm && event.endAmPm) {
     const endDate = subOneDay(utcToDateString(event.end));
     return halfDayRange(utcToDateString(event.start), endDate, event.startAmPm, event.endAmPm);
@@ -347,6 +382,14 @@ export function computeClashes(params: {
       allDay: event.allDay,
       external: event.external,
       affectedUserIds: [...affected].sort(),
+      typeName: event.typeName ?? null,
+      typeShortname: event.typeShortname ?? null,
+      rawTitle: event.rawTitle ?? null,
+      color: event.color ?? "gray",
+      occupiesFullDay: event.occupiesFullDay ?? event.timeOption === "full",
+      timeOption: event.timeOption,
+      startAmPm: event.startAmPm,
+      endAmPm: event.endAmPm,
     });
   }
   clashes.sort(
