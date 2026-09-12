@@ -244,16 +244,21 @@ half-day-aware occupancy window the timeline positions bars by (the stored
   titles. When the recipe renders nothing, it falls back to the raw title, then the
   stored summary.
 - **In-place detail modal.** Tapping a bar or a row opens that event's details
-  **without leaving the page**: `DoubleBookingView` calls the read-only
-  `getClashEventDetail` server action (lazy, guarded like the scan — a non-admin may
-  only resolve the target's own home calendar), which reads the copy through the
-  sanctioned month cache (`fetchRangeEvents`) and returns the full `CalendarEvent` plus
-  the `peopleNames` / `calendarNames` / `myActiveDepartmentIds` the shared
-  `EventDetail` needs. The modal renders in **read-only mode** (`readOnly`): it hides
-  Edit/Duplicate/Delete and offers a single **"Open in calendar"** button — the only
-  navigation on the page, an explicit secondary action via `buildEventDeepLink`. A
-  `LoadingOverlay` covers the brief fetch. The row/bar label uses the entry's
-  `displayLabel` as the modal title.
+  **without leaving the page**. The modal opens **instantly** with a shaped skeleton
+  (`EventDetail`'s `loading` prop; no spinner, no dim — the skeleton-only rule) and
+  zooms out of the tapped element (`originRect` captured from the bar/row), then
+  `DoubleBookingView` lazily calls the read-only `getClashEventDetail` server action
+  (guarded like the scan — a non-admin may only resolve the target's own home
+  calendar), which reads the copy through the sanctioned month cache
+  (`fetchRangeEvents`) and returns the full `CalendarEvent` plus the `peopleNames` /
+  `calendarNames` / `myActiveDepartmentIds` the shared `EventDetail` needs. The
+  details then fade in (`content-enter`, after a ~350 ms minimum skeleton hold). The
+  modal renders in **read-only mode** (`readOnly`): it hides Edit/Duplicate/Delete and
+  offers a single **"Open in calendar"** button — the only navigation on the page, an
+  explicit secondary action via `buildEventDeepLink`. `EventDetail` stays mounted
+  (toggling `event`) so the close shrink-back animation plays; a request token
+  supersedes an in-flight fetch on close/re-tap, and a failure closes the modal with a
+  red toast. The row/bar label uses the entry's `displayLabel` as the modal title.
 - **Rows.** Tapping the heading expands the per-event rows: the same rendered label
   primary, the stored composite title demoted to a muted line, then the date-free time
   · department (`clashEntryTimeLabel`). Each row carries an explicit trailing

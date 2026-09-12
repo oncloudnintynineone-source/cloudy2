@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Box, Button, Group, LoadingOverlay, Paper, Skeleton, Stack, Text } from "@mantine/core";
+import { Box, Button, Group, Paper, Skeleton, Stack, Text } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
 import { IconCalendarClock, IconCircleCheck, IconRefresh } from "@tabler/icons-react";
 
@@ -21,6 +21,8 @@ import {
 } from "@/components/clashTimeline";
 import { EventDetail } from "../dashboard/EventDetail";
 import { CONTENT_ENTER_CLASS } from "@/lib/loading/contentEnter";
+import { useMinSkeletonHold } from "@/lib/loading/minHoldLoading";
+import type { Rect } from "@/lib/motion/origin";
 import {
   checkUserClashes,
   getClashEventDetail,
@@ -78,15 +80,20 @@ export function DoubleBookingView({
   const router = useRouter();
   const [targetUserId, setTargetUserId] = useState(currentUserId);
   const [attempt, setAttempt] = useState(0);
-  // In-place detail modal: the tapped entry is lazily fetched (full payload +
-  // context) and rendered read-only, so the report never navigates away.
-  const [openingKey, setOpeningKey] = useState<string | null>(null);
+  // In-place detail modal: tapping opens it immediately (with a shaped
+  // skeleton) and lazily fetches the full payload, so the report never
+  // navigates away and there is no spinner/dim.
+  const [detailOpen, setDetailOpen] = useState(false);
+  const [detailLoading, setDetailLoading] = useState(false);
+  const [detailOrigin, setDetailOrigin] = useState<Rect | null>(null);
+  const detailRequestRef = useRef(0);
   const [detail, setDetail] = useState<{
     event: CalendarEvent;
     peopleNames: Record<string, string>;
     calendarNames: Record<string, string>;
     myActiveDepartmentIds: string[];
   } | null>(null);
+  const heldDetailLoading = useMinSkeletonHold(detailOpen && detailLoading);
   // Cold-start readiness: the page/view mounts with the route's streamed
   // content, so reporting on mount is exactly "content painted".
   useColdStartContent();
@@ -128,13 +135,16 @@ export function DoubleBookingView({
     }
   }
 
-  // Lazily fetch the tapped event's full payload and open the read-only detail
-  // modal in place. Guarded so a second tap while one is in flight is ignored.
-  async function openDetail(targetId: string, entry: EventClashEntry) {
-    if (openingKey) {
-      return;
-    }
-    setOpeningKey(`${entry.calendarId}:${entry.googleEventId}`);
+  // Open the modal immediately (skeleton) and fetch the tapped event's full
+  // payload in the background. A request token supersedes an in-flight fetch
+  // when the modal closes or another event is tapped.
+  async function openDetail(targetId: string, entry: EventClashEntry, rect: Rect) {
+    const requestId = detailRequestRef.current + 1;
+    detailRequestRef.current = requestId;
+    setDetailOrigin(rect);
+    setDetail(null);
+    setDetailLoading(true);
+    setDetailOpen(true);
     try {
       const result = await getClashEventDetail({
         targetUserId: targetId,
@@ -144,7 +154,12 @@ export function DoubleBookingView({
         startNaive: entry.effectiveStartNaive,
         endNaive: entry.effectiveEndNaive,
       });
+      if (requestId !== detailRequestRef.current) {
+        return;
+      }
       if (!result.ok) {
+        setDetailOpen(false);
+        setDetailLoading(false);
         notifications.show({ color: "red", message: result.error });
         return;
       }
@@ -154,11 +169,22 @@ export function DoubleBookingView({
         calendarNames: result.calendarNames,
         myActiveDepartmentIds: result.myActiveDepartmentIds,
       });
+      setDetailLoading(false);
     } catch {
+      if (requestId !== detailRequestRef.current) {
+        return;
+      }
+      setDetailOpen(false);
+      setDetailLoading(false);
       notifications.show({ color: "red", message: "Could not load the event" });
-    } finally {
-      setOpeningKey(null);
     }
+  }
+
+  function closeDetail() {
+    // Supersede any in-flight fetch so a late result can't reopen the modal.
+    detailRequestRef.current += 1;
+    setDetailOpen(false);
+    setDetailLoading(false);
   }
 
   useEffect(() => {
@@ -217,8 +243,7 @@ export function DoubleBookingView({
   };
 
   return (
-    <Stack gap="md" pb="xl" className={CONTENT_ENTER_CLASS} style={{ position: "relative" }}>
-      <LoadingOverlay visible={openingKey !== null} zIndex={200} />
+    <Stack gap="md" pb="xl" className={CONTENT_ENTER_CLASS}>
       <div className="c2-db-head">
         <div className="c2-db-title">
           <PageHeader title="Double Booking" subtitle={subtitleFor(view)} />
@@ -256,35 +281,36 @@ export function DoubleBookingView({
         />
       )}
 
-      {detail && (
-        <EventDetail
-          event={detail.event}
-          onClose={() => setDetail(null)}
-          readOnly
-          onOpenInCalendar={(event) => {
-            router.push(
-              buildEventDeepLink({
-                view: null,
-                start: event.start,
-                eventId: event.payload.eventId,
-                calendarId: event.payload.calendarId,
-              }),
-            );
-          }}
-          peopleNames={detail.peopleNames}
-          calendarNames={detail.calendarNames}
-          originRect={null}
-          currentUserId={currentUserId}
-          isAdmin={isAdmin}
-          myActiveDepartmentIds={detail.myActiveDepartmentIds}
-          onEdit={() => {}}
-          onDuplicate={() => {}}
-          onDeleted={() => {}}
-          onOptimistic={() => {}}
-          onOptimisticSettled={() => {}}
-          onOptimisticRollback={() => {}}
-        />
-      )}
+      {/* Always mounted so Mantine can play the open/close zoom; `event` toggles
+          while `loading` shows the shaped skeleton. */}
+      <EventDetail
+        event={detailOpen ? (detail?.event ?? null) : null}
+        loading={detailOpen && heldDetailLoading}
+        onClose={closeDetail}
+        readOnly
+        onOpenInCalendar={(event) => {
+          router.push(
+            buildEventDeepLink({
+              view: null,
+              start: event.start,
+              eventId: event.payload.eventId,
+              calendarId: event.payload.calendarId,
+            }),
+          );
+        }}
+        peopleNames={detail?.peopleNames ?? {}}
+        calendarNames={detail?.calendarNames ?? {}}
+        originRect={detailOrigin}
+        currentUserId={currentUserId}
+        isAdmin={isAdmin}
+        myActiveDepartmentIds={detail?.myActiveDepartmentIds ?? []}
+        onEdit={() => {}}
+        onDuplicate={() => {}}
+        onDeleted={() => {}}
+        onOptimistic={() => {}}
+        onOptimisticSettled={() => {}}
+        onOptimisticRollback={() => {}}
+      />
     </Stack>
   );
 
@@ -421,7 +447,7 @@ export function DoubleBookingView({
                 label: entry.displayLabel ?? clashTypeLabel(entry),
                 title: entry.title,
                 color: entry.color,
-                onSelect: () => void openDetail(result.targetUserId, entry),
+                onSelect: (rect) => void openDetail(result.targetUserId, entry, rect),
               }));
               const countLabel = plural(count, "event", "events");
               const secondary = isSelf ? countLabel : `${result.targetName} · ${countLabel}`;
@@ -445,7 +471,7 @@ export function DoubleBookingView({
                       key={`${entry.calendarName}:${entry.startNaive}:${entry.title}:${eventIndex}`}
                       entry={entry}
                       typeFirst
-                      onOpen={() => void openDetail(result.targetUserId, entry)}
+                      onOpen={(rect) => void openDetail(result.targetUserId, entry, rect)}
                     />
                   ))}
                 </ClashCard>

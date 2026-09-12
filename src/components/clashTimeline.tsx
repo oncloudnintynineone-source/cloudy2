@@ -6,6 +6,7 @@ import { Box, Stack, Text } from "@mantine/core";
 
 import { buildClashTimeline, type ClashTimelineInput } from "@/lib/events/clashTimeline";
 import { formatAxisMinute } from "@/lib/events/clashDisplay";
+import type { Rect } from "@/lib/motion/origin";
 
 /** One event rendered on the conflict timeline. */
 export interface ClashTimelineEntry extends ClashTimelineInput {
@@ -18,7 +19,7 @@ export interface ClashTimelineEntry extends ClashTimelineInput {
   /** Optional dashboard deep link; without it the bar is inert (the wizard). */
   href?: string;
   /** Optional in-place select handler (opens the detail modal); takes precedence. */
-  onSelect?: () => void;
+  onSelect?: (rect: Rect) => void;
 }
 
 const LANE_HEIGHT = 26;
@@ -76,7 +77,7 @@ export function ClashTimeline({
               className="c2-clash-allday"
               style={colorStyle(item.color)}
               aria-label={`${item.title} — all day, view details`}
-              onClick={item.onSelect}
+              onClick={(e) => item.onSelect?.(e.currentTarget.getBoundingClientRect())}
             >
               {content}
             </button>
@@ -136,7 +137,7 @@ export function ClashTimeline({
                     className="c2-clash-bar"
                     style={barStyle}
                     aria-label={`${item.title} — ${item.label}, view details`}
-                    onClick={item.onSelect}
+                    onClick={(e) => item.onSelect?.(e.currentTarget.getBoundingClientRect())}
                   >
                     {content}
                   </button>

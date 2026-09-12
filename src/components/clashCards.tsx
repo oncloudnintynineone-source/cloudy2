@@ -20,6 +20,7 @@ import {
 
 import { clashEntryTimeLabel, clashTypeLabel, clashWhenLabel } from "@/lib/events/clashDisplay";
 import type { EventClashEntry } from "@/lib/events/clashActions";
+import type { Rect } from "@/lib/motion/origin";
 import { MOTION } from "@/lib/motion/timing";
 
 /**
@@ -140,7 +141,7 @@ export function ClashEventRow({
   /** Optional dashboard deep link; renders the row as a link when present. */
   href?: string;
   /** Optional in-place open handler (detail modal); takes precedence over `href`. */
-  onOpen?: () => void;
+  onOpen?: (rect: Rect) => void;
   /**
    * Lead with the event type shortname and demote the stored composite title to
    * a muted second line (the Double Booking page). Default keeps the stored
@@ -178,7 +179,7 @@ export function ClashEventRow({
     return (
       <UnstyledButton
         type="button"
-        onClick={onOpen}
+        onClick={(e) => onOpen(e.currentTarget.getBoundingClientRect())}
         className="c2-clash-row"
         aria-label={`View details for ${primary} — ${when}`}
       >

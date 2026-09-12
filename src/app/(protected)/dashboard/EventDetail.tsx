@@ -1,13 +1,15 @@
 "use client";
 
 import { useState } from "react";
-import { Badge, Button, Group, Modal, Stack, Text, useMantineTheme } from "@mantine/core";
+import { Badge, Button, Group, Modal, Skeleton, Stack, Text, useMantineTheme } from "@mantine/core";
 import { useDisclosure, useMediaQuery } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
 import { IconCalendarEvent, IconCopy, IconPencil, IconTrash } from "@tabler/icons-react";
 
+import { LoadingStatus } from "@/components/LoadingStatus";
 import { deleteEvent, type EventActionOk } from "@/lib/events/actions";
 import { subOneDay } from "@/lib/events/datetime";
+import { CONTENT_ENTER_CLASS } from "@/lib/loading/contentEnter";
 import type { CalendarEvent } from "@/lib/events/queries";
 import { nextOptimisticOpId, optimisticRemove, type OptimisticRemoveOp } from "@/lib/events/optimistic";
 import { eventRefFromCalendarEvent } from "@/lib/events/targets";
@@ -53,6 +55,11 @@ interface EventDetailProps {
   readOnly?: boolean;
   /** Invoked by the read-only "Open in calendar" action. */
   onOpenInCalendar?: (event: CalendarEvent) => void;
+  /**
+   * The event is still being fetched: opens the modal immediately and shows a
+   * shaped skeleton instead of a spinner/dim (skeleton-only loading rule).
+   */
+  loading?: boolean;
 }
 
 export function EventDetail({
@@ -72,6 +79,7 @@ export function EventDetail({
   myActiveDepartmentIds,
   readOnly = false,
   onOpenInCalendar,
+  loading = false,
 }: EventDetailProps) {
   const [confirmOpen, { open, close }] = useDisclosure(false);
   const [deleting, setDeleting] = useState(false);
@@ -183,7 +191,7 @@ export function EventDetail({
   return (
     <>
       <Modal
-        opened={event !== null}
+        opened={loading || event !== null}
         onClose={onClose}
         title="Event"
         centered
@@ -191,8 +199,10 @@ export function EventDetail({
         keepMounted
         transitionProps={transitionProps}
       >
-        {showEvent && payload ? (
-          <Stack>
+        {loading ? (
+          <EventDetailSkeleton />
+        ) : showEvent && payload ? (
+          <Stack className={CONTENT_ENTER_CLASS}>
             <Text fw={600}>{showEvent.title}</Text>
 
             {payload.allDay ? (
@@ -362,5 +372,24 @@ export function EventDetail({
         </Modal>
       )}
     </>
+  );
+}
+
+/**
+ * Skeleton shaped like the detail body, shown while the event is fetched (the
+ * Double Booking page's lazy open). Skeletons are the only loading indicator —
+ * no spinner, no dim.
+ */
+function EventDetailSkeleton() {
+  return (
+    <Stack gap="sm">
+      <LoadingStatus label="Loading event" />
+      <Skeleton height={20} width="65%" radius="sm" />
+      <Skeleton height={14} width="80%" radius="sm" />
+      <Skeleton height={14} width="35%" radius="sm" />
+      <Skeleton height={14} width="55%" radius="sm" />
+      <Skeleton height={14} width="45%" radius="sm" />
+      <Skeleton height={30} width="100%" radius="sm" mt="md" />
+    </Stack>
   );
 }
