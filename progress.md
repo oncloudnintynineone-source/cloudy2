@@ -864,6 +864,20 @@ via `?attendance=1` and `attendanceStorage` became a `useSyncExternalStore` exte
    the pre-hydration meta (manifest `theme_color` still backs the splash), and React
    itself removes/inserts the node at hydration and on each scheme change — the same
    fresh-node swap Chrome needs, with no detached-node deletion (bugfix)
+- 1.223 Search / Pinned / note deep links no longer switch the active view or touch
+   filters: clicking a search result (or any `?event=` link) opens the target's details
+   on the **current** tab — the search link now carries `?view=` for the active tab
+   (`buildEventDeepLink`, pure + unit-tested), so it can't fall back to the remembered
+   tab, and `_eventCal` is no longer added to the grid's fetch set. The server instead
+   resolves that one event separately (its own calendar, empty type/user filters) into
+   `deepLinkEvent` on the snapshot record root (never cached), so an event the active
+   filters hide still opens **without leaking a chip** into the grid or altering any
+   saved filter; the same-period case (`_eventCal`/`event` are absent from
+   `dashboardRequestKey`, so no refetch) is covered by a ref-guarded one-shot refetch in
+   `DashboardScreen` plus a "pending" deep link in `DashboardView` that opens the modal
+   once `deepLinkEvent` lands (bugfix; `docs/event-search.md` §1.9,
+   `docs/event-lifecycle.md` §1.4.2, `docs/loading-transitions.md` §1.7,
+   `docs/ui-state.md`, `docs/pinned-events.md`)
 
 ## 1.4 Open items & next steps
 

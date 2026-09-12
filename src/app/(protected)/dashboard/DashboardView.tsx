@@ -248,6 +248,13 @@ export interface DashboardViewProps {
    * include a copy of the group.
    */
   initialDetailEventId: string | null;
+  /**
+   * The `?event=` deep link's target event, resolved by the server separately
+   * from the grid's filtered `events` (only its own calendar, no type/user
+   * filters). Fallback source for the details/edit deep-link lookup, so a
+   * filtered-out event still opens without altering the grid or the filters.
+   */
+  deepLinkEvent: CalendarEvent | null;
   scheduleUsers: ScheduleUser[];
   /** Full active roster: row source when the Users filter narrows the rows. */
   allActiveUsers: ScheduleUser[];
@@ -746,6 +753,7 @@ export function DashboardView({
   isAdmin,
   initialEditEventId,
   initialDetailEventId,
+  deepLinkEvent,
   scheduleUsers,
   allActiveUsers,
   inviteeDepartments,
@@ -841,16 +849,24 @@ export function DashboardView({
   const weekSlotWidthValue = weekSlotWidth(zoom, isDesktop);
   const daySlotWidthValue = daySlotWidth(zoom);
 
-  // The `?edit=` deep link (the event search modal's "Edit" action) resolves
-  // its target event synchronously at mount — the server has already fetched
-  // the month — so the edit form/banner initialize without a follow-up render.
-  const initialEditEvent = initialEditEventId
-    ? (events.find((event) => event.payload.eventId === initialEditEventId) ?? null)
-    : null;
+  // A deep-link target resolves from the grid's filtered `events` first (the
+  // common case: it is on a selected calendar and matches the filters), then
+  // from the server's separately-resolved `deepLinkEvent` (an event the active
+  // filters would otherwise drop). Resolved synchronously at mount so the edit
+  // form / details modal initialize without a follow-up render.
+  const resolveDeepLinkEvent = (id: string | null): CalendarEvent | null => {
+    if (!id) {
+      return null;
+    }
+    return (
+      events.find((event) => event.payload.eventId === id) ??
+      (deepLinkEvent?.payload.eventId === id ? deepLinkEvent : null)
+    );
+  };
 
-  const initialDetailEvent = initialDetailEventId
-    ? (events.find((event) => event.payload.eventId === initialDetailEventId) ?? null)
-    : null;
+  const initialEditEvent = resolveDeepLinkEvent(initialEditEventId);
+
+  const initialDetailEvent = resolveDeepLinkEvent(initialDetailEventId);
 
   const [detailEvent, setDetailEvent] = useState<CalendarEvent | null>(initialDetailEvent);
   // Where the tapped element sat on screen; the modal grows out of / shrinks
@@ -921,31 +937,61 @@ export function DashboardView({
   // mount-time initializer above never re-runs). Track the last-handled id and
   // re-open the details for each new one; null (a stripped param) is ignored.
   const [prevDetailLinkId, setPrevDetailLinkId] = useState<string | null>(null);
+  // A deep link whose target is not resolvable yet (a filtered-out event the
+  // same-period refetch guard is still fetching) is held "pending" so the
+  // details open when `deepLinkEvent` arrives. A manual close clears it, so a
+  // closed modal is never force-reopened.
+  const [pendingDetailLinkId, setPendingDetailLinkId] = useState<string | null>(
+    initialDetailEventId !== null && initialDetailEvent === null ? initialDetailEventId : null,
+  );
   // A stripped `event` param (the one-shot deep link is cleaned from the URL
   // after opening) should re-arm the same-id guard below, so clicking the same
   // search/pinned event again re-opens its details instead of silently no-oping.
   if (initialDetailEventId === null && prevDetailLinkId !== null) {
     setPrevDetailLinkId(null);
+    setPendingDetailLinkId(null);
   }
   if (initialDetailEventId !== null && initialDetailEventId !== prevDetailLinkId) {
     setPrevDetailLinkId(initialDetailEventId);
-    const found = events.find((event) => event.payload.eventId === initialDetailEventId) ?? null;
+    const found = resolveDeepLinkEvent(initialDetailEventId);
     setDetailEvent(found);
     setEditLinkFailed(found === null);
+    setPendingDetailLinkId(found === null ? initialDetailEventId : null);
+  }
+  if (initialDetailEventId !== null && pendingDetailLinkId === initialDetailEventId) {
+    const found = resolveDeepLinkEvent(initialDetailEventId);
+    if (found) {
+      setPendingDetailLinkId(null);
+      setEditLinkFailed(false);
+      setDetailEvent(found);
+    }
   }
   // Same-route `?edit=` deep link (the search modal's "Edit" action opened
   // while the dashboard is already mounted): the mount-time `formState`
   // initializer above never re-runs, so re-open the edit form per new id,
   // mirroring the detail link handling above.
   const [prevEditLinkId, setPrevEditLinkId] = useState<string | null>(initialEditEventId);
+  const [pendingEditLinkId, setPendingEditLinkId] = useState<string | null>(
+    initialEditEventId !== null && initialEditEvent === null ? initialEditEventId : null,
+  );
   if (initialEditEventId !== null && initialEditEventId !== prevEditLinkId) {
     setPrevEditLinkId(initialEditEventId);
-    const found = events.find((event) => event.payload.eventId === initialEditEventId) ?? null;
+    const found = resolveDeepLinkEvent(initialEditEventId);
     if (found) {
       setFormMinimized(false);
       setFormState({ event: found, templateEvent: null, defaultDate: found.start.slice(0, 10) });
     }
     setEditLinkFailed(found === null);
+    setPendingEditLinkId(found === null ? initialEditEventId : null);
+  }
+  if (initialEditEventId !== null && pendingEditLinkId === initialEditEventId) {
+    const found = resolveDeepLinkEvent(initialEditEventId);
+    if (found) {
+      setPendingEditLinkId(null);
+      setEditLinkFailed(false);
+      setFormMinimized(false);
+      setFormState({ event: found, templateEvent: null, defaultDate: found.start.slice(0, 10) });
+    }
   }
   const [filterOpened, { open: openFilter, close: closeFilter }] = useDisclosure(false);
   // Where the filter trigger sat on screen; the dialog grows out of / shrinks

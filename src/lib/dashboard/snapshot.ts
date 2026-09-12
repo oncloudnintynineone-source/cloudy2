@@ -10,6 +10,7 @@
  */
 
 import type { DashboardViewProps } from "@/app/(protected)/dashboard/DashboardView";
+import type { CalendarEvent } from "@/lib/events/queries";
 
 /**
  * Bump when the snapshot shape changes incompatibly. A stored record whose
@@ -35,6 +36,7 @@ export type DashboardSnapshot = Omit<
   | "initialMonthZoom"
   | "initialEditEventId"
   | "initialDetailEventId"
+  | "deepLinkEvent"
 >;
 
 /**
@@ -55,6 +57,13 @@ export interface DashboardSnapshotRecord {
   savedAt: number;
   context: DashboardSnapshotContext;
   data: DashboardSnapshot;
+  /**
+   * The `?event=` deep link's target event, resolved separately from the grid
+   * (so a filtered-out event still opens). URL-scoped, so it lives on the
+   * record root and is never written to IndexedDB (which persists `data` +
+   * `context` only).
+   */
+  deepLinkEvent?: CalendarEvent | null;
 }
 
 /** The data-affecting URL params a dashboard render depends on. */

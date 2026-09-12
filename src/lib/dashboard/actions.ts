@@ -71,6 +71,7 @@ export async function loadDashboardData(
           requestKey: built.requestKey,
         },
         data: built.data,
+        deepLinkEvent: built.deepLinkEvent,
       },
     };
   } catch (error) {

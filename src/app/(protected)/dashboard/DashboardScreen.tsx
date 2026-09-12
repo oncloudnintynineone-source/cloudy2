@@ -170,6 +170,35 @@ export function DashboardScreen({
   // / details modal opens.
   const hasDeepLink = initialEditEventId !== null || initialDetailEventId !== null;
 
+  // `_eventCal`/`event` are deliberately absent from the request key, so a deep
+  // link whose view/month/date is unchanged triggers no fetch. When the record
+  // is already for the current context but lacks the target, resolve it once
+  // (the server reads the target separately from the grid); the attempted-id
+  // ref prevents a loop when the event no longer exists.
+  const deepLinkId = initialEditEventId ?? initialDetailEventId;
+  const attemptedDeepLinkRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!deepLinkId) {
+      attemptedDeepLinkRef.current = null;
+      return;
+    }
+    if (attemptedDeepLinkRef.current === deepLinkId) return;
+    // Only a link arriving after we already hold fresh data for this context
+    // needs the extra read; a context-changing link is covered by the normal
+    // revalidation (which carries `_eventCal`).
+    if (!hasFreshRef.current) return;
+    if (!record || record.context.requestKey !== dataKey) return;
+    attemptedDeepLinkRef.current = deepLinkId;
+    const inEvents = record.data.events.some((event) => event.payload.eventId === deepLinkId);
+    const inDeepLink = record.deepLinkEvent?.payload.eventId === deepLinkId;
+    if (!inEvents && !inDeepLink) {
+      // `fetchFresh` defers its setState to a microtask (see its own comment),
+      // so this is not a synchronous state update.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      void fetchFresh();
+    }
+  }, [deepLinkId, record, dataKey, fetchFresh]);
+
   if (!record || (hasDeepLink && source === "cache")) {
     return <DashboardShellSkeleton />;
   }
@@ -184,6 +213,7 @@ export function DashboardScreen({
         initialMonthZoom={initialMonthZoom}
         initialEditEventId={initialEditEventId}
         initialDetailEventId={initialDetailEventId}
+        deepLinkEvent={record.deepLinkEvent ?? null}
       />
     </DashboardDataProvider>
   );

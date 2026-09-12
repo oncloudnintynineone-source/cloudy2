@@ -193,9 +193,10 @@ default.**
   `clampZoom`/`clampMonthZoom` before first paint (no width jump on relaunch).
   The **active tab is not cookie state** — it resolves server-side (§1.3).
 - **`?event=` / `?edit=` deep links** (Google "Edit:" notes, Pinned Events,
-  event search) land on the user's active tab + its filters; the link's `date`
-  pins the fetched period and `_eventCal` adds the event's calendar to the
-  fetch set regardless of the tab's filter selection.
+  event search) land on the user's active tab + its filters (search carries
+  `?view=`); the link's `date` pins the fetched period and `_eventCal` lets the
+  server resolve the target event separately (only its calendar, no type/user
+  filters), so it opens even when the tab's filters exclude it.
 - **Protected layout** (`(protected)/layout.tsx`) reads `sidebarCollapsed`
   from the cookie before first paint and passes it to the shell as initial
   state (no client restore, no flash); the shell persists every toggle back.

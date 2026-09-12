@@ -24,7 +24,9 @@ import {
   fetchRangeEvents,
   getUserDepartmentId,
   listCalendars,
+  type CalendarEvent,
 } from "@/lib/events/queries";
+import { findEventByGroupId } from "@/lib/events/deepLink";
 import { filterUserOptionIds } from "@/lib/filters/filterUserOptions";
 import { googleCalendarConfigured } from "@/lib/google";
 import { listQuickLinks } from "@/lib/quickLinks/queries";
@@ -33,6 +35,7 @@ import { resolveDisplayTitles } from "@/lib/events/eventTitleDisplay";
 import { formatFullName } from "@/lib/settings/formatName";
 import { getSettings, listEventTitleTemplates } from "@/lib/settings/queries";
 import { UI_STATE_COOKIE, decodeUiState } from "@/lib/ui/uiState";
+import { isUuid } from "@/lib/uuid";
 import { getDashboardViews } from "@/lib/dashboardViews/queries";
 import {
   emptyTabFilters,
@@ -75,6 +78,12 @@ export interface BuiltDashboardData {
   date: string;
   viewId: string;
   requestKey: string;
+  /**
+   * The `?event=` deep link's target event, resolved separately from the grid
+   * (empty filters, only its own calendar) so it opens even when the active
+   * tab's filters would drop it. Not part of `data`, so it is never cached.
+   */
+  deepLinkEvent: CalendarEvent | null;
 }
 
 function currentMonth(): string {
@@ -188,15 +197,13 @@ export async function buildDashboardData(
     types: [],
   };
 
-  // `?event=` deep links: `_eventCal` carries the target event's calendar,
-  // which the resolved filters may exclude. Add it to the read only — the
-  // filter selection stays untouched.
+  // `?event=` deep links: `_eventCal` names the target copy's calendar. It is
+  // used only to resolve that one event (below) — never added to the grid's
+  // fetch set, so the active filters and the rendered event set stay untouched.
   const eventCalParam =
     input.eventCal && calendarIds.includes(input.eventCal) ? input.eventCal : null;
-  const fetchCalendarIds =
-    eventCalParam && !selectedCalendars.includes(eventCalParam)
-      ? [...selectedCalendars, eventCalParam]
-      : selectedCalendars;
+  const deepLinkEventId = input.event && isUuid(input.event) ? input.event : null;
+  const fetchCalendarIds = selectedCalendars;
 
   const activeUsers = allUsers.filter((user) => user.status === "active");
   const pickerUsers = activeUsers;
@@ -316,7 +323,7 @@ export async function buildDashboardData(
     eventTypes.map((t) => [t.name, { name: t.name, shortname: t.shortname }]),
   );
   const calendarsById = new Map(calendars.map((c) => [c.id, c.name]));
-  const events = resolveDisplayTitles(rawEvents, {
+  const displayOptions = {
     view,
     nameTemplate: settings.nameTemplate,
     masterRecipe: settings.eventTitleRecipe,
@@ -325,7 +332,27 @@ export async function buildDashboardData(
     usersById,
     eventTypesByName,
     calendarsById,
-  });
+  };
+  const events = resolveDisplayTitles(rawEvents, displayOptions);
+
+  // Resolve the `?event=` deep-link target on its own: only its calendar, with
+  // no type/user filters, so it opens regardless of the active tab's filters.
+  // It never joins the grid's `events`, so the filter selection stays visually
+  // authoritative.
+  let deepLinkEvent: CalendarEvent | null = null;
+  if (deepLinkEventId && eventCalParam) {
+    const targetEvents = await fetchRangeEvents({
+      months: rangeMonths,
+      calendarIds: [eventCalParam],
+      typeFilter: [],
+      userFilter: [],
+      force: input.force,
+    });
+    deepLinkEvent = findEventByGroupId(
+      resolveDisplayTitles(targetEvents, displayOptions),
+      deepLinkEventId,
+    );
+  }
 
   const data: DashboardSnapshot = {
     tabs,
@@ -368,9 +395,9 @@ export async function buildDashboardData(
     currentUserName: session.user.name ?? "",
   };
 
-  // The deep-link ids are not part of the snapshot (they are URL state), so
-  // `input.edit`/`input.event` are intentionally unused here; they are resolved
-  // client-side from the current search params.
+  // The deep-link ids are not part of the snapshot (they are URL state). The
+  // target event is resolved here (into `deepLinkEvent`) because the grid's
+  // filtered `events` may not contain it; the client resolves the modal from it.
 
   return {
     data,
@@ -382,5 +409,6 @@ export async function buildDashboardData(
       month: input.month,
       date: input.date,
     }),
+    deepLinkEvent,
   };
 }

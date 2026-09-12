@@ -203,22 +203,27 @@ index (a separate concern from this native-search feature; see
 - A result click shows a **spinner on that row** — an overlay sized to the
   clicked row's box (positional, so multi-day events repeated under several
   date headers never light more than the one row clicked; nothing shifts) — and
-  navigates `/dashboard?date=<start day>`
-  (`+ &event=<group id>` for internal events) inside a `useTransition`. The
- deep link opens the event on the user's **remembered view + filters** (`?event=`
- deep links read the remembered-state cookie like any other render), and the
- search covers every calendar, so the link also carries
-  `&_eventCal=<calendar id>` — `page.tsx` adds that one calendar to the fetch
-  set only (never to the filter selection/remembered state), guaranteeing the
-  event is found regardless of the current view's filters. The
-  search modal stays open while `isPending`, then closes once the navigation
-  commits — the dashboard's own full `EventDetail` (Duplicate/Edit/Delete) is
- what the user lands on, reusing the existing `?event=`/`?date=` deep-link
- machinery (`page.tsx`). The one-shot `event`/`_eventCal` params are
-  stripped after opening (re-armed per click, so the same event can be opened
-  again), and `DashboardView` re-arms its same-id guard when they clear. Rows
-  stay clickable throughout, so a re-click re-triggers navigation. There is no
-  read-only detail step.
+  navigates `/dashboard?date=<start day>&event=<group id>&_eventCal=<calendar id>`
+  (built by the pure `buildEventDeepLink`, `src/lib/events/deepLink.ts`) inside a
+  `useTransition`. The link **preserves the active dashboard tab** (`?view=` is
+  carried over when the search was opened from `/dashboard`), so opening a
+  result can never fall back to the remembered tab and switch views. It never
+  writes the tab's stored filters: the search covers every calendar and the
+  active filters may exclude the event, so `_eventCal` names the tapped copy's
+  calendar and the server resolves **that one event separately** — only its
+  calendar, with no type/user filters — returning it as `deepLinkEvent` on the
+  snapshot record root (not in the cached `data`). The grid's `events` stay the
+  filtered set, so the result does **not** leak a chip the filters hide; the
+  dashboard's own full `EventDetail` (Duplicate/Edit/Delete) opens from the
+  resolved event. `_eventCal`/`event` are absent from `dashboardRequestKey`, so
+  `DashboardScreen` fires a ref-guarded one-shot refetch when a deep link's
+  target is missing from an otherwise-current record (e.g. a same-period link),
+  and `DashboardView` holds the deep link "pending" until `deepLinkEvent`
+  arrives. The one-shot `event`/`_eventCal` params are stripped after opening
+  (re-armed per click, so the same event can be opened again), and
+  `DashboardView` re-arms its same-id guard when they clear. Rows stay clickable
+  throughout, so a re-click re-triggers navigation. There is no read-only detail
+  step.
 
 The Google Calendar notes' `Edit:` link is another producer of the same
 `?event=` deep link (it carries `?date=` plus `_eventCal` naming the tapped

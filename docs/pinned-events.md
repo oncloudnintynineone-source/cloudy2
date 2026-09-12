@@ -50,8 +50,10 @@ link auto-opens the event's details modal (Edit / Duplicate / Delete per the usu
 - `eventId` is the group id shared by all department copies of the event; legacy
   events without one fall back to the date alone.
 - The link also carries `&_eventCal=<calendar id>` (the pinned copy's department
-  calendar), so `page.tsx` adds that calendar to the fetch set only — a pinned
-  event outside the current view's filters still opens. This mirrors event search.
+  calendar); the server resolves that one event separately (only its calendar,
+  no type/user filters), so a pinned event outside the current view's filters
+  still opens without changing the active tab or filters. This mirrors event
+  search.
 - Opening from a non-dashboard page navigates to the dashboard first (the shell stays
   mounted, so the modal survives).
 

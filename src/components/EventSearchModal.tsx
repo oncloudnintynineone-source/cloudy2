@@ -1,6 +1,6 @@
 "use client";
 
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState, useTransition } from "react";
 import {
   ActionIcon,
@@ -21,6 +21,7 @@ import { AgendaView } from "@mantine/schedule";
 import { IconSearch, IconX } from "@tabler/icons-react";
 import { NARROW_MEDIA_QUERY } from "@/lib/theme";
 
+import { buildEventDeepLink } from "@/lib/events/deepLink";
 import { formatInstantToNaive } from "@/lib/events/datetime";
 import type { CalendarEvent } from "@/lib/events/queries";
 import { searchEvents } from "@/lib/events/search";
@@ -57,6 +58,8 @@ interface EventSearchModalProps {
 
 export default function EventSearchModal({ opened, onClose, originRect }: EventSearchModalProps) {
   const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
   const theme = useMantineTheme();
   const isDesktop = useMediaQuery(`(min-width: ${theme.breakpoints.lg})`);
   const isNarrow = useMediaQuery(NARROW_MEDIA_QUERY);
@@ -219,18 +222,18 @@ export default function EventSearchModal({ opened, onClose, originRect }: EventS
         height: rowRect.height,
       });
     }
-    const params = new URLSearchParams({ date: calendarEvent.start.slice(0, 10) });
-    if (calendarEvent.payload.eventId) {
-      params.set("event", calendarEvent.payload.eventId);
-      // The search covers every calendar, but the dashboard resolves the
-      // remembered view/filters and the event may live on a calendar the
-      // current selection excludes. Pass the event's calendar so page.tsx can
-      // include it in the fetch regardless of the filter set — otherwise the
-      // event can't be found and won't open.
-      params.set("_eventCal", calendarEvent.payload.calendarId);
-    }
+    // Carry the currently active dashboard tab (`?view=`) so opening the result
+    // can never fall back to the remembered tab and silently switch views. The
+    // search covers every calendar, but the active filters may exclude the
+    // event; `_eventCal` lets the server resolve that one event separately.
+    const href = buildEventDeepLink({
+      view: pathname === "/dashboard" ? searchParams.get("view") : null,
+      start: calendarEvent.start,
+      eventId: calendarEvent.payload.eventId,
+      calendarId: calendarEvent.payload.calendarId,
+    });
     startTransition(() => {
-      router.push(`/dashboard?${params.toString()}`);
+      router.push(href);
     });
   }
 
