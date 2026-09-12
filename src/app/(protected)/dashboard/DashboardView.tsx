@@ -1054,8 +1054,12 @@ export function DashboardView({
   ) {
     setPrevNavSync({ tabId: activeView.id, view, month, date, isPending });
     // While our transition is in flight the optimistic values stand; once it
-    // ends (commit or failure), whatever the server resolved wins.
-    if (!isPending) {
+    // ends, keep them until the held data actually answers the context
+    // (`isNavigating`) — the committed month/view can still be the previous one
+    // while a new month's data is read, and re-snapping would strand the chrome
+    // there and drop the grid skeleton mid-load. A failed read (`isNavigating`
+    // false, failed context) still heals back to the committed props.
+    if (!isPending && !isNavigating) {
       setShownTabId(activeView.id);
       setShownView(view);
       setShownMonth(month);
@@ -1240,7 +1244,16 @@ export function DashboardView({
   // pushes (no transition), so they never set the pending flag and never replay
   // the fade. (Force refresh is a full page reload from the profile menu now —
   // its wait is the route loading.tsx, not this skeleton.)
-  const gridLoading = useMinSkeletonHold(isNavigating);
+  //
+  // The month grid renders the committed record's month (`month`), which lags
+  // the URL while a new month is read; `isNavigating` can itself lag during the
+  // router transition (its `searchParams` source updates only when the RSC
+  // payload lands). `monthPending` treats that lag as loading so the skeleton
+  // covers it instead of flashing the previous month. Anchored views don't need
+  // it: their `date` prop is URL-first, and a cross-month move is already
+  // `isNavigating`.
+  const monthPending = shownView === "month" && shownMonth !== month;
+  const gridLoading = useMinSkeletonHold(isNavigating || monthPending);
   useContentEnter(weekBoxRef, !gridLoading);
 
   // Directional swipe on the grid/skeleton wrapper, for two kinds of change:

@@ -318,6 +318,17 @@ whose warm L1 entry still shadows the fresh rows
   transition is in flight, so a Month↔anchored switch (which also resets the
   date) slides once. The Agenda tab is excluded — it keeps its own inner keyed
   slide (`DashboardView.tsx`, `src/lib/dashboardViews/views.ts`).
+- **Month load gate**: the month grid renders the committed record's `month`,
+  which lags the URL while a new month is read — and `isNavigating` can itself
+  lag through the router transition (`useSearchParams` updates only when the RSC
+  payload lands). `monthPending` (`shownView === "month" && shownMonth !== month`)
+  folds that lag into `gridLoading`, so the skeleton covers the read instead of
+  flashing the previous month; the render-phase chrome sync is likewise held
+  while `isNavigating`, so the optimistic month/kind isn't snapped back mid-load
+  (a failed read still heals). `DashboardScreen`'s `cached` flag suppresses the
+  skeleton only for a genuinely warm candidate record, so an uncached
+  destination reads as a navigation even while a device-cached record is shown
+  (`DashboardView.tsx`, `DashboardScreen.tsx`).
 
 ## 1.9 Optimistic navigation chrome
 

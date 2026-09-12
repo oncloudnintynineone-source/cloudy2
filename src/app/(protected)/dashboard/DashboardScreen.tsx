@@ -144,13 +144,18 @@ export function DashboardScreen({
     () =>
       displayRecord
         ? resolveDashboardPresentation(displayRecord, view, month, date, {
-            cached: displayRecord !== record || source === "cache",
+            // Only a genuinely warm candidate record (a different record than the
+            // held one) suppresses the skeleton. When the destination isn't warm
+            // this is a real navigation even while a device-cached record is on
+            // screen (`source === "cache"`), so it must read as `isNavigating` —
+            // otherwise the previous context's grid lingers until the read lands.
+            cached: displayRecord !== record,
             // A warm context stays visible even if its background read fails —
             // don't heal back to the previous tab.
             failedKey: displayRecord !== record ? null : failedContextKey,
           })
         : null,
-    [displayRecord, record, view, month, date, source, failedContextKey],
+    [displayRecord, record, view, month, date, failedContextKey],
   );
   const isNavigating = presentation?.isNavigating ?? false;
   const urlKey = `${view ?? ""}|${month ?? ""}|${date ?? ""}`;
