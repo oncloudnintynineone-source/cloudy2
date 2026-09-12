@@ -4,7 +4,7 @@ import { useState } from "react";
 import { Badge, Button, Group, Modal, Stack, Text, useMantineTheme } from "@mantine/core";
 import { useDisclosure, useMediaQuery } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
-import { IconCopy, IconPencil, IconTrash } from "@tabler/icons-react";
+import { IconCalendarEvent, IconCopy, IconPencil, IconTrash } from "@tabler/icons-react";
 
 import { deleteEvent, type EventActionOk } from "@/lib/events/actions";
 import { subOneDay } from "@/lib/events/datetime";
@@ -46,6 +46,13 @@ interface EventDetailProps {
    * "members of a tagged department may edit" check (mirrors the server guard).
    */
   myActiveDepartmentIds: string[];
+  /**
+   * Read-only mode (the Double Booking page's in-place detail): hides the
+   * edit/duplicate/delete actions and offers "Open in calendar" instead.
+   */
+  readOnly?: boolean;
+  /** Invoked by the read-only "Open in calendar" action. */
+  onOpenInCalendar?: (event: CalendarEvent) => void;
 }
 
 export function EventDetail({
@@ -63,6 +70,8 @@ export function EventDetail({
   currentUserId,
   isAdmin,
   myActiveDepartmentIds,
+  readOnly = false,
+  onOpenInCalendar,
 }: EventDetailProps) {
   const [confirmOpen, { open, close }] = useDisclosure(false);
   const [deleting, setDeleting] = useState(false);
@@ -291,7 +300,19 @@ export function EventDetail({
               </>
             )}
 
-            {canModify ? (
+            {readOnly ? (
+              onOpenInCalendar ? (
+                <Group justify="flex-end" mt="md">
+                  <Button
+                    variant="light"
+                    leftSection={<IconCalendarEvent size={16} />}
+                    onClick={() => onOpenInCalendar(showEvent)}
+                  >
+                    Open in calendar
+                  </Button>
+                </Group>
+              ) : null
+            ) : canModify ? (
               <Group justify="flex-end" mt="md">
                 <Button
                   variant="light"
@@ -322,7 +343,7 @@ export function EventDetail({
         ) : null}
       </Modal>
 
-      {showEvent && (
+      {!readOnly && showEvent && (
         <Modal opened={confirmOpen} onClose={close} title="Delete event" centered size="sm">
           <Text>Delete &quot;{showEvent.title}&quot;?</Text>
           <Group justify="flex-end" mt="md">

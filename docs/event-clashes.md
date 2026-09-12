@@ -174,19 +174,24 @@ shows one of:
 
 - **Checking** — a small skeleton block with a `LoadingStatus` announcement.
 - **Clashes** — a shared **`ClashCard`** amber panel, collapsed by default to the
-  summary line `Double booking: N people · <titles preview>` — the first two
-  conflicting-event titles, then `· +N more` (a chevron shows it expands);
-  tapping the summary reveals one row per conflicting event (title, `External`
-  badge when applicable, when + department, and the affected people as chips — the
-  acting user's chip reads "You (name)" in the accent color). Many people from a
-  whole-department clash are capped at six chips with a `+N more` summary. A
-  closing line reminds the user the event can still be saved. The polite
-  `role="status"` announcement covers only the summary line, so the clash count is
-  announced on arrival while expanding stays a quiet user action. Row when-labels
-  come from the shared `clashWhenLabel` (`clashDisplay.ts`), which collapses a
-  same-day range to a single date; each entry also carries `eventId`/`calendarId`,
-  which only the Double Booking page uses (its rows deep-link; the wizard's stay
-  inert).
+  concise heading `Double booking: N people` (a chevron shows it expands). Its
+  always-visible visual is the same **`ClashTimeline`** the Double Booking page uses
+  (`src/components/clashTimeline.tsx`): a time axis with a bar per event — the
+  candidate as a distinct `brand` **"This event"** bar plus each conflicting event in
+  its type color, lane-packed with shaded overlap bands. The candidate's effective
+  window comes back from `checkEventClashes` (`candidate`); a multi-day candidate
+  renders one timeline per covered day (`clashCoveredDayKeys`), capped at five, and
+  the wizard's bars are **inert** (`href` omitted) so a tap can never navigate away
+  from an in-progress draft. Tapping the heading reveals one row per conflicting
+  event — the **template-rendered label** primary (the `doubleBooking` target, else
+  Master, via `clashLabelFor`), the stored summary muted below, then when +
+  department, and the affected people as chips (the acting user's chip reads
+  "You (name)" in the accent color). Many people from a whole-department clash are
+  capped at six chips with a `+N more` summary. A closing line reminds the user the
+  event can still be saved. The polite `role="status"` announcement is scoped to the
+  heading alone, so the clash count is announced on arrival while the timeline and
+  expanding stay quiet. Each entry also carries `eventId`/`calendarId`, which only the
+  Double Booking page uses (its rows deep-link; the wizard's stay inert).
 - **No clashes** — a green confirmation naming how many people were checked.
 - **Error** — a muted one-liner with a Retry button.
 

@@ -9,14 +9,16 @@ import { formatAxisMinute } from "@/lib/events/clashDisplay";
 
 /** One event rendered on the conflict timeline. */
 export interface ClashTimelineEntry extends ClashTimelineInput {
-  /** Short label on the bar (the event type shortname). */
+  /** Label on the bar (the template-rendered event title). */
   label: string;
-  /** Full accessible name (the stored title). */
+  /** Full name (the stored title) for the accessible name / tooltip. */
   title: string;
   /** Mantine palette color name. */
   color: string;
-  /** Dashboard deep link. */
-  href: string;
+  /** Optional dashboard deep link; without it the bar is inert (the wizard). */
+  href?: string;
+  /** Optional in-place select handler (opens the detail modal); takes precedence. */
+  onSelect?: () => void;
 }
 
 const LANE_HEIGHT = 26;
@@ -56,7 +58,31 @@ export function ClashTimeline({
     <Stack gap={6}>
       {timeline.allDayIndices.map((index) => {
         const item = entries[index];
-        return (
+        const content = (
+          <>
+            <Text size="xs" fw={600} truncate>
+              {item.label}
+            </Text>
+            <Text size="10px" style={{ flexShrink: 0, opacity: 0.75 }}>
+              All day
+            </Text>
+          </>
+        );
+        if (item.onSelect) {
+          return (
+            <button
+              key={`allday-${index}`}
+              type="button"
+              className="c2-clash-allday"
+              style={colorStyle(item.color)}
+              aria-label={`${item.title} — all day, view details`}
+              onClick={item.onSelect}
+            >
+              {content}
+            </button>
+          );
+        }
+        return item.href ? (
           <Link
             key={`allday-${index}`}
             href={item.href}
@@ -64,13 +90,17 @@ export function ClashTimeline({
             style={colorStyle(item.color)}
             aria-label={`${item.title} — all day, open event`}
           >
-            <Text size="xs" fw={600} truncate>
-              {item.label}
-            </Text>
-            <Text size="10px" style={{ flexShrink: 0, opacity: 0.75 }}>
-              All day
-            </Text>
+            {content}
           </Link>
+        ) : (
+          <div
+            key={`allday-${index}`}
+            className="c2-clash-allday"
+            style={colorStyle(item.color)}
+            title={`${item.title} — all day`}
+          >
+            {content}
+          </div>
         );
       })}
       {timeline.bars.length > 0 ? (
@@ -86,24 +116,51 @@ export function ClashTimeline({
             ))}
             {timeline.bars.map((bar) => {
               const item = entries[bar.index];
-              return (
+              const barStyle: React.CSSProperties = {
+                left: `${bar.leftPct}%`,
+                width: `${bar.widthPct}%`,
+                top: bar.lane * LANE_HEIGHT,
+                height: LANE_HEIGHT - BAR_GAP,
+                ...colorStyle(item.color),
+              };
+              const content = (
+                <Text size="xs" fw={600} truncate style={{ minWidth: 0 }}>
+                  {item.label}
+                </Text>
+              );
+              if (item.onSelect) {
+                return (
+                  <button
+                    key={`bar-${bar.index}`}
+                    type="button"
+                    className="c2-clash-bar"
+                    style={barStyle}
+                    aria-label={`${item.title} — ${item.label}, view details`}
+                    onClick={item.onSelect}
+                  >
+                    {content}
+                  </button>
+                );
+              }
+              return item.href ? (
                 <Link
                   key={`bar-${bar.index}`}
                   href={item.href}
                   className="c2-clash-bar"
-                  style={{
-                    left: `${bar.leftPct}%`,
-                    width: `${bar.widthPct}%`,
-                    top: bar.lane * LANE_HEIGHT,
-                    height: LANE_HEIGHT - BAR_GAP,
-                    ...colorStyle(item.color),
-                  }}
+                  style={barStyle}
                   aria-label={`${item.title} — ${item.label}, open event`}
                 >
-                  <Text size="xs" fw={600} truncate style={{ minWidth: 0 }}>
-                    {item.label}
-                  </Text>
+                  {content}
                 </Link>
+              ) : (
+                <div
+                  key={`bar-${bar.index}`}
+                  className="c2-clash-bar"
+                  style={barStyle}
+                  title={`${item.title} — ${item.label}`}
+                >
+                  {content}
+                </div>
               );
             })}
           </div>

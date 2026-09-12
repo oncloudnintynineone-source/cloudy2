@@ -227,11 +227,14 @@ half-day-aware occupancy window the timeline positions bars by (the stored
   overlap regions (a tinted band with dashed edges, theme-aware), and a separate band
   for whole-day events. Bars are colored by event type (department fallback) with a
   **`light-dark()`** palette (pastel fill + dark text in light mode, deep fill + light
-  text in dark mode), and each bar is a deep link to the event. The heading leads with
+  text in dark mode), and each bar opens the in-place detail modal. The heading leads with
   the episode's **time** (`9:00 AM – 5:00 PM`, `All day`, or a date range —
   `clashEpisodeTimeLabel`; a group mixing a whole-day and a timed event names both,
   e.g. `9:00 AM – 10:00 AM · All day`) and a muted `N events` count (prefixed
-  `{name} ·` for an admin scan); the old titles-preview line is gone.
+  `{name} ·` for an admin scan); the old titles-preview line is gone. The 30-day strip
+  cells are theme-aware too (`light-dark()`). The same `ClashTimeline` powers the
+  wizard's review-step advisory ([event-clashes.md](event-clashes.md) §1.6), with the
+  candidate as a distinct `brand` "This event" bar and inert (non-linking) bars.
 - **Template-driven labels.** Each event's bar/row label is rendered server-side in
   `checkUserClashes` through the admin's **title-template engine** — the
   `doubleBooking` assignment target when set, else Master (`clashLabelFor`,
@@ -240,18 +243,27 @@ half-day-aware occupancy window the timeline positions bars by (the stored
   time) and how they are decorated, and the clash report reads like the calendar
   titles. When the recipe renders nothing, it falls back to the raw title, then the
   stored summary.
+- **In-place detail modal.** Tapping a bar or a row opens that event's details
+  **without leaving the page**: `DoubleBookingView` calls the read-only
+  `getClashEventDetail` server action (lazy, guarded like the scan — a non-admin may
+  only resolve the target's own home calendar), which reads the copy through the
+  sanctioned month cache (`fetchRangeEvents`) and returns the full `CalendarEvent` plus
+  the `peopleNames` / `calendarNames` / `myActiveDepartmentIds` the shared
+  `EventDetail` needs. The modal renders in **read-only mode** (`readOnly`): it hides
+  Edit/Duplicate/Delete and offers a single **"Open in calendar"** button — the only
+  navigation on the page, an explicit secondary action via `buildEventDeepLink`. A
+  `LoadingOverlay` covers the brief fetch. The row/bar label uses the entry's
+  `displayLabel` as the modal title.
 - **Rows.** Tapping the heading expands the per-event rows: the same rendered label
   primary, the stored composite title demoted to a muted line, then the date-free time
-  · department (`clashEntryTimeLabel`). Each row is a **deep link** to that event on
-  the dashboard (`buildEventDeepLink`; an external event falls back to landing on its
-  day) and carries an explicit trailing affordance — a pencil `Open` for an in-app
-  event, a calendar `Open day` for an external one — with a hover tint and focus ring
-  (`.c2-clash-row`), so the tap target is obvious. The wizard's inert rows show
-  neither and keep the stored title primary. `ClashAffectedChips` renders beneath the
-  heading only for people *other than* the scanned target (`omitUserId`) — a self-scan
-  therefore shows no lone `You` chip. The cards are not their own live regions
-  (`live={false}`): the single status line announces the count, so a many-report scan
-  is one concise announcement, not N.
+  · department (`clashEntryTimeLabel`). Each row carries an explicit trailing
+  affordance — an eye `View` — with a hover tint and focus ring (`.c2-clash-row`), so
+  the tap target is obvious. The wizard's inert rows show neither and keep the stored
+  title primary. `ClashAffectedChips` renders beneath the heading only for people
+  *other than* the scanned target (`omitUserId`) — a self-scan therefore shows no lone
+  `You` chip. The cards are not their own live regions (`live={false}`): the single
+  status line announces the count, so a many-report scan is one concise announcement,
+  not N.
 - **Display helpers** are pure and unit-tested in
   `src/lib/events/clashDisplay.ts` (`clashDisplay.test.ts`): day keys/labels, the
   episode/strip builders, type-first labels, date-free time labels, and axis ticks (a

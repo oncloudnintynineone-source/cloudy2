@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   buildClashDayStrip,
+  clashCoveredDayKeys,
   clashDayKey,
   clashDayLabel,
   clashEntryTimeLabel,
@@ -22,6 +23,48 @@ describe("clashDayKey", () => {
   it("returns the date part of a naive datetime or date", () => {
     expect(clashDayKey("2026-09-14 09:00:00")).toBe("2026-09-14");
     expect(clashDayKey("2026-09-14")).toBe("2026-09-14");
+  });
+});
+
+describe("clashCoveredDayKeys", () => {
+  it("returns one day for a same-day timed entry", () => {
+    expect(
+      clashCoveredDayKeys({
+        effectiveStartNaive: "2026-09-15 09:00:00",
+        effectiveEndNaive: "2026-09-15 10:00:00",
+        occupiesFullDay: false,
+      }),
+    ).toEqual(["2026-09-15"]);
+  });
+
+  it("returns both days for a timed entry crossing midnight", () => {
+    expect(
+      clashCoveredDayKeys({
+        effectiveStartNaive: "2026-09-15 22:00:00",
+        effectiveEndNaive: "2026-09-16 02:00:00",
+        occupiesFullDay: false,
+      }),
+    ).toEqual(["2026-09-15", "2026-09-16"]);
+  });
+
+  it("drops the exclusive end day for a whole-day entry", () => {
+    expect(
+      clashCoveredDayKeys({
+        effectiveStartNaive: "2026-09-15 00:00:00",
+        effectiveEndNaive: "2026-09-16 00:00:00",
+        occupiesFullDay: true,
+      }),
+    ).toEqual(["2026-09-15"]);
+  });
+
+  it("spans every day for a multi-day whole-day entry", () => {
+    expect(
+      clashCoveredDayKeys({
+        effectiveStartNaive: "2026-09-15 00:00:00",
+        effectiveEndNaive: "2026-09-17 00:00:00",
+        occupiesFullDay: true,
+      }),
+    ).toEqual(["2026-09-15", "2026-09-16"]);
   });
 });
 

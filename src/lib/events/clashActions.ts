@@ -6,20 +6,24 @@ import {
   absEventRange,
   addDays,
   formatInstantToNaive,
+  monthsInRange,
   parseNaiveToInstant,
   subOneDay,
 } from "@/lib/events/datetime";
+import { findEventByGroupId } from "@/lib/events/deepLink";
 import { clashingEventsFor, USER_CLASH_SCAN_DAYS } from "@/lib/events/clashQuery";
 import {
   computeClashes,
+  effectiveCandidateWindow,
   effectiveEventWindow,
   findUserClashGroups,
   type ClashCandidateInput,
 } from "@/lib/events/clashes";
 import { clashLabelFor, type ClashLabelContext } from "@/lib/events/clashLabel";
-import { listCalendars } from "@/lib/events/queries";
+import { fetchRangeEvents, listCalendars, type CalendarEvent } from "@/lib/events/queries";
 import type { TimeOption } from "@/lib/events/timeOptions";
 import { activeMembershipsByDepartment, listUsers } from "@/lib/roster/queries";
+import { formatFullName } from "@/lib/settings/formatName";
 import { getEventTitleTemplateMap, getSettings } from "@/lib/settings/queries";
 import { canChangeLock, modifyGuard } from "@/lib/events/guards";
 import {
@@ -72,6 +76,8 @@ export interface EventClashEntry {
   eventId: string | null;
   /** Registry (department) calendar id of the conflicting copy (deep-link hint). */
   calendarId: string;
+  /** Google event id of the conflicting copy (resolves external/legacy events). */
+  googleEventId: string;
   /** Department name the conflicting copy was read from. */
   calendarName: string;
   /** Display window, UTC+8 wall clock (all-day ends are converted to inclusive). */
@@ -108,6 +114,13 @@ export interface EventClashEntry {
   displayLabel?: string;
 }
 
+/** The candidate event's effective window, for the review-step timeline. */
+export interface ClashCandidateWindow {
+  effectiveStartNaive: string;
+  effectiveEndNaive: string;
+  occupiesFullDay: boolean;
+}
+
 export type EventClashCheckResult =
   | {
       ok: true;
@@ -116,6 +129,11 @@ export type EventClashCheckResult =
       clashes: EventClashEntry[];
       /** Id of the acting session user (for the "clashes with you" emphasis). */
       currentUserId: string;
+      /**
+       * The candidate's effective occupancy window (null when the check was
+       * skipped: invalid form, failed edit guard, or no derivable calendars).
+       */
+      candidate: ClashCandidateWindow | null;
     }
   | { ok: false; error: string };
 
@@ -166,14 +184,26 @@ export async function checkEventClashes(
         memberships,
       );
       if (guardError) {
-        return { ok: true, checkedPeople: 0, clashes: [], currentUserId: session.user.id };
+        return {
+          ok: true,
+          checkedPeople: 0,
+          clashes: [],
+          currentUserId: session.user.id,
+          candidate: null,
+        };
       }
     }
 
     const errors = validateEventForm(normalized);
     if (Object.keys(errors).length > 0) {
       // Incomplete/invalid windows have nothing to compare yet.
-      return { ok: true, checkedPeople: 0, clashes: [], currentUserId: session.user.id };
+      return {
+        ok: true,
+        checkedPeople: 0,
+        clashes: [],
+        currentUserId: session.user.id,
+        candidate: null,
+      };
     }
 
     const titleContext = await buildEventTitleContext(normalized);
@@ -182,7 +212,13 @@ export async function checkEventClashes(
     if (targets.length === 0) {
       // No department calendars derive — the mutation itself would be rejected
       // ("Assign yourself to a department or tag an invitee"), so nothing to warn about.
-      return { ok: true, checkedPeople: 0, clashes: [], currentUserId: session.user.id };
+      return {
+        ok: true,
+        checkedPeople: 0,
+        clashes: [],
+        currentUserId: session.user.id,
+        candidate: null,
+      };
     }
 
     const allDay = effectiveInput.timeOption !== "range";
@@ -215,6 +251,34 @@ export async function checkEventClashes(
     }));
     const nameById = new Map(activeUserRows.map((user) => [user.id, user.name]));
 
+    // Template-driven labels for the conflicting events (same resolution as the
+    // Double Booking page: `doubleBooking` target, else Master).
+    const [settings, templateMap, calendars] = await Promise.all([
+      getSettings(),
+      getEventTitleTemplateMap(),
+      listCalendars(),
+    ]);
+    const assignedId = settings.eventTitleTemplateAssignments.doubleBooking;
+    const labelRecipe =
+      (assignedId ? templateMap.get(assignedId)?.recipe : undefined) ?? settings.eventTitleRecipe;
+    const labelCtx: ClashLabelContext = {
+      nameTemplate: settings.nameTemplate,
+      usersById: new Map(
+        activeUserRows.map((user) => [
+          user.id,
+          {
+            name: user.name,
+            shortname: user.shortname,
+            departmentName: user.department?.name ?? null,
+          },
+        ]),
+      ),
+      calendarNames: new Map(calendars.map((calendar) => [calendar.id, calendar.name])),
+    };
+    const inputByCopyId = new Map(
+      events.map((event) => [`${event.calendarId}:${event.googleEventId}`, event]),
+    );
+
     const candidate: ClashCandidateInput = {
       start: window.start,
       end: window.end,
@@ -226,6 +290,15 @@ export async function checkEventClashes(
       inviteeDepartments: effectiveInput.inviteeDepartments,
       excludeFromClash: titleContext.excludeFromClash,
     };
+
+    // The candidate's effective occupancy window, for the review-step timeline.
+    const candidateEffective = effectiveCandidateWindow(candidate);
+    const candidateWindow: ClashCandidateWindow = {
+      effectiveStartNaive: formatInstantToNaive(candidateEffective.start),
+      effectiveEndNaive: formatInstantToNaive(candidateEffective.end),
+      occupiesFullDay: candidate.timeOption === "full",
+    };
+
     const computed = computeClashes({
       candidate,
       events,
@@ -239,6 +312,7 @@ export async function checkEventClashes(
         title: clash.title,
         eventId: clash.eventId,
         calendarId: clash.calendarId,
+        googleEventId: clash.googleEventId,
         calendarName: clash.calendarName,
         startNaive,
         endNaive,
@@ -258,6 +332,10 @@ export async function checkEventClashes(
         timeOption: clash.timeOption,
         startAmPm: clash.startAmPm,
         endAmPm: clash.endAmPm,
+        displayLabel: (() => {
+          const input = inputByCopyId.get(clash.copyId);
+          return input ? clashLabelFor(input, labelRecipe, labelCtx) : clash.title;
+        })(),
       };
     });
 
@@ -266,6 +344,7 @@ export async function checkEventClashes(
       checkedPeople: computed.checkedPeople,
       clashes,
       currentUserId: session.user.id,
+      candidate: candidateWindow,
     };
   } catch (error) {
     console.error("[clashes] Clash check failed", error);
@@ -414,6 +493,7 @@ export async function checkUserClashes(request: {
             title: event.title,
             eventId: event.eventId,
             calendarId: event.calendarId,
+            googleEventId: event.googleEventId,
             calendarName: event.calendarName,
             startNaive,
             endNaive,
@@ -440,5 +520,91 @@ export async function checkUserClashes(request: {
   } catch (error) {
     console.error("[clashes] Double-booking scan failed", error);
     return { ok: false, error: "Could not check for double bookings" };
+  }
+}
+
+export type ClashEventDetailResult =
+  | {
+      ok: true;
+      /** The full schedule-ready event, for the in-place detail modal. */
+      event: CalendarEvent;
+      /** Active-roster user id → display name (owner/participants). */
+      peopleNames: Record<string, string>;
+      /** Calendar (department) id → display name. */
+      calendarNames: Record<string, string>;
+      /** The acting user's active department ids (mirrors the dashboard's edit check). */
+      myActiveDepartmentIds: string[];
+    }
+  | { ok: false; error: string };
+
+/**
+ * Read-only fetch of one clashing event for the Double Booking page's in-place
+ * detail modal. Mirrors `checkUserClashes`'s guard: regular users may only
+ * resolve their own home department; admins may resolve the scanned target's.
+ * Reads through the sanctioned month cache (never raw `listEvents`).
+ */
+export async function getClashEventDetail(request: {
+  targetUserId?: string;
+  calendarId: string;
+  eventId: string | null;
+  googleEventId: string;
+  startNaive: string;
+  endNaive: string;
+}): Promise<ClashEventDetailResult> {
+  const session = await requireSession();
+  try {
+    const targetUserId = request.targetUserId ?? session.user.id;
+    if (targetUserId !== session.user.id && session.user.role !== "admin") {
+      return { ok: false, error: "You can only view your own events" };
+    }
+
+    const users = await listUsers();
+    const activeUsers = users.filter((user) => user.status === "active");
+    const target = activeUsers.find((user) => user.id === targetUserId) ?? null;
+    // The scan only ever surfaces copies on the target's own department
+    // calendar, so anything else is a tampered request.
+    if (!target?.department || target.department.id !== request.calendarId) {
+      return { ok: false, error: "Event not found" };
+    }
+
+    const events = await fetchRangeEvents({
+      months: monthsInRange(request.startNaive, request.endNaive),
+      calendarIds: [request.calendarId],
+      typeFilter: [],
+      userFilter: [],
+    });
+    const event = request.eventId
+      ? findEventByGroupId(events, request.eventId)
+      : (events.find((candidate) => candidate.payload.googleEventId === request.googleEventId) ??
+        null);
+    if (!event) {
+      return { ok: false, error: "Event not found" };
+    }
+
+    const [settings, calendars] = await Promise.all([getSettings(), listCalendars()]);
+    const peopleNames: Record<string, string> = Object.fromEntries(
+      activeUsers.map((user) => [
+        user.id,
+        formatFullName(
+          { name: user.name, departmentName: user.department?.name ?? null },
+          settings.nameTemplate,
+        ),
+      ]),
+    );
+    const calendarNames: Record<string, string> = Object.fromEntries(
+      calendars.map((calendar) => [calendar.id, calendar.name]),
+    );
+    const self = activeUsers.find((user) => user.id === session.user.id);
+
+    return {
+      ok: true,
+      event,
+      peopleNames,
+      calendarNames,
+      myActiveDepartmentIds: self?.department?.id ? [self.department.id] : [],
+    };
+  } catch (error) {
+    console.error("[clashes] Event detail fetch failed", error);
+    return { ok: false, error: "Could not load the event" };
   }
 }

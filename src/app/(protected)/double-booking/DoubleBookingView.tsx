@@ -1,7 +1,9 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Box, Button, Group, Paper, Skeleton, Stack, Text } from "@mantine/core";
+import { useRouter } from "next/navigation";
+import { Box, Button, Group, LoadingOverlay, Paper, Skeleton, Stack, Text } from "@mantine/core";
+import { notifications } from "@mantine/notifications";
 import { IconCalendarClock, IconCircleCheck, IconRefresh } from "@tabler/icons-react";
 
 import { PickerField, type PickerBadgeItem } from "@/components/PickerField";
@@ -17,9 +19,16 @@ import {
   ClashTimeline,
   type ClashTimelineEntry,
 } from "@/components/clashTimeline";
+import { EventDetail } from "../dashboard/EventDetail";
 import { CONTENT_ENTER_CLASS } from "@/lib/loading/contentEnter";
-import { checkUserClashes, type UserClashCheckResult } from "@/lib/events/clashActions";
+import {
+  checkUserClashes,
+  getClashEventDetail,
+  type EventClashEntry,
+  type UserClashCheckResult,
+} from "@/lib/events/clashActions";
 import { buildEventDeepLink } from "@/lib/events/deepLink";
+import type { CalendarEvent } from "@/lib/events/queries";
 import {
   buildClashDayStrip,
   clashDayKey,
@@ -66,8 +75,18 @@ export function DoubleBookingView({
   /** Admin target options (active roster users). Empty for regular users. */
   users: ScanTargetOption[];
 }) {
+  const router = useRouter();
   const [targetUserId, setTargetUserId] = useState(currentUserId);
   const [attempt, setAttempt] = useState(0);
+  // In-place detail modal: the tapped entry is lazily fetched (full payload +
+  // context) and rendered read-only, so the report never navigates away.
+  const [openingKey, setOpeningKey] = useState<string | null>(null);
+  const [detail, setDetail] = useState<{
+    event: CalendarEvent;
+    peopleNames: Record<string, string>;
+    calendarNames: Record<string, string>;
+    myActiveDepartmentIds: string[];
+  } | null>(null);
   // Cold-start readiness: the page/view mounts with the route's streamed
   // content, so reporting on mount is exactly "content painted".
   useColdStartContent();
@@ -106,6 +125,39 @@ export function DoubleBookingView({
     const pickedId = picked[0];
     if (pickedId && users.some((user) => user.id === pickedId)) {
       setTargetUserId(pickedId);
+    }
+  }
+
+  // Lazily fetch the tapped event's full payload and open the read-only detail
+  // modal in place. Guarded so a second tap while one is in flight is ignored.
+  async function openDetail(targetId: string, entry: EventClashEntry) {
+    if (openingKey) {
+      return;
+    }
+    setOpeningKey(`${entry.calendarId}:${entry.googleEventId}`);
+    try {
+      const result = await getClashEventDetail({
+        targetUserId: targetId,
+        calendarId: entry.calendarId,
+        eventId: entry.eventId,
+        googleEventId: entry.googleEventId,
+        startNaive: entry.effectiveStartNaive,
+        endNaive: entry.effectiveEndNaive,
+      });
+      if (!result.ok) {
+        notifications.show({ color: "red", message: result.error });
+        return;
+      }
+      setDetail({
+        event: { ...result.event, title: entry.displayLabel ?? result.event.title },
+        peopleNames: result.peopleNames,
+        calendarNames: result.calendarNames,
+        myActiveDepartmentIds: result.myActiveDepartmentIds,
+      });
+    } catch {
+      notifications.show({ color: "red", message: "Could not load the event" });
+    } finally {
+      setOpeningKey(null);
     }
   }
 
@@ -165,7 +217,8 @@ export function DoubleBookingView({
   };
 
   return (
-    <Stack gap="md" pb="xl" className={CONTENT_ENTER_CLASS}>
+    <Stack gap="md" pb="xl" className={CONTENT_ENTER_CLASS} style={{ position: "relative" }}>
+      <LoadingOverlay visible={openingKey !== null} zIndex={200} />
       <div className="c2-db-head">
         <div className="c2-db-title">
           <PageHeader title="Double Booking" subtitle={subtitleFor(view)} />
@@ -200,6 +253,36 @@ export function DoubleBookingView({
           title="Select a person to check"
           confirmLabel="Check person"
           single
+        />
+      )}
+
+      {detail && (
+        <EventDetail
+          event={detail.event}
+          onClose={() => setDetail(null)}
+          readOnly
+          onOpenInCalendar={(event) => {
+            router.push(
+              buildEventDeepLink({
+                view: null,
+                start: event.start,
+                eventId: event.payload.eventId,
+                calendarId: event.payload.calendarId,
+              }),
+            );
+          }}
+          peopleNames={detail.peopleNames}
+          calendarNames={detail.calendarNames}
+          originRect={null}
+          currentUserId={currentUserId}
+          isAdmin={isAdmin}
+          myActiveDepartmentIds={detail.myActiveDepartmentIds}
+          onEdit={() => {}}
+          onDuplicate={() => {}}
+          onDeleted={() => {}}
+          onOptimistic={() => {}}
+          onOptimisticSettled={() => {}}
+          onOptimisticRollback={() => {}}
         />
       )}
     </Stack>
@@ -338,12 +421,7 @@ export function DoubleBookingView({
                 label: entry.displayLabel ?? clashTypeLabel(entry),
                 title: entry.title,
                 color: entry.color,
-                href: buildEventDeepLink({
-                  view: null,
-                  start: entry.startNaive,
-                  eventId: entry.eventId,
-                  calendarId: entry.calendarId,
-                }),
+                onSelect: () => void openDetail(result.targetUserId, entry),
               }));
               const countLabel = plural(count, "event", "events");
               const secondary = isSelf ? countLabel : `${result.targetName} · ${countLabel}`;
@@ -367,12 +445,7 @@ export function DoubleBookingView({
                       key={`${entry.calendarName}:${entry.startNaive}:${entry.title}:${eventIndex}`}
                       entry={entry}
                       typeFirst
-                      href={buildEventDeepLink({
-                        view: null,
-                        start: entry.startNaive,
-                        eventId: entry.eventId,
-                        calendarId: entry.calendarId,
-                      })}
+                      onOpen={() => void openDetail(result.targetUserId, entry)}
                     />
                   ))}
                 </ClashCard>
@@ -381,8 +454,8 @@ export function DoubleBookingView({
           </Stack>
         ))}
         <Text fz="xs" c="dimmed">
-          Only events involving {personLabel} are listed. Select an event to open it — warnings
-          only.
+          Only events involving {personLabel} are listed. Select an event to view its details —
+          warnings only.
         </Text>
       </Stack>
     );

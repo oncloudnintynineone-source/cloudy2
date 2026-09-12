@@ -5,13 +5,16 @@ import { Box, Button, Group, Paper, Skeleton, Stack, Text } from "@mantine/core"
 import { IconCircleCheck, IconRefresh } from "@tabler/icons-react";
 
 import { LoadingStatus } from "@/components/LoadingStatus";
-import { ClashAffectedChips, clashTitlesPreview } from "@/components/clashUi";
+import { ClashAffectedChips } from "@/components/clashUi";
 import { ClashCard, ClashEventRow } from "@/components/clashCards";
+import { ClashTimeline, type ClashTimelineEntry } from "@/components/clashTimeline";
 import {
   checkEventClashes,
   type EventClashCheckRequest,
   type EventClashCheckResult,
 } from "@/lib/events/clashActions";
+import { clashCoveredDayKeys, clashDayLabel, clashTypeLabel } from "@/lib/events/clashDisplay";
+import { formatInstantToNaive } from "@/lib/events/datetime";
 
 type ClashCheckOk = Extract<EventClashCheckResult, { ok: true }>;
 
@@ -115,16 +118,87 @@ export function EventClashCheck({ request }: { request: EventClashCheckRequest |
     const affectedCount = new Set(
       result.clashes.flatMap((clash) => clash.affected.map((person) => person.userId)),
     ).size;
+
+    // One timeline per covered day: the candidate ("This event") plus each
+    // conflicting event. All bars are inert — tapping must not navigate away
+    // from an in-progress draft. Labels come from the title-template engine.
+    const entries: ClashTimelineEntry[] = [
+      ...(result.candidate
+        ? [
+            {
+              startNaive: result.candidate.effectiveStartNaive,
+              endNaive: result.candidate.effectiveEndNaive,
+              occupiesFullDay: result.candidate.occupiesFullDay,
+              label: "This event",
+              title: "This event",
+              color: "brand",
+            },
+          ]
+        : []),
+      ...result.clashes.map((entry) => ({
+        startNaive: entry.effectiveStartNaive,
+        endNaive: entry.effectiveEndNaive,
+        occupiesFullDay: entry.occupiesFullDay,
+        label: entry.displayLabel ?? clashTypeLabel(entry),
+        title: entry.title,
+        color: entry.color,
+      })),
+    ];
+    const coversDay = (entry: ClashTimelineEntry, dayKey: string) =>
+      clashCoveredDayKeys({
+        effectiveStartNaive: entry.startNaive,
+        effectiveEndNaive: entry.endNaive,
+        occupiesFullDay: entry.occupiesFullDay,
+      }).includes(dayKey);
+    const todayKey = formatInstantToNaive(new Date()).slice(0, 10);
+    const dayKeys = [
+      ...new Set(
+        entries.flatMap((entry) =>
+          clashCoveredDayKeys({
+            effectiveStartNaive: entry.startNaive,
+            effectiveEndNaive: entry.endNaive,
+            occupiesFullDay: entry.occupiesFullDay,
+          }),
+        ),
+      ),
+    ].sort();
+    const shownDays = dayKeys.slice(0, 5);
+
+    const visual = (
+      <Stack gap="sm">
+        {shownDays.map((dayKey) => (
+          <Stack key={dayKey} gap={4}>
+            {dayKeys.length > 1 ? (
+              <Text size="xs" fw={600} c="dimmed">
+                {clashDayLabel(dayKey, todayKey)}
+              </Text>
+            ) : null}
+            <ClashTimeline
+              entries={entries.filter((entry) => coversDay(entry, dayKey))}
+              dayKey={dayKey}
+            />
+          </Stack>
+        ))}
+        {dayKeys.length > shownDays.length ? (
+          <Text size="xs" c="dimmed">
+            +{dayKeys.length - shownDays.length} more days
+          </Text>
+        ) : null}
+      </Stack>
+    );
+
     return (
       <ClashCard
         heading={`Double booking: ${affectedCount} ${
           affectedCount === 1 ? "person" : "people"
-        } · ${clashTitlesPreview(result.clashes)}`}
+        }`}
+        visual={visual}
       >
         {result.clashes.map((entry) => (
           <ClashEventRow
             key={`${entry.calendarName}:${entry.startNaive}:${entry.title}`}
             entry={entry}
+            typeFirst
             chips={
               <ClashAffectedChips
                 affected={entry.affected}

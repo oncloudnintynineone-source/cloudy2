@@ -14,6 +14,7 @@ import {
   IconAlertTriangle,
   IconCalendarEvent,
   IconChevronDown,
+  IconEye,
   IconPencil,
 } from "@tabler/icons-react";
 
@@ -58,15 +59,17 @@ export function ClashCard({
   const regionId = useId();
   return (
     <Paper withBorder p="sm" style={{ borderColor: "var(--mantine-color-orange-4)" }}>
-      <Box role={live ? "status" : undefined} aria-live={live ? "polite" : undefined}>
-        <Group gap="sm" align="flex-start" wrap="nowrap">
-          <IconAlertTriangle
-            size={18}
-            style={{ flexShrink: 0, marginTop: 2 }}
-            color="var(--mantine-color-orange-6)"
-            aria-hidden
-          />
-          <Stack gap={6} style={{ flexGrow: 1, minWidth: 0 }}>
+      <Group gap="sm" align="flex-start" wrap="nowrap">
+        <IconAlertTriangle
+          size={18}
+          style={{ flexShrink: 0, marginTop: 2 }}
+          color="var(--mantine-color-orange-6)"
+          aria-hidden
+        />
+        <Stack gap={6} style={{ flexGrow: 1, minWidth: 0 }}>
+          {/* The live region stays scoped to the concise heading, so a fresh
+              scan announces the count, not the visual or the expandable body. */}
+          <Box role={live ? "status" : undefined} aria-live={live ? "polite" : undefined}>
             <UnstyledButton
               type="button"
               onClick={() => setOpen((value) => !value)}
@@ -102,11 +105,11 @@ export function ClashCard({
                 />
               </Group>
             </UnstyledButton>
-            {visual}
-            {summaryBelow}
-          </Stack>
-        </Group>
-      </Box>
+          </Box>
+          {visual}
+          {summaryBelow}
+        </Stack>
+      </Group>
       <Collapse expanded={open} id={regionId}>
         <Stack gap="sm" mt="xs">
           {children}
@@ -128,6 +131,7 @@ export function ClashEventRow({
   entry,
   chips,
   href,
+  onOpen,
   typeFirst = false,
 }: {
   entry: EventClashEntry;
@@ -135,6 +139,8 @@ export function ClashEventRow({
   chips?: ReactNode;
   /** Optional dashboard deep link; renders the row as a link when present. */
   href?: string;
+  /** Optional in-place open handler (detail modal); takes precedence over `href`. */
+  onOpen?: () => void;
   /**
    * Lead with the event type shortname and demote the stored composite title to
    * a muted second line (the Double Booking page). Default keeps the stored
@@ -168,6 +174,26 @@ export function ClashEventRow({
       {chips && <Box mt={2}>{chips}</Box>}
     </Stack>
   );
+  if (onOpen) {
+    return (
+      <UnstyledButton
+        type="button"
+        onClick={onOpen}
+        className="c2-clash-row"
+        aria-label={`View details for ${primary} — ${when}`}
+      >
+        <Group gap="xs" wrap="nowrap" align="flex-start" justify="space-between">
+          {body}
+          <Group gap={4} wrap="nowrap" align="center" style={{ flexShrink: 0, marginTop: 1 }}>
+            <IconEye size={14} color="var(--mantine-color-orange-7)" aria-hidden />
+            <Text size="xs" fw={600} c="orange.7" aria-hidden>
+              View
+            </Text>
+          </Group>
+        </Group>
+      </UnstyledButton>
+    );
+  }
   if (!href) {
     return body;
   }

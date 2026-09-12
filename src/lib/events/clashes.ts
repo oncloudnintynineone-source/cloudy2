@@ -130,6 +130,8 @@ export interface EventClash {
   eventId: string | null;
   /** Registry (department) calendar id of the representative copy. */
   calendarId: string;
+  /** Google event id of the representative copy (resolves external/legacy events). */
+  googleEventId: string;
   /** Department name of the representative copy, for display. */
   calendarName: string;
   /** The stored Google Calendar summary of the conflicting event. */
@@ -375,6 +377,7 @@ export function computeClashes(params: {
       copyId: `${event.calendarId}:${event.googleEventId}`,
       eventId: event.eventId,
       calendarId: event.calendarId,
+      googleEventId: event.googleEventId,
       calendarName: event.calendarName,
       title: event.title,
       start: event.start,

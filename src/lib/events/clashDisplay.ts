@@ -8,7 +8,7 @@
 
 import dayjs from "dayjs";
 
-import { addDays, daysBetween } from "@/lib/events/datetime";
+import { addDays, daysBetween, subOneDay } from "@/lib/events/datetime";
 
 /** The subset of an entry the display helpers need. */
 export interface ClashWindowLike {
@@ -151,6 +151,25 @@ export function clashEntryTimeLabel(entry: ClashEntryDisplay): string {
   return `${dayjs(entry.effectiveStartNaive).format("MMM D, h:mm A")} – ${dayjs(
     entry.effectiveEndNaive,
   ).format("MMM D, h:mm A")}`;
+}
+
+/** The effective-window fields needed to bucket an entry into days. */
+export interface ClashEffectiveWindow {
+  effectiveStartNaive: string;
+  effectiveEndNaive: string;
+  occupiesFullDay: boolean;
+}
+
+/**
+ * The `YYYY-MM-DD` days an entry occupies. A whole-day entry's effective end is
+ * exclusive (the next day's midnight), so its last covered day is one earlier.
+ * Pure; drives the wizard's per-day timelines.
+ */
+export function clashCoveredDayKeys(entry: ClashEffectiveWindow): string[] {
+  const first = clashDayKey(entry.effectiveStartNaive);
+  const lastRaw = clashDayKey(entry.effectiveEndNaive);
+  const last = entry.occupiesFullDay ? subOneDay(lastRaw) : lastRaw;
+  return daysBetween(first, last);
 }
 
 /** A short day heading: `Today` / `Tomorrow` / `Mon 14 Sep`. */
