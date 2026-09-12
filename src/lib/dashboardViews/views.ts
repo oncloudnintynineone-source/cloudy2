@@ -148,3 +148,26 @@ export function resolveActiveTab(
   }
   return tabs[0];
 }
+
+/**
+ * The direction of a view (tab) switch, for the content swipe animation:
+ * `1` when the target sits earlier in the strip — the new view enters from the
+ * **right** and travels right-to-left — `-1` when it sits later (enters from the
+ * left), and `0` when the tab is unchanged or either id is unknown. Pure so the
+ * mapping is unit-tested.
+ */
+export function viewSwitchDirection(
+  previousId: string,
+  nextId: string,
+  tabs: readonly Pick<DashboardViewTab, "id">[],
+): 1 | -1 | 0 {
+  if (previousId === nextId) {
+    return 0;
+  }
+  const previousIndex = tabs.findIndex((tab) => tab.id === previousId);
+  const nextIndex = tabs.findIndex((tab) => tab.id === nextId);
+  if (previousIndex < 0 || nextIndex < 0) {
+    return 0;
+  }
+  return nextIndex < previousIndex ? 1 : -1;
+}

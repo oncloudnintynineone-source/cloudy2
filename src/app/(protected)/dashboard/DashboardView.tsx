@@ -145,6 +145,7 @@ import { notifyEventsChanged } from "@/lib/ui/eventChanges";
 import { createDashboardView, saveDashboardViewFilters } from "@/lib/dashboardViews/actions";
 import {
   DASHBOARD_VIEW_KIND_LABELS,
+  viewSwitchDirection,
   type DashboardTabFilters,
   type DashboardViewKind,
   type DashboardViewTab,
@@ -1128,6 +1129,10 @@ export function DashboardView({
   const advanceWeekRulerRef = useRef<((x: number, slot: number) => void) | null>(null);
   const advanceDayRulerRef = useRef<((x: number, slot: number) => void) | null>(null);
   const weekBoxRef = useRef<HTMLDivElement | null>(null);
+  // The grid/skeleton wrapper that plays the directional swipe on a view (tab)
+  // switch. It stays mounted (a keyed remount would lose scroll state), so the
+  // animation is restarted by toggling a class (see the layout effect below).
+  const gridSlideRef = useRef<HTMLDivElement | null>(null);
   // Cached realized geometry for the schedule grids: the hour-slot width in px
   // at zoom 1 and the sticky label-column width in px. Probed once per geometry
   // change (mount / view switch / breakpoint / group presence) — never on a
@@ -1236,6 +1241,25 @@ export function DashboardView({
   // its wait is the route loading.tsx, not this skeleton.)
   const gridLoading = useMinSkeletonHold(isNavigating);
   useContentEnter(weekBoxRef, !gridLoading);
+
+  // Directional swipe on a view (tab) switch: the incoming grid/skeleton enters
+  // from the side the target sits on (a target earlier in the strip enters from
+  // the right, later from the left). Fires on the tab change — a warm switch
+  // keeps `gridLoading` false, so a reveal-triggered animation would never run.
+  const prevViewIdRef = useRef(activeView.id);
+  useLayoutEffect(() => {
+    const previousId = prevViewIdRef.current;
+    prevViewIdRef.current = activeView.id;
+    const dir = viewSwitchDirection(previousId, activeView.id, tabs);
+    if (dir === 0) return;
+    const el = gridSlideRef.current;
+    if (!el) return;
+    el.style.setProperty("--slide-dir", String(dir));
+    el.classList.remove("view-slide-enter");
+    // Force a style flush so the re-add below restarts the animation.
+    void el.offsetWidth;
+    el.classList.add("view-slide-enter");
+  }, [activeView.id, tabs]);
 
   // The global activity bar mirrors the grid transition: view/date/filter
   // navigations are "busy" for the whole app chrome.
@@ -2667,7 +2691,7 @@ export function DashboardView({
         </Alert>
       )}
 
-      <Box ref={weekBoxRef} className={CONTENT_ENTER_CLASS}>
+      <Box ref={weekBoxRef} className={CONTENT_ENTER_CLASS} style={{ overflow: "clip" }}>
         {view === "week" && week && (
           <WeekDayLabelStrip
             days={week}
@@ -2714,6 +2738,11 @@ export function DashboardView({
             innerRef={monthWeekdayTrackRef}
           />
         )}
+        {/* Grid/skeleton swipe on a view switch: `gridSlideRef` gets
+            `.view-slide-enter` on the tab change; `weekBoxRef`'s overflow clip
+            contains the transient offset. The pinned strips/rulers and pan
+            controls stay outside, static. */}
+        <Box ref={gridSlideRef}>
         {gridLoading ? (
           // Skeleton flavor follows the optimistic view: the shape you tapped
           // is what appears to load (same contract as loading.tsx, which
@@ -3047,6 +3076,7 @@ export function DashboardView({
             renderGroupLabel={renderGroupLabel}
           />
         )}
+        </Box>
       </Box>
 
       {/* Timeline navigation for the Day/Week (H) grids: the zoom in/out pair

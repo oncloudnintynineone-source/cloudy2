@@ -8,6 +8,7 @@ import {
   normalizeFilterOverride,
   resolveActiveTab,
   sanitizeDashboardViewName,
+  viewSwitchDirection,
   type DashboardViewTab,
 } from "./views";
 
@@ -127,5 +128,24 @@ describe("resolveActiveTab", () => {
   });
   it("returns undefined with no tabs", () => {
     expect(resolveActiveTab(undefined, null, [])).toBeUndefined();
+  });
+});
+
+describe("viewSwitchDirection", () => {
+  it("is 1 (enters from the right) when the target sits earlier in the strip", () => {
+    expect(viewSwitchDirection("a2", "m", tabs)).toBe(1);
+  });
+
+  it("is -1 (enters from the left) when the target sits later in the strip", () => {
+    expect(viewSwitchDirection("m", "a2", tabs)).toBe(-1);
+  });
+
+  it("is 0 for the same tab", () => {
+    expect(viewSwitchDirection("a1", "a1", tabs)).toBe(0);
+  });
+
+  it("is 0 when either id is unknown", () => {
+    expect(viewSwitchDirection("m", "missing", tabs)).toBe(0);
+    expect(viewSwitchDirection("missing", "m", tabs)).toBe(0);
   });
 });

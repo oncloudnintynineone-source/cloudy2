@@ -299,6 +299,15 @@ whose warm L1 entry still shadows the fresh rows
   tab), and `gridLoading = useMinSkeletonHold(isNavigating)` — dropping
   `isPending` so a covered/equivalent switch shows no skeleton at all.
   (`DashboardScreen.tsx`, `src/lib/dashboard/snapshot.ts`.)
+- **View-switch swipe**: on a tab change the grid/skeleton wrapper plays a
+  directional slide (`.view-slide-enter`, `--slide-dir`) — a target earlier in
+  the strip enters from the right, later from the left — fired on the tab change
+  (not the reveal, so a warm switch animates too). `viewSwitchDirection` maps the
+  `tabs` order to the direction; the class is restarted on the stable wrapper
+  (remove → reflow → add) and `weekBoxRef`'s `overflow: clip` contains the
+  transient 10% offset. The pinned strips/rulers and pan controls stay outside,
+  static. Reduced motion drops the slide (`globals.css`, `DashboardView.tsx`,
+  `src/lib/dashboardViews/views.ts`).
 
 ## 1.9 Optimistic navigation chrome
 
