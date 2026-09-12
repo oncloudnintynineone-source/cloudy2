@@ -571,6 +571,14 @@ sequenceDiagram
   filters — `equivalentDashboardTab`) likewise makes no server read: the tab
   identity is swapped locally (`activeView` + `requestKey`) and the snapshot is
   rewritten, guarded on fresh, idle data so it never races an in-flight read.
+  `resolveDashboardPresentation` centralises this: `activeView` is **URL-first**
+  whenever the data is fresh and the fetch for the context hasn't failed (so the
+  tab highlight and renderer kind move with the URL instead of snapping back to
+  the held tab mid-fetch), and `isNavigating` is **coverage-based** — true from
+  the instant the URL context changes until the held data answers it, or the
+  fetch fails (then the held tab is restored). The grid skeleton keys off
+  `isNavigating`, never the router transition, so it can neither gap around the
+  data fetch nor flash on a covered/equivalent switch.
 - **Deep links resolve against fresh data.** A `?event=`/`?edit=` link may
   target an event the cached snapshot doesn't contain, so `DashboardScreen`
   skips the cached paint while a deep link is present and shows the skeleton

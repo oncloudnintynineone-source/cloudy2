@@ -284,6 +284,16 @@ whose warm L1 entry still shadows the fresh rows
   cross-month move, or a week crossing a boundary into a new month) is a data
   navigation with the skeleton, driven by `isNavigating` rather than `isPending`
   (`DashboardView.tsx`, `DashboardScreen.tsx`).
+- **Dashboard view (tab) switches**: the skeleton is driven by **data coverage**,
+  not the router transition. `resolveDashboardPresentation` returns a URL-first
+  `activeView` (fresh, un-failed data) so the tab highlight and renderer kind move
+  with the URL immediately instead of snapping back to the held tab while the
+  fetch is in flight — this is what previously flickered between the two tabs and
+  two views. `isNavigating` is true from the instant the URL context changes
+  until the held data answers it (or the fetch fails, which restores the held
+  tab), and `gridLoading = useMinSkeletonHold(isNavigating)` — dropping
+  `isPending` so a covered/equivalent switch shows no skeleton at all.
+  (`DashboardScreen.tsx`, `src/lib/dashboard/snapshot.ts`.)
 
 ## 1.9 Optimistic navigation chrome
 

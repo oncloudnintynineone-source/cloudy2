@@ -206,6 +206,48 @@ export function equivalentDashboardTab(
   return target;
 }
 
+/**
+ * What the view should render for the current URL, given the held record.
+ * Separates the URL's intent from the server-committed data so a tab/period
+ * navigation can follow the URL immediately while the fetch is still in flight:
+ *
+ * - `activeView` is the URL-resolved tab while the data is healthy (fresh, not
+ *   failed), so the chrome and renderer kind move the instant the URL changes —
+ *   no optimistic-then-revert flicker. It falls back to the held tab while a
+ *   cached record paints (keeping the cached tab consistent with its data) and
+ *   after a failed fetch (healing an offline navigation back to the loaded tab).
+ * - `covered` is true when the held data already answers the URL context — the
+ *   request key matches, or the target is a data-equivalent tab.
+ * - `isNavigating` is true only for an uncovered, un-failed context on fresh
+ *   data, i.e. exactly when the grid should show its skeleton. It is not tied to
+ *   the router transition, so it can't flash or gap around the data fetch.
+ */
+export interface DashboardPresentation {
+  activeView: DashboardViewTab;
+  covered: boolean;
+  isNavigating: boolean;
+}
+
+export function resolveDashboardPresentation(
+  record: DashboardSnapshotRecord,
+  urlView: string | null,
+  urlMonth: string | null,
+  urlDate: string | null,
+  opts: { cached: boolean; failedKey: string | null },
+): DashboardPresentation {
+  const candidateKey = dashboardCandidateRequestKey(record, urlView, urlMonth, urlDate);
+  const covered =
+    (candidateKey !== null && record.context.requestKey === candidateKey) ||
+    equivalentDashboardTab(record, urlView, urlMonth, urlDate) !== null;
+  const fetchFailed = candidateKey !== null && opts.failedKey === candidateKey;
+  const isNavigating = !opts.cached && !covered && !fetchFailed;
+  const urlTab =
+    resolveActiveTab(urlView, record.data.activeView.id, record.data.tabs) ??
+    record.data.activeView;
+  const activeView = opts.cached || fetchFailed ? record.data.activeView : urlTab;
+  return { activeView, covered, isNavigating };
+}
+
 /** Whether a stored record matches the current snapshot shape. */
 export function isSnapshotRecordUsable(
   record: DashboardSnapshotRecord | null | undefined,

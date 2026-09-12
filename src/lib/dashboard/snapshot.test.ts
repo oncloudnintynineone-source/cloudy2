@@ -10,6 +10,7 @@ import {
   isRefreshNonceFresh,
   isSnapshotRecordUsable,
   requiredMonths,
+  resolveDashboardPresentation,
   type DashboardSnapshotRecord,
 } from "./snapshot";
 import type { DashboardTabFilters, DashboardViewTab } from "@/lib/dashboardViews/views";
@@ -200,6 +201,98 @@ describe("equivalentDashboardTab", () => {
     const b = tab({ id: "tab-b", kind: "month" });
     // Held context is 2026-09; the URL asks for 2026-11 -> different grid months.
     expect(equivalentDashboardTab(twoTabRecord(a, b), "tab-b", "2026-11", null)).toBeNull();
+  });
+});
+
+describe("resolveDashboardPresentation", () => {
+  function tab(over: Partial<DashboardViewTab> = {}): DashboardViewTab {
+    return {
+      id: "tab-a",
+      kind: "month",
+      name: "A",
+      sortOrder: 0,
+      filters: { cal: null, users: null, types: null },
+      ...over,
+    };
+  }
+
+  function recordFor(a: DashboardViewTab, b: DashboardViewTab): DashboardSnapshotRecord {
+    return {
+      version: DASHBOARD_SNAPSHOT_VERSION,
+      savedAt: 1_700_000_000_000,
+      context: {
+        month: "2026-09",
+        date: "2026-09-12",
+        viewId: a.id,
+        requestKey: dashboardRequestKey({
+          viewId: a.id,
+          months: requiredMonths(a.kind, "2026-09", "2026-09-12"),
+        }),
+      },
+      data: { activeView: a, tabs: [a, b] } as unknown as DashboardSnapshotRecord["data"],
+    };
+  }
+
+  it("is covered and idle for the held context", () => {
+    const a = tab({ id: "tab-a" });
+    const p = resolveDashboardPresentation(
+      recordFor(a, tab({ id: "tab-b" })),
+      "tab-a",
+      null,
+      null,
+      { cached: false, failedKey: null },
+    );
+    expect(p.activeView.id).toBe("tab-a");
+    expect(p.covered).toBe(true);
+    expect(p.isNavigating).toBe(false);
+  });
+
+  it("switches to an equivalent tab without navigating", () => {
+    const a = tab({ id: "tab-a", name: "A" });
+    const b = tab({ id: "tab-b", name: "B" });
+    const p = resolveDashboardPresentation(recordFor(a, b), "tab-b", null, null, {
+      cached: false,
+      failedKey: null,
+    });
+    expect(p.activeView.id).toBe("tab-b");
+    expect(p.covered).toBe(true);
+    expect(p.isNavigating).toBe(false);
+  });
+
+  it("is URL-first and navigating for a different-kind tab", () => {
+    const a = tab({ id: "tab-a" });
+    const b = tab({ id: "tab-b", kind: "agenda" });
+    const p = resolveDashboardPresentation(recordFor(a, b), "tab-b", null, null, {
+      cached: false,
+      failedKey: null,
+    });
+    expect(p.activeView.id).toBe("tab-b");
+    expect(p.covered).toBe(false);
+    expect(p.isNavigating).toBe(true);
+  });
+
+  it("keeps the held tab while a cached record paints", () => {
+    const a = tab({ id: "tab-a" });
+    const b = tab({ id: "tab-b", kind: "agenda" });
+    const p = resolveDashboardPresentation(recordFor(a, b), "tab-b", null, null, {
+      cached: true,
+      failedKey: null,
+    });
+    expect(p.activeView.id).toBe("tab-a");
+    expect(p.isNavigating).toBe(false);
+  });
+
+  it("heals to the held tab after a failed fetch for the context", () => {
+    const a = tab({ id: "tab-a" });
+    const b = tab({ id: "tab-b", kind: "agenda" });
+    const record = recordFor(a, b);
+    const failedKey = dashboardCandidateRequestKey(record, "tab-b", null, null);
+    const p = resolveDashboardPresentation(record, "tab-b", null, null, {
+      cached: false,
+      failedKey,
+    });
+    expect(p.activeView.id).toBe("tab-a");
+    expect(p.isNavigating).toBe(false);
   });
 });
 

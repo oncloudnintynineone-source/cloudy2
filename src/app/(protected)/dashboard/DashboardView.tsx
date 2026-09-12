@@ -1223,16 +1223,18 @@ export function DashboardView({
   // shared bar reports the re-read that follows the saved state.
   const refreshAfterSave = revalidate;
 
-  // Skeleton-only loading: any pending data navigation shows the grid
-  // skeleton. `useMinSkeletonHold` keeps it up for a minimum ~350ms so fast
-  // (cached) loads read as a deliberate sequence instead of a flash.
-  // `useContentEnter` fades the grid in on the reveal; on a cold mount the
-  // class ships in the SSR HTML and plays on first paint. The one-shot
-  // `edit`/`event` strips are plain pushes (no transition), so they never set
-  // the pending flag and never replay the fade. (Force refresh is a full page
-  // reload from the profile menu now — its wait is the route loading.tsx, not
-  // this skeleton.)
-  const gridLoading = useMinSkeletonHold(isPending || isNavigating);
+  // Skeleton-only loading: the grid skeleton follows **data coverage**, not the
+  // router transition — `isNavigating` is true from the instant the URL context
+  // changes until the held data answers it (or the fetch fails), so it can't
+  // gap around the data fetch or flash on a covered/equivalent tab switch.
+  // `useMinSkeletonHold` keeps it up for a minimum ~350ms so fast (cached) loads
+  // read as a deliberate sequence instead of a flash. `useContentEnter` fades
+  // the grid in on the reveal; on a cold mount the class ships in the SSR HTML
+  // and plays on first paint. The one-shot `edit`/`event` strips are plain
+  // pushes (no transition), so they never set the pending flag and never replay
+  // the fade. (Force refresh is a full page reload from the profile menu now —
+  // its wait is the route loading.tsx, not this skeleton.)
+  const gridLoading = useMinSkeletonHold(isNavigating);
   useContentEnter(weekBoxRef, !gridLoading);
 
   // The global activity bar mirrors the grid transition: view/date/filter

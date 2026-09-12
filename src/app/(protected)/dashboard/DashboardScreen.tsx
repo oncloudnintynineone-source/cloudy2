@@ -10,6 +10,7 @@ import {
   dashboardCandidateRequestKey,
   equivalentDashboardTab,
   isRefreshNonceFresh,
+  resolveDashboardPresentation,
   type DashboardSnapshotRecord,
 } from "@/lib/dashboard/snapshot";
 import { isUuid } from "@/lib/uuid";
@@ -80,6 +81,9 @@ export function DashboardScreen({
   useEffect(() => {
     busyRef.current = busy;
   }, [busy]);
+  // The candidate request key whose fetch last failed, so the view can heal back
+  // to the held tab on a failed/offline navigation (see the presentation below).
+  const [failedContextKey, setFailedContextKey] = useState<string | null>(null);
   const requestIdRef = useRef(0);
   const hasFreshRef = useRef(false);
   const lastRefreshRef = useRef<string | null>(null);
@@ -94,6 +98,20 @@ export function DashboardScreen({
     () => dashboardCandidateRequestKey(record, view, month, date),
     [record, view, month, date],
   );
+  // What the view renders for this URL: the URL-first tab (so the chrome moves
+  // the instant the URL changes instead of reverting to the held tab while the
+  // fetch is in flight), and whether the held data already covers the context.
+  const presentation = useMemo(
+    () =>
+      record
+        ? resolveDashboardPresentation(record, view, month, date, {
+            cached: source === "cache",
+            failedKey: failedContextKey,
+          })
+        : null,
+    [record, view, month, date, source, failedContextKey],
+  );
+  const isNavigating = presentation?.isNavigating ?? false;
   const urlKey = `${view ?? ""}|${month ?? ""}|${date ?? ""}`;
   const refreshParam = searchParams.get("refresh");
 
@@ -105,19 +123,33 @@ export function DashboardScreen({
     // fetch is always kicked off from an effect or an event handler.
     await Promise.resolve();
     setBusy(true);
+    // The context this read answers, so a failure is attributed to it (and only
+    // it) for the presentation's heal-back to the held tab.
+    const attemptedKey = dashboardCandidateRequestKey(
+      recordRef.current,
+      paramsRef.current.get("view"),
+      paramsRef.current.get("month"),
+      paramsRef.current.get("date"),
+    );
     try {
       const result = await loadDashboardData(inputFromParams(paramsRef.current));
       if (requestId !== requestIdRef.current) return;
       if (result.ok) {
         hasFreshRef.current = true;
         setSource("fresh");
+        setFailedContextKey(null);
         setRecord(result.record);
         void writeDashboardSnapshot(userId, result.record.data, result.record.context);
+      } else {
+        setFailedContextKey(attemptedKey);
       }
       // A failed read keeps the cached snapshot on screen (offline reads work);
       // the OfflineBanner is the user-facing signal.
     } catch {
       // Network/session failures: keep the cached render.
+      if (requestId === requestIdRef.current) {
+        setFailedContextKey(attemptedKey);
+      }
     } finally {
       if (requestId === requestIdRef.current) {
         setBusy(false);
@@ -200,10 +232,13 @@ export function DashboardScreen({
     () => ({
       revalidate,
       isRevalidating: busy,
-      isNavigating:
-        busy && source === "fresh" && record !== null && record.context.requestKey !== candidateKey,
+      // Coverage-based, not tied to the router transition or `busy`: it stays
+      // true from the instant the URL context changes until the held data
+      // answers it (or the fetch fails), so the grid skeleton can't flash or gap
+      // around the data fetch.
+      isNavigating,
     }),
-    [revalidate, busy, source, record, candidateKey],
+    [revalidate, busy, isNavigating],
   );
 
   const editParam = searchParams.get("edit");
@@ -260,6 +295,7 @@ export function DashboardScreen({
     <DashboardDataProvider value={context}>
       <DashboardView
         {...record.data}
+        activeView={presentation?.activeView ?? record.data.activeView}
         month={record.context.month}
         date={effectiveDate}
         initialZoom={initialZoom}
