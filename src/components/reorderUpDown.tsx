@@ -16,18 +16,30 @@ interface ReorderUpDownProps {
   downDisabled: boolean;
   onUp: () => void;
   onDown: () => void;
+  /**
+   * `"default"` (bordered, the house manage-row look) or `"subtle"` (borderless)
+   * for denser lists where the row's own actions are already subtle.
+   */
+  variant?: "default" | "subtle";
 }
 
 /** The app's standard "move earlier / move later" chevron pair for touch:
- *  two `variant="default"` 40px `ActionIcon`s in `Tooltip`s. Used by every
- *  manageable list row (dashboard views, event-type groups, departments,
- *  quick links, title-recipe segments) so the recipe can't drift. */
-export function ReorderUpDown({ name, upDisabled, downDisabled, onUp, onDown }: ReorderUpDownProps) {
+ *  two 40px `ActionIcon`s in `Tooltip`s. Used by every manageable list row
+ *  (dashboard views, event-type groups, departments, quick links, title-recipe
+ *  segments) so the recipe can't drift. */
+export function ReorderUpDown({
+  name,
+  upDisabled,
+  downDisabled,
+  onUp,
+  onDown,
+  variant = "default",
+}: ReorderUpDownProps) {
   return (
     <Group wrap="nowrap" gap={4} onClick={(event) => event.stopPropagation()}>
       <Tooltip label="Move up" position="top">
         <ActionIcon
-          variant="default"
+          variant={variant}
           size={ROW_ACTION_SIZE}
           aria-label={`Move ${name} up`}
           disabled={upDisabled}
@@ -38,7 +50,7 @@ export function ReorderUpDown({ name, upDisabled, downDisabled, onUp, onDown }: 
       </Tooltip>
       <Tooltip label="Move down" position="top">
         <ActionIcon
-          variant="default"
+          variant={variant}
           size={ROW_ACTION_SIZE}
           aria-label={`Move ${name} down`}
           disabled={downDisabled}

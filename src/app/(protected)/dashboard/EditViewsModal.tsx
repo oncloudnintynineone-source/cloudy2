@@ -16,14 +16,7 @@ import {
 } from "@mantine/core";
 import { useMediaQuery } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
-import {
-  IconCheck,
-  IconPencil,
-  IconPlus,
-  IconSwitchHorizontal,
-  IconTrash,
-  IconX,
-} from "@tabler/icons-react";
+import { IconFilter, IconPencil, IconPlus, IconTrash } from "@tabler/icons-react";
 
 import {
   changeDashboardViewKind,
@@ -31,7 +24,12 @@ import {
   renameDashboardView,
   reorderDashboardViews,
 } from "@/lib/dashboardViews/actions";
-import type { DashboardViewTab, DashboardViewKind } from "@/lib/dashboardViews/views";
+import {
+  DASHBOARD_VIEW_KIND_LABELS,
+  DASHBOARD_VIEW_NAME_MAX_LENGTH,
+  type DashboardViewTab,
+  type DashboardViewKind,
+} from "@/lib/dashboardViews/views";
 import { BUTTON_LOADER_PROPS, NARROW_MEDIA_QUERY } from "@/lib/theme";
 import { swapAdjacent, useReorderRows } from "@/lib/ui/reorderRows";
 import {
@@ -52,9 +50,11 @@ interface EditViewsModalProps {
   activeView: DashboardViewTab;
   /** A list mutation landed (rename/reorder/non-active delete) — refresh. */
   onMutated: () => void;
-  /** Navigate to a tab (used when the active tab was deleted). */
-  onNavigateToView: (tab: DashboardViewTab) => void;
-  /** Open the "Add view" kind-picker dialog. */
+  /** Navigate to a tab (or the active tab's new kind after an edit). */
+  onNavigateToView: (tab: Pick<DashboardViewTab, "id" | "kind">) => void;
+  /** Switch to a tab and open its filter dialog (the Edit dialog's Filters). */
+  onEditFilters: (tab: DashboardViewTab) => void;
+  /** Open the quick "Add view" dialog (the strip's + flow). */
   onAddView: () => void;
 }
 
@@ -65,20 +65,21 @@ export function EditViewsModal({
   activeView,
   onMutated,
   onNavigateToView,
+  onEditFilters,
   onAddView,
 }: EditViewsModalProps) {
   const theme = useMantineTheme();
   const isDesktop = useMediaQuery(`(min-width: ${theme.breakpoints.lg})`);
   const isNarrow = useMediaQuery(NARROW_MEDIA_QUERY);
 
-  const [renaming, setRenaming] = useState<{ id: string; name: string } | null>(null);
-  const [renameDraft, setRenameDraft] = useState("");
-  const [renamingBusy, setRenamingBusy] = useState(false);
+  // "Edit view" dialog draft (name + kind in one place).
+  const [editing, setEditing] = useState<DashboardViewTab | null>(null);
+  const [editName, setEditName] = useState("");
+  const [editKind, setEditKind] = useState<DashboardViewKind>("month");
+  const [editBusy, setEditBusy] = useState(false);
+
   const [deleting, setDeleting] = useState<DashboardViewTab | null>(null);
   const [deletingBusy, setDeletingBusy] = useState(false);
-  const [changing, setChanging] = useState<DashboardViewTab | null>(null);
-  const [changeKind, setChangeKind] = useState<DashboardViewKind>("month");
-  const [changingBusy, setChangingBusy] = useState(false);
 
   const {
     displayRows: displayTabs,
@@ -101,43 +102,64 @@ export function EditViewsModal({
   });
 
   function close() {
-    setRenaming(null);
+    setEditing(null);
     setDeleting(null);
-    setChanging(null);
     onClose();
   }
 
-  function startRename(tab: DashboardViewTab) {
-    setRenaming({ id: tab.id, name: tab.name });
-    setRenameDraft(tab.name);
+  function startEdit(tab: DashboardViewTab) {
+    setEditing(tab);
+    setEditName(tab.name);
+    setEditKind(tab.kind);
   }
 
-  /** Open the "Change type" dialog for a row, pre-selected to its kind. */
-  function startChangeType(tab: DashboardViewTab) {
-    setChanging(tab);
-    setChangeKind(tab.kind);
-  }
-
-  async function submitRename() {
-    if (!renaming || renamingBusy) {
+  async function submitEdit() {
+    if (!editing || editBusy) {
       return;
     }
-    const draft = renameDraft.trim();
-    if (draft.length === 0) {
+    const name = editName.trim();
+    if (name.length === 0) {
       return;
     }
-    setRenamingBusy(true);
+    const target = editing;
+    const kindChanged = editKind !== target.kind;
+    const nameChanged = name !== target.name;
+    if (!kindChanged && !nameChanged) {
+      setEditing(null);
+      return;
+    }
+    setEditBusy(true);
     try {
-      const result = await renameDashboardView(renaming.id, { name: draft });
-      if (result.ok) {
-        notifications.show({ color: "green", message: "View renamed" });
-        setRenaming(null);
-        onMutated();
+      // Kind first: `changeDashboardViewKind` may adopt the new kind's default
+      // name when the tab still carries the old default, so a custom name typed
+      // here must be applied afterwards to win.
+      if (kindChanged) {
+        const result = await changeDashboardViewKind(target.id, { kind: editKind });
+        if (!result.ok) {
+          notifications.show({ color: "red", message: result.error });
+          return;
+        }
+      }
+      if (nameChanged) {
+        const result = await renameDashboardView(target.id, { name });
+        if (!result.ok) {
+          notifications.show({ color: "red", message: result.error });
+          return;
+        }
+      }
+      notifications.show({ color: "green", message: "View updated" });
+      setEditing(null);
+      if (kindChanged && target.id === activeView.id) {
+        // A kind change on the active tab re-navigates to the same id under its
+        // new kind, so the dashboard re-renders through the usual tab-switch
+        // period rules (Month → anchored starts today, anchored → Month keeps
+        // the month…). A name-only edit (or any inactive edit) just refreshes.
+        onNavigateToView({ id: target.id, kind: editKind });
       } else {
-        notifications.show({ color: "red", message: result.error });
+        onMutated();
       }
     } finally {
-      setRenamingBusy(false);
+      setEditBusy(false);
     }
   }
 
@@ -166,34 +188,6 @@ export function EditViewsModal({
     }
   }
 
-  async function submitChangeType() {
-    if (!changing || changingBusy || changeKind === changing.kind) {
-      return;
-    }
-    const target = changing;
-    const kind = changeKind;
-    setChangingBusy(true);
-    try {
-      const result = await changeDashboardViewKind(target.id, { kind });
-      if (!result.ok) {
-        notifications.show({ color: "red", message: result.error });
-        return;
-      }
-      notifications.show({ color: "green", message: "View type changed" });
-      setChanging(null);
-      if (target.id === activeView.id) {
-        // The active tab re-navigates to the same id under its new kind, so
-        // the dashboard re-renders through the usual tab-switch period rules
-        // (Month → anchored starts today, anchored → Month keeps the month…).
-        onNavigateToView({ ...target, kind });
-      } else {
-        onMutated();
-      }
-    } finally {
-      setChangingBusy(false);
-    }
-  }
-
   return (
     <Modal
       opened={opened}
@@ -204,96 +198,68 @@ export function EditViewsModal({
     >
       <Stack ref={containerRef}>
         <Text size="sm" c="dimmed">
-          Your calendar views, in strip order. Move them with the arrows; the first and last views
-          can&rsquo;t move past the end. Rename or delete any view.
+          Reorder with the arrows; Edit handles a view&rsquo;s name, type and filters.
         </Text>
+        <Group>
+          <Button
+            variant="default"
+            leftSection={<IconPlus size={16} />}
+            onClick={() => {
+              close();
+              onAddView();
+            }}
+          >
+            Add view
+          </Button>
+        </Group>
 
         {displayTabs.length === 0 ? (
           <Text size="sm" c="dimmed">
-            No views yet. Add one below.
+            No views yet. Add one above.
           </Text>
         ) : (
           <ScrollArea.Autosize mah="min(60vh, 420px)" mx="-sm" px="sm">
             <Stack gap={ROW_CARD_GAP} data-flip-container>
               {displayTabs.map((tab, index) => {
-                const isRenaming = renaming?.id === tab.id;
                 const meta = VIEW_TAB_META[tab.kind];
+                const isActive = tab.id === activeView.id;
+                // The kind label only adds information when the name is custom
+                // — otherwise it just repeats the name ("Month / Month").
+                const showKind = tab.name !== DASHBOARD_VIEW_KIND_LABELS[tab.kind];
                 const chevrons = (
                   <ReorderUpDown
                     name={tab.name}
+                    variant="subtle"
                     upDisabled={busy || index === 0}
                     downDisabled={busy || index === displayTabs.length - 1}
                     onUp={() => void reorderView(tab.id, -1)}
                     onDown={() => void reorderView(tab.id, 1)}
                   />
                 );
-                const title = isRenaming ? (
-                  <Group wrap="nowrap" gap={4} align="center" style={{ minWidth: 0, flex: 1 }}>
-                    <TextInput
-                      size="md"
-                      value={renameDraft}
-                      maxLength={40}
-                      aria-label={`Rename ${tab.name}`}
-                      autoFocus
-                      style={{ flex: 1, minWidth: 0 }}
-                      onChange={(event) => setRenameDraft(event.currentTarget.value)}
-                      onKeyDown={(event) => {
-                        if (event.key === "Enter") {
-                          event.preventDefault();
-                          void submitRename();
-                        }
-                        if (event.key === "Escape") {
-                          setRenaming(null);
-                        }
-                      }}
-                    />
-                    <Tooltip label="Save" position="top">
-                      <ActionIcon
-                        size={ROW_ACTION_SIZE}
-                        aria-label={`Save renamed ${tab.name}`}
-                        loading={renamingBusy}
-                        loaderProps={BUTTON_LOADER_PROPS}
-                        onClick={() => void submitRename()}
-                      >
-                        <IconCheck size={ROW_ACTION_ICON_SIZE} />
-                      </ActionIcon>
-                    </Tooltip>
-                    <Tooltip label="Cancel" position="top">
-                      <ActionIcon
-                        size={ROW_ACTION_SIZE}
-                        aria-label={`Cancel renaming ${tab.name}`}
-                        onClick={() => setRenaming(null)}
-                      >
-                        <IconX size={ROW_ACTION_ICON_SIZE} />
-                      </ActionIcon>
-                    </Tooltip>
-                  </Group>
-                ) : (
+                const title = (
                   <Group wrap="nowrap" gap="sm" align="center" style={{ minWidth: 0, flex: 1 }}>
                     {meta.icon}
-                    <Text fw={600} size="md" truncate>
-                      {tab.name}
-                    </Text>
+                    <Stack gap={0} style={{ minWidth: 0, flex: 1 }}>
+                      <Text fw={600} size="md" truncate>
+                        {tab.name}
+                      </Text>
+                      {showKind && (
+                        <Text size="xs" c="dimmed" truncate>
+                          {meta.label}
+                        </Text>
+                      )}
+                    </Stack>
                   </Group>
                 );
                 const actions = (
                   <>
-                    <Tooltip label="Change type" position="top">
+                    <Tooltip label="Edit" position="top">
                       <ActionIcon
-                        variant="default"
+                        variant="subtle"
+                        color="gray"
                         size={ROW_ACTION_SIZE}
-                        aria-label={`Change type of ${tab.name}`}
-                        onClick={() => startChangeType(tab)}
-                      >
-                        <IconSwitchHorizontal size={ROW_ACTION_ICON_SIZE} />
-                      </ActionIcon>
-                    </Tooltip>
-                    <Tooltip label="Rename" position="top">
-                      <ActionIcon
-                        variant="default"
-                        size={ROW_ACTION_SIZE}
-                        aria-label={`Rename ${tab.name}`}
-                        onClick={() => startRename(tab)}
+                        aria-label={`Edit ${tab.name}`}
+                        onClick={() => startEdit(tab)}
                       >
                         <IconPencil size={ROW_ACTION_ICON_SIZE} />
                       </ActionIcon>
@@ -303,7 +269,7 @@ export function EditViewsModal({
                       position="top"
                     >
                       <ActionIcon
-                        variant="light"
+                        variant="subtle"
                         color="red"
                         size={ROW_ACTION_SIZE}
                         aria-label={`Delete ${tab.name}`}
@@ -316,7 +282,18 @@ export function EditViewsModal({
                   </>
                 );
                 return (
-                  <Paper key={tab.id} withBorder radius="md" p="sm" data-flip-id={tab.id}>
+                  <Paper
+                    key={tab.id}
+                    withBorder
+                    radius="md"
+                    p="sm"
+                    data-flip-id={tab.id}
+                    style={
+                      isActive
+                        ? { borderLeft: "3px solid var(--mantine-color-accent-6)" }
+                        : undefined
+                    }
+                  >
                     {isDesktop ? (
                       <Group justify="space-between" align="center" wrap="nowrap">
                         <Group
@@ -328,23 +305,17 @@ export function EditViewsModal({
                           {chevrons}
                           {title}
                         </Group>
-                        {!isRenaming && (
-                          <Group wrap="nowrap" gap={4} style={{ flexShrink: 0 }}>
-                            {actions}
-                          </Group>
-                        )}
+                        <Group wrap="nowrap" gap={4} style={{ flexShrink: 0 }}>
+                          {actions}
+                        </Group>
                       </Group>
                     ) : (
                       <Stack gap={6}>
-                        <Group wrap="nowrap" gap="sm" align="center" style={{ minWidth: 0 }}>
-                          {title}
+                        {title}
+                        <Group wrap="nowrap" gap={4} align="center">
+                          {chevrons}
+                          {actions}
                         </Group>
-                        {!isRenaming && (
-                          <Group wrap="nowrap" gap={4} align="center">
-                            {chevrons}
-                            {actions}
-                          </Group>
-                        )}
                       </Stack>
                     )}
                   </Paper>
@@ -353,20 +324,71 @@ export function EditViewsModal({
             </Stack>
           </ScrollArea.Autosize>
         )}
-
-        <Group justify="flex-end">
-          <Button
-            variant="default"
-            leftSection={<IconPlus size={16} />}
-            onClick={() => {
-              close();
-              onAddView();
-            }}
-          >
-            Add view
-          </Button>
-        </Group>
       </Stack>
+
+      <Modal
+        opened={editing !== null}
+        onClose={() => setEditing(null)}
+        title="Edit view"
+        centered
+        size={isNarrow ? "xs" : isDesktop ? "md" : "sm"}
+      >
+        <Stack>
+          <TextInput
+            label="Name"
+            value={editName}
+            maxLength={DASHBOARD_VIEW_NAME_MAX_LENGTH}
+            onChange={(event) => setEditName(event.currentTarget.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") {
+                event.preventDefault();
+                void submitEdit();
+              }
+            }}
+            autoFocus
+          />
+          <div>
+            <Text fw={600} size="sm" mb={6}>
+              View type
+            </Text>
+            <ViewTypePicker value={editKind} disabledKind={editing?.kind} onSelect={setEditKind} />
+          </div>
+          <div>
+            <Text fw={600} size="sm" mb={6}>
+              Filters
+            </Text>
+            <Button
+              variant="default"
+              leftSection={<IconFilter size={16} />}
+              fullWidth
+              onClick={() => {
+                if (!editing) return;
+                const target = editing;
+                setEditing(null);
+                onEditFilters(target);
+              }}
+            >
+              Edit filters&hellip;
+            </Button>
+            <Text size="xs" c="dimmed" mt={6}>
+              Opens this view&rsquo;s filter dialog (switches to it first).
+            </Text>
+          </div>
+          <Group justify="flex-end" mt="md">
+            <Button variant="default" onClick={() => setEditing(null)}>
+              Cancel
+            </Button>
+            <Button
+              disabled={!editing || (editKind === editing.kind && editName.trim() === editing.name)}
+              loading={editBusy}
+              loaderProps={BUTTON_LOADER_PROPS}
+              onClick={() => void submitEdit()}
+            >
+              Save
+            </Button>
+          </Group>
+        </Stack>
+      </Modal>
 
       <Modal
         opened={deleting !== null}
@@ -391,42 +413,6 @@ export function EditViewsModal({
               onClick={() => void confirmDelete()}
             >
               Delete
-            </Button>
-          </Group>
-        </Stack>
-      </Modal>
-
-      <Modal
-        opened={changing !== null}
-        onClose={() => setChanging(null)}
-        title="Change view type"
-        centered
-        size={isNarrow ? "xs" : isDesktop ? "md" : "sm"}
-      >
-        <Stack>
-          <Text size="sm" c="dimmed">
-            &ldquo;{changing?.name}&rdquo; is currently a{" "}
-            {changing ? VIEW_TAB_META[changing.kind].label : ""} view. Pick its new type — the tab
-            keeps its name (unless it is still the type&rsquo;s default), filters and position.
-          </Text>
-          {changing && (
-            <ViewTypePicker
-              value={changeKind}
-              disabledKind={changing.kind}
-              onSelect={setChangeKind}
-            />
-          )}
-          <Group justify="flex-end" mt="md">
-            <Button variant="default" onClick={() => setChanging(null)}>
-              Cancel
-            </Button>
-            <Button
-              disabled={!changing || changeKind === changing.kind}
-              loading={changingBusy}
-              loaderProps={BUTTON_LOADER_PROPS}
-              onClick={() => void submitChangeType()}
-            >
-              Change type
             </Button>
           </Group>
         </Stack>

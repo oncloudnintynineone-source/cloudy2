@@ -1014,6 +1014,10 @@ export function DashboardView({
   // Where the filter trigger sat on screen; the dialog grows out of / shrinks
   // back into it (see src/lib/motion/origin.ts).
   const [filterOriginRect, setFilterOriginRect] = useState<Rect | null>(null);
+  // One-shot intent: after the Manage-views modal's per-row Filters action
+  // switches tabs, open that tab's filter dialog once it is the active view
+  // (its resolved filter values arrive with the tab's data).
+  const [pendingFilterViewId, setPendingFilterViewId] = useState<string | null>(null);
   const [pickerOpened, { open: openPicker, close: closePicker }] = useDisclosure(false);
 
   // "Add view" dialog draft (kind picker + name).
@@ -2141,12 +2145,38 @@ export function DashboardView({
     announce("Filters cleared");
   }
 
+  /**
+   * The Manage-views modal's per-row Filters action: close the modal, switch to
+   * that view, and open its filter dialog once it is the active view. Filters
+   * resolve server-side per tab, so the dialog must wait for the target tab's
+   * data (preloaded tabs resolve immediately) before showing its values.
+   */
+  function handleEditFilters(tab: DashboardViewTab) {
+    closeEdit();
+    if (tab.id === activeView.id) {
+      setFilterOriginRect(null);
+      openFilter();
+      return;
+    }
+    setPendingFilterViewId(tab.id);
+    switchTab(tab);
+  }
+
+  useEffect(() => {
+    if (pendingFilterViewId !== null && activeView.id === pendingFilterViewId) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setPendingFilterViewId(null);
+      setFilterOriginRect(null);
+      openFilter();
+    }
+  }, [pendingFilterViewId, activeView.id, openFilter]);
+
   // ---- On-demand view (tab) CRUD ------------------------------------------
-  // Reorder / rename / delete run inside `EditViewsModal` (they call the
-  // actions in src/lib/dashboardViews and report back via `onMutated` /
-  // `onNavigateToView`). This component owns the "Add view" dialog and the
-  // navigation side-effects. Hidden entirely for accounts without stored
-  // views (canManageViews false).
+  // The strip's "+" opens the quick "Add view" dialog below. The Manage-views
+  // modal owns reorder / edit / delete (its Edit dialog also opens the per-view
+  // filter flow) and reports back via `onMutated` / `onNavigateToView` /
+  // `onEditFilters`; its Add-view button reuses the quick dialog. Hidden
+  // entirely for accounts without stored views (canManageViews false).
 
   async function submitCreateView() {
     if (creating) {
@@ -3590,9 +3620,11 @@ export function DashboardView({
       />
 
       {/* Manage-views dialog: house-style management modal (src/components
-          conventions — see EventTypeGroupsModal). Reorder with ↑/↓, inline
-          rename with the pen, delete with the trash (nested confirm). Only
-          shown when the account owns stored views (canManageViews). */}
+          conventions — see EventTypeGroupsModal). ↑/↓ reorder, a per-row Edit
+          dialog (name + type + an Edit-filters button that switches to the view
+          and opens its filter dialog) and delete behind a nested confirm; its
+          Add-view button reuses the quick dialog above. Only shown when the
+          account owns stored views (canManageViews). */}
       {canManageViews && (
         <EditViewsModal
           opened={editOpened}
@@ -3601,12 +3633,14 @@ export function DashboardView({
           activeView={activeView}
           onMutated={refreshAfterViewsSave}
           onNavigateToView={switchTab}
+          onEditFilters={handleEditFilters}
           onAddView={openAddView}
         />
       )}
 
-      {/* Add-view dialog: pick a renderer kind + a name. Only shown when the
-          account owns stored views (canManageViews). */}
+      {/* Quick "Add view" dialog: opened by the strip's + and by the
+          Manage-views modal's Add-view button (kind picker + name). Only shown
+          when the account owns stored views (canManageViews). */}
       {canManageViews && (
         <Modal
           opened={createOpened}

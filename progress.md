@@ -1001,6 +1001,20 @@ via `?attendance=1` and `attendanceStorage` became a `useSyncExternalStore` exte
    keep the native `title` and open on touch tap (`events.touch`); hidden for the break-glass
    admin (`canManageViews`). Docs: `docs/dashboard-views.md` §1.1/§1.9, `docs/user-guide.md`
    §1.3.1, `docs/immersive-mode.md` §1.4, `docs/ui-state.md`, `AGENTS.md`
+- 1.235 Manage-views modal rework: the modal's rows were five cryptic icon-only controls
+   (up/down/swap/pencil/trash) with no sense of which tab was active or what kind it was,
+   and creation was a footer button opening yet another modal. Now the modal stays lean: a
+   compact **Add view** button at the top reuses the strip's quick Add-view dialog (no
+   inline form), each row shows the kind icon + name with a dimmed kind label **only when
+   the name is custom** (default-named tabs no longer repeat themselves), the active row
+   gets a quiet **accent left bar** (no badge), and the row actions are just **Edit** and
+   **Delete** — both `variant="subtle"`, with the reorder pair switched to
+   `ReorderUpDown`'s new `variant="subtle"` so a row isn't a wall of bordered boxes. Edit
+   opens one dialog for name + type (kind applied first so a custom name typed there wins;
+   replacing the separate inline rename and Change-type modal) and carries an **Edit
+   filters…** button that closes the modal, switches to that view and opens its filter
+   dialog once the tab is active (filters resolve server-side per tab). Docs:
+   `docs/dashboard-views.md` §1.1/§1.9, `docs/user-guide.md` §1.3.1, `AGENTS.md`
 
 ## 1.4 Open items & next steps
 

@@ -132,10 +132,12 @@ doc content here.
   tap is **optimistic**: it sets `previewView` in `DashboardDataContext`, so
   `DashboardScreen` paints a warm tab without waiting on the RSC round-trip that updates
   `useSearchParams` (each tab's URL is also `router.prefetch`ed). A **+** at the end of the
-  tab strip opens the Add-view dialog in one tap, and the trailing **Manage views** gear
-  (tooltip) opens the manage modal — the shared manage-row recipe
-  (`reorderUpDown.tsx`) + optimistic `useReorderRows` FLIP. Month grids zoom from fit-to-width
-  (`src/lib/ui/monthZoom.ts`,
+  tab strip opens the quick Add-view dialog, and the trailing **Manage views** gear (tooltip)
+  opens the manage modal — an Add-view button, subtle ↑/↓ reorder, a per-row **Edit** dialog
+  (name + type + an **Edit filters…** button that switches to the view and opens its filter
+  dialog), delete, and a quiet accent left bar on the active row, plus the shared manage-row
+  recipe (`reorderUpDown.tsx`, `variant="subtle"`) + optimistic `useReorderRows` FLIP. Month
+  grids zoom from fit-to-width (`src/lib/ui/monthZoom.ts`,
   `dashboard.monthZoom`); Week (D) is a custom matrix (`buildWeekLanes`). Entry highlights:
   amber = mine, purple = external (`c2-my-*` / `c2-ext-*` in `globals.css`).
   Design: [docs/dashboard-views.md](docs/dashboard-views.md).
