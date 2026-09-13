@@ -822,6 +822,7 @@ export function AppShellShell({
         >
           <AppShell.Header
             style={{
+              viewTransitionName: "c2-shell-header",
               background: "var(--mantine-color-brand-7)",
               borderColor: "var(--mantine-color-brand-8)",
               // The safe-area region stays navy; the banner + brand bar render
@@ -892,6 +893,7 @@ export function AppShellShell({
           <AppShell.Navbar
             p="md"
             style={{
+              viewTransitionName: "c2-shell-navbar",
               background: "var(--mantine-color-body)",
               borderRight: "1px solid var(--mantine-color-default-border)",
               // Mantine animates transform/top/height on the navbar; add width so
@@ -965,6 +967,7 @@ export function AppShellShell({
 
           <AppShell.Footer
             style={{
+              viewTransitionName: "c2-shell-footer",
               background: "var(--mantine-color-body)",
               borderTop: "1px solid var(--mantine-color-default-border)",
             }}

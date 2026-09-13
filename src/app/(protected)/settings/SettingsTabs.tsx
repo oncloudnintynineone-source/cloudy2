@@ -52,6 +52,7 @@ export function SettingsTabs() {
                 overflowX: "auto",
               }
             : {
+                viewTransitionName: "c2-settings-tabs",
                 flexWrap: "nowrap",
                 overflowX: "auto",
                 position: "fixed",
@@ -96,6 +97,7 @@ export function SettingsTabs() {
   return (
     <Box
       style={{
+        viewTransitionName: "c2-settings-tabs",
         position: "sticky",
         top: "var(--app-shell-header-offset)",
         zIndex: 9,

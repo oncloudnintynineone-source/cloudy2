@@ -710,6 +710,13 @@ group is held still (`animation: none`) so the shell never crossfades, and the
 overlay is `pointer-events: none` so the live page stays interactive. Reduced
 motion disables all view-transition animation.
 
+**Shell anchoring.** The page content is its own view-transition group, painted
+above the root group — so on pages taller than the viewport its snapshot would
+briefly cover the fixed shell. The header, sidebar and bottom nav
+(`AppShellShell`) and the settings tab bar (`SettingsTabs`) therefore carry
+their own `view-transition-name`s, and `globals.css` holds those groups at
+`z-index: 100` above the content with no animation (old snapshot hidden).
+
 **Interaction with `content-enter`.** Both can fire when a route lands with a
 cold `loading.tsx` skeleton (the page transition animates the navigation;
 `content-enter` animates the skeleton→content reveal). Both are short opacity

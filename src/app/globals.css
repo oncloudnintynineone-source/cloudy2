@@ -100,6 +100,35 @@ html {
   animation: none;
 }
 
+/*
+  The page content is its own view-transition group (PageTransition), painted
+  above the root group. On pages taller than the viewport its snapshot extends
+  over the fixed shell, so the shell chrome is pulled into named groups held
+  above the content. The shell is identical across routes, so the old snapshot
+  is hidden and the new one shown without animating.
+*/
+::view-transition-group(c2-shell-header),
+::view-transition-group(c2-shell-navbar),
+::view-transition-group(c2-shell-footer),
+::view-transition-group(c2-settings-tabs) {
+  animation: none;
+  z-index: 100;
+}
+
+::view-transition-old(c2-shell-header),
+::view-transition-old(c2-shell-navbar),
+::view-transition-old(c2-shell-footer),
+::view-transition-old(c2-settings-tabs) {
+  display: none;
+}
+
+::view-transition-new(c2-shell-header),
+::view-transition-new(c2-shell-navbar),
+::view-transition-new(c2-shell-footer),
+::view-transition-new(c2-settings-tabs) {
+  animation: none;
+}
+
 /* Let clicks reach the live page while the transition overlay is up. */
 ::view-transition {
   pointer-events: none;
