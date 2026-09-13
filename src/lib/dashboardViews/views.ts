@@ -1,7 +1,7 @@
 /**
  * The user-created dashboard "Views" (tabs) domain — pure vocabulary, shape
  * and normalization. A tab is a server row in `user_dashboard_views`: one
- * renderer kind (the same five engines the dashboard always had), a
+ * renderer kind (Month / Week (H) / Week (D) / Day / Agenda / Dual Pane), a
  * user-chosen display name, a per-user strip order, and that tab's own filter
  * overrides. Tabs are stored server-side per account (design:
  * docs/dashboard-views.md, docs/ui-state.md).
@@ -14,8 +14,15 @@
  * are re-validated against live data on every dashboard render.
  */
 
-/** The five dashboard view renderer kinds a tab can be. */
-export const DASHBOARD_VIEW_KINDS = ["month", "week", "weekv2", "schedule", "agenda"] as const;
+/** The dashboard view renderer kinds a tab can be. */
+export const DASHBOARD_VIEW_KINDS = [
+  "month",
+  "week",
+  "weekv2",
+  "schedule",
+  "agenda",
+  "dual",
+] as const;
 export type DashboardViewKind = (typeof DASHBOARD_VIEW_KINDS)[number];
 
 /** Display labels for the kinds (the default tab names + type-picker rows). */
@@ -25,6 +32,7 @@ export const DASHBOARD_VIEW_KIND_LABELS: Record<DashboardViewKind, string> = {
   weekv2: "Week (D)",
   schedule: "Day",
   agenda: "Agenda",
+  dual: "Dual Pane",
 };
 
 export function isDashboardViewKind(value: unknown): value is DashboardViewKind {
@@ -211,6 +219,9 @@ export interface TabSwitchContext {
  * - Month → anchored starts on today;
  * - anchored → a different anchored kind keeps the anchor day;
  * - same kind keeps the current period (just the `?view=` change).
+ *
+ * Dual Pane is a day-anchored kind too (its Month pane follows the agenda
+ * day's month), so it rides the anchored branches unchanged.
  *
  * Returns the `navigate`-style updates map (`null` deletes a param). Pure and
  * unit-tested.

@@ -3,6 +3,7 @@ import {
   IconCalendarMonth,
   IconCalendarUser,
   IconCalendarWeek,
+  IconColumns2,
   IconLayoutGrid,
   IconListDetails,
 } from "@tabler/icons-react";
@@ -19,4 +20,5 @@ export const VIEW_TAB_META: Record<
   weekv2: { label: "Week (D)", icon: <IconLayoutGrid size={16} />, nowrap: true },
   schedule: { label: "Day", icon: <IconCalendarUser size={16} /> },
   agenda: { label: "Agenda", icon: <IconListDetails size={16} /> },
+  dual: { label: "Dual Pane", icon: <IconColumns2 size={16} />, nowrap: true },
 };

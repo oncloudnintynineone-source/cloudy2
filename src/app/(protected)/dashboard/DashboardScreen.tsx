@@ -38,6 +38,8 @@ interface DashboardScreenProps {
   userId: string;
   initialZoom: SlotZoom;
   initialMonthZoom: MonthZoom;
+  /** Dual Pane Month-pane fraction, seeded from the device cookie. */
+  initialDualSplit: number;
 }
 
 /**
@@ -80,7 +82,12 @@ function inputFromParams(params: URLSearchParams) {
  * than `WARM_SNAPSHOT_FRESH_MS`. A mutation clears the cache and re-reads. A
  * failed revalidation keeps the cached render (offline reads keep working).
  */
-export function DashboardScreen({ userId, initialZoom, initialMonthZoom }: DashboardScreenProps) {
+export function DashboardScreen({
+  userId,
+  initialZoom,
+  initialMonthZoom,
+  initialDualSplit,
+}: DashboardScreenProps) {
   const searchParams = useSearchParams();
   // The latest URL params, read by the fetch without re-triggering it on
   // one-shot param changes (edit/event/refresh are not data-bearing). Synced in
@@ -614,6 +621,7 @@ export function DashboardScreen({ userId, initialZoom, initialMonthZoom }: Dashb
         date={effectiveDate}
         initialZoom={initialZoom}
         initialMonthZoom={initialMonthZoom}
+        initialDualSplit={initialDualSplit}
         initialEditEventId={initialEditEventId}
         initialDetailEventId={initialDetailEventId}
         deepLinkEvent={shown.deepLinkEvent ?? null}

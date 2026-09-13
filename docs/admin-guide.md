@@ -133,7 +133,7 @@ Settings → Templates. Two template families plus a library:
   Wrap punctuation in `< >` conditional groups to hide it when every token inside
   is empty (e.g. `{description}< - {location}>`). Unknown tokens stay literal.
 - **Library templates + View assignments** — save named templates, then assign one
-  per display target: the five dashboard views, **Pinned events**, and the
+  per display target: the six dashboard views, **Pinned events**, and the
   **Double booking (clash report)** labels. Unassigned targets fall back to the
   Master template. Assignments change how titles *display* in the app; the Google
   summary is always written with the master-rendered title.

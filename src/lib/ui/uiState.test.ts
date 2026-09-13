@@ -25,7 +25,13 @@ describe("encodeUiState/decodeUiState", () => {
     const state = {
       lastPage: "/settings/users",
       sidebarCollapsed: true,
-      dashboard: { date: "2026-08-21", month: "2026-08", zoom: 1.5, monthZoom: 2 },
+      dashboard: {
+        date: "2026-08-21",
+        month: "2026-08",
+        zoom: 1.5,
+        monthZoom: 2,
+        dualSplit: 0.65,
+      },
     };
     expect(decodeUiState(encodeUiState(state))).toEqual(state);
   });
@@ -65,7 +71,7 @@ describe("cookie versioning", () => {
   });
   it("accepts a newer minor within the current major, dropping unknown fields", () => {
     const value = b64url(
-      JSON.stringify({ v: [3, 1], lastPage: "/contacts", mystery: "x" }),
+      JSON.stringify({ v: [3, 9], lastPage: "/contacts", mystery: "x" }),
     );
     expect(decodeUiState(value)).toEqual({ lastPage: "/contacts" });
   });
@@ -81,6 +87,20 @@ describe("cookie versioning", () => {
     expect(decodeUiState(value)).toEqual({
       lastPage: "/dashboard",
       dashboard: { month: "2026-08", zoom: 1.5 },
+    });
+  });
+
+  it("migrates a v3.1 cookie (no dualSplit) to the current shape", () => {
+    const value = b64url(
+      JSON.stringify({
+        v: [3, 1],
+        lastPage: "/dashboard",
+        dashboard: { month: "2026-08", monthZoom: 2 },
+      }),
+    );
+    expect(decodeUiState(value)).toEqual({
+      lastPage: "/dashboard",
+      dashboard: { month: "2026-08", monthZoom: 2 },
     });
   });
 });
@@ -150,6 +170,20 @@ describe("normalizeUiState (shape safety)", () => {
     expect(
       normalizeUiState({ dashboard: { monthZoom: 1.4 } }),
     ).toEqual({ dashboard: { monthZoom: 1.5 } });
+  });
+
+  it("clamps dualSplit to the usable band and drops junk values", () => {
+    expect(normalizeUiState({ dashboard: { dualSplit: 0.4 } })).toEqual({
+      dashboard: { dualSplit: 0.4 },
+    });
+    expect(normalizeUiState({ dashboard: { dualSplit: 0.9 } })).toEqual({
+      dashboard: { dualSplit: 0.75 },
+    });
+    expect(normalizeUiState({ dashboard: { dualSplit: 0.05 } })).toEqual({
+      dashboard: { dualSplit: 0.25 },
+    });
+    expect(normalizeUiState({ dashboard: { dualSplit: "0.5" } })).toEqual({});
+    expect(normalizeUiState({ dashboard: { dualSplit: Number.NaN } })).toEqual({});
   });
 });
 

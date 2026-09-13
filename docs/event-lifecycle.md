@@ -585,8 +585,8 @@ assignments modal (Settings → Templates):
 
 - The assignments live on the settings row as `eventTitleTemplateAssignments` (jsonb).
   Keys are whitelisted to `EVENT_TITLE_ASSIGNMENT_TARGETS`
-  (`src/lib/settings/validate.ts`) — the five dashboard views
-  (`DASHBOARD_VIEW_VALUES`: `month`, `week`, `weekv2`, `schedule`, `agenda`), the
+  (`src/lib/settings/validate.ts`) — the six dashboard views
+  (`DASHBOARD_VIEW_VALUES`: `month`, `week`, `weekv2`, `schedule`, `agenda`, `dual`), the
   `pinned` Pinned Events panel, the `pinnedHeader` ticker, the `doubleBooking`
   Double Booking report's event labels ("Double booking (clash report)"), and the
   two push bodies `notifyCreated` / `notifyAdded` ("Notification — new event" /

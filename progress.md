@@ -32,8 +32,8 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
   create/update/delete and pre-submit event clash warnings on the wizard's review step;
   a Double Booking page that scans an existing schedule for double-bookings over the next
    30 days, surfaced by a live count pill on its nav entry; an on-demand set of user-created
-   dashboard **Views (tabs)** over the five renderer kinds (Month / Week (H) / Week (D) / Day /
-   Agenda; each tab has its own name, order and Cal/Users/Types filters, stored server-side) over
+    dashboard **Views (tabs)** over the six renderer kinds (Month / Week (H) / Week (D) / Day /
+    Agenda / Dual Pane; each tab has its own name, order and Cal/Users/Types filters, stored server-side) over
    a layered calendar cache; parade-state page with local attendance mode; contacts page;
   PWA installability with offline & instant open (SWR document + RSC, precached offline.html);
   mobile-first UI with a desktop layout at `lg`; remembered UI state across relaunch;
@@ -1015,6 +1015,14 @@ via `?attendance=1` and `attendanceStorage` became a `useSyncExternalStore` exte
    filters…** button that closes the modal, switches to that view and opens its filter
    dialog once the tab is active (filters resolve server-side per tab). Docs:
    `docs/dashboard-views.md` §1.1/§1.9, `docs/user-guide.md` §1.3.1, `AGENTS.md`
+- 1.236 Dual Pane dashboard view: a sixth renderer kind (`dual`) shows the Month grid and
+   the Agenda list in one view — side by side at `lg` with a **draggable split handle**
+   (device-remembered `dashboard.dualSplit`, clamp 25–75%, arrow keys + double-click reset),
+   stacked below `lg`. It is day-anchored (one `?date=` anchor): nav-row chevrons move ±1
+   month, the pane header moves ±1 day, and tapping a day cell selects it in the agenda pane
+   (no day modal). Pure `src/lib/ui/dualSplit.ts`, new `DualPaneView.tsx` + `DualPaneSkeleton`
+   (reusing extracted `MonthWeekdayStrip`/`AgendaSwipeHint`); `dual` joins the title-template
+   targets. Docs: `docs/dashboard-views.md` §1.9, `docs/ui-state.md` §1.5, `AGENTS.md`
 
 ## 1.4 Open items & next steps
 

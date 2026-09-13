@@ -8,8 +8,9 @@ Where does the app remember things? Two scopes with one hard rule:
   Calendars/Users filters and the event-search history (`user_preferences`).
 - **"Where you are" is device-local** — it lives in one small cookie
   `cloudy2.ui`: the last visited page, the sidebar rail state, the dashboard
-  `date`/`month` anchor and the two zooms — the Day/Week (H) hour-slot `zoom`
-  and the Month grid's fit-width `monthZoom`.
+  `date`/`month` anchor, the two zooms — the Day/Week (H) hour-slot `zoom`
+  and the Month grid's fit-width `monthZoom` — and the Dual Pane split
+  (`dualSplit`).
 
 This document covers the split, the two Postgres tables and their lazy seeding,
 the tab-resolution order the dashboard page follows, the reduced cookie and
@@ -52,7 +53,7 @@ devices (the old cookie carried all of it and was per-device).
 ### 1.2.1 Dashboard Views (`user_dashboard_views`)
 
 One row per tab: `userId` (FK `users.id`, cascade), `viewType` (one of the
-five renderer kinds — `src/lib/dashboardViews/views.ts`), `name` (user
+six renderer kinds — `src/lib/dashboardViews/views.ts`), `name` (user
 chosen), `sortOrder` (per-user strip order), the three filter overrides
 `calFilter`/`usersFilter`/`typesFilter` (each JSON array or SQL `NULL`, §1.4),
 timestamps. Index `(user_id, sort_order)`. Rows cascade-delete with the user.
@@ -157,7 +158,8 @@ flowchart LR
  "date": "2026-08-21", // day-anchored views
  "month": "2026-08", // Month view
  "zoom": 1.5, // Day/Week (H) hour-slot zoom (slotZoom.ts)
- "monthZoom": 1.5 // Month-grid zoom, fit-width multiplier (monthZoom.ts)
+ "monthZoom": 1.5, // Month-grid zoom, fit-width multiplier (monthZoom.ts)
+ "dualSplit": 0.6 // Dual Pane month/agenda width split (dualSplit.ts)
   }
 }
 ```
@@ -177,7 +179,10 @@ old majors wholesale on first read (see §1.5.2).
   to `null` once and is re-stamped fresh on the next write.
 - Within the current major, a **newer minor** decodes as-is (forward
   compatible, unknown fields dropped by `normalizeUiState`); an **older
-  minor** runs the pure `MINOR_MIGRATIONS` chain first.
+  minor** runs the pure `MINOR_MIGRATIONS` chain first. The chain is a
+  pass-through for every step so far: v3.1 added `monthZoom`, v3.2 added
+  `dualSplit` — an older cookie simply lacks the key and the consumer falls
+  back to its default (fit zoom / 60-40 split).
 - The cookie is tiny (scalars + short id lists nowhere near the ~4 KiB browser
   cap), so the old overflow-trimming machinery is gone.
 
@@ -188,9 +193,10 @@ default.**
 
 - **Dashboard** (`dashboard/page.tsx`): `date` — URL wins; a remembered cookie
   `date` anchors the **day views only** (`view !== "month"`); in Month view the
-  remembered `month` (else current) drives the read. `zoom` (Day/Week (H)) and
-  `monthZoom` (Month grid) are read from the raw cookie and snapped via
-  `clampZoom`/`clampMonthZoom` before first paint (no width jump on relaunch).
+  remembered `month` (else current) drives the read. `zoom` (Day/Week (H)),
+  `monthZoom` (Month grid) and `dualSplit` (Dual Pane) are read from the raw
+  cookie and snapped via `clampZoom`/`clampMonthZoom`/`clampDualSplit` before
+  first paint (no width jump on relaunch).
   The **active tab is not cookie state** — it resolves server-side (§1.3).
 - **`?event=` / `?edit=` deep links** (Google "Edit:" notes, Pinned Events,
   event search) land on the user's active tab + its filters (search carries
@@ -207,7 +213,7 @@ default.**
 | ------ | ----- | ---------------- |
 | `useRememberedPage(pathname)` | `AppShellShell` — every authenticated page | `{ lastPage: pathname }` (incl. `/settings` sub-tabs) |
 | sidebar toggle effect | `AppShellShell` | `{ sidebarCollapsed }` on mount + every toggle |
-| `usePersistDashboardNav({ date?, month, zoom, monthZoom })` | `DashboardView` | the dashboard section; `date` is stored only when the URL pins one (day views), `month`/`zoom`/`monthZoom` always |
+| `usePersistDashboardNav({ date?, month, zoom, monthZoom, dualSplit })` | `DashboardView` | the dashboard section; `date` is stored only when the URL pins one (day views) or for Dual Pane, `month`/`zoom`/`monthZoom`/`dualSplit` always |
 
 Server-side writes happen through server actions (the client never writes
 Postgres directly): tab CRUD + per-tab filters via `src/lib/dashboardViews`,
@@ -238,6 +244,8 @@ they are not cleared on sign-out.)
 | `src/lib/dashboardViews/views.ts` | kind vocabulary/labels, name sanitization, filter-override normalization, `resolveActiveTab` (URL id → kind string → remembered → first) — unit-tested |
 | `src/lib/ui/uiState.ts` | cookie codec (`encodeUiState`/`decodeUiState`), `normalizeUiState`, `mergeUiState`, `resolveLaunchTarget` + route whitelists — unit-tested |
 | `src/lib/ui/slotZoom.ts` | `clampZoom` snapping (imported by the cookie normalizer) |
+| `src/lib/ui/monthZoom.ts` | `clampMonthZoom` snapping (imported by the cookie normalizer) |
+| `src/lib/ui/dualSplit.ts` | `clampDualSplit`/`stepDualSplit` split-ratio math (imported by the cookie normalizer) |
 
 I/O-bound (not unit-tested): the `db` calls in `src/lib/userPrefs` /
 `src/lib/dashboardViews` (incl. the transactional seed), the `cookies()` reads
@@ -260,6 +268,7 @@ in the pages/layout, and the writer hooks.
 | `src/components/AppShellShell.tsx` | `useRememberedPage`, sidebar toggle persist |
 | `src/components/UserMenu.tsx` | Sign-out → `clearUiState` |
 | `src/lib/ui/uiState.ts` / `uiStateClient.ts` | Cookie model/codec + client writers |
+| `src/lib/ui/dualSplit.ts` | Dual Pane split-ratio levels + clamping (pure) |
 | `src/app/(protected)/dashboard/DashboardView.tsx` | Tab strip (+ Add-view button / Manage-views gear), `usePersistDashboardNav`, `switchTab` (+ active-tab action) |
 
 Related docs:

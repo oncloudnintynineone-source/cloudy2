@@ -45,6 +45,7 @@ export type DashboardSnapshot = Omit<
   | "date"
   | "initialZoom"
   | "initialMonthZoom"
+  | "initialDualSplit"
   | "initialEditEventId"
   | "initialDetailEventId"
   | "deepLinkEvent"
@@ -124,13 +125,16 @@ export interface DashboardSnapshotRecord {
  * - Month: the 6-week grid's months (`monthGridMonths`, 2-3).
  * - Week (H) / Week (D): the months the Monday-first week touches (1-2).
  * - Day / Agenda: the single containing month.
+ * - Dual Pane: the 6-week grid's months (`monthGridMonths`), exactly like
+ *   Month — it is day-anchored, and its Month pane always shows the agenda
+ *   day's month, so the grid's months already cover the agenda day.
  *
  * Pure and client-safe (reuses the `datetime.ts` helpers), so the server
  * (`buildDashboardData`) and the client (`DashboardScreen`) compute the same
  * set for the same input.
  */
 export function requiredMonths(kind: DashboardViewKind, month: string, date: string): string[] {
-  if (kind === "month") {
+  if (kind === "month" || kind === "dual") {
     return monthGridMonths(month);
   }
   if (kind === "week" || kind === "weekv2") {

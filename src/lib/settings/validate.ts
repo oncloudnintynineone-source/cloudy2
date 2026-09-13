@@ -25,7 +25,14 @@ export interface NameTemplateFormErrors {
   [key: string]: string | undefined;
 }
 
-export const DASHBOARD_VIEW_VALUES = ["month", "week", "weekv2", "schedule", "agenda"] as const;
+export const DASHBOARD_VIEW_VALUES = [
+  "month",
+  "week",
+  "weekv2",
+  "schedule",
+  "agenda",
+  "dual",
+] as const;
 export type DashboardViewValue = (typeof DASHBOARD_VIEW_VALUES)[number];
 
 /**
@@ -52,6 +59,7 @@ export const EVENT_TITLE_TARGET_LABELS: Record<EventTitleAssignmentTarget, strin
   weekv2: "Week (D)",
   schedule: "Day",
   agenda: "Agenda",
+  dual: "Dual Pane",
   pinned: "Pinned events (panel)",
   pinnedHeader: "Pinned events (header)",
   doubleBooking: "Double booking (clash report)",

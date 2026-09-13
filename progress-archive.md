@@ -8424,3 +8424,67 @@ instant paint with no skeleton; confirm an in-month day move still doesn't fetch
 confirm a mutation/force refresh re-preloads; confirm offline tab switches stay on the
 cached grid.
 
+## 1.236 Dual Pane dashboard view (Month + Agenda)
+
+A sixth dashboard renderer kind, `dual` ("Dual Pane"), puts the Month grid and the
+Agenda list in one view: side by side at `lg` and up, stacked below it. It is
+deliberately **day-anchored** like Day/Week/Agenda — one shared `?date=` anchor drives
+both panes, the Month pane showing the anchor day's month and the Agenda pane that
+day's list — which is what kept the data layer nearly free:
+
+- `requiredMonths("dual", …)` returns `monthGridMonths(month)`, identical to Month
+  (the agenda day is always inside the shown month), so the events cache, snapshot
+  request key, tab preload and load-state logic inherit the view unchanged.
+- `resolvePeriod` needed no branch (non-month kinds already derive the month from the
+  date), and `tabSwitchTarget` needed no rule: Dual Pane rides the anchored branches
+  (Month → Dual Pane starts today; anchored → Dual Pane keeps the day; Dual Pane →
+  Month keeps the anchor month). `dual` is added to the anchored flags
+  (`isAnchoredView` / `shownIsAnchored`) so `goToday`, the chevron fallbacks and the
+  cookie `date` persistence behave like the other day views.
+- No DB migration: `user_dashboard_views.view_type` is a plain `text` column, and the
+  new kind is just a new value.
+
+**Interaction.** The nav row labels the period with the **month** and its chevrons move
+**±1 month**, keeping the day-of-month (dayjs clamps overflow: Jan 31 → Feb 28). The
+Agenda pane carries a sticky day header (label + ‹ › chevrons) that moves ±1 day — a
+step across a month edge moves the grid too. **Tapping a day cell selects that day in
+the Agenda pane** instead of opening the day modal (the pane is the day detail), and
+"New event" prefills the selected day. The date picker already resolves to its day mode
+for this kind.
+
+**Split handle.** The Month pane takes a device-remembered fraction (`dashboard.dualSplit`
+in the `cloudy2.ui` cookie, cookie minor v3.2; default 0.6, clamped 0.25–0.75). A drag
+handle between the panes resizes them: a pointer-capture drag writes the live fraction
+straight to a `--c2-dual-split` CSS variable on the container (no React render per
+frame; the committed value lands once on release), the handle is a focusable
+`role="separator"` whose Left/Right arrows step 5% and whose double-click resets to the
+default, and the month grid's fit-to-width columns rescale with the pane for free
+(percentage layout). Below `lg` the panes stack and the handle is absent.
+
+**Rendering.** New `DualPaneView.tsx` composes the existing view pieces rather than
+duplicating them: `MonthWeekdayStrip` and `AgendaSwipeHint` were extracted into their
+own modules (the Month tab / Agenda tab / day modal now import them too), the Month pane
+keeps the §1.8 fit-width zoom with its own `useGridPan` instance and a `GridNavControls`
+cluster **portaled to `<body>`** (the dashboard's slide wrapper is transiently
+transformed, which would otherwise become the containing block for the fixed controls),
+and the Agenda pane keeps `eventsOnDay`, the `renderMyAgendaEvent` highlights, the
+directional day slide and the touch swipe with its once-per-session hint. A new
+`DualPaneSkeleton` mirrors the layout (Month + Agenda skeletons at the same split) so the
+load swap is seamless, and `dual` joins `EVENT_TITLE_ASSIGNMENT_TARGETS` (label "Dual
+Pane") so admins can assign it a title recipe like every other kind (fallback master).
+
+**Tests.** `dualSplit.test.ts` (clamp/step/rounding/junk), `requiredMonths("dual")` in
+`snapshot.test.ts`, Dual Pane cases for `tabSwitchTarget` + `nameAfterKindChange` in
+`views.test.ts`, the `dualSplit` cookie round-trip/clamp/migration cases in
+`uiState.test.ts`, and the assignment-target list in `validate.test.ts`.
+
+**Docs.** `docs/dashboard-views.md` (kind table, new §1.9 + TOC/file index),
+`docs/ui-state.md` (cookie key + v3.2), `AGENTS.md` dashboard bullet, `progress.md` §1.3.
+
+**Verified**: `pnpm lint`, `pnpm typecheck`, `pnpm test` (1231 pass), `pnpm build`.
+Manual to run before ship: add a Dual Pane tab, drag the handle (and arrow-key it),
+step months via the nav row and days via the pane header, tap a grid day and confirm the
+pane follows, and check the stacked layout below `lg`.
+
+
+

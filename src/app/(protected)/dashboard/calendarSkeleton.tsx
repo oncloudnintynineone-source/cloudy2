@@ -1,6 +1,7 @@
 "use client";
 
-import { Box, Group, Paper, Skeleton } from "@mantine/core";
+import { Box, Group, Paper, Skeleton, useMantineTheme } from "@mantine/core";
+import { useMediaQuery } from "@mantine/hooks";
 
 import { monthGridRows } from "@/lib/events/datetime";
 
@@ -152,6 +153,47 @@ export function WeekGridSkeleton({ rows = 6 }: { rows?: number }) {
         ))}
       </Box>
     </Paper>
+  );
+}
+
+/**
+ * Dual Pane skeleton: the Month grid skeleton and the Agenda list skeleton in
+ * the view's own responsive layout — side by side at `lg` (Month at the
+ * persisted split ratio, Agenda filling the rest), stacked below it. Mirrors
+ * the real `DualPaneView` shapes so the swap on load is seamless; the sr-only
+ * LoadingStatus is rendered by the caller, as with the other view skeletons.
+ */
+export function DualPaneSkeleton({ rows, splitPct }: { rows: number; splitPct: number }) {
+  const theme = useMantineTheme();
+  const isDesktop = useMediaQuery(`(min-width: ${theme.breakpoints.lg})`);
+  return (
+    <Box
+      style={{
+        display: "flex",
+        flexDirection: isDesktop ? "row" : "column",
+        alignItems: "flex-start",
+        gap: "var(--mantine-spacing-md)",
+      }}
+    >
+      <Box
+        style={{
+          flex: isDesktop ? `0 0 ${splitPct * 100}%` : undefined,
+          width: isDesktop ? undefined : "100%",
+          minWidth: 0,
+        }}
+      >
+        <MonthGridSkeleton rows={rows} />
+      </Box>
+      <Box
+        style={{
+          flex: isDesktop ? "1 1 0" : undefined,
+          width: isDesktop ? undefined : "100%",
+          minWidth: 0,
+        }}
+      >
+        <AgendaListSkeleton />
+      </Box>
+    </Box>
   );
 }
 

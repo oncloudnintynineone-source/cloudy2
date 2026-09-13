@@ -141,9 +141,10 @@ PWA splash (the precached launch shell covers that wait — §1.5.1). See
 
 The row/card skeletons are extracted into small **shared components** so the
 route fallback and the in-page swap stay in sync: `dashboard/calendarSkeleton.tsx`
-(all five view grids — `MonthGridSkeleton`, `WeekMatrixSkeleton` (Week (D)
-matrix), `WeekGridSkeleton` (Week (H)), `AgendaListSkeleton`, `ScheduleGridSkeleton`;
-used by the dashboard's **in-page** kind-shaped transitions, not the plain-box
+(the view grids — `MonthGridSkeleton`, `WeekMatrixSkeleton` (Week (D)
+matrix), `WeekGridSkeleton` (Week (H)), `AgendaListSkeleton`, `ScheduleGridSkeleton`,
+and `DualPaneSkeleton` (Month + Agenda at the persisted split); used by the
+dashboard's **in-page** kind-shaped transitions, not the plain-box
 route fallback), `parade-state/paradeStateSkeleton.tsx`,
 `settings/audit-log/AuditLogRowSkeleton.tsx`.
 
@@ -723,7 +724,7 @@ the navigation simply happens with no animation — the app is unaffected.
 | `src/components/PageTransition.tsx` | Per-page `<ViewTransition>` wrapper (fade + rise on route change) — §1.14 |
 | `src/app/(protected)/**/page.tsx` | Each protected page renders its content through `PageTransition` (§1.14) |
 | `src/app/(protected)/*/loading.tsx` | Route-level skeletons (16 segments) |
-| `src/app/(protected)/dashboard/calendarSkeleton.tsx` | All five view grid skeletons (shared by route + in-page): `MonthGridSkeleton`, `WeekMatrixSkeleton`, `WeekGridSkeleton`, `AgendaListSkeleton`, `ScheduleGridSkeleton` |
+| `src/app/(protected)/dashboard/calendarSkeleton.tsx` | The view grid skeletons (shared by route + in-page): `MonthGridSkeleton`, `WeekMatrixSkeleton`, `WeekGridSkeleton`, `AgendaListSkeleton`, `ScheduleGridSkeleton`, `DualPaneSkeleton` |
 | `src/lib/ui/uiState.ts` | `resolveDashboardView` — shared view resolution for page + route fallback |
 | `src/app/(protected)/parade-state/paradeStateSkeleton.tsx` | Parade row skeletons (shared) |
 | `src/app/(protected)/settings/audit-log/AuditLogRowSkeleton.tsx` | Audit row skeleton (shared) |

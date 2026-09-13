@@ -1,16 +1,17 @@
 # 1. Dashboard views & filters
 
-The Calendar dashboard (`/dashboard`) renders one of the five event-view
-**kinds** (Month / Week (H) / Week (D) / Day / Agenda) over the shared
-server-side events cache ([`events-cache.md`](events-cache.md)). The dashboard
-does **not** show one fixed instance of each kind: the user builds an on-demand
-set of **views (tabs)** — one per-account row per tab (kind + user name + strip
-order + that tab's own filter state), stored server-side in
+The Calendar dashboard (`/dashboard`) renders one of the six event-view
+**kinds** (Month / Week (H) / Week (D) / Day / Agenda / Dual Pane) over the
+shared server-side events cache ([`events-cache.md`](events-cache.md)). The
+dashboard does **not** show one fixed instance of each kind: the user builds an
+on-demand set of **views (tabs)** — one per-account row per tab (kind + user
+name + strip order + that tab's own filter state), stored server-side in
 `user_dashboard_views` (`src/lib/dashboardViews`). This document covers the tab
 inventory & management, the filters (one button + modal, scoped per tab), the
 custom Week (D) matrix — the one view no Mantine Schedule component can render —
-the per-view "mine" and external-entry highlights, and the Day / Week (H)
-timeline zoom plus the Month grid's fit-to-width zoom.
+the Dual Pane split (Month + Agenda side by side), the per-view "mine" and
+external-entry highlights, and the Day / Week (H) timeline zoom plus the Month
+grid's fit-to-width zoom.
 
 ## Table of contents
 
@@ -22,7 +23,8 @@ timeline zoom plus the Month grid's fit-to-width zoom.
 - [1.6 External-event highlight](#16-external-event-highlight)
 - [1.7 Timeline zoom (Day and Week (H))](#17-timeline-zoom-day-and-week-h)
 - [1.8 Month-grid zoom (fit-to-width)](#18-month-grid-zoom-fit-to-width)
-- [1.9 File index & related docs](#19-file-index--related-docs)
+- [1.9 Dual Pane (Month + Agenda)](#19-dual-pane-month--agenda)
+- [1.10 File index & related docs](#110-file-index--related-docs)
 
 ## 1.1 View inventory & tab management
 
@@ -35,6 +37,7 @@ The renderer kinds (`DASHBOARD_VIEW_KINDS`, `src/lib/dashboardViews/views.ts`):
 | `weekv2` | Week (D) | custom week matrix (§1.3) |
 | `schedule` | Day | Mantine Schedule, single day per resource row |
 | `agenda` | Agenda | list view |
+| `dual` | Dual Pane | Month grid + Agenda list side by side, resizable (§1.9) |
 
 Mobile-month is the sub-`lg` rendering of the `month` kind. Tabs are **not**
 the kinds themselves: each `user_dashboard_views` row binds one of these kinds
@@ -49,7 +52,7 @@ string maps to the first tab of that kind.
   `user_preferences` row so racing requests can't double-insert) and points
   the remembered last-active tab at it.
 - **Add view** has two entry points, both opening the same quick **Add-view
-  dialog** (the shared **five-kind picker** `ViewTypePicker.tsx` + a name; the
+  dialog** (the shared **six-kind picker** `ViewTypePicker.tsx` + a name; the
   default name follows the chosen kind until edited):
   - the strip's **`+` button at the end of the scrolling tab strip** (the
     strip's last item, shown for accounts that own stored views; tooltip "Add
@@ -74,7 +77,7 @@ string maps to the first tab of that kind.
     `ReorderUpDown`'s `variant="subtle"` here, so the dense row isn't a wall of
     bordered boxes;
   - a **pen** (Edit, subtle) opens a single **Edit view** dialog with the name
-    and the five-kind picker — one place for both, replacing the old separate
+    and the six-kind picker — one place for both, replacing the old separate
     inline rename field and Change-type modal. The tab keeps its id, strip order
     and stored filters; a name that is still the old kind's default label follows
     to the new kind's default (a custom name is kept; the rule is applied
@@ -429,6 +432,7 @@ slot granularity (still 60-minute columns) or the row height.
   relaunch). See [`ui-state.md`](ui-state.md).
 - **Scope**: shared by Day and Week (H) only. Week (D) — its columns are
   day-granularity, not hour slots — and Month and Agenda are unaffected.
+  (Dual Pane's Month pane uses the separate fit-width zoom of §1.8.)
 - **Re-anchoring**: zooming keeps the time that was at the viewport's _center_
   centered — a `useLayoutEffect` (declared before the ruler measurement effect)
   re-anchors `scrollLeft` from the previous/next slot-width ratio via the pure
@@ -497,7 +501,57 @@ flowchart LR
  S --> C["dashboard.monthZoom cookie<br/>(usePersistDashboardNav)"]
 ```
 
-## 1.9 File index & related docs
+## 1.9 Dual Pane (Month + Agenda)
+
+A tab whose kind is `dual` renders the Month grid and the Agenda list in one
+view — side by side at `lg` and up, stacked below it — in `DualPaneView.tsx`
+(`src/app/(protected)/dashboard/DualPaneView.tsx`).
+
+**It is a day-anchored kind**, like Day/Week/Agenda: one shared `?date=` anchor
+drives both panes. The Month pane shows the anchor day's month and the Agenda
+pane shows that day's list, so the two always agree. The nav row's chevrons
+move **±1 month** (keeping the day-of-month — dayjs clamps overflow, so Jan 31 →
+Feb 28), the Agenda pane's own ‹ › header moves **±1 day** (a step across a
+month edge moves the grid too), and the date picker opens in day mode.
+**Tapping a day cell in the grid selects that day in the Agenda pane** — this
+view has no day modal, the pane *is* the day detail. Data needs are therefore
+identical to Month's (`requiredMonths` returns `monthGridMonths` for `dual`),
+and `tabSwitchTarget` needs no dual-specific rule: the anchored branches
+already cover it (Month → Dual Pane starts today, anchored → Dual Pane keeps
+the anchor day, Dual Pane → Month keeps the anchor month).
+
+- **Split & resize.** The Month pane takes the remembered `dualSplit` fraction
+  (device-local cookie, [`ui-state.md`](ui-state.md); default 0.6, clamped
+  0.25–0.75 by `src/lib/ui/dualSplit.ts`). A drag handle between the panes
+  resizes them: a pointer-capture drag writes the live fraction straight to a
+  `--c2-dual-split` CSS variable on the container (no React work per frame) and
+  commits once on release; the handle is a focusable `separator` whose
+  Left/Right arrows step 5% and whose double-click resets to the default. Below
+  `lg` the panes stack and the handle is absent.
+- **Month pane.** The standalone Month view's grid: the fit-to-width zoom of
+  §1.8 (its own `useGridPan` instance, pinned `MonthWeekdayStrip`, and a
+  `GridNavControls` cluster portaled to `<body>` so the transient slide
+  transform can't jitter the fixed controls), the same `monthEvents` ordering
+  and `renderMyMonthEvent` highlights.
+- **Agenda pane.** The Agenda tab's list under a sticky day header (day label +
+  ‹ › chevrons): `eventsOnDay`, `renderMyAgendaEvent`, the directional slide on
+  a day change, and the touch swipe-to-change-day gesture with its
+  once-per-session hint.
+- **Chrome.** The nav row labels the period with the **month** (the pane header
+  carries the day); the screen-reader announcement appends the agenda day so a
+  day move is announced too. The loading skeleton is `DualPaneSkeleton` — the
+  two view skeletons in the same responsive layout at the same split.
+
+```mermaid
+flowchart LR
+ D["?date= anchor"] --> M["Month pane<br/>monthGridMonths(month)"]
+ D --> A["Agenda pane<br/>eventsOnDay(day)"]
+ D --> R["requiredMonths = monthGridMonths<br/>(same as Month)"]
+ H["drag handle / arrow keys"] --> S["dualSplit cookie<br/>(--c2-dual-split CSS var)"]
+ S --> M
+```
+
+## 1.10 File index & related docs
 
 | File | Role |
 | -------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -508,7 +562,11 @@ flowchart LR
 | `src/app/(protected)/dashboard/DashboardView.tsx`  | Tab strip (+ trailing Add-view button, right-side Manage-views gear and All-views jump popover), optimistic tab switch + period rules + tab-URL prefetch, filter state, schedule zoom + month zoom state & widths |
 | `src/app/(protected)/dashboard/DashboardScreen.tsx` | Snapshot/warm-cache/preload owner; resolves the displayed context from `previewView ?? ?view=` so warm tab switches paint without waiting on the RSC |
 | `src/app/(protected)/dashboard/EditViewsModal.tsx` | Manage-views dialog: Add-view button + card manage list (subtle ↑/↓ reorder, per-row Edit dialog for name+type+filters, nested delete confirm) |
-| `src/app/(protected)/dashboard/ViewTypePicker.tsx` | Shared five-kind picker (Month/Week (H)/Week (D)/Day/Agenda) used by the Add-view dialog and the Edit-view dialog |
+| `src/app/(protected)/dashboard/ViewTypePicker.tsx` | Shared six-kind picker (Month/Week (H)/Week (D)/Day/Agenda/Dual Pane) used by the Add-view dialog and the Edit-view dialog |
+| `src/app/(protected)/dashboard/DualPaneView.tsx` | Dual Pane renderer: resizable Month + Agenda panes (§1.9) |
+| `src/app/(protected)/dashboard/MonthWeekdayStrip.tsx` | Pinned weekday-initials strip, shared by the Month view and the Dual Pane's Month pane |
+| `src/app/(protected)/dashboard/AgendaSwipeHint.tsx` | Touch-only agenda swipe caption, shared by the Agenda tab, day modal and Dual Pane |
+| `src/lib/ui/dualSplit.ts` | Pure Dual Pane split levels + clamping (`clampDualSplit`, `stepDualSplit`) |
 | `src/app/(protected)/dashboard/viewMeta.tsx` | Kind → icon/label map shared by the strip, the Add-view picker and Manage-views rows |
 | `src/components/reorderUpDown.tsx` | Shared touch-friendly manage-row recipe: ~40px ↑/↓ chevron pair (`ReorderUpDown`) + row-action sizes |
 | `src/app/(protected)/dashboard/page.tsx` | Resolves tabs + active tab (`?view=` → remembered → first), validates per-tab filters |
