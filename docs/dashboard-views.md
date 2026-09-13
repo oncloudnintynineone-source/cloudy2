@@ -48,10 +48,19 @@ string maps to the first tab of that kind.
   tab (`ensureDefaultDashboardView`, mutex-guarded on the
   `user_preferences` row so racing requests can't double-insert) and points
   the remembered last-active tab at it.
-- **Edit views** (a settings button to the RIGHT of the tab strip, outside the
-  horizontal scroll area — so the scroll set ends before it) opens a **centered
-  modal** (`EditViewsModal.tsx`, sharing the app's **touch-friendly manage-row
-  recipe** — see `src/components/reorderUpDown.tsx`: each row is a bordered
+- **Add view** is the strip's primary affordance: a **dashed `+` button pinned
+  just right of the scroll area** (always reachable even when the strip
+  overflows; tooltip "Add view", shown for accounts that own stored views)
+  opens the **Add-view dialog** directly — kind rows with icons + a name (the
+  default name follows the chosen kind until edited) — and creating appends the
+  tab and navigates to it. The dialog and the Change-type flow share the
+  **five-kind picker** component `ViewTypePicker.tsx`. The same dialog is also
+  reachable from the **Add view** button at the bottom of the Manage-views
+  modal.
+- **Manage views** (a settings **gear** to the RIGHT of the strip, outside the
+  horizontal scroll area — so the scroll set ends before it; tooltip "Manage
+  views") opens a **centered modal** (`EditViewsModal.tsx`, sharing the app's
+  **touch-friendly manage-row recipe** — see `src/components/reorderUpDown.tsx`: each row is a bordered
   card with a ~40px chevron pair leading, actions trailing) listing the created
   tabs as a **vertical list**: each row shows the view's kind icon + name with
   **↑/↓** arrows to reorder (commits `reorderDashboardViews`, which
@@ -74,18 +83,14 @@ string maps to the first tab of that kind.
   at `lg`+ the row keeps its single line. Changing the **active** tab's type
   re-navigates to the same id under its new kind, so the tab-switch period rules
   below apply (Month → anchored starts today; anchored → Month keeps the month);
-  changing an inactive tab just refreshes the list.
-  **Add view** lives at the bottom of the same modal — its button opens the
-  kind-picker dialog (kind rows with icons + a name; the default name follows
-  the chosen kind until edited), and creating appends the tab and navigates to
-  it. The Add-view dialog and the Change-type flow share the **five-kind
-  picker** component `ViewTypePicker.tsx`. The old **pin/unpin** affordance and
-  its star UI are gone — ordering is fully user-controlled. Tabs themselves are
+  changing an inactive tab just refreshes the list. The old **pin/unpin**
+  affordance and its star UI are gone — ordering is fully user-controlled. Tabs
+  themselves are
   **content-sized** — each shrink-wraps its label (so the active underline hugs
   the text), they never stretch to fill the row, and a long set overflows into
   natural horizontal scrolling.
-- **All-views jump list** (a chevron button between the strip and the Edit-views
-  gear, only when the account has more than one tab): for users with many tabs
+- **All-views jump list** (a chevron button between the Add-view button and the
+  Manage-views gear, only when the account has more than one tab): for users with many tabs
   the overflowed strip is a long horizontal scroll to reach a specific view, so
   the chevron opens a `Menu` popover listing **every** tab in strip order —
   kind icon + name, the active tab ticked — for a one-tap `switchTab` without
@@ -483,11 +488,11 @@ flowchart LR
 | `src/lib/dashboardViews/queries.ts` | Tab reads + the mutex-guarded default "Month" seed |
 | `src/lib/dashboardViews/actions.ts` | Tab CRUD: `create/rename/delete/reorderDashboardViews`, `saveDashboardViewFilters` |
 | `src/lib/userPrefs/queries.ts` + `actions.ts` | `user_preferences` row: last-active tab + parade filters (incl. `saveParadeFilters`) |
-| `src/app/(protected)/dashboard/DashboardView.tsx`  | Tab strip (+ right-side Edit-views trigger and All-views jump popover), optimistic tab switch + period rules + tab-URL prefetch, filter state, schedule zoom + month zoom state & widths |
+| `src/app/(protected)/dashboard/DashboardView.tsx`  | Tab strip (+ right-side Add-view button, Manage-views gear and All-views jump popover), optimistic tab switch + period rules + tab-URL prefetch, filter state, schedule zoom + month zoom state & widths |
 | `src/app/(protected)/dashboard/DashboardScreen.tsx` | Snapshot/warm-cache/preload owner; resolves the displayed context from `previewView ?? ?view=` so warm tab switches paint without waiting on the RSC |
-| `src/app/(protected)/dashboard/EditViewsModal.tsx` | Edit-views dialog: card manage list (↑/↓ reorder, Change-type picker, inline rename, nested delete confirm, Add-view button) |
-| `src/app/(protected)/dashboard/ViewTypePicker.tsx` | Shared five-kind picker (Month/Week (H)/Week (D)/Day/Agenda) used by Add view and Edit-views Change type |
-| `src/app/(protected)/dashboard/viewMeta.tsx` | Kind → icon/label map shared by the strip, the Add-view picker and Edit-views rows |
+| `src/app/(protected)/dashboard/EditViewsModal.tsx` | Manage-views dialog: card manage list (↑/↓ reorder, Change-type picker, inline rename, nested delete confirm, Add-view button) |
+| `src/app/(protected)/dashboard/ViewTypePicker.tsx` | Shared five-kind picker (Month/Week (H)/Week (D)/Day/Agenda) used by Add view and Manage-views Change type |
+| `src/app/(protected)/dashboard/viewMeta.tsx` | Kind → icon/label map shared by the strip, the Add-view picker and Manage-views rows |
 | `src/components/reorderUpDown.tsx` | Shared touch-friendly manage-row recipe: ~40px ↑/↓ chevron pair (`ReorderUpDown`) + row-action sizes |
 | `src/app/(protected)/dashboard/page.tsx` | Resolves tabs + active tab (`?view=` → remembered → first), validates per-tab filters |
 | `src/app/(protected)/dashboard/WeekMatrixView.tsx` | Week (D) matrix renderer |

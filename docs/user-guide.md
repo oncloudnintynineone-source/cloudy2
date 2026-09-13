@@ -76,8 +76,11 @@ them with the tabs above the grid:
 - **Pan**: wide grids pan horizontally — drag with the mouse, or use the round
   arrow buttons at the grid's edges (they appear when a grid is wider than the
   screen, e.g. a zoomed-in Month view).
-- **Manage views**: use the settings gear beside the tab strip to add, rename,
-  reorder, or delete your dashboard tabs (each tab keeps its own filters).
+- **Add a view**: tap the dashed **+** button at the end of the tab strip (it
+  sits just after the tabs, always in reach) to create another view of any type
+  — each keeps its own filters.
+- **Manage views**: use the **gear** beside the tab strip (tooltip "Manage
+  views") to rename, reorder, change the type of, or delete your dashboard tabs.
 - **Fullscreen** (⋮ menu → **Enter fullscreen**) hides all app
   chrome (and the browser UI where supported) for a wall-display calendar; press
   Esc or use ⋮ menu → **Exit fullscreen** to go back.

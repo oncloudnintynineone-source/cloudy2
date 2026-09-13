@@ -131,9 +131,11 @@ doc content here.
   the active tab lives in `?view=<id>` + `user_preferences.dashboardActiveViewId`. A tab
   tap is **optimistic**: it sets `previewView` in `DashboardDataContext`, so
   `DashboardScreen` paints a warm tab without waiting on the RSC round-trip that updates
-  `useSearchParams` (each tab's URL is also `router.prefetch`ed). Edit
-  views modal uses the shared manage-row recipe (`reorderUpDown.tsx`) + optimistic
-  `useReorderRows` FLIP. Month grids zoom from fit-to-width (`src/lib/ui/monthZoom.ts`,
+  `useSearchParams` (each tab's URL is also `router.prefetch`ed). A visible dashed **+**
+  pinned at the strip's right edge opens the Add-view dialog in one tap, and the trailing
+  **Manage views** gear (tooltip) opens the manage modal — the shared manage-row recipe
+  (`reorderUpDown.tsx`) + optimistic `useReorderRows` FLIP. Month grids zoom from fit-to-width
+  (`src/lib/ui/monthZoom.ts`,
   `dashboard.monthZoom`); Week (D) is a custom matrix (`buildWeekLanes`). Entry highlights:
   amber = mine, purple = external (`c2-my-*` / `c2-ext-*` in `globals.css`).
   Design: [docs/dashboard-views.md](docs/dashboard-views.md).

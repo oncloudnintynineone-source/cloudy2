@@ -260,7 +260,7 @@ in the pages/layout, and the writer hooks.
 | `src/components/AppShellShell.tsx` | `useRememberedPage`, sidebar toggle persist |
 | `src/components/UserMenu.tsx` | Sign-out → `clearUiState` |
 | `src/lib/ui/uiState.ts` / `uiStateClient.ts` | Cookie model/codec + client writers |
-| `src/app/(protected)/dashboard/DashboardView.tsx` | Tab strip (+ Edit-views trigger), `usePersistDashboardNav`, `switchTab` (+ active-tab action) |
+| `src/app/(protected)/dashboard/DashboardView.tsx` | Tab strip (+ Add-view button / Manage-views gear), `usePersistDashboardNav`, `switchTab` (+ active-tab action) |
 
 Related docs:
 

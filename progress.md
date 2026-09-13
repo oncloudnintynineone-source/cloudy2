@@ -992,6 +992,15 @@ via `?attendance=1` and `attendanceStorage` became a `useSyncExternalStore` exte
    old superset via a new `deriveLegacyTargetCalendarIds`, so copies placed under the
    previous rule are still found and removed on the next save/delete. Docs:
    `docs/event-lifecycle.md` §1.6, `docs/event-mutations.md`, `docs/event-clashes.md` §1.4
+- 1.234 View management is discoverable again: the tab strip's only entry point used to be
+   an unlabeled gear, with Add view buried two levels deep (gear → Manage-views modal → Add
+   view), so users didn't find they could create/modify tabs. A dashed **+** button is now
+   pinned just right of the scroll area (always in reach when the strip overflows) and opens
+   the Add-view dialog in one tap; the gear gains a real Mantine `Tooltip` and is relabeled
+   **Manage views** (aria-label/title + the modal title) — "edit" implied existing-only. Both
+   keep the native `title` and open on touch tap (`events.touch`); hidden for the break-glass
+   admin (`canManageViews`). Docs: `docs/dashboard-views.md` §1.1/§1.9, `docs/user-guide.md`
+   §1.3.1, `docs/immersive-mode.md` §1.4, `docs/ui-state.md`, `AGENTS.md`
 
 ## 1.4 Open items & next steps
 

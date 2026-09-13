@@ -1023,7 +1023,7 @@ export function DashboardView({
   const [createError, setCreateError] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
 
-  // "Edit views" dialog (reorder / rename / delete). The list mutations run
+  // "Manage views" dialog (reorder / rename / delete). The list mutations run
   // inside `EditViewsModal`; this disclosure just hosts it.
   const [editOpened, { open: openEdit, close: closeEdit }] = useDisclosure(false);
 
@@ -2490,11 +2490,12 @@ export function DashboardView({
         }}
       >
         {/* View tabs stay visible in fullscreen — they (plus the "All views"
-            jump list and the Edit-views gear) are the dashboard's own chrome,
-            not the shell chrome immersive mode hides. The Edit-views trigger
-            sits to the RIGHT of the strip, outside the horizontal scroll area
-            (so the scroll set ends before it); it opens the "Edit views" modal
-            (add / reorder / rename / delete — see below). */}
+            jump list, the Add-view button and the Manage-views gear) are the
+            dashboard's own chrome, not the shell chrome immersive mode hides.
+            The trailing controls sit to the RIGHT of the strip, outside the
+            horizontal scroll area (so the scroll set ends before them): the
+            dashed + opens the Add-view dialog, the gear opens the Manage-views
+            modal (add / reorder / rename / delete — see below). */}
         <Group
           align="center"
           wrap="nowrap"
@@ -2560,6 +2561,29 @@ export function DashboardView({
               </Tabs.List>
             </Tabs>
           </Box>
+          {/* Visible "Add view" affordance: a dashed + pinned just right of
+              the scroll area (always reachable even when the strip overflows)
+              so creating a view is one tap — it opens the Add-view dialog
+              directly, no trip through the Manage-views modal. */}
+          {canManageViews && (
+            <Tooltip
+              label="Add view"
+              position="bottom"
+              events={{ hover: true, focus: true, touch: true }}
+            >
+              <ActionIcon
+                variant="default"
+                size={36}
+                ml={4}
+                aria-label="Add view"
+                title="Add view"
+                onClick={openAddView}
+                style={{ flex: "0 0 auto", borderStyle: "dashed" }}
+              >
+                <IconPlus size={18} />
+              </ActionIcon>
+            </Tooltip>
+          )}
           {/* Quick "All views" jump list: with many content-sized tabs the
                 strip overflows into a long horizontal scroll, so this menu
                 lists every tab (kind icon + name, the active one ticked) for
@@ -2621,19 +2645,25 @@ export function DashboardView({
             </Menu>
           )}
           {canManageViews && (
-            <ActionIcon
-              variant="subtle"
-              color="gray"
-              size={36}
-              ml={4}
-              mr={4}
-              aria-label="Edit views"
-              title="Edit views"
-              onClick={openEdit}
-              style={{ flex: "0 0 auto" }}
+            <Tooltip
+              label="Manage views"
+              position="bottom"
+              events={{ hover: true, focus: true, touch: true }}
             >
-              <IconSettings size={18} />
-            </ActionIcon>
+              <ActionIcon
+                variant="subtle"
+                color="gray"
+                size={36}
+                ml={4}
+                mr={4}
+                aria-label="Manage views"
+                title="Manage views"
+                onClick={openEdit}
+                style={{ flex: "0 0 auto" }}
+              >
+                <IconSettings size={18} />
+              </ActionIcon>
+            </Tooltip>
           )}
         </Group>
 
@@ -3550,7 +3580,7 @@ export function DashboardView({
         originRect={filterOriginRect}
       />
 
-      {/* Edit-views dialog: house-style management modal (src/components
+      {/* Manage-views dialog: house-style management modal (src/components
           conventions — see EventTypeGroupsModal). Reorder with ↑/↓, inline
           rename with the pen, delete with the trash (nested confirm). Only
           shown when the account owns stored views (canManageViews). */}

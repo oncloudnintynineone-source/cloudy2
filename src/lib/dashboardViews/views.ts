@@ -32,7 +32,7 @@ export function isDashboardViewKind(value: unknown): value is DashboardViewKind 
 }
 
 /**
- * The display name a tab keeps when its kind is changed (Edit views → Change
+ * The display name a tab keeps when its kind is changed (Manage views → Change
  * type). The mirror of the Add-view dialog's "the default name follows the
  * chosen kind": a tab whose name still equals its old kind's default label
  * (i.e. it was never customized past the default) adopts the new kind's

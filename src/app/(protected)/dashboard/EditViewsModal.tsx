@@ -198,7 +198,7 @@ export function EditViewsModal({
     <Modal
       opened={opened}
       onClose={close}
-      title="Edit views"
+      title="Manage views"
       centered
       size={isNarrow ? "xs" : isDesktop ? "md" : "sm"}
     >

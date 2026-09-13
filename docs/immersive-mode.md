@@ -53,8 +53,9 @@ The CSS half is the `app-shell-immersive` class on the AppShell root
 - **Not persisted** in `cloudy2.ui` — it is a transient focus mode; refresh /
   navigation always starts with the chrome up.
 - **Dashboard chrome stays up**: only the shell chrome (header / bottom nav / desktop
-  sidebar / banner) is hidden — the calendar's own view tabs, "All views" jump list and
-  Edit-views gear remain visible so view switching still works in fullscreen.
+  sidebar / banner) is hidden — the calendar's own view tabs, "All views" jump list,
+  Add-view button and Manage-views gear remain visible so view switching and
+  management still work in fullscreen.
 - The announcement banner's inline height style and header contribution are omitted
   while immersive, so the CSS-default 0px applies ([`announcement-banner.md`](announcement-banner.md)).
 
