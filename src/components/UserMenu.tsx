@@ -151,9 +151,7 @@ export function UserMenu({ name, role, phone }: UserMenuProps) {
             <Menu.Item
               key={value}
               leftSection={<Icon size={16} />}
-              rightSection={
-                scheme === value ? <IconCheck size={14} aria-hidden /> : undefined
-              }
+              rightSection={scheme === value ? <IconCheck size={14} aria-hidden /> : undefined}
               aria-checked={scheme === value}
               role="menuitemradio"
               onClick={() => setColorScheme(value)}
@@ -174,10 +172,7 @@ export function UserMenu({ name, role, phone }: UserMenuProps) {
           >
             Notifications
           </Menu.Item>
-          <Menu.Item
-            leftSection={<IconLogout size={16} />}
-            onClick={() => void handleLogout()}
-          >
+          <Menu.Item leftSection={<IconLogout size={16} />} onClick={() => void handleLogout()}>
             Log out
           </Menu.Item>
         </Menu.Dropdown>

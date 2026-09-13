@@ -1,17 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import {
-  Box,
-  Button,
-  Group,
-  Paper,
-  Stack,
-  Switch,
-  Text,
-  Textarea,
-  TextInput,
-} from "@mantine/core";
+import { Box, Button, Group, Paper, Stack, Switch, Text, Textarea, TextInput } from "@mantine/core";
 import { useForm } from "@mantine/form";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
@@ -138,8 +128,8 @@ export function ParadeEmailForm({ pickerUsers, currentUserId, initial }: ParadeE
           </Stack>
 
           <Text size="sm" c="dimmed">
-            Sends on weekdays at 08:00 (Singapore time). The schedule is managed by Cloud
-            Scheduler; public holidays are not excluded.
+            Sends on weekdays at 08:00 (Singapore time). The schedule is managed by Cloud Scheduler;
+            public holidays are not excluded.
           </Text>
 
           <TextInput
@@ -194,8 +184,7 @@ export function ParadeEmailForm({ pickerUsers, currentUserId, initial }: ParadeE
             </Button>
           </Group>
           <Text size="xs" c="dimmed">
-            Test sends a [TEST] copy to your own address only — not to the configured
-            recipients.
+            Test sends a [TEST] copy to your own address only — not to the configured recipients.
           </Text>
         </Stack>
       </form>

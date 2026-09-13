@@ -65,6 +65,55 @@ html {
   }
 }
 
+/*
+  Route-change page transition (React <ViewTransition> via the per-page
+  PageTransition wrapper, docs/loading-transitions.md §1.14). The outgoing page
+  fades out quickly; the incoming page fades in while rising a few px. The class
+  names come from the wrapper's `enter`/`exit` props. Only the content region
+  animates — the persistent shell (header/sidebar/footer) is held still via the
+  root group.
+*/
+@keyframes c2-page-in {
+  from {
+    opacity: 0;
+    translate: 0 8px;
+  }
+}
+
+@keyframes c2-page-out {
+  to {
+    opacity: 0;
+  }
+}
+
+::view-transition-old(.c2-page-out) {
+  animation: c2-page-out calc(var(--c2-dur-standard) * 0.6) ease-in both;
+}
+
+::view-transition-new(.c2-page-in) {
+  animation: c2-page-in var(--c2-dur-standard) ease-out both;
+}
+
+/* Keep the persistent shell anchored during the content transition. */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation: none;
+}
+
+/* Let clicks reach the live page while the transition overlay is up. */
+::view-transition {
+  pointer-events: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-old(*),
+  ::view-transition-new(*),
+  ::view-transition-group(*) {
+    animation-duration: 0s !important;
+    animation-delay: 0s !important;
+  }
+}
+
 /* Wizard step directional slide: the new step slides in from the direction of
    travel (forward = from the right, backward = from the left). The offset
    direction is controlled by the --slide-dir custom property (1 or -1). */
@@ -764,8 +813,7 @@ html {
    still applies inside modal portals (no .app-shell-root ancestor there). */
 .mantine-Badge-root.c2-my-badge {
   background-color: var(--c2-my-row-tint);
-  box-shadow: inset 0 0 0 calc(0.125rem * var(--mantine-scale))
-    var(--mantine-color-accent-6);
+  box-shadow: inset 0 0 0 calc(0.125rem * var(--mantine-scale)) var(--mantine-color-accent-6);
 }
 
 /*
@@ -1013,8 +1061,7 @@ html {
   top: 0;
   bottom: 0;
   background: light-dark(var(--mantine-color-orange-2), rgba(255, 255, 255, 0.08));
-  border-inline: 1px dashed
-    light-dark(var(--mantine-color-orange-3), var(--mantine-color-orange-6));
+  border-inline: 1px dashed light-dark(var(--mantine-color-orange-3), var(--mantine-color-orange-6));
   border-radius: var(--mantine-radius-sm);
   pointer-events: none;
 }

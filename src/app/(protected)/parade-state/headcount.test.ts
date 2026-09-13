@@ -1,10 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import {
-  departmentHeadcount,
-  departmentSummaryRows,
-  departmentTreeHeadcount,
-} from "./headcount";
+import { departmentHeadcount, departmentSummaryRows, departmentTreeHeadcount } from "./headcount";
 
 describe("departmentHeadcount", () => {
   it("counts everyone as present when no user has events", () => {

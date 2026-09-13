@@ -251,7 +251,13 @@ export function TitleRecipeBuilder({
   const [pickerOpen, setPickerOpen] = useState(false);
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
 
-  const { displayRows, containerRef, snapshot, play, move: reorderRow } = useReorderRows({
+  const {
+    displayRows,
+    containerRef,
+    snapshot,
+    play,
+    move: reorderRow,
+  } = useReorderRows({
     rows,
     keyOf: (row) => String(row.key),
     predict: (current, id, delta) => swapAdjacent(current, (row) => String(row.key), id, delta),
@@ -382,13 +388,7 @@ export function TitleRecipeBuilder({
 
       <Stack gap={6} data-flip-container>
         {displayRows.map((row, index) => (
-          <Paper
-            key={row.key}
-            withBorder
-            radius="md"
-            p="xs"
-            data-flip-id={row.key}
-          >
+          <Paper key={row.key} withBorder radius="md" p="xs" data-flip-id={row.key}>
             <Group justify="space-between" wrap="nowrap" gap="sm">
               <Group wrap="nowrap" gap="xs" align="center" style={{ minWidth: 0, flex: 1 }}>
                 <ReorderUpDown
@@ -407,7 +407,9 @@ export function TitleRecipeBuilder({
                   {rowSummary(row)}
                 </Badge>
                 <Text size="xs" c="dimmed" truncate style={{ flexShrink: 0 }}>
-                  {index === 0 ? "first" : `${CONNECTOR_LABELS[row.connector].toLowerCase()} before`}
+                  {index === 0
+                    ? "first"
+                    : `${CONNECTOR_LABELS[row.connector].toLowerCase()} before`}
                 </Text>
               </Group>
               <Group wrap="nowrap" gap={4} style={{ flexShrink: 0 }}>
@@ -529,8 +531,7 @@ export function TitleRecipeBuilder({
         <ScrollArea.Autosize mah="min(60vh, 420px)" mx="-sm" px="sm">
           <Stack gap={6}>
             <Text size="sm" c="dimmed">
-              Pick what this template shows. A field only appears when the event has content for
-              it.
+              Pick what this template shows. A field only appears when the event has content for it.
             </Text>
             <FieldPicker
               onPick={(field) => {
@@ -563,13 +564,7 @@ export function TitleRecipeBuilder({
   );
 }
 
-function SegmentOptions({
-  row,
-  onSave,
-}: {
-  row: Row;
-  onSave: (patch: Partial<Row>) => void;
-}) {
+function SegmentOptions({ row, onSave }: { row: Row; onSave: (patch: Partial<Row>) => void }) {
   const [field, setField] = useState<TitleRecipeField>(row.field);
   const [typeStyle, setTypeStyle] = useState<TitleTypeStyle | undefined>(row.typeStyle);
   const [peopleStyle, setPeopleStyle] = useState<TitlePeopleStyle | undefined>(row.peopleStyle);
@@ -661,7 +656,10 @@ function SegmentOptions({
         Join to the next field
       </Text>
       <ChipGroup<TitleRecipeConnector>
-        options={TITLE_RECIPE_CONNECTORS.map((value) => ({ value, label: CONNECTOR_LABELS[value] }))}
+        options={TITLE_RECIPE_CONNECTORS.map((value) => ({
+          value,
+          label: CONNECTOR_LABELS[value],
+        }))}
         value={connector}
         onChange={setConnector}
       />

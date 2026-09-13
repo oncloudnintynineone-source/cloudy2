@@ -21,10 +21,7 @@ import type { EventType } from "@/db/schema";
 import { FAB_ICON_SIZE, FloatingActionButton, FloatingToolbar } from "@/components/FloatingToolbar";
 import { formatColorLabel } from "@/lib/events/eventColors";
 import { ColorDot } from "@/components/ColorSwatchPicker";
-import {
-  LOCATION_CATEGORY_LABELS,
-  normalizeAllowedLocations,
-} from "@/lib/events/locationPolicy";
+import { LOCATION_CATEGORY_LABELS, normalizeAllowedLocations } from "@/lib/events/locationPolicy";
 import {
   TIME_OPTION_LABELS,
   normalizeTimeOptions,

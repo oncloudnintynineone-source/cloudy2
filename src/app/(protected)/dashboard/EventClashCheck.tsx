@@ -189,9 +189,7 @@ export function EventClashCheck({ request }: { request: EventClashCheckRequest |
 
     return (
       <ClashCard
-        heading={`Double booking: ${affectedCount} ${
-          affectedCount === 1 ? "person" : "people"
-        }`}
+        heading={`Double booking: ${affectedCount} ${affectedCount === 1 ? "person" : "people"}`}
         visual={visual}
       >
         {result.clashes.map((entry) => (
@@ -200,10 +198,7 @@ export function EventClashCheck({ request }: { request: EventClashCheckRequest |
             entry={entry}
             typeFirst
             chips={
-              <ClashAffectedChips
-                affected={entry.affected}
-                currentUserId={result.currentUserId}
-              />
+              <ClashAffectedChips affected={entry.affected} currentUserId={result.currentUserId} />
             }
           />
         ))}

@@ -1,3 +1,4 @@
+import { PageTransition } from "@/components/PageTransition";
 import { listCalendars } from "@/lib/events/queries";
 import { listKahGroupsWithMembers } from "@/lib/kah/queries";
 import { listUsers } from "@/lib/roster/queries";
@@ -33,12 +34,14 @@ export default async function KahGroupsPage() {
     }));
 
   return (
-    <KahGroupTable
-      groups={groups}
-      pickerUsers={pickerUsers}
-      defaultPercentage={settings.kahDefaultPercentage}
-      kahEmailSubjectTemplate={settings.kahEmailSubjectTemplate}
-      kahEmailBodyTemplate={settings.kahEmailBodyTemplate}
-    />
+    <PageTransition>
+      <KahGroupTable
+        groups={groups}
+        pickerUsers={pickerUsers}
+        defaultPercentage={settings.kahDefaultPercentage}
+        kahEmailSubjectTemplate={settings.kahEmailSubjectTemplate}
+        kahEmailBodyTemplate={settings.kahEmailBodyTemplate}
+      />
+    </PageTransition>
   );
 }

@@ -1,4 +1,5 @@
 import { PageContainer } from "@/components/PageContainer";
+import { PageTransition } from "@/components/PageTransition";
 import { listCalendars } from "@/lib/events/queries";
 import { listUsers } from "@/lib/roster/queries";
 import { requireSession } from "@/lib/session";
@@ -38,8 +39,10 @@ export default async function DoubleBookingPage() {
     : [];
 
   return (
-    <PageContainer>
-      <DoubleBookingView currentUserId={session.user.id} isAdmin={isAdmin} users={users} />
-    </PageContainer>
+    <PageTransition>
+      <PageContainer>
+        <DoubleBookingView currentUserId={session.user.id} isAdmin={isAdmin} users={users} />
+      </PageContainer>
+    </PageTransition>
   );
 }

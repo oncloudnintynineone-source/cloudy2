@@ -81,11 +81,7 @@ function inputFromParams(params: URLSearchParams) {
  * than `WARM_SNAPSHOT_FRESH_MS`. A mutation clears the cache and re-reads. A
  * failed revalidation keeps the cached render (offline reads keep working).
  */
-export function DashboardScreen({
-  userId,
-  initialZoom,
-  initialMonthZoom,
-}: DashboardScreenProps) {
+export function DashboardScreen({ userId, initialZoom, initialMonthZoom }: DashboardScreenProps) {
   const searchParams = useSearchParams();
   // The latest URL params, read by the fetch without re-triggering it on
   // one-shot param changes (edit/event/refresh are not data-bearing). Synced in
@@ -420,8 +416,7 @@ export function DashboardScreen({
       // warm cache; no read needed. Deep links bypass this so the target event
       // resolves against fresh data.
       const deepLinkParam =
-        isUuid(paramsRef.current.get("edit") ?? "") ||
-        isUuid(paramsRef.current.get("event") ?? "");
+        isUuid(paramsRef.current.get("edit") ?? "") || isUuid(paramsRef.current.get("event") ?? "");
       const cached = warmRecordsRef.current.get(candidate);
       if (!deepLinkParam && cached && isWarmSnapshotFresh(cached.savedAt, Date.now())) {
         return;
@@ -468,9 +463,7 @@ export function DashboardScreen({
     if (tabs.length <= 1) return;
     const months = [
       ...new Set(
-        tabs.flatMap((tab) =>
-          requiredMonths(tab.kind, record.context.month, record.context.date),
-        ),
+        tabs.flatMap((tab) => requiredMonths(tab.kind, record.context.month, record.context.date)),
       ),
     ].sort();
     const signature = `${tabs.map((tab) => tab.id).join(",")}|${months.join(",")}`;

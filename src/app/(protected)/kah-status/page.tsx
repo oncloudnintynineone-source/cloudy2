@@ -1,4 +1,5 @@
 import { PageContainer } from "@/components/PageContainer";
+import { PageTransition } from "@/components/PageTransition";
 import {
   addOneDay,
   daysBetween,
@@ -56,9 +57,7 @@ export default async function KahStatusPage() {
 
   const episodeRows = episodes.map((episode) => ({
     ...episode,
-    awayNames: episode.awayIds
-      .map((id) => names.get(id))
-      .filter((name): name is string => !!name),
+    awayNames: episode.awayIds.map((id) => names.get(id)).filter((name): name is string => !!name),
   }));
 
   // Groups without any breached day in the window are explicitly "all clear".
@@ -68,14 +67,16 @@ export default async function KahStatusPage() {
     .map((group) => group.name);
 
   return (
-    <PageContainer>
-      <KahStatusView
-        windowStart={windowStart}
-        windowEnd={windowEnd}
-        allGroups={isAdmin}
-        episodes={episodeRows}
-        allClearGroups={allClearGroups}
-      />
-    </PageContainer>
+    <PageTransition>
+      <PageContainer>
+        <KahStatusView
+          windowStart={windowStart}
+          windowEnd={windowEnd}
+          allGroups={isAdmin}
+          episodes={episodeRows}
+          allClearGroups={allClearGroups}
+        />
+      </PageContainer>
+    </PageTransition>
   );
 }

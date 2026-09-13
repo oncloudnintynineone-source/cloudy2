@@ -633,7 +633,12 @@ function DepartmentDetailBody({
 
         <Group justify="flex-end" mt="md" wrap="nowrap">
           {isEdit && calendar && (
-            <Button type="button" variant="light" color="red" onClick={() => onRequestDelete(calendar)}>
+            <Button
+              type="button"
+              variant="light"
+              color="red"
+              onClick={() => onRequestDelete(calendar)}
+            >
               Delete department
             </Button>
           )}

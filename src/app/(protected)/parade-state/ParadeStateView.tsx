@@ -58,11 +58,7 @@ import { useMinSkeletonHold } from "@/lib/loading/minHoldLoading";
 import { type Rect } from "@/lib/motion/origin";
 import { MOTION } from "@/lib/motion/timing";
 import { departmentPathLabels, departmentTreeRows } from "@/lib/roster/hierarchy";
-import {
-  buildEventsByUser,
-  eventCoversDay,
-  toParadeEvent,
-} from "@/lib/parade/dayEvents";
+import { buildEventsByUser, eventCoversDay, toParadeEvent } from "@/lib/parade/dayEvents";
 import { buildParadeSections, type ParadeSection } from "@/lib/parade/sections";
 import { formatFullName } from "@/lib/settings/formatName";
 import { activatable } from "@/lib/ui/activatable";
@@ -515,9 +511,7 @@ export function ParadeStateView({
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
-                  border: checked
-                    ? "none"
-                    : "1.5px solid var(--mantine-color-gray-5)",
+                  border: checked ? "none" : "1.5px solid var(--mantine-color-gray-5)",
                   background: checked ? "var(--mantine-color-teal-6)" : "transparent",
                 }}
               >
@@ -575,8 +569,7 @@ export function ParadeStateView({
     return (
       <Box key={section.id ?? "__unassigned__"} style={{ marginLeft: depth * 16 }}>
         <Text fw={700} size="sm" c="dimmed" mb="xs" tt="uppercase" lh={1}>
-          {section.name} — {presentCount}/{headcount.total}{" "}
-          {attendanceMode ? "present" : "in camp"}
+          {section.name} — {presentCount}/{headcount.total} {attendanceMode ? "present" : "in camp"}
         </Text>
         {section.users.length > 0 && (
           // Single column on mobile; auto-filling card grid at lg
@@ -874,7 +867,11 @@ export function ParadeStateView({
           color={attendanceMode ? "teal" : undefined}
           onClick={attendanceMode ? exitAttendance : enterAttendance}
         >
-          {attendanceMode ? <IconCheck size={FAB_ICON_SIZE} /> : <IconClipboardCheck size={FAB_ICON_SIZE} />}
+          {attendanceMode ? (
+            <IconCheck size={FAB_ICON_SIZE} />
+          ) : (
+            <IconClipboardCheck size={FAB_ICON_SIZE} />
+          )}
         </FloatingActionButton>
       </FloatingToolbar>
 

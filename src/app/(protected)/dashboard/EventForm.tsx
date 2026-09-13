@@ -23,7 +23,12 @@ import { DatePickerInput, TimePicker } from "@mantine/dates";
 import { useMediaQuery } from "@mantine/hooks";
 import { useForm } from "@mantine/form";
 import { notifications } from "@mantine/notifications";
-import { IconChevronLeft, IconChevronRight, IconUserMinus, IconUserPlus } from "@tabler/icons-react";
+import {
+  IconChevronLeft,
+  IconChevronRight,
+  IconUserMinus,
+  IconUserPlus,
+} from "@tabler/icons-react";
 
 import { PickerField, type PickerBadgeItem } from "@/components/PickerField";
 import { useActionPill } from "@/components/ActionPill";
@@ -303,7 +308,9 @@ export function EventForm({
       // and drops the specific location; otherwise clamp the stored flags
       // against the type's current allowed locations in case the matrix
       // tightened since last edited.
-      const locationAllowed = selectedType ? normalizeAllowedLocations(selectedType.allowedLocations) : null;
+      const locationAllowed = selectedType
+        ? normalizeAllowedLocations(selectedType.allowedLocations)
+        : null;
       const hideLocation = selectedType?.showLocation === false;
       const clamped =
         hideLocation && locationAllowed && locationAllowed.length === 1
@@ -1262,10 +1269,7 @@ export function EventForm({
             node: reviewDef(
               "Location",
               <Group gap={6} wrap="wrap">
-                <Badge
-                  variant="light"
-                  color={effectiveOutOfCamp.outOfCamp ? "yellow" : "green"}
-                >
+                <Badge variant="light" color={effectiveOutOfCamp.outOfCamp ? "yellow" : "green"}>
                   {effectiveOutOfCamp.outOfCamp ? "Out of Camp" : "In Camp"}
                 </Badge>
                 {effectiveOutOfCamp.overseas && (

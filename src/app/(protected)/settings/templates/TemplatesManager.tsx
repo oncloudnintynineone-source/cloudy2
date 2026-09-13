@@ -198,9 +198,14 @@ export function TemplatesManager({
 
   const [masterOpened, { open: openMaster, close: closeMaster }] = useDisclosure(false);
   const [editOpened, { open: openEdit, close: closeEdit }] = useDisclosure(false);
-  const [editing, setEditing] = useState<{ id?: string; label: string; recipe: TitleRecipe } | null>(null);
+  const [editing, setEditing] = useState<{
+    id?: string;
+    label: string;
+    recipe: TitleRecipe;
+  } | null>(null);
   const [creating, setCreating] = useState(false);
-  const [assignmentsOpened, { open: openAssignments, close: closeAssignments }] = useDisclosure(false);
+  const [assignmentsOpened, { open: openAssignments, close: closeAssignments }] =
+    useDisclosure(false);
   const [nameOpened, { open: openName, close: closeName }] = useDisclosure(false);
   const [deleting, setDeleting] = useState<{ id: string; label: string } | null>(null);
   const [deleteBusy, setDeleteBusy] = useState(false);
@@ -213,7 +218,9 @@ export function TemplatesManager({
   }));
   const sampleDepartments = [
     ...new Set(
-      sampleUsers.map((user) => user.departmentName).filter((name): name is string => Boolean(name)),
+      sampleUsers
+        .map((user) => user.departmentName)
+        .filter((name): name is string => Boolean(name)),
     ),
   ].slice(0, 2);
   const sampleType = previewEventTypes[0] ?? { name: "Training", shortname: "TRN" };
@@ -290,9 +297,9 @@ export function TemplatesManager({
             <Stack gap={2} style={{ flex: 1, minWidth: 0 }}>
               <Text fw={600}>Templates</Text>
               <Text size="sm" c="dimmed">
-                How events are titled (Google + every view) and the push copy users get. A
-                field — including a Text sentence — shows only when it has content, so there&apos;s
-                never stray punctuation.
+                How events are titled (Google + every view) and the push copy users get. A field —
+                including a Text sentence — shows only when it has content, so there&apos;s never
+                stray punctuation.
               </Text>
             </Stack>
             <Group gap="xs" wrap="nowrap">
@@ -370,7 +377,10 @@ export function TemplatesManager({
             <Text size="sm" style={{ overflowWrap: "anywhere" }}>
               {sampleUsers
                 .map((user) =>
-                  formatFullName({ name: user.name, departmentName: user.departmentName }, nameTemplate),
+                  formatFullName(
+                    { name: user.name, departmentName: user.departmentName },
+                    nameTemplate,
+                  ),
                 )
                 .join(" · ") || "—"}
             </Text>
@@ -389,7 +399,13 @@ export function TemplatesManager({
       </Paper>
 
       {/* Master */}
-      <Modal opened={masterOpened} onClose={closeMaster} title="Master event title" centered size={isDesktop ? "md" : "sm"}>
+      <Modal
+        opened={masterOpened}
+        onClose={closeMaster}
+        title="Master event title"
+        centered
+        size={isDesktop ? "md" : "sm"}
+      >
         <TitleRecipeBuilder
           mode="master"
           recipe={eventTitleRecipe}
@@ -442,14 +458,25 @@ export function TemplatesManager({
       />
 
       {/* Delete confirm */}
-      <Modal opened={deleting !== null} onClose={() => setDeleting(null)} title="Delete template" centered size="sm">
+      <Modal
+        opened={deleting !== null}
+        onClose={() => setDeleting(null)}
+        title="Delete template"
+        centered
+        size="sm"
+      >
         <Stack>
           <Text>Delete &ldquo;{deleting?.label}&rdquo;? Events already saved are untouched.</Text>
           <Group justify="flex-end">
             <Button variant="default" onClick={() => setDeleting(null)}>
               Cancel
             </Button>
-            <Button color="red" loading={deleteBusy} loaderProps={BUTTON_LOADER_PROPS} onClick={confirmDelete}>
+            <Button
+              color="red"
+              loading={deleteBusy}
+              loaderProps={BUTTON_LOADER_PROPS}
+              onClick={confirmDelete}
+            >
               Delete
             </Button>
           </Group>
@@ -479,7 +506,9 @@ function AssignmentsDialog({
   onSaved: () => void;
 }) {
   const [values, setValues] = useState<Record<string, string>>(() =>
-    Object.fromEntries(EVENT_TITLE_ASSIGNMENT_TARGETS.map((target) => [target, assignments[target] ?? ""])),
+    Object.fromEntries(
+      EVENT_TITLE_ASSIGNMENT_TARGETS.map((target) => [target, assignments[target] ?? ""]),
+    ),
   );
   const [busy, setBusy] = useState(false);
   const templateOptions = [
@@ -502,7 +531,9 @@ function AssignmentsDialog({
       for (const target of EVENT_TITLE_ASSIGNMENT_TARGETS) {
         cleaned[target] = values[target] || null;
       }
-      const result = await updateEventTitleTemplateAssignments(cleaned as Record<string, string | null>);
+      const result = await updateEventTitleTemplateAssignments(
+        cleaned as Record<string, string | null>,
+      );
       if (result.ok) {
         notifications.show({ color: "green", message: "Assignments updated" });
         onSaved();
@@ -515,12 +546,17 @@ function AssignmentsDialog({
   };
 
   return (
-    <Modal opened={opened} onClose={onClose} title="Assign templates to targets" centered size={isDesktop ? "md" : "sm"}>
+    <Modal
+      opened={opened}
+      onClose={onClose}
+      title="Assign templates to targets"
+      centered
+      size={isDesktop ? "md" : "sm"}
+    >
       <Stack>
         <Text size="sm" c="dimmed">
           Each calendar view, the pinned ticker, and the Double Booking report use the assigned
-          template, or Master when empty. Notifications fall back to their built-in copy when
-          empty.
+          template, or Master when empty. Notifications fall back to their built-in copy when empty.
         </Text>
         <ScrollArea.Autosize mah="min(60vh, 420px)" mx="-sm" px="sm">
           <Stack gap="sm">
@@ -534,7 +570,9 @@ function AssignmentsDialog({
                     label={EVENT_TITLE_TARGET_LABELS[target]}
                     data={templateOptions}
                     value={id}
-                    onChange={(value) => setValues((current) => ({ ...current, [target]: value ?? "" }))}
+                    onChange={(value) =>
+                      setValues((current) => ({ ...current, [target]: value ?? "" }))
+                    }
                     placeholder={placeholder}
                     searchable={false}
                     allowDeselect
@@ -639,7 +677,13 @@ function NameTemplateDialog({
             Insert:
           </Text>
           {NAME_TEMPLATE_PLACEHOLDERS.map((token) => (
-            <Button key={token} type="button" size="compact-xs" variant="default" onClick={() => insert(token)}>
+            <Button
+              key={token}
+              type="button"
+              size="compact-xs"
+              variant="default"
+              onClick={() => insert(token)}
+            >
               {token}
             </Button>
           ))}
@@ -650,7 +694,9 @@ function NameTemplateDialog({
           </Text>
           {previewUsers.map((user) => (
             <Text key={user.name} size="sm" c="dimmed">
-              {user.name} → {formatFullName({ name: user.name, departmentName: user.departmentName }, draft) || "—"}
+              {user.name} →{" "}
+              {formatFullName({ name: user.name, departmentName: user.departmentName }, draft) ||
+                "—"}
             </Text>
           ))}
         </Stack>

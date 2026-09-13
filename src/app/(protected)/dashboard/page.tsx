@@ -1,6 +1,7 @@
 import { Suspense } from "react";
 import { cookies } from "next/headers";
 
+import { PageTransition } from "@/components/PageTransition";
 import { clampMonthZoom } from "@/lib/ui/monthZoom";
 import { clampZoom } from "@/lib/ui/slotZoom";
 import { UI_STATE_COOKIE, decodeUiState } from "@/lib/ui/uiState";
@@ -25,12 +26,14 @@ export default async function DashboardPage() {
   const initialMonthZoom = clampMonthZoom(nav?.monthZoom) ?? 1;
 
   return (
-    <Suspense fallback={<DashboardLoading />}>
-      <DashboardScreen
-        userId={session.user.id}
-        initialZoom={initialZoom}
-        initialMonthZoom={initialMonthZoom}
-      />
-    </Suspense>
+    <PageTransition>
+      <Suspense fallback={<DashboardLoading />}>
+        <DashboardScreen
+          userId={session.user.id}
+          initialZoom={initialZoom}
+          initialMonthZoom={initialMonthZoom}
+        />
+      </Suspense>
+    </PageTransition>
   );
 }

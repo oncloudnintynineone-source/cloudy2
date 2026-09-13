@@ -1,3 +1,4 @@
+import { PageTransition } from "@/components/PageTransition";
 import { listEventTypes } from "@/lib/eventTypes/queries";
 import { listUsers } from "@/lib/roster/queries";
 import { getSettings, listEventTitleTemplates } from "@/lib/settings/queries";
@@ -16,16 +17,18 @@ export default async function TemplatesPage() {
     departmentName: user.department?.name ?? null,
   }));
   return (
-    <TemplatesManager
-      nameTemplate={settings.nameTemplate}
-      eventTitleRecipe={settings.eventTitleRecipe}
-      templates={templates.map((t) => ({ id: t.id, label: t.label, recipe: t.recipe }))}
-      assignments={settings.eventTitleTemplateAssignments as Record<string, string>}
-      previewUsers={previewUsers}
-      previewEventTypes={eventTypes.map((type) => ({
-        name: type.name,
-        shortname: type.shortname,
-      }))}
-    />
+    <PageTransition>
+      <TemplatesManager
+        nameTemplate={settings.nameTemplate}
+        eventTitleRecipe={settings.eventTitleRecipe}
+        templates={templates.map((t) => ({ id: t.id, label: t.label, recipe: t.recipe }))}
+        assignments={settings.eventTitleTemplateAssignments as Record<string, string>}
+        previewUsers={previewUsers}
+        previewEventTypes={eventTypes.map((type) => ({
+          name: type.name,
+          shortname: type.shortname,
+        }))}
+      />
+    </PageTransition>
   );
 }

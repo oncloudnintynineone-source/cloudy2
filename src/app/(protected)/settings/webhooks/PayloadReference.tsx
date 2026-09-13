@@ -59,11 +59,7 @@ const FIELDS = [
     "Rendered calendar title; raw text typed in the form",
   ],
   ["event.type", "string | null", "Event type name"],
-  [
-    "event.time",
-    "string",
-    'Pre-formatted UTC+8 range, e.g. "2026-08-21 (AM) – 2026-08-23 (PM)"',
-  ],
+  ["event.time", "string", 'Pre-formatted UTC+8 range, e.g. "2026-08-21 (AM) – 2026-08-23 (PM)"'],
   [
     "event.timeOption / start / end / startAmPm / endAmPm",
     "see example",
@@ -73,7 +69,11 @@ const FIELDS = [
   ["event.overseas", "boolean", "Out-of-country flag (only set when out of camp)"],
   ["event.location", "string | null", "Out-of-camp destination; null in camp"],
   ["event.departments", "string[]", "Department names the event lives in"],
-  ["event.invitees", "string[]", "Participants by display name (includes the organizer when they tagged themselves)"],
+  [
+    "event.invitees",
+    "string[]",
+    "Participants by display name (includes the organizer when they tagged themselves)",
+  ],
   ["event.creator", "string | null", "Event owner's display name"],
   ["changes", "{field: [before, after]}?", "Present on updates only — what changed"],
 ] as const;
@@ -121,10 +121,9 @@ export function PayloadReference() {
         <Accordion.Panel>
           <Stack gap="md">
             <Text size="sm">
-              Every enabled endpoint receives a signed <Code>POST</Code>{" "}
-              (<Code>application/json</Code>) for each successful event create, update, and
-              delete. The examples below are generated from the same code path as real
-              deliveries.
+              Every enabled endpoint receives a signed <Code>POST</Code> (
+              <Code>application/json</Code>) for each successful event create, update, and delete.
+              The examples below are generated from the same code path as real deliveries.
             </Text>
             <Table withTableBorder fz="sm">
               <Table.Thead>
@@ -184,8 +183,8 @@ export function PayloadReference() {
               </Table.Tbody>
             </Table>
             <Text size="sm">
-              When a signing secret is configured, verify each delivery by recomputing the
-              HMAC over the raw request body prefixed with the timestamp and comparing:
+              When a signing secret is configured, verify each delivery by recomputing the HMAC over
+              the raw request body prefixed with the timestamp and comparing:
             </Text>
             <Code block fz="xs">
               {`import { createHmac, timingSafeEqual } from "node:crypto";

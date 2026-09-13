@@ -166,8 +166,7 @@ export function QuickLinkForm({ link, onDone }: QuickLinkFormProps) {
         >
           <Stack>
             <Text>
-              Delete &quot;{link?.label}&quot;? It will no longer appear in the quick-links
-              menu.
+              Delete &quot;{link?.label}&quot;? It will no longer appear in the quick-links menu.
             </Text>
             <Group justify="flex-end" mt="md">
               <Button variant="default" onClick={closeConfirm}>

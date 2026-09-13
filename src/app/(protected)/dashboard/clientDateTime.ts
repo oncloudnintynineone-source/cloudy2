@@ -30,9 +30,7 @@ export function formatDateTime(naive: string, allDay: boolean): string {
 export function formatWeekLabel(weekStart: string, weekEnd: string): string {
   const start = dayjs(weekStart);
   const end = dayjs(weekEnd);
-  const startPart = start.isSame(end, "year")
-    ? start.format("MMM D")
-    : start.format("MMM D, YYYY");
+  const startPart = start.isSame(end, "year") ? start.format("MMM D") : start.format("MMM D, YYYY");
   const endPart =
     start.isSame(end, "year") && start.isSame(end, "month")
       ? end.format("D, YYYY")

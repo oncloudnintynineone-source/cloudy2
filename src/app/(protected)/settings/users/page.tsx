@@ -1,3 +1,4 @@
+import { PageTransition } from "@/components/PageTransition";
 import {
   listDepartments,
   listUserAccess,
@@ -27,16 +28,18 @@ export default async function UsersPage() {
   }
 
   return (
-    <UserTable
-      users={users}
-      departments={departments.map((d) => ({
-        id: d.id,
-        name: d.name,
-        sortOrder: d.sortOrder,
-        parentId: d.parentId,
-      }))}
-      accessByUser={accessByUser}
-      nameTemplate={settings.nameTemplate}
-    />
+    <PageTransition>
+      <UserTable
+        users={users}
+        departments={departments.map((d) => ({
+          id: d.id,
+          name: d.name,
+          sortOrder: d.sortOrder,
+          parentId: d.parentId,
+        }))}
+        accessByUser={accessByUser}
+        nameTemplate={settings.nameTemplate}
+      />
+    </PageTransition>
   );
 }

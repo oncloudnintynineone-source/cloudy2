@@ -135,7 +135,13 @@ export function WebhookForm({ webhook, onDone }: WebhookFormProps) {
           </Button>
         </Group>
 
-        <Modal opened={confirmOpened} onClose={closeConfirm} title="Delete webhook endpoint" centered size="sm">
+        <Modal
+          opened={confirmOpened}
+          onClose={closeConfirm}
+          title="Delete webhook endpoint"
+          centered
+          size="sm"
+        >
           <Stack>
             <Text>
               Delete &quot;{webhook?.name}&quot;? External systems using this endpoint will stop

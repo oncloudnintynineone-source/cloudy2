@@ -1,3 +1,4 @@
+import { PageTransition } from "@/components/PageTransition";
 import { listCalendars } from "@/lib/events/queries";
 import { listUsers } from "@/lib/roster/queries";
 import {
@@ -77,16 +78,18 @@ export default async function AuditLogPage({ searchParams }: AuditLogPageProps) 
   );
 
   return (
-    <AuditLogView
-      initialRows={logPage.rows}
-      page={page}
-      pageCount={pageCount}
-      total={total}
-      filters={filters}
-      actors={actorNames}
-      actorDepartments={actorDepartments}
-      entityTypes={entityTypes}
-      retentionDays={settings.auditLogRetentionDays}
-    />
+    <PageTransition>
+      <AuditLogView
+        initialRows={logPage.rows}
+        page={page}
+        pageCount={pageCount}
+        total={total}
+        filters={filters}
+        actors={actorNames}
+        actorDepartments={actorDepartments}
+        entityTypes={entityTypes}
+        retentionDays={settings.auditLogRetentionDays}
+      />
+    </PageTransition>
   );
 }

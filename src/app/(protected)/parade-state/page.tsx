@@ -1,4 +1,5 @@
 import { PageContainer } from "@/components/PageContainer";
+import { PageTransition } from "@/components/PageTransition";
 import { formatInstantToNaive } from "@/lib/events/datetime";
 import { fetchMonthEvents, listCalendars } from "@/lib/events/queries";
 import { filterUserOptionIds } from "@/lib/filters/filterUserOptions";
@@ -50,9 +51,7 @@ export default async function ParadeStatePage({ searchParams }: ParadeStatePageP
   // Calendars filter (an empty remembered list = all departments).
   const rememberedCal = prefs?.paradeCal ?? [];
   const selectedCalendars =
-    rememberedCal.length > 0
-      ? rememberedCal.filter((id) => calendarIds.includes(id))
-      : calendarIds;
+    rememberedCal.length > 0 ? rememberedCal.filter((id) => calendarIds.includes(id)) : calendarIds;
 
   const allUserIds = allUsers.map((user) => user.id);
   const selectedUsers = (prefs?.paradeUsers ?? []).filter((id) => allUserIds.includes(id));
@@ -93,36 +92,38 @@ export default async function ParadeStatePage({ searchParams }: ParadeStatePageP
     }));
 
   return (
-    <PageContainer>
-      <ParadeStateView
-        date={dateParam}
-        month={month}
-        users={visibleUsers.map((user) => ({
-          id: user.id,
-          name: user.name,
-          shortname: user.shortname,
-          department: user.department
-            ? {
-                id: user.department.id,
-                name: user.department.name,
-                sortOrder: user.department.sortOrder,
-              }
-            : null,
-        }))}
-        events={events}
-        calendars={calendars.map((calendar) => ({
-          id: calendar.id,
-          name: calendar.name,
-          sortOrder: calendar.sortOrder,
-          parentId: calendar.parentId,
-        }))}
-        currentUser={session.user.id}
-        selectedCalendarIds={selectedCalendars}
-        selectedUserIds={selectedUsers}
-        filterUsers={filterUsers}
-        nameTemplate={settings.nameTemplate}
-        isAdmin={session.user.role === "admin"}
-      />
-    </PageContainer>
+    <PageTransition>
+      <PageContainer>
+        <ParadeStateView
+          date={dateParam}
+          month={month}
+          users={visibleUsers.map((user) => ({
+            id: user.id,
+            name: user.name,
+            shortname: user.shortname,
+            department: user.department
+              ? {
+                  id: user.department.id,
+                  name: user.department.name,
+                  sortOrder: user.department.sortOrder,
+                }
+              : null,
+          }))}
+          events={events}
+          calendars={calendars.map((calendar) => ({
+            id: calendar.id,
+            name: calendar.name,
+            sortOrder: calendar.sortOrder,
+            parentId: calendar.parentId,
+          }))}
+          currentUser={session.user.id}
+          selectedCalendarIds={selectedCalendars}
+          selectedUserIds={selectedUsers}
+          filterUsers={filterUsers}
+          nameTemplate={settings.nameTemplate}
+          isAdmin={session.user.role === "admin"}
+        />
+      </PageContainer>
+    </PageTransition>
   );
 }

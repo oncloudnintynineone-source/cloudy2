@@ -130,7 +130,10 @@ export function WeekMatrixView({
     }
   }, []);
 
-  const laneMap = useMemo(() => buildWeekLanes(events, days, memberships), [events, days, memberships]);
+  const laneMap = useMemo(
+    () => buildWeekLanes(events, days, memberships),
+    [events, days, memberships],
+  );
 
   // One block per department group (the group label spans the group's rows);
   // resources not covered by any group still get rows (defensive).
@@ -392,9 +395,7 @@ function MatrixRow({
           borderBottom: rowBorder,
           // Inline (so it wins over the row's CSS background); the accent-6
           // inset bar for the mine row comes from the shared :has() rule.
-          background: isMineRow
-            ? "var(--c2-my-label-tint)"
-            : "var(--mantine-color-body)",
+          background: isMineRow ? "var(--c2-my-label-tint)" : "var(--mantine-color-body)",
           overflow: "hidden",
         }}
       >
@@ -431,7 +432,11 @@ function MatrixRow({
                 // --c2-my-row-tint is uniform across the week (it wins over
                 // the today tint so the row reads as one block) and switches
                 // to the darker olive in dark mode.
-                background: isMineRow ? "var(--c2-my-row-tint)" : isToday ? todayTint : "transparent",
+                background: isMineRow
+                  ? "var(--c2-my-row-tint)"
+                  : isToday
+                    ? todayTint
+                    : "transparent",
               }}
             />
           );
@@ -469,9 +474,7 @@ function MatrixRow({
                   // External events carry the purple ring (self-outline: the
                   // banner box is the chip itself, unlike the ScheduleEvent
                   // roots where the ring targets the inner child).
-                  className={
-                    span.event.payload.external === true ? "c2-ext-ring" : undefined
-                  }
+                  className={span.event.payload.external === true ? "c2-ext-ring" : undefined}
                   style={{
                     display: "flex",
                     alignItems: "center",

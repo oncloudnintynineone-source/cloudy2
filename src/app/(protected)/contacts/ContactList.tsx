@@ -107,7 +107,10 @@ export function ContactList({ users, nameTemplate, isAdmin = false }: ContactLis
     // fab-page-pad replaces pb="xl": reserves clearance for the mobile
     // export FAB below the last contact card, restores plain xl at lg.
     <Stack className={`${CONTENT_ENTER_CLASS} fab-page-pad`}>
-      <PageHeader title="Contacts" subtitle="Roster directory — call, copy, or export contact details." />
+      <PageHeader
+        title="Contacts"
+        subtitle="Roster directory — call, copy, or export contact details."
+      />
       <Paper withBorder p="sm">
         <Group justify="space-between" wrap="nowrap" gap="sm">
           <TextInput
@@ -146,10 +149,7 @@ export function ContactList({ users, nameTemplate, isAdmin = false }: ContactLis
             actionHref="/settings/users"
           />
         ) : (
-          <EmptyState
-            icon={<IconUsers size={18} />}
-            description="No contacts found."
-          />
+          <EmptyState icon={<IconUsers size={18} />} description="No contacts found." />
         )
       ) : (
         <Box component="div" className="card-grid">

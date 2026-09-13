@@ -28,7 +28,8 @@ where it is wired.
 - [1.13 Global activity bar](#113-global-activity-bar)
 - [1.13.1 Cold-start readiness](#1131-cold-start-readiness)
 - [1.13.2 Per-view tab load indicator](#1132-per-view-tab-load-indicator)
-- [1.14 File index & related docs](#114-file-index--related-docs)
+- [1.14 Route-change page transition](#114-route-change-page-transition)
+- [1.15 File index & related docs](#115-file-index--related-docs)
 
 ## 1.1 Problem
 
@@ -674,14 +675,59 @@ context is in flight (`busy`) — a cold navigation, a post-mutation refresh, or
 filter apply (`revalidate({ report: false })`, treated as a view load). The pulse
 is deliberately strong so it reads at a glance.
 
-## 1.14 File index & related docs
+## 1.14 Route-change page transition
+
+Switching routes (Calendar ⇄ Parade State, settings tabs, …) plays a short
+**fade + rise** on the content region. It uses React's `<ViewTransition>`
+(React canary, bundled by Next 16 — no config flag, no extra dependency) and the
+browser's View Transitions API. The persistent shell (header, sidebar, footer,
+activity bar) does **not** move; only the page content does.
+
+**Where the wrapper lives.** `PageTransition`
+(`src/components/PageTransition.tsx`) wraps each `page.tsx`'s returned content:
+
+```tsx
+<ViewTransition enter="c2-page-in" exit="c2-page-out" default="none">
+  {children}
+</ViewTransition>
+```
+
+It must sit in the **page**, not a layout: layouts persist across navigations,
+so their enter/exit never fire. A page mount = enter, a page unmount = exit, and
+a route navigation is a React Transition, so the animations activate
+automatically. Every protected page renders through `PageTransition`; the
+`/settings` redirect page is the only exception.
+
+**Search-param-only navigations do not animate.** The dashboard's `?date=`,
+`?view=`, `?event=` and the parade page's `?date=` change search params without
+changing the pathname, so the page does not remount and no transition runs —
+in-place updates (and their own `content-enter` reveal, §1.6) are untouched.
+
+**CSS.** The `enter`/`exit` classes map to `::view-transition-old`/`-new` rules
+in `globals.css`: the outgoing page fades out over 60% of `--c2-dur-standard`
+and the incoming page fades in over the full token while rising 8px. The root
+group is held still (`animation: none`) so the shell never crossfades, and the
+overlay is `pointer-events: none` so the live page stays interactive. Reduced
+motion disables all view-transition animation.
+
+**Interaction with `content-enter`.** Both can fire when a route lands with a
+cold `loading.tsx` skeleton (the page transition animates the navigation;
+`content-enter` animates the skeleton→content reveal). Both are short opacity
+fades, so the overlap reads as one gentle reveal.
+
+**Browser support.** Chromium 125+ and recent Safari/Firefox. Without support
+the navigation simply happens with no animation — the app is unaffected.
+
+## 1.15 File index & related docs
 
 | File | Role |
 | ---- | ---- |
 | `src/lib/loading/minHoldLoading.ts` | `useMinSkeletonHold` + `MIN_SKELETON_HOLD_MS` |
 | `src/lib/loading/contentEnter.ts` | `CONTENT_ENTER_CLASS` + `useContentEnter` |
 | `src/components/LoadingStatus.tsx` | Sr-only `role="status"` announcement included with every skeleton block (§1.4, [`accessibility.md`](accessibility.md) §1.3) |
-| `src/app/globals.css` | `content-enter` / `agenda-slide-*` keyframes, reduced-motion guard |
+| `src/app/globals.css` | `content-enter` / `agenda-slide-*` / `c2-page-in`/`c2-page-out` keyframes, `::view-transition-*` page rules, reduced-motion guard |
+| `src/components/PageTransition.tsx` | Per-page `<ViewTransition>` wrapper (fade + rise on route change) — §1.14 |
+| `src/app/(protected)/**/page.tsx` | Each protected page renders its content through `PageTransition` (§1.14) |
 | `src/app/(protected)/*/loading.tsx` | Route-level skeletons (16 segments) |
 | `src/app/(protected)/dashboard/calendarSkeleton.tsx` | All five view grid skeletons (shared by route + in-page): `MonthGridSkeleton`, `WeekMatrixSkeleton`, `WeekGridSkeleton`, `AgendaListSkeleton`, `ScheduleGridSkeleton` |
 | `src/lib/ui/uiState.ts` | `resolveDashboardView` — shared view resolution for page + route fallback |

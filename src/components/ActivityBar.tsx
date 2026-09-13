@@ -13,12 +13,7 @@ import {
 } from "react";
 import { useRouter } from "next/navigation";
 import { invalidateCurrentPathCaches } from "@/lib/pwa/client";
-import {
-  beginActivity,
-  endActivity,
-  isActivityBusy,
-  type ActivityCounts,
-} from "@/lib/ui/activity";
+import { beginActivity, endActivity, isActivityBusy, type ActivityCounts } from "@/lib/ui/activity";
 import { useColdStartReady } from "@/components/ColdStartReady";
 
 /**

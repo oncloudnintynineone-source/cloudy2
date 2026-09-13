@@ -286,8 +286,8 @@ export function EventTypeForm({ eventType, groups, onDone }: EventTypeFormProps)
             autoRefId={eventType?.name ?? null}
           />
           <Text size="sm" c="dimmed">
-            The color this type&apos;s events appear in. Auto uses a stable default derived
-            from the type name.
+            The color this type&apos;s events appear in. Auto uses a stable default derived from the
+            type name.
           </Text>
         </Stack>
         <Group justify="flex-end" mt="md" wrap="nowrap">

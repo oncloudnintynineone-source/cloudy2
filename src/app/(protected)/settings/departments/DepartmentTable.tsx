@@ -1,7 +1,17 @@
 "use client";
 
 import { type KeyboardEvent, useMemo, useState } from "react";
-import { Box, Button, Group, Modal, Paper, Stack, Table, Text, VisuallyHidden } from "@mantine/core";
+import {
+  Box,
+  Button,
+  Group,
+  Modal,
+  Paper,
+  Stack,
+  Table,
+  Text,
+  VisuallyHidden,
+} from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
 import { IconPlus, IconSitemap } from "@tabler/icons-react";

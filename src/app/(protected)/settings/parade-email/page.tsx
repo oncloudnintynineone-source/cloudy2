@@ -1,3 +1,4 @@
+import { PageTransition } from "@/components/PageTransition";
 import { listCalendars } from "@/lib/events/queries";
 import { listUsers } from "@/lib/roster/queries";
 import { requireSession } from "@/lib/session";
@@ -34,15 +35,17 @@ export default async function ParadeEmailPage() {
     }));
 
   return (
-    <ParadeEmailForm
-      pickerUsers={pickerUsers}
-      currentUserId={session.user.id}
-      initial={{
-        enabled: settings.paradeEmailEnabled,
-        recipientIds: settings.paradeEmailRecipientIds,
-        subjectTemplate: settings.paradeEmailSubjectTemplate,
-        bodyTemplate: settings.paradeEmailBodyTemplate,
-      }}
-    />
+    <PageTransition>
+      <ParadeEmailForm
+        pickerUsers={pickerUsers}
+        currentUserId={session.user.id}
+        initial={{
+          enabled: settings.paradeEmailEnabled,
+          recipientIds: settings.paradeEmailRecipientIds,
+          subjectTemplate: settings.paradeEmailSubjectTemplate,
+          bodyTemplate: settings.paradeEmailBodyTemplate,
+        }}
+      />
+    </PageTransition>
   );
 }

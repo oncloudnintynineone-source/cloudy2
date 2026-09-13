@@ -258,9 +258,9 @@ export function UserTable({ users, departments, accessByUser, nameTemplate }: Us
                   <Text size="sm" c="dimmed">
                     {user.phone}
                   </Text>
-                      <Badge color={user.role === "admin" ? "brand" : "gray"}>
-                        {user.role === "admin" ? "Admin" : "User"}
-                      </Badge>
+                  <Badge color={user.role === "admin" ? "brand" : "gray"}>
+                    {user.role === "admin" ? "Admin" : "User"}
+                  </Badge>
                   {user.department ? (
                     <Badge variant="light" color="accent">
                       {user.department.name}
@@ -321,9 +321,9 @@ export function UserTable({ users, departments, accessByUser, nameTemplate }: Us
                     </Table.Td>
                     <Table.Td>{user.phone}</Table.Td>
                     <Table.Td>
-                  <Badge color={user.role === "admin" ? "brand" : "gray"}>
-                    {user.role === "admin" ? "Admin" : "User"}
-                  </Badge>
+                      <Badge color={user.role === "admin" ? "brand" : "gray"}>
+                        {user.role === "admin" ? "Admin" : "User"}
+                      </Badge>
                     </Table.Td>
                     <Table.Td>
                       {user.department ? (

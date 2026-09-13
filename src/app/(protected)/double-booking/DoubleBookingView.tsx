@@ -14,11 +14,7 @@ import { PageHeader } from "@/components/PageHeader";
 import { useColdStartContent } from "@/components/ColdStartReady";
 import { ClashAffectedChips } from "@/components/clashUi";
 import { ClashCard, ClashEventRow } from "@/components/clashCards";
-import {
-  ClashDayStrip,
-  ClashTimeline,
-  type ClashTimelineEntry,
-} from "@/components/clashTimeline";
+import { ClashDayStrip, ClashTimeline, type ClashTimelineEntry } from "@/components/clashTimeline";
 import { EventDetail } from "../dashboard/EventDetail";
 import { CONTENT_ENTER_CLASS } from "@/lib/loading/contentEnter";
 import { useMinSkeletonHold } from "@/lib/loading/minHoldLoading";

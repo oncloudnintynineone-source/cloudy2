@@ -9,11 +9,7 @@ import { getBanner } from "@/lib/settings/queries";
 import { UI_STATE_COOKIE, decodeUiState } from "@/lib/ui/uiState";
 import { ShellKahNav } from "./shellStream";
 
-export default async function ProtectedLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+export default async function ProtectedLayout({ children }: { children: React.ReactNode }) {
   // The session is a JWT decode (no DB); the banner read is a cheap single-row
   // SELECT on the singleton settings row. Reading both up front — rather than
   // streaming the banner — means the shell knows the banner state from first

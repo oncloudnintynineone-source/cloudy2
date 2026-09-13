@@ -19,7 +19,7 @@ describe("parseAttendanceRecord", () => {
 
   it("returns an empty record for non-object JSON", () => {
     expect(parseAttendanceRecord("[]")).toEqual({});
-    expect(parseAttendanceRecord("\"x\"")).toEqual({});
+    expect(parseAttendanceRecord('"x"')).toEqual({});
     expect(parseAttendanceRecord("5")).toEqual({});
     expect(parseAttendanceRecord("null")).toEqual({});
   });

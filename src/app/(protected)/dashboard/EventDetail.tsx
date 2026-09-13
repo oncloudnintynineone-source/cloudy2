@@ -11,7 +11,11 @@ import { deleteEvent, type EventActionOk } from "@/lib/events/actions";
 import { subOneDay } from "@/lib/events/datetime";
 import { CONTENT_ENTER_CLASS } from "@/lib/loading/contentEnter";
 import type { CalendarEvent } from "@/lib/events/queries";
-import { nextOptimisticOpId, optimisticRemove, type OptimisticRemoveOp } from "@/lib/events/optimistic";
+import {
+  nextOptimisticOpId,
+  optimisticRemove,
+  type OptimisticRemoveOp,
+} from "@/lib/events/optimistic";
 import { eventRefFromCalendarEvent } from "@/lib/events/targets";
 import {
   modalContentWidth,
@@ -149,7 +153,9 @@ export function EventDetail({
     : false;
   const canModify =
     isAdmin ||
-    (payload !== undefined && (payload.ownerOnlyEdits ? isCreator : true) && (isCreator || isOnEvent));
+    (payload !== undefined &&
+      (payload.ownerOnlyEdits ? isCreator : true) &&
+      (isCreator || isOnEvent));
   const endDisplay =
     showEvent && payload
       ? payload.allDay
@@ -338,7 +344,12 @@ export function EventDetail({
                 >
                   Edit
                 </Button>
-                <Button variant="light" color="red" leftSection={<IconTrash size={16} />} onClick={open}>
+                <Button
+                  variant="light"
+                  color="red"
+                  leftSection={<IconTrash size={16} />}
+                  onClick={open}
+                >
                   Delete
                 </Button>
               </Group>
