@@ -48,15 +48,15 @@ string maps to the first tab of that kind.
   tab (`ensureDefaultDashboardView`, mutex-guarded on the
   `user_preferences` row so racing requests can't double-insert) and points
   the remembered last-active tab at it.
-- **Add view** is the strip's primary affordance: a **dashed `+` button pinned
-  just right of the scroll area** (always reachable even when the strip
-  overflows; tooltip "Add view", shown for accounts that own stored views)
-  opens the **Add-view dialog** directly — kind rows with icons + a name (the
-  default name follows the chosen kind until edited) — and creating appends the
-  tab and navigates to it. The dialog and the Change-type flow share the
-  **five-kind picker** component `ViewTypePicker.tsx`. The same dialog is also
-  reachable from the **Add view** button at the bottom of the Manage-views
-  modal.
+- **Add view** is the strip's primary affordance: a **`+` button at the end of
+  the scrolling tab strip** (the strip's last item, shown for accounts that own
+  stored views; tooltip "Add view") opens the **Add-view dialog** directly —
+  kind rows with icons + a name (the default name follows the chosen kind until
+  edited) — and creating appends the tab and navigates to it. Because it scrolls
+  with the strip it can sit off-screen on a long strip; the Manage-views modal's
+  **Add view** button is the always-pinned fallback. The dialog and the
+  Change-type flow share the **five-kind picker** component
+  `ViewTypePicker.tsx`.
 - **Manage views** (a settings **gear** to the RIGHT of the strip, outside the
   horizontal scroll area — so the scroll set ends before it; tooltip "Manage
   views") opens a **centered modal** (`EditViewsModal.tsx`, sharing the app's
@@ -488,7 +488,7 @@ flowchart LR
 | `src/lib/dashboardViews/queries.ts` | Tab reads + the mutex-guarded default "Month" seed |
 | `src/lib/dashboardViews/actions.ts` | Tab CRUD: `create/rename/delete/reorderDashboardViews`, `saveDashboardViewFilters` |
 | `src/lib/userPrefs/queries.ts` + `actions.ts` | `user_preferences` row: last-active tab + parade filters (incl. `saveParadeFilters`) |
-| `src/app/(protected)/dashboard/DashboardView.tsx`  | Tab strip (+ right-side Add-view button, Manage-views gear and All-views jump popover), optimistic tab switch + period rules + tab-URL prefetch, filter state, schedule zoom + month zoom state & widths |
+| `src/app/(protected)/dashboard/DashboardView.tsx`  | Tab strip (+ trailing Add-view button, right-side Manage-views gear and All-views jump popover), optimistic tab switch + period rules + tab-URL prefetch, filter state, schedule zoom + month zoom state & widths |
 | `src/app/(protected)/dashboard/DashboardScreen.tsx` | Snapshot/warm-cache/preload owner; resolves the displayed context from `previewView ?? ?view=` so warm tab switches paint without waiting on the RSC |
 | `src/app/(protected)/dashboard/EditViewsModal.tsx` | Manage-views dialog: card manage list (↑/↓ reorder, Change-type picker, inline rename, nested delete confirm, Add-view button) |
 | `src/app/(protected)/dashboard/ViewTypePicker.tsx` | Shared five-kind picker (Month/Week (H)/Week (D)/Day/Agenda) used by Add view and Manage-views Change type |

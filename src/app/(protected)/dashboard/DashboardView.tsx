@@ -2489,13 +2489,14 @@ export function DashboardView({
           borderBottom: "1px solid var(--mantine-color-default-border)",
         }}
       >
-        {/* View tabs stay visible in fullscreen — they (plus the "All views"
-            jump list, the Add-view button and the Manage-views gear) are the
-            dashboard's own chrome, not the shell chrome immersive mode hides.
-            The trailing controls sit to the RIGHT of the strip, outside the
-            horizontal scroll area (so the scroll set ends before them): the
-            dashed + opens the Add-view dialog, the gear opens the Manage-views
-            modal (add / reorder / rename / delete — see below). */}
+        {/* View tabs stay visible in fullscreen — they (plus the trailing
+            Add-view button, the "All views" jump list and the Manage-views
+            gear) are the dashboard's own chrome, not the shell chrome immersive
+            mode hides. The + is the last item INSIDE the horizontal scroll
+            strip and opens the Add-view dialog; the "All views" and gear
+            controls sit to the RIGHT of the strip, outside the scroll area, and
+            the gear opens the Manage-views modal (add / reorder / rename /
+            delete — see below). */}
         <Group
           align="center"
           wrap="nowrap"
@@ -2558,32 +2559,40 @@ export function DashboardView({
                     </Tabs.Tab>
                   );
                 })}
+                {/* Trailing "Add view" affordance: the last item in the
+                    scrolling strip, so creating a view is one tap — it opens
+                    the Add-view dialog directly, no trip through the
+                    Manage-views modal. `role="presentation"` keeps the button
+                    out of the tablist's direct children. */}
+                {canManageViews && (
+                  <Box
+                    component="span"
+                    role="presentation"
+                    style={{ display: "inline-flex", alignItems: "center" }}
+                  >
+                    <Tooltip
+                      label="Add view"
+                      position="bottom"
+                      events={{ hover: true, focus: true, touch: true }}
+                    >
+                      <ActionIcon
+                        variant="subtle"
+                        color="gray"
+                        size={36}
+                        ml={4}
+                        aria-label="Add view"
+                        title="Add view"
+                        onClick={openAddView}
+                        style={{ flex: "0 0 auto" }}
+                      >
+                        <IconPlus size={18} />
+                      </ActionIcon>
+                    </Tooltip>
+                  </Box>
+                )}
               </Tabs.List>
             </Tabs>
           </Box>
-          {/* Visible "Add view" affordance: a dashed + pinned just right of
-              the scroll area (always reachable even when the strip overflows)
-              so creating a view is one tap — it opens the Add-view dialog
-              directly, no trip through the Manage-views modal. */}
-          {canManageViews && (
-            <Tooltip
-              label="Add view"
-              position="bottom"
-              events={{ hover: true, focus: true, touch: true }}
-            >
-              <ActionIcon
-                variant="default"
-                size={36}
-                ml={4}
-                aria-label="Add view"
-                title="Add view"
-                onClick={openAddView}
-                style={{ flex: "0 0 auto", borderStyle: "dashed" }}
-              >
-                <IconPlus size={18} />
-              </ActionIcon>
-            </Tooltip>
-          )}
           {/* Quick "All views" jump list: with many content-sized tabs the
                 strip overflows into a long horizontal scroll, so this menu
                 lists every tab (kind icon + name, the active one ticked) for
