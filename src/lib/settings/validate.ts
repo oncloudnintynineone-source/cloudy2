@@ -59,7 +59,7 @@ export const EVENT_TITLE_TARGET_LABELS: Record<EventTitleAssignmentTarget, strin
   weekv2: "Week (D)",
   schedule: "Day",
   agenda: "Agenda",
-  dual: "Dual Pane",
+  dual: "Month & Agenda",
   pinned: "Pinned events (panel)",
   pinnedHeader: "Pinned events (header)",
   doubleBooking: "Double booking (clash report)",

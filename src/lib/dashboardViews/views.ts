@@ -32,7 +32,7 @@ export const DASHBOARD_VIEW_KIND_LABELS: Record<DashboardViewKind, string> = {
   weekv2: "Week (D)",
   schedule: "Day",
   agenda: "Agenda",
-  dual: "Dual Pane",
+  dual: "Month & Agenda",
 };
 
 export function isDashboardViewKind(value: unknown): value is DashboardViewKind {

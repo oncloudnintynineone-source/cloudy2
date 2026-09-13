@@ -18,9 +18,9 @@ monorepo.
 
 ## 1.1 Features
 
-- **Calendar across departments** — Month / Week (H) / Week (D) / Day / Agenda / Dual
-  Pane views over every department's Google Calendar, with user/department/type filters,
-  pinned view tabs, and a fullscreen wall-display mode.
+- **Calendar across departments** — Month / Week (H) / Week (D) / Day / Agenda /
+  Month & Agenda views over every department's Google Calendar, with
+  user/department/type filters, pinned view tabs, and a fullscreen wall-display mode.
 - **Events** — staged wizard (type → time → location → invitees → remarks → review)
   writing one copy per involved department calendar, with cross-department copy
   reconciliation, duplicate/edit/delete, location policy per event type, and

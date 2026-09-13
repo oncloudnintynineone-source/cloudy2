@@ -9,7 +9,7 @@ Where does the app remember things? Two scopes with one hard rule:
 - **"Where you are" is device-local** — it lives in one small cookie
   `cloudy2.ui`: the last visited page, the sidebar rail state, the dashboard
   `date`/`month` anchor, the two zooms — the Day/Week (H) hour-slot `zoom`
-  and the Month grid's fit-width `monthZoom` — and the Dual Pane split
+  and the Month grid's fit-width `monthZoom` — and the Month & Agenda split
   (`dualSplit`).
 
 This document covers the split, the two Postgres tables and their lazy seeding,
@@ -159,7 +159,7 @@ flowchart LR
  "month": "2026-08", // Month view
  "zoom": 1.5, // Day/Week (H) hour-slot zoom (slotZoom.ts)
  "monthZoom": 1.5, // Month-grid zoom, fit-width multiplier (monthZoom.ts)
- "dualSplit": 0.6 // Dual Pane month/agenda width split (dualSplit.ts)
+ "dualSplit": 0.6 // Month & Agenda month/agenda width split (dualSplit.ts)
   }
 }
 ```
@@ -194,7 +194,7 @@ default.**
 - **Dashboard** (`dashboard/page.tsx`): `date` — URL wins; a remembered cookie
   `date` anchors the **day views only** (`view !== "month"`); in Month view the
   remembered `month` (else current) drives the read. `zoom` (Day/Week (H)),
-  `monthZoom` (Month grid) and `dualSplit` (Dual Pane) are read from the raw
+  `monthZoom` (Month grid) and `dualSplit` (Month & Agenda) are read from the raw
   cookie and snapped via `clampZoom`/`clampMonthZoom`/`clampDualSplit` before
   first paint (no width jump on relaunch).
   The **active tab is not cookie state** — it resolves server-side (§1.3).
@@ -213,7 +213,7 @@ default.**
 | ------ | ----- | ---------------- |
 | `useRememberedPage(pathname)` | `AppShellShell` — every authenticated page | `{ lastPage: pathname }` (incl. `/settings` sub-tabs) |
 | sidebar toggle effect | `AppShellShell` | `{ sidebarCollapsed }` on mount + every toggle |
-| `usePersistDashboardNav({ date?, month, zoom, monthZoom, dualSplit })` | `DashboardView` | the dashboard section; `date` is stored only when the URL pins one (day views) or for Dual Pane, `month`/`zoom`/`monthZoom`/`dualSplit` always |
+| `usePersistDashboardNav({ date?, month, zoom, monthZoom, dualSplit })` | `DashboardView` | the dashboard    section; `date` is stored only when the URL pins one (day views) or for Month & Agenda, `month`/`zoom`/`monthZoom`/`dualSplit` always |
 
 Server-side writes happen through server actions (the client never writes
 Postgres directly): tab CRUD + per-tab filters via `src/lib/dashboardViews`,
@@ -268,7 +268,7 @@ in the pages/layout, and the writer hooks.
 | `src/components/AppShellShell.tsx` | `useRememberedPage`, sidebar toggle persist |
 | `src/components/UserMenu.tsx` | Sign-out → `clearUiState` |
 | `src/lib/ui/uiState.ts` / `uiStateClient.ts` | Cookie model/codec + client writers |
-| `src/lib/ui/dualSplit.ts` | Dual Pane split-ratio levels + clamping (pure) |
+| `src/lib/ui/dualSplit.ts` | Month & Agenda split-ratio levels + clamping (pure) |
 | `src/app/(protected)/dashboard/DashboardView.tsx` | Tab strip (+ Add-view button / Manage-views gear), `usePersistDashboardNav`, `switchTab` (+ active-tab action) |
 
 Related docs:

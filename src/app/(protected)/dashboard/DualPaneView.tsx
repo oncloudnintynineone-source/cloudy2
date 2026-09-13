@@ -42,6 +42,10 @@ import { AgendaView, MonthView } from "@mantine/schedule";
 import { IconChevronLeft, IconChevronRight } from "@tabler/icons-react";
 
 import { GridNavControls } from "@/components/GridNavControls";
+import {
+  FULLSCREEN_BUTTON_SIZE,
+  FULLSCREEN_EDGE_INSET,
+} from "@/components/FullscreenToggle";
 import { eventsOnDay } from "@/lib/events/agenda";
 import type { CalendarEvent } from "@/lib/events/queries";
 import { markAgendaSwipeHintSeen } from "@/lib/ui/agendaSwipeHint";
@@ -241,6 +245,27 @@ export function DualPaneView({
 
   // ---- Agenda pane: day slide + swipe --------------------------------------
   const agendaEvents = useMemo(() => eventsOnDay(events, day), [events, day]);
+  // Month-pane chips are deliberately pass-through: a tap selects the day
+  // cell beneath it in the Agenda pane. Mantine renders the chip as a root
+  // `<button>` with `pointer-events: none` wrapping an inner chip that
+  // re-enables `pointer-events: all`, so a root-only override still lets the
+  // inner chip capture the tap — and with no `onEventClick` that tap is
+  // swallowed instead of reaching the day cell. The `c2-inert-event` class
+  // (globals.css) disables the whole chip subtree, so taps fall through to the
+  // day-cell button with the correct cell date (chips are absolutely
+  // positioned overlays, not children of the cells). `tabIndex: -1` keeps
+  // keyboard focus off the dead chips — the day cells keep their roving
+  // tabindex, so arrows + Enter still select a day. The highlight classes from
+  // `renderMonthEvent` pass through untouched.
+  const renderInertMonthEvent = useCallback<DualPaneRenderEvent>(
+    (event, props) =>
+      renderMonthEvent(event, {
+        ...props,
+        tabIndex: -1,
+        className: `${props.className ?? ""} c2-inert-event`.trim(),
+      }),
+    [renderMonthEvent],
+  );
   // Direction of the last day change, for the directional slide-in (same
   // contract as the Agenda tab / day modal). Render-phase sync — the codebase's
   // derived-state pattern.
@@ -317,8 +342,11 @@ export function DualPaneView({
               },
             },
           }}
-          renderEvent={renderMonthEvent}
-          onEventClick={(event, e) => onEventClick(event as unknown as CalendarEvent, e)}
+          renderEvent={renderInertMonthEvent}
+          // No `onEventClick`: every tap (chip or empty cell) must land on the
+          // day cell instead (`onDayClick` below selects the shared anchor).
+          // The chips are overlays, so the inert render above lets taps fall
+          // through to the cell button with the correct cell date.
           onDayClick={(picked) => onDaySelect(picked)}
         />
         {/* Portaled to <body>: the controls are position:fixed, and the
@@ -398,6 +426,14 @@ export function DualPaneView({
             alignItems: "center",
             gap: "var(--mantine-spacing-xs)",
             paddingBottom: "var(--mantine-spacing-xs)",
+            // The floating fullscreen toggle sits 8px below the chrome and 8px
+            // inside the grid's right edge — exactly this header's top-right.
+            // Reserve its box (button + inset + a gap) on desktop so the day
+            // chevrons stay tappable; below lg the panes stack and the toggle
+            // floats over the month strip instead, like the Month view.
+            paddingRight: isDesktop
+              ? FULLSCREEN_BUTTON_SIZE + FULLSCREEN_EDGE_INSET * 2
+              : undefined,
             background: "var(--mantine-color-body)",
             borderBottom: "1px solid var(--mantine-color-default-border)",
           }}

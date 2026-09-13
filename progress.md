@@ -32,8 +32,8 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
   create/update/delete and pre-submit event clash warnings on the wizard's review step;
   a Double Booking page that scans an existing schedule for double-bookings over the next
    30 days, surfaced by a live count pill on its nav entry; an on-demand set of user-created
-    dashboard **Views (tabs)** over the six renderer kinds (Month / Week (H) / Week (D) / Day /
-    Agenda / Dual Pane; each tab has its own name, order and Cal/Users/Types filters, stored server-side) over
+     dashboard **Views (tabs)** over the six renderer kinds (Month / Week (H) / Week (D) / Day /
+     Agenda / Month & Agenda; each tab has its own name, order and Cal/Users/Types filters, stored server-side) over
    a layered calendar cache; parade-state page with local attendance mode; contacts page;
   PWA installability with offline & instant open (SWR document + RSC, precached offline.html);
   mobile-first UI with a desktop layout at `lg`; remembered UI state across relaunch;
@@ -1020,9 +1020,26 @@ via `?attendance=1` and `attendanceStorage` became a `useSyncExternalStore` exte
    (device-remembered `dashboard.dualSplit`, clamp 25–75%, arrow keys + double-click reset),
    stacked below `lg`. It is day-anchored (one `?date=` anchor): nav-row chevrons move ±1
    month, the pane header moves ±1 day, and tapping a day cell selects it in the agenda pane
-   (no day modal). Pure `src/lib/ui/dualSplit.ts`, new `DualPaneView.tsx` + `DualPaneSkeleton`
+   (no day modal). Pure `src/lib/ui/dualSplit.ts`, new    `DualPaneView.tsx` + `DualPaneSkeleton`
    (reusing extracted `MonthWeekdayStrip`/`AgendaSwipeHint`); `dual` joins the title-template
    targets. Docs: `docs/dashboard-views.md` §1.9, `docs/ui-state.md` §1.5, `AGENTS.md`
+- 1.237 Dual Pane overlap fix: the floating fullscreen toggle (fixed, 8px below the chrome
+   and 8px inside the grid's right edge) sat exactly over the agenda pane's sticky day
+   header, swallowing the day chevrons' taps. The header now reserves the toggle's box on
+   its right (desktop side-by-side only; exported `FULLSCREEN_BUTTON_SIZE`/`EDGE_INSET`),
+   and the toggle geometry is exported from    `FullscreenToggle.tsx` instead of module-private.
+   Docs: `docs/dashboard-views.md` §1.9
+- 1.238 Month & Agenda follow-ups: the month pane's event chips are now inert
+   (no `onEventClick` + `tabIndex: -1`; a `c2-inert-event` class from
+   `DualPaneView`'s renderEvent disables the chip's whole subtree in `globals.css`
+   — Mantine re-enables `pointer-events` on the inner chip, so a root-only
+   override left taps swallowed by the chip instead of reaching the day cell —
+   so every month-pane tap falls through to the day-cell button with the correct
+   cell date and selects the day in the agenda pane; day cells keep their roving
+   tabindex), and the view is renamed from "Dual Pane" to **"Month & Agenda"**
+   (kind id `dual` unchanged — no migration; tabs already created keep their
+   stored "Dual Pane" name, new tabs default to the new label). Docs:
+   `docs/dashboard-views.md` §1.9, `docs/user-guide.md`, `AGENTS.md`
 
 ## 1.4 Open items & next steps
 

@@ -4,8 +4,14 @@ import { type RefObject, useEffect, useState } from "react";
 import { ActionIcon } from "@mantine/core";
 import { IconArrowsMaximize, IconArrowsMinimize } from "@tabler/icons-react";
 
-const BUTTON_SIZE = 40;
-const EDGE_INSET = 8;
+/**
+ * Toggle geometry, shared with views that must keep their own chrome clear of
+ * the floating button (the Month & Agenda pane header reserves this box so its
+ * day chevrons stay tappable). Button diameter + the inset from the sticky
+ * chrome's bottom edge and the grid's right edge.
+ */
+export const FULLSCREEN_BUTTON_SIZE = 40;
+export const FULLSCREEN_EDGE_INSET = 8;
 
 /**
  * Floating fullscreen (immersive-mode) toggle for the calendar page. Moved out
@@ -49,10 +55,13 @@ export function FullscreenToggle({
       setPos({
         // 8px below the sticky chrome, so the button never slides beneath it
         // while the grid scrolls.
-        top: chromeRect.bottom + EDGE_INSET,
+        top: chromeRect.bottom + FULLSCREEN_EDGE_INSET,
         // 8px inside the grid's right edge; clamp to half the viewport so a
         // very narrow grid can't push the button off-screen.
-        right: Math.min(window.innerWidth - gridRect.right + EDGE_INSET, window.innerWidth / 2),
+        right: Math.min(
+          window.innerWidth - gridRect.right + FULLSCREEN_EDGE_INSET,
+          window.innerWidth / 2,
+        ),
       });
     };
     measure();
@@ -90,7 +99,7 @@ export function FullscreenToggle({
         // modals.
         zIndex: 46,
       }}
-      size={BUTTON_SIZE}
+      size={FULLSCREEN_BUTTON_SIZE}
       radius="50%"
       variant="filled"
       color="gray"

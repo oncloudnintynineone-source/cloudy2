@@ -68,7 +68,7 @@ them with the tabs above the grid:
 | **Week (D)** | One week as day columns — events as spanning banners per row |
 | **Day** | A single day, hour-by-hour |
 | **Agenda** | A day-by-day list |
-| **Dual Pane** | The Month grid and the Agenda list together — side by side on desktop (drag the divider between them to resize), stacked on phones. Tapping a day in the grid shows that day in the agenda pane |
+| **Month & Agenda** | The Month grid and the Agenda list together — side by side on desktop (drag the divider between them to resize), stacked on phones. Tapping a day in the grid shows that day in the agenda pane (event chips aren't clickable — every tap selects the day) |
 
 - **Zoom**: the Day and Week (H) views zoom their hour columns in and out; the
   Month view's columns start at **fit-to-width** (all seven days on screen) and
@@ -95,7 +95,7 @@ them with the tabs above the grid:
   by department) up front, Event Types behind a **Show** toggle, and a **Myself**
   one-tap (your own events). **Reset** clears them (back to your role default).
 - **Filters are per view** — each of Month / Week (H) / Week (D) / Day / Agenda /
-  Dual Pane remembers its own Calendars/Users/Event Types selection, and the dialog notes
+  Month & Agenda remembers its own Calendars/Users/Event Types selection, and the dialog notes
   *"These filters apply to {view} only"*. Setting a filter on one view never
   affects the others; clearing one view's filters never resets the rest.
   An untouched view shows your role default (admin: all departments). Filtering

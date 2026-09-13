@@ -774,6 +774,19 @@ html {
   outline-offset: calc(0.0625rem * var(--mantine-scale));
 }
 
+/* Month & Agenda view: the month pane's chips are pass-through, so a tap
+   selects the day cell beneath it in the agenda pane instead of opening the
+   event. Mantine puts `pointer-events: all` on the inner chip element, so
+   disabling the event root alone leaves the chip capturing the tap; this
+   class is applied to the root by DualPaneView's renderEvent, and the `> *`
+   rule disables the inner chip too (equal specificity, but globals.css loads
+   after the schedule styles). */
+.c2-inert-event,
+.c2-inert-event > * {
+  pointer-events: none;
+  cursor: default;
+}
+
 /* Agenda: the user's rows get an amber left bar + light tint, and their
    title (the first <p> in the row) goes semibold. */
 .c2-my-agenda-event {

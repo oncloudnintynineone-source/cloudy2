@@ -90,8 +90,8 @@ describe("nameAfterKindChange", () => {
   it("adopts the new kind's default label when the name is still the old default", () => {
     expect(nameAfterKindChange("Month", "month", "agenda")).toBe("Agenda");
     expect(nameAfterKindChange("Week (D)", "weekv2", "month")).toBe("Month");
-    expect(nameAfterKindChange("Month", "month", "dual")).toBe("Dual Pane");
-    expect(nameAfterKindChange("Dual Pane", "dual", "agenda")).toBe("Agenda");
+    expect(nameAfterKindChange("Month", "month", "dual")).toBe("Month & Agenda");
+    expect(nameAfterKindChange("Month & Agenda", "dual", "agenda")).toBe("Agenda");
   });
   it("keeps a custom name", () => {
     expect(nameAfterKindChange("Ops Month", "month", "week")).toBe("Ops Month");
@@ -213,9 +213,9 @@ describe("tabSwitchTarget", () => {
     });
   });
 
-  // Dual Pane is a day-anchored kind (its Month pane follows the agenda day's
-  // month), so it rides the anchored branches above.
-  it("Month → Dual Pane starts on today", () => {
+  // Month & Agenda is a day-anchored kind (its Month pane follows the agenda
+  // day's month), so it rides the anchored branches above.
+  it("Month → Month & Agenda starts on today", () => {
     expect(tabSwitchTarget({ id: "dp", kind: "dual" }, { ...base, view: "month" })).toEqual({
       view: "dp",
       date: "2026-09-13",
@@ -223,7 +223,7 @@ describe("tabSwitchTarget", () => {
     });
   });
 
-  it("anchored → Dual Pane keeps the anchor day", () => {
+  it("anchored → Month & Agenda keeps the anchor day", () => {
     expect(tabSwitchTarget({ id: "dp", kind: "dual" }, { ...base, view: "agenda" })).toEqual({
       view: "dp",
       date: "2026-09-12",
@@ -231,7 +231,7 @@ describe("tabSwitchTarget", () => {
     });
   });
 
-  it("Dual Pane → Month carries the anchor month and clears the day", () => {
+  it("Month & Agenda → Month carries the anchor month and clears the day", () => {
     expect(tabSwitchTarget({ id: "m2", kind: "month" }, { ...base, view: "dual" })).toEqual({
       view: "m2",
       month: "2026-09",
@@ -239,7 +239,7 @@ describe("tabSwitchTarget", () => {
     });
   });
 
-  it("Dual Pane → a different anchored kind keeps the anchor day", () => {
+  it("Month & Agenda → a different anchored kind keeps the anchor day", () => {
     expect(tabSwitchTarget({ id: "w2", kind: "week" }, { ...base, view: "dual" })).toEqual({
       view: "w2",
       date: "2026-09-12",
@@ -247,7 +247,7 @@ describe("tabSwitchTarget", () => {
     });
   });
 
-  it("Dual Pane → Dual Pane keeps the current period", () => {
+  it("Month & Agenda → Month & Agenda keeps the current period", () => {
     expect(tabSwitchTarget({ id: "dp2", kind: "dual" }, { ...base, view: "dual" })).toEqual({
       view: "dp2",
     });

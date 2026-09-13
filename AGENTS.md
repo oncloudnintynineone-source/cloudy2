@@ -127,7 +127,7 @@ doc content here.
   Design: [docs/optimistic-mutations.md](docs/optimistic-mutations.md).
 - **Dashboard views (tabs) & filters:** per-account rows in `user_dashboard_views`
   (`src/lib/dashboardViews`), renderer kinds Month / Week (H) / Week (D) / Day / Agenda /
-  Dual Pane (Month + Agenda side by side, resizable; day-anchored, `src/lib/ui/dualSplit.ts`).
+  Month & Agenda (Month + Agenda side by side, resizable; day-anchored, `src/lib/ui/dualSplit.ts`).
   Per-tab Cal/Users/Types filters are stored server-side (no `cal/users/types` URL params);
   the active tab lives in `?view=<id>` + `user_preferences.dashboardActiveViewId`. A tab
   tap is **optimistic**: it sets `previewView` in `DashboardDataContext`, so

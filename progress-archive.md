@@ -8486,5 +8486,56 @@ Manual to run before ship: add a Dual Pane tab, drag the handle (and arrow-key i
 step months via the nav row and days via the pane header, tap a grid day and confirm the
 pane follows, and check the stacked layout below `lg`.
 
+## 1.237 Dual Pane fullscreen-toggle overlap fix
+
+The floating fullscreen toggle (`FullscreenToggle.tsx`: `position: fixed`, top = sticky
+chrome bottom + 8px, right = 8px inside the grid box's right edge) landed exactly on the
+Dual Pane agenda pane's sticky day header in side-by-side layout — the header stretches
+to the grid box's right edge, so the 40px button covered the day ‹ › chevrons and ate
+their taps (the other views float it over non-interactive content: weekday initials /
+list rows). Fix keeps the toggle where it is (one learned spot across views): the agenda
+header reserves the toggle's box on its right (`FULLSCREEN_BUTTON_SIZE +
+FULLSCREEN_EDGE_INSET * 2`, desktop only — below `lg` the panes stack and the toggle
+floats over the month strip as in the Month view), so the chevrons sit left of it. The
+two geometry constants are now exported from `FullscreenToggle.tsx` (internal uses
+updated) instead of module-private, and `docs/dashboard-views.md` §1.9's Chrome bullet
+notes the reservation.
+
+**Verified**: `pnpm lint`, `pnpm typecheck`, `pnpm test`. Manual to run before ship: open
+a Dual Pane tab at desktop width and tap both day chevrons with the toggle visible.
+
+## 1.238 Month & Agenda follow-ups (inert month chips + rename)
+
+Two refinements to the 1.236 view. First, the month pane's event chips no longer open
+the event details: they are pass-through (`tabIndex: -1`, `onEventClick` no longer passed
+to that `MonthView`, and a `c2-inert-event` class added by `DualPaneView`'s renderEvent),
+so **every** month-pane tap — chip or empty cell — lands on the day-cell button and
+selects that day in the agenda pane. Mantine renders month chips as absolutely-positioned
+overlays in the week container, not as children of the day buttons, so a handler-less
+chip would swallow the tap instead of routing it to the cell beneath; the first attempt
+put `pointer-events: none` on the chip **root** only, which was not enough — Mantine
+re-enables `pointer-events: all` on the inner chip element (`.m_71699dc6`), so the inner
+chip still captured the tap and the day was never selected (the event modal stayed closed,
+but the tap was a dead zone). The fix is a `c2-inert-event` class on the root plus a
+`globals.css` rule disabling the whole subtree (`.c2-inert-event, .c2-inert-event > *`);
+`globals.css` loads after the schedule styles, so the equal-specificity `> *` rule wins
+over the library's inner rule. Taps then fall through to the cell beneath with the correct
+cell date (right even for multi-day chips tapped mid-span). `mode="static"` was rejected —
+it also strips the day cells' own click/tabindex. Day cells keep their roving tabindex
+(arrows + Enter still select a day); the "+N more" button still opens its title popup.
+
+Second, the view is renamed from "Dual Pane" to **"Month & Agenda"**: the three display
+labels (`DASHBOARD_VIEW_KIND_LABELS.dual`, `VIEW_TAB_META`, `EVENT_TITLE_TARGET_LABELS`)
+— the kind id `dual`, component/file names and the cookie key are unchanged, so no
+migration. Tabs already created keep their stored "Dual Pane" name; new tabs default to
+the new label. Docs updated (`dashboard-views.md` §1.9 incl. the pass-through note,
+`user-guide.md`, `ui-state.md`, `AGENTS.md`, `README.md`); 1.236/1.237 history kept
+verbatim.
+
+**Verified**: `pnpm lint`, `pnpm typecheck`, `pnpm test`. Manual to run before ship: tap
+chips, empty cells and multi-day spans in the month pane (agenda follows with the cell's
+date); Tab through the pane (chips skipped, day cells reachable); add a view (default
+name "Month & Agenda").
+
 
 
