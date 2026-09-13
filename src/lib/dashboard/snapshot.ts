@@ -186,37 +186,29 @@ export function dashboardCandidateRequestKey(
 
 /**
  * Per-tab load state for the tab strip's treatment. The strip shows each view's
- * own freshness/load progress instead of a single shared "busy" flag:
+ * own load progress instead of a single shared "busy" flag:
  *
- * - `fresh` — a warm snapshot for the tab's key exists and is within the
- *   freshness window (`isWarmSnapshotFresh`). Rendered solid. The active tab is
- *   always `fresh` (you're looking at its data) unless a read for it is in
- *   flight.
- * - `stale` — a warm snapshot exists but is older than the window; tapping
- *   revalidates it in place. Background tabs only: a small static amber dot.
- * - `queued` — the background preload is warming this (not-fresh) tab right now.
- *   Background tabs only: a small pulsing amber dot.
+ * - `fresh` — a warm snapshot for the tab's key exists (any age), so a tap
+ *   paints it instantly and a stale one revalidates silently in place. Rendered
+ *   solid. The active tab is always `fresh` (you're looking at its data) unless
+ *   a read for it is in flight.
  * - `loading` — a read for this tab's key is in flight (the active/on-tap read).
  *   Rendered faded + breathing.
  * - `not-loaded` — no warm copy and no fetch. Rendered faded, static.
  *
  * Pure and client-safe so the mapping is unit-testable.
  */
-export type TabLoadState = "fresh" | "stale" | "queued" | "loading" | "not-loaded";
+export type TabLoadState = "fresh" | "loading" | "not-loaded";
 
 export function tabLoadStates(params: {
   tabs: readonly Pick<DashboardViewTab, "id" | "kind">[];
   month: string;
   date: string;
-  /** Keys with a warm snapshot inside the freshness window. */
-  freshKeys: ReadonlySet<string>;
-  /** Keys with a warm snapshot older than the window. */
-  staleKeys: ReadonlySet<string>;
-  /** Keys the background preload is warming right now. */
-  queuedKeys: ReadonlySet<string>;
+  /** Keys with a warm snapshot of any age. */
+  warmKeys: ReadonlySet<string>;
   /** Keys with an in-flight read (active/on-tap). */
   loadingKeys: ReadonlySet<string>;
-  /** The tab currently displayed; it never shows stale/queued. */
+  /** The tab currently displayed; it is always fresh unless loading. */
   activeTabId: string | null;
 }): Record<string, TabLoadState> {
   const states: Record<string, TabLoadState> = {};
@@ -228,14 +220,8 @@ export function tabLoadStates(params: {
     let state: TabLoadState;
     if (params.loadingKeys.has(key)) {
       state = "loading";
-    } else if (tab.id === params.activeTabId) {
+    } else if (tab.id === params.activeTabId || params.warmKeys.has(key)) {
       state = "fresh";
-    } else if (params.freshKeys.has(key)) {
-      state = "fresh";
-    } else if (params.queuedKeys.has(key)) {
-      state = "queued";
-    } else if (params.staleKeys.has(key)) {
-      state = "stale";
     } else {
       state = "not-loaded";
     }

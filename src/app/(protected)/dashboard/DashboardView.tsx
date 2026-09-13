@@ -2514,10 +2514,10 @@ export function DashboardView({
               <Tabs.List ref={tabListElRef} style={{ flexWrap: "nowrap", overflowX: "auto" }}>
                 {tabs.map((tab) => {
                   const meta = VIEW_TAB_META[tab.kind];
-                  // Per-view status (docs/loading-transitions.md §1.13.2):
-                  // loading = text fade + breathe (active tab's read);
-                  // stale/queued = solid text + a small amber dot on the tab
-                  // (background tabs); not-loaded = static text fade.
+                  // Per-view load state (docs/loading-transitions.md §1.13.2):
+                  // fresh = solid; loading = text fade + breathe (active tab's
+                  // read); not-loaded = static text fade. Applied to the tab's
+                  // content, leaving the tab chrome/indicator alone.
                   const status = tabStatus[tab.id] ?? "fresh";
                   const contentClass =
                     status === "loading"
@@ -2525,18 +2525,11 @@ export function DashboardView({
                       : status === "not-loaded"
                         ? "c2-tab-not-loaded"
                         : undefined;
-                  const tabClass =
-                    status === "stale"
-                      ? "c2-tab-stale"
-                      : status === "queued"
-                        ? "c2-tab-queued"
-                        : undefined;
                   return (
                     <Tabs.Tab
                       key={tab.id}
                       value={tab.id}
                       title={tab.name}
-                      className={tabClass}
                       aria-busy={status === "loading" || undefined}
                     >
                       <Group

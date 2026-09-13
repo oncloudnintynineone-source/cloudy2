@@ -24,7 +24,6 @@ import {
   requiredMonths,
   resolveDashboardPresentation,
   tabLoadStates,
-  WARM_SNAPSHOT_FRESH_MS,
   type DashboardSnapshotRecord,
 } from "@/lib/dashboard/snapshot";
 import { isUuid } from "@/lib/uuid";
@@ -111,22 +110,6 @@ export function DashboardScreen({ userId, initialZoom, initialMonthZoom }: Dashb
     warmRecordsRef.current = warmRecords;
   }, [warmRecords]);
 
-  // Freshness tick: re-render the moment the earliest warm record crosses the
-  // freshness window, so a background tab can flip to "stale" on time without
-  // polling. Re-arms after each record change / tick.
-  const [freshnessNow, setFreshnessNow] = useState(() => Date.now());
-  useEffect(() => {
-    const now = Date.now();
-    let earliest = Infinity;
-    for (const rec of warmRecords.values()) {
-      const at = rec.savedAt + WARM_SNAPSHOT_FRESH_MS;
-      if (at > now && at < earliest) earliest = at;
-    }
-    if (!Number.isFinite(earliest)) return;
-    const timer = window.setTimeout(() => setFreshnessNow(Date.now()), earliest - now + 50);
-    return () => window.clearTimeout(timer);
-  }, [warmRecords, freshnessNow]);
-
   // Whether the displayed record came from the device cache or a fresh server
   // read. A cached record is shown through a context-changing revalidation
   // (instant paint, update in place); only once we're on fresh data does a
@@ -138,10 +121,6 @@ export function DashboardScreen({ userId, initialZoom, initialMonthZoom }: Dashb
   // the global activity bar covers only refreshes with no in-page skeleton —
   // view loads are carried by the grid skeleton + the active tab's breathing.
   const [refreshing, setRefreshing] = useState(false);
-  // Whether the background tab preload (the single union read that warms every
-  // tab) is in flight. Feeds the tab strip's per-tab status: while it runs,
-  // every not-yet-fresh tab is "queued" (a pulsing amber dot).
-  const [preloadBusy, setPreloadBusy] = useState(false);
   // The latest busy flag, read by the fetch-decision effect so an equivalent-tab
   // local swap never races an in-flight read (see the effect below).
   const busyRef = useRef(busy);
@@ -309,30 +288,25 @@ export function DashboardScreen({ userId, initialZoom, initialMonthZoom }: Dashb
   // newer anchor superseded the signature.
   const preloadTabs = useCallback(
     async (signature: string, generation: number) => {
-      setPreloadBusy(true);
-      try {
-        const result = await preloadDashboardTabs(inputFromParams(paramsRef.current));
-        if (preloadGenerationRef.current !== generation) return;
-        if (preloadedRef.current?.signature !== signature) return;
-        if (!result.ok) return;
-        const records: DashboardSnapshotRecord[] = result.tabs.map((tab) => ({
-          version: DASHBOARD_SNAPSHOT_VERSION,
-          savedAt: Date.now(),
-          context: tab.context,
-          data: assembleDashboardSnapshot(result.shared, tab.delta),
-        }));
-        setWarmRecords((current) => {
-          const next = new Map(current);
-          for (const record of records) {
-            next.set(record.context.requestKey, record);
-          }
-          return next;
-        });
+      const result = await preloadDashboardTabs(inputFromParams(paramsRef.current));
+      if (preloadGenerationRef.current !== generation) return;
+      if (preloadedRef.current?.signature !== signature) return;
+      if (!result.ok) return;
+      const records: DashboardSnapshotRecord[] = result.tabs.map((tab) => ({
+        version: DASHBOARD_SNAPSHOT_VERSION,
+        savedAt: Date.now(),
+        context: tab.context,
+        data: assembleDashboardSnapshot(result.shared, tab.delta),
+      }));
+      setWarmRecords((current) => {
+        const next = new Map(current);
         for (const record of records) {
-          void writeDashboardSnapshot(userId, record.data, record.context);
+          next.set(record.context.requestKey, record);
         }
-      } finally {
-        setPreloadBusy(false);
+        return next;
+      });
+      for (const record of records) {
+        void writeDashboardSnapshot(userId, record.data, record.context);
       }
     },
     [userId],
@@ -529,36 +503,10 @@ export function DashboardScreen({ userId, initialZoom, initialMonthZoom }: Dashb
         months: requiredMonths(tab.kind, record.context.month, record.context.date),
       });
 
-    // Freshness per key from the warm map (the current record's key included).
-    const savedAtByKey = new Map<string, number>();
-    for (const [key, rec] of warmRecords) {
-      savedAtByKey.set(key, rec.savedAt);
-    }
-    if (!savedAtByKey.has(record.context.requestKey)) {
-      savedAtByKey.set(record.context.requestKey, record.savedAt);
-    }
-
-    const freshKeys = new Set<string>();
-    const staleKeys = new Set<string>();
-    for (const tab of tabs) {
-      const key = keyForTab(tab);
-      const savedAt = savedAtByKey.get(key);
-      if (savedAt === undefined) continue;
-      if (isWarmSnapshotFresh(savedAt, freshnessNow)) {
-        freshKeys.add(key);
-      } else {
-        staleKeys.add(key);
-      }
-    }
-
-    // While the background preload runs, every not-yet-fresh tab is queued for it.
-    const queuedKeys = new Set<string>();
-    if (preloadBusy) {
-      for (const tab of tabs) {
-        const key = keyForTab(tab);
-        if (!freshKeys.has(key)) queuedKeys.add(key);
-      }
-    }
+    // Warm keys from the map (the current record's key included): a warm copy of
+    // any age paints the tab solid; a stale one revalidates silently on tap.
+    const warmKeys = new Set<string>(warmRecords.keys());
+    warmKeys.add(record.context.requestKey);
 
     // A read for the active tab's context (nav / filter / revalidate) makes it
     // breathe. Keyed on the held record's anchor (the helper's basis), so a
@@ -573,13 +521,11 @@ export function DashboardScreen({ userId, initialZoom, initialMonthZoom }: Dashb
       tabs,
       month: record.context.month,
       date: record.context.date,
-      freshKeys,
-      staleKeys,
-      queuedKeys,
+      warmKeys,
       loadingKeys,
       activeTabId: activeId,
     });
-  }, [record, warmRecords, preloadBusy, busy, presentation, freshnessNow]);
+  }, [record, warmRecords, busy, presentation]);
 
   const context = useMemo(
     () => ({

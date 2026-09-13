@@ -161,26 +161,20 @@ describe("tabLoadStates", () => {
     month: "2026-09",
     date: "2026-09-12",
     activeTabId: null as string | null,
-    freshKeys: new Set<string>(),
-    staleKeys: new Set<string>(),
-    queuedKeys: new Set<string>(),
+    warmKeys: new Set<string>(),
     loadingKeys: new Set<string>(),
   };
 
-  it("marks a tab fresh when a fresh snapshot for its key exists", () => {
-    const states = tabLoadStates({ ...base, freshKeys: new Set([keyFor(monthTab)]) });
+  it("marks a tab fresh when a warm snapshot for its key exists", () => {
+    const states = tabLoadStates({ ...base, warmKeys: new Set([keyFor(monthTab)]) });
     expect(states["tab-a"]).toBe("fresh");
     expect(states["tab-b"]).toBe("not-loaded");
   });
 
-  it("marks a warm-but-old tab stale", () => {
-    const states = tabLoadStates({ ...base, staleKeys: new Set([keyFor(monthTab)]) });
-    expect(states["tab-a"]).toBe("stale");
-  });
-
-  it("marks a tab queued while the background preload warms it", () => {
-    const states = tabLoadStates({ ...base, queuedKeys: new Set([keyFor(agendaTab)]) });
-    expect(states["tab-b"]).toBe("queued");
+  it("marks a tab not-loaded when it has no warm copy", () => {
+    const states = tabLoadStates(base);
+    expect(states["tab-a"]).toBe("not-loaded");
+    expect(states["tab-b"]).toBe("not-loaded");
   });
 
   it("marks a tab loading while a read for its key is in flight", () => {
@@ -189,23 +183,19 @@ describe("tabLoadStates", () => {
     expect(states["tab-b"]).toBe("loading");
   });
 
-  it("lets loading win over a fresh copy", () => {
+  it("lets loading win over a warm copy", () => {
     const states = tabLoadStates({
       ...base,
-      freshKeys: new Set([keyFor(monthTab)]),
+      warmKeys: new Set([keyFor(monthTab)]),
       loadingKeys: new Set([keyFor(monthTab)]),
     });
     expect(states["tab-a"]).toBe("loading");
   });
 
-  it("keeps the active tab fresh even when its copy is stale/queued", () => {
-    const states = tabLoadStates({
-      ...base,
-      activeTabId: "tab-a",
-      staleKeys: new Set([keyFor(monthTab)]),
-      queuedKeys: new Set([keyFor(monthTab)]),
-    });
+  it("keeps the active tab fresh even when it has no warm copy", () => {
+    const states = tabLoadStates({ ...base, activeTabId: "tab-a" });
     expect(states["tab-a"]).toBe("fresh");
+    expect(states["tab-b"]).toBe("not-loaded");
   });
 
   it("still shows the active tab loading when a read is in flight", () => {
@@ -220,7 +210,7 @@ describe("tabLoadStates", () => {
   it("resolves each tab independently", () => {
     const states = tabLoadStates({
       ...base,
-      freshKeys: new Set([keyFor(monthTab)]),
+      warmKeys: new Set([keyFor(monthTab)]),
       loadingKeys: new Set([keyFor(agendaTab)]),
     });
     expect(states).toEqual({ "tab-a": "fresh", "tab-b": "loading" });

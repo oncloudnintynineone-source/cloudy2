@@ -18,7 +18,7 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
 
 ## 1.1 Status
 
-- All work through changelog **1.231 (tab freshness indicators: stale/queued)** is shipped.
+- All work through changelog **1.232 (remove the tab strip's stale/queued amber badge)** is shipped.
 - Quality gates (`lint` / `typecheck` / `test` / schema-drift check) run in CI on every
   push and PR. Pushes also auto-apply migrations per environment: `dev` →
   `migrate-preview` against the dev Neon DB, `main` → `migrate` against the prod Neon
@@ -975,6 +975,13 @@ via `?attendance=1` and `attendanceStorage` became a `useSyncExternalStore` exte
    `::after` dot on the `Tabs.Tab` (no layout shift). Stale is indicate-only (tapping
    revalidates); the strip is not auto-refreshed (`docs/loading-transitions.md` §1.13.2,
    `AGENTS.md`)
+- 1.232 Removed the stale/queued amber badge from the dashboard tab strip: the corner dot
+   read as an unread-notification badge and confused users. The strip is back to three
+   states — `fresh` (solid, any age), `loading` (active read: fade + breathe), `not-loaded`
+   (static fade) — and `tabLoadStates` takes `warmKeys` + `loadingKeys` + `activeTabId`. A
+   warm-but-old tab now just renders solid and revalidates silently on tap; the freshness
+   tick and the `preloadBusy` tab signal were deleted (`docs/loading-transitions.md`
+   §1.13.2, `AGENTS.md`)
 
 ## 1.4 Open items & next steps
 

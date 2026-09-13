@@ -297,9 +297,8 @@ doc content here.
   update in place with a grid skeleton + the active tab's breathing); only its refreshes
   do (`revalidate({ report: false })` for a filter apply).
   **Cold-start readiness** reuses the bar's slot (amber legs, then a brief green
-  `.c2-ready-bar`); each dashboard **tab** also shows its own view's state via `tabStatus`
-  (fresh solid / stale amber dot / queued pulsing amber dot / loading faded + breathing /
-  not-loaded faded). Design:
+  `.c2-ready-bar`); each dashboard **tab** also shows its own view's load state
+  (fresh solid / loading faded + breathing / not-loaded faded) via `tabStatus`. Design:
   [docs/loading-transitions.md](docs/loading-transitions.md) §1.13/§1.13.1/§1.13.2.
 - **Buttons triggering async work show loading in the button itself:** Mantine `loading`
   prop + shared `loaderProps={BUTTON_LOADER_PROPS}` (`src/lib/theme.ts`);
