@@ -2042,6 +2042,15 @@ export function DashboardView({
   }
 
   const swipedRef = useRef(false);
+  // One-shot click suppression for the swipe gesture: a swipe arms `swipedRef`,
+  // and the wrappers' `onClickCapture` swallows the synthesized click a mouse
+  // drag emits. Touch swipes (and mouse drags released outside the wrapper)
+  // emit no such click, so the flag would stay armed and eat the *next* real
+  // tap. Clearing it on every new pointer-down re-arms suppression for the
+  // drag's own click without ever swallowing a later tap.
+  const resetSwipeSuppression = useCallback(() => {
+    swipedRef.current = false;
+  }, []);
   const { ref: agendaSwipeRef } = useDrag<HTMLDivElement>(
     (state) => {
       if (!state.last || state.canceled || state.tap) return;
@@ -2989,6 +2998,7 @@ export function DashboardView({
             <div
               ref={agendaTabSwipeRef}
               style={{ touchAction: "pan-y", overflow: "hidden" }}
+              onPointerDown={resetSwipeSuppression}
               onClickCapture={(event) => {
                 if (swipedRef.current) {
                   event.preventDefault();
@@ -3366,6 +3376,7 @@ export function DashboardView({
                 maxHeight: isDesktop ? "70dvh" : "56dvh",
                 overscrollBehavior: "contain",
               }}
+              onPointerDown={resetSwipeSuppression}
               onClickCapture={(event) => {
                 if (swipedRef.current) {
                   event.preventDefault();

@@ -288,7 +288,11 @@ Per-view mechanics (all client-side — no cache or server impact):
   the wizard's "Tap outside to minimize" hint (xs, dimmed, `pointer-events:
   none`). It is shown at most **once per browser session**: a `sessionStorage`
   flag (`cloudy2.agenda-swipe-hint`) is set on the first successful swipe, so
-  the caption never returns once the gesture is discovered.
+  the caption never returns once the gesture is discovered. A swipe arms a
+  one-shot click-suppression flag (`swipedRef`) so the synthesized click a mouse
+  drag emits on release can't open the row it ended over; the wrappers clear it
+  on every `pointerdown`, so a touch swipe (which emits no trailing click) can
+  never swallow the next event tap.
 
 Colors: the brand amber `accent` family (secondary `#FBC02D`) — distinct from
 the event-type colors and the blue `brand` accents used for today/primary. The
