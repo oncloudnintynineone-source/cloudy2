@@ -24,6 +24,7 @@ import {
   requiredMonths,
   resolveDashboardPresentation,
   tabLoadStates,
+  WARM_SNAPSHOT_FRESH_MS,
   type DashboardSnapshotRecord,
 } from "@/lib/dashboard/snapshot";
 import { isUuid } from "@/lib/uuid";
@@ -114,6 +115,22 @@ export function DashboardScreen({
     warmRecordsRef.current = warmRecords;
   }, [warmRecords]);
 
+  // Freshness tick: re-render the moment the earliest warm record crosses the
+  // freshness window, so a background tab can flip to "stale" on time without
+  // polling. Re-arms after each record change / tick.
+  const [freshnessNow, setFreshnessNow] = useState(() => Date.now());
+  useEffect(() => {
+    const now = Date.now();
+    let earliest = Infinity;
+    for (const rec of warmRecords.values()) {
+      const at = rec.savedAt + WARM_SNAPSHOT_FRESH_MS;
+      if (at > now && at < earliest) earliest = at;
+    }
+    if (!Number.isFinite(earliest)) return;
+    const timer = window.setTimeout(() => setFreshnessNow(Date.now()), earliest - now + 50);
+    return () => window.clearTimeout(timer);
+  }, [warmRecords, freshnessNow]);
+
   // Whether the displayed record came from the device cache or a fresh server
   // read. A cached record is shown through a context-changing revalidation
   // (instant paint, update in place); only once we're on fresh data does a
@@ -126,8 +143,8 @@ export function DashboardScreen({
   // view loads are carried by the grid skeleton + the active tab's breathing.
   const [refreshing, setRefreshing] = useState(false);
   // Whether the background tab preload (the single union read that warms every
-  // tab) is in flight. Feeds the tab strip's per-tab load state: while it runs,
-  // every not-yet-loaded tab is "loading" (faded + breathing).
+  // tab) is in flight. Feeds the tab strip's per-tab status: while it runs,
+  // every not-yet-fresh tab is "queued" (a pulsing amber dot).
   const [preloadBusy, setPreloadBusy] = useState(false);
   // The latest busy flag, read by the fetch-decision effect so an equivalent-tab
   // local swap never races an in-flight read (see the effect below).
@@ -505,55 +522,71 @@ export function DashboardScreen({
     [fetchFresh, userId],
   );
 
-  // Per-tab load state for the tab strip. A tab is "loaded" when a warm
-  // snapshot for its current request key exists (paintable instantly, any age),
-  // "loading" while a fetch for that key is in flight (the background preload,
-  // or the active/on-tap priority read), and "not-loaded" otherwise.
+  // Per-tab status for the tab strip (docs/loading-transitions.md §1.13.2):
+  // fresh (solid) / stale (amber dot) / queued (pulsing amber dot) / loading
+  // (fade + breathe) / not-loaded (static fade). The active tab is always
+  // treated as fresh unless a read for it is in flight.
   const tabStatus = useMemo(() => {
     if (!record) return {};
     const tabs = record.data.tabs;
-    const loadedKeys = new Set(warmRecords.keys());
-    loadedKeys.add(record.context.requestKey);
-    const loadingKeys = new Set<string>();
-    if (preloadBusy) {
-      for (const tab of tabs) {
-        loadingKeys.add(
-          dashboardRequestKey({
-            viewId: tab.id,
-            months: requiredMonths(tab.kind, record.context.month, record.context.date),
-          }),
-        );
+    const activeId = presentation?.activeView.id ?? null;
+    const keyForTab = (tab: (typeof tabs)[number]) =>
+      dashboardRequestKey({
+        viewId: tab.id,
+        months: requiredMonths(tab.kind, record.context.month, record.context.date),
+      });
+
+    // Freshness per key from the warm map (the current record's key included).
+    const savedAtByKey = new Map<string, number>();
+    for (const [key, rec] of warmRecords) {
+      savedAtByKey.set(key, rec.savedAt);
+    }
+    if (!savedAtByKey.has(record.context.requestKey)) {
+      savedAtByKey.set(record.context.requestKey, record.savedAt);
+    }
+
+    const freshKeys = new Set<string>();
+    const staleKeys = new Set<string>();
+    for (const tab of tabs) {
+      const key = keyForTab(tab);
+      const savedAt = savedAtByKey.get(key);
+      if (savedAt === undefined) continue;
+      if (isWarmSnapshotFresh(savedAt, freshnessNow)) {
+        freshKeys.add(key);
+      } else {
+        staleKeys.add(key);
       }
     }
-    if (busy) {
-      const activeKey = dashboardCandidateRequestKey(
-        record,
-        effectiveView,
-        searchParams.get("month"),
-        searchParams.get("date"),
-      );
-      if (activeKey) loadingKeys.add(activeKey);
+
+    // While the background preload runs, every not-yet-fresh tab is queued for it.
+    const queuedKeys = new Set<string>();
+    if (preloadBusy) {
+      for (const tab of tabs) {
+        const key = keyForTab(tab);
+        if (!freshKeys.has(key)) queuedKeys.add(key);
+      }
     }
-    const states = tabLoadStates({
+
+    // A read for the active tab's context (nav / filter / revalidate) makes it
+    // breathe. Keyed on the held record's anchor (the helper's basis), so a
+    // cross-month read still flags the active tab.
+    const loadingKeys = new Set<string>();
+    if (busy) {
+      const activeTab = tabs.find((tab) => tab.id === activeId) ?? record.data.activeView;
+      loadingKeys.add(keyForTab(activeTab));
+    }
+
+    return tabLoadStates({
       tabs,
       month: record.context.month,
       date: record.context.date,
-      loadedKeys,
+      freshKeys,
+      staleKeys,
+      queuedKeys,
       loadingKeys,
+      activeTabId: activeId,
     });
-    // The active tab breathes during any in-flight read of its context — a
-    // filter apply, a post-mutation refresh, or a cold navigation — even when a
-    // warm copy for its key exists. Those reads update in place with no
-    // skeleton, and the global bar no longer covers view loads, so the breathing
-    // is their only signal.
-    if (busy) {
-      const activeId = presentation?.activeView.id;
-      if (activeId && states[activeId]) {
-        states[activeId] = "loading";
-      }
-    }
-    return states;
-  }, [record, warmRecords, preloadBusy, busy, effectiveView, searchParams, presentation]);
+  }, [record, warmRecords, preloadBusy, busy, presentation, freshnessNow]);
 
   const context = useMemo(
     () => ({

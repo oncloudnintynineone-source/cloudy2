@@ -614,33 +614,51 @@ leave the amber bar pulsing forever.
 
 The dashboard's tab strip used to read as static while a tapped view's grid
 waited behind the skeleton, and every background tab was indistinguishable from
-a loaded one. Each tab now shows **its own view's** load state on its icon +
-label, decoupled from the active view's skeleton (`DashboardView.tsx`, styled by
-`.c2-tab-loading` / `.c2-tab-not-loaded` in `globals.css`):
+a loaded one. Each tab now reflects **its own view's** freshness/load state,
+decoupled from the active view's skeleton (`DashboardView.tsx`; classes in
+`globals.css`):
 
-- **loaded** — a warm snapshot for the tab's current request key exists, so a tap
-  paints it instantly (any age; a stale one revalidates silently in place).
-  Solid, as before.
-- **loading** — a fetch for that key is in flight (the background preload, the
-  active read, or an on-tap priority read). Slightly faded with a slow
-  **breathing** opacity pulse (~1.6 s); reduced-motion drops the pulse to the
-  static fade.
-- **not-loaded** — neither. Slightly faded, static.
+| State | Meaning | Treatment |
+| ----- | ------- | --------- |
+| **fresh** | warm snapshot inside the freshness window (60 s), or the active tab | solid |
+| **stale** | warm snapshot older than the window; tapping revalidates it in place | solid + small static amber dot |
+| **queued** | the background preload is warming this tab right now | solid + small pulsing amber dot |
+| **loading** | a read for this tab's key is in flight (active/on-tap) | faded + strong breathing pulse (`0.35 ↔ 1`, 1.3 s) |
+| **not-loaded** | no warm copy and no fetch | slightly faded, static |
+
+`stale`/`queued` are **background tabs only** — the active tab is always treated
+as `fresh` unless a read for it is in flight. Reduced-motion drops the pulses
+(static dot / static fade). The dot is an absolutely-positioned `::after`, so it
+never shifts the strip's layout.
+
+```mermaid
+stateDiagram-v2
+  [*] --> fresh: warm + within window
+  fresh --> stale: window elapses (background tab)
+  stale --> loading: tapped (revalidates in place)
+  stale --> queued: background preload starts
+  not-loaded --> queued: background preload starts
+  not-loaded --> loading: tapped (cold)
+  queued --> fresh: preload resolves
+  loading --> fresh: read resolves
+```
 
 **State model.** `DashboardScreen` computes `tabStatus` from the warm-snapshot
-map (`warmRecords`), the in-flight flags (the active read's `busy`, the batch
-preload's `preloadBusy`), and each tab's request key
-(`dashboardRequestKey` + `requiredMonths`); the pure, unit-tested
-`tabLoadStates` (`snapshot.ts`) maps keys → states. It rides the existing
-`DashboardDataContext` (no new props) and the tab strip applies the state class
-to the tab content, leaving the tab chrome/indicator alone. Loading tabs carry
-`aria-busy`.
+map (`warmRecords`), each record's `savedAt` vs. `isWarmSnapshotFresh`, the
+in-flight flags (`busy` for the active read, `preloadBusy` for the batch), and
+each tab's request key (`dashboardRequestKey` + `requiredMonths`); the pure,
+unit-tested `tabLoadStates` (`snapshot.ts`) maps keys → states. A **freshness
+tick** re-renders the moment the earliest warm record crosses the window (a
+single scheduled timeout, re-armed per record change — no polling), so `stale`
+appears on time. It rides the existing `DashboardDataContext` (no new props);
+loading tabs carry `aria-busy`.
 
 **Loading strategy (hybrid).** The efficient single union-read preload
-(`preloadDashboardTabs`) still warms every tab in one server pass; a tap on a
-not-yet-loaded tab fires the normal priority read for that tab, which flips it to
-`loading` immediately. A single-tab account skips the preload entirely (the
-active read already covers it), avoiding a second server config pass.
+(`preloadDashboardTabs`) still warms every tab in one server pass; while it runs
+its not-fresh targets show `queued`. A tap on a not-yet-loaded tab fires the
+normal priority read for that tab, which flips it to `loading` immediately. A
+single-tab account skips the preload entirely (the active read already covers
+it), avoiding a second server config pass.
 
 **Optimistic switch.** A tap also sets `previewView` in `DashboardDataContext`;
 `DashboardScreen` resolves the displayed context from `previewView ??
@@ -651,11 +669,10 @@ revert window (`PREVIEW_REVERT_MS`) if the push never lands.
 
 **Active-tab feedback on any active fetch.** Because view loads no longer surface
 on the global activity bar (§1.13), the active tab itself carries the signal:
-`DashboardScreen` overrides the active tab's state to `loading` whenever a read
-for its context is in flight (`busy`) — a cold navigation, a post-mutation
-refresh, or a filter apply (`revalidate({ report: false })`, treated as a view
-load). The pulse is deliberately strong (opacity `0.35 ↔ 1` over 1.3 s;
-reduced-motion = the static fade) so it reads at a glance.
+`DashboardScreen` flags the active tab as `loading` whenever a read for its
+context is in flight (`busy`) — a cold navigation, a post-mutation refresh, or a
+filter apply (`revalidate({ report: false })`, treated as a view load). The pulse
+is deliberately strong so it reads at a glance.
 
 ## 1.14 File index & related docs
 
@@ -678,9 +695,9 @@ reduced-motion = the static fade) so it reads at a glance.
 | `src/lib/async.ts` | `mapWithConcurrency` + `withTimeout` (bounds the cold-start legs and the first dashboard read) — §1.13.1 |
 | `src/lib/ui/coldStart.ts` | Pure readiness reducer (`coldStartReducer`), route allowlist + `coldStartRouteRequiresContent`, timing constants (MIN/MAX/dwell/check) — §1.13.1 |
 | `src/components/ColdStartReady.tsx` | `ColdStartReadyProvider` + `useColdStartReady`/`useColdStartContent` + `ColdStartReadyBar` (amber → green once-per-launch) — §1.13.1 |
-| `src/lib/dashboard/snapshot.ts` | Pure snapshot/request-key helpers incl. `tabLoadStates` (per-tab loaded/loading/not-loaded) — §1.13.2 |
+| `src/lib/dashboard/snapshot.ts` | Pure snapshot/request-key helpers incl. `tabLoadStates` (per-tab fresh/stale/queued/loading/not-loaded) — §1.13.2 |
 | `src/lib/dashboardViews/views.ts` | Pure view vocabulary + `tabSwitchTarget` (the period-follows-kind URL rule shared by `switchTab` and the tab-URL prefetch) — §1.10 |
-| `src/app/(protected)/dashboard/DashboardScreen.tsx` | Owns the snapshot, warm map, preload, per-tab `tabStatus`, and the optimistic `previewView`; first-load timeout + retryable error — §1.13.2 |
+| `src/app/(protected)/dashboard/DashboardScreen.tsx` | Owns the snapshot, warm map, preload, per-tab `tabStatus` (with a freshness tick), and the optimistic `previewView`; first-load timeout + retryable error — §1.13.2 |
 | `next.config.ts` | `experimental.staleTimes.dynamic = 120` client-router reuse window (§1.10) |
 | `src/app/(protected)/dashboard/page.tsx` | `?event=`/`?edit=`/`?refresh=` param validation |
 

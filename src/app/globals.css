@@ -348,12 +348,15 @@ html {
   }
 }
 
-/* Per-view tab load state (docs/loading-transitions.md §1.13.2): each dashboard
-   tab's icon + label reflects its own view's load progress, decoupled from the
-   active view's skeleton. Loaded = solid (no class); not-loaded = slightly
-   faded; loading = faded and breathing, a strong opacity pulse (0.35 ↔ 1) that
-   reads as "working" without a spinner. The reduced-motion branch drops the
-   pulse, leaving the static fade. */
+/* Per-view tab status (docs/loading-transitions.md §1.13.2): each dashboard tab
+   reflects its own view's freshness/load state, decoupled from the active
+   view's skeleton.
+   - fresh    → solid (no class)
+   - stale    → solid text + a small static amber dot (data older than the window)
+   - queued   → solid text + a small pulsing amber dot (background preload)
+   - loading  → faded + breathing, a strong opacity pulse (0.35 ↔ 1)
+   - not-loaded → slightly faded, static
+   The reduced-motion branch drops the pulses, leaving the static looks. */
 .c2-tab-not-loaded {
   opacity: 0.5;
 }
@@ -375,6 +378,52 @@ html {
 @media (prefers-reduced-motion: no-preference) {
   .c2-tab-loading {
     animation: c2-tab-breathe 1.3s ease-in-out infinite;
+  }
+}
+
+/* Background-tab freshness dot: pinned to the tab's top-right corner so it
+   never shifts the strip's layout. */
+.c2-tab-stale,
+.c2-tab-queued {
+  position: relative;
+}
+
+.c2-tab-stale::after,
+.c2-tab-queued::after {
+  content: "";
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--mantine-color-accent-6);
+  pointer-events: none;
+}
+
+.c2-tab-stale::after {
+  opacity: 0.5;
+}
+
+.c2-tab-queued::after {
+  opacity: 1;
+}
+
+@keyframes c2-tab-dot-pulse {
+  0%,
+  100% {
+    opacity: 0.35;
+    transform: scale(0.85);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .c2-tab-queued::after {
+    animation: c2-tab-dot-pulse 1.3s ease-in-out infinite;
   }
 }
 

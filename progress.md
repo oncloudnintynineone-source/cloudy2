@@ -18,7 +18,7 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
 
 ## 1.1 Status
 
-- All work through changelog **1.230 (Android edge-to-edge for the bottom nav)** is shipped.
+- All work through changelog **1.231 (tab freshness indicators: stale/queued)** is shipped.
 - Quality gates (`lint` / `typecheck` / `test` / schema-drift check) run in CI on every
   push and PR. Pushes also auto-apply migrations per environment: `dev` →
   `migrate-preview` against the dev Neon DB, `main` → `migrate` against the prod Neon
@@ -963,6 +963,18 @@ via `?attendance=1` and `attendanceStorage` became a `useSyncExternalStore` exte
    (`public/loading.html`) mirrors the pattern, guarded by `launchShell.test.ts`.
    Improves **browser-tab** compatibility only — installed WebAPK edge-to-edge is gated
    on Chrome shipping the fix (`docs/pwa-offline.md` §1.19)
+- 1.231 Tab freshness indicators: the dashboard tab strip now distinguishes five states
+   instead of three — `fresh` (solid), `stale` (warm snapshot older than the 60 s window,
+   background tabs: a small static amber dot), `queued` (the background preload is warming
+   it: a pulsing amber dot), `loading` (a read for the active tab: fade + breathe), and
+   `not-loaded` (static fade). The active tab is always `fresh` unless a read is in flight.
+   `tabLoadStates` (`snapshot.ts`) takes `freshKeys`/`staleKeys`/`queuedKeys`/`loadingKeys`
+   + `activeTabId`; `DashboardScreen` computes them from `warmRecords`/`savedAt` via a
+   **freshness tick** (a single scheduled timeout at the earliest record expiry, re-armed,
+   no polling) so `stale` appears on time. `stale`/`queued` render an absolutely-positioned
+   `::after` dot on the `Tabs.Tab` (no layout shift). Stale is indicate-only (tapping
+   revalidates); the strip is not auto-refreshed (`docs/loading-transitions.md` §1.13.2,
+   `AGENTS.md`)
 
 ## 1.4 Open items & next steps
 
