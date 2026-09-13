@@ -1019,6 +1019,9 @@ export function DashboardView({
   // (its resolved filter values arrive with the tab's data).
   const [pendingFilterViewId, setPendingFilterViewId] = useState<string | null>(null);
   const [pickerOpened, { open: openPicker, close: closePicker }] = useDisclosure(false);
+  // Where the date trigger sat on screen; the picker grows out of / shrinks
+  // back into it (see src/lib/motion/origin.ts).
+  const [pickerOriginRect, setPickerOriginRect] = useState<Rect | null>(null);
 
   // "Add view" dialog draft (kind picker + name).
   const [createOpened, { open: openCreateView, close: closeCreateView }] = useDisclosure(false);
@@ -2823,7 +2826,10 @@ export function DashboardView({
             variant="default"
             aria-label="Select date"
             title="Select date"
-            onClick={openPicker}
+            onClick={(e) => {
+              setPickerOriginRect(e.currentTarget.getBoundingClientRect());
+              openPicker();
+            }}
           >
             <IconCalendarDot size={18} />
           </ActionIcon>
@@ -3616,6 +3622,7 @@ export function DashboardView({
         onPick={view === "month" ? pickMonth : isAgenda ? applyAgendaDay : pickDate}
         onToday={goToday}
         onClose={closePicker}
+        originRect={pickerOriginRect}
       />
 
       <FilterModal

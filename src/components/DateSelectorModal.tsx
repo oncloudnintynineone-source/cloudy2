@@ -9,6 +9,13 @@ import { MobileMonthView } from "@mantine/schedule";
 import { IconChevronLeft, IconChevronRight } from "@tabler/icons-react";
 import { NARROW_MEDIA_QUERY } from "@/lib/theme";
 import { weekDays } from "@/lib/events/datetime";
+import {
+  modalContentWidth,
+  scaleFromRect,
+  transformOriginFromRect,
+  type Rect,
+} from "@/lib/motion/origin";
+import { MOTION } from "@/lib/motion/timing";
 
 export type DateSelectorKind = "month" | "week" | "day";
 
@@ -22,6 +29,8 @@ interface DateSelectorModalProps {
   onPick: (value: string) => void;
   onToday: () => void;
   onClose: () => void;
+  /** Trigger rect; the dialog grows out of / shrinks back into it. */
+  originRect?: Rect | null;
 }
 
 const WEEK_TINT = "color-mix(in srgb, var(--mantine-primary-color-filled) 15%, transparent)";
@@ -33,6 +42,7 @@ export function DateSelectorModal({
   onPick,
   onToday,
   onClose,
+  originRect = null,
 }: DateSelectorModalProps) {
   const theme = useMantineTheme();
   const isDesktop = useMediaQuery(`(min-width: ${theme.breakpoints.lg})`);
@@ -77,6 +87,25 @@ export function DateSelectorModal({
       }
     : undefined;
 
+  // The modal zooms out of / shrinks back into the trigger button (the app's
+  // standard grow/shrink animation; mirror the filter dialog).
+  const viewport = {
+    w: typeof window === "undefined" ? 0 : window.innerWidth,
+    h: typeof window === "undefined" ? 0 : window.innerHeight,
+  };
+  const contentWidth = modalContentWidth(viewport, isNarrow ? 300 : isDesktop ? 440 : 380);
+  const transitionProps = {
+    transition: {
+      in: { opacity: 1, transform: "scale(1)" },
+      out: { opacity: 0, transform: `scale(${scaleFromRect(originRect, contentWidth)})` },
+      common: { transformOrigin: transformOriginFromRect(originRect, viewport, "center") },
+      transitionProperty: "transform, opacity",
+    },
+    duration: MOTION.modalZoom,
+    exitDuration: MOTION.modalZoomExit,
+    timingFunction: "cubic-bezier(0.3, 1.2, 0.4, 1)",
+  } as const;
+
   return (
     <Modal
       opened={opened}
@@ -84,6 +113,7 @@ export function DateSelectorModal({
       title={title}
       centered
       size={isNarrow ? "xs" : isDesktop ? "md" : "sm"}
+      transitionProps={transitionProps}
     >
       {kind === "month" ? (
         <Box style={{ display: "flex", justifyContent: "center" }}>
