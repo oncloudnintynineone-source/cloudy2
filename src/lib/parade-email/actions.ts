@@ -12,25 +12,15 @@ import { requireAdmin } from "@/lib/session";
 import { onlyUuidIds } from "@/lib/uuid";
 
 import { runParadeStateEmail } from "./dispatch";
-import { normalizeSendTime } from "./schedule";
 import { validateParadeEmailForm, type ParadeEmailFormValues } from "./validate";
 
-export type ParadeEmailField =
-  | "recipientIds"
-  | "sendTime"
-  | "subjectTemplate"
-  | "bodyTemplate";
+export type ParadeEmailField = "recipientIds" | "subjectTemplate" | "bodyTemplate";
 
 export type ParadeEmailActionResult =
   | { ok: true; recipients?: number }
   | { ok: false; error: string; field?: ParadeEmailField };
 
-const FIELD_ORDER: ParadeEmailField[] = [
-  "recipientIds",
-  "sendTime",
-  "subjectTemplate",
-  "bodyTemplate",
-];
+const FIELD_ORDER: ParadeEmailField[] = ["recipientIds", "subjectTemplate", "bodyTemplate"];
 
 /** Persist the daily parade-state email config (Settings → Parade State Email). */
 export async function saveParadeEmailSettings(
@@ -45,7 +35,6 @@ export async function saveParadeEmailSettings(
   }
 
   const recipientIds = [...new Set(onlyUuidIds(values.recipientIds))];
-  const sendTime = normalizeSendTime(values.sendTime);
   const subject = values.subjectTemplate.trim();
   const body = values.bodyTemplate.trim();
 
@@ -56,7 +45,6 @@ export async function saveParadeEmailSettings(
     .set({
       paradeEmailEnabled: values.enabled,
       paradeEmailRecipientIds: recipientIds,
-      paradeEmailSendTime: sendTime,
       paradeEmailSubjectTemplate: subject,
       paradeEmailBodyTemplate: body,
       updatedAt: new Date(),
@@ -77,14 +65,12 @@ export async function saveParadeEmailSettings(
       {
         paradeEmailEnabled: before?.paradeEmailEnabled ?? null,
         paradeEmailRecipientIds: before?.paradeEmailRecipientIds ?? null,
-        paradeEmailSendTime: before?.paradeEmailSendTime ?? null,
         paradeEmailSubjectTemplate: before?.paradeEmailSubjectTemplate ?? null,
         paradeEmailBodyTemplate: before?.paradeEmailBodyTemplate ?? null,
       },
       {
         paradeEmailEnabled: values.enabled,
         paradeEmailRecipientIds: recipientIds,
-        paradeEmailSendTime: sendTime,
         paradeEmailSubjectTemplate: subject,
         paradeEmailBodyTemplate: body,
       },

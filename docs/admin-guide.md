@@ -198,17 +198,19 @@ Design: [`kah.md`](kah.md).
 ## 1.9 Parade State Email
 
 Settings → Parade State Email — email a snapshot of the parade state to selected people
-once a day.
+each weekday at 08:00 (Singapore time).
 
-- **Enable switch**, **Recipients** (badge picker over active users; their `users.email`
-  is used), and a **Send time** in Singapore time.
+- **Enable switch** and **Recipients** (badge picker over active users; their `users.email`
+  is used).
 - **Subject / Body templates** with a live preview. Tokens: `{date}`, `{weekday}`,
   `{present}`, `{total}`, `{outOfCamp}`, `{generatedAt}`, and `{departments}` (the
   per-department roster — required).
-- **Send test now** emails the current templates to your own address.
+- **Send test to my email** sends the current templates to **your own address only** — it
+  does not go to the configured recipients.
 - The snapshot is derived from calendar events (a user is **in camp** unless they have an
   out-of-camp event that day), grouped by department; attendance checkmarks are **not**
-  included. The email is sent at most once per day.
+  included. The email is sent at most once per weekday; the 08:00 schedule is fixed in
+  Cloud Scheduler (public holidays are not excluded).
 
 Design: [`parade-state-email.md`](parade-state-email.md).
 

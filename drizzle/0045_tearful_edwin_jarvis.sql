@@ -1,0 +1,1 @@
+ALTER TABLE "settings" DROP COLUMN "parade_email_send_time";

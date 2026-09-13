@@ -40,7 +40,6 @@ export default async function ParadeEmailPage() {
       initial={{
         enabled: settings.paradeEmailEnabled,
         recipientIds: settings.paradeEmailRecipientIds,
-        sendTime: settings.paradeEmailSendTime,
         subjectTemplate: settings.paradeEmailSubjectTemplate,
         bodyTemplate: settings.paradeEmailBodyTemplate,
       }}

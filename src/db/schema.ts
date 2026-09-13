@@ -417,18 +417,17 @@ export const settings = pgTable(
     bannerColor: text("banner_color"),
     /**
      * Daily parade-state email (Settings → Parade State Email): when enabled,
-     * the selected roster users receive one snapshot per day at
-     * `parade_email_send_time` (UTC+8). Recipients are stored as user ids so
-     * their addresses follow roster changes. Subject/body are admin-editable
-     * templates with `{date}`/`{present}`/`{departments}` tokens — defaults in
-     * `src/lib/parade-email/emailDefaults.ts`, kept in sync with these columns.
+     * the selected roster users receive one snapshot on each weekday at 08:00
+     * Singapore time, scheduled by Cloud Scheduler. Recipients are stored as
+     * user ids so their addresses follow roster changes. Subject/body are
+     * admin-editable templates with `{date}`/`{present}`/`{departments}` tokens
+     * — defaults in `src/lib/parade-email/emailDefaults.ts`, kept in sync with
+     * these columns.
      */
     paradeEmailEnabled: boolean("parade_email_enabled").notNull().default(false),
     paradeEmailRecipientIds: jsonb("parade_email_recipient_ids")
       .notNull()
       .default(sql`'[]'::jsonb`),
-    /** Daily send time in the app's UTC+8 wall clock, `HH:MM`. */
-    paradeEmailSendTime: text("parade_email_send_time").notNull().default("07:00"),
     paradeEmailSubjectTemplate: text("parade_email_subject_template")
       .notNull()
       .default(PARADE_EMAIL_SUBJECT_TEMPLATE_DEFAULT),

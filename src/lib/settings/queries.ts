@@ -16,7 +16,6 @@ import {
   PARADE_EMAIL_BODY_TEMPLATE_DEFAULT,
   PARADE_EMAIL_SUBJECT_TEMPLATE_DEFAULT,
 } from "@/lib/parade-email/emailDefaults";
-import { normalizeSendTime } from "@/lib/parade-email/schedule";
 import { sanitizeTitleRecipe, type TitleRecipe } from "@/lib/settings/titleRecipe";
 import {
   normalizeAssignments,
@@ -54,8 +53,6 @@ export interface SettingsView {
   /** Daily parade-state email config (Settings → Parade State Email). */
   paradeEmailEnabled: boolean;
   paradeEmailRecipientIds: string[];
-  /** `HH:MM` in the app's UTC+8 wall clock. */
-  paradeEmailSendTime: string;
   paradeEmailSubjectTemplate: string;
   paradeEmailBodyTemplate: string;
 }
@@ -102,7 +99,6 @@ export async function getSettings(): Promise<SettingsView> {
     kahEmailBodyTemplate: row?.kahEmailBodyTemplate?.trim() || KAH_EMAIL_BODY_TEMPLATE_DEFAULT,
     paradeEmailEnabled: row?.paradeEmailEnabled ?? false,
     paradeEmailRecipientIds: normalizeIdArray(row?.paradeEmailRecipientIds),
-    paradeEmailSendTime: normalizeSendTime(row?.paradeEmailSendTime),
     paradeEmailSubjectTemplate:
       row?.paradeEmailSubjectTemplate?.trim() || PARADE_EMAIL_SUBJECT_TEMPLATE_DEFAULT,
     paradeEmailBodyTemplate:

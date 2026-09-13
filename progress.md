@@ -18,7 +18,7 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
 
 ## 1.1 Status
 
-- All work through changelog **1.227 (instant dashboard tab switches)** is shipped.
+- All work through changelog **1.228 (weekday parade-state email schedule)** is shipped.
 - Quality gates (`lint` / `typecheck` / `test` / schema-drift check) run in CI on every
   push and PR. Pushes also auto-apply migrations per environment: `dev` →
   `migrate-preview` against the dev Neon DB, `main` → `migrate` against the prod Neon
@@ -933,6 +933,14 @@ via `?attendance=1` and `attendanceStorage` became a `useSyncExternalStore` exte
    Animations API (`el.animate`), removing a full-grid synchronous layout on every
    tab/date change (`docs/loading-transitions.md` §1.10/§1.13.2,
    `docs/dashboard-views.md` §1.4, `AGENTS.md`)
+- 1.228 Parade-state email fixed to a weekday 08:00 schedule: Cloud Scheduler now fires
+   `0 8 * * 1-5` (Asia/Singapore) and the in-app send-time setting is removed — the
+   scheduler is authoritative, so `paradeEmailDue` keeps only the enabled/recipients/
+   already-sent gates and the `settings.parade_email_send_time` column is dropped
+   (migration 0045). The settings tab shows the schedule read-only and the test button is
+   relabelled "Send test to my email" (it still emails only the acting admin); public
+   holidays remain included, documented as a deliberate limitation
+   (`docs/parade-state-email.md`)
 
 ## 1.4 Open items & next steps
 

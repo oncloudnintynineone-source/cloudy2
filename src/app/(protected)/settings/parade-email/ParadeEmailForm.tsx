@@ -12,7 +12,6 @@ import {
   Textarea,
   TextInput,
 } from "@mantine/core";
-import { TimeInput } from "@mantine/dates";
 import { useForm } from "@mantine/form";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
@@ -98,7 +97,7 @@ export function ParadeEmailForm({ pickerUsers, currentUserId, initial }: ParadeE
       if (result.ok) {
         notifications.show({
           color: "green",
-          message: `Test email sent to ${result.recipients ?? 1} address(es)`,
+          message: "Test email sent to your address",
         });
       } else {
         notifications.show({ color: "red", message: result.error });
@@ -113,8 +112,8 @@ export function ParadeEmailForm({ pickerUsers, currentUserId, initial }: ParadeE
       <form onSubmit={onSubmit}>
         <Stack gap="md">
           <Switch
-            label="Send daily parade-state email"
-            description="Each day at the time below, the selected recipients receive a snapshot of the parade state. Users without an email address on their profile are skipped."
+            label="Send weekday parade-state email"
+            description="Each weekday at 08:00 (Singapore time), the selected recipients receive a snapshot of the parade state. Users without an email address on their profile are skipped."
             {...form.getInputProps("enabled", { type: "checkbox" })}
           />
 
@@ -138,12 +137,10 @@ export function ParadeEmailForm({ pickerUsers, currentUserId, initial }: ParadeE
             )}
           </Stack>
 
-          <TimeInput
-            label="Send time"
-            description="Singapore time (UTC+8). The email may arrive up to ~15 minutes later."
-            withSeconds={false}
-            {...form.getInputProps("sendTime")}
-          />
+          <Text size="sm" c="dimmed">
+            Sends on weekdays at 08:00 (Singapore time). The schedule is managed by Cloud
+            Scheduler; public holidays are not excluded.
+          </Text>
 
           <TextInput
             label="Subject template"
@@ -190,12 +187,16 @@ export function ParadeEmailForm({ pickerUsers, currentUserId, initial }: ParadeE
               loading={sendingTest}
               loaderProps={BUTTON_LOADER_PROPS}
             >
-              Send test now
+              Send test to my email
             </Button>
             <Button type="submit" loading={form.submitting} loaderProps={BUTTON_LOADER_PROPS}>
               Save
             </Button>
           </Group>
+          <Text size="xs" c="dimmed">
+            Test sends a [TEST] copy to your own address only — not to the configured
+            recipients.
+          </Text>
         </Stack>
       </form>
 

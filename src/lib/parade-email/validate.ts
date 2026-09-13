@@ -3,8 +3,6 @@
  * so it can be unit-tested without a database.
  */
 
-import { normalizeSendTime } from "./schedule";
-
 export const PARADE_EMAIL_SUBJECT_MAX_LENGTH = 200;
 export const PARADE_EMAIL_BODY_MAX_LENGTH = 10000;
 
@@ -25,14 +23,12 @@ export const PARADE_EMAIL_TEMPLATE_PLACEHOLDERS = [
 export interface ParadeEmailFormValues {
   enabled: boolean;
   recipientIds: string[];
-  sendTime: string;
   subjectTemplate: string;
   bodyTemplate: string;
 }
 
 export interface ParadeEmailFormErrors {
   recipientIds?: string;
-  sendTime?: string;
   subjectTemplate?: string;
   bodyTemplate?: string;
   [key: string]: string | undefined;
@@ -49,10 +45,6 @@ export function validateParadeEmailForm(values: ParadeEmailFormValues): ParadeEm
 
   if (values.enabled && values.recipientIds.length === 0) {
     errors.recipientIds = "Select at least one recipient";
-  }
-
-  if (normalizeSendTime(values.sendTime) !== values.sendTime.trim()) {
-    errors.sendTime = "Send time must be a valid HH:MM time";
   }
 
   const subject = values.subjectTemplate.trim();

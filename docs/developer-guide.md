@@ -383,12 +383,12 @@ same prod Google service account).
   creates real Google calendars) touch prod data twice, so keep them to admins and
   create-then-delete. Sessions are per-origin: a user logged into Vercel must log
   in again on the `*.run.app` URL.
-- **Daily parade-state email trigger** (Cloud Scheduler, not Vercel Cron): create a job
-  that GETs canonical prod `/api/cron/parade-state-email` every 15 minutes with the
-  `Authorization: Bearer <CRON_SECRET>` header; the route decides whether the in-app send
-  time has passed. A frequent tick keeps the send time runtime-configurable. Rotation
-  steps (the value lives on Vercel, the Cloud Run service, the GitHub secret, and the job
-  header): [parade-state-email.md](parade-state-email.md) §1.5.1.
+- **Weekday parade-state email trigger** (Cloud Scheduler, not Vercel Cron): create a job
+  that GETs canonical prod `/api/cron/parade-state-email` weekdays at 08:00 SGT
+  (`0 8 * * 1-5`, `Asia/Singapore`) with the `Authorization: Bearer <CRON_SECRET>` header.
+  The schedule is fixed in the job (there is no in-app send time). Rotation steps (the
+  value lives on Vercel, the Cloud Run service, the GitHub secret, and the job header):
+  [parade-state-email.md](parade-state-email.md) §1.5.1.
 - **Cutover** (when ready): disable/delete the Vercel project + delete
   `vercel.json` (nothing to change in `next.config.ts` — no Cloud Run-specific
   config exists). Abort path: delete the Cloud Run service — Vercel is untouched.

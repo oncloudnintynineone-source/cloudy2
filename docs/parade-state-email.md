@@ -1,7 +1,7 @@
 # 1. Daily parade-state email
 
-An admin can have a **snapshot of the parade state emailed to a set of roster users once a
-day** at a configured Singapore time. The snapshot is derived from the same calendar data
+An admin can have a **snapshot of the parade state emailed to a set of roster users each
+weekday at 08:00 Singapore time**. The snapshot is derived from the same calendar data
 as the Parade State page: a user counts as **in camp** unless they have an out-of-camp event
 that day. Attendance checkmarks are **not** included — those live only in each device's
 `localStorage`, so a server job cannot read them.
@@ -30,7 +30,7 @@ sequenceDiagram
  S->>R: GET + Authorization: Bearer CRON_SECRET
  R->>R: constant-time secret check
  R->>D: trigger = "cron"
- D->>DB: settings (enabled, recipients, send time, templates)
+ D->>DB: settings (enabled, recipients, templates)
  D->>DB: parade_email_sends for today
  alt not due / already sent
   D-->>R: { sent: false, skipped }
@@ -47,8 +47,9 @@ sequenceDiagram
 
 The route is **host-agnostic**: it works identically on Vercel and the Cloud Run shadow, so
 the scheduler can point at whichever is canonical production. It is triggered by **Cloud
-Scheduler** (not Vercel Cron) so the send time can stay runtime-configurable: the scheduler
-ticks frequently and the route decides whether the configured time has passed.
+Scheduler** (not Vercel Cron) with a fixed **weekday 08:00** schedule; the app has no
+send-time setting, so the scheduler is the single source of truth for *when* the email
+goes out.
 
 ## 1.2 Data model
 
@@ -57,7 +58,6 @@ erDiagram
  settings {
   bool parade_email_enabled
   jsonb parade_email_recipient_ids "roster user ids"
-  text parade_email_send_time "HH:MM UTC+8"
   text parade_email_subject_template
   text parade_email_body_template
  }
@@ -104,35 +104,39 @@ case-insensitive, trimmed tokens, unknown tokens left literal. The body **must**
 
 ## 1.4 Scheduling & idempotency
 
-1. Cloud Scheduler calls the route on a short interval (every 15 minutes).
+1. Cloud Scheduler calls the route once per weekday at 08:00 (Asia/Singapore).
 2. The route authenticates with a constant-time compare of
    `Authorization: Bearer <CRON_SECRET>` (503 when the secret is unset).
 3. `runParadeStateEmail` reads the settings, resolves recipients, and calls the pure
    `paradeEmailDue`:
-   - not due when **disabled**, **no resolvable recipients**, **already sent**, or
-     **before the configured UTC+8 time**;
+   - not due when **disabled**, **no resolvable recipients**, or **already sent**;
    - otherwise it **claims the day** via an `onConflictDoNothing` insert on `send_date`.
-4. A **failed** day is left claimable: the next tick retries (the row status becomes
+4. A **failed** day is left claimable: a later run retries (the row status becomes
    `failed`). A **sent** day is never retried.
 5. Every attempt writes an audit row (`paradeState.emailSend`) with the date, recipients,
    counts, and delivery result.
 
-The tick may fire up to the interval (15 min) after the configured time — the trade-off for
-keeping the send time configurable in-app.
+There is **no in-app send-time setting** — the schedule lives entirely in the Cloud
+Scheduler job. `gcloud scheduler jobs run` can exercise the real path on demand; note that
+it consumes the day's dedup row, so the scheduled send won't repeat that day.
 
 ## 1.5 Cloud Scheduler setup
 
-Create a job that ticks every 15 minutes and presents the secret header. Point `--uri` at
-canonical production (Vercel); switching to the Cloud Run URL later is a one-line update.
+Create a job that fires on weekdays at 08:00 Singapore time and presents the secret header.
+Point `--uri` at canonical production (the route is host-agnostic, so switching hosts is a
+one-line `--uri` update):
 
 ```bash
 gcloud scheduler jobs create http cloudy2-parade-email \
-  --schedule="*/15 * * * *" \
+  --location=asia-southeast1 \
+  --schedule="0 8 * * 1-5" \
   --time-zone="Asia/Singapore" \
-  --uri="https://<prod-host>/api/cron/parade-state-email" \
+  --uri="https://<host>/api/cron/parade-state-email" \
   --http-method=GET \
   --headers="Authorization=Bearer <CRON_SECRET>"
 ```
+
+`0 8 * * 1-5` = 08:00 Monday–Friday (Cloud Scheduler day-of-week `1`=Mon … `5`=Fri).
 
 Set `CRON_SECRET` (e.g. `openssl rand -base64 32`) on **every** deploy surface — Vercel
 prod, the Cloud Run shadow, and `.env.local` — and use the same value in the job header.
@@ -143,6 +147,8 @@ If the job already exists, update it instead of re-creating it (note `update` ta
 ```bash
 gcloud scheduler jobs update http cloudy2-parade-email \
   --location=asia-southeast1 \
+  --schedule="0 8 * * 1-5" \
+  --time-zone="Asia/Singapore" \
   --uri="https://<host>/api/cron/parade-state-email" \
   --http-method=GET \
   --update-headers="Authorization=Bearer <CRON_SECRET>"
@@ -156,8 +162,8 @@ mismatch), `14` = 503 (`CRON_SECRET` unset), `0` = 200 OK.
 
 The scheduler's `Authorization` header and the app's `CRON_SECRET` env var are two copies
 of one shared secret, so rotation means changing the value everywhere it lives. There is
-only one valid value at a time, so a tick or two may return `401` mid-rotation — harmless
-for a 15-minute daily job.
+only one valid value at a time, so a run or two may return `401` mid-rotation — harmless
+for a weekday job.
 
 1. Generate a new value. Prefer hex (no `=`, `,`, or `/` to quote):
    ```bash
@@ -188,12 +194,15 @@ the caller side via `gcloud scheduler jobs describe`.
 
 Settings → **Parade State Email** (`/settings/parade-email`, admin-only):
 
-- **Send daily parade-state email** — the enable switch.
+- **Send weekday parade-state email** — the enable switch.
 - **Recipients** — a `UserSelectModal` badge picker over active roster users.
-- **Send time** — `HH:MM`, Singapore time.
 - **Subject / Body templates** — with a token list and a live sample-data preview.
-- **Send test now** — sends the current templates to the acting admin's own address
-  (`[TEST]` subject prefix); never consumes the day's dedup row.
+- **Send test to my email** — sends the current templates to the acting admin's **own**
+  address only (`[TEST]` subject prefix), never to the configured recipients, and never
+  consumes the day's dedup row.
+
+The send schedule (weekdays 08:00 SGT) is shown read-only; change it in the Cloud Scheduler
+job, not here.
 
 ## 1.7 Files
 
@@ -203,7 +212,7 @@ Settings → **Parade State Email** (`/settings/parade-email`, admin-only):
 | `src/lib/parade-email/dispatch.ts` | Recipient resolution, day claim, send, audit |
 | `src/lib/parade-email/context.ts` | Org-wide snapshot load (cached month read) |
 | `src/lib/parade-email/report.ts` | Pure email builder + sample preview context |
-| `src/lib/parade-email/schedule.ts` | Pure due-time decision (UTC+8) |
+| `src/lib/parade-email/schedule.ts` | Pure due-state decision + UTC+8 date |
 | `src/lib/parade-email/validate.ts` | Form validation + token list |
 | `src/lib/parade-email/emailDefaults.ts` | Default subject/body (shared with schema) |
 | `src/lib/parade-email/actions.ts` | Save config + send test (server actions) |
@@ -215,6 +224,8 @@ Settings → **Parade State Email** (`/settings/parade-email`, admin-only):
 
 - **No attendance marks.** They are device-local; the email is the derived in/out-of-camp
   view. Moving attendance to the database is a prerequisite for including it.
+- **Weekdays only, public holidays included.** The schedule is Mon–Fri; there is no holiday
+  calendar, so the email still goes out on public holidays (kept simple deliberately).
 - **Organizer-only events mark nobody.** Matching the page, only tagged attendees count;
   an organizer who is not attending is not listed out of camp.
 - **Users without an email are skipped** (and noted in the audit row).

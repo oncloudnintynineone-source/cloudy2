@@ -122,8 +122,6 @@ export async function runParadeStateEmail(
       const due = paradeEmailDue({
         enabled: config.paradeEmailEnabled,
         recipientCount: recipients.length,
-        sendTime: config.paradeEmailSendTime,
-        now,
         alreadySentToday: status === "sent",
       });
       if (!due.due) {
