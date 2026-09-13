@@ -137,6 +137,53 @@ gcloud scheduler jobs create http cloudy2-parade-email \
 Set `CRON_SECRET` (e.g. `openssl rand -base64 32`) on **every** deploy surface — Vercel
 prod, the Cloud Run shadow, and `.env.local` — and use the same value in the job header.
 
+If the job already exists, update it instead of re-creating it (note `update` takes
+`--update-headers`, not `--headers`):
+
+```bash
+gcloud scheduler jobs update http cloudy2-parade-email \
+  --location=asia-southeast1 \
+  --uri="https://<host>/api/cron/parade-state-email" \
+  --http-method=GET \
+  --update-headers="Authorization=Bearer <CRON_SECRET>"
+```
+
+The last attempt's `status.code` in `gcloud scheduler jobs describe` is the target's HTTP
+status mapped to a gRPC code: `5` = 404 (route not deployed yet), `16` = 401 (secret
+mismatch), `14` = 503 (`CRON_SECRET` unset), `0` = 200 OK.
+
+### 1.5.1 Rotating `CRON_SECRET`
+
+The scheduler's `Authorization` header and the app's `CRON_SECRET` env var are two copies
+of one shared secret, so rotation means changing the value everywhere it lives. There is
+only one valid value at a time, so a tick or two may return `401` mid-rotation — harmless
+for a 15-minute daily job.
+
+1. Generate a new value. Prefer hex (no `=`, `,`, or `/` to quote):
+   ```bash
+   openssl rand -hex 32
+   ```
+2. Update the **GitHub Actions secret** (CI copies it onto Cloud Run on the next `main`
+   deploy): `gh secret set CRON_SECRET --body "<new>"`.
+3. Update **Vercel** (Project → Settings → Environment Variables, Production + Preview)
+   and **redeploy** — env changes only take effect on a new deployment.
+4. Update the **Cloud Run** service (rolls a new revision immediately; avoids waiting for
+   a `main` push):
+   ```bash
+   gcloud run services update cloudy2 \
+     --region=asia-southeast1 \
+     --update-env-vars=CRON_SECRET=<new>
+   ```
+5. Update the **scheduler header** (see the `update` command above).
+6. Verify: `gcloud scheduler jobs run cloudy2-parade-email --location=asia-southeast1`,
+   then check `gcloud run services logs read cloudy2 --region=asia-southeast1`. A `200`
+   with a JSON body means both sides agree.
+
+The dedup table is untouched by a rotation, so no duplicate email is sent. To confirm the
+current values: the app side via
+`gcloud run services describe cloudy2 --region=asia-southeast1 --format=yaml | grep -i CRON_SECRET`,
+the caller side via `gcloud scheduler jobs describe`.
+
 ## 1.6 Admin UI
 
 Settings → **Parade State Email** (`/settings/parade-email`, admin-only):

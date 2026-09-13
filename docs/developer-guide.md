@@ -386,8 +386,9 @@ same prod Google service account).
 - **Daily parade-state email trigger** (Cloud Scheduler, not Vercel Cron): create a job
   that GETs canonical prod `/api/cron/parade-state-email` every 15 minutes with the
   `Authorization: Bearer <CRON_SECRET>` header; the route decides whether the in-app send
-  time has passed. A frequent tick keeps the send time runtime-configurable.
-  See [parade-state-email.md](parade-state-email.md) §1.5.
+  time has passed. A frequent tick keeps the send time runtime-configurable. Rotation
+  steps (the value lives on Vercel, the Cloud Run service, the GitHub secret, and the job
+  header): [parade-state-email.md](parade-state-email.md) §1.5.1.
 - **Cutover** (when ready): disable/delete the Vercel project + delete
   `vercel.json` (nothing to change in `next.config.ts` — no Cloud Run-specific
   config exists). Abort path: delete the Cloud Run service — Vercel is untouched.
