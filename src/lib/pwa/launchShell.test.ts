@@ -90,6 +90,18 @@ describe("PWA launch shell", () => {
   it("does not fetch the start URL (that round trip is what we removed)", () => {
     expect(SHELL_HTML).not.toContain("fetch(");
   });
+
+  it("bottom nav uses Chrome's edge-to-edge fast path", () => {
+    // Mantine's hydrated footer pads with the *live* inset, which Chrome reads
+    // as a signal to keep its bottom chin (clamping the viewport). The shell
+    // mirrors the app's fast-path override — grow by the max inset, pull down
+    // with `calc(live - max)` — so the launch paints to the same edge the app
+    // settles into (see globals.css and docs/pwa-offline.md).
+    expect(SHELL_HTML).toContain("--c2-max-bottom: env(safe-area-max-inset-bottom");
+    expect(SHELL_HTML).toMatch(
+      /bottom:\s*calc\(env\(safe-area-inset-bottom,\s*0px\)\s*-\s*var\(--c2-max-bottom\)\)/,
+    );
+  });
 });
 
 // --- Runtime smoke test -------------------------------------------------

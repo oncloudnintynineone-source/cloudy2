@@ -18,7 +18,7 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
 
 ## 1.1 Status
 
-- All work through changelog **1.229 (view loads off the global activity bar + stronger tab breathing)** is shipped.
+- All work through changelog **1.230 (Android edge-to-edge for the bottom nav)** is shipped.
 - Quality gates (`lint` / `typecheck` / `test` / schema-drift check) run in CI on every
   push and PR. Pushes also auto-apply migrations per environment: `dev` →
   `migrate-preview` against the dev Neon DB, `main` → `migrate` against the prod Neon
@@ -951,6 +951,18 @@ via `?attendance=1` and `attendanceStorage` became a `useSyncExternalStore` exte
    nav, post-mutation refresh, filter apply), and the breathing pulse is stronger — opacity
    `0.35 ↔ 1` over 1.3 s (was `0.45 ↔ 0.8` / 1.6 s) (`docs/loading-transitions.md`
    §1.13/§1.13.2, `AGENTS.md`)
+
+- 1.230 Android edge-to-edge for the bottom nav: the shell footer now uses Chrome's
+   fast-path pattern (grow by `safe-area-max-inset-bottom`, pull down with
+   `calc(env(safe-area-inset-bottom) - max)`) instead of Mantine's live-inset
+   `padding-bottom`, which Chrome reads as a signal to keep its bottom chin and clamp
+   the viewport. `--c2-safe-area-max-bottom` falls back to the live inset off Chrome,
+   so non-supporting browsers keep the old exact behavior; the override is mobile-scoped
+   (`max-width: 39.99em`) and `--app-shell-footer-offset` is re-declared (minus immersive)
+   so AppShell main clears the footer's in-viewport height. The launch shell
+   (`public/loading.html`) mirrors the pattern, guarded by `launchShell.test.ts`.
+   Improves **browser-tab** compatibility only — installed WebAPK edge-to-edge is gated
+   on Chrome shipping the fix (`docs/pwa-offline.md` §1.19)
 
 ## 1.4 Open items & next steps
 

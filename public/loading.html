@@ -38,6 +38,10 @@
         --c2-body: #ffffff;
         --c2-sk: #dee2e6;
         --c2-border: #ced4da;
+        /* Chrome edge-to-edge fast path (see globals.css / docs/pwa-offline.md):
+           the bottom nav grows by the max safe-area inset and pulls itself down
+           with `calc(live - max)`. Nested fallback = old behavior off Chrome. */
+        --c2-max-bottom: env(safe-area-max-inset-bottom, env(safe-area-inset-bottom, 0px));
       }
       @media (prefers-color-scheme: dark) {
         :root {
@@ -150,14 +154,16 @@
         flex: 1 1 auto;
       }
 
-      /* Bottom nav (AppShell.Footer): mobile-only, 56px + safe-area. */
+      /* Bottom nav (AppShell.Footer): mobile-only, 56px + safe-area. Uses the
+         edge-to-edge fast-path pattern (max inset + `calc(live - max)`) so
+         Chrome can retract its chin and reach the device edge. */
       .bnav {
         position: fixed;
-        bottom: 0;
+        bottom: calc(env(safe-area-inset-bottom, 0px) - var(--c2-max-bottom));
         left: 0;
         right: 0;
-        height: calc(56px + env(safe-area-inset-bottom, 0px));
-        padding: 0 8px env(safe-area-inset-bottom, 0px);
+        height: calc(56px + var(--c2-max-bottom));
+        padding: 0 8px var(--c2-max-bottom);
         background: var(--c2-body);
         border-top: 1px solid var(--c2-border);
         display: flex;

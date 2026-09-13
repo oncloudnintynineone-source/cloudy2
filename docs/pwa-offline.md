@@ -23,6 +23,7 @@ The PWA opens with calendar events visible instantly — even cold or offline �
 - [1.16 Limitations & follow-ups](#116-limitations--follow-ups)
 - [1.17 Auto-refresh on return from background](#117-auto-refresh-on-return-from-background)
 - [1.18 Device-local dashboard snapshot](#118-device-local-dashboard-snapshot)
+- [1.19 Android edge-to-edge (system navigation bar)](#119-android-edge-to-edge-system-navigation-bar)
 
 ## 1.1 Problem
 
@@ -639,3 +640,44 @@ Files: `src/app/(protected)/dashboard/page.tsx` (thin shell),
 `isNavigating`), `src/lib/dashboard/{data,actions,snapshot,localStore}.ts`,
 `src/lib/pwa/client.ts` (reconcile skip), `src/components/UserMenu.tsx`
 (sign-out purge).
+
+## 1.19 Android edge-to-edge (system navigation bar)
+
+The goal is the Android **system** navigation bar (the gesture bar / three-button
+bar at the very bottom) reading as transparent, with app content drawn behind it,
+instead of an opaque black/white strip below the app's bottom nav.
+
+**What is (not) controllable.** There is no web API that sets the system bar's
+color or alpha — Chrome/Android own it. `<meta name="theme-color">` (written by
+`SystemBarSync`) only drives the **status bar**; the nav bar follows the page's
+`color-scheme` unless edge-to-edge is active. The only web-side lever is opting
+into **edge-to-edge** via `viewport-fit=cover`, which `src/app/layout.tsx`
+already declares.
+
+**The fast-path override.** Chrome suppresses its bottom "chin" retraction when
+it detects a fixed bottom element using `padding-bottom: env(safe-area-inset-bottom)`
+— which is exactly Mantine's own `AppShell.Footer` rule. The shell therefore
+overrides the footer in `src/app/globals.css` with Chrome's fast-path pattern:
+grow the box by the *maximum* inset, pad with the max, and pull it down with
+`calc(env(safe-area-inset-bottom) - max)`. The `--c2-safe-area-max-bottom` var
+resolves `safe-area-max-inset-bottom` with a nested fallback to the live inset, so
+browsers without the max-inset property keep the old exact behavior (`bottom`
+becomes 0). The override is scoped to `max-width: 39.99em` (the footer is only
+visible below `lg`; above it the collapsed transform would leave the extra band
+showing, and desktop insets are 0 anyway). `--app-shell-footer-offset` is
+re-declared (minus immersive mode) so AppShell main clears the footer's
+in-viewport height — 56px + the live inset — rather than the bare 56px Mantine
+assumes. The launch shell (`public/loading.html`, §1.5.1) mirrors the same pattern
+so the pre-hydration paint reaches the same edge; `src/lib/pwa/launchShell.test.ts`
+guards it.
+
+**Limits.** Installed PWAs (WebAPKs) did not get edge-to-edge at all until a 2026
+Chromium fix (`issues.chromium.org/407420295`); whether it applies depends on the
+device's Chrome version, and no app-side change can force it. In **three-button**
+navigation Android keeps a scrim by policy — only **gesture** navigation is truly
+transparent. So the app maximises compatibility with the platform's edge-to-edge
+behavior where the platform supports it; it cannot add support the browser lacks.
+
+Files: `src/app/globals.css` (`--c2-safe-area-max-bottom` + footer override),
+`public/loading.html`, `src/app/layout.tsx` (`viewportFit: "cover"`),
+`src/components/SystemBarSync.tsx` (status bar / `color-scheme`).

@@ -474,6 +474,15 @@ html {
      because their Affix portals to <body>, outside any page/class scope. */
   --app-floating-bottom-offset-immersive: calc(env(safe-area-inset-bottom) + 16px);
   --settings-fab-bottom: calc(108px + env(safe-area-inset-bottom) + 16px);
+  /* Chrome's edge-to-edge "fast path" (Chrome 135+ on Android). A fixed bottom
+     bar must grow by the *maximum* safe-area inset and pull itself down with
+     `calc(env(safe-area-inset-bottom) - max)`, so Chrome can retract its bottom
+     "chin" and let the page reach the device edge without layout thrashing
+     (developer.chrome.com/docs/css-ui/edge-to-edge). The nested fallback keeps
+     browsers without `safe-area-max-inset-bottom` on the old exact behavior:
+     max resolves to the live inset, so `bottom` becomes 0. See the footer rule
+     below and docs/pwa-offline.md. */
+  --c2-safe-area-max-bottom: env(safe-area-max-inset-bottom, env(safe-area-inset-bottom, 0px));
 }
 
 .app-shell-root {
@@ -510,6 +519,36 @@ html {
 .app-shell-immersive > nav,
 .app-shell-immersive > footer {
   display: none;
+}
+
+/*
+  Chrome edge-to-edge for the bottom nav (AppShell.Footer). Mantine's own footer
+  rule pads with the *live* inset (`padding-bottom: env(safe-area-inset-bottom)`),
+  which is exactly the pattern Chrome detects to disable its chin-retraction
+  optimization — the page then never reaches the device edge and the gesture bar
+  stays an opaque strip. Growing the box by the max inset and using
+  `calc(live - max)` for `bottom` hits Chrome's fast path instead
+  (developer.chrome.com/docs/css-ui/edge-to-edge).
+
+  Scoped to mobile: above `lg` the footer is collapsed (translated off-screen by
+  `--app-shell-footer-height`), where the extra max-inset band would stay
+  visible. Desktop insets are 0 anyway, so those rules are left untouched.
+  `--app-shell-footer-offset` is re-declared (minus immersive mode) so AppShell
+  main clears the footer's in-viewport height — 56px + the live inset — not the
+  bare 56px Mantine assumes.
+*/
+@media (max-width: 39.99em) {
+  .app-shell-root > footer {
+    height: calc(var(--app-shell-footer-height, 56px) + var(--c2-safe-area-max-bottom));
+    padding-bottom: var(--c2-safe-area-max-bottom);
+    bottom: calc(env(safe-area-inset-bottom, 0px) - var(--c2-safe-area-max-bottom));
+  }
+
+  .app-shell-root:not(.app-shell-immersive) {
+    --app-shell-footer-offset: calc(
+      var(--app-shell-footer-height, 56px) + env(safe-area-inset-bottom)
+    );
+  }
 }
 
 .settings-page-pad {
