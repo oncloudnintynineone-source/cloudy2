@@ -5,6 +5,7 @@ import {
   MAX_SNAPSHOTS_PER_USER,
   REFRESH_NONCE_TTL_MS,
   WARM_SNAPSHOT_FRESH_MS,
+  assembleDashboardSnapshot,
   dashboardCandidateRequestKey,
   dashboardRequestKey,
   dashboardTabFiltersEqual,
@@ -16,7 +17,9 @@ import {
   resolveDashboardPresentation,
   selectSnapshotsToEvict,
   snapshotStorageKey,
+  type DashboardSharedConfig,
   type DashboardSnapshotRecord,
+  type DashboardTabDelta,
 } from "./snapshot";
 import type { DashboardTabFilters, DashboardViewTab } from "@/lib/dashboardViews/views";
 
@@ -353,6 +356,41 @@ describe("isWarmSnapshotFresh", () => {
   it("is fresh inside the window and stale outside it", () => {
     expect(isWarmSnapshotFresh(now - 1_000, now)).toBe(true);
     expect(isWarmSnapshotFresh(now - WARM_SNAPSHOT_FRESH_MS - 1, now)).toBe(false);
+  });
+});
+
+describe("assembleDashboardSnapshot", () => {
+  const tab: DashboardViewTab = {
+    id: "tab-1",
+    kind: "month",
+    name: "Month",
+    sortOrder: 0,
+    filters: { cal: null, users: null, types: null },
+  };
+
+  it("recombines the shared config with one tab's delta", () => {
+    const shared = {
+      tabs: [tab],
+      canManageViews: true,
+      currentUser: "user-1",
+    } as unknown as DashboardSharedConfig;
+    const delta = {
+      activeView: tab,
+      events: [],
+      selectedCalendarIds: ["cal-a"],
+      selectedTypes: [],
+      selectedUserIds: ["user-1"],
+      viewEventTitleRecipe: { segments: [] } as unknown as DashboardTabDelta["viewEventTitleRecipe"],
+      scheduleUsers: [],
+      filterUsers: [],
+    } as unknown as DashboardTabDelta;
+
+    const snapshot = assembleDashboardSnapshot(shared, delta);
+    expect(snapshot.activeView).toBe(tab);
+    expect(snapshot.selectedCalendarIds).toEqual(["cal-a"]);
+    expect(snapshot.selectedUserIds).toEqual(["user-1"]);
+    expect(snapshot.canManageViews).toBe(true);
+    expect(snapshot.currentUser).toBe("user-1");
   });
 });
 

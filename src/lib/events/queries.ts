@@ -12,6 +12,7 @@ import { listEventTypes } from "@/lib/eventTypes/queries";
 import {
   getCachedMonthEventsForCalendars,
   getCachedMonthEventsForCalendarsMulti,
+  type MultiMonthEventsResult,
 } from "@/lib/google/eventsCache";
 import type { GcalEventItem } from "@/lib/google/types";
 import { onlyUuidIds } from "@/lib/uuid";
@@ -180,30 +181,44 @@ export function mapCalendarItem(
   };
 }
 
+/** Registry calendar row (the `listCalendars` shape) used by range reads. */
+type CalendarRow = Awaited<ReturnType<typeof listCalendars>>[number];
+
 /**
- * Fetch events across several months (a week spanning a boundary needs two)
- * for the selected calendars, as schedule-ready data.
- *
- * Google month reads go through the layered events cache (L1 memory + one
- * batched Postgres read per month), one pass per month. Because Google month
- * listings overlap at boundaries (a multi-day event appears in both), items
- * are deduped by (calendar, google event id) before mapping. Results are
- * flattened in calendar display order (sortOrder then name, months in
- * chronological order) so the deterministic representative-copy selection is
- * preserved.
+ * The filter-independent result of one cached range read: the calendar rows in
+ * display order, the event-type color map, and the raw cached items per
+ * (month, Google calendar id). Kept separate from {@link projectRangeEvents} so
+ * a single read can back several filter sets (the dashboard tab preload)
+ * without re-reading the cache or re-mapping the calendars.
  */
-export async function fetchRangeEvents(params: {
+export interface CalendarRangeData {
+  /** Registry rows for the requested calendars, in display order. */
+  rows: CalendarRow[];
+  /** Event type name → pinned color (null = deterministic default). */
+  typeColors: Map<string, string | null>;
+  /** Raw cached Google items, keyed by month then Google calendar id. */
+  cached: MultiMonthEventsResult;
+  /** The deduped, sorted months this read covers. */
+  months: string[];
+}
+
+/**
+ * Read a range of months for the selected calendars through the layered events
+ * cache (one batched read across all months) and return the raw items plus the
+ * shared lookup data. Filtering happens later in {@link projectRangeEvents}, so
+ * the same read can serve several filter sets.
+ *
+ * When the read missed the cache (the user is actually navigating), the months
+ * adjacent to the whole range are warmed after the response ships.
+ */
+export async function readCalendarRange(params: {
   months: string[];
   calendarIds: string[];
-  typeFilter: string[];
-  /** Keep only events created by or tagged on one of these users (empty = no filter). */
-  userFilter: string[];
-  /** Bypass the events cache and block on fresh Google fetches (force refresh). */
   force?: boolean;
-}): Promise<CalendarEvent[]> {
+}): Promise<CalendarRangeData> {
   const months = [...new Set(params.months)].sort();
   if (params.calendarIds.length === 0 || months.length === 0) {
-    return [];
+    return { rows: [], typeColors: new Map(), cached: { events: {}, allServed: true }, months };
   }
 
   // sortOrder then name makes the representative copy (first per group id) deterministic
@@ -220,37 +235,16 @@ export async function fetchRangeEvents(params: {
   const allEventTypes = await listEventTypes();
   const typeColors = new Map(allEventTypes.map((row) => [row.name, row.color]));
 
-  const seen = new Set<string>();
-  const events: CalendarEvent[] = [];
-  // Fetch all months in one batched cache read (metadata + full-row SELECTs are
-  // shared across months); the flatten order below stays chronological
-  // (month-major, calendar display order within each month) so the deterministic
-  // representative-copy selection is preserved.
+  // One batched cache read (metadata + full-row SELECTs are shared across
+  // months).
   const cached = await getCachedMonthEventsForCalendarsMulti(googleCalendarIds, months, {
     force: params.force === true,
   });
-  const allServed = cached.allServed;
-  for (const month of months) {
-    for (const calendar of rows) {
-      for (const item of cached.events[month]?.[calendar.googleCalendarId] ?? []) {
-        const key = `${calendar.id}:${item.id}`;
-        if (seen.has(key)) {
-          continue;
-        }
-        seen.add(key);
-        const mapped = mapCalendarItem(calendar, item, params, typeColors);
-        if (mapped) {
-          events.push(mapped);
-        }
-      }
-    }
-  }
 
-  // Prefetch the months adjacent to the whole range only when this view
-  // missed the cache (i.e. the user is actually navigating), so
-  // fully-cached views don't churn extra Google/DB work after the response
-  // ships.
-  if (PREFETCH_ADJACENT_MONTHS && !allServed && params.force !== true) {
+  // Prefetch the months adjacent to the whole range only when this read missed
+  // the cache (i.e. the user is actually navigating), so fully-cached views
+  // don't churn extra Google/DB work after the response ships.
+  if (PREFETCH_ADJACENT_MONTHS && !cached.allServed && params.force !== true) {
     const beforeRange = shiftMonth(months[0], -1);
     const afterRange = shiftMonth(months[months.length - 1], 1);
     after(() => {
@@ -259,11 +253,73 @@ export async function fetchRangeEvents(params: {
     });
   }
 
+  return { rows, typeColors, cached, months };
+}
+
+/**
+ * Project a {@link CalendarRangeData} into schedule-ready events for one filter
+ * set. Rows are iterated in calendar display order (month-major) and items are
+ * deduped by (calendar, Google event id) before mapping, so the deterministic
+ * representative-copy selection is preserved.
+ *
+ * `calendarIds`, when given, narrows the projection to a subset of the read's
+ * calendars (a tab whose filter selects fewer departments than the shared
+ * read), preserving display order.
+ */
+export function projectRangeEvents(
+  data: CalendarRangeData,
+  filters: { typeFilter: string[]; userFilter: string[] },
+  calendarIds?: string[],
+): CalendarEvent[] {
+  const rows =
+    calendarIds === undefined
+      ? data.rows
+      : data.rows.filter((calendar) => calendarIds.includes(calendar.id));
+
+  const seen = new Set<string>();
+  const events: CalendarEvent[] = [];
+  for (const month of data.months) {
+    for (const calendar of rows) {
+      for (const item of data.cached.events[month]?.[calendar.googleCalendarId] ?? []) {
+        const key = `${calendar.id}:${item.id}`;
+        if (seen.has(key)) {
+          continue;
+        }
+        seen.add(key);
+        const mapped = mapCalendarItem(calendar, item, filters, data.typeColors);
+        if (mapped) {
+          events.push(mapped);
+        }
+      }
+    }
+  }
+
   events.sort((a, b) => (a.start < b.start ? -1 : a.start > b.start ? 1 : 0));
   // A logical event has at most one copy per filtered department calendar;
   // collapse the copies so views show it once (stable sort keeps calendar
   // display order among equal start times, so the representative is deterministic).
   return dedupeEventsByGroupId(events);
+}
+
+/**
+ * Fetch events across several months (a week spanning a boundary needs two)
+ * for the selected calendars, as schedule-ready data. Thin wrapper over
+ * {@link readCalendarRange} + {@link projectRangeEvents}.
+ */
+export async function fetchRangeEvents(params: {
+  months: string[];
+  calendarIds: string[];
+  typeFilter: string[];
+  /** Keep only events created by or tagged on one of these users (empty = no filter). */
+  userFilter: string[];
+  /** Bypass the events cache and block on fresh Google fetches (force refresh). */
+  force?: boolean;
+}): Promise<CalendarEvent[]> {
+  const data = await readCalendarRange(params);
+  return projectRangeEvents(data, {
+    typeFilter: params.typeFilter,
+    userFilter: params.userFilter,
+  });
 }
 
 /** Fetch events for a month across the selected calendars, as schedule-ready data. */

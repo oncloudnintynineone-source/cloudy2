@@ -209,6 +209,11 @@ directly ([`events-cache.md`](events-cache.md)):
   by Week (D).
 - The Month view range-reads the months its 6-week grid displays
   (`monthGridMonths()`, `src/lib/events/datetime.ts`).
+- Every tab is **preloaded for instant switches**: after the active context is
+  fresh, `DashboardScreen` calls `preloadDashboardTabs` once per anchor, which
+  reads the union of every tab's calendars/months in one pass and projects each
+  tab's delta (see [`pwa-offline.md`](pwa-offline.md) §1.18). Switching tabs then
+  paints from the device cache with no server round-trip.
 - Wide grids (Day/Week (H)/Week (D), plus Month once its fit-width zoom makes it
   overflow) pan horizontally through `useGridPan` + `GridPanControls`
   ([`grid-pan.md`](grid-pan.md)); the dashboard chrome can go fullscreen

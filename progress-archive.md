@@ -8335,3 +8335,92 @@ changelog 1.217.
 
 **Verified**: pnpm typecheck, pnpm lint, pnpm test (full, 1034 pass). No
 schema or migration change.
+
+## 1.224 Instant dashboard tab switches via preload
+
+**Problem.** The dashboard already paints the last device-local snapshot instantly
+and revalidates in the background (docs/pwa-offline.md §1.18), but each **tab** was
+still loaded on demand: switching to a tab whose data the held context didn't cover
+showed the grid skeleton and waited on a server action round-trip. The data for the
+other tabs was never warmed, even though the server events cache is keyed by
+`(calendar, month)` and already serves every tab's months from one entry.
+
+**Design.** After the active context is fresh and idle, the client preloads **every
+tab for the current anchor** in one action, so tab switches paint from the warm cache
+with no round-trip.
+
+```mermaid
+sequenceDiagram
+    participant S as DashboardScreen
+    participant A as preloadDashboardTabs
+    participant Q as readCalendarRange (events cache)
+    S->>S: active context fresh + idle (requestIdleCallback, online)
+    S->>A: preloadDashboardTabs(url params)
+    A->>A: resolveDashboardConfig ONCE (shared snapshot fields)
+    A->>Q: ONE union read (all tabs' calendars × months)
+    Q-->>A: raw cached items
+    A->>A: projectRangeEvents + resolveDisplayTitles per tab
+    A-->>S: shared config + one delta per tab
+    S->>S: assembleDashboardSnapshot + warm map + IndexedDB
+    S->>S: tab switch paints from warm cache (no round-trip)
+```
+
+**Read-path split** (`src/lib/events/queries.ts`). `fetchRangeEvents` was doing two
+jobs — the cache read and the filter/display projection. It is now
+`readCalendarRange({ months, calendarIds, force })` (one batched
+`getCachedMonthEventsForCalendarsMulti`; returns `rows`, `typeColors`, raw `cached`,
+`months`, and keeps the gated adjacent-month `after()` prefetch) plus pure
+`projectRangeEvents(data, { typeFilter, userFilter }, calendarIds?)` (month-major,
+calendar-display-order iteration, dedupe by (calendar, Google id), `mapCalendarItem`,
+sort, `dedupeEventsByGroupId`). `fetchRangeEvents` is a thin wrapper over both, so
+existing callers are byte-for-byte unchanged. The split is what lets one raw read back
+several filter sets (the tabs).
+
+**Shared config + per-tab delta** (`src/lib/dashboard/data.ts`,
+`src/lib/dashboard/snapshot.ts`). `buildDashboardData` was one monolith. It now calls
+`resolveDashboardConfig(session)` (tabs/prefs, calendars, event types, groups, users,
+settings, quick links, templates, the live filter validators, and the display-title
+lookups — all read once) and `projectTab(config, tab, period, rangeData)`, which
+resolves the tab's filters, projects its events, and builds its delta. The snapshot is
+split into `DashboardSharedConfig` (every tab renders these identically) and
+`DashboardTabDelta` (`activeView`, `events`, `selected*`, `viewEventTitleRecipe`,
+`scheduleUsers`, `filterUsers`), recombined by the new pure
+`assembleDashboardSnapshot`. `filterUsers` and `scheduleUsers` are per-tab because both
+depend on the tab's selected calendars. `buildDashboardPreload` reuses both: it
+resolves the config once, unions every tab's calendars and `requiredMonths`, does a
+single `readCalendarRange`, and projects every tab — no `force`, so it never triggers a
+Google refresh (only genuinely cold `(calendar, month)` combinations fetch; tabs
+sharing the active months cost ~nothing).
+
+**Action + client wiring.** New `preloadDashboardTabs(input)` server action
+(`src/lib/dashboard/actions.ts`, read-only POST — the SW's `NetworkOnly` fallback
+already keeps it uncached; failures returned, never thrown). `DashboardScreen` runs it
+once per anchor signature (the tab set + the union months those tabs need), deferred to
+`requestIdleCallback` and skipped when offline, after the active context reports
+`source === "fresh"` and idle. On success it assembles each tab's snapshot, merges them
+into the warm map, and writes them to IndexedDB. A mutation/filter apply/force refresh
+bumps a `preloadGenerationRef` and clears the warm map, so an in-flight preload can't
+repopulate stale records. `MAX_SNAPSHOTS_PER_USER` rises 6 → 12 (LRU unchanged) to hold
+the preloaded tabs.
+
+**No DB/schema/backend cost.** No migration, no new tables, no new writes, no server
+storage. The added work is one extra server-action invocation per cold start (its own
+`React.cache()` scope, so the shared config reads once inside it), one union
+`readCalendarRange` (L1/L2 hits for months the active context already warmed; Google
+only for cold combinations), and one IndexedDB record per tab on the device.
+
+**Tests.** New `src/lib/events/rangeProjection.test.ts` (`projectRangeEvents`: all
+calendars, calendar subset, type filter, empty read) and an `assembleDashboardSnapshot`
+case in `src/lib/dashboard/snapshot.test.ts`. The cap-eviction test already derives from
+`MAX_SNAPSHOTS_PER_USER`, so it tracks the new 12.
+
+**Docs.** `docs/pwa-offline.md` §1.18 (new bullet + sequence diagram), `docs/
+dashboard-views.md` §1.4, `docs/events-cache.md` §1.8 (+ file-index row), `AGENTS.md`
+dashboard bullet, `progress.md` §1.3 (1.224).
+
+**Verified**: `pnpm lint`, `pnpm typecheck`, `pnpm test` (1161 pass). Manual to run
+before ship: switch between tabs of different kinds/filters on a cold open and confirm
+instant paint with no skeleton; confirm an in-month day move still doesn't fetch;
+confirm a mutation/force refresh re-preloads; confirm offline tab switches stay on the
+cached grid.
+

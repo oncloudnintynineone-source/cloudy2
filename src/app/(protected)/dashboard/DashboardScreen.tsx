@@ -4,17 +4,20 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 
 import { useReportActivity } from "@/components/ActivityBar";
-import { loadDashboardData } from "@/lib/dashboard/actions";
+import { loadDashboardData, preloadDashboardTabs } from "@/lib/dashboard/actions";
 import {
   clearDashboardSnapshots,
   readDashboardSnapshots,
   writeDashboardSnapshot,
 } from "@/lib/dashboard/localStore";
 import {
+  DASHBOARD_SNAPSHOT_VERSION,
+  assembleDashboardSnapshot,
   dashboardCandidateRequestKey,
   equivalentDashboardTab,
   isRefreshNonceFresh,
   isWarmSnapshotFresh,
+  requiredMonths,
   resolveDashboardPresentation,
   type DashboardSnapshotRecord,
 } from "@/lib/dashboard/snapshot";
@@ -107,6 +110,11 @@ export function DashboardScreen({
   const requestIdRef = useRef(0);
   const hasFreshRef = useRef(false);
   const lastRefreshRef = useRef<string | null>(null);
+  // Tab preload bookkeeping: the anchor signature + generation last scheduled,
+  // and a generation counter bumped by any mutation/force refresh so an
+  // in-flight preload can't repopulate the warm cache after it was cleared.
+  const preloadedRef = useRef<{ signature: string; generation: number } | null>(null);
+  const preloadGenerationRef = useRef(0);
 
   const view = searchParams.get("view");
   const month = searchParams.get("month");
@@ -208,6 +216,36 @@ export function DashboardScreen({
     }
   }, [userId]);
 
+  // Background-preload every tab for the current anchor (docs/pwa-offline.md
+  // §1.18), so a tab switch paints from the warm cache with no round-trip. The
+  // result is discarded if a mutation/force refresh bumped the generation or a
+  // newer anchor superseded the signature.
+  const preloadTabs = useCallback(
+    async (signature: string, generation: number) => {
+      const result = await preloadDashboardTabs(inputFromParams(paramsRef.current));
+      if (preloadGenerationRef.current !== generation) return;
+      if (preloadedRef.current?.signature !== signature) return;
+      if (!result.ok) return;
+      const records: DashboardSnapshotRecord[] = result.tabs.map((tab) => ({
+        version: DASHBOARD_SNAPSHOT_VERSION,
+        savedAt: Date.now(),
+        context: tab.context,
+        data: assembleDashboardSnapshot(result.shared, tab.delta),
+      }));
+      setWarmRecords((current) => {
+        const next = new Map(current);
+        for (const record of records) {
+          next.set(record.context.requestKey, record);
+        }
+        return next;
+      });
+      for (const record of records) {
+        void writeDashboardSnapshot(userId, record.data, record.context);
+      }
+    },
+    [userId],
+  );
+
   // Hydrate the warm cache and paint the newest stored context as soon as it is
   // read. A fresh server response always wins if it lands first. A force-refresh
   // reload clears the cache instead of painting it.
@@ -305,6 +343,8 @@ export function DashboardScreen({
       // Yield first: an effect must not call setState synchronously (same
       // pattern as `fetchFresh`).
       void Promise.resolve().then(() => {
+        preloadGenerationRef.current += 1;
+        preloadedRef.current = null;
         setWarmRecords(new Map());
         void clearDashboardSnapshots(userId);
         void fetchFresh();
@@ -312,9 +352,52 @@ export function DashboardScreen({
     }
   }, [refreshParam, fetchFresh, userId]);
 
+  // Preload every tab once the active context is fresh and idle, so switching
+  // tabs paints instantly. Runs once per anchor signature (tab set + the months
+  // those tabs need), deferred to idle so it never delays first paint, and
+  // skipped offline.
+  useEffect(() => {
+    if (!record || source !== "fresh" || busy) return;
+    if (typeof navigator !== "undefined" && navigator.onLine === false) return;
+    const tabs = record.data.tabs;
+    const months = [
+      ...new Set(
+        tabs.flatMap((tab) =>
+          requiredMonths(tab.kind, record.context.month, record.context.date),
+        ),
+      ),
+    ].sort();
+    const signature = `${tabs.map((tab) => tab.id).join(",")}|${months.join(",")}`;
+    const generation = preloadGenerationRef.current;
+    if (
+      preloadedRef.current?.signature === signature &&
+      preloadedRef.current.generation === generation
+    ) {
+      return;
+    }
+    const run = () => {
+      if (preloadGenerationRef.current !== generation) return;
+      preloadedRef.current = { signature, generation };
+      void preloadTabs(signature, generation);
+    };
+    const handle =
+      typeof requestIdleCallback === "function"
+        ? requestIdleCallback(run, { timeout: 2000 })
+        : window.setTimeout(run, 0);
+    return () => {
+      if (typeof cancelIdleCallback === "function") {
+        cancelIdleCallback(handle);
+      } else {
+        window.clearTimeout(handle);
+      }
+    };
+  }, [record, source, busy, preloadTabs]);
+
   // Post-mutation / filter-change refresh: drop every cached context (the write
   // may affect any of them), then re-read the current one.
   const revalidate = useCallback(() => {
+    preloadGenerationRef.current += 1;
+    preloadedRef.current = null;
     setWarmRecords(new Map());
     void (async () => {
       await clearDashboardSnapshots(userId);

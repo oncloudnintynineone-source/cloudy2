@@ -414,6 +414,17 @@ Gate `PREFETCH_ADJACENT_MONTHS` (default `true`) plus the `allServed` condition 
 fully-cached views from churning extra Google/DB work after the response. Prefetching makes
 month swiping render from cache on the next navigation.
 
+A second, client-driven warm exists on top of this: after the active context is fresh, the
+dashboard calls `preloadDashboardTabs` (`src/lib/dashboard/data.ts`), which takes the
+**union** of every tab's calendars/months and does **one** `readCalendarRange` (the
+cache-key-independent read the tab projections share), then projects each tab's filtered
+events. This never forces a Google refresh and never uses `after()` — it is a foreground
+read the client awaits in the background — so it warms only what the active context has
+already fetched plus any genuinely cold `(calendar, month)` combinations for other tabs
+(see [`pwa-offline.md`](pwa-offline.md) §1.18). `fetchRangeEvents` is now a thin wrapper
+over `readCalendarRange` + `projectRangeEvents` (`queries.ts`), the split that lets one raw
+read back several filter sets.
+
 ## 1.9 Constants & configuration
 
 All constants live at the top of `src/lib/google/eventsCache.ts` unless noted.
@@ -512,7 +523,7 @@ module, but they keep the render's total query count low):
 | `src/lib/google/eventsCacheCodec.ts` | Pure state + codec helpers (unit-tested) |
 | `src/db/schema.ts` | `google_event_cache` table |
 | `drizzle/0011_panoramic_mariko_yashida.sql` | Migration creating the table |
-| `src/lib/events/queries.ts` | `fetchMonthEvents` / `fetchRangeEvents` — read path + gated prefetch |
+| `src/lib/events/queries.ts` | `readCalendarRange` + `projectRangeEvents` (split so one raw read backs several filter sets); `fetchMonthEvents` / `fetchRangeEvents` wrappers + gated prefetch |
 | `src/lib/events/actions.ts` | Mutations → `invalidateGcalCache` |
 | `src/app/(protected)/dashboard/page.tsx` | `?refresh=` nonce parsing → `force` flag (§1.5.1) |
 | `src/components/AppShellShell.tsx` | Header "Force refresh" button — full reload + `?refresh=` nonce (§1.5.1) |

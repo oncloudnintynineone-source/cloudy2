@@ -51,6 +51,45 @@ export type DashboardSnapshot = Omit<
 >;
 
 /**
+ * The snapshot fields every tab renders identically (calendars, event types,
+ * users, settings, quick links, names). The per-tab variable fields are split
+ * into {@link DashboardTabDelta}; `assembleDashboardSnapshot` recombines them.
+ * The tab preload ships one shared config plus a delta per tab instead of N full
+ * snapshots (docs/pwa-offline.md §1.18).
+ */
+export type DashboardSharedConfig = Omit<
+  DashboardSnapshot,
+  | "activeView"
+  | "events"
+  | "selectedCalendarIds"
+  | "selectedTypes"
+  | "selectedUserIds"
+  | "viewEventTitleRecipe"
+  | "scheduleUsers"
+  | "filterUsers"
+>;
+
+/** The per-tab variable snapshot fields, projected from the shared range read. */
+export interface DashboardTabDelta {
+  activeView: DashboardViewTab;
+  events: DashboardSnapshot["events"];
+  selectedCalendarIds: string[];
+  selectedTypes: string[];
+  selectedUserIds: string[];
+  viewEventTitleRecipe: DashboardSnapshot["viewEventTitleRecipe"];
+  scheduleUsers: DashboardSnapshot["scheduleUsers"];
+  filterUsers: DashboardSnapshot["filterUsers"];
+}
+
+/** Recombine the shared config with one tab's delta into a renderable snapshot. */
+export function assembleDashboardSnapshot(
+  shared: DashboardSharedConfig,
+  delta: DashboardTabDelta,
+): DashboardSnapshot {
+  return { ...shared, ...delta };
+}
+
+/**
  * What the snapshot was rendered for. `requestKey` is the data-affecting
  * fingerprint (the resolved tab id + the months it spans — never the day or the
  * one-shot edit/event/refresh params), so a background revalidation of the same
@@ -287,9 +326,11 @@ export const WARM_SNAPSHOT_FRESH_MS = 60_000;
  * `tab × visited period`, so they grow without bound, and each record is a full
  * snapshot (events plus the duplicated config), so the cap bounds disk usage,
  * the cold-start hydration parse, and the risk of silently hitting the
- * IndexedDB quota (`localStore` swallows write failures).
+ * IndexedDB quota (`localStore` swallows write failures). Set to cover the
+ * preloaded tabs for a typical account (the tab preload warms every tab for the
+ * current anchor); the oldest contexts evict first by LRU.
  */
-export const MAX_SNAPSHOTS_PER_USER = 6;
+export const MAX_SNAPSHOTS_PER_USER = 12;
 
 /** The IndexedDB key for one account's cached context. */
 export function snapshotStorageKey(userId: string, requestKey: string): string {

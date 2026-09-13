@@ -15,11 +15,14 @@
 
 import { requireSession } from "@/lib/session";
 
-import { buildDashboardData } from "./data";
+import { buildDashboardData, buildDashboardPreload } from "./data";
 import {
   DASHBOARD_SNAPSHOT_VERSION,
   isRefreshNonceFresh,
+  type DashboardSharedConfig,
+  type DashboardSnapshotContext,
   type DashboardSnapshotRecord,
+  type DashboardTabDelta,
 } from "./snapshot";
 
 export interface LoadDashboardDataInput {
@@ -78,6 +81,50 @@ export async function loadDashboardData(
     return {
       ok: false,
       error: error instanceof Error ? error.message : "Could not load the calendar",
+    };
+  }
+}
+
+export interface DashboardPreloadTab {
+  context: DashboardSnapshotContext;
+  delta: DashboardTabDelta;
+}
+
+export type PreloadDashboardTabsResult =
+  | { ok: true; shared: DashboardSharedConfig; tabs: DashboardPreloadTab[] }
+  | { ok: false; error: string };
+
+/**
+ * Background tab preload (docs/pwa-offline.md §1.18). After the active context
+ * paints, the client calls this to warm every tab for the current anchor off a
+ * single cache read, so switching tabs paints from the device cache with no
+ * round-trip. Never forces a Google refresh; failures are returned, not thrown,
+ * so a failed preload never disturbs the painted calendar.
+ */
+export async function preloadDashboardTabs(
+  input: LoadDashboardDataInput,
+): Promise<PreloadDashboardTabsResult> {
+  const session = await requireSession();
+
+  try {
+    const built = await buildDashboardPreload(
+      {
+        view: asString(input.view),
+        month: asString(input.month),
+        date: asString(input.date),
+        edit: asString(input.edit),
+        event: asString(input.event),
+        eventCal: asString(input.eventCal),
+        // Preload warms what the active read already fetched; never force.
+        force: false,
+      },
+      session,
+    );
+    return { ok: true, shared: built.shared, tabs: built.tabs };
+  } catch (error) {
+    return {
+      ok: false,
+      error: error instanceof Error ? error.message : "Could not preload the calendar",
     };
   }
 }

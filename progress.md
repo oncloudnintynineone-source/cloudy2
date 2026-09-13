@@ -18,7 +18,7 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
 
 ## 1.1 Status
 
-- All work through changelog **1.221 (keyboard-free event wizard)** is shipped.
+- All work through changelog **1.224 (instant dashboard tab preload)** is shipped.
 - Quality gates (`lint` / `typecheck` / `test` / schema-drift check) run in CI on every
   push and PR. Pushes also auto-apply migrations per environment: `dev` →
   `migrate-preview` against the dev Neon DB, `main` → `migrate` against the prod Neon
@@ -878,6 +878,21 @@ via `?attendance=1` and `attendanceStorage` became a `useSyncExternalStore` exte
    once `deepLinkEvent` lands (bugfix; `docs/event-search.md` §1.9,
    `docs/event-lifecycle.md` §1.4.2, `docs/loading-transitions.md` §1.7,
    `docs/ui-state.md`, `docs/pinned-events.md`)
+- 1.224 Instant dashboard tab switches via preload: after the active context is fresh and
+   idle, `DashboardScreen` calls the new `preloadDashboardTabs` action once per anchor (the
+   tab set + the months those tabs need), deferred to `requestIdleCallback` and skipped
+   offline; `buildDashboardPreload` resolves the shared config once and does a single
+   `readCalendarRange` over the union of every tab's calendars/months, then projects each
+   tab (`projectRangeEvents` + `resolveDisplayTitles`) into a delta, and the client
+   `assembleDashboardSnapshot`s each into the warm map + IndexedDB — so a tab switch paints
+   with no server round-trip (revalidating only past `WARM_SNAPSHOT_FRESH_MS`). The read
+   never forces Google (it warms what the active read fetched; only cold `(calendar, month)`
+   combinations fetch), `MAX_SNAPSHOTS_PER_USER` rises 6 → 12 to hold the preloaded tabs,
+   and a mutation / force refresh bumps a generation ref so an in-flight preload can't
+   repopulate stale records; `fetchRangeEvents` is now a thin wrapper over
+   `readCalendarRange` + `projectRangeEvents` (no behavior change), with unit tests for the
+   projector and the assembler (`docs/pwa-offline.md` §1.18, `docs/dashboard-views.md`
+   §1.4, `docs/events-cache.md` §1.8, `AGENTS.md`)
 
 ## 1.4 Open items & next steps
 
