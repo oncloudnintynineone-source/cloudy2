@@ -17,6 +17,7 @@ import {
   resolveDashboardPresentation,
   selectSnapshotsToEvict,
   snapshotStorageKey,
+  tabLoadStates,
   type DashboardSharedConfig,
   type DashboardSnapshotRecord,
   type DashboardTabDelta,
@@ -131,6 +132,72 @@ describe("dashboardCandidateRequestKey", () => {
     expect(dashboardCandidateRequestKey(candidateRecord(), null, "2026-10", null)).toBe(
       "tab-1|2026-10",
     );
+  });
+});
+
+describe("tabLoadStates", () => {
+  function tab(over: Partial<DashboardViewTab> = {}): DashboardViewTab {
+    return {
+      id: "tab-a",
+      kind: "month",
+      name: "A",
+      sortOrder: 0,
+      filters: { cal: null, users: null, types: null },
+      ...over,
+    };
+  }
+
+  function keyFor(t: DashboardViewTab): string {
+    return dashboardRequestKey({
+      viewId: t.id,
+      months: requiredMonths(t.kind, "2026-09", "2026-09-12"),
+    });
+  }
+
+  const monthTab = tab({ id: "tab-a", kind: "month" });
+  const agendaTab = tab({ id: "tab-b", kind: "agenda" });
+  const base = {
+    tabs: [monthTab, agendaTab],
+    month: "2026-09",
+    date: "2026-09-12",
+  };
+
+  it("marks a tab loaded when a warm snapshot for its key exists", () => {
+    const states = tabLoadStates({
+      ...base,
+      loadedKeys: new Set([keyFor(monthTab)]),
+      loadingKeys: new Set(),
+    });
+    expect(states["tab-a"]).toBe("loaded");
+    expect(states["tab-b"]).toBe("not-loaded");
+  });
+
+  it("marks a tab loading while a fetch for its key is in flight", () => {
+    const states = tabLoadStates({
+      ...base,
+      loadedKeys: new Set(),
+      loadingKeys: new Set([keyFor(agendaTab)]),
+    });
+    expect(states["tab-a"]).toBe("not-loaded");
+    expect(states["tab-b"]).toBe("loading");
+  });
+
+  it("prefers loaded over loading when both contain the key", () => {
+    const states = tabLoadStates({
+      ...base,
+      loadedKeys: new Set([keyFor(monthTab)]),
+      loadingKeys: new Set([keyFor(monthTab)]),
+    });
+    expect(states["tab-a"]).toBe("loaded");
+  });
+
+  it("resolves each tab independently", () => {
+    const states = tabLoadStates({
+      ...base,
+      loadedKeys: new Set([keyFor(monthTab)]),
+      loadingKeys: new Set([keyFor(agendaTab)]),
+    });
+    expect(states).toEqual({ "tab-a": "loaded", "tab-b": "loading" });
   });
 });
 

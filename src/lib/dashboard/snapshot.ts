@@ -184,6 +184,43 @@ export function dashboardCandidateRequestKey(
   });
 }
 
+/**
+ * Per-tab load state for the tab strip's text treatment. The strip shows each
+ * view's own load progress instead of a single shared "busy" flag:
+ *
+ * - `loaded` — a warm snapshot for the tab's current request key exists, so a
+ *   tap paints it instantly (any age; a stale one revalidates silently in
+ *   place). Rendered solid.
+ * - `loading` — a fetch for that key is in flight (the background preload, the
+ *   active read, or an on-tap priority read). Rendered faded + breathing.
+ * - `not-loaded` — neither. Rendered faded, static.
+ *
+ * Pure and client-safe so the mapping is unit-testable.
+ */
+export type TabLoadState = "loaded" | "loading" | "not-loaded";
+
+export function tabLoadStates(params: {
+  tabs: readonly Pick<DashboardViewTab, "id" | "kind">[];
+  month: string;
+  date: string;
+  loadedKeys: ReadonlySet<string>;
+  loadingKeys: ReadonlySet<string>;
+}): Record<string, TabLoadState> {
+  const states: Record<string, TabLoadState> = {};
+  for (const tab of params.tabs) {
+    const key = dashboardRequestKey({
+      viewId: tab.id,
+      months: requiredMonths(tab.kind, params.month, params.date),
+    });
+    states[tab.id] = params.loadedKeys.has(key)
+      ? "loaded"
+      : params.loadingKeys.has(key)
+        ? "loading"
+        : "not-loaded";
+  }
+  return states;
+}
+
 /** Null-aware, order-insensitive equality of a stored filter override. */
 function filterArraysEqual(a: string[] | null, b: string[] | null): boolean {
   if (a === null || b === null) return a === b;

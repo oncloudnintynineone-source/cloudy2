@@ -779,7 +779,7 @@ export function DashboardView({
   // DashboardScreen, which revalidates in place. Mutations call `revalidate()`
   // instead of `router.refresh()` (which no longer carries data), and a
   // context-change fetch drives the grid skeleton via `isNavigating`.
-  const { revalidate, isNavigating } = useDashboardData();
+  const { revalidate, isNavigating, tabStatus } = useDashboardData();
   // The active tab's renderer kind (Month/Week (H)/…). Booleans, the skeleton
   // chain and the period label key off this exactly like the old `view` prop.
   const view: ViewMode = activeView.kind;
@@ -2470,9 +2470,31 @@ export function DashboardView({
               <Tabs.List ref={tabListElRef} style={{ flexWrap: "nowrap", overflowX: "auto" }}>
                 {tabs.map((tab) => {
                   const meta = VIEW_TAB_META[tab.kind];
+                  // Per-view load state: loaded = solid, loading = faded +
+                  // breathing, not-loaded = faded static. Applied to the tab's
+                  // content (icon + label), leaving the tab chrome/indicator
+                  // alone.
+                  const status = tabStatus[tab.id] ?? "loaded";
+                  const stateClass =
+                    status === "loading"
+                      ? "c2-tab-loading"
+                      : status === "not-loaded"
+                        ? "c2-tab-not-loaded"
+                        : undefined;
                   return (
-                    <Tabs.Tab key={tab.id} value={tab.id} title={tab.name}>
-                      <Group gap="xs" justify="center" wrap="nowrap" style={{ minWidth: 0 }}>
+                    <Tabs.Tab
+                      key={tab.id}
+                      value={tab.id}
+                      title={tab.name}
+                      aria-busy={status === "loading" || undefined}
+                    >
+                      <Group
+                        gap="xs"
+                        justify="center"
+                        wrap="nowrap"
+                        className={stateClass}
+                        style={{ minWidth: 0 }}
+                      >
                         {meta.icon}
                         <Text
                           fw={600}

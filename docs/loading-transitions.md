@@ -27,6 +27,7 @@ where it is wired.
 - [1.12 Usage inventory](#112-usage-inventory)
 - [1.13 Global activity bar](#113-global-activity-bar)
 - [1.13.1 Cold-start readiness](#1131-cold-start-readiness)
+- [1.13.2 Per-view tab load indicator](#1132-per-view-tab-load-indicator)
 - [1.14 File index & related docs](#114-file-index--related-docs)
 
 ## 1.1 Problem
@@ -472,7 +473,12 @@ flowchart LR
 
 **Sources.** A refcounted `begin(key)`/`end(key)` context
 (`ActivityProvider`/`useActivity`, `src/components/ActivityBar.tsx`) lets
-overlapping sources (a route nav mid-refresh) share the bar without fighting:
+overlapping sources (a route nav mid-refresh) share the bar without fighting.
+The refcount arithmetic is the pure `src/lib/ui/activity.ts` (unit-tested), and
+every reporter releases its key in its effect cleanup (`useReportActivity`) — so
+a reporter that unmounts while still active (navigating away from the dashboard
+while its read is in flight) can't leak its key and leave the bar running until
+a full reload:
 
 | Source | Wiring |
 | ------ | ------ |
@@ -581,16 +587,55 @@ amber strip (`.c2-activity-bar c2-activity-bar-active`, `role="progressbar"`);
 during `ready` it renders `.c2-ready-bar` — the same 4px slot filled green and
 drawn in from the left (`c2-ready-grow`, reduced-motion: instant). The generic
 `ActivityBar` suppresses itself while the machine is `loading`/`ready` so two
-strips never share the slot, and resumes once it reaches `done`. On entering
-`ready` the shell's polite live region announces *"Calendar up to date"* via
-`announce()`. Immersive mode hides the bar with the header.
+strips never share the slot, and resumes once it reaches `done`. The
+suppression is render-only: the activity bar's own show/hold timers are keyed on
+its busy source, **not** on the cold-start phase, so the hand-off is seamless —
+a source already busy through the cold start appears immediately at `done`
+instead of restarting its 300 ms show-delay (which used to make the bar vanish
+for the green confirmation and then pop back in). On entering `ready` the
+shell's polite live region announces *"Calendar up to date"* via `announce()`.
+Immersive mode hides the bar with the header.
 
 **Wiring.** `ColdStartReadyProvider` mounts in the (protected) layout around
 `AppShellShell`; the shell consumes it for the two leg fetches and renders
 `ColdStartReadyBar` beside `ActivityBar` in the header. Adding a new data-heavy
 route: mount `useColdStartContent()` from its root client view **and** add its
 path to `COLD_CONTENT_ROUTES`, or readiness will confirm on the chrome legs
-alone while that route's skeleton is still up.
+alone while that route's skeleton is still up. Each leg fetch is bounded by a
+timeout (`COLD_LEG_TIMEOUT_MS`, `AppShellShell`) so a hung server action can't
+leave the amber bar pulsing forever.
+
+## 1.13.2 Per-view tab load indicator
+
+The dashboard's tab strip used to read as static while a tapped view's grid
+waited behind the skeleton, and every background tab was indistinguishable from
+a loaded one. Each tab now shows **its own view's** load state on its icon +
+label, decoupled from the active view's skeleton (`DashboardView.tsx`, styled by
+`.c2-tab-loading` / `.c2-tab-not-loaded` in `globals.css`):
+
+- **loaded** — a warm snapshot for the tab's current request key exists, so a tap
+  paints it instantly (any age; a stale one revalidates silently in place).
+  Solid, as before.
+- **loading** — a fetch for that key is in flight (the background preload, the
+  active read, or an on-tap priority read). Slightly faded with a slow
+  **breathing** opacity pulse (~1.6 s); reduced-motion drops the pulse to the
+  static fade.
+- **not-loaded** — neither. Slightly faded, static.
+
+**State model.** `DashboardScreen` computes `tabStatus` from the warm-snapshot
+map (`warmRecords`), the in-flight flags (the active read's `busy`, the batch
+preload's `preloadBusy`), and each tab's request key
+(`dashboardRequestKey` + `requiredMonths`); the pure, unit-tested
+`tabLoadStates` (`snapshot.ts`) maps keys → states. It rides the existing
+`DashboardDataContext` (no new props) and the tab strip applies the state class
+to the tab content, leaving the tab chrome/indicator alone. Loading tabs carry
+`aria-busy`.
+
+**Loading strategy (hybrid).** The efficient single union-read preload
+(`preloadDashboardTabs`) still warms every tab in one server pass; a tap on a
+not-yet-loaded tab fires the normal priority read for that tab, which flips it to
+`loading` immediately. A single-tab account skips the preload entirely (the
+active read already covers it), avoiding a second server config pass.
 
 ## 1.14 File index & related docs
 
@@ -605,12 +650,16 @@ alone while that route's skeleton is still up.
 | `src/lib/ui/uiState.ts` | `resolveDashboardView` — shared view resolution for page + route fallback |
 | `src/app/(protected)/parade-state/paradeStateSkeleton.tsx` | Parade row skeletons (shared) |
 | `src/app/(protected)/settings/audit-log/AuditLogRowSkeleton.tsx` | Audit row skeleton (shared) |
-| `src/app/(protected)/dashboard/DashboardView.tsx` | Held loading, reveal fade, one-shot strips (`event`/`edit`/`refresh`), agenda slide, optimistic date-nav chrome (`shown*`, §1.9.2) |
+| `src/app/(protected)/dashboard/DashboardView.tsx` | Held loading, reveal fade, one-shot strips (`event`/`edit`/`refresh`), agenda slide, optimistic date-nav chrome (`shown*`, §1.9.2), per-tab load styling (§1.13.2) |
 | `src/app/(protected)/parade-state/ParadeStateView.tsx` | Month-gated hold |
 | `src/components/AppShellShell.tsx` | Optimistic nav highlight (`tappedHref`) + `PendingDim`/`useLinkStatus` (§1.9.1) |
 | `src/components/ActivityBar.tsx` | ActivityProvider + `useActivity` (refcounted `begin`/`end`), `useReportActivity`, `useActivityRefresh`, `ActivityBar` (300 ms show delay + min hold, indeterminate strip, suppresses itself during the cold-start phases) — §1.13/§1.13.1 |
+| `src/lib/ui/activity.ts` | Pure activity refcount (`beginActivity`/`endActivity`/`isActivityBusy`), unit-tested; backs the provider so an unmounting reporter can't leak a key — §1.13 |
+| `src/lib/async.ts` | `mapWithConcurrency` + `withTimeout` (bounds the cold-start legs and the first dashboard read) — §1.13.1 |
 | `src/lib/ui/coldStart.ts` | Pure readiness reducer (`coldStartReducer`), route allowlist + `coldStartRouteRequiresContent`, timing constants (MIN/MAX/dwell/check) — §1.13.1 |
 | `src/components/ColdStartReady.tsx` | `ColdStartReadyProvider` + `useColdStartReady`/`useColdStartContent` + `ColdStartReadyBar` (amber → green once-per-launch) — §1.13.1 |
+| `src/lib/dashboard/snapshot.ts` | Pure snapshot/request-key helpers incl. `tabLoadStates` (per-tab loaded/loading/not-loaded) — §1.13.2 |
+| `src/app/(protected)/dashboard/DashboardScreen.tsx` | Owns the snapshot, warm map, preload, and per-tab `tabStatus`; first-load timeout + retryable error — §1.13.2 |
 | `next.config.ts` | `experimental.staleTimes.dynamic = 120` client-router reuse window (§1.10) |
 | `src/app/(protected)/dashboard/page.tsx` | `?event=`/`?edit=`/`?refresh=` param validation |
 

@@ -20,3 +20,29 @@ export async function mapWithConcurrency<T, R>(
   await Promise.all(workers);
   return results;
 }
+
+/**
+ * Reject a promise if it hasn't settled within `ms`. The underlying operation
+ * keeps running (there is no cancellation), but callers that only need to stop
+ * *waiting* — a best-effort readiness leg, a first-load screen that must not
+ * hang forever — can move on. The timer is cleared as soon as the promise
+ * settles either way.
+ */
+export function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer: ReturnType<typeof setTimeout> = setTimeout(
+      () => reject(new Error(`Timed out after ${ms}ms`)),
+      ms,
+    );
+    promise.then(
+      (value) => {
+        clearTimeout(timer);
+        resolve(value);
+      },
+      (error) => {
+        clearTimeout(timer);
+        reject(error);
+      },
+    );
+  });
+}

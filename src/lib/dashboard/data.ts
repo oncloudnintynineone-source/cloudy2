@@ -169,18 +169,14 @@ function currentMonth(): string {
 async function resolveDashboardConfig(session: Session): Promise<DashboardConfig> {
   const isAdmin = session.user.role === "admin";
 
-  const storedTabs = await getDashboardViews(session.user.id);
-  const prefs = await getUserPreferences(session.user.id);
-  const canManageViews = storedTabs.length > 0;
-  const tabs = storedTabs.length > 0 ? storedTabs : [STATIC_DEFAULT_TAB];
-
-  // Per-device "where you are" state: where the URL is silent, the last
-  // rendered date/month anchor applies, so a cold open (or F5) lands where the
-  // user left off. URL params always win.
-  const cookieState = decodeUiState((await cookies()).get(UI_STATE_COOKIE)?.value);
-  const nav = cookieState?.dashboard;
-
+  // One batched pass: the tab/preference/cookie reads run alongside the
+  // calendars/types/users/settings reads instead of before them, so the small
+  // connection pool (max 3) is never left idle between round trips. The admin
+  // department lookup is skipped for admins (resolved as null).
   const [
+    storedTabs,
+    prefs,
+    cookieStore,
     calendars,
     eventTypes,
     eventTypeGroups,
@@ -188,7 +184,11 @@ async function resolveDashboardConfig(session: Session): Promise<DashboardConfig
     settings,
     quickLinks,
     eventTitleTemplates,
+    ownDepartmentId,
   ] = await Promise.all([
+    getDashboardViews(session.user.id),
+    getUserPreferences(session.user.id),
+    cookies(),
     listCalendars(),
     listEventTypes(),
     listEventTypeGroups(),
@@ -196,13 +196,23 @@ async function resolveDashboardConfig(session: Session): Promise<DashboardConfig
     getSettings(),
     listQuickLinks(),
     listEventTitleTemplates(),
+    isAdmin ? Promise.resolve(null) : getUserDepartmentId(session.user.id),
   ]);
+
+  const canManageViews = storedTabs.length > 0;
+  const tabs = storedTabs.length > 0 ? storedTabs : [STATIC_DEFAULT_TAB];
+
+  // Per-device "where you are" state: where the URL is silent, the last
+  // rendered date/month anchor applies, so a cold open (or F5) lands where the
+  // user left off. URL params always win.
+  const cookieState = decodeUiState(cookieStore.get(UI_STATE_COOKIE)?.value);
+  const nav = cookieState?.dashboard;
+
   const calendarIds = calendars.map((calendar) => calendar.id);
   const departmentParentById = new Map(
     calendars.map((calendar) => [calendar.id, calendar.parentId ?? null]),
   );
 
-  const ownDepartmentId = isAdmin ? null : await getUserDepartmentId(session.user.id);
   const defaultCalendars = isAdmin ? calendarIds : ownDepartmentId ? [ownDepartmentId] : [];
 
   const typeNames = eventTypes.map((type) => type.name);

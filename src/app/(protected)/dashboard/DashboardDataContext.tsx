@@ -2,6 +2,8 @@
 
 import { createContext, useContext } from "react";
 
+import type { TabLoadState } from "@/lib/dashboard/snapshot";
+
 /**
  * Dashboard data context (docs/pwa-offline.md).
  *
@@ -20,6 +22,11 @@ export interface DashboardDataValue {
    * navigation). Drives the grid skeleton, exactly like a route transition did.
    */
   isNavigating: boolean;
+  /**
+   * Per-tab load state, keyed by tab id, for the tab strip's text treatment
+   * (loaded = solid, loading = faded + breathing, not-loaded = faded).
+   */
+  tabStatus: Record<string, TabLoadState>;
 }
 
 const DashboardDataContext = createContext<DashboardDataValue | null>(null);

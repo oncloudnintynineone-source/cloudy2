@@ -13,6 +13,12 @@ import {
 } from "react";
 import { useRouter } from "next/navigation";
 import { invalidateCurrentPathCaches } from "@/lib/pwa/client";
+import {
+  beginActivity,
+  endActivity,
+  isActivityBusy,
+  type ActivityCounts,
+} from "@/lib/ui/activity";
 import { useColdStartReady } from "@/components/ColdStartReady";
 
 /**
@@ -75,16 +81,20 @@ export function useActivity(): ActivityValue {
 /**
  * Reports a single boolean "busy" source (a transition pending, a refresh in
  * flight) into the shared activity bar via `begin`/`end`. Call it from a
- * component that owns the flag. No-ops while the flag is unchanged.
+ * component that owns the flag.
+ *
+ * The begin/cleanup pairing is deliberate: the effect registers `end` as its
+ * cleanup, so the key is released on the falling edge **and** when the reporter
+ * unmounts while still active. The provider lives in the persistent shell, so a
+ * reporter that unmounts mid-load (navigating away from the dashboard while its
+ * read is in flight) used to leak its key and leave the bar stuck on forever.
  */
 export function useReportActivity(active: boolean, key: string) {
   const { begin, end } = useActivity();
-  const prevRef = useRef(active);
   useEffect(() => {
-    if (active === prevRef.current) return;
-    prevRef.current = active;
-    if (active) begin(key);
-    else end(key);
+    if (!active) return;
+    begin(key);
+    return () => end(key);
   }, [active, key, begin, end]);
 }
 
@@ -112,24 +122,17 @@ export function useActivityRefresh(busyKey: string) {
  * separately inside the AppShell header so the bar sits flush under it.
  */
 export function ActivityProvider({ children }: { children: ReactNode }) {
-  const refcount = useRef<Record<string, number>>({});
+  const counts = useRef<ActivityCounts>({});
   const [anyBusy, setAnyBusy] = useState(false);
 
   const begin = useCallback((key: string) => {
-    refcount.current[key] = (refcount.current[key] ?? 0) + 1;
-    setAnyBusy(true);
+    counts.current = beginActivity(counts.current, key);
+    setAnyBusy(isActivityBusy(counts.current));
   }, []);
 
   const end = useCallback((key: string) => {
-    const next = (refcount.current[key] ?? 1) - 1;
-    if (next <= 0) {
-      delete refcount.current[key];
-    } else {
-      refcount.current[key] = next;
-    }
-    if (Object.keys(refcount.current).length === 0) {
-      setAnyBusy(false);
-    }
+    counts.current = endActivity(counts.current, key);
+    setAnyBusy(isActivityBusy(counts.current));
   }, []);
 
   const value = useMemo(() => ({ begin, end, anyBusy }), [begin, end, anyBusy]);
@@ -157,15 +160,20 @@ export function ActivityBar() {
   const [shown, setShown] = useState(false);
   const showTimer = useRef<number | null>(null);
   const holdTimer = useRef<number | null>(null);
-  // Render gate mirrors the timer gate: while the cold-start machine is
-  // loading/confirming it owns the strip, so even a `shown` state that outlived
-  // the phase flip stays hidden until the machine reaches `done`.
+  // Render-only gate: while the cold-start machine is loading/confirming it owns
+  // the strip, so a `shown` state that outlived the phase flip stays hidden until
+  // the machine reaches `done` (the timer machine below keeps running underneath
+  // it, so the hand-off is seamless).
   const visible = shown && phase !== "loading" && phase !== "ready";
 
   useEffect(() => {
-    const ownsSlot = phase !== "loading" && phase !== "ready";
-    if (!ownsSlot) return;
-
+    // Deliberately keyed on `busy`/`shown` only — never on the cold-start
+    // `phase`. The phase only gates *rendering* (`visible` above); the timer
+    // machine keeps running underneath it, so the cold-start → activity
+    // hand-off is seamless. If the phase were a dependency, reaching `done`
+    // would re-run this effect and restart the 300ms show-delay for a source
+    // that had been busy all along — the bar would appear, vanish for the green
+    // ready bar, then pop back in.
     if (busy) {
       // Rising edge (or busy returning mid-exit): cancel any pending hold and,
       // if the bar isn't shown yet, arm the show-delay timer.
@@ -204,7 +212,7 @@ export function ActivityBar() {
         holdTimer.current = null;
       }
     };
-  }, [busy, shown, phase]);
+  }, [busy, shown]);
 
   return (
     <div

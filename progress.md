@@ -18,7 +18,8 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
 
 ## 1.1 Status
 
-- All work through changelog **1.225 (daily parade-state email)** is shipped.
+- All work through changelog **1.226 (loading-indicator fixes + per-view tab load
+  state)** is shipped.
 - Quality gates (`lint` / `typecheck` / `test` / schema-drift check) run in CI on every
   push and PR. Pushes also auto-apply migrations per environment: `dev` →
   `migrate-preview` against the dev Neon DB, `main` → `migrate` against the prod Neon
@@ -902,6 +903,21 @@ via `?attendance=1` and `attendanceStorage` became a `useSyncExternalStore` exte
    excluded), with a Send Test Now action; `settings` gains five `parade_email_*` columns,
    a `paradeState.emailSend` audit action is logged, and the KAH renderer now shares the
    generic template helper (`docs/parade-state-email.md`)
+- 1.226 Loading-indicator fixes + per-view tab load state: (a) the global activity
+   bar's refcount no longer leaks when a reporter unmounts mid-load —
+   `useReportActivity` releases its key in the effect cleanup and the arithmetic moved
+   to the pure, unit-tested `src/lib/ui/activity.ts`, so navigating away from the
+   dashboard while a read is in flight can't leave the bar running until a full reload;
+   (b) the activity bar's show/hold timers key on `busy`, not the cold-start phase, so
+   the cold-start → activity hand-off is seamless (no vanish-for-the-green then
+   reappear); (c) the cold-start legs and the first dashboard read are bounded by
+   `withTimeout` (`src/lib/async.ts`), and a failed first read with nothing cached shows
+   a retryable `EmptyState` instead of an endless skeleton; (d) each dashboard tab now
+   shows its own view's load state — loaded solid, loading faded + breathing,
+   not-loaded faded — via pure `tabLoadStates` + `DashboardScreen.tabStatus` on the
+   existing data context; (e) `resolveDashboardConfig` batches its reads and single-tab
+   accounts skip the preload's second config pass (`docs/loading-transitions.md`
+   §1.13/§1.13.1/§1.13.2, `AGENTS.md`)
 
 ## 1.4 Open items & next steps
 

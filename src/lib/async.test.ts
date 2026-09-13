@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { mapWithConcurrency } from "./async";
+import { mapWithConcurrency, withTimeout } from "./async";
 
 function deferred<T>() {
   let resolve!: (value: T) => void;
@@ -44,5 +44,20 @@ describe("mapWithConcurrency", () => {
 
   it("handles a limit larger than the input", async () => {
     await expect(mapWithConcurrency([1], 10, async (n) => n + 1)).resolves.toEqual([2]);
+  });
+});
+
+describe("withTimeout", () => {
+  it("resolves with the value when the promise settles in time", async () => {
+    await expect(withTimeout(Promise.resolve(7), 1000)).resolves.toBe(7);
+  });
+
+  it("rejects once the timeout elapses", async () => {
+    const never = new Promise<number>(() => {});
+    await expect(withTimeout(never, 10)).rejects.toThrow(/Timed out after 10ms/);
+  });
+
+  it("propagates a rejection from the underlying promise", async () => {
+    await expect(withTimeout(Promise.reject(new Error("boom")), 1000)).rejects.toThrow("boom");
   });
 });

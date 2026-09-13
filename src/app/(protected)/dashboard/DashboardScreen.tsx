@@ -2,8 +2,11 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
+import { IconCloudOff } from "@tabler/icons-react";
 
+import { EmptyState } from "@/components/EmptyState";
 import { useReportActivity } from "@/components/ActivityBar";
+import { withTimeout } from "@/lib/async";
 import { loadDashboardData, preloadDashboardTabs } from "@/lib/dashboard/actions";
 import {
   clearDashboardSnapshots,
@@ -14,11 +17,13 @@ import {
   DASHBOARD_SNAPSHOT_VERSION,
   assembleDashboardSnapshot,
   dashboardCandidateRequestKey,
+  dashboardRequestKey,
   equivalentDashboardTab,
   isRefreshNonceFresh,
   isWarmSnapshotFresh,
   requiredMonths,
   resolveDashboardPresentation,
+  tabLoadStates,
   type DashboardSnapshotRecord,
 } from "@/lib/dashboard/snapshot";
 import { isUuid } from "@/lib/uuid";
@@ -34,6 +39,14 @@ interface DashboardScreenProps {
   initialZoom: SlotZoom;
   initialMonthZoom: MonthZoom;
 }
+
+/**
+ * Upper bound on the first-load dashboard read. A cold backend can legitimately
+ * take several seconds, but a request that never settles must not leave the
+ * full-area skeleton on screen forever — past this the client gives up waiting
+ * and (when nothing is cached to fall back on) shows a retryable error instead.
+ */
+const DASHBOARD_LOAD_TIMEOUT_MS = 20_000;
 
 function inputFromParams(params: URLSearchParams) {
   return {
@@ -98,6 +111,10 @@ export function DashboardScreen({
   // context change read as a navigation and show the grid skeleton.
   const [source, setSource] = useState<"cache" | "fresh">("fresh");
   const [busy, setBusy] = useState(false);
+  // Whether the background tab preload (the single union read that warms every
+  // tab) is in flight. Feeds the tab strip's per-tab load state: while it runs,
+  // every not-yet-loaded tab is "loading" (faded + breathing).
+  const [preloadBusy, setPreloadBusy] = useState(false);
   // The latest busy flag, read by the fetch-decision effect so an equivalent-tab
   // local swap never races an in-flight read (see the effect below).
   const busyRef = useRef(busy);
@@ -107,6 +124,9 @@ export function DashboardScreen({
   // The candidate request key whose fetch last failed, so the view can heal back
   // to the held tab on a failed/offline navigation (see the presentation below).
   const [failedContextKey, setFailedContextKey] = useState<string | null>(null);
+  // True when a read failed while nothing was cached to fall back on, so the
+  // screen shows a retryable error instead of an endless skeleton.
+  const [loadFailed, setLoadFailed] = useState(false);
   const requestIdRef = useRef(0);
   const hasFreshRef = useRef(false);
   const lastRefreshRef = useRef<string | null>(null);
@@ -186,12 +206,16 @@ export function DashboardScreen({
       paramsRef.current.get("date"),
     );
     try {
-      const result = await loadDashboardData(inputFromParams(paramsRef.current));
+      const result = await withTimeout(
+        loadDashboardData(inputFromParams(paramsRef.current)),
+        DASHBOARD_LOAD_TIMEOUT_MS,
+      );
       if (requestId !== requestIdRef.current) return;
       if (result.ok) {
         hasFreshRef.current = true;
         setSource("fresh");
         setFailedContextKey(null);
+        setLoadFailed(false);
         setRecord(result.record);
         setWarmRecords((current) => {
           const next = new Map(current);
@@ -201,6 +225,7 @@ export function DashboardScreen({
         void writeDashboardSnapshot(userId, result.record.data, result.record.context);
       } else {
         setFailedContextKey(attemptedKey);
+        if (recordRef.current === null) setLoadFailed(true);
       }
       // A failed read keeps the cached snapshot on screen (offline reads work);
       // the OfflineBanner is the user-facing signal.
@@ -208,6 +233,7 @@ export function DashboardScreen({
       // Network/session failures: keep the cached render.
       if (requestId === requestIdRef.current) {
         setFailedContextKey(attemptedKey);
+        if (recordRef.current === null) setLoadFailed(true);
       }
     } finally {
       if (requestId === requestIdRef.current) {
@@ -216,31 +242,43 @@ export function DashboardScreen({
     }
   }, [userId]);
 
+  // Retry the first read after the retryable error screen (no cached data to
+  // fall back on). Clearing the flag flips the screen back to the skeleton.
+  const retryInitialLoad = useCallback(() => {
+    setLoadFailed(false);
+    void fetchFresh();
+  }, [fetchFresh]);
+
   // Background-preload every tab for the current anchor (docs/pwa-offline.md
   // §1.18), so a tab switch paints from the warm cache with no round-trip. The
   // result is discarded if a mutation/force refresh bumped the generation or a
   // newer anchor superseded the signature.
   const preloadTabs = useCallback(
     async (signature: string, generation: number) => {
-      const result = await preloadDashboardTabs(inputFromParams(paramsRef.current));
-      if (preloadGenerationRef.current !== generation) return;
-      if (preloadedRef.current?.signature !== signature) return;
-      if (!result.ok) return;
-      const records: DashboardSnapshotRecord[] = result.tabs.map((tab) => ({
-        version: DASHBOARD_SNAPSHOT_VERSION,
-        savedAt: Date.now(),
-        context: tab.context,
-        data: assembleDashboardSnapshot(result.shared, tab.delta),
-      }));
-      setWarmRecords((current) => {
-        const next = new Map(current);
+      setPreloadBusy(true);
+      try {
+        const result = await preloadDashboardTabs(inputFromParams(paramsRef.current));
+        if (preloadGenerationRef.current !== generation) return;
+        if (preloadedRef.current?.signature !== signature) return;
+        if (!result.ok) return;
+        const records: DashboardSnapshotRecord[] = result.tabs.map((tab) => ({
+          version: DASHBOARD_SNAPSHOT_VERSION,
+          savedAt: Date.now(),
+          context: tab.context,
+          data: assembleDashboardSnapshot(result.shared, tab.delta),
+        }));
+        setWarmRecords((current) => {
+          const next = new Map(current);
+          for (const record of records) {
+            next.set(record.context.requestKey, record);
+          }
+          return next;
+        });
         for (const record of records) {
-          next.set(record.context.requestKey, record);
+          void writeDashboardSnapshot(userId, record.data, record.context);
         }
-        return next;
-      });
-      for (const record of records) {
-        void writeDashboardSnapshot(userId, record.data, record.context);
+      } finally {
+        setPreloadBusy(false);
       }
     },
     [userId],
@@ -360,6 +398,9 @@ export function DashboardScreen({
     if (!record || source !== "fresh" || busy) return;
     if (typeof navigator !== "undefined" && navigator.onLine === false) return;
     const tabs = record.data.tabs;
+    // Nothing to warm with a single tab: the active read already covers it, so
+    // skip the second server config pass entirely.
+    if (tabs.length <= 1) return;
     const months = [
       ...new Set(
         tabs.flatMap((tab) =>
@@ -405,6 +446,44 @@ export function DashboardScreen({
     })();
   }, [fetchFresh, userId]);
 
+  // Per-tab load state for the tab strip. A tab is "loaded" when a warm
+  // snapshot for its current request key exists (paintable instantly, any age),
+  // "loading" while a fetch for that key is in flight (the background preload,
+  // or the active/on-tap priority read), and "not-loaded" otherwise.
+  const tabStatus = useMemo(() => {
+    if (!record) return {};
+    const tabs = record.data.tabs;
+    const loadedKeys = new Set(warmRecords.keys());
+    loadedKeys.add(record.context.requestKey);
+    const loadingKeys = new Set<string>();
+    if (preloadBusy) {
+      for (const tab of tabs) {
+        loadingKeys.add(
+          dashboardRequestKey({
+            viewId: tab.id,
+            months: requiredMonths(tab.kind, record.context.month, record.context.date),
+          }),
+        );
+      }
+    }
+    if (busy) {
+      const activeKey = dashboardCandidateRequestKey(
+        record,
+        searchParams.get("view"),
+        searchParams.get("month"),
+        searchParams.get("date"),
+      );
+      if (activeKey) loadingKeys.add(activeKey);
+    }
+    return tabLoadStates({
+      tabs,
+      month: record.context.month,
+      date: record.context.date,
+      loadedKeys,
+      loadingKeys,
+    });
+  }, [record, warmRecords, preloadBusy, busy, searchParams]);
+
   const context = useMemo(
     () => ({
       revalidate,
@@ -414,8 +493,9 @@ export function DashboardScreen({
       // answers it (or the fetch fails), so the grid skeleton can't flash or gap
       // around the data fetch.
       isNavigating,
+      tabStatus,
     }),
-    [revalidate, busy, isNavigating],
+    [revalidate, busy, isNavigating, tabStatus],
   );
 
   // `_eventCal`/`event` are deliberately absent from the request key, so a deep
@@ -448,7 +528,22 @@ export function DashboardScreen({
     }
   }, [deepLinkId, record, candidateKey, fetchFresh]);
 
-  if (!record || (hasDeepLink && source === "cache")) {
+  if (!record) {
+    // Nothing cached to paint: a failed/timed-out first read gets a retryable
+    // error instead of an endless skeleton.
+    if (loadFailed) {
+      return (
+        <EmptyState
+          icon={<IconCloudOff size={22} />}
+          description="Couldn't load the calendar. Check your connection and try again."
+          actionLabel="Retry"
+          onAction={retryInitialLoad}
+        />
+      );
+    }
+    return <DashboardShellSkeleton />;
+  }
+  if (hasDeepLink && source === "cache") {
     return <DashboardShellSkeleton />;
   }
 

@@ -70,6 +70,7 @@ import {
 import { useRememberedPage, writeUiState } from "@/lib/ui/uiStateClient";
 import { EVENTS_CHANGED_EVENT } from "@/lib/ui/eventChanges";
 import { checkUserClashes } from "@/lib/events/clashActions";
+import { withTimeout } from "@/lib/async";
 
 interface NavItem {
   href: string;
@@ -137,6 +138,14 @@ const NAV_IDLE_COLOR = "light-dark(var(--mantine-color-gray-6), var(--mantine-co
 // slow-but-alive connection, short enough that a dead tap doesn't lie about
 // where you are.
 const NAV_TAP_REVERT_MS = 6000;
+
+/**
+ * Upper bound on a cold-start readiness leg (the pinned-events list and the
+ * clash count). Both settle on success *or* failure, so the amber cold-start
+ * bar can't pulse forever on a hung request; this bounds the genuinely
+ * never-settling case (a stalled server action / cold backend).
+ */
+const COLD_LEG_TIMEOUT_MS = 12_000;
 
 /**
  * Subtle press feedback inside a nav `<Link>` while its navigation is in
@@ -468,9 +477,12 @@ export function AppShellShell({
   }, []);
   useEffect(() => {
     // The cold-start read doubles as a readiness leg: begin before the fetch,
-    // settle when it resolves *either way* (a failure still ends the load).
+    // settle when it resolves *either way* (a failure still ends the load). A
+    // timeout bounds the never-settling case so the bar can't hang.
     beginLeg("pinned");
-    void refreshPinnedEvents().finally(() => settleLeg("pinned"));
+    void withTimeout(refreshPinnedEvents(), COLD_LEG_TIMEOUT_MS).finally(() =>
+      settleLeg("pinned"),
+    );
   }, [refreshPinnedEvents, beginLeg, settleLeg]);
   const didOpenPanelRef = useRef(false);
   useEffect(() => {
@@ -651,7 +663,9 @@ export function AppShellShell({
   useEffect(() => {
     // The cold-start scan doubles as a readiness leg (see `pinned` above).
     beginLeg("clashes");
-    void refreshDoubleBooking().finally(() => settleLeg("clashes"));
+    void withTimeout(refreshDoubleBooking(), COLD_LEG_TIMEOUT_MS).finally(() =>
+      settleLeg("clashes"),
+    );
   }, [refreshDoubleBooking, beginLeg, settleLeg]);
   useEffect(() => {
     const schedule = () => {
