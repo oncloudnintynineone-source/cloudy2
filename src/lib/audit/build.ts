@@ -33,6 +33,7 @@ export const AUDIT_ACTIONS = {
   kahGroupUpdate: "kahGroup.update",
   kahGroupDelete: "kahGroup.delete",
   kahBreachNotify: "kah.breachNotify",
+  paradeStateEmailSend: "paradeState.emailSend",
   accessGrant: "access.grant",
   accessUpdate: "access.update",
   accessRevoke: "access.revoke",

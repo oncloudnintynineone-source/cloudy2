@@ -16,6 +16,7 @@ const tabs = [
   { value: "/settings/webhooks", label: "Webhooks" },
   { value: "/settings/quick-links", label: "Quick Links" },
   { value: "/settings/kah-groups", label: "KAH Groups" },
+  { value: "/settings/parade-email", label: "Parade State Email" },
   { value: "/settings/banner", label: "Banner" },
   { value: "/settings/general", label: "General" },
   { value: "/settings/security", label: "Security" },

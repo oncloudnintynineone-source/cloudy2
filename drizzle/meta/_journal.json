@@ -309,6 +309,13 @@
       "when": 1789111424173,
       "tag": "0043_brief_madame_web",
       "breakpoints": true
+    },
+    {
+      "idx": 44,
+      "version": "7",
+      "when": 1789280927761,
+      "tag": "0044_mature_gladiator",
+      "breakpoints": true
     }
   ]
 }

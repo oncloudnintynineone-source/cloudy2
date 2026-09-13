@@ -57,12 +57,13 @@ import { CONTENT_ENTER_CLASS, useContentEnter } from "@/lib/loading/contentEnter
 import { useMinSkeletonHold } from "@/lib/loading/minHoldLoading";
 import { type Rect } from "@/lib/motion/origin";
 import { MOTION } from "@/lib/motion/timing";
+import { departmentPathLabels, departmentTreeRows } from "@/lib/roster/hierarchy";
 import {
-  buildDepartmentTree,
-  departmentPathLabels,
-  departmentTreeRows,
-  type DepartmentTreeNode,
-} from "@/lib/roster/hierarchy";
+  buildEventsByUser,
+  eventCoversDay,
+  toParadeEvent,
+} from "@/lib/parade/dayEvents";
+import { buildParadeSections, type ParadeSection } from "@/lib/parade/sections";
 import { formatFullName } from "@/lib/settings/formatName";
 import { activatable } from "@/lib/ui/activatable";
 import { saveParadeFilters } from "@/lib/userPrefs/actions";
@@ -77,7 +78,7 @@ import {
   subscribeAttendance,
 } from "./attendanceStorage";
 import { departmentSummaryRows, departmentTreeHeadcount } from "./headcount";
-import { formatEventTimeBadge } from "./eventTimeBadge";
+import { formatEventTimeBadge } from "@/lib/parade/eventTimeBadge";
 import { ParadeStateDepartmentSkeleton } from "./paradeStateSkeleton";
 
 interface ParadeStateUser {
@@ -87,27 +88,8 @@ interface ParadeStateUser {
   department: { id: string; name: string; sortOrder?: number } | null;
 }
 
-interface ParadeStateEvent {
-  id: string;
-  title: string;
-  start: string;
-  end: string;
-  allDay: boolean;
-  outOfCamp: boolean;
-  eventType: string | null;
-  location: string;
-  calendarName: string;
-  creatorId: string | null;
-  inviteeUserIds: string[];
-}
-
-/** A department section of the rendered hierarchy (direct users + sub-sections). */
-interface DepartmentSection {
-  id: string | null;
-  name: string;
-  users: ParadeStateUser[];
-  children: DepartmentSection[];
-}
+/** The section shape lives in the shared pure helpers. */
+type DepartmentSection = ParadeSection<ParadeStateUser>;
 
 function sectionHasUsers(section: DepartmentSection): boolean {
   if (section.users.length > 0) return true;
@@ -143,30 +125,6 @@ export interface ParadeStateViewProps {
   nameTemplate: string;
   /** Admin: the empty state links into Settings; non-admins get the plain message. */
   isAdmin?: boolean;
-}
-
-function eventCoversDay(event: CalendarEvent, date: string): boolean {
-  if (event.payload.allDay) {
-    const startDay = event.start.slice(0, 10);
-    const endDay = event.end.slice(0, 10);
-    const prevDay = dayjs(endDay).subtract(1, "day").format("YYYY-MM-DD");
-    return date >= startDay && date <= prevDay;
-  }
-  return event.start.slice(0, 10) === date;
-}
-
-function involvedUserIds(event: ParadeStateEvent): string[] {
-  // The attendees only: an organizer who is not attending (not self-invited,
-  // outside any tagged department) is not counted on their own out-of-camp
-  // listing — they merely own the event.
-  return [...new Set(event.inviteeUserIds)];
-}
-
-function sortEvents(events: ParadeStateEvent[]): ParadeStateEvent[] {
-  return [...events].sort((a, b) => {
-    if (a.outOfCamp !== b.outOfCamp) return a.outOfCamp ? -1 : 1;
-    return a.start.localeCompare(b.start);
-  });
 }
 
 export function ParadeStateView({
@@ -420,82 +378,19 @@ export function ParadeStateView({
     (selectedUsers.length > 0 ? 1 : 0);
 
   const dayEvents = useMemo(
-    () =>
-      events
-        .filter((event) => eventCoversDay(event, date))
-        .map((event): ParadeStateEvent => ({
-          id: event.id,
-          title: event.title,
-          start: event.start,
-          end: event.end,
-          allDay: event.payload.allDay,
-          outOfCamp: event.payload.outOfCamp,
-          eventType: event.payload.eventType,
-          location: event.payload.location,
-          calendarName: event.payload.calendarName,
-          creatorId: event.payload.creatorId,
-          inviteeUserIds: event.payload.inviteeUserIds,
-        })),
+    () => events.filter((event) => eventCoversDay(event, date)).map(toParadeEvent),
     [events, date],
   );
 
-  const eventsByUser = useMemo(() => {
-    const map = new Map<string, ParadeStateEvent[]>();
-    for (const event of dayEvents) {
-      // Only include out-of-camp events
-      if (!event.outOfCamp) continue;
-      for (const userId of involvedUserIds(event)) {
-        let list = map.get(userId);
-        if (!list) {
-          list = [];
-          map.set(userId, list);
-        }
-        list.push(event);
-      }
-    }
-    for (const [userId, evts] of map) {
-      map.set(userId, sortEvents(evts));
-    }
-    return map;
-  }, [dayEvents]);
+  const eventsByUser = useMemo(() => buildEventsByUser(dayEvents), [dayEvents]);
 
   // The department hierarchy (parents before children, by the shared sortOrder)
   // with each user's direct department section; "Unassigned" stays a terminal
   // top-level section. Headcounts aggregate down the tree at render time.
-  const sections: DepartmentSection[] = useMemo(() => {
-    const usersByDept = new Map<string, ParadeStateUser[]>();
-    const unassigned: ParadeStateUser[] = [];
-
-    for (const user of users) {
-      if (user.department) {
-        const list = usersByDept.get(user.department.id) ?? [];
-        list.push(user);
-        usersByDept.set(user.department.id, list);
-      } else {
-        unassigned.push(user);
-      }
-    }
-
-    const tree = buildDepartmentTree(
-      calendars.map((calendar) => ({
-        id: calendar.id,
-        name: calendar.name,
-        sortOrder: calendar.sortOrder ?? 0,
-        parentId: calendar.parentId,
-      })),
-    );
-    const mapNode = (node: DepartmentTreeNode): DepartmentSection => ({
-      id: node.id,
-      name: node.name,
-      users: usersByDept.get(node.id) ?? [],
-      children: node.children.map(mapNode),
-    });
-
-    return [
-      ...tree.map(mapNode),
-      { id: null, name: "Unassigned", users: unassigned, children: [] },
-    ];
-  }, [users, calendars]);
+  const sections: DepartmentSection[] = useMemo(
+    () => buildParadeSections(users, calendars),
+    [users, calendars],
+  );
 
   // The read-only headcount summary shown above the roster: one row per
   // section in tree order (skipping empty subtrees, so it mirrors the body),

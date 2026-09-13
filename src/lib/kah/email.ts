@@ -10,6 +10,7 @@
  */
 
 import { formatInstantToNaive } from "@/lib/events/datetime";
+import { renderTemplate } from "@/lib/email/template";
 import {
   KAH_EMAIL_BODY_TEMPLATE_DEFAULT,
   KAH_EMAIL_SUBJECT_TEMPLATE_DEFAULT,
@@ -43,22 +44,16 @@ export interface KahBreachEmail {
 }
 
 /** The token values a template can use, fully pre-rendered. */
-export interface KahTemplateContext {
+export type KahTemplateContext = {
   event: string;
   actor: string;
   window: string;
   breaches: string;
-}
+};
 
 /** Substitute `{token}` placeholders; unknown tokens stay literal text. */
 export function renderKahEmailTemplate(template: string, context: KahTemplateContext): string {
-  return template.replace(/\{([^{}]+)\}/g, (match, rawToken: string) => {
-    const token = rawToken.trim().toLowerCase();
-    if (token in context) {
-      return context[token as keyof KahTemplateContext];
-    }
-    return match;
-  });
+  return renderTemplate(template, context);
 }
 
 /** One breach line of the `{breaches}` block. */

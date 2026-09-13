@@ -12,6 +12,11 @@ import {
   KAH_EMAIL_BODY_TEMPLATE_DEFAULT,
   KAH_EMAIL_SUBJECT_TEMPLATE_DEFAULT,
 } from "@/lib/kah/emailDefaults";
+import {
+  PARADE_EMAIL_BODY_TEMPLATE_DEFAULT,
+  PARADE_EMAIL_SUBJECT_TEMPLATE_DEFAULT,
+} from "@/lib/parade-email/emailDefaults";
+import { normalizeSendTime } from "@/lib/parade-email/schedule";
 import { sanitizeTitleRecipe, type TitleRecipe } from "@/lib/settings/titleRecipe";
 import {
   normalizeAssignments,
@@ -46,6 +51,21 @@ export interface SettingsView {
   /** Admin-customized KAH breach email templates ({event}/{actor}/{window}/{breaches}). */
   kahEmailSubjectTemplate: string;
   kahEmailBodyTemplate: string;
+  /** Daily parade-state email config (Settings → Parade State Email). */
+  paradeEmailEnabled: boolean;
+  paradeEmailRecipientIds: string[];
+  /** `HH:MM` in the app's UTC+8 wall clock. */
+  paradeEmailSendTime: string;
+  paradeEmailSubjectTemplate: string;
+  paradeEmailBodyTemplate: string;
+}
+
+/** Coerce a jsonb value to a string array (unknown/blank entries dropped). */
+function normalizeIdArray(value: unknown): string[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  return value.filter((id): id is string => typeof id === "string");
 }
 
 /**
@@ -80,6 +100,13 @@ export async function getSettings(): Promise<SettingsView> {
     kahEmailSubjectTemplate:
       row?.kahEmailSubjectTemplate?.trim() || KAH_EMAIL_SUBJECT_TEMPLATE_DEFAULT,
     kahEmailBodyTemplate: row?.kahEmailBodyTemplate?.trim() || KAH_EMAIL_BODY_TEMPLATE_DEFAULT,
+    paradeEmailEnabled: row?.paradeEmailEnabled ?? false,
+    paradeEmailRecipientIds: normalizeIdArray(row?.paradeEmailRecipientIds),
+    paradeEmailSendTime: normalizeSendTime(row?.paradeEmailSendTime),
+    paradeEmailSubjectTemplate:
+      row?.paradeEmailSubjectTemplate?.trim() || PARADE_EMAIL_SUBJECT_TEMPLATE_DEFAULT,
+    paradeEmailBodyTemplate:
+      row?.paradeEmailBodyTemplate?.trim() || PARADE_EMAIL_BODY_TEMPLATE_DEFAULT,
   };
 }
 

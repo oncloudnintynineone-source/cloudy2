@@ -86,6 +86,7 @@ seed defaults on first run; admins manage them in-app afterwards (Settings).
 | `GOOGLE_DELEGATE_EMAIL` | Workspace account impersonated for Gmail send (KAH breach emails) and granted owner ACLs on department calendars. Leave empty when using `SMTP_URL` instead |
 | `SMTP_URL` | SMTP fallback for breach emails, e.g. a personal Gmail app password (`smtp://user:pass@smtp.gmail.com:465`; URL-encode special characters, `smtps:`/465 = implicit TLS) |
 | `EMAIL_FROM` | Optional From override (defaults to the SMTP username) |
+| `CRON_SECRET` | Shared secret Cloud Scheduler presents (`Authorization: Bearer <CRON_SECRET>`) to `/api/cron/parade-state-email` for the daily parade-state email. Unset → the route returns 503 and never sends. Mirror to Vercel prod, the Cloud Run shadow, and the Cloud Scheduler job header |
 | `NEXT_PUBLIC_VAPID_PUBLIC_KEY`  | Web Push VAPID **public** key (event participant notifications). Inlined into the client (`pushManager.subscribe`) and read by the server. Generate once with `npx web-push generate-vapid-keys`; the same pair serves every environment |
 | `VAPID_PRIVATE_KEY` | Web Push VAPID **private** key (server-only). Same pair on every environment; mirror to the Cloud Run shadow's GH secret |
 | `VAPID_SUBJECT` | Web Push `mailto:` (or `https:`) contact identifying the application server, e.g. `mailto:cloudy2@example.com`. Required alongside the keys — without all three, participant push is skipped (no crash) |
@@ -103,12 +104,13 @@ src/
  contacts/ # Contact list + VCF export
  kah-status/ # Read-only KAH breach history & forecast, ±3 months (member's own groups; admins: all)
  double-booking/ # Double Booking scan (30-day own-department clash report)
- settings/ # Admin hub: users, departments, event-types, templates,
- # webhooks, quick-links, kah-groups, banner, general, security,
- # audit-log
- login/ # Login page (single field; admin PIN modal)
- api/auth/[...nextauth]  # NextAuth handler
- api/audit/export # Audit log CSV export
+  settings/ # Admin hub: users, departments, event-types, templates,
+  # webhooks, quick-links, kah-groups, parade-email, banner,
+  # general, security, audit-log
+  login/ # Login page (single field; admin PIN modal)
+  api/auth/[...nextauth]  # NextAuth handler
+  api/audit/export # Audit log CSV export
+  api/cron/parade-state-email  # Cloud Scheduler tick (CRON_SECRET)
  sw.ts # Serwist service worker (offline + instant open)
  manifest.ts # PWA manifest
   components/ # Reusable UI (AppShellShell, EventDetail, FilterModal, …)
@@ -122,8 +124,9 @@ src/
  events/ # Event queries/cache reads, notes codec, title, week matrix
  settings/ # Settings actions/queries, template engine, validation
  roster/ # Users/departments model, hierarchy helpers
- kah/ # KAH breach check + status reads
- email/ # Email transport selection + SMTP
+  kah/ # KAH breach check + status reads
+  parade/, parade-email/ # Shared parade helpers; daily parade-state email
+  email/ # Email transport selection + SMTP + shared template renderer
  webhooks/, audit/ # Event webhooks; audit log
  quickLinks/, banner/ # Quick links; announcement banner
  pwa/ # SW rules + client cache helpers
@@ -349,8 +352,9 @@ same prod Google service account).
   including `NEXTAUTH_URL` — a second, fully-configured revision seconds later.
 - **Env vars** mirror Vercel **Production**: `DATABASE_URL`, `NEXTAUTH_SECRET`
   (same value — harmless since sessions are per-origin), `GOOGLE_SERVICE_ACCOUNT_BASE64`,
-  `GOOGLE_DELEGATE_EMAIL`, `SMTP_URL`, `EMAIL_FROM`, `ADMIN_INITIAL_PASSWORD`,
-  `ADMIN_PIN`, `NEXT_PUBLIC_VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT`
+  `GOOGLE_DELEGATE_EMAIL`, `SMTP_URL`, `EMAIL_FROM`, `CRON_SECRET`,
+  `ADMIN_INITIAL_PASSWORD`, `ADMIN_PIN`, `NEXT_PUBLIC_VAPID_PUBLIC_KEY`,
+  `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT`
   (the Web Push pair is **shared** with Vercel — same keys, so a device subscribed
   through one origin's push still validates against the other's). Unlike Vercel
   (which inlines `NEXT_PUBLIC_*` at its own build), the Cloud Run image is built in
@@ -367,7 +371,8 @@ same prod Google service account).
   **variable** `GCP_PROJECT_ID` (not sensitive — unmasked in logs) + **secrets**
   `GCP_SA_KEY` and mirrors of Vercel prod (`DATABASE_URL`, `NEXTAUTH_SECRET`,
   `GOOGLE_SERVICE_ACCOUNT_BASE64`, `GOOGLE_DELEGATE_EMAIL`, `SMTP_URL`,
-  `EMAIL_FROM`, `ADMIN_INITIAL_PASSWORD`, `ADMIN_PIN`, `VAPID_PRIVATE_KEY`,
+  `EMAIL_FROM`, `CRON_SECRET`, `ADMIN_INITIAL_PASSWORD`, `ADMIN_PIN`,
+  `VAPID_PRIVATE_KEY`,
   `NEXT_PUBLIC_VAPID_PUBLIC_KEY`, `VAPID_SUBJECT`). `NEXT_PUBLIC_VAPID_PUBLIC_KEY`
   is not sensitive — if you prefer, store it (and `VAPID_SUBJECT`) as repo
   **variables** (`vars.*`) instead and adjust `ci.yml` accordingly; the private key
@@ -378,6 +383,11 @@ same prod Google service account).
   creates real Google calendars) touch prod data twice, so keep them to admins and
   create-then-delete. Sessions are per-origin: a user logged into Vercel must log
   in again on the `*.run.app` URL.
+- **Daily parade-state email trigger** (Cloud Scheduler, not Vercel Cron): create a job
+  that GETs canonical prod `/api/cron/parade-state-email` every 15 minutes with the
+  `Authorization: Bearer <CRON_SECRET>` header; the route decides whether the in-app send
+  time has passed. A frequent tick keeps the send time runtime-configurable.
+  See [parade-state-email.md](parade-state-email.md) §1.5.
 - **Cutover** (when ready): disable/delete the Vercel project + delete
   `vercel.json` (nothing to change in `next.config.ts` — no Cloud Run-specific
   config exists). Abort path: delete the Cloud Run service — Vercel is untouched.
@@ -446,6 +456,7 @@ In CI, the schema-drift check runs `pnpm db:generate` then fails on any diff to
 | [`user-clashes.md`](user-clashes.md) | The Double Booking page: existing-event double-booking scan |
 | [`roster-sharing.md`](roster-sharing.md) | Users/departments model, hierarchy, calendar ACL sharing, colors |
 | [`kah.md`](kah.md) | KAH groups, breach check, email transports |
+| [`parade-state-email.md`](parade-state-email.md) | Daily parade-state email: snapshot, templates, Cloud Scheduler tick |
 | [`webhooks.md`](webhooks.md) | Event webhooks: payloads, HMAC signatures, fan-out delivery |
 | [`event-notifications.md`](event-notifications.md) | Web Push: notify users added as participants to events |
 | [`audit-log.md`](audit-log.md) | Audit log: schema, retention, pagination, CSV export |

@@ -17,6 +17,10 @@ import {
 } from "drizzle-orm/pg-core";
 
 import { PARTICIPANT_NOTIFY_TEMPLATES_DEFAULT } from "@/lib/events/participantNotify/templates";
+import {
+  PARADE_EMAIL_BODY_TEMPLATE_DEFAULT,
+  PARADE_EMAIL_SUBJECT_TEMPLATE_DEFAULT,
+} from "@/lib/parade-email/emailDefaults";
 
 const timestamps = {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
@@ -411,6 +415,26 @@ export const settings = pgTable(
     bannerEnabled: boolean("banner_enabled").notNull().default(false),
     bannerText: text("banner_text").notNull().default(""),
     bannerColor: text("banner_color"),
+    /**
+     * Daily parade-state email (Settings → Parade State Email): when enabled,
+     * the selected roster users receive one snapshot per day at
+     * `parade_email_send_time` (UTC+8). Recipients are stored as user ids so
+     * their addresses follow roster changes. Subject/body are admin-editable
+     * templates with `{date}`/`{present}`/`{departments}` tokens — defaults in
+     * `src/lib/parade-email/emailDefaults.ts`, kept in sync with these columns.
+     */
+    paradeEmailEnabled: boolean("parade_email_enabled").notNull().default(false),
+    paradeEmailRecipientIds: jsonb("parade_email_recipient_ids")
+      .notNull()
+      .default(sql`'[]'::jsonb`),
+    /** Daily send time in the app's UTC+8 wall clock, `HH:MM`. */
+    paradeEmailSendTime: text("parade_email_send_time").notNull().default("07:00"),
+    paradeEmailSubjectTemplate: text("parade_email_subject_template")
+      .notNull()
+      .default(PARADE_EMAIL_SUBJECT_TEMPLATE_DEFAULT),
+    paradeEmailBodyTemplate: text("parade_email_body_template")
+      .notNull()
+      .default(PARADE_EMAIL_BODY_TEMPLATE_DEFAULT),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [check("settings_singleton", sql`${table.id} = 'singleton'`)],
@@ -537,6 +561,28 @@ export const kahBreachNotifications = pgTable(
   ],
 );
 
+/**
+ * One row per day the daily parade-state email was processed. The unique
+ * `send_date` makes the dispatcher idempotent: a repeated tick on the same day
+ * hits the conflict and is skipped, so the email goes out at most once.
+ */
+export const paradeEmailSends = pgTable(
+  "parade_email_sends",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    /** The snapshot's UTC+8 calendar date (`YYYY-MM-DD`). */
+    sendDate: date("send_date").notNull(),
+    status: text("status", { enum: ["sent", "failed", "skipped"] })
+      .notNull()
+      .default("sent"),
+    recipientCount: integer("recipient_count").notNull().default(0),
+    sentAt: timestamp("sent_at", { withTimezone: true }),
+    error: text("error"),
+    ...timestamps,
+  },
+  (table) => [uniqueIndex("parade_email_sends_date_idx").on(table.sendDate)],
+);
+
 export const auditLogs = pgTable(
   "audit_logs",
   {
@@ -608,6 +654,8 @@ export type KahGroupMember = typeof kahGroupMembers.$inferSelect;
 export type NewKahGroupMember = typeof kahGroupMembers.$inferInsert;
 export type KahBreachNotification = typeof kahBreachNotifications.$inferSelect;
 export type NewKahBreachNotification = typeof kahBreachNotifications.$inferInsert;
+export type ParadeEmailSend = typeof paradeEmailSends.$inferSelect;
+export type NewParadeEmailSend = typeof paradeEmailSends.$inferInsert;
 export type UserDashboardView = typeof userDashboardViews.$inferSelect;
 export type NewUserDashboardView = typeof userDashboardViews.$inferInsert;
 export type UserPreference = typeof userPreferences.$inferSelect;

@@ -160,6 +160,7 @@ jobs:
           GOOGLE_DELEGATE_EMAIL: ${{ secrets.GOOGLE_DELEGATE_EMAIL }}
           SMTP_URL: ${{ secrets.SMTP_URL }}
           EMAIL_FROM: ${{ secrets.EMAIL_FROM }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
           ADMIN_INITIAL_PASSWORD: ${{ secrets.ADMIN_INITIAL_PASSWORD }}
           ADMIN_PIN: ${{ secrets.ADMIN_PIN }}
           NEXT_PUBLIC_VAPID_PUBLIC_KEY: ${{ secrets.NEXT_PUBLIC_VAPID_PUBLIC_KEY }}
@@ -173,13 +174,14 @@ jobs:
             --arg gd "$GOOGLE_DELEGATE_EMAIL" \
             --arg sm "$SMTP_URL" \
             --arg ef "$EMAIL_FROM" \
+            --arg cr "$CRON_SECRET" \
             --arg ad "$ADMIN_INITIAL_PASSWORD" \
             --arg pin "$ADMIN_PIN" \
             --arg pub "$NEXT_PUBLIC_VAPID_PUBLIC_KEY" \
             --arg priv "$VAPID_PRIVATE_KEY" \
             --arg subj "$VAPID_SUBJECT" \
             --arg url "${{ steps.deploy.outputs.url }}" \
-            '{DATABASE_URL:$db,NEXTAUTH_SECRET:$sec,GOOGLE_SERVICE_ACCOUNT_BASE64:$gs,GOOGLE_DELEGATE_EMAIL:$gd,SMTP_URL:$sm,EMAIL_FROM:$ef,ADMIN_INITIAL_PASSWORD:$ad,ADMIN_PIN:$pin,NEXT_PUBLIC_VAPID_PUBLIC_KEY:$pub,VAPID_PRIVATE_KEY:$priv,VAPID_SUBJECT:$subj,NEXTAUTH_URL:$url}' \
+            '{DATABASE_URL:$db,NEXTAUTH_SECRET:$sec,GOOGLE_SERVICE_ACCOUNT_BASE64:$gs,GOOGLE_DELEGATE_EMAIL:$gd,SMTP_URL:$sm,EMAIL_FROM:$ef,CRON_SECRET:$cr,ADMIN_INITIAL_PASSWORD:$ad,ADMIN_PIN:$pin,NEXT_PUBLIC_VAPID_PUBLIC_KEY:$pub,VAPID_PRIVATE_KEY:$priv,VAPID_SUBJECT:$subj,NEXTAUTH_URL:$url}' \
             > /tmp/env.json
           gcloud run services update "$CLOUD_RUN_SERVICE" \
             --region "$CLOUD_RUN_REGION" \

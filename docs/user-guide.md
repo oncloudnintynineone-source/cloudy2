@@ -185,6 +185,9 @@ sub-departments, with aggregated counts):
   dates…** (every day, with confirmation). Attendance checks are stored **on this
   device only**, per date; the mode survives a reload, but another device or
   person won't see your checks.
+- Admins can also have a **snapshot of the parade state emailed to selected people
+  once a day** (Settings → Parade State Email). It uses the same in-camp/out-of-camp
+  view — attendance checkmarks are device-local and are **not** included.
 
 ## 1.8 Contacts
 

@@ -16,10 +16,11 @@ deep-dive docs.
 - [1.6 Webhooks](#16-webhooks)
 - [1.7 Quick Links](#17-quick-links)
 - [1.8 KAH Groups](#18-kah-groups)
-- [1.9 Banner](#19-banner)
-- [1.10 General](#110-general)
-- [1.11 Security](#111-security)
-- [1.12 Audit Log](#112-audit-log)
+- [1.9 Parade State Email](#19-parade-state-email)
+- [1.10 Banner](#110-banner)
+- [1.11 General](#111-general)
+- [1.12 Security](#112-security)
+- [1.13 Audit Log](#113-audit-log)
 
 ## 1.1 Admin sign-in & event privileges
 
@@ -42,9 +43,10 @@ deep-dive docs.
   "Only I can edit this event" on the Other settings step (an admin editing someone
   else's event sees it as "Only the organizer can edit this event"), which locks it to
   the organizer — admins always bypass that lock.
-- Settings is admin-only: eleven tabs under `/settings`
+- Settings is admin-only: twelve tabs under `/settings`
   (Users, Departments, Event Types, Templates, Webhooks, Quick Links, KAH Groups,
-  Banner, General, Security, Audit Log). Every settings mutation is audit-logged.
+  Parade State Email, Banner, General, Security, Audit Log). Every settings mutation is
+  audit-logged.
 
 ## 1.2 Users
 
@@ -193,7 +195,24 @@ app never blocks an event.
 
 Design: [`kah.md`](kah.md).
 
-## 1.9 Banner
+## 1.9 Parade State Email
+
+Settings → Parade State Email — email a snapshot of the parade state to selected people
+once a day.
+
+- **Enable switch**, **Recipients** (badge picker over active users; their `users.email`
+  is used), and a **Send time** in Singapore time.
+- **Subject / Body templates** with a live preview. Tokens: `{date}`, `{weekday}`,
+  `{present}`, `{total}`, `{outOfCamp}`, `{generatedAt}`, and `{departments}` (the
+  per-department roster — required).
+- **Send test now** emails the current templates to your own address.
+- The snapshot is derived from calendar events (a user is **in camp** unless they have an
+  out-of-camp event that day), grouped by department; attendance checkmarks are **not**
+  included. The email is sent at most once per day.
+
+Design: [`parade-state-email.md`](parade-state-email.md).
+
+## 1.10 Banner
 
 Settings → Banner — a persistent announcement above the header for all signed-in
 users.
@@ -206,13 +225,13 @@ users.
 
 Design: [`announcement-banner.md`](announcement-banner.md).
 
-## 1.10 General
+## 1.11 General
 
 Settings → General:
 
 - **Audit Log Retention** — days, default 90, clamped 7–365.
 
-## 1.11 Security
+## 1.12 Security
 
 Settings → Security — account & sign-in credentials:
 
@@ -224,10 +243,10 @@ Settings → Security — account & sign-in credentials:
   both are configured exclusively through their environment variables
   (`ADMIN_PIN` / `ADMIN_INITIAL_PASSWORD`).
 
-## 1.12 Audit Log
+## 1.13 Audit Log
 
 Settings → Audit Log — the full trail of every mutation (events, users,
-departments, settings, webhooks, quick links, banner, KAH).
+departments, settings, webhooks, quick links, banner, KAH, parade-state emails).
 
 - **Filters:** action, actor, entity type, date range — carried in the URL so
   filtered views are shareable/bookmarkable.

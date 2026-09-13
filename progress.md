@@ -18,7 +18,7 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
 
 ## 1.1 Status
 
-- All work through changelog **1.224 (instant dashboard tab preload)** is shipped.
+- All work through changelog **1.225 (daily parade-state email)** is shipped.
 - Quality gates (`lint` / `typecheck` / `test` / schema-drift check) run in CI on every
   push and PR. Pushes also auto-apply migrations per environment: `dev` →
   `migrate-preview` against the dev Neon DB, `main` → `migrate` against the prod Neon
@@ -893,6 +893,15 @@ via `?attendance=1` and `attendanceStorage` became a `useSyncExternalStore` exte
    `readCalendarRange` + `projectRangeEvents` (no behavior change), with unit tests for the
    projector and the assembler (`docs/pwa-offline.md` §1.18, `docs/dashboard-views.md`
    §1.4, `docs/events-cache.md` §1.8, `AGENTS.md`)
+- 1.225 Daily parade-state email (Settings → Parade State Email): admins pick roster
+   recipients, a UTC+8 send time, and subject/body templates (shared `renderTemplate`,
+   `{departments}` required); a new `CRON_SECRET`-protected `/api/cron/parade-state-email`
+   route (triggered by Cloud Scheduler, not Vercel Cron) claims the day via the unique
+   `parade_email_sends.send_date` and emails an org-wide snapshot derived from the same
+   shared pure helpers as the parade page (`src/lib/parade/*`; attendance localStorage
+   excluded), with a Send Test Now action; `settings` gains five `parade_email_*` columns,
+   a `paradeState.emailSend` audit action is logged, and the KAH renderer now shares the
+   generic template helper (`docs/parade-state-email.md`)
 
 ## 1.4 Open items & next steps
 

@@ -170,6 +170,14 @@ doc content here.
 - **KAH constraints are notify-only.** After every successful create/update (never delete),
   `dispatchKahBreachCheck()` (`src/lib/kah/notify.ts`) runs inside `after()` — best-effort,
   it can never fail or delay the mutation. Design: [docs/kah.md](docs/kah.md).
+- **Daily parade-state email (Settings → Parade State Email):** admins pick roster
+  recipients, a UTC+8 send time, and subject/body templates; a **Cloud Scheduler** tick
+  (not Vercel Cron) hits the `CRON_SECRET`-protected `/api/cron/parade-state-email` route,
+  which claims the day via the unique `parade_email_sends.send_date` so it sends at most
+  once. The snapshot is org-wide and derived from the same shared pure helpers as the
+  parade page (`src/lib/parade/*`) — attendance localStorage marks are excluded. Templates
+  render through the shared `renderTemplate` (`src/lib/email/template.ts`, also KAH's).
+  Design: [docs/parade-state-email.md](docs/parade-state-email.md).
 - **User preferences are split by scope.** Cross-account prefs live in Postgres
   (`user_preferences` + `user_dashboard_views`, via `src/lib/userPrefs` +
   `src/lib/dashboardViews`); the device-local cookie `cloudy2.ui` keeps only
