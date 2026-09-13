@@ -98,12 +98,18 @@ export function GridNavControls({
       const visibleTop = Math.max(rect.top, 0);
       const visibleBottom = Math.min(rect.bottom, window.innerHeight);
       const onScreen = visibleTop < visibleBottom;
-      // 8px inside each grid edge; clamp to half the viewport so a very
-      // narrow grid can't push the controls off-screen or onto each other.
+      // 8px inside each grid edge; clamp to the anchor's own midpoint so a very
+      // narrow grid can't push the controls off-screen or onto each other. The
+      // anchor midpoint (not the viewport's) matters for the Dual Pane's Month
+      // pane: it lives in the left portion of the viewport, so clamping to the
+      // viewport centre would freeze the cluster mid-screen once the pane's
+      // right edge crossed it. Full-width grids have their midpoint at the
+      // viewport centre, so this is identical to the old clamp there.
+      const anchorCenterX = (rect.left + rect.right) / 2;
       setPos({
         center: onScreen ? (visibleTop + visibleBottom) / 2 : window.innerHeight / 2,
-        left: Math.min(rect.left + EDGE_INSET, window.innerWidth / 2),
-        right: Math.min(window.innerWidth - rect.right + EDGE_INSET, window.innerWidth / 2),
+        left: Math.min(rect.left + EDGE_INSET, anchorCenterX),
+        right: Math.min(window.innerWidth - rect.right + EDGE_INSET, window.innerWidth - anchorCenterX),
         visibleTop: onScreen ? visibleTop : 0,
         visibleBottom: onScreen ? visibleBottom : window.innerHeight,
       });

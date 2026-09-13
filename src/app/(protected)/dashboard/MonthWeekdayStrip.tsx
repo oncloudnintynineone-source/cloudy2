@@ -28,18 +28,26 @@ export function MonthWeekdayStrip({
   chromeOffset,
   zoom,
   innerRef,
+  sticky = true,
 }: {
   chromeOffset: number;
   /** Month-grid zoom multiplier (1 = fit to viewport width). */
   zoom: MonthZoom;
   innerRef: RefObject<HTMLDivElement | null>;
+  /**
+   * Pin beneath the shared chrome (standalone Month view / stacked Dual Pane).
+   * `false` when the strip is already the fixed header of the Dual Pane's own
+   * bounded scroll pane at `lg`, where the pane is the scroll container and a
+   * chrome-relative `top` would push the strip down inside it.
+   */
+  sticky?: boolean;
 }) {
   return (
     <Box
       component="div"
       style={{
-        position: "sticky",
-        top: `calc(var(--app-shell-header-offset) + ${chromeOffset}px)`,
+        position: sticky ? "sticky" : "relative",
+        top: sticky ? `calc(var(--app-shell-header-offset) + ${chromeOffset}px)` : undefined,
         zIndex: 45,
         height: "calc(2.25rem * var(--mantine-scale))",
         background: "var(--mantine-color-body)",

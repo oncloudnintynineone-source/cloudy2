@@ -8537,5 +8537,41 @@ chips, empty cells and multi-day spans in the month pane (agenda follows with th
 date); Tab through the pane (chips skipped, day cells reachable); add a view (default
 name "Month & Agenda").
 
+## 1.239 Month & Agenda layout fixes
+
+Two layout bugs in the 1.236 view.
+
+**Zoom/pan cluster froze on a narrow month pane.** `GridNavControls` positions its
+left-edge pan arrow and right-edge zoom/pan cluster with `position: fixed`, measured once
+from the anchor's rect (the Month pane box) and re-measured on resize / anchor resize. It
+clamped each control's viewport offset to `window.innerWidth / 2` to stop a narrow grid
+pushing them off-screen or onto each other. That clamp is wrong for the dual pane: the
+Month pane lives in the left portion of the viewport, so once its right edge crossed the
+viewport centre the cluster pinned at mid-screen and stopped following the pane as it
+shrank. The clamp now uses the **anchor's own midpoint** (`(rect.left + rect.right) / 2`)
+for the left offset and `window.innerWidth - anchorCenterX` for the right, so the controls
+stay inside the anchor and keep moving; full-width Month/Day/Week grids have their
+midpoint at the viewport centre, so their behavior is unchanged.
+
+**The panes scrolled together.** The dashboard is document-scrolled (`AppShell.Main` is
+`min-height: 100dvh`), and the dual container was an unbounded flex row, so it grew to the
+taller Month grid and the page scroll moved both panes. At `lg` and up the view is now
+bounded to the viewport's remaining height — the same `--app-shell-vh` / header / footer /
+padding recipe as `DashboardShellSkeleton`, minus the measured chrome, the Stack gap
+(`sm`) and the Stack's bottom padding (`xl`) — with `overflow: hidden`; each pane is a
+flex column whose header is fixed (`MonthWeekdayStrip` gets a `sticky` prop, `false` here;
+the agenda day header drops its `position: sticky`) and whose body scrolls on its own
+(`flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden; overscroll-behavior:
+contain`). The layout key is the `lg` breakpoint, not the device, so a large phone (an
+unfolded Fold) gets the side-by-side bounded layout too; below `lg` the panes stack and
+the document scrolls as before (calendar first, agenda below). `DualPaneSkeleton` mirrors
+the bounded layout (it now takes `chromeOffset`).
+
+**Verified**: `pnpm lint`, `pnpm typecheck`, `pnpm test`. Manual to run before ship:
+at `lg`, shrink the Month pane to the 25% clamp and confirm the zoom pair follows its
+right edge; scroll the Month grid and confirm the Agenda pane stays put (and vice
+versa); drag the handle while zoomed; check the skeleton matches on a slow load; below
+`lg` confirm the stacked document scroll is unchanged.
+
 
 

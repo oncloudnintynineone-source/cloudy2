@@ -10,11 +10,14 @@
  * row's chevrons) moves the day, and stepping the day across a month edge moves
  * the grid.
  *
- * Layout: a row at `lg` and up — Month pane at the device-remembered split
- * fraction, a draggable handle, then the Agenda pane — and a plain stack below
- * `lg`. The split is a CSS custom property (`--c2-dual-split`) written straight
- * to the DOM during a drag, so resizing re-lays out both panes with no React
- * work per pointer frame; the committed value is persisted by the parent
+ * Layout: at `lg` and up a row bounded to the viewport's remaining height —
+ * Month pane at the device-remembered split fraction, a draggable handle, then
+ * the Agenda pane — where each pane is a fixed-header column with its own
+ * vertical scroll (so scrolling one never moves the other); below `lg` the
+ * panes stack and the document scrolls (calendar first, agenda below). The
+ * split is a CSS custom property (`--c2-dual-split`) written straight to the
+ * DOM during a drag, so resizing re-lays out both panes with no React work per
+ * pointer frame; the committed value is persisted by the parent
  * (`onSplitCommit`).
  *
  * The Month pane keeps the standalone Month view's fit-to-width zoom
@@ -300,8 +303,16 @@ export function DualPaneView({
         {
           display: "flex",
           flexDirection: isDesktop ? "row" : "column",
-          alignItems: "flex-start",
+          // At lg the panes are bounded to the viewport and each owns its
+          // vertical scroll (below lg they stack and the document scrolls).
+          alignItems: isDesktop ? "stretch" : "flex-start",
           gap: isDesktop ? 0 : "var(--mantine-spacing-md)",
+          ...(isDesktop
+            ? {
+                height: `calc(var(--app-shell-vh, 100dvh) - var(--app-shell-header-offset) - var(--app-shell-footer-offset) - var(--app-shell-padding) - var(--mantine-spacing-xl) - var(--mantine-spacing-sm) - ${chromeOffset}px)`,
+                overflow: "hidden",
+              }
+            : null),
           "--c2-dual-split": `${splitPct * 100}%`,
           userSelect: dragging ? "none" : undefined,
         } as CSSProperties
@@ -315,40 +326,59 @@ export function DualPaneView({
           width: isDesktop ? undefined : "100%",
           minWidth: 0,
           paddingRight: isDesktop ? HANDLE_GUTTER : undefined,
+          // Bounded column at lg: fixed strip + the pane's own vertical scroll.
+          display: isDesktop ? "flex" : undefined,
+          flexDirection: isDesktop ? "column" : undefined,
+          minHeight: isDesktop ? 0 : undefined,
         }}
       >
         <MonthWeekdayStrip
           chromeOffset={chromeOffset}
           zoom={monthZoom}
           innerRef={weekdayTrackRef}
+          sticky={!isDesktop}
         />
-        <MonthView
-          date={`${month}-01 00:00:00`}
-          events={monthEvents}
-          withHeader={false}
-          withWeekDays={false}
-          styles={{ monthViewInner: monthViewInnerStyle }}
-          scrollAreaProps={monthScrollAreaProps}
-          maxEventsPerDay={isDesktop ? 4 : 3}
-          moreEventsProps={{
-            // The library's "+ more" button has no nowrap/ellipsis (unlike the
-            // event chips); pin it to one line so it can't bleed into the week
-            // below on narrow columns. Styles API root, never `style`.
-            styles: {
-              moreEventsButton: {
-                whiteSpace: "nowrap",
-                overflow: "hidden",
-                textOverflow: "ellipsis",
+        <Box
+          style={
+            isDesktop
+              ? {
+                  flex: "1 1 auto",
+                  minHeight: 0,
+                  overflowY: "auto",
+                  overflowX: "hidden",
+                  overscrollBehavior: "contain",
+                }
+              : undefined
+          }
+        >
+          <MonthView
+            date={`${month}-01 00:00:00`}
+            events={monthEvents}
+            withHeader={false}
+            withWeekDays={false}
+            styles={{ monthViewInner: monthViewInnerStyle }}
+            scrollAreaProps={monthScrollAreaProps}
+            maxEventsPerDay={isDesktop ? 4 : 3}
+            moreEventsProps={{
+              // The library's "+ more" button has no nowrap/ellipsis (unlike the
+              // event chips); pin it to one line so it can't bleed into the week
+              // below on narrow columns. Styles API root, never `style`.
+              styles: {
+                moreEventsButton: {
+                  whiteSpace: "nowrap",
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                },
               },
-            },
-          }}
-          renderEvent={renderInertMonthEvent}
-          // No `onEventClick`: every tap (chip or empty cell) must land on the
-          // day cell instead (`onDayClick` below selects the shared anchor).
-          // The chips are overlays, so the inert render above lets taps fall
-          // through to the cell button with the correct cell date.
-          onDayClick={(picked) => onDaySelect(picked)}
-        />
+            }}
+            renderEvent={renderInertMonthEvent}
+            // No `onEventClick`: every tap (chip or empty cell) must land on the
+            // day cell instead (`onDayClick` below selects the shared anchor).
+            // The chips are overlays, so the inert render above lets taps fall
+            // through to the cell button with the correct cell date.
+            onDayClick={(picked) => onDaySelect(picked)}
+          />
+        </Box>
         {/* Portaled to <body>: the controls are position:fixed, and the
             DashboardView's slide wrapper is transiently transformed (a
             transform makes it the containing block for fixed descendants),
@@ -415,12 +445,26 @@ export function DualPaneView({
         </Box>
       )}
 
-      {/* Agenda pane: sticky day header + the day's list. */}
-      <Box style={{ flex: isDesktop ? "1 1 0" : "1 1 auto", width: isDesktop ? undefined : "100%", minWidth: 0 }}>
+      {/* Agenda pane: day header + the day's list (own vertical scroll at lg). */}
+      <Box
+        style={{
+          flex: isDesktop ? "1 1 0" : "1 1 auto",
+          width: isDesktop ? undefined : "100%",
+          minWidth: 0,
+          display: isDesktop ? "flex" : undefined,
+          flexDirection: isDesktop ? "column" : undefined,
+          minHeight: isDesktop ? 0 : undefined,
+        }}
+      >
         <Box
           style={{
-            position: "sticky",
-            top: `calc(var(--app-shell-header-offset) + ${chromeOffset}px)`,
+            // Bounded at lg: the header is the fixed top of this pane's own
+            // scroll column, so a chrome-relative sticky would push it down.
+            position: isDesktop ? "relative" : "sticky",
+            top: isDesktop
+              ? undefined
+              : `calc(var(--app-shell-header-offset) + ${chromeOffset}px)`,
+            flex: isDesktop ? "0 0 auto" : undefined,
             zIndex: 45,
             display: "flex",
             alignItems: "center",
@@ -460,7 +504,20 @@ export function DualPaneView({
         </Box>
         <Box
           ref={agendaSwipeRef}
-          style={{ touchAction: "pan-y", overflow: "hidden", marginTop: "var(--mantine-spacing-xs)" }}
+          style={{
+            touchAction: "pan-y",
+            overflow: isDesktop ? undefined : "hidden",
+            ...(isDesktop
+              ? {
+                  flex: "1 1 auto",
+                  minHeight: 0,
+                  overflowY: "auto",
+                  overflowX: "hidden",
+                  overscrollBehavior: "contain",
+                }
+              : null),
+            marginTop: "var(--mantine-spacing-xs)",
+          }}
           onPointerDown={resetSwipeSuppression}
           onClickCapture={(event) => {
             if (swipedRef.current) {

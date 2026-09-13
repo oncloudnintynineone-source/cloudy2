@@ -516,33 +516,44 @@ month edge moves the grid too), and the date picker opens in day mode.
 **Tapping a day cell in the grid selects that day in the Agenda pane** — this
 view has no day modal, the pane *is* the day detail. Data needs are therefore
 identical to Month's (`requiredMonths` returns `monthGridMonths` for `dual`),
-  and `tabSwitchTarget` needs no dual-specific rule: the anchored branches
-  already cover it (Month → Month & Agenda starts today, anchored → Month &
-  Agenda keeps the anchor day, Month & Agenda → Month keeps the anchor month).
+and `tabSwitchTarget` needs no dual-specific rule: the anchored branches already
+cover it (Month → Month & Agenda starts today, anchored → Month & Agenda keeps
+the anchor day, Month & Agenda → Month keeps the anchor month).
 
+- **Layout & independent scroll.** At `lg` and up the whole view is **bounded to
+  the viewport's remaining height** (the same `--app-shell-vh`/header/footer/
+  padding recipe as `DashboardShellSkeleton`, minus the measured chrome and the
+  Stack gap) and each pane is a fixed-header column with its **own vertical
+  scroll** (`overflow-y: auto` + `overscroll-behavior: contain`), so scrolling
+  one never moves the other. The layout key is the `lg` breakpoint, not the
+  device: a large phone (e.g. an unfolded Fold) gets the side-by-side bounded
+  layout too. Below `lg` the panes stack and the document scrolls normally
+  (calendar first, agenda below) — the handle is absent there.
 - **Split & resize.** The Month pane takes the remembered `dualSplit` fraction
   (device-local cookie, [`ui-state.md`](ui-state.md); default 0.6, clamped
   0.25–0.75 by `src/lib/ui/dualSplit.ts`). A drag handle between the panes
   resizes them: a pointer-capture drag writes the live fraction straight to a
   `--c2-dual-split` CSS variable on the container (no React work per frame) and
   commits once on release; the handle is a focusable `separator` whose
-  Left/Right arrows step 5% and whose double-click resets to the default. Below
-  `lg` the panes stack and the handle is absent.
+  Left/Right arrows step 5% and whose double-click resets to the default.
 - **Month pane.** The standalone Month view's grid: the fit-to-width zoom of
-  §1.8 (its own `useGridPan` instance, pinned `MonthWeekdayStrip`, and a
+  §1.8 (its own `useGridPan` instance, `MonthWeekdayStrip`, and a
   `GridNavControls` cluster portaled to `<body>` so the transient slide
   transform can't jitter the fixed controls), the same `monthEvents` ordering
-  and `renderMyMonthEvent` highlights. The event chips are deliberately
+  and `renderMyMonthEvent` highlights. At `lg` the strip is the pane's fixed
+  header (`sticky={false}` — the pane is the scroll container, so a
+  chrome-relative `top` would push it down). The event chips are deliberately
   **pass-through** (`c2-inert-event` in `globals.css` disables the chip's whole
   subtree + `tabIndex: -1`, no `onEventClick`): Mantine re-enables
   `pointer-events` on the inner chip, so the root-only override was not enough —
   the class kills the inner chip too, so every tap falls through to the day-cell
   button beneath and chip and empty-cell taps alike select the day (day cells
   keep their roving tabindex for keyboard).
-- **Agenda pane.** The Agenda tab's list under a sticky day header (day label +
-  ‹ › chevrons): `eventsOnDay`, `renderMyAgendaEvent`, the directional slide on
-  a day change, and the touch swipe-to-change-day gesture with its
-  once-per-session hint.
+- **Agenda pane.** The Agenda tab's list under a day header (day label + ‹ ›
+  chevrons): `eventsOnDay`, `renderMyAgendaEvent`, the directional slide on a
+  day change, and the touch swipe-to-change-day gesture with its
+  once-per-session hint. The header is sticky below `lg` and the pane's fixed
+  header at `lg` (bounded layout).
 - **Chrome.** The nav row labels the period with the **month** (the pane header
   carries the day); the screen-reader announcement appends the agenda day so a
   day move is announced too. The agenda header reserves the floating fullscreen

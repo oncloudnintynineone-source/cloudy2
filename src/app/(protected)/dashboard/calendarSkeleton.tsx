@@ -163,16 +163,37 @@ export function WeekGridSkeleton({ rows = 6 }: { rows?: number }) {
  * the real `DualPaneView` shapes so the swap on load is seamless; the sr-only
  * LoadingStatus is rendered by the caller, as with the other view skeletons.
  */
-export function DualPaneSkeleton({ rows, splitPct }: { rows: number; splitPct: number }) {
+export function DualPaneSkeleton({
+  rows,
+  splitPct,
+  chromeOffset,
+}: {
+  rows: number;
+  splitPct: number;
+  /** Measured chrome height — mirrors the real view's viewport-bounded height. */
+  chromeOffset: number;
+}) {
   const theme = useMantineTheme();
   const isDesktop = useMediaQuery(`(min-width: ${theme.breakpoints.lg})`);
+  const scrollBody = {
+    flex: "1 1 auto",
+    minHeight: 0,
+    overflowY: "auto" as const,
+    overflowX: "hidden" as const,
+  };
   return (
     <Box
       style={{
         display: "flex",
         flexDirection: isDesktop ? "row" : "column",
-        alignItems: "flex-start",
-        gap: "var(--mantine-spacing-md)",
+        alignItems: isDesktop ? "stretch" : "flex-start",
+        gap: isDesktop ? 0 : "var(--mantine-spacing-md)",
+        ...(isDesktop
+          ? {
+              height: `calc(var(--app-shell-vh, 100dvh) - var(--app-shell-header-offset) - var(--app-shell-footer-offset) - var(--app-shell-padding) - var(--mantine-spacing-xl) - var(--mantine-spacing-sm) - ${chromeOffset}px)`,
+              overflow: "hidden",
+            }
+          : null),
       }}
     >
       <Box
@@ -180,18 +201,28 @@ export function DualPaneSkeleton({ rows, splitPct }: { rows: number; splitPct: n
           flex: isDesktop ? `0 0 ${splitPct * 100}%` : undefined,
           width: isDesktop ? undefined : "100%",
           minWidth: 0,
+          display: isDesktop ? "flex" : undefined,
+          flexDirection: isDesktop ? "column" : undefined,
+          minHeight: isDesktop ? 0 : undefined,
         }}
       >
-        <MonthGridSkeleton rows={rows} />
+        <Box style={isDesktop ? scrollBody : undefined}>
+          <MonthGridSkeleton rows={rows} />
+        </Box>
       </Box>
       <Box
         style={{
           flex: isDesktop ? "1 1 0" : undefined,
           width: isDesktop ? undefined : "100%",
           minWidth: 0,
+          display: isDesktop ? "flex" : undefined,
+          flexDirection: isDesktop ? "column" : undefined,
+          minHeight: isDesktop ? 0 : undefined,
         }}
       >
-        <AgendaListSkeleton />
+        <Box style={isDesktop ? scrollBody : undefined}>
+          <AgendaListSkeleton />
+        </Box>
       </Box>
     </Box>
   );

@@ -71,7 +71,13 @@ center plus the 8px edge insets (`anchor.getBoundingClientRect()` clamped to
 only on window resize or anchor size change (`ResizeObserver`: breakpoint flips,
 sidebar collapse, grid load). There is **no scroll listener at all**, so the
 buttons hold perfectly still at the calendar's visible-area center while the
-page scrolls and never leave the screen.
+page scrolls and never leave the screen. The left/right controls are clamped to
+the **anchor's own midpoint** (not the viewport's) so a narrow grid can't push
+them off-screen or onto each other; full-width grids have their midpoint at the
+viewport center, so this only changes behavior for the Month & Agenda view's
+Month pane, which lives in the left portion of the viewport — clamping to the
+viewport center would freeze its zoom/pan cluster mid-screen once the pane's
+right edge crossed it (the pane's own right edge is where it belongs).
 
 Three earlier approaches were tried and rejected:
 

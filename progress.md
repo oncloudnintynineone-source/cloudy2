@@ -1040,6 +1040,18 @@ via `?attendance=1` and `attendanceStorage` became a `useSyncExternalStore` exte
    (kind id `dual` unchanged — no migration; tabs already created keep their
    stored "Dual Pane" name, new tabs default to the new label). Docs:
    `docs/dashboard-views.md` §1.9, `docs/user-guide.md`, `AGENTS.md`
+- 1.239 Month & Agenda layout fixes: (1) the month pane's zoom/pan cluster stopped
+   following the pane once it narrowed past half the viewport — `GridNavControls`
+   clamped the edge controls to the **viewport's** midpoint; it now clamps to the
+   **anchor's** own midpoint (identical for full-width grids, fixes the dual pane);
+   (2) the two panes no longer scroll together — at `lg`+ (the app's desktop layout,
+   which large phones like an unfolded Fold adopt) the whole view is bounded to the
+   viewport's remaining height and each pane is a fixed-header column with its own
+   vertical scroll (`overflow-y: auto` + `overscroll-behavior: contain`); below `lg`
+   the panes stack and the document scrolls (calendar first, agenda below) as before.
+   `MonthWeekdayStrip` gains a `sticky` prop (`false` inside the bounded pane), the
+   agenda day header goes non-sticky at `lg`, and `DualPaneSkeleton` mirrors the
+   bounded layout. Docs: `docs/dashboard-views.md` §1.9, `docs/grid-pan.md` §1.2
 
 ## 1.4 Open items & next steps
 

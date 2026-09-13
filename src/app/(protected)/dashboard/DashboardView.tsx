@@ -2938,7 +2938,11 @@ export function DashboardView({
               {shownView === "month" ? (
                 <MonthGridSkeleton rows={monthGridRows(shownMonth)} />
               ) : shownIsDual ? (
-                <DualPaneSkeleton rows={monthGridRows(shownMonth)} splitPct={dualSplit} />
+                <DualPaneSkeleton
+                  rows={monthGridRows(shownMonth)}
+                  splitPct={dualSplit}
+                  chromeOffset={chromeHeight}
+                />
               ) : shownIsWeekV2 ? (
                 <WeekMatrixSkeleton />
               ) : shownIsWeek ? (
