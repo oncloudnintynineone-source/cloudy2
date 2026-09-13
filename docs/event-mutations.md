@@ -128,10 +128,12 @@ sequenceDiagram
  A->>A: revalidatePath("/dashboard")
 ```
 
-- **Target resolution** (`resolveTargetCalendars`, `writeContext.ts`): creator's
-  department + each invitee user's department + tagged departments, deduped. When
-  nothing derives, create fails with "Assign yourself to a department or tag an
-  invitee" (there is no fallback calendar for a brand-new event).
+- **Target resolution** (`resolveTargetCalendars`, `writeContext.ts`): each invitee
+  user's department + each tagged department, deduped. The organizer's home department
+  is included only when the organizer is a participant (or as a fallback when no
+  participant carries a department). When nothing derives, create fails with "Assign
+  yourself to a department or tag an invitee" (there is no fallback calendar for a
+  brand-new event).
 - **Per-target input**: `buildGcalEventInput` (`actions.ts`) renders the title
   (`renderEventTitle`), assembles the description (`Edit:` link — a `?event=` details
   deep link carrying the copy's own calendar id — + brotli notes block + internal
@@ -152,9 +154,10 @@ sequenceDiagram
 
 `updateEvent(ref, input)` (`actions.ts`) is the heart of the subsystem. It
 **reconciles** the copy set: the target set is derived from the *old* people fields
-(`refTargetCalendars`, `writeContext.ts`) and the *new* form values
-(`resolveTargetCalendars` with `ref.calendarId` as fallback), and the plan is applied
-per calendar in the **union** of both sets.
+(`refTargetCalendars`, `writeContext.ts` — the legacy superset, organizer's department
+always included, so copies written under the previous rule are still found) and the
+*new* form values (`resolveTargetCalendars` with `ref.calendarId` as fallback), and the
+plan is applied per calendar in the **union** of both sets.
 
 ```mermaid
 flowchart TB
@@ -206,8 +209,9 @@ location, and times. Update is a **full replace** in Google
 `deleteEvent(ref)` (`actions.ts`):
 
 1. `modifyGuard` against the ref (admin-only for creator-less events), Google gate.
-2. `refTargetCalendars(ref)` + `legacyFallback(ref)` in parallel; range = the ref's
- `absEventRange` ±1 day (`actions.ts`).
+2. `refTargetCalendars(ref)` (legacy superset: organizer's department + participant
+   departments) + `legacyFallback(ref)` in parallel; range = the ref's
+   `absEventRange` ±1 day (`actions.ts`).
 3. For each target calendar: `findCopies`, then delete every match, collecting the
  Google event ids and affected calendar ids; the first copy found is captured for the
  audit snapshot (`actions.ts`).

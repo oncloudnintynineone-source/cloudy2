@@ -16,7 +16,11 @@ import { db } from "@/db";
 import { calendars } from "@/db/schema";
 import { getUserDepartmentIds } from "@/lib/events/queries";
 import { clampEventEnd, type EventFormValues } from "@/lib/events/validate";
-import { deriveTargetCalendarIds, type EventRef } from "@/lib/events/targets";
+import {
+  deriveLegacyTargetCalendarIds,
+  deriveTargetCalendarIds,
+  type EventRef,
+} from "@/lib/events/targets";
 import {
   clampOutOfCamp,
   flagsFromCategory,
@@ -125,10 +129,41 @@ export async function buildEventTitleContext(input: EventFormValues): Promise<Ev
   };
 }
 
+/** Shared resolver for the new-placement and legacy-reconcile target sets. */
+async function resolveTargets(
+  input: {
+    creatorId: string;
+    inviteeUserIds: string[];
+    inviteeDepartments: string[];
+  },
+  fallbackCalendarId: string | null,
+  includeCreatorDepartment: boolean,
+): Promise<string[]> {
+  const inviteeUserIds = Array.isArray(input.inviteeUserIds) ? input.inviteeUserIds : [];
+  const inviteeDepartments = Array.isArray(input.inviteeDepartments)
+    ? input.inviteeDepartments
+    : [];
+  const ids = [...new Set([...(input.creatorId ? [input.creatorId] : []), ...inviteeUserIds])];
+  const userDepartments = ids.length > 0 ? await getUserDepartmentIds(ids) : {};
+  const params = {
+    creatorDepartmentId: input.creatorId ? (userDepartments[input.creatorId] ?? null) : null,
+    invitedUserDepartmentIds: inviteeUserIds.map((id) => userDepartments[id] ?? null),
+    invitedDepartmentIds: inviteeDepartments,
+  };
+  const derived = includeCreatorDepartment
+    ? deriveLegacyTargetCalendarIds(params)
+    : deriveTargetCalendarIds(params);
+  return derived.length > 0 ? derived : fallbackCalendarId ? [fallbackCalendarId] : [];
+}
+
 /**
- * Department calendars a logical event must live in, from its creator +
- * invitees. When nothing derives (e.g. a legacy event with no creator stored)
- * and a fallback calendar is given, that calendar alone is the target set.
+ * Department calendars a logical event must live in, from its participants:
+ * each invited user's department plus each tagged department. The organizer's
+ * home department is included only when the organizer is a participant (their
+ * department is then among the invited users' departments) or as a fallback
+ * when no participant carries a department. When nothing derives (e.g. a
+ * legacy event with no creator stored) and a fallback calendar is given, that
+ * calendar alone is the target set.
  */
 export async function resolveTargetCalendars(
   input: {
@@ -138,29 +173,24 @@ export async function resolveTargetCalendars(
   },
   fallbackCalendarId: string | null,
 ): Promise<string[]> {
-  const inviteeUserIds = Array.isArray(input.inviteeUserIds) ? input.inviteeUserIds : [];
-  const inviteeDepartments = Array.isArray(input.inviteeDepartments)
-    ? input.inviteeDepartments
-    : [];
-  const ids = [...new Set([...(input.creatorId ? [input.creatorId] : []), ...inviteeUserIds])];
-  const userDepartments = ids.length > 0 ? await getUserDepartmentIds(ids) : {};
-  const derived = deriveTargetCalendarIds({
-    creatorDepartmentId: input.creatorId ? (userDepartments[input.creatorId] ?? null) : null,
-    invitedUserDepartmentIds: inviteeUserIds.map((id) => userDepartments[id] ?? null),
-    invitedDepartmentIds: inviteeDepartments,
-  });
-  return derived.length > 0 ? derived : fallbackCalendarId ? [fallbackCalendarId] : [];
+  return resolveTargets(input, fallbackCalendarId, false);
 }
 
-/** Target set for an existing (representative) copy, from its own people fields. */
+/**
+ * Target set for an existing (representative) copy, from its own people fields.
+ * Uses the legacy superset (the organizer's department always included) so
+ * copies written before the organizer stopped being a target are still found
+ * and reconciled on update/delete.
+ */
 export async function refTargetCalendars(ref: EventRef): Promise<string[]> {
-  return resolveTargetCalendars(
+  return resolveTargets(
     {
       creatorId: ref.creatorId ?? "",
       inviteeUserIds: ref.inviteeUserIds,
       inviteeDepartments: ref.inviteeDepartmentIds,
     },
     ref.calendarId,
+    true,
   );
 }
 

@@ -233,9 +233,10 @@ directly ([`events-cache.md`](events-cache.md)):
 
 The logged-in user's entries are visually distinguished in every view, so a
 roster member can spot their own rows/chips without reaching for the Users
-filter. "Mine" means the event was **created by, or tagged on, the current
-user** — exactly the Myself quick-filter's semantics
-(`eventMatchesUserFilter`, `src/lib/events/userFilter.ts`). The highlight is
+filter. "Mine" means the event was **tagged on the current user** — exactly the
+Myself quick-filter's semantics (`eventMatchesUserFilter`,
+`src/lib/events/userFilter.ts`; the organizer counts only when self-invited).
+The highlight is
 unconditional (it stays on when the Myself filter is already active) and only
 exists for roster members: an admin without a roster row gets the event-level
 highlights but no row tint (the same boundary as `onlyMeAvailable`).

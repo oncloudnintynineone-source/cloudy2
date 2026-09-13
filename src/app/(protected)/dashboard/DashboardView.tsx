@@ -1651,8 +1651,9 @@ export function DashboardView({
     [viewEvents, departmentMemberships],
   );
 
-  // "Highlight my entries": the events the current user created or is tagged
-  // on — the same semantics as the Myself quick filter. Drives the per-view
+  // "Highlight my entries": the events the current user is tagged on — the
+  // same semantics as the Myself quick filter (the organizer counts only when
+  // self-invited). Drives the per-view
   // highlights (month top rows + chip ring, agenda row tint, the resource-row
   // tint via the label marker below); see docs/dashboard-views.md §1.5.
   const myEventIds = useMemo(

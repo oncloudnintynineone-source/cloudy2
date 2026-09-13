@@ -126,9 +126,9 @@ flowchart LR
 The read is bounded to the candidate's **target calendars** — the same
 `deriveTargetCalendarIds` set the write will use — because of a data-model invariant:
 every event that occupies a person carries a copy on that person's own department
-calendar (creator → own department; tagged user → their department; tagged department
-→ that department), and external events sit on their own calendar. So nothing that can
-clash with the candidate lives outside those calendars.
+calendar (tagged user → their department; tagged department → that department; an
+organizer who participates counts as a tagged user), and external events sit on their
+own calendar. So nothing that can clash with the candidate lives outside those calendars.
 
 ## 1.5 The check path
 

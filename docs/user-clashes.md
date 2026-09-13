@@ -94,8 +94,9 @@ scanned user).
 
 The same data-model invariant that bounds the wizard advisory (event-clashes.md §1.4)
 bounds the scan: every event that occupies a user carries a copy on that user's own
-department calendar — creator → own department, tagged user → their department, tagged
-department → that department — and an external event occupies (and lives on) the
+department calendar — tagged user → their department, tagged department → that
+department (an organizer who participates counts as a tagged user) — and an external
+event occupies (and lives on) the
 members' own calendar. Nothing that can occupy the scanned user exists outside their
 home department calendar, so reading **only that calendar** over the window and letting
 `busyUsersOfEvent` decide who each copy occupies is complete. Cross-department grants

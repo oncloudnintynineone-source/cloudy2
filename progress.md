@@ -18,7 +18,7 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
 
 ## 1.1 Status
 
-- All work through changelog **1.232 (remove the tab strip's stale/queued amber badge)** is shipped.
+- All work through changelog **1.233 (participant-only event target calendars)** is shipped.
 - Quality gates (`lint` / `typecheck` / `test` / schema-drift check) run in CI on every
   push and PR. Pushes also auto-apply migrations per environment: `dev` →
   `migrate-preview` against the dev Neon DB, `main` → `migrate` against the prod Neon
@@ -982,6 +982,16 @@ via `?attendance=1` and `attendanceStorage` became a `useSyncExternalStore` exte
    warm-but-old tab now just renders solid and revalidates silently on tap; the freshness
    tick and the `preloadBusy` tab signal were deleted (`docs/loading-transitions.md`
    §1.13.2, `AGENTS.md`)
+- 1.233 Events no longer land in the organizer's home department unless the organizer is a
+   participant: `deriveTargetCalendarIds` now derives the target set purely from
+   participants (tagged users' departments + tagged departments), falling back to the
+   organizer's department only when no participant carries one. Previously the organizer's
+   department was always a target, so an event owned by Dept 1 with its only participant
+   in Dept 2 got a copy in Dept 1's calendar and showed up when the dashboard Calendars
+   filter was set to Dept 1. `refTargetCalendars` (update/delete reconciliation) keeps the
+   old superset via a new `deriveLegacyTargetCalendarIds`, so copies placed under the
+   previous rule are still found and removed on the next save/delete. Docs:
+   `docs/event-lifecycle.md` §1.6, `docs/event-mutations.md`, `docs/event-clashes.md` §1.4
 
 ## 1.4 Open items & next steps
 

@@ -369,22 +369,33 @@ audit snapshot all see the effective organizer.
 
 ## 1.6 Target derivation
 
-A logical event lives in **one copy per involved department calendar**.
+A logical event lives in **one copy per involved participant department calendar**.
 `deriveTargetCalendarIds` (`src/lib/events/targets.ts`) computes that set purely:
 
 ```mermaid
 flowchart LR
- C["creator's department"] --> U["union"]
- U2["each tagged user's department<br/>(nulls contribute nothing)"] --> U
+ U2["each tagged user's department<br/>(nulls contribute nothing)"] --> U["union"]
  D["each explicitly tagged department"] --> U
  U --> R["order-preserving dedupe → target set"]
+ C["organizer's department<br/>(fallback only)"] -. "when the union is empty" .-> U
 ```
+
+The organizer's home department is **not** a target by itself: owning an event does not
+involve a department. It joins the set only when the organizer is a participant — their
+id is then among the tagged users, so their department already derives through the first
+edge (invitee-hidden types collapse `inviteeUserIds` to the creator, so they still land
+in the creator's department) — or as a fallback when no participant carries a department.
+So an event created by someone in Dept 1 with a single participant in Dept 2 lives only
+in Dept 2's calendar.
 
 The I/O wrapper `resolveTargetCalendars` (`writeContext.ts`) batch-resolves the
 creator's and invitees' departments (`getUserDepartmentIds`, `queries.ts`) and calls
 the pure helper; when nothing derives (no department, no tags) it falls back to a single
 calendar on update (`ref.calendarId`) or fails with "Assign yourself to a department or
-tag an invitee" on create (`actions.ts`).
+tag an invitee" on create (`actions.ts`). `refTargetCalendars` (update/delete
+reconciliation) instead uses `deriveLegacyTargetCalendarIds` — the old superset that
+always includes the organizer's department — so copies placed under the previous rule are
+still found and removed when the event is next saved or deleted.
 
 Related pure helpers in `targets.ts`:
 

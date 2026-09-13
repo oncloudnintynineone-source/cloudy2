@@ -27,10 +27,24 @@ export interface EventRef {
   ownerOnlyEdits: boolean;
 }
 
+/** Order-preserving dedupe of non-null department ids. */
+function addUnique(out: string[], seen: Set<string>, id: string | null | undefined): void {
+  if (id && !seen.has(id)) {
+    seen.add(id);
+    out.push(id);
+  }
+}
+
 /**
- * Department calendars a logical event must exist in: the creator's department
- * plus each tagged user's department and each tagged department, deduped.
- * Nulls (people without a department) contribute nothing.
+ * Department calendars a logical event must exist in: each tagged user's
+ * department and each tagged department, deduped. The organizer's home
+ * department is NOT a target by itself — owning an event does not involve a
+ * department. It is included only when the organizer is a participant (their id
+ * is then among the invited users, so their department is already in
+ * `invitedUserDepartmentIds`; this also covers invitee-hidden types, whose
+ * attendees collapse to the creator) or as a fallback when no participant
+ * carries a department, so the event still has a calendar to live in. Nulls
+ * (people without a department) contribute nothing.
  */
 export function deriveTargetCalendarIds(params: {
   creatorDepartmentId: string | null;
@@ -39,18 +53,38 @@ export function deriveTargetCalendarIds(params: {
 }): string[] {
   const out: string[] = [];
   const seen = new Set<string>();
-  const add = (id: string | null | undefined) => {
-    if (id && !seen.has(id)) {
-      seen.add(id);
-      out.push(id);
-    }
-  };
-  add(params.creatorDepartmentId);
   for (const id of params.invitedUserDepartmentIds) {
-    add(id);
+    addUnique(out, seen, id);
   }
   for (const id of params.invitedDepartmentIds) {
-    add(id);
+    addUnique(out, seen, id);
+  }
+  if (out.length === 0) {
+    addUnique(out, seen, params.creatorDepartmentId);
+  }
+  return out;
+}
+
+/**
+ * Superset used to locate every copy of an existing event for reconciliation
+ * (update/delete), regardless of which rule placed it: the organizer's home
+ * department plus each participant department. Copies written before the
+ * organizer stopped being a target live in the organizer's department, so the
+ * reconcile read must still cover it even though new writes no longer do.
+ */
+export function deriveLegacyTargetCalendarIds(params: {
+  creatorDepartmentId: string | null;
+  invitedUserDepartmentIds: (string | null)[];
+  invitedDepartmentIds: string[];
+}): string[] {
+  const out: string[] = [];
+  const seen = new Set<string>();
+  addUnique(out, seen, params.creatorDepartmentId);
+  for (const id of params.invitedUserDepartmentIds) {
+    addUnique(out, seen, id);
+  }
+  for (const id of params.invitedDepartmentIds) {
+    addUnique(out, seen, id);
   }
   return out;
 }

@@ -3,20 +3,41 @@ import { describe, expect, it } from "vitest";
 import type { CalendarEvent } from "./queries";
 import {
   dedupeEventsByGroupId,
+  deriveLegacyTargetCalendarIds,
   deriveTargetCalendarIds,
   diffEventTargets,
   eventRefFromCalendarEvent,
 } from "./targets";
 
 describe("deriveTargetCalendarIds", () => {
-  it("unions creator, invited users' departments, and tagged departments", () => {
+  it("includes the organizer's department when the organizer is a participant", () => {
     expect(
       deriveTargetCalendarIds({
         creatorDepartmentId: "cal-a",
-        invitedUserDepartmentIds: ["cal-b", "cal-a"],
+        invitedUserDepartmentIds: ["cal-a", "cal-b"],
         invitedDepartmentIds: ["cal-c"],
       }),
     ).toEqual(["cal-a", "cal-b", "cal-c"]);
+  });
+
+  it("excludes the organizer's department when the organizer is not a participant", () => {
+    expect(
+      deriveTargetCalendarIds({
+        creatorDepartmentId: "cal-a",
+        invitedUserDepartmentIds: ["cal-b"],
+        invitedDepartmentIds: [],
+      }),
+    ).toEqual(["cal-b"]);
+  });
+
+  it("falls back to the organizer's department when no participant department derives", () => {
+    expect(
+      deriveTargetCalendarIds({
+        creatorDepartmentId: "cal-a",
+        invitedUserDepartmentIds: [null],
+        invitedDepartmentIds: [],
+      }),
+    ).toEqual(["cal-a"]);
   });
 
   it("drops nulls and dedupes", () => {
@@ -37,6 +58,28 @@ describe("deriveTargetCalendarIds", () => {
         invitedDepartmentIds: [],
       }),
     ).toEqual([]);
+  });
+});
+
+describe("deriveLegacyTargetCalendarIds", () => {
+  it("always includes the organizer's department", () => {
+    expect(
+      deriveLegacyTargetCalendarIds({
+        creatorDepartmentId: "cal-a",
+        invitedUserDepartmentIds: ["cal-b"],
+        invitedDepartmentIds: ["cal-c"],
+      }),
+    ).toEqual(["cal-a", "cal-b", "cal-c"]);
+  });
+
+  it("drops nulls and dedupes", () => {
+    expect(
+      deriveLegacyTargetCalendarIds({
+        creatorDepartmentId: null,
+        invitedUserDepartmentIds: [null, "cal-b", "cal-b"],
+        invitedDepartmentIds: ["cal-b"],
+      }),
+    ).toEqual(["cal-b"]);
   });
 });
 
