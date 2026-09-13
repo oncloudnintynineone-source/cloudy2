@@ -153,7 +153,10 @@ export function EditViewsModal({
         // A kind change on the active tab re-navigates to the same id under its
         // new kind, so the dashboard re-renders through the usual tab-switch
         // period rules (Month → anchored starts today, anchored → Month keeps
-        // the month…). A name-only edit (or any inactive edit) just refreshes.
+        // the month…). `switchTab` also forces a server re-read, since the
+        // request key is definition-blind and the same id would otherwise look
+        // already covered. A name-only edit (or any inactive edit) just
+        // refreshes.
         onNavigateToView({ id: target.id, kind: editKind });
       } else {
         onMutated();

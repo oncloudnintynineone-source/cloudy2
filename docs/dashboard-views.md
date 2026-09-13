@@ -79,10 +79,14 @@ string maps to the first tab of that kind.
     and stored filters; a name that is still the old kind's default label follows
     to the new kind's default (a custom name is kept; the rule is applied
     server-side by `changeDashboardViewKind`, and a custom name typed in the
-    dialog is applied after the kind so it always wins). Changing the **active**
-    tab's type re-navigates to the same id under its new kind, so the tab-switch
-    period rules below apply (Month → anchored starts today; anchored → Month
-    keeps the month); editing an inactive tab just refreshes the list;
+  dialog is applied after the kind so it always wins). Changing the **active**
+  tab's type re-navigates to the same id under its new kind, so the tab-switch
+  period rules below apply (Month → anchored starts today; anchored → Month
+  keeps the month) — and because the request key (`viewId|months`) is
+  definition-blind, the same id would otherwise look already covered, so the
+  switch also forces a server re-read with the target period (the grid reloads
+  in place instead of waiting for a Force refresh); editing an inactive tab
+  just refreshes the list;
   - a **trash** (subtle red) deletes behind a nested `size="sm"` confirm (the
     last tab can't be deleted — its trash is disabled; deleting the active tab
     navigates to the first remaining).

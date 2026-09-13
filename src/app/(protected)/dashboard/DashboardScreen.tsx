@@ -224,23 +224,28 @@ export function DashboardScreen({ userId, initialZoom, initialMonthZoom }: Dashb
 
   useReportActivity(refreshing, "dashboard:refresh");
 
-  const fetchFresh = useCallback(async () => {
+  const fetchFresh = useCallback(async (overrideParams?: URLSearchParams) => {
     const requestId = ++requestIdRef.current;
     // Yield first: an effect must not call setState synchronously, and this
     // fetch is always kicked off from an effect or an event handler.
     await Promise.resolve();
     setBusy(true);
+    // The params this read answers: normally the committed URL, but a
+    // definition change (a view's kind edited in place) passes the target URL
+    // the navigation is about to push, so the fetch carries the new period
+    // instead of racing the not-yet-committed address.
+    const params = overrideParams ?? paramsRef.current;
     // The context this read answers, so a failure is attributed to it (and only
     // it) for the presentation's heal-back to the held tab.
     const attemptedKey = dashboardCandidateRequestKey(
       recordRef.current,
-      paramsRef.current.get("view"),
-      paramsRef.current.get("month"),
-      paramsRef.current.get("date"),
+      params.get("view"),
+      params.get("month"),
+      params.get("date"),
     );
     try {
       const result = await withTimeout(
-        loadDashboardData(inputFromParams(paramsRef.current)),
+        loadDashboardData(inputFromParams(params)),
         DASHBOARD_LOAD_TIMEOUT_MS,
       );
       if (requestId !== requestIdRef.current) return;
@@ -469,9 +474,11 @@ export function DashboardScreen({ userId, initialZoom, initialMonthZoom }: Dashb
   // Post-mutation / filter-change refresh: drop every cached context (the write
   // may affect any of them), then re-read the current one. `report: false`
   // (filter apply) skips the global activity bar — that read is a view load,
-  // carried by the grid skeleton + the active tab's breathing instead.
+  // carried by the grid skeleton + the active tab's breathing instead. An
+  // optional `params` override carries the target URL for a definition change
+  // whose navigation hasn't committed yet (see `switchTab`).
   const revalidate = useCallback(
-    (options?: { report?: boolean }) => {
+    (options?: { report?: boolean; params?: URLSearchParams }) => {
       preloadGenerationRef.current += 1;
       preloadedRef.current = null;
       setWarmRecords(new Map());
@@ -480,7 +487,7 @@ export function DashboardScreen({ userId, initialZoom, initialMonthZoom }: Dashb
       void (async () => {
         try {
           await clearDashboardSnapshots(userId);
-          await fetchFresh();
+          await fetchFresh(options?.params);
         } finally {
           if (report) setRefreshing(false);
         }

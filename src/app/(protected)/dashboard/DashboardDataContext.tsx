@@ -17,9 +17,11 @@ export interface DashboardDataValue {
    * Re-read the current context's data from the server and swap it in place.
    * `report: false` marks a "view load" (a filter apply) that shouldn't surface
    * on the global activity bar — the active tab's breathing covers it instead.
-   * Post-mutation / view-CRUD refreshes keep the default (bar shown).
+   * Post-mutation / view-CRUD refreshes keep the default (bar shown). An
+   * optional `params` override supplies the target URL for a definition change
+   * (a view's kind edited in place) whose navigation hasn't committed yet.
    */
-  revalidate: (options?: { report?: boolean }) => void;
+  revalidate: (options?: { report?: boolean; params?: URLSearchParams }) => void;
   /** A revalidation of the currently displayed context is in flight. */
   isRevalidating: boolean;
   /**

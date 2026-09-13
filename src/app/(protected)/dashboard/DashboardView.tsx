@@ -1776,7 +1776,7 @@ export function DashboardView({
     [monthZoom],
   );
 
-  const buildHref = useCallback(
+  const buildParams = useCallback(
     (updates: Record<string, string | null>) => {
       const params = new URLSearchParams(searchParams.toString());
       for (const [key, value] of Object.entries(updates)) {
@@ -1786,10 +1786,17 @@ export function DashboardView({
           params.set(key, value);
         }
       }
-      const query = params.toString();
+      return params;
+    },
+    [searchParams],
+  );
+
+  const buildHref = useCallback(
+    (updates: Record<string, string | null>) => {
+      const query = buildParams(updates).toString();
       return query ? `${pathname}?${query}` : pathname;
     },
-    [searchParams, pathname],
+    [buildParams, pathname],
   );
 
   const navigate = useCallback(
@@ -1945,6 +1952,18 @@ export function DashboardView({
       setAgendaUrlBase(null);
     }
     setShownTabId(tab.id);
+    // A kind change on the tab you're already looking at keeps the same
+    // `?view=` id, so the request key (id + months) is definition-blind and the
+    // keyed fetch would treat the new kind as already covered — the edit would
+    // not apply until a force refresh. Force the re-read here, using the target
+    // period (not the not-yet-committed URL) so the fetch matches the href the
+    // navigation is about to push.
+    if (tab.id === activeView.id && tab.kind !== view) {
+      const params = buildParams(target);
+      // A definition reload is not a Google force-refresh.
+      params.delete("refresh");
+      revalidate({ params });
+    }
     if (mode === "month") {
       if (view === "month") {
         // Month → Month: keep the shown month.
