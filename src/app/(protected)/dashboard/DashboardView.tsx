@@ -71,7 +71,7 @@ import {
 } from "./calendarSkeleton";
 import { formatWeekLabel } from "./clientDateTime";
 import { DateSelectorModal } from "@/components/DateSelectorModal";
-import { useReportActivity } from "@/components/ActivityBar";import { EmptyState } from "@/components/EmptyState";
+import { EmptyState } from "@/components/EmptyState";
 import { FilterButton } from "@/components/FilterButton";
 import { FilterModal, type FilterGroup } from "@/components/FilterModal";
 import { GridNavControls } from "@/components/GridNavControls";
@@ -1314,10 +1314,6 @@ export function DashboardView({
     );
   }, [activeView.id, slidePeriodKey, shownTabId, tabs]);
 
-  // The global activity bar mirrors the grid transition: view/date/filter
-  // navigations are "busy" for the whole app chrome.
-  useReportActivity(isPending, "dashboard:nav");
-
   // Device-local "where you are": persist the resolved date/month anchor and
   // the Day/Week (H) + Month-grid zooms to the per-device cookie whenever the
   // rendered state changes, so a cold start (or F5) lands on the same period
@@ -2112,7 +2108,9 @@ export function DashboardView({
       notifications.show({ color: "red", message: result.error });
       return false;
     }
-    revalidate();
+    // A filter apply is a view load: no global activity bar — the active tab's
+    // breathing (and the in-place event swap) carry it.
+    revalidate({ report: false });
     return true;
   }
 

@@ -120,6 +120,11 @@ export function DashboardScreen({
   // context change read as a navigation and show the grid skeleton.
   const [source, setSource] = useState<"cache" | "fresh">("fresh");
   const [busy, setBusy] = useState(false);
+  // Whether a *reported* refresh (post-mutation, view CRUD, inactivity) is in
+  // flight. Unlike `busy`, a navigation/filter-apply read does not set it, so
+  // the global activity bar covers only refreshes with no in-page skeleton —
+  // view loads are carried by the grid skeleton + the active tab's breathing.
+  const [refreshing, setRefreshing] = useState(false);
   // Whether the background tab preload (the single union read that warms every
   // tab) is in flight. Feeds the tab strip's per-tab load state: while it runs,
   // every not-yet-loaded tab is "loading" (faded + breathing).
@@ -225,7 +230,7 @@ export function DashboardScreen({
     return () => window.clearTimeout(timer);
   }, [previewView]);
 
-  useReportActivity(busy, "dashboard:revalidate");
+  useReportActivity(refreshing, "dashboard:refresh");
 
   const fetchFresh = useCallback(async () => {
     const requestId = ++requestIdRef.current;
@@ -478,16 +483,27 @@ export function DashboardScreen({
   }, [record, source, busy, preloadTabs]);
 
   // Post-mutation / filter-change refresh: drop every cached context (the write
-  // may affect any of them), then re-read the current one.
-  const revalidate = useCallback(() => {
-    preloadGenerationRef.current += 1;
-    preloadedRef.current = null;
-    setWarmRecords(new Map());
-    void (async () => {
-      await clearDashboardSnapshots(userId);
-      await fetchFresh();
-    })();
-  }, [fetchFresh, userId]);
+  // may affect any of them), then re-read the current one. `report: false`
+  // (filter apply) skips the global activity bar — that read is a view load,
+  // carried by the grid skeleton + the active tab's breathing instead.
+  const revalidate = useCallback(
+    (options?: { report?: boolean }) => {
+      preloadGenerationRef.current += 1;
+      preloadedRef.current = null;
+      setWarmRecords(new Map());
+      const report = options?.report !== false;
+      if (report) setRefreshing(true);
+      void (async () => {
+        try {
+          await clearDashboardSnapshots(userId);
+          await fetchFresh();
+        } finally {
+          if (report) setRefreshing(false);
+        }
+      })();
+    },
+    [fetchFresh, userId],
+  );
 
   // Per-tab load state for the tab strip. A tab is "loaded" when a warm
   // snapshot for its current request key exists (paintable instantly, any age),
@@ -518,14 +534,26 @@ export function DashboardScreen({
       );
       if (activeKey) loadingKeys.add(activeKey);
     }
-    return tabLoadStates({
+    const states = tabLoadStates({
       tabs,
       month: record.context.month,
       date: record.context.date,
       loadedKeys,
       loadingKeys,
     });
-  }, [record, warmRecords, preloadBusy, busy, effectiveView, searchParams]);
+    // The active tab breathes during any in-flight read of its context — a
+    // filter apply, a post-mutation refresh, or a cold navigation — even when a
+    // warm copy for its key exists. Those reads update in place with no
+    // skeleton, and the global bar no longer covers view loads, so the breathing
+    // is their only signal.
+    if (busy) {
+      const activeId = presentation?.activeView.id;
+      if (activeId && states[activeId]) {
+        states[activeId] = "loading";
+      }
+    }
+    return states;
+  }, [record, warmRecords, preloadBusy, busy, effectiveView, searchParams, presentation]);
 
   const context = useMemo(
     () => ({

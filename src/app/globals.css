@@ -351,9 +351,9 @@ html {
 /* Per-view tab load state (docs/loading-transitions.md §1.13.2): each dashboard
    tab's icon + label reflects its own view's load progress, decoupled from the
    active view's skeleton. Loaded = solid (no class); not-loaded = slightly
-   faded; loading = faded and breathing, a slow opacity pulse that reads as
-   "working" without a spinner. The reduced-motion branch drops the pulse,
-   leaving the static fade. */
+   faded; loading = faded and breathing, a strong opacity pulse (0.35 ↔ 1) that
+   reads as "working" without a spinner. The reduced-motion branch drops the
+   pulse, leaving the static fade. */
 .c2-tab-not-loaded {
   opacity: 0.5;
 }
@@ -365,16 +365,16 @@ html {
 @keyframes c2-tab-breathe {
   0%,
   100% {
-    opacity: 0.45;
+    opacity: 0.35;
   }
   50% {
-    opacity: 0.8;
+    opacity: 1;
   }
 }
 
 @media (prefers-reduced-motion: no-preference) {
   .c2-tab-loading {
-    animation: c2-tab-breathe 1.6s ease-in-out infinite;
+    animation: c2-tab-breathe 1.3s ease-in-out infinite;
   }
 }
 

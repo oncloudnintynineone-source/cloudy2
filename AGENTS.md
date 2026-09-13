@@ -291,8 +291,11 @@ doc content here.
   `LoadingStatus` (sr-only `role="status"`). Complemented by the shared **global activity
   bar** (amber strip + comet head) for post-mutation `router.refresh()` (use
   `useActivityRefresh`, never raw `invalidateCurrentPathCaches().then(…router.refresh())`),
-  tab flips, and in-page transitions (report `isPending` via `useReportActivity`; route nav
-  wired via `PendingDim`). It appears only after ~300 ms busy and holds ~150 ms after.
+  settings tab flips, and route navs (report via `useReportActivity`; route nav wired via
+  `PendingDim`). It appears only after ~300 ms busy and holds ~150 ms after. The
+  **dashboard's** view/date/filter navigations deliberately do **not** report it (those
+  update in place with a grid skeleton + the active tab's breathing); only its refreshes
+  do (`revalidate({ report: false })` for a filter apply).
   **Cold-start readiness** reuses the bar's slot (amber legs, then a brief green
   `.c2-ready-bar`); each dashboard **tab** also shows its own view's load state
   (loaded solid / loading faded + breathing / not-loaded faded) via `tabStatus`. Design:

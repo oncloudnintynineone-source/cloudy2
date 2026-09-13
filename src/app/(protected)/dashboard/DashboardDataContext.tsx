@@ -13,8 +13,13 @@ import type { TabLoadState } from "@/lib/dashboard/snapshot";
  * whether a context change is in flight.
  */
 export interface DashboardDataValue {
-  /** Re-read the current context's data from the server and swap it in place. */
-  revalidate: () => void;
+  /**
+   * Re-read the current context's data from the server and swap it in place.
+   * `report: false` marks a "view load" (a filter apply) that shouldn't surface
+   * on the global activity bar — the active tab's breathing covers it instead.
+   * Post-mutation / view-CRUD refreshes keep the default (bar shown).
+   */
+  revalidate: (options?: { report?: boolean }) => void;
   /** A revalidation of the currently displayed context is in flight. */
   isRevalidating: boolean;
   /**

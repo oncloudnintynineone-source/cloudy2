@@ -489,8 +489,8 @@ a full reload:
 | ------ | ------ |
 | Route `<Link>` navigation | each shell nav/rail/bottom/logo link renders `PendingDim`, which now reports its `useLinkStatus().pending` up via `useReportActivity` |
 | Settings tab flips | `SettingsTabs` wraps `router.push` in `useTransition` and reports `isPending` (tabs are `router.push`, not `<Link>`, so `useLinkStatus` alone can't see them) |
-| In-page view/filter transitions | dashboard reports its `isPending`, parade reports the cross-month gate, audit reports its filter `isPending` |
-| Post-mutation `router.refresh()` | `useActivityRefresh(busyKey)` returns a `refresh()` that invalidates the SW caches then calls `router.refresh()` **inside** `useTransition`, so `isPending` stays true until the refreshed RSC payload commits (`router.refresh()` itself is not awaitable). Replaces the old `invalidateCurrentPathCaches().then(() => router.refresh())` at every settings table/form, the dashboard's `onDone`/`onDeleted`, and audit's purge |
+| In-page view/filter transitions | parade reports the cross-month gate, audit reports its filter `isPending`. The dashboard deliberately does **not** report its view/date/filter navigations — those update in place with a grid skeleton and the active tab's breathing (§1.13.2), so the bar is reserved for its refreshes |
+| Post-mutation refresh | the dashboard's `revalidate()` reports `refreshing` (`dashboard:refresh`) for event create/edit/delete, detail actions and view CRUD — the in-place re-read that has no skeleton. A filter apply calls `revalidate({ report: false })` (a view load, no bar). Settings tables/forms use `useActivityRefresh(busyKey)`, which invalidates the SW caches then calls `router.refresh()` **inside** `useTransition`, so `isPending` stays true until the refreshed RSC payload commits (`router.refresh()` itself is not awaitable) |
 
 **Flicker control.** The bar only appears once a busy source has persisted
 `ACTIVITY_SHOW_DELAY_MS` (300 ms) — an edge the `ActivityBar` watches with a
@@ -648,6 +648,14 @@ searchParams.view`, so a warm tab paints at once instead of waiting for the RSC
 round-trip that updates `useSearchParams`. The URL push still runs (and is
 prefetched, §1.10); the preview clears when `?view=` catches up, or after a 6 s
 revert window (`PREVIEW_REVERT_MS`) if the push never lands.
+
+**Active-tab feedback on any active fetch.** Because view loads no longer surface
+on the global activity bar (§1.13), the active tab itself carries the signal:
+`DashboardScreen` overrides the active tab's state to `loading` whenever a read
+for its context is in flight (`busy`) — a cold navigation, a post-mutation
+refresh, or a filter apply (`revalidate({ report: false })`, treated as a view
+load). The pulse is deliberately strong (opacity `0.35 ↔ 1` over 1.3 s;
+reduced-motion = the static fade) so it reads at a glance.
 
 ## 1.14 File index & related docs
 

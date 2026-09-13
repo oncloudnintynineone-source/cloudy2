@@ -18,7 +18,7 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
 
 ## 1.1 Status
 
-- All work through changelog **1.228 (weekday parade-state email schedule)** is shipped.
+- All work through changelog **1.229 (view loads off the global activity bar + stronger tab breathing)** is shipped.
 - Quality gates (`lint` / `typecheck` / `test` / schema-drift check) run in CI on every
   push and PR. Pushes also auto-apply migrations per environment: `dev` →
   `migrate-preview` against the dev Neon DB, `main` → `migrate` against the prod Neon
@@ -941,6 +941,16 @@ via `?attendance=1` and `attendanceStorage` became a `useSyncExternalStore` exte
    relabelled "Send test to my email" (it still emails only the acting admin); public
    holidays remain included, documented as a deliberate limitation
    (`docs/parade-state-email.md`)
+- 1.229 View loads leave the global activity bar; the active tab carries the signal:
+   the dashboard no longer reports its view/date navigations (`useReportActivity(isPending,
+   "dashboard:nav")` removed) and a filter apply now calls `revalidate({ report: false })`,
+   so the bar is reserved for refreshes with no in-page skeleton (post-mutation, view CRUD,
+   settings, route navs). `DashboardScreen` gains a `refreshing` flag reported as
+   `dashboard:refresh`. Because view loads no longer surface on the bar, `tabStatus` now
+   forces the **active** tab to `loading` while any read of its context is in flight (cold
+   nav, post-mutation refresh, filter apply), and the breathing pulse is stronger — opacity
+   `0.35 ↔ 1` over 1.3 s (was `0.45 ↔ 0.8` / 1.6 s) (`docs/loading-transitions.md`
+   §1.13/§1.13.2, `AGENTS.md`)
 
 ## 1.4 Open items & next steps
 
