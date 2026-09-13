@@ -27,6 +27,15 @@ export interface DashboardDataValue {
    * (loaded = solid, loading = faded + breathing, not-loaded = faded).
    */
   tabStatus: Record<string, TabLoadState>;
+  /**
+   * The optimistically tapped tab id (set on a tab tap, before the URL
+   * navigation commits). `DashboardScreen` resolves the displayed context from
+   * `previewView ?? searchParams.view`, so a warm tab paints instantly instead
+   * of waiting on the RSC round-trip. Null once the URL catches up.
+   */
+  previewView: string | null;
+  /** Sets the optimistic active tab (null clears it). */
+  setPreviewView: (viewId: string | null) => void;
 }
 
 const DashboardDataContext = createContext<DashboardDataValue | null>(null);

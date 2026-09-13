@@ -146,6 +146,7 @@ import { createDashboardView, saveDashboardViewFilters } from "@/lib/dashboardVi
 import {
   DASHBOARD_VIEW_KIND_LABELS,
   periodSwitchDirection,
+  tabSwitchTarget,
   viewSwitchDirection,
   type DashboardTabFilters,
   type DashboardViewKind,
@@ -667,6 +668,14 @@ function measuredWidth(root: Element, cssWidth: string): number {
 const MONTH_COLUMNS = 7;
 
 /**
+ * Duration of the grid swipe on a view/date change. Mirrors the CSS
+ * `--c2-dur-standard` (250ms); the animation is driven through the Web
+ * Animations API rather than a CSS class so restarting it needs no forced
+ * reflow of the whole grid (see the slide effect in `DashboardView`).
+ */
+const VIEW_SLIDE_MS = 250;
+
+/**
  * Pinned weekday-initials strip for the Month view. Mantine's own weekday row
  * lives inside the Month view's content-height ScrollArea and scrolls away with
  * the page, so this strip replaces it (`withWeekDays={false}` on the MonthView).
@@ -779,7 +788,7 @@ export function DashboardView({
   // DashboardScreen, which revalidates in place. Mutations call `revalidate()`
   // instead of `router.refresh()` (which no longer carries data), and a
   // context-change fetch drives the grid skeleton via `isNavigating`.
-  const { revalidate, isNavigating, tabStatus } = useDashboardData();
+  const { revalidate, isNavigating, tabStatus, setPreviewView } = useDashboardData();
   // The active tab's renderer kind (Month/Week (H)/…). Booleans, the skeleton
   // chain and the period label key off this exactly like the old `view` prop.
   const view: ViewMode = activeView.kind;
@@ -1291,11 +1300,18 @@ export function DashboardView({
     if (dir === 0) return;
     const el = gridSlideRef.current;
     if (!el) return;
-    el.style.setProperty("--slide-dir", String(dir));
-    el.classList.remove("view-slide-enter");
-    // Force a style flush so the re-add below restarts the animation.
-    void el.offsetWidth;
-    el.classList.add("view-slide-enter");
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    // Web Animations API instead of a CSS-class toggle: restarting a CSS keyframe
+    // requires forcing a synchronous reflow (`void el.offsetWidth`) of the whole
+    // grid, which is a layout pass over a large subtree on every tab/date change.
+    // `el.animate` restarts without touching layout.
+    for (const running of el.getAnimations()) {
+      running.cancel();
+    }
+    el.animate(
+      [{ transform: `translateX(${dir * 10}%)` }, { transform: "translateX(0)" }],
+      { duration: VIEW_SLIDE_MS, easing: "cubic-bezier(0.22, 1, 0.36, 1)" },
+    );
   }, [activeView.id, slidePeriodKey, shownTabId, tabs]);
 
   // The global activity bar mirrors the grid transition: view/date/filter
@@ -1808,6 +1824,34 @@ export function DashboardView({
     [buildHref, router, pathname, searchParams],
   );
 
+  // Warm the client-router cache for every tab's target URL, so a tap's
+  // `router.push` is served instantly (and `useSearchParams` catches up, letting
+  // the optimistic preview clear). The data itself is already warm from the
+  // preload; this only warms the route. Skipped while a one-shot deep-link
+  // param is in the URL (its href is never a real cache key). Best-effort.
+  const prefetchedHrefsRef = useRef("");
+  useEffect(() => {
+    if (typeof navigator !== "undefined" && navigator.onLine === false) return;
+    if (searchParams.has("event") || searchParams.has("edit") || searchParams.has("refresh")) {
+      return;
+    }
+    const hrefs: string[] = [];
+    for (const tab of tabs) {
+      if (tab.id === activeView.id) {
+        continue;
+      }
+      hrefs.push(buildHref(tabSwitchTarget(tab, { view, shownDate, today })));
+    }
+    const signature = hrefs.join("|");
+    if (signature === prefetchedHrefsRef.current) {
+      return;
+    }
+    prefetchedHrefsRef.current = signature;
+    for (const href of hrefs) {
+      router.prefetch(href);
+    }
+  }, [router, tabs, buildHref, view, shownDate, today, activeView.id, searchParams]);
+
   // Strip the one-shot `edit` param from the URL so a refresh doesn't reopen
   // the edit form. A plain push (no transition): the grid shows no skeleton
   // and no fade for a URL-only change.
@@ -1878,7 +1922,12 @@ export function DashboardView({
    */
   function switchTab(tab: Pick<DashboardViewTab, "id" | "kind">) {
     void setActiveDashboardView(tab.id);
+    // Optimistic data switch: the data layer resolves the tapped tab
+    // immediately, so a warm tab paints without waiting for the URL/RSC
+    // round-trip (`useSearchParams` only updates when the payload lands).
+    setPreviewView(tab.id);
     const mode = tab.kind;
+    const target = tabSwitchTarget(tab, { view, shownDate, today });
     if (mode === "agenda") {
       // A fresh entry re-follows the URL (the render-phase sync above
       // re-seeds viewedDay) and plays the reveal fade, not a stale slide.
@@ -1895,13 +1944,13 @@ export function DashboardView({
     if (mode === "month") {
       if (view === "month") {
         // Month → Month: keep the shown month.
-        navigate({ view: tab.id });
+        navigate(target);
       } else {
         // Anchored → Month: keep the currently viewed month.
         const anchorMonth = shownDate.slice(0, 7);
         setShownView("month");
         setShownMonth(anchorMonth);
-        navigate({ view: tab.id, month: anchorMonth, date: null });
+        navigate(target);
       }
       return;
     }
@@ -1911,17 +1960,17 @@ export function DashboardView({
       setShownView(mode);
       setShownDate(today);
       setShownMonth(todayMonth);
-      navigate({ view: tab.id, date: today, month: null });
+      navigate(target);
       return;
     }
     if (mode !== view) {
       // Anchored → different anchored kind: keep the anchor day.
       setShownView(mode);
-      navigate({ view: tab.id, date: shownDate, month: null });
+      navigate(target);
       return;
     }
     // Same kind, anchored (Day → Day, Agenda → Agenda): keep the current day.
-    navigate({ view: tab.id });
+    navigate(target);
   }
 
   function goToday() {
@@ -2797,10 +2846,10 @@ export function DashboardView({
             innerRef={monthWeekdayTrackRef}
           />
         )}
-        {/* Grid/skeleton swipe on a view switch: `gridSlideRef` gets
-            `.view-slide-enter` on the tab change; `weekBoxRef`'s overflow clip
-            contains the transient offset. The pinned strips/rulers and pan
-            controls stay outside, static. */}
+        {/* Grid/skeleton swipe on a view/date change: `gridSlideRef` is
+            animated via `el.animate` (Web Animations API) on the change;
+            `weekBoxRef`'s overflow clip contains the transient offset. The
+            pinned strips/rulers and pan controls stay outside, static. */}
         <Box ref={gridSlideRef}>
         {gridLoading ? (
           // Skeleton flavor follows the optimistic view: the shape you tapped

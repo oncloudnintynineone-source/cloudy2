@@ -9,6 +9,7 @@ import {
   periodSwitchDirection,
   resolveActiveTab,
   sanitizeDashboardViewName,
+  tabSwitchTarget,
   viewSwitchDirection,
   type DashboardViewTab,
 } from "./views";
@@ -168,5 +169,45 @@ describe("periodSwitchDirection", () => {
     expect(periodSwitchDirection("2026-09", null)).toBe(0);
     expect(periodSwitchDirection(null, null)).toBe(0);
     expect(periodSwitchDirection("2026-09", "2026-09")).toBe(0);
+  });
+});
+
+describe("tabSwitchTarget", () => {
+  const base = { shownDate: "2026-09-12", today: "2026-09-13" };
+
+  it("Month → Month keeps the shown month (no date reset)", () => {
+    expect(tabSwitchTarget({ id: "m2", kind: "month" }, { ...base, view: "month" })).toEqual({
+      view: "m2",
+    });
+  });
+
+  it("anchored → Month carries the anchor month and clears the day", () => {
+    expect(tabSwitchTarget({ id: "m2", kind: "month" }, { ...base, view: "agenda" })).toEqual({
+      view: "m2",
+      month: "2026-09",
+      date: null,
+    });
+  });
+
+  it("Month → anchored starts on today", () => {
+    expect(tabSwitchTarget({ id: "d2", kind: "schedule" }, { ...base, view: "month" })).toEqual({
+      view: "d2",
+      date: "2026-09-13",
+      month: null,
+    });
+  });
+
+  it("anchored → a different anchored kind keeps the anchor day", () => {
+    expect(tabSwitchTarget({ id: "w2", kind: "week" }, { ...base, view: "agenda" })).toEqual({
+      view: "w2",
+      date: "2026-09-12",
+      month: null,
+    });
+  });
+
+  it("same kind keeps the current period (just the view change)", () => {
+    expect(tabSwitchTarget({ id: "d2", kind: "schedule" }, { ...base, view: "schedule" })).toEqual({
+      view: "d2",
+    });
   });
 });

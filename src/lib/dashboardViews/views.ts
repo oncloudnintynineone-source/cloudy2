@@ -190,3 +190,47 @@ export function periodSwitchDirection(
   }
   return nextKey > previousKey ? 1 : -1;
 }
+
+/** The current period/kind a tab switch is resolving from. */
+export interface TabSwitchContext {
+  /** The committed active renderer kind. */
+  view: DashboardViewKind;
+  /** The currently shown day anchor (ISO `YYYY-MM-DD`). */
+  shownDate: string;
+  /** Today's date (ISO `YYYY-MM-DD`). */
+  today: string;
+}
+
+/**
+ * The URL updates a tab tap applies — the period-follows-kind rule shared by
+ * the tap handler (`switchTab`) and the RSC prefetch, so a prefetched href is
+ * exactly the one the tap will push (and lands in the client-router cache):
+ *
+ * - Month → Month keeps the shown month; an anchored → Month move carries the
+ *   anchor's month (Month has no day anchor of its own);
+ * - Month → anchored starts on today;
+ * - anchored → a different anchored kind keeps the anchor day;
+ * - same kind keeps the current period (just the `?view=` change).
+ *
+ * Returns the `navigate`-style updates map (`null` deletes a param). Pure and
+ * unit-tested.
+ */
+export function tabSwitchTarget(
+  target: Pick<DashboardViewTab, "id" | "kind">,
+  context: TabSwitchContext,
+): Record<string, string | null> {
+  const { id, kind } = target;
+  if (kind === "month") {
+    if (context.view === "month") {
+      return { view: id };
+    }
+    return { view: id, month: context.shownDate.slice(0, 7), date: null };
+  }
+  if (context.view === "month") {
+    return { view: id, date: context.today, month: null };
+  }
+  if (kind !== context.view) {
+    return { view: id, date: context.shownDate, month: null };
+  }
+  return { view: id };
+}

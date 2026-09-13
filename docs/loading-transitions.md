@@ -423,6 +423,11 @@ hard loads, new param combinations, and the force-refresh nonce are different
 cache keys and always hit the server, and freshness of the underlying event
 data remains [`events-cache.md`](events-cache.md)'s job. It matches the data
 layer's existing tolerance (60 s fresh window, 30 min stale-while-revalidate).
+The dashboard additionally `router.prefetch`es every tab's target URL on each
+anchor (`DashboardView`), so a tab tap's `router.push` is a client-router hit
+instead of a fresh server render — the URL catches up promptly and the
+optimistic tab preview (§1.13.2) clears. Even before the URL commits, the
+displayed context no longer waits on it.
 
 ## 1.11 Mutations are out of scope
 
@@ -637,6 +642,13 @@ not-yet-loaded tab fires the normal priority read for that tab, which flips it t
 `loading` immediately. A single-tab account skips the preload entirely (the
 active read already covers it), avoiding a second server config pass.
 
+**Optimistic switch.** A tap also sets `previewView` in `DashboardDataContext`;
+`DashboardScreen` resolves the displayed context from `previewView ??
+searchParams.view`, so a warm tab paints at once instead of waiting for the RSC
+round-trip that updates `useSearchParams`. The URL push still runs (and is
+prefetched, §1.10); the preview clears when `?view=` catches up, or after a 6 s
+revert window (`PREVIEW_REVERT_MS`) if the push never lands.
+
 ## 1.14 File index & related docs
 
 | File | Role |
@@ -650,7 +662,7 @@ active read already covers it), avoiding a second server config pass.
 | `src/lib/ui/uiState.ts` | `resolveDashboardView` — shared view resolution for page + route fallback |
 | `src/app/(protected)/parade-state/paradeStateSkeleton.tsx` | Parade row skeletons (shared) |
 | `src/app/(protected)/settings/audit-log/AuditLogRowSkeleton.tsx` | Audit row skeleton (shared) |
-| `src/app/(protected)/dashboard/DashboardView.tsx` | Held loading, reveal fade, one-shot strips (`event`/`edit`/`refresh`), agenda slide, optimistic date-nav chrome (`shown*`, §1.9.2), per-tab load styling (§1.13.2) |
+| `src/app/(protected)/dashboard/DashboardView.tsx` | Held loading, reveal fade, one-shot strips (`event`/`edit`/`refresh`), agenda slide, optimistic date-nav chrome (`shown*`, §1.9.2), per-tab load styling (§1.13.2), optimistic tab switch + tab-URL prefetch (§1.10/§1.13.2), WAAPI grid swipe (no forced reflow) |
 | `src/app/(protected)/parade-state/ParadeStateView.tsx` | Month-gated hold |
 | `src/components/AppShellShell.tsx` | Optimistic nav highlight (`tappedHref`) + `PendingDim`/`useLinkStatus` (§1.9.1) |
 | `src/components/ActivityBar.tsx` | ActivityProvider + `useActivity` (refcounted `begin`/`end`), `useReportActivity`, `useActivityRefresh`, `ActivityBar` (300 ms show delay + min hold, indeterminate strip, suppresses itself during the cold-start phases) — §1.13/§1.13.1 |
@@ -659,7 +671,8 @@ active read already covers it), avoiding a second server config pass.
 | `src/lib/ui/coldStart.ts` | Pure readiness reducer (`coldStartReducer`), route allowlist + `coldStartRouteRequiresContent`, timing constants (MIN/MAX/dwell/check) — §1.13.1 |
 | `src/components/ColdStartReady.tsx` | `ColdStartReadyProvider` + `useColdStartReady`/`useColdStartContent` + `ColdStartReadyBar` (amber → green once-per-launch) — §1.13.1 |
 | `src/lib/dashboard/snapshot.ts` | Pure snapshot/request-key helpers incl. `tabLoadStates` (per-tab loaded/loading/not-loaded) — §1.13.2 |
-| `src/app/(protected)/dashboard/DashboardScreen.tsx` | Owns the snapshot, warm map, preload, and per-tab `tabStatus`; first-load timeout + retryable error — §1.13.2 |
+| `src/lib/dashboardViews/views.ts` | Pure view vocabulary + `tabSwitchTarget` (the period-follows-kind URL rule shared by `switchTab` and the tab-URL prefetch) — §1.10 |
+| `src/app/(protected)/dashboard/DashboardScreen.tsx` | Owns the snapshot, warm map, preload, per-tab `tabStatus`, and the optimistic `previewView`; first-load timeout + retryable error — §1.13.2 |
 | `next.config.ts` | `experimental.staleTimes.dynamic = 120` client-router reuse window (§1.10) |
 | `src/app/(protected)/dashboard/page.tsx` | `?event=`/`?edit=`/`?refresh=` param validation |
 

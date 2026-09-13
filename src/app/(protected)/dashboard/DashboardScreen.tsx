@@ -48,6 +48,15 @@ interface DashboardScreenProps {
  */
 const DASHBOARD_LOAD_TIMEOUT_MS = 20_000;
 
+/**
+ * How long an optimistic tab tap survives without the URL catching up. The
+ * preview is normally cleared the moment `?view=` matches the tapped tab; if
+ * the navigation never lands (offline / stalled push) this bounds how long the
+ * displayed view can diverge from the URL, so a later action can't silently
+ * snap back to the URL's tab. Mirrors `NAV_TAP_REVERT_MS`.
+ */
+const PREVIEW_REVERT_MS = 6000;
+
 function inputFromParams(params: URLSearchParams) {
   return {
     view: params.get("view"),
@@ -136,9 +145,21 @@ export function DashboardScreen({
   const preloadedRef = useRef<{ signature: string; generation: number } | null>(null);
   const preloadGenerationRef = useRef(0);
 
+  // Optimistic active tab: set on tap (via the data context) so the displayed
+  // context can move before the URL navigation commits — a warm tab paints
+  // instantly instead of waiting on the RSC round-trip that updates
+  // `useSearchParams`. Cleared when the URL catches up (see the sync below), or
+  // by a revert timeout if the push never lands.
+  const [previewView, setPreviewView] = useState<string | null>(null);
+
   const view = searchParams.get("view");
   const month = searchParams.get("month");
   const date = searchParams.get("date");
+
+  // The tab the data layer resolves from: the optimistic tap while one is
+  // pending, else the URL. Everything data-bearing (candidate key, presentation,
+  // fetch decision) reads this, so the switch no longer waits for the URL.
+  const effectiveView = previewView ?? view;
 
   const editParam = searchParams.get("edit");
   const eventParam = searchParams.get("event");
@@ -154,8 +175,8 @@ export function DashboardScreen({
   // not change for an in-month day move, so such a move never fetches. `urlKey`
   // is the raw URL fingerprint that re-runs the fetch-decision effect below.
   const candidateKey = useMemo(
-    () => dashboardCandidateRequestKey(record, view, month, date),
-    [record, view, month, date],
+    () => dashboardCandidateRequestKey(record, effectiveView, month, date),
+    [record, effectiveView, month, date],
   );
 
   // The record the view renders: a warm cached context for this URL paints
@@ -171,7 +192,7 @@ export function DashboardScreen({
   const presentation = useMemo(
     () =>
       displayRecord
-        ? resolveDashboardPresentation(displayRecord, view, month, date, {
+        ? resolveDashboardPresentation(displayRecord, effectiveView, month, date, {
             // Only a genuinely warm candidate record (a different record than the
             // held one) suppresses the skeleton. When the destination isn't warm
             // this is a real navigation even while a device-cached record is on
@@ -183,11 +204,26 @@ export function DashboardScreen({
             failedKey: displayRecord !== record ? null : failedContextKey,
           })
         : null,
-    [displayRecord, record, view, month, date, failedContextKey],
+    [displayRecord, record, effectiveView, month, date, failedContextKey],
   );
   const isNavigating = presentation?.isNavigating ?? false;
   const urlKey = `${view ?? ""}|${month ?? ""}|${date ?? ""}`;
   const refreshParam = searchParams.get("refresh");
+
+  // Once the URL catches up to the optimistic tap the preview has served its
+  // purpose — drop it so the URL is authoritative again (render-phase "adjust
+  // state during render", the codebase's derived-state pattern).
+  if (previewView !== null && view === previewView) {
+    setPreviewView(null);
+  }
+  // Revert window: a tap whose navigation never lands must not strand the
+  // displayed view away from the URL, or a later action (which builds its href
+  // from `searchParams`) would snap back to the URL's tab.
+  useEffect(() => {
+    if (previewView === null) return;
+    const timer = window.setTimeout(() => setPreviewView(null), PREVIEW_REVERT_MS);
+    return () => window.clearTimeout(timer);
+  }, [previewView]);
 
   useReportActivity(busy, "dashboard:revalidate");
 
@@ -324,7 +360,9 @@ export function DashboardScreen({
   useEffect(() => {
     if (isRefreshNonceFresh(paramsRef.current.get("refresh"), Date.now())) return;
     const current = recordRef.current;
-    const urlView = paramsRef.current.get("view");
+    // The optimistic tap drives the decision too, so a not-yet-warm tab fetches
+    // immediately on tap instead of waiting for the URL to commit.
+    const urlView = previewView ?? paramsRef.current.get("view");
     const urlMonth = paramsRef.current.get("month");
     const urlDate = paramsRef.current.get("date");
     const candidate = dashboardCandidateRequestKey(current, urlView, urlMonth, urlDate);
@@ -367,9 +405,14 @@ export function DashboardScreen({
         return;
       }
     }
+    // A previewed (not-yet-committed) tab that isn't warm can't be fetched yet:
+    // the fetch input is built from the URL, which still names the previous tab
+    // (and its period rule). The URL-driven run after the push commits fetches it.
+    if (previewView !== null) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     void fetchFresh();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [urlKey]);
+  }, [urlKey, previewView]);
 
   // A fresh `?refresh=` nonce (header Force refresh reload, or the inactivity
   // refresh's soft navigation) forces a read even though the data key is
@@ -469,7 +512,7 @@ export function DashboardScreen({
     if (busy) {
       const activeKey = dashboardCandidateRequestKey(
         record,
-        searchParams.get("view"),
+        effectiveView,
         searchParams.get("month"),
         searchParams.get("date"),
       );
@@ -482,7 +525,7 @@ export function DashboardScreen({
       loadedKeys,
       loadingKeys,
     });
-  }, [record, warmRecords, preloadBusy, busy, searchParams]);
+  }, [record, warmRecords, preloadBusy, busy, effectiveView, searchParams]);
 
   const context = useMemo(
     () => ({
@@ -494,8 +537,10 @@ export function DashboardScreen({
       // around the data fetch.
       isNavigating,
       tabStatus,
+      previewView,
+      setPreviewView,
     }),
-    [revalidate, busy, isNavigating, tabStatus],
+    [revalidate, busy, isNavigating, tabStatus, previewView],
   );
 
   // `_eventCal`/`event` are deliberately absent from the request key, so a deep

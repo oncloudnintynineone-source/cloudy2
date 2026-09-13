@@ -324,18 +324,11 @@ html {
   }
 }
 
-/* View (tab) switch swipe: the incoming grid/skeleton slides in from the side
-   the target tab sits on. `--slide-dir` is 1 when the target is earlier in the
-   strip (enters from the right) and -1 when it is later (enters from the left).
-   The parent clips the transient offset, so this is transform-only. */
-@keyframes view-slide-in {
-  from {
-    transform: translateX(calc(var(--slide-dir, 1) * 10%));
-  }
-  to {
-    transform: translateX(0);
-  }
-}
+/* View (tab)/date swipe: the incoming grid/skeleton slides in from the side the
+   target sits on. Driven from JS through the Web Animations API (`el.animate`)
+   rather than a CSS class, so restarting it doesn't need a forced reflow of the
+   whole grid — see the slide effect in `DashboardView.tsx`. The parent clips the
+   transient offset, so it is transform-only. */
 
 @media (prefers-reduced-motion: no-preference) {
   .content-enter {
@@ -348,10 +341,6 @@ html {
 
   .agenda-slide-prev {
     animation: agenda-slide-in-prev var(--c2-dur-standard) cubic-bezier(0.22, 1, 0.36, 1);
-  }
-
-  .view-slide-enter {
-    animation: view-slide-in var(--c2-dur-standard) cubic-bezier(0.22, 1, 0.36, 1);
   }
 
   .wizard-step-enter {

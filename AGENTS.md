@@ -128,7 +128,10 @@ doc content here.
 - **Dashboard views (tabs) & filters:** per-account rows in `user_dashboard_views`
   (`src/lib/dashboardViews`), renderer kinds Month / Week (H) / Week (D) / Day / Agenda.
   Per-tab Cal/Users/Types filters are stored server-side (no `cal/users/types` URL params);
-  the active tab lives in `?view=<id>` + `user_preferences.dashboardActiveViewId`. Edit
+  the active tab lives in `?view=<id>` + `user_preferences.dashboardActiveViewId`. A tab
+  tap is **optimistic**: it sets `previewView` in `DashboardDataContext`, so
+  `DashboardScreen` paints a warm tab without waiting on the RSC round-trip that updates
+  `useSearchParams` (each tab's URL is also `router.prefetch`ed). Edit
   views modal uses the shared manage-row recipe (`reorderUpDown.tsx`) + optimistic
   `useReorderRows` FLIP. Month grids zoom from fit-to-width (`src/lib/ui/monthZoom.ts`,
   `dashboard.monthZoom`); Week (D) is a custom matrix (`buildWeekLanes`). Entry highlights:

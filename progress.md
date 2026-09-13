@@ -18,8 +18,7 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
 
 ## 1.1 Status
 
-- All work through changelog **1.226 (loading-indicator fixes + per-view tab load
-  state)** is shipped.
+- All work through changelog **1.227 (instant dashboard tab switches)** is shipped.
 - Quality gates (`lint` / `typecheck` / `test` / schema-drift check) run in CI on every
   push and PR. Pushes also auto-apply migrations per environment: `dev` →
   `migrate-preview` against the dev Neon DB, `main` → `migrate` against the prod Neon
@@ -918,6 +917,22 @@ via `?attendance=1` and `attendanceStorage` became a `useSyncExternalStore` exte
    existing data context; (e) `resolveDashboardConfig` batches its reads and single-tab
    accounts skip the preload's second config pass (`docs/loading-transitions.md`
    §1.13/§1.13.1/§1.13.2, `AGENTS.md`)
+- 1.227 Instant dashboard tab switches (optimistic + prefetch) and a reflow-free
+   grid swipe: a tab tap was still gated on the RSC round-trip because the data
+   layer resolved the active context from `useSearchParams`, which only updates
+   when the payload lands — even though the tapped tab's data was already warm in
+   the device cache. `switchTab` now sets a `previewView` in
+   `DashboardDataContext` and `DashboardScreen` resolves `candidateKey` /
+   `presentation` / `displayRecord` / `tabStatus` / the fetch decision from
+   `previewView ?? ?view=`, so a warm tab paints at once (and a cold tab fetches
+   immediately, not after the URL commits); the preview clears when the URL
+   catches up or after a 6 s revert window (`PREVIEW_REVERT_MS`), and
+   `DashboardView` `router.prefetch`es each tab's target URL (the period rule
+   extracted to pure `tabSwitchTarget`) so the URL catches up promptly. The grid
+   swipe moved from a CSS class + `void el.offsetWidth` forced reflow to the Web
+   Animations API (`el.animate`), removing a full-grid synchronous layout on every
+   tab/date change (`docs/loading-transitions.md` §1.10/§1.13.2,
+   `docs/dashboard-views.md` §1.4, `AGENTS.md`)
 
 ## 1.4 Open items & next steps
 

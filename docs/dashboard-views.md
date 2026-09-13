@@ -214,6 +214,16 @@ directly ([`events-cache.md`](events-cache.md)):
   reads the union of every tab's calendars/months in one pass and projects each
   tab's delta (see [`pwa-offline.md`](pwa-offline.md) §1.18). Switching tabs then
   paints from the device cache with no server round-trip.
+- **Tab switches are optimistic, decoupled from the router.** A tap sets a
+  `previewView` in `DashboardDataContext`; `DashboardScreen` resolves the
+  displayed context from `previewView ?? searchParams.view`, so a warm tab paints
+  immediately instead of waiting for the RSC round-trip that updates
+  `useSearchParams` (a warm tab's data is already local — the route payload was
+  the only lag). The `router.push` still runs for persistence/back-forward; the
+  preview clears once `?view=` catches up, or after a 6 s revert window
+  (`PREVIEW_REVERT_MS`) if the push never lands. `DashboardView` also
+  `router.prefetch`es each tab's target URL so the URL catches up promptly.
+  (`docs/loading-transitions.md` §1.10/§1.13.2.)
 - Wide grids (Day/Week (H)/Week (D), plus Month once its fit-width zoom makes it
   overflow) pan horizontally through `useGridPan` + `GridPanControls`
   ([`grid-pan.md`](grid-pan.md)); the dashboard chrome can go fullscreen
@@ -468,11 +478,12 @@ flowchart LR
 
 | File | Role |
 | -------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `src/lib/dashboardViews/views.ts` | Kind vocabulary + labels, tab DTO, filter-override normalizers, `resolveActiveTab` (pure) |
+| `src/lib/dashboardViews/views.ts` | Kind vocabulary + labels, tab DTO, filter-override normalizers, `resolveActiveTab`, `tabSwitchTarget` (pure) |
 | `src/lib/dashboardViews/queries.ts` | Tab reads + the mutex-guarded default "Month" seed |
 | `src/lib/dashboardViews/actions.ts` | Tab CRUD: `create/rename/delete/reorderDashboardViews`, `saveDashboardViewFilters` |
 | `src/lib/userPrefs/queries.ts` + `actions.ts` | `user_preferences` row: last-active tab + parade filters (incl. `saveParadeFilters`) |
-| `src/app/(protected)/dashboard/DashboardView.tsx`  | Tab strip (+ right-side Edit-views trigger and All-views jump popover), tab switch + period rules, filter state, schedule zoom + month zoom state & widths |
+| `src/app/(protected)/dashboard/DashboardView.tsx`  | Tab strip (+ right-side Edit-views trigger and All-views jump popover), optimistic tab switch + period rules + tab-URL prefetch, filter state, schedule zoom + month zoom state & widths |
+| `src/app/(protected)/dashboard/DashboardScreen.tsx` | Snapshot/warm-cache/preload owner; resolves the displayed context from `previewView ?? ?view=` so warm tab switches paint without waiting on the RSC |
 | `src/app/(protected)/dashboard/EditViewsModal.tsx` | Edit-views dialog: card manage list (↑/↓ reorder, Change-type picker, inline rename, nested delete confirm, Add-view button) |
 | `src/app/(protected)/dashboard/ViewTypePicker.tsx` | Shared five-kind picker (Month/Week (H)/Week (D)/Day/Agenda) used by Add view and Edit-views Change type |
 | `src/app/(protected)/dashboard/viewMeta.tsx` | Kind → icon/label map shared by the strip, the Add-view picker and Edit-views rows |
