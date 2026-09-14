@@ -3,7 +3,7 @@ import { cookies } from "next/headers";
 
 import { PageTransition } from "@/components/PageTransition";
 import { clampMonthZoom } from "@/lib/ui/monthZoom";
-import { clampGridWeekColZoom, clampZoom } from "@/lib/ui/slotZoom";
+import { GRID_WEEK_COL_ZOOM_DEFAULT, clampGridWeekColZoom, clampZoom } from "@/lib/ui/slotZoom";
 import { DUAL_SPLIT_DEFAULT, clampDualSplit } from "@/lib/ui/dualSplit";
 import { UI_STATE_COOKIE, decodeUiState } from "@/lib/ui/uiState";
 import { requireSession } from "@/lib/session";
@@ -24,7 +24,10 @@ export default async function DashboardPage() {
   // before first paint so a cold open restores the last zoom with no width jump.
   const nav = decodeUiState((await cookies()).get(UI_STATE_COOKIE)?.value)?.dashboard;
   const initialZoom = clampZoom(nav?.zoom) ?? 1;
-  const initialGridWeekColZoom = clampGridWeekColZoom(nav?.gridWeekColZoom) ?? 1;
+  // Week (Grid) columns default to 2× fit (GRID_WEEK_COL_ZOOM_DEFAULT), not the
+  // fit level: a fresh device opens the grid zoomed in and panning.
+  const initialGridWeekColZoom =
+    clampGridWeekColZoom(nav?.gridWeekColZoom) ?? GRID_WEEK_COL_ZOOM_DEFAULT;
   const initialGridWeekRowZoom = clampZoom(nav?.gridWeekRowZoom) ?? 1;
   const initialMonthZoom = clampMonthZoom(nav?.monthZoom) ?? 1;
   // Dual Pane split ratio (Month pane fraction) — same device-local contract.

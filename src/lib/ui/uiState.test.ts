@@ -133,6 +133,34 @@ describe("cookie versioning", () => {
       dashboard: { month: "2026-08" },
     });
   });
+
+  it("drops the v3.4 gridWeekColZoom old default (1) when migrating to v3.5", () => {
+    const value = b64url(
+      JSON.stringify({
+        v: [3, 4],
+        lastPage: "/dashboard",
+        dashboard: { month: "2026-08", gridWeekColZoom: 1, gridWeekRowZoom: 0.75 },
+      }),
+    );
+    expect(decodeUiState(value)).toEqual({
+      lastPage: "/dashboard",
+      dashboard: { month: "2026-08", gridWeekRowZoom: 0.75 },
+    });
+  });
+
+  it("keeps an explicitly remembered non-default v3.4 gridWeekColZoom", () => {
+    const value = b64url(
+      JSON.stringify({
+        v: [3, 4],
+        lastPage: "/dashboard",
+        dashboard: { gridWeekColZoom: 1.5 },
+      }),
+    );
+    expect(decodeUiState(value)).toEqual({
+      lastPage: "/dashboard",
+      dashboard: { gridWeekColZoom: 1.5 },
+    });
+  });
 });
 
 describe("normalizeUiState (shape safety)", () => {
@@ -182,7 +210,7 @@ describe("normalizeUiState (shape safety)", () => {
     });
     // clampZoom caps at the max level; date is any non-empty string here (the
     // consuming page re-validates the pattern); a non-string month is dropped.
-    expect(state).toEqual({ dashboard: { zoom: 2, date: "not-a-date" } });
+    expect(state).toEqual({ dashboard: { zoom: 3, date: "not-a-date" } });
   });
 
   it("snaps monthZoom to a known fit multiplier and drops junk values", () => {
@@ -208,7 +236,7 @@ describe("normalizeUiState (shape safety)", () => {
     ).toEqual({ dashboard: { gridWeekRowZoom: 1.5 } });
     expect(
       normalizeUiState({ dashboard: { gridWeekRowZoom: 99 } }),
-    ).toEqual({ dashboard: { gridWeekRowZoom: 2 } });
+    ).toEqual({ dashboard: { gridWeekRowZoom: 3 } });
     expect(
       normalizeUiState({ dashboard: { gridWeekRowZoom: 0.5 } }),
     ).toEqual({ dashboard: { gridWeekRowZoom: 0.5 } });
@@ -226,7 +254,7 @@ describe("normalizeUiState (shape safety)", () => {
     ).toEqual({ dashboard: { gridWeekColZoom: 1 } });
     expect(
       normalizeUiState({ dashboard: { gridWeekColZoom: 99 } }),
-    ).toEqual({ dashboard: { gridWeekColZoom: 2 } });
+    ).toEqual({ dashboard: { gridWeekColZoom: 3 } });
     expect(
       normalizeUiState({ dashboard: { gridWeekColZoom: "2" } }),
     ).toEqual({});

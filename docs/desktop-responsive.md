@@ -158,7 +158,7 @@ gated on `isDesktop`):
 | ------- | ------ | ------- |
 | Schedule views' resource/group label widths (`--resources-day-view-*` / `--resources-week-view-*` vars) | `3rem` / `1.5rem` | `6rem` / `3.5rem` — shortnames get room to stop ellipsizing |
 | Week (H) timeline slot width (`--resources-week-view-slot-width`) | Mantine default (`calc(3.75rem * var(--mantine-scale))`, 60px/hour) | `calc(4.5rem * var(--mantine-scale))` (72px/hour) |
-| Day timeline slot width (`--resources-day-view-slot-width`) | Mantine default (`calc(5rem * var(--mantine-scale))`, 80px/hour) | same — both slot widths are then multiplied by the shared **timeline zoom** level (0.5–2, default 1; see [`dashboard-views.md`](dashboard-views.md#17-timeline-zoom-day-and-week-h)) |
+| Day timeline slot width (`--resources-day-view-slot-width`) | Mantine default (`calc(5rem * var(--mantine-scale))`, 80px/hour) | same — both slot widths are then multiplied by the shared **timeline zoom** level (0.5–3, default 1; see [`dashboard-views.md`](dashboard-views.md#17-timeline-zoom-day-week-h-and-week-grid)) |
 | Week (D) matrix label columns | `MOBILE_LABEL_WIDTH` 3rem / group 1.5rem | `DESKTOP_LABEL_WIDTH` 5rem / group 2.5rem (header spacers, sticky row labels, `contentMinWidth`, `labelLeft`) |
 | Month view `maxEventsPerDay` | 3 | 4 |
 | "New event" | FAB only | FAB **hidden** (`hiddenFrom="lg"`) — replaced by a `Button visibleFrom="lg"` in the header row beside the ⋮ menu |

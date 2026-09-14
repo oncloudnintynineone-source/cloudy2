@@ -179,12 +179,18 @@ old majors wholesale on first read (see §1.5.2).
   to `null` once and is re-stamped fresh on the next write.
 - Within the current major, a **newer minor** decodes as-is (forward
   compatible, unknown fields dropped by `normalizeUiState`); an **older
-  minor** runs the pure `MINOR_MIGRATIONS` chain first. The chain is a
-  pass-through for every step so far: v3.1 added `monthZoom`, v3.2 added
-  `dualSplit`, v3.3 added `gridWeekZoom`, and v3.4 split that into the
-  independent `gridWeekColZoom`/`gridWeekRowZoom` — an older cookie simply lacks
-  the key and the consumer falls back to its default (fit zoom / 60-40 split /
-  100%); the dropped `gridWeekZoom` is ignored.
+  minor** runs the pure `MINOR_MIGRATIONS` chain first. v3.1 added
+  `monthZoom`, v3.2 added `dualSplit`, v3.3 added `gridWeekZoom`, and v3.4
+  split that into the independent `gridWeekColZoom`/`gridWeekRowZoom` — those
+  steps are pass-throughs (an older cookie simply lacks the key and the
+  consumer falls back to its default (fit zoom / 60-40 split); the dropped
+  `gridWeekZoom` is ignored). **v3.5 is the first real migration**: the Week
+  (Grid) column default moved from fit (`1`) to 2× fit (`2`,
+  `GRID_WEEK_COL_ZOOM_DEFAULT` in slotZoom.ts), and the persist effect writes
+  the current level on every mount, so v3.4 devices sitting at exactly `1`
+  carry the auto-persisted old default (a deliberate 100% is
+  indistinguishable) — the migration drops that key so the new default
+  re-seeds, and keeps any explicitly remembered non-default level.
 - The cookie is tiny (scalars + short id lists nowhere near the ~4 KiB browser
   cap), so the old overflow-trimming machinery is gone.
 

@@ -17,7 +17,7 @@
  */
 
 /** Discrete zoom levels, smallest to largest. 1 = the default slot widths. */
-export const ZOOM_LEVELS = [0.5, 0.75, 1, 1.25, 1.5, 2] as const;
+export const ZOOM_LEVELS = [0.5, 0.75, 1, 1.25, 1.5, 2, 2.5, 3] as const;
 export type SlotZoom = (typeof ZOOM_LEVELS)[number];
 
 export const MIN_ZOOM = ZOOM_LEVELS[0];
@@ -59,6 +59,15 @@ export function clampZoom(raw: unknown): SlotZoom | null {
 
 /** Smallest column-zoom level: the fit-to-width baseline (never below it). */
 export const MIN_COLUMN_ZOOM = 1;
+
+/**
+ * Week (Grid) column-zoom default: 2× the fit-to-width columns (each day column
+ * spans twice the viewport-seventh, so about three and a half days fit on
+ * screen and the grid pans). It is NOT the level floor — `MIN_COLUMN_ZOOM`
+ * (fit) still bounds zoom-out; this only seeds the level when the device
+ * cookie carries none.
+ */
+export const GRID_WEEK_COL_ZOOM_DEFAULT = 2;
 
 /**
  * Coerce a remembered Week (Grid) **column** zoom. Same snapping as

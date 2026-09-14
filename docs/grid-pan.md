@@ -52,16 +52,24 @@ intentionally subdued secondary chrome lighter than the date-nav chevrons):
   grids use one right-edge control cluster: the **timeline zoom** in/out pair on
   top, a divider, then the right pan arrow; a single left-edge pan arrow stays
   edge-anchored on the left so "scroll left" still reads from the left edge (see
-  [`dashboard-views.md`](dashboard-views.md#17-timeline-zoom-day-and-week-h)).
+  [`dashboard-views.md`](dashboard-views.md#17-timeline-zoom-day-week-h-and-week-grid)).
   The **Month** grid's fit-width zoom (§1.8 of
   [`dashboard-views.md`](dashboard-views.md#18-month-grid-zoom-fit-to-width)) uses
   the same cluster with its own zoom levels (`zoomMin`/`zoomMax`) and its own pan
   instance — its pan arrows appear only once a zoom level overflows the viewport.
-  The cluster hangs from its **bottom edge**, so the right pan arrow's center sits
-  on the visible-slice center — vertically aligned with the left pan arrow — and
-  the zoom pair's slot above does not depend on `canScrollRight`, so nothing
-  shifts when the arrow appears or disappears while panning. Unlike the pan
-  arrows, the zoom pair renders whenever the schedule/grid is shown — zoom is
+  The **Week (Grid)** view's two-axis zoom uses the same cluster split around
+  the arrow: the **columns** pair above the right pan arrow and the **rows**
+  pair below (each behind its own divider), anchored so the arrow's center sits
+  on the **viewport** center (§1.7 of
+  [`dashboard-views.md`](dashboard-views.md#17-timeline-zoom-day-week-h-and-week-grid)).
+  For the single-axis clusters the widget hangs from its **bottom edge**, so the
+  right pan arrow's center sits on the visible-slice center — vertically aligned
+  with the left pan arrow — and the zoom pair's slot above does not depend on
+  `canScrollRight`; in the two-axis cluster the arrow slot and its dividers are
+  likewise reserved (hidden, space kept) when the grid fits without
+  overflowing. Either way nothing shifts when the arrow appears or disappears
+  while panning. Unlike the pan
+  arrows, the zoom pair(s) render whenever the schedule/grid is shown — zoom is
   useful even when the grid fits without overflowing.
 
 **Positioning: `position: fixed`, statically anchored — no scroll tracking.**

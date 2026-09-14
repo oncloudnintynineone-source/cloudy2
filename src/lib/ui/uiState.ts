@@ -136,7 +136,7 @@ function fromBase64Url(value: string): string {
 // are unchanged: a major mismatch in EITHER direction drops the cookie, a
 // newer minor decodes as-is (forward-compatible), an older minor runs the
 // migration chain before normalization.
-const COOKIE_VERSION: readonly [number, number] = [3, 4];
+const COOKIE_VERSION: readonly [number, number] = [3, 5];
 
 /**
  * Minor migrations within the CURRENT major, keyed by the minor they upgrade
@@ -145,8 +145,14 @@ const COOKIE_VERSION: readonly [number, number] = [3, 4];
  * is a pass-through and normalization fills the gap (no monthZoom = the fit
  * default). v3.2 adds the Dual Pane split (`dualSplit`), v3.3 the Week (Grid)
  * zoom (`gridWeekZoom`) and v3.4 splits that into the independent column/row
- * levels (`gridWeekColZoom`/`gridWeekRowZoom`) — all pass-throughs (a missing
- * key = the view's default level; the dropped `gridWeekZoom` is ignored).
+ * levels (`gridWeekColZoom`/`gridWeekRowZoom`) — pass-throughs (a missing key
+ * = the view's default level; the dropped `gridWeekZoom` is ignored). v3.5
+ * raises the Week (Grid) column default from fit (1) to 2× fit (2,
+ * `GRID_WEEK_COL_ZOOM_DEFAULT` in slotZoom.ts): the persist effect writes the
+ * current level on every mount, so devices sitting at exactly `1` carry the
+ * auto-persisted old default (a deliberate 100% is indistinguishable) — the
+ * migration drops that key so the new default re-seeds, and keeps any
+ * explicitly remembered non-default level.
  */
 const MINOR_MIGRATIONS: Record<number, (value: Record<string, unknown>) => Record<string, unknown>> =
   {
@@ -154,6 +160,13 @@ const MINOR_MIGRATIONS: Record<number, (value: Record<string, unknown>) => Recor
     1: (value) => value,
     2: (value) => value,
     3: (value) => value,
+    4: (value) => {
+      const dashboard = isPlainObject(value.dashboard) ? value.dashboard : undefined;
+      if (dashboard !== undefined && dashboard.gridWeekColZoom === 1) {
+        delete dashboard.gridWeekColZoom;
+      }
+      return value;
+    },
   };
 
 function parseCookieVersion(raw: unknown): [number, number] | null {

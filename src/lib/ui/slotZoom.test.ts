@@ -26,7 +26,8 @@ describe("clampZoom", () => {
     expect(clampZoom(1.1)).toBe(1);
     expect(clampZoom(1.4)).toBe(1.5);
     expect(clampZoom(0.3)).toBe(0.5);
-    expect(clampZoom(3)).toBe(2);
+    expect(clampZoom(2.3)).toBe(2.5);
+    expect(clampZoom(3.4)).toBe(3);
   });
 
   it("returns null for non-numeric or non-finite input", () => {
@@ -44,6 +45,8 @@ describe("clampGridWeekColZoom", () => {
     expect(clampGridWeekColZoom(1)).toBe(1);
     expect(clampGridWeekColZoom(1.5)).toBe(1.5);
     expect(clampGridWeekColZoom(2)).toBe(2);
+    expect(clampGridWeekColZoom(2.5)).toBe(2.5);
+    expect(clampGridWeekColZoom(3)).toBe(3);
   });
 
   it("snaps an off-level number, flooring below fit at 1", () => {
@@ -66,6 +69,8 @@ describe("stepZoom", () => {
     expect(stepZoom(1, -1)).toBe(0.75);
     expect(stepZoom(0.5, 1)).toBe(0.75);
     expect(stepZoom(2, -1)).toBe(1.5);
+    expect(stepZoom(2, 1)).toBe(2.5);
+    expect(stepZoom(2.5, -1)).toBe(2);
   });
 
   it("clamps at the extremes instead of looping", () => {

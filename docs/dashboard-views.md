@@ -391,32 +391,41 @@ user can fit more of the day/week in view (overview) or expand it for detail. On
 slot granularity (still 60-minute columns) or the row height.
 
 Week (Grid) is different: it is a conventional 7-day grid whose right-edge
-cluster carries **two independent zoom pairs** — **columns** on top and **rows**
-below (separated by a divider), each with its **own** remembered level
+cluster carries **two independent zoom pairs split around the right pan arrow**
+— **columns** above it and **rows** below (each side behind its own divider),
+each with its **own** remembered level
 (`dashboard.gridWeekColZoom` / `dashboard.gridWeekRowZoom`, so neither affects
 the Day / Week (H) column widths):
 
 - **Columns** (`gridWeekColumnWidth`, `width = max(1, zoom) × 100%`): scales the
-  day-column width. Floored at the fit level (its pair disables zoom-out there),
-  so columns never shrink below the viewport width (which would leave empty
-  space beside the grid). The day-header, all-day and column rows all take the
-  same multiplier, so they stay aligned while the grid overflows; at that point
-  the full pan controls (drag + edge arrows, `useGridPan`) appear, exactly like
-  Week (H)/Day. A layout effect re-anchors the horizontal scroll
-  (`reanchorScrollLeft`, accounting for the fixed slot-label column) so the day
-  under the viewport's center stays put.
+  day-column width. **Defaults to 2× fit** (`GRID_WEEK_COL_ZOOM_DEFAULT` — a
+  fresh device opens the grid zoomed in and panning); floored at the fit level
+  (its pair disables zoom-out there), so columns never shrink below the
+  viewport width (which would leave empty space beside the grid). The
+  day-header, all-day and column rows all take the same multiplier, so they
+  stay aligned while the grid overflows; at that point the full pan controls
+  (drag + edge arrows, `useGridPan`) appear, exactly like Week (H)/Day. A
+  layout effect re-anchors the horizontal scroll (`reanchorScrollLeft`,
+  accounting for the fixed slot-label column) so the day under the viewport's
+  center stays put.
 - **Rows** (`gridWeekSlotHeight`, base 3.5rem/56px): scales the hour-slot height
-  across the full `0.5–2` range; a layout effect re-anchors the vertical scroll
-  (`reanchorScrollTop`).
+  across the full `0.5–3` range (default 1); a layout effect re-anchors the
+  vertical scroll (`reanchorScrollTop`).
 - Because the row zoom changes the grid's height, the cluster is pinned to the
   **viewport** center (`GridNavControls centerOn="viewport"`) rather than the
   grid's visible-slice center, so it can't drift as the grid grows/shrinks. The
-  row pair is passed as the cluster's `secondaryZoom` group.
+  cluster is anchored so the **right pan arrow's center** lands on that point,
+  with the columns pair above and the rows pair below; the arrow slot (and its
+  dividers) is reserved even when the grid fits without overflowing, so the
+  pairs never shift while panning. The row pair is passed as the cluster's
+  `secondaryZoom` group.
 
 The rest of this section describes the shared horizontal mechanism.
 
-- **Levels**: discrete `0.5, 0.75, 1, 1.25, 1.5, 2` (`ZOOM_LEVELS`,
-  `src/lib/ui/slotZoom.ts`); `1` is the default (today's fixed widths). The buttons
+- **Levels**: discrete `0.5, 0.75, 1, 1.25, 1.5, 2, 2.5, 3` (`ZOOM_LEVELS`,
+  `src/lib/ui/slotZoom.ts`); `1` is the default (today's fixed widths) for the
+  Day / Week (H) timeline zoom and the Week (Grid) rows — the Week (Grid)
+  columns default to `2` (2× fit, see above). The buttons
   step one level at a time and clamp at the extremes (disabled there).
 - **Controls**: `GridNavControls` (`src/components/GridNavControls.tsx`) — the zoom
   in/out pair lives in the **same right-edge control cluster** as the right pan
@@ -509,7 +518,7 @@ the same horizontal pan the other views use.
   view's own `useGridPan` instance (`monthPan`). The zoom pair always shows; the pan
   arrows and drag-to-pan appear only once a zoom level overflows the viewport.
   `GridNavControls` takes the month's level range via `zoomMin`/`zoomMax` (the
-  component's defaults remain the timeline zoom's 0.5–2).
+  component's defaults remain the timeline zoom's 0.5–3).
 - **Pinned weekday strip**: the `MonthWeekdayStrip` track is sized to the same
   zoomed content width (`width: ${zoom × 100}%`, cells `flex: 0 0 100%/7` — no
   84px floor), so the initials stay exactly over their day columns at every zoom
