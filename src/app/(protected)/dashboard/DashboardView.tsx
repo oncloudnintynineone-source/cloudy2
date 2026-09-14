@@ -3274,21 +3274,50 @@ export function DashboardView({
               // grid overflows into the pan. At the fit level the width is 100%
               // (the library's own layout), so nothing changes until zoomed in.
               styles={{
-                weekViewHeader: { width: gridWeekColumnWidthValue },
-                // Pin the all-day row under the library's own sticky day header
-                // (top: 0) so both stay visible while the hour rows scroll. The
-                // header is `--week-view-week-day-height` tall with a -1px
-                // bottom margin; z-index 3 sits below the header (4) and above
-                // the current-time indicator (2). Opaque so scrolled rows don't
-                // show through.
+                // Sticky chrome ladder: hour labels (4) < all-day row (5) <
+                // day header (6). The library's timed-event root is z-index 3,
+                // so the all-day row must sit above it — otherwise, once the
+                // grid scrolls (it opens at the current time), the in-day chips
+                // slide up under the row and paint over it (equal z-index, the
+                // later hour grid wins on DOM order).
+                weekViewHeader: { width: gridWeekColumnWidthValue, zIndex: 6 },
+                // Left label column pinned while panning (the columns overflow
+                // by default at the 2× fit zoom): the week-number corner, the
+                // "All day" label and the hour labels each stick to the
+                // scroller's left edge, opaque so the day columns scroll under.
+                weekViewCorner: {
+                  position: "sticky",
+                  left: 0,
+                  zIndex: 1,
+                  backgroundColor: "var(--mantine-color-body)",
+                },
+                // Pin the all-day row under the day header (top: 0) so both stay
+                // visible while the hour rows scroll. The header is
+                // `--week-view-week-day-height` tall with a -1px bottom margin.
                 weekViewAllDaySlots: {
                   width: gridWeekColumnWidthValue,
                   position: "sticky",
                   top: "calc(var(--week-view-week-day-height) - 1px)",
+                  zIndex: 5,
+                  backgroundColor: "var(--mantine-color-body)",
+                },
+                // Above the all-day event chips (the library gives those
+                // z-index 2 inside the row's stacking context).
+                weekViewAllDaySlotsLabel: {
+                  position: "sticky",
+                  left: 0,
                   zIndex: 3,
                   backgroundColor: "var(--mantine-color-body)",
                 },
-                weekViewInner: { width: gridWeekColumnWidthValue },
+                weekViewSlotLabels: {
+                  position: "sticky",
+                  left: 0,
+                  zIndex: 4,
+                },
+                // The library clips the inner (overflow: hidden), which traps
+                // the hour labels' sticky-left in a scrollport that never
+                // scrolls; releasing it lets them pin to the scroller.
+                weekViewInner: { width: gridWeekColumnWidthValue, overflow: "visible" },
               }}
               // The merged viewport serves both the slot-height zoom re-anchor
               // (layout effect above) and the drag/edge pan.

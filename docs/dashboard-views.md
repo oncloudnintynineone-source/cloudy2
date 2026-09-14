@@ -411,17 +411,24 @@ the Day / Week (H) column widths):
 - **Rows** (`gridWeekSlotHeight`, base 3.5rem/56px): scales the hour-slot height
   across the full `0.5–3` range (default 1); a layout effect re-anchors the
   vertical scroll (`reanchorScrollTop`).
-- **Internal scroll (pinned header + all-day row).** The grid's `ScrollArea` is
-  **viewport-bounded** (`scrollAreaProps.style.maxHeight` — the Dual-Pane height
-  budget minus `--c2-weekgrid-below-pad`, the page pad / mobile FAB clearance
-  below it), so it scrolls **internally** rather than growing the page: the
-  library's day header (sticky, `top: 0`) and the app's sticky all-day row
-  (`weekViewAllDaySlots`, `top: calc(var(--week-view-week-day-height) - 1px)`,
-  `z-index: 3`) stay pinned while the hour rows scroll. That bound is also why
-  `startScrollTime` (open at the current time) and the row-zoom re-anchor — both
-  read the viewport's `scrollTop` — work here. Unlike Month / Day / Week (H) /
-  Week (D), which page-scroll with pinned strips rendered outside their
-  scrollers.
+- **Internal scroll (pinned header + all-day row + left column).** The grid's
+  `ScrollArea` is **viewport-bounded** (`scrollAreaProps.style.maxHeight` — the
+  Dual-Pane height budget minus `--c2-weekgrid-below-pad`, the page pad / mobile
+  FAB clearance below it), so it scrolls **internally** rather than growing the
+  page: the library's day header (sticky, `top: 0`) and the app's sticky all-day
+  row (`weekViewAllDaySlots`, `top: calc(var(--week-view-week-day-height) - 1px)`)
+  stay pinned while the hour rows scroll. The sticky chrome is stacked as
+  **hour labels (4) < all-day row (5) < day header (6)** — the all-day row must
+  clear the library's timed-event root (`z-index: 3`), else the in-day chips
+  paint over it once the grid scrolls. The **left label column** (week-number
+  corner, "All day", hour labels) is `position: sticky; left: 0` too, so it
+  stays put while the columns pan (they overflow by default at the 2× zoom);
+  the hour labels need `weekViewInner { overflow: visible }` to escape the
+  library's `overflow: hidden`, which would otherwise trap the sticky in a
+  scrollport that never scrolls. That bound is also why `startScrollTime` (open
+  at the current time) and the row-zoom re-anchor — both read the viewport's
+  `scrollTop` — work here. Unlike Month / Day / Week (H) / Week (D), which
+  page-scroll with pinned strips rendered outside their scrollers.
 - The cluster anchors to the grid's **visible-slice center** like every other
   view — the right pan arrow slot's center lands on it — with the columns pair
   above and the rows pair below; the arrow slot (and its dividers) is reserved
