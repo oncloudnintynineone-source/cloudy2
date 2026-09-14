@@ -9,6 +9,7 @@ import {
   periodSwitchDirection,
   resolveActiveTab,
   sanitizeDashboardViewName,
+  tabSwitchNeedsReload,
   tabSwitchTarget,
   viewSwitchDirection,
   type DashboardViewTab,
@@ -251,5 +252,45 @@ describe("tabSwitchTarget", () => {
     expect(tabSwitchTarget({ id: "dp2", kind: "dual" }, { ...base, view: "dual" })).toEqual({
       view: "dp2",
     });
+  });
+});
+
+describe("tabSwitchNeedsReload", () => {
+  it("forces a read for an explicit force (CRUD navigation)", () => {
+    expect(
+      tabSwitchNeedsReload({ target: agendaA, activeView: month, tabs, force: true }),
+    ).toBe(true);
+  });
+
+  it("forces a read for an unknown id (a freshly created view)", () => {
+    expect(
+      tabSwitchNeedsReload({
+        target: { id: "new", kind: "month" },
+        activeView: month,
+        tabs,
+      }),
+    ).toBe(true);
+  });
+
+  it("forces a read for the active tab under a changed kind", () => {
+    expect(
+      tabSwitchNeedsReload({
+        target: { id: month.id, kind: "agenda" },
+        activeView: month,
+        tabs,
+      }),
+    ).toBe(true);
+  });
+
+  it("leaves a known cross-kind switch to the warm cache", () => {
+    expect(
+      tabSwitchNeedsReload({ target: agendaA, activeView: month, tabs }),
+    ).toBe(false);
+  });
+
+  it("leaves a known same-kind switch to the warm cache", () => {
+    expect(
+      tabSwitchNeedsReload({ target: agendaB, activeView: agendaA, tabs }),
+    ).toBe(false);
   });
 });

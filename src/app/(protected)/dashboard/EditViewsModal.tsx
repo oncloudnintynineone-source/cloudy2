@@ -50,8 +50,12 @@ interface EditViewsModalProps {
   activeView: DashboardViewTab;
   /** A list mutation landed (rename/reorder/non-active delete) — refresh. */
   onMutated: () => void;
-  /** Navigate to a tab (or the active tab's new kind after an edit). */
-  onNavigateToView: (tab: Pick<DashboardViewTab, "id" | "kind">) => void;
+  /** Navigate to a tab (or the active tab's new kind after an edit). `force`
+   *  forces a server re-read for a CRUD navigation whose tab list changed. */
+  onNavigateToView: (
+    tab: Pick<DashboardViewTab, "id" | "kind">,
+    options?: { force?: boolean },
+  ) => void;
   /** Switch to a tab and open its filter dialog (the Edit dialog's Filters). */
   onEditFilters: (tab: DashboardViewTab) => void;
   /** Open the quick "Add view" dialog (the strip's + flow). */
@@ -182,7 +186,9 @@ export function EditViewsModal({
       setDeleting(null);
       const remaining = tabs.filter((tab) => tab.id !== target.id);
       if (target.id === activeView.id && remaining.length > 0) {
-        onNavigateToView(remaining[0]);
+        // Force a re-read: the held tab list still contains the deleted row, so
+        // a data-equivalent next tab would swap locally and leave it behind.
+        onNavigateToView(remaining[0], { force: true });
       } else {
         onMutated();
       }

@@ -148,6 +148,7 @@ import { createDashboardView, saveDashboardViewFilters } from "@/lib/dashboardVi
 import {
   DASHBOARD_VIEW_KIND_LABELS,
   periodSwitchDirection,
+  tabSwitchNeedsReload,
   tabSwitchTarget,
   viewSwitchDirection,
   type DashboardTabFilters,
@@ -1887,7 +1888,10 @@ export function DashboardView({
    * The tab's own filters are read server-side on the next render, so no
    * filter params travel in the URL.
    */
-  function switchTab(tab: Pick<DashboardViewTab, "id" | "kind">) {
+  function switchTab(
+    tab: Pick<DashboardViewTab, "id" | "kind">,
+    options?: { force?: boolean },
+  ) {
     // Optimistic data switch: the data layer resolves the tapped tab
     // immediately, so a warm tab paints without waiting for the URL/RSC
     // round-trip (`useSearchParams` only updates when the payload lands).
@@ -1907,13 +1911,14 @@ export function DashboardView({
       setAgendaUrlBase(null);
     }
     setShownTabId(tab.id);
-    // A kind change on the tab you're already looking at keeps the same
-    // `?view=` id, so the request key (id + months) is definition-blind and the
-    // keyed fetch would treat the new kind as already covered — the edit would
-    // not apply until a force refresh. Force the re-read here, using the target
-    // period (not the not-yet-committed URL) so the fetch matches the href the
-    // navigation is about to push.
-    if (tab.id === activeView.id && tab.kind !== view) {
+    // Force the re-read when the held tab list can't cover the target: a newly
+    // created / unknown id, a CRUD navigation (`force`), or the active tab
+    // re-rendered under a new kind (the request key `viewId|months` is
+    // definition-blind). Without it the keyed fetch treats the target as already
+    // covered and the change would not apply until a Force refresh. Use the
+    // target period (not the not-yet-committed URL) so the fetch matches the
+    // href the navigation is about to push.
+    if (tabSwitchNeedsReload({ target: tab, activeView, tabs, force: options?.force })) {
       const params = buildParams(target);
       // A definition reload is not a Google force-refresh.
       params.delete("refresh");
@@ -2186,7 +2191,10 @@ export function DashboardView({
         return;
       }
       closeCreateView();
-      switchTab({ id: result.id, kind: createKind });
+      // Force a server re-read: the new tab's id is unknown to the held tab
+      // list, so the definition-blind request key would treat it as already
+      // covered and the new tab would not appear until a Force refresh.
+      switchTab({ id: result.id, kind: createKind }, { force: true });
     } finally {
       setCreating(false);
     }

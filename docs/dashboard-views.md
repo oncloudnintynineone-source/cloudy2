@@ -59,7 +59,9 @@ string maps to the first tab of that kind.
     strip;
   - the **Manage-views modal**'s compact **Add view** button at the top, so
     creation is reachable from the always-pinned gear too.
-  Creating appends the tab and navigates to it.
+  Creating appends the tab and navigates to it; the new id is unknown to the
+  held tab list (the request key `viewId|months` is definition-blind), so the
+  switch forces a server re-read and the tab appears without a Force refresh.
 - **Manage views** (a settings **gear** to the RIGHT of the strip, outside the
   horizontal scroll area — so the scroll set ends before it; tooltip "Manage
   views") opens a **centered modal** (`EditViewsModal.tsx`, sharing the app's
@@ -91,7 +93,8 @@ string maps to the first tab of that kind.
   just refreshes the list;
   - a **trash** (subtle red) deletes behind a nested `size="sm"` confirm (the
     last tab can't be deleted — its trash is disabled; deleting the active tab
-    navigates to the first remaining).
+    navigates to the first remaining and forces a re-read, so the deleted row
+    can't linger behind a data-equivalent local swap).
   The Edit dialog also carries the per-view **Filters** entry point: an **Edit
   filters…** button closes the modal, switches to that view and opens its filter
   dialog (the dashboard's one per-view filter UI — see §1.2). Filters resolve

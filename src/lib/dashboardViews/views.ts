@@ -246,3 +246,37 @@ export function tabSwitchTarget(
   }
   return { view: id };
 }
+
+/**
+ * Whether tapping a tab must force a server re-read instead of relying on the
+ * held record's request key (`viewId|months`), which is definition-blind:
+ *
+ * - the target id is **not in the held `tabs`** — a freshly created view (or a
+ *   foreign/deep-linked id). The request key would resolve the unknown id back
+ *   to the held tab and look already covered, so the new tab would never load
+ *   until a Force refresh;
+ * - the target **is the active tab under a changed kind** (edited in place) —
+ *   same id, so the request key can't tell the definitions apart;
+ * - `force` — an explicit override from a CRUD navigation (e.g. deleting the
+ *   active view, whose next tab is a known id that the stale held list would
+ *   otherwise satisfy with a local swap, leaving the deleted row behind).
+ *
+ * A normal switch between two known tabs is left to the warm-cache path. Pure
+ * and unit-tested.
+ */
+export function tabSwitchNeedsReload(params: {
+  target: Pick<DashboardViewTab, "id" | "kind">;
+  activeView: Pick<DashboardViewTab, "id" | "kind">;
+  tabs: readonly Pick<DashboardViewTab, "id">[];
+  force?: boolean;
+}): boolean {
+  if (params.force) {
+    return true;
+  }
+  if (!params.tabs.some((tab) => tab.id === params.target.id)) {
+    return true;
+  }
+  return (
+    params.target.id === params.activeView.id && params.target.kind !== params.activeView.kind
+  );
+}
