@@ -31,7 +31,7 @@ export interface GridPan {
     onMouseMove: (event: MouseEvent) => void;
     onMouseUp: () => void;
     onMouseLeave: () => void;
-    style?: { cursor?: string };
+    style?: { cursor?: string; touchAction?: string };
   };
   /** Whether the viewport can still scroll towards/pan from the given edge. */
   canScrollLeft: boolean;
@@ -47,7 +47,14 @@ export interface GridPan {
   remeasure: () => void;
 }
 
-export function useGridPan(): GridPan {
+export function useGridPan({
+  /**
+   * `touch-action` for the viewport. Passed as `pan-x pan-y` by the grids that
+   * support pinch-to-zoom: it keeps native panning but stops the browser from
+   * page-pinching over the grid (see pinchZoom.ts).
+   */
+  touchAction,
+}: { touchAction?: string } = {}): GridPan {
   const scroller = useScroller({ draggable: true });
   const elementRef = useRef<HTMLDivElement | null>(null);
   const [canScrollLeft, setCanScrollLeft] = useState(false);
@@ -114,16 +121,18 @@ export function useGridPan(): GridPan {
     : canScrollLeft || canScrollRight
       ? "grab"
       : undefined;
-  const viewportProps = useMemo(
-    () => ({
+  const viewportProps = useMemo(() => {
+    const style: { cursor?: string; touchAction?: string } = {};
+    if (cursor) style.cursor = cursor;
+    if (touchAction) style.touchAction = touchAction;
+    return {
       onMouseDown,
       onMouseMove,
       onMouseUp,
       onMouseLeave,
-      style: cursor ? { cursor } : undefined,
-    }),
-    [onMouseDown, onMouseMove, onMouseUp, onMouseLeave, cursor],
-  );
+      style: Object.keys(style).length > 0 ? style : undefined,
+    };
+  }, [onMouseDown, onMouseMove, onMouseUp, onMouseLeave, cursor, touchAction]);
 
   return {
     viewportRef,

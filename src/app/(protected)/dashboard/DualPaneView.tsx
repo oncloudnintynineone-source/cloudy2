@@ -64,8 +64,15 @@ import {
   clampDualSplit,
   stepDualSplit,
 } from "@/lib/ui/dualSplit";
+import { announce } from "@/lib/ui/announcer";
 import { useGridPan } from "@/lib/ui/gridPan";
-import { MAX_MONTH_ZOOM, MIN_MONTH_ZOOM, type MonthZoom } from "@/lib/ui/monthZoom";
+import {
+  clampMonthZoom,
+  MAX_MONTH_ZOOM,
+  MIN_MONTH_ZOOM,
+  type MonthZoom,
+} from "@/lib/ui/monthZoom";
+import { usePinchZoom } from "@/lib/ui/pinchZoom";
 import { reanchorScrollLeft } from "@/lib/ui/slotZoom";
 import { AgendaSwipeHint } from "./AgendaSwipeHint";
 import { MonthWeekdayStrip } from "./MonthWeekdayStrip";
@@ -93,6 +100,8 @@ export interface DualPaneViewProps {
   monthZoom: MonthZoom;
   onZoomIn: () => void;
   onZoomOut: () => void;
+  /** Commit an arbitrary Month-pane zoom level (pinch-to-zoom). */
+  onMonthZoomChange: (next: MonthZoom) => void;
   /** Committed Month-pane fraction (the device-remembered split). */
   splitPct: number;
   /** Persist a new split fraction (drag end, keyboard step, double-click reset). */
@@ -134,6 +143,7 @@ export function DualPaneView({
   monthZoom,
   onZoomIn,
   onZoomOut,
+  onMonthZoomChange,
   splitPct,
   onSplitCommit,
   renderMonthEvent,
@@ -151,9 +161,31 @@ export function DualPaneView({
   const monthBoxRef = useRef<HTMLDivElement | null>(null);
 
   // ---- Month pane: pan + zoomed scroll tracking (mirrors the Month tab) ----
-  const monthPan = useGridPan();
+  // `pan-x pan-y` keeps native panning but stops the browser page-pinching
+  // over the pane, so the pinch handler below owns the two-finger gesture.
+  const monthPan = useGridPan({ touchAction: "pan-x pan-y" });
   const monthViewportRef = useRef<HTMLDivElement | null>(null);
-  const monthGridViewportRef = useMergedRef(monthViewportRef, monthPan.viewportRef);
+  // Pinch-to-zoom (touch): the gesture midpoint is stashed for the re-anchor
+  // below so the column under the fingers stays put (buttons use the centre).
+  const monthPinchBaseRef = useRef<MonthZoom>(monthZoom);
+  const monthPinchFocalRef = useRef<number | undefined>(undefined);
+  const monthPinch = usePinchZoom({
+    onStart: () => {
+      monthPinchBaseRef.current = monthZoom;
+    },
+    onPinch: ({ scale, focalX }) => {
+      const next = clampMonthZoom(monthPinchBaseRef.current * scale);
+      if (next === null || next === monthZoom) return;
+      monthPinchFocalRef.current = focalX;
+      onMonthZoomChange(next);
+    },
+    onEnd: () => announce(`Zoom ${Math.round(monthZoom * 100)}%`),
+  });
+  const monthGridViewportRef = useMergedRef(
+    monthViewportRef,
+    monthPan.viewportRef,
+    monthPinch.ref,
+  );
   const weekdayTrackRef = useRef<HTMLDivElement | null>(null);
   const handleMonthScroll = useCallback((pos: { x: number }) => {
     if (weekdayTrackRef.current) {
@@ -191,12 +223,15 @@ export function DualPaneView({
     const viewport = monthViewportRef.current;
     if (!viewport || viewport.clientWidth <= 0) return;
     const width = viewport.clientWidth;
+    const focalX = monthPinchFocalRef.current;
+    monthPinchFocalRef.current = undefined;
     viewport.scrollLeft = reanchorScrollLeft(
       viewport.scrollLeft,
       width,
       0,
       (width * oldZoom) / 7,
       (width * monthZoom) / 7,
+      focalX,
     );
   }, [monthZoom]);
 

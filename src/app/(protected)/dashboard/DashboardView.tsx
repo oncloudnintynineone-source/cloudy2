@@ -136,8 +136,17 @@ import { announce } from "@/lib/ui/announcer";
 import { DUAL_SPLIT_DEFAULT, clampDualSplit } from "@/lib/ui/dualSplit";
 import { useGridPan } from "@/lib/ui/gridPan";
 import { useImmersiveMode } from "@/lib/ui/immersiveMode";
-import { MAX_MONTH_ZOOM, MIN_MONTH_ZOOM, stepMonthZoom, type MonthZoom } from "@/lib/ui/monthZoom";
 import {
+  clampMonthZoom,
+  MAX_MONTH_ZOOM,
+  MIN_MONTH_ZOOM,
+  stepMonthZoom,
+  type MonthZoom,
+} from "@/lib/ui/monthZoom";
+import { usePinchZoom } from "@/lib/ui/pinchZoom";
+import {
+  clampGridWeekColZoom,
+  clampZoom,
   daySlotWidth,
   gridWeekColumnWidth,
   gridWeekSlotHeight,
@@ -1152,13 +1161,89 @@ export function DashboardView({
     }
     advanceDayRulerRef.current?.(pos.x, rulerSlotPxRef.current);
   }, []);
+  // Pinch-to-zoom (touch): a two-finger spread drives the active grid's zoom
+  // level(s), snapped onto the same discrete levels the buttons step through
+  // (the clamps do the snapping), so persistence and the re-anchor effects below
+  // need no special casing. `pinchFocalRef` carries the gesture midpoint to
+  // those effects (viewport-relative) so the content stays under the fingers
+  // instead of jumping to the viewport centre; button zooms leave it unset.
+  const pinchFocalRef = useRef<{ x?: number; y?: number }>({});
+  const schedulePinchBaseRef = useRef<SlotZoom>(zoom);
+  const monthPinchBaseRef = useRef<MonthZoom>(monthZoom);
+  const gridWeekPinchBaseRef = useRef<{ col: SlotZoom; row: SlotZoom }>({
+    col: gridWeekColZoom,
+    row: gridWeekRowZoom,
+  });
+  const gridWeekPinchAxisRef = useRef<"x" | "y">("x");
+
+  const schedulePinch = usePinchZoom({
+    onStart: () => {
+      schedulePinchBaseRef.current = zoom;
+    },
+    onPinch: ({ scale, focalX }) => {
+      const next = clampZoom(schedulePinchBaseRef.current * scale);
+      if (next === null || next === zoom) return;
+      pinchFocalRef.current.x = focalX;
+      setZoom(next);
+    },
+    onEnd: () => announce(`Zoom ${Math.round(zoom * 100)}%`),
+  });
+
+  const monthPinch = usePinchZoom({
+    onStart: () => {
+      monthPinchBaseRef.current = monthZoom;
+    },
+    onPinch: ({ scale, focalX }) => {
+      const next = clampMonthZoom(monthPinchBaseRef.current * scale);
+      if (next === null || next === monthZoom) return;
+      pinchFocalRef.current.x = focalX;
+      setMonthZoom(next);
+    },
+    onEnd: () => announce(`Zoom ${Math.round(monthZoom * 100)}%`),
+  });
+
+  // Week (Grid) has two axes: the gesture's initial spread picks one (side by
+  // side → columns, stacked → rows) and it stays locked for the gesture.
+  const gridWeekPinch = usePinchZoom({
+    onStart: () => {
+      gridWeekPinchBaseRef.current = { col: gridWeekColZoom, row: gridWeekRowZoom };
+    },
+    onPinch: ({ scale, axis, focalX, focalY }) => {
+      gridWeekPinchAxisRef.current = axis;
+      if (axis === "x") {
+        const next = clampGridWeekColZoom(gridWeekPinchBaseRef.current.col * scale);
+        if (next === null || next === gridWeekColZoom) return;
+        pinchFocalRef.current.x = focalX;
+        setGridWeekColZoom(next);
+        return;
+      }
+      const next = clampZoom(gridWeekPinchBaseRef.current.row * scale);
+      if (next === null || next === gridWeekRowZoom) return;
+      pinchFocalRef.current.y = focalY;
+      setGridWeekRowZoom(next);
+    },
+    onEnd: () => {
+      if (gridWeekPinchAxisRef.current === "x") {
+        announce(`Columns ${Math.round(gridWeekColZoom * 100)}%`);
+      } else {
+        announce(`Rows ${Math.round(gridWeekRowZoom * 100)}%`);
+      }
+    },
+  });
+
   // Drag-to-pan + edge pan buttons for the schedule grids (see useGridPan):
   // Mantine hides the native scrollbar and its 4px bar sits at the bottom of
   // a full-height table, so without this there is no discoverable horizontal
   // affordance. Always enabled — overflow exists on both desktop and mobile.
-  const schedulePan = useGridPan();
-  const weekGridViewportRef = useMergedRef(weekViewportRef, schedulePan.viewportRef);
-  const dayGridViewportRef = useMergedRef(dayViewportRef, schedulePan.viewportRef);
+  // `pan-x pan-y` keeps native panning but stops the browser page-pinching
+  // over the grid, so the pinch handlers above own the two-finger gesture.
+  const schedulePan = useGridPan({ touchAction: "pan-x pan-y" });
+  const weekGridViewportRef = useMergedRef(
+    weekViewportRef,
+    schedulePan.viewportRef,
+    schedulePinch.ref,
+  );
+  const dayGridViewportRef = useMergedRef(dayViewportRef, schedulePan.viewportRef, schedulePinch.ref);
   // Stable identity: the schedule views must not receive fresh
   // `scrollAreaProps` objects on every scroll frame (schedulePan.viewportProps
   // is memoized and only changes at a drag/scroll-edge boundary).
@@ -1184,9 +1269,13 @@ export function DashboardView({
   // narrow screens always did), which is when this pan applies. The strip's
   // own pan/drag + edge buttons are the month instance of useGridPan — the
   // same affordances the schedule grids get.
-  const monthPan = useGridPan();
+  const monthPan = useGridPan({ touchAction: "pan-x pan-y" });
   const monthViewportRef = useRef<HTMLDivElement | null>(null);
-  const monthGridViewportRef = useMergedRef(monthViewportRef, monthPan.viewportRef);
+  const monthGridViewportRef = useMergedRef(
+    monthViewportRef,
+    monthPan.viewportRef,
+    monthPinch.ref,
+  );
   const monthWeekdayTrackRef = useRef<HTMLDivElement | null>(null);
   const handleMonthScroll = useCallback((pos: { x: number }) => {
     if (monthWeekdayTrackRef.current) {
@@ -1206,9 +1295,13 @@ export function DashboardView({
   // Week (Grid) horizontal pan: the grid fits the viewport width at zoom <= 1;
   // zooming in widens the day columns past it, which is when this pan applies.
   // The viewport ref is merged with the vertical re-anchor ref above.
-  const gridWeekPan = useGridPan();
+  const gridWeekPan = useGridPan({ touchAction: "pan-x pan-y" });
   const { remeasure: remeasureGridWeekPan } = gridWeekPan;
-  const gridWeekGridViewportRef = useMergedRef(gridWeekViewportRef, gridWeekPan.viewportRef);
+  const gridWeekGridViewportRef = useMergedRef(
+    gridWeekViewportRef,
+    gridWeekPan.viewportRef,
+    gridWeekPinch.ref,
+  );
   // The viewport is also the grid's **vertical** scroller: bounding it to the
   // space below the chrome turns the library's content-height ScrollArea into an
   // internal one, so its day header (sticky, top: 0) and our sticky all-day row
@@ -2423,12 +2516,17 @@ export function DashboardView({
     rulerSlotPxRef.current = slot;
 
     if (zoomChanged) {
+      // A pinch anchors on its midpoint; the buttons leave this unset and
+      // re-anchor on the viewport centre (reanchorScrollLeft's default).
+      const focalX = pinchFocalRef.current.x;
+      pinchFocalRef.current.x = undefined;
       viewport.scrollLeft = reanchorScrollLeft(
         viewport.scrollLeft,
         viewport.clientWidth,
         geometry.labelPx,
         geometry.baseSlotPx * oldZoom,
         slot,
+        focalX,
       );
     }
 
@@ -2474,12 +2572,15 @@ export function DashboardView({
       return;
     }
     const width = viewport.clientWidth;
+    const focalX = pinchFocalRef.current.x;
+    pinchFocalRef.current.x = undefined;
     viewport.scrollLeft = reanchorScrollLeft(
       viewport.scrollLeft,
       width,
       0,
       (width * oldZoom) / 7,
       (width * monthZoom) / 7,
+      focalX,
     );
   }, [view, gridLoading, monthZoom]);
 
@@ -2499,11 +2600,14 @@ export function DashboardView({
     if (!viewport || viewport.clientHeight <= 0) {
       return;
     }
+    const focalY = pinchFocalRef.current.y;
+    pinchFocalRef.current.y = undefined;
     viewport.scrollTop = reanchorScrollTop(
       viewport.scrollTop,
       viewport.clientHeight,
       oldZoom,
       gridWeekRowZoom,
+      focalY,
     );
   }, [view, gridLoading, gridWeekRowZoom]);
 
@@ -2531,12 +2635,15 @@ export function DashboardView({
       ? measuredWidth(root, "var(--week-view-slots-label-width)")
       : 0;
     const width = viewport.clientWidth;
+    const focalX = pinchFocalRef.current.x;
+    pinchFocalRef.current.x = undefined;
     viewport.scrollLeft = reanchorScrollLeft(
       viewport.scrollLeft,
       width,
       labelWidth,
       oldZoom,
       gridWeekColZoom,
+      focalX,
     );
   }, [view, gridLoading, gridWeekColZoom]);
 
@@ -3186,6 +3293,8 @@ export function DashboardView({
                 setMonthZoom(next);
                 announce(`Zoom ${Math.round(next * 100)}%`);
               }}
+              // Pinch commits an arbitrary level; the pane announces on release.
+              onMonthZoomChange={setMonthZoom}
               splitPct={dualSplit}
               onSplitCommit={handleSplitCommit}
               renderMonthEvent={renderMyMonthEvent}

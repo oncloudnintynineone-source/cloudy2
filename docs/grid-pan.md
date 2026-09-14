@@ -117,6 +117,11 @@ the load-time center instead of chasing the calendar.
 | Month (zoomed) | through the MonthView's own `ScrollArea` `scrollAreaProps` (its pan state is a separate `useGridPan` instance, `monthPan`) |
 | Week (Grid) | through the WeekView's `ScrollArea` `scrollAreaProps`; that viewport is **also the grid's vertical scroller** (the grid is viewport-bounded — see [`dashboard-views.md`](dashboard-views.md#17-timeline-zoom-day-week-h-and-week-grid) §1.7), so its `useGridPan` instance (`gridWeekPan`) shares the element with the internal vertical scroll |
 
+The grids that support pinch-to-zoom pass `touch-action: pan-x pan-y` into
+`useGridPan` (the viewport style): native panning keeps working, but the browser
+no longer page-pinches over the grid, so the two-finger gesture belongs to
+`usePinchZoom` ([`dashboard-views.md`](dashboard-views.md#17-timeline-zoom-day-week-h-and-week-grid) §1.7).
+
 The button components are rendered as **siblings of the anchor element** —
 the Day/Week (H)/Month content `Box` (`weekBoxRef`) and the Week (D) `Paper`
 (`rootRef`) — and receive it as `anchorRef`, which the scroll handler measures

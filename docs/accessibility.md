@@ -54,6 +54,7 @@ Current call sites (all in `DashboardView`):
 | View tab / chevron / Today / date picker / agenda day change | `"Month view, March 2026"` — one watcher on the optimistic chrome (`shownView` + `periodLabel`) covers every path; the first render only records a baseline (no page-load noise) |
 | More Filters apply / Myself toggle / Clear | `"2 filters active"` / `"Filters cleared"` (`filterCountMessage` mirrors `activeFilterCount`'s group semantics) |
 | Timeline zoom in/out | `"Zoom 125%"` |
+| Pinch-to-zoom (touch; also `DashboardView` + `DualPaneView`) | the same zoom string, announced once on release (`"Columns 150%"` for the Week (Grid)'s axis) — the discrete zoom buttons remain the keyboard/screen-reader path |
 
 ## 1.3 Loading announcements
 

@@ -464,6 +464,20 @@ The rest of this section describes the shared horizontal mechanism.
   pan arrows align vertically at the visible-slice center ([`grid-pan.md`](grid-pan.md)).
   Rendered whenever the schedule grid is shown (skeleton/empty excluded) — unlike
   the pan arrows it shows even when the grid fits without overflowing.
+- **Pinch-to-zoom (touch).** Every zoom site is also pinchable: a two-finger spread
+  drives the **same discrete levels** (the `clampZoom` / `clampGridWeekColZoom` /
+  `clampMonthZoom` helpers snap the raw scale, so persistence and the re-anchor
+  effects need no special casing). `usePinchZoom` (`src/lib/ui/pinchZoom.ts`)
+  attaches **native, non-passive** touch listeners to the ScrollArea viewport
+  (React's touch handlers are passive at the root, and `preventDefault` is what
+  stops the browser's own page pinch); the grids pass `touch-action: pan-x pan-y`
+  through `useGridPan` so native panning keeps working. The Week (Grid)'s initial
+  finger spread picks the axis (side by side → columns, stacked → rows) and locks
+  it for the gesture; Month / Day / Week (H) have a single axis. The zoom
+  re-anchors on the **pinch midpoint** — both re-anchor helpers take an optional
+  focal offset (default: the viewport centre, the button contract) — so the
+  content stays under the fingers, and the level is announced once on release.
+  The Month & Agenda pane wires the same hook to its Month pane.
 - **Mechanism**: each view reads its slot width from a CSS variable on the view root
   (`--resources-week-view-slot-width` / `--resources-day-view-slot-width`). Mantine
   sizes the day container from that var and lays every event out as a **percentage**
@@ -547,7 +561,8 @@ the same horizontal pan the other views use.
   view's own `useGridPan` instance (`monthPan`). The zoom pair always shows; the pan
   arrows and drag-to-pan appear only once a zoom level overflows the viewport.
   `GridNavControls` takes the month's level range via `zoomMin`/`zoomMax` (the
-  component's defaults remain the timeline zoom's 0.5–3).
+  component's defaults remain the timeline zoom's 0.5–3). **Pinch-to-zoom** drives
+  the same level (§1.7).
 - **Pinned weekday strip**: the `MonthWeekdayStrip` track is sized to the same
   zoomed content width (`width: ${zoom × 100}%`, cells `flex: 0 0 100%/7` — no
   84px floor), so the initials stay exactly over their day columns at every zoom
@@ -612,7 +627,8 @@ the anchor day, Month & Agenda → Month keeps the anchor month).
   commits once on release; the handle is a focusable `separator` whose
   Left/Right arrows step 5% and whose double-click resets to the default.
 - **Month pane.** The standalone Month view's grid: the fit-to-width zoom of
-  §1.8 (its own `useGridPan` instance, `MonthWeekdayStrip`, and a
+  §1.8 including its **pinch-to-zoom** (its own `useGridPan` instance,
+  `MonthWeekdayStrip`, and a
   `GridNavControls` cluster portaled to `<body>` so the transient slide
   transform can't jitter the fixed controls), the same `monthEvents` ordering
   and `renderMyMonthEvent` highlights. At `lg` the strip is the pane's fixed

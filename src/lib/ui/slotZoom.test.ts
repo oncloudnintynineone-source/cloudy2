@@ -148,6 +148,16 @@ describe("reanchorScrollTop", () => {
     expect(reanchorScrollTop(150, 600, 1, 1)).toBeCloseTo(150);
   });
 
+  it("keeps a focal point (pinch midpoint) stable instead of the centre", () => {
+    // Focal 150px into the timeline: doubling the slot height keeps the time
+    // under the finger at 150px.
+    expect(reanchorScrollTop(0, 600, 1, 2, 150)).toBeCloseTo(150);
+    // Same focal with an existing scroll offset scales that time too.
+    expect(reanchorScrollTop(100, 600, 1, 2, 100)).toBeCloseTo(300);
+    // Focal at the top edge pins the first slot.
+    expect(reanchorScrollTop(0, 600, 1, 2, 0)).toBeCloseTo(0);
+  });
+
   it("returns the original offset for degenerate inputs", () => {
     expect(reanchorScrollTop(100, 0, 1, 2)).toBe(100);
     expect(reanchorScrollTop(100, 600, 0, 2)).toBe(100);
@@ -186,5 +196,16 @@ describe("reanchorScrollLeft", () => {
     expect(reanchorScrollLeft(100, 0, 50, 60, 120)).toBe(100);
     expect(reanchorScrollLeft(100, 500, 50, 0, 120)).toBe(100);
     expect(reanchorScrollLeft(100, 500, 50, 60, 0)).toBe(100);
+  });
+
+  it("keeps a focal point (pinch midpoint) stable instead of the centre", () => {
+    // No label column: the timeline point at x=100 stays at x=100 when 60px
+    // slots become 120px.
+    expect(reanchorScrollLeft(0, 600, 0, 60, 120, 100)).toBeCloseTo(100);
+    // With a label column: the point at viewport x=200 stays put (the label
+    // is subtracted before scaling and re-added after).
+    expect(reanchorScrollLeft(0, 600, 100, 60, 120, 200)).toBeCloseTo(100);
+    // Symmetric zooming out.
+    expect(reanchorScrollLeft(100, 600, 100, 120, 60, 200)).toBeCloseTo(0);
   });
 });

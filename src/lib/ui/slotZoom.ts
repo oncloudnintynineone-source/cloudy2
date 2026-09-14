@@ -143,12 +143,18 @@ export function reanchorScrollLeft(
   labelWidth: number,
   oldSlotPx: number,
   newSlotPx: number,
+  /**
+   * Viewport-relative x to keep under the anchor (a pinch's focal point).
+   * Defaults to the viewport centre — the button-driven zoom contract.
+   */
+  focalX?: number,
 ): number {
   if (oldSlotPx <= 0 || newSlotPx <= 0 || viewportWidth <= 0) {
     return scrollLeft;
   }
-  const timePx = scrollLeft + viewportWidth / 2 - labelWidth;
-  return timePx * (newSlotPx / oldSlotPx) + labelWidth - viewportWidth / 2;
+  const anchor = focalX ?? viewportWidth / 2;
+  const timePx = scrollLeft + anchor - labelWidth;
+  return timePx * (newSlotPx / oldSlotPx) + labelWidth - anchor;
 }
 
 /**
@@ -164,10 +170,16 @@ export function reanchorScrollTop(
   viewportHeight: number,
   oldZoom: number,
   newZoom: number,
+  /**
+   * Viewport-relative y to keep under the anchor (a pinch's focal point).
+   * Defaults to the viewport centre — the button-driven zoom contract.
+   */
+  focalY?: number,
 ): number {
   if (oldZoom <= 0 || newZoom <= 0 || viewportHeight <= 0) {
     return scrollTop;
   }
-  const timePx = scrollTop + viewportHeight / 2;
-  return timePx * (newZoom / oldZoom) - viewportHeight / 2;
+  const anchor = focalY ?? viewportHeight / 2;
+  const timePx = scrollTop + anchor;
+  return timePx * (newZoom / oldZoom) - anchor;
 }
