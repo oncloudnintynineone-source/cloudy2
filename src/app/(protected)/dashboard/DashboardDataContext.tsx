@@ -16,7 +16,7 @@ export interface DashboardDataValue {
   /**
    * Re-read the current context's data from the server and swap it in place.
    * `report: false` marks a "view load" (a filter apply) that shouldn't surface
-   * on the global activity bar — the active tab's breathing covers it instead.
+   * on the global activity bar — the active tab's loading bar covers it instead.
    * Post-mutation / view-CRUD refreshes keep the default (bar shown). An
    * optional `params` override supplies the target URL for a definition change
    * (a view's kind edited in place) whose navigation hasn't committed yet.
@@ -31,7 +31,7 @@ export interface DashboardDataValue {
   isNavigating: boolean;
   /**
    * Per-tab load state, keyed by tab id, for the tab strip's text treatment
-   * (loaded = solid, loading = faded + breathing, not-loaded = faded).
+   * (loaded = solid, loading = a sweeping amber bar, not-loaded = faded).
    */
   tabStatus: Record<string, TabLoadState>;
   /**

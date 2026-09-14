@@ -29,7 +29,7 @@ import {
   type Rect,
 } from "@/lib/motion/origin";
 import { MOTION } from "@/lib/motion/timing";
-import { NARROW_MEDIA_QUERY } from "@/lib/theme";
+import { NARROW_MEDIA_QUERY, BUTTON_LOADER_PROPS } from "@/lib/theme";
 import { buildUserGroups, type PickerGroup } from "@/lib/users/userSelect";
 
 export interface FilterOption {
@@ -137,7 +137,7 @@ interface FilterModalProps {
   title: string;
   groups: FilterGroup[];
   values: Record<string, string[]>;
-  onApply: (values: Record<string, string[]>, meta: FilterApplyMeta) => void;
+  onApply: (values: Record<string, string[]>, meta: FilterApplyMeta) => void | Promise<void>;
   /**
    * Viewport rect of the trigger button, captured on tap. Drives the modal's
    * standard grow/shrink-from-element zoom animation (see `lib/motion/origin`).
@@ -269,6 +269,9 @@ function FilterModalBody({
   // filter. Search groups ignore both and keep empty = no filter.
   const [changed, setChanged] = useState<ReadonlySet<string>>(() => new Set());
   const [cleared, setCleared] = useState(false);
+  // Kept up through an async `onApply` (a server write) so the button shows a
+  // spinner and can't be double-fired; the dialog closes once it resolves.
+  const [applying, setApplying] = useState(false);
 
   const searchLabels = useMemo(
     () => new Set(groups.filter((group) => group.variant === "search").map((g) => g.label)),
@@ -305,11 +308,17 @@ function FilterModalBody({
     setCleared(false);
   }
 
-  function handleApply() {
-    onApply(resolveFilterApply(groups.map(toApplyGroup), draft, values, changed, cleared), {
-      cleared,
-    });
-    onClose();
+  async function handleApply() {
+    if (applying) return;
+    setApplying(true);
+    try {
+      await onApply(resolveFilterApply(groups.map(toApplyGroup), draft, values, changed, cleared), {
+        cleared,
+      });
+      onClose();
+    } finally {
+      setApplying(false);
+    }
   }
 
   function handleClear() {
@@ -499,7 +508,14 @@ function FilterModalBody({
           <Button variant="default" onClick={onClose}>
             Cancel
           </Button>
-          <Button onClick={handleApply}>Apply</Button>
+          <Button
+            onClick={() => void handleApply()}
+            loading={applying}
+            disabled={applying}
+            loaderProps={BUTTON_LOADER_PROPS}
+          >
+            Apply
+          </Button>
         </Group>
       </Group>
     </Stack>

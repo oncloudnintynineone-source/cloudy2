@@ -196,8 +196,8 @@ export function dashboardCandidateRequestKey(
  *   paints it instantly and a stale one revalidates silently in place. Rendered
  *   solid. The active tab is always `fresh` (you're looking at its data) unless
  *   a read for it is in flight.
- * - `loading` — a read for this tab's key is in flight (the active/on-tap read).
- *   Rendered faded + breathing.
+ * - `loading` — a read for this tab's key is in flight (the active/on-tap read
+ *   or the background preload). Rendered with a sweeping amber loading bar.
  * - `not-loaded` — no warm copy and no fetch. Rendered faded, static.
  *
  * Pure and client-safe so the mapping is unit-testable.

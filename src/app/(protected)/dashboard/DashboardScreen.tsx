@@ -7,6 +7,7 @@ import { IconCloudOff } from "@tabler/icons-react";
 import { EmptyState } from "@/components/EmptyState";
 import { useReportActivity } from "@/components/ActivityBar";
 import { withTimeout } from "@/lib/async";
+import { useLoadingIndicator } from "@/lib/loading/loadingIndicator";
 import { loadDashboardData, preloadDashboardTabs } from "@/lib/dashboard/actions";
 import {
   clearDashboardSnapshots,
@@ -126,7 +127,7 @@ export function DashboardScreen({
   // Whether a *reported* refresh (post-mutation, view CRUD, inactivity) is in
   // flight. Unlike `busy`, a navigation/filter-apply read does not set it, so
   // the global activity bar covers only refreshes with no in-page skeleton —
-  // view loads are carried by the grid skeleton + the active tab's breathing.
+  // view loads are carried by the grid skeleton + the active tab's loading bar.
   const [refreshing, setRefreshing] = useState(false);
   // The latest busy flag, read by the fetch-decision effect so an equivalent-tab
   // local swap never races an in-flight read (see the effect below).
@@ -148,6 +149,13 @@ export function DashboardScreen({
   // in-flight preload can't repopulate the warm cache after it was cleared.
   const preloadedRef = useRef<{ signature: string; generation: number } | null>(null);
   const preloadGenerationRef = useRef(0);
+  // Background-tab loading indicator (docs/loading-transitions.md §1.13.2):
+  // `preloading` is true while a preload pass is in flight; `backgroundKeys` is
+  // the set of non-warm tab keys captured when that pass started. The bar is
+  // latched to those keys (not recomputed against `warmKeys`) so the min-hold
+  // keeps it up after the pass lands and those tabs turn warm.
+  const [preloading, setPreloading] = useState(false);
+  const [backgroundKeys, setBackgroundKeys] = useState<ReadonlySet<string>>(() => new Set());
 
   // Optimistic active tab: set on tap (via the data context) so the displayed
   // context can move before the URL navigation commits — a warm tab paints
@@ -300,25 +308,55 @@ export function DashboardScreen({
   // newer anchor superseded the signature.
   const preloadTabs = useCallback(
     async (signature: string, generation: number) => {
-      const result = await preloadDashboardTabs(inputFromParams(paramsRef.current));
-      if (preloadGenerationRef.current !== generation) return;
-      if (preloadedRef.current?.signature !== signature) return;
-      if (!result.ok) return;
-      const records: DashboardSnapshotRecord[] = result.tabs.map((tab) => ({
-        version: DASHBOARD_SNAPSHOT_VERSION,
-        savedAt: Date.now(),
-        context: tab.context,
-        data: assembleDashboardSnapshot(result.shared, tab.delta),
-      }));
-      setWarmRecords((current) => {
-        const next = new Map(current);
+      const current = recordRef.current;
+      if (current) {
+        // Snapshot the tabs this pass must actually load (not already warm for
+        // the anchor), so the background bar latches to them.
+        const warm = warmRecordsRef.current;
+        setBackgroundKeys(
+          new Set(
+            current.data.tabs
+              .map((tab) =>
+                dashboardRequestKey({
+                  viewId: tab.id,
+                  months: requiredMonths(tab.kind, current.context.month, current.context.date),
+                }),
+              )
+              .filter((key) => !warm.has(key)),
+          ),
+        );
+      }
+      setPreloading(true);
+      try {
+        const result = await preloadDashboardTabs(inputFromParams(paramsRef.current));
+        if (preloadGenerationRef.current !== generation) return;
+        if (preloadedRef.current?.signature !== signature) return;
+        if (!result.ok) return;
+        const records: DashboardSnapshotRecord[] = result.tabs.map((tab) => ({
+          version: DASHBOARD_SNAPSHOT_VERSION,
+          savedAt: Date.now(),
+          context: tab.context,
+          data: assembleDashboardSnapshot(result.shared, tab.delta),
+        }));
+        setWarmRecords((current) => {
+          const next = new Map(current);
+          for (const record of records) {
+            next.set(record.context.requestKey, record);
+          }
+          return next;
+        });
         for (const record of records) {
-          next.set(record.context.requestKey, record);
+          void writeDashboardSnapshot(userId, record.data, record.context);
         }
-        return next;
-      });
-      for (const record of records) {
-        void writeDashboardSnapshot(userId, record.data, record.context);
+      } finally {
+        // Only the run that is still current may drop the flag; a superseded or
+        // revalidate-bumped run leaves it to its successor.
+        if (
+          preloadGenerationRef.current === generation &&
+          preloadedRef.current?.signature === signature
+        ) {
+          setPreloading(false);
+        }
       }
     },
     [userId],
@@ -499,7 +537,7 @@ export function DashboardScreen({
   // Post-mutation / filter-change refresh: drop every cached context (the write
   // may affect any of them), then re-read the current one. `report: false`
   // (filter apply) skips the global activity bar — that read is a view load,
-  // carried by the grid skeleton + the active tab's breathing instead. An
+  // carried by the active tab's loading bar instead. An
   // optional `params` override carries the target URL for a definition change
   // whose navigation hasn't committed yet (see `switchTab`).
   const revalidate = useCallback(
@@ -521,10 +559,16 @@ export function DashboardScreen({
     [fetchFresh, userId],
   );
 
+  // Per-tab loading bars (docs/loading-transitions.md §1.13.2). The active
+  // tab's own read shows immediately and lingers 1s; a background preload waits
+  // 300ms before appearing (a fast warm pass never flashes it) and also holds
+  // 1s once shown. Both ride `tabStatus`, so the tab strip paints a bar per tab.
+  const activeLoading = useLoadingIndicator(busy, { delayMs: 0, minHoldMs: 1000 });
+  const backgroundLoading = useLoadingIndicator(preloading, { delayMs: 300, minHoldMs: 1000 });
+
   // Per-tab status for the tab strip (docs/loading-transitions.md §1.13.2):
-  // fresh (solid) / stale (amber dot) / queued (pulsing amber dot) / loading
-  // (fade + breathe) / not-loaded (static fade). The active tab is always
-  // treated as fresh unless a read for it is in flight.
+  // fresh (solid) / loading (a sweeping amber bar) / not-loaded (static fade).
+  // The active tab is always treated as fresh unless a read for it is in flight.
   const tabStatus = useMemo(() => {
     if (!record) return {};
     const tabs = record.data.tabs;
@@ -540,13 +584,18 @@ export function DashboardScreen({
     const warmKeys = new Set<string>(warmRecords.keys());
     warmKeys.add(record.context.requestKey);
 
-    // A read for the active tab's context (nav / filter / revalidate) makes it
-    // breathe. Keyed on the held record's anchor (the helper's basis), so a
+    // A read for the active tab's context (nav / filter / revalidate) lights its
+    // bar. Keyed on the held record's anchor (the helper's basis), so a
     // cross-month read still flags the active tab.
     const loadingKeys = new Set<string>();
-    if (busy) {
+    if (activeLoading) {
       const activeTab = tabs.find((tab) => tab.id === activeId) ?? record.data.activeView;
       loadingKeys.add(keyForTab(activeTab));
+    }
+    // A preload pass lights every tab it still has to load (latched at pass
+    // start, so the 1s hold survives those tabs turning warm).
+    if (backgroundLoading) {
+      for (const key of backgroundKeys) loadingKeys.add(key);
     }
 
     return tabLoadStates({
@@ -557,7 +606,7 @@ export function DashboardScreen({
       loadingKeys,
       activeTabId: activeId,
     });
-  }, [record, warmRecords, busy, presentation]);
+  }, [record, warmRecords, activeLoading, backgroundLoading, backgroundKeys, presentation]);
 
   const context = useMemo(
     () => ({

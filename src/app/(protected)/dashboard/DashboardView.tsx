@@ -2100,19 +2100,26 @@ export function DashboardView({
       return false;
     }
     // A filter apply is a view load: no global activity bar — the active tab's
-    // breathing (and the in-place event swap) carry it.
+    // loading bar (and the in-place event swap) carry it.
     revalidate({ report: false });
     return true;
   }
 
-  function handleApplyFilters(values: Record<string, string[]>, { cleared }: { cleared: boolean }) {
+  async function handleApplyFilters(
+    values: Record<string, string[]>,
+    { cleared }: { cleared: boolean },
+  ) {
     const cals = values.Calendars ?? [];
     const users = values.Users ?? [];
     const types = values["Event Types"] ?? [];
+    announce(filterCountMessage(cals.length, users.length, types.length));
+    // Await the server write so the dialog's Apply button keeps its spinner up
+    // through it; the follow-up read runs fire-and-forget and is carried by the
+    // active tab's loading bar (docs/loading-transitions.md §1.13.2).
     // "Clear" (then Apply) restores the role defaults (NULL) — NOT an explicit
     // empty array, which the server deliberately resolves to "no events". Only
     // an explicit Deselect All reaches the empty-array case below.
-    void persistFilters(
+    await persistFilters(
       cleared
         ? { cal: null, users: null, types: null }
         : {
@@ -2121,7 +2128,6 @@ export function DashboardView({
             types: overrideFor("types", types),
           },
     );
-    announce(filterCountMessage(cals.length, users.length, types.length));
   }
 
   function clearFilters() {
@@ -2534,28 +2540,25 @@ export function DashboardView({
                 {tabs.map((tab) => {
                   const meta = VIEW_TAB_META[tab.kind];
                   // Per-view load state (docs/loading-transitions.md §1.13.2):
-                  // fresh = solid; loading = text fade + breathe (active tab's
-                  // read); not-loaded = static text fade. Applied to the tab's
-                  // content, leaving the tab chrome/indicator alone.
+                  // fresh = solid; loading = a sweeping amber bar pinned to the
+                  // tab's bottom edge (the active tab's own read, or a
+                  // background preload); not-loaded = static text fade. The bar
+                  // is absolutely positioned, so the tab is its positioning
+                  // context (and clips it to the tab's rounded edge).
                   const status = tabStatus[tab.id] ?? "fresh";
-                  const contentClass =
-                    status === "loading"
-                      ? "c2-tab-loading"
-                      : status === "not-loaded"
-                        ? "c2-tab-not-loaded"
-                        : undefined;
                   return (
                     <Tabs.Tab
                       key={tab.id}
                       value={tab.id}
                       title={tab.name}
                       aria-busy={status === "loading" || undefined}
+                      style={{ position: "relative", overflow: "hidden" }}
                     >
                       <Group
                         gap="xs"
                         justify="center"
                         wrap="nowrap"
-                        className={contentClass}
+                        className={status === "not-loaded" ? "c2-tab-not-loaded" : undefined}
                         style={{ minWidth: 0 }}
                       >
                         {meta.icon}
@@ -2572,6 +2575,7 @@ export function DashboardView({
                           {tab.name}
                         </Text>
                       </Group>
+                      {status === "loading" && <span className="c2-tab-load-bar" aria-hidden />}
                     </Tabs.Tab>
                   );
                 })}

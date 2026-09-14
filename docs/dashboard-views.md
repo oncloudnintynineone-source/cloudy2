@@ -167,7 +167,10 @@ Filter storage & resolution:
   filter set. Filters never travel in `cal/users/types` URL params. The modal's
   **Clear** button (then Apply) restores the role defaults (`NULL`); a per-group
   **Deselect All** stores the explicit empty array (an empty grid), which is the
-  only path that resolves to "no events".
+  only path that resolves to "no events". Applying is covered end-to-end: the
+  dialog's **Apply** button spins through the server write, then the active tab's
+  loading bar sweeps through the follow-up read
+  ([`loading-transitions.md`](loading-transitions.md) §1.13.2).
 - Stored ids/names are re-validated against live calendars/users/types on every
   dashboard read (stale entries drop out; an all-stale list degrades to the role
   default), exactly like the URL params they replaced.

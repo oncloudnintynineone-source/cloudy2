@@ -429,30 +429,59 @@ html {
 /* Per-view tab load state (docs/loading-transitions.md §1.13.2): each dashboard
    tab's icon + label reflects its own view's load progress, decoupled from the
    active view's skeleton. Fresh = solid (no class); not-loaded = slightly
-   faded; loading = faded and breathing, a strong opacity pulse (0.35 ↔ 1) that
-   reads as "working" without a spinner. The reduced-motion branch drops the
-   pulse, leaving the static fade. */
+   faded; loading = a sweeping amber bar pinned to the tab's bottom edge (same
+   visual language as the global activity bar's comet). The tab itself must be
+   `position: relative; overflow: hidden` so the bar clips to it. Reduced motion
+   drops the sweep, leaving a plain amber strip. */
 .c2-tab-not-loaded {
   opacity: 0.5;
 }
 
-.c2-tab-loading {
-  opacity: 0.5;
+.c2-tab-load-bar {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 2px;
+  background: var(--mantine-color-accent-6);
+  overflow: hidden;
+  pointer-events: none;
 }
 
-@keyframes c2-tab-breathe {
-  0%,
-  100% {
-    opacity: 0.35;
+.c2-tab-load-bar::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 35%;
+  background: linear-gradient(
+    to right,
+    transparent,
+    rgba(255, 255, 255, 0.55) 45%,
+    rgba(255, 255, 255, 0.95) 75%
+  );
+  will-change: transform;
+}
+
+@keyframes c2-tab-load-travel {
+  from {
+    transform: translateX(-120%);
   }
-  50% {
-    opacity: 1;
+  to {
+    transform: translateX(400%);
   }
 }
 
 @media (prefers-reduced-motion: no-preference) {
-  .c2-tab-loading {
-    animation: c2-tab-breathe 1.3s ease-in-out infinite;
+  .c2-tab-load-bar::after {
+    animation: c2-tab-load-travel 1.2s linear infinite;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .c2-tab-load-bar::after {
+    opacity: 0;
   }
 }
 
