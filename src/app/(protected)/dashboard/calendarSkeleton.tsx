@@ -115,10 +115,27 @@ const WEEK_GRID_BORDER = "1px solid var(--mantine-color-default-border)";
  * a time-label column plus 7 day columns with hour rows and deterministic event
  * blocks. Mirrors the real `WeekView` layout so the swap on load is seamless.
  */
-export function WeekGridViewSkeleton({ hours = 8 }: { hours?: number }) {
+export function WeekGridViewSkeleton({
+  hours = 8,
+  chromeOffset,
+}: {
+  hours?: number;
+  /** Measured chrome height — the real grid is viewport-bounded (it scrolls
+   *  internally with a pinned header + all-day row), so the placeholder fills
+   *  the same box to keep the swap seamless. */
+  chromeOffset: number;
+}) {
   const columns = "3rem repeat(7, 1fr)";
   return (
-    <Paper withBorder radius="md" p={0} style={{ overflow: "hidden" }}>
+    <Paper
+      withBorder
+      radius="md"
+      p={0}
+      style={{
+        overflow: "hidden",
+        height: `calc(var(--app-shell-vh, 100dvh) - var(--app-shell-header-offset) - var(--app-shell-footer-offset) - var(--app-shell-padding) - var(--c2-weekgrid-below-pad, 0px) - var(--mantine-spacing-sm) - ${chromeOffset}px)`,
+      }}
+    >
       {/* Day-header band: corner cell + 7 weekday/day-number placeholders. */}
       <Box
         style={{

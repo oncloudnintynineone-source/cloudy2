@@ -581,6 +581,12 @@ html {
      because their Affix portals to <body>, outside any page/class scope. */
   --app-floating-bottom-offset-immersive: calc(env(safe-area-inset-bottom) + 16px);
   --settings-fab-bottom: calc(108px + env(safe-area-inset-bottom) + 16px);
+  /* Space the page reserves BELOW the Week (Grid) grid, so its viewport-bounded
+     internal scroll (DashboardView's gridWeekScrollAreaProps max-height) fits the
+     viewport exactly and the mobile Create/Quick-links FABs don't cover the
+     grid's bottom rows. Mirrors `.fab-page-pad` below lg (the FAB row) and its
+     xl pad at lg+ (the FABs are hidden there). */
+  --c2-weekgrid-below-pad: calc(var(--app-floating-bottom-offset-immersive) + 65px);
   /* Chrome's edge-to-edge "fast path" (Chrome 135+ on Android). A fixed bottom
      bar must grow by the *maximum* safe-area inset and pull itself down with
      `calc(env(safe-area-inset-bottom) - max)`, so Chrome can retract its bottom
@@ -708,6 +714,9 @@ html {
   :root {
     --app-floating-bottom-offset: 16px;
     --settings-fab-bottom: 16px;
+    /* The mobile FABs are hidden at lg, so the Week (Grid) only needs the
+       page's regular xl bottom pad (fab-page-pad) accounted for. */
+    --c2-weekgrid-below-pad: var(--mantine-spacing-xl);
   }
 
   .settings-page-pad {

@@ -411,6 +411,17 @@ the Day / Week (H) column widths):
 - **Rows** (`gridWeekSlotHeight`, base 3.5rem/56px): scales the hour-slot height
   across the full `0.5–3` range (default 1); a layout effect re-anchors the
   vertical scroll (`reanchorScrollTop`).
+- **Internal scroll (pinned header + all-day row).** The grid's `ScrollArea` is
+  **viewport-bounded** (`scrollAreaProps.style.maxHeight` — the Dual-Pane height
+  budget minus `--c2-weekgrid-below-pad`, the page pad / mobile FAB clearance
+  below it), so it scrolls **internally** rather than growing the page: the
+  library's day header (sticky, `top: 0`) and the app's sticky all-day row
+  (`weekViewAllDaySlots`, `top: calc(var(--week-view-week-day-height) - 1px)`,
+  `z-index: 3`) stay pinned while the hour rows scroll. That bound is also why
+  `startScrollTime` (open at the current time) and the row-zoom re-anchor — both
+  read the viewport's `scrollTop` — work here. Unlike Month / Day / Week (H) /
+  Week (D), which page-scroll with pinned strips rendered outside their
+  scrollers.
 - The cluster anchors to the grid's **visible-slice center** like every other
   view — the right pan arrow slot's center lands on it — with the columns pair
   above and the rows pair below; the arrow slot (and its dividers) is reserved

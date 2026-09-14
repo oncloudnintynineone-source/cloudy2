@@ -1208,12 +1208,22 @@ export function DashboardView({
   const gridWeekPan = useGridPan();
   const { remeasure: remeasureGridWeekPan } = gridWeekPan;
   const gridWeekGridViewportRef = useMergedRef(gridWeekViewportRef, gridWeekPan.viewportRef);
+  // The viewport is also the grid's **vertical** scroller: bounding it to the
+  // space below the chrome turns the library's content-height ScrollArea into an
+  // internal one, so its day header (sticky, top: 0) and our sticky all-day row
+  // pin while the hour rows scroll — and `startScrollTime` + the row-zoom
+  // re-anchor (both read the viewport's scrollTop) finally take effect. The
+  // budget mirrors DualPaneView's viewport-bounded panes and subtracts
+  // `--c2-weekgrid-below-pad` (the page pad / mobile FAB clearance below the
+  // grid) so the page itself doesn't scroll.
+  const gridWeekMaxHeight = `calc(var(--app-shell-vh, 100dvh) - var(--app-shell-header-offset) - var(--app-shell-footer-offset) - var(--app-shell-padding) - var(--c2-weekgrid-below-pad, 0px) - var(--mantine-spacing-sm) - ${chromeHeight}px)`;
   const gridWeekScrollAreaProps = useMemo(
     () => ({
       viewportRef: gridWeekGridViewportRef,
       viewportProps: gridWeekPan.viewportProps,
+      style: { maxHeight: gridWeekMaxHeight },
     }),
-    [gridWeekGridViewportRef, gridWeekPan.viewportProps],
+    [gridWeekGridViewportRef, gridWeekPan.viewportProps, gridWeekMaxHeight],
   );
 
   // Post-mutation refresh (event create/update/delete, detail actions): the
@@ -3088,7 +3098,7 @@ export function DashboardView({
               ) : shownIsWeekV2 ? (
                 <WeekMatrixSkeleton />
               ) : shownIsGridWeek ? (
-                <WeekGridViewSkeleton />
+                <WeekGridViewSkeleton chromeOffset={chromeHeight} />
               ) : shownIsWeek ? (
                 <WeekGridSkeleton />
               ) : shownIsAgenda ? (
@@ -3236,7 +3246,11 @@ export function DashboardView({
             // the vertical axis. It needs no department rows, so it renders
             // above the empty-resource guard. `withHeader={false}` drops the
             // library's own nav controls (the app's nav row drives the period)
-            // but keeps its weekday/day-number row and all-day section. Its
+            // but keeps its weekday/day-number row and all-day section. The grid
+            // is viewport-bounded (`scrollAreaProps` below) so it scrolls
+            // internally with its day header + all-day row pinned at the top —
+            // unlike the other views, whose grids page-scroll with pinned strips
+            // rendered outside their scrollers. Its
             // zoom is two-axis: the slot height always scales, and the day
             // columns widen past the fit level (styles below) so events grow
             // both ways and the grid pans horizontally.
@@ -3261,7 +3275,19 @@ export function DashboardView({
               // (the library's own layout), so nothing changes until zoomed in.
               styles={{
                 weekViewHeader: { width: gridWeekColumnWidthValue },
-                weekViewAllDaySlots: { width: gridWeekColumnWidthValue },
+                // Pin the all-day row under the library's own sticky day header
+                // (top: 0) so both stay visible while the hour rows scroll. The
+                // header is `--week-view-week-day-height` tall with a -1px
+                // bottom margin; z-index 3 sits below the header (4) and above
+                // the current-time indicator (2). Opaque so scrolled rows don't
+                // show through.
+                weekViewAllDaySlots: {
+                  width: gridWeekColumnWidthValue,
+                  position: "sticky",
+                  top: "calc(var(--week-view-week-day-height) - 1px)",
+                  zIndex: 3,
+                  backgroundColor: "var(--mantine-color-body)",
+                },
                 weekViewInner: { width: gridWeekColumnWidthValue },
               }}
               // The merged viewport serves both the slot-height zoom re-anchor
