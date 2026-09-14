@@ -3269,18 +3269,27 @@ export function DashboardView({
               startScrollTime={
                 week.includes(today) ? `${today} ${currentScrollTime}` : `${week[0]} 07:00:00`
               }
+              // Stable hooks for the scrolled-only separation rule in
+              // globals.css (the library flags the day header with
+              // `data-scrolled` once the grid scrolls).
+              classNames={{
+                weekViewHeader: "c2-weekgrid-head",
+                weekViewAllDaySlots: "c2-weekgrid-allday",
+              }}
               // Horizontal zoom: the day-header, all-day and column rows all
               // take the same width multiplier, so they stay aligned while the
               // grid overflows into the pan. At the fit level the width is 100%
               // (the library's own layout), so nothing changes until zoomed in.
               styles={{
-                // Sticky chrome ladder: hour labels (4) < all-day row (5) <
-                // day header (6). The library's timed-event root is z-index 3,
-                // so the all-day row must sit above it — otherwise, once the
-                // grid scrolls (it opens at the current time), the in-day chips
-                // slide up under the row and paint over it (equal z-index, the
-                // later hour grid wins on DOM order).
-                weekViewHeader: { width: gridWeekColumnWidthValue, zIndex: 6 },
+                // Sticky chrome ladder: regular events (3) < highlighted events
+                // (4 — the app's c2-my-event / c2-ext-event classes in
+                // globals.css) < hour labels (5) < all-day row (6) < day header
+                // (7). Everything above 3 exists because the library's
+                // timed-event root is 3 and the highlight classes are 4: the
+                // all-day row must clear the in-day chips (else they paint over
+                // it once the grid scrolls — it opens at the current time), and
+                // the pinned hour column must clear the highlighted chips.
+                weekViewHeader: { width: gridWeekColumnWidthValue, zIndex: 7 },
                 // Left label column pinned while panning (the columns overflow
                 // by default at the 2× fit zoom): the week-number corner, the
                 // "All day" label and the hour labels each stick to the
@@ -3298,7 +3307,7 @@ export function DashboardView({
                   width: gridWeekColumnWidthValue,
                   position: "sticky",
                   top: "calc(var(--week-view-week-day-height) - 1px)",
-                  zIndex: 5,
+                  zIndex: 6,
                   backgroundColor: "var(--mantine-color-body)",
                 },
                 // Above the all-day event chips (the library gives those
@@ -3312,7 +3321,9 @@ export function DashboardView({
                 weekViewSlotLabels: {
                   position: "sticky",
                   left: 0,
-                  zIndex: 4,
+                  // Above the highlighted event chips (the app's c2-my-event /
+                  // c2-ext-event set z-index 4 in globals.css).
+                  zIndex: 5,
                 },
                 // The library clips the inner (overflow: hidden), which traps
                 // the hour labels' sticky-left in a scrollport that never

@@ -417,18 +417,24 @@ the Day / Week (H) column widths):
   FAB clearance below it), so it scrolls **internally** rather than growing the
   page: the library's day header (sticky, `top: 0`) and the app's sticky all-day
   row (`weekViewAllDaySlots`, `top: calc(var(--week-view-week-day-height) - 1px)`)
-  stay pinned while the hour rows scroll. The sticky chrome is stacked as
-  **hour labels (4) < all-day row (5) < day header (6)** — the all-day row must
-  clear the library's timed-event root (`z-index: 3`), else the in-day chips
-  paint over it once the grid scrolls. The **left label column** (week-number
-  corner, "All day", hour labels) is `position: sticky; left: 0` too, so it
-  stays put while the columns pan (they overflow by default at the 2× zoom);
-  the hour labels need `weekViewInner { overflow: visible }` to escape the
+  stay pinned while the hour rows scroll. The sticky chrome is stacked above
+  both the library's timed-event root (`z-index: 3`) **and** the app's highlight
+  classes (`.c2-my-event` / `.c2-ext-event`, `z-index: 4` in globals.css):
+  **regular events (3) < highlighted events (4) < hour labels (5) < all-day row
+  (6) < day header (7)**. Without that headroom the in-day chips paint over the
+  all-day row / pinned column once the grid scrolls. The **left label column**
+  (week-number corner, "All day", hour labels) is `position: sticky; left: 0`
+  too, so it stays put while the columns pan (they overflow by default at the 2×
+  zoom); the hour labels need `weekViewInner { overflow: visible }` to escape the
   library's `overflow: hidden`, which would otherwise trap the sticky in a
-  scrollport that never scrolls. That bound is also why `startScrollTime` (open
-  at the current time) and the row-zoom re-anchor — both read the viewport's
-  `scrollTop` — work here. Unlike Month / Day / Week (H) / Week (D), which
-  page-scroll with pinned strips rendered outside their scrollers.
+  scrollport that never scrolls. Once scrolled (the library sets `data-scrolled`
+  on the day header), a globals.css rule
+  (`c2-weekgrid-head[data-scrolled] + c2-weekgrid-allday`) puts a 1px bottom line
+  + drop shadow under the all-day row so events visibly pass beneath the block.
+  That bound is also why `startScrollTime` (open at the current time) and the
+  row-zoom re-anchor — both read the viewport's `scrollTop` — work here. Unlike
+  Month / Day / Week (H) / Week (D), which page-scroll with pinned strips
+  rendered outside their scrollers.
 - The cluster anchors to the grid's **visible-slice center** like every other
   view — the right pan arrow slot's center lands on it — with the columns pair
   above and the rows pair below; the arrow slot (and its dividers) is reserved
