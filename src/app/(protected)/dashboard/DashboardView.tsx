@@ -154,7 +154,6 @@ import {
   type DashboardViewKind,
   type DashboardViewTab,
 } from "@/lib/dashboardViews/views";
-import { setActiveDashboardView } from "@/lib/userPrefs/actions";
 import { EditViewsModal } from "./EditViewsModal";
 import { EventDetail } from "./EventDetail";
 import { EventForm } from "./EventForm";
@@ -1886,11 +1885,9 @@ export function DashboardView({
    *   anchor to carry over);
    * - leaving an anchored kind for Month keeps the anchor's month.
    * The tab's own filters are read server-side on the next render, so no
-   * filter params travel in the URL. The last-active tab is remembered
-   * server-side (fire-and-forget) for cross-device resume.
+   * filter params travel in the URL.
    */
   function switchTab(tab: Pick<DashboardViewTab, "id" | "kind">) {
-    void setActiveDashboardView(tab.id);
     // Optimistic data switch: the data layer resolves the tapped tab
     // immediately, so a warm tab paints without waiting for the URL/RSC
     // round-trip (`useSearchParams` only updates when the payload lands).

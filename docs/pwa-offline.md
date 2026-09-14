@@ -551,8 +551,11 @@ sequenceDiagram
   prefetch). The route's `loading.tsx` is now only the pre-hydration shell.
 - **Cached first paint & warm revisits.** `DashboardScreen` hydrates a
   per-account map of cached *contexts* from IndexedDB
-  (`src/lib/dashboard/localStore.ts`) on mount and renders the newest one
-  immediately. Every successful read writes its context (keyed by the account id
+  (`src/lib/dashboard/localStore.ts`) on mount. A cold load with a silent URL
+  paints the cached context for the **first tab** (falling back to a fetch when
+  that tab isn't cached), so the last-viewed tab is never resurrected; with
+  `?view=` the URL resolves the tab and the newest record can hold the paint.
+  Every successful read writes its context (keyed by the account id
   + `requestKey`), capped at `MAX_SNAPSHOTS_PER_USER` (12) by LRU
   (`selectSnapshotsToEvict`), which bounds disk, the cold-start hydration parse
   and the IndexedDB quota (write failures are swallowed, so an unbounded store

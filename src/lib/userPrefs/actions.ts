@@ -1,13 +1,11 @@
 "use server";
 
-import { and, eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
 import { db } from "@/db";
-import { userDashboardViews, userPreferences } from "@/db/schema";
+import { userPreferences } from "@/db/schema";
 import { requireSession } from "@/lib/session";
 import { isUuid } from "@/lib/uuid";
-import { ensureDefaultDashboardView } from "@/lib/dashboardViews/queries";
 
 export type UserPrefsActionResult = { ok: true } | { ok: false; error: string };
 
@@ -17,38 +15,6 @@ function cleanStringList(raw: unknown): string[] {
     return [];
   }
   return raw.filter((entry): entry is string => typeof entry === "string" && entry.length > 0);
-}
-
-/**
- * Remember the user's last-active dashboard tab (server-side, so the tab
- * follows the account across devices; the URL `?view=` still wins for the
- * current render). The tab must be one of the user's own — foreign/deleted
- * ids are a no-op. Fire-and-forget from `switchTab`: a failed write just
- * resumes the previous tab on the next bare load.
- */
-export async function setActiveDashboardView(tabId: string): Promise<UserPrefsActionResult> {
-  const session = await requireSession();
-  const userId = session.user.id;
-  if (!isUuid(userId) || !isUuid(tabId)) {
-    return { ok: true };
-  }
-  await ensureDefaultDashboardView(userId);
-  const [owned] = await db
-    .select({ id: userDashboardViews.id })
-    .from(userDashboardViews)
-    .where(and(eq(userDashboardViews.id, tabId), eq(userDashboardViews.userId, userId)))
-    .limit(1);
-  if (!owned) {
-    return { ok: true };
-  }
-  await db
-    .insert(userPreferences)
-    .values({ userId, dashboardActiveViewId: tabId })
-    .onConflictDoUpdate({
-      target: userPreferences.userId,
-      set: { dashboardActiveViewId: tabId, updatedAt: new Date() },
-    });
-  return { ok: true };
 }
 
 /**

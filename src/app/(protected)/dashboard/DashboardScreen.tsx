@@ -324,8 +324,9 @@ export function DashboardScreen({
     [userId],
   );
 
-  // Hydrate the warm cache and paint the newest stored context as soon as it is
-  // read. A fresh server response always wins if it lands first. A force-refresh
+  // Hydrate the warm cache and paint a stored context as soon as it is read: the
+  // first tab's when the URL is silent (never the last-viewed tab), else the
+  // newest. A fresh server response always wins if it lands first. A force-refresh
   // reload clears the cache instead of painting it.
   useEffect(() => {
     let alive = true;
@@ -348,8 +349,25 @@ export function DashboardScreen({
       }
       if (hasFreshRef.current || cached.length === 0) return;
       const latest = cached.reduce((a, b) => (a.savedAt >= b.savedAt ? a : b));
+      // Cold load with a silent URL defaults to the first tab, so the
+      // last-viewed tab is never resurrected from the device cache. With
+      // `?view=` the URL resolves the tab, so any record can hold the paint.
+      const urlView = paramsRef.current.get("view");
+      const firstTabId = latest.data.tabs[0]?.id ?? null;
+      const paint =
+        urlView || !firstTabId
+          ? latest
+          : cached
+              .filter((entry) => entry.data.activeView.id === firstTabId)
+              .reduce<DashboardSnapshotRecord | null>(
+                (a, b) => (a === null || a.savedAt <= b.savedAt ? b : a),
+                null,
+              );
+      // No cached context for the first tab: leave `record` empty so the fetch
+      // reads it from the server (which also defaults to the first tab).
+      if (!paint) return;
       setSource("cache");
-      setRecord(latest);
+      setRecord(paint);
     });
     return () => {
       alive = false;

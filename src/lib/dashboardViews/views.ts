@@ -124,13 +124,14 @@ export function normalizeFilterOverride(raw: unknown): string[] | null {
 /**
  * Pick the tab a dashboard render should show. Candidate order: the URL
  * `?view=` (a tab id, or a legacy kind string → the first tab of that kind),
- * then the remembered last-active tab id, then the first tab in strip order.
- * Unknown/foreign values all fall through to the remembered/first tab; the
+ * then the fallback tab id (the held/current tab during client-side
+ * resolution; the server passes `null`), then the first tab in strip order.
+ * Unknown/foreign values all fall through to the fallback/first tab; the
  * function never throws and returns `undefined` only when there are no tabs.
  */
 export function resolveActiveTab(
   candidate: string | null | undefined,
-  rememberedId: string | null,
+  fallbackId: string | null,
   tabs: readonly DashboardViewTab[],
 ): DashboardViewTab | undefined {
   if (tabs.length === 0) {
@@ -148,10 +149,10 @@ export function resolveActiveTab(
       }
     }
   }
-  if (rememberedId !== null) {
-    const remembered = tabs.find((tab) => tab.id === rememberedId);
-    if (remembered) {
-      return remembered;
+  if (fallbackId !== null) {
+    const fallback = tabs.find((tab) => tab.id === fallbackId);
+    if (fallback) {
+      return fallback;
     }
   }
   return tabs[0];

@@ -158,8 +158,8 @@ export const userDashboardViews = pgTable(
 
 /**
  * Per-user application preferences stored server-side so they follow the
- * account across devices: the remembered (last-active) dashboard tab and the
- * Parade State Calendars/Users filters. Lazily ensured on first read.
+ * account across devices: the Parade State Calendars/Users filters and the
+ * event-search history. Lazily ensured on first read.
  * Device-local preferences (sidebar rail state, Day/Week (H) zoom, the
  * dashboard date/month anchor, last visited page) deliberately stay in the
  * `cloudy2.ui` cookie — see docs/ui-state.md.
@@ -170,13 +170,6 @@ export const userPreferences = pgTable(
     userId: uuid("user_id")
       .primaryKey()
       .references(() => users.id, { onDelete: "cascade" }),
-    /** The user's last-active dashboard tab; null = the first tab in order.
-     *  Deleted tabs set this to null (the delete path then resolves to the
-     *  first remaining tab). */
-    dashboardActiveViewId: uuid("dashboard_active_view_id").references(
-      () => userDashboardViews.id,
-      { onDelete: "set null" },
-    ),
     /** Parade State Calendars filter — an explicit list (empty = all). */
     paradeCal: jsonb("parade_cal")
       .notNull()
@@ -204,7 +197,6 @@ export const userPreferences = pgTable(
     eventInvitePush: boolean("event_invite_push").notNull().default(true),
     ...timestamps,
   },
-  (table) => [index("user_preferences_active_view_idx").on(table.dashboardActiveViewId)],
 );
 
 /**

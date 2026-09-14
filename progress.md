@@ -18,7 +18,7 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
 
 ## 1.1 Status
 
-- All work through changelog **1.233 (participant-only event target calendars)** is shipped.
+- All work through changelog **1.240 (dashboard no longer remembers the last-active view)** is shipped.
 - Quality gates (`lint` / `typecheck` / `test` / schema-drift check) run in CI on every
   push and PR. Pushes also auto-apply migrations per environment: `dev` →
   `migrate-preview` against the dev Neon DB, `main` → `migrate` against the prod Neon
@@ -1052,6 +1052,14 @@ via `?attendance=1` and `attendanceStorage` became a `useSyncExternalStore` exte
    `MonthWeekdayStrip` gains a `sticky` prop (`false` inside the bounded pane), the
    agenda day header goes non-sticky at `lg`, and `DualPaneSkeleton` mirrors the
    bounded layout. Docs: `docs/dashboard-views.md` §1.9, `docs/grid-pan.md` §1.2
+- 1.240 Dashboard no longer remembers the last-active view: `setActiveDashboardView`,
+  the `user_preferences.dashboard_active_view_id` column (migration 0046) and its
+  read in `resolveRequestedTab` are removed, so a bare `/dashboard` always resolves
+  `?view=` → first tab. The device snapshot hydration also stops painting the
+  last-viewed tab on a cold load (it paints the first tab's cached context, else
+  fetches), so a cold open always lands on the first view. `?view=` stays
+  authoritative for deep links/reloads. `docs/ui-state.md` §1.2/§1.3/§1.7,
+  `docs/dashboard-views.md` §1.1, `docs/pwa-offline.md` §1.18, `AGENTS.md`
 
 ## 1.4 Open items & next steps
 

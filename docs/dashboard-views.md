@@ -49,8 +49,7 @@ string maps to the first tab of that kind.
 
 - **Seed**: the first dashboard read per account lazily creates one "Month"
   tab (`ensureDefaultDashboardView`, mutex-guarded on the
-  `user_preferences` row so racing requests can't double-insert) and points
-  the remembered last-active tab at it.
+  `user_preferences` row so racing requests can't double-insert).
 - **Add view** has two entry points, both opening the same quick **Add-view
   dialog** (the shared **six-kind picker** `ViewTypePicker.tsx` + a name; the
   default name follows the chosen kind until edited):
@@ -115,15 +114,15 @@ string maps to the first tab of that kind.
   tab switch is a _filter/context_ change, so switching between two tabs of the
   same kind (or any two day-anchored kinds) keeps the current date; leaving
   Month for an anchored kind starts on today; leaving an anchored kind for
-  Month keeps the anchor's month. Each switch also fire-and-forgets
-  `setActiveDashboardView` so the account resumes the last tab across devices.
-- **The active tab resolves** (`dashboard/page.tsx`) as URL `?view=` → the
-  remembered last-active tab (`user_preferences.dashboardActiveViewId`) → the
-  first tab in strip order. Title-template assignments (§ of
+  Month keeps the anchor's month. The last-active tab is **not** remembered —
+  the tap only updates `?view=`.
+- **The active tab resolves** (`buildDashboardData`, `src/lib/dashboard/data.ts`)
+  as URL `?view=` → the first tab in strip order. Title-template assignments (§ of
   [`event-lifecycle.md`](event-lifecycle.md)) stay keyed by **kind**, so all
   tabs of a kind share that kind's display template.
 
-`/?view=` is now an id, and the remembered cookie no longer carries a view, so
+`/?view=` is now an id, the last-active tab is not remembered (a bare load
+defaults to the first tab), and the device cookie no longer carries a view, so
 **route/cold-start loading cannot shape its skeleton to the arriving kind**:
 `loading.tsx` and the PWA launch shell (`public/loading.html`) show one plain
 full-page loading box; the in-page transition skeletons inside `DashboardView`
@@ -578,7 +577,7 @@ flowchart LR
 | `src/lib/dashboardViews/views.ts` | Kind vocabulary + labels, tab DTO, filter-override normalizers, `resolveActiveTab`, `tabSwitchTarget` (pure) |
 | `src/lib/dashboardViews/queries.ts` | Tab reads + the mutex-guarded default "Month" seed |
 | `src/lib/dashboardViews/actions.ts` | Tab CRUD: `create/rename/delete/reorderDashboardViews`, `saveDashboardViewFilters` |
-| `src/lib/userPrefs/queries.ts` + `actions.ts` | `user_preferences` row: last-active tab + parade filters (incl. `saveParadeFilters`) |
+| `src/lib/userPrefs/queries.ts` + `actions.ts` | `user_preferences` row: parade filters (incl. `saveParadeFilters`) |
 | `src/app/(protected)/dashboard/DashboardView.tsx`  | Tab strip (+ trailing Add-view button, right-side Manage-views gear and All-views jump popover), optimistic tab switch + period rules + tab-URL prefetch, filter state, schedule zoom + month zoom state & widths |
 | `src/app/(protected)/dashboard/DashboardScreen.tsx` | Snapshot/warm-cache/preload owner; resolves the displayed context from `previewView ?? ?view=` so warm tab switches paint without waiting on the RSC |
 | `src/app/(protected)/dashboard/EditViewsModal.tsx` | Manage-views dialog: Add-view button + card manage list (subtle ↑/↓ reorder, per-row Edit dialog for name+type+filters, nested delete confirm) |

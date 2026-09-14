@@ -129,7 +129,8 @@ doc content here.
   (`src/lib/dashboardViews`), renderer kinds Month / Week (H) / Week (D) / Day / Agenda /
   Month & Agenda (Month + Agenda side by side, resizable; day-anchored, `src/lib/ui/dualSplit.ts`).
   Per-tab Cal/Users/Types filters are stored server-side (no `cal/users/types` URL params);
-  the active tab lives in `?view=<id>` + `user_preferences.dashboardActiveViewId`. A tab
+  the active tab lives in `?view=<id>`; with no `?view=` a load defaults to the first
+  tab in strip order (the last-viewed tab is not remembered). A tab
   tap is **optimistic**: it sets `previewView` in `DashboardDataContext`, so
   `DashboardScreen` paints a warm tab without waiting on the RSC round-trip that updates
   `useSearchParams` (each tab's URL is also `router.prefetch`ed). A **+** at the end of the

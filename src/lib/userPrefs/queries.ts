@@ -7,16 +7,14 @@ import { isUuid } from "@/lib/uuid";
 
 /**
  * Per-user application preferences stored server-side so they follow the
- * account across devices (see docs/ui-state.md): the remembered (last-active)
- * dashboard tab and the Parade State Calendars/Users filters. The row is
- * lazily ensured on first read. Device-local preferences — sidebar rail
- * state, Day/Week (H) zoom, the dashboard date/month anchor and the last
- * visited page — deliberately stay in the `cloudy2.ui` cookie.
+ * account across devices (see docs/ui-state.md): the Parade State
+ * Calendars/Users filters and the event-search history. The row is lazily
+ * ensured on first read. Device-local preferences — sidebar rail state,
+ * Day/Week (H) zoom, the dashboard date/month anchor and the last visited
+ * page — deliberately stay in the `cloudy2.ui` cookie.
  */
 export interface UserPreferencesView {
   userId: string;
-  /** The user's last-active dashboard tab id, or null (= first tab in order). */
-  dashboardActiveViewId: string | null;
   /** Parade State Calendars filter — an explicit list (empty = all). */
   paradeCal: string[];
   /** Parade State Users filter — an explicit list (empty = no user filter). */
@@ -65,7 +63,6 @@ export const getUserPreferences = cache(
     }
     return {
       userId: row.userId,
-      dashboardActiveViewId: row.dashboardActiveViewId,
       paradeCal: toStringList(row.paradeCal),
       paradeUsers: toStringList(row.paradeUsers),
       searchHistory: toStringList(row.searchHistory),

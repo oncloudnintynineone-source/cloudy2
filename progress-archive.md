@@ -8575,3 +8575,38 @@ versa); drag the handle while zoomed; check the skeleton matches on a slow load;
 
 
 
+## 1.240 Dashboard no longer remembers the last-active view
+
+The dashboard used to resume the last-viewed tab across sessions: `switchTab` fired
+`setActiveDashboardView` (server-side, fire-and-forget), and a bare load resolved
+`?view=` → `user_preferences.dashboardActiveViewId` → first tab. On the client the
+IndexedDB snapshot hydration painted the newest cached context (the last view) before
+the server response swapped in. Both layers are removed so a cold open always lands on
+the **first tab in strip order**.
+
+**Schema.** `user_preferences.dashboard_active_view_id` (FK to `user_dashboard_views`,
+`ON DELETE SET NULL`) and its `user_preferences_active_view_idx` index are dropped
+(migration `0046_known_eddie_brock.sql`), and the column leaves `src/db/schema.ts`.
+
+**Write path.** `setActiveDashboardView` (`src/lib/userPrefs/actions.ts`) is deleted and
+`switchTab` (`DashboardView.tsx`) no longer calls it; `ensureDefaultDashboardView` no
+longer points the pref at the seeded "Month" row (it still upserts the `user_preferences`
+row as the `FOR UPDATE` lock anchor and inserts the tab).
+
+**Read path.** `getUserPreferences` drops `dashboardActiveViewId`, and `resolveRequestedTab`
+(`src/lib/dashboard/data.ts`) now calls `resolveActiveTab(urlView, null, tabs)` — so the
+server falls straight through to the first tab. The dashboard config pass no longer reads
+user prefs at all (`prefs` left `DashboardConfig` and the batched `Promise.all`), saving a
+DB read per load. `resolveActiveTab`'s second parameter is renamed `rememberedId` →
+`fallbackId`: the client still passes the held tab so an in-flight navigation without a
+committed `?view=` keeps the current tab; the server passes `null`.
+
+**Client cold load.** The `DashboardScreen` hydration effect now picks the cached context
+for `data.tabs[0]` when the URL has no `?view=` (falling back to a normal fetch when that
+tab isn't cached) instead of painting the newest record; with `?view=` the URL still
+resolves the tab and the newest record can hold the paint. `?view=` stays authoritative for
+deep links (event search / pinned events) and browser reloads.
+
+**Verified**: `pnpm lint`, `pnpm typecheck`, `pnpm test` (1231 passing), `pnpm db:generate`
+(no drift). Manual to run before ship: cold open `/` lands on the first tab; switch tabs
+then reload `/` → first tab; reload `/dashboard?view=<other>` → that view.

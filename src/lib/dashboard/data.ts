@@ -56,7 +56,6 @@ import {
   type DashboardViewKind,
   type DashboardViewTab,
 } from "@/lib/dashboardViews/views";
-import { getUserPreferences, type UserPreferencesView } from "@/lib/userPrefs/queries";
 import {
   assembleDashboardSnapshot,
   dashboardRequestKey,
@@ -133,7 +132,6 @@ interface DashboardConfig {
   shared: DashboardSharedConfig;
   /** The user's tabs in strip order (also the preload target set). */
   tabs: DashboardViewTab[];
-  prefs: UserPreferencesView | null;
   nav: NavState;
   calendarIds: string[];
   defaultCalendars: string[];
@@ -163,19 +161,18 @@ function currentMonth(): string {
 
 /**
  * Read every filter-independent piece a dashboard render needs. `listCalendars`,
- * `listEventTypes` and `getDashboardViews`/`getUserPreferences` are React-`cache()`d
+ * `listEventTypes` and `getDashboardViews` are React-`cache()`d
  * per request, so the shared config pass and the range read reuse one DB read each.
  */
 async function resolveDashboardConfig(session: Session): Promise<DashboardConfig> {
   const isAdmin = session.user.role === "admin";
 
-  // One batched pass: the tab/preference/cookie reads run alongside the
+  // One batched pass: the tab/cookie reads run alongside the
   // calendars/types/users/settings reads instead of before them, so the small
   // connection pool (max 3) is never left idle between round trips. The admin
   // department lookup is skipped for admins (resolved as null).
   const [
     storedTabs,
-    prefs,
     cookieStore,
     calendars,
     eventTypes,
@@ -187,7 +184,6 @@ async function resolveDashboardConfig(session: Session): Promise<DashboardConfig
     ownDepartmentId,
   ] = await Promise.all([
     getDashboardViews(session.user.id),
-    getUserPreferences(session.user.id),
     cookies(),
     listCalendars(),
     listEventTypes(),
@@ -419,7 +415,6 @@ async function resolveDashboardConfig(session: Session): Promise<DashboardConfig
   return {
     shared,
     tabs,
-    prefs,
     nav,
     calendarIds,
     defaultCalendars,
@@ -495,13 +490,10 @@ function projectTab(
   return { delta, context };
 }
 
-/** Resolve the URL `?view=` to a tab, falling back to the remembered/first tab. */
+/** Resolve the URL `?view=` to a tab, falling back to the first tab in order. */
 function resolveRequestedTab(config: DashboardConfig, input: BuildDashboardDataInput) {
   const urlView = input.view && input.view.length > 0 ? input.view : null;
-  return (
-    resolveActiveTab(urlView, config.prefs?.dashboardActiveViewId ?? null, config.tabs) ??
-    STATIC_DEFAULT_TAB
-  );
+  return resolveActiveTab(urlView, null, config.tabs) ?? STATIC_DEFAULT_TAB;
 }
 
 export async function buildDashboardData(

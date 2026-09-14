@@ -16,8 +16,7 @@ import {
  * creates the user's first tab (a single "Month" view with role-default
  * filters) the first time their views are read, keyed on the
  * `user_preferences` row as a lock anchor so two racing requests (cold start +
- * an early navigation) cannot double-insert. It also points the remembered
- * last-active tab at the freshly seeded row.
+ * an early navigation) cannot double-insert.
  */
 export async function ensureDefaultDashboardView(userId: string): Promise<void> {
   if (!isUuid(userId)) {
@@ -41,19 +40,12 @@ export async function ensureDefaultDashboardView(userId: string): Promise<void> 
     if (n > 0) {
       return;
     }
-    const [created] = await tx
-      .insert(userDashboardViews)
-      .values({
-        userId,
-        viewType: "month",
-        name: DASHBOARD_VIEW_KIND_LABELS.month,
-        sortOrder: 0,
-      })
-      .returning({ id: userDashboardViews.id });
-    await tx
-      .update(userPreferences)
-      .set({ dashboardActiveViewId: created.id, updatedAt: new Date() })
-      .where(eq(userPreferences.userId, userId));
+    await tx.insert(userDashboardViews).values({
+      userId,
+      viewType: "month",
+      name: DASHBOARD_VIEW_KIND_LABELS.month,
+      sortOrder: 0,
+    });
   });
 }
 

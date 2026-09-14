@@ -4,7 +4,7 @@ Where does the app remember things? Two scopes with one hard rule:
 
 - **Cross-account preferences follow the user to any device** — they live in
   Postgres: the dashboard's on-demand **Views (tabs)** and their per-tab
-  filters (`user_dashboard_views`), the last-active tab, the Parade State
+  filters (`user_dashboard_views`), the Parade State
   Calendars/Users filters and the event-search history (`user_preferences`).
 - **"Where you are" is device-local** — it lives in one small cookie
   `cloudy2.ui`: the last visited page, the sidebar rail state, the dashboard
@@ -13,7 +13,7 @@ Where does the app remember things? Two scopes with one hard rule:
   (`dualSplit`).
 
 This document covers the split, the two Postgres tables and their lazy seeding,
-the tab-resolution order the dashboard page follows, the reduced cookie and
+the tab-resolution order the dashboard follows, the reduced cookie and
 its writers, and the sign-out path. The dashboard's tab management UI and
 filter semantics are described in [`dashboard-views.md`](dashboard-views.md).
 
@@ -63,9 +63,6 @@ Duplicates of the same kind are allowed — the row UUID is the tab's identity.
 
 Singleton row per user (`userId` PK, FK cascade):
 
-- `dashboardActiveViewId` — the last-active tab, FK to
-  `user_dashboard_views.id` with `ON DELETE SET NULL` (deleting the active tab
-  leaves the pointer null; the next render resolves the first tab).
 - `paradeCal` / `paradeUsers` — Parade State filter lists (empty = all
   departments / no user filter; parade has no role-default distinction).
 - `searchHistory` — the user's recent event-search queries (most-recent-first,
@@ -82,7 +79,7 @@ There is no registration-time seeding — rows appear on first use:
 - `ensureDefaultDashboardView(userId)` (inside `getDashboardViews`) runs a
   transaction that upserts the preferences row, `SELECT … FOR UPDATE`s it as a
   serialization point, and inserts a single **"Month"** tab only when the user
-  has none (pointing `dashboardActiveViewId` at it). The row lock stops two
+  has none. The row lock stops two
   racing renders (cold start + an early navigation) from double-inserting two
   identical default tabs.
 
@@ -93,20 +90,23 @@ single Month tab with view management hidden (`canManageViews = false`).
 
 ## 1.3 Active-tab resolution
 
-The dashboard page (`dashboard/page.tsx`) resolves the tab to render, in order:
+The dashboard resolves the tab to render, in order:
 
 1. **URL `?view=<tab id>`** — the tab's UUID, wins when it is one of the
- user's tabs. A legacy `?view=<kind>` string (a pre-feature deep link /
- bookmark) maps to the **first tab of that kind**.
-2. **Remembered last-active tab** — `user_preferences.dashboardActiveViewId`.
-3. **First tab** in strip order.
+   user's tabs. A legacy `?view=<kind>` string (a pre-feature deep link /
+   bookmark) maps to the **first tab of that kind**.
+2. **First tab** in strip order.
+
+The last-active tab is **not remembered**: a bare `/dashboard` (no `?view=`)
+always lands on the first tab, so every cold open starts from the same place.
+The tab's `kind` then drives the renderer, the skeleton
+flavor, anchored/date semantics and the event-title template assignment; its
+filters resolve to the fetch (next section).
 
 Pure `resolveActiveTab` (`src/lib/dashboardViews/views.ts`) encodes the order
-and is unit-tested. The tab's `kind` then drives the renderer, the skeleton
-flavor, anchored/date semantics and the event-title template assignment; its
-filters resolve to the fetch (next section). A bare `/dashboard` (no `?view=`)
-lands on the remembered/first tab — the URL therefore only carries a tab when
-the user has been navigating, and reloads restore the account's last tab.
+and is unit-tested. The client passes the currently-held tab id as its
+fallback so an in-flight navigation without a committed `?view=` keeps the
+current tab; the server always passes `null`.
 
 ## 1.4 Per-tab filter storage
 
@@ -124,7 +124,8 @@ the client maps a selection that equals the role default onto `NULL` before
 calling it. The filter modal's **Clear** button maps every group to `NULL` (role
 default); only a per-group **Deselect All** stores the explicit `[]`. Reads
 validate stored ids/names against live calendars/users/types
-each render (`dashboard/page.tsx`) and drop stale entries — an all-stale list
+each render (`buildDashboardData`, `src/lib/dashboard/data.ts`) and drop stale
+entries — an all-stale list
 degrades to the role default. There are **no `cal`/`users`/`types` URL params**
 any more: applying/clearing is an action followed by a server re-render that
 refetches the events under the new set. See [`dashboard-views.md`](dashboard-views.md) §1.2.
@@ -132,12 +133,9 @@ refetches the events under the new set. See [`dashboard-views.md`](dashboard-vie
 ```mermaid
 flowchart LR
  T["tabs (user_dashboard_views)"] --> ROW["cal_filter / users_filter / types_filter<br/>NULL = role default · [] = cleared"]
- PREF["user_preferences"] --> ACTIVE["dashboardActiveViewId"]
- T --> ACTIVE
- PAGE["dashboard/page.tsx"] --> R1["?view=&lt;tab id&gt; / kind"]
- R1 --> R2["remembered active tab"]
- R2 --> R3["first tab in strip order"]
- PAGE --> FILT["validated per-tab filters"]
+ DATA["buildDashboardData (data.ts)"] --> R1["?view=&lt;tab id&gt; / kind"]
+ R1 --> R2["first tab in strip order"]
+ DATA --> FILT["validated per-tab filters"]
  FILT --> FETCH["events read (role default fallback)"]
 ```
 
@@ -191,13 +189,15 @@ old majors wholesale on first read (see §1.5.2).
 Contract: **URL param wins; else the remembered value, re-validated; else the
 default.**
 
-- **Dashboard** (`dashboard/page.tsx`): `date` — URL wins; a remembered cookie
+- **Dashboard** (`buildDashboardData`, `src/lib/dashboard/data.ts`): `date` — URL
+  wins; a remembered cookie
   `date` anchors the **day views only** (`view !== "month"`); in Month view the
   remembered `month` (else current) drives the read. `zoom` (Day/Week (H)),
   `monthZoom` (Month grid) and `dualSplit` (Month & Agenda) are read from the raw
   cookie and snapped via `clampZoom`/`clampMonthZoom`/`clampDualSplit` before
   first paint (no width jump on relaunch).
-  The **active tab is not cookie state** — it resolves server-side (§1.3).
+  The **active tab is not cookie state** — it resolves from `?view=` else the
+  first tab (§1.3).
 - **`?event=` / `?edit=` deep links** (Google "Edit:" notes, Pinned Events,
   event search) land on the user's active tab + its filters (search carries
   `?view=`); the link's `date` pins the fetched period and `_eventCal` lets the
@@ -217,10 +217,9 @@ default.**
 
 Server-side writes happen through server actions (the client never writes
 Postgres directly): tab CRUD + per-tab filters via `src/lib/dashboardViews`,
-`setActiveDashboardView` + `saveParadeFilters` via `src/lib/userPrefs`. The
-last-active tab write is fire-and-forget from `switchTab` — the URL carries the
-current render, so a failed write just resumes the previous tab on the next
-bare load.
+`saveParadeFilters` via `src/lib/userPrefs`. The last-active dashboard tab is
+**not** persisted — a tab tap only updates `?view=`, and a bare load always
+lands on the first tab.
 
 ## 1.8 Parade filters
 
@@ -241,7 +240,7 @@ they are not cleared on sign-out.)
 
 | Helper | Behavior |
 | ------ | -------- |
-| `src/lib/dashboardViews/views.ts` | kind vocabulary/labels, name sanitization, filter-override normalization, `resolveActiveTab` (URL id → kind string → remembered → first) — unit-tested |
+| `src/lib/dashboardViews/views.ts` | kind vocabulary/labels, name sanitization, filter-override normalization, `resolveActiveTab` (URL id → kind string → fallback → first) — unit-tested |
 | `src/lib/ui/uiState.ts` | cookie codec (`encodeUiState`/`decodeUiState`), `normalizeUiState`, `mergeUiState`, `resolveLaunchTarget` + route whitelists — unit-tested |
 | `src/lib/ui/slotZoom.ts` | `clampZoom` snapping (imported by the cookie normalizer) |
 | `src/lib/ui/monthZoom.ts` | `clampMonthZoom` snapping (imported by the cookie normalizer) |
@@ -259,17 +258,17 @@ in the pages/layout, and the writer hooks.
 | `src/lib/dashboardViews/queries.ts` | `getDashboardViews` (+ mutex-guarded default seed) |
 | `src/lib/dashboardViews/actions.ts` | Tab CRUD + per-tab filter saves |
 | `src/lib/userPrefs/queries.ts` | `getUserPreferences` (cached ensure + read) |
-| `src/lib/userPrefs/actions.ts` | `setActiveDashboardView`, `saveParadeFilters` |
+| `src/lib/userPrefs/actions.ts` | `saveParadeFilters` |
 | `src/lib/events/searchHistoryActions.ts` | `getSearchHistory` / `recordSearchHistory` / `removeSearchHistory` (search-history prefs) |
 | `src/db/schema.ts` | `user_dashboard_views`, `user_preferences` |
-| `src/app/(protected)/dashboard/page.tsx` | Active-tab resolution + per-tab filter validation + date/month fallback |
+| `src/lib/dashboard/data.ts` | Active-tab resolution + per-tab filter validation + date/month fallback (via `buildDashboardData`) |
 | `src/app/(protected)/parade-state/page.tsx` | Parade filters from `user_preferences` |
 | `src/app/(protected)/layout.tsx` | `sidebarCollapsed` read before first paint |
 | `src/components/AppShellShell.tsx` | `useRememberedPage`, sidebar toggle persist |
 | `src/components/UserMenu.tsx` | Sign-out → `clearUiState` |
 | `src/lib/ui/uiState.ts` / `uiStateClient.ts` | Cookie model/codec + client writers |
 | `src/lib/ui/dualSplit.ts` | Month & Agenda split-ratio levels + clamping (pure) |
-| `src/app/(protected)/dashboard/DashboardView.tsx` | Tab strip (+ Add-view button / Manage-views gear), `usePersistDashboardNav`, `switchTab` (+ active-tab action) |
+| `src/app/(protected)/dashboard/DashboardView.tsx` | Tab strip (+ Add-view button / Manage-views gear), `usePersistDashboardNav`, `switchTab` |
 
 Related docs:
 
