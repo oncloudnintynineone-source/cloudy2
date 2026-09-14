@@ -68,7 +68,7 @@ them with the tabs above the grid:
 | **Week (D)** | One week as day columns — events as spanning banners per row |
 | **Day** | A single day, hour-by-hour |
 | **Agenda** | A day-by-day list |
-| **Month & Agenda** | The Month grid and the Agenda list together — side by side on desktop (drag the divider between them to resize), stacked on phones. Tapping a day in the grid shows that day in the agenda pane (event chips aren't clickable — every tap selects the day) |
+| **Month & Agenda** | The Month grid and the Agenda list together — side by side on desktop (drag the divider between them to resize). Tapping a day in the grid shows that day in the agenda pane (event chips aren't clickable — every tap selects the day). On phones the agenda pane is hidden and the grid works like the Month tab: tap an event for its details, tap a day to see that day's events and add a new one |
 
 - **Zoom**: the Day and Week (H) views zoom their hour columns in and out; the
   Month view's columns start at **fit-to-width** (all seven days on screen) and

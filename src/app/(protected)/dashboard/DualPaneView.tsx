@@ -13,17 +13,21 @@
  * Layout: at `lg` and up a row bounded to the viewport's remaining height —
  * Month pane at the device-remembered split fraction, a draggable handle, then
  * the Agenda pane — where each pane is a fixed-header column with its own
- * vertical scroll (so scrolling one never moves the other); below `lg` the
- * panes stack and the document scrolls (calendar first, agenda below). The
- * split is a CSS custom property (`--c2-dual-split`) written straight to the
- * DOM during a drag, so resizing re-lays out both panes with no React work per
- * pointer frame; the committed value is persisted by the parent
- * (`onSplitCommit`).
+ * vertical scroll (so scrolling one never moves the other). The split is a CSS
+ * custom property (`--c2-dual-split`) written straight to the DOM during a
+ * drag, so resizing re-lays out both panes with no React work per pointer
+ * frame; the committed value is persisted by the parent (`onSplitCommit`).
+ *
+ * Below `lg` the Agenda pane is hidden and the Month pane behaves exactly like
+ * the standalone Month view: chips open the event detail, a day cell opens the
+ * shared agenda day modal (`onDayOpen`), and the document scrolls.
  *
  * The Month pane keeps the standalone Month view's fit-to-width zoom
- * (`monthZoom`) and its own pan instance; the Agenda pane keeps the Agenda
- * tab's day header, swipe-to-change-day gesture and once-per-session hint.
- * Tapping a day cell in the grid selects that day in the Agenda pane.
+ * (`monthZoom`) and its own pan instance; the Agenda pane (at `lg` and up)
+ * keeps the Agenda tab's day header, swipe-to-change-day gesture and
+ * once-per-session hint. At `lg` and up, tapping a day cell in the grid
+ * selects that day in the Agenda pane (chips are pass-through — see
+ * `renderInertMonthEvent`).
  */
 
 import dayjs from "dayjs";
@@ -51,6 +55,7 @@ import {
 } from "@/components/FullscreenToggle";
 import { eventsOnDay } from "@/lib/events/agenda";
 import type { CalendarEvent } from "@/lib/events/queries";
+import type { Rect } from "@/lib/motion/origin";
 import { markAgendaSwipeHintSeen } from "@/lib/ui/agendaSwipeHint";
 import {
   DUAL_SPLIT_DEFAULT,
@@ -99,6 +104,11 @@ export interface DualPaneViewProps {
   onEventClick: (event: CalendarEvent, e: MouseEvent<HTMLButtonElement>) => void;
   /** Select a day (grid tap, agenda chevrons or swipe) — the shared anchor. */
   onDaySelect: (day: string) => void;
+  /**
+   * Narrow only (below `lg`, where the agenda pane is hidden): open the shared
+   * agenda day modal for a tapped cell — the standalone Month view's cell tap.
+   */
+  onDayOpen: (day: string, origin: Rect) => void;
   /** Show the touch-only swipe hint (coarse pointer, not yet seen this session). */
   showSwipeHint: boolean;
   /** Height of the sticky chrome block above the grid (tabs + date-nav row). */
@@ -130,6 +140,7 @@ export function DualPaneView({
   renderAgendaEvent,
   onEventClick,
   onDaySelect,
+  onDayOpen,
   showSwipeHint,
   chromeOffset,
 }: DualPaneViewProps) {
@@ -248,9 +259,9 @@ export function DualPaneView({
 
   // ---- Agenda pane: day slide + swipe --------------------------------------
   const agendaEvents = useMemo(() => eventsOnDay(events, day), [events, day]);
-  // Month-pane chips are deliberately pass-through: a tap selects the day
-  // cell beneath it in the Agenda pane. Mantine renders the chip as a root
-  // `<button>` with `pointer-events: none` wrapping an inner chip that
+  // Month-pane chips are deliberately pass-through AT LG AND UP: a tap selects
+  // the day cell beneath it in the Agenda pane. Mantine renders the chip as a
+  // root `<button>` with `pointer-events: none` wrapping an inner chip that
   // re-enables `pointer-events: all`, so a root-only override still lets the
   // inner chip capture the tap — and with no `onEventClick` that tap is
   // swallowed instead of reaching the day cell. The `c2-inert-event` class
@@ -259,7 +270,9 @@ export function DualPaneView({
   // positioned overlays, not children of the cells). `tabIndex: -1` keeps
   // keyboard focus off the dead chips — the day cells keep their roving
   // tabindex, so arrows + Enter still select a day. The highlight classes from
-  // `renderMonthEvent` pass through untouched.
+  // `renderMonthEvent` pass through untouched. Below `lg` the Agenda pane is
+  // hidden, so the chips render live (the standalone Month view's wiring) and
+  // open the event detail instead.
   const renderInertMonthEvent = useCallback<DualPaneRenderEvent>(
     (event, props) =>
       renderMonthEvent(event, {
@@ -304,7 +317,8 @@ export function DualPaneView({
           display: "flex",
           flexDirection: isDesktop ? "row" : "column",
           // At lg the panes are bounded to the viewport and each owns its
-          // vertical scroll (below lg they stack and the document scrolls).
+          // vertical scroll (below lg only the month pane renders and the
+          // document scrolls).
           alignItems: isDesktop ? "stretch" : "flex-start",
           gap: isDesktop ? 0 : "var(--mantine-spacing-md)",
           ...(isDesktop
@@ -371,12 +385,23 @@ export function DualPaneView({
                 },
               },
             }}
-            renderEvent={renderInertMonthEvent}
-            // No `onEventClick`: every tap (chip or empty cell) must land on the
-            // day cell instead (`onDayClick` below selects the shared anchor).
-            // The chips are overlays, so the inert render above lets taps fall
-            // through to the cell button with the correct cell date.
-            onDayClick={(picked) => onDaySelect(picked)}
+            // At lg and up the chips are pass-through (renderInertMonthEvent):
+            // every tap (chip or empty cell) must land on the day cell, whose
+            // tap selects the shared anchor for the Agenda pane. Below `lg` the
+            // Agenda pane is hidden and the grid is the standalone Month view —
+            // live chips open the event detail, a cell tap opens the shared day
+            // modal.
+            renderEvent={isDesktop ? renderInertMonthEvent : renderMonthEvent}
+            onEventClick={
+              isDesktop
+                ? undefined
+                : (event, e) => onEventClick(event as unknown as CalendarEvent, e)
+            }
+            onDayClick={
+              isDesktop
+                ? (picked) => onDaySelect(picked)
+                : (picked, e) => onDayOpen(picked, e.currentTarget.getBoundingClientRect())
+            }
           />
         </Box>
         {/* Portaled to <body>: the controls are position:fixed, and the
@@ -400,7 +425,8 @@ export function DualPaneView({
         </Portal>
       </Box>
 
-      {/* Draggable split handle (desktop only — the panes stack below lg). */}
+      {/* Draggable split handle (desktop only — the agenda pane is hidden
+          below lg, so there is nothing to resize against). */}
       {isDesktop && (
         <Box
           role="separator"
@@ -445,112 +471,104 @@ export function DualPaneView({
         </Box>
       )}
 
-      {/* Agenda pane: day header + the day's list (own vertical scroll at lg). */}
-      <Box
-        style={{
-          flex: isDesktop ? "1 1 0" : "1 1 auto",
-          width: isDesktop ? undefined : "100%",
-          minWidth: 0,
-          display: isDesktop ? "flex" : undefined,
-          flexDirection: isDesktop ? "column" : undefined,
-          minHeight: isDesktop ? 0 : undefined,
-        }}
-      >
+      {/* Agenda pane: desktop only — below `lg` the view is the standalone
+          Month view (the shared day modal is the day-detail surface). */}
+      {isDesktop && (
         <Box
           style={{
-            // Bounded at lg: the header is the fixed top of this pane's own
-            // scroll column, so a chrome-relative sticky would push it down.
-            position: isDesktop ? "relative" : "sticky",
-            top: isDesktop
-              ? undefined
-              : `calc(var(--app-shell-header-offset) + ${chromeOffset}px)`,
-            flex: isDesktop ? "0 0 auto" : undefined,
-            zIndex: 45,
+            flex: "1 1 0",
+            minWidth: 0,
             display: "flex",
-            alignItems: "center",
-            gap: "var(--mantine-spacing-xs)",
-            paddingBottom: "var(--mantine-spacing-xs)",
-            // The floating fullscreen toggle sits 8px below the chrome and 8px
-            // inside the grid's right edge — exactly this header's top-right.
-            // Reserve its box (button + inset + a gap) on desktop so the day
-            // chevrons stay tappable; below lg the panes stack and the toggle
-            // floats over the month strip instead, like the Month view.
-            paddingRight: isDesktop
-              ? FULLSCREEN_BUTTON_SIZE + FULLSCREEN_EDGE_INSET * 2
-              : undefined,
-            background: "var(--mantine-color-body)",
-            borderBottom: "1px solid var(--mantine-color-default-border)",
+            flexDirection: "column",
+            minHeight: 0,
           }}
         >
-          <Text fw={600} size="sm" lineClamp={1} style={{ flex: 1, minWidth: 0 }}>
-            {dayLabel}
-          </Text>
-          <ActionIcon
-            variant="subtle"
-            size="sm"
-            aria-label="Previous day"
-            onClick={() => onDaySelect(dayjs(day).add(-1, "day").format("YYYY-MM-DD"))}
+          <Box
+            style={{
+              // Bounded column: the header is the fixed top of this pane's own
+              // scroll column, so a chrome-relative sticky would push it down.
+              position: "relative",
+              flex: "0 0 auto",
+              zIndex: 45,
+              display: "flex",
+              alignItems: "center",
+              gap: "var(--mantine-spacing-xs)",
+              paddingBottom: "var(--mantine-spacing-xs)",
+              // The floating fullscreen toggle sits 8px below the chrome and
+              // 8px inside the grid's right edge — exactly this header's
+              // top-right. Reserve its box (button + inset + a gap) so the day
+              // chevrons stay tappable.
+              paddingRight: FULLSCREEN_BUTTON_SIZE + FULLSCREEN_EDGE_INSET * 2,
+              background: "var(--mantine-color-body)",
+              borderBottom: "1px solid var(--mantine-color-default-border)",
+            }}
           >
-            <IconChevronLeft size={16} />
-          </ActionIcon>
-          <ActionIcon
-            variant="subtle"
-            size="sm"
-            aria-label="Next day"
-            onClick={() => onDaySelect(dayjs(day).add(1, "day").format("YYYY-MM-DD"))}
+            <Text fw={600} size="sm" lineClamp={1} style={{ flex: 1, minWidth: 0 }}>
+              {dayLabel}
+            </Text>
+            <ActionIcon
+              variant="subtle"
+              size="sm"
+              aria-label="Previous day"
+              onClick={() => onDaySelect(dayjs(day).add(-1, "day").format("YYYY-MM-DD"))}
+            >
+              <IconChevronLeft size={16} />
+            </ActionIcon>
+            <ActionIcon
+              variant="subtle"
+              size="sm"
+              aria-label="Next day"
+              onClick={() => onDaySelect(dayjs(day).add(1, "day").format("YYYY-MM-DD"))}
+            >
+              <IconChevronRight size={16} />
+            </ActionIcon>
+          </Box>
+          <Box
+            ref={agendaSwipeRef}
+            style={{
+              touchAction: "pan-y",
+              flex: "1 1 auto",
+              minHeight: 0,
+              overflowY: "auto",
+              overflowX: "hidden",
+              overscrollBehavior: "contain",
+              marginTop: "var(--mantine-spacing-xs)",
+            }}
+            onPointerDown={resetSwipeSuppression}
+            onClickCapture={(event) => {
+              if (swipedRef.current) {
+                event.preventDefault();
+                event.stopPropagation();
+                swipedRef.current = false;
+              }
+            }}
           >
-            <IconChevronRight size={16} />
-          </ActionIcon>
+            {/* The day key restarts the directional slide-in on every day
+                change. */}
+            <div
+              key={day}
+              className={
+                slideDir === 1 ? "agenda-slide-next" : slideDir === -1 ? "agenda-slide-prev" : undefined
+              }
+            >
+              <AgendaView
+                rangeStart={day}
+                rangeEnd={day}
+                events={agendaEvents}
+                style={{
+                  border: "1px solid var(--mantine-color-default-border)",
+                  borderRadius: "var(--mantine-radius-md)",
+                  overflow: "hidden",
+                }}
+                styles={{ agendaViewHeader: { display: "none" } }}
+                renderEvent={renderAgendaEvent}
+                onEventClick={(event, e) => onEventClick(event as unknown as CalendarEvent, e)}
+              />
+            </div>
+            {showSwipeHint && <AgendaSwipeHint />}
+          </Box>
         </Box>
-        <Box
-          ref={agendaSwipeRef}
-          style={{
-            touchAction: "pan-y",
-            overflow: isDesktop ? undefined : "hidden",
-            ...(isDesktop
-              ? {
-                  flex: "1 1 auto",
-                  minHeight: 0,
-                  overflowY: "auto",
-                  overflowX: "hidden",
-                  overscrollBehavior: "contain",
-                }
-              : null),
-            marginTop: "var(--mantine-spacing-xs)",
-          }}
-          onPointerDown={resetSwipeSuppression}
-          onClickCapture={(event) => {
-            if (swipedRef.current) {
-              event.preventDefault();
-              event.stopPropagation();
-              swipedRef.current = false;
-            }
-          }}
-        >
-          {/* The day key restarts the directional slide-in on every day change. */}
-          <div
-            key={day}
-            className={
-              slideDir === 1 ? "agenda-slide-next" : slideDir === -1 ? "agenda-slide-prev" : undefined
-            }
-          >
-            <AgendaView
-              rangeStart={day}
-              rangeEnd={day}
-              events={agendaEvents}
-              style={{
-                border: "1px solid var(--mantine-color-default-border)",
-                borderRadius: "var(--mantine-radius-md)",
-                overflow: "hidden",
-              }}
-              styles={{ agendaViewHeader: { display: "none" } }}
-              renderEvent={renderAgendaEvent}
-              onEventClick={(event, e) => onEventClick(event as unknown as CalendarEvent, e)}
-            />
-          </div>
-          {showSwipeHint && <AgendaSwipeHint />}
-        </Box>
-      </Box>
+      )}
     </Box>
   );
 }

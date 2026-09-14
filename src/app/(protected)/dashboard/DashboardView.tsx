@@ -2078,6 +2078,17 @@ export function DashboardView({
     }
   }
 
+  /**
+   * Opens the agenda day modal fresh from a tapped day cell (the Month view's
+   * cell tap, reused by Month & Agenda below `lg` where the agenda pane is
+   * hidden): a fresh open animates with the modal itself, not a day slide.
+   */
+  function openDayModal(day: string, origin: Rect) {
+    setAgendaOriginRect(origin);
+    setAgendaSlideDir(0);
+    setAgendaDate(day);
+  }
+
   const swipedRef = useRef(false);
   // One-shot click suppression for the swipe gesture: a swipe arms `swipedRef`,
   // and the wrappers' `onClickCapture` swallows the synthesized click a mouse
@@ -3130,12 +3141,7 @@ export function DashboardView({
                 setDetailOriginRect(e.currentTarget.getBoundingClientRect());
                 setDetailEvent(event as unknown as CalendarEvent);
               }}
-              onDayClick={(d, e) => {
-                setAgendaOriginRect(e.currentTarget.getBoundingClientRect());
-                // A fresh open animates with the modal itself, not a day slide.
-                setAgendaSlideDir(0);
-                setAgendaDate(d);
-              }}
+              onDayClick={(d, e) => openDayModal(d, e.currentTarget.getBoundingClientRect())}
             />
           ) : view === "dual" ? (
             <DualPaneView
@@ -3168,6 +3174,9 @@ export function DashboardView({
               // A day tap selects the shared anchor (the agenda pane follows)
               // instead of opening the month day modal.
               onDaySelect={pickDate}
+              // Narrow only (agenda pane hidden below `lg`): the month pane is
+              // the standalone Month view, whose cell tap opens the day modal.
+              onDayOpen={openDayModal}
               showSwipeHint={showAgendaHint}
               chromeOffset={chromeHeight}
             />

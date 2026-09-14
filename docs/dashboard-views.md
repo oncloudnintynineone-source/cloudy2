@@ -546,8 +546,9 @@ flowchart LR
 ## 1.9 Month & Agenda
 
 A tab whose kind is `dual` renders the Month grid and the Agenda list in one
-view — side by side at `lg` and up, stacked below it — in `DualPaneView.tsx`
-(`src/app/(protected)/dashboard/DualPaneView.tsx`).
+view — side by side at `lg` and up; below `lg` the Agenda pane is hidden and
+the Month pane behaves exactly like the standalone Month view — in
+`DualPaneView.tsx` (`src/app/(protected)/dashboard/DualPaneView.tsx`).
 
 **It is a day-anchored kind**, like Day/Week/Agenda: one shared `?date=` anchor
 drives both panes. The Month pane shows the anchor day's month and the Agenda
@@ -555,8 +556,11 @@ pane shows that day's list, so the two always agree. The nav row's chevrons
 move **±1 month** (keeping the day-of-month — dayjs clamps overflow, so Jan 31 →
 Feb 28), the Agenda pane's own ‹ › header moves **±1 day** (a step across a
 month edge moves the grid too), and the date picker opens in day mode.
-**Tapping a day cell in the grid selects that day in the Agenda pane** — this
-view has no day modal, the pane *is* the day detail. Data needs are therefore
+At `lg` and up, **tapping a day cell in the grid selects that day in the
+Agenda pane** — this view has no day modal there, the pane *is* the day detail
+(the chips are pass-through, see the Month-pane bullet). Below `lg` the grid
+is the standalone Month view: chips open the event detail and a cell tap opens
+the shared agenda day modal. Data needs are therefore
 identical to Month's (`requiredMonths` returns `monthGridMonths` for `dual`),
 and `tabSwitchTarget` needs no dual-specific rule: the anchored branches already
 cover it (Month → Month & Agenda starts today, anchored → Month & Agenda keeps
@@ -569,8 +573,8 @@ the anchor day, Month & Agenda → Month keeps the anchor month).
   scroll** (`overflow-y: auto` + `overscroll-behavior: contain`), so scrolling
   one never moves the other. The layout key is the `lg` breakpoint, not the
   device: a large phone (e.g. an unfolded Fold) gets the side-by-side bounded
-  layout too. Below `lg` the panes stack and the document scrolls normally
-  (calendar first, agenda below) — the handle is absent there.
+  layout too. Below `lg` the Agenda pane is hidden — the full-width month grid
+  scrolls with the document and the handle is absent.
 - **Split & resize.** The Month pane takes the remembered `dualSplit` fraction
   (device-local cookie, [`ui-state.md`](ui-state.md); default 0.6, clamped
   0.25–0.75 by `src/lib/ui/dualSplit.ts`). A drag handle between the panes
@@ -584,18 +588,22 @@ the anchor day, Month & Agenda → Month keeps the anchor month).
   transform can't jitter the fixed controls), the same `monthEvents` ordering
   and `renderMyMonthEvent` highlights. At `lg` the strip is the pane's fixed
   header (`sticky={false}` — the pane is the scroll container, so a
-  chrome-relative `top` would push it down). The event chips are deliberately
-  **pass-through** (`c2-inert-event` in `globals.css` disables the chip's whole
-  subtree + `tabIndex: -1`, no `onEventClick`): Mantine re-enables
-  `pointer-events` on the inner chip, so the root-only override was not enough —
-  the class kills the inner chip too, so every tap falls through to the day-cell
-  button beneath and chip and empty-cell taps alike select the day (day cells
-  keep their roving tabindex for keyboard).
-- **Agenda pane.** The Agenda tab's list under a day header (day label + ‹ ›
-  chevrons): `eventsOnDay`, `renderMyAgendaEvent`, the directional slide on a
-  day change, and the touch swipe-to-change-day gesture with its
-  once-per-session hint. The header is sticky below `lg` and the pane's fixed
-  header at `lg` (bounded layout).
+  chrome-relative `top` would push it down). At `lg` and up the event chips
+  are deliberately **pass-through** (`c2-inert-event` in `globals.css` disables
+  the chip's whole subtree + `tabIndex: -1`, no `onEventClick`): Mantine
+  re-enables `pointer-events` on the inner chip, so the root-only override was
+  not enough — the class kills the inner chip too, so every tap falls through
+  to the day-cell button beneath and chip and empty-cell taps alike select the
+  day (day cells keep their roving tabindex for keyboard). Below `lg` (where
+  the Agenda pane is hidden) the grid is the standalone Month view's wiring:
+  the chips render live and open the event detail, a cell tap opens the shared
+  agenda day modal (`onDayOpen` → the same helper the Month view's cell tap
+  uses), and the `+N more` popover works too.
+- **Agenda pane** (at `lg` and up — not rendered below `lg`). The Agenda tab's
+  list under a day header (day label + ‹ › chevrons): `eventsOnDay`,
+  `renderMyAgendaEvent`, the directional slide on a day change, and the touch
+  swipe-to-change-day gesture with its once-per-session hint. The header is
+  the pane's fixed header (bounded layout).
 - **Chrome.** The nav row labels the period with the **month** (the pane header
   carries the day); the screen-reader announcement appends the agenda day so a
   day move is announced too. The agenda header reserves the floating fullscreen
@@ -607,10 +615,11 @@ the anchor day, Month & Agenda → Month keeps the anchor month).
 ```mermaid
 flowchart LR
  D["?date= anchor"] --> M["Month pane<br/>monthGridMonths(month)"]
- D --> A["Agenda pane<br/>eventsOnDay(day)"]
+ D --> A["Agenda pane<br/>eventsOnDay(day)<br/>(lg and up only)"]
  D --> R["requiredMonths = monthGridMonths<br/>(same as Month)"]
  H["drag handle / arrow keys"] --> S["dualSplit cookie<br/>(--c2-dual-split CSS var)"]
  S --> M
+ N["below lg: month pane = Month view<br/>chip → detail, cell → day modal"] -.-> M
 ```
 
 ## 1.10 File index & related docs

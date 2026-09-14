@@ -143,7 +143,8 @@ The row/card skeletons are extracted into small **shared components** so the
 route fallback and the in-page swap stay in sync: `dashboard/calendarSkeleton.tsx`
 (the view grids — `MonthGridSkeleton`, `WeekMatrixSkeleton` (Week (D)
 matrix), `WeekGridSkeleton` (Week (H)), `AgendaListSkeleton`, `ScheduleGridSkeleton`,
-and `DualPaneSkeleton` (Month + Agenda at the persisted split); used by the
+and `DualPaneSkeleton` (Month + Agenda at the persisted split; month-only
+below `lg`, where the Agenda pane is hidden); used by the
 dashboard's **in-page** kind-shaped transitions, not the plain-box
 route fallback), `parade-state/paradeStateSkeleton.tsx`,
 `settings/audit-log/AuditLogRowSkeleton.tsx`.

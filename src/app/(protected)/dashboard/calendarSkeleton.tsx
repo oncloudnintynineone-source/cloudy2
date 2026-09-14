@@ -245,9 +245,11 @@ export function WeekGridSkeleton({ rows = 6 }: { rows?: number }) {
 /**
  * Dual Pane skeleton: the Month grid skeleton and the Agenda list skeleton in
  * the view's own responsive layout — side by side at `lg` (Month at the
- * persisted split ratio, Agenda filling the rest), stacked below it. Mirrors
- * the real `DualPaneView` shapes so the swap on load is seamless; the sr-only
- * LoadingStatus is rendered by the caller, as with the other view skeletons.
+ * persisted split ratio, Agenda filling the rest). Below `lg` the Agenda pane
+ * is hidden (the view is the standalone Month view), so only the month column
+ * renders. Mirrors the real `DualPaneView` shapes so the swap on load is
+ * seamless; the sr-only LoadingStatus is rendered by the caller, as with the
+ * other view skeletons.
  */
 export function DualPaneSkeleton({
   rows,
@@ -296,20 +298,23 @@ export function DualPaneSkeleton({
           <MonthGridSkeleton rows={rows} />
         </Box>
       </Box>
-      <Box
-        style={{
-          flex: isDesktop ? "1 1 0" : undefined,
-          width: isDesktop ? undefined : "100%",
-          minWidth: 0,
-          display: isDesktop ? "flex" : undefined,
-          flexDirection: isDesktop ? "column" : undefined,
-          minHeight: isDesktop ? 0 : undefined,
-        }}
-      >
-        <Box style={isDesktop ? scrollBody : undefined}>
-          <AgendaListSkeleton />
+      {/* The agenda column is desktop only — below `lg` the view (and its
+          loading shape) is the standalone Month view. */}
+      {isDesktop && (
+        <Box
+          style={{
+            flex: "1 1 0",
+            minWidth: 0,
+            display: "flex",
+            flexDirection: "column",
+            minHeight: 0,
+          }}
+        >
+          <Box style={scrollBody}>
+            <AgendaListSkeleton />
+          </Box>
         </Box>
-      </Box>
+      )}
     </Box>
   );
 }
