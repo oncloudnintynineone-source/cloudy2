@@ -413,9 +413,12 @@ the Day / Week (H) column widths):
   vertical scroll (`reanchorScrollTop`).
 - **Internal scroll (pinned header + all-day row + left column).** The grid's
   `ScrollArea` is **viewport-bounded** (`scrollAreaProps.style.maxHeight` — the
-  Dual-Pane height budget minus `--c2-weekgrid-below-pad`, the page pad / mobile
-  FAB clearance below it), so it scrolls **internally** rather than growing the
-  page: the library's day header (sticky, `top: 0`) and the app's sticky all-day
+  viewport minus the shell offsets, the chrome, and
+  `--c2-weekgrid-bottom-budget`: **0 on mobile**, so the grid runs flush to the
+  bottom nav with the floating FABs allowed to overlay its bottom-right (the
+  page drops their clearance via `.weekgrid-page-pad`); shell padding + xl at
+  lg), so it scrolls **internally** rather than growing the page: the library's
+  day header (sticky, `top: 0`) and the app's sticky all-day
   row (`weekViewAllDaySlots`, `top: calc(var(--week-view-week-day-height) - 1px)`)
   stay pinned while the hour rows scroll. The sticky chrome is stacked above
   both the library's timed-event root (`z-index: 3`) **and** the app's highlight

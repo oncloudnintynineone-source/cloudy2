@@ -539,12 +539,15 @@ html {
      because their Affix portals to <body>, outside any page/class scope. */
   --app-floating-bottom-offset-immersive: calc(env(safe-area-inset-bottom) + 16px);
   --settings-fab-bottom: calc(108px + env(safe-area-inset-bottom) + 16px);
-  /* Space the page reserves BELOW the Week (Grid) grid, so its viewport-bounded
-     internal scroll (DashboardView's gridWeekScrollAreaProps max-height) fits the
-     viewport exactly and the mobile Create/Quick-links FABs don't cover the
-     grid's bottom rows. Mirrors `.fab-page-pad` below lg (the FAB row) and its
-     xl pad at lg+ (the FABs are hidden there). */
-  --c2-weekgrid-below-pad: calc(var(--app-floating-bottom-offset-immersive) + 65px);
+  /* Bottom budget subtracted from the Week (Grid)'s viewport-bounded height
+     (DashboardView's gridWeekScrollAreaProps max-height + the skeleton), i.e.
+     the space between the grid's bottom edge and the viewport bottom. Mobile
+     (below lg) is 0: the grid runs flush to the bottom nav and the floating
+     Create/Quick-links FABs are allowed to overlay its bottom-right (nothing
+     important lives there), so the page reserves no FAB clearance either
+     (.weekgrid-page-pad). The lg value restores the shell padding + xl pad the
+     other pages use. */
+  --c2-weekgrid-bottom-budget: 0px;
   /* Chrome's edge-to-edge "fast path" (Chrome 135+ on Android). A fixed bottom
      bar must grow by the *maximum* safe-area inset and pull itself down with
      `calc(env(safe-area-inset-bottom) - max)`, so Chrome can retract its bottom
@@ -642,6 +645,18 @@ html {
   padding-bottom: calc(var(--app-floating-bottom-offset-immersive) + 65px);
 }
 
+/*
+  Week (Grid) page pad (DashboardView applies it instead of `.fab-page-pad` on
+  the weekgrid tab). The grid is viewport-bounded and scrolls internally, and
+  the mobile FABs may overlay it, so the page reserves no FAB clearance below
+  it — the shared `.fab-page-pad` would push the page past the viewport and
+  force a page scroll, sliding the pinned day header under the app chrome. At
+  lg the FABs are hidden, so the regular xl pad returns.
+*/
+.weekgrid-page-pad {
+  padding-bottom: 0;
+}
+
 /* Centered max-width wrapper for list-style pages (settings, contacts,
    parade state): a single column would stretch absurdly wide on desktop.
    The dashboard's calendar views stay full-bleed and are not wrapped. */
@@ -672,9 +687,9 @@ html {
   :root {
     --app-floating-bottom-offset: 16px;
     --settings-fab-bottom: 16px;
-    /* The mobile FABs are hidden at lg, so the Week (Grid) only needs the
-       page's regular xl bottom pad (fab-page-pad) accounted for. */
-    --c2-weekgrid-below-pad: var(--mantine-spacing-xl);
+    /* Desktop: the FABs are hidden, so the Week (Grid) keeps the shell padding
+       plus the regular xl bottom pad the other pages use. */
+    --c2-weekgrid-bottom-budget: calc(var(--app-shell-padding) + var(--mantine-spacing-xl));
   }
 
   .settings-page-pad {
@@ -684,6 +699,10 @@ html {
   /* The FAB is mobile-only (hiddenFrom="lg"), so the pages keep only their
      regular xl bottom padding. */
   .fab-page-pad {
+    padding-bottom: var(--mantine-spacing-xl);
+  }
+
+  .weekgrid-page-pad {
     padding-bottom: var(--mantine-spacing-xl);
   }
 

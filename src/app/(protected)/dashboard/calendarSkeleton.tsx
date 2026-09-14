@@ -133,7 +133,7 @@ export function WeekGridViewSkeleton({
       p={0}
       style={{
         overflow: "hidden",
-        height: `calc(var(--app-shell-vh, 100dvh) - var(--app-shell-header-offset) - var(--app-shell-footer-offset) - var(--app-shell-padding) - var(--c2-weekgrid-below-pad, 0px) - var(--mantine-spacing-sm) - ${chromeOffset}px)`,
+        height: `calc(var(--app-shell-vh, 100dvh) - var(--app-shell-header-offset) - var(--app-shell-footer-offset) - var(--mantine-spacing-sm) - var(--c2-weekgrid-bottom-budget, 0px) - ${chromeOffset}px)`,
       }}
     >
       {/* Day-header band: corner cell + 7 weekday/day-number placeholders. */}

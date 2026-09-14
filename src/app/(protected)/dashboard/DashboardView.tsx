@@ -1213,11 +1213,13 @@ export function DashboardView({
   // space below the chrome turns the library's content-height ScrollArea into an
   // internal one, so its day header (sticky, top: 0) and our sticky all-day row
   // pin while the hour rows scroll — and `startScrollTime` + the row-zoom
-  // re-anchor (both read the viewport's scrollTop) finally take effect. The
-  // budget mirrors DualPaneView's viewport-bounded panes and subtracts
-  // `--c2-weekgrid-below-pad` (the page pad / mobile FAB clearance below the
-  // grid) so the page itself doesn't scroll.
-  const gridWeekMaxHeight = `calc(var(--app-shell-vh, 100dvh) - var(--app-shell-header-offset) - var(--app-shell-footer-offset) - var(--app-shell-padding) - var(--c2-weekgrid-below-pad, 0px) - var(--mantine-spacing-sm) - ${chromeHeight}px)`;
+  // re-anchor (both read the viewport's scrollTop) finally take effect.
+  // `--c2-weekgrid-bottom-budget` is 0 on mobile (the grid runs flush to the
+  // bottom nav; the FABs overlay it, and the page drops their clearance via
+  // `.weekgrid-page-pad`) and shell-padding + xl at lg, so the page itself
+  // never scrolls (a page scroll would slide the pinned chrome under the app
+  // header).
+  const gridWeekMaxHeight = `calc(var(--app-shell-vh, 100dvh) - var(--app-shell-header-offset) - var(--app-shell-footer-offset) - var(--mantine-spacing-sm) - var(--c2-weekgrid-bottom-budget, 0px) - ${chromeHeight}px)`;
   const gridWeekScrollAreaProps = useMemo(
     () => ({
       viewportRef: gridWeekGridViewportRef,
@@ -2630,9 +2632,13 @@ export function DashboardView({
     // header's bottom edge (its sticky `top`), so rest and pinned states match.
     // fab-page-pad replaces pb="xl" (inline would beat the class): it reserves
     // clearance for the mobile Create/Quick-links FABs below the last grid
-    // row and restores plain xl at lg (globals.css).
+    // row and restores plain xl at lg (globals.css). The Week (Grid) is the
+    // exception: its grid is viewport-bounded and scrolls internally, so it
+    // drops that clearance (`weekgrid-page-pad`) and runs flush to the bottom
+    // nav, letting the FABs overlay its bottom-right. Follows the optimistic
+    // view so it matches the skeleton during a tab switch.
     <Stack
-      className="fab-page-pad"
+      className={shownIsGridWeek ? "weekgrid-page-pad" : "fab-page-pad"}
       gap="sm"
       style={{ marginTop: "calc(-1 * var(--app-shell-padding))" }}
     >
