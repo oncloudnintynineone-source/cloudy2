@@ -42,6 +42,7 @@ import {
   MonthView,
   ResourcesDayView,
   ResourcesWeekView,
+  WeekView,
   type ScheduleResourceData,
   type ScheduleResourceGroup,
 } from "@mantine/schedule";
@@ -67,6 +68,7 @@ import {
   MonthGridSkeleton,
   ScheduleGridSkeleton,
   WeekGridSkeleton,
+  WeekGridViewSkeleton,
   WeekMatrixSkeleton,
   monthGridRows,
 } from "./calendarSkeleton";
@@ -136,7 +138,9 @@ import { useImmersiveMode } from "@/lib/ui/immersiveMode";
 import { MAX_MONTH_ZOOM, MIN_MONTH_ZOOM, stepMonthZoom, type MonthZoom } from "@/lib/ui/monthZoom";
 import {
   daySlotWidth,
+  gridWeekSlotHeight,
   reanchorScrollLeft,
+  reanchorScrollTop,
   stepZoom,
   weekSlotWidth,
   type SlotZoom,
@@ -220,6 +224,12 @@ export interface DashboardViewProps {
    * width jump). Seeding value for the client zoom state only.
    */
   initialZoom: SlotZoom;
+  /**
+   * Remembered Week (Grid) hour-slot-height zoom level, resolved from the
+   * UI-state cookie before first paint the same way. Seeding value for the
+   * client grid-week zoom state.
+   */
+  initialGridWeekZoom: SlotZoom;
   /**
    * Remembered Month-grid zoom level (a fit-width multiplier, 1 = the whole
    * week fits the viewport width), resolved from the UI-state cookie before
@@ -665,6 +675,7 @@ export function DashboardView({
   activeView,
   canManageViews,
   initialZoom,
+  initialGridWeekZoom,
   initialMonthZoom,
   initialDualSplit,
   events,
@@ -760,6 +771,15 @@ export function DashboardView({
   // switches or breakpoint flips.
   const prevZoomRef = useRef(zoom);
 
+  // Week (Grid) zoom: the 7 day columns always fill the viewport width, so its
+  // zoom scales the hour-slot HEIGHT (slotZoom.gridWeekSlotHeight) rather than
+  // the resource views' slot width. Same ownership contract as the other
+  // zooms — client state seeded from the cookie, persisted back below. The
+  // grid's scroll viewport is captured so a zoom re-anchors the centered time.
+  const [gridWeekZoom, setGridWeekZoom] = useState<SlotZoom>(initialGridWeekZoom);
+  const prevGridWeekZoomRef = useRef(gridWeekZoom);
+  const gridWeekViewportRef = useRef<HTMLDivElement | null>(null);
+
   // Month-grid zoom: a multiplier of the "fit to viewport width" day columns
   // (1 = all seven days fit; the grid can never be narrower). Same ownership
   // contract as the timeline zoom: client state seeded from the cookie,
@@ -785,6 +805,8 @@ export function DashboardView({
   // defaults). See src/lib/ui/slotZoom.ts and GridNavControls.
   const weekSlotWidthValue = weekSlotWidth(zoom, isDesktop);
   const daySlotWidthValue = daySlotWidth(zoom);
+  // Week (Grid) hour-slot height, driven by its own zoom level.
+  const gridWeekSlotHeightValue = gridWeekSlotHeight(gridWeekZoom);
 
   // A deep-link target resolves from the grid's filtered `events` first (the
   // common case: it is on a selected calendar and matches the filters), then
@@ -1005,7 +1027,8 @@ export function DashboardView({
   const shownIsAgenda = shownView === "agenda";
   const shownIsDual = shownView === "dual";
   const shownIsWeekV2 = shownView === "weekv2";
-  const shownIsWeek = shownView === "week" || shownIsWeekV2;
+  const shownIsGridWeek = shownView === "weekgrid";
+  const shownIsWeek = shownView === "week" || shownIsWeekV2 || shownIsGridWeek;
   // Day/week-anchored chrome flag mirroring `isAnchoredView`, which stays bound
   // to the committed props because it drives data rendering below. Dual Pane is
   // day-anchored too (its Month pane follows the agenda day's month).
@@ -1262,6 +1285,7 @@ export function DashboardView({
     ...(searchParams.has("date") || view === "dual" ? { date: effectiveDate } : {}),
     month,
     zoom,
+    gridWeekZoom,
     monthZoom,
     dualSplit,
   });
@@ -1321,7 +1345,10 @@ export function DashboardView({
   // values into data rendering.
   const monthLabel = dayjs(`${shownMonth}-01`).format("MMMM YYYY");
   const dayLabel = dayjs(shownDate).format("ddd, MMM D, YYYY");
-  const week = shownView === "week" || shownView === "weekv2" ? weekDays(shownDate) : null;
+  const week =
+    shownView === "week" || shownView === "weekv2" || shownView === "weekgrid"
+      ? weekDays(shownDate)
+      : null;
   const weekLabel = week ? formatWeekLabel(week[0], week[6]) : "";
   // Dual Pane labels the nav row with the MONTH (the pane header carries the
   // agenda day), so a month move reads on the shared chrome.
@@ -1687,14 +1714,16 @@ export function DashboardView({
   }, []);
 
   const isWeekV2 = view === "weekv2";
-  const isWeek = view === "week" || isWeekV2;
+  const isGridWeek = view === "weekgrid";
+  const isWeek = view === "week" || isWeekV2 || isGridWeek;
   const isSchedule = view === "schedule";
   const isAgenda = view === "agenda";
   const isDual = view === "dual";
-  // Day/week-anchored views (Day, Week (H), Week (D), Agenda, Dual Pane): a
-  // `?date=` anchor drives the fetch and the rendered grid (Week (H) and Week
-  // (D) show the Monday-first week containing the anchor day; Dual Pane shows
-  // that day's month + the day's agenda). `isWeek` already includes Week (D).
+  // Day/week-anchored views (Day, Week (H), Week (D), Week (Grid), Agenda,
+  // Dual Pane): a `?date=` anchor drives the fetch and the rendered grid (the
+  // week kinds show the Monday-first week containing the anchor day; Dual Pane
+  // shows that day's month + the day's agenda). `isWeek` includes Week (D) and
+  // Week (Grid).
   const isAnchoredView = isSchedule || isWeek || isAgenda || isDual;
 
   // Month-grid zoom knob. Mantine sizes every day column as a percentage of
@@ -2404,6 +2433,31 @@ export function DashboardView({
     );
   }, [view, gridLoading, monthZoom]);
 
+  // Week (Grid) slot-height zoom re-anchor: the grid's 7 day columns always fit
+  // the width, so its zoom changes the hour-row height and the vertical scroll
+  // would otherwise keep the same pixel offset and visibly jump the time. Keep
+  // the time under the viewport's center centered, scaling the offset by the
+  // zoom ratio (no label column on the vertical axis). Only on a genuine zoom
+  // change — never on mount or view switches.
+  useLayoutEffect(() => {
+    const zoomChanged = prevGridWeekZoomRef.current !== gridWeekZoom;
+    const oldZoom = prevGridWeekZoomRef.current;
+    prevGridWeekZoomRef.current = gridWeekZoom;
+    if (!zoomChanged || view !== "weekgrid" || gridLoading) {
+      return;
+    }
+    const viewport = gridWeekViewportRef.current;
+    if (!viewport || viewport.clientHeight <= 0) {
+      return;
+    }
+    viewport.scrollTop = reanchorScrollTop(
+      viewport.scrollTop,
+      viewport.clientHeight,
+      oldZoom,
+      gridWeekZoom,
+    );
+  }, [view, gridLoading, gridWeekZoom]);
+
   // Shared by the Day, Week (H) and Week (D) resource views: a department row
   // is a building icon (its name as tooltip/aria), a user row is the shortname
   // label. The current user's row carries a `data-c2-my-row` marker span
@@ -2954,6 +3008,8 @@ export function DashboardView({
                 />
               ) : shownIsWeekV2 ? (
                 <WeekMatrixSkeleton />
+              ) : shownIsGridWeek ? (
+                <WeekGridViewSkeleton />
               ) : shownIsWeek ? (
                 <WeekGridSkeleton />
               ) : shownIsAgenda ? (
@@ -3098,6 +3154,42 @@ export function DashboardView({
               </div>
               {showAgendaHint && <AgendaSwipeHint />}
             </div>
+          ) : isGridWeek && week ? (
+            // Week (Grid): Mantine's conventional 7-day week grid with time on
+            // the vertical axis. It needs no department rows, so it renders
+            // above the empty-resource guard. `withHeader={false}` drops the
+            // library's own nav controls (the app's nav row drives the period)
+            // but keeps its weekday/day-number row and all-day section. The
+            // 7 columns always fit the width, so the shared zoom pair scales
+            // the hour-slot height instead of a slot width.
+            <WeekView
+              date={date}
+              events={viewEvents}
+              startTime="00:00:00"
+              endTime="23:59:59"
+              intervalMinutes={60}
+              slotHeight={gridWeekSlotHeightValue}
+              withHeader={false}
+              withCurrentTimeIndicator
+              // Week containing today opens at the current time, other weeks at
+              // Monday 07:00 (mount-only, re-applied after each tab switch /
+              // date navigation remounts the grid via the skeleton).
+              startScrollTime={
+                week.includes(today) ? `${today} ${currentScrollTime}` : `${week[0]} 07:00:00`
+              }
+              // The captured viewport lets the slot-height zoom re-anchor the
+              // centered time (layout effect above).
+              scrollAreaProps={{ viewportRef: gridWeekViewportRef }}
+              // External events get the purple ring (c2-ext-event), the user's
+              // own get the amber one (c2-my-event) — same pass-through root as
+              // the Month grid.
+              renderEvent={renderMyMonthEvent}
+              onEventClick={(event, e) => {
+                if (isOptimisticStandIn(event as CalendarEvent)) return;
+                setDetailOriginRect(e.currentTarget.getBoundingClientRect());
+                setDetailEvent(event as unknown as CalendarEvent);
+              }}
+            />
           ) : scheduleResources.resources.length === 0 ? (
             <Paper withBorder radius="md">
               {userFilterActive ? (
@@ -3346,6 +3438,29 @@ export function DashboardView({
             }}
           />
         )}
+
+      {/* Week (Grid) zoom: the same right-edge cluster's zoom pair, but with no
+          pan arrows — the grid's 7 day columns always fill the width, so only
+          the hour-slot height zooms (its own remembered level). */}
+      {!gridLoading && isGridWeek && week !== null && (
+        <GridNavControls
+          anchorRef={weekBoxRef}
+          canScrollLeft={false}
+          canScrollRight={false}
+          onPan={() => {}}
+          zoom={gridWeekZoom}
+          onZoomIn={() => {
+            const next = stepZoom(gridWeekZoom, 1);
+            setGridWeekZoom(next);
+            announce(`Zoom ${Math.round(next * 100)}%`);
+          }}
+          onZoomOut={() => {
+            const next = stepZoom(gridWeekZoom, -1);
+            setGridWeekZoom(next);
+            announce(`Zoom ${Math.round(next * 100)}%`);
+          }}
+        />
+      )}
 
       {/* Month-grid navigation: the same right-edge cluster (zoom in/out over
           the right pan arrow) plus the left pan arrow, driven by the month

@@ -24,6 +24,7 @@ export default async function DashboardPage() {
   // before first paint so a cold open restores the last zoom with no width jump.
   const nav = decodeUiState((await cookies()).get(UI_STATE_COOKIE)?.value)?.dashboard;
   const initialZoom = clampZoom(nav?.zoom) ?? 1;
+  const initialGridWeekZoom = clampZoom(nav?.gridWeekZoom) ?? 1;
   const initialMonthZoom = clampMonthZoom(nav?.monthZoom) ?? 1;
   // Dual Pane split ratio (Month pane fraction) — same device-local contract.
   const initialDualSplit = clampDualSplit(nav?.dualSplit) ?? DUAL_SPLIT_DEFAULT;
@@ -34,6 +35,7 @@ export default async function DashboardPage() {
         <DashboardScreen
           userId={session.user.id}
           initialZoom={initialZoom}
+          initialGridWeekZoom={initialGridWeekZoom}
           initialMonthZoom={initialMonthZoom}
           initialDualSplit={initialDualSplit}
         />

@@ -15,6 +15,7 @@
  *       date?: string,              //   day-anchored views
  *       month?: string,             //   Month view
  *       zoom?: number               //   Day/Week (H) hour-slot zoom (slotZoom.ts)
+ *       gridWeekZoom?: number       //   Week (Grid) slot-height zoom (slotZoom.ts)
  *       monthZoom?: number          //   Month grid zoom (monthZoom.ts)
  *       dualSplit?: number          //   Dual Pane month/agenda split (dualSplit.ts)
  *     }
@@ -40,14 +41,16 @@ export const UI_STATE_COOKIE = "cloudy2.ui";
 
 /**
  * Per-device dashboard "where you are". `zoom` is the Day/Week (H) hour-slot
- * zoom (slotZoom.ts); `monthZoom` is the Month grid's fit-width multiplier
- * (monthZoom.ts) — two separate keys because each view remembers its own level;
- * `dualSplit` is the Dual Pane month/agenda width split (dualSplit.ts).
+ * zoom (slotZoom.ts) and `gridWeekZoom` the Week (Grid) slot-height zoom — two
+ * separate keys because each view remembers its own level; `monthZoom` is the
+ * Month grid's fit-width multiplier (monthZoom.ts); `dualSplit` is the Dual
+ * Pane month/agenda width split (dualSplit.ts).
  */
 export interface DashboardNavState {
   date?: string;
   month?: string;
   zoom?: number;
+  gridWeekZoom?: number;
   monthZoom?: number;
   dualSplit?: number;
 }
@@ -88,11 +91,13 @@ export function normalizeUiState(value: unknown): UiState | null {
     const date = stringOf(dashboard.date);
     const month = stringOf(dashboard.month);
     const zoom = clampZoom(dashboard.zoom);
+    const gridWeekZoom = clampZoom(dashboard.gridWeekZoom);
     const monthZoom = clampMonthZoom(dashboard.monthZoom);
     const dualSplit = clampDualSplit(dashboard.dualSplit);
     if (date !== undefined) section.date = date;
     if (month !== undefined) section.month = month;
     if (zoom !== null) section.zoom = zoom;
+    if (gridWeekZoom !== null) section.gridWeekZoom = gridWeekZoom;
     if (monthZoom !== null) section.monthZoom = monthZoom;
     if (dualSplit !== null) section.dualSplit = dualSplit;
     if (Object.keys(section).length > 0) {
@@ -127,20 +132,22 @@ function fromBase64Url(value: string): string {
 // are unchanged: a major mismatch in EITHER direction drops the cookie, a
 // newer minor decodes as-is (forward-compatible), an older minor runs the
 // migration chain before normalization.
-const COOKIE_VERSION: readonly [number, number] = [3, 2];
+const COOKIE_VERSION: readonly [number, number] = [3, 3];
 
 /**
  * Minor migrations within the CURRENT major, keyed by the minor they upgrade
  * FROM. Each returns the raw (pre-normalization) object. v3.1 adds the Month
  * grid zoom (`monthZoom`); a v3.0 cookie carries no such key, so the migration
  * is a pass-through and normalization fills the gap (no monthZoom = the fit
- * default). v3.2 adds the Dual Pane split (`dualSplit`) — likewise a
- * pass-through (no dualSplit = the default 60/40 split).
+ * default). v3.2 adds the Dual Pane split (`dualSplit`) and v3.3 the Week
+ * (Grid) slot-height zoom (`gridWeekZoom`) — likewise pass-throughs (no key =
+ * the view's default level).
  */
 const MINOR_MIGRATIONS: Record<number, (value: Record<string, unknown>) => Record<string, unknown>> =
   {
     0: (value) => value,
     1: (value) => value,
+    2: (value) => value,
   };
 
 function parseCookieVersion(raw: unknown): [number, number] | null {

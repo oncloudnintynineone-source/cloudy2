@@ -91,6 +91,7 @@ describe("nameAfterKindChange", () => {
   it("adopts the new kind's default label when the name is still the old default", () => {
     expect(nameAfterKindChange("Month", "month", "agenda")).toBe("Agenda");
     expect(nameAfterKindChange("Week (D)", "weekv2", "month")).toBe("Month");
+    expect(nameAfterKindChange("Week (Grid)", "weekgrid", "agenda")).toBe("Agenda");
     expect(nameAfterKindChange("Month", "month", "dual")).toBe("Month & Agenda");
     expect(nameAfterKindChange("Month & Agenda", "dual", "agenda")).toBe("Agenda");
   });

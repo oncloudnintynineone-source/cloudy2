@@ -790,10 +790,10 @@ html {
   background-color: var(--c2-my-row-tint);
 }
 
-/* Month view: the user's chips get an amber ring. The ring goes on the
-   inner chip element (the one carrying the rounded background), which is
-   the only element child of the event root in both the grid and the
-   "+N more" popup. */
+/* Month view and Week (Grid): the user's chips get an amber ring. The ring
+   goes on the inner chip element (the one carrying the rounded background),
+   which is the only element child of the event root in the month grid, the
+   "+N more" popup, and the WeekView ScheduleEvent root. */
 .c2-my-event {
   z-index: 4;
 }
@@ -842,9 +842,9 @@ html {
   "External events" highlight (dashboard calendar views — see
   docs/dashboard-views.md §1.6). Events created directly in Google Calendar
   (no internal marker, no notes block) get a purple treatment per view, in
-  parallel with the amber "mine" language above: Month chips, Day / Week (H)
-  blocks and Week (D) banners get a ring; agenda rows get a left bar + light
-  tint + semibold title. purple-6 holds on both light and dark bodies for
+  parallel with the amber "mine" language above: Month / Week (Grid) chips,
+  Day / Week (H) blocks and Week (D) banners get a ring; agenda rows get a
+  left bar + light tint + semibold title. purple-6 holds on both light and dark bodies for
   the ring and bar; the agenda tint switches on color scheme via
   --c2-ext-row-tint (light uses the near-white purple-0 cream; in dark mode
   it would glow, so it goes to a deep purple mirroring the mine row's
@@ -860,8 +860,8 @@ html {
 
 /* The ring goes on the inner chip element (the one carrying the rounded
    background), which is the only element child of the event root in the
-   Month grid and the "+N more" popup (c2-ext-event) and in the Day /
-   Week (H) ScheduleEvent roots (c2-ext-slot-event). */
+   Month grid, the "+N more" popup and the Week (Grid) grid (c2-ext-event)
+   and in the Day / Week (H) ScheduleEvent roots (c2-ext-slot-event). */
 .c2-ext-event {
   z-index: 4;
 }

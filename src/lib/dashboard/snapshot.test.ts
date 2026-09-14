@@ -69,8 +69,13 @@ describe("requiredMonths", () => {
     // Mon 2026-09-07 .. Sun 2026-09-13.
     expect(requiredMonths("week", "2026-09", "2026-09-12")).toEqual(["2026-09"]);
     expect(requiredMonths("weekv2", "2026-09", "2026-09-12")).toEqual(["2026-09"]);
+    expect(requiredMonths("weekgrid", "2026-09", "2026-09-12")).toEqual(["2026-09"]);
     // Mon 2026-08-31 .. Sun 2026-09-06.
     expect(requiredMonths("week", "2026-08", "2026-08-31")).toEqual([
+      "2026-08",
+      "2026-09",
+    ]);
+    expect(requiredMonths("weekgrid", "2026-08", "2026-08-31")).toEqual([
       "2026-08",
       "2026-09",
     ]);

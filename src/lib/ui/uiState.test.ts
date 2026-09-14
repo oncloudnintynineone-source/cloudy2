@@ -29,6 +29,7 @@ describe("encodeUiState/decodeUiState", () => {
         date: "2026-08-21",
         month: "2026-08",
         zoom: 1.5,
+        gridWeekZoom: 0.75,
         monthZoom: 2,
         dualSplit: 0.65,
       },
@@ -103,6 +104,20 @@ describe("cookie versioning", () => {
       dashboard: { month: "2026-08", monthZoom: 2 },
     });
   });
+
+  it("migrates a v3.2 cookie (no gridWeekZoom) to the current shape", () => {
+    const value = b64url(
+      JSON.stringify({
+        v: [3, 2],
+        lastPage: "/dashboard",
+        dashboard: { month: "2026-08", zoom: 1.25, dualSplit: 0.65 },
+      }),
+    );
+    expect(decodeUiState(value)).toEqual({
+      lastPage: "/dashboard",
+      dashboard: { month: "2026-08", zoom: 1.25, dualSplit: 0.65 },
+    });
+  });
 });
 
 describe("normalizeUiState (shape safety)", () => {
@@ -170,6 +185,21 @@ describe("normalizeUiState (shape safety)", () => {
     expect(
       normalizeUiState({ dashboard: { monthZoom: 1.4 } }),
     ).toEqual({ dashboard: { monthZoom: 1.5 } });
+  });
+
+  it("snaps gridWeekZoom to a known level and drops junk values", () => {
+    expect(
+      normalizeUiState({ dashboard: { gridWeekZoom: 1.5 } }),
+    ).toEqual({ dashboard: { gridWeekZoom: 1.5 } });
+    expect(
+      normalizeUiState({ dashboard: { gridWeekZoom: 99 } }),
+    ).toEqual({ dashboard: { gridWeekZoom: 2 } });
+    expect(
+      normalizeUiState({ dashboard: { gridWeekZoom: "2" } }),
+    ).toEqual({});
+    expect(
+      normalizeUiState({ dashboard: { gridWeekZoom: 1.4 } }),
+    ).toEqual({ dashboard: { gridWeekZoom: 1.5 } });
   });
 
   it("clamps dualSplit to the usable band and drops junk values", () => {

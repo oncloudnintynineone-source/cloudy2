@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import {
   IconCalendarMonth,
+  IconCalendarTime,
   IconCalendarUser,
   IconCalendarWeek,
   IconColumns2,
@@ -18,6 +19,7 @@ export const VIEW_TAB_META: Record<
   month: { label: "Month", icon: <IconCalendarMonth size={16} /> },
   week: { label: "Week (H)", icon: <IconCalendarWeek size={16} /> },
   weekv2: { label: "Week (D)", icon: <IconLayoutGrid size={16} />, nowrap: true },
+  weekgrid: { label: "Week (Grid)", icon: <IconCalendarTime size={16} />, nowrap: true },
   schedule: { label: "Day", icon: <IconCalendarUser size={16} /> },
   agenda: { label: "Agenda", icon: <IconListDetails size={16} /> },
   dual: { label: "Month & Agenda", icon: <IconColumns2 size={16} />, nowrap: true },

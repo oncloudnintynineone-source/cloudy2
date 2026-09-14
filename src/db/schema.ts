@@ -124,8 +124,8 @@ export const userCalendarAccess = pgTable(
 
 /**
  * A user's on-demand dashboard calendar view (tab). Each row is one tab the
- * user created: a renderer kind (`month` | `week` | `weekv2` | `schedule` |
- * `agenda` — the same five engines the dashboard always had), a user-chosen
+ * user created: a renderer kind (`month` | `week` | `weekv2` | `weekgrid` |
+ * `schedule` | `agenda` | `dual`), a user-chosen
  * display `name`, a per-user `sortOrder` for the tab strip, and the tab's own
  * filter overrides. Duplicates of the same kind are allowed (two Agenda tabs
  * with different names/filters); the tab's UUID is its identity, carried in

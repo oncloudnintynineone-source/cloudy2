@@ -6,7 +6,9 @@ import {
   ZOOM_LEVELS,
   clampZoom,
   daySlotWidth,
+  gridWeekSlotHeight,
   reanchorScrollLeft,
+  reanchorScrollTop,
   stepZoom,
   weekSlotWidth,
 } from "./slotZoom";
@@ -71,6 +73,40 @@ describe("daySlotWidth", () => {
     expect(daySlotWidth(0.5)).toBe("calc(2.5rem * var(--mantine-scale))");
     expect(daySlotWidth(1.5)).toBe("calc(7.5rem * var(--mantine-scale))");
     expect(daySlotWidth(2)).toBe("calc(10rem * var(--mantine-scale))");
+  });
+});
+
+describe("gridWeekSlotHeight", () => {
+  it("matches the 56px default at zoom 1", () => {
+    expect(gridWeekSlotHeight(1)).toBe("calc(3.5rem * var(--mantine-scale))");
+  });
+
+  it("scales the base by the zoom level", () => {
+    expect(gridWeekSlotHeight(0.5)).toBe("calc(1.75rem * var(--mantine-scale))");
+    expect(gridWeekSlotHeight(1.25)).toBe("calc(4.375rem * var(--mantine-scale))");
+    expect(gridWeekSlotHeight(2)).toBe("calc(7rem * var(--mantine-scale))");
+  });
+});
+
+describe("reanchorScrollTop", () => {
+  it("keeps the viewport-center time stable when zooming in", () => {
+    // Center sits 300px into the timeline; doubling the slot height keeps that
+    // time centered at 300px.
+    expect(reanchorScrollTop(0, 600, 1, 2)).toBeCloseTo(300);
+  });
+
+  it("is symmetric zooming out", () => {
+    expect(reanchorScrollTop(300, 600, 2, 1)).toBeCloseTo(0);
+  });
+
+  it("is the identity for an unchanged zoom", () => {
+    expect(reanchorScrollTop(150, 600, 1, 1)).toBeCloseTo(150);
+  });
+
+  it("returns the original offset for degenerate inputs", () => {
+    expect(reanchorScrollTop(100, 0, 1, 2)).toBe(100);
+    expect(reanchorScrollTop(100, 600, 0, 2)).toBe(100);
+    expect(reanchorScrollTop(100, 600, 1, 0)).toBe(100);
   });
 });
 

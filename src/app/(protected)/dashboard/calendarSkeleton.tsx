@@ -108,6 +108,92 @@ export function AgendaListSkeleton({ rows = 4 }: { rows?: number }) {
   );
 }
 
+const WEEK_GRID_BORDER = "1px solid var(--mantine-color-default-border)";
+
+/**
+ * Week (Grid) skeleton: a conventional week grid shape — a day-header band over
+ * a time-label column plus 7 day columns with hour rows and deterministic event
+ * blocks. Mirrors the real `WeekView` layout so the swap on load is seamless.
+ */
+export function WeekGridViewSkeleton({ hours = 8 }: { hours?: number }) {
+  const columns = "3rem repeat(7, 1fr)";
+  return (
+    <Paper withBorder radius="md" p={0} style={{ overflow: "hidden" }}>
+      {/* Day-header band: corner cell + 7 weekday/day-number placeholders. */}
+      <Box
+        style={{
+          display: "grid",
+          gridTemplateColumns: columns,
+          borderBottom: WEEK_GRID_BORDER,
+        }}
+      >
+        <Box style={{ borderRight: WEEK_GRID_BORDER }} />
+        {Array.from({ length: 7 }).map((_, c) => (
+          <Box
+            key={c}
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              gap: 3,
+              padding: "5px 2px",
+              borderLeft: c > 0 ? WEEK_GRID_BORDER : undefined,
+            }}
+          >
+            <Skeleton height={10} radius={2} style={{ width: "55%" }} />
+            <Skeleton height={8} radius={2} style={{ width: "25%" }} />
+          </Box>
+        ))}
+      </Box>
+
+      {/* Hour rows: time-label cell + 7 day cells; a few deterministic events. */}
+      {Array.from({ length: hours }).map((_, r) => (
+        <Box
+          key={r}
+          style={{
+            display: "grid",
+            gridTemplateColumns: columns,
+            borderBottom: r < hours - 1 ? WEEK_GRID_BORDER : undefined,
+          }}
+        >
+          <Box
+            style={{
+              display: "flex",
+              alignItems: "flex-start",
+              justifyContent: "flex-end",
+              padding: "4px 6px",
+              borderRight: WEEK_GRID_BORDER,
+            }}
+          >
+            <Skeleton height={8} radius={2} style={{ width: "70%" }} />
+          </Box>
+          {Array.from({ length: 7 }).map((_, c) => {
+            // Deterministic 0-2 event blocks per cell, varying with row/column.
+            const blocks = (r * 3 + c * 5) % 3;
+            return (
+              <Box
+                key={c}
+                style={{
+                  minHeight: 44,
+                  padding: 2,
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: 2,
+                  borderLeft: c > 0 ? WEEK_GRID_BORDER : undefined,
+                }}
+              >
+                {Array.from({ length: blocks }).map((_, b) => (
+                  <Skeleton key={b} height={18} radius={3} style={{ width: "100%" }} />
+                ))}
+              </Box>
+            );
+          })}
+        </Box>
+      ))}
+    </Paper>
+  );
+}
+
 /**
  * Stacked resource rows matching the Week (H) view shape (label + 7-day lane).
  * No weekday header inside: the real Week (H) view replaces Mantine's internal

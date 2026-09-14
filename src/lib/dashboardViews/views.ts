@@ -1,7 +1,8 @@
 /**
  * The user-created dashboard "Views" (tabs) domain — pure vocabulary, shape
  * and normalization. A tab is a server row in `user_dashboard_views`: one
- * renderer kind (Month / Week (H) / Week (D) / Day / Agenda / Dual Pane), a
+ * renderer kind (Month / Week (H) / Week (D) / Week (Grid) / Day / Agenda /
+ * Dual Pane), a
  * user-chosen display name, a per-user strip order, and that tab's own filter
  * overrides. Tabs are stored server-side per account (design:
  * docs/dashboard-views.md, docs/ui-state.md).
@@ -19,6 +20,7 @@ export const DASHBOARD_VIEW_KINDS = [
   "month",
   "week",
   "weekv2",
+  "weekgrid",
   "schedule",
   "agenda",
   "dual",
@@ -30,6 +32,7 @@ export const DASHBOARD_VIEW_KIND_LABELS: Record<DashboardViewKind, string> = {
   month: "Month",
   week: "Week (H)",
   weekv2: "Week (D)",
+  weekgrid: "Week (Grid)",
   schedule: "Day",
   agenda: "Agenda",
   dual: "Month & Agenda",

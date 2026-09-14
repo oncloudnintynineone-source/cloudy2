@@ -1,13 +1,16 @@
 /**
- * Timeline zoom for the Day / Week (H) schedule views. One shared zoom level
- * scales each hour slot's width: the views read their slot width from a CSS
- * variable (`--resources-*-view-slot-width`) and size every event as a
- * percentage of the day container that variable defines, so changing the var
- * re-lays out slots and events alike. The level is remembered per device in
- * the UI-state cookie (see uiState.ts) and is NOT URL-backed — zooming never
- * navigates.
+ * Timeline zoom for the Day / Week (H) schedule views, plus the vertical zoom
+ * for the Week (Grid) view. One shared zoom level scales each hour slot's
+ * **width** on the resource views (they read it from a CSS variable —
+ * `--resources-*-view-slot-width` — and size every event as a percentage of
+ * the day container that variable defines, so changing the var re-lays out
+ * slots and events alike). The Week (Grid) view is a conventional 7-column
+ * week grid whose 7 days always fit the width, so its zoom instead scales the
+ * hour-slot **height** (`gridWeekSlotHeight`). Each level is remembered per
+ * device in the UI-state cookie (see uiState.ts) and is NOT URL-backed —
+ * zooming never navigates.
  *
- * The helpers here are pure (no I/O, no React) so the width math and the
+ * The helpers here are pure (no I/O, no React) so the geometry math and the
  * level stepping are unit-tested without a DOM.
  */
 
@@ -26,6 +29,9 @@ export const MAX_ZOOM = ZOOM_LEVELS[ZOOM_LEVELS.length - 1];
 const WEEK_MOBILE_BASE_REM = 3.75;
 const WEEK_DESKTOP_BASE_REM = 4.5;
 const DAY_BASE_REM = 5;
+// Week (Grid) hour-slot height at zoom 1 (3.5rem = 56px, matching the other
+// schedule views' `rowHeight`).
+const GRID_WEEK_BASE_REM = 3.5;
 
 /**
  * Coerce an arbitrary decoded value (a remembered cookie `zoom`) into a zoom
@@ -76,6 +82,15 @@ export function daySlotWidth(zoom: SlotZoom): string {
 }
 
 /**
+ * Week (Grid) hour-slot height for a zoom level. The grid's 7 day columns
+ * always fill the viewport width, so its zoom is vertical (slot height) rather
+ * than the resource views' slot width. Same base at every breakpoint.
+ */
+export function gridWeekSlotHeight(zoom: SlotZoom): string {
+  return slotWidthCss(GRID_WEEK_BASE_REM * zoom);
+}
+
+/**
  * Re-anchors the horizontal scroll position after a timeline zoom so the time
  * that was at the viewport's center stays centered. The schedule grids scroll a
  * [label column + hour timeline]; the sticky label column is a fixed width that
@@ -96,4 +111,25 @@ export function reanchorScrollLeft(
   }
   const timePx = scrollLeft + viewportWidth / 2 - labelWidth;
   return timePx * (newSlotPx / oldSlotPx) + labelWidth - viewportWidth / 2;
+}
+
+/**
+ * Re-anchors the vertical scroll position after the Week (Grid)'s slot-height
+ * zoom so the time that was at the viewport's center stays centered. There is
+ * no sticky label column on the vertical axis, so the offset scales directly
+ * by the zoom ratio. Pure (no DOM) — the caller passes the two zoom levels and
+ * the browser clamps the returned value to `[0, scrollHeight - clientHeight]`
+ * on assignment.
+ */
+export function reanchorScrollTop(
+  scrollTop: number,
+  viewportHeight: number,
+  oldZoom: number,
+  newZoom: number,
+): number {
+  if (oldZoom <= 0 || newZoom <= 0 || viewportHeight <= 0) {
+    return scrollTop;
+  }
+  const timePx = scrollTop + viewportHeight / 2;
+  return timePx * (newZoom / oldZoom) - viewportHeight / 2;
 }

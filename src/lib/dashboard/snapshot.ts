@@ -44,6 +44,7 @@ export type DashboardSnapshot = Omit<
   | "month"
   | "date"
   | "initialZoom"
+  | "initialGridWeekZoom"
   | "initialMonthZoom"
   | "initialDualSplit"
   | "initialEditEventId"
@@ -123,7 +124,8 @@ export interface DashboardSnapshotRecord {
  * already-loaded month is not a data change:
  *
  * - Month: the 6-week grid's months (`monthGridMonths`, 2-3).
- * - Week (H) / Week (D): the months the Monday-first week touches (1-2).
+ * - Week (H) / Week (D) / Week (Grid): the months the Monday-first week
+ *   touches (1-2).
  * - Day / Agenda: the single containing month.
  * - Dual Pane: the 6-week grid's months (`monthGridMonths`), exactly like
  *   Month — it is day-anchored, and its Month pane always shows the agenda
@@ -137,7 +139,7 @@ export function requiredMonths(kind: DashboardViewKind, month: string, date: str
   if (kind === "month" || kind === "dual") {
     return monthGridMonths(month);
   }
-  if (kind === "week" || kind === "weekv2") {
+  if (kind === "week" || kind === "weekv2" || kind === "weekgrid") {
     const week = weekDays(date);
     return monthsInRange(week[0], week[6]);
   }

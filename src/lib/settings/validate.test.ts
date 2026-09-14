@@ -146,11 +146,12 @@ describe("validateAssignments", () => {
     ).toEqual({});
   });
 
-  it("defines the six dashboard views plus pinned, double-booking, and notification targets", () => {
+  it("defines the seven dashboard views plus pinned, double-booking, and notification targets", () => {
     expect(EVENT_TITLE_ASSIGNMENT_TARGETS).toEqual([
       "month",
       "week",
       "weekv2",
+      "weekgrid",
       "schedule",
       "agenda",
       "dual",
