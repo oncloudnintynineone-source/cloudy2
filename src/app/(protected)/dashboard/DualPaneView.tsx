@@ -57,6 +57,7 @@ import { eventsOnDay } from "@/lib/events/agenda";
 import type { CalendarEvent } from "@/lib/events/queries";
 import type { Rect } from "@/lib/motion/origin";
 import { markAgendaSwipeHintSeen } from "@/lib/ui/agendaSwipeHint";
+import { markPinchHintSeen } from "@/lib/ui/pinchHint";
 import {
   DUAL_SPLIT_DEFAULT,
   DUAL_SPLIT_MAX,
@@ -120,6 +121,8 @@ export interface DualPaneViewProps {
   onDayOpen: (day: string, origin: Rect) => void;
   /** Show the touch-only swipe hint (coarse pointer, not yet seen this session). */
   showSwipeHint: boolean;
+  /** Show the one-time pinch-to-zoom hint beside the pane's zoom cluster. */
+  showPinchHint: boolean;
   /** Height of the sticky chrome block above the grid (tabs + date-nav row). */
   chromeOffset: number;
 }
@@ -152,6 +155,7 @@ export function DualPaneView({
   onDaySelect,
   onDayOpen,
   showSwipeHint,
+  showPinchHint,
   chromeOffset,
 }: DualPaneViewProps) {
   const theme = useMantineTheme();
@@ -171,6 +175,7 @@ export function DualPaneView({
   const monthPinchFocalRef = useRef<number | undefined>(undefined);
   const monthPinch = usePinchZoom({
     onStart: () => {
+      markPinchHintSeen();
       monthPinchBaseRef.current = monthZoom;
     },
     onPinch: ({ scale, focalX }) => {
@@ -451,6 +456,7 @@ export function DualPaneView({
             canScrollLeft={monthPan.canScrollLeft}
             canScrollRight={monthPan.canScrollRight}
             onPan={monthPan.panTo}
+            showPinchHint={showPinchHint}
             zoom={monthZoom}
             zoomMin={MIN_MONTH_ZOOM}
             zoomMax={MAX_MONTH_ZOOM}

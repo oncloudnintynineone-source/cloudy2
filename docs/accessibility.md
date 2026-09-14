@@ -56,6 +56,10 @@ Current call sites (all in `DashboardView`):
 | Timeline zoom in/out | `"Zoom 125%"` |
 | Pinch-to-zoom (touch; also `DashboardView` + `DualPaneView`) | the same zoom string, announced once on release (`"Columns 150%"` for the Week (Grid)'s axis) — the discrete zoom buttons remain the keyboard/screen-reader path |
 
+The one-time **"Pinch to zoom"** caption beside the zoom cluster is decorative
+(`aria-hidden`, `pointer-events: none`) — the zoom buttons already carry the
+accessible names, and the caption is pure touch guidance.
+
 ## 1.3 Loading announcements
 
 Skeletons are visual-only, so every skeleton block includes a
