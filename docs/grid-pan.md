@@ -60,7 +60,7 @@ intentionally subdued secondary chrome lighter than the date-nav chevrons):
   The **Week (Grid)** view's two-axis zoom uses the same cluster split around
   the arrow: the **columns** pair above the right pan arrow and the **rows**
   pair below (each behind its own divider), anchored so the arrow's center sits
-  on the **viewport** center (§1.7 of
+  on the grid's **visible-slice center**, like the other clusters (§1.7 of
   [`dashboard-views.md`](dashboard-views.md#17-timeline-zoom-day-week-h-and-week-grid)).
   For the single-axis clusters the widget hangs from its **bottom edge**, so the
   right pan arrow's center sits on the visible-slice center — vertically aligned

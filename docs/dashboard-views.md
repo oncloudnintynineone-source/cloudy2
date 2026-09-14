@@ -411,14 +411,16 @@ the Day / Week (H) column widths):
 - **Rows** (`gridWeekSlotHeight`, base 3.5rem/56px): scales the hour-slot height
   across the full `0.5–3` range (default 1); a layout effect re-anchors the
   vertical scroll (`reanchorScrollTop`).
-- Because the row zoom changes the grid's height, the cluster is pinned to the
-  **viewport** center (`GridNavControls centerOn="viewport"`) rather than the
-  grid's visible-slice center, so it can't drift as the grid grows/shrinks. The
-  cluster is anchored so the **right pan arrow's center** lands on that point,
-  with the columns pair above and the rows pair below; the arrow slot (and its
-  dividers) is reserved even when the grid fits without overflowing, so the
-  pairs never shift while panning. The row pair is passed as the cluster's
-  `secondaryZoom` group.
+- The cluster anchors to the grid's **visible-slice center** like every other
+  view — the right pan arrow slot's center lands on it — with the columns pair
+  above and the rows pair below; the arrow slot (and its dividers) is reserved
+  even when the grid fits without overflowing, so the pairs never shift while
+  panning. (Anchoring to the visible slice, not the raw viewport center, keeps
+  the cluster below the sticky chrome; a viewport-centered cluster reached the
+  floating fullscreen toggle at the top-right on short viewports. The row zoom
+  changes the grid's height, but on a grid taller than the viewport the visible
+  slice — and so the anchor — is stable, the same contract as the other views.)
+  The row pair is passed as the cluster's `secondaryZoom` group.
 
 The rest of this section describes the shared horizontal mechanism.
 

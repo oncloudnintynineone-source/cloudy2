@@ -3553,9 +3553,6 @@ export function DashboardView({
               announce(`Rows ${Math.round(next * 100)}%`);
             },
           }}
-          // The row zoom changes the grid's height, so pin the cluster to the
-          // viewport center instead of the (moving) visible slice.
-          centerOn="viewport"
           onZoomIn={() => {
             const next = stepZoom(gridWeekColZoom, 1);
             setGridWeekColZoom(next);
