@@ -619,37 +619,35 @@ The dashboard's tab strip used to read as static while a tapped view's grid
 waited behind the skeleton, and every background tab was indistinguishable from
 a loaded one. Each tab now shows **its own view's** load state on its icon +
 label, decoupled from the active view's skeleton (`DashboardView.tsx`, styled by
-`.c2-tab-load-bar` / `.c2-tab-not-loaded` in `globals.css`):
+`.c2-tab-spinner` / `.c2-tab-not-loaded` in `globals.css`):
 
 - **fresh** — a warm snapshot for the tab's key exists (any age), so a tap paints
   it instantly (a stale one revalidates silently in place). Solid, as before. The
   active tab is always fresh (you're looking at its data) unless a read for it is
   in flight.
 - **loading** — a read for that key is in flight (the active read, an on-tap
-  priority read, or the background preload). A thin amber bar is pinned to the
-  tab's bottom edge with a warm-white highlight sweeping across it (the activity
-  bar's comet language); reduced-motion drops the sweep to a plain amber strip.
-  Loading text stays solid — the bar is the signal.
+  priority read, or the background preload). A small amber spinner sits in the
+  tab's top-right corner. Loading text stays solid — the spinner is the signal.
 - **not-loaded** — neither. Slightly faded, static.
 
 **State model.** `DashboardScreen` computes `tabStatus` from the warm-snapshot
 map (`warmRecords`) and two in-flight flags, keyed by each tab's request key
 (`dashboardRequestKey` + `requiredMonths`); the pure, unit-tested `tabLoadStates`
 (`snapshot.ts`) maps keys → states. It rides the existing `DashboardDataContext`
-(no new props) and the tab strip renders the bar on the tab itself. Loading tabs
-carry `aria-busy`.
+(no new props) and the tab strip renders the spinner on the tab itself. Loading
+tabs carry `aria-busy`.
 
 **Flicker control.** Both flags pass through the shared `useLoadingIndicator`
 (`src/lib/loading/loadingIndicator.ts`, the activity bar's show-delay/min-hold
 timer machine):
 
-- **Active tab** — the active read (`busy`) lights the bar immediately
+- **Active tab** — the active read (`busy`) shows the spinner immediately
   (`delayMs: 0`) and holds it a minimum of **1 s**, so a fast read can't flash.
 - **Background tabs** — the preload pass (`preloading`) waits **300 ms** before
-  lighting bars (a quick warm pass never shows one) and also holds **1 s**. The
+  showing spinners (a quick warm pass never shows one) and also holds **1 s**. The
   set of tabs it lights is latched at pass start (the non-warm keys, captured in
   `backgroundKeys`) rather than re-derived against `warmKeys`, so the hold keeps
-  the bar up after the records land and those tabs turn warm.
+  the spinner up after the records land and those tabs turn warm.
 
 Freshness is deliberately **not** surfaced as a badge: an earlier iteration put a
 small amber dot on warm-but-old / background-preloading tabs, but a corner dot
@@ -659,9 +657,9 @@ solid; a tap revalidates them silently.
 **Loading strategy (hybrid).** The efficient single union-read preload
 (`preloadDashboardTabs`) still warms every tab in one server pass, so a
 not-yet-loaded tab flips to solid as its record lands — and, once the pass runs
-past the 300 ms delay, every tab it still has to load shows the loading bar
-until the 1 s hold elapses. A tap on a not-yet-loaded tab fires the normal
-priority read for that tab, which lights its bar immediately. A single-tab
+past the 300 ms delay, every tab it still has to load shows the spinner until
+the 1 s hold elapses. A tap on a not-yet-loaded tab fires the normal priority
+read for that tab, which shows its spinner immediately. A single-tab
 account skips the preload entirely (the active read already covers it), avoiding
 a second server config pass.
 
@@ -674,12 +672,12 @@ revert window (`PREVIEW_REVERT_MS`) if the push never lands.
 
 **Per-tab feedback on any active fetch.** Because view loads no longer surface on
 the global activity bar (§1.13), the tab itself carries the signal:
-`DashboardScreen` lights the active tab's bar whenever a read for its context is
-in flight (`busy`) — a cold navigation, a post-mutation refresh, or a filter
-apply (`revalidate({ report: false })`, treated as a view load) — and lights the
-background tabs' bars while the preload pass runs. A filter apply therefore has
-two cues: the dialog's Apply button spins through the server write
-(`FilterModal`), then the active tab's bar sweeps through the follow-up read.
+`DashboardScreen` shows the active tab's spinner whenever a read for its context
+is in flight (`busy`) — a cold navigation, a post-mutation refresh, or a filter
+apply (`revalidate({ report: false })`, treated as a view load) — and shows the
+background tabs' spinners while the preload pass runs. A filter apply therefore
+has two cues: the dialog's Apply button spins through the server write
+(`FilterModal`), then the active tab's spinner turns through the follow-up read.
 
 ## 1.14 Route-change page transition
 

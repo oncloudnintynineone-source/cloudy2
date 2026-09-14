@@ -23,6 +23,7 @@ import {
   Box,
   Button,
   Group,
+  Loader,
   Menu,
   Modal,
   Paper,
@@ -2691,11 +2692,11 @@ export function DashboardView({
                 {tabs.map((tab) => {
                   const meta = VIEW_TAB_META[tab.kind];
                   // Per-view load state (docs/loading-transitions.md §1.13.2):
-                  // fresh = solid; loading = a sweeping amber bar pinned to the
-                  // tab's bottom edge (the active tab's own read, or a
-                  // background preload); not-loaded = static text fade. The bar
-                  // is absolutely positioned, so the tab is its positioning
-                  // context (and clips it to the tab's rounded edge).
+                  // fresh = solid; loading = a small amber spinner in the tab's
+                  // top-right corner (the active tab's own read, or a background
+                  // preload); not-loaded = static text fade. The spinner is
+                  // absolutely positioned, so the tab is its positioning context
+                  // (and clips it to the tab's rounded edge).
                   const status = tabStatus[tab.id] ?? "fresh";
                   return (
                     <Tabs.Tab
@@ -2726,7 +2727,14 @@ export function DashboardView({
                           {tab.name}
                         </Text>
                       </Group>
-                      {status === "loading" && <span className="c2-tab-load-bar" aria-hidden />}
+                      {status === "loading" && (
+                        <Loader
+                          size={9}
+                          color="accent"
+                          className="c2-tab-spinner"
+                          aria-hidden
+                        />
+                      )}
                     </Tabs.Tab>
                   );
                 })}

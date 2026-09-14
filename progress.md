@@ -1069,6 +1069,13 @@ via `?attendance=1` and `attendanceStorage` became a `useSyncExternalStore` exte
    up the interaction is unchanged (inert chips, cell tap re-anchors the agenda
    pane). `DualPaneSkeleton` is month-only below `lg`. Docs:
    `docs/dashboard-views.md` §1.9, `docs/user-guide.md`, `docs/loading-transitions.md`
+- 1.242 Per-tab loading bar → top-right spinner: each dashboard tab's `loading`
+   state now shows a small traditional amber `Loader` in the tab's top-right corner
+   (absolutely positioned, `aria-hidden`) instead of the sweeping bottom-edge bar;
+   `fresh`/`not-loaded` states and the `tabStatus` / flicker-control model are
+   unchanged. `.c2-tab-load-bar` + its sweep keyframes are replaced by
+   `.c2-tab-spinner` in `globals.css`. `docs/loading-transitions.md` §1.13.2,
+   `AGENTS.md`
 
 ## 1.4 Open items & next steps
 
