@@ -85,6 +85,24 @@ describe("clashLabelFor", () => {
     ).toBe("Room 1 · (09:00-10:00)");
   });
 
+  it("returns the stored summary verbatim for external events, bypassing the recipe", () => {
+    const external = makeEvent({
+      external: true,
+      typeName: null,
+      typeShortname: null,
+      rawTitle: null,
+      people: { creatorId: null, userIds: [], departmentIds: [] },
+      location: "Room 1",
+    });
+    expect(
+      clashLabelFor(
+        external,
+        { segments: [{ field: "time" }, { field: "location" }] },
+        ctx,
+      ),
+    ).toBe("Stored summary");
+  });
+
   it("falls back to the raw title, then the stored summary, when nothing renders", () => {
     expect(
       clashLabelFor(makeEvent({ rawTitle: "" }), { segments: [{ field: "description" }] }, ctx),

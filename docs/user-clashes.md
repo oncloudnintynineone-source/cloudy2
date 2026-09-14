@@ -242,8 +242,11 @@ half-day-aware occupancy window the timeline positions bars by (the stored
   `src/lib/events/clashLabel.ts`; Settings → Templates → Assign templates). So admins
   choose exactly which fields show (type, description, people, departments, location,
   time) and how they are decorated, and the clash report reads like the calendar
-  titles. When the recipe renders nothing, it falls back to the raw title, then the
-  stored summary.
+  titles. **External events bypass the recipe** and keep their stored Google summary
+  verbatim — mirroring the dashboard's `resolveDisplayTitles` — so their title is never
+  rebuilt from the mostly-empty parsed fields (no type, no raw title, no people). When
+  the recipe renders nothing for an internal event, it falls back to the raw title, then
+  the stored summary.
 - **In-place detail modal.** Tapping a bar or a row opens that event's details
   **without leaving the page**. The modal opens **instantly** with a shaped skeleton
   (`EventDetail`'s `loading` prop; no spinner, no dim — the skeleton-only rule) and

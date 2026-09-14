@@ -72,14 +72,20 @@ export function clashRecipeInput(
 
 /**
  * The label shown for one clash event on the Double Booking report, rendered
- * through the admin's title-template engine. Falls back to the raw title, then
- * the stored Google summary, when the recipe renders nothing.
+ * through the admin's title-template engine. External events (no app notes)
+ * bypass the recipe and keep their stored Google summary verbatim — mirroring
+ * `resolveDisplayTitles` on the dashboard, so an external title is never
+ * rebuilt from the mostly-empty parsed fields. Internal events fall back to the
+ * raw title, then the stored summary, when the recipe renders nothing.
  */
 export function clashLabelFor(
   event: ClashEventInput,
   recipe: TitleRecipe,
   ctx: ClashLabelContext,
 ): string {
+  if (event.external) {
+    return event.title;
+  }
   const rendered = renderTitleRecipe(clashRecipeInput(event, ctx), recipe);
   return rendered || (event.rawTitle ?? "").trim() || event.title;
 }

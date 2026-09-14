@@ -184,7 +184,8 @@ shows one of:
   the wizard's bars are **inert** (`href` omitted) so a tap can never navigate away
   from an in-progress draft. Tapping the heading reveals one row per conflicting
   event — the **template-rendered label** primary (the `doubleBooking` target, else
-  Master, via `clashLabelFor`), the stored summary muted below, then when +
+  Master, via `clashLabelFor`; **external events skip the recipe** and show their stored
+  summary verbatim), the stored summary muted below, then when +
   department, and the affected people as chips (the acting user's chip reads
   "You (name)" in the accent color). Many people from a whole-department clash are
   capped at six chips with a `+N more` summary. A closing line reminds the user the
