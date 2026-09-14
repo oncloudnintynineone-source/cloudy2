@@ -5,12 +5,12 @@
  * `--resources-*-view-slot-width` — and size every event as a percentage of
  * the day container that variable defines, so changing the var re-lays out
  * slots and events alike). The Week (Grid) view is a conventional 7-column
- * week grid, so its zoom scales the
- * hour-slot **height** (`gridWeekSlotHeight`) and — once zoomed in past the
- * fit-to-width level — the day-column **width** (`gridWeekColumnWidth`), so the
- * events grow in both directions. Each level is remembered per device in the
- * UI-state cookie (see uiState.ts) and is NOT URL-backed — zooming never
- * navigates.
+ * week grid with **two independent** zoom levels — one for the day-column
+ * **width** (`gridWeekColumnWidth`, floored at fit so columns never shrink below
+ * the viewport) and one for the hour-slot **height** (`gridWeekSlotHeight`), so
+ * the events can be grown in either direction on its own. Each level is
+ * remembered per device in the UI-state cookie (see uiState.ts) and is NOT
+ * URL-backed — zooming never navigates.
  *
  * The helpers here are pure (no I/O, no React) so the geometry math and the
  * level stepping are unit-tested without a DOM.
@@ -55,6 +55,21 @@ export function clampZoom(raw: unknown): SlotZoom | null {
     }
   }
   return best;
+}
+
+/** Smallest column-zoom level: the fit-to-width baseline (never below it). */
+export const MIN_COLUMN_ZOOM = 1;
+
+/**
+ * Coerce a remembered Week (Grid) **column** zoom. Same snapping as
+ * `clampZoom`, but floored at the fit level: columns must never shrink below
+ * the viewport width (that would leave empty space beside the grid), so an
+ * out-of-range/legacy value (e.g. the old two-axis `gridWeekZoom` of `0.5`)
+ * resolves to `1`. Returns `null` for junk so the caller falls back.
+ */
+export function clampGridWeekColZoom(raw: unknown): SlotZoom | null {
+  const level = clampZoom(raw);
+  return level === null ? null : (Math.max(MIN_COLUMN_ZOOM, level) as SlotZoom);
 }
 
 /**

@@ -140,6 +140,7 @@ import {
   daySlotWidth,
   gridWeekColumnWidth,
   gridWeekSlotHeight,
+  MIN_COLUMN_ZOOM,
   reanchorScrollLeft,
   reanchorScrollTop,
   stepZoom,
@@ -226,11 +227,17 @@ export interface DashboardViewProps {
    */
   initialZoom: SlotZoom;
   /**
+   * Remembered Week (Grid) column-width zoom level, resolved from the UI-state
+   * cookie before first paint the same way. Seeding value for the client
+   * grid-week column-zoom state.
+   */
+  initialGridWeekColZoom: SlotZoom;
+  /**
    * Remembered Week (Grid) hour-slot-height zoom level, resolved from the
    * UI-state cookie before first paint the same way. Seeding value for the
-   * client grid-week zoom state.
+   * client grid-week row-zoom state.
    */
-  initialGridWeekZoom: SlotZoom;
+  initialGridWeekRowZoom: SlotZoom;
   /**
    * Remembered Month-grid zoom level (a fit-width multiplier, 1 = the whole
    * week fits the viewport width), resolved from the UI-state cookie before
@@ -676,7 +683,8 @@ export function DashboardView({
   activeView,
   canManageViews,
   initialZoom,
-  initialGridWeekZoom,
+  initialGridWeekColZoom,
+  initialGridWeekRowZoom,
   initialMonthZoom,
   initialDualSplit,
   events,
@@ -772,13 +780,15 @@ export function DashboardView({
   // switches or breakpoint flips.
   const prevZoomRef = useRef(zoom);
 
-  // Week (Grid) zoom: the 7 day columns always fill the viewport width, so its
-  // zoom scales the hour-slot HEIGHT (slotZoom.gridWeekSlotHeight) rather than
-  // the resource views' slot width. Same ownership contract as the other
-  // zooms — client state seeded from the cookie, persisted back below. The
-  // grid's scroll viewport is captured so a zoom re-anchors the centered time.
-  const [gridWeekZoom, setGridWeekZoom] = useState<SlotZoom>(initialGridWeekZoom);
-  const prevGridWeekZoomRef = useRef(gridWeekZoom);
+  // Week (Grid) zoom is split into two independent levels: the day-column
+  // WIDTH (slotZoom.gridWeekColumnWidth, floored at fit) and the hour-slot
+  // HEIGHT (gridWeekSlotHeight). Same ownership contract as the other zooms —
+  // client state seeded from the cookie, persisted back below. The grid's
+  // scroll viewport is captured so each axis re-anchors its own scroll.
+  const [gridWeekColZoom, setGridWeekColZoom] = useState<SlotZoom>(initialGridWeekColZoom);
+  const [gridWeekRowZoom, setGridWeekRowZoom] = useState<SlotZoom>(initialGridWeekRowZoom);
+  const prevGridWeekColZoomRef = useRef(gridWeekColZoom);
+  const prevGridWeekRowZoomRef = useRef(gridWeekRowZoom);
   const gridWeekViewportRef = useRef<HTMLDivElement | null>(null);
 
   // Month-grid zoom: a multiplier of the "fit to viewport width" day columns
@@ -806,11 +816,9 @@ export function DashboardView({
   // defaults). See src/lib/ui/slotZoom.ts and GridNavControls.
   const weekSlotWidthValue = weekSlotWidth(zoom, isDesktop);
   const daySlotWidthValue = daySlotWidth(zoom);
-  // Week (Grid) two-axis zoom: slot height always scales, and the day columns
-  // widen once zoomed in past the fit-to-width level (so events grow both ways;
-  // see gridWeekColumnWidth's floor).
-  const gridWeekSlotHeightValue = gridWeekSlotHeight(gridWeekZoom);
-  const gridWeekColumnWidthValue = gridWeekColumnWidth(gridWeekZoom);
+  // Week (Grid) zoom: independent column-width and slot-height levels.
+  const gridWeekSlotHeightValue = gridWeekSlotHeight(gridWeekRowZoom);
+  const gridWeekColumnWidthValue = gridWeekColumnWidth(gridWeekColZoom);
 
   // A deep-link target resolves from the grid's filtered `events` first (the
   // common case: it is on a selected calendar and matches the filters), then
@@ -1302,7 +1310,8 @@ export function DashboardView({
     ...(searchParams.has("date") || view === "dual" ? { date: effectiveDate } : {}),
     month,
     zoom,
-    gridWeekZoom,
+    gridWeekColZoom,
+    gridWeekRowZoom,
     monthZoom,
     dualSplit,
   });
@@ -2450,16 +2459,15 @@ export function DashboardView({
     );
   }, [view, gridLoading, monthZoom]);
 
-  // Week (Grid) slot-height zoom re-anchor: the zoom changes the hour-row
-  // height, so the vertical scroll would otherwise keep the same pixel offset
-  // and visibly jump the time. Keep the time under the viewport's center
-  // centered, scaling the offset by the zoom ratio (no label column on the
-  // vertical axis). Only on a genuine zoom change — never on mount or view
-  // switches.
+  // Week (Grid) row-zoom re-anchor: the zoom changes the hour-row height, so
+  // the vertical scroll would otherwise keep the same pixel offset and visibly
+  // jump the time. Keep the time under the viewport's center centered, scaling
+  // the offset by the zoom ratio (no label column on the vertical axis). Only
+  // on a genuine zoom change — never on mount or view switches.
   useLayoutEffect(() => {
-    const zoomChanged = prevGridWeekZoomRef.current !== gridWeekZoom;
-    const oldZoom = prevGridWeekZoomRef.current;
-    prevGridWeekZoomRef.current = gridWeekZoom;
+    const zoomChanged = prevGridWeekRowZoomRef.current !== gridWeekRowZoom;
+    const oldZoom = prevGridWeekRowZoomRef.current;
+    prevGridWeekRowZoomRef.current = gridWeekRowZoom;
     if (!zoomChanged || view !== "weekgrid" || gridLoading) {
       return;
     }
@@ -2471,9 +2479,42 @@ export function DashboardView({
       viewport.scrollTop,
       viewport.clientHeight,
       oldZoom,
-      gridWeekZoom,
+      gridWeekRowZoom,
     );
-  }, [view, gridLoading, gridWeekZoom]);
+  }, [view, gridLoading, gridWeekRowZoom]);
+
+  // Week (Grid) column-zoom re-anchor: widening the day columns would otherwise
+  // keep the same scrollLeft, so the day under the viewport's center drifts.
+  // Keep it centered, scaling by the column-width ratio and accounting for the
+  // fixed slot-label column the day timeline starts after (probed from the DOM
+  // like the ruler effect). Only on a genuine column-zoom change.
+  useLayoutEffect(() => {
+    const zoomChanged = prevGridWeekColZoomRef.current !== gridWeekColZoom;
+    const oldZoom = prevGridWeekColZoomRef.current;
+    prevGridWeekColZoomRef.current = gridWeekColZoom;
+    if (!zoomChanged || view !== "weekgrid" || gridLoading) {
+      return;
+    }
+    const viewport = gridWeekViewportRef.current;
+    const box = weekBoxRef.current;
+    if (!viewport || !box || viewport.clientWidth <= 0) {
+      return;
+    }
+    const root = Array.from(box.children).find(
+      (child) => getComputedStyle(child).getPropertyValue("--week-view-slots-label-width").trim() !== "",
+    );
+    const labelWidth = root
+      ? measuredWidth(root, "var(--week-view-slots-label-width)")
+      : 0;
+    const width = viewport.clientWidth;
+    viewport.scrollLeft = reanchorScrollLeft(
+      viewport.scrollLeft,
+      width,
+      labelWidth,
+      oldZoom,
+      gridWeekColZoom,
+    );
+  }, [view, gridLoading, gridWeekColZoom]);
 
   // The grid week's width zoom changes the scroll content's width, which the
   // pan hook's ResizeObserver (watching the viewport's own box) can't see — so
@@ -2483,7 +2524,7 @@ export function DashboardView({
     if (view === "weekgrid" && !gridLoading) {
       remeasureGridWeekPan();
     }
-  }, [view, gridLoading, gridWeekZoom, remeasureGridWeekPan]);
+  }, [view, gridLoading, gridWeekColZoom, remeasureGridWeekPan]);
 
   // Shared by the Day, Week (H) and Week (D) resource views: a department row
   // is a building icon (its name as tooltip/aria), a user row is the shortname
@@ -3476,28 +3517,45 @@ export function DashboardView({
           />
         )}
 
-      {/* Week (Grid) zoom: the same right-edge cluster's zoom pair, but with no
-          pan arrows — the grid's 7 day columns always fill the width, so only
-          the hour-slot height zooms (its own remembered level). */}
+      {/* Week (Grid) zoom: two independent pairs in the right-edge cluster —
+          columns on top (floor at fit; pan arrows appear when it overflows),
+          hour rows below. Its own remembered levels; the row pair is the
+          `secondaryZoom` group. */}
       {!gridLoading && isGridWeek && week !== null && (
         <GridNavControls
           anchorRef={weekBoxRef}
           canScrollLeft={gridWeekPan.canScrollLeft}
           canScrollRight={gridWeekPan.canScrollRight}
           onPan={gridWeekPan.panTo}
-          zoom={gridWeekZoom}
-          // The slot-height zoom changes the grid's height, so pin the cluster
-          // to the viewport center instead of the (moving) visible slice.
+          zoom={gridWeekColZoom}
+          zoomMin={MIN_COLUMN_ZOOM}
+          label="Columns"
+          secondaryZoom={{
+            value: gridWeekRowZoom,
+            label: "Rows",
+            onIn: () => {
+              const next = stepZoom(gridWeekRowZoom, 1);
+              setGridWeekRowZoom(next);
+              announce(`Rows ${Math.round(next * 100)}%`);
+            },
+            onOut: () => {
+              const next = stepZoom(gridWeekRowZoom, -1);
+              setGridWeekRowZoom(next);
+              announce(`Rows ${Math.round(next * 100)}%`);
+            },
+          }}
+          // The row zoom changes the grid's height, so pin the cluster to the
+          // viewport center instead of the (moving) visible slice.
           centerOn="viewport"
           onZoomIn={() => {
-            const next = stepZoom(gridWeekZoom, 1);
-            setGridWeekZoom(next);
-            announce(`Zoom ${Math.round(next * 100)}%`);
+            const next = stepZoom(gridWeekColZoom, 1);
+            setGridWeekColZoom(next);
+            announce(`Columns ${Math.round(next * 100)}%`);
           }}
           onZoomOut={() => {
-            const next = stepZoom(gridWeekZoom, -1);
-            setGridWeekZoom(next);
-            announce(`Zoom ${Math.round(next * 100)}%`);
+            const next = stepZoom(gridWeekColZoom, -1);
+            setGridWeekColZoom(next);
+            announce(`Columns ${Math.round(next * 100)}%`);
           }}
         />
       )}

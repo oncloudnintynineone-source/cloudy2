@@ -390,25 +390,28 @@ user can fit more of the day/week in view (overview) or expand it for detail. On
 **shared** zoom level scales the width of every hour slot; it does not change the
 slot granularity (still 60-minute columns) or the row height.
 
-Week (Grid) is different: it is a conventional 7-day grid, so the same floating
-zoom pair drives a **two-axis** zoom with its **own** remembered level
-(`dashboard.gridWeekZoom`, so zooming the grid never changes the Day / Week (H)
-column widths):
+Week (Grid) is different: it is a conventional 7-day grid whose right-edge
+cluster carries **two independent zoom pairs** — **columns** on top and **rows**
+below (separated by a divider), each with its **own** remembered level
+(`dashboard.gridWeekColZoom` / `dashboard.gridWeekRowZoom`, so neither affects
+the Day / Week (H) column widths):
 
-- the hour-slot **height** always scales (`gridWeekSlotHeight`, base
-  3.5rem/56px);
-- the day-column **width** scales once zoomed in past the fit level
-  (`gridWeekColumnWidth`, `width = max(1, zoom) × 100%`). The fit floor means
-  zooming _out_ only compacts the hour rows — the columns never shrink below the
-  viewport width (which would leave empty space beside the grid). The day-header,
-  all-day and column rows all take the same multiplier, so they stay aligned
-  while the grid overflows; at that point the full pan controls (drag + edge
-  arrows, `useGridPan`) appear, exactly like Week (H)/Day.
-- Because the slot-height zoom changes the grid's height, its zoom cluster is
-  pinned to the **viewport** center (`GridNavControls centerOn="viewport"`)
-  rather than the grid's visible-slice center, so it can't drift as the grid
-  grows/shrinks; and a layout effect re-anchors the vertical scroll so the time
-  under the viewport's center stays put (`reanchorScrollTop`).
+- **Columns** (`gridWeekColumnWidth`, `width = max(1, zoom) × 100%`): scales the
+  day-column width. Floored at the fit level (its pair disables zoom-out there),
+  so columns never shrink below the viewport width (which would leave empty
+  space beside the grid). The day-header, all-day and column rows all take the
+  same multiplier, so they stay aligned while the grid overflows; at that point
+  the full pan controls (drag + edge arrows, `useGridPan`) appear, exactly like
+  Week (H)/Day. A layout effect re-anchors the horizontal scroll
+  (`reanchorScrollLeft`, accounting for the fixed slot-label column) so the day
+  under the viewport's center stays put.
+- **Rows** (`gridWeekSlotHeight`, base 3.5rem/56px): scales the hour-slot height
+  across the full `0.5–2` range; a layout effect re-anchors the vertical scroll
+  (`reanchorScrollTop`).
+- Because the row zoom changes the grid's height, the cluster is pinned to the
+  **viewport** center (`GridNavControls centerOn="viewport"`) rather than the
+  grid's visible-slice center, so it can't drift as the grid grows/shrinks. The
+  row pair is passed as the cluster's `secondaryZoom` group.
 
 The rest of this section describes the shared horizontal mechanism.
 

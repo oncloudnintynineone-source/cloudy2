@@ -29,7 +29,8 @@ describe("encodeUiState/decodeUiState", () => {
         date: "2026-08-21",
         month: "2026-08",
         zoom: 1.5,
-        gridWeekZoom: 0.75,
+        gridWeekColZoom: 1.25,
+        gridWeekRowZoom: 0.75,
         monthZoom: 2,
         dualSplit: 0.65,
       },
@@ -105,7 +106,7 @@ describe("cookie versioning", () => {
     });
   });
 
-  it("migrates a v3.2 cookie (no gridWeekZoom) to the current shape", () => {
+  it("migrates a v3.2 cookie (no gridWeek zoom) to the current shape", () => {
     const value = b64url(
       JSON.stringify({
         v: [3, 2],
@@ -116,6 +117,20 @@ describe("cookie versioning", () => {
     expect(decodeUiState(value)).toEqual({
       lastPage: "/dashboard",
       dashboard: { month: "2026-08", zoom: 1.25, dualSplit: 0.65 },
+    });
+  });
+
+  it("drops the v3.3 two-axis gridWeekZoom when migrating to v3.4", () => {
+    const value = b64url(
+      JSON.stringify({
+        v: [3, 3],
+        lastPage: "/dashboard",
+        dashboard: { month: "2026-08", gridWeekZoom: 1.5 },
+      }),
+    );
+    expect(decodeUiState(value)).toEqual({
+      lastPage: "/dashboard",
+      dashboard: { month: "2026-08" },
     });
   });
 });
@@ -187,19 +202,34 @@ describe("normalizeUiState (shape safety)", () => {
     ).toEqual({ dashboard: { monthZoom: 1.5 } });
   });
 
-  it("snaps gridWeekZoom to a known level and drops junk values", () => {
+  it("snaps gridWeekRowZoom to a known level and drops junk values", () => {
     expect(
-      normalizeUiState({ dashboard: { gridWeekZoom: 1.5 } }),
-    ).toEqual({ dashboard: { gridWeekZoom: 1.5 } });
+      normalizeUiState({ dashboard: { gridWeekRowZoom: 1.5 } }),
+    ).toEqual({ dashboard: { gridWeekRowZoom: 1.5 } });
     expect(
-      normalizeUiState({ dashboard: { gridWeekZoom: 99 } }),
-    ).toEqual({ dashboard: { gridWeekZoom: 2 } });
+      normalizeUiState({ dashboard: { gridWeekRowZoom: 99 } }),
+    ).toEqual({ dashboard: { gridWeekRowZoom: 2 } });
     expect(
-      normalizeUiState({ dashboard: { gridWeekZoom: "2" } }),
+      normalizeUiState({ dashboard: { gridWeekRowZoom: 0.5 } }),
+    ).toEqual({ dashboard: { gridWeekRowZoom: 0.5 } });
+    expect(
+      normalizeUiState({ dashboard: { gridWeekRowZoom: "2" } }),
     ).toEqual({});
+  });
+
+  it("floors gridWeekColZoom at the fit level and drops junk values", () => {
     expect(
-      normalizeUiState({ dashboard: { gridWeekZoom: 1.4 } }),
-    ).toEqual({ dashboard: { gridWeekZoom: 1.5 } });
+      normalizeUiState({ dashboard: { gridWeekColZoom: 1.5 } }),
+    ).toEqual({ dashboard: { gridWeekColZoom: 1.5 } });
+    expect(
+      normalizeUiState({ dashboard: { gridWeekColZoom: 0.5 } }),
+    ).toEqual({ dashboard: { gridWeekColZoom: 1 } });
+    expect(
+      normalizeUiState({ dashboard: { gridWeekColZoom: 99 } }),
+    ).toEqual({ dashboard: { gridWeekColZoom: 2 } });
+    expect(
+      normalizeUiState({ dashboard: { gridWeekColZoom: "2" } }),
+    ).toEqual({});
   });
 
   it("clamps dualSplit to the usable band and drops junk values", () => {

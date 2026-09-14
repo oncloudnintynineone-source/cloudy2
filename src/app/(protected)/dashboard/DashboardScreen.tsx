@@ -38,8 +38,10 @@ import { DashboardShellSkeleton } from "./DashboardShellSkeleton";
 interface DashboardScreenProps {
   userId: string;
   initialZoom: SlotZoom;
+  /** Week (Grid) column-width zoom, seeded from the device cookie. */
+  initialGridWeekColZoom: SlotZoom;
   /** Week (Grid) slot-height zoom, seeded from the device cookie. */
-  initialGridWeekZoom: SlotZoom;
+  initialGridWeekRowZoom: SlotZoom;
   initialMonthZoom: MonthZoom;
   /** Dual Pane Month-pane fraction, seeded from the device cookie. */
   initialDualSplit: number;
@@ -88,7 +90,8 @@ function inputFromParams(params: URLSearchParams) {
 export function DashboardScreen({
   userId,
   initialZoom,
-  initialGridWeekZoom,
+  initialGridWeekColZoom,
+  initialGridWeekRowZoom,
   initialMonthZoom,
   initialDualSplit,
 }: DashboardScreenProps) {
@@ -690,7 +693,8 @@ export function DashboardScreen({
         month={shown.context.month}
         date={effectiveDate}
         initialZoom={initialZoom}
-        initialGridWeekZoom={initialGridWeekZoom}
+        initialGridWeekColZoom={initialGridWeekColZoom}
+        initialGridWeekRowZoom={initialGridWeekRowZoom}
         initialMonthZoom={initialMonthZoom}
         initialDualSplit={initialDualSplit}
         initialEditEventId={initialEditEventId}

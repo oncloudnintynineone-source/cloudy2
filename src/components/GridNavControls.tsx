@@ -18,9 +18,10 @@ const EDGE_INSET = 8;
  * Floating grid-navigation controls for the dashboard's wide grids: the zoom
  * in/out pair and the horizontal pan arrows, presented as one right-edge
  * control cluster (the familiar map convention) plus a single left-edge pan
- * arrow. Served by the Day/Week (H) **timeline** zoom (slotZoom.ts) and by
- * the Month grid's fit-width zoom (monthZoom.ts) — the caller passes its own
- * level range via `zoomMin`/`zoomMax`, since the two use different level sets.
+ * arrow. Served by the Day/Week (H) **timeline** zoom (slotZoom.ts), the Month
+ * grid's fit-width zoom (monthZoom.ts), and the Week (Grid)'s **two-axis** zoom
+ * — the caller passes its own level range via `zoomMin`/`zoomMax` (and, for the
+ * two-axis case, a `secondaryZoom` group), since each uses different level sets.
  *
  * Why one cluster: a timeline zoom is expected beside the pan controls, not as
  * a second floating widget competing for the right edge, and a single stacked
@@ -57,6 +58,8 @@ export function GridNavControls({
   zoomMin = MIN_ZOOM,
   zoomMax = MAX_ZOOM,
   centerOn = "anchor",
+  label,
+  secondaryZoom,
 }: {
   anchorRef: RefObject<HTMLDivElement | null>;
   canScrollLeft: boolean;
@@ -80,6 +83,25 @@ export function GridNavControls({
    * up and down.
    */
   centerOn?: "anchor" | "viewport";
+  /**
+   * Name of the primary zoom axis (e.g. `"Columns"`), used in the pair's
+   * accessible labels/tooltips. Omit for the generic "Zoom in"/"Zoom out".
+   */
+  label?: string;
+  /**
+   * An optional second zoom pair rendered below the primary one behind a
+   * divider, for views with two independent axes (Week (Grid): columns +
+   * rows). Each pair disables its own buttons at its own min/max.
+   */
+  secondaryZoom?: {
+    value: number;
+    onIn: () => void;
+    onOut: () => void;
+    min?: number;
+    max?: number;
+    /** Axis name for the pair's labels/tooltips, e.g. `"Rows"`. */
+    label?: string;
+  };
 }) {
   const canZoomIn = zoom < zoomMax;
   const canZoomOut = zoom > zoomMin;
@@ -166,10 +188,16 @@ export function GridNavControls({
   // bottom edge so the pan arrow stays inside it; on strips shorter than the
   // cluster the zoom pair overflows above rather than pushing the arrow out
   // the bottom.
+  // One zoom pair (2 buttons) per axis, plus an optional pan arrow; dividers
+  // separate the groups. The bottom-edge anchor is unchanged, so the cluster
+  // simply grows upward with a second pair.
+  const zoomButtonCount = secondaryZoom ? 4 : 2;
+  const dividerCount = (secondaryZoom ? 1 : 0) + (canScrollRight ? 1 : 0);
+  const itemCount = zoomButtonCount + (canScrollRight ? 1 : 0);
   const clusterHeight =
-    BUTTON_SIZE * (canScrollRight ? 3 : 2) +
-    CLUSTER_GAP * (canScrollRight ? 3 : 1) +
-    (canScrollRight ? DIVIDER_HEIGHT : 0);
+    BUTTON_SIZE * itemCount +
+    CLUSTER_GAP * (itemCount + dividerCount - 1) +
+    DIVIDER_HEIGHT * dividerCount;
   const desiredBottom = canScrollRight
     ? pos.center + BUTTON_SIZE / 2
     : pos.center - (BUTTON_SIZE / 2 + CLUSTER_GAP + DIVIDER_HEIGHT + CLUSTER_GAP);
@@ -177,6 +205,60 @@ export function GridNavControls({
     Math.max(desiredBottom, pos.visibleTop + clusterHeight),
     pos.visibleBottom,
   );
+
+  const divider = (
+    <Box
+      style={{
+        width: 24,
+        height: DIVIDER_HEIGHT,
+        borderRadius: 1,
+        backgroundColor: "color-mix(in srgb, var(--mantine-color-gray-5) 60%, transparent)",
+      }}
+    />
+  );
+
+  // A zoom pair for one axis. `name` is the axis word (already lowercased) or
+  // "" for the generic labels the single-axis views have always used.
+  const renderZoomPair = (
+    onIn: () => void,
+    onOut: () => void,
+    canIn: boolean,
+    canOut: boolean,
+    name: string,
+  ) => {
+    const inLabel = name ? `Zoom ${name} in` : "Zoom in";
+    const outLabel = name ? `Zoom ${name} out` : "Zoom out";
+    return (
+      <>
+        <ActionIcon
+          size={BUTTON_SIZE}
+          radius="50%"
+          variant="filled"
+          color="gray"
+          styles={buttonStyles}
+          aria-label={inLabel}
+          title={inLabel}
+          disabled={!canIn}
+          onClick={onIn}
+        >
+          <IconZoomIn size={18} />
+        </ActionIcon>
+        <ActionIcon
+          size={BUTTON_SIZE}
+          radius="50%"
+          variant="filled"
+          color="gray"
+          styles={buttonStyles}
+          aria-label={outLabel}
+          title={outLabel}
+          disabled={!canOut}
+          onClick={onOut}
+        >
+          <IconZoomOut size={18} />
+        </ActionIcon>
+      </>
+    );
+  };
 
   return (
     <>
@@ -220,40 +302,22 @@ export function GridNavControls({
           width: BUTTON_SIZE,
         }}
       >
-        <ActionIcon
-          size={BUTTON_SIZE}
-          radius="50%"
-          variant="filled"
-          color="gray"
-          styles={buttonStyles}
-          aria-label="Zoom in"
-          disabled={!canZoomIn}
-          onClick={onZoomIn}
-        >
-          <IconZoomIn size={18} />
-        </ActionIcon>
-        <ActionIcon
-          size={BUTTON_SIZE}
-          radius="50%"
-          variant="filled"
-          color="gray"
-          styles={buttonStyles}
-          aria-label="Zoom out"
-          disabled={!canZoomOut}
-          onClick={onZoomOut}
-        >
-          <IconZoomOut size={18} />
-        </ActionIcon>
+        {renderZoomPair(onZoomIn, onZoomOut, canZoomIn, canZoomOut, label?.toLowerCase() ?? "")}
+        {secondaryZoom && (
+          <>
+            {divider}
+            {renderZoomPair(
+              secondaryZoom.onIn,
+              secondaryZoom.onOut,
+              secondaryZoom.value < (secondaryZoom.max ?? MAX_ZOOM),
+              secondaryZoom.value > (secondaryZoom.min ?? MIN_ZOOM),
+              secondaryZoom.label?.toLowerCase() ?? "",
+            )}
+          </>
+        )}
         {canScrollRight && (
           <>
-            <Box
-              style={{
-                width: 24,
-                height: DIVIDER_HEIGHT,
-                borderRadius: 1,
-                backgroundColor: "color-mix(in srgb, var(--mantine-color-gray-5) 60%, transparent)",
-              }}
-            />
+            {divider}
             <ActionIcon
               size={BUTTON_SIZE}
               radius="50%"

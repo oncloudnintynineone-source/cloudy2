@@ -4,6 +4,7 @@ import {
   MAX_ZOOM,
   MIN_ZOOM,
   ZOOM_LEVELS,
+  clampGridWeekColZoom,
   clampZoom,
   daySlotWidth,
   gridWeekColumnWidth,
@@ -35,6 +36,27 @@ describe("clampZoom", () => {
     expect(clampZoom({})).toBeNull();
     expect(clampZoom(Number.NaN)).toBeNull();
     expect(clampZoom(Number.POSITIVE_INFINITY)).toBeNull();
+  });
+});
+
+describe("clampGridWeekColZoom", () => {
+  it("passes a known level at or above fit through unchanged", () => {
+    expect(clampGridWeekColZoom(1)).toBe(1);
+    expect(clampGridWeekColZoom(1.5)).toBe(1.5);
+    expect(clampGridWeekColZoom(2)).toBe(2);
+  });
+
+  it("snaps an off-level number, flooring below fit at 1", () => {
+    expect(clampGridWeekColZoom(1.4)).toBe(1.5);
+    expect(clampGridWeekColZoom(0.75)).toBe(1);
+    expect(clampGridWeekColZoom(0.5)).toBe(1);
+  });
+
+  it("returns null for non-numeric or non-finite input", () => {
+    expect(clampGridWeekColZoom("2")).toBeNull();
+    expect(clampGridWeekColZoom(null)).toBeNull();
+    expect(clampGridWeekColZoom(undefined)).toBeNull();
+    expect(clampGridWeekColZoom(Number.NaN)).toBeNull();
   });
 });
 
