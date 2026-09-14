@@ -38,6 +38,13 @@ export interface GridPan {
   canScrollRight: boolean;
   /** Smooth-scrolls roughly one viewport width to the given edge. */
   panTo: (edge: "start" | "end") => void;
+  /**
+   * Recomputes the edge flags from the current DOM. The internal
+   * `ResizeObserver` watches the viewport's own box, which does not change when
+   * only the scroll **content** grows (e.g. a width zoom), so callers that can
+   * widen the content must invoke this after such a change. Stable identity.
+   */
+  remeasure: () => void;
 }
 
 export function useGridPan(): GridPan {
@@ -124,5 +131,6 @@ export function useGridPan(): GridPan {
     canScrollLeft,
     canScrollRight,
     panTo,
+    remeasure: measureEdges,
   };
 }

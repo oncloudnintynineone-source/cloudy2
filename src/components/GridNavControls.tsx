@@ -56,6 +56,7 @@ export function GridNavControls({
   onZoomOut,
   zoomMin = MIN_ZOOM,
   zoomMax = MAX_ZOOM,
+  centerOn = "anchor",
 }: {
   anchorRef: RefObject<HTMLDivElement | null>;
   canScrollLeft: boolean;
@@ -70,6 +71,15 @@ export function GridNavControls({
    *  The Month grid passes its own fit-width floor (1) and max. */
   zoomMin?: number;
   zoomMax?: number;
+  /**
+   * What the cluster is vertically centered on. `"anchor"` (default) follows
+   * the grid's visible slice — correct when zooming only changes the grid's
+   * width, so the slice center is stable. `"viewport"` pins it to the viewport
+   * center, for grids whose zoom changes their **height** (Week (Grid)'s
+   * slot-height zoom), where a shrinking grid would otherwise drag the controls
+   * up and down.
+   */
+  centerOn?: "anchor" | "viewport";
 }) {
   const canZoomIn = zoom < zoomMax;
   const canZoomOut = zoom > zoomMin;
@@ -106,12 +116,19 @@ export function GridNavControls({
       // right edge crossed it. Full-width grids have their midpoint at the
       // viewport centre, so this is identical to the old clamp there.
       const anchorCenterX = (rect.left + rect.right) / 2;
+      // `"viewport"` ignores the anchor's vertical bounds entirely, so a grid
+      // whose height changes with zoom can't move the cluster.
+      const pinned = centerOn === "viewport";
       setPos({
-        center: onScreen ? (visibleTop + visibleBottom) / 2 : window.innerHeight / 2,
+        center: pinned
+          ? window.innerHeight / 2
+          : onScreen
+            ? (visibleTop + visibleBottom) / 2
+            : window.innerHeight / 2,
         left: Math.min(rect.left + EDGE_INSET, anchorCenterX),
         right: Math.min(window.innerWidth - rect.right + EDGE_INSET, window.innerWidth - anchorCenterX),
-        visibleTop: onScreen ? visibleTop : 0,
-        visibleBottom: onScreen ? visibleBottom : window.innerHeight,
+        visibleTop: pinned ? 0 : onScreen ? visibleTop : 0,
+        visibleBottom: pinned ? window.innerHeight : onScreen ? visibleBottom : window.innerHeight,
       });
     };
     measure();
@@ -122,7 +139,7 @@ export function GridNavControls({
       window.removeEventListener("resize", measure);
       observer.disconnect();
     };
-  }, [anchorRef]);
+  }, [anchorRef, centerOn]);
 
   if (!pos) {
     return null;

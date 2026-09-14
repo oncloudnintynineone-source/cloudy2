@@ -390,15 +390,27 @@ user can fit more of the day/week in view (overview) or expand it for detail. On
 **shared** zoom level scales the width of every hour slot; it does not change the
 slot granularity (still 60-minute columns) or the row height.
 
-Week (Grid) is the exception: its seven day columns always fill the viewport
-width, so its zoom is **vertical** — the same floating zoom pair scales the hour
-slot's _height_ instead of a slot width (`gridWeekSlotHeight`, base 3.5rem/56px).
-It keeps its **own** remembered level (`dashboard.gridWeekZoom`) so zooming the
-grid never changes the Day / Week (H) column widths. Its controls render the zoom
-pair with no pan arrows (there is no horizontal overflow), and a layout effect
-re-anchors the vertical scroll so the time under the viewport's center stays put
-(`reanchorScrollTop`). The rest of this section describes the shared horizontal
-mechanism.
+Week (Grid) is different: it is a conventional 7-day grid, so the same floating
+zoom pair drives a **two-axis** zoom with its **own** remembered level
+(`dashboard.gridWeekZoom`, so zooming the grid never changes the Day / Week (H)
+column widths):
+
+- the hour-slot **height** always scales (`gridWeekSlotHeight`, base
+  3.5rem/56px);
+- the day-column **width** scales once zoomed in past the fit level
+  (`gridWeekColumnWidth`, `width = max(1, zoom) × 100%`). The fit floor means
+  zooming _out_ only compacts the hour rows — the columns never shrink below the
+  viewport width (which would leave empty space beside the grid). The day-header,
+  all-day and column rows all take the same multiplier, so they stay aligned
+  while the grid overflows; at that point the full pan controls (drag + edge
+  arrows, `useGridPan`) appear, exactly like Week (H)/Day.
+- Because the slot-height zoom changes the grid's height, its zoom cluster is
+  pinned to the **viewport** center (`GridNavControls centerOn="viewport"`)
+  rather than the grid's visible-slice center, so it can't drift as the grid
+  grows/shrinks; and a layout effect re-anchors the vertical scroll so the time
+  under the viewport's center stays put (`reanchorScrollTop`).
+
+The rest of this section describes the shared horizontal mechanism.
 
 - **Levels**: discrete `0.5, 0.75, 1, 1.25, 1.5, 2` (`ZOOM_LEVELS`,
   `src/lib/ui/slotZoom.ts`); `1` is the default (today's fixed widths). The buttons

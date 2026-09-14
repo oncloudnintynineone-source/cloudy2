@@ -6,6 +6,7 @@ import {
   ZOOM_LEVELS,
   clampZoom,
   daySlotWidth,
+  gridWeekColumnWidth,
   gridWeekSlotHeight,
   reanchorScrollLeft,
   reanchorScrollTop,
@@ -85,6 +86,23 @@ describe("gridWeekSlotHeight", () => {
     expect(gridWeekSlotHeight(0.5)).toBe("calc(1.75rem * var(--mantine-scale))");
     expect(gridWeekSlotHeight(1.25)).toBe("calc(4.375rem * var(--mantine-scale))");
     expect(gridWeekSlotHeight(2)).toBe("calc(7rem * var(--mantine-scale))");
+  });
+});
+
+describe("gridWeekColumnWidth", () => {
+  it("is the fit-to-width 100% at zoom 1", () => {
+    expect(gridWeekColumnWidth(1)).toBe("100%");
+  });
+
+  it("widens the columns when zoomed in past fit", () => {
+    expect(gridWeekColumnWidth(1.25)).toBe("125%");
+    expect(gridWeekColumnWidth(1.5)).toBe("150%");
+    expect(gridWeekColumnWidth(2)).toBe("200%");
+  });
+
+  it("floors at 100% so zooming out never shrinks below the viewport width", () => {
+    expect(gridWeekColumnWidth(0.75)).toBe("100%");
+    expect(gridWeekColumnWidth(0.5)).toBe("100%");
   });
 });
 

@@ -5,10 +5,12 @@
  * `--resources-*-view-slot-width` — and size every event as a percentage of
  * the day container that variable defines, so changing the var re-lays out
  * slots and events alike). The Week (Grid) view is a conventional 7-column
- * week grid whose 7 days always fit the width, so its zoom instead scales the
- * hour-slot **height** (`gridWeekSlotHeight`). Each level is remembered per
- * device in the UI-state cookie (see uiState.ts) and is NOT URL-backed —
- * zooming never navigates.
+ * week grid, so its zoom scales the
+ * hour-slot **height** (`gridWeekSlotHeight`) and — once zoomed in past the
+ * fit-to-width level — the day-column **width** (`gridWeekColumnWidth`), so the
+ * events grow in both directions. Each level is remembered per device in the
+ * UI-state cookie (see uiState.ts) and is NOT URL-backed — zooming never
+ * navigates.
  *
  * The helpers here are pure (no I/O, no React) so the geometry math and the
  * level stepping are unit-tested without a DOM.
@@ -82,12 +84,24 @@ export function daySlotWidth(zoom: SlotZoom): string {
 }
 
 /**
- * Week (Grid) hour-slot height for a zoom level. The grid's 7 day columns
- * always fill the viewport width, so its zoom is vertical (slot height) rather
- * than the resource views' slot width. Same base at every breakpoint.
+ * Week (Grid) hour-slot height for a zoom level (the vertical half of its
+ * two-axis zoom — see `gridWeekColumnWidth` for the horizontal half). Same base
+ * at every breakpoint.
  */
 export function gridWeekSlotHeight(zoom: SlotZoom): string {
   return slotWidthCss(GRID_WEEK_BASE_REM * zoom);
+}
+
+/**
+ * Week (Grid) day-column width multiplier for a zoom level, as a percentage of
+ * the fit-to-width grid (the day header, all-day rows and column rows all take
+ * this width, so they stay aligned while the grid overflows into the horizontal
+ * pan). Floored at `1`: zooming out only compacts the hour rows — the columns
+ * never shrink below the viewport width (which would leave empty space beside
+ * the grid).
+ */
+export function gridWeekColumnWidth(zoom: SlotZoom): string {
+  return `${Math.max(1, zoom) * 100}%`;
 }
 
 /**
