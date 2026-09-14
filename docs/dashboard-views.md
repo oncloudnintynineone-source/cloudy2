@@ -1,7 +1,8 @@
 # 1. Dashboard views & filters
 
-The Calendar dashboard (`/dashboard`) renders one of the six event-view
-**kinds** (Month / Week (H) / Week (D) / Day / Agenda / Month & Agenda) over the
+The Calendar dashboard (`/dashboard`) renders one of the seven event-view
+**kinds** (Month / Week (H) / Week (D) / Week (Grid) / Day / Agenda /
+Month & Agenda) over the
 shared server-side events cache ([`events-cache.md`](events-cache.md)). The
 dashboard does **not** show one fixed instance of each kind: the user builds an
 on-demand set of **views (tabs)** — one per-account row per tab (kind + user
@@ -21,7 +22,7 @@ grid's fit-to-width zoom.
 - [1.4 Data flow shared by all views](#14-data-flow-shared-by-all-views)
 - [1.5 My-entry highlight](#15-my-entry-highlight)
 - [1.6 External-event highlight](#16-external-event-highlight)
-- [1.7 Timeline zoom (Day and Week (H))](#17-timeline-zoom-day-and-week-h)
+- [1.7 Timeline zoom (Day, Week (H) and Week (Grid))](#17-timeline-zoom-day-week-h-and-week-grid)
 - [1.8 Month-grid zoom (fit-to-width)](#18-month-grid-zoom-fit-to-width)
 - [1.9 Month & Agenda](#19-month--agenda)
 - [1.10 File index & related docs](#110-file-index--related-docs)
@@ -35,6 +36,7 @@ The renderer kinds (`DASHBOARD_VIEW_KINDS`, `src/lib/dashboardViews/views.ts`):
 | `month` | Month | Mantine calendar month grid (six fixed weeks — see [`events-cache.md`](events-cache.md)) |
 | `week` | Week (H) | Mantine Schedule, hour columns per resource row |
 | `weekv2` | Week (D) | custom week matrix (§1.3) |
+| `weekgrid` | Week (Grid) | Mantine Schedule `WeekView`, conventional 7-day grid (time on the vertical axis; §1.7) |
 | `schedule` | Day | Mantine Schedule, single day per resource row |
 | `agenda` | Agenda | list view |
 | `dual` | Month & Agenda | Month grid + Agenda list side by side, resizable (§1.9) |
@@ -51,7 +53,7 @@ string maps to the first tab of that kind.
   tab (`ensureDefaultDashboardView`, mutex-guarded on the
   `user_preferences` row so racing requests can't double-insert).
 - **Add view** has two entry points, both opening the same quick **Add-view
-  dialog** (the shared **six-kind picker** `ViewTypePicker.tsx` + a name; the
+   dialog** (the shared **seven-kind picker** `ViewTypePicker.tsx` + a name; the
   default name follows the chosen kind until edited):
   - the strip's **`+` button at the end of the scrolling tab strip** (the
     strip's last item, shown for accounts that own stored views; tooltip "Add
@@ -78,7 +80,7 @@ string maps to the first tab of that kind.
     `ReorderUpDown`'s `variant="subtle"` here, so the dense row isn't a wall of
     bordered boxes;
   - a **pen** (Edit, subtle) opens a single **Edit view** dialog with the name
-    and the six-kind picker — one place for both, replacing the old separate
+    and the seven-kind picker — one place for both, replacing the old separate
     inline rename field and Change-type modal. The tab keeps its id, strip order
     and stored filters; a name that is still the old kind's default label follows
     to the new kind's default (a custom name is kept; the rule is applied
@@ -381,12 +383,22 @@ flowchart LR
  W --> C
 ```
 
-## 1.7 Timeline zoom (Day and Week (H))
+## 1.7 Timeline zoom (Day, Week (H) and Week (Grid))
 
 The Day and Week (H) schedule views can zoom their hour columns in and out, so the
 user can fit more of the day/week in view (overview) or expand it for detail. One
 **shared** zoom level scales the width of every hour slot; it does not change the
 slot granularity (still 60-minute columns) or the row height.
+
+Week (Grid) is the exception: its seven day columns always fill the viewport
+width, so its zoom is **vertical** — the same floating zoom pair scales the hour
+slot's _height_ instead of a slot width (`gridWeekSlotHeight`, base 3.5rem/56px).
+It keeps its **own** remembered level (`dashboard.gridWeekZoom`) so zooming the
+grid never changes the Day / Week (H) column widths. Its controls render the zoom
+pair with no pan arrows (there is no horizontal overflow), and a layout effect
+re-anchors the vertical scroll so the time under the viewport's center stays put
+(`reanchorScrollTop`). The rest of this section describes the shared horizontal
+mechanism.
 
 - **Levels**: discrete `0.5, 0.75, 1, 1.25, 1.5, 2` (`ZOOM_LEVELS`,
   `src/lib/ui/slotZoom.ts`); `1` is the default (today's fixed widths). The buttons
@@ -435,9 +447,10 @@ slot granularity (still 60-minute columns) or the row height.
   `dashboard.zoom` — not URL-backed (zooming never navigates), so it is read from the
   raw cookie and seeded into the client state before first paint (no width jump on
   relaunch). See [`ui-state.md`](ui-state.md).
-- **Scope**: shared by Day and Week (H) only. Week (D) — its columns are
-  day-granularity, not hour slots — and Month and Agenda are unaffected.
-  (Month & Agenda's Month pane uses the separate fit-width zoom of §1.8.)
+- **Scope**: the shared horizontal level covers Day and Week (H). Week (D) — its
+  columns are day-granularity, not hour slots — and Month and Agenda are
+  unaffected. (Month & Agenda's Month pane uses the separate fit-width zoom of
+  §1.8; Week (Grid) uses the vertical variant with its own level, above.)
 - **Re-anchoring**: zooming keeps the time that was at the viewport's _center_
   centered — a `useLayoutEffect` (declared before the ruler measurement effect)
   re-anchors `scrollLeft` from the previous/next slot-width ratio via the pure
@@ -587,7 +600,7 @@ flowchart LR
 | `src/app/(protected)/dashboard/DashboardView.tsx`  | Tab strip (+ trailing Add-view button, right-side Manage-views gear and All-views jump popover), optimistic tab switch + period rules + tab-URL prefetch, filter state, schedule zoom + month zoom state & widths |
 | `src/app/(protected)/dashboard/DashboardScreen.tsx` | Snapshot/warm-cache/preload owner; resolves the displayed context from `previewView ?? ?view=` so warm tab switches paint without waiting on the RSC |
 | `src/app/(protected)/dashboard/EditViewsModal.tsx` | Manage-views dialog: Add-view button + card manage list (subtle ↑/↓ reorder, per-row Edit dialog for name+type+filters, nested delete confirm) |
-| `src/app/(protected)/dashboard/ViewTypePicker.tsx` | Shared six-kind picker (Month/Week (H)/Week (D)/Day/Agenda/Month & Agenda) used by the Add-view dialog and the Edit-view dialog |
+| `src/app/(protected)/dashboard/ViewTypePicker.tsx` | Shared seven-kind picker (Month/Week (H)/Week (D)/Week (Grid)/Day/Agenda/Month & Agenda) used by the Add-view dialog and the Edit-view dialog |
 | `src/app/(protected)/dashboard/DualPaneView.tsx` | Month & Agenda renderer: resizable Month + Agenda panes (§1.9) |
 | `src/app/(protected)/dashboard/MonthWeekdayStrip.tsx` | Pinned weekday-initials strip, shared by the Month view and the Month & Agenda view's Month pane |
 | `src/app/(protected)/dashboard/AgendaSwipeHint.tsx` | Touch-only agenda swipe caption, shared by the Agenda tab, day modal and Month & Agenda |

@@ -15,8 +15,9 @@ interface ViewTypePickerProps {
 }
 
 /**
- * The shared five-kind picker (Month / Week (H) / Week (D) / Day / Agenda)
- * used by the "Add view" dialog and the Manage views modal's "Edit view"
+ * The shared seven-kind picker (Month / Week (H) / Week (D) / Week (Grid) /
+ * Day / Agenda / Month & Agenda) used by the "Add view" dialog and the
+ * Manage views modal's "Edit view"
  * dialog. Selecting a row calls `onSelect`; the disabled row marks the current
  * kind when the picker edits an existing view.
  */

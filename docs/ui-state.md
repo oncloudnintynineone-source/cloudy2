@@ -8,9 +8,9 @@ Where does the app remember things? Two scopes with one hard rule:
   Calendars/Users filters and the event-search history (`user_preferences`).
 - **"Where you are" is device-local** — it lives in one small cookie
   `cloudy2.ui`: the last visited page, the sidebar rail state, the dashboard
-  `date`/`month` anchor, the two zooms — the Day/Week (H) hour-slot `zoom`
-  and the Month grid's fit-width `monthZoom` — and the Month & Agenda split
-  (`dualSplit`).
+  `date`/`month` anchor, the zooms — the Day/Week (H) hour-slot `zoom`, the
+  Week (Grid) slot-height `gridWeekZoom`, and the Month grid's fit-width
+  `monthZoom` — and the Month & Agenda split (`dualSplit`).
 
 This document covers the split, the two Postgres tables and their lazy seeding,
 the tab-resolution order the dashboard follows, the reduced cookie and
@@ -53,7 +53,7 @@ devices (the old cookie carried all of it and was per-device).
 ### 1.2.1 Dashboard Views (`user_dashboard_views`)
 
 One row per tab: `userId` (FK `users.id`, cascade), `viewType` (one of the
-six renderer kinds — `src/lib/dashboardViews/views.ts`), `name` (user
+seven renderer kinds — `src/lib/dashboardViews/views.ts`), `name` (user
 chosen), `sortOrder` (per-user strip order), the three filter overrides
 `calFilter`/`usersFilter`/`typesFilter` (each JSON array or SQL `NULL`, §1.4),
 timestamps. Index `(user_id, sort_order)`. Rows cascade-delete with the user.
@@ -156,6 +156,7 @@ flowchart LR
  "date": "2026-08-21", // day-anchored views
  "month": "2026-08", // Month view
  "zoom": 1.5, // Day/Week (H) hour-slot zoom (slotZoom.ts)
+ "gridWeekZoom": 1.5, // Week (Grid) slot-height zoom (slotZoom.ts)
  "monthZoom": 1.5, // Month-grid zoom, fit-width multiplier (monthZoom.ts)
  "dualSplit": 0.6 // Month & Agenda month/agenda width split (dualSplit.ts)
   }
@@ -179,8 +180,8 @@ old majors wholesale on first read (see §1.5.2).
   compatible, unknown fields dropped by `normalizeUiState`); an **older
   minor** runs the pure `MINOR_MIGRATIONS` chain first. The chain is a
   pass-through for every step so far: v3.1 added `monthZoom`, v3.2 added
-  `dualSplit` — an older cookie simply lacks the key and the consumer falls
-  back to its default (fit zoom / 60-40 split).
+  `dualSplit`, v3.3 added `gridWeekZoom` — an older cookie simply lacks the key
+  and the consumer falls back to its default (fit zoom / 60-40 split / 100%).
 - The cookie is tiny (scalars + short id lists nowhere near the ~4 KiB browser
   cap), so the old overflow-trimming machinery is gone.
 
@@ -193,7 +194,8 @@ default.**
   wins; a remembered cookie
   `date` anchors the **day views only** (`view !== "month"`); in Month view the
   remembered `month` (else current) drives the read. `zoom` (Day/Week (H)),
-  `monthZoom` (Month grid) and `dualSplit` (Month & Agenda) are read from the raw
+  `gridWeekZoom` (Week (Grid)), `monthZoom` (Month grid) and `dualSplit`
+  (Month & Agenda) are read from the raw
   cookie and snapped via `clampZoom`/`clampMonthZoom`/`clampDualSplit` before
   first paint (no width jump on relaunch).
   The **active tab is not cookie state** — it resolves from `?view=` else the
@@ -213,7 +215,7 @@ default.**
 | ------ | ----- | ---------------- |
 | `useRememberedPage(pathname)` | `AppShellShell` — every authenticated page | `{ lastPage: pathname }` (incl. `/settings` sub-tabs) |
 | sidebar toggle effect | `AppShellShell` | `{ sidebarCollapsed }` on mount + every toggle |
-| `usePersistDashboardNav({ date?, month, zoom, monthZoom, dualSplit })` | `DashboardView` | the dashboard    section; `date` is stored only when the URL pins one (day views) or for Month & Agenda, `month`/`zoom`/`monthZoom`/`dualSplit` always |
+| `usePersistDashboardNav({ date?, month, zoom, gridWeekZoom, monthZoom, dualSplit })` | `DashboardView` | the dashboard    section; `date` is stored only when the URL pins one (day views) or for Month & Agenda, `month`/`zoom`/`gridWeekZoom`/`monthZoom`/`dualSplit` always |
 
 Server-side writes happen through server actions (the client never writes
 Postgres directly): tab CRUD + per-tab filters via `src/lib/dashboardViews`,
