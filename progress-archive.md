@@ -8610,3 +8610,39 @@ deep links (event search / pinned events) and browser reloads.
 **Verified**: `pnpm lint`, `pnpm typecheck`, `pnpm test` (1231 passing), `pnpm db:generate`
 (no drift). Manual to run before ship: cold open `/` lands on the first tab; switch tabs
 then reload `/` → first tab; reload `/dashboard?view=<other>` → that view.
+
+## 1.243 Event-search modal launch + layout
+
+**Launch path.** `AppShellShell` now captures the search modal's `dynamic()` `preload()`
+promise (`preloadSearchModalChunk`) and sets `searchLoaded` when it resolves, so the modal
+**mounts closed** as soon as the chunk lands — the first open is a pure `opened` flip with
+no mount/parse/network on the click. The idle preload gets `{ timeout: 2000 }` so a busy
+phone can't starve it, and the header button now also preloads on
+`onPointerDown`/`onTouchStart` (touch fires no `pointerenter`); a desktop `mod+K`
+(`useHotkeys`, `preventDefault`) opens it from anywhere, growing out of the button's ref'd
+rect. `dynamic(..., { loading: () => <EventSearchModalSkeleton /> })` — a dependency-free
+`Modal` + spinner (no schedule/dates imports) — covers a click that races the chunk
+download. Recent searches are now prefetched once when the modal mounts (closed, at idle)
+and refreshed on open, so badges are present on the first open.
+
+**Layout.** The form collapses to one toolbar row: the query `TextInput` (no autofocus,
+in-field clear) + a Search submit (`Button` at `lg`, 43px `ActionIcon` below it) + a date
+filter `ActionIcon` opening a `Menu` with the From/To `DatePickerInput`s and a Reset
+(badge-counting a non-default window, mirroring the audit-log filter). Recent-search badges
+render as a single `.c2-chip-scroll` row and are hidden once results exist. Results get a
+count + active-range caption with a Clear action, and the column is capped at
+`min(72dvh, 680px)` with the result list as the only scroll region (`overflowY: auto`), so
+the Modal body never scrolls and the mobile keyboard (`dvh`) shrinks it cleanly. While
+searching a local skeleton row list shows with a `LoadingStatus`; no matches render the
+shared `EmptyState`. `renderEvent` applies the dashboard's `c2-my-agenda-event` /
+`c2-ext-agenda-event` classes.
+
+**Server action.** `searchEvents` now returns `{ ok: true, events, myEventIds }`;
+`myEventIds` are computed on the deduped results via `eventMatchesUserFilter(payload,
+[session.user.id])` so the modal can apply the amber "mine" highlight without extra
+plumbing.
+
+**Verified**: `pnpm lint`, `pnpm typecheck`, `pnpm test` (1282 passing). Manual to run
+before ship: cold first open from a non-dashboard route (skeleton → modal), instant repeat
+opens, one-row toolbar, recents hidden with results, mobile keyboard no jump, ⌘K, highlight
+colors, deep link still opens the event detail.

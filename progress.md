@@ -18,7 +18,7 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
 
 ## 1.1 Status
 
-- All work through changelog **1.241 (Month & Agenda is a full Month view on narrow screens)** is shipped.
+- All work through changelog **1.243 (Event-search modal launch + layout)** is shipped.
 - Quality gates (`lint` / `typecheck` / `test` / schema-drift check) run in CI on every
   push and PR. Pushes also auto-apply migrations per environment: `dev` →
   `migrate-preview` against the dev Neon DB, `main` → `migrate` against the prod Neon
@@ -1076,6 +1076,18 @@ via `?attendance=1` and `attendanceStorage` became a `useSyncExternalStore` exte
    unchanged. `.c2-tab-load-bar` + its sweep keyframes are replaced by
    `.c2-tab-spinner` in `globals.css`. `docs/loading-transitions.md` §1.13.2,
    `AGENTS.md`
+- 1.243 Event-search modal launch + layout: the chunk now preloads at idle with a
+   2s deadline (plus hover/focus/pointer-down/touch-start and a desktop ⌘/Ctrl-K)
+   and the modal **mounts closed** the moment the preload resolves, so the first
+   open is an instant `opened` flip (a dependency-free `EventSearchModalSkeleton`
+   covers the racing-click case); recent searches are prefetched on mount instead
+   of on open. The form collapses to a single toolbar row (input + Search + a date
+   filter popover with From/To and a non-default badge), recent-search badges are
+   a one-line chip row hidden once results exist, results get a count + active-range
+   caption with Clear, and the column is capped at `min(72dvh, 680px)` with the
+   list as the only scroll region (skeleton while searching, `EmptyState` for no
+   matches, amber/purple mine/external row highlight via the action's new
+   `myEventIds`, no autofocus). `docs/event-search.md` §1.5/§1.9/§1.12
 
 ## 1.4 Open items & next steps
 
