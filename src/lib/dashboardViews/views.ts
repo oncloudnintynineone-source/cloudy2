@@ -15,15 +15,16 @@
  * are re-validated against live data on every dashboard render.
  */
 
-/** The dashboard view renderer kinds a tab can be. */
+/** The dashboard view renderer kinds a tab can be. Order is the display order
+ *  of the type picker (both Add-view and Edit-view dialogs). */
 export const DASHBOARD_VIEW_KINDS = [
+  "dual",
   "month",
   "week",
   "weekv2",
   "weekgrid",
   "schedule",
   "agenda",
-  "dual",
 ] as const;
 export type DashboardViewKind = (typeof DASHBOARD_VIEW_KINDS)[number];
 

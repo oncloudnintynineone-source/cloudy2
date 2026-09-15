@@ -3,13 +3,11 @@
 import { useState } from "react";
 import {
   ActionIcon,
-  Box,
   Button,
   Group,
   Modal,
   Paper,
   ScrollArea,
-  SimpleGrid,
   Stack,
   Text,
   TextInput,
@@ -230,11 +228,7 @@ export function EditViewsModal({
           </Text>
         ) : (
           <ScrollArea.Autosize mah="min(60vh, 420px)" mx="-sm" px="sm">
-            <SimpleGrid
-              cols={isNarrow ? 1 : { base: 2, sm: 3 }}
-              spacing={ROW_CARD_GAP}
-              data-flip-container
-            >
+            <Stack gap={ROW_CARD_GAP} data-flip-container>
               {displayTabs.map((tab, index) => {
                 const meta = VIEW_TAB_META[tab.kind];
                 const isActive = tab.id === activeView.id;
@@ -250,6 +244,21 @@ export function EditViewsModal({
                     onUp={() => void reorderView(tab.id, -1)}
                     onDown={() => void reorderView(tab.id, 1)}
                   />
+                );
+                const title = (
+                  <Group wrap="nowrap" gap="sm" align="center" style={{ minWidth: 0, flex: 1 }}>
+                    {meta.icon}
+                    <Stack gap={0} style={{ minWidth: 0, flex: 1 }}>
+                      <Text fw={600} size="md" truncate>
+                        {tab.name}
+                      </Text>
+                      {showKind && (
+                        <Text size="xs" c="dimmed" truncate>
+                          {meta.label}
+                        </Text>
+                      )}
+                    </Stack>
+                  </Group>
                 );
                 const actions = (
                   <>
@@ -290,46 +299,38 @@ export function EditViewsModal({
                     data-flip-id={tab.id}
                     style={
                       isActive
-                        ? {
-                            borderColor: "var(--mantine-color-accent-4)",
-                            boxShadow: "inset 0 0 0 1px var(--mantine-color-accent-4)",
-                          }
+                        ? { borderLeft: "3px solid var(--mantine-color-accent-6)" }
                         : undefined
                     }
                   >
-                    <Stack gap="xs">
-                      <div
-                        className="c2-viewp-thumb"
-                        style={{ color: "var(--mantine-color-gray-6)" }}
-                      >
-                        {meta.thumbnail}
-                      </div>
-                      <Group wrap="nowrap" gap="xs" align="center" style={{ minWidth: 0 }}>
-                        <Box c="dimmed" style={{ display: "flex" }}>
-                          {meta.icon}
-                        </Box>
-                        <Stack gap={0} style={{ minWidth: 0, flex: 1 }}>
-                          <Text fw={600} size="sm" truncate>
-                            {tab.name}
-                          </Text>
-                          {showKind && (
-                            <Text size="xs" c="dimmed" truncate>
-                              {meta.label}
-                            </Text>
-                          )}
-                        </Stack>
-                      </Group>
-                      <Group wrap="wrap" gap={4} justify="space-between" align="center">
-                        {chevrons}
-                        <Group wrap="nowrap" gap={4}>
+                    {isDesktop ? (
+                      <Group justify="space-between" align="center" wrap="nowrap">
+                        <Group
+                          wrap="nowrap"
+                          gap="sm"
+                          align="center"
+                          style={{ minWidth: 0, flex: 1 }}
+                        >
+                          {chevrons}
+                          {title}
+                        </Group>
+                        <Group wrap="nowrap" gap={4} style={{ flexShrink: 0 }}>
                           {actions}
                         </Group>
                       </Group>
-                    </Stack>
+                    ) : (
+                      <Stack gap={6}>
+                        {title}
+                        <Group wrap="nowrap" gap={4} align="center">
+                          {chevrons}
+                          {actions}
+                        </Group>
+                      </Stack>
+                    )}
                   </Paper>
                 );
               })}
-            </SimpleGrid>
+            </Stack>
           </ScrollArea.Autosize>
         )}
       </Stack>
@@ -359,7 +360,12 @@ export function EditViewsModal({
             <Text fw={600} size="sm" mb={6}>
               View type
             </Text>
-            <ViewTypePicker value={editKind} disabledKind={editing?.kind} onSelect={setEditKind} />
+            <ViewTypePicker
+              value={editKind}
+              disabledKind={editing?.kind}
+              onSelect={setEditKind}
+              variant="thumbnail"
+            />
           </div>
           <div>
             <Text fw={600} size="sm" mb={6}>

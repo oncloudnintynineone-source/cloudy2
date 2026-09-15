@@ -81,10 +81,10 @@ them with the tabs above the grid:
   button at the top of the Manage views dialog. Pick the view type from the
   **thumbnail grid** (each option shows a small preview of its layout), then name it.
 - **Manage views**: use the **gear** beside the tab strip (tooltip "Manage
-  views"). Your views appear as a **grid of preview cards**; the active one is
-  ringed in amber. Each card has **Edit** (name, type, and an **Edit filters…**
-  button that switches to the view and opens its filter dialog) and **Delete**,
-  plus ↑/↓ to reorder.
+  views"). Your views appear as a **list**; the active one is marked with an
+  amber bar. Each row has **Edit** (name, type — the type chooser shows the same
+  preview grid — and an **Edit filters…** button that switches to the view and
+  opens its filter dialog) and **Delete**, plus ↑/↓ to reorder.
 - **Fullscreen** (⋮ menu → **Enter fullscreen**) hides all app
   chrome (and the browser UI where supported) for a wall-display calendar; press
   Esc or use ⋮ menu → **Exit fullscreen** to go back.
