@@ -23,6 +23,7 @@ grid's fit-to-width zoom.
 - [1.5 My-entry highlight](#15-my-entry-highlight)
 - [1.6 External-event highlight](#16-external-event-highlight)
 - [1.7 Timeline zoom (Day, Week (H) and Week (Grid))](#17-timeline-zoom-day-week-h-and-week-grid)
+- [1.7.1 Week (Grid) all-day overflow](#171-week-grid-all-day-overflow)
 - [1.8 Month-grid zoom (fit-to-width)](#18-month-grid-zoom-fit-to-width)
 - [1.9 Month & Agenda](#19-month--agenda)
 - [1.10 File index & related docs](#110-file-index--related-docs)
@@ -540,6 +541,45 @@ flowchart LR
  S --> C["dashboard.zoom cookie<br/>(usePersistDashboardNav)"]
 ```
 
+## 1.7.1 Week (Grid) all-day overflow
+
+Mantine's `WeekView` renders all-day events in a **fixed-height strip** whose
+chips are half the strip tall (`top: row * 50%`, `height: 50%` of
+`--week-view-all-day-slots-height`, default `3rem`), and clips the events layer
+with `overflow: hidden`. Only the **first two lanes** are therefore ever
+visible; a third and beyond are clipped and only revealed transiently on
+hover/focus-within — never on touch. The app does not fight that layout: the
+strip keeps its two lanes, and the events in the hidden lanes are surfaced
+behind a **`+N more`** trigger in the date-nav row instead.
+
+- **Pure binning** (`src/lib/events/gridWeek.ts`):
+  `gridWeekAllDayLayout(events, days, visibleLanes = 2)` mirrors the library's
+  classification (`allDay = isMultiday || isActuallyAllDay` — a multi-day timed
+  event shares the strip, a half-day `00:00–12:00` / `12:00–24:00` event stays
+  on the timed grid, out-of-week events are dropped) and its `sortEvents` +
+  greedy `assignEventRows` lane assignment, returning `{ laneCount, hidden,
+  hiddenIds }`. Because the assignment is replicated exactly, `hidden` matches
+  precisely what the library clips.
+- **Grid suppression** (`renderGridWeekEvent`, the Week (Grid) `renderEvent`):
+  the Month renderer's amber/purple highlight classes, plus a `display: none`
+  placeholder for every all-day chip whose id is in `hiddenIds` — so the hidden
+  lanes no longer bleed out on hover and leave the a11y tree. They stay
+  reachable from the popover.
+- **`+N more` trigger**: Mantine's own `MoreEvents` component (the same one the
+  Month view's built-in overflow uses) in the date-nav row, rendered only while
+  the view is Week (Grid) and `hidden.length > 0`. Its popover lists the hidden
+  all-day events (day-prefixed via `renderEventBody`) and opens the shared
+  `EventDetail` on tap. One week-level trigger — the strip height, chip
+  geometry, sticky behaviour and zoom/pan are untouched.
+
+```mermaid
+flowchart LR
+ E["viewEvents (all-day + multiday)"] --> L["gridWeekAllDayLayout<br/>(gridWeek.ts)"]
+ L --> H["hidden / hiddenIds"]
+ H --> S["renderGridWeekEvent<br/>(display:none chips)"]
+ H --> P["MoreEvents '+N more'<br/>(nav-row popover)"]
+```
+
 ## 1.8 Month-grid zoom (fit-to-width)
 
 The Month view can zoom its day columns in and out. The **default (zoom 100%) is
@@ -692,6 +732,7 @@ flowchart LR
 | `src/app/(protected)/dashboard/page.tsx` | Resolves tabs + active tab (`?view=` → remembered → first), validates per-tab filters |
 | `src/app/(protected)/dashboard/WeekMatrixView.tsx` | Week (D) matrix renderer |
 | `src/lib/events/weekMatrix.ts` | Pure Week (D) lane binning (`coveredDays`, `buildWeekLanes`) |
+| `src/lib/events/gridWeek.ts` | Pure Week (Grid) all-day lane binning (`gridWeekAllDayLayout`) for the `+N more` overflow (§1.7.1) |
 | `src/lib/events/mineFirst.ts` | Pure "mine first" sort for the month view's greedy row assignment |
 | `src/lib/events/schedule.ts` | Resource rows (`buildScheduleResources`, `userFilter`) |
 | `src/lib/ui/slotZoom.ts` | Pure zoom levels + slot-width math (`clampZoom`, `stepZoom`, `weekSlotWidth`, `daySlotWidth`) |

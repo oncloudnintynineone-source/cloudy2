@@ -41,6 +41,7 @@ import { notifications } from "@mantine/notifications";
 import {
   AgendaView,
   MonthView,
+  MoreEvents,
   ResourcesDayView,
   ResourcesWeekView,
   WeekView,
@@ -126,6 +127,7 @@ import {
   type ScheduleResource,
   type ScheduleUser,
 } from "@/lib/events/schedule";
+import { gridWeekAllDayLayout, type GridWeekAllDayLayout } from "@/lib/events/gridWeek";
 import {
   getAgendaSwipeHintServerSnapshot,
   getAgendaSwipeHintSnapshot,
@@ -198,6 +200,13 @@ type MyEventRender = (
   event: { id: string | number },
   props: ComponentPropsWithoutRef<"button"> & { children: ReactNode },
 ) => ReactElement;
+
+/** Stable empty layout for the non-Week-(Grid) renders (no overflow). */
+const NO_GRID_WEEK_ALLDAY: GridWeekAllDayLayout = {
+  laneCount: 0,
+  hidden: [],
+  hiddenIds: new Set(),
+};
 
 interface EventTypeOption {
   name: string;
@@ -1876,6 +1885,42 @@ export function DashboardView({
   // Week (Grid).
   const isAnchoredView = isSchedule || isWeek || isAgenda || isDual;
 
+  // Week (Grid) all-day overflow: the fixed-height strip renders only its first
+  // two lanes (24px chips in a 48px strip), so the rest are clipped. This pure
+  // layout mirrors the library's lane assignment so `hiddenIds` matches exactly
+  // what it clips; those events are then surfaced behind a "+N more" popover in
+  // the nav row instead of bleeding out on hover. Design:
+  // docs/dashboard-views.md §1.7.1.
+  const gridWeekAllDay = useMemo(
+    () => (isGridWeek && week ? gridWeekAllDayLayout(viewEvents, week) : NO_GRID_WEEK_ALLDAY),
+    [isGridWeek, week, viewEvents],
+  );
+
+  // Week (Grid) event root: the Month renderer's highlight classes plus the
+  // all-day overflow suppression. The library clips lanes past the second but
+  // still reveals them on hover/focus-within and keeps them focusable; those
+  // events live in the "+N more" popover instead, so drop them from the grid
+  // entirely (they stay reachable from the nav-row trigger).
+  const renderGridWeekEvent: MyEventRender = useCallback(
+    (event, props) => {
+      const positioned = event as unknown as { position?: { allDay?: boolean } };
+      if (positioned.position?.allDay && gridWeekAllDay.hiddenIds.has(String(event.id))) {
+        return <span style={{ display: "none" }} aria-hidden />;
+      }
+      if (!myEventIds.has(String(event.id)) && !isExternalRenderEvent(event)) {
+        return <UnstyledButton {...props} />;
+      }
+      const extra = [
+        myEventIds.has(String(event.id)) && "c2-my-event",
+        isExternalRenderEvent(event) && "c2-ext-event",
+      ]
+        .filter(Boolean)
+        .join(" ");
+      return <UnstyledButton {...props} className={`${props.className ?? ""} ${extra}`.trim()} />;
+    },
+    [myEventIds, gridWeekAllDay.hiddenIds],
+  );
+
   // Month-grid zoom knob. Mantine sizes every day column as a percentage of
   // the week row, which fills the ScrollArea content (`monthViewInner`), so
   // widening that content by the zoom multiplier widens all columns and events
@@ -3004,6 +3049,41 @@ export function DashboardView({
                 has none, so it falls back to the optimistic date (today). */}
             {periodLabel}
           </Text>
+          {/* Week (Grid) all-day overflow: the strip shows only its first two
+              lanes, so the rest are listed here (Mantine's MoreEvents popover,
+              the same component the Month view uses). One week-level trigger;
+              the events it lists are the chips suppressed from the grid
+              (docs/dashboard-views.md §1.7.1). */}
+          {isGridWeek && gridWeekAllDay.hidden.length > 0 && (
+            <MoreEvents
+              events={gridWeekAllDay.hidden}
+              moreEventsCount={gridWeekAllDay.hidden.length}
+              aria-label={`Show ${gridWeekAllDay.hidden.length} more all-day events`}
+              renderEvent={renderMyMonthEvent}
+              renderEventBody={(event) =>
+                `${dayjs(event.start).format("ddd, MMM D")} · ${event.title}`
+              }
+              popoverProps={{ position: "bottom-end", offset: 6 }}
+              styles={{
+                moreEventsButton: {
+                  flex: "0 0 auto",
+                  whiteSpace: "nowrap",
+                  height: 36,
+                  paddingInline: "var(--mantine-spacing-sm)",
+                  borderRadius: "var(--mantine-radius-default)",
+                  border: "1px solid var(--mantine-color-default-border)",
+                  background: "var(--mantine-color-body)",
+                  color: "var(--mantine-color-text)",
+                  fontWeight: 600,
+                },
+              }}
+              onEventClick={(event, e) => {
+                if (isOptimisticStandIn(event as CalendarEvent)) return;
+                setDetailOriginRect(e.currentTarget.getBoundingClientRect());
+                setDetailEvent(event as unknown as CalendarEvent);
+              }}
+            />
+          )}
           <ActionIcon
             size={36}
             variant="default"
@@ -3477,8 +3557,8 @@ export function DashboardView({
               scrollAreaProps={gridWeekScrollAreaProps}
               // External events get the purple ring (c2-ext-event), the user's
               // own get the amber one (c2-my-event) — same pass-through root as
-              // the Month grid.
-              renderEvent={renderMyMonthEvent}
+              // the Month grid, plus the all-day overflow suppression (§1.7.1).
+              renderEvent={renderGridWeekEvent}
               onEventClick={(event, e) => {
                 if (isOptimisticStandIn(event as CalendarEvent)) return;
                 setDetailOriginRect(e.currentTarget.getBoundingClientRect());
