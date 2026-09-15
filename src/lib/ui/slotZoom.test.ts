@@ -12,6 +12,7 @@ import {
   reanchorScrollLeft,
   reanchorScrollTop,
   stepZoom,
+  weekMatrixDayMinPx,
   weekSlotWidth,
 } from "./slotZoom";
 
@@ -25,9 +26,11 @@ describe("clampZoom", () => {
   it("snaps an off-level number to the nearest level", () => {
     expect(clampZoom(1.1)).toBe(1);
     expect(clampZoom(1.4)).toBe(1.5);
-    expect(clampZoom(0.3)).toBe(0.5);
+    expect(clampZoom(0.3)).toBe(0.25);
     expect(clampZoom(2.3)).toBe(2.5);
     expect(clampZoom(3.4)).toBe(3);
+    expect(clampZoom(5.4)).toBe(5);
+    expect(clampZoom(99)).toBe(6);
   });
 
   it("returns null for non-numeric or non-finite input", () => {
@@ -71,6 +74,12 @@ describe("stepZoom", () => {
     expect(stepZoom(2, -1)).toBe(1.5);
     expect(stepZoom(2, 1)).toBe(2.5);
     expect(stepZoom(2.5, -1)).toBe(2);
+    // The doubled range: the new extremes step outward and the top end gains
+    // whole-number levels.
+    expect(stepZoom(0.25, 1)).toBe(0.5);
+    expect(stepZoom(3, 1)).toBe(4);
+    expect(stepZoom(5, 1)).toBe(6);
+    expect(stepZoom(6, -1)).toBe(5);
   });
 
   it("clamps at the extremes instead of looping", () => {
@@ -130,6 +139,23 @@ describe("gridWeekColumnWidth", () => {
   it("floors at 100% so zooming out never shrinks below the viewport width", () => {
     expect(gridWeekColumnWidth(0.75)).toBe("100%");
     expect(gridWeekColumnWidth(0.5)).toBe("100%");
+  });
+});
+
+describe("weekMatrixDayMinPx", () => {
+  it("is the default readable width (112px) at zoom 1", () => {
+    expect(weekMatrixDayMinPx(1)).toBe(112);
+  });
+
+  it("scales the px floor by the zoom level", () => {
+    expect(weekMatrixDayMinPx(2)).toBe(224);
+    expect(weekMatrixDayMinPx(6)).toBe(672);
+  });
+
+  it("floors at the fit level so zooming out never narrows the columns", () => {
+    expect(weekMatrixDayMinPx(0.75)).toBe(112);
+    expect(weekMatrixDayMinPx(0.5)).toBe(112);
+    expect(weekMatrixDayMinPx(0.25)).toBe(112);
   });
 });
 

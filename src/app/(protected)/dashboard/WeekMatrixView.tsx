@@ -12,16 +12,33 @@
  */
 
 import dayjs from "dayjs";
-import { useCallback, type MouseEvent, type ReactNode, useMemo, useRef } from "react";
+import {
+  useCallback,
+  useLayoutEffect,
+  type MouseEvent,
+  type ReactNode,
+  useMemo,
+  useRef,
+} from "react";
 import { Box, Paper, ScrollArea, Text, UnstyledButton, useMantineTheme } from "@mantine/core";
-import { useMediaQuery } from "@mantine/hooks";
+import { useMediaQuery, useMergedRef } from "@mantine/hooks";
 
-import { GridPanControls } from "@/components/GridPanControls";
+import { GridNavControls } from "@/components/GridNavControls";
 import { buildWeekLanes } from "@/lib/events/weekMatrix";
 import type { WeekSpan } from "@/lib/events/weekMatrix";
 import type { CalendarEvent } from "@/lib/events/queries";
 import type { ScheduleResource, ScheduleResourceGroup } from "@/lib/events/schedule";
+import { announce } from "@/lib/ui/announcer";
 import { useGridPan } from "@/lib/ui/gridPan";
+import { markPinchHintSeen } from "@/lib/ui/pinchHint";
+import { usePinchZoom } from "@/lib/ui/pinchZoom";
+import {
+  clampGridWeekColZoom,
+  MIN_COLUMN_ZOOM,
+  reanchorScrollLeft,
+  weekMatrixDayMinPx,
+  type SlotZoom,
+} from "@/lib/ui/slotZoom";
 
 export interface WeekMatrixViewProps {
   /** The seven days of the displayed week, Monday-first (`YYYY-MM-DD`). */
@@ -51,6 +68,19 @@ export interface WeekMatrixViewProps {
   /** Tapping an empty part of a cell: start a new event on that day. */
   onCellClick: (day: string, e: MouseEvent<HTMLDivElement>) => void;
   /**
+   * Current Week (D) day-column zoom level. Single horizontal axis over the
+   * matrix's absolute px column floor (1 = the default readable width; the
+   * floor is also the zoom-out limit). Owned/persisted by the parent.
+   */
+  zoom: SlotZoom;
+  /** Step the day-column zoom one notch (the parent persists the level). */
+  onZoomIn: () => void;
+  onZoomOut: () => void;
+  /** Commit an arbitrary zoom level (pinch-to-zoom). */
+  onZoomChange: (next: SlotZoom) => void;
+  /** Show the one-time pinch-to-zoom hint beside the zoom cluster. */
+  showPinchHint: boolean;
+  /**
    * Height of the sticky chrome block above the grid (view tabs + date-nav
    * row). The pinned day header sits just below it
    * (`top: calc(var(--app-shell-header-offset) + chromeOffset)`).
@@ -58,8 +88,6 @@ export interface WeekMatrixViewProps {
   chromeOffset: number;
 }
 
-/** Minimum day-column width in pixels so event titles are readable. */
-const MIN_DAY_PX = 112;
 /**
  * Compact lane height: matches the schedule views' all-day bar height
  * (~1.25rem / 20px) with a little extra for the banner border and padding.
@@ -74,10 +102,6 @@ const MOBILE_GROUP_WIDTH = "1.5rem";
 const DESKTOP_LABEL_WIDTH = "5rem";
 const DESKTOP_GROUP_WIDTH = "2.5rem";
 const CELL_BORDER = "1px solid var(--mantine-color-default-border)";
-/** Seven day columns sharing one template; each stays ≥ MIN_DAY_PX wide. */
-const DAY_TEMPLATE = `repeat(7, minmax(${MIN_DAY_PX}px, 1fr))`;
-/** Total day-area width (7 × MIN_DAY_PX) — the floor before horizontal scroll. */
-const DAY_MIN_WIDTH = `${7 * MIN_DAY_PX}px`;
 
 interface MatrixBlock {
   key: string;
@@ -97,20 +121,35 @@ export function WeekMatrixView({
   renderResourceLabel,
   onEventClick,
   onCellClick,
+  zoom,
+  onZoomIn,
+  onZoomOut,
+  onZoomChange,
+  showPinchHint,
   chromeOffset,
 }: WeekMatrixViewProps) {
   const theme = useMantineTheme();
   const isDesktop = useMediaQuery(`(min-width: ${theme.breakpoints.lg})`);
-  // Drag-to-pan + edge pan buttons (same story as the Day/Week (H) schedule
-  // views — see useGridPan). Always enabled, not desktop-gated.
-  const gridPan = useGridPan();
+  // Drag-to-pan + edge pan buttons + pinch-to-zoom (same story as the Day/Week
+  // (H) schedule views — see useGridPan / usePinchZoom). `pan-x pan-y` keeps
+  // native panning but stops the browser page-pinching over the grid, so the
+  // pinch handler below owns the two-finger gesture. Always enabled, not
+  // desktop-gated.
+  const gridPan = useGridPan({ touchAction: "pan-x pan-y" });
   const rootRef = useRef<HTMLDivElement | null>(null);
   const labelWidth = isDesktop ? DESKTOP_LABEL_WIDTH : MOBILE_LABEL_WIDTH;
   const groupWidth = isDesktop ? DESKTOP_GROUP_WIDTH : MOBILE_GROUP_WIDTH;
   const hasGroups = groups !== undefined;
+  // Zoom-derived day-column geometry: the min column width scales with the
+  // level (floored at the fit default), so the seven columns widen and overflow
+  // into the horizontal pan. The same width drives the pinned header and the
+  // scroll-content min-width, keeping the columns aligned while they overflow.
+  const dayMinPx = weekMatrixDayMinPx(zoom);
+  const dayTemplate = `repeat(7, minmax(${dayMinPx}px, 1fr))`;
+  const dayMinWidth = `${7 * dayMinPx}px`;
   // ScrollArea content min-width: guarantees horizontal scroll on narrow
-  // screens so the day columns never shrink below MIN_DAY_PX.
-  const contentMinWidth = `calc(${hasGroups ? `${groupWidth} + ` : ""}${labelWidth} + 7 * ${MIN_DAY_PX}px)`;
+  // screens so the day columns never shrink below their zoomed floor.
+  const contentMinWidth = `calc(${hasGroups ? `${groupWidth} + ` : ""}${labelWidth} + ${7 * dayMinPx}px)`;
   // The pinned day header sticks below the sticky tabs+date-nav chrome.
   const headerTop = `calc(var(--app-shell-header-offset) + ${chromeOffset}px)`;
   // The resource label pins just right of the group column while scrolling.
@@ -129,6 +168,68 @@ export function WeekMatrixView({
       headerInnerRef.current.style.transform = `translateX(${-pos.x}px)`;
     }
   }, []);
+
+  // Pinch-to-zoom (touch): the same discrete level set as the buttons (the
+  // clamp snaps), with the gesture midpoint stashed for the re-anchor below so
+  // the day under the fingers stays put (buttons re-anchor on the centre).
+  const viewportRef = useRef<HTMLDivElement | null>(null);
+  const pinchBaseRef = useRef<SlotZoom>(zoom);
+  const pinchFocalRef = useRef<number | undefined>(undefined);
+  const pinch = usePinchZoom({
+    onStart: () => {
+      markPinchHintSeen();
+      pinchBaseRef.current = zoom;
+    },
+    onPinch: ({ scale, focalX }) => {
+      const next = clampGridWeekColZoom(pinchBaseRef.current * scale);
+      if (next === null || next === zoom) return;
+      pinchFocalRef.current = focalX;
+      onZoomChange(next);
+    },
+    onEnd: () => announce(`Zoom ${Math.round(zoom * 100)}%`),
+  });
+  const mergedViewportRef = useMergedRef(viewportRef, gridPan.viewportRef, pinch.ref);
+
+  // The sticky group/label columns are zoom-invariant, so the re-anchor must
+  // subtract that fixed left offset from the day timeline before scaling. Their
+  // widths are measured from the pinned header's spacers, which share them.
+  const groupMeasureRef = useRef<HTMLDivElement | null>(null);
+  const labelMeasureRef = useRef<HTMLDivElement | null>(null);
+
+  // Zoom re-anchor: widening the day columns would otherwise keep the same
+  // scrollLeft, so the day under the viewport's center drifts. Keep it centered,
+  // scaling by the zoom ratio and accounting for the fixed label column (mirrors
+  // the Week (Grid) column re-anchor). Only on a genuine zoom change — never on
+  // mount or view switches. The content width changes too, which the pan hook's
+  // ResizeObserver (watching the viewport box) can't see, so refresh the edge
+  // flags so the pan arrows appear/disappear with the zoom.
+  const prevZoomRef = useRef(zoom);
+  const { remeasure: remeasureGridPan } = gridPan;
+  useLayoutEffect(() => {
+    const zoomChanged = prevZoomRef.current !== zoom;
+    const oldZoom = prevZoomRef.current;
+    prevZoomRef.current = zoom;
+    if (!zoomChanged) {
+      return;
+    }
+    const viewport = viewportRef.current;
+    if (viewport && viewport.clientWidth > 0) {
+      const labelPx =
+        (groupMeasureRef.current?.getBoundingClientRect().width ?? 0) +
+        (labelMeasureRef.current?.getBoundingClientRect().width ?? 0);
+      const focalX = pinchFocalRef.current;
+      pinchFocalRef.current = undefined;
+      viewport.scrollLeft = reanchorScrollLeft(
+        viewport.scrollLeft,
+        viewport.clientWidth,
+        labelPx,
+        oldZoom,
+        zoom,
+        focalX,
+      );
+    }
+    remeasureGridPan();
+  }, [zoom, remeasureGridPan]);
 
   const laneMap = useMemo(
     () => buildWeekLanes(events, days, memberships),
@@ -180,12 +281,14 @@ export function WeekMatrixView({
           <Box component="div" style={{ display: "flex", minWidth: 0 }}>
             {hasGroups && (
               <Box
+                ref={groupMeasureRef}
                 component="div"
                 aria-hidden
                 style={{ flexShrink: 0, width: groupWidth, borderRight: CELL_BORDER }}
               />
             )}
             <Box
+              ref={labelMeasureRef}
               component="div"
               aria-hidden
               style={{ flexShrink: 0, width: labelWidth, borderRight: CELL_BORDER }}
@@ -197,9 +300,9 @@ export function WeekMatrixView({
                 role="row"
                 style={{
                   display: "grid",
-                  gridTemplateColumns: DAY_TEMPLATE,
+                  gridTemplateColumns: dayTemplate,
                   width: "100%",
-                  minWidth: DAY_MIN_WIDTH,
+                  minWidth: dayMinWidth,
                   willChange: "transform",
                 }}
               >
@@ -250,7 +353,7 @@ export function WeekMatrixView({
         <ScrollArea
           type="auto"
           styles={{ content: { minWidth: contentMinWidth } }}
-          viewportRef={gridPan.viewportRef}
+          viewportRef={mergedViewportRef}
           viewportProps={gridPan.viewportProps}
           onScrollPositionChange={handleScroll}
         >
@@ -309,6 +412,8 @@ export function WeekMatrixView({
                       onCellClick={onCellClick}
                       labelLeft={labelLeft}
                       labelWidth={labelWidth}
+                      dayTemplate={dayTemplate}
+                      dayMinWidth={dayMinWidth}
                     />
                   ))}
                 </Box>
@@ -318,13 +423,19 @@ export function WeekMatrixView({
         </ScrollArea>
       </Paper>
 
-      {/* Edge pan buttons — only appear at the width where the day columns
-          actually overflow (they stretch to fit on wide desktops). */}
-      <GridPanControls
+      {/* Day-column zoom + edge pan controls (the same right-edge cluster the
+          other grids use): the zoom pair always shows; the pan arrows appear
+          only once a zoom level overflows the viewport. */}
+      <GridNavControls
         anchorRef={rootRef}
         canScrollLeft={gridPan.canScrollLeft}
         canScrollRight={gridPan.canScrollRight}
         onPan={gridPan.panTo}
+        showPinchHint={showPinchHint}
+        zoom={zoom}
+        zoomMin={MIN_COLUMN_ZOOM}
+        onZoomIn={onZoomIn}
+        onZoomOut={onZoomOut}
       />
     </>
   );
@@ -349,6 +460,8 @@ function MatrixRow({
   onCellClick,
   labelLeft,
   labelWidth,
+  dayTemplate,
+  dayMinWidth,
 }: {
   resource: ScheduleResource;
   /** Lanes in draw order.  Lane i renders on grid row i + 1. */
@@ -367,6 +480,10 @@ function MatrixRow({
   labelLeft: string;
   /** Width of the sticky resource-label column. */
   labelWidth: string;
+  /** Seven-column day template at the current zoom (matches the pinned header). */
+  dayTemplate: string;
+  /** Day-area min width at the current zoom (the horizontal scroll floor). */
+  dayMinWidth: string;
 }) {
   const theme = useMantineTheme();
   const rowBorder = lastRow ? undefined : CELL_BORDER;
@@ -407,9 +524,9 @@ function MatrixRow({
         component="div"
         style={{
           flex: 1,
-          minWidth: DAY_MIN_WIDTH,
+          minWidth: dayMinWidth,
           display: "grid",
-          gridTemplateColumns: DAY_TEMPLATE,
+          gridTemplateColumns: dayTemplate,
           gridAutoRows: `minmax(${ROW_HEIGHT_PX}px, auto)`,
         }}
       >

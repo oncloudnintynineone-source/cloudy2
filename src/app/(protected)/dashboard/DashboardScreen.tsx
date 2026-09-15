@@ -42,6 +42,8 @@ interface DashboardScreenProps {
   initialGridWeekColZoom: SlotZoom;
   /** Week (Grid) slot-height zoom, seeded from the device cookie. */
   initialGridWeekRowZoom: SlotZoom;
+  /** Week (D) day-column zoom, seeded from the device cookie. */
+  initialWeekMatrixZoom: SlotZoom;
   initialMonthZoom: MonthZoom;
   /** Dual Pane Month-pane fraction, seeded from the device cookie. */
   initialDualSplit: number;
@@ -92,6 +94,7 @@ export function DashboardScreen({
   initialZoom,
   initialGridWeekColZoom,
   initialGridWeekRowZoom,
+  initialWeekMatrixZoom,
   initialMonthZoom,
   initialDualSplit,
 }: DashboardScreenProps) {
@@ -695,6 +698,7 @@ export function DashboardScreen({
         initialZoom={initialZoom}
         initialGridWeekColZoom={initialGridWeekColZoom}
         initialGridWeekRowZoom={initialGridWeekRowZoom}
+        initialWeekMatrixZoom={initialWeekMatrixZoom}
         initialMonthZoom={initialMonthZoom}
         initialDualSplit={initialDualSplit}
         initialEditEventId={initialEditEventId}

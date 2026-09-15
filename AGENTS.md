@@ -143,8 +143,11 @@ doc content here.
   `dashboard.monthZoom`); Week (D) is a custom matrix (`buildWeekLanes`). Entry highlights:
   amber = mine, purple = external (`c2-my-*` / `c2-ext-*` in `globals.css`).
   Design: [docs/dashboard-views.md](docs/dashboard-views.md).
-- **Wide grids pan** via `useGridPan` + `GridPanControls`; the zoom +/− pair lives in the
-  shared `GridNavControls` right-edge cluster (`zoomMin`/`zoomMax` per view).
+- **Wide grids pan + zoom** via `useGridPan` + the shared `GridNavControls`
+  right-edge cluster (pan arrows + the zoom +/− pair(s); `zoomMin`/`zoomMax` per
+  view). Every grid kind zooms — Day/Week (H), Week (D), Week (Grid) (two axes),
+  Month (fit-to-width) — except Agenda. Zoom levels live in
+  `src/lib/ui/slotZoom.ts` / `monthZoom.ts` (0.25–6 and 1–6).
   Design: [docs/grid-pan.md](docs/grid-pan.md).
 - **Fullscreen calendar (immersive mode):** hides shell chrome + requests page fullscreen;
   owned by `AppShellShell`, only `DashboardView` controls it and always exits on unmount.

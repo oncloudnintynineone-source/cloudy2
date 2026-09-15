@@ -17,6 +17,7 @@
  *       zoom?: number               //   Day/Week (H) hour-slot zoom (slotZoom.ts)
  *       gridWeekColZoom?: number    //   Week (Grid) column-width zoom (slotZoom.ts)
  *       gridWeekRowZoom?: number    //   Week (Grid) slot-height zoom (slotZoom.ts)
+ *       weekMatrixZoom?: number     //   Week (D) day-column zoom (slotZoom.ts)
  *       monthZoom?: number          //   Month grid zoom (monthZoom.ts)
  *       dualSplit?: number          //   Dual Pane month/agenda split (dualSplit.ts)
  *     }
@@ -44,8 +45,9 @@ export const UI_STATE_COOKIE = "cloudy2.ui";
  * Per-device dashboard "where you are". `zoom` is the Day/Week (H) hour-slot
  * zoom (slotZoom.ts); the Week (Grid) remembers its two axes separately as
  * `gridWeekColZoom` (day-column width) and `gridWeekRowZoom` (hour-slot height);
- * `monthZoom` is the Month grid's fit-width multiplier (monthZoom.ts);
- * `dualSplit` is the Dual Pane month/agenda width split (dualSplit.ts).
+ * `weekMatrixZoom` is the Week (D) day-column zoom; `monthZoom` is the Month
+ * grid's fit-width multiplier (monthZoom.ts); `dualSplit` is the Dual Pane
+ * month/agenda width split (dualSplit.ts).
  */
 export interface DashboardNavState {
   date?: string;
@@ -53,6 +55,7 @@ export interface DashboardNavState {
   zoom?: number;
   gridWeekColZoom?: number;
   gridWeekRowZoom?: number;
+  weekMatrixZoom?: number;
   monthZoom?: number;
   dualSplit?: number;
 }
@@ -95,6 +98,7 @@ export function normalizeUiState(value: unknown): UiState | null {
     const zoom = clampZoom(dashboard.zoom);
     const gridWeekColZoom = clampGridWeekColZoom(dashboard.gridWeekColZoom);
     const gridWeekRowZoom = clampZoom(dashboard.gridWeekRowZoom);
+    const weekMatrixZoom = clampGridWeekColZoom(dashboard.weekMatrixZoom);
     const monthZoom = clampMonthZoom(dashboard.monthZoom);
     const dualSplit = clampDualSplit(dashboard.dualSplit);
     if (date !== undefined) section.date = date;
@@ -102,6 +106,7 @@ export function normalizeUiState(value: unknown): UiState | null {
     if (zoom !== null) section.zoom = zoom;
     if (gridWeekColZoom !== null) section.gridWeekColZoom = gridWeekColZoom;
     if (gridWeekRowZoom !== null) section.gridWeekRowZoom = gridWeekRowZoom;
+    if (weekMatrixZoom !== null) section.weekMatrixZoom = weekMatrixZoom;
     if (monthZoom !== null) section.monthZoom = monthZoom;
     if (dualSplit !== null) section.dualSplit = dualSplit;
     if (Object.keys(section).length > 0) {
@@ -136,7 +141,7 @@ function fromBase64Url(value: string): string {
 // are unchanged: a major mismatch in EITHER direction drops the cookie, a
 // newer minor decodes as-is (forward-compatible), an older minor runs the
 // migration chain before normalization.
-const COOKIE_VERSION: readonly [number, number] = [3, 5];
+const COOKIE_VERSION: readonly [number, number] = [3, 6];
 
 /**
  * Minor migrations within the CURRENT major, keyed by the minor they upgrade
@@ -152,7 +157,9 @@ const COOKIE_VERSION: readonly [number, number] = [3, 5];
  * current level on every mount, so devices sitting at exactly `1` carry the
  * auto-persisted old default (a deliberate 100% is indistinguishable) — the
  * migration drops that key so the new default re-seeds, and keeps any
- * explicitly remembered non-default level.
+ * explicitly remembered non-default level. v3.6 adds the Week (D) day-column
+ * zoom (`weekMatrixZoom`) — a pass-through (a missing key = the view's fit
+ * default).
  */
 const MINOR_MIGRATIONS: Record<number, (value: Record<string, unknown>) => Record<string, unknown>> =
   {
@@ -167,6 +174,7 @@ const MINOR_MIGRATIONS: Record<number, (value: Record<string, unknown>) => Recor
       }
       return value;
     },
+    5: (value) => value,
   };
 
 function parseCookieVersion(raw: unknown): [number, number] | null {

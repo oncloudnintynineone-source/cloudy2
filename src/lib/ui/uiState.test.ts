@@ -31,6 +31,7 @@ describe("encodeUiState/decodeUiState", () => {
         zoom: 1.5,
         gridWeekColZoom: 1.25,
         gridWeekRowZoom: 0.75,
+        weekMatrixZoom: 1.5,
         monthZoom: 2,
         dualSplit: 0.65,
       },
@@ -161,6 +162,20 @@ describe("cookie versioning", () => {
       dashboard: { gridWeekColZoom: 1.5 },
     });
   });
+
+  it("migrates a v3.5 cookie (no weekMatrixZoom) to the current shape", () => {
+    const value = b64url(
+      JSON.stringify({
+        v: [3, 5],
+        lastPage: "/dashboard",
+        dashboard: { month: "2026-08", monthZoom: 2, gridWeekRowZoom: 1.25 },
+      }),
+    );
+    expect(decodeUiState(value)).toEqual({
+      lastPage: "/dashboard",
+      dashboard: { month: "2026-08", monthZoom: 2, gridWeekRowZoom: 1.25 },
+    });
+  });
 });
 
 describe("normalizeUiState (shape safety)", () => {
@@ -210,7 +225,7 @@ describe("normalizeUiState (shape safety)", () => {
     });
     // clampZoom caps at the max level; date is any non-empty string here (the
     // consuming page re-validates the pattern); a non-string month is dropped.
-    expect(state).toEqual({ dashboard: { zoom: 3, date: "not-a-date" } });
+    expect(state).toEqual({ dashboard: { zoom: 6, date: "not-a-date" } });
   });
 
   it("snaps monthZoom to a known fit multiplier and drops junk values", () => {
@@ -221,7 +236,7 @@ describe("normalizeUiState (shape safety)", () => {
     ).toEqual({ dashboard: { monthZoom: 2 } });
     expect(
       normalizeUiState({ dashboard: { monthZoom: 99 } }),
-    ).toEqual({ dashboard: { monthZoom: 3 } });
+    ).toEqual({ dashboard: { monthZoom: 6 } });
     expect(
       normalizeUiState({ dashboard: { monthZoom: "2" } }),
     ).toEqual({});

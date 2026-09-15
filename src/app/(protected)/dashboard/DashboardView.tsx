@@ -265,6 +265,12 @@ export interface DashboardViewProps {
    */
   initialGridWeekRowZoom: SlotZoom;
   /**
+   * Remembered Week (D) day-column zoom level, resolved from the UI-state
+   * cookie before first paint the same way. Seeding value for the client
+   * week-matrix zoom state.
+   */
+  initialWeekMatrixZoom: SlotZoom;
+  /**
    * Remembered Month-grid zoom level (a fit-width multiplier, 1 = the whole
    * week fits the viewport width), resolved from the UI-state cookie before
    * first paint the same way. Seeding value for the client month-zoom state.
@@ -711,6 +717,7 @@ export function DashboardView({
   initialZoom,
   initialGridWeekColZoom,
   initialGridWeekRowZoom,
+  initialWeekMatrixZoom,
   initialMonthZoom,
   initialDualSplit,
   events,
@@ -816,6 +823,14 @@ export function DashboardView({
   const prevGridWeekColZoomRef = useRef(gridWeekColZoom);
   const prevGridWeekRowZoomRef = useRef(gridWeekRowZoom);
   const gridWeekViewportRef = useRef<HTMLDivElement | null>(null);
+
+  // Week (D) day-column zoom: a single horizontal axis over the matrix's
+  // absolute px column floor (1 = the default readable width; zooming out stops
+  // there). Same ownership contract as the other zooms — client state seeded
+  // from the cookie, persisted back by `usePersistDashboardNav` below. The
+  // matrix view owns the viewport, pinch and controls; this state is the
+  // persisted level it renders from.
+  const [weekMatrixZoom, setWeekMatrixZoom] = useState<SlotZoom>(initialWeekMatrixZoom);
 
   // Month-grid zoom: a multiplier of the "fit to viewport width" day columns
   // (1 = all seven days fit; the grid can never be narrower). Same ownership
@@ -1446,6 +1461,7 @@ export function DashboardView({
     zoom,
     gridWeekColZoom,
     gridWeekRowZoom,
+    weekMatrixZoom,
     monthZoom,
     dualSplit,
   });
@@ -3621,6 +3637,19 @@ export function DashboardView({
                 }
                 openCreate(day, e.currentTarget.getBoundingClientRect());
               }}
+              zoom={weekMatrixZoom}
+              onZoomIn={() => {
+                const next = stepZoom(weekMatrixZoom, 1);
+                setWeekMatrixZoom(next);
+                announce(`Zoom ${Math.round(next * 100)}%`);
+              }}
+              onZoomOut={() => {
+                const next = stepZoom(weekMatrixZoom, -1);
+                setWeekMatrixZoom(next);
+                announce(`Zoom ${Math.round(next * 100)}%`);
+              }}
+              onZoomChange={setWeekMatrixZoom}
+              showPinchHint={showPinchHint}
               chromeOffset={chromeHeight}
             />
           ) : isWeek ? (
