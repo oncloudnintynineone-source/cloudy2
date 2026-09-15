@@ -341,6 +341,9 @@ html {
    count so the accent still reads as the position indicator. */
 .c2-pinned-ticker-countdown {
   flex-shrink: 0;
+  /* Pull half a flex-gap toward the count chip so the two read as a pair,
+     while the countdown-to-title gap keeps the pill's full spacing. */
+  margin-left: calc(var(--mantine-spacing-xs) / -2);
   padding-inline: calc(0.4375rem * var(--mantine-scale));
   border-radius: var(--mantine-radius-xl);
   background: var(--mantine-color-brand-6);
