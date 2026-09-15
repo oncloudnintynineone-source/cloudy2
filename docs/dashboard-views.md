@@ -108,8 +108,10 @@ string maps to the first tab of that kind.
     navigates to the first remaining and forces a re-read, so the deleted row
     can't linger behind a data-equivalent local swap).
   Each card stacks **preview → title → action bar** (the ~40px chevron pair
-  leading the bar, Edit/Delete trailing) at every width, so there is no
-  desktop/mobile reflow branch. The Edit dialog also carries the per-view
+  leading the bar, Edit/Delete trailing). The action bar **wraps** when the
+  card is too narrow for all four 40px targets on one line (at 2 columns on a
+  phone the Edit/Delete pair drops to a second line), so the controls never
+  spill past the card edge. The Edit dialog also carries the per-view
   **Filters** entry point: an **Edit
   filters…** button closes the modal, switches to that view and opens its filter
   dialog (the dashboard's one per-view filter UI — see §1.2). Filters resolve

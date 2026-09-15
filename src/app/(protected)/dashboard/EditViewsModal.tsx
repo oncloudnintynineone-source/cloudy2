@@ -319,7 +319,7 @@ export function EditViewsModal({
                           )}
                         </Stack>
                       </Group>
-                      <Group wrap="nowrap" gap={4} justify="space-between" align="center">
+                      <Group wrap="wrap" gap={4} justify="space-between" align="center">
                         {chevrons}
                         <Group wrap="nowrap" gap={4}>
                           {actions}
