@@ -235,7 +235,8 @@ half-day-aware occupancy window the timeline positions bars by (the stored
   `{name} ·` for an admin scan); the old titles-preview line is gone. The 30-day strip
   cells are theme-aware too (`light-dark()`). The same `ClashTimeline` powers the
   wizard's review-step advisory ([event-clashes.md](event-clashes.md) §1.6), with the
-  candidate as a distinct `brand` "This event" bar and inert (non-linking) bars.
+  candidate as a distinct `brand` "This event" bar (inert) and conflicting bars that
+  open the same in-place read-only detail modal.
 - **Template-driven labels.** Each event's bar/row label is rendered server-side in
   `checkUserClashes` through the admin's **title-template engine** — the
   `doubleBooking` assignment target when set, else Master (`clashLabelFor`,
@@ -267,8 +268,8 @@ half-day-aware occupancy window the timeline positions bars by (the stored
   primary, the stored composite title demoted to a muted line, then the date-free time
   · department (`clashEntryTimeLabel`). Each row carries an explicit trailing
   affordance — an eye `View` — with a hover tint and focus ring (`.c2-clash-row`), so
-  the tap target is obvious. The wizard's inert rows show neither and keep the stored
-  title primary. `ClashAffectedChips` renders beneath the heading only for people
+  the tap target is obvious. The wizard's rows now show the same `View` affordance and
+  open the same in-place detail modal. `ClashAffectedChips` renders beneath the heading only for people
   *other than* the scanned target (`omitUserId`) — a self-scan therefore shows no lone
   `You` chip. The cards are not their own live regions (`live={false}`): the single
   status line announces the count, so a many-report scan is one concise announcement,

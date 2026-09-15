@@ -64,6 +64,11 @@ interface EventDetailProps {
    * shaped skeleton instead of a spinner/dim (skeleton-only loading rule).
    */
   loading?: boolean;
+  /**
+   * Stacking override for callers nested inside another modal (the event
+   * wizard's review-step advisory). Undefined keeps Mantine's default.
+   */
+  zIndex?: number;
 }
 
 export function EventDetail({
@@ -84,6 +89,7 @@ export function EventDetail({
   readOnly = false,
   onOpenInCalendar,
   loading = false,
+  zIndex,
 }: EventDetailProps) {
   const [confirmOpen, { open, close }] = useDisclosure(false);
   const [deleting, setDeleting] = useState(false);
@@ -203,6 +209,7 @@ export function EventDetail({
         centered
         size={isNarrow ? "xs" : isDesktop ? "md" : "sm"}
         keepMounted
+        zIndex={zIndex}
         transitionProps={transitionProps}
       >
         {loading ? (

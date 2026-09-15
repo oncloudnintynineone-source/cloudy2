@@ -16,7 +16,7 @@ export interface ClashTimelineEntry extends ClashTimelineInput {
   title: string;
   /** Mantine palette color name. */
   color: string;
-  /** Optional dashboard deep link; without it the bar is inert (the wizard). */
+  /** Optional dashboard deep link; without it (and without `onSelect`) the bar is inert. */
   href?: string;
   /** Optional in-place select handler (opens the detail modal); takes precedence. */
   onSelect?: (rect: Rect) => void;

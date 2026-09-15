@@ -98,6 +98,7 @@ import { QuickLinksMenu, type QuickLinkMenuItem } from "@/components/QuickLinksM
 import { eventsOnDay } from "@/lib/events/agenda";
 import { monthGridMonths, weekDays } from "@/lib/events/datetime";
 import { sortMineFirst } from "@/lib/events/mineFirst";
+import { buildEventDeepLink } from "@/lib/events/deepLink";
 import type { CalendarEvent } from "@/lib/events/queries";
 import type { TitleRecipe } from "@/lib/settings/titleRecipe";
 import type { EventActionOk } from "@/lib/events/actions";
@@ -1638,6 +1639,22 @@ export function DashboardView({
     }
     setDetailOriginRect(null);
     setDetailEvent(found);
+  }
+
+  // Leave the event wizard and open a conflicting event on the calendar (the
+  // review-step advisory's "Open in calendar", confirmed in the panel because
+  // it discards the draft). `closeForm` drops the draft, then the deep link
+  // re-anchors the dashboard on the event.
+  function openClashEventInCalendar(event: CalendarEvent) {
+    closeForm();
+    router.push(
+      buildEventDeepLink({
+        view: null,
+        start: event.start,
+        eventId: event.payload.eventId,
+        calendarId: event.payload.calendarId,
+      }),
+    );
   }
 
   // The acting user's home department — the representative calendar a brand-new
@@ -4106,6 +4123,7 @@ export function DashboardView({
                 onOptimisticSettled={settleOptimistic}
                 onOptimisticRollback={rollbackOptimistic}
                 onViewSaved={openSavedEventDetail}
+                onOpenInCalendar={openClashEventInCalendar}
                 optimisticHome={optimisticHome}
                 onDone={() => {
                   closeForm();
