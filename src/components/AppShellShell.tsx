@@ -65,7 +65,9 @@ import { MOTION } from "@/lib/motion/timing";
 import { useInactivityRefresh, useOneShotRefreshStrip } from "@/lib/pwa/client";
 import { DESKTOP_MEDIA_QUERY, DESKTOP_WIDE_MEDIA_QUERY, NARROW_MEDIA_QUERY } from "@/lib/theme";
 import { StatusAnnouncer } from "@/lib/ui/announcer";
+import { haptic } from "@/lib/ui/haptics";
 import { ImmersiveModeContext, type ImmersiveModeValue } from "@/lib/ui/immersiveMode";
+import { useNavDirectionTracking } from "@/lib/ui/navDirection";
 import {
   PinnedPanelContext,
   PINNED_EVENTS_CHANGED_EVENT,
@@ -228,7 +230,7 @@ function InactivityActivityReporter({ pending }: { pending: boolean }) {
  *  top-right corner. */
 function NavIcon({ item }: { item: NavItem }) {
   return (
-    <Box style={NAV_ICON_STYLE}>
+    <Box className="c2-nav-icon" style={NAV_ICON_STYLE}>
       {item.icon}
       {navCountPill(item)}
     </Box>
@@ -259,6 +261,8 @@ function RailNavButton({
         component={Link}
         href={item.href}
         onClick={onTap}
+        className="c2-press c2-nav-item"
+        data-active={active ? true : undefined}
         style={{ ...RAIL_BUTTON_STYLE, color: active ? NAV_ACTIVE_COLOR : NAV_IDLE_COLOR }}
         aria-label={navAriaLabel(item)}
         aria-current={active ? "page" : undefined}
@@ -291,6 +295,8 @@ function NavButton({
       component={Link}
       href={item.href}
       onClick={onTap}
+      className="c2-press c2-nav-item"
+      data-active={active ? true : undefined}
       style={{
         flex: 1,
         display: "flex",
@@ -380,6 +386,10 @@ export function AppShellShell({
   // Remember the last visited page (incl. the /settings sub-tab) so a PWA
   // relaunch from the start URL can land back here — read by / at launch.
   useRememberedPage(pathname);
+
+  // Feed the directional page transition: link taps are forward, popstate is
+  // back (see navDirection.ts / PageTransition).
+  useNavDirectionTracking();
 
   // A document that hard-loaded with the profile menu's one-shot `?refresh`
   // nonce strips it here (RSC entries cleared first, so the clean-URL replace
@@ -689,7 +699,10 @@ export function AppShellShell({
   }, [tappedHref]);
 
   const isActive = (item: NavItem) => item.matches(pathname) || item.href === tappedHref;
-  const handleTap = (href: string) => setTappedHref(href);
+  const handleTap = (href: string) => {
+    haptic("light");
+    setTappedHref(href);
+  };
 
   const items: NavItem[] =
     role === "admin"

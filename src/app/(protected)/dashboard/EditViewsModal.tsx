@@ -5,7 +5,6 @@ import {
   ActionIcon,
   Button,
   Group,
-  Modal,
   Paper,
   ScrollArea,
   Stack,
@@ -14,6 +13,7 @@ import {
   Tooltip,
   useMantineTheme,
 } from "@mantine/core";
+import { ResponsiveSheet } from "@/components/ResponsiveSheet";
 import { useMediaQuery } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
 import { IconFilter, IconPencil, IconPlus, IconTrash } from "@tabler/icons-react";
@@ -198,7 +198,7 @@ export function EditViewsModal({
   }
 
   return (
-    <Modal
+    <ResponsiveSheet
       opened={opened}
       onClose={close}
       title="Manage views"
@@ -335,7 +335,7 @@ export function EditViewsModal({
         )}
       </Stack>
 
-      <Modal
+      <ResponsiveSheet
         opened={editing !== null}
         onClose={() => setEditing(null)}
         title="Edit view"
@@ -402,9 +402,9 @@ export function EditViewsModal({
             </Button>
           </Group>
         </Stack>
-      </Modal>
+      </ResponsiveSheet>
 
-      <Modal
+      <ResponsiveSheet
         opened={deleting !== null}
         onClose={() => setDeleting(null)}
         title="Delete view"
@@ -430,7 +430,7 @@ export function EditViewsModal({
             </Button>
           </Group>
         </Stack>
-      </Modal>
-    </Modal>
+      </ResponsiveSheet>
+    </ResponsiveSheet>
   );
 }

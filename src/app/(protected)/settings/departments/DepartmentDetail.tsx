@@ -8,7 +8,6 @@ import {
   CopyButton,
   Divider,
   Group,
-  Modal,
   Paper,
   Select,
   Skeleton,
@@ -16,6 +15,7 @@ import {
   Text,
   TextInput,
 } from "@mantine/core";
+import { ResponsiveSheet } from "@/components/ResponsiveSheet";
 import { useForm } from "@mantine/form";
 import { useMediaQuery } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
@@ -95,7 +95,7 @@ export function DepartmentDetail({
 }: DepartmentDetailProps) {
   const isDesktop = useMediaQuery(DESKTOP_MEDIA_QUERY);
   return (
-    <Modal
+    <ResponsiveSheet
       opened={opened}
       onClose={onClose}
       title={calendar ? "Edit department" : "Add department"}
@@ -114,7 +114,7 @@ export function DepartmentDetail({
         onCreate={onCreate}
         onRequestDelete={onRequestDelete}
       />
-    </Modal>
+    </ResponsiveSheet>
   );
 }
 

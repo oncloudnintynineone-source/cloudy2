@@ -20,7 +20,6 @@ import {
   Group,
   Loader,
   Menu,
-  Modal,
   Skeleton,
   Stack,
   Text,
@@ -34,6 +33,7 @@ import { AgendaView } from "@mantine/schedule";
 import { IconCalendar, IconSearch, IconSearchOff, IconX } from "@tabler/icons-react";
 import dayjs from "dayjs";
 import { NARROW_MEDIA_QUERY } from "@/lib/theme";
+import { ResponsiveSheet } from "@/components/ResponsiveSheet";
 
 import { buildEventDeepLink } from "@/lib/events/deepLink";
 import { formatInstantToNaive } from "@/lib/events/datetime";
@@ -349,7 +349,7 @@ export default function EventSearchModal({ opened, onClose, originRect }: EventS
     : "";
 
   return (
-    <Modal
+    <ResponsiveSheet
       opened={mounted}
       onClose={onClose}
       title="Search events"
@@ -641,6 +641,6 @@ export default function EventSearchModal({ opened, onClose, originRect }: EventS
           </Box>
         )}
       </Stack>
-    </Modal>
+    </ResponsiveSheet>
   );
 }

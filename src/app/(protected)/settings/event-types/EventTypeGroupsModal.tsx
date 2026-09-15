@@ -6,13 +6,13 @@ import {
   Badge,
   Button,
   Group,
-  Modal,
   Paper,
   Stack,
   Text,
   TextInput,
   Tooltip,
 } from "@mantine/core";
+import { ResponsiveSheet } from "@/components/ResponsiveSheet";
 import { notifications } from "@mantine/notifications";
 import { IconCheck, IconPencil, IconPlus, IconTrash, IconX } from "@tabler/icons-react";
 
@@ -168,7 +168,7 @@ export function EventTypeGroupsModal({
   }
 
   return (
-    <Modal opened={opened} onClose={close} title="Event type groups" centered size="md">
+    <ResponsiveSheet opened={opened} onClose={close} title="Event type groups" centered size="md">
       <Stack ref={containerRef}>
         <Text size="sm" c="dimmed">
           Groups are the categories event types appear under in the event form. Reorder them with
@@ -312,7 +312,7 @@ export function EventTypeGroupsModal({
         )}
       </Stack>
 
-      <Modal
+      <ResponsiveSheet
         opened={deleting !== null}
         onClose={() => setDeleting(null)}
         title="Delete event type group"
@@ -341,7 +341,7 @@ export function EventTypeGroupsModal({
             </Button>
           </Group>
         </Stack>
-      </Modal>
-    </Modal>
+      </ResponsiveSheet>
+    </ResponsiveSheet>
   );
 }

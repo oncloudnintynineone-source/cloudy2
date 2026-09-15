@@ -5,13 +5,13 @@ import {
   Box,
   Button,
   Group,
-  Modal,
   Paper,
   Stack,
   Table,
   Text,
   VisuallyHidden,
 } from "@mantine/core";
+import { ResponsiveSheet } from "@/components/ResponsiveSheet";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
 import { IconPlus, IconSitemap } from "@tabler/icons-react";
@@ -307,7 +307,7 @@ export function DepartmentTable({ departments }: DepartmentTableProps) {
         onRequestDelete={requestDelete}
       />
 
-      <Modal opened={confirmOpened} onClose={closeConfirm} title="Delete department" centered>
+      <ResponsiveSheet opened={confirmOpened} onClose={closeConfirm} title="Delete department" centered>
         <Text>
           Delete &quot;{deleting?.name}&quot;? This removes the Google Calendar and unassigns its
           users.
@@ -332,7 +332,7 @@ export function DepartmentTable({ departments }: DepartmentTableProps) {
             Delete
           </Button>
         </Group>
-      </Modal>
+      </ResponsiveSheet>
 
       {/* Mobile-only: at lg the "Add department" button in the toolbar replaces
           the FAB. hiddenFrom sits on the toolbar itself: its Affix portals to

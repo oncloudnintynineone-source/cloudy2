@@ -19,12 +19,12 @@ import {
   Divider,
   Group,
   Menu,
-  Modal,
   Paper,
   Stack,
   Text,
   useComputedColorScheme,
 } from "@mantine/core";
+import { ResponsiveSheet } from "@/components/ResponsiveSheet";
 import { useClipboard, useDisclosure, useDrag, useMediaQuery } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
 import {
@@ -910,7 +910,7 @@ export function ParadeStateView({
         onClose={closePicker}
         originRect={pickerOriginRect}
       />
-      <Modal opened={resetOpened} onClose={closeResetConfirm} title="Clear all dates" centered>
+      <ResponsiveSheet opened={resetOpened} onClose={closeResetConfirm} title="Clear all dates" centered>
         <Text>Clear attendance checks for every date? This cannot be undone.</Text>
         <Group justify="flex-end" mt="md">
           <Button variant="default" onClick={closeResetConfirm}>
@@ -926,7 +926,7 @@ export function ParadeStateView({
             Clear all
           </Button>
         </Group>
-      </Modal>
+      </ResponsiveSheet>
     </Stack>
   );
 }

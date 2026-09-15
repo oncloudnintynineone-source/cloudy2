@@ -6,7 +6,6 @@ import {
   Badge,
   Button,
   Group,
-  Modal,
   Stack,
   Text,
   TextInput,
@@ -16,6 +15,7 @@ import {
 import { useMediaQuery } from "@mantine/hooks";
 import { IconSearch, IconX } from "@tabler/icons-react";
 
+import { ResponsiveSheet } from "@/components/ResponsiveSheet";
 import {
   filterPickerGroups,
   selectionByGroup,
@@ -80,11 +80,12 @@ export function UserSelectModal({
   const isDesktop = useMediaQuery(`(min-width: ${theme.breakpoints.lg})`);
   const isNarrow = useMediaQuery(NARROW_MEDIA_QUERY);
   return (
-    <Modal
+    <ResponsiveSheet
       opened={opened}
       onClose={onClose}
       title={title}
       centered
+      dismissible={false}
       size={isNarrow ? "xs" : isDesktop ? "md" : "sm"}
       zIndex={zIndex}
       // Fixed height so filtering never resizes the dialog: the search box
@@ -109,7 +110,7 @@ export function UserSelectModal({
         single={single}
         allowEmptyConfirm={allowEmptyConfirm}
       />
-    </Modal>
+    </ResponsiveSheet>
   );
 }
 

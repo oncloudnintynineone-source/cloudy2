@@ -3,7 +3,6 @@
 import {
   Box,
   Group,
-  Modal,
   Paper,
   ScrollArea,
   Skeleton,
@@ -25,6 +24,7 @@ import { NARROW_MEDIA_QUERY } from "@/lib/theme";
 import { usePinnedPanel } from "@/lib/ui/pinnedPanel";
 
 import { LoadingStatus } from "./LoadingStatus";
+import { ResponsiveSheet } from "./ResponsiveSheet";
 
 function formatDay(naive: string): string {
   return naive.slice(0, 10);
@@ -114,7 +114,7 @@ export function PinnedEventsPanel({ seedEvents = null }: PinnedEventsPanelProps)
   };
 
   return (
-    <Modal
+    <ResponsiveSheet
       opened={open}
       onClose={closePanel}
       centered
@@ -189,6 +189,6 @@ export function PinnedEventsPanel({ seedEvents = null }: PinnedEventsPanelProps)
           ))}
         </Stack>
       </ScrollArea.Autosize>
-    </Modal>
+    </ResponsiveSheet>
   );
 }

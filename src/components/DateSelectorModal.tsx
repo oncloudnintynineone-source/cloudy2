@@ -2,7 +2,7 @@
 
 import dayjs from "dayjs";
 import { useState } from "react";
-import { ActionIcon, Box, Button, Modal, Text, useMantineTheme } from "@mantine/core";
+import { ActionIcon, Box, Button, Text, useMantineTheme } from "@mantine/core";
 import { useMediaQuery, useViewportSize } from "@mantine/hooks";
 import { MonthPicker } from "@mantine/dates";
 import { MobileMonthView } from "@mantine/schedule";
@@ -16,6 +16,7 @@ import {
   type Rect,
 } from "@/lib/motion/origin";
 import { MOTION } from "@/lib/motion/timing";
+import { ResponsiveSheet } from "@/components/ResponsiveSheet";
 
 export type DateSelectorKind = "month" | "week" | "day";
 
@@ -105,7 +106,7 @@ export function DateSelectorModal({
   } as const;
 
   return (
-    <Modal
+    <ResponsiveSheet
       opened={opened}
       onClose={onClose}
       title={title}
@@ -175,6 +176,6 @@ export function DateSelectorModal({
       >
         Today
       </Button>
-    </Modal>
+    </ResponsiveSheet>
   );
 }

@@ -1379,3 +1379,194 @@ html.c2-low-end *::after {
   animation-iteration-count: 1 !important;
 }
 
+/* ============================================================================
+   Native-feel layer (docs/native-feel.md)
+   ============================================================================
+
+   Touch-device polish that the browser does not provide by default: no grey
+   tap-highlight flash, no 300ms double-tap-zoom delay, a pressed state on the
+   chrome's touch targets, and an animated active indicator on the bottom nav.
+   All of it is touch-scoped or reduced-motion-gated so desktop and assistive
+   settings are untouched. */
+
+/* The grey flash Chrome/Android paints over a tapped element reads as "web".
+   The app supplies its own pressed states instead (`.c2-press` below). */
+* {
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Remove the double-tap-to-zoom delay on interactive controls. Inline
+   `touch-action` on the grids (pan-x pan-y) and the sheet handle (none) still
+   wins where it is set. */
+button,
+a,
+label,
+summary,
+[role="button"],
+[role="tab"],
+[role="menuitem"] {
+  touch-action: manipulation;
+}
+
+/* Pressed-state feedback for the chrome's touch targets (bottom nav, sidebar,
+   FABs). Scale-only so it never shifts layout, and only where there is no
+   hover (a mouse already gets hover styling). */
+.c2-press {
+  transition: transform var(--c2-dur-micro) ease;
+}
+
+@media (hover: none) {
+  .c2-press:active {
+    transform: scale(0.96);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .c2-press {
+    transition: none;
+  }
+  .c2-press:active {
+    transform: none;
+  }
+}
+
+/* Bottom-nav active indicator: a short amber bar at the top edge of the active
+   entry (grows in), plus a slight lift of the icon — the platform's "you are
+   here" language, replacing the flat colour-only active state. The element
+   already carries `data-active` (the shell sets `aria-current="page"`). */
+.c2-nav-item {
+  position: relative;
+}
+
+.c2-nav-item::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 50%;
+  width: 0;
+  height: 3px;
+  border-radius: 0 0 3px 3px;
+  background: var(--mantine-color-accent-6);
+  transform: translateX(-50%);
+  transition: width var(--c2-dur-micro) ease;
+}
+
+.c2-nav-item[data-active]::before {
+  width: 28px;
+}
+
+.c2-nav-icon {
+  transition: transform var(--c2-dur-micro) ease;
+}
+
+.c2-nav-item[data-active] .c2-nav-icon {
+  transform: scale(1.08);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .c2-nav-item::before,
+  .c2-nav-icon {
+    transition: none;
+  }
+  .c2-nav-item[data-active] .c2-nav-icon {
+    transform: none;
+  }
+}
+
+/* --- Mobile bottom sheet (ResponsiveSheet) -------------------------------- */
+
+/* The sheet's drag affordance: a short rounded grabber, sticky so it stays
+   reachable while the body scrolls, with `touch-action: none` so the vertical
+   drag is not stolen by the scroll container. */
+.c2-sheet-handle {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  display: flex;
+  justify-content: center;
+  padding: calc(0.625rem * var(--mantine-scale)) 0 calc(0.375rem * var(--mantine-scale));
+  background: var(--mantine-color-body);
+  touch-action: none;
+  cursor: grab;
+  user-select: none;
+}
+
+.c2-sheet-handle::before {
+  content: "";
+  width: calc(2.25rem * var(--mantine-scale));
+  height: calc(0.25rem * var(--mantine-scale));
+  border-radius: var(--mantine-radius-xl);
+  background: var(--mantine-color-default-border);
+}
+
+.c2-sheet-handle:active {
+  cursor: grabbing;
+}
+
+/* Spring-back after a drag that did not dismiss. While the finger is down the
+   inline transform tracks it 1:1; `c2-sheet-dragging` disables the transition
+   (`!important` so it beats Mantine's inline transition longhands). */
+.c2-sheet-content {
+  transition: transform var(--c2-dur-micro) cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.c2-sheet-content.c2-sheet-dragging {
+  transition: none !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .c2-sheet-content {
+    transition: none;
+  }
+}
+
+/* --- Directional push/pop route transitions ------------------------------- */
+
+/* PageTransition (docs/native-feel.md) picks one of these by navigation
+   direction: forward (push) slides the incoming page in from the right and the
+   outgoing one out to the left; back (pop) mirrors it. Falls back to the
+   existing fade+rise (`c2-page-in`/`c2-page-out`) when direction is unknown. */
+@keyframes c2-page-in-forward {
+  from {
+    opacity: 0;
+    translate: 24px 0;
+  }
+}
+
+@keyframes c2-page-in-back {
+  from {
+    opacity: 0;
+    translate: -24px 0;
+  }
+}
+
+@keyframes c2-page-out-forward {
+  to {
+    opacity: 0;
+    translate: -24px 0;
+  }
+}
+
+@keyframes c2-page-out-back {
+  to {
+    opacity: 0;
+    translate: 24px 0;
+  }
+}
+
+::view-transition-new(.c2-page-in-forward) {
+  animation: c2-page-in-forward var(--c2-dur-standard) cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+::view-transition-old(.c2-page-out-forward) {
+  animation: c2-page-out-forward calc(var(--c2-dur-standard) * 0.6) ease-in both;
+}
+
+::view-transition-new(.c2-page-in-back) {
+  animation: c2-page-in-back var(--c2-dur-standard) cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+::view-transition-old(.c2-page-out-back) {
+  animation: c2-page-out-back calc(var(--c2-dur-standard) * 0.6) ease-in both;
+}
+

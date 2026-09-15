@@ -1,8 +1,9 @@
 "use client";
 
-import { Center, Loader, Modal, Stack } from "@mantine/core";
+import { Center, Loader, Stack } from "@mantine/core";
 
 import { LoadingStatus } from "./LoadingStatus";
+import { ResponsiveSheet } from "./ResponsiveSheet";
 
 /**
  * `next/dynamic` loading fallback for the event-search modal. It is deliberately
@@ -12,7 +13,7 @@ import { LoadingStatus } from "./LoadingStatus";
  */
 export default function EventSearchModalSkeleton() {
   return (
-    <Modal
+    <ResponsiveSheet
       opened
       onClose={() => {}}
       title="Search events"
@@ -21,6 +22,7 @@ export default function EventSearchModalSkeleton() {
       withCloseButton={false}
       closeOnClickOutside={false}
       closeOnEscape={false}
+      dismissible={false}
     >
       <Stack>
         <Center mih={160}>
@@ -28,6 +30,6 @@ export default function EventSearchModalSkeleton() {
           <LoadingStatus label="Loading search" />
         </Center>
       </Stack>
-    </Modal>
+    </ResponsiveSheet>
   );
 }

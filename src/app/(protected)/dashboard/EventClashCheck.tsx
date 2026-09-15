@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Box, Button, Group, Modal, Paper, Skeleton, Stack, Text } from "@mantine/core";
+import { Box, Button, Group, Paper, Skeleton, Stack, Text } from "@mantine/core";
+import { ResponsiveSheet } from "@/components/ResponsiveSheet";
 import { notifications } from "@mantine/notifications";
 import { IconCircleCheck, IconRefresh } from "@tabler/icons-react";
 
@@ -334,7 +335,7 @@ export function EventClashCheck({
 
         {/* Leaving the wizard discards the draft, so "Open in calendar" is
             confirmed first. Sits above the detail modal (300). */}
-        <Modal
+        <ResponsiveSheet
           opened={leaveEvent !== null}
           onClose={() => setLeaveEvent(null)}
           title="Discard draft?"
@@ -362,7 +363,7 @@ export function EventClashCheck({
               Discard &amp; open
             </Button>
           </Group>
-        </Modal>
+        </ResponsiveSheet>
       </>
     );
   }

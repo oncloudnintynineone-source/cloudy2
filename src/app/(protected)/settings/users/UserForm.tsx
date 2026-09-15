@@ -7,7 +7,6 @@ import {
   Button,
   Grid,
   Group,
-  Modal,
   Paper,
   Select,
   Stack,
@@ -15,6 +14,7 @@ import {
   TextInput,
   UnstyledButton,
 } from "@mantine/core";
+import { ResponsiveSheet } from "@/components/ResponsiveSheet";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
 import { IconPlus, IconX } from "@tabler/icons-react";
@@ -634,7 +634,7 @@ export function UserForm({ user, departments, access, onDone }: UserFormProps) {
           </Button>
         </Group>
 
-        <Modal
+        <ResponsiveSheet
           opened={confirmOpened}
           onClose={closeConfirm}
           title={isEdit && user.status === "active" ? "Deactivate user" : "Activate user"}
@@ -660,7 +660,7 @@ export function UserForm({ user, departments, access, onDone }: UserFormProps) {
               </Button>
             </Group>
           </Stack>
-        </Modal>
+        </ResponsiveSheet>
       </Stack>
     </form>
   );

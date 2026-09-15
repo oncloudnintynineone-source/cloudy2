@@ -46,6 +46,11 @@ export const viewport: Viewport = {
   // the header/bottom-nav/FAB clearance vars actually engage in the
   // standalone PWA (they evaluate to 0 without it).
   viewportFit: "cover",
+  // Android Chrome: shrink the layout viewport (and therefore `dvh`) when the
+  // on-screen keyboard opens, so bottom sheets and form dialogs resize above
+  // it instead of being covered. Ignored by iOS, which already tracks the
+  // keyboard through the visual viewport / `dvh`.
+  interactiveWidget: "resizes-content",
 };
 
 export default function RootLayout({

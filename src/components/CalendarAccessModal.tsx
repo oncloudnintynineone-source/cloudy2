@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Anchor, Badge, Button, Group, Modal, Paper, Skeleton, Stack, Text, useMantineTheme } from "@mantine/core";
+import { Anchor, Badge, Button, Group, Paper, Skeleton, Stack, Text, useMantineTheme } from "@mantine/core";
+import { ResponsiveSheet } from "./ResponsiveSheet";
 import { useMediaQuery } from "@mantine/hooks";
 
 import { LoadingStatus } from "@/components/LoadingStatus";
@@ -102,7 +103,7 @@ export function CalendarAccessModal({ opened, onClose }: CalendarAccessModalProp
   }, [opened, requestKey]);
 
   return (
-    <Modal
+    <ResponsiveSheet
       opened={opened}
       onClose={onClose}
       title="Calendar access"
@@ -179,6 +180,6 @@ export function CalendarAccessModal({ opened, onClose }: CalendarAccessModalProp
           </Button>
         </Stack>
       )}
-    </Modal>
+    </ResponsiveSheet>
   );
 }

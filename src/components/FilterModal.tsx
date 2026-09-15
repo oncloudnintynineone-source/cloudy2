@@ -6,7 +6,6 @@ import {
   Button,
   Chip,
   Group,
-  Modal,
   Stack,
   Text,
   Tooltip,
@@ -16,6 +15,7 @@ import { useMediaQuery, useViewportSize } from "@mantine/hooks";
 import { IconChevronDown, IconPlus, IconSquareCheck, IconSquareX } from "@tabler/icons-react";
 
 import { PickerBadges, type PickerBadgeItem } from "@/components/PickerField";
+import { ResponsiveSheet } from "@/components/ResponsiveSheet";
 import { UserSelectModal } from "@/components/UserSelectModal";
 import {
   isGroupUnfiltered,
@@ -225,7 +225,7 @@ export function FilterModal({
   } as const;
 
   return (
-    <Modal
+    <ResponsiveSheet
       opened={opened}
       onClose={onClose}
       title={title}
@@ -241,7 +241,7 @@ export function FilterModal({
         collapsedGroupLabels={collapsedGroupLabels}
         hint={hint}
       />
-    </Modal>
+    </ResponsiveSheet>
   );
 }
 

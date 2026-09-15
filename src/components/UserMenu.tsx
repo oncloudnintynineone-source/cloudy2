@@ -7,6 +7,7 @@ import {
   IconBell,
   IconCalendarPlus,
   IconCheck,
+  IconDeviceMobile,
   IconLogout,
   IconMoon,
   IconSun,
@@ -20,6 +21,7 @@ import { APP_VERSION } from "@/lib/appVersion";
 import { clearAllDashboardSnapshots } from "@/lib/dashboard/localStore";
 import { MOTION } from "@/lib/motion/timing";
 import { clearAllSavedPages } from "@/lib/pwa/client";
+import { haptic, setHapticsEnabled, useHapticsEnabled } from "@/lib/ui/haptics";
 import { clearUiState } from "@/lib/ui/uiStateClient";
 
 import { useReportActivity } from "./ActivityBar";
@@ -57,6 +59,8 @@ export function UserMenu({ name, role, phone }: UserMenuProps) {
   const [accessOpen, setAccessOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
+  // Device-local haptics preference (Android only — iOS has no Vibration API).
+  const haptics = useHapticsEnabled();
   const { colorScheme, setColorScheme } = useMantineColorScheme();
   // The stored scheme may be unset/unknown before first pick — normalize to
   // "auto" (system) so exactly one row is ever flagged active.
@@ -159,6 +163,21 @@ export function UserMenu({ name, role, phone }: UserMenuProps) {
               {label}
             </Menu.Item>
           ))}
+          <Menu.Item
+            leftSection={<IconDeviceMobile size={16} />}
+            rightSection={haptics ? <IconCheck size={14} aria-hidden /> : undefined}
+            aria-checked={haptics}
+            role="menuitemcheckbox"
+            onClick={() => {
+              const next = !haptics;
+              setHapticsEnabled(next);
+              if (next) {
+                haptic("light");
+              }
+            }}
+          >
+            Haptics
+          </Menu.Item>
           <Menu.Divider />
           <Menu.Item
             leftSection={<IconCalendarPlus size={16} />}

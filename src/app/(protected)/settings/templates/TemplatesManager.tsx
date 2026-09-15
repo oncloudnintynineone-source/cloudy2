@@ -6,7 +6,6 @@ import {
   Badge,
   Button,
   Group,
-  Modal,
   Paper,
   ScrollArea,
   Stack,
@@ -15,6 +14,7 @@ import {
   Tooltip,
   useMantineTheme,
 } from "@mantine/core";
+import { ResponsiveSheet } from "@/components/ResponsiveSheet";
 import { useDisclosure, useMediaQuery } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
 import { IconCopy, IconPencil, IconTrash } from "@tabler/icons-react";
@@ -407,7 +407,7 @@ export function TemplatesManager({
       </Paper>
 
       {/* Master */}
-      <Modal
+      <ResponsiveSheet
         opened={masterOpened}
         onClose={closeMaster}
         title="Master event title"
@@ -421,10 +421,10 @@ export function TemplatesManager({
           emptySample={emptySample}
           onDone={() => closeAndRefresh(closeMaster)}
         />
-      </Modal>
+      </ResponsiveSheet>
 
       {/* Add / edit library template */}
-      <Modal
+      <ResponsiveSheet
         opened={editOpened}
         onClose={closeEdit}
         title={creating ? "Add template" : editing ? `Edit ${editing.label}` : "Template"}
@@ -441,7 +441,7 @@ export function TemplatesManager({
           emptySample={emptySample}
           onDone={() => closeAndRefresh(closeEdit)}
         />
-      </Modal>
+      </ResponsiveSheet>
 
       {/* Assignments */}
       <AssignmentsDialog
@@ -466,7 +466,7 @@ export function TemplatesManager({
       />
 
       {/* Delete confirm */}
-      <Modal
+      <ResponsiveSheet
         opened={deleting !== null}
         onClose={() => setDeleting(null)}
         title="Delete template"
@@ -489,7 +489,7 @@ export function TemplatesManager({
             </Button>
           </Group>
         </Stack>
-      </Modal>
+      </ResponsiveSheet>
     </Stack>
   );
 }
@@ -554,7 +554,7 @@ function AssignmentsDialog({
   };
 
   return (
-    <Modal
+    <ResponsiveSheet
       opened={opened}
       onClose={onClose}
       title="Assign templates to targets"
@@ -603,7 +603,7 @@ function AssignmentsDialog({
           </Button>
         </Group>
       </Stack>
-    </Modal>
+    </ResponsiveSheet>
   );
 }
 
@@ -662,7 +662,7 @@ function NameTemplateDialog({
   };
 
   return (
-    <Modal opened={opened} onClose={onClose} title="Display name template" centered size="sm">
+    <ResponsiveSheet opened={opened} onClose={onClose} title="Display name template" centered size="sm">
       <Stack>
         <Text size="sm" c="dimmed">
           Compose fully qualified names from a user&apos;s name and department.
@@ -717,6 +717,6 @@ function NameTemplateDialog({
           </Button>
         </Group>
       </Stack>
-    </Modal>
+    </ResponsiveSheet>
   );
 }
