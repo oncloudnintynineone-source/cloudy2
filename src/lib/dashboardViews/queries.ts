@@ -75,11 +75,21 @@ export const getDashboardViews = cache(async (userId: string): Promise<Dashboard
   if (!isUuid(userId)) {
     return [];
   }
-  await ensureDefaultDashboardView(userId);
-  const rows = await db
-    .select()
-    .from(userDashboardViews)
-    .where(eq(userDashboardViews.userId, userId))
-    .orderBy(asc(userDashboardViews.sortOrder), asc(userDashboardViews.createdAt));
+  const read = () =>
+    db
+      .select()
+      .from(userDashboardViews)
+      .where(eq(userDashboardViews.userId, userId))
+      .orderBy(asc(userDashboardViews.sortOrder), asc(userDashboardViews.createdAt));
+  // Read first: the transactional seed mutex below is only needed when the
+  // user has no tabs yet. The common path (views already exist) skips the
+  // INSERT/SELECT-FOR-UPDATE/COUNT transaction entirely, so a dashboard render
+  // (which reads views twice per launch — the load and the preload) no longer
+  // pays for a write transaction on every read.
+  let rows = await read();
+  if (rows.length === 0) {
+    await ensureDefaultDashboardView(userId);
+    rows = await read();
+  }
   return rows.map(toDashboardViewTab);
 });

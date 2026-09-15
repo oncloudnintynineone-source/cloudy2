@@ -6,6 +6,8 @@ import { cache } from "react";
 
 import { db } from "@/db";
 import { calendars, users } from "@/db/schema";
+import { getCachedValue } from "@/lib/cache";
+import { CONFIG_CACHE_KEYS, CONFIG_CACHE_TTL_MS } from "@/lib/configCache";
 import { effectiveCalendarColor, effectiveEventTypeColor } from "@/lib/events/eventColors";
 import { formatInstantToNaive, shiftMonth, utcToDateString } from "@/lib/events/datetime";
 import { listEventTypes } from "@/lib/eventTypes/queries";
@@ -85,12 +87,16 @@ function scheduleTime(date: Date, allDay: boolean): string {
 /**
  * All calendars (the filter option source), ordered for display (sortOrder then
  * name). Wrapped in React's per-request `cache()` so callers that share a render
- * (the dashboard page + `fetchRangeEvents`) hit the DB once; request-scoped
- * only, so admin edits still appear on the next request.
+ * (the dashboard page + `fetchRangeEvents`) hit the DB once, and in a 60s
+ * in-memory TTL (`getCachedValue`) so the two server actions of a launch (the
+ * active read and the tab preload) don't each re-read it. Admin edits appear
+ * within `CONFIG_CACHE_TTL_MS`.
  */
-export const listCalendars = cache(async () => {
-  return db.select().from(calendars).orderBy(calendars.sortOrder, calendars.name);
-});
+export const listCalendars = cache(() =>
+  getCachedValue(CONFIG_CACHE_KEYS.calendars, CONFIG_CACHE_TTL_MS, async () =>
+    db.select().from(calendars).orderBy(calendars.sortOrder, calendars.name),
+  ),
+);
 
 /** The department calendar a user is assigned to, or null. */
 export async function getUserDepartmentId(userId: string): Promise<string | null> {

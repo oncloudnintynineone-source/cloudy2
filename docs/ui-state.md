@@ -77,12 +77,15 @@ There is no registration-time seeding — rows appear on first use:
 
 - `getUserPreferences(userId)` (React-`cache()`d) upserts the
   `user_preferences` row on first read.
-- `ensureDefaultDashboardView(userId)` (inside `getDashboardViews`) runs a
-  transaction that upserts the preferences row, `SELECT … FOR UPDATE`s it as a
-  serialization point, and inserts a single **"Month"** tab only when the user
-  has none. The row lock stops two
-  racing renders (cold start + an early navigation) from double-inserting two
-  identical default tabs.
+- `getDashboardViews(userId)` reads the user's tabs **first** and only calls
+  `ensureDefaultDashboardView(userId)` when that read comes back empty (then
+  re-reads). The seed transaction upserts the preferences row,
+  `SELECT … FOR UPDATE`s it as a serialization point, and inserts a single
+  **"Month"** tab. The row lock stops two racing renders (cold start + an early
+  navigation) from double-inserting two identical default tabs. Reading before
+  seeding keeps the common path (tabs already exist) free of the write
+  transaction — important because a dashboard launch reads views twice (the
+  `loadDashboardData` read and the tab preload).
 
 All queries short-circuit for the **virtual break-glass admin** session
 (`session.user.id === "admin"`, no `users` row — the FK/uuid columns can never

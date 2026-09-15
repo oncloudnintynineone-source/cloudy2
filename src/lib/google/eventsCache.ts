@@ -48,12 +48,26 @@ function memoryKey(googleCalendarId: string, month: string): string {
   return `${googleCalendarId}:${month}`;
 }
 
+/**
+ * Whether this process has confirmed the epoch row exists. The row is created
+ * once and never deleted (only ever bumped), so the `INSERT … ON CONFLICT DO
+ * NOTHING` only needs to run once per process — not on every epoch read. The
+ * epoch is read twice per Google refresh (before and after the fetch, to detect
+ * a cross-instance invalidation mid-flight) and once per mutation, per
+ * calendar/month, so the redundant INSERTs added up on exactly the cold path.
+ */
+let epochRowEnsured = false;
+
 /** Lazily ensure the single-row cache epoch marker exists. */
 async function ensureCacheEpoch(): Promise<void> {
+  if (epochRowEnsured) {
+    return;
+  }
   await db
     .insert(cacheInvalidation)
     .values({ id: "singleton", epoch: 0 })
     .onConflictDoNothing();
+  epochRowEnsured = true;
 }
 
 /** The current cache invalidation epoch (0 when the row is absent). */
@@ -447,10 +461,10 @@ export async function invalidateGcalCache(
 /**
  * Fetch a calendar's month from Google and store it in DB + L1 memory.
  *
- * The Google call runs outside any transaction so it never holds the (single)
- * Postgres connection open across the network round-trip — the app's pool is
- * `max: 1`, so a long-lived transaction here would serialize every other query
- * and stall the whole app. Concurrent callers for the same key are already
+ * The Google call runs outside any transaction so it never holds a Postgres
+ * connection open across the network round-trip — the app's pool is small
+ * (`DB_POOL_MAX`, default 3), so a long-lived transaction here would serialize
+ * every other query and stall the whole app. Concurrent callers for the same key are already
  * coalesced in-process by the `inflight` map; duplicate cross-instance
  * refreshes are harmless (the upsert is idempotent).
  */

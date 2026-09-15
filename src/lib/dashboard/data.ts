@@ -22,7 +22,6 @@ import { listEventTypes, listEventTypeGroups } from "@/lib/eventTypes/queries";
 import { formatInstantToNaive } from "@/lib/events/datetime";
 import {
   fetchRangeEvents,
-  getUserDepartmentId,
   listCalendars,
   projectRangeEvents,
   readCalendarRange,
@@ -160,17 +159,22 @@ function currentMonth(): string {
 }
 
 /**
- * Read every filter-independent piece a dashboard render needs. `listCalendars`,
- * `listEventTypes` and `getDashboardViews` are React-`cache()`d
- * per request, so the shared config pass and the range read reuse one DB read each.
+ * Read every filter-independent piece a dashboard render needs. The
+ * user-independent reads (calendars, event types/groups, users, settings,
+ * templates, quick links) are React-`cache()`d per request **and** served from a
+ * shared 60s in-memory TTL (`src/lib/configCache.ts`), so the config pass and
+ * the range read reuse one DB read each — and the separate `preloadDashboardTabs`
+ * action (which can't share React's per-request cache) doesn't re-query them.
  */
 async function resolveDashboardConfig(session: Session): Promise<DashboardConfig> {
   const isAdmin = session.user.role === "admin";
 
   // One batched pass: the tab/cookie reads run alongside the
   // calendars/types/users/settings reads instead of before them, so the small
-  // connection pool (max 3) is never left idle between round trips. The admin
-  // department lookup is skipped for admins (resolved as null).
+  // connection pool (max 3) is never left idle between round trips. The
+  // signed-in user's own department is derived from the already-fetched user
+  // list (a separate `getUserDepartmentId` query would be a redundant round
+  // trip on every config pass).
   const [
     storedTabs,
     cookieStore,
@@ -181,7 +185,6 @@ async function resolveDashboardConfig(session: Session): Promise<DashboardConfig
     settings,
     quickLinks,
     eventTitleTemplates,
-    ownDepartmentId,
   ] = await Promise.all([
     getDashboardViews(session.user.id),
     cookies(),
@@ -192,8 +195,13 @@ async function resolveDashboardConfig(session: Session): Promise<DashboardConfig
     getSettings(),
     listQuickLinks(),
     listEventTitleTemplates(),
-    isAdmin ? Promise.resolve(null) : getUserDepartmentId(session.user.id),
   ]);
+
+  // Admins default to every calendar; a regular user defaults to their own
+  // department (null when unassigned).
+  const ownDepartmentId = isAdmin
+    ? null
+    : (allUsers.find((user) => user.id === session.user.id)?.department?.id ?? null);
 
   const canManageViews = storedTabs.length > 0;
   const tabs = storedTabs.length > 0 ? storedTabs : [STATIC_DEFAULT_TAB];

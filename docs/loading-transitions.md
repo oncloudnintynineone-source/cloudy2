@@ -661,7 +661,9 @@ past the 300 ms delay, every tab it still has to load shows the spinner until
 the 1 s hold elapses. A tap on a not-yet-loaded tab fires the normal priority
 read for that tab, which shows its spinner immediately. A single-tab
 account skips the preload entirely (the active read already covers it), avoiding
-a second server config pass.
+a second server config pass — and for multi-tab accounts that pass's config
+reads are served from the 60s TTL cache (`docs/events-cache.md` §1.12), so it
+adds no DB round trips of its own.
 
 **Optimistic switch.** A tap also sets `previewView` in `DashboardDataContext`;
 `DashboardScreen` resolves the displayed context from `previewView ??

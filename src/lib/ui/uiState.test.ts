@@ -251,7 +251,7 @@ describe("normalizeUiState (shape safety)", () => {
     ).toEqual({ dashboard: { gridWeekRowZoom: 1.5 } });
     expect(
       normalizeUiState({ dashboard: { gridWeekRowZoom: 99 } }),
-    ).toEqual({ dashboard: { gridWeekRowZoom: 3 } });
+    ).toEqual({ dashboard: { gridWeekRowZoom: 6 } });
     expect(
       normalizeUiState({ dashboard: { gridWeekRowZoom: 0.5 } }),
     ).toEqual({ dashboard: { gridWeekRowZoom: 0.5 } });
@@ -269,7 +269,7 @@ describe("normalizeUiState (shape safety)", () => {
     ).toEqual({ dashboard: { gridWeekColZoom: 1 } });
     expect(
       normalizeUiState({ dashboard: { gridWeekColZoom: 99 } }),
-    ).toEqual({ dashboard: { gridWeekColZoom: 3 } });
+    ).toEqual({ dashboard: { gridWeekColZoom: 6 } });
     expect(
       normalizeUiState({ dashboard: { gridWeekColZoom: "2" } }),
     ).toEqual({});
