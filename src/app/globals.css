@@ -281,11 +281,11 @@ html {
 /* Reduced motion: no draw-in — the bar appears instantly. */
 
 /* Header pinned-events ticker (docs/pinned-events.md): the brand pill anchored
-   at the header's left edge (where the logo used to sit). It shows the pin
-   icon, an inline amber count chip (1/N) and rotates through the upcoming
-   pinned events' titles with a vertical ticker slide. The max-width caps the
-   pill so it doesn't stretch across wide desktop headers; titles truncate
-   with an ellipsis inside it. */
+   at the header's left edge (where the logo used to sit). It shows an inline
+   amber count chip (1/N), a secondary days-remaining countdown chip (5D) and
+   rotates through the upcoming pinned events' titles with a vertical ticker
+   slide. The max-width caps the pill so it doesn't stretch across wide desktop
+   headers; titles truncate with an ellipsis inside it. */
 .c2-pinned-ticker {
   display: flex;
   align-items: center;
@@ -333,6 +333,21 @@ html {
   color: var(--mantine-color-brand-9);
   font-size: var(--mantine-font-size-xs);
   font-weight: 700;
+  line-height: calc(1.125rem * var(--mantine-scale));
+}
+
+/* Days-remaining countdown chip, sitting where the pin icon used to (the count
+   chip moved into the icon's slot). Deliberately subdued next to the amber
+   count so the accent still reads as the position indicator. */
+.c2-pinned-ticker-countdown {
+  flex-shrink: 0;
+  padding-inline: calc(0.4375rem * var(--mantine-scale));
+  border-radius: var(--mantine-radius-xl);
+  background: var(--mantine-color-brand-6);
+  color: var(--mantine-color-white);
+  font-size: var(--mantine-font-size-xs);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
   line-height: calc(1.125rem * var(--mantine-scale));
 }
 

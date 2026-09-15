@@ -383,7 +383,7 @@ drives the wide layout:
 | Surface | Regular mobile | Compact ≤ 360px |
 | ------- | -------------- | ---------------- |
 | Header gutters | `px="md"`, `gap="md"` | `px="xs"`, `gap` 4 (both `wrap="nowrap"`) |
-| Pinned-events ticker | pill with count chip + rotating title (CSS max-width tier) | same pill — the removed logo freed the space |
+| Pinned-events ticker | pill with count + countdown chips + rotating title (CSS max-width tier) | same pill — the removed logo freed the space |
 | Bottom nav | icon + text label per item | icon only (`NavButton` `compact`; `aria-label` preserved) |
 | Modals (event form/detail, agenda, filter, date picker) | `sm` | `xs` |
 | Modals (event search, pinned events) | `md` | `sm` |
@@ -402,7 +402,7 @@ Deliberate limits:
   pages need no per-view narrowing.
 - **A11y preserved.** Icon-only nav buttons keep their `aria-label`, and the
   pinned-events ticker always carries its count in the accessible name (the
-  visual chip is `aria-hidden`), so the compact tier loses no announceable
+  visual chips are `aria-hidden`), so the compact tier loses no announceable
   context.
 
 ## 1.11 Related docs

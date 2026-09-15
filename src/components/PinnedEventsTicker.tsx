@@ -1,14 +1,18 @@
 "use client";
 
-import { Box, UnstyledButton } from "@mantine/core";
-import { IconPin } from "@tabler/icons-react";
+import { UnstyledButton } from "@mantine/core";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
+import { daysUntilDate, formatInstantToNaive } from "@/lib/events/datetime";
 import type { PinnedEvent } from "@/lib/events/pinned";
 import type { Rect } from "@/lib/motion/origin";
 
 /** How long each title stays on screen before the next one slides in. */
 const ROTATE_INTERVAL_MS = 5000;
+
+/** How often the day countdown re-reads the clock, so a single (non-rotating)
+ *  pinned event still rolls over at midnight. */
+const CLOCK_INTERVAL_MS = 60_000;
 
 /**
  * The title shown in the pill. `tickerTitle` (the `pinnedHeader` template) is
@@ -24,10 +28,12 @@ function tickerTitleOf(event: PinnedEvent): string {
 
 /**
  * The header's pinned-events pill, anchored at the header's left edge (where
- * the logo used to sit). Shows the pin icon, an inline amber count chip
- * (`1/N` — the old floating Indicator badge, inline now) and rotates through
- * the upcoming pinned events' `tickerTitle`s with a vertical slide-in.
- * Tapping it opens the Pinned Events panel, same as the old button.
+ * the logo used to sit). Shows an inline amber count chip (`1/N` — the old
+ * floating Indicator badge, inline now), a secondary days-remaining countdown
+ * chip (`5D` — the pin icon's replacement slot, dropping at `0D` for a
+ * same-day or already-started event) and rotates through the upcoming pinned
+ * events' `tickerTitle`s with a vertical slide-in. Tapping it opens the Pinned
+ * Events panel, same as the old button.
  *
  * The static "Pinned events" label is the pill's degraded look for both the
  * in-flight and the loaded-but-empty cases; visually they are identical on
@@ -55,11 +61,15 @@ export function PinnedEventsTicker({
   // the tab is hidden (checked in the tick).
   const [hovered, setHovered] = useState(false);
   const [focused, setFocused] = useState(false);
+  // Current SGT wall clock, refreshed on a slow interval so the day countdown
+  // rolls over even when a single pinned event never re-renders.
+  const [nowNaive, setNowNaive] = useState(() => formatInstantToNaive(new Date()));
 
   const list = useMemo(() => events ?? [], [events]);
   const count = list.length;
   const safeIndex = count > 0 ? index % count : 0;
   const current = count > 0 ? list[safeIndex] : null;
+  const daysUntil = current ? daysUntilDate(nowNaive, current.start) : 0;
 
   const accessibleLabel =
     count > 0
@@ -85,6 +95,14 @@ export function PinnedEventsTicker({
     return () => window.clearInterval(id);
   }, [count, paused, hovered, focused, advance]);
 
+  useEffect(() => {
+    const id = window.setInterval(() => {
+      if (document.visibilityState !== "visible") return;
+      setNowNaive(formatInstantToNaive(new Date()));
+    }, CLOCK_INTERVAL_MS);
+    return () => window.clearInterval(id);
+  }, []);
+
   return (
     <UnstyledButton
       className="c2-pinned-ticker"
@@ -95,9 +113,6 @@ export function PinnedEventsTicker({
       onBlur={() => setFocused(false)}
       aria-label={accessibleLabel}
     >
-      <Box style={{ flexShrink: 0, display: "flex" }}>
-        <IconPin size={14} />
-      </Box>
       {current === null ? (
         <span className="c2-pinned-ticker-title" aria-hidden>
           <span className="c2-pinned-ticker-line">Pinned events</span>
@@ -109,6 +124,12 @@ export function PinnedEventsTicker({
               same). */}
           <span className="c2-pinned-ticker-count" aria-hidden>
             {safeIndex + 1}/{count}
+          </span>
+          {/* Days until the current event's start (date-part difference, so a
+              same-day or already-started event reads `0D`); hidden from the
+              accessible name like the count chip. */}
+          <span className="c2-pinned-ticker-countdown" aria-hidden>
+            {daysUntil}D
           </span>
           <span className="c2-pinned-ticker-title" aria-hidden>
             {/* Keyed by event id so a rotation remounts the line and replays

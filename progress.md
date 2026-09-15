@@ -18,7 +18,7 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
 
 ## 1.1 Status
 
-- All work through changelog **1.243 (Event-search modal launch + layout)** is shipped.
+- All work through changelog **1.244 (Pinned-events ticker pills)** is shipped.
 - Quality gates (`lint` / `typecheck` / `test` / schema-drift check) run in CI on every
   push and PR. Pushes also auto-apply migrations per environment: `dev` →
   `migrate-preview` against the dev Neon DB, `main` → `migrate` against the prod Neon
@@ -1088,6 +1088,13 @@ via `?attendance=1` and `attendanceStorage` became a `useSyncExternalStore` exte
    list as the only scroll region (skeleton while searching, `EmptyState` for no
    matches, amber/purple mine/external row highlight via the action's new
    `myEventIds`, no autofocus). `docs/event-search.md` §1.5/§1.9/§1.12
+- 1.244 Pinned-events ticker pills: the header pill drops its pin icon, the amber
+   `1/N` count chip moves into the leading (icon) slot, and a new subdued
+   days-remaining countdown chip (`5D` caps-D, `0D` for a same-day or
+   already-started event, never months) takes the count chip's old slot between
+   it and the rotating title; the countdown re-reads the clock every 60s so a
+   single non-rotating event still rolls over at midnight (new pure
+   `daysUntilDate` in `datetime.ts`, unit-tested). `docs/pinned-events.md` §1.4
 
 ## 1.4 Open items & next steps
 

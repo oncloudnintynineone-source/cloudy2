@@ -155,6 +155,18 @@ export function daysBetween(start: string, end: string): string[] {
   return days;
 }
 
+/**
+ * Whole calendar days from `fromNaive` to `targetNaive`, comparing date parts
+ * only (so a target later the same day is `0` regardless of time). Clamped at
+ * `0`: a target on or before `fromNaive`'s day yields `0`. Pure — the pinned
+ * ticker's days-remaining countdown.
+ */
+export function daysUntilDate(fromNaive: string, targetNaive: string): number {
+  const from = dateToUtc(fromNaive.slice(0, 10)).getTime();
+  const target = dateToUtc(targetNaive.slice(0, 10)).getTime();
+  return Math.max(0, Math.round((target - from) / 86_400_000));
+}
+
 /** Every `YYYY-MM` month a naive start/end range touches, inclusive. */
 export function monthsInRange(startNaive: string, endNaive: string): string[] {
   // Wall-clock months from the date part: the UTC+8 instant of a midnight

@@ -8643,6 +8643,33 @@ shared `EmptyState`. `renderEvent` applies the dashboard's `c2-my-agenda-event` 
 plumbing.
 
 **Verified**: `pnpm lint`, `pnpm typecheck`, `pnpm test` (1282 passing). Manual to run
-before ship: cold first open from a non-dashboard route (skeleton → modal), instant repeat
-opens, one-row toolbar, recents hidden with results, mobile keyboard no jump, ⌘K, highlight
+before ship: cold first open from a non-dashboard route (skeleton  modal), instant repeat
+opens, one-row toolbar, recents hidden with results, mobile keyboard no jump, ?K, highlight
 colors, deep link still opens the event detail.
+
+## 1.244 Pinned-events ticker pills
+
+**Pills.** The header pill (`PinnedEventsTicker.tsx`) drops the `IconPin` (and its
+leading `Box`), moves the inline amber `1/N` count chip into that now-free leading slot,
+and adds a new subdued `.c2-pinned-ticker-countdown` chip between the count and the
+rotating title. The countdown is whole **days** until the current event's start, rendered
+`5D` (caps `D`, `0D` for a same-day or already-started event); it never switches to
+months, so a far-future event reads e.g. `45D`. Empty / loading / errored pill degrades to
+the icon-less static "Pinned events" label, and the accessible name is unchanged
+(`Pinned events (N)`) - both chips plus the rotating titles stay `aria-hidden`.
+
+**Clock.** New pure `daysUntilDate(fromNaive, targetNaive)` in `datetime.ts` compares
+`YYYY-MM-DD` date parts (UTC+8 naive, same basis as `selectUpcomingPinnedEvents`) and
+clamps at `0`; unit-tested in `datetime.test.ts`. The ticker holds a `nowNaive` state
+refreshed on a 60s interval (skipped while the tab is hidden), so a single non-rotating
+pinned event still rolls its `D` count over at midnight.
+
+**CSS.** `.c2-pinned-ticker-countdown` mirrors the count chip's metrics but uses
+`brand-6`/white (tabular numerals) so the amber count remains the position accent; the
+section comment and `docs/pinned-events.md` §1.4 (prose + mermaid + sizing/a11y),
+`docs/accessibility.md` §1.4, `docs/desktop-responsive.md` §1.10, `docs/user-guide.md`
+§1.5 and the `AGENTS.md` Pinned Events bullet were updated to match.
+
+**Verified**: `pnpm lint`, `pnpm typecheck`, `pnpm test`. Manual to run before ship: pill
+shows `1/N` then `ND` then title with no pin icon; same-day event reads `0D`; a >1-month
+event keeps a days count; empty pill shows the plain label.

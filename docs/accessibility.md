@@ -83,10 +83,10 @@ accessible name exactly once:
   `ActionIcon` aria-label becomes `"Filters (2 active)"` when filters are
   applied; the visual `Badge` is `aria-hidden`.
 - **Pinned events** header ticker: the count rides the button's aria-label
-  (`"Pinned events (3)"`); the inline count chip and the rotating titles are
-  `aria-hidden` so the number is read once and the 5s title rotation never
-  spams the screen reader. The full list stays reachable in the panel it
-  opens.
+  (`"Pinned events (3)"`); the inline count chip, the days-remaining countdown
+  chip and the rotating titles are `aria-hidden` so the number is read once and
+  the 5s title rotation never spams the screen reader. The full list stays
+  reachable in the panel it opens.
 - The dashboard kebab's filter badge sits inside a `Menu.Target` whose
   `"More options"` name stays static — the filter state is announced via the
   live region instead (§1.2).
