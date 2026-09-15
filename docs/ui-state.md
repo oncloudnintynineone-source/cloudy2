@@ -9,7 +9,8 @@ Where does the app remember things? Two scopes with one hard rule:
 - **"Where you are" is device-local** — it lives in one small cookie
   `cloudy2.ui`: the last visited page, the sidebar rail state, the dashboard
   `date`/`month` anchor, the zooms — the Day/Week (H) hour-slot `zoom`, the
-  Week (Grid) column/row `gridWeekColZoom`/`gridWeekRowZoom`, and the Month
+  Week (Grid) column/row `gridWeekColZoom`/`gridWeekRowZoom`, the Week (D)
+  day-column `weekMatrixZoom`, and the Month
   grid's fit-width `monthZoom` — and the Month & Agenda split (`dualSplit`).
 
 This document covers the split, the two Postgres tables and their lazy seeding,
@@ -76,12 +77,15 @@ There is no registration-time seeding — rows appear on first use:
 
 - `getUserPreferences(userId)` (React-`cache()`d) upserts the
   `user_preferences` row on first read.
-- `ensureDefaultDashboardView(userId)` (inside `getDashboardViews`) runs a
-  transaction that upserts the preferences row, `SELECT … FOR UPDATE`s it as a
-  serialization point, and inserts a single **"Month"** tab only when the user
-  has none. The row lock stops two
-  racing renders (cold start + an early navigation) from double-inserting two
-  identical default tabs.
+- `getDashboardViews(userId)` reads the user's tabs **first** and only calls
+  `ensureDefaultDashboardView(userId)` when that read comes back empty (then
+  re-reads). The seed transaction upserts the preferences row,
+  `SELECT … FOR UPDATE`s it as a serialization point, and inserts a single
+  **"Month"** tab. The row lock stops two racing renders (cold start + an early
+  navigation) from double-inserting two identical default tabs. Reading before
+  seeding keeps the common path (tabs already exist) free of the write
+  transaction — important because a dashboard launch reads views twice (the
+  `loadDashboardData` read and the tab preload).
 
 All queries short-circuit for the **virtual break-glass admin** session
 (`session.user.id === "admin"`, no `users` row — the FK/uuid columns can never
@@ -158,6 +162,7 @@ flowchart LR
  "zoom": 1.5, // Day/Week (H) hour-slot zoom (slotZoom.ts)
  "gridWeekColZoom": 1.5, // Week (Grid) column-width zoom (slotZoom.ts)
  "gridWeekRowZoom": 0.75, // Week (Grid) slot-height zoom (slotZoom.ts)
+ "weekMatrixZoom": 1.5, // Week (D) day-column zoom (slotZoom.ts)
  "monthZoom": 1.5, // Month-grid zoom, fit-width multiplier (monthZoom.ts)
  "dualSplit": 0.6 // Month & Agenda month/agenda width split (dualSplit.ts)
   }
@@ -190,7 +195,9 @@ old majors wholesale on first read (see §1.5.2).
   the current level on every mount, so v3.4 devices sitting at exactly `1`
   carry the auto-persisted old default (a deliberate 100% is
   indistinguishable) — the migration drops that key so the new default
-  re-seeds, and keeps any explicitly remembered non-default level.
+  re-seeds, and keeps any explicitly remembered non-default level. v3.6 added
+  the Week (D) `weekMatrixZoom` — another pass-through (missing key = the fit
+  default).
 - The cookie is tiny (scalars + short id lists nowhere near the ~4 KiB browser
   cap), so the old overflow-trimming machinery is gone.
 
@@ -203,7 +210,8 @@ default.**
   wins; a remembered cookie
   `date` anchors the **day views only** (`view !== "month"`); in Month view the
   remembered `month` (else current) drives the read. `zoom` (Day/Week (H)),
-  `gridWeekColZoom`/`gridWeekRowZoom` (Week (Grid)), `monthZoom` (Month grid)
+  `gridWeekColZoom`/`gridWeekRowZoom` (Week (Grid)), `weekMatrixZoom` (Week (D)),
+  `monthZoom` (Month grid)
   and `dualSplit` (Month & Agenda) are read from the raw
   cookie and snapped via `clampGridWeekColZoom`/`clampZoom`/`clampMonthZoom`/
   `clampDualSplit` before first paint (no width jump on relaunch).
@@ -224,7 +232,7 @@ default.**
 | ------ | ----- | ---------------- |
 | `useRememberedPage(pathname)` | `AppShellShell` — every authenticated page | `{ lastPage: pathname }` (incl. `/settings` sub-tabs) |
 | sidebar toggle effect | `AppShellShell` | `{ sidebarCollapsed }` on mount + every toggle |
-| `usePersistDashboardNav({ date?, month, zoom, gridWeekColZoom, gridWeekRowZoom, monthZoom, dualSplit })` | `DashboardView` | the dashboard    section; `date` is stored only when the URL pins one (day views) or for Month & Agenda, `month`/`zoom`/`gridWeekColZoom`/`gridWeekRowZoom`/`monthZoom`/`dualSplit` always |
+| `usePersistDashboardNav({ date?, month, zoom, gridWeekColZoom, gridWeekRowZoom, weekMatrixZoom, monthZoom, dualSplit })` | `DashboardView` | the dashboard    section; `date` is stored only when the URL pins one (day views) or for Month & Agenda, `month`/`zoom`/`gridWeekColZoom`/`gridWeekRowZoom`/`weekMatrixZoom`/`monthZoom`/`dualSplit` always |
 
 Server-side writes happen through server actions (the client never writes
 Postgres directly): tab CRUD + per-tab filters via `src/lib/dashboardViews`,
@@ -253,7 +261,7 @@ they are not cleared on sign-out.)
 | ------ | -------- |
 | `src/lib/dashboardViews/views.ts` | kind vocabulary/labels, name sanitization, filter-override normalization, `resolveActiveTab` (URL id → kind string → fallback → first) — unit-tested |
 | `src/lib/ui/uiState.ts` | cookie codec (`encodeUiState`/`decodeUiState`), `normalizeUiState`, `mergeUiState`, `resolveLaunchTarget` + route whitelists — unit-tested |
-| `src/lib/ui/slotZoom.ts` | `clampZoom`/`clampGridWeekColZoom` snapping (imported by the cookie normalizer) |
+| `src/lib/ui/slotZoom.ts` | `clampZoom`/`clampGridWeekColZoom` snapping (imported by the cookie normalizer; the latter also floors the Week (D) `weekMatrixZoom`) |
 | `src/lib/ui/monthZoom.ts` | `clampMonthZoom` snapping (imported by the cookie normalizer) |
 | `src/lib/ui/dualSplit.ts` | `clampDualSplit`/`stepDualSplit` split-ratio math (imported by the cookie normalizer) |
 

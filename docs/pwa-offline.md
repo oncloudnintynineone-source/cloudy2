@@ -548,7 +548,12 @@ sequenceDiagram
   reads moved into the `loadDashboardData` server action via
   `buildDashboardData` (`src/lib/dashboard/data.ts`) — the exact resolution the
   page used to run inline (including the events cache and adjacent-month
-  prefetch). The route's `loading.tsx` is now only the pre-hydration shell.
+  prefetch). The route's `loading.tsx` is now only the pre-hydration shell. The
+  filter-independent reference reads (calendars, users, event types, settings,
+  templates, quick links) are served from a shared 60s in-memory TTL
+  (`src/lib/configCache.ts`), so the `loadDashboardData` read and the later
+  `preloadDashboardTabs` pass don't each re-query the whole config block
+  ([`events-cache.md` §1.12](events-cache.md#112-performance)).
 - **Cached first paint & warm revisits.** `DashboardScreen` hydrates a
   per-account map of cached *contexts* from IndexedDB
   (`src/lib/dashboard/localStore.ts`) on mount. A cold load with a silent URL

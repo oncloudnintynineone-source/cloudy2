@@ -20,7 +20,9 @@ describe("clampMonthZoom", () => {
     expect(clampMonthZoom(1.4)).toBe(1.5);
     expect(clampMonthZoom(0.3)).toBe(1);
     expect(clampMonthZoom(2.6)).toBe(2.5);
-    expect(clampMonthZoom(5)).toBe(3);
+    expect(clampMonthZoom(3.4)).toBe(3);
+    expect(clampMonthZoom(5)).toBe(5);
+    expect(clampMonthZoom(99)).toBe(6);
   });
 
   it("returns null for non-numeric or non-finite input", () => {
@@ -39,6 +41,10 @@ describe("stepMonthZoom", () => {
     expect(stepMonthZoom(1.25, 1)).toBe(1.5);
     expect(stepMonthZoom(3, -1)).toBe(2.5);
     expect(stepMonthZoom(1.5, -1)).toBe(1.25);
+    // The doubled top end gains whole-number levels.
+    expect(stepMonthZoom(3, 1)).toBe(4);
+    expect(stepMonthZoom(5, 1)).toBe(6);
+    expect(stepMonthZoom(6, -1)).toBe(5);
   });
 
   it("clamps at the extremes instead of looping", () => {

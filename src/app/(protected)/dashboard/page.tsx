@@ -29,6 +29,8 @@ export default async function DashboardPage() {
   const initialGridWeekColZoom =
     clampGridWeekColZoom(nav?.gridWeekColZoom) ?? GRID_WEEK_COL_ZOOM_DEFAULT;
   const initialGridWeekRowZoom = clampZoom(nav?.gridWeekRowZoom) ?? 1;
+  // Week (D) day-column zoom — single-axis, floored at fit (1).
+  const initialWeekMatrixZoom = clampGridWeekColZoom(nav?.weekMatrixZoom) ?? 1;
   const initialMonthZoom = clampMonthZoom(nav?.monthZoom) ?? 1;
   // Dual Pane split ratio (Month pane fraction) — same device-local contract.
   const initialDualSplit = clampDualSplit(nav?.dualSplit) ?? DUAL_SPLIT_DEFAULT;
@@ -41,6 +43,7 @@ export default async function DashboardPage() {
           initialZoom={initialZoom}
           initialGridWeekColZoom={initialGridWeekColZoom}
           initialGridWeekRowZoom={initialGridWeekRowZoom}
+          initialWeekMatrixZoom={initialWeekMatrixZoom}
           initialMonthZoom={initialMonthZoom}
           initialDualSplit={initialDualSplit}
         />

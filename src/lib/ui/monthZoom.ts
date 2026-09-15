@@ -16,7 +16,7 @@
  */
 
 /** Discrete month zoom levels, smallest to largest. 1 = fit to viewport width. */
-export const MONTH_ZOOM_LEVELS = [1, 1.25, 1.5, 2, 2.5, 3] as const;
+export const MONTH_ZOOM_LEVELS = [1, 1.25, 1.5, 2, 2.5, 3, 4, 5, 6] as const;
 export type MonthZoom = (typeof MONTH_ZOOM_LEVELS)[number];
 
 export const MIN_MONTH_ZOOM = MONTH_ZOOM_LEVELS[0];

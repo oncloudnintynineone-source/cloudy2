@@ -2,6 +2,8 @@ import { and, asc, eq, inArray } from "drizzle-orm";
 
 import { db } from "@/db";
 import { calendars, userCalendarAccess, users } from "@/db/schema";
+import { getCachedValue } from "@/lib/cache";
+import { CONFIG_CACHE_KEYS, CONFIG_CACHE_TTL_MS } from "@/lib/configCache";
 import type { UserRole, UserStatus } from "@/lib/roster/validate";
 import { onlyUuidIds } from "@/lib/uuid";
 
@@ -23,43 +25,50 @@ export interface RosterUser {
   department: RosterDepartment | null;
 }
 
-/** Users joined with their (single) department, sorted by name. */
+/**
+ * Users joined with their (single) department, sorted by name. Served from a
+ * 60s in-memory TTL (`getCachedValue`) — the list is user-independent and the
+ * dashboard reads it twice per launch (active read + tab preload). Roster
+ * edits appear within `CONFIG_CACHE_TTL_MS`.
+ */
 export async function listUsers(): Promise<RosterUser[]> {
-  const rows = await db
-    .select({
-      id: users.id,
-      name: users.name,
-      shortname: users.shortname,
-      phone: users.phone,
-      email: users.email,
-      birthday: users.birthday,
-      role: users.role,
-      status: users.status,
-      departmentId: calendars.id,
-      departmentName: calendars.name,
-      departmentSortOrder: calendars.sortOrder,
-    })
-    .from(users)
-    .leftJoin(calendars, eq(calendars.id, users.departmentId))
-    .orderBy(asc(users.name), asc(calendars.name));
+  return getCachedValue(CONFIG_CACHE_KEYS.users, CONFIG_CACHE_TTL_MS, async () => {
+    const rows = await db
+      .select({
+        id: users.id,
+        name: users.name,
+        shortname: users.shortname,
+        phone: users.phone,
+        email: users.email,
+        birthday: users.birthday,
+        role: users.role,
+        status: users.status,
+        departmentId: calendars.id,
+        departmentName: calendars.name,
+        departmentSortOrder: calendars.sortOrder,
+      })
+      .from(users)
+      .leftJoin(calendars, eq(calendars.id, users.departmentId))
+      .orderBy(asc(users.name), asc(calendars.name));
 
-  return rows.map((row) => ({
-    id: row.id,
-    name: row.name,
-    shortname: row.shortname,
-    phone: row.phone,
-    email: row.email,
-    birthday: row.birthday,
-    role: row.role,
-    status: row.status,
-    department: row.departmentId
-      ? {
-          id: row.departmentId,
-          name: row.departmentName ?? "",
-          sortOrder: row.departmentSortOrder ?? 0,
-        }
-      : null,
-  }));
+    return rows.map((row) => ({
+      id: row.id,
+      name: row.name,
+      shortname: row.shortname,
+      phone: row.phone,
+      email: row.email,
+      birthday: row.birthday,
+      role: row.role,
+      status: row.status,
+      department: row.departmentId
+        ? {
+            id: row.departmentId,
+            name: row.departmentName ?? "",
+            sortOrder: row.departmentSortOrder ?? 0,
+          }
+        : null,
+    }));
+  });
 }
 
 export interface UserDisplayInfo {

@@ -1,9 +1,10 @@
 # 1. Pinned Events
 
-The header's left edge carries the **pinned-events ticker** — the brand pill (pin
-icon kept, logo removed) that rotates through the upcoming pinned events' titles
-with an inline `1/N` count chip. Tapping it opens a centered Modal listing every
-explicitly-pinned upcoming event. Both stay fresh across mutations.
+The header's left edge carries the **pinned-events ticker** — the brand pill (logo
+removed) that rotates through the upcoming pinned events' titles behind an inline
+`1/N` count chip and a days-remaining countdown chip. Tapping it opens a centered
+Modal listing every explicitly-pinned upcoming event. Both stay fresh across
+mutations.
 
 ## Table of contents
 
@@ -60,20 +61,24 @@ link auto-opens the event's details modal (Edit / Duplicate / Delete per the usu
 ## 1.4 The header ticker
 
 The pill at the header's **left edge** (it took the logo's slot — the "Cloudy2"
-wordmark was removed) keeps the rounded-rectangle shape and the pin icon, and
-shows, left to right:
+wordmark was removed) keeps the rounded-rectangle shape (the pin icon was
+removed), and shows, left to right:
 
-1. the pin icon,
-2. an inline amber **count chip** — `1/N`, position within the rotation plus how
+1. an inline amber **count chip** — `1/N`, position within the rotation plus how
  many events are pinned (this replaced the floating amber `Indicator` badge,
- same accent color, now inline with the text), and
+ same accent color, now inline with the text) — now occupying the pin icon's
+ old leading slot,
+2. a secondary **countdown chip** — whole days until the current event's start,
+ `5D` (caps D), computed as a date-part difference so a same-day or
+ already-started event reads `0D`; it never switches to months, so a
+ far-future event reads e.g. `45D`, and
 3. the **current event's `tickerTitle`**, one line, ellipsis-truncated.
 
 ```mermaid
 flowchart LR
   subgraph pill["pinned-events pill (max-width capped)"]
  direction LR
- I["IconPin"] --> C["1/5 chip"] --> T["rotating title"]
+ C["1/5 chip"] --> D["5D countdown"] --> T["rotating title"]
   end
   T -. every 5s .-> T
 ```
@@ -90,8 +95,10 @@ Rotation (`PinnedEventsTicker.tsx`, client):
   rotates.
 - The index clamps with modulo when the list changes, so a mutation can never
   point at a missing entry.
-- Loading / zero events: the pill degrades to the static `IconPin` +
-  "Pinned events" label (the pre-ticker look).
+- The countdown re-reads the clock on a slow (60s) interval, so a single
+  non-rotating pinned event still rolls its `D` count over at midnight.
+- Loading / zero events: the pill degrades to the static "Pinned events" label
+  (the pre-ticker look, now icon-less).
 - The static label is shared by three states (first read in flight, settled
   empty, failed read) **on purpose** — the pill is never the loading signal.
   The shell passes a `status` (`pending`/`ready`/`error`) that only changes
@@ -105,8 +112,8 @@ Sizing & a11y:
 
 - CSS `max-width` on `.c2-pinned-ticker` caps the pill (~220px on phones,
   ~400px from the 40em desktop band) so it can't stretch across wide headers.
-- The count rides the button's `aria-label` (`"Pinned events (5)"`); the chip
-  and the rotating titles are `aria-hidden` (see
+- The count rides the button's `aria-label` (`"Pinned events (5)"`); the count
+  chip, the countdown chip and the rotating titles are `aria-hidden` (see
   [`accessibility.md`](accessibility.md) §1.4).
 
 The list behind the ticker refreshes:
@@ -135,7 +142,7 @@ overshoot the content and collapse the modal.
 | `src/lib/events/pinned.ts` | `fetchPinnedEvents` (panel `title` + ticker `tickerTitle`) |
 | `src/lib/events/pinnedSelect.ts` | Pure upcoming-window selection (unit-tested) |
 | `src/lib/ui/pinnedPanel.ts` | `PinnedPanelContext` + change event name |
-| `src/components/PinnedEventsTicker.tsx` | The header pill: count chip + rotating titles |
+| `src/components/PinnedEventsTicker.tsx` | The header pill: count + countdown chips + rotating titles |
 | `src/components/PinnedEventsPanel.tsx` | The panel Modal |
 
 Related docs:

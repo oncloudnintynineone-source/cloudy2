@@ -1,7 +1,17 @@
 "use client";
 
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useRef, useState, useTransition } from "react";
+import {
+  type ComponentPropsWithoutRef,
+  type ReactElement,
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useTransition,
+} from "react";
 import {
   ActionIcon,
   Badge,
@@ -9,16 +19,20 @@ import {
   Button,
   Group,
   Loader,
+  Menu,
   Modal,
+  Skeleton,
   Stack,
   Text,
   TextInput,
+  UnstyledButton,
   useMantineTheme,
 } from "@mantine/core";
 import { DatePickerInput } from "@mantine/dates";
 import { useMediaQuery } from "@mantine/hooks";
 import { AgendaView } from "@mantine/schedule";
-import { IconSearch, IconX } from "@tabler/icons-react";
+import { IconCalendar, IconSearch, IconSearchOff, IconX } from "@tabler/icons-react";
+import dayjs from "dayjs";
 import { NARROW_MEDIA_QUERY } from "@/lib/theme";
 
 import { buildEventDeepLink } from "@/lib/events/deepLink";
@@ -48,6 +62,7 @@ import {
 import { MOTION } from "@/lib/motion/timing";
 import { BUTTON_LOADER_PROPS } from "@/lib/theme";
 
+import { EmptyState } from "./EmptyState";
 import { LoadingStatus } from "./LoadingStatus";
 
 interface EventSearchModalProps {
@@ -55,6 +70,17 @@ interface EventSearchModalProps {
   onClose: () => void;
   originRect: Rect | null;
 }
+
+/**
+ * Mantine's `RenderEvent` signature (not re-exported from the package root) —
+ * the Agenda `renderEvent` prop contract.
+ */
+type AgendaEventRender = (
+  event: { id: string | number },
+  props: ComponentPropsWithoutRef<"button"> & { children: ReactNode },
+) => ReactElement;
+
+const LIST_BORDER = "1px solid var(--mantine-color-default-border)";
 
 export default function EventSearchModal({ opened, onClose, originRect }: EventSearchModalProps) {
   const router = useRouter();
@@ -64,15 +90,25 @@ export default function EventSearchModal({ opened, onClose, originRect }: EventS
   const isDesktop = useMediaQuery(`(min-width: ${theme.breakpoints.lg})`);
   const isNarrow = useMediaQuery(NARROW_MEDIA_QUERY);
   const today = formatInstantToNaive(new Date()).slice(0, 10);
+  const defaultFrom = defaultSearchFrom(today);
+  const defaultTo = defaultSearchTo(today);
 
   const [query, setQuery] = useState("");
-  const [from, setFrom] = useState<string | null>(defaultSearchFrom(today));
-  const [to, setTo] = useState<string | null>(defaultSearchTo(today));
+  const [from, setFrom] = useState<string | null>(defaultFrom);
+  const [to, setTo] = useState<string | null>(defaultTo);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [results, setResults] = useState<CalendarEvent[] | null>(null);
-  // The user's recent queries (`null` = not yet fetched), refreshed on each open
-  // so new searches on other devices surface here too.
+  // The current user's own events (tagged attendee) among the results — drives
+  // the amber "mine" row highlight, matching the dashboard agenda.
+  const [myEventIds, setMyEventIds] = useState<string[]>([]);
+  // The [from, to] window a completed search actually ran with (defaults
+  // resolved), shown beside the result count so the scope is never ambiguous.
+  const [searchedRange, setSearchedRange] = useState<{ from: string; to: string } | null>(null);
+  // The user's recent queries (`null` = not yet fetched). Prefetched when the
+  // modal first mounts (closed, at idle) so the badges are already present on
+  // the first open, then refreshed on each open so queries from other devices
+  // surface here too.
   const [history, setHistory] = useState<string[] | null>(null);
 
   // The clicked result row whose deep-link navigation is in flight. Its position
@@ -90,14 +126,14 @@ export default function EventSearchModal({ opened, onClose, originRect }: EventS
   const listRef = useRef<HTMLDivElement>(null);
   const [isPending, startTransition] = useTransition();
 
-  // The shell lazy-mounts this modal on its very first open, so the Modal's
-  // Mantine Transition would initialize to "entered" and the zoom-in from the
-  // header button would never play. Mirror the `opened` prop into a local
-  // `mounted` state so the Transition always has an "exited" start state.
+  // The shell lazy-mounts this modal (closed) as soon as its chunk preloads, so
+  // the Modal's Mantine Transition would initialize to "entered" and the zoom-in
+  // from the header button would never play. Mirror the `opened` prop into a
+  // local `mounted` state so the Transition always has an "exited" start state.
   // The open flip is deferred by one animation frame: flipped synchronously in
-  // the effect, the browser coalesces the enter rAFs into a single paint and
-  // the zoom still never plays. Closing flips immediately so the shrink-out
-  // doesn't lag; later opens take the same deferred path.
+  // the effect, the browser coalesces the enter rAFs into a single paint and the
+  // zoom still never plays. Closing flips immediately so the shrink-out doesn't
+  // lag; later opens take the same deferred path.
   const [mounted, setMounted] = useState(false);
   useEffect(() => {
     if (!opened) {
@@ -129,27 +165,51 @@ export default function EventSearchModal({ opened, onClose, originRect }: EventS
     if (!opened) {
       setQuery("");
       setResults(null);
+      setMyEventIds([]);
+      setSearchedRange(null);
       setError(null);
       setOpening(null);
     }
   }
 
-  // Refresh the recent-searches shortcuts on every open so queries run on other
-  // devices (or cleared elsewhere) surface here. Best-effort; a failure keeps
-  // the last list.
+  // Prefetch recent searches once, when the modal first mounts (closed, at
+  // idle) so the first open shows the badges immediately instead of after a
+  // server round trip. Best-effort; a failure keeps the last list.
   useEffect(() => {
-    if (!opened) {
-      return;
-    }
+    let cancelled = false;
     getSearchHistory()
       .then((result) => {
-        if (result.ok) {
+        if (!cancelled && result.ok) {
           setHistory(result.history);
         }
       })
       .catch(() => {
         // Keep the last known list.
       });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // Refresh on every open so queries run on other devices (or cleared
+  // elsewhere) surface here.
+  useEffect(() => {
+    if (!opened) {
+      return;
+    }
+    let cancelled = false;
+    getSearchHistory()
+      .then((result) => {
+        if (!cancelled && result.ok) {
+          setHistory(result.history);
+        }
+      })
+      .catch(() => {
+        // Keep the last known list.
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [opened]);
 
   // The modal zooms out of / shrinks back into the header search button (the
@@ -182,10 +242,16 @@ export default function EventSearchModal({ opened, onClose, originRect }: EventS
     }
     setError(null);
     setLoading(true);
+    // Resolve the window locally so the result header can name the scope even
+    // though the server owns the final coercion.
+    const effectiveFrom = from || defaultFrom;
+    const effectiveTo = to || defaultTo;
     try {
       const result = await searchEvents(trimmed, from ?? "", to ?? "");
       if (result.ok) {
         setResults(result.events);
+        setMyEventIds(result.myEventIds);
+        setSearchedRange({ from: effectiveFrom, to: effectiveTo });
         // Remember the query server-side (fire-and-forget) and update the local
         // badge list optimistically.
         void recordSearchHistory(trimmed);
@@ -241,6 +307,35 @@ export default function EventSearchModal({ opened, onClose, originRect }: EventS
   const rangeEnd =
     results && results.length > 0 ? results[results.length - 1].start.slice(0, 10) : (to ?? "");
 
+  // The user's own rows get the amber agenda highlight, external (Google-made)
+  // rows the purple one — the same classes the dashboard agenda uses.
+  const myIdSet = useMemo(() => new Set(myEventIds), [myEventIds]);
+  const renderAgendaEvent: AgendaEventRender = useCallback(
+    (event, props) => {
+      const calendarEvent = event as unknown as CalendarEvent;
+      const mine = myIdSet.has(String(event.id));
+      const external = calendarEvent.payload?.external === true;
+      if (!mine && !external) {
+        return <UnstyledButton {...props} />;
+      }
+      const extra = [
+        mine && "c2-my-agenda-event",
+        external && "c2-ext-agenda-event",
+      ]
+        .filter(Boolean)
+        .join(" ");
+      return <UnstyledButton {...props} className={`${props.className ?? ""} ${extra}`.trim()} />;
+    },
+    [myIdSet],
+  );
+
+  const rangeChanges =
+    ((from || defaultFrom) !== defaultFrom ? 1 : 0) + ((to || defaultTo) !== defaultTo ? 1 : 0);
+  const showRecent = history !== null && history.length > 0 && (results === null || results.length === 0);
+  const rangeLabel = searchedRange
+    ? `${dayjs(searchedRange.from).format("D MMM YYYY")} – ${dayjs(searchedRange.to).format("D MMM YYYY")}`
+    : "";
+
   return (
     <Modal
       opened={mounted}
@@ -249,15 +344,136 @@ export default function EventSearchModal({ opened, onClose, originRect }: EventS
       centered
       size={isNarrow ? "xs" : isDesktop ? "lg" : "md"}
       transitionProps={transitionProps}
+      closeButtonProps={{ "aria-label": "Close search" }}
     >
-      <Stack>
-        {history !== null && history.length > 0 && (
-          <Stack gap={4}>
+      {/* One bounded column: a fixed one-row toolbar (input + Search + date
+          filter), then the result list as the only scroll region. The max
+          height keeps the dialog within the viewport so the Modal body never
+          scrolls and the mobile keyboard (dvh) shrinks it cleanly. */}
+      <Stack gap="sm" style={{ maxHeight: "min(72dvh, 680px)" }}>
+        <Group gap="xs" wrap="nowrap" align="center" style={{ flexShrink: 0 }}>
+          <form style={{ flex: 1, minWidth: 0 }} onSubmit={handleSubmit}>
+            <Group gap="xs" wrap="nowrap" align="center">
+              <TextInput
+                aria-label="Search events"
+                placeholder="Search event titles and locations"
+                value={query}
+                onChange={(event) => setQuery(event.currentTarget.value)}
+                enterKeyHint="search"
+                style={{ flex: 1, minWidth: 0 }}
+                rightSection={
+                  query ? (
+                    <ActionIcon
+                      variant="subtle"
+                      color="gray"
+                      size="sm"
+                      aria-label="Clear search"
+                      onClick={() => setQuery("")}
+                    >
+                      <IconX size={14} />
+                    </ActionIcon>
+                  ) : null
+                }
+              />
+              {/* Desktop keeps the labelled button; phones use a 43px icon so
+                  the input, submit and date filter stay on one row. */}
+              <Button
+                type="submit"
+                visibleFrom="lg"
+                loading={loading}
+                loaderProps={BUTTON_LOADER_PROPS}
+                leftSection={<IconSearch size={16} />}
+              >
+                Search
+              </Button>
+              <ActionIcon
+                type="submit"
+                hiddenFrom="lg"
+                size={43}
+                variant="filled"
+                aria-label="Search"
+                loading={loading}
+                loaderProps={BUTTON_LOADER_PROPS}
+              >
+                <IconSearch size={18} />
+              </ActionIcon>
+            </Group>
+          </form>
+          <Menu
+            shadow="md"
+            width={300}
+            position="bottom-end"
+            closeOnClickOutside={false}
+            transitionProps={{
+              transition: "pop-top-right",
+              duration: MOTION.popover,
+              timingFunction: "ease",
+            }}
+          >
+            <Menu.Target>
+              <Box pos="relative">
+                <ActionIcon
+                  size={43}
+                  variant="default"
+                  aria-label="Search date range"
+                  style={{ flexShrink: 0 }}
+                >
+                  <IconCalendar size={18} />
+                </ActionIcon>
+                {rangeChanges > 0 && (
+                  <Badge
+                    size="sm"
+                    variant="filled"
+                    radius="xl"
+                    pos="absolute"
+                    style={{ top: -4, right: -4 }}
+                  >
+                    {rangeChanges}
+                  </Badge>
+                )}
+              </Box>
+            </Menu.Target>
+            <Menu.Dropdown>
+              <Stack gap="sm" p="xs">
+                <Group grow align="flex-end" wrap="wrap">
+                  <DatePickerInput
+                    label="From"
+                    value={from}
+                    valueFormat="YYYY-MM-DD"
+                    onChange={setFrom}
+                    clearable
+                  />
+                  <DatePickerInput
+                    label="To"
+                    value={to}
+                    valueFormat="YYYY-MM-DD"
+                    onChange={setTo}
+                    clearable
+                  />
+                </Group>
+                <Button
+                  variant="subtle"
+                  size="xs"
+                  disabled={rangeChanges === 0}
+                  onClick={() => {
+                    setFrom(defaultFrom);
+                    setTo(defaultTo);
+                  }}
+                >
+                  Reset to default range
+                </Button>
+              </Stack>
+            </Menu.Dropdown>
+          </Menu>
+        </Group>
+
+        {showRecent && (
+          <Stack gap={4} style={{ flexShrink: 0 }}>
             <Text size="xs" c="dimmed" fw={500}>
               Recent searches
             </Text>
-            <Group gap={4} wrap="wrap">
-              {history.map((term) => (
+            <div className="c2-chip-scroll">
+              {history?.map((term) => (
                 <Group key={term} gap={0} wrap="nowrap">
                   <Badge
                     component="button"
@@ -286,97 +502,121 @@ export default function EventSearchModal({ opened, onClose, originRect }: EventS
                   </ActionIcon>
                 </Group>
               ))}
-            </Group>
+            </div>
           </Stack>
         )}
-        <form onSubmit={handleSubmit}>
-          <TextInput
-            label="Search"
-            placeholder="Search event titles and locations"
-            value={query}
-            onChange={(event) => setQuery(event.currentTarget.value)}
-            leftSection={<IconSearch size={14} style={{ color: "var(--mantine-color-dimmed)" }} />}
-            autoFocus
-          />
-          <Group mt="xs" grow>
-            <DatePickerInput
-              label="From"
-              value={from}
-              valueFormat="YYYY-MM-DD"
-              clearable
-              onChange={setFrom}
-            />
-            <DatePickerInput
-              label="To"
-              value={to}
-              valueFormat="YYYY-MM-DD"
-              clearable
-              onChange={setTo}
-            />
-          </Group>
-          <Button
-            type="submit"
-            mt="md"
-            fullWidth
-            leftSection={<IconSearch size={16} />}
-            loading={loading}
-            loaderProps={BUTTON_LOADER_PROPS}
-          >
-            Search
-          </Button>
-        </form>
 
         {error && (
-          <Text size="sm" c="red">
+          <Text size="sm" c="red" style={{ flexShrink: 0 }}>
             {error}
           </Text>
         )}
 
-        {results !== null &&
-          (results.length === 0 ? (
-            <Text size="sm" c="dimmed" ta="center" py="lg">
-              No events match your search.
+        {!loading && results !== null && results.length > 0 && (
+          <Group justify="space-between" gap="xs" wrap="nowrap" style={{ flexShrink: 0 }}>
+            <Text
+              size="xs"
+              c="dimmed"
+              style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
+            >
+              {results.length} result{results.length === 1 ? "" : "s"}
+              {rangeLabel ? ` · ${rangeLabel}` : ""}
             </Text>
-          ) : (
-            <Box
-              ref={listRef}
-              style={{
-                position: "relative",
-                border: "1px solid var(--mantine-color-default-border)",
-                borderRadius: "var(--mantine-radius-md)",
-                overflow: "hidden",
-                maxHeight: "calc(100vh - 320px)",
-                overflowY: "auto",
+            <Button
+              variant="subtle"
+              size="compact-xs"
+              onClick={() => {
+                setQuery("");
+                setResults(null);
+                setMyEventIds([]);
+                setSearchedRange(null);
+                setError(null);
               }}
             >
-              <AgendaView
-                rangeStart={rangeStart}
-                rangeEnd={rangeEnd}
-                events={results}
-                styles={{ agendaViewHeader: { display: "none" } }}
-                onEventClick={handleEventClick}
-              />
-              {opened && opening && (
-                <Box
+              Clear
+            </Button>
+          </Group>
+        )}
+
+        {loading && (
+          <Box style={{ border: LIST_BORDER, borderRadius: "var(--mantine-radius-md)", overflow: "hidden" }}>
+            <LoadingStatus label="Searching events" />
+            <Stack gap={0}>
+              {Array.from({ length: 4 }).map((_, i) => (
+                <Group
+                  key={i}
+                  gap="sm"
+                  wrap="nowrap"
+                  align="center"
                   style={{
-                    position: "absolute",
-                    top: opening.top,
-                    left: opening.left,
-                    width: opening.width,
-                    height: opening.height,
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    background: "var(--mantine-color-body)",
-                    pointerEvents: "none",
+                    padding: "var(--mantine-spacing-sm)",
+                    borderTop: i === 0 ? undefined : LIST_BORDER,
                   }}
                 >
-                  <Loader size="sm" color="gray" />
-                  <LoadingStatus label="Opening event" />
-                </Box>
-              )}
-            </Box>
-          ))}
+                  <Skeleton width={4} height={28} radius={2} style={{ flexShrink: 0 }} />
+                  <Box style={{ flex: 1, display: "flex", flexDirection: "column", gap: 4 }}>
+                    <Skeleton height={13} radius={2} style={{ width: `${60 - (i % 3) * 12}%` }} />
+                    <Skeleton height={10} radius={2} style={{ width: "32%" }} />
+                  </Box>
+                </Group>
+              ))}
+            </Stack>
+          </Box>
+        )}
+
+        {!loading && results !== null && results.length === 0 && (
+          <EmptyState
+            icon={<IconSearchOff size={18} />}
+            description={
+              query.trim()
+                ? `No events match “${query.trim()}”. Try another term or widen the date range.`
+                : "No events match your search."
+            }
+          />
+        )}
+
+        {!loading && results !== null && results.length > 0 && (
+          <Box
+            ref={listRef}
+            style={{
+              position: "relative",
+              border: LIST_BORDER,
+              borderRadius: "var(--mantine-radius-md)",
+              overflow: "hidden",
+              overflowY: "auto",
+              flex: "1 1 auto",
+              minHeight: 0,
+            }}
+          >
+            <AgendaView
+              rangeStart={rangeStart}
+              rangeEnd={rangeEnd}
+              events={results}
+              styles={{ agendaViewHeader: { display: "none" } }}
+              renderEvent={renderAgendaEvent}
+              onEventClick={handleEventClick}
+            />
+            {opened && opening && (
+              <Box
+                style={{
+                  position: "absolute",
+                  top: opening.top,
+                  left: opening.left,
+                  width: opening.width,
+                  height: opening.height,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  background: "var(--mantine-color-body)",
+                  pointerEvents: "none",
+                }}
+              >
+                <Loader size="sm" color="gray" />
+                <LoadingStatus label="Opening event" />
+              </Box>
+            )}
+          </Box>
+        )}
       </Stack>
     </Modal>
   );

@@ -180,19 +180,26 @@ shows one of:
   candidate as a distinct `brand` **"This event"** bar plus each conflicting event in
   its type color, lane-packed with shaded overlap bands. The candidate's effective
   window comes back from `checkEventClashes` (`candidate`); a multi-day candidate
-  renders one timeline per covered day (`clashCoveredDayKeys`), capped at five, and
-  the wizard's bars are **inert** (`href` omitted) so a tap can never navigate away
-  from an in-progress draft. Tapping the heading reveals one row per conflicting
-  event — the **template-rendered label** primary (the `doubleBooking` target, else
-  Master, via `clashLabelFor`; **external events skip the recipe** and show their stored
-  summary verbatim), the stored summary muted below, then when +
-  department, and the affected people as chips (the acting user's chip reads
-  "You (name)" in the accent color). Many people from a whole-department clash are
-  capped at six chips with a `+N more` summary. A closing line reminds the user the
-  event can still be saved. The polite `role="status"` announcement is scoped to the
-  heading alone, so the clash count is announced on arrival while the timeline and
-  expanding stay quiet. Each entry also carries `eventId`/`calendarId`, which only the
-  Double Booking page uses (its rows deep-link; the wizard's stay inert).
+  renders one timeline per covered day (`clashCoveredDayKeys`), capped at five. The
+  candidate's "This event" bar is inert; **every conflicting bar and row is
+  tappable** and opens that event's details **in place** — the read-only
+  `EventDetail` modal (shaped skeleton, zoom-from-origin, the same modal the Double
+  Booking page uses), fetched lazily by the read-only `getWizardClashEventDetail`
+  server action (it re-runs the advisory's resolution chain and only serves copies on
+  the candidate's target calendars, reading through the month cache). The modal's
+  single action, **"Open in calendar"**, is the one navigation: it **confirms first**
+  ("Discard draft?") because leaving the wizard drops the draft, then closes the form
+  and deep-links to the event on the dashboard. Tapping the heading reveals one row
+  per conflicting event — the **template-rendered label** primary (the
+  `doubleBooking` target, else Master, via `clashLabelFor`; **external events skip
+  the recipe** and show their stored summary verbatim), the stored summary muted
+  below, then when + department, and the affected people as chips (the acting user's
+  chip reads "You (name)" in the accent color). Many people from a whole-department
+  clash are capped at six chips with a `+N more` summary. A closing line reminds the
+  user the event can still be saved. The polite `role="status"` announcement is
+  scoped to the heading alone, so the clash count is announced on arrival while the
+  timeline and expanding stay quiet. Each entry also carries
+  `eventId`/`calendarId`/`googleEventId`, which the in-place detail fetch uses.
 - **No clashes** — a green confirmation naming how many people were checked.
 - **Error** — a muted one-liner with a Retry button.
 
@@ -258,9 +265,9 @@ unit-tested, following the repo convention.
 | `src/lib/events/clashTimeline.ts` | Pure timeline geometry + lane packing (unit-tested) |
 | `src/components/clashTimeline.tsx` | Double Booking timeline + 30-day strip visuals |
 | `src/lib/events/clashQuery.ts` | Month-cache read over the candidate's target calendars; flags informational events from their type name |
-| `src/lib/events/clashActions.ts` | `checkEventClashes` server action (read-only) |
+| `src/lib/events/clashActions.ts` | `checkEventClashes` + `getWizardClashEventDetail` server actions (read-only) |
 | `src/components/clashCards.tsx` | Shared collapsible amber card + per-event row (page + wizard) |
-| `src/app/(protected)/dashboard/EventClashCheck.tsx` | Review-step advisory panel |
+| `src/app/(protected)/dashboard/EventClashCheck.tsx` | Review-step advisory panel + in-place detail modal |
 | `src/app/(protected)/dashboard/EventForm.tsx` | Review step mounts the panel with the submit payload |
 
 Related docs: [`event-lifecycle.md`](event-lifecycle.md) (wizard, resolution chain),

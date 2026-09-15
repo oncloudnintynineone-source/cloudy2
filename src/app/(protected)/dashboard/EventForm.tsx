@@ -147,6 +147,12 @@ interface EventFormProps {
   /** Open the just-saved event's details modal (the toast "View event" action). */
   onViewSaved?: (eventId: string | null) => void;
   /**
+   * Leave the wizard and open a conflicting event on the calendar (the
+   * review-step advisory's "Open in calendar"). Discards the draft, so the
+   * advisory confirms before calling it.
+   */
+  onOpenInCalendar?: (event: CalendarEvent) => void;
+  /**
    * Optimistic mutation support. The grid behind the wizard shows the
    * submitted change immediately (see docs/optimistic-mutations.md); these
    * callbacks drive the overlay's apply/settle/rollback lifecycle.
@@ -270,6 +276,7 @@ export function EventForm({
   inviteeUsers,
   onDone,
   onViewSaved,
+  onOpenInCalendar,
   onOptimistic,
   onOptimisticSettled,
   onOptimisticRollback,
@@ -1712,7 +1719,11 @@ export function EventForm({
                 </Stack>
               </Paper>
 
-              <EventClashCheck request={clashRequest} />
+              <EventClashCheck
+                request={clashRequest}
+                isAdmin={isAdmin}
+                onOpenInCalendar={onOpenInCalendar}
+              />
 
               {isDesktopWide ? (
                 <Grid gap="sm">

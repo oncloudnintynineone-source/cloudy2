@@ -11,7 +11,7 @@ import {
   Tooltip,
   UnstyledButton,
 } from "@mantine/core";
-import { useMediaQuery } from "@mantine/hooks";
+import { useHotkeys, useMediaQuery } from "@mantine/hooks";
 import {
   IconAddressBook,
   IconCalendarClock,
@@ -31,6 +31,7 @@ import { usePathname, useRouter } from "next/navigation";
 
 import { PinnedEventsPanel } from "@/components/PinnedEventsPanel";
 import { PinnedEventsTicker } from "@/components/PinnedEventsTicker";
+import EventSearchModalSkeleton from "@/components/EventSearchModalSkeleton";
 import { ColdStartReadyBar, useColdStartReady } from "@/components/ColdStartReady";
 import { ActivityBar, ActivityProvider, useReportActivity } from "@/components/ActivityBar";
 import {
@@ -41,17 +42,20 @@ import {
 
 // Lazy-loaded so the search modal (its AgendaView + DatePicker imports) stays
 // out of the shell's initial bundle — it only loads once the user opens search.
+// The lightweight skeleton is the fallback for a click that races the chunk
+// download, so the tap always paints an immediate dialog.
 const EventSearchModal = dynamic(() => import("@/components/EventSearchModal"), {
   ssr: false,
+  loading: () => <EventSearchModalSkeleton />,
 });
 
 // `next/dynamic` returns a `React.ComponentType`, but the runtime Loadable also
 // carries a `.preload()` static that fetches the chunk without mounting. Preload
 // in the background so the modal's first open is instant rather than a
-// chunk-download round trip.
-const preloadSearchModal = () => {
-  (EventSearchModal as unknown as { preload?: () => void }).preload?.();
-};
+// chunk-download round trip. Returns the preload promise (when available) so the
+// caller can mount the modal closed as soon as the chunk lands.
+const preloadSearchModalChunk = () =>
+  (EventSearchModal as unknown as { preload?: () => Promise<unknown> }).preload?.();
 import { UserMenu } from "@/components/UserMenu";
 import { BANNER_HEIGHT_PX, type BannerConfig } from "@/lib/banner/banner";
 import { BOTTOM_NAV_HEIGHT } from "@/lib/bottomNav";
@@ -380,17 +384,30 @@ export function AppShellShell({
   // shell stays mounted across the navigation, so the modal survives it).
   const [pinnedOpen, setPinnedOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
-  // The lazy search modal stays mounted after its first open so the shrink-out
-  // animation can play (and later opens don't reload the chunk).
+  // The lazy search modal is mounted as soon as its chunk preloads (kept closed
+  // until opened) so the first open is an instant prop flip — no mount, chunk
+  // parse, or network wait on the click. It also stays mounted after the first
+  // open so the shrink-out animation can play.
   const [searchLoaded, setSearchLoaded] = useState(false);
   // The search icon's rect at open time; the modal zooms out of / shrinks into it.
   const [searchOriginRect, setSearchOriginRect] = useState<Rect | null>(null);
+  const searchButtonRef = useRef<HTMLButtonElement>(null);
   const router = useRouter();
 
-  // Preload the search modal's chunk shortly after first paint (idle, so it
-  // never competes with the launch-critical work), so the first open is instant
-  // instead of a chunk download. The header button also preloads on
-  // hover/focus (below) as a second, nearer signal.
+  // Preload the modal's chunk and, once it lands, mount the modal closed so the
+  // first open pays nothing. Called at idle and on every near signal (hover,
+  // focus, pointer-down/touch-start, hotkey) — a promise that resolves
+  // repeatedly is harmless.
+  const preloadSearchModal = useCallback(() => {
+    const promise = preloadSearchModalChunk();
+    if (promise) {
+      promise.then(() => setSearchLoaded(true)).catch(() => undefined);
+    }
+  }, []);
+
+  // Preload shortly after first paint (idle, so it never competes with the
+  // launch-critical work). The deadline keeps it from being starved on a busy
+  // phone; the header button's hover/touch signals are nearer triggers.
   useEffect(() => {
     if (typeof window === "undefined") {
       return;
@@ -398,7 +415,7 @@ export function AppShellShell({
     const hasIdle = typeof window.requestIdleCallback === "function";
     let id: number;
     if (hasIdle) {
-      id = window.requestIdleCallback(preloadSearchModal);
+      id = window.requestIdleCallback(preloadSearchModal, { timeout: 2000 });
     } else {
       id = window.setTimeout(preloadSearchModal, 0);
     }
@@ -409,7 +426,25 @@ export function AppShellShell({
         window.clearTimeout(id);
       }
     };
+  }, [preloadSearchModal]);
+
+  // Open the search modal, growing it out of the header button (or the passed
+  // rect). Mounts the lazy chunk if the preload hasn't landed yet (the dynamic
+  // loading fallback covers that race).
+  const openSearch = useCallback((originRect: Rect | null) => {
+    setSearchOriginRect(originRect);
+    setSearchLoaded(true);
+    setSearchOpen(true);
   }, []);
+
+  // Desktop keyboard shortcut: ⌘/Ctrl-K opens search from anywhere in the shell.
+  useHotkeys([
+    [
+      "mod+K",
+      () => openSearch(searchButtonRef.current?.getBoundingClientRect() ?? null),
+      { preventDefault: true },
+    ],
+  ]);
 
   // The header button's rect at open time: the panel modal zooms out of /
   // shrinks back into it. Captured before any navigation — the header is
@@ -851,17 +886,16 @@ export function AppShellShell({
                 />
                 <Group gap={isNarrow ? 2 : "xs"} wrap="nowrap">
                   <ActionIcon
+                    ref={searchButtonRef}
                     variant="transparent"
                     c="white"
                     size="lg"
                     aria-label="Search events"
                     onPointerEnter={preloadSearchModal}
                     onFocus={preloadSearchModal}
-                    onClick={(e) => {
-                      setSearchOriginRect(e.currentTarget.getBoundingClientRect());
-                      setSearchLoaded(true);
-                      setSearchOpen(true);
-                    }}
+                    onPointerDown={preloadSearchModal}
+                    onTouchStart={preloadSearchModal}
+                    onClick={(e) => openSearch(e.currentTarget.getBoundingClientRect())}
                   >
                     <IconSearch size={18} />
                   </ActionIcon>

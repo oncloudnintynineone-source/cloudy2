@@ -505,11 +505,20 @@ What the cache changed:
   regardless of calendar count); only true misses touch Google (parallel, ≤4, coalesced
   per key in-process via the `inflight` map).
 
-Two adjacent DB-load reductions complement the layered cache (they live outside this
+Three adjacent DB-load reductions complement the layered cache (they live outside this
 module, but they keep the render's total query count low):
 
-- `listCalendars` / `listEventTypes` are React-`cache()`d per request, so the dashboard
-  page and `fetchRangeEvents` share one read each instead of two.
+- The user-independent reference reads — `listCalendars` / `listEventTypes` (plus
+  `listEventTypeGroups`, `listUsers`, the settings row, event-title templates and quick
+  links) — are React-`cache()`d per request **and** served from a shared 60s in-memory TTL
+  (`getCachedValue` via `src/lib/configCache.ts`). The per-request cache alone can't span
+  the dashboard's **two server actions** (the active read + the tab preload are separate
+  requests), so without the TTL every launch re-read the whole config block twice; the TTL
+  collapses that to one read per window per instance. Admin edits appear within
+  `CONFIG_CACHE_TTL_MS` (60s), matching the events cache's own fresh window.
+- `getDashboardViews` reads a user's tabs **before** running the transactional default-tab
+  seed (`ensureDefaultDashboardView`), so the seed — an INSERT + `SELECT … FOR UPDATE` +
+  COUNT — only runs for an account that has no tabs yet, not on every dashboard read.
 - `fetchPinnedEvents` (a global, user-independent value) is served from a 60s in-memory
   TTL (`src/lib/cache.ts`), so the header ticker's + panel's mount/refocus/panel-close/
   CRUD refreshes collapse to one read per window; event mutations call

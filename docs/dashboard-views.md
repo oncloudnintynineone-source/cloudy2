@@ -50,9 +50,11 @@ overrides (see `src/db/schema.ts`). **Duplicates of the same kind are allowed**
 identity** — carried in the URL as `?view=<tab id>`; a legacy `?view=<kind>`
 string maps to the first tab of that kind.
 
-- **Seed**: the first dashboard read per account lazily creates one "Month"
-  tab (`ensureDefaultDashboardView`, mutex-guarded on the
-  `user_preferences` row so racing requests can't double-insert).
+- **Seed**: `getDashboardViews` reads the account's tabs first and only when
+  that read is empty calls `ensureDefaultDashboardView` to create one "Month"
+  tab (mutex-guarded on the `user_preferences` row so racing requests can't
+  double-insert), then re-reads. The read-first order keeps the common path
+  free of the seed transaction.
 - **Add view** has two entry points, both opening the same quick **Add-view
    dialog** (the shared **seven-kind picker** `ViewTypePicker.tsx` + a name; the
   default name follows the chosen kind until edited):

@@ -143,8 +143,11 @@ doc content here.
   `dashboard.monthZoom`); Week (D) is a custom matrix (`buildWeekLanes`). Entry highlights:
   amber = mine, purple = external (`c2-my-*` / `c2-ext-*` in `globals.css`).
   Design: [docs/dashboard-views.md](docs/dashboard-views.md).
-- **Wide grids pan** via `useGridPan` + `GridPanControls`; the zoom +/− pair lives in the
-  shared `GridNavControls` right-edge cluster (`zoomMin`/`zoomMax` per view).
+- **Wide grids pan + zoom** via `useGridPan` + the shared `GridNavControls`
+  right-edge cluster (pan arrows + the zoom +/− pair(s); `zoomMin`/`zoomMax` per
+  view). Every grid kind zooms — Day/Week (H), Week (D), Week (Grid) (two axes),
+  Month (fit-to-width) — except Agenda. Zoom levels live in
+  `src/lib/ui/slotZoom.ts` / `monthZoom.ts` (0.25–6 and 1–6).
   Design: [docs/grid-pan.md](docs/grid-pan.md).
 - **Fullscreen calendar (immersive mode):** hides shell chrome + requests page fullscreen;
   owned by `AppShellShell`, only `DashboardView` controls it and always exits on unmount.
@@ -155,9 +158,10 @@ doc content here.
   **inline** on the AppShell root — do NOT use Mantine's `vars` prop (a resolver function in
   v9, not an object). Design: [docs/announcement-banner.md](docs/announcement-banner.md).
 - **Pinned Events:** header-left ticker rotating upcoming pinned events' titles every 5s
-  behind an inline amber `1/N` count chip; tapping opens the pinned panel ("Pin this event"
-  switch on the wizard's Other settings step). Titles render via the `pinnedHeader` template
-  target (panel list: `pinned`). Design: [docs/pinned-events.md](docs/pinned-events.md).
+  behind an inline amber `1/N` count chip and a days-remaining countdown chip (`5D`, `0D`
+  for same-day; no pin icon); tapping opens the pinned panel ("Pin this event" switch on
+  the wizard's Other settings step). Titles render via the `pinnedHeader` template target
+  (panel list: `pinned`). Design: [docs/pinned-events.md](docs/pinned-events.md).
 - **Event search:** header icon opens a **lazy-loaded** (`dynamic` + `ssr: false`) modal
   that free-text searches every department calendar **directly via Google Calendar**
   (`events.list` `q` — bypasses the month cache), rendered in `@mantine/schedule`'s

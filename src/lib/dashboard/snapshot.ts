@@ -46,6 +46,7 @@ export type DashboardSnapshot = Omit<
   | "initialZoom"
   | "initialGridWeekColZoom"
   | "initialGridWeekRowZoom"
+  | "initialWeekMatrixZoom"
   | "initialMonthZoom"
   | "initialDualSplit"
   | "initialEditEventId"

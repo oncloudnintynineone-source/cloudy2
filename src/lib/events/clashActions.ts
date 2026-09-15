@@ -30,6 +30,7 @@ import {
   buildEventTitleContext,
   resolveEffectiveInput,
   resolveTargetCalendars,
+  type EventTitleContext,
 } from "@/lib/events/writeContext";
 import type { EventRef } from "@/lib/events/targets";
 import {
@@ -155,48 +156,78 @@ function conflictWindowNaive(
   return { startNaive: formatInstantToNaive(start), endNaive: formatInstantToNaive(end) };
 }
 
+/** A resolved candidate context for the clash check and the wizard detail read. */
+interface ClashContext {
+  effectiveInput: EventFormValues;
+  titleContext: EventTitleContext;
+  /** Department calendar ids the candidate would write copies to. */
+  targets: string[];
+}
+
+/**
+ * Shared resolution for the pre-submit advisory and the wizard's in-place
+ * detail read: normalize the candidate exactly like a create/update (fixed
+ * organizer), mirror the edit modification guard, validate, then run the shared
+ * resolution chain and derive the target calendars. Returns null when the
+ * candidate has nothing to compare (failed guard, invalid form, or no derivable
+ * calendars) — the same cases the advisory reports as "no clashes".
+ */
+async function resolveClashContext(
+  request: EventClashCheckRequest,
+  session: Awaited<ReturnType<typeof requireSession>>,
+): Promise<ClashContext | null> {
+  const normalized = clampEventEnd(
+    resolveEventAuthor(
+      request.values,
+      session.user.id,
+      request.ref,
+      canChangeLock(session, request.ref?.creatorId ?? null),
+    ),
+  );
+
+  // Editing: mirror updateEvent's modification guard so the advisory is not
+  // richer than the mutation the actor is allowed to perform.
+  if (request.ref) {
+    const memberships = await activeMembershipsByDepartment(request.ref.inviteeDepartmentIds);
+    const guardError = modifyGuard(
+      session,
+      {
+        creatorId: request.ref.creatorId,
+        inviteeUserIds: request.ref.inviteeUserIds,
+        inviteeDepartmentIds: request.ref.inviteeDepartmentIds,
+        ownerOnlyEdits: request.ref.ownerOnlyEdits,
+      },
+      memberships,
+    );
+    if (guardError) {
+      return null;
+    }
+  }
+
+  // Incomplete/invalid windows have nothing to compare yet.
+  if (Object.keys(validateEventForm(normalized)).length > 0) {
+    return null;
+  }
+
+  const titleContext = await buildEventTitleContext(normalized);
+  const effectiveInput = resolveEffectiveInput(normalized, titleContext);
+  // No department calendars derive — the mutation itself would be rejected
+  // ("Assign yourself to a department or tag an invitee"), so nothing to warn about.
+  const targets = await resolveTargetCalendars(effectiveInput, request.ref?.calendarId ?? null);
+  if (targets.length === 0) {
+    return null;
+  }
+
+  return { effectiveInput, titleContext, targets };
+}
+
 export async function checkEventClashes(
   request: EventClashCheckRequest,
 ): Promise<EventClashCheckResult> {
   const session = await requireSession();
   try {
-    const normalized = clampEventEnd(
-      resolveEventAuthor(
-        request.values,
-        session.user.id,
-        request.ref,
-        canChangeLock(session, request.ref?.creatorId ?? null),
-      ),
-    );
-
-    // Editing: mirror updateEvent's modification guard so the advisory is not
-    // richer than the mutation the actor is allowed to perform.
-    if (request.ref) {
-      const memberships = await activeMembershipsByDepartment(request.ref.inviteeDepartmentIds);
-      const guardError = modifyGuard(
-        session,
-        {
-          creatorId: request.ref.creatorId,
-          inviteeUserIds: request.ref.inviteeUserIds,
-          inviteeDepartmentIds: request.ref.inviteeDepartmentIds,
-          ownerOnlyEdits: request.ref.ownerOnlyEdits,
-        },
-        memberships,
-      );
-      if (guardError) {
-        return {
-          ok: true,
-          checkedPeople: 0,
-          clashes: [],
-          currentUserId: session.user.id,
-          candidate: null,
-        };
-      }
-    }
-
-    const errors = validateEventForm(normalized);
-    if (Object.keys(errors).length > 0) {
-      // Incomplete/invalid windows have nothing to compare yet.
+    const context = await resolveClashContext(request, session);
+    if (!context) {
       return {
         ok: true,
         checkedPeople: 0,
@@ -206,21 +237,7 @@ export async function checkEventClashes(
       };
     }
 
-    const titleContext = await buildEventTitleContext(normalized);
-    const effectiveInput = resolveEffectiveInput(normalized, titleContext);
-    const targets = await resolveTargetCalendars(effectiveInput, request.ref?.calendarId ?? null);
-    if (targets.length === 0) {
-      // No department calendars derive — the mutation itself would be rejected
-      // ("Assign yourself to a department or tag an invitee"), so nothing to warn about.
-      return {
-        ok: true,
-        checkedPeople: 0,
-        clashes: [],
-        currentUserId: session.user.id,
-        candidate: null,
-      };
-    }
-
+    const { effectiveInput, titleContext, targets } = context;
     const allDay = effectiveInput.timeOption !== "range";
     const window = absEventRange(effectiveInput.start, effectiveInput.end, allDay);
 
@@ -537,6 +554,42 @@ export type ClashEventDetailResult =
     }
   | { ok: false; error: string };
 
+/** An active roster row (the shape `listUsers` returns). */
+type RosterUserRow = Awaited<ReturnType<typeof listUsers>>[number];
+
+/**
+ * Shape a resolved event copy into the in-place detail modal payload (shared by
+ * the Double Booking page and the wizard's review-step advisory): the full
+ * event plus the active-roster name maps and the acting user's department ids.
+ */
+async function shapeClashDetail(
+  event: CalendarEvent,
+  activeUsers: RosterUserRow[],
+  sessionUserId: string,
+): Promise<ClashEventDetailResult> {
+  const [settings, calendars] = await Promise.all([getSettings(), listCalendars()]);
+  const peopleNames: Record<string, string> = Object.fromEntries(
+    activeUsers.map((user) => [
+      user.id,
+      formatFullName(
+        { name: user.name, departmentName: user.department?.name ?? null },
+        settings.nameTemplate,
+      ),
+    ]),
+  );
+  const calendarNames: Record<string, string> = Object.fromEntries(
+    calendars.map((calendar) => [calendar.id, calendar.name]),
+  );
+  const self = activeUsers.find((user) => user.id === sessionUserId);
+  return {
+    ok: true,
+    event,
+    peopleNames,
+    calendarNames,
+    myActiveDepartmentIds: self?.department?.id ? [self.department.id] : [],
+  };
+}
+
 /**
  * Read-only fetch of one clashing event for the Double Booking page's in-place
  * detail modal. Mirrors `checkUserClashes`'s guard: regular users may only
@@ -581,30 +634,58 @@ export async function getClashEventDetail(request: {
       return { ok: false, error: "Event not found" };
     }
 
-    const [settings, calendars] = await Promise.all([getSettings(), listCalendars()]);
-    const peopleNames: Record<string, string> = Object.fromEntries(
-      activeUsers.map((user) => [
-        user.id,
-        formatFullName(
-          { name: user.name, departmentName: user.department?.name ?? null },
-          settings.nameTemplate,
-        ),
-      ]),
-    );
-    const calendarNames: Record<string, string> = Object.fromEntries(
-      calendars.map((calendar) => [calendar.id, calendar.name]),
-    );
-    const self = activeUsers.find((user) => user.id === session.user.id);
-
-    return {
-      ok: true,
-      event,
-      peopleNames,
-      calendarNames,
-      myActiveDepartmentIds: self?.department?.id ? [self.department.id] : [],
-    };
+    return await shapeClashDetail(event, activeUsers, session.user.id);
   } catch (error) {
     console.error("[clashes] Event detail fetch failed", error);
+    return { ok: false, error: "Could not load the event" };
+  }
+}
+
+/**
+ * Read-only fetch of one conflicting event for the wizard's review-step
+ * advisory in-place detail modal (docs/event-clashes.md §1.6). Unlike the
+ * Double Booking page's read, the conflicting copy may sit on any of the
+ * candidate's target calendars (a tagged user's department, a tagged
+ * department), so authorization re-runs the same resolution the advisory did
+ * and only allows calendars the candidate would write copies to. Reads through
+ * the sanctioned month cache (never raw `listEvents`).
+ */
+export async function getWizardClashEventDetail(request: {
+  request: EventClashCheckRequest;
+  calendarId: string;
+  eventId: string | null;
+  googleEventId: string;
+  startNaive: string;
+  endNaive: string;
+}): Promise<ClashEventDetailResult> {
+  const session = await requireSession();
+  try {
+    const context = await resolveClashContext(request.request, session);
+    // The advisory only ever surfaces copies on the candidate's target
+    // calendars, so anything else is a tampered request.
+    if (!context || !context.targets.includes(request.calendarId)) {
+      return { ok: false, error: "Event not found" };
+    }
+
+    const events = await fetchRangeEvents({
+      months: monthsInRange(request.startNaive, request.endNaive),
+      calendarIds: [request.calendarId],
+      typeFilter: [],
+      userFilter: [],
+    });
+    const event = request.eventId
+      ? findEventByGroupId(events, request.eventId)
+      : (events.find((candidate) => candidate.payload.googleEventId === request.googleEventId) ??
+        null);
+    if (!event) {
+      return { ok: false, error: "Event not found" };
+    }
+
+    const users = await listUsers();
+    const activeUsers = users.filter((user) => user.status === "active");
+    return await shapeClashDetail(event, activeUsers, session.user.id);
+  } catch (error) {
+    console.error("[clashes] Wizard event detail fetch failed", error);
     return { ok: false, error: "Could not load the event" };
   }
 }

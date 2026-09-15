@@ -2,6 +2,8 @@ import { cache } from "react";
 
 import { db } from "@/db";
 import { eventTitleTemplates, settings } from "@/db/schema";
+import { getCachedValue } from "@/lib/cache";
+import { CONFIG_CACHE_KEYS, CONFIG_CACHE_TTL_MS } from "@/lib/configCache";
 import {
   BANNER_DEFAULT_COLOR,
   isBannerColor,
@@ -67,12 +69,21 @@ function normalizeIdArray(value: unknown): string[] {
 
 /**
  * The raw settings row. Cached per request so callers that share a render
- * (the protected layout + a settings page) hit the DB once.
+ * (the protected layout + a settings page) hit the DB once, and in a 60s
+ * in-memory TTL (`getCachedValue`) so the layout's banner read and the
+ * dashboard's settings read don't each round-trip — including across the two
+ * server actions of a launch. Admin edits appear within `CONFIG_CACHE_TTL_MS`.
+ *
+ * The admin-secret columns on this row are NOT read through here — auth reads
+ * the row directly (`src/lib/auth.ts`, `src/lib/bootstrap.ts`), so caching this
+ * view cannot affect env reconciliation or login.
  */
-const readSettingsRow = cache(async () => {
-  const [row] = await db.select().from(settings).limit(1);
-  return row ?? null;
-});
+const readSettingsRow = cache(() =>
+  getCachedValue(CONFIG_CACHE_KEYS.settings, CONFIG_CACHE_TTL_MS, async () => {
+    const [row] = await db.select().from(settings).limit(1);
+    return row ?? null;
+  }),
+);
 
 /**
  * Read-only view of the settings row. Never exposes the admin password hash,
@@ -107,17 +118,19 @@ export async function getSettings(): Promise<SettingsView> {
 }
 
 export async function listEventTitleTemplates(): Promise<EventTitleTemplateView[]> {
-  const rows = await db
-    .select()
-    .from(eventTitleTemplates)
-    .orderBy(eventTitleTemplates.createdAt);
-  return rows.map((r) => ({
-    id: r.id,
-    label: r.label,
-    recipe: sanitizeTitleRecipe((r as unknown as { recipe?: unknown })?.recipe),
-    createdAt: r.createdAt,
-    updatedAt: r.updatedAt,
-  }));
+  return getCachedValue(CONFIG_CACHE_KEYS.eventTitleTemplates, CONFIG_CACHE_TTL_MS, async () => {
+    const rows = await db
+      .select()
+      .from(eventTitleTemplates)
+      .orderBy(eventTitleTemplates.createdAt);
+    return rows.map((r) => ({
+      id: r.id,
+      label: r.label,
+      recipe: sanitizeTitleRecipe((r as unknown as { recipe?: unknown })?.recipe),
+      createdAt: r.createdAt,
+      updatedAt: r.updatedAt,
+    }));
+  });
 }
 
 export async function getEventTitleTemplateMap(): Promise<Map<string, EventTitleTemplateView>> {

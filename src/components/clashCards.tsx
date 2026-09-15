@@ -124,9 +124,9 @@ export function ClashCard({
  * One conflicting/double-booking event inside an expanded clash card: title
  * (+ `External` badge), the human when-label · department line, and optional
  * per-entry content (e.g. the affected-people chips in the wizard panel).
- * When `href` is given the whole row is a link (the Double Booking page deep-
- * links to the event on the dashboard); without it the row is inert (the
- * wizard's advisory).
+ * With `onOpen` the row opens the in-place detail modal (both the Double
+ * Booking page and the wizard's review-step advisory); with `href` it is a
+ * dashboard deep link; with neither it is inert.
  */
 export function ClashEventRow({
   entry,

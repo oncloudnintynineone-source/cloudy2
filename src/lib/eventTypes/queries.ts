@@ -3,6 +3,8 @@ import { cache } from "react";
 
 import { db } from "@/db";
 import { eventTypes, eventTypeGroups } from "@/db/schema";
+import { getCachedValue } from "@/lib/cache";
+import { CONFIG_CACHE_KEYS, CONFIG_CACHE_TTL_MS } from "@/lib/configCache";
 import {
   normalizeAllowedLocations,
   type LocationCategory,
@@ -20,30 +22,34 @@ import {
  * `fetchRangeEvents`) hit the DB once; request-scoped only, so admin edits
  * still appear on the next request.
  */
-export const listEventTypes = cache(async () => {
-  const rows = await db.select().from(eventTypes).orderBy(asc(eventTypes.name));
-  return rows.map((row) => ({
-    ...row,
-    timeOptions: resolveTimeOptions(normalizeTimeOptions(row.timeOptions)),
-    allowedLocations: normalizeAllowedLocations(row.allowedLocations),
-  }));
-});
+export const listEventTypes = cache(() =>
+  getCachedValue(CONFIG_CACHE_KEYS.eventTypes, CONFIG_CACHE_TTL_MS, async () => {
+    const rows = await db.select().from(eventTypes).orderBy(asc(eventTypes.name));
+    return rows.map((row) => ({
+      ...row,
+      timeOptions: resolveTimeOptions(normalizeTimeOptions(row.timeOptions)),
+      allowedLocations: normalizeAllowedLocations(row.allowedLocations),
+    }));
+  }),
+);
 
 /**
  * All event type groups in display order (sortOrder, then name), for the
  * event form's grouped type picker and the admin group list. Same
  * per-request `cache()` as `listEventTypes`.
  */
-export const listEventTypeGroups = cache(async () => {
-  return db
-    .select({
-      id: eventTypeGroups.id,
-      name: eventTypeGroups.name,
-      sortOrder: eventTypeGroups.sortOrder,
-    })
-    .from(eventTypeGroups)
-    .orderBy(asc(eventTypeGroups.sortOrder), asc(eventTypeGroups.name));
-});
+export const listEventTypeGroups = cache(() =>
+  getCachedValue(CONFIG_CACHE_KEYS.eventTypeGroups, CONFIG_CACHE_TTL_MS, async () =>
+    db
+      .select({
+        id: eventTypeGroups.id,
+        name: eventTypeGroups.name,
+        sortOrder: eventTypeGroups.sortOrder,
+      })
+      .from(eventTypeGroups)
+      .orderBy(asc(eventTypeGroups.sortOrder), asc(eventTypeGroups.name)),
+  ),
+);
 
 export interface EventTypeDisplayInfo {
   name: string;

@@ -1,6 +1,6 @@
 "use client";
 
-import { type RefObject, useEffect, useState } from "react";
+import { type RefObject, useLayoutEffect, useState } from "react";
 import { ActionIcon } from "@mantine/core";
 import { IconArrowsMaximize, IconArrowsMinimize } from "@tabler/icons-react";
 
@@ -31,25 +31,36 @@ export function FullscreenToggle({
   chromeRef,
   active,
   onToggle,
+  layoutKey,
 }: {
   anchorRef: RefObject<HTMLDivElement | null>;
   chromeRef: RefObject<HTMLDivElement | null>;
   active: boolean;
   onToggle: () => void;
+  /**
+   * Layout identity the fixed position depends on (the caller passes its
+   * breakpoint/chrome measurement). When it changes the anchors are
+   * re-measured after commit, so a desktop↔mobile flip re-anchors the button
+   * instead of leaving it at the previous layout's offsets.
+   */
+  layoutKey?: string | number | boolean;
 }) {
   // Static anchor: the chrome's bottom edge (top) and the grid's right edge,
-  // measured once (null before first paint so the button never flashes
-  // unanchored) and re-measured on resize / anchor-size change / immersive
-  // toggle.
+  // measured on load (null before first paint so the button never flashes
+  // unanchored) and re-measured on resize / anchor-or-chrome size change /
+  // immersive toggle / `layoutKey` flip.
   const [pos, setPos] = useState<{ top: number; right: number } | null>(null);
 
-  useEffect(() => {
-    const anchor = anchorRef.current;
-    const chrome = chromeRef.current;
-    if (!anchor || !chrome) {
-      return;
-    }
+  useLayoutEffect(() => {
+    // Read the anchors fresh on every pass (never close over the mount-time
+    // nodes): a remounted anchor/chrome must be re-measured, not the detached
+    // ones.
     const measure = () => {
+      const anchor = anchorRef.current;
+      const chrome = chromeRef.current;
+      if (!anchor || !chrome) {
+        return;
+      }
       const gridRect = anchor.getBoundingClientRect();
       const chromeRect = chrome.getBoundingClientRect();
       setPos({
@@ -67,13 +78,19 @@ export function FullscreenToggle({
     measure();
     window.addEventListener("resize", measure);
     const observer = new ResizeObserver(measure);
-    observer.observe(anchor);
-    observer.observe(chrome);
+    const anchor = anchorRef.current;
+    const chrome = chromeRef.current;
+    if (anchor) {
+      observer.observe(anchor);
+    }
+    if (chrome) {
+      observer.observe(chrome);
+    }
     return () => {
       window.removeEventListener("resize", measure);
       observer.disconnect();
     };
-  }, [anchorRef, chromeRef, active]);
+  }, [anchorRef, chromeRef, active, layoutKey]);
 
   if (!pos) {
     return null;

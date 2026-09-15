@@ -453,6 +453,7 @@ export function DualPaneView({
         <Portal>
           <GridNavControls
             anchorRef={monthBoxRef}
+            layoutKey={isDesktop}
             canScrollLeft={monthPan.canScrollLeft}
             canScrollRight={monthPan.canScrollRight}
             onPan={monthPan.panTo}

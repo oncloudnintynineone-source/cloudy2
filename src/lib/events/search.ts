@@ -17,6 +17,7 @@ import {
   SEARCH_MIN_QUERY_LENGTH,
 } from "@/lib/events/searchRange";
 import { dedupeEventsByGroupId } from "@/lib/events/targets";
+import { eventMatchesUserFilter } from "@/lib/events/userFilter";
 import { getGoogleIntegration } from "@/lib/google";
 import { requireSession } from "@/lib/session";
 
@@ -24,7 +25,7 @@ import { requireSession } from "@/lib/session";
 const SEARCH_CONCURRENCY = 4;
 
 export type SearchEventsResult =
-  | { ok: true; events: CalendarEvent[] }
+  | { ok: true; events: CalendarEvent[]; myEventIds: string[] }
   | { ok: false; error: string };
 
 /**
@@ -38,7 +39,7 @@ export async function searchEvents(
   from: string,
   to: string,
 ): Promise<SearchEventsResult> {
-  await requireSession();
+  const session = await requireSession();
 
   const query = (q ?? "").trim();
   if (query.length < SEARCH_MIN_QUERY_LENGTH) {
@@ -89,5 +90,13 @@ export async function searchEvents(
 
   events.sort((a, b) => (a.start < b.start ? -1 : a.start > b.start ? 1 : 0));
 
-  return { ok: true, events: dedupeEventsByGroupId(events) };
+  const deduped = dedupeEventsByGroupId(events);
+  // The current user's own events (tagged attendee) — the client reuses the
+  // dashboard's amber "mine" highlight on these rows. Organizer-only events
+  // (not self-tagged) don't count, matching `eventMatchesUserFilter`.
+  const myEventIds = deduped
+    .filter((event) => eventMatchesUserFilter(event.payload, [session.user.id]))
+    .map((event) => event.id);
+
+  return { ok: true, events: deduped, myEventIds };
 }

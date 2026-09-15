@@ -98,6 +98,7 @@ import { QuickLinksMenu, type QuickLinkMenuItem } from "@/components/QuickLinksM
 import { eventsOnDay } from "@/lib/events/agenda";
 import { monthGridMonths, weekDays } from "@/lib/events/datetime";
 import { sortMineFirst } from "@/lib/events/mineFirst";
+import { buildEventDeepLink } from "@/lib/events/deepLink";
 import type { CalendarEvent } from "@/lib/events/queries";
 import type { TitleRecipe } from "@/lib/settings/titleRecipe";
 import type { EventActionOk } from "@/lib/events/actions";
@@ -263,6 +264,12 @@ export interface DashboardViewProps {
    * client grid-week row-zoom state.
    */
   initialGridWeekRowZoom: SlotZoom;
+  /**
+   * Remembered Week (D) day-column zoom level, resolved from the UI-state
+   * cookie before first paint the same way. Seeding value for the client
+   * week-matrix zoom state.
+   */
+  initialWeekMatrixZoom: SlotZoom;
   /**
    * Remembered Month-grid zoom level (a fit-width multiplier, 1 = the whole
    * week fits the viewport width), resolved from the UI-state cookie before
@@ -710,6 +717,7 @@ export function DashboardView({
   initialZoom,
   initialGridWeekColZoom,
   initialGridWeekRowZoom,
+  initialWeekMatrixZoom,
   initialMonthZoom,
   initialDualSplit,
   events,
@@ -815,6 +823,14 @@ export function DashboardView({
   const prevGridWeekColZoomRef = useRef(gridWeekColZoom);
   const prevGridWeekRowZoomRef = useRef(gridWeekRowZoom);
   const gridWeekViewportRef = useRef<HTMLDivElement | null>(null);
+
+  // Week (D) day-column zoom: a single horizontal axis over the matrix's
+  // absolute px column floor (1 = the default readable width; zooming out stops
+  // there). Same ownership contract as the other zooms — client state seeded
+  // from the cookie, persisted back by `usePersistDashboardNav` below. The
+  // matrix view owns the viewport, pinch and controls; this state is the
+  // persisted level it renders from.
+  const [weekMatrixZoom, setWeekMatrixZoom] = useState<SlotZoom>(initialWeekMatrixZoom);
 
   // Month-grid zoom: a multiplier of the "fit to viewport width" day columns
   // (1 = all seven days fit; the grid can never be narrower). Same ownership
@@ -1445,6 +1461,7 @@ export function DashboardView({
     zoom,
     gridWeekColZoom,
     gridWeekRowZoom,
+    weekMatrixZoom,
     monthZoom,
     dualSplit,
   });
@@ -1638,6 +1655,22 @@ export function DashboardView({
     }
     setDetailOriginRect(null);
     setDetailEvent(found);
+  }
+
+  // Leave the event wizard and open a conflicting event on the calendar (the
+  // review-step advisory's "Open in calendar", confirmed in the panel because
+  // it discards the draft). `closeForm` drops the draft, then the deep link
+  // re-anchors the dashboard on the event.
+  function openClashEventInCalendar(event: CalendarEvent) {
+    closeForm();
+    router.push(
+      buildEventDeepLink({
+        view: null,
+        start: event.start,
+        eventId: event.payload.eventId,
+        calendarId: event.payload.calendarId,
+      }),
+    );
   }
 
   // The acting user's home department — the representative calendar a brand-new
@@ -3573,6 +3606,19 @@ export function DashboardView({
                 }
                 openCreate(day, e.currentTarget.getBoundingClientRect());
               }}
+              zoom={weekMatrixZoom}
+              onZoomIn={() => {
+                const next = stepZoom(weekMatrixZoom, 1);
+                setWeekMatrixZoom(next);
+                announce(`Zoom ${Math.round(next * 100)}%`);
+              }}
+              onZoomOut={() => {
+                const next = stepZoom(weekMatrixZoom, -1);
+                setWeekMatrixZoom(next);
+                announce(`Zoom ${Math.round(next * 100)}%`);
+              }}
+              onZoomChange={setWeekMatrixZoom}
+              showPinchHint={showPinchHint}
               chromeOffset={chromeHeight}
             />
           ) : isWeek ? (
@@ -3816,6 +3862,7 @@ export function DashboardView({
         (isSchedule || (view === "week" && week !== null)) && (
           <GridNavControls
             anchorRef={weekBoxRef}
+            layoutKey={`${isDesktop}:${chromeHeight}`}
             canScrollLeft={schedulePan.canScrollLeft}
             canScrollRight={schedulePan.canScrollRight}
             onPan={schedulePan.panTo}
@@ -3841,6 +3888,7 @@ export function DashboardView({
       {!gridLoading && isGridWeek && week !== null && (
         <GridNavControls
           anchorRef={weekBoxRef}
+          layoutKey={`${isDesktop}:${chromeHeight}`}
           canScrollLeft={gridWeekPan.canScrollLeft}
           canScrollRight={gridWeekPan.canScrollRight}
           onPan={gridWeekPan.panTo}
@@ -3883,6 +3931,7 @@ export function DashboardView({
       {!gridLoading && view === "month" && (
         <GridNavControls
           anchorRef={weekBoxRef}
+          layoutKey={`${isDesktop}:${chromeHeight}`}
           canScrollLeft={monthPan.canScrollLeft}
           canScrollRight={monthPan.canScrollRight}
           onPan={monthPan.panTo}
@@ -3910,6 +3959,7 @@ export function DashboardView({
       <FullscreenToggle
         anchorRef={weekBoxRef}
         chromeRef={tabsListRef}
+        layoutKey={`${isDesktop}:${chromeHeight}`}
         active={immersiveMode.active}
         onToggle={immersiveMode.active ? immersiveMode.exit : immersiveMode.enter}
       />
@@ -4125,6 +4175,7 @@ export function DashboardView({
                 onOptimisticSettled={settleOptimistic}
                 onOptimisticRollback={rollbackOptimistic}
                 onViewSaved={openSavedEventDetail}
+                onOpenInCalendar={openClashEventInCalendar}
                 optimisticHome={optimisticHome}
                 onDone={() => {
                   closeForm();

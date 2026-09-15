@@ -1,23 +1,24 @@
 /**
- * Timeline zoom for the Day / Week (H) schedule views, plus the vertical zoom
- * for the Week (Grid) view. One shared zoom level scales each hour slot's
- * **width** on the resource views (they read it from a CSS variable —
- * `--resources-*-view-slot-width` — and size every event as a percentage of
- * the day container that variable defines, so changing the var re-lays out
- * slots and events alike). The Week (Grid) view is a conventional 7-column
- * week grid with **two independent** zoom levels — one for the day-column
- * **width** (`gridWeekColumnWidth`, floored at fit so columns never shrink below
- * the viewport) and one for the hour-slot **height** (`gridWeekSlotHeight`), so
- * the events can be grown in either direction on its own. Each level is
- * remembered per device in the UI-state cookie (see uiState.ts) and is NOT
- * URL-backed — zooming never navigates.
+ * Timeline zoom for the Day / Week (H) schedule views, plus the two horizontal
+ * zooms for the Week (Grid) view and the Week (D) matrix. One shared zoom level
+ * scales each hour slot's **width** on the resource views (they read it from a
+ * CSS variable — `--resources-*-view-slot-width` — and size every event as a
+ * percentage of the day container that variable defines, so changing the var
+ * re-lays out slots and events alike). The Week (Grid) view is a conventional
+ * 7-column week grid with **two independent** zoom levels — one for the
+ * day-column **width** (`gridWeekColumnWidth`, floored at fit so columns never
+ * shrink below the viewport) and one for the hour-slot **height**
+ * (`gridWeekSlotHeight`), so the events can be grown in either direction on its
+ * own. The Week (D) matrix has a single horizontal zoom over an absolute px floor
+ * (`weekMatrixDayMinPx`). Each level is remembered per device in the UI-state
+ * cookie (see uiState.ts) and is NOT URL-backed — zooming never navigates.
  *
  * The helpers here are pure (no I/O, no React) so the geometry math and the
  * level stepping are unit-tested without a DOM.
  */
 
 /** Discrete zoom levels, smallest to largest. 1 = the default slot widths. */
-export const ZOOM_LEVELS = [0.5, 0.75, 1, 1.25, 1.5, 2, 2.5, 3] as const;
+export const ZOOM_LEVELS = [0.25, 0.5, 0.75, 1, 1.25, 1.5, 2, 2.5, 3, 4, 5, 6] as const;
 export type SlotZoom = (typeof ZOOM_LEVELS)[number];
 
 export const MIN_ZOOM = ZOOM_LEVELS[0];
@@ -126,6 +127,26 @@ export function gridWeekSlotHeight(zoom: SlotZoom): string {
  */
 export function gridWeekColumnWidth(zoom: SlotZoom): string {
   return `${Math.max(1, zoom) * 100}%`;
+}
+
+/**
+ * Week (D) day-column minimum width in pixels at zoom 1. The matrix's seven
+ * columns are `minmax(<min>, 1fr)`, so on a wide screen they stretch to fill the
+ * viewport and on a narrow one they overflow into the horizontal pan.
+ */
+export const WEEK_MATRIX_DAY_MIN_PX = 112;
+
+/**
+ * Week (D) day-column minimum width for a zoom level, in px. Unlike the Week
+ * (Grid) column zoom (a percentage of the fit-to-width grid), the matrix's base
+ * is an absolute px floor, so its zoom scales that floor and floors at `1` (the
+ * fit level) — zooming out never makes the columns narrower than the default
+ * readable width. The view multiplies this into its `minmax(...)` template and
+ * its scroll-content min-width together, so the day columns and their header
+ * stay aligned while the grid overflows.
+ */
+export function weekMatrixDayMinPx(zoom: SlotZoom): number {
+  return Math.max(1, zoom) * WEEK_MATRIX_DAY_MIN_PX;
 }
 
 /**

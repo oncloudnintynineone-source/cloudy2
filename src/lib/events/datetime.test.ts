@@ -6,6 +6,7 @@ import {
   addOneDay,
   dateToUtc,
   daysBetween,
+  daysUntilDate,
   formatInstantToNaive,
   halfDayRange,
   lastDayOfMonth,
@@ -174,6 +175,27 @@ describe("daysBetween", () => {
 
   it("returns nothing for a reversed range", () => {
     expect(daysBetween("2026-09-01", "2026-08-31")).toEqual([]);
+  });
+});
+
+describe("daysUntilDate", () => {
+  it("counts whole calendar days between date parts", () => {
+    expect(daysUntilDate("2026-08-15 09:00:00", "2026-08-20 23:00:00")).toBe(5);
+    expect(daysUntilDate("2026-08-15 23:00:00", "2026-08-16 00:00:00")).toBe(1);
+    expect(daysUntilDate("2026-08-15 09:00:00", "2026-09-29 09:00:00")).toBe(45);
+  });
+
+  it("is 0 for a target later the same day", () => {
+    expect(daysUntilDate("2026-08-15 09:00:00", "2026-08-15 18:00:00")).toBe(0);
+  });
+
+  it("clamps a started or past target to 0", () => {
+    expect(daysUntilDate("2026-08-15 09:00:00", "2026-08-14 09:00:00")).toBe(0);
+  });
+
+  it("spans month and year boundaries", () => {
+    expect(daysUntilDate("2026-08-30", "2026-09-02")).toBe(3);
+    expect(daysUntilDate("2026-12-30", "2027-01-02")).toBe(3);
   });
 });
 

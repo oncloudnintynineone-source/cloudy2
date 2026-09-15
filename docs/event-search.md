@@ -111,7 +111,9 @@ are identical in shape. The stub returns `[]`.
  collapses cross-department copies with `dedupeEventsByGroupId`, so one
  logical event appears once regardless of how many department calendars it
  lives in.
-7. Sorts by `start` (stable) and returns `{ ok: true, events }`.
+7. Sorts by `start` (stable) and returns `{ ok: true, events, myEventIds }` —
+   `myEventIds` are the current user's own (tagged-attendee) events among the
+   deduped results, so the modal can apply the amber "mine" row highlight.
 
 Failure surfaces as `{ ok: false, error }` (the client shows it inline); there
 is no throw. The result events are `CalendarEvent[]`, the same shape the
@@ -172,34 +174,47 @@ index (a separate concern from this native-search feature; see
 
 `EventSearchModal` (`src/components/EventSearchModal.tsx`):
 
-- Loaded with `dynamic(() => import(...), { ssr: false })` and mounted only
-  once first opened (a `searchLoaded` flag in the shell keeps it mounted
-  afterward, so the shrink-out animation plays and repeat opens don't reload
-  the chunk), so the modal — its `AgendaView`, `DatePickerInput` and
-  `@mantine/schedule` usage — never contributes to the shell's first paint.
-  The chunk is **prefetched in the background** — `requestIdleCallback` after
-  the shell's first paint plus `onPointerEnter`/`onFocus` on the header button
-  (the runtime Loadable's `.preload()`, reached through a cast since the TS
-  type omits it) — so the first open is instant without pulling the modal into
-  the initial bundle.
-  Because it mounts already-open on that first open, Mantine's `Transition`
-  would initialize to `entered` and skip the zoom-in; the modal therefore
-  starts closed and mirrors the `opened` prop into an internal `mounted`
-  state. The open flip is deferred by one `requestAnimationFrame` — flipped
-  synchronously in an effect, the browser coalesces the enter rAFs into a
-  single paint and the zoom still never plays — so the enter animation always
-  starts from an `exited` state. Closing flips immediately so the shrink-out
-  doesn't lag.
+- Loaded with `dynamic(() => import(...), { ssr: false, loading: () =>
+  <EventSearchModalSkeleton /> })`, so the modal — its `AgendaView`,
+  `DatePickerInput` and `@mantine/schedule` usage — never contributes to the
+  shell's first paint. The dependency-free skeleton fallback paints an
+  immediate dialog for a click that races the chunk download.
+  The chunk is **prefetched in the background** — `requestIdleCallback(cb,
+  { timeout: 2000 })` after the shell's first paint, plus `onPointerEnter` /
+  `onFocus` / `onPointerDown` / `onTouchStart` on the header button and the
+  desktop `⌘/Ctrl-K` hotkey (the runtime Loadable's `.preload()`, reached
+  through a cast since the TS type omits it). The `searchLoaded` flag is set
+  when the preload promise resolves, so the modal **mounts closed** the moment
+  the chunk lands: the first open is then a pure `opened` flip (no mount,
+  parse, or network on the click), and it stays mounted afterward so the
+  shrink-out plays and repeat opens don't reload the chunk.
+  Because it mounts closed, Mantine's `Transition` gets an `exited` start state
+  and the zoom-in from the header button plays. The open flip is deferred by
+  one `requestAnimationFrame` — flipped synchronously in an effect, the browser
+  coalesces the enter rAFs into a single paint and the zoom still never plays —
+  so the enter animation always starts from an `exited` state. Closing flips
+  immediately so the shrink-out doesn't lag.
 - Owned by `AppShellShell`: the header `ActionIcon` (left of the header Force
   refresh button and the profile menu) toggles it; on click the shell captures the icon's
   rect and passes it down as `originRect`, and the modal zooms out of / shrinks
   back into it via the app's standard `motion/origin` transition (mirroring
   `PinnedEventsPanel`).
-- Contents: a query `TextInput` (autofocus), two `DatePickerInput`s (From/To,
-  cleared → server defaults), a Search `Button` with `BUTTON_LOADER_PROPS`, and
-  an `AgendaView` result list grouped by day. `rangeStart`/`rangeEnd` are the
-  first/last result's start day, so empty days in between aren't rendered as
-  headers. Results are "No events match your search" when empty.
+- Contents: a single toolbar row — the query `TextInput` (no autofocus;
+  in-field clear) plus a Search submit (`Button` at `lg`, a 43px icon below it)
+  and a date-filter `ActionIcon` that opens a popover with the From/To
+  `DatePickerInput`s (cleared → server defaults) and a Reset, badge-counting a
+  non-default window. Below it the recent-search badges scroll as one
+  horizontal chip row and are **hidden once results exist**; a result-count +
+  active-range caption with a Clear action heads the list, and an `AgendaView`
+  groups results by day (`rangeStart`/`rangeEnd` are the first/last result's
+  start day, so empty days in between aren't rendered as headers). The column
+  is capped at `min(72dvh, 680px)` with the result list as the only scroll
+  region, so the Modal body never scrolls and the mobile keyboard (`dvh`)
+  shrinks it cleanly. While searching it shows a skeleton (with a
+  `LoadingStatus`), and no matches render the shared `EmptyState`. Result rows
+  reuse the dashboard's amber `c2-my-agenda-event` / purple
+  `c2-ext-agenda-event` highlight via `renderEvent` (the action returns
+  `myEventIds`).
 - A result click shows a **spinner on that row** — an overlay sized to the
   clicked row's box (positional, so multi-day events repeated under several
   date headers never light more than the one row clicked; nothing shifts) — and
@@ -281,15 +296,16 @@ actions) follows the repo convention of being I/O-bound and untested.
 | `src/lib/google/types.ts` | `searchEvents` contract |
 | `src/lib/google/real.ts` | `events.list({ ..., q })` implementation |
 | `src/lib/google/stub.ts` | `searchEvents` → `[]` |
-| `src/lib/events/search.ts` | `searchEvents` server action |
+| `src/lib/events/search.ts` | `searchEvents` server action (returns `events` + `myEventIds`) |
 | `src/lib/events/searchRange.ts` | Pure date-range/default helpers (tested) |
 | `src/lib/events/searchHistory.ts` | Pure history-list helpers (tested) |
 | `src/lib/events/searchHistoryActions.ts` | `getSearchHistory` / `recordSearchHistory` / `removeSearchHistory` actions |
 | `src/lib/userPrefs/queries.ts` | `getUserPreferences` (now exposes `searchHistory`) |
 | `src/lib/events/queries.ts` | `mapCalendarItem` (now exported; reused by search) |
 | `src/app/(protected)/dashboard/EventDetail.tsx` | The shared detail modal the deep link lands on (unchanged) |
-| `src/components/EventSearchModal.tsx` | Lazy-loaded search modal + agenda + history badges + row-spinner deep link |
-| `src/components/AppShellShell.tsx` | Header search button + modal mount + origin rect + chunk preload |
+| `src/components/EventSearchModal.tsx` | Lazy-loaded search modal + one-row toolbar + agenda + history badges + row-spinner deep link |
+| `src/components/EventSearchModalSkeleton.tsx` | Dependency-free `dynamic` loading fallback dialog |
+| `src/components/AppShellShell.tsx` | Header search button + ⌘/Ctrl-K + modal mount + origin rect + chunk preload |
 
 Related docs:
 

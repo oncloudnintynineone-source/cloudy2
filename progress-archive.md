@@ -8610,3 +8610,105 @@ deep links (event search / pinned events) and browser reloads.
 **Verified**: `pnpm lint`, `pnpm typecheck`, `pnpm test` (1231 passing), `pnpm db:generate`
 (no drift). Manual to run before ship: cold open `/` lands on the first tab; switch tabs
 then reload `/` → first tab; reload `/dashboard?view=<other>` → that view.
+
+## 1.243 Event-search modal launch + layout
+
+**Launch path.** `AppShellShell` now captures the search modal's `dynamic()` `preload()`
+promise (`preloadSearchModalChunk`) and sets `searchLoaded` when it resolves, so the modal
+**mounts closed** as soon as the chunk lands — the first open is a pure `opened` flip with
+no mount/parse/network on the click. The idle preload gets `{ timeout: 2000 }` so a busy
+phone can't starve it, and the header button now also preloads on
+`onPointerDown`/`onTouchStart` (touch fires no `pointerenter`); a desktop `mod+K`
+(`useHotkeys`, `preventDefault`) opens it from anywhere, growing out of the button's ref'd
+rect. `dynamic(..., { loading: () => <EventSearchModalSkeleton /> })` — a dependency-free
+`Modal` + spinner (no schedule/dates imports) — covers a click that races the chunk
+download. Recent searches are now prefetched once when the modal mounts (closed, at idle)
+and refreshed on open, so badges are present on the first open.
+
+**Layout.** The form collapses to one toolbar row: the query `TextInput` (no autofocus,
+in-field clear) + a Search submit (`Button` at `lg`, 43px `ActionIcon` below it) + a date
+filter `ActionIcon` opening a `Menu` with the From/To `DatePickerInput`s and a Reset
+(badge-counting a non-default window, mirroring the audit-log filter). Recent-search badges
+render as a single `.c2-chip-scroll` row and are hidden once results exist. Results get a
+count + active-range caption with a Clear action, and the column is capped at
+`min(72dvh, 680px)` with the result list as the only scroll region (`overflowY: auto`), so
+the Modal body never scrolls and the mobile keyboard (`dvh`) shrinks it cleanly. While
+searching a local skeleton row list shows with a `LoadingStatus`; no matches render the
+shared `EmptyState`. `renderEvent` applies the dashboard's `c2-my-agenda-event` /
+`c2-ext-agenda-event` classes.
+
+**Server action.** `searchEvents` now returns `{ ok: true, events, myEventIds }`;
+`myEventIds` are computed on the deduped results via `eventMatchesUserFilter(payload,
+[session.user.id])` so the modal can apply the amber "mine" highlight without extra
+plumbing.
+
+**Verified**: `pnpm lint`, `pnpm typecheck`, `pnpm test` (1282 passing). Manual to run
+before ship: cold first open from a non-dashboard route (skeleton  modal), instant repeat
+opens, one-row toolbar, recents hidden with results, mobile keyboard no jump, ?K, highlight
+colors, deep link still opens the event detail.
+
+## 1.244 Pinned-events ticker pills
+
+**Pills.** The header pill (`PinnedEventsTicker.tsx`) drops the `IconPin` (and its
+leading `Box`), moves the inline amber `1/N` count chip into that now-free leading slot,
+and adds a new subdued `.c2-pinned-ticker-countdown` chip between the count and the
+rotating title. The countdown is whole **days** until the current event's start, rendered
+`5D` (caps `D`, `0D` for a same-day or already-started event); it never switches to
+months, so a far-future event reads e.g. `45D`. Empty / loading / errored pill degrades to
+the icon-less static "Pinned events" label, and the accessible name is unchanged
+(`Pinned events (N)`) - both chips plus the rotating titles stay `aria-hidden`.
+
+**Clock.** New pure `daysUntilDate(fromNaive, targetNaive)` in `datetime.ts` compares
+`YYYY-MM-DD` date parts (UTC+8 naive, same basis as `selectUpcomingPinnedEvents`) and
+clamps at `0`; unit-tested in `datetime.test.ts`. The ticker holds a `nowNaive` state
+refreshed on a 60s interval (skipped while the tab is hidden), so a single non-rotating
+pinned event still rolls its `D` count over at midnight.
+
+**CSS.** `.c2-pinned-ticker-countdown` mirrors the count chip's metrics but uses
+`brand-6`/white (tabular numerals) so the amber count remains the position accent; the
+section comment and `docs/pinned-events.md` §1.4 (prose + mermaid + sizing/a11y),
+`docs/accessibility.md` §1.4, `docs/desktop-responsive.md` §1.10, `docs/user-guide.md`
+§1.5 and the `AGENTS.md` Pinned Events bullet were updated to match.
+
+**Verified**: `pnpm lint`, `pnpm typecheck`, `pnpm test`. Manual to run before ship: pill
+shows `1/N` then `ND` then title with no pin icon; same-day event reads `0D`; a >1-month
+event keeps a days count; empty pill shows the plain label.
+
+## 1.245 Grid-nav controls displaced by the grid-slide transform
+
+**Bug.** On a cold mobile load the fixed pan/zoom cluster (`GridNavControls`) sat off to
+the side of the grid until the user resized the viewport, which snapped it back. Only the
+**Week (D)** and **Month & Agenda** views were affected (displaced left and right
+respectively); Month / Day / Week (H) were fine.
+
+**Cause.** `GridNavControls.measure()` read the anchor with
+`anchor.getBoundingClientRect()`, which returns the **visual** rect and therefore includes
+any ancestor `transform`. Week (D)'s `Paper` (`WeekMatrixView`'s `rootRef`) and Month &
+Agenda's month pane (`DualPaneView`'s `monthBoxRef`) both live **inside** the dashboard's
+grid-slide wrapper `gridSlideRef` (`DashboardView.tsx`), which gets a transient
+`translateX(±10%)` Web Animation on every view/period change. On a cold launch the
+snapshot→fresh-data swap changes the period/tab, so the slide runs; the `ResizeObserver`
+(or the measurement) then fired **during** the ~250 ms animation and captured a shifted
+`rect.right`, leaving `window.innerWidth - rect.right` wrong until a resize. The direction
+(and therefore left vs right displacement) is the slide direction. The standalone views'
+anchor (`weekBoxRef`) and the fullscreen toggle's anchors are outside the wrapper, which is
+why they were unaffected.
+
+**Fix.** New `src/lib/ui/layoutRect.ts` returns an element's border-box rect in the layout
+viewport **ignoring ancestor transforms** (walks the `offsetParent` chain summing
+`offsetLeft`/`offsetTop`, subtracts the window scroll). `GridNavControls` now measures its
+anchor with `layoutRect` instead of `getBoundingClientRect`, so the slide can't shift the
+`right` inset. It also reads the anchor ref fresh on every pass and re-runs the effect on a
+`layoutKey` flip (each caller passes its breakpoint + measured chrome height:
+`DashboardView`'s three clusters, and `DualPaneView` / `WeekMatrixView`), and measures in
+`useLayoutEffect`. `FullscreenToggle` keeps `getBoundingClientRect` (its chrome is
+`position: sticky`, whose flow position `layoutRect` would return) and only gains the
+`layoutKey` + fresh-ref reads.
+
+**Docs.** `docs/grid-pan.md` §1.2 positioning paragraph + file index, and both components'
+JSDoc.
+
+**Verified**: `pnpm lint`, `pnpm typecheck`, `pnpm test`. Manual to run before ship:
+cold-launch Week (D) and Month & Agenda and confirm the cluster is on the grid's right
+edge; switch tabs (which triggers the slide) and confirm it never shifts;
+`prefers-reduced-motion: reduce` (no slide) is a useful cross-check.

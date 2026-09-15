@@ -1,8 +1,9 @@
 "use client";
 
-import { type RefObject, useEffect, useState } from "react";
+import { type RefObject, useLayoutEffect, useState } from "react";
 import { ActionIcon, Box } from "@mantine/core";
 import { IconTriangleFilled, IconZoomIn, IconZoomOut } from "@tabler/icons-react";
+import { layoutRect } from "@/lib/ui/layoutRect";
 import { markPinchHintSeen } from "@/lib/ui/pinchHint";
 import { MAX_ZOOM, MIN_ZOOM } from "@/lib/ui/slotZoom";
 
@@ -42,10 +43,16 @@ const EDGE_INSET = 8;
  * edge can scroll. Subdued circular grey with filled triangles: intentionally
  * lighter than the date-nav chevrons so the controls read as secondary chrome.
  *
- * The controls are `position: fixed` and their anchor is measured **once** when
- * the view loads (and re-measured only on window resize or anchor size change)
- * — never per scroll frame. There is no scroll listener, so the controls hold
- * perfectly still at the calendar's visible-area center while the page scrolls.
+ * The controls are `position: fixed` and their anchor is measured on view load
+ * and re-measured on window resize, anchor size change, or a `layoutKey` flip
+ * (the caller's breakpoint + measured chrome height) — never per scroll frame.
+ * The anchor's rect is read with `layoutRect` (transform-free layout geometry,
+ * not `getBoundingClientRect`): for Week (D) and Month & Agenda the anchor sits
+ * inside the dashboard's transiently transformed slide wrapper, so the visual
+ * rect would otherwise be captured mid-slide and leave the controls displaced
+ * (left or right, by the slide direction) until a resize. There is no scroll
+ * listener, so the controls hold perfectly still at the calendar's visible-area
+ * center while the page scrolls.
  * (Tracking the visible slice on scroll moved the buttons with the calendar —
  * on grids shorter than the viewport they travelled toward the screen edge and
  * stuttered as the browser coalesced scroll frames; a pure-CSS sticky rail
@@ -67,6 +74,7 @@ export function GridNavControls({
   label,
   showPinchHint = false,
   secondaryZoom,
+  layoutKey,
 }: {
   anchorRef: RefObject<HTMLDivElement | null>;
   canScrollLeft: boolean;
@@ -108,13 +116,20 @@ export function GridNavControls({
     /** Axis name for the pair's labels/tooltips, e.g. `"Rows"`. */
     label?: string;
   };
+  /**
+   * Layout identity the fixed position depends on (the caller passes its
+   * breakpoint/chrome measurement). When it changes the anchor is re-measured
+   * after commit, so a desktop↔mobile flip re-anchors the controls instead of
+   * leaving them at the previous layout's offsets.
+   */
+  layoutKey?: string | number | boolean;
 }) {
   const canZoomIn = zoom < zoomMax;
   const canZoomOut = zoom > zoomMin;
 
   // Static anchor: the visible-slice center/bounds plus the 8px edge insets,
-  // measured once (null before first paint so the controls never flash
-  // unanchored).
+  // measured on load and re-measured per the triggers below (null before first
+  // paint so the controls never flash unanchored).
   const [pos, setPos] = useState<{
     center: number;
     left: number;
@@ -123,13 +138,15 @@ export function GridNavControls({
     visibleBottom: number;
   } | null>(null);
 
-  useEffect(() => {
-    const anchor = anchorRef.current;
-    if (!anchor) {
-      return;
-    }
+  useLayoutEffect(() => {
+    // Read the anchor fresh on every pass (never close over the mount-time
+    // node): a remounted anchor must be re-measured, not the detached one.
     const measure = () => {
-      const rect = anchor.getBoundingClientRect();
+      const anchor = anchorRef.current;
+      if (!anchor) {
+        return;
+      }
+      const rect = layoutRect(anchor);
       // The visible slice is the anchor's rect clamped to the window. If the
       // anchor is entirely off-screen at measurement time, fall back to the
       // full viewport so the controls still render somewhere sensible.
@@ -155,12 +172,15 @@ export function GridNavControls({
     measure();
     window.addEventListener("resize", measure);
     const observer = new ResizeObserver(measure);
-    observer.observe(anchor);
+    const anchor = anchorRef.current;
+    if (anchor) {
+      observer.observe(anchor);
+    }
     return () => {
       window.removeEventListener("resize", measure);
       observer.disconnect();
     };
-  }, [anchorRef]);
+  }, [anchorRef, layoutKey]);
 
   if (!pos) {
     return null;
