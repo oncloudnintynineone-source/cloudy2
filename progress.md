@@ -1076,6 +1076,13 @@ via `?attendance=1` and `attendanceStorage` became a `useSyncExternalStore` exte
    unchanged. `.c2-tab-load-bar` + its sweep keyframes are replaced by
    `.c2-tab-spinner` in `globals.css`. `docs/loading-transitions.md` §1.13.2,
    `AGENTS.md`
+- 1.243 Week (Grid) all-day overflow trigger moved inline: the `+N more`
+   `MoreEvents` no longer sits in the date-nav row — it overlays the strip's
+   sticky-left "All day" cell (hidden via `fontSize: 0` while the trigger shows),
+   anchored to the now-`position: relative` `gridSlideRef` with geometry mirroring
+   Mantine's WeekView defaults; the button fills the cell (full-cell tap target)
+   and opens `bottom-start`. Pure binning / chip suppression unchanged.
+   `docs/dashboard-views.md` §1.7.1
 
 ## 1.4 Open items & next steps
 

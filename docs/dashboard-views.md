@@ -550,7 +550,8 @@ with `overflow: hidden`. Only the **first two lanes** are therefore ever
 visible; a third and beyond are clipped and only revealed transiently on
 hover/focus-within — never on touch. The app does not fight that layout: the
 strip keeps its two lanes, and the events in the hidden lanes are surfaced
-behind a **`+N more`** trigger in the date-nav row instead.
+behind an **inline `+N more`** trigger that replaces the stock "All day" label
+in the strip's sticky-left cell.
 
 - **Pure binning** (`src/lib/events/gridWeek.ts`):
   `gridWeekAllDayLayout(events, days, visibleLanes = 2)` mirrors the library's
@@ -566,18 +567,27 @@ behind a **`+N more`** trigger in the date-nav row instead.
   lanes no longer bleed out on hover and leave the a11y tree. They stay
   reachable from the popover.
 - **`+N more` trigger**: Mantine's own `MoreEvents` component (the same one the
-  Month view's built-in overflow uses) in the date-nav row, rendered only while
-  the view is Week (Grid) and `hidden.length > 0`. Its popover lists the hidden
-  all-day events (day-prefixed via `renderEventBody`) and opens the shared
-  `EventDetail` on tap. One week-level trigger — the strip height, chip
-  geometry, sticky behaviour and zoom/pan are untouched.
+  Month view's built-in overflow uses) overlaid on the strip's sticky-left
+  "All day" cell, rendered only while the view is Week (Grid) and
+  `hidden.length > 0`. The library owns that cell, so the trigger is an
+  absolutely-positioned overlay anchored to `gridSlideRef` (which is
+  `position: relative`); its geometry mirrors the library's
+  `--week-view-week-day-height` / `--week-view-slots-label-width` /
+  `--week-view-all-day-slots-height` defaults because the overlay sits outside
+  the `WeekView` subtree and can't inherit those vars. While the trigger shows,
+  the stock "All day" text is hidden (`fontSize: 0` on `weekViewAllDaySlotsLabel`)
+  so the cell reads as the trigger alone; it fills the cell for a full-cell tap
+  target and opens `bottom-start` so its popover drops to the right. The popover
+  lists the hidden all-day events (day-prefixed via `renderEventBody`) and opens
+  the shared `EventDetail` on tap. One week-level trigger — the strip height,
+  chip geometry, sticky behaviour and zoom/pan are untouched.
 
 ```mermaid
 flowchart LR
  E["viewEvents (all-day + multiday)"] --> L["gridWeekAllDayLayout<br/>(gridWeek.ts)"]
  L --> H["hidden / hiddenIds"]
  H --> S["renderGridWeekEvent<br/>(display:none chips)"]
- H --> P["MoreEvents '+N more'<br/>(nav-row popover)"]
+ H --> P["MoreEvents '+N more'<br/>(inline in the 'All day' cell)"]
 ```
 
 ## 1.8 Month-grid zoom (fit-to-width)

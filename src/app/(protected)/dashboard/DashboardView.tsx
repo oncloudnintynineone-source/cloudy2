@@ -3049,41 +3049,6 @@ export function DashboardView({
                 has none, so it falls back to the optimistic date (today). */}
             {periodLabel}
           </Text>
-          {/* Week (Grid) all-day overflow: the strip shows only its first two
-              lanes, so the rest are listed here (Mantine's MoreEvents popover,
-              the same component the Month view uses). One week-level trigger;
-              the events it lists are the chips suppressed from the grid
-              (docs/dashboard-views.md §1.7.1). */}
-          {isGridWeek && gridWeekAllDay.hidden.length > 0 && (
-            <MoreEvents
-              events={gridWeekAllDay.hidden}
-              moreEventsCount={gridWeekAllDay.hidden.length}
-              aria-label={`Show ${gridWeekAllDay.hidden.length} more all-day events`}
-              renderEvent={renderMyMonthEvent}
-              renderEventBody={(event) =>
-                `${dayjs(event.start).format("ddd, MMM D")} · ${event.title}`
-              }
-              popoverProps={{ position: "bottom-end", offset: 6 }}
-              styles={{
-                moreEventsButton: {
-                  flex: "0 0 auto",
-                  whiteSpace: "nowrap",
-                  height: 36,
-                  paddingInline: "var(--mantine-spacing-sm)",
-                  borderRadius: "var(--mantine-radius-default)",
-                  border: "1px solid var(--mantine-color-default-border)",
-                  background: "var(--mantine-color-body)",
-                  color: "var(--mantine-color-text)",
-                  fontWeight: 600,
-                },
-              }}
-              onEventClick={(event, e) => {
-                if (isOptimisticStandIn(event as CalendarEvent)) return;
-                setDetailOriginRect(e.currentTarget.getBoundingClientRect());
-                setDetailEvent(event as unknown as CalendarEvent);
-              }}
-            />
-          )}
           <ActionIcon
             size={36}
             variant="default"
@@ -3299,7 +3264,7 @@ export function DashboardView({
             animated via `el.animate` (Web Animations API) on the change;
             `weekBoxRef`'s overflow clip contains the transient offset. The
             pinned strips/rulers and pan controls stay outside, static. */}
-        <Box ref={gridSlideRef}>
+        <Box ref={gridSlideRef} style={{ position: "relative" }}>
           {gridLoading ? (
             // Skeleton flavor follows the optimistic view: the shape you tapped
             // is what appears to load (same contract as loading.tsx, which
@@ -3539,6 +3504,10 @@ export function DashboardView({
                   left: 0,
                   zIndex: 3,
                   backgroundColor: "var(--mantine-color-body)",
+                  // When all-day events overflow the strip's two lanes the label
+                  // is replaced by the inline "+N more" trigger overlay below;
+                  // zero the font so the stock "All day" text can't show through.
+                  fontSize: gridWeekAllDay.hidden.length > 0 ? 0 : undefined,
                 },
                 weekViewSlotLabels: {
                   position: "sticky",
@@ -3782,6 +3751,56 @@ export function DashboardView({
               renderResourceLabel={renderResourceLabel}
               renderGroupLabel={renderGroupLabel}
             />
+          )}
+
+          {/* Week (Grid) all-day overflow: the strip clips lanes past the
+              second, so the rest are surfaced behind a "+N more" trigger that
+              replaces the stock "All day" label in the sticky-left cell
+              (docs/dashboard-views.md §1.7.1). The overlay sits outside the
+              WeekView subtree, so its geometry mirrors the library defaults
+              (--week-view-week-day-height / -slots-label-width /
+              -all-day-slots-height) instead of inheriting those vars. */}
+          {!gridLoading && isGridWeek && week && gridWeekAllDay.hidden.length > 0 && (
+            <Box
+              style={{
+                position: "absolute",
+                top: "calc(3.625rem * var(--mantine-scale))",
+                left: 0,
+                width: "calc(5rem * var(--mantine-scale))",
+                height: "calc(3rem * var(--mantine-scale))",
+                display: "flex",
+                zIndex: 7,
+                pointerEvents: "none",
+              }}
+            >
+              <MoreEvents
+                events={gridWeekAllDay.hidden}
+                moreEventsCount={gridWeekAllDay.hidden.length}
+                aria-label={`Show ${gridWeekAllDay.hidden.length} more all-day events`}
+                renderEvent={renderMyMonthEvent}
+                renderEventBody={(event) =>
+                  `${dayjs(event.start).format("ddd, MMM D")} · ${event.title}`
+                }
+                popoverProps={{ position: "bottom-start", offset: 4 }}
+                styles={{
+                  moreEventsButton: {
+                    flex: "1 1 auto",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    whiteSpace: "nowrap",
+                    fontSize: "calc(0.75rem * var(--mantine-scale))",
+                    lineHeight: 1,
+                    pointerEvents: "all",
+                  },
+                }}
+                onEventClick={(event, e) => {
+                  if (isOptimisticStandIn(event as CalendarEvent)) return;
+                  setDetailOriginRect(e.currentTarget.getBoundingClientRect());
+                  setDetailEvent(event as unknown as CalendarEvent);
+                }}
+              />
+            </Box>
           )}
         </Box>
       </Box>
