@@ -428,6 +428,7 @@ export function WeekMatrixView({
           only once a zoom level overflows the viewport. */}
       <GridNavControls
         anchorRef={rootRef}
+        layoutKey={isDesktop}
         canScrollLeft={gridPan.canScrollLeft}
         canScrollRight={gridPan.canScrollRight}
         onPan={gridPan.panTo}

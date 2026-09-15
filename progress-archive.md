@@ -8673,3 +8673,41 @@ section comment and `docs/pinned-events.md` §1.4 (prose + mermaid + sizing/a11y
 **Verified**: `pnpm lint`, `pnpm typecheck`, `pnpm test`. Manual to run before ship: pill
 shows `1/N` then `ND` then title with no pin icon; same-day event reads `0D`; a >1-month
 event keeps a days count; empty pill shows the plain label.
+
+## 1.245 Grid-nav + fullscreen controls re-anchor on cold load
+
+**Bug.** On a cold mobile load the fixed pan/zoom cluster (`GridNavControls`) and the
+fullscreen toggle (`FullscreenToggle`) could sit **off to the side** of the grid until the
+user resized the viewport, which snapped them back. Affected every grid view (Month,
+Week (H)/(D)/(Grid), Day, Month & Agenda).
+
+**Cause.** Both components positioned themselves from a one-shot measurement taken in a
+`useEffect` after paint, refreshed only on `window.resize` and a `ResizeObserver` of the
+anchor's (and chrome's) **size**. A cold-load layout settle can be a **position/overflow**
+change that leaves the measured box the same size, so the observer never fired and the
+`right` inset (`window.innerWidth - rect.right`) stayed computed from a stale rect.
+`measure()` also closed over the node captured at mount, so a remounted anchor would be
+measured as a detached node.
+
+**Fix.** `GridNavControls.tsx` and `FullscreenToggle.tsx` now:
+
+- read `anchorRef.current` / `chromeRef.current` **inside** `measure()` on every pass;
+- re-run the effect when a new `layoutKey` prop changes (the caller's breakpoint +
+  measured chrome height);
+- observe the anchor's (and chrome's) **parent** as well as the element itself;
+- run a one-shot post-mount settle pass — `requestAnimationFrame` plus
+  `document.fonts.ready` — to catch the cold-load settle that is not a React commit;
+- measure in `useLayoutEffect` so the corrected position lands before paint.
+
+Callers pass `layoutKey={`${isDesktop}:${chromeHeight}`}` (DashboardView, all three
+`GridNavControls` + the `FullscreenToggle`) or `layoutKey={isDesktop}` (DualPaneView,
+WeekMatrixView). The `chromeHeight` term flips `0 → measured` on every cold mount, so the
+effect re-runs once the chrome has settled.
+
+**Docs.** `docs/grid-pan.md` §1.2 positioning paragraph and both components' JSDoc updated
+to list the new re-measure triggers.
+
+**Verified**: `pnpm lint`, `pnpm typecheck`, `pnpm test`. Manual to run before ship:
+hard-reload on a phone / narrow viewport for Month, Week (H), Week (D), Week (Grid), Day
+and Month & Agenda and confirm the left arrow, right cluster and fullscreen button land on
+the grid without resizing.

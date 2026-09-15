@@ -3843,6 +3843,7 @@ export function DashboardView({
         (isSchedule || (view === "week" && week !== null)) && (
           <GridNavControls
             anchorRef={weekBoxRef}
+            layoutKey={`${isDesktop}:${chromeHeight}`}
             canScrollLeft={schedulePan.canScrollLeft}
             canScrollRight={schedulePan.canScrollRight}
             onPan={schedulePan.panTo}
@@ -3868,6 +3869,7 @@ export function DashboardView({
       {!gridLoading && isGridWeek && week !== null && (
         <GridNavControls
           anchorRef={weekBoxRef}
+          layoutKey={`${isDesktop}:${chromeHeight}`}
           canScrollLeft={gridWeekPan.canScrollLeft}
           canScrollRight={gridWeekPan.canScrollRight}
           onPan={gridWeekPan.panTo}
@@ -3910,6 +3912,7 @@ export function DashboardView({
       {!gridLoading && view === "month" && (
         <GridNavControls
           anchorRef={weekBoxRef}
+          layoutKey={`${isDesktop}:${chromeHeight}`}
           canScrollLeft={monthPan.canScrollLeft}
           canScrollRight={monthPan.canScrollRight}
           onPan={monthPan.panTo}
@@ -3937,6 +3940,7 @@ export function DashboardView({
       <FullscreenToggle
         anchorRef={weekBoxRef}
         chromeRef={tabsListRef}
+        layoutKey={`${isDesktop}:${chromeHeight}`}
         active={immersiveMode.active}
         onToggle={immersiveMode.active ? immersiveMode.exit : immersiveMode.enter}
       />

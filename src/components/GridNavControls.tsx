@@ -1,6 +1,6 @@
 "use client";
 
-import { type RefObject, useEffect, useState } from "react";
+import { type RefObject, useLayoutEffect, useState } from "react";
 import { ActionIcon, Box } from "@mantine/core";
 import { IconTriangleFilled, IconZoomIn, IconZoomOut } from "@tabler/icons-react";
 import { markPinchHintSeen } from "@/lib/ui/pinchHint";
@@ -42,10 +42,15 @@ const EDGE_INSET = 8;
  * edge can scroll. Subdued circular grey with filled triangles: intentionally
  * lighter than the date-nav chevrons so the controls read as secondary chrome.
  *
- * The controls are `position: fixed` and their anchor is measured **once** when
- * the view loads (and re-measured only on window resize or anchor size change)
- * — never per scroll frame. There is no scroll listener, so the controls hold
- * perfectly still at the calendar's visible-area center while the page scrolls.
+ * The controls are `position: fixed` and their anchor is measured on view load
+ * and re-measured on window resize, anchor/parent size change, a `layoutKey`
+ * flip, and a one-shot post-mount settle pass (next frame + webfonts) — never
+ * per scroll frame. The cold-load settle matters: the anchor's final box is not
+ * always laid out when the first measurement runs, and the settle can be a
+ * position/overflow change the `ResizeObserver` never reports (the controls
+ * otherwise stayed off to the side until a resize). There is no scroll
+ * listener, so the controls hold perfectly still at the calendar's visible-area
+ * center while the page scrolls.
  * (Tracking the visible slice on scroll moved the buttons with the calendar —
  * on grids shorter than the viewport they travelled toward the screen edge and
  * stuttered as the browser coalesced scroll frames; a pure-CSS sticky rail
@@ -67,6 +72,7 @@ export function GridNavControls({
   label,
   showPinchHint = false,
   secondaryZoom,
+  layoutKey,
 }: {
   anchorRef: RefObject<HTMLDivElement | null>;
   canScrollLeft: boolean;
@@ -108,13 +114,20 @@ export function GridNavControls({
     /** Axis name for the pair's labels/tooltips, e.g. `"Rows"`. */
     label?: string;
   };
+  /**
+   * Layout identity the fixed position depends on (the caller passes its
+   * breakpoint/chrome measurement). When it changes the anchor is re-measured
+   * after commit, so a desktop↔mobile flip re-anchors the controls instead of
+   * leaving them at the previous layout's offsets.
+   */
+  layoutKey?: string | number | boolean;
 }) {
   const canZoomIn = zoom < zoomMax;
   const canZoomOut = zoom > zoomMin;
 
   // Static anchor: the visible-slice center/bounds plus the 8px edge insets,
-  // measured once (null before first paint so the controls never flash
-  // unanchored).
+  // measured on load and re-measured per the triggers below (null before first
+  // paint so the controls never flash unanchored).
   const [pos, setPos] = useState<{
     center: number;
     left: number;
@@ -123,12 +136,14 @@ export function GridNavControls({
     visibleBottom: number;
   } | null>(null);
 
-  useEffect(() => {
-    const anchor = anchorRef.current;
-    if (!anchor) {
-      return;
-    }
+  useLayoutEffect(() => {
+    // Read the anchor fresh on every pass (never close over the mount-time
+    // node): a remounted anchor must be re-measured, not the detached one.
     const measure = () => {
+      const anchor = anchorRef.current;
+      if (!anchor) {
+        return;
+      }
       const rect = anchor.getBoundingClientRect();
       // The visible slice is the anchor's rect clamped to the window. If the
       // anchor is entirely off-screen at measurement time, fall back to the
@@ -153,14 +168,35 @@ export function GridNavControls({
       });
     };
     measure();
+    // Cold-load settle: the anchor's final box is not always laid out when the
+    // first pass runs, and the settle can be a position/overflow change the
+    // ResizeObserver never reports. Re-measure once the browser has completed a
+    // full frame (and again once webfonts load, which can shift the chrome).
+    const frame = requestAnimationFrame(measure);
+    let cancelled = false;
+    void document.fonts?.ready.then(() => {
+      if (!cancelled) {
+        measure();
+      }
+    });
     window.addEventListener("resize", measure);
     const observer = new ResizeObserver(measure);
-    observer.observe(anchor);
+    const anchor = anchorRef.current;
+    if (anchor) {
+      observer.observe(anchor);
+      // The anchor can shift when its parent resizes while its own box stays
+      // the same; observe the parent so that settle is caught too.
+      if (anchor.parentElement) {
+        observer.observe(anchor.parentElement);
+      }
+    }
     return () => {
+      cancelled = true;
+      cancelAnimationFrame(frame);
       window.removeEventListener("resize", measure);
       observer.disconnect();
     };
-  }, [anchorRef]);
+  }, [anchorRef, layoutKey]);
 
   if (!pos) {
     return null;

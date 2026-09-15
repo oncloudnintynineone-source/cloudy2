@@ -67,11 +67,18 @@ useful even when the grid fits without overflowing.
 **Positioning: `position: fixed`, statically anchored — no scroll tracking.**
 The buttons are fixed to the viewport and their anchor — the grid's visible-slice
 center plus the 8px edge insets (`anchor.getBoundingClientRect()` clamped to
-`[0, innerHeight]`) — is measured **once** when the view loads, and re-measured
-only on window resize or anchor size change (`ResizeObserver`: breakpoint flips,
-sidebar collapse, grid load). There is **no scroll listener at all**, so the
-buttons hold perfectly still at the calendar's visible-area center while the
-page scrolls and never leave the screen. The left/right controls are clamped to
+`[0, innerHeight]`) — is measured when the view loads and re-measured on window
+resize, an anchor/parent size change (`ResizeObserver`: breakpoint flips, sidebar
+collapse, grid load), a `layoutKey` flip (each caller passes its
+breakpoint + chrome measurement), and a one-shot post-mount settle pass (next
+animation frame + `document.fonts.ready`). That settle pass is the cold-load
+fix: the anchor's final box is not always laid out when the first pass runs, and
+the settle can be a position/overflow change the `ResizeObserver` never reports
+— without it the controls stayed off to the side on a cold mobile load until a
+resize. `measure()` reads the anchor ref fresh on every pass, so a remounted
+anchor is re-measured rather than a detached node. There is **no scroll listener
+at all**, so the buttons hold perfectly still at the calendar's visible-area
+center while the page scrolls and never leave the screen. The left/right controls are clamped to
 the **anchor's own midpoint** (not the viewport's) so a narrow grid can't push
 them off-screen or onto each other; full-width grids have their midpoint at the
 viewport center, so this only changes behavior for the Month & Agenda view's

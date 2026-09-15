@@ -18,7 +18,7 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
 
 ## 1.1 Status
 
-- All work through changelog **1.244 (Pinned-events ticker pills)** is shipped.
+- All work through changelog **1.245 (grid-nav + fullscreen controls re-anchor on cold load)** is shipped.
 - Quality gates (`lint` / `typecheck` / `test` / schema-drift check) run in CI on every
   push and PR. Pushes also auto-apply migrations per environment: `dev` →
   `migrate-preview` against the dev Neon DB, `main` → `migrate` against the prod Neon
@@ -1095,6 +1095,17 @@ via `?attendance=1` and `attendanceStorage` became a `useSyncExternalStore` exte
    it and the rotating title; the countdown re-reads the clock every 60s so a
    single non-rotating event still rolls over at midnight (new pure
    `daysUntilDate` in `datetime.ts`, unit-tested). `docs/pinned-events.md` §1.4
+- 1.245 Grid-nav + fullscreen controls re-anchor on cold load: the fixed
+   arrow/zoom cluster and fullscreen toggle used to measure their anchor once
+   after paint and refresh only on resize / anchor **size** change, so a cold
+   mobile load could leave them off to the side until a resize (the layout
+   settle is a position/overflow change the `ResizeObserver` never reports).
+   Both now read their anchor/chrome refs fresh, observe the parent too,
+   re-measure on a `layoutKey` flip (breakpoint + measured chrome height, passed
+   by DashboardView / DualPaneView / WeekMatrixView), and run a one-shot
+   post-mount settle pass (next frame + `document.fonts.ready`); measurement
+   moved to `useLayoutEffect` so the corrected spot lands before paint.
+   `docs/grid-pan.md` §1.2
 
 ## 1.4 Open items & next steps
 
