@@ -56,8 +56,10 @@ string maps to the first tab of that kind.
   double-insert), then re-reads. The read-first order keeps the common path
   free of the seed transaction.
 - **Add view** has two entry points, both opening the same quick **Add-view
-   dialog** (the shared **seven-kind picker** `ViewTypePicker.tsx` + a name; the
-  default name follows the chosen kind until edited):
+   dialog** (the shared **seven-kind picker** `ViewTypePicker.tsx` rendered in
+  its **thumbnail-grid** variant — one wireframe SVG preview per kind, from
+  `viewThumbnails.tsx` — plus a name; the default name follows the chosen kind
+  until edited):
   - the strip's **`+` button at the end of the scrolling tab strip** (the
     strip's last item, shown for accounts that own stored views; tooltip "Add
     view"). Because it scrolls with the strip it can sit off-screen on a long
@@ -70,18 +72,21 @@ string maps to the first tab of that kind.
 - **Manage views** (a settings **gear** to the RIGHT of the strip, outside the
   horizontal scroll area — so the scroll set ends before it; tooltip "Manage
   views") opens a **centered modal** (`EditViewsModal.tsx`, sharing the app's
-  **touch-friendly manage-row recipe** — see `src/components/reorderUpDown.tsx`:
-  each row is a bordered card with a ~40px chevron pair leading, actions
-  trailing) listing the created tabs as a **vertical list**. Each row shows the
-  view's **kind icon + name**, with a dimmed **kind label** underneath **only
-  when the name is custom** (a default-named tab already reads as its kind, so
-  the label would just repeat the name). The active tab is marked with a thin
-  **accent left border** on the row (quiet — no badge). Row actions:
+  **touch-friendly manage-row recipe** — see `src/components/reorderUpDown.tsx`)
+  listing the created tabs as a **thumbnail grid** (`SimpleGrid`: 1 column on
+  narrow phones, 2 at the base width, 3 at `sm`+). Each card shows the view's
+  **wireframe preview** (the same SVG thumbnails as the Add-view picker), then
+  its **kind icon + name**, with a dimmed **kind label** underneath **only when
+  the name is custom** (a default-named tab already reads as its kind, so the
+  label would just repeat the name). The active tab is marked with an **accent
+  ring** around its card (quiet — no badge). Card actions:
   - **↑/↓** arrows reorder (commits `reorderDashboardViews`, which renumbers
     every row in a transaction — the clicked arrow shows an inline spinner while
-    it works; the row's outward arrow is disabled at the list's ends). They use
-    `ReorderUpDown`'s `variant="subtle"` here, so the dense row isn't a wall of
-    bordered boxes;
+    it works; the card's outward arrow is disabled at the list's ends). They use
+    `ReorderUpDown`'s `variant="subtle"` here, so the card isn't a wall of
+    bordered boxes. The grid's FLIP reorder animates on **both axes**
+    (`flipReorder.ts` translates x *and* y, so a card that changes column slides
+    sideways instead of only vertically);
   - a **pen** (Edit, subtle) opens a single **Edit view** dialog with the name
     and the seven-kind picker — one place for both, replacing the old separate
     inline rename field and Change-type modal. The tab keeps its id, strip order
@@ -95,19 +100,21 @@ string maps to the first tab of that kind.
   definition-blind, the same id would otherwise look already covered, so the
   switch also forces a server re-read with the target period (the grid reloads
   in place instead of waiting for a Force refresh); editing an inactive tab
-  just refreshes the list;
+  just refreshes the list. Unlike the Add-view picker, this dialog's picker uses
+  the **compact text-only variant** (icon + label rows) — editing an existing
+  view is a focused change, so the grid previews are reserved for creation;
   - a **trash** (subtle red) deletes behind a nested `size="sm"` confirm (the
     last tab can't be deleted — its trash is disabled; deleting the active tab
     navigates to the first remaining and forces a re-read, so the deleted row
     can't linger behind a data-equivalent local swap).
-  The Edit dialog also carries the per-view **Filters** entry point: an **Edit
+  Each card stacks **preview → title → action bar** (the ~40px chevron pair
+  leading the bar, Edit/Delete trailing) at every width, so there is no
+  desktop/mobile reflow branch. The Edit dialog also carries the per-view
+  **Filters** entry point: an **Edit
   filters…** button closes the modal, switches to that view and opens its filter
   dialog (the dashboard's one per-view filter UI — see §1.2). Filters resolve
   server-side per tab, so the dialog opens once the target tab is the active view
-  (a preloaded tab resolves immediately). Two ~40px actions plus the chevron pair
-  lead each row, so **below `lg` each row reflows to two lines**: the kind icon +
-  name lead on the first, and the controls sit together on a second left-aligned
-  line; at `lg`+ the row keeps its single line. The old **pin/unpin** affordance
+  (a preloaded tab resolves immediately). The old **pin/unpin** affordance
   and its star UI are gone — ordering is fully user-controlled. Tabs themselves
   are **content-sized** — each shrink-wraps its label (so the active underline
   hugs the text), they never stretch to fill the row, and a long set overflows
@@ -733,13 +740,14 @@ flowchart LR
 | `src/lib/userPrefs/queries.ts` + `actions.ts` | `user_preferences` row: parade filters (incl. `saveParadeFilters`) |
 | `src/app/(protected)/dashboard/DashboardView.tsx`  | Tab strip (+ trailing Add-view button, right-side Manage-views gear and All-views jump popover), optimistic tab switch + period rules + tab-URL prefetch, filter state, schedule zoom + month zoom state & widths |
 | `src/app/(protected)/dashboard/DashboardScreen.tsx` | Snapshot/warm-cache/preload owner; resolves the displayed context from `previewView ?? ?view=` so warm tab switches paint without waiting on the RSC |
-| `src/app/(protected)/dashboard/EditViewsModal.tsx` | Manage-views dialog: Add-view button + card manage list (subtle ↑/↓ reorder, per-row Edit dialog for name+type+filters, nested delete confirm) |
-| `src/app/(protected)/dashboard/ViewTypePicker.tsx` | Shared seven-kind picker (Month/Week (H)/Week (D)/Week (Grid)/Day/Agenda/Month & Agenda) used by the Add-view dialog and the Edit-view dialog |
+| `src/app/(protected)/dashboard/EditViewsModal.tsx` | Manage-views dialog: Add-view button + thumbnail-grid manage list (subtle ↑/↓ reorder, per-card Edit dialog for name+type+filters, nested delete confirm) |
+| `src/app/(protected)/dashboard/ViewTypePicker.tsx` | Shared seven-kind picker (Month/Week (H)/Week (D)/Week (Grid)/Day/Agenda/Month & Agenda): a **thumbnail grid** in the Add-view dialog, a **compact text list** in the Edit-view dialog |
 | `src/app/(protected)/dashboard/DualPaneView.tsx` | Month & Agenda renderer: resizable Month + Agenda panes (§1.9) |
 | `src/app/(protected)/dashboard/MonthWeekdayStrip.tsx` | Pinned weekday-initials strip, shared by the Month view and the Month & Agenda view's Month pane |
 | `src/components/AgendaSwipeHint.tsx` | Touch-only agenda swipe caption, shared by the Agenda tab, day modal, Month & Agenda and Parade State |
 | `src/lib/ui/dualSplit.ts` | Pure Month & Agenda split levels + clamping (`clampDualSplit`, `stepDualSplit`) |
-| `src/app/(protected)/dashboard/viewMeta.tsx` | Kind → icon/label map shared by the strip, the Add-view picker and Manage-views rows |
+| `src/app/(protected)/dashboard/viewMeta.tsx` | Kind → icon/label/thumbnail map shared by the strip, the Add-view picker, the Manage-views cards |
+| `src/app/(protected)/dashboard/viewThumbnails.tsx` | Hand-drawn SVG wireframe previews (120×80, `currentColor` strokes + amber event chips) for each of the seven kinds |
 | `src/components/reorderUpDown.tsx` | Shared touch-friendly manage-row recipe: ~40px ↑/↓ chevron pair (`ReorderUpDown`) + row-action sizes |
 | `src/app/(protected)/dashboard/page.tsx` | Resolves tabs + active tab (`?view=` → remembered → first), validates per-tab filters |
 | `src/app/(protected)/dashboard/WeekMatrixView.tsx` | Week (D) matrix renderer |

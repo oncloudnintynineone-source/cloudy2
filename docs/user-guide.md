@@ -78,11 +78,13 @@ them with the tabs above the grid:
   arrow buttons at the grid's edges (they appear when a grid is wider than the
   screen, e.g. a zoomed-in Month view).
 - **Add a view**: tap the **+** at the end of the tab strip, or the **Add view**
-  button at the top of the Manage views dialog.
+  button at the top of the Manage views dialog. Pick the view type from the
+  **thumbnail grid** (each option shows a small preview of its layout), then name it.
 - **Manage views**: use the **gear** beside the tab strip (tooltip "Manage
-  views"). The active tab is marked with a **left accent bar**; each row has
-  **Edit** (name, type, and an **Edit filters…** button that switches to the view
-  and opens its filter dialog) and **Delete**, plus ↑/↓ to reorder.
+  views"). Your views appear as a **grid of preview cards**; the active one is
+  ringed in amber. Each card has **Edit** (name, type, and an **Edit filters…**
+  button that switches to the view and opens its filter dialog) and **Delete**,
+  plus ↑/↓ to reorder.
 - **Fullscreen** (⋮ menu → **Enter fullscreen**) hides all app
   chrome (and the browser UI where supported) for a wall-display calendar; press
   Esc or use ⋮ menu → **Exit fullscreen** to go back.

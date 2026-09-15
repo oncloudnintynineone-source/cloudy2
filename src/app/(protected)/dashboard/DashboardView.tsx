@@ -4385,7 +4385,7 @@ export function DashboardView({
               <Text fw={600} size="sm" mb={6}>
                 View type
               </Text>
-              <ViewTypePicker value={createKind} onSelect={pickCreateKind} />
+              <ViewTypePicker value={createKind} onSelect={pickCreateKind} variant="thumbnail" />
             </div>
             <TextInput
               label="Name"

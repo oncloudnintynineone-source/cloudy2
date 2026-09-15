@@ -76,12 +76,13 @@ export function useFlipReorder() {
           return;
         }
         const next = element.getBoundingClientRect();
+        const deltaX = old.left - next.left;
         const deltaY = old.top - next.top;
-        if (Math.abs(deltaY) < 0.5) {
+        if (Math.abs(deltaX) < 0.5 && Math.abs(deltaY) < 0.5) {
           return;
         }
         element.style.transition = "none";
-        element.style.transform = `translateY(${deltaY.toFixed(1)}px)`;
+        element.style.transform = `translate(${deltaX.toFixed(1)}px, ${deltaY.toFixed(1)}px)`;
         element.style.willChange = "transform";
         moved.push(element);
       });
@@ -108,7 +109,7 @@ export function useFlipReorder() {
     }
     for (const element of all) {
       element.style.transition = `transform ${FLIP_DURATION_MS}ms ${EASE_OUT}`;
-      element.style.transform = "translateY(0)";
+      element.style.transform = "translate(0px, 0px)";
     }
   }, []);
 
