@@ -3,10 +3,11 @@
 import { Text } from "@mantine/core";
 
 /**
- * Touch-only caption advertising the agenda swipe-to-change-day gesture.
- * Styled like the wizard's "Tap outside to minimize" hint: small, centered and
+ * Touch-only caption advertising the day swipe-to-change gesture. Styled like
+ * the wizard's "Tap outside to minimize" hint: small, centered and
  * non-interactive (pointer-events: none) so it never steals a swipe. Shared by
- * the Agenda tab, the month day modal and the Dual Pane agenda pane.
+ * the Agenda tab, the month day modal, the Dual Pane agenda pane and the
+ * Parade State roster.
  */
 export function AgendaSwipeHint() {
   return (

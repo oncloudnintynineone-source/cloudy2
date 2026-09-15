@@ -25,10 +25,9 @@ import {
   Text,
   useComputedColorScheme,
 } from "@mantine/core";
-import { useClipboard, useDisclosure } from "@mantine/hooks";
+import { useClipboard, useDisclosure, useDrag, useMediaQuery } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
 import {
-  IconCalendarCheck,
   IconCalendarDot,
   IconCheck,
   IconChevronLeft,
@@ -36,7 +35,6 @@ import {
   IconClipboard,
   IconClipboardCheck,
   IconDotsVertical,
-  IconFilter,
   IconMapPin,
   IconRefresh,
   IconSitemap,
@@ -44,8 +42,10 @@ import {
   IconX,
 } from "@tabler/icons-react";
 
+import { AgendaSwipeHint } from "@/components/AgendaSwipeHint";
 import { DateSelectorModal } from "@/components/DateSelectorModal";
 import { EmptyState } from "@/components/EmptyState";
+import { FilterButton } from "@/components/FilterButton";
 import { PageHeader } from "@/components/PageHeader";
 import { useReportActivity } from "@/components/ActivityBar";
 import { useColdStartContent } from "@/components/ColdStartReady";
@@ -62,6 +62,13 @@ import { buildEventsByUser, eventCoversDay, toParadeEvent } from "@/lib/parade/d
 import { buildParadeSections, type ParadeSection } from "@/lib/parade/sections";
 import { formatFullName } from "@/lib/settings/formatName";
 import { activatable } from "@/lib/ui/activatable";
+import {
+  getAgendaSwipeHintServerSnapshot,
+  getAgendaSwipeHintSnapshot,
+  markAgendaSwipeHintSeen,
+  subscribeAgendaSwipeHint,
+} from "@/lib/ui/agendaSwipeHint";
+import { COARSE_POINTER_MEDIA_QUERY } from "@/lib/theme";
 import { saveParadeFilters } from "@/lib/userPrefs/actions";
 import { invalidateCurrentPathCaches } from "@/lib/pwa/client";
 
@@ -76,6 +83,10 @@ import {
 import { departmentSummaryRows, departmentTreeHeadcount } from "./headcount";
 import { formatEventTimeBadge } from "@/lib/parade/eventTimeBadge";
 import { ParadeStateDepartmentSkeleton } from "./paradeStateSkeleton";
+
+/** Horizontal drag distance (px) before a swipe flips the day (same as the
+ *  dashboard's agenda swipe). */
+const DAY_SWIPE_THRESHOLD = 48;
 
 interface ParadeStateUser {
   id: string;
@@ -150,9 +161,15 @@ export function ParadeStateView({
   // back into it (see src/lib/motion/origin.ts).
   const [filterOriginRect, setFilterOriginRect] = useState<Rect | null>(null);
   const [pickerOpened, { open: openPicker, close: closePicker }] = useDisclosure(false);
+  // Where the date-picker trigger sat on screen; the dialog grows out of /
+  // shrinks back into it (same convention as the dashboard nav row).
+  const [pickerOriginRect, setPickerOriginRect] = useState<Rect | null>(null);
   // Reset wipes attendance for every date, so it confirms first like every
   // other destructive action in the app.
   const [resetOpened, { open: openResetConfirm, close: closeResetConfirm }] = useDisclosure(false);
+  // Direction of the in-month day slide (1 = forward/next, -1 = back/prev);
+  // 0 disables it so month-edge switches and jumps use the reveal fade only.
+  const [slideDir, setSlideDir] = useState(0);
 
   // Cross-month day switches need the new month's events from the server (the
   // local `date` state flips optimistically, so the stale event props would
@@ -193,6 +210,36 @@ export function ParadeStateView({
   const colorScheme = useComputedColorScheme("light");
   const today = dayjs().format("YYYY-MM-DD");
 
+  // Day swipe (touch or mouse drag), mirroring the dashboard agenda gesture:
+  // the roster slides in from the direction of travel. The caption is
+  // touch-only and shown at most once per session (shared with the dashboard).
+  const isCoarsePointer = useMediaQuery(COARSE_POINTER_MEDIA_QUERY);
+  const swipeHintSeen = useSyncExternalStore(
+    subscribeAgendaSwipeHint,
+    getAgendaSwipeHintSnapshot,
+    getAgendaSwipeHintServerSnapshot,
+  );
+  const showSwipeHint = isCoarsePointer && !swipeHintSeen;
+  const swipedRef = useRef(false);
+  // One-shot click suppression: a swipe arms `swipedRef` and the content
+  // wrapper's `onClickCapture` swallows the synthesized click a drag emits
+  // (attendance cards toggle on click, so this keeps a swipe from checking
+  // someone in). Clearing it on every new pointer-down re-arms suppression for
+  // the drag's own click without ever swallowing a later tap.
+  const resetSwipeSuppression = useCallback(() => {
+    swipedRef.current = false;
+  }, []);
+  const { ref: swipeRef } = useDrag<HTMLDivElement>(
+    (state) => {
+      if (!state.last || state.canceled || state.tap) return;
+      if (Math.abs(state.movement[0]) < DAY_SWIPE_THRESHOLD) return;
+      swipedRef.current = true;
+      markAgendaSwipeHintSeen();
+      shiftDay(state.movement[0] < 0 ? 1 : -1);
+    },
+    { axis: "lock", axisThreshold: 8, threshold: 10, filterTaps: true },
+  );
+
   const buildHref = useCallback(
     (updates: Record<string, string | null>) => {
       const params = new URLSearchParams(searchParams.toString());
@@ -224,9 +271,13 @@ export function ParadeStateView({
     const nextMonth = next.format("YYYY-MM");
     setDate(nextDate);
     if (nextMonth !== month) {
+      // Month edges refetch from the server; the skeleton + reveal fade
+      // replace the directional slide, so clear it.
+      setSlideDir(0);
       setMonth(nextMonth);
       navigate({ date: nextDate, month: nextMonth });
     } else {
+      setSlideDir(delta > 0 ? 1 : -1);
       navigate({ date: nextDate });
     }
   }
@@ -234,6 +285,7 @@ export function ParadeStateView({
   function goToday() {
     const todayMonth = dayjs().format("YYYY-MM");
     setDate(today);
+    setSlideDir(0);
     if (todayMonth !== month) {
       setMonth(todayMonth);
       navigate({ date: today, month: todayMonth });
@@ -246,6 +298,7 @@ export function ParadeStateView({
     if (picked === date) return;
     const nextMonth = picked.slice(0, 7);
     setDate(picked);
+    setSlideDir(0);
     if (nextMonth !== month) {
       setMonth(nextMonth);
       navigate({ date: picked, month: nextMonth });
@@ -271,23 +324,6 @@ export function ParadeStateView({
     setSelectedCalendars(calIds);
     setSelectedUsers(userIds);
     void persistFilters(calIds, userIds);
-  }
-
-  const onlyMeActive = selectedUsers.length === 1 && selectedUsers[0] === currentUser;
-  const onlyMeAvailable = filterUsers.some((user) => user.id === currentUser);
-
-  function toggleOnlyMe(checked: boolean) {
-    // Search groups: empty selection means "no filter", so unchecked clears
-    // the Users filter entirely. Mirrored optimistically (no skeleton).
-    const next = checked ? [currentUser] : [];
-    setSelectedUsers(next);
-    void persistFilters(selectedCalendars, next);
-  }
-
-  function clearFilters() {
-    setSelectedCalendars([]);
-    setSelectedUsers([]);
-    void persistFilters([], []);
   }
 
   /**
@@ -455,7 +491,7 @@ export function ParadeStateView({
   const desktopAttendanceButton = (
     <Button
       visibleFrom="lg"
-      __vars={{ "--button-height": "43px" }}
+      __vars={{ "--button-height": "36px" }}
       variant={attendanceMode ? "light" : undefined}
       color={attendanceMode ? "teal" : undefined}
       leftSection={attendanceMode ? <IconCheck size={16} /> : <IconClipboardCheck size={16} />}
@@ -584,105 +620,52 @@ export function ParadeStateView({
   }
 
   const dayLabel = dayjs(date).format("ddd, MMM D, YYYY");
-  const onToday = date === today;
 
   return (
     // fab-page-pad replaces pb="xl": reserves clearance for the mobile
     // attendance FAB below the last card row, restores plain xl at lg.
     <Stack gap="md" className="fab-page-pad">
       <PageHeader title="Parade State" subtitle="Roster whereabouts and attendance, by day." />
+      {/* Same nav-row recipe as the calendar page: the day label takes the
+          free space, prev/next sit together beside it, then the mode/filter/
+          date controls. Today lives in the date-picker dialog. */}
       <Group align="center" gap="xs" wrap="nowrap">
+        <Text fw={600} size="md" lineClamp={1} style={{ flex: 1, minWidth: 0, textAlign: "left" }}>
+          {dayLabel}
+        </Text>
         <ActionIcon
-          size={43}
+          size={36}
           variant="default"
           aria-label="Previous day"
           onClick={() => shiftDay(-1)}
         >
           <IconChevronLeft size={18} />
         </ActionIcon>
-        <Text
-          fw={600}
-          size="lg"
-          lineClamp={1}
-          style={{ flex: 1, minWidth: 0, textAlign: "center" }}
-        >
-          {dayLabel}
-        </Text>
-        <ActionIcon size={43} variant="default" aria-label="Next day" onClick={() => shiftDay(1)}>
+        <ActionIcon size={36} variant="default" aria-label="Next day" onClick={() => shiftDay(1)}>
           <IconChevronRight size={18} />
         </ActionIcon>
         {desktopAttendanceButton}
-        <Menu
-          shadow="md"
-          width={200}
-          position="bottom-end"
-          transitionProps={{
-            transition: "pop-top-right",
-            duration: MOTION.popover,
-            timingFunction: "ease",
+        <FilterButton
+          activeCount={activeFilterCount}
+          size={36}
+          iconSize={18}
+          onClick={(e) => {
+            setFilterOriginRect(e.currentTarget.getBoundingClientRect());
+            openFilter();
+          }}
+        />
+        <ActionIcon
+          size={36}
+          variant="default"
+          aria-label="Select date"
+          title="Select date"
+          onClick={(e) => {
+            setPickerOriginRect(e.currentTarget.getBoundingClientRect());
+            openPicker();
           }}
         >
-          <Menu.Target>
-            <Box pos="relative">
-              <ActionIcon size={43} variant="default" aria-label="More options">
-                <IconDotsVertical size={18} />
-              </ActionIcon>
-              {activeFilterCount > 0 && (
-                <Badge
-                  size="sm"
-                  variant="filled"
-                  radius="xl"
-                  pos="absolute"
-                  style={{ top: -4, right: -4 }}
-                >
-                  {activeFilterCount}
-                </Badge>
-              )}
-            </Box>
-          </Menu.Target>
-          <Menu.Dropdown>
-            <Menu.Item
-              leftSection={<IconCalendarCheck size={16} />}
-              disabled={onToday}
-              onClick={goToday}
-            >
-              Today
-            </Menu.Item>
-            <Menu.Item leftSection={<IconCalendarDot size={16} />} onClick={openPicker}>
-              Select date
-            </Menu.Item>
-            <Menu.Divider />
-            <Menu.Label>Filters</Menu.Label>
-            {onlyMeAvailable && (
-              <Menu.CheckboxItem checked={onlyMeActive} onChange={toggleOnlyMe} closeMenuOnClick>
-                Myself
-              </Menu.CheckboxItem>
-            )}
-            <Menu.Item
-              leftSection={<IconX size={16} />}
-              disabled={activeFilterCount === 0}
-              onClick={clearFilters}
-            >
-              Clear
-            </Menu.Item>
-            <Menu.Item
-              leftSection={<IconFilter size={16} />}
-              onClick={(e) => {
-                setFilterOriginRect(e.currentTarget.getBoundingClientRect());
-                openFilter();
-              }}
-              rightSection={
-                activeFilterCount > 0 ? (
-                  <Badge size="sm" variant="filled" radius="xl">
-                    {activeFilterCount}
-                  </Badge>
-                ) : null
-              }
-            >
-              More Filters
-            </Menu.Item>
-          </Menu.Dropdown>
-        </Menu>
+          <IconCalendarDot size={18} />
+        </ActionIcon>
       </Group>
 
       {/* Attendance mode bar: a visible, bounded mode with its own exit (the
@@ -787,79 +770,113 @@ export function ParadeStateView({
         )}
       </Group>
 
-      <Box ref={contentRef} className={CONTENT_ENTER_CLASS}>
-        {contentLoading ? (
-          <Stack gap="lg">
-            <LoadingStatus label="Loading parade state" />
-            <ParadeStateDepartmentSkeleton users={2} />
-            <ParadeStateDepartmentSkeleton users={3} />
-          </Stack>
-        ) : !sections.some(sectionHasUsers) ? (
-          isAdmin ? (
-            <EmptyState
-              icon={users.length === 0 ? <IconSitemap size={18} /> : <IconUser size={18} />}
-              description={users.length === 0 ? "No departments found." : "No users found."}
-              actionLabel={users.length === 0 ? "Manage departments" : "Manage users"}
-              actionHref={users.length === 0 ? "/settings/departments" : "/settings/users"}
-            />
-          ) : (
-            <EmptyState
-              icon={users.length === 0 ? <IconSitemap size={18} /> : <IconUser size={18} />}
-              description={users.length === 0 ? "No departments found." : "No users found."}
-            />
-          )
-        ) : (
-          <Stack gap="lg">
-            {/* Roll-call summary: a Total plus one line per section in tree
+      {/* Day swipe container: horizontal drag flips the day (the roster slides
+          in from the direction of travel); vertical scroll is left to the
+          browser via touch-action. `overflow: hidden` clips the transient
+          slide offset. The click suppressor swallows the click a drag emits so
+          attendance taps never fire off a swipe. */}
+      <Box
+        ref={swipeRef}
+        style={{ touchAction: "pan-y", overflow: "hidden" }}
+        onPointerDown={resetSwipeSuppression}
+        onClickCapture={(event) => {
+          if (swipedRef.current) {
+            event.preventDefault();
+            event.stopPropagation();
+            swipedRef.current = false;
+          }
+        }}
+      >
+        {/* contentRef/`content-enter` stay on the unkeyed parent so the
+            skeleton → content fade is not re-triggered by the remount. */}
+        <Box ref={contentRef} className={CONTENT_ENTER_CLASS}>
+          {/* The day key restarts the directional slide-in on every day change;
+              month edges get the reveal fade instead (slide dir is cleared). */}
+          <Box
+            key={date}
+            className={
+              slideDir === 1
+                ? "agenda-slide-next"
+                : slideDir === -1
+                  ? "agenda-slide-prev"
+                  : undefined
+            }
+          >
+            {contentLoading ? (
+              <Stack gap="lg">
+                <LoadingStatus label="Loading parade state" />
+                <ParadeStateDepartmentSkeleton users={2} />
+                <ParadeStateDepartmentSkeleton users={3} />
+              </Stack>
+            ) : !sections.some(sectionHasUsers) ? (
+              isAdmin ? (
+                <EmptyState
+                  icon={users.length === 0 ? <IconSitemap size={18} /> : <IconUser size={18} />}
+                  description={users.length === 0 ? "No departments found." : "No users found."}
+                  actionLabel={users.length === 0 ? "Manage departments" : "Manage users"}
+                  actionHref={users.length === 0 ? "/settings/departments" : "/settings/users"}
+                />
+              ) : (
+                <EmptyState
+                  icon={users.length === 0 ? <IconSitemap size={18} /> : <IconUser size={18} />}
+                  description={users.length === 0 ? "No departments found." : "No users found."}
+                />
+              )
+            ) : (
+              <Stack gap="lg">
+                {/* Roll-call summary: a Total plus one line per section in tree
                 order (sub-departments indented under their parent, with the
                 count of every section covering its whole subtree). Read-only
                 — the roster below is where people are listed. */}
-            {summary.rows.length > 0 && (
-              <Paper withBorder p="sm">
-                <Stack gap={6}>
-                  <Group justify="space-between" align="baseline" gap="xs" wrap="nowrap">
-                    <Text fw={700} size="sm">
-                      Total
-                    </Text>
-                    <Text fw={700} size="sm">
-                      ({summary.total.present}/{summary.total.total}{" "}
-                      {attendanceMode ? "present" : "in camp"})
-                    </Text>
-                  </Group>
-                  <Divider />
-                  <Stack gap={2}>
-                    {summary.rows.map((row, index) => (
-                      <Text
-                        key={`${row.depth}:${row.name}:${index}`}
-                        size="sm"
-                        fw={row.depth === 0 ? 600 : 400}
-                        lh={1.5}
-                        pl={row.depth * 28}
-                      >
-                        {row.depth > 0 && (
-                          <Text component="span" c="dimmed" inherit>
-                            ›{" "}
-                          </Text>
-                        )}
-                        {row.name}{" "}
-                        <Text component="span" c="dimmed" inherit>
-                          ({row.present}/{row.total})
+                {summary.rows.length > 0 && (
+                  <Paper withBorder p="sm">
+                    <Stack gap={6}>
+                      <Group justify="space-between" align="baseline" gap="xs" wrap="nowrap">
+                        <Text fw={700} size="sm">
+                          Total
                         </Text>
-                      </Text>
-                    ))}
-                  </Stack>
-                </Stack>
-              </Paper>
+                        <Text fw={700} size="sm">
+                          ({summary.total.present}/{summary.total.total}{" "}
+                          {attendanceMode ? "present" : "in camp"})
+                        </Text>
+                      </Group>
+                      <Divider />
+                      <Stack gap={2}>
+                        {summary.rows.map((row, index) => (
+                          <Text
+                            key={`${row.depth}:${row.name}:${index}`}
+                            size="sm"
+                            fw={row.depth === 0 ? 600 : 400}
+                            lh={1.5}
+                            pl={row.depth * 28}
+                          >
+                            {row.depth > 0 && (
+                              <Text component="span" c="dimmed" inherit>
+                                ›{" "}
+                              </Text>
+                            )}
+                            {row.name}{" "}
+                            <Text component="span" c="dimmed" inherit>
+                              ({row.present}/{row.total})
+                            </Text>
+                          </Text>
+                        ))}
+                      </Stack>
+                    </Stack>
+                  </Paper>
+                )}
+                {sections.map((section) => renderSection(section, 0))}
+              </Stack>
             )}
-            {sections.map((section) => renderSection(section, 0))}
-          </Stack>
-        )}
+          </Box>
+        </Box>
+        {showSwipeHint && <AgendaSwipeHint />}
       </Box>
 
       {/* The attendance FAB is mobile-only; at lg the entry point is the
-          nav-row button beside the kebab menu. hiddenFrom sits on the toolbar
-          itself: its Affix portals to <body>, so a wrapper element could not
-          hide it. */}
+          nav-row button beside the filter/date buttons. hiddenFrom sits on the
+          toolbar itself: its Affix portals to <body>, so a wrapper element
+          could not hide it. */}
       <FloatingToolbar hiddenFrom="lg">
         <FloatingActionButton
           aria-label={attendanceMode ? "Exit attendance mode" : "Start attendance"}
@@ -891,6 +908,7 @@ export function ParadeStateView({
         onPick={pickDate}
         onToday={goToday}
         onClose={closePicker}
+        originRect={pickerOriginRect}
       />
       <Modal opened={resetOpened} onClose={closeResetConfirm} title="Clear all dates" centered>
         <Text>Clear attendance checks for every date? This cannot be undone.</Text>

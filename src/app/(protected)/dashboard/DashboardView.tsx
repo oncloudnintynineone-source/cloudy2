@@ -186,7 +186,7 @@ import { EventForm } from "./EventForm";
 import { WeekMatrixView } from "./WeekMatrixView";
 import { ViewTypePicker } from "./ViewTypePicker";
 import { VIEW_TAB_META } from "./viewMeta";
-import { AgendaSwipeHint } from "./AgendaSwipeHint";
+import { AgendaSwipeHint } from "@/components/AgendaSwipeHint";
 import { DualPaneView } from "./DualPaneView";
 import { MonthWeekdayStrip } from "./MonthWeekdayStrip";
 import { useDashboardData } from "./DashboardDataContext";
@@ -1094,8 +1094,7 @@ export function DashboardView({
   // Day/week-anchored chrome flag mirroring `isAnchoredView`, which stays bound
   // to the committed props because it drives data rendering below. Dual Pane is
   // day-anchored too (its Month pane follows the agenda day's month).
-  const shownIsAnchored =
-    shownView === "schedule" || shownIsWeek || shownIsAgenda || shownIsDual;
+  const shownIsAnchored = shownView === "schedule" || shownIsWeek || shownIsAgenda || shownIsDual;
 
   // Height of the sticky chrome block (view tabs + date-nav row, one sticky
   // unit), so the Week (D) pinned day header and the Week (H) day-label strip can
@@ -1286,7 +1285,11 @@ export function DashboardView({
     schedulePan.viewportRef,
     schedulePinch.ref,
   );
-  const dayGridViewportRef = useMergedRef(dayViewportRef, schedulePan.viewportRef, schedulePinch.ref);
+  const dayGridViewportRef = useMergedRef(
+    dayViewportRef,
+    schedulePan.viewportRef,
+    schedulePinch.ref,
+  );
   // Stable identity: the schedule views must not receive fresh
   // `scrollAreaProps` objects on every scroll frame (schedulePan.viewportProps
   // is memoized and only changes at a drag/scroll-edge boundary).
@@ -1314,11 +1317,7 @@ export function DashboardView({
   // same affordances the schedule grids get.
   const monthPan = useGridPan({ touchAction: "pan-x pan-y" });
   const monthViewportRef = useRef<HTMLDivElement | null>(null);
-  const monthGridViewportRef = useMergedRef(
-    monthViewportRef,
-    monthPan.viewportRef,
-    monthPinch.ref,
-  );
+  const monthGridViewportRef = useMergedRef(monthViewportRef, monthPan.viewportRef, monthPinch.ref);
   const monthWeekdayTrackRef = useRef<HTMLDivElement | null>(null);
   const handleMonthScroll = useCallback((pos: { x: number }) => {
     if (monthWeekdayTrackRef.current) {
@@ -2145,10 +2144,7 @@ export function DashboardView({
    * The tab's own filters are read server-side on the next render, so no
    * filter params travel in the URL.
    */
-  function switchTab(
-    tab: Pick<DashboardViewTab, "id" | "kind">,
-    options?: { force?: boolean },
-  ) {
+  function switchTab(tab: Pick<DashboardViewTab, "id" | "kind">, options?: { force?: boolean }) {
     // Optimistic data switch: the data layer resolves the tapped tab
     // immediately, so a warm tab paints without waiting for the URL/RSC
     // round-trip (`useSearchParams` only updates when the payload lands).
@@ -2725,11 +2721,10 @@ export function DashboardView({
       return;
     }
     const root = Array.from(box.children).find(
-      (child) => getComputedStyle(child).getPropertyValue("--week-view-slots-label-width").trim() !== "",
+      (child) =>
+        getComputedStyle(child).getPropertyValue("--week-view-slots-label-width").trim() !== "",
     );
-    const labelWidth = root
-      ? measuredWidth(root, "var(--week-view-slots-label-width)")
-      : 0;
+    const labelWidth = root ? measuredWidth(root, "var(--week-view-slots-label-width)") : 0;
     const width = viewport.clientWidth;
     const focalX = pinchFocalRef.current.x;
     pinchFocalRef.current.x = undefined;
@@ -2937,12 +2932,7 @@ export function DashboardView({
                         </Text>
                       </Group>
                       {status === "loading" && (
-                        <Loader
-                          size={9}
-                          color="accent"
-                          className="c2-tab-spinner"
-                          aria-hidden
-                        />
+                        <Loader size={9} color="accent" className="c2-tab-spinner" aria-hidden />
                       )}
                     </Tabs.Tab>
                   );

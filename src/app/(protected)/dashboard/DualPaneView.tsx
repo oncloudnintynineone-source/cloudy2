@@ -49,10 +49,7 @@ import { AgendaView, MonthView } from "@mantine/schedule";
 import { IconChevronLeft, IconChevronRight } from "@tabler/icons-react";
 
 import { GridNavControls } from "@/components/GridNavControls";
-import {
-  FULLSCREEN_BUTTON_SIZE,
-  FULLSCREEN_EDGE_INSET,
-} from "@/components/FullscreenToggle";
+import { FULLSCREEN_BUTTON_SIZE, FULLSCREEN_EDGE_INSET } from "@/components/FullscreenToggle";
 import { eventsOnDay } from "@/lib/events/agenda";
 import type { CalendarEvent } from "@/lib/events/queries";
 import type { Rect } from "@/lib/motion/origin";
@@ -67,15 +64,10 @@ import {
 } from "@/lib/ui/dualSplit";
 import { announce } from "@/lib/ui/announcer";
 import { useGridPan } from "@/lib/ui/gridPan";
-import {
-  clampMonthZoom,
-  MAX_MONTH_ZOOM,
-  MIN_MONTH_ZOOM,
-  type MonthZoom,
-} from "@/lib/ui/monthZoom";
+import { clampMonthZoom, MAX_MONTH_ZOOM, MIN_MONTH_ZOOM, type MonthZoom } from "@/lib/ui/monthZoom";
 import { usePinchZoom } from "@/lib/ui/pinchZoom";
 import { reanchorScrollLeft } from "@/lib/ui/slotZoom";
-import { AgendaSwipeHint } from "./AgendaSwipeHint";
+import { AgendaSwipeHint } from "@/components/AgendaSwipeHint";
 import { MonthWeekdayStrip } from "./MonthWeekdayStrip";
 
 /**
@@ -186,11 +178,7 @@ export function DualPaneView({
     },
     onEnd: () => announce(`Zoom ${Math.round(monthZoom * 100)}%`),
   });
-  const monthGridViewportRef = useMergedRef(
-    monthViewportRef,
-    monthPan.viewportRef,
-    monthPinch.ref,
-  );
+  const monthGridViewportRef = useMergedRef(monthViewportRef, monthPan.viewportRef, monthPinch.ref);
   const weekdayTrackRef = useRef<HTMLDivElement | null>(null);
   const handleMonthScroll = useCallback((pos: { x: number }) => {
     if (weekdayTrackRef.current) {
@@ -342,7 +330,11 @@ export function DualPaneView({
       if (Math.abs(state.movement[0]) < DAY_SWIPE_THRESHOLD) return;
       swipedRef.current = true;
       markAgendaSwipeHintSeen();
-      onDaySelect(dayjs(day).add(state.movement[0] < 0 ? 1 : -1, "day").format("YYYY-MM-DD"));
+      onDaySelect(
+        dayjs(day)
+          .add(state.movement[0] < 0 ? 1 : -1, "day")
+          .format("YYYY-MM-DD"),
+      );
     },
     { axis: "lock", axisThreshold: 8, threshold: 10, filterTaps: true },
   );
@@ -590,7 +582,11 @@ export function DualPaneView({
             <div
               key={day}
               className={
-                slideDir === 1 ? "agenda-slide-next" : slideDir === -1 ? "agenda-slide-prev" : undefined
+                slideDir === 1
+                  ? "agenda-slide-next"
+                  : slideDir === -1
+                    ? "agenda-slide-prev"
+                    : undefined
               }
             >
               <AgendaView
