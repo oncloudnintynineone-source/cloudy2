@@ -48,8 +48,7 @@ export function FullscreenToggle({
   // Static anchor: the chrome's bottom edge (top) and the grid's right edge,
   // measured on load (null before first paint so the button never flashes
   // unanchored) and re-measured on resize / anchor-or-chrome size change /
-  // immersive toggle / `layoutKey` flip, plus a one-shot post-mount settle
-  // pass (next frame + webfonts) for the cold-load layout shift.
+  // immersive toggle / `layoutKey` flip.
   const [pos, setPos] = useState<{ top: number; right: number } | null>(null);
 
   useLayoutEffect(() => {
@@ -77,36 +76,17 @@ export function FullscreenToggle({
       });
     };
     measure();
-    // Cold-load settle: the anchors' final boxes are not always laid out when
-    // the first pass runs, and the settle can be a position/overflow change the
-    // ResizeObserver never reports. Re-measure once the browser has completed a
-    // full frame (and again once webfonts load, which can shift the chrome).
-    const frame = requestAnimationFrame(measure);
-    let cancelled = false;
-    void document.fonts?.ready.then(() => {
-      if (!cancelled) {
-        measure();
-      }
-    });
     window.addEventListener("resize", measure);
     const observer = new ResizeObserver(measure);
     const anchor = anchorRef.current;
     const chrome = chromeRef.current;
     if (anchor) {
       observer.observe(anchor);
-      if (anchor.parentElement) {
-        observer.observe(anchor.parentElement);
-      }
     }
     if (chrome) {
       observer.observe(chrome);
-      if (chrome.parentElement) {
-        observer.observe(chrome.parentElement);
-      }
     }
     return () => {
-      cancelled = true;
-      cancelAnimationFrame(frame);
       window.removeEventListener("resize", measure);
       observer.disconnect();
     };

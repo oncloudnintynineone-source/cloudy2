@@ -3,6 +3,7 @@
 import { type RefObject, useLayoutEffect, useState } from "react";
 import { ActionIcon, Box } from "@mantine/core";
 import { IconTriangleFilled, IconZoomIn, IconZoomOut } from "@tabler/icons-react";
+import { layoutRect } from "@/lib/ui/layoutRect";
 import { markPinchHintSeen } from "@/lib/ui/pinchHint";
 import { MAX_ZOOM, MIN_ZOOM } from "@/lib/ui/slotZoom";
 
@@ -43,12 +44,13 @@ const EDGE_INSET = 8;
  * lighter than the date-nav chevrons so the controls read as secondary chrome.
  *
  * The controls are `position: fixed` and their anchor is measured on view load
- * and re-measured on window resize, anchor/parent size change, a `layoutKey`
- * flip, and a one-shot post-mount settle pass (next frame + webfonts) — never
- * per scroll frame. The cold-load settle matters: the anchor's final box is not
- * always laid out when the first measurement runs, and the settle can be a
- * position/overflow change the `ResizeObserver` never reports (the controls
- * otherwise stayed off to the side until a resize). There is no scroll
+ * and re-measured on window resize, anchor size change, or a `layoutKey` flip
+ * (the caller's breakpoint + measured chrome height) — never per scroll frame.
+ * The anchor's rect is read with `layoutRect` (transform-free layout geometry,
+ * not `getBoundingClientRect`): for Week (D) and Month & Agenda the anchor sits
+ * inside the dashboard's transiently transformed slide wrapper, so the visual
+ * rect would otherwise be captured mid-slide and leave the controls displaced
+ * (left or right, by the slide direction) until a resize. There is no scroll
  * listener, so the controls hold perfectly still at the calendar's visible-area
  * center while the page scrolls.
  * (Tracking the visible slice on scroll moved the buttons with the calendar —
@@ -144,7 +146,7 @@ export function GridNavControls({
       if (!anchor) {
         return;
       }
-      const rect = anchor.getBoundingClientRect();
+      const rect = layoutRect(anchor);
       // The visible slice is the anchor's rect clamped to the window. If the
       // anchor is entirely off-screen at measurement time, fall back to the
       // full viewport so the controls still render somewhere sensible.
@@ -168,31 +170,13 @@ export function GridNavControls({
       });
     };
     measure();
-    // Cold-load settle: the anchor's final box is not always laid out when the
-    // first pass runs, and the settle can be a position/overflow change the
-    // ResizeObserver never reports. Re-measure once the browser has completed a
-    // full frame (and again once webfonts load, which can shift the chrome).
-    const frame = requestAnimationFrame(measure);
-    let cancelled = false;
-    void document.fonts?.ready.then(() => {
-      if (!cancelled) {
-        measure();
-      }
-    });
     window.addEventListener("resize", measure);
     const observer = new ResizeObserver(measure);
     const anchor = anchorRef.current;
     if (anchor) {
       observer.observe(anchor);
-      // The anchor can shift when its parent resizes while its own box stays
-      // the same; observe the parent so that settle is caught too.
-      if (anchor.parentElement) {
-        observer.observe(anchor.parentElement);
-      }
     }
     return () => {
-      cancelled = true;
-      cancelAnimationFrame(frame);
       window.removeEventListener("resize", measure);
       observer.disconnect();
     };

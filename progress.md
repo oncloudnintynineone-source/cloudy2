@@ -1095,17 +1095,15 @@ via `?attendance=1` and `attendanceStorage` became a `useSyncExternalStore` exte
    it and the rotating title; the countdown re-reads the clock every 60s so a
    single non-rotating event still rolls over at midnight (new pure
    `daysUntilDate` in `datetime.ts`, unit-tested). `docs/pinned-events.md` §1.4
-- 1.245 Grid-nav + fullscreen controls re-anchor on cold load: the fixed
-   arrow/zoom cluster and fullscreen toggle used to measure their anchor once
-   after paint and refresh only on resize / anchor **size** change, so a cold
-   mobile load could leave them off to the side until a resize (the layout
-   settle is a position/overflow change the `ResizeObserver` never reports).
-   Both now read their anchor/chrome refs fresh, observe the parent too,
-   re-measure on a `layoutKey` flip (breakpoint + measured chrome height, passed
-   by DashboardView / DualPaneView / WeekMatrixView), and run a one-shot
-   post-mount settle pass (next frame + `document.fonts.ready`); measurement
-   moved to `useLayoutEffect` so the corrected spot lands before paint.
-   `docs/grid-pan.md` §1.2
+- 1.245 Grid-nav controls no longer displaced by the grid-slide transform: the
+   fixed pan/zoom cluster measured its anchor with `getBoundingClientRect`, which
+   includes ancestor transforms — so for Week (D) and Month & Agenda (whose
+   anchors sit inside the transiently transformed slide wrapper) a measurement
+   taken mid-slide left the cluster displaced left/right until a resize. It now
+   measures with the new transform-free `layoutRect` (`src/lib/ui/layoutRect.ts`),
+   reads the anchor ref fresh, re-measures on a `layoutKey` flip (breakpoint +
+   measured chrome height, passed by DashboardView / DualPaneView /
+   WeekMatrixView), and measures in `useLayoutEffect`. `docs/grid-pan.md` §1.2
 
 ## 1.4 Open items & next steps
 
