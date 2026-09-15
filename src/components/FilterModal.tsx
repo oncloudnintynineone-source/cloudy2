@@ -12,7 +12,7 @@ import {
   Tooltip,
   useMantineTheme,
 } from "@mantine/core";
-import { useMediaQuery } from "@mantine/hooks";
+import { useMediaQuery, useViewportSize } from "@mantine/hooks";
 import { IconChevronDown, IconPlus, IconSquareCheck, IconSquareX } from "@tabler/icons-react";
 
 import { PickerBadges, type PickerBadgeItem } from "@/components/PickerField";
@@ -209,10 +209,8 @@ export function FilterModal({
 
   // The modal zooms out of / shrinks back into the trigger button (the app's
   // standard grow/shrink animation; mirror the other zoom modals).
-  const viewport = {
-    w: typeof window === "undefined" ? 0 : window.innerWidth,
-    h: typeof window === "undefined" ? 0 : window.innerHeight,
-  };
+  const viewportSize = useViewportSize();
+  const viewport = { w: viewportSize.width, h: viewportSize.height };
   const contentWidth = modalContentWidth(viewport, isNarrow ? 300 : isDesktop ? 440 : 380);
   const transitionProps = {
     transition: {

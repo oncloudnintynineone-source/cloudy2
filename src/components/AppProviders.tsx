@@ -9,7 +9,28 @@ import { OfflineBanner } from "@/components/OfflineBanner";
 import { SystemBarSync } from "@/components/SystemBarSync";
 import { ActionPillProvider } from "@/components/ActionPill";
 import { clearAllSavedPages, useStaleDocumentReconcile } from "@/lib/pwa/client";
+import { isLowEndDevice } from "@/lib/motion/lowEndDevice";
 import { DESKTOP_MEDIA_QUERY, theme } from "@/lib/theme";
+
+function useLowEndMotionTier() {
+  // Collapse compositor-bound motion on genuinely weak devices (the
+  // `c2-low-end` CSS tier). Applied as a class after mount rather than baked
+  // into the motion tokens at module load: the server renders the default
+  // durations, so a module-level device check would cause a hydration mismatch
+  // on every inline transition.
+  useEffect(() => {
+    if (typeof navigator === "undefined") return;
+    const caps = navigator as Navigator & { deviceMemory?: number };
+    if (
+      isLowEndDevice({
+        hardwareConcurrency: caps.hardwareConcurrency,
+        deviceMemory: caps.deviceMemory,
+      })
+    ) {
+      document.documentElement.classList.add("c2-low-end");
+    }
+  }, []);
+}
 
 function useSWUpdateReload() {
   // When a new service-worker build activates (post-deploy) and takes over
@@ -119,6 +140,8 @@ export default function AppProviders({ children }: { children: ReactNode }) {
   // If the SW detected a session expiry while revalidating a cached page,
   // leave the stale view for /login — the caches are already purged in the SW.
   useSessionExpiryRedirect();
+  // Drop compositor-bound motion on genuinely weak devices (see the hook).
+  useLowEndMotionTier();
   // Toasts default to the bottom-right corner, which is exactly where the
   // FloatingToolbar FABs sit on mobile (both portaled to <body>) — a success
   // toast would cover the button the user just tapped. Mobile gets

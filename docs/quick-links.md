@@ -38,6 +38,10 @@ enabled.
 - Icon components are client-only: `QuickLinkIcon` (renders a key), 
   `QuickLinkIconPicker` (a tappable icon button grid — **never a Select**),
   `QuickLinksMenu` (the dropdown).
+- `QuickLinkIcon` resolves its glyph from `src/components/quickLinkIconMap.tsx`
+  via a dynamic `import()` on first mount, so the ~39-icon set stays out of the
+  dashboard's initial chunk (it is only needed when a quick-links menu opens);
+  the default glyph shows until it lands.
 
 ## 1.4 The launcher & menu
 

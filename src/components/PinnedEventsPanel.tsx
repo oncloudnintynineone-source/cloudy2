@@ -12,7 +12,7 @@ import {
   ThemeIcon,
   useMantineTheme,
 } from "@mantine/core";
-import { useMediaQuery } from "@mantine/hooks";
+import { useMediaQuery, useViewportSize } from "@mantine/hooks";
 import { IconCalendarEvent, IconPin } from "@tabler/icons-react";
 import dayjs from "dayjs";
 import { useEffect, useState } from "react";
@@ -81,10 +81,8 @@ export function PinnedEventsPanel({ seedEvents = null }: PinnedEventsPanelProps)
   // app's standard grow/shrink animation. It is `centered` with a fixed size,
   // so the content center is the viewport center and the transform-origin can
   // derive purely from the trigger's rect (see src/lib/motion/origin.ts).
-  const viewport = {
-    w: typeof window === "undefined" ? 0 : window.innerWidth,
-    h: typeof window === "undefined" ? 0 : window.innerHeight,
-  };
+  const viewportSize = useViewportSize();
+  const viewport = { w: viewportSize.width, h: viewportSize.height };
   // The panel widens md (440px) -> lg (620px) at lg, so the shrink-to-target
   // scale must use the matching content width.
   const contentWidth = modalContentWidth(viewport, isNarrow ? 380 : isDesktop ? 620 : 440);

@@ -30,7 +30,15 @@ import { deleteQuickLink, moveQuickLink } from "@/lib/quickLinks/actions";
 import { BUTTON_LOADER_PROPS } from "@/lib/theme";
 import { swapAdjacent, useReorderRows } from "@/lib/ui/reorderRows";
 import { activatable } from "@/lib/ui/activatable";
-import { QuickLinkForm } from "./QuickLinkForm";
+import dynamic from "next/dynamic";
+import { FormModalSkeleton } from "@/components/FormModalSkeleton";
+
+// The add/edit quick-link form (with its icon picker) is only mounted on tap;
+// split it out of the quick-links route's initial chunk.
+const QuickLinkForm = dynamic(() => import("./QuickLinkForm").then((mod) => mod.QuickLinkForm), {
+  ssr: false,
+  loading: () => <FormModalSkeleton rows={4} />,
+});
 import { useActivityRefresh } from "@/components/ActivityBar";
 
 interface QuickLinkTableProps {

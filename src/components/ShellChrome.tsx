@@ -48,9 +48,19 @@ export function AnnouncementBanner({ config }: { config: BannerConfig }) {
   const option = bannerColorOption(config.color);
 
   useEffect(() => {
-    if (!ref.current) return;
-    setBannerHeight(ref.current.offsetHeight);
-  });
+    const el = ref.current;
+    if (!el) return;
+    setBannerHeight(el.offsetHeight);
+    // Re-measure only when the banner actually changes size (its text can wrap
+    // to a new height). A dependency-less effect here re-measured and pushed
+    // state on every shell render.
+    if (typeof ResizeObserver === "undefined") {
+      return;
+    }
+    const observer = new ResizeObserver(() => setBannerHeight(el.offsetHeight));
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [setBannerHeight]);
 
   return (
     <div

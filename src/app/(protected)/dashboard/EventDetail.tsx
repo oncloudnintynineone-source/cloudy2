@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { Badge, Button, Group, Modal, Skeleton, Stack, Text, useMantineTheme } from "@mantine/core";
-import { useDisclosure, useMediaQuery } from "@mantine/hooks";
+import { useDisclosure, useMediaQuery, useViewportSize } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
 import { IconCalendarEvent, IconCopy, IconPencil, IconTrash } from "@tabler/icons-react";
 
@@ -112,10 +112,8 @@ export function EventDetail({
   // the clicked element's rect (see src/lib/motion/origin.ts). The modal
   // widens xs (320px) -> sm (380px) -> md (440px): xs on very small phones,
   // sm on regular mobile, md at lg, matching the shrink scale.
-  const viewport = {
-    w: typeof window === "undefined" ? 0 : window.innerWidth,
-    h: typeof window === "undefined" ? 0 : window.innerHeight,
-  };
+  const viewportSize = useViewportSize();
+  const viewport = { w: viewportSize.width, h: viewportSize.height };
   const contentWidth = modalContentWidth(viewport, isNarrow ? 320 : isDesktop ? 440 : 380);
   const transitionProps = {
     transition: {

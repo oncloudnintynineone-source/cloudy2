@@ -29,7 +29,8 @@ where it is wired.
 - [1.13.1 Cold-start readiness](#1131-cold-start-readiness)
 - [1.13.2 Per-view tab load indicator](#1132-per-view-tab-load-indicator)
 - [1.14 Route-change page transition](#114-route-change-page-transition)
-- [1.15 File index & related docs](#115-file-index--related-docs)
+- [1.15 Code-splitting & low-end device tier](#115-code-splitting--low-end-device-tier)
+- [1.16 File index & related docs](#116-file-index--related-docs)
 
 ## 1.1 Problem
 
@@ -731,7 +732,49 @@ fades, so the overlap reads as one gentle reveal.
 **Browser support.** Chromium 125+ and recent Safari/Firefox. Without support
 the navigation simply happens with no animation — the app is unaffected.
 
-## 1.15 File index & related docs
+## 1.15 Code-splitting & low-end device tier
+
+The dashboard is the app's heaviest route and the one every signed-in user
+lands on, so it carries the most aggressive splitting.
+
+**Lazy dashboard chunks.** `DashboardView` statically renders the active grid
+(via `@mantine/schedule`), but everything used on demand is a `next/dynamic`
+import: the event wizard (`EventForm`, plus its `@mantine/dates`/`@mantine/form`
+chain), the two single-kind custom grids (`DualPaneView`, `WeekMatrixView`), the
+event-details modal (`EventDetail`) and the manage-views modal
+(`EditViewsModal`). Each is preloaded at idle (`requestIdleCallback`, 2 s
+deadline) so its first use pays no chunk-download round trip. The wizard's lazy
+fallback (`EventFormSkeleton`) reuses the same fixed body height as the real form
+(`eventFormLayout.ts`) so the modal never resizes while the chunk lands.
+
+**View-gated computations.** The per-view-kind `useMemo`s that are expensive but
+only consumed by one grid — `scheduleResources` (O(events × users)),
+`scheduleEvents`, `departmentMemberships`, `monthEvents` — early-return a stable
+empty value for view kinds that do not use them, so a Month/Agenda user never
+pays for the schedule resource build and vice versa.
+
+**Settings & shared components.** The settings modal forms (`UserForm`,
+`DepartmentDetail`, `EventTypeForm`, `KahGroupForm`, `WebhookForm`,
+`QuickLinkForm`) and `TitleRecipeBuilder` are lazy (`FormModalSkeleton`
+fallback); the quick-link icon set (39 glyphs) lives in a separate module loaded
+on first `QuickLinkIcon` mount. The webhook integration guide's example payloads
+are built on the server and passed down, keeping `notes.ts`'s `node:zlib` import
+out of the client graph (a ~230 KB polyfill chunk otherwise).
+
+**Viewport reads.** Modal "grow from tapped element" origin math reads the
+viewport through `useViewportSize` (resize-subscribed) rather than
+`window.innerWidth/innerHeight` during render, which forced a layout pass on
+every render of `DashboardView` and the zoom modals.
+
+**Low-end device tier.** `AppProviders` adds `c2-low-end` to `<html>` when the
+device reports both a low core count and low memory (`isLowEndDevice`,
+`src/lib/motion/lowEndDevice.ts` — conservative, so capable phones are never
+flagged). `globals.css` collapses transition/animation durations under that
+class. It is applied after mount rather than baked into the motion tokens at
+module load, so the server-rendered inline transition durations never mismatch
+at hydration.
+
+## 1.16 File index & related docs
 
 | File | Role |
 | ---- | ---- |
@@ -743,6 +786,11 @@ the navigation simply happens with no animation — the app is unaffected.
 | `src/app/(protected)/**/page.tsx` | Each protected page renders its content through `PageTransition` (§1.14) |
 | `src/app/(protected)/*/loading.tsx` | Route-level skeletons (16 segments) |
 | `src/app/(protected)/dashboard/calendarSkeleton.tsx` | The view grid skeletons (shared by route + in-page): `MonthGridSkeleton`, `WeekMatrixSkeleton`, `WeekGridSkeleton`, `AgendaListSkeleton`, `ScheduleGridSkeleton`, `DualPaneSkeleton` |
+| `src/app/(protected)/dashboard/eventFormLayout.ts` | Fixed wizard body-height tokens shared by `EventForm` and its lazy `EventFormSkeleton` fallback (§1.15) |
+| `src/app/(protected)/dashboard/EventFormSkeleton.tsx` | Lazy fallback for the code-split event wizard (§1.15) |
+| `src/components/FormModalSkeleton.tsx` | Generic fallback for the lazy settings modal forms (§1.15) |
+| `src/lib/motion/lowEndDevice.ts` | Pure `isLowEndDevice` detection backing the `c2-low-end` motion tier (§1.15) |
+| `src/components/quickLinkIconMap.tsx` | The 39-glyph quick-link icon set, loaded on first `QuickLinkIcon` mount (§1.15) |
 | `src/lib/ui/uiState.ts` | `resolveDashboardView` — shared view resolution for page + route fallback |
 | `src/app/(protected)/parade-state/paradeStateSkeleton.tsx` | Parade row skeletons (shared) |
 | `src/app/(protected)/settings/audit-log/AuditLogRowSkeleton.tsx` | Audit row skeleton (shared) |

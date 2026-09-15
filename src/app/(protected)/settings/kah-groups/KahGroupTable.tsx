@@ -40,8 +40,15 @@ import {
 } from "@/lib/kah/validate";
 import { BUTTON_LOADER_PROPS } from "@/lib/theme";
 import { showValidationFailure } from "@/lib/ui/validationFeedback";
+import dynamic from "next/dynamic";
+import { FormModalSkeleton } from "@/components/FormModalSkeleton";
 
-import { KahGroupForm } from "./KahGroupForm";
+// The add/edit KAH group form is only mounted on tap; split it out of the
+// kah-groups route's initial chunk.
+const KahGroupForm = dynamic(() => import("./KahGroupForm").then((mod) => mod.KahGroupForm), {
+  ssr: false,
+  loading: () => <FormModalSkeleton rows={4} />,
+});
 import { useActivityRefresh } from "@/components/ActivityBar";
 
 interface KahGroupTableProps {

@@ -17,6 +17,7 @@ import {
   useTransition,
 } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import dynamic from "next/dynamic";
 import {
   ActionIcon,
   Alert,
@@ -36,7 +37,7 @@ import {
   UnstyledButton,
   useMantineTheme,
 } from "@mantine/core";
-import { useDisclosure, useDrag, useMediaQuery, useMergedRef } from "@mantine/hooks";
+import { useDisclosure, useDrag, useMediaQuery, useMergedRef, useViewportSize } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
 import {
   AgendaView,
@@ -126,6 +127,7 @@ import {
   expandScheduleEvents,
   isDepartmentRowId,
   type ScheduleResource,
+  type ScheduleResources,
   type ScheduleUser,
 } from "@/lib/events/schedule";
 import { gridWeekAllDayLayout, type GridWeekAllDayLayout } from "@/lib/events/gridWeek";
@@ -180,16 +182,58 @@ import {
   type DashboardViewKind,
   type DashboardViewTab,
 } from "@/lib/dashboardViews/views";
-import { EditViewsModal } from "./EditViewsModal";
-import { EventDetail } from "./EventDetail";
-import { EventForm } from "./EventForm";
-import { WeekMatrixView } from "./WeekMatrixView";
+import { EventFormSkeleton } from "./EventFormSkeleton";
 import { ViewTypePicker } from "./ViewTypePicker";
 import { VIEW_TAB_META } from "./viewMeta";
 import { AgendaSwipeHint } from "@/components/AgendaSwipeHint";
-import { DualPaneView } from "./DualPaneView";
 import { MonthWeekdayStrip } from "./MonthWeekdayStrip";
 import { useDashboardData } from "./DashboardDataContext";
+
+// The event wizard is the heaviest client component in the app (its own form,
+// the @mantine/dates pickers, @mantine/form and the invitee picker). It is
+// only needed once the user opens the form, so it is code-split out of the
+// dashboard's initial chunk and preloaded at idle (see the preload effect
+// below) so the first open stays instant. `preload()` is a runtime static on
+// the Loadable that `next/dynamic` returns.
+const EventForm = dynamic(() => import("./EventForm").then((mod) => mod.EventForm), {
+  ssr: false,
+  loading: () => <EventFormSkeleton />,
+});
+
+const preloadEventFormChunk = () =>
+  (EventForm as unknown as { preload?: () => Promise<unknown> }).preload?.();
+
+// The custom Dual Pane (Month + Agenda) and Week (D) matrix views are each used
+// by exactly one view kind, so their code is split out of the dashboard's
+// initial chunk and preloaded at idle — a tab that uses them is warm by then.
+const DualPaneView = dynamic(() => import("./DualPaneView").then((mod) => mod.DualPaneView), {
+  ssr: false,
+  loading: () => <ScheduleGridSkeleton rows={6} />,
+});
+
+const WeekMatrixView = dynamic(
+  () => import("./WeekMatrixView").then((mod) => mod.WeekMatrixView),
+  { ssr: false, loading: () => <WeekMatrixSkeleton rows={6} /> },
+);
+
+// The event-details modal and the manage-views modal are opened on demand;
+// splitting them keeps their code out of the initial chunk (both preload at
+// idle below). No loading fallback: they are modals, so a bare `null` while the
+// chunk lands is invisible.
+const EventDetail = dynamic(() => import("./EventDetail").then((mod) => mod.EventDetail), {
+  ssr: false,
+});
+
+const EditViewsModal = dynamic(
+  () => import("./EditViewsModal").then((mod) => mod.EditViewsModal),
+  { ssr: false },
+);
+
+const preloadDashboardViewChunks = () => {
+  for (const component of [DualPaneView, WeekMatrixView, EventDetail, EditViewsModal]) {
+    void (component as unknown as { preload?: () => Promise<unknown> }).preload?.();
+  }
+};
 
 type ViewMode = DashboardViewKind;
 
@@ -208,6 +252,15 @@ const NO_GRID_WEEK_ALLDAY: GridWeekAllDayLayout = {
   hidden: [],
   hiddenIds: new Set(),
 };
+
+// Stable empties for the per-view-kind computations below: Month / Agenda /
+// Dual Pane never consume the schedule resources (and vice versa for the month
+// event sort), so those O(events × users) builds are skipped entirely and the
+// unused consumers read these.
+const EMPTY_SCHEDULE_RESOURCES: ScheduleResources = { resources: [], groups: undefined };
+const EMPTY_DEPARTMENT_MEMBERSHIPS = new Map<string, string[]>();
+const EMPTY_SCHEDULE_EVENTS: CalendarEvent[] = [];
+const EMPTY_MONTH_EVENTS: CalendarEvent[] = [];
 
 interface EventTypeOption {
   name: string;
@@ -1474,10 +1527,11 @@ export function DashboardView({
   // animation so the shrinking box still has content.
   const agendaViewDate = agendaDate ?? displayAgendaDate;
 
-  const viewport = {
-    w: typeof window === "undefined" ? 0 : window.innerWidth,
-    h: typeof window === "undefined" ? 0 : window.innerHeight,
-  };
+  // Resize-subscribed viewport (Mantine hook) rather than a raw
+  // `window.innerWidth/innerHeight` read during render, which forced a layout
+  // pass on every render. Only feeds the modal grow-from-tapped-element math.
+  const viewportSize = useViewportSize();
+  const viewport = { w: viewportSize.width, h: viewportSize.height };
   // The agenda-day and event-form modals widen at lg (and the event form
   // again at the wide-desktop band), so each shrink-to-target scale must use
   // its own modal's matching content width.
@@ -1770,30 +1824,38 @@ export function DashboardView({
   // a row even when their department is outside the `cal` selection — and the
   // department list must cover each selected user's own department.
   const userFilterActive = selectedUserIds.length > 0;
-  const scheduleResources = useMemo(
-    () =>
-      buildScheduleResources({
-        departments: userFilterActive ? calendars : scheduleDepartments,
-        users: userFilterActive ? allActiveUsers : scheduleUsers,
-        events: viewEvents,
-        userFilter: selectedUserIds,
-      }),
-    [
-      userFilterActive,
-      calendars,
-      scheduleDepartments,
-      scheduleUsers,
-      allActiveUsers,
-      viewEvents,
-      selectedUserIds,
-    ],
-  );
+  const scheduleResources = useMemo(() => {
+    // Only the Day / Week (H) / Week (D) grids consume this; skip the
+    // O(events × users) build entirely for Month / Agenda / Dual Pane.
+    if (view !== "schedule" && view !== "week" && view !== "weekv2") {
+      return EMPTY_SCHEDULE_RESOURCES;
+    }
+    return buildScheduleResources({
+      departments: userFilterActive ? calendars : scheduleDepartments,
+      users: userFilterActive ? allActiveUsers : scheduleUsers,
+      events: viewEvents,
+      userFilter: selectedUserIds,
+    });
+  }, [
+    view,
+    userFilterActive,
+    calendars,
+    scheduleDepartments,
+    scheduleUsers,
+    allActiveUsers,
+    viewEvents,
+    selectedUserIds,
+  ]);
   // Active roster members grouped by department — the row expansion for
   // department-tagged events (a department-level event occupies every active
   // member, so it must also land in each member's cell, not just the
   // department row). Mirrors the clash occupancy model
   // (`activeMembershipsByDepartment`).
   const departmentMemberships = useMemo(() => {
+    // Consumed by the schedule views and the Week (D) matrix only.
+    if (view !== "schedule" && view !== "week" && view !== "weekv2") {
+      return EMPTY_DEPARTMENT_MEMBERSHIPS;
+    }
     const map = new Map<string, string[]>();
     for (const user of allActiveUsers) {
       if (!user.departmentId) {
@@ -1807,10 +1869,13 @@ export function DashboardView({
       }
     }
     return map;
-  }, [allActiveUsers]);
+  }, [view, allActiveUsers]);
   const scheduleEvents = useMemo(
-    () => expandScheduleEvents(viewEvents, departmentMemberships),
-    [viewEvents, departmentMemberships],
+    () =>
+      view === "schedule" || view === "week"
+        ? expandScheduleEvents(viewEvents, departmentMemberships)
+        : EMPTY_SCHEDULE_EVENTS,
+    [view, viewEvents, departmentMemberships],
   );
 
   // "Highlight my entries": the events the current user is tagged on — the
@@ -1840,8 +1905,11 @@ export function DashboardView({
   // the user's events first (each block time-sorted) and they claim the top
   // rows of every day.
   const monthEvents = useMemo(
-    () => sortMineFirst(viewEvents, myEventIds),
-    [viewEvents, myEventIds],
+    () =>
+      view === "month" || view === "dual"
+        ? sortMineFirst(viewEvents, myEventIds)
+        : EMPTY_MONTH_EVENTS,
+    [view, viewEvents, myEventIds],
   );
 
   // External flag from the underlying CalendarEvent payload (Mantine's
@@ -2056,6 +2124,34 @@ export function DashboardView({
       router.prefetch(href);
     }
   }, [router, tabs, buildHref, view, shownDate, today, activeView.id, searchParams]);
+
+  // Preload the lazy dashboard chunks (event form, custom view kinds, detail /
+  // manage-views modals) at idle so their first use pays no chunk-download
+  // round trip. The deadline keeps it from being starved on a busy phone; a
+  // resolved promise re-run is harmless.
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+    const preload = () => {
+      void preloadEventFormChunk();
+      preloadDashboardViewChunks();
+    };
+    const hasIdle = typeof window.requestIdleCallback === "function";
+    let id: number;
+    if (hasIdle) {
+      id = window.requestIdleCallback(preload, { timeout: 2000 });
+    } else {
+      id = window.setTimeout(preload, 0);
+    }
+    return () => {
+      if (hasIdle) {
+        window.cancelIdleCallback(id);
+      } else {
+        window.clearTimeout(id);
+      }
+    };
+  }, []);
 
   // Strip the one-shot `edit` param from the URL so a refresh doesn't reopen
   // the edit form. A plain push (no transition): the grid shows no skeleton

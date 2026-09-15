@@ -29,7 +29,16 @@ import type { RosterAccessGrant, RosterUser } from "@/lib/roster/queries";
 import { departmentPathLabels, departmentTreeRows } from "@/lib/roster/hierarchy";
 import { formatFullName } from "@/lib/settings/formatName";
 import { activatable } from "@/lib/ui/activatable";
-import { UserForm, type DepartmentOption } from "./UserForm";
+import dynamic from "next/dynamic";
+import { FormModalSkeleton } from "@/components/FormModalSkeleton";
+import type { DepartmentOption } from "./UserForm";
+
+// The edit-user form is large (roster fields, department access, pickers) and
+// only mounted on tap; split it out of the users route's initial chunk.
+const UserForm = dynamic(() => import("./UserForm").then((mod) => mod.UserForm), {
+  ssr: false,
+  loading: () => <FormModalSkeleton rows={5} />,
+});
 
 interface UserTableProps {
   users: RosterUser[];

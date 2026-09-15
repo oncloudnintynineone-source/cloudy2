@@ -23,7 +23,15 @@ import type { Webhook } from "@/db/schema";
 import { FAB_ICON_SIZE, FloatingActionButton, FloatingToolbar } from "@/components/FloatingToolbar";
 import { CONTENT_ENTER_CLASS } from "@/lib/loading/contentEnter";
 import { activatable } from "@/lib/ui/activatable";
-import { WebhookForm } from "./WebhookForm";
+import dynamic from "next/dynamic";
+import { FormModalSkeleton } from "@/components/FormModalSkeleton";
+
+// The add/edit webhook form is only mounted on tap; split it out of the
+// webhooks route's initial chunk.
+const WebhookForm = dynamic(() => import("./WebhookForm").then((mod) => mod.WebhookForm), {
+  ssr: false,
+  loading: () => <FormModalSkeleton rows={3} />,
+});
 
 interface WebhookTableProps {
   webhooks: Webhook[];

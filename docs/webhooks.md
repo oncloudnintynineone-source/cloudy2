@@ -185,10 +185,13 @@ get the schema without leaving the app:
 
 - **Actions & headers** — the three action strings and the delivery headers table.
 - **Example payloads** — one JSON sample per action with copy buttons. These are
-  generated at render time by `buildExampleWebhookPayload`
+  generated on the **server** (`page.tsx`) by `buildExampleWebhookPayload`
   (`src/lib/webhooks/example.ts`, pure), which calls the **real**
   `buildEventWebhookPayload` with fixed fixture data — the displayed schema can never
-  drift from actual deliveries.
+  drift from actual deliveries. The JSON is passed to the client
+  `PayloadReference` as a prop: building it inside that client component would
+  pull `example.ts` → `eventAudit.ts` → `notes.ts` (whose `node:zlib` import
+  bundles a ~230 KB polyfill chunk into the settings/webhooks client chunk).
 - **Verifying signatures** — HMAC recipe with a copyable Node `crypto` snippet.
 
 ## 1.7 Pure helpers & testing

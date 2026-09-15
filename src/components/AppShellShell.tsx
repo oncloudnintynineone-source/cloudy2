@@ -137,6 +137,36 @@ const SIDEBAR_RAIL_WIDTH = 64;
 const NAV_ACTIVE_COLOR = "var(--mantine-color-brand-7)";
 const NAV_IDLE_COLOR = "light-dark(var(--mantine-color-gray-6), var(--mantine-color-dark-1))";
 
+// Static style objects hoisted out of the render body: this shell re-renders on
+// every pathname / pinned-events / badge / banner change, so these are shared
+// rather than re-allocated each pass.
+const NAV_ICON_STYLE: React.CSSProperties = {
+  position: "relative",
+  display: "flex",
+  flexShrink: 0,
+};
+const RAIL_BUTTON_STYLE: React.CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  padding: 4,
+};
+const NAVBAR_STYLE: React.CSSProperties = {
+  viewTransitionName: "c2-shell-navbar",
+  background: "var(--mantine-color-body)",
+  borderRight: "1px solid var(--mantine-color-default-border)",
+  // Mantine animates transform/top/height on the navbar; add width so the rail
+  // resize animates in step with the main area's padding.
+  transitionProperty: "transform, top, height, width",
+};
+const HEADER_STYLE: React.CSSProperties = {
+  viewTransitionName: "c2-shell-header",
+  background: "var(--mantine-color-brand-7)",
+  borderColor: "var(--mantine-color-brand-8)",
+  // The safe-area region stays navy; the banner + brand bar render below it.
+  paddingTop: "env(safe-area-inset-top)",
+};
+
 // How long an optimistic nav highlight survives without a commit before
 // reverting (stalled or offline request). Long enough to never flicker on a
 // slow-but-alive connection, short enough that a dead tap doesn't lie about
@@ -198,7 +228,7 @@ function InactivityActivityReporter({ pending }: { pending: boolean }) {
  *  top-right corner. */
 function NavIcon({ item }: { item: NavItem }) {
   return (
-    <Box style={{ position: "relative", display: "flex", flexShrink: 0 }}>
+    <Box style={NAV_ICON_STYLE}>
       {item.icon}
       {navCountPill(item)}
     </Box>
@@ -229,13 +259,7 @@ function RailNavButton({
         component={Link}
         href={item.href}
         onClick={onTap}
-        style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          padding: 4,
-          color: active ? NAV_ACTIVE_COLOR : NAV_IDLE_COLOR,
-        }}
+        style={{ ...RAIL_BUTTON_STYLE, color: active ? NAV_ACTIVE_COLOR : NAV_IDLE_COLOR }}
         aria-label={navAriaLabel(item)}
         aria-current={active ? "page" : undefined}
       >
@@ -857,13 +881,9 @@ export function AppShellShell({
         >
           <AppShell.Header
             style={{
-              viewTransitionName: "c2-shell-header",
-              background: "var(--mantine-color-brand-7)",
-              borderColor: "var(--mantine-color-brand-8)",
-              // The safe-area region stays navy; the banner + brand bar render
-              // below it. Column layout only when a banner is stacked on top —
-              // otherwise the single Group keeps today's row rendering.
-              paddingTop: "env(safe-area-inset-top)",
+              ...HEADER_STYLE,
+              // Column layout only when a banner is stacked on top — otherwise
+              // the single Group keeps today's row rendering.
               display: bannerActive && !immersive ? "flex" : undefined,
               flexDirection: bannerActive ? "column" : undefined,
             }}
@@ -926,14 +946,7 @@ export function AppShellShell({
 
           <AppShell.Navbar
             p="md"
-            style={{
-              viewTransitionName: "c2-shell-navbar",
-              background: "var(--mantine-color-body)",
-              borderRight: "1px solid var(--mantine-color-default-border)",
-              // Mantine animates transform/top/height on the navbar; add width so
-              // the rail resize animates in step with the main area's padding.
-              transitionProperty: "transform, top, height, width",
-            }}
+            style={NAVBAR_STYLE}
           >
             <Stack gap="xs">
               {navItems.map((item) =>

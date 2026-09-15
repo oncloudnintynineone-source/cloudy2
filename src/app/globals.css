@@ -1319,3 +1319,17 @@ html {
     transition: none;
   }
 }
+
+/* Low-end device tier: `AppProviders` adds `c2-low-end` to <html> when the
+   device reports both a low core count and low memory. Compositor-bound motion
+   is collapsed so it cannot stutter on weak CPUs/GPUs. Mirrors the
+   reduced-motion rules above, but applies regardless of the OS setting and
+   also covers the JS-driven (inline `transition`) durations. */
+html.c2-low-end *,
+html.c2-low-end *::before,
+html.c2-low-end *::after {
+  transition-duration: 0.01ms !important;
+  animation-duration: 0.01ms !important;
+  animation-iteration-count: 1 !important;
+}
+

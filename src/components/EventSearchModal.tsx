@@ -29,7 +29,7 @@ import {
   useMantineTheme,
 } from "@mantine/core";
 import { DatePickerInput } from "@mantine/dates";
-import { useMediaQuery } from "@mantine/hooks";
+import { useMediaQuery, useViewportSize } from "@mantine/hooks";
 import { AgendaView } from "@mantine/schedule";
 import { IconCalendar, IconSearch, IconSearchOff, IconX } from "@tabler/icons-react";
 import dayjs from "dayjs";
@@ -82,6 +82,14 @@ type AgendaEventRender = (
 
 const LIST_BORDER = "1px solid var(--mantine-color-default-border)";
 
+/**
+ * How many result rows to mount at once. A broad query across every calendar
+ * can return hundreds of events; `AgendaView` renders them all with no
+ * virtualization, so the list is paged to keep the DOM (and the initial paint
+ * on a low-end phone) bounded. "Show more" reveals the rest.
+ */
+const RESULT_PAGE_SIZE = 150;
+
 export default function EventSearchModal({ opened, onClose, originRect }: EventSearchModalProps) {
   const router = useRouter();
   const pathname = usePathname();
@@ -99,6 +107,7 @@ export default function EventSearchModal({ opened, onClose, originRect }: EventS
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [results, setResults] = useState<CalendarEvent[] | null>(null);
+  const [visibleCount, setVisibleCount] = useState(RESULT_PAGE_SIZE);
   // The current user's own events (tagged attendee) among the results — drives
   // the amber "mine" row highlight, matching the dashboard agenda.
   const [myEventIds, setMyEventIds] = useState<string[]>([]);
@@ -169,6 +178,7 @@ export default function EventSearchModal({ opened, onClose, originRect }: EventS
       setSearchedRange(null);
       setError(null);
       setOpening(null);
+      setVisibleCount(RESULT_PAGE_SIZE);
     }
   }
 
@@ -214,10 +224,10 @@ export default function EventSearchModal({ opened, onClose, originRect }: EventS
 
   // The modal zooms out of / shrinks back into the header search button (the
   // app's standard grow/shrink animation; mirror PinnedEventsPanel).
-  const viewport = {
-    w: typeof window === "undefined" ? 0 : window.innerWidth,
-    h: typeof window === "undefined" ? 0 : window.innerHeight,
-  };
+  // Resize-subscribed viewport (Mantine hook) rather than a raw window read
+  // during render.
+  const viewportSize = useViewportSize();
+  const viewport = { w: viewportSize.width, h: viewportSize.height };
   const contentWidth = modalContentWidth(viewport, isNarrow ? 380 : isDesktop ? 620 : 440);
   const transitionProps = {
     transition: {
@@ -250,6 +260,7 @@ export default function EventSearchModal({ opened, onClose, originRect }: EventS
       const result = await searchEvents(trimmed, from ?? "", to ?? "");
       if (result.ok) {
         setResults(result.events);
+        setVisibleCount(RESULT_PAGE_SIZE);
         setMyEventIds(result.myEventIds);
         setSearchedRange({ from: effectiveFrom, to: effectiveTo });
         // Remember the query server-side (fire-and-forget) and update the local
@@ -306,6 +317,7 @@ export default function EventSearchModal({ opened, onClose, originRect }: EventS
   const rangeStart = results && results.length > 0 ? results[0].start.slice(0, 10) : (from ?? "");
   const rangeEnd =
     results && results.length > 0 ? results[results.length - 1].start.slice(0, 10) : (to ?? "");
+  const visibleResults = results ? results.slice(0, visibleCount) : null;
 
   // The user's own rows get the amber agenda highlight, external (Google-made)
   // rows the purple one — the same classes the dashboard agenda uses.
@@ -591,11 +603,22 @@ export default function EventSearchModal({ opened, onClose, originRect }: EventS
             <AgendaView
               rangeStart={rangeStart}
               rangeEnd={rangeEnd}
-              events={results}
+              events={visibleResults ?? []}
               styles={{ agendaViewHeader: { display: "none" } }}
               renderEvent={renderAgendaEvent}
               onEventClick={handleEventClick}
             />
+            {results.length > visibleCount && (
+              <Group justify="center" p="xs">
+                <Button
+                  variant="subtle"
+                  size="xs"
+                  onClick={() => setVisibleCount((count) => count + RESULT_PAGE_SIZE)}
+                >
+                  Show more ({results.length - visibleCount} remaining)
+                </Button>
+              </Group>
+            )}
             {opened && opening && (
               <Box
                 style={{

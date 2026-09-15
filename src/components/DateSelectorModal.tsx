@@ -3,7 +3,7 @@
 import dayjs from "dayjs";
 import { useState } from "react";
 import { ActionIcon, Box, Button, Modal, Text, useMantineTheme } from "@mantine/core";
-import { useMediaQuery } from "@mantine/hooks";
+import { useMediaQuery, useViewportSize } from "@mantine/hooks";
 import { MonthPicker } from "@mantine/dates";
 import { MobileMonthView } from "@mantine/schedule";
 import { IconChevronLeft, IconChevronRight } from "@tabler/icons-react";
@@ -89,10 +89,8 @@ export function DateSelectorModal({
 
   // The modal zooms out of / shrinks back into the trigger button (the app's
   // standard grow/shrink animation; mirror the filter dialog).
-  const viewport = {
-    w: typeof window === "undefined" ? 0 : window.innerWidth,
-    h: typeof window === "undefined" ? 0 : window.innerHeight,
-  };
+  const viewportSize = useViewportSize();
+  const viewport = { w: viewportSize.width, h: viewportSize.height };
   const contentWidth = modalContentWidth(viewport, isNarrow ? 300 : isDesktop ? 440 : 380);
   const transitionProps = {
     transition: {

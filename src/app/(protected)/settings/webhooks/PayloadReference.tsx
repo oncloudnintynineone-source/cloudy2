@@ -14,13 +14,14 @@ import {
 import { IconCheck, IconCopy } from "@tabler/icons-react";
 
 import { WEBHOOK_ACTIONS } from "@/lib/webhooks/payload";
-import { buildExampleWebhookPayload } from "@/lib/webhooks/example";
 
 const ACTIONS = [
   WEBHOOK_ACTIONS.eventCreated,
   WEBHOOK_ACTIONS.eventUpdated,
   WEBHOOK_ACTIONS.eventDeleted,
 ] as const;
+
+export type ExamplePayloads = Record<(typeof ACTIONS)[number], string>;
 
 const ACTION_LABELS: Record<(typeof ACTIONS)[number], string> = {
   [WEBHOOK_ACTIONS.eventCreated]: "event.created",
@@ -78,8 +79,13 @@ const FIELDS = [
   ["changes", "{field: [before, after]}?", "Present on updates only — what changed"],
 ] as const;
 
-function ExampleBlock({ action }: { action: (typeof ACTIONS)[number] }) {
-  const json = buildExampleWebhookPayload(action);
+function ExampleBlock({
+  action,
+  json,
+}: {
+  action: (typeof ACTIONS)[number];
+  json: string;
+}) {
   return (
     <div>
       <Group justify="space-between" mb={4}>
@@ -112,8 +118,12 @@ function ExampleBlock({ action }: { action: (typeof ACTIONS)[number] }) {
  * In-app integration guide for webhook receivers: actions, headers, live
  * example payloads (generated from the real builder), and signature
  * verification. Rendered under the endpoint list on the Webhooks tab.
+ *
+ * The example JSONs are built on the server (see `page.tsx`) and passed in:
+ * the real builder reaches `eventAudit` → `notes.ts`, whose `node:zlib` import
+ * would otherwise drag ~230 KB of zlib polyfills into this client chunk.
  */
-export function PayloadReference() {
+export function PayloadReference({ exampleJson }: { exampleJson: ExamplePayloads }) {
   return (
     <Accordion variant="separated" mb="xl">
       <Accordion.Item value="schema">
@@ -154,7 +164,7 @@ export function PayloadReference() {
         <Accordion.Panel>
           <Stack gap="lg">
             {ACTIONS.map((action) => (
-              <ExampleBlock key={action} action={action} />
+              <ExampleBlock key={action} action={action} json={exampleJson[action]} />
             ))}
           </Stack>
         </Accordion.Panel>

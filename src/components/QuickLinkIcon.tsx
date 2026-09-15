@@ -1,99 +1,9 @@
 "use client";
 
-import type { TablerIcon } from "@tabler/icons-react";
-import {
-  IconAlertCircle,
-  IconAlarm,
-  IconBell,
-  IconBookmark,
-  IconBook,
-  IconBuilding,
-  IconBubble,
-  IconCalendar,
-  IconCamera,
-  IconCar,
-  IconClock,
-  IconCurrencyDollar,
-  IconExternalLink,
-  IconFile,
-  IconFileText,
-  IconFlag,
-  IconGift,
-  IconHeart,
-  IconHome,
-  IconInfoCircle,
-  IconLink,
-  IconMail,
-  IconMapPin,
-  IconMessageCircle,
-  IconMusic,
-  IconPhone,
-  IconPlane,
-  IconPrinter,
-  IconQrcode,
-  IconShield,
-  IconShip,
-  IconStar,
-  IconTarget,
-  IconTools,
-  IconTrain,
-  IconTrophy,
-  IconUser,
-  IconUsers,
-  IconVideo,
-  IconWorld,
-} from "@tabler/icons-react";
+import { useEffect, useState } from "react";
+import { IconExternalLink, type TablerIcon } from "@tabler/icons-react";
 
 import { DEFAULT_QUICK_LINK_ICON, normalizeQuickLinkIcon } from "@/lib/quickLinks/icons";
-
-/**
- * Stored icon key → installed tabler icon (curated set:
- * src/lib/quickLinks/icons.ts). Component names follow the installed
- * @tabler/icons-react version, which renamed a few glyphs (chat → bubble,
- * dollar → currency-dollar, qr-code → qrcode, wrench → tools).
- */
-const ICON_COMPONENTS: Record<string, TablerIcon> = {
-  "external-link": IconExternalLink,
-  link: IconLink,
-  phone: IconPhone,
-  mail: IconMail,
-  chat: IconBubble,
-  "message-circle": IconMessageCircle,
-  "map-pin": IconMapPin,
-  world: IconWorld,
-  clock: IconClock,
-  alarm: IconAlarm,
-  calendar: IconCalendar,
-  user: IconUser,
-  users: IconUsers,
-  "info-circle": IconInfoCircle,
-  "alert-circle": IconAlertCircle,
-  bell: IconBell,
-  file: IconFile,
-  "file-text": IconFileText,
-  "qr-code": IconQrcode,
-  video: IconVideo,
-  camera: IconCamera,
-  printer: IconPrinter,
-  music: IconMusic,
-  car: IconCar,
-  train: IconTrain,
-  ship: IconShip,
-  plane: IconPlane,
-  home: IconHome,
-  building: IconBuilding,
-  heart: IconHeart,
-  shield: IconShield,
-  dollar: IconCurrencyDollar,
-  gift: IconGift,
-  flag: IconFlag,
-  trophy: IconTrophy,
-  target: IconTarget,
-  book: IconBook,
-  wrench: IconTools,
-  star: IconStar,
-  bookmark: IconBookmark,
-};
 
 interface QuickLinkIconProps {
   iconKey: string | null;
@@ -102,9 +12,30 @@ interface QuickLinkIconProps {
   color?: string;
 }
 
-/** Resolves a stored quick-link icon key to its tabler icon with a safe fallback. */
+/**
+ * Resolves a stored quick-link icon key to its tabler icon with a safe fallback.
+ *
+ * The icon set (~39 glyphs) lives in a separate module loaded on first mount so
+ * it never lands in the dashboard's initial chunk — the dashboard only renders
+ * these when a quick-links menu opens. The default glyph shows until it loads
+ * (a single already-bundled icon), then swaps in place.
+ */
 export function QuickLinkIcon({ iconKey, size = 16, color }: QuickLinkIconProps) {
+  const [components, setComponents] = useState<Record<string, TablerIcon> | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    void import("./quickLinkIconMap").then((mod) => {
+      if (active) {
+        setComponents(mod.QUICK_LINK_ICON_COMPONENTS);
+      }
+    });
+    return () => {
+      active = false;
+    };
+  }, []);
+
   const key = normalizeQuickLinkIcon(iconKey);
-  const Icon = ICON_COMPONENTS[key] ?? ICON_COMPONENTS[DEFAULT_QUICK_LINK_ICON];
+  const Icon = components?.[key] ?? components?.[DEFAULT_QUICK_LINK_ICON] ?? IconExternalLink;
   return <Icon size={size} color={color} />;
 }

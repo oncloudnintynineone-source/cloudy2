@@ -29,9 +29,17 @@ import {
 } from "@/lib/events/timeOptions";
 import { CONTENT_ENTER_CLASS } from "@/lib/loading/contentEnter";
 import { activatable } from "@/lib/ui/activatable";
-import { EventTypeForm } from "./EventTypeForm";
+import dynamic from "next/dynamic";
+import { FormModalSkeleton } from "@/components/FormModalSkeleton";
 import { EventTypeGroupsModal } from "./EventTypeGroupsModal";
 import { useActivityRefresh } from "@/components/ActivityBar";
+
+// The add/edit event-type form is only mounted on tap; split it out of the
+// event-types route's initial chunk.
+const EventTypeForm = dynamic(() => import("./EventTypeForm").then((mod) => mod.EventTypeForm), {
+  ssr: false,
+  loading: () => <FormModalSkeleton rows={5} />,
+});
 
 interface EventTypeTableProps {
   types: EventType[];

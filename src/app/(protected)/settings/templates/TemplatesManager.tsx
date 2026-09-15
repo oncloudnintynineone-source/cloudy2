@@ -46,8 +46,16 @@ import {
   validateNameTemplate,
 } from "@/lib/settings/validate";
 import { BUTTON_LOADER_PROPS } from "@/lib/theme";
+import dynamic from "next/dynamic";
+import { FormModalSkeleton } from "@/components/FormModalSkeleton";
 
-import { TitleRecipeBuilder } from "./TitleRecipeBuilder";
+// The title-recipe builder (chip rows, reorderable segments) is only mounted
+// when a template dialog opens; split it out of the templates route's initial
+// chunk.
+const TitleRecipeBuilder = dynamic(
+  () => import("./TitleRecipeBuilder").then((mod) => mod.TitleRecipeBuilder),
+  { ssr: false, loading: () => <FormModalSkeleton rows={5} /> },
+);
 
 interface TemplatesManagerProps {
   nameTemplate: string;
