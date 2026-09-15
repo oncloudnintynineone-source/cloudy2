@@ -134,6 +134,10 @@ export function ResponsiveSheet({
       ...baseStyles.inner,
     },
     content: {
+      // `flex` beats Mantine's `.m_54c44539` (`flex: 0 0 var(--modal-size)`);
+      // without it a definite flex-basis wins over `width`, so the sheet would
+      // render as a centered `--modal-size` card on 440–639px viewports.
+      flex: "0 0 100%",
       width: "100%",
       maxWidth: "100%",
       maxHeight: "92dvh",
