@@ -1,13 +1,12 @@
 "use client";
 
 import { useState } from "react";
-import { Badge, Button, Group, Skeleton, Stack, Text, useMantineTheme } from "@mantine/core";
+import { Badge, Button, Group, Modal, Skeleton, Stack, Text, useMantineTheme } from "@mantine/core";
 import { useDisclosure, useMediaQuery, useViewportSize } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
 import { IconCalendarEvent, IconCopy, IconPencil, IconTrash } from "@tabler/icons-react";
 
 import { LoadingStatus } from "@/components/LoadingStatus";
-import { ResponsiveSheet } from "@/components/ResponsiveSheet";
 import { deleteEvent, type EventActionOk } from "@/lib/events/actions";
 import { subOneDay } from "@/lib/events/datetime";
 import { CONTENT_ENTER_CLASS } from "@/lib/loading/contentEnter";
@@ -201,7 +200,7 @@ export function EventDetail({
 
   return (
     <>
-      <ResponsiveSheet
+      <Modal
         opened={loading || event !== null}
         onClose={onClose}
         title="Event"
@@ -368,10 +367,10 @@ export function EventDetail({
             )}
           </Stack>
         ) : null}
-      </ResponsiveSheet>
+      </Modal>
 
       {!readOnly && showEvent && (
-        <ResponsiveSheet opened={confirmOpen} onClose={close} title="Delete event" centered size="sm">
+        <Modal opened={confirmOpen} onClose={close} title="Delete event" centered size="sm">
           <Text>Delete &quot;{showEvent.title}&quot;?</Text>
           <Group justify="flex-end" mt="md">
             <Button variant="default" onClick={close}>
@@ -386,7 +385,7 @@ export function EventDetail({
               Delete
             </Button>
           </Group>
-        </ResponsiveSheet>
+        </Modal>
       )}
     </>
   );

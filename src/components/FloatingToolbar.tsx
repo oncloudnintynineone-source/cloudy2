@@ -30,14 +30,12 @@ export const FAB_ICON_SIZE = 30;
  * Icon-only — pass the icon as children (at `FAB_ICON_SIZE`) and an
  * `aria-label` for accessibility.
  */
-export function FloatingActionButton({ className, ...props }: FloatingActionButtonProps) {
+export function FloatingActionButton(props: FloatingActionButtonProps) {
   return (
     <Button
       radius="50%"
       w={FAB_SIZE}
       h={FAB_SIZE}
-      // `c2-press` gives the FAB a touch pressed-state (no hover on mobile).
-      className={className ? `c2-press ${className}` : "c2-press"}
       style={{ boxShadow: "var(--mantine-shadow-md)" }}
       {...props}
     />

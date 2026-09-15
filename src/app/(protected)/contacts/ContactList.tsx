@@ -8,12 +8,12 @@ import {
   Box,
   Button,
   Group,
+  Modal,
   Paper,
   Stack,
   Text,
   TextInput,
 } from "@mantine/core";
-import { ResponsiveSheet } from "@/components/ResponsiveSheet";
 import { useClipboard, useDisclosure } from "@mantine/hooks";
 import {
   IconCheck,
@@ -219,7 +219,7 @@ export function ContactList({ users, nameTemplate, isAdmin = false }: ContactLis
         </FloatingActionButton>
       </FloatingToolbar>
 
-      <ResponsiveSheet
+      <Modal
         opened={confirmOpened}
         onClose={closeConfirm}
         title="Export contacts"
@@ -244,7 +244,7 @@ export function ContactList({ users, nameTemplate, isAdmin = false }: ContactLis
             Download
           </Button>
         </Group>
-      </ResponsiveSheet>
+      </Modal>
     </Stack>
   );
 }

@@ -87,7 +87,6 @@ import {
 } from "@/lib/settings/titleRecipe";
 import { BUTTON_LOADER_PROPS, DESKTOP_WIDE_MEDIA_QUERY } from "@/lib/theme";
 import { announce } from "@/lib/ui/announcer";
-import { haptic } from "@/lib/ui/haptics";
 import { showValidationFailure } from "@/lib/ui/validationFeedback";
 import {
   buildUserGroups,
@@ -602,7 +601,6 @@ export function EventForm({
   }, []);
 
   function goBack() {
-    haptic("light");
     setDirection("backward");
     setStep((index) => Math.max(index - 1, 0));
   }
@@ -617,7 +615,6 @@ export function EventForm({
     if (index === step) {
       return;
     }
-    haptic("light");
     setDirection(index > step ? "forward" : "backward");
     setStep(index);
   }
@@ -651,7 +648,6 @@ export function EventForm({
     } else if (currentStep.fields.some((field) => form.validateField(field).hasError)) {
       return;
     }
-    haptic("light");
     setDirection("forward");
     setStep((index) => Math.min(index + 1, steps.length - 1));
   }

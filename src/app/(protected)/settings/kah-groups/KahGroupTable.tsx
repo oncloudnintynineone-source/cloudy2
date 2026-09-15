@@ -6,6 +6,7 @@ import {
   Box,
   Button,
   Group,
+  Modal,
   Paper,
   Stack,
   Table,
@@ -14,7 +15,6 @@ import {
   TextInput,
   useMantineTheme,
 } from "@mantine/core";
-import { ResponsiveSheet } from "@/components/ResponsiveSheet";
 import { useForm } from "@mantine/form";
 import { notifications } from "@mantine/notifications";
 
@@ -271,7 +271,7 @@ export function KahGroupTable({
         </form>
       </Paper>
 
-      <ResponsiveSheet
+      <Modal
         opened={formOpened}
         onClose={closeForm}
         title={editing ? "Edit KAH group" : "Add KAH group"}
@@ -298,7 +298,7 @@ export function KahGroupTable({
             refreshAfterSave();
           }}
         />
-      </ResponsiveSheet>
+      </Modal>
 
       {/* Mobile-only: at lg the "Add group" button in the toolbar replaces
           the FAB. hiddenFrom sits on the toolbar itself: its Affix portals to

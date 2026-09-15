@@ -5,13 +5,13 @@ import {
   Badge,
   Button,
   Group,
+  Modal,
   Paper,
   Stack,
   Table,
   Text,
   useMantineTheme,
 } from "@mantine/core";
-import { ResponsiveSheet } from "@/components/ResponsiveSheet";
 
 import { useDisclosure, useMediaQuery } from "@mantine/hooks";
 import { IconCalendarEvent, IconCategory2, IconPlus } from "@tabler/icons-react";
@@ -271,7 +271,7 @@ export function EventTypeTable({ types, groups }: EventTypeTableProps) {
         </>
       )}
 
-      <ResponsiveSheet
+      <Modal
         opened={formOpened}
         onClose={closeForm}
         title={editing ? "Edit event type" : "Add event type"}
@@ -288,7 +288,7 @@ export function EventTypeTable({ types, groups }: EventTypeTableProps) {
             refreshAfterSave();
           }}
         />
-      </ResponsiveSheet>
+      </Modal>
 
       <EventTypeGroupsModal
         opened={groupsOpened}

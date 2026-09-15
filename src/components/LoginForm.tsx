@@ -3,8 +3,7 @@
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { signIn } from "next-auth/react";
-import { Button, PasswordInput, Stack } from "@mantine/core";
-import { ResponsiveSheet } from "./ResponsiveSheet";
+import { Button, Modal, PasswordInput, Stack } from "@mantine/core";
 import { BUTTON_LOADER_PROPS } from "@/lib/theme";
 import { invalidateCurrentPathCaches } from "@/lib/pwa/client";
 import { resolveLogin } from "@/lib/loginActions";
@@ -134,7 +133,7 @@ export function LoginForm() {
         </Stack>
       </form>
 
-      <ResponsiveSheet
+      <Modal
         opened={pendingPhone !== null}
         onClose={cancelPin}
         title="Admin sign-in"
@@ -164,7 +163,7 @@ export function LoginForm() {
             Continue
           </Button>
         </Stack>
-      </ResponsiveSheet>
+      </Modal>
     </>
   );
 }

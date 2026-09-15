@@ -1,8 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Button, Group, NumberInput, Stack, Text, TextInput } from "@mantine/core";
-import { ResponsiveSheet } from "@/components/ResponsiveSheet";
+import { Button, Group, Modal, NumberInput, Stack, Text, TextInput } from "@mantine/core";
 import { useForm } from "@mantine/form";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
@@ -175,7 +174,7 @@ export function KahGroupForm({ group, defaultPercentage, pickerUsers, onDone }: 
           </Button>
         </Group>
 
-        <ResponsiveSheet
+        <Modal
           opened={confirmOpened}
           onClose={closeConfirm}
           title="Delete KAH group"
@@ -201,7 +200,7 @@ export function KahGroupForm({ group, defaultPercentage, pickerUsers, onDone }: 
               </Button>
             </Group>
           </Stack>
-        </ResponsiveSheet>
+        </Modal>
 
         {/* Rendered only while open so the draft re-seeds from the current
             selection every time (the FilterModalBody pattern); z-300 stacks

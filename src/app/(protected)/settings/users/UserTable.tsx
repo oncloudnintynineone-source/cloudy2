@@ -5,6 +5,7 @@ import {
   Badge,
   Button,
   Group,
+  Modal,
   Paper,
   Pill,
   Stack,
@@ -14,7 +15,6 @@ import {
   useMantineTheme,
   VisuallyHidden,
 } from "@mantine/core";
-import { ResponsiveSheet } from "@/components/ResponsiveSheet";
 import { useDisclosure, useMediaQuery } from "@mantine/hooks";
 import { IconPlus, IconSearchOff, IconUsers } from "@tabler/icons-react";
 
@@ -370,7 +370,7 @@ export function UserTable({ users, departments, accessByUser, nameTemplate }: Us
         </>
       )}
 
-      <ResponsiveSheet
+      <Modal
         opened={opened}
         onClose={close}
         title={editingUser ? "Edit user" : "Add user"}
@@ -388,7 +388,7 @@ export function UserTable({ users, departments, accessByUser, nameTemplate }: Us
             refreshAfterSave();
           }}
         />
-      </ResponsiveSheet>
+      </Modal>
 
       <FilterModal
         opened={filterOpened}

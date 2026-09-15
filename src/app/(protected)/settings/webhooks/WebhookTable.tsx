@@ -6,13 +6,13 @@ import {
   Button,
   Code,
   Group,
+  Modal,
   Paper,
   Stack,
   Table,
   Text,
   useMantineTheme,
 } from "@mantine/core";
-import { ResponsiveSheet } from "@/components/ResponsiveSheet";
 
 import { useDisclosure, useMediaQuery } from "@mantine/hooks";
 import { IconPlus, IconWebhook } from "@tabler/icons-react";
@@ -141,7 +141,7 @@ export function WebhookTable({ webhooks }: WebhookTableProps) {
         </>
       )}
 
-      <ResponsiveSheet
+      <Modal
         opened={formOpened}
         onClose={closeForm}
         title={editing ? "Edit webhook endpoint" : "Add webhook endpoint"}
@@ -167,7 +167,7 @@ export function WebhookTable({ webhooks }: WebhookTableProps) {
             refreshAfterSave();
           }}
         />
-      </ResponsiveSheet>
+      </Modal>
 
       {/* Mobile-only: at lg the "Add webhook" button in the toolbar replaces
           the FAB. hiddenFrom sits on the toolbar itself: its Affix portals to

@@ -205,13 +205,6 @@ doc content here.
   `router.refresh()` site that must **not** invalidate the document cache). Return-from-
   background auto-refresh via `useInactivityRefresh` + `useSWUpdateReload`.
   Design: [docs/pwa-offline.md](docs/pwa-offline.md).
-- **Native-feel layer:** every user-facing dialog goes through the shared
-  `ResponsiveSheet` (desktop = the unchanged centered `Modal`; mobile = a bottom sheet
-  with a drag handle + drag-to-dismiss) — never a raw `Modal`. Touch feedback
-  (tap-highlight off, `c2-press` pressed states, animated bottom-nav active indicator),
-  device-local haptics (`src/lib/ui/haptics.ts`, Android-only, opt-out in the profile
-  menu), and direction-aware page transitions (`src/lib/ui/navDirection.ts` +
-  `PageTransition`). Design: [docs/native-feel.md](docs/native-feel.md).
 - **Unsupported-browser gate:** targets the Next 16 / React 19 floor (no `.browserslistrc`,
   no downleveling). `/login` is a **dynamic** route — its server component reads
   `User-Agent` + pure `detectLegacyBrowser` (`src/lib/browserSupport.ts`) to swap in a

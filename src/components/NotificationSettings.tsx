@@ -5,12 +5,12 @@ import {
   Button,
   Group,
   Loader,
+  Modal,
   Stack,
   Switch,
   Text,
   useMantineTheme,
 } from "@mantine/core";
-import { ResponsiveSheet } from "./ResponsiveSheet";
 import { useMediaQuery } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
 
@@ -310,7 +310,7 @@ export function NotificationSettings({ opened, onClose }: NotificationSettingsPr
       (browser?.permission === "granted" && browser?.subscribed === false));
 
   return (
-    <ResponsiveSheet
+    <Modal
       opened={opened}
       onClose={onClose}
       title="Notifications"
@@ -457,6 +457,6 @@ export function NotificationSettings({ opened, onClose }: NotificationSettingsPr
           )}
         </Stack>
       )}
-    </ResponsiveSheet>
+    </Modal>
   );
 }

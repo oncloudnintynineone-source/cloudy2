@@ -18,7 +18,7 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
 
 ## 1.1 Status
 
-- All work through changelog **1.247 (native-feel pass — mobile bottom sheets + touch feedback)** is shipped.
+- All work through changelog **1.245 (grid-nav + fullscreen controls re-anchor on cold load)** is shipped.
 - Quality gates (`lint` / `typecheck` / `test` / schema-drift check) run in CI on every
   push and PR. Pushes also auto-apply migrations per environment: `dev` →
   `migrate-preview` against the dev Neon DB, `main` → `migrate` against the prod Neon
@@ -1111,24 +1111,6 @@ via `?attendance=1` and `attendanceStorage` became a `useSyncExternalStore` exte
    Mantine's WeekView defaults; the button fills the cell (full-cell tap target)
    and opens `bottom-start`. Pure binning / chip suppression unchanged.
    `docs/dashboard-views.md` §1.7.1
-- 1.247 Native-feel pass — mobile bottom sheets + touch feedback: every dialog now
-   renders through the shared `ResponsiveSheet` (desktop = the unchanged centered
-   `Modal` with its zoom-from-origin transition; mobile = a bottom sheet that slides
-   up from the bottom edge, with a drag handle and drag-to-dismiss over the pure
-   `sheetDrag.ts` thresholds, rounded top corners, a `92dvh` cap and a safe-area foot)
-   — migrated across the dashboard agenda/day modal, Add-view, event detail/search,
-   filter/user/date pickers, pinned-events panel, login PIN and every settings
-   form/confirm, with the event wizard deliberately left on its `Modal.Root`
-   fixed-height layout for a later pass; `viewport.interactiveWidget:
-   "resizes-content"` so the Android keyboard resizes sheets instead of covering
-   them. Touch feedback: `-webkit-tap-highlight-color` off app-wide, `touch-action:
-   manipulation` on controls, pressed-state scale on the nav/FABs, and an animated
-   amber active indicator on the bottom nav; device-local haptics
-   (`src/lib/ui/haptics.ts`, `navigator.vibrate`, Android-only, opt-out row in the
-   profile menu) on nav/tab/wizard-step/save; and direction-aware page transitions
-   (`src/lib/ui/navDirection.ts` — a link tap slides the new page in from the right,
-   `popstate` mirrors it from the left, unknown direction keeps the existing fade).
-   `docs/native-feel.md`
 
 ## 1.4 Open items & next steps
 

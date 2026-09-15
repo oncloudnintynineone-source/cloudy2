@@ -2,8 +2,7 @@
 
 import { useState } from "react";
 import { useForm } from "@mantine/form";
-import { Button, Checkbox, Grid, Group, Stack, Text, TextInput } from "@mantine/core";
-import { ResponsiveSheet } from "@/components/ResponsiveSheet";
+import { Button, Checkbox, Grid, Group, Modal, Stack, Text, TextInput } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
 
@@ -307,7 +306,7 @@ export function EventTypeForm({ eventType, groups, onDone }: EventTypeFormProps)
           </Button>
         </Group>
 
-        <ResponsiveSheet
+        <Modal
           opened={confirmOpened}
           onClose={closeConfirm}
           title="Delete event type"
@@ -330,7 +329,7 @@ export function EventTypeForm({ eventType, groups, onDone }: EventTypeFormProps)
               </Button>
             </Group>
           </Stack>
-        </ResponsiveSheet>
+        </Modal>
       </Stack>
     </form>
   );

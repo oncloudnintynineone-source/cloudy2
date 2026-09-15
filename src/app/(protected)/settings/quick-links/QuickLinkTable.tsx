@@ -7,6 +7,7 @@ import {
   Button,
   Code,
   Group,
+  Modal,
   Paper,
   Stack,
   Table,
@@ -15,7 +16,6 @@ import {
   useMantineTheme,
   VisuallyHidden,
 } from "@mantine/core";
-import { ResponsiveSheet } from "@/components/ResponsiveSheet";
 import { useDisclosure, useMediaQuery } from "@mantine/hooks";
 import { IconLink, IconPlus, IconTrash } from "@tabler/icons-react";
 import { notifications } from "@mantine/notifications";
@@ -252,7 +252,7 @@ export function QuickLinkTable({ links }: QuickLinkTableProps) {
         </>
       )}
 
-      <ResponsiveSheet
+      <Modal
         opened={formOpened}
         onClose={closeForm}
         title={editing ? "Edit quick link" : "Add quick link"}
@@ -279,9 +279,9 @@ export function QuickLinkTable({ links }: QuickLinkTableProps) {
             refreshAfterSave();
           }}
         />
-      </ResponsiveSheet>
+      </Modal>
 
-      <ResponsiveSheet
+      <Modal
         opened={pendingDelete !== null}
         onClose={() => setPendingDelete(null)}
         title="Delete quick link"
@@ -307,7 +307,7 @@ export function QuickLinkTable({ links }: QuickLinkTableProps) {
             </Button>
           </Group>
         </Stack>
-      </ResponsiveSheet>
+      </Modal>
 
       {/* Mobile-only: at lg the "Add quick link" button replaces the FAB.
           hiddenFrom sits on the toolbar itself: its Affix portals to <body>,

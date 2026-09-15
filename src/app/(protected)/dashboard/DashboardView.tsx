@@ -96,7 +96,6 @@ import {
 } from "@/components/FloatingToolbar";
 import { LoadingStatus } from "@/components/LoadingStatus";
 import { QuickLinksMenu, type QuickLinkMenuItem } from "@/components/QuickLinksMenu";
-import { ResponsiveSheet } from "@/components/ResponsiveSheet";
 import { eventsOnDay } from "@/lib/events/agenda";
 import { monthGridMonths, weekDays } from "@/lib/events/datetime";
 import { sortMineFirst } from "@/lib/events/mineFirst";
@@ -147,7 +146,6 @@ import {
 import { announce } from "@/lib/ui/announcer";
 import { DUAL_SPLIT_DEFAULT, clampDualSplit } from "@/lib/ui/dualSplit";
 import { useGridPan } from "@/lib/ui/gridPan";
-import { haptic } from "@/lib/ui/haptics";
 import { useImmersiveMode } from "@/lib/ui/immersiveMode";
 import {
   clampMonthZoom,
@@ -1420,12 +1418,8 @@ export function DashboardView({
   );
 
   // Post-mutation refresh (event create/update/delete, detail actions): the
-  // shared bar reports the re-read that follows the saved state. A success
-  // haptic confirms the write on touch devices.
-  const refreshAfterSave = useCallback(() => {
-    haptic("success");
-    revalidate();
-  }, [revalidate]);
+  // shared bar reports the re-read that follows the saved state.
+  const refreshAfterSave = revalidate;
 
   // Skeleton-only loading: the grid skeleton follows **data coverage**, not the
   // router transition — `isNavigating` is true from the instant the URL context
@@ -2247,7 +2241,6 @@ export function DashboardView({
    * filter params travel in the URL.
    */
   function switchTab(tab: Pick<DashboardViewTab, "id" | "kind">, options?: { force?: boolean }) {
-    haptic("light");
     // Optimistic data switch: the data layer resolves the tapped tab
     // immediately, so a warm tab paints without waiting for the URL/RSC
     // round-trip (`useSearchParams` only updates when the payload lands).
@@ -4057,7 +4050,7 @@ export function DashboardView({
         onToggle={immersiveMode.active ? immersiveMode.exit : immersiveMode.enter}
       />
 
-      <ResponsiveSheet
+      <Modal
         opened={agendaDate !== null}
         onClose={() => setAgendaDate(null)}
         title={
@@ -4155,7 +4148,7 @@ export function DashboardView({
             </Button>
           </>
         )}
-      </ResponsiveSheet>
+      </Modal>
 
       <EventDetail
         event={detailEvent}
@@ -4380,7 +4373,7 @@ export function DashboardView({
           Manage-views modal's Add-view button (kind picker + name). Only shown
           when the account owns stored views (canManageViews). */}
       {canManageViews && (
-        <ResponsiveSheet
+        <Modal
           opened={createOpened}
           onClose={closeCreateView}
           title="Add view"
@@ -4425,7 +4418,7 @@ export function DashboardView({
               </Button>
             </Group>
           </Stack>
-        </ResponsiveSheet>
+        </Modal>
       )}
 
       {formState === null && (

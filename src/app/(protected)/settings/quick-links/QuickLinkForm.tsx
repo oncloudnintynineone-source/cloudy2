@@ -1,8 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Switch, Button, Group, Stack, Text, TextInput } from "@mantine/core";
-import { ResponsiveSheet } from "@/components/ResponsiveSheet";
+import { Switch, Button, Group, Modal, Stack, Text, TextInput } from "@mantine/core";
 import { useForm } from "@mantine/form";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
@@ -158,7 +157,7 @@ export function QuickLinkForm({ link, onDone }: QuickLinkFormProps) {
           </Button>
         </Group>
 
-        <ResponsiveSheet
+        <Modal
           opened={confirmOpened}
           onClose={closeConfirm}
           title="Delete quick link"
@@ -183,7 +182,7 @@ export function QuickLinkForm({ link, onDone }: QuickLinkFormProps) {
               </Button>
             </Group>
           </Stack>
-        </ResponsiveSheet>
+        </Modal>
       </Stack>
     </form>
   );
