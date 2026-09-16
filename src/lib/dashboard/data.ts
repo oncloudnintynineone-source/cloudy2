@@ -142,6 +142,8 @@ interface DashboardConfig {
   usersById: Map<string, DisplayTitleUser>;
   eventTypesByName: Map<string, DisplayTitleEventType>;
   calendarsById: Map<string, string>;
+  /** Active roster grouped by department id — the user filter's membership map. */
+  membershipsByDepartment: ReadonlyMap<string, string[]>;
   /** Resolve a tab's stored filter overrides against live data. */
   resolveSelectedFilters: (tab: DashboardViewTab) => ResolvedTabFilters;
   /** The resource rows a tab's selected calendars produce. */
@@ -284,6 +286,22 @@ async function resolveDashboardConfig(session: Session): Promise<DashboardConfig
     shortname: user.shortname,
     departmentId: user.department ? user.department.id : null,
   }));
+
+  // Active roster grouped by department — lets the Users filter match an event
+  // tagged on a department against every active member (the same occupancy
+  // model the schedule rows and clash check use).
+  const membershipsByDepartment = new Map<string, string[]>();
+  for (const user of allActiveUsers) {
+    if (!user.departmentId) {
+      continue;
+    }
+    const list = membershipsByDepartment.get(user.departmentId);
+    if (list) {
+      list.push(user.id);
+    } else {
+      membershipsByDepartment.set(user.departmentId, [user.id]);
+    }
+  }
 
   const inviteeUsers = pickerUsers.map((user) => ({
     id: user.id,
@@ -434,6 +452,7 @@ async function resolveDashboardConfig(session: Session): Promise<DashboardConfig
     usersById,
     eventTypesByName,
     calendarsById,
+    membershipsByDepartment,
     resolveSelectedFilters,
     scheduleUsersFor,
     filterUsersFor,
@@ -475,6 +494,7 @@ function projectTab(
     rangeData,
     { typeFilter: filters.types, userFilter: filters.users },
     filters.cal,
+    config.membershipsByDepartment,
   );
   const events = resolveDisplayTitles(projected, config.displayOptionsFor(tab.kind));
   const months = requiredMonths(tab.kind, period.month, period.date);

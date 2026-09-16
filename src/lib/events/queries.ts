@@ -140,6 +140,7 @@ export function mapCalendarItem(
   item: GcalEventItem,
   filters: { typeFilter: string[]; userFilter: string[] },
   typeColors: Map<string, string | null>,
+  memberships?: ReadonlyMap<string, string[]>,
 ): CalendarEvent | null {
   const eventType = parseEventType(item.description);
   if (filters.typeFilter.length > 0 && (!eventType || !filters.typeFilter.includes(eventType))) {
@@ -149,8 +150,13 @@ export function mapCalendarItem(
   if (
     filters.userFilter.length > 0 &&
     !eventMatchesUserFilter(
-      { creatorId: people.creatorId, inviteeUserIds: people.userIds },
+      {
+        creatorId: people.creatorId,
+        inviteeUserIds: people.userIds,
+        inviteeDepartmentIds: people.departmentIds,
+      },
       filters.userFilter,
+      memberships,
     )
   ) {
     return null;
@@ -271,11 +277,16 @@ export async function readCalendarRange(params: {
  * `calendarIds`, when given, narrows the projection to a subset of the read's
  * calendars (a tab whose filter selects fewer departments than the shared
  * read), preserving display order.
+ *
+ * `memberships` (department id → active member user ids) lets the user filter
+ * match active members of an event's tagged departments, not just individually
+ * tagged attendees.
  */
 export function projectRangeEvents(
   data: CalendarRangeData,
   filters: { typeFilter: string[]; userFilter: string[] },
   calendarIds?: string[],
+  memberships?: ReadonlyMap<string, string[]>,
 ): CalendarEvent[] {
   const rows =
     calendarIds === undefined
@@ -292,7 +303,7 @@ export function projectRangeEvents(
           continue;
         }
         seen.add(key);
-        const mapped = mapCalendarItem(calendar, item, filters, data.typeColors);
+        const mapped = mapCalendarItem(calendar, item, filters, data.typeColors, memberships);
         if (mapped) {
           events.push(mapped);
         }
@@ -316,16 +327,27 @@ export async function fetchRangeEvents(params: {
   months: string[];
   calendarIds: string[];
   typeFilter: string[];
-  /** Keep only events created by or tagged on one of these users (empty = no filter). */
+  /**
+   * Keep only events tagged on one of these users or on a department they are
+   * an active member of (empty = no filter). Requires `memberships` for the
+   * department-membership part.
+   */
   userFilter: string[];
+  /** Department id → active member user ids, for the user filter. */
+  memberships?: ReadonlyMap<string, string[]>;
   /** Bypass the events cache and block on fresh Google fetches (force refresh). */
   force?: boolean;
 }): Promise<CalendarEvent[]> {
   const data = await readCalendarRange(params);
-  return projectRangeEvents(data, {
-    typeFilter: params.typeFilter,
-    userFilter: params.userFilter,
-  });
+  return projectRangeEvents(
+    data,
+    {
+      typeFilter: params.typeFilter,
+      userFilter: params.userFilter,
+    },
+    undefined,
+    params.memberships,
+  );
 }
 
 /** Fetch events for a month across the selected calendars, as schedule-ready data. */
@@ -334,6 +356,7 @@ export async function fetchMonthEvents(params: {
   calendarIds: string[];
   typeFilter: string[];
   userFilter: string[];
+  memberships?: ReadonlyMap<string, string[]>;
   force?: boolean;
 }): Promise<CalendarEvent[]> {
   const { month, ...rest } = params;

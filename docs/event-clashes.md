@@ -44,6 +44,10 @@ Who an event **occupies**:
 | External / people-less event (created directly in Google, no parseable notes) | every active member of the **department calendar the copy sits on** |
 | **Informational** event (type has *Exclude from conflict checks* enabled) | **nobody** — the event is ignored entirely: it never triggers a conflict and is never checked itself (the candidate check is skipped) |
 
+The dashboard's Users/Myself filter and the amber "mine" highlight use this same
+occupancy rule — an event matches a user when tagged on them or on a department
+they are an active member of ([`dashboard-views.md`](dashboard-views.md) §1.5).
+
 Two events **clash** when their time windows overlap AND they occupy at least one
 common active roster user. Time windows use the half-open instant convention the
 calendar cache already uses (`start < end`; back-to-back events do not clash);

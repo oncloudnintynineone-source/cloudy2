@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import type { GcalEventItem } from "@/lib/google/types";
 
+import { encodeEventNotes } from "./notes";
 import { projectRangeEvents, type CalendarRangeData } from "./queries";
 
 function item(id: string, calendarId: string, title: string, startIso: string): GcalEventItem {
@@ -64,5 +65,34 @@ describe("projectRangeEvents", () => {
       months: [],
     };
     expect(projectRangeEvents(empty, { typeFilter: [], userFilter: [] })).toEqual([]);
+  });
+
+  it("keeps a department-tagged event for an active member only when memberships are given", () => {
+    const description = encodeEventNotes({ inviteeDepartments: ["cal-a"] });
+    const data = {
+      rows: [{ id: "cal-a", name: "Alpha", googleCalendarId: "gcal-a", color: null }],
+      typeColors: new Map(),
+      cached: {
+        events: {
+          "2026-09": {
+            "gcal-a": [
+              { ...item("a1", "gcal-a", "Dept event", "2026-09-10T10:00:00Z"), description },
+            ],
+          },
+        },
+        allServed: true,
+      },
+      months: ["2026-09"],
+    } as unknown as CalendarRangeData;
+
+    expect(projectRangeEvents(data, { typeFilter: [], userFilter: ["alice"] })).toEqual([]);
+    expect(
+      projectRangeEvents(
+        data,
+        { typeFilter: [], userFilter: ["alice"] },
+        undefined,
+        new Map([["cal-a", ["alice"]]]),
+      ).map((event) => event.title),
+    ).toEqual(["Dept event"]);
   });
 });

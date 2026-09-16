@@ -19,6 +19,7 @@ import {
 import { dedupeEventsByGroupId } from "@/lib/events/targets";
 import { eventMatchesUserFilter } from "@/lib/events/userFilter";
 import { getGoogleIntegration } from "@/lib/google";
+import { listUsers } from "@/lib/roster/queries";
 import { requireSession } from "@/lib/session";
 
 /** Max concurrent Google `events.list` (±`q`) calls for one search. */
@@ -57,6 +58,24 @@ export async function searchEvents(
   const allEventTypes = await listEventTypes();
   const typeColors = new Map(allEventTypes.map((row) => [row.name, row.color]));
 
+  // Active roster grouped by department — the "mine" highlight matches an event
+  // tagged on a department the user is an active member of, exactly like the
+  // dashboard's Users filter (`eventMatchesUserFilter`).
+  const allUsers = await listUsers();
+  const membershipsByDepartment = new Map<string, string[]>();
+  for (const user of allUsers) {
+    const departmentId = user.department?.id;
+    if (user.status !== "active" || !departmentId) {
+      continue;
+    }
+    const list = membershipsByDepartment.get(departmentId);
+    if (list) {
+      list.push(user.id);
+    } else {
+      membershipsByDepartment.set(departmentId, [user.id]);
+    }
+  }
+
   const { timeMin, timeMax } = searchRangeBoundaries(fromDate, toDate);
 
   const perCalendar = await mapWithConcurrency(
@@ -91,11 +110,14 @@ export async function searchEvents(
   events.sort((a, b) => (a.start < b.start ? -1 : a.start > b.start ? 1 : 0));
 
   const deduped = dedupeEventsByGroupId(events);
-  // The current user's own events (tagged attendee) — the client reuses the
-  // dashboard's amber "mine" highlight on these rows. Organizer-only events
-  // (not self-tagged) don't count, matching `eventMatchesUserFilter`.
+  // The current user's own events (tagged attendee, or a tagged department they
+  // belong to) — the client reuses the dashboard's amber "mine" highlight on
+  // these rows. Organizer-only events (not self-tagged) don't count, matching
+  // `eventMatchesUserFilter`.
   const myEventIds = deduped
-    .filter((event) => eventMatchesUserFilter(event.payload, [session.user.id]))
+    .filter((event) =>
+      eventMatchesUserFilter(event.payload, [session.user.id], membershipsByDepartment),
+    )
     .map((event) => event.id);
 
   return { ok: true, events: deduped, myEventIds };

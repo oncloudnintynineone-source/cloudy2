@@ -171,6 +171,9 @@ Filter storage & resolution:
 - On the dashboard an active **Users** filter also narrows the rows of
   Day/Week (H)/Week (D) — `buildScheduleResources` takes a `userFilter`
   (`src/lib/events/schedule.ts`) and the Week (D) matrix reuses the same rows.
+  An event matches a selected user when it is tagged on them **or** on a
+  department they are an active member of (`eventMatchesUserFilter`, with the
+  dept→active-member map from the roster), mirroring the clash occupancy model.
 - A tab's filter state lives **on the tab row** (`user_dashboard_views.cal_filter`
   / `users_filter` / `types_filter`), each JSON array or SQL `NULL`. `NULL`
   means **role default** (admin: all calendars; non-admin: their own department;
@@ -272,10 +275,12 @@ directly ([`events-cache.md`](events-cache.md)):
 
 The logged-in user's entries are visually distinguished in every view, so a
 roster member can spot their own rows/chips without reaching for the Users
-filter. "Mine" means the event was **tagged on the current user** — exactly the
-Myself quick-filter's semantics (`eventMatchesUserFilter`,
-`src/lib/events/userFilter.ts`; the organizer counts only when self-invited).
-The highlight is
+filter. "Mine" means the event was **tagged on the current user or on a
+department the current user is an active member of** — exactly the Myself
+quick-filter's semantics (`eventMatchesUserFilter`,
+`src/lib/events/userFilter.ts`; the organizer counts only when self-invited, and
+a tagged department matches every active member, matching the schedule rows and
+the clash occupancy model). The highlight is
 unconditional (it stays on when the Myself filter is already active) and only
 exists for roster members: an admin without a roster row gets the event-level
 highlights but no row tint (the same boundary as `onlyMeAvailable`).

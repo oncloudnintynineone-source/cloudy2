@@ -95,7 +95,8 @@ them with the tabs above the grid:
 - The **filter button** (funnel icon, with a badge when filters are active) opens
   the filter dialog: Calendars/departments and Users (searchable badge list grouped
   by department) up front, Event Types behind a **Show** toggle, and a **Myself**
-  one-tap (your own events). **Reset** clears them (back to your role default).
+  one-tap (events you are tagged on, plus events tagged to your department).
+  **Reset** clears them (back to your role default).
 - **Filters are per view** — each of Month / Week (H) / Week (D) / Day / Agenda /
   Month & Agenda remembers its own Calendars/Users/Event Types selection, and the dialog notes
   *"These filters apply to {view} only"*. Setting a filter on one view never

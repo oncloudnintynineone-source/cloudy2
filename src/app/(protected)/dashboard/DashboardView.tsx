@@ -258,7 +258,6 @@ const NO_GRID_WEEK_ALLDAY: GridWeekAllDayLayout = {
 // event sort), so those O(events × users) builds are skipped entirely and the
 // unused consumers read these.
 const EMPTY_SCHEDULE_RESOURCES: ScheduleResources = { resources: [], groups: undefined };
-const EMPTY_DEPARTMENT_MEMBERSHIPS = new Map<string, string[]>();
 const EMPTY_SCHEDULE_EVENTS: CalendarEvent[] = [];
 const EMPTY_MONTH_EVENTS: CalendarEvent[] = [];
 
@@ -1850,12 +1849,10 @@ export function DashboardView({
   // department-tagged events (a department-level event occupies every active
   // member, so it must also land in each member's cell, not just the
   // department row). Mirrors the clash occupancy model
-  // (`activeMembershipsByDepartment`).
+  // (`activeMembershipsByDepartment`). Built for every view: the schedule
+  // views consume it as rows, and the "mine" highlight consumes it as the
+  // user filter's membership map.
   const departmentMemberships = useMemo(() => {
-    // Consumed by the schedule views and the Week (D) matrix only.
-    if (view !== "schedule" && view !== "week" && view !== "weekv2") {
-      return EMPTY_DEPARTMENT_MEMBERSHIPS;
-    }
     const map = new Map<string, string[]>();
     for (const user of allActiveUsers) {
       if (!user.departmentId) {
@@ -1869,7 +1866,7 @@ export function DashboardView({
       }
     }
     return map;
-  }, [view, allActiveUsers]);
+  }, [allActiveUsers]);
   const scheduleEvents = useMemo(
     () =>
       view === "schedule" || view === "week"
@@ -1878,8 +1875,9 @@ export function DashboardView({
     [view, viewEvents, departmentMemberships],
   );
 
-  // "Highlight my entries": the events the current user is tagged on — the
-  // same semantics as the Myself quick filter (the organizer counts only when
+  // "Highlight my entries": the events the current user is tagged on or that
+  // are tagged on a department they are an active member of — the same
+  // semantics as the Myself quick filter (the organizer counts only when
   // self-invited). Drives the per-view
   // highlights (month top rows + chip ring, agenda row tint, the resource-row
   // tint via the label marker below); see docs/dashboard-views.md §1.5.
@@ -1887,10 +1885,12 @@ export function DashboardView({
     () =>
       new Set(
         viewEvents
-          .filter((event) => eventMatchesUserFilter(event.payload, [currentUser]))
+          .filter((event) =>
+            eventMatchesUserFilter(event.payload, [currentUser], departmentMemberships),
+          )
           .map((event) => event.id),
       ),
-    [viewEvents, currentUser],
+    [viewEvents, currentUser, departmentMemberships],
   );
   // Active department ids of the acting user — the event detail modal uses
   // this to let a member of a tagged department edit (mirrors the server guard).
