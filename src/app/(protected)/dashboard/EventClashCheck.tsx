@@ -8,7 +8,7 @@ import { IconCircleCheck, IconRefresh } from "@tabler/icons-react";
 import { LoadingStatus } from "@/components/LoadingStatus";
 import { ClashAffectedChips } from "@/components/clashUi";
 import { ClashCard, ClashEventRow } from "@/components/clashCards";
-import { ClashTimeline, type ClashTimelineEntry } from "@/components/clashTimeline";
+import { ClashTimelineDays, type ClashTimelineEntry } from "@/components/clashTimeline";
 import { EventDetail } from "./EventDetail";
 import {
   checkEventClashes,
@@ -17,7 +17,7 @@ import {
   type EventClashCheckResult,
   type EventClashEntry,
 } from "@/lib/events/clashActions";
-import { clashCoveredDayKeys, clashDayLabel, clashTypeLabel } from "@/lib/events/clashDisplay";
+import { clashTypeLabel } from "@/lib/events/clashDisplay";
 import { formatInstantToNaive } from "@/lib/events/datetime";
 import { useMinSkeletonHold } from "@/lib/loading/minHoldLoading";
 import type { Rect } from "@/lib/motion/origin";
@@ -215,9 +215,10 @@ export function EventClashCheck({
       result.clashes.flatMap((clash) => clash.affected.map((person) => person.userId)),
     ).size;
 
-    // One timeline per covered day: the candidate ("This event", inert) plus
-    // each conflicting event, which opens its in-place details on tap. Labels
-    // come from the title-template engine.
+    // One timeline per clash day: the candidate ("This event", inert) plus each
+    // conflicting event, which opens its in-place details on tap. Days the
+    // candidate merely spans with no conflict are dropped (`minEntriesPerDay`).
+    // Labels come from the title-template engine.
     const entries: ClashTimelineEntry[] = [
       ...(result.candidate
         ? [
@@ -241,47 +242,9 @@ export function EventClashCheck({
         onSelect: (rect: Rect) => void openDetail(entry, rect),
       })),
     ];
-    const coversDay = (entry: ClashTimelineEntry, dayKey: string) =>
-      clashCoveredDayKeys({
-        effectiveStartNaive: entry.startNaive,
-        effectiveEndNaive: entry.endNaive,
-        occupiesFullDay: entry.occupiesFullDay,
-      }).includes(dayKey);
     const todayKey = formatInstantToNaive(new Date()).slice(0, 10);
-    const dayKeys = [
-      ...new Set(
-        entries.flatMap((entry) =>
-          clashCoveredDayKeys({
-            effectiveStartNaive: entry.startNaive,
-            effectiveEndNaive: entry.endNaive,
-            occupiesFullDay: entry.occupiesFullDay,
-          }),
-        ),
-      ),
-    ].sort();
-    const shownDays = dayKeys.slice(0, 5);
-
     const visual = (
-      <Stack gap="sm">
-        {shownDays.map((dayKey) => (
-          <Stack key={dayKey} gap={4}>
-            {dayKeys.length > 1 ? (
-              <Text size="xs" fw={600} c="dimmed">
-                {clashDayLabel(dayKey, todayKey)}
-              </Text>
-            ) : null}
-            <ClashTimeline
-              entries={entries.filter((entry) => coversDay(entry, dayKey))}
-              dayKey={dayKey}
-            />
-          </Stack>
-        ))}
-        {dayKeys.length > shownDays.length ? (
-          <Text size="xs" c="dimmed">
-            +{dayKeys.length - shownDays.length} more days
-          </Text>
-        ) : null}
-      </Stack>
+      <ClashTimelineDays entries={entries} todayKey={todayKey} minEntriesPerDay={2} />
     );
 
     return (

@@ -5,7 +5,7 @@ import dayjs from "dayjs";
 import { Box, Stack, Text } from "@mantine/core";
 
 import { buildClashTimeline, type ClashTimelineInput } from "@/lib/events/clashTimeline";
-import { formatAxisMinute } from "@/lib/events/clashDisplay";
+import { clashDayBuckets, clashDayLabel, formatAxisMinute } from "@/lib/events/clashDisplay";
 import type { Rect } from "@/lib/motion/origin";
 
 /** One event rendered on the conflict timeline. */
@@ -177,6 +177,53 @@ export function ClashTimeline({
             ))}
           </div>
         </Box>
+      ) : null}
+    </Stack>
+  );
+}
+
+/**
+ * Multi-day clash visual: one `ClashTimeline` per covered day, each on its own
+ * tight axis, behind a day subheading. A multi-day event appears in every day
+ * it covers (so its all-day band repeats per clash day). `minEntriesPerDay`
+ * drops days covered by fewer entries — pass `2` to keep only genuine clash
+ * days (a multi-day event passing through a day alone is not a clash). Capped
+ * at `maxDays` with a `+N more days` note. Shared by the Double Booking page
+ * and the wizard's review-step advisory. See docs/user-clashes.md §1.8.
+ */
+export function ClashTimelineDays({
+  entries,
+  todayKey,
+  minEntriesPerDay = 1,
+  maxDays = 5,
+}: {
+  entries: ClashTimelineEntry[];
+  /** `YYYY-MM-DD` used to label `Today` / `Tomorrow`. */
+  todayKey: string;
+  /** Minimum entries covering a day for it to render (2 = clash days only). */
+  minEntriesPerDay?: number;
+  /** Maximum day rows before collapsing into a `+N more days` note. */
+  maxDays?: number;
+}) {
+  const buckets = clashDayBuckets(entries, minEntriesPerDay);
+  const shown = buckets.slice(0, maxDays);
+  const showDayLabels = buckets.length > 1;
+  return (
+    <Stack gap="sm">
+      {shown.map(({ dayKey, indices }) => (
+        <Stack key={dayKey} gap={4}>
+          {showDayLabels ? (
+            <Text size="xs" fw={600} c="dimmed">
+              {clashDayLabel(dayKey, todayKey)}
+            </Text>
+          ) : null}
+          <ClashTimeline entries={indices.map((index) => entries[index])} dayKey={dayKey} />
+        </Stack>
+      ))}
+      {buckets.length > shown.length ? (
+        <Text size="xs" c="dimmed">
+          +{buckets.length - shown.length} more days
+        </Text>
       ) : null}
     </Stack>
   );

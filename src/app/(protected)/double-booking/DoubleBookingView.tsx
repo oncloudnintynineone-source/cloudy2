@@ -14,7 +14,7 @@ import { PageHeader } from "@/components/PageHeader";
 import { useColdStartContent } from "@/components/ColdStartReady";
 import { ClashAffectedChips } from "@/components/clashUi";
 import { ClashCard, ClashEventRow } from "@/components/clashCards";
-import { ClashDayStrip, ClashTimeline, type ClashTimelineEntry } from "@/components/clashTimeline";
+import { ClashDayStrip, ClashTimelineDays, type ClashTimelineEntry } from "@/components/clashTimeline";
 import { EventDetail } from "../dashboard/EventDetail";
 import { CONTENT_ENTER_CLASS } from "@/lib/loading/contentEnter";
 import { useMinSkeletonHold } from "@/lib/loading/minHoldLoading";
@@ -452,7 +452,13 @@ export function DoubleBookingView({
                   key={`${dayKey}:${groupIndex}`}
                   heading={clashEpisodeTimeLabel(group.events)}
                   headingSecondary={secondary}
-                  visual={<ClashTimeline entries={timelineEntries} dayKey={dayKey} />}
+                  visual={
+                    <ClashTimelineDays
+                      entries={timelineEntries}
+                      todayKey={todayKey}
+                      minEntriesPerDay={2}
+                    />
+                  }
                   live={false}
                   summaryBelow={
                     <ClashAffectedChips

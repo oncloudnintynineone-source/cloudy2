@@ -18,7 +18,7 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
 
 ## 1.1 Status
 
-- All work through changelog **1.245 (grid-nav + fullscreen controls re-anchor on cold load)** is shipped.
+- All work through changelog **1.247 (per-day clash timelines)** is shipped.
 - Quality gates (`lint` / `typecheck` / `test` / schema-drift check) run in CI on every
   push and PR. Pushes also auto-apply migrations per environment: `dev` →
   `migrate-preview` against the dev Neon DB, `main` → `migrate` against the prod Neon
@@ -1111,6 +1111,18 @@ via `?attendance=1` and `attendanceStorage` became a `useSyncExternalStore` exte
    Mantine's WeekView defaults; the button fills the cell (full-cell tap target)
    and opens `bottom-start`. Pure binning / chip suppression unchanged.
    `docs/dashboard-views.md` §1.7.1
+- 1.247 Double Booking & wizard clash timelines go per-day: a multi-day episode was
+   drawn on a single (first-day) axis, so events on later days clamped to a ~15-min
+   sliver at the right edge and the axis stretched across the empty span — the timed
+   bars became unlabeled squares. New pure `clashDayBuckets` (`clashDisplay.ts`,
+   unit-tested) buckets entries by the civil days they cover and drops days carrying
+   fewer than two entries; the new shared `ClashTimelineDays` (`clashTimeline.tsx`)
+   renders one `ClashTimeline` per clash day behind a `clashDayLabel` subheading
+   (capped at five, then `+N more days`), so each day gets a tight axis and full-width
+   labels and a multi-day event's all-day band repeats per clash day. Both the Double
+   Booking page and the wizard's review-step advisory now render through it
+   (`minEntriesPerDay={2}`), and the wizard no longer shows conflict-free covered
+   days. `docs/user-clashes.md` §1.8, `docs/event-clashes.md` §1.6
 
 ## 1.4 Open items & next steps
 

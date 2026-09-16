@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   buildClashDayStrip,
   clashCoveredDayKeys,
+  clashDayBuckets,
   clashDayKey,
   clashDayLabel,
   clashEntryTimeLabel,
@@ -65,6 +66,63 @@ describe("clashCoveredDayKeys", () => {
         occupiesFullDay: true,
       }),
     ).toEqual(["2026-09-15", "2026-09-16"]);
+  });
+});
+
+describe("clashDayBuckets", () => {
+  const allDay = (start: string, end: string) => ({
+    startNaive: start,
+    endNaive: end,
+    occupiesFullDay: true,
+  });
+  const timed = (start: string, end: string) => ({
+    startNaive: start,
+    endNaive: end,
+    occupiesFullDay: false,
+  });
+
+  it("buckets a single same-day entry under its day", () => {
+    expect(clashDayBuckets([timed("2026-09-15 09:00:00", "2026-09-15 10:00:00")])).toEqual([
+      { dayKey: "2026-09-15", indices: [0] },
+    ]);
+  });
+
+  it("splits a multi-day episode into clash days only when minEntries is 2", () => {
+    // The screenshot's shape: a 5-day all-day event plus one timed clash on the
+    // first day and one on the last; the middle days carry the all-day event
+    // alone and must drop out.
+    const entries = [
+      allDay("2026-09-21 00:00:00", "2026-09-26 00:00:00"),
+      timed("2026-09-21 09:00:00", "2026-09-21 10:00:00"),
+      timed("2026-09-25 14:00:00", "2026-09-25 15:00:00"),
+    ];
+    expect(clashDayBuckets(entries, 2)).toEqual([
+      { dayKey: "2026-09-21", indices: [0, 1] },
+      { dayKey: "2026-09-25", indices: [0, 2] },
+    ]);
+  });
+
+  it("keeps pass-through days when minEntries is 1", () => {
+    const entries = [
+      allDay("2026-09-21 00:00:00", "2026-09-23 00:00:00"),
+      timed("2026-09-21 09:00:00", "2026-09-21 10:00:00"),
+    ];
+    expect(clashDayBuckets(entries)).toEqual([
+      { dayKey: "2026-09-21", indices: [0, 1] },
+      { dayKey: "2026-09-22", indices: [0] },
+    ]);
+  });
+
+  it("orders days chronologically and keeps every covering entry index", () => {
+    const entries = [
+      timed("2026-09-22 09:00:00", "2026-09-22 10:00:00"),
+      timed("2026-09-20 09:00:00", "2026-09-21 10:00:00"),
+    ];
+    expect(clashDayBuckets(entries)).toEqual([
+      { dayKey: "2026-09-20", indices: [1] },
+      { dayKey: "2026-09-21", indices: [1] },
+      { dayKey: "2026-09-22", indices: [0] },
+    ]);
   });
 });
 

@@ -179,12 +179,14 @@ shows one of:
 - **Checking** — a small skeleton block with a `LoadingStatus` announcement.
 - **Clashes** — a shared **`ClashCard`** amber panel, collapsed by default to the
   concise heading `Double booking: N people` (a chevron shows it expands). Its
-  always-visible visual is the same **`ClashTimeline`** the Double Booking page uses
-  (`src/components/clashTimeline.tsx`): a time axis with a bar per event — the
+  always-visible visual is the shared **`ClashTimelineDays`** the Double Booking page
+  uses (`src/components/clashTimeline.tsx`): one timeline per *clash day* — the
   candidate as a distinct `brand` **"This event"** bar plus each conflicting event in
   its type color, lane-packed with shaded overlap bands. The candidate's effective
-  window comes back from `checkEventClashes` (`candidate`); a multi-day candidate
-  renders one timeline per covered day (`clashCoveredDayKeys`), capped at five. The
+  window comes back from `checkEventClashes` (`candidate`); days are bucketed by
+  `clashDayBuckets` and capped at five, and a day carrying only the candidate (no
+  conflict) is dropped (`minEntriesPerDay={2}`), so a multi-day candidate reports only
+  the days it actually clashes on. The
   candidate's "This event" bar is inert; **every conflicting bar and row is
   tappable** and opens that event's details **in place** — the read-only
   `EventDetail` modal (shaped skeleton, zoom-from-origin, the same modal the Double

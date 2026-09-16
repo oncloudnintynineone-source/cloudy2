@@ -221,22 +221,30 @@ half-day-aware occupancy window the timeline positions bars by (the stored
   under its first day) behind a short day heading (`Today` / `Tomorrow` / `Mon 14 Sep`,
   via `clashDayLabel`).
 - **The conflict timeline.** Each day renders one amber **`ClashCard`** per overlap
-  report, collapsed by default. Its always-visible visual is a **`ClashTimeline`**
-  (`src/components/clashTimeline.tsx`): a time axis with a colored bar per event —
-  positioned and sized by the entry's effective window and lane-packed by greedy
-  interval partitioning (`buildClashTimeline`, `clashTimeline.ts`) — plus shaded
-  overlap regions (a tinted band with dashed edges, theme-aware), and a separate band
-  for whole-day events. Bars are colored by event type (department fallback) with a
-  **`light-dark()`** palette (pastel fill + dark text in light mode, deep fill + light
-  text in dark mode), and each bar opens the in-place detail modal. The heading leads with
-  the episode's **time** (`9:00 AM – 5:00 PM`, `All day`, or a date range —
-  `clashEpisodeTimeLabel`; a group mixing a whole-day and a timed event names both,
-  e.g. `9:00 AM – 10:00 AM · All day`) and a muted `N events` count (prefixed
-  `{name} ·` for an admin scan); the old titles-preview line is gone. The 30-day strip
-  cells are theme-aware too (`light-dark()`). The same `ClashTimeline` powers the
-  wizard's review-step advisory ([event-clashes.md](event-clashes.md) §1.6), with the
-  candidate as a distinct `brand` "This event" bar (inert) and conflicting bars that
-  open the same in-place read-only detail modal.
+  report, collapsed by default. Its always-visible visual is the shared
+  **`ClashTimelineDays`** (`src/components/clashTimeline.tsx`): one **`ClashTimeline`**
+  per *clash day*, each on its own tight axis, behind a `Today` / `Tomorrow` /
+  `Mon 21 Sep` day subheading (`clashDayLabel`). An episode's events are bucketed by
+  the civil days they cover (`clashDayBuckets`, `clashDisplay.ts`), and a day covered
+  by fewer than two entries is dropped (`minEntriesPerDay={2}`) — so a multi-day
+  all-day event that merely *passes through* a day without overlapping anything is not
+  reported, and each day's timed bars get a readable, full-width label instead of
+  collapsing to an unlabeled edge sliver. A multi-day event appears in every clash day
+  it covers, so its all-day band repeats per day. Each `ClashTimeline` is a time axis
+  with a colored bar per event — positioned and sized by the entry's effective window
+  and lane-packed by greedy interval partitioning (`buildClashTimeline`,
+  `clashTimeline.ts`) — plus shaded overlap regions (a tinted band with dashed edges,
+  theme-aware), and a separate band for whole-day events. Bars are colored by event
+  type (department fallback) with a **`light-dark()`** palette (pastel fill + dark text
+  in light mode, deep fill + light text in dark mode), and each bar opens the in-place
+  detail modal. The card heading leads with the episode's **time** (`9:00 AM – 5:00 PM`,
+  `All day`, or a date range — `clashEpisodeTimeLabel`; a group mixing a whole-day and a
+  timed event names both, e.g. `9:00 AM – 10:00 AM · All day`) and a muted `N events`
+  count (prefixed `{name} ·` for an admin scan). The 30-day strip cells are theme-aware
+  too (`light-dark()`). The same `ClashTimelineDays` powers the wizard's review-step
+  advisory ([event-clashes.md](event-clashes.md) §1.6), with the candidate as a distinct
+  `brand` "This event" bar (inert) and conflicting bars that open the same in-place
+  read-only detail modal; the wizard likewise drops conflict-free covered days.
 - **Template-driven labels.** Each event's bar/row label is rendered server-side in
   `checkUserClashes` through the admin's **title-template engine** — the
   `doubleBooking` assignment target when set, else Master (`clashLabelFor`,
@@ -275,11 +283,12 @@ half-day-aware occupancy window the timeline positions bars by (the stored
   status line announces the count, so a many-report scan is one concise announcement,
   not N.
 - **Display helpers** are pure and unit-tested in
-  `src/lib/events/clashDisplay.ts` (`clashDisplay.test.ts`): day keys/labels, the
-  episode/strip builders, type-first labels, date-free time labels, and axis ticks (a
-  same-day timed range collapses the repeated date). The shared `clashWhenLabel`
-  replaces the old `eventWhenLabel`, so the wizard's rows get the same tighter labels.
-  Timeline geometry lives in `src/lib/events/clashTimeline.ts` (`clashTimeline.test.ts`).
+  `src/lib/events/clashDisplay.ts` (`clashDisplay.test.ts`): day keys/labels, per-day
+  bucketing (`clashDayBuckets`), the episode/strip builders, type-first labels, date-free
+  time labels, and axis ticks (a same-day timed range collapses the repeated date). The
+  shared `clashWhenLabel` replaces the old `eventWhenLabel`, so the wizard's rows get the
+  same tighter labels. Timeline geometry lives in `src/lib/events/clashTimeline.ts`
+  (`clashTimeline.test.ts`).
 - **`loading.tsx`** — route skeleton in the standard shape (`LoadingStatus` + shaped
   `Skeleton`s inside `PageContainer`).
 

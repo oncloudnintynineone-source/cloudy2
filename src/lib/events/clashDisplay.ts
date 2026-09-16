@@ -172,6 +172,54 @@ export function clashCoveredDayKeys(entry: ClashEffectiveWindow): string[] {
   return daysBetween(first, last);
 }
 
+/** The effective-window fields the day bucketing needs (a timeline entry maps
+ * its `startNaive`/`endNaive` onto these). */
+export interface ClashDayBucketInput {
+  startNaive: string;
+  endNaive: string;
+  occupiesFullDay: boolean;
+}
+
+export interface ClashDayBucket {
+  dayKey: string;
+  /** Indices into the input array of the entries covering this day. */
+  indices: number[];
+}
+
+/**
+ * Bucket entries by the civil day(s) they cover, one bucket per day in
+ * chronological order. `minEntries` drops days covered by fewer than that many
+ * entries — the Double Booking page passes `2` so only genuine clash days
+ * render (a multi-day all-day event passing through a day alone is not a
+ * clash). A multi-day entry appears in every bucket it covers, so its band
+ * repeats per clash day. Pure; drives `ClashTimelineDays`.
+ */
+export function clashDayBuckets(
+  entries: readonly ClashDayBucketInput[],
+  minEntries = 1,
+): ClashDayBucket[] {
+  const byDay = new Map<string, number[]>();
+  entries.forEach((entry, index) => {
+    const days = clashCoveredDayKeys({
+      effectiveStartNaive: entry.startNaive,
+      effectiveEndNaive: entry.endNaive,
+      occupiesFullDay: entry.occupiesFullDay,
+    });
+    for (const dayKey of days) {
+      const list = byDay.get(dayKey);
+      if (list) {
+        list.push(index);
+      } else {
+        byDay.set(dayKey, [index]);
+      }
+    }
+  });
+  return [...byDay.entries()]
+    .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
+    .filter(([, indices]) => indices.length >= minEntries)
+    .map(([dayKey, indices]) => ({ dayKey, indices }));
+}
+
 /** A short day heading: `Today` / `Tomorrow` / `Mon 14 Sep`. */
 export function clashDayLabel(dayKey: string, todayKey: string): string {
   if (dayKey === todayKey) {
