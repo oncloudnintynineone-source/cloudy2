@@ -809,9 +809,18 @@ malformed (reversed) range still yields the start month.
 
 ## 1.12 Add to calendar (personal copy)
 
-The event detail modal offers a non-mutating **Add to calendar** action that lets a user
-re-create an event in their *own* calendar, separate from the department-calendar copies.
-It never writes to Google or the audit log — it only builds a link or a file locally.
+The event detail modal offers a non-mutating **Add to other Calendars** action that lets a
+user re-create an event in their *own* calendar, separate from the department-calendar
+copies. It never writes to Google or the audit log — it only builds a link or a file
+locally. Placement is branch-dependent:
+
+- **Editable branch** — the two exports ride inside the **More actions** menu (the copy
+  icon, `EventDetail.tsx`), collapsed together with the **Duplicate** action so the action
+  row stays a single line of icon-only controls (Edit and Delete are icon-only too).
+- **Read-only / view-only branches** — a standalone calendar-plus icon menu, since there
+  is no "More actions" menu to host the exports.
+
+The two menu items are:
 
 - **Google Calendar** — a prefilled
   `calendar.google.com/calendar/render?action=TEMPLATE` URL (`text`, `dates`, `location`,

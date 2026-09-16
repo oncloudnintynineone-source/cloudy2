@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import {
+  ActionIcon,
   Badge,
   Button,
   Group,
@@ -10,6 +11,7 @@ import {
   Skeleton,
   Stack,
   Text,
+  Tooltip,
   useMantineTheme,
 } from "@mantine/core";
 import { useDisclosure, useMediaQuery, useViewportSize } from "@mantine/hooks";
@@ -341,12 +343,13 @@ export function EventDetail({
             )}
 
             {readOnly ? (
-              <Group justify="flex-end" mt="md">
+              <Group justify="flex-end" gap="xs" mt="md">
                 <AddToCalendarMenu event={showEvent} />
                 {onOpenInCalendar && (
                   <Button
                     variant="light"
-                    leftSection={<IconCalendarEvent size={16} />}
+                    size="md"
+                    leftSection={<IconCalendarEvent size={18} />}
                     onClick={() => onOpenInCalendar(showEvent)}
                   >
                     Open in calendar
@@ -354,30 +357,30 @@ export function EventDetail({
                 )}
               </Group>
             ) : canModify ? (
-              <Group justify="flex-end" mt="md">
-                <AddToCalendarMenu event={showEvent} />
-                <Button
-                  variant="light"
-                  leftSection={<IconCopy size={16} />}
-                  onClick={(e) => onDuplicate(showEvent, e.currentTarget.getBoundingClientRect())}
-                >
-                  Duplicate
-                </Button>
-                <Button
-                  variant="light"
-                  leftSection={<IconPencil size={16} />}
-                  onClick={(e) => onEdit(showEvent, e.currentTarget.getBoundingClientRect())}
-                >
-                  Edit
-                </Button>
-                <Button
-                  variant="light"
-                  color="red"
-                  leftSection={<IconTrash size={16} />}
-                  onClick={open}
-                >
-                  Delete
-                </Button>
+              <Group justify="flex-end" gap="xs" mt="md">
+                <EventActionsMenu event={showEvent} onDuplicate={onDuplicate} />
+                <Tooltip label="Edit" position="top">
+                  <ActionIcon
+                    variant="light"
+                    color="gray"
+                    size="xl"
+                    aria-label="Edit event"
+                    onClick={(e) => onEdit(showEvent, e.currentTarget.getBoundingClientRect())}
+                  >
+                    <IconPencil size={22} />
+                  </ActionIcon>
+                </Tooltip>
+                <Tooltip label="Delete" position="top">
+                  <ActionIcon
+                    variant="light"
+                    color="red"
+                    size="xl"
+                    aria-label="Delete event"
+                    onClick={open}
+                  >
+                    <IconTrash size={22} />
+                  </ActionIcon>
+                </Tooltip>
               </Group>
             ) : (
               <>
@@ -386,7 +389,7 @@ export function EventDetail({
                     ? "Only the organizer can edit this event."
                     : "You can view this event but not edit it."}
                 </Text>
-                <Group justify="flex-end" mt="md">
+                <Group justify="flex-end" gap="xs" mt="md">
                   <AddToCalendarMenu event={showEvent} />
                 </Group>
               </>
@@ -417,43 +420,99 @@ export function EventDetail({
   );
 }
 
+/** Save the event as an `.ics` file the OS routes to the native calendar app. */
+function downloadIcs(event: CalendarEvent) {
+  const blob = new Blob([buildEventIcs(event)], { type: "text/calendar;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = icsFileName(event);
+  anchor.click();
+  URL.revokeObjectURL(url);
+}
+
 /**
- * "Add to calendar" action: re-create this event in the user's own calendar via
- * a prefilled Google Calendar link or a downloaded `.ics` (which the OS routes
- * to the native calendar app). Non-mutating — it never writes to the department
- * calendars or the audit log.
+ * The two "add to a personal calendar" menu items: a prefilled Google Calendar
+ * link (opened in a new tab) and an `.ics` download. Shared by the read-only
+ * add-to-calendar menu and the editable "More actions" menu.
+ */
+function CalendarExportMenuItems({ event }: { event: CalendarEvent }) {
+  return (
+    <>
+      <Menu.Item
+        component="a"
+        href={buildGoogleCalendarUrl(event)}
+        target="_blank"
+        rel="noreferrer"
+        leftSection={<IconBrandGoogle size={16} />}
+      >
+        Google Calendar
+      </Menu.Item>
+      <Menu.Item onClick={() => downloadIcs(event)} leftSection={<IconDownload size={16} />}>
+        Download .ics
+      </Menu.Item>
+    </>
+  );
+}
+
+/**
+ * Standalone "Add to other Calendars" action: re-create this event in the user's
+ * own calendar. Shown where there is no "More actions" menu to host it (the
+ * read-only and view-only branches). Non-mutating — it never writes to the
+ * department calendars or the audit log.
  */
 function AddToCalendarMenu({ event }: { event: CalendarEvent }) {
-  function downloadIcs() {
-    const blob = new Blob([buildEventIcs(event)], { type: "text/calendar;charset=utf-8" });
-    const url = URL.createObjectURL(blob);
-    const anchor = document.createElement("a");
-    anchor.href = url;
-    anchor.download = icsFileName(event);
-    anchor.click();
-    URL.revokeObjectURL(url);
-  }
-
   return (
     <Menu position="bottom-end" zIndex={400}>
       <Menu.Target>
-        <Button variant="light" leftSection={<IconCalendarPlus size={16} />}>
-          Add to calendar
-        </Button>
+        <Tooltip label="Add to other Calendars" position="top">
+          <ActionIcon
+            variant="light"
+            color="gray"
+            size="xl"
+            aria-label="Add to other Calendars"
+          >
+            <IconCalendarPlus size={22} />
+          </ActionIcon>
+        </Tooltip>
+      </Menu.Target>
+      <Menu.Dropdown>
+        <CalendarExportMenuItems event={event} />
+      </Menu.Dropdown>
+    </Menu>
+  );
+}
+
+/**
+ * The editable modal's "More actions" menu: the Duplicate action plus the two
+ * personal-calendar exports, collapsed behind one icon so the action row stays
+ * a single line. The duplicate origin rect comes from the clicked menu item, so
+ * the wizard still grows out of where the tap landed.
+ */
+function EventActionsMenu({
+  event,
+  onDuplicate,
+}: {
+  event: CalendarEvent;
+  onDuplicate: (event: CalendarEvent, originRect: Rect | null) => void;
+}) {
+  return (
+    <Menu position="bottom-end" zIndex={400}>
+      <Menu.Target>
+        <Tooltip label="More actions" position="top">
+          <ActionIcon variant="light" color="gray" size="xl" aria-label="More actions">
+            <IconCopy size={22} />
+          </ActionIcon>
+        </Tooltip>
       </Menu.Target>
       <Menu.Dropdown>
         <Menu.Item
-          component="a"
-          href={buildGoogleCalendarUrl(event)}
-          target="_blank"
-          rel="noreferrer"
-          leftSection={<IconBrandGoogle size={16} />}
+          leftSection={<IconCopy size={16} />}
+          onClick={(e) => onDuplicate(event, e.currentTarget.getBoundingClientRect())}
         >
-          Google Calendar
+          Duplicate
         </Menu.Item>
-        <Menu.Item onClick={downloadIcs} leftSection={<IconDownload size={16} />}>
-          Download .ics
-        </Menu.Item>
+        <CalendarExportMenuItems event={event} />
       </Menu.Dropdown>
     </Menu>
   );
