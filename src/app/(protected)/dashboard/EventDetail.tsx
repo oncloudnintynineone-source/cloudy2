@@ -1,13 +1,32 @@
 "use client";
 
 import { useState } from "react";
-import { Badge, Button, Group, Modal, Skeleton, Stack, Text, useMantineTheme } from "@mantine/core";
+import {
+  Badge,
+  Button,
+  Group,
+  Menu,
+  Modal,
+  Skeleton,
+  Stack,
+  Text,
+  useMantineTheme,
+} from "@mantine/core";
 import { useDisclosure, useMediaQuery, useViewportSize } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
-import { IconCalendarEvent, IconCopy, IconPencil, IconTrash } from "@tabler/icons-react";
+import {
+  IconBrandGoogle,
+  IconCalendarEvent,
+  IconCalendarPlus,
+  IconCopy,
+  IconDownload,
+  IconPencil,
+  IconTrash,
+} from "@tabler/icons-react";
 
 import { LoadingStatus } from "@/components/LoadingStatus";
 import { deleteEvent, type EventActionOk } from "@/lib/events/actions";
+import { buildEventIcs, buildGoogleCalendarUrl, icsFileName } from "@/lib/events/calendarExport";
 import { subOneDay } from "@/lib/events/datetime";
 import { CONTENT_ENTER_CLASS } from "@/lib/loading/contentEnter";
 import type { CalendarEvent } from "@/lib/events/queries";
@@ -322,8 +341,9 @@ export function EventDetail({
             )}
 
             {readOnly ? (
-              onOpenInCalendar ? (
-                <Group justify="flex-end" mt="md">
+              <Group justify="flex-end" mt="md">
+                <AddToCalendarMenu event={showEvent} />
+                {onOpenInCalendar && (
                   <Button
                     variant="light"
                     leftSection={<IconCalendarEvent size={16} />}
@@ -331,10 +351,11 @@ export function EventDetail({
                   >
                     Open in calendar
                   </Button>
-                </Group>
-              ) : null
+                )}
+              </Group>
             ) : canModify ? (
               <Group justify="flex-end" mt="md">
+                <AddToCalendarMenu event={showEvent} />
                 <Button
                   variant="light"
                   leftSection={<IconCopy size={16} />}
@@ -359,11 +380,16 @@ export function EventDetail({
                 </Button>
               </Group>
             ) : (
-              <Text size="xs" c="dimmed" mt="xs">
-                {payload.ownerOnlyEdits && !isCreator
-                  ? "Only the organizer can edit this event."
-                  : "You can view this event but not edit it."}
-              </Text>
+              <>
+                <Text size="xs" c="dimmed" mt="xs">
+                  {payload.ownerOnlyEdits && !isCreator
+                    ? "Only the organizer can edit this event."
+                    : "You can view this event but not edit it."}
+                </Text>
+                <Group justify="flex-end" mt="md">
+                  <AddToCalendarMenu event={showEvent} />
+                </Group>
+              </>
             )}
           </Stack>
         ) : null}
@@ -388,6 +414,48 @@ export function EventDetail({
         </Modal>
       )}
     </>
+  );
+}
+
+/**
+ * "Add to calendar" action: re-create this event in the user's own calendar via
+ * a prefilled Google Calendar link or a downloaded `.ics` (which the OS routes
+ * to the native calendar app). Non-mutating — it never writes to the department
+ * calendars or the audit log.
+ */
+function AddToCalendarMenu({ event }: { event: CalendarEvent }) {
+  function downloadIcs() {
+    const blob = new Blob([buildEventIcs(event)], { type: "text/calendar;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = icsFileName(event);
+    anchor.click();
+    URL.revokeObjectURL(url);
+  }
+
+  return (
+    <Menu position="bottom-end" zIndex={400}>
+      <Menu.Target>
+        <Button variant="light" leftSection={<IconCalendarPlus size={16} />}>
+          Add to calendar
+        </Button>
+      </Menu.Target>
+      <Menu.Dropdown>
+        <Menu.Item
+          component="a"
+          href={buildGoogleCalendarUrl(event)}
+          target="_blank"
+          rel="noreferrer"
+          leftSection={<IconBrandGoogle size={16} />}
+        >
+          Google Calendar
+        </Menu.Item>
+        <Menu.Item onClick={downloadIcs} leftSection={<IconDownload size={16} />}>
+          Download .ics
+        </Menu.Item>
+      </Menu.Dropdown>
+    </Menu>
   );
 }
 

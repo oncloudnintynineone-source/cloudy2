@@ -24,8 +24,9 @@ month cache is covered in [`events-cache.md`](events-cache.md).
   - [1.9.2 Hiding the Location step](#192-hiding-the-location-step)
 - [1.10 Event type groups](#110-event-type-groups)
 - [1.11 Time options & datetime math](#111-time-options--datetime-math)
-- [1.12 Pure helpers & testing](#112-pure-helpers--testing)
-- [1.13 File index & related docs](#113-file-index--related-docs)
+- [1.12 Add to calendar (personal copy)](#112-add-to-calendar-personal-copy)
+- [1.13 Pure helpers & testing](#113-pure-helpers--testing)
+- [1.14 File index & related docs](#114-file-index--related-docs)
 
 ## 1.1 Problem
 
@@ -806,7 +807,34 @@ Also in `datetime.ts` (used across views and the cache): `monthRange`,
 `monthsInRange` — every `YYYY-MM` a naive range touches, with a guard that a
 malformed (reversed) range still yields the start month.
 
-## 1.12 Pure helpers & testing
+## 1.12 Add to calendar (personal copy)
+
+The event detail modal offers a non-mutating **Add to calendar** action that lets a user
+re-create an event in their *own* calendar, separate from the department-calendar copies.
+It never writes to Google or the audit log — it only builds a link or a file locally.
+
+- **Google Calendar** — a prefilled
+  `calendar.google.com/calendar/render?action=TEMPLATE` URL (`text`, `dates`, `location`,
+  `details`), opened in a new tab; one save adds the personal copy.
+- **Download `.ics`** — an RFC 5545 iCalendar file (`text/calendar`); the OS routes it to
+  the native calendar app's add-event sheet.
+
+Both builders live in the pure `src/lib/events/calendarExport.ts`
+(`buildGoogleCalendarUrl`, `buildEventIcs`, `icsFileName`; unit-tested). Rules:
+
+- The entry title is the event's **final rendered summary** (`CalendarEvent.title`, i.e.
+  `renderEventTitle`'s output — §1.8), so the personal copy reads exactly like the
+  department-calendar copy. The `.ics` filename derives from it (reserved characters
+  stripped, `event.ics` fallback).
+- `payload.rawTitle` (the organizer's typed remarks) becomes the Google `details` /
+  ICS `DESCRIPTION`; the opaque notes block is never exported.
+- Times convert through `absEventRange` (§1.11.2): timed events emit UTC, all-day events
+  emit `VALUE=DATE` entries with Google/ICS' **exclusive** end date. Half-day
+  (`timeOption: "half"`) events are deliberately exported as full all-day blocks.
+- ICS text values are escaped and lines folded at 75 octets (RFC 5545 §3.1) on
+  code-point boundaries; `DTSTAMP` is injectable for deterministic tests.
+
+## 1.13 Pure helpers & testing
 
 Every decision-making part of the pipeline is a pure, I/O-free function unit-tested by
 Vitest without a DB or Google credentials; the I/O glue (DB lookups, the Google
@@ -826,12 +854,13 @@ writes, headers) is thin and lives in `actions.ts` / `queries.ts`.
 | `modifyGuard`, `canChangeLock` | `events/guards.ts` | `guards.test.ts` |
 | `validateEventForm` (range time-part requirement, chronology), `resolveEventAuthor` | `events/validate.ts` | `validate.test.ts` |
 | `deriveTargetCalendarIds`, `diffEventTargets`, `dedupeEventsByGroupId`, `eventRefFromCalendarEvent` | `events/targets.ts` | `targets.test.ts` |
+| `buildGoogleCalendarUrl`, `buildEventIcs`, `icsFileName` (§1.12) | `events/calendarExport.ts` | `calendarExport.test.ts` |
 
 I/O-bound (not unit-tested, per the repo convention): `actions.ts` (the server
 actions), `queries.ts` (DB + cache reads, `mapCalendarItem`), `appUrl.ts`
 (`next/headers`), and the form/UI components.
 
-## 1.13 File index & related docs
+## 1.14 File index & related docs
 
 | File | Role |
 | ---- | ---- |
@@ -847,6 +876,7 @@ actions), `queries.ts` (DB + cache reads, `mapCalendarItem`), `appUrl.ts`
 | `src/lib/events/locationPolicy.ts` | Location categories / allowed-locations clamping (pure) |
 | `src/lib/events/timeOptions.ts` | Time options + AM/PM marker (pure) |
 | `src/lib/events/datetime.ts` | UTC+8 datetime math (pure) |
+| `src/lib/events/calendarExport.ts` | Add-to-calendar builders: Google template URL + `.ics` (pure, §1.12) |
 | `src/lib/events/guards.ts` | Creator/ownership guards (pure) |
 | `src/lib/events/validate.ts` | Form validation + creator normalization (pure) |
 | `src/lib/events/targets.ts` | Target set, dedup, `EventRef` (pure) |
