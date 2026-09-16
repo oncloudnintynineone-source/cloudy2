@@ -1090,7 +1090,7 @@ via `?attendance=1` and `attendanceStorage` became a `useSyncExternalStore` exte
    `myEventIds`, no autofocus). `docs/event-search.md` §1.5/§1.9/§1.12
 - 1.244 Pinned-events ticker pills: the header pill drops its pin icon, the amber
    `1/N` count chip moves into the leading (icon) slot, and a new subdued
-   days-remaining countdown chip (`5D` caps-D, `0D` for a same-day or
+   days-remaining countdown chip (`5d` lower-d, `0d` for a same-day or
    already-started event, never months) takes the count chip's old slot between
    it and the rotating title; the countdown re-reads the clock every 60s so a
    single non-rotating event still rolls over at midnight (new pure

@@ -282,7 +282,7 @@ html {
 
 /* Header pinned-events ticker (docs/pinned-events.md): the brand pill anchored
    at the header's left edge (where the logo used to sit). It shows an inline
-   amber count chip (1/N), a secondary days-remaining countdown chip (5D) and
+   amber count chip (1/N), a secondary days-remaining countdown chip (5d) and
    rotates through the upcoming pinned events' titles with a vertical ticker
    slide. The max-width caps the pill so it doesn't stretch across wide desktop
    headers; titles truncate with an ellipsis inside it. */

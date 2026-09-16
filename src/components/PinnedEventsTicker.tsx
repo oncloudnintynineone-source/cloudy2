@@ -30,7 +30,7 @@ function tickerTitleOf(event: PinnedEvent): string {
  * The header's pinned-events pill, anchored at the header's left edge (where
  * the logo used to sit). Shows an inline amber count chip (`1/N` — the old
  * floating Indicator badge, inline now), a secondary days-remaining countdown
- * chip (`5D` — the pin icon's replacement slot, dropping at `0D` for a
+ * chip (`5d` — the pin icon's replacement slot, dropping at `0d` for a
  * same-day or already-started event) and rotates through the upcoming pinned
  * events' `tickerTitle`s with a vertical slide-in. Tapping it opens the Pinned
  * Events panel, same as the old button.
@@ -126,10 +126,10 @@ export function PinnedEventsTicker({
             {safeIndex + 1}/{count}
           </span>
           {/* Days until the current event's start (date-part difference, so a
-              same-day or already-started event reads `0D`); hidden from the
+              same-day or already-started event reads `0d`); hidden from the
               accessible name like the count chip. */}
           <span className="c2-pinned-ticker-countdown" aria-hidden>
-            {daysUntil}D
+            {daysUntil}d
           </span>
           <span className="c2-pinned-ticker-title" aria-hidden>
             {/* Keyed by event id so a rotation remounts the line and replays

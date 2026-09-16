@@ -69,16 +69,16 @@ removed), and shows, left to right:
  same accent color, now inline with the text) — now occupying the pin icon's
  old leading slot,
 2. a secondary **countdown chip** — whole days until the current event's start,
- `5D` (caps D), computed as a date-part difference so a same-day or
- already-started event reads `0D`; it never switches to months, so a
- far-future event reads e.g. `45D`, and
+ `5d` (lowercase d), computed as a date-part difference so a same-day or
+ already-started event reads `0d`; it never switches to months, so a
+ far-future event reads e.g. `45d`, and
 3. the **current event's `tickerTitle`**, one line, ellipsis-truncated.
 
 ```mermaid
 flowchart LR
   subgraph pill["pinned-events pill (max-width capped)"]
  direction LR
- C["1/5 chip"] --> D["5D countdown"] --> T["rotating title"]
+  C["1/5 chip"] --> D["5d countdown"] --> T["rotating title"]
   end
   T -. every 5s .-> T
 ```

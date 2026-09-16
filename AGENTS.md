@@ -158,7 +158,7 @@ doc content here.
   **inline** on the AppShell root — do NOT use Mantine's `vars` prop (a resolver function in
   v9, not an object). Design: [docs/announcement-banner.md](docs/announcement-banner.md).
 - **Pinned Events:** header-left ticker rotating upcoming pinned events' titles every 5s
-  behind an inline amber `1/N` count chip and a days-remaining countdown chip (`5D`, `0D`
+  behind an inline amber `1/N` count chip and a days-remaining countdown chip (`5d`, `0d`
   for same-day; no pin icon); tapping opens the pinned panel ("Pin this event" switch on
   the wizard's Other settings step). Titles render via the `pinnedHeader` template target
   (panel list: `pinned`). Design: [docs/pinned-events.md](docs/pinned-events.md).
