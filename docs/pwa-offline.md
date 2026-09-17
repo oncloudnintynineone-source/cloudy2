@@ -13,6 +13,7 @@ The PWA opens with calendar events visible instantly — even cold or offline �
 - [1.6 RSC cache — instant in-app navigation & offline views](#16-rsc-cache--instant-in-app-navigation--offline-views)
 - [1.7 Cache invalidation after mutations](#17-cache-invalidation-after-mutations)
 - [1.8 New build (deploy) takeover](#18-new-build-deploy-takeover)
+  - [1.8.1 Platform note — iOS vs Android](#181-platform-note--ios-vs-android)
 - [1.9 Offline fallback](#19-offline-fallback)
 - [1.10 Session expiry](#110-session-expiry)
 - [1.11 On-demand refresh (pull-to-refresh disabled)](#111-on-demand-refresh-pull-to-refresh-disabled)
@@ -294,6 +295,17 @@ Notes:
 - The version check only fires for deploys that bump `APP_VERSION` (repo convention: bump on every codebase change), which is the same set of deploys that need a client reload.
 - In-page "older data" *within the same build* (navigating back to a visited URL) is still the intended SWR behavior (§1.5/§1.6) plus `staleTimes.dynamic = 120`; the header's **Force refresh** button (§1.11) is the user-facing escape hatch for that.
 
+### 1.8.1 Platform note — iOS vs Android
+
+The original takeover used the service worker's `registration.waiting` state as the update signal. That is reliable on Chrome/Android — a waiting worker is cleared the moment it activates — but **iOS Safari leaves a waiting worker lingering and keeps reporting it** even after the new build is already running. The result was an iOS-only loop: the user tapped Reload, the reload landed on the new build, but `registration.waiting` still reported the old waiting worker, so the pill reappeared on every load.
+
+The fix makes detection platform-agnostic: `SWUpdateNotice` compares the page's bundled `APP_VERSION` with the live `/api/version`, so a page that is already current can never be prompted, whatever the worker state. Applying the update clears the page caches and **unregisters** the worker, which discards a stuck waiting worker on iOS and forces a clean reinstall on Android. A `sessionStorage` record of the applied build (`cloudy2.swUpdateApplied`) is a final guard: a deploy already applied in this session is never prompted for again, so an update loop cannot be *visible* on any platform.
+
+Two platform-neutral details worth noting:
+
+- **Android multi-tab:** `unregister()` is origin-wide, so applying an update in one tab drops the registration for the others; they re-register on their next navigation. Self-healing, never a loop.
+- **`reloadOnOnline` is disabled** (`SerwistProvider reloadOnOnline={false}`): Serwist defaults it to `true`, hard-reloading the page on every `online` event — a surprise on flaky mobile connections, and redundant with the app's own `useInactivityRefresh` / `SWUpdateNotice` refresh paths.
+
 ## 1.9 Offline fallback
 
 When a navigation has neither a cache hit for its exact URL nor a working network, the document handler's `handlerDidError` **redirects to the most recently saved view's own URL** (`lastSavedDocumentUrl`, `src/app/sw.ts`) — for any navigation, query-less or deep-linked. The pure `newestSavedView` (§1.13) picks the document-cache entry with the newest `Date` header; the SW then returns a 302 to that entry's URL. Redirecting (rather than serving the saved body under the requested URL) keeps the browser URL agreeing with the rendered view, so the page hydrates cleanly instead of reconciling mismatched view state. The follow-up navigation is a guaranteed cache hit, served by the SWR route with its stamp; the amber `OfflineBanner` supplies the "this is an offline copy" context on-page without a picker landing page. This covers:
@@ -381,7 +393,7 @@ Pure logic lives in `src/lib/pwa/swRules.ts` so it is unit-tested without a live
 - `isDocumentFresh(savedAtMs, now)` — whether a cached document is recent enough to count as up to date (§1.5); `null` (no entry / no `Date`) is not fresh, and a future timestamp clamps to age 0 rather than reading as ancient
 - `needsReconcile(cachedAtIso, now)` — whether a rendered page should pull the live version after paint (§1.5). A **missing** stamp means the document came off the network, so it never reconciles; an unparsable stamp is treated as fresh rather than hammering the network
 - `isStartUrlRequest(url)` — the PWA start URL: `/`, optionally carrying only `utm_*` launcher params, hash ignored (§1.5.1)
-- `shouldPromptForUpdate({ clientVersion, serverVersion, alreadyPrompted })` — whether *this page* is stale and should surface the "Update available" pill (§1.8): true only when both versions are known, they differ, and this server build has not already been prompted for
+- `shouldPromptForUpdate({ clientVersion, serverVersion, alreadyPrompted, appliedVersion })` — whether *this page* is stale and should surface the "Update available" pill (§1.8): true only when both versions are known, they differ, this server build has not already been prompted for, and it has not already been applied this session (`appliedVersion`)
 - `swCacheVersion(manifest)`
 - `documentCacheName(version)` / `rscCacheName(version)`
 - `isPageCacheName(name)`

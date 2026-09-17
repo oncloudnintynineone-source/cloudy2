@@ -18,7 +18,7 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
 
 ## 1.1 Status
 
-- All work through changelog **1.252 (iOS update-pill loop fix)** is shipped.
+- All work through changelog **1.253 (update-pill loop-proofing)** is shipped.
 - Quality gates (`lint` / `typecheck` / `test` / schema-drift check) run in CI on every
   push and PR. Pushes also auto-apply migrations per environment: `dev` →
   `migrate-preview` against the dev Neon DB, `main` → `migrate` against the prod Neon
@@ -1172,6 +1172,15 @@ via `?attendance=1` and `attendanceStorage` became a `useSyncExternalStore` exte
   cleanly), and reloads. Pure `shouldPromptForUpdate` re-scoped to
   `{ clientVersion, serverVersion, alreadyPrompted }` (`swRules.ts`, unit-tested).
   `docs/pwa-offline.md` §1.8/§1.12/§1.13/§1.15/§1.17
+- 1.253 Update-pill loop-proofing + mobile online-reload fix: `shouldPromptForUpdate`
+  gains an `appliedVersion` guard persisted in `sessionStorage`
+  (`cloudy2.swUpdateApplied`), so a deploy the user already applied is never prompted
+  for again — an update loop cannot be visible on any platform (Android was never
+  affected: Chrome clears `registration.waiting` correctly; the loop was iOS-only).
+  `SerwistProvider` now gets `reloadOnOnline={false}`, removing Serwist's default
+  hard-reload on every `online` event (a surprise on flaky mobile connections, and
+  redundant with the app's own refresh paths). New `docs/pwa-offline.md` §1.8.1
+  documents the iOS-vs-Android behavior and the multi-tab unregister caveat.
 
 ## 1.4 Open items & next steps
 

@@ -16,6 +16,13 @@ interface VersionResponse {
 }
 
 /**
+ * Session-scoped record of the server build the user applied. Survives the
+ * reload (cleared when the tab/app closes) and stops a stale reload from
+ * re-prompting for a deploy the user already acted on.
+ */
+const SW_UPDATE_APPLIED_KEY = "cloudy2.swUpdateApplied";
+
+/**
  * Keeps a running page on the latest deployed build.
  *
  * The browser only checks for a new service worker on a navigation or page
@@ -29,8 +36,12 @@ interface VersionResponse {
  * Detection is deliberately **not** the service worker's `registration.waiting`
  * state. On iOS Safari a waiting worker can linger — and keep being reported —
  * after the new build is already running, which made the pill reappear after
- * every reload the user tapped. Comparing live server/client versions is
- * authoritative, so a stuck worker can never re-prompt a page that is current.
+ * every reload the user tapped. Chrome/Android clears `waiting` correctly, so
+ * the loop was iOS-only, but a live server/client version comparison is
+ * authoritative on every platform and can never re-prompt a page that is
+ * current. A `sessionStorage` record of the applied build adds a final guard:
+ * even a reload that somehow lands back on a stale page cannot show the pill
+ * twice for the same deploy.
  *
  * Applying the update clears the page caches, drops the service-worker
  * registration (a stuck waiting worker would otherwise keep serving the old
@@ -44,6 +55,7 @@ export function SWUpdateNotice(): null {
   const { show } = useActionPill();
 
   const promptedForRef = useRef<string | null>(null);
+  const serverVersionRef = useRef<string | null>(null);
   const applyingRef = useRef(false);
   const graceTimerRef = useRef<number | null>(null);
   const inFlightRef = useRef(false);
@@ -59,10 +71,35 @@ export function SWUpdateNotice(): null {
       }
     };
 
+    // sessionStorage can throw (Safari private mode) — never let that break
+    // the update flow.
+    const readAppliedVersion = (): string | null => {
+      try {
+        return window.sessionStorage.getItem(SW_UPDATE_APPLIED_KEY);
+      } catch {
+        return null;
+      }
+    };
+    const writeAppliedVersion = (version: string) => {
+      try {
+        window.sessionStorage.setItem(SW_UPDATE_APPLIED_KEY, version);
+      } catch {
+        // Best effort.
+      }
+    };
+    const clearAppliedVersion = () => {
+      try {
+        window.sessionStorage.removeItem(SW_UPDATE_APPLIED_KEY);
+      } catch {
+        // Best effort.
+      }
+    };
+
     const applyUpdate = () => {
       if (applyingRef.current) return;
       applyingRef.current = true;
       clearGraceTimer();
+      if (serverVersionRef.current) writeAppliedVersion(serverVersionRef.current);
       void (async () => {
         try {
           await clearAllSavedPages();
@@ -93,6 +130,7 @@ export function SWUpdateNotice(): null {
         // to prompt again.
         if (serverVersion === APP_VERSION) {
           promptedForRef.current = null;
+          clearAppliedVersion();
           return;
         }
         if (
@@ -100,11 +138,13 @@ export function SWUpdateNotice(): null {
             clientVersion: APP_VERSION,
             serverVersion,
             alreadyPrompted: promptedForRef.current === serverVersion,
+            appliedVersion: readAppliedVersion(),
           })
         ) {
           return;
         }
         promptedForRef.current = serverVersion;
+        serverVersionRef.current = serverVersion;
         show({
           title: "New version available",
           label: "Reload",

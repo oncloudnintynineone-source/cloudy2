@@ -504,33 +504,48 @@ describe("swRules", () => {
   });
 
   describe("shouldPromptForUpdate", () => {
-    const base = { clientVersion: "2026.09.17-1", serverVersion: "2026.09.17-2" };
+    const base = {
+      clientVersion: "2026.09.17-1",
+      serverVersion: "2026.09.17-2",
+      alreadyPrompted: false,
+      appliedVersion: null as string | null,
+    };
 
     it("prompts when the running build differs from the server's", () => {
-      expect(shouldPromptForUpdate({ ...base, alreadyPrompted: false })).toBe(true);
+      expect(shouldPromptForUpdate(base)).toBe(true);
     });
 
     it("does not prompt when the running build is current", () => {
       expect(
         shouldPromptForUpdate({
+          ...base,
           clientVersion: "2026.09.17-2",
           serverVersion: "2026.09.17-2",
-          alreadyPrompted: false,
         }),
       ).toBe(false);
     });
 
     it("does not prompt without both versions", () => {
-      expect(
-        shouldPromptForUpdate({ clientVersion: null, serverVersion: "2026.09.17-2", alreadyPrompted: false }),
-      ).toBe(false);
-      expect(
-        shouldPromptForUpdate({ clientVersion: "2026.09.17-1", serverVersion: null, alreadyPrompted: false }),
-      ).toBe(false);
+      expect(shouldPromptForUpdate({ ...base, clientVersion: null })).toBe(false);
+      expect(shouldPromptForUpdate({ ...base, serverVersion: null })).toBe(false);
     });
 
     it("does not stack a second prompt for the same server build", () => {
       expect(shouldPromptForUpdate({ ...base, alreadyPrompted: true })).toBe(false);
+    });
+
+    it("never re-prompts for a build already applied this session", () => {
+      expect(shouldPromptForUpdate({ ...base, appliedVersion: "2026.09.17-2" })).toBe(false);
+    });
+
+    it("still prompts for a newer build than the one applied", () => {
+      expect(
+        shouldPromptForUpdate({
+          ...base,
+          serverVersion: "2026.09.17-3",
+          appliedVersion: "2026.09.17-2",
+        }),
+      ).toBe(true);
     });
   });
 

@@ -66,8 +66,16 @@ export default function RootLayout({
               trusting its HTTP cache — the difference between discovering a
               deploy and staying on the old build (iOS/Safari especially).
               Complements the no-cache headers set for /serwist/* in
-              next.config.ts. */}
-          <SerwistProvider swUrl="/serwist/sw.js" options={{ updateViaCache: "none" }}>
+              next.config.ts.
+              `reloadOnOnline={false}`: Serwist defaults it to true, which
+              hard-reloads the page on every `online` event — a surprise on
+              flaky mobile connections, and redundant with the app's own
+              `useInactivityRefresh` / `SWUpdateNotice` refresh paths. */}
+          <SerwistProvider
+            swUrl="/serwist/sw.js"
+            options={{ updateViaCache: "none" }}
+            reloadOnOnline={false}
+          >
             {children}
           </SerwistProvider>
         </AppProviders>

@@ -297,6 +297,12 @@ export interface SwUpdatePromptState {
   serverVersion: string | null;
   /** A prompt has already been shown for this server build. */
   alreadyPrompted: boolean;
+  /**
+   * The server build the user already applied in this tab session (persisted
+   * in `sessionStorage` across the reload). Guards against re-prompting for a
+   * deploy whose reload somehow came back stale, on any platform.
+   */
+  appliedVersion: string | null;
 }
 
 /**
@@ -310,9 +316,15 @@ export interface SwUpdatePromptState {
  * the page's own bundled `APP_VERSION` with the server's current one says
  * plainly whether *this page* is stale, so a stuck worker can never re-prompt
  * a page that is already current.
+ *
+ * `appliedVersion` is the belt-and-braces guard: once the user has applied a
+ * given server build in this session, never prompt for it again even if the
+ * reload landed back on a stale page — an update loop can therefore never be
+ * *visible* on any platform.
  */
 export function shouldPromptForUpdate(state: SwUpdatePromptState): boolean {
   if (!state.clientVersion || !state.serverVersion) return false;
+  if (state.appliedVersion === state.serverVersion) return false;
   if (state.alreadyPrompted) return false;
   return state.clientVersion !== state.serverVersion;
 }
