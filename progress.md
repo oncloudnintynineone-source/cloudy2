@@ -18,7 +18,7 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
 
 ## 1.1 Status
 
-- All work through changelog **1.249 (deploy-update pill)** is shipped.
+- All work through changelog **1.250 (per-group folder toggle)** is shipped.
 - Quality gates (`lint` / `typecheck` / `test` / schema-drift check) run in CI on every
   push and PR. Pushes also auto-apply migrations per environment: `dev` →
   `migrate-preview` against the dev Neon DB, `main` → `migrate` against the prod Neon
@@ -1132,6 +1132,17 @@ via `?attendance=1` and `attendanceStorage` became a `useSyncExternalStore` exte
   the accordion and renders inline, and each picker section now carries a stable `id`
   (group id or `UNGROUPED_ID`). No schema change; search intentionally omitted.
   `docs/event-lifecycle.md` §1.10
+- 1.250 Event-type groups choose folder vs. inline: `event_type_groups` gains
+  `collapsible` (boolean, default `true`, migration `0047`), so an admin can keep a
+  group as the collapsed tap-to-expand folder or flip it off to restore the previous
+  always-expanded labeled section; the "Ungrouped" catch-all has no group row and is
+  always inline. The wizard renders sections in `sort_order`, each as a single-item
+  `Accordion` (folder) or a plain labeled `Box` (inline), and the pure
+  `initialExpandedSectionIds` now opens only the collapsible folder holding a
+  pre-selected type (a lone collapsible folder still starts collapsed). Manage groups
+  gains a per-row **Folder** switch (new `setEventTypeGroupCollapsible` action, audited
+  as `eventTypeGroup.update`), and the type table marks folder groups with a folder
+  icon. `docs/event-lifecycle.md` §1.10, `docs/admin-guide.md` §1.4
 - 1.249 Deploy updates surface a "New version available — Reload" pill instead of
   silently stale builds: the SW now runs `skipWaiting: false`, so a deploy installs a
   **waiting** worker that leaves the running old build intact; the new

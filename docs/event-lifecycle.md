@@ -716,18 +716,19 @@ labeled section per group.
 
 ```mermaid
 flowchart LR
- A[Admin: Settings → Event Types<br/>Manage groups] -->|create / rename / delete / reorder| G[(event_type_groups<br/>name unique, sort_order)]
+ A[Admin: Settings → Event Types<br/>Manage groups] -->|create / rename / delete / reorder / folder toggle| G[(event_type_groups<br/>name unique, sort_order, collapsible)]
  A -->|Group select in the type form| T[(event_types.group_id<br/>nullable FK, ON DELETE SET NULL)]
  G -->|listEventTypeGroups| P[buildEventTypePickerSections<br/>pure — eventTypes/groups.ts]
  T -->|listEventTypes| P
- P -->|ordered sections| W[Wizard type step:<br/>collapsible folder accordion]
+ P -->|ordered sections| W[Wizard type step:<br/>collapsible folder or inline section]
  P -->|initialExpandedSectionIds| W
 ```
 
 - **Schema** (migration `0031`): the `event_type_groups` table (`name` unique,
   `sort_order` display rank, timestamps) and `event_types.group_id` — a nullable FK
   with `ON DELETE SET NULL` (the same pattern as `calendars.parent_id`), so deleting a
-  group never deletes a type: its types simply become ungrouped.
+  group never deletes a type: its types simply become ungrouped. Migration `0047` adds
+  `collapsible` (boolean, default `true`).
 - **Display order**: groups render in `sort_order` order (name as tiebreak); types
   within a group stay alphabetical. `sort_order` is managed with up/down buttons in
   the groups dialog; a move re-ranks the whole list (position = rank), which also
@@ -740,24 +741,28 @@ flowchart LR
   groups)` (`src/lib/eventTypes/groups.ts`, unit-tested in `groups.test.ts`): groups
   in display order, empty groups skipped, and the ungrouped section present only when
   some type has no group. Each section carries a stable `id` (the group id, or
-  `UNGROUPED_ID`) so the UI can key on it. The dashboard page fetches the groups in
-  the same `Promise.all` as the types (`listEventTypeGroups()`, per-request
-  React-cached like `listEventTypes`) and passes them through `DashboardView` to
-  `EventForm`.
-- **Folders collapse.** With more than one section the type step renders a Mantine
-  `Accordion` (`multiple`, `variant="separated"`, chevron on the left): the folder
-  name plus a count badge sits in the control, and the type badges live in the panel.
-  Open state starts from the pure `initialExpandedSectionIds(sections,
-  selectedTypeName)`: a single section stays open (nothing to hide behind), an
-  already-selected type opens the folder that holds it (edit/duplicate prefill), and
-  otherwise every folder starts collapsed. A lone section skips the accordion and
-  renders inline (the pre-groups look). Search is deliberately not offered.
+  `UNGROUPED_ID`) so the UI can key on it, plus the group's `collapsible` flag. The
+  dashboard page fetches the groups in the same `Promise.all` as the types
+  (`listEventTypeGroups()`, per-request React-cached like `listEventTypes`) and passes
+  them through `DashboardView` to `EventForm`.
+- **Folders are opt-in per group.** A group with `collapsible` on renders as a
+  single-item Mantine `Accordion` (`variant="separated"`, chevron on the left): the
+  folder name plus a count badge sits in the control, and the type badges live in the
+  panel. A group with `collapsible` off — and the trailing "Ungrouped" section, which
+  has no group row and is always `collapsible: false` — renders as the previous
+  always-expanded labeled section. Mixed groups render in `sort_order`, each in its
+  own style. Open state starts from the pure `initialExpandedSectionIds(sections,
+  selectedTypeName)`: only collapsible folders participate, and only the folder that
+  holds an already-selected type opens (edit/duplicate prefill); every other folder —
+  including a lone collapsible folder — starts collapsed. Search is deliberately not
+  offered.
 - **Management** lives in Settings → Event Types under **Manage groups** (a dialog,
   not a separate tab): create (appends after the last group), inline rename, delete
-  (the confirm states how many types become ungrouped), and up/down reordering. All
-  four are `requireAdmin()` server actions with audit rows
-  (`eventTypeGroup.create` / `eventTypeGroup.update` / `eventTypeGroup.delete`) in
-  `src/lib/eventTypes/groupActions.ts`; moves log as `update` with an `order` diff.
+  (the confirm states how many types become ungrouped), up/down reordering, and a
+  per-row **Folder** switch that toggles `collapsible`. All are `requireAdmin()` server
+  actions with audit rows (`eventTypeGroup.create` / `eventTypeGroup.update` /
+  `eventTypeGroup.delete`) in `src/lib/eventTypes/groupActions.ts`; moves and the
+  folder toggle log as `update` with an `order` / `collapsible` diff.
 - The **event type form** gained a Group `NoKeyboardSelect` (the "Ungrouped" option
   stores `null`; the server verifies the id exists before writing), and the event
   type table shows a Group column/badge. Grouping is **presentation-only**: the

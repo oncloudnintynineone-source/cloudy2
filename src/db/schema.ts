@@ -240,6 +240,13 @@ export const eventTypeGroups = pgTable(
     name: text("name").notNull(),
     /** Display rank in the event form's grouped type picker. */
     sortOrder: integer("sort_order").notNull().default(0),
+    /**
+     * Whether the group renders as a collapsible folder in the event form's
+     * type step (true) or as the previous always-expanded labeled section
+     * (false). The trailing "Ungrouped" section has no row and is always
+     * inline.
+     */
+    collapsible: boolean("collapsible").notNull().default(true),
     ...timestamps,
   },
   (table) => [

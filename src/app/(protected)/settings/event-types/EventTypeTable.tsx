@@ -14,7 +14,7 @@ import {
 } from "@mantine/core";
 
 import { useDisclosure, useMediaQuery } from "@mantine/hooks";
-import { IconCalendarEvent, IconCategory2, IconPlus } from "@tabler/icons-react";
+import { IconCalendarEvent, IconCategory2, IconFolder, IconPlus } from "@tabler/icons-react";
 
 import { EmptyState } from "@/components/EmptyState";
 import type { EventType } from "@/db/schema";
@@ -43,7 +43,7 @@ const EventTypeForm = dynamic(() => import("./EventTypeForm").then((mod) => mod.
 
 interface EventTypeTableProps {
   types: EventType[];
-  groups: { id: string; name: string; sortOrder: number }[];
+  groups: { id: string; name: string; sortOrder: number; collapsible: boolean }[];
 }
 
 export function EventTypeTable({ types, groups }: EventTypeTableProps) {
@@ -54,7 +54,7 @@ export function EventTypeTable({ types, groups }: EventTypeTableProps) {
   const [editing, setEditing] = useState<EventType | null>(null);
   const [groupsOpened, { open: openGroups, close: closeGroups }] = useDisclosure(false);
 
-  const groupById = useMemo(() => new Map(groups.map((group) => [group.id, group.name])), [groups]);
+  const groupById = useMemo(() => new Map(groups.map((group) => [group.id, group])), [groups]);
 
   const typeCounts = useMemo(() => {
     const counts = new Map<string, number>();
@@ -128,8 +128,17 @@ export function EventTypeTable({ types, groups }: EventTypeTableProps) {
                   </Group>
                   <Group gap="xs" wrap="wrap">
                     {eventType.groupId && groupById.has(eventType.groupId) ? (
-                      <Badge size="sm" variant="light" color="blue">
-                        {groupById.get(eventType.groupId)}
+                      <Badge
+                        size="sm"
+                        variant="light"
+                        color="blue"
+                        leftSection={
+                          groupById.get(eventType.groupId)?.collapsible ? (
+                            <IconFolder size={12} />
+                          ) : undefined
+                        }
+                      >
+                        {groupById.get(eventType.groupId)?.name}
                       </Badge>
                     ) : null}
                     {eventType.shortname ? (
@@ -201,8 +210,17 @@ export function EventTypeTable({ types, groups }: EventTypeTableProps) {
                     </Table.Td>
                     <Table.Td>
                       {eventType.groupId && groupById.has(eventType.groupId) ? (
-                        <Badge size="sm" variant="light" color="blue">
-                          {groupById.get(eventType.groupId)}
+                        <Badge
+                          size="sm"
+                          variant="light"
+                          color="blue"
+                          leftSection={
+                            groupById.get(eventType.groupId)?.collapsible ? (
+                              <IconFolder size={12} />
+                            ) : undefined
+                          }
+                        >
+                          {groupById.get(eventType.groupId)?.name}
                         </Badge>
                       ) : (
                         <Text c="dimmed">—</Text>

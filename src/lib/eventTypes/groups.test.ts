@@ -11,10 +11,16 @@ import {
   type EventTypeRef,
 } from "./groups";
 
-const group = (id: string, name: string, sortOrder: number): EventTypeGroupRef => ({
+const group = (
+  id: string,
+  name: string,
+  sortOrder: number,
+  collapsible = true,
+): EventTypeGroupRef => ({
   id,
   name,
   sortOrder,
+  collapsible,
 });
 
 const type = (name: string, groupId: string | null): EventTypeRef => ({ name, groupId });
@@ -43,15 +49,34 @@ describe("buildEventTypePickerSections", () => {
         id: "g2",
         name: "Leave",
         ungrouped: false,
+        collapsible: true,
         types: [type("Alpha", "g2"), type("Gamma", "g2")],
       },
-      { id: "g1", name: "Drill", ungrouped: false, types: [type("Beta", "g1")] },
+      {
+        id: "g1",
+        name: "Drill",
+        ungrouped: false,
+        collapsible: true,
+        types: [type("Beta", "g1")],
+      },
       {
         id: UNGROUPED_ID,
         name: UNGROUPED_LABEL,
         ungrouped: true,
+        collapsible: false,
         types: [type("Eta", null), type("Zeta", null)],
       },
+    ]);
+  });
+
+  it("carries each group's collapsible flag; the ungrouped section is never collapsible", () => {
+    const sections = buildEventTypePickerSections(
+      [type("Alpha", "g1"), type("Beta", "g2")],
+      [group("g1", "Leave", 0, false), group("g2", "Drill", 1, true)],
+    );
+    expect(sections.map((section) => [section.id, section.collapsible])).toEqual([
+      ["g1", false],
+      ["g2", true],
     ]);
   });
 
@@ -61,7 +86,7 @@ describe("buildEventTypePickerSections", () => {
       group("g2", "Drill", 1),
     ]);
     expect(sections).toEqual([
-      { id: "g1", name: "Leave", ungrouped: false, types: [type("Alpha", "g1")] },
+      { id: "g1", name: "Leave", ungrouped: false, collapsible: true, types: [type("Alpha", "g1")] },
     ]);
   });
 
@@ -79,6 +104,7 @@ describe("buildEventTypePickerSections", () => {
         id: UNGROUPED_ID,
         name: UNGROUPED_LABEL,
         ungrouped: true,
+        collapsible: false,
         types: [type("Alpha", "missing"), type("Beta", null)],
       },
     ]);
@@ -88,22 +114,27 @@ describe("buildEventTypePickerSections", () => {
 describe("initialExpandedSectionIds", () => {
   const sections = buildEventTypePickerSections(
     [type("Alpha", "g2"), type("Beta", "g1"), type("Eta", null)],
-    [group("g2", "Leave", 0), group("g1", "Drill", 1)],
+    [group("g2", "Leave", 0, true), group("g1", "Drill", 1, false)],
   );
 
-  it("opens a single section (nothing to collapse)", () => {
-    const single = buildEventTypePickerSections([type("Alpha", "g1")], [group("g1", "Leave", 0)]);
-    expect(initialExpandedSectionIds(single, null)).toEqual(["g1"]);
+  it("opens the collapsible folder that holds the selected type", () => {
+    expect(initialExpandedSectionIds(sections, "Alpha")).toEqual(["g2"]);
   });
 
-  it("opens only the section that holds the selected type", () => {
-    expect(initialExpandedSectionIds(sections, "Beta")).toEqual(["g1"]);
-    expect(initialExpandedSectionIds(sections, "Eta")).toEqual([UNGROUPED_ID]);
+  it("does not open a non-collapsible group or the ungrouped section", () => {
+    expect(initialExpandedSectionIds(sections, "Beta")).toEqual([]);
+    expect(initialExpandedSectionIds(sections, "Eta")).toEqual([]);
   });
 
   it("starts every folder collapsed when nothing is selected", () => {
     expect(initialExpandedSectionIds(sections, null)).toEqual([]);
     expect(initialExpandedSectionIds(sections, "")).toEqual([]);
+  });
+
+  it("starts a lone collapsible folder collapsed when nothing is selected", () => {
+    const single = buildEventTypePickerSections([type("Alpha", "g1")], [group("g1", "Leave", 0)]);
+    expect(initialExpandedSectionIds(single, null)).toEqual([]);
+    expect(initialExpandedSectionIds(single, "Alpha")).toEqual(["g1"]);
   });
 
   it("starts collapsed when the selected name matches no section", () => {

@@ -137,7 +137,7 @@ interface EventFormProps {
   defaultDate: string;
   eventTypes: EventTypeOption[];
   /** Event type groups in display order, for the grouped type picker. */
-  eventTypeGroups: { id: string; name: string; sortOrder: number }[];
+  eventTypeGroups: { id: string; name: string; sortOrder: number; collapsible: boolean }[];
   /** Master recipe (Google) and per-view display recipe. */
   eventTitleRecipe: TitleRecipe;
   viewEventTitleRecipe?: TitleRecipe;
@@ -1456,29 +1456,29 @@ export function EventForm({
                 </Text>
               ) : (
                 <Stack gap="sm">
-                  {pickerSections.length <= 1 ? (
-                    // A single folder has nothing to hide behind — render its
-                    // types inline (the pre-groups look).
-                    pickerSections.map((section) => (
-                      <Box key={section.id}>
-                        <Text size="xs" fw={600} c="dimmed" mb={4}>
-                          {section.name}
-                        </Text>
-                        {renderTypeBadges(section)}
-                      </Box>
-                    ))
-                  ) : (
-                    // Collapsible folders: types stay tucked away until the
-                    // user opens the folder that holds them.
-                    <Accordion
-                      multiple
-                      variant="separated"
-                      chevronPosition="left"
-                      value={openSectionIds}
-                      onChange={setOpenSectionIds}
-                    >
-                      {pickerSections.map((section) => (
-                        <Accordion.Item key={section.id} value={section.id}>
+                  {pickerSections.map((section) =>
+                    section.collapsible ? (
+                      // Collapsible folder: types stay tucked away until the
+                      // user opens the folder that holds them.
+                      <Accordion
+                        key={section.id}
+                        variant="separated"
+                        chevronPosition="left"
+                        value={openSectionIds.includes(section.id) ? section.id : null}
+                        onChange={(value) =>
+                          // Each folder is its own single-item Accordion sharing
+                          // one open-id list, so toggle just this section's id
+                          // and leave the others as they were.
+                          setOpenSectionIds((prev) =>
+                            value
+                              ? prev.includes(section.id)
+                                ? prev
+                                : [...prev, section.id]
+                              : prev.filter((id) => id !== section.id),
+                          )
+                        }
+                      >
+                        <Accordion.Item value={section.id}>
                           <Accordion.Control
                             aria-label={`${section.name}, ${section.types.length} type${
                               section.types.length === 1 ? "" : "s"
@@ -1495,8 +1495,17 @@ export function EventForm({
                           </Accordion.Control>
                           <Accordion.Panel>{renderTypeBadges(section)}</Accordion.Panel>
                         </Accordion.Item>
-                      ))}
-                    </Accordion>
+                      </Accordion>
+                    ) : (
+                      // Non-collapsible group (and the "Ungrouped" catch-all):
+                      // the previous always-expanded labeled section.
+                      <Box key={section.id}>
+                        <Text size="xs" fw={600} c="dimmed" mb={4}>
+                          {section.name}
+                        </Text>
+                        {renderTypeBadges(section)}
+                      </Box>
+                    ),
                   )}
                 </Stack>
               )}

@@ -99,7 +99,9 @@ Settings → Event Types. Each type constrains the event wizard:
   dialog to create, rename, delete, and reorder the display categories the event
   wizard groups types under. Each type's form has a **Group** select; types
   without a group appear in the wizard's trailing "Ungrouped" section. Deleting a
-  group never deletes a type — its types just become ungrouped. Groups are
+  group never deletes a type — its types just become ungrouped. Each group row has a
+  **Folder** switch: on (default) the group shows as a collapsed folder in the wizard
+  that users tap to expand; off shows all its types inline as before. Groups are
   presentation-only: colors, target derivation, and KAH are unaffected.
 - **Name + Shortname** — the shortname is the `{type:acronym}` title token; it must
   be unique.

@@ -1,0 +1,1 @@
+ALTER TABLE "event_type_groups" ADD COLUMN "collapsible" boolean DEFAULT true NOT NULL;

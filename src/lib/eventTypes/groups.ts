@@ -7,6 +7,8 @@ export interface EventTypeGroupRef {
   id: string;
   name: string;
   sortOrder: number;
+  /** Whether the group renders as a collapsible folder (true) or inline (false). */
+  collapsible: boolean;
 }
 
 export interface EventTypeRef {
@@ -20,6 +22,11 @@ export interface EventTypePickerSection {
   name: string;
   /** true for the trailing catch-all of types that belong to no group. */
   ungrouped: boolean;
+  /**
+   * Whether the section renders as a collapsible folder. The ungrouped
+   * section is never collapsible (there is no group row to flag).
+   */
+  collapsible: boolean;
   types: EventTypeRef[];
 }
 
@@ -54,7 +61,13 @@ export function buildEventTypePickerSections(
   for (const group of sortEventTypeGroups(groups)) {
     const members = sortedTypes.filter((type) => type.groupId === group.id);
     if (members.length > 0) {
-      sections.push({ id: group.id, name: group.name, ungrouped: false, types: members });
+      sections.push({
+        id: group.id,
+        name: group.name,
+        ungrouped: false,
+        collapsible: group.collapsible,
+        types: members,
+      });
     }
   }
   const ungrouped = sortedTypes.filter(
@@ -65,6 +78,7 @@ export function buildEventTypePickerSections(
       id: UNGROUPED_ID,
       name: UNGROUPED_LABEL,
       ungrouped: true,
+      collapsible: false,
       types: ungrouped,
     });
   }
@@ -72,28 +86,25 @@ export function buildEventTypePickerSections(
 }
 
 /**
- * The section ids the wizard's type step opens with. A single section stays
- * open (collapsing it would hide the entire catalog behind one tap), an
- * already-selected type opens the section that holds it (edit/duplicate
- * prefill), and otherwise every folder starts collapsed — the point of
- * tucking types away in folders. `selectedTypeName` may be null/absent.
+ * The section ids the wizard's type step opens with. Only collapsible folders
+ * participate (non-collapsible sections are always visible inline): the folder
+ * that holds an already-selected type opens (edit/duplicate prefill), and every
+ * other folder starts collapsed — the point of tucking types away. A lone
+ * collapsible folder therefore still starts collapsed. `selectedTypeName` may
+ * be null/absent.
  */
 export function initialExpandedSectionIds(
   sections: readonly EventTypePickerSection[],
   selectedTypeName: string | null | undefined,
 ): string[] {
-  if (sections.length <= 1) {
-    return sections.map((section) => section.id);
+  if (!selectedTypeName) {
+    return [];
   }
-  if (selectedTypeName) {
-    const match = sections.find((section) =>
-      section.types.some((type) => type.name === selectedTypeName),
-    );
-    if (match) {
-      return [match.id];
-    }
-  }
-  return [];
+  const match = sections.find(
+    (section) =>
+      section.collapsible && section.types.some((type) => type.name === selectedTypeName),
+  );
+  return match ? [match.id] : [];
 }
 
 /**

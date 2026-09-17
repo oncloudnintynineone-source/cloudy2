@@ -338,7 +338,7 @@ export interface DashboardViewProps {
   calendars: { id: string; name: string; sortOrder: number; parentId: string | null }[];
   eventTypes: EventTypeOption[];
   /** Event type groups in display order, for the grouped type picker. */
-  eventTypeGroups: { id: string; name: string; sortOrder: number }[];
+  eventTypeGroups: { id: string; name: string; sortOrder: number; collapsible: boolean }[];
   eventTitleRecipe: TitleRecipe;
   viewEventTitleRecipe: TitleRecipe;
   googleConfigured: boolean;

@@ -125,6 +125,50 @@ export async function renameEventTypeGroup(
   return { ok: true };
 }
 
+/**
+ * Toggle whether a group renders as a collapsible folder in the event form's
+ * type step (true) or as the previous always-expanded labeled section (false).
+ */
+export async function setEventTypeGroupCollapsible(
+  id: string,
+  collapsible: boolean,
+): Promise<EventTypeGroupActionResult> {
+  const session = await requireAdmin();
+
+  const [existing] = await db
+    .select()
+    .from(eventTypeGroups)
+    .where(eq(eventTypeGroups.id, id))
+    .limit(1);
+  if (!existing) {
+    return { ok: false, error: "Event type group not found", field: "name" };
+  }
+  if (existing.collapsible === collapsible) {
+    return { ok: true };
+  }
+
+  await db
+    .update(eventTypeGroups)
+    .set({ collapsible, updatedAt: new Date() })
+    .where(eq(eventTypeGroups.id, id));
+
+  await logAction({
+    ...actorFrom(session),
+    action: AUDIT_ACTIONS.eventTypeGroupUpdate,
+    entityType: "eventTypeGroup",
+    entityId: id,
+    entityName: existing.name,
+    method: "setEventTypeGroupCollapsible",
+    details: diffFields(
+      { collapsible: existing.collapsible },
+      { collapsible },
+    ),
+  });
+
+  revalidatePath("/settings/event-types");
+  return { ok: true };
+}
+
 export async function deleteEventTypeGroup(id: string): Promise<EventTypeGroupActionResult> {
   const session = await requireAdmin();
 

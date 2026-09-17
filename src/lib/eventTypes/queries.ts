@@ -45,6 +45,7 @@ export const listEventTypeGroups = cache(() =>
         id: eventTypeGroups.id,
         name: eventTypeGroups.name,
         sortOrder: eventTypeGroups.sortOrder,
+        collapsible: eventTypeGroups.collapsible,
       })
       .from(eventTypeGroups)
       .orderBy(asc(eventTypeGroups.sortOrder), asc(eventTypeGroups.name)),

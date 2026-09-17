@@ -9,6 +9,7 @@ import {
   Modal,
   Paper,
   Stack,
+  Switch,
   Text,
   TextInput,
   Tooltip,
@@ -21,6 +22,7 @@ import {
   deleteEventTypeGroup,
   moveEventTypeGroup,
   renameEventTypeGroup,
+  setEventTypeGroupCollapsible,
 } from "@/lib/eventTypes/groupActions";
 import {
   moveEventTypeGroupOrder,
@@ -40,6 +42,7 @@ interface GroupRef {
   id: string;
   name: string;
   sortOrder: number;
+  collapsible: boolean;
 }
 
 interface EventTypeGroupsModalProps {
@@ -69,8 +72,14 @@ export function EventTypeGroupsModal({
     null,
   );
   const [deletingInProgress, setDeletingInProgress] = useState(false);
+  const [togglingId, setTogglingId] = useState<string | null>(null);
+  // Optimistic per-group folder state so the switch flips before the refresh.
+  const [collapsibleOverride, setCollapsibleOverride] = useState<Record<string, boolean>>({});
 
   const sorted = sortEventTypeGroups(groups);
+
+  const isCollapsible = (group: GroupRef) =>
+    collapsibleOverride[group.id] ?? group.collapsible;
 
   const {
     displayRows: displaySorted,
@@ -148,6 +157,25 @@ export function EventTypeGroupsModal({
     }
   }
 
+  async function handleToggleCollapsible(group: GroupRef, next: boolean) {
+    if (togglingId) {
+      return;
+    }
+    setCollapsibleOverride((prev) => ({ ...prev, [group.id]: next }));
+    setTogglingId(group.id);
+    try {
+      const result = await setEventTypeGroupCollapsible(group.id, next);
+      if (result.ok) {
+        onMutated();
+      } else {
+        setCollapsibleOverride((prev) => ({ ...prev, [group.id]: group.collapsible }));
+        notifications.show({ color: "red", message: result.error });
+      }
+    } finally {
+      setTogglingId(null);
+    }
+  }
+
   async function confirmDelete() {
     if (!deleting || deletingInProgress) {
       return;
@@ -172,7 +200,9 @@ export function EventTypeGroupsModal({
       <Stack ref={containerRef}>
         <Text size="sm" c="dimmed">
           Groups are the categories event types appear under in the event form. Reorder them with
-          the arrows; event types keep their alphabetical order inside a group.
+          the arrows; event types keep their alphabetical order inside a group. A group marked{" "}
+          <b>Folder</b> shows as a collapsed section you tap to expand; unmarked groups show all
+          their types inline.
         </Text>
 
         <Stack gap="xs">
@@ -281,6 +311,27 @@ export function EventTypeGroupsModal({
                     </Group>
                     {!isRenaming && (
                       <Group wrap="nowrap" gap={4} style={{ flexShrink: 0 }}>
+                        <Tooltip
+                          label={
+                            isCollapsible(group)
+                              ? "Shown as a collapsible folder in the event form"
+                              : "Shown as an always-expanded list in the event form"
+                          }
+                          position="top"
+                          multiline
+                          w={220}
+                        >
+                          <Switch
+                            size="sm"
+                            label="Folder"
+                            aria-label={`Collapsible folder for ${group.name}`}
+                            checked={isCollapsible(group)}
+                            disabled={togglingId === group.id}
+                            onChange={(event) =>
+                              void handleToggleCollapsible(group, event.currentTarget.checked)
+                            }
+                          />
+                        </Tooltip>
                         <Tooltip label="Rename" position="top">
                           <ActionIcon
                             variant="default"

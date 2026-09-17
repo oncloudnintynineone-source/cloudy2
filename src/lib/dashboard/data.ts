@@ -237,6 +237,7 @@ async function resolveDashboardConfig(session: Session): Promise<DashboardConfig
     id: group.id,
     name: group.name,
     sortOrder: group.sortOrder,
+    collapsible: group.collapsible,
   }));
   const allUserIds = allUsers.map((user) => user.id);
 
