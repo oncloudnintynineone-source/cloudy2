@@ -46,10 +46,12 @@ export function sortEventTypeGroups(
 }
 
 /**
- * The sections the event form's type step renders: each group in display
- * order with its types by name (empty groups skipped), then a trailing
- * "Ungrouped" section only when some type has no group. A type whose group
- * id is missing from the list degrades to ungrouped (stale-prop defense).
+ * The sections the event form's type step renders. Non-folder content comes
+ * first so the collapsed folders sit at the bottom: non-collapsible groups in
+ * display order, then the trailing "Ungrouped" catch-all, then the collapsible
+ * folders in display order. Types within a section stay alphabetical, empty
+ * groups are skipped, and a type whose group id is missing from the list
+ * degrades to ungrouped (stale-prop defense).
  */
 export function buildEventTypePickerSections(
   types: readonly EventTypeRef[],
@@ -57,24 +59,26 @@ export function buildEventTypePickerSections(
 ): EventTypePickerSection[] {
   const knownGroupIds = new Set(groups.map((group) => group.id));
   const sortedTypes = [...types].sort((a, b) => a.name.localeCompare(b.name));
-  const sections: EventTypePickerSection[] = [];
+  const inline: EventTypePickerSection[] = [];
+  const folders: EventTypePickerSection[] = [];
   for (const group of sortEventTypeGroups(groups)) {
     const members = sortedTypes.filter((type) => type.groupId === group.id);
     if (members.length > 0) {
-      sections.push({
+      const section: EventTypePickerSection = {
         id: group.id,
         name: group.name,
         ungrouped: false,
         collapsible: group.collapsible,
         types: members,
-      });
+      };
+      (group.collapsible ? folders : inline).push(section);
     }
   }
   const ungrouped = sortedTypes.filter(
     (type) => type.groupId === null || !knownGroupIds.has(type.groupId),
   );
   if (ungrouped.length > 0) {
-    sections.push({
+    inline.push({
       id: UNGROUPED_ID,
       name: UNGROUPED_LABEL,
       ungrouped: true,
@@ -82,7 +86,7 @@ export function buildEventTypePickerSections(
       types: ungrouped,
     });
   }
-  return sections;
+  return [...inline, ...folders];
 }
 
 /**

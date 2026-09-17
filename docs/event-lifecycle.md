@@ -729,29 +729,33 @@ flowchart LR
   with `ON DELETE SET NULL` (the same pattern as `calendars.parent_id`), so deleting a
   group never deletes a type: its types simply become ungrouped. Migration `0047` adds
   `collapsible` (boolean, default `true`).
-- **Display order**: groups render in `sort_order` order (name as tiebreak); types
-  within a group stay alphabetical. `sort_order` is managed with up/down buttons in
-  the groups dialog; a move re-ranks the whole list (position = rank), which also
-  closes legacy gaps — the same convention as the department order
-  (`moveDepartment`, `roster/actions.ts`).
-- **Ungrouped types** render in a trailing "Ungrouped" section (`UNGROUPED_LABEL`),
-  mirroring "No department" being last in the user picker. A type whose `group_id`
-  doesn't resolve (stale prop) degrades to ungrouped rather than disappearing.
+- **Display order**: within each block, groups render in `sort_order` order (name as
+  tiebreak); types within a group stay alphabetical. The picker puts the non-folder
+  content first — non-collapsible groups, then the "Ungrouped" section — and the
+  collapsible folders last, so the collapsed sections sit at the bottom. This
+  partition is display-only: the Manage-groups dialog still lists every group flat in
+  `sort_order`. `sort_order` is managed with up/down buttons there; a move re-ranks the
+  whole list (position = rank), which also closes legacy gaps — the same convention as
+  the department order (`moveDepartment`, `roster/actions.ts`).
+- **Ungrouped types** render in the "Ungrouped" section (`UNGROUPED_LABEL`), after the
+  inline groups and before the folders. A type whose `group_id` doesn't resolve (stale
+  prop) degrades to ungrouped rather than disappearing.
 - **Picker sections** come from the pure `buildEventTypePickerSections(types,
-  groups)` (`src/lib/eventTypes/groups.ts`, unit-tested in `groups.test.ts`): groups
-  in display order, empty groups skipped, and the ungrouped section present only when
-  some type has no group. Each section carries a stable `id` (the group id, or
-  `UNGROUPED_ID`) so the UI can key on it, plus the group's `collapsible` flag. The
-  dashboard page fetches the groups in the same `Promise.all` as the types
-  (`listEventTypeGroups()`, per-request React-cached like `listEventTypes`) and passes
-  them through `DashboardView` to `EventForm`.
+  groups)` (`src/lib/eventTypes/groups.ts`, unit-tested in `groups.test.ts`): the
+  non-folder blocks first (inline groups, then ungrouped) and folders last, empty
+  groups skipped, and the ungrouped section present only when some type has no group.
+  Each section carries a stable `id` (the group id, or `UNGROUPED_ID`) so the UI can
+  key on it, plus the group's `collapsible` flag. The dashboard page fetches the
+  groups in the same `Promise.all` as the types (`listEventTypeGroups()`, per-request
+  React-cached like `listEventTypes`) and passes them through `DashboardView` to
+  `EventForm`.
 - **Folders are opt-in per group.** A group with `collapsible` on renders as a
   single-item Mantine `Accordion` (`variant="separated"`, chevron on the left): the
   folder name plus a count badge sits in the control, and the type badges live in the
-  panel. A group with `collapsible` off — and the trailing "Ungrouped" section, which
+  panel. A group with `collapsible` off — and the "Ungrouped" section, which
   has no group row and is always `collapsible: false` — renders as the previous
-  always-expanded labeled section. Mixed groups render in `sort_order`, each in its
-  own style. Open state starts from the pure `initialExpandedSectionIds(sections,
+  always-expanded labeled section. Inline sections come first, folders last, each in
+  its own style. Open state starts from the pure `initialExpandedSectionIds(sections,
   selectedTypeName)`: only collapsible folders participate, and only the folder that
   holds an already-selected type opens (edit/duplicate prefill); every other folder —
   including a lone collapsible folder — starts collapsed. Search is deliberately not
@@ -759,7 +763,9 @@ flowchart LR
 - **Management** lives in Settings → Event Types under **Manage groups** (a dialog,
   not a separate tab): create (appends after the last group), inline rename, delete
   (the confirm states how many types become ungrouped), up/down reordering, and a
-  per-row **Folder** switch that toggles `collapsible`. All are `requireAdmin()` server
+  per-row **Folder** switch that toggles `collapsible`. Each row is two lines — the
+  group name + type count on top, the reorder/switch/rename/delete controls below —
+  so the controls never squeeze the label. All are `requireAdmin()` server
   actions with audit rows (`eventTypeGroup.create` / `eventTypeGroup.update` /
   `eventTypeGroup.delete`) in `src/lib/eventTypes/groupActions.ts`; moves and the
   folder toggle log as `update` with an `order` / `collapsible` diff.

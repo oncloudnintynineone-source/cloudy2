@@ -33,7 +33,7 @@ describe("sortEventTypeGroups", () => {
 });
 
 describe("buildEventTypePickerSections", () => {
-  it("lists groups in display order with types by name, ungrouped last", () => {
+  it("lists groups in display order with types by name; ungrouped and folders follow the inline groups", () => {
     const sections = buildEventTypePickerSections(
       [
         type("Zeta", null),
@@ -45,6 +45,13 @@ describe("buildEventTypePickerSections", () => {
       [group("g2", "Leave", 0), group("g1", "Drill", 1)],
     );
     expect(sections).toEqual([
+      {
+        id: UNGROUPED_ID,
+        name: UNGROUPED_LABEL,
+        ungrouped: true,
+        collapsible: false,
+        types: [type("Eta", null), type("Zeta", null)],
+      },
       {
         id: "g2",
         name: "Leave",
@@ -59,13 +66,23 @@ describe("buildEventTypePickerSections", () => {
         collapsible: true,
         types: [type("Beta", "g1")],
       },
-      {
-        id: UNGROUPED_ID,
-        name: UNGROUPED_LABEL,
-        ungrouped: true,
-        collapsible: false,
-        types: [type("Eta", null), type("Zeta", null)],
-      },
+    ]);
+  });
+
+  it("renders non-collapsible groups first, then Ungrouped, then the collapsible folders", () => {
+    const sections = buildEventTypePickerSections(
+      [type("Alpha", "g1"), type("Beta", "g2"), type("Gamma", "g3"), type("Eta", null)],
+      [
+        group("g1", "Inline A", 0, false),
+        group("g2", "Folder B", 1, true),
+        group("g3", "Inline C", 2, false),
+      ],
+    );
+    expect(sections.map((section) => section.name)).toEqual([
+      "Inline A",
+      "Inline C",
+      UNGROUPED_LABEL,
+      "Folder B",
     ]);
   });
 

@@ -18,7 +18,7 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
 
 ## 1.1 Status
 
-- All work through changelog **1.250 (per-group folder toggle)** is shipped.
+- All work through changelog **1.251 (folders-last picker + two-row group dialog)** is shipped.
 - Quality gates (`lint` / `typecheck` / `test` / schema-drift check) run in CI on every
   push and PR. Pushes also auto-apply migrations per environment: `dev` →
   `migrate-preview` against the dev Neon DB, `main` → `migrate` against the prod Neon
@@ -1132,17 +1132,6 @@ via `?attendance=1` and `attendanceStorage` became a `useSyncExternalStore` exte
   the accordion and renders inline, and each picker section now carries a stable `id`
   (group id or `UNGROUPED_ID`). No schema change; search intentionally omitted.
   `docs/event-lifecycle.md` §1.10
-- 1.250 Event-type groups choose folder vs. inline: `event_type_groups` gains
-  `collapsible` (boolean, default `true`, migration `0047`), so an admin can keep a
-  group as the collapsed tap-to-expand folder or flip it off to restore the previous
-  always-expanded labeled section; the "Ungrouped" catch-all has no group row and is
-  always inline. The wizard renders sections in `sort_order`, each as a single-item
-  `Accordion` (folder) or a plain labeled `Box` (inline), and the pure
-  `initialExpandedSectionIds` now opens only the collapsible folder holding a
-  pre-selected type (a lone collapsible folder still starts collapsed). Manage groups
-  gains a per-row **Folder** switch (new `setEventTypeGroupCollapsible` action, audited
-  as `eventTypeGroup.update`), and the type table marks folder groups with a folder
-  icon. `docs/event-lifecycle.md` §1.10, `docs/admin-guide.md` §1.4
 - 1.249 Deploy updates surface a "New version available — Reload" pill instead of
   silently stale builds: the SW now runs `skipWaiting: false`, so a deploy installs a
   **waiting** worker that leaves the running old build intact; the new
@@ -1154,6 +1143,25 @@ via `?attendance=1` and `attendanceStorage` became a `useSyncExternalStore` exte
   serves `/serwist/*` `no-cache` so a cached `sw.js` can never hide a deploy. Pure
   `shouldPromptForUpdate` / `SW_UPDATE_CHECK_INTERVAL_MS` / `SW_UPDATE_PROMPT_GRACE_MS`
   (`swRules.ts`, unit-tested). `docs/pwa-offline.md` §1.8/§1.12/§1.13/§1.15/§1.16/§1.17
+- 1.250 Event-type groups choose folder vs. inline: `event_type_groups` gains
+  `collapsible` (boolean, default `true`, migration `0047`), so an admin can keep a
+  group as the collapsed tap-to-expand folder or flip it off to restore the previous
+  always-expanded labeled section; the "Ungrouped" catch-all has no group row and is
+  always inline. The wizard renders sections in `sort_order`, each as a single-item
+  `Accordion` (folder) or a plain labeled `Box` (inline), and the pure
+  `initialExpandedSectionIds` now opens only the collapsible folder holding a
+  pre-selected type (a lone collapsible folder still starts collapsed). Manage groups
+  gains a per-row **Folder** switch (new `setEventTypeGroupCollapsible` action, audited
+  as `eventTypeGroup.update`), and the type table marks folder groups with a folder
+  icon. `docs/event-lifecycle.md` §1.10, `docs/admin-guide.md` §1.4
+- 1.251 Wizard picker puts folders last + roomier group rows: `buildEventTypePickerSections`
+  now partitions into non-folder content first (non-collapsible groups in `sort_order`,
+  then the "Ungrouped" catch-all) and collapsible folders last, so the collapsed
+  sections sit at the bottom; the Manage-groups dialog stays flat by `sort_order` (the
+  partition is display-only). Each Manage-groups row is now two lines — group name +
+  type count on top, reorder / **Folder** switch / rename / delete below — so the
+  controls no longer squeeze the label, and the rename input spans the label line.
+  `docs/event-lifecycle.md` §1.10
 
 ## 1.4 Open items & next steps
 
