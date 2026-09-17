@@ -17,9 +17,12 @@ import {
   needsReconcile,
   newestSavedView,
   rscCacheName,
+  shouldPromptForUpdate,
   shouldStoreDocumentResponse,
   shouldStoreRscResponse,
   stampDocument,
+  SW_UPDATE_CHECK_INTERVAL_MS,
+  SW_UPDATE_PROMPT_GRACE_MS,
   swCacheVersion,
 } from "./swRules";
 
@@ -497,6 +500,42 @@ describe("swRules", () => {
       expect(twice.match(/__C2_STAMP__/g)).toHaveLength(1);
       expect(twice).toContain("2026-02-01T00:00:00.000Z");
       expect(twice).not.toContain("2026-01-01T00:00:00.000Z");
+    });
+  });
+
+  describe("shouldPromptForUpdate", () => {
+    it("prompts for a waiting worker on a controlled page", () => {
+      expect(
+        shouldPromptForUpdate({ hasController: true, hasWaiting: true, alreadyPrompted: false }),
+      ).toBe(true);
+    });
+
+    it("never prompts on a first install (no controller)", () => {
+      expect(
+        shouldPromptForUpdate({ hasController: false, hasWaiting: true, alreadyPrompted: false }),
+      ).toBe(false);
+    });
+
+    it("does not prompt without a waiting worker", () => {
+      expect(
+        shouldPromptForUpdate({ hasController: true, hasWaiting: false, alreadyPrompted: false }),
+      ).toBe(false);
+    });
+
+    it("does not stack a second prompt for the same worker", () => {
+      expect(
+        shouldPromptForUpdate({ hasController: true, hasWaiting: true, alreadyPrompted: true }),
+      ).toBe(false);
+    });
+  });
+
+  describe("update timing constants", () => {
+    it("polls for updates well within a long session", () => {
+      expect(SW_UPDATE_CHECK_INTERVAL_MS).toBe(15 * 60_000);
+    });
+
+    it("warns for a meaningful grace period before applying", () => {
+      expect(SW_UPDATE_PROMPT_GRACE_MS).toBe(30_000);
     });
   });
 });

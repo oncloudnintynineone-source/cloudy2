@@ -405,7 +405,14 @@ const documentSwr = new StaleWhileRevalidate({
 
 const serwist = new Serwist({
   precacheEntries: self.__SW_MANIFEST,
-  skipWaiting: true,
+  // Deliberately NOT skipWaiting: a new build installs and waits, so the old
+  // worker keeps serving the old build intact while `SWUpdateNotice` shows the
+  // "Update available — Reload" pill. Deferring the reload behind the pill is
+  // only safe because the old precache is still live — activating immediately
+  // would leave the running page loading chunks that no longer exist. The
+  // client posts SKIP_WAITING to activate on tap (Serwist registers that
+  // listener when skipWaiting is false).
+  skipWaiting: false,
   clientsClaim: true,
   navigationPreload: true,
   runtimeCaching: [

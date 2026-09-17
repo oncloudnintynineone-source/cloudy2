@@ -272,6 +272,47 @@ export function needsInactivityRefresh(hiddenDurationMs: number): boolean {
 }
 
 /**
+ * How often a running page re-checks for a new service-worker build while it
+ * is visible. The browser only checks on a navigation or page load, so a
+ * long-lived session (a PWA left open all day) would otherwise never discover
+ * a deploy — the "app not updating" report. `SWUpdateNotice` polls at this
+ * cadence in addition to checking on `visibilitychange` / `focus` / `online`.
+ */
+export const SW_UPDATE_CHECK_INTERVAL_MS = 15 * 60_000;
+
+/**
+ * How long the "Update available — Reload" pill is shown before the update is
+ * applied anyway. The pill's progress fill sweeps over this window, giving the
+ * user a warned chance to reload at a convenient moment; past it, an ignored
+ * pill (kiosk / always-open tab) still updates instead of staying stale. Kept
+ * well above the old silent takeover's zero warning so an in-flight edit is
+ * never lost without notice.
+ */
+export const SW_UPDATE_PROMPT_GRACE_MS = 30_000;
+
+export interface SwUpdatePromptState {
+  /** The page is already controlled by a service worker (not a first install). */
+  hasController: boolean;
+  /** The registration has a new service worker installed and waiting. */
+  hasWaiting: boolean;
+  /** A prompt has already been shown for this waiting worker. */
+  alreadyPrompted: boolean;
+}
+
+/**
+ * Whether a newly installed, waiting service worker should surface the
+ * "Update available — Reload" pill.
+ *
+ * A waiting worker on an *uncontrolled* page is the first-ever install (the
+ * `clientsClaim` claim), not an update — prompting there would flash a pill on
+ * a brand-new device. A worker already prompted for must not stack a second
+ * pill (the `updatefound` / `statechange` events can fire more than once).
+ */
+export function shouldPromptForUpdate(state: SwUpdatePromptState): boolean {
+  return state.hasController && state.hasWaiting && !state.alreadyPrompted;
+}
+
+/**
  * Launcher-injected tracking params that must not disqualify a `/` navigation
  * from the launch route: Android/Chrome can append them when the app is opened
  * from the home-screen icon, and the server ignores them anyway (it only ever

@@ -18,7 +18,7 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
 
 ## 1.1 Status
 
-- All work through changelog **1.248 (collapsible event-type folders)** is shipped.
+- All work through changelog **1.249 (deploy-update pill)** is shipped.
 - Quality gates (`lint` / `typecheck` / `test` / schema-drift check) run in CI on every
   push and PR. Pushes also auto-apply migrations per environment: `dev` →
   `migrate-preview` against the dev Neon DB, `main` → `migrate` against the prod Neon
@@ -1132,6 +1132,17 @@ via `?attendance=1` and `attendanceStorage` became a `useSyncExternalStore` exte
   the accordion and renders inline, and each picker section now carries a stable `id`
   (group id or `UNGROUPED_ID`). No schema change; search intentionally omitted.
   `docs/event-lifecycle.md` §1.10
+- 1.249 Deploy updates surface a "New version available — Reload" pill instead of
+  silently stale builds: the SW now runs `skipWaiting: false`, so a deploy installs a
+  **waiting** worker that leaves the running old build intact; the new
+  `SWUpdateNotice` (`AppProviders`, inside `ActionPillProvider`) polls
+  `registration.update()` while visible (15 min + `visibilitychange`/`focus`/`online`)
+  and shows the shared action pill, posting `SKIP_WAITING` on tap (or after a 30 s
+  grace, so an ignored pill still updates), then clearing caches + reloading on
+  `controllerchange`. Registration uses `updateViaCache: "none"` and `next.config.ts`
+  serves `/serwist/*` `no-cache` so a cached `sw.js` can never hide a deploy. Pure
+  `shouldPromptForUpdate` / `SW_UPDATE_CHECK_INTERVAL_MS` / `SW_UPDATE_PROMPT_GRACE_MS`
+  (`swRules.ts`, unit-tested). `docs/pwa-offline.md` §1.8/§1.12/§1.13/§1.15/§1.16/§1.17
 
 ## 1.4 Open items & next steps
 

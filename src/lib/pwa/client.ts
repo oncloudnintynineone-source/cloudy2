@@ -251,7 +251,7 @@ export function useStaleDocumentReconcile(): void {
 // still fire `visibilitychange` (and a bfcache restore fires `pageshow` with
 // `event.persisted`, and a window regains `focus` — all three are listened for,
 // since some platforms skip the visibility transition entirely).
-// The deploy side is handled separately (useSWUpdateReload triggers a SW
+// The deploy side is handled separately (SWUpdateNotice triggers a SW
 // update() on the same transition).
 
 // Module scope, not a ref: the hidden timestamp only ever means "the instant

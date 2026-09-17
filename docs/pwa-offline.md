@@ -248,30 +248,36 @@ sequenceDiagram
 
 ## 1.8 New build (deploy) takeover
 
-Every build emits a different precache manifest (the `/_next/static` chunk hashes change), so the browser detects a new SW version on its next update check (a navigation or page load) and — with `skipWaiting` + `clientsClaim` — activates it and hands it the tab immediately. Without extra care the takeover leaves the app serving the **previous build**:
+Every build emits a different precache manifest (the `/_next/static` chunk hashes change), so the browser detects a new SW version on its next update check and installs it. Two things must then be true, or the running app stays on the **previous build**:
 
-1. **The runtime page caches outlive the build.** Unlike the precache (which Serwist cleans up between versions), the SWR page caches persist across SW versions under fixed names. The new SW would happily serve a cached document from the old build — whose HTML references `/_next/static/chunks/<old-hash>.js`, which 404 against the new build — so the page renders stale or broken.
+1. **The runtime page caches outlive the build.** Unlike the precache (which Serwist cleans up between versions), the SWR page caches persist across SW versions under fixed names. A new SW would happily serve a cached document from the old build — whose HTML references `/_next/static/chunks/<old-hash>.js`, which 404 against the new build — so the page renders stale or broken.
 2. **The running tab keeps running the old build.** The SW file is served from a fixed URL (`/serwist/sw.js`), so `controller.scriptURL` never changes across deploys and nothing on the client knew the build had swapped.
 
-The fix has three parts:
+The fix has four parts:
 
 - **Build-versioned cache names** (`swRules.ts`): `swCacheVersion()` computes a deterministic FNV-1a 32-bit token over the serialized precache manifest; the real names are `documentCacheName(v)` / `rscCacheName(v)` → `app-documents-swr-v<token>` / `app-rsc-swr-v<token>`. A build only ever reads caches it (or its own version) wrote.
 - **Wipe on activate** (`sw.ts`): an `activate` listener deletes every page-cache name this build does not own — matched by the `isPageCacheName` prefix, which also catches the legacy unversioned names from before versioning — so old-build entries vanish the moment the new SW activates, for this build and every future one.
-- **Client swap detection** (`AppProviders` → `useSWUpdateReload`): listens for `navigator.serviceWorker` `controllerchange` and compares `ServiceWorker` **object identity** (not `scriptURL`, which is fixed). When a real swap is detected — the tab was already under control, so the first-ever claim after install is excluded and never flashes — it runs `clearAllSavedPages()` (which now sweeps every build version by prefix) and `window.location.reload()`. The reload also clears Next's in-memory client-router RSC cache (`staleTimes.dynamic`, see `docs/loading-transitions.md`), so no old-build payload survives in-page.
+- **A waiting worker, not an instant takeover** (`sw.ts`): the SW is constructed with **`skipWaiting: false`**, so a new build installs and **waits** — the old worker keeps serving the old precache intact. Activating immediately (the old `skipWaiting: true`) would leave the running page loading chunks that no longer exist, which is why the reload can safely be deferred behind a prompt.
+- **Discovery + a "New version available" pill** (`SWUpdateNotice`, mounted in `AppProviders` inside `ActionPillProvider`): the browser only checks for a new worker on a navigation or page load, so a long-lived session never discovers a deploy. The component polls `registration.update()` while the tab is visible — every `SW_UPDATE_CHECK_INTERVAL_MS`, plus on `visibilitychange` / `focus` / `online` — and when a worker is installed and waiting it shows the shared action pill ("New version available" → **Reload**). On tap (or once `SW_UPDATE_PROMPT_GRACE_MS` elapses, so an ignored pill still updates) it posts `SKIP_WAITING`; the worker activates, `clientsClaim` fires `controllerchange`, and the client runs `clearAllSavedPages()` + `window.location.reload()` (which also clears Next's in-memory client-router RSC cache, `staleTimes.dynamic` — see `docs/loading-transitions.md`). A cold open updates without a tap: with all clients gone the waiting worker activates on the next launch.
+
+Registration is hardened against an HTTP-cached worker, without which a deploy can never be discovered: `SerwistProvider` registers with `updateViaCache: "none"` (`src/app/layout.tsx`) and `next.config.ts` sends `Cache-Control: no-cache, no-store, must-revalidate` for `/serwist/*` (overriding the `force-static` route's `s-maxage=31536000`).
 
 ```mermaid
 sequenceDiagram
  participant D as Vercel deploy (new build)
  participant B as Browser
  participant V1 as SW build v1 (controlling)
- participant V2 as SW build v2
- participant C as Page client (AppProviders)
+ participant V2 as SW build v2 (waiting)
+ participant C as Page client (SWUpdateNotice)
 
  D->>B: /serwist/sw.js bytes change
  B->>V2: install + precache new manifest
- V2->>V2: activate: skipWaiting + wipe page caches<br/>(every build version, by prefix)
+ V2->>V2: installed → waiting (skipWaiting: false)
+ C->>V2: updatefound / reg.waiting → show pill
+ C->>C: "New version available — Reload"<br/>(fill sweeps the grace window)
+ C->>V2: SKIP_WAITING (tap, or grace expiry)
+ V2->>V2: activate: wipe page caches<br/>(every build version, by prefix)
  V2->>C: clientsClaim → controllerchange
- C->>C: controller object ≠ mount-time controller<br/>(and tab was already under control)
  C->>C: clearAllSavedPages() (all build versions)
  C->>B: window.location.reload()
  B->>V2: fresh document GET → no cache entry → network
@@ -281,6 +287,7 @@ sequenceDiagram
 Notes:
 
 - The activate wipe and the client-side clear are deliberately redundant: the wipe closes the "fresh tab after deploy" hole (a tab opened after v2 claimed has no `controllerchange` in its lifetime, so only the wipe guarantees an empty cache), while the client clear covers the brief activate/claim race where an in-flight v1 fetch could re-store an entry under the old name after the wipe.
+- The pill replaces the old silent takeover (which reloaded the instant a worker claimed the tab). Because the new worker now waits, the running old build is never partially upgraded, and the reload is warned rather than abrupt — the one trade-off is that an ignored pill relies on the grace timer or the next cold open.
 - In-page "older data" *within the same build* (navigating back to a visited URL) is still the intended SWR behavior (§1.5/§1.6) plus `staleTimes.dynamic = 120`; the header's **Force refresh** button (§1.11) is the user-facing escape hatch for that.
 
 ## 1.9 Offline fallback
@@ -350,6 +357,8 @@ profile menu (every page):
 | Start-URL leniency | `/` + any `utm_*` params counts; hash ignored (§1.5.1) | `src/lib/pwa/swRules.ts` |
 | Document fresh window | 5 min (`DOCUMENT_FRESH_WINDOW_MS`) — beyond it a cached document reconciles after paint (§1.5) | `src/lib/pwa/swRules.ts` |
 | Inactivity refresh window | 5 min (`INACTIVITY_REFRESH_MS`) — a tab hidden longer refreshes on return (§1.17) | `src/lib/pwa/swRules.ts` |
+| SW update check interval | 15 min (`SW_UPDATE_CHECK_INTERVAL_MS`) — visible-only `registration.update()` poll (§1.8) | `src/lib/pwa/swRules.ts` |
+| SW update prompt grace | 30 s (`SW_UPDATE_PROMPT_GRACE_MS`) — the pill's fill sweep, then the update auto-applies (§1.8) | `src/lib/pwa/swRules.ts` |
 | Reconcile delay | 1500 ms after mount, once per document load (§1.5) | `src/lib/pwa/client.ts` |
 
 The document/RSC expiration plugins set `purgeOnQuotaError: true` so a cache-storage quota error evicts expired entries instead of silently failing writes.
@@ -368,6 +377,7 @@ Pure logic lives in `src/lib/pwa/swRules.ts` so it is unit-tested without a live
 - `isDocumentFresh(savedAtMs, now)` — whether a cached document is recent enough to count as up to date (§1.5); `null` (no entry / no `Date`) is not fresh, and a future timestamp clamps to age 0 rather than reading as ancient
 - `needsReconcile(cachedAtIso, now)` — whether a rendered page should pull the live version after paint (§1.5). A **missing** stamp means the document came off the network, so it never reconciles; an unparsable stamp is treated as fresh rather than hammering the network
 - `isStartUrlRequest(url)` — the PWA start URL: `/`, optionally carrying only `utm_*` launcher params, hash ignored (§1.5.1)
+- `shouldPromptForUpdate({ hasController, hasWaiting, alreadyPrompted })` — whether the waiting worker should surface the "Update available" pill (§1.8): never on a first install (no controller), never twice for the same worker
 - `swCacheVersion(manifest)`
 - `documentCacheName(version)` / `rscCacheName(version)`
 - `isPageCacheName(name)`
@@ -378,7 +388,7 @@ Client-side helpers live in `src/lib/pwa/client.ts`: `invalidatePathCaches` /
 `useOneShotRefreshStrip` (the post-reload `?refresh` strip, §1.11), and
 `documentCachedAtIso()` — the single reader of the SW's document stamp.
 
-Tests: `src/lib/pwa/swRules.test.ts` (52 cases) and
+Tests: `src/lib/pwa/swRules.test.ts` (61 cases) and
 `src/lib/pwa/launchShell.test.ts` (11 cases — parses `public/loading.html` and
 holds its inline copy of the route whitelist to the server's definitions, plus
 its default target, its paint-before-redirect structure, its view-variant
@@ -392,7 +402,7 @@ Integration is validated by `pnpm build` (precache count + inspecting the emitte
 SW bundle) + manual PWA checks: second open instant, cold launch (the
 skeleton must paint before any content), F5, profile-menu force-refresh bypass,
 deep links, offline cold open, offline view switching, offline mutation error,
-sign-out isolation, and the deploy-takeover reload (§1.8).
+sign-out isolation, and the deploy-takeover pill (§1.8).
 
 ## 1.14 Sign-out
 
@@ -402,12 +412,13 @@ sign-out isolation, and the deploy-takeover reload (§1.8).
 
 | File | Role |
 |---|---|
-| `src/app/sw.ts` | Serwist SW: precache + 6 runtime routes (images, fonts, RSC, launch shell, documents, NetworkOnly fallback) + activate-time page-cache wipe (§1.8) + offline last-saved-view fallback (§1.9) |
+| `src/app/sw.ts` | Serwist SW: precache + 6 runtime routes (images, fonts, RSC, launch shell, documents, NetworkOnly fallback) + `skipWaiting: false` waiting-worker takeover (§1.8) + activate-time page-cache wipe (§1.8) + offline last-saved-view fallback (§1.9) |
 | `src/lib/pwa/swRules.ts` | Pure predicates, constants & build-version helpers (see §1.13) |
 | `src/lib/pwa/swRules.test.ts` | Unit tests for the above |
 | `src/lib/pwa/client.ts` | Client cache helpers (prefix-matched across build versions): `invalidatePathCaches`, `invalidateRscPathCaches`, `invalidateCurrentPathCaches`, `clearAllSavedPages`, `documentCachedAtIso`, + the `useStaleDocumentReconcile` after-paint reconcile (§1.5) + `useOneShotRefreshStrip` (§1.11) + `useInactivityRefresh` (§1.17) |
 | `src/app/(protected)/dashboard/DashboardView.tsx` | Route-level one-shot strips (`edit`/`event`) + `router.refresh` → invalidate-then-refresh (§1.7); no longer hosts Force refresh or a "Saved" chip (§1.11) |
-| `src/components/AppProviders.tsx` | Session-expiry `message` listener + `controllerchange` build-swap reload (§1.8) + mounts `useStaleDocumentReconcile` (§1.5) |
+| `src/components/SWUpdateNotice.tsx` | Deploy takeover (§1.8): polls `registration.update()`, shows the "New version available — Reload" action pill for a waiting worker, posts `SKIP_WAITING`, clears caches + reloads on `controllerchange` |
+| `src/components/AppProviders.tsx` | Session-expiry `message` listener + mounts `SWUpdateNotice` (§1.8) + `useStaleDocumentReconcile` (§1.5) |
 | `src/components/UserMenu.tsx` | Profile menu: theme switcher (light/dark/system rows) + sign-out cache purge |
 | `src/components/AppShellShell.tsx` | Header Force refresh (full reload + `?refresh` nonce, §1.11) + mounts `useOneShotRefreshStrip` (§1.11) |
 | `public/offline.html` | Branded offline explainer (precached) — "You're offline" + Try again; no saved-views list (§1.9) |
@@ -423,7 +434,7 @@ sign-out isolation, and the deploy-takeover reload (§1.8).
 - Offline mutations remain an error (no local queue / background sync). A future phase could add a `BackgroundSync` queue for event creates/updates and a conflict UI — deliberately not included here.
 - First-ever open on a brand-new device needs one online visit before instant/offline works (the caches are populated on that first successful render). The device-local dashboard snapshot (§1.18) covers the dashboard after that first visit; the general first-ever case remains a network render.
 - Push notifications remain deferred (needs VAPID + backend) — unchanged from Phase 3a.
-- The deploy-takeover reload (§1.8) interrupts whatever the user was doing on the old build (scroll position, form drafts in flight). An explicit "New version available — reload" banner would be the refinement if that ever bites; today the takeover is correct-by-default and silent.
+- The deploy takeover (§1.8) still interrupts whatever the user was doing on the old build (scroll position, form drafts in flight) when the pill's grace timer expires or the user taps Reload; the 30 s warned window and the waiting worker (which keeps the old build intact until then) are the mitigation. A future refinement could defer the auto-apply while an unsaved form is open.
 
 ## 1.17 Auto-refresh on return from background
 
@@ -439,13 +450,13 @@ returns — a stuck (infinite) load with no recovery except a manual reload.
 Two small client pieces fix both, keyed on the Page Visibility API
 (`visibilitychange` / `document.visibilityState`):
 
-- **Deploy catch-up** — `AppProviders`' `useSWUpdateReload` (§1.8) gains a
-  `visibilitychange` listener that calls `navigator.serviceWorker.getRegistration()`
-  → `update()` whenever the tab regains visibility. The browser otherwise only
-  checks for a new SW on navigation/page load — which a backgrounded PWA never
-  does. If a new build exists, `skipWaiting` + `clientsClaim` fire the existing
-  `controllerchange` → `clearAllSavedPages()` + `reload()` sequence; if not,
-  the check is a cheap no-op.
+- **Deploy catch-up** — `SWUpdateNotice` (§1.8) checks for a new build on
+  `visibilitychange` (plus `focus` / `online`, and a visible-only 15-min poll)
+  via `navigator.serviceWorker.getRegistration()` → `update()`. The browser
+  otherwise only checks for a new SW on navigation/page load — which a
+  backgrounded PWA never does. If a new build exists it installs and **waits**,
+  and the "New version available — Reload" pill appears; nothing is forced on
+  the user until they tap it or the grace timer elapses.
 - **Data refresh** — `useInactivityRefresh` (`AppShellShell`, protected routes
   only) records the timestamp when the document goes `hidden` and, when it
   returns after more than `INACTIVITY_REFRESH_MS` (5 min), drives the **same
@@ -486,7 +497,10 @@ sequenceDiagram
  V->>C: update() (deploy check)
  C->>SW: getRegistration().update()
  alt new build published
- SW->>C: skipWaiting + clientsClaim → controllerchange
+ SW->>C: installs and waits (skipWaiting: false)
+ C->>C: show "New version available — Reload" pill
+ C->>SW: SKIP_WAITING (tap, or grace expiry)
+ SW->>C: clientsClaim → controllerchange
  C->>C: clearAllSavedPages() + location.reload()
  end
  V->>C: hidden duration ≥ 5 min?
@@ -502,8 +516,8 @@ sequenceDiagram
 Files: the pure `INACTIVITY_REFRESH_MS` / `needsInactivityRefresh`
 (`swRules.ts`, unit-tested), `useInactivityRefresh` + the shared
 `stripRefreshNonce` (`pwa/client.ts`), the shell's `InactivityActivityReporter`
-(`AppShellShell.tsx`), and the SW `update()` check inside `useSWUpdateReload`
-(`AppProviders.tsx`).
+(`AppShellShell.tsx`), and the SW `update()` check inside `SWUpdateNotice`
+(`src/components/SWUpdateNotice.tsx`).
 
 ## 1.18 Device-local dashboard snapshot
 

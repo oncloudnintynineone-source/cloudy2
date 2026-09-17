@@ -61,7 +61,15 @@ export default function RootLayout({
       </head>
       <body>
         <AppProviders>
-          <SerwistProvider swUrl="/serwist/sw.js">{children}</SerwistProvider>
+          {/* `updateViaCache: "none"` makes the browser revalidate the worker
+              script against the network on every update check instead of
+              trusting its HTTP cache — the difference between discovering a
+              deploy and staying on the old build (iOS/Safari especially).
+              Complements the no-cache headers set for /serwist/* in
+              next.config.ts. */}
+          <SerwistProvider swUrl="/serwist/sw.js" options={{ updateViaCache: "none" }}>
+            {children}
+          </SerwistProvider>
         </AppProviders>
       </body>
     </html>

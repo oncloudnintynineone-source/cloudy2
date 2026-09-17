@@ -8,7 +8,8 @@ import { useMediaQuery } from "@mantine/hooks";
 import { OfflineBanner } from "@/components/OfflineBanner";
 import { SystemBarSync } from "@/components/SystemBarSync";
 import { ActionPillProvider } from "@/components/ActionPill";
-import { clearAllSavedPages, useStaleDocumentReconcile } from "@/lib/pwa/client";
+import { SWUpdateNotice } from "@/components/SWUpdateNotice";
+import { useStaleDocumentReconcile } from "@/lib/pwa/client";
 import { isLowEndDevice } from "@/lib/motion/lowEndDevice";
 import { DESKTOP_MEDIA_QUERY, theme } from "@/lib/theme";
 
@@ -29,57 +30,6 @@ function useLowEndMotionTier() {
     ) {
       document.documentElement.classList.add("c2-low-end");
     }
-  }, []);
-}
-
-function useSWUpdateReload() {
-  // When a new service-worker build activates (post-deploy) and takes over
-  // this tab, the running page is the old build: its HTML references
-  // /_next/static chunk names that no longer exist, so continuing in place
-  // shows stale (or broken) UI. The new SW wipes older page caches on
-  // activate; we additionally clear from the client (covers the brief
-  // activate/claim race) and reload so the tab runs the new build.
-  //
-  // The SW file lives at a fixed URL, so detect the swap by ServiceWorker
-  // object identity, not scriptURL. The first-ever claim (controller was
-  // null) must NOT reload — that is a normal initial install.
-  useEffect(() => {
-    if (!("serviceWorker" in navigator)) return;
-    let lastController = navigator.serviceWorker.controller;
-    const handleChange = () => {
-      const current = navigator.serviceWorker.controller;
-      const wasControlled = lastController !== null;
-      lastController = current;
-      if (!wasControlled || current === null) return;
-      void clearAllSavedPages().then(() => {
-        window.location.reload();
-      });
-    };
-    navigator.serviceWorker.addEventListener("controllerchange", handleChange);
-    return () =>
-      navigator.serviceWorker.removeEventListener("controllerchange", handleChange);
-  }, []);
-
-  // The browser only checks for a new SW (and therefore a deploy) on a
-  // navigation or page load. A backgrounded PWA does neither, so a deploy that
-  // lands while the app sits idle leaves the old build running — and when the
-  // user returns, the old build's in-flight RSC / `/_next/static` chunk
-  // requests hit hashes that 404 against the new deploy, presenting as a stuck
-  // (infinite) load. Trigger a manual `update()` when the tab regains
-  // visibility: if a new build exists, `skipWaiting` + `clientsClaim` fire
-  // `controllerchange` and the reload handler above takes over; otherwise the
-  // check is a cheap no-op.
-  useEffect(() => {
-    if (!("serviceWorker" in navigator)) return;
-    const onVisible = () => {
-      if (document.visibilityState !== "visible") return;
-      void navigator.serviceWorker
-        .getRegistration()
-        .then((reg) => reg?.update())
-        .catch(() => {});
-    };
-    document.addEventListener("visibilitychange", onVisible);
-    return () => document.removeEventListener("visibilitychange", onVisible);
   }, []);
 }
 
@@ -131,9 +81,6 @@ if (process.env.NODE_ENV === "development" && typeof window !== "undefined") {
  * component boundary, so MantineProvider must mount on the client.
  */
 export default function AppProviders({ children }: { children: ReactNode }) {
-  // A deployed SW build took over this tab — clear stale page caches and
-  // reload under the new build.
-  useSWUpdateReload();
   // A cached document is always served instantly, so a stale one reconciles
   // itself against the network right after paint (docs/pwa-offline.md §1.5).
   useStaleDocumentReconcile();
@@ -153,7 +100,10 @@ export default function AppProviders({ children }: { children: ReactNode }) {
       <SystemBarSync />
       <Notifications position={isDesktop ? "bottom-right" : "top-center"} />
       <OfflineBanner />
-      <ActionPillProvider>{children}</ActionPillProvider>
+      <ActionPillProvider>
+        <SWUpdateNotice />
+        {children}
+      </ActionPillProvider>
     </MantineProvider>
   );
 }

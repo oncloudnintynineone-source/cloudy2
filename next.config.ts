@@ -14,6 +14,19 @@ const nextConfig: NextConfig = withSerwist({
       { source: "/departments", destination: "/settings/departments", permanent: true },
     ];
   },
+  async headers() {
+    return [
+      {
+        // The service worker script must never be served from a cache: a stale
+        // `sw.js` means a deploy is never discovered, so the app stays on the
+        // old build. The route is `force-static` (createSerwistRoute), which
+        // Next would otherwise send with `s-maxage=31536000`. Paired with
+        // `updateViaCache: "none"` at registration (src/app/layout.tsx).
+        source: "/serwist/:path*",
+        headers: [{ key: "Cache-Control", value: "no-cache, no-store, must-revalidate" }],
+      },
+    ];
+  },
   experimental: {
     optimizePackageImports: [
       "@mantine/core",
