@@ -204,9 +204,10 @@ doc content here.
   served at any age and reconciled after paint by `useStaleDocumentReconcile` (the one
   `router.refresh()` site that must **not** invalidate the document cache). Return-from-
   background auto-refresh via `useInactivityRefresh` + `SWUpdateNotice` (the SW runs
-  `skipWaiting: false`, so a deploy installs a **waiting** worker and the shared action pill
-  offers "New version available — Reload"; `registration.update()` is polled while visible,
-  and `/serwist/*` is served `no-cache` with `updateViaCache: "none"`).
+  `skipWaiting: false`; `GET /api/version` is polled while visible and the shared action pill
+  offers "New version available — Reload" when this page's `APP_VERSION` differs from the
+  server's, then clears caches + unregisters the worker + reloads; `/serwist/*` is served
+  `no-cache` with `updateViaCache: "none"`).
   Design: [docs/pwa-offline.md](docs/pwa-offline.md).
 - **Unsupported-browser gate:** targets the Next 16 / React 19 floor (no `.browserslistrc`,
   no downleveling). `/login` is a **dynamic** route — its server component reads

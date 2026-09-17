@@ -18,7 +18,7 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
 
 ## 1.1 Status
 
-- All work through changelog **1.251 (folders-last picker + two-row group dialog)** is shipped.
+- All work through changelog **1.252 (iOS update-pill loop fix)** is shipped.
 - Quality gates (`lint` / `typecheck` / `test` / schema-drift check) run in CI on every
   push and PR. Pushes also auto-apply migrations per environment: `dev` →
   `migrate-preview` against the dev Neon DB, `main` → `migrate` against the prod Neon
@@ -1162,6 +1162,16 @@ via `?attendance=1` and `attendanceStorage` became a `useSyncExternalStore` exte
   type count on top, reorder / **Folder** switch / rename / delete below — so the
   controls no longer squeeze the label, and the rename input spans the label line.
   `docs/event-lifecycle.md` §1.10
+- 1.252 iOS update-pill loop fix: the deploy pill now detects staleness from a live
+  **server version check** (`GET /api/version`, `no-store`, returns `APP_VERSION`) compared
+  with the `APP_VERSION` baked into the running page, instead of the service worker's
+  `registration.waiting` — iOS Safari left a waiting worker lingering (and still reported)
+  after the new build was already running, so the pill reappeared after every tap. On
+  apply the client clears the page caches, **unregisters** the worker (so the stuck
+  waiting worker is discarded and `SerwistProvider` installs the current build's worker
+  cleanly), and reloads. Pure `shouldPromptForUpdate` re-scoped to
+  `{ clientVersion, serverVersion, alreadyPrompted }` (`swRules.ts`, unit-tested).
+  `docs/pwa-offline.md` §1.8/§1.12/§1.13/§1.15/§1.17
 
 ## 1.4 Open items & next steps
 
