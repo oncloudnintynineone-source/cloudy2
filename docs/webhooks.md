@@ -139,10 +139,10 @@ sequenceDiagram
  alt no enabled endpoints
  W-->>A: no-op
  else one or more
- W->>W: buildEventWebhookPayload (once) + sign per endpoint secret
- Note over W: after(() => …) — the action returns now
+ W->>W: buildEventWebhookPayload (once)
+ Note over W: after(() => …) — the action returns now, signing per endpoint secret inside
  par per endpoint (Promise.allSettled)
- W->>R: POST application/json<br/>10s AbortSignal timeout
+ W->>R: POST application/json + signature headers<br/>10s AbortSignal timeout
  R-->>W: any response / network error → console only
  end
  end

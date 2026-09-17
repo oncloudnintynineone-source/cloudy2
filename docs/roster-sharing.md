@@ -286,7 +286,7 @@ mirrors it as flat blocks in tree order.
 
 ```mermaid
 flowchart TB
- subgraph TREE["calendars hierarchy (preorder sortOrder 0-5)"]
+ subgraph TREE["calendars hierarchy (preorder sortOrder 0-4)"]
  HQ["HQ (0)<br/>John"]
  LOG["Logistics (1)<br/>Alice, Bob"]
  STO["Stores (2)<br/>Carol"]
@@ -313,8 +313,9 @@ flowchart TB
   and callers thread it as `departmentSort` into `buildUserGroups`
   (`docs/user-picker.md` §1.3), so a picker's sections read top-to-bottom the
   same way the Settings → Departments list does. Callers also thread each
-  user's `department.id` + `department.parent_id` (`departmentId` /
-  `departmentParentId`) so `buildUserGroups` can tag each section with its
+  user's `department.id` plus that department's `parentId` (resolved from
+  `listCalendars()`) as `departmentId` / `departmentParentId` so
+  `buildUserGroups` can tag each section with its
   nesting **depth** — a per-department user section renders indented under its
   parent's section. **Department pills/chips** (a department as a selectable
   option — "Calendars"/Department filters, Participants departments, Parent /
@@ -517,9 +518,10 @@ sequenceDiagram
  participant D as DB (users + user_calendar_access)
  participant S as reconcileUserAccessChange
  participant G as Google ACL
- A->>D: INSERT/UPDATE + grant-row diff committed
+ A->>D: INSERT/UPDATE committed
  A->>S: { oldEmail, newEmail, oldDept, newDept, userId, desiredAccess }
- Note over S: affected = oldDept ∪ newDept ∪ changed grant-row calendars<br/>∪ all grant-row calendars when the email changed
+ S->>D: diff grant rows to desiredAccess
+ Note over S: affected = oldDept ∪ newDept ∪ all grant-row calendars when the email<br/>changed or any grant row changed, plus removed grant-row calendars
  loop per affected department calendar
  S->>D: expectations = members + grant rows (fresh)
  S->>G: listCalendarAccess
@@ -537,10 +539,11 @@ sequenceDiagram
 
 The rules, precisely:
 
-- **Affected calendars** = union of `oldDepartmentId` and `newDepartmentId`,
-  plus every grant-row calendar that was added, updated, or removed by the row
-  diff — plus all grant-row calendars when the email changed (each must move the
-  rule to the new email). Each is resolved to a Google id; missing ones skipped.
+- **Affected calendars** = union of `oldDepartmentId` and `newDepartmentId`, plus
+  **all** grant-row calendars when the email changed **or any grant row was added,
+  updated, or removed** by the row diff (each must move/reconcile the rule), plus
+  the removed grant-row calendars. Each is resolved to a Google id; missing ones
+  skipped.
 - **Expectations** are the single source for what to grant: a fresh read of the
   department's members (reader) **and** its grant rows (each user's role). The
   subject user's new email appears here wherever they are still bound (their

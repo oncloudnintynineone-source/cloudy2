@@ -73,7 +73,7 @@ flowchart LR
  LIST["events.list(q, timeMin, timeMax)<br/>per calendar"]
  end
  B -->|open| M
- M -->|searchEvents(q, from, to)| R --> C --> F
+ M -->|"searchEvents(q, from, to)"| R --> C --> F
  F --> LIST
  LIST --> MAP --> M
  M -->|result click| SPIN

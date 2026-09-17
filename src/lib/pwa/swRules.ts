@@ -291,25 +291,30 @@ export const SW_UPDATE_CHECK_INTERVAL_MS = 15 * 60_000;
 export const SW_UPDATE_PROMPT_GRACE_MS = 30_000;
 
 export interface SwUpdatePromptState {
-  /** The page is already controlled by a service worker (not a first install). */
-  hasController: boolean;
-  /** The registration has a new service worker installed and waiting. */
-  hasWaiting: boolean;
-  /** A prompt has already been shown for this waiting worker. */
+  /** The build this page is running (baked into the bundle). */
+  clientVersion: string | null;
+  /** The build the server is currently serving, from `/api/version`. */
+  serverVersion: string | null;
+  /** A prompt has already been shown for this server build. */
   alreadyPrompted: boolean;
 }
 
 /**
- * Whether a newly installed, waiting service worker should surface the
- * "Update available — Reload" pill.
+ * Whether the running page should surface the "Update available — Reload"
+ * pill.
  *
- * A waiting worker on an *uncontrolled* page is the first-ever install (the
- * `clientsClaim` claim), not an update — prompting there would flash a pill on
- * a brand-new device. A worker already prompted for must not stack a second
- * pill (the `updatefound` / `statechange` events can fire more than once).
+ * Detection is a **live server version comparison**, not the service worker's
+ * `registration.waiting`: on iOS Safari a waiting worker can linger (and
+ * `registration.waiting` keep reporting it) even after the new build is
+ * already running, which made the pill reappear after every reload. Comparing
+ * the page's own bundled `APP_VERSION` with the server's current one says
+ * plainly whether *this page* is stale, so a stuck worker can never re-prompt
+ * a page that is already current.
  */
 export function shouldPromptForUpdate(state: SwUpdatePromptState): boolean {
-  return state.hasController && state.hasWaiting && !state.alreadyPrompted;
+  if (!state.clientVersion || !state.serverVersion) return false;
+  if (state.alreadyPrompted) return false;
+  return state.clientVersion !== state.serverVersion;
 }
 
 /**

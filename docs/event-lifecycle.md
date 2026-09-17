@@ -81,12 +81,13 @@ flowchart LR
  W["staged steps: type / time / location / participants / remarks<br/>/ other settings → review"]
  P["calendar preview on the review step"]
  end
- subgraph GUARD["Server action (actions.ts)"]
- G["modifyGuard (edit/delete)<br/>organizer resolution (create/update)"]
+ subgraph GUARD["Server action (actions.ts → writeContext.ts)"]
+ G["modifyGuard (edit/delete)<br/>resolveEventAuthor (create/update)"]
  V["validateEventForm"]
- T["resolveTargetCalendars"]
  RT["resolveEventTime"]
  RL["resolveEventLocation (clampOutOfCamp)"]
+ RF["resolveEventFields"]
+ T["resolveTargetCalendars"]
  B["buildGcalEventInput"]
  end
  subgraph PURE["Pure helpers"]
@@ -97,7 +98,7 @@ flowchart LR
  Gcal["Google Calendar<br/>(one copy per target calendar)"]
 
  W --> P
- W --> G --> V --> T --> RT --> RL --> B
+ W --> G --> V --> RT --> RL --> RF --> T --> B
  B --> TE
  B --> NB
  B --> AR

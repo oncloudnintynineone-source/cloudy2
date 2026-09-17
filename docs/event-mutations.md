@@ -67,9 +67,9 @@ All actions are `"use server"` and follow the same opening sequence (create/upda
 
 ```mermaid
 flowchart LR
- S["requireSession()"] --> N["resolveEventAuthor(input, session, ref)<br/>(create/update — fixed organizer)"]
- N --> G["modifyGuard (update/delete)"]
- G --> V["validateEventForm<br/>(create/update)"]
+ S["requireSession()"] --> G["modifyGuard (update/delete)"]
+ G --> N["resolveEventAuthor(input, session, ref)<br/>(create/update — fixed organizer)"]
+ N --> V["validateEventForm<br/>(create/update)"]
  V --> C["googleCalendarConfigured()<br/>— gate when unconfigured"]
  C --> R["target resolution<br/>(resolveTargetCalendars / refTargetCalendars)"]
 ```
@@ -163,13 +163,13 @@ plan is applied per calendar in the **union** of both sets.
 flowchart TB
  O["oldTargets (from ref's people)"] --> U["union = oldTargets ∪ newTargets"]
  N["newTargets (from new form values)"] --> U
- U --> L["for each target calendar (serial)"]
+ U --> L["read copies concurrently per target<br/>(mapWithConcurrency ≤ 4)"]
  L --> F["findCopies(gcalId, eventId, range, legacyFallback)<br/>— uncached listEvents, notes eventId match<br/>or legacy Google-id match"]
  F --> IN{target in newTargets?}
  IN -- yes + copies found --> UP["updateEvent per copy<br/>(backfills group id on legacy first edit)"]
  IN -- yes + none found --> CR["createEvent — new department gained"]
  IN -- no --> DE["deleteEvent per copy — department no longer involved"]
- UP --> NEXT["next target"]
+ UP --> NEXT["next target (serial writes)"]
  CR --> NEXT
  DE --> NEXT
 ```

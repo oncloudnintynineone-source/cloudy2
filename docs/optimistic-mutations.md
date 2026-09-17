@@ -73,7 +73,7 @@ flowchart LR
  U --> Merge
  R --> Merge
  Merge --> Views["viewEvents<br/>(every view memo reads this)"]
- Views --> Grids[Month / Week D / Week H / Day / Agenda]
+ Views --> Grids["Month / Week (H) / Week (D) / Week (Grid) / Day / Agenda / Month &amp; Agenda"]
 ```
 
 An **op** (`OptimisticOp` in `src/lib/events/optimistic.ts`) is one pending mutation:
@@ -115,7 +115,7 @@ sequenceDiagram
  S-->>F: { ok:true, eventId, copies }
  F->>V: onOptimisticSettled(opId, result)
  V->>V: pin chip (real group/google ids) + settled = true
- F->>V: onDone() -> router.refresh()
+ F->>V: onDone() -> revalidate()
  S-->>V: new events prop (includes the change)
  V->>V: render-phase guard clears settled ops
  Note over V: hand-off: overlay gone, authoritative chip shown

@@ -106,8 +106,10 @@ flowchart LR
  P["EventClashCheck panel"]
  end
  subgraph SERVER["checkEventClashes (clashActions.ts)"]
- S["requireSession + modifyGuard (edit)"]
- N["resolveEventAuthor → clampEventEnd → validateEventForm"]
+ S["requireSession()"]
+ N["resolveEventAuthor → clampEventEnd"]
+ G["modifyGuard (edit)"]
+ V["validateEventForm"]
  R["shared resolution chain (writeContext.ts):<br/>time → location → fields"]
  T["resolveTargetCalendars"]
  Q["clashQuery.ts — month-cache read over target calendars"]
@@ -119,8 +121,7 @@ flowchart LR
  DB["listUsers (active roster)"]
  end
 
- P --> S --> N --> R --> T --> Q
- T --> DB
+ P --> S --> N --> G --> V --> R --> T --> Q
  Q --> E
  Q --> X --> C --> P
  R --> T

@@ -57,7 +57,7 @@ flowchart TB
  SW -->|document hit| DOC[Serve stamped HTML from app-documents-swr<br/>+ revalidate in background]
  SW -->|document miss, online| NET[Network fetch<br/>store if 200 text/html<br/>+ date stamp]
  SW -->|document miss, offline| LASTSAVED[302 redirect to most recently<br/>saved view's own URL]
- LASTSAVED -->|no saved views| OFF[Branded /offline.html<br/>precached fallback — plain<br/>"You're offline" explainer]
+ LASTSAVED -->|no saved views| OFF["Branded /offline.html<br/>precached fallback — plain<br/>'You're offline' explainer"]
 
  SW -->|RSC hit| RSC[Serve RSC from app-rsc-swr<br/>+ revalidate]
  SW -->|RSC miss, offline & hit| RSC
@@ -276,7 +276,7 @@ sequenceDiagram
  C->>V2: updatefound / reg.waiting → show pill
  C->>C: "New version available — Reload"<br/>(fill sweeps the grace window)
  C->>V2: SKIP_WAITING (tap, or grace expiry)
- V2->>V2: activate: wipe page caches<br/>(every build version, by prefix)
+ V2->>V2: activate: wipe page caches<br/>(every other build version, by prefix)
  V2->>C: clientsClaim → controllerchange
  C->>C: clearAllSavedPages() (all build versions)
  C->>B: window.location.reload()

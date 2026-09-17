@@ -35,7 +35,8 @@ client.
 
 ```mermaid
 flowchart LR
- D["DashboardView<br/>view / period / filters / zoom"] -->|announce()| A["StatusAnnouncer<br/>(role=status, sr-only)"]
+ D["DashboardView<br/>view / period / filters / zoom"] -->|"announce()"| A["StatusAnnouncer<br/>(role=status, sr-only)"]
+ D2["EventForm / DualPaneView / WeekMatrixView / ColdStartReady"] -->|"announce()"| A
  A --> SR["Screen reader<br/>(polite, no interruption)"]
 ```
 
@@ -47,7 +48,7 @@ Mechanics:
   announcer clears the text and re-sets it after a short timeout.
 - `announce()` is a no-op until the announcer mounts (e.g. on `/login`).
 
-Current call sites (all in `DashboardView`):
+Current call sites (mostly `DashboardView`, plus a few others noted below):
 
 | Trigger | Message |
 | ------- | ------- |
@@ -55,6 +56,8 @@ Current call sites (all in `DashboardView`):
 | More Filters apply / Myself toggle / Clear | `"2 filters active"` / `"Filters cleared"` (`filterCountMessage` mirrors `activeFilterCount`'s group semantics) |
 | Timeline zoom in/out | `"Zoom 125%"` |
 | Pinch-to-zoom (touch; also `DashboardView` + `DualPaneView`) | the same zoom string, announced once on release (`"Columns 150%"` for the Week (Grid)'s axis) — the discrete zoom buttons remain the keyboard/screen-reader path |
+| Wizard step change (`EventForm`) | `"Step N of M: <name>"` |
+| Cold-start readiness (`ColdStartReady`) | `"Calendar up to date"` |
 
 The one-time **"Pinch to zoom"** caption beside the zoom cluster is decorative
 (`aria-hidden`, `pointer-events: none`) — the zoom buttons already carry the
@@ -106,6 +109,8 @@ Icon-only controls across the app already carry `aria-label`s (the
 | `src/components/FilterButton.tsx` | Dynamic filter-count aria-label |
 | `src/app/globals.css` | `.c2-sr-only` + `.c2-skip-link` styles |
 | `src/app/(protected)/dashboard/DashboardView.tsx` | View/period/filter/zoom announcements |
+| `src/app/(protected)/dashboard/EventForm.tsx` | Wizard step announcements |
+| `src/components/ColdStartReady.tsx` | Cold-start readiness announcement |
 
 Related docs:
 

@@ -51,7 +51,7 @@ erDiagram
  kah_groups ||--o{ kah_breach_notifications : "dedup records"
  users ||--o{ kah_group_members : "member of"
  settings {
- text kah_percentage "default % prefill for NEW groups"
+ int kah_percentage "default % prefill for NEW groups"
  text kah_email_subject_template "breach email subject template"
  text kah_email_body_template "breach email body template"
  }
@@ -111,8 +111,7 @@ sequenceDiagram
  A->>G: invalidateGcalCache (months touched)
  A->>N: register check (window = saved range)
  A-->>U: ok (response never waits for KAH)
- Note over N,M: runs after the response ships,
- after the invalidation above, so its reads see the saved copies
+ Note over N,M: runs after the response ships, after the invalidation above,<br/>so its reads see the saved copies
  N->>N: listKahGroupChecks (active members only)
  N->>N: busyKahsIn — getCachedMonthEventsForCalendars over all calendars × window months
  N->>N: computeKahBreaches (pure)

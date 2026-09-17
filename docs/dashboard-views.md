@@ -213,7 +213,7 @@ flowchart LR
  FM --> HINT["Scope hint<br/>(these filters apply to {tab} only)"]
  HINT --> APPLY["saveDashboardViewFilters<br/>(server action)"]
  APPLY --> ROW["active tab row<br/>(cal/users/types, NULL = role default)"]
- ROW --> RESOLVE["dashboard/page.tsx<br/>validates ids vs live data"]
+ ROW --> RESOLVE["buildDashboardData (data.ts)<br/>validates ids vs live data"]
  RESOLVE --> DEF["role default"]
 ```
 
@@ -467,7 +467,7 @@ the Day / Week (H) column widths):
 
 The rest of this section describes the shared horizontal mechanism.
 
-- **Levels**: discrete `0.5, 0.75, 1, 1.25, 1.5, 2, 2.5, 3` (`ZOOM_LEVELS`,
+- **Levels**: discrete `0.25, 0.5, 0.75, 1, 1.25, 1.5, 2, 2.5, 3, 4, 5, 6` (`ZOOM_LEVELS`,
   `src/lib/ui/slotZoom.ts`); `1` is the default (today's fixed widths) for the
   Day / Week (H) timeline zoom and the Week (Grid) rows — the Week (Grid)
   columns default to `2` (2× fit, see above). The buttons
@@ -602,7 +602,7 @@ flowchart LR
  E["viewEvents (all-day + multiday)"] --> L["gridWeekAllDayLayout<br/>(gridWeek.ts)"]
  L --> H["hidden / hiddenIds"]
  H --> S["renderGridWeekEvent<br/>(display:none chips)"]
- H --> P["MoreEvents '+N more'<br/>(inline in the 'All day' cell)"]
+ H --> P["MoreEvents '+N more'<br/>(absolute overlay over the 'All day' cell)"]
 ```
 
 ## 1.8 Month-grid zoom (fit-to-width)
@@ -621,7 +621,7 @@ the same horizontal pan the other views use.
   column, chip and "+N" popup scales together with no JS geometry. The library's
   84px `--min-day-width` floor is zeroed on the same element (`monthViewInnerStyle`)
   so the fit width can squeeze all seven columns into a phone (~50px each).
-- **Levels**: discrete `1, 1.25, 1.5, 2, 2.5, 3` (`MONTH_ZOOM_LEVELS`,
+- **Levels**: discrete `1, 1.25, 1.5, 2, 2.5, 3, 4, 5, 6` (`MONTH_ZOOM_LEVELS`,
   `src/lib/ui/monthZoom.ts`). `1` (fit) is the **floor** — the grid can never be
   narrower than the viewport, so zoom-out is disabled there — and the buttons step
   one level at a time and clamp at the extremes.
@@ -630,7 +630,7 @@ the same horizontal pan the other views use.
   view's own `useGridPan` instance (`monthPan`). The zoom pair always shows; the pan
   arrows and drag-to-pan appear only once a zoom level overflows the viewport.
   `GridNavControls` takes the month's level range via `zoomMin`/`zoomMax` (the
-  component's defaults remain the timeline zoom's 0.5–3). **Pinch-to-zoom** drives
+  component's defaults remain the timeline zoom's 0.25–6). **Pinch-to-zoom** drives
   the same level (§1.7).
 - **Pinned weekday strip**: the `MonthWeekdayStrip` track is sized to the same
   zoomed content width (`width: ${zoom × 100}%`, cells `flex: 0 0 100%/7` — no

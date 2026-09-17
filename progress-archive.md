@@ -437,6 +437,13 @@ erDiagram
     DEPARTMENTS ||--o{ CALENDARS : "has"
 ```
 
+> **Superseded:** the `departments` and `user_departments` tables were dropped in
+> favour of `calendars` as the department registry. Users now link directly via
+> `users.department_id → calendars.id` (ON DELETE SET NULL); calendars carry a
+> self-FK `parent_id` (department hierarchy, §1.131); `users` gained `shortname` and
+> `status`, `calendars` gained `kind`/`color`/`sort_order`, and `settings` gained
+> many more columns. See `src/db/schema.ts`.
+
 ### 1.3.3 Auth & routing
 
 - `src/lib/auth.ts` â€” NextAuth config: Credentials + JWT, admin/user resolution, JWT/session
@@ -509,10 +516,11 @@ flowchart LR
     E --> G
     F --> G
     G --> H{Branch}
-    H -- main --> I[pnpm db:migrate<br/>against Neon]
-    H -- dev / PR --> J[Vercel preview build]
-    I --> K[Production]
-    J --> L[Preview]
+    H -- "push main" --> I["pnpm db:migrate<br/>prod Neon (DATABASE_URL)"]
+    I --> CR[deploy-cloudrun<br/>Cloud Run shadow]
+    H -- "push dev" --> MP["migrate-preview<br/>dev Neon (DATABASE_URL_PREVIEW)"]
+    H -- "pull request" --> Q[quality only]
+    H -. "Vercel git integration" .-> J[dev → Preview · main → Production]
 ```
 
 - `migrate` job added to `.github/workflows/ci.yml`: `needs: quality`, runs only on
@@ -672,12 +680,11 @@ reachable only via the profile icon in the header. The bottom nav bar is gone.
 flowchart LR
     A[Dashboard] -->|profile icon| B[UserMenu]
     B -->|admin only| C[Admin Settings]
-    C --> D[Users tab]
-    C --> E[Departments tab]
-    C --> F[Event Types tab]
-    C --> G[Templates tab]
-    C --> H[General tab]
-    H --> I[Update login keyword]
+    C --> D[Users / Departments / Event Types / Templates]
+    C --> E[Webhooks / Quick Links / KAH Groups / Parade State Email]
+    C --> F[Banner / General / Audit Log]
+    C --> G[Security tab]
+    G --> I[Update login keyword]
 ```
 
 - Verification: `pnpm lint/typecheck/test/build` pass; no schema change so `db:generate`
@@ -733,6 +740,10 @@ flowchart LR
     G --> H
     H --> I[revalidatePath + router.refresh]
 ```
+
+> **Superseded:** a month day-tap now opens the day/agenda modal (`openDayModal`), and
+> mutations refresh through the dashboard data provider's `revalidate()` (the server
+> action returns the new snapshot) rather than `router.refresh()` — see §1.177/§1.202.
 
 - **Dependency** â€” added `@mantine/schedule@9.5.1` (the `MonthView` component) and `dayjs`
   (its required peer). `@mantine/dates/styles.css` + `@mantine/schedule/styles.css` imported
@@ -790,6 +801,11 @@ flowchart LR
     E --> H[Server action â†’ Google Calendar]
     F --> H
 ```
+
+> **Superseded** by §1.202 (on-demand dashboard Views): the `?view=mobile` param and
+> `MobileMonthView` are gone. The current renderer kinds are
+> `dual / month / week / weekv2 / weekgrid / schedule / agenda`, held as per-account
+> `user_dashboard_views` rows and addressed by `?view=<tab id>`.
 
 - **Toggle** â€” `SegmentedControl` (`size="xs"`, `aria-label="Calendar view"`) with
   `IconCalendarMonth` / `IconCalendarDot` segments, placed between "Today" and the filter
@@ -895,6 +911,11 @@ flowchart LR
     G --> H
 ```
 
+> **Superseded in part:** `expandScheduleEvents` (now `rowsForEvent`) no longer
+> auto-adds the creator — the organizer gets a row only when self-tagged (§1.192).
+> The wizard's "Invitees" step is renamed **Participants** and picks through
+> `UserSelectModal`/`PickerField`, not a MultiSelect (§1.193/§1.185).
+
 - **Notes** (`src/lib/events/notes.ts`) â€” `EventNotes` gains `createdBy?`,
   `inviteeUsers?`, `inviteeDepartments?`; `encodeEventNotes` now also strips empty
   arrays; new pure `parseEventPeople(description)` returns `{ creatorId, userIds,
@@ -979,8 +1000,7 @@ sequenceDiagram
     A->>D: creator + invited users' departments
     A->>A: targets = union(creatorDept, inviteeDepts, taggedDepts)
     Note over A,G: create: insert one copy per target (same eventId in notes),<br/>rollback partial copies on failure
-    Note over A,G: update: per calendar in oldâˆªnew targets, list over oldâˆªnew time
-    range (Â±1 day), match notes.eventId â†’<br/>create missing / update existing / delete retired
+    Note over A,G: update: per calendar in oldâˆªnew targets, list over oldâˆªnew time range (Â±1 day), match notes.eventId â†’<br/>create missing / update existing / delete retired
     Note over A,G: delete: per target in notes-derived set, list + delete all matches
 ```
 
@@ -1137,6 +1157,10 @@ flowchart LR
     F --> G["Google event summary<br/>+ notes.title = raw input"]
 ```
 
+> **Superseded** by §1.210 (structured title recipes): `formatEventTitle` and the
+> `settings.event_title_template` text column were replaced by `renderTitleRecipe`
+> (`src/lib/settings/titleRecipe.ts`); the column is kept for rollback but never read.
+
 - **Schema** â€” migration `0008` adds `settings.event_title_template` (`text`, `NOT NULL`,
   default `'{description}'`), so existing rows and the bootstrap insert fall back to the
   plain description.
@@ -1275,19 +1299,21 @@ above the submit button.
 
 ```mermaid
 flowchart LR
-    A[Event Types settings<br/>checkboxes] --> B[event_types.time_options<br/>range Â· full]
-    B --> C[EventForm tabs]
+    A[Event Types settings<br/>checkboxes] --> B[event_types.time_options<br/>range Â· full Â· half]
+    B --> C[EventForm]
     C --> D["Start &amp; End<br/>two datetime pickers"]
     C --> E["Full Day<br/>start date + AM/PM Â·<br/>end date + AM/PM"]
+    C --> E2["Half Day<br/>AM or PM"]
     D --> H["title (timed)"]
     E --> G["title + (AM)/(PM)<br/>only when start & end match"]
+    E2 --> G
     H --> J["Google Calendar summary<br/>+ preview in form"]
     G --> J
 ```
 
 - **Time options** â€” each event type carries a `time_options` text-array column
-  (migration `0010`) holding a subset of `["range", "full"]` (labels **Start &
-  End**, **Full Day**). Empty/unrecorded types resolve to `["range"]` (the old
+  (migration `0010`) holding a subset of `["range", "full", "half"]` (labels **Start &
+  End**, **Full Day**, **Half Day** — `half` added in §1.84). Empty/unrecorded types resolve to `["range"]` (the old
   behaviour). `src/lib/events/timeOptions.ts` is a pure module
   (`TimeOption`, `TIME_OPTION_LABELS`, `normalizeTimeOptions`,
   `resolveTimeOptions`, `resolveTimeOption`, `amPmSuffix`) unit-tested in
@@ -1346,6 +1372,12 @@ flowchart LR
     E --> F["eventMatchesUserFilter (pure)<br/>creator âˆˆ S or tagged âˆ© S"]
     F --> G["all dashboard views<br/>(rows unchanged)"]
 ```
+
+> **Superseded** by §1.202: the `?cal`/`?types`/`?users` URL params were removed —
+> each tab's Cal/Users/Types filters are stored server-side on its
+> `user_dashboard_views` row. Matching is now "tagged attendee **or** active member
+> of a tagged department" (`eventMatchesUserFilter`, §1.213), and the creator is no
+> longer auto-matched; the quick action is labelled **Myself**.
 
 - **Matching (decision)** â€” an event applies to a selected user when that user **created** it or
   is **tagged** on it (`createdBy` / `inviteeUsers` in the notes JSON) â€” the same people scope
@@ -1462,7 +1494,8 @@ Google Calendar event notes now carry a clickable link that takes the user to th
 opens the event's edit form. The machine JSON block is still stored in the notes
 (`description`) â€” a short `Edit: <url>` line now sits **above** it, which Google
 Calendar linkifies automatically. The URL encodes everything the app needs to find the
-event again: `<origin>/dashboard?date=<start-date>&edit=<event group id>`.
+event again: `<origin>/dashboard?date=<start-date>&event=<event group id>` (the
+legacy `&edit=` form is still honored — see §1.169).
 
 ```mermaid
 sequenceDiagram
@@ -1474,13 +1507,13 @@ sequenceDiagram
     Note over D: create/edit event in the app
     D->>G: event notes = "Edit: <url>" line + JSON block
     U->>G: taps the link in the notes
-    G->>D: GET /dashboard?date=YYYY-MM-DD&edit=EVENT_ID
+    G->>D: GET /dashboard?date=YYYY-MM-DD&event=EVENT_ID
     alt no session
         D->>L: NextAuth redirect (credentials)
         L-->>D: back to the same URL after login
     end
     D->>D: resolve the event by group id in the fetched month
-    D-->>U: edit form opens (or dismissable "could not open" alert)
+    D-->>U: event details modal opens (or dismissable "could not open" alert)
 ```
 
 - **Notes format** (`src/lib/events/notes.ts`) â€” new `editLink` field; pure helpers
@@ -1533,7 +1566,7 @@ flowchart TB
     A[notes object] --> B[encodeEventNotes â†’ JSON]
     B --> C[brotliCompressSync]
     C --> D[base64url, no padding]
-    D --> E["notes text: Edit: url, blank line, block"]
+    D --> E["notes text: Edit: url, blank line, block,<br/>then 'Created in cloudy2' marker"]
     E --> F[parseEventNotes]
     F --> G{whole string one JSON?}
     G -- "v1 legacy" --> H[(EventNotes)]
@@ -1607,6 +1640,11 @@ flowchart LR
     N --> DB[(Neon DB)]
     N --> GC[Google Calendar]
 ```
+
+> **Superseded** by §1.121+ (PWA offline & instant open): the SW now caches documents
+> (stale-while-revalidate) and RSC payloads, precaches the `/` launch shell and a
+> branded `offline.html`, and runs `skipWaiting: false` so deploys install a waiting
+> worker. Only immutable static assets remain `CacheFirst`.
 
 - **Manifest** (`src/app/manifest.ts`) â€” `display: standalone`, portrait, theme
   `#0D47A1` / background `#FBC02D`, icons 192/512 + maskable 512. Served at
@@ -1713,6 +1751,11 @@ flowchart LR
     G --> H[buildOverviewCounts<br/>pure per-user Ã— per-type counts]
     H --> I[OverviewView matrix]
 ```
+
+> **Superseded:** the **Overview** page and `src/lib/overview/*` were later removed.
+> The global bottom nav is now Calendar `/dashboard`, Parade State `/parade-state`,
+> Contacts `/contacts`, Double Booking `/double-booking` (every role), plus KAH Status
+> `/kah-status` for KAH members/admins; Settings `/settings` stays admin-only.
 
 - **Bottom nav** (`src/components/AppShellShell.tsx`) â€” `AppShell.Footer` (height 56px +
   `env(safe-area-inset-bottom)`) with icon + label tabs: **Calendar** (`/dashboard`,
@@ -1861,6 +1904,10 @@ flowchart TD
     C -- no --> E["users of the selected departments<br/>(dashboard parity)"]
 ```
 
+> **Superseded:** the Overview page and the whole `src/lib/overview/*` module were
+> later removed. The equivalent row-scoping lives in the dashboard/parade filter
+> dialogs (`filterUserOptionIds`, `src/lib/filters/filterUserOptions.ts`).
+
 **Root cause** (`src/lib/overview/scope.ts`): the old `overviewRowUserIds` used a
 `narrowed` heuristic â€” `0 < selected.length < calendarCount` â€” as a proxy for "an
 explicit filter is applied". When a non-admin selected **every** calendar,
@@ -1990,10 +2037,10 @@ sequenceDiagram
     participant P as Page (RSC render)
     participant D as google_event_cache (Postgres)
     participant G as Google Calendar
-    P->>D: getCachedMonthEvents(gcalId, month) per selected calendar
-    alt fresh row (hit, <30s)
+    P->>D: getCachedMonthEventsForCalendarsMulti(ids, months) — one batched read
+    alt fresh row (hit, <60s)
         D-->>P: decoded GcalEventItem[]
-    else stale row (30sâ€“30min)
+    else stale row (60sâ€“30min)
         D-->>P: decoded GcalEventItem[]
         Note over P,D: after() â†’ background refresh from Google + upsert
     else missing or expired
@@ -2051,19 +2098,19 @@ month)` is a **layered** cache: an in-process L1 map (keyed `googleCalendarId:mo
 
 The cache's freshness windows (60s fresh, then stale-while-revalidate to 30min) mean an
 out-of-band Google edit can take ~60â€“90s to appear, with no way for the user to shorten it.
-The dashboard header now carries a **force-refresh button** (an `ActionIcon` beside Today and
-Filters) that re-fetches exactly the month the user is looking at and renders the new data
-immediately.
+The shell header now carries a **Force refresh** button (an `ActionIcon`; it later moved
+from the dashboard header to the shell header, and briefly the profile menu) that re-fetches
+exactly the month the user is looking at and renders the new data immediately.
 
 ```mermaid
 sequenceDiagram
-    participant U as User (dashboard)
-    participant V as DashboardView (client)
-    participant P as Page (RSC render)
+    participant U as User (any page)
+    participant V as Shell header Force refresh (client)
+    participant P as Page (RSC render / loadDashboardData action)
     participant C as events cache (L1/L2)
     participant G as Google Calendar
-    U->>V: tap force refresh
-    V->>P: router.push(?refresh=<epoch-ms>) â€” one-shot nonce
+    U->>V: tap Force refresh
+    V->>P: window.location.assign(?refresh=<epoch-ms>) â€” full reload, one-shot nonce
     P->>C: getCachedMonthEventsForCalendars(ids, month, { force: true })
     C->>G: events.list per selected calendar (coalesced, â‰¤4 concurrent)
     G-->>C: items â†’ upsert L2 (fetchedAt=now) + refill L1
@@ -2230,6 +2277,13 @@ flowchart LR
     A --> S["formatEventTitle {location} token"]
 ```
 
+> **Superseded** by §1.127 (location categories): the three-way `location_policy`
+> column (`in · out · both`) was replaced by the per-type `allowed_locations` matrix
+> (`in / out / overseas`, default all three) plus `show_location`, and
+> `clampOutOfCamp` now preserves the location string in every category — in-camp
+> events may record an optional specific location. The `{location}` token became a
+> recipe `location` field (§1.210).
+
 - **Location policy** (new `src/lib/events/locationPolicy.ts`, pure, unit-tested in
   `locationPolicy.test.ts`) â€” `LOCATION_POLICIES = ["in", "out", "both"]`,
   `LocationPolicy`, `LOCATION_POLICY_LABELS`/`DESCRIPTIONS`,
@@ -2324,6 +2378,11 @@ flowchart LR
     P["Calendar preview<br/>always visible below the step content"] -.-> S1
     P -.-> S2 & S3 & S4 & S6 & S7
 ```
+
+> **Superseded:** the wizard now runs
+> **type → time → location (optional) → participants (optional) → remarks (optional) →
+> Other settings → review**, with a fixed-height body, a bottom step strip (free jump)
+> and no "On behalf of" step (the organizer is fixed to the acting user, §1.192/§1.193).
 
 Locked-in decisions (user-confirmed):
 
@@ -2530,6 +2589,11 @@ stateDiagram-v2
     Skeleton --> Grid: fresh data commits
 ```
 
+> **Superseded:** the "dim to 60% opacity" state was removed — content dimming is
+> banned ("skeleton only + fade-in"; `opacity: isPending ? …` is disallowed). The
+> grid skeleton now renders during navigation (`isNavigating`), and the global
+> activity bar covers post-mutation refreshes.
+
 - **Skeleton condition** (`DashboardView.tsx`) â€” the grid skeleton renders
   only while `isRefreshing` (force-refresh), keyed off the committed `view`
   prop; no longer while `isPending`, which previously blanked the grid to a
@@ -2600,6 +2664,10 @@ sequenceDiagram
         P->>M: close
     end
 ```
+
+> **Superseded in part:** the trigger moved from the ⋮ menu to a toolbar calendar
+> `ActionIcon` (aria-label "Select date") offered in every day-anchored view, and the
+> modal's `onPick` is now view-aware (`pickMonth` / `applyAgendaDay` / `pickDate`).
 
 - **`DateSelectorModal`** (new `src/app/(protected)/dashboard/DateSelectorModal.tsx`) â€”
   a centered `size="sm"` floating `Modal` titled "Select date" wrapping
@@ -2723,7 +2791,7 @@ flowchart LR
     A[Server action / login] -->|logAction| B[audit_logs table]
     B --> C[Audit Log tab /settings/audit-log]
     C --> D[URL-param filters<br/>actor / action / entity / dates / search]
-    D --> E[Keyset-paginated card list<br/>load more via server action]
+    D --> E[Offset-paginated card list<br/>Mantine Pagination]
     C --> F[CSV export /api/audit/export]
     B --> G[Rotation: purge on read]
     G --> H[settings.audit_log_retention_days<br/>General tab, default 90]
@@ -2839,12 +2907,13 @@ stateDiagram-v2
 
 The 1.58 dashboard mechanism was generalized into two shared pieces and
 applied to **every** loading surface, so the whole app now has one loading
-language: **skeleton only, ~350ms minimum hold, 300ms fade-in on reveal** â€”
-no dimming/darkening anywhere.
+language: **skeleton only, ~150ms minimum hold, 200ms fade-in on reveal** â€”
+no dimming/darkening anywhere (the hold/fade constants were later tightened to
+`MIN_SKELETON_HOLD_MS` 150ms and a 200ms `.content-enter`).
 
 ```mermaid
 flowchart LR
-    S["Skeleton<br/>(min ~350ms hold)"] -->|reveal| F["Content fades in<br/>(.content-enter, 300ms)"]
+    S["Skeleton<br/>(min ~150ms hold)"] -->|reveal| F["Content fades in<br/>(.content-enter, 200ms)"]
     subgraph "shared"
       M["useMinSkeletonHold(pending)"]
       C["useContentEnter(ref, shown)"]
@@ -3034,8 +3103,8 @@ flowchart LR
     A["?view= param"] --> B{"anchor unit"}
     B -- "month (default)" --> C["?month=YYYY-MM"]
     B -- "week / schedule / agenda" --> D["?date=YYYY-MM-DD"]
-    C --> E["fetchMonthEvents(month)"]
-    D --> F["month derives from date<br/>week: 2-month range fetch"]
+    C --> E["readCalendarRange(months)"]
+    D --> F["month derives from date<br/>week: 2-month range read"]
     E --> G{"view"}
     F --> G
     G -- month --> H["MonthView"]
@@ -3091,7 +3160,7 @@ flowchart LR
     B -- yes --> C
     B -- no --> D[no day change]
     C -- "agendaSlideDir Â±1<br/>+ setAgendaDate" --> E{crosses loaded<br/>month edge?}
-    E -- no --> F["wrapper remounts (key = day)<br/>220ms directional slide-in"]
+    E -- no --> F["wrapper remounts (key = day)<br/>250ms directional slide-in"]
     E -- yes --> G["navigate ?month= Â±1"]
     G --> H["new month events commit<br/>(modal stays open)"]
     H --> F
@@ -3159,8 +3228,8 @@ flowchart LR
     B -- no --> D[no day change]
     C -- in-month --> E["setViewedDay + slide dir Â±1<br/>bare router.push(?date=)<br/>â€” no pending flag, no skeleton"]
     C -- cross-month --> F["slide dir 0, navigate(?date=, ?month=)<br/>data navigation"]
-    E --> G["day-keyed div remounts â†’<br/>220ms directional slide-in"]
-    F --> H["AgendaListSkeleton (â‰¥350ms)<br/>then reveal fade"]
+    E --> G["day-keyed div remounts â†’<br/>250ms directional slide-in"]
+    F --> H["AgendaListSkeleton (â‰¥150ms)<br/>then reveal fade"]
     E -. "URL re-render (same month,<br/>L1/cached read)" .-> G
 ```
 
@@ -3241,7 +3310,7 @@ columns). The matrix is therefore a custom CSS-grid component.
 
 ```mermaid
 flowchart LR
-    A["?view=weekv2 + ?date="] --> B["page: weekDays(date)<br/>fetchRangeEvents (2-month span)<br/>â€” same cache path as Week"]
+    A["?view=weekv2 + ?date="] --> B["loadDashboardData → buildDashboardData<br/>readCalendarRange (2-month span)<br/>â€” same cache path as Week"]
     B --> C["buildWeekLanes (pure, tested)<br/>rows = creator âˆª tagged users<br/>âˆª dept:&lt;calendarId&gt;; multi-day<br/>events as WeekSpan, greedy lanes"]
     D["buildScheduleResources (pure)<br/>dept row + user rows, groups"] --> E["WeekMatrixView<br/>7 day columns Ã— resource rows"]
     C --> E
@@ -3349,6 +3418,12 @@ flowchart LR
     E --> F["FilterModal<br/>My Events quick action (draft)<br/>+ Clear + Apply"]
 ```
 
+> **Superseded** by §1.156: the ⋮ menu's Filters section (and the
+> `Menu.CheckboxItem` "My Events" / Clear / More Filters group) was removed. A
+> dedicated `FilterButton` (icon + active-count badge) opens the `FilterModal`
+> directly; the in-dialog "Myself" quick action, Clear and Apply remain. Filters are
+> now per-tab server-side (§1.202).
+
 - Verification: `pnpm lint`, `pnpm typecheck`, `pnpm test` all pass. Manual dev-server
   smoke owed: dashboard + parade-state â€” toggle "My Events" on/off in the â‹® menu (badge +
   checkmark, `?users=` in the URL), Clear (badge â†’ 0, defaults restored), More Filters
@@ -3374,6 +3449,11 @@ flowchart LR
     C --> A["createEvent / updateEvent<br/>resolveEventLocation (silent clamp)"]
     A --> G["Google event<br/>location field"]
 ```
+
+> **Superseded** by §1.127/§1.130 (location categories): `location_policy`
+> (`in · out · both`) became the `allowed_locations` matrix (`in / out / overseas`)
+> plus `show_location`, and `clampOutOfCamp` now **preserves** the location string
+> in every category — in-camp events may record an optional specific location.
 
 - **`clampOutOfCamp`** (`src/lib/events/locationPolicy.ts`) â€” the `out` branch
   now **keeps** the location (`{ outOfCamp: true, location }`; previously
@@ -3449,6 +3529,12 @@ flowchart LR
     end
     NAV -- "full load / RSC request" --> COOK
 ```
+
+> **Superseded** by §1.202: `usePersistUiState` and the `?_fresh=` injection were
+> removed. Scalar preferences moved server-side (`user_preferences`: active tab,
+> parade filters, search history); the device cookie `cloudy2.ui` keeps only
+> `lastPage` / `sidebarCollapsed` / dashboard `date`/`month` + `zoom`/`monthZoom` /
+> `dualSplit`, written by `usePersistDashboardNav`.
 
 - **Core modules** â€” `src/lib/ui/uiState.ts` (pure, unit-tested): the
   `UiState` shape, `encodeUiState`/`decodeUiState` (base64url(JSON), padding-
@@ -3614,6 +3700,11 @@ flowchart LR
     C --> P["dashboard/page.tsx<br/>normalizePinnedViews()<br/>â€” read even on _fresh/edit"]
     P --> S
 ```
+
+> **Superseded** by §1.202 (on-demand dashboard Views): `pinnedViews`,
+> `orderDashboardViews`, `normalizePinnedViews` and the ⋮ Pin/Unpin item were
+> removed. Tabs are now server-side `user_dashboard_views` rows reordered through
+> `reorderDashboardViews` (the Manage-views modal, `useReorderRows` FLIP).
 
 - **Pure helpers** (`src/lib/ui/uiState.ts`, unit-tested) â€”
   `DASHBOARD_VIEW_VALUES` (the five tab values in default order),
@@ -4248,7 +4339,7 @@ flowchart LR
   B -- "tap checkbox / card" --> C["toggle user<br/>write localStorage under shown date"]
   B -- tap entry point --> D["Menu (top-end / bottom-end)"]
   D -- Reset --> E["clear all dates"]
-  D -- Copy --> F["clipboard string:<br/>&lt;dept&gt; (X of Y)<br/>Name - Absent / - (ACRONYM, â€¦)"]
+  D -- Copy --> F["clipboard string:<br/>&lt;dept&gt; (X of Y present)<br/>Name / Name - Absent"]
   D -- Exit --> G["Normal mode<br/>(checks kept)"]
   C --> H["localStorage<br/>cloudy2.parade-attendance<br/>{ date: userId[] }"]
   E --> H
@@ -4256,14 +4347,12 @@ flowchart LR
 
 - `attendanceReport.ts` (new, pure) â€” `buildAttendanceReport(departments,
 checkedIds)`: departments in page order (Aâ†’Z, Unassigned last), empty ones
-  skipped; header `<name> (<checked> of <total>)`; one line per user in
+  skipped; header `<name> (<checked> of <total> present)`; one line per user in
   roster order using the raw roster `name` (full name, not the display-name
   template): unchecked users get ` - Absent` (even when event-tagged â€” absent
-  wins), checked users render bare or with ` - (<tags joined ", ">)` for
-  event-tagged days; departments separated by a blank line, no trailing
-  newline. Tags resolve via `resolveEventTypeTag`, the `{type:acronym}`
-  fallback chain: registry shortname â†’ raw type name â†’ event title when the
-  event has no type.
+  wins), checked users render **bare** (the event-tag suffix and
+  `resolveEventTypeTag` were removed in §1.89); departments separated by a blank
+  line, no trailing newline.
 - `attendanceStorage.ts` (new) â€” pure codecs (`parseAttendanceRecord` returns
   `{}` for corrupt/non-conforming JSON and keeps only `string[]` values;
   `serializeAttendanceRecord` drops empty dates) plus SSR-safe
@@ -4333,6 +4422,11 @@ flowchart LR
   S -- schedule/Day --> SD["ScheduleGridSkeleton"]
 ```
 
+> **Superseded:** `resolveDashboardView` and the per-view route fallback were
+> later removed — `dashboard/loading.tsx` now renders one generic
+> `DashboardShellSkeleton`, and the per-view skeletons are chosen client-side in
+> `DashboardView`'s in-page `gridLoading` branch.
+
 - `resolveDashboardView(raw)` (new, pure, in `uiState.ts`): known
   `DASHBOARD_VIEW_VALUES` pass through, everything else degrades to `"month"`.
   `page.tsx` uses it too, replacing its inline switch â€” and it now also
@@ -4389,14 +4483,14 @@ admin-configured webhook URL so external systems can mirror the change.
 sequenceDiagram
     participant A as server action
     participant W as dispatchEventWebhook
-    participant S as settings row
+    participant S as webhooks table
     participant R as receiver
     A->>A: Google writes + audit row succeed
     A->>W: input (snapshot, eventId, changes, actorâ€¦)
-    W->>S: getSettings()
-    alt disabled or no URL
+    W->>S: select enabled endpoints
+    alt no enabled endpoints
         W-->>A: no-op
-    else configured
+    else one or more
         W->>W: buildEventWebhookPayload + webhookSignature (pure)
         Note over W: after(() => â€¦) â€” the action returns now
         W->>R: POST application/json (10s timeout)
@@ -5080,7 +5174,7 @@ cookie entry) â€” a refresh or navigation starts with the chrome up.
 ```mermaid
 flowchart LR
   subgraph dash [DashboardView]
-    BTN["Date-nav toggle<br/>(aria-pressed)"]
+    BTN["Floating top-right toggle<br/>(aria-label)"]
     UM["unmount cleanup â†’ exit()"]
   end
   subgraph shell [AppShellShell]
@@ -5237,8 +5331,8 @@ tests in `userSelect.test.ts`. Badge visuals follow the existing toggle idiom
 ```mermaid
 flowchart TB
     subgraph EventModal ["Create/edit event wizard"]
-        A["Invitees step: summary badges + Select trigger"] --> B["UserSelectModal<br/>(z 300)"]
-        B -->|onConfirm Record sectionâ†’ids| C["applyInviteePicker<br/>prefixes user:/dept:<br/>re-adds locked creator"]
+        A["Participants step: summary badges + Select trigger"] --> B["UserSelectModal<br/>(z 300)"]
+        B -->|onConfirm Record sectionâ†’ids| C["applyInviteePicker → mergeInviteeSelection<br/>prefixes user:/dept:<br/>organizer not auto-added (pre-seeded, removable)"]
         C --> D["form field invitees<br/>(shape unchanged)"]
     end
     subgraph Filter ["FilterModal (dashboard / parade state)"]
@@ -5249,8 +5343,9 @@ flowchart TB
 
 Verification: `pnpm lint`, `pnpm typecheck`, `pnpm test` pass (592 tests,
 incl. the new 16). Manual QA: create/edit event â€” invitees step shows the
-selected badges, the dialog lists all users grouped by department with a
-live search, the creator can't be dropped; dashboard + parade-state Filters
+  selected badges, the dialog lists all users grouped by department with a
+  live search, the organizer is only present when self-selected (and is
+  removable — §1.194); dashboard + parade-state Filters
 â†’ Users opens the grouped dialog, My Events parity, empty confirm clears the
 filter.
 
@@ -6061,6 +6156,11 @@ flowchart LR
     F --> G["500 â†’ 'Cloudy hit a problem'"]
     D -. "guard: isUuid('admin') = false" .-> H["return false â€” no query"]
 ```
+
+> **Superseded in part** by §1.142: the protected layout now skips the KAH probe
+> entirely for admins (`isAdmin ? null : <ShellKahNav/>`), so the synthetic
+> `"admin"` id no longer reaches `userHasKahGroup` from the layout. The pure
+> `isUuid` guard remains for any non-UUID member id.
 
 Fix: a pure `isUuid` helper in `src/lib/kah/status.ts` (canonical UUID
 regex, case-insensitive), guarding both `userHasKahGroup` (returns `false`)
@@ -7562,8 +7662,10 @@ server-side during the stream and their only UI effect is additive.
 
 **Pure core.** `src/lib/ui/coldStart.ts` (`docs/loading-transitions.md`
 Â§1.13.1) â€” `coldStartReducer` + `coldStartRouteRequiresContent` +
-`MIN_COLD_LOAD_MS` (250) / `MAX_LOAD_MS` (4 s) / `READY_DWELL_MS` (1.2 s) /
-`CHECK_INTERVAL_MS` (100), all unit-tested in `src/lib/ui/coldStart.test.ts`
+`MIN_COLD_LOAD_MS` (250) / `READY_DWELL_MS` (1.2 s), all unit-tested in
+`src/lib/ui/coldStart.test.ts` (there is no time cap — the reducer holds
+`loading` however long; the shell wraps each leg fetch in
+`withTimeout(COLD_LEG_TIMEOUT_MS)` so a hung fetch can't block the hand-off)
 (11 cases: enter-loading, in-flight hold, confirm-ready, sub-threshold skip,
 content-gate wait, waived-route confirm, force-end, once-per-session).
 
@@ -7621,11 +7723,19 @@ ignores the matrix entirely (its category always comes from the lock).
 flowchart LR
     A[Admin: Settings â†’ Event Types<br/>Locked location select] -->|in / out / overseas / unlock| T[(event_types.locked_location<br/>nullable text, migration 0034)]
     T -->|listEventTypes / getEventTypesByNames| D[dashboard page + write context]
-    T -->|locked|null| W[Wizard buildSteps]
+    T -->|locked / null| W[Wizard buildSteps]
     W -->|locked â†’ no location step| F[EventForm: seeds flags from the lock<br/>on type change + prefill]
     W -->|unlocked â†’ matrix clamp as before| F2[EventForm: normal location step]
     D --> S[resolveEventLocation: locked<br/>â†’ flagsFromCategory + empty location<br/>unlocked â†’ clampOutOfCamp]
 ```
+
+> **Superseded** by the revised §1.191 (migration `0035`/`0036`): the
+> `locked_location` column was dropped in favour of `event_types.show_location`
+> (boolean, default `true`) — a "Show location in the event form" toggle, usable
+> only when the Allowed-locations matrix has exactly one category. When off, the
+> wizard skips the Location step and saves in the sole allowed category with no
+> specific place; `resolveEventLocation` keys on `showLocation === false` +
+> a single allowed location rather than a "locked" value.
 
 **Threading.** The new field follows the `show_remarks`/`show_invitees` chain exactly:
 schema (`src/db/schema.ts`) â†’ migration â†’ event-type form (`EventTypeForm.tsx`, incl. a
@@ -7785,7 +7895,7 @@ with only the dashboard hosting an escape hatch.
 ```mermaid
 flowchart LR
     PTR["native pull-to-refresh (all pages)"] -->|"disabled: html { overscroll-behavior-y: contain }"| OFF
-    subgraph REFRESH["profile menu Force refresh (all pages)"]
+    subgraph REFRESH["header Force refresh (all pages)"]
         R["full reload: current URL + ?refresh=<now>"]
         SW["SW: nonce URL never cached â†’ network render"]
         DASH["/dashboard: nonce honored â†’ force Google read"]
@@ -7798,15 +7908,17 @@ flowchart LR
 - **Gesture disabled** (`globals.css`): `html { overscroll-behavior-y: contain }` â€” the
   app scrolls as one shared document on every route, so the root scroller governs the
   gesture app-wide (Android Chrome/Edge). Inner scrollers already contained themselves.
-- **Profile-menu item** (`UserMenu.tsx`, every page): builds
+- **Header item** (`AppShellShell`, every page — it later moved from the profile menu back
+  to the shell header): builds
   `window.location.href + ?refresh=<epoch-ms>` and assigns it (re-entry-guarded). Because
   `refresh` is an `ONE_SHOT_PARAMS` key the SW has no cached entry for that URL, so the
-  reload is a network render on **every** page; on `/dashboard` `page.tsx` still parses the
-  nonce (â‰¤ `REFRESH_NONCE_TTL_MS`, 5 min) and passes `force: true` â†’ the events cache
+  reload is a network render on **every** page; on `/dashboard` the `loadDashboardData`
+  server action still honors the nonce (â‰¤ `REFRESH_NONCE_TTL_MS`, 5 min) and passes
+  `force: true` â†’ the events cache
   skips L1/L2 and blocks on Google for the visible months (unchanged mechanics, Â§1.5.1).
   The item is disabled on the calendar while Google is unconfigured (a forced fetch would
   cache empties); `googleConfigured` is read in the protected layout (env-only) and threaded
-  â†’ `AppShellShell` â†’ `UserMenu`.
+  â†’ `AppShellShell`.
 - **Global nonce strip** (`useOneShotRefreshStrip`, `src/lib/pwa/client.ts`, mounted in
   `AppShellShell`, once per document load): clears the pathname's **RSC** cache entries
   (`invalidateRscPathCaches`) then `router.replace`s to the clean URL (no history entry) â€”

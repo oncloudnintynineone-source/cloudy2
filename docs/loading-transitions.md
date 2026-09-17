@@ -246,23 +246,23 @@ still forcing). None of the three is ever written to the document/RSC caches
 | ----- | ------- | -------- | ----------- |
 | `?event=<uuid>` | open the event's details modal (deep link from the Google Calendar `Edit:` note line, Pinned Events, event search; `_eventCal` names the target's calendar so the server resolves that one event separately) | `isUuid` — anything else ignored (`dashboard/page.tsx`); the link's `date` pins the fetched period; the render keeps the active tab (search carries `?view=`) and its filters — the grid's filtered `events` are never widened, the target rides as `deepLinkEvent` | ref-guarded effect after the forced render mounts (`DashboardView.tsx`) — a refresh won't reopen the modal; re-arms once stripped so the same event can open again; a same-period link (which doesn't refetch on its own) triggers a ref-guarded one-shot refetch in `DashboardScreen.tsx` |
 | `?edit=<uuid>` | open the event's edit form directly (the event search modal's "Edit" action) | `isUuid` — anything else ignored (`dashboard/page.tsx`); the link's `date` pins the fetched month; the render reads the remembered-UI-state cookie | ref-guarded effect after the forced render mounts (`DashboardView.tsx`) — a refresh won't reopen the form |
-| `?refresh=<epoch-ms>` | Force refresh (header button, every page): a **full page reload** to the nonce URL — the SW never caches it, so every page gets a network render; on the dashboard the server additionally bypasses the events-cache freshness windows and blocks on fresh Google reads **inside the same request** | finite number younger than `REFRESH_NONCE_TTL_MS` (5 min, `page.tsx`) — a stale history entry can't silently re-force (`events-cache.md` §1.5.1) | `useOneShotRefreshStrip` after the reloaded document mounts (`src/lib/pwa/client.ts`, mounted in `AppShellShell`) — clears the pathname's RSC entries first, then `router.replace`s to the clean URL (once per document load) |
+| `?refresh=<epoch-ms>` | Force refresh (header button, every page): a **full page reload** to the nonce URL — the SW never caches it, so every page gets a network render; on the dashboard the server additionally bypasses the events-cache freshness windows and blocks on fresh Google reads **inside the same request** | finite number younger than `REFRESH_NONCE_TTL_MS` (5 min, `snapshot.ts`) — a stale history entry can't silently re-force (`events-cache.md` §1.5.1) | `useOneShotRefreshStrip` after the reloaded document mounts (`src/lib/pwa/client.ts`, mounted in `AppShellShell`) — clears the pathname's RSC entries first, then `router.replace`s to the clean URL (once per document load) |
 
 ```mermaid
 sequenceDiagram
  participant V as Shell header Force refresh (client)
  participant SW as Service worker
- participant P as Page (server)
- participant R as useOneShotRefreshStrip (client)
+ participant P as Page (server, thin shell)
+ participant R as DashboardScreen → loadDashboardData
  V->>V: window.location.assign(?refresh=<epoch-ms>)
  V->>SW: navigation — nonce URL never cached → network
  SW-->>P: full document render (route loading.tsx skeleton)
- alt /dashboard
- P->>P: nonce valid? → force: true → fresh Google reads in-request
+ P-->>R: document mounts
+ alt /dashboard (nonce fresh)
+ R->>P: loadDashboardData({ refresh }) → force: true → fresh Google reads in-request
+ P-->>R: fresh snapshot
  end
- P-->>R: fresh document mounts
- R->>P: invalidate RSC path entries + router.replace stripping ?refresh=
- P-->>V: clean URL
+ R->>P: useOneShotRefreshStrip — invalidate RSC path entries + router.replace stripping ?refresh=
 ```
 
 Doing the forced work **inside the same request** (rather than
@@ -474,7 +474,7 @@ above it) while *any* named source is busy.
 flowchart LR
  A[route &lt;Link&gt; nav] --> C{ActivityProvider}
  B[settings tab flip] --> C
- D[dashboard/parade/audit transitions] --> C
+ D[parade/audit transitions] --> C
  E[post-mutation refresh] --> C
  C -->|anyBusy >= 300ms| F[indeterminate amber bar]
  F -->|idle, hold 150ms + fade| F

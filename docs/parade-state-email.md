@@ -57,7 +57,7 @@ goes out.
 erDiagram
  settings {
   bool parade_email_enabled
-  jsonb parade_email_recipient_ids "roster user ids"
+  jsonb parade_email_recipient_ids "roster user ids (no FK — jsonb array on the singleton row)"
   text parade_email_subject_template
   text parade_email_body_template
  }
@@ -69,7 +69,6 @@ erDiagram
   timestamp sent_at
   text error
  }
- users ||--o{ settings : "recipient ids reference"
 ```
 
 - Recipients are stored as **user ids**, so a person's address follows their roster record

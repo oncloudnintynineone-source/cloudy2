@@ -68,7 +68,7 @@ The constraints:
 ```mermaid
 flowchart LR
  subgraph WRITE["Write path (best-effort)"]
- M["mutation server actions<br/>(roster / events / eventTypes / settings / auth)"]
+ M["mutation server actions<br/>(roster / events / eventTypes / settings / auth /<br/>webhooks / quickLinks / kah / parade-email / audit)"]
  LA["logAction() — resolves route + IP<br/>from headers, swallows failures"]
  BL["buildAuditLog() (pure)"]
  M --> LA --> BL
@@ -97,7 +97,7 @@ erDiagram
  text actor_name "snapshot — survives user deletion"
  text actor_role "snapshot (admin/user)"
  text action NOT NULL "dotted action key"
- text entity_type "user / calendar / eventType / eventTypeGroup / webhook / quickLink / kah_group / settings / auditLog / cache"
+ text entity_type "user / calendar / eventType / eventTypeGroup / webhook / quickLink / kah_group / settings / auditLog / cache / paradeStateEmail"
  uuid entity_id "plain column, no FK"
  text entity_name
  text route "from referer header"
@@ -106,7 +106,7 @@ erDiagram
  text ip
  timestamptz created_at NOT NULL "default now()"
  }
- users ||o--o{ audit_logs : "actor_id (set null)"
+ users |o--o{ audit_logs : "actor_id (set null)"
 ```
 
 Indexes: `audit_logs_actor_idx (actor_id)`, `audit_logs_action_idx (action)`,
@@ -133,7 +133,7 @@ every mutation site:
 
 **Row construction** is the pure `build.ts`:
 
-- `AUDIT_ACTIONS` (`build.ts`) — the 35 known dotted action keys:
+- `AUDIT_ACTIONS` (`build.ts`) — the 36 known dotted action keys:
   `auth.login.success`, `auth.login.failure`, `user.create`, `user.update`,
   `user.status.change`, `calendar.create`, `calendar.rename`, `calendar.update`,
   `calendar.delete`, `eventType.create`, `eventType.rename`, `eventType.delete`,
@@ -141,8 +141,8 @@ every mutation site:
   `event.create`, `event.update`, `event.delete`, `event.participantNotify`,
   `webhook.create`, `webhook.update`, `webhook.delete`, `quickLink.create`,
   `quickLink.update`, `quickLink.delete`, `kahGroup.create`, `kahGroup.update`,
-  `kahGroup.delete`, `kah.breachNotify`, `access.grant`, `access.update`,
-  `access.revoke`, `settings.update`, `audit.purge`, `cache.purge`.
+  `kahGroup.delete`, `kah.breachNotify`, `paradeState.emailSend`, `access.grant`,
+  `access.update`, `access.revoke`, `settings.update`, `audit.purge`, `cache.purge`.
   `listAuditActions()` feeds the filter dropdown.
 - `actorFromUser(user)` (`build.ts`) maps a session user to the actor columns;
   the **admin pseudo-account** (`id === "admin"`, which has no users row) stores
@@ -151,13 +151,17 @@ every mutation site:
   fields defaulting to null.
 - `entity_type` values actually written: `user`, `calendar`, `eventType`,
   `eventTypeGroup`, `webhook`, `quickLink`, `kah_group`, `settings`, `auditLog`,
-  `cache`. Note: *event* mutations use `entityType: "calendar"` — the entity is
-  the department calendar the event lives in (`events/actions.ts`).
+  `cache`, `paradeStateEmail`. Note: *event* mutations use
+  `entityType: "calendar"` — the entity is the department calendar the event
+  lives in (`events/actions.ts`).
 
 Call sites: `auth.ts` (login success/failure), `roster/actions.ts` (users,
 calendars, access), `events/actions.ts` (create/update/delete),
-`eventTypes/actions.ts`, `settings/actions.ts`, and `audit/actions.ts` (the purge
-itself, §1.7).
+`eventTypes/actions.ts`, `settings/actions.ts`, `webhooks/actions.ts`,
+`quickLinks/actions.ts`, `kah/actions.ts` + `kah/notify.ts`,
+`parade-email/actions.ts` + `parade-email/dispatch.ts`,
+`events/participantNotify/notify.ts`, and `audit/actions.ts` (the purge itself,
+§1.7).
 
 ## 1.6 The `details` payloads
 

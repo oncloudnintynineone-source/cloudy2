@@ -119,9 +119,8 @@ flowchart LR
  V -- "checkUserClashes({targetUserId})" --> A
  A --> S
  S --> R
- S --> C
+ R --> C
  C --> M
- R --> M
  M --> E
  R --> E
  E --> P

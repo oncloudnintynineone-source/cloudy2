@@ -84,7 +84,7 @@ sequenceDiagram
   A->>G: write copies
   A->>A: logAction + webhook + KAH + caches
   A->>P: dispatchParticipantNotifications({before, after, copies, …})
-  Note over A: mutation returns; response not delayed
+  Note over A: mutation returns — response not delayed
   P->>D: roster memberships + added-set diff
   P->>D: filter actor, active users, master switch, subscriptions
   P->>D: audit row (event.participantNotify)
@@ -294,9 +294,10 @@ one of two notification targets, exactly like a dashboard view gets a template.
 
 ```mermaid
 flowchart LR
-  A["assignments: notifyCreated / notifyAdded -> template"] --> R
+  A["assignments: notifyCreated / notifyAdded -> recipe"] --> R
   B["saved event fields (description/type/location/time)"] --> R
-  R["renderTitleRecipe (titleRecipe.ts)"] --> M["{ title, body }"]
+  R["renderTitleRecipe (titleRecipe.ts) — body string"] --> M
+  T["event title (rendered title / type / fallback)"] --> M["{ title, body }<br/>(buildPushMessage, notify.ts)"]
   M --> S["showNotification(title, body) in sw.ts"]
 ```
 

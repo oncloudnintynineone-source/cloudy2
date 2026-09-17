@@ -504,28 +504,33 @@ describe("swRules", () => {
   });
 
   describe("shouldPromptForUpdate", () => {
-    it("prompts for a waiting worker on a controlled page", () => {
-      expect(
-        shouldPromptForUpdate({ hasController: true, hasWaiting: true, alreadyPrompted: false }),
-      ).toBe(true);
+    const base = { clientVersion: "2026.09.17-1", serverVersion: "2026.09.17-2" };
+
+    it("prompts when the running build differs from the server's", () => {
+      expect(shouldPromptForUpdate({ ...base, alreadyPrompted: false })).toBe(true);
     });
 
-    it("never prompts on a first install (no controller)", () => {
+    it("does not prompt when the running build is current", () => {
       expect(
-        shouldPromptForUpdate({ hasController: false, hasWaiting: true, alreadyPrompted: false }),
+        shouldPromptForUpdate({
+          clientVersion: "2026.09.17-2",
+          serverVersion: "2026.09.17-2",
+          alreadyPrompted: false,
+        }),
       ).toBe(false);
     });
 
-    it("does not prompt without a waiting worker", () => {
+    it("does not prompt without both versions", () => {
       expect(
-        shouldPromptForUpdate({ hasController: true, hasWaiting: false, alreadyPrompted: false }),
+        shouldPromptForUpdate({ clientVersion: null, serverVersion: "2026.09.17-2", alreadyPrompted: false }),
+      ).toBe(false);
+      expect(
+        shouldPromptForUpdate({ clientVersion: "2026.09.17-1", serverVersion: null, alreadyPrompted: false }),
       ).toBe(false);
     });
 
-    it("does not stack a second prompt for the same worker", () => {
-      expect(
-        shouldPromptForUpdate({ hasController: true, hasWaiting: true, alreadyPrompted: true }),
-      ).toBe(false);
+    it("does not stack a second prompt for the same server build", () => {
+      expect(shouldPromptForUpdate({ ...base, alreadyPrompted: true })).toBe(false);
     });
   });
 

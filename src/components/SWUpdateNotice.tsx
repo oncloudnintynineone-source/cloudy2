@@ -3,6 +3,7 @@
 import { useEffect, useRef } from "react";
 
 import { useActionPill } from "@/components/ActionPill";
+import { APP_VERSION } from "@/lib/appVersion";
 import { clearAllSavedPages } from "@/lib/pwa/client";
 import {
   shouldPromptForUpdate,
@@ -10,28 +11,31 @@ import {
   SW_UPDATE_PROMPT_GRACE_MS,
 } from "@/lib/pwa/swRules";
 
-/**
- * How long to wait for the new worker to take control after we ask it to skip
- * waiting before reloading anyway. Activation is near-instant once the message
- * lands, so this only covers a missed `controllerchange`.
- */
-const RELOAD_TIMEOUT_MS = 3000;
+interface VersionResponse {
+  version?: unknown;
+}
 
 /**
  * Keeps a running page on the latest deployed build.
  *
  * The browser only checks for a new service worker on a navigation or page
  * load, so a long-lived session (a PWA left open all day) never discovers a
- * deploy — the "app not updating automatically" report. This component polls
- * `registration.update()` while visible (plus on `visibilitychange` / `focus` /
- * `online`), and when a new build has installed and is **waiting**, it shows
- * the shared action pill: "New version available — Reload".
+ * deploy. This component polls `GET /api/version` while visible (plus on
+ * `visibilitychange` / `focus` / `online`) and compares the server's build
+ * with the `APP_VERSION` baked into this page's bundle: a mismatch means this
+ * page is stale, and it shows the shared action pill
+ * ("New version available — Reload").
  *
- * `src/app/sw.ts` deliberately does not `skipWaiting`, so the old worker keeps
- * serving the old build intact while the pill is up — deferring the reload can
- * never 404 a lazily-loaded chunk. Tapping the pill (or the grace timer
- * expiring) posts `SKIP_WAITING`, and the reload happens on the resulting
- * `controllerchange`, so the tab comes back under the new build.
+ * Detection is deliberately **not** the service worker's `registration.waiting`
+ * state. On iOS Safari a waiting worker can linger — and keep being reported —
+ * after the new build is already running, which made the pill reappear after
+ * every reload the user tapped. Comparing live server/client versions is
+ * authoritative, so a stuck worker can never re-prompt a page that is current.
+ *
+ * Applying the update clears the page caches, drops the service-worker
+ * registration (a stuck waiting worker would otherwise keep serving the old
+ * precache), and reloads — `SerwistProvider` then installs the current build's
+ * worker from a clean slate.
  *
  * Mounted inside `ActionPillProvider` (see `AppProviders`) so it can reach the
  * pill context.
@@ -39,15 +43,13 @@ const RELOAD_TIMEOUT_MS = 3000;
 export function SWUpdateNotice(): null {
   const { show } = useActionPill();
 
-  const registrationRef = useRef<ServiceWorkerRegistration | null>(null);
-  const waitingRef = useRef<ServiceWorker | null>(null);
-  const promptedRef = useRef(false);
+  const promptedForRef = useRef<string | null>(null);
   const applyingRef = useRef(false);
   const graceTimerRef = useRef<number | null>(null);
-  const updateCheckInFlightRef = useRef(false);
+  const inFlightRef = useRef(false);
 
   useEffect(() => {
-    if (typeof navigator === "undefined" || !("serviceWorker" in navigator)) return;
+    if (typeof window === "undefined") return;
     let cancelled = false;
 
     const clearGraceTimer = () => {
@@ -61,96 +63,74 @@ export function SWUpdateNotice(): null {
       if (applyingRef.current) return;
       applyingRef.current = true;
       clearGraceTimer();
-      let reloaded = false;
-      const reloadNow = () => {
-        if (reloaded) return;
-        reloaded = true;
-        void clearAllSavedPages().then(() => {
-          window.location.reload();
-        });
-      };
-      // The waiting worker activates (skipWaiting) and claims this tab, which
-      // fires controllerchange — reload then, so the reload runs under the new
-      // build. The timeout is only a fallback for a missed event.
-      navigator.serviceWorker.addEventListener("controllerchange", reloadNow, { once: true });
-      waitingRef.current?.postMessage({ type: "SKIP_WAITING" });
-      window.setTimeout(reloadNow, RELOAD_TIMEOUT_MS);
+      void (async () => {
+        try {
+          await clearAllSavedPages();
+        } catch {
+          // Best effort — never block the reload.
+        }
+        try {
+          const registration = await navigator.serviceWorker?.getRegistration();
+          await registration?.unregister();
+        } catch {
+          // Best effort.
+        }
+        window.location.reload();
+      })();
     };
 
-    // `candidate` covers the tick where the worker has reached "installed" but
-    // the registration has not yet surfaced it as `waiting`.
-    const promptForUpdate = (candidate: ServiceWorker | null) => {
-      const waiting = registrationRef.current?.waiting ?? candidate;
-      if (
-        !shouldPromptForUpdate({
-          hasController: navigator.serviceWorker.controller !== null,
-          hasWaiting: waiting !== null,
-          alreadyPrompted: promptedRef.current,
-        })
-      ) {
-        return;
-      }
-      promptedRef.current = true;
-      waitingRef.current = waiting;
-      show({
-        title: "New version available",
-        label: "Reload",
-        // "fill" sweeps once over the grace window, then persists until
-        // actioned — the sweep is the warned countdown to the auto-apply.
-        direction: "fill",
-        duration: SW_UPDATE_PROMPT_GRACE_MS,
-        onAction: applyUpdate,
-      });
-      clearGraceTimer();
-      graceTimerRef.current = window.setTimeout(applyUpdate, SW_UPDATE_PROMPT_GRACE_MS);
-    };
-
-    const watchInstalling = (reg: ServiceWorkerRegistration) => {
-      const installing = reg.installing;
-      if (!installing) return;
-      installing.addEventListener("statechange", () => {
-        if (installing.state === "installed") promptForUpdate(installing);
-      });
-    };
-
-    const onUpdateFound = () => {
-      const reg = registrationRef.current;
-      if (reg) watchInstalling(reg);
-    };
-
-    const checkForUpdate = () => {
-      const reg = registrationRef.current;
-      if (!reg || updateCheckInFlightRef.current) return;
+    const checkVersion = async () => {
+      if (inFlightRef.current) return;
       if (typeof navigator.onLine === "boolean" && !navigator.onLine) return;
-      updateCheckInFlightRef.current = true;
-      void reg
-        .update()
-        .catch(() => {})
-        .finally(() => {
-          updateCheckInFlightRef.current = false;
+      inFlightRef.current = true;
+      try {
+        const response = await fetch("/api/version", { cache: "no-store" });
+        if (!response.ok) return;
+        const data = (await response.json()) as VersionResponse;
+        const serverVersion = typeof data.version === "string" ? data.version : null;
+        if (cancelled || serverVersion === null) return;
+        // Back on the current build (the reload landed): allow a future deploy
+        // to prompt again.
+        if (serverVersion === APP_VERSION) {
+          promptedForRef.current = null;
+          return;
+        }
+        if (
+          !shouldPromptForUpdate({
+            clientVersion: APP_VERSION,
+            serverVersion,
+            alreadyPrompted: promptedForRef.current === serverVersion,
+          })
+        ) {
+          return;
+        }
+        promptedForRef.current = serverVersion;
+        show({
+          title: "New version available",
+          label: "Reload",
+          // "fill" sweeps once over the grace window, then persists until
+          // actioned — the sweep is the warned countdown to the auto-apply.
+          direction: "fill",
+          duration: SW_UPDATE_PROMPT_GRACE_MS,
+          onAction: applyUpdate,
         });
+        clearGraceTimer();
+        graceTimerRef.current = window.setTimeout(applyUpdate, SW_UPDATE_PROMPT_GRACE_MS);
+      } catch {
+        // Offline or transient — retry on the next trigger.
+      } finally {
+        inFlightRef.current = false;
+      }
     };
 
     const onVisible = () => {
-      if (document.visibilityState === "visible") checkForUpdate();
+      if (document.visibilityState === "visible") void checkVersion();
     };
 
-    void navigator.serviceWorker
-      .getRegistration()
-      .then((reg) => {
-        if (cancelled || !reg) return;
-        registrationRef.current = reg;
-        reg.addEventListener("updatefound", onUpdateFound);
-        // A worker can already be waiting (e.g. this document was reloaded
-        // after the new build installed) — surface it without another event.
-        promptForUpdate(reg.waiting);
-      })
-      .catch(() => {});
-
+    void checkVersion();
     const interval = window.setInterval(() => {
-      if (document.visibilityState === "visible") checkForUpdate();
+      if (document.visibilityState === "visible") void checkVersion();
     }, SW_UPDATE_CHECK_INTERVAL_MS);
-
     document.addEventListener("visibilitychange", onVisible);
     window.addEventListener("focus", onVisible);
     window.addEventListener("online", onVisible);
@@ -162,7 +142,6 @@ export function SWUpdateNotice(): null {
       document.removeEventListener("visibilitychange", onVisible);
       window.removeEventListener("focus", onVisible);
       window.removeEventListener("online", onVisible);
-      registrationRef.current?.removeEventListener("updatefound", onUpdateFound);
     };
   }, [show]);
 

@@ -86,16 +86,16 @@ internal one, and the cache is tuned to keep the scarce side cheap. See
 
 ```mermaid
 flowchart LR
- subgraph RSC["Server render (per request)"]
- D["/dashboard page"]
- FM["fetchMonthEvents() / fetchRangeEvents()<br/>(queries.ts)"]
+ subgraph RSC["Server render / action (per request)"]
+ D["/dashboard page (thin shell)"]
+ FM["loadDashboardData → buildDashboardData<br/>→ readCalendarRange (queries.ts)"]
  end
  subgraph CACHE["Layered events cache (eventsCache.ts)"]
- L1["L1 in-process Map<br/>(0 I/O on hit)"]
+ L1["L1 in-process Map<br/>(metadata-only L2 verify)"]
  L2["L2 Postgres table<br/>google_event_cache"]
- L2q["one batched SELECT<br/>per month"]
+ L2q["one batched metadata SELECT<br/>+ one batched full-row SELECT"]
  G["Google Calendar<br/>events.list (cold only)"]
- L1 -.-> L2
+ L1 -. "verify fetched_at" .-> L2
  L2q --> L2
  L2q -. "fill" .-> L1
  G -. "refresh + upsert" .-> L2
@@ -105,8 +105,8 @@ flowchart LR
  CRUD["createEvent / updateEvent / deleteEvent"]
  INV["invalidateGcalCache()"]
  CRUD --> INV
- INV -. "purge L1 + delete rows" .-> L1
- INV -. "purge L1 + delete rows" .-> L2
+ INV -. "bump epoch + purge L1/in-flight" .-> L1
+ INV -. "DELETE rows (id × month)" .-> L2
  end
  D --> FM --> L1
 ```
@@ -146,7 +146,7 @@ erDiagram
  google_event_cache {
  text calendar_google_id PK "Google calendar id"
  text month PK "YYYY-MM"
- jsonb events NOT NULL "encoded GcalEventItem[]"
+ jsonb events NOT NULL "encoded CachedEvent[]"
  timestamp_tz fetched_at NOT NULL "last successful fetch"
  }
 ```
@@ -186,20 +186,25 @@ sequenceDiagram
  participant L1 as L1 memory (Map)
  participant L2 as L2 Postgres (google_event_cache)
  participant G as Google Calendar
- R->>L1: getCachedMonthEventsForCalendars(ids, month)
- loop per calendar id
- alt L1 hit (fresh or stale)
- L1-->>R: events (stale → after() background refresh)
- else L1 miss/expired
- Note over R,L2: collect into missing[]
- end
- end
- Note over R,L2: ONE batched SELECT: month = ? AND calendar_google_id IN (...)
- R->>L2: batched SELECT
+ R->>L1: getCachedMonthEventsForCalendarsMulti(ids, months)
+ Note over R,L2: ONE batched metadata SELECT for all (month, calendar) pairs
+ R->>L2: metadata SELECT (calendar_google_id, fetched_at)
  L2-->>R: rows
- loop missing ids with a usable row
- L2-->>R: decoded events (stale → after() refresh), fill L1
+ loop L1 hits
+ alt no row / expired elsewhere
+ L1-->>R: purge local copy → pending (blocking)
+ else shared row meaningfully newer
+ L1-->>R: mark for full-row read
+ else served
+ L1-->>R: events (stale → after() background refresh)
  end
+ end
+ loop L1 misses with a usable row
+ L1-->>R: mark for full-row read (stale → after() refresh)
+ end
+ Note over R,L2: ONE batched full-row SELECT for L1 misses + newer rows
+ R->>L2: full-row SELECT
+ L2-->>R: decoded events, fill L1
  loop ids still pending (absent or expired)
  R->>G: events.list (bounded concurrency ≤4, in-flight coalesced)
  G-->>R: items → upsert L2 + fill L1
@@ -247,11 +252,13 @@ not an in-app navigation:
  entry for it — the reload is always a **network render**. On non-calendar pages that
  alone is the refresh (fresh server data on any page — Settings included). On
  `/dashboard` the server additionally honors the nonce:
-2. `page.tsx` parses it: the nonce is honored only while it is a finite number younger
- than `REFRESH_NONCE_TTL_MS` (5min, `page.tsx`) — so a stale history entry
- (back/forward) can't silently re-force a fetch.
-3. The page passes `force: true` through `fetchMonthEvents` / `fetchRangeEvents` into
- `getCachedMonthEventsForCalendars(ids, month, { force })` (`eventsCache.ts`): with
+2. The client `DashboardScreen` reads the nonce from the URL and hands it to the
+   `loadDashboardData` server action, which honors it only while it is a finite number
+   younger than `REFRESH_NONCE_TTL_MS` (5min, `snapshot.ts`) — so a stale history entry
+   (back/forward) can't silently re-force a fetch.
+3. The action threads `force: true` through `buildDashboardData` / `readCalendarRange`
+   into `getCachedMonthEventsForCalendarsMulti(ids, months, { force })`
+   (`eventsCache.ts`): with
  `force`, **both L1 and L2 are skipped** and every requested calendar blocks on a fresh
  `events.list` (bounded by `GOOGLE_FETCH_CONCURRENCY` ≤ 4 in flight, and deliberately
  **not** joined to an in-flight background refresh) for **every month in the read**
@@ -270,20 +277,20 @@ not an in-app navigation:
 sequenceDiagram
  participant U as Shell header Force refresh (any page)
  participant SW as Service worker
- participant P as Dashboard page (RSC render)
+ participant P as DashboardScreen → loadDashboardData (server action)
  participant C as events cache (L1/L2)
  participant G as Google Calendar
  U->>U: window.location.assign(?refresh=<epoch-ms>)
  U->>SW: navigation (cache miss — nonce URL never stored)
- SW-->>P: network render
+ SW-->>P: network document render (thin shell + route skeleton)
  alt /dashboard (nonce honored)
- P->>C: getCachedMonthEventsForCalendars(ids, month, { force: true })
+ P->>C: getCachedMonthEventsForCalendarsMulti(ids, months, { force: true })
  C->>G: events.list per selected calendar (≤4 concurrent)
  G-->>C: items → upsert L2 (fetchedAt=now) + refill L1
  else other pages
  P->>P: normal server render (no events cache)
  end
- P-->>U: fresh document; useOneShotRefreshStrip drops ?refresh=
+ P-->>U: fresh document — useOneShotRefreshStrip drops ?refresh=
 ```
 
 Scope on the calendar is the **selected calendars × displayed month** only (what the user
@@ -316,6 +323,7 @@ flowchart LR
  A["mutation (create/update/delete)"] --> B["Google writes"]
  B --> C["audit log"]
  C --> D["invalidateGcalCache(ids, months)"]
+ D --> H["bumpCacheEpoch()"]
  D --> E["purge L1 + in-flight entries"]
  D --> F["DELETE rows (id × month)"]
  C --> G["revalidatePath('/dashboard')"]
@@ -326,9 +334,11 @@ flowchart LR
 - **Affected months** are every `YYYY-MM` the event's old and new date ranges touch, via
   `monthsInRange()` (`datetime.ts`) — so a reschedule that moves an event into a new
   month invalidates both months.
-- `invalidateGcalCache` purges the corresponding L1 and in-flight entries **and** deletes
-  the DB rows (`WHERE calendar_google_id IN (...) AND month IN (...)`). Over-invalidation
-  across the touched calendars/months is harmless.
+- `invalidateGcalCache` bumps the cache epoch (so a background refresh that started before
+  the mutation can't persist its pre-mutation snapshot), purges the corresponding L1 and
+  in-flight entries, **and** deletes the DB rows
+  (`WHERE calendar_google_id IN (...) AND month IN (...)`). Over-invalidation across the
+  touched calendars/months is harmless.
 
 The L1 purge is **per-instance** (the map only exists on the instance that ran the
 mutation), while the DB deletion is **shared**. On the mutating instance the next view of
