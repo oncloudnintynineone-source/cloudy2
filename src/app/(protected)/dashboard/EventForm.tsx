@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import {
+  Accordion,
   Badge,
   Box,
   Button,
@@ -67,7 +68,11 @@ import {
   type LocationCategory,
 } from "@/lib/events/locationPolicy";
 import { eventRefFromCalendarEvent } from "@/lib/events/targets";
-import { buildEventTypePickerSections } from "@/lib/eventTypes/groups";
+import {
+  buildEventTypePickerSections,
+  initialExpandedSectionIds,
+  type EventTypePickerSection,
+} from "@/lib/eventTypes/groups";
 import {
   joinDateTimeParts,
   naiveDatePart,
@@ -496,6 +501,12 @@ export function EventForm({
   const pickerSections = useMemo(
     () => buildEventTypePickerSections(eventTypes, eventTypeGroups),
     [eventTypes, eventTypeGroups],
+  );
+
+  // Which folders are open in the type step. A single folder stays open; a
+  // pre-selected type opens its folder; otherwise all start collapsed.
+  const [openSectionIds, setOpenSectionIds] = useState<string[]>(() =>
+    initialExpandedSectionIds(pickerSections, form.values.eventType),
   );
 
   const selectedType = sortedEventTypes.find((type) => type.name === form.values.eventType) ?? null;
@@ -1391,6 +1402,30 @@ export function EventForm({
       : []),
   ];
 
+  function renderTypeBadges(section: EventTypePickerSection) {
+    return (
+      <Group gap={6} wrap="wrap">
+        {section.types.map((type) => {
+          const selected = type.name === form.values.eventType;
+          return (
+            <Badge
+              key={type.name}
+              variant={selected ? "filled" : "light"}
+              size="lg"
+              style={{
+                height: "calc(var(--badge-height-lg) * 1.5)",
+                cursor: "pointer",
+              }}
+              onClick={() => handleEventTypeChange(selected ? null : type.name)}
+            >
+              {type.name}
+            </Badge>
+          );
+        })}
+      </Group>
+    );
+  }
+
   return (
     <form
       onSubmit={onSubmit}
@@ -1421,32 +1456,48 @@ export function EventForm({
                 </Text>
               ) : (
                 <Stack gap="sm">
-                  {pickerSections.map((section) => (
-                    <Box key={section.ungrouped ? "ungrouped" : section.name}>
-                      <Text size="xs" fw={600} c="dimmed" mb={4}>
-                        {section.name}
-                      </Text>
-                      <Group gap={6} wrap="wrap">
-                        {section.types.map((type) => {
-                          const selected = type.name === form.values.eventType;
-                          return (
-                            <Badge
-                              key={type.name}
-                              variant={selected ? "filled" : "light"}
-                              size="lg"
-                              style={{
-                                height: "calc(var(--badge-height-lg) * 1.5)",
-                                cursor: "pointer",
-                              }}
-                              onClick={() => handleEventTypeChange(selected ? null : type.name)}
-                            >
-                              {type.name}
-                            </Badge>
-                          );
-                        })}
-                      </Group>
-                    </Box>
-                  ))}
+                  {pickerSections.length <= 1 ? (
+                    // A single folder has nothing to hide behind — render its
+                    // types inline (the pre-groups look).
+                    pickerSections.map((section) => (
+                      <Box key={section.id}>
+                        <Text size="xs" fw={600} c="dimmed" mb={4}>
+                          {section.name}
+                        </Text>
+                        {renderTypeBadges(section)}
+                      </Box>
+                    ))
+                  ) : (
+                    // Collapsible folders: types stay tucked away until the
+                    // user opens the folder that holds them.
+                    <Accordion
+                      multiple
+                      variant="separated"
+                      chevronPosition="left"
+                      value={openSectionIds}
+                      onChange={setOpenSectionIds}
+                    >
+                      {pickerSections.map((section) => (
+                        <Accordion.Item key={section.id} value={section.id}>
+                          <Accordion.Control
+                            aria-label={`${section.name}, ${section.types.length} type${
+                              section.types.length === 1 ? "" : "s"
+                            }`}
+                          >
+                            <Group gap="xs" wrap="nowrap">
+                              <Text size="sm" fw={600}>
+                                {section.name}
+                              </Text>
+                              <Badge size="sm" variant="light" color="gray" aria-hidden>
+                                {section.types.length}
+                              </Badge>
+                            </Group>
+                          </Accordion.Control>
+                          <Accordion.Panel>{renderTypeBadges(section)}</Accordion.Panel>
+                        </Accordion.Item>
+                      ))}
+                    </Accordion>
+                  )}
                 </Stack>
               )}
               {form.errors.eventType && (

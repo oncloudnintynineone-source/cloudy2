@@ -15,6 +15,8 @@ export interface EventTypeRef {
 }
 
 export interface EventTypePickerSection {
+  /** Stable identity for the section (the group id, or `UNGROUPED_ID`). */
+  id: string;
   name: string;
   /** true for the trailing catch-all of types that belong to no group. */
   ungrouped: boolean;
@@ -23,6 +25,9 @@ export interface EventTypePickerSection {
 
 /** Section label for types that belong to no group. */
 export const UNGROUPED_LABEL = "Ungrouped";
+
+/** Section id for the trailing catch-all of types that belong to no group. */
+export const UNGROUPED_ID = "__ungrouped__";
 
 /** Groups in display order: sortOrder, then name. */
 export function sortEventTypeGroups(
@@ -49,16 +54,46 @@ export function buildEventTypePickerSections(
   for (const group of sortEventTypeGroups(groups)) {
     const members = sortedTypes.filter((type) => type.groupId === group.id);
     if (members.length > 0) {
-      sections.push({ name: group.name, ungrouped: false, types: members });
+      sections.push({ id: group.id, name: group.name, ungrouped: false, types: members });
     }
   }
   const ungrouped = sortedTypes.filter(
     (type) => type.groupId === null || !knownGroupIds.has(type.groupId),
   );
   if (ungrouped.length > 0) {
-    sections.push({ name: UNGROUPED_LABEL, ungrouped: true, types: ungrouped });
+    sections.push({
+      id: UNGROUPED_ID,
+      name: UNGROUPED_LABEL,
+      ungrouped: true,
+      types: ungrouped,
+    });
   }
   return sections;
+}
+
+/**
+ * The section ids the wizard's type step opens with. A single section stays
+ * open (collapsing it would hide the entire catalog behind one tap), an
+ * already-selected type opens the section that holds it (edit/duplicate
+ * prefill), and otherwise every folder starts collapsed — the point of
+ * tucking types away in folders. `selectedTypeName` may be null/absent.
+ */
+export function initialExpandedSectionIds(
+  sections: readonly EventTypePickerSection[],
+  selectedTypeName: string | null | undefined,
+): string[] {
+  if (sections.length <= 1) {
+    return sections.map((section) => section.id);
+  }
+  if (selectedTypeName) {
+    const match = sections.find((section) =>
+      section.types.some((type) => type.name === selectedTypeName),
+    );
+    if (match) {
+      return [match.id];
+    }
+  }
+  return [];
 }
 
 /**

@@ -18,7 +18,7 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
 
 ## 1.1 Status
 
-- All work through changelog **1.247 (per-day clash timelines)** is shipped.
+- All work through changelog **1.248 (collapsible event-type folders)** is shipped.
 - Quality gates (`lint` / `typecheck` / `test` / schema-drift check) run in CI on every
   push and PR. Pushes also auto-apply migrations per environment: `dev` →
   `migrate-preview` against the dev Neon DB, `main` → `migrate` against the prod Neon
@@ -1123,6 +1123,15 @@ via `?attendance=1` and `attendanceStorage` became a `useSyncExternalStore` exte
    Booking page and the wizard's review-step advisory now render through it
    (`minEntriesPerDay={2}`), and the wizard no longer shows conflict-free covered
    days. `docs/user-clashes.md` §1.8, `docs/event-clashes.md` §1.6
+
+- 1.248 Event-type folders collapse in the wizard type picker: with more than one
+  section the type step renders a Mantine `Accordion` (folder name + count badge in the
+  control, type badges in the panel) instead of an always-expanded wall of badges; open
+  state comes from the new pure `initialExpandedSectionIds` (single section stays open,
+  a pre-selected type opens its folder, otherwise all collapsed), a lone section skips
+  the accordion and renders inline, and each picker section now carries a stable `id`
+  (group id or `UNGROUPED_ID`). No schema change; search intentionally omitted.
+  `docs/event-lifecycle.md` §1.10
 
 ## 1.4 Open items & next steps
 

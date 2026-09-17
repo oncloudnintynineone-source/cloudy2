@@ -720,7 +720,8 @@ flowchart LR
  A -->|Group select in the type form| T[(event_types.group_id<br/>nullable FK, ON DELETE SET NULL)]
  G -->|listEventTypeGroups| P[buildEventTypePickerSections<br/>pure — eventTypes/groups.ts]
  T -->|listEventTypes| P
- P -->|ordered sections| W[Wizard type step:<br/>grouped badge picker]
+ P -->|ordered sections| W[Wizard type step:<br/>collapsible folder accordion]
+ P -->|initialExpandedSectionIds| W
 ```
 
 - **Schema** (migration `0031`): the `event_type_groups` table (`name` unique,
@@ -738,9 +739,19 @@ flowchart LR
 - **Picker sections** come from the pure `buildEventTypePickerSections(types,
   groups)` (`src/lib/eventTypes/groups.ts`, unit-tested in `groups.test.ts`): groups
   in display order, empty groups skipped, and the ungrouped section present only when
-  some type has no group. The dashboard page fetches the groups in the same
-  `Promise.all` as the types (`listEventTypeGroups()`, per-request React-cached like
-  `listEventTypes`) and passes them through `DashboardView` to `EventForm`.
+  some type has no group. Each section carries a stable `id` (the group id, or
+  `UNGROUPED_ID`) so the UI can key on it. The dashboard page fetches the groups in
+  the same `Promise.all` as the types (`listEventTypeGroups()`, per-request
+  React-cached like `listEventTypes`) and passes them through `DashboardView` to
+  `EventForm`.
+- **Folders collapse.** With more than one section the type step renders a Mantine
+  `Accordion` (`multiple`, `variant="separated"`, chevron on the left): the folder
+  name plus a count badge sits in the control, and the type badges live in the panel.
+  Open state starts from the pure `initialExpandedSectionIds(sections,
+  selectedTypeName)`: a single section stays open (nothing to hide behind), an
+  already-selected type opens the folder that holds it (edit/duplicate prefill), and
+  otherwise every folder starts collapsed. A lone section skips the accordion and
+  renders inline (the pre-groups look). Search is deliberately not offered.
 - **Management** lives in Settings → Event Types under **Manage groups** (a dialog,
   not a separate tab): create (appends after the last group), inline rename, delete
   (the confirm states how many types become ungrouped), and up/down reordering. All
@@ -858,7 +869,7 @@ writes, headers) is thin and lives in `actions.ts` / `queries.ts`.
 | `formatFullName` | `settings/formatName.ts` | `formatName.test.ts` |
 | `clampOutOfCamp` (all allowed-location sets), `flagsFromCategory` / `categoryFromFlags`, `normalizeAllowedLocations` | `events/locationPolicy.ts` | `locationPolicy.test.ts` |
 | `resolveTimeOption(s)`, `normalizeTimeOptions`, `naiveDatePart` / `naiveTimePart` / `joinDateTimeParts` | `events/timeOptions.ts` | `timeOptions.test.ts` |
-| `buildEventTypePickerSections` (grouped sections, empty-group skip, ungrouped last, dangling-id degrade), `sortEventTypeGroups`, `moveEventTypeGroupOrder` (§1.10) | `eventTypes/groups.ts` | `groups.test.ts` |
+| `buildEventTypePickerSections` (grouped sections, empty-group skip, ungrouped last, dangling-id degrade), `initialExpandedSectionIds` (collapsible-folder open state), `sortEventTypeGroups`, `moveEventTypeGroupOrder` (§1.10) | `eventTypes/groups.ts` | `groups.test.ts` |
 | `absEventRange` (timed + all-day exclusive end), naive↔instant, `weekDays`, `monthsInRange`, `shiftMonth`, `monthRange`, `monthGridRows` | `events/datetime.ts` | `datetime.test.ts` |
 | `modifyGuard`, `canChangeLock` | `events/guards.ts` | `guards.test.ts` |
 | `validateEventForm` (range time-part requirement, chronology), `resolveEventAuthor` | `events/validate.ts` | `validate.test.ts` |

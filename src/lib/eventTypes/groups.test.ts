@@ -2,8 +2,10 @@ import { describe, expect, it } from "vitest";
 
 import {
   buildEventTypePickerSections,
+  initialExpandedSectionIds,
   moveEventTypeGroupOrder,
   sortEventTypeGroups,
+  UNGROUPED_ID,
   UNGROUPED_LABEL,
   type EventTypeGroupRef,
   type EventTypeRef,
@@ -37,9 +39,19 @@ describe("buildEventTypePickerSections", () => {
       [group("g2", "Leave", 0), group("g1", "Drill", 1)],
     );
     expect(sections).toEqual([
-      { name: "Leave", ungrouped: false, types: [type("Alpha", "g2"), type("Gamma", "g2")] },
-      { name: "Drill", ungrouped: false, types: [type("Beta", "g1")] },
-      { name: UNGROUPED_LABEL, ungrouped: true, types: [type("Eta", null), type("Zeta", null)] },
+      {
+        id: "g2",
+        name: "Leave",
+        ungrouped: false,
+        types: [type("Alpha", "g2"), type("Gamma", "g2")],
+      },
+      { id: "g1", name: "Drill", ungrouped: false, types: [type("Beta", "g1")] },
+      {
+        id: UNGROUPED_ID,
+        name: UNGROUPED_LABEL,
+        ungrouped: true,
+        types: [type("Eta", null), type("Zeta", null)],
+      },
     ]);
   });
 
@@ -49,7 +61,7 @@ describe("buildEventTypePickerSections", () => {
       group("g2", "Drill", 1),
     ]);
     expect(sections).toEqual([
-      { name: "Leave", ungrouped: false, types: [type("Alpha", "g1")] },
+      { id: "g1", name: "Leave", ungrouped: false, types: [type("Alpha", "g1")] },
     ]);
   });
 
@@ -63,8 +75,43 @@ describe("buildEventTypePickerSections", () => {
       [group("g1", "Leave", 0)],
     );
     expect(sections).toEqual([
-      { name: UNGROUPED_LABEL, ungrouped: true, types: [type("Alpha", "missing"), type("Beta", null)] },
+      {
+        id: UNGROUPED_ID,
+        name: UNGROUPED_LABEL,
+        ungrouped: true,
+        types: [type("Alpha", "missing"), type("Beta", null)],
+      },
     ]);
+  });
+});
+
+describe("initialExpandedSectionIds", () => {
+  const sections = buildEventTypePickerSections(
+    [type("Alpha", "g2"), type("Beta", "g1"), type("Eta", null)],
+    [group("g2", "Leave", 0), group("g1", "Drill", 1)],
+  );
+
+  it("opens a single section (nothing to collapse)", () => {
+    const single = buildEventTypePickerSections([type("Alpha", "g1")], [group("g1", "Leave", 0)]);
+    expect(initialExpandedSectionIds(single, null)).toEqual(["g1"]);
+  });
+
+  it("opens only the section that holds the selected type", () => {
+    expect(initialExpandedSectionIds(sections, "Beta")).toEqual(["g1"]);
+    expect(initialExpandedSectionIds(sections, "Eta")).toEqual([UNGROUPED_ID]);
+  });
+
+  it("starts every folder collapsed when nothing is selected", () => {
+    expect(initialExpandedSectionIds(sections, null)).toEqual([]);
+    expect(initialExpandedSectionIds(sections, "")).toEqual([]);
+  });
+
+  it("starts collapsed when the selected name matches no section", () => {
+    expect(initialExpandedSectionIds(sections, "Missing")).toEqual([]);
+  });
+
+  it("returns an empty list for no sections", () => {
+    expect(initialExpandedSectionIds([], "Alpha")).toEqual([]);
   });
 });
 
