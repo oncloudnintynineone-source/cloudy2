@@ -1348,7 +1348,8 @@ via `?attendance=1` and `attendanceStorage` became a `useSyncExternalStore` exte
     half (counter, `accent-6` on `brand-9`) + blue right half (`brand-6` on
     white) countdown, content-sized and joined with `overflow: hidden` (each half
     keeps a 7px outer cap but only a 4px inner seam, so the two read as one tight
-    token) — as a fifth `pinnedTickerIndicator` option ("Split pill", Settings →
+    token; the variant also halves the pill's token→title gap, 8px → 4px) — as a
+    fifth `pinnedTickerIndicator` option ("Split pill", Settings →
     Feature Flags; default stays `classic`; no schema change — the option set is
     code-side). Renders in the ticker and the Feature Flags live preview; the
     standalone countdown chip is omitted for it (like `stacked`). Docs:

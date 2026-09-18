@@ -448,6 +448,12 @@ html {
   color: var(--mantine-color-white);
 }
 
+/* The split token already carries a full cap on its right edge, so the pill's
+   default flex gap leaves too much air before the title — halve it here. */
+.c2-pinned-ticker[data-indicator="split"] {
+  gap: calc(var(--mantine-spacing-xs) / 2);
+}
+
 /* Segmented rotation bar (the `segmented` indicator): a thin bar along the
    pill's bottom edge, one segment per pinned event, the current rotation
    position lit amber — count and position at a glance, zero in-flow width. */
