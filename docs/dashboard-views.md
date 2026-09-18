@@ -276,14 +276,21 @@ directly ([`events-cache.md`](events-cache.md)):
 - **Mobile-band chip padding.** On the mobile band (`max-width: 39.99em`,
   below the app's `lg` breakpoint) the `ScheduleEvent` inner box is tightened
   from the library's `3px 4px` (`4px 6px` at `size="md"`) to `1px 2px`, so more
-  of a small grid chip's width is text. App-owned classes (`c2-schedule-event`
-  / `c2-event-inner`) are attached to the library part through the theme's
-  `ScheduleEvent` `classNames` (`src/lib/theme.ts`, matched by the component's
-  `__staticSelector` string — no `@mantine/schedule` import), then overridden
-  behind the media query in `globals.css` with a two-class selector that beats
-  the library's `.m_*` rule. All grid chips (Month / Day / Week (H) / Week
-  (Grid) / per-department Resources) render through `ScheduleEvent`, so one
-  rule covers them.
+  of a small grid chip's width is text. It is also switched to column-flex
+  centering (`display: flex; flex-direction: column; justify-content: center`)
+  so a single-line title no longer hugs the top of the fixed-height chip — the
+  library defaults to `display: block; line-height: 1`, which pools all the
+  leftover height below the text. Column direction keeps the title a full-width
+  block item, preserving the `nowrap` chips' `text-overflow: ellipsis` (the
+  same maneuver the library uses at `max-height: 18px`). App-owned classes
+  (`c2-schedule-event` / `c2-event-inner`) are attached to the library part
+  through the theme's `ScheduleEvent` `classNames` (`src/lib/theme.ts`, matched
+  by the component's `__staticSelector` string — no `@mantine/schedule`
+  import), then overridden behind the media query in `globals.css` with a
+  two-class selector that beats the library's `.m_*` rule. All grid chips
+  (Month / Day / Week (H) / Week (Grid) / per-department Resources) render
+  through `ScheduleEvent`, so one rule covers them. Desktop keeps the library's
+  default top-aligned title.
 
 ## 1.5 My-entry highlight
 

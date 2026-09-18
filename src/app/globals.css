@@ -1091,10 +1091,22 @@ html {
   / `c2-event-inner` classes come from the theme's ScheduleEvent classNames
   (`src/lib/theme.ts`). The two-class descendant selector beats the library's
   single-class `.m_*` padding regardless of stylesheet order.
+
+  The inner box is also switched to column-flex centering: it is `display:
+  block` with `line-height: 1` by default, so a single-line title sits at the
+  top of the fixed-height chip with all the leftover height below it — with the
+  tighter 1px top padding that top-hug reads as uneven top/bottom gaps.
+  Column direction (not `align-items: center`) keeps the title an anonymous
+  full-width block item, so `text-overflow: ellipsis` on the `nowrap` chips
+  still works — the same maneuver the library itself uses at `max-height:
+  18px`. Desktop (`>= 40em`) keeps the library's default top-aligned title.
 */
 @media (max-width: 39.99em) {
   .c2-schedule-event .c2-event-inner {
     padding: calc(0.0625rem * var(--mantine-scale)) calc(0.125rem * var(--mantine-scale));
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
   }
 }
 
