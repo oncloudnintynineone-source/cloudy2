@@ -65,8 +65,7 @@ import { announce } from "@/lib/ui/announcer";
 import { useGridPan } from "@/lib/ui/gridPan";
 import { clampMonthZoom, MAX_MONTH_ZOOM, MIN_MONTH_ZOOM, type MonthZoom } from "@/lib/ui/monthZoom";
 import { usePinchZoom } from "@/lib/ui/pinchZoom";
-import { animateZoom } from "@/lib/ui/zoomAnim";
-import { reanchorScrollLeft } from "@/lib/ui/slotZoom";
+import { animateZoom, scrollAnchorTracker } from "@/lib/ui/zoomAnim";
 import { AgendaSwipeHint } from "@/components/AgendaSwipeHint";
 import { MonthWeekdayStrip } from "./MonthWeekdayStrip";
 
@@ -215,24 +214,15 @@ export function DualPaneView({
     const viewport = monthViewportRef.current;
     const owner = containerRef.current;
     if (!viewport || !owner || viewport.clientWidth <= 0) return;
-    const width = viewport.clientWidth;
     const focalX = monthPinchFocalRef.current;
     monthPinchFocalRef.current = undefined;
-    const startScroll = viewport.scrollLeft;
+    const tracker = scrollAnchorTracker(viewport, { label: 0, focal: focalX });
     animateZoom(owner, {
       from: oldZoom,
       to: monthZoom,
       apply: (z) => owner.style.setProperty("--c2-zoom-anim", String(z)),
-      onScroll: (z) => {
-        viewport.scrollLeft = reanchorScrollLeft(
-          startScroll,
-          width,
-          0,
-          (width * oldZoom) / 7,
-          (width * z) / 7,
-          focalX,
-        );
-      },
+      onStart: tracker.capture,
+      onScroll: () => tracker.apply(),
       onDone: () => owner.style.removeProperty("--c2-zoom-anim"),
     });
   }, [monthZoom]);

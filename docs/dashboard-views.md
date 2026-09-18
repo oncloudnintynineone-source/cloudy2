@@ -438,10 +438,18 @@ template/min-width (`calc(112px * max(1, <zoom>))`). On a zoom change
 `animateZoom` (`src/lib/ui/zoomAnim.ts`, `MOTION.zoom`, the house
 `cubic-bezier(0.22, 1, 0.36, 1)`) writes `--c2-zoom-anim` **and** the anchored
 scroll from the same interpolated value each frame, then clears the override.
-The grid viewports also set `overflow-anchor: none` so the browser's own scroll
-anchoring can't fight it. This replaced an earlier CSS-transition + separate JS
-tween, which drifted (two clocks → the content slid/recoiled) and whose
-registered custom-property transition didn't run in Chrome (the columns snapped).
+The scroll is re-anchored by `scrollAnchorTracker`, which captures the
+time-content point under the anchor at the start zoom and re-centres it using the
+**measured** current content width (`viewport.scrollWidth`) and the **current**
+viewport width, clamped to the real max. Measuring (rather than using the zoom
+ratio) is what makes the last step — zooming out to 100%, where the canvas gutter
+morphs and the wrapper/viewport both resize — land without a jump; a fixed-ratio
+re-anchor assumed a constant viewport width and overshot the shrunken
+`maxScroll`, so the browser clamped it. The grid viewports also set
+`overflow-anchor: none` so the browser's own scroll anchoring can't fight it. This
+replaced an earlier CSS-transition + separate JS tween, which drifted (two clocks
+→ the content slid/recoiled) and whose registered custom-property transition
+didn't run in Chrome (the columns snapped).
 Motion collapses (instant) under `prefers-reduced-motion: reduce` or the
 `c2-low-end` tier, matching the CSS override. The Week (Grid) row-height zoom
 stays instant; only the canvas gutter `margin-inline` still animates via CSS

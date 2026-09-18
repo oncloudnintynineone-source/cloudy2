@@ -60,10 +60,56 @@ export interface ZoomAnimation {
   to: number;
   /** Write the interpolated zoom's width/slot (e.g. `--c2-zoom-anim`). */
   apply: (zoom: number) => void;
-  /** Write the scroll offset for the interpolated zoom. */
+  /**
+   * Called once after `apply(from)` — capture the starting geometry here (the
+   * `scrollAnchorTracker`'s `capture`). The DOM is at `from` at this point.
+   */
+  onStart?: () => void;
+  /** Write the scroll offset (the `scrollAnchorTracker`'s `apply`). */
   onScroll: (zoom: number) => void;
   /** Called once when the animation settles (e.g. clear `--c2-zoom-anim`). */
   onDone?: () => void;
+}
+
+/**
+ * Tracks a scroll container's anchor across a zoom whose viewport width **and**
+ * content width both change (the canvas gutter morph narrows the viewport while
+ * the zoom shrinks the content).
+ *
+ * `capture()` records the time-content point under the anchor and the content
+ * size while the DOM is at the start zoom; `apply()` re-centres that point using
+ * the **measured** current content size (so percentage-width grids track the
+ * wrapper's resize) and the **current** viewport width, clamped to the real
+ * max. `reanchorScrollLeft` alone assumes a constant viewport width, so on
+ * zoom-out to fit the target exceeded the shrunken `maxScroll` and the browser
+ * clamped it — the last-step jump.
+ */
+export interface ScrollAnchor {
+  capture: () => void;
+  apply: () => void;
+}
+
+export function scrollAnchorTracker(
+  viewport: HTMLElement,
+  { label, focal }: { label: number; focal?: number },
+): ScrollAnchor {
+  let timeC = 0;
+  let startTime = 0;
+  return {
+    capture: () => {
+      const startAnchor = focal ?? viewport.clientWidth / 2;
+      timeC = viewport.scrollLeft + startAnchor - label;
+      startTime = viewport.scrollWidth - label;
+    },
+    apply: () => {
+      const current = viewport.scrollWidth;
+      const clientWidth = viewport.clientWidth;
+      const anchor = focal ?? clientWidth / 2;
+      const ratio = startTime > 0 ? (current - label) / startTime : 1;
+      const max = Math.max(0, current - clientWidth);
+      viewport.scrollLeft = Math.max(0, Math.min(timeC * ratio + label - anchor, max));
+    },
+  };
 }
 
 const inFlight = new WeakMap<HTMLElement, number>();
@@ -90,24 +136,28 @@ export function cancelZoomAnimation(owner: HTMLElement): void {
 
 /**
  * Animates from `from` to `to`, calling `apply` + `onScroll` each frame from the
- * same interpolated value. Snaps (one `apply`/`onScroll`/`onDone`) when motion
- * is disabled or the endpoints match.
+ * same interpolated value. `apply(from)` + `onStart()` run synchronously first
+ * (so the committed frame paints at `from`, not a one-frame flash of `to`, and
+ * the start geometry is captured at the old zoom). Snaps when motion is disabled
+ * or the endpoints match (still capturing at `from` first so the re-anchor is
+ * correct).
  */
 export function animateZoom(
   owner: HTMLElement,
-  { from, to, apply, onScroll, onDone }: ZoomAnimation,
+  { from, to, apply, onStart, onScroll, onDone }: ZoomAnimation,
 ): void {
   cancelZoomAnimation(owner);
+  // Restore the start width, capture the start geometry, then either snap or
+  // animate. `apply(from)` + `onStart()` must precede `apply(to)` so the capture
+  // sees the old content/viewport sizes.
+  apply(from);
+  onStart?.();
   if (from === to || motionDisabled()) {
     apply(to);
     onScroll(to);
     onDone?.();
     return;
   }
-  // Apply the starting state synchronously (before the first rAF) so the frame
-  // React just committed — `--c2-zoom` already at `to` — paints at `from`, not
-  // a one-frame flash of the target width.
-  apply(from);
   onScroll(from);
   const start = performance.now();
   const step = (now: number) => {

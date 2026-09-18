@@ -156,14 +156,13 @@ import {
   type MonthZoom,
 } from "@/lib/ui/monthZoom";
 import { usePinchZoom } from "@/lib/ui/pinchZoom";
-import { animateZoom } from "@/lib/ui/zoomAnim";
+import { animateZoom, scrollAnchorTracker } from "@/lib/ui/zoomAnim";
 import {
   clampGridWeekColZoom,
   clampZoom,
   daySlotWidth,
   gridWeekSlotHeight,
   MIN_COLUMN_ZOOM,
-  reanchorScrollLeft,
   reanchorScrollTop,
   stepZoom,
   weekSlotWidth,
@@ -2751,28 +2750,24 @@ export function DashboardView({
 
     if (zoomChanged) {
       // A pinch anchors on its midpoint; the buttons leave this unset and
-      // re-anchor on the viewport centre (reanchorScrollLeft's default). One
-      // `animateZoom` drives both the slot width (`--c2-zoom-anim`, read by the
-      // grid and the strips) and the scroll, so they can't drift apart.
+      // re-anchor on the viewport centre. One `animateZoom` drives both the slot
+      // width (`--c2-zoom-anim`, read by the grid and the strips) and the
+      // scroll, so they can't drift apart; the tracker re-anchors from the
+      // measured content (robust to the last-step gutter morph).
       const owner = weekBoxRef.current;
       if (owner) {
         const focalX = pinchFocalRef.current.x;
         pinchFocalRef.current.x = undefined;
-        const startScroll = viewport.scrollLeft;
+        const tracker = scrollAnchorTracker(viewport, {
+          label: geometry.labelPx,
+          focal: focalX,
+        });
         animateZoom(owner, {
           from: oldZoom,
           to: zoom,
           apply: (z) => owner.style.setProperty("--c2-zoom-anim", String(z)),
-          onScroll: (z) => {
-            viewport.scrollLeft = reanchorScrollLeft(
-              startScroll,
-              viewport.clientWidth,
-              geometry.labelPx,
-              geometry.baseSlotPx * oldZoom,
-              geometry.baseSlotPx * z,
-              focalX,
-            );
-          },
+          onStart: tracker.capture,
+          onScroll: () => tracker.apply(),
           onDone: () => owner.style.removeProperty("--c2-zoom-anim"),
         });
       }
@@ -2828,26 +2823,17 @@ export function DashboardView({
     if (!viewport || viewport.clientWidth <= 0) {
       return;
     }
-    const width = viewport.clientWidth;
     const focalX = pinchFocalRef.current.x;
     pinchFocalRef.current.x = undefined;
     const owner = weekBoxRef.current;
     if (owner) {
-      const startScroll = viewport.scrollLeft;
+      const tracker = scrollAnchorTracker(viewport, { label: 0, focal: focalX });
       animateZoom(owner, {
         from: oldZoom,
         to: monthZoom,
         apply: (z) => owner.style.setProperty("--c2-zoom-anim", String(z)),
-        onScroll: (z) => {
-          viewport.scrollLeft = reanchorScrollLeft(
-            startScroll,
-            width,
-            0,
-            (width * oldZoom) / 7,
-            (width * z) / 7,
-            focalX,
-          );
-        },
+        onStart: tracker.capture,
+        onScroll: () => tracker.apply(),
         onDone: () => owner.style.removeProperty("--c2-zoom-anim"),
       });
     }
@@ -2902,26 +2888,17 @@ export function DashboardView({
         getComputedStyle(child).getPropertyValue("--week-view-slots-label-width").trim() !== "",
     );
     const labelWidth = root ? measuredWidth(root, "var(--week-view-slots-label-width)") : 0;
-    const width = viewport.clientWidth;
     const focalX = pinchFocalRef.current.x;
     pinchFocalRef.current.x = undefined;
     const owner = weekBoxRef.current;
     if (owner) {
-      const startScroll = viewport.scrollLeft;
+      const tracker = scrollAnchorTracker(viewport, { label: labelWidth, focal: focalX });
       animateZoom(owner, {
         from: oldZoom,
         to: gridWeekColZoom,
         apply: (z) => owner.style.setProperty("--c2-zoom-anim", String(z)),
-        onScroll: (z) => {
-          viewport.scrollLeft = reanchorScrollLeft(
-            startScroll,
-            width,
-            labelWidth,
-            oldZoom,
-            z,
-            focalX,
-          );
-        },
+        onStart: tracker.capture,
+        onScroll: () => tracker.apply(),
         onDone: () => owner.style.removeProperty("--c2-zoom-anim"),
       });
     }

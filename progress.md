@@ -1303,6 +1303,21 @@ via `?attendance=1` and `attendanceStorage` became a `useSyncExternalStore` exte
     Removed the `.c2-zoom-*` transitions and `@property --c2-slot`; the gutter
     `margin-inline` still animates via `.c2-gutter-anim`. Docs: `dashboard-views.md`
     §1.7, `grid-pan.md` §1.1.
+- 1.263 Zoom-out-to-fit jump fix: 1.262's re-anchor used the zoom ratio and
+    `reanchorScrollLeft`, which assumes a **constant viewport width**. On the last
+    step (back to 100%) the canvas un-bleeds, so the inner wrapper's `margin-inline`
+    morphs `-16px → 0` and the ScrollArea viewport narrows ~32px mid-animation;
+    for the percentage-width views the content shrinks with the wrapper too. On
+    zoom-out the ratio-based target exceeded the shrunken `maxScroll`, so the
+    browser clamped `scrollLeft` → a jump (zoom-in was conservative, hence the
+    asymmetry). New `scrollAnchorTracker` (`zoomAnim.ts`) captures the
+    time-content point under the anchor at the start zoom and re-centres it each
+    frame from the **measured** `viewport.scrollWidth` and the **current** viewport
+    width, clamped to the real max — correct for percentage and rem widths and
+    across the viewport resize. `animateZoom` now calls `apply(from)` + `onStart()`
+    before snapping/animating so the capture sees the old geometry. Wired the five
+    re-anchor sites (schedule, Month, Week (Grid) col, dual-pane month, matrix).
+    Docs: `dashboard-views.md` §1.7.
 
 ## 1.4 Open items & next steps
 

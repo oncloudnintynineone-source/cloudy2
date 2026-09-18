@@ -33,11 +33,10 @@ import type { ScheduleResource, ScheduleResourceGroup } from "@/lib/events/sched
 import { announce } from "@/lib/ui/announcer";
 import { useGridPan } from "@/lib/ui/gridPan";
 import { usePinchZoom } from "@/lib/ui/pinchZoom";
-import { animateZoom } from "@/lib/ui/zoomAnim";
+import { animateZoom, scrollAnchorTracker } from "@/lib/ui/zoomAnim";
 import {
   clampGridWeekColZoom,
   MIN_COLUMN_ZOOM,
-  reanchorScrollLeft,
   WEEK_MATRIX_DAY_MIN_PX,
   type SlotZoom,
 } from "@/lib/ui/slotZoom";
@@ -227,15 +226,13 @@ export function WeekMatrixView({
         (labelMeasureRef.current?.getBoundingClientRect().width ?? 0);
       const focalX = pinchFocalRef.current;
       pinchFocalRef.current = undefined;
-      const startScroll = viewport.scrollLeft;
-      const width = viewport.clientWidth;
+      const tracker = scrollAnchorTracker(viewport, { label: labelPx, focal: focalX });
       animateZoom(owner, {
         from: oldZoom,
         to: zoom,
         apply: (z) => owner.style.setProperty("--c2-zoom-anim", String(z)),
-        onScroll: (z) => {
-          viewport.scrollLeft = reanchorScrollLeft(startScroll, width, labelPx, oldZoom, z, focalX);
-        },
+        onStart: tracker.capture,
+        onScroll: () => tracker.apply(),
         onDone: () => owner.style.removeProperty("--c2-zoom-anim"),
       });
     }
