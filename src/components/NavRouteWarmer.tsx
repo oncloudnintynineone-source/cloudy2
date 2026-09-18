@@ -21,7 +21,7 @@ const ROUTE_WARMERS: Record<string, () => Promise<unknown>> = {
   "/contacts": () => import("@/app/(protected)/contacts/ContactList"),
   "/double-booking": () => import("@/app/(protected)/double-booking/DoubleBookingView"),
   "/kah-status": () => import("@/app/(protected)/kah-status/KahStatusView"),
-  "/settings/users": () => import("@/app/(protected)/settings/users/UserTable"),
+  "/settings": () => import("@/app/(protected)/settings/users/UserTable"),
 };
 
 export function NavRouteWarmer({ hrefs }: { hrefs: readonly string[] }) {
