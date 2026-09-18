@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { cubicBezier, zoomEase } from "./scrollTween";
+import { cubicBezier, zoomEase } from "./zoomAnim";
 
 describe("cubicBezier", () => {
   it("is the identity for a linear curve", () => {
@@ -20,8 +20,6 @@ describe("cubicBezier", () => {
 
 describe("zoomEase", () => {
   it("matches the CSS cubic-bezier(0.22, 1, 0.36, 1): a fast ease-out", () => {
-    // The house bezier is much faster early than a plain ease-out cubic
-    // (1 - (1-x)^3), which is exactly the mismatch that made the grid recoil.
     const easeOutCubic = (x: number) => 1 - (1 - x) ** 3;
     expect(zoomEase(0.25)).toBeGreaterThan(easeOutCubic(0.25));
     expect(zoomEase(0.5)).toBeGreaterThan(easeOutCubic(0.5));

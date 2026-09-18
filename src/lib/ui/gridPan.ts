@@ -124,8 +124,8 @@ export function useGridPan({
   const viewportProps = useMemo(() => {
     // `overflow-anchor: none` stops the browser's scroll anchoring from
     // adjusting the offset (asynchronously, after paint) while a zoom changes
-    // the content width — which would fight the JS re-anchor tween
-    // (src/lib/ui/scrollTween.ts) and flash the old position.
+    // the content width — which would fight the JS re-anchor animation
+    // (src/lib/ui/zoomAnim.ts) and flash the old position.
     const style: { cursor?: string; touchAction?: string; overflowAnchor?: "none" } = {
       overflowAnchor: "none",
     };

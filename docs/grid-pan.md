@@ -37,8 +37,8 @@ mechanics only and adds its own edge tracking:
   schedule views' `scrollAreaProps`, which must not churn per frame. Its style
   also sets `overflow-anchor: none`: the browser's own scroll anchoring would
   otherwise adjust the offset (asynchronously, after paint) while a zoom changes
-  the content width, fighting the JS re-anchor tween
-  (`src/lib/ui/scrollTween.ts` — see [`dashboard-views.md`](dashboard-views.md#17-timeline-zoom-day-week-h-and-week-grid)
+  the content width, fighting the JS re-anchor animation
+  (`src/lib/ui/zoomAnim.ts` — see [`dashboard-views.md`](dashboard-views.md#17-timeline-zoom-day-week-h-and-week-grid)
   §1.7 "Animated zoom").
 
 Drag and buttons are always enabled whenever the viewport overflows; native touch pan

@@ -15,6 +15,7 @@ import dayjs from "dayjs";
 import {
   useCallback,
   useLayoutEffect,
+  type CSSProperties,
   type MouseEvent,
   type ReactNode,
   type RefObject,
@@ -32,12 +33,12 @@ import type { ScheduleResource, ScheduleResourceGroup } from "@/lib/events/sched
 import { announce } from "@/lib/ui/announcer";
 import { useGridPan } from "@/lib/ui/gridPan";
 import { usePinchZoom } from "@/lib/ui/pinchZoom";
-import { animateScroll } from "@/lib/ui/scrollTween";
+import { animateZoom } from "@/lib/ui/zoomAnim";
 import {
   clampGridWeekColZoom,
   MIN_COLUMN_ZOOM,
   reanchorScrollLeft,
-  weekMatrixDayMinPx,
+  WEEK_MATRIX_DAY_MIN_PX,
   type SlotZoom,
 } from "@/lib/ui/slotZoom";
 
@@ -146,15 +147,17 @@ export function WeekMatrixView({
   const groupWidth = isDesktop ? DESKTOP_GROUP_WIDTH : MOBILE_GROUP_WIDTH;
   const hasGroups = groups !== undefined;
   // Zoom-derived day-column geometry: the min column width scales with the
-  // level (floored at the fit default), so the seven columns widen and overflow
-  // into the horizontal pan. The same width drives the pinned header and the
-  // scroll-content min-width, keeping the columns aligned while they overflow.
-  const dayMinPx = weekMatrixDayMinPx(zoom);
-  const dayTemplate = `repeat(7, minmax(${dayMinPx}px, 1fr))`;
-  const dayMinWidth = `${7 * dayMinPx}px`;
+  // shared `--c2-zoom` / `--c2-zoom-anim` (floored at the fit default), so the
+  // seven columns widen and overflow into the horizontal pan. The same
+  // expression drives the pinned header and the scroll-content min-width,
+  // keeping the columns aligned while they overflow and animating with the
+  // scroll re-anchor (`animateZoom`).
+  const dayMin = `calc(${WEEK_MATRIX_DAY_MIN_PX}px * max(1, var(--c2-zoom-anim, var(--c2-zoom))))`;
+  const dayTemplate = `repeat(7, minmax(${dayMin}, 1fr))`;
+  const dayMinWidth = `calc(7 * ${WEEK_MATRIX_DAY_MIN_PX}px * max(1, var(--c2-zoom-anim, var(--c2-zoom))))`;
   // ScrollArea content min-width: guarantees horizontal scroll on narrow
   // screens so the day columns never shrink below their zoomed floor.
-  const contentMinWidth = `calc(${hasGroups ? `${groupWidth} + ` : ""}${labelWidth} + ${7 * dayMinPx}px)`;
+  const contentMinWidth = `calc(${hasGroups ? `${groupWidth} + ` : ""}${labelWidth} + 7 * ${WEEK_MATRIX_DAY_MIN_PX}px * max(1, var(--c2-zoom-anim, var(--c2-zoom))))`;
   // The pinned day header sticks below the sticky tabs+date-nav chrome.
   const headerTop = `calc(var(--app-shell-header-offset) + ${chromeOffset}px)`;
   // The resource label pins just right of the group column while scrolling.
@@ -217,24 +220,24 @@ export function WeekMatrixView({
       return;
     }
     const viewport = viewportRef.current;
-    if (viewport && viewport.clientWidth > 0) {
+    const owner = rootRef.current;
+    if (viewport && owner && viewport.clientWidth > 0) {
       const labelPx =
         (groupMeasureRef.current?.getBoundingClientRect().width ?? 0) +
         (labelMeasureRef.current?.getBoundingClientRect().width ?? 0);
       const focalX = pinchFocalRef.current;
       pinchFocalRef.current = undefined;
-      animateScroll(
-        viewport,
-        "left",
-        reanchorScrollLeft(
-          viewport.scrollLeft,
-          viewport.clientWidth,
-          labelPx,
-          oldZoom,
-          zoom,
-          focalX,
-        ),
-      );
+      const startScroll = viewport.scrollLeft;
+      const width = viewport.clientWidth;
+      animateZoom(owner, {
+        from: oldZoom,
+        to: zoom,
+        apply: (z) => owner.style.setProperty("--c2-zoom-anim", String(z)),
+        onScroll: (z) => {
+          viewport.scrollLeft = reanchorScrollLeft(startScroll, width, labelPx, oldZoom, z, focalX);
+        },
+        onDone: () => owner.style.removeProperty("--c2-zoom-anim"),
+      });
     }
     remeasureGridPan();
   }, [zoom, remeasureGridPan]);
@@ -269,7 +272,15 @@ export function WeekMatrixView({
 
   return (
     <>
-      <Paper ref={rootRef} withBorder radius="md" p={0}>
+      <Paper
+        ref={rootRef}
+        withBorder
+        radius="md"
+        p={0}
+        // The day-column geometry derives from this multiplier (and the local
+        // `--c2-zoom-anim` during a zoom animation); see `dayMin` above.
+        style={{ "--c2-zoom": zoom } as CSSProperties}
+      >
         {/* Pinned day header: sticks to the viewport below the tabs+date-nav
           chrome while the (full-height) table scrolls with the page. The
           corner spacers stay put; only the day columns translate
@@ -306,7 +317,6 @@ export function WeekMatrixView({
                 ref={headerInnerRef}
                 component="div"
                 role="row"
-                className="c2-zoom-cols"
                 style={{
                   display: "grid",
                   gridTemplateColumns: dayTemplate,
@@ -362,7 +372,6 @@ export function WeekMatrixView({
         <ScrollArea
           type="auto"
           styles={{ content: { minWidth: contentMinWidth } }}
-          classNames={{ content: "c2-zoom-cols" }}
           viewportRef={mergedViewportRef}
           viewportProps={gridPan.viewportProps}
           onScrollPositionChange={handleScroll}
@@ -532,7 +541,6 @@ function MatrixRow({
       {/* Day grid — the horizontally scrolling part. */}
       <Box
         component="div"
-        className="c2-zoom-cols"
         style={{
           flex: 1,
           minWidth: dayMinWidth,

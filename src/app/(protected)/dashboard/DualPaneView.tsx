@@ -65,7 +65,7 @@ import { announce } from "@/lib/ui/announcer";
 import { useGridPan } from "@/lib/ui/gridPan";
 import { clampMonthZoom, MAX_MONTH_ZOOM, MIN_MONTH_ZOOM, type MonthZoom } from "@/lib/ui/monthZoom";
 import { usePinchZoom } from "@/lib/ui/pinchZoom";
-import { animateScroll } from "@/lib/ui/scrollTween";
+import { animateZoom } from "@/lib/ui/zoomAnim";
 import { reanchorScrollLeft } from "@/lib/ui/slotZoom";
 import { AgendaSwipeHint } from "@/components/AgendaSwipeHint";
 import { MonthWeekdayStrip } from "./MonthWeekdayStrip";
@@ -123,6 +123,17 @@ const DAY_SWIPE_THRESHOLD = 48;
 const HANDLE_WIDTH = 16;
 /** Month-pane right padding keeping the zoom/pan cluster clear of the handle. */
 const HANDLE_GUTTER = 8;
+
+/**
+ * Month-pane scroll-content width. Mirrors DashboardView's MONTH_INNER_STYLE:
+ * rides the shared `--c2-zoom` / `--c2-zoom-anim` (published by the dashboard
+ * and overridden locally during a zoom animation), so the day columns animate
+ * in step with the scroll re-anchor.
+ */
+const MONTH_INNER_STYLE = {
+  width: "calc(var(--c2-zoom-anim, var(--c2-zoom)) * 100%)",
+  "--min-day-width": "0px",
+} as CSSProperties;
 
 /**
  * Dual Pane renderer. Mounted only for a `dual` tab; the parent owns the
@@ -191,18 +202,10 @@ export function DualPaneView({
     }),
     [handleMonthScroll, monthGridViewportRef, monthPan.viewportProps],
   );
-  // The zoom knob widens the ScrollArea content; every day column and event is
-  // a percentage of it, so one width value re-lays out the whole grid.
-  const monthViewInnerStyle = useMemo(
-    () =>
-      ({
-        width: `${monthZoom * 100}%`,
-        "--min-day-width": "0px",
-      }) as CSSProperties,
-    [monthZoom],
-  );
   // Zoom re-anchor: keep the column under the viewport's center centered (no
-  // label column — the scale ratio is just oldZoom → newZoom).
+  // label column — the scale ratio is just oldZoom → newZoom). One
+  // `animateZoom` drives the pane's width (`--c2-zoom-anim`, read by the grid
+  // and the weekday strip) and the scroll together.
   const prevMonthZoomRef = useRef(monthZoom);
   useLayoutEffect(() => {
     const zoomChanged = prevMonthZoomRef.current !== monthZoom;
@@ -210,22 +213,28 @@ export function DualPaneView({
     prevMonthZoomRef.current = monthZoom;
     if (!zoomChanged) return;
     const viewport = monthViewportRef.current;
-    if (!viewport || viewport.clientWidth <= 0) return;
+    const owner = containerRef.current;
+    if (!viewport || !owner || viewport.clientWidth <= 0) return;
     const width = viewport.clientWidth;
     const focalX = monthPinchFocalRef.current;
     monthPinchFocalRef.current = undefined;
-    animateScroll(
-      viewport,
-      "left",
-      reanchorScrollLeft(
-        viewport.scrollLeft,
-        width,
-        0,
-        (width * oldZoom) / 7,
-        (width * monthZoom) / 7,
-        focalX,
-      ),
-    );
+    const startScroll = viewport.scrollLeft;
+    animateZoom(owner, {
+      from: oldZoom,
+      to: monthZoom,
+      apply: (z) => owner.style.setProperty("--c2-zoom-anim", String(z)),
+      onScroll: (z) => {
+        viewport.scrollLeft = reanchorScrollLeft(
+          startScroll,
+          width,
+          0,
+          (width * oldZoom) / 7,
+          (width * z) / 7,
+          focalX,
+        );
+      },
+      onDone: () => owner.style.removeProperty("--c2-zoom-anim"),
+    });
   }, [monthZoom]);
 
   // The month grid is always exactly six week rows (`MONTH_GRID_WEEKS`), and
@@ -391,6 +400,9 @@ export function DualPaneView({
               }
             : null),
           "--c2-dual-split": `${splitPct * 100}%`,
+          // The pane's zoom multiplier; the month inner + strip derive from it
+          // (and the local `--c2-zoom-anim` during a zoom animation).
+          "--c2-zoom": monthZoom,
           userSelect: dragging ? "none" : undefined,
         } as CSSProperties
       }
@@ -411,7 +423,6 @@ export function DualPaneView({
       >
         <MonthWeekdayStrip
           chromeOffset={chromeOffset}
-          zoom={monthZoom}
           innerRef={weekdayTrackRef}
           sticky={!isDesktop}
         />
@@ -434,8 +445,7 @@ export function DualPaneView({
             events={monthEvents}
             withHeader={false}
             withWeekDays={false}
-            styles={{ monthViewInner: monthViewInnerStyle }}
-            classNames={{ monthViewInner: "c2-zoom-width" }}
+            styles={{ monthViewInner: MONTH_INNER_STYLE }}
             style={monthFillStyle}
             scrollAreaProps={monthScrollAreaProps}
             maxEventsPerDay={isDesktop ? 4 : 3}

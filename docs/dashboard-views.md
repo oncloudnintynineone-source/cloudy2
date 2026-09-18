@@ -425,20 +425,27 @@ padded `weekBoxRef`) never move. Returning to fit restores the gutter. Week
 (Grid)'s default 2× column zoom means that tab reclaims immediately unless the
 user zooms out; Agenda has no zoom and never reclaims.
 
-**Animated zoom.** The zoom is eased rather than snapped: the schedule views'
-hour-slot width is published as the registered `--c2-slot` custom property on the
-canvas wrapper (`.c2-zoom-anim` transitions it; the grid root consumes it via
-`--resources-*-view-slot-width` and the ruler strips via `--ruler-slot`), Month /
-Week (Grid) transition their percentage `width` (`.c2-zoom-width`), the Week (D)
-matrix transitions its `grid-template-columns`/`min-width` (`.c2-zoom-cols`), and
-the gutter `margin-inline` morphs on the same cadence. Because the CSS width
-interpolation and the JS scroll re-anchor must stay in step, the re-anchor offset
-is tweened by `animateScroll` (`src/lib/ui/scrollTween.ts`, `MOTION.zoom` / the
-house easing) instead of assigned in one frame, and the grid viewports set
-`overflow-anchor: none` so the browser's own scroll anchoring can't fight it
-(the previous one-frame snap was the "flash of the old zoom"). All of it is under
-`prefers-reduced-motion: no-preference`; reduced motion snaps as before. The Week
-(Grid) row-height zoom stays instant.
+**Animated zoom (single JS clock).** The zoom is eased rather than snapped, and
+the width/slot and the scroll re-anchor are driven by **one** rAF loop so they
+can never diverge. React publishes the active view's zoom multiplier as
+`--c2-zoom` on the canvas wrapper (plus `--c2-slot-base` for the schedule slot);
+every zoomed width/slot derives from
+`var(--c2-zoom-anim, var(--c2-zoom))` — Month's `monthViewInner` and the weekday
+strip (`calc(<zoom> * 100%)`), Week (Grid)'s inner/header/all-day rows
+(`calc(max(1, <zoom>) * 100%)`), the schedule slot + ruler
+(`calc(var(--c2-slot-base) * <zoom>)`), and the Week (D) matrix's day
+template/min-width (`calc(112px * max(1, <zoom>))`). On a zoom change
+`animateZoom` (`src/lib/ui/zoomAnim.ts`, `MOTION.zoom`, the house
+`cubic-bezier(0.22, 1, 0.36, 1)`) writes `--c2-zoom-anim` **and** the anchored
+scroll from the same interpolated value each frame, then clears the override.
+The grid viewports also set `overflow-anchor: none` so the browser's own scroll
+anchoring can't fight it. This replaced an earlier CSS-transition + separate JS
+tween, which drifted (two clocks → the content slid/recoiled) and whose
+registered custom-property transition didn't run in Chrome (the columns snapped).
+Motion collapses (instant) under `prefers-reduced-motion: reduce` or the
+`c2-low-end` tier, matching the CSS override. The Week (Grid) row-height zoom
+stays instant; only the canvas gutter `margin-inline` still animates via CSS
+(`.c2-gutter-anim`).
 
 Week (Grid) is different: it is a conventional 7-day grid whose right-edge
 cluster carries **two independent zoom pairs split around the right pan arrow**

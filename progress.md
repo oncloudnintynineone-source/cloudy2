@@ -1287,6 +1287,22 @@ via `?attendance=1` and `attendanceStorage` became a `useSyncExternalStore` exte
     `settings.saved_event_toast_variant` text NOT NULL default `'pill'`. Docs:
     `action-pill.md` §1.1/§1.3/§1.5, `feature-flags.md`, AGENTS.md.
     (contents in `progress-archive.md` §1.261)
+- 1.262 JS-driven zoom animation (fixes the zoom recoil/jumpiness): 1.259–1.260
+    animated the grid width via CSS transitions and the scroll re-anchor via a
+    separate JS tween — two clocks that drifted (content slid/recoiled), and the
+    registered `--c2-slot` custom-property transition didn't run at all in Chrome
+    (the schedule columns snapped). Replaced with **one** rAF loop
+    (`src/lib/ui/zoomAnim.ts`, new; `scrollTween.ts` removed) that writes both the
+    zoom-derived width/slot and the scroll from the same interpolated value. React
+    publishes the active view's multiplier as `--c2-zoom` (+ `--c2-slot-base`) on
+    the canvas wrapper; every zoomed width/slot derives from
+    `var(--c2-zoom-anim, var(--c2-zoom))` — Month inner + weekday strip, Week (Grid)
+    rows, the schedule slot + ruler, and the Week (D) matrix template/min-width.
+    `animateZoom` writes `--c2-zoom-anim` and the anchored scroll each frame, then
+    clears the override; motion collapses under `prefers-reduced-motion`/`c2-low-end`.
+    Removed the `.c2-zoom-*` transitions and `@property --c2-slot`; the gutter
+    `margin-inline` still animates via `.c2-gutter-anim`. Docs: `dashboard-views.md`
+    §1.7, `grid-pan.md` §1.1.
 
 ## 1.4 Open items & next steps
 

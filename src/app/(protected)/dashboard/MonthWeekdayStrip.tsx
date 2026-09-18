@@ -4,7 +4,6 @@ import type { RefObject } from "react";
 import { Box } from "@mantine/core";
 
 import { WEEKDAY_ABBREVIATIONS } from "@/lib/events/datetime";
-import type { MonthZoom } from "@/lib/ui/monthZoom";
 
 /** Seven day columns per week row (see the Month view's zoom mechanics). */
 const MONTH_COLUMNS = 7;
@@ -14,11 +13,11 @@ const MONTH_COLUMNS = 7;
  * lives inside the Month view's content-height ScrollArea and scrolls away with
  * the page, so this strip replaces it (`withWeekDays={false}` on the MonthView).
  * It pins beneath the shared chrome like the Week (H) day-label strip. Its
- * inner 7-column track is sized to the zoomed grid width (7 day columns at the
- * same width the grid renders) and translates by -scrollLeft (driven by the
- * MonthView ScrollArea's `onScrollPositionChange`), so the initials stay over
- * their columns whenever the grid overflows the viewport — at zoom 1 the track
- * simply fills the strip, and zooming in widens both together.
+ * inner 7-column track mirrors the Month grid's zoomed content width (both ride
+ * the shared `--c2-zoom` / `--c2-zoom-anim`, so they widen together) and
+ * translates by -scrollLeft (driven by the MonthView ScrollArea's
+ * `onScrollPositionChange`), so the initials stay over their columns whenever
+ * the grid overflows the viewport — at zoom 1 the track simply fills the strip.
  *
  * Shared by the standalone Month view and the Dual Pane view's Month pane
  * (where the strip is constrained to that pane's column, so its 100%-based
@@ -26,13 +25,10 @@ const MONTH_COLUMNS = 7;
  */
 export function MonthWeekdayStrip({
   chromeOffset,
-  zoom,
   innerRef,
   sticky = true,
 }: {
   chromeOffset: number;
-  /** Month-grid zoom multiplier (1 = fit to viewport width). */
-  zoom: MonthZoom;
   innerRef: RefObject<HTMLDivElement | null>;
   /**
    * Pin beneath the shared chrome (standalone Month view / stacked Dual Pane).
@@ -58,14 +54,12 @@ export function MonthWeekdayStrip({
       <Box
         ref={innerRef}
         component="div"
-        className="c2-zoom-width"
         style={{
           display: "flex",
-          // Mirrors the Month grid's zoomed content width (see
-          // monthViewInnerStyle in DashboardView), so each column below lands
-          // exactly over the grid's day column. The class eases the width
-          // between zoom levels in step with the grid (globals.css).
-          width: `${zoom * 100}%`,
+          // Mirrors the Month grid's zoomed content width (ZOOM_VAR in
+          // DashboardView), so each column below lands exactly over the grid's
+          // day column and animates with it.
+          width: "calc(var(--c2-zoom-anim, var(--c2-zoom)) * 100%)",
           willChange: "transform",
         }}
       >
