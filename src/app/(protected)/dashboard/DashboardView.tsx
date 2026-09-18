@@ -1149,6 +1149,22 @@ export function DashboardView({
   // day-anchored too (its Month pane follows the agenda day's month).
   const shownIsAnchored = shownView === "schedule" || shownIsWeek || shownIsAgenda || shownIsDual;
 
+  // Reclaim the shell's left/right gutters when the shown view is zoomed in:
+  // the --app-shell-padding sides are bare chrome at rest (the grids fill the
+  // padded width at fit), but once a zoom level pushes the grid past the
+  // viewport it overflows into a horizontal pan — so the gutters become ~16px
+  // of dead space per side. Flushing the whole dashboard Stack to the shell
+  // edges then gives that width back to visible content. Keyed on the shown
+  // (optimistic) view like the Stack's own className below, and on the
+  // horizontal axis only — Week (Grid)'s row zoom never widens the grid.
+  // Follows the `shownIs*` flags because the zoom states (see above) are all
+  // in scope; Agenda has no zoom and keeps the padding.
+  const reclaimGutter =
+    ((shownView === "month" || shownIsDual) && monthZoom > 1) ||
+    ((shownView === "schedule" || shownView === "week") && zoom > 1) ||
+    (shownIsWeekV2 && weekMatrixZoom > 1) ||
+    (shownIsGridWeek && gridWeekColZoom > 1);
+
   // Height of the sticky chrome block (view tabs + date-nav row, one sticky
   // unit), so the Week (D) pinned day header and the Week (H) day-label strip can
   // stick just below it. Measured before first paint (and on resize) so the
@@ -2925,17 +2941,27 @@ export function DashboardView({
     // body-background strip under the fixed header until the sticky chrome
     // scrolled up to pin flush. Negative margin starts the chrome at the
     // header's bottom edge (its sticky `top`), so rest and pinned states match.
-    // fab-page-pad replaces pb="xl" (inline would beat the class): it reserves
-    // clearance for the mobile Create/Quick-links FABs below the last grid
-    // row and restores plain xl at lg (globals.css). The Week (Grid) is the
-    // exception: its grid is viewport-bounded and scrolls internally, so it
-    // drops that clearance (`weekgrid-page-pad`) and runs flush to the bottom
-    // nav, letting the FABs overlay its bottom-right. Follows the optimistic
-    // view so it matches the skeleton during a tab switch.
+    // The side margins are reclaimed when the shown view is zoomed in
+    // (`reclaimGutter`): at fit the grids fill the padded width, but zoomed-in
+    // grids overflow into a horizontal pan and the ~16px gutters become dead
+    // space — flushing the whole Stack flush to the shell edges gives that
+    // width back to visible content. The chrome, pinned strips and grid all
+    // widen together so their alignment is preserved. fab-page-pad replaces
+    // pb="xl" (inline would beat the class): it reserves clearance for the
+    // mobile Create/Quick-links FABs below the last grid row and restores
+    // plain xl at lg (globals.css). The Week (Grid) is the exception: its
+    // grid is viewport-bounded and scrolls internally, so it drops that
+    // clearance (`weekgrid-page-pad`) and runs flush to the bottom nav,
+    // letting the FABs overlay its bottom-right. Follows the optimistic view
+    // so it matches the skeleton during a tab switch.
     <Stack
       className={shownIsGridWeek ? "weekgrid-page-pad" : "fab-page-pad"}
       gap="sm"
-      style={{ marginTop: "calc(-1 * var(--app-shell-padding))" }}
+      style={{
+        marginTop: "calc(-1 * var(--app-shell-padding))",
+        marginLeft: reclaimGutter ? "calc(-1 * var(--app-shell-padding))" : undefined,
+        marginRight: reclaimGutter ? "calc(-1 * var(--app-shell-padding))" : undefined,
+      }}
     >
       {/* The sticky chrome block: view tabs + date-nav row pinned as one unit
           at every breakpoint. The wrapper is a direct child of the Stack, so

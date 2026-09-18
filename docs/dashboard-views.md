@@ -409,6 +409,20 @@ user can fit more of the day/week in view (overview) or expand it for detail. On
 **shared** zoom level scales the width of every hour slot; it does not change the
 slot granularity (still 60-minute columns) or the row height.
 
+**Gutter reclamation.** The dashboard's content sits inside the shell's `md`
+gutter (16px each side, `--app-shell-padding`). At fit the grids fill that padded
+width, but any zoomed-in grid overflows into a horizontal pan — so the gutters
+become dead space. Whenever the shown view's horizontal zoom is above its fit/base
+level (`reclaimGutter` in DashboardView: Month/Dual `monthZoom > 1`, Day/Week (H)
+`zoom > 1`, Week (D) `weekMatrixZoom > 1`, Week (Grid) columns
+`gridWeekColZoom > 1`), the whole dashboard Stack is flushed flush to the shell
+edges (negative `margin-inline: calc(-1 * var(--app-shell-padding))`, mirroring
+the existing top flush), reclaiming ~16px of visible content per side; the chrome,
+pinned strips and grid widen together, so weekday/ruler/column alignment is
+preserved. Returning to fit restores the gutter. Week (Grid)'s default 2× column
+zoom (§ below) means that tab reclaims immediately unless the user zooms out;
+Agenda has no zoom and never reclaims.
+
 Week (Grid) is different: it is a conventional 7-day grid whose right-edge
 cluster carries **two independent zoom pairs split around the right pan arrow**
 — **columns** above it and **rows** below (each side behind its own divider),
@@ -615,7 +629,9 @@ The Month view can zoom its day columns in and out. The **default (zoom 100%) is
 width, so the whole week is visible on any screen with no horizontal scroll.
 Zooming in widens every day column from there (columns only — `maxEventsPerDay`,
 cell height and the "+N more" day modal are unchanged), overflowing the grid into
-the same horizontal pan the other views use.
+the same horizontal pan the other views use. As with the other zooms, a zoomed-in
+grid reclaims the shell's side gutters for content (see the gutter-reclamation
+note in §1.7).
 
 - **Mechanism**: Mantine's MonthView lays each day column out as a percentage of
   its week row (`flex: 0 0 calc(100% / 7)`), which fills the ScrollArea content

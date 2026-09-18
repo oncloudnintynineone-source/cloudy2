@@ -1232,8 +1232,20 @@ via `?attendance=1` and `attendanceStorage` became a `useSyncExternalStore` exte
    the shell like `bannerConfig`, so a save applies after the next `router.refresh()`; count
    stays in the pill's `aria-label` and all new chrome is `aria-hidden`. New
    `docs/feature-flags.md`; `docs/pinned-events.md` §1.4/§1.6, `docs/user-guide.md` §1.5,
-   `AGENTS.md` updated (migration: `settings.pinned_ticker_indicator` text NOT NULL default
-   `'classic'`, `pnpm db:migrate`)
+`AGENTS.md` updated (migration: `settings.pinned_ticker_indicator` text NOT NULL default
+    `'classic'`, `pnpm db:migrate`)
+- 1.258 Zoomed-in grids reclaim the shell's side gutters: the dashboard content
+    sat inside the shell's `md` 16px gutters, so once any zoom level pushed a grid
+    past the viewport (overflowing into the horizontal pan) those sides became dead
+    space. `DashboardView` now derives `reclaimGutter` from the shown view's
+    horizontal zoom (> its fit/base level: Month/Dual `monthZoom`, Day/Week (H)
+    shared `zoom`, Week (D) `weekMatrixZoom`, Week (Grid) columns
+    `gridWeekColZoom`) and flushes the whole content stack flush to the shell edges
+    using exactly the same `calc(-1 * var(--app-shell-padding))` the top already used,
+    winning back ~16px of visible content per side while zoomed; the chrome, pinned
+    strips and grid widen together so alignment holds, and returning to fit restores
+    the gutter. Week (Grid)'s default 2× column zoom reclaims immediately; Agenda
+    never zoom → never reclaims. `docs/dashboard-views.md` §1.7/§1.8 updated.
 
 ## 1.4 Open items & next steps
 
