@@ -18,7 +18,7 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
 
 ## 1.1 Status
 
-- All work through changelog **1.261 (post-save confirmation variants)** is shipped.
+- All work through changelog **1.266 (split-pill pinned indicator)** is shipped.
 - Quality gates (`lint` / `typecheck` / `test` / schema-drift check) run in CI on every
   push and PR. Pushes also auto-apply migrations per environment: `dev` →
   `migrate-preview` against the dev Neon DB, `main` → `migrate` against the prod Neon
@@ -1343,6 +1343,16 @@ via `?attendance=1` and `attendanceStorage` became a `useSyncExternalStore` exte
     now set `touch-action: pan-y`, keeping the vertical scroll native while the
     app owns horizontal. The Agenda tab and day modal have no nested scroller, so
     they were unaffected. Docs: `dashboard-views.md` §1.9.
+- 1.266 Pinned-events indicator `split` variant: the `1/N` position counter and
+    the `5d` countdown now merge into one **two-tone leading pill** — amber left
+    half (counter, `accent-6` on `brand-9`) + blue right half (`brand-6` on
+    white) countdown, content-sized and joined with `overflow: hidden` (each half
+    keeps a 7px outer cap but only a 4px inner seam, so the two read as one tight
+    token) — as a fifth `pinnedTickerIndicator` option ("Split pill", Settings →
+    Feature Flags; default stays `classic`; no schema change — the option set is
+    code-side). Renders in the ticker and the Feature Flags live preview; the
+    standalone countdown chip is omitted for it (like `stacked`). Docs:
+    `pinned-events.md` §1.4, `feature-flags.md` §1.5, `user-guide.md` §1.5.
 
 ## 1.4 Open items & next steps
 

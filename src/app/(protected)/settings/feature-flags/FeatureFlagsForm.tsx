@@ -29,7 +29,15 @@ function TickerIndicatorPreview({ value }: { value: PinnedTickerIndicator }) {
           <span className="c2-pinned-ticker-stacked-countdown">5d</span>
         </span>
       ) : null}
-      {value !== "stacked" ? <span className="c2-pinned-ticker-countdown">5d</span> : null}
+      {value === "split" ? (
+        <span className="c2-pinned-ticker-split">
+          <span className="c2-pinned-ticker-split-count">2/3</span>
+          <span className="c2-pinned-ticker-split-countdown">5d</span>
+        </span>
+      ) : null}
+      {value !== "stacked" && value !== "split" ? (
+        <span className="c2-pinned-ticker-countdown">5d</span>
+      ) : null}
       <span className="c2-pinned-ticker-title">
         <span className="c2-pinned-ticker-line">Water parade</span>
       </span>

@@ -2,7 +2,7 @@
 
 The header's left edge carries the **pinned-events ticker** — the brand pill (logo
 removed) that rotates through the upcoming pinned events' titles behind a
-days-remaining countdown chip and one of four **indicator styles** (the
+days-remaining countdown chip and one of five **indicator styles** (the
 `pinnedTickerIndicator` feature flag, Settings → Feature Flags). Tapping it opens
 a centered Modal listing every explicitly-pinned upcoming event. Both stay fresh
 across mutations.
@@ -77,6 +77,7 @@ variants live and keep the winner:
 | Flag | Indicator | Title space |
 | ---- | --------- | ----------- |
 | `classic` | inline amber **`1/N` chip** — position within the rotation plus how many events are pinned (replaced the floating amber `Indicator` badge) | baseline |
+| `split` | the `1/N` and `5d` joined into one **two-tone pill** — amber left half (counter) + blue right half (countdown), content-sized so it reads as a single leading token | ~+5px |
 | `segmented` | thin **segmented progress bar** along the pill's bottom edge — one segment per pinned event, the current rotation position lit amber (count + position at a glance, zero in-flow width) | +~37px |
 | `badge` | compact amber **count badge** (`N`) over the pill's upper-right corner, absolutely positioned | +~37px |
 | `stacked` | the `1/N` and `5d` folded into one narrow **two-line leading block** (position over countdown) | +~33px |
@@ -86,6 +87,10 @@ flowchart LR
   subgraph classic["classic pill"]
     direction LR
     C["1/5 chip"] --> D["5d countdown"] --> T["rotating title"]
+  end
+  subgraph splitPill["split pill"]
+    direction LR
+    SP["1/5 | 5d"] --> T5["rotating title"]
   end
   subgraph segmented["segmented pill"]
     direction LR

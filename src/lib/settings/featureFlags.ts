@@ -26,6 +26,7 @@ export interface FeatureFlagDef<TOption extends string = string> {
 
 export const PINNED_TICKER_INDICATOR_OPTIONS = [
   "classic",
+  "split",
   "segmented",
   "badge",
   "stacked",
@@ -42,6 +43,7 @@ export const pinnedTickerIndicatorFlag: FeatureFlagDef<PinnedTickerIndicator> = 
   options: PINNED_TICKER_INDICATOR_OPTIONS,
   optionLabels: {
     classic: "1/N chip",
+    split: "Split pill",
     segmented: "Progress bar",
     badge: "Count badge",
     stacked: "Stacked",

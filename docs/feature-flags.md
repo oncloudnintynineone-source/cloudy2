@@ -96,7 +96,7 @@ normalization) and the full quality gates before pushing.
 Related docs:
 
 - [`pinned-events.md`](pinned-events.md) — the first flag (`pinnedTickerIndicator`)
-  and its four variants in the header pill.
+  and its five variants in the header pill.
 - [`action-pill.md`](action-pill.md) — the `savedEventToastVariant` flag: the four
   post-save confirmation variants and the action pill's `toast` presentation.
 - [`audit-log.md`](audit-log.md) — how admin writes are recorded.

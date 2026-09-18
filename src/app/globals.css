@@ -284,11 +284,12 @@ html {
    at the header's left edge (where the logo used to sit). Its indicator style
    is the `pinnedTickerIndicator` feature flag (Settings → Feature Flags):
    `classic` shows an inline amber count chip (1/N) + a days-remaining countdown
-   chip (5d); `segmented` swaps the count chip for a thin bottom rotation bar;
-   `badge` puts a compact count badge on the pill's corner; `stacked` folds the
-   position + countdown into one narrow two-line block. The max-width caps the
-   pill so it doesn't stretch across wide desktop headers; titles truncate with
-   an ellipsis inside it. */
+   chip (5d); `split` joins the count and countdown into one two-tone pill
+   (amber half + blue half); `segmented` swaps the count chip for a thin bottom
+   rotation bar; `badge` puts a compact count badge on the pill's corner;
+   `stacked` folds the position + countdown into one narrow two-line block. The
+   max-width caps the pill so it doesn't stretch across wide desktop headers;
+   titles truncate with an ellipsis inside it. */
 .c2-pinned-ticker {
   position: relative;
   display: flex;
@@ -414,6 +415,37 @@ html {
   line-height: 1.3;
   color: var(--mantine-color-brand-2);
   font-variant-numeric: tabular-nums;
+}
+
+/* Two-tone pill (the `split` indicator): the position count (X/N) and the days
+   countdown joined into one token — amber left half, blue right half — content-
+   sized so the title still gets the pill. Reads as a single unit instead of two
+   chips, keeping the countdown accent-led like the stacked variant. */
+.c2-pinned-ticker-split {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: stretch;
+  border-radius: var(--mantine-radius-xl);
+  overflow: hidden;
+  font-size: var(--mantine-font-size-xs);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  line-height: calc(1.125rem * var(--mantine-scale));
+}
+
+.c2-pinned-ticker-split-count {
+  /* Amber half: a full cap on the outer (left) edge, a tighter seam on the
+     inner edge so the counter doesn't float away from the countdown. */
+  padding-inline: calc(0.4375rem * var(--mantine-scale)) calc(0.25rem * var(--mantine-scale));
+  background: var(--mantine-color-accent-6);
+  color: var(--mantine-color-brand-9);
+}
+
+.c2-pinned-ticker-split-countdown {
+  /* Blue half: tight seam on the inner edge, full cap on the outer (right) edge. */
+  padding-inline: calc(0.25rem * var(--mantine-scale)) calc(0.4375rem * var(--mantine-scale));
+  background: var(--mantine-color-brand-6);
+  color: var(--mantine-color-white);
 }
 
 /* Segmented rotation bar (the `segmented` indicator): a thin bar along the

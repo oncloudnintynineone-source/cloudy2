@@ -39,6 +39,8 @@ function tickerTitleOf(event: PinnedEvent): string {
  *
  * - `classic` — the original inline amber `1/N` count chip, the `5d` countdown
  *   chip and the rotating title.
+ * - `split` — the count and countdown joined into one two-tone pill (amber
+ *   `X/N` half + blue `5d` half), content-sized.
  * - `segmented` — a thin segmented progress bar pinned to the pill's bottom
  *   edge (one segment per pinned event, the current rotation position lit
  *   amber), with the `5d` chip; the count chip is gone so the title gets its
@@ -158,6 +160,13 @@ export function PinnedEventsTicker({
                 {safeIndex + 1}/{count}
               </span>
               <span className="c2-pinned-ticker-stacked-countdown">{daysUntil}d</span>
+            </span>
+          ) : safeIndicator === "split" ? (
+            <span className="c2-pinned-ticker-split" aria-hidden>
+              <span className="c2-pinned-ticker-split-count">
+                {safeIndex + 1}/{count}
+              </span>
+              <span className="c2-pinned-ticker-split-countdown">{daysUntil}d</span>
             </span>
           ) : (
             <span className="c2-pinned-ticker-countdown" aria-hidden>
