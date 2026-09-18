@@ -677,9 +677,28 @@ html {
 */
 @media (max-width: 39.99em) {
   .app-shell-root > footer {
-    height: calc(var(--app-shell-footer-height, 56px) + var(--c2-safe-area-max-bottom));
-    padding-bottom: var(--c2-safe-area-max-bottom);
-    bottom: calc(env(safe-area-inset-bottom, 0px) - var(--c2-safe-area-max-bottom));
+    height: calc(
+      var(--app-shell-footer-height, 56px) +
+        var(--c2-safe-area-max-bottom, env(safe-area-inset-bottom, 0px))
+    );
+    padding-bottom: var(--c2-safe-area-max-bottom, env(safe-area-inset-bottom, 0px));
+    bottom: calc(
+      env(safe-area-inset-bottom, 0px) -
+        var(--c2-safe-area-max-bottom, env(safe-area-inset-bottom, 0px))
+    );
+  }
+
+  /* iOS/Safari: `safe-area-max-inset-bottom` is a Chrome-only hint and iOS's
+     `env()` fallback handling has proven unreliable enough to detach the fixed
+     footer on some iOS 18 states (it read as lifted, with empty space below).
+     Force the plain live-inset box + `bottom: 0` there; the standalone gap rule
+     below re-pins it to the visual viewport when the two differ. */
+  @supports (-webkit-touch-callout: none) and (font: -apple-system-body) {
+    .app-shell-root > footer {
+      height: calc(var(--app-shell-footer-height, 56px) + env(safe-area-inset-bottom, 0px));
+      padding-bottom: env(safe-area-inset-bottom, 0px);
+      bottom: 0;
+    }
   }
 
   .app-shell-root:not(.app-shell-immersive) {
@@ -783,24 +802,43 @@ html {
   iOS PWA standalone + viewport-fit=cover: `100dvh` can resolve to the full
   screen height while the actual layout viewport is shorter (excludes
   safe-area-inset-top on notched iPhones). The sync effect in AppShellShell
-  measures the real clientHeight and shell chrome heights, setting
-  --app-shell-vh / --app-shell-header-offset / --app-shell-footer-offset as
-  inline style vars on the root element.
+  measures the real visual viewport and shell chrome heights, setting
+  --app-shell-vh / --app-shell-visual-bottom-gap /
+  --app-shell-header-offset / --app-shell-footer-offset as inline style vars on
+  the root element, and adds the `app-shell-standalone` class.
 
   These rules consume those vars (with dvh/fallback for SSR and non-PWA).
-  Scoped to standalone PWA mode — in normal browser mode `100dvh` already
-  tracks the keyboard-aware dynamic viewport correctly on both iOS and Android.
+  Scoped to the JS-detected standalone class, not the `display-mode` media
+  query — on some iOS launch paths the query misses while `navigator.standalone`
+  is true, leaving the shell sized off `100dvh`.
 */
-@media (display-mode: standalone) {
-  .app-shell-root .m_8983817 {
-    min-height: var(--app-shell-vh, 100dvh) !important;
-  }
+.app-shell-standalone .m_8983817 {
+  min-height: var(--app-shell-vh, 100dvh) !important;
+}
 
-  .app-shell-root .m_45252eee {
-    height: calc(
-      var(--app-shell-vh, 100dvh) - var(--app-shell-header-offset, 0rem) -
-        var(--app-shell-footer-offset, 0rem)
-    ) !important;
+.app-shell-standalone .m_45252eee {
+  height: calc(
+    var(--app-shell-vh, 100dvh) - var(--app-shell-header-offset, 0rem) -
+      var(--app-shell-footer-offset, 0rem)
+  ) !important;
+}
+
+/*
+  iOS/Safari standalone: fixed elements resolve against the *layout* viewport,
+  which can sit below the visible (visual) viewport on some iOS 18 states, so
+  `bottom: 0` leaves the fixed footer lifted with empty space beneath it. Pin it
+  to the visual bottom with the gap AppShellShell measures, net of the
+  safe-area inset the footer already pads with. Chrome keeps its fast-path
+  `bottom` above.
+*/
+@supports (-webkit-touch-callout: none) and (font: -apple-system-body) {
+  @media (max-width: 39.99em) {
+    .app-shell-standalone > footer {
+      bottom: max(
+        0px,
+        var(--app-shell-visual-bottom-gap, 0px) - env(safe-area-inset-bottom, 0px)
+      );
+    }
   }
 }
 

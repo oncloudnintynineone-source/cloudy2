@@ -1180,7 +1180,20 @@ via `?attendance=1` and `attendanceStorage` became a `useSyncExternalStore` exte
   `SerwistProvider` now gets `reloadOnOnline={false}`, removing Serwist's default
   hard-reload on every `online` event (a surprise on flaky mobile connections, and
   redundant with the app's own refresh paths). New `docs/pwa-offline.md` §1.8.1
-  documents the iOS-vs-Android behavior and the multi-tab unregister caveat.
+   documents the iOS-vs-Android behavior and the multi-tab unregister caveat.
+- 1.254 iOS standalone bottom-nav detach fix: on iOS 18 installed PWAs the fixed bottom
+   nav could sit above the visible bottom on short-content pages (empty space below it),
+   because the standalone shell was sized/positioned from the *layout* viewport while the
+   visible area is the *visual* viewport. The `AppShellShell` sync now measures
+   `window.visualViewport`, exposes `--app-shell-visual-bottom-gap`, listens to
+   `visualViewport` `scroll`, and gates its CSS through a JS-added `app-shell-standalone`
+   class (so iOS launch paths that miss the `display-mode` query still sync). The footer's
+   Chrome edge-to-edge fast path is overridden on iOS/WebKit
+   (`@supports (-webkit-touch-callout: none)`) to the plain live-inset box + `bottom: 0`,
+   with an explicit `var(…, env(safe-area-inset-bottom))` fallback so an unresolved custom
+   property can't collapse `bottom` to `auto`; in standalone the footer re-pins to the
+   visual bottom via the measured gap. `docs/pwa-offline.md` §1.19,
+   `docs/desktop-responsive.md` §1.2/§1.3
 
 ## 1.4 Open items & next steps
 

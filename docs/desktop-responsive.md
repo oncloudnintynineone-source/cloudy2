@@ -112,7 +112,12 @@ flowchart LR
   on the shell root beats Mantine's `:root { …: 0px !important }` for all
   descendants — the old unconditional write left the navbar 56px short of the
   viewport bottom and padded Main's bottom by the same amount on installed
-  PWAs at desktop width).
+  PWAs at desktop width). The effect now measures `window.visualViewport` (the
+  visible area) rather than `documentElement.clientHeight` (the layout viewport
+  `position: fixed` resolves against), exposes the difference as
+  `--app-shell-visual-bottom-gap`, and adds the JS-detected
+  `app-shell-standalone` class that gates the standalone CSS; see
+  [docs/pwa-offline.md](pwa-offline.md) §1.19.
 - `isDesktop` comes from `useMediaQuery` (see 1.1); it drives the footer's
   `collapsed` prop and the standalone-sync footer-offset guard — the navbar
   collapse is Mantine's own `breakpoint`.
@@ -136,7 +141,7 @@ and `@media (min-width: 40em)` (desktop shell) blocks in
 | `.app-shell-root` → `--app-floating-bottom-offset` | `calc(56px + env(safe-area-inset-bottom) + 16px)` (clears bottom nav) | same | `16px` | `FloatingToolbar` default `bottomOffset` |
 | `.settings-page-pad` → `--settings-fab-bottom` + `padding-bottom` | `calc(108px + env(safe-area-inset-bottom) + 16px)` (clears bottom nav + settings tab bar) | same | `16px` | settings `layout.tsx` wrapper; the four settings FABs pass it to `FloatingToolbar` |
 | `.app-shell-root` → `--app-shell-header-offset` | `56px` (declared unconditionally — the AppShell header is fixed at every width; consumers that want desktop-only stickiness gate in JS) | `56px` (same) | `56px` (same) | `SettingsTabs` sticky row (JS-gated to `lg`+); the dashboard's sticky tabs+date-nav chrome block and Week (D) day-header strip (sticky at all widths); the Week (H) view's day-label strip |
-| `.app-shell-root > footer` + `--app-shell-footer-offset` (mobile only) | Chrome edge-to-edge fast path: `height: calc(56px + var(--c2-safe-area-max-bottom))`, `padding-bottom: var(--c2-safe-area-max-bottom)`, `bottom: calc(env(safe-area-inset-bottom) - var(--c2-safe-area-max-bottom))`; offset re-declared as `56px + env(safe-area-inset-bottom)` (minus immersive) | same | untouched (footer collapsed; desktop insets 0) | `AppShell.Footer`; AppShell main padding. See [docs/pwa-offline.md](pwa-offline.md) §1.19 |
+| `.app-shell-root > footer` + `--app-shell-footer-offset` (mobile only) | Chrome edge-to-edge fast path: `height: calc(56px + var(--c2-safe-area-max-bottom))`, `padding-bottom: var(--c2-safe-area-max-bottom)`, `bottom: calc(env(safe-area-inset-bottom) - var(--c2-safe-area-max-bottom))`; overridden on iOS/WebKit (`@supports (-webkit-touch-callout: none) and (font: -apple-system-body)`) to the plain live-inset box + `bottom: 0`, and in standalone re-pinned to the visual bottom via `--app-shell-visual-bottom-gap`; offset re-declared as `56px + env(safe-area-inset-bottom)` (minus immersive) | same | untouched (footer collapsed; desktop insets 0) | `AppShell.Footer`; AppShell main padding. See [docs/pwa-offline.md](pwa-offline.md) §1.19 |
 | `.page-container` | full width | full width | `max-width: 1200px; margin-inline: auto` | `PageContainer` component |
 | `.card-grid` | `1fr` single column | `repeat(auto-fill, minmax(300px, 1fr))` — still bottom-nav, 2 columns only from ~644px (in practice the band is too narrow, so it renders 1 column) | `repeat(auto-fill, minmax(320px, 1fr))` | `ContactList`, `ParadeStateView` |
 

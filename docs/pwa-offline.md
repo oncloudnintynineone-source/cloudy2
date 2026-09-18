@@ -709,6 +709,31 @@ assumes. The launch shell (`public/loading.html`, §1.5.1) mirrors the same patt
 so the pre-hydration paint reaches the same edge; `src/lib/pwa/launchShell.test.ts`
 guards it.
 
+**iOS guard (the max-inset env is Chrome-only).** Because
+`safe-area-max-inset-bottom` is not recognized on iOS/Safari, the whole
+fast-path box is additionally overridden under
+`@supports (-webkit-touch-callout: none) and (font: -apple-system-body)` (a
+reliable Apple/WebKit-only probe — the second clause keeps Chromium, which parses
+the prefixed property, out) to the plain live-inset
+`height`/`padding-bottom` with `bottom: 0`. This keeps the fixed footer immune to
+a mis-resolving `env()` fallback, which on some iOS 18 standalone states detached
+it from the visible bottom (the bar read as lifted, with empty space beneath it).
+The `bottom` calc also carries an explicit `var(…, env(safe-area-inset-bottom))`
+fallback so an unresolved custom property can never collapse `bottom` to `auto`
+(which would drop the footer to its static position — right after short content).
+
+**Standalone viewport sync.** The iOS/Android `--app-shell-vh` effect in
+`AppShellShell` gates its CSS through the JS-added `app-shell-standalone` class
+(not the `display-mode` media query alone, which some iOS launch paths miss while
+`navigator.standalone` is true). It measures `window.visualViewport` — the visible
+viewport — rather than `documentElement.clientHeight` (the layout viewport that
+`position: fixed` resolves against), and exposes their difference as
+`--app-shell-visual-bottom-gap`. The iOS standalone footer rule pins itself with
+`bottom: max(0, gap - env(safe-area-inset-bottom))`, so when the two viewports
+diverge (rotation, resume, keyboard teardown) the footer stays on the visible
+bottom instead of the layout bottom. `visualViewport` `scroll` is listened to in
+addition to `resize`.
+
 **Limits.** Installed PWAs (WebAPKs) did not get edge-to-edge at all until a 2026
 Chromium fix (`issues.chromium.org/407420295`); whether it applies depends on the
 device's Chrome version, and no app-side change can force it. In **three-button**
@@ -717,5 +742,6 @@ transparent. So the app maximises compatibility with the platform's edge-to-edge
 behavior where the platform supports it; it cannot add support the browser lacks.
 
 Files: `src/app/globals.css` (`--c2-safe-area-max-bottom` + footer override),
+`src/components/AppShellShell.tsx` (standalone class + `visualViewport` sync),
 `public/loading.html`, `src/app/layout.tsx` (`viewportFit: "cover"`),
 `src/components/SystemBarSync.tsx` (status bar / `color-scheme`).

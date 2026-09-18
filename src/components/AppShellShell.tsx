@@ -766,8 +766,13 @@ export function AppShellShell({
   // actual layout viewport is shorter (excludes the top safe-area inset). This
   // causes Mantine's dvh-based sizing to overshoot, making the document
   // scrollable and pushing content under the fixed header/footer.
-  // Measure the real layout viewport and shell chrome, feed them back as CSS
-  // variables that globals.css and Mantine's stylesheets consume.
+  // Measure the real *visual* viewport and shell chrome, feed them back as CSS
+  // variables that globals.css and Mantine's stylesheets consume. Detection is
+  // JS-driven (the `app-shell-standalone` class) rather than the `display-mode`
+  // media query alone: on some iOS launch paths (notifications, shortcuts,
+  // restored sessions) the media query misses while `navigator.standalone` is
+  // true, which left the shell sized off `100dvh` and the fixed footer detached
+  // from the visible bottom.
   const rootRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -775,11 +780,28 @@ export function AppShellShell({
     if (!el) return;
     // Only run viewport sync in standalone PWA mode — in normal browser mode
     // 100dvh already tracks the keyboard-aware dynamic viewport correctly.
-    if (!window.matchMedia("(display-mode: standalone)").matches) return;
+    const isStandalone =
+      window.matchMedia("(display-mode: standalone)").matches ||
+      (navigator as Navigator & { standalone?: boolean }).standalone === true;
+    if (!isStandalone) return;
+    // The class is what gates the consuming CSS in globals.css; toggled directly
+    // on the shell root (alongside the inline vars below) so detection can't
+    // race a React render. React only rewrites `className` when its prop value
+    // changes, so an unrelated re-render won't drop it.
+    el.classList.add("app-shell-standalone");
 
     const sync = () => {
-      const vh = document.documentElement.clientHeight;
+      // `documentElement.clientHeight` is the *layout* viewport (what
+      // `position: fixed` resolves against); `visualViewport.height` is the
+      // area actually on screen. iOS standalone can report them differently
+      // (rotation, resume, keyboard teardown), so size the shell from the
+      // visual viewport and expose the difference for the fixed footer.
+      const layoutHeight = document.documentElement.clientHeight;
+      const vv = window.visualViewport;
+      const vh = vv?.height ?? layoutHeight;
       el.style.setProperty("--app-shell-vh", `${vh}px`);
+      const bottomGap = vv ? Math.max(0, layoutHeight - vv.height - vv.offsetTop) : 0;
+      el.style.setProperty("--app-shell-visual-bottom-gap", `${bottomGap}px`);
 
       if (!immersive) {
         const header = el.querySelector<HTMLElement>(":scope > header");
@@ -819,12 +841,18 @@ export function AppShellShell({
     window.addEventListener("orientationchange", onOrientation);
     const vv = window.visualViewport;
     vv?.addEventListener("resize", sync);
+    // iOS also fires `scroll` on the visual viewport as the dynamic toolbars /
+    // keyboard shift it; without this the fixed footer can hold a stale gap.
+    vv?.addEventListener("scroll", sync);
     return () => {
       clearInterval(id);
       window.removeEventListener("resize", sync);
       window.removeEventListener("orientationchange", onOrientation);
       vv?.removeEventListener("resize", sync);
+      vv?.removeEventListener("scroll", sync);
+      el.classList.remove("app-shell-standalone");
       el.style.removeProperty("--app-shell-vh");
+      el.style.removeProperty("--app-shell-visual-bottom-gap");
       el.style.removeProperty("--app-shell-header-offset");
       el.style.removeProperty("--app-shell-footer-offset");
     };
