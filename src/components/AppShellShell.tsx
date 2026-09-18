@@ -60,6 +60,7 @@ import { UserMenu } from "@/components/UserMenu";
 import { BANNER_HEIGHT_PX, type BannerConfig } from "@/lib/banner/banner";
 import { BOTTOM_NAV_HEIGHT } from "@/lib/bottomNav";
 import { fetchPinnedEvents, type PinnedEvent } from "@/lib/events/pinned";
+import type { PinnedTickerIndicator } from "@/lib/settings/featureFlags";
 import type { Rect } from "@/lib/motion/origin";
 import { MOTION } from "@/lib/motion/timing";
 import { useInactivityRefresh, useOneShotRefreshStrip } from "@/lib/pwa/client";
@@ -347,6 +348,7 @@ export function AppShellShell({
   googleConfigured,
   sidebarCollapsed,
   bannerConfig,
+  pinnedTickerIndicator,
   kahNavSlot,
   children,
 }: {
@@ -371,6 +373,10 @@ export function AppShellShell({
    *  no reservation while a read is pending, and no post-hydration shift in
    *  either direction (the server already knows whether a banner exists). */
   bannerConfig: BannerConfig | null;
+  /** The pinned-events header pill's indicator style (Settings → Feature
+   *  Flags), resolved by the (protected) layout from the settings row and
+   *  passed as a prop like `bannerConfig`. */
+  pinnedTickerIndicator: PinnedTickerIndicator;
   /** Streamed KAH-status probe (a <Suspense> from the (protected) layout);
    *  reveals the KAH Status nav entry when the signed-in user belongs to a
    *  group. Null for admins (they always see it). */
@@ -932,6 +938,7 @@ export function AppShellShell({
                   paused={pinnedOpen}
                   onOpen={openPinnedPanel}
                   status={pinnedEvents !== null ? "ready" : pinnedStatus}
+                  indicator={pinnedTickerIndicator}
                 />
                 <Group gap={isNarrow ? 2 : "xs"} wrap="nowrap">
                   <ActionIcon

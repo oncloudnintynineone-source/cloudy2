@@ -1,0 +1,1 @@
+ALTER TABLE "settings" ADD COLUMN "pinned_ticker_indicator" text DEFAULT 'classic' NOT NULL;

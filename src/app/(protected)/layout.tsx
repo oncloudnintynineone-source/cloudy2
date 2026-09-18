@@ -5,7 +5,8 @@ import { AppShellShell } from "@/components/AppShellShell";
 import { ColdStartReadyProvider } from "@/components/ColdStartReady";
 import { googleCalendarConfigured } from "@/lib/google";
 import { requireSession } from "@/lib/session";
-import { getBanner } from "@/lib/settings/queries";
+import { getBanner, getSettings } from "@/lib/settings/queries";
+import { pinnedTickerIndicatorFlag, resolveFlagValue } from "@/lib/settings/featureFlags";
 import { UI_STATE_COOKIE, decodeUiState } from "@/lib/ui/uiState";
 import { ShellKahNav } from "./shellStream";
 
@@ -15,7 +16,11 @@ export default async function ProtectedLayout({ children }: { children: React.Re
   // streaming the banner — means the shell knows the banner state from first
   // paint: the header (banner present or bare 56px bar) and the route skeleton
   // are aligned with the steady-state layout with no post-hydration jump.
-  const [session, bannerConfig] = await Promise.all([requireSession(), getBanner()]);
+  const [session, bannerConfig, settings] = await Promise.all([
+    requireSession(),
+    getBanner(),
+    getSettings(),
+  ]);
   // The remembered desktop sidebar state lives in the client-owned `cloudy2.ui`
   // cookie; read it here, before first paint, so the shell renders the
   // remembered rail state with no client-side restore (no flash, no
@@ -31,6 +36,10 @@ export default async function ProtectedLayout({ children }: { children: React.Re
         googleConfigured={googleCalendarConfigured()}
         sidebarCollapsed={uiState?.sidebarCollapsed === true}
         bannerConfig={bannerConfig}
+        pinnedTickerIndicator={resolveFlagValue(
+          pinnedTickerIndicatorFlag,
+          settings.featureFlags.pinnedTickerIndicator,
+        )}
         kahNavSlot={
           // Admins always see KAH Status (all groups) — skip the membership probe.
           isAdmin ? null : (

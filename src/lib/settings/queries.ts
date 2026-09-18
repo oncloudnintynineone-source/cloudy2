@@ -19,6 +19,7 @@ import {
   PARADE_EMAIL_SUBJECT_TEMPLATE_DEFAULT,
 } from "@/lib/parade-email/emailDefaults";
 import { sanitizeTitleRecipe, type TitleRecipe } from "@/lib/settings/titleRecipe";
+import { normalizeFeatureFlags, type FeatureFlagKey } from "@/lib/settings/featureFlags";
 import {
   normalizeAssignments,
   type EventTitleAssignmentTarget,
@@ -57,6 +58,8 @@ export interface SettingsView {
   paradeEmailRecipientIds: string[];
   paradeEmailSubjectTemplate: string;
   paradeEmailBodyTemplate: string;
+  /** Feature-flag values (Settings → Feature Flags), resolved per the registry. */
+  featureFlags: Record<FeatureFlagKey, string>;
 }
 
 /** Coerce a jsonb value to a string array (unknown/blank entries dropped). */
@@ -114,7 +117,24 @@ export async function getSettings(): Promise<SettingsView> {
       row?.paradeEmailSubjectTemplate?.trim() || PARADE_EMAIL_SUBJECT_TEMPLATE_DEFAULT,
     paradeEmailBodyTemplate:
       row?.paradeEmailBodyTemplate?.trim() || PARADE_EMAIL_BODY_TEMPLATE_DEFAULT,
+    featureFlags: normalizeFeatureFlags(row ?? {}),
   };
+}
+
+/**
+ * Every registered flag's live value, resolved through the registry
+ * (`src/lib/settings/featureFlags.ts`) from the cached singleton settings row.
+ * Shared by the Feature Flags page and the app shell's header.
+ */
+export async function getFeatureFlags(): Promise<Record<FeatureFlagKey, string>> {
+  const row = await readSettingsRow();
+  return normalizeFeatureFlags(row ?? {});
+}
+
+/** Convenience: one flag's resolved value (defaults when unset/unknown). */
+export async function getFeatureFlag(key: FeatureFlagKey): Promise<string> {
+  const flags = await getFeatureFlags();
+  return flags[key];
 }
 
 export async function listEventTitleTemplates(): Promise<EventTitleTemplateView[]> {

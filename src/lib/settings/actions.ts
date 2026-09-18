@@ -35,6 +35,7 @@ import {
   validateTitleRecipe,
   type TitleRecipe,
 } from "@/lib/settings/titleRecipe";
+import { FEATURE_FLAGS, normalizeFeatureFlags, type FeatureFlagKey } from "@/lib/settings/featureFlags";
 
 export type SettingsActionResult =
   | { ok: true }
@@ -51,7 +52,8 @@ export type SettingsActionResult =
         | "kahSubject"
         | "kahBody"
         | "templateLabel"
-        | "assignments";
+        | "assignments"
+        | "featureFlags";
     };
 
 /** The label of a library template: required, single line, unique, ≤40 chars. */
@@ -521,6 +523,56 @@ export async function updateBanner(values: BannerFormValues): Promise<SettingsAc
 
   invalidateConfigCache(["settings"]);
   revalidatePath("/settings/banner");
+  return { ok: true };
+}
+
+export async function updateFeatureFlags(
+  values: Partial<Record<FeatureFlagKey, string>>,
+): Promise<SettingsActionResult> {
+  const session = await requireAdmin();
+
+  // Validate against the registry so only closed-set values can be stored; the
+  // form submits every flag it renders, but partial payloads are fine too.
+  const next: Record<string, string> = {};
+  for (const def of FEATURE_FLAGS) {
+    const value = values[def.key];
+    if (value === undefined) continue;
+    if (!(def.options as readonly string[]).includes(value)) {
+      return {
+        ok: false,
+        error: `${def.label}: choose one of the available options`,
+        field: "featureFlags",
+      };
+    }
+    next[def.key] = value;
+  }
+  if (Object.keys(next).length === 0) {
+    return { ok: false, error: "No feature flags to update", field: "featureFlags" };
+  }
+
+  const [before] = await db.select().from(settings).limit(1);
+  const beforeFlags = normalizeFeatureFlags(before ?? {});
+
+  await db
+    .update(settings)
+    .set({ ...next, updatedAt: new Date() })
+    .where(eq(settings.id, "singleton"));
+
+  await logAction({
+    ...actorFromUser({
+      id: session.user.id,
+      name: session.user.name ?? null,
+      role: session.user.role,
+    }),
+    action: AUDIT_ACTIONS.settingsUpdate,
+    entityType: "settings",
+    entityName: "settings",
+    method: "updateFeatureFlags",
+    details: diffFields(beforeFlags, { ...beforeFlags, ...next }),
+  });
+
+  invalidateConfigCache(["settings"]);
+  revalidatePath("/settings/feature-flags");
   return { ok: true };
 }
 

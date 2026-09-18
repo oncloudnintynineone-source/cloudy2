@@ -158,10 +158,14 @@ doc content here.
   **inline** on the AppShell root — do NOT use Mantine's `vars` prop (a resolver function in
   v9, not an object). Design: [docs/announcement-banner.md](docs/announcement-banner.md).
 - **Pinned Events:** header-left ticker rotating upcoming pinned events' titles every 5s
-  behind an inline amber `1/N` count chip and a days-remaining countdown chip (`5d`, `0d`
-  for same-day; no pin icon); tapping opens the pinned panel ("Pin this event" switch on
+  behind a days-remaining countdown chip (`5d`, `0d` for same-day; no pin icon); the
+  rotation-position indicator is the **`pinnedTickerIndicator` feature flag** (Settings →
+  Feature Flags, org-wide, default `classic`) — inline amber `1/N` chip, bottom segmented
+  rotation bar, corner count badge, or a stacked `1/N`-over-`5d` block (all keep the count
+  in the pill's `aria-label`); tapping opens the pinned panel ("Pin this event" switch on
   the wizard's Other settings step). Titles render via the `pinnedHeader` template target
-  (panel list: `pinned`). Design: [docs/pinned-events.md](docs/pinned-events.md).
+  (panel list: `pinned`). Design: [docs/pinned-events.md](docs/pinned-events.md);
+  flags: [docs/feature-flags.md](docs/feature-flags.md).
 - **Event search:** header icon opens a **lazy-loaded** (`dynamic` + `ssr: false`) modal
   that free-text searches every department calendar **directly via Google Calendar**
   (`events.list` `q` — bypasses the month cache), rendered in `@mantine/schedule`'s

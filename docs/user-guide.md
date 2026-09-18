@@ -156,10 +156,12 @@ confirmation and removes every department copy.
 ## 1.5 Pinned events
 
 The pill at the header's left edge is the **pinned-events ticker**: it rotates
-through your pinned events' titles (one every few seconds) behind an amber `1/N`
-chip that tells you how many events are pinned and which one is on screen, plus a
- `5d` chip counting down the whole days until the current event starts (`0d` if it
-starts today). Tap it to open a panel listing every explicitly-pinned upcoming
+through your pinned events' titles (one every few seconds) with a
+`5d` chip counting down the whole days until the current event starts (`0d` if it
+starts today), plus a position/count indicator in one of a few styles — an amber
+`1/N` chip, a thin progress bar along the pill's bottom edge, or a count badge on
+the corner (admins pick the style on **Settings → Feature Flags**). Tap it to open
+a panel listing every explicitly-pinned upcoming
 event (today → 3 months out, all departments, ignoring your current filters). Tap
 one there to jump straight to it on the calendar and open its details.
 

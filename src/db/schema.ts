@@ -415,6 +415,12 @@ export const settings = pgTable(
     bannerText: text("banner_text").notNull().default(""),
     bannerColor: text("banner_color"),
     /**
+     * Pinned-events header ticker indicator style (Settings → Feature Flags).
+     * One of the keys in `FEATURE_FLAGS` (`src/lib/settings/featureFlags.ts`);
+     * the registry's default backs the column default.
+     */
+    pinnedTickerIndicator: text("pinned_ticker_indicator").notNull().default("classic"),
+    /**
      * Daily parade-state email (Settings → Parade State Email): when enabled,
      * the selected roster users receive one snapshot on each weekday at 08:00
      * Singapore time, scheduled by Cloud Scheduler. Recipients are stored as

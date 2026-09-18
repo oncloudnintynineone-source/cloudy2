@@ -281,12 +281,16 @@ html {
 /* Reduced motion: no draw-in — the bar appears instantly. */
 
 /* Header pinned-events ticker (docs/pinned-events.md): the brand pill anchored
-   at the header's left edge (where the logo used to sit). It shows an inline
-   amber count chip (1/N), a secondary days-remaining countdown chip (5d) and
-   rotates through the upcoming pinned events' titles with a vertical ticker
-   slide. The max-width caps the pill so it doesn't stretch across wide desktop
-   headers; titles truncate with an ellipsis inside it. */
+   at the header's left edge (where the logo used to sit). Its indicator style
+   is the `pinnedTickerIndicator` feature flag (Settings → Feature Flags):
+   `classic` shows an inline amber count chip (1/N) + a days-remaining countdown
+   chip (5d); `segmented` swaps the count chip for a thin bottom rotation bar;
+   `badge` puts a compact count badge on the pill's corner; `stacked` folds the
+   position + countdown into one narrow two-line block. The max-width caps the
+   pill so it doesn't stretch across wide desktop headers; titles truncate with
+   an ellipsis inside it. */
 .c2-pinned-ticker {
+  position: relative;
   display: flex;
   align-items: center;
   gap: var(--mantine-spacing-xs);
@@ -302,6 +306,12 @@ html {
      gap) and the title truncates inside it. */
   flex: 1 1 auto;
   transition: background-color var(--c2-dur-micro) ease;
+}
+
+/* Non-interactive mock used on the Feature Flags page's live preview; renders
+   with the same classes, just never looks clickable. */
+.c2-pinned-ticker-preview {
+  cursor: default;
 }
 
 .c2-pinned-ticker:hover {
@@ -336,14 +346,13 @@ html {
   line-height: calc(1.125rem * var(--mantine-scale));
 }
 
-/* Days-remaining countdown chip, sitting where the pin icon used to (the count
-   chip moved into the icon's slot). Deliberately subdued next to the amber
-   count so the accent still reads as the position indicator. */
+/* Days-remaining countdown chip, sitting where the pin icon used to. Deliberately
+   subdued next to the amber count so the accent still reads as the position
+   indicator. In `classic` it follows the count chip and pulls half a flex-gap
+   toward it so the two read as a pair; in the other variants it leads the pill
+   at full gap. */
 .c2-pinned-ticker-countdown {
   flex-shrink: 0;
-  /* Pull half a flex-gap toward the count chip so the two read as a pair,
-     while the countdown-to-title gap keeps the pill's full spacing. */
-  margin-left: calc(var(--mantine-spacing-xs) / -2);
   padding-inline: calc(0.4375rem * var(--mantine-scale));
   border-radius: var(--mantine-radius-xl);
   background: var(--mantine-color-brand-6);
@@ -352,6 +361,83 @@ html {
   font-weight: 700;
   font-variant-numeric: tabular-nums;
   line-height: calc(1.125rem * var(--mantine-scale));
+}
+
+.c2-pinned-ticker[data-indicator="classic"] .c2-pinned-ticker-countdown {
+  margin-left: calc(var(--mantine-spacing-xs) / -2);
+}
+
+/* Tiny corner badge (the `badge` indicator): the pinned count as a compact
+   amber pill straddling the pill's upper-right corner, taking no in-flow space
+   so the title fills the pill. */
+.c2-pinned-ticker-badge {
+  position: absolute;
+  top: calc(var(--mantine-spacing-xs) / -1.2);
+  right: calc(var(--mantine-spacing-xs) / -1.2);
+  min-width: calc(1.125rem * var(--mantine-scale));
+  padding-inline: calc(0.3125rem * var(--mantine-scale));
+  border-radius: var(--mantine-radius-xl);
+  background: var(--mantine-color-accent-6);
+  color: var(--mantine-color-brand-9);
+  font-size: var(--mantine-font-size-xs);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  line-height: calc(1.125rem * var(--mantine-scale));
+  text-align: center;
+}
+
+/* Two-line leading block (the `stacked` indicator): position (1/5) over the
+   countdown (5d), one narrow slot instead of two chips — the title starts
+   right after it and gets the rest of the pill. */
+.c2-pinned-ticker-stacked {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0;
+  line-height: 1;
+  text-align: center;
+}
+
+.c2-pinned-ticker-stacked-count {
+  font-size: var(--mantine-font-size-xs);
+  font-weight: 700;
+  line-height: 1.1;
+  color: var(--mantine-color-accent-6);
+  font-variant-numeric: tabular-nums;
+}
+
+.c2-pinned-ticker-stacked-countdown {
+  font-size: calc(var(--mantine-font-size-xs) * 0.85);
+  font-weight: 600;
+  line-height: 1.3;
+  color: var(--mantine-color-brand-2);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Segmented rotation bar (the `segmented` indicator): a thin bar along the
+   pill's bottom edge, one segment per pinned event, the current rotation
+   position lit amber — count and position at a glance, zero in-flow width. */
+.c2-pinned-ticker-progress {
+  position: absolute;
+  inset-inline: var(--mantine-spacing-sm);
+  bottom: calc(0.3125rem * var(--mantine-scale));
+  display: flex;
+  gap: calc(0.125rem * var(--mantine-scale));
+  pointer-events: none;
+}
+
+.c2-pinned-ticker-progress-seg {
+  flex: 1 1 0;
+  height: calc(0.1875rem * var(--mantine-scale));
+  min-width: 0;
+  border-radius: calc(0.09375rem * var(--mantine-scale));
+  background: color-mix(in srgb, var(--mantine-color-white) 22%, transparent);
+}
+
+.c2-pinned-ticker-progress-seg.is-active {
+  background: var(--mantine-color-accent-6);
 }
 
 /* One-line viewport for the rotating title: the line is a normal in-flow

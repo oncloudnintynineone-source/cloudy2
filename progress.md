@@ -18,7 +18,7 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
 
 ## 1.1 Status
 
-- All work through changelog **1.253 (update-pill loop-proofing)** is shipped.
+- All work through changelog **1.257 (feature flags + pinned-events indicator)** is shipped.
 - Quality gates (`lint` / `typecheck` / `test` / schema-drift check) run in CI on every
   push and PR. Pushes also auto-apply migrations per environment: `dev` →
   `migrate-preview` against the dev Neon DB, `main` → `migrate` against the prod Neon
@@ -1214,6 +1214,26 @@ via `?attendance=1` and `attendanceStorage` became a `useSyncExternalStore` exte
    `--month-view-max-events` with a fractional value (4-event floor keeps the
    natural height + pane scroll on shorter viewports, chips scale with the row).
    `DualPaneSkeleton` mirrors both fills. `docs/dashboard-views.md` §1.9
+
+- 1.257 Feature Flags + pinned-events indicator variants: a new admin **Settings → Feature
+   Flags** tab (last strip slot) built on a small **flag registry**
+   (`src/lib/settings/featureFlags.ts`, pure + unit-tested) — each `FeatureFlagDef` maps to
+   a typed `settings` column, `getFeatureFlags` resolves every registered flag from the 60s-
+   cached singleton row, and a single `updateFeatureFlags` server action validates against
+   the closed option set, audits via `diffFields`, invalidates the config cache and
+   revalidates; the page renders controls generically from the registry (SegmentedControl +
+   Save in the standard form pattern, plus a live mock-pill preview for the ticker flag),
+   so a future flag is just a column + an entry. The first flag, `pinnedTickerIndicator`
+   (default `classic`), swaps the header pill's `1/N` chip for four org-wide variants that
+   free title space (~33–37px): `classic` (inline `1/N` chip), `segmented` (3px bottom
+   rotation bar, active segment lit amber, zero in-flow width), `badge` (amber count badge
+   on the pill's corner, absolutely positioned), `stacked` (`1/N` over `5d` two-line leading
+   block). The `(protected)` layout resolves the flag through the registry and passes it to
+   the shell like `bannerConfig`, so a save applies after the next `router.refresh()`; count
+   stays in the pill's `aria-label` and all new chrome is `aria-hidden`. New
+   `docs/feature-flags.md`; `docs/pinned-events.md` §1.4/§1.6, `docs/user-guide.md` §1.5,
+   `AGENTS.md` updated (migration: `settings.pinned_ticker_indicator` text NOT NULL default
+   `'classic'`, `pnpm db:migrate`)
 
 ## 1.4 Open items & next steps
 

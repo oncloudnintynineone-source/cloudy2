@@ -1,10 +1,11 @@
 # 1. Pinned Events
 
 The header's left edge carries the **pinned-events ticker** — the brand pill (logo
-removed) that rotates through the upcoming pinned events' titles behind an inline
-`1/N` count chip and a days-remaining countdown chip. Tapping it opens a centered
-Modal listing every explicitly-pinned upcoming event. Both stay fresh across
-mutations.
+removed) that rotates through the upcoming pinned events' titles behind a
+days-remaining countdown chip and one of four **indicator styles** (the
+`pinnedTickerIndicator` feature flag, Settings → Feature Flags). Tapping it opens
+a centered Modal listing every explicitly-pinned upcoming event. Both stay fresh
+across mutations.
 
 ## Table of contents
 
@@ -62,26 +63,47 @@ link auto-opens the event's details modal (Edit / Duplicate / Delete per the usu
 
 The pill at the header's **left edge** (it took the logo's slot — the "Cloudy2"
 wordmark was removed) keeps the rounded-rectangle shape (the pin icon was
-removed), and shows, left to right:
+removed). It always shows, left to right: an optional position/count indicator
+(see below), a **countdown chip** — whole days until the current event's start,
+`5d` (lowercase d), computed as a date-part difference so a same-day or
+already-started event reads `0d`; it never switches to months, so a far-future
+event reads e.g. `45d` — and the **current event's `tickerTitle`**, one line,
+ellipsis-truncated.
 
-1. an inline amber **count chip** — `1/N`, position within the rotation plus how
- many events are pinned (this replaced the floating amber `Indicator` badge,
- same accent color, now inline with the text) — now occupying the pin icon's
- old leading slot,
-2. a secondary **countdown chip** — whole days until the current event's start,
- `5d` (lowercase d), computed as a date-part difference so a same-day or
- already-started event reads `0d`; it never switches to months, so a
- far-future event reads e.g. `45d`, and
-3. the **current event's `tickerTitle`**, one line, ellipsis-truncated.
+The **indicator style is a feature flag** (`pinnedTickerIndicator`, Settings →
+Feature Flags, org-wide, default `classic`) — admins switch it to compare the
+variants live and keep the winner:
+
+| Flag | Indicator | Title space |
+| ---- | --------- | ----------- |
+| `classic` | inline amber **`1/N` chip** — position within the rotation plus how many events are pinned (replaced the floating amber `Indicator` badge) | baseline |
+| `segmented` | thin **segmented progress bar** along the pill's bottom edge — one segment per pinned event, the current rotation position lit amber (count + position at a glance, zero in-flow width) | +~37px |
+| `badge` | compact amber **count badge** (`N`) over the pill's upper-right corner, absolutely positioned | +~37px |
+| `stacked` | the `1/N` and `5d` folded into one narrow **two-line leading block** (position over countdown) | +~33px |
 
 ```mermaid
 flowchart LR
-  subgraph pill["pinned-events pill (max-width capped)"]
- direction LR
-  C["1/5 chip"] --> D["5d countdown"] --> T["rotating title"]
+  subgraph classic["classic pill"]
+    direction LR
+    C["1/5 chip"] --> D["5d countdown"] --> T["rotating title"]
   end
-  T -. every 5s .-> T
+  subgraph segmented["segmented pill"]
+    direction LR
+    D2["5d countdown"] --> T2["rotating title"]
+  end
+  subgraph badge["badge pill"]
+    direction LR
+    D3["5d countdown"] --> T3["rotating title"]
+  end
+  subgraph stacked["stacked pill"]
+    direction LR
+    S["1/5 atop 5d"] --> T4["rotating title"]
+  end
 ```
+
+The variant is resolved once by the `(protected)` layout through the registry and
+passed into `AppShellShell` as a prop (like `bannerConfig`), so a save on the
+Feature Flags page is visible after the next `router.refresh()` — no reload.
 
 Rotation (`PinnedEventsTicker.tsx`, client):
 
@@ -94,11 +116,12 @@ Rotation (`PinnedEventsTicker.tsx`, client):
   and while the panel modal is open (`paused` prop); a single pinned event never
   rotates.
 - The index clamps with modulo when the list changes, so a mutation can never
-  point at a missing entry.
+  point at a missing entry. The segmented bar's active segment rides the same
+  clamped index.
 - The countdown re-reads the clock on a slow (60s) interval, so a single
   non-rotating pinned event still rolls its `D` count over at midnight.
 - Loading / zero events: the pill degrades to the static "Pinned events" label
-  (the pre-ticker look, now icon-less).
+  (the pre-ticker look, now icon-less) with no indicator chrome.
 - The static label is shared by three states (first read in flight, settled
   empty, failed read) **on purpose** — the pill is never the loading signal.
   The shell passes a `status` (`pending`/`ready`/`error`) that only changes
@@ -113,8 +136,8 @@ Sizing & a11y:
 - CSS `max-width` on `.c2-pinned-ticker` caps the pill (~220px on phones,
   ~400px from the 40em desktop band) so it can't stretch across wide headers.
 - The count rides the button's `aria-label` (`"Pinned events (5)"`); the count
-  chip, the countdown chip and the rotating titles are `aria-hidden` (see
-  [`accessibility.md`](accessibility.md) §1.4).
+  chip, the countdown chip, the badge, the stacked block and the rotating titles
+  are `aria-hidden` (see [`accessibility.md`](accessibility.md) §1.4).
 
 The list behind the ticker refreshes:
 
@@ -141,8 +164,9 @@ overshoot the content and collapse the modal.
 | ---- | ---- |
 | `src/lib/events/pinned.ts` | `fetchPinnedEvents` (panel `title` + ticker `tickerTitle`) |
 | `src/lib/events/pinnedSelect.ts` | Pure upcoming-window selection (unit-tested) |
+| `src/lib/settings/featureFlags.ts` | The `pinnedTickerIndicator` flag registry entry |
 | `src/lib/ui/pinnedPanel.ts` | `PinnedPanelContext` + change event name |
-| `src/components/PinnedEventsTicker.tsx` | The header pill: count + countdown chips + rotating titles |
+| `src/components/PinnedEventsTicker.tsx` | The header pill: indicator + countdown chips + rotating titles |
 | `src/components/PinnedEventsPanel.tsx` | The panel Modal |
 
 Related docs:
@@ -150,4 +174,6 @@ Related docs:
 - [`events-cache.md`](events-cache.md) — the month reads behind the panel.
 - [`event-lifecycle.md`](event-lifecycle.md) — the title templates (incl. the
   `pinned` / `pinnedHeader` view assignments).
+- [`feature-flags.md`](feature-flags.md) — the `pinnedTickerIndicator` flag and
+  how to add more.
 - [`ui-state.md`](ui-state.md) — pinned dashboard view tabs (a separate feature).

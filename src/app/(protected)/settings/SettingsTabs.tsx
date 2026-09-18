@@ -21,6 +21,7 @@ const tabs = [
   { value: "/settings/general", label: "General" },
   { value: "/settings/security", label: "Security" },
   { value: "/settings/audit-log", label: "Audit Log" },
+  { value: "/settings/feature-flags", label: "Feature Flags" },
 ];
 
 export function SettingsTabs() {

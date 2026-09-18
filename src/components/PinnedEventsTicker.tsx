@@ -6,6 +6,11 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { daysUntilDate, formatInstantToNaive } from "@/lib/events/datetime";
 import type { PinnedEvent } from "@/lib/events/pinned";
 import type { Rect } from "@/lib/motion/origin";
+import {
+  pinnedTickerIndicatorFlag,
+  resolveFlagValue,
+  type PinnedTickerIndicator,
+} from "@/lib/settings/featureFlags";
 
 /** How long each title stays on screen before the next one slides in. */
 const ROTATE_INTERVAL_MS = 5000;
@@ -28,12 +33,24 @@ function tickerTitleOf(event: PinnedEvent): string {
 
 /**
  * The header's pinned-events pill, anchored at the header's left edge (where
- * the logo used to sit). Shows an inline amber count chip (`1/N` — the old
- * floating Indicator badge, inline now), a secondary days-remaining countdown
- * chip (`5d` — the pin icon's replacement slot, dropping at `0d` for a
- * same-day or already-started event) and rotates through the upcoming pinned
- * events' `tickerTitle`s with a vertical slide-in. Tapping it opens the Pinned
- * Events panel, same as the old button.
+ * the logo used to sit). Renders the `pinnedTickerIndicator` feature-flag
+ * variant (Settings → Feature Flags) — see the flow in §1 of
+ * `docs/pinned-events.md`:
+ *
+ * - `classic` — the original inline amber `1/N` count chip, the `5d` countdown
+ *   chip and the rotating title.
+ * - `segmented` — a thin segmented progress bar pinned to the pill's bottom
+ *   edge (one segment per pinned event, the current rotation position lit
+ *   amber), with the `5d` chip; the count chip is gone so the title gets its
+ *   full width.
+ * - `badge` — a compact amber count badge over the pill's corner carrying just
+ *   the count, `5d` chip and full-width title.
+ * - `stacked` — the position and countdown folded into one narrow two-line
+ *   leading block (`1/5` over `5d`).
+ *
+ * Every variant keeps the count accessible via the button's `aria-label`
+ * ("Pinned events (N)"); the count, countdown and progress chrome are
+ * `aria-hidden`. Tapping the pill opens the Pinned Events panel.
  *
  * The static "Pinned events" label is the pill's degraded look for both the
  * in-flight and the loaded-but-empty cases; visually they are identical on
@@ -45,6 +62,7 @@ export function PinnedEventsTicker({
   events,
   paused,
   onOpen,
+  indicator,
   status = "pending",
 }: {
   /** Upcoming pinned events; `null` while the first read is in flight. */
@@ -52,6 +70,9 @@ export function PinnedEventsTicker({
   /** True while the Pinned Events panel modal is open — rotation stops. */
   paused: boolean;
   onOpen: (originRect: Rect) => void;
+  /** Indicator style from the Feature Flags settings; defensively normalized
+   *  so a stale cached flag can never reach the renderer. */
+  indicator?: PinnedTickerIndicator;
   /** Whether the first read has settled; selects the accessible name when no
    *  events are shown. */
   status?: "pending" | "ready" | "error";
@@ -70,6 +91,9 @@ export function PinnedEventsTicker({
   const safeIndex = count > 0 ? index % count : 0;
   const current = count > 0 ? list[safeIndex] : null;
   const daysUntil = current ? daysUntilDate(nowNaive, current.start) : 0;
+  // Defensive: a cached server list or a stale layout prop can briefly carry an
+  // unknown indicator — resolve against the registry's defaults.
+  const safeIndicator = resolveFlagValue(pinnedTickerIndicatorFlag, indicator);
 
   const accessibleLabel =
     count > 0
@@ -106,6 +130,7 @@ export function PinnedEventsTicker({
   return (
     <UnstyledButton
       className="c2-pinned-ticker"
+      data-indicator={safeIndicator}
       onClick={(e) => onOpen(e.currentTarget.getBoundingClientRect())}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
@@ -122,15 +147,23 @@ export function PinnedEventsTicker({
           {/* The count rides the aria-label above; hide the visual chip so
               screen readers don't read it twice (the old Indicator did the
               same). */}
-          <span className="c2-pinned-ticker-count" aria-hidden>
-            {safeIndex + 1}/{count}
-          </span>
-          {/* Days until the current event's start (date-part difference, so a
-              same-day or already-started event reads `0d`); hidden from the
-              accessible name like the count chip. */}
-          <span className="c2-pinned-ticker-countdown" aria-hidden>
-            {daysUntil}d
-          </span>
+          {safeIndicator === "classic" ? (
+            <span className="c2-pinned-ticker-count" aria-hidden>
+              {safeIndex + 1}/{count}
+            </span>
+          ) : null}
+          {safeIndicator === "stacked" ? (
+            <span className="c2-pinned-ticker-stacked" aria-hidden>
+              <span className="c2-pinned-ticker-stacked-count">
+                {safeIndex + 1}/{count}
+              </span>
+              <span className="c2-pinned-ticker-stacked-countdown">{daysUntil}d</span>
+            </span>
+          ) : (
+            <span className="c2-pinned-ticker-countdown" aria-hidden>
+              {daysUntil}d
+            </span>
+          )}
           <span className="c2-pinned-ticker-title" aria-hidden>
             {/* Keyed by event id so a rotation remounts the line and replays
                 the slide-in; the line is a normal in-flow element (no
@@ -139,6 +172,29 @@ export function PinnedEventsTicker({
               {tickerTitleOf(current)}
             </span>
           </span>
+          {/* Segmented rotation bar: one segment per pinned event, the current
+              rotation position lit amber, spanning the pill's bottom edge. */}
+          {safeIndicator === "segmented" ? (
+            <span className="c2-pinned-ticker-progress" aria-hidden>
+              {Array.from({ length: count }, (_, i) => (
+                <span
+                  key={i}
+                  className={
+                    i === safeIndex
+                      ? "c2-pinned-ticker-progress-seg is-active"
+                      : "c2-pinned-ticker-progress-seg"
+                  }
+                />
+              ))}
+            </span>
+          ) : null}
+          {/* Compact amber count badge over the pill's corner; position rides
+              the rotation titles themselves. */}
+          {safeIndicator === "badge" ? (
+            <span className="c2-pinned-ticker-badge" aria-hidden>
+              {count}
+            </span>
+          ) : null}
         </>
       )}
     </UnstyledButton>
