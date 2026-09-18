@@ -786,7 +786,12 @@ the anchor day, Month & Agenda → Month keeps the anchor month).
   swipe-to-change-day gesture with its once-per-session hint. The header is
   the pane's fixed header (bounded layout), and the bordered card fills the pane
   below it — a long day list scrolls inside the card (`agendaViewBody`), so a
-  short day never leaves a blank strip under the card.
+  short day never leaves a blank strip under the card. Both the card root and
+  that body carry `touch-action: pan-y`: the body is a scroll container nested
+  inside the swipe container, and the browser intersects `touch-action` only up
+  to the first containing scrolling element, so without it the outer swipe
+  container's value is ignored and the browser's `pointercancel` kills the
+  swipe. `pan-y` keeps the vertical scroll native while the app owns horizontal.
 - **Chrome.** The nav row labels the period with the **month** (the pane header
   carries the day); the screen-reader announcement appends the agenda day so a
   day move is announced too. The agenda header reserves the floating fullscreen

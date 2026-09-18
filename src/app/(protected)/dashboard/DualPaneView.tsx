@@ -642,12 +642,24 @@ export function DualPaneView({
                   border: "1px solid var(--mantine-color-default-border)",
                   borderRadius: "var(--mantine-radius-md)",
                   overflow: "hidden",
+                  // The root is `overflow: hidden` (a scroll container), so a
+                  // gesture starting on the card's own area would otherwise be
+                  // owned by the browser; `pan-y` hands horizontal to the swipe
+                  // (see the body below).
+                  touchAction: "pan-y",
                 }}
                 styles={{
                   agendaViewHeader: { display: "none" },
                   // The card fills the pane; a long day list scrolls inside it
-                  // rather than leaving blank space below a short card.
-                  agendaViewBody: { overflowY: "auto", minHeight: 0 },
+                  // rather than leaving blank space below a short card. The body
+                  // is a scroll container nested inside the swipe container, and
+                  // the browser intersects `touch-action` only up to the first
+                  // containing scrolling element — without `pan-y` here the
+                  // outer swipe container's value is never consulted, the browser
+                  // claims the horizontal pan, `pointercancel` fires and the day
+                  // swipe is dropped. `pan-y` keeps the vertical scroll native
+                  // while the app owns horizontal.
+                  agendaViewBody: { overflowY: "auto", minHeight: 0, touchAction: "pan-y" },
                 }}
                 renderEvent={renderAgendaEvent}
                 onEventClick={(event, e) => onEventClick(event as unknown as CalendarEvent, e)}

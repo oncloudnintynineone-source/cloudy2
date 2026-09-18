@@ -1333,6 +1333,16 @@ via `?attendance=1` and `attendanceStorage` became a `useSyncExternalStore` exte
     the same wrapper concurrently. Removed the now-dead `reanchorScrollLeft` /
     `reanchorScrollTop` helpers (+ tests). Docs: `dashboard-views.md` §1.7,
     `grid-pan.md` §1.1.
+- 1.265 Month & Agenda agenda swipe fix (touch): the pane's day swipe stopped
+    working on touch once the card began scrolling internally — `agendaViewBody`
+    is a scroll container nested inside the swipe container, and the browser
+    intersects `touch-action` only up to the **first containing scrolling
+    element**, so the outer container's `pan-y` was never consulted; the browser
+    claimed the horizontal pan, fired `pointercancel` and `useDrag` dropped the
+    gesture. Both the AgendaView root (`overflow: hidden`) and `agendaViewBody`
+    now set `touch-action: pan-y`, keeping the vertical scroll native while the
+    app owns horizontal. The Agenda tab and day modal have no nested scroller, so
+    they were unaffected. Docs: `dashboard-views.md` §1.9.
 
 ## 1.4 Open items & next steps
 
