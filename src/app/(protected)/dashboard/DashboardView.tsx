@@ -45,16 +45,19 @@ import {
   useViewportSize,
 } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
+// `@mantine/schedule` is the app's heaviest client dependency and is only
+// needed once a schedule-backed view renders. Its views are code-split behind
+// lazy wrappers (aliased back to their original names so the JSX is unchanged);
+// the resource types are type-only and erased at build.
+import type { ScheduleResourceData, ScheduleResourceGroup } from "@mantine/schedule";
 import {
-  AgendaView,
-  MonthView,
-  MoreEvents,
-  ResourcesDayView,
-  ResourcesWeekView,
-  WeekView,
-  type ScheduleResourceData,
-  type ScheduleResourceGroup,
-} from "@mantine/schedule";
+  LazyAgendaView as AgendaView,
+  LazyMonthView as MonthView,
+  LazyMoreEvents as MoreEvents,
+  LazyResourcesDayView as ResourcesDayView,
+  LazyResourcesWeekView as ResourcesWeekView,
+  LazyWeekView as WeekView,
+} from "./scheduleViews";
 import {
   IconBuilding,
   IconCalendarDot,
@@ -82,7 +85,6 @@ import {
   monthGridRows,
 } from "./calendarSkeleton";
 import { formatWeekLabel } from "./clientDateTime";
-import { DateSelectorModal } from "@/components/DateSelectorModal";
 import { EmptyState } from "@/components/EmptyState";
 import { FilterButton } from "@/components/FilterButton";
 import { FilterModal, type FilterGroup } from "@/components/FilterModal";
@@ -226,6 +228,15 @@ const EventDetail = dynamic(() => import("./EventDetail").then((mod) => mod.Even
 const EditViewsModal = dynamic(() => import("./EditViewsModal").then((mod) => mod.EditViewsModal), {
   ssr: false,
 });
+
+// The date picker is opened on demand and drags `@mantine/dates` +
+// `@mantine/schedule`'s `MobileMonthView`; splitting it keeps both out of the
+// dashboard's initial chunk. No loading fallback — it is a modal, so a bare
+// `null` while the chunk lands is invisible.
+const DateSelectorModal = dynamic(
+  () => import("@/components/DateSelectorModal").then((mod) => mod.DateSelectorModal),
+  { ssr: false },
+);
 
 const preloadDashboardViewChunks = () => {
   for (const component of [DualPaneView, WeekMatrixView, EventDetail, EditViewsModal]) {

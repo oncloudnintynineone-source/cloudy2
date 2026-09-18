@@ -31,6 +31,7 @@ import {
 import { DatePickerInput } from "@mantine/dates";
 import { useMediaQuery, useViewportSize } from "@mantine/hooks";
 import { AgendaView } from "@mantine/schedule";
+import "@mantine/schedule/styles.css";
 import { IconCalendar, IconSearch, IconSearchOff, IconX } from "@tabler/icons-react";
 import dayjs from "dayjs";
 import { NARROW_MEDIA_QUERY } from "@/lib/theme";

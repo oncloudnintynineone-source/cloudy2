@@ -46,6 +46,7 @@ import {
 import { ActionIcon, Box, Portal, Text, useMantineTheme } from "@mantine/core";
 import { useDrag, useMediaQuery, useMergedRef } from "@mantine/hooks";
 import { AgendaView, MonthView } from "@mantine/schedule";
+import "@mantine/schedule/styles.css";
 import { IconChevronLeft, IconChevronRight } from "@tabler/icons-react";
 
 import { GridNavControls } from "@/components/GridNavControls";

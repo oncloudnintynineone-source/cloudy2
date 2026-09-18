@@ -6,6 +6,7 @@ import { ActionIcon, Box, Button, Modal, Text, useMantineTheme } from "@mantine/
 import { useMediaQuery, useViewportSize } from "@mantine/hooks";
 import { MonthPicker } from "@mantine/dates";
 import { MobileMonthView } from "@mantine/schedule";
+import "@mantine/schedule/styles.css";
 import { IconChevronLeft, IconChevronRight } from "@tabler/icons-react";
 import { NARROW_MEDIA_QUERY } from "@/lib/theme";
 import { weekDays } from "@/lib/events/datetime";

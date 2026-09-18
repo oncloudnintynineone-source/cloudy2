@@ -34,6 +34,10 @@ const nextConfig: NextConfig = withSerwist({
       "@mantine/dates",
       "@mantine/form",
       "@mantine/notifications",
+      // The schedule package is the single heaviest client dependency; rewriting
+      // its barrel into per-export imports lets the bundler split the view kinds
+      // (see the lazy wrappers in the dashboard) instead of one monolithic chunk.
+      "@mantine/schedule",
     ],
     // Client-router reuse window for dynamic pages (Next defaults it to 0 —
     // every soft navigation otherwise blocks on the network). Within 2 minutes,

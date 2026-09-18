@@ -481,6 +481,26 @@ const serwist = new Serwist({
       matcher: isDocRequest,
       handler: documentSwr,
     },
+    // Client JS chunks beyond the shell core are intentionally NOT precached
+    // (see the manifest filter in serwist/[path]/route.ts) so an install doesn't
+    // download every admin/settings/wizard chunk. They are cached on first use
+    // here instead — filenames are content-hashed and immutable, so CacheFirst
+    // is safe — which keeps a visited route working offline without paying for
+    // unvisited ones.
+    {
+      matcher: /\/_next\/static\/chunks\/.*\.js$/i,
+      handler: new CacheFirst({
+        cacheName: "static-chunk-assets",
+        plugins: [
+          new ExpirationPlugin({
+            maxEntries: 160,
+            maxAgeSeconds: 30 * 24 * 60 * 60,
+            maxAgeFrom: "last-used",
+            purgeOnQuotaError: true,
+          }),
+        ],
+      }),
+    },
     // Everything else (auth, /api, non-GET, and unmatched same-origin) must
     // always hit the network — auth responses must never be cached.
     {

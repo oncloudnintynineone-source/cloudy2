@@ -11,6 +11,7 @@ import {
   useTransition,
 } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import dynamic from "next/dynamic";
 import {
   ActionIcon,
   Badge,
@@ -43,7 +44,6 @@ import {
 } from "@tabler/icons-react";
 
 import { AgendaSwipeHint } from "@/components/AgendaSwipeHint";
-import { DateSelectorModal } from "@/components/DateSelectorModal";
 import { EmptyState } from "@/components/EmptyState";
 import { FilterButton } from "@/components/FilterButton";
 import { PageHeader } from "@/components/PageHeader";
@@ -83,6 +83,13 @@ import {
 import { departmentSummaryRows, departmentTreeHeadcount } from "./headcount";
 import { formatEventTimeBadge } from "@/lib/parade/eventTimeBadge";
 import { ParadeStateDepartmentSkeleton } from "./paradeStateSkeleton";
+
+// Opened on demand; splitting it keeps `@mantine/dates` + `@mantine/schedule`'s
+// `MobileMonthView` out of the parade page's initial chunk.
+const DateSelectorModal = dynamic(
+  () => import("@/components/DateSelectorModal").then((mod) => mod.DateSelectorModal),
+  { ssr: false },
+);
 
 /** Horizontal drag distance (px) before a swipe flips the day (same as the
  *  dashboard's agenda swipe). */
