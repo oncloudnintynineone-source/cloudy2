@@ -1,3 +1,5 @@
+import { invalidateCachedValue } from "@/lib/cache";
+
 /**
  * TTL for the rarely-changing, user-independent reference reads: calendars
  * (departments), users, event types/groups, the settings row, event-title
@@ -28,3 +30,23 @@ export const CONFIG_CACHE_KEYS = {
   eventTitleTemplates: "config:eventTitleTemplates",
   quickLinks: "config:quickLinks",
 } as const;
+
+/**
+ * Drop the in-memory TTL entries for the given config keys (all when omitted),
+ * so an admin write is visible on the very next read instead of after
+ * `CONFIG_CACHE_TTL_MS`. Call this beside the `revalidatePath(...)` calls in
+ * every admin mutation that changes one of the cached reads.
+ *
+ * Per-instance and best-effort, exactly like the cache itself: it clears the
+ * instance that served the write; other instances converge when their TTL
+ * expires.
+ */
+export function invalidateConfigCache(
+  keys: readonly (keyof typeof CONFIG_CACHE_KEYS)[] = Object.keys(
+    CONFIG_CACHE_KEYS,
+  ) as (keyof typeof CONFIG_CACHE_KEYS)[],
+): void {
+  for (const key of keys) {
+    invalidateCachedValue(CONFIG_CACHE_KEYS[key]);
+  }
+}

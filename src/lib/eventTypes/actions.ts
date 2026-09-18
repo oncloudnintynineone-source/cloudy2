@@ -9,6 +9,7 @@ import { eventTypes, eventTypeGroups, type EventType } from "@/db/schema";
 import { AUDIT_ACTIONS, actorFromUser } from "@/lib/audit/build";
 import { diffFields } from "@/lib/audit/diff";
 import { logAction } from "@/lib/audit/log";
+import { invalidateConfigCache } from "@/lib/configCache";
 import { requireAdmin } from "@/lib/session";
 import { validateEventTypeForm, type EventTypeFormValues } from "@/lib/eventTypes/validate";
 import { formatColorLabel, normalizeEventColor } from "@/lib/events/eventColors";
@@ -141,6 +142,7 @@ export async function createEventType(input: EventTypeFormValues): Promise<Event
     throw error;
   }
 
+  invalidateConfigCache(["eventTypes"]);
   revalidatePath("/settings/event-types");
   return { ok: true };
 }
@@ -245,6 +247,7 @@ export async function renameEventType(
     throw error;
   }
 
+  invalidateConfigCache(["eventTypes"]);
   revalidatePath("/settings/event-types");
   return { ok: true };
 }
@@ -268,6 +271,7 @@ export async function deleteEventType(id: string): Promise<EventTypeActionResult
     method: "deleteEventType",
   });
 
+  invalidateConfigCache(["eventTypes"]);
   revalidatePath("/settings/event-types");
   return { ok: true };
 }

@@ -94,6 +94,33 @@ export function assembleDashboardSnapshot(
 }
 
 /**
+ * Replace one tab in a snapshot with its updated definition (a rename / kind
+ * change from Manage views) so the tab strip and the manage list paint before
+ * the authoritative re-read lands. When the patched tab is the active view, its
+ * `activeView` is patched too. The `context` is deliberately left untouched —
+ * the follow-up `revalidate()` owns the request-key/period correction (a kind
+ * change can alter `requiredMonths`). Pure; returns the record unchanged when
+ * the tab is unknown.
+ */
+export function patchSnapshotTab(
+  record: DashboardSnapshotRecord,
+  tab: DashboardViewTab,
+): DashboardSnapshotRecord {
+  const index = record.data.tabs.findIndex((candidate) => candidate.id === tab.id);
+  if (index === -1) {
+    return record;
+  }
+  const tabs = [...record.data.tabs];
+  tabs[index] = tab;
+  const data: DashboardSnapshot = {
+    ...record.data,
+    tabs,
+    activeView: record.data.activeView.id === tab.id ? tab : record.data.activeView,
+  };
+  return { ...record, data };
+}
+
+/**
  * What the snapshot was rendered for. `requestKey` is the data-affecting
  * fingerprint (the resolved tab id + the months it spans — never the day or the
  * one-shot edit/event/refresh params), so a background revalidation of the same

@@ -9,6 +9,7 @@ import { eventTypes, eventTypeGroups } from "@/db/schema";
 import { AUDIT_ACTIONS, actorFromUser } from "@/lib/audit/build";
 import { diffFields } from "@/lib/audit/diff";
 import { logAction } from "@/lib/audit/log";
+import { invalidateConfigCache } from "@/lib/configCache";
 import { requireAdmin } from "@/lib/session";
 import { moveEventTypeGroupOrder } from "@/lib/eventTypes/groups";
 
@@ -69,6 +70,7 @@ export async function createEventTypeGroup(name: string): Promise<EventTypeGroup
     throw error;
   }
 
+  invalidateConfigCache(["eventTypeGroups"]);
   revalidatePath("/settings/event-types");
   return { ok: true };
 }
@@ -121,6 +123,7 @@ export async function renameEventTypeGroup(
     throw error;
   }
 
+  invalidateConfigCache(["eventTypeGroups"]);
   revalidatePath("/settings/event-types");
   return { ok: true };
 }
@@ -165,6 +168,7 @@ export async function setEventTypeGroupCollapsible(
     ),
   });
 
+  invalidateConfigCache(["eventTypeGroups"]);
   revalidatePath("/settings/event-types");
   return { ok: true };
 }
@@ -199,6 +203,7 @@ export async function deleteEventTypeGroup(id: string): Promise<EventTypeGroupAc
     details: { ungroupedTypeCount: countRow.count },
   });
 
+  invalidateConfigCache(["eventTypeGroups", "eventTypes"]);
   revalidatePath("/settings/event-types");
   return { ok: true };
 }
@@ -253,6 +258,7 @@ export async function moveEventTypeGroup(
     ),
   });
 
+  invalidateConfigCache(["eventTypeGroups"]);
   revalidatePath("/settings/event-types");
   return { ok: true };
 }

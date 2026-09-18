@@ -13,6 +13,7 @@ import {
   isRefreshNonceFresh,
   isSnapshotRecordUsable,
   isWarmSnapshotFresh,
+  patchSnapshotTab,
   requiredMonths,
   resolveDashboardPresentation,
   selectSnapshotsToEvict,
@@ -494,6 +495,50 @@ describe("assembleDashboardSnapshot", () => {
     expect(snapshot.selectedUserIds).toEqual(["user-1"]);
     expect(snapshot.canManageViews).toBe(true);
     expect(snapshot.currentUser).toBe("user-1");
+  });
+});
+
+describe("patchSnapshotTab", () => {
+  const tab = (over: Partial<DashboardViewTab> = {}): DashboardViewTab => ({
+    id: "tab-1",
+    kind: "month",
+    name: "Month",
+    sortOrder: 0,
+    filters: { cal: null, users: null, types: null },
+    ...over,
+  });
+
+  function recordFor(active: DashboardViewTab, tabs: DashboardViewTab[]): DashboardSnapshotRecord {
+    return {
+      version: DASHBOARD_SNAPSHOT_VERSION,
+      savedAt: 1_700_000_000_000,
+      context: { month: "2026-09", date: "2026-09-12", viewId: active.id, requestKey: "tab-1|2026-09" },
+      data: { activeView: active, tabs } as unknown as DashboardSnapshotRecord["data"],
+    };
+  }
+
+  it("replaces an inactive tab's definition", () => {
+    const active = tab({ id: "tab-a", name: "A" });
+    const other = tab({ id: "tab-b", name: "B" });
+    const patched = patchSnapshotTab(recordFor(active, [active, other]), tab({ id: "tab-b", name: "Renamed" }));
+    expect(patched.data.tabs.map((t) => t.name)).toEqual(["A", "Renamed"]);
+    expect(patched.data.activeView.name).toBe("A");
+  });
+
+  it("patches the active view too when its id matches", () => {
+    const active = tab({ id: "tab-a", kind: "month", name: "Month" });
+    const patched = patchSnapshotTab(
+      recordFor(active, [active]),
+      tab({ id: "tab-a", kind: "weekv2", name: "Week (D)" }),
+    );
+    expect(patched.data.activeView.kind).toBe("weekv2");
+    expect(patched.data.activeView.name).toBe("Week (D)");
+  });
+
+  it("returns the record unchanged for an unknown tab", () => {
+    const active = tab({ id: "tab-a" });
+    const record = recordFor(active, [active]);
+    expect(patchSnapshotTab(record, tab({ id: "tab-missing" }))).toBe(record);
   });
 });
 

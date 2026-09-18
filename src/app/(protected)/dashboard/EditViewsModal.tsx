@@ -50,6 +50,9 @@ interface EditViewsModalProps {
   activeView: DashboardViewTab;
   /** A list mutation landed (rename/reorder/non-active delete) — refresh. */
   onMutated: () => void;
+  /** Patch one tab's definition (name/type) in the held snapshot so the strip
+   *  and this list repaint instantly, before the follow-up re-read lands. */
+  onApplyViewTab: (tab: DashboardViewTab) => void;
   /** Navigate to a tab (or the active tab's new kind after an edit). `force`
    *  forces a server re-read for a CRUD navigation whose tab list changed. */
   onNavigateToView: (
@@ -68,6 +71,7 @@ export function EditViewsModal({
   tabs,
   activeView,
   onMutated,
+  onApplyViewTab,
   onNavigateToView,
   onEditFilters,
   onAddView,
@@ -137,11 +141,15 @@ export function EditViewsModal({
       // Kind first: `changeDashboardViewKind` may adopt the new kind's default
       // name when the tab still carries the old default, so a custom name typed
       // here must be applied afterwards to win.
+      let updatedTab: DashboardViewTab | null = null;
       if (kindChanged) {
         const result = await changeDashboardViewKind(target.id, { kind: editKind });
         if (!result.ok) {
           notifications.show({ color: "red", message: result.error });
           return;
+        }
+        if (result.tab) {
+          updatedTab = result.tab;
         }
       }
       if (nameChanged) {
@@ -150,9 +158,17 @@ export function EditViewsModal({
           notifications.show({ color: "red", message: result.error });
           return;
         }
+        if (result.tab) {
+          updatedTab = result.tab;
+        }
       }
       notifications.show({ color: "green", message: "View updated" });
       setEditing(null);
+      // Paint the new name/kind into the strip and this list immediately; the
+      // revalidate below reconciles against the server.
+      if (updatedTab) {
+        onApplyViewTab(updatedTab);
+      }
       if (kindChanged && target.id === activeView.id) {
         // A kind change on the active tab re-navigates to the same id under its
         // new kind, so the dashboard re-renders through the usual tab-switch

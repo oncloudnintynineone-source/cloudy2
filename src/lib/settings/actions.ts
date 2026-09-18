@@ -14,6 +14,7 @@ import {
 import { AUDIT_ACTIONS, actorFromUser } from "@/lib/audit/build";
 import { diffFields } from "@/lib/audit/diff";
 import { logAction } from "@/lib/audit/log";
+import { invalidateConfigCache } from "@/lib/configCache";
 import { purgeGcalCache } from "@/lib/google/eventsCache";
 import { validateKahNotificationsForm, type KahNotificationsFormValues } from "@/lib/kah/validate";
 import { requireAdmin } from "@/lib/session";
@@ -113,6 +114,7 @@ export async function updateKeyword(keyword: string): Promise<SettingsActionResu
     details: diffFields({ userKeyword: before?.userKeyword ?? null }, { userKeyword: normalized }),
   });
 
+  invalidateConfigCache(["settings"]);
   revalidatePath("/settings/security");
   return { ok: true };
 }
@@ -153,6 +155,7 @@ export async function updateNameTemplate(template: string): Promise<SettingsActi
     ),
   });
 
+  invalidateConfigCache(["settings"]);
   revalidatePath("/settings/templates");
   return { ok: true };
 }
@@ -192,6 +195,7 @@ export async function updateEventTitleRecipe(recipe: TitleRecipe): Promise<Setti
     ),
   });
 
+  invalidateConfigCache(["settings"]);
   revalidatePath("/settings/templates");
   revalidatePath("/dashboard");
   return { ok: true };
@@ -235,6 +239,7 @@ export async function createEventTitleTemplate(
     details: { label: created.label, recipe: prepared.recipe, id: created.id },
   });
 
+  invalidateConfigCache(["eventTitleTemplates"]);
   revalidatePath("/settings/templates");
   revalidatePath("/dashboard");
   return { ok: true };
@@ -281,6 +286,7 @@ export async function updateEventTitleTemplateById(
     details: diffFields(before, { label: label.trim(), recipe: prepared.recipe }),
   });
 
+  invalidateConfigCache(["eventTitleTemplates"]);
   revalidatePath("/settings/templates");
   revalidatePath("/dashboard");
   return { ok: true };
@@ -324,6 +330,7 @@ export async function deleteEventTitleTemplate(id: string): Promise<SettingsActi
     details: { deletedId: id, label: existing[0].label },
   });
 
+  invalidateConfigCache(["eventTitleTemplates", "settings"]);
   revalidatePath("/settings/templates");
   revalidatePath("/dashboard");
   return { ok: true };
@@ -365,6 +372,7 @@ export async function duplicateEventTitleTemplate(id: string): Promise<SettingsA
     details: { fromId: id, copiedId: created.id, label: created.label },
   });
 
+  invalidateConfigCache(["eventTitleTemplates"]);
   revalidatePath("/settings/templates");
   revalidatePath("/dashboard");
   return { ok: true };
@@ -413,6 +421,7 @@ export async function updateEventTitleTemplateAssignments(
     details: diffFields({ assignments: beforeAssignments }, { assignments: cleaned }),
   });
 
+  invalidateConfigCache(["settings"]);
   revalidatePath("/settings/templates");
   revalidatePath("/dashboard");
   return { ok: true };
@@ -454,6 +463,7 @@ export async function updateAuditLogRetention(days: number): Promise<SettingsAct
     ),
   });
 
+  invalidateConfigCache(["settings"]);
   revalidatePath("/settings/general");
   return { ok: true };
 }
@@ -509,6 +519,7 @@ export async function updateBanner(values: BannerFormValues): Promise<SettingsAc
     ),
   });
 
+  invalidateConfigCache(["settings"]);
   revalidatePath("/settings/banner");
   return { ok: true };
 }
@@ -559,6 +570,7 @@ export async function updateKahNotifications(
     ),
   });
 
+  invalidateConfigCache(["settings"]);
   revalidatePath("/settings/general");
   revalidatePath("/settings/kah-groups");
   return { ok: true };

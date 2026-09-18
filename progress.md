@@ -1194,6 +1194,17 @@ via `?attendance=1` and `attendanceStorage` became a `useSyncExternalStore` exte
    property can't collapse `bottom` to `auto`; in standalone the footer re-pins to the
    visual bottom via the measured gap. `docs/pwa-offline.md` §1.19,
    `docs/desktop-responsive.md` §1.2/§1.3
+- 1.255 Immediate propagation for admin settings + per-user View edits: admin writes now
+   clear the affected `getCachedValue` config keys via the new
+   `invalidateConfigCache([...])` (`src/lib/configCache.ts`), so a settings / event-type /
+   department / user / template / quick-link edit is visible on the next dashboard read
+   instead of after the 60s TTL (per-instance, like the cache itself — other instances
+   converge on TTL expiry). Renaming a dashboard View or changing its type is now
+   optimistic: `renameDashboardView` / `changeDashboardViewKind` return the updated tab,
+   the pure `patchSnapshotTab` patches the held snapshot via the new
+   `applyViewTab` context method, so the strip and Manage-views list repaint in the same
+   frame before the usual re-read reconciles. `docs/pwa-offline.md` §1.19,
+   `docs/events-cache.md` §1.12, `docs/dashboard-views.md` §1.1
 
 ## 1.4 Open items & next steps
 

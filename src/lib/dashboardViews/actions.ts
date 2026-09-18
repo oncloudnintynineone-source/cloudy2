@@ -7,17 +7,18 @@ import { db } from "@/db";
 import { userDashboardViews, type UserDashboardView } from "@/db/schema";
 import { requireSession } from "@/lib/session";
 import { isUuid } from "@/lib/uuid";
-import { ensureDefaultDashboardView } from "./queries";
+import { ensureDefaultDashboardView, toDashboardViewTab } from "./queries";
 import {
   isDashboardViewKind,
   nameAfterKindChange,
   sanitizeDashboardViewName,
   type DashboardTabFilters,
   type DashboardViewKind,
+  type DashboardViewTab,
 } from "./views";
 
 export type DashboardViewActionResult =
-  | { ok: true; id?: string }
+  | { ok: true; id?: string; tab?: DashboardViewTab }
   | { ok: false; error: string; field?: "name" | "kind" };
 
 /** Soft per-user tab cap — sanity guard, not a hard product limit. */
@@ -109,7 +110,7 @@ export async function renameDashboardView(
     .set({ name: name.value, updatedAt: new Date() })
     .where(eq(userDashboardViews.id, id));
   revalidatePath("/dashboard");
-  return { ok: true };
+  return { ok: true, tab: { ...toDashboardViewTab(owned.view), name: name.value } };
 }
 
 /**
@@ -147,7 +148,7 @@ export async function changeDashboardViewKind(
     .set({ viewType: kind, name, updatedAt: new Date() })
     .where(eq(userDashboardViews.id, id));
   revalidatePath("/dashboard");
-  return { ok: true };
+  return { ok: true, tab: { ...toDashboardViewTab(owned.view), kind, name } };
 }
 
 /** Persist a tab's filter overrides. `null` = role default; `[]` = cleared. */

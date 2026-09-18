@@ -50,7 +50,7 @@ export async function ensureDefaultDashboardView(userId: string): Promise<void> 
 }
 
 /** Map a raw row onto the view DTO (filters parsed, garbage dropped). */
-function toDashboardViewTab(row: UserDashboardView): DashboardViewTab {
+export function toDashboardViewTab(row: UserDashboardView): DashboardViewTab {
   const kind = isDashboardViewKind(row.viewType) ? row.viewType : "month";
   return {
     id: row.id,

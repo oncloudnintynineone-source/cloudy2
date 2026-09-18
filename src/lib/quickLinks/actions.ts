@@ -8,6 +8,7 @@ import { quickLinks, type QuickLink } from "@/db/schema";
 import { AUDIT_ACTIONS, actorFromUser } from "@/lib/audit/build";
 import { diffFields } from "@/lib/audit/diff";
 import { logAction } from "@/lib/audit/log";
+import { invalidateConfigCache } from "@/lib/configCache";
 import { requireAdmin } from "@/lib/session";
 import { listQuickLinks } from "./queries";
 import { normalizeQuickLinkForm } from "./validate";
@@ -55,6 +56,7 @@ function auditValues(values: {
 }
 
 function revalidateQuickLinks(): void {
+  invalidateConfigCache(["quickLinks"]);
   revalidatePath("/settings/quick-links");
   revalidatePath("/dashboard");
 }

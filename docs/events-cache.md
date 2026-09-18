@@ -524,7 +524,10 @@ module, but they keep the render's total query count low):
   (`getCachedValue` via `src/lib/configCache.ts`). The per-request cache alone can't span
   the dashboard's **two server actions** (the active read + the tab preload are separate
   requests), so without the TTL every launch re-read the whole config block twice; the TTL
-  collapses that to one read per window per instance. Admin edits appear within
+  collapses that to one read per window per instance. Every admin write that changes one
+  of these reads calls `invalidateConfigCache([...])` (`src/lib/configCache.ts`) beside its
+  `revalidatePath(...)`, so the edit is visible on the next read rather than after the TTL;
+  the invalidation is per-instance, so other instances converge within
   `CONFIG_CACHE_TTL_MS` (60s), matching the events cache's own fresh window.
 - `getDashboardViews` reads a user's tabs **before** running the transactional default-tab
   seed (`ensureDefaultDashboardView`), so the seed — an INSERT + `SELECT … FOR UPDATE` +

@@ -9,6 +9,7 @@ import { calendars, userCalendarAccess, users, type Calendar, type User } from "
 import { AUDIT_ACTIONS, actorFromUser } from "@/lib/audit/build";
 import { diffFields } from "@/lib/audit/diff";
 import { logAction } from "@/lib/audit/log";
+import { invalidateConfigCache } from "@/lib/configCache";
 import { normalizeEventColor } from "@/lib/events/eventColors";
 import { getGoogleIntegration, googleCalendarConfigured } from "@/lib/google";
 import { requireAdmin, requireSession } from "@/lib/session";
@@ -212,6 +213,7 @@ export async function createUser(input: UserFormValues): Promise<RosterActionRes
     throw error;
   }
 
+  invalidateConfigCache(["users"]);
   revalidatePath("/settings/users");
   revalidatePath("/settings/departments");
 
@@ -314,6 +316,7 @@ export async function updateUser(id: string, input: UserFormValues): Promise<Ros
     throw error;
   }
 
+  invalidateConfigCache(["users"]);
   revalidatePath("/settings/users");
   revalidatePath("/settings/departments");
 
@@ -358,6 +361,7 @@ export async function setUserStatus(id: string, status: UserStatus): Promise<Ros
     details: diffFields({ status: user.status }, { status }),
   });
 
+  invalidateConfigCache(["users"]);
   revalidatePath("/settings/users");
   return { ok: true };
 }
@@ -482,6 +486,7 @@ export async function createDepartment(input: CalendarFormValues): Promise<Roste
     };
   }
 
+  invalidateConfigCache(["calendars", "users"]);
   revalidatePath("/settings/departments");
   revalidatePath("/settings/users");
   revalidatePath("/dashboard");
@@ -609,6 +614,7 @@ export async function renameDepartment(
     };
   }
 
+  invalidateConfigCache(["calendars", "users"]);
   revalidatePath("/settings/departments");
   revalidatePath("/settings/users");
   revalidatePath("/dashboard");
@@ -644,6 +650,7 @@ export async function deleteDepartment(id: string): Promise<RosterActionResult> 
     return { ok: false, error: describeError(error, "Could not delete the department") };
   }
 
+  invalidateConfigCache(["calendars", "users"]);
   revalidatePath("/settings/departments");
   revalidatePath("/settings/users");
   revalidatePath("/dashboard");
@@ -704,6 +711,7 @@ export async function moveDepartment(
     ),
   });
 
+  invalidateConfigCache(["calendars"]);
   revalidatePath("/settings/departments");
   revalidatePath("/dashboard");
   revalidatePath("/parade-state");

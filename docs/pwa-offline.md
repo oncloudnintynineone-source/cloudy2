@@ -583,7 +583,12 @@ sequenceDiagram
   templates, quick links) are served from a shared 60s in-memory TTL
   (`src/lib/configCache.ts`), so the `loadDashboardData` read and the later
   `preloadDashboardTabs` pass don't each re-query the whole config block
-  ([`events-cache.md` §1.12](events-cache.md#112-performance)).
+  ([`events-cache.md` §1.12](events-cache.md#112-performance)). Every admin
+  write that changes one of those reads calls `invalidateConfigCache([...])`
+  beside its `revalidatePath(...)`, so the edit is visible on the **next** read
+  instead of after the TTL. The invalidation is per-instance (like the cache
+  itself): the instance that served the write is fresh immediately; other
+  instances converge when their TTL expires.
 - **Cached first paint & warm revisits.** `DashboardScreen` hydrates a
   per-account map of cached *contexts* from IndexedDB
   (`src/lib/dashboard/localStore.ts`) on mount. A cold load with a silent URL

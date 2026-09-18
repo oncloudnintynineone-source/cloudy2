@@ -100,9 +100,12 @@ string maps to the first tab of that kind.
   definition-blind, the same id would otherwise look already covered, so the
   switch also forces a server re-read with the target period (the grid reloads
   in place instead of waiting for a Force refresh); editing an inactive tab
-  just refreshes the list. This dialog's picker uses the same **thumbnail-grid**
-  variant as the Add-view dialog — choosing a type is the same decision in both
-  places (the row being edited's own kind is shown dimmed with "(current)");
+    just refreshes the list. This dialog's picker uses the same **thumbnail-grid**
+    variant as the Add-view dialog — choosing a type is the same decision in both
+    places (the row being edited's own kind is shown dimmed with "(current)").
+    The edit is applied **optimistically**: the action returns the updated tab and
+    `applyViewTab` patches the held snapshot, so the strip and this list repaint
+    in the same frame, then the usual re-read reconciles against the server;
   - a **trash** (subtle red) deletes behind a nested `size="sm"` confirm (the
     last tab can't be deleted — its trash is disabled; deleting the active tab
     navigates to the first remaining and forces a re-read, so the deleted row

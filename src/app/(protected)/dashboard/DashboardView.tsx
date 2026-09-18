@@ -806,7 +806,8 @@ export function DashboardView({
   // DashboardScreen, which revalidates in place. Mutations call `revalidate()`
   // instead of `router.refresh()` (which no longer carries data), and a
   // context-change fetch drives the grid skeleton via `isNavigating`.
-  const { revalidate, isNavigating, tabStatus, setPreviewView } = useDashboardData();
+  const { revalidate, isNavigating, tabStatus, setPreviewView, applyViewTab } =
+    useDashboardData();
   // The active tab's renderer kind (Month/Week (H)/…). Booleans, the skeleton
   // chain and the period label key off this exactly like the old `view` prop.
   const view: ViewMode = activeView.kind;
@@ -4364,6 +4365,7 @@ export function DashboardView({
           activeView={activeView}
           onMutated={refreshAfterViewsSave}
           onNavigateToView={switchTab}
+          onApplyViewTab={applyViewTab}
           onEditFilters={handleEditFilters}
           onAddView={openAddView}
         />

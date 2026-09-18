@@ -3,6 +3,7 @@
 import { createContext, useContext } from "react";
 
 import type { TabLoadState } from "@/lib/dashboard/snapshot";
+import type { DashboardViewTab } from "@/lib/dashboardViews/views";
 
 /**
  * Dashboard data context (docs/pwa-offline.md).
@@ -43,6 +44,12 @@ export interface DashboardDataValue {
   previewView: string | null;
   /** Sets the optimistic active tab (null clears it). */
   setPreviewView: (viewId: string | null) => void;
+  /**
+   * Patch one tab's definition (name / kind) in the held snapshot so a Manage-
+   * views edit paints instantly, before the authoritative `revalidate()` read
+   * lands. A no-op when the tab is unknown to the held record.
+   */
+  applyViewTab: (tab: DashboardViewTab) => void;
 }
 
 const DashboardDataContext = createContext<DashboardDataValue | null>(null);

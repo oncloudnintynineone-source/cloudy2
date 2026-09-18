@@ -8824,3 +8824,44 @@ JSDoc.
 cold-launch Week (D) and Month & Agenda and confirm the cluster is on the grid's right
 edge; switch tabs (which triggers the slide) and confirm it never shifts;
 `prefers-reduced-motion: reduce` (no slide) is a useful cross-check.
+
+## 1.255 Immediate propagation: admin config writes + per-user View edits
+
+Two reported staleness gaps: admin Settings edits took ~30–60s to appear on the
+calendar (for all users), and a user's own View rename / type change did not paint
+instantly.
+
+**Config cache invalidation.** The user-independent reference reads (`getSettings`,
+`listCalendars`, `listEventTypes`/groups, `listUsers`, `listQuickLinks`,
+`listEventTitleTemplates`) are served from a per-process in-memory 60s TTL
+(`getCachedValue`, `src/lib/cache.ts` + `src/lib/configCache.ts`). `revalidatePath(...)`
+does not clear that Map, so an admin write was stale until the TTL expired. New
+`invalidateConfigCache(keys?)` wraps `invalidateCachedValue` for the named
+`CONFIG_CACHE_KEYS` (all when omitted) and is called beside every admin write that
+changes a cached read — `settings/actions.ts` (settings + templates, incl. delete
+clearing both), `eventTypes/actions.ts` + `groupActions.ts` (types / groups; group
+delete also clears types), `roster/actions.ts` (users; departments clear calendars +
+users), `quickLinks/actions.ts` (the shared `revalidateQuickLinks`). Access
+grant/update/revoke are excluded (neither cached read exposes `user_calendar_access`).
+Per-instance, consistent with the cache itself; other Vercel instances converge on TTL
+expiry. Pure helper covered by the new `src/lib/cache.test.ts`.
+
+**Optimistic View edits.** `renameDashboardView` / `changeDashboardViewKind` now return
+the updated `DashboardViewTab` (`toDashboardViewTab` exported from
+`dashboardViews/queries.ts`; `DashboardViewActionResult` gains `tab?`). The pure
+`patchSnapshotTab` (`dashboard/snapshot.ts`, unit-tested) replaces a tab in a held
+snapshot (and the active view when ids match), the `DashboardDataContext` gains
+`applyViewTab` (implemented in `DashboardScreen`, writes the snapshot), and
+`EditViewsModal.submitEdit` calls it before the existing `onMutated()` /
+`onNavigateToView(...)` branch — so the strip and Manage-views list repaint in the same
+frame, then the usual re-read reconciles. `DashboardView` passes the context method
+through as `onApplyViewTab`.
+
+**Docs**: `docs/pwa-offline.md` §1.19, `docs/events-cache.md` §1.12,
+`docs/dashboard-views.md` §1.1.
+
+**Verified**: `pnpm lint`, `pnpm typecheck`, `pnpm test` (1337 pass incl. the new
+`cache.test.ts` + `patchSnapshotTab` cases). Manual after deploy: admin edits an
+event-type / department / template and confirms the calendar reflects it on the next
+read with no 60s wait; rename a View and change its type and confirm the strip + grid
+update immediately.

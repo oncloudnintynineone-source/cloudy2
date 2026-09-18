@@ -22,12 +22,14 @@ import {
   equivalentDashboardTab,
   isRefreshNonceFresh,
   isWarmSnapshotFresh,
+  patchSnapshotTab,
   requiredMonths,
   resolveDashboardPresentation,
   tabLoadStates,
   type DashboardSnapshotRecord,
 } from "@/lib/dashboard/snapshot";
 import { isUuid } from "@/lib/uuid";
+import type { DashboardViewTab } from "@/lib/dashboardViews/views";
 import type { MonthZoom } from "@/lib/ui/monthZoom";
 import type { SlotZoom } from "@/lib/ui/slotZoom";
 
@@ -568,6 +570,22 @@ export function DashboardScreen({
     [fetchFresh, userId],
   );
 
+  // Optimistic View edit (rename / kind change from Manage views): patch the
+  // held snapshot's tab definition in place so the strip and the manage list
+  // repaint immediately, then the caller's `revalidate()` reconciles against the
+  // server. A no-op for a tab the held record doesn't know.
+  const applyViewTab = useCallback(
+    (tab: DashboardViewTab) => {
+      const current = recordRef.current;
+      if (!current) return;
+      const patched = patchSnapshotTab(current, tab);
+      if (patched === current) return;
+      setRecord(patched);
+      void writeDashboardSnapshot(userId, patched.data, patched.context);
+    },
+    [userId],
+  );
+
   // Per-tab loading bars (docs/loading-transitions.md §1.13.2). The active
   // tab's own read shows immediately and lingers 1s; a background preload waits
   // 300ms before appearing (a fast warm pass never flashes it) and also holds
@@ -629,8 +647,9 @@ export function DashboardScreen({
       tabStatus,
       previewView,
       setPreviewView,
+      applyViewTab,
     }),
-    [revalidate, busy, isNavigating, tabStatus, previewView],
+    [revalidate, busy, isNavigating, tabStatus, previewView, applyViewTab],
   );
 
   // `_eventCal`/`event` are deliberately absent from the request key, so a deep
