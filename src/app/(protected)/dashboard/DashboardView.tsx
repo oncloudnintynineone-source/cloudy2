@@ -137,12 +137,6 @@ import {
   markAgendaSwipeHintSeen,
   subscribeAgendaSwipeHint,
 } from "@/lib/ui/agendaSwipeHint";
-import {
-  getPinchHintServerSnapshot,
-  getPinchHintSnapshot,
-  markPinchHintSeen,
-  subscribePinchHint,
-} from "@/lib/ui/pinchHint";
 import { announce } from "@/lib/ui/announcer";
 import { DUAL_SPLIT_DEFAULT, clampDualSplit } from "@/lib/ui/dualSplit";
 import { useGridPan } from "@/lib/ui/gridPan";
@@ -992,15 +986,6 @@ export function DashboardView({
   // Only touch devices see the caption, and only until the first successful
   // swipe (or a prior visit in this session) marks it seen.
   const showAgendaHint = isCoarsePointer && !agendaHintSeen;
-  // Pinch-to-zoom hint: the same touch-only, once-per-session contract (see
-  // `src/lib/ui/pinchHint.ts`). It renders beside the zoom buttons and is
-  // dismissed by the first pinch or any zoom-button tap.
-  const pinchHintSeen = useSyncExternalStore(
-    subscribePinchHint,
-    getPinchHintSnapshot,
-    getPinchHintServerSnapshot,
-  );
-  const showPinchHint = isCoarsePointer && !pinchHintSeen;
   const [editLinkFailed, setEditLinkFailed] = useState(
     () =>
       (initialEditEventId !== null && initialEditEvent === null) ||
@@ -1286,7 +1271,6 @@ export function DashboardView({
 
   const schedulePinch = usePinchZoom({
     onStart: () => {
-      markPinchHintSeen();
       schedulePinchBaseRef.current = zoom;
     },
     onPinch: ({ scale, focalX }) => {
@@ -1300,7 +1284,6 @@ export function DashboardView({
 
   const monthPinch = usePinchZoom({
     onStart: () => {
-      markPinchHintSeen();
       monthPinchBaseRef.current = monthZoom;
     },
     onPinch: ({ scale, focalX }) => {
@@ -1316,7 +1299,6 @@ export function DashboardView({
   // side → columns, stacked → rows) and it stays locked for the gesture.
   const gridWeekPinch = usePinchZoom({
     onStart: () => {
-      markPinchHintSeen();
       gridWeekPinchBaseRef.current = { col: gridWeekColZoom, row: gridWeekRowZoom };
     },
     onPinch: ({ scale, axis, focalX, focalY }) => {
@@ -3520,7 +3502,6 @@ export function DashboardView({
               // the standalone Month view, whose cell tap opens the day modal.
               onDayOpen={openDayModal}
               showSwipeHint={showAgendaHint}
-              showPinchHint={showPinchHint}
               chromeOffset={chromeHeight}
             />
           ) : isAgenda ? (
@@ -3731,7 +3712,6 @@ export function DashboardView({
                 announce(`Zoom ${Math.round(next * 100)}%`);
               }}
               onZoomChange={setWeekMatrixZoom}
-              showPinchHint={showPinchHint}
               chromeOffset={chromeHeight}
             />
           ) : isWeek ? (
@@ -3979,7 +3959,6 @@ export function DashboardView({
             canScrollLeft={schedulePan.canScrollLeft}
             canScrollRight={schedulePan.canScrollRight}
             onPan={schedulePan.panTo}
-            showPinchHint={showPinchHint}
             zoom={zoom}
             onZoomIn={() => {
               const next = stepZoom(zoom, 1);
@@ -4005,7 +3984,6 @@ export function DashboardView({
           canScrollLeft={gridWeekPan.canScrollLeft}
           canScrollRight={gridWeekPan.canScrollRight}
           onPan={gridWeekPan.panTo}
-          showPinchHint={showPinchHint}
           zoom={gridWeekColZoom}
           zoomMin={MIN_COLUMN_ZOOM}
           label="Columns"
@@ -4048,7 +4026,6 @@ export function DashboardView({
           canScrollLeft={monthPan.canScrollLeft}
           canScrollRight={monthPan.canScrollRight}
           onPan={monthPan.panTo}
-          showPinchHint={showPinchHint}
           zoom={monthZoom}
           zoomMin={MIN_MONTH_ZOOM}
           zoomMax={MAX_MONTH_ZOOM}

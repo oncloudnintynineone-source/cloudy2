@@ -510,11 +510,7 @@ The rest of this section describes the shared horizontal mechanism.
   re-anchors on the **pinch midpoint** — both re-anchor helpers take an optional
   focal offset (default: the viewport centre, the button contract) — so the
   content stays under the fingers, and the level is announced once on release.
-  The Month & Agenda pane wires the same hook to its Month pane. On touch
-  devices a one-time **"Pinch to zoom"** caption appears beside the zoom cluster
-  (axis-aware — "columns / rows" on the two-axis Week (Grid)) and is dismissed
-  by the first pinch or any zoom-button tap; it rides the same once-per-session
-  `sessionStorage` store as the agenda swipe hint (`src/lib/ui/sessionHint.ts`).
+  The Month & Agenda pane wires the same hook to its Month pane.
 - **Mechanism**: each view reads its slot width from a CSS variable on the view root
   (`--resources-week-view-slot-width` / `--resources-day-view-slot-width`). Mantine
   sizes the day container from that var and lays every event out as a **percentage**

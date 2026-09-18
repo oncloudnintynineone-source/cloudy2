@@ -4,7 +4,6 @@ import { type RefObject, useLayoutEffect, useState } from "react";
 import { ActionIcon, Box } from "@mantine/core";
 import { IconTriangleFilled, IconZoomIn, IconZoomOut } from "@tabler/icons-react";
 import { layoutRect } from "@/lib/ui/layoutRect";
-import { markPinchHintSeen } from "@/lib/ui/pinchHint";
 import { MAX_ZOOM, MIN_ZOOM } from "@/lib/ui/slotZoom";
 
 // Shared geometry for the edge controls: 40px round buttons; inside the right
@@ -72,7 +71,6 @@ export function GridNavControls({
   zoomMin = MIN_ZOOM,
   zoomMax = MAX_ZOOM,
   label,
-  showPinchHint = false,
   secondaryZoom,
   layoutKey,
 }: {
@@ -94,12 +92,6 @@ export function GridNavControls({
    * accessible labels/tooltips. Omit for the generic "Zoom in"/"Zoom out".
    */
   label?: string;
-  /**
-   * Show the one-time "Pinch to zoom" caption beside the cluster (touch
-   * devices, until the hint is dismissed — see `src/lib/ui/pinchHint.ts`).
-   * Naming the labelled axes keeps it honest on the two-axis Week (Grid).
-   */
-  showPinchHint?: boolean;
   /**
    * An optional second zoom pair for views with two independent axes (Week
    * (Grid): columns + rows). When present the cluster splits around the right
@@ -312,11 +304,7 @@ export function GridNavControls({
           aria-label={inLabel}
           title={inLabel}
           disabled={!canIn}
-          onClick={() => {
-            // Using any zoom control dismisses the one-time pinch hint.
-            markPinchHintSeen();
-            onIn();
-          }}
+          onClick={onIn}
         >
           <IconZoomIn size={18} />
         </ActionIcon>
@@ -329,25 +317,13 @@ export function GridNavControls({
           aria-label={outLabel}
           title={outLabel}
           disabled={!canOut}
-          onClick={() => {
-            markPinchHintSeen();
-            onOut();
-          }}
+          onClick={onOut}
         >
           <IconZoomOut size={18} />
         </ActionIcon>
       </>
     );
   };
-
-  // Axis-aware caption: the two-axis Week (Grid) cluster labels its pairs
-  // ("Columns" / "Rows"), so the hint names both; the single-axis clusters
-  // (Day / Week (H), Month) have no label and stay generic.
-  const pinchHintText = label
-    ? secondaryZoom?.label
-      ? `Pinch to zoom ${label.toLowerCase()} / ${secondaryZoom.label.toLowerCase()}`
-      : `Pinch to zoom ${label.toLowerCase()}`
-    : "Pinch to zoom";
 
   return (
     <>
@@ -420,38 +396,6 @@ export function GridNavControls({
           </>
         )}
       </Box>
-
-      {/* One-time pinch hint (touch only, dismissed on use — see
-          src/lib/ui/pinchHint.ts): a small tooltip pill just left of the button
-          column, anchored like the cluster and never interactive. Decorative —
-          the zoom buttons carry the accessible names. */}
-      {showPinchHint && (
-        <Box
-          component="div"
-          aria-hidden
-          style={{
-            position: "fixed",
-            top: pos.center,
-            right: pos.right + BUTTON_SIZE + CLUSTER_GAP,
-            transform: "translateY(-50%)",
-            zIndex: 30,
-            pointerEvents: "none",
-            userSelect: "none",
-            whiteSpace: "nowrap",
-            padding:
-              "calc(0.25rem * var(--mantine-scale)) calc(0.625rem * var(--mantine-scale))",
-            borderRadius: "var(--mantine-radius-xl)",
-            border: "1px solid var(--mantine-color-default-border)",
-            background: "var(--mantine-color-body)",
-            boxShadow: "var(--mantine-shadow-sm)",
-            color: "var(--mantine-color-dimmed)",
-            fontSize: "var(--mantine-font-size-xs)",
-            lineHeight: 1.4,
-          }}
-        >
-          {pinchHintText}
-        </Box>
-      )}
     </>
   );
 }

@@ -30,7 +30,6 @@ import type { CalendarEvent } from "@/lib/events/queries";
 import type { ScheduleResource, ScheduleResourceGroup } from "@/lib/events/schedule";
 import { announce } from "@/lib/ui/announcer";
 import { useGridPan } from "@/lib/ui/gridPan";
-import { markPinchHintSeen } from "@/lib/ui/pinchHint";
 import { usePinchZoom } from "@/lib/ui/pinchZoom";
 import {
   clampGridWeekColZoom,
@@ -78,8 +77,6 @@ export interface WeekMatrixViewProps {
   onZoomOut: () => void;
   /** Commit an arbitrary zoom level (pinch-to-zoom). */
   onZoomChange: (next: SlotZoom) => void;
-  /** Show the one-time pinch-to-zoom hint beside the zoom cluster. */
-  showPinchHint: boolean;
   /**
    * Height of the sticky chrome block above the grid (view tabs + date-nav
    * row). The pinned day header sits just below it
@@ -125,7 +122,6 @@ export function WeekMatrixView({
   onZoomIn,
   onZoomOut,
   onZoomChange,
-  showPinchHint,
   chromeOffset,
 }: WeekMatrixViewProps) {
   const theme = useMantineTheme();
@@ -177,7 +173,6 @@ export function WeekMatrixView({
   const pinchFocalRef = useRef<number | undefined>(undefined);
   const pinch = usePinchZoom({
     onStart: () => {
-      markPinchHintSeen();
       pinchBaseRef.current = zoom;
     },
     onPinch: ({ scale, focalX }) => {
@@ -432,7 +427,6 @@ export function WeekMatrixView({
         canScrollLeft={gridPan.canScrollLeft}
         canScrollRight={gridPan.canScrollRight}
         onPan={gridPan.panTo}
-        showPinchHint={showPinchHint}
         zoom={zoom}
         zoomMin={MIN_COLUMN_ZOOM}
         onZoomIn={onZoomIn}

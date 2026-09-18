@@ -59,10 +59,6 @@ Current call sites (mostly `DashboardView`, plus a few others noted below):
 | Wizard step change (`EventForm`) | `"Step N of M: <name>"` |
 | Cold-start readiness (`ColdStartReady`) | `"Calendar up to date"` |
 
-The one-time **"Pinch to zoom"** caption beside the zoom cluster is decorative
-(`aria-hidden`, `pointer-events: none`) — the zoom buttons already carry the
-accessible names, and the caption is pure touch guidance.
-
 ## 1.3 Loading announcements
 
 Skeletons are visual-only, so every skeleton block includes a
