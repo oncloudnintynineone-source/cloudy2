@@ -285,8 +285,11 @@ doc content here.
   feature-flag framework: add the typed `settings` column + one `FeatureFlagDef` entry in
   `src/lib/settings/featureFlags.ts` (the last Settings tab auto-renders its control), resolve
   the value server-side and pass it down as a prop. Flags are **global** (no per-user override),
-  default to today's behavior, and every flip is audited. First flag: `pinnedTickerIndicator`
-  ([`pinned-events.md`](docs/pinned-events.md) §1.4). Design: [docs/feature-flags.md](docs/feature-flags.md).
+  default to today's behavior, and every flip is audited. Flags: `pinnedTickerIndicator`
+  ([`pinned-events.md`](docs/pinned-events.md) §1.4) and `savedEventToastVariant` — the four
+  post-save event-confirmation presentations (classic pill / restyled pill / toast + action /
+  plain toast), resolved into `DashboardSharedConfig` → `EventForm`
+  ([`action-pill.md`](docs/action-pill.md)). Design: [docs/feature-flags.md](docs/feature-flags.md).
 - **Templates:** display-name template + **structured recipes** (`src/lib/settings/titleRecipe.ts`,
   no free text beyond an optional per-segment Text field) with per-target assignments
   (incl. `pinned`/`pinnedHeader` and the push bodies `notifyCreated`/`notifyAdded`).

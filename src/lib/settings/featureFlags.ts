@@ -49,7 +49,33 @@ export const pinnedTickerIndicatorFlag: FeatureFlagDef<PinnedTickerIndicator> = 
   defaultValue: "classic",
 };
 
-export const FEATURE_FLAGS = [pinnedTickerIndicatorFlag] as const;
+export const SAVED_EVENT_TOAST_OPTIONS = [
+  "pill",
+  "pillRestyle",
+  "toastAction",
+  "toastPlain",
+] as const;
+export type SavedEventToastVariant = (typeof SAVED_EVENT_TOAST_OPTIONS)[number];
+
+export const savedEventToastVariantFlag: FeatureFlagDef<SavedEventToastVariant> = {
+  key: "savedEventToastVariant",
+  label: "Saved-event confirmation",
+  description:
+    "How the post-save \"Event created/updated\" feedback presents: the classic " +
+    "two-tone pill, a confirmation-styled pill, a standard toast with a \"View " +
+    "event\" action, or a plain toast. Toggle to compare the variants live, then " +
+    "keep the one you want.",
+  options: SAVED_EVENT_TOAST_OPTIONS,
+  optionLabels: {
+    pill: "Classic pill",
+    pillRestyle: "Restyled pill",
+    toastAction: "Toast + View event",
+    toastPlain: "Toast only",
+  },
+  defaultValue: "pill",
+};
+
+export const FEATURE_FLAGS = [pinnedTickerIndicatorFlag, savedEventToastVariantFlag] as const;
 export type FeatureFlagKey = (typeof FEATURE_FLAGS)[number]["key"];
 
 export function isFeatureFlagKey(value: unknown): value is FeatureFlagKey {
@@ -72,11 +98,11 @@ export function resolveFlagValue<TOption extends string>(
 
 /** Resolve every registered flag from a raw settings row's record. */
 export function normalizeFeatureFlags(raw: Record<string, unknown>): Record<FeatureFlagKey, string> {
-  const out = {} as Record<FeatureFlagKey, string>;
-  for (const def of FEATURE_FLAGS) {
+  const out: Record<string, string> = {};
+  for (const def of FEATURE_FLAGS as readonly FeatureFlagDef[]) {
     out[def.key] = resolveFlagValue(def, raw[def.key]);
   }
-  return out;
+  return out as Record<FeatureFlagKey, string>;
 }
 
 export interface FeatureFlagsErrors {

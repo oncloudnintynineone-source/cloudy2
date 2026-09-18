@@ -28,6 +28,8 @@ import {
 
 export type ActionPillDirection = "empty" | "fill";
 
+export type ActionPillVariant = "default" | "toast";
+
 export interface ActionPillOptions {
   /** Action verb shown on the pill (e.g. "View event"). */
   label: string;
@@ -43,6 +45,15 @@ export interface ActionPillOptions {
    * fill grows to full over `duration`, then persists until dismissed/actioned.
    */
   direction?: ActionPillDirection;
+  /**
+   * Presentation variant. "default" is the classic two-tone pill with the
+   * progress sweep. "toast" reads as a confirmation, not a countdown: light
+   * surface + border, a green success rail, no sweep fill, single-line copy,
+   * and it nests into the notification corners (top-center on mobile,
+   * bottom-right on desktop) instead of bottom-center. The "empty" auto-dismiss
+   * timer still runs.
+   */
+  variant?: ActionPillVariant;
   /** Lighter progress-fill color. Default `var(--mantine-color-brand-3)`. */
   lightColor?: string;
   /** Darker pill-body color. Default `var(--mantine-color-brand-7)`. */
@@ -55,6 +66,7 @@ interface ResolvedOptions {
   onAction: () => void;
   duration: number;
   direction: ActionPillDirection;
+  variant: ActionPillVariant;
   lightColor: string;
   darkColor: string;
 }
@@ -144,6 +156,7 @@ export function ActionPillProvider({ children }: { children: ReactNode }) {
           onAction: options.onAction,
           duration: options.duration ?? DEFAULT_DURATION_MS,
           direction: options.direction ?? "empty",
+          variant: options.variant ?? "default",
           lightColor: options.lightColor ?? DEFAULT_LIGHT,
           darkColor: options.darkColor ?? DEFAULT_DARK,
         },
@@ -193,14 +206,16 @@ interface ActionPillViewProps {
 }
 
 /**
- * The pill itself. The body is the dark color; a light fill sweeps across as
- * the progress indicator. Legibility is kept on both tones by rendering the
- * label twice: white over the dark body, and a dark copy clipped to the light
- * fill (the fill is a full-size layer whose `clip-path` reveals the leading
- * edge, so both copies stay perfectly aligned).
+ * The pill itself. In the "default" variant the body is the dark color and a
+ * light fill sweeps across as the progress indicator — legibility is kept on
+ * both tones by rendering the copy twice (white over the dark body, and a dark
+ * copy clipped to the light fill). The "toast" variant drops the sweep and the
+ * two-tone layers: it renders as a confirmation — light surface, green success
+ * rail, single-line copy filling both colors' roles with plain text.
  */
 function ActionPillView({ active, closing, onDismiss }: ActionPillViewProps) {
   const { options } = active;
+  const toast = options.variant === "toast";
   const start = options.direction === "fill" ? 0 : 100;
   const end = options.direction === "fill" ? 100 : 0;
   const [progress, setProgress] = useState(start);
@@ -238,18 +253,22 @@ function ActionPillView({ active, closing, onDismiss }: ActionPillViewProps) {
     "--c2-pill-duration": `${options.duration}ms`,
   } as CSSProperties;
 
+  const hostClass = toast ? "c2-action-pill-host c2-action-pill-host--toast" : "c2-action-pill-host";
+  const pillClass = [
+    "c2-action-pill",
+    ...(toast ? ["c2-action-pill--toast"] : []),
+    ...(closing ? ["c2-action-pill-closing"] : []),
+  ].join(" ");
+
   return (
-    <div className="c2-action-pill-host">
-      <button
-        type="button"
-        className={closing ? "c2-action-pill c2-action-pill-closing" : "c2-action-pill"}
-        style={style}
-        onClick={handleClick}
-      >
+    <div className={hostClass}>
+      <button type="button" className={pillClass} style={style} onClick={handleClick}>
         <span className="c2-action-pill-copy">{copy}</span>
-        <span className="c2-action-pill-fill" aria-hidden="true">
-          <span className="c2-action-pill-copy c2-action-pill-copy-invert">{copy}</span>
-        </span>
+        {toast ? null : (
+          <span className="c2-action-pill-fill" aria-hidden="true">
+            <span className="c2-action-pill-copy c2-action-pill-copy-invert">{copy}</span>
+          </span>
+        )}
       </button>
     </div>
   );

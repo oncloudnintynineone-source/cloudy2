@@ -421,6 +421,13 @@ export const settings = pgTable(
      */
     pinnedTickerIndicator: text("pinned_ticker_indicator").notNull().default("classic"),
     /**
+     * Post-save event confirmation style (Settings → Feature Flags): how the
+     * "Event created/updated" feedback presents. One of the keys in
+     * `FEATURE_FLAGS` (`src/lib/settings/featureFlags.ts`); the registry's
+     * default backs the column default.
+     */
+    savedEventToastVariant: text("saved_event_toast_variant").notNull().default("pill"),
+    /**
      * Daily parade-state email (Settings → Parade State Email): when enabled,
      * the selected roster users receive one snapshot on each weekday at 08:00
      * Singapore time, scheduled by Cloud Scheduler. Recipients are stored as

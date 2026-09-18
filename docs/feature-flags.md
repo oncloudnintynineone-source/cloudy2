@@ -2,8 +2,8 @@
 
 Admin-controlled, org-wide switches that let UI variants be tested **live** before
 one is shipped as the default. Today it owns the pinned-events header ticker's
-indicator style; new flags join the same registry (Settings → Feature Flags,
-last strip tab).
+indicator style and the post-save event confirmation's presentation; new flags join
+the same registry (Settings → Feature Flags, last strip tab).
 
 ## Table of contents
 
@@ -73,7 +73,9 @@ rendering itself needs no change when a flag is added.
 3. **Ship it somewhere**: read it via `getFeatureFlags()`/`SettingsView.featureFlags`
    and pass it down (the shell's header receives it as a prop from the
    `(protected)` layout, resolved through the registry — see
-   [`pinned-events.md`](pinned-events.md) §1.4).
+   [`pinned-events.md`](pinned-events.md) §1.4; the dashboard's event-save
+   confirmation travels through `DashboardSharedConfig` into `EventForm` — see
+   [`action-pill.md`](action-pill.md)).
 4. **Preview (optional)**: add a renderer to `FeatureFlagsForm.previewFor`.
 
 Run `pnpm test -- src/lib/settings/featureFlags.test.ts` (registry invariants +
@@ -89,9 +91,12 @@ normalization) and the full quality gates before pushing.
 | `src/lib/settings/actions.ts` | `updateFeatureFlags` (audited, cache-invalidating) |
 | `src/app/(protected)/settings/feature-flags/` | Page + generic `FeatureFlagsForm` + skeleton |
 | `src/app/(protected)/layout.tsx` | Resolves the header-facing flags into the shell |
+| `src/lib/dashboard/data.ts` | Resolves the saved-event confirmation flag into `DashboardSharedConfig` |
 
 Related docs:
 
 - [`pinned-events.md`](pinned-events.md) — the first flag (`pinnedTickerIndicator`)
   and its four variants in the header pill.
+- [`action-pill.md`](action-pill.md) — the `savedEventToastVariant` flag: the four
+  post-save confirmation variants and the action pill's `toast` presentation.
 - [`audit-log.md`](audit-log.md) — how admin writes are recorded.

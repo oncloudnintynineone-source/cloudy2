@@ -8865,3 +8865,53 @@ through as `onApplyViewTab`.
 event-type / department / template and confirms the calendar reflects it on the next
 read with no 60s wait; rename a View and change its type and confirm the strip + grid
 update immediately.
+
+## 1.261 Post-save event confirmation variants (feature-flag A/B)
+
+Product feedback on the post-save **action pill** ("Event created" → **View event**):
+it read as a progress/cancel bar next to the app's standard toasts and floated
+bottom-center where no other feedback sits. The four presentations are now org-wide
+options behind a new feature flag, `savedEventToastVariant` (Settings → Feature Flags,
+default `pill`):
+
+- **`pill`** — the classic two-tone pill, unchanged (today's behavior).
+- **`pillRestyle`** — the action pill's new **`variant: "toast"`** presentation: light
+  surface + border, a green success rail, single-line copy (title small/normal, the
+  action verb as plain text in the pill's dark color), **no sweep fill** — the
+  travelling fill is what read as a countdown/loader for a mere success. The `"empty"`
+  auto-dismiss timer still runs, just without the visible drain. `ActionPillView`
+  omits the two-tone fill layer and drops the clipping copy; the host relocates to the
+  notification corners via CSS (`.c2-action-pill-host--toast` — top-center on mobile,
+  bottom-right at `≥ 40em`), mirroring where `Notifications` already sits
+  (`AppProviders.tsx`).
+- **`toastAction`** — a standard green `notifications.show` with title + a compact
+  light `Button` ("View event") in the message; clicking `notifications.hide(id)` then
+  opens the saved event. Closure-safe: the button captures the returned group id
+  (a string), and `openSavedEventDetail` still resolves the chip from the latest-ref.
+- **`toastPlain`** — the same standard green toast with no action.
+
+The SW-update pill stays `variant: "default"` on purpose: there the sweep is a
+meaningful timed auto-apply countdown, not a confirmation.
+
+**Threading**: flag resolves server-side via `resolveFlagValue` from
+`settings.featureFlags` (the 60s-cached singleton row) into
+`DashboardSharedConfig` (`data.ts`) → `DashboardViewProps.savedEventToastVariant` →
+`EventForm.savedEventToastVariant`, so it works from cached offline snapshots and needs
+no per-user store. `EventForm`'s save-success branch delegates to a small
+`showSavedEventConfirmation(updated, eventId)` helper.
+
+**Registry**: `src/db/schema.ts`
+(`settings.saved_event_toast_variant` text NOT NULL default `'pill'`, migration
+`0049_mighty_penance.sql`), `savedEventToastVariantFlag` (`featureFlags.ts`, options +
+labels above, default `pill`), the Feature Flags page controls render generically, and
+`featureFlags.test.ts` covers resolve/normalize/validate for the second flag.
+
+**Docs**: `docs/action-pill.md` §1.1/§1.3/§1.5 (variant + rationale + position),
+`docs/feature-flags.md`, `AGENTS.md` (feature-flags bullet), `progress.md` §1.3 (1.261).
+
+**Verified**: `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm db:generate` (clean
+drift). Manual to run after deploy: flip Settings → Feature Flags → Saved-event
+confirmation through all four options and create/edit/duplicate an event under each;
+confirm the plain-toast/action-toast options respect the delete-toast look, the
+restyled pill sits in the toast corners and never shows a sweep, and the SW-update
+"New version available — Reload" pill still renders in the classic style.

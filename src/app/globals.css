@@ -1486,6 +1486,60 @@ html {
   color: var(--c2-pill-dark);
 }
 
+/* "toast" variant: a confirmation read, not a countdown. Light surface + border
+   (no two-tone sweep), a green success rail, single-line copy with the action
+   verb in the pill's dark color. The host nests into the notification corners
+   — top-center on mobile, bottom-right on desktop — instead of bottom-center,
+   so the pill sits where users expect toast feedback (Notifications' own
+   positions, AppProviders.tsx). */
+.c2-action-pill-host--toast {
+  top: calc(var(--mantine-spacing-sm) + env(safe-area-inset-top));
+  bottom: auto;
+}
+
+.c2-action-pill--toast {
+  background: var(--mantine-color-body);
+  color: var(--mantine-color-text);
+  border: 1px solid var(--mantine-color-default-border);
+  border-radius: var(--mantine-radius-md);
+}
+
+/* Success rail on the leading edge. */
+.c2-action-pill--toast::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: calc(0.25rem * var(--mantine-scale));
+  background: var(--mantine-color-green-6);
+}
+
+.c2-action-pill--toast .c2-action-pill-copy {
+  flex-direction: row;
+  gap: var(--mantine-spacing-sm);
+  padding: var(--mantine-spacing-xs) var(--mantine-spacing-md);
+}
+
+.c2-action-pill--toast .c2-action-pill-title {
+  font-size: var(--mantine-font-size-sm);
+  opacity: 1;
+}
+
+.c2-action-pill--toast .c2-action-pill-label {
+  color: var(--c2-pill-dark);
+}
+
+@media (min-width: 40em) {
+  .c2-action-pill-host--toast {
+    top: auto;
+    bottom: var(--app-floating-bottom-offset);
+    right: 16px;
+    left: auto;
+    transform: none;
+  }
+}
+
 /* Entrance: quick pop-in from just below the resting spot. */
 @keyframes c2-pill-enter {
   from {

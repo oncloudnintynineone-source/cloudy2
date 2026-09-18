@@ -7,6 +7,7 @@ import {
   resolveFlagValue,
   validateFeatureFlags,
   pinnedTickerIndicatorFlag,
+  savedEventToastVariantFlag,
 } from "./featureFlags";
 
 describe("feature flag registry", () => {
@@ -19,7 +20,7 @@ describe("feature flag registry", () => {
   it("option labels cover every option", () => {
     for (const def of FEATURE_FLAGS) {
       for (const option of def.options) {
-        expect(def.optionLabels[option]).toBeTruthy();
+        expect((def.optionLabels as Record<string, string>)[option]).toBeTruthy();
       }
     }
   });
@@ -33,41 +34,62 @@ describe("feature flag registry", () => {
 describe("resolveFlagValue", () => {
   it("returns a valid stored value unchanged", () => {
     expect(resolveFlagValue(pinnedTickerIndicatorFlag, "segmented")).toBe("segmented");
+    expect(resolveFlagValue(savedEventToastVariantFlag, "toastPlain")).toBe("toastPlain");
   });
 
   it("falls back to the default for unknown values", () => {
     for (const unknown of ["fancy", "", 42, null, undefined, {}]) {
       expect(resolveFlagValue(pinnedTickerIndicatorFlag, unknown)).toBe("classic");
+      expect(resolveFlagValue(savedEventToastVariantFlag, unknown)).toBe("pill");
     }
   });
 });
 
 describe("normalizeFeatureFlags", () => {
   it("resolves each registered key from the raw row", () => {
-    const flags = normalizeFeatureFlags({ pinnedTickerIndicator: "badge" });
-    expect(flags).toEqual({ pinnedTickerIndicator: "badge" });
+    const flags = normalizeFeatureFlags({
+      pinnedTickerIndicator: "badge",
+      savedEventToastVariant: "toastAction",
+    });
+    expect(flags).toEqual({
+      pinnedTickerIndicator: "badge",
+      savedEventToastVariant: "toastAction",
+    });
   });
 
   it("ignores unknown keys and falls back to defaults", () => {
     const flags = normalizeFeatureFlags({ notAFlag: "x" });
-    expect(flags).toEqual({ pinnedTickerIndicator: "classic" });
+    expect(flags).toEqual({
+      pinnedTickerIndicator: "classic",
+      savedEventToastVariant: "pill",
+    });
   });
 });
 
 describe("isFeatureFlagKey", () => {
   it("accepts a registered key and rejects others", () => {
     expect(isFeatureFlagKey("pinnedTickerIndicator")).toBe(true);
+    expect(isFeatureFlagKey("savedEventToastVariant")).toBe(true);
     expect(isFeatureFlagKey("notAFlag")).toBe(false);
   });
 });
 
 describe("validateFeatureFlags", () => {
   it("accepts values within each flag's option set", () => {
-    expect(validateFeatureFlags({ pinnedTickerIndicator: "segmented" })).toEqual({});
+    expect(
+      validateFeatureFlags({
+        pinnedTickerIndicator: "segmented",
+        savedEventToastVariant: "pillRestyle",
+      }),
+    ).toEqual({});
   });
 
   it("flags values outside the option set", () => {
-    const errors = validateFeatureFlags({ pinnedTickerIndicator: "fancy" } as never);
+    const errors = validateFeatureFlags({
+      pinnedTickerIndicator: "fancy",
+      savedEventToastVariant: "fancy",
+    } as never);
     expect(errors.pinnedTickerIndicator).toBeTruthy();
+    expect(errors.savedEventToastVariant).toBeTruthy();
   });
 });

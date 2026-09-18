@@ -16,10 +16,12 @@ next" moment (e.g. **View event** after a save, or an undo action).
 
 ## 1.1 Shape & behavior
 
-- A single `<button type="button">` centered at the bottom of the viewport. On mobile
-  it sits above the bottom nav (via `--app-floating-bottom-offset`), on desktop 16px
-  from the edge. It is `position: fixed` and rendered from the app root, so it survives
-  route navigations.
+- A single `<button type="button">` that floats fixed at the bottom of the viewport.
+  The `default` variant sits centered at the bottom edge. On mobile it sits above
+  the bottom nav (via `--app-floating-bottom-offset`), on desktop 16px from the
+  edge. The `toast` variant instead nests into the notification corners
+  (top-center on mobile, bottom-right on desktop — see §1.3). It is rendered
+  from the app root, so it survives route navigations.
 - Clicking the pill dismisses it and runs the configured `onAction`.
 - Only one pill shows at a time; a new `show(...)` replaces the current one.
 - The pill **stores** `onAction` in provider state, so the callback must not read
@@ -74,12 +76,26 @@ const id = show({
   onAction: () => openDetail(),// runs on click (pill dismisses first)
   duration: 5000,             // ms; default 5000
   direction: "empty",         // "empty" | "fill"; default "empty"
+  variant: "default",         // "default" | "toast"; default "default"
   lightColor: "var(--mantine-color-brand-3)", // optional override
   darkColor: "var(--mantine-color-brand-7)",  // optional override
 });
 
 dismiss(id); // or dismiss() to dismiss the current pill
 ```
+
+The `variant` is the presentation, independent of the sweep and the timer:
+
+- **`"default"`** — the classic two-tone pill: dark body, white copy, light
+  sweep (§1.2). Right for *timed/auto* actions where the sweep reads as a
+  countdown (the SW-update "Reload", which auto-applies when the fill fills).
+- **`"toast"`** — a confirmation, not a countdown: light surface + border,
+  a green success rail, no sweep fill, single-line copy (title + the action
+  verb as plain text in the pill's dark color). The host relocates to the
+  notification corners (top-center on mobile, bottom-right on desktop) so it
+  nests where the app already shows toasts (§ [globals.css](src/app/globals.css)
+  `.c2-action-pill-host--toast` / `.c2-action-pill--toast`). The `"empty"`
+  auto-dismiss timer still runs, just without the visible drain.
 
 ## 1.4 Lifecycle
 
@@ -96,13 +112,16 @@ dismiss(id); // or dismiss() to dismiss the current pill
 
 | File | Role |
 | ---- | ---- |
-| `src/components/ActionPill.tsx` | `ActionPillProvider`, `useActionPill()`, the pill host + view |
+| `src/components/ActionPill.tsx` | `ActionPillProvider`, `useActionPill()`, the pill host + view (`variant: "default" \| "toast"`) |
 | `src/components/AppProviders.tsx` | Mounts `ActionPillProvider` at the app root |
-| `src/app/globals.css` | `.c2-action-pill*` styles, fill clip + motion |
-| `src/app/(protected)/dashboard/EventForm.tsx` | First consumer: the post-save "View event" pill |
+| `src/app/globals.css` | `.c2-action-pill*` styles, fill clip + motion, `--toast` variant + corner placement |
+| `src/app/(protected)/dashboard/EventForm.tsx` | Post-save confirmation dispatch (`savedEventToastVariant`) |
+| `src/lib/settings/featureFlags.ts` | `savedEventToastVariantFlag` — classic pill / restyled pill / toast + action / plain toast |
 
 Related docs:
 
+- [`feature-flags.md`](feature-flags.md) — the `savedEventToastVariant` flag
+  behind the four post-save confirmation variants.
 - [`event-lifecycle.md`](event-lifecycle.md) — the save flow that surfaces the pill.
 - [`loading-transitions.md`](loading-transitions.md) — the app's motion cadence the pill
   reuses (`--c2-dur-*`).

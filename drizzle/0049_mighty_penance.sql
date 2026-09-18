@@ -1,0 +1,1 @@
+ALTER TABLE "settings" ADD COLUMN "saved_event_toast_variant" text DEFAULT 'pill' NOT NULL;

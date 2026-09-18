@@ -91,6 +91,7 @@ import {
   type TitleRecipe,
 } from "@/lib/settings/titleRecipe";
 import { BUTTON_LOADER_PROPS, DESKTOP_WIDE_MEDIA_QUERY } from "@/lib/theme";
+import type { SavedEventToastVariant } from "@/lib/settings/featureFlags";
 import { announce } from "@/lib/ui/announcer";
 import { showValidationFailure } from "@/lib/ui/validationFeedback";
 import {
@@ -142,6 +143,12 @@ interface EventFormProps {
   eventTitleRecipe: TitleRecipe;
   viewEventTitleRecipe?: TitleRecipe;
   viewLabel?: string;
+  /**
+   * Post-save event confirmation style (Settings → Feature Flags): `pill`
+   * (classic) | `pillRestyle` | `toastAction` | `toastPlain`. Picked by the
+   * submit handler's success branch.
+   */
+  savedEventToastVariant?: SavedEventToastVariant;
   /** Session user id; stored as the event organizer on create. */
   currentUser: string;
   /**
@@ -259,6 +266,7 @@ export function EventForm({
   eventTitleRecipe,
   viewEventTitleRecipe,
   viewLabel,
+  savedEventToastVariant,
   currentUser,
   isAdmin,
   inviteeDepartments,
@@ -994,6 +1002,46 @@ export function EventForm({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentStep.id, isEdit, event, effectiveTimeOption, form.values, isAdmin]);
 
+  // Post-save confirmation, styled per the `savedEventToastVariant` feature
+  // flag. `eventId` is the group id returned by the server (a string, so the
+  // toast faces can capture it directly without a stale-closure risk).
+  const showSavedEventConfirmation = (updated: boolean, eventId: string | null) => {
+    const savedTitle = updated ? "Event updated" : "Event created";
+    const variant = savedEventToastVariant ?? "pill";
+    if (variant === "toastPlain") {
+      notifications.show({ color: "green", message: savedTitle });
+      return;
+    }
+    if (variant === "toastAction") {
+      const toastId = crypto.randomUUID();
+      notifications.show({
+        id: toastId,
+        color: "green",
+        title: savedTitle,
+        message: (
+          <Button
+            size="compact-sm"
+            variant="light"
+            color="brand"
+            onClick={() => {
+              notifications.hide(toastId);
+              onViewSaved?.(eventId);
+            }}
+          >
+            View event
+          </Button>
+        ),
+      });
+      return;
+    }
+    showActionPill({
+      title: savedTitle,
+      label: "View event",
+      variant: variant === "pillRestyle" ? "toast" : "default",
+      onAction: () => onViewSaved?.(eventId),
+    });
+  };
+
   const onSubmit = form.onSubmit(
     async (values) => {
       // The submit button only renders on the last step; guard against
@@ -1060,15 +1108,14 @@ export function EventForm({
         // authoritative refresh swap it out (see DashboardView).
         onOptimisticSettled(optimisticId, result);
         onDone();
-        // Post-save actionable pill: clicking opens the just-saved event's
-        // details modal (resolved from the optimistic stand-in, so it works
-        // before the post-save refresh lands). The pill auto-dismisses on
-        // click and on its own countdown.
-        showActionPill({
-          title: isEdit ? "Event updated" : "Event created",
-          label: "View event",
-          onAction: () => onViewSaved?.(result.eventId),
-        });
+        // Post-save confirmation, styled per the `savedEventToastVariant`
+        // feature flag (Settings → Feature Flags): the classic two-tone pill,
+        // a confirmation-styled pill, a standard toast with a "View event"
+        // action, or a plain toast. The classic/restyled pill resolve their
+        // click target from the optimistic stand-in via the latest-ref behind
+        // `onViewSaved`, so the details modal opens before the post-save
+        // refresh lands; the toast faces capture `eventId` directly.
+        showSavedEventConfirmation(isEdit, result.eventId);
         return;
       }
 

@@ -18,7 +18,7 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
 
 ## 1.1 Status
 
-- All work through changelog **1.257 (feature flags + pinned-events indicator)** is shipped.
+- All work through changelog **1.261 (post-save confirmation variants)** is shipped.
 - Quality gates (`lint` / `typecheck` / `test` / schema-drift check) run in CI on every
   push and PR. Pushes also auto-apply migrations per environment: `dev` →
   `migrate-preview` against the dev Neon DB, `main` → `migrate` against the prod Neon
@@ -1271,6 +1271,22 @@ via `?attendance=1` and `attendanceStorage` became a `useSyncExternalStore` exte
     `cubicBezier` solver + `zoomEase`), so the tween and the CSS transition share the
     exact same progress curve and the anchor stays put; unit-tested in
     `scrollTween.test.ts`.
+- 1.261 Post-save event confirmation variants behind a feature flag: the bespoke
+    post-save action pill ("View event") read as a progress/cancel bar next to the
+    app's standard toasts, so `savedEventToastVariant` (Settings → Feature Flags,
+    default `pill`) now picks one of four presentations: the **classic** two-tone
+    pill, a **restyled pill** (new `ActionPill` `variant: "toast"` — light surface,
+    green success rail, no sweep fill, single-line copy, nested into the
+    notification corners top-center/bottom-right via `.c2-action-pill-host--toast`),
+    a **standard toast + "View event"** action (`notifications.show` with an
+    embedded compact button, `notifications.hide` on click, stale-closure-safe via
+    the captured group id), or a **plain toast**. The SW-update pill stays classic,
+    where the sweep is a meaningful auto-apply countdown. The flag rides
+    `settings.featureFlags` → `DashboardSharedConfig` → `EventForm`
+    (`resolveFlagValue`), so it works from cached offline snapshots; migration
+    `settings.saved_event_toast_variant` text NOT NULL default `'pill'`. Docs:
+    `action-pill.md` §1.1/§1.3/§1.5, `feature-flags.md`, AGENTS.md.
+    (contents in `progress-archive.md` §1.261)
 
 ## 1.4 Open items & next steps
 

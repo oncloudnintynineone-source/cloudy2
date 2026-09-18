@@ -103,7 +103,7 @@ export function FeatureFlagsForm({ initialValues }: FeatureFlagsFormProps) {
               <SegmentedControl
                 data={def.options.map((option) => ({
                   value: option,
-                  label: def.optionLabels[option],
+                  label: (def.optionLabels as Record<string, string>)[option],
                 }))}
                 {...form.getInputProps(def.key)}
               />

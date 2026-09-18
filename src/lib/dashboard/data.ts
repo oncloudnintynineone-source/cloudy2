@@ -45,6 +45,10 @@ import {
   type EventTitleTemplateView,
   type SettingsView,
 } from "@/lib/settings/queries";
+import {
+  resolveFlagValue,
+  savedEventToastVariantFlag,
+} from "@/lib/settings/featureFlags";
 import { UI_STATE_COOKIE, decodeUiState } from "@/lib/ui/uiState";
 import { isUuid } from "@/lib/uuid";
 import { getDashboardViews } from "@/lib/dashboardViews/queries";
@@ -413,6 +417,10 @@ async function resolveDashboardConfig(session: Session): Promise<DashboardConfig
     eventTypeGroups: eventTypeGroupOptions,
     eventTitleRecipe: settings.eventTitleRecipe,
     googleConfigured: googleCalendarConfigured(),
+    savedEventToastVariant: resolveFlagValue(
+      savedEventToastVariantFlag,
+      settings.featureFlags.savedEventToastVariant,
+    ),
     quickLinks: quickLinks
       .filter((link) => link.enabled)
       .map((link) => ({

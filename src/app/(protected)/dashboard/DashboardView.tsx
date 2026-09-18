@@ -108,6 +108,7 @@ import { sortMineFirst } from "@/lib/events/mineFirst";
 import { buildEventDeepLink } from "@/lib/events/deepLink";
 import type { CalendarEvent } from "@/lib/events/queries";
 import type { TitleRecipe } from "@/lib/settings/titleRecipe";
+import type { SavedEventToastVariant } from "@/lib/settings/featureFlags";
 import type { EventActionOk } from "@/lib/events/actions";
 import type { LocationCategory } from "@/lib/events/locationPolicy";
 import {
@@ -342,6 +343,12 @@ export interface DashboardViewProps {
   eventTitleRecipe: TitleRecipe;
   viewEventTitleRecipe: TitleRecipe;
   googleConfigured: boolean;
+  /**
+   * Post-save event confirmation style (Settings → Feature Flags): whether the
+   * "Event created/updated" feedback is the classic action pill, a restyled
+   * pill, a standard toast with a "View event" action, or a plain toast.
+   */
+  savedEventToastVariant: SavedEventToastVariant;
   /**
    * Enabled quick links in menu order (Settings → Quick Links); the amber
    * Quick-links launcher (mobile FAB / nav-row chip at lg) renders only when
@@ -779,6 +786,7 @@ export function DashboardView({
   eventTitleRecipe,
   viewEventTitleRecipe,
   googleConfigured,
+  savedEventToastVariant,
   quickLinks,
   selectedCalendarIds,
   selectedTypes,
@@ -4316,6 +4324,7 @@ export function DashboardView({
                 eventTitleRecipe={eventTitleRecipe}
                 viewEventTitleRecipe={viewEventTitleRecipe}
                 viewLabel={activeView.name}
+                savedEventToastVariant={savedEventToastVariant}
                 currentUser={currentUser}
                 isAdmin={isAdmin}
                 inviteeDepartments={inviteeDepartments}
