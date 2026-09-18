@@ -1318,6 +1318,21 @@ via `?attendance=1` and `attendanceStorage` became a `useSyncExternalStore` exte
     before snapping/animating so the capture sees the old geometry. Wired the five
     re-anchor sites (schedule, Month, Week (Grid) col, dual-pane month, matrix).
     Docs: `dashboard-views.md` §1.7.
+- 1.264 Animate the vertical (Week (Grid) row) zoom: it previously snapped while
+    every horizontal zoom eased. The row height is Mantine's
+    `--week-view-slot-height`, set from the `slotHeight` prop; event positions are
+    percentage-based and the library never reads `slotHeight` numerically, so the
+    prop now carries `calc(3.5rem * var(--mantine-scale) * ROW_ZOOM_VAR)` and the
+    multiplier rides `--c2-row-zoom` / `--c2-row-zoom-anim` on the canvas wrapper —
+    `animateZoom` drives it per frame with **no re-render**. Generalized
+    `scrollAnchorTracker` to either axis (`axis`/`label`/`focal`); the vertical
+    re-anchor measures the content and current viewport (the `maxHeight`-bounded
+    ScrollArea shrinks at low row zoom) and subtracts the sticky day-header +
+    all-day offset (which doesn't scale). `animateZoom` gained `overrideVar` and a
+    per-`(element,var)` in-flight registry so the column and row axes can animate
+    the same wrapper concurrently. Removed the now-dead `reanchorScrollLeft` /
+    `reanchorScrollTop` helpers (+ tests). Docs: `dashboard-views.md` §1.7,
+    `grid-pan.md` §1.1.
 
 ## 1.4 Open items & next steps
 

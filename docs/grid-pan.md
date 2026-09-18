@@ -37,7 +37,8 @@ mechanics only and adds its own edge tracking:
   schedule views' `scrollAreaProps`, which must not churn per frame. Its style
   also sets `overflow-anchor: none`: the browser's own scroll anchoring would
   otherwise adjust the offset (asynchronously, after paint) while a zoom changes
-  the content width, fighting the JS re-anchor animation
+  the content size (width for the column zooms, height for the Week (Grid) row
+  zoom), fighting the JS re-anchor animation
   (`src/lib/ui/zoomAnim.ts` — see [`dashboard-views.md`](dashboard-views.md#17-timeline-zoom-day-week-h-and-week-grid)
   §1.7 "Animated zoom").
 

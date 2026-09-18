@@ -11,13 +11,15 @@ import { MOTION } from "@/lib/motion/timing";
  * the scroll drifted apart (the content slid/recoiled), and a registered
  * custom-property transition (`--c2-slot`) didn't run at all in Chrome (the
  * columns snapped). This module drives **both** from one rAF loop: `apply(z)`
- * writes the zoom-derived width/slot (via `--c2-zoom-anim`) and `onScroll(z)`
- * writes the scroll, from the same interpolated `z`, so they can never diverge.
+ * writes the zoom-derived width/slot (via the axis's override var —
+ * `--c2-zoom-anim` horizontally, `--c2-row-zoom-anim` for the Week (Grid) row
+ * zoom) and `onScroll(z)` writes the scroll, from the same interpolated `z`, so
+ * they can never diverge.
  *
- * The owner element keys the animation: starting a new one cancels the previous
- * (and clears any lingering `--c2-zoom-anim`). Motion is collapsed entirely
- * under `prefers-reduced-motion: reduce` or the `c2-low-end` tier (matching the
- * CSS `html.c2-low-end *` override), so JS and CSS never disagree.
+ * The owner element + override var key the animation: starting a new one
+ * cancels the previous (and clears any lingering override). Motion is collapsed
+ * entirely under `prefers-reduced-motion: reduce` or the `c2-low-end` tier
+ * (matching the CSS `html.c2-low-end *` override), so JS and CSS never disagree.
  */
 
 /** Matches `--c2-dur-standard` (and `MOTION.zoom`) in globals.css. */
@@ -67,52 +69,87 @@ export interface ZoomAnimation {
   onStart?: () => void;
   /** Write the scroll offset (the `scrollAnchorTracker`'s `apply`). */
   onScroll: (zoom: number) => void;
-  /** Called once when the animation settles (e.g. clear `--c2-zoom-anim`). */
+  /**
+   * CSS custom property the animation overrides, used to cancel/clear a
+   * previous run on the same owner. Defaults to `--c2-zoom-anim`; the Week
+   * (Grid) row zoom passes `--c2-row-zoom-anim` so the two axes don't clobber
+   * each other.
+   */
+  overrideVar?: string;
+  /** Called once when the animation settles (e.g. clear the override var). */
   onDone?: () => void;
 }
 
 /**
- * Tracks a scroll container's anchor across a zoom whose viewport width **and**
- * content width both change (the canvas gutter morph narrows the viewport while
- * the zoom shrinks the content).
+ * Tracks a scroll container's anchor across a zoom whose viewport size **and**
+ * content size both change (the canvas gutter morph narrows the horizontal
+ * viewport while the zoom shrinks the content; the Week (Grid) row zoom lets the
+ * `maxHeight`-bounded viewport shrink at low zoom). Works on either axis.
  *
  * `capture()` records the time-content point under the anchor and the content
  * size while the DOM is at the start zoom; `apply()` re-centres that point using
  * the **measured** current content size (so percentage-width grids track the
- * wrapper's resize) and the **current** viewport width, clamped to the real
- * max. `reanchorScrollLeft` alone assumes a constant viewport width, so on
- * zoom-out to fit the target exceeded the shrunken `maxScroll` and the browser
- * clamped it — the last-step jump.
+ * wrapper's resize) and the **current** viewport size, clamped to the real max.
+ * A fixed-ratio re-anchor assumes a constant viewport size, so on zoom-out the
+ * target exceeded the shrunken `maxScroll` and the browser clamped it — the
+ * jump.
+ *
+ * `label` is the fixed leading offset on the axis that does **not** scale with
+ * the zoom: the sticky resource-label column on the horizontal axis, or the
+ * sticky day-header + all-day row on the vertical axis.
  */
 export interface ScrollAnchor {
   capture: () => void;
   apply: () => void;
 }
 
+export interface ScrollAnchorOptions {
+  /** Scroll axis: `"x"` (default) reads `scrollLeft`, `"y"` reads `scrollTop`. */
+  axis?: "x" | "y";
+  /** Fixed, non-scaling offset before the zoomed content (see above). */
+  label?: number;
+  /**
+   * Viewport-relative coordinate to keep under the anchor (a pinch's focal
+   * point). Defaults to the viewport centre — the button-driven zoom contract.
+   */
+  focal?: number;
+}
+
 export function scrollAnchorTracker(
   viewport: HTMLElement,
-  { label, focal }: { label: number; focal?: number },
+  { axis = "x", label = 0, focal }: ScrollAnchorOptions = {},
 ): ScrollAnchor {
+  const vertical = axis === "y";
+  const readScroll = () => (vertical ? viewport.scrollTop : viewport.scrollLeft);
+  const writeScroll = (value: number) => {
+    if (vertical) {
+      viewport.scrollTop = value;
+    } else {
+      viewport.scrollLeft = value;
+    }
+  };
+  const readContent = () => (vertical ? viewport.scrollHeight : viewport.scrollWidth);
+  const readViewport = () => (vertical ? viewport.clientHeight : viewport.clientWidth);
   let timeC = 0;
   let startTime = 0;
   return {
     capture: () => {
-      const startAnchor = focal ?? viewport.clientWidth / 2;
-      timeC = viewport.scrollLeft + startAnchor - label;
-      startTime = viewport.scrollWidth - label;
+      const startAnchor = focal ?? readViewport() / 2;
+      timeC = readScroll() + startAnchor - label;
+      startTime = readContent() - label;
     },
     apply: () => {
-      const current = viewport.scrollWidth;
-      const clientWidth = viewport.clientWidth;
-      const anchor = focal ?? clientWidth / 2;
+      const current = readContent();
+      const viewportSize = readViewport();
+      const anchor = focal ?? viewportSize / 2;
       const ratio = startTime > 0 ? (current - label) / startTime : 1;
-      const max = Math.max(0, current - clientWidth);
-      viewport.scrollLeft = Math.max(0, Math.min(timeC * ratio + label - anchor, max));
+      const max = Math.max(0, current - viewportSize);
+      writeScroll(Math.max(0, Math.min(timeC * ratio + label - anchor, max)));
     },
   };
 }
 
-const inFlight = new WeakMap<HTMLElement, number>();
+const inFlight = new WeakMap<HTMLElement, Map<string, number>>();
 
 function motionDisabled(): boolean {
   if (typeof window === "undefined") {
@@ -124,14 +161,22 @@ function motionDisabled(): boolean {
   );
 }
 
-/** Cancels any in-flight animation for `owner` and clears its zoom override. */
-export function cancelZoomAnimation(owner: HTMLElement): void {
-  const id = inFlight.get(owner);
+/**
+ * Cancels the in-flight animation for `owner` writing `varName` and clears that
+ * override. Keyed per `(owner, varName)` so the two axes can animate the same
+ * element (the canvas wrapper) concurrently without cancelling each other.
+ */
+export function cancelZoomAnimation(owner: HTMLElement, varName = "--c2-zoom-anim"): void {
+  const vars = inFlight.get(owner);
+  const id = vars?.get(varName);
   if (id !== undefined) {
     cancelAnimationFrame(id);
-    inFlight.delete(owner);
+    vars?.delete(varName);
+    if (vars?.size === 0) {
+      inFlight.delete(owner);
+    }
   }
-  owner.style.removeProperty("--c2-zoom-anim");
+  owner.style.removeProperty(varName);
 }
 
 /**
@@ -144,10 +189,10 @@ export function cancelZoomAnimation(owner: HTMLElement): void {
  */
 export function animateZoom(
   owner: HTMLElement,
-  { from, to, apply, onStart, onScroll, onDone }: ZoomAnimation,
+  { from, to, apply, onStart, onScroll, overrideVar = "--c2-zoom-anim", onDone }: ZoomAnimation,
 ): void {
-  cancelZoomAnimation(owner);
-  // Restore the start width, capture the start geometry, then either snap or
+  cancelZoomAnimation(owner, overrideVar);
+  // Restore the start size, capture the start geometry, then either snap or
   // animate. `apply(from)` + `onStart()` must precede `apply(to)` so the capture
   // sees the old content/viewport sizes.
   apply(from);
@@ -160,19 +205,30 @@ export function animateZoom(
   }
   onScroll(from);
   const start = performance.now();
+  const track = (id: number) => {
+    const vars = inFlight.get(owner) ?? new Map<string, number>();
+    vars.set(overrideVar, id);
+    inFlight.set(owner, vars);
+  };
+  const untrack = () => {
+    const vars = inFlight.get(owner);
+    if (vars?.delete(overrideVar) && vars.size === 0) {
+      inFlight.delete(owner);
+    }
+  };
   const step = (now: number) => {
     const t = Math.min(1, (now - start) / DURATION_MS);
     const z = from + (to - from) * zoomEase(t);
     apply(z);
     onScroll(z);
     if (t < 1) {
-      inFlight.set(owner, requestAnimationFrame(step));
+      track(requestAnimationFrame(step));
     } else {
-      inFlight.delete(owner);
+      untrack();
       apply(to);
       onScroll(to);
       onDone?.();
     }
   };
-  inFlight.set(owner, requestAnimationFrame(step));
+  track(requestAnimationFrame(step));
 }

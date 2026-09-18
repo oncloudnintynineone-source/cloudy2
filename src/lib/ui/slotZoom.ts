@@ -109,12 +109,16 @@ export function daySlotWidth(zoom: SlotZoom): string {
 }
 
 /**
- * Week (Grid) hour-slot height for a zoom level (the vertical half of its
- * two-axis zoom — see `gridWeekColumnWidth` for the horizontal half). Same base
- * at every breakpoint.
+ * Week (Grid) hour-slot height (the vertical half of its two-axis zoom — see
+ * `gridWeekColumnWidth` for the horizontal half). Same base at every
+ * breakpoint. Unlike the horizontal widths, the multiplier is not baked into
+ * the expression: it rides a CSS custom property (`zoomVar`, published on the
+ * canvas wrapper) so the row zoom can be animated by writing that var each frame
+ * without re-rendering the grid (Mantine sizes every slot from the resulting
+ * `--week-view-slot-height`, and its event positions are percentage-based).
  */
-export function gridWeekSlotHeight(zoom: SlotZoom): string {
-  return slotWidthCss(GRID_WEEK_BASE_REM * zoom);
+export function gridWeekSlotHeight(zoomVar: string): string {
+  return `calc(${GRID_WEEK_BASE_REM}rem * var(--mantine-scale) * ${zoomVar})`;
 }
 
 /**
@@ -147,60 +151,4 @@ export const WEEK_MATRIX_DAY_MIN_PX = 112;
  */
 export function weekMatrixDayMinPx(zoom: SlotZoom): number {
   return Math.max(1, zoom) * WEEK_MATRIX_DAY_MIN_PX;
-}
-
-/**
- * Re-anchors the horizontal scroll position after a timeline zoom so the time
- * that was at the viewport's center stays centered. The schedule grids scroll a
- * [label column + hour timeline]; the sticky label column is a fixed width that
- * does not zoom, so it must be subtracted from the scroll offset before scaling
- * the timeline by the slot-width ratio and re-added afterward. Pure (no DOM) —
- * the caller measures `labelWidth` / `oldSlotPx` / `newSlotPx` and the browser
- * clamps the returned value to `[0, scrollWidth - clientWidth]` on assignment.
- */
-export function reanchorScrollLeft(
-  scrollLeft: number,
-  viewportWidth: number,
-  labelWidth: number,
-  oldSlotPx: number,
-  newSlotPx: number,
-  /**
-   * Viewport-relative x to keep under the anchor (a pinch's focal point).
-   * Defaults to the viewport centre — the button-driven zoom contract.
-   */
-  focalX?: number,
-): number {
-  if (oldSlotPx <= 0 || newSlotPx <= 0 || viewportWidth <= 0) {
-    return scrollLeft;
-  }
-  const anchor = focalX ?? viewportWidth / 2;
-  const timePx = scrollLeft + anchor - labelWidth;
-  return timePx * (newSlotPx / oldSlotPx) + labelWidth - anchor;
-}
-
-/**
- * Re-anchors the vertical scroll position after the Week (Grid)'s slot-height
- * zoom so the time that was at the viewport's center stays centered. There is
- * no sticky label column on the vertical axis, so the offset scales directly
- * by the zoom ratio. Pure (no DOM) — the caller passes the two zoom levels and
- * the browser clamps the returned value to `[0, scrollHeight - clientHeight]`
- * on assignment.
- */
-export function reanchorScrollTop(
-  scrollTop: number,
-  viewportHeight: number,
-  oldZoom: number,
-  newZoom: number,
-  /**
-   * Viewport-relative y to keep under the anchor (a pinch's focal point).
-   * Defaults to the viewport centre — the button-driven zoom contract.
-   */
-  focalY?: number,
-): number {
-  if (oldZoom <= 0 || newZoom <= 0 || viewportHeight <= 0) {
-    return scrollTop;
-  }
-  const anchor = focalY ?? viewportHeight / 2;
-  const timePx = scrollTop + anchor;
-  return timePx * (newZoom / oldZoom) - anchor;
 }

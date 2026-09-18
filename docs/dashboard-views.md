@@ -428,32 +428,44 @@ user zooms out; Agenda has no zoom and never reclaims.
 **Animated zoom (single JS clock).** The zoom is eased rather than snapped, and
 the width/slot and the scroll re-anchor are driven by **one** rAF loop so they
 can never diverge. React publishes the active view's zoom multiplier as
-`--c2-zoom` on the canvas wrapper (plus `--c2-slot-base` for the schedule slot);
-every zoomed width/slot derives from
-`var(--c2-zoom-anim, var(--c2-zoom))` — Month's `monthViewInner` and the weekday
-strip (`calc(<zoom> * 100%)`), Week (Grid)'s inner/header/all-day rows
-(`calc(max(1, <zoom>) * 100%)`), the schedule slot + ruler
-(`calc(var(--c2-slot-base) * <zoom>)`), and the Week (D) matrix's day
-template/min-width (`calc(112px * max(1, <zoom>))`). On a zoom change
-`animateZoom` (`src/lib/ui/zoomAnim.ts`, `MOTION.zoom`, the house
-`cubic-bezier(0.22, 1, 0.36, 1)`) writes `--c2-zoom-anim` **and** the anchored
-scroll from the same interpolated value each frame, then clears the override.
+`--c2-zoom` on the canvas wrapper (plus `--c2-slot-base` for the schedule slot)
+and, separately, the Week (Grid) row multiplier as `--c2-row-zoom`; every zoomed
+width/slot derives from `var(--c2-zoom-anim, var(--c2-zoom))` — Month's
+`monthViewInner` and the weekday strip (`calc(<zoom> * 100%)`), Week (Grid)'s
+inner/header/all-day rows (`calc(max(1, <zoom>) * 100%)`), the schedule slot +
+ruler (`calc(var(--c2-slot-base) * <zoom>)`), and the Week (D) matrix's day
+template/min-width (`calc(112px * max(1, <zoom>))`) — while the Week (Grid) hour
+rows derive from `var(--c2-row-zoom-anim, var(--c2-row-zoom, 1))`: the row zoom
+is handed to Mantine's `slotHeight` prop as
+`calc(3.5rem * var(--mantine-scale) * <rowZoom>)`, so `--week-view-slot-height`
+tracks the wrapper var and the grid animates **without a re-render** (its event
+positions are percentage-based and its JS never reads `slotHeight` numerically).
+On a zoom change `animateZoom` (`src/lib/ui/zoomAnim.ts`, `MOTION.zoom`, the
+house `cubic-bezier(0.22, 1, 0.36, 1)`) writes the axis's override var
+(`--c2-zoom-anim` / `--c2-row-zoom-anim`) **and** the anchored scroll from the
+same interpolated value each frame, then clears the override; the in-flight
+registry is keyed per `(element, var)` so the two axes can animate the same
+canvas wrapper concurrently.
 The scroll is re-anchored by `scrollAnchorTracker`, which captures the
 time-content point under the anchor at the start zoom and re-centres it using the
-**measured** current content width (`viewport.scrollWidth`) and the **current**
-viewport width, clamped to the real max. Measuring (rather than using the zoom
+**measured** current content size (`scrollWidth` / `scrollHeight`) and the
+**current** viewport size, clamped to the real max; a `label` subtracts the fixed
+leading offset that doesn't scale (the horizontal slot-label column, or the
+vertical sticky day-header + all-day row). Measuring (rather than using the zoom
 ratio) is what makes the last step — zooming out to 100%, where the canvas gutter
 morphs and the wrapper/viewport both resize — land without a jump; a fixed-ratio
-re-anchor assumed a constant viewport width and overshot the shrunken
-`maxScroll`, so the browser clamped it. The grid viewports also set
-`overflow-anchor: none` so the browser's own scroll anchoring can't fight it. This
-replaced an earlier CSS-transition + separate JS tween, which drifted (two clocks
-→ the content slid/recoiled) and whose registered custom-property transition
-didn't run in Chrome (the columns snapped).
+re-anchor assumed a constant viewport size and overshot the shrunken `maxScroll`,
+so the browser clamped it. The row axis needs the same treatment because the
+Week (Grid) `ScrollArea` is `maxHeight`-bounded: at low row zoom its viewport
+shrinks with the content, and the sticky header/all-day row above the slots don't
+scale. The grid viewports also set `overflow-anchor: none` so the browser's own
+scroll anchoring can't fight it. This replaced an earlier CSS-transition +
+separate JS tween, which drifted (two clocks → the content slid/recoiled) and
+whose registered custom-property transition didn't run in Chrome (the columns
+snapped).
 Motion collapses (instant) under `prefers-reduced-motion: reduce` or the
-`c2-low-end` tier, matching the CSS override. The Week (Grid) row-height zoom
-stays instant; only the canvas gutter `margin-inline` still animates via CSS
-(`.c2-gutter-anim`).
+`c2-low-end` tier, matching the CSS override; only the canvas gutter
+`margin-inline` still animates via CSS (`.c2-gutter-anim`).
 
 Week (Grid) is different: it is a conventional 7-day grid whose right-edge
 cluster carries **two independent zoom pairs split around the right pan arrow**
@@ -470,12 +482,12 @@ the Day / Week (H) column widths):
   day-header, all-day and column rows all take the same multiplier, so they
   stay aligned while the grid overflows; at that point the full pan controls
   (drag + edge arrows, `useGridPan`) appear, exactly like Week (H)/Day. A
-  layout effect re-anchors the horizontal scroll (`reanchorScrollLeft`,
-  accounting for the fixed slot-label column) so the day under the viewport's
-  center stays put.
+  layout effect re-anchors the horizontal scroll (measured, accounting for the
+  fixed slot-label column) so the day under the viewport's center stays put.
 - **Rows** (`gridWeekSlotHeight`, base 3.5rem/56px): scales the hour-slot height
-  across the full `0.5–3` range (default 1); a layout effect re-anchors the
-  vertical scroll (`reanchorScrollTop`).
+  across the full `0.25–6` range (default 1) and is **animated** like the
+  horizontal zooms (ROW_ZOOM_VAR above); a layout effect re-anchors the vertical
+  scroll (measured, minus the sticky header/all-day offset).
 - **Internal scroll (pinned header + all-day row + left column).** The grid's
   `ScrollArea` is **viewport-bounded** (`scrollAreaProps.style.maxHeight` — the
   viewport minus the shell offsets, the chrome, and

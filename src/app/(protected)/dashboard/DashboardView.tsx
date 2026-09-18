@@ -163,7 +163,6 @@ import {
   daySlotWidth,
   gridWeekSlotHeight,
   MIN_COLUMN_ZOOM,
-  reanchorScrollTop,
   stepZoom,
   weekSlotWidth,
   type SlotZoom,
@@ -773,6 +772,15 @@ const VIEW_SLIDE_MS = 250;
  */
 const ZOOM_VAR = "var(--c2-zoom-anim, var(--c2-zoom))";
 
+/**
+ * The Week (Grid) **row**-zoom multiplier as a CSS expression, mirroring
+ * `ZOOM_VAR`: the JS-animated override (`--c2-row-zoom-anim`) when a row zoom is
+ * in flight, else React's target (`--c2-row-zoom`). It drives Mantine's
+ * `--week-view-slot-height` (via the `slotHeight` prop) so the hour rows animate
+ * without re-rendering the grid.
+ */
+const ROW_ZOOM_VAR = "var(--c2-row-zoom-anim, var(--c2-row-zoom, 1))";
+
 /** Month scroll-content width (see the Month view's zoom mechanics). */
 const MONTH_INNER_STYLE = {
   width: `calc(${ZOOM_VAR} * 100%)`,
@@ -944,7 +952,8 @@ export function DashboardView({
         : undefined;
   // The active view's zoom multiplier, published as `--c2-zoom` on the canvas
   // wrapper so every zoomed width/slot derives from one number (ZOOM_VAR).
-  // Week (Grid) uses its columns level (the row level is vertical, not animated).
+  // Week (Grid) uses its columns level here; its row level is vertical and rides
+  // its own `--c2-row-zoom` / ROW_ZOOM_VAR.
   const activeZoom =
     view === "month" || view === "dual"
       ? monthZoom
@@ -955,8 +964,10 @@ export function DashboardView({
           : view === "schedule" || view === "week"
             ? zoom
             : undefined;
-  // Week (Grid) zoom: independent column-width and slot-height levels.
-  const gridWeekSlotHeightValue = gridWeekSlotHeight(gridWeekRowZoom);
+  // Week (Grid) zoom: independent column-width and slot-height levels. The
+  // height expression carries no baked multiplier — the row zoom rides
+  // ROW_ZOOM_VAR so `animateZoom` can drive it per frame.
+  const gridWeekSlotHeightValue = gridWeekSlotHeight(ROW_ZOOM_VAR);
 
   // A deep-link target resolves from the grid's filtered `events` first (the
   // common case: it is on a selected calendar and matches the filters), then
@@ -2808,10 +2819,9 @@ export function DashboardView({
   // otherwise keep the scroll offset fixed, so the columns visibly jump
   // away from the viewport center. Re-anchor `scrollLeft` so the column under
   // the viewport's center stays centered, mirroring the schedule timeline zoom
-  // (reanchorScrollLeft with no label column: the scale ratio is just
-  // oldZoom→newZoom — the per-day width is (viewportWidth × zoom) / 7, which
-  // cancels out of the ratio). Only on a genuine zoom change — never on mount,
-  // month navigation or breakpoint flips.
+  // (no label column — the month grid starts at the viewport's left edge). Only
+  // on a genuine zoom change — never on mount, month navigation or breakpoint
+  // flips.
   useLayoutEffect(() => {
     const zoomChanged = prevMonthZoomRef.current !== monthZoom;
     const oldZoom = prevMonthZoomRef.current;
@@ -2841,9 +2851,12 @@ export function DashboardView({
 
   // Week (Grid) row-zoom re-anchor: the zoom changes the hour-row height, so
   // the vertical scroll would otherwise keep the same pixel offset and visibly
-  // jump the time. Keep the time under the viewport's center centered, scaling
-  // the offset by the zoom ratio (no label column on the vertical axis). Only
-  // on a genuine zoom change — never on mount or view switches.
+  // jump the time. One `animateZoom` drives both the row height (ROW_ZOOM_VAR /
+  // `--c2-row-zoom-anim`, read by Mantine's `--week-view-slot-height`) and the
+  // scroll, so they can't drift apart; the tracker re-anchors from the measured
+  // content and the current viewport (which shrinks at low row zoom) and
+  // subtracts the sticky day-header + all-day row, which don't scale. Only on a
+  // genuine zoom change — never on mount or view switches.
   useLayoutEffect(() => {
     const zoomChanged = prevGridWeekRowZoomRef.current !== gridWeekRowZoom;
     const oldZoom = prevGridWeekRowZoomRef.current;
@@ -2852,18 +2865,25 @@ export function DashboardView({
       return;
     }
     const viewport = gridWeekViewportRef.current;
-    if (!viewport || viewport.clientHeight <= 0) {
+    const owner = weekBoxRef.current;
+    if (!viewport || !owner || viewport.clientHeight <= 0) {
       return;
     }
     const focalY = pinchFocalRef.current.y;
     pinchFocalRef.current.y = undefined;
-    viewport.scrollTop = reanchorScrollTop(
-      viewport.scrollTop,
-      viewport.clientHeight,
-      oldZoom,
-      gridWeekRowZoom,
-      focalY,
-    );
+    const head = viewport.querySelector<HTMLElement>(".c2-weekgrid-head");
+    const allDay = viewport.querySelector<HTMLElement>(".c2-weekgrid-allday");
+    const headerPx = (head?.offsetHeight ?? 0) + (allDay?.offsetHeight ?? 0);
+    const tracker = scrollAnchorTracker(viewport, { axis: "y", label: headerPx, focal: focalY });
+    animateZoom(owner, {
+      from: oldZoom,
+      to: gridWeekRowZoom,
+      apply: (z) => owner.style.setProperty("--c2-row-zoom-anim", String(z)),
+      onStart: tracker.capture,
+      onScroll: () => tracker.apply(),
+      overrideVar: "--c2-row-zoom-anim",
+      onDone: () => owner.style.removeProperty("--c2-row-zoom-anim"),
+    });
   }, [view, gridLoading, gridWeekRowZoom]);
 
   // Week (Grid) column-zoom re-anchor: widening the day columns would otherwise
@@ -3409,8 +3429,9 @@ export function DashboardView({
           the floating zoom/pan controls and the fullscreen toggle, so they must
           not move when the canvas bleeds. It also publishes the shared zoom
           inputs — `--c2-zoom` (the active view's target multiplier),
-          `--c2-slot-base` (the schedule slot at zoom 1) and `--ruler-slot` —
-          which every zoomed width/slot derives from (ZOOM_VAR). The inner
+          `--c2-row-zoom` (Week (Grid)'s row multiplier), `--c2-slot-base` (the
+          schedule slot at zoom 1) and `--ruler-slot` — which every zoomed
+          width/slot derives from (ZOOM_VAR / ROW_ZOOM_VAR). The inner
           wrapper carries the corner-to-corner bleed when zoomed in
           (`reclaimGutter`) and the slide clip; its gutter `margin-inline`
           morphs via `.c2-gutter-anim`. */}
@@ -3420,6 +3441,7 @@ export function DashboardView({
         style={
           {
             "--c2-zoom": activeZoom,
+            "--c2-row-zoom": gridWeekRowZoom,
             "--c2-slot-base": scheduleSlotBase,
             "--ruler-slot": `calc(var(--c2-slot-base) * ${ZOOM_VAR})`,
           } as CSSProperties
