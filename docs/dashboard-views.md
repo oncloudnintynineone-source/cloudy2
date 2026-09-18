@@ -273,6 +273,17 @@ directly ([`events-cache.md`](events-cache.md)):
   overflow) pan horizontally through `useGridPan` + `GridPanControls`
   ([`grid-pan.md`](grid-pan.md)); the dashboard chrome can go fullscreen
   through immersive mode ([`immersive-mode.md`](immersive-mode.md)).
+- **Mobile-band chip padding.** On the mobile band (`max-width: 39.99em`,
+  below the app's `lg` breakpoint) the `ScheduleEvent` inner box is tightened
+  from the library's `3px 4px` (`4px 6px` at `size="md"`) to `1px 2px`, so more
+  of a small grid chip's width is text. App-owned classes (`c2-schedule-event`
+  / `c2-event-inner`) are attached to the library part through the theme's
+  `ScheduleEvent` `classNames` (`src/lib/theme.ts`, matched by the component's
+  `__staticSelector` string — no `@mantine/schedule` import), then overridden
+  behind the media query in `globals.css` with a two-class selector that beats
+  the library's `.m_*` rule. All grid chips (Month / Day / Week (H) / Week
+  (Grid) / per-department Resources) render through `ScheduleEvent`, so one
+  rule covers them.
 
 ## 1.5 My-entry highlight
 

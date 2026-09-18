@@ -972,7 +972,7 @@ html {
 
 .app-shell-root :has(> [data-c2-my-row]) {
   background-color: var(--c2-my-label-tint);
-  box-shadow: inset calc(0.1875rem * var(--mantine-scale)) 0 0 var(--mantine-color-accent-6);
+  box-shadow: inset calc(0.125rem * var(--mantine-scale)) 0 0 var(--mantine-color-accent-6);
 }
 
 .app-shell-root :has(> * > [data-c2-my-row]) {
@@ -988,8 +988,8 @@ html {
 }
 
 .c2-my-event > * {
-  outline: calc(0.125rem * var(--mantine-scale)) solid var(--mantine-color-accent-6);
-  outline-offset: calc(0.0625rem * var(--mantine-scale));
+  outline: calc(0.0625rem * var(--mantine-scale)) solid var(--mantine-color-accent-6);
+  outline-offset: 0;
 }
 
 /* Month & Agenda view: the month pane's chips are pass-through, so a tap
@@ -1009,7 +1009,7 @@ html {
    title (the first <p> in the row) goes semibold. */
 .c2-my-agenda-event {
   background-color: var(--c2-my-row-tint);
-  box-shadow: inset calc(0.1875rem * var(--mantine-scale)) 0 0 var(--mantine-color-accent-6);
+  box-shadow: inset calc(0.125rem * var(--mantine-scale)) 0 0 var(--mantine-color-accent-6);
 }
 
 .c2-my-agenda-event p:first-of-type {
@@ -1057,27 +1057,45 @@ html {
 
 .c2-ext-event > *,
 .c2-ext-slot-event > * {
-  outline: calc(0.125rem * var(--mantine-scale)) solid var(--mantine-color-purple-6);
-  outline-offset: calc(0.0625rem * var(--mantine-scale));
+  outline: calc(0.0625rem * var(--mantine-scale)) solid var(--mantine-color-purple-6);
+  outline-offset: 0;
 }
 
 /* Self ring for chips that carry the rounded background themselves: the
    Week (D) matrix banner box (it already has the event's 1px border, so
    the outline sits clean outside it) and the Day view's all-day bar. */
 .c2-ext-ring {
-  outline: calc(0.125rem * var(--mantine-scale)) solid var(--mantine-color-purple-6);
-  outline-offset: calc(0.0625rem * var(--mantine-scale));
+  outline: calc(0.0625rem * var(--mantine-scale)) solid var(--mantine-color-purple-6);
+  outline-offset: 0;
 }
 
 /* Agenda: external rows get a purple left bar + light tint, and their
    title (the first <p> in the row) goes semibold. */
 .c2-ext-agenda-event {
   background-color: var(--c2-ext-row-tint);
-  box-shadow: inset calc(0.1875rem * var(--mantine-scale)) 0 0 var(--mantine-color-purple-6);
+  box-shadow: inset calc(0.125rem * var(--mantine-scale)) 0 0 var(--mantine-color-purple-6);
 }
 
 .c2-ext-agenda-event p:first-of-type {
   font-weight: var(--mantine-font-weight-semibold);
+}
+
+/*
+  Mobile band (`max-width: 39.99em`, i.e. below the app's `lg` desktop
+  breakpoint — the same band as the other `max-width: 39.99em` blocks; see
+  docs/dashboard-views.md §1.4). The library's ScheduleEvent inner box pads
+  `3px 4px` (`4px 6px` when `size="md"`), which eats much of a small chip's
+  width. Tighten it to `1px 2px` so more of the chip is text. Every grid chip
+  (Month / Day / Week (H) / Week (Grid) / per-department Resources) renders
+  through ScheduleEvent, so one rule covers them all; the `c2-schedule-event`
+  / `c2-event-inner` classes come from the theme's ScheduleEvent classNames
+  (`src/lib/theme.ts`). The two-class descendant selector beats the library's
+  single-class `.m_*` padding regardless of stylesheet order.
+*/
+@media (max-width: 39.99em) {
+  .c2-schedule-event .c2-event-inner {
+    padding: calc(0.0625rem * var(--mantine-scale)) calc(0.125rem * var(--mantine-scale));
+  }
 }
 
 /*

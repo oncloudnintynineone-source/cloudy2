@@ -66,6 +66,15 @@ export const theme = createTheme({
         },
       }),
     },
+    // App-owned hook classes on the schedule chip (matched by the component's
+    // `__staticSelector` name string — no @mantine/schedule import, so the
+    // heavy package stays in its lazy chunk). The compact-phone padding
+    // override in globals.css targets these (`.c2-schedule-event
+    // .c2-event-inner`), a two-class selector that beats the library's
+    // single-class `.m_*` rule regardless of stylesheet order.
+    ScheduleEvent: {
+      classNames: { event: "c2-schedule-event", eventInner: "c2-event-inner" },
+    },
   },
 });
 
