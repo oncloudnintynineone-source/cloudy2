@@ -273,11 +273,20 @@ doc content here.
   admins/KAH members additionally get KAH Status `/kah-status`; Settings `/settings` is
   admin-only. `SettingsTabs` stacks directly above it.
 - **Admin settings live under `/settings`** (admin-only): Users, Departments, Event Types,
-  Templates, Webhooks, Quick Links, KAH Groups, Banner, General, Security, Audit Log tabs.
+  Templates, Webhooks, Quick Links, KAH Groups, Banner, General, Security, Audit Log,
+  Feature Flags tabs.
   Event-type policy (shortname, display groups, allowed-locations matrix, `show_remarks`/
   `show_invitees`, per-type `show_location`): [docs/event-lifecycle.md](docs/event-lifecycle.md).
   Colors (event types + department fallback, applied at read time in `mapCalendarItem`,
   never cached): [docs/roster-sharing.md](docs/roster-sharing.md).
+- **Feature Flags (Settings → Feature Flags, org-wide):** when a new feature has multiple
+  presentational/behavioral variants an admin may want to compare live or toggle for the whole
+  org (A/B-style experiments, alternate heads), **don't hand-roll a toggle** — extend the
+  feature-flag framework: add the typed `settings` column + one `FeatureFlagDef` entry in
+  `src/lib/settings/featureFlags.ts` (the last Settings tab auto-renders its control), resolve
+  the value server-side and pass it down as a prop. Flags are **global** (no per-user override),
+  default to today's behavior, and every flip is audited. First flag: `pinnedTickerIndicator`
+  ([`pinned-events.md`](docs/pinned-events.md) §1.4). Design: [docs/feature-flags.md](docs/feature-flags.md).
 - **Templates:** display-name template + **structured recipes** (`src/lib/settings/titleRecipe.ts`,
   no free text beyond an optional per-segment Text field) with per-target assignments
   (incl. `pinned`/`pinnedHeader` and the push bodies `notifyCreated`/`notifyAdded`).
