@@ -31,6 +31,7 @@ import { usePathname, useRouter } from "next/navigation";
 
 import { PinnedEventsPanel } from "@/components/PinnedEventsPanel";
 import { PinnedEventsTicker } from "@/components/PinnedEventsTicker";
+import { NavRouteWarmer } from "@/components/NavRouteWarmer";
 import EventSearchModalSkeleton from "@/components/EventSearchModalSkeleton";
 import { ColdStartReadyBar, useColdStartReady } from "@/components/ColdStartReady";
 import { ActivityBar, ActivityProvider, useReportActivity } from "@/components/ActivityBar";
@@ -872,6 +873,9 @@ export function AppShellShell({
       <a href="#main-content" className="c2-skip-link">
         Skip to content
       </a>
+      {/* Warm the bottom-nav route chunks at idle so the first switch paints
+          from cache (see the component for the connection gate). */}
+      <NavRouteWarmer hrefs={navItems.map((item) => item.href)} />
       <ActivityProvider>
         <InactivityActivityReporter pending={inactivityPending} />
         <AppShell

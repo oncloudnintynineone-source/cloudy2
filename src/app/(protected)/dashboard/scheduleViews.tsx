@@ -60,3 +60,22 @@ export const LazyMoreEvents = dynamic<MoreEventsProps>(
   () => import("@mantine/schedule").then((mod) => ({ default: mod.MoreEvents })),
   { ssr: false },
 );
+
+/**
+ * Fetch every schedule view's chunk ahead of use. The active view is already
+ * loaded by first render; this warms the other view kinds so a tab switch
+ * paints from cache instead of downloading first. Called at idle by the
+ * dashboard, gated on the connection (`canWarmRoutes`).
+ */
+export function preloadScheduleViews(): void {
+  for (const component of [
+    LazyMonthView,
+    LazyWeekView,
+    LazyAgendaView,
+    LazyResourcesWeekView,
+    LazyResourcesDayView,
+    LazyMoreEvents,
+  ]) {
+    void (component as unknown as { preload?: () => Promise<unknown> }).preload?.();
+  }
+}

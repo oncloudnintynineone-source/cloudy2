@@ -57,6 +57,7 @@ import {
   LazyResourcesDayView as ResourcesDayView,
   LazyResourcesWeekView as ResourcesWeekView,
   LazyWeekView as WeekView,
+  preloadScheduleViews,
 } from "./scheduleViews";
 import {
   IconBuilding,
@@ -122,6 +123,7 @@ import type { TimeOption } from "@/lib/events/timeOptions";
 import { eventMatchesUserFilter } from "@/lib/events/userFilter";
 import { CONTENT_ENTER_CLASS, useContentEnter } from "@/lib/loading/contentEnter";
 import { useMinSkeletonHold } from "@/lib/loading/minHoldLoading";
+import { canWarmRoutes } from "@/lib/pwa/warmup";
 import { departmentPathLabels, departmentTreeRows } from "@/lib/roster/hierarchy";
 import { useColdStartContent } from "@/components/ColdStartReady";
 import {
@@ -2200,6 +2202,11 @@ export function DashboardView({
     const preload = () => {
       void preloadEventFormChunk();
       preloadDashboardViewChunks();
+      // Warm the other schedule view kinds so a tab switch paints from cache.
+      // Gated on the connection (skipped on metered / very slow / offline).
+      if (canWarmRoutes()) {
+        preloadScheduleViews();
+      }
     };
     const hasIdle = typeof window.requestIdleCallback === "function";
     let id: number;
