@@ -687,10 +687,13 @@ the anchor day, Month & Agenda → Month keeps the anchor month).
   padding recipe as `DashboardShellSkeleton`, minus the measured chrome and the
   Stack gap) and each pane is a fixed-header column with its **own vertical
   scroll** (`overflow-y: auto` + `overscroll-behavior: contain`), so scrolling
-  one never moves the other. The layout key is the `lg` breakpoint, not the
-  device: a large phone (e.g. an unfolded Fold) gets the side-by-side bounded
-  layout too. Below `lg` the Agenda pane is hidden — the full-width month grid
-  scrolls with the document and the handle is absent.
+  one never moves the other. **Both panes' content fills that bounded height**
+  so no blank strip is left at the bottom on a tall desktop: the Agenda card
+  stretches to the pane (a long day list scrolls inside the card, not the pane)
+  and the Month grid's six week rows grow to fill the pane. The layout key is
+  the `lg` breakpoint, not the device: a large phone (e.g. an unfolded Fold)
+  gets the side-by-side bounded layout too. Below `lg` the Agenda pane is hidden
+  — the full-width month grid scrolls with the document and the handle is absent.
 - **Split & resize.** The Month pane takes the remembered `dualSplit` fraction
   (device-local cookie, [`ui-state.md`](ui-state.md); default 0.6, clamped
   0.25–0.75 by `src/lib/ui/dualSplit.ts`). A drag handle between the panes
@@ -705,7 +708,12 @@ the anchor day, Month & Agenda → Month keeps the anchor month).
   transform can't jitter the fixed controls), the same `monthEvents` ordering
   and `renderMyMonthEvent` highlights. At `lg` the strip is the pane's fixed
   header (`sticky={false}` — the pane is the scroll container, so a
-  chrome-relative `top` would push it down). At `lg` and up the event chips
+  chrome-relative `top` would push it down). Also at `lg`, the six week rows
+  grow to fill the bounded pane: the pane's scroll box is measured and Mantine's
+  `--month-view-max-events` gets a fractional override (`52px + N * 24px` per
+  row), so the event chips scale with the row while the rendered count stays at
+  four; a 4-event floor keeps the natural row height — and the pane's own scroll
+  — on shorter viewports. At `lg` and up the event chips
   are deliberately **pass-through** (`c2-inert-event` in `globals.css` disables
   the chip's whole subtree + `tabIndex: -1`, no `onEventClick`): Mantine
   re-enables `pointer-events` on the inner chip, so the root-only override was
@@ -720,7 +728,9 @@ the anchor day, Month & Agenda → Month keeps the anchor month).
   list under a day header (day label + ‹ › chevrons): `eventsOnDay`,
   `renderMyAgendaEvent`, the directional slide on a day change, and the touch
   swipe-to-change-day gesture with its once-per-session hint. The header is
-  the pane's fixed header (bounded layout).
+  the pane's fixed header (bounded layout), and the bordered card fills the pane
+  below it — a long day list scrolls inside the card (`agendaViewBody`), so a
+  short day never leaves a blank strip under the card.
 - **Chrome.** The nav row labels the period with the **month** (the pane header
   carries the day); the screen-reader announcement appends the agenda day so a
   day move is announced too. The agenda header reserves the floating fullscreen

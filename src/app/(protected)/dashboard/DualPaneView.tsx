@@ -228,6 +228,37 @@ export function DualPaneView({
     );
   }, [monthZoom]);
 
+  // The month grid is always exactly six week rows (`MONTH_GRID_WEEKS`), and
+  // Mantine sizes each row from `--month-view-max-events` (52px + N * 24px).
+  // On a tall desktop pane the fixed 4-event rows (~888px) fall short of the
+  // bounded pane and leave a blank strip below the grid, so measure the pane's
+  // scroll box and hand Mantine a fractional N that makes the six rows fill it
+  // exactly. The floor of 4 events keeps the natural row height (and the pane's
+  // own scroll) on shorter viewports, so nothing regresses below the threshold.
+  const monthScrollRef = useRef<HTMLDivElement | null>(null);
+  const [monthScrollHeight, setMonthScrollHeight] = useState(0);
+  useLayoutEffect(() => {
+    const el = monthScrollRef.current;
+    if (!el || !isDesktop) {
+      setMonthScrollHeight(0);
+      return;
+    }
+    const update = () => setMonthScrollHeight(el.clientHeight);
+    update();
+    const observer = new ResizeObserver(update);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [isDesktop]);
+  const monthFillStyle = useMemo<CSSProperties | undefined>(() => {
+    if (!isDesktop || monthScrollHeight <= 0) {
+      return undefined;
+    }
+    // 148px = 52 + 4 * 24 (the natural four-event row); subtract the six 1px
+    // row borders so the filled grid lands just inside the pane.
+    const rowHeight = Math.max(148, (monthScrollHeight - 6) / 6);
+    return { "--month-view-max-events": String((rowHeight - 52) / 24) } as CSSProperties;
+  }, [isDesktop, monthScrollHeight]);
+
   // ---- Split handle --------------------------------------------------------
   // The live fraction is written straight to the container's CSS var during a
   // drag (no React render per frame); the committed value lands on release.
@@ -385,6 +416,7 @@ export function DualPaneView({
           sticky={!isDesktop}
         />
         <Box
+          ref={monthScrollRef}
           style={
             isDesktop
               ? {
@@ -403,6 +435,7 @@ export function DualPaneView({
             withHeader={false}
             withWeekDays={false}
             styles={{ monthViewInner: monthViewInnerStyle }}
+            style={monthFillStyle}
             scrollAreaProps={monthScrollAreaProps}
             maxEventsPerDay={isDesktop ? 4 : 3}
             moreEventsProps={{
@@ -563,8 +596,12 @@ export function DualPaneView({
               touchAction: "pan-y",
               flex: "1 1 auto",
               minHeight: 0,
-              overflowY: "auto",
-              overflowX: "hidden",
+              // A flex column so the card below fills the pane (its own body
+              // scrolls a long day) instead of leaving blank space under a
+              // content-height card; the swipe hint stays pinned beneath it.
+              display: "flex",
+              flexDirection: "column",
+              overflow: "hidden",
               overscrollBehavior: "contain",
               marginTop: "var(--mantine-spacing-xs)",
             }}
@@ -588,17 +625,30 @@ export function DualPaneView({
                     ? "agenda-slide-prev"
                     : undefined
               }
+              style={{
+                flex: "1 1 auto",
+                minHeight: 0,
+                display: "flex",
+                flexDirection: "column",
+              }}
             >
               <AgendaView
                 rangeStart={day}
                 rangeEnd={day}
                 events={agendaEvents}
                 style={{
+                  flex: "1 1 auto",
+                  minHeight: 0,
                   border: "1px solid var(--mantine-color-default-border)",
                   borderRadius: "var(--mantine-radius-md)",
                   overflow: "hidden",
                 }}
-                styles={{ agendaViewHeader: { display: "none" } }}
+                styles={{
+                  agendaViewHeader: { display: "none" },
+                  // The card fills the pane; a long day list scrolls inside it
+                  // rather than leaving blank space below a short card.
+                  agendaViewBody: { overflowY: "auto", minHeight: 0 },
+                }}
                 renderEvent={renderAgendaEvent}
                 onEventClick={(event, e) => onEventClick(event as unknown as CalendarEvent, e)}
               />

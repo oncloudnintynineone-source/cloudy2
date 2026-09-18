@@ -23,11 +23,16 @@ export function WeekdayRow() {
   );
 }
 
-export function MonthGridSkeleton({ rows }: { rows: number }) {
+export function MonthGridSkeleton({ rows, fill = false }: { rows: number; fill?: boolean }) {
   return (
-    <Paper withBorder radius="md" p="sm">
+    <Paper
+      withBorder
+      radius="md"
+      p="sm"
+      style={fill ? { height: "100%", display: "flex", flexDirection: "column" } : undefined}
+    >
       <WeekdayRow />
-      <Box style={gridStyle}>
+      <Box style={fill ? { ...gridStyle, flex: "1 1 auto", gridAutoRows: "1fr" } : gridStyle}>
         {Array.from({ length: rows * 7 }).map((_, i) => {
           const chips = (Math.floor(i / 7) * 3 + (i % 7) * 5 + 2) % 4;
           return (
@@ -80,9 +85,14 @@ export function ScheduleGridSkeleton({ rows = 6 }: { rows?: number }) {
 }
 
 /** Stacked list matching the Agenda view shape (date header + event rows). */
-export function AgendaListSkeleton({ rows = 4 }: { rows?: number }) {
+export function AgendaListSkeleton({ rows = 4, fill = false }: { rows?: number; fill?: boolean }) {
   return (
-    <Paper withBorder radius="md" p={0} style={{ overflow: "hidden" }}>
+    <Paper
+      withBorder
+      radius="md"
+      p={0}
+      style={{ overflow: "hidden", ...(fill ? { flex: "1 1 auto", minHeight: 0 } : null) }}
+    >
       <Box style={{ padding: "var(--mantine-spacing-xs) var(--mantine-spacing-sm)" }}>
         <Skeleton height={14} width="45%" />
       </Box>
@@ -283,6 +293,8 @@ export function DualPaneSkeleton({
   const scrollBody = {
     flex: "1 1 auto",
     minHeight: 0,
+    display: "flex",
+    flexDirection: "column" as const,
     overflowY: "auto" as const,
     overflowX: "hidden" as const,
   };
@@ -312,7 +324,7 @@ export function DualPaneSkeleton({
         }}
       >
         <Box style={isDesktop ? scrollBody : undefined}>
-          <MonthGridSkeleton rows={rows} />
+          <MonthGridSkeleton rows={rows} fill={isDesktop} />
         </Box>
       </Box>
       {/* The agenda column is desktop only — below `lg` the view (and its
@@ -328,7 +340,7 @@ export function DualPaneSkeleton({
           }}
         >
           <Box style={scrollBody}>
-            <AgendaListSkeleton />
+            <AgendaListSkeleton fill />
           </Box>
         </Box>
       )}

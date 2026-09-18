@@ -1206,6 +1206,15 @@ via `?attendance=1` and `attendanceStorage` became a `useSyncExternalStore` exte
    frame before the usual re-read reconciles. `docs/pwa-offline.md` §1.19,
    `docs/events-cache.md` §1.12, `docs/dashboard-views.md` §1.1
 
+- 1.256 Month & Agenda desktop fill: the bounded panes no longer leave a blank
+   strip at the bottom. The Agenda card now stretches to the pane (`flex: 1` +
+   `agendaViewBody` scroll), so a short day scrolls inside the card instead of
+   leaving space below it; the Month grid's six rows grow to fill the pane by
+   measuring the pane's scroll box and overriding Mantine's
+   `--month-view-max-events` with a fractional value (4-event floor keeps the
+   natural height + pane scroll on shorter viewports, chips scale with the row).
+   `DualPaneSkeleton` mirrors both fills. `docs/dashboard-views.md` §1.9
+
 ## 1.4 Open items & next steps
 
 1. **`ADMIN_INITIAL_PASSWORD` + `ADMIN_PIN`** must be set on Vercel (Production +
