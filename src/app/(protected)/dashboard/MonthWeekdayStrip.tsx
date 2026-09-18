@@ -58,11 +58,13 @@ export function MonthWeekdayStrip({
       <Box
         ref={innerRef}
         component="div"
+        className="c2-zoom-width"
         style={{
           display: "flex",
           // Mirrors the Month grid's zoomed content width (see
           // monthViewInnerStyle in DashboardView), so each column below lands
-          // exactly over the grid's day column.
+          // exactly over the grid's day column. The class eases the width
+          // between zoom levels in step with the grid (globals.css).
           width: `${zoom * 100}%`,
           willChange: "transform",
         }}

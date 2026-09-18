@@ -409,19 +409,36 @@ user can fit more of the day/week in view (overview) or expand it for detail. On
 **shared** zoom level scales the width of every hour slot; it does not change the
 slot granularity (still 60-minute columns) or the row height.
 
-**Gutter reclamation.** The dashboard's content sits inside the shell's `md`
-gutter (16px each side, `--app-shell-padding`). At fit the grids fill that padded
-width, but any zoomed-in grid overflows into a horizontal pan — so the gutters
-become dead space. Whenever the shown view's horizontal zoom is above its fit/base
-level (`reclaimGutter` in DashboardView: Month/Dual `monthZoom > 1`, Day/Week (H)
-`zoom > 1`, Week (D) `weekMatrixZoom > 1`, Week (Grid) columns
-`gridWeekColZoom > 1`), the whole dashboard Stack is flushed flush to the shell
-edges (negative `margin-inline: calc(-1 * var(--app-shell-padding))`, mirroring
-the existing top flush), reclaiming ~16px of visible content per side; the chrome,
-pinned strips and grid widen together, so weekday/ruler/column alignment is
-preserved. Returning to fit restores the gutter. Week (Grid)'s default 2× column
-zoom (§ below) means that tab reclaims immediately unless the user zooms out;
-Agenda has no zoom and never reclaims.
+**Gutter reclamation (canvas only).** The dashboard's content sits inside the
+shell's `md` gutter (16px each side, `--app-shell-padding`). At fit the grids fill
+that padded width, but any zoomed-in grid overflows into a horizontal pan — so the
+gutters become dead space. Whenever the shown view's horizontal zoom is above its
+fit/base level (`reclaimGutter` in DashboardView: Month/Dual `monthZoom > 1`,
+Day/Week (H) `zoom > 1`, Week (D) `weekMatrixZoom > 1`, Week (Grid) columns
+`gridWeekColZoom > 1`), an **inner canvas wrapper** inside the padded
+`weekBoxRef` is flushed to the shell edges (`margin-inline: calc(-1 *
+var(--app-shell-padding))`, `overflow: clip`), reclaiming ~16px of visible content
+per side. The pinned strips and grid live inside that wrapper and widen together,
+so weekday/ruler/column alignment is preserved; the tabs, date-nav and their
+buttons (and the floating zoom/pan + fullscreen controls, which anchor to the
+padded `weekBoxRef`) never move. Returning to fit restores the gutter. Week
+(Grid)'s default 2× column zoom means that tab reclaims immediately unless the
+user zooms out; Agenda has no zoom and never reclaims.
+
+**Animated zoom.** The zoom is eased rather than snapped: the schedule views'
+hour-slot width is published as the registered `--c2-slot` custom property on the
+canvas wrapper (`.c2-zoom-anim` transitions it; the grid root consumes it via
+`--resources-*-view-slot-width` and the ruler strips via `--ruler-slot`), Month /
+Week (Grid) transition their percentage `width` (`.c2-zoom-width`), the Week (D)
+matrix transitions its `grid-template-columns`/`min-width` (`.c2-zoom-cols`), and
+the gutter `margin-inline` morphs on the same cadence. Because the CSS width
+interpolation and the JS scroll re-anchor must stay in step, the re-anchor offset
+is tweened by `animateScroll` (`src/lib/ui/scrollTween.ts`, `MOTION.zoom` / the
+house easing) instead of assigned in one frame, and the grid viewports set
+`overflow-anchor: none` so the browser's own scroll anchoring can't fight it
+(the previous one-frame snap was the "flash of the old zoom"). All of it is under
+`prefers-reduced-motion: no-preference`; reduced motion snaps as before. The Week
+(Grid) row-height zoom stays instant.
 
 Week (Grid) is different: it is a conventional 7-day grid whose right-edge
 cluster carries **two independent zoom pairs split around the right pan arrow**

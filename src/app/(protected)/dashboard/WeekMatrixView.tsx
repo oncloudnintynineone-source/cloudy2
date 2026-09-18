@@ -17,6 +17,7 @@ import {
   useLayoutEffect,
   type MouseEvent,
   type ReactNode,
+  type RefObject,
   useMemo,
   useRef,
 } from "react";
@@ -31,6 +32,7 @@ import type { ScheduleResource, ScheduleResourceGroup } from "@/lib/events/sched
 import { announce } from "@/lib/ui/announcer";
 import { useGridPan } from "@/lib/ui/gridPan";
 import { usePinchZoom } from "@/lib/ui/pinchZoom";
+import { animateScroll } from "@/lib/ui/scrollTween";
 import {
   clampGridWeekColZoom,
   MIN_COLUMN_ZOOM,
@@ -83,6 +85,12 @@ export interface WeekMatrixViewProps {
    * (`top: calc(var(--app-shell-header-offset) + chromeOffset)`).
    */
   chromeOffset: number;
+  /**
+   * Anchor for the floating zoom/pan controls. The matrix bleeds with the
+   * calendar canvas when zoomed in, so the parent passes its padded canvas box
+   * here to keep the controls fixed; defaults to the matrix root.
+   */
+  controlsAnchorRef?: RefObject<HTMLDivElement | null>;
 }
 
 /**
@@ -123,6 +131,7 @@ export function WeekMatrixView({
   onZoomOut,
   onZoomChange,
   chromeOffset,
+  controlsAnchorRef,
 }: WeekMatrixViewProps) {
   const theme = useMantineTheme();
   const isDesktop = useMediaQuery(`(min-width: ${theme.breakpoints.lg})`);
@@ -214,13 +223,17 @@ export function WeekMatrixView({
         (labelMeasureRef.current?.getBoundingClientRect().width ?? 0);
       const focalX = pinchFocalRef.current;
       pinchFocalRef.current = undefined;
-      viewport.scrollLeft = reanchorScrollLeft(
-        viewport.scrollLeft,
-        viewport.clientWidth,
-        labelPx,
-        oldZoom,
-        zoom,
-        focalX,
+      animateScroll(
+        viewport,
+        "left",
+        reanchorScrollLeft(
+          viewport.scrollLeft,
+          viewport.clientWidth,
+          labelPx,
+          oldZoom,
+          zoom,
+          focalX,
+        ),
       );
     }
     remeasureGridPan();
@@ -293,6 +306,7 @@ export function WeekMatrixView({
                 ref={headerInnerRef}
                 component="div"
                 role="row"
+                className="c2-zoom-cols"
                 style={{
                   display: "grid",
                   gridTemplateColumns: dayTemplate,
@@ -348,6 +362,7 @@ export function WeekMatrixView({
         <ScrollArea
           type="auto"
           styles={{ content: { minWidth: contentMinWidth } }}
+          classNames={{ content: "c2-zoom-cols" }}
           viewportRef={mergedViewportRef}
           viewportProps={gridPan.viewportProps}
           onScrollPositionChange={handleScroll}
@@ -422,7 +437,7 @@ export function WeekMatrixView({
           other grids use): the zoom pair always shows; the pan arrows appear
           only once a zoom level overflows the viewport. */}
       <GridNavControls
-        anchorRef={rootRef}
+        anchorRef={controlsAnchorRef ?? rootRef}
         layoutKey={isDesktop}
         canScrollLeft={gridPan.canScrollLeft}
         canScrollRight={gridPan.canScrollRight}
@@ -517,6 +532,7 @@ function MatrixRow({
       {/* Day grid — the horizontally scrolling part. */}
       <Box
         component="div"
+        className="c2-zoom-cols"
         style={{
           flex: 1,
           minWidth: dayMinWidth,

@@ -59,6 +59,22 @@ html {
   --c2-dur-micro: 200ms;
 }
 
+/*
+  Dashboard zoom animation (docs/dashboard-views.md §1.7). The schedule views'
+  hour-slot width is a CSS length the dashboard writes to the canvas wrapper each
+  render; registering it lets the width (and the pinned ruler strips that read it
+  through --ruler-slot) interpolate between zoom levels instead of snapping.
+  `inherits: true` so the view root and the strips below the wrapper all resolve
+  the animated value. The transition itself is declared in `.c2-zoom-anim` under
+  the reduced-motion guard below; the JS scroll re-anchor (src/lib/ui/scrollTween.ts)
+  runs with the same duration so the anchored column stays put.
+*/
+@property --c2-slot {
+  syntax: "<length>";
+  inherits: true;
+  initial-value: 0px;
+}
+
 @keyframes content-enter {
   from {
     opacity: 0;
@@ -528,6 +544,29 @@ html {
   .wizard-step-enter {
     animation: wizard-step-enter var(--c2-dur-standard) cubic-bezier(0.22, 1, 0.36, 1);
   }
+
+  /* Dashboard zoom (docs/dashboard-views.md §1.7). `.c2-zoom-anim` goes on the
+     canvas wrapper (--c2-slot, and the gutter `margin-inline` on the inner
+     bleed wrapper); `.c2-zoom-width` on the percentage-width grid inners
+     (Month's monthViewInner, Week (Grid)'s rows, the Month weekday strip);
+     `.c2-zoom-cols` on the Week (D) matrix's grid-template/min-width pair. All
+     share the house duration/easing so the JS scroll tween (scrollTween.ts)
+     stays in step with the width interpolation. */
+  .c2-zoom-anim {
+    transition:
+      --c2-slot var(--c2-dur-standard) cubic-bezier(0.22, 1, 0.36, 1),
+      margin-inline var(--c2-dur-standard) cubic-bezier(0.22, 1, 0.36, 1);
+  }
+
+  .c2-zoom-width {
+    transition: width var(--c2-dur-standard) cubic-bezier(0.22, 1, 0.36, 1);
+  }
+
+  .c2-zoom-cols {
+    transition:
+      grid-template-columns var(--c2-dur-standard) cubic-bezier(0.22, 1, 0.36, 1),
+      min-width var(--c2-dur-standard) cubic-bezier(0.22, 1, 0.36, 1);
+  }
 }
 
 /* Per-view tab load state (docs/loading-transitions.md §1.13.2): each dashboard
@@ -920,10 +959,7 @@ html {
 @supports (-webkit-touch-callout: none) and (font: -apple-system-body) {
   @media (max-width: 39.99em) {
     .app-shell-standalone > footer {
-      bottom: max(
-        0px,
-        var(--app-shell-visual-bottom-gap, 0px) - env(safe-area-inset-bottom, 0px)
-      );
+      bottom: max(0px, var(--app-shell-visual-bottom-gap, 0px) - env(safe-area-inset-bottom, 0px));
     }
   }
 }
@@ -1502,4 +1538,3 @@ html.c2-low-end *::after {
   animation-duration: 0.01ms !important;
   animation-iteration-count: 1 !important;
 }
-

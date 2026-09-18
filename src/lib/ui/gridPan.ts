@@ -122,7 +122,13 @@ export function useGridPan({
       ? "grab"
       : undefined;
   const viewportProps = useMemo(() => {
-    const style: { cursor?: string; touchAction?: string } = {};
+    // `overflow-anchor: none` stops the browser's scroll anchoring from
+    // adjusting the offset (asynchronously, after paint) while a zoom changes
+    // the content width — which would fight the JS re-anchor tween
+    // (src/lib/ui/scrollTween.ts) and flash the old position.
+    const style: { cursor?: string; touchAction?: string; overflowAnchor?: "none" } = {
+      overflowAnchor: "none",
+    };
     if (cursor) style.cursor = cursor;
     if (touchAction) style.touchAction = touchAction;
     return {
@@ -130,7 +136,7 @@ export function useGridPan({
       onMouseMove,
       onMouseUp,
       onMouseLeave,
-      style: Object.keys(style).length > 0 ? style : undefined,
+      style,
     };
   }, [onMouseDown, onMouseMove, onMouseUp, onMouseLeave, cursor, touchAction]);
 

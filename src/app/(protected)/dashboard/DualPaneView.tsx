@@ -65,6 +65,7 @@ import { announce } from "@/lib/ui/announcer";
 import { useGridPan } from "@/lib/ui/gridPan";
 import { clampMonthZoom, MAX_MONTH_ZOOM, MIN_MONTH_ZOOM, type MonthZoom } from "@/lib/ui/monthZoom";
 import { usePinchZoom } from "@/lib/ui/pinchZoom";
+import { animateScroll } from "@/lib/ui/scrollTween";
 import { reanchorScrollLeft } from "@/lib/ui/slotZoom";
 import { AgendaSwipeHint } from "@/components/AgendaSwipeHint";
 import { MonthWeekdayStrip } from "./MonthWeekdayStrip";
@@ -213,13 +214,17 @@ export function DualPaneView({
     const width = viewport.clientWidth;
     const focalX = monthPinchFocalRef.current;
     monthPinchFocalRef.current = undefined;
-    viewport.scrollLeft = reanchorScrollLeft(
-      viewport.scrollLeft,
-      width,
-      0,
-      (width * oldZoom) / 7,
-      (width * monthZoom) / 7,
-      focalX,
+    animateScroll(
+      viewport,
+      "left",
+      reanchorScrollLeft(
+        viewport.scrollLeft,
+        width,
+        0,
+        (width * oldZoom) / 7,
+        (width * monthZoom) / 7,
+        focalX,
+      ),
     );
   }, [monthZoom]);
 
@@ -430,6 +435,7 @@ export function DualPaneView({
             withHeader={false}
             withWeekDays={false}
             styles={{ monthViewInner: monthViewInnerStyle }}
+            classNames={{ monthViewInner: "c2-zoom-width" }}
             style={monthFillStyle}
             scrollAreaProps={monthScrollAreaProps}
             maxEventsPerDay={isDesktop ? 4 : 3}

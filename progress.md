@@ -1246,6 +1246,23 @@ via `?attendance=1` and `attendanceStorage` became a `useSyncExternalStore` exte
     strips and grid widen together so alignment holds, and returning to fit restores
     the gutter. Week (Grid)'s default 2× column zoom reclaims immediately; Agenda
     never zoom → never reclaims. `docs/dashboard-views.md` §1.7/§1.8 updated.
+- 1.259 Canvas-only gutter bleed + fixed chrome/controls + animated zoom: 1.258
+    bled the whole dashboard stack, which moved the tabs/date-nav and jumped the
+    canvas at the zoom-1 boundary. The bleed moved to an inner canvas wrapper
+    inside the padded `weekBoxRef`, so only the grid (and its pinned strips) goes
+    corner-to-corner; the tabs, date-nav, floating zoom/pan controls and fullscreen
+    toggle stay put (Week (D)'s controls now anchor to `weekBoxRef` via a new
+    `controlsAnchorRef`). The zoom is now eased: the schedule hour-slot width rides
+    a registered `--c2-slot` (transitioned via `.c2-zoom-anim`; grid consumes
+    `--resources-*-view-slot-width`, rulers `--ruler-slot`), Month/Week (Grid)
+    transition `width` (`.c2-zoom-width`), the Week (D) matrix transitions
+    `grid-template-columns`/`min-width` (`.c2-zoom-cols`), and the gutter
+    `margin-inline` morphs — all under `prefers-reduced-motion: no-preference`. The
+    scroll re-anchor is tweened by the new `src/lib/ui/scrollTween.ts`
+    (`MOTION.zoom`, house easing) instead of snapping, and `useGridPan` sets
+    `overflow-anchor: none` so browser scroll anchoring can't fight it — fixing the
+    "flashes the previous zoom" resize artifact. Week (Grid) row zoom stays instant.
+    Docs: `dashboard-views.md` §1.7, `grid-pan.md` §1.1.
 
 ## 1.4 Open items & next steps
 

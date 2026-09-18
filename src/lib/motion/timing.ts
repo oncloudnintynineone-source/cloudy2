@@ -34,6 +34,9 @@ export const MOTION = {
   fade: scaled(250),
   /** Hover/focus feedback only (chips, disclosure chevrons). */
   micro: scaled(200),
+  /** Dashboard grid zoom: the canvas gutter morph, the width/slot transitions
+   *  and the JS scroll re-anchor tween all share this duration. */
+  zoom: scaled(250),
 } as const;
 
 export type MotionToken = keyof typeof MOTION;

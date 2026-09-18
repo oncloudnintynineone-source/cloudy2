@@ -37,7 +37,13 @@ import {
   UnstyledButton,
   useMantineTheme,
 } from "@mantine/core";
-import { useDisclosure, useDrag, useMediaQuery, useMergedRef, useViewportSize } from "@mantine/hooks";
+import {
+  useDisclosure,
+  useDrag,
+  useMediaQuery,
+  useMergedRef,
+  useViewportSize,
+} from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
 import {
   AgendaView,
@@ -149,6 +155,7 @@ import {
   type MonthZoom,
 } from "@/lib/ui/monthZoom";
 import { usePinchZoom } from "@/lib/ui/pinchZoom";
+import { animateScroll } from "@/lib/ui/scrollTween";
 import {
   clampGridWeekColZoom,
   clampZoom,
@@ -205,10 +212,10 @@ const DualPaneView = dynamic(() => import("./DualPaneView").then((mod) => mod.Du
   loading: () => <ScheduleGridSkeleton rows={6} />,
 });
 
-const WeekMatrixView = dynamic(
-  () => import("./WeekMatrixView").then((mod) => mod.WeekMatrixView),
-  { ssr: false, loading: () => <WeekMatrixSkeleton rows={6} /> },
-);
+const WeekMatrixView = dynamic(() => import("./WeekMatrixView").then((mod) => mod.WeekMatrixView), {
+  ssr: false,
+  loading: () => <WeekMatrixSkeleton rows={6} />,
+});
 
 // The event-details modal and the manage-views modal are opened on demand;
 // splitting them keeps their code out of the initial chunk (both preload at
@@ -218,10 +225,9 @@ const EventDetail = dynamic(() => import("./EventDetail").then((mod) => mod.Even
   ssr: false,
 });
 
-const EditViewsModal = dynamic(
-  () => import("./EditViewsModal").then((mod) => mod.EditViewsModal),
-  { ssr: false },
-);
+const EditViewsModal = dynamic(() => import("./EditViewsModal").then((mod) => mod.EditViewsModal), {
+  ssr: false,
+});
 
 const preloadDashboardViewChunks = () => {
   for (const component of [DualPaneView, WeekMatrixView, EventDetail, EditViewsModal]) {
@@ -800,8 +806,7 @@ export function DashboardView({
   // DashboardScreen, which revalidates in place. Mutations call `revalidate()`
   // instead of `router.refresh()` (which no longer carries data), and a
   // context-change fetch drives the grid skeleton via `isNavigating`.
-  const { revalidate, isNavigating, tabStatus, setPreviewView, applyViewTab } =
-    useDashboardData();
+  const { revalidate, isNavigating, tabStatus, setPreviewView, applyViewTab } = useDashboardData();
   // The active tab's renderer kind (Month/Week (H)/…). Booleans, the skeleton
   // chain and the period label key off this exactly like the old `view` prop.
   const view: ViewMode = activeView.kind;
@@ -904,6 +909,13 @@ export function DashboardView({
   // defaults). See src/lib/ui/slotZoom.ts and GridNavControls.
   const weekSlotWidthValue = weekSlotWidth(zoom, isDesktop);
   const daySlotWidthValue = daySlotWidth(zoom);
+  // The active schedule view's zoomed hour-slot width, published as the
+  // `--c2-slot` custom property on the canvas wrapper (see the render below).
+  // Registering/transitioning it (globals.css `.c2-zoom-anim`) animates the
+  // hour columns and the pinned ruler strips between zoom levels instead of
+  // snapping; the grid root consumes it via `--resources-*-view-slot-width`.
+  const scheduleSlotValue =
+    view === "week" ? weekSlotWidthValue : view === "schedule" ? daySlotWidthValue : undefined;
   // Week (Grid) zoom: independent column-width and slot-height levels.
   const gridWeekSlotHeightValue = gridWeekSlotHeight(gridWeekRowZoom);
   const gridWeekColumnWidthValue = gridWeekColumnWidth(gridWeekColZoom);
@@ -1138,12 +1150,12 @@ export function DashboardView({
   // the --app-shell-padding sides are bare chrome at rest (the grids fill the
   // padded width at fit), but once a zoom level pushes the grid past the
   // viewport it overflows into a horizontal pan — so the gutters become ~16px
-  // of dead space per side. Flushing the whole dashboard Stack to the shell
-  // edges then gives that width back to visible content. Keyed on the shown
-  // (optimistic) view like the Stack's own className below, and on the
-  // horizontal axis only — Week (Grid)'s row zoom never widens the grid.
-  // Follows the `shownIs*` flags because the zoom states (see above) are all
-  // in scope; Agenda has no zoom and keeps the padding.
+  // of dead space per side. Bleeding the inner canvas wrapper (below) gives that
+  // width back to the grid while the padded chrome and the floating controls
+  // stay put. Keyed on the shown (optimistic) view like the Stack's own
+  // className below, and on the horizontal axis only — Week (Grid)'s row zoom
+  // never widens the grid. Follows the `shownIs*` flags because the zoom states
+  // (see above) are all in scope; Agenda has no zoom and keeps the padding.
   const reclaimGutter =
     ((shownView === "month" || shownIsDual) && monthZoom > 1) ||
     ((shownView === "schedule" || shownView === "week") && zoom > 1) ||
@@ -2659,7 +2671,7 @@ export function DashboardView({
     if ((!isWeekGrid && !isDayGrid) || gridLoading) {
       return;
     }
-    const box = weekBoxRef.current;
+    const box = gridSlideRef.current;
     const viewport = isWeekGrid ? weekViewportRef.current : dayViewportRef.current;
     if (!box || !viewport) {
       return;
@@ -2678,7 +2690,11 @@ export function DashboardView({
       if (!root) {
         return;
       }
-      const slotPx = measuredWidth(root, `var(${slotVar})`);
+      // Measure the target slot width directly, not the animated
+      // `--resources-*-view-slot-width` (which is `var(--c2-slot)` and would be
+      // mid-transition on a breakpoint flip): the cached base must reflect the
+      // new breakpoint's slot, not the animating value.
+      const slotPx = measuredWidth(root, isWeekGrid ? weekSlotWidthValue : daySlotWidthValue);
       if (slotPx <= 0) {
         return;
       }
@@ -2699,21 +2715,26 @@ export function DashboardView({
     }
 
     const slot = geometry.baseSlotPx * zoom;
-    box.style.setProperty("--ruler-slot", `${slot}px`);
     rulerSlotPxRef.current = slot;
 
     if (zoomChanged) {
       // A pinch anchors on its midpoint; the buttons leave this unset and
-      // re-anchor on the viewport centre (reanchorScrollLeft's default).
+      // re-anchor on the viewport centre (reanchorScrollLeft's default). The
+      // offset is tweened (not snapped) so it tracks the CSS width/slot
+      // transition (globals.css `.c2-zoom-anim`).
       const focalX = pinchFocalRef.current.x;
       pinchFocalRef.current.x = undefined;
-      viewport.scrollLeft = reanchorScrollLeft(
-        viewport.scrollLeft,
-        viewport.clientWidth,
-        geometry.labelPx,
-        geometry.baseSlotPx * oldZoom,
-        slot,
-        focalX,
+      animateScroll(
+        viewport,
+        "left",
+        reanchorScrollLeft(
+          viewport.scrollLeft,
+          viewport.clientWidth,
+          geometry.labelPx,
+          geometry.baseSlotPx * oldZoom,
+          slot,
+          focalX,
+        ),
       );
     }
 
@@ -2737,7 +2758,16 @@ export function DashboardView({
     } else {
       advanceDayRulerRef.current?.(viewport.scrollLeft, slot);
     }
-  }, [view, gridLoading, isSchedule, isDesktop, zoom, scheduleResources]);
+  }, [
+    view,
+    gridLoading,
+    isSchedule,
+    isDesktop,
+    zoom,
+    scheduleResources,
+    weekSlotWidthValue,
+    daySlotWidthValue,
+  ]);
 
   // Month-grid zoom re-anchor: widening the grid (monthViewInnerStyle above)
   // would otherwise keep the scroll offset fixed, so the columns visibly jump
@@ -2761,13 +2791,17 @@ export function DashboardView({
     const width = viewport.clientWidth;
     const focalX = pinchFocalRef.current.x;
     pinchFocalRef.current.x = undefined;
-    viewport.scrollLeft = reanchorScrollLeft(
-      viewport.scrollLeft,
-      width,
-      0,
-      (width * oldZoom) / 7,
-      (width * monthZoom) / 7,
-      focalX,
+    animateScroll(
+      viewport,
+      "left",
+      reanchorScrollLeft(
+        viewport.scrollLeft,
+        width,
+        0,
+        (width * oldZoom) / 7,
+        (width * monthZoom) / 7,
+        focalX,
+      ),
     );
   }, [view, gridLoading, monthZoom]);
 
@@ -2811,7 +2845,7 @@ export function DashboardView({
       return;
     }
     const viewport = gridWeekViewportRef.current;
-    const box = weekBoxRef.current;
+    const box = gridSlideRef.current;
     if (!viewport || !box || viewport.clientWidth <= 0) {
       return;
     }
@@ -2823,13 +2857,10 @@ export function DashboardView({
     const width = viewport.clientWidth;
     const focalX = pinchFocalRef.current.x;
     pinchFocalRef.current.x = undefined;
-    viewport.scrollLeft = reanchorScrollLeft(
-      viewport.scrollLeft,
-      width,
-      labelWidth,
-      oldZoom,
-      gridWeekColZoom,
-      focalX,
+    animateScroll(
+      viewport,
+      "left",
+      reanchorScrollLeft(viewport.scrollLeft, width, labelWidth, oldZoom, gridWeekColZoom, focalX),
     );
   }, [view, gridLoading, gridWeekColZoom]);
 
@@ -2923,27 +2954,20 @@ export function DashboardView({
     // body-background strip under the fixed header until the sticky chrome
     // scrolled up to pin flush. Negative margin starts the chrome at the
     // header's bottom edge (its sticky `top`), so rest and pinned states match.
-    // The side margins are reclaimed when the shown view is zoomed in
-    // (`reclaimGutter`): at fit the grids fill the padded width, but zoomed-in
-    // grids overflow into a horizontal pan and the ~16px gutters become dead
-    // space — flushing the whole Stack flush to the shell edges gives that
-    // width back to visible content. The chrome, pinned strips and grid all
-    // widen together so their alignment is preserved. fab-page-pad replaces
-    // pb="xl" (inline would beat the class): it reserves clearance for the
-    // mobile Create/Quick-links FABs below the last grid row and restores
-    // plain xl at lg (globals.css). The Week (Grid) is the exception: its
-    // grid is viewport-bounded and scrolls internally, so it drops that
-    // clearance (`weekgrid-page-pad`) and runs flush to the bottom nav,
-    // letting the FABs overlay its bottom-right. Follows the optimistic view
-    // so it matches the skeleton during a tab switch.
+    // The side gutters are NOT reclaimed here: only the calendar canvas bleeds
+    // when zoomed in (the inner wrapper below, `reclaimGutter`), so the tabs,
+    // date-nav and their buttons never move. fab-page-pad replaces pb="xl"
+    // (inline would beat the class): it reserves clearance for the mobile
+    // Create/Quick-links FABs below the last grid row and restores plain xl at
+    // lg (globals.css). The Week (Grid) is the exception: its grid is
+    // viewport-bounded and scrolls internally, so it drops that clearance
+    // (`weekgrid-page-pad`) and runs flush to the bottom nav, letting the FABs
+    // overlay its bottom-right. Follows the optimistic view so it matches the
+    // skeleton during a tab switch.
     <Stack
       className={shownIsGridWeek ? "weekgrid-page-pad" : "fab-page-pad"}
       gap="sm"
-      style={{
-        marginTop: "calc(-1 * var(--app-shell-padding))",
-        marginLeft: reclaimGutter ? "calc(-1 * var(--app-shell-padding))" : undefined,
-        marginRight: reclaimGutter ? "calc(-1 * var(--app-shell-padding))" : undefined,
-      }}
+      style={{ marginTop: "calc(-1 * var(--app-shell-padding))" }}
     >
       {/* The sticky chrome block: view tabs + date-nav row pinned as one unit
           at every breakpoint. The wrapper is a direct child of the Stack, so
@@ -3341,606 +3365,641 @@ export function DashboardView({
         </Alert>
       )}
 
-      <Box ref={weekBoxRef} className={CONTENT_ENTER_CLASS} style={{ overflow: "clip" }}>
-        {view === "week" && week && (
-          <WeekDayLabelStrip
-            days={week}
-            hasGroups={scheduleResources.groups !== undefined}
-            resourceLabelWidth={scheduleLabelWidths.resource}
-            groupLabelWidth={scheduleLabelWidths.group}
-            chromeOffset={chromeHeight}
-            innerRef={weekDayLabelRef}
-            windowChangeRef={advanceWeekLabelRef}
-          />
-        )}
-        {/* Pinned hour rulers for the schedule views. Only rendered with the
-            real grid (not skeleton/empty state) so the measured slot width is
-            meaningful; the Week one stacks beneath its day-label strip. */}
-        {!gridLoading && view === "week" && week && scheduleResources.resources.length > 0 && (
-          <TimeRulerStrip
-            hasGroups={scheduleResources.groups !== undefined}
-            resourceLabelWidth={scheduleLabelWidths.resource}
-            groupLabelWidth={scheduleLabelWidths.group}
-            chromeOffset={chromeHeight}
-            stackBelowHeight="calc(var(--mantine-scale) * 2rem)"
-            innerRef={weekRulerRef}
-            days={7}
-            windowChangeRef={advanceWeekRulerRef}
-          />
-        )}
-        {!gridLoading && view === "schedule" && scheduleResources.resources.length > 0 && (
-          <TimeRulerStrip
-            hasGroups={scheduleResources.groups !== undefined}
-            resourceLabelWidth={scheduleLabelWidths.resource}
-            groupLabelWidth={scheduleLabelWidths.group}
-            chromeOffset={chromeHeight}
-            innerRef={dayRulerRef}
-            windowChangeRef={advanceDayRulerRef}
-          />
-        )}
-        {/* Pinned weekday-initials strip for the Month view (replaces Mantine's
-            own row, which scrolls away inside the grid's ScrollArea). Its track
-            is sized to the zoomed grid so the initials stay over their columns. */}
-        {!gridLoading && view === "month" && (
-          <MonthWeekdayStrip
-            chromeOffset={chromeHeight}
-            zoom={monthZoom}
-            innerRef={monthWeekdayTrackRef}
-          />
-        )}
-        {/* Grid/skeleton swipe on a view/date change: `gridSlideRef` is
-            animated via `el.animate` (Web Animations API) on the change;
-            `weekBoxRef`'s overflow clip contains the transient offset. The
-            pinned strips/rulers and pan controls stay outside, static. */}
-        <Box ref={gridSlideRef} style={{ position: "relative" }}>
-          {gridLoading ? (
-            // Skeleton flavor follows the optimistic view: the shape you tapped
-            // is what appears to load (same contract as loading.tsx, which
-            // resolves the remembered view from the cookie).
-            <>
-              <LoadingStatus label="Loading calendar" />
-              {shownView === "month" ? (
-                <MonthGridSkeleton rows={monthGridRows(shownMonth)} />
-              ) : shownIsDual ? (
-                <DualPaneSkeleton
-                  rows={monthGridRows(shownMonth)}
-                  splitPct={dualSplit}
-                  chromeOffset={chromeHeight}
-                />
-              ) : shownIsWeekV2 ? (
-                <WeekMatrixSkeleton />
-              ) : shownIsGridWeek ? (
-                <WeekGridViewSkeleton chromeOffset={chromeHeight} />
-              ) : shownIsWeek ? (
-                <WeekGridSkeleton />
-              ) : shownIsAgenda ? (
-                <AgendaListSkeleton />
-              ) : (
-                <ScheduleGridSkeleton />
-              )}
-            </>
-          ) : view === "month" ? (
-            <MonthView
-              // While an adjacent month is loading, anchor the grid to the tapped
-              // month (`shownMonth`) so it draws immediately from the held events
-              // (which already cover it) instead of showing the previous month;
-              // the read then swaps the full event set in place.
-              date={`${monthOptimistic ? shownMonth : month}-01 00:00:00`}
-              // Pre-sorted so the user's events claim the top rows of each day
-              // (the grid assigns rows greedily in input order); their chips get
-              // the amber ring via renderEvent.
-              events={monthEvents}
-              // The page range-reads the whole 6-week grid (monthGridMonths), so
-              // the dimmed adjacent-month days render their events too.
-              withHeader={false}
-              // The built-in weekday row scrolls away (its ScrollArea is
-              // content-height); the pinned MonthWeekdayStrip replaces it.
-              withWeekDays={false}
-              // Zoomed scroll-content width (see monthViewInnerStyle above): 100%
-              // at zoom 1 (the whole week fits), wider when zoomed in.
-              styles={{ monthViewInner: monthViewInnerStyle }}
-              scrollAreaProps={monthScrollAreaProps}
-              maxEventsPerDay={isDesktop ? 4 : 3}
-              moreEventsProps={{
-                // On the fit-to-width zoom the 7 columns drop to ~45-51px on
-                // narrow phones; the library's "+ more" button has no nowrap /
-                // ellipsis (unlike the event chips), so a wrapped label bleeds
-                // into the week below. Pin it to a single line via the Styles
-                // API root (never `style` — the library spreads its absolute
-                // positioning inline and that would override it).
-                styles: {
-                  moreEventsButton: {
-                    whiteSpace: "nowrap",
-                    overflow: "hidden",
-                    textOverflow: "ellipsis",
-                  },
-                },
-              }}
-              renderEvent={renderMyMonthEvent}
-              onEventClick={(event, e) => {
-                // Stand-ins have no real Google id yet — ignore taps on them.
-                if (isOptimisticStandIn(event as CalendarEvent)) return;
-                setDetailOriginRect(e.currentTarget.getBoundingClientRect());
-                setDetailEvent(event as unknown as CalendarEvent);
-              }}
-              onDayClick={(d, e) => openDayModal(d, e.currentTarget.getBoundingClientRect())}
-            />
-          ) : view === "dual" ? (
-            <DualPaneView
-              // While an adjacent month is loading, anchor the grid to the
-              // tapped month (`shownMonth`) so it draws from the held events.
-              month={monthOptimistic ? shownMonth : month}
-              day={shownDate}
-              monthEvents={monthEvents}
-              events={viewEvents}
-              monthZoom={monthZoom}
-              onZoomIn={() => {
-                const next = stepMonthZoom(monthZoom, 1);
-                setMonthZoom(next);
-                announce(`Zoom ${Math.round(next * 100)}%`);
-              }}
-              onZoomOut={() => {
-                const next = stepMonthZoom(monthZoom, -1);
-                setMonthZoom(next);
-                announce(`Zoom ${Math.round(next * 100)}%`);
-              }}
-              // Pinch commits an arbitrary level; the pane announces on release.
-              onMonthZoomChange={setMonthZoom}
-              splitPct={dualSplit}
-              onSplitCommit={handleSplitCommit}
-              renderMonthEvent={renderMyMonthEvent}
-              renderAgendaEvent={renderMyAgendaEvent}
-              onEventClick={(event, e) => {
-                if (isOptimisticStandIn(event)) return;
-                setDetailOriginRect(e.currentTarget.getBoundingClientRect());
-                setDetailEvent(event);
-              }}
-              // A day tap selects the shared anchor (the agenda pane follows)
-              // instead of opening the month day modal.
-              onDaySelect={pickDate}
-              // Narrow only (agenda pane hidden below `lg`): the month pane is
-              // the standalone Month view, whose cell tap opens the day modal.
-              onDayOpen={openDayModal}
-              showSwipeHint={showAgendaHint}
-              chromeOffset={chromeHeight}
-            />
-          ) : isAgenda ? (
-            <div
-              ref={agendaTabSwipeRef}
-              style={{ touchAction: "pan-y", overflow: "hidden" }}
-              onPointerDown={resetSwipeSuppression}
-              onClickCapture={(event) => {
-                if (swipedRef.current) {
-                  event.preventDefault();
-                  event.stopPropagation();
-                  swipedRef.current = false;
-                }
-              }}
-            >
-              {/* The day key restarts the directional slide-in on every day
-                change; month edges get the reveal fade instead (slide dir is
-                cleared for those). */}
-              <div
-                key={headerDate}
-                className={
-                  agendaSlideDir === 1
-                    ? "agenda-slide-next"
-                    : agendaSlideDir === -1
-                      ? "agenda-slide-prev"
-                      : undefined
-                }
-              >
-                <AgendaView
-                  rangeStart={headerDate}
-                  rangeEnd={headerDate}
-                  events={agendaTabEvents}
-                  // The view root is an unstyled Box, so the shared boxed look of
-                  // the other views comes from here. The nav row above already
-                  // shows the day, so only the stock per-day group header is kept.
-                  style={{
-                    border: "1px solid var(--mantine-color-default-border)",
-                    borderRadius: "var(--mantine-radius-md)",
-                    overflow: "hidden",
-                  }}
-                  styles={{ agendaViewHeader: { display: "none" } }}
-                  // The user's entries get the amber bar/tint + bold title
-                  // (c2-my-agenda-event, globals.css); time order is kept.
-                  renderEvent={renderMyAgendaEvent}
-                  onEventClick={(event, e) => {
-                    if (isOptimisticStandIn(event as CalendarEvent)) return;
-                    setDetailOriginRect(e.currentTarget.getBoundingClientRect());
-                    setDetailEvent(event as unknown as CalendarEvent);
-                  }}
-                />
-              </div>
-              {showAgendaHint && <AgendaSwipeHint />}
-            </div>
-          ) : isGridWeek && week ? (
-            // Week (Grid): Mantine's conventional 7-day week grid with time on
-            // the vertical axis. It needs no department rows, so it renders
-            // above the empty-resource guard. `withHeader={false}` drops the
-            // library's own nav controls (the app's nav row drives the period)
-            // but keeps its weekday/day-number row and all-day section. The grid
-            // is viewport-bounded (`scrollAreaProps` below) so it scrolls
-            // internally with its day header + all-day row pinned at the top —
-            // unlike the other views, whose grids page-scroll with pinned strips
-            // rendered outside their scrollers. Its
-            // zoom is two-axis: the slot height always scales, and the day
-            // columns widen past the fit level (styles below) so events grow
-            // both ways and the grid pans horizontally.
-            <WeekView
-              date={date}
-              events={viewEvents}
-              startTime="00:00:00"
-              endTime="23:59:59"
-              intervalMinutes={60}
-              slotHeight={gridWeekSlotHeightValue}
-              withHeader={false}
-              withCurrentTimeIndicator
-              // Week containing today opens at the current time, other weeks at
-              // Monday 07:00 (mount-only, re-applied after each tab switch /
-              // date navigation remounts the grid via the skeleton).
-              startScrollTime={
-                week.includes(today) ? `${today} ${currentScrollTime}` : `${week[0]} 07:00:00`
-              }
-              // Stable hooks for the scrolled-only separation rule in
-              // globals.css (the library flags the day header with
-              // `data-scrolled` once the grid scrolls).
-              classNames={{
-                weekViewHeader: "c2-weekgrid-head",
-                weekViewAllDaySlots: "c2-weekgrid-allday",
-              }}
-              // Horizontal zoom: the day-header, all-day and column rows all
-              // take the same width multiplier, so they stay aligned while the
-              // grid overflows into the pan. At the fit level the width is 100%
-              // (the library's own layout), so nothing changes until zoomed in.
-              styles={{
-                // Sticky chrome ladder: regular events (3) < highlighted events
-                // (4 — the app's c2-my-event / c2-ext-event classes in
-                // globals.css) < hour labels (5) < all-day row (6) < day header
-                // (7). Everything above 3 exists because the library's
-                // timed-event root is 3 and the highlight classes are 4: the
-                // all-day row must clear the in-day chips (else they paint over
-                // it once the grid scrolls — it opens at the current time), and
-                // the pinned hour column must clear the highlighted chips.
-                weekViewHeader: { width: gridWeekColumnWidthValue, zIndex: 7 },
-                // Left label column pinned while panning (the columns overflow
-                // by default at the 2× fit zoom): the week-number corner, the
-                // "All day" label and the hour labels each stick to the
-                // scroller's left edge, opaque so the day columns scroll under.
-                weekViewCorner: {
-                  position: "sticky",
-                  left: 0,
-                  zIndex: 1,
-                  backgroundColor: "var(--mantine-color-body)",
-                },
-                // Pin the all-day row under the day header (top: 0) so both stay
-                // visible while the hour rows scroll. The header is
-                // `--week-view-week-day-height` tall with a -1px bottom margin.
-                weekViewAllDaySlots: {
-                  width: gridWeekColumnWidthValue,
-                  position: "sticky",
-                  top: "calc(var(--week-view-week-day-height) - 1px)",
-                  zIndex: 6,
-                  backgroundColor: "var(--mantine-color-body)",
-                },
-                // Above the all-day event chips (the library gives those
-                // z-index 2 inside the row's stacking context).
-                weekViewAllDaySlotsLabel: {
-                  position: "sticky",
-                  left: 0,
-                  zIndex: 3,
-                  backgroundColor: "var(--mantine-color-body)",
-                  // When all-day events overflow the strip's two lanes the label
-                  // is replaced by the inline "+N more" trigger overlay below;
-                  // zero the font so the stock "All day" text can't show through.
-                  fontSize: gridWeekAllDay.hidden.length > 0 ? 0 : undefined,
-                },
-                weekViewSlotLabels: {
-                  position: "sticky",
-                  left: 0,
-                  // Above the highlighted event chips (the app's c2-my-event /
-                  // c2-ext-event set z-index 4 in globals.css).
-                  zIndex: 5,
-                },
-                // The library clips the inner (overflow: hidden), which traps
-                // the hour labels' sticky-left in a scrollport that never
-                // scrolls; releasing it lets them pin to the scroller.
-                weekViewInner: { width: gridWeekColumnWidthValue, overflow: "visible" },
-              }}
-              // The merged viewport serves both the slot-height zoom re-anchor
-              // (layout effect above) and the drag/edge pan.
-              scrollAreaProps={gridWeekScrollAreaProps}
-              // External events get the purple ring (c2-ext-event), the user's
-              // own get the amber one (c2-my-event) — same pass-through root as
-              // the Month grid, plus the all-day overflow suppression (§1.7.1).
-              renderEvent={renderGridWeekEvent}
-              onEventClick={(event, e) => {
-                if (isOptimisticStandIn(event as CalendarEvent)) return;
-                setDetailOriginRect(e.currentTarget.getBoundingClientRect());
-                setDetailEvent(event as unknown as CalendarEvent);
-              }}
-            />
-          ) : scheduleResources.resources.length === 0 ? (
-            <Paper withBorder radius="md">
-              {userFilterActive ? (
-                <EmptyState
-                  icon={<IconUserOff size={18} />}
-                  description="No active users match the Users filter."
-                  actionLabel="Clear filters"
-                  onAction={clearFilters}
-                />
-              ) : (
-                <EmptyState
-                  icon={<IconUserOff size={18} />}
-                  description="No users in the selected calendars yet. Assign users to a department (Admin Settings) or adjust the filters."
-                  actionLabel="Adjust filters"
-                  onAction={openFilter}
-                />
-              )}
-            </Paper>
-          ) : isWeekV2 && week ? (
-            <WeekMatrixView
+      {/* `weekBoxRef` stays the padded box: it is the fixed-position anchor for
+          the floating zoom/pan controls and the fullscreen toggle, so they must
+          not move when the canvas bleeds. The inner wrapper carries the
+          corner-to-corner bleed when zoomed in (`reclaimGutter`) and the slide
+          clip; it and `weekBoxRef` share the `.c2-zoom-anim` transition so the
+          gutter morph and the hour-slot zoom animate together. */}
+      <Box
+        ref={weekBoxRef}
+        className={`${CONTENT_ENTER_CLASS} c2-zoom-anim`}
+        style={
+          {
+            "--c2-slot": scheduleSlotValue,
+            "--ruler-slot": "var(--c2-slot)",
+          } as CSSProperties
+        }
+      >
+        <Box
+          className="c2-zoom-anim"
+          style={{
+            overflow: "clip",
+            marginInline: reclaimGutter ? "calc(-1 * var(--app-shell-padding))" : undefined,
+          }}
+        >
+          {view === "week" && week && (
+            <WeekDayLabelStrip
               days={week}
-              resources={scheduleResources.resources}
-              groups={scheduleResources.groups}
-              events={viewEvents}
-              memberships={departmentMemberships}
-              today={today}
-              myRowId={currentUser}
-              renderResourceLabel={renderResourceLabel}
-              onEventClick={(event, e) => {
-                if (isOptimisticStandIn(event)) return;
-                setDetailOriginRect(e.currentTarget.getBoundingClientRect());
-                setDetailEvent(event);
-              }}
-              onCellClick={(day, e) => {
-                if (!googleConfigured) {
-                  return; // Same guard as the "New event" FAB.
-                }
-                openCreate(day, e.currentTarget.getBoundingClientRect());
-              }}
-              zoom={weekMatrixZoom}
-              onZoomIn={() => {
-                const next = stepZoom(weekMatrixZoom, 1);
-                setWeekMatrixZoom(next);
-                announce(`Zoom ${Math.round(next * 100)}%`);
-              }}
-              onZoomOut={() => {
-                const next = stepZoom(weekMatrixZoom, -1);
-                setWeekMatrixZoom(next);
-                announce(`Zoom ${Math.round(next * 100)}%`);
-              }}
-              onZoomChange={setWeekMatrixZoom}
+              hasGroups={scheduleResources.groups !== undefined}
+              resourceLabelWidth={scheduleLabelWidths.resource}
+              groupLabelWidth={scheduleLabelWidths.group}
               chromeOffset={chromeHeight}
-            />
-          ) : isWeek ? (
-            <ResourcesWeekView
-              date={date}
-              resources={scheduleResources.resources}
-              groups={scheduleResources.groups}
-              events={scheduleEvents}
-              startTime="00:00:00"
-              endTime="23:59:59"
-              intervalMinutes={60}
-              rowHeight={56}
-              withHeader={false}
-              withCurrentTimeIndicator
-              // Week containing today opens at the current time, other weeks at
-              // Monday 07:00 (mount-only effect, re-applied after each tab
-              // switch / date navigation remounts the grid via the skeleton).
-              startScrollDateTime={
-                week
-                  ? week.includes(today)
-                    ? `${today} ${currentScrollTime}`
-                    : `${week[0]} 07:00:00`
-                  : undefined
-              }
-              onEventClick={(event, e) => {
-                if (isOptimisticStandIn(event as CalendarEvent)) return;
-                setDetailOriginRect(e.currentTarget.getBoundingClientRect());
-                setDetailEvent(event as unknown as CalendarEvent);
-              }}
-              // The resource-label column width is not a typed ResourcesWeekView
-              // var, so it is set as a CSS variable on the root (cascades to the
-              // all-day sticky labels and the time-indicator offset the same way
-              // the Day view's typed var does). The hour-slot width is the zoomed
-              // value (see scheduleLabelWidths/weekSlotWidthValue above); the
-              // pinned day-label strip + hour ruler re-measure it on change.
-              style={
-                {
-                  "--resources-week-view-resource-label-width": scheduleLabelWidths.resource,
-                  "--resources-week-view-slot-width": weekSlotWidthValue,
-                } as CSSProperties
-              }
-              vars={() => ({
-                resourcesWeekView: {
-                  "--resources-week-view-group-label-width": scheduleLabelWidths.group,
-                },
-              })}
-              styles={{
-                // Replaced by the pinned WeekDayLabelStrip above (Mantine's own
-                // labels center in each 1440px-wide day column, so they are
-                // effectively invisible on a phone). The strip must sit directly
-                // above the grid, so it lives outside the scroll area. The time
-                // labels are replaced the same way by the pinned TimeRulerStrip.
-                resourcesWeekViewDayLabelsRow: { display: "none" },
-                resourcesWeekViewTimeLabelsRow: { display: "none" },
-                resourcesWeekViewResourceLabel: {
-                  whiteSpace: "nowrap",
-                  overflow: "hidden",
-                  textOverflow: "ellipsis",
-                  paddingInline: 0,
-                },
-              }}
-              labels={{ resources: "" }}
-              // onScrollPositionChange feeds the pinned day-label strip and the
-              // ruler's translateX tracking; viewportRef syncs the ruler after
-              // mount/loads (see the layout effect above).
-              scrollAreaProps={weekScrollAreaProps}
-              // External events get the purple chip ring (pass-through otherwise,
-              // so timed and all-day bars keep their default rendering).
-              renderEvent={renderScheduleEvent}
-              renderResourceLabel={renderResourceLabel}
-              renderGroupLabel={renderGroupLabel}
-            />
-          ) : (
-            <ResourcesDayView
-              date={date}
-              resources={scheduleResources.resources}
-              groups={scheduleResources.groups}
-              events={scheduleEvents}
-              startTime="00:00:00"
-              endTime="23:59:59"
-              intervalMinutes={60}
-              // Today opens at the current time; other days at the 07:00
-              // working-day default (re-applied on every mount, i.e. after each
-              // tab switch / date navigation remounts the grid via the skeleton).
-              startScrollTime={date === today ? currentScrollTime : "07:00:00"}
-              rowHeight={56}
-              withHeader={false}
-              withCurrentTimeIndicator
-              onEventClick={(event, e) => {
-                if (isOptimisticStandIn(event as CalendarEvent)) return;
-                setDetailOriginRect(e.currentTarget.getBoundingClientRect());
-                setDetailEvent(event as unknown as CalendarEvent);
-              }}
-              // Zoomed hour-slot width (default 80px at zoom 1); the pinned hour
-              // ruler re-measures it on change (layout effect below).
-              style={{ "--resources-day-view-slot-width": daySlotWidthValue } as CSSProperties}
-              vars={() => ({
-                resourcesDayView: {
-                  "--resources-day-view-resource-label-width": scheduleLabelWidths.resource,
-                  "--resources-day-view-group-label-width": scheduleLabelWidths.group,
-                },
-              })}
-              styles={{
-                // Replaced by the pinned TimeRulerStrip above (the library's own
-                // row is sticky only inside its ScrollArea viewport, which never
-                // scrolls vertically — the page does).
-                resourcesDayViewTimeLabelsRow: { display: "none" },
-                resourcesDayViewResourceLabel: {
-                  whiteSpace: "nowrap",
-                  overflow: "hidden",
-                  textOverflow: "ellipsis",
-                  paddingInline: 0,
-                },
-              }}
-              labels={{ resources: "" }}
-              // onScrollPositionChange feeds the ruler's translateX tracking;
-              // viewportRef syncs it after mount/loads (layout effect above).
-              scrollAreaProps={dayScrollAreaProps}
-              // All-day events render as full-width bars whose label would scroll
-              // out of view; the renderEvent hook re-renders only those and pins the
-              // title with position: sticky beside the sticky resource column.
-              // External events get c2-ext-slot-event on the root either way: the
-              // single root child is the chip in both shapes (the ScheduleEvent
-              // inner box for timed events, the all-day Box above), so the purple
-              // ring from globals.css lands on it.
-              renderEvent={(event, rootProps) => {
-                const payload = (event as unknown as CalendarEvent).payload;
-                const extClass =
-                  payload.external === true
-                    ? `${rootProps.className ?? ""} c2-ext-slot-event`.trim()
-                    : rootProps.className;
-                const isAllDay = Boolean(payload.allDay);
-                if (!isAllDay) {
-                  return <UnstyledButton {...rootProps} className={extClass} />;
-                }
-                const stickyLeft =
-                  scheduleResources.groups !== undefined
-                    ? "calc(var(--resources-day-view-group-label-width) + var(--resources-day-view-resource-label-width) + 4px)"
-                    : "calc(var(--resources-day-view-resource-label-width) + 4px)";
-                return (
-                  <UnstyledButton {...rootProps} className={extClass}>
-                    <Box
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        width: "100%",
-                        height: "100%",
-                        paddingInline: "4px",
-                        backgroundColor: "var(--event-bg)",
-                        color: "var(--event-color)",
-                        borderRadius: "min(var(--event-radius), 50%)",
-                        pointerEvents: "all",
-                        userSelect: "none",
-                      }}
-                    >
-                      <span
-                        style={{
-                          position: "sticky",
-                          left: stickyLeft,
-                          minWidth: 0,
-                          maxWidth: "min(70vw, 100%)",
-                          overflow: "hidden",
-                          textOverflow: "ellipsis",
-                          whiteSpace: "nowrap",
-                          fontSize: "calc(0.75rem * var(--mantine-scale))",
-                          fontWeight: "var(--mantine-font-weight-medium)",
-                          lineHeight: 1,
-                        }}
-                      >
-                        {event.title}
-                      </span>
-                    </Box>
-                  </UnstyledButton>
-                );
-              }}
-              renderResourceLabel={renderResourceLabel}
-              renderGroupLabel={renderGroupLabel}
+              innerRef={weekDayLabelRef}
+              windowChangeRef={advanceWeekLabelRef}
             />
           )}
-
-          {/* Week (Grid) all-day overflow: the strip clips lanes past the
-              second, so the rest are surfaced behind a "+N more" trigger that
-              replaces the stock "All day" label in the sticky-left cell
-              (docs/dashboard-views.md §1.7.1). The overlay sits outside the
-              WeekView subtree, so its geometry mirrors the library defaults
-              (--week-view-week-day-height / -slots-label-width /
-              -all-day-slots-height) instead of inheriting those vars. */}
-          {!gridLoading && isGridWeek && week && gridWeekAllDay.hidden.length > 0 && (
-            <Box
-              style={{
-                position: "absolute",
-                top: "calc(3.625rem * var(--mantine-scale))",
-                left: 0,
-                width: "calc(5rem * var(--mantine-scale))",
-                height: "calc(3rem * var(--mantine-scale))",
-                display: "flex",
-                zIndex: 7,
-                pointerEvents: "none",
-              }}
-            >
-              <MoreEvents
-                events={gridWeekAllDay.hidden}
-                moreEventsCount={gridWeekAllDay.hidden.length}
-                aria-label={`Show ${gridWeekAllDay.hidden.length} more all-day events`}
-                renderEvent={renderMyMonthEvent}
-                renderEventBody={(event) =>
-                  `${dayjs(event.start).format("ddd, MMM D")} · ${event.title}`
-                }
-                popoverProps={{ position: "bottom-start", offset: 4 }}
-                styles={{
-                  moreEventsButton: {
-                    flex: "1 1 auto",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    whiteSpace: "nowrap",
-                    fontSize: "calc(0.75rem * var(--mantine-scale))",
-                    lineHeight: 1,
-                    pointerEvents: "all",
+          {/* Pinned hour rulers for the schedule views. Only rendered with the
+            real grid (not skeleton/empty state) so the measured slot width is
+            meaningful; the Week one stacks beneath its day-label strip. */}
+          {!gridLoading && view === "week" && week && scheduleResources.resources.length > 0 && (
+            <TimeRulerStrip
+              hasGroups={scheduleResources.groups !== undefined}
+              resourceLabelWidth={scheduleLabelWidths.resource}
+              groupLabelWidth={scheduleLabelWidths.group}
+              chromeOffset={chromeHeight}
+              stackBelowHeight="calc(var(--mantine-scale) * 2rem)"
+              innerRef={weekRulerRef}
+              days={7}
+              windowChangeRef={advanceWeekRulerRef}
+            />
+          )}
+          {!gridLoading && view === "schedule" && scheduleResources.resources.length > 0 && (
+            <TimeRulerStrip
+              hasGroups={scheduleResources.groups !== undefined}
+              resourceLabelWidth={scheduleLabelWidths.resource}
+              groupLabelWidth={scheduleLabelWidths.group}
+              chromeOffset={chromeHeight}
+              innerRef={dayRulerRef}
+              windowChangeRef={advanceDayRulerRef}
+            />
+          )}
+          {/* Pinned weekday-initials strip for the Month view (replaces Mantine's
+            own row, which scrolls away inside the grid's ScrollArea). Its track
+            is sized to the zoomed grid so the initials stay over their columns. */}
+          {!gridLoading && view === "month" && (
+            <MonthWeekdayStrip
+              chromeOffset={chromeHeight}
+              zoom={monthZoom}
+              innerRef={monthWeekdayTrackRef}
+            />
+          )}
+          {/* Grid/skeleton swipe on a view/date change: `gridSlideRef` is
+            animated via `el.animate` (Web Animations API) on the change; the
+            inner bleed wrapper's overflow clip contains the transient offset.
+            The pinned strips/rulers and pan controls stay outside, static. */}
+          <Box ref={gridSlideRef} style={{ position: "relative" }}>
+            {gridLoading ? (
+              // Skeleton flavor follows the optimistic view: the shape you tapped
+              // is what appears to load (same contract as loading.tsx, which
+              // resolves the remembered view from the cookie).
+              <>
+                <LoadingStatus label="Loading calendar" />
+                {shownView === "month" ? (
+                  <MonthGridSkeleton rows={monthGridRows(shownMonth)} />
+                ) : shownIsDual ? (
+                  <DualPaneSkeleton
+                    rows={monthGridRows(shownMonth)}
+                    splitPct={dualSplit}
+                    chromeOffset={chromeHeight}
+                  />
+                ) : shownIsWeekV2 ? (
+                  <WeekMatrixSkeleton />
+                ) : shownIsGridWeek ? (
+                  <WeekGridViewSkeleton chromeOffset={chromeHeight} />
+                ) : shownIsWeek ? (
+                  <WeekGridSkeleton />
+                ) : shownIsAgenda ? (
+                  <AgendaListSkeleton />
+                ) : (
+                  <ScheduleGridSkeleton />
+                )}
+              </>
+            ) : view === "month" ? (
+              <MonthView
+                // While an adjacent month is loading, anchor the grid to the tapped
+                // month (`shownMonth`) so it draws immediately from the held events
+                // (which already cover it) instead of showing the previous month;
+                // the read then swaps the full event set in place.
+                date={`${monthOptimistic ? shownMonth : month}-01 00:00:00`}
+                // Pre-sorted so the user's events claim the top rows of each day
+                // (the grid assigns rows greedily in input order); their chips get
+                // the amber ring via renderEvent.
+                events={monthEvents}
+                // The page range-reads the whole 6-week grid (monthGridMonths), so
+                // the dimmed adjacent-month days render their events too.
+                withHeader={false}
+                // The built-in weekday row scrolls away (its ScrollArea is
+                // content-height); the pinned MonthWeekdayStrip replaces it.
+                withWeekDays={false}
+                // Zoomed scroll-content width (see monthViewInnerStyle above): 100%
+                // at zoom 1 (the whole week fits), wider when zoomed in. The class
+                // eases the width between zoom levels (globals.css `.c2-zoom-width`).
+                styles={{ monthViewInner: monthViewInnerStyle }}
+                classNames={{ monthViewInner: "c2-zoom-width" }}
+                scrollAreaProps={monthScrollAreaProps}
+                maxEventsPerDay={isDesktop ? 4 : 3}
+                moreEventsProps={{
+                  // On the fit-to-width zoom the 7 columns drop to ~45-51px on
+                  // narrow phones; the library's "+ more" button has no nowrap /
+                  // ellipsis (unlike the event chips), so a wrapped label bleeds
+                  // into the week below. Pin it to a single line via the Styles
+                  // API root (never `style` — the library spreads its absolute
+                  // positioning inline and that would override it).
+                  styles: {
+                    moreEventsButton: {
+                      whiteSpace: "nowrap",
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                    },
                   },
                 }}
+                renderEvent={renderMyMonthEvent}
+                onEventClick={(event, e) => {
+                  // Stand-ins have no real Google id yet — ignore taps on them.
+                  if (isOptimisticStandIn(event as CalendarEvent)) return;
+                  setDetailOriginRect(e.currentTarget.getBoundingClientRect());
+                  setDetailEvent(event as unknown as CalendarEvent);
+                }}
+                onDayClick={(d, e) => openDayModal(d, e.currentTarget.getBoundingClientRect())}
+              />
+            ) : view === "dual" ? (
+              <DualPaneView
+                // While an adjacent month is loading, anchor the grid to the
+                // tapped month (`shownMonth`) so it draws from the held events.
+                month={monthOptimistic ? shownMonth : month}
+                day={shownDate}
+                monthEvents={monthEvents}
+                events={viewEvents}
+                monthZoom={monthZoom}
+                onZoomIn={() => {
+                  const next = stepMonthZoom(monthZoom, 1);
+                  setMonthZoom(next);
+                  announce(`Zoom ${Math.round(next * 100)}%`);
+                }}
+                onZoomOut={() => {
+                  const next = stepMonthZoom(monthZoom, -1);
+                  setMonthZoom(next);
+                  announce(`Zoom ${Math.round(next * 100)}%`);
+                }}
+                // Pinch commits an arbitrary level; the pane announces on release.
+                onMonthZoomChange={setMonthZoom}
+                splitPct={dualSplit}
+                onSplitCommit={handleSplitCommit}
+                renderMonthEvent={renderMyMonthEvent}
+                renderAgendaEvent={renderMyAgendaEvent}
+                onEventClick={(event, e) => {
+                  if (isOptimisticStandIn(event)) return;
+                  setDetailOriginRect(e.currentTarget.getBoundingClientRect());
+                  setDetailEvent(event);
+                }}
+                // A day tap selects the shared anchor (the agenda pane follows)
+                // instead of opening the month day modal.
+                onDaySelect={pickDate}
+                // Narrow only (agenda pane hidden below `lg`): the month pane is
+                // the standalone Month view, whose cell tap opens the day modal.
+                onDayOpen={openDayModal}
+                showSwipeHint={showAgendaHint}
+                chromeOffset={chromeHeight}
+              />
+            ) : isAgenda ? (
+              <div
+                ref={agendaTabSwipeRef}
+                style={{ touchAction: "pan-y", overflow: "hidden" }}
+                onPointerDown={resetSwipeSuppression}
+                onClickCapture={(event) => {
+                  if (swipedRef.current) {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    swipedRef.current = false;
+                  }
+                }}
+              >
+                {/* The day key restarts the directional slide-in on every day
+                change; month edges get the reveal fade instead (slide dir is
+                cleared for those). */}
+                <div
+                  key={headerDate}
+                  className={
+                    agendaSlideDir === 1
+                      ? "agenda-slide-next"
+                      : agendaSlideDir === -1
+                        ? "agenda-slide-prev"
+                        : undefined
+                  }
+                >
+                  <AgendaView
+                    rangeStart={headerDate}
+                    rangeEnd={headerDate}
+                    events={agendaTabEvents}
+                    // The view root is an unstyled Box, so the shared boxed look of
+                    // the other views comes from here. The nav row above already
+                    // shows the day, so only the stock per-day group header is kept.
+                    style={{
+                      border: "1px solid var(--mantine-color-default-border)",
+                      borderRadius: "var(--mantine-radius-md)",
+                      overflow: "hidden",
+                    }}
+                    styles={{ agendaViewHeader: { display: "none" } }}
+                    // The user's entries get the amber bar/tint + bold title
+                    // (c2-my-agenda-event, globals.css); time order is kept.
+                    renderEvent={renderMyAgendaEvent}
+                    onEventClick={(event, e) => {
+                      if (isOptimisticStandIn(event as CalendarEvent)) return;
+                      setDetailOriginRect(e.currentTarget.getBoundingClientRect());
+                      setDetailEvent(event as unknown as CalendarEvent);
+                    }}
+                  />
+                </div>
+                {showAgendaHint && <AgendaSwipeHint />}
+              </div>
+            ) : isGridWeek && week ? (
+              // Week (Grid): Mantine's conventional 7-day week grid with time on
+              // the vertical axis. It needs no department rows, so it renders
+              // above the empty-resource guard. `withHeader={false}` drops the
+              // library's own nav controls (the app's nav row drives the period)
+              // but keeps its weekday/day-number row and all-day section. The grid
+              // is viewport-bounded (`scrollAreaProps` below) so it scrolls
+              // internally with its day header + all-day row pinned at the top —
+              // unlike the other views, whose grids page-scroll with pinned strips
+              // rendered outside their scrollers. Its
+              // zoom is two-axis: the slot height always scales, and the day
+              // columns widen past the fit level (styles below) so events grow
+              // both ways and the grid pans horizontally.
+              <WeekView
+                date={date}
+                events={viewEvents}
+                startTime="00:00:00"
+                endTime="23:59:59"
+                intervalMinutes={60}
+                slotHeight={gridWeekSlotHeightValue}
+                withHeader={false}
+                withCurrentTimeIndicator
+                // Week containing today opens at the current time, other weeks at
+                // Monday 07:00 (mount-only, re-applied after each tab switch /
+                // date navigation remounts the grid via the skeleton).
+                startScrollTime={
+                  week.includes(today) ? `${today} ${currentScrollTime}` : `${week[0]} 07:00:00`
+                }
+                // Stable hooks for the scrolled-only separation rule in
+                // globals.css (the library flags the day header with
+                // `data-scrolled` once the grid scrolls).
+                classNames={{
+                  weekViewHeader: "c2-weekgrid-head c2-zoom-width",
+                  weekViewAllDaySlots: "c2-weekgrid-allday c2-zoom-width",
+                  // Eases the day-column width between zoom levels (the width
+                  // value is applied via the `styles` prop below).
+                  weekViewInner: "c2-zoom-width",
+                }}
+                // Horizontal zoom: the day-header, all-day and column rows all
+                // take the same width multiplier, so they stay aligned while the
+                // grid overflows into the pan. At the fit level the width is 100%
+                // (the library's own layout), so nothing changes until zoomed in.
+                styles={{
+                  // Sticky chrome ladder: regular events (3) < highlighted events
+                  // (4 — the app's c2-my-event / c2-ext-event classes in
+                  // globals.css) < hour labels (5) < all-day row (6) < day header
+                  // (7). Everything above 3 exists because the library's
+                  // timed-event root is 3 and the highlight classes are 4: the
+                  // all-day row must clear the in-day chips (else they paint over
+                  // it once the grid scrolls — it opens at the current time), and
+                  // the pinned hour column must clear the highlighted chips.
+                  weekViewHeader: { width: gridWeekColumnWidthValue, zIndex: 7 },
+                  // Left label column pinned while panning (the columns overflow
+                  // by default at the 2× fit zoom): the week-number corner, the
+                  // "All day" label and the hour labels each stick to the
+                  // scroller's left edge, opaque so the day columns scroll under.
+                  weekViewCorner: {
+                    position: "sticky",
+                    left: 0,
+                    zIndex: 1,
+                    backgroundColor: "var(--mantine-color-body)",
+                  },
+                  // Pin the all-day row under the day header (top: 0) so both stay
+                  // visible while the hour rows scroll. The header is
+                  // `--week-view-week-day-height` tall with a -1px bottom margin.
+                  weekViewAllDaySlots: {
+                    width: gridWeekColumnWidthValue,
+                    position: "sticky",
+                    top: "calc(var(--week-view-week-day-height) - 1px)",
+                    zIndex: 6,
+                    backgroundColor: "var(--mantine-color-body)",
+                  },
+                  // Above the all-day event chips (the library gives those
+                  // z-index 2 inside the row's stacking context).
+                  weekViewAllDaySlotsLabel: {
+                    position: "sticky",
+                    left: 0,
+                    zIndex: 3,
+                    backgroundColor: "var(--mantine-color-body)",
+                    // When all-day events overflow the strip's two lanes the label
+                    // is replaced by the inline "+N more" trigger overlay below;
+                    // zero the font so the stock "All day" text can't show through.
+                    fontSize: gridWeekAllDay.hidden.length > 0 ? 0 : undefined,
+                  },
+                  weekViewSlotLabels: {
+                    position: "sticky",
+                    left: 0,
+                    // Above the highlighted event chips (the app's c2-my-event /
+                    // c2-ext-event set z-index 4 in globals.css).
+                    zIndex: 5,
+                  },
+                  // The library clips the inner (overflow: hidden), which traps
+                  // the hour labels' sticky-left in a scrollport that never
+                  // scrolls; releasing it lets them pin to the scroller.
+                  weekViewInner: { width: gridWeekColumnWidthValue, overflow: "visible" },
+                }}
+                // The merged viewport serves both the slot-height zoom re-anchor
+                // (layout effect above) and the drag/edge pan.
+                scrollAreaProps={gridWeekScrollAreaProps}
+                // External events get the purple ring (c2-ext-event), the user's
+                // own get the amber one (c2-my-event) — same pass-through root as
+                // the Month grid, plus the all-day overflow suppression (§1.7.1).
+                renderEvent={renderGridWeekEvent}
                 onEventClick={(event, e) => {
                   if (isOptimisticStandIn(event as CalendarEvent)) return;
                   setDetailOriginRect(e.currentTarget.getBoundingClientRect());
                   setDetailEvent(event as unknown as CalendarEvent);
                 }}
               />
-            </Box>
-          )}
+            ) : scheduleResources.resources.length === 0 ? (
+              <Paper withBorder radius="md">
+                {userFilterActive ? (
+                  <EmptyState
+                    icon={<IconUserOff size={18} />}
+                    description="No active users match the Users filter."
+                    actionLabel="Clear filters"
+                    onAction={clearFilters}
+                  />
+                ) : (
+                  <EmptyState
+                    icon={<IconUserOff size={18} />}
+                    description="No users in the selected calendars yet. Assign users to a department (Admin Settings) or adjust the filters."
+                    actionLabel="Adjust filters"
+                    onAction={openFilter}
+                  />
+                )}
+              </Paper>
+            ) : isWeekV2 && week ? (
+              <WeekMatrixView
+                days={week}
+                resources={scheduleResources.resources}
+                groups={scheduleResources.groups}
+                events={viewEvents}
+                memberships={departmentMemberships}
+                today={today}
+                myRowId={currentUser}
+                renderResourceLabel={renderResourceLabel}
+                // The matrix bleeds with the canvas, so its floating controls
+                // anchor to the padded `weekBoxRef` (not the matrix root) to stay
+                // fixed when zoomed in.
+                controlsAnchorRef={weekBoxRef}
+                onEventClick={(event, e) => {
+                  if (isOptimisticStandIn(event)) return;
+                  setDetailOriginRect(e.currentTarget.getBoundingClientRect());
+                  setDetailEvent(event);
+                }}
+                onCellClick={(day, e) => {
+                  if (!googleConfigured) {
+                    return; // Same guard as the "New event" FAB.
+                  }
+                  openCreate(day, e.currentTarget.getBoundingClientRect());
+                }}
+                zoom={weekMatrixZoom}
+                onZoomIn={() => {
+                  const next = stepZoom(weekMatrixZoom, 1);
+                  setWeekMatrixZoom(next);
+                  announce(`Zoom ${Math.round(next * 100)}%`);
+                }}
+                onZoomOut={() => {
+                  const next = stepZoom(weekMatrixZoom, -1);
+                  setWeekMatrixZoom(next);
+                  announce(`Zoom ${Math.round(next * 100)}%`);
+                }}
+                onZoomChange={setWeekMatrixZoom}
+                chromeOffset={chromeHeight}
+              />
+            ) : isWeek ? (
+              <ResourcesWeekView
+                date={date}
+                resources={scheduleResources.resources}
+                groups={scheduleResources.groups}
+                events={scheduleEvents}
+                startTime="00:00:00"
+                endTime="23:59:59"
+                intervalMinutes={60}
+                rowHeight={56}
+                withHeader={false}
+                withCurrentTimeIndicator
+                // Week containing today opens at the current time, other weeks at
+                // Monday 07:00 (mount-only effect, re-applied after each tab
+                // switch / date navigation remounts the grid via the skeleton).
+                startScrollDateTime={
+                  week
+                    ? week.includes(today)
+                      ? `${today} ${currentScrollTime}`
+                      : `${week[0]} 07:00:00`
+                    : undefined
+                }
+                onEventClick={(event, e) => {
+                  if (isOptimisticStandIn(event as CalendarEvent)) return;
+                  setDetailOriginRect(e.currentTarget.getBoundingClientRect());
+                  setDetailEvent(event as unknown as CalendarEvent);
+                }}
+                // The resource-label column width is not a typed ResourcesWeekView
+                // var, so it is set as a CSS variable on the root (cascades to the
+                // all-day sticky labels and the time-indicator offset the same way
+                // the Day view's typed var does). The hour-slot width is the zoomed
+                // value (see scheduleLabelWidths/weekSlotWidthValue above); the
+                // pinned day-label strip + hour ruler re-measure it on change.
+                style={
+                  {
+                    "--resources-week-view-resource-label-width": scheduleLabelWidths.resource,
+                    // Resolves the animated --c2-slot published on the canvas
+                    // wrapper, so the hour columns ease between zoom levels.
+                    "--resources-week-view-slot-width": "var(--c2-slot)",
+                  } as CSSProperties
+                }
+                vars={() => ({
+                  resourcesWeekView: {
+                    "--resources-week-view-group-label-width": scheduleLabelWidths.group,
+                  },
+                })}
+                styles={{
+                  // Replaced by the pinned WeekDayLabelStrip above (Mantine's own
+                  // labels center in each 1440px-wide day column, so they are
+                  // effectively invisible on a phone). The strip must sit directly
+                  // above the grid, so it lives outside the scroll area. The time
+                  // labels are replaced the same way by the pinned TimeRulerStrip.
+                  resourcesWeekViewDayLabelsRow: { display: "none" },
+                  resourcesWeekViewTimeLabelsRow: { display: "none" },
+                  resourcesWeekViewResourceLabel: {
+                    whiteSpace: "nowrap",
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                    paddingInline: 0,
+                  },
+                }}
+                labels={{ resources: "" }}
+                // onScrollPositionChange feeds the pinned day-label strip and the
+                // ruler's translateX tracking; viewportRef syncs the ruler after
+                // mount/loads (see the layout effect above).
+                scrollAreaProps={weekScrollAreaProps}
+                // External events get the purple chip ring (pass-through otherwise,
+                // so timed and all-day bars keep their default rendering).
+                renderEvent={renderScheduleEvent}
+                renderResourceLabel={renderResourceLabel}
+                renderGroupLabel={renderGroupLabel}
+              />
+            ) : (
+              <ResourcesDayView
+                date={date}
+                resources={scheduleResources.resources}
+                groups={scheduleResources.groups}
+                events={scheduleEvents}
+                startTime="00:00:00"
+                endTime="23:59:59"
+                intervalMinutes={60}
+                // Today opens at the current time; other days at the 07:00
+                // working-day default (re-applied on every mount, i.e. after each
+                // tab switch / date navigation remounts the grid via the skeleton).
+                startScrollTime={date === today ? currentScrollTime : "07:00:00"}
+                rowHeight={56}
+                withHeader={false}
+                withCurrentTimeIndicator
+                onEventClick={(event, e) => {
+                  if (isOptimisticStandIn(event as CalendarEvent)) return;
+                  setDetailOriginRect(e.currentTarget.getBoundingClientRect());
+                  setDetailEvent(event as unknown as CalendarEvent);
+                }}
+                // Zoomed hour-slot width: resolves the animated --c2-slot published
+                // on the canvas wrapper (default 80px at zoom 1); the pinned hour
+                // ruler re-measures it on change (layout effect below).
+                style={{ "--resources-day-view-slot-width": "var(--c2-slot)" } as CSSProperties}
+                vars={() => ({
+                  resourcesDayView: {
+                    "--resources-day-view-resource-label-width": scheduleLabelWidths.resource,
+                    "--resources-day-view-group-label-width": scheduleLabelWidths.group,
+                  },
+                })}
+                styles={{
+                  // Replaced by the pinned TimeRulerStrip above (the library's own
+                  // row is sticky only inside its ScrollArea viewport, which never
+                  // scrolls vertically — the page does).
+                  resourcesDayViewTimeLabelsRow: { display: "none" },
+                  resourcesDayViewResourceLabel: {
+                    whiteSpace: "nowrap",
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                    paddingInline: 0,
+                  },
+                }}
+                labels={{ resources: "" }}
+                // onScrollPositionChange feeds the ruler's translateX tracking;
+                // viewportRef syncs it after mount/loads (layout effect above).
+                scrollAreaProps={dayScrollAreaProps}
+                // All-day events render as full-width bars whose label would scroll
+                // out of view; the renderEvent hook re-renders only those and pins the
+                // title with position: sticky beside the sticky resource column.
+                // External events get c2-ext-slot-event on the root either way: the
+                // single root child is the chip in both shapes (the ScheduleEvent
+                // inner box for timed events, the all-day Box above), so the purple
+                // ring from globals.css lands on it.
+                renderEvent={(event, rootProps) => {
+                  const payload = (event as unknown as CalendarEvent).payload;
+                  const extClass =
+                    payload.external === true
+                      ? `${rootProps.className ?? ""} c2-ext-slot-event`.trim()
+                      : rootProps.className;
+                  const isAllDay = Boolean(payload.allDay);
+                  if (!isAllDay) {
+                    return <UnstyledButton {...rootProps} className={extClass} />;
+                  }
+                  const stickyLeft =
+                    scheduleResources.groups !== undefined
+                      ? "calc(var(--resources-day-view-group-label-width) + var(--resources-day-view-resource-label-width) + 4px)"
+                      : "calc(var(--resources-day-view-resource-label-width) + 4px)";
+                  return (
+                    <UnstyledButton {...rootProps} className={extClass}>
+                      <Box
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          width: "100%",
+                          height: "100%",
+                          paddingInline: "4px",
+                          backgroundColor: "var(--event-bg)",
+                          color: "var(--event-color)",
+                          borderRadius: "min(var(--event-radius), 50%)",
+                          pointerEvents: "all",
+                          userSelect: "none",
+                        }}
+                      >
+                        <span
+                          style={{
+                            position: "sticky",
+                            left: stickyLeft,
+                            minWidth: 0,
+                            maxWidth: "min(70vw, 100%)",
+                            overflow: "hidden",
+                            textOverflow: "ellipsis",
+                            whiteSpace: "nowrap",
+                            fontSize: "calc(0.75rem * var(--mantine-scale))",
+                            fontWeight: "var(--mantine-font-weight-medium)",
+                            lineHeight: 1,
+                          }}
+                        >
+                          {event.title}
+                        </span>
+                      </Box>
+                    </UnstyledButton>
+                  );
+                }}
+                renderResourceLabel={renderResourceLabel}
+                renderGroupLabel={renderGroupLabel}
+              />
+            )}
+
+            {/* Week (Grid) all-day overflow: the strip clips lanes past the
+              second, so the rest are surfaced behind a "+N more" trigger that
+              replaces the stock "All day" label in the sticky-left cell
+              (docs/dashboard-views.md §1.7.1). The overlay sits outside the
+              WeekView subtree, so its geometry mirrors the library defaults
+              (--week-view-week-day-height / -slots-label-width /
+              -all-day-slots-height) instead of inheriting those vars. */}
+            {!gridLoading && isGridWeek && week && gridWeekAllDay.hidden.length > 0 && (
+              <Box
+                style={{
+                  position: "absolute",
+                  top: "calc(3.625rem * var(--mantine-scale))",
+                  left: 0,
+                  width: "calc(5rem * var(--mantine-scale))",
+                  height: "calc(3rem * var(--mantine-scale))",
+                  display: "flex",
+                  zIndex: 7,
+                  pointerEvents: "none",
+                }}
+              >
+                <MoreEvents
+                  events={gridWeekAllDay.hidden}
+                  moreEventsCount={gridWeekAllDay.hidden.length}
+                  aria-label={`Show ${gridWeekAllDay.hidden.length} more all-day events`}
+                  renderEvent={renderMyMonthEvent}
+                  renderEventBody={(event) =>
+                    `${dayjs(event.start).format("ddd, MMM D")} · ${event.title}`
+                  }
+                  popoverProps={{ position: "bottom-start", offset: 4 }}
+                  styles={{
+                    moreEventsButton: {
+                      flex: "1 1 auto",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      whiteSpace: "nowrap",
+                      fontSize: "calc(0.75rem * var(--mantine-scale))",
+                      lineHeight: 1,
+                      pointerEvents: "all",
+                    },
+                  }}
+                  onEventClick={(event, e) => {
+                    if (isOptimisticStandIn(event as CalendarEvent)) return;
+                    setDetailOriginRect(e.currentTarget.getBoundingClientRect());
+                    setDetailEvent(event as unknown as CalendarEvent);
+                  }}
+                />
+              </Box>
+            )}
+          </Box>
         </Box>
       </Box>
 
