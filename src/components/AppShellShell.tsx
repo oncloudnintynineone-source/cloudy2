@@ -134,7 +134,8 @@ const SETTINGS: NavItem = {
 const SIDEBAR_WIDTH = 240;
 const SIDEBAR_RAIL_WIDTH = 64;
 
-const NAV_ACTIVE_COLOR = "var(--mantine-color-brand-7)";
+const NAV_ACTIVE_COLOR =
+  "light-dark(var(--mantine-color-brand-7), var(--mantine-color-brand-4))";
 const NAV_IDLE_COLOR = "light-dark(var(--mantine-color-gray-6), var(--mantine-color-dark-1))";
 
 // Static style objects hoisted out of the render body: this shell re-renders on
