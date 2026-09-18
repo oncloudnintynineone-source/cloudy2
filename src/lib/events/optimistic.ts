@@ -129,6 +129,9 @@ export function applyOptimisticOps(
   base: readonly CalendarEvent[],
   ops: readonly OptimisticOp[],
 ): CalendarEvent[] {
+  // No pending mutations: the server `base` is already sorted, so skip the
+  // copy-and-sort entirely (this runs for every view on every render).
+  if (ops.length === 0) return base.slice();
   let events = base.slice();
   for (const op of ops) {
     if (op.kind === "remove") {

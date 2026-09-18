@@ -313,6 +313,7 @@ export function WeekMatrixView({
               <Box
                 ref={headerInnerRef}
                 component="div"
+                className="c2-zoom-track"
                 role="row"
                 style={{
                   display: "grid",

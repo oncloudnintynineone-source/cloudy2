@@ -6,6 +6,7 @@ import {
   REFRESH_NONCE_TTL_MS,
   WARM_SNAPSHOT_FRESH_MS,
   assembleDashboardSnapshot,
+  capSnapshotMap,
   dashboardCandidateRequestKey,
   dashboardRequestKey,
   dashboardTabFiltersEqual,
@@ -571,5 +572,34 @@ describe("selectSnapshotsToEvict", () => {
       entry(`u::${i}`, i),
     );
     expect(selectSnapshotsToEvict(entries, "u")).toEqual(["u::0", "u::1"]);
+  });
+});
+
+describe("capSnapshotMap", () => {
+  it("returns the map untouched while at or under the cap", () => {
+    const map = new Map([
+      ["a", record({ savedAt: 1 })],
+      ["b", record({ savedAt: 2 })],
+    ]);
+    expect(capSnapshotMap(map, 2)).toBe(map);
+  });
+
+  it("keeps the newest entries beyond the cap", () => {
+    const map = new Map([
+      ["old", record({ savedAt: 10 })],
+      ["mid", record({ savedAt: 20 })],
+      ["new", record({ savedAt: 30 })],
+    ]);
+    expect([...capSnapshotMap(map, 2).keys()]).toEqual(["mid", "new"]);
+  });
+
+  it("uses MAX_SNAPSHOTS_PER_USER as the default cap", () => {
+    const map = new Map(
+      Array.from({ length: MAX_SNAPSHOTS_PER_USER + 2 }, (_, i) => [`k${i}`, record({ savedAt: i })]),
+    );
+    const capped = capSnapshotMap(map);
+    expect(capped.size).toBe(MAX_SNAPSHOTS_PER_USER);
+    expect(capped.has("k0")).toBe(false);
+    expect(capped.has(`k${MAX_SNAPSHOTS_PER_USER + 1}`)).toBe(true);
   });
 });

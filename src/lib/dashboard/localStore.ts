@@ -119,6 +119,34 @@ function readAllRecords(): Promise<{ key: string; record: DashboardSnapshotRecor
   );
 }
 
+/** Run a write operation over one store, resolving when the transaction commits. */
+function runWrite(operation: (store: IDBObjectStore) => void): Promise<void> {
+  return openDb().then(
+    (db) =>
+      new Promise<void>((resolve) => {
+        try {
+          const tx = db.transaction(STORE_NAME, "readwrite");
+          operation(tx.objectStore(STORE_NAME));
+          tx.oncomplete = () => {
+            db.close();
+            resolve();
+          };
+          tx.onerror = () => {
+            db.close();
+            resolve();
+          };
+          tx.onabort = () => {
+            db.close();
+            resolve();
+          };
+        } catch {
+          db.close();
+          resolve();
+        }
+      }),
+  );
+}
+
 /** Delete the given storage keys in one transaction (best-effort). */
 function deleteKeys(keys: readonly string[]): Promise<void> {
   if (keys.length === 0) return Promise.resolve();
@@ -169,27 +197,46 @@ async function pruneSnapshots(userId: string): Promise<void> {
   await deleteKeys(evict);
 }
 
+/**
+ * Persist several contexts in one transaction, then prune once. The tab preload
+ * writes every warm context at once; doing this per record meant one `put` plus
+ * a full-store `getAll`/`getAllKeys` prune per record — O(tabs²) reads. This is
+ * best-effort like the single-record write.
+ */
+export async function writeDashboardSnapshots(
+  userId: string,
+  entries: readonly {
+    data: DashboardSnapshotRecord["data"];
+    context: DashboardSnapshotRecord["context"];
+  }[],
+): Promise<void> {
+  if (!hasIndexedDb() || entries.length === 0) return;
+  const savedAt = Date.now();
+  try {
+    await runWrite((store) => {
+      for (const entry of entries) {
+        const record: DashboardSnapshotRecord = {
+          version: DASHBOARD_SNAPSHOT_VERSION,
+          savedAt,
+          context: entry.context,
+          data: entry.data,
+        };
+        store.put(record, snapshotStorageKey(userId, entry.context.requestKey));
+      }
+    });
+    await pruneSnapshots(userId);
+  } catch {
+    // Quota / private-mode / transient failures: the in-memory render stands.
+  }
+}
+
 /** Persist one context's snapshot (best-effort), evicting the oldest beyond the cap. */
 export async function writeDashboardSnapshot(
   userId: string,
   data: DashboardSnapshotRecord["data"],
   context: DashboardSnapshotRecord["context"],
 ): Promise<void> {
-  if (!hasIndexedDb()) return;
-  const record: DashboardSnapshotRecord = {
-    version: DASHBOARD_SNAPSHOT_VERSION,
-    savedAt: Date.now(),
-    context,
-    data,
-  };
-  try {
-    await runRequest("readwrite", (store) =>
-      store.put(record, snapshotStorageKey(userId, context.requestKey)),
-    );
-    await pruneSnapshots(userId);
-  } catch {
-    // Quota / private-mode / transient failures: the in-memory render stands.
-  }
+  await writeDashboardSnapshots(userId, [{ data, context }]);
 }
 
 /** Drop every cached context for this account (mutation / force-refresh invalidation). */

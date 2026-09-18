@@ -440,3 +440,21 @@ export function selectSnapshotsToEvict(
   const excess = mine.length - max;
   return excess > 0 ? mine.slice(0, excess).map((entry) => entry.key) : [];
 }
+
+/**
+ * Bound the in-memory warm map to the same cap as the on-disk store, evicting
+ * the oldest contexts first. The preload can warm every tab (up to 20), so
+ * without this the map — each record a full snapshot — grows unbounded. The
+ * displayed record is held separately, so evicting it here only drops it as a
+ * warm *cache* entry, never from the screen.
+ */
+export function capSnapshotMap(
+  records: ReadonlyMap<string, DashboardSnapshotRecord>,
+  max: number = MAX_SNAPSHOTS_PER_USER,
+): Map<string, DashboardSnapshotRecord> {
+  if (records.size <= max) return records as Map<string, DashboardSnapshotRecord>;
+  const newest = [...records.entries()]
+    .sort((a, b) => a[1].savedAt - b[1].savedAt)
+    .slice(records.size - max);
+  return new Map(newest);
+}

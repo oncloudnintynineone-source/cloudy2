@@ -10,12 +10,23 @@ import dayjs from "dayjs";
 
 import type { CalendarEvent } from "./queries";
 
-function compareByStart(a: CalendarEvent, b: CalendarEvent): number {
-  const startDiff = dayjs(a.start).diff(dayjs(b.start));
-  if (startDiff !== 0) return startDiff;
-  const endDiff = dayjs(a.end).diff(dayjs(b.end));
-  if (endDiff !== 0) return endDiff;
-  return a.id.localeCompare(b.id);
+/**
+ * Sort in place by start time (end, then id as deterministic tie-breaks),
+ * parsing each event's instants once up front. The previous comparator built
+ * four `dayjs` objects per comparison — O(n log n) parses for an O(n) job.
+ */
+function sortByStart(events: CalendarEvent[]): void {
+  const decorated = events.map((event) => ({
+    event,
+    start: dayjs(event.start).valueOf(),
+    end: dayjs(event.end).valueOf(),
+  }));
+  decorated.sort(
+    (a, b) => a.start - b.start || a.end - b.end || a.event.id.localeCompare(b.event.id),
+  );
+  for (let i = 0; i < decorated.length; i += 1) {
+    events[i] = decorated[i].event;
+  }
 }
 
 /**
@@ -31,7 +42,7 @@ export function sortMineFirst(events: CalendarEvent[], myIds: ReadonlySet<string
   for (const event of events) {
     (myIds.has(event.id) ? mine : rest).push(event);
   }
-  mine.sort(compareByStart);
-  rest.sort(compareByStart);
+  sortByStart(mine);
+  sortByStart(rest);
   return [...mine, ...rest];
 }

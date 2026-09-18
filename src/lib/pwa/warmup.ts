@@ -11,6 +11,8 @@
  * site.
  */
 
+import { isLowEndDevice } from "@/lib/motion/lowEndDevice";
+
 export interface WarmupCapabilities {
   /** `navigator.connection.saveData` (data-saver mode). */
   saveData?: boolean;
@@ -42,6 +44,45 @@ export function canWarmRoutes(): boolean {
     connection?: { saveData?: boolean; effectiveType?: string };
   };
   return shouldWarmRoutes({
+    saveData: nav.connection?.saveData,
+    effectiveType: nav.connection?.effectiveType,
+    onLine: nav.onLine,
+  });
+}
+
+/**
+ * Gate for the dashboard's all-tab data preload — heavier than the chunk
+ * warm-up (it costs a server read plus an IndexedDB write per tab). Skipped on
+ * weak devices (bounded RAM/CPU) *and* constrained connections; the active tab
+ * is always loaded, and any other tab fetches on demand.
+ */
+export interface TabPreloadCapabilities extends WarmupCapabilities {
+  hardwareConcurrency?: number;
+  deviceMemory?: number;
+}
+
+export function shouldPreloadTabs(caps: TabPreloadCapabilities): boolean {
+  if (
+    isLowEndDevice({
+      hardwareConcurrency: caps.hardwareConcurrency,
+      deviceMemory: caps.deviceMemory,
+    })
+  ) {
+    return false;
+  }
+  return shouldWarmRoutes(caps);
+}
+
+/** `shouldPreloadTabs` with the current browser's capabilities (SSR-safe). */
+export function canPreloadTabs(): boolean {
+  if (typeof navigator === "undefined") return false;
+  const nav = navigator as Navigator & {
+    connection?: { saveData?: boolean; effectiveType?: string };
+    deviceMemory?: number;
+  };
+  return shouldPreloadTabs({
+    hardwareConcurrency: nav.hardwareConcurrency,
+    deviceMemory: nav.deviceMemory,
     saveData: nav.connection?.saveData,
     effectiveType: nav.connection?.effectiveType,
     onLine: nav.onLine,

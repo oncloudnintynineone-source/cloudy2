@@ -54,6 +54,7 @@ export function MonthWeekdayStrip({
       <Box
         ref={innerRef}
         component="div"
+        className="c2-zoom-track"
         style={{
           display: "flex",
           // Mirrors the Month grid's zoomed content width (ZOOM_VAR in

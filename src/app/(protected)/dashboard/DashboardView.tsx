@@ -2,6 +2,7 @@
 
 import dayjs from "dayjs";
 import {
+  memo,
   type ComponentPropsWithoutRef,
   type CSSProperties,
   type ReactElement,
@@ -42,7 +43,6 @@ import {
   useDrag,
   useMediaQuery,
   useMergedRef,
-  useViewportSize,
 } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
 // `@mantine/schedule` is the app's heaviest client dependency and is only
@@ -190,7 +190,7 @@ import { ViewTypePicker } from "./ViewTypePicker";
 import { VIEW_TAB_META } from "./viewMeta";
 import { AgendaSwipeHint } from "@/components/AgendaSwipeHint";
 import { MonthWeekdayStrip } from "./MonthWeekdayStrip";
-import { useDashboardData } from "./DashboardDataContext";
+import { useDashboardData, useDashboardTabStatus } from "./DashboardDataContext";
 
 // The event wizard is the heaviest client component in the app (its own form,
 // the @mantine/dates pickers, @mantine/form and the invitee picker). It is
@@ -531,6 +531,7 @@ function WeekDayLabelStrip({
         <Box
           ref={innerRef}
           component="div"
+          className="c2-zoom-track"
           style={{
             position: "absolute",
             top: 0,
@@ -712,6 +713,7 @@ function TimeRulerStrip({
         <Box
           ref={innerRef}
           component="div"
+          className="c2-zoom-track"
           style={{
             position: "absolute",
             top: 0,
@@ -803,7 +805,60 @@ const MONTH_INNER_STYLE = {
 /** Week (Grid) day-column width multiplier (columns zoom). */
 const WEEK_GRID_COLUMN_WIDTH = `calc(max(1, ${ZOOM_VAR}) * 100%)`;
 
-export function DashboardView({
+/**
+ * One view tab. Extracted and memoized so the frequent per-tab load-state ticks
+ * (background preload) re-render only the tab strip — the status comes from its
+ * own context, so the whole view doesn't re-render when a tab turns warm.
+ */
+const DashboardTab = memo(function DashboardTab({
+  tab,
+  icon,
+}: {
+  tab: DashboardViewTab;
+  icon: ReactNode;
+}) {
+  const tabStatus = useDashboardTabStatus();
+  // fresh = solid; loading = a small amber spinner in the tab's top-right corner
+  // (the active tab's own read, or a background preload); not-loaded = static
+  // text fade. The spinner is absolutely positioned, so the tab is its
+  // positioning context (and clips it to the tab's rounded edge).
+  const status = tabStatus[tab.id] ?? "fresh";
+  return (
+    <Tabs.Tab
+      value={tab.id}
+      title={tab.name}
+      aria-busy={status === "loading" || undefined}
+      style={{ position: "relative", overflow: "hidden" }}
+    >
+      <Group
+        gap="xs"
+        justify="center"
+        wrap="nowrap"
+        className={status === "not-loaded" ? "c2-tab-not-loaded" : undefined}
+        style={{ minWidth: 0 }}
+      >
+        {icon}
+        <Text
+          fw={600}
+          size="sm"
+          title={tab.name}
+          style={{
+            whiteSpace: "nowrap",
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+          }}
+        >
+          {tab.name}
+        </Text>
+      </Group>
+      {status === "loading" && (
+        <Loader size={9} color="accent" className="c2-tab-spinner" aria-hidden />
+      )}
+    </Tabs.Tab>
+  );
+});
+
+function DashboardViewImpl({
   month,
   date,
   tabs,
@@ -850,7 +905,7 @@ export function DashboardView({
   // DashboardScreen, which revalidates in place. Mutations call `revalidate()`
   // instead of `router.refresh()` (which no longer carries data), and a
   // context-change fetch drives the grid skeleton via `isNavigating`.
-  const { revalidate, isNavigating, tabStatus, setPreviewView, applyViewTab } = useDashboardData();
+  const { revalidate, isNavigating, setPreviewView, applyViewTab } = useDashboardData();
   // The active tab's renderer kind (Month/Week (H)/…). Booleans, the skeleton
   // chain and the period label key off this exactly like the old `view` prop.
   const view: ViewMode = activeView.kind;
@@ -1599,11 +1654,22 @@ export function DashboardView({
   // animation so the shrinking box still has content.
   const agendaViewDate = agendaDate ?? displayAgendaDate;
 
-  // Resize-subscribed viewport (Mantine hook) rather than a raw
-  // `window.innerWidth/innerHeight` read during render, which forced a layout
-  // pass on every render. Only feeds the modal grow-from-tapped-element math.
-  const viewportSize = useViewportSize();
-  const viewport = { w: viewportSize.width, h: viewportSize.height };
+  // Non-reactive viewport for the modal grow-from-tapped-element math. Kept in
+  // a ref updated on resize rather than Mantine's `useViewportSize`, whose
+  // subscription re-rendered this whole view on every resize (address-bar
+  // show/hide, keyboard). Read during render only when a modal transition needs
+  // it; the modal's origin is fixed at open, so a later resize not re-rendering
+  // is fine.
+  const viewportRef = useRef({ w: 0, h: 0 });
+  useEffect(() => {
+    const update = () => {
+      viewportRef.current = { w: window.innerWidth, h: window.innerHeight };
+    };
+    update();
+    window.addEventListener("resize", update);
+    return () => window.removeEventListener("resize", update);
+  }, []);
+  const viewport = viewportRef.current;
   // The agenda-day and event-form modals widen at lg (and the event form
   // again at the wide-desktop band), so each shrink-to-target scale must use
   // its own modal's matching content width.
@@ -3102,47 +3168,7 @@ export function DashboardView({
               <Tabs.List ref={tabListElRef} style={{ flexWrap: "nowrap", overflowX: "auto" }}>
                 {tabs.map((tab) => {
                   const meta = VIEW_TAB_META[tab.kind];
-                  // Per-view load state (docs/loading-transitions.md §1.13.2):
-                  // fresh = solid; loading = a small amber spinner in the tab's
-                  // top-right corner (the active tab's own read, or a background
-                  // preload); not-loaded = static text fade. The spinner is
-                  // absolutely positioned, so the tab is its positioning context
-                  // (and clips it to the tab's rounded edge).
-                  const status = tabStatus[tab.id] ?? "fresh";
-                  return (
-                    <Tabs.Tab
-                      key={tab.id}
-                      value={tab.id}
-                      title={tab.name}
-                      aria-busy={status === "loading" || undefined}
-                      style={{ position: "relative", overflow: "hidden" }}
-                    >
-                      <Group
-                        gap="xs"
-                        justify="center"
-                        wrap="nowrap"
-                        className={status === "not-loaded" ? "c2-tab-not-loaded" : undefined}
-                        style={{ minWidth: 0 }}
-                      >
-                        {meta.icon}
-                        <Text
-                          fw={600}
-                          size="sm"
-                          title={tab.name}
-                          style={{
-                            whiteSpace: "nowrap",
-                            overflow: "hidden",
-                            textOverflow: "ellipsis",
-                          }}
-                        >
-                          {tab.name}
-                        </Text>
-                      </Group>
-                      {status === "loading" && (
-                        <Loader size={9} color="accent" className="c2-tab-spinner" aria-hidden />
-                      )}
-                    </Tabs.Tab>
-                  );
+                  return <DashboardTab key={tab.id} tab={tab} icon={meta.icon} />;
                 })}
                 {/* Trailing "Add view" affordance: the last item in the
                     scrolling strip, so creating a view is one tap — it opens
@@ -4608,3 +4634,11 @@ export function DashboardView({
     </Stack>
   );
 }
+
+/**
+ * Memoized so `DashboardScreen` re-renders that don't change the view's props
+ * (warm-cache bookkeeping, background flags) don't reconcile this large tree.
+ * Live fields the view needs that change without props (`isNavigating`) flow
+ * through `DashboardDataContext` and still update it.
+ */
+export const DashboardView = memo(DashboardViewImpl);

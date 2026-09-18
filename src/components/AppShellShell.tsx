@@ -843,7 +843,18 @@ export function AppShellShell({
     };
 
     sync();
-    const id = setInterval(sync, 500);
+    // React to header/footer box changes (banner appearing, safe-area insets,
+    // iOS chrome shifting) via a ResizeObserver instead of a perpetual poll.
+    // Observing the elements' boxes covers everything the old 500ms interval
+    // caught without forcing layout reads twice a second on an idle shell.
+    const header = el.querySelector<HTMLElement>(":scope > header");
+    const footer = el.querySelector<HTMLElement>(":scope > footer");
+    const ro =
+      typeof ResizeObserver === "function" ? new ResizeObserver(() => sync()) : null;
+    if (ro) {
+      if (header) ro.observe(header);
+      if (footer) ro.observe(footer);
+    }
     window.addEventListener("resize", sync);
     const onOrientation = () => setTimeout(sync, 400);
     window.addEventListener("orientationchange", onOrientation);
@@ -853,7 +864,7 @@ export function AppShellShell({
     // keyboard shift it; without this the fixed footer can hold a stale gap.
     vv?.addEventListener("scroll", sync);
     return () => {
-      clearInterval(id);
+      ro?.disconnect();
       window.removeEventListener("resize", sync);
       window.removeEventListener("orientationchange", onOrientation);
       vv?.removeEventListener("resize", sync);

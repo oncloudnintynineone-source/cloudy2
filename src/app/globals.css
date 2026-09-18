@@ -854,6 +854,16 @@ html {
   gap: var(--mantine-spacing-sm);
 }
 
+/* Long card lists (Contacts, the mobile Users list) render every card today.
+   `content-visibility: auto` skips layout/paint for cards outside the viewport;
+   `contain-intrinsic-size: auto 96px` gives a skipped card a placeholder height
+   (remembered once rendered) so the scrollbar doesn't jump. Applied per card
+   rather than as a windowing dependency — it needs no JS and no list rewrite. */
+.c2-defer-render {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 96px;
+}
+
 @media (min-width: 36em) {
   .card-grid {
     grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
@@ -1560,4 +1570,25 @@ html.c2-low-end *::after {
   transition-duration: 0.01ms !important;
   animation-duration: 0.01ms !important;
   animation-iteration-count: 1 !important;
+}
+
+/* The grid zoom tracks reserve a compositor layer for the JS zoom tween, which
+   is itself disabled on weak devices (zoomAnim.ts). Release the layer there so
+   it doesn't cost GPU memory for an animation that never runs. */
+html.c2-low-end .c2-zoom-track {
+  will-change: auto !important;
+}
+
+/* Mantine's Skeleton root forces its own compositor layer
+   (`transform: translateZ(0)`) — one per skeleton block, and loading screens
+   can render dozens. Drop it and the pulse on weak devices; the class is
+   Mantine's hashed Skeleton root, so a version bump that renames it silently
+   stops applying (no breakage). */
+html.c2-low-end .m_18320242 {
+  transform: none !important;
+  -webkit-transform: none !important;
+}
+
+html.c2-low-end .m_18320242:where([data-animate])::after {
+  animation: none !important;
 }

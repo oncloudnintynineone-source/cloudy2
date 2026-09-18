@@ -13,10 +13,12 @@ import {
   clearDashboardSnapshots,
   readDashboardSnapshots,
   writeDashboardSnapshot,
+  writeDashboardSnapshots,
 } from "@/lib/dashboard/localStore";
 import {
   DASHBOARD_SNAPSHOT_VERSION,
   assembleDashboardSnapshot,
+  capSnapshotMap,
   dashboardCandidateRequestKey,
   dashboardRequestKey,
   equivalentDashboardTab,
@@ -29,11 +31,12 @@ import {
   type DashboardSnapshotRecord,
 } from "@/lib/dashboard/snapshot";
 import { isUuid } from "@/lib/uuid";
+import { canPreloadTabs } from "@/lib/pwa/warmup";
 import type { DashboardViewTab } from "@/lib/dashboardViews/views";
 import type { MonthZoom } from "@/lib/ui/monthZoom";
 import type { SlotZoom } from "@/lib/ui/slotZoom";
 
-import { DashboardDataProvider } from "./DashboardDataContext";
+import { DashboardDataProvider, DashboardTabStatusProvider } from "./DashboardDataContext";
 import { DashboardView } from "./DashboardView";
 import { DashboardShellSkeleton } from "./DashboardShellSkeleton";
 
@@ -121,8 +124,21 @@ export function DashboardScreen({
   // Device-local warm contexts, keyed by request key. Hydrated from IndexedDB on
   // mount and updated on every successful read; a revisit paints from here
   // instantly instead of showing the skeleton.
-  const [warmRecords, setWarmRecords] = useState<Map<string, DashboardSnapshotRecord>>(
+  const [warmRecords, setWarmRecordsRaw] = useState<Map<string, DashboardSnapshotRecord>>(
     () => new Map(),
+  );
+  // Every write goes through the same LRU cap as the on-disk store so the
+  // in-memory map can't grow past the tab count (each record is a full
+  // snapshot). See capSnapshotMap.
+  const setWarmRecords = useCallback(
+    (
+      updater:
+        | Map<string, DashboardSnapshotRecord>
+        | ((prev: Map<string, DashboardSnapshotRecord>) => Map<string, DashboardSnapshotRecord>),
+    ) => {
+      setWarmRecordsRaw((prev) => capSnapshotMap(typeof updater === "function" ? updater(prev) : updater));
+    },
+    [],
   );
   const warmRecordsRef = useRef(warmRecords);
   useEffect(() => {
@@ -304,7 +320,7 @@ export function DashboardScreen({
         setBusy(false);
       }
     }
-  }, [userId]);
+  }, [userId, setWarmRecords]);
 
   // Retry the first read after the retryable error screen (no cached data to
   // fall back on). Clearing the flag flips the screen back to the skeleton.
@@ -356,9 +372,11 @@ export function DashboardScreen({
           }
           return next;
         });
-        for (const record of records) {
-          void writeDashboardSnapshot(userId, record.data, record.context);
-        }
+        // One transaction + one prune for the whole batch (not one per tab).
+        void writeDashboardSnapshots(
+          userId,
+          records.map((record) => ({ data: record.data, context: record.context })),
+        );
       } finally {
         // Only the run that is still current may drop the flag; a superseded or
         // revalidate-bumped run leaves it to its successor.
@@ -370,7 +388,7 @@ export function DashboardScreen({
         }
       }
     },
-    [userId],
+    [userId, setWarmRecords],
   );
 
   // Hydrate the warm cache and paint a stored context as soon as it is read: the
@@ -421,7 +439,7 @@ export function DashboardScreen({
     return () => {
       alive = false;
     };
-  }, [userId]);
+  }, [userId, setWarmRecords]);
 
   // Fetch only when the URL asks for data the held record doesn't already
   // cover (mount, tab switch, month-set change) — never for an in-month day
@@ -501,15 +519,18 @@ export function DashboardScreen({
         void fetchFresh();
       });
     }
-  }, [refreshParam, fetchFresh, userId]);
+  }, [refreshParam, fetchFresh, userId, setWarmRecords]);
 
   // Preload every tab once the active context is fresh and idle, so switching
   // tabs paints instantly. Runs once per anchor signature (tab set + the months
   // those tabs need), deferred to idle so it never delays first paint, and
-  // skipped offline.
+  // skipped offline. Also skipped on weak devices / constrained connections —
+  // it costs a server read plus a write per tab, and the active tab is always
+  // loaded, so a skipped preload only means a later tab fetches on demand.
   useEffect(() => {
     if (!record || source !== "fresh" || busy) return;
     if (typeof navigator !== "undefined" && navigator.onLine === false) return;
+    if (!canPreloadTabs()) return;
     const tabs = record.data.tabs;
     // Nothing to warm with a single tab: the active read already covers it, so
     // skip the second server config pass entirely.
@@ -567,7 +588,7 @@ export function DashboardScreen({
         }
       })();
     },
-    [fetchFresh, userId],
+    [fetchFresh, userId, setWarmRecords],
   );
 
   // Optimistic View edit (rename / kind change from Manage views): patch the
@@ -638,18 +659,15 @@ export function DashboardScreen({
   const context = useMemo(
     () => ({
       revalidate,
-      isRevalidating: busy,
       // Coverage-based, not tied to the router transition or `busy`: it stays
       // true from the instant the URL context changes until the held data
       // answers it (or the fetch fails), so the grid skeleton can't flash or gap
       // around the data fetch.
       isNavigating,
-      tabStatus,
-      previewView,
       setPreviewView,
       applyViewTab,
     }),
-    [revalidate, busy, isNavigating, tabStatus, previewView, applyViewTab],
+    [revalidate, isNavigating, setPreviewView, applyViewTab],
   );
 
   // `_eventCal`/`event` are deliberately absent from the request key, so a deep
@@ -709,21 +727,23 @@ export function DashboardScreen({
 
   return (
     <DashboardDataProvider value={context}>
-      <DashboardView
-        {...shown.data}
-        activeView={presentation?.activeView ?? shown.data.activeView}
-        month={shown.context.month}
-        date={effectiveDate}
-        initialZoom={initialZoom}
-        initialGridWeekColZoom={initialGridWeekColZoom}
-        initialGridWeekRowZoom={initialGridWeekRowZoom}
-        initialWeekMatrixZoom={initialWeekMatrixZoom}
-        initialMonthZoom={initialMonthZoom}
-        initialDualSplit={initialDualSplit}
-        initialEditEventId={initialEditEventId}
-        initialDetailEventId={initialDetailEventId}
-        deepLinkEvent={shown.deepLinkEvent ?? null}
-      />
+      <DashboardTabStatusProvider value={tabStatus}>
+        <DashboardView
+          {...shown.data}
+          activeView={presentation?.activeView ?? shown.data.activeView}
+          month={shown.context.month}
+          date={effectiveDate}
+          initialZoom={initialZoom}
+          initialGridWeekColZoom={initialGridWeekColZoom}
+          initialGridWeekRowZoom={initialGridWeekRowZoom}
+          initialWeekMatrixZoom={initialWeekMatrixZoom}
+          initialMonthZoom={initialMonthZoom}
+          initialDualSplit={initialDualSplit}
+          initialEditEventId={initialEditEventId}
+          initialDetailEventId={initialDetailEventId}
+          deepLinkEvent={shown.deepLinkEvent ?? null}
+        />
+      </DashboardTabStatusProvider>
     </DashboardDataProvider>
   );
 }

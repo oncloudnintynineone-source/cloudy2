@@ -240,6 +240,7 @@ export function UserTable({ users, departments, accessByUser, nameTemplate }: Us
                 key={user.id}
                 withBorder
                 p="sm"
+                className="c2-defer-render"
                 onClick={() => openEdit(user)}
                 {...activatable(() => openEdit(user))}
                 style={{ cursor: "pointer" }}

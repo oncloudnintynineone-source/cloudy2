@@ -154,7 +154,7 @@ export function ContactList({ users, nameTemplate, isAdmin = false }: ContactLis
       ) : (
         <Box component="div" className="card-grid">
           {filtered.map((user) => (
-            <Paper key={user.id} withBorder p="sm">
+            <Paper key={user.id} withBorder p="sm" className="c2-defer-render">
               <Stack gap={0}>
                 <Group justify="space-between" wrap="nowrap" align="flex-start">
                   <Stack gap={0}>
