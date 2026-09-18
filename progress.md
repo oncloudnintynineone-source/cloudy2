@@ -1263,6 +1263,14 @@ via `?attendance=1` and `attendanceStorage` became a `useSyncExternalStore` exte
     `overflow-anchor: none` so browser scroll anchoring can't fight it — fixing the
     "flashes the previous zoom" resize artifact. Week (Grid) row zoom stays instant.
     Docs: `dashboard-views.md` §1.7, `grid-pan.md` §1.1.
+- 1.260 Zoom recoil fix: 1.259's scroll re-anchor tween used an ease-out cubic while
+    the grid's width/slot CSS transitions use `cubic-bezier(0.22, 1, 0.36, 1)`, which
+    is much faster early — so on a button zoom the width outran the scroll, drifting
+    the anchored column and snapping it back (a recoil right on zoom-in, left on
+    zoom-out). `scrollTween.ts` now evaluates the literal house cubic-bezier (new
+    `cubicBezier` solver + `zoomEase`), so the tween and the CSS transition share the
+    exact same progress curve and the anchor stays put; unit-tested in
+    `scrollTween.test.ts`.
 
 ## 1.4 Open items & next steps
 

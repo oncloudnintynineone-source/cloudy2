@@ -10,8 +10,9 @@ import { MOTION } from "@/lib/motion/timing";
  * anchored column visibly jumps. Tweening the offset with the same duration and
  * easing as the CSS width transition keeps the anchor stable throughout: the
  * ideal offset is affine in the zoom ratio, so an eased tween of the offset
- * matches the eased width almost exactly (the two easings are visually
- * equivalent, so any drift is sub-pixel and settles exactly).
+ * matches the eased width exactly **provided the progress curves match** — hence
+ * `zoomEase` below is the literal `cubic-bezier(0.22, 1, 0.36, 1)` the CSS
+ * transitions use (an approximate ease-out drifts the anchor and recoils).
  *
  * Fire-and-forget: a new call for the same element+axis cancels the previous
  * one. Respects `prefers-reduced-motion: reduce` (snaps immediately) and
@@ -21,10 +22,37 @@ import { MOTION } from "@/lib/motion/timing";
 /** Matches `--c2-dur-standard` (and `MOTION.zoom`) in globals.css. */
 const DURATION_MS = MOTION.zoom;
 
-/** Ease-out cubic — matches the house `cubic-bezier(0.22, 1, 0.36, 1)` closely. */
-export function easeOutCubic(t: number): number {
-  return 1 - (1 - t) ** 3;
+/**
+ * Cubic-bezier evaluator (the standard Newton–Raphson solve for `t` at a given
+ * `x`, with a bisection-free fallback via the loop's convergence). Used to match
+ * the CSS transition's timing function exactly: the grid width transitions with
+ * `cubic-bezier(0.22, 1, 0.36, 1)`, so the scroll tween must use the *same*
+ * progress curve or the two drift apart (the anchored column visibly recoils —
+ * the width outruns the scroll early, then the scroll catches up).
+ */
+export function cubicBezier(x1: number, y1: number, x2: number, y2: number): (x: number) => number {
+  const coefA = (a: number, b: number) => 1 - 3 * b + 3 * a;
+  const coefB = (a: number, b: number) => 3 * b - 6 * a;
+  const coefC = (a: number) => 3 * a;
+  const calc = (t: number, a: number, b: number) =>
+    ((coefA(a, b) * t + coefB(a, b)) * t + coefC(a)) * t;
+  const slope = (t: number, a: number, b: number) =>
+    3 * coefA(a, b) * t * t + 2 * coefB(a, b) * t + coefC(a);
+  return (x: number) => {
+    if (x <= 0) return 0;
+    if (x >= 1) return 1;
+    let t = x;
+    for (let i = 0; i < 8; i++) {
+      const s = slope(t, x1, x2);
+      if (s === 0) break;
+      t -= (calc(t, x1, x2) - x) / s;
+    }
+    return calc(t, y1, y2);
+  };
 }
+
+/** The dashboard zoom easing — must match the CSS `cubic-bezier(0.22, 1, 0.36, 1)`. */
+export const zoomEase = cubicBezier(0.22, 1, 0.36, 1);
 
 const inFlight = new WeakMap<HTMLElement, { left?: number; top?: number }>();
 
@@ -72,7 +100,7 @@ export function animateScroll(el: HTMLElement, axis: "left" | "top", to: number)
   const start = performance.now();
   const step = (now: number) => {
     const t = Math.min(1, (now - start) / DURATION_MS);
-    const value = from + (to - from) * easeOutCubic(t);
+    const value = from + (to - from) * zoomEase(t);
     if (axis === "left") {
       el.scrollLeft = value;
     } else {
