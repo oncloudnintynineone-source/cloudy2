@@ -7,6 +7,7 @@ import {
   dateToUtc,
   daysBetween,
   daysUntilDate,
+  exclusiveAbsEventRange,
   formatInstantToNaive,
   halfDayRange,
   lastDayOfMonth,
@@ -240,6 +241,22 @@ describe("absEventRange", () => {
     expect(absEventRange("2026-08-17 00:00:00", "2026-08-18 00:00:00", true)).toEqual({
       start: new Date("2026-08-17T00:00:00.000Z"),
       end: new Date("2026-08-19T00:00:00.000Z"),
+    });
+  });
+});
+
+describe("exclusiveAbsEventRange", () => {
+  it("parses timed events as UTC+8 instants", () => {
+    expect(exclusiveAbsEventRange("2026-08-17 09:00:00", "2026-08-17 10:30:00", false)).toEqual({
+      start: new Date("2026-08-17T01:00:00.000Z"),
+      end: new Date("2026-08-17T02:30:00.000Z"),
+    });
+  });
+
+  it("keeps an already-exclusive all-day end without adding a day", () => {
+    expect(exclusiveAbsEventRange("2026-08-17 00:00:00", "2026-08-18 00:00:00", true)).toEqual({
+      start: new Date("2026-08-17T00:00:00.000Z"),
+      end: new Date("2026-08-18T00:00:00.000Z"),
     });
   });
 });

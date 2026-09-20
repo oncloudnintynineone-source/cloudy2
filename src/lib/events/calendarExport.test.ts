@@ -62,14 +62,25 @@ describe("buildGoogleCalendarUrl", () => {
       allDay: true,
     });
     expect(new URL(buildGoogleCalendarUrl(event)).searchParams.get("dates")).toBe(
-      "20260817/20260819",
+      "20260817/20260818",
+    );
+  });
+
+  it("keeps a multi-day all-day span intact", () => {
+    const event = makeEvent({
+      start: "2026-08-17 00:00:00",
+      end: "2026-08-20 00:00:00",
+      allDay: true,
+    });
+    expect(new URL(buildGoogleCalendarUrl(event)).searchParams.get("dates")).toBe(
+      "20260817/20260820",
     );
   });
 
   it("copies a half-day event as a full all-day block", () => {
     const event = makeEvent({
       start: "2026-08-15 00:00:00",
-      end: "2026-08-15 00:00:00",
+      end: "2026-08-16 00:00:00",
       allDay: true,
       timeOption: "half",
     });
@@ -115,7 +126,7 @@ describe("buildEventIcs", () => {
     });
     const ics = buildEventIcs(event, NOW);
     expect(ics).toContain("DTSTART;VALUE=DATE:20260817");
-    expect(ics).toContain("DTEND;VALUE=DATE:20260819");
+    expect(ics).toContain("DTEND;VALUE=DATE:20260818");
   });
 
   it("escapes reserved characters in text values", () => {

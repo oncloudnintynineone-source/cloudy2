@@ -206,6 +206,27 @@ export function absEventRange(
 }
 
 /**
+ * Absolute instants a **read-model** naive start/end pair (`CalendarEvent`)
+ * occupies on Google. Unlike {@link absEventRange}, the all-day `naiveEnd` is
+ * already Google's *exclusive* end date (as stored by `mapCalendarItem`), so no
+ * day is added — feeding it to `absEventRange` would shift the event one day too
+ * far. Timed events parse exactly as in `absEventRange`.
+ */
+export function exclusiveAbsEventRange(
+  naiveStart: string,
+  naiveEnd: string,
+  allDay: boolean,
+): { start: Date; end: Date } {
+  if (allDay) {
+    return {
+      start: dateToUtc(naiveStart.slice(0, 10)),
+      end: dateToUtc(naiveEnd.slice(0, 10)),
+    };
+  }
+  return { start: parseNaiveToInstant(naiveStart), end: parseNaiveToInstant(naiveEnd) };
+}
+
+/**
  * The 12-hour wall-clock offset of an AM/PM indicator within its day:
  * "AM" = `00:00:00`, "PM" = `12:00:00`.
  */

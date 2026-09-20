@@ -7,11 +7,13 @@
  * convert them to absolute instants through the shared `datetime` helpers. The
  * entry title is the event's final rendered Google summary (`event.title`), so
  * a personal copy reads exactly like the department-calendar copy. All-day
- * events follow Google/ICS' exclusive end-date convention (the day after the
- * inclusive end date shown in the app), which `absEventRange` already applies.
+ * events follow Google/ICS' exclusive end-date convention: the read model's
+ * `end` is already that exclusive date (the day after the inclusive app date),
+ * so `exclusiveAbsEventRange` is used — never `absEventRange`, which would add
+ * a further day.
  */
 
-import { absEventRange } from "@/lib/events/datetime";
+import { exclusiveAbsEventRange } from "@/lib/events/datetime";
 import type { CalendarEvent } from "@/lib/events/queries";
 
 const pad = (value: number): string => String(value).padStart(2, "0");
@@ -44,7 +46,7 @@ function exportDescription(event: CalendarEvent): string {
  * personal copy is one save away.
  */
 export function buildGoogleCalendarUrl(event: CalendarEvent): string {
-  const { start, end } = absEventRange(event.start, event.end, event.payload.allDay);
+  const { start, end } = exclusiveAbsEventRange(event.start, event.end, event.payload.allDay);
   const dates = event.payload.allDay
     ? `${toDateStamp(start)}/${toDateStamp(end)}`
     : `${toUtcStamp(start)}/${toUtcStamp(end)}`;
@@ -102,7 +104,7 @@ function foldIcsLine(line: string): string {
  */
 export function buildEventIcs(event: CalendarEvent, now: Date = new Date()): string {
   const { allDay, location } = event.payload;
-  const { start, end } = absEventRange(event.start, event.end, allDay);
+  const { start, end } = exclusiveAbsEventRange(event.start, event.end, allDay);
   const description = exportDescription(event);
   const lines = [
     "BEGIN:VCALENDAR",
