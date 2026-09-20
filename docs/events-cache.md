@@ -124,9 +124,9 @@ month)` serves all users and all filter combinations.
 `(googleCalendarId, month)` where `month` is the `YYYY-MM` string of the viewed month
 (`fetchMonthEvents` derives the range via `monthRange()` in
 `src/lib/events/datetime.ts`). Events are fetched for the exclusive `[monthStart,
-nextMonthStart)` window. The dashboard Month view reads the months its 6-week grid
-displays in one range pass — `fetchRangeEvents` over `monthGridMonths()` (the Monday
-on/before the 1st through six full weeks, 2-3 cache entries per calendar) — so the
+nextMonthStart)` window. The dashboard Month view reads the months its natural
+(4–6) week grid displays in one range pass — `fetchRangeEvents` over `monthGridMonths()` (the Monday
+on/before the 1st through the last rendered week, 2-3 cache entries per calendar) — so the
 dimmed adjacent-month days carry their events; Day/Agenda/parade-state stay single
 month via `fetchMonthEvents`.
 

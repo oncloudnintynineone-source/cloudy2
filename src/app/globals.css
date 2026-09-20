@@ -714,8 +714,9 @@ html {
   The AppShell header is fixed at the viewport top at every width (56px brand
   bar + the optional announcement banner, see --app-banner-height below), and
    `--app-shell-header-offset` (sticky top offset for bars pinned under it) is
-   declared unconditionally on `.app-shell-root`: the dashboard's view-tabs +
-   date-nav block and the Week (D) day header pin on mobile too. Consumers that
+   declared unconditionally on `.app-shell-root`: the dashboard's date-nav
+   block (with the view-tab strip row above it at lg+) and the Week (D) day
+   header pin on mobile too. Consumers that
   want desktop-only stickiness must gate themselves in JS (SettingsTabs does).
 
   The FAB clearance vars are declared on :root (not on the page elements):

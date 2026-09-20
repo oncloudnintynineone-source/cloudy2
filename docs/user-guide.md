@@ -80,11 +80,14 @@ them with the tabs above the grid:
 - **Add a view**: tap the **+** at the end of the tab strip, or the **Add view**
   button at the top of the Manage views dialog. Pick the view type from the
   **thumbnail grid** (each option shows a small preview of its layout), then name it.
+  On a phone the tab strip is a single **four-squares view button** in the top
+  row — tap it, then choose **Add view**.
 - **Manage views**: use the **gear** beside the tab strip (tooltip "Manage
   views"). Your views appear as a **list**; the active one is marked with an
   amber bar. Each row has **Edit** (name, type — the type chooser shows the same
   preview grid — and an **Edit filters…** button that switches to the view and
-  opens its filter dialog) and **Delete**, plus ↑/↓ to reorder.
+  opens its filter dialog) and **Delete**, plus ↑/↓ to reorder. On a phone the
+  gear lives inside the four-squares view button as **Manage views**.
 - **Fullscreen** (⋮ menu → **Enter fullscreen**) hides all app
   chrome (and the browser UI where supported) for a wall-display calendar; press
   Esc or use ⋮ menu → **Exit fullscreen** to go back.

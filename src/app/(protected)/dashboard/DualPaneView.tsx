@@ -53,6 +53,7 @@ import { GridNavControls } from "@/components/GridNavControls";
 import { FULLSCREEN_BUTTON_SIZE, FULLSCREEN_EDGE_INSET } from "@/components/FullscreenToggle";
 import { eventsOnDay } from "@/lib/events/agenda";
 import type { CalendarEvent } from "@/lib/events/queries";
+import { monthGridRows } from "@/lib/events/datetime";
 import type { Rect } from "@/lib/motion/origin";
 import { markAgendaSwipeHintSeen } from "@/lib/ui/agendaSwipeHint";
 import {
@@ -228,13 +229,14 @@ export function DualPaneView({
     });
   }, [monthZoom]);
 
-  // The month grid is always exactly six week rows (`MONTH_GRID_WEEKS`), and
-  // Mantine sizes each row from `--month-view-max-events` (52px + N * 24px).
-  // On a tall desktop pane the fixed 4-event rows (~888px) fall short of the
-  // bounded pane and leave a blank strip below the grid, so measure the pane's
-  // scroll box and hand Mantine a fractional N that makes the six rows fill it
-  // exactly. The floor of 4 events keeps the natural row height (and the pane's
-  // own scroll) on shorter viewports, so nothing regresses below the threshold.
+  // The month grid renders the month's natural week rows (`monthGridRows`,
+  // 4–6, no consistent-weeks padding), and Mantine sizes each row from
+  // `--month-view-max-events` (52px + N * 24px). On a tall desktop pane the
+  // fixed 4-event rows fall short of the bounded pane and leave a blank strip
+  // below the grid, so measure the pane's scroll box and hand Mantine a
+  // fractional N that makes those rows fill it exactly. The floor of 4 events
+  // keeps the natural row height (and the pane's own scroll) on shorter
+  // viewports, so nothing regresses below the threshold.
   const monthScrollRef = useRef<HTMLDivElement | null>(null);
   const [monthScrollHeight, setMonthScrollHeight] = useState(0);
   useLayoutEffect(() => {
@@ -253,11 +255,12 @@ export function DualPaneView({
     if (!isDesktop || monthScrollHeight <= 0) {
       return undefined;
     }
-    // 148px = 52 + 4 * 24 (the natural four-event row); subtract the six 1px
-    // row borders so the filled grid lands just inside the pane.
-    const rowHeight = Math.max(148, (monthScrollHeight - 6) / 6);
+    // 148px = 52 + 4 * 24 (the natural four-event row); subtract the row
+    // borders so the filled grid lands just inside the pane.
+    const rows = monthGridRows(month);
+    const rowHeight = Math.max(148, (monthScrollHeight - rows) / rows);
     return { "--month-view-max-events": String((rowHeight - 52) / 24) } as CSSProperties;
-  }, [isDesktop, monthScrollHeight]);
+  }, [isDesktop, monthScrollHeight, month]);
 
   // ---- Split handle --------------------------------------------------------
   // The live fraction is written straight to the container's CSS var during a
@@ -436,6 +439,9 @@ export function DualPaneView({
             events={monthEvents}
             withHeader={false}
             withWeekDays={false}
+            // Natural week rows only (4–6), matching `monthGridRows` and the
+            // standalone Month view — no consistent-weeks padding.
+            consistentWeeks={false}
             styles={{ monthViewInner: MONTH_INNER_STYLE }}
             style={monthFillStyle}
             scrollAreaProps={monthScrollAreaProps}

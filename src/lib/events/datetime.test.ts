@@ -285,27 +285,27 @@ describe("halfDayRange", () => {
 });
 
 describe("monthGridRows", () => {
-  it("counts the unpadded weeks but pads to the fixed 6-row grid (Aug 2026)", () => {
+  it("counts the natural 6 weeks (Aug 2026)", () => {
     // Aug 2026: 1st is Saturday, 5 days after the grid's Monday;
-    // ceil((5 + 31) / 7) = 6 rows — already at the Mantine padding.
+    // ceil((5 + 31) / 7) = 6 rows — no padding needed.
     expect(monthGridRows("2026-08")).toBe(6);
   });
 
-  it("pads a 5-week month to the fixed 6-row grid (May 2026)", () => {
+  it("counts the natural 5 weeks (May 2026)", () => {
     // May 2026: 1st is Friday, 4 days after the grid's Monday;
-    // ceil((4 + 31) / 7) = 5, padded to 6 rows.
-    expect(monthGridRows("2026-05")).toBe(6);
+    // ceil((4 + 31) / 7) = 5 rows — no sixth row of wholly-next-month days.
+    expect(monthGridRows("2026-05")).toBe(5);
   });
 
-  it("pads a 5-week month to the fixed 6-row grid (Feb 2026)", () => {
+  it("counts the natural 5 weeks (Feb 2026)", () => {
     // Feb 2026: 1st is Sunday, 6 days after the grid's Monday;
-    // ceil((6 + 28) / 7) = 5, padded to 6 rows.
-    expect(monthGridRows("2026-02")).toBe(6);
+    // ceil((6 + 28) / 7) = 5 rows.
+    expect(monthGridRows("2026-02")).toBe(5);
   });
 
-  it("pads a 4-week month to the fixed 6-row grid (Feb 2027)", () => {
-    // Feb 2027: 1st is Monday; ceil((0 + 28) / 7) = 4, padded to 6 rows.
-    expect(monthGridRows("2027-02")).toBe(6);
+  it("counts the natural 4 weeks (Feb 2027)", () => {
+    // Feb 2027: 1st is Monday; ceil((0 + 28) / 7) = 4 rows.
+    expect(monthGridRows("2027-02")).toBe(4);
   });
 });
 
@@ -315,23 +315,23 @@ describe("monthGridMonths", () => {
     expect(monthGridMonths("2026-08")).toEqual(["2026-07", "2026-08", "2026-09"]);
   });
 
-  it("covers a 5-week month's grid (May 2026)", () => {
-    // 1st is Friday: grid runs Mon 2026-04-27 → Sun 2026-06-07.
-    expect(monthGridMonths("2026-05")).toEqual(["2026-04", "2026-05", "2026-06"]);
+  it("covers a 5-week month's grid without the padded trailing month (May 2026)", () => {
+    // 1st is Friday: grid runs Mon 2026-04-27 → Sun 2026-05-31 (5 rows).
+    expect(monthGridMonths("2026-05")).toEqual(["2026-04", "2026-05"]);
   });
 
   it("covers only the two months when the 1st is a Monday (Jun 2026)", () => {
-    // 1st is Monday: grid runs Mon 2026-06-01 → Sun 2026-07-12.
+    // 1st is Monday: grid runs Mon 2026-06-01 → Sun 2026-07-05 (5 rows).
     expect(monthGridMonths("2026-06")).toEqual(["2026-06", "2026-07"]);
   });
 
   it("covers a Sunday-start month's grid (Feb 2026)", () => {
-    // 1st is Sunday: grid runs Mon 2026-01-26 → Sun 2026-03-08.
+    // 1st is Sunday: grid runs Mon 2026-01-26 → Sun 2026-03-01 (5 rows).
     expect(monthGridMonths("2026-02")).toEqual(["2026-01", "2026-02", "2026-03"]);
   });
 
   it("rolls across the year boundary (Dec 2026)", () => {
-    // 1st is Tuesday: grid runs Mon 2026-11-30 → Sun 2027-01-10.
+    // 1st is Tuesday: grid runs Mon 2026-11-30 → Sun 2027-01-03 (5 rows).
     expect(monthGridMonths("2026-12")).toEqual(["2026-11", "2026-12", "2027-01"]);
   });
 });

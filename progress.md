@@ -18,7 +18,7 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
 
 ## 1.1 Status
 
-- All work through changelog **1.266 (split-pill pinned indicator)** is shipped.
+- All work through changelog **1.268 (month weekday strip whitespace fix)** is shipped.
 - Quality gates (`lint` / `typecheck` / `test` / schema-drift check) run in CI on every
   push and PR. Pushes also auto-apply migrations per environment: `dev` →
   `migrate-preview` against the dev Neon DB, `main` → `migrate` against the prod Neon
@@ -1354,6 +1354,30 @@ via `?attendance=1` and `attendanceStorage` became a `useSyncExternalStore` exte
     code-side). Renders in the ticker and the Feature Flags live preview; the
     standalone countdown chip is omitted for it (like `stacked`). Docs:
     `pinned-events.md` §1.4, `feature-flags.md` §1.5, `user-guide.md` §1.5.
+- 1.267 Mobile view menu + natural month grid. Below `lg` the dashboard's
+    view-tab strip row (tabs, `+` Add-view, All-views chevron, Manage-views gear)
+    is dropped to save a full row of sticky chrome; the date-nav row gains one
+    compact 36px four-squares (`IconLayoutGrid`) view-menu button at its right
+    edge, beside the date selector, whose
+    dropdown lists every tab plus **Add view** / **Manage views** (icon-only
+    trigger; active name in `aria-label`/tooltip). The Month grid also stops
+    Mantine's `consistentWeeks` padding (`consistentWeeks={false}` on both the
+    Month and Month & Agenda `MonthView`s): it renders the month's natural 4–6
+    rows, never a full trailing week pulled from the next month, and
+    `monthGridRows`/`monthGridMonths` (skeleton rows + range read) plus the
+    Dual-Pane fill math now follow that count. Docs: `dashboard-views.md` §1.1,
+    `desktop-responsive.md`, `events-cache.md` §1.4.1, `immersive-mode.md` §1.4,
+    `loading-transitions.md` §1.13.2, `user-guide.md` §1.3.1.
+- 1.268 Month weekday strip whitespace fix. The pinned weekday strip was a fixed
+    36px box (`2.25rem`) while its height-less inner zoom track only occupied the
+    ~22px text line, wasting ~14px before the grid; and the page `Stack`'s
+    `gap="sm"` left another 12px above it at rest (which the sticky strip
+    swallowed on scroll, so the gap appeared only at the top of the page). The
+    strip now hugs its labels (`height: auto` + 2px `paddingBlock`) and the
+    month view's grid wrapper cancels the page gap
+    (`marginTop: calc(-1 * var(--mantine-spacing-sm))` when `shownView ===
+    "month"`), so it docks flush under the chrome at rest and on scroll with no
+    jump. Docs: `desktop-responsive.md`.
 
 ## 1.4 Open items & next steps
 

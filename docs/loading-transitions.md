@@ -636,7 +636,9 @@ map (`warmRecords`) and two in-flight flags, keyed by each tab's request key
 (`dashboardRequestKey` + `requiredMonths`); the pure, unit-tested `tabLoadStates`
 (`snapshot.ts`) maps keys → states. It rides the existing `DashboardDataContext`
 (no new props) and the tab strip renders the spinner on the tab itself. Loading
-tabs carry `aria-busy`.
+tabs carry `aria-busy`. The per-tab indicator is a desktop (`lg`+) affordance —
+below `lg` the strip row is dropped and the compact view-menu trigger does not
+surface it (the grid skeleton + activity bar still cover loading there).
 
 **Flicker control.** Both flags pass through the shared `useLoadingIndicator`
 (`src/lib/loading/loadingIndicator.ts`, the activity bar's show-delay/min-hold

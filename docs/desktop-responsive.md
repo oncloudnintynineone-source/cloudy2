@@ -170,20 +170,25 @@ gated on `isDesktop`):
 | Agenda day / event form / detail / filter / date-picker modals | `sm` | `md` (see 1.7) |
 
 **Month view shows adjacent-month days with their events (every width):**
-`MonthView` keeps its Mantine defaults (dimmed outside days + the fixed
-6-week grid), and the page range-reads the months the grid actually displays
-— `monthGridMonths()` (`src/lib/events/datetime.ts`), the Monday on/before the
-1st through six full weeks (2-3 months, via `fetchRangeEvents`) — so the
-dimmed cells carry their events and multi-day events spanning a month
-boundary render as one bar across them. The loading skeleton matches the
-fixed 6-row shape via `monthGridRows()`.
+`MonthView` renders dimmed outside days with no consistent-weeks padding
+(`consistentWeeks={false}` — the natural 4–6 week grid, never a full trailing
+week pulled in from the next month), and the page range-reads the months the
+grid actually displays — `monthGridMonths()` (`src/lib/events/datetime.ts`), the
+Monday on/before the 1st through the last rendered week (2-3 months, via
+`fetchRangeEvents`) — so the dimmed cells carry their events and multi-day
+events spanning a month boundary render as one bar across them. The loading
+skeleton matches the natural shape via `monthGridRows()`.
 
 **Sticky chrome & pinned view headers (every width):** the dashboard pins its
-view tabs + date-nav row as **one sticky unit** (`top:
+date-nav row as a **sticky unit** (`top:
 var(--app-shell-header-offset)`, opaque background, bottom divider,
-compact 36px controls) so the period label, prev/next chevrons and ⋮ menu stay
-reachable while any view's grid scrolls — on phones too, where losing them
-mid-scroll was the old default. The unit renders at `zIndex: 50`, above every
+compact 36px controls) so the period label, prev/next chevrons and filter/date
+buttons stay reachable while any view's grid scrolls — on phones too, where
+losing them mid-scroll was the old default. At `lg`+ the view-tab strip row
+rides directly above it as part of the same pinned block; below `lg` that row is
+**dropped** (a full row of sticky chrome) and the nav row instead **gains the
+compact four-squares view-menu button at its right edge** (the mobile view menu,
+[`dashboard-views.md`](dashboard-views.md) §1.1). The unit renders at `zIndex: 50`, above every
 layer `@mantine/schedule` stacks internally (sticky-left columns reach
 z-index 12-13, scrollbars 20), so grid content sliding beneath never paints
 over it. The unit's height is measured with a `ResizeObserver`
@@ -213,7 +218,13 @@ it via `top: calc(var(--app-shell-header-offset) + <chromeHeight>px)`:
 The **Month weekday-initials row** is replaced by a pinned `MonthWeekdayStrip`
 (like the Week (H) day-label strip): Mantine's own row lives inside `MonthView`'s
 content-height `ScrollArea` and scrolls away with the page, so the view passes
-`withWeekDays={false}` and a custom strip pins beneath the chrome. The Month grid
+`withWeekDays={false}` and a custom strip pins beneath the chrome. The strip
+**hugs its labels** (`height: auto` + a 2px `paddingBlock` — no fixed 36px box
+wasting a band before the grid) and, in the month view only, the grid wrapper
+cancels the page `Stack` gap (`marginTop: calc(-1 * var(--mantine-spacing-sm))`)
+so the strip **docks flush under the sticky chrome** at rest and on scroll — its
+rest position equals its pinned `top`, so there is no gap at the top of the page
+and no jump when it sticks. The Month grid
 enforces a 5.25rem (84px) minimum column width, so on narrow screens the 7-column
 grid (≥588px) scrolls horizontally — the strip's inner track mirrors that width
 and translates by `-scrollLeft` via `monthScrollAreaProps`, keeping the initials

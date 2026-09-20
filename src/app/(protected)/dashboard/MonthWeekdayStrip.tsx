@@ -45,7 +45,13 @@ export function MonthWeekdayStrip({
         position: sticky ? "sticky" : "relative",
         top: sticky ? `calc(var(--app-shell-header-offset) + ${chromeOffset}px)` : undefined,
         zIndex: 45,
-        height: "calc(2.25rem * var(--mantine-scale))",
+        // Hug the labels: a fixed 2.25rem height (matching Mantine's own
+        // weekday row) left the inner track — which has no height of its own —
+        // at the top of a 36px box, wasting ~14px before the grid. Auto height
+        // plus a hair of padding removes that band; the cells already center
+        // their text.
+        height: "auto",
+        paddingBlock: "calc(0.125rem * var(--mantine-scale))",
         background: "var(--mantine-color-body)",
         borderBottom: "1px solid var(--mantine-color-default-border)",
         overflow: "hidden",

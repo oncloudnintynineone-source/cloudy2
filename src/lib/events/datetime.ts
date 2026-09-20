@@ -107,14 +107,12 @@ export function shiftMonth(month: string, delta: number): string {
   return `${shifted.getUTCFullYear()}-${pad(shifted.getUTCMonth() + 1)}`;
 }
 
-/** Weeks of the dashboard's Month view grid — Mantine's consistent-weeks padding. */
-export const MONTH_GRID_WEEKS = 6;
-
 /**
  * Week rows the dashboard's Month view grid renders for `YYYY-MM`: the
- * Monday-first weeks overlapping the month, padded to a fixed 6 rows by
- * Mantine's `MonthView` defaults (`withOutsideDays` + `consistentWeeks`,
- * the leading/trailing cells showing adjacent-month days). Used by the
+ * Monday-first weeks overlapping the month (4–6). Mantine's `MonthView` is
+ * configured with `consistentWeeks={false}` + `withOutsideDays`, so no row is
+ * ever padded in from wholly outside the month (the old `consistentWeeks`
+ * default appended a full trailing week for 5-week months). Used by the
  * loading skeleton.
  */
 export function monthGridRows(month: string): number {
@@ -123,18 +121,18 @@ export function monthGridRows(month: string): number {
   const daysInMonth = new Date(Date.UTC(year, monthIndex, 0)).getUTCDate();
   // JS `getUTCDay`: 0=Sun..6=Sat; offset from Monday, Mon=0..Sun=6.
   const daysFromMonday = (first.getUTCDay() + 6) % 7;
-  return Math.max(Math.ceil((daysFromMonday + daysInMonth) / 7), MONTH_GRID_WEEKS);
+  return Math.ceil((daysFromMonday + daysInMonth) / 7);
 }
 
 /**
  * Every `YYYY-MM` month the Month view grid displays for `YYYY-MM`: the
- * Monday on or before the 1st through `MONTH_GRID_WEEKS` full weeks later
+ * Monday on or before the 1st through the last rendered week
  * (`monthGridRows`), so adjacent-month days rendered by `MonthView` carry
- * their events. 2 months when the 1st is a Monday, 3 otherwise.
+ * their events. 2–3 months depending on where the month's weeks fall.
  */
 export function monthGridMonths(month: string): string[] {
   const gridStart = weekDays(`${month}-01`)[0];
-  const gridEnd = addDays(gridStart, MONTH_GRID_WEEKS * 7 - 1);
+  const gridEnd = addDays(gridStart, monthGridRows(month) * 7 - 1);
   return monthsInRange(gridStart, gridEnd);
 }
 

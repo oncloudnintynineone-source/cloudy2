@@ -35,7 +35,7 @@ The renderer kinds (`DASHBOARD_VIEW_KINDS`, `src/lib/dashboardViews/views.ts`):
 | Kind | Label | Renderer |
 | ---------- | -------- | ---------------------------------------------------------------------------------------- |
 | `dual` | Month & Agenda | Month grid + Agenda list side by side, resizable (§1.9) |
-| `month` | Month | Mantine calendar month grid (six fixed weeks — see [`events-cache.md`](events-cache.md)) |
+| `month` | Month | Mantine calendar month grid (natural 4–6 weeks — see [`events-cache.md`](events-cache.md)) |
 | `week` | Week (H) | Mantine Schedule, hour columns per resource row |
 | `weekv2` | Week (D) | custom week matrix (§1.3) |
 | `weekgrid` | Week (Grid) | Mantine Schedule `WeekView`, conventional 7-day grid (time on the vertical axis; §1.7) |
@@ -67,15 +67,17 @@ string maps to the first tab of that kind.
   - the strip's **`+` button at the end of the scrolling tab strip** (the
     strip's last item, shown for accounts that own stored views; tooltip "Add
     view"). Because it scrolls with the strip it can sit off-screen on a long
-    strip;
+    strip. Desktop (`lg`+) only — below `lg` the mobile view menu carries it;
   - the **Manage-views modal**'s compact **Add view** button at the top, so
-    creation is reachable from the always-pinned gear too.
+    creation is reachable from the always-pinned gear too (and, on mobile, from
+    the view menu's **Add view** entry).
   Creating appends the tab and navigates to it; the new id is unknown to the
   held tab list (the request key `viewId|months` is definition-blind), so the
   switch forces a server re-read and the tab appears without a Force refresh.
 - **Manage views** (a settings **gear** to the RIGHT of the strip, outside the
   horizontal scroll area — so the scroll set ends before it; tooltip "Manage
-  views") opens a **centered modal** (`EditViewsModal.tsx`, sharing the app's
+  views"; desktop `lg`+ only, on mobile it is the view menu's **Manage views**
+  entry) opens a **centered modal** (`EditViewsModal.tsx`, sharing the app's
   **touch-friendly manage-row recipe** — see `src/components/reorderUpDown.tsx`)
   listing the created tabs as a **vertical list**. Each row shows the view's
   **kind icon + name**, with a dimmed **kind label** underneath **only when
@@ -129,6 +131,22 @@ string maps to the first tab of that kind.
   the chevron opens a `Menu` popover listing **every** tab in strip order —
   kind icon + name, the active tab ticked — for a one-tap `switchTab` without
   scrolling the strip.
+- **Mobile view menu (below `lg`).** The whole tab strip row — tabs, the `+`
+  Add-view button, the All-views chevron and the Manage-views gear — is dropped
+  below `lg` to save a full row of sticky chrome. In its place the **nav row
+  gains one compact 36px view-menu button at its right edge**, beside the date
+  selector (filters, select-date, then views), so the number of leading
+  controls is unchanged. It is a generic four-squares
+  `IconLayoutGrid` deliberately distinct from the row's left/right chevrons,
+  filter funnel and calendar-date icon (the active view's kind icon would clash
+  with the adjacent date-picker calendar). Tapping it opens a `Menu` whose
+  dropdown is exactly the desktop All-views list (every tab, kind icon + name,
+  active row ticked) followed by a divider and **Add view** / **Manage views**
+  entries (the latter two only for accounts that own stored views). It is
+  icon-only: the active view's name rides the button's accessible name
+  (`Calendar view: <name>`) and its tooltip, keeping the period label the row's
+  flexible element. At `lg` and up the button is hidden and the strip row
+  returns unchanged.
 - **Period preservation on switch** (`switchTab` in `DashboardView.tsx`): a
   tab switch is a _filter/context_ change, so switching between two tabs of the
   same kind (or any two day-anchored kinds) keeps the current date; leaving
@@ -252,7 +270,7 @@ directly ([`events-cache.md`](events-cache.md)):
 - Week (H) and Week (D) both use the same `fetchRangeEvents` 2-month read, so the
   cache, the dashboard filters and the force-refresh nonce are inherited unchanged
   by Week (D).
-- The Month view range-reads the months its 6-week grid displays
+- The Month view range-reads the months its natural (4–6) week grid displays
   (`monthGridMonths()`, `src/lib/events/datetime.ts`).
 - Every tab is **preloaded for instant switches**: after the active context is
   fresh, `DashboardScreen` calls `preloadDashboardTabs` once per anchor, which
@@ -764,7 +782,7 @@ the anchor day, Month & Agenda → Month keeps the anchor month).
   one never moves the other. **Both panes' content fills that bounded height**
   so no blank strip is left at the bottom on a tall desktop: the Agenda card
   stretches to the pane (a long day list scrolls inside the card, not the pane)
-  and the Month grid's six week rows grow to fill the pane. The layout key is
+  and the Month grid's natural week rows grow to fill the pane. The layout key is
   the `lg` breakpoint, not the device: a large phone (e.g. an unfolded Fold)
   gets the side-by-side bounded layout too. Below `lg` the Agenda pane is hidden
   — the full-width month grid scrolls with the document and the handle is absent.
@@ -782,8 +800,8 @@ the anchor day, Month & Agenda → Month keeps the anchor month).
   transform can't jitter the fixed controls), the same `monthEvents` ordering
   and `renderMyMonthEvent` highlights. At `lg` the strip is the pane's fixed
   header (`sticky={false}` — the pane is the scroll container, so a
-  chrome-relative `top` would push it down). Also at `lg`, the six week rows
-  grow to fill the bounded pane: the pane's scroll box is measured and Mantine's
+  chrome-relative `top` would push it down). Also at `lg`, the month's natural
+  week rows grow to fill the bounded pane: the pane's scroll box is measured and Mantine's
   `--month-view-max-events` gets a fractional override (`52px + N * 24px` per
   row), so the event chips scale with the row while the rendered count stays at
   four; a 4-event floor keeps the natural row height — and the pane's own scroll

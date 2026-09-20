@@ -55,7 +55,9 @@ The CSS half is the `app-shell-immersive` class on the AppShell root
 - **Dashboard chrome stays up**: only the shell chrome (header / bottom nav / desktop
   sidebar / banner) is hidden — the calendar's own view tabs, "All views" jump list,
   Add-view button and Manage-views gear remain visible so view switching and
-  management still work in fullscreen.
+  management still work in fullscreen. (At `lg`+ — below `lg` the tab row is
+  already dropped to save space, and the nav row's view-menu button carries the
+  same list + Add-/Manage-views and stays up too.)
 - The announcement banner's inline height style and header contribution are omitted
   while immersive, so the CSS-default 0px applies ([`announcement-banner.md`](announcement-banner.md)).
 

@@ -67,6 +67,7 @@ import {
   IconChevronLeft,
   IconChevronRight,
   IconChevronUp,
+  IconLayoutGrid,
   IconLink,
   IconPlus,
   IconSettings,
@@ -1729,8 +1730,8 @@ function DashboardViewImpl({
           ? dayLabel
           : monthLabel;
 
-  // The name of the tab currently highlighted (optimistic during a switch);
-  // drives the sr announcement so a renamed tab is announced by its name.
+  // The tab currently highlighted (optimistic during a switch); its name
+  // drives the sr announcement and the mobile view-menu trigger's label.
   const shownTabName = tabs.find((tab) => tab.id === shownTabId)?.name ?? activeView.name;
 
   // Screen-reader announcement of view/period changes (tab taps, chevrons,
@@ -3147,8 +3148,12 @@ function DashboardViewImpl({
             strip and opens the Add-view dialog; the "All views" and gear
             controls sit to the RIGHT of the strip, outside the scroll area, and
             the gear opens the Manage-views modal (add / reorder / rename /
-            delete — see below). */}
+            delete — see below). Below `lg` this whole row is dropped to save
+            vertical space: the nav row below gains one compact view-menu button
+            (four-squares icon) that carries the tab list plus Add-/Manage-views
+            in a dropdown. */}
         <Group
+          visibleFrom="lg"
           align="center"
           wrap="nowrap"
           gap={0}
@@ -3290,7 +3295,8 @@ function DashboardViewImpl({
         {/* Date navigation: pinned together with the tabs above so the period
             label and prev/next stay reachable while the grid scrolls. Kept
             compact (36px controls) — it is part of the permanently visible
-            chrome on every breakpoint. */}
+            chrome on every breakpoint. Below `lg` the tab strip row is dropped
+            and the mobile view menu sits at this row's right edge. */}
         <Group align="center" gap="xs" wrap="nowrap" mt="xs">
           <Text
             fw={600}
@@ -3423,6 +3429,79 @@ function DashboardViewImpl({
           >
             <IconCalendarDot size={18} />
           </ActionIcon>
+          {/* Mobile-only view menu, at the row's right edge beside the date
+              selector: below `lg` the tab strip row is dropped to save a whole
+              row of sticky chrome, so this compact four-squares button
+              (deliberately distinct from the row's left/right chevrons, filter
+              funnel and calendar-date icon) carries the tab list plus
+              Add-/Manage-views in one dropdown. Its accessible name reads the
+              active view; the active row is checked in the list. Anchored
+              bottom-end since it is the rightmost control. */}
+          {(tabs.length > 1 || canManageViews) && (
+            <Menu
+              shadow="md"
+              width={240}
+              position="bottom-end"
+              withinPortal
+              transitionProps={{
+                transition: "pop-top-right",
+                duration: MOTION.popover,
+                timingFunction: "ease",
+              }}
+              styles={{
+                dropdown: { maxHeight: "min(60vh, 380px)", overflowY: "auto" },
+              }}
+            >
+              <Menu.Target>
+                <ActionIcon
+                  hiddenFrom="lg"
+                  variant="default"
+                  size={36}
+                  aria-label={`Calendar view: ${shownTabName}`}
+                  title={`Calendar view: ${shownTabName}`}
+                >
+                  <IconLayoutGrid size={18} />
+                </ActionIcon>
+              </Menu.Target>
+              <Menu.Dropdown>
+                {tabs.map((tab) => {
+                  const meta = VIEW_TAB_META[tab.kind];
+                  const isActive = tab.id === shownTabId;
+                  return (
+                    <Menu.Item
+                      key={tab.id}
+                      leftSection={meta.icon}
+                      rightSection={isActive ? <IconCheck size={14} aria-hidden /> : undefined}
+                      role="menuitemradio"
+                      aria-checked={isActive}
+                      onClick={() => switchTab(tab)}
+                    >
+                      <Text
+                        size="sm"
+                        fw={isActive ? 700 : 500}
+                        truncate
+                        title={tab.name}
+                        style={{ maxWidth: 160 }}
+                      >
+                        {tab.name}
+                      </Text>
+                    </Menu.Item>
+                  );
+                })}
+                {canManageViews && (
+                  <>
+                    <Menu.Divider />
+                    <Menu.Item leftSection={<IconPlus size={16} />} onClick={openAddView}>
+                      Add view
+                    </Menu.Item>
+                    <Menu.Item leftSection={<IconSettings size={16} />} onClick={openEdit}>
+                      Manage views
+                    </Menu.Item>
+                  </>
+                )}
+              </Menu.Dropdown>
+            </Menu>
+          )}
         </Group>
       </Box>
 
@@ -3495,6 +3574,13 @@ function DashboardViewImpl({
           className="c2-gutter-anim"
           style={{
             overflow: "clip",
+            // Month view: the pinned weekday strip is the grid's header, so it
+            // must dock flush under the sticky chrome (its sticky `top`), not
+            // 12px below it (the Stack's page gap). Cancelling the gap makes
+            // the rest position equal the pinned one — no gap at the top of the
+            // page and no jump on scroll. Other views keep the page gap.
+            marginTop:
+              shownView === "month" ? "calc(-1 * var(--mantine-spacing-sm))" : undefined,
             marginInline: reclaimGutter ? "calc(-1 * var(--app-shell-padding))" : undefined,
           }}
         >
@@ -3582,9 +3668,14 @@ function DashboardViewImpl({
                 // (the grid assigns rows greedily in input order); their chips get
                 // the amber ring via renderEvent.
                 events={monthEvents}
-                // The page range-reads the whole 6-week grid (monthGridMonths), so
-                // the dimmed adjacent-month days render their events too.
+                // The page range-reads the months the natural grid spans
+                // (monthGridMonths), so the dimmed adjacent-month days render
+                // their events too.
                 withHeader={false}
+                // No consistent-weeks padding: the grid renders only the weeks
+                // that overlap the month (4–6 rows), never a full trailing week
+                // pulled in from the next month. `monthGridRows` mirrors this.
+                consistentWeeks={false}
                 // The built-in weekday row scrolls away (its ScrollArea is
                 // content-height); the pinned MonthWeekdayStrip replaces it.
                 withWeekDays={false}
