@@ -24,6 +24,7 @@ import {
   Alert,
   Box,
   Button,
+  FocusTrap,
   Group,
   Loader,
   Menu,
@@ -4646,6 +4647,7 @@ function DashboardViewImpl({
           transitionProps={{ transition: "pop", duration: MOTION.popover, timingFunction: "ease" }}
         >
           <Stack>
+            <FocusTrap.InitialFocus />
             <div>
               <Text fw={600} size="sm" mb={6}>
                 View type
@@ -4667,7 +4669,6 @@ function DashboardViewImpl({
                   void submitCreateView();
                 }
               }}
-              autoFocus
             />
             <Group justify="flex-end">
               <Button variant="default" onClick={closeCreateView}>

@@ -63,7 +63,9 @@ string maps to the first tab of that kind.
    dialog** (the shared **seven-kind picker** `ViewTypePicker.tsx` rendered in
   its **thumbnail-grid** variant — one wireframe SVG preview per kind, from
   `viewThumbnails.tsx` — plus a name; the default name follows the chosen kind
-  until edited):
+  until edited; the dialog anchors initial focus to a visually hidden top
+  element via `FocusTrap.InitialFocus` rather than the Name field, so it always
+  opens scrolled to the top and never pops the mobile keyboard on open):
   - the strip's **`+` button at the end of the scrolling tab strip** (the
     strip's last item, shown for accounts that own stored views; tooltip "Add
     view"). Because it scrolls with the strip it can sit off-screen on a long
