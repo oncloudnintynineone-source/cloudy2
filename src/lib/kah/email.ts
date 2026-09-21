@@ -9,7 +9,7 @@
  * unit-tested without a database.
  */
 
-import { formatInstantToNaive } from "@/lib/events/datetime";
+import { formatInstantToNaive, subOneDay } from "@/lib/events/datetime";
 import { renderTemplate } from "@/lib/email/template";
 import {
   KAH_EMAIL_BODY_TEMPLATE_DEFAULT,
@@ -33,6 +33,13 @@ export interface KahBreachEmailInput {
   actorName: string | null;
   windowStart: Date;
   windowEnd: Date;
+  /**
+   * True when the event occupies whole/half days. The stored window then uses
+   * the all-day convention (UTC-midnight start, exclusive next-day end), so the
+   * display end is made inclusive (the last civil day) rather than printed as
+   * the next day's 08:00 SGT.
+   */
+  allDay?: boolean;
   /** Admin templates (settings row); omitted/blank = built-in defaults. */
   subjectTemplate?: string | null;
   bodyTemplate?: string | null;
@@ -54,6 +61,21 @@ export type KahTemplateContext = {
 /** Substitute `{token}` placeholders; unknown tokens stay literal text. */
 export function renderKahEmailTemplate(template: string, context: KahTemplateContext): string {
   return renderTemplate(template, context);
+}
+
+/**
+ * The `{window}` display string, UTC+8 wall clock. For all-day events the
+ * stored end is Google's exclusive next-day date, so it is converted back to
+ * the last civil day (matching `conflictWindowNaive` in `clashActions.ts`) —
+ * a one-day event reads as one day, never spilling into the next. Pure.
+ */
+export function formatKahWindow(windowStart: Date, windowEnd: Date, allDay: boolean): string {
+  if (allDay) {
+    const startDate = formatInstantToNaive(windowStart).slice(0, 10);
+    const endDate = subOneDay(formatInstantToNaive(windowEnd).slice(0, 10));
+    return `${startDate} 00:00:00 – ${endDate} 23:59:59 (UTC+8)`;
+  }
+  return `${formatInstantToNaive(windowStart)} – ${formatInstantToNaive(windowEnd)} (UTC+8)`;
 }
 
 /** One breach line of the `{breaches}` block. */
@@ -92,7 +114,7 @@ export function buildKahBreachEmail(input: KahBreachEmailInput): KahBreachEmail 
   const context: KahTemplateContext = {
     event: input.eventTitle.trim() || "Untitled event",
     actor: input.actorName?.trim() || "a user",
-    window: `${formatInstantToNaive(input.windowStart)} – ${formatInstantToNaive(input.windowEnd)} (UTC+8)`,
+    window: formatKahWindow(input.windowStart, input.windowEnd, input.allDay ?? false),
     breaches: input.breaches.map(breachLine).join("\n"),
   };
   const subjectTemplate = input.subjectTemplate?.trim() || KAH_EMAIL_SUBJECT_TEMPLATE_DEFAULT;

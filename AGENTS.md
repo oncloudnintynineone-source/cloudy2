@@ -187,7 +187,9 @@ doc content here.
   Design: [docs/user-clashes.md](docs/user-clashes.md).
 - **KAH constraints are notify-only.** After every successful create/update (never delete),
   `dispatchKahBreachCheck()` (`src/lib/kah/notify.ts`) runs inside `after()` — best-effort,
-  it can never fail or delay the mutation. Design: [docs/kah.md](docs/kah.md).
+  it can never fail or delay the mutation. The KAH Status nav entry carries an amber
+  **active-breach count** badge (`checkKahBreaches`, `src/lib/kah/statusActions.ts`).
+  Design: [docs/kah.md](docs/kah.md).
 - **Weekday parade-state email (Settings → Parade State Email):** admins pick roster
   recipients and subject/body templates; a **Cloud Scheduler** job (not Vercel Cron) fires
   weekdays at 08:00 SGT and hits the `CRON_SECRET`-protected

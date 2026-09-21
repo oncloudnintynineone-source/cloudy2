@@ -370,6 +370,7 @@ export async function createEvent(input: EventFormValues): Promise<EventActionRe
   dispatchKahBreachCheck({
     windowStart: createdWindow.start,
     windowEnd: createdWindow.end,
+    allDay: effectiveInput.timeOption !== "range",
     eventTitle: renderedTitle,
     actor: actorFrom(session),
   });
@@ -652,6 +653,7 @@ export async function updateEvent(
   dispatchKahBreachCheck({
     windowStart: updatedWindow.start,
     windowEnd: updatedWindow.end,
+    allDay: effectiveInput.timeOption !== "range",
     eventTitle: renderedTitle,
     actor: actorFrom(session),
   });

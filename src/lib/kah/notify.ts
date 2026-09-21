@@ -20,10 +20,9 @@ import { db } from "@/db";
 import { kahBreachNotifications, settings, users } from "@/db/schema";
 import { AUDIT_ACTIONS } from "@/lib/audit/build";
 import { logAction } from "@/lib/audit/log";
-import { formatInstantToNaive } from "@/lib/events/datetime";
 import { sendNotificationEmail } from "@/lib/email/send";
 import { computeKahBreaches } from "@/lib/kah/check";
-import { buildKahBreachEmail, type KahBreachEmailGroup } from "@/lib/kah/email";
+import { buildKahBreachEmail, formatKahWindow, type KahBreachEmailGroup } from "@/lib/kah/email";
 import { busyKahsIn, listKahGroupChecks } from "@/lib/kah/status";
 
 export interface KahBreachActor {
@@ -36,6 +35,8 @@ export interface KahBreachCheckInput {
   /** Absolute instant range of the saved event (the checked window). */
   windowStart: Date;
   windowEnd: Date;
+  /** True when the event occupies whole/half days (all-day exclusive-end window). */
+  allDay: boolean;
   /** The rendered Google Calendar title of the saved event. */
   eventTitle: string;
   /** The acting user, for the audit row and the email body. */
@@ -146,8 +147,7 @@ export function dispatchKahBreachCheck(input: KahBreachCheckInput): void {
         .from(settings)
         .limit(1);
 
-      const window =
-        `${formatInstantToNaive(input.windowStart)} – ${formatInstantToNaive(input.windowEnd)} (UTC+8)`;
+      const window = formatKahWindow(input.windowStart, input.windowEnd, input.allDay);
 
       // Audit first so the breach is on record even when sending fails.
       await logAction({
@@ -194,6 +194,7 @@ export function dispatchKahBreachCheck(input: KahBreachCheckInput): void {
         actorName: input.actor.actorName,
         windowStart: input.windowStart,
         windowEnd: input.windowEnd,
+        allDay: input.allDay,
         subjectTemplate: settingsRow?.kahEmailSubjectTemplate ?? null,
         bodyTemplate: settingsRow?.kahEmailBodyTemplate ?? null,
       });

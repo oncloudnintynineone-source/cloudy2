@@ -12,8 +12,16 @@ import { and, eq, inArray } from "drizzle-orm";
 
 import { db } from "@/db";
 import { calendars, kahGroupMembers, kahGroups, users } from "@/db/schema";
+import { effectiveEventWindow } from "@/lib/events/clashes";
 import { addOneDay, formatInstantToNaive, monthsInRange, parseNaiveToInstant } from "@/lib/events/datetime";
-import { parseEventOutOfCamp, parseEventOverseas, parseEventPeople } from "@/lib/events/notes";
+import {
+  parseEventEndAmPm,
+  parseEventOutOfCamp,
+  parseEventOverseas,
+  parseEventPeople,
+  parseEventStartAmPm,
+  parseEventTimeOption,
+} from "@/lib/events/notes";
 import { getCachedMonthEventsForCalendars } from "@/lib/google/eventsCache";
 import { inCountryPercentage, type KahGroupCheck } from "@/lib/kah/check";
 
@@ -164,9 +172,14 @@ export function windowMonths(windowStart: Date, windowEnd: Date): string[] {
 
 /** An overseas event (in-app, taking its tagged people out of country) as the KAH reads see it. */
 export interface KahOverseasEvent {
-  /** Absolute instant the event starts. */
+  /**
+   * Start of the event's *effective* occupancy — its SGT-aligned window (via
+   * `effectiveEventWindow`: all-day UTC-midnight bounds realigned to the UTC+8
+   * civil day, half-day AM/PM honored), matching the clash engine so a
+   * one-day all-day event covers exactly one UTC+8 day.
+   */
   start: Date;
-  /** Absolute instant the event ends (exclusive). */
+  /** Exclusive end of the effective occupancy window. */
   end: Date;
   /** Id of the organizer who created the event (from the notes block), or null. */
   creatorId: string | null;
@@ -204,11 +217,25 @@ export async function overseasEventsInRange(
   for (const cached of cachedPerMonth) {
     for (const [googleCalendarId, items] of Object.entries(cached.events)) {
       for (const item of items) {
-        if (item.start > windowEnd || item.end < windowStart) {
-          continue;
-        }
         // Only overseas events take a tagged member out of the country.
         if (!eventTakesMembersOverseas(item.description)) {
+          continue;
+        }
+        // The event's real occupancy on the UTC+8 wall clock: all-day events
+        // are stored at UTC midnight (Google's date convention) and half-day
+        // events carry AM/PM markers in the notes, so day windows must be
+        // realigned exactly like the clash engine (`effectiveEventWindow`) —
+        // otherwise a one-day event spills 8 h into the next UTC+8 day.
+        const occupancy = effectiveEventWindow({
+          timeOption: parseEventTimeOption(item.description) ?? (item.allDay ? "full" : "range"),
+          startAmPm: parseEventStartAmPm(item.description),
+          endAmPm: parseEventEndAmPm(item.description),
+          allDay: item.allDay,
+          start: item.start,
+          end: item.end,
+        });
+        // Half-open [start, end): back-to-back windows do not overlap.
+        if (occupancy.start >= windowEnd || occupancy.end <= windowStart) {
           continue;
         }
         const key = `${googleCalendarId}:${item.id}`;
@@ -218,8 +245,8 @@ export async function overseasEventsInRange(
         seen.add(key);
         const people = parseEventPeople(item.description);
         events.push({
-          start: item.start,
-          end: item.end,
+          start: occupancy.start,
+          end: occupancy.end,
           creatorId: people.creatorId,
           userIds: people.userIds,
         });
@@ -259,9 +286,9 @@ export interface KahDayBusy {
  * Per-day away sets over a list of `YYYY-MM-DD` days (UTC+8 day windows, the
  * same half-open `[day 00:00, next-day 00:00)` the single-day status check
  * uses, so the scan and the notify path never diverge on which days count).
- * All-day events carry UTC-midnight bounds (Google's date convention), which
- * overlap a UTC+8 day window for 8 hours into the following day — the same
- * behavior the notify window has always had. Pure so it is unit-tested
+ * Events are expected to carry their *effective* occupancy (SGT-aligned,
+ * realigned in `overseasEventsInRange`), so an all-day event on Aug 10 covers
+ * Aug 10 only and never bleeds 8 h into Aug 11. Pure so it is unit-tested
  * without a database.
  */
 export function busyDaysInRange(events: KahOverseasEvent[], days: string[]): KahDayBusy[] {
@@ -270,7 +297,8 @@ export function busyDaysInRange(events: KahOverseasEvent[], days: string[]): Kah
     const dayEnd = parseNaiveToInstant(`${addOneDay(date)} 00:00:00`);
     const away = new Set<string>();
     for (const event of events) {
-      if (event.start > dayEnd || event.end < dayStart) {
+      // Half-open [event.start, event.end) vs [dayStart, dayEnd).
+      if (event.start >= dayEnd || event.end <= dayStart) {
         continue;
       }
       for (const userId of event.userIds) {

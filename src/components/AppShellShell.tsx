@@ -76,6 +76,7 @@ import {
 import { useRememberedPage, writeUiState } from "@/lib/ui/uiStateClient";
 import { EVENTS_CHANGED_EVENT } from "@/lib/ui/eventChanges";
 import { checkUserClashes } from "@/lib/events/clashActions";
+import { checkKahBreaches } from "@/lib/kah/statusActions";
 import { withTimeout } from "@/lib/async";
 
 interface NavItem {
@@ -84,10 +85,12 @@ interface NavItem {
   icon: React.ReactNode;
   matches: (pathname: string) => boolean;
   /**
-   * Optional count pill over the icon (currently the Double Booking nav entry:
-   * the acting user's double-booking overlap count). Rendered only when > 0.
+   * Optional count pill over the icon (the acting user's Double Booking
+   * overlap count or active KAH breach count). Rendered only when > 0.
    */
   badge?: number;
+  /** Singular noun for the badge in the aria-label ("double booking", "KAH breach"). */
+  badgeNoun?: string;
 }
 
 const CALENDAR: NavItem = {
@@ -116,6 +119,7 @@ const DOUBLE_BOOKING: NavItem = {
   label: "Double Booking",
   icon: <IconCalendarClock size={22} />,
   matches: (pathname) => pathname === "/double-booking" || pathname.startsWith("/double-booking"),
+  badgeNoun: "double booking",
 };
 
 const KAH_STATUS: NavItem = {
@@ -123,6 +127,7 @@ const KAH_STATUS: NavItem = {
   label: "KAH Status",
   icon: <IconUsersGroup size={22} />,
   matches: (pathname) => pathname === "/kah-status" || pathname.startsWith("/kah-status"),
+  badgeNoun: "KAH breach",
 };
 
 const SETTINGS: NavItem = {
@@ -208,7 +213,7 @@ function navCountPill(item: NavItem): React.ReactNode {
     return null;
   }
   return (
-    <span className="c2-db-nav-badge" aria-hidden>
+    <span className="c2-nav-badge" aria-hidden>
       {item.badge}
     </span>
   );
@@ -243,7 +248,8 @@ function navAriaLabel(item: NavItem): string {
   if (!item.badge || item.badge <= 0) {
     return item.label;
   }
-  return `${item.label} — ${item.badge} ${item.badge === 1 ? "double booking" : "double bookings"}`;
+  const noun = item.badgeNoun ?? "item";
+  return `${item.label} — ${item.badge} ${item.badge === 1 ? noun : `${noun}s`}`;
 }
 
 /** Icon-only nav entry for the minimized sidebar rail; the label rides a tooltip. */
@@ -761,13 +767,71 @@ export function AppShellShell({
     };
   }, [refreshDoubleBooking]);
 
-  // Attach the count to the Double Booking entry only (all other entries have
-  // no badge). Copying keeps the module-level consts pristine across renders.
-  const navItems: NavItem[] = items.map((item) =>
-    item.href === DOUBLE_BOOKING.href && doubleBookingCount && doubleBookingCount > 0
-      ? { ...item, badge: doubleBookingCount }
-      : item,
-  );
+  // The KAH Status nav badge: the number of the viewer's groups breaching
+  // *today* (admins: all groups, matching their status page; members: their
+  // own). Same best-effort lifecycle as the Double Booking badge, and only
+  // fetched for users who can see the KAH entry at all (`showKah`).
+  const showKah = role === "admin" || kahGroup;
+  const [kahCount, setKahCount] = useState<number | null>(null);
+  const kahDebounceRef = useRef<number | null>(null);
+  const refreshKah = useCallback(() => {
+    return checkKahBreaches()
+      .then((result) => {
+        if (result.ok) {
+          setKahCount(result.count);
+        }
+      })
+      .catch(() => {
+        // Keep the last known count.
+      });
+  }, []);
+  useEffect(() => {
+    if (!showKah) {
+      return;
+    }
+    beginLeg("kah");
+    void withTimeout(refreshKah(), COLD_LEG_TIMEOUT_MS).finally(() => settleLeg("kah"));
+  }, [showKah, refreshKah, beginLeg, settleLeg]);
+  useEffect(() => {
+    if (!showKah) {
+      return;
+    }
+    const schedule = () => {
+      if (kahDebounceRef.current !== null) {
+        window.clearTimeout(kahDebounceRef.current);
+      }
+      kahDebounceRef.current = window.setTimeout(() => {
+        kahDebounceRef.current = null;
+        void refreshKah();
+      }, 400);
+    };
+    const onChanged = () => schedule();
+    const onVisible = () => {
+      if (document.visibilityState === "visible") {
+        schedule();
+      }
+    };
+    window.addEventListener(EVENTS_CHANGED_EVENT, onChanged);
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      window.removeEventListener(EVENTS_CHANGED_EVENT, onChanged);
+      document.removeEventListener("visibilitychange", onVisible);
+      if (kahDebounceRef.current !== null) {
+        window.clearTimeout(kahDebounceRef.current);
+      }
+    };
+  }, [showKah, refreshKah]);
+
+  // Attach each count to its entry (all other entries have no badge). Copying
+  // keeps the module-level consts pristine across renders.
+  const badgeByHref: Record<string, number | null> = {
+    [DOUBLE_BOOKING.href]: doubleBookingCount,
+    [KAH_STATUS.href]: showKah ? kahCount : null,
+  };
+  const navItems: NavItem[] = items.map((item) => {
+    const count = badgeByHref[item.href];
+    return count && count > 0 ? { ...item, badge: count } : item;
+  });
 
   // --- iOS PWA viewport sync ---
   // On some iOS versions, 100dvh/vh resolves to the full screen height but the

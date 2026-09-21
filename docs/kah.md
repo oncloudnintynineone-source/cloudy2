@@ -166,7 +166,7 @@ case-insensitively; unknown tokens stay literal:
 | --- | --- |
 | `{event}` | The rendered Google Calendar title of the saved event |
 | `{actor}` | Display name of the user who saved it |
-| `{window}` | The checked window, UTC+8 wall clock |
+| `{window}` | The checked window, UTC+8 wall clock (all-day end shown inclusive, so a one-day event reads as one day) |
 | `{breaches}` | One `- Group: X% in country … away: names` line per breached group |
 
 The body must contain `{breaches}` (validated in the form); blank stored templates fall
@@ -229,6 +229,18 @@ flowchart LR
 - The per-day scan uses the same half-open UTC+8 day windows and the same
   overseas-overlap rule as the notify path, so the history/forecast can never
   diverge from what the breach check counts.
+- Overseas events are read with their **effective occupancy window**: all-day
+  events (stored at UTC midnight, Google's date convention) are realigned to the
+  UTC+8 civil day and half-day AM/PM markers honored — the same
+  `effectiveEventWindow` the clash engine uses (`src/lib/events/clashes.ts`), so
+  a one-day all-day event covers exactly one UTC+8 day instead of bleeding 8 h
+  into the next.
+- The nav entry carries an **active-breach count badge** (the amber pill shared
+  with Double Booking): the number of groups breaching **today** — all groups for
+  admins, the viewer's own for members. It is a read-only `checkKahBreaches`
+  scan (`src/lib/kah/statusActions.ts`), refreshed on mount, on tab refocus, and
+  after any event create/update/delete (via `cloudy2:events-changed`); a missing
+  pill means no active breach.
 - Shared plumbing lives in `src/lib/kah/status.ts` (`listKahGroupChecks`,
   `busyKahsIn`, `overseasEventsInRange`, `busyDaysInRange`, `kahStatusForWindow`,
   `kahBreachEpisodes`, `kahGroupsForUser`, `userHasKahGroup`,
@@ -248,6 +260,7 @@ flowchart LR
 | `src/lib/kah/queries.ts` | Group + member reads for the tab |
 | `src/lib/kah/status.ts` | Shared status reads: member groups, `overseasEventsInRange` + `busyKahsIn`, pure `busyDaysInRange`, `kahStatusForWindow`, `kahBreachEpisodes`, `userHasKahGroup`, `isUuid` session-id guard |
 | `src/lib/kah/actions.ts` | Audited group CRUD server actions |
+| `src/lib/kah/statusActions.ts` | Read-only `checkKahBreaches` server action feeding the KAH Status nav badge |
 | `src/lib/kah/notify.ts` | `dispatchKahBreachCheck` — check, audit, email (imports reads from `status.ts`) |
 | `src/app/(protected)/kah-status/{page,loading,KahStatusView}.tsx` | Read-only status page: breach history & forecast over a ±3-month window (members: own groups; admins: all groups) |
 | `src/components/AppShellShell.tsx` | Conditional KAH Status nav entry (members: `hasKahGroup`; admins: always) |

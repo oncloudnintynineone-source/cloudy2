@@ -1255,10 +1255,11 @@ html {
   }
 }
 
-/* "Double Booking" count pill on the nav entry (bottom nav, sidebar, rail):
-   amber, mirroring the pinned-events ticker chip. Absolutely positioned over
-   the entry's icon by a `position: relative; display: flex` icon wrapper. */
-.c2-db-nav-badge {
+/* Count pill on a nav entry (bottom nav, sidebar, rail): amber, mirroring the
+   pinned-events ticker chip. Used by the Double Booking and KAH Status badges;
+   absolutely positioned over the entry's icon by a `position: relative;
+   display: flex` icon wrapper. */
+.c2-nav-badge {
   position: absolute;
   top: -0.25rem;
   right: -0.5rem;

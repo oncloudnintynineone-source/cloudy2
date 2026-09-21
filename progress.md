@@ -1378,6 +1378,18 @@ via `?attendance=1` and `attendanceStorage` became a `useSyncExternalStore` exte
     (`marginTop: calc(-1 * var(--mantine-spacing-sm))` when `shownView ===
     "month"`), so it docks flush under the chrome at rest and on scroll with no
     jump. Docs: `desktop-responsive.md`.
+- 1.269 KAH fixes: the KAH Status nav entry now carries the shared amber
+    active-breach count badge (groups breaching today — all groups for admins,
+    the viewer's own for members) fed by a new read-only `checkKahBreaches`
+    server action (`src/lib/kah/statusActions.ts`), fetched on mount/refocus and
+    after event changes like Double Booking; and the KAH day scan no longer
+    spills a one-day all-day event into the next UTC+8 day —
+    `overseasEventsInRange` now reads each overseas event's effective occupancy
+    via the clash engine's `effectiveEventWindow` (all-day UTC-midnight bounds
+    realigned to the SGT civil day, half-day AM/PM honored) and
+    `busyDaysInRange` uses half-open boundaries, with the breach email/audit
+    `{window}` showing the inclusive all-day end. Docs: `kah.md`
+    §1.1/§1.5.1/§1.7/§1.8.
 
 ## 1.4 Open items & next steps
 

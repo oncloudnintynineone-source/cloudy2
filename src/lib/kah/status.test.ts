@@ -211,18 +211,23 @@ describe("busyDaysInRange", () => {
     ]);
   });
 
-  it("treats all-day events as UTC-midnight bounds (8h spill into the next UTC+8 day)", () => {
-    // An all-day event on Aug 10 is [Aug 10 00:00Z, Aug 11 00:00Z): it covers
-    // Aug 10 and still overlaps Aug 11's UTC+8 window for its last 8 hours —
-    // the same overlap behavior the notify window has always had.
-    const allDay: KahOverseasEvent = {
-      start: new Date("2026-08-10T00:00:00Z"),
-      end: new Date("2026-08-11T00:00:00Z"),
-      creatorId: null,
-      userIds: ["a"],
-    };
-    const result = busyDaysInRange([allDay], ["2026-08-10", "2026-08-11", "2026-08-12"]);
-    expect(result.map((day) => day.awayIds)).toEqual([["a"], ["a"], []]);
+  it("marks a one-day all-day event on its own day only (effective window realigned to SGT)", () => {
+    // `overseasEventsInRange` realigns an all-day Aug 10 event
+    // ([Aug 10 00:00Z, Aug 11 00:00Z)) to the SGT civil day
+    // ([Aug 10 00:00, Aug 11 00:00) UTC+8), so it covers Aug 10 alone and no
+    // longer bleeds 8 h into Aug 11.
+    const allDay = overseasEvent("2026-08-10 00:00:00", "2026-08-11 00:00:00", { userIds: ["a"] });
+    const result = busyDaysInRange([allDay], ["2026-08-09", "2026-08-10", "2026-08-11"]);
+    expect(result.map((day) => day.awayIds)).toEqual([[], ["a"], []]);
+  });
+
+  it("does not count a day an event ends exactly at (half-open boundary)", () => {
+    // [Aug 10 08:00, Aug 11 00:00) ends on Aug 11's boundary → Aug 10 only.
+    const result = busyDaysInRange(
+      [overseasEvent("2026-08-10 08:00:00", "2026-08-11 00:00:00", { userIds: ["a"] })],
+      ["2026-08-10", "2026-08-11"],
+    );
+    expect(result.map((day) => day.awayIds)).toEqual([["a"], []]);
   });
 
   it("returns empty away sets when no events are given", () => {
