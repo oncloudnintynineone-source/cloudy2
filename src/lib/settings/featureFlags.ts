@@ -77,7 +77,30 @@ export const savedEventToastVariantFlag: FeatureFlagDef<SavedEventToastVariant> 
   defaultValue: "pill",
 };
 
-export const FEATURE_FLAGS = [pinnedTickerIndicatorFlag, savedEventToastVariantFlag] as const;
+export const GLASS_FAB_LEVEL_OPTIONS = ["subtle", "medium", "strong"] as const;
+export type GlassFabLevel = (typeof GLASS_FAB_LEVEL_OPTIONS)[number];
+
+export const glassFabLevelFlag: FeatureFlagDef<GlassFabLevel> = {
+  key: "glassFabLevel",
+  label: "Glass button opacity",
+  description:
+    "Transparency of the Calendar page's mobile bottom button cluster (period " +
+    "chevrons, Quick links, New event). Subtle is see-through, Strong is nearly " +
+    "solid. Toggle to compare the levels live, then keep the one you want.",
+  options: GLASS_FAB_LEVEL_OPTIONS,
+  optionLabels: {
+    subtle: "Subtle",
+    medium: "Medium",
+    strong: "Strong",
+  },
+  defaultValue: "medium",
+};
+
+export const FEATURE_FLAGS = [
+  pinnedTickerIndicatorFlag,
+  savedEventToastVariantFlag,
+  glassFabLevelFlag,
+] as const;
 export type FeatureFlagKey = (typeof FEATURE_FLAGS)[number]["key"];
 
 export function isFeatureFlagKey(value: unknown): value is FeatureFlagKey {

@@ -351,6 +351,13 @@
       "when": 1789735802894,
       "tag": "0049_mighty_penance",
       "breakpoints": true
+    },
+    {
+      "idx": 50,
+      "version": "7",
+      "when": 1790115896015,
+      "tag": "0050_sleepy_lady_ursula",
+      "breakpoints": true
     }
   ]
 }

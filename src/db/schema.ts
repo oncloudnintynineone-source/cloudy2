@@ -428,6 +428,13 @@ export const settings = pgTable(
      */
     savedEventToastVariant: text("saved_event_toast_variant").notNull().default("pill"),
     /**
+     * Frosted-glass opacity of the Calendar page's mobile bottom button cluster
+     * (Settings → Feature Flags). One of the keys in `FEATURE_FLAGS`
+     * (`src/lib/settings/featureFlags.ts`); the registry's default backs the
+     * column default.
+     */
+    glassFabLevel: text("glass_fab_level").notNull().default("medium"),
+    /**
      * Daily parade-state email (Settings → Parade State Email): when enabled,
      * the selected roster users receive one snapshot on each weekday at 08:00
      * Singapore time, scheduled by Cloud Scheduler. Recipients are stored as

@@ -1,0 +1,1 @@
+ALTER TABLE "settings" ADD COLUMN "glass_fab_level" text DEFAULT 'medium' NOT NULL;

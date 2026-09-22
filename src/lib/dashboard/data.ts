@@ -46,6 +46,7 @@ import {
   type SettingsView,
 } from "@/lib/settings/queries";
 import {
+  glassFabLevelFlag,
   resolveFlagValue,
   savedEventToastVariantFlag,
 } from "@/lib/settings/featureFlags";
@@ -420,6 +421,10 @@ async function resolveDashboardConfig(session: Session): Promise<DashboardConfig
     savedEventToastVariant: resolveFlagValue(
       savedEventToastVariantFlag,
       settings.featureFlags.savedEventToastVariant,
+    ),
+    glassFabLevel: resolveFlagValue(
+      glassFabLevelFlag,
+      settings.featureFlags.glassFabLevel,
     ),
     quickLinks: quickLinks
       .filter((link) => link.enabled)

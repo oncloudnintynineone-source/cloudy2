@@ -6,6 +6,7 @@ import {
   normalizeFeatureFlags,
   resolveFlagValue,
   validateFeatureFlags,
+  glassFabLevelFlag,
   pinnedTickerIndicatorFlag,
   savedEventToastVariantFlag,
 } from "./featureFlags";
@@ -35,12 +36,14 @@ describe("resolveFlagValue", () => {
   it("returns a valid stored value unchanged", () => {
     expect(resolveFlagValue(pinnedTickerIndicatorFlag, "segmented")).toBe("segmented");
     expect(resolveFlagValue(savedEventToastVariantFlag, "toastPlain")).toBe("toastPlain");
+    expect(resolveFlagValue(glassFabLevelFlag, "strong")).toBe("strong");
   });
 
   it("falls back to the default for unknown values", () => {
     for (const unknown of ["fancy", "", 42, null, undefined, {}]) {
       expect(resolveFlagValue(pinnedTickerIndicatorFlag, unknown)).toBe("classic");
       expect(resolveFlagValue(savedEventToastVariantFlag, unknown)).toBe("pill");
+      expect(resolveFlagValue(glassFabLevelFlag, unknown)).toBe("medium");
     }
   });
 });
@@ -54,6 +57,7 @@ describe("normalizeFeatureFlags", () => {
     expect(flags).toEqual({
       pinnedTickerIndicator: "badge",
       savedEventToastVariant: "toastAction",
+      glassFabLevel: "medium",
     });
   });
 
@@ -62,6 +66,7 @@ describe("normalizeFeatureFlags", () => {
     expect(flags).toEqual({
       pinnedTickerIndicator: "classic",
       savedEventToastVariant: "pill",
+      glassFabLevel: "medium",
     });
   });
 });
@@ -70,6 +75,7 @@ describe("isFeatureFlagKey", () => {
   it("accepts a registered key and rejects others", () => {
     expect(isFeatureFlagKey("pinnedTickerIndicator")).toBe(true);
     expect(isFeatureFlagKey("savedEventToastVariant")).toBe(true);
+    expect(isFeatureFlagKey("glassFabLevel")).toBe(true);
     expect(isFeatureFlagKey("notAFlag")).toBe(false);
   });
 });
@@ -80,6 +86,7 @@ describe("validateFeatureFlags", () => {
       validateFeatureFlags({
         pinnedTickerIndicator: "segmented",
         savedEventToastVariant: "pillRestyle",
+        glassFabLevel: "strong",
       }),
     ).toEqual({});
   });

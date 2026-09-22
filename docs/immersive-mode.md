@@ -57,7 +57,8 @@ The CSS half is the `app-shell-immersive` class on the AppShell root
   Add-view button and Manage-views gear remain visible so view switching and
   management still work in fullscreen. (At `lg`+ — below `lg` the tab row is
   already dropped to save space, and the nav row's view-menu button carries the
-  same list + Add-/Manage-views and stays up too.)
+  same list + Add-/Manage-views and stays up too. The mobile period chevrons in
+  the bottom-right FAB cluster stay up as well.)
 - The announcement banner's inline height style and header contribution are omitted
   while immersive, so the CSS-default 0px applies ([`announcement-banner.md`](announcement-banner.md)).
 

@@ -873,6 +873,170 @@ html {
   padding-bottom: 0;
 }
 
+/*
+  Frosted-glass mobile FAB cluster — the Calendar page's bottom-right
+  `[<][>][LINK][CREATE]` row below `lg` (DashboardView). Applied by className to
+  just those four controls, so every other page's FABs stay solid. Scheme-aware
+  via `light-dark()` like the app's other surfaces; `!important` beats Mantine's
+  runtime-injected variant background/colour/border rules. Tints preserve the
+  cluster's colour language: neutral chevrons, amber Quick links
+  (`--accent`), brand-blue New event (`--brand`). The backdrop blur lets the
+  calendar read through, while the blur + shadow keep the controls legible over
+  any content. No border: the frosted edge is carried by the shadow alone (a
+  hard ring read as an off outline, especially in dark mode).
+
+  The opacity is admin-adjustable via the `glassFabLevel` feature flag: the
+  `.c2-glass-fab--{subtle|medium|strong}` modifier sets the `--c2g-*` alphas,
+  which the visual rules below consume (accent/brand hover + active derive from
+  their base alpha with `calc()`). `.c2-glass-fab` itself carries the `medium`
+  defaults, so an unmatched level still renders medium rather than solid.
+  Medium is the shipped look; Subtle is more see-through, Strong nearly solid.
+*/
+.c2-glass-fab {
+  --c2g-base-l: 0.62;
+  --c2g-base-d: 0.55;
+  --c2g-hover-l: 0.8;
+  --c2g-hover-d: 0.7;
+  --c2g-active-l: 0.92;
+  --c2g-active-d: 0.8;
+  --c2g-accent-l: 0.38;
+  --c2g-accent-d: 0.26;
+  --c2g-brand-l: 0.8;
+  --c2g-brand-d: 0.72;
+  background: light-dark(
+    rgba(255, 255, 255, var(--c2g-base-l)),
+    rgba(28, 30, 34, var(--c2g-base-d))
+  ) !important;
+  color: light-dark(var(--mantine-color-dark-8), var(--mantine-color-gray-0)) !important;
+  border: none !important;
+  box-shadow: var(--mantine-shadow-md);
+  -webkit-backdrop-filter: blur(14px) saturate(1.5);
+  backdrop-filter: blur(14px) saturate(1.5);
+}
+
+.c2-glass-fab:hover {
+  background: light-dark(
+    rgba(255, 255, 255, var(--c2g-hover-l)),
+    rgba(44, 47, 52, var(--c2g-hover-d))
+  ) !important;
+}
+
+.c2-glass-fab:active {
+  background: light-dark(
+    rgba(255, 255, 255, var(--c2g-active-l)),
+    rgba(56, 60, 66, var(--c2g-active-d))
+  ) !important;
+}
+
+.c2-glass-fab--accent {
+  background: light-dark(
+    rgba(251, 192, 45, var(--c2g-accent-l)),
+    rgba(251, 192, 45, var(--c2g-accent-d))
+  ) !important;
+  color: light-dark(var(--mantine-color-accent-9), var(--mantine-color-accent-1)) !important;
+}
+
+.c2-glass-fab--accent:hover {
+  background: light-dark(
+    rgba(251, 192, 45, calc(var(--c2g-accent-l) + 0.14)),
+    rgba(251, 192, 45, calc(var(--c2g-accent-d) + 0.1))
+  ) !important;
+}
+
+.c2-glass-fab--accent:active {
+  background: light-dark(
+    rgba(251, 192, 45, calc(var(--c2g-accent-l) + 0.24)),
+    rgba(251, 192, 45, calc(var(--c2g-accent-d) + 0.18))
+  ) !important;
+}
+
+.c2-glass-fab--brand {
+  background: light-dark(
+    rgba(13, 71, 161, var(--c2g-brand-l)),
+    rgba(13, 71, 161, var(--c2g-brand-d))
+  ) !important;
+  color: var(--mantine-color-white) !important;
+}
+
+.c2-glass-fab--brand:hover {
+  background: light-dark(
+    rgba(13, 71, 161, calc(var(--c2g-brand-l) + 0.08)),
+    rgba(13, 71, 161, calc(var(--c2g-brand-d) + 0.08))
+  ) !important;
+}
+
+.c2-glass-fab--brand:active {
+  background: light-dark(
+    rgba(10, 58, 133, calc(var(--c2g-brand-l) + 0.15)),
+    rgba(10, 58, 133, calc(var(--c2g-brand-d) + 0.16))
+  ) !important;
+}
+
+/* Opacity levels (Settings → Feature Flags → `glassFabLevel`). Placed after the
+   base rules so their single-class specificity wins; Medium equals the base
+   defaults above. */
+.c2-glass-fab--subtle {
+  --c2g-base-l: 0.45;
+  --c2g-base-d: 0.4;
+  --c2g-hover-l: 0.6;
+  --c2g-hover-d: 0.52;
+  --c2g-active-l: 0.74;
+  --c2g-active-d: 0.64;
+  --c2g-accent-l: 0.26;
+  --c2g-accent-d: 0.18;
+  --c2g-brand-l: 0.66;
+  --c2g-brand-d: 0.58;
+}
+
+.c2-glass-fab--medium {
+  --c2g-base-l: 0.62;
+  --c2g-base-d: 0.55;
+  --c2g-hover-l: 0.8;
+  --c2g-hover-d: 0.7;
+  --c2g-active-l: 0.92;
+  --c2g-active-d: 0.8;
+  --c2g-accent-l: 0.38;
+  --c2g-accent-d: 0.26;
+  --c2g-brand-l: 0.8;
+  --c2g-brand-d: 0.72;
+}
+
+.c2-glass-fab--strong {
+  --c2g-base-l: 0.8;
+  --c2g-base-d: 0.72;
+  --c2g-hover-l: 0.9;
+  --c2g-hover-d: 0.82;
+  --c2g-active-l: 0.97;
+  --c2g-active-d: 0.9;
+  --c2g-accent-l: 0.55;
+  --c2g-accent-d: 0.4;
+  --c2g-brand-l: 0.9;
+  --c2g-brand-d: 0.82;
+}
+
+/* Live preview row for the `glassFabLevel` feature flag (Settings → Feature
+   Flags): the four cluster controls over a two-tone checker so the selected
+   opacity is visible before saving. Illustrative only (aria-hidden). */
+.c2-glass-preview {
+  display: flex;
+  align-items: center;
+  gap: var(--mantine-spacing-sm);
+  padding: var(--mantine-spacing-sm);
+  border-radius: var(--mantine-radius-md);
+  background: repeating-linear-gradient(
+    45deg,
+    var(--mantine-color-brand-6) 0 14px,
+    var(--mantine-color-accent-5) 14px 28px
+  );
+}
+
+.c2-glass-preview-fab {
+  display: inline-block;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+}
+
 /* Centered max-width wrapper for list-style pages (settings, contacts,
    parade state): a single column would stretch absurdly wide on desktop.
    The dashboard's calendar views stay full-bleed and are not wrapped. */

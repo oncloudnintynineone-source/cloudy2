@@ -149,6 +149,21 @@ string maps to the first tab of that kind.
   (`Calendar view: <name>`) and its tooltip, keeping the period label the row's
   flexible element. At `lg` and up the button is hidden and the strip row
   returns unchanged.
+- **Mobile period chevrons (below `lg`).** The nav row's prev/next chevrons
+  leave the sticky top row and join the **bottom-right FAB cluster** —
+  `[<] [>] [LINK] [CREATE]` — so period steps sit in the phone thumb zone
+  instead of the top-of-screen dead zone. They are 44px circular
+  frosted-glass `ActionIcon`s (`.c2-glass-fab`, `globals.css`), alongside the
+  amber-tinted Quick-links FAB and brand-tinted New-event FAB — the whole
+  mobile cluster is glass — while the desktop row keeps its 36px rounded-square
+  chevrons. Both sets call the shared view-aware `navigatePeriod(±1)` dispatch
+  and read their accessible name from `periodStepLabel` (`DashboardView.tsx`),
+  so behaviour and announcements are identical. The top row's chevrons are
+  `visibleFrom="lg"` (desktop-only); at `lg`+ the cluster is hidden with the
+  rest of the mobile toolbar. The cluster's opacity is admin-adjustable via the
+  **`glassFabLevel`** feature flag (subtle / medium / strong; medium = the
+  shipped look), resolved into `DashboardSharedConfig` and applied as a
+  `c2-glass-fab--<level>` modifier — see [`feature-flags.md`](feature-flags.md).
 - **Period preservation on switch** (`switchTab` in `DashboardView.tsx`): a
   tab switch is a _filter/context_ change, so switching between two tabs of the
   same kind (or any two day-anchored kinds) keeps the current date; leaving

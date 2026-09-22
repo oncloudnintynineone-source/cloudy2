@@ -10,6 +10,7 @@ import {
   FEATURE_FLAGS,
   validateFeatureFlags,
   type FeatureFlagKey,
+  type GlassFabLevel,
   type PinnedTickerIndicator,
 } from "@/lib/settings/featureFlags";
 import { CONTENT_ENTER_CLASS } from "@/lib/loading/contentEnter";
@@ -58,11 +59,32 @@ function TickerIndicatorPreview({ value }: { value: PinnedTickerIndicator }) {
   );
 }
 
+/** A mock of the mobile bottom button cluster (`[<][>][LINK][CREATE]`) over a
+ *  two-tone checker, so the selected glass opacity is visible before saving.
+ *  `aria-hidden`: the preview is illustrative, not interactive. */
+function GlassFabPreview({ value }: { value: GlassFabLevel }) {
+  return (
+    <div className="c2-glass-preview" aria-hidden>
+      <span className={`c2-glass-preview-fab c2-glass-fab c2-glass-fab--${value}`} />
+      <span className={`c2-glass-preview-fab c2-glass-fab c2-glass-fab--${value}`} />
+      <span
+        className={`c2-glass-preview-fab c2-glass-fab c2-glass-fab--${value} c2-glass-fab--accent`}
+      />
+      <span
+        className={`c2-glass-preview-fab c2-glass-fab c2-glass-fab--${value} c2-glass-fab--brand`}
+      />
+    </div>
+  );
+}
+
 /** Feature-specific live preview; null for flags without one. The page/control
  *  rendering stays generic — a future flag adds its preview renderer here. */
 function previewFor(key: FeatureFlagKey, value: string) {
   if (key === "pinnedTickerIndicator") {
     return <TickerIndicatorPreview value={value as PinnedTickerIndicator} />;
+  }
+  if (key === "glassFabLevel") {
+    return <GlassFabPreview value={value as GlassFabLevel} />;
   }
   return null;
 }

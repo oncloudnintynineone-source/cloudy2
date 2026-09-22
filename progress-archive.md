@@ -8960,3 +8960,121 @@ audit-on-skip), `docs/developer-guide.md` §1.9.1, `AGENTS.md`.
 --http-method=GET` — and confirm `status.code` becomes 0.
 
 **Verified**: pnpm lint, pnpm typecheck, pnpm test (1363 pass). No migration/drift.
+
+## 1.274 Mobile period chevrons move to the thumb zone
+
+On phones the only in-place period control was the 36px `<`/`>` pair sitting
+mid-row at the very top of the screen (inside the sticky date-nav block), next to
+three sibling buttons — the classic one-handed thumb dead zone, and easy to lose
+sight of while scrolling. Month / Week (H) / Week (D) / Day have no swipe-to-move
+(today only Agenda and the Month & Agenda pane own a day swipe), so those small
+top-row chevrons were the only in-place way to change period there.
+
+```mermaid
+flowchart LR
+    subgraph Before["Before (below lg)"]
+      direction LR
+      L["period label"] --> P1["‹"] --> P2["›"] --> F["filter"] --> D["date"] --> V["view menu"]
+    end
+    subgraph After["After (below lg)"]
+      direction LR
+      TOP["period label · filter · date · view menu"] -.->|"‹ › move down"| CLUSTER["bottom-right cluster: ‹ › LINK CREATE"]
+    end
+```
+
+**Change** (`DashboardView.tsx`, no new file, no schema):
+
+- The inlined view-aware prev/next chains (Agenda → day, week kinds → week, Dual
+  Pane → month, other anchored → day, Month → month) were extracted into one
+  `navigatePeriod(dir)` plus a `periodStepLabel(prefix)` that reads the optimistic
+  `shown*` chrome, so the top row and the bottom cluster can never drift.
+- The two top-row chevrons gained `visibleFrom="lg"` (desktop-only) — the first
+  iteration mistakenly used `hiddenFrom="lg"`, which is the *opposite* (it hides
+  at/above the breakpoint, so the desktop row lost its period controls and the
+  mobile row kept them); `visibleFrom` matches the row's other desktop-only
+  controls. On mobile the nav row keeps the period label, filter, date selector
+  and view menu only.
+- Two `ActionIcon`s (`size={44}`, `radius="50%"` circles, `variant="default"`,
+  `IconChevronLeft/Right size={20}`, class `c2-glass-fab`) were prepended to the
+  mobile-only `FloatingToolbar` (the `formState === null` one), yielding
+  `[<] [>] [LINK] [CREATE]`; the Quick-links FAB gets
+  `c2-glass-fab c2-glass-fab--accent` and the New-event FAB
+  `c2-glass-fab c2-glass-fab--brand`. No `fabBottomOffset` change: the
+  right-anchored `Group` simply extends leftward and fits at 320px.
+- **Frosted glass** (`.c2-glass-fab` family in `globals.css`): the whole mobile
+  cluster becomes translucent with `backdrop-filter: blur(14px) saturate(1.5)`
+  (+ `-webkit-`) and a soft `shadow-md` (no border — a hard ring read as an off
+  outline, especially in dark mode). Scheme-aware via
+  `light-dark()`; tints keep the colour language (neutral chevrons, amber Quick
+  links, brand New event at ~0.8 alpha so the white `+` keeps contrast).
+  Applied only to these four controls — every other page's FABs stay solid.
+- Accessibility is free: the controls carry the same view-aware names and flow
+  through the same optimistic chrome, so the shared `StatusAnnouncer` watcher
+  (`shownView` + `periodLabel`) announces moves exactly as before. A draft form
+  open/minimized still owns the bottom-right slot (the cluster lives in the
+  no-draft toolbar), so the chevrons hide with the FABs while editing.
+- **Pre-existing lint error fixed**: `DashboardView.tsx` read `viewportRef.current`
+  during render (`react-hooks/refs`, surfaced by the lockfile-pinned
+  `eslint-plugin-react-hooks@7.1.1`). The modal grow-from-tapped-element math now
+  captures the viewport into `modalViewport` state via `captureModalViewport()`
+  when a modal opens (`openDayModal`/`openCreate`/EventDetail edit/duplicate),
+  instead of a resize-tracked ref read in render. Same non-reactive intent (the
+  origin is fixed at open, so a later resize needn't re-render) with no ref read
+  during render.
+
+**Docs**: `docs/dashboard-views.md` §1.1 (new "Mobile period chevrons" bullet),
+`docs/desktop-responsive.md` (sticky-chrome paragraph), `docs/immersive-mode.md`
+§1.4, `docs/accessibility.md` §1.2, `AGENTS.md`.
+
+**Verified**: pnpm lint, pnpm typecheck, pnpm test (1363 pass) — all green. No
+migration/drift.
+
+## 1.275 Adjustable glass-FAB opacity (feature flag)
+
+§1.274 shipped the Calendar mobile bottom cluster (`[<][>][LINK][CREATE]`) as
+frosted glass with hard-coded alphas. Feedback: the transparency should be
+tunable. Rather than a code-only knob, it becomes an org-wide **feature flag** so
+an admin can compare levels live (per the framework's own guidance).
+
+```mermaid
+flowchart LR
+    DB["settings.glass_fab_level (0050)"] --> Q["getSettings → featureFlags"]
+    Q --> D["buildDashboardData: resolveFlagValue(glassFabLevelFlag) → DashboardSharedConfig"]
+    D --> V["DashboardView prop glassFabLevel"]
+    V --> C["cluster className: c2-glass-fab--{subtle|medium|strong}"]
+    C --> CSS[".c2-glass-fab --c2g-* alpha vars"]
+    FL["Settings → Feature Flags control + live preview"] --> DB
+```
+
+**Change** (no UI code in the settings page — the registry renders it):
+
+- **Column**: `settings.glass_fab_level` text `NOT NULL DEFAULT 'medium'`
+  (migration `0050_sleepy_lady_ursula.sql` + committed `drizzle/meta`).
+- **Registry** (`src/lib/settings/featureFlags.ts`): `GLASS_FAB_LEVEL_OPTIONS`
+  (`subtle`/`medium`/`strong`), `GlassFabLevel`, `glassFabLevelFlag` (label "Glass
+  button opacity"), appended to `FEATURE_FLAGS`. The Settings page's generic form
+  renders the SegmentedControl and `updateFeatureFlags` writes the column with no
+  per-flag switch.
+- **Resolve** (`src/lib/dashboard/data.ts`): `glassFabLevel` joins the shared
+  config; because `DashboardSnapshot` is `Omit<DashboardViewProps, …>` it flows
+  into the device snapshot automatically. `DashboardView` gains the
+  `glassFabLevel` prop and applies `c2-glass-fab--<level>` to the two chevrons and
+  the amber/brand FABs.
+- **CSS** (`globals.css`): the alphas became `--c2g-base/hover/active/accent/brand-{l,d}`
+  vars consumed by the visual rules; accent/brand hover + active derive from their
+  base alpha via `calc()`. `.c2-glass-fab` carries the **medium** defaults (an
+  unmatched level still renders medium), and `.c2-glass-fab--{subtle,medium,strong}`
+  override the set — one shared level across all four controls.
+- **Preview** (`FeatureFlagsForm`): a `glassFabLevel` renderer shows the four
+  controls over a two-tone checker (`.c2-glass-preview`) so the level is visible
+  before saving.
+- **Snapshot version**: `DASHBOARD_SNAPSHOT_VERSION` 1 → 2 so a pre-existing
+  device snapshot (missing the field) is dropped rather than rendered stale.
+- **Tests**: `featureFlags.test.ts` expectations updated for the third registry
+  entry (normalization + validation + `isFeatureFlagKey` + resolve fallback).
+
+**Docs**: `docs/feature-flags.md` (purpose + file index + related links),
+`docs/dashboard-views.md` §1.1, `AGENTS.md` (flags list).
+
+**Verified**: pnpm lint, pnpm typecheck, pnpm test (1363 pass) — all green;
+`pnpm db:generate` produces only the 0050 migration.

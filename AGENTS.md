@@ -138,7 +138,11 @@ doc content here.
   opens the manage modal — an Add-view button, subtle ↑/↓ reorder, a per-row **Edit** dialog
   (name + type + an **Edit filters…** button that switches to the view and opens its filter
   dialog), delete, and a quiet accent left bar on the active row, plus the shared manage-row
-  recipe (`reorderUpDown.tsx`, `variant="subtle"`) + optimistic `useReorderRows` FLIP. Month
+  recipe (`reorderUpDown.tsx`, `variant="subtle"`) + optimistic `useReorderRows` FLIP. Below
+  `lg` the prev/next period chevrons leave the nav row and join the bottom-right FAB cluster
+  (`[<][>][LINK][CREATE]`, frosted glass via `.c2-glass-fab`) for thumb reach; both sets share
+  the view-aware `navigatePeriod`.
+  Month
   grids zoom from fit-to-width (`src/lib/ui/monthZoom.ts`,
   `dashboard.monthZoom`); Week (D) is a custom matrix (`buildWeekLanes`). Entry highlights:
   amber = mine, purple = external (`c2-my-*` / `c2-ext-*` in `globals.css`).
@@ -295,10 +299,14 @@ doc content here.
   `src/lib/settings/featureFlags.ts` (the last Settings tab auto-renders its control), resolve
   the value server-side and pass it down as a prop. Flags are **global** (no per-user override),
   default to today's behavior, and every flip is audited. Flags: `pinnedTickerIndicator`
-  ([`pinned-events.md`](docs/pinned-events.md) §1.4) and `savedEventToastVariant` — the four
+  ([`pinned-events.md`](docs/pinned-events.md) §1.4); `savedEventToastVariant` — the four
   post-save event-confirmation presentations (classic pill / restyled pill / toast + action /
   plain toast), resolved into `DashboardSharedConfig` → `EventForm`
-  ([`action-pill.md`](docs/action-pill.md)). Design: [docs/feature-flags.md](docs/feature-flags.md).
+  ([`action-pill.md`](docs/action-pill.md)); and `glassFabLevel` — the Calendar mobile bottom
+  button cluster's frosted-glass opacity (subtle / medium / strong), resolved into
+  `DashboardSharedConfig` → `DashboardView`
+  ([`dashboard-views.md`](docs/dashboard-views.md) §1.1). Design:
+  [docs/feature-flags.md](docs/feature-flags.md).
 - **Templates:** display-name template + **structured recipes** (`src/lib/settings/titleRecipe.ts`,
   no free text beyond an optional per-segment Text field) with per-target assignments
   (incl. `pinned`/`pinnedHeader` and the push bodies `notifyCreated`/`notifyAdded`).

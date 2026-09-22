@@ -113,7 +113,7 @@ import { sortMineFirst } from "@/lib/events/mineFirst";
 import { buildEventDeepLink } from "@/lib/events/deepLink";
 import type { CalendarEvent } from "@/lib/events/queries";
 import type { TitleRecipe } from "@/lib/settings/titleRecipe";
-import type { SavedEventToastVariant } from "@/lib/settings/featureFlags";
+import type { GlassFabLevel, SavedEventToastVariant } from "@/lib/settings/featureFlags";
 import type { EventActionOk } from "@/lib/events/actions";
 import type { LocationCategory } from "@/lib/events/locationPolicy";
 import {
@@ -361,6 +361,12 @@ export interface DashboardViewProps {
    * pill, a standard toast with a "View event" action, or a plain toast.
    */
   savedEventToastVariant: SavedEventToastVariant;
+  /**
+   * Frosted-glass opacity of the mobile bottom button cluster (Settings →
+   * Feature Flags): subtle / medium / strong, applied as a `c2-glass-fab--*`
+   * modifier on the period chevrons, Quick-links FAB and New-event FAB.
+   */
+  glassFabLevel: GlassFabLevel;
   /**
    * Enabled quick links in menu order (Settings → Quick Links); the amber
    * Quick-links launcher (mobile FAB / nav-row chip at lg) renders only when
@@ -880,6 +886,7 @@ function DashboardViewImpl({
   viewEventTitleRecipe,
   googleConfigured,
   savedEventToastVariant,
+  glassFabLevel,
   quickLinks,
   selectedCalendarIds,
   selectedTypes,
@@ -1656,22 +1663,17 @@ function DashboardViewImpl({
   // animation so the shrinking box still has content.
   const agendaViewDate = agendaDate ?? displayAgendaDate;
 
-  // Non-reactive viewport for the modal grow-from-tapped-element math. Kept in
-  // a ref updated on resize rather than Mantine's `useViewportSize`, whose
-  // subscription re-rendered this whole view on every resize (address-bar
-  // show/hide, keyboard). Read during render only when a modal transition needs
-  // it; the modal's origin is fixed at open, so a later resize not re-rendering
-  // is fine.
-  const viewportRef = useRef({ w: 0, h: 0 });
-  useEffect(() => {
-    const update = () => {
-      viewportRef.current = { w: window.innerWidth, h: window.innerHeight };
-    };
-    update();
-    window.addEventListener("resize", update);
-    return () => window.removeEventListener("resize", update);
+  // Viewport size for the modal grow-from-tapped-element math. Reading it
+  // during render (or via Mantine's `useViewportSize`, which re-rendered this
+  // whole view on every resize — address-bar show/hide, keyboard) is
+  // undesirable, so it is captured once when a modal opens: the modal's origin
+  // is fixed at open, and a later resize need not re-render. `modalViewport` is
+  // only read while a modal is actually mounted.
+  const [modalViewport, setModalViewport] = useState({ w: 0, h: 0 });
+  const captureModalViewport = useCallback(() => {
+    setModalViewport({ w: window.innerWidth, h: window.innerHeight });
   }, []);
-  const viewport = viewportRef.current;
+  const viewport = modalViewport;
   // The agenda-day and event-form modals widen at lg (and the event form
   // again at the wide-desktop band), so each shrink-to-target scale must use
   // its own modal's matching content width.
@@ -2361,6 +2363,37 @@ function DashboardViewImpl({
     navigate({ date: nextDate, month: nextMonth });
   }
 
+  /**
+   * View-aware period step, shared by the desktop top-row chevrons and the
+   * mobile bottom-right cluster so both stay in lockstep: Agenda steps a day,
+   * week kinds a week, Dual Pane a month, the remaining anchored kinds (Day) a
+   * day, and Month a month.
+   */
+  function navigatePeriod(dir: -1 | 1) {
+    if (isAgenda) {
+      applyAgendaDay(dayjs(headerDate).add(dir, "day").format("YYYY-MM-DD"));
+    } else if (isWeek) {
+      shiftWeek(dir);
+    } else if (isDual) {
+      shiftDualMonth(dir);
+    } else if (isAnchoredView) {
+      shiftDay(dir);
+    } else {
+      shiftMonth(dir);
+    }
+  }
+
+  /**
+   * Accessible name for a period-step control, read off the optimistic chrome
+   * (`shown*`) so it matches the period the label already shows. Mirrors the
+   * same unit precedence as `navigatePeriod` (week kinds before Dual Pane
+   * before the other anchored kinds).
+   */
+  function periodStepLabel(prefix: "Previous" | "Next") {
+    const unit = shownIsWeek ? "week" : shownIsDual ? "month" : shownIsAnchored ? "day" : "month";
+    return `${prefix} ${unit}`;
+  }
+
   /** Commit a Dual Pane split (drag end, keyboard step or double-click reset). */
   function handleSplitCommit(pct: number) {
     setDualSplit(clampDualSplit(pct) ?? DUAL_SPLIT_DEFAULT);
@@ -2517,6 +2550,7 @@ function DashboardViewImpl({
    * hidden): a fresh open animates with the modal itself, not a day slide.
    */
   function openDayModal(day: string, origin: Rect) {
+    captureModalViewport();
     setAgendaOriginRect(origin);
     setAgendaSlideDir(0);
     setAgendaDate(day);
@@ -2718,6 +2752,7 @@ function DashboardViewImpl({
   }
 
   function openCreate(dateValue: string, originRect: Rect | null = null) {
+    captureModalViewport();
     setFormMinimized(false);
     setFormOriginRect(originRect);
     setFormState({ event: null, templateEvent: null, defaultDate: dateValue });
@@ -3294,10 +3329,12 @@ function DashboardViewImpl({
         </Group>
 
         {/* Date navigation: pinned together with the tabs above so the period
-            label and prev/next stay reachable while the grid scrolls. Kept
+            label and controls stay reachable while the grid scrolls. Kept
             compact (36px controls) — it is part of the permanently visible
-            chrome on every breakpoint. Below `lg` the tab strip row is dropped
-            and the mobile view menu sits at this row's right edge. */}
+            chrome on every breakpoint. Below `lg` the tab strip row is dropped,
+            the mobile view menu sits at this row's right edge, and the
+            prev/next chevrons move down into the bottom-right cluster beside
+            the mobile FABs (thumb-zone reach on phones). */}
         <Group align="center" gap="xs" wrap="nowrap" mt="xs">
           <Text
             fw={600}
@@ -3312,55 +3349,24 @@ function DashboardViewImpl({
                 has none, so it falls back to the optimistic date (today). */}
             {periodLabel}
           </Text>
+          {/* Desktop period chevrons (visibleFrom="lg": desktop-only). Below
+              `lg` they move down into the bottom-right cluster beside the mobile
+              FABs, so reachability is a thumb-zone job on phones. */}
           <ActionIcon
+            visibleFrom="lg"
             size={36}
             variant="default"
-            aria-label={
-              shownIsWeek
-                ? "Previous week"
-                : shownIsDual
-                  ? "Previous month"
-                  : shownIsAnchored
-                    ? "Previous day"
-                    : "Previous month"
-            }
-            onClick={() =>
-              isAgenda
-                ? applyAgendaDay(dayjs(headerDate).add(-1, "day").format("YYYY-MM-DD"))
-                : isWeek
-                  ? shiftWeek(-1)
-                  : isDual
-                    ? shiftDualMonth(-1)
-                    : isAnchoredView
-                      ? shiftDay(-1)
-                      : shiftMonth(-1)
-            }
+            aria-label={periodStepLabel("Previous")}
+            onClick={() => navigatePeriod(-1)}
           >
             <IconChevronLeft size={18} />
           </ActionIcon>
           <ActionIcon
+            visibleFrom="lg"
             size={36}
             variant="default"
-            aria-label={
-              shownIsWeek
-                ? "Next week"
-                : shownIsDual
-                  ? "Next month"
-                  : shownIsAnchored
-                    ? "Next day"
-                    : "Next month"
-            }
-            onClick={() =>
-              isAgenda
-                ? applyAgendaDay(dayjs(headerDate).add(1, "day").format("YYYY-MM-DD"))
-                : isWeek
-                  ? shiftWeek(1)
-                  : isDual
-                    ? shiftDualMonth(1)
-                    : isAnchoredView
-                      ? shiftDay(1)
-                      : shiftMonth(1)
-            }
+            aria-label={periodStepLabel("Next")}
+            onClick={() => navigatePeriod(1)}
           >
             <IconChevronRight size={18} />
           </ActionIcon>
@@ -4418,12 +4424,14 @@ function DashboardViewImpl({
         event={detailEvent}
         onClose={() => setDetailEvent(null)}
         onEdit={(event, originRect) => {
+          captureModalViewport();
           setDetailEvent(null);
           setFormMinimized(false);
           setFormOriginRect(originRect);
           setFormState({ event, templateEvent: null, defaultDate: today });
         }}
         onDuplicate={(event, originRect) => {
+          captureModalViewport();
           setDetailEvent(null);
           setFormMinimized(false);
           setFormOriginRect(originRect);
@@ -4692,6 +4700,30 @@ function DashboardViewImpl({
         // FAB. hiddenFrom sits on the toolbar itself: its Affix portals to
         // <body>, so a wrapper element could not hide it.
         <FloatingToolbar hiddenFrom="lg" bottomOffset={fabBottomOffset}>
+          {/* Period chevrons, moved down from the top nav row below `lg` so
+              they sit in the thumb zone beside the FABs ([<][>][LINK][CREATE]).
+              44px circular frosted-glass controls sharing the desktop row's
+              view-aware dispatch; the whole mobile cluster is glass. */}
+          <ActionIcon
+            className={`c2-glass-fab c2-glass-fab--${glassFabLevel}`}
+            size={44}
+            radius="50%"
+            variant="default"
+            aria-label={periodStepLabel("Previous")}
+            onClick={() => navigatePeriod(-1)}
+          >
+            <IconChevronLeft size={20} />
+          </ActionIcon>
+          <ActionIcon
+            className={`c2-glass-fab c2-glass-fab--${glassFabLevel}`}
+            size={44}
+            radius="50%"
+            variant="default"
+            aria-label={periodStepLabel("Next")}
+            onClick={() => navigatePeriod(1)}
+          >
+            <IconChevronRight size={20} />
+          </ActionIcon>
           {/* The amber Quick-links FAB opens the quick-links menu (Settings →
               Quick Links); it renders only when at least one link is enabled.
               Amber + link icon on purpose: it must never be confused with the
@@ -4701,13 +4733,19 @@ function DashboardViewImpl({
               links={quickLinks}
               position="top-end"
               trigger={
-                <FloatingActionButton variant="light" color="accent" aria-label="Quick links">
+                <FloatingActionButton
+                  className={`c2-glass-fab c2-glass-fab--${glassFabLevel} c2-glass-fab--accent`}
+                  variant="light"
+                  color="accent"
+                  aria-label="Quick links"
+                >
                   <IconLink size={FAB_ICON_SIZE} />
                 </FloatingActionButton>
               }
             />
           )}
           <FloatingActionButton
+            className={`c2-glass-fab c2-glass-fab--${glassFabLevel} c2-glass-fab--brand`}
             aria-label="New event"
             // The Agenda tab prefills the day being viewed (like the day
             // modal's button); the other views keep "today".

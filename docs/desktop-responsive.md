@@ -182,11 +182,13 @@ skeleton matches the natural shape via `monthGridRows()`.
 **Sticky chrome & pinned view headers (every width):** the dashboard pins its
 date-nav row as a **sticky unit** (`top:
 var(--app-shell-header-offset)`, opaque background, bottom divider,
-compact 36px controls) so the period label, prev/next chevrons and filter/date
-buttons stay reachable while any view's grid scrolls — on phones too, where
-losing them mid-scroll was the old default. At `lg`+ the view-tab strip row
-rides directly above it as part of the same pinned block; below `lg` that row is
-**dropped** (a full row of sticky chrome) and the nav row instead **gains the
+compact 36px controls) so the period label, filter and date buttons stay
+reachable while any view's grid scrolls — on phones too, where losing them
+mid-scroll was the old default. Below `lg` the prev/next chevrons leave this row
+for the bottom-right FAB cluster (`[<] [>] [LINK] [CREATE]`, frosted glass),
+putting period steps in the thumb zone (`dashboard-views.md` §1.1). At `lg`+ the view-tab strip
+row rides directly above it as part of the same pinned block; below `lg` that row
+is **dropped** (a full row of sticky chrome) and the nav row instead **gains the
 compact four-squares view-menu button at its right edge** (the mobile view menu,
 [`dashboard-views.md`](dashboard-views.md) §1.1). The unit renders at `zIndex: 50`, above every
 layer `@mantine/schedule` stacks internally (sticky-left columns reach

@@ -18,7 +18,7 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
 
 ## 1.1 Status
 
-- All work through changelog **1.273 (parade-state email cron fix + hardening)** is shipped.
+- All work through changelog **1.275 (adjustable glass-FAB opacity flag)** is shipped.
 - Quality gates (`lint` / `typecheck` / `test` / schema-drift check) run in CI on every
   push and PR. Pushes also auto-apply migrations per environment: `dev` →
   `migrate-preview` against the dev Neon DB, `main` → `migrate` against the prod Neon
@@ -1440,6 +1440,32 @@ via `?attendance=1` and `attendanceStorage` became a `useSyncExternalStore` exte
     `saveParadeEmailSettings` now calls `invalidateConfigCache(["settings"])` like every
     sibling settings action (a just-enabled config no longer serves stale `disabled` for up
     to 60 s). Docs: `parade-state-email.md` §1.1/§1.4/§1.5, `developer-guide.md` §1.9.1,
+    `AGENTS.md`.
+- 1.274 Mobile period chevrons move to the thumb zone. Below `lg` the dashboard
+    nav row's prev/next `<` `>` leave the sticky top row (`visibleFrom="lg"` on
+    the desktop row) and join the bottom-right FAB cluster
+    (`[<] [>] [LINK] [CREATE]`) beside the Quick-links / New-event FABs as 44px
+    circular frosted-glass controls (`.c2-glass-fab` + amber/brand tints); the
+    whole mobile cluster is glass, every other page's FABs stay solid. The top
+    row keeps the period label, filter, date and view-menu; both sets call one
+    shared view-aware `navigatePeriod(±1)` and read their accessible name from
+    `periodStepLabel`, so behaviour and the existing live-region announcements
+    are unchanged. Also fixes the pre-existing `react-hooks/refs` lint error by
+    capturing the modal viewport size on open (`captureModalViewport`) instead
+    of reading a ref during render. Docs: `dashboard-views.md` §1.1,
+    `desktop-responsive.md`, `immersive-mode.md` §1.4, `accessibility.md` §1.2,
+    `AGENTS.md`.
+- 1.275 Adjustable glass-FAB opacity: the Calendar mobile bottom button cluster's
+    frosted-glass transparency is now a feature flag, `glassFabLevel`
+    (subtle / medium / strong; medium = the shipped look) — new
+    `settings.glass_fab_level` column (migration 0050) + one registry entry, so
+    Settings → Feature Flags auto-renders the control (with a live four-button
+    preview over a two-tone checker). The alphas moved into `.c2-glass-fab`
+    `--c2g-*` CSS vars consumed by the visual rules (accent/brand hover + active
+    derive with `calc()`), and the level applies as a `c2-glass-fab--<level>`
+    modifier on the cluster. Resolved into `DashboardSharedConfig` →
+    `DashboardView`; `DASHBOARD_SNAPSHOT_VERSION` bumped 1 → 2 so stale device
+    snapshots are dropped. Docs: `feature-flags.md`, `dashboard-views.md` §1.1,
     `AGENTS.md`.
 
 ## 1.4 Open items & next steps

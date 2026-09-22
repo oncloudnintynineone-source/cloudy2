@@ -2,8 +2,9 @@
 
 Admin-controlled, org-wide switches that let UI variants be tested **live** before
 one is shipped as the default. Today it owns the pinned-events header ticker's
-indicator style and the post-save event confirmation's presentation; new flags join
-the same registry (Settings → Feature Flags, last strip tab).
+indicator style, the post-save event confirmation's presentation, and the Calendar
+page's mobile bottom button cluster's frosted-glass opacity; new flags join the same
+registry (Settings → Feature Flags, last strip tab).
 
 ## Table of contents
 
@@ -91,7 +92,7 @@ normalization) and the full quality gates before pushing.
 | `src/lib/settings/actions.ts` | `updateFeatureFlags` (audited, cache-invalidating) |
 | `src/app/(protected)/settings/feature-flags/` | Page + generic `FeatureFlagsForm` + skeleton |
 | `src/app/(protected)/layout.tsx` | Resolves the header-facing flags into the shell |
-| `src/lib/dashboard/data.ts` | Resolves the saved-event confirmation flag into `DashboardSharedConfig` |
+| `src/lib/dashboard/data.ts` | Resolves the dashboard-facing flags (`savedEventToastVariant`, `glassFabLevel`) into `DashboardSharedConfig` |
 
 Related docs:
 
@@ -99,4 +100,6 @@ Related docs:
   and its five variants in the header pill.
 - [`action-pill.md`](action-pill.md) — the `savedEventToastVariant` flag: the four
   post-save confirmation variants and the action pill's `toast` presentation.
+- [`dashboard-views.md`](dashboard-views.md) §1.1 — the `glassFabLevel` flag: the
+  mobile period chevrons' frosted-glass cluster and its three opacity levels.
 - [`audit-log.md`](audit-log.md) — how admin writes are recorded.
