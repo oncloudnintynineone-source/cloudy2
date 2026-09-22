@@ -8,22 +8,39 @@
  * through the sanctioned month cache (never raw `listEvents`).
  */
 
+import type { MantineColor } from "@mantine/core";
 import { and, eq, inArray } from "drizzle-orm";
 
 import { db } from "@/db";
 import { calendars, kahGroupMembers, kahGroups, users } from "@/db/schema";
+import { listEventTypes } from "@/lib/eventTypes/queries";
 import { effectiveEventWindow } from "@/lib/events/clashes";
+import { conflictWindowNaive } from "@/lib/events/clashDisplay";
 import { addOneDay, formatInstantToNaive, monthsInRange, parseNaiveToInstant } from "@/lib/events/datetime";
+import { effectiveCalendarColor, effectiveEventTypeColor } from "@/lib/events/eventColors";
 import {
+  isExternalEvent,
   parseEventEndAmPm,
   parseEventOutOfCamp,
   parseEventOverseas,
   parseEventPeople,
   parseEventStartAmPm,
   parseEventTimeOption,
+  parseEventTitle,
+  parseEventType,
 } from "@/lib/events/notes";
+import type { TimeOption } from "@/lib/events/timeOptions";
 import { getCachedMonthEventsForCalendars } from "@/lib/google/eventsCache";
 import { inCountryPercentage, type KahGroupCheck } from "@/lib/kah/check";
+
+/**
+ * How many days the KAH Status nav badge scans forward, from today inclusive —
+ * the advisory window the badge counts breaches over (mirrors Double Booking's
+ * `USER_CLASH_SCAN_DAYS`). A group with any breached day in
+ * `[today, today + KAH_BADGE_LOOKAHEAD_DAYS)` counts once
+ * (`breachedGroupCount`).
+ */
+export const KAH_BADGE_LOOKAHEAD_DAYS = 30;
 
 /**
  * Whether the id is a real roster-user UUID. Session identities are not always
@@ -188,48 +205,112 @@ export interface KahOverseasEvent {
 }
 
 /**
- * Overseas events (the only kind that takes a member "away" — out of country)
- * overlapping [windowStart, windowEnd). Every calendar is month-read through
- * the events cache (never raw `listEvents`), matching the view reads; month
- * listings overlap at boundaries, so items are deduped by (calendar, event id).
- * In-camp, local out-of-camp, external, and legacy events never appear.
+ * An overseas event with the display/geometry fields the KAH breach cards need
+ * to render an event row — the same shape family as the clash reports'
+ * `EventClashEntry`, so the shared `ClashEventRow` renders both. Produced only
+ * by `overseasEventEntriesInRange` (the page read); the notify path keeps the
+ * lean `KahOverseasEvent`.
  */
-export async function overseasEventsInRange(
+export interface KahBreachEvent extends KahOverseasEvent {
+  /** Registry (department) calendar id this copy was read from. */
+  calendarId: string;
+  /** Department name of `calendarId`, for display. */
+  calendarName: string;
+  /** Google event id of this copy. */
+  googleEventId: string;
+  /** Logical group id shared by all department copies, or null (legacy/external). */
+  eventId: string | null;
+  /** The stored Google Calendar summary. */
+  title: string;
+  /** Event type name from the notes block, or null (untyped/external). */
+  typeName: string | null;
+  /** Event type shortname (acronym), or null when unset/unknown. */
+  typeShortname: string | null;
+  /** The raw (pre-template) title from the notes block; null for legacy/external. */
+  rawTitle: string | null;
+  /** Display color: the event type's color, else the department fallback. */
+  color: MantineColor;
+  /** True when the event was created directly in Google (no app notes). */
+  external: boolean;
+  /** Whether the event is stored as all-day (display only). */
+  allDay: boolean;
+  /** Datetime option used to create the event ("range" | "full" | "half"). */
+  timeOption: TimeOption;
+  /** Start half-of-day indicator for "half" events, else null. */
+  startAmPm: "AM" | "PM" | null;
+  /** End half-of-day indicator for "half" events, else null. */
+  endAmPm: "AM" | "PM" | null;
+  /** Inclusive display window (all-day end stepped back to its civil day). */
+  startNaive: string;
+  endNaive: string;
+  /** Half-day-aware occupancy window the cards label by. */
+  effectiveStartNaive: string;
+  effectiveEndNaive: string;
+  /** True when the event occupies whole days (`timeOption: "full"`). */
+  occupiesFullDay: boolean;
+}
+
+/**
+ * Overseas events (the only kind that takes a member "away" — out of country)
+ * overlapping [windowStart, windowEnd), enriched with the display/geometry
+ * fields the breach cards need. Every calendar is month-read through the events
+ * cache (never raw `listEvents`), matching the view reads; month listings
+ * overlap at boundaries, so items are deduped by (calendar, event id). In-camp,
+ * local out-of-camp, external, and legacy events never appear.
+ */
+export async function overseasEventEntriesInRange(
   windowStart: Date,
   windowEnd: Date,
-): Promise<KahOverseasEvent[]> {
+): Promise<KahBreachEvent[]> {
   const calendarRows = await db
-    .select({ googleCalendarId: calendars.googleCalendarId })
+    .select({
+      id: calendars.id,
+      googleCalendarId: calendars.googleCalendarId,
+      name: calendars.name,
+      color: calendars.color,
+    })
     .from(calendars);
   const googleCalendarIds = calendarRows.map((row) => row.googleCalendarId);
   if (googleCalendarIds.length === 0) {
     return [];
   }
+  const calendarByGoogleId = new Map(calendarRows.map((row) => [row.googleCalendarId, row]));
+
+  // Event types resolve each item's shortname/color for the type-first label.
+  const allEventTypes = await listEventTypes();
+  const typeByName = new Map(allEventTypes.map((eventType) => [eventType.name, eventType]));
 
   // Wall-clock month keys covering the window, matching the view reads.
   const months = windowMonths(windowStart, windowEnd);
 
   const seen = new Set<string>();
-  const events: KahOverseasEvent[] = [];
+  const events: KahBreachEvent[] = [];
   const cachedPerMonth = await Promise.all(
     months.map((month) => getCachedMonthEventsForCalendars(googleCalendarIds, month)),
   );
   for (const cached of cachedPerMonth) {
     for (const [googleCalendarId, items] of Object.entries(cached.events)) {
+      const calendar = calendarByGoogleId.get(googleCalendarId);
+      if (!calendar) {
+        continue;
+      }
       for (const item of items) {
         // Only overseas events take a tagged member out of the country.
         if (!eventTakesMembersOverseas(item.description)) {
           continue;
         }
+        const timeOption = parseEventTimeOption(item.description) ?? (item.allDay ? "full" : "range");
+        const startAmPm = parseEventStartAmPm(item.description);
+        const endAmPm = parseEventEndAmPm(item.description);
         // The event's real occupancy on the UTC+8 wall clock: all-day events
         // are stored at UTC midnight (Google's date convention) and half-day
         // events carry AM/PM markers in the notes, so day windows must be
         // realigned exactly like the clash engine (`effectiveEventWindow`) —
         // otherwise a one-day event spills 8 h into the next UTC+8 day.
         const occupancy = effectiveEventWindow({
-          timeOption: parseEventTimeOption(item.description) ?? (item.allDay ? "full" : "range"),
-          startAmPm: parseEventStartAmPm(item.description),
-          endAmPm: parseEventEndAmPm(item.description),
+          timeOption,
+          startAmPm,
+          endAmPm,
           allDay: item.allDay,
           start: item.start,
           end: item.end,
@@ -244,17 +325,60 @@ export async function overseasEventsInRange(
         }
         seen.add(key);
         const people = parseEventPeople(item.description);
+        const typeName = parseEventType(item.description);
+        const typeInfo = typeName ? typeByName.get(typeName) : undefined;
+        const { startNaive, endNaive } = conflictWindowNaive(item.start, item.end, item.allDay);
         events.push({
           start: occupancy.start,
           end: occupancy.end,
           creatorId: people.creatorId,
           userIds: people.userIds,
+          calendarId: calendar.id,
+          calendarName: calendar.name,
+          googleEventId: item.id,
+          eventId: people.eventId,
+          title: item.title || "(no title)",
+          typeName,
+          typeShortname: typeInfo?.shortname ?? null,
+          rawTitle: parseEventTitle(item.description),
+          color: typeName
+            ? effectiveEventTypeColor(typeName, typeInfo?.color ?? null)
+            : effectiveCalendarColor(calendar.id, calendar.color),
+          external: isExternalEvent(item.description),
+          allDay: item.allDay,
+          timeOption,
+          startAmPm,
+          endAmPm,
+          startNaive,
+          endNaive,
+          effectiveStartNaive: formatInstantToNaive(occupancy.start),
+          effectiveEndNaive: formatInstantToNaive(occupancy.end),
+          occupiesFullDay: timeOption === "full",
         });
       }
     }
   }
   return events;
 }
+
+/**
+ * Lean overseas events (no display fields) for the away-set reads — the notify
+ * path's `busyKahsIn` and the page's per-day scan both consume this shape.
+ * Delegates to `overseasEventEntriesInRange` and drops the extra fields.
+ */
+export async function overseasEventsInRange(
+  windowStart: Date,
+  windowEnd: Date,
+): Promise<KahOverseasEvent[]> {
+  const entries = await overseasEventEntriesInRange(windowStart, windowEnd);
+  return entries.map(({ start, end, creatorId, userIds }) => ({
+    start,
+    end,
+    creatorId,
+    userIds,
+  }));
+}
+
 
 /**
  * KAH members taken "away" (out of country) by overseas events overlapping
@@ -429,6 +553,80 @@ export function kahBreachEpisodes(perDay: KahDayStatus[], today: string): KahBre
     }
     return a.groupName.localeCompare(b.groupName);
   });
+}
+
+/**
+ * Distinct group ids with at least one breached day across a per-day status
+ * scan — the KAH Status nav badge count. A group breaching on several days of
+ * the forward window counts once. Pure so it is unit-tested without a database.
+ */
+export function breachedGroupCount(perDay: KahDayStatus[]): number {
+  const ids = new Set<string>();
+  for (const day of perDay) {
+    for (const status of day.statuses) {
+      if (status.breached) {
+        ids.add(status.groupId);
+      }
+    }
+  }
+  return ids.size;
+}
+
+/**
+ * Collapse cross-calendar copies of one logical event (same notes `eventId`)
+ * into a single representative. A cross-department event is copied onto every
+ * target calendar, so the KAH all-calendars read sees the same logical event
+ * repeatedly; the away-set union ignores duplicates but the breach cards must
+ * render it once. Events without a group id (external/legacy) are deduped by
+ * (calendar, Google id). Pure.
+ */
+export function dedupeOverseasEventsByGroupId<
+  T extends { eventId: string | null; calendarId: string; googleEventId: string },
+>(events: readonly T[]): T[] {
+  const seenGroups = new Set<string>();
+  const seenCopies = new Set<string>();
+  const result: T[] = [];
+  for (const event of events) {
+    if (event.eventId) {
+      if (seenGroups.has(event.eventId)) {
+        continue;
+      }
+      seenGroups.add(event.eventId);
+    } else {
+      const key = `${event.calendarId}:${event.googleEventId}`;
+      if (seenCopies.has(key)) {
+        continue;
+      }
+      seenCopies.add(key);
+    }
+    result.push(event);
+  }
+  return result;
+}
+
+/** The members of `memberIds` tagged as attendees on the event (its away subset). Pure. */
+export function memberIdsAwayOnEvent(
+  event: Pick<KahOverseasEvent, "userIds">,
+  memberIds: ReadonlySet<string>,
+): string[] {
+  return [...new Set(event.userIds)].filter((id) => memberIds.has(id));
+}
+
+/**
+ * The overseas events that took a group's members away during a breach episode:
+ * events overlapping the half-open [startInstant, endInstant) window whose
+ * tagged attendees intersect the group's active members. Pure (drives the
+ * breach cards' event lists).
+ */
+export function eventsForGroupEpisode<
+  T extends Pick<KahOverseasEvent, "start" | "end" | "userIds">,
+>(events: readonly T[], memberIds: ReadonlySet<string>, startInstant: Date, endInstant: Date): T[] {
+  return events.filter(
+    (event) =>
+      event.start < endInstant &&
+      event.end > startInstant &&
+      event.userIds.some((id) => memberIds.has(id)),
+  );
 }
 
 /** Display names for a set of user ids (unknown ids dropped from the result). */

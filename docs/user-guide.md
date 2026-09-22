@@ -45,7 +45,7 @@ flowchart LR
 | **Calendar** | All events across departments — the main screen |
 | **Parade State** | Today's roll call by department, with attendance mode |
 | **Contacts** | Phone list with search and VCF export |
-| **KAH Status** | Past & future KAH breaches for your groups over ±3 months, with resolved/active/upcoming status (shown when you are in a KAH group; admins always see it with all groups) |
+| **KAH Status** | Past & future KAH breaches for your groups over ±3 months, with resolved/active/upcoming status; expand a breach to see the group roster (away vs in country) and the overseas events behind it (shown when you are in a KAH group; admins always see it with all groups) |
 | **Settings** | Admin only |
 
 On phones the pages sit in the bottom navigation bar; on desktop they move to the

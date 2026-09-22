@@ -8,7 +8,6 @@ import {
   formatInstantToNaive,
   monthsInRange,
   parseNaiveToInstant,
-  subOneDay,
 } from "@/lib/events/datetime";
 import { findEventByGroupId } from "@/lib/events/deepLink";
 import { clashingEventsFor, USER_CLASH_SCAN_DAYS } from "@/lib/events/clashQuery";
@@ -20,10 +19,11 @@ import {
   type ClashCandidateInput,
 } from "@/lib/events/clashes";
 import { clashLabelFor, type ClashLabelContext } from "@/lib/events/clashLabel";
+import { conflictWindowNaive } from "@/lib/events/clashDisplay";
+import { shapeClashDetail } from "@/lib/events/clashDetail";
 import { fetchRangeEvents, listCalendars, type CalendarEvent } from "@/lib/events/queries";
 import type { TimeOption } from "@/lib/events/timeOptions";
 import { activeMembershipsByDepartment, listUsers } from "@/lib/roster/queries";
-import { formatFullName } from "@/lib/settings/formatName";
 import { getEventTitleTemplateMap, getSettings } from "@/lib/settings/queries";
 import { canChangeLock, modifyGuard } from "@/lib/events/guards";
 import {
@@ -137,24 +137,6 @@ export type EventClashCheckResult =
       candidate: ClashCandidateWindow | null;
     }
   | { ok: false; error: string };
-
-/** Naive display strings for a conflict's window (all-day end made inclusive). */
-function conflictWindowNaive(
-  start: Date,
-  end: Date,
-  allDay: boolean,
-): {
-  startNaive: string;
-  endNaive: string;
-} {
-  if (allDay) {
-    const startDate = formatInstantToNaive(start).slice(0, 10);
-    const exclusiveEnd = formatInstantToNaive(end).slice(0, 10);
-    const endDate = subOneDay(exclusiveEnd);
-    return { startNaive: `${startDate} 00:00:00`, endNaive: `${endDate} 00:00:00` };
-  }
-  return { startNaive: formatInstantToNaive(start), endNaive: formatInstantToNaive(end) };
-}
 
 /** A resolved candidate context for the clash check and the wizard detail read. */
 interface ClashContext {
@@ -554,42 +536,6 @@ export type ClashEventDetailResult =
     }
   | { ok: false; error: string };
 
-/** An active roster row (the shape `listUsers` returns). */
-type RosterUserRow = Awaited<ReturnType<typeof listUsers>>[number];
-
-/**
- * Shape a resolved event copy into the in-place detail modal payload (shared by
- * the Double Booking page and the wizard's review-step advisory): the full
- * event plus the active-roster name maps and the acting user's department ids.
- */
-async function shapeClashDetail(
-  event: CalendarEvent,
-  activeUsers: RosterUserRow[],
-  sessionUserId: string,
-): Promise<ClashEventDetailResult> {
-  const [settings, calendars] = await Promise.all([getSettings(), listCalendars()]);
-  const peopleNames: Record<string, string> = Object.fromEntries(
-    activeUsers.map((user) => [
-      user.id,
-      formatFullName(
-        { name: user.name, departmentName: user.department?.name ?? null },
-        settings.nameTemplate,
-      ),
-    ]),
-  );
-  const calendarNames: Record<string, string> = Object.fromEntries(
-    calendars.map((calendar) => [calendar.id, calendar.name]),
-  );
-  const self = activeUsers.find((user) => user.id === sessionUserId);
-  return {
-    ok: true,
-    event,
-    peopleNames,
-    calendarNames,
-    myActiveDepartmentIds: self?.department?.id ? [self.department.id] : [],
-  };
-}
-
 /**
  * Read-only fetch of one clashing event for the Double Booking page's in-place
  * detail modal. Mirrors `checkUserClashes`'s guard: regular users may only
@@ -634,7 +580,7 @@ export async function getClashEventDetail(request: {
       return { ok: false, error: "Event not found" };
     }
 
-    return await shapeClashDetail(event, activeUsers, session.user.id);
+    return { ok: true, ...(await shapeClashDetail(event, activeUsers, session.user.id)) };
   } catch (error) {
     console.error("[clashes] Event detail fetch failed", error);
     return { ok: false, error: "Could not load the event" };
@@ -683,7 +629,7 @@ export async function getWizardClashEventDetail(request: {
 
     const users = await listUsers();
     const activeUsers = users.filter((user) => user.status === "active");
-    return await shapeClashDetail(event, activeUsers, session.user.id);
+    return { ok: true, ...(await shapeClashDetail(event, activeUsers, session.user.id)) };
   } catch (error) {
     console.error("[clashes] Wizard event detail fetch failed", error);
     return { ok: false, error: "Could not load the event" };

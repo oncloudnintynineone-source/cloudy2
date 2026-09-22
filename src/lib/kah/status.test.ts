@@ -5,11 +5,15 @@ import { encodeEventNotes, encodeNotesBlock } from "@/lib/events/notes";
 import type { KahGroupCheck } from "@/lib/kah/check";
 
 import {
+  breachedGroupCount,
   busyDaysInRange,
+  dedupeOverseasEventsByGroupId,
   eventTakesMembersOverseas,
+  eventsForGroupEpisode,
   isUuid,
   kahBreachEpisodes,
   kahStatusForWindow,
+  memberIdsAwayOnEvent,
   windowMonths,
   type KahDayStatus,
   type KahOverseasEvent,
@@ -235,6 +239,75 @@ describe("busyDaysInRange", () => {
   });
 });
 
+describe("dedupeOverseasEventsByGroupId", () => {
+  it("collapses cross-calendar copies sharing a group id, keeping the first", () => {
+    const events = [
+      { eventId: "g", calendarId: "c1", googleEventId: "e1" },
+      { eventId: "g", calendarId: "c2", googleEventId: "e2" },
+      { eventId: "h", calendarId: "c1", googleEventId: "e3" },
+    ];
+    expect(dedupeOverseasEventsByGroupId(events)).toEqual([
+      { eventId: "g", calendarId: "c1", googleEventId: "e1" },
+      { eventId: "h", calendarId: "c1", googleEventId: "e3" },
+    ]);
+  });
+
+  it("dedupes groupless copies by (calendar, Google id)", () => {
+    const events = [
+      { eventId: null, calendarId: "c1", googleEventId: "e1" },
+      { eventId: null, calendarId: "c1", googleEventId: "e1" },
+      { eventId: null, calendarId: "c2", googleEventId: "e1" },
+    ];
+    expect(dedupeOverseasEventsByGroupId(events)).toHaveLength(2);
+  });
+});
+
+describe("memberIdsAwayOnEvent", () => {
+  it("returns the members tagged on the event, deduped", () => {
+    expect(memberIdsAwayOnEvent({ userIds: ["a", "c", "a"] }, new Set(["a", "b"]))).toEqual(["a"]);
+  });
+
+  it("returns nothing when no tagged user is a member", () => {
+    expect(memberIdsAwayOnEvent({ userIds: ["c"] }, new Set(["a"]))).toEqual([]);
+  });
+});
+
+describe("eventsForGroupEpisode", () => {
+  const event = (start: string, end: string, userIds: string[]) => ({
+    start: parseNaiveToInstant(start),
+    end: parseNaiveToInstant(end),
+    userIds,
+  });
+
+  it("keeps overlapping events that take a group member away, dropping others", () => {
+    const memberIds = new Set(["a"]);
+    const events = [
+      event("2026-08-10 00:00:00", "2026-08-11 00:00:00", ["a"]), // overlaps + member
+      event("2026-08-05 00:00:00", "2026-08-06 00:00:00", ["a"]), // before the window
+      event("2026-08-10 00:00:00", "2026-08-11 00:00:00", ["b"]), // no group member
+    ];
+    const result = eventsForGroupEpisode(
+      events,
+      memberIds,
+      parseNaiveToInstant("2026-08-10 00:00:00"),
+      parseNaiveToInstant("2026-08-11 00:00:00"),
+    );
+    expect(result).toEqual([events[0]]);
+  });
+
+  it("excludes an event ending exactly at the window start (half-open)", () => {
+    const events = [event("2026-08-09 00:00:00", "2026-08-10 00:00:00", ["a"])];
+    expect(
+      eventsForGroupEpisode(
+        events,
+        new Set(["a"]),
+        parseNaiveToInstant("2026-08-10 00:00:00"),
+        parseNaiveToInstant("2026-08-11 00:00:00"),
+      ),
+    ).toEqual([]);
+  });
+});
+
 describe("kahBreachEpisodes", () => {
   // Command: 3 members, 60% required — 2 away (33%) breaches, 1 away (66%) is OK.
   const scan = (days: string[], awayByDate: Record<string, string[]>): KahDayStatus[] =>
@@ -410,5 +483,33 @@ describe("kahBreachEpisodes", () => {
       ["g1", "upcoming", "2026-09-05", "2026-09-06"],
       ["g1", "resolved", "2026-08-01", "2026-08-02"],
     ]);
+  });
+});
+
+describe("breachedGroupCount", () => {
+  it("counts each breached group once across the whole scan", () => {
+    // Command breaches on all three days; Ops breaches only on Aug 11.
+    const awayByDate: Record<string, string[]> = {
+      "2026-08-10": ["a", "b"],
+      "2026-08-11": ["a", "b", "z"],
+      "2026-08-12": ["a", "b"],
+    };
+    const perDay: KahDayStatus[] = ["2026-08-10", "2026-08-11", "2026-08-12"].map((date) => ({
+      date,
+      statuses: kahStatusForWindow([commandGroup, opsGroup], new Set(awayByDate[date])),
+    }));
+    expect(breachedGroupCount(perDay)).toBe(2);
+  });
+
+  it("returns 0 when no day breaches", () => {
+    const perDay: KahDayStatus[] = ["2026-08-10", "2026-08-11"].map((date) => ({
+      date,
+      statuses: kahStatusForWindow([commandGroup, opsGroup], new Set()),
+    }));
+    expect(breachedGroupCount(perDay)).toBe(0);
+  });
+
+  it("returns 0 for an empty scan", () => {
+    expect(breachedGroupCount([])).toBe(0);
   });
 });

@@ -8,13 +8,34 @@
 
 import dayjs from "dayjs";
 
-import { addDays, daysBetween, subOneDay } from "@/lib/events/datetime";
+import { addDays, daysBetween, formatInstantToNaive, subOneDay } from "@/lib/events/datetime";
 
 /** The subset of an entry the display helpers need. */
 export interface ClashWindowLike {
   startNaive: string;
   endNaive: string;
   allDay: boolean;
+}
+
+/**
+ * Naive display strings for an event's window (all-day ends made inclusive).
+ * Shared by the clash report shaping (`clashActions.ts`) and the KAH status
+ * page's breach cards. A whole-day event's stored end is the exclusive UTC
+ * midnight, so it is stepped back one civil day to the inclusive display
+ * convention. Pure.
+ */
+export function conflictWindowNaive(
+  start: Date,
+  end: Date,
+  allDay: boolean,
+): { startNaive: string; endNaive: string } {
+  if (allDay) {
+    const startDate = formatInstantToNaive(start).slice(0, 10);
+    const exclusiveEnd = formatInstantToNaive(end).slice(0, 10);
+    const endDate = subOneDay(exclusiveEnd);
+    return { startNaive: `${startDate} 00:00:00`, endNaive: `${endDate} 00:00:00` };
+  }
+  return { startNaive: formatInstantToNaive(start), endNaive: formatInstantToNaive(end) };
 }
 
 /** The structured fields a clash entry exposes for type-first display. */

@@ -193,7 +193,9 @@ app never blocks an event.
   `{breaches}`.
 - Members also get the read-only **KAH Status** page automatically; **admins always
   see it too**, listing every group's breach periods (past & next 3 months,
-  resolved/active/upcoming).
+  resolved/active/upcoming). Each breach is a collapsible card showing the group's
+  full roster (who is away vs in country) and the overseas events that took those
+  members away — tap an event for its read-only details in place.
 
 Design: [`kah.md`](kah.md).
 

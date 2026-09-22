@@ -1,15 +1,35 @@
 "use client";
 
+import { useRef, useState } from "react";
 import dayjs from "dayjs";
-import { Badge, Group, Paper, Stack, Table, Text } from "@mantine/core";
+import { useRouter } from "next/navigation";
+import { Badge, Group, Paper, Stack, Text } from "@mantine/core";
+import { notifications } from "@mantine/notifications";
 import { IconCircleCheck, IconUsersGroup } from "@tabler/icons-react";
 
 import { EmptyState } from "@/components/EmptyState";
 import { PageHeader } from "@/components/PageHeader";
 import { useColdStartContent } from "@/components/ColdStartReady";
+import { ClashCard, ClashEventRow } from "@/components/clashCards";
 import { CONTENT_ENTER_CLASS } from "@/lib/loading/contentEnter";
+import { useMinSkeletonHold } from "@/lib/loading/minHoldLoading";
+import type { Rect } from "@/lib/motion/origin";
+import type { EventClashEntry } from "@/lib/events/clashActions";
+import { buildEventDeepLink } from "@/lib/events/deepLink";
+import type { CalendarEvent } from "@/lib/events/queries";
+import { getKahBreachEventDetail } from "@/lib/kah/statusActions";
 
-/** One breach period (consecutive breached days) for a group, names pre-resolved. */
+import { EventDetail } from "../dashboard/EventDetail";
+
+/** One active KAH-group member as the breach card shows them. */
+export interface KahMember {
+  userId: string;
+  name: string;
+  away: boolean;
+}
+
+/** One breach period (consecutive breached days) for a group, with its roster
+ *  and the overseas events that took members away during the run. */
 export interface KahEpisodeRow {
   groupId: string;
   groupName: string;
@@ -21,7 +41,9 @@ export interface KahEpisodeRow {
   clippedStart: boolean;
   clippedEnd: boolean;
   status: "active" | "upcoming" | "resolved";
-  awayNames: string[];
+  totalMembers: number;
+  members: KahMember[];
+  events: EventClashEntry[];
 }
 
 interface KahStatusViewProps {
@@ -29,6 +51,8 @@ interface KahStatusViewProps {
   windowEnd: string;
   /** Admin view: shows every KAH group (not just the viewer's memberships). */
   allGroups?: boolean;
+  /** Id of the signed-in user, emphasised in the member chips. */
+  currentUserId: string;
   episodes: KahEpisodeRow[];
   /** Groups with no breached day in the window. */
   allClearGroups: string[];
@@ -71,18 +95,37 @@ function dayCount(days: number): string {
   return `${days} day${days === 1 ? "" : "s"}`;
 }
 
-function AwayNames({ names, highlight }: { names: string[]; highlight: boolean }) {
-  if (names.length === 0) {
-    return (
-      <Text fz="sm" c="dimmed">
-        No one away
-      </Text>
-    );
-  }
+/**
+ * The group roster as badges: away members in red, in-country members muted, and
+ * the signed-in user emphasised (accent). Capped with a `+N more` overflow so a
+ * large group stays readable.
+ */
+function MemberChips({ members, currentUserId }: { members: KahMember[]; currentUserId: string }) {
+  const max = 14;
+  const ordered = [...members.filter((member) => member.away), ...members.filter((m) => !m.away)];
+  const visible = ordered.slice(0, max);
+  const rest = ordered.length - visible.length;
   return (
-    <Text fz="sm" c={highlight ? "red" : undefined} lineClamp={2}>
-      {names.join(", ")}
-    </Text>
+    <Group gap={4} wrap="wrap">
+      {visible.map((member) => {
+        const isYou = member.userId === currentUserId;
+        return (
+          <Badge
+            key={member.userId}
+            size="xs"
+            variant={isYou ? "filled" : "light"}
+            color={isYou ? "accent" : member.away ? "red" : "gray"}
+          >
+            {isYou ? `${member.name} (You)` : member.name}
+          </Badge>
+        );
+      })}
+      {rest > 0 && (
+        <Text size="xs" c="dimmed">
+          +{rest} more
+        </Text>
+      )}
+    </Group>
   );
 }
 
@@ -90,15 +133,80 @@ export function KahStatusView({
   windowStart,
   windowEnd,
   allGroups = false,
+  currentUserId,
   episodes,
   allClearGroups,
 }: KahStatusViewProps) {
+  const router = useRouter();
   const windowLabel = `${dayjs(windowStart).format("MMM D, YYYY")} – ${dayjs(windowEnd).format(
     "MMM D, YYYY",
   )}`;
   // Cold-start readiness: this view only mounts after the server computed the
   // whole window, so reporting on mount is exactly "content painted".
   useColdStartContent();
+
+  // In-place detail modal: opens immediately (shaped skeleton) and lazily fetches
+  // the tapped event's full payload. A request token supersedes an in-flight
+  // fetch on close or another tap.
+  const [detailOpen, setDetailOpen] = useState(false);
+  const [detailLoading, setDetailLoading] = useState(false);
+  const [detailOrigin, setDetailOrigin] = useState<Rect | null>(null);
+  const detailRequestRef = useRef(0);
+  const [detail, setDetail] = useState<{
+    event: CalendarEvent;
+    peopleNames: Record<string, string>;
+    calendarNames: Record<string, string>;
+    myActiveDepartmentIds: string[];
+  } | null>(null);
+  const heldDetailLoading = useMinSkeletonHold(detailOpen && detailLoading);
+
+  async function openDetail(entry: EventClashEntry, rect: Rect) {
+    const requestId = detailRequestRef.current + 1;
+    detailRequestRef.current = requestId;
+    setDetailOrigin(rect);
+    setDetail(null);
+    setDetailLoading(true);
+    setDetailOpen(true);
+    try {
+      const result = await getKahBreachEventDetail({
+        calendarId: entry.calendarId,
+        eventId: entry.eventId,
+        googleEventId: entry.googleEventId,
+        startNaive: entry.effectiveStartNaive,
+        endNaive: entry.effectiveEndNaive,
+      });
+      if (requestId !== detailRequestRef.current) {
+        return;
+      }
+      if (!result.ok) {
+        setDetailOpen(false);
+        setDetailLoading(false);
+        notifications.show({ color: "red", message: result.error });
+        return;
+      }
+      setDetail({
+        event: { ...result.event, title: entry.title || result.event.title },
+        peopleNames: result.peopleNames,
+        calendarNames: result.calendarNames,
+        myActiveDepartmentIds: result.myActiveDepartmentIds,
+      });
+      setDetailLoading(false);
+    } catch {
+      if (requestId !== detailRequestRef.current) {
+        return;
+      }
+      setDetailOpen(false);
+      setDetailLoading(false);
+      notifications.show({ color: "red", message: "Could not load the event" });
+    }
+  }
+
+  function closeDetail() {
+    // Supersede any in-flight fetch so a late result can't reopen the modal.
+    detailRequestRef.current += 1;
+    setDetailOpen(false);
+    setDetailLoading(false);
+  }
 
   const counts = (["active", "upcoming", "resolved"] as const)
     .map((status) => {
@@ -140,75 +248,46 @@ export function KahStatusView({
       ) : (
         <>
           {episodes.length > 0 ? (
-            <>
-              {/* Mobile: card list */}
-              <Stack gap="sm" hiddenFrom="lg">
-                {episodes.map((episode) => (
-                  <Paper key={`${episode.groupId}:${episode.startDate}`} withBorder p="sm">
-                    <Stack gap={6}>
-                      <Group justify="space-between" wrap="nowrap">
-                        <Text fw={600} lineClamp={1}>
-                          {episode.groupName}
-                        </Text>
-                        {statusBadge(episode.status)}
-                      </Group>
-                      <Text fz="sm" c="dimmed">
-                        {periodLabel(episode)} · {dayCount(episode.days)}
-                      </Text>
-                      <Text fz="sm" c="dimmed">
-                        {episode.worstPct}% of {episode.requiredPct}% in country (lowest)
-                      </Text>
-                      <AwayNames
-                        names={episode.awayNames}
-                        highlight={episode.status === "active"}
-                      />
-                    </Stack>
-                  </Paper>
-                ))}
-              </Stack>
-
-              {/* Desktop: data table */}
-              <Paper withBorder visibleFrom="lg">
-                <Table withRowBorders={false} highlightOnHover>
-                  <Table.Thead>
-                    <Table.Tr>
-                      <Table.Th>Group</Table.Th>
-                      <Table.Th>Status</Table.Th>
-                      <Table.Th>Period</Table.Th>
-                      <Table.Th>Lowest in country</Table.Th>
-                      <Table.Th>Away</Table.Th>
-                    </Table.Tr>
-                  </Table.Thead>
-                  <Table.Tbody>
-                    {episodes.map((episode) => (
-                      <Table.Tr key={`${episode.groupId}:${episode.startDate}`}>
-                        <Table.Td>
-                          <Text fw={600}>{episode.groupName}</Text>
-                        </Table.Td>
-                        <Table.Td>{statusBadge(episode.status)}</Table.Td>
-                        <Table.Td>
-                          <Text fz="sm">{periodLabel(episode)}</Text>
-                          <Text fz="xs" c="dimmed">
-                            {dayCount(episode.days)}
+            <Stack gap="sm">
+              {episodes.map((episode) => {
+                const awayCount = episode.members.filter((member) => member.away).length;
+                const inCountryCount = episode.members.length - awayCount;
+                return (
+                  <ClashCard
+                    key={`${episode.groupId}:${episode.startDate}`}
+                    heading={`${episode.groupName} — ${episode.worstPct}% of ${episode.requiredPct}%`}
+                    headingSecondary={`${periodLabel(episode)} · ${dayCount(episode.days)}`}
+                    live={false}
+                    summaryBelow={
+                      <Stack gap={6}>
+                        <Group gap="xs" align="center">
+                          {statusBadge(episode.status)}
+                          <Text size="xs" c="dimmed">
+                            {awayCount} away · {inCountryCount} in country
                           </Text>
-                        </Table.Td>
-                        <Table.Td>
-                          <Text fz="sm">
-                            {episode.worstPct}% of {episode.requiredPct}%
-                          </Text>
-                        </Table.Td>
-                        <Table.Td>
-                          <AwayNames
-                            names={episode.awayNames}
-                            highlight={episode.status === "active"}
-                          />
-                        </Table.Td>
-                      </Table.Tr>
-                    ))}
-                  </Table.Tbody>
-                </Table>
-              </Paper>
-            </>
+                        </Group>
+                        <MemberChips members={episode.members} currentUserId={currentUserId} />
+                      </Stack>
+                    }
+                  >
+                    {episode.events.length > 0 ? (
+                      episode.events.map((entry, index) => (
+                        <ClashEventRow
+                          key={`${entry.calendarId}:${entry.googleEventId}:${index}`}
+                          entry={entry}
+                          typeFirst
+                          onOpen={(rect) => void openDetail(entry, rect)}
+                        />
+                      ))
+                    ) : (
+                      <Text size="xs" c="dimmed">
+                        No overseas events found for this breach.
+                      </Text>
+                    )}
+                  </ClashCard>
+                );
+              })}
+            </Stack>
           ) : (
             <Text c="dimmed" ta="center" py="sm">
               No KAH breaches in the window.
@@ -243,6 +322,37 @@ export function KahStatusView({
           ) : null}
         </>
       )}
+
+      {/* Always mounted so Mantine can play the open/close zoom; `event` toggles
+          while `loading` shows the shaped skeleton. */}
+      <EventDetail
+        event={detailOpen ? (detail?.event ?? null) : null}
+        loading={detailOpen && heldDetailLoading}
+        onClose={closeDetail}
+        readOnly
+        onOpenInCalendar={(event) => {
+          router.push(
+            buildEventDeepLink({
+              view: null,
+              start: event.start,
+              eventId: event.payload.eventId,
+              calendarId: event.payload.calendarId,
+            }),
+          );
+        }}
+        peopleNames={detail?.peopleNames ?? {}}
+        calendarNames={detail?.calendarNames ?? {}}
+        originRect={detailOrigin}
+        currentUserId={currentUserId}
+        isAdmin={allGroups}
+        myActiveDepartmentIds={detail?.myActiveDepartmentIds ?? []}
+        onEdit={() => {}}
+        onDuplicate={() => {}}
+        onDeleted={() => {}}
+        onOptimistic={() => {}}
+        onOptimisticSettled={() => {}}
+        onOptimisticRollback={() => {}}
+      />
     </Stack>
   );
 }

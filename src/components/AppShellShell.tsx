@@ -86,7 +86,8 @@ interface NavItem {
   matches: (pathname: string) => boolean;
   /**
    * Optional count pill over the icon (the acting user's Double Booking
-   * overlap count or active KAH breach count). Rendered only when > 0.
+   * overlap count or KAH breach count over the next 30 days). Rendered only
+   * when > 0.
    */
   badge?: number;
   /** Singular noun for the badge in the aria-label ("double booking", "KAH breach"). */
@@ -767,10 +768,12 @@ export function AppShellShell({
     };
   }, [refreshDoubleBooking]);
 
-  // The KAH Status nav badge: the number of the viewer's groups breaching
-  // *today* (admins: all groups, matching their status page; members: their
-  // own). Same best-effort lifecycle as the Double Booking badge, and only
-  // fetched for users who can see the KAH entry at all (`showKah`).
+  // The KAH Status nav badge: the number of the viewer's groups breaching on
+  // at least one day from today through the next 30 days (admins: all groups,
+  // matching their status page; members: their own) — the same forward-looking
+  // advisory shape as the Double Booking badge. Same best-effort lifecycle as
+  // the Double Booking badge, and only fetched for users who can see the KAH
+  // entry at all (`showKah`).
   const showKah = role === "admin" || kahGroup;
   const [kahCount, setKahCount] = useState<number | null>(null);
   const kahDebounceRef = useRef<number | null>(null);

@@ -188,7 +188,11 @@ doc content here.
 - **KAH constraints are notify-only.** After every successful create/update (never delete),
   `dispatchKahBreachCheck()` (`src/lib/kah/notify.ts`) runs inside `after()` — best-effort,
   it can never fail or delay the mutation. The KAH Status nav entry carries an amber
-  **active-breach count** badge (`checkKahBreaches`, `src/lib/kah/statusActions.ts`).
+  **breach count** badge (`checkKahBreaches`, `src/lib/kah/statusActions.ts`) — groups
+  breaching on any day from today through the next 30 days, counted once each; and the
+  `/kah-status` page renders each breach as a collapsible `ClashCard` (group roster with
+  away/in-country state + the overseas events behind it, opening the shared read-only
+  `EventDetail` in place).
   Design: [docs/kah.md](docs/kah.md).
 - **Weekday parade-state email (Settings → Parade State Email):** admins pick roster
   recipients and subject/body templates; a **Cloud Scheduler** job (not Vercel Cron) fires

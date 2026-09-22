@@ -298,7 +298,10 @@ this page render identically from one source: the chips and labels (incl. the
 the per-event row (`ClashEventRow`) live in `src/components/clashCards.tsx`. The
 card's polite live-region announcement is scoped to the always-visible summary
 row (never the expandable detail), so a fresh scan announces just the concise
-headings; expansion is a user action and is never re-announced.
+headings; expansion is a user action and is never re-announced. The KAH Status
+page's breach cards reuse `ClashCard` / `ClashEventRow` (and the shared
+`conflictWindowNaive` / `shapeClashDetail` helpers) so a breach reads the same way
+as a double booking — see [`kah.md`](kah.md) §1.7.
 
 ## 1.9 Edge cases
 

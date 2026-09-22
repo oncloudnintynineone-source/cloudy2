@@ -1390,6 +1390,32 @@ via `?attendance=1` and `attendanceStorage` became a `useSyncExternalStore` exte
     `busyDaysInRange` uses half-open boundaries, with the breach email/audit
     `{window}` showing the inclusive all-day end. Docs: `kah.md`
     §1.1/§1.5.1/§1.7/§1.8.
+- 1.270 KAH nav badge looks forward 30 days: `checkKahBreaches`
+    (`src/lib/kah/statusActions.ts`) no longer counts only groups breaching
+    *today* (which left the badge empty whenever breaches were only upcoming,
+    unlike Double Booking's 30-day scan) — it now runs the `/kah-status` page's
+    own per-day math over `[today, today + KAH_BADGE_LOOKAHEAD_DAYS)` via
+    `overseasEventsInRange` → `busyDaysInRange` → `kahStatusForWindow` and counts
+    distinct groups with any breached day (new pure, unit-tested
+    `breachedGroupCount` in `src/lib/kah/status.ts`). Docs: `kah.md` §1.7/§1.8,
+    `loading-transitions.md` §1.13.1.
+- 1.271 KAH breach cards: each `/kah-status` breach period now renders as a
+    collapsible clash-style `ClashCard` (reusing the Double Booking card/row
+    components) — the always-visible summary lists the group's **full active
+    roster** (away in red, in-country muted, "You" emphasised) with an
+    away/in-country count and the Active/Upcoming/Resolved status, and the
+    expanded body lists the **overseas events that took those members away**
+    (cross-calendar copies collapsed by the new pure
+    `dedupeOverseasEventsByGroupId`), each opening the shared read-only
+    `EventDetail` in place via the new read-only `getKahBreachEventDetail`
+    action (admin, or a member of an affected group; the copy is re-verified
+    against the enriched read). The KAH read gained
+    `overseasEventEntriesInRange` (`KahBreachEvent` with type/title/color/
+    calendar/windows) while `overseasEventsInRange` stays lean for notify; new
+    pure `eventsForGroupEpisode` + `memberIdsAwayOnEvent` are unit-tested.
+    `conflictWindowNaive` (clashDisplay) and `shapeClashDetail` (new
+    `events/clashDetail.ts`) are now shared with the clash reports. Docs:
+    `kah.md` §1.7/§1.8, `user-clashes.md` §1.8, guides.
 
 ## 1.4 Open items & next steps
 

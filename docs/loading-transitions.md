@@ -128,7 +128,7 @@ Suspense fallback), shaped to match the real content:
 | `(protected)/settings/quick-links` | card list (mobile) + `SettingsTableSkeleton` (desktop) |
 | `(protected)/settings/banner` | form skeleton |
 | `(protected)/settings/kah-groups` | card list (mobile) + `SettingsTableSkeleton` (desktop) |
-| `(protected)/kah-status` | episode cards (mobile) + `SettingsTableSkeleton` (desktop) |
+| `(protected)/kah-status` | breach-card list (roster chips + event rows) |
 | `(protected)/double-booking` | header + scan-result card skeleton |
 
 The `(protected)` **layout awaits only the banner read (a cheap single-row
@@ -564,6 +564,7 @@ streams independently of the chrome:
 | ---- | ---------------------- | ------ |
 | `pinned` | the shell's *initial* `fetchPinnedEvents()` — the mount effect wraps it; later refreshes (panel close, refocus, event CRUD) run untracked | `AppShellShell.tsx` |
 | `clashes` | the shell's *initial* `checkUserClashes({})` scan (same rule) | `AppShellShell.tsx` |
+| `kah` | the shell's *initial* `checkKahBreaches()` 30-day breach scan (same rule); only registered for users who see the KAH nav entry | `AppShellShell.tsx` |
 | content | the landing data view reports content-shown on mount — a view only mounts after its RSC data has streamed, so mount ≈ painted | `DashboardView`, `ParadeStateView`, `DoubleBookingView`, `KahStatusView`, `AuditLogView` (`useColdStartContent`) |
 
 Routes that stream heavy content **require** the content report before the bar
@@ -586,7 +587,7 @@ is tracked — their only UI effect is additive (header growth, a nav entry).
   in flight, so it only disappears once the work actually settles; a cold
   backend (Neon scale-to-zero + serverless/Cloud Run cold start + Google reads)
   is simply a long, legitimate load, never a reason to hide the indicator.
-  Both legs settle on resolve **or** reject (the shell wraps them in `.finally`),
+  Every leg settles on resolve **or** reject (the shell wraps them in `.finally`),
   so they cannot hang indefinitely.
 - **READY_DWELL_MS (1.2 s)** — how long the green bar stays before the machine
   finishes for the session.
