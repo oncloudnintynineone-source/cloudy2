@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useRef, useState, useTransition } from "react";
 import dayjs from "dayjs";
 import { useRouter } from "next/navigation";
 import { Badge, Group, Paper, Stack, Text } from "@mantine/core";
@@ -8,6 +8,7 @@ import { notifications } from "@mantine/notifications";
 import { IconCircleCheck, IconUsersGroup } from "@tabler/icons-react";
 
 import { EmptyState } from "@/components/EmptyState";
+import { NoKeyboardSelect } from "@/components/NoKeyboardSelect";
 import { PageHeader } from "@/components/PageHeader";
 import { useColdStartContent } from "@/components/ColdStartReady";
 import { ClashCard, ClashEventRow } from "@/components/clashCards";
@@ -17,45 +18,24 @@ import type { Rect } from "@/lib/motion/origin";
 import type { EventClashEntry } from "@/lib/events/clashActions";
 import { buildEventDeepLink } from "@/lib/events/deepLink";
 import type { CalendarEvent } from "@/lib/events/queries";
-import { getKahBreachEventDetail } from "@/lib/kah/statusActions";
+import {
+  KAH_RANGE_MONTHS,
+  kahRangeLabel,
+  parseKahRange,
+  type KahEpisodeRow,
+  type KahMember,
+  type KahRangeMonths,
+  type KahStatusViewData,
+} from "@/lib/kah/range";
+import { getKahBreachEventDetail, getKahStatusView } from "@/lib/kah/statusActions";
 
 import { EventDetail } from "../dashboard/EventDetail";
-
-/** One active KAH-group member as the breach card shows them. */
-export interface KahMember {
-  userId: string;
-  name: string;
-  away: boolean;
-}
-
-/** One breach period (consecutive breached days) for a group, with its roster
- *  and the overseas events that took members away during the run. */
-export interface KahEpisodeRow {
-  groupId: string;
-  groupName: string;
-  requiredPct: number;
-  startDate: string;
-  endDate: string;
-  days: number;
-  worstPct: number;
-  clippedStart: boolean;
-  clippedEnd: boolean;
-  status: "active" | "upcoming" | "resolved";
-  totalMembers: number;
-  members: KahMember[];
-  events: EventClashEntry[];
-}
+import { KahStatusSkeleton } from "./KahStatusSkeleton";
 
 interface KahStatusViewProps {
-  windowStart: string;
-  windowEnd: string;
-  /** Admin view: shows every KAH group (not just the viewer's memberships). */
-  allGroups?: boolean;
+  initial: KahStatusViewData;
   /** Id of the signed-in user, emphasised in the member chips. */
   currentUserId: string;
-  episodes: KahEpisodeRow[];
-  /** Groups with no breached day in the window. */
-  allClearGroups: string[];
 }
 
 type EpisodeStatus = KahEpisodeRow["status"];
@@ -129,21 +109,39 @@ function MemberChips({ members, currentUserId }: { members: KahMember[]; current
   );
 }
 
-export function KahStatusView({
-  windowStart,
-  windowEnd,
-  allGroups = false,
-  currentUserId,
-  episodes,
-  allClearGroups,
-}: KahStatusViewProps) {
+export function KahStatusView({ initial, currentUserId }: KahStatusViewProps) {
   const router = useRouter();
+  // The look-ahead is a per-view choice only — never persisted. The server
+  // renders the default range, and a change re-fetches through the action; a
+  // refresh remounts this view and resets to the default.
+  const [data, setData] = useState<KahStatusViewData>(initial);
+  const [rangeMonths, setRangeMonths] = useState<KahRangeMonths>(initial.rangeMonths);
+  const [pending, startTransition] = useTransition();
+  const { windowStart, windowEnd, allGroups, episodes, allClearGroups } = data;
+
   const windowLabel = `${dayjs(windowStart).format("MMM D, YYYY")} – ${dayjs(windowEnd).format(
     "MMM D, YYYY",
   )}`;
   // Cold-start readiness: this view only mounts after the server computed the
   // whole window, so reporting on mount is exactly "content painted".
   useColdStartContent();
+
+  function handleRangeChange(value: string | null) {
+    const next = parseKahRange(value);
+    if (next === rangeMonths) {
+      return;
+    }
+    setRangeMonths(next);
+    startTransition(async () => {
+      const result = await getKahStatusView({ rangeMonths: next });
+      if (result.ok) {
+        setData(result.data);
+      } else {
+        setRangeMonths(data.rangeMonths);
+        notifications.show({ color: "red", message: result.error });
+      }
+    });
+  }
 
   // In-place detail modal: opens immediately (shaped skeleton) and lazily fetches
   // the tapped event's full payload. A request token supersedes an in-flight
@@ -220,9 +218,23 @@ export function KahStatusView({
     <Stack gap="md" pb="xl" className={CONTENT_ENTER_CLASS}>
       <PageHeader
         title="KAH Status"
-        subtitle={`${windowLabel} · KAH breaches across the past & next 3 months${
+        subtitle={`${windowLabel} · KAH breaches over the next ${kahRangeLabel(rangeMonths)}${
           counts ? ` · ${counts}` : ""
         }`}
+      />
+
+      <NoKeyboardSelect
+        label="Look ahead"
+        size="xs"
+        w={150}
+        allowDeselect={false}
+        disabled={pending}
+        value={String(rangeMonths)}
+        onChange={handleRangeChange}
+        data={KAH_RANGE_MONTHS.map((months) => ({
+          value: String(months),
+          label: kahRangeLabel(months),
+        }))}
       />
 
       {allGroups ? (
@@ -231,7 +243,9 @@ export function KahStatusView({
         </Text>
       ) : null}
 
-      {episodes.length === 0 && allClearGroups.length === 0 ? (
+      {pending ? (
+        <KahStatusSkeleton />
+      ) : episodes.length === 0 && allClearGroups.length === 0 ? (
         allGroups ? (
           <EmptyState
             icon={<IconUsersGroup size={18} />}

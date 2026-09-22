@@ -564,7 +564,7 @@ streams independently of the chrome:
 | ---- | ---------------------- | ------ |
 | `pinned` | the shell's *initial* `fetchPinnedEvents()` — the mount effect wraps it; later refreshes (panel close, refocus, event CRUD) run untracked | `AppShellShell.tsx` |
 | `clashes` | the shell's *initial* `checkUserClashes({})` scan (same rule) | `AppShellShell.tsx` |
-| `kah` | the shell's *initial* `checkKahBreaches()` 30-day breach scan (same rule); only registered for users who see the KAH nav entry | `AppShellShell.tsx` |
+| `kah` | the shell's *initial* `checkKahBreaches()` forward 3-month episode scan (same rule); only registered for users who see the KAH nav entry | `AppShellShell.tsx` |
 | content | the landing data view reports content-shown on mount — a view only mounts after its RSC data has streamed, so mount ≈ painted | `DashboardView`, `ParadeStateView`, `DoubleBookingView`, `KahStatusView`, `AuditLogView` (`useColdStartContent`) |
 
 Routes that stream heavy content **require** the content report before the bar

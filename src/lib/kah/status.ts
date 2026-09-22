@@ -34,15 +34,6 @@ import { getCachedMonthEventsForCalendars } from "@/lib/google/eventsCache";
 import { inCountryPercentage, type KahGroupCheck } from "@/lib/kah/check";
 
 /**
- * How many days the KAH Status nav badge scans forward, from today inclusive —
- * the advisory window the badge counts breaches over (mirrors Double Booking's
- * `USER_CLASH_SCAN_DAYS`). A group with any breached day in
- * `[today, today + KAH_BADGE_LOOKAHEAD_DAYS)` counts once
- * (`breachedGroupCount`).
- */
-export const KAH_BADGE_LOOKAHEAD_DAYS = 30;
-
-/**
  * Whether the id is a real roster-user UUID. Session identities are not always
  * roster rows — the bootstrap admin password signs in as the synthetic
  * `id: "admin"` (`auth.ts` authorize), and a uuid-typed column query (e.g.
@@ -553,23 +544,6 @@ export function kahBreachEpisodes(perDay: KahDayStatus[], today: string): KahBre
     }
     return a.groupName.localeCompare(b.groupName);
   });
-}
-
-/**
- * Distinct group ids with at least one breached day across a per-day status
- * scan — the KAH Status nav badge count. A group breaching on several days of
- * the forward window counts once. Pure so it is unit-tested without a database.
- */
-export function breachedGroupCount(perDay: KahDayStatus[]): number {
-  const ids = new Set<string>();
-  for (const day of perDay) {
-    for (const status of day.statuses) {
-      if (status.breached) {
-        ids.add(status.groupId);
-      }
-    }
-  }
-  return ids.size;
 }
 
 /**

@@ -1,7 +1,7 @@
 "use server";
 
 import {
-  addDays,
+  addOneDay,
   daysBetween,
   formatInstantToNaive,
   monthsInRange,
@@ -12,30 +12,37 @@ import { shapeClashDetail } from "@/lib/events/clashDetail";
 import type { ClashEventDetailResult } from "@/lib/events/clashActions";
 import { fetchRangeEvents } from "@/lib/events/queries";
 import {
-  KAH_BADGE_LOOKAHEAD_DAYS,
-  breachedGroupCount,
+  DEFAULT_KAH_RANGE_MONTHS,
+  kahForwardWindow,
+  parseKahRange,
+  type KahStatusViewData,
+} from "@/lib/kah/range";
+import {
   busyDaysInRange,
+  kahBreachEpisodes,
   kahGroupsForUser,
   kahStatusForWindow,
   listKahGroupChecks,
   overseasEventEntriesInRange,
   overseasEventsInRange,
 } from "@/lib/kah/status";
+import { buildKahStatusViewData } from "@/lib/kah/viewData";
 import { listUsers } from "@/lib/roster/queries";
 import { requireSession } from "@/lib/session";
 
 export type KahBreachCountResult = { ok: true; count: number } | { ok: false; error: string };
 
 /**
- * The KAH Status nav badge count: how many of the viewer's groups breach on at
- * least one day from today through the next `KAH_BADGE_LOOKAHEAD_DAYS` days —
- * the same forward-looking advisory shape as Double Booking's 30-day scan.
- * Admins count every group, matching the groups their `/kah-status` page lists;
- * members count only their own. A group breaching on several days counts once.
+ * The KAH Status nav badge count: how many distinct breach *periods* (maximal
+ * runs of consecutive breached days) the viewer's groups have from today
+ * through the end of the month `DEFAULT_KAH_RANGE_MONTHS` months ahead — the
+ * same forward-only window the `/kah-status` page opens on. Admins count every
+ * group's periods combined, matching the groups their page lists; members count
+ * only their own. A group breaching in two separate runs counts twice.
  *
- * Uses the same per-day math as the `/kah-status` page (`overseasEventsInRange`
- * → `busyDaysInRange` → `kahStatusForWindow`), never the union-only
- * `busyKahsIn`, so the badge can't diverge from the page's day-level status. A
+ * Uses the same per-day math as the page (`overseasEventsInRange` →
+ * `busyDaysInRange` → `kahStatusForWindow` → pure `kahBreachEpisodes`), never
+ * the union-only `busyKahsIn`, so the badge can't diverge from the page. A
  * read-only scan over the cached month reads — never writes or audits.
  */
 export async function checkKahBreaches(): Promise<KahBreachCountResult> {
@@ -49,22 +56,50 @@ export async function checkKahBreaches(): Promise<KahBreachCountResult> {
       return { ok: true, count: 0 };
     }
 
-    // Forward window, today inclusive: `KAH_BADGE_LOOKAHEAD_DAYS` civil days,
-    // read as the half-open instant range [today 00:00, today + N 00:00).
+    // Forward-only window: `[today 00:00, first day after the window 00:00)`.
     const today = formatInstantToNaive(new Date()).slice(0, 10);
-    const days = daysBetween(today, addDays(today, KAH_BADGE_LOOKAHEAD_DAYS - 1));
+    const { windowStart, windowEnd } = kahForwardWindow(today, DEFAULT_KAH_RANGE_MONTHS);
+    const days = daysBetween(windowStart, windowEnd);
     const events = await overseasEventsInRange(
-      parseNaiveToInstant(`${today} 00:00:00`),
-      parseNaiveToInstant(`${addDays(today, KAH_BADGE_LOOKAHEAD_DAYS)} 00:00:00`),
+      parseNaiveToInstant(`${windowStart} 00:00:00`),
+      parseNaiveToInstant(`${addOneDay(windowEnd)} 00:00:00`),
     );
     const perDay = busyDaysInRange(events, days).map((day) => ({
       date: day.date,
       statuses: kahStatusForWindow(groups, new Set(day.awayIds)),
     }));
-    return { ok: true, count: breachedGroupCount(perDay) };
+    return { ok: true, count: kahBreachEpisodes(perDay, today).length };
   } catch (error) {
     console.error("[kah] Breach count failed", error);
     return { ok: false, error: "Could not check KAH breaches" };
+  }
+}
+
+export type KahStatusViewResult =
+  | { ok: true; data: KahStatusViewData }
+  | { ok: false; error: string };
+
+/**
+ * Rebuild the `/kah-status` view data for a newly selected look-ahead. The
+ * range is chosen per view (never persisted): the page's initial render uses
+ * the default range, and this action serves dropdown changes. The untrusted
+ * range is coerced with `parseKahRange` (default on garbage), and the same
+ * `buildKahStatusViewData` the page uses keeps the two identical.
+ */
+export async function getKahStatusView(input: {
+  rangeMonths: number;
+}): Promise<KahStatusViewResult> {
+  const session = await requireSession();
+  try {
+    const data = await buildKahStatusViewData({
+      userId: session.user.id,
+      role: session.user.role,
+      rangeMonths: parseKahRange(input.rangeMonths),
+    });
+    return { ok: true, data };
+  } catch (error) {
+    console.error("[kah] Status view failed", error);
+    return { ok: false, error: "Could not load KAH status" };
   }
 }
 

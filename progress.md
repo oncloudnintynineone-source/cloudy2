@@ -1415,7 +1415,19 @@ via `?attendance=1` and `attendanceStorage` became a `useSyncExternalStore` exte
     pure `eventsForGroupEpisode` + `memberIdsAwayOnEvent` are unit-tested.
     `conflictWindowNaive` (clashDisplay) and `shapeClashDetail` (new
     `events/clashDetail.ts`) are now shared with the clash reports. Docs:
-    `kah.md` §1.7/§1.8, `user-clashes.md` §1.8, guides.
+    `kah.md` §1.7/§1.8,     `user-clashes.md` §1.8, guides.
+- 1.272 KAH look-ahead & badge fix: the nav badge now counts breach **periods**
+    (maximal runs) over the forward window from today through the end of the
+    month 3 months ahead (the page's default) — admins combined across all
+    groups, members their own — instead of distinct groups over a bare 30-day
+    window, so a resolved/past or >30-day breach no longer leaves it hidden. The
+    `/kah-status` page is now **forward-only** (no past half) with a **Look
+    ahead** dropdown (3 months default / 6 months / 1 year) that is per-view only
+    — never saved, so a refresh resets it. `checkKahBreaches` and the page share
+    one builder (`buildKahStatusViewData` in new `src/lib/kah/viewData.ts`, with
+    the pure client-safe `src/lib/kah/range.ts` helpers); the new
+    `getKahStatusView` action serves range changes, and `Resolved` can no longer
+    occur. Docs: `kah.md` §1.7/§1.8/§1.9, `loading-transitions.md` §1.13.1.
 
 ## 1.4 Open items & next steps
 

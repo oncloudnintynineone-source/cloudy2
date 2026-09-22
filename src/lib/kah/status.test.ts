@@ -5,7 +5,6 @@ import { encodeEventNotes, encodeNotesBlock } from "@/lib/events/notes";
 import type { KahGroupCheck } from "@/lib/kah/check";
 
 import {
-  breachedGroupCount,
   busyDaysInRange,
   dedupeOverseasEventsByGroupId,
   eventTakesMembersOverseas,
@@ -483,33 +482,5 @@ describe("kahBreachEpisodes", () => {
       ["g1", "upcoming", "2026-09-05", "2026-09-06"],
       ["g1", "resolved", "2026-08-01", "2026-08-02"],
     ]);
-  });
-});
-
-describe("breachedGroupCount", () => {
-  it("counts each breached group once across the whole scan", () => {
-    // Command breaches on all three days; Ops breaches only on Aug 11.
-    const awayByDate: Record<string, string[]> = {
-      "2026-08-10": ["a", "b"],
-      "2026-08-11": ["a", "b", "z"],
-      "2026-08-12": ["a", "b"],
-    };
-    const perDay: KahDayStatus[] = ["2026-08-10", "2026-08-11", "2026-08-12"].map((date) => ({
-      date,
-      statuses: kahStatusForWindow([commandGroup, opsGroup], new Set(awayByDate[date])),
-    }));
-    expect(breachedGroupCount(perDay)).toBe(2);
-  });
-
-  it("returns 0 when no day breaches", () => {
-    const perDay: KahDayStatus[] = ["2026-08-10", "2026-08-11"].map((date) => ({
-      date,
-      statuses: kahStatusForWindow([commandGroup, opsGroup], new Set()),
-    }));
-    expect(breachedGroupCount(perDay)).toBe(0);
-  });
-
-  it("returns 0 for an empty scan", () => {
-    expect(breachedGroupCount([])).toBe(0);
   });
 });
