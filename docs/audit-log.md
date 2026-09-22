@@ -354,13 +354,16 @@ double-quotes fields containing `"`, `,`, `\r`, or `\n` and doubles inner quotes
   row (one pill per value: actor name, `actionLabel(action)`, entity type,
   search term, From/To dates). Mobile card rows (action label, UTC+8 timestamp,
   actor, entity badge, route/method badges, Details button); the desktop data
-  table (Time / Actor / Action / Entity / Route / Details) uses a **fixed table
-  layout** — pinned Time/Details column widths and ellipsized long
-  actor/action/entity/route values (full value on hover) — so it never outgrows
-  the container at narrow desktop widths (the previous auto layout let the
-  nowrap timestamp and untruncated text push the page into horizontal
-  overflow). A centered Mantine `Pagination` control (numbered pages, first/
-  prev/next/last) plus a "Page X of Y · N entries" caption sits below the list;
+  table (Time / Actor / Action / Entity / Details) uses a **fixed table layout**
+  — pinned Time/Actor/Details column widths with Action and Entity sharing the
+  remaining width, and **2-line Time/Actor cells** (time under date, role under
+  name) — so no column is squeezed into an ellipsis at narrow desktop widths
+  (the previous auto layout let the nowrap timestamp and untruncated text push
+  the page into horizontal overflow). Route and method are omitted from the
+  overview table — they remain in the detail modal and are still matched by
+  search (`?q=`) and included in the CSV export. A centered Mantine
+  `Pagination` control (numbered pages, first/prev/next/last) plus a
+  "Page X of Y · N entries" caption sits below the list;
   changing page pushes `?page=N` (page 1 drops the param) so the page is
   server-rendered and back/forward works. Every filter change resets to page 1.
   Also a retention card with a red "Delete older than N days" confirm button,

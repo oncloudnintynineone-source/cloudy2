@@ -587,7 +587,7 @@ export function AuditLogView({
             </Stack>
 
             {/* Desktop: data table (Time / Actor / Action / Entity / Route / Details) */}
-            <SettingsTableSkeleton columns={[2, 1.5, 1.5, 2, 2, 1.5]} rows={5} visibleFrom="lg" />
+            <SettingsTableSkeleton columns={[1, 1.6, 2.4, 2.4, 1.1]} rows={5} visibleFrom="lg" />
           </>
         ) : initialRows.length === 0 ? (
           <EmptyState
@@ -651,90 +651,86 @@ export function AuditLogView({
               ))}
             </Stack>
 
-            {/* Desktop: data table. Fixed table layout pins the Time/Details
-                widths and ellipsizes long actor/action/entity/route values
-                instead of letting the auto-layout table grow past the
-                container (which scrolled the page horizontally at narrow
-                desktop widths). */}
+            {/* Desktop: data table. A fixed layout pins Time/Actor/Details so
+                the table never outgrows its container, while Action and Entity
+                share the remaining width. Time and Actor stack their secondary
+                value on a second line (time under date, role under name) to
+                reclaim width, so no column is squeezed into an ellipsis at
+                narrow desktop widths. Route/method are omitted here — they live
+                in the detail modal and remain searchable/exportable. */}
             <Paper withBorder visibleFrom="lg">
               <Table withRowBorders={false} highlightOnHover tabularNums layout="fixed">
                 <Table.Thead>
                   <Table.Tr>
-                    <Table.Th w={160}>Time</Table.Th>
-                    <Table.Th>Actor</Table.Th>
+                    <Table.Th w={92}>Time</Table.Th>
+                    <Table.Th w={160}>Actor</Table.Th>
                     <Table.Th>Action</Table.Th>
                     <Table.Th>Entity</Table.Th>
-                    <Table.Th>Route</Table.Th>
-                    <Table.Th ta="right" w={110}>
+                    <Table.Th ta="right" w={100}>
                       <VisuallyHidden>Details</VisuallyHidden>
                     </Table.Th>
                   </Table.Tr>
                 </Table.Thead>
                 <Table.Tbody>
-                  {initialRows.map((row) => (
-                    <Table.Tr key={row.id}>
-                      <Table.Td style={{ whiteSpace: "nowrap" }}>
-                        <Text size="sm" c="dimmed">
-                          {formatLogTimestamp(row.createdAt)}
-                        </Text>
-                      </Table.Td>
-                      <Table.Td>
-                        <Text size="sm" truncate title={actorLabel(row)}>
-                          {actorLabel(row)}
-                        </Text>
-                      </Table.Td>
-                      <Table.Td>
-                        <Text size="sm" fw={600} truncate title={actionLabel(row.action)}>
-                          {actionLabel(row.action)}
-                        </Text>
-                      </Table.Td>
-                      <Table.Td>
-                        {row.entityType || row.entityName ? (
-                          <Group gap={6} wrap="nowrap">
-                            {row.entityType ? (
-                              <Badge size="xs" variant="light" color="brand">
-                                {row.entityType}
-                              </Badge>
-                            ) : null}
-                            {row.entityName ? (
-                              <Text size="sm" truncate title={row.entityName}>
-                                {row.entityName}
+                  {initialRows.map((row) => {
+                    const [datePart, timePart] = formatLogTimestamp(row.createdAt).split(" ");
+                    return (
+                      <Table.Tr key={row.id}>
+                        <Table.Td>
+                          <Stack gap={0}>
+                            <Text size="sm" c="dimmed" style={{ whiteSpace: "nowrap" }}>
+                              {datePart}
+                            </Text>
+                            <Text size="sm" c="dimmed" style={{ whiteSpace: "nowrap" }}>
+                              {timePart}
+                            </Text>
+                          </Stack>
+                        </Table.Td>
+                        <Table.Td>
+                          <Stack gap={0}>
+                            <Text size="sm" truncate title={actorLabel(row)}>
+                              {row.actorName ?? "Unknown"}
+                            </Text>
+                            {row.actorRole ? (
+                              <Text size="xs" c="dimmed">
+                                {row.actorRole}
                               </Text>
                             ) : null}
-                          </Group>
-                        ) : (
-                          <Text size="sm" c="dimmed">
-                            —
+                          </Stack>
+                        </Table.Td>
+                        <Table.Td>
+                          <Text size="sm" fw={600} truncate title={actionLabel(row.action)}>
+                            {actionLabel(row.action)}
                           </Text>
-                        )}
-                      </Table.Td>
-                      <Table.Td>
-                        {row.route || row.method ? (
-                          <Group gap={6} wrap="nowrap">
-                            {row.method ? (
-                              <Badge size="xs" variant="outline" color="gray">
-                                {row.method}
-                              </Badge>
-                            ) : null}
-                            {row.route ? (
-                              <Text size="sm" c="dimmed" truncate title={row.route}>
-                                {row.route}
-                              </Text>
-                            ) : null}
-                          </Group>
-                        ) : (
-                          <Text size="sm" c="dimmed">
-                            —
-                          </Text>
-                        )}
-                      </Table.Td>
-                      <Table.Td ta="right">
-                        <Button variant="subtle" size="xs" onClick={() => setDetail(row)}>
-                          Details
-                        </Button>
-                      </Table.Td>
-                    </Table.Tr>
-                  ))}
+                        </Table.Td>
+                        <Table.Td>
+                          {row.entityType || row.entityName ? (
+                            <Group gap={6} wrap="nowrap">
+                              {row.entityType ? (
+                                <Badge size="xs" variant="light" color="brand">
+                                  {row.entityType}
+                                </Badge>
+                              ) : null}
+                              {row.entityName ? (
+                                <Text size="sm" c="dimmed" truncate title={row.entityName}>
+                                  {row.entityName}
+                                </Text>
+                              ) : null}
+                            </Group>
+                          ) : (
+                            <Text size="sm" c="dimmed">
+                              —
+                            </Text>
+                          )}
+                        </Table.Td>
+                        <Table.Td ta="right">
+                          <Button variant="subtle" size="xs" onClick={() => setDetail(row)}>
+                            Details
+                          </Button>
+                        </Table.Td>
+                      </Table.Tr>
+                    );
+                  })}
                 </Table.Tbody>
               </Table>
             </Paper>
