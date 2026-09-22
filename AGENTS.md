@@ -198,8 +198,10 @@ doc content here.
   recipients and subject/body templates; a **Cloud Scheduler** job (not Vercel Cron) fires
   weekdays at 08:00 SGT and hits the `CRON_SECRET`-protected
   `/api/cron/parade-state-email` route, which claims the day via the unique
-  `parade_email_sends.send_date` so it sends at most once. The schedule is fixed in the
-  scheduler (no in-app send time). The snapshot is org-wide and derived from the same
+  `parade_email_sends.send_date` so it sends at most once (GET is canonical; the route also
+  accepts POST so a job created with gcloud's default method can't 405 silently). Every
+  attempt writes a `paradeState.emailSend` audit row with its outcome/reason. The schedule is
+  fixed in the scheduler (no in-app send time). The snapshot is org-wide and derived from the same
   shared pure helpers as the parade page (`src/lib/parade/*`) — attendance localStorage
   marks are excluded. Templates render through the shared `renderTemplate`
   (`src/lib/email/template.ts`, also KAH's). Design:

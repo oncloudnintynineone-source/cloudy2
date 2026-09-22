@@ -18,7 +18,7 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
 
 ## 1.1 Status
 
-- All work through changelog **1.268 (month weekday strip whitespace fix)** is shipped.
+- All work through changelog **1.273 (parade-state email cron fix + hardening)** is shipped.
 - Quality gates (`lint` / `typecheck` / `test` / schema-drift check) run in CI on every
   push and PR. Pushes also auto-apply migrations per environment: `dev` →
   `migrate-preview` against the dev Neon DB, `main` → `migrate` against the prod Neon
@@ -1428,6 +1428,19 @@ via `?attendance=1` and `attendanceStorage` became a `useSyncExternalStore` exte
     the pure client-safe `src/lib/kah/range.ts` helpers); the new
     `getKahStatusView` action serves range changes, and `Resolved` can no longer
     occur. Docs: `kah.md` §1.7/§1.8/§1.9, `loading-transitions.md` §1.13.1.
+- 1.273 Parade-state email cron fix + hardening: the Cloud Scheduler job was created with
+    gcloud's default HTTP method (POST) while the route exported only GET, so every scheduled
+    tick 405'd and Cloud Scheduler recorded `status.code` 2 (UNKNOWN) while a manual GET
+    succeeded — the route now exports GET and POST (GET canonical,
+    `src/app/api/cron/parade-state-email/route.ts`). `runParadeStateEmail` now audits every
+    non-test attempt (`paradeState.emailSend`) with a flat `outcome`
+    (`sent`/`failed`/`skipped`) plus a `reason`
+    (`disabled`/`no-recipients`/`already-sent`/`no-emails`) or the swallowed `error`, and
+    returns that reason/error in its result so a silent no-op is diagnosable;
+    `saveParadeEmailSettings` now calls `invalidateConfigCache(["settings"])` like every
+    sibling settings action (a just-enabled config no longer serves stale `disabled` for up
+    to 60 s). Docs: `parade-state-email.md` §1.1/§1.4/§1.5, `developer-guide.md` §1.9.1,
+    `AGENTS.md`.
 
 ## 1.4 Open items & next steps
 

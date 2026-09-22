@@ -37,9 +37,13 @@ export interface RunParadeStateEmailInput {
   actor?: ParadeEmailActor;
 }
 
+export type ParadeEmailSkipReason = ParadeEmailDueReason | "no-emails" | "error";
+
 export interface ParadeEmailRunResult {
   sent: boolean;
-  skipped?: ParadeEmailDueReason | "no-emails" | "already-sent";
+  skipped?: ParadeEmailSkipReason;
+  /** Present when `skipped === "error"`: the swallowed dispatch failure. */
+  error?: string;
   date: string;
   recipients: number;
   present?: number;
@@ -102,6 +106,47 @@ async function recordOutcome(
 }
 
 /**
+ * Record one dispatch attempt in the audit log. Every terminal outcome — sent,
+ * failed, or skipped — writes a flat row under `paradeState.emailSend` so a
+ * silent no-op (disabled, no recipients, already sent, or a swallowed error) is
+ * visible after the fact. Best-effort via `logAction` (never throws).
+ */
+async function auditAttempt(
+  input: RunParadeStateEmailInput,
+  date: string,
+  outcome: "sent" | "failed" | "skipped",
+  recipientEmails: string[],
+  extra: {
+    reason?: string;
+    error?: string;
+    present?: number;
+    total?: number;
+    delivered?: boolean;
+  } = {},
+): Promise<void> {
+  await logAction({
+    actorId: input.actor?.id ?? null,
+    actorName: input.actor?.name ?? null,
+    actorRole: input.actor?.role ?? "system",
+    action: AUDIT_ACTIONS.paradeStateEmailSend,
+    entityType: "paradeStateEmail",
+    entityName: date,
+    method: input.trigger === "test" ? "sendParadeStateEmailTest" : "runParadeStateEmail",
+    details: {
+      date,
+      trigger: input.trigger,
+      outcome,
+      reason: extra.reason ?? null,
+      error: extra.error ?? null,
+      recipients: recipientEmails.join(", "),
+      present: extra.present ?? null,
+      total: extra.total ?? null,
+      delivered: extra.delivered ?? null,
+    },
+  });
+}
+
+/**
  * Run one dispatch attempt. Returns a summary for the caller (the cron route
  * or the "Send Test Now" action). Never throws.
  */
@@ -125,12 +170,15 @@ export async function runParadeStateEmail(
         alreadySentToday: status === "sent",
       });
       if (!due.due) {
+        await auditAttempt(input, date, "skipped", recipients, { reason: due.reason });
         return { sent: false, skipped: due.reason, date, recipients: 0 };
       }
       if (!(await claimSend(date, recipients.length))) {
+        await auditAttempt(input, date, "skipped", recipients, { reason: "already-sent" });
         return { sent: false, skipped: "already-sent", date, recipients: 0 };
       }
     } else if (recipients.length === 0) {
+      await auditAttempt(input, date, "skipped", recipients, { reason: "no-emails" });
       return { sent: false, skipped: "no-emails", date, recipients: 0 };
     }
 
@@ -161,22 +209,11 @@ export async function runParadeStateEmail(
       );
     }
 
-    await logAction({
-      actorId: input.actor?.id ?? null,
-      actorName: input.actor?.name ?? null,
-      actorRole: input.actor?.role ?? "system",
-      action: AUDIT_ACTIONS.paradeStateEmailSend,
-      entityType: "paradeStateEmail",
-      entityName: date,
-      method: input.trigger === "test" ? "sendParadeStateEmailTest" : "runParadeStateEmail",
-      details: {
-        date,
-        trigger: input.trigger,
-        recipients: recipients.join(", "),
-        present: report.present,
-        total: report.total,
-        delivered,
-      },
+    await auditAttempt(input, date, delivered ? "sent" : "failed", recipients, {
+      error: delivered ? undefined : "email transport did not accept the message",
+      present: report.present,
+      total: report.total,
+      delivered,
     });
 
     return {
@@ -187,10 +224,12 @@ export async function runParadeStateEmail(
       total: report.total,
     };
   } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
     console.error("[parade-email] dispatch failed", error);
     if (!input.force) {
-      await recordOutcome(date, "failed", 0, String(error)).catch(() => {});
+      await recordOutcome(date, "failed", 0, message).catch(() => {});
     }
-    return { sent: false, date, recipients: 0 };
+    await auditAttempt(input, date, "failed", [], { error: message });
+    return { sent: false, skipped: "error", error: message, date, recipients: 0 };
   }
 }

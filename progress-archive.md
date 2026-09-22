@@ -158,6 +158,7 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
 - [1.195 "(You)" participant highlight](#1195-you-participant-highlight)
 - [1.197 Refresh re-homed + pull-to-refresh disabled](#1197-refresh-re-homed--pull-to-refresh-disabled)
 - [1.209 Dashboard-views ergonomics: All-views popover + changeable view type](#1209-dashboard-views-ergonomics-all-views-popover--changeable-view-type)
+- [1.273 Parade-state email cron fix + hardening](#1273-parade-state-email-cron-fix--hardening)
 
 ## 1.1 Status
 
@@ -8915,3 +8916,47 @@ confirmation through all four options and create/edit/duplicate an event under e
 confirm the plain-toast/action-toast options respect the delete-toast look, the
 restyled pill sits in the toast corners and never shows a sweep, and the SW-update
 "New version available — Reload" pill still renders in the classic style.
+
+## 1.273 Parade-state email cron fix + hardening
+
+The daily parade-state email had **never** fired from Cloud Scheduler since it shipped,
+while the in-app "Send test to my email" button worked. Diagnosis: the scheduler job was
+created with gcloud's default HTTP method (**POST**; `HTTP_METHOD_UNSPECIFIED` defaults to
+POST), but the route exported **GET only** — so every scheduled tick hit a 405, which Cloud
+Scheduler maps to `status.code` 2 (`UNKNOWN`). A manual `curl` GET of the same URL returned
+`200 {"sent":true,...}`. The test button never exercised this path: it is a session
+server action calling `runParadeStateEmail({ force: true })`, which skips the `CRON_SECRET`
+route check, the enabled/recipients gate, and the `parade_email_sends` dedup row.
+
+```mermaid
+flowchart LR
+    CS["Cloud Scheduler job (default POST)"] -->|"405"| R["/api/cron/parade-state-email (GET only)"]
+    R -->|"status.code 2 = UNKNOWN"| CS
+    CURL["manual GET"] -->|"200 sent:true"| R2["same route"]
+```
+
+**Fix + hardening** (no schema change):
+
+- **Route** (`src/app/api/cron/parade-state-email/route.ts`): the handler is shared and
+  exported as both `GET` and `POST`, so a default-created job can no longer 405 silently;
+  GET remains canonical. Explicit `runtime = "nodejs"` (it uses `node:crypto`
+  `timingSafeEqual`). The stale comment claiming the dispatcher checks an in-app send time
+  was rewritten (the scheduler is authoritative since §1.228).
+- **Observability** (`src/lib/parade-email/dispatch.ts`): `runParadeStateEmail` now writes a
+  `paradeState.emailSend` audit row for **every** non-test attempt — sent, failed, or
+  skipped — with a flat `outcome` plus a `reason`
+  (`disabled` / `no-recipients` / `already-sent` / `no-emails`) or the swallowed `error`.
+  The result carries `skipped`/`error` so the route JSON names the failure (previously the
+  catch returned a bare `{sent:false, recipients:0}` and skipped runs wrote nothing).
+- **Cache invalidation** (`src/lib/parade-email/actions.ts`): `saveParadeEmailSettings` now
+  calls `invalidateConfigCache(["settings"])` beside `revalidatePath`, matching every sibling
+  settings action — a just-enabled config no longer serves stale `disabled` for up to 60 s.
+
+**Docs**: `docs/parade-state-email.md` §1.1/§1.4/§1.5 (method requirement, code-2 mapping,
+audit-on-skip), `docs/developer-guide.md` §1.9.1, `AGENTS.md`.
+
+**Operational follow-up (not code)**: point the existing job at GET —
+`gcloud scheduler jobs update http cloudy2-parade-email --location=asia-southeast1
+--http-method=GET` — and confirm `status.code` becomes 0.
+
+**Verified**: pnpm lint, pnpm typecheck, pnpm test (1363 pass). No migration/drift.

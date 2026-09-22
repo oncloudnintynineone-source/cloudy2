@@ -33,6 +33,7 @@ sequenceDiagram
  D->>DB: settings (enabled, recipients, templates)
  D->>DB: parade_email_sends for today
  alt not due / already sent
+  D->>DB: audit row (skipped, reason)
   D-->>R: { sent: false, skipped }
  else due
   D->>DB: claim today (unique send_date)
@@ -112,8 +113,10 @@ case-insensitive, trimmed tokens, unknown tokens left literal. The body **must**
    - otherwise it **claims the day** via an `onConflictDoNothing` insert on `send_date`.
 4. A **failed** day is left claimable: a later run retries (the row status becomes
    `failed`). A **sent** day is never retried.
-5. Every attempt writes an audit row (`paradeState.emailSend`) with the date, recipients,
-   counts, and delivery result.
+5. Every non-test attempt writes an audit row (`paradeState.emailSend`) with the date,
+   recipients, counts, and an `outcome` (`sent` / `failed` / `skipped`) plus a `reason`
+   for skips (`disabled` / `no-recipients` / `already-sent`) or the swallowed `error` for a
+   failure — so a silent no-op is diagnosable after the fact.
 
 There is **no in-app send-time setting** — the schedule lives entirely in the Cloud
 Scheduler job. `gcloud scheduler jobs run` can exercise the real path on demand; note that
@@ -136,6 +139,17 @@ gcloud scheduler jobs create http cloudy2-parade-email \
 ```
 
 `0 8 * * 1-5` = 08:00 Monday–Friday (Cloud Scheduler day-of-week `1`=Mon … `5`=Fri).
+
+**The `--http-method=GET` flag is load-bearing.** `gcloud scheduler jobs create http`
+defaults to **POST**, and Cloud Scheduler's console target also defaults to POST. The route
+accepts both GET and POST defensively, but GET is canonical; a job left on the default
+(an older job, or one created without the flag) is the classic cause of a job that fails
+every tick while a manual `curl` of the same URL succeeds. Confirm the method with:
+
+```bash
+gcloud scheduler jobs describe cloudy2-parade-email --location=asia-southeast1 \
+  --format="value(httpTarget.httpMethod)"
+```
 
 Set `CRON_SECRET` (e.g. `openssl rand -base64 32`) on **every** deploy surface — Vercel
 prod, the Cloud Run shadow, and `.env.local` — and use the same value in the job header.

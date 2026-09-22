@@ -386,6 +386,9 @@ same prod Google service account).
 - **Weekday parade-state email trigger** (Cloud Scheduler, not Vercel Cron): create a job
   that GETs canonical prod `/api/cron/parade-state-email` weekdays at 08:00 SGT
   (`0 8 * * 1-5`, `Asia/Singapore`) with the `Authorization: Bearer <CRON_SECRET>` header.
+  Pass `--http-method=GET` explicitly — gcloud and the console both default to POST, which
+  the route only tolerates defensively; a job left on POST fails every tick while a manual
+  GET succeeds (Cloud Scheduler reports `status.code` 2).
   The schedule is fixed in the job (there is no in-app send time). Rotation steps (the
   value lives on Vercel, the Cloud Run service, the GitHub secret, and the job header):
   [parade-state-email.md](parade-state-email.md) §1.5.1.

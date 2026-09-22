@@ -8,6 +8,7 @@ import { settings, users } from "@/db/schema";
 import { AUDIT_ACTIONS, actorFromUser } from "@/lib/audit/build";
 import { diffFields } from "@/lib/audit/diff";
 import { logAction } from "@/lib/audit/log";
+import { invalidateConfigCache } from "@/lib/configCache";
 import { requireAdmin } from "@/lib/session";
 import { onlyUuidIds } from "@/lib/uuid";
 
@@ -77,6 +78,7 @@ export async function saveParadeEmailSettings(
     ),
   });
 
+  invalidateConfigCache(["settings"]);
   revalidatePath("/settings/parade-email");
   return { ok: true };
 }

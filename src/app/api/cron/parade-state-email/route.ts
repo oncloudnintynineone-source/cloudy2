@@ -5,12 +5,21 @@ import { NextRequest, NextResponse } from "next/server";
 import { runParadeStateEmail } from "@/lib/parade-email/dispatch";
 
 /**
- * Daily parade-state email tick. Cloud Scheduler calls this on a short interval
- * with an `Authorization: Bearer <CRON_SECRET>` header; the dispatcher decides
- * whether the in-app send time has passed and claims the day, so repeated ticks
- * send at most once. See docs/parade-state-email.md.
+ * Daily parade-state email tick. Cloud Scheduler calls this with an
+ * `Authorization: Bearer <CRON_SECRET>` header; the schedule (weekdays 08:00
+ * Asia/Singapore) lives in the Cloud Scheduler job, not here. The dispatcher
+ * claims the day via the unique `parade_email_sends.send_date`, so repeated
+ * ticks send at most once.
+ *
+ * Both GET and POST are accepted: `gcloud scheduler jobs create http` defaults
+ * to POST, and a job created without `--http-method=GET` would otherwise 405
+ * on every tick (surfaced by Cloud Scheduler as `status.code` 2). GET is the
+ * canonical method. See docs/parade-state-email.md.
  */
 export const dynamic = "force-dynamic";
+// node:crypto (timingSafeEqual) requires the Node runtime; explicit so a future
+// edit can't silently move the route to the edge.
+export const runtime = "nodejs";
 
 function isAuthorized(request: NextRequest): boolean {
   const secret = process.env.CRON_SECRET?.trim();
@@ -24,7 +33,7 @@ function isAuthorized(request: NextRequest): boolean {
   return provided.length === expected.length && timingSafeEqual(provided, expected);
 }
 
-export async function GET(request: NextRequest) {
+async function handle(request: NextRequest) {
   if (!process.env.CRON_SECRET?.trim()) {
     return NextResponse.json(
       { error: "CRON_SECRET is not configured" },
@@ -40,4 +49,12 @@ export async function GET(request: NextRequest) {
 
   const result = await runParadeStateEmail({ trigger: "cron" });
   return NextResponse.json(result, { headers: { "Cache-Control": "no-store" } });
+}
+
+export async function GET(request: NextRequest) {
+  return handle(request);
+}
+
+export async function POST(request: NextRequest) {
+  return handle(request);
 }
