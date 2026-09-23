@@ -44,18 +44,26 @@ across mutations.
 
 ## 1.3 Opening an event: deep links
 
-Tapping an event closes the panel and navigates to
-`/dashboard?date=YYYY-MM-DD&event=<groupId>`, where the dashboard's `?event=` deep
-link auto-opens the event's details modal (Edit / Duplicate / Delete per the usual
-`isAdmin || creator` rule):
+Tapping an event closes the panel and navigates through the shared
+`buildEventDeepLink` (`src/lib/events/deepLink.ts`) to
+`/dashboard?view=<active tab>&date=YYYY-MM-DD&event=<groupId>&_eventCal=<calendar id>`,
+where the dashboard's `?event=` deep link opens the event's details modal
+(Edit / Duplicate / Delete per the usual `isAdmin || creator` rule):
 
 - `eventId` is the group id shared by all department copies of the event; legacy
   events without one fall back to the date alone.
-- The link also carries `&_eventCal=<calendar id>` (the pinned copy's department
-  calendar); the server resolves that one event separately (only its calendar,
-  no type/user filters), so a pinned event outside the current view's filters
-  still opens without changing the active tab or filters. This mirrors event
-  search.
+- `view` carries the **active dashboard tab** (when the panel is opened on
+  `/dashboard`), so opening a pinned event can never fall back to a different tab
+  or switch the visible filters — the same guarantee event search relies on.
+- `_eventCal` names the pinned copy's department calendar. The server resolves
+  that one event **on its own**, over the target's **own** months
+  (`deepLinkMonths(date)` — the event's month plus its neighbours), never the
+  active tab's required months. A pinned event two months out therefore opens
+  even from a Day/Agenda/Week tab, without changing the tab or its filters.
+- The details modal opens **immediately as a skeleton** and the target resolves
+  underneath (the Double Booking detail's pattern). The "Could not open that
+  event" advisory appears only once the resolution has settled with no match —
+  never while the read is still in flight.
 - Opening from a non-dashboard page navigates to the dashboard first (the shell stays
   mounted, so the modal survives).
 
@@ -169,6 +177,7 @@ overshoot the content and collapse the modal.
 | ---- | ---- |
 | `src/lib/events/pinned.ts` | `fetchPinnedEvents` (panel `title` + ticker `tickerTitle`) |
 | `src/lib/events/pinnedSelect.ts` | Pure upcoming-window selection (unit-tested) |
+| `src/lib/events/deepLink.ts` | Shared deep-link builder + `deepLinkMonths` target-month window |
 | `src/lib/settings/featureFlags.ts` | The `pinnedTickerIndicator` flag registry entry |
 | `src/lib/ui/pinnedPanel.ts` | `PinnedPanelContext` + change event name |
 | `src/components/PinnedEventsTicker.tsx` | The header pill: indicator + countdown chips + rotating titles |

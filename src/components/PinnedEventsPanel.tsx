@@ -16,8 +16,9 @@ import { useMediaQuery, useViewportSize } from "@mantine/hooks";
 import { IconCalendarEvent, IconPin } from "@tabler/icons-react";
 import dayjs from "dayjs";
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
+import { buildEventDeepLink } from "@/lib/events/deepLink";
 import { fetchPinnedEvents, type PinnedEvent } from "@/lib/events/pinned";
 import { modalContentWidth, scaleFromRect, transformOriginFromRect } from "@/lib/motion/origin";
 import { MOTION } from "@/lib/motion/timing";
@@ -47,6 +48,8 @@ interface PinnedEventsPanelProps {
 export function PinnedEventsPanel({ seedEvents = null }: PinnedEventsPanelProps) {
   const { open, originRect, closePanel } = usePinnedPanel();
   const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
   const theme = useMantineTheme();
   const isDesktop = useMediaQuery(`(min-width: ${theme.breakpoints.lg})`);
   const isNarrow = useMediaQuery(NARROW_MEDIA_QUERY);
@@ -102,10 +105,23 @@ export function PinnedEventsPanel({ seedEvents = null }: PinnedEventsPanelProps)
     closePanel();
     const day = formatDay(event.start);
     // Deep-link the event so the dashboard auto-opens its details; legacy
-    // events without a group id fall back to landing on the date alone. The
-    // `_eventCal` hint mirrors event search so the dashboard's fetch always
-    // includes the pinned event's calendar even when the current filters
-    // exclude it.
+    // events without a group id fall back to landing on the date alone. Built
+    // through the shared `buildEventDeepLink` so the active tab (`?view=`) is
+    // carried — opening a pinned event never falls back to a different tab and
+    // never switches the visible filters. `_eventCal` lets the server resolve
+    // that one event separately, over the target's own months, even when the
+    // current view's filters or month range would exclude it.
+    if (pathname === "/dashboard" && event.eventId) {
+      router.push(
+        buildEventDeepLink({
+          view: searchParams.get("view"),
+          start: event.start,
+          eventId: event.eventId,
+          calendarId: event.calendarId,
+        }),
+      );
+      return;
+    }
     router.push(
       event.eventId
         ? `/dashboard?date=${day}&event=${event.eventId}&_eventCal=${event.calendarId}`

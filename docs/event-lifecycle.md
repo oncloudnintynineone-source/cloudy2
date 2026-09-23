@@ -273,28 +273,30 @@ Google Calendar events created by the app carry an `Edit: <url>` line in their n
 **details** deep link (same shape as Pinned Events / event search). The dashboard
 auto-opens the event's details modal; Edit is one tap inside it (per the event's
 edit rights, §1.5.1). The link never changes the arriving user's active tab or
-stored filters: the search link carries `?view=` for the active tab, and the server
-resolves `_eventCal`'s copy of the target **separately** from the grid (that one
-calendar, no type/user filters), so it opens even when the active filters exclude
-it — without adding it to the grid's filtered `events`. The event search modal's
-"Edit" action instead deep-links `?edit=<group id>`, which opens the edit form
-directly.
+stored filters: the search / Pinned Events links carry `?view=` for the active
+tab, and the server resolves `_eventCal`'s copy of the target **separately** from
+the grid (that one calendar, no type/user filters, over the target's **own**
+months via `deepLinkMonths`), so it opens even when the active filters or the
+active tab's month range exclude it — without adding it to the grid's filtered
+`events`. The event search modal's "Edit" action instead deep-links
+`?edit=<group id>`, which opens the edit form directly.
 
 - **Server** (`src/lib/dashboard/data.ts`): `initialDetailEventId`
   / `initialEditEventId` are accepted only when `?event=` / `?edit=` is a valid UUID;
   the `date` in the same link pins the fetched period so the event is in view. An
   `event`/`edit` render reads the remembered-UI-state cookie for the period, but the
   active tab and its stored filters are untouched; `_eventCal`'s copy is resolved into
-  `deepLinkEvent` on the snapshot record root (empty filters, its own calendar only),
-  never merged into the grid's `events`.
-- **Client** (`DashboardView.tsx`): the event is resolved **synchronously at mount**
-  from the grid's filtered `events`, falling back to the server's `deepLinkEvent` (a
-  filtered-out event); the details modal / edit form opens on first paint with no
-  follow-up render. If the target is missing from an otherwise-current record (a
-  same-period link, which doesn't refetch on its own), `DashboardScreen` fires a
-  ref-guarded one-shot refetch and `DashboardView` holds the link "pending" until
-  `deepLinkEvent` arrives. A valid id that still matches nothing (e.g. deleted) shows
-  a dismissible "not in your current view" alert.
+  `deepLinkEvent` on the snapshot record root (empty filters, its own calendar over the
+  target's own months), never merged into the grid's `events`.
+- **Client** (`DashboardView.tsx`): the event is resolved synchronously when the
+  props change, from the grid's filtered `events` falling back to the server's
+  `deepLinkEvent` (a filtered-out event). When the target isn't resolvable yet, the
+  details modal opens **immediately as a skeleton** and fills in on arrival (the
+  Double Booking detail's pattern) — the modal is never withheld. If the target is
+  missing from an otherwise-current record (a same-period link, which doesn't refetch
+  on its own), `DashboardScreen` fires a ref-guarded one-shot refetch; the
+  "not in your current view" alert appears only once that resolution has settled
+  (`deepLinkSettled`) with no match, never while the read is in flight.
   The one-shot `event`/`edit` params are stripped after their render by
   ref-guarded plain `router.push` calls.
 - **Form prefill** (`buildInitialValues`, `EventForm.tsx`):

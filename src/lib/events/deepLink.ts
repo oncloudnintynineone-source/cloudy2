@@ -10,6 +10,7 @@
  * it. I/O-free, so the URL shape and the lookup are unit-tested.
  */
 
+import { formatInstantToNaive, shiftMonth } from "@/lib/events/datetime";
 import type { CalendarEvent } from "@/lib/events/queries";
 
 export interface EventDeepLinkInput {
@@ -46,4 +47,25 @@ export function findEventByGroupId(
     return null;
   }
   return events.find((event) => event.payload.eventId === eventId) ?? null;
+}
+
+const DATE_ONLY_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+
+/**
+ * The month window the server reads to resolve a `?event=` deep-link target.
+ * Deliberately independent of the active dashboard tab: it keys off the link's
+ * own `?date=` (the target's start day) so a target outside the active tab's
+ * months — e.g. a pinned event two months out on a Day tab — is still found.
+ *
+ * The event's own month plus the adjacent months: a long event (or a copy that
+ * starts in the neighbouring month) can otherwise fall outside a single-month
+ * read. Pure and I/O-free, so the window is unit-tested. When the link carries
+ * no valid date, it falls back to the current month.
+ */
+export function deepLinkMonths(date: string | null | undefined): string[] {
+  const anchor =
+    typeof date === "string" && DATE_ONLY_PATTERN.test(date)
+      ? date.slice(0, 7)
+      : formatInstantToNaive(new Date()).slice(0, 7);
+  return [...new Set([shiftMonth(anchor, -1), anchor, shiftMonth(anchor, 1)])].sort();
 }

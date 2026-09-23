@@ -28,7 +28,7 @@ import {
   type CalendarEvent,
   type CalendarRangeData,
 } from "@/lib/events/queries";
-import { findEventByGroupId } from "@/lib/events/deepLink";
+import { deepLinkMonths, findEventByGroupId } from "@/lib/events/deepLink";
 import {
   resolveDisplayTitles,
   type DisplayTitleEventType,
@@ -565,15 +565,19 @@ export async function buildDashboardData(
     input.eventCal && config.calendarIds.includes(input.eventCal) ? input.eventCal : null;
   const deepLinkEventId = input.event && isUuid(input.event) ? input.event : null;
 
-  // Resolve the `?event=` deep-link target on its own: only its calendar, with
-  // no type/user filters, so it opens regardless of the active tab's filters.
+  // Resolve the `?event=` deep-link target on its own — no type/user filters and
+  // the target's **own** months (`deepLinkMonths(input.date)`), never the active
+  // tab's `rangeMonths`. Pinned Events lists a rolling 3-month window regardless
+  // of the active tab, so a tab whose required months don't include the target's
+  // month would otherwise never resolve it (the "not in your current view" alert).
   // It never joins the grid's `events`, so the filter selection stays visually
-  // authoritative.
+  // authoritative. When `_eventCal` is unknown (a pruned/foreign calendar) fall
+  // back to every calendar for those months so the copy can still be found.
   let deepLinkEvent: CalendarEvent | null = null;
-  if (deepLinkEventId && eventCalParam) {
+  if (deepLinkEventId) {
     const targetEvents = await fetchRangeEvents({
-      months: rangeMonths,
-      calendarIds: [eventCalParam],
+      months: deepLinkMonths(input.date),
+      calendarIds: eventCalParam ? [eventCalParam] : config.calendarIds,
       typeFilter: [],
       userFilter: [],
       force: input.force,

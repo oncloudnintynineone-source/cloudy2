@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import { buildEventDeepLink, findEventByGroupId } from "./deepLink";
+import { buildEventDeepLink, deepLinkMonths, findEventByGroupId } from "./deepLink";
+import { formatInstantToNaive } from "./datetime";
 import type { CalendarEvent } from "./queries";
 
 function event(eventId: string | null): CalendarEvent {
@@ -59,5 +60,21 @@ describe("findEventByGroupId", () => {
     expect(findEventByGroupId([event("g-1")], "nope")).toBeNull();
     expect(findEventByGroupId([event("g-1")], null)).toBeNull();
     expect(findEventByGroupId([event("g-1")], undefined)).toBeNull();
+  });
+});
+
+describe("deepLinkMonths", () => {
+  it("reads the target's own month plus its neighbours", () => {
+    expect(deepLinkMonths("2026-11-05")).toEqual(["2026-10", "2026-11", "2026-12"]);
+  });
+
+  it("wraps across year boundaries", () => {
+    expect(deepLinkMonths("2026-01-02")).toEqual(["2025-12", "2026-01", "2026-02"]);
+  });
+
+  it("ignores a non-date value and falls back to the current month window", () => {
+    const months = deepLinkMonths("not-a-date");
+    expect(months).toHaveLength(3);
+    expect(months).toContain(formatInstantToNaive(new Date()).slice(0, 7));
   });
 });

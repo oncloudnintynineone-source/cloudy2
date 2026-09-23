@@ -677,9 +677,18 @@ export function DashboardScreen({
   // prevents a loop when the event no longer exists.
   const deepLinkId = initialEditEventId ?? initialDetailEventId;
   const attemptedDeepLinkRef = useRef<string | null>(null);
+  // The deep link whose one-shot resolution read has finished (success or not).
+  // `DashboardView` opens the details modal as a skeleton immediately; this is
+  // what lets it stop waiting and raise the "not in your current view" advisory
+  // when the read settles with no target. State (not a ref) so the render value
+  // updates once the read lands.
+  const [settledDeepLinkId, setSettledDeepLinkId] = useState<string | null>(null);
   useEffect(() => {
     if (!deepLinkId) {
       attemptedDeepLinkRef.current = null;
+      // Deferred: an effect must not call setState synchronously (same pattern
+      // as `fetchFresh`).
+      void Promise.resolve().then(() => setSettledDeepLinkId(null));
       return;
     }
     if (attemptedDeepLinkRef.current === deepLinkId) return;
@@ -692,13 +701,34 @@ export function DashboardScreen({
     const inEvents =
       heldIsCandidate && record.data.events.some((event) => event.payload.eventId === deepLinkId);
     const inDeepLink = heldIsCandidate && record.deepLinkEvent?.payload.eventId === deepLinkId;
-    // `fetchFresh` defers its setState to a microtask (see its own comment), so
-    // this is not a synchronous state update.
-    if (!heldIsCandidate || (!inEvents && !inDeepLink)) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      void fetchFresh();
+    if (heldIsCandidate && (inEvents || inDeepLink)) {
+      // Already held fresh and carrying the target: nothing to fetch, settled.
+      void Promise.resolve().then(() => setSettledDeepLinkId(deepLinkId));
+      return;
     }
+    // `fetchFresh` defers its setState to a microtask (see its own comment); the
+    // `settled` flag lands even later, after the read resolves — never
+    // synchronously in this effect.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    void fetchFresh().finally(() => {
+      if (attemptedDeepLinkRef.current === deepLinkId) {
+        setSettledDeepLinkId(deepLinkId);
+      }
+    });
   }, [deepLinkId, record, candidateKey, fetchFresh]);
+
+  // Whether the held record currently carries the deep link's target (its grid
+  // or the server's separate resolution) — the success half of the resolution.
+  const deepLinkResolved =
+    deepLinkId !== null &&
+    record !== null &&
+    record.context.requestKey === candidateKey &&
+    (record.data.events.some((event) => event.payload.eventId === deepLinkId) ||
+      record.deepLinkEvent?.payload.eventId === deepLinkId);
+  // Whether the deep link has settled: resolved, or its read finished without a
+  // match. `DashboardView` holds the skeleton until this is false-and-missing.
+  const deepLinkSettled =
+    deepLinkId !== null && (deepLinkResolved || settledDeepLinkId === deepLinkId);
 
   if (!record) {
     // Nothing cached to paint: a failed/timed-out first read gets a retryable
@@ -713,9 +743,6 @@ export function DashboardScreen({
         />
       );
     }
-    return <DashboardShellSkeleton />;
-  }
-  if (hasDeepLink && source === "cache") {
     return <DashboardShellSkeleton />;
   }
 
@@ -742,6 +769,7 @@ export function DashboardScreen({
           initialEditEventId={initialEditEventId}
           initialDetailEventId={initialDetailEventId}
           deepLinkEvent={shown.deepLinkEvent ?? null}
+          deepLinkSettled={deepLinkSettled}
         />
       </DashboardTabStatusProvider>
     </DashboardDataProvider>

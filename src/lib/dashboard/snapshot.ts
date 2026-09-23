@@ -52,6 +52,7 @@ export type DashboardSnapshot = Omit<
   | "initialEditEventId"
   | "initialDetailEventId"
   | "deepLinkEvent"
+  | "deepLinkSettled"
 >;
 
 /**

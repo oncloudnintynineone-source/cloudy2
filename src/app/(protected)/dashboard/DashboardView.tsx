@@ -402,6 +402,13 @@ export interface DashboardViewProps {
    * filtered-out event still opens without altering the grid or the filters.
    */
   deepLinkEvent: CalendarEvent | null;
+  /**
+   * Whether the deep link's resolution has settled: the held fresh record either
+   * carries the target or its read finished without a match. The details modal
+   * opens as a skeleton immediately regardless; only when this is true and the
+   * target is still absent does the "not in your current view" advisory appear.
+   */
+  deepLinkSettled: boolean;
   scheduleUsers: ScheduleUser[];
   /** Full active roster: row source when the Users filter narrows the rows. */
   allActiveUsers: ScheduleUser[];
@@ -897,6 +904,7 @@ function DashboardViewImpl({
   initialEditEventId,
   initialDetailEventId,
   deepLinkEvent,
+  deepLinkSettled,
   scheduleUsers,
   allActiveUsers,
   inviteeDepartments,
@@ -1066,6 +1074,14 @@ function DashboardViewImpl({
   const initialDetailEvent = resolveDeepLinkEvent(initialDetailEventId);
 
   const [detailEvent, setDetailEvent] = useState<CalendarEvent | null>(initialDetailEvent);
+  // A `?event=` deep link opens the details modal **immediately** as a skeleton
+  // and resolves the target in the background, matching the app's standard
+  // "open the modal, fetch underneath" pattern (the Double Booking detail). The
+  // modal is never withheld until the server/filters resolve the event — the
+  // pending flag drives `EventDetail`'s `loading` prop instead.
+  const [detailLinkPending, setDetailLinkPending] = useState(
+    initialDetailEventId !== null && initialDetailEvent === null,
+  );
   // Where the tapped element sat on screen; the modal grows out of / shrinks
   // back into it (see src/lib/motion/origin.ts).
   const [detailOriginRect, setDetailOriginRect] = useState<Rect | null>(null);
@@ -1124,10 +1140,12 @@ function DashboardViewImpl({
   // Only touch devices see the caption, and only until the first successful
   // swipe (or a prior visit in this session) marks it seen.
   const showAgendaHint = isCoarsePointer && !agendaHintSeen;
+  // A detail deep link with no mount-time target is not a failure yet: the modal
+  // opens as a skeleton and the alert is raised only if the read settles without
+  // the target (see the pending-link reconciliation below). Only a `?edit=` deep
+  // link with no mount-time target is flagged here.
   const [editLinkFailed, setEditLinkFailed] = useState(
-    () =>
-      (initialEditEventId !== null && initialEditEvent === null) ||
-      (initialDetailEventId !== null && initialDetailEvent === null),
+    () => initialEditEventId !== null && initialEditEvent === null,
   );
   // A `?event=` deep link resolved while the component is already mounted (a
   // pinned-events tap on /dashboard is a same-route param change, so the
@@ -1147,20 +1165,32 @@ function DashboardViewImpl({
   if (initialDetailEventId === null && prevDetailLinkId !== null) {
     setPrevDetailLinkId(null);
     setPendingDetailLinkId(null);
+    setDetailLinkPending(false);
   }
   if (initialDetailEventId !== null && initialDetailEventId !== prevDetailLinkId) {
     setPrevDetailLinkId(initialDetailEventId);
     const found = resolveDeepLinkEvent(initialDetailEventId);
     setDetailEvent(found);
-    setEditLinkFailed(found === null);
+    // Show the skeleton modal first, then resolve underneath (never withhold the
+    // modal until the target lands). The failure alert is held back until the
+    // read settles — see below.
+    setDetailLinkPending(found === null);
+    setEditLinkFailed(false);
     setPendingDetailLinkId(found === null ? initialDetailEventId : null);
   }
   if (initialDetailEventId !== null && pendingDetailLinkId === initialDetailEventId) {
     const found = resolveDeepLinkEvent(initialDetailEventId);
     if (found) {
       setPendingDetailLinkId(null);
+      setDetailLinkPending(false);
       setEditLinkFailed(false);
       setDetailEvent(found);
+    } else if (deepLinkSettled) {
+      // The read settled and the target still isn't present (deleted, or a
+      // genuinely unknown id): stop the skeleton and surface the advisory.
+      setPendingDetailLinkId(null);
+      setDetailLinkPending(false);
+      setEditLinkFailed(true);
     }
   }
   // Same-route `?edit=` deep link (the search modal's "Edit" action opened
@@ -2293,6 +2323,18 @@ function DashboardViewImpl({
       }
     };
   }, []);
+
+  // A `?event=`/`?edit=` deep link opens its modal right away (the details as a
+  // skeleton). Pull the modal chunk in immediately rather than waiting for idle,
+  // so the skeleton's first paint isn't gated on a cold chunk download — the
+  // idle preload above covers the no-deep-link case.
+  useEffect(() => {
+    if (initialDetailEventId === null && initialEditEventId === null) {
+      return;
+    }
+    void preloadEventFormChunk();
+    void (EventDetail as unknown as { preload?: () => Promise<unknown> }).preload?.();
+  }, [initialDetailEventId, initialEditEventId]);
 
   // Strip the one-shot `edit` param from the URL so a refresh doesn't reopen
   // the edit form. A plain push (no transition): the grid shows no skeleton
@@ -4422,7 +4464,15 @@ function DashboardViewImpl({
 
       <EventDetail
         event={detailEvent}
-        onClose={() => setDetailEvent(null)}
+        // A deep link opens the modal before its target resolves, so the skeleton
+        // (EventDetail's `loading` body) is the first paint — the app's standard
+        // "open now, fetch underneath" pattern.
+        loading={detailLinkPending && detailEvent === null}
+        onClose={() => {
+          setDetailEvent(null);
+          setDetailLinkPending(false);
+          setPendingDetailLinkId(null);
+        }}
         onEdit={(event, originRect) => {
           captureModalViewport();
           setDetailEvent(null);
