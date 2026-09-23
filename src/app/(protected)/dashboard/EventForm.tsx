@@ -27,6 +27,7 @@ import { notifications } from "@mantine/notifications";
 import {
   IconChevronLeft,
   IconChevronRight,
+  IconPin,
   IconUserMinus,
   IconUserPlus,
 } from "@tabler/icons-react";
@@ -1754,7 +1755,32 @@ export function EventForm({
             <Stack gap="sm">
               <Switch
                 label="Pin this event"
-                description="Shows this event in the Pinned Events panel on every page"
+                description={
+                  <Stack gap={4} mt={2}>
+                    <Box
+                      component="span"
+                      px={8}
+                      py={3}
+                      style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: 5,
+                        alignSelf: "flex-start",
+                        background: "var(--mantine-color-accent-1)",
+                        borderRadius: "var(--mantine-radius-sm)",
+                        color: "var(--mantine-color-accent-9)",
+                      }}
+                    >
+                      <IconPin size={14} />
+                      <Text component="span" size="sm" fw={700} inherit>
+                        Visible to everyone, in every department.
+                      </Text>
+                    </Box>
+                    <Text component="span" size="sm">
+                      Shows this event in the Pinned Events panel on every page.
+                    </Text>
+                  </Stack>
+                }
                 {...form.getInputProps("pinned", { type: "checkbox" })}
               />
               {canSetOwnerLock && (
