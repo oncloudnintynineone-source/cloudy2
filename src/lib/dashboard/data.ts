@@ -47,6 +47,7 @@ import {
 } from "@/lib/settings/queries";
 import {
   glassFabLevelFlag,
+  isReorderDragEnabled,
   resolveFlagValue,
   savedEventToastVariantFlag,
 } from "@/lib/settings/featureFlags";
@@ -368,9 +369,7 @@ async function resolveDashboardConfig(session: Session): Promise<DashboardConfig
     calendars.map((calendar) => [calendar.id, calendar.name]),
   );
 
-  const templateMapForDisplay = new Map(
-    eventTitleTemplates.map((t) => [t.id, t.recipe] as const),
-  );
+  const templateMapForDisplay = new Map(eventTitleTemplates.map((t) => [t.id, t.recipe] as const));
   const assignments = settings.eventTitleTemplateAssignments as Record<string, string>;
   const viewRecipeFor = (kind: DashboardViewKind) => {
     const assignedRecipe = assignments[kind]
@@ -422,10 +421,8 @@ async function resolveDashboardConfig(session: Session): Promise<DashboardConfig
       savedEventToastVariantFlag,
       settings.featureFlags.savedEventToastVariant,
     ),
-    glassFabLevel: resolveFlagValue(
-      glassFabLevelFlag,
-      settings.featureFlags.glassFabLevel,
-    ),
+    glassFabLevel: resolveFlagValue(glassFabLevelFlag, settings.featureFlags.glassFabLevel),
+    reorderDrag: isReorderDragEnabled(settings.featureFlags.reorderDrag),
     quickLinks: quickLinks
       .filter((link) => link.enabled)
       .map((link) => ({
@@ -483,8 +480,7 @@ function resolvePeriod(
 ): DashboardPeriod {
   const nav = config.nav;
   const urlDate = input.date && DATE_PATTERN.test(input.date) ? input.date : null;
-  const cookieDate =
-    typeof nav?.date === "string" && DATE_PATTERN.test(nav.date) ? nav.date : null;
+  const cookieDate = typeof nav?.date === "string" && DATE_PATTERN.test(nav.date) ? nav.date : null;
   const dateParam = urlDate ?? (activeKind === "month" ? null : cookieDate);
 
   const urlMonth = input.month && MONTH_PATTERN.test(input.month) ? input.month : null;

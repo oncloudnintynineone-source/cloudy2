@@ -24,7 +24,9 @@ enabled.
 
 - CRUD + reorder in `src/lib/quickLinks/actions.ts` — every mutation is audited
   (`quickLink.*`) and revalidates `/settings/quick-links` + `/dashboard`.
-  `moveQuickLink` renumbers to unique ascending `sortOrder` inside its transaction.
+  `moveQuickLink` renumbers to unique ascending `sortOrder` inside its transaction;
+  `reorderQuickLinks` applies a whole new order for the drag handle (see
+  [`reorder.md`](reorder.md)).
 - Validation in `src/lib/quickLinks/validate.ts` — **http/https URLs only**
   (unit-tested).
 - Reads: `src/lib/quickLinks/queries.ts` (`listQuickLinks` returns **all** rows

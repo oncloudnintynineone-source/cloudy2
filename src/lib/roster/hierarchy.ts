@@ -69,8 +69,7 @@ export function buildDepartmentTree(
   const topLevel: DepartmentTreeNode[] = [];
   for (const node of nodes.values()) {
     const parent = node.parentId !== null ? nodes.get(node.parentId) : undefined;
-    const cycleFree =
-      node.parentId === null || !isAncestor(parentLinks, node.parentId, node.id);
+    const cycleFree = node.parentId === null || !isAncestor(parentLinks, node.parentId, node.id);
     if (parent && cycleFree) {
       parent.children.push(node);
     } else {
@@ -112,9 +111,7 @@ export function findDepartmentNode(
 }
 
 /** Depth-first (parent before children) flattening of a department tree. */
-export function flattenDepartmentTree(
-  tree: readonly DepartmentTreeNode[],
-): DepartmentTreeNode[] {
+export function flattenDepartmentTree(tree: readonly DepartmentTreeNode[]): DepartmentTreeNode[] {
   const out: DepartmentTreeNode[] = [];
   const visit = (node: DepartmentTreeNode) => {
     out.push(node);
@@ -140,9 +137,7 @@ export interface DepartmentRow {
  * the hierarchy as indented sections or rows. Cycle safety and the "missing
  * parent/cycle -> top level" degradation are inherited from `buildDepartmentTree`.
  */
-export function departmentTreeRows(
-  departments: readonly HierarchyDepartment[],
-): DepartmentRow[] {
+export function departmentTreeRows(departments: readonly HierarchyDepartment[]): DepartmentRow[] {
   const rows: DepartmentRow[] = [];
   const visit = (node: DepartmentTreeNode, depth: number) => {
     rows.push({
@@ -296,12 +291,77 @@ export function moveInTreeOrder(
   siblings[neighborIndex] = found;
   siblings[index] = neighbor;
 
-  return flattenDepartmentTree(tree).map(
-    (node, sortOrder): HierarchyDepartment => ({
-      id: node.id,
-      name: node.name,
-      sortOrder,
-      parentId: node.parentId,
-    }),
+  return flattenDepartmentTree(tree).map((node, sortOrder): HierarchyDepartment => ({
+    id: node.id,
+    name: node.name,
+    sortOrder,
+    parentId: node.parentId,
+  }));
+}
+
+/**
+ * Move a department to an arbitrary sibling position — the drag path. The
+ * whole subtree moves with the node, and the target is normalized to the
+ * dragged node's sibling group: if `targetId` is not itself a sibling (e.g. a
+ * child of a sibling), the nearest ancestor that is a sibling is used. Returns
+ * the re-ranked flat list (sortOrder = preorder position), or null when the id
+ * is unknown, the target is unrelated (only the node's own subtree), or the
+ * move is a no-op.
+ */
+export function moveToSiblingIndex(
+  departments: readonly HierarchyDepartment[],
+  id: string,
+  targetId: string,
+): HierarchyDepartment[] | null {
+  if (id === targetId) return null;
+  const tree = buildDepartmentTree(departments);
+  const parentLinks = new Map<string, string | null>(
+    departments.map((dept) => [dept.id, dept.parentId]),
   );
+
+  let found: DepartmentTreeNode | undefined;
+  let siblings: DepartmentTreeNode[] | undefined;
+  const findIn = (nodes: DepartmentTreeNode[]): void => {
+    for (const node of nodes) {
+      if (node.id === id) {
+        found = node;
+        siblings = nodes;
+        return;
+      }
+      findIn(node.children);
+      if (found) return;
+    }
+  };
+  findIn(tree);
+  if (!found || !siblings) return null;
+
+  // Normalize the drop target to a sibling: climb from `targetId` up the raw
+  // parent links until we reach a node in the dragged node's sibling array.
+  let cursor: string | null | undefined = targetId;
+  const seen = new Set<string>();
+  let target: DepartmentTreeNode | undefined;
+  while (typeof cursor === "string" && !seen.has(cursor)) {
+    seen.add(cursor);
+    const candidate = siblings.find((node) => node.id === cursor);
+    if (candidate) {
+      target = candidate;
+      break;
+    }
+    cursor = parentLinks.get(cursor) ?? null;
+  }
+  if (!target) return null;
+
+  const from = siblings.indexOf(found);
+  const to = siblings.indexOf(target);
+  if (from === to) return null;
+
+  siblings.splice(from, 1);
+  siblings.splice(to, 0, found);
+
+  return flattenDepartmentTree(tree).map((node, sortOrder): HierarchyDepartment => ({
+    id: node.id,
+    name: node.name,
+    sortOrder,
+    parentId: node.parentId,
+  }));
 }

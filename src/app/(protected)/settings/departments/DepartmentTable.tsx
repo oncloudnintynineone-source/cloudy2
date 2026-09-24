@@ -1,6 +1,6 @@
 "use client";
 
-import { type KeyboardEvent, useMemo, useState } from "react";
+import { type KeyboardEvent, type ReactNode, useMemo, useState } from "react";
 import {
   Box,
   Button,
@@ -19,11 +19,12 @@ import { IconPlus, IconSitemap } from "@tabler/icons-react";
 import { EmptyState } from "@/components/EmptyState";
 import type { Calendar } from "@/db/schema";
 import { CONTENT_ENTER_CLASS } from "@/lib/loading/contentEnter";
-import { deleteDepartment, moveDepartment } from "@/lib/roster/actions";
+import { deleteDepartment, moveDepartment, reorderDepartments } from "@/lib/roster/actions";
 import {
   buildDepartmentTree,
   moveAvailability,
   moveInTreeOrder,
+  moveToSiblingIndex,
   type DepartmentTreeNode,
 } from "@/lib/roster/hierarchy";
 import { BUTTON_LOADER_PROPS } from "@/lib/theme";
@@ -32,6 +33,7 @@ import { FAB_ICON_SIZE, FloatingActionButton, FloatingToolbar } from "@/componen
 import { formatColorLabel } from "@/lib/events/eventColors";
 import { ColorDot } from "@/components/ColorSwatchPicker";
 import { ReorderUpDown } from "@/components/reorderUpDown";
+import { SortableList, SortableRow } from "@/components/SortableRow";
 import dynamic from "next/dynamic";
 import { FormModalSkeleton } from "@/components/FormModalSkeleton";
 import { useActivityRefresh } from "@/components/ActivityBar";
@@ -45,9 +47,10 @@ const DepartmentDetail = dynamic(
 
 interface DepartmentTableProps {
   departments: Calendar[];
+  dragEnabled: boolean;
 }
 
-export function DepartmentTable({ departments }: DepartmentTableProps) {
+export function DepartmentTable({ departments, dragEnabled }: DepartmentTableProps) {
   const refreshAfterSave = useActivityRefresh("departments:save");
   const [detailOpened, { open: openDetail, close: closeDetail }] = useDisclosure(false);
   const [confirmOpened, { open: openConfirm, close: closeConfirm }] = useDisclosure(false);
@@ -59,6 +62,7 @@ export function DepartmentTable({ departments }: DepartmentTableProps) {
     displayRows: displayDepartments,
     containerRef,
     move: reorderDepartment,
+    moveTo,
     busy,
   } = useReorderRows({
     rows: departments,
@@ -70,11 +74,48 @@ export function DepartmentTable({ departments }: DepartmentTableProps) {
       }
       const byId = new Map(rows.map((calendar) => [calendar.id, calendar] as const));
       return moved
-        .map((entry) => byId.get(entry.id))
+        .map((entry) => {
+          const calendar = byId.get(entry.id);
+          // Carry the re-ranked sortOrder: `displayRows` rebuilds the tree from
+          // these rows and sorts siblings by sortOrder, so keeping the old
+          // values would silently revert the optimistic move.
+          return calendar ? { ...calendar, sortOrder: entry.sortOrder } : undefined;
+        })
         .filter((calendar): calendar is Calendar => calendar !== undefined);
     },
     persist: async (_next, id, delta) => {
       const result = await moveDepartment(id, delta === -1 ? "up" : "down");
+      if (result.ok) {
+        refreshAfterSave();
+        return true;
+      }
+      notifications.show({ color: "red", message: result.error });
+      return false;
+    },
+    // Drag moves a department among its siblings only; the drop target is
+    // normalized to the nearest sibling of the dragged node.
+    predictMove: (rows, id, toIndex) => {
+      const target = rows[toIndex];
+      if (!target) {
+        return null;
+      }
+      const moved = moveToSiblingIndex(rows, id, target.id);
+      if (!moved) {
+        return null;
+      }
+      const byId = new Map(rows.map((calendar) => [calendar.id, calendar] as const));
+      return moved
+        .map((entry) => {
+          const calendar = byId.get(entry.id);
+          return calendar ? { ...calendar, sortOrder: entry.sortOrder } : undefined;
+        })
+        .filter((calendar): calendar is Calendar => calendar !== undefined);
+    },
+    persistOrder: async (next, id) => {
+      const result = await reorderDepartments(
+        next.map((calendar) => calendar.id),
+        id,
+      );
       if (result.ok) {
         refreshAfterSave();
         return true;
@@ -147,16 +188,19 @@ export function DepartmentTable({ departments }: DepartmentTableProps) {
     }
   }
 
-  function actionsFor(calendar: Calendar) {
+  function actionsFor(calendar: Calendar, handle: ReactNode) {
     const can = availability.get(calendar.id) ?? { up: false, down: false };
     return (
-      <ReorderUpDown
-        name={calendar.name}
-        upDisabled={busy || !can.up}
-        downDisabled={busy || !can.down}
-        onUp={() => void reorderDepartment(calendar.id, -1)}
-        onDown={() => void reorderDepartment(calendar.id, 1)}
-      />
+      <Group gap={4} wrap="nowrap">
+        {handle}
+        <ReorderUpDown
+          name={calendar.name}
+          upDisabled={busy || !can.up}
+          downDisabled={busy || !can.down}
+          onUp={() => void reorderDepartment(calendar.id, -1)}
+          onDown={() => void reorderDepartment(calendar.id, 1)}
+        />
+      </Group>
     );
   }
 
@@ -204,90 +248,125 @@ export function DepartmentTable({ departments }: DepartmentTableProps) {
           {/* Mobile: card list — tap a card to open the details modal.
               Children are indented and name their parent on a second line.
               Reorder arrows sit at the card's left edge. */}
-          <Stack gap="sm" hiddenFrom="lg" data-flip-container>
-            {displayRows.map(({ calendar, depth, parent }) => (
-              <Paper
-                key={calendar.id}
-                withBorder
-                p="sm"
-                data-flip-id={calendar.id}
-                {...openRow(calendar)}
-              >
-                <Group justify="space-between" wrap="nowrap" align="center">
-                  <Group wrap="nowrap" gap="sm" align="center" style={{ minWidth: 0, flex: 1 }}>
-                    {actionsFor(calendar)}
-                    <Box style={{ minWidth: 0 }}>
-                      <Group wrap="nowrap" align="center" gap={6}>
-                        <ColorDot color={calendar.color} />
-                        <Text fw={600} truncate style={{ paddingLeft: depth * 12 }}>
-                          {calendar.name}
+          <SortableList
+            keys={displayRows.map(({ calendar }) => calendar.id)}
+            onMove={(id, toIndex) => void moveTo(id, toIndex)}
+          >
+            <Stack gap="sm" hiddenFrom="lg" data-flip-container>
+              {displayRows.map(({ calendar, depth, parent }, index) => (
+                <SortableRow
+                  key={calendar.id}
+                  id={calendar.id}
+                  index={index}
+                  name={calendar.name}
+                  enabled={dragEnabled}
+                >
+                  {({ ref, handle }) => (
+                    <Paper
+                      ref={ref}
+                      withBorder
+                      p="sm"
+                      data-flip-id={calendar.id}
+                      {...openRow(calendar)}
+                    >
+                      <Group justify="space-between" wrap="nowrap" align="center">
+                        <Group
+                          wrap="nowrap"
+                          gap="sm"
+                          align="center"
+                          style={{ minWidth: 0, flex: 1 }}
+                        >
+                          {actionsFor(calendar, handle)}
+                          <Box style={{ minWidth: 0 }}>
+                            <Group wrap="nowrap" align="center" gap={6}>
+                              <ColorDot color={calendar.color} />
+                              <Text fw={600} truncate style={{ paddingLeft: depth * 12 }}>
+                                {calendar.name}
+                              </Text>
+                            </Group>
+                            {parent && (
+                              <Text
+                                size="xs"
+                                c="dimmed"
+                                truncate
+                                style={{ paddingLeft: 12 + depth * 12 }}
+                              >
+                                In {parent.name}
+                              </Text>
+                            )}
+                          </Box>
+                        </Group>
+                        <Text size="sm" c="dimmed" style={{ flexShrink: 0 }}>
+                          {formatColorLabel(calendar.color, calendar.id)}
                         </Text>
                       </Group>
-                      {parent && (
-                        <Text
-                          size="xs"
-                          c="dimmed"
-                          truncate
-                          style={{ paddingLeft: 12 + depth * 12 }}
-                        >
-                          In {parent.name}
-                        </Text>
-                      )}
-                    </Box>
-                  </Group>
-                  <Text size="sm" c="dimmed" style={{ flexShrink: 0 }}>
-                    {formatColorLabel(calendar.color, calendar.id)}
-                  </Text>
-                </Group>
-              </Paper>
-            ))}
-          </Stack>
+                    </Paper>
+                  )}
+                </SortableRow>
+              ))}
+            </Stack>
+          </SortableList>
 
           {/* Desktop: data table — tap a row to open the details modal.
               Hierarchy is carried by the indent depth + the Parent column. */}
-          <Paper withBorder visibleFrom="lg" data-flip-container>
-            <Table withRowBorders={false} highlightOnHover tabularNums>
-              <Table.Thead>
-                <Table.Tr>
-                  <Table.Th>Name</Table.Th>
-                  <Table.Th>Parent</Table.Th>
-                  <Table.Th>External color</Table.Th>
-                  <Table.Th ta="right">
-                    <VisuallyHidden>Actions</VisuallyHidden>
-                  </Table.Th>
-                </Table.Tr>
-              </Table.Thead>
-              <Table.Tbody>
-                {displayRows.map(({ calendar, depth, parent }) => (
-                  <Table.Tr key={calendar.id} data-flip-id={calendar.id} {...openRow(calendar)}>
-                    <Table.Td>
-                      <Text fw={600} style={{ paddingLeft: depth * 16 }}>
-                        {calendar.name}
-                      </Text>
-                    </Table.Td>
-                    <Table.Td>
-                      {parent ? (
-                        <Text size="sm" c="dimmed">
-                          {parent.name}
-                        </Text>
-                      ) : (
-                        <Text size="sm" c="dimmed">
-                          —
-                        </Text>
-                      )}
-                    </Table.Td>
-                    <Table.Td>
-                      <Group gap={6} wrap="nowrap">
-                        <ColorDot color={calendar.color} />
-                        <Text size="sm">{formatColorLabel(calendar.color, calendar.id)}</Text>
-                      </Group>
-                    </Table.Td>
-                    <Table.Td>{actionsFor(calendar)}</Table.Td>
+          <SortableList
+            keys={displayRows.map(({ calendar }) => calendar.id)}
+            onMove={(id, toIndex) => void moveTo(id, toIndex)}
+          >
+            <Paper withBorder visibleFrom="lg" data-flip-container>
+              <Table withRowBorders={false} highlightOnHover tabularNums>
+                <Table.Thead>
+                  <Table.Tr>
+                    <Table.Th>Name</Table.Th>
+                    <Table.Th>Parent</Table.Th>
+                    <Table.Th>External color</Table.Th>
+                    <Table.Th ta="right">
+                      <VisuallyHidden>Actions</VisuallyHidden>
+                    </Table.Th>
                   </Table.Tr>
-                ))}
-              </Table.Tbody>
-            </Table>
-          </Paper>
+                </Table.Thead>
+                <Table.Tbody>
+                  {displayRows.map(({ calendar, depth, parent }, index) => (
+                    <SortableRow
+                      key={calendar.id}
+                      id={calendar.id}
+                      index={index}
+                      name={calendar.name}
+                      enabled={dragEnabled}
+                    >
+                      {({ ref, handle }) => (
+                        <Table.Tr ref={ref} data-flip-id={calendar.id} {...openRow(calendar)}>
+                          <Table.Td>
+                            <Text fw={600} style={{ paddingLeft: depth * 16 }}>
+                              {calendar.name}
+                            </Text>
+                          </Table.Td>
+                          <Table.Td>
+                            {parent ? (
+                              <Text size="sm" c="dimmed">
+                                {parent.name}
+                              </Text>
+                            ) : (
+                              <Text size="sm" c="dimmed">
+                                —
+                              </Text>
+                            )}
+                          </Table.Td>
+                          <Table.Td>
+                            <Group gap={6} wrap="nowrap">
+                              <ColorDot color={calendar.color} />
+                              <Text size="sm">{formatColorLabel(calendar.color, calendar.id)}</Text>
+                            </Group>
+                          </Table.Td>
+                          <Table.Td>{actionsFor(calendar, handle)}</Table.Td>
+                        </Table.Tr>
+                      )}
+                    </SortableRow>
+                  ))}
+                </Table.Tbody>
+              </Table>
+            </Paper>
+          </SortableList>
         </>
       )}
 

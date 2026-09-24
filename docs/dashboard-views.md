@@ -90,7 +90,9 @@ string maps to the first tab of that kind.
     every row in a transaction — the clicked arrow shows an inline spinner while
     it works; the row's outward arrow is disabled at the list's ends). They use
     `ReorderUpDown`'s `variant="subtle"` here, so the dense row isn't a wall of
-    bordered boxes;
+    bordered boxes. With the `reorderDrag` feature flag a **drag handle** joins
+    the arrows (drop commits `reorderDashboardViews` too) — see
+    [`reorder.md`](reorder.md);
   - a **pen** (Edit, subtle) opens a single **Edit view** dialog with the name
     and the seven-kind picker — one place for both, replacing the old separate
     inline rename field and Change-type modal. The tab keeps its id, strip order

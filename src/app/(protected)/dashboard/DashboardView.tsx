@@ -39,12 +39,7 @@ import {
   UnstyledButton,
   useMantineTheme,
 } from "@mantine/core";
-import {
-  useDisclosure,
-  useDrag,
-  useMediaQuery,
-  useMergedRef,
-} from "@mantine/hooks";
+import { useDisclosure, useDrag, useMediaQuery, useMergedRef } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
 // `@mantine/schedule` is the app's heaviest client dependency and is only
 // needed once a schedule-backed view renders. Its views are code-split behind
@@ -367,6 +362,11 @@ export interface DashboardViewProps {
    * modifier on the period chevrons, Quick-links FAB and New-event FAB.
    */
   glassFabLevel: GlassFabLevel;
+  /**
+   * Reorder interaction (Settings → Feature Flags): when true, the Manage-views
+   * list shows a drag handle beside the up/down chevrons.
+   */
+  reorderDrag: boolean;
   /**
    * Enabled quick links in menu order (Settings → Quick Links); the amber
    * Quick-links launcher (mobile FAB / nav-row chip at lg) renders only when
@@ -894,6 +894,7 @@ function DashboardViewImpl({
   googleConfigured,
   savedEventToastVariant,
   glassFabLevel,
+  reorderDrag,
   quickLinks,
   selectedCalendarIds,
   selectedTypes,
@@ -3628,8 +3629,7 @@ function DashboardViewImpl({
             // 12px below it (the Stack's page gap). Cancelling the gap makes
             // the rest position equal the pinned one — no gap at the top of the
             // page and no jump on scroll. Other views keep the page gap.
-            marginTop:
-              shownView === "month" ? "calc(-1 * var(--mantine-spacing-sm))" : undefined,
+            marginTop: shownView === "month" ? "calc(-1 * var(--mantine-spacing-sm))" : undefined,
             marginInline: reclaimGutter ? "calc(-1 * var(--app-shell-padding))" : undefined,
           }}
         >
@@ -4690,6 +4690,7 @@ function DashboardViewImpl({
           onApplyViewTab={applyViewTab}
           onEditFilters={handleEditFilters}
           onAddView={openAddView}
+          dragEnabled={reorderDrag}
         />
       )}
 

@@ -8,6 +8,7 @@ import {
   flattenDepartmentTree,
   moveAvailability,
   moveInTreeOrder,
+  moveToSiblingIndex,
   parentOptionsFor,
   type HierarchyDepartment,
 } from "./hierarchy";
@@ -221,13 +222,7 @@ describe("moveInTreeOrder", () => {
   it("moves a parent together with its whole subtree", () => {
     const moved = moveInTreeOrder(tree, "field", "up")!;
     // Field jumps above the entire HQ subtree; the subtree keeps its shape.
-    expect(moved.map((dept) => dept.id)).toEqual([
-      "field",
-      "hq",
-      "log",
-      "stores",
-      "ops",
-    ]);
+    expect(moved.map((dept) => dept.id)).toEqual(["field", "hq", "log", "stores", "ops"]);
     expect(moved.map((dept) => dept.sortOrder)).toEqual([0, 1, 2, 3, 4]);
   });
 
@@ -247,5 +242,39 @@ describe("moveInTreeOrder", () => {
       ["stores", "log", "Stores"],
       ["ops", "hq", "Ops"],
     ]);
+  });
+});
+
+describe("moveToSiblingIndex", () => {
+  it("moves a flat-list department to an arbitrary position", () => {
+    const moved = moveToSiblingIndex(flat, "a", "c")!;
+    expect(moved.map((dept) => dept.id)).toEqual(["b", "c", "a"]);
+    expect(moved.map((dept) => dept.sortOrder)).toEqual([0, 1, 2]);
+  });
+
+  it("reorders siblings under the same parent", () => {
+    const moved = moveToSiblingIndex(tree, "ops", "log")!;
+    expect(moved.map((dept) => dept.id)).toEqual(["hq", "ops", "log", "stores", "field"]);
+    expect(moved.map((dept) => dept.sortOrder)).toEqual([0, 1, 2, 3, 4]);
+  });
+
+  it("moves a parent together with its whole subtree", () => {
+    const moved = moveToSiblingIndex(tree, "hq", "field")!;
+    expect(moved.map((dept) => dept.id)).toEqual(["field", "hq", "log", "stores", "ops"]);
+  });
+
+  it("normalizes a drop on a sibling's descendant to that sibling", () => {
+    // Field (top level) dropped on Stores (a grandchild of top-level HQ).
+    const moved = moveToSiblingIndex(tree, "field", "stores")!;
+    expect(moved.map((dept) => dept.id)).toEqual(["field", "hq", "log", "stores", "ops"]);
+  });
+
+  it("returns null for a no-op, own subtree, or unrelated target", () => {
+    expect(moveToSiblingIndex(tree, "log", "log")).toBeNull();
+    // Stores is inside log's own subtree — normalizes back to log (no-op).
+    expect(moveToSiblingIndex(tree, "log", "stores")).toBeNull();
+    // Field is top level; log's siblings are HQ's children — unrelated.
+    expect(moveToSiblingIndex(tree, "log", "field")).toBeNull();
+    expect(moveToSiblingIndex(tree, "ghost", "hq")).toBeNull();
   });
 });

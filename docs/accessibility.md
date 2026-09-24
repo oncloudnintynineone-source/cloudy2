@@ -11,7 +11,8 @@ announcements, and the text alternatives on count badges.
 - [1.2 Status announcements (live region)](#12-status-announcements-live-region)
 - [1.3 Loading announcements](#13-loading-announcements)
 - [1.4 Count badges & text alternatives](#14-count-badges--text-alternatives)
-- [1.5 File index & related docs](#15-file-index--related-docs)
+- [1.5 Reorder controls](#15-reorder-controls)
+- [1.6 File index & related docs](#16-file-index--related-docs)
 
 ## 1.1 Skip-to-content link
 
@@ -94,7 +95,18 @@ Icon-only controls across the app already carry `aria-label`s (the
 `FloatingActionButton` contract requires one); active nav items carry
 `aria-current="page"`; toggle-style pickers use `aria-pressed`.
 
-## 1.5 File index & related docs
+## 1.5 Reorder controls
+
+Every manageable list pairs its optional **drag handle** with the always-present
+**↑/↓ chevrons** (`ReorderUpDown`) — the chevrons are the non-drag alternative
+required by WCAG 2.5.7, so a keyboard or screen-reader user never depends on
+dragging. The drag handle is a focusable `ActionIcon` with an accessible name
+(`Drag <name> to reorder`); dnd-kit adds pointer + keyboard sensors and
+screen-reader announcements, and `touch-action: none` on the handle lets a touch
+drag start instead of scrolling. `prefers-reduced-motion` disables the FLIP
+animation. See [`reorder.md`](reorder.md) §1.6.
+
+## 1.6 File index & related docs
 
 | File | Role |
 | ---- | ---- |
@@ -114,5 +126,6 @@ Related docs:
   `LoadingStatus` plugs into.
 - [`dashboard-views.md`](dashboard-views.md) — the view/filter/zoom mechanics
   the announcements mirror.
+- [`reorder.md`](reorder.md) — the chevron + drag-handle reorder controls.
 - [`announcement-banner.md`](announcement-banner.md) — the admin banner also
   carries `role="status"`.

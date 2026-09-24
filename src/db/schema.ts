@@ -164,40 +164,37 @@ export const userDashboardViews = pgTable(
  * dashboard date/month anchor, last visited page) deliberately stay in the
  * `cloudy2.ui` cookie — see docs/ui-state.md.
  */
-export const userPreferences = pgTable(
-  "user_preferences",
-  {
-    userId: uuid("user_id")
-      .primaryKey()
-      .references(() => users.id, { onDelete: "cascade" }),
-    /** Parade State Calendars filter — an explicit list (empty = all). */
-    paradeCal: jsonb("parade_cal")
-      .notNull()
-      .default(sql`'[]'::jsonb`),
-    /** Parade State Users filter — an explicit list (empty = no user filter). */
-    paradeUsers: jsonb("parade_users")
-      .notNull()
-      .default(sql`'[]'::jsonb`),
-    /**
-     * The user's recent event-search queries, most-recent-first (a bounded,
-     * deduped string list — see `src/lib/events/searchHistory.ts`). Empty = no
-     * history. Stored server-side so the shortcuts follow the account across
-     * devices.
-     */
-    searchHistory: jsonb("search_history")
-      .notNull()
-      .default(sql`'[]'::jsonb`),
-    /**
-     * The per-profile master switch for event participant push
-     * notifications ("notify me when I'm added to an event"). Independent of
-     * the OS/browser permission: when false, no push is sent even for a
-     * subscribed device. Defaults to true; only meaningful once a device is
-     * actually subscribed.
-     */
-    eventInvitePush: boolean("event_invite_push").notNull().default(true),
-    ...timestamps,
-  },
-);
+export const userPreferences = pgTable("user_preferences", {
+  userId: uuid("user_id")
+    .primaryKey()
+    .references(() => users.id, { onDelete: "cascade" }),
+  /** Parade State Calendars filter — an explicit list (empty = all). */
+  paradeCal: jsonb("parade_cal")
+    .notNull()
+    .default(sql`'[]'::jsonb`),
+  /** Parade State Users filter — an explicit list (empty = no user filter). */
+  paradeUsers: jsonb("parade_users")
+    .notNull()
+    .default(sql`'[]'::jsonb`),
+  /**
+   * The user's recent event-search queries, most-recent-first (a bounded,
+   * deduped string list — see `src/lib/events/searchHistory.ts`). Empty = no
+   * history. Stored server-side so the shortcuts follow the account across
+   * devices.
+   */
+  searchHistory: jsonb("search_history")
+    .notNull()
+    .default(sql`'[]'::jsonb`),
+  /**
+   * The per-profile master switch for event participant push
+   * notifications ("notify me when I'm added to an event"). Independent of
+   * the OS/browser permission: when false, no push is sent even for a
+   * subscribed device. Defaults to true; only meaningful once a device is
+   * actually subscribed.
+   */
+  eventInvitePush: boolean("event_invite_push").notNull().default(true),
+  ...timestamps,
+});
 
 /**
  * A browser's Web Push subscription, owned by the roster account whose device
@@ -434,6 +431,14 @@ export const settings = pgTable(
      * column default.
      */
     glassFabLevel: text("glass_fab_level").notNull().default("medium"),
+    /**
+     * Reorder interaction for the manageable lists (Settings → Feature Flags):
+     * `arrows` keeps the up/down chevrons only, `arrowsDrag` adds a drag handle
+     * beside them. One of the keys in `FEATURE_FLAGS`
+     * (`src/lib/settings/featureFlags.ts`); the registry's default backs the
+     * column default.
+     */
+    reorderDrag: text("reorder_drag").notNull().default("arrows"),
     /**
      * Daily parade-state email (Settings → Parade State Email): when enabled,
      * the selected roster users receive one snapshot on each weekday at 08:00

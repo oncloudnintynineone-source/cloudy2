@@ -156,6 +156,13 @@ doc content here.
 - **Fullscreen calendar (immersive mode):** hides shell chrome + requests page fullscreen;
   owned by `AppShellShell`, only `DashboardView` controls it and always exits on unmount.
   Design: [docs/immersive-mode.md](docs/immersive-mode.md).
+- **Reorderable lists (views / event-type groups / departments / quick links / title-recipe
+  segments):** one shared path — `useReorderRows` (chevrons via `move(id, ±1)` + FLIP;
+  drag via `moveTo(id, toIndex)`) + `ReorderUpDown` + `SortableList`/`SortableRow`/`DragHandle`
+  (`@dnd-kit/react`). Drag is additive and behind the **`reorderDrag` feature flag**
+  (default `arrows`); chevrons stay as the a11y fallback. Server-backed drag persists a
+  whole-list `reorderX(orderedIds, movedId?)` (transaction renumber). Departments drag
+  sibling-only (`moveToSiblingIndex`). Design: [docs/reorder.md](docs/reorder.md).
 - **Quick Links:** admin-managed Calendar-page shortcuts behind the amber `IconLink`
   launcher (never grey dots). Design: [docs/quick-links.md](docs/quick-links.md).
 - **Announcement banner** above the header; its measured height feeds `--app-banner-height`

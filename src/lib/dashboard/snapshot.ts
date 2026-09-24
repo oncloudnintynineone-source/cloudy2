@@ -10,11 +10,7 @@
  */
 
 import type { DashboardViewProps } from "@/app/(protected)/dashboard/DashboardView";
-import {
-  monthGridMonths,
-  monthsInRange,
-  weekDays,
-} from "@/lib/events/datetime";
+import { monthGridMonths, monthsInRange, weekDays } from "@/lib/events/datetime";
 import type { CalendarEvent } from "@/lib/events/queries";
 import {
   resolveActiveTab,
@@ -28,7 +24,7 @@ import {
  * version differs is ignored (and overwritten on the next successful load), so
  * a deploy that changes the shape can never feed the new UI a stale record.
  */
-export const DASHBOARD_SNAPSHOT_VERSION = 2;
+export const DASHBOARD_SNAPSHOT_VERSION = 3;
 
 /** The one-shot `?refresh=` nonce is honored only within this window. */
 export const REFRESH_NONCE_TTL_MS = 5 * 60_000;

@@ -21,6 +21,8 @@
     "db:usage": "node scripts/neon-usage.mjs"
   },
   "dependencies": {
+    "@dnd-kit/helpers": "^0.5.0",
+    "@dnd-kit/react": "^0.5.0",
     "@mantine/core": "^9.5.1",
     "@mantine/dates": "^9.5.1",
     "@mantine/form": "^9.5.1",

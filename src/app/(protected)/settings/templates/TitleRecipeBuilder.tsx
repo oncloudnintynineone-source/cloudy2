@@ -54,7 +54,8 @@ import {
   type TitleTypeStyle,
 } from "@/lib/settings/titleRecipe";
 import { BUTTON_LOADER_PROPS } from "@/lib/theme";
-import { swapAdjacent, useReorderRows } from "@/lib/ui/reorderRows";
+import { moveToIndex, swapAdjacent, useReorderRows } from "@/lib/ui/reorderRows";
+import { SortableList, SortableRow } from "@/components/SortableRow";
 import { ROW_ACTION_ICON_SIZE, ROW_ACTION_SIZE, ReorderUpDown } from "@/components/reorderUpDown";
 
 interface TitleRecipeBuilderProps {
@@ -64,6 +65,8 @@ interface TitleRecipeBuilderProps {
   recipe: TitleRecipe;
   sample: EventTitleRecipeInput;
   emptySample: EventTitleRecipeInput;
+  /** Feature flag: show the drag handle beside the chevrons. */
+  dragEnabled: boolean;
   onDone: () => void;
 }
 
@@ -235,6 +238,7 @@ export function TitleRecipeBuilder({
   recipe: initialRecipe,
   sample,
   emptySample,
+  dragEnabled,
   onDone,
 }: TitleRecipeBuilderProps) {
   const theme = useMantineTheme();
@@ -257,10 +261,13 @@ export function TitleRecipeBuilder({
     snapshot,
     play,
     move: reorderRow,
+    moveTo,
   } = useReorderRows({
     rows,
     keyOf: (row) => String(row.key),
     predict: (current, id, delta) => swapAdjacent(current, (row) => String(row.key), id, delta),
+    predictMove: (current, id, toIndex) =>
+      moveToIndex(current, (row) => String(row.key), id, toIndex),
     onApply: setRows,
   });
 
@@ -386,60 +393,82 @@ export function TitleRecipeBuilder({
         />
       )}
 
-      <Stack gap={6} data-flip-container>
-        {displayRows.map((row, index) => (
-          <Paper key={row.key} withBorder radius="md" p="xs" data-flip-id={row.key}>
-            <Group justify="space-between" wrap="nowrap" gap="sm">
-              <Group wrap="nowrap" gap="xs" align="center" style={{ minWidth: 0, flex: 1 }}>
-                <ReorderUpDown
-                  name={rowSummary(row)}
-                  upDisabled={index === 0}
-                  downDisabled={index === rows.length - 1}
-                  onUp={() => move(index, -1)}
-                  onDown={() => move(index, 1)}
-                />
-                <Badge
-                  variant="light"
-                  size="md"
-                  leftSection={FIELD_ICONS[row.field]}
-                  style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
-                >
-                  {rowSummary(row)}
-                </Badge>
-                <Text size="xs" c="dimmed" truncate style={{ flexShrink: 0 }}>
-                  {index === 0
-                    ? "first"
-                    : `${CONNECTOR_LABELS[row.connector].toLowerCase()} before`}
-                </Text>
-              </Group>
-              <Group wrap="nowrap" gap={4} style={{ flexShrink: 0 }}>
-                <Tooltip label="Options" position="top">
-                  <ActionIcon
-                    variant="default"
-                    size={ROW_ACTION_SIZE}
-                    aria-label={`Edit ${rowSummary(row)}`}
-                    onClick={() => setEditingIndex(index)}
-                  >
-                    <IconPencil size={ROW_ACTION_ICON_SIZE} />
-                  </ActionIcon>
-                </Tooltip>
-                <Tooltip label={rows.length <= 1 ? "At least one field" : "Remove"}>
-                  <ActionIcon
-                    variant="light"
-                    color="red"
-                    size={ROW_ACTION_SIZE}
-                    aria-label={`Remove ${rowSummary(row)}`}
-                    disabled={rows.length <= 1}
-                    onClick={() => remove(index)}
-                  >
-                    <IconTrash size={ROW_ACTION_ICON_SIZE} />
-                  </ActionIcon>
-                </Tooltip>
-              </Group>
-            </Group>
-          </Paper>
-        ))}
-      </Stack>
+      <SortableList
+        keys={displayRows.map((row) => String(row.key))}
+        onMove={(id, toIndex) => void moveTo(id, toIndex)}
+      >
+        <Stack gap={6} data-flip-container>
+          {displayRows.map((row, index) => (
+            <SortableRow
+              key={row.key}
+              id={String(row.key)}
+              index={index}
+              name={rowSummary(row)}
+              enabled={dragEnabled}
+            >
+              {({ ref, handle }) => (
+                <Paper ref={ref} withBorder radius="md" p="xs" data-flip-id={row.key}>
+                  <Group justify="space-between" wrap="nowrap" gap="sm">
+                    <Group wrap="nowrap" gap="xs" align="center" style={{ minWidth: 0, flex: 1 }}>
+                      <Group gap={4} wrap="nowrap">
+                        {handle}
+                        <ReorderUpDown
+                          name={rowSummary(row)}
+                          upDisabled={index === 0}
+                          downDisabled={index === rows.length - 1}
+                          onUp={() => move(index, -1)}
+                          onDown={() => move(index, 1)}
+                        />
+                      </Group>
+                      <Badge
+                        variant="light"
+                        size="md"
+                        leftSection={FIELD_ICONS[row.field]}
+                        style={{
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
+                          whiteSpace: "nowrap",
+                        }}
+                      >
+                        {rowSummary(row)}
+                      </Badge>
+                      <Text size="xs" c="dimmed" truncate style={{ flexShrink: 0 }}>
+                        {index === 0
+                          ? "first"
+                          : `${CONNECTOR_LABELS[row.connector].toLowerCase()} before`}
+                      </Text>
+                    </Group>
+                    <Group wrap="nowrap" gap={4} style={{ flexShrink: 0 }}>
+                      <Tooltip label="Options" position="top">
+                        <ActionIcon
+                          variant="default"
+                          size={ROW_ACTION_SIZE}
+                          aria-label={`Edit ${rowSummary(row)}`}
+                          onClick={() => setEditingIndex(index)}
+                        >
+                          <IconPencil size={ROW_ACTION_ICON_SIZE} />
+                        </ActionIcon>
+                      </Tooltip>
+                      <Tooltip label={rows.length <= 1 ? "At least one field" : "Remove"}>
+                        <ActionIcon
+                          variant="light"
+                          color="red"
+                          size={ROW_ACTION_SIZE}
+                          aria-label={`Remove ${rowSummary(row)}`}
+                          disabled={rows.length <= 1}
+                          onClick={() => remove(index)}
+                        >
+                          <IconTrash size={ROW_ACTION_ICON_SIZE} />
+                        </ActionIcon>
+                      </Tooltip>
+                    </Group>
+                  </Group>
+                </Paper>
+              )}
+            </SortableRow>
+          ))}
+        </Stack>
+      </SortableList>
 
       <Group>
         <Button

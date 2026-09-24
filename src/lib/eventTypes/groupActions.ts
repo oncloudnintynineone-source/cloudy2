@@ -14,8 +14,7 @@ import { requireAdmin } from "@/lib/session";
 import { moveEventTypeGroupOrder } from "@/lib/eventTypes/groups";
 
 export type EventTypeGroupActionResult =
-  | { ok: true }
-  | { ok: false; error: string; field?: "name" };
+  { ok: true } | { ok: false; error: string; field?: "name" };
 
 function actorFrom(session: Awaited<ReturnType<typeof requireAdmin>>) {
   return actorFromUser({
@@ -162,10 +161,7 @@ export async function setEventTypeGroupCollapsible(
     entityId: id,
     entityName: existing.name,
     method: "setEventTypeGroupCollapsible",
-    details: diffFields(
-      { collapsible: existing.collapsible },
-      { collapsible },
-    ),
+    details: diffFields({ collapsible: existing.collapsible }, { collapsible }),
   });
 
   invalidateConfigCache(["eventTypeGroups"]);
@@ -257,6 +253,62 @@ export async function moveEventTypeGroup(
       { order: neighborIndex + 1, name: rows[index].name },
     ),
   });
+
+  invalidateConfigCache(["eventTypeGroups"]);
+  revalidatePath("/settings/event-types");
+  return { ok: true };
+}
+
+/**
+ * Apply a whole new order (drag). `orderedIds` must be exactly the current
+ * group ids in the desired order; every row is renumbered to its index in a
+ * transaction. `movedId` is the dragged group, used only for the audit entry.
+ */
+export async function reorderEventTypeGroups(
+  orderedIds: string[],
+  movedId?: string,
+): Promise<EventTypeGroupActionResult> {
+  const session = await requireAdmin();
+
+  const rows = await db
+    .select()
+    .from(eventTypeGroups)
+    .orderBy(asc(eventTypeGroups.sortOrder), asc(eventTypeGroups.name));
+  if (
+    rows.length !== orderedIds.length ||
+    new Set(orderedIds).size !== orderedIds.length ||
+    !orderedIds.every((id) => rows.some((row) => row.id === id))
+  ) {
+    return { ok: false, error: "The group list changed — try again" };
+  }
+
+  const beforeIndex = new Map(rows.map((row, index) => [row.id, index] as const));
+
+  await db.transaction(async (tx) => {
+    for (let i = 0; i < orderedIds.length; i += 1) {
+      await tx
+        .update(eventTypeGroups)
+        .set({ sortOrder: i })
+        .where(eq(eventTypeGroups.id, orderedIds[i]));
+    }
+  });
+
+  const moved = movedId ? rows.find((row) => row.id === movedId) : undefined;
+  const from = movedId ? beforeIndex.get(movedId) : undefined;
+  if (moved && movedId && from !== undefined) {
+    await logAction({
+      ...actorFrom(session),
+      action: AUDIT_ACTIONS.eventTypeGroupUpdate,
+      entityType: "eventTypeGroup",
+      entityId: movedId,
+      entityName: moved.name,
+      method: "reorderEventTypeGroups",
+      details: diffFields(
+        { order: from + 1, name: moved.name },
+        { order: orderedIds.indexOf(movedId) + 1, name: moved.name },
+      ),
+    });
+  }
 
   invalidateConfigCache(["eventTypeGroups"]);
   revalidatePath("/settings/event-types");

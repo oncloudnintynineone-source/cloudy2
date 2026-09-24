@@ -3,11 +3,13 @@ import { describe, expect, it } from "vitest";
 import {
   FEATURE_FLAGS,
   isFeatureFlagKey,
+  isReorderDragEnabled,
   normalizeFeatureFlags,
   resolveFlagValue,
   validateFeatureFlags,
   glassFabLevelFlag,
   pinnedTickerIndicatorFlag,
+  reorderDragFlag,
   savedEventToastVariantFlag,
 } from "./featureFlags";
 
@@ -37,6 +39,7 @@ describe("resolveFlagValue", () => {
     expect(resolveFlagValue(pinnedTickerIndicatorFlag, "segmented")).toBe("segmented");
     expect(resolveFlagValue(savedEventToastVariantFlag, "toastPlain")).toBe("toastPlain");
     expect(resolveFlagValue(glassFabLevelFlag, "strong")).toBe("strong");
+    expect(resolveFlagValue(reorderDragFlag, "arrowsDrag")).toBe("arrowsDrag");
   });
 
   it("falls back to the default for unknown values", () => {
@@ -44,6 +47,7 @@ describe("resolveFlagValue", () => {
       expect(resolveFlagValue(pinnedTickerIndicatorFlag, unknown)).toBe("classic");
       expect(resolveFlagValue(savedEventToastVariantFlag, unknown)).toBe("pill");
       expect(resolveFlagValue(glassFabLevelFlag, unknown)).toBe("medium");
+      expect(resolveFlagValue(reorderDragFlag, unknown)).toBe("arrows");
     }
   });
 });
@@ -58,6 +62,7 @@ describe("normalizeFeatureFlags", () => {
       pinnedTickerIndicator: "badge",
       savedEventToastVariant: "toastAction",
       glassFabLevel: "medium",
+      reorderDrag: "arrows",
     });
   });
 
@@ -67,6 +72,7 @@ describe("normalizeFeatureFlags", () => {
       pinnedTickerIndicator: "classic",
       savedEventToastVariant: "pill",
       glassFabLevel: "medium",
+      reorderDrag: "arrows",
     });
   });
 });
@@ -76,7 +82,16 @@ describe("isFeatureFlagKey", () => {
     expect(isFeatureFlagKey("pinnedTickerIndicator")).toBe(true);
     expect(isFeatureFlagKey("savedEventToastVariant")).toBe(true);
     expect(isFeatureFlagKey("glassFabLevel")).toBe(true);
+    expect(isFeatureFlagKey("reorderDrag")).toBe(true);
     expect(isFeatureFlagKey("notAFlag")).toBe(false);
+  });
+});
+
+describe("isReorderDragEnabled", () => {
+  it("is true only for the drag-handle option", () => {
+    expect(isReorderDragEnabled("arrowsDrag")).toBe(true);
+    expect(isReorderDragEnabled("arrows")).toBe(false);
+    expect(isReorderDragEnabled(undefined)).toBe(false);
   });
 });
 
@@ -87,6 +102,7 @@ describe("validateFeatureFlags", () => {
         pinnedTickerIndicator: "segmented",
         savedEventToastVariant: "pillRestyle",
         glassFabLevel: "strong",
+        reorderDrag: "arrowsDrag",
       }),
     ).toEqual({});
   });

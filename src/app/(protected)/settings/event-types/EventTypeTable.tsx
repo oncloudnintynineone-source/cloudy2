@@ -44,9 +44,10 @@ const EventTypeForm = dynamic(() => import("./EventTypeForm").then((mod) => mod.
 interface EventTypeTableProps {
   types: EventType[];
   groups: { id: string; name: string; sortOrder: number; collapsible: boolean }[];
+  dragEnabled: boolean;
 }
 
-export function EventTypeTable({ types, groups }: EventTypeTableProps) {
+export function EventTypeTable({ types, groups, dragEnabled }: EventTypeTableProps) {
   const refreshAfterSave = useActivityRefresh("event-types:save");
   const theme = useMantineTheme();
   const isDesktop = useMediaQuery(`(min-width: ${theme.breakpoints.lg})`);
@@ -313,6 +314,7 @@ export function EventTypeTable({ types, groups }: EventTypeTableProps) {
         onClose={closeGroups}
         groups={groups}
         typeCounts={typeCounts}
+        dragEnabled={dragEnabled}
         onMutated={() => {
           refreshAfterSave();
         }}

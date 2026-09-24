@@ -64,6 +64,8 @@ interface TemplatesManagerProps {
   assignments: Record<string, string>;
   previewUsers: { name: string; shortname: string | null; departmentName: string | null }[];
   previewEventTypes: { name: string; shortname: string | null }[];
+  /** Feature flag: show the drag handle beside the chevrons. */
+  dragEnabled: boolean;
 }
 
 const SAMPLE_DESCRIPTION = "Team offsite";
@@ -199,6 +201,7 @@ export function TemplatesManager({
   assignments,
   previewUsers,
   previewEventTypes,
+  dragEnabled,
 }: TemplatesManagerProps) {
   const theme = useMantineTheme();
   const isDesktop = useMediaQuery(`(min-width: ${theme.breakpoints.lg})`);
@@ -419,6 +422,7 @@ export function TemplatesManager({
           recipe={eventTitleRecipe}
           sample={sample}
           emptySample={emptySample}
+          dragEnabled={dragEnabled}
           onDone={() => closeAndRefresh(closeMaster)}
         />
       </Modal>
@@ -439,6 +443,7 @@ export function TemplatesManager({
           recipe={editing?.recipe ?? { segments: [{ field: "description" }] }}
           sample={sample}
           emptySample={emptySample}
+          dragEnabled={dragEnabled}
           onDone={() => closeAndRefresh(closeEdit)}
         />
       </Modal>

@@ -718,6 +718,66 @@ export async function moveDepartment(
   return { ok: true };
 }
 
+/**
+ * Apply a whole new preorder (drag). `orderedIds` must be exactly the current
+ * department ids in the desired order; every row is renumbered to its index in
+ * a transaction, so `sortOrder` stays dense and unique. Sibling constraints are
+ * enforced client-side (`moveToSiblingIndex`); `movedId` is the dragged
+ * department, used only for the audit entry.
+ */
+export async function reorderDepartments(
+  orderedIds: string[],
+  movedId?: string,
+): Promise<RosterActionResult> {
+  const session = await requireAdmin();
+
+  const rows = await db
+    .select()
+    .from(calendars)
+    .orderBy(asc(calendars.sortOrder), asc(calendars.name));
+  if (
+    rows.length !== orderedIds.length ||
+    new Set(orderedIds).size !== orderedIds.length ||
+    !orderedIds.every((id) => rows.some((row) => row.id === id))
+  ) {
+    return { ok: false, error: "The department list changed — try again", field: "name" };
+  }
+
+  const beforeIndex = new Map(rows.map((row, index) => [row.id, index] as const));
+
+  await db.transaction(async (tx) => {
+    for (let i = 0; i < orderedIds.length; i += 1) {
+      const current = rows.find((row) => row.id === orderedIds[i]);
+      if (current && current.sortOrder !== i) {
+        await tx.update(calendars).set({ sortOrder: i }).where(eq(calendars.id, orderedIds[i]));
+      }
+    }
+  });
+
+  const moved = movedId ? rows.find((row) => row.id === movedId) : undefined;
+  const from = movedId ? beforeIndex.get(movedId) : undefined;
+  if (moved && movedId && from !== undefined) {
+    await logAction({
+      ...actorFrom(session),
+      action: AUDIT_ACTIONS.calendarUpdate,
+      entityType: "calendar",
+      entityId: movedId,
+      entityName: moved.name,
+      method: "reorderDepartments",
+      details: diffFields(
+        { order: from + 1, name: moved.name },
+        { order: orderedIds.indexOf(movedId) + 1, name: moved.name },
+      ),
+    });
+  }
+
+  invalidateConfigCache(["calendars"]);
+  revalidatePath("/settings/departments");
+  revalidatePath("/dashboard");
+  revalidatePath("/parade-state");
+  return { ok: true };
+}
+
 // ---------------------------------------------------------------------------
 // Calendar sharing
 // ---------------------------------------------------------------------------

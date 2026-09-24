@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   keysEqualOrder,
+  moveToIndex,
   overrideIsStale,
   sameKeyMembership,
   swapAdjacent,
@@ -60,5 +61,25 @@ describe("swapAdjacent", () => {
     expect(swapAdjacent(rows, keyOf, "a", -1)).toBeNull();
     expect(swapAdjacent(rows, keyOf, "d", 1)).toBeNull();
     expect(swapAdjacent(rows, keyOf, "zz", 1)).toBeNull();
+  });
+});
+
+describe("moveToIndex", () => {
+  const rows = ["a", "b", "c", "d"];
+
+  it("moves a row to an absolute index (arrayMove semantics)", () => {
+    expect(moveToIndex(rows, keyOf, "a", 2)).toEqual(["b", "c", "a", "d"]);
+    expect(moveToIndex(rows, keyOf, "d", 0)).toEqual(["d", "a", "b", "c"]);
+    expect(moveToIndex(rows, keyOf, "b", 3)).toEqual(["a", "c", "d", "b"]);
+  });
+
+  it("clamps an out-of-range target index", () => {
+    expect(moveToIndex(rows, keyOf, "a", 99)).toEqual(["b", "c", "d", "a"]);
+    expect(moveToIndex(rows, keyOf, "d", -5)).toEqual(["d", "a", "b", "c"]);
+  });
+
+  it("returns null for a no-op or an unknown id", () => {
+    expect(moveToIndex(rows, keyOf, "b", 1)).toBeNull();
+    expect(moveToIndex(rows, keyOf, "zz", 0)).toBeNull();
   });
 });

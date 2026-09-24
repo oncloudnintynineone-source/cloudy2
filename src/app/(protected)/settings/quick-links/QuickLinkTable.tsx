@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { type ReactNode, useState } from "react";
 import {
   ActionIcon,
   Badge,
@@ -25,10 +25,11 @@ import type { QuickLink } from "@/db/schema";
 import { FAB_ICON_SIZE, FloatingActionButton, FloatingToolbar } from "@/components/FloatingToolbar";
 import { QuickLinkIcon } from "@/components/QuickLinkIcon";
 import { ROW_ACTION_ICON_SIZE, ROW_ACTION_SIZE, ReorderUpDown } from "@/components/reorderUpDown";
+import { SortableList, SortableRow } from "@/components/SortableRow";
 import { CONTENT_ENTER_CLASS } from "@/lib/loading/contentEnter";
-import { deleteQuickLink, moveQuickLink } from "@/lib/quickLinks/actions";
+import { deleteQuickLink, moveQuickLink, reorderQuickLinks } from "@/lib/quickLinks/actions";
 import { BUTTON_LOADER_PROPS } from "@/lib/theme";
-import { swapAdjacent, useReorderRows } from "@/lib/ui/reorderRows";
+import { moveToIndex, swapAdjacent, useReorderRows } from "@/lib/ui/reorderRows";
 import { activatable } from "@/lib/ui/activatable";
 import dynamic from "next/dynamic";
 import { FormModalSkeleton } from "@/components/FormModalSkeleton";
@@ -43,9 +44,10 @@ import { useActivityRefresh } from "@/components/ActivityBar";
 
 interface QuickLinkTableProps {
   links: QuickLink[];
+  dragEnabled: boolean;
 }
 
-export function QuickLinkTable({ links }: QuickLinkTableProps) {
+export function QuickLinkTable({ links, dragEnabled }: QuickLinkTableProps) {
   const refreshAfterSave = useActivityRefresh("quick-links:save");
   const theme = useMantineTheme();
   const isDesktop = useMediaQuery(`(min-width: ${theme.breakpoints.lg})`);
@@ -58,6 +60,7 @@ export function QuickLinkTable({ links }: QuickLinkTableProps) {
     displayRows: displayLinks,
     containerRef,
     move: reorderLink,
+    moveTo,
     busy,
   } = useReorderRows({
     rows: links,
@@ -65,6 +68,19 @@ export function QuickLinkTable({ links }: QuickLinkTableProps) {
     predict: (current, id, delta) => swapAdjacent(current, (link) => link.id, id, delta),
     persist: async (_next, id, delta) => {
       const result = await moveQuickLink(id, delta === -1 ? "up" : "down");
+      if (result.ok) {
+        refreshAfterSave();
+        return true;
+      }
+      notifications.show({ color: "red", message: result.error });
+      return false;
+    },
+    predictMove: (current, id, toIndex) => moveToIndex(current, (link) => link.id, id, toIndex),
+    persistOrder: async (next, id) => {
+      const result = await reorderQuickLinks(
+        next.map((link) => link.id),
+        id,
+      );
       if (result.ok) {
         refreshAfterSave();
         return true;
@@ -110,15 +126,18 @@ export function QuickLinkTable({ links }: QuickLinkTableProps) {
   // Row actions — reorder chevrons lead (left), delete trails (right). Click
   // propagation is stopped so the row/card's own edit handler doesn't fire
   // along with a tap on a control.
-  function reorderFor(link: QuickLink, index: number) {
+  function reorderFor(link: QuickLink, index: number, handle: ReactNode) {
     return (
-      <ReorderUpDown
-        name={link.label}
-        upDisabled={busy || index === 0}
-        downDisabled={busy || index === links.length - 1}
-        onUp={() => void reorderLink(link.id, -1)}
-        onDown={() => void reorderLink(link.id, 1)}
-      />
+      <Group gap={4} wrap="nowrap">
+        {handle}
+        <ReorderUpDown
+          name={link.label}
+          upDisabled={busy || index === 0}
+          downDisabled={busy || index === links.length - 1}
+          onUp={() => void reorderLink(link.id, -1)}
+          onDown={() => void reorderLink(link.id, 1)}
+        />
+      </Group>
     );
   }
 
@@ -167,88 +186,130 @@ export function QuickLinkTable({ links }: QuickLinkTableProps) {
       ) : (
         <>
           {/* Mobile: card list */}
-          <Stack gap="sm" hiddenFrom="lg" data-flip-container>
-            {displayLinks.map((link, index) => (
-              <Paper
-                key={link.id}
-                withBorder
-                p="sm"
-                data-flip-id={link.id}
-                onClick={() => openEdit(link)}
-                {...activatable(() => openEdit(link))}
-                style={{ cursor: "pointer" }}
-              >
-                <Stack gap="xs">
-                  <Group justify="space-between" wrap="nowrap" style={{ minWidth: 0 }}>
-                    <Group gap={8} wrap="nowrap" style={{ minWidth: 0 }}>
-                      <QuickLinkIcon iconKey={link.icon} size={20} color={iconTint(link.color)} />
-                      <Text fw={600} truncate>
-                        {link.label}
-                      </Text>
-                    </Group>
-                    <Badge size="sm" variant="light" color={link.enabled ? "green" : "gray"}>
-                      {link.enabled ? "Enabled" : "Disabled"}
-                    </Badge>
-                  </Group>
-                  <Code fz="xs" style={{ wordBreak: "break-all" }}>
-                    {link.url}
-                  </Code>
-                  <Group justify="space-between" wrap="nowrap" align="center">
-                    {reorderFor(link, index)}
-                    {deleteControl(link)}
-                  </Group>
-                </Stack>
-              </Paper>
-            ))}
-          </Stack>
+          <SortableList
+            keys={displayLinks.map((link) => link.id)}
+            onMove={(id, toIndex) => void moveTo(id, toIndex)}
+          >
+            <Stack gap="sm" hiddenFrom="lg" data-flip-container>
+              {displayLinks.map((link, index) => (
+                <SortableRow
+                  key={link.id}
+                  id={link.id}
+                  index={index}
+                  name={link.label}
+                  enabled={dragEnabled}
+                >
+                  {({ ref, handle }) => (
+                    <Paper
+                      ref={ref}
+                      withBorder
+                      p="sm"
+                      data-flip-id={link.id}
+                      onClick={() => openEdit(link)}
+                      {...activatable(() => openEdit(link))}
+                      style={{ cursor: "pointer" }}
+                    >
+                      <Stack gap="xs">
+                        <Group justify="space-between" wrap="nowrap" style={{ minWidth: 0 }}>
+                          <Group gap={8} wrap="nowrap" style={{ minWidth: 0 }}>
+                            <QuickLinkIcon
+                              iconKey={link.icon}
+                              size={20}
+                              color={iconTint(link.color)}
+                            />
+                            <Text fw={600} truncate>
+                              {link.label}
+                            </Text>
+                          </Group>
+                          <Badge size="sm" variant="light" color={link.enabled ? "green" : "gray"}>
+                            {link.enabled ? "Enabled" : "Disabled"}
+                          </Badge>
+                        </Group>
+                        <Code fz="xs" style={{ wordBreak: "break-all" }}>
+                          {link.url}
+                        </Code>
+                        <Group justify="space-between" wrap="nowrap" align="center">
+                          {reorderFor(link, index, handle)}
+                          {deleteControl(link)}
+                        </Group>
+                      </Stack>
+                    </Paper>
+                  )}
+                </SortableRow>
+              ))}
+            </Stack>
+          </SortableList>
 
           {/* Desktop: data table */}
-          <Paper withBorder visibleFrom="lg" data-flip-container>
-            <Table withRowBorders={false} highlightOnHover>
-              <Table.Thead>
-                <Table.Tr>
-                  <Table.Th>Label</Table.Th>
-                  <Table.Th>URL</Table.Th>
-                  <Table.Th>Status</Table.Th>
-                  <Table.Th ta="right">
-                    <VisuallyHidden>Actions</VisuallyHidden>
-                  </Table.Th>
-                </Table.Tr>
-              </Table.Thead>
-              <Table.Tbody>
-                {displayLinks.map((link, index) => (
-                  <Table.Tr
-                    key={link.id}
-                    data-flip-id={link.id}
-                    onClick={() => openEdit(link)}
-                    {...activatable(() => openEdit(link))}
-                    style={{ cursor: "pointer" }}
-                  >
-                    <Table.Td>
-                      <Group gap={8} wrap="nowrap">
-                        <QuickLinkIcon iconKey={link.icon} size={18} color={iconTint(link.color)} />
-                        <Text fw={600}>{link.label}</Text>
-                      </Group>
-                    </Table.Td>
-                    <Table.Td>
-                      <Code fz="sm">{link.url}</Code>
-                    </Table.Td>
-                    <Table.Td>
-                      <Badge size="sm" variant="light" color={link.enabled ? "green" : "gray"}>
-                        {link.enabled ? "Enabled" : "Disabled"}
-                      </Badge>
-                    </Table.Td>
-                    <Table.Td>
-                      <Group wrap="nowrap" gap={4} align="center">
-                        {reorderFor(link, index)}
-                        {deleteControl(link)}
-                      </Group>
-                    </Table.Td>
+          <SortableList
+            keys={displayLinks.map((link) => link.id)}
+            onMove={(id, toIndex) => void moveTo(id, toIndex)}
+          >
+            <Paper withBorder visibleFrom="lg" data-flip-container>
+              <Table withRowBorders={false} highlightOnHover>
+                <Table.Thead>
+                  <Table.Tr>
+                    <Table.Th>Label</Table.Th>
+                    <Table.Th>URL</Table.Th>
+                    <Table.Th>Status</Table.Th>
+                    <Table.Th ta="right">
+                      <VisuallyHidden>Actions</VisuallyHidden>
+                    </Table.Th>
                   </Table.Tr>
-                ))}
-              </Table.Tbody>
-            </Table>
-          </Paper>
+                </Table.Thead>
+                <Table.Tbody>
+                  {displayLinks.map((link, index) => (
+                    <SortableRow
+                      key={link.id}
+                      id={link.id}
+                      index={index}
+                      name={link.label}
+                      enabled={dragEnabled}
+                    >
+                      {({ ref, handle }) => (
+                        <Table.Tr
+                          ref={ref}
+                          data-flip-id={link.id}
+                          onClick={() => openEdit(link)}
+                          {...activatable(() => openEdit(link))}
+                          style={{ cursor: "pointer" }}
+                        >
+                          <Table.Td>
+                            <Group gap={8} wrap="nowrap">
+                              <QuickLinkIcon
+                                iconKey={link.icon}
+                                size={18}
+                                color={iconTint(link.color)}
+                              />
+                              <Text fw={600}>{link.label}</Text>
+                            </Group>
+                          </Table.Td>
+                          <Table.Td>
+                            <Code fz="sm">{link.url}</Code>
+                          </Table.Td>
+                          <Table.Td>
+                            <Badge
+                              size="sm"
+                              variant="light"
+                              color={link.enabled ? "green" : "gray"}
+                            >
+                              {link.enabled ? "Enabled" : "Disabled"}
+                            </Badge>
+                          </Table.Td>
+                          <Table.Td>
+                            <Group wrap="nowrap" gap={4} align="center">
+                              {reorderFor(link, index, handle)}
+                              {deleteControl(link)}
+                            </Group>
+                          </Table.Td>
+                        </Table.Tr>
+                      )}
+                    </SortableRow>
+                  ))}
+                </Table.Tbody>
+              </Table>
+            </Paper>
+          </SortableList>
         </>
       )}
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { type ReactNode, useState } from "react";
 import {
   ActionIcon,
   Button,
@@ -31,13 +31,14 @@ import {
   type DashboardViewKind,
 } from "@/lib/dashboardViews/views";
 import { BUTTON_LOADER_PROPS, NARROW_MEDIA_QUERY } from "@/lib/theme";
-import { swapAdjacent, useReorderRows } from "@/lib/ui/reorderRows";
+import { moveToIndex, swapAdjacent, useReorderRows } from "@/lib/ui/reorderRows";
 import {
   ROW_ACTION_ICON_SIZE,
   ROW_ACTION_SIZE,
   ROW_CARD_GAP,
   ReorderUpDown,
 } from "@/components/reorderUpDown";
+import { SortableList, SortableRow } from "@/components/SortableRow";
 import { VIEW_TAB_META } from "./viewMeta";
 import { ViewTypePicker } from "./ViewTypePicker";
 
@@ -63,6 +64,8 @@ interface EditViewsModalProps {
   onEditFilters: (tab: DashboardViewTab) => void;
   /** Open the quick "Add view" dialog (the strip's + flow). */
   onAddView: () => void;
+  /** Feature flag: show the drag handle beside the chevrons. */
+  dragEnabled: boolean;
 }
 
 export function EditViewsModal({
@@ -75,6 +78,7 @@ export function EditViewsModal({
   onNavigateToView,
   onEditFilters,
   onAddView,
+  dragEnabled,
 }: EditViewsModalProps) {
   const theme = useMantineTheme();
   const isDesktop = useMediaQuery(`(min-width: ${theme.breakpoints.lg})`);
@@ -93,12 +97,23 @@ export function EditViewsModal({
     displayRows: displayTabs,
     containerRef,
     move: reorderView,
+    moveTo,
     busy,
   } = useReorderRows({
     rows: tabs,
     keyOf: (tab) => tab.id,
     predict: (current, id, delta) => swapAdjacent(current, (tab) => tab.id, id, delta),
     persist: async (next) => {
+      const result = await reorderDashboardViews(next.map((view) => view.id));
+      if (result.ok) {
+        onMutated();
+        return true;
+      }
+      notifications.show({ color: "red", message: result.error });
+      return false;
+    },
+    predictMove: (current, id, toIndex) => moveToIndex(current, (tab) => tab.id, id, toIndex),
+    persistOrder: async (next) => {
       const result = await reorderDashboardViews(next.map((view) => view.id));
       if (result.ok) {
         onMutated();
@@ -244,109 +259,127 @@ export function EditViewsModal({
           </Text>
         ) : (
           <ScrollArea.Autosize mah="min(60vh, 420px)" mx="-sm" px="sm">
-            <Stack gap={ROW_CARD_GAP} data-flip-container>
-              {displayTabs.map((tab, index) => {
-                const meta = VIEW_TAB_META[tab.kind];
-                const isActive = tab.id === activeView.id;
-                // The kind label only adds information when the name is custom
-                // — otherwise it just repeats the name ("Month / Month").
-                const showKind = tab.name !== DASHBOARD_VIEW_KIND_LABELS[tab.kind];
-                const chevrons = (
-                  <ReorderUpDown
-                    name={tab.name}
-                    variant="subtle"
-                    upDisabled={busy || index === 0}
-                    downDisabled={busy || index === displayTabs.length - 1}
-                    onUp={() => void reorderView(tab.id, -1)}
-                    onDown={() => void reorderView(tab.id, 1)}
-                  />
-                );
-                const title = (
-                  <Group wrap="nowrap" gap="sm" align="center" style={{ minWidth: 0, flex: 1 }}>
-                    {meta.icon}
-                    <Stack gap={0} style={{ minWidth: 0, flex: 1 }}>
-                      <Text fw={600} size="md" truncate>
-                        {tab.name}
-                      </Text>
-                      {showKind && (
-                        <Text size="xs" c="dimmed" truncate>
-                          {meta.label}
+            <SortableList
+              keys={displayTabs.map((tab) => tab.id)}
+              onMove={(id, toIndex) => void moveTo(id, toIndex)}
+            >
+              <Stack gap={ROW_CARD_GAP} data-flip-container>
+                {displayTabs.map((tab, index) => {
+                  const meta = VIEW_TAB_META[tab.kind];
+                  const isActive = tab.id === activeView.id;
+                  // The kind label only adds information when the name is custom
+                  // — otherwise it just repeats the name ("Month / Month").
+                  const showKind = tab.name !== DASHBOARD_VIEW_KIND_LABELS[tab.kind];
+                  const chevrons = (handle: ReactNode) => (
+                    <Group gap={4} wrap="nowrap">
+                      {handle}
+                      <ReorderUpDown
+                        name={tab.name}
+                        variant="subtle"
+                        upDisabled={busy || index === 0}
+                        downDisabled={busy || index === displayTabs.length - 1}
+                        onUp={() => void reorderView(tab.id, -1)}
+                        onDown={() => void reorderView(tab.id, 1)}
+                      />
+                    </Group>
+                  );
+                  const title = (
+                    <Group wrap="nowrap" gap="sm" align="center" style={{ minWidth: 0, flex: 1 }}>
+                      {meta.icon}
+                      <Stack gap={0} style={{ minWidth: 0, flex: 1 }}>
+                        <Text fw={600} size="md" truncate>
+                          {tab.name}
                         </Text>
-                      )}
-                    </Stack>
-                  </Group>
-                );
-                const actions = (
-                  <>
-                    <Tooltip label="Edit" position="top">
-                      <ActionIcon
-                        variant="subtle"
-                        color="gray"
-                        size={ROW_ACTION_SIZE}
-                        aria-label={`Edit ${tab.name}`}
-                        onClick={() => startEdit(tab)}
-                      >
-                        <IconPencil size={ROW_ACTION_ICON_SIZE} />
-                      </ActionIcon>
-                    </Tooltip>
-                    <Tooltip
-                      label={tabs.length === 1 ? "Your last view can't be deleted" : "Delete"}
-                      position="top"
-                    >
-                      <ActionIcon
-                        variant="subtle"
-                        color="red"
-                        size={ROW_ACTION_SIZE}
-                        aria-label={`Delete ${tab.name}`}
-                        disabled={tabs.length === 1}
-                        onClick={() => setDeleting(tab)}
-                      >
-                        <IconTrash size={ROW_ACTION_ICON_SIZE} />
-                      </ActionIcon>
-                    </Tooltip>
-                  </>
-                );
-                return (
-                  <Paper
-                    key={tab.id}
-                    withBorder
-                    radius="md"
-                    p="sm"
-                    data-flip-id={tab.id}
-                    style={
-                      isActive
-                        ? { borderLeft: "3px solid var(--mantine-color-accent-6)" }
-                        : undefined
-                    }
-                  >
-                    {isDesktop ? (
-                      <Group justify="space-between" align="center" wrap="nowrap">
-                        <Group
-                          wrap="nowrap"
-                          gap="sm"
-                          align="center"
-                          style={{ minWidth: 0, flex: 1 }}
-                        >
-                          {chevrons}
-                          {title}
-                        </Group>
-                        <Group wrap="nowrap" gap={4} style={{ flexShrink: 0 }}>
-                          {actions}
-                        </Group>
-                      </Group>
-                    ) : (
-                      <Stack gap={6}>
-                        {title}
-                        <Group wrap="nowrap" gap={4} align="center">
-                          {chevrons}
-                          {actions}
-                        </Group>
+                        {showKind && (
+                          <Text size="xs" c="dimmed" truncate>
+                            {meta.label}
+                          </Text>
+                        )}
                       </Stack>
-                    )}
-                  </Paper>
-                );
-              })}
-            </Stack>
+                    </Group>
+                  );
+                  const actions = (
+                    <>
+                      <Tooltip label="Edit" position="top">
+                        <ActionIcon
+                          variant="subtle"
+                          color="gray"
+                          size={ROW_ACTION_SIZE}
+                          aria-label={`Edit ${tab.name}`}
+                          onClick={() => startEdit(tab)}
+                        >
+                          <IconPencil size={ROW_ACTION_ICON_SIZE} />
+                        </ActionIcon>
+                      </Tooltip>
+                      <Tooltip
+                        label={tabs.length === 1 ? "Your last view can't be deleted" : "Delete"}
+                        position="top"
+                      >
+                        <ActionIcon
+                          variant="subtle"
+                          color="red"
+                          size={ROW_ACTION_SIZE}
+                          aria-label={`Delete ${tab.name}`}
+                          disabled={tabs.length === 1}
+                          onClick={() => setDeleting(tab)}
+                        >
+                          <IconTrash size={ROW_ACTION_ICON_SIZE} />
+                        </ActionIcon>
+                      </Tooltip>
+                    </>
+                  );
+                  return (
+                    <SortableRow
+                      key={tab.id}
+                      id={tab.id}
+                      index={index}
+                      name={tab.name}
+                      enabled={dragEnabled}
+                    >
+                      {({ ref, handle }) => (
+                        <Paper
+                          ref={ref}
+                          withBorder
+                          radius="md"
+                          p="sm"
+                          data-flip-id={tab.id}
+                          style={
+                            isActive
+                              ? { borderLeft: "3px solid var(--mantine-color-accent-6)" }
+                              : undefined
+                          }
+                        >
+                          {isDesktop ? (
+                            <Group justify="space-between" align="center" wrap="nowrap">
+                              <Group
+                                wrap="nowrap"
+                                gap="sm"
+                                align="center"
+                                style={{ minWidth: 0, flex: 1 }}
+                              >
+                                {chevrons(handle)}
+                                {title}
+                              </Group>
+                              <Group wrap="nowrap" gap={4} style={{ flexShrink: 0 }}>
+                                {actions}
+                              </Group>
+                            </Group>
+                          ) : (
+                            <Stack gap={6}>
+                              {title}
+                              <Group wrap="nowrap" gap={4} align="center">
+                                {chevrons(handle)}
+                                {actions}
+                              </Group>
+                            </Stack>
+                          )}
+                        </Paper>
+                      )}
+                    </SortableRow>
+                  );
+                })}
+              </Stack>
+            </SortableList>
           </ScrollArea.Autosize>
         )}
       </Stack>

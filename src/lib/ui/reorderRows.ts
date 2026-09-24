@@ -30,11 +30,13 @@ export interface UseReorderRowsOptions<Row> {
   /** Persist the move server-side; awaited before the next move is allowed.
    *  `next` is the full predicted order (whole-list backends like the
    *  dashboard views persist it directly; relative ones ignore it). */
-  persist?: (
-    next: readonly Row[],
-    id: string,
-    delta: 1 | -1,
-  ) => Promise<boolean>;
+  persist?: (next: readonly Row[], id: string, delta: 1 | -1) => Promise<boolean>;
+  /** Pure: the list after moving `id` to absolute index `toIndex`, or null
+   *  when it can't move there. Required to enable drag (`moveTo`). */
+  predictMove?: (rows: readonly Row[], id: string, toIndex: number) => readonly Row[] | null;
+  /** Persist a whole new order (drag). `id` is the dragged row. Required for
+   *  server-backed drag. */
+  persistOrder?: (next: readonly Row[], id: string, toIndex: number) => Promise<boolean>;
   /** Local mode: commit the predicted order to the owner's state. */
   onApply?: (next: Row[]) => void;
 }
@@ -49,6 +51,10 @@ export interface UseReorderRowsResult<Row> {
   /** Optimistic (and, when server-backed, persisted) move. False when a write
    *  is already in flight or the row cannot move that way. */
   move: (id: string, delta: 1 | -1) => Promise<boolean>;
+  /** Optimistic (and, when server-backed, persisted) move to an absolute index
+   *  — the drag path. False when no `predictMove` is configured, a write is in
+   *  flight, or the row can't move there. */
+  moveTo: (id: string, toIndex: number) => Promise<boolean>;
   /** True while a server write is in flight. */
   busy: boolean;
 }
@@ -70,7 +76,10 @@ export function sameKeyMembership(a: readonly string[], b: readonly string[]): b
 
 /** An optimistic override is stale (drop it) once the authoritative rows
  *  already match its order or no longer share its membership. */
-export function overrideIsStale(override: readonly string[], currentKeys: readonly string[]): boolean {
+export function overrideIsStale(
+  override: readonly string[],
+  currentKeys: readonly string[],
+): boolean {
   return keysEqualOrder(override, currentKeys) || !sameKeyMembership(override, currentKeys);
 }
 
@@ -96,11 +105,35 @@ export function swapAdjacent<Row>(
   return next;
 }
 
+/** Move a row to an absolute index (the drag path). Clamps `toIndex` into
+ *  range; returns null for an unknown id or a no-op move. */
+export function moveToIndex<Row>(
+  rows: readonly Row[],
+  keyOf: (row: Row) => string,
+  id: string,
+  toIndex: number,
+): Row[] | null {
+  const from = rows.findIndex((row) => keyOf(row) === id);
+  if (from === -1) {
+    return null;
+  }
+  const to = Math.max(0, Math.min(rows.length - 1, toIndex));
+  if (to === from) {
+    return null;
+  }
+  const next = [...rows];
+  const [row] = next.splice(from, 1);
+  next.splice(to, 0, row);
+  return next;
+}
+
 export function useReorderRows<Row>({
   rows,
   keyOf,
   predict,
   persist,
+  predictMove,
+  persistOrder,
   onApply,
 }: UseReorderRowsOptions<Row>): UseReorderRowsResult<Row> {
   const serverBacked = persist !== undefined;
@@ -167,5 +200,45 @@ export function useReorderRows<Row>({
     }
   };
 
-  return { displayRows, containerRef, snapshot, play, move, busy };
+  // Drag path: move to an absolute index. Unlike the chevron `move`, no FLIP
+  // snapshot/play — dnd-kit owns the drag/drop animation. The optimistic
+  // override and busy guard are shared.
+  const moveTo = async (id: string, toIndex: number): Promise<boolean> => {
+    if (!predictMove || (serverBacked && !persistOrder)) {
+      return false;
+    }
+    if (busy || busyRef.current) {
+      return false;
+    }
+    const source = serverBacked ? displayRows : rows;
+    const predicted = predictMove(source, id, toIndex);
+    if (!predicted) {
+      return false;
+    }
+    if (serverBacked) {
+      setOverride(predicted.map((row) => keyOf(row)));
+    } else {
+      onApply?.([...predicted]);
+    }
+    if (!serverBacked) {
+      return true;
+    }
+    busyRef.current = true;
+    setBusy(true);
+    try {
+      const ok = await persistOrder!(predicted, id, toIndex);
+      if (!ok) {
+        setOverride(null);
+      }
+      return ok;
+    } catch {
+      setOverride(null);
+      return false;
+    } finally {
+      busyRef.current = false;
+      setBusy(false);
+    }
+  };
+
+  return { displayRows, containerRef, snapshot, play, move, moveTo, busy };
 }

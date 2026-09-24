@@ -48,9 +48,7 @@ function auditValues(values: {
     label: values.label,
     url: values.url,
     icon: formatQuickLinkIconLabel(values.icon),
-    color: values.color
-      ? values.color.charAt(0).toUpperCase() + values.color.slice(1)
-      : "Auto",
+    color: values.color ? values.color.charAt(0).toUpperCase() + values.color.slice(1) : "Auto",
     enabled: values.enabled,
   };
 }
@@ -61,9 +59,7 @@ function revalidateQuickLinks(): void {
   revalidatePath("/dashboard");
 }
 
-export async function createQuickLink(
-  input: QuickLinkFormValues,
-): Promise<QuickLinkActionResult> {
+export async function createQuickLink(input: QuickLinkFormValues): Promise<QuickLinkActionResult> {
   const session = await requireAdmin();
 
   const normalized = normalizeQuickLinkForm(input);
@@ -207,17 +203,11 @@ export async function moveQuickLink(
   await db.transaction(async (tx) => {
     for (let i = 0; i < rows.length; i += 1) {
       if (rows[i].sortOrder !== i) {
-        await tx
-          .update(quickLinks)
-          .set({ sortOrder: i })
-          .where(eq(quickLinks.id, rows[i].id));
+        await tx.update(quickLinks).set({ sortOrder: i }).where(eq(quickLinks.id, rows[i].id));
       }
     }
     await tx.update(quickLinks).set({ sortOrder: neighborIndex }).where(eq(quickLinks.id, id));
-    await tx
-      .update(quickLinks)
-      .set({ sortOrder: index })
-      .where(eq(quickLinks.id, neighbor.id));
+    await tx.update(quickLinks).set({ sortOrder: index }).where(eq(quickLinks.id, neighbor.id));
   });
 
   await logAction({
@@ -232,6 +222,56 @@ export async function moveQuickLink(
       { order: neighborIndex + 1, label: moved.label },
     ),
   });
+
+  revalidateQuickLinks();
+  return { ok: true };
+}
+
+/**
+ * Apply a whole new order (drag). `orderedIds` must be exactly the current
+ * link ids in the desired order; every row is renumbered to its index in a
+ * transaction so `sortOrder` stays dense and unique. `movedId` is the dragged
+ * link, used only to record a human-readable audit entry.
+ */
+export async function reorderQuickLinks(
+  orderedIds: string[],
+  movedId?: string,
+): Promise<QuickLinkActionResult> {
+  const session = await requireAdmin();
+
+  const rows = await listQuickLinks();
+  if (
+    rows.length !== orderedIds.length ||
+    new Set(orderedIds).size !== orderedIds.length ||
+    !orderedIds.every((id) => rows.some((row) => row.id === id))
+  ) {
+    return { ok: false, error: "The quick link list changed — try again" };
+  }
+
+  const beforeIndex = new Map(rows.map((row, index) => [row.id, index] as const));
+
+  await db.transaction(async (tx) => {
+    for (let i = 0; i < orderedIds.length; i += 1) {
+      await tx.update(quickLinks).set({ sortOrder: i }).where(eq(quickLinks.id, orderedIds[i]));
+    }
+  });
+
+  const moved = movedId ? rows.find((row) => row.id === movedId) : undefined;
+  const from = movedId ? beforeIndex.get(movedId) : undefined;
+  if (moved && movedId && from !== undefined) {
+    await logAction({
+      ...actorFrom(session),
+      action: AUDIT_ACTIONS.quickLinkUpdate,
+      entityType: "quickLink",
+      entityId: movedId,
+      entityName: moved.label,
+      method: "reorderQuickLinks",
+      details: diffFields(
+        { order: from + 1, label: moved.label },
+        { order: orderedIds.indexOf(movedId) + 1, label: moved.label },
+      ),
+    });
+  }
 
   revalidateQuickLinks();
   return { ok: true };

@@ -63,9 +63,9 @@ export const savedEventToastVariantFlag: FeatureFlagDef<SavedEventToastVariant> 
   key: "savedEventToastVariant",
   label: "Saved-event confirmation",
   description:
-    "How the post-save \"Event created/updated\" feedback presents: the classic " +
-    "two-tone pill, a confirmation-styled pill, a standard toast with a \"View " +
-    "event\" action, or a plain toast. Toggle to compare the variants live, then " +
+    'How the post-save "Event created/updated" feedback presents: the classic ' +
+    'two-tone pill, a confirmation-styled pill, a standard toast with a "View ' +
+    'event" action, or a plain toast. Toggle to compare the variants live, then ' +
     "keep the one you want.",
   options: SAVED_EVENT_TOAST_OPTIONS,
   optionLabels: {
@@ -96,12 +96,37 @@ export const glassFabLevelFlag: FeatureFlagDef<GlassFabLevel> = {
   defaultValue: "medium",
 };
 
+export const REORDER_DRAG_OPTIONS = ["arrows", "arrowsDrag"] as const;
+export type ReorderDrag = (typeof REORDER_DRAG_OPTIONS)[number];
+
+export const reorderDragFlag: FeatureFlagDef<ReorderDrag> = {
+  key: "reorderDrag",
+  label: "Reorder interaction",
+  description:
+    "How the manageable lists (dashboard views, event-type groups, departments, " +
+    "quick links, title recipes) are reordered. Arrows keeps the up/down chevron " +
+    "pair; Arrows + drag adds a drag handle beside them (the chevrons stay as the " +
+    "keyboard/screen-reader alternative).",
+  options: REORDER_DRAG_OPTIONS,
+  optionLabels: {
+    arrows: "Arrows only",
+    arrowsDrag: "Arrows + drag",
+  },
+  defaultValue: "arrows",
+};
+
 export const FEATURE_FLAGS = [
   pinnedTickerIndicatorFlag,
   savedEventToastVariantFlag,
   glassFabLevelFlag,
+  reorderDragFlag,
 ] as const;
 export type FeatureFlagKey = (typeof FEATURE_FLAGS)[number]["key"];
+
+/** True when the `reorderDrag` flag selects the drag-handle interaction. */
+export function isReorderDragEnabled(value: string | undefined): boolean {
+  return value === "arrowsDrag";
+}
 
 export function isFeatureFlagKey(value: unknown): value is FeatureFlagKey {
   return FEATURE_FLAGS.some((def) => def.key === value);
@@ -122,7 +147,9 @@ export function resolveFlagValue<TOption extends string>(
 }
 
 /** Resolve every registered flag from a raw settings row's record. */
-export function normalizeFeatureFlags(raw: Record<string, unknown>): Record<FeatureFlagKey, string> {
+export function normalizeFeatureFlags(
+  raw: Record<string, unknown>,
+): Record<FeatureFlagKey, string> {
   const out: Record<string, string> = {};
   for (const def of FEATURE_FLAGS as readonly FeatureFlagDef[]) {
     out[def.key] = resolveFlagValue(def, raw[def.key]);

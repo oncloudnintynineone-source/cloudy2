@@ -18,7 +18,7 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
 
 ## 1.1 Status
 
-- All work through changelog **1.275 (adjustable glass-FAB opacity flag)** is shipped.
+- All work through changelog **1.276 (drag-to-reorder)** is shipped.
 - Quality gates (`lint` / `typecheck` / `test` / schema-drift check) run in CI on every
   push and PR. Pushes also auto-apply migrations per environment: `dev` →
   `migrate-preview` against the dev Neon DB, `main` → `migrate` against the prod Neon
@@ -1467,6 +1467,19 @@ via `?attendance=1` and `attendanceStorage` became a `useSyncExternalStore` exte
     `DashboardView`; `DASHBOARD_SNAPSHOT_VERSION` bumped 1 → 2 so stale device
     snapshots are dropped. Docs: `feature-flags.md`, `dashboard-views.md` §1.1,
     `AGENTS.md`.
+- 1.276 Drag-to-reorder on every manageable list: a new `reorderDrag` feature flag
+    (Settings → Feature Flags, default `arrows`) adds a dnd-kit drag handle beside the
+    existing ↑/↓ chevrons (kept as the a11y fallback) across dashboard views, event-type
+    groups, departments, quick links and title-recipe segments. New
+    `settings.reorder_drag` column (migration 0051) + one registry entry; shared
+    `SortableList`/`SortableRow`/`DragHandle` (`@dnd-kit/react`) and a `moveTo(id, toIndex)`
+    path in `useReorderRows`; server-backed drag persists a whole-list
+    `reorderX(orderedIds, movedId?)` (transaction renumber) — `reorderQuickLinks`,
+    `reorderEventTypeGroups`, `reorderDepartments`; departments drag sibling-only via
+    `moveToSiblingIndex`. Resolved into `DashboardSharedConfig.reorderDrag` and the
+    settings pages; `DASHBOARD_SNAPSHOT_VERSION` bumped 2 → 3. Docs: new `reorder.md`,
+    `feature-flags.md`, `accessibility.md`, `dashboard-views.md`, `quick-links.md`,
+    `roster-sharing.md`, `event-lifecycle.md`, `AGENTS.md`.
 
 ## 1.4 Open items & next steps
 
