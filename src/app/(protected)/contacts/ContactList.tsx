@@ -25,16 +25,30 @@ import {
 } from "@tabler/icons-react";
 
 import { EmptyState } from "@/components/EmptyState";
+import { FilterButton } from "@/components/FilterButton";
+import { FilterModal, type FilterGroup } from "@/components/FilterModal";
 import { PageHeader } from "@/components/PageHeader";
 import { FAB_ICON_SIZE, FloatingActionButton, FloatingToolbar } from "@/components/FloatingToolbar";
+import { filterContacts, NO_DEPARTMENT_FILTER } from "@/lib/contacts/filter";
 import { buildContactsVcf } from "@/lib/contacts/vcf";
 import { CONTENT_ENTER_CLASS } from "@/lib/loading/contentEnter";
+import type { Rect } from "@/lib/motion/origin";
+import { departmentPathLabels, departmentTreeRows } from "@/lib/roster/hierarchy";
 import type { RosterUser } from "@/lib/roster/queries";
 import { formatFullName } from "@/lib/settings/formatName";
 import { BUTTON_LOADER_PROPS } from "@/lib/theme";
 
+/** Minimal department shape the Contacts filter needs (hierarchy-aware). */
+export interface ContactDepartment {
+  id: string;
+  name: string;
+  sortOrder: number;
+  parentId: string | null;
+}
+
 interface ContactListProps {
   users: RosterUser[];
+  departments: ContactDepartment[];
   nameTemplate: string;
   /** Admin: the empty state links into Settings; non-admins get a plain message. */
   isAdmin?: boolean;
@@ -44,6 +58,8 @@ interface CopyPhoneButtonProps {
   phone: string;
   name: string;
 }
+
+const NO_DEPARTMENT_LABEL = "No department";
 
 function CopyPhoneButton({ phone, name }: CopyPhoneButtonProps) {
   const clipboard = useClipboard();
@@ -60,28 +76,66 @@ function CopyPhoneButton({ phone, name }: CopyPhoneButtonProps) {
   );
 }
 
-export function ContactList({ users, nameTemplate, isAdmin = false }: ContactListProps) {
+export function ContactList({
+  users,
+  departments,
+  nameTemplate,
+  isAdmin = false,
+}: ContactListProps) {
   const [search, setSearch] = useState("");
+  const [selectedDepartments, setSelectedDepartments] = useState<string[]>([]);
+  const [filterOpened, { open: openFilter, close: closeFilter }] = useDisclosure(false);
+  const [filterOriginRect, setFilterOriginRect] = useState<Rect | null>(null);
   const [confirmOpened, { open: openConfirm, close: closeConfirm }] = useDisclosure(false);
   const [downloading, setDownloading] = useState(false);
 
-  const filtered = useMemo(() => {
-    const query = search.trim().toLowerCase();
-    if (!query) {
-      return users;
-    }
-    return users.filter(
-      (user) =>
-        user.name.toLowerCase().includes(query) ||
-        (user.shortname?.toLowerCase().includes(query) ?? false) ||
-        user.phone.includes(query),
+  const filtered = useMemo(
+    () => filterContacts(users, search, selectedDepartments),
+    [users, search, selectedDepartments],
+  );
+
+  // One chip group listing only the departments that actually hold a contact,
+  // labelled with the full ancestor chain ("HQ › Logistics") so the hierarchy
+  // reads in the chip. A terminal chip selects contact-less members.
+  const filterGroups: FilterGroup[] = useMemo(() => {
+    const rows = departmentTreeRows(departments);
+    const labels = departmentPathLabels(rows);
+    const presentIds = new Set(
+      users.map((user) => user.department?.id).filter((id): id is string => Boolean(id)),
     );
-  }, [users, search]);
+    const options = rows
+      .filter((row) => presentIds.has(row.id))
+      .map((row) => ({ value: row.id, label: labels.get(row.id) ?? row.name }));
+    if (users.some((user) => user.department === null)) {
+      options.push({ value: NO_DEPARTMENT_FILTER, label: NO_DEPARTMENT_LABEL });
+    }
+    return options.length > 0 ? [{ label: "Departments", options }] : [];
+  }, [departments, users]);
+
+  const departmentOptionCount = filterGroups[0]?.options.length ?? 0;
+  const filterApplied =
+    selectedDepartments.length > 0 && selectedDepartments.length < departmentOptionCount;
+  const activeFilterCount = filterApplied ? 1 : 0;
+  const isNarrowed = search.trim() !== "" || filterApplied;
+
+  const filterValues: Record<string, string[]> = useMemo(
+    () => ({ Departments: selectedDepartments }),
+    [selectedDepartments],
+  );
+
+  function handleApplyFilters(values: Record<string, string[]>) {
+    setSelectedDepartments(values["Departments"] ?? []);
+  }
+
+  function clearFilters() {
+    setSearch("");
+    setSelectedDepartments([]);
+  }
 
   async function downloadVcf() {
     setDownloading(true);
     try {
-      // Respect the active search filter: what you see is what you get.
+      // Respect the active search + filters: what you see is what you get.
       const vcf = buildContactsVcf(
         filtered.map((user) => ({
           name: user.name,
@@ -120,6 +174,15 @@ export function ContactList({ users, nameTemplate, isAdmin = false }: ContactLis
             onChange={(e) => setSearch(e.currentTarget.value)}
             style={{ flex: 1 }}
           />
+          {filterGroups.length > 0 && (
+            <FilterButton
+              activeCount={activeFilterCount}
+              onClick={(event) => {
+                setFilterOriginRect(event.currentTarget.getBoundingClientRect());
+                openFilter();
+              }}
+            />
+          )}
           {/* Desktop: full-size export button instead of the FAB (like the
               settings tabs' "Add ..." buttons); the FAB below is mobile-only. */}
           <Button
@@ -134,12 +197,14 @@ export function ContactList({ users, nameTemplate, isAdmin = false }: ContactLis
       </Paper>
 
       {filtered.length === 0 ? (
-        search.trim() !== "" ? (
+        isNarrowed ? (
           <EmptyState
             icon={<IconSearchOff size={18} />}
-            description="No contacts match your search."
-            actionLabel="Clear search"
-            onAction={() => setSearch("")}
+            description={
+              filterApplied ? "No contacts match your filters." : "No contacts match your search."
+            }
+            actionLabel={filterApplied ? "Clear search & filters" : "Clear search"}
+            onAction={clearFilters}
           />
         ) : isAdmin ? (
           <EmptyState
@@ -219,6 +284,17 @@ export function ContactList({ users, nameTemplate, isAdmin = false }: ContactLis
         </FloatingActionButton>
       </FloatingToolbar>
 
+      <FilterModal
+        opened={filterOpened}
+        onClose={closeFilter}
+        title="Filter contacts"
+        groups={filterGroups}
+        values={filterValues}
+        onApply={handleApplyFilters}
+        originRect={filterOriginRect}
+        hint="Filters combine with the search box."
+      />
+
       <Modal
         opened={confirmOpened}
         onClose={closeConfirm}
@@ -228,7 +304,7 @@ export function ContactList({ users, nameTemplate, isAdmin = false }: ContactLis
       >
         <Text>
           Download {filtered.length} contact{filtered.length === 1 ? "" : "s"} as a .vcf file
-          {search.trim() ? " (current search results only)" : ""}?
+          {isNarrowed ? " (current search & filters only)" : ""}?
         </Text>
         <Group justify="flex-end" mt="md">
           <Button variant="default" onClick={closeConfirm}>
@@ -238,7 +314,7 @@ export function ContactList({ users, nameTemplate, isAdmin = false }: ContactLis
             color="brand"
             loading={downloading}
             loaderProps={BUTTON_LOADER_PROPS}
-            leftSection={<IconDownload size={18} />}
+            leftSection={<IconDownload size={16} />}
             onClick={downloadVcf}
           >
             Download

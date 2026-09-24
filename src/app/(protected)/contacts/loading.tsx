@@ -9,7 +9,10 @@ export default function ContactsLoading() {
       <LoadingStatus label="Loading contacts" />
       <Stack pb="xl">
         <Paper withBorder p="sm">
-          <Skeleton height={43} />
+          <Group justify="space-between" wrap="nowrap" gap="sm">
+            <Skeleton height={43} style={{ flex: 1 }} />
+            <Skeleton height={43} width={43} />
+          </Group>
         </Paper>
 
         <Stack gap="sm">

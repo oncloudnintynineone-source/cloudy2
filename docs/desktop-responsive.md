@@ -303,7 +303,8 @@ desktop); the ≥320px desktop grid shows 2 columns from ~800px (rail band)
 and 3 from ~1024px. Beyond that, the floating buttons swap for inline
 controls:
 
-- **Contacts** — the search bar gains an `Export contacts`
+- **Contacts** — the search bar gains a `FilterButton` (all breakpoints; opens the
+  shared `FilterModal` with a Department chip group) and an `Export contacts`
   `Button visibleFrom="lg"` (same confirm modal as the FAB); the export FAB is
   `hiddenFrom="lg"`.
 - **Parade State** — the attendance FAB toolbar is `hiddenFrom="lg"`; at `lg`

@@ -206,8 +206,10 @@ sub-departments, with aggregated counts):
 
 ## 1.8 Contacts
 
-Searchable phone list (name, shortname, or number). Copy a number with one tap, or
-download the currently-filtered list as a `.vcf` file to import into your phone.
+Searchable phone list (name, shortname, or number), with a **Department filter**
+(the funnel button beside the search box — e.g. show only Logistics) that combines
+with the search text. Copy a number with one tap, or download the currently-filtered
+list as a `.vcf` file to import into your phone.
 
 ## 1.9 KAH status
 
