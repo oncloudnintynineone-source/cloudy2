@@ -1,14 +1,39 @@
 import { describe, expect, it } from "vitest";
+import type { DragEndEvent } from "@dnd-kit/react";
 
 import {
   keysEqualOrder,
   moveToIndex,
   overrideIsStale,
+  resolveDragMove,
   sameKeyMembership,
   swapAdjacent,
 } from "./reorderRows";
 
 const keyOf = (id: string) => id;
+
+/** Minimal dnd-kit `dragend` stand-in. `projectedIndex` mirrors the sortable
+ *  index the `OptimisticSortingPlugin` writes during a drag; `targetId`
+ *  defaults to the source (what the plugin leaves as the drop target). */
+function dragEnd(
+  sourceId: string | null,
+  projectedIndex: number,
+  options: { targetId?: string | null; canceled?: boolean } = {},
+): DragEndEvent {
+  const canceled = options.canceled ?? false;
+  const targetId = options.targetId === undefined ? sourceId : options.targetId;
+  return {
+    canceled,
+    operation: {
+      canceled,
+      source:
+        sourceId === null
+          ? null
+          : { id: sourceId, index: projectedIndex, initialIndex: projectedIndex },
+      target: targetId === null ? null : { id: targetId },
+    },
+  } as unknown as DragEndEvent;
+}
 
 describe("keysEqualOrder", () => {
   it("is true for identical ordered key lists", () => {
@@ -81,5 +106,31 @@ describe("moveToIndex", () => {
   it("returns null for a no-op or an unknown id", () => {
     expect(moveToIndex(rows, keyOf, "b", 1)).toBeNull();
     expect(moveToIndex(rows, keyOf, "zz", 0)).toBeNull();
+  });
+});
+
+describe("resolveDragMove", () => {
+  const keys = ["a", "b", "c", "d"];
+
+  it("uses the source's projected index when the target is the source (optimistic sorting)", () => {
+    expect(resolveDragMove(keys, dragEnd("d", 0))).toEqual({ id: "d", toIndex: 0 });
+    expect(resolveDragMove(keys, dragEnd("a", 3))).toEqual({ id: "a", toIndex: 3 });
+  });
+
+  it("resolves a drop onto a different row", () => {
+    expect(resolveDragMove(keys, dragEnd("b", 0, { targetId: "d" }))).toEqual({
+      id: "b",
+      toIndex: 0,
+    });
+  });
+
+  it("returns null for a no-op move", () => {
+    expect(resolveDragMove(keys, dragEnd("b", 1))).toBeNull();
+  });
+
+  it("returns null for a canceled drop, a missing source, or an unknown row", () => {
+    expect(resolveDragMove(keys, dragEnd("d", 0, { canceled: true }))).toBeNull();
+    expect(resolveDragMove(keys, dragEnd(null, 0))).toBeNull();
+    expect(resolveDragMove(keys, dragEnd("zz", 0))).toBeNull();
   });
 });

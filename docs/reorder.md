@@ -84,6 +84,12 @@ sequenceDiagram
   `movedId` is used only for the audit entry.
 - **FLIP vs dnd-kit:** the drag path does **not** call `snapshot`/`play`; dnd-kit
   owns the drag/drop animation. FLIP stays for the chevron moves.
+- **Resolving the drop:** `@dnd-kit/react` enables its `OptimisticSortingPlugin`
+  by default, so during a drag it reorders the DOM, updates every sortable's
+  `index`, and re-points the drop target at the source itself — meaning
+  `operation.target` is the source on drop. `resolveDragMove` therefore resolves
+  the destination with `move()` from `@dnd-kit/helpers` (which reads the
+  source's projected `index`), never from `operation.target.id`.
 
 ## 1.4 Per-surface behavior
 
@@ -138,8 +144,8 @@ See [`accessibility.md`](accessibility.md) for the app-wide conventions.
 
 | File | Role |
 | ---- | ---- |
-| `src/components/SortableRow.tsx` | `SortableList`, `SortableRow`, `DragHandle`, `resolveDragMove` |
-| `src/lib/ui/reorderRows.ts` | Hook + pure order helpers (`swapAdjacent`, `moveToIndex`, reconcile) |
+| `src/components/SortableRow.tsx` | `SortableList`, `SortableRow`, `DragHandle` |
+| `src/lib/ui/reorderRows.ts` | Hook + pure order helpers (`swapAdjacent`, `moveToIndex`, `resolveDragMove`, reconcile) |
 | `src/lib/ui/flipReorder.ts` | FLIP animation (chevron path) |
 | `src/lib/roster/hierarchy.ts` | `moveInTreeOrder` (arrows), `moveToSiblingIndex` (drag) |
 | `src/lib/settings/featureFlags.ts` | `reorderDragFlag`, `isReorderDragEnabled`, `isReorderArrowsEnabled` |

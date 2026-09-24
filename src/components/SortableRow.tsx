@@ -7,6 +7,7 @@ import { DragDropProvider, type DragEndEvent } from "@dnd-kit/react";
 import { useSortable } from "@dnd-kit/react/sortable";
 
 import { ROW_ACTION_ICON_SIZE, ROW_ACTION_SIZE } from "@/components/reorderUpDown";
+import { resolveDragMove } from "@/lib/ui/reorderRows";
 
 /**
  * Shared drag-to-reorder plumbing (Settings → Feature Flags: `reorderDrag`).
@@ -22,29 +23,6 @@ import { ROW_ACTION_ICON_SIZE, ROW_ACTION_SIZE } from "@/components/reorderUpDow
  * keyboard/screen-reader alternative, and passing `enabled={false}` (the
  * flag's default) leaves the surface exactly as it was.
  */
-
-/** Resolve a completed drop into a `(sourceId, toIndex)` pair against the
- *  current display order. `toIndex` is the target's index in that order, which
- *  matches `arrayMove(from, to)` semantics. */
-export function resolveDragMove(
-  keys: readonly string[],
-  event: DragEndEvent,
-): { id: string; toIndex: number } | null {
-  if (event.canceled) {
-    return null;
-  }
-  const sourceId = event.operation.source?.id;
-  const targetId = event.operation.target?.id;
-  if (sourceId === undefined || targetId === undefined) {
-    return null;
-  }
-  const from = keys.indexOf(String(sourceId));
-  const to = keys.indexOf(String(targetId));
-  if (from === -1 || to === -1 || from === to) {
-    return null;
-  }
-  return { id: String(sourceId), toIndex: to };
-}
 
 interface SortableListProps {
   /** Current display keys, in order. */

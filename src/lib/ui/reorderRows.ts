@@ -1,6 +1,8 @@
 "use client";
 
 import { type RefObject, useRef, useState } from "react";
+import { move } from "@dnd-kit/helpers";
+import type { DragEndEvent } from "@dnd-kit/react";
 
 import { useFlipReorder } from "@/lib/ui/flipReorder";
 
@@ -125,6 +127,37 @@ export function moveToIndex<Row>(
   const [row] = next.splice(from, 1);
   next.splice(to, 0, row);
   return next;
+}
+
+/** Resolve a completed dnd-kit drop into a `(sourceId, toIndex)` pair against
+ *  the current display order, or null for a canceled/no-op/unknown-row drop.
+ *
+ *  `@dnd-kit/react` enables the `OptimisticSortingPlugin` by default: during a
+ *  drag it physically reorders the DOM, updates every sortable's `index`, and
+ *  re-points the drop target at the source itself. So `operation.target` is the
+ *  source on drop — `move()` (which falls back to the source's projected
+ *  `index`) is the only reliable way to read the destination. */
+export function resolveDragMove(
+  keys: readonly string[],
+  event: DragEndEvent,
+): { id: string; toIndex: number } | null {
+  if (event.canceled) {
+    return null;
+  }
+  const sourceId = event.operation.source?.id;
+  if (sourceId === undefined) {
+    return null;
+  }
+  const id = String(sourceId);
+  const from = keys.indexOf(id);
+  if (from === -1) {
+    return null;
+  }
+  const toIndex = move([...keys], event).indexOf(id);
+  if (toIndex === -1 || toIndex === from) {
+    return null;
+  }
+  return { id, toIndex };
 }
 
 export function useReorderRows<Row>({
