@@ -1,11 +1,10 @@
 "use server";
 
-import { mapWithConcurrency } from "@/lib/async";
-import { listEventTypes } from "@/lib/eventTypes/queries";
-import { formatInstantToNaive } from "@/lib/events/datetime";
+import { formatInstantToNaive, monthsInRange } from "@/lib/events/datetime";
 import {
   listCalendars,
-  mapCalendarItem,
+  projectRangeEvents,
+  readCalendarRange,
   type CalendarEvent,
 } from "@/lib/events/queries";
 import {
@@ -13,27 +12,23 @@ import {
   DATE_ONLY_PATTERN,
   defaultSearchFrom,
   defaultSearchTo,
-  searchRangeBoundaries,
+  filterRangeForSearch,
   SEARCH_MIN_QUERY_LENGTH,
 } from "@/lib/events/searchRange";
-import { dedupeEventsByGroupId } from "@/lib/events/targets";
 import { eventMatchesUserFilter } from "@/lib/events/userFilter";
-import { getGoogleIntegration } from "@/lib/google";
 import { listUsers } from "@/lib/roster/queries";
 import { requireSession } from "@/lib/session";
-
-/** Max concurrent Google `events.list` (±`q`) calls for one search. */
-const SEARCH_CONCURRENCY = 4;
 
 export type SearchEventsResult =
   | { ok: true; events: CalendarEvent[]; myEventIds: string[] }
   | { ok: false; error: string };
 
 /**
- * Free-text search across every department calendar, read directly from Google
- * Calendar (the month cache is deliberately bypassed). Results are mapped and
- * deduped by logical event (one representative copy per group id), sorted by
- * start, and returned as schedule-ready `CalendarEvent`s.
+ * Fuzzy free-text search across every department calendar, served from the
+ * layered events cache (the whole date window is read as months, then trimmed
+ * and fuzzy-matched) rather than a per-calendar Google `q`. Results are mapped,
+ * deduped by logical event, and returned in relevance order (chronological on
+ * ties / blank query).
  */
 export async function searchEvents(
   q: string,
@@ -53,10 +48,13 @@ export async function searchEvents(
     DATE_ONLY_PATTERN.test(to ?? "") ? to : defaultSearchTo(today),
   );
 
-  const integration = await getGoogleIntegration();
   const allCalendars = await listCalendars();
-  const allEventTypes = await listEventTypes();
-  const typeColors = new Map(allEventTypes.map((row) => [row.name, row.color]));
+  const data = await readCalendarRange({
+    months: monthsInRange(fromDate, toDate),
+    calendarIds: allCalendars.map((calendar) => calendar.id),
+  });
+  const rangeEvents = projectRangeEvents(data, { typeFilter: [], userFilter: [] });
+  const events = filterRangeForSearch(rangeEvents, fromDate, toDate, query);
 
   // Active roster grouped by department — the "mine" highlight matches an event
   // tagged on a department the user is an active member of, exactly like the
@@ -76,49 +74,11 @@ export async function searchEvents(
     }
   }
 
-  const { timeMin, timeMax } = searchRangeBoundaries(fromDate, toDate);
-
-  const perCalendar = await mapWithConcurrency(
-    allCalendars,
-    SEARCH_CONCURRENCY,
-    async (calendar) => {
-      const items = await integration.searchEvents(
-        calendar.googleCalendarId,
-        query,
-        timeMin,
-        timeMax,
-      );
-      return { calendar, items };
-    },
-  );
-
-  const events: CalendarEvent[] = [];
-  for (const { calendar, items } of perCalendar) {
-    for (const item of items) {
-      const mapped = mapCalendarItem(
-        { id: calendar.id, name: calendar.name, color: calendar.color },
-        item,
-        { typeFilter: [], userFilter: [] },
-        typeColors,
-      );
-      if (mapped) {
-        events.push(mapped);
-      }
-    }
-  }
-
-  events.sort((a, b) => (a.start < b.start ? -1 : a.start > b.start ? 1 : 0));
-
-  const deduped = dedupeEventsByGroupId(events);
-  // The current user's own events (tagged attendee, or a tagged department they
-  // belong to) — the client reuses the dashboard's amber "mine" highlight on
-  // these rows. Organizer-only events (not self-tagged) don't count, matching
-  // `eventMatchesUserFilter`.
-  const myEventIds = deduped
+  const myEventIds = events
     .filter((event) =>
       eventMatchesUserFilter(event.payload, [session.user.id], membershipsByDepartment),
     )
     .map((event) => event.id);
 
-  return { ok: true, events: deduped, myEventIds };
+  return { ok: true, events, myEventIds };
 }

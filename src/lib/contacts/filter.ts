@@ -4,6 +4,7 @@
  */
 
 import type { RosterUser } from "@/lib/roster/queries";
+import { fuzzyFilter } from "@/lib/search/fuzzy";
 
 /**
  * Sentinel department id selecting contacts who have no department. Real
@@ -22,31 +23,21 @@ export function filterContacts(
   query: string,
   departmentIds: readonly string[] = [],
 ): RosterUser[] {
-  const q = query.trim().toLowerCase();
   const selected = new Set(departmentIds);
   const filterByDepartment = selected.size > 0;
 
-  return users.filter((user) => {
-    if (q !== "") {
-      const matchesQuery =
-        user.name.toLowerCase().includes(q) ||
-        (user.shortname?.toLowerCase().includes(q) ?? false) ||
-        user.phone.includes(q);
-      if (!matchesQuery) {
-        return false;
-      }
-    }
+  const byDepartment = filterByDepartment
+    ? users.filter((user) => {
+        const departmentId = user.department?.id;
+        return departmentId
+          ? selected.has(departmentId)
+          : selected.has(NO_DEPARTMENT_FILTER);
+      })
+    : users;
 
-    if (filterByDepartment) {
-      const departmentId = user.department?.id;
-      const matchesDepartment = departmentId
-        ? selected.has(departmentId)
-        : selected.has(NO_DEPARTMENT_FILTER);
-      if (!matchesDepartment) {
-        return false;
-      }
-    }
-
-    return true;
-  });
+  return fuzzyFilter(byDepartment, query, (user) => [
+    user.name,
+    user.shortname,
+    { value: user.phone, fuzzy: false },
+  ]);
 }

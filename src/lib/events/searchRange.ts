@@ -5,7 +5,9 @@
  * live here so they are unit-testable without a DB or Google runtime.
  */
 
-import { addDays, addOneDay, dateToUtc } from "./datetime";
+import { addDays, addOneDay, dateToUtc, exclusiveAbsEventRange } from "./datetime";
+import { fuzzySearch } from "@/lib/search/fuzzy";
+import type { CalendarEvent } from "./queries";
 
 /** Default window opens this many months before today. */
 export const SEARCH_DEFAULT_MONTHS_BACK = 1;
@@ -70,4 +72,55 @@ export function coerceSearchRange(
   const end = fromDate <= toDate ? toDate : fromDate;
   const maxEnd = addDays(start, SEARCH_MAX_RANGE_DAYS);
   return { from: start, to: end <= maxEnd ? end : maxEnd };
+}
+
+/**
+ * True when an event's absolute span overlaps the inclusive `[fromDate, toDate]`
+ * window (Google's exclusive end convention handled by
+ * {@link exclusiveAbsEventRange}). The cache read returns whole months, so this
+ * trims the extra days at the window edges.
+ */
+export function eventWithinRange(
+  event: CalendarEvent,
+  fromDate: string,
+  toDate: string,
+): boolean {
+  const { timeMin, timeMax } = searchRangeBoundaries(fromDate, toDate);
+  const { start, end } = exclusiveAbsEventRange(
+    event.start,
+    event.end,
+    event.payload.allDay,
+  );
+  return start < timeMax && end > timeMin;
+}
+
+/** Fields the fuzzy event search matches. */
+const EVENT_SEARCH_KEYS = [
+  "title",
+  "payload.location",
+  "payload.eventType",
+  "payload.calendarName",
+] as const;
+
+/**
+ * Narrow a cache-read range to the exact date window and, when a query is given,
+ * fuzzy-filter by title/location/type/calendar in relevance order (Fuse sorts by
+ * score; the pre-sort by start makes ties chronological). A blank query returns
+ * the in-window events chronologically.
+ */
+export function filterRangeForSearch(
+  events: readonly CalendarEvent[],
+  fromDate: string,
+  toDate: string,
+  query: string,
+): CalendarEvent[] {
+  const within = events.filter((event) => eventWithinRange(event, fromDate, toDate));
+  const q = query.trim();
+  if (q === "") {
+    return within;
+  }
+  const chronological = [...within].sort((a, b) =>
+    a.start < b.start ? -1 : a.start > b.start ? 1 : 0,
+  );
+  return fuzzySearch(chronological, q, [...EVENT_SEARCH_KEYS]);
 }

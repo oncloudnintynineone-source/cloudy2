@@ -1490,6 +1490,17 @@ via `?attendance=1` and `attendanceStorage` became a `useSyncExternalStore` exte
     non-mouse path is dnd-kit's KeyboardSensor bound to the grip (Space/Enter +
     arrows); `arrowsDrag` stays available for strict WCAG 2.5.7. Docs:
     `reorder.md`, `feature-flags.md`, `accessibility.md`, `AGENTS.md`.
+- 1.278 Fuse.js fuzzy search across the app's client text-search surfaces: new
+    `search/fuzzy.ts` (threshold 0.22, `ignoreLocation`, field-norm on, exact
+    substring for identifier fields) wired into the user/department pickers
+    (`userSelect.ts` — upgrades UserSelectModal, filters, invitees),
+    Contacts (`contacts/filter.ts`), and the Users table. Event search is
+    reworked to read the month cache (`readCalendarRange` →
+    `projectRangeEvents`), trim to the exact window (`eventWithinRange`) and
+    fuzzy-rank title/location/type/calendar (`filterRangeForSearch`), replacing
+    the per-calendar Google `q` fan-out; its modal now renders a flat
+    relevance-ordered list instead of `AgendaView`. Docs: `event-search.md`,
+    `user-picker.md`.
 
 ## 1.4 Open items & next steps
 

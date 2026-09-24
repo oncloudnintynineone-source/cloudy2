@@ -2,10 +2,6 @@
 
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
-  type ComponentPropsWithoutRef,
-  type ReactElement,
-  type ReactNode,
-  useCallback,
   useEffect,
   useMemo,
   useRef,
@@ -30,8 +26,6 @@ import {
 } from "@mantine/core";
 import { DatePickerInput } from "@mantine/dates";
 import { useMediaQuery, useViewportSize } from "@mantine/hooks";
-import { AgendaView } from "@mantine/schedule";
-import "@mantine/schedule/styles.css";
 import { IconCalendar, IconSearch, IconSearchOff, IconX } from "@tabler/icons-react";
 import dayjs from "dayjs";
 import { NARROW_MEDIA_QUERY } from "@/lib/theme";
@@ -72,24 +66,28 @@ interface EventSearchModalProps {
   originRect: Rect | null;
 }
 
-/**
- * Mantine's `RenderEvent` signature (not re-exported from the package root) —
- * the Agenda `renderEvent` prop contract.
- */
-type AgendaEventRender = (
-  event: { id: string | number },
-  props: ComponentPropsWithoutRef<"button"> & { children: ReactNode },
-) => ReactElement;
-
 const LIST_BORDER = "1px solid var(--mantine-color-default-border)";
 
 /**
  * How many result rows to mount at once. A broad query across every calendar
- * can return hundreds of events; `AgendaView` renders them all with no
- * virtualization, so the list is paged to keep the DOM (and the initial paint
- * on a low-end phone) bounded. "Show more" reveals the rest.
+ * can return hundreds of events, so the list is paged to keep the DOM (and the
+ * initial paint on a low-end phone) bounded. "Show more" reveals the rest.
  */
 const RESULT_PAGE_SIZE = 150;
+
+/** One human-readable "when" line for a result row (date + time / all-day). */
+function eventWhenLabel(event: CalendarEvent): string {
+  const start = dayjs(event.start);
+  const dateLabel = start.format("ddd, D MMM YYYY");
+  if (event.payload.allDay) {
+    return `${dateLabel} · All day`;
+  }
+  const end = dayjs(event.end);
+  const timeLabel = start.isSame(end, "day")
+    ? `${start.format("HH:mm")}–${end.format("HH:mm")}`
+    : `${start.format("HH:mm")}–${end.format("D MMM, HH:mm")}`;
+  return `${dateLabel} · ${timeLabel}`;
+}
 
 export default function EventSearchModal({ opened, onClose, originRect }: EventSearchModalProps) {
   const router = useRouter();
@@ -315,32 +313,11 @@ export default function EventSearchModal({ opened, onClose, originRect }: EventS
     });
   }
 
-  const rangeStart = results && results.length > 0 ? results[0].start.slice(0, 10) : (from ?? "");
-  const rangeEnd =
-    results && results.length > 0 ? results[results.length - 1].start.slice(0, 10) : (to ?? "");
   const visibleResults = results ? results.slice(0, visibleCount) : null;
 
-  // The user's own rows get the amber agenda highlight, external (Google-made)
-  // rows the purple one — the same classes the dashboard agenda uses.
+  // The user's own rows get the amber highlight, external (Google-made) rows
+  // the purple one — the same classes the dashboard agenda uses.
   const myIdSet = useMemo(() => new Set(myEventIds), [myEventIds]);
-  const renderAgendaEvent: AgendaEventRender = useCallback(
-    (event, props) => {
-      const calendarEvent = event as unknown as CalendarEvent;
-      const mine = myIdSet.has(String(event.id));
-      const external = calendarEvent.payload?.external === true;
-      if (!mine && !external) {
-        return <UnstyledButton {...props} />;
-      }
-      const extra = [
-        mine && "c2-my-agenda-event",
-        external && "c2-ext-agenda-event",
-      ]
-        .filter(Boolean)
-        .join(" ");
-      return <UnstyledButton {...props} className={`${props.className ?? ""} ${extra}`.trim()} />;
-    },
-    [myIdSet],
-  );
 
   const rangeChanges =
     ((from || defaultFrom) !== defaultFrom ? 1 : 0) + ((to || defaultTo) !== defaultTo ? 1 : 0);
@@ -369,7 +346,7 @@ export default function EventSearchModal({ opened, onClose, originRect }: EventS
             <Group gap="xs" wrap="nowrap" align="center">
               <TextInput
                 aria-label="Search events"
-                placeholder="Search event titles and locations"
+                placeholder="Search events by title, location, or type"
                 value={query}
                 onChange={(event) => setQuery(event.currentTarget.value)}
                 enterKeyHint="search"
@@ -601,14 +578,50 @@ export default function EventSearchModal({ opened, onClose, originRect }: EventS
               minHeight: 0,
             }}
           >
-            <AgendaView
-              rangeStart={rangeStart}
-              rangeEnd={rangeEnd}
-              events={visibleResults ?? []}
-              styles={{ agendaViewHeader: { display: "none" } }}
-              renderEvent={renderAgendaEvent}
-              onEventClick={handleEventClick}
-            />
+            <Stack gap={0}>
+              {visibleResults?.map((event, index) => {
+                const mine = myIdSet.has(event.id);
+                const external = event.payload.external === true;
+                return (
+                  <UnstyledButton
+                    key={`${event.id}:${index}`}
+                    onClick={(e) => handleEventClick(event, e)}
+                    className={[mine && "c2-my-agenda-event", external && "c2-ext-agenda-event"]
+                      .filter(Boolean)
+                      .join(" ")}
+                    style={{
+                      display: "block",
+                      width: "100%",
+                      textAlign: "left",
+                      padding: "var(--mantine-spacing-sm)",
+                      borderTop: index === 0 ? undefined : LIST_BORDER,
+                    }}
+                  >
+                    <Group gap="sm" wrap="nowrap" align="center">
+                      <Box
+                        style={{
+                          width: 4,
+                          height: 30,
+                          borderRadius: 2,
+                          flexShrink: 0,
+                          background: `var(--mantine-color-${event.color}-filled)`,
+                        }}
+                      />
+                      <Box style={{ minWidth: 0, flex: 1 }}>
+                        <Text component="p" size="sm" truncate>
+                          {event.title}
+                        </Text>
+                        <Text size="xs" c="dimmed" truncate>
+                          {eventWhenLabel(event)}
+                          {event.payload.location ? ` · ${event.payload.location}` : ""}
+                          {event.payload.calendarName ? ` · ${event.payload.calendarName}` : ""}
+                        </Text>
+                      </Box>
+                    </Group>
+                  </UnstyledButton>
+                );
+              })}
+            </Stack>
             {results.length > visibleCount && (
               <Group justify="center" p="xs">
                 <Button

@@ -27,6 +27,7 @@ import { CONTENT_ENTER_CLASS } from "@/lib/loading/contentEnter";
 import { type Rect } from "@/lib/motion/origin";
 import type { RosterAccessGrant, RosterUser } from "@/lib/roster/queries";
 import { departmentPathLabels, departmentTreeRows } from "@/lib/roster/hierarchy";
+import { fuzzyFilter } from "@/lib/search/fuzzy";
 import { formatFullName } from "@/lib/settings/formatName";
 import { activatable } from "@/lib/ui/activatable";
 import dynamic from "next/dynamic";
@@ -104,8 +105,7 @@ export function UserTable({ users, departments, accessByUser, nameTemplate }: Us
   ).length;
 
   const filtered = useMemo(() => {
-    const query = search.trim().toLowerCase();
-    return users.filter((user) => {
+    const byFilter = users.filter((user) => {
       if (statusFilter.length > 0 && !statusFilter.includes(user.status)) {
         return false;
       }
@@ -115,16 +115,13 @@ export function UserTable({ users, departments, accessByUser, nameTemplate }: Us
       ) {
         return false;
       }
-      if (
-        query &&
-        !user.name.toLowerCase().includes(query) &&
-        !(user.shortname ?? "").toLowerCase().includes(query) &&
-        !user.phone.includes(query)
-      ) {
-        return false;
-      }
       return true;
     });
+    return fuzzyFilter(byFilter, search, (user) => [
+      user.name,
+      user.shortname,
+      { value: user.phone, fuzzy: false },
+    ]);
   }, [users, search, statusFilter, departmentFilter]);
 
   function handleApplyFilters(values: Record<string, string[]>) {

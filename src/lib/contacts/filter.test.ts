@@ -46,6 +46,11 @@ describe("filterContacts", () => {
     expect(filterContacts(ROSTER, "83456789", []).map((u) => u.id)).toEqual(["c"]);
   });
 
+  it("fuzzy-matches name typos without cross-matching similar phone numbers", () => {
+    expect(filterContacts(ROSTER, "alise", []).map((u) => u.id)).toEqual(["a"]);
+    expect(filterContacts(ROSTER, "83456789", []).map((u) => u.id)).toEqual(["c"]);
+  });
+
   it("filters by the selected departments", () => {
     expect(filterContacts(ROSTER, "", ["dept-log"]).map((u) => u.id)).toEqual(["b"]);
   });

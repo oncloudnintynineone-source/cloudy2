@@ -1,4 +1,5 @@
 import { departmentPathLabels, type DepartmentRow } from "@/lib/roster/hierarchy";
+import { fuzzyFilter, fuzzyMatches } from "@/lib/search/fuzzy";
 
 /** One selectable option inside a picker group. */
 export interface PickerOption {
@@ -67,16 +68,9 @@ function sortOptions(options: PickerOption[]): PickerOption[] {
   return [...options].sort((a, b) => compareLabels(a.label, b.label));
 }
 
-/** Case-insensitive: the trimmed query appears in the label or the extra search terms. */
+/** Fuzzy match: the trimmed query appears (typo-tolerant) in the label or the extra search terms. */
 export function optionMatchesQuery(option: PickerOption, query: string): boolean {
-  const q = query.trim().toLowerCase();
-  if (q === "") {
-    return true;
-  }
-  return (
-    option.label.toLowerCase().includes(q) ||
-    (option.search !== undefined && option.search.toLowerCase().includes(q))
-  );
+  return fuzzyMatches([option.label, { value: option.search, fuzzy: false }], query);
 }
 
 /**
@@ -208,22 +202,27 @@ export function departmentPickerOptions(rows: readonly DepartmentRow[]): PickerO
 }
 
 /**
- * Narrow sections by a search query: an option is kept when it matches or its
- * section label matches (so typing a department name keeps that whole
- * department), and sections left empty are dropped. A blank query returns the
- * sections untouched.
+ * Narrow sections by a fuzzy search query: a whole section is kept when its
+ * label fuzzy-matches (so typing a department name keeps that department), and
+ * otherwise only its fuzzy-matching options remain — sections left empty are
+ * dropped. A blank query returns the sections untouched. Order is preserved.
  */
 export function filterPickerGroups(groups: PickerGroup[], query: string): PickerGroup[] {
-  const q = query.trim().toLowerCase();
+  const q = query.trim();
   if (q === "") {
     return groups;
   }
   return groups
     .map((group) => {
-      const sectionMatches = group.label.toLowerCase().includes(q);
+      if (fuzzyMatches([group.label], q)) {
+        return group;
+      }
       return {
         ...group,
-        options: group.options.filter((option) => sectionMatches || optionMatchesQuery(option, q)),
+        options: fuzzyFilter(group.options, q, (option) => [
+          option.label,
+          { value: option.search, fuzzy: false },
+        ]),
       };
     })
     .filter((group) => group.options.length > 0);

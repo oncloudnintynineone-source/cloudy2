@@ -1,66 +1,97 @@
 import { describe, expect, it } from "vitest";
 
-import {
-  addMonthsClamped,
-  coerceSearchRange,
-  defaultSearchFrom,
-  defaultSearchTo,
-  searchRangeBoundaries,
-} from "./searchRange";
+import type { CalendarEvent } from "./queries";
+import { eventWithinRange, filterRangeForSearch } from "./searchRange";
 
-describe("addMonthsClamped", () => {
-  it("adds months across a year boundary", () => {
-    expect(addMonthsClamped("2026-01-15", 2)).toBe("2026-03-15");
-    expect(addMonthsClamped("2026-01-15", -2)).toBe("2025-11-15");
+function event(overrides: {
+  start: string;
+  end: string;
+  title?: string;
+  location?: string;
+  eventType?: string | null;
+  allDay?: boolean;
+}): CalendarEvent {
+  const allDay = overrides.allDay ?? false;
+  return {
+    id: `cal:${overrides.title ?? overrides.start}`,
+    title: overrides.title ?? "(no title)",
+    start: overrides.start,
+    end: overrides.end,
+    color: "blue",
+    payload: {
+      calendarId: "cal",
+      googleEventId: "g",
+      allDay,
+      eventType: overrides.eventType ?? null,
+      calendarName: "Logistics",
+      eventId: null,
+      creatorId: null,
+      inviteeUserIds: [],
+      inviteeDepartmentIds: [],
+      ownerOnlyEdits: false,
+      rawTitle: null,
+      timeOption: allDay ? "full" : "range",
+      startAmPm: null,
+      endAmPm: null,
+      outOfCamp: false,
+      overseas: false,
+      pinned: false,
+      location: overrides.location ?? "",
+      external: false,
+    },
+  };
+}
+
+describe("eventWithinRange", () => {
+  it("includes an all-day event on the window's last day (exclusive Google end)", () => {
+    const e = event({ start: "2026-09-24 00:00:00", end: "2026-09-25 00:00:00", allDay: true });
+    expect(eventWithinRange(e, "2026-09-24", "2026-09-24")).toBe(true);
   });
 
-  it("clamps the day to the target month's length", () => {
-    expect(addMonthsClamped("2026-01-31", 1)).toBe("2026-02-28");
-    expect(addMonthsClamped("2026-03-31", -1)).toBe("2026-02-28");
+  it("excludes an event wholly outside the window", () => {
+    const e = event({ start: "2026-09-24 00:00:00", end: "2026-09-25 00:00:00", allDay: true });
+    expect(eventWithinRange(e, "2026-09-20", "2026-09-21")).toBe(false);
   });
 
-  it("handles leap February", () => {
-    expect(addMonthsClamped("2028-01-31", 1)).toBe("2028-02-29");
+  it("includes a timed event that overlaps the window edge", () => {
+    const e = event({ start: "2026-09-24 23:00:00", end: "2026-09-25 01:00:00" });
+    expect(eventWithinRange(e, "2026-09-24", "2026-09-24")).toBe(true);
   });
 });
 
-describe("defaultSearchFrom / defaultSearchTo", () => {
-  it("opens one month back and three months ahead", () => {
-    expect(defaultSearchFrom("2026-06-15")).toBe("2026-05-15");
-    expect(defaultSearchTo("2026-06-15")).toBe("2026-09-15");
+describe("filterRangeForSearch", () => {
+  const EVENTS = [
+    event({ start: "2026-09-22 09:00:00", end: "2026-09-22 10:00:00", title: "Old briefing" }),
+    event({
+      start: "2026-09-24 09:00:00",
+      end: "2026-09-24 10:00:00",
+      title: "Safety briefing",
+      location: "Sembawang",
+    }),
+    event({ start: "2026-09-26 09:00:00", end: "2026-09-26 10:00:00", title: "Logistics review" }),
+  ];
+
+  it("trims to the exact window and returns chronological order for a blank query", () => {
+    const result = filterRangeForSearch(EVENTS, "2026-09-23", "2026-09-25", "");
+    expect(result.map((e) => e.title)).toEqual(["Safety briefing"]);
   });
 
-  it("clamps the day on short months", () => {
-    expect(defaultSearchTo("2026-01-31")).toBe("2026-04-30");
-  });
-});
-
-describe("searchRangeBoundaries", () => {
-  it("uses UTC midnight for from and an exclusive end for to", () => {
-    const { timeMin, timeMax } = searchRangeBoundaries("2026-06-01", "2026-06-03");
-    expect(timeMin.toISOString()).toBe("2026-06-01T00:00:00.000Z");
-    expect(timeMax.toISOString()).toBe("2026-06-04T00:00:00.000Z");
-  });
-});
-
-describe("coerceSearchRange", () => {
-  it("passes through an ascending pair", () => {
-    expect(coerceSearchRange("2026-06-01", "2026-06-03")).toEqual({
-      from: "2026-06-01",
-      to: "2026-06-03",
-    });
+  it("fuzzy-matches a typo in the title", () => {
+    const result = filterRangeForSearch(EVENTS, "2026-09-23", "2026-09-25", "brieffng");
+    expect(result.map((e) => e.title)).toEqual(["Safety briefing"]);
   });
 
-  it("swaps a reversed pair", () => {
-    expect(coerceSearchRange("2026-06-03", "2026-06-01")).toEqual({
-      from: "2026-06-01",
-      to: "2026-06-03",
-    });
+  it("matches the location", () => {
+    const result = filterRangeForSearch(EVENTS, "2026-09-23", "2026-09-25", "sembawng");
+    expect(result.map((e) => e.title)).toEqual(["Safety briefing"]);
   });
 
-  it("clamps an over-wide forward span", () => {
-    const { from, to } = coerceSearchRange("2026-01-01", "2030-01-01");
-    expect(from).toBe("2026-01-01");
-    expect(to).toBe("2028-01-01");
+  it("returns matches in relevance order (best score first)", () => {
+    const ranked = [
+      event({ start: "2026-09-24 09:00:00", end: "2026-09-24 10:00:00", title: "Quarterly report" }),
+      event({ start: "2026-09-24 11:00:00", end: "2026-09-24 12:00:00", title: "Report" }),
+    ];
+    const result = filterRangeForSearch(ranked, "2026-09-24", "2026-09-24", "report");
+    expect(result.map((e) => e.title)).toEqual(["Report", "Quarterly report"]);
   });
 });
