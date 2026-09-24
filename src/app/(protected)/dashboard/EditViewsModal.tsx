@@ -31,6 +31,11 @@ import {
   type DashboardViewKind,
 } from "@/lib/dashboardViews/views";
 import { BUTTON_LOADER_PROPS, NARROW_MEDIA_QUERY } from "@/lib/theme";
+import {
+  isReorderArrowsEnabled,
+  isReorderDragEnabled,
+  type ReorderDrag,
+} from "@/lib/settings/featureFlags";
 import { moveToIndex, swapAdjacent, useReorderRows } from "@/lib/ui/reorderRows";
 import {
   ROW_ACTION_ICON_SIZE,
@@ -64,8 +69,8 @@ interface EditViewsModalProps {
   onEditFilters: (tab: DashboardViewTab) => void;
   /** Open the quick "Add view" dialog (the strip's + flow). */
   onAddView: () => void;
-  /** Feature flag: show the drag handle beside the chevrons. */
-  dragEnabled: boolean;
+  /** Reorder interaction (Settings → Feature Flags). */
+  reorderDrag: ReorderDrag;
 }
 
 export function EditViewsModal({
@@ -78,11 +83,13 @@ export function EditViewsModal({
   onNavigateToView,
   onEditFilters,
   onAddView,
-  dragEnabled,
+  reorderDrag,
 }: EditViewsModalProps) {
   const theme = useMantineTheme();
   const isDesktop = useMediaQuery(`(min-width: ${theme.breakpoints.lg})`);
   const isNarrow = useMediaQuery(NARROW_MEDIA_QUERY);
+  const dragEnabled = isReorderDragEnabled(reorderDrag);
+  const arrowsEnabled = isReorderArrowsEnabled(reorderDrag);
 
   // "Edit view" dialog draft (name + kind in one place).
   const [editing, setEditing] = useState<DashboardViewTab | null>(null);
@@ -273,14 +280,16 @@ export function EditViewsModal({
                   const chevrons = (handle: ReactNode) => (
                     <Group gap={4} wrap="nowrap">
                       {handle}
-                      <ReorderUpDown
-                        name={tab.name}
-                        variant="subtle"
-                        upDisabled={busy || index === 0}
-                        downDisabled={busy || index === displayTabs.length - 1}
-                        onUp={() => void reorderView(tab.id, -1)}
-                        onDown={() => void reorderView(tab.id, 1)}
-                      />
+                      {arrowsEnabled && (
+                        <ReorderUpDown
+                          name={tab.name}
+                          variant="subtle"
+                          upDisabled={busy || index === 0}
+                          downDisabled={busy || index === displayTabs.length - 1}
+                          onUp={() => void reorderView(tab.id, -1)}
+                          onDown={() => void reorderView(tab.id, 1)}
+                        />
+                      )}
                     </Group>
                   );
                   const title = (

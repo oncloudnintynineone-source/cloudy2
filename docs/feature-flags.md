@@ -4,8 +4,8 @@ Admin-controlled, org-wide switches that let UI variants be tested **live** befo
 one is shipped as the default. Today it owns the pinned-events header ticker's
 indicator style, the post-save event confirmation's presentation, the Calendar
 page's mobile bottom button cluster's frosted-glass opacity, and the manageable
-lists' reorder interaction (arrows only vs arrows + drag); new flags join the same
-registry (Settings → Feature Flags, last strip tab).
+lists' reorder interaction (drag-only default, arrows + drag, or arrows only);
+new flags join the same registry (Settings → Feature Flags, last strip tab).
 
 ## Table of contents
 

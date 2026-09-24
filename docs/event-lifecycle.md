@@ -740,8 +740,8 @@ flowchart LR
   `sort_order`. `sort_order` is managed with up/down buttons there; a move re-ranks the
   whole list (position = rank), which also closes legacy gaps — the same convention as
   the department order (`moveDepartment`, `roster/actions.ts`). With the
-  `reorderDrag` feature flag a **drag handle** joins the arrows
-  (`reorderEventTypeGroups`) — see [`reorder.md`](reorder.md).
+  `reorderDrag` feature flag a **drag handle** can join or replace the arrows
+  depending on the mode (`reorderEventTypeGroups`) — see [`reorder.md`](reorder.md).
 - **Ungrouped types** render in the "Ungrouped" section (`UNGROUPED_LABEL`), after the
   inline groups and before the folders. A type whose `group_id` doesn't resolve (stale
   prop) degrades to ungrouped rather than disappearing.

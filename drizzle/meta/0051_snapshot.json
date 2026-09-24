@@ -1491,7 +1491,7 @@
           "type": "text",
           "primaryKey": false,
           "notNull": true,
-          "default": "'arrows'"
+          "default": "'drag'"
         },
         "parade_email_enabled": {
           "name": "parade_email_enabled",

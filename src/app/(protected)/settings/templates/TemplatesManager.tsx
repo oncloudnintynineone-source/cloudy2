@@ -32,6 +32,7 @@ import {
   type SettingsActionResult,
 } from "@/lib/settings/actions";
 import { formatFullName } from "@/lib/settings/formatName";
+import type { ReorderDrag } from "@/lib/settings/featureFlags";
 import {
   renderTitleRecipe,
   type EventTitlePerson,
@@ -64,8 +65,8 @@ interface TemplatesManagerProps {
   assignments: Record<string, string>;
   previewUsers: { name: string; shortname: string | null; departmentName: string | null }[];
   previewEventTypes: { name: string; shortname: string | null }[];
-  /** Feature flag: show the drag handle beside the chevrons. */
-  dragEnabled: boolean;
+  /** Reorder interaction (Settings → Feature Flags). */
+  reorderDrag: ReorderDrag;
 }
 
 const SAMPLE_DESCRIPTION = "Team offsite";
@@ -201,7 +202,7 @@ export function TemplatesManager({
   assignments,
   previewUsers,
   previewEventTypes,
-  dragEnabled,
+  reorderDrag,
 }: TemplatesManagerProps) {
   const theme = useMantineTheme();
   const isDesktop = useMediaQuery(`(min-width: ${theme.breakpoints.lg})`);
@@ -422,7 +423,7 @@ export function TemplatesManager({
           recipe={eventTitleRecipe}
           sample={sample}
           emptySample={emptySample}
-          dragEnabled={dragEnabled}
+          reorderDrag={reorderDrag}
           onDone={() => closeAndRefresh(closeMaster)}
         />
       </Modal>
@@ -443,7 +444,7 @@ export function TemplatesManager({
           recipe={editing?.recipe ?? { segments: [{ field: "description" }] }}
           sample={sample}
           emptySample={emptySample}
-          dragEnabled={dragEnabled}
+          reorderDrag={reorderDrag}
           onDone={() => closeAndRefresh(closeEdit)}
         />
       </Modal>

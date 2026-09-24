@@ -96,7 +96,7 @@ export const glassFabLevelFlag: FeatureFlagDef<GlassFabLevel> = {
   defaultValue: "medium",
 };
 
-export const REORDER_DRAG_OPTIONS = ["arrows", "arrowsDrag"] as const;
+export const REORDER_DRAG_OPTIONS = ["drag", "arrowsDrag", "arrows"] as const;
 export type ReorderDrag = (typeof REORDER_DRAG_OPTIONS)[number];
 
 export const reorderDragFlag: FeatureFlagDef<ReorderDrag> = {
@@ -104,15 +104,17 @@ export const reorderDragFlag: FeatureFlagDef<ReorderDrag> = {
   label: "Reorder interaction",
   description:
     "How the manageable lists (dashboard views, event-type groups, departments, " +
-    "quick links, title recipes) are reordered. Arrows keeps the up/down chevron " +
-    "pair; Arrows + drag adds a drag handle beside them (the chevrons stay as the " +
-    "keyboard/screen-reader alternative).",
+    "quick links, title recipes) are reordered. Drag only shows a drag handle " +
+    "per row (the keyboard path is the handle's Space/Enter + arrow keys); " +
+    "Arrows + drag adds the up/down chevrons beside the handle; Arrows only " +
+    "keeps just the chevrons.",
   options: REORDER_DRAG_OPTIONS,
   optionLabels: {
-    arrows: "Arrows only",
+    drag: "Drag only",
     arrowsDrag: "Arrows + drag",
+    arrows: "Arrows only",
   },
-  defaultValue: "arrows",
+  defaultValue: "drag",
 };
 
 export const FEATURE_FLAGS = [
@@ -123,9 +125,14 @@ export const FEATURE_FLAGS = [
 ] as const;
 export type FeatureFlagKey = (typeof FEATURE_FLAGS)[number]["key"];
 
-/** True when the `reorderDrag` flag selects the drag-handle interaction. */
+/** True when the `reorderDrag` flag shows the drag handle. */
 export function isReorderDragEnabled(value: string | undefined): boolean {
-  return value === "arrowsDrag";
+  return value === "drag" || value === "arrowsDrag";
+}
+
+/** True when the `reorderDrag` flag shows the up/down chevrons. */
+export function isReorderArrowsEnabled(value: string | undefined): boolean {
+  return value === "arrows" || value === "arrowsDrag";
 }
 
 export function isFeatureFlagKey(value: unknown): value is FeatureFlagKey {

@@ -33,6 +33,7 @@ import dynamic from "next/dynamic";
 import { FormModalSkeleton } from "@/components/FormModalSkeleton";
 import { EventTypeGroupsModal } from "./EventTypeGroupsModal";
 import { useActivityRefresh } from "@/components/ActivityBar";
+import type { ReorderDrag } from "@/lib/settings/featureFlags";
 
 // The add/edit event-type form is only mounted on tap; split it out of the
 // event-types route's initial chunk.
@@ -44,10 +45,10 @@ const EventTypeForm = dynamic(() => import("./EventTypeForm").then((mod) => mod.
 interface EventTypeTableProps {
   types: EventType[];
   groups: { id: string; name: string; sortOrder: number; collapsible: boolean }[];
-  dragEnabled: boolean;
+  reorderDrag: ReorderDrag;
 }
 
-export function EventTypeTable({ types, groups, dragEnabled }: EventTypeTableProps) {
+export function EventTypeTable({ types, groups, reorderDrag }: EventTypeTableProps) {
   const refreshAfterSave = useActivityRefresh("event-types:save");
   const theme = useMantineTheme();
   const isDesktop = useMediaQuery(`(min-width: ${theme.breakpoints.lg})`);
@@ -314,7 +315,7 @@ export function EventTypeTable({ types, groups, dragEnabled }: EventTypeTablePro
         onClose={closeGroups}
         groups={groups}
         typeCounts={typeCounts}
-        dragEnabled={dragEnabled}
+        reorderDrag={reorderDrag}
         onMutated={() => {
           refreshAfterSave();
         }}

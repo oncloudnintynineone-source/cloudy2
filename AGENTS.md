@@ -159,8 +159,10 @@ doc content here.
 - **Reorderable lists (views / event-type groups / departments / quick links / title-recipe
   segments):** one shared path — `useReorderRows` (chevrons via `move(id, ±1)` + FLIP;
   drag via `moveTo(id, toIndex)`) + `ReorderUpDown` + `SortableList`/`SortableRow`/`DragHandle`
-  (`@dnd-kit/react`). Drag is additive and behind the **`reorderDrag` feature flag**
-  (default `arrows`); chevrons stay as the a11y fallback. Server-backed drag persists a
+  (`@dnd-kit/react`). The interaction is the **`reorderDrag` feature flag** — `drag`
+  (default, handle only), `arrowsDrag` (both), or `arrows` (chevrons only); derive the two
+  booleans with `isReorderDragEnabled` / `isReorderArrowsEnabled`. In `drag` mode the
+  non-mouse path is dnd-kit's KeyboardSensor on the handle. Server-backed drag persists a
   whole-list `reorderX(orderedIds, movedId?)` (transaction renumber). Departments drag
   sibling-only (`moveToSiblingIndex`). Design: [docs/reorder.md](docs/reorder.md).
 - **Quick Links:** admin-managed Calendar-page shortcuts behind the amber `IconLink`

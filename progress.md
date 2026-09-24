@@ -18,7 +18,7 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
 
 ## 1.1 Status
 
-- All work through changelog **1.276 (drag-to-reorder)** is shipped.
+- All work through changelog **1.277 (drag-only default reorder mode)** is shipped.
 - Quality gates (`lint` / `typecheck` / `test` / schema-drift check) run in CI on every
   push and PR. Pushes also auto-apply migrations per environment: `dev` →
   `migrate-preview` against the dev Neon DB, `main` → `migrate` against the prod Neon
@@ -1480,6 +1480,16 @@ via `?attendance=1` and `attendanceStorage` became a `useSyncExternalStore` exte
     settings pages; `DASHBOARD_SNAPSHOT_VERSION` bumped 2 → 3. Docs: new `reorder.md`,
     `feature-flags.md`, `accessibility.md`, `dashboard-views.md`, `quick-links.md`,
     `roster-sharing.md`, `event-lifecycle.md`, `AGENTS.md`.
+- 1.277 Drag-only default for reorder: the `reorderDrag` flag gains a third option
+    and a new default — `drag` (handle only), `arrowsDrag` (chevrons + handle),
+    `arrows` (chevrons only). `settings.reorder_drag` default changed to `'drag'`
+    (migration 0051 edited in place, since it was uncommitted); the leaf surfaces
+    now take the resolved mode and derive two booleans via `isReorderDragEnabled`
+    (handle) / `isReorderArrowsEnabled` (chevrons), rendering the chevrons
+    conditionally. `DASHBOARD_SNAPSHOT_VERSION` bumped 3 → 4. In `drag` mode the
+    non-mouse path is dnd-kit's KeyboardSensor bound to the grip (Space/Enter +
+    arrows); `arrowsDrag` stays available for strict WCAG 2.5.7. Docs:
+    `reorder.md`, `feature-flags.md`, `accessibility.md`, `AGENTS.md`.
 
 ## 1.4 Open items & next steps
 

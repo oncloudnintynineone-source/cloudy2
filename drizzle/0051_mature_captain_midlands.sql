@@ -1,1 +1,1 @@
-ALTER TABLE "settings" ADD COLUMN "reorder_drag" text DEFAULT 'arrows' NOT NULL;
+ALTER TABLE "settings" ADD COLUMN "reorder_drag" text DEFAULT 'drag' NOT NULL;

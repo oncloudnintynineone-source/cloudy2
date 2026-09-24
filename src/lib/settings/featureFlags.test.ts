@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   FEATURE_FLAGS,
   isFeatureFlagKey,
+  isReorderArrowsEnabled,
   isReorderDragEnabled,
   normalizeFeatureFlags,
   resolveFlagValue,
@@ -47,7 +48,7 @@ describe("resolveFlagValue", () => {
       expect(resolveFlagValue(pinnedTickerIndicatorFlag, unknown)).toBe("classic");
       expect(resolveFlagValue(savedEventToastVariantFlag, unknown)).toBe("pill");
       expect(resolveFlagValue(glassFabLevelFlag, unknown)).toBe("medium");
-      expect(resolveFlagValue(reorderDragFlag, unknown)).toBe("arrows");
+      expect(resolveFlagValue(reorderDragFlag, unknown)).toBe("drag");
     }
   });
 });
@@ -62,7 +63,7 @@ describe("normalizeFeatureFlags", () => {
       pinnedTickerIndicator: "badge",
       savedEventToastVariant: "toastAction",
       glassFabLevel: "medium",
-      reorderDrag: "arrows",
+      reorderDrag: "drag",
     });
   });
 
@@ -72,7 +73,7 @@ describe("normalizeFeatureFlags", () => {
       pinnedTickerIndicator: "classic",
       savedEventToastVariant: "pill",
       glassFabLevel: "medium",
-      reorderDrag: "arrows",
+      reorderDrag: "drag",
     });
   });
 });
@@ -88,10 +89,20 @@ describe("isFeatureFlagKey", () => {
 });
 
 describe("isReorderDragEnabled", () => {
-  it("is true only for the drag-handle option", () => {
+  it("is true for the drag-handle modes", () => {
+    expect(isReorderDragEnabled("drag")).toBe(true);
     expect(isReorderDragEnabled("arrowsDrag")).toBe(true);
     expect(isReorderDragEnabled("arrows")).toBe(false);
     expect(isReorderDragEnabled(undefined)).toBe(false);
+  });
+});
+
+describe("isReorderArrowsEnabled", () => {
+  it("is true for the chevron modes", () => {
+    expect(isReorderArrowsEnabled("arrows")).toBe(true);
+    expect(isReorderArrowsEnabled("arrowsDrag")).toBe(true);
+    expect(isReorderArrowsEnabled("drag")).toBe(false);
+    expect(isReorderArrowsEnabled(undefined)).toBe(false);
   });
 });
 

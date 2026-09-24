@@ -1,6 +1,6 @@
 import { PageTransition } from "@/components/PageTransition";
 import { listDepartments } from "@/lib/roster/queries";
-import { isReorderDragEnabled } from "@/lib/settings/featureFlags";
+import { reorderDragFlag, resolveFlagValue } from "@/lib/settings/featureFlags";
 import { getFeatureFlag } from "@/lib/settings/queries";
 import { DepartmentTable } from "./DepartmentTable";
 
@@ -11,7 +11,10 @@ export default async function DepartmentsPage() {
   ]);
   return (
     <PageTransition>
-      <DepartmentTable departments={departments} dragEnabled={isReorderDragEnabled(reorderDrag)} />
+      <DepartmentTable
+        departments={departments}
+        reorderDrag={resolveFlagValue(reorderDragFlag, reorderDrag)}
+      />
     </PageTransition>
   );
 }

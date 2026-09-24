@@ -1,7 +1,7 @@
 import { PageTransition } from "@/components/PageTransition";
 import { listEventTypes } from "@/lib/eventTypes/queries";
 import { listUsers } from "@/lib/roster/queries";
-import { isReorderDragEnabled } from "@/lib/settings/featureFlags";
+import { reorderDragFlag, resolveFlagValue } from "@/lib/settings/featureFlags";
 import { getSettings, listEventTitleTemplates } from "@/lib/settings/queries";
 import { TemplatesManager } from "./TemplatesManager";
 
@@ -24,7 +24,7 @@ export default async function TemplatesPage() {
         eventTitleRecipe={settings.eventTitleRecipe}
         templates={templates.map((t) => ({ id: t.id, label: t.label, recipe: t.recipe }))}
         assignments={settings.eventTitleTemplateAssignments as Record<string, string>}
-        dragEnabled={isReorderDragEnabled(settings.featureFlags.reorderDrag)}
+        reorderDrag={resolveFlagValue(reorderDragFlag, settings.featureFlags.reorderDrag)}
         previewUsers={previewUsers}
         previewEventTypes={eventTypes.map((type) => ({
           name: type.name,

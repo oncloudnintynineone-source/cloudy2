@@ -28,6 +28,11 @@ import {
   type DepartmentTreeNode,
 } from "@/lib/roster/hierarchy";
 import { BUTTON_LOADER_PROPS } from "@/lib/theme";
+import {
+  isReorderArrowsEnabled,
+  isReorderDragEnabled,
+  type ReorderDrag,
+} from "@/lib/settings/featureFlags";
 import { useReorderRows } from "@/lib/ui/reorderRows";
 import { FAB_ICON_SIZE, FloatingActionButton, FloatingToolbar } from "@/components/FloatingToolbar";
 import { formatColorLabel } from "@/lib/events/eventColors";
@@ -47,11 +52,14 @@ const DepartmentDetail = dynamic(
 
 interface DepartmentTableProps {
   departments: Calendar[];
-  dragEnabled: boolean;
+  /** Reorder interaction (Settings → Feature Flags). */
+  reorderDrag: ReorderDrag;
 }
 
-export function DepartmentTable({ departments, dragEnabled }: DepartmentTableProps) {
+export function DepartmentTable({ departments, reorderDrag }: DepartmentTableProps) {
   const refreshAfterSave = useActivityRefresh("departments:save");
+  const dragEnabled = isReorderDragEnabled(reorderDrag);
+  const arrowsEnabled = isReorderArrowsEnabled(reorderDrag);
   const [detailOpened, { open: openDetail, close: closeDetail }] = useDisclosure(false);
   const [confirmOpened, { open: openConfirm, close: closeConfirm }] = useDisclosure(false);
   const [selected, setSelected] = useState<Calendar | null>(null);
@@ -193,13 +201,15 @@ export function DepartmentTable({ departments, dragEnabled }: DepartmentTablePro
     return (
       <Group gap={4} wrap="nowrap">
         {handle}
-        <ReorderUpDown
-          name={calendar.name}
-          upDisabled={busy || !can.up}
-          downDisabled={busy || !can.down}
-          onUp={() => void reorderDepartment(calendar.id, -1)}
-          onDown={() => void reorderDepartment(calendar.id, 1)}
-        />
+        {arrowsEnabled && (
+          <ReorderUpDown
+            name={calendar.name}
+            upDisabled={busy || !can.up}
+            downDisabled={busy || !can.down}
+            onUp={() => void reorderDepartment(calendar.id, -1)}
+            onDown={() => void reorderDepartment(calendar.id, 1)}
+          />
+        )}
       </Group>
     );
   }

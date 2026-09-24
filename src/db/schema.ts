@@ -433,12 +433,12 @@ export const settings = pgTable(
     glassFabLevel: text("glass_fab_level").notNull().default("medium"),
     /**
      * Reorder interaction for the manageable lists (Settings → Feature Flags):
-     * `arrows` keeps the up/down chevrons only, `arrowsDrag` adds a drag handle
-     * beside them. One of the keys in `FEATURE_FLAGS`
-     * (`src/lib/settings/featureFlags.ts`); the registry's default backs the
-     * column default.
+     * `drag` (default) shows a drag handle per row, `arrowsDrag` adds the
+     * up/down chevrons beside it, `arrows` keeps the chevrons only. One of the
+     * keys in `FEATURE_FLAGS` (`src/lib/settings/featureFlags.ts`); the
+     * registry's default backs the column default.
      */
-    reorderDrag: text("reorder_drag").notNull().default("arrows"),
+    reorderDrag: text("reorder_drag").notNull().default("drag"),
     /**
      * Daily parade-state email (Settings → Parade State Email): when enabled,
      * the selected roster users receive one snapshot on each weekday at 08:00

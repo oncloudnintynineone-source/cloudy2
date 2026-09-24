@@ -347,11 +347,11 @@ flowchart TB
   (`moveDepartment` via `moveInTreeOrder`) — first/last child of a group is a
   no-op, and a parent's whole subtree moves with it. For a flat list (no
   parents) this is exactly the old global up/down swap.
-- With the `reorderDrag` feature flag a **drag handle** joins the arrows: the
-  drop is normalized to the dragged node's sibling group
-  (`moveToSiblingIndex`; a descendant target climbs to its sibling, an
-  unrelated target is ignored) and persisted whole-list via `reorderDepartments`
-  — see [`reorder.md`](reorder.md) §1.5.
+- With the `reorderDrag` feature flag a **drag handle** can join or replace the
+  arrows depending on the mode: the drop is normalized to the dragged node's
+  sibling group (`moveToSiblingIndex`; a descendant target climbs to its sibling,
+  an unrelated target is ignored) and persisted whole-list via
+  `reorderDepartments` — see [`reorder.md`](reorder.md) §1.5.
 
 **Pure helpers** (`src/lib/roster/hierarchy.ts`, unit-tested in
 `hierarchy.test.ts`)

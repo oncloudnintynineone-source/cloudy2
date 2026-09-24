@@ -108,7 +108,11 @@ import { sortMineFirst } from "@/lib/events/mineFirst";
 import { buildEventDeepLink } from "@/lib/events/deepLink";
 import type { CalendarEvent } from "@/lib/events/queries";
 import type { TitleRecipe } from "@/lib/settings/titleRecipe";
-import type { GlassFabLevel, SavedEventToastVariant } from "@/lib/settings/featureFlags";
+import type {
+  GlassFabLevel,
+  ReorderDrag,
+  SavedEventToastVariant,
+} from "@/lib/settings/featureFlags";
 import type { EventActionOk } from "@/lib/events/actions";
 import type { LocationCategory } from "@/lib/events/locationPolicy";
 import {
@@ -363,10 +367,10 @@ export interface DashboardViewProps {
    */
   glassFabLevel: GlassFabLevel;
   /**
-   * Reorder interaction (Settings → Feature Flags): when true, the Manage-views
-   * list shows a drag handle beside the up/down chevrons.
+   * Reorder interaction (Settings → Feature Flags): the Manage-views list's
+   * drag handle / up-down chevrons.
    */
-  reorderDrag: boolean;
+  reorderDrag: ReorderDrag;
   /**
    * Enabled quick links in menu order (Settings → Quick Links); the amber
    * Quick-links launcher (mobile FAB / nav-row chip at lg) renders only when
@@ -4690,7 +4694,7 @@ function DashboardViewImpl({
           onApplyViewTab={applyViewTab}
           onEditFilters={handleEditFilters}
           onAddView={openAddView}
-          dragEnabled={reorderDrag}
+          reorderDrag={reorderDrag}
         />
       )}
 

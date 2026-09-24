@@ -31,6 +31,11 @@ import {
   UNGROUPED_LABEL,
 } from "@/lib/eventTypes/groups";
 import { BUTTON_LOADER_PROPS } from "@/lib/theme";
+import {
+  isReorderArrowsEnabled,
+  isReorderDragEnabled,
+  type ReorderDrag,
+} from "@/lib/settings/featureFlags";
 import { moveToIndex, useReorderRows } from "@/lib/ui/reorderRows";
 import {
   ROW_ACTION_ICON_SIZE,
@@ -53,8 +58,8 @@ interface EventTypeGroupsModalProps {
   groups: GroupRef[];
   /** Number of event types assigned to each group (by group id). */
   typeCounts: Map<string, number>;
-  /** Feature flag: show the drag handle beside the chevrons. */
-  dragEnabled: boolean;
+  /** Reorder interaction (Settings → Feature Flags). */
+  reorderDrag: ReorderDrag;
   /** The list changed (create/rename/delete/move) — the parent refreshes. */
   onMutated: () => void;
 }
@@ -64,10 +69,12 @@ export function EventTypeGroupsModal({
   onClose,
   groups,
   typeCounts,
-  dragEnabled,
+  reorderDrag,
   onMutated,
 }: EventTypeGroupsModalProps) {
   const [newName, setNewName] = useState("");
+  const dragEnabled = isReorderDragEnabled(reorderDrag);
+  const arrowsEnabled = isReorderArrowsEnabled(reorderDrag);
   const [nameError, setNameError] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const [renaming, setRenaming] = useState<{ id: string; name: string } | null>(null);
@@ -339,13 +346,15 @@ export function EventTypeGroupsModal({
                             <Group justify="space-between" align="center" wrap="nowrap">
                               <Group gap={4} wrap="nowrap">
                                 {handle}
-                                <ReorderUpDown
-                                  name={group.name}
-                                  upDisabled={busy || index === 0}
-                                  downDisabled={busy || index === displaySorted.length - 1}
-                                  onUp={() => void reorderGroup(group.id, -1)}
-                                  onDown={() => void reorderGroup(group.id, 1)}
-                                />
+                                {arrowsEnabled && (
+                                  <ReorderUpDown
+                                    name={group.name}
+                                    upDisabled={busy || index === 0}
+                                    downDisabled={busy || index === displaySorted.length - 1}
+                                    onUp={() => void reorderGroup(group.id, -1)}
+                                    onDown={() => void reorderGroup(group.id, 1)}
+                                  />
+                                )}
                               </Group>
                               <Group wrap="nowrap" gap={4} style={{ flexShrink: 0 }}>
                                 <Tooltip

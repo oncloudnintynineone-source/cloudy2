@@ -28,6 +28,11 @@ import { ROW_ACTION_ICON_SIZE, ROW_ACTION_SIZE, ReorderUpDown } from "@/componen
 import { SortableList, SortableRow } from "@/components/SortableRow";
 import { CONTENT_ENTER_CLASS } from "@/lib/loading/contentEnter";
 import { deleteQuickLink, moveQuickLink, reorderQuickLinks } from "@/lib/quickLinks/actions";
+import {
+  isReorderArrowsEnabled,
+  isReorderDragEnabled,
+  type ReorderDrag,
+} from "@/lib/settings/featureFlags";
 import { BUTTON_LOADER_PROPS } from "@/lib/theme";
 import { moveToIndex, swapAdjacent, useReorderRows } from "@/lib/ui/reorderRows";
 import { activatable } from "@/lib/ui/activatable";
@@ -44,13 +49,16 @@ import { useActivityRefresh } from "@/components/ActivityBar";
 
 interface QuickLinkTableProps {
   links: QuickLink[];
-  dragEnabled: boolean;
+  /** Reorder interaction (Settings → Feature Flags). */
+  reorderDrag: ReorderDrag;
 }
 
-export function QuickLinkTable({ links, dragEnabled }: QuickLinkTableProps) {
+export function QuickLinkTable({ links, reorderDrag }: QuickLinkTableProps) {
   const refreshAfterSave = useActivityRefresh("quick-links:save");
   const theme = useMantineTheme();
   const isDesktop = useMediaQuery(`(min-width: ${theme.breakpoints.lg})`);
+  const dragEnabled = isReorderDragEnabled(reorderDrag);
+  const arrowsEnabled = isReorderArrowsEnabled(reorderDrag);
   const [formOpened, { open: openForm, close: closeForm }] = useDisclosure(false);
   const [editing, setEditing] = useState<QuickLink | null>(null);
   const [pendingDelete, setPendingDelete] = useState<QuickLink | null>(null);
@@ -130,13 +138,15 @@ export function QuickLinkTable({ links, dragEnabled }: QuickLinkTableProps) {
     return (
       <Group gap={4} wrap="nowrap">
         {handle}
-        <ReorderUpDown
-          name={link.label}
-          upDisabled={busy || index === 0}
-          downDisabled={busy || index === links.length - 1}
-          onUp={() => void reorderLink(link.id, -1)}
-          onDown={() => void reorderLink(link.id, 1)}
-        />
+        {arrowsEnabled && (
+          <ReorderUpDown
+            name={link.label}
+            upDisabled={busy || index === 0}
+            downDisabled={busy || index === links.length - 1}
+            onUp={() => void reorderLink(link.id, -1)}
+            onDown={() => void reorderLink(link.id, 1)}
+          />
+        )}
       </Group>
     );
   }

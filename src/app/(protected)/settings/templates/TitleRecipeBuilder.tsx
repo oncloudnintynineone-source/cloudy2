@@ -55,6 +55,11 @@ import {
 } from "@/lib/settings/titleRecipe";
 import { BUTTON_LOADER_PROPS } from "@/lib/theme";
 import { moveToIndex, swapAdjacent, useReorderRows } from "@/lib/ui/reorderRows";
+import {
+  isReorderArrowsEnabled,
+  isReorderDragEnabled,
+  type ReorderDrag,
+} from "@/lib/settings/featureFlags";
 import { SortableList, SortableRow } from "@/components/SortableRow";
 import { ROW_ACTION_ICON_SIZE, ROW_ACTION_SIZE, ReorderUpDown } from "@/components/reorderUpDown";
 
@@ -65,8 +70,8 @@ interface TitleRecipeBuilderProps {
   recipe: TitleRecipe;
   sample: EventTitleRecipeInput;
   emptySample: EventTitleRecipeInput;
-  /** Feature flag: show the drag handle beside the chevrons. */
-  dragEnabled: boolean;
+  /** Reorder interaction (Settings → Feature Flags). */
+  reorderDrag: ReorderDrag;
   onDone: () => void;
 }
 
@@ -238,11 +243,13 @@ export function TitleRecipeBuilder({
   recipe: initialRecipe,
   sample,
   emptySample,
-  dragEnabled,
+  reorderDrag,
   onDone,
 }: TitleRecipeBuilderProps) {
   const theme = useMantineTheme();
   const isDesktop = useMediaQuery(`(min-width: ${theme.breakpoints.lg})`);
+  const dragEnabled = isReorderDragEnabled(reorderDrag);
+  const arrowsEnabled = isReorderArrowsEnabled(reorderDrag);
 
   const [label, setLabel] = useState(initialLabel ?? "");
   const [labelError, setLabelError] = useState<string | null>(null);
@@ -412,13 +419,15 @@ export function TitleRecipeBuilder({
                     <Group wrap="nowrap" gap="xs" align="center" style={{ minWidth: 0, flex: 1 }}>
                       <Group gap={4} wrap="nowrap">
                         {handle}
-                        <ReorderUpDown
-                          name={rowSummary(row)}
-                          upDisabled={index === 0}
-                          downDisabled={index === rows.length - 1}
-                          onUp={() => move(index, -1)}
-                          onDown={() => move(index, 1)}
-                        />
+                        {arrowsEnabled && (
+                          <ReorderUpDown
+                            name={rowSummary(row)}
+                            upDisabled={index === 0}
+                            downDisabled={index === rows.length - 1}
+                            onUp={() => move(index, -1)}
+                            onDown={() => move(index, 1)}
+                          />
+                        )}
                       </Group>
                       <Badge
                         variant="light"

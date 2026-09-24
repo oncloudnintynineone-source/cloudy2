@@ -47,7 +47,7 @@ import {
 } from "@/lib/settings/queries";
 import {
   glassFabLevelFlag,
-  isReorderDragEnabled,
+  reorderDragFlag,
   resolveFlagValue,
   savedEventToastVariantFlag,
 } from "@/lib/settings/featureFlags";
@@ -422,7 +422,7 @@ async function resolveDashboardConfig(session: Session): Promise<DashboardConfig
       settings.featureFlags.savedEventToastVariant,
     ),
     glassFabLevel: resolveFlagValue(glassFabLevelFlag, settings.featureFlags.glassFabLevel),
-    reorderDrag: isReorderDragEnabled(settings.featureFlags.reorderDrag),
+    reorderDrag: resolveFlagValue(reorderDragFlag, settings.featureFlags.reorderDrag),
     quickLinks: quickLinks
       .filter((link) => link.enabled)
       .map((link) => ({
