@@ -41,6 +41,7 @@ export function MonthWeekdayStrip({
   return (
     <Box
       component="div"
+      className="c2-glass-surface"
       style={{
         position: sticky ? "sticky" : "relative",
         top: sticky ? `calc(var(--app-shell-header-offset) + ${chromeOffset}px)` : undefined,
@@ -52,7 +53,6 @@ export function MonthWeekdayStrip({
         // their text.
         height: "auto",
         paddingBlock: "calc(0.125rem * var(--mantine-scale))",
-        background: "var(--mantine-color-body)",
         borderBottom: "1px solid var(--mantine-color-default-border)",
         overflow: "hidden",
       }}

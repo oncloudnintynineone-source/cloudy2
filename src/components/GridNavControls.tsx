@@ -178,18 +178,6 @@ export function GridNavControls({
     return null;
   }
 
-  const buttonStyles = {
-    root: {
-      backgroundColor: "color-mix(in srgb, var(--mantine-color-gray-filled) 50%, transparent)",
-      "&:where([data-disabled])": {
-        backgroundColor: "color-mix(in srgb, var(--mantine-color-gray-filled) 50%, transparent)",
-      },
-      "&:where(:hover)": {
-        backgroundColor: "color-mix(in srgb, var(--mantine-color-gray-filled) 60%, transparent)",
-      },
-    },
-  } as const;
-
   // The right-edge cluster's top edge, per shape:
   //
   // Single-axis (Day/Week (H)/Month): bottom-edge anchor. The bottom of the
@@ -268,7 +256,7 @@ export function GridNavControls({
       radius="50%"
       variant="filled"
       color="gray"
-      styles={buttonStyles}
+      className="c2-glass-btn"
       aria-label="Scroll grid right"
       onClick={() => onPan("end")}
     >
@@ -300,7 +288,7 @@ export function GridNavControls({
           radius="50%"
           variant="filled"
           color="gray"
-          styles={buttonStyles}
+          className="c2-glass-btn"
           aria-label={inLabel}
           title={inLabel}
           disabled={!canIn}
@@ -313,7 +301,7 @@ export function GridNavControls({
           radius="50%"
           variant="filled"
           color="gray"
-          styles={buttonStyles}
+          className="c2-glass-btn"
           aria-label={outLabel}
           title={outLabel}
           disabled={!canOut}
@@ -342,7 +330,7 @@ export function GridNavControls({
           radius="50%"
           variant="filled"
           color="gray"
-          styles={buttonStyles}
+          className="c2-glass-btn"
           aria-label="Scroll grid left"
           onClick={() => onPan("start")}
         >

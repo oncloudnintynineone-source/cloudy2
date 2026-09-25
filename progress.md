@@ -18,7 +18,7 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
 
 ## 1.1 Status
 
-- All work through changelog **1.277 (drag-only default reorder mode)** is shipped.
+- All work through changelog **1.279 (app-wide frosted glass)** is shipped.
 - Quality gates (`lint` / `typecheck` / `test` / schema-drift check) run in CI on every
   push and PR. Pushes also auto-apply migrations per environment: `dev` →
   `migrate-preview` against the dev Neon DB, `main` → `migrate` against the prod Neon
@@ -1501,6 +1501,18 @@ via `?attendance=1` and `attendanceStorage` became a `useSyncExternalStore` exte
     the per-calendar Google `q` fan-out; its modal now renders a flat
     relevance-ordered list instead of `AgendaView`. Docs: `event-search.md`,
     `user-picker.md`.
+- 1.279 App-wide frosted glass: the `glassFabLevel` flag is broadened into one global
+    `translucencyLevel` (subtle / medium / strong) governing every surface that overlaps
+    content — the navy header, sticky calendar chrome + its inline buttons, the pinned grid
+    headers, bottom nav, settings tab strip, desktop sidebar, floating zoom/pan + fullscreen
+    controls and every FAB, menus, popovers, modals and tooltips. The column is renamed
+    `settings.glass_fab_level` → `settings.translucency_level` (migration 0052) and the shell
+    publishes the level on `<html>` as `data-c2-glass`, consumed by the generalized
+    `--c2g-*` / `--c2-glass-*` tokens and the `.c2-glass-surface` / `-header` / `-fab` /
+    `-btn` classes. Sticky-left label columns stay opaque for legibility, and low-end devices
+    (`c2-low-end`) fall back to tint-only. `DASHBOARD_SNAPSHOT_VERSION` bumped 4 → 5 so a
+    stale device snapshot (carrying the old field name) is dropped. Docs: `feature-flags.md`,
+    `dashboard-views.md` §1.1, `desktop-responsive.md`, `AGENTS.md`.
 
 ## 1.4 Open items & next steps
 

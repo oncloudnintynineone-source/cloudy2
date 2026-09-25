@@ -325,10 +325,18 @@ export function EventTypeTable({ types, groups, reorderDrag }: EventTypeTablePro
           the FAB. hiddenFrom sits on the toolbar itself: its Affix portals to
           <body>, so a wrapper element could not hide it. */}
       <FloatingToolbar bottomOffset="var(--settings-fab-bottom)" hiddenFrom="lg">
-        <FloatingActionButton aria-label="Manage event type groups" onClick={openGroups}>
+        <FloatingActionButton
+          aria-label="Manage event type groups"
+          className="c2-glass-fab--brand"
+          onClick={openGroups}
+        >
           <IconCategory2 size={FAB_ICON_SIZE} />
         </FloatingActionButton>
-        <FloatingActionButton aria-label="Add event type" onClick={openCreate}>
+        <FloatingActionButton
+          aria-label="Add event type"
+          className="c2-glass-fab--brand"
+          onClick={openCreate}
+        >
           <IconPlus size={FAB_ICON_SIZE} />
         </FloatingActionButton>
       </FloatingToolbar>

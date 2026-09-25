@@ -109,9 +109,9 @@ import { buildEventDeepLink } from "@/lib/events/deepLink";
 import type { CalendarEvent } from "@/lib/events/queries";
 import type { TitleRecipe } from "@/lib/settings/titleRecipe";
 import type {
-  GlassFabLevel,
   ReorderDrag,
   SavedEventToastVariant,
+  TranslucencyLevel,
 } from "@/lib/settings/featureFlags";
 import type { EventActionOk } from "@/lib/events/actions";
 import type { LocationCategory } from "@/lib/events/locationPolicy";
@@ -361,11 +361,12 @@ export interface DashboardViewProps {
    */
   savedEventToastVariant: SavedEventToastVariant;
   /**
-   * Frosted-glass opacity of the mobile bottom button cluster (Settings →
-   * Feature Flags): subtle / medium / strong, applied as a `c2-glass-fab--*`
-   * modifier on the period chevrons, Quick-links FAB and New-event FAB.
+   * Frosted-glass translucency level (Settings → Feature Flags): subtle /
+   * medium / strong. The shell applies it globally as `data-c2-glass`; the
+   * mobile cluster also carries the `c2-glass--*` modifier so its first paint
+   * is already at the resolved level.
    */
-  glassFabLevel: GlassFabLevel;
+  translucencyLevel: TranslucencyLevel;
   /**
    * Reorder interaction (Settings → Feature Flags): the Manage-views list's
    * drag handle / up-down chevrons.
@@ -516,6 +517,7 @@ function WeekDayLabelStrip({
   return (
     <Box
       component="div"
+      className="c2-glass-surface"
       style={{
         position: "sticky",
         top: `calc(var(--app-shell-header-offset) + ${chromeOffset}px)`,
@@ -523,7 +525,6 @@ function WeekDayLabelStrip({
         display: "flex",
         overflow: "hidden",
         height: "calc(2rem * var(--mantine-scale))",
-        background: "var(--mantine-color-body)",
         borderBottom: "1px solid var(--mantine-color-default-border)",
       }}
     >
@@ -694,6 +695,7 @@ function TimeRulerStrip({
     <Box
       component="div"
       aria-hidden
+      className="c2-glass-surface"
       style={{
         position: "sticky",
         top: stackBelowHeight
@@ -703,7 +705,6 @@ function TimeRulerStrip({
         display: "flex",
         overflow: "hidden",
         height: "calc(1.15rem * var(--mantine-scale))",
-        background: "var(--mantine-color-body)",
         borderBottom: "1px solid var(--mantine-color-default-border)",
       }}
     >
@@ -897,7 +898,7 @@ function DashboardViewImpl({
   viewEventTitleRecipe,
   googleConfigured,
   savedEventToastVariant,
-  glassFabLevel,
+  translucencyLevel,
   reorderDrag,
   quickLinks,
   selectedCalendarIds,
@@ -3201,11 +3202,12 @@ function DashboardViewImpl({
           at every breakpoint. The wrapper is a direct child of the Stack, so
           its containing block spans the whole page and sticky can hold it at
           the top (a sticky element pinned to a shorter root would scroll away
-          with it); page content slides beneath its opaque background. Its
+          with it); page content slides beneath its frosted background. Its
           measured height feeds the Week (D) day header and the Week (H) label
           strip so they dock flush beneath it. */}
       <Box
         ref={tabsListRef}
+        className="c2-glass-surface"
         style={{
           position: "sticky",
           top: "var(--app-shell-header-offset)",
@@ -3213,7 +3215,6 @@ function DashboardViewImpl({
           // sticky-left columns and scrollbars reach z-index 20) so grid
           // content sliding beneath never paints over the pinned chrome.
           zIndex: 50,
-          background: "var(--mantine-color-body)",
           // Immersive pins the chrome at the viewport top. Where the
           // Fullscreen API is unsupported (iOS) the OS status bar is still
           // up — keep the tabs clear of it (0 elsewhere).
@@ -3279,6 +3280,7 @@ function DashboardViewImpl({
                         color="gray"
                         size={36}
                         ml={4}
+                        className="c2-glass-btn"
                         aria-label="Add view"
                         title="Add view"
                         onClick={openAddView}
@@ -3317,6 +3319,7 @@ function DashboardViewImpl({
                   color="gray"
                   size={36}
                   ml={4}
+                  className="c2-glass-btn"
                   aria-label="All views"
                   title="All views"
                   style={{ flex: "0 0 auto" }}
@@ -3364,6 +3367,7 @@ function DashboardViewImpl({
                 size={36}
                 ml={4}
                 mr={4}
+                className="c2-glass-btn"
                 aria-label="Manage views"
                 title="Manage views"
                 onClick={openEdit}
@@ -3403,6 +3407,7 @@ function DashboardViewImpl({
             visibleFrom="lg"
             size={36}
             variant="default"
+            className="c2-glass-btn"
             aria-label={periodStepLabel("Previous")}
             onClick={() => navigatePeriod(-1)}
           >
@@ -3412,6 +3417,7 @@ function DashboardViewImpl({
             visibleFrom="lg"
             size={36}
             variant="default"
+            className="c2-glass-btn"
             aria-label={periodStepLabel("Next")}
             onClick={() => navigatePeriod(1)}
           >
@@ -3421,6 +3427,7 @@ function DashboardViewImpl({
             bottom corner (the FAB is hidden at lg, below). */}
           <Button
             visibleFrom="lg"
+            className="c2-glass-btn c2-glass-fab--brand"
             __vars={{ "--button-height": "36px" }}
             leftSection={<IconPlus size={16} />}
             disabled={!googleConfigured}
@@ -3445,6 +3452,7 @@ function DashboardViewImpl({
                   visibleFrom="lg"
                   variant="light"
                   color="accent"
+                  className="c2-glass-btn c2-glass-fab--accent"
                   __vars={{ "--button-height": "36px" }}
                   leftSection={<IconLink size={16} />}
                   aria-label="Quick links"
@@ -3466,6 +3474,7 @@ function DashboardViewImpl({
             }}
             size={36}
             iconSize={18}
+            className="c2-glass-btn"
           />
           {/* Date + Today combined: a single calendar button (the old kebab's
               slot) opens the view-aware date selector, which also carries the
@@ -3474,6 +3483,7 @@ function DashboardViewImpl({
           <ActionIcon
             size={36}
             variant="default"
+            className="c2-glass-btn"
             aria-label="Select date"
             title="Select date"
             onClick={(e) => {
@@ -3511,6 +3521,7 @@ function DashboardViewImpl({
                   hiddenFrom="lg"
                   variant="default"
                   size={36}
+                  className="c2-glass-btn"
                   aria-label={`Calendar view: ${shownTabName}`}
                   title={`Calendar view: ${shownTabName}`}
                 >
@@ -4760,7 +4771,7 @@ function DashboardViewImpl({
               44px circular frosted-glass controls sharing the desktop row's
               view-aware dispatch; the whole mobile cluster is glass. */}
           <ActionIcon
-            className={`c2-glass-fab c2-glass-fab--${glassFabLevel}`}
+            className={`c2-glass--${translucencyLevel}`}
             size={44}
             radius="50%"
             variant="default"
@@ -4770,7 +4781,7 @@ function DashboardViewImpl({
             <IconChevronLeft size={20} />
           </ActionIcon>
           <ActionIcon
-            className={`c2-glass-fab c2-glass-fab--${glassFabLevel}`}
+            className={`c2-glass--${translucencyLevel}`}
             size={44}
             radius="50%"
             variant="default"
@@ -4789,7 +4800,7 @@ function DashboardViewImpl({
               position="top-end"
               trigger={
                 <FloatingActionButton
-                  className={`c2-glass-fab c2-glass-fab--${glassFabLevel} c2-glass-fab--accent`}
+                  className={`c2-glass--${translucencyLevel} c2-glass-fab--accent`}
                   variant="light"
                   color="accent"
                   aria-label="Quick links"
@@ -4800,7 +4811,7 @@ function DashboardViewImpl({
             />
           )}
           <FloatingActionButton
-            className={`c2-glass-fab c2-glass-fab--${glassFabLevel} c2-glass-fab--brand`}
+            className={`c2-glass--${translucencyLevel} c2-glass-fab--brand`}
             aria-label="New event"
             // The Agenda tab prefills the day being viewed (like the day
             // modal's button); the other views keep "today".

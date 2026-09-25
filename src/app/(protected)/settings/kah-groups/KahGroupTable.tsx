@@ -304,7 +304,11 @@ export function KahGroupTable({
           the FAB. hiddenFrom sits on the toolbar itself: its Affix portals to
           <body>, so a wrapper element could not hide it. */}
       <FloatingToolbar bottomOffset="var(--settings-fab-bottom)" hiddenFrom="lg">
-        <FloatingActionButton aria-label="Add KAH group" onClick={openCreate}>
+        <FloatingActionButton
+          aria-label="Add KAH group"
+          className="c2-glass-fab--brand"
+          onClick={openCreate}
+        >
           <IconPlus size={FAB_ICON_SIZE} />
         </FloatingActionButton>
       </FloatingToolbar>

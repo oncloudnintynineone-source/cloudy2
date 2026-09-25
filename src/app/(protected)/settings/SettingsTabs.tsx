@@ -46,6 +46,7 @@ export function SettingsTabs() {
       }}
     >
       <Tabs.List
+        className={isDesktop ? undefined : "c2-glass-surface"}
         style={
           isDesktop
             ? {
@@ -61,7 +62,6 @@ export function SettingsTabs() {
                 left: 0,
                 right: 0,
                 zIndex: 10,
-                background: "var(--mantine-color-body)",
                 borderTop: "1px solid var(--mantine-color-default-border)",
               }
         }
@@ -97,12 +97,12 @@ export function SettingsTabs() {
   // view-tabs wrapper).
   return (
     <Box
+      className="c2-glass-surface"
       style={{
         viewTransitionName: "c2-settings-tabs",
         position: "sticky",
         top: "var(--app-shell-header-offset)",
         zIndex: 9,
-        background: "var(--mantine-color-body)",
         borderBottom: "1px solid var(--mantine-color-default-border)",
         marginBottom: "var(--mantine-spacing-md)",
       }}

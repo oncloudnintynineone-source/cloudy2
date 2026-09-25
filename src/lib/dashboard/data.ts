@@ -46,7 +46,7 @@ import {
   type SettingsView,
 } from "@/lib/settings/queries";
 import {
-  glassFabLevelFlag,
+  translucencyLevelFlag,
   reorderDragFlag,
   resolveFlagValue,
   savedEventToastVariantFlag,
@@ -421,7 +421,10 @@ async function resolveDashboardConfig(session: Session): Promise<DashboardConfig
       savedEventToastVariantFlag,
       settings.featureFlags.savedEventToastVariant,
     ),
-    glassFabLevel: resolveFlagValue(glassFabLevelFlag, settings.featureFlags.glassFabLevel),
+    translucencyLevel: resolveFlagValue(
+      translucencyLevelFlag,
+      settings.featureFlags.translucencyLevel,
+    ),
     reorderDrag: resolveFlagValue(reorderDragFlag, settings.featureFlags.reorderDrag),
     quickLinks: quickLinks
       .filter((link) => link.enabled)

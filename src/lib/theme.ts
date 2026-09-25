@@ -75,6 +75,23 @@ export const theme = createTheme({
     ScheduleEvent: {
       classNames: { event: "c2-schedule-event", eventInner: "c2-event-inner" },
     },
+    // Frosted overlays (Settings → Feature Flags → translucencyLevel). The
+    // panel surfaces take the shared glass token; the modal scrim gets a
+    // lighter two-tone wash so the calendar reads through it. Applied via the
+    // theme so every portaled menu / popover / modal picks it up without
+    // per-call-site wiring.
+    Modal: {
+      classNames: { content: "c2-glass-surface", overlay: "c2-glass-overlay" },
+    },
+    Menu: {
+      classNames: { dropdown: "c2-glass-surface" },
+    },
+    Popover: {
+      classNames: { dropdown: "c2-glass-surface" },
+    },
+    Tooltip: {
+      classNames: { tooltip: "c2-glass-tooltip" },
+    },
   },
 });
 

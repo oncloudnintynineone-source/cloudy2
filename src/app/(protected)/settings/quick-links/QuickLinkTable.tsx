@@ -384,7 +384,11 @@ export function QuickLinkTable({ links, reorderDrag }: QuickLinkTableProps) {
           hiddenFrom sits on the toolbar itself: its Affix portals to <body>,
           so a wrapper element could not hide it. */}
       <FloatingToolbar bottomOffset="var(--settings-fab-bottom)" hiddenFrom="lg">
-        <FloatingActionButton aria-label="Add quick link" onClick={openCreate}>
+        <FloatingActionButton
+          aria-label="Add quick link"
+          className="c2-glass-fab--brand"
+          onClick={openCreate}
+        >
           <IconPlus size={FAB_ICON_SIZE} />
         </FloatingActionButton>
       </FloatingToolbar>

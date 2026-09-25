@@ -6,7 +6,11 @@ import { ColdStartReadyProvider } from "@/components/ColdStartReady";
 import { googleCalendarConfigured } from "@/lib/google";
 import { requireSession } from "@/lib/session";
 import { getBanner, getSettings } from "@/lib/settings/queries";
-import { pinnedTickerIndicatorFlag, resolveFlagValue } from "@/lib/settings/featureFlags";
+import {
+  pinnedTickerIndicatorFlag,
+  resolveFlagValue,
+  translucencyLevelFlag,
+} from "@/lib/settings/featureFlags";
 import { UI_STATE_COOKIE, decodeUiState } from "@/lib/ui/uiState";
 import { ShellKahNav } from "./shellStream";
 
@@ -39,6 +43,10 @@ export default async function ProtectedLayout({ children }: { children: React.Re
         pinnedTickerIndicator={resolveFlagValue(
           pinnedTickerIndicatorFlag,
           settings.featureFlags.pinnedTickerIndicator,
+        )}
+        translucencyLevel={resolveFlagValue(
+          translucencyLevelFlag,
+          settings.featureFlags.translucencyLevel,
         )}
         kahNavSlot={
           // Admins always see KAH Status (all groups) — skip the membership probe.

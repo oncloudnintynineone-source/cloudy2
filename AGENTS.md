@@ -311,9 +311,11 @@ doc content here.
   ([`pinned-events.md`](docs/pinned-events.md) §1.4); `savedEventToastVariant` — the four
   post-save event-confirmation presentations (classic pill / restyled pill / toast + action /
   plain toast), resolved into `DashboardSharedConfig` → `EventForm`
-  ([`action-pill.md`](docs/action-pill.md)); and `glassFabLevel` — the Calendar mobile bottom
-  button cluster's frosted-glass opacity (subtle / medium / strong), resolved into
-  `DashboardSharedConfig` → `DashboardView`
+  ([`action-pill.md`](docs/action-pill.md)); and `translucencyLevel` — the app-wide frosted-glass
+  opacity (subtle / medium / strong) for every surface overlapping content (header, sticky
+  calendar chrome, bottom nav, sidebar, floating controls, menus/modals), published on `<html>`
+  as `data-c2-glass` by the shell (plus a `c2-glass--<level>` class on the mobile FAB cluster via
+  `DashboardSharedConfig` → `DashboardView`)
   ([`dashboard-views.md`](docs/dashboard-views.md) §1.1). Design:
   [docs/feature-flags.md](docs/feature-flags.md).
 - **Templates:** display-name template + **structured recipes** (`src/lib/settings/titleRecipe.ts`,

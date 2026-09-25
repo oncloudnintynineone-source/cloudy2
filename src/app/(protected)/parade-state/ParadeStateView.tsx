@@ -887,6 +887,7 @@ export function ParadeStateView({
       <FloatingToolbar hiddenFrom="lg">
         <FloatingActionButton
           aria-label={attendanceMode ? "Exit attendance mode" : "Start attendance"}
+          className={attendanceMode ? "c2-glass-fab--teal" : "c2-glass-fab--brand"}
           variant={attendanceMode ? "light" : undefined}
           color={attendanceMode ? "teal" : undefined}
           onClick={attendanceMode ? exitAttendance : enterAttendance}

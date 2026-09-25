@@ -425,12 +425,13 @@ export const settings = pgTable(
      */
     savedEventToastVariant: text("saved_event_toast_variant").notNull().default("pill"),
     /**
-     * Frosted-glass opacity of the Calendar page's mobile bottom button cluster
-     * (Settings → Feature Flags). One of the keys in `FEATURE_FLAGS`
+     * Frosted-glass translucency of the app's overlapping surfaces — header,
+     * sticky calendar chrome, bottom nav, FABs, menus and modals (Settings →
+     * Feature Flags). One of the keys in `FEATURE_FLAGS`
      * (`src/lib/settings/featureFlags.ts`); the registry's default backs the
      * column default.
      */
-    glassFabLevel: text("glass_fab_level").notNull().default("medium"),
+    translucencyLevel: text("translucency_level").notNull().default("medium"),
     /**
      * Reorder interaction for the manageable lists (Settings → Feature Flags):
      * `drag` (default) shows a drag handle per row, `arrowsDrag` adds the

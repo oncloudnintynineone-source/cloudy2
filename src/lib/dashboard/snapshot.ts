@@ -24,7 +24,7 @@ import {
  * version differs is ignored (and overwritten on the next successful load), so
  * a deploy that changes the shape can never feed the new UI a stale record.
  */
-export const DASHBOARD_SNAPSHOT_VERSION = 4;
+export const DASHBOARD_SNAPSHOT_VERSION = 5;
 
 /** The one-shot `?refresh=` nonce is honored only within this window. */
 export const REFRESH_NONCE_TTL_MS = 5 * 60_000;

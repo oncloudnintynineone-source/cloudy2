@@ -181,7 +181,7 @@ skeleton matches the natural shape via `monthGridRows()`.
 
 **Sticky chrome & pinned view headers (every width):** the dashboard pins its
 date-nav row as a **sticky unit** (`top:
-var(--app-shell-header-offset)`, opaque background, bottom divider,
+var(--app-shell-header-offset)`, frosted-glass background, bottom divider,
 compact 36px controls) so the period label, filter and date buttons stay
 reachable while any view's grid scrolls — on phones too, where losing them
 mid-scroll was the old default. Below `lg` the prev/next chevrons leave this row

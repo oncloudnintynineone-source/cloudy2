@@ -14,6 +14,8 @@ interface FilterButtonProps {
   /** Icon glyph size in px (the dashboard's 36px nav row uses 18 to match its
    *  sibling chevrons; table toolbars keep the default 16). */
   iconSize?: number;
+  /** Extra class on the trigger (the dashboard passes `c2-glass-btn`). */
+  className?: string;
 }
 
 /**
@@ -25,12 +27,14 @@ export function FilterButton({
   onClick,
   size = 43,
   iconSize = 16,
+  className,
 }: FilterButtonProps) {
   return (
     <Box pos="relative">
       <ActionIcon
         size={size}
         variant="default"
+        className={className}
         aria-label={activeCount > 0 ? `Filters (${activeCount} active)` : "Filters"}
         onClick={onClick}
       >

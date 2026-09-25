@@ -285,12 +285,12 @@ export function WeekMatrixView({
           table's width. */}
         <Box
           component="div"
+          className="c2-glass-surface"
           style={{
             position: "sticky",
             top: headerTop,
             zIndex: 10,
             overflow: "hidden",
-            background: "var(--mantine-color-body)",
             borderBottom: CELL_BORDER,
           }}
         >

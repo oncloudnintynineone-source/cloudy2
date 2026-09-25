@@ -845,7 +845,11 @@ export function AuditLogView({
           FAB. hiddenFrom sits on the toolbar itself: its Affix portals to
           <body>, so a wrapper element could not hide it. */}
       <FloatingToolbar bottomOffset="var(--settings-fab-bottom)" hiddenFrom="lg">
-        <FloatingActionButton aria-label="Export audit log" onClick={openExport}>
+        <FloatingActionButton
+          aria-label="Export audit log"
+          className="c2-glass-fab--brand"
+          onClick={openExport}
+        >
           <IconDownload size={FAB_ICON_SIZE} />
         </FloatingActionButton>
       </FloatingToolbar>

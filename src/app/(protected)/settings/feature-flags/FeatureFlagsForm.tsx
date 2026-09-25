@@ -10,8 +10,8 @@ import {
   FEATURE_FLAGS,
   validateFeatureFlags,
   type FeatureFlagKey,
-  type GlassFabLevel,
   type PinnedTickerIndicator,
+  type TranslucencyLevel,
 } from "@/lib/settings/featureFlags";
 import { CONTENT_ENTER_CLASS } from "@/lib/loading/contentEnter";
 import { BUTTON_LOADER_PROPS } from "@/lib/theme";
@@ -59,20 +59,32 @@ function TickerIndicatorPreview({ value }: { value: PinnedTickerIndicator }) {
   );
 }
 
-/** A mock of the mobile bottom button cluster (`[<][>][LINK][CREATE]`) over a
- *  two-tone checker, so the selected glass opacity is visible before saving.
+/** A composite mock of the translucent surfaces — a frosted chrome row with the
+ *  date-nav buttons and the mobile bottom cluster (`[<][>][LINK][CREATE]`) —
+ *  over a two-tone checker, so the selected opacity is visible before saving.
  *  `aria-hidden`: the preview is illustrative, not interactive. */
-function GlassFabPreview({ value }: { value: GlassFabLevel }) {
+function TranslucencyPreview({ value }: { value: TranslucencyLevel }) {
   return (
     <div className="c2-glass-preview" aria-hidden>
-      <span className={`c2-glass-preview-fab c2-glass-fab c2-glass-fab--${value}`} />
-      <span className={`c2-glass-preview-fab c2-glass-fab c2-glass-fab--${value}`} />
-      <span
-        className={`c2-glass-preview-fab c2-glass-fab c2-glass-fab--${value} c2-glass-fab--accent`}
-      />
-      <span
-        className={`c2-glass-preview-fab c2-glass-fab c2-glass-fab--${value} c2-glass-fab--brand`}
-      />
+      <div className={`c2-glass-preview-row c2-glass-surface c2-glass--${value}`}>
+        <span className={`c2-glass-preview-btn c2-glass-btn c2-glass--${value}`} />
+        <span className={`c2-glass-preview-btn c2-glass-btn c2-glass--${value}`} />
+        <span
+          className={`c2-glass-preview-btn c2-glass-btn c2-glass--${value} c2-glass-fab--accent`}
+        />
+        <span
+          className={`c2-glass-preview-btn c2-glass-btn c2-glass--${value} c2-glass-fab--brand`}
+        />
+      </div>
+      <div className="c2-glass-preview-fabs">
+        <span className={`c2-glass-preview-fab c2-glass-fab c2-glass--${value}`} />
+        <span
+          className={`c2-glass-preview-fab c2-glass-fab c2-glass--${value} c2-glass-fab--accent`}
+        />
+        <span
+          className={`c2-glass-preview-fab c2-glass-fab c2-glass--${value} c2-glass-fab--brand`}
+        />
+      </div>
     </div>
   );
 }
@@ -83,8 +95,8 @@ function previewFor(key: FeatureFlagKey, value: string) {
   if (key === "pinnedTickerIndicator") {
     return <TickerIndicatorPreview value={value as PinnedTickerIndicator} />;
   }
-  if (key === "glassFabLevel") {
-    return <GlassFabPreview value={value as GlassFabLevel} />;
+  if (key === "translucencyLevel") {
+    return <TranslucencyPreview value={value as TranslucencyLevel} />;
   }
   return null;
 }

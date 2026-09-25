@@ -77,17 +77,19 @@ export const savedEventToastVariantFlag: FeatureFlagDef<SavedEventToastVariant> 
   defaultValue: "pill",
 };
 
-export const GLASS_FAB_LEVEL_OPTIONS = ["subtle", "medium", "strong"] as const;
-export type GlassFabLevel = (typeof GLASS_FAB_LEVEL_OPTIONS)[number];
+export const TRANSLUCENCY_LEVEL_OPTIONS = ["subtle", "medium", "strong"] as const;
+export type TranslucencyLevel = (typeof TRANSLUCENCY_LEVEL_OPTIONS)[number];
 
-export const glassFabLevelFlag: FeatureFlagDef<GlassFabLevel> = {
-  key: "glassFabLevel",
-  label: "Glass button opacity",
+export const translucencyLevelFlag: FeatureFlagDef<TranslucencyLevel> = {
+  key: "translucencyLevel",
+  label: "Interface translucency",
   description:
-    "Transparency of the Calendar page's mobile bottom button cluster (period " +
-    "chevrons, Quick links, New event). Subtle is see-through, Strong is nearly " +
-    "solid. Toggle to compare the levels live, then keep the one you want.",
-  options: GLASS_FAB_LEVEL_OPTIONS,
+    "Frosted-glass transparency of every surface that overlaps page content — " +
+    "the header, sticky calendar chrome, bottom navigation, buttons, menus and " +
+    "modals. Subtle is more see-through, Strong is nearly solid (each surface " +
+    "keeps its own colour). Low-end devices fall back to a tint without blur. " +
+    "Toggle to compare the levels live, then keep the one you want.",
+  options: TRANSLUCENCY_LEVEL_OPTIONS,
   optionLabels: {
     subtle: "Subtle",
     medium: "Medium",
@@ -120,7 +122,7 @@ export const reorderDragFlag: FeatureFlagDef<ReorderDrag> = {
 export const FEATURE_FLAGS = [
   pinnedTickerIndicatorFlag,
   savedEventToastVariantFlag,
-  glassFabLevelFlag,
+  translucencyLevelFlag,
   reorderDragFlag,
 ] as const;
 export type FeatureFlagKey = (typeof FEATURE_FLAGS)[number]["key"];

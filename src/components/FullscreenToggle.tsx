@@ -96,15 +96,6 @@ export function FullscreenToggle({
     return null;
   }
 
-  const buttonStyles = {
-    root: {
-      backgroundColor: "color-mix(in srgb, var(--mantine-color-gray-filled) 50%, transparent)",
-      "&:where(:hover)": {
-        backgroundColor: "color-mix(in srgb, var(--mantine-color-gray-filled) 60%, transparent)",
-      },
-    },
-  } as const;
-
   return (
     <ActionIcon
       style={{
@@ -120,7 +111,7 @@ export function FullscreenToggle({
       radius="50%"
       variant="filled"
       color="gray"
-      styles={buttonStyles}
+      className="c2-glass-btn"
       aria-label={active ? "Exit fullscreen" : "Enter fullscreen"}
       title={active ? "Exit fullscreen" : "Enter fullscreen"}
       onClick={onToggle}

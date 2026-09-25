@@ -1,0 +1,1 @@
+ALTER TABLE "settings" RENAME COLUMN "glass_fab_level" TO "translucency_level";

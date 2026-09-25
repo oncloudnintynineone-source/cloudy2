@@ -298,7 +298,11 @@ html {
   height: calc(1.875rem * var(--mantine-scale));
   padding-inline: var(--mantine-spacing-sm);
   border-radius: var(--mantine-radius-xl);
-  background: var(--mantine-color-brand-8);
+  /* Frosted navy: the header's glass tint is the same navy, so the pill reads
+     as a slightly denser panel floating over the grid as it scrolls under. */
+  background: color-mix(in srgb, var(--c2-glass-header-bg) 82%, transparent);
+  -webkit-backdrop-filter: var(--c2g-blur);
+  backdrop-filter: var(--c2g-blur);
   color: var(--mantine-color-white);
   min-width: 0;
   /* Grow to fill the header's free space so the pill keeps a constant width;
@@ -316,11 +320,11 @@ html {
 }
 
 .c2-pinned-ticker:hover {
-  background: var(--mantine-color-brand-7);
+  background: var(--c2-glass-header-bg);
 }
 
 .c2-pinned-ticker:active {
-  background: var(--mantine-color-brand-9);
+  background: color-mix(in srgb, var(--c2-glass-header-bg) 88%, var(--mantine-color-black));
 }
 
 .c2-pinned-ticker:focus-visible {
@@ -874,25 +878,32 @@ html {
 }
 
 /*
-  Frosted-glass mobile FAB cluster — the Calendar page's bottom-right
-  `[<][>][LINK][CREATE]` row below `lg` (DashboardView). Applied by className to
-  just those four controls, so every other page's FABs stay solid. Scheme-aware
+  Global frosted-glass translucency. `.c2-glass-surface` (body-tinted) and
+  `.c2-glass-header` (navy-tinted) are the general overlapping surfaces —
+  header, sticky calendar chrome, bottom nav, settings tabs, sidebar, grid
+  headers, menus and modals. `.c2-glass-fab` is the button form: applied to the
+  Calendar page's bottom-right `[<][>][LINK][CREATE]` row below `lg`
+  (DashboardView) and to the floating controls / every page's FAB. Scheme-aware
   via `light-dark()` like the app's other surfaces; `!important` beats Mantine's
-  runtime-injected variant background/colour/border rules. Tints preserve the
-  cluster's colour language: neutral chevrons, amber Quick links
-  (`--accent`), brand-blue New event (`--brand`). The backdrop blur lets the
-  calendar read through, while the blur + shadow keep the controls legible over
-  any content. No border: the frosted edge is carried by the shadow alone (a
-  hard ring read as an off outline, especially in dark mode).
+  runtime-injected variant background/colour/border rules. Tints preserve each
+  surface's colour language: neutral surfaces keep the body tone, the header
+  keeps navy, amber Quick links (`--accent`), brand-blue New event (`--brand`).
+  The backdrop blur lets the content read through, while the blur + shadow keep
+  the controls legible over any content. No border: the frosted edge is carried
+  by the shadow alone (a hard ring read as an off outline, especially in dark
+  mode).
 
-  The opacity is admin-adjustable via the `glassFabLevel` feature flag: the
-  `.c2-glass-fab--{subtle|medium|strong}` modifier sets the `--c2g-*` alphas,
-  which the visual rules below consume (accent/brand hover + active derive from
-  their base alpha with `calc()`). `.c2-glass-fab` itself carries the `medium`
-  defaults, so an unmatched level still renders medium rather than solid.
-  Medium is the shipped look; Subtle is more see-through, Strong nearly solid.
+  The opacity is admin-adjustable via the `translucencyLevel` feature flag: the
+  `[data-c2-glass]` attribute (on <html>) or the explicit `.c2-glass--{subtle|
+  medium|strong}` modifier sets the `--c2g-*` alphas, which the visual rules
+  below consume (accent/brand hover + active derive from their base alpha with
+  `calc()`). The base rules carry the `medium` defaults, so an unmatched level
+  still renders medium rather than solid. Medium is the shipped look; Subtle is
+  more see-through, Strong nearly solid. Low-end devices fall back to tint only.
 */
-.c2-glass-fab {
+/* Token base (the `medium` defaults). The level modifiers below override the
+   alphas; the low-end tier switches `--c2g-blur` off entirely (tint only). */
+:root {
   --c2g-base-l: 0.62;
   --c2g-base-d: 0.55;
   --c2g-hover-l: 0.8;
@@ -903,18 +914,61 @@ html {
   --c2g-accent-d: 0.26;
   --c2g-brand-l: 0.8;
   --c2g-brand-d: 0.72;
-  background: light-dark(
+  --c2g-header-l: 0.82;
+  --c2g-header-d: 0.72;
+  --c2g-blur: blur(14px) saturate(1.5);
+  /* Composite surface tokens every glass surface consumes. */
+  --c2-glass-bg: light-dark(
     rgba(255, 255, 255, var(--c2g-base-l)),
     rgba(28, 30, 34, var(--c2g-base-d))
-  ) !important;
+  );
+  --c2-glass-header-bg: light-dark(
+    rgba(13, 71, 161, var(--c2g-header-l)),
+    rgba(13, 71, 161, var(--c2g-header-d))
+  );
+}
+
+/* The general body-tinted frosted surface — sticky calendar chrome, bottom
+   nav, settings tabs, sidebar, grid headers, menus and modal sheets. Keeps the
+   body colour (`--mantine-color-body`) and just lets the page read through it.
+   `!important` beats Mantine's runtime variant backgrounds and the inline
+   `background: var(--mantine-color-body)` the surfaces used to carry. */
+.c2-glass-surface {
+  background: var(--c2-glass-bg) !important;
+  -webkit-backdrop-filter: var(--c2g-blur);
+  backdrop-filter: var(--c2g-blur);
+}
+
+/* The brand-navy frosted header / bottom nav accent — keeps the navy. */
+.c2-glass-header {
+  background: var(--c2-glass-header-bg) !important;
+  -webkit-backdrop-filter: var(--c2g-blur);
+  backdrop-filter: var(--c2g-blur);
+}
+
+.c2-glass-fab {
+  background: var(--c2-glass-bg) !important;
   color: light-dark(var(--mantine-color-dark-8), var(--mantine-color-gray-0)) !important;
   border: none !important;
   box-shadow: var(--mantine-shadow-md);
-  -webkit-backdrop-filter: blur(14px) saturate(1.5);
-  backdrop-filter: blur(14px) saturate(1.5);
+  -webkit-backdrop-filter: var(--c2g-blur);
+  backdrop-filter: var(--c2g-blur);
 }
 
-.c2-glass-fab:hover {
+/* Frosted control for inline chrome buttons (the date-nav row and the tab
+   strip's trailing icons): the same surface tint + blur, but no drop shadow
+   and no forced text colour, so the caller's Mantine variant colour shows
+   through. Accent/brand buttons layer their colour modifier on top (the
+   `--accent`/`--brand` rules are declared after this one, so they win). */
+.c2-glass-btn {
+  background: var(--c2-glass-bg) !important;
+  border-color: transparent !important;
+  -webkit-backdrop-filter: var(--c2g-blur);
+  backdrop-filter: var(--c2g-blur);
+}
+
+.c2-glass-fab:hover,
+.c2-glass-btn:hover {
   background: light-dark(
     rgba(255, 255, 255, var(--c2g-hover-l)),
     rgba(44, 47, 52, var(--c2g-hover-d))
@@ -972,10 +1026,38 @@ html {
   ) !important;
 }
 
-/* Opacity levels (Settings → Feature Flags → `glassFabLevel`). Placed after the
-   base rules so their single-class specificity wins; Medium equals the base
-   defaults above. */
-.c2-glass-fab--subtle {
+/* Teal-tinted frosted FAB (the Parade State attendance toggle's active state,
+   keeping its `color="teal"` identity). */
+.c2-glass-fab--teal {
+  background: light-dark(
+    rgba(12, 166, 120, var(--c2g-accent-l)),
+    rgba(12, 166, 120, var(--c2g-accent-d))
+  ) !important;
+  color: light-dark(var(--mantine-color-teal-9), var(--mantine-color-teal-1)) !important;
+}
+
+.c2-glass-fab--teal:hover {
+  background: light-dark(
+    rgba(12, 166, 120, calc(var(--c2g-accent-l) + 0.14)),
+    rgba(12, 166, 120, calc(var(--c2g-accent-d) + 0.1))
+  ) !important;
+}
+
+.c2-glass-fab--teal:active {
+  background: light-dark(
+    rgba(12, 166, 120, calc(var(--c2g-accent-l) + 0.24)),
+    rgba(12, 166, 120, calc(var(--c2g-accent-d) + 0.18))
+  ) !important;
+}
+
+/* Opacity levels (Settings → Feature Flags → `translucencyLevel`). The
+   `[data-c2-glass]` attribute lives on <html> (set by AppShellShell) so every
+   surface — including portaled menus/modals/FABs — inherits the level; the
+   `.c2-glass--*` classes are the explicit form the mobile FAB cluster and the
+   Settings preview use. Placed after the base rules so a single class wins;
+   Medium equals the base defaults above. */
+[data-c2-glass="subtle"],
+.c2-glass--subtle {
   --c2g-base-l: 0.45;
   --c2g-base-d: 0.4;
   --c2g-hover-l: 0.6;
@@ -986,9 +1068,12 @@ html {
   --c2g-accent-d: 0.18;
   --c2g-brand-l: 0.66;
   --c2g-brand-d: 0.58;
+  --c2g-header-l: 0.62;
+  --c2g-header-d: 0.54;
 }
 
-.c2-glass-fab--medium {
+[data-c2-glass="medium"],
+.c2-glass--medium {
   --c2g-base-l: 0.62;
   --c2g-base-d: 0.55;
   --c2g-hover-l: 0.8;
@@ -999,9 +1084,12 @@ html {
   --c2g-accent-d: 0.26;
   --c2g-brand-l: 0.8;
   --c2g-brand-d: 0.72;
+  --c2g-header-l: 0.82;
+  --c2g-header-d: 0.72;
 }
 
-.c2-glass-fab--strong {
+[data-c2-glass="strong"],
+.c2-glass--strong {
   --c2g-base-l: 0.8;
   --c2g-base-d: 0.72;
   --c2g-hover-l: 0.9;
@@ -1012,14 +1100,53 @@ html {
   --c2g-accent-d: 0.4;
   --c2g-brand-l: 0.9;
   --c2g-brand-d: 0.82;
+  --c2g-header-l: 0.94;
+  --c2g-header-d: 0.88;
 }
 
-/* Live preview row for the `glassFabLevel` feature flag (Settings → Feature
-   Flags): the four cluster controls over a two-tone checker so the selected
-   opacity is visible before saving. Illustrative only (aria-hidden). */
+/* Low-end devices (the `c2-low-end` tier, added by AppProviders): tint only —
+   drop the blur and raise the tint alpha so surfaces stay legible without the
+   compositor cost. */
+.c2-low-end {
+  --c2g-blur: none;
+  --c2-glass-bg: light-dark(rgba(255, 255, 255, 0.94), rgba(28, 30, 34, 0.92));
+  --c2-glass-header-bg: light-dark(
+    rgba(13, 71, 161, 0.98),
+    rgba(13, 71, 161, 0.96)
+  );
+}
+
+/* Browsers without backdrop-filter: fall back to the opaque surface colours. */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  :root {
+    --c2-glass-bg: var(--mantine-color-body);
+    --c2-glass-header-bg: var(--mantine-color-brand-7);
+  }
+}
+
+/* Respect the OS reduced-transparency preference: opaque surfaces, no blur. */
+@media (prefers-reduced-transparency: reduce) {
+  :root {
+    --c2-glass-bg: var(--mantine-color-body);
+    --c2-glass-header-bg: var(--mantine-color-brand-7);
+  }
+  .c2-glass-surface,
+  .c2-glass-header,
+  .c2-glass-fab,
+  .c2-glass-btn,
+  .c2-glass-tooltip,
+  .mantine-Notification-root {
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+}
+
+/* Live preview row for the `translucencyLevel` feature flag (Settings →
+   Feature Flags): representative surfaces over a two-tone checker so the
+   selected opacity is visible before saving. Illustrative only (aria-hidden). */
 .c2-glass-preview {
   display: flex;
-  align-items: center;
+  flex-direction: column;
   gap: var(--mantine-spacing-sm);
   padding: var(--mantine-spacing-sm);
   border-radius: var(--mantine-radius-md);
@@ -1030,11 +1157,57 @@ html {
   );
 }
 
+.c2-glass-preview-row {
+  display: flex;
+  align-items: center;
+  gap: var(--mantine-spacing-sm);
+  padding: var(--mantine-spacing-sm);
+  border-radius: var(--mantine-radius-md);
+}
+
+.c2-glass-preview-btn {
+  display: inline-block;
+  width: 34px;
+  height: 34px;
+  border-radius: var(--mantine-radius-md);
+}
+
+.c2-glass-preview-fabs {
+  display: flex;
+  align-items: center;
+  gap: var(--mantine-spacing-sm);
+}
+
 .c2-glass-preview-fab {
   display: inline-block;
   width: 44px;
   height: 44px;
   border-radius: 50%;
+}
+
+/* Modal scrim: a lighter two-tone wash so the page reads through the frosted
+   sheet (the default is a near-opaque dark). */
+.c2-glass-overlay {
+  background: light-dark(
+    color-mix(in srgb, var(--mantine-color-black) 38%, transparent),
+    color-mix(in srgb, var(--mantine-color-black) 52%, transparent)
+  ) !important;
+}
+
+/* Dark frosted tooltip: dark-9 translucent so white tooltip text stays legible
+   (the body-tinted surface would put white text on a light panel). */
+.c2-glass-tooltip {
+  background: rgba(28, 30, 34, var(--c2g-base-d)) !important;
+  -webkit-backdrop-filter: var(--c2g-blur);
+  backdrop-filter: var(--c2g-blur);
+}
+
+/* Mantine toast cards (`@mantine/notifications`, portaled to <body>): frost the
+   card; the variant's coloured rail still carries the success/error language. */
+.mantine-Notification-root {
+  background: var(--c2-glass-bg) !important;
+  -webkit-backdrop-filter: var(--c2g-blur);
+  backdrop-filter: var(--c2g-blur);
 }
 
 /* Centered max-width wrapper for list-style pages (settings, contacts,
@@ -1325,6 +1498,19 @@ html {
   box-shadow:
     inset 0 -1px 0 0 var(--week-view-border-color),
     0 2px 4px -1px rgba(0, 0, 0, 0.25);
+}
+
+/*
+  Week (Grid) frosted day header + all-day row. Both overlap the hour rows while
+  the grid scrolls, so they take the shared glass surface. The sticky-left
+  corner / all-day labels keep their own opaque backgrounds (set via the
+  library `styles`), so event chips scrolling beside them stay legible.
+*/
+.c2-weekgrid-head,
+.c2-weekgrid-allday {
+  background: var(--c2-glass-bg) !important;
+  -webkit-backdrop-filter: var(--c2g-blur);
+  backdrop-filter: var(--c2g-blur);
 }
 
 /*
@@ -1711,7 +1897,9 @@ html {
 }
 
 .c2-action-pill--toast {
-  background: var(--mantine-color-body);
+  background: var(--c2-glass-bg);
+  -webkit-backdrop-filter: var(--c2g-blur);
+  backdrop-filter: var(--c2g-blur);
   color: var(--mantine-color-text);
   border: 1px solid var(--mantine-color-default-border);
   border-radius: var(--mantine-radius-md);

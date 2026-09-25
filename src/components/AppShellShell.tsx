@@ -61,7 +61,7 @@ import { UserMenu } from "@/components/UserMenu";
 import { BANNER_HEIGHT_PX, type BannerConfig } from "@/lib/banner/banner";
 import { BOTTOM_NAV_HEIGHT } from "@/lib/bottomNav";
 import { fetchPinnedEvents, type PinnedEvent } from "@/lib/events/pinned";
-import type { PinnedTickerIndicator } from "@/lib/settings/featureFlags";
+import type { PinnedTickerIndicator, TranslucencyLevel } from "@/lib/settings/featureFlags";
 import type { Rect } from "@/lib/motion/origin";
 import { MOTION } from "@/lib/motion/timing";
 import { useInactivityRefresh, useOneShotRefreshStrip } from "@/lib/pwa/client";
@@ -357,6 +357,7 @@ export function AppShellShell({
   sidebarCollapsed,
   bannerConfig,
   pinnedTickerIndicator,
+  translucencyLevel,
   kahNavSlot,
   children,
 }: {
@@ -385,6 +386,11 @@ export function AppShellShell({
    *  Flags), resolved by the (protected) layout from the settings row and
    *  passed as a prop like `bannerConfig`. */
   pinnedTickerIndicator: PinnedTickerIndicator;
+  /** Frosted-glass translucency level (Settings → Feature Flags), resolved by
+   *  the (protected) layout. Applied to `<html>` as `data-c2-glass` so every
+   *  surface — including portaled menus/modals/FABs — inherits the level from
+   *  the token cascade. */
+  translucencyLevel: TranslucencyLevel;
   /** Streamed KAH-status probe (a <Suspense> from the (protected) layout);
    *  reveals the KAH Status nav entry when the signed-in user belongs to a
    *  group. Null for admins (they always see it). */
@@ -400,6 +406,13 @@ export function AppShellShell({
   // nonce strips it here (RSC entries cleared first, so the clean-URL replace
   // can't re-serve a stale payload). See useOneShotRefreshStrip in pwa/client.
   useOneShotRefreshStrip();
+
+  // Publish the resolved translucency level on <html> so the `[data-c2-glass]`
+  // token overrides in globals.css reach every glass surface — including ones
+  // portaled to <body> (menus, modals, floating FABs) outside this shell.
+  useEffect(() => {
+    document.documentElement.dataset.c2Glass = translucencyLevel;
+  }, [translucencyLevel]);
 
   // Refresh the current view when the tab returns to the foreground after a
   // long idle (see useInactivityRefresh in pwa/client). A backgrounded PWA
@@ -997,6 +1010,7 @@ export function AppShellShell({
           className={immersive ? "app-shell-root app-shell-immersive" : "app-shell-root"}
         >
           <AppShell.Header
+            className="c2-glass-header"
             style={{
               ...HEADER_STYLE,
               // Column layout only when a banner is stacked on top — otherwise
@@ -1064,6 +1078,7 @@ export function AppShellShell({
 
           <AppShell.Navbar
             p="md"
+            className="c2-glass-surface"
             style={NAVBAR_STYLE}
           >
             <Stack gap="xs">
@@ -1131,9 +1146,9 @@ export function AppShellShell({
           </AppShell.Main>
 
           <AppShell.Footer
+            className="c2-glass-surface"
             style={{
               viewTransitionName: "c2-shell-footer",
-              background: "var(--mantine-color-body)",
               borderTop: "1px solid var(--mantine-color-default-border)",
             }}
           >

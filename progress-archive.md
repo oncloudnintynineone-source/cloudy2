@@ -9078,3 +9078,57 @@ flowchart LR
 
 **Verified**: pnpm lint, pnpm typecheck, pnpm test (1363 pass) — all green;
 `pnpm db:generate` produces only the 0050 migration.
+
+## 1.279 App-wide frosted glass (`translucencyLevel`)
+
+The `glassFabLevel` flag (1.275) is broadened into one org-wide **`translucencyLevel`**
+(subtle / medium / strong) that governs every surface overlapping page content.
+
+```mermaid
+flowchart TD
+    DB["settings.translucency_level (0052 rename)"] --> Q["getSettings → featureFlags"]
+    Q --> L["(protected) layout: resolveFlagValue → AppShellShell prop"]
+    L --> H["<html data-c2-glass> (AppShellShell effect)"]
+    H --> T[":root / [data-c2-glass] --c2g-* / --c2-glass-* tokens"]
+    T --> S[".c2-glass-surface / -header / -fab / -btn"]
+    Q --> D["buildDashboardData → DashboardSharedConfig → DashboardView"]
+    D --> C["mobile cluster: c2-glass--{level} + c2-glass-fab--accent/brand"]
+```
+
+**Change**:
+
+- **Column**: `settings.glass_fab_level` → `settings.translucency_level` (migration
+  `0052_rename_translucency_level.sql`, written by hand since drizzle-kit's rename
+  prompt needs a TTY; snapshot `drizzle/meta/0052_snapshot.json` + `_journal.json`
+  updated to match). `pnpm db:generate` reports "No schema changes".
+- **Registry**: `GLASS_FAB_LEVEL_OPTIONS`/`GlassFabLevel`/`glassFabLevelFlag` →
+  `TRANSLUCENCY_LEVEL_OPTIONS`/`TranslucencyLevel`/`translucencyLevelFlag` (label
+  "Interface translucency").
+- **Plumbing**: `(protected)/layout.tsx` resolves it and passes `translucencyLevel`
+  to `AppShellShell`, which sets `document.documentElement.dataset.c2Glass` — the
+  token cascade reaches portaled menus/modals/FABs. `dashboard/data.ts` still
+  resolves it into `DashboardSharedConfig` so the mobile cluster's first paint
+  carries an explicit `c2-glass--<level>` (no default flash).
+- **CSS** (`globals.css`): composite tokens `--c2-glass-bg` / `--c2-glass-header-bg`
+  + `--c2g-blur`; classes `.c2-glass-surface` (body tint), `.c2-glass-header`
+  (navy tint), `.c2-glass-fab` (button, keeps accent/brand/+teal modifiers),
+  `.c2-glass-btn` (inline chrome button, no shadow). Level overrides under
+  `[data-c2-glass="…"]` / `.c2-glass--…`. Low-end (`c2-low-end`) sets
+  `--c2g-blur: none` + near-opaque tints; `@supports` and
+  `prefers-reduced-transparency` fall back to opaque.
+- **Surfaces**: header, pinned ticker, dashboard sticky chrome + its buttons,
+  `MonthWeekdayStrip`, `WeekDayLabelStrip`, `TimeRulerStrip`, Week (D) day header,
+  Week (Grid) `.c2-weekgrid-head` / `.c2-weekgrid-allday`, Month & Agenda pane
+  header, bottom nav, `SettingsTabs`, sidebar, `FullscreenToggle`,
+  `GridNavControls`, every `FloatingActionButton`, and (via the theme's component
+  defaults) modals/menus/popovers/tooltips + Mantine notifications + the action
+  pill's `toast` variant. Sticky-left resource/hour labels and the Week (Grid)
+  corner stay opaque.
+- **Preview** (`FeatureFlagsForm`): a composite mock (chrome row + bottom cluster)
+  over the two-tone checker.
+- **Snapshot version**: `DASHBOARD_SNAPSHOT_VERSION` 4 → 5 so a pre-existing device
+  snapshot (missing `translucencyLevel`, carrying the old field name) is dropped
+  rather than rendered stale.
+
+**Verified**: `pnpm lint`, `pnpm typecheck`, `pnpm test` (1398 pass) — all green;
+`pnpm db:generate` reports no schema changes (meta in sync).

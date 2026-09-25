@@ -427,7 +427,11 @@ export function DepartmentTable({ departments, reorderDrag }: DepartmentTablePro
           the FAB. hiddenFrom sits on the toolbar itself: its Affix portals to
           <body>, so a wrapper element could not hide it. */}
       <FloatingToolbar bottomOffset="var(--settings-fab-bottom)" hiddenFrom="lg">
-        <FloatingActionButton aria-label="Add department" onClick={openCreate}>
+        <FloatingActionButton
+          aria-label="Add department"
+          className="c2-glass-fab--brand"
+          onClick={openCreate}
+        >
           <IconPlus size={FAB_ICON_SIZE} />
         </FloatingActionButton>
       </FloatingToolbar>

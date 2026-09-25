@@ -164,9 +164,23 @@ string maps to the first tab of that kind.
   so behaviour and announcements are identical. The top row's chevrons are
   `visibleFrom="lg"` (desktop-only); at `lg`+ the cluster is hidden with the
   rest of the mobile toolbar. The cluster's opacity is admin-adjustable via the
-  **`glassFabLevel`** feature flag (subtle / medium / strong; medium = the
-  shipped look), resolved into `DashboardSharedConfig` and applied as a
-  `c2-glass-fab--<level>` modifier — see [`feature-flags.md`](feature-flags.md).
+  app-wide **`translucencyLevel`** feature flag (subtle / medium / strong;
+  medium = the shipped look), resolved into `DashboardSharedConfig` and applied
+  as a `c2-glass--<level>` modifier (the shell also publishes it on `<html>` as
+  `data-c2-glass`, which every glass surface inherits) — see
+  [`feature-flags.md`](feature-flags.md).
+- **App-wide frosted glass (`translucencyLevel`).** Beyond the mobile cluster,
+  every surface that overlaps page content is translucent: the navy header, the
+  bottom nav, the settings tab strip, the desktop sidebar, the dashboard sticky
+  chrome (view tabs + date nav) and its inline buttons, the pinned horizontal
+  grid headers (Week (H) day strip / hour ruler, Month weekday strip, Week (D)
+  day header, Week (Grid) day header + all-day row, Month & Agenda pane header),
+  the floating zoom/pan cluster and fullscreen toggle, menus, popovers, modals
+  and tooltips. The **sticky-left label columns** (resource/hour labels and the
+  Week (Grid) day-header corner) stay opaque so event chips scrolling beside
+  them stay legible. Low-end devices (`c2-low-end`) fall back to tint only, and
+  the previous glass FAB cluster keeps `c2-glass-fab--accent` / `--brand` to
+  preserve its colour language (plus `--teal` for the Parade attendance toggle).
 - **Period preservation on switch** (`switchTab` in `DashboardView.tsx`): a
   tab switch is a _filter/context_ change, so switching between two tabs of the
   same kind (or any two day-anchored kinds) keeps the current date; leaving

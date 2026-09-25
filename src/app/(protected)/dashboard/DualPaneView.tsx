@@ -558,6 +558,7 @@ export function DualPaneView({
           }}
         >
           <Box
+            className="c2-glass-surface"
             style={{
               // Bounded column: the header is the fixed top of this pane's own
               // scroll column, so a chrome-relative sticky would push it down.
@@ -573,7 +574,6 @@ export function DualPaneView({
               // top-right. Reserve its box (button + inset + a gap) so the day
               // chevrons stay tappable.
               paddingRight: FULLSCREEN_BUTTON_SIZE + FULLSCREEN_EDGE_INSET * 2,
-              background: "var(--mantine-color-body)",
               borderBottom: "1px solid var(--mantine-color-default-border)",
             }}
           >

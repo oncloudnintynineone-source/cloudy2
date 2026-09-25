@@ -279,7 +279,11 @@ export function ContactList({
           replaces the FAB. hiddenFrom sits on the toolbar itself: its Affix
           portals to <body>, so a wrapper element could not hide it. */}
       <FloatingToolbar hiddenFrom="lg">
-        <FloatingActionButton aria-label="Export contacts" onClick={openConfirm}>
+        <FloatingActionButton
+          aria-label="Export contacts"
+          className="c2-glass-fab--brand"
+          onClick={openConfirm}
+        >
           <IconDownload size={FAB_ICON_SIZE} style={{ position: "relative", top: 2 }} />
         </FloatingActionButton>
       </FloatingToolbar>
