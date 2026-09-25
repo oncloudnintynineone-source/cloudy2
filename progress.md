@@ -1572,6 +1572,17 @@ via `?attendance=1` and `attendanceStorage` became a `useSyncExternalStore` exte
     container totalling exactly `100dvh` with no document scroll.
     `DualPaneSkeleton` mirrors the flush height. Docs:
     `dashboard-views.md` §1.9, `desktop-responsive.md`.
+- 1.288 Week (Grid) under-chrome + flush: at `lg` the grid is lifted behind the
+    sticky chrome (a negative top margin on the shared `.c2-gutter-anim`) so its
+    hour rows scroll under the frosted chrome like every other week view, with
+    the library day header and the app all-day row re-pinned below the chrome
+    (`weekViewHeader`/`weekViewAllDaySlots` `top` offsets), the row-zoom
+    re-anchor's leading overlay including the chrome, and a one-shot mount nudge
+    keeping the opened time unchanged; `--c2-weekgrid-bottom-budget` is now 0 at
+    every breakpoint and `.weekgrid-page-pad` drops the page's bottom padding at
+    `lg` (with a reclaiming negative margin), so the grid runs flush to the
+    viewport bottom. `WeekGridViewSkeleton` mirrors both. Docs:
+    `dashboard-views.md` §1.7.
 
 ## 1.4 Open items & next steps
 

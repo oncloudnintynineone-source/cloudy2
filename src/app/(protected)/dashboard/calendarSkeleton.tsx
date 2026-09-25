@@ -135,6 +135,8 @@ export function WeekGridViewSkeleton({
    *  the same box to keep the swap seamless. */
   chromeOffset: number;
 }) {
+  const theme = useMantineTheme();
+  const isDesktop = useMediaQuery(`(min-width: ${theme.breakpoints.lg})`);
   const columns = "3rem repeat(7, 1fr)";
   return (
     <Paper
@@ -143,7 +145,14 @@ export function WeekGridViewSkeleton({
       p={0}
       style={{
         overflow: "hidden",
-        height: `calc(var(--app-shell-vh, 100dvh) - var(--app-shell-header-offset) - var(--app-shell-footer-offset) - var(--mantine-spacing-sm) - var(--c2-weekgrid-bottom-budget, 0px) - ${chromeOffset}px)`,
+        // At lg the grid is lifted behind the chrome (the shared
+        // `.c2-gutter-anim` negative top margin), so it no longer subtracts the
+        // chrome/gap; the top padding keeps the visible placeholder band aligned
+        // below the chrome.
+        height: isDesktop
+          ? `calc(var(--app-shell-vh, 100dvh) - var(--app-shell-header-offset) - var(--app-shell-footer-offset) - var(--c2-weekgrid-bottom-budget, 0px))`
+          : `calc(var(--app-shell-vh, 100dvh) - var(--app-shell-header-offset) - var(--app-shell-footer-offset) - var(--mantine-spacing-sm) - var(--c2-weekgrid-bottom-budget, 0px) - ${chromeOffset}px)`,
+        paddingTop: isDesktop ? chromeOffset : undefined,
       }}
     >
       {/* Day-header band: corner cell + 7 weekday/day-number placeholders. */}

@@ -1579,7 +1579,15 @@ function DashboardViewImpl({
   // `.weekgrid-page-pad`) and shell-padding + xl at lg, so the page itself
   // never scrolls (a page scroll would slide the pinned chrome under the app
   // header).
-  const gridWeekMaxHeight = `calc(var(--app-shell-vh, 100dvh) - var(--app-shell-header-offset) - var(--app-shell-footer-offset) - var(--mantine-spacing-sm) - var(--c2-weekgrid-bottom-budget, 0px) - ${chromeHeight}px)`;
+  //
+  // At `lg` the viewport's top is lifted **behind** the sticky chrome (the
+  // `.c2-gutter-anim` negative top margin below), so the hour rows scroll under
+  // the frosted chrome like every other week view. The grid's own day header /
+  // all-day row are re-pinned below the chrome and the height no longer
+  // subtracts that chrome; below `lg` the grid stays below the chrome as before.
+  const gridWeekMaxHeight = isDesktop
+    ? `calc(var(--app-shell-vh, 100dvh) - var(--app-shell-header-offset) - var(--app-shell-footer-offset) - var(--c2-weekgrid-bottom-budget, 0px))`
+    : `calc(var(--app-shell-vh, 100dvh) - var(--app-shell-header-offset) - var(--app-shell-footer-offset) - var(--mantine-spacing-sm) - var(--c2-weekgrid-bottom-budget, 0px) - ${chromeHeight}px)`;
   const gridWeekScrollAreaProps = useMemo(
     () => ({
       viewportRef: gridWeekGridViewportRef,
@@ -3042,7 +3050,11 @@ function DashboardViewImpl({
     pinchFocalRef.current.y = undefined;
     const head = viewport.querySelector<HTMLElement>(".c2-weekgrid-head");
     const allDay = viewport.querySelector<HTMLElement>(".c2-weekgrid-allday");
-    const headerPx = (head?.offsetHeight ?? 0) + (allDay?.offsetHeight ?? 0);
+    // At lg the scroller is lifted behind the chrome, so the fixed leading
+    // overlay is the chrome plus the pinned day-header/all-day block; including
+    // it keeps the zoom focal time from drifting.
+    const headerPx =
+      (isDesktop ? chromeHeight : 0) + (head?.offsetHeight ?? 0) + (allDay?.offsetHeight ?? 0);
     const tracker = scrollAnchorTracker(viewport, { axis: "y", label: headerPx, focal: focalY });
     animateZoom(owner, {
       from: oldZoom,
@@ -3053,7 +3065,7 @@ function DashboardViewImpl({
       overrideVar: "--c2-row-zoom-anim",
       onDone: () => owner.style.removeProperty("--c2-row-zoom-anim"),
     });
-  }, [view, gridLoading, gridWeekRowZoom]);
+  }, [view, gridLoading, gridWeekRowZoom, isDesktop, chromeHeight]);
 
   // Week (Grid) column-zoom re-anchor: widening the day columns would otherwise
   // keep the same scrollLeft, so the day under the viewport's center drifts.
@@ -3092,6 +3104,28 @@ function DashboardViewImpl({
       });
     }
   }, [view, gridLoading, gridWeekColZoom]);
+
+  // Week (Grid) at lg: the scroller is lifted behind the chrome, but the
+  // library's mount `startScrollTime` positions the target slot at the scroller
+  // top — now hidden behind the chrome. Nudge the vertical scroll up by the
+  // chrome once per grid mount so the same time stays visible below the chrome
+  // (the library re-runs its start-scroll on every remount; this mirrors it).
+  const gridWeekChromeNudgedRef = useRef(false);
+  useLayoutEffect(() => {
+    if (!isDesktop || view !== "weekgrid" || gridLoading) {
+      gridWeekChromeNudgedRef.current = false;
+      return;
+    }
+    if (gridWeekChromeNudgedRef.current || chromeHeight <= 0) {
+      return;
+    }
+    const viewport = gridWeekViewportRef.current;
+    if (!viewport) {
+      return;
+    }
+    gridWeekChromeNudgedRef.current = true;
+    viewport.scrollTop = Math.max(0, viewport.scrollTop - chromeHeight);
+  }, [isDesktop, view, gridLoading, chromeHeight]);
 
   // The grid week's width zoom changes the scroll content's width, which the
   // pan hook's ResizeObserver (watching the viewport's own box) can't see — so
@@ -3656,8 +3690,18 @@ function DashboardViewImpl({
             // must dock flush under the sticky chrome (its sticky `top`), not
             // 12px below it (the Stack's page gap). Cancelling the gap makes
             // the rest position equal the pinned one — no gap at the top of the
-            // page and no jump on scroll. Other views keep the page gap.
-            marginTop: shownView === "month" ? "calc(-1 * var(--mantine-spacing-sm))" : undefined,
+            // page and no jump on scroll.
+            // Week (Grid) at lg: lift the whole grid behind the sticky chrome
+            // (cancel the page gap AND the chrome height) so its hour rows scroll
+            // under the frosted chrome like every other week view; the grid's own
+            // day header / all-day row are re-pinned below the chrome (see the
+            // WeekView `styles` below). Below lg it keeps the page gap.
+            marginTop:
+              shownView === "month"
+                ? "calc(-1 * var(--mantine-spacing-sm))"
+                : isDesktop && shownIsGridWeek
+                  ? `calc(-1 * var(--mantine-spacing-sm) - ${chromeHeight}px)`
+                  : undefined,
             marginInline: reclaimGutter ? "calc(-1 * var(--app-shell-padding))" : undefined,
           }}
         >
@@ -3926,7 +3970,15 @@ function DashboardViewImpl({
                   // all-day row must clear the in-day chips (else they paint over
                   // it once the grid scrolls — it opens at the current time), and
                   // the pinned hour column must clear the highlighted chips.
-                  weekViewHeader: { width: WEEK_GRID_COLUMN_WIDTH, zIndex: 7 },
+                  weekViewHeader: {
+                    width: WEEK_GRID_COLUMN_WIDTH,
+                    zIndex: 7,
+                    // At lg the scroller is lifted behind the chrome, so pin the
+                    // day header just below it (the scroller's top is now the
+                    // header offset, so `top: chromeHeight` = chrome bottom).
+                    // Below lg the library's `top: 0` stands.
+                    top: isDesktop ? `${chromeHeight}px` : undefined,
+                  },
                   // Left label column pinned while panning (the columns overflow
                   // by default at the 2× fit zoom): the week-number corner, the
                   // "All day" label and the hour labels each stick to the
@@ -3937,13 +3989,17 @@ function DashboardViewImpl({
                     zIndex: 1,
                     backgroundColor: "var(--mantine-color-body)",
                   },
-                  // Pin the all-day row under the day header (top: 0) so both stay
+                  // Pin the all-day row under the day header so both stay
                   // visible while the hour rows scroll. The header is
                   // `--week-view-week-day-height` tall with a -1px bottom margin.
+                  // At lg both are offset below the lifted chrome (`top:
+                  // chromeHeight`).
                   weekViewAllDaySlots: {
                     width: WEEK_GRID_COLUMN_WIDTH,
                     position: "sticky",
-                    top: "calc(var(--week-view-week-day-height) - 1px)",
+                    top: isDesktop
+                      ? `calc(${chromeHeight}px + var(--week-view-week-day-height) - 1px)`
+                      : "calc(var(--week-view-week-day-height) - 1px)",
                     zIndex: 6,
                     backgroundColor: "var(--mantine-color-body)",
                   },

@@ -561,14 +561,20 @@ the Day / Week (H) column widths):
   scroll (measured, minus the sticky header/all-day offset).
 - **Internal scroll (pinned header + all-day row + left column).** The grid's
   `ScrollArea` is **viewport-bounded** (`scrollAreaProps.style.maxHeight` — the
-  viewport minus the shell offsets, the chrome, and
-  `--c2-weekgrid-bottom-budget`: **0 on mobile**, so the grid runs flush to the
-  bottom nav with the floating FABs allowed to overlay its bottom-right (the
-  page drops their clearance via `.weekgrid-page-pad`); shell padding + xl at
-  lg), so it scrolls **internally** rather than growing the page: the library's
-  day header (sticky, `top: 0`) and the app's sticky all-day
-  row (`weekViewAllDaySlots`, `top: calc(var(--week-view-week-day-height) - 1px)`)
-  stay pinned while the hour rows scroll. The sticky chrome is stacked above
+  viewport minus the shell offsets and `--c2-weekgrid-bottom-budget`, which is
+  **0 at every breakpoint**: the grid runs flush to the bottom nav on mobile
+  with the floating FABs allowed to overlay its bottom-right, and flush to the
+  viewport bottom at `lg`; the page drops its own bottom padding via
+  `.weekgrid-page-pad`, which at `lg` also reclaims Main's bottom padding with a
+  negative margin), so it scrolls **internally** rather than growing the page.
+  At `lg` the whole grid is additionally **lifted behind the sticky chrome** (a
+  negative top margin on the shared `.c2-gutter-anim`) so the hour rows scroll
+  under the frosted chrome like every other week view, while the library's day
+  header and the app's all-day row are **re-pinned below the chrome**:
+  (`weekViewHeader` gains `top: <chromeHeight>`, and `weekViewAllDaySlots` becomes
+  `top: calc(<chromeHeight> + var(--week-view-week-day-height) - 1px)`) so they
+  stay pinned while the hour rows scroll. Below `lg` the grid sits below the
+  chrome as before. The sticky chrome is stacked above
   both the library's timed-event root (`z-index: 3`) **and** the app's highlight
   classes (`.c2-my-event` / `.c2-ext-event`, `z-index: 4` in globals.css):
   **regular events (3) < highlighted events (4) < hour labels (5) < all-day row

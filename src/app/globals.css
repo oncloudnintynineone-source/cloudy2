@@ -740,12 +740,12 @@ html {
   --settings-fab-bottom: calc(108px + env(safe-area-inset-bottom) + 16px);
   /* Bottom budget subtracted from the Week (Grid)'s viewport-bounded height
      (DashboardView's gridWeekScrollAreaProps max-height + the skeleton), i.e.
-     the space between the grid's bottom edge and the viewport bottom. Mobile
-     (below lg) is 0: the grid runs flush to the bottom nav and the floating
-     Create/Quick-links FABs are allowed to overlay its bottom-right (nothing
-     important lives there), so the page reserves no FAB clearance either
-     (.weekgrid-page-pad). The lg value restores the shell padding + xl pad the
-     other pages use. */
+     the space between the grid's bottom edge and the viewport bottom. It is 0
+     at every breakpoint: the grid runs flush to the bottom nav on mobile (the
+     floating Create/Quick-links FABs are allowed to overlay its bottom-right,
+     nothing important lives there) and flush to the viewport bottom at lg
+     (where the FABs are hidden), with `.weekgrid-page-pad` dropping the page's
+     own bottom padding. */
   --c2-weekgrid-bottom-budget: 0px;
   /* Chrome's edge-to-edge "fast path" (Chrome 135+ on Android). A fixed bottom
      bar must grow by the *maximum* safe-area inset and pull itself down with
@@ -882,8 +882,11 @@ html {
   the weekgrid tab). The grid is viewport-bounded and scrolls internally, and
   the mobile FABs may overlay it, so the page reserves no FAB clearance below
   it — the shared `.fab-page-pad` would push the page past the viewport and
-  force a page scroll, sliding the pinned day header under the app chrome. At
-  lg the FABs are hidden, so the regular xl pad returns.
+  force a page scroll, sliding the pinned day header under the app chrome. At lg
+  the grid runs flush to the viewport bottom too: the page bottom padding is
+  dropped and Main's own bottom padding is reclaimed with a matching negative
+  margin (symmetric with the Stack's negative top margin), so the taller
+  behind-the-chrome container still totals exactly `100dvh` (no document scroll).
 */
 .weekgrid-page-pad {
   padding-bottom: 0;
@@ -1232,9 +1235,6 @@ html {
   :root {
     --app-floating-bottom-offset: 16px;
     --settings-fab-bottom: 16px;
-    /* Desktop: the FABs are hidden, so the Week (Grid) keeps the shell padding
-       plus the regular xl bottom pad the other pages use. */
-    --c2-weekgrid-bottom-budget: calc(var(--app-shell-padding) + var(--mantine-spacing-xl));
   }
 
   .settings-page-pad {
@@ -1255,8 +1255,13 @@ html {
     margin-bottom: calc(-1 * var(--app-shell-padding));
   }
 
+  /* Week (Grid) at lg: flush to the viewport bottom. Zero the page bottom
+     padding and pull Main's own bottom padding back with a negative margin so
+     the behind-the-chrome grid extends all the way down (see `.weekgrid-page-pad`
+     above). */
   .weekgrid-page-pad {
-    padding-bottom: var(--mantine-spacing-xl);
+    padding-bottom: 0;
+    margin-bottom: calc(-1 * var(--app-shell-padding));
   }
 
   .page-container {

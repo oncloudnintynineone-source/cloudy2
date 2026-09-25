@@ -9226,3 +9226,33 @@ its bottom edge lands on the viewport bottom. DualPaneSkeleton uses the same
 height so the load swap stays seamless.
 
 Docs: docs/dashboard-views.md §1.9, docs/desktop-responsive.md.
+
+## 1.288 Week (Grid) under-chrome + flush
+
+The Week (Grid) was the only week view whose content never passed under the
+sticky chrome: it owns its own scroll container, positioned below the chrome,
+while Week (H)/Week (D)/Day page-scroll and slide under the frosted chrome.
+At lg it now behaves like the others and also runs flush to the bottom.
+
+**Under the chrome (lg).** The shared .c2-gutter-anim wrapper gets a
+margin-top of -(sm + chromeHeight) for isDesktop && shownIsGridWeek, lifting
+the whole grid so its top sits at the header offset, behind the chrome. The
+grid's own maxHeight branch at lg drops the - sm - chrome terms, and the
+library day header (weekViewHeader) and the app all-day row
+(weekViewAllDaySlots) gain 	op: <chromeHeight> /
+	op: calc(<chromeHeight> + var(--week-view-week-day-height) - 1px) so they
+re-pin just below the chrome. The row-zoom re-anchor's fixed leading overlay
+(headerPx) now includes the chrome so the focal hour does not drift, and a
+one-shot mount effect subtracts chromeHeight from the vertical scroll after
+the library's startScrollTime positioning, keeping the opened time the same.
+
+**Flush bottom (lg).** --c2-weekgrid-bottom-budget is 0 at every breakpoint
+(the mobile grid already ran flush to the bottom nav), and at lg`n.weekgrid-page-pad drops the page's bottom padding and reclaims
+AppShell.Main's bottom padding with a margin-bottom of
+calc(-1 * var(--app-shell-padding)) — the bottom-symmetric counterpart of the
+Stack's negative top margin — so the taller behind-the-chrome grid still totals
+exactly 100dvh (no document scroll) and its bottom edge lands on the viewport
+bottom. WeekGridViewSkeleton mirrors the branch, the top padding and the
+budget so the load swap stays seamless. Mobile is unchanged.
+
+Docs: docs/dashboard-views.md 1.7.
