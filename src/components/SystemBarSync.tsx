@@ -15,7 +15,8 @@ const getServerHydratedSnapshot = () => false;
  * the user happens to toggle the system theme. This component re-asserts both
  * values from JS on every launch (and whenever the resolved scheme changes).
  *
- * - Status bar: a `theme-color` meta (#0D47A1, the navy header color). Chrome
+ * - Status bar: a `theme-color` meta (#0D47A1, the brand accent — kept blue as
+ *   the one brand cue now that the header itself is colourless/neutral). Chrome
  *   derives the icon color from the dark-blue luminance → white icons. Chrome
  *   ignores `setAttribute()` on an existing meta, so the node has to be removed
  *   and re-created for Chrome to observe the change. Rather than mutate the DOM

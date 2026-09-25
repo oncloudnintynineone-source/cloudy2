@@ -32,7 +32,7 @@ export function useShellChrome(): ShellChromeValue {
 
 /**
  * The admin-managed announcement banner: a min-height strip (25px) above the
- * navy brand bar, filled with its curated palette color (`-filled` var, so
+ * app header bar, filled with its curated palette color (`-filled` var, so
  * light/dark schemes both work) and the readable text color that option pins.
  * Text wraps and the banner grows taller when it overflows the base height.
  * The measured height is reported through the shell chrome context so the

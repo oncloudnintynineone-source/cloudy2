@@ -170,9 +170,12 @@ const NAVBAR_STYLE: React.CSSProperties = {
 };
 const HEADER_STYLE: React.CSSProperties = {
   viewTransitionName: "c2-shell-header",
-  background: "var(--mantine-color-brand-7)",
-  borderColor: "var(--mantine-color-brand-8)",
-  // The safe-area region stays navy; the banner + brand bar render below it.
+  // Colourless header: neutral dark (the frosted `.c2-glass-header` overrides
+  // the background with the translucency token; this is the opaque fallback and
+  // the safe-area fill). White header chrome is preserved.
+  background: "var(--mantine-color-dark-8)",
+  borderColor: "var(--mantine-color-dark-7)",
+  // The safe-area region stays neutral; the banner + brand bar render below it.
   paddingTop: "env(safe-area-inset-top)",
 };
 
@@ -345,7 +348,7 @@ function NavButton({
   );
 }
 
-// The navy brand bar's height; the shell header stacks the optional
+// The header bar's height; the shell header stacks the optional
 // announcement banner (admin-picked height preset) on top of it.
 const HEADER_HEIGHT_PX = 56;
 
@@ -377,7 +380,7 @@ export function AppShellShell({
   /** The active announcement banner, resolved by the (protected) layout (in
    *  parallel with the session) and passed as a prop — never streamed. The
    *  shell derives its banner state from this on the very first render, so the
-   *  header (banner stacked above the navy bar, or the bare 56px bar) and the
+   *  header (banner stacked above the header bar, or the bare 56px bar) and the
    *  route skeleton are aligned with the steady-state layout from first paint:
    *  no reservation while a read is pending, and no post-hydration shift in
    *  either direction (the server already knows whether a banner exists). */
@@ -988,7 +991,7 @@ export function AppShellShell({
               : undefined
           }
           // Extra top inset engages in standalone PWA mode on notched devices
-          // (`viewport-fit=cover`): the navy header extends edge-to-edge behind
+          // (`viewport-fit=cover`): the header extends edge-to-edge behind
           // the status bar instead of letterboxing. Reports 0 in-browser. The
           // banner (when active) stacks above the 56px brand bar inside the
           // same header element. In immersive mode the header is hidden, so we

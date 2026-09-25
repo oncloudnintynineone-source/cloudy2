@@ -18,7 +18,7 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
 
 ## 1.1 Status
 
-- All work through changelog **1.282 (frosted button shadows)** is shipped.
+- All work through changelog **1.283 (tab-row buttons + colourless header)** is shipped.
 - Quality gates (`lint` / `typecheck` / `test` / schema-drift check) run in CI on every
   push and PR. Pushes also auto-apply migrations per environment: `dev` →
   `migrate-preview` against the dev Neon DB, `main` → `migrate` against the prod Neon
@@ -1532,6 +1532,14 @@ via `?attendance=1` and `attendanceStorage` became a `useSyncExternalStore` exte
     (matching the round FABs), so the date-nav / filter / date / view-menu buttons, the
     New-event and Quick-links buttons, and the floating zoom/pan/fullscreen controls lift off
     the frosted chrome instead of blending into it.
+- 1.283 Tab-row buttons + colourless header: the desktop tab-strip trailing icons
+    (Add / All / Manage views) drop `c2-glass-btn` — fully transparent, no shadow, matching
+    the view tabs. The header is now colourless: `--c2-glass-header-bg` is a neutral
+    near-black at the same level alphas as every other surface (`--c2g-base-*`), a shade
+    darker than the body tint (light `rgba(18,20,24,α)`, dark `rgba(8,9,11,α)`), with the
+    opaque fallbacks and `HEADER_STYLE` switched to neutral `dark-8`; white header chrome
+    (icons, ticker, profile) is unchanged. Brand navy remains only as the Android/PWA
+    status-bar accent. Docs: `dashboard-views.md` §1.1, `announcement-banner.md`.
 
 ## 1.4 Open items & next steps
 

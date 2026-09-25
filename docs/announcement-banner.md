@@ -1,6 +1,6 @@
 # 1. Announcement banner
 
-An admin-managed persistent banner above the navy header bar, visible to all
+An admin-managed persistent banner above the app header bar, visible to all
 signed-in users (Settings → Banner tab). Disabled means the steady-state layout is
 exactly as if the feature weren't there — no reserved space.
 
@@ -24,7 +24,7 @@ config into `AppShellShell` as the `bannerConfig` prop. The session is a JWT
 decode (no DB); `getBanner()` is one cheap SELECT on the singleton settings row
 (per-request deduped via React `cache`). Reading it up front means the shell
 knows the banner state on its **very first render** — the header (banner above
-the navy bar, or the bare 56px bar) and the route skeleton are aligned with the
+the header bar, or the bare 56px bar) and the route skeleton are aligned with the
 steady-state layout from first paint, with no post-hydration jump. Only the KAH
 nav probe is still streamed. (Historically the banner was streamed so the
 layout never awaited a Neon scale-to-zero DB read before painting the shell —

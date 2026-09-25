@@ -3286,7 +3286,6 @@ function DashboardViewImpl({
                         color="gray"
                         size={36}
                         ml={4}
-                        className="c2-glass-btn"
                         aria-label="Add view"
                         title="Add view"
                         onClick={openAddView}
@@ -3325,7 +3324,6 @@ function DashboardViewImpl({
                   color="gray"
                   size={36}
                   ml={4}
-                  className="c2-glass-btn"
                   aria-label="All views"
                   title="All views"
                   style={{ flex: "0 0 auto" }}
@@ -3373,7 +3371,6 @@ function DashboardViewImpl({
                 size={36}
                 ml={4}
                 mr={4}
-                className="c2-glass-btn"
                 aria-label="Manage views"
                 title="Manage views"
                 onClick={openEdit}

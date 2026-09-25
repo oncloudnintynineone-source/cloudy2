@@ -9156,3 +9156,13 @@ toast frost were all removed; glass now applies to page-level surfaces only.
 `box-shadow: var(--mantine-shadow-md)` (matching `.c2-glass-fab`), so the desktop
 chrome buttons and the floating zoom/pan/fullscreen controls lift off the frosted
 surfaces instead of blending into them.
+
+**Follow-up tweak (1.283)**: the desktop tab-strip trailing icons (Add / All /
+Manage views) drop `c2-glass-btn` (transparent, no shadow, matching the view
+tabs), and the header became **colourless** — `--c2-glass-header-bg` is now a
+neutral near-black at the same level alphas as the other surfaces
+(`--c2g-base-*`), a shade darker than the body tint (light
+`rgba(18,20,24,α)` / dark `rgba(8,9,11,α)`). The opaque `@supports` /
+reduced-transparency fallbacks and `HEADER_STYLE` use neutral `dark-8`; white
+header chrome (search/refresh/profile icons, ticker) is unchanged, and brand navy
+survives only as the Android/PWA status-bar accent.
