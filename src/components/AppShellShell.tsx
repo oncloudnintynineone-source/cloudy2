@@ -170,9 +170,8 @@ const NAVBAR_STYLE: React.CSSProperties = {
 };
 const HEADER_STYLE: React.CSSProperties = {
   viewTransitionName: "c2-shell-header",
-  // Brand-blue header (the frosted `.c2-glass-header` overrides the background
-  // with the translucency token; this is the opaque fallback and the safe-area
-  // fill). White header chrome is preserved.
+  // Opaque brand-navy header (deliberately outside the `translucencyLevel`
+  // glass system — it is never translucent). White header chrome is preserved.
   background: "var(--mantine-color-brand-7)",
   // No bottom border: the frosted background already separates the header, and
   // a border read as a hard line against the translucent surface.
@@ -1015,7 +1014,6 @@ export function AppShellShell({
           className={immersive ? "app-shell-root app-shell-immersive" : "app-shell-root"}
         >
           <AppShell.Header
-            className="c2-glass-header"
             style={{
               ...HEADER_STYLE,
               // Column layout only when a banner is stacked on top — otherwise

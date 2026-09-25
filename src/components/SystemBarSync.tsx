@@ -15,11 +15,10 @@ const getServerHydratedSnapshot = () => false;
  * the user happens to toggle the system theme. This component re-asserts both
  * values from JS on every launch (and whenever the resolved scheme changes).
  *
- * - Status bar: a `theme-color` meta, set to the brand-blue header composited
- *   over the body at the default (medium) level — light `#698DC5`, dark
- *   `#173769` — so the bar reads as one continuous surface with the header.
- *   Chrome derives the icon color from the luminance → white icons. Chrome
- *   ignores `setAttribute()` on an existing meta, so the node has to be removed
+ * - Status bar: a `theme-color` meta, set to the opaque brand-navy header
+ *   colour (`#0D47A1`) so the bar reads as one continuous surface with the
+ *   header. Chrome derives the icon color from the luminance → white icons.
+ *   Chrome ignores `setAttribute()` on an existing meta, so the node has to be removed
  *   and re-created for Chrome to observe the change. Rather than mutate the DOM
  *   behind React's back (which detaches a React-hoisted node and crashes React
  *   on the next `<head>` re-render), the meta is rendered here and remounted via
@@ -48,10 +47,9 @@ export function SystemBarSync() {
     document.documentElement.style.colorScheme = scheme;
   }, [scheme]);
 
-  // Brand-blue status bar: the frosted header (`rgba(13,71,161,0.62)` light /
-  // `rgba(13,71,161,0.55)` dark) composited over the body, so the bar blends
-  // into the header.
-  const themeColor = scheme === "dark" ? "#173769" : "#698DC5";
-
-  return <meta key={`${scheme}-${hydrated ? "h" : "s"}`} name="theme-color" content={themeColor} />;
+  // Opaque brand-navy status bar, matching the opaque header exactly in both
+  // schemes.
+  return (
+    <meta key={`${scheme}-${hydrated ? "h" : "s"}`} name="theme-color" content="#0D47A1" />
+  );
 }

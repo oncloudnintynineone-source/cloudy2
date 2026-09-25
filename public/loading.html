@@ -3,28 +3,18 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-    <meta name="theme-color" content="#698DC5" />
+    <meta name="theme-color" content="#0D47A1" />
     <title>Cloudy2</title>
     <script>
       // Apply Mantine's manual color-scheme override before first paint: the
       // app stores a ThemeToggle choice ("light"/"dark") under this key; with
       // "auto" (or nothing) the CSS prefers-color-scheme rules below decide,
       // matching the app's defaultColorScheme="auto".
-      //
-      // Also colour the status bar to match the launch shell's header (the
-      // app's brand-blue header composited over the body).
       (function () {
         try {
           var scheme = localStorage.getItem("mantine-color-scheme-value");
           if (scheme === "light" || scheme === "dark") {
             document.documentElement.setAttribute("data-c2-scheme", scheme);
-          }
-          var prefersDark =
-            window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
-          var dark = scheme === "dark" || (scheme !== "light" && prefersDark);
-          var meta = document.querySelector('meta[name="theme-color"]');
-          if (meta) {
-            meta.setAttribute("content", dark ? "#173769" : "#698DC5");
           }
         } catch (err) {}
       })();
@@ -84,28 +74,17 @@
         flex-direction: column;
       }
 
-      /* Header bar — AppShell.Header: the app's brand-blue translucent header
-         composited over the body (medium level), 56px + safe-area, "Cloudy2"
-         (Mantine size-lg / weight 700) left, controls right (pin · theme ·
-         avatar placeholders). No bottom border (matches the app header). */
+      /* Header bar — AppShell.Header: the app's opaque brand-navy header,
+         56px + safe-area, "Cloudy2" (Mantine size-lg / weight 700) left,
+         controls right (pin · theme · avatar placeholders). No bottom border
+         (matches the app header). */
       header {
         height: calc(56px + env(safe-area-inset-top, 0px));
         padding: env(safe-area-inset-top, 0px) 16px 0;
-        background: #698dc5;
+        background: #0d47a1;
         display: flex;
         align-items: center;
         justify-content: space-between;
-      }
-      @media (prefers-color-scheme: dark) {
-        header {
-          background: #173769;
-        }
-      }
-      :root[data-c2-scheme="dark"] header {
-        background: #173769;
-      }
-      :root[data-c2-scheme="light"] header {
-        background: #698dc5;
       }
       header h1 {
         font-size: 1.125rem;

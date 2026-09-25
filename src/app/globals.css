@@ -298,11 +298,9 @@ html {
   height: calc(1.875rem * var(--mantine-scale));
   padding-inline: var(--mantine-spacing-sm);
   border-radius: var(--mantine-radius-xl);
-  /* Frosted brand blue: the header's glass tint is brand blue, so the pill reads as
-     a slightly denser panel floating over the grid as it scrolls under. */
-  background: color-mix(in srgb, var(--c2-glass-header-bg) 82%, transparent);
-  -webkit-backdrop-filter: var(--c2g-blur);
-  backdrop-filter: var(--c2g-blur);
+  /* Opaque pill, a shade darker than the opaque brand-navy header behind it, so
+     it reads as a distinct raised control. */
+  background: var(--mantine-color-brand-8);
   color: var(--mantine-color-white);
   min-width: 0;
   /* Grow to fill the header's free space so the pill keeps a constant width;
@@ -320,11 +318,11 @@ html {
 }
 
 .c2-pinned-ticker:hover {
-  background: var(--c2-glass-header-bg);
+  background: var(--mantine-color-brand-7);
 }
 
 .c2-pinned-ticker:active {
-  background: color-mix(in srgb, var(--c2-glass-header-bg) 88%, var(--mantine-color-black));
+  background: var(--mantine-color-brand-9);
 }
 
 .c2-pinned-ticker:focus-visible {
@@ -879,18 +877,18 @@ html {
 
 /*
   Global frosted-glass translucency for PAGE-level surfaces only.
-  `.c2-glass-surface` (body-tinted) and `.c2-glass-header` (neutral, a shade
-  darker) are the general overlapping surfaces — header, sticky calendar chrome,
-  bottom nav, settings tabs, sidebar and grid headers. Overlays (modals, menus,
-  popovers, tooltips, toasts) are deliberately opaque. `.c2-glass-fab` is the button form: applied to the
+  `.c2-glass-surface` (body-tinted) is the general overlapping surface — sticky
+  calendar chrome, bottom nav, settings tabs, sidebar and grid headers. The app
+  header is deliberately **opaque** (owned by `HEADER_STYLE`), outside this
+  system. Overlays (modals, menus, popovers, tooltips, toasts) are also opaque.
+  `.c2-glass-fab` is the button form: applied to the
   Calendar page's bottom-right `[<][>][LINK][CREATE]` row below `lg`
   (DashboardView) and to the floating controls / every page's FAB. Scheme-aware
   through `[data-mantine-color-scheme]`-scoped token values (not `light-dark()`
   in the composite custom properties — see the token block below); `!important`
   beats Mantine's runtime-injected variant background/colour/border rules. Tints preserve each
-  surface's colour language: neutral surfaces keep the body tone, the header
-  keeps brand blue (softened at the app-wide alpha), amber Quick links
-  (`--accent`), brand-blue New event (`--brand`).
+  surface's colour language: neutral surfaces keep the body tone, amber Quick
+  links (`--accent`), brand-blue New event (`--brand`).
   The backdrop blur lets the content read through, while the blur + shadow keep
   the controls legible over any content. No border: the frosted edge is carried
   by the shadow alone (a hard ring read as an off outline, especially in dark
@@ -926,15 +924,10 @@ html {
      over a dark body). The level modifiers below only set the `--c2g-*` alphas,
      so they still flow into these `rgba()` tokens. */
   --c2-glass-bg: rgba(255, 255, 255, var(--c2g-base-l));
-  /* Brand-blue header at the same level alpha as every other surface (so the
-     header tracks the app-wide translucency, softened rather than the old
-     heavier navy). White header chrome is preserved. */
-  --c2-glass-header-bg: rgba(13, 71, 161, var(--c2g-base-l));
 }
 
 [data-mantine-color-scheme="dark"] {
   --c2-glass-bg: rgba(28, 30, 34, var(--c2g-base-d));
-  --c2-glass-header-bg: rgba(13, 71, 161, var(--c2g-base-d));
 }
 
 /* The general body-tinted frosted surface — sticky calendar chrome, bottom
@@ -944,13 +937,6 @@ html {
    `background: var(--mantine-color-body)` the surfaces used to carry. */
 .c2-glass-surface {
   background: var(--c2-glass-bg) !important;
-  -webkit-backdrop-filter: var(--c2g-blur);
-  backdrop-filter: var(--c2g-blur);
-}
-
-/* The brand-blue frosted header — softened to the app-wide alpha. */
-.c2-glass-header {
-  background: var(--c2-glass-header-bg) !important;
   -webkit-backdrop-filter: var(--c2g-blur);
   backdrop-filter: var(--c2g-blur);
 }
@@ -1122,19 +1108,16 @@ html {
 .c2-low-end {
   --c2g-blur: none;
   --c2-glass-bg: rgba(255, 255, 255, 0.94);
-  --c2-glass-header-bg: rgba(13, 71, 161, 0.94);
 }
 
 [data-mantine-color-scheme="dark"].c2-low-end {
   --c2-glass-bg: rgba(28, 30, 34, 0.92);
-  --c2-glass-header-bg: rgba(13, 71, 161, 0.92);
 }
 
 /* Browsers without backdrop-filter: fall back to the opaque surface colours. */
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
   :root {
     --c2-glass-bg: var(--mantine-color-body);
-    --c2-glass-header-bg: var(--mantine-color-brand-7);
   }
 }
 
@@ -1142,10 +1125,8 @@ html {
 @media (prefers-reduced-transparency: reduce) {
   :root {
     --c2-glass-bg: var(--mantine-color-body);
-    --c2-glass-header-bg: var(--mantine-color-brand-7);
   }
   .c2-glass-surface,
-  .c2-glass-header,
   .c2-glass-fab,
   .c2-glass-btn {
     -webkit-backdrop-filter: none;

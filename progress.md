@@ -18,7 +18,7 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
 
 ## 1.1 Status
 
-- All work through changelog **1.285 (restore soft brand blue + drop header border)** is shipped.
+- All work through changelog **1.286 (opaque header)** is shipped.
 - Quality gates (`lint` / `typecheck` / `test` / schema-drift check) run in CI on every
   push and PR. Pushes also auto-apply migrations per environment: `dev` →
   `migrate-preview` against the dev Neon DB, `main` → `migrate` against the prod Neon
@@ -1554,6 +1554,15 @@ via `?attendance=1` and `attendanceStorage` became a `useSyncExternalStore` exte
     (`#0D47A1`), the launch shell (`public/loading.html`) and the offline pages
     (`public/offline.html` + the `sw.ts` fallback) all go blue again. `HEADER_STYLE` drops its
     bottom border (`border: "none"`) — the hard dark line under the translucent header is gone.
+- 1.286 Opaque header: the header is now a solid brand-navy bar (`HEADER_STYLE` background
+    `brand-7`, no `.c2-glass-header`, no `--c2-glass-header-bg` token) — deliberately outside
+    the `translucencyLevel` system. Related colours adjusted: the status bar `theme-color` is
+    the static brand `#0D47A1`, the pinned ticker reverts to its opaque `brand-8`/`brand-7`/
+    `brand-9` pill (no blur), and the launch shell header is opaque `#0d47a1`. Manifest/offline
+    pages already brand navy. The `translucencyLevel` flag still governs the remaining page
+    surfaces (chrome, bottom nav, sidebar, grid headers, floating controls, FABs). Docs:
+    `feature-flags.md`, `AGENTS.md`, `dashboard-views.md` §1.1, `pwa-offline.md`,
+    `loading-transitions.md`.
 
 ## 1.4 Open items & next steps
 

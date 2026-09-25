@@ -9185,3 +9185,12 @@ so it tracks `translucencyLevel` like the other surfaces (light composite
 (`public/offline.html` + the `sw.ts` inline fallback) are blue/amber again.
 `HEADER_STYLE` drops its bottom border (`border: "none"`) — the dark line under
 the translucent header is gone.
+
+**Follow-up tweak (1.286)**: the header was made **100% opaque**. It is now a
+solid brand-navy bar (`HEADER_STYLE.background = brand-7`), the `.c2-glass-header`
+class and `--c2-glass-header-bg` token were removed (with the low-end /
+`@supports` / reduced-transparency references), so the header is deliberately
+outside the `translucencyLevel` system. Related colours: the status bar
+`theme-color` is the static brand `#0D47A1`; the pinned ticker returns to its
+opaque `brand-8` pill (hover `brand-7`, active `brand-9`, no blur); the launch
+shell header is opaque `#0d47a1`. Manifest/offline pages were already brand navy.

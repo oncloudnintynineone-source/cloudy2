@@ -170,14 +170,14 @@ string maps to the first tab of that kind.
   `data-c2-glass`, which every glass surface inherits) — see
   [`feature-flags.md`](feature-flags.md).
 - **App-wide frosted glass (`translucencyLevel`).** Beyond the mobile cluster,
-  every surface that overlaps page content is translucent: the brand-blue header, the
+  the surfaces that overlap page content are translucent: the
   bottom nav, the settings tab strip, the desktop sidebar, the dashboard sticky
   chrome (view tabs + date nav) and its inline buttons, the pinned horizontal
   grid headers (Week (H) day strip / hour ruler, Month weekday strip, Week (D)
   day header, Week (Grid) day header + all-day row, Month & Agenda pane header),
-  and the floating zoom/pan cluster and fullscreen toggle. Overlays (modals,
-  menus, popovers, tooltips, toasts) stay **opaque** — only page-level surfaces
-  are translucent. The **sticky-left label columns** (resource/hour labels and
+  and the floating zoom/pan cluster and fullscreen toggle. The app **header** and
+  overlays (modals, menus, popovers, tooltips, toasts) stay **opaque** — only
+  page-level surfaces are translucent. The **sticky-left label columns** (resource/hour labels and
   the Week (Grid) day-header corner) also stay opaque so event chips scrolling
   beside them stay legible. Low-end devices (`c2-low-end`) fall back to tint only, and
   the previous glass FAB cluster keeps `c2-glass-fab--accent` / `--brand` to

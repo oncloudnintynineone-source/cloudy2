@@ -692,7 +692,7 @@ instead of an opaque black/white strip below the app's bottom nav.
 
 **What is (not) controllable.** There is no web API that sets the system bar's
 color or alpha — Chrome/Android own it. `<meta name="theme-color">` (written by
-`SystemBarSync`, set to the brand-blue header composited over the body)
+`SystemBarSync`, set to the opaque brand-navy header colour)
 only drives the **status bar**; the nav bar follows the page's
 `color-scheme` unless edge-to-edge is active. The only web-side lever is opting
 into **edge-to-edge** via `viewport-fit=cover`, which `src/app/layout.tsx`
