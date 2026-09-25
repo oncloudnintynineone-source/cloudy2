@@ -9166,3 +9166,13 @@ neutral near-black at the same level alphas as the other surfaces
 reduced-transparency fallbacks and `HEADER_STYLE` use neutral `dark-8`; white
 header chrome (search/refresh/profile icons, ticker) is unchanged, and brand navy
 survives only as the Android/PWA status-bar accent.
+
+**Follow-up tweak (1.284)**: the remaining brand-navy surfaces were removed.
+`SystemBarSync`'s `theme-color` meta is now scheme-aware neutral (`#6C6D70` light
+/ `#151516` dark — the frosted header composited over the body at medium) and the
+manifest `theme_color` is `#111111` (matches the splash). The PWA launch shell
+(`public/loading.html`) and the offline pages (`public/offline.html` + the
+`sw.ts` inline fallback, kept in sync) drop their navy header/border/button/h2/
+icon accents for the neutral header tone (scheme-aware via `prefers-color-scheme`
++ `data-c2-scheme`) and neutral greys; the launch shell's status-bar meta is set
+from the resolved scheme in its pre-paint script.

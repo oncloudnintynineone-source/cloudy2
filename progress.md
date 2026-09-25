@@ -18,7 +18,7 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
 
 ## 1.1 Status
 
-- All work through changelog **1.283 (tab-row buttons + colourless header)** is shipped.
+- All work through changelog **1.284 (colourless status bar + neutral loading/offline chrome)** is shipped.
 - Quality gates (`lint` / `typecheck` / `test` / schema-drift check) run in CI on every
   push and PR. Pushes also auto-apply migrations per environment: `dev` →
   `migrate-preview` against the dev Neon DB, `main` → `migrate` against the prod Neon
@@ -1540,6 +1540,13 @@ via `?attendance=1` and `attendanceStorage` became a `useSyncExternalStore` exte
     opaque fallbacks and `HEADER_STYLE` switched to neutral `dark-8`; white header chrome
     (icons, ticker, profile) is unchanged. Brand navy remains only as the Android/PWA
     status-bar accent. Docs: `dashboard-views.md` §1.1, `announcement-banner.md`.
+- 1.284 Colourless status bar + neutral loading/offline chrome: the last brand-navy
+    surfaces are gone. `SystemBarSync`'s `theme-color` meta and the manifest `theme_color` are
+    neutral (`#111111` splash / scheme-aware `#6C6D70` light · `#151516` dark — the header
+    composited over the body); the PWA launch shell (`public/loading.html`) and the offline
+    pages (`public/offline.html` + the `sw.ts` inline fallback) drop their navy header/button/
+    accent for the neutral header tone (scheme-aware, media + `data-c2-scheme`) and greys.
+    Docs: `pwa-offline.md`, `loading-transitions.md`.
 
 ## 1.4 Open items & next steps
 

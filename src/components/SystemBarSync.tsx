@@ -15,9 +15,11 @@ const getServerHydratedSnapshot = () => false;
  * the user happens to toggle the system theme. This component re-asserts both
  * values from JS on every launch (and whenever the resolved scheme changes).
  *
- * - Status bar: a `theme-color` meta (#0D47A1, the brand accent — kept blue as
- *   the one brand cue now that the header itself is colourless/neutral). Chrome
- *   derives the icon color from the dark-blue luminance → white icons. Chrome
+ * - Status bar: a `theme-color` meta, set to a neutral tone that matches the
+ *   frosted header composited over the body at the default (medium) level —
+ *   light `#6C6D70`, dark `#151516` — so the bar reads as one continuous surface
+ *   with the header (no brand colour). Chrome derives the icon color from the
+ *   luminance → white icons. Chrome
  *   ignores `setAttribute()` on an existing meta, so the node has to be removed
  *   and re-created for Chrome to observe the change. Rather than mutate the DOM
  *   behind React's back (which detaches a React-hoisted node and crashes React
@@ -47,5 +49,10 @@ export function SystemBarSync() {
     document.documentElement.style.colorScheme = scheme;
   }, [scheme]);
 
-  return <meta key={`${scheme}-${hydrated ? "h" : "s"}`} name="theme-color" content="#0D47A1" />;
+  // Colourless status bar: the frosted header (`rgba(18,20,24,0.62)` light /
+  // `rgba(8,9,11,0.55)` dark) composited over the body, so the bar blends into
+  // the header instead of carrying a brand colour.
+  const themeColor = scheme === "dark" ? "#151516" : "#6C6D70";
+
+  return <meta key={`${scheme}-${hydrated ? "h" : "s"}`} name="theme-color" content={themeColor} />;
 }

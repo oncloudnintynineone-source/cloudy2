@@ -149,22 +149,22 @@ const OFFLINE_FALLBACK_HTML = `<!doctype html>
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
-<meta name="theme-color" content="#0D47A1" />
+<meta name="theme-color" content="#111111" />
 <title>Offline — Cloudy2</title>
 <style>
-:root{--navy:#0d47a1;--bg:#111111}
+:root{--bar:#111111;--bg:#111111;--btn:#34363b}
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;background:var(--bg);color:#e0e0e0;min-height:100dvh;display:flex;flex-direction:column}
-header{background:var(--navy);color:#fff;padding:calc(14px + env(safe-area-inset-top,0px)) 16px 14px;display:flex;align-items:center;gap:12px}
+header{background:var(--bar);color:#fff;padding:calc(14px + env(safe-area-inset-top,0px)) 16px 14px;display:flex;align-items:center;gap:12px}
 header h1{font-size:1.1rem;font-weight:700;letter-spacing:.02em}
 main{flex:1;display:flex;align-items:center;justify-content:center;padding:32px 20px 40px}
 .card{background:#25262b;border:1px solid #373a40;border-radius:12px;padding:28px 24px;max-width:420px;width:100%;box-shadow:0 2px 12px rgba(0,0,0,.4);text-align:center}
 .icon{width:56px;height:56px;margin:0 auto 16px;border-radius:999px;background:#2c2e33;display:grid;place-items:center}
-h2{font-size:1.15rem;font-weight:700;margin-bottom:8px;color:#8ca8e2}
+h2{font-size:1.15rem;font-weight:700;margin-bottom:8px;color:#e0e0e0}
 p{font-size:.95rem;line-height:1.5;color:#b0b0b0}
 p+p{margin-top:10px}
 .hint{margin-top:14px;font-size:.82rem;color:#8a8a8a}
-.btn{margin-top:18px;display:inline-block;background:var(--navy);color:#fff;font-weight:600;font-size:.95rem;padding:10px 18px;border-radius:8px;text-decoration:none}
+.btn{margin-top:18px;display:inline-block;background:var(--btn);color:#fff;font-weight:600;font-size:.95rem;padding:10px 18px;border-radius:8px;text-decoration:none}
 </style>
 </head>
 <body>
@@ -173,7 +173,7 @@ p+p{margin-top:10px}
 </header>
 <main>
 <div class="card">
-<div class="icon" aria-hidden="true"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#F9A825" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1018 0 9 9 0 00-18 0z"/><path d="M8 12h8M12 8v8"/></svg></div>
+<div class="icon" aria-hidden="true"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#b0b0b0" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1018 0 9 9 0 00-18 0z"/><path d="M8 12h8M12 8v8"/></svg></div>
 <h2>You're offline</h2>
 <p>Cloudy2 couldn't reach the server. Reconnect to keep using the app. Once you've opened the app while online, it opens instantly — even offline.</p>
 <a class="btn" href="/">Try again</a>

@@ -3,18 +3,28 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-    <meta name="theme-color" content="#0D47A1" />
+    <meta name="theme-color" content="#6C6D70" />
     <title>Cloudy2</title>
     <script>
       // Apply Mantine's manual color-scheme override before first paint: the
       // app stores a ThemeToggle choice ("light"/"dark") under this key; with
       // "auto" (or nothing) the CSS prefers-color-scheme rules below decide,
       // matching the app's defaultColorScheme="auto".
+      //
+      // Also colour the status bar to match the launch shell's header (the
+      // app's neutral header composited over the body) — no brand colour.
       (function () {
         try {
           var scheme = localStorage.getItem("mantine-color-scheme-value");
           if (scheme === "light" || scheme === "dark") {
             document.documentElement.setAttribute("data-c2-scheme", scheme);
+          }
+          var prefersDark =
+            window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
+          var dark = scheme === "dark" || (scheme !== "light" && prefersDark);
+          var meta = document.querySelector('meta[name="theme-color"]');
+          if (meta) {
+            meta.setAttribute("content", dark ? "#151516" : "#6C6D70");
           }
         } catch (err) {}
       })();
@@ -74,17 +84,32 @@
         flex-direction: column;
       }
 
-      /* Brand bar — AppShell.Header: brand-7 fill, brand-8 border, 56px +
-         safe-area, "Cloudy2" (Mantine size-lg / weight 700) left, controls
-         right (pin · theme · avatar placeholders). */
+      /* Header bar — AppShell.Header: the app's neutral translucent header
+         composited over the body (medium level), 56px + safe-area, "Cloudy2"
+         (Mantine size-lg / weight 700) left, controls right (pin · theme ·
+         avatar placeholders). Colourless: no brand navy. */
       header {
         height: calc(56px + env(safe-area-inset-top, 0px));
         padding: env(safe-area-inset-top, 0px) 16px 0;
-        background: #0d47a1;
-        border-bottom: 1px solid #0a3a85;
+        background: #6c6d70;
+        border-bottom: 1px solid #5a5b5f;
         display: flex;
         align-items: center;
         justify-content: space-between;
+      }
+      @media (prefers-color-scheme: dark) {
+        header {
+          background: #151516;
+          border-bottom-color: #0c0d0e;
+        }
+      }
+      :root[data-c2-scheme="dark"] header {
+        background: #151516;
+        border-bottom-color: #0c0d0e;
+      }
+      :root[data-c2-scheme="light"] header {
+        background: #6c6d70;
+        border-bottom-color: #5a5b5f;
       }
       header h1 {
         font-size: 1.125rem;
@@ -297,7 +322,7 @@
     <noscript>
       <p style="padding: 24px; text-align: center; color: #b0b0b0">
         Cloudy2 needs JavaScript to load.
-        <a href="/dashboard" style="color: #8ca8e2">Continue</a>.
+        <a href="/dashboard" style="color: #b0b0b0">Continue</a>.
       </p>
     </noscript>
   </body>
