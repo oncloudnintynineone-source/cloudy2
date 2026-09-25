@@ -9132,3 +9132,27 @@ flowchart TD
 
 **Verified**: `pnpm lint`, `pnpm typecheck`, `pnpm test` (1398 pass) — all green;
 `pnpm db:generate` reports no schema changes (meta in sync).
+
+**Follow-up fix (1.280)**: `light-dark()` embedded in the composite custom
+properties `--c2-glass-bg` / `--c2-glass-header-bg` resolved to the **light**
+branch even in dark mode (the sticky chrome, grid headers and bottom nav rendered
+light over a dark body). Replaced with `[data-mantine-color-scheme="dark"]`-scoped
+token values (matching the rest of the codebase) and updated the low-end tint-only
+override likewise. Also re-applied `c2-glass-fab` to the two mobile period-chevron
+`ActionIcon`s, which had lost it during the class rename and reverted to plain
+`variant="default"`.
+
+**Follow-up fix (1.281)**: the dashboard sticky chrome now bleeds its frosted
+background corner-to-corner (negative `margin-inline` + matching `padding-inline`
+on `--app-shell-padding`) so grid content sliding beneath is masked at the side
+gutters, with the tabs/date-nav controls unmoved; `.c2-glass-btn` gained an
+explicit scheme-aware icon colour so the zoom/fullscreen controls
+(`variant="filled"`, white icon) are visible in light mode. Overlays were made
+opaque — the theme-level `Modal`/`Menu`/`Popover`/`Tooltip` glass, the glass modal
+scrim, frosted tooltip, `mantine-Notification-root` frost and the action-pill
+toast frost were all removed; glass now applies to page-level surfaces only.
+
+**Follow-up fix (1.282)**: `.c2-glass-btn` gained
+`box-shadow: var(--mantine-shadow-md)` (matching `.c2-glass-fab`), so the desktop
+chrome buttons and the floating zoom/pan/fullscreen controls lift off the frosted
+surfaces instead of blending into them.

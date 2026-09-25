@@ -878,14 +878,16 @@ html {
 }
 
 /*
-  Global frosted-glass translucency. `.c2-glass-surface` (body-tinted) and
-  `.c2-glass-header` (navy-tinted) are the general overlapping surfaces —
-  header, sticky calendar chrome, bottom nav, settings tabs, sidebar, grid
-  headers, menus and modals. `.c2-glass-fab` is the button form: applied to the
+  Global frosted-glass translucency for PAGE-level surfaces only.
+  `.c2-glass-surface` (body-tinted) and `.c2-glass-header` (navy-tinted) are the
+  general overlapping surfaces — header, sticky calendar chrome, bottom nav,
+  settings tabs, sidebar and grid headers. Overlays (modals, menus, popovers,
+  tooltips, toasts) are deliberately opaque. `.c2-glass-fab` is the button form: applied to the
   Calendar page's bottom-right `[<][>][LINK][CREATE]` row below `lg`
   (DashboardView) and to the floating controls / every page's FAB. Scheme-aware
-  via `light-dark()` like the app's other surfaces; `!important` beats Mantine's
-  runtime-injected variant background/colour/border rules. Tints preserve each
+  through `[data-mantine-color-scheme]`-scoped token values (not `light-dark()`
+  in the composite custom properties — see the token block below); `!important`
+  beats Mantine's runtime-injected variant background/colour/border rules. Tints preserve each
   surface's colour language: neutral surfaces keep the body tone, the header
   keeps navy, amber Quick links (`--accent`), brand-blue New event (`--brand`).
   The backdrop blur lets the content read through, while the blur + shadow keep
@@ -917,15 +919,20 @@ html {
   --c2g-header-l: 0.82;
   --c2g-header-d: 0.72;
   --c2g-blur: blur(14px) saturate(1.5);
-  /* Composite surface tokens every glass surface consumes. */
-  --c2-glass-bg: light-dark(
-    rgba(255, 255, 255, var(--c2g-base-l)),
-    rgba(28, 30, 34, var(--c2g-base-d))
-  );
-  --c2-glass-header-bg: light-dark(
-    rgba(13, 71, 161, var(--c2g-header-l)),
-    rgba(13, 71, 161, var(--c2g-header-d))
-  );
+  /* Composite surface tokens every glass surface consumes. Scheme-specific
+     values are scoped by Mantine's `data-mantine-color-scheme` attribute rather
+     than `light-dark()`: a `light-dark()` embedded in a custom property is only
+     assigned the custom property value when the property is computed — which
+     resolved to the light branch even in dark mode (surfaces rendered light
+     over a dark body). The level modifiers below only set the `--c2g-*` alphas,
+     so they still flow into these `rgba()` tokens. */
+  --c2-glass-bg: rgba(255, 255, 255, var(--c2g-base-l));
+  --c2-glass-header-bg: rgba(13, 71, 161, var(--c2g-header-l));
+}
+
+[data-mantine-color-scheme="dark"] {
+  --c2-glass-bg: rgba(28, 30, 34, var(--c2g-base-d));
+  --c2-glass-header-bg: rgba(13, 71, 161, var(--c2g-header-d));
 }
 
 /* The general body-tinted frosted surface — sticky calendar chrome, bottom
@@ -962,7 +969,14 @@ html {
    `--accent`/`--brand` rules are declared after this one, so they win). */
 .c2-glass-btn {
   background: var(--c2-glass-bg) !important;
+  /* Explicit icon colour: the floating grid controls use `variant="filled"
+     color="gray"`, whose white icon would vanish on the light frosted surface.
+     Brand/accent buttons override this later with their own colour rule. */
+  color: light-dark(var(--mantine-color-gray-8), var(--mantine-color-gray-1)) !important;
   border-color: transparent !important;
+  /* Lift the buttons off the frosted chrome they sit on (same shadow as the
+     round FABs) so they don't blend into it. */
+  box-shadow: var(--mantine-shadow-md);
   -webkit-backdrop-filter: var(--c2g-blur);
   backdrop-filter: var(--c2g-blur);
 }
@@ -1109,11 +1123,13 @@ html {
    compositor cost. */
 .c2-low-end {
   --c2g-blur: none;
-  --c2-glass-bg: light-dark(rgba(255, 255, 255, 0.94), rgba(28, 30, 34, 0.92));
-  --c2-glass-header-bg: light-dark(
-    rgba(13, 71, 161, 0.98),
-    rgba(13, 71, 161, 0.96)
-  );
+  --c2-glass-bg: rgba(255, 255, 255, 0.94);
+  --c2-glass-header-bg: rgba(13, 71, 161, 0.98);
+}
+
+[data-mantine-color-scheme="dark"].c2-low-end {
+  --c2-glass-bg: rgba(28, 30, 34, 0.92);
+  --c2-glass-header-bg: rgba(13, 71, 161, 0.96);
 }
 
 /* Browsers without backdrop-filter: fall back to the opaque surface colours. */
@@ -1133,9 +1149,7 @@ html {
   .c2-glass-surface,
   .c2-glass-header,
   .c2-glass-fab,
-  .c2-glass-btn,
-  .c2-glass-tooltip,
-  .mantine-Notification-root {
+  .c2-glass-btn {
     -webkit-backdrop-filter: none;
     backdrop-filter: none;
   }
@@ -1183,31 +1197,6 @@ html {
   width: 44px;
   height: 44px;
   border-radius: 50%;
-}
-
-/* Modal scrim: a lighter two-tone wash so the page reads through the frosted
-   sheet (the default is a near-opaque dark). */
-.c2-glass-overlay {
-  background: light-dark(
-    color-mix(in srgb, var(--mantine-color-black) 38%, transparent),
-    color-mix(in srgb, var(--mantine-color-black) 52%, transparent)
-  ) !important;
-}
-
-/* Dark frosted tooltip: dark-9 translucent so white tooltip text stays legible
-   (the body-tinted surface would put white text on a light panel). */
-.c2-glass-tooltip {
-  background: rgba(28, 30, 34, var(--c2g-base-d)) !important;
-  -webkit-backdrop-filter: var(--c2g-blur);
-  backdrop-filter: var(--c2g-blur);
-}
-
-/* Mantine toast cards (`@mantine/notifications`, portaled to <body>): frost the
-   card; the variant's coloured rail still carries the success/error language. */
-.mantine-Notification-root {
-  background: var(--c2-glass-bg) !important;
-  -webkit-backdrop-filter: var(--c2g-blur);
-  backdrop-filter: var(--c2g-blur);
 }
 
 /* Centered max-width wrapper for list-style pages (settings, contacts,
@@ -1897,9 +1886,7 @@ html {
 }
 
 .c2-action-pill--toast {
-  background: var(--c2-glass-bg);
-  -webkit-backdrop-filter: var(--c2g-blur);
-  backdrop-filter: var(--c2g-blur);
+  background: var(--mantine-color-body);
   color: var(--mantine-color-text);
   border: 1px solid var(--mantine-color-default-border);
   border-radius: var(--mantine-radius-md);

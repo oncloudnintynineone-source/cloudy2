@@ -175,10 +175,11 @@ string maps to the first tab of that kind.
   chrome (view tabs + date nav) and its inline buttons, the pinned horizontal
   grid headers (Week (H) day strip / hour ruler, Month weekday strip, Week (D)
   day header, Week (Grid) day header + all-day row, Month & Agenda pane header),
-  the floating zoom/pan cluster and fullscreen toggle, menus, popovers, modals
-  and tooltips. The **sticky-left label columns** (resource/hour labels and the
-  Week (Grid) day-header corner) stay opaque so event chips scrolling beside
-  them stay legible. Low-end devices (`c2-low-end`) fall back to tint only, and
+  and the floating zoom/pan cluster and fullscreen toggle. Overlays (modals,
+  menus, popovers, tooltips, toasts) stay **opaque** — only page-level surfaces
+  are translucent. The **sticky-left label columns** (resource/hour labels and
+  the Week (Grid) day-header corner) also stay opaque so event chips scrolling
+  beside them stay legible. Low-end devices (`c2-low-end`) fall back to tint only, and
   the previous glass FAB cluster keeps `c2-glass-fab--accent` / `--brand` to
   preserve its colour language (plus `--teal` for the Parade attendance toggle).
 - **Period preservation on switch** (`switchTab` in `DashboardView.tsx`): a

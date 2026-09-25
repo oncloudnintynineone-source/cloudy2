@@ -18,7 +18,7 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
 
 ## 1.1 Status
 
-- All work through changelog **1.279 (app-wide frosted glass)** is shipped.
+- All work through changelog **1.282 (frosted button shadows)** is shipped.
 - Quality gates (`lint` / `typecheck` / `test` / schema-drift check) run in CI on every
   push and PR. Pushes also auto-apply migrations per environment: `dev` →
   `migrate-preview` against the dev Neon DB, `main` → `migrate` against the prod Neon
@@ -1513,6 +1513,25 @@ via `?attendance=1` and `attendanceStorage` became a `useSyncExternalStore` exte
     (`c2-low-end`) fall back to tint-only. `DASHBOARD_SNAPSHOT_VERSION` bumped 4 → 5 so a
     stale device snapshot (carrying the old field name) is dropped. Docs: `feature-flags.md`,
     `dashboard-views.md` §1.1, `desktop-responsive.md`, `AGENTS.md`.
+- 1.280 Translucency theme fix: the composite `--c2-glass-bg` / `--c2-glass-header-bg`
+    tokens no longer use `light-dark()` inside a custom property (which resolved to the
+    light branch even in dark mode, rendering the sticky chrome / grid headers / bottom nav
+    light over a dark body). Scheme-specific values are now scoped with
+    `[data-mantine-color-scheme="dark"]`, and the low-end tint-only override matches. Also
+    re-applies `c2-glass-fab` to the two mobile period-chevron `ActionIcon`s (dropped during
+    the class rename, so they rendered as plain `variant="default"`).
+- 1.281 Translucency polish: the dashboard sticky chrome now bleeds its frosted
+    background corner-to-corner (negative `margin-inline` + matching `padding-inline` on the
+    shell padding var) so grid content scrolling beneath is masked at the sides, with the
+    tab/date-nav controls unmoved. `.c2-glass-btn` gets an explicit scheme-aware icon colour
+    so the zoom/fullscreen controls (Mantine `variant="filled"`) are visible in light mode.
+    Overlays are now opaque: the theme-level glass on Modal/Menu/Popover/Tooltip is removed,
+    along with the glass modal scrim, frosted tooltip, Mantine notification card and the
+    action-pill toast — glass stays on page-level surfaces only.
+- 1.282 Frosted button shadows: `.c2-glass-btn` gains `box-shadow: var(--mantine-shadow-md)`
+    (matching the round FABs), so the date-nav / filter / date / view-menu buttons, the
+    New-event and Quick-links buttons, and the floating zoom/pan/fullscreen controls lift off
+    the frosted chrome instead of blending into it.
 
 ## 1.4 Open items & next steps
 

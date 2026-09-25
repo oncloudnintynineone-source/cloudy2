@@ -84,11 +84,12 @@ export const translucencyLevelFlag: FeatureFlagDef<TranslucencyLevel> = {
   key: "translucencyLevel",
   label: "Interface translucency",
   description:
-    "Frosted-glass transparency of every surface that overlaps page content — " +
-    "the header, sticky calendar chrome, bottom navigation, buttons, menus and " +
-    "modals. Subtle is more see-through, Strong is nearly solid (each surface " +
-    "keeps its own colour). Low-end devices fall back to a tint without blur. " +
-    "Toggle to compare the levels live, then keep the one you want.",
+    "Frosted-glass transparency of the page's overlapping surfaces — the header, " +
+    "sticky calendar chrome, bottom navigation, sidebar, floating controls and " +
+    "buttons. Subtle is more see-through, Strong is nearly solid (each surface " +
+    "keeps its own colour). Overlays (modals, menus, tooltips, toasts) stay " +
+    "opaque. Low-end devices fall back to a tint without blur. Toggle to compare " +
+    "the levels live, then keep the one you want.",
   options: TRANSLUCENCY_LEVEL_OPTIONS,
   optionLabels: {
     subtle: "Subtle",

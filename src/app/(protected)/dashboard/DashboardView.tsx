@@ -3215,6 +3215,12 @@ function DashboardViewImpl({
           // sticky-left columns and scrollbars reach z-index 20) so grid
           // content sliding beneath never paints over the pinned chrome.
           zIndex: 50,
+          // Bleed the frosted background to the shell's side gutters so grid
+          // content scrolling beneath the pinned chrome is masked/blurred all
+          // the way to the viewport edges. The matching padding-inline keeps
+          // the tabs and date-nav controls at their original inset.
+          marginInline: "calc(-1 * var(--app-shell-padding))",
+          paddingInline: "var(--app-shell-padding)",
           // Immersive pins the chrome at the viewport top. Where the
           // Fullscreen API is unsupported (iOS) the OS status bar is still
           // up — keep the tabs clear of it (0 elsewhere).
@@ -4771,7 +4777,7 @@ function DashboardViewImpl({
               44px circular frosted-glass controls sharing the desktop row's
               view-aware dispatch; the whole mobile cluster is glass. */}
           <ActionIcon
-            className={`c2-glass--${translucencyLevel}`}
+            className={`c2-glass-fab c2-glass--${translucencyLevel}`}
             size={44}
             radius="50%"
             variant="default"
@@ -4781,7 +4787,7 @@ function DashboardViewImpl({
             <IconChevronLeft size={20} />
           </ActionIcon>
           <ActionIcon
-            className={`c2-glass--${translucencyLevel}`}
+            className={`c2-glass-fab c2-glass--${translucencyLevel}`}
             size={44}
             radius="50%"
             variant="default"
