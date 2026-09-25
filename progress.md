@@ -1563,6 +1563,15 @@ via `?attendance=1` and `attendanceStorage` became a `useSyncExternalStore` exte
     surfaces (chrome, bottom nav, sidebar, grid headers, floating controls, FABs). Docs:
     `feature-flags.md`, `AGENTS.md`, `dashboard-views.md` §1.1, `pwa-offline.md`,
     `loading-transitions.md`.
+- 1.287 Month & Agenda layout fixes: the weekday strip is pinned non-shrinkable
+    (`flex-shrink: 0` in `MonthWeekdayStrip`) so the bounded pane's overflowing
+    grid can no longer crush and clip its labels, and the panes now run flush to
+    the viewport bottom — the dual's bounded-height recipe drops the shell/page
+    padding terms and a new `dual-page-pad` class (0 bottom padding at `lg` + a
+    negative bottom margin that reclaims `AppShell.Main`'s padding) keeps the
+    container totalling exactly `100dvh` with no document scroll.
+    `DualPaneSkeleton` mirrors the flush height. Docs:
+    `dashboard-views.md` §1.9, `desktop-responsive.md`.
 
 ## 1.4 Open items & next steps
 

@@ -55,6 +55,14 @@ export function MonthWeekdayStrip({
         paddingBlock: "calc(0.125rem * var(--mantine-scale))",
         borderBottom: "1px solid var(--mantine-color-default-border)",
         overflow: "hidden",
+        // In the Dual Pane's Month column this strip is a flex item, and
+        // `overflow: hidden` nullifies its automatic minimum size — so without
+        // this the pane's scroll box (whose content can exceed the bounded
+        // height) would shrink the strip and clip its labels. Pinning the flex
+        // basis keeps the strip whole; the scroll box absorbs the overflow.
+        // (No effect in the standalone Month view, where the parent is a block.)
+        flexShrink: 0,
+        minHeight: "min-content",
       }}
     >
       <Box

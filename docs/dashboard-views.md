@@ -810,14 +810,18 @@ cover it (Month → Month & Agenda starts today, anchored → Month & Agenda kee
 the anchor day, Month & Agenda → Month keeps the anchor month).
 
 - **Layout & independent scroll.** At `lg` and up the whole view is **bounded to
-  the viewport's remaining height** (the same `--app-shell-vh`/header/footer/
-  padding recipe as `DashboardShellSkeleton`, minus the measured chrome and the
-  Stack gap) and each pane is a fixed-header column with its **own vertical
-  scroll** (`overflow-y: auto` + `overscroll-behavior: contain`), so scrolling
-  one never moves the other. **Both panes' content fills that bounded height**
-  so no blank strip is left at the bottom on a tall desktop: the Agenda card
-  stretches to the pane (a long day list scrolls inside the card, not the pane)
-  and the Month grid's natural week rows grow to fill the pane. The layout key is
+  the viewport's remaining height** (`--app-shell-vh`/header/footer minus the
+  measured chrome and the Stack gap) and each pane is a fixed-header column with
+  its **own vertical scroll** (`overflow-y: auto` + `overscroll-behavior: contain`),
+  so scrolling one never moves the other. The page's own bottom padding is
+  reclaimed (`dual-page-pad`: zero bottom padding + a negative bottom margin that
+  cancels `AppShell.Main`'s padding, symmetric with the Stack's negative top
+  margin), so the bounded container still totals exactly `100dvh` — no document
+  scroll — while the panes run **flush to the viewport bottom** (no blank strip
+  under the agenda card or the month grid). **Both panes' content fills that
+  bounded height**: the Agenda card stretches to the pane (a long day list
+  scrolls inside the card, not the pane) and the Month grid's natural week rows
+  grow to fill the pane on a tall viewport. The layout key is
   the `lg` breakpoint, not the device: a large phone (e.g. an unfolded Fold)
   gets the side-by-side bounded layout too. Below `lg` the Agenda pane is hidden
   — the full-width month grid scrolls with the document and the handle is absent.
@@ -835,7 +839,10 @@ the anchor day, Month & Agenda → Month keeps the anchor month).
   transform can't jitter the fixed controls), the same `monthEvents` ordering
   and `renderMyMonthEvent` highlights. At `lg` the strip is the pane's fixed
   header (`sticky={false}` — the pane is the scroll container, so a
-  chrome-relative `top` would push it down). Also at `lg`, the month's natural
+  chrome-relative `top` would push it down) and is pinned non-shrinkable
+  (`flex-shrink: 0`): as a flex item, `overflow: hidden` would otherwise nullify
+  its automatic minimum size and let the pane's overflow crush and clip the
+  labels. Also at `lg`, the month's natural
   week rows grow to fill the bounded pane: the pane's scroll box is measured and Mantine's
   `--month-view-max-events` gets a fractional override (`52px + N * 24px` per
   row), so the event chips scale with the row while the rendered count stays at

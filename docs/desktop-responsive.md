@@ -223,8 +223,10 @@ The **Month weekday-initials row** is replaced by a pinned `MonthWeekdayStrip`
 content-height `ScrollArea` and scrolls away with the page, so the view passes
 `withWeekDays={false}` and a custom strip pins beneath the chrome. The strip
 **hugs its labels** (`height: auto` + a 2px `paddingBlock` — no fixed 36px box
-wasting a band before the grid) and, in the month view only, the grid wrapper
-cancels the page `Stack` gap (`marginTop: calc(-1 * var(--mantine-spacing-sm))`)
+wasting a band before the grid) and is **non-shrinkable** (`flex-shrink: 0`), so
+when it is the fixed header of the Month & Agenda pane's bounded column the
+pane's overflowing grid can't crush and clip it. In the month view only, the grid
+wrapper cancels the page `Stack` gap (`marginTop: calc(-1 * var(--mantine-spacing-sm))`)
 so the strip **docks flush under the sticky chrome** at rest and on scroll — its
 rest position equals its pinned `top`, so there is no gap at the top of the page
 and no jump when it sticks. The Month grid

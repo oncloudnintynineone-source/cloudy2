@@ -9194,3 +9194,35 @@ outside the `translucencyLevel` system. Related colours: the status bar
 `theme-color` is the static brand `#0D47A1`; the pinned ticker returns to its
 opaque `brand-8` pill (hover `brand-7`, active `brand-9`, no blur); the launch
 shell header is opaque `#0d47a1`. Manifest/offline pages were already brand navy.
+
+## 1.287 Month & Agenda layout fixes
+
+The Month & Agenda pane's weekday strip was clipped and the bounded panes
+stopped short of the viewport bottom. Two fixes.
+
+**Strip clipping.** MonthWeekdayStrip roots a column-flex child of the
+Month pane (DualPaneView) at lg, and that root carries overflow: hidden —
+which per CSS Flexbox nullifies the item's automatic minimum size. With the
+grid's natural height (5 rows x 148px = 740px) exceeding the pane's scroll box
+(~576px at innerHeight 814), the negative free space was shared between the
+scroll box and the strip, so the strip shrank (26px -> ~22px) and clipped its
+labels. The strip root now carries lex-shrink: 0 (+ min-height:
+min-content), so the scroll box absorbs the whole overflow and the labels
+stay whole. No effect in the standalone Month view (block parent) or below
+lg.
+
+**Flush bottom.** The dual's bounded height
+(calc(var(--app-shell-vh) - header - footer - padding - xl - sm - chrome))
+reserved 48px below the container (Main's 16px padding + .fab-page-pad's 32px
+at lg), reading as dead space. The recipe now subtracts only the
+header/footer offsets, the Stack gap and the measured chrome, and the page
+padding is reclaimed by a new dual-page-pad class: below lg it mirrors
+.fab-page-pad (the dual is then the document-scrolling standalone Month view
+with FAB clearance), and at min-width: 40em it becomes padding-bottom: 0;
+margin-bottom: calc(-1 * var(--app-shell-padding)). The negative margin is the
+bottom-symmetric counterpart of the Stack's existing negative top margin, so
+the taller container still totals exactly 100dvh (no document scroll) while
+its bottom edge lands on the viewport bottom. DualPaneSkeleton uses the same
+height so the load swap stays seamless.
+
+Docs: docs/dashboard-views.md §1.9, docs/desktop-responsive.md.

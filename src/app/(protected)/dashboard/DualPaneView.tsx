@@ -389,7 +389,14 @@ export function DualPaneView({
           gap: isDesktop ? 0 : "var(--mantine-spacing-md)",
           ...(isDesktop
             ? {
-                height: `calc(var(--app-shell-vh, 100dvh) - var(--app-shell-header-offset) - var(--app-shell-footer-offset) - var(--app-shell-padding) - var(--mantine-spacing-xl) - var(--mantine-spacing-sm) - ${chromeOffset}px)`,
+                // Bounded to the remaining viewport height, running flush to
+                // the bottom: the page's own bottom padding (Main's + the
+                // `dual-page-pad`) is reclaimed by the Stack's negative bottom
+                // margin, so only the header/footer offsets, the Stack gap and
+                // the measured chrome are subtracted here. The month grid and
+                // agenda card therefore reach the viewport bottom instead of
+                // leaving a blank strip below the panes.
+                height: `calc(var(--app-shell-vh, 100dvh) - var(--app-shell-header-offset) - var(--app-shell-footer-offset) - var(--mantine-spacing-sm) - ${chromeOffset}px)`,
                 overflow: "hidden",
               }
             : null),

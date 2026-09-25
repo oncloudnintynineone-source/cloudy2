@@ -864,6 +864,20 @@ html {
 }
 
 /*
+  Month & Agenda page pad (DashboardView applies it instead of `.fab-page-pad`
+  on the dual tab). Below `lg` the dual is the document-scrolling standalone
+  Month view, so it keeps the same FAB clearance as `.fab-page-pad`. At `lg` the
+  two panes are viewport-bounded and fill to the bottom, so the page bottom
+  padding is dropped AND Main's own bottom padding is reclaimed with a matching
+  negative margin (symmetric with the Stack's negative top margin) — the taller
+  bounded container then still totals exactly `100dvh` (no document scroll) and
+  its bottom edge lands on the viewport bottom. See DualPaneView's height recipe.
+*/
+.dual-page-pad {
+  padding-bottom: calc(var(--app-floating-bottom-offset-immersive) + 65px);
+}
+
+/*
   Week (Grid) page pad (DashboardView applies it instead of `.fab-page-pad` on
   the weekgrid tab). The grid is viewport-bounded and scrolls internally, and
   the mobile FABs may overlay it, so the page reserves no FAB clearance below
@@ -1231,6 +1245,14 @@ html {
      regular xl bottom padding. */
   .fab-page-pad {
     padding-bottom: var(--mantine-spacing-xl);
+  }
+
+  /* Month & Agenda at lg: flush to the viewport bottom. Zero the page bottom
+     padding and pull Main's own bottom padding back with a negative margin so
+     the bounded panes can extend all the way down (see `.dual-page-pad` above). */
+  .dual-page-pad {
+    padding-bottom: 0;
+    margin-bottom: calc(-1 * var(--app-shell-padding));
   }
 
   .weekgrid-page-pad {

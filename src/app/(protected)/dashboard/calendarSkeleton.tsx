@@ -307,7 +307,10 @@ export function DualPaneSkeleton({
         gap: isDesktop ? 0 : "var(--mantine-spacing-md)",
         ...(isDesktop
           ? {
-              height: `calc(var(--app-shell-vh, 100dvh) - var(--app-shell-header-offset) - var(--app-shell-footer-offset) - var(--app-shell-padding) - var(--mantine-spacing-xl) - var(--mantine-spacing-sm) - ${chromeOffset}px)`,
+              // Mirrors DualPaneView: flush to the viewport bottom (the page's
+              // bottom padding is reclaimed by the `dual-page-pad` negative
+              // margin), so the skeleton and the real panes swap seamlessly.
+              height: `calc(var(--app-shell-vh, 100dvh) - var(--app-shell-header-offset) - var(--app-shell-footer-offset) - var(--mantine-spacing-sm) - ${chromeOffset}px)`,
               overflow: "hidden",
             }
           : null),

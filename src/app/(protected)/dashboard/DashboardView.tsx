@@ -3191,10 +3191,20 @@ function DashboardViewImpl({
     // lg (globals.css). The Week (Grid) is the exception: its grid is
     // viewport-bounded and scrolls internally, so it drops that clearance
     // (`weekgrid-page-pad`) and runs flush to the bottom nav, letting the FABs
-    // overlay its bottom-right. Follows the optimistic view so it matches the
-    // skeleton during a tab switch.
+    // overlay its bottom-right. Month & Agenda is the other bounded view: at lg
+    // its panes fill to the viewport bottom (`dual-page-pad`, which also
+    // reclaims Main's bottom padding via a negative margin); below lg it is the
+    // document-scrolling standalone Month view, so it keeps the FAB clearance.
+    // Follows the optimistic view so it matches the skeleton during a tab
+    // switch.
     <Stack
-      className={shownIsGridWeek ? "weekgrid-page-pad" : "fab-page-pad"}
+      className={
+        shownIsGridWeek
+          ? "weekgrid-page-pad"
+          : shownIsDual
+            ? "dual-page-pad"
+            : "fab-page-pad"
+      }
       gap="sm"
       style={{ marginTop: "calc(-1 * var(--app-shell-padding))" }}
     >
