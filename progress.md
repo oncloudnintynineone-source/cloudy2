@@ -18,7 +18,7 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
 
 ## 1.1 Status
 
-- All work through changelog **1.284 (colourless status bar + neutral loading/offline chrome)** is shipped.
+- All work through changelog **1.285 (restore soft brand blue + drop header border)** is shipped.
 - Quality gates (`lint` / `typecheck` / `test` / schema-drift check) run in CI on every
   push and PR. Pushes also auto-apply migrations per environment: `dev` →
   `migrate-preview` against the dev Neon DB, `main` → `migrate` against the prod Neon
@@ -1547,6 +1547,13 @@ via `?attendance=1` and `attendanceStorage` became a `useSyncExternalStore` exte
     pages (`public/offline.html` + the `sw.ts` inline fallback) drop their navy header/button/
     accent for the neutral header tone (scheme-aware, media + `data-c2-scheme`) and greys.
     Docs: `pwa-offline.md`, `loading-transitions.md`.
+- 1.285 Restore brand blue (soft) + drop the header border: the header is brand blue again but
+    at the app-wide translucency alpha (`rgba(13,71,161, var(--c2g-base-*))`) — softened, and
+    it now tracks the `translucencyLevel` flag like every other surface. The status bar
+    (`theme-color` meta, scheme-aware `#698DC5` light / `#173769` dark), manifest `theme_color`
+    (`#0D47A1`), the launch shell (`public/loading.html`) and the offline pages
+    (`public/offline.html` + the `sw.ts` fallback) all go blue again. `HEADER_STYLE` drops its
+    bottom border (`border: "none"`) — the hard dark line under the translucent header is gone.
 
 ## 1.4 Open items & next steps
 

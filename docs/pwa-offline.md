@@ -195,7 +195,7 @@ five view variants (month / week (H) / week (D) matrix / agenda / schedule,
 pre-rendered and selected by `main[data-view]` from the remembered view), the
 same Mantine v9 palette values (light `#fff` body / `#dee2e6` skeletons; dark
 `#242424` / `#424242`), the same skeleton pulse (opacity 0.4 → 1, 1500 ms), the
-same neutral header bar and mobile bottom-nav placeholders, and the manual
+same brand-blue header bar and mobile bottom-nav placeholders, and the manual
 `mantine-color-scheme-value` localStorage override applied pre-paint (matching
 `defaultColorScheme="auto"`). `launchShell.test.ts` guards the variant set, the
 default view, and the scheme override. Known gaps: a configured announcement
@@ -692,7 +692,7 @@ instead of an opaque black/white strip below the app's bottom nav.
 
 **What is (not) controllable.** There is no web API that sets the system bar's
 color or alpha — Chrome/Android own it. `<meta name="theme-color">` (written by
-`SystemBarSync`, set to a neutral tone matching the header — no brand colour)
+`SystemBarSync`, set to the brand-blue header composited over the body)
 only drives the **status bar**; the nav bar follows the page's
 `color-scheme` unless edge-to-edge is active. The only web-side lever is opting
 into **edge-to-edge** via `viewport-fit=cover`, which `src/app/layout.tsx`

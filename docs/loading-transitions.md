@@ -153,7 +153,7 @@ route fallback), `parade-state/paradeStateSkeleton.tsx`,
 The PWA **launch shell** (`public/loading.html`, served unconditionally by the
 service worker for the start URL) mirrors that plain-box route skeleton — one
 neutral full-page loading block with Mantine's exact palette values and pulse,
-neutral header bar, bottom-nav placeholders — so the handoff from the precached
+brand-blue header bar, bottom-nav placeholders — so the handoff from the precached
 shell reads as **one continuous loading surface** whatever page the launch
 resolves to (it cannot know the arriving dashboard tab's kind, and non-dashboard
 targets share the same chrome anyway): it either hands off to the

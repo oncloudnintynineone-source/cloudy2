@@ -170,12 +170,14 @@ const NAVBAR_STYLE: React.CSSProperties = {
 };
 const HEADER_STYLE: React.CSSProperties = {
   viewTransitionName: "c2-shell-header",
-  // Colourless header: neutral dark (the frosted `.c2-glass-header` overrides
-  // the background with the translucency token; this is the opaque fallback and
-  // the safe-area fill). White header chrome is preserved.
-  background: "var(--mantine-color-dark-8)",
-  borderColor: "var(--mantine-color-dark-7)",
-  // The safe-area region stays neutral; the banner + brand bar render below it.
+  // Brand-blue header (the frosted `.c2-glass-header` overrides the background
+  // with the translucency token; this is the opaque fallback and the safe-area
+  // fill). White header chrome is preserved.
+  background: "var(--mantine-color-brand-7)",
+  // No bottom border: the frosted background already separates the header, and
+  // a border read as a hard line against the translucent surface.
+  border: "none",
+  // The safe-area region stays brand blue; the banner + header render below it.
   paddingTop: "env(safe-area-inset-top)",
 };
 

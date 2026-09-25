@@ -170,7 +170,7 @@ string maps to the first tab of that kind.
   `data-c2-glass`, which every glass surface inherits) — see
   [`feature-flags.md`](feature-flags.md).
 - **App-wide frosted glass (`translucencyLevel`).** Beyond the mobile cluster,
-  every surface that overlaps page content is translucent: the header, the
+  every surface that overlaps page content is translucent: the brand-blue header, the
   bottom nav, the settings tab strip, the desktop sidebar, the dashboard sticky
   chrome (view tabs + date nav) and its inline buttons, the pinned horizontal
   grid headers (Week (H) day strip / hour ruler, Month weekday strip, Week (D)

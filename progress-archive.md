@@ -9176,3 +9176,12 @@ manifest `theme_color` is `#111111` (matches the splash). The PWA launch shell
 icon accents for the neutral header tone (scheme-aware via `prefers-color-scheme`
 + `data-c2-scheme`) and neutral greys; the launch shell's status-bar meta is set
 from the resolved scheme in its pre-paint script.
+
+**Follow-up tweak (1.285)**: brand blue was restored, softened. The header is
+brand blue again at the **app-wide** alpha (`rgba(13,71,161, var(--c2g-base-*))`),
+so it tracks `translucencyLevel` like the other surfaces (light composite
+`#698DC5`, dark `#173769`). The status bar (`SystemBarSync` meta), manifest
+`theme_color` (`#0D47A1`), launch shell (`public/loading.html`) and offline pages
+(`public/offline.html` + the `sw.ts` inline fallback) are blue/amber again.
+`HEADER_STYLE` drops its bottom border (`border: "none"`) — the dark line under
+the translucent header is gone.

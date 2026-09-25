@@ -13,10 +13,10 @@ export default function manifest(): MetadataRoute.Manifest {
     // scale-to-zero cold start — matching the offline/dark palette makes the
     // wait read as part of the app rather than a black screen.
     background_color: "#111111",
-    // Neutral dark so the standalone-PWA status bar (and the splash's status
-    // bar) matches the splash body during cold start; the page's scheme-aware
-    // `theme-color` meta then refines it to the app's neutral header tone.
-    theme_color: "#111111",
+    // Brand blue for the standalone-PWA status bar (and the splash's status
+    // bar); the page's scheme-aware `theme-color` meta then refines it to the
+    // brand header composited over the body.
+    theme_color: "#0D47A1",
     icons: [
       {
         src: "/icon.svg",

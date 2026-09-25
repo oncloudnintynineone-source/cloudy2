@@ -298,7 +298,7 @@ html {
   height: calc(1.875rem * var(--mantine-scale));
   padding-inline: var(--mantine-spacing-sm);
   border-radius: var(--mantine-radius-xl);
-  /* Frosted neutral: the header's glass tint is neutral, so the pill reads as
+  /* Frosted brand blue: the header's glass tint is brand blue, so the pill reads as
      a slightly denser panel floating over the grid as it scrolls under. */
   background: color-mix(in srgb, var(--c2-glass-header-bg) 82%, transparent);
   -webkit-backdrop-filter: var(--c2g-blur);
@@ -888,8 +888,9 @@ html {
   through `[data-mantine-color-scheme]`-scoped token values (not `light-dark()`
   in the composite custom properties — see the token block below); `!important`
   beats Mantine's runtime-injected variant background/colour/border rules. Tints preserve each
-  surface's colour language: neutral surfaces keep the body tone, the header is
-  colourless (neutral), amber Quick links (`--accent`), brand-blue New event (`--brand`).
+  surface's colour language: neutral surfaces keep the body tone, the header
+  keeps brand blue (softened at the app-wide alpha), amber Quick links
+  (`--accent`), brand-blue New event (`--brand`).
   The backdrop blur lets the content read through, while the blur + shadow keep
   the controls legible over any content. No border: the frosted edge is carried
   by the shadow alone (a hard ring read as an off outline, especially in dark
@@ -925,15 +926,15 @@ html {
      over a dark body). The level modifiers below only set the `--c2g-*` alphas,
      so they still flow into these `rgba()` tokens. */
   --c2-glass-bg: rgba(255, 255, 255, var(--c2g-base-l));
-  /* Colourless header: a neutral near-black at the same level alpha as every
-     other surface (so the header matches the app-wide translucency), just a
-     shade darker than the body tint. White header chrome is preserved. */
-  --c2-glass-header-bg: rgba(18, 20, 24, var(--c2g-base-l));
+  /* Brand-blue header at the same level alpha as every other surface (so the
+     header tracks the app-wide translucency, softened rather than the old
+     heavier navy). White header chrome is preserved. */
+  --c2-glass-header-bg: rgba(13, 71, 161, var(--c2g-base-l));
 }
 
 [data-mantine-color-scheme="dark"] {
   --c2-glass-bg: rgba(28, 30, 34, var(--c2g-base-d));
-  --c2-glass-header-bg: rgba(8, 9, 11, var(--c2g-base-d));
+  --c2-glass-header-bg: rgba(13, 71, 161, var(--c2g-base-d));
 }
 
 /* The general body-tinted frosted surface — sticky calendar chrome, bottom
@@ -947,7 +948,7 @@ html {
   backdrop-filter: var(--c2g-blur);
 }
 
-/* The colourless (neutral) frosted header — a shade darker than the body. */
+/* The brand-blue frosted header — softened to the app-wide alpha. */
 .c2-glass-header {
   background: var(--c2-glass-header-bg) !important;
   -webkit-backdrop-filter: var(--c2g-blur);
@@ -1121,19 +1122,19 @@ html {
 .c2-low-end {
   --c2g-blur: none;
   --c2-glass-bg: rgba(255, 255, 255, 0.94);
-  --c2-glass-header-bg: rgba(18, 20, 24, 0.94);
+  --c2-glass-header-bg: rgba(13, 71, 161, 0.94);
 }
 
 [data-mantine-color-scheme="dark"].c2-low-end {
   --c2-glass-bg: rgba(28, 30, 34, 0.92);
-  --c2-glass-header-bg: rgba(8, 9, 11, 0.92);
+  --c2-glass-header-bg: rgba(13, 71, 161, 0.92);
 }
 
 /* Browsers without backdrop-filter: fall back to the opaque surface colours. */
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
   :root {
     --c2-glass-bg: var(--mantine-color-body);
-    --c2-glass-header-bg: var(--mantine-color-dark-8);
+    --c2-glass-header-bg: var(--mantine-color-brand-7);
   }
 }
 
@@ -1141,7 +1142,7 @@ html {
 @media (prefers-reduced-transparency: reduce) {
   :root {
     --c2-glass-bg: var(--mantine-color-body);
-    --c2-glass-header-bg: var(--mantine-color-dark-8);
+    --c2-glass-header-bg: var(--mantine-color-brand-7);
   }
   .c2-glass-surface,
   .c2-glass-header,

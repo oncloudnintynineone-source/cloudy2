@@ -33,8 +33,8 @@ export const viewport: Viewport = {
   // React (needed to make Chrome re-read the status bar at cold launch) without
   // detaching a React-metadata-owned node — which crashed React. That
   // component's SSR output is the pre-hydration meta; `manifest.ts`
-  // (`theme_color`) carries the matching neutral dark for the PWA splash/status
-  // bar (the page's scheme-aware meta refines it to the header tone).
+  // (`theme_color`) carries the brand blue for the PWA splash/status bar (the
+  // page's scheme-aware meta refines it to the header tone).
   // The bottom navigation bar is not set here either — it follows the page's
   // `color-scheme` (black in dark mode, white in light), which Mantine resolves
   // per theme.
