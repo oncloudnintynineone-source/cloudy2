@@ -34,7 +34,14 @@ import { PinnedEventsTicker } from "@/components/PinnedEventsTicker";
 import { NavRouteWarmer } from "@/components/NavRouteWarmer";
 import EventSearchModalSkeleton from "@/components/EventSearchModalSkeleton";
 import { ColdStartReadyBar, useColdStartReady } from "@/components/ColdStartReady";
-import { ActivityBar, ActivityProvider, useReportActivity } from "@/components/ActivityBar";
+import {
+  ACTIVITY_MIN_HOLD_MS,
+  ACTIVITY_SHOW_DELAY_MS,
+  ActivityBar,
+  ActivityProvider,
+  useActivityState,
+  useReportActivity,
+} from "@/components/ActivityBar";
 import {
   AnnouncementBanner,
   ShellChromeContext,
@@ -210,6 +217,64 @@ function PendingDim({ busyKey, children }: { busyKey: string; children: React.Re
     <Box style={{ opacity: pending ? 0.55 : 1, transition: `opacity ${MOTION.fade}ms ease` }}>
       {children}
     </Box>
+  );
+}
+
+/**
+ * Header Force refresh control. The refresh glyph rotates while the header's
+ * loading strip is on screen — the generic activity bar (`stripVisible`, after
+ * its show-delay/min-hold) or the cold-start readiness strip (amber `loading`
+ * / green `ready`). Tapping also spins it optimistically from the click, so the
+ * hard-reload path (which unloads the document before the strip's timer can
+ * run) still reads as an immediate action. It reads only the changing half of
+ * the activity context (`useActivityState`), so the bar's visibility flips
+ * never re-render the many `useReportActivity` consumers. Reduced motion leaves
+ * the glyph static (the strip still appears) — the CSS animation is guarded in
+ * `globals.css`.
+ */
+function HeaderRefreshButton({ onRefresh, disabled }: { onRefresh: () => void; disabled: boolean }) {
+  const { stripVisible } = useActivityState();
+  const { phase } = useColdStartReady();
+  const [pressed, setPressed] = useState(false);
+  const pressTimer = useRef<number | null>(null);
+  const active = stripVisible || phase === "loading" || phase === "ready";
+  const spinning = pressed || active;
+
+  // Clear the optimistic window on unmount (the hard-reload path tears the
+  // document down mid-window).
+  useEffect(
+    () => () => {
+      if (pressTimer.current !== null) window.clearTimeout(pressTimer.current);
+    },
+    [],
+  );
+
+  const handleClick = () => {
+    // Spin immediately, then let the real strip/cold-start signal take over. The
+    // window equals the activity bar's own show-delay + min-hold, so it always
+    // covers the hand-off; if the read is faster and no strip ever appears, the
+    // glyph still stops on schedule instead of spinning forever.
+    setPressed(true);
+    if (pressTimer.current !== null) window.clearTimeout(pressTimer.current);
+    pressTimer.current = window.setTimeout(() => {
+      pressTimer.current = null;
+      setPressed(false);
+    }, ACTIVITY_SHOW_DELAY_MS + ACTIVITY_MIN_HOLD_MS);
+    onRefresh();
+  };
+
+  return (
+    <ActionIcon
+      variant="transparent"
+      c="white"
+      size="lg"
+      aria-label="Force refresh"
+      aria-busy={spinning}
+      disabled={disabled}
+      onClick={handleClick}
+    >
+      <IconRefresh size={18} className={spinning ? "c2-icon-spin" : undefined} />
+    </ActionIcon>
   );
 }
 
@@ -1067,16 +1132,10 @@ export function AppShellShell({
                   >
                     <IconSearch size={18} />
                   </ActionIcon>
-                  <ActionIcon
-                    variant="transparent"
-                    c="white"
-                    size="lg"
-                    aria-label="Force refresh"
+                  <HeaderRefreshButton
+                    onRefresh={handleForceRefresh}
                     disabled={isDashboard && !googleConfigured}
-                    onClick={handleForceRefresh}
-                  >
-                    <IconRefresh size={18} />
-                  </ActionIcon>
+                  />
                   <UserMenu name={name} role={role} phone={phone} />
                 </Group>
               </Group>

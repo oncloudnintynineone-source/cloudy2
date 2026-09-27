@@ -30,10 +30,21 @@ import { useColdStartReady } from "@/components/ColdStartReady";
  * - the brief warm-cache window where a view resolves faster than a skeleton
  *   would read.
  *
- * Sources report busy-ness through `useActivity()`'s refcounted `begin`/`end`:
+ * Sources report busy-ness through the refcounted `begin`/`end` controls:
  * `begin(key)` on the rising edge, `end(key)` on settle. Deep/fast sources
  * (a route nav overlapping a mutation refresh) don't fight — the bar shows
  * while *any* key is busy.
+ *
+ * The context is split in two so the many reporters don't pay for the bar's
+ * animation state:
+ *
+ * - `ActivityControlsContext` (`useActivityControls`) carries only `begin`/
+ *   `end`, which never change identity — so a `useReportActivity` consumer
+ *   re-renders only when its own `active` flag flips, never when the bar shows
+ *   or hides.
+ * - `ActivityStateContext` (`useActivityState`) carries the changing half
+ *   (`anyBusy`, `stripVisible`) and is read only by the bar and the header
+ *   refresh icon.
  */
 
 /**
@@ -53,22 +64,46 @@ export const ACTIVITY_SHOW_DELAY_MS = 300;
  */
 export const ACTIVITY_MIN_HOLD_MS = 150;
 
-type ActivityValue = {
+type ActivityControls = {
   /** Marks a named source as busy. Idempotent; safe to call more than once. */
   begin: (key: string) => void;
   /** Marks the named source as idle. Idempotent. */
   end: (key: string) => void;
-  /** True while at least one source is busy (drives the bar itself). */
-  anyBusy: boolean;
 };
 
-const ActivityContext = createContext<ActivityValue | null>(null);
+type ActivityState = {
+  /** True while at least one source is busy. */
+  anyBusy: boolean;
+  /**
+   * True while the bar itself is on screen: a busy source has persisted
+   * `ACTIVITY_SHOW_DELAY_MS` (and, on clear, until `ACTIVITY_MIN_HOLD_MS`
+   * elapses). This is the generic bar alone — the cold-start readiness strip
+   * is a separate phase (`useColdStartReady`); consumers that want "is the
+   * header loading strip showing?" combine both. Only the `ActivityBar` and
+   * the header refresh icon read this.
+   */
+  stripVisible: boolean;
+};
 
-/** Reads the activity controls; throws outside the AppShell provider. */
-export function useActivity(): ActivityValue {
-  const value = useContext(ActivityContext);
+const ActivityControlsContext = createContext<ActivityControls | null>(null);
+const ActivityStateContext = createContext<ActivityState | null>(null);
+
+/** Reads the stable activity controls; throws outside the AppShell provider. */
+export function useActivityControls(): ActivityControls {
+  const value = useContext(ActivityControlsContext);
   if (value === null) {
-    throw new Error("useActivity must be used within the AppShellShell ActivityProvider");
+    throw new Error(
+      "useActivityControls must be used within the AppShellShell ActivityProvider",
+    );
+  }
+  return value;
+}
+
+/** Reads the changing activity state; throws outside the AppShell provider. */
+export function useActivityState(): ActivityState {
+  const value = useContext(ActivityStateContext);
+  if (value === null) {
+    throw new Error("useActivityState must be used within the AppShellShell ActivityProvider");
   }
   return value;
 }
@@ -83,9 +118,12 @@ export function useActivity(): ActivityValue {
  * unmounts while still active. The provider lives in the persistent shell, so a
  * reporter that unmounts mid-load (navigating away from the dashboard while its
  * read is in flight) used to leak its key and leave the bar stuck on forever.
+ *
+ * Only the stable controls context is read, so flipping the bar's visibility
+ * never re-renders a reporter.
  */
 export function useReportActivity(active: boolean, key: string) {
-  const { begin, end } = useActivity();
+  const { begin, end } = useActivityControls();
   useEffect(() => {
     if (!active) return;
     begin(key);
@@ -113,12 +151,21 @@ export function useActivityRefresh(busyKey: string) {
 
 /**
  * Context provider for the activity bar. Mount it once in the shell wrapping
- * every reporter/consumer (pages call `useActivity`); render the `<ActivityBar/>`
- * separately inside the AppShell header so the bar sits flush under it.
+ * every reporter/consumer (pages call `useReportActivity`); render the
+ * `<ActivityBar/>` separately inside the AppShell header so the bar sits flush
+ * under it.
+ *
+ * The provider owns the bar's show-delay / min-hold timer machine so the
+ * resulting `stripVisible` is a single shared source of truth — the bar and the
+ * header refresh icon (which spins exactly while the strip is up) can't drift.
+ * Both timers live in effects, never during render, so SSR is unaffected.
  */
 export function ActivityProvider({ children }: { children: ReactNode }) {
   const counts = useRef<ActivityCounts>({});
   const [anyBusy, setAnyBusy] = useState(false);
+  const [stripVisible, setStripVisible] = useState(false);
+  const showTimer = useRef<number | null>(null);
+  const holdTimer = useRef<number | null>(null);
 
   const begin = useCallback((key: string) => {
     counts.current = beginActivity(counts.current, key);
@@ -130,56 +177,18 @@ export function ActivityProvider({ children }: { children: ReactNode }) {
     setAnyBusy(isActivityBusy(counts.current));
   }, []);
 
-  const value = useMemo(() => ({ begin, end, anyBusy }), [begin, end, anyBusy]);
-
-  return <ActivityContext.Provider value={value}>{children}</ActivityContext.Provider>;
-}
-
-/**
- * The bar itself — mount it inside `AppShell.Header`, flush at its bottom edge
- * (the CSS positions it `absolute; bottom: 0`, so it sits on the header's
- * bottom border with no margin/padding above it). A busy source must persist
- * `ACTIVITY_SHOW_DELAY_MS` before the bar pops in (quick warm loads never
- * show); once busy clears, it lingers a flat `ACTIVITY_MIN_HOLD_MS`, then the
- * class drops and CSS retracts/fades the strip instead of vanishing instantly.
- * Both transitions live in effects (never during render), so SSR renders are
- * unaffected.
- */
-export function ActivityBar() {
-  const { anyBusy: busy } = useActivity();
-  // While the once-per-launch cold-start readiness machine is loading or
-  // confirming, it owns the header's bottom strip (see ColdStartReadyBar) —
-  // suppress the generic bar so two strips never share the same 4px slot. It
-  // resumes normal duty once the machine reaches `done`.
-  const { phase } = useColdStartReady();
-  const [shown, setShown] = useState(false);
-  const showTimer = useRef<number | null>(null);
-  const holdTimer = useRef<number | null>(null);
-  // Render-only gate: while the cold-start machine is loading/confirming it owns
-  // the strip, so a `shown` state that outlived the phase flip stays hidden until
-  // the machine reaches `done` (the timer machine below keeps running underneath
-  // it, so the hand-off is seamless).
-  const visible = shown && phase !== "loading" && phase !== "ready";
-
   useEffect(() => {
-    // Deliberately keyed on `busy`/`shown` only — never on the cold-start
-    // `phase`. The phase only gates *rendering* (`visible` above); the timer
-    // machine keeps running underneath it, so the cold-start → activity
-    // hand-off is seamless. If the phase were a dependency, reaching `done`
-    // would re-run this effect and restart the 300ms show-delay for a source
-    // that had been busy all along — the bar would appear, vanish for the green
-    // ready bar, then pop back in.
-    if (busy) {
+    if (anyBusy) {
       // Rising edge (or busy returning mid-exit): cancel any pending hold and,
       // if the bar isn't shown yet, arm the show-delay timer.
       if (holdTimer.current !== null) {
         window.clearTimeout(holdTimer.current);
         holdTimer.current = null;
       }
-      if (!shown && showTimer.current === null) {
+      if (!stripVisible && showTimer.current === null) {
         showTimer.current = window.setTimeout(() => {
           showTimer.current = null;
-          setShown(true);
+          setStripVisible(true);
         }, ACTIVITY_SHOW_DELAY_MS);
       }
     } else {
@@ -189,10 +198,10 @@ export function ActivityBar() {
         window.clearTimeout(showTimer.current);
         showTimer.current = null;
       }
-      if (shown && holdTimer.current === null) {
+      if (stripVisible && holdTimer.current === null) {
         holdTimer.current = window.setTimeout(() => {
           holdTimer.current = null;
-          setShown(false);
+          setStripVisible(false);
         }, ACTIVITY_MIN_HOLD_MS);
       }
     }
@@ -207,7 +216,37 @@ export function ActivityBar() {
         holdTimer.current = null;
       }
     };
-  }, [busy, shown]);
+  }, [anyBusy, stripVisible]);
+
+  const controls = useMemo(() => ({ begin, end }), [begin, end]);
+  const state = useMemo(() => ({ anyBusy, stripVisible }), [anyBusy, stripVisible]);
+
+  return (
+    <ActivityControlsContext.Provider value={controls}>
+      <ActivityStateContext.Provider value={state}>{children}</ActivityStateContext.Provider>
+    </ActivityControlsContext.Provider>
+  );
+}
+
+/**
+ * The bar itself — mount it inside `AppShell.Header`, flush at its bottom edge
+ * (the CSS positions it `absolute; bottom: 0`, so it sits on the header's
+ * bottom border with no margin/padding above it). The show-delay / min-hold
+ * timing lives in `ActivityProvider`; this component only renders the shared
+ * `stripVisible`.
+ *
+ * While the once-per-launch cold-start readiness machine is loading or
+ * confirming, it owns the header's bottom strip (see `ColdStartReadyBar`) —
+ * suppress the generic bar so two strips never share the same 4px slot. The
+ * suppression is render-only: the provider's timer machine keeps running
+ * underneath, so the cold-start → activity hand-off is seamless (a source busy
+ * through the cold start appears immediately at `done` instead of restarting
+ * its 300 ms show-delay).
+ */
+export function ActivityBar() {
+  const { stripVisible } = useActivityState();
+  const { phase } = useColdStartReady();
+  const visible = stripVisible && phase !== "loading" && phase !== "ready";
 
   return (
     <div

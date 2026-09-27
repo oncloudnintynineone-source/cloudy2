@@ -481,8 +481,13 @@ flowchart LR
 ```
 
 **Sources.** A refcounted `begin(key)`/`end(key)` context
-(`ActivityProvider`/`useActivity`, `src/components/ActivityBar.tsx`) lets
+(`ActivityProvider`, `src/components/ActivityBar.tsx`) lets
 overlapping sources (a route nav mid-refresh) share the bar without fighting.
+The context is split into a **stable controls** half (`useActivityControls`,
+read by every `useReportActivity` reporter — its identity never changes, so the
+bar's visibility flips never re-render those consumers) and a **changing state**
+half (`useActivityState` → `anyBusy`/`stripVisible`, read only by the bar and
+the header refresh icon).
 The refcount arithmetic is the pure `src/lib/ui/activity.ts` (unit-tested), and
 every reporter releases its key in its effect cleanup (`useReportActivity`) — so
 a reporter that unmounts while still active (navigating away from the dashboard
@@ -522,6 +527,22 @@ instantly. It carries `role="progressbar"` (indeterminate — no
 `aria-valuenow`) and is `aria-hidden` while collapsed. Mounted inside
 `AppShell.Header` it is automatically hidden in immersive mode (the header
 itself is `display: none` there).
+
+**Refresh-icon mirror.** The header's Force refresh glyph rotates for exactly as
+long as the header loading strip is on screen — reading the shared
+`stripVisible` (the generic bar, post show-delay/min-hold) plus the cold-start
+phase (`loading`/`ready`, §1.13.1) through `useActivityState`. It is a
+reduced-motion-guarded CSS spin (`.c2-icon-spin`, `globals.css`), so under
+`prefers-reduced-motion: reduce` the glyph stays static and the strip alone
+signals the load. Tapping also spins it **optimistically** from the click
+(local `pressed` state held for the activity bar's own show-delay + min-hold),
+so the hard-reload path — which unloads the document before the strip's timer
+can run — still reads as an immediate action; that window always covers the
+hand-off to the real strip/cold-start signal, and stops the glyph on schedule
+if the read was fast enough that no strip ever appeared. On the
+hard-reload Force refresh path the tapped button unmounts before the strip
+appears; the *reloaded* document's button spins while that document's strip is
+up.
 
 ### 1.13.1 Cold-start readiness
 
@@ -604,7 +625,8 @@ a source already busy through the cold start appears immediately at `done`
 instead of restarting its 300 ms show-delay (which used to make the bar vanish
 for the green confirmation and then pop back in). On entering `ready` the
 shell's polite live region announces *"Calendar up to date"* via `announce()`.
-Immersive mode hides the bar with the header.
+Immersive mode hides the bar with the header. The header refresh glyph spins
+through both this strip's `loading`/`ready` phases (§1.13 refresh-icon mirror).
 
 **Wiring.** `ColdStartReadyProvider` mounts in the (protected) layout around
 `AppShellShell`; the shell consumes it for the two leg fetches and renders
@@ -799,8 +821,8 @@ at hydration.
 | `src/app/(protected)/settings/audit-log/AuditLogRowSkeleton.tsx` | Audit row skeleton (shared) |
 | `src/app/(protected)/dashboard/DashboardView.tsx` | Held loading, reveal fade, one-shot strips (`event`/`edit`/`refresh`), agenda slide, optimistic date-nav chrome (`shown*`, §1.9.2), per-tab load styling (§1.13.2), optimistic tab switch + tab-URL prefetch (§1.10/§1.13.2), WAAPI grid swipe (no forced reflow) |
 | `src/app/(protected)/parade-state/ParadeStateView.tsx` | Month-gated hold |
-| `src/components/AppShellShell.tsx` | Optimistic nav highlight (`tappedHref`) + `PendingDim`/`useLinkStatus` (§1.9.1) |
-| `src/components/ActivityBar.tsx` | ActivityProvider + `useActivity` (refcounted `begin`/`end`), `useReportActivity`, `useActivityRefresh`, `ActivityBar` (300 ms show delay + min hold, indeterminate strip, suppresses itself during the cold-start phases) — §1.13/§1.13.1 |
+| `src/components/AppShellShell.tsx` | Optimistic nav highlight (`tappedHref`) + `PendingDim`/`useLinkStatus` (§1.9.1); own-handler `HeaderRefreshButton` whose glyph spins while the header strip is up (§1.13) |
+| `src/components/ActivityBar.tsx` | `ActivityProvider` + split `useActivityControls` (stable `begin`/`end`) / `useActivityState` (`anyBusy`/`stripVisible`) contexts, `useReportActivity`, `useActivityRefresh`, `ActivityBar` (provider-owned 300 ms show delay + min hold, indeterminate strip, suppresses itself during the cold-start phases) — §1.13/§1.13.1 |
 | `src/lib/ui/activity.ts` | Pure activity refcount (`beginActivity`/`endActivity`/`isActivityBusy`), unit-tested; backs the provider so an unmounting reporter can't leak a key — §1.13 |
 | `src/lib/async.ts` | `mapWithConcurrency` + `withTimeout` (bounds the cold-start legs and the first dashboard read) — §1.13.1 |
 | `src/lib/ui/coldStart.ts` | Pure readiness reducer (`coldStartReducer`), route allowlist + `coldStartRouteRequiresContent`, timing constants (MIN/MAX/dwell/check) — §1.13.1 |

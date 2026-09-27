@@ -353,7 +353,9 @@ doc content here.
   bar** (amber strip + comet head) for post-mutation `router.refresh()` (use
   `useActivityRefresh`, never raw `invalidateCurrentPathCaches().then(…router.refresh())`),
   settings tab flips, and route navs (report via `useReportActivity`; route nav wired via
-  `PendingDim`). It appears only after ~300 ms busy and holds ~150 ms after. The
+  `PendingDim`). It appears only after ~300 ms busy and holds ~150 ms after; the
+  header **Force refresh** icon spins for exactly as long as this strip (or the cold-start
+  strip) is up. The
   **dashboard's** view/date/filter navigations deliberately do **not** report it (those
   update in place with a grid skeleton + the active tab's spinner); only its refreshes
   do (`revalidate({ report: false })` for a filter apply).

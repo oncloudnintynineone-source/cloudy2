@@ -245,6 +245,23 @@ html {
   }
 }
 
+/* Spinning header refresh glyph: the Force refresh icon mirrors the loading
+   strip — it rotates while the generic activity bar or the cold-start strip is
+   visible (see docs/loading-transitions.md §1.13). Under reduced motion the
+   glyph stays static; the strip alone still signals the load. */
+@keyframes c2-icon-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .c2-icon-spin {
+    transform-origin: center;
+    animation: c2-icon-spin 0.9s linear infinite;
+  }
+}
+
 /* Cold-start ready confirmation (docs/loading-transitions.md §1.13.1): the
    once-per-launch bar that takes over the activity bar's slot when the
    cold-start data has fully loaded. Same geometry (4px), filled green and
