@@ -447,7 +447,7 @@ and the non-remounting container means `useContentEnter` never replays.
 | -------- | ------------ | ----------- | ----- |
 | `DashboardView` (week/schedule grid) | `useMinSkeletonHold(isNavigating)` | `useContentEnter(weekBoxRef, …)` | stable `ScrollArea` keeps scroll position; force refresh is a full page reload (route `loading.tsx`), not an in-app transition |
 | `ParadeStateView` | `useMinSkeletonHold(initialMonth !== month)`  | `useContentEnter`  | in-month changes are optimistic — no skeleton |
-| `AuditLogView` | `useMinSkeletonHold(isPending)`  | `useContentEnter`  | filter navigations; no-op guard skips the transition |
+| `AuditLogView` | `useMinSkeletonHold(isPending \|\| liveRefreshing)`  | `useContentEnter`  | filter navigations (no-op guard skips the transition) + the always-fresh live re-read (`useLiveRouteRefresh`, §1.13) |
 | `SettingsForm`, `DepartmentTable`, `ContactList`, `UserTable`, `EventTypeTable`, `TemplatesForm` | — | static `CONTENT_ENTER_CLASS` on the content root | server-rendered pages; the SSR fade plays on first paint |
 | all sixteen route segments | — | `loading.tsx` skeletons | §1.4 table |
 
@@ -493,7 +493,7 @@ a full reload:
 | ------ | ------ |
 | Route `<Link>` navigation | each shell nav/rail/bottom/logo link renders `PendingDim`, which now reports its `useLinkStatus().pending` up via `useReportActivity` |
 | Settings tab flips | `SettingsTabs` wraps `router.push` in `useTransition` and reports `isPending` (tabs are `router.push`, not `<Link>`, so `useLinkStatus` alone can't see them) |
-| In-page view/filter transitions | parade reports the cross-month gate, audit reports its filter `isPending`. The dashboard deliberately does **not** report its view/date/filter navigations — those update in place with a grid skeleton and the active tab's loading bar (§1.13.2), so the bar is reserved for its refreshes |
+| In-page view/filter transitions | parade reports the cross-month gate, audit reports its filter `isPending` and its always-fresh live re-read (`route:live`, `useLiveRouteRefresh`). The dashboard deliberately does **not** report its view/date/filter navigations — those update in place with a grid skeleton and the active tab's loading bar (§1.13.2), so the bar is reserved for its refreshes |
 | Post-mutation refresh | the dashboard's `revalidate()` reports `refreshing` (`dashboard:refresh`) for event create/edit/delete, detail actions and view CRUD — the in-place re-read that has no skeleton. A filter apply calls `revalidate({ report: false })` (a view load, no bar). Settings tables/forms use `useActivityRefresh(busyKey)`, which invalidates the SW caches then calls `router.refresh()` **inside** `useTransition`, so `isPending` stays true until the refreshed RSC payload commits (`router.refresh()` itself is not awaitable) |
 
 **Flicker control.** The bar only appears once a busy source has persisted

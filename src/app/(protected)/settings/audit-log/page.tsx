@@ -77,6 +77,13 @@ export default async function AuditLogPage({ searchParams }: AuditLogPageProps) 
     }),
   );
 
+  // Stamped into the payload so the client can tell a live render from a
+  // cache replay and force one fresh read when needed (`useLiveRouteRefresh`).
+  // Request-scoped and stable for this render; the purity rule cannot tell a
+  // Server Component from a client one.
+  // eslint-disable-next-line react-hooks/purity
+  const renderedAt = Date.now();
+
   return (
     <PageTransition>
       <AuditLogView
@@ -89,6 +96,7 @@ export default async function AuditLogPage({ searchParams }: AuditLogPageProps) 
         actorDepartments={actorDepartments}
         entityTypes={entityTypes}
         retentionDays={settings.auditLogRetentionDays}
+        renderedAt={renderedAt}
       />
     </PageTransition>
   );

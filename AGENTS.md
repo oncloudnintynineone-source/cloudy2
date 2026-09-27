@@ -331,7 +331,10 @@ doc content here.
 - **General tab:** `audit_log_retention_days` (default 90, clamp 7–365). **Security tab:**
   the user **login keyword** (staff-only; admin secrets are env-managed, never in-app).
   **Audit Log:** URL-param filters, keyset pagination, CSV export; rotation is on-read +
-  a manual delete button, no cron. Payloads are flat and human-readable — keep new ones
+  a manual delete button, no cron. It is the one **always-fresh route** — excluded from the
+  PWA SWR caches (`isAlwaysFreshPath`, `swRules.ts`) and self-revalidating in place on entry
+  and on Force refresh (`useLiveRouteRefresh`), so it is never served stale. Payloads are flat
+  and human-readable — keep new ones
   that way. Design: [docs/audit-log.md](docs/audit-log.md).
 - **Event webhooks:** fire-and-forget POST via `after()` after every successful
   create/update/delete — never delays/fails the mutation, no retry queue; payloads come

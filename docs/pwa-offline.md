@@ -219,7 +219,8 @@ is never contacted.
 
 - **Cache:** `app-rsc-swr-v<build>` — same per-build versioning as the document cache (§1.8) — `StaleWhileRevalidate` + `ExpirationPlugin` (64 entries, 30 d).
 - **Matcher:** same-origin `GET` with `RSC: 1` header and `isCacheableRscRequest` (excludes the same prefixes). Covers soft navigations and `<Link>` prefetches (which carry `Next-Router-Prefetch: 1`).
-- **Stored responses:** `shouldStoreRscResponse` — 200 + `text/x-component` + not a login redirect + no one-shot param (`refresh`/`edit`/`event`/`_fresh`), same rationale as §1.5.
+- **Always-fresh routes:** `isAlwaysFreshPath` (`swRules.ts`) additionally excludes routes whose content changes independently of the visiting client — currently only `/settings/audit-log`, a diagnostic stream that gains a row on every mutation anywhere. Both its RSC and document requests fall through to `NetworkOnly`, so they are never served stale; the client also self-revalidates on entry and on Force refresh (`useLiveRouteRefresh`, §1.11). The trade-off is no offline/instant-cached viewing of that one admin page (documented in `docs/audit-log.md` §1.10).
+- **Stored responses:** `shouldStoreRscResponse` — 200 + `text/x-component` + not a login redirect + no one-shot param (`refresh`/`edit`/`event`/`_fresh`) + not an excluded/always-fresh path, same rationale as §1.5.
 - **Offline navigation:** cache hit → instant; miss + offline → navigation fails — Next's transition ends and the chrome reverts (per `docs/loading-transitions.md`), with `OfflineBanner` visible. Month/day changes that are local state (in-month day taps, filter drafts) never need a fetch and keep working.
 - **Same session-expiry guard as documents.**
 
@@ -353,6 +354,14 @@ profile menu (every page):
   `router.replace`s to the clean URL, so later navigations don't keep re-forcing and no
   stale SWR RSC payload can surface for the clean URL. The cached *document* is left
   alone (it powers instant/offline launch, §1.5).
+- **Always-fresh routes take a soft path instead** (`isAlwaysFreshPath`, §1.6): they are
+  never SW-cached, so the `?refresh` nonce is redundant and the full reload would freeze
+  the page through the network render and then re-render once more when the nonce is
+  stripped. For those routes the shell dispatches `LIVE_REFRESH_EVENT`
+  (`src/lib/loading/liveRefreshRules.ts`) and the mounted page re-reads itself in place
+  (`invalidateRscPathCaches` → `router.refresh()` behind its own skeleton,
+  `useLiveRouteRefresh`), reported on the activity bar. The header button therefore
+  refreshes `/settings/audit-log` without a document reload.
 - The old "Saved · HH:MM" freshness indicator (and its freshness state in
   `DashboardView`) has been **removed**; the stamp still drives §1.5's reconcile, and
   the `cloudy2:document-reconciled` event is still dispatched, but nothing renders it.
@@ -371,6 +380,8 @@ profile menu (every page):
 | Launch shell | `/loading.html` (precached; the unconditional answer to `/`, §1.5.1) | `src/app/sw.ts` |
 | Launch whitelist | 9 routes, in the shell's `#c2-launch-routes` JSON (drift-guarded against `BASE_PAGES`/`SETTINGS_SUBTABS`) | `public/loading.html` |
 | Start-URL leniency | `/` + any `utm_*` params counts; hash ignored (§1.5.1) | `src/lib/pwa/swRules.ts` |
+| Always-fresh routes | `/settings/audit-log` — never SW-cached; soft-refreshed in place (§1.6/§1.11) | `src/lib/pwa/swRules.ts` (`isAlwaysFreshPath`) |
+| Live-replay window | 2 s (`LIVE_ROUTE_MAX_AGE_MS`) — an older server payload is a cache replay, re-read live | `src/lib/loading/liveRefreshRules.ts` |
 | Document fresh window | 5 min (`DOCUMENT_FRESH_WINDOW_MS`) — beyond it a cached document reconciles after paint (§1.5) | `src/lib/pwa/swRules.ts` |
 | Inactivity refresh window | 5 min (`INACTIVITY_REFRESH_MS`) — a tab hidden longer refreshes on return (§1.17) | `src/lib/pwa/swRules.ts` |
 | SW update check interval | 15 min (`SW_UPDATE_CHECK_INTERVAL_MS`) — visible-only `GET /api/version` poll (§1.8) | `src/lib/pwa/swRules.ts` |
@@ -385,6 +396,7 @@ Pure logic lives in `src/lib/pwa/swRules.ts` so it is unit-tested without a live
 
 - `isCacheableDocumentRequest(url, origin)`
 - `isCacheableRscRequest(url, origin, headers)`
+- `isAlwaysFreshPath(pathname)` — routes excluded from both page caches (§1.6)
 - `shouldStoreDocumentResponse(check)` / `shouldStoreRscResponse(check)`
 - `isSessionExpiredResponse(check)`
 - `keysForPathname(keys, origin, pathname)`
@@ -437,7 +449,9 @@ sign-out isolation, and the deploy-takeover pill (§1.8).
 | `src/app/api/version/route.ts` | `no-store` `{ version: APP_VERSION }` endpoint the pill compares against (§1.8) |
 | `src/components/AppProviders.tsx` | Session-expiry `message` listener + mounts `SWUpdateNotice` (§1.8) + `useStaleDocumentReconcile` (§1.5) |
 | `src/components/UserMenu.tsx` | Profile menu: theme switcher (light/dark/system rows) + sign-out cache purge |
-| `src/components/AppShellShell.tsx` | Header Force refresh (full reload + `?refresh` nonce, §1.11) + mounts `useOneShotRefreshStrip` (§1.11) |
+| `src/components/AppShellShell.tsx` | Header Force refresh (full reload + `?refresh` nonce, §1.11; soft `LIVE_REFRESH_EVENT` path on always-fresh routes) + mounts `useOneShotRefreshStrip` (§1.11) |
+| `src/lib/loading/liveRefreshRules.ts` | `needsLiveRefresh` + `LIVE_REFRESH_EVENT` — the always-fresh re-read rules (pure) |
+| `src/lib/loading/liveRefresh.ts` | `useLiveRouteRefresh` — always-fresh route revalidation in place (§1.6/§1.11) |
 | `public/offline.html` | Branded offline explainer (precached) — "You're offline" + Try again; no saved-views list (§1.9) |
 | `public/loading.html` | Branded launch shell (precached) — view-aware skeleton mirroring the route skeleton + sr-only status; resolves the remembered page + view from the `cloudy2.ui` cookie and redirects after a presented frame (§1.5.1) |
 | `src/lib/pwa/launchShell.test.ts` | Drift guard for the launch shell's inline copy of the route whitelist / redirect structure / skeleton variants / scheme override, its runtime smoke test under a DOM shim, and the SW launch route's invariants (precached shell, no redirect, no cookie peek) |

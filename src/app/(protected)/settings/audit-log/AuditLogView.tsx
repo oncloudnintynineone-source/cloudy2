@@ -45,6 +45,7 @@ import {
 } from "@/lib/audit/format";
 import type { AuditFilters } from "@/lib/audit/queries";
 import { CONTENT_ENTER_CLASS, useContentEnter } from "@/lib/loading/contentEnter";
+import { useLiveRouteRefresh } from "@/lib/loading/liveRefresh";
 import { type Rect } from "@/lib/motion/origin";
 import { MOTION } from "@/lib/motion/timing";
 import { useMinSkeletonHold } from "@/lib/loading/minHoldLoading";
@@ -78,6 +79,8 @@ interface AuditLogViewProps {
   >;
   entityTypes: string[];
   retentionDays: number;
+  /** Server render time (epoch ms) — gates the always-fresh live re-read. */
+  renderedAt: number;
 }
 
 function dateToInput(date: Date | string | null): string | null {
@@ -109,6 +112,7 @@ export function AuditLogView({
   actorDepartments,
   entityTypes,
   retentionDays,
+  renderedAt,
 }: AuditLogViewProps) {
   const router = useRouter();
   const pathname = usePathname();
@@ -123,7 +127,11 @@ export function AuditLogView({
 
   // Skeleton-only loading: filter changes (URL transitions) show a row-card
   // skeleton with a minimum ~350ms hold, then the list fades in on the reveal.
-  const listLoading = useMinSkeletonHold(isPending);
+  // The always-fresh live re-read — triggered when the payload is a cache
+  // replay, or by the header Force refresh's soft path — shares the skeleton, so
+  // stale rows never paint.
+  const liveRefreshing = useLiveRouteRefresh(renderedAt);
+  const listLoading = useMinSkeletonHold(isPending || liveRefreshing);
   const listRef = useRef<HTMLDivElement | null>(null);
   useContentEnter(listRef, !listLoading);
   // Cold-start readiness: mounts with the route's first (server-rendered) page

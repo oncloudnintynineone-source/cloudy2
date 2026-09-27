@@ -8,6 +8,7 @@ import {
   isCacheableDocumentRequest,
   isDocumentFresh,
   isCacheableRscRequest,
+  isAlwaysFreshPath,
   isPageCacheName,
   isSessionExpiredResponse,
   isStartUrlRequest,
@@ -92,6 +93,21 @@ describe("swRules", () => {
     });
   });
 
+  describe("isAlwaysFreshPath", () => {
+    it("matches the audit log exactly and its subpaths", () => {
+      expect(isAlwaysFreshPath("/settings/audit-log")).toBe(true);
+      expect(isAlwaysFreshPath("/settings/audit-log/")).toBe(true);
+      expect(isAlwaysFreshPath("/settings/audit-log/export")).toBe(true);
+    });
+
+    it("does not match sibling settings tabs or a prefix-lookalike", () => {
+      expect(isAlwaysFreshPath("/settings/audit-log-x")).toBe(false);
+      expect(isAlwaysFreshPath("/settings/users")).toBe(false);
+      expect(isAlwaysFreshPath("/settings")).toBe(false);
+      expect(isAlwaysFreshPath("/dashboard")).toBe(false);
+    });
+  });
+
   describe("isCacheableDocumentRequest", () => {
     it("allows protected pages", () => {
       expect(isCacheableDocumentRequest(new URL(`${ORIGIN}/dashboard`), ORIGIN)).toBe(true);
@@ -112,6 +128,15 @@ describe("swRules", () => {
       );
     });
 
+    it("rejects always-fresh routes (audit log)", () => {
+      expect(isCacheableDocumentRequest(new URL(`${ORIGIN}/settings/audit-log`), ORIGIN)).toBe(
+        false,
+      );
+      expect(
+        isCacheableDocumentRequest(new URL(`${ORIGIN}/settings/audit-log?page=2&actor=Admin`), ORIGIN),
+      ).toBe(false);
+    });
+
     it("rejects cross-origin", () => {
       expect(isCacheableDocumentRequest(new URL("https://evil.com/dashboard"), ORIGIN)).toBe(false);
     });
@@ -129,6 +154,12 @@ describe("swRules", () => {
     it("still excludes login/api/serwist", () => {
       expect(isCacheableRscRequest(new URL(`${ORIGIN}/login`), ORIGIN, h("1"))).toBe(false);
       expect(isCacheableRscRequest(new URL(`${ORIGIN}/api/audit/export`), ORIGIN, h("1"))).toBe(
+        false,
+      );
+    });
+
+    it("still excludes the always-fresh audit route", () => {
+      expect(isCacheableRscRequest(new URL(`${ORIGIN}/settings/audit-log`), ORIGIN, h("1"))).toBe(
         false,
       );
     });
@@ -195,6 +226,18 @@ describe("swRules", () => {
       ).toBe(false);
     });
 
+    it("rejects always-fresh request paths (audit log)", () => {
+      expect(
+        shouldStoreDocumentResponse({
+          status: 200,
+          finalUrl: `${ORIGIN}/settings/audit-log`,
+          requestUrl: `${ORIGIN}/settings/audit-log`,
+          contentType: "text/html",
+          origin: ORIGIN,
+        }),
+      ).toBe(false);
+    });
+
     it("rejects one-shot params (refresh/edit/event/_fresh)", () => {
       for (const query of ["refresh=123", "edit=abc-123", "event=abc-123", "_fresh=1"]) {
         expect(
@@ -253,6 +296,18 @@ describe("swRules", () => {
           status: 200,
           finalUrl: `${ORIGIN}/login`,
           requestUrl: `${ORIGIN}/dashboard`,
+          contentType: "text/x-component",
+          origin: ORIGIN,
+        }),
+      ).toBe(false);
+    });
+
+    it("rejects always-fresh request paths (audit log)", () => {
+      expect(
+        shouldStoreRscResponse({
+          status: 200,
+          finalUrl: `${ORIGIN}/settings/audit-log`,
+          requestUrl: `${ORIGIN}/settings/audit-log`,
           contentType: "text/x-component",
           origin: ORIGIN,
         }),

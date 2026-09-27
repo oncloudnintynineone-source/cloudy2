@@ -64,7 +64,9 @@ import { fetchPinnedEvents, type PinnedEvent } from "@/lib/events/pinned";
 import type { PinnedTickerIndicator, TranslucencyLevel } from "@/lib/settings/featureFlags";
 import type { Rect } from "@/lib/motion/origin";
 import { MOTION } from "@/lib/motion/timing";
+import { LIVE_REFRESH_EVENT } from "@/lib/loading/liveRefreshRules";
 import { useInactivityRefresh, useOneShotRefreshStrip } from "@/lib/pwa/client";
+import { isAlwaysFreshPath } from "@/lib/pwa/swRules";
 import { DESKTOP_MEDIA_QUERY, DESKTOP_WIDE_MEDIA_QUERY, NARROW_MEDIA_QUERY } from "@/lib/theme";
 import { StatusAnnouncer } from "@/lib/ui/announcer";
 import { ImmersiveModeContext, type ImmersiveModeValue } from "@/lib/ui/immersiveMode";
@@ -526,24 +528,35 @@ export function AppShellShell({
     [pinnedOpen, pinnedOriginRect, openPinnedPanel],
   );
 
-  // Header Force refresh: a full document reload to a one-shot `?refresh`
-  // nonce URL that the service worker never caches (ONE_SHOT_PARAMS) — always
-  // a network render; on /dashboard the server parses the nonce and force-reads
-  // Google. `useOneShotRefreshStrip` (below) drops the param right after the
-  // reloaded document mounts. The ref only stops a double-click from
+  // Header Force refresh: normally a full document reload to a one-shot
+  // `?refresh` nonce URL that the service worker never caches (ONE_SHOT_PARAMS)
+  // — always a network render; on /dashboard the server parses the nonce and
+  // force-reads Google. `useOneShotRefreshStrip` (below) drops the param right
+  // after the reloaded document mounts. The ref only stops a double-click from
   // scheduling two navigations. Disabled on the calendar while Google is
   // unconfigured (a forced fetch there would cache empties and blank the grid);
   // everywhere else the nonce URL is never SW-cached, so the reload is a
-  // network-fresh render there too.
+  // network-fresh render there too. Always-fresh routes (the audit log) take the
+  // soft path below instead.
   const isDashboard = pathname === "/dashboard";
   const refreshScheduled = useRef(false);
   const handleForceRefresh = useCallback(() => {
+    // Always-fresh routes (the audit log) are never SW-cached, so they need no
+    // `?refresh` nonce — and a full document reload would freeze the page
+    // through the network render, then re-render once more when
+    // `useOneShotRefreshStrip` strips the nonce. Ask the mounted route to
+    // re-read itself in place instead; it owns the skeleton and the activity
+    // bar reporting (`useLiveRouteRefresh`).
+    if (isAlwaysFreshPath(pathname)) {
+      window.dispatchEvent(new Event(LIVE_REFRESH_EVENT));
+      return;
+    }
     if (refreshScheduled.current) return;
     refreshScheduled.current = true;
     const url = new URL(window.location.href);
     url.searchParams.set("refresh", String(Date.now()));
     window.location.assign(url.toString());
-  }, []);
+  }, [pathname]);
 
   // Header ticker data: the upcoming department-pinned events (titles
   // pre-rendered server-side). Fetched on mount (background, so it never

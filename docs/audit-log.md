@@ -374,6 +374,21 @@ double-quotes fields containing `"`, `,`, `\r`, or `\n` and doubles inner quotes
  The view renders the server-provided page directly — there is no local row
  accumulation, so each navigation (filter change, page change, post-purge
  `router.refresh()`) simply re-renders with the new props behind the skeleton.
+- **Always fresh** ([`pwa-offline.md`](pwa-offline.md) §1.6/§1.11): the audit log
+  is the one route excluded from the PWA SWR document/RSC caches
+  (`isAlwaysFreshPath`, `src/lib/pwa/swRules.ts`) — its rows change with every
+  mutation anywhere, so a cached copy is stale by definition. To also bypass
+  Next's client Router Cache (`staleTimes.dynamic = 120`) and the SW's own
+  revalidation gap, the server page stamps `renderedAt` into the payload and
+  `useLiveRouteRefresh` (`src/lib/loading/liveRefresh.ts`) forces one
+  `invalidateRscPathCaches` → `router.refresh()` when the mounted payload is a
+  cache replay (`needsLiveRefresh`, pure + unit-tested). Entering the page
+  therefore always ends on a network-fresh read behind the list skeleton, with
+  no manual refresh. The header **Force refresh** takes the same soft path on
+  this route (the shell dispatches `LIVE_REFRESH_EVENT` instead of a full
+  document reload + one-shot `?refresh` nonce), so a refresh re-reads in place
+  with the skeleton rather than freezing through a hard navigation and a second
+  render.
 - **Detail modal** (`LogDetailModal`): action label + raw action badge, actor ·
   timestamp, entity, route · method, then the `formatAuditDetails` output.
 
@@ -409,6 +424,9 @@ export route, and the page/client components.
 | `src/lib/audit/export.ts` | CSV builder (pure) |
 | `src/app/api/audit/export/route.ts` | CSV export route |
 | `src/app/(protected)/settings/audit-log/` | Page + `AuditLogView` (incl. the internal `LogDetailModal`) + `AuditLogRowSkeleton` + `loading.tsx` |
+| `src/lib/pwa/swRules.ts` | `isAlwaysFreshPath` — the route's SW cache exclusion |
+| `src/lib/loading/liveRefreshRules.ts` | `needsLiveRefresh` + `LIVE_REFRESH_EVENT` (pure) |
+| `src/lib/loading/liveRefresh.ts` | `useLiveRouteRefresh` — always-fresh client re-read |
 | `src/lib/settings/validate.ts` | Retention bounds + normalization |
 | `src/lib/events/eventAudit.ts` | Event snapshot builders used by the event rows |
 
