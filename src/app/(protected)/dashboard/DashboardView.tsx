@@ -3615,6 +3615,30 @@ function DashboardViewImpl({
             </Menu>
           )}
         </Group>
+
+        {/* Which view am I on (below `lg` only). The tab strip row above is
+            dropped under `lg`, so the active view used to survive only in the
+            view-menu trigger's accessible name and the live-region
+            announcement — announced, never shown. This thin dimmed line names
+            it directly under the nav row, inside the sticky chrome so it
+            rides along with the switch button it describes. It reads
+            `shownTabName` — the account's own view name (never the built-in
+            kind label), from the same optimistic chrome the trigger and the
+            announcement use, so it moves the instant a tab is tapped. It adds
+            ~20px to the measured `chromeHeight`, which is exactly what re-docks
+            the grid's pinned strips below it. Passive: not a control, so it
+            adds no focusable element and nothing to keep in sync. */}
+        <Text
+          hiddenFrom="lg"
+          size="xs"
+          fw={500}
+          c="dimmed"
+          lineClamp={1}
+          title={shownTabName}
+          mt={6}
+        >
+          {shownTabName}
+        </Text>
       </Box>
 
       {currentUserName.trim().length <= 2 && (

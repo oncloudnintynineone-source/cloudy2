@@ -150,8 +150,29 @@ string maps to the first tab of that kind.
   entries (the latter two only for accounts that own stored views). It is
   icon-only: the active view's name rides the button's accessible name
   (`Calendar view: <name>`) and its tooltip, keeping the period label the row's
-  flexible element. At `lg` and up the button is hidden and the strip row
-  returns unchanged.
+  flexible element — the name itself is shown on its own line (see below). At
+  `lg` and up the button is hidden and the strip row returns unchanged.
+- **Mobile view indicator (below `lg`).** Because the strip row is dropped under
+  `lg`, the active view would otherwise be *announced* (the view-menu trigger's
+  accessible name, plus the live region's `"<view> view, <period>"`) but never
+  *shown* — so on a phone nothing on screen said which view you were in. A
+  **thin dimmed text line** (`size="xs"`, `fw={500}`, `c="dimmed"`, `lineClamp={1}`)
+  naming the active view therefore sits **directly under the date-nav row**,
+  inside the sticky chrome (`hiddenFrom="lg"`, so `lg`+ is unchanged — there the
+  active tab's underline says it). It reads **`shownTabName`**, the account's
+  **own view name** (e.g. "Ops Week") and never the built-in kind label
+  (`DASHBOARD_VIEW_KIND_LABELS`), from the same optimistic chrome the trigger
+  and the announcement use — so it moves the instant a tab is tapped, ahead of
+  the grid's data. It is **passive**: not a control, so it adds no focusable
+  element and its `title` is only a hover fallback for a truncated name.
+  Inheriting the chrome's `paddingInline`, it aligns with the period label. It
+  adds ~20px to the chrome's measured `chromeHeight`, which is what re-docks the
+  pinned grid strips (Week (H) day strip / hour rulers, Month weekday strip,
+  Week (D) day header) beneath it — they all take `chromeOffset={chromeHeight}`
+  at every breakpoint — and shortens the bounded Week (Grid) container by the
+  same. It deliberately does **not** surface per-tab load state (see
+  [`loading-transitions.md`](loading-transitions.md) §1.13.2, a `lg`-only
+  affordance).
 - **Mobile period chevrons (below `lg`).** The nav row's prev/next chevrons
   leave the sticky top row and join the **bottom-right FAB cluster** —
   `[<] [>] [LINK] [CREATE]` — so period steps sit in the phone thumb zone
@@ -171,8 +192,9 @@ string maps to the first tab of that kind.
   [`feature-flags.md`](feature-flags.md).
 - **App-wide frosted glass (`translucencyLevel`).** Beyond the mobile cluster,
   the surfaces that overlap page content are translucent: the
-  bottom nav, the settings tab strip, the desktop sidebar, the dashboard sticky
-  chrome (view tabs + date nav) and its inline buttons, the pinned horizontal
+  bottom nav, the settings tab strip, the desktop sidebar,   the dashboard sticky
+  chrome (view tabs + date nav + the mobile view-indicator line) and its inline
+  buttons, the pinned horizontal
   grid headers (Week (H) day strip / hour ruler, Month weekday strip, Week (D)
   day header, Week (Grid) day header + all-day row, Month & Agenda pane header),
   and the floating zoom/pan cluster and fullscreen toggle. The app **header** and

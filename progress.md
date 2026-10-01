@@ -18,7 +18,7 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
 
 ## 1.1 Status
 
-- All work through changelog **1.286 (opaque header)** is shipped.
+- All work through changelog **1.289 (mobile view indicator)** is shipped.
 - Quality gates (`lint` / `typecheck` / `test` / schema-drift check) run in CI on every
   push and PR. Pushes also auto-apply migrations per environment: `dev` →
   `migrate-preview` against the dev Neon DB, `main` → `migrate` against the prod Neon
@@ -1581,8 +1581,18 @@ via `?attendance=1` and `attendanceStorage` became a `useSyncExternalStore` exte
     keeping the opened time unchanged; `--c2-weekgrid-bottom-budget` is now 0 at
     every breakpoint and `.weekgrid-page-pad` drops the page's bottom padding at
     `lg` (with a reclaiming negative margin), so the grid runs flush to the
-    viewport bottom. `WeekGridViewSkeleton` mirrors both. Docs:
+    viewport bottom.     `WeekGridViewSkeleton` mirrors both. Docs:
     `dashboard-views.md` §1.7.
+- 1.289 Mobile view indicator: below `lg` the tab strip row is dropped, so the active
+    view was announced (the view-menu trigger's accessible name + the live region) but
+    never shown. A thin dimmed `text-xs` line naming the active view — the account's
+    **own view name**, never the built-in kind label — now sits under the date-nav row
+    inside the sticky chrome (`hiddenFrom="lg"`), reading the same optimistic
+    `shownTabName` the trigger and the announcement use, so it moves on tap. Passive (no
+    focusable element, no new a11y surface). Costs ~20px of mobile sticky chrome, which
+    `chromeHeight` propagates to every pinned grid strip's `chromeOffset` and to the
+    bounded Week (Grid) container for free. Docs: `dashboard-views.md` §1.1,
+    `accessibility.md` §1.2.
 
 ## 1.4 Open items & next steps
 
