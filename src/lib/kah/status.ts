@@ -354,8 +354,8 @@ export async function overseasEventEntriesInRange(
 
 /**
  * Lean overseas events (no display fields) for the away-set reads — the notify
- * path's `busyKahsIn` and the page's per-day scan both consume this shape.
- * Delegates to `overseasEventEntriesInRange` and drops the extra fields.
+ * path and the page's per-day scan both consume this shape. Delegates to
+ * `overseasEventEntriesInRange` and drops the extra fields.
  */
 export async function overseasEventsInRange(
   windowStart: Date,
@@ -368,26 +368,6 @@ export async function overseasEventsInRange(
     creatorId,
     userIds,
   }));
-}
-
-
-/**
- * KAH members taken "away" (out of country) by overseas events overlapping
- * [windowStart, windowEnd): the tagged attendees of each overseas event join
- * the set — the organizer counts only when they tagged themselves (or the
- * event type hides invitees, which keeps the organizer as the sole attendee).
- * Only events marked overseas make a member away; in-camp and local out-of-camp
- * events never do.
- */
-export async function busyKahsIn(windowStart: Date, windowEnd: Date): Promise<Set<string>> {
-  const events = await overseasEventsInRange(windowStart, windowEnd);
-  const busy = new Set<string>();
-  for (const event of events) {
-    for (const userId of event.userIds) {
-      busy.add(userId);
-    }
-  }
-  return busy;
 }
 
 /** The away set of one scanned day (`YYYY-MM-DD`). */

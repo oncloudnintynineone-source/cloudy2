@@ -372,6 +372,13 @@
       "when": 1790345746591,
       "tag": "0052_rename_translucency_level",
       "breakpoints": true
+    },
+    {
+      "idx": 53,
+      "version": "7",
+      "when": 1790888907898,
+      "tag": "0053_clear_kah_breach_notifications",
+      "breakpoints": true
     }
   ]
 }

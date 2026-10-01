@@ -42,7 +42,7 @@ export type KahBreachCountResult = { ok: true; count: number } | { ok: false; er
  *
  * Uses the same per-day math as the page (`overseasEventsInRange` →
  * `busyDaysInRange` → `kahStatusForWindow` → pure `kahBreachEpisodes`), never
- * the union-only `busyKahsIn`, so the badge can't diverge from the page. A
+ * a union-only shortcut, so the badge can't diverge from the page. A
  * read-only scan over the cached month reads — never writes or audits.
  */
 export async function checkKahBreaches(): Promise<KahBreachCountResult> {

@@ -1,8 +1,15 @@
 /**
- * Pure KAH constraint math: given the enabled groups and the set of member
- * ids that are "away" (tagged on an event overlapping the checked window),
- * decide which groups fall below their required in-country percentage.
+ * Pure KAH constraint math: given the enabled groups, the overseas events
+ * overlapping the checked window, and the tagged attendees of the event being
+ * saved, decide which groups fall below their required in-country percentage.
  * Kept free of I/O so it can be unit-tested without a database.
+ *
+ * Two rules make a mutation a *causal* trigger rather than a blanket rescan:
+ * - The saved event must itself be overseas and tag a member of the group;
+ *   an unrelated (or non-overseas) event can never notify a group.
+ * - Each breach carries the union window of the overseas events that put its
+ *   members away — the stable identity the caller dedups on, so the same
+ *   underlying absence notifies once no matter which event is saved.
  */
 
 /** A group as the check sees it: identity plus membership, already resolved. */
@@ -14,6 +21,16 @@ export interface KahGroupCheck {
   memberIds: string[];
 }
 
+/** An overseas event's effective occupancy and the attendees it takes away. */
+export interface KahAwayEvent {
+  /** Inclusive start of the event's effective (SGT-aligned) occupancy. */
+  start: Date;
+  /** Exclusive end of the effective occupancy window. */
+  end: Date;
+  /** Ids of tagged attendees (the organizer counts only when among them). */
+  userIds: string[];
+}
+
 /** One group below its threshold after an event mutation. */
 export interface KahBreach {
   groupId: string;
@@ -23,6 +40,12 @@ export interface KahBreach {
   totalMembers: number;
   /** Member ids tagged on overlapping events (the away set of this group). */
   awayIds: string[];
+  /**
+   * Union window `[start, end)` of the overseas events that made this group's
+   * members away — the dedup identity (same absence → same window).
+   */
+  awayWindowStart: Date;
+  awayWindowEnd: Date;
 }
 
 /**
@@ -40,14 +63,21 @@ export function inCountryPercentage(totalMembers: number, awayCount: number): nu
 }
 
 /**
- * Groups whose in-country percentage falls below `minPercentage` for the
- * checked window, in input order. Empty groups never breach (a group with no
- * members has no constraint), duplicate member ids are collapsed, and a
- * required percentage is met exactly at equality (breach is strictly below).
+ * Groups the saved event can affect and that end up below `minPercentage` for
+ * the checked window, in input order. A group is only considered when the
+ * saved event tags at least one of its members — an event that takes nobody
+ * away cannot change a group's status, so it must never notify. The away set
+ * is the group's members tagged on any overseas event overlapping the window;
+ * the away window is the union of those events' occupancy, used for dedup.
+ *
+ * Empty groups never breach (a group with no members has no constraint),
+ * duplicate member ids are collapsed, and a required percentage is met exactly
+ * at equality (breach is strictly below).
  */
 export function computeKahBreaches(
   groups: KahGroupCheck[],
-  busyUserIds: ReadonlySet<string>,
+  events: readonly KahAwayEvent[],
+  savedEventUserIds: ReadonlySet<string>,
 ): KahBreach[] {
   const breaches: KahBreach[] = [];
   for (const group of groups) {
@@ -55,18 +85,44 @@ export function computeKahBreaches(
     if (memberIds.length === 0) {
       continue;
     }
-    const awayIds = memberIds.filter((id) => busyUserIds.has(id));
-    const actualPct = inCountryPercentage(memberIds.length, awayIds.length);
-    if (actualPct < group.minPercentage) {
-      breaches.push({
-        groupId: group.id,
-        groupName: group.name,
-        requiredPct: group.minPercentage,
-        actualPct,
-        totalMembers: memberIds.length,
-        awayIds,
-      });
+    // Scope gate: the saved event must take one of this group's members away.
+    if (!memberIds.some((id) => savedEventUserIds.has(id))) {
+      continue;
     }
+    const memberSet = new Set(memberIds);
+    const contributing = events.filter((event) =>
+      event.userIds.some((id) => memberSet.has(id)),
+    );
+    if (contributing.length === 0) {
+      continue;
+    }
+    const awayIds = [...new Set(contributing.flatMap((event) => event.userIds))].filter((id) =>
+      memberSet.has(id),
+    );
+    const actualPct = inCountryPercentage(memberIds.length, awayIds.length);
+    if (actualPct >= group.minPercentage) {
+      continue;
+    }
+    let awayWindowStart = contributing[0].start;
+    let awayWindowEnd = contributing[0].end;
+    for (const event of contributing) {
+      if (event.start < awayWindowStart) {
+        awayWindowStart = event.start;
+      }
+      if (event.end > awayWindowEnd) {
+        awayWindowEnd = event.end;
+      }
+    }
+    breaches.push({
+      groupId: group.id,
+      groupName: group.name,
+      requiredPct: group.minPercentage,
+      actualPct,
+      totalMembers: memberIds.length,
+      awayIds,
+      awayWindowStart,
+      awayWindowEnd,
+    });
   }
   return breaches;
 }

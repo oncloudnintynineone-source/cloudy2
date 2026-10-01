@@ -373,6 +373,8 @@ export async function createEvent(input: EventFormValues): Promise<EventActionRe
     allDay: effectiveInput.timeOption !== "range",
     eventTitle: renderedTitle,
     actor: actorFrom(session),
+    savedEventOverseas: effectiveInput.outOfCamp && effectiveInput.overseas,
+    savedEventUserIds: effectiveInput.inviteeUserIds,
   });
   // Notify everyone newly included in this event as a participant (best-effort
   // Web Push via after(); the organizer/actor is never notified).
@@ -656,6 +658,8 @@ export async function updateEvent(
     allDay: effectiveInput.timeOption !== "range",
     eventTitle: renderedTitle,
     actor: actorFrom(session),
+    savedEventOverseas: effectiveInput.outOfCamp && effectiveInput.overseas,
+    savedEventUserIds: effectiveInput.inviteeUserIds,
   });
   // Notify users newly added as participants by this edit (best-effort Web Push
   // via after(); never the acting user). A no-op participant change resolves to

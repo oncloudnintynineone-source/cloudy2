@@ -43,6 +43,12 @@ legacy events without the overseas flag never make anyone away — the flag is o
 for events recorded as overseas, so legacy data stays in-country by default. Deactivated
 users stop counting even if still listed as members.
 
+The check is **causal**, not a blanket rescan: it is skipped entirely when the saved event
+is not overseas, and a group is only considered when the saved event tags at least one of
+its members. A non-overseas event (or an overseas event that takes nobody away) therefore
+can never affect KAH status or trigger a notification — unrelated event mutations are
+silent.
+
 ## 1.2 Data model
 
 ```mermaid
@@ -93,6 +99,10 @@ Pure helpers in `src/lib/kah/check.ts`:
 - A breach is **strictly below**: meeting the percentage exactly is not a breach
   (3 of 5 members = 60% satisfies a 60% requirement).
 - Empty groups never breach; duplicate member ids collapse.
+- A group is only evaluated when the saved event tags one of its members, and
+  each breach carries the **away window** — the union `[min start, max end)` of
+  the overseas events that put that group's members away — which is the dedup
+  identity (see §1.4).
 
 Validation/normalization for the forms lives in `src/lib/kah/validate.ts`; the email body
 builder in `src/lib/kah/email.ts`. All three modules are pure and unit-tested without a DB.
@@ -111,14 +121,14 @@ sequenceDiagram
  A->>G: invalidateGcalCache (months touched)
  A->>N: register check (window = saved range)
  A-->>U: ok (response never waits for KAH)
- Note over N,M: runs after the response ships, after the invalidation above,<br/>so its reads see the saved copies
+ Note over N,M: skipped unless the saved event is overseas and tags a member;<br/>runs after the response ships, after the invalidation above,<br/>so its reads see the saved copies
  N->>N: listKahGroupChecks (active members only)
- N->>N: busyKahsIn — getCachedMonthEventsForCalendars over all calendars × window months
- N->>N: computeKahBreaches (pure)
- N->>N: dedup — filter breaches already in kah_breach_notifications
+ N->>N: overseasEventsInRange — getCachedMonthEventsForCalendars over all calendars × window months
+ N->>N: computeKahBreaches (pure) — scope-gated to groups the saved event tags
+ N->>N: dedup — filter breaches already in kah_breach_notifications (group × away window × pct)
  alt new breaches exist
  N->>N: logAction(kah.breachNotify) — flat human-readable details
- N->>N: insert dedup rows (group × window × pct)
+ N->>N: insert dedup rows (group × away window × pct)
  N->>N: buildKahBreachEmail (one combined message)
  N->>M: sendNotificationEmail(to=breached members' emails)
  end
@@ -131,10 +141,15 @@ Guarantees:
   the edited event counts with its *new* invitees.
 - Everything inside the check is wrapped in try/catch and logged — a KAH failure can
   never fail the mutation (same philosophy as webhook delivery).
+- The check is **skipped before `after()`** unless the saved event is overseas and tags at
+  least one member, so non-overseas and people-less mutations never even read KAH data.
 - `deleteEvent` skips the check: deleting frees people and cannot cause a breach.
-- **Dedup:** each (group × window × breach-pct) triggers at most one email. A
-  subsequent mutation that doesn't change the breach state is silent. A change in breach
-  percentage (worsening or recovery + re-breach) re-notifies.
+- **Dedup:** each (group × away-window × breach-pct) triggers at most one email. The
+  away window is the union of the overseas events that put the group's members away, so
+  the same underlying absence notifies once regardless of which event was saved (an
+  unrelated overseas event overlapping the same absence is silent). A change in breach
+  percentage (worsening) changes the key and re-notifies; recovery followed by a later
+  re-breach yields a different away window and re-notifies too.
 
 ## 1.5 Email delivery
 
@@ -270,11 +285,11 @@ flowchart LR
   `cloudy2:events-changed`); a missing pill means no breach period in that
   forward window.
 - Shared plumbing lives in `src/lib/kah/status.ts` (`listKahGroupChecks`,
-  `busyKahsIn`, `overseasEventsInRange` + `overseasEventEntriesInRange`,
+  `overseasEventsInRange` + `overseasEventEntriesInRange`,
   `busyDaysInRange`, `kahStatusForWindow`, `kahBreachEpisodes`,
   `dedupeOverseasEventsByGroupId`, `eventsForGroupEpisode`, `memberIdsAwayOnEvent`,
   `kahGroupsForUser`, `userHasKahGroup`, `resolveUserNames`, `isUuid`); the notify
-  path imports `listKahGroupChecks` + `busyKahsIn` from here so the two never
+  path imports `listKahGroupChecks` + `overseasEventsInRange` from here so the two never
   diverge on who counts as a member or away. The pure, client-safe look-ahead
   helpers (`DEFAULT_KAH_RANGE_MONTHS`, `KAH_RANGE_MONTHS`, `kahForwardWindow`,
   `parseKahRange`, `kahRangeLabel`) and the shared view types live in
@@ -295,7 +310,7 @@ flowchart LR
 | `src/lib/kah/email.ts` | Pure template renderer + combined breach-email builder |
 | `src/lib/kah/emailDefaults.ts` | Default subject/body templates shared with the schema defaults |
 | `src/lib/kah/queries.ts` | Group + member reads for the tab |
-| `src/lib/kah/status.ts` | Shared status reads: member groups, `overseasEventsInRange` / `overseasEventEntriesInRange` + `busyKahsIn`, pure `busyDaysInRange`, `kahStatusForWindow`, `kahBreachEpisodes`, `dedupeOverseasEventsByGroupId`, `eventsForGroupEpisode`, `memberIdsAwayOnEvent`, `userHasKahGroup`, `isUuid` session-id guard |
+| `src/lib/kah/status.ts` | Shared status reads: member groups, `overseasEventsInRange` / `overseasEventEntriesInRange`, pure `busyDaysInRange`, `kahStatusForWindow`, `kahBreachEpisodes`, `dedupeOverseasEventsByGroupId`, `eventsForGroupEpisode`, `memberIdsAwayOnEvent`, `userHasKahGroup`, `isUuid` session-id guard |
 | `src/lib/kah/range.ts` | Pure, client-safe look-ahead helpers + shared view types: `DEFAULT_KAH_RANGE_MONTHS` (3), `KAH_RANGE_MONTHS` (3/6/12), `kahForwardWindow`, `parseKahRange`, `kahRangeLabel`, `KahEpisodeRow`, `KahStatusViewData` |
 | `src/lib/kah/viewData.ts` | `buildKahStatusViewData` — the page's forward-window read + breach-card shaping, shared by the initial render and the range-change action |
 | `src/lib/kah/actions.ts` | Audited group CRUD server actions |
@@ -322,9 +337,11 @@ flowchart LR
   computation filters on the overseas notes flag (`eventTakesMembersOverseas`) rather
   than counting every tagged event; if finer rules are needed later, extend that pure
   filter rather than changing `computeKahBreaches`.
-- **Dedup** via `kah_breach_notifications`: each (group × window × breach-pct)
+- **Dedup** via `kah_breach_notifications`: each (group × away-window × breach-pct)
   combination triggers at most one email. The table is append-only during normal
-  operation; rows cascade-delete when a group is removed.
+  operation; rows cascade-delete when a group is removed. A one-off migration
+  (`drizzle/0053_*.sql`) cleared the pre-existing rows, whose keys were scoped to the
+  saved event's window rather than the breach's away window.
 - **Not yet built:** a past-breach history view from `kah_breach_notifications`
   (the email dedup log — a different granularity than the status page's
   forward-looking day-aligned scan).

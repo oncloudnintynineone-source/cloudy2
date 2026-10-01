@@ -557,10 +557,11 @@ export const kahGroupMembers = pgTable(
 );
 
 /**
- * Dedup record for KAH breach notifications: one row per (group × window ×
- * breach-pct) that has already been emailed. Prevents duplicate notifications
- * when the same mutation is re-saved or an edit doesn't change the breach
- * state. Rows cascade-delete when the parent group is removed.
+ * Dedup record for KAH breach notifications: one row per (group × away window
+ * × breach-pct) that has already been emailed. The window is the union of the
+ * overseas events that put the group's members away, so the same underlying
+ * absence notifies once regardless of which event was saved. Rows
+ * cascade-delete when the parent group is removed.
  */
 export const kahBreachNotifications = pgTable(
   "kah_breach_notifications",
