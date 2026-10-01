@@ -4,6 +4,12 @@
  * snapshot + email, and sends through the shared notification transport.
  * Best-effort: a failure is recorded and swallowed, and a failed day is left
  * claimable so a later tick retries.
+ *
+ * The trigger is an in-app lazy tick (`trigger: "opportunistic"`): the first
+ * authenticated activity after the configured cutoff. Its pure window gate runs
+ * before any per-tick database read, and benign skips (before the cutoff, not a
+ * send day, disabled, already sent) are NOT audited — otherwise every app open
+ * would flood the audit log. Only real send outcomes and errors are audited.
  */
 
 import { eq, inArray } from "drizzle-orm";
@@ -18,7 +24,11 @@ import { onlyUuidIds } from "@/lib/uuid";
 
 import { loadParadeSnapshot } from "./context";
 import { buildParadeStateEmail } from "./report";
-import { paradeEmailDate, paradeEmailDue, type ParadeEmailDueReason } from "./schedule";
+import {
+  paradeEmailDate,
+  paradeEmailWindowOpen,
+  type ParadeEmailWindowReason,
+} from "./schedule";
 
 export interface ParadeEmailActor {
   id: string | null;
@@ -27,17 +37,21 @@ export interface ParadeEmailActor {
 }
 
 export interface RunParadeStateEmailInput {
-  trigger: "cron" | "test";
+  trigger: "opportunistic" | "test";
   /** Target date (`YYYY-MM-DD`); defaults to today (UTC+8). */
   date?: string;
   /** Send to these addresses instead of the configured recipients (test). */
   to?: string[];
-  /** Bypass the enabled/time/dedup gates (test sends). */
+  /** Bypass the window/dedup gates (test sends). */
   force?: boolean;
   actor?: ParadeEmailActor;
 }
 
-export type ParadeEmailSkipReason = ParadeEmailDueReason | "no-emails" | "error";
+export type ParadeEmailSkipReason =
+  | ParadeEmailWindowReason
+  | "already-sent"
+  | "no-emails"
+  | "error";
 
 export interface ParadeEmailRunResult {
   sent: boolean;
@@ -108,8 +122,8 @@ async function recordOutcome(
 /**
  * Record one dispatch attempt in the audit log. Every terminal outcome — sent,
  * failed, or skipped — writes a flat row under `paradeState.emailSend` so a
- * silent no-op (disabled, no recipients, already sent, or a swallowed error) is
- * visible after the fact. Best-effort via `logAction` (never throws).
+ * silent no-op is visible after the fact. Best-effort via `logAction` (never
+ * throws).
  */
 async function auditAttempt(
   input: RunParadeStateEmailInput,
@@ -131,7 +145,8 @@ async function auditAttempt(
     action: AUDIT_ACTIONS.paradeStateEmailSend,
     entityType: "paradeStateEmail",
     entityName: date,
-    method: input.trigger === "test" ? "sendParadeStateEmailTest" : "runParadeStateEmail",
+    method:
+      input.trigger === "test" ? "sendParadeStateEmailTest" : "maybeDispatchParadeEmail",
     details: {
       date,
       trigger: input.trigger,
@@ -147,8 +162,25 @@ async function auditAttempt(
 }
 
 /**
- * Run one dispatch attempt. Returns a summary for the caller (the cron route
- * or the "Send Test Now" action). Never throws.
+ * Audit a benign skip, except for the opportunistic trigger: an app open before
+ * the cutoff (or on a non-send day) is a normal no-op and must not write an
+ * audit row on every visit. Test sends and real outcomes are always audited.
+ */
+async function auditSkip(
+  input: RunParadeStateEmailInput,
+  date: string,
+  reason: ParadeEmailSkipReason,
+  recipients: string[] = [],
+): Promise<void> {
+  if (input.trigger === "opportunistic") {
+    return;
+  }
+  await auditAttempt(input, date, "skipped", recipients, { reason });
+}
+
+/**
+ * Run one dispatch attempt. Returns a summary for the caller (the lazy tick or
+ * the "Send Test Now" action). Never throws.
  */
 export async function runParadeStateEmail(
   input: RunParadeStateEmailInput,
@@ -158,28 +190,41 @@ export async function runParadeStateEmail(
 
   try {
     const config = await getSettings();
+
+    // Phase 1: pure window gate. For opportunistic ticks this runs before any
+    // per-tick DB read, so the common "not due yet" case costs almost nothing.
+    if (!input.force) {
+      const window = paradeEmailWindowOpen({
+        enabled: config.paradeEmailEnabled,
+        recipientCount: config.paradeEmailRecipientIds.length,
+        now,
+        sendTime: config.paradeEmailSendTime,
+        days: config.paradeEmailDays,
+      });
+      if (!window.open) {
+        await auditSkip(input, date, window.reason);
+        return { sent: false, skipped: window.reason, date, recipients: 0 };
+      }
+    }
+
+    // Phase 2: resolve recipients (configured ids, or the test override).
     const recipients = input.force
       ? [...new Set((input.to ?? []).map((email) => email.trim()).filter(Boolean))]
       : await resolveRecipientEmails(config.paradeEmailRecipientIds);
 
+    if (recipients.length === 0) {
+      await auditSkip(input, date, "no-emails");
+      return { sent: false, skipped: "no-emails", date, recipients: 0 };
+    }
+
+    // Phase 3: dedup claim (non-force only). A failed day is left claimable so a
+    // later tick retries; a sent day is never retried.
     if (!input.force) {
       const status = await existingSendStatus(date);
-      const due = paradeEmailDue({
-        enabled: config.paradeEmailEnabled,
-        recipientCount: recipients.length,
-        alreadySentToday: status === "sent",
-      });
-      if (!due.due) {
-        await auditAttempt(input, date, "skipped", recipients, { reason: due.reason });
-        return { sent: false, skipped: due.reason, date, recipients: 0 };
-      }
-      if (!(await claimSend(date, recipients.length))) {
-        await auditAttempt(input, date, "skipped", recipients, { reason: "already-sent" });
+      if (status === "sent" || !(await claimSend(date, recipients.length))) {
+        await auditSkip(input, date, "already-sent", recipients);
         return { sent: false, skipped: "already-sent", date, recipients: 0 };
       }
-    } else if (recipients.length === 0) {
-      await auditAttempt(input, date, "skipped", recipients, { reason: "no-emails" });
-      return { sent: false, skipped: "no-emails", date, recipients: 0 };
     }
 
     const snapshot = await loadParadeSnapshot(date);

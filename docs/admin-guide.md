@@ -202,10 +202,13 @@ Design: [`kah.md`](kah.md).
 ## 1.9 Parade State Email
 
 Settings → Parade State Email — email a snapshot of the parade state to selected people
-each weekday at 08:00 (Singapore time).
+once a day. There is no external scheduler: on each selected day, the first time anyone
+uses the app at or after the send time, the email goes out.
 
 - **Enable switch** and **Recipients** (badge picker over active users; their `users.email`
   is used).
+- **Send time (Singapore time)** — the cutoff (`HH:mm`), default 08:00.
+- **Send days** — Mon–Sun checkboxes, default Mon–Fri.
 - **Subject / Body templates** with a live preview. Tokens: `{date}`, `{weekday}`,
   `{present}`, `{total}`, `{outOfCamp}`, `{generatedAt}`, and `{departments}` (the
   per-department roster — required).
@@ -213,8 +216,9 @@ each weekday at 08:00 (Singapore time).
   does not go to the configured recipients.
 - The snapshot is derived from calendar events (a user is **in camp** unless they have an
   out-of-camp event that day), grouped by department; attendance checkmarks are **not**
-  included. The email is sent at most once per weekday; the 08:00 schedule is fixed in
-  Cloud Scheduler (public holidays are not excluded).
+  included. The email is sent at most once per day, on the first app activity at/after the
+  cutoff (public holidays are not excluded). If nobody opens the app that day, no email is
+  sent.
 
 Design: [`parade-state-email.md`](parade-state-email.md).
 

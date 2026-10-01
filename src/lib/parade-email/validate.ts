@@ -6,6 +6,12 @@
 export const PARADE_EMAIL_SUBJECT_MAX_LENGTH = 200;
 export const PARADE_EMAIL_BODY_MAX_LENGTH = 10000;
 
+/** `HH:mm`, 24-hour, Singapore time. */
+export const PARADE_EMAIL_SEND_TIME_PATTERN = /^([01]\d|2[0-3]):[0-5]\d$/;
+
+/** ISO weekdays (1=Mon … 7=Sun) the email may go out on, in display order. */
+export const PARADE_EMAIL_WEEKDAYS = [1, 2, 3, 4, 5, 6, 7] as const;
+
 /** The one load-bearing token: without it the email carries no roster. */
 export const PARADE_EMAIL_BODY_REQUIRED_TOKEN = "{departments}";
 
@@ -23,12 +29,18 @@ export const PARADE_EMAIL_TEMPLATE_PLACEHOLDERS = [
 export interface ParadeEmailFormValues {
   enabled: boolean;
   recipientIds: string[];
+  /** UTC+8 cutoff (`HH:mm`); the lazy trigger fires at/after this. */
+  sendTime: string;
+  /** ISO weekdays (1=Mon … 7=Sun) the email may go out on. */
+  days: number[];
   subjectTemplate: string;
   bodyTemplate: string;
 }
 
 export interface ParadeEmailFormErrors {
   recipientIds?: string;
+  sendTime?: string;
+  days?: string;
   subjectTemplate?: string;
   bodyTemplate?: string;
   [key: string]: string | undefined;
@@ -45,6 +57,17 @@ export function validateParadeEmailForm(values: ParadeEmailFormValues): ParadeEm
 
   if (values.enabled && values.recipientIds.length === 0) {
     errors.recipientIds = "Select at least one recipient";
+  }
+
+  if (values.enabled && values.days.length === 0) {
+    errors.days = "Select at least one day";
+  }
+
+  const sendTime = values.sendTime.trim();
+  if (!sendTime) {
+    errors.sendTime = "Send time is required";
+  } else if (!PARADE_EMAIL_SEND_TIME_PATTERN.test(sendTime)) {
+    errors.sendTime = "Enter a valid time (HH:mm)";
   }
 
   const subject = values.subjectTemplate.trim();

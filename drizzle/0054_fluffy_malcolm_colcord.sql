@@ -1,0 +1,2 @@
+ALTER TABLE "settings" ADD COLUMN "parade_email_send_time" text DEFAULT '08:00' NOT NULL;--> statement-breakpoint
+ALTER TABLE "settings" ADD COLUMN "parade_email_days" jsonb DEFAULT '[1,2,3,4,5]'::jsonb NOT NULL;

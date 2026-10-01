@@ -156,17 +156,22 @@ string maps to the first tab of that kind.
   `lg`, the active view would otherwise be *announced* (the view-menu trigger's
   accessible name, plus the live region's `"<view> view, <period>"`) but never
   *shown* — so on a phone nothing on screen said which view you were in. A
-  **thin dimmed text line** (`size="xs"`, `fw={500}`, `c="dimmed"`, `lineClamp={1}`)
-  naming the active view therefore sits **directly under the date-nav row**,
-  inside the sticky chrome (`hiddenFrom="lg"`, so `lg`+ is unchanged — there the
-  active tab's underline says it). It reads **`shownTabName`**, the account's
+  **thin dimmed text line** (`size="xs"`, `fw={500}`, `c="dimmed"`, `ta="center"`,
+  `lineClamp={1}`) naming the active view therefore sits **directly under the
+  date-nav row** with **no top margin**, inside the sticky chrome
+  (`hiddenFrom="lg"`, so `lg`+ is unchanged — there the active tab's underline
+  says it). It is **centered** on
+  the screen, and the chrome's own bottom padding is trimmed below `lg`
+  (`var(--mantine-spacing-xs)` → `calc(0.125rem * var(--mantine-scale))`) so the
+  line tucks against the grid; `lg`+ keeps the full padding under the date-nav
+  row. It reads **`shownTabName`**, the account's
   **own view name** (e.g. "Ops Week") and never the built-in kind label
   (`DASHBOARD_VIEW_KIND_LABELS`), from the same optimistic chrome the trigger
   and the announcement use — so it moves the instant a tab is tapped, ahead of
   the grid's data. It is **passive**: not a control, so it adds no focusable
   element and its `title` is only a hover fallback for a truncated name.
   Inheriting the chrome's `paddingInline`, it aligns with the period label. It
-  adds ~20px to the chrome's measured `chromeHeight`, which is what re-docks the
+  adds ~17px to the chrome's measured `chromeHeight`, which is what re-docks the
   pinned grid strips (Week (H) day strip / hour rulers, Month weekday strip,
   Week (D) day header) beneath it — they all take `chromeOffset={chromeHeight}`
   at every breakpoint — and shortens the bounded Week (Grid) container by the

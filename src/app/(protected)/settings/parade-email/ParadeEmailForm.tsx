@@ -1,7 +1,19 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Box, Button, Group, Paper, Stack, Switch, Text, Textarea, TextInput } from "@mantine/core";
+import {
+  Box,
+  Button,
+  Checkbox,
+  Group,
+  Paper,
+  Stack,
+  Switch,
+  Text,
+  Textarea,
+  TextInput,
+} from "@mantine/core";
+import { TimeInput } from "@mantine/dates";
 import { useForm } from "@mantine/form";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
@@ -9,6 +21,7 @@ import { notifications } from "@mantine/notifications";
 import { useActivityRefresh } from "@/components/ActivityBar";
 import { PickerField, type PickerBadgeItem } from "@/components/PickerField";
 import { UserSelectModal } from "@/components/UserSelectModal";
+import { WEEKDAY_ABBREVIATIONS } from "@/lib/events/datetime";
 import { renderTemplate } from "@/lib/email/template";
 import { CONTENT_ENTER_CLASS } from "@/lib/loading/contentEnter";
 import {
@@ -22,6 +35,7 @@ import {
   PARADE_EMAIL_BODY_REQUIRED_TOKEN,
   PARADE_EMAIL_SUBJECT_MAX_LENGTH,
   PARADE_EMAIL_TEMPLATE_PLACEHOLDERS,
+  PARADE_EMAIL_WEEKDAYS,
   validateParadeEmailForm,
   type ParadeEmailFormValues,
 } from "@/lib/parade-email/validate";
@@ -102,8 +116,8 @@ export function ParadeEmailForm({ pickerUsers, currentUserId, initial }: ParadeE
       <form onSubmit={onSubmit}>
         <Stack gap="md">
           <Switch
-            label="Send weekday parade-state email"
-            description="Each weekday at 08:00 (Singapore time), the selected recipients receive a snapshot of the parade state. Users without an email address on their profile are skipped."
+            label="Send parade-state email"
+            description="On each selected day, the first time anyone uses the app at or after the send time, the selected recipients receive a snapshot of the parade state. Users without an email address on their profile are skipped."
             {...form.getInputProps("enabled", { type: "checkbox" })}
           />
 
@@ -127,10 +141,25 @@ export function ParadeEmailForm({ pickerUsers, currentUserId, initial }: ParadeE
             )}
           </Stack>
 
-          <Text size="sm" c="dimmed">
-            Sends on weekdays at 08:00 (Singapore time). The schedule is managed by Cloud Scheduler;
-            public holidays are not excluded.
-          </Text>
+          <TimeInput
+            label="Send time (Singapore time)"
+            description="The email goes out on the first app activity at or after this time."
+            {...form.getInputProps("sendTime")}
+          />
+
+          <Checkbox.Group
+            label="Send days"
+            description="Public holidays are not excluded."
+            value={form.values.days.map(String)}
+            onChange={(values) => form.setFieldValue("days", values.map(Number))}
+            error={form.errors.days}
+          >
+            <Group gap="md" mt={6}>
+              {PARADE_EMAIL_WEEKDAYS.map((day, index) => (
+                <Checkbox key={day} value={String(day)} label={WEEKDAY_ABBREVIATIONS[index]} />
+              ))}
+            </Group>
+          </Checkbox.Group>
 
           <TextInput
             label="Subject template"

@@ -18,7 +18,7 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
 
 ## 1.1 Status
 
-- All work through changelog **1.289 (mobile view indicator)** is shipped.
+- All work through changelog **1.291 (mobile view indicator polish)** is shipped.
 - Quality gates (`lint` / `typecheck` / `test` / schema-drift check) run in CI on every
   push and PR. Pushes also auto-apply migrations per environment: `dev` →
   `migrate-preview` against the dev Neon DB, `main` → `migrate` against the prod Neon
@@ -1593,6 +1593,20 @@ via `?attendance=1` and `attendanceStorage` became a `useSyncExternalStore` exte
     `chromeHeight` propagates to every pinned grid strip's `chromeOffset` and to the
     bounded Week (Grid) container for free. Docs: `dashboard-views.md` §1.1,
     `accessibility.md` §1.2.
+- 1.290 Parade-state email lazy trigger: the external Cloud Scheduler job and the
+    `CRON_SECRET`-protected route are gone. Admins set a **send time** (`HH:mm`, UTC+8,
+    default 08:00) and **send days** (ISO weekdays, default Mon–Fri) on the settings tab;
+    a lazy in-app tick (`useParadeEmailTick` → `maybeDispatchParadeEmail`, `after()`)
+    fires on the first authenticated activity at/after the cutoff and claims the day via
+    the unique `send_date`. The pure window gate runs before any per-tick DB read, and
+    benign opportunistic skips are no longer audited. Docs: `parade-state-email.md`
+    §1.1/§1.4/§1.5/§1.6, `developer-guide.md` §1.9.1.
+- 1.291 Mobile view indicator polish: the below-`lg` view-name line is now
+    **centered** (`ta="center"`), has its top margin removed (flush under the
+    date-nav row) and the sticky chrome's bottom padding is trimmed on phones
+    (`var(--mantine-spacing-xs)` → `calc(0.125rem * var(--mantine-scale))`;
+    `lg`+ unchanged) so the line tucks against the grid. Docs:
+    `dashboard-views.md` §1.1.
 
 ## 1.4 Open items & next steps
 

@@ -1,42 +1,85 @@
 import { describe, expect, it } from "vitest";
 
-import { paradeEmailDate, paradeEmailDue } from "./schedule";
+import {
+  paradeEmailDate,
+  paradeEmailNow,
+  paradeEmailWindowOpen,
+  parseSendTime,
+  type ParadeEmailWindowInput,
+} from "./schedule";
 
-const base = {
+// UTC+8 fixed: 2026-09-14 is a Monday, 2026-09-19 a Saturday.
+const MONDAY_0900 = new Date("2026-09-14T01:00:00Z"); // 09:00 UTC+8
+const MONDAY_0759 = new Date("2026-09-13T23:59:00Z"); // 07:59 UTC+8
+const SATURDAY_0900 = new Date("2026-09-19T01:00:00Z"); // 09:00 UTC+8
+
+const base: ParadeEmailWindowInput = {
   enabled: true,
   recipientCount: 2,
-  alreadySentToday: false,
+  now: MONDAY_0900,
+  sendTime: "08:00",
+  days: [1, 2, 3, 4, 5],
 };
+
+describe("paradeEmailNow", () => {
+  it("reads the UTC+8 date, ISO weekday, and minutes across a UTC boundary", () => {
+    expect(paradeEmailNow(new Date("2026-09-13T23:00:00Z"))).toEqual({
+      date: "2026-09-14",
+      weekday: 1,
+      minutes: 7 * 60,
+    });
+  });
+});
 
 describe("paradeEmailDate", () => {
   it("resolves the UTC+8 calendar date across a UTC boundary", () => {
-    // 2026-09-12T23:00:00Z is 2026-09-13 07:00 in UTC+8.
     expect(paradeEmailDate(new Date("2026-09-12T23:00:00Z"))).toBe("2026-09-13");
   });
 });
 
-describe("paradeEmailDue", () => {
-  it("is due when enabled, has recipients, and hasn't sent today", () => {
-    expect(paradeEmailDue(base)).toEqual({ due: true });
+describe("parseSendTime", () => {
+  it("parses HH:mm to minutes since midnight", () => {
+    expect(parseSendTime("08:00")).toBe(480);
+    expect(parseSendTime("8:05")).toBe(485);
+    expect(parseSendTime("23:59")).toBe(1439);
   });
 
-  it("is not due when already sent today", () => {
-    expect(paradeEmailDue({ ...base, alreadySentToday: true })).toEqual({
-      due: false,
-      reason: "already-sent",
+  it("falls back to 08:00 for malformed or out-of-range values", () => {
+    expect(parseSendTime("nonsense")).toBe(480);
+    expect(parseSendTime("24:00")).toBe(480);
+    expect(parseSendTime("08:60")).toBe(480);
+  });
+});
+
+describe("paradeEmailWindowOpen", () => {
+  it("is open on a send day at/after the cutoff with recipients", () => {
+    expect(paradeEmailWindowOpen(base)).toEqual({ open: true });
+  });
+
+  it("is closed before the cutoff", () => {
+    expect(paradeEmailWindowOpen({ ...base, now: MONDAY_0759 })).toEqual({
+      open: false,
+      reason: "before-time",
     });
   });
 
-  it("is not due when disabled", () => {
-    expect(paradeEmailDue({ ...base, enabled: false })).toEqual({
-      due: false,
+  it("is closed on a day not in the configured set", () => {
+    expect(paradeEmailWindowOpen({ ...base, now: SATURDAY_0900 })).toEqual({
+      open: false,
+      reason: "not-a-send-day",
+    });
+  });
+
+  it("is closed when disabled", () => {
+    expect(paradeEmailWindowOpen({ ...base, enabled: false })).toEqual({
+      open: false,
       reason: "disabled",
     });
   });
 
-  it("is not due without recipients", () => {
-    expect(paradeEmailDue({ ...base, recipientCount: 0 })).toEqual({
-      due: false,
+  it("is closed without configured recipients", () => {
+    expect(paradeEmailWindowOpen({ ...base, recipientCount: 0 })).toEqual({
+      open: false,
       reason: "no-recipients",
     });
   });

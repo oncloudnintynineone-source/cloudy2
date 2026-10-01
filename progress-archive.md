@@ -9256,3 +9256,36 @@ bottom. WeekGridViewSkeleton mirrors the branch, the top padding and the
 budget so the load swap stays seamless. Mobile is unchanged.
 
 Docs: docs/dashboard-views.md 1.7.
+
+## 1.290 Parade-state email lazy trigger
+
+The daily parade-state email no longer depends on an external scheduler. The Cloud
+Scheduler job, the `CRON_SECRET` env var, and the `/api/cron/parade-state-email` route are
+gone; the app now triggers the send itself.
+
+**Configurable schedule.** Two new `settings` columns (migration `0054`):
+`parade_email_send_time` (`HH:mm`, UTC+8, default 08:00) and `parade_email_days` (ISO
+weekdays, default `[1,2,3,4,5]`). Settings → Parade State Email gains a `TimeInput` and a
+Mon–Sun checkbox group; `validateParadeEmailForm` requires a valid time and at least one
+day while enabled, and `getSettings` normalizes malformed stored values back to defaults.
+
+**Pure gate.** `paradeEmailWindowOpen` (`schedule.ts`) replaces the old `paradeEmailDue`:
+it reads the instant as a UTC+8 date/weekday/minutes (`paradeEmailNow`) and returns closed
+with `disabled` / `no-recipients` / `not-a-send-day` / `before-time`. It runs in the
+dispatcher before any per-tick DB read, so the common "before the cutoff" tick costs
+almost nothing.
+
+**Lazy trigger.** `useParadeEmailTick` (`client.ts`) is mounted in the protected shell; it
+calls the `maybeDispatchParadeEmail` server action ~3s after mount and on every
+return-from-background (focus / visibility), throttled to once per 5 minutes per document
+and skipped offline. The action requires a session and hands the dispatch to `after()`.
+The unique `parade_email_sends.send_date` still makes concurrent opens safe.
+
+**Audit policy.** Benign opportunistic skips are no longer audited — otherwise every app
+open before the cutoff would flood the audit log. Real `sent`/`failed`/error outcomes
+still write one `paradeState.emailSend` row; the admin test action is audited as before.
+
+**Trade-off.** A day with zero app usage gets no email (no external fallback). Accepted;
+the send happens on the first activity after the cutoff.
+
+Docs: `docs/parade-state-email.md` §1.1/§1.4/§1.5/§1.6, `docs/developer-guide.md` §1.9.1.

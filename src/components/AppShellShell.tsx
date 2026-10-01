@@ -73,6 +73,7 @@ import type { Rect } from "@/lib/motion/origin";
 import { MOTION } from "@/lib/motion/timing";
 import { LIVE_REFRESH_EVENT } from "@/lib/loading/liveRefreshRules";
 import { useInactivityRefresh, useOneShotRefreshStrip } from "@/lib/pwa/client";
+import { useParadeEmailTick } from "@/lib/parade-email/client";
 import { isAlwaysFreshPath } from "@/lib/pwa/swRules";
 import { DESKTOP_MEDIA_QUERY, DESKTOP_WIDE_MEDIA_QUERY, NARROW_MEDIA_QUERY } from "@/lib/theme";
 import { StatusAnnouncer } from "@/lib/ui/announcer";
@@ -491,6 +492,12 @@ export function AppShellShell({
   // returned pending flag reports the forced refresh on the activity bar
   // (see InactivityActivityReporter below).
   const inactivityPending = useInactivityRefresh();
+
+  // Lazy trigger for the daily parade-state email: the first authenticated
+  // activity after the configured cutoff fires the send (see
+  // docs/parade-state-email.md). Fire-and-forget; the server action is
+  // idempotent and never blocks the shell.
+  useParadeEmailTick();
 
   // Cold-start readiness: the shell's two mount fetches (pinned events, clash
   // count) are the client-side tail of a fresh load — the readiness indicator

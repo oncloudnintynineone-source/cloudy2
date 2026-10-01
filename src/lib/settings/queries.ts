@@ -18,6 +18,11 @@ import {
   PARADE_EMAIL_BODY_TEMPLATE_DEFAULT,
   PARADE_EMAIL_SUBJECT_TEMPLATE_DEFAULT,
 } from "@/lib/parade-email/emailDefaults";
+import {
+  PARADE_EMAIL_DEFAULT_DAYS,
+  PARADE_EMAIL_DEFAULT_SEND_TIME,
+} from "@/lib/parade-email/schedule";
+import { PARADE_EMAIL_SEND_TIME_PATTERN } from "@/lib/parade-email/validate";
 import { sanitizeTitleRecipe, type TitleRecipe } from "@/lib/settings/titleRecipe";
 import { normalizeFeatureFlags, type FeatureFlagKey } from "@/lib/settings/featureFlags";
 import {
@@ -56,6 +61,10 @@ export interface SettingsView {
   /** Daily parade-state email config (Settings → Parade State Email). */
   paradeEmailEnabled: boolean;
   paradeEmailRecipientIds: string[];
+  /** UTC+8 cutoff (`HH:mm`) after which the lazy trigger may send. */
+  paradeEmailSendTime: string;
+  /** ISO weekdays (1=Mon … 7=Sun) the email may go out on. */
+  paradeEmailDays: number[];
   paradeEmailSubjectTemplate: string;
   paradeEmailBodyTemplate: string;
   /** Feature-flag values (Settings → Feature Flags), resolved per the registry. */
@@ -68,6 +77,20 @@ function normalizeIdArray(value: unknown): string[] {
     return [];
   }
   return value.filter((id): id is string => typeof id === "string");
+}
+
+/** Coerce a jsonb value to a sorted, unique ISO-weekday array (1–7); empty → default Mon–Fri. */
+function normalizeWeekdays(value: unknown): number[] {
+  const days = Array.isArray(value)
+    ? [...new Set(value.filter((day): day is number => Number.isInteger(day) && day >= 1 && day <= 7))]
+    : [];
+  return days.length > 0 ? days.sort((a, b) => a - b) : [...PARADE_EMAIL_DEFAULT_DAYS];
+}
+
+/** Coerce a stored send time to a valid `HH:mm`, falling back to the default. */
+function normalizeSendTime(value: unknown): string {
+  const time = typeof value === "string" ? value.trim() : "";
+  return PARADE_EMAIL_SEND_TIME_PATTERN.test(time) ? time : PARADE_EMAIL_DEFAULT_SEND_TIME;
 }
 
 /**
@@ -113,6 +136,8 @@ export async function getSettings(): Promise<SettingsView> {
     kahEmailBodyTemplate: row?.kahEmailBodyTemplate?.trim() || KAH_EMAIL_BODY_TEMPLATE_DEFAULT,
     paradeEmailEnabled: row?.paradeEmailEnabled ?? false,
     paradeEmailRecipientIds: normalizeIdArray(row?.paradeEmailRecipientIds),
+    paradeEmailSendTime: normalizeSendTime(row?.paradeEmailSendTime),
+    paradeEmailDays: normalizeWeekdays(row?.paradeEmailDays),
     paradeEmailSubjectTemplate:
       row?.paradeEmailSubjectTemplate?.trim() || PARADE_EMAIL_SUBJECT_TEMPLATE_DEFAULT,
     paradeEmailBodyTemplate:

@@ -3269,7 +3269,12 @@ function DashboardViewImpl({
           // Fullscreen API is unsupported (iOS) the OS status bar is still
           // up — keep the tabs clear of it (0 elsewhere).
           paddingTop: immersiveMode.active ? "env(safe-area-inset-top)" : undefined,
-          paddingBottom: "var(--mantine-spacing-xs)",
+          // Below `lg` the view-name line is the chrome's last child, so trim
+          // the bottom padding to tuck it against the grid; `lg`+ keeps its
+          // breathing room under the date-nav row.
+          paddingBottom: isDesktop
+            ? "var(--mantine-spacing-xs)"
+            : "calc(0.125rem * var(--mantine-scale))",
           // Marks the chrome's bottom edge while content scrolls beneath it
           // (the tabs list's own border now sits mid-block, above the nav).
           borderBottom: "1px solid var(--mantine-color-default-border)",
@@ -3624,18 +3629,19 @@ function DashboardViewImpl({
             rides along with the switch button it describes. It reads
             `shownTabName` — the account's own view name (never the built-in
             kind label), from the same optimistic chrome the trigger and the
-            announcement use, so it moves the instant a tab is tapped. It adds
-            ~20px to the measured `chromeHeight`, which is exactly what re-docks
-            the grid's pinned strips below it. Passive: not a control, so it
-            adds no focusable element and nothing to keep in sync. */}
+            announcement use, so it moves the instant a tab is tapped. With no
+            top margin it sits flush under the nav row and adds ~17px to the
+            measured `chromeHeight`, which is exactly what re-docks the grid's
+            pinned strips below it. Passive: not a control, so it adds no
+            focusable element and nothing to keep in sync. */}
         <Text
           hiddenFrom="lg"
           size="xs"
           fw={500}
           c="dimmed"
+          ta="center"
           lineClamp={1}
           title={shownTabName}
-          mt={6}
         >
           {shownTabName}
         </Text>

@@ -442,17 +442,27 @@ export const settings = pgTable(
     reorderDrag: text("reorder_drag").notNull().default("drag"),
     /**
      * Daily parade-state email (Settings → Parade State Email): when enabled,
-     * the selected roster users receive one snapshot on each weekday at 08:00
-     * Singapore time, scheduled by Cloud Scheduler. Recipients are stored as
-     * user ids so their addresses follow roster changes. Subject/body are
-     * admin-editable templates with `{date}`/`{present}`/`{departments}` tokens
-     * — defaults in `src/lib/parade-email/emailDefaults.ts`, kept in sync with
-     * these columns.
+     * the selected roster users receive one snapshot on each configured weekday
+     * once the configured send time has passed (Singapore time). The trigger is
+     * in-app (the first authenticated activity after the cutoff), not an
+     * external scheduler. Recipients are stored as user ids so their addresses
+     * follow roster changes. Subject/body are admin-editable templates with
+     * `{date}`/`{present}`/`{departments}` tokens — defaults in
+     * `src/lib/parade-email/emailDefaults.ts`, kept in sync with these columns.
      */
     paradeEmailEnabled: boolean("parade_email_enabled").notNull().default(false),
     paradeEmailRecipientIds: jsonb("parade_email_recipient_ids")
       .notNull()
       .default(sql`'[]'::jsonb`),
+    /** UTC+8 send cutoff (`HH:mm`); the lazy trigger fires at/after this. */
+    paradeEmailSendTime: text("parade_email_send_time").notNull().default("08:00"),
+    /**
+     * ISO weekdays (1=Mon … 7=Sun) the email may go out on. Defaults to the
+     * five weekdays; the lazy trigger only fires on a listed day.
+     */
+    paradeEmailDays: jsonb("parade_email_days")
+      .notNull()
+      .default(sql`'[1,2,3,4,5]'::jsonb`),
     paradeEmailSubjectTemplate: text("parade_email_subject_template")
       .notNull()
       .default(PARADE_EMAIL_SUBJECT_TEMPLATE_DEFAULT),

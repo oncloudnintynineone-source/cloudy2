@@ -42,6 +42,8 @@ export default async function ParadeEmailPage() {
         initial={{
           enabled: settings.paradeEmailEnabled,
           recipientIds: settings.paradeEmailRecipientIds,
+          sendTime: settings.paradeEmailSendTime,
+          days: settings.paradeEmailDays,
           subjectTemplate: settings.paradeEmailSubjectTemplate,
           bodyTemplate: settings.paradeEmailBodyTemplate,
         }}

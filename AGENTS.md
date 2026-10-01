@@ -207,14 +207,15 @@ doc content here.
   away/in-country state + the overseas events behind it, opening the shared read-only
   `EventDetail` in place).
   Design: [docs/kah.md](docs/kah.md).
-- **Weekday parade-state email (Settings → Parade State Email):** admins pick roster
-  recipients and subject/body templates; a **Cloud Scheduler** job (not Vercel Cron) fires
-  weekdays at 08:00 SGT and hits the `CRON_SECRET`-protected
-  `/api/cron/parade-state-email` route, which claims the day via the unique
-  `parade_email_sends.send_date` so it sends at most once (GET is canonical; the route also
-  accepts POST so a job created with gcloud's default method can't 405 silently). Every
-  attempt writes a `paradeState.emailSend` audit row with its outcome/reason. The schedule is
-  fixed in the scheduler (no in-app send time). The snapshot is org-wide and derived from the same
+- **Daily parade-state email (Settings → Parade State Email):** admins pick roster
+  recipients, a **send time** (UTC+8 `HH:mm` cutoff) + **send days** (ISO weekdays,
+  default Mon–Fri), and subject/body templates. There is **no external scheduler**: a
+  **lazy in-app trigger** (`useParadeEmailTick` in the protected shell →
+  `maybeDispatchParadeEmail`, `after()`) sends on the first authenticated activity at/after
+  the cutoff, claiming the day via the unique `parade_email_sends.send_date` so it sends at
+  most once. The pure `paradeEmailWindowOpen` gate runs before any per-tick DB read, and
+  benign opportunistic skips are **not** audited (only real `sent`/`failed`/error outcomes
+  write a `paradeState.emailSend` row). The snapshot is org-wide and derived from the same
   shared pure helpers as the parade page (`src/lib/parade/*`) — attendance localStorage
   marks are excluded. Templates render through the shared `renderTemplate`
   (`src/lib/email/template.ts`, also KAH's). Design:
