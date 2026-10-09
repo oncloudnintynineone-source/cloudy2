@@ -9,46 +9,122 @@
  * `localStore.ts`; the server-side builder is in `data.ts`.
  */
 
-import type { DashboardViewProps } from "@/app/(protected)/dashboard/DashboardView";
 import { monthGridMonths, monthsInRange, weekDays } from "@/lib/events/datetime";
 import type { CalendarEvent } from "@/lib/events/queries";
+import type { ScheduleUser } from "@/lib/events/schedule";
+import type { EventTypeOption } from "@/lib/dashboard/types";
+import type { QuickLinkMenuItem } from "@/lib/quickLinks/types";
 import {
   type DashboardTabFilters,
   type DashboardViewKind,
   type DashboardViewTab,
 } from "@/lib/dashboardViews/views";
+import type {
+  ReorderDrag,
+  SavedEventToastVariant,
+  TranslucencyLevel,
+} from "@/lib/settings/featureFlags";
+import type { TitleRecipe } from "@/lib/settings/titleRecipe";
 
 /**
  * Bump when the snapshot shape changes incompatibly. A stored record whose
  * version differs is ignored (and overwritten on the next successful load), so
  * a deploy that changes the shape can never feed the new UI a stale record.
  */
-export const DASHBOARD_SNAPSHOT_VERSION = 5;
+export const DASHBOARD_SNAPSHOT_VERSION = 6;
 
 /** The one-shot `?refresh=` nonce is honored only within this window. */
 export const REFRESH_NONCE_TTL_MS = 5 * 60_000;
 
 /**
- * The data-bearing subset of {@link DashboardViewProps}: everything the server
+ * The serializable data the Calendar page renders: everything the server
  * resolves and the client can render without a round trip. Device-local and
- * one-shot URL state (month/date/zoom/deep-link ids) is excluded — the record
- * carries the resolved period in its context instead.
+ * one-shot URL state (month/date/zoom/deep-link ids) is deliberately excluded —
+ * the record carries the resolved period in its context instead, and the view
+ * supplies those view-local fields itself. Owned here (not derived from the
+ * view's props) so the cached shape is a deliberate contract, independent of
+ * any component.
  */
-export type DashboardSnapshot = Omit<
-  DashboardViewProps,
-  | "month"
-  | "date"
-  | "initialZoom"
-  | "initialGridWeekColZoom"
-  | "initialGridWeekRowZoom"
-  | "initialWeekMatrixZoom"
-  | "initialMonthZoom"
-  | "initialDualSplit"
-  | "initialEditEventId"
-  | "initialDetailEventId"
-  | "deepLinkEvent"
-  | "deepLinkSettled"
->;
+export interface DashboardSnapshot {
+  /**
+   * The dashboard's on-demand tabs in strip order (server-side per account —
+   * src/lib/dashboardViews). The server resolves the active tab from the URL
+   * `?view=` / remembered state.
+   */
+  tabs: DashboardViewTab[];
+  /**
+   * The tab being rendered: its kind picks the renderer/anchored semantics,
+   * its stored filters resolve to the `selected*` fields.
+   */
+  activeView: DashboardViewTab;
+  /** Whether the user can create/rename/reorder/delete tabs (false for the
+   *  break-glass admin session, which has no stored views). */
+  canManageViews: boolean;
+  events: CalendarEvent[];
+  calendars: { id: string; name: string; sortOrder: number; parentId: string | null }[];
+  eventTypes: EventTypeOption[];
+  /** Event type groups in display order, for the grouped type picker. */
+  eventTypeGroups: { id: string; name: string; sortOrder: number; collapsible: boolean }[];
+  eventTitleRecipe: TitleRecipe;
+  viewEventTitleRecipe: TitleRecipe;
+  googleConfigured: boolean;
+  /**
+   * Post-save event confirmation style (Settings → Feature Flags): whether the
+   * "Event created/updated" feedback is the classic action pill, a restyled
+   * pill, a standard toast with a "View event" action, or a plain toast.
+   */
+  savedEventToastVariant: SavedEventToastVariant;
+  /**
+   * Frosted-glass translucency level (Settings → Feature Flags): subtle /
+   * medium / strong. The shell applies it globally as `data-c2-glass`.
+   */
+  translucencyLevel: TranslucencyLevel;
+  /**
+   * Reorder interaction (Settings → Feature Flags): the Manage-views list's
+   * drag handle / up-down chevrons.
+   */
+  reorderDrag: ReorderDrag;
+  /**
+   * Enabled quick links in menu order (Settings → Quick Links); the amber
+   * Quick-links launcher renders only when at least one is set.
+   */
+  quickLinks: QuickLinkMenuItem[];
+  selectedCalendarIds: string[];
+  selectedTypes: string[];
+  selectedUserIds: string[];
+  /** The role defaults this user's tab filters fall back to (admin: all
+   *  calendars; non-admin: their own department; users/types: none). */
+  defaultFilters: DashboardTabFilters;
+  currentUser: string;
+  /** Admin may edit any event and bypass the organizer-only lock. */
+  isAdmin: boolean;
+  scheduleUsers: ScheduleUser[];
+  /** Full active roster: row source when the Users filter narrows the rows. */
+  allActiveUsers: ScheduleUser[];
+  inviteeDepartments: { id: string; name: string; sortOrder: number; parentId: string | null }[];
+  inviteeUsers: {
+    id: string;
+    name: string;
+    shortname: string | null;
+    departmentName: string | null;
+    departmentSort: number | null;
+    departmentId: string | null;
+    departmentParentId: string | null;
+    displayName: string;
+  }[];
+  /** Filter dialog user options: users of the selected departments + self. */
+  filterUsers: {
+    id: string;
+    name: string;
+    departmentName: string | null;
+    departmentSort: number | null;
+    departmentId: string | null;
+    departmentParentId: string | null;
+  }[];
+  peopleNames: Record<string, string>;
+  calendarNames: Record<string, string>;
+  currentUserName: string;
+}
 
 /**
  * The snapshot fields every tab renders identically (calendars, event types,

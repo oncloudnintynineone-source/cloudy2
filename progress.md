@@ -18,7 +18,7 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
 
 ## 1.1 Status
 
-- All work through changelog **1.293 (settings-write deepening)** is shipped.
+- All work through changelog **1.294 (dashboard snapshot ownership)** is shipped.
 - Quality gates (`lint` / `typecheck` / `test` / schema-drift check) run in CI on every
   push and PR. Pushes also auto-apply migrations per environment: `dev` →
   `migrate-preview` against the dev Neon DB, `main` → `migrate` against the prod Neon
@@ -1634,6 +1634,18 @@ via `?attendance=1` and `attendanceStorage` became a `useSyncExternalStore` exte
     `purgeCalendarCache` are unchanged. Behavior-preserving; new `edits.test.ts` /
     `write.test.ts`. GLOSSARY term "settings write". Docs: `feature-flags.md`,
     `event-lifecycle.md`.
+
+- 1.294 Dashboard snapshot ownership (refactor): `DashboardSnapshot` is now
+    defined in `src/lib/dashboard/snapshot.ts` as a deliberate typed contract
+    instead of `Omit<DashboardViewProps, …>` (which made the client data module
+    depend on the 4.9k-line view). `DashboardViewProps` now *extends*
+    `DashboardSnapshot` with the view-local fields (URL period, zoom seeds,
+    deep-link ids); `EventTypeOption` moved to `src/lib/dashboard/types.ts`
+    (deduped from the view + `EventForm`) and `QuickLinkMenuItem` to
+    `src/lib/quickLinks/types.ts`, so `lib` owns every snapshot field type.
+    `DASHBOARD_SNAPSHOT_VERSION` 5 → 6 drops each device's warm snapshot once
+    (first open re-reads). GLOSSARY term "dashboard snapshot". Docs:
+    `pwa-offline.md`.
 
 ## 1.4 Open items & next steps
 

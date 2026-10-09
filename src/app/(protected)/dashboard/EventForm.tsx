@@ -104,21 +104,8 @@ import {
   toggleInviteeUser,
 } from "@/lib/users/userSelect";
 import { departmentTreeRows } from "@/lib/roster/hierarchy";
+import type { EventTypeOption } from "@/lib/dashboard/types";
 import { formatDateTime, naiveToDate } from "./clientDateTime";
-
-interface EventTypeOption {
-  name: string;
-  shortname: string | null;
-  groupId: string | null;
-  timeOptions: TimeOption[];
-  allowedLocations: LocationCategory[];
-  showRemarks: boolean;
-  showInvitees: boolean;
-  /** Whether the wizard shows the Location step for this type (off = skip). */
-  showLocation: boolean;
-  /** Admin-pinned event color, null = the deterministic default. */
-  color: string | null;
-}
 
 interface InviteeUser {
   id: string;

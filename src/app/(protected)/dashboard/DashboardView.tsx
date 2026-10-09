@@ -101,26 +101,19 @@ import {
   FloatingToolbar,
 } from "@/components/FloatingToolbar";
 import { LoadingStatus } from "@/components/LoadingStatus";
-import { QuickLinksMenu, type QuickLinkMenuItem } from "@/components/QuickLinksMenu";
+import { QuickLinksMenu } from "@/components/QuickLinksMenu";
+import type { DashboardSnapshot } from "@/lib/dashboard/snapshot";
 import { eventsOnDay } from "@/lib/events/agenda";
 import { monthGridMonths, weekDays } from "@/lib/events/datetime";
 import { sortMineFirst } from "@/lib/events/mineFirst";
 import { buildEventDeepLink } from "@/lib/events/deepLink";
 import type { CalendarEvent } from "@/lib/events/queries";
-import type { TitleRecipe } from "@/lib/settings/titleRecipe";
-import type {
-  ReorderDrag,
-  SavedEventToastVariant,
-  TranslucencyLevel,
-} from "@/lib/settings/featureFlags";
 import type { EventActionOk } from "@/lib/events/actions";
-import type { LocationCategory } from "@/lib/events/locationPolicy";
 import {
   applyOptimisticOps,
   isOptimisticStandIn,
   type OptimisticOp,
 } from "@/lib/events/optimistic";
-import type { TimeOption } from "@/lib/events/timeOptions";
 import { eventMatchesUserFilter } from "@/lib/events/userFilter";
 import { CONTENT_ENTER_CLASS, useContentEnter } from "@/lib/loading/contentEnter";
 import { useMinSkeletonHold } from "@/lib/loading/minHoldLoading";
@@ -140,7 +133,6 @@ import {
   isDepartmentRowId,
   type ScheduleResource,
   type ScheduleResources,
-  type ScheduleUser,
 } from "@/lib/events/schedule";
 import { gridWeekAllDayLayout, type GridWeekAllDayLayout } from "@/lib/events/gridWeek";
 import {
@@ -272,21 +264,7 @@ const EMPTY_SCHEDULE_RESOURCES: ScheduleResources = { resources: [], groups: und
 const EMPTY_SCHEDULE_EVENTS: CalendarEvent[] = [];
 const EMPTY_MONTH_EVENTS: CalendarEvent[] = [];
 
-interface EventTypeOption {
-  name: string;
-  shortname: string | null;
-  groupId: string | null;
-  timeOptions: TimeOption[];
-  allowedLocations: LocationCategory[];
-  showRemarks: boolean;
-  showInvitees: boolean;
-  /** Whether the wizard shows the Location step for this type (off = skip). */
-  showLocation: boolean;
-  /** Admin-pinned event color, null = the deterministic default. */
-  color: string | null;
-}
-
-export interface DashboardViewProps {
+export interface DashboardViewProps extends DashboardSnapshot {
   month: string;
   /**
    * The rendered day anchor. URL-first: `DashboardScreen` passes the `?date=`
@@ -295,20 +273,6 @@ export interface DashboardViewProps {
    * falling back to the server-resolved day when the URL omits it.
    */
   date: string;
-  /**
-   * The dashboard's on-demand tabs in strip order (server-side per account —
-   * src/lib/dashboardViews). The server resolves the active tab from the URL
-   * `?view=` / remembered state and passes it below.
-   */
-  tabs: DashboardViewTab[];
-  /**
-   * The tab being rendered: its kind picks the renderer/anchored semantics,
-   * its stored filters resolve to the `selected*` props.
-   */
-  activeView: DashboardViewTab;
-  /** Whether the user can create/rename/reorder/delete tabs (false for the
-   *  break-glass admin session, which has no stored views). */
-  canManageViews: boolean;
   /**
    * Remembered Day/Week (H) hour-slot zoom level, resolved from the UI-state
    * cookie before first paint (a relaunch restores the last zoom with no
@@ -345,47 +309,6 @@ export interface DashboardViewProps {
    * split state.
    */
   initialDualSplit: number;
-  events: CalendarEvent[];
-  calendars: { id: string; name: string; sortOrder: number; parentId: string | null }[];
-  eventTypes: EventTypeOption[];
-  /** Event type groups in display order, for the grouped type picker. */
-  eventTypeGroups: { id: string; name: string; sortOrder: number; collapsible: boolean }[];
-  eventTitleRecipe: TitleRecipe;
-  viewEventTitleRecipe: TitleRecipe;
-  googleConfigured: boolean;
-  /**
-   * Post-save event confirmation style (Settings → Feature Flags): whether the
-   * "Event created/updated" feedback is the classic action pill, a restyled
-   * pill, a standard toast with a "View event" action, or a plain toast.
-   */
-  savedEventToastVariant: SavedEventToastVariant;
-  /**
-   * Frosted-glass translucency level (Settings → Feature Flags): subtle /
-   * medium / strong. The shell applies it globally as `data-c2-glass`; the
-   * mobile cluster also carries the `c2-glass--*` modifier so its first paint
-   * is already at the resolved level.
-   */
-  translucencyLevel: TranslucencyLevel;
-  /**
-   * Reorder interaction (Settings → Feature Flags): the Manage-views list's
-   * drag handle / up-down chevrons.
-   */
-  reorderDrag: ReorderDrag;
-  /**
-   * Enabled quick links in menu order (Settings → Quick Links); the amber
-   * Quick-links launcher (mobile FAB / nav-row chip at lg) renders only when
-   * at least one is set.
-   */
-  quickLinks: QuickLinkMenuItem[];
-  selectedCalendarIds: string[];
-  selectedTypes: string[];
-  selectedUserIds: string[];
-  /** The role defaults this user's tab filters fall back to (admin: all
-   *  calendars; non-admin: their own department; users/types: none). */
-  defaultFilters: DashboardTabFilters;
-  currentUser: string;
-  /** Admin may edit any event and bypass the organizer-only lock. */
-  isAdmin: boolean;
   /**
    * Event group id from the `?edit=` deep link (the event search modal's
    * "Edit" action); its edit form opens automatically once the events are
@@ -413,32 +336,6 @@ export interface DashboardViewProps {
    * target is still absent does the "not in your current view" advisory appear.
    */
   deepLinkSettled: boolean;
-  scheduleUsers: ScheduleUser[];
-  /** Full active roster: row source when the Users filter narrows the rows. */
-  allActiveUsers: ScheduleUser[];
-  inviteeDepartments: { id: string; name: string; sortOrder: number; parentId: string | null }[];
-  inviteeUsers: {
-    id: string;
-    name: string;
-    shortname: string | null;
-    departmentName: string | null;
-    departmentSort: number | null;
-    departmentId: string | null;
-    departmentParentId: string | null;
-    displayName: string;
-  }[];
-  /** Filter dialog user options: users of the selected departments + self. */
-  filterUsers: {
-    id: string;
-    name: string;
-    departmentName: string | null;
-    departmentSort: number | null;
-    departmentId: string | null;
-    departmentParentId: string | null;
-  }[];
-  peopleNames: Record<string, string>;
-  calendarNames: Record<string, string>;
-  currentUserName: string;
 }
 
 interface FormState {

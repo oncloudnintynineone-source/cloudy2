@@ -684,7 +684,10 @@ sequenceDiagram
   refresh, and the cached document is only the shell.
 - **Freshness/versioning.** The record carries a `version`; a shape change
   (bumped constant) makes old records unusable, so a deploy can never feed the
-  new UI a stale record. `clearAllDashboardSnapshots()` runs on sign-out beside
+  new UI a stale record. The shape (`DashboardSnapshot`) is owned by
+  `src/lib/dashboard/snapshot.ts` — the view's props *extend* it with view-local
+  fields (URL period, zoom seeds, deep-link ids), so the cached contract never
+  depends on a component. `clearAllDashboardSnapshots()` runs on sign-out beside
   the page-cache purge, so a shared device can't paint the previous account's
   calendar. A failed read keeps the cached render (offline reads keep working).
 

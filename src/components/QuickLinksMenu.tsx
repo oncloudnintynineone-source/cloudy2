@@ -3,16 +3,9 @@
 import { Menu, useMantineTheme } from "@mantine/core";
 
 import { MOTION } from "@/lib/motion/timing";
+import type { QuickLinkMenuItem } from "@/lib/quickLinks/types";
 
 import { QuickLinkIcon } from "./QuickLinkIcon";
-
-export interface QuickLinkMenuItem {
-  id: string;
-  label: string;
-  url: string;
-  icon: string;
-  color: string | null;
-}
 
 interface QuickLinksMenuProps {
   links: QuickLinkMenuItem[];
