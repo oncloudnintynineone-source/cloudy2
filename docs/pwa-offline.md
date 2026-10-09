@@ -655,10 +655,11 @@ sequenceDiagram
   server-resolved day when absent), so the Day/Week (H) grids reposition and
   back/forward / deep links stay in sync without any read. Switching to a tab
   whose data the held record already covers (same kind, required months and
-  filters — `equivalentDashboardTab`) likewise makes no server read: the tab
-  identity is swapped locally (`activeView` + `requestKey`) and the snapshot is
-  rewritten, guarded on fresh, idle data so it never races an in-flight read.
-  `resolveDashboardPresentation` centralises this: `activeView` is **URL-first**
+  filters — the navigation module's tab-equivalence rule) likewise makes no
+  server read: the tab identity is swapped locally (`activeView` + `requestKey`)
+  and the snapshot is rewritten, guarded on fresh, idle data so it never races an
+  in-flight read.
+  `resolveDashboardNavigation` centralises this: `activeView` is **URL-first**
   whenever the data is fresh and the fetch for the context hasn't failed (so the
   tab highlight and renderer kind move with the URL instead of snapping back to
   the held tab mid-fetch), and `isNavigating` is **coverage-based** — true from
@@ -688,13 +689,16 @@ sequenceDiagram
   calendar. A failed read keeps the cached render (offline reads keep working).
 
 Pure logic (key derivation, version guard, refresh-nonce window) lives in
-`src/lib/dashboard/snapshot.ts` and is unit-tested (`snapshot.test.ts`); the
-IndexedDB glue is deliberately thin and no-ops when unavailable.
+`src/lib/dashboard/snapshot.ts`; the display/fetch decision (URL → displayed
+tab/period, coverage, warm-record choice, fetch classification) lives in
+`src/lib/dashboard/navigation.ts` — both unit-tested (`snapshot.test.ts`,
+`navigation.test.ts`); the IndexedDB glue is deliberately thin and no-ops when
+unavailable.
 
 Files: `src/app/(protected)/dashboard/page.tsx` (thin shell),
 `DashboardScreen.tsx` (provider), `DashboardDataContext.tsx`, `loading.tsx` /
 `DashboardShellSkeleton.tsx`, `DashboardView.tsx` (consumes `revalidate` /
-`isNavigating`), `src/lib/dashboard/{data,actions,snapshot,localStore}.ts`,
+`isNavigating`), `src/lib/dashboard/{data,actions,snapshot,navigation,localStore}.ts`,
 `src/lib/pwa/client.ts` (reconcile skip), `src/components/UserMenu.tsx`
 (sign-out purge).
 

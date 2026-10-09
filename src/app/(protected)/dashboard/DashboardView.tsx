@@ -179,13 +179,12 @@ import { createDashboardView, saveDashboardViewFilters } from "@/lib/dashboardVi
 import {
   DASHBOARD_VIEW_KIND_LABELS,
   periodSwitchDirection,
-  tabSwitchNeedsReload,
-  tabSwitchTarget,
   viewSwitchDirection,
   type DashboardTabFilters,
   type DashboardViewKind,
   type DashboardViewTab,
 } from "@/lib/dashboardViews/views";
+import { planDashboardSwitch } from "@/lib/dashboard/navigation";
 import { EventFormSkeleton } from "./EventFormSkeleton";
 import { ViewTypePicker } from "./ViewTypePicker";
 import { VIEW_TAB_META } from "./viewMeta";
@@ -2293,7 +2292,11 @@ function DashboardViewImpl({
       if (tab.id === activeView.id) {
         continue;
       }
-      hrefs.push(buildHref(tabSwitchTarget(tab, { view, shownDate, today })));
+      hrefs.push(
+        buildHref(
+          planDashboardSwitch(tab, { view, shownDate, today }, { activeView, tabs }).updates,
+        ),
+      );
     }
     const signature = hrefs.join("|");
     if (signature === prefetchedHrefsRef.current) {
@@ -2303,7 +2306,7 @@ function DashboardViewImpl({
     for (const href of hrefs) {
       router.prefetch(href);
     }
-  }, [router, tabs, buildHref, view, shownDate, today, activeView.id, searchParams]);
+  }, [router, tabs, buildHref, view, shownDate, today, activeView, searchParams]);
 
   // Preload the lazy dashboard chunks (event form, custom view kinds, detail /
   // manage-views modals) at idle so their first use pays no chunk-download
@@ -2474,7 +2477,12 @@ function DashboardViewImpl({
     // round-trip (`useSearchParams` only updates when the payload lands).
     setPreviewView(tab.id);
     const mode = tab.kind;
-    const target = tabSwitchTarget(tab, { view, shownDate, today });
+    const plan = planDashboardSwitch(
+      tab,
+      { view, shownDate, today },
+      { activeView, tabs, force: options?.force },
+    );
+    const target = plan.updates;
     if (mode === "agenda") {
       // A fresh entry re-follows the URL (the render-phase sync above
       // re-seeds viewedDay) and plays the reveal fade, not a stale slide.
@@ -2495,7 +2503,7 @@ function DashboardViewImpl({
     // covered and the change would not apply until a Force refresh. Use the
     // target period (not the not-yet-committed URL) so the fetch matches the
     // href the navigation is about to push.
-    if (tabSwitchNeedsReload({ target: tab, activeView, tabs, force: options?.force })) {
+    if (plan.needsReload) {
       const params = buildParams(target);
       // A definition reload is not a Google force-refresh.
       params.delete("refresh");

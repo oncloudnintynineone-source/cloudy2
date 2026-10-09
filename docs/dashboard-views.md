@@ -838,7 +838,7 @@ Agenda pane** — this view has no day modal there, the pane *is* the day detail
 is the standalone Month view: chips open the event detail and a cell tap opens
 the shared agenda day modal. Data needs are therefore
 identical to Month's (`requiredMonths` returns `monthGridMonths` for `dual`),
-and `tabSwitchTarget` needs no dual-specific rule: the anchored branches already
+and `planDashboardSwitch` needs no dual-specific rule: the anchored branches already
 cover it (Month → Month & Agenda starts today, anchored → Month & Agenda keeps
 the anchor day, Month & Agenda → Month keeps the anchor month).
 
@@ -925,7 +925,8 @@ flowchart LR
 
 | File | Role |
 | -------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `src/lib/dashboardViews/views.ts` | Kind vocabulary + labels, tab DTO, filter-override normalizers, `resolveActiveTab`, `tabSwitchTarget` (pure) |
+| `src/lib/dashboardViews/views.ts` | Kind vocabulary + labels, tab DTO, filter-override normalizers, `resolveActiveTab` (pure) |
+| `src/lib/dashboard/navigation.ts` | Dashboard navigation decision (URL → displayed tab/period/coverage + fetch classification), incl. the period-follows-kind URL rule (`planDashboardSwitch`) shared by the tab tap and the tab-URL prefetch (pure) |
 | `src/lib/dashboardViews/queries.ts` | Tab reads + the mutex-guarded default "Month" seed |
 | `src/lib/dashboardViews/actions.ts` | Tab CRUD: `create/rename/delete/reorderDashboardViews`, `saveDashboardViewFilters` |
 | `src/lib/userPrefs/queries.ts` + `actions.ts` | `user_preferences` row: parade filters (incl. `saveParadeFilters`) |

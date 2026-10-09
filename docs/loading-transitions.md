@@ -295,15 +295,16 @@ whose warm L1 entry still shadows the fresh rows
   navigation with the skeleton, driven by `isNavigating` rather than `isPending`
   (`DashboardView.tsx`, `DashboardScreen.tsx`).
 - **Dashboard view (tab) switches**: the skeleton is driven by **data coverage**,
-  not the router transition. `resolveDashboardPresentation` returns a URL-first
-  `activeView` (fresh, un-failed data) so the tab highlight and renderer kind move
-  with the URL immediately instead of snapping back to the held tab while the
-  fetch is in flight — this is what previously flickered between the two tabs and
-  two views. `isNavigating` is true from the instant the URL context changes
-  until the held data answers it (or the fetch fails, which restores the held
-  tab), and `gridLoading = useMinSkeletonHold(isNavigating)` — dropping
-  `isPending` so a covered/equivalent switch shows no skeleton at all.
-  (`DashboardScreen.tsx`, `src/lib/dashboard/snapshot.ts`.)
+  not the router transition. `resolveDashboardNavigation`
+  (`src/lib/dashboard/navigation.ts`) returns a URL-first `activeView` (fresh,
+  un-failed data) so the tab highlight and renderer kind move with the URL
+  immediately instead of snapping back to the held tab while the fetch is in
+  flight — this is what previously flickered between the two tabs and two views.
+  `isNavigating` is true from the instant the URL context changes until the held
+  data answers it (or the fetch fails, which restores the held tab), and
+  `gridLoading = useMinSkeletonHold(isNavigating)` — dropping `isPending` so a
+  covered/equivalent switch shows no skeleton at all.
+  (`DashboardScreen.tsx`, `src/lib/dashboard/navigation.ts`.)
 - **View-switch swipe**: on a tab change the grid/skeleton wrapper plays a
   directional slide (`.view-slide-enter`, `--slide-dir`) — a target earlier in
   the strip enters from the left, later from the right — fired on the tab change
@@ -827,8 +828,9 @@ at hydration.
 | `src/lib/async.ts` | `mapWithConcurrency` + `withTimeout` (bounds the cold-start legs and the first dashboard read) — §1.13.1 |
 | `src/lib/ui/coldStart.ts` | Pure readiness reducer (`coldStartReducer`), route allowlist + `coldStartRouteRequiresContent`, timing constants (MIN/MAX/dwell/check) — §1.13.1 |
 | `src/components/ColdStartReady.tsx` | `ColdStartReadyProvider` + `useColdStartReady`/`useColdStartContent` + `ColdStartReadyBar` (amber → green once-per-launch) — §1.13.1 |
-| `src/lib/dashboard/snapshot.ts` | Pure snapshot/request-key helpers incl. `tabLoadStates` (per-tab fresh/loading/not-loaded) — §1.13.2 |
-| `src/lib/dashboardViews/views.ts` | Pure view vocabulary + `tabSwitchTarget` (the period-follows-kind URL rule shared by `switchTab` and the tab-URL prefetch) — §1.10 |
+| `src/lib/dashboard/snapshot.ts` | Pure snapshot/request-key + IndexedDB-cache policy helpers incl. `tabLoadStates` (per-tab fresh/loading/not-loaded) — §1.13.2 |
+| `src/lib/dashboard/navigation.ts` | Dashboard navigation decision: URL + held record → displayed tab/period, coverage/`isNavigating`, warm-record choice, fetch classification (`resolveDashboardNavigation`, `planDashboardSwitch`, `classifyDashboardFetch`); composes the snapshot + view vocabulary — §1.10 |
+| `src/lib/dashboardViews/views.ts` | Pure view vocabulary + `resolveActiveTab` (tab resolution) — §1.10 |
 | `src/app/(protected)/dashboard/DashboardScreen.tsx` | Owns the snapshot, warm map, preload, per-tab `tabStatus`, and the optimistic `previewView`; first-load timeout + retryable error — §1.13.2 |
 | `next.config.ts` | `experimental.staleTimes.dynamic = 120` client-router reuse window (§1.10) |
 | `src/app/(protected)/dashboard/page.tsx` | `?event=`/`?edit=`/`?refresh=` param validation |

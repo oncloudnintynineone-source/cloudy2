@@ -19,17 +19,18 @@ import {
   DASHBOARD_SNAPSHOT_VERSION,
   assembleDashboardSnapshot,
   capSnapshotMap,
-  dashboardCandidateRequestKey,
   dashboardRequestKey,
-  equivalentDashboardTab,
   isRefreshNonceFresh,
-  isWarmSnapshotFresh,
   patchSnapshotTab,
   requiredMonths,
-  resolveDashboardPresentation,
   tabLoadStates,
   type DashboardSnapshotRecord,
 } from "@/lib/dashboard/snapshot";
+import {
+  candidateKeyForUrl,
+  classifyDashboardFetch,
+  resolveDashboardNavigation,
+} from "@/lib/dashboard/navigation";
 import { isUuid } from "@/lib/uuid";
 import { canPreloadTabs } from "@/lib/pwa/warmup";
 import type { DashboardViewTab } from "@/lib/dashboardViews/views";
@@ -195,11 +196,6 @@ export function DashboardScreen({
   const month = searchParams.get("month");
   const date = searchParams.get("date");
 
-  // The tab the data layer resolves from: the optimistic tap while one is
-  // pending, else the URL. Everything data-bearing (candidate key, presentation,
-  // fetch decision) reads this, so the switch no longer waits for the URL.
-  const effectiveView = previewView ?? view;
-
   const editParam = searchParams.get("edit");
   const eventParam = searchParams.get("event");
   const initialEditEventId = editParam && isUuid(editParam) ? editParam : null;
@@ -210,42 +206,23 @@ export function DashboardScreen({
   // details modal opens.
   const hasDeepLink = initialEditEventId !== null || initialDetailEventId !== null;
 
-  // The data identity the current URL asks for (tab + required months). It does
-  // not change for an in-month day move, so such a move never fetches. `urlKey`
-  // is the raw URL fingerprint that re-runs the fetch-decision effect below.
-  const candidateKey = useMemo(
-    () => dashboardCandidateRequestKey(record, effectiveView, month, date),
-    [record, effectiveView, month, date],
-  );
-
-  // The record the view renders: a warm cached context for this URL paints
-  // instantly (while the background revalidation runs), otherwise the last
-  // freshly verified record. Deep links deliberately bypass the warm cache.
-  const warm = !hasDeepLink && candidateKey ? warmRecords.get(candidateKey) : undefined;
-  const displayRecord =
-    warm && record && warm.context.requestKey !== record.context.requestKey ? warm : record;
-
-  // What the view renders for this URL: the URL-first tab (so the chrome moves
-  // the instant the URL changes instead of reverting to the held tab while the
-  // fetch is in flight), and whether the held data already covers the context.
-  const presentation = useMemo(
+  // The dashboard navigation module owns the display/fetch decision (the
+  // candidate request key, warm-record choice, URL-first tab, coverage/skeleton).
+  // The screen is a thin adapter over it (src/lib/dashboard/navigation.ts).
+  const navigation = useMemo(
     () =>
-      displayRecord
-        ? resolveDashboardPresentation(displayRecord, effectiveView, month, date, {
-            // Only a genuinely warm candidate record (a different record than the
-            // held one) suppresses the skeleton. When the destination isn't warm
-            // this is a real navigation even while a device-cached record is on
-            // screen (`source === "cache"`), so it must read as `isNavigating` —
-            // otherwise the previous context's grid lingers until the read lands.
-            cached: displayRecord !== record,
-            // A warm context stays visible even if its background read fails —
-            // don't heal back to the previous tab.
-            failedKey: displayRecord !== record ? null : failedContextKey,
-          })
-        : null,
-    [displayRecord, record, effectiveView, month, date, failedContextKey],
+      resolveDashboardNavigation({
+        record,
+        warmRecords,
+        previewView,
+        url: { view, month, date },
+        hasDeepLink,
+        failedKey: failedContextKey,
+      }),
+    [record, warmRecords, previewView, view, month, date, hasDeepLink, failedContextKey],
   );
-  const isNavigating = presentation?.isNavigating ?? false;
+  const candidateKey = navigation.candidateKey;
+  const isNavigating = navigation.isNavigating;
   const urlKey = `${view ?? ""}|${month ?? ""}|${date ?? ""}`;
   const refreshParam = searchParams.get("refresh");
 
@@ -279,12 +256,11 @@ export function DashboardScreen({
     const params = overrideParams ?? paramsRef.current;
     // The context this read answers, so a failure is attributed to it (and only
     // it) for the presentation's heal-back to the held tab.
-    const attemptedKey = dashboardCandidateRequestKey(
-      recordRef.current,
-      params.get("view"),
-      params.get("month"),
-      params.get("date"),
-    );
+    const attemptedKey = candidateKeyForUrl(recordRef.current, {
+      view: params.get("view"),
+      month: params.get("month"),
+      date: params.get("date"),
+    });
     try {
       const result = await withTimeout(
         loadDashboardData(inputFromParams(params)),
@@ -448,56 +424,39 @@ export function DashboardScreen({
   // separately so it also forces a read when only the nonce changed.
   useEffect(() => {
     if (isRefreshNonceFresh(paramsRef.current.get("refresh"), Date.now())) return;
-    const current = recordRef.current;
-    // The optimistic tap drives the decision too, so a not-yet-warm tab fetches
-    // immediately on tap instead of waiting for the URL to commit.
-    const urlView = previewView ?? paramsRef.current.get("view");
-    const urlMonth = paramsRef.current.get("month");
-    const urlDate = paramsRef.current.get("date");
-    const candidate = dashboardCandidateRequestKey(current, urlView, urlMonth, urlDate);
-    if (current && candidate !== null) {
-      if (current.context.requestKey === candidate) {
-        return;
-      }
-      // A switch to a tab whose data the held record already covers (same kind,
-      // required months and filters) needs no server read: swap the tab identity
-      // locally. Guarded on fresh, idle data so the swap never races an
-      // in-flight read that would otherwise land afterwards and revert the tab.
-      if (hasFreshRef.current && !busyRef.current) {
-        const target = equivalentDashboardTab(current, urlView, urlMonth, urlDate);
-        if (target) {
-          const data = { ...current.data, activeView: target };
-          const context = { ...current.context, viewId: target.id, requestKey: candidate };
-          const patched = { ...current, data, context };
-          // Yield first: an effect must not call setState synchronously (same
-          // pattern as `fetchFresh`).
-          void Promise.resolve().then(() => {
-            setRecord(patched);
-            setWarmRecords((map) => {
-              const next = new Map(map);
-              next.set(candidate, patched);
-              return next;
-            });
-            void writeDashboardSnapshot(userId, data, context);
-          });
-          return;
-        }
-      }
-      // A previously loaded context inside the freshness window paints from the
-      // warm cache; no read needed. Deep links bypass this so the target event
-      // resolves against fresh data.
-      const deepLinkParam =
-        isUuid(paramsRef.current.get("edit") ?? "") || isUuid(paramsRef.current.get("event") ?? "");
-      const cached = warmRecordsRef.current.get(candidate);
-      if (!deepLinkParam && cached && isWarmSnapshotFresh(cached.savedAt, Date.now())) {
-        return;
-      }
+    const action = classifyDashboardFetch({
+      record: recordRef.current,
+      warmRecords: warmRecordsRef.current,
+      // The optimistic tap drives the decision too, so a not-yet-warm tab
+      // fetches immediately on tap instead of waiting for the URL to commit.
+      url: {
+        view: previewView ?? paramsRef.current.get("view"),
+        month: paramsRef.current.get("month"),
+        date: paramsRef.current.get("date"),
+      },
+      previewPending: previewView !== null,
+      hasFresh: hasFreshRef.current,
+      busy: busyRef.current,
+      deepLink:
+        isUuid(paramsRef.current.get("edit") ?? "") || isUuid(paramsRef.current.get("event") ?? ""),
+      now: Date.now(),
+    });
+    if (action.kind === "skip") return;
+    if (action.kind === "swap") {
+      const patched = action.record;
+      // Yield first: an effect must not call setState synchronously (same
+      // pattern as `fetchFresh`).
+      void Promise.resolve().then(() => {
+        setRecord(patched);
+        setWarmRecords((map) => {
+          const next = new Map(map);
+          next.set(action.key, patched);
+          return next;
+        });
+        void writeDashboardSnapshot(userId, patched.data, patched.context);
+      });
+      return;
     }
-    // A previewed (not-yet-committed) tab that isn't warm can't be fetched yet:
-    // the fetch input is built from the URL, which still names the previous tab
-    // (and its period rule). The URL-driven run after the push commits fetches it.
-    if (previewView !== null) return;
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     void fetchFresh();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [urlKey, previewView]);
@@ -620,7 +579,7 @@ export function DashboardScreen({
   const tabStatus = useMemo(() => {
     if (!record) return {};
     const tabs = record.data.tabs;
-    const activeId = presentation?.activeView.id ?? null;
+    const activeId = navigation.activeView?.id ?? null;
     const keyForTab = (tab: (typeof tabs)[number]) =>
       dashboardRequestKey({
         viewId: tab.id,
@@ -654,7 +613,7 @@ export function DashboardScreen({
       loadingKeys,
       activeTabId: activeId,
     });
-  }, [record, warmRecords, activeLoading, backgroundLoading, backgroundKeys, presentation]);
+  }, [record, warmRecords, activeLoading, backgroundLoading, backgroundKeys, navigation]);
 
   const context = useMemo(
     () => ({
@@ -746,20 +705,16 @@ export function DashboardScreen({
     return <DashboardShellSkeleton />;
   }
 
-  const shown = displayRecord ?? record;
-  // The day the view renders. The URL wins when it pins one: an in-month move
-  // never fetches, so the held context would otherwise stay on the last read's
-  // day and the Day/Week (H) grids, chrome and back/forward would not move.
-  const effectiveDate = date ?? shown.context.date;
+  const shown = navigation.displayRecord ?? record;
 
   return (
     <DashboardDataProvider value={context}>
       <DashboardTabStatusProvider value={tabStatus}>
         <DashboardView
           {...shown.data}
-          activeView={presentation?.activeView ?? shown.data.activeView}
-          month={shown.context.month}
-          date={effectiveDate}
+          activeView={navigation.activeView ?? shown.data.activeView}
+          month={navigation.month}
+          date={navigation.date}
           initialZoom={initialZoom}
           initialGridWeekColZoom={initialGridWeekColZoom}
           initialGridWeekRowZoom={initialGridWeekRowZoom}

@@ -13,7 +13,6 @@ import type { DashboardViewProps } from "@/app/(protected)/dashboard/DashboardVi
 import { monthGridMonths, monthsInRange, weekDays } from "@/lib/events/datetime";
 import type { CalendarEvent } from "@/lib/events/queries";
 import {
-  resolveActiveTab,
   type DashboardTabFilters,
   type DashboardViewKind,
   type DashboardViewTab,
@@ -185,38 +184,6 @@ export function dashboardRequestKey(params: { viewId: string; months: string[] }
 }
 
 /**
- * The fetch signature the current URL asks for, given the last loaded record:
- * the resolved tab id plus the months that tab needs (see `requiredMonths`).
- *
- * The day within a month is intentionally absent, so an in-month day move
- * produces the same signature as the held record and triggers no fetch — the
- * URL day still drives the rendered grid/chrome directly (`DashboardScreen`
- * passes it as the URL-first `date` prop), it just never reaches the server.
- *
- * Month precedence mirrors the server (`buildDashboardData`): an explicit
- * `?date=` wins (its month is authoritative), then `?month=`, then the held
- * record's context. Returns null before the first record is available (the
- * mount read always runs).
- */
-export function dashboardCandidateRequestKey(
-  record: DashboardSnapshotRecord | null,
-  urlView: string | null,
-  urlMonth: string | null,
-  urlDate: string | null,
-): string | null {
-  if (!record) return null;
-  const tab =
-    resolveActiveTab(urlView, record.data.activeView.id, record.data.tabs) ??
-    record.data.activeView;
-  const month = urlDate ? urlDate.slice(0, 7) : (urlMonth ?? record.context.month);
-  const date = urlDate ?? record.context.date;
-  return dashboardRequestKey({
-    viewId: tab.id,
-    months: requiredMonths(tab.kind, month, date),
-  });
-}
-
-/**
  * Per-tab load state for the tab strip's treatment. The strip shows each view's
  * own load progress instead of a single shared "busy" flag:
  *
@@ -281,88 +248,6 @@ export function dashboardTabFiltersEqual(a: DashboardTabFilters, b: DashboardTab
     filterArraysEqual(a.users, b.users) &&
     filterArraysEqual(a.types, b.types)
   );
-}
-
-/** Set equality for two month lists (order-insensitive). */
-function monthSetsEqual(a: string[], b: string[]): boolean {
-  if (a.length !== b.length) return false;
-  const set = new Set(b);
-  return a.every((month) => set.has(month));
-}
-
-/**
- * The target tab when switching to it can reuse the held record's data: same
- * kind, same required months, and equivalent stored filter overrides. The
- * server resolves those overrides against the same live data, so equal raw
- * overrides resolve to the same selection — `events`, `selected*` and the
- * kind-keyed title recipe are unchanged; only the tab identity differs, which
- * `DashboardScreen` swaps locally instead of re-reading. Returns null when the
- * target is unknown, is the held tab, or differs in any data-affecting way.
- */
-export function equivalentDashboardTab(
-  record: DashboardSnapshotRecord,
-  urlView: string | null,
-  urlMonth: string | null,
-  urlDate: string | null,
-): DashboardViewTab | null {
-  const held = record.data.activeView;
-  const target = resolveActiveTab(urlView, held.id, record.data.tabs);
-  if (!target || target.id === held.id) return null;
-  if (target.kind !== held.kind) return null;
-  if (!dashboardTabFiltersEqual(target.filters, held.filters)) return null;
-  const month = urlDate ? urlDate.slice(0, 7) : (urlMonth ?? record.context.month);
-  const date = urlDate ?? record.context.date;
-  if (
-    !monthSetsEqual(
-      requiredMonths(target.kind, month, date),
-      requiredMonths(held.kind, record.context.month, record.context.date),
-    )
-  ) {
-    return null;
-  }
-  return target;
-}
-
-/**
- * What the view should render for the current URL, given the held record.
- * Separates the URL's intent from the server-committed data so a tab/period
- * navigation can follow the URL immediately while the fetch is still in flight:
- *
- * - `activeView` is the URL-resolved tab while the data is healthy (fresh, not
- *   failed), so the chrome and renderer kind move the instant the URL changes —
- *   no optimistic-then-revert flicker. It falls back to the held tab while a
- *   cached record paints (keeping the cached tab consistent with its data) and
- *   after a failed fetch (healing an offline navigation back to the loaded tab).
- * - `covered` is true when the held data already answers the URL context — the
- *   request key matches, or the target is a data-equivalent tab.
- * - `isNavigating` is true only for an uncovered, un-failed context on fresh
- *   data, i.e. exactly when the grid should show its skeleton. It is not tied to
- *   the router transition, so it can't flash or gap around the data fetch.
- */
-export interface DashboardPresentation {
-  activeView: DashboardViewTab;
-  covered: boolean;
-  isNavigating: boolean;
-}
-
-export function resolveDashboardPresentation(
-  record: DashboardSnapshotRecord,
-  urlView: string | null,
-  urlMonth: string | null,
-  urlDate: string | null,
-  opts: { cached: boolean; failedKey: string | null },
-): DashboardPresentation {
-  const candidateKey = dashboardCandidateRequestKey(record, urlView, urlMonth, urlDate);
-  const covered =
-    (candidateKey !== null && record.context.requestKey === candidateKey) ||
-    equivalentDashboardTab(record, urlView, urlMonth, urlDate) !== null;
-  const fetchFailed = candidateKey !== null && opts.failedKey === candidateKey;
-  const isNavigating = !opts.cached && !covered && !fetchFailed;
-  const urlTab =
-    resolveActiveTab(urlView, record.data.activeView.id, record.data.tabs) ??
-    record.data.activeView;
-  const activeView = opts.cached || fetchFailed ? record.data.activeView : urlTab;
-  return { activeView, covered, isNavigating };
 }
 
 /** Whether a stored value matches the current snapshot shape. */

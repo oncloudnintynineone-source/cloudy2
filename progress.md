@@ -18,7 +18,7 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
 
 ## 1.1 Status
 
-- All work through changelog **1.291 (mobile view indicator polish)** is shipped.
+- All work through changelog **1.292 (dashboard navigation deepening)** is shipped.
 - Quality gates (`lint` / `typecheck` / `test` / schema-drift check) run in CI on every
   push and PR. Pushes also auto-apply migrations per environment: `dev` →
   `migrate-preview` against the dev Neon DB, `main` → `migrate` against the prod Neon
@@ -1607,6 +1607,19 @@ via `?attendance=1` and `attendanceStorage` became a `useSyncExternalStore` exte
     (`var(--mantine-spacing-xs)` → `calc(0.125rem * var(--mantine-scale))`;
     `lg`+ unchanged) so the line tucks against the grid. Docs:
     `dashboard-views.md` §1.1.
+
+- 1.292 Dashboard navigation deepening (refactor): the URL→displayed
+    tab/period, coverage/`isNavigating`, warm-record and fetch-decision rules that
+    were spread across `snapshot.ts`, `DashboardScreen`'s effects and
+    `DashboardView.switchTab` now live in one pure module
+    `src/lib/dashboard/navigation.ts` (`resolveDashboardNavigation`,
+    `planDashboardSwitch`, `classifyDashboardFetch`, `candidateKeyForUrl`); the
+    five former helpers (`tabSwitchTarget`/`tabSwitchNeedsReload`/
+    `dashboardCandidateRequestKey`/`equivalentDashboardTab`/
+    `resolveDashboardPresentation`) are now internal seams, with their tests moved
+    to `navigation.test.ts` driven through the new interface. Behavior-preserving;
+    `GLOSSARY.md` created. Docs: `dashboard-views.md` §1.10,
+    `loading-transitions.md` §1.13, `pwa-offline.md`.
 
 ## 1.4 Open items & next steps
 
