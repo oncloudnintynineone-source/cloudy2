@@ -81,23 +81,56 @@ export function monthRange(month: string): { start: Date; end: Date } {
 }
 
 /**
+ * Which day a calendar week starts on — a per-account preference stored in
+ * `user_preferences.week_start` (see docs/ui-state.md). Every week/month grid
+ * and the fetch set it implies derive from this.
+ */
+export type WeekStart = "monday" | "sunday";
+
+export const WEEK_START_DEFAULT: WeekStart = "monday";
+
+/** Coerce any stored/raw value to a valid {@link WeekStart} (default Monday). */
+export function normalizeWeekStart(value: unknown): WeekStart {
+  return value === "sunday" ? "sunday" : "monday";
+}
+
+/** Mantine's `firstDayOfWeek` value: 0 = Sunday, 1 = Monday. */
+export function firstDayOfWeek(weekStart: WeekStart): 0 | 1 {
+  return weekStart === "sunday" ? 0 : 1;
+}
+
+/**
  * Weekday abbreviations, Monday-first, matching `@mantine/schedule`'s default
- * `firstDayOfWeek: 1` + `weekdayFormat: "ddd"` (English) used by the dashboard's
- * Month view. Drives the pinned weekday-initials strip (`MonthWeekdayStrip`).
+ * `firstDayOfWeek: 1` + `weekdayFormat: "ddd"` (English). Do **not** reorder
+ * this constant — the parade-email weekday picker indexes it as an ISO weekday.
  */
 export const WEEKDAY_ABBREVIATIONS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"] as const;
 
 /**
- * The seven `YYYY-MM-DD` days of the week containing `dateOnly`, Monday-first
- * (matching the Mantine dates default `firstDayOfWeek: 1` used by the schedule
+ * Weekday abbreviations in the order of the given week start, for the pinned
+ * weekday-initials strip (`MonthWeekdayStrip`).
+ */
+export function weekdayAbbreviations(
+  weekStart: WeekStart = WEEK_START_DEFAULT,
+): readonly string[] {
+  if (weekStart === "sunday") {
+    return [WEEKDAY_ABBREVIATIONS[6], ...WEEKDAY_ABBREVIATIONS.slice(0, 6)];
+  }
+  return WEEKDAY_ABBREVIATIONS;
+}
+
+/**
+ * The seven `YYYY-MM-DD` days of the week containing `dateOnly`, starting on
+ * `weekStart` (matching the Mantine dates `firstDayOfWeek` used by the schedule
  * views). Weekends included.
  */
-export function weekDays(dateOnly: string): string[] {
+export function weekDays(dateOnly: string, weekStart: WeekStart = WEEK_START_DEFAULT): string[] {
   const [year, monthIndex, day] = dateOnly.split("-").map(Number);
-  // JS `getUTCDay`: 0=Sun..6=Sat; offset from Monday, Mon=0..Sun=6.
-  const daysFromMonday = (new Date(Date.UTC(year, monthIndex - 1, day)).getUTCDay() + 6) % 7;
-  const monday = Date.UTC(year, monthIndex - 1, day - daysFromMonday);
-  return Array.from({ length: 7 }, (_, i) => utcToDateString(new Date(monday + i * 86_400_000)));
+  // JS `getUTCDay`: 0=Sun..6=Sat; offset from the chosen first day.
+  const first = firstDayOfWeek(weekStart);
+  const daysFromStart = (new Date(Date.UTC(year, monthIndex - 1, day)).getUTCDay() - first + 7) % 7;
+  const start = Date.UTC(year, monthIndex - 1, day - daysFromStart);
+  return Array.from({ length: 7 }, (_, i) => utcToDateString(new Date(start + i * 86_400_000)));
 }
 
 /** Shift a `YYYY-MM` month by a signed number of months. */
@@ -109,30 +142,30 @@ export function shiftMonth(month: string, delta: number): string {
 
 /**
  * Week rows the dashboard's Month view grid renders for `YYYY-MM`: the
- * Monday-first weeks overlapping the month (4–6). Mantine's `MonthView` is
+ * `weekStart`-first weeks overlapping the month (4–6). Mantine's `MonthView` is
  * configured with `consistentWeeks={false}` + `withOutsideDays`, so no row is
  * ever padded in from wholly outside the month (the old `consistentWeeks`
  * default appended a full trailing week for 5-week months). Used by the
  * loading skeleton.
  */
-export function monthGridRows(month: string): number {
+export function monthGridRows(month: string, weekStart: WeekStart = WEEK_START_DEFAULT): number {
   const [year, monthIndex] = month.split("-").map(Number);
   const first = new Date(Date.UTC(year, monthIndex - 1, 1));
   const daysInMonth = new Date(Date.UTC(year, monthIndex, 0)).getUTCDate();
-  // JS `getUTCDay`: 0=Sun..6=Sat; offset from Monday, Mon=0..Sun=6.
-  const daysFromMonday = (first.getUTCDay() + 6) % 7;
-  return Math.ceil((daysFromMonday + daysInMonth) / 7);
+  // JS `getUTCDay`: 0=Sun..6=Sat; offset from the chosen first day.
+  const daysFromStart = (first.getUTCDay() - firstDayOfWeek(weekStart) + 7) % 7;
+  return Math.ceil((daysFromStart + daysInMonth) / 7);
 }
 
 /**
- * Every `YYYY-MM` month the Month view grid displays for `YYYY-MM`: the
- * Monday on or before the 1st through the last rendered week
+ * Every `YYYY-MM` month the Month view grid displays for `YYYY-MM`: the first
+ * week-start day on or before the 1st through the last rendered week
  * (`monthGridRows`), so adjacent-month days rendered by `MonthView` carry
  * their events. 2–3 months depending on where the month's weeks fall.
  */
-export function monthGridMonths(month: string): string[] {
-  const gridStart = weekDays(`${month}-01`)[0];
-  const gridEnd = addDays(gridStart, monthGridRows(month) * 7 - 1);
+export function monthGridMonths(month: string, weekStart: WeekStart = WEEK_START_DEFAULT): string[] {
+  const gridStart = weekDays(`${month}-01`, weekStart)[0];
+  const gridEnd = addDays(gridStart, monthGridRows(month, weekStart) * 7 - 1);
   return monthsInRange(gridStart, gridEnd);
 }
 

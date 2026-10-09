@@ -5,7 +5,8 @@ Where does the app remember things? Two scopes with one hard rule:
 - **Cross-account preferences follow the user to any device** — they live in
   Postgres: the dashboard's on-demand **Views (tabs)** and their per-tab
   filters (`user_dashboard_views`), the Parade State
-  Calendars/Users filters and the event-search history (`user_preferences`).
+  Calendars/Users filters, the event-search history and the calendar **week
+  start** (`user_preferences`).
 - **"Where you are" is device-local** — it lives in one small cookie
   `cloudy2.ui`: the last visited page, the sidebar rail state, the dashboard
   `date`/`month` anchor, the zooms — the Day/Week (H) hour-slot `zoom`, the
@@ -69,6 +70,12 @@ Singleton row per user (`userId` PK, FK cascade):
 - `searchHistory` — the user's recent event-search queries (most-recent-first,
   deduped, capped at 8) surfaced as "Recent searches" badges in the search
   modal ([`event-search.md`](event-search.md) §1.10).
+- `weekStart` — which day the account's calendar week opens on (`"monday"` |
+  `"sunday"`, default Monday), set from the profile menu's **Preferences**
+  dialog. Applied to every week/month dashboard grid and its fetch set
+  (`firstDayOfWeek`, `weekDays`/`monthGridRows`/`monthGridMonths`), so the
+  dashboard snapshot version bumps when it changes
+  ([`dashboard-views.md`](dashboard-views.md) §1.1).
 - timestamps.
 
 ### 1.2.3 Lazy seeding & concurrency
@@ -277,7 +284,8 @@ in the pages/layout, and the writer hooks.
 | `src/lib/dashboardViews/queries.ts` | `getDashboardViews` (+ mutex-guarded default seed) |
 | `src/lib/dashboardViews/actions.ts` | Tab CRUD + per-tab filter saves |
 | `src/lib/userPrefs/queries.ts` | `getUserPreferences` (cached ensure + read) |
-| `src/lib/userPrefs/actions.ts` | `saveParadeFilters` |
+| `src/lib/userPrefs/actions.ts` | `saveParadeFilters`, `getWeekStart`/`setWeekStart` |
+| `src/components/PreferencesModal.tsx` | Profile-menu Preferences dialog (week start) |
 | `src/lib/events/searchHistoryActions.ts` | `getSearchHistory` / `recordSearchHistory` / `removeSearchHistory` (search-history prefs) |
 | `src/db/schema.ts` | `user_dashboard_views`, `user_preferences` |
 | `src/lib/dashboard/data.ts` | Active-tab resolution + per-tab filter validation + date/month fallback (via `buildDashboardData`) |

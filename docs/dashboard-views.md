@@ -46,6 +46,15 @@ The `DASHBOARD_VIEW_KINDS` array's order is the **type-picker display order**
 (Month & Agenda first, then Month, …); it is not a default — a new account is
 seeded with a single "Month" tab.
 
+**Week start.** A per-account preference (`user_preferences.week_start`, set
+from the profile menu's **Preferences** dialog — [`ui-state.md`](ui-state.md)
+§1.2.2) chooses whether every week/month grid opens on **Monday** (default) or
+**Sunday**. It drives Mantine's `firstDayOfWeek` on the Month/Week (H)/Week
+(Grid) views, the pinned weekday-initials strip, and the `requiredMonths` fetch
+set through `weekDays`/`monthGridRows`/`monthGridMonths`
+(`src/lib/events/datetime.ts`); because it changes which months a view depends
+on, the dashboard snapshot version bumps when it is introduced.
+
 Mobile-month is the sub-`lg` rendering of the `month` kind. Tabs are **not**
 the kinds themselves: each `user_dashboard_views` row binds one of these kinds
 to a user-chosen **name**, a per-user `sortOrder`, and that tab's own filter

@@ -104,7 +104,7 @@ import { LoadingStatus } from "@/components/LoadingStatus";
 import { QuickLinksMenu } from "@/components/QuickLinksMenu";
 import type { DashboardSnapshot } from "@/lib/dashboard/snapshot";
 import { eventsOnDay } from "@/lib/events/agenda";
-import { monthGridMonths, weekDays } from "@/lib/events/datetime";
+import { firstDayOfWeek, monthGridMonths, weekDays } from "@/lib/events/datetime";
 import { sortMineFirst } from "@/lib/events/mineFirst";
 import { buildEventDeepLink } from "@/lib/events/deepLink";
 import type { CalendarEvent } from "@/lib/events/queries";
@@ -796,6 +796,7 @@ function DashboardViewImpl({
   savedEventToastVariant,
   translucencyLevel,
   reorderDrag,
+  weekStartsOn,
   quickLinks,
   selectedCalendarIds,
   selectedTypes,
@@ -1523,7 +1524,9 @@ function DashboardViewImpl({
   const monthChanging = (shownView === "month" || shownView === "dual") && shownMonth !== month;
   const monthOptimistic =
     monthChanging &&
-    monthGridMonths(shownMonth).some((candidate) => monthGridMonths(month).includes(candidate));
+    monthGridMonths(shownMonth, weekStartsOn).some((candidate) =>
+      monthGridMonths(month, weekStartsOn).includes(candidate),
+    );
   const monthPending = monthChanging && !monthOptimistic;
   const gridLoading = useMinSkeletonHold((isNavigating && !monthOptimistic) || monthPending);
   useContentEnter(weekBoxRef, !gridLoading);
@@ -1658,7 +1661,7 @@ function DashboardViewImpl({
   const dayLabel = dayjs(shownDate).format("ddd, MMM D, YYYY");
   const week =
     shownView === "week" || shownView === "weekv2" || shownView === "weekgrid"
-      ? weekDays(shownDate)
+      ? weekDays(shownDate, weekStartsOn)
       : null;
   const weekLabel = week ? formatWeekLabel(week[0], week[6]) : "";
   // Dual Pane labels the nav row with the MONTH (the pane header carries the
@@ -2063,7 +2066,7 @@ function DashboardViewImpl({
   const isDual = view === "dual";
   // Day/week-anchored views (Day, Week (H), Week (D), Week (Grid), Agenda,
   // Dual Pane): a `?date=` anchor drives the fetch and the rendered grid (the
-  // week kinds show the Monday-first week containing the anchor day; Dual Pane
+  // week kinds show the week-start week containing the anchor day; Dual Pane
   // shows that day's month + the day's agenda). `isWeek` includes Week (D) and
   // Week (Grid).
   const isAnchoredView = isSchedule || isWeek || isAgenda || isDual;
@@ -3680,7 +3683,11 @@ function DashboardViewImpl({
             own row, which scrolls away inside the grid's ScrollArea). Its track
             is sized to the zoomed grid so the initials stay over their columns. */}
           {!gridLoading && view === "month" && (
-            <MonthWeekdayStrip chromeOffset={chromeHeight} innerRef={monthWeekdayTrackRef} />
+            <MonthWeekdayStrip
+              chromeOffset={chromeHeight}
+              innerRef={monthWeekdayTrackRef}
+              weekStartsOn={weekStartsOn}
+            />
           )}
           {/* Grid/skeleton swipe on a view/date change: `gridSlideRef` is
             animated via `el.animate` (Web Animations API) on the change; the
@@ -3694,10 +3701,10 @@ function DashboardViewImpl({
               <>
                 <LoadingStatus label="Loading calendar" />
                 {shownView === "month" ? (
-                  <MonthGridSkeleton rows={monthGridRows(shownMonth)} />
+                  <MonthGridSkeleton rows={monthGridRows(shownMonth, weekStartsOn)} />
                 ) : shownIsDual ? (
                   <DualPaneSkeleton
-                    rows={monthGridRows(shownMonth)}
+                    rows={monthGridRows(shownMonth, weekStartsOn)}
                     splitPct={dualSplit}
                     chromeOffset={chromeHeight}
                   />
@@ -3720,6 +3727,7 @@ function DashboardViewImpl({
                 // (which already cover it) instead of showing the previous month;
                 // the read then swaps the full event set in place.
                 date={`${monthOptimistic ? shownMonth : month}-01 00:00:00`}
+                firstDayOfWeek={firstDayOfWeek(weekStartsOn)}
                 // Pre-sorted so the user's events claim the top rows of each day
                 // (the grid assigns rows greedily in input order); their chips get
                 // the amber ring via renderEvent.
@@ -3771,6 +3779,7 @@ function DashboardViewImpl({
                 // tapped month (`shownMonth`) so it draws from the held events.
                 month={monthOptimistic ? shownMonth : month}
                 day={shownDate}
+                weekStartsOn={weekStartsOn}
                 monthEvents={monthEvents}
                 events={viewEvents}
                 monthZoom={monthZoom}
@@ -3870,6 +3879,7 @@ function DashboardViewImpl({
               // both ways and the grid pans horizontally.
               <WeekView
                 date={date}
+                firstDayOfWeek={firstDayOfWeek(weekStartsOn)}
                 events={viewEvents}
                 startTime="00:00:00"
                 endTime="23:59:59"
@@ -3878,8 +3888,8 @@ function DashboardViewImpl({
                 withHeader={false}
                 withCurrentTimeIndicator
                 // Week containing today opens at the current time, other weeks at
-                // Monday 07:00 (mount-only, re-applied after each tab switch /
-                // date navigation remounts the grid via the skeleton).
+                // the week's first day 07:00 (mount-only, re-applied after each
+                // tab switch / date navigation remounts the grid via the skeleton).
                 startScrollTime={
                   week.includes(today) ? `${today} ${currentScrollTime}` : `${week[0]} 07:00:00`
                 }
@@ -4035,6 +4045,7 @@ function DashboardViewImpl({
             ) : isWeek ? (
               <ResourcesWeekView
                 date={date}
+                firstDayOfWeek={firstDayOfWeek(weekStartsOn)}
                 resources={scheduleResources.resources}
                 groups={scheduleResources.groups}
                 events={scheduleEvents}
@@ -4045,8 +4056,9 @@ function DashboardViewImpl({
                 withHeader={false}
                 withCurrentTimeIndicator
                 // Week containing today opens at the current time, other weeks at
-                // Monday 07:00 (mount-only effect, re-applied after each tab
-                // switch / date navigation remounts the grid via the skeleton).
+                // the week's first day 07:00 (mount-only effect, re-applied after
+                // each tab switch / date navigation remounts the grid via the
+                // skeleton).
                 startScrollDateTime={
                   week
                     ? week.includes(today)
@@ -4678,6 +4690,7 @@ function DashboardViewImpl({
         onToday={goToday}
         onClose={closePicker}
         originRect={pickerOriginRect}
+        weekStartsOn={weekStartsOn}
       />
 
       <FilterModal

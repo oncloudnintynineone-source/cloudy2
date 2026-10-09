@@ -1,0 +1,1 @@
+ALTER TABLE "user_preferences" ADD COLUMN "week_start" text DEFAULT 'monday' NOT NULL;

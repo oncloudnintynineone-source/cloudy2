@@ -3,6 +3,7 @@ import { cache } from "react";
 
 import { db } from "@/db";
 import { userPreferences, type UserPreference } from "@/db/schema";
+import { normalizeWeekStart, type WeekStart } from "@/lib/events/datetime";
 import { isUuid } from "@/lib/uuid";
 
 /**
@@ -21,6 +22,8 @@ export interface UserPreferencesView {
   paradeUsers: string[];
   /** Recent event-search queries, most-recent-first (empty = none). */
   searchHistory: string[];
+  /** Which day the user's calendar week starts on. */
+  weekStart: WeekStart;
 }
 
 /** Non-empty strings only; garbage entries drop out of a remembered list. */
@@ -66,6 +69,7 @@ export const getUserPreferences = cache(
       paradeCal: toStringList(row.paradeCal),
       paradeUsers: toStringList(row.paradeUsers),
       searchHistory: toStringList(row.searchHistory),
+      weekStart: normalizeWeekStart(row.weekStart),
     };
   },
 );

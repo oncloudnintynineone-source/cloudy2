@@ -122,6 +122,7 @@ export default async function ParadeStatePage({ searchParams }: ParadeStatePageP
           filterUsers={filterUsers}
           nameTemplate={settings.nameTemplate}
           isAdmin={session.user.role === "admin"}
+          weekStartsOn={prefs?.weekStart ?? "monday"}
         />
       </PageContainer>
     </PageTransition>

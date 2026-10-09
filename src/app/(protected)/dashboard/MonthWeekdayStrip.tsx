@@ -3,7 +3,7 @@
 import type { RefObject } from "react";
 import { Box } from "@mantine/core";
 
-import { WEEKDAY_ABBREVIATIONS } from "@/lib/events/datetime";
+import { weekdayAbbreviations, type WeekStart } from "@/lib/events/datetime";
 
 /** Seven day columns per week row (see the Month view's zoom mechanics). */
 const MONTH_COLUMNS = 7;
@@ -26,10 +26,13 @@ const MONTH_COLUMNS = 7;
 export function MonthWeekdayStrip({
   chromeOffset,
   innerRef,
+  weekStartsOn,
   sticky = true,
 }: {
   chromeOffset: number;
   innerRef: RefObject<HTMLDivElement | null>;
+  /** Which day the week starts on, so the initials match the grid columns. */
+  weekStartsOn: WeekStart;
   /**
    * Pin beneath the shared chrome (standalone Month view / stacked Dual Pane).
    * `false` when the strip is already the fixed header of the Dual Pane's own
@@ -78,7 +81,7 @@ export function MonthWeekdayStrip({
           willChange: "transform",
         }}
       >
-        {WEEKDAY_ABBREVIATIONS.map((day, index) => (
+        {weekdayAbbreviations(weekStartsOn).map((day, index) => (
           <Box
             key={day}
             component="div"

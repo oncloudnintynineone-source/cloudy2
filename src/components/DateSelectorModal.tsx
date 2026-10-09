@@ -4,12 +4,12 @@ import dayjs from "dayjs";
 import { useState } from "react";
 import { ActionIcon, Box, Button, Modal, Text, useMantineTheme } from "@mantine/core";
 import { useMediaQuery, useViewportSize } from "@mantine/hooks";
-import { MonthPicker } from "@mantine/dates";
+import { DatesProvider, MonthPicker } from "@mantine/dates";
 import { MobileMonthView } from "@mantine/schedule";
 import "@mantine/schedule/styles.css";
 import { IconChevronLeft, IconChevronRight } from "@tabler/icons-react";
 import { NARROW_MEDIA_QUERY } from "@/lib/theme";
-import { weekDays } from "@/lib/events/datetime";
+import { firstDayOfWeek, weekDays, type WeekStart } from "@/lib/events/datetime";
 import {
   modalContentWidth,
   scaleFromRect,
@@ -32,6 +32,8 @@ interface DateSelectorModalProps {
   onClose: () => void;
   /** Trigger rect; the dialog grows out of / shrinks back into it. */
   originRect?: Rect | null;
+  /** Which day the account's week starts on (default Monday). */
+  weekStartsOn?: WeekStart;
 }
 
 const WEEK_TINT = "color-mix(in srgb, var(--mantine-primary-color-filled) 15%, transparent)";
@@ -44,6 +46,7 @@ export function DateSelectorModal({
   onToday,
   onClose,
   originRect = null,
+  weekStartsOn = "monday",
 }: DateSelectorModalProps) {
   const theme = useMantineTheme();
   const isDesktop = useMediaQuery(`(min-width: ${theme.breakpoints.lg})`);
@@ -64,11 +67,11 @@ export function DateSelectorModal({
   const shiftMonth = (delta: number) =>
     setPickerDate(dayjs(pickerDate).add(delta, "month").format("YYYY-MM-DD"));
 
-  // Week picker: highlight the Monday-first week containing the anchor day.
+  // Week picker: highlight the account's week (Monday- or Sunday-first)
   // `selectedDate` already fills the anchor's circle; the other six days get a
   // subtle brand tint (rounded on the leading/trailing ends) so the week reads
   // as a continuous range.
-  const week = kind === "week" ? weekDays(date) : null;
+  const week = kind === "week" ? weekDays(date, weekStartsOn) : null;
   const getDayProps = week
     ? (day: string) => {
         const idx = week.indexOf(day);
@@ -116,21 +119,26 @@ export function DateSelectorModal({
     >
       {kind === "month" ? (
         <Box style={{ display: "flex", justifyContent: "center" }}>
-          <MonthPicker
-            defaultDate={`${date}-01`}
-            onChange={(value) => {
-              const picked = value ? dayjs(value) : null;
-              if (!picked) {
-                return;
-              }
-              onPick(picked.format("YYYY-MM"));
-              onClose();
-            }}
-          />
+          {/* MonthPicker reads `firstDayOfWeek` from the DatesProvider context
+              (it is not a direct prop). */}
+          <DatesProvider settings={{ firstDayOfWeek: firstDayOfWeek(weekStartsOn) }}>
+            <MonthPicker
+              defaultDate={`${date}-01`}
+              onChange={(value) => {
+                const picked = value ? dayjs(value) : null;
+                if (!picked) {
+                  return;
+                }
+                onPick(picked.format("YYYY-MM"));
+                onClose();
+              }}
+            />
+          </DatesProvider>
         </Box>
       ) : (
         <MobileMonthView
           date={pickerDate}
+          firstDayOfWeek={firstDayOfWeek(weekStartsOn)}
           selectedDate={date}
           getDayProps={getDayProps}
           onDayClick={(picked) => {

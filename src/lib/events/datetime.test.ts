@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  WEEKDAY_ABBREVIATIONS,
   absEventRange,
   addDays,
   addOneDay,
@@ -8,6 +9,7 @@ import {
   daysBetween,
   daysUntilDate,
   exclusiveAbsEventRange,
+  firstDayOfWeek,
   formatInstantToNaive,
   halfDayRange,
   lastDayOfMonth,
@@ -15,11 +17,13 @@ import {
   monthGridRows,
   monthRange,
   monthsInRange,
+  normalizeWeekStart,
   parseNaiveToInstant,
   shiftMonth,
   subOneDay,
   utcToDateString,
   weekDays,
+  weekdayAbbreviations,
 } from "./datetime";
 
 describe("parseNaiveToInstant / formatInstantToNaive", () => {
@@ -143,6 +147,46 @@ describe("weekDays", () => {
     expect(monthsInRange(weekDays("2026-07-01")[0], weekDays("2026-07-01")[6])).toEqual([
       "2026-06",
       "2026-07",
+    ]);
+  });
+
+  it("starts on Sunday when asked", () => {
+    // 2026-08-19 is a Wednesday; Sunday-first week opens on 2026-08-16.
+    expect(weekDays("2026-08-19", "sunday")).toEqual([
+      "2026-08-16",
+      "2026-08-17",
+      "2026-08-18",
+      "2026-08-19",
+      "2026-08-20",
+      "2026-08-21",
+      "2026-08-22",
+    ]);
+  });
+});
+
+describe("week-start helpers", () => {
+  it("normalizes an arbitrary stored value to a valid week start", () => {
+    expect(normalizeWeekStart("sunday")).toBe("sunday");
+    expect(normalizeWeekStart("monday")).toBe("monday");
+    expect(normalizeWeekStart(null)).toBe("monday");
+    expect(normalizeWeekStart("nonsense")).toBe("monday");
+  });
+
+  it("maps to Mantine's firstDayOfWeek (0 = Sunday, 1 = Monday)", () => {
+    expect(firstDayOfWeek("monday")).toBe(1);
+    expect(firstDayOfWeek("sunday")).toBe(0);
+  });
+
+  it("orders the weekday abbreviations by week start", () => {
+    expect(weekdayAbbreviations("monday")).toEqual(WEEKDAY_ABBREVIATIONS);
+    expect(weekdayAbbreviations("sunday")).toEqual([
+      "Sun",
+      "Mon",
+      "Tue",
+      "Wed",
+      "Thu",
+      "Fri",
+      "Sat",
     ]);
   });
 });
@@ -324,6 +368,13 @@ describe("monthGridRows", () => {
     // Feb 2027: 1st is Monday; ceil((0 + 28) / 7) = 4 rows.
     expect(monthGridRows("2027-02")).toBe(4);
   });
+
+  it("re-counts for a Sunday-start grid (May 2026)", () => {
+    // Sunday-first: the 1st (Friday) is 5 days after the grid's Sunday;
+    // ceil((5 + 31) / 7) = 6 rows (one more than the Monday-first 5).
+    expect(monthGridRows("2026-05", "sunday")).toBe(6);
+    expect(monthGridRows("2026-05", "monday")).toBe(5);
+  });
 });
 
 describe("monthGridMonths", () => {
@@ -350,5 +401,12 @@ describe("monthGridMonths", () => {
   it("rolls across the year boundary (Dec 2026)", () => {
     // 1st is Tuesday: grid runs Mon 2026-11-30 → Sun 2027-01-03 (5 rows).
     expect(monthGridMonths("2026-12")).toEqual(["2026-11", "2026-12", "2027-01"]);
+  });
+
+  it("re-anchors the grid for a Sunday start (May 2026)", () => {
+    // Sunday-first: grid runs Sun 2026-04-26 → Sat 2026-06-06 (6 rows), so June
+    // is pulled in — the Monday-first grid stops at 2026-05-31.
+    expect(monthGridMonths("2026-05", "sunday")).toEqual(["2026-04", "2026-05", "2026-06"]);
+    expect(monthGridMonths("2026-05", "monday")).toEqual(["2026-04", "2026-05"]);
   });
 });

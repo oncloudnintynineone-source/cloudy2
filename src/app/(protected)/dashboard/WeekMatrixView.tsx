@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * Week (D) matrix: 7 day columns (Monday-first) x one row per user/department.
+ * Week (D) matrix: 7 day columns (ordered by the account's week start) x one row per user/department.
  * Multi-day events render as spanning banners that occupy every day they
  * cover within a row, placed in lanes (stacked vertically) so overlapping
  * events don't collide.  The day header and the left group/user labels are
@@ -42,7 +42,7 @@ import {
 } from "@/lib/ui/slotZoom";
 
 export interface WeekMatrixViewProps {
-  /** The seven days of the displayed week, Monday-first (`YYYY-MM-DD`). */
+  /** The seven days of the displayed week, in week-start order (`YYYY-MM-DD`). */
   days: string[];
   /** Rows in display order: department row + its users, per department. */
   resources: ScheduleResource[];

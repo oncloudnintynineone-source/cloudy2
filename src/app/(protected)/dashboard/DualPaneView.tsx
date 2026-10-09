@@ -53,7 +53,7 @@ import { GridNavControls } from "@/components/GridNavControls";
 import { FULLSCREEN_BUTTON_SIZE, FULLSCREEN_EDGE_INSET } from "@/components/FullscreenToggle";
 import { eventsOnDay } from "@/lib/events/agenda";
 import type { CalendarEvent } from "@/lib/events/queries";
-import { monthGridRows } from "@/lib/events/datetime";
+import { firstDayOfWeek, monthGridRows, type WeekStart } from "@/lib/events/datetime";
 import type { Rect } from "@/lib/motion/origin";
 import { markAgendaSwipeHintSeen } from "@/lib/ui/agendaSwipeHint";
 import {
@@ -86,6 +86,8 @@ export interface DualPaneViewProps {
   month: string;
   /** The Agenda pane's day (`YYYY-MM-DD`), always inside `month`. */
   day: string;
+  /** Which day the account's calendar week starts on. */
+  weekStartsOn: WeekStart;
   /** Month-pane events, pre-sorted so the user's claim the top rows. */
   monthEvents: CalendarEvent[];
   /** The full filtered event set (the Agenda pane bins the shown day). */
@@ -143,6 +145,7 @@ const MONTH_INNER_STYLE = {
 export function DualPaneView({
   month,
   day,
+  weekStartsOn,
   monthEvents,
   events,
   monthZoom,
@@ -257,10 +260,10 @@ export function DualPaneView({
     }
     // 148px = 52 + 4 * 24 (the natural four-event row); subtract the row
     // borders so the filled grid lands just inside the pane.
-    const rows = monthGridRows(month);
+    const rows = monthGridRows(month, weekStartsOn);
     const rowHeight = Math.max(148, (monthScrollHeight - rows) / rows);
     return { "--month-view-max-events": String((rowHeight - 52) / 24) } as CSSProperties;
-  }, [isDesktop, monthScrollHeight, month]);
+  }, [isDesktop, monthScrollHeight, month, weekStartsOn]);
 
   // ---- Split handle --------------------------------------------------------
   // The live fraction is written straight to the container's CSS var during a
@@ -425,6 +428,7 @@ export function DualPaneView({
         <MonthWeekdayStrip
           chromeOffset={chromeOffset}
           innerRef={weekdayTrackRef}
+          weekStartsOn={weekStartsOn}
           sticky={!isDesktop}
         />
         <Box
@@ -443,6 +447,7 @@ export function DualPaneView({
         >
           <MonthView
             date={`${month}-01 00:00:00`}
+            firstDayOfWeek={firstDayOfWeek(weekStartsOn)}
             events={monthEvents}
             withHeader={false}
             withWeekDays={false}

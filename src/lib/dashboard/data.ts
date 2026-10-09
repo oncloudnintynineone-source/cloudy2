@@ -52,6 +52,7 @@ import {
   savedEventToastVariantFlag,
 } from "@/lib/settings/featureFlags";
 import { UI_STATE_COOKIE, decodeUiState } from "@/lib/ui/uiState";
+import { getUserPreferences } from "@/lib/userPrefs/queries";
 import { isUuid } from "@/lib/uuid";
 import { getDashboardViews } from "@/lib/dashboardViews/queries";
 import {
@@ -185,6 +186,7 @@ async function resolveDashboardConfig(session: Session): Promise<DashboardConfig
   // trip on every config pass).
   const [
     storedTabs,
+    userPrefs,
     cookieStore,
     calendars,
     eventTypes,
@@ -195,6 +197,7 @@ async function resolveDashboardConfig(session: Session): Promise<DashboardConfig
     eventTitleTemplates,
   ] = await Promise.all([
     getDashboardViews(session.user.id),
+    getUserPreferences(session.user.id),
     cookies(),
     listCalendars(),
     listEventTypes(),
@@ -426,6 +429,7 @@ async function resolveDashboardConfig(session: Session): Promise<DashboardConfig
       settings.featureFlags.translucencyLevel,
     ),
     reorderDrag: resolveFlagValue(reorderDragFlag, settings.featureFlags.reorderDrag),
+    weekStartsOn: userPrefs?.weekStart ?? "monday",
     quickLinks: quickLinks
       .filter((link) => link.enabled)
       .map((link) => ({
@@ -510,7 +514,7 @@ function projectTab(
     config.membershipsByDepartment,
   );
   const events = resolveDisplayTitles(projected, config.displayOptionsFor(tab.kind));
-  const months = requiredMonths(tab.kind, period.month, period.date);
+  const months = requiredMonths(tab.kind, period.month, period.date, config.shared.weekStartsOn);
 
   const delta: DashboardTabDelta = {
     activeView: tab,
@@ -549,7 +553,12 @@ export async function buildDashboardData(
   // The months this view actually needs (Month grid: 2-3; Week: 1-2 at a
   // boundary; Day/Agenda: one). Shared with the client's fetch signature so an
   // in-month day move never triggers a server read.
-  const rangeMonths = requiredMonths(activeTab.kind, period.month, period.date);
+  const rangeMonths = requiredMonths(
+    activeTab.kind,
+    period.month,
+    period.date,
+    config.shared.weekStartsOn,
+  );
   const rangeData = await readCalendarRange({
     months: rangeMonths,
     calendarIds: selectedCalendars,
@@ -628,7 +637,9 @@ export async function buildDashboardPreload(
   const unionCalendars = [...new Set(resolved.flatMap((entry) => entry.filters.cal))];
   const unionMonths = [
     ...new Set(
-      resolved.flatMap((entry) => requiredMonths(entry.tab.kind, period.month, period.date)),
+      resolved.flatMap((entry) =>
+        requiredMonths(entry.tab.kind, period.month, period.date, config.shared.weekStartsOn),
+      ),
     ),
   ];
 

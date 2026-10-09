@@ -193,6 +193,12 @@ export const userPreferences = pgTable("user_preferences", {
    * actually subscribed.
    */
   eventInvitePush: boolean("event_invite_push").notNull().default(true),
+  /**
+   * Which day the user's calendar week starts on ("monday" | "sunday"), applied
+   * to every week/month dashboard grid (see `src/lib/events/datetime.ts`).
+   * Defaults to Monday.
+   */
+  weekStart: text("week_start").notNull().default("monday"),
   ...timestamps,
 });
 

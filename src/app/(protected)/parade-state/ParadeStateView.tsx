@@ -52,6 +52,7 @@ import { useColdStartContent } from "@/components/ColdStartReady";
 import { FilterModal, type FilterGroup } from "@/components/FilterModal";
 import { FAB_ICON_SIZE, FloatingActionButton, FloatingToolbar } from "@/components/FloatingToolbar";
 import { LoadingStatus } from "@/components/LoadingStatus";
+import type { WeekStart } from "@/lib/events/datetime";
 import type { CalendarEvent } from "@/lib/events/queries";
 import { CONTENT_ENTER_CLASS, useContentEnter } from "@/lib/loading/contentEnter";
 import { useMinSkeletonHold } from "@/lib/loading/minHoldLoading";
@@ -139,6 +140,8 @@ export interface ParadeStateViewProps {
   nameTemplate: string;
   /** Admin: the empty state links into Settings; non-admins get the plain message. */
   isAdmin?: boolean;
+  /** Which day the account's calendar week starts on (for the date picker). */
+  weekStartsOn?: WeekStart;
 }
 
 export function ParadeStateView({
@@ -153,6 +156,7 @@ export function ParadeStateView({
   filterUsers,
   nameTemplate,
   isAdmin = false,
+  weekStartsOn = "monday",
 }: ParadeStateViewProps) {
   const router = useRouter();
   const pathname = usePathname();
@@ -917,6 +921,7 @@ export function ParadeStateView({
         onToday={goToday}
         onClose={closePicker}
         originRect={pickerOriginRect}
+        weekStartsOn={weekStartsOn}
       />
       <Modal opened={resetOpened} onClose={closeResetConfirm} title="Clear all dates" centered>
         <Text>Clear attendance checks for every date? This cannot be undone.</Text>

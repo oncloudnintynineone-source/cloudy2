@@ -9,7 +9,7 @@
  * `localStore.ts`; the server-side builder is in `data.ts`.
  */
 
-import { monthGridMonths, monthsInRange, weekDays } from "@/lib/events/datetime";
+import { monthGridMonths, monthsInRange, weekDays, type WeekStart } from "@/lib/events/datetime";
 import type { CalendarEvent } from "@/lib/events/queries";
 import type { ScheduleUser } from "@/lib/events/schedule";
 import type { EventTypeOption } from "@/lib/dashboard/types";
@@ -31,7 +31,7 @@ import type { TitleRecipe } from "@/lib/settings/titleRecipe";
  * version differs is ignored (and overwritten on the next successful load), so
  * a deploy that changes the shape can never feed the new UI a stale record.
  */
-export const DASHBOARD_SNAPSHOT_VERSION = 6;
+export const DASHBOARD_SNAPSHOT_VERSION = 7;
 
 /** The one-shot `?refresh=` nonce is honored only within this window. */
 export const REFRESH_NONCE_TTL_MS = 5 * 60_000;
@@ -84,6 +84,12 @@ export interface DashboardSnapshot {
    * drag handle / up-down chevrons.
    */
   reorderDrag: ReorderDrag;
+  /**
+   * Which day the account's calendar week starts on (per-user preference).
+   * Drives every week/month grid's `firstDayOfWeek` and the months a view
+   * fetches (`requiredMonths`), so server and client agree.
+   */
+  weekStartsOn: WeekStart;
   /**
    * Enabled quick links in menu order (Settings → Quick Links); the amber
    * Quick-links launcher renders only when at least one is set.
@@ -225,8 +231,8 @@ export interface DashboardSnapshotRecord {
  * already-loaded month is not a data change:
  *
  * - Month: the 6-week grid's months (`monthGridMonths`, 2-3).
- * - Week (H) / Week (D) / Week (Grid): the months the Monday-first week
- *   touches (1-2).
+ * - Week (H) / Week (D) / Week (Grid): the months the week touches, from the
+ *   account's week-start day (1-2).
  * - Day / Agenda: the single containing month.
  * - Dual Pane: the 6-week grid's months (`monthGridMonths`), exactly like
  *   Month — it is day-anchored, and its Month pane always shows the agenda
@@ -236,12 +242,17 @@ export interface DashboardSnapshotRecord {
  * (`buildDashboardData`) and the client (`DashboardScreen`) compute the same
  * set for the same input.
  */
-export function requiredMonths(kind: DashboardViewKind, month: string, date: string): string[] {
+export function requiredMonths(
+  kind: DashboardViewKind,
+  month: string,
+  date: string,
+  weekStartsOn: WeekStart = "monday",
+): string[] {
   if (kind === "month" || kind === "dual") {
-    return monthGridMonths(month);
+    return monthGridMonths(month, weekStartsOn);
   }
   if (kind === "week" || kind === "weekv2" || kind === "weekgrid") {
-    const week = weekDays(date);
+    const week = weekDays(date, weekStartsOn);
     return monthsInRange(week[0], week[6]);
   }
   return [month];
@@ -279,6 +290,8 @@ export function tabLoadStates(params: {
   tabs: readonly Pick<DashboardViewTab, "id" | "kind">[];
   month: string;
   date: string;
+  /** The account's week start, so the request keys match the server's. */
+  weekStartsOn: WeekStart;
   /** Keys with a warm snapshot of any age. */
   warmKeys: ReadonlySet<string>;
   /** Keys with an in-flight read (active/on-tap). */
@@ -290,7 +303,7 @@ export function tabLoadStates(params: {
   for (const tab of params.tabs) {
     const key = dashboardRequestKey({
       viewId: tab.id,
-      months: requiredMonths(tab.kind, params.month, params.date),
+      months: requiredMonths(tab.kind, params.month, params.date, params.weekStartsOn),
     });
     let state: TabLoadState;
     if (params.loadingKeys.has(key)) {

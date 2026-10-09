@@ -4,8 +4,11 @@ import { revalidatePath } from "next/cache";
 
 import { db } from "@/db";
 import { userPreferences } from "@/db/schema";
+import { normalizeWeekStart, type WeekStart } from "@/lib/events/datetime";
 import { requireSession } from "@/lib/session";
 import { isUuid } from "@/lib/uuid";
+
+import { getUserPreferences } from "./queries";
 
 export type UserPrefsActionResult = { ok: true } | { ok: false; error: string };
 
@@ -42,5 +45,37 @@ export async function saveParadeFilters(input: {
       set: { paradeCal: cal, paradeUsers: users, updatedAt: new Date() },
     });
   revalidatePath("/parade-state");
+  return { ok: true };
+}
+
+/**
+ * Read the current account's week-start preference. Falls back to Monday for
+ * the break-glass admin (which has no `user_preferences` row).
+ */
+export async function getWeekStart(): Promise<WeekStart> {
+  const session = await requireSession();
+  const prefs = await getUserPreferences(session.user.id);
+  return prefs?.weekStart ?? "monday";
+}
+
+/**
+ * Persist the week-start preference for the account. The client reloads the
+ * page afterwards so every week/month grid re-reads with the new first day.
+ */
+export async function setWeekStart(value: unknown): Promise<UserPrefsActionResult> {
+  const session = await requireSession();
+  const userId = session.user.id;
+  if (!isUuid(userId)) {
+    return { ok: true };
+  }
+  const weekStart = normalizeWeekStart(value);
+  await db
+    .insert(userPreferences)
+    .values({ userId, weekStart })
+    .onConflictDoUpdate({
+      target: userPreferences.userId,
+      set: { weekStart, updatedAt: new Date() },
+    });
+  revalidatePath("/dashboard");
   return { ok: true };
 }

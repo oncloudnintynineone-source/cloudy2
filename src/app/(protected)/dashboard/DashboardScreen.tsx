@@ -322,7 +322,12 @@ export function DashboardScreen({
               .map((tab) =>
                 dashboardRequestKey({
                   viewId: tab.id,
-                  months: requiredMonths(tab.kind, current.context.month, current.context.date),
+                  months: requiredMonths(
+                    tab.kind,
+                    current.context.month,
+                    current.context.date,
+                    current.data.weekStartsOn,
+                  ),
                 }),
               )
               .filter((key) => !warm.has(key)),
@@ -496,7 +501,9 @@ export function DashboardScreen({
     if (tabs.length <= 1) return;
     const months = [
       ...new Set(
-        tabs.flatMap((tab) => requiredMonths(tab.kind, record.context.month, record.context.date)),
+        tabs.flatMap((tab) =>
+          requiredMonths(tab.kind, record.context.month, record.context.date, record.data.weekStartsOn),
+        ),
       ),
     ].sort();
     const signature = `${tabs.map((tab) => tab.id).join(",")}|${months.join(",")}`;
@@ -583,7 +590,12 @@ export function DashboardScreen({
     const keyForTab = (tab: (typeof tabs)[number]) =>
       dashboardRequestKey({
         viewId: tab.id,
-        months: requiredMonths(tab.kind, record.context.month, record.context.date),
+        months: requiredMonths(
+          tab.kind,
+          record.context.month,
+          record.context.date,
+          record.data.weekStartsOn,
+        ),
       });
 
     // Warm keys from the map (the current record's key included): a warm copy of
@@ -609,6 +621,7 @@ export function DashboardScreen({
       tabs,
       month: record.context.month,
       date: record.context.date,
+      weekStartsOn: record.data.weekStartsOn,
       warmKeys,
       loadingKeys,
       activeTabId: activeId,

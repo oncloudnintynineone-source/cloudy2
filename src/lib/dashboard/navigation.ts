@@ -47,7 +47,7 @@ function candidateRequestKey(
   const date = urlDate ?? record.context.date;
   return dashboardRequestKey({
     viewId: tab.id,
-    months: requiredMonths(tab.kind, month, date),
+    months: requiredMonths(tab.kind, month, date, record.data.weekStartsOn),
   });
 }
 
@@ -79,8 +79,13 @@ function equivalentTab(
   const date = urlDate ?? record.context.date;
   if (
     !monthSetsEqual(
-      requiredMonths(target.kind, month, date),
-      requiredMonths(held.kind, record.context.month, record.context.date),
+      requiredMonths(target.kind, month, date, record.data.weekStartsOn),
+      requiredMonths(
+        held.kind,
+        record.context.month,
+        record.context.date,
+        record.data.weekStartsOn,
+      ),
     )
   ) {
     return null;

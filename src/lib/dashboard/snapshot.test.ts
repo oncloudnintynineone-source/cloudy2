@@ -79,6 +79,25 @@ describe("requiredMonths", () => {
       "2026-09",
     ]);
   });
+
+  it("follows a Sunday-start week (weeks now open on Sunday)", () => {
+    // Sun 2026-08-30 .. Sat 2026-09-05 spans two months, where the Monday-first
+    // week (2026-08-24 .. 2026-08-30) stays inside August.
+    expect(requiredMonths("week", "2026-08", "2026-08-30", "sunday")).toEqual([
+      "2026-08",
+      "2026-09",
+    ]);
+    expect(requiredMonths("week", "2026-08", "2026-08-30", "monday")).toEqual(["2026-08"]);
+  });
+
+  it("re-anchors the month grid for a Sunday start", () => {
+    // Sun 2026-08-30 .. Sat 2026-10-03 (5 rows) still touches three months.
+    expect(requiredMonths("month", "2026-09", "2026-09-12", "sunday")).toEqual([
+      "2026-08",
+      "2026-09",
+      "2026-10",
+    ]);
+  });
 });
 
 describe("dashboardRequestKey", () => {
@@ -139,6 +158,7 @@ describe("tabLoadStates", () => {
     tabs: [monthTab, agendaTab],
     month: "2026-09",
     date: "2026-09-12",
+    weekStartsOn: "monday" as const,
     activeTabId: null as string | null,
     warmKeys: new Set<string>(),
     loadingKeys: new Set<string>(),
