@@ -473,6 +473,7 @@ In CI, the schema-drift check runs `pnpm db:generate` then fails on any diff to
 | [`accessibility.md`](accessibility.md) | Skip link, live-region announcements, skeleton a11y |
 
 Working documents (not end-user documentation): [`AGENTS.md`](../AGENTS.md) (agent
+rules), [`docs/agents/`](agents/) (issue tracker, triage labels, domain-doc consumer
 rules), [`progress.md`](../progress.md) (status + changelog),
 [`progress-archive.md`](../progress-archive.md) (phase history), and the historical
 plans under `.opencode/plans/` and `tasks/`.

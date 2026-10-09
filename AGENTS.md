@@ -439,3 +439,17 @@ doc content here.
   (`deploy-cloudrun`, `main`-only) sharing prod Neon + the prod service account. Platform
   differences live in env/deploy files, never `next.config`/`src/`. Details + cutover/abort:
   [docs/developer-guide.md](docs/developer-guide.md) §1.9.1.
+
+## Agent skills
+
+### Issue tracker
+
+Issues live as local markdown files under `.scratch/<feature>/`. See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+Default canonical strings, recorded as `Status:` lines. See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Single-context: root `GLOSSARY.md` + `docs/adr/`. See `docs/agents/domain.md`.

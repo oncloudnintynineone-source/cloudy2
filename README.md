@@ -162,6 +162,7 @@ remember:
 | [`docs/admin-guide.md`](docs/admin-guide.md) | Admins | Acting on behalf, every Settings tab, sharing, KAH, audit log |
 | [`docs/developer-guide.md`](docs/developer-guide.md) | Developers | Setup, scripts, env, CI, git workflow, hosting (Vercel + Cloud Run shadow), Google setup, migrations — and the full index of design deep-dives |
 | [`AGENTS.md`](AGENTS.md) | AI agents / contributors | Hard rules + entry points for every subsystem |
+| [`docs/agents/`](docs/agents/) | AI agents | Issue tracker, triage labels, and domain-doc consumer rules |
 | [`progress.md`](progress.md) | Everyone | Current status, locked-in decisions, phase changelog, open items |
 
 Design deep-dives for each subsystem live under [`docs/`](docs/) — the complete
