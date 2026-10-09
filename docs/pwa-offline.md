@@ -294,6 +294,7 @@ Notes:
 - The activate wipe and the client-side clear are deliberately redundant: the wipe closes the "fresh tab after deploy" hole (a tab opened after v2 claimed has no `controllerchange` in its lifetime, so only the wipe guarantees an empty cache), while the client clear covers the brief activate/claim race where an in-flight v1 fetch could re-store an entry under the old name after the wipe. When the client applies an update itself it unregisters instead, so the waiting worker never activates at all.
 - The pill replaces the old silent takeover (which reloaded the instant a worker claimed the tab). Because the new worker now waits, the running old build is never partially upgraded, and the reload is warned rather than abrupt — the one trade-off is that an ignored pill relies on the grace timer or the next cold open.
 - The version check only fires for deploys that bump `APP_VERSION` (repo convention: bump on every codebase change), which is the same set of deploys that need a client reload.
+- **Push subscriptions survive the update.** `unregister()` can deactivate a device's Web Push subscription, so the protected shell's `usePushSubscriptionRepair` (docs/event-notifications.md §1.10.2) runs on the post-reload load and silently re-subscribes + re-syncs — applying an update never leaves event notifications dead.
 - In-page "older data" *within the same build* (navigating back to a visited URL) is still the intended SWR behavior (§1.5/§1.6) plus `staleTimes.dynamic = 120`; the header's **Force refresh** button (§1.11) is the user-facing escape hatch for that.
 
 ### 1.8.1 Platform note — iOS vs Android
@@ -440,7 +441,7 @@ sign-out isolation, and the deploy-takeover pill (§1.8).
 
 | File | Role |
 |---|---|
-| `src/app/sw.ts` | Serwist SW: precache + 6 runtime routes (images, fonts, RSC, launch shell, documents, NetworkOnly fallback) + `skipWaiting: false` waiting-worker takeover (§1.8) + activate-time page-cache wipe (§1.8) + offline last-saved-view fallback (§1.9) |
+| `src/app/sw.ts` | Serwist SW: precache + 6 runtime routes (images, fonts, RSC, launch shell, documents, NetworkOnly fallback) + `skipWaiting: false` waiting-worker takeover (§1.8) + activate-time page-cache wipe (§1.8) + offline last-saved-view fallback (§1.9) + `push` / `notificationclick` / `pushsubscriptionchange` handlers (docs/event-notifications.md) |
 | `src/lib/pwa/swRules.ts` | Pure predicates, constants & build-version helpers (see §1.13) |
 | `src/lib/pwa/swRules.test.ts` | Unit tests for the above |
 | `src/lib/pwa/client.ts` | Client cache helpers (prefix-matched across build versions): `invalidatePathCaches`, `invalidateRscPathCaches`, `invalidateCurrentPathCaches`, `clearAllSavedPages`, `documentCachedAtIso`, + the `useStaleDocumentReconcile` after-paint reconcile (§1.5) + `useOneShotRefreshStrip` (§1.11) + `useInactivityRefresh` (§1.17) |

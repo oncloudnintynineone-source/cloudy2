@@ -23,6 +23,7 @@ and can never delay or fail the mutation.
 - [1.9 Audit trail](#19-audit-trail)
 - [1.10 Platform notes & limits](#110-platform-notes--limits)
 - [1.10.1 Troubleshooting](#1101-troubleshooting)
+- [1.10.2 Subscription lifecycle & self-healing](#1102-subscription-lifecycle--self-healing)
 - [1.11 Customizing the notification content](#111-customizing-the-notification-content)
 - [1.12 Files](#112-files)
 
@@ -166,7 +167,7 @@ registers one `after(async () => …)` and returns immediately. Inside:
 
 ## 1.7 Service worker
 
-`src/app/sw.ts` (the Serwist SW) gains two plain listeners, appended after
+`src/app/sw.ts` (the Serwist SW) gains three plain listeners, appended after
 `serwist.addEventListeners()` — the caching routes are untouched:
 
 - **`push`**: reads the JSON payload and calls
@@ -177,6 +178,8 @@ registers one `after(async () => …)` and returns immediately. Inside:
 - **`notificationclick`**: closes the notification, focuses an existing window
   client (navigating it to the deep link) or opens a new one. Tapping a
   notification lands on the event's details modal.
+- **`pushsubscriptionchange`**: re-owns a browser-refreshed endpoint via
+  `POST /api/push/subscription` (see §1.10.2).
 
 **Notification art.** The `icon` is `public/notification-icon-192x192.png` (the
 brand cloud+movement mark recolored white over a full-bleed blue-gradient tile —
@@ -282,8 +285,43 @@ check in order:
  not run on this environment's DB; push `dev`/`main` so the CI migrate job
  applies it, or run `pnpm db:migrate` with that `DATABASE_URL` in the shell.
 6. **Nothing happened and no error** → the recipient had no stored subscription
- row (never completed Enable on that account), the master switch is off for
- them, or their account is inactive. Re-check step 4's setup.
+   row (never completed Enable on that account), the master switch is off for
+   them, or their account is inactive. Re-check step 4's setup.
+
+## 1.10.2 Subscription lifecycle & self-healing
+
+A Web Push subscription is **not permanent**: the browser or push service MAY
+refresh or deactivate it at any time (it reached a certain age, its keys changed,
+the push service changed, or notification permission was revoked). Per the Push
+API spec the user agent then fires `pushsubscriptionchange` on the controlling
+service worker. If that is ignored, the server keeps sending to a dead endpoint,
+the push service answers 404/410, and the row is pruned (`notify.ts`) — so
+notifications silently stop and the Notifications dialog reverts to "This device
+isn't subscribed yet / Enable notifications" (it looks like the setting turned
+itself off). The app's own update flow is another trigger: applying a deploy
+unregisters the service worker (`SWUpdateNotice`), which can deactivate its
+subscription.
+
+Two layers keep a device subscribed without the user re-tapping **Enable**:
+
+1. **Service worker `pushsubscriptionchange`** (`sw.ts`) — forwards the browser's
+   current `{ oldEndpoint, newSubscription }` to `POST /api/push/subscription`
+   (a plain route handler — a SW cannot call a `"use server"` action; the
+   same-origin fetch carries the session cookie). The route drops the dead
+   endpoint and upserts the new one. This works **while the app is closed**.
+   When the browser could not mint a replacement (`newSubscription: null`), the
+   SW can only drop the dead endpoint — re-subscribing needs the VAPID public
+   key, which is not reliably inlined in the esbuild-built SW bundle.
+2. **Client repair hook `usePushSubscriptionRepair`** (`client.ts`, mounted once
+   in the protected shell) — on load and on return-to-foreground (throttled),
+   when permission is already granted it re-subscribes if the browser has no
+   subscription and re-syncs the current endpoint/keys through
+   `syncPushSubscription`. This covers the `newSubscription: null` case, the
+   deploy-unregister case (the reload runs the hook), and any missed change.
+
+Both are best-effort and never block anything. The **account-wide master switch**
+is unaffected by subscription churn — it lives in `user_preferences` and is only
+written by the toggle itself.
 
 ## 1.11 Notification copy is template-driven
 
@@ -354,13 +392,16 @@ not the content.
 | `src/lib/events/participantNotify/notify.ts` | `dispatchParticipantNotifications` (`after()` send path; template-driven body) |
 | `src/lib/events/notifyRecipes.ts` | Built-in notification copy (default recipes per target) |
 | `src/lib/settings/titleRecipe.ts` (+ test) | Recipe types + `renderTitleRecipe` (incl. `text`/`timeFull`) |
-| `src/lib/events/participantNotify/subscriptions.ts` | `push_subscriptions` DB access (list/upsert/delete/by-endpoint) |
+| `src/lib/events/participantNotify/subscriptions.ts` | `push_subscriptions` DB access (list/upsert/delete/by-endpoint; scoped delete) |
+| `src/lib/events/participantNotify/subscriptionInput.ts` (+ test) | Pure subscription-shape validator (`isValidClientSubscription`) |
 | `src/lib/events/participantNotify/sender.ts` | Shared one-shot `web-push` send (used by notify + test action) |
 | `src/lib/events/participantNotify/actions.ts` | Server actions (subscribe/unsync, settings read, test send) |
-| `src/lib/events/participantNotify/client.ts` | Browser-side push helpers (no-hang SW probe, subscribe) |
+| `src/lib/events/participantNotify/client.ts` | Browser-side push helpers (no-hang SW probe, subscribe) + `usePushSubscriptionRepair` (§1.10.2) |
 | `src/components/NotificationSettings.tsx` | Profile-menu Notifications dialog (incl. Send test) |
 | `src/components/UserMenu.tsx` | Menu entry + modal mount |
-| `src/app/sw.ts` | `push` / `notificationclick` handlers |
+| `src/app/sw.ts` | `push` / `notificationclick` / `pushsubscriptionchange` handlers |
+| `src/app/api/push/subscription/route.ts` | SW `pushsubscriptionchange` reconcile endpoint (§1.10.2) |
+| `src/components/AppShellShell.tsx` | Mounts `usePushSubscriptionRepair` (§1.10.2) |
 | `src/lib/events/actions.ts` | Dispatch calls in `createEvent` / `updateEvent` |
 | `src/app/(protected)/settings/templates/TemplatesManager.tsx` | Template groups + Assign templates dialog (incl. notify targets) |
 | `src/db/schema.ts`, `drizzle/0038_late_ultimates.sql` | `push_subscriptions`, `user_preferences.event_invite_push` |

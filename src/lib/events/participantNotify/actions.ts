@@ -12,6 +12,7 @@ import {
   findSubscriptionByEndpoint,
   upsertPushSubscription,
 } from "./subscriptions";
+import { isValidClientSubscription, type ClientPushSubscription } from "./subscriptionInput";
 import { sendPush } from "./sender";
 import { parseVapidConfig } from "./vapid";
 
@@ -106,31 +107,7 @@ export async function setEventInvitePush(
   }
 }
 
-export interface ClientPushSubscription {
-  endpoint: string;
-  keys: { p256dh: string; auth: string };
-}
-
-/** Minimal shape validation for a browser PushSubscription before storing. */
-function validSubscription(input: ClientPushSubscription): boolean {
-  if (!input || typeof input !== "object") {
-    return false;
-  }
-  const endpoint = input.endpoint;
-  if (typeof endpoint !== "string" || !/^https:\/\//.test(endpoint)) {
-    return false;
-  }
-  const keys = input.keys;
-  if (!keys || typeof keys !== "object") {
-    return false;
-  }
-  return (
-    typeof keys.p256dh === "string" &&
-    keys.p256dh.length > 0 &&
-    typeof keys.auth === "string" &&
-    keys.auth.length > 0
-  );
-}
+export type { ClientPushSubscription } from "./subscriptionInput";
 
 /**
  * Record (or re-own) this device's push subscription for the signed-in user.
@@ -146,7 +123,7 @@ export async function syncPushSubscription(
   if (!isUuid(userId)) {
     return { ok: true };
   }
-  if (!validSubscription(input)) {
+  if (!isValidClientSubscription(input)) {
     return { ok: false, error: "Invalid push subscription" };
   }
   try {

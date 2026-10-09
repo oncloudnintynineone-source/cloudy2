@@ -21,13 +21,13 @@ import {
   sendTestPush,
   unsyncPushSubscription,
   type ParticipantPushSettings,
-  type ClientPushSubscription,
 } from "@/lib/events/participantNotify/actions";
 import {
   currentPushSubscription,
   pushPermissionState,
   pushSupported,
   pushSwState,
+  subscriptionPayload,
   type PushSwState,
   requestPushPermission,
   subscribeToPush,
@@ -52,27 +52,6 @@ interface BrowserState {
 }
 
 type BusyAction = "enable" | "turnoff" | "test" | null;
-
-/** Pull the subscription's { endpoint, keys } for the server action. */
-function subscriptionPayload(subscription: PushSubscription): ClientPushSubscription | null {
-  const p256dh = subscription.getKey("p256dh");
-  const auth = subscription.getKey("auth");
-  if (!p256dh || !auth) {
-    return null;
-  }
-  const toBase64Url = (buffer: ArrayBuffer): string => {
-    const bytes = new Uint8Array(buffer);
-    let binary = "";
-    for (let i = 0; i < bytes.length; i += 1) {
-      binary += String.fromCharCode(bytes[i]);
-    }
-    return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
-  };
-  return {
-    endpoint: subscription.endpoint,
-    keys: { p256dh: toBase64Url(p256dh), auth: toBase64Url(auth) },
-  };
-}
 
 /** Snapshot the browser-side push state. Never throws, never hangs. */
 async function readBrowserState(): Promise<BrowserState> {

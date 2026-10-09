@@ -594,3 +594,45 @@ self.addEventListener("notificationclick", (event) => {
     })(),
   );
 });
+
+// --- Push subscription lifecycle (participant notifications) ---
+//
+// A browser or push service may refresh/rotate a push subscription at any time
+// — it reached a certain age, its keys changed, the push service changed, or
+// notification permission was revoked. Per the Push API spec the user agent
+// then fires `pushsubscriptionchange` on the controlling registration. If it is
+// never handled, the server keeps the now-dead endpoint and its next send
+// 404/410s, pruning the row — so notifications silently stop and the device
+// reverts to "not subscribed" (looks like the setting turned itself off).
+//
+// This handler re-owns the browser's current endpoint server-side via the
+// same-origin route (the SW carries the session cookie). When the browser could
+// not mint a replacement (`newSubscription` null — e.g. after the update flow
+// unregistered the worker), the app shell's repair hook re-subscribes on the
+// next open. Best-effort: any failure is left for that hook to fix.
+interface PushSubscriptionChangeEventLike extends ExtendableEvent {
+  readonly oldSubscription: PushSubscription | null;
+  readonly newSubscription: PushSubscription | null;
+}
+
+self.addEventListener("pushsubscriptionchange", (event: Event) => {
+  const changeEvent = event as unknown as PushSubscriptionChangeEventLike;
+  changeEvent.waitUntil(
+    (async () => {
+      try {
+        const oldEndpoint = changeEvent.oldSubscription?.endpoint ?? null;
+        const subscription = changeEvent.newSubscription
+          ? changeEvent.newSubscription.toJSON()
+          : null;
+        await fetch("/api/push/subscription", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          credentials: "same-origin",
+          body: JSON.stringify({ oldEndpoint, subscription }),
+        });
+      } catch {
+        // Best-effort: the client repair hook re-syncs on the next app open.
+      }
+    })(),
+  );
+});

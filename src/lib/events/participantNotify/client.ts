@@ -1,5 +1,9 @@
 "use client";
 
+import { useEffect } from "react";
+
+import { syncPushSubscription, type ClientPushSubscription } from "./actions";
+
 /**
  * Browser-side Web Push plumbing for the participant notification feature:
  * capability detection, the VAPID application-server key, and subscribe/
@@ -200,4 +204,106 @@ export async function unsubscribeFromPush(): Promise<boolean> {
   } catch {
     return false;
   }
+}
+
+/** Pull a subscription's `{ endpoint, keys }` for the server action. */
+export function subscriptionPayload(
+  subscription: PushSubscription,
+): ClientPushSubscription | null {
+  const p256dh = subscription.getKey("p256dh");
+  const auth = subscription.getKey("auth");
+  if (!p256dh || !auth) {
+    return null;
+  }
+  const toBase64Url = (buffer: ArrayBuffer): string => {
+    const bytes = new Uint8Array(buffer);
+    let binary = "";
+    for (let i = 0; i < bytes.length; i += 1) {
+      binary += String.fromCharCode(bytes[i]);
+    }
+    return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+  };
+  return {
+    endpoint: subscription.endpoint,
+    keys: { p256dh: toBase64Url(p256dh), auth: toBase64Url(auth) },
+  };
+}
+
+/**
+ * Best-effort repair of this device's stored push subscription. A browser or
+ * push service can refresh/rotate/drop a subscription at any time, and the
+ * update flow unregisters the worker on every deploy — either leaves the
+ * server holding a dead endpoint (its next send 404/410s and prunes the row,
+ * so the device silently stops receiving). This re-subscribes when the browser
+ * has none (permission is already granted, so no prompt) and re-syncs the
+ * current endpoint/keys to the server. Never throws; returns whether it
+ * succeeded.
+ */
+export async function repairPushSubscription(): Promise<boolean> {
+  if (!pushSupported() || pushPermissionState() !== "granted") {
+    return false;
+  }
+  if ((await pushSwState()) !== "ok") {
+    return false;
+  }
+  try {
+    let subscription = await currentPushSubscription();
+    if (!subscription) {
+      subscription = await subscribeToPush();
+    }
+    if (!subscription) {
+      return false;
+    }
+    const payload = subscriptionPayload(subscription);
+    if (!payload) {
+      return false;
+    }
+    const result = await syncPushSubscription(payload);
+    return result.ok;
+  } catch {
+    return false;
+  }
+}
+
+// One repair per hour per document is plenty: the sync is an idempotent upsert
+// and a fresh page load (a deploy's reload) starts a clean window.
+const REPAIR_THROTTLE_MS = 60 * 60 * 1000;
+
+// Module scope, not a ref: a document load gets a clean throttle window and
+// React's dev-mode double effect invocation cannot double-count it.
+let lastRepairAt = 0;
+
+/**
+ * Mounted once in the protected shell. Repairs this device's push subscription
+ * on load (so a deploy's unregister→reload self-heals immediately) and on
+ * every return-to-foreground, throttled. Fire-and-forget; a device that never
+ * enabled push, or one without permission, is a no-op.
+ */
+export function usePushSubscriptionRepair(): void {
+  useEffect(() => {
+    const repair = () => {
+      if (typeof navigator !== "undefined" && !navigator.onLine) {
+        return;
+      }
+      const now = Date.now();
+      if (now - lastRepairAt < REPAIR_THROTTLE_MS) {
+        return;
+      }
+      lastRepairAt = now;
+      void repairPushSubscription().catch(() => {});
+    };
+
+    repair();
+    const onVisible = () => {
+      if (document.visibilityState === "visible") {
+        repair();
+      }
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    window.addEventListener("focus", onVisible);
+    return () => {
+      document.removeEventListener("visibilitychange", onVisible);
+      window.removeEventListener("focus", onVisible);
+    };
+  }, []);
 }

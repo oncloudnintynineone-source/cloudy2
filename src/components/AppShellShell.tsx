@@ -74,6 +74,7 @@ import { MOTION } from "@/lib/motion/timing";
 import { LIVE_REFRESH_EVENT } from "@/lib/loading/liveRefreshRules";
 import { useInactivityRefresh, useOneShotRefreshStrip } from "@/lib/pwa/client";
 import { useParadeEmailTick } from "@/lib/parade-email/client";
+import { usePushSubscriptionRepair } from "@/lib/events/participantNotify/client";
 import { isAlwaysFreshPath } from "@/lib/pwa/swRules";
 import { DESKTOP_MEDIA_QUERY, DESKTOP_WIDE_MEDIA_QUERY, NARROW_MEDIA_QUERY } from "@/lib/theme";
 import { StatusAnnouncer } from "@/lib/ui/announcer";
@@ -498,6 +499,12 @@ export function AppShellShell({
   // docs/parade-state-email.md). Fire-and-forget; the server action is
   // idempotent and never blocks the shell.
   useParadeEmailTick();
+
+  // Self-heal this device's Web Push subscription on load / return-to-foreground:
+  // browsers rotate or drop subscriptions over time, and the update flow
+  // unregisters the worker on every deploy — either leaves the server with a
+  // dead endpoint. Best-effort, fire-and-forget (see docs/event-notifications.md).
+  usePushSubscriptionRepair();
 
   // Cold-start readiness: the shell's two mount fetches (pinned events, clash
   // count) are the client-side tail of a fresh load — the readiness indicator

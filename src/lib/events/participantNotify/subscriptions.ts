@@ -12,12 +12,7 @@ import { and, eq, inArray } from "drizzle-orm";
 import { db } from "@/db";
 import { pushSubscriptions, type PushSubscription } from "@/db/schema";
 import { onlyUuidIds } from "@/lib/uuid";
-
-/** The subscription's encryption keys as the browser sends them. */
-export interface PushSubscriptionKeys {
-  p256dh: string;
-  auth: string;
-}
+import type { PushSubscriptionKeys } from "./subscriptionInput";
 
 /** A stored push subscription with its keys validated/decoded. */
 export interface StoredPushSubscription {
@@ -110,6 +105,19 @@ export async function deletePushSubscriptionByEndpoint(endpoint: string): Promis
     return;
   }
   await db.delete(pushSubscriptions).where(eq(pushSubscriptions.endpoint, endpoint));
+}
+
+/** Remove one endpoint row only when it belongs to `userId` (scoped). */
+export async function deletePushSubscriptionForUser(
+  userId: string,
+  endpoint: string,
+): Promise<void> {
+  if (!endpoint) {
+    return;
+  }
+  await db
+    .delete(pushSubscriptions)
+    .where(and(eq(pushSubscriptions.userId, userId), eq(pushSubscriptions.endpoint, endpoint)));
 }
 
 /** Remove one subscription row by id (dead endpoint cleanup on 404/410). */
