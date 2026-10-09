@@ -175,7 +175,7 @@ export function normalizeAssignments(
 
 export function validateAssignments(
   assignments: Record<string, string | null | undefined>,
-  knownIds: Set<string>,
+  knownIds: ReadonlySet<string>,
 ): Record<string, string> {
   const errors: Record<string, string> = {};
   for (const target of EVENT_TITLE_ASSIGNMENT_TARGETS) {

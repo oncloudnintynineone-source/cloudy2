@@ -321,3 +321,18 @@ export function validateTitleRecipe(recipe: TitleRecipe): TitleRecipeFormErrors 
   );
   return invalid ? { recipe: "Recipe contains an unknown value" } : {};
 }
+
+/**
+ * Validate and sanitize an incoming recipe for storage, or return an error
+ * string. The shared prepare step for the master recipe edit and the title
+ * recipe/template editors.
+ */
+export function prepareTitleRecipe(
+  recipe: TitleRecipe,
+): { recipe: TitleRecipe } | { error: string } {
+  const errors = validateTitleRecipe(recipe);
+  if (errors.recipe) {
+    return { error: errors.recipe };
+  }
+  return { recipe: sanitizeTitleRecipe(recipe) };
+}

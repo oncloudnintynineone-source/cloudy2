@@ -90,7 +90,7 @@ normalization) and the full quality gates before pushing.
 | `src/lib/settings/featureFlags.ts` | Registry (defs, resolve/normalize/validate, types) |
 | `src/lib/settings/featureFlags.test.ts` | Registry invariants + normalization tests |
 | `src/lib/settings/queries.ts` | `getFeatureFlags` + `SettingsView.featureFlags` |
-| `src/lib/settings/actions.ts` | `updateFeatureFlags` (audited, cache-invalidating) |
+| `src/lib/settings/{write,edits}.ts` | `updateFeatureFlags` through the shared settings-write ritual (`editSetting`) + the pure flag edit (audited, cache-invalidating) |
 | `src/app/(protected)/settings/feature-flags/` | Page + generic `FeatureFlagsForm` + skeleton |
 | `src/app/(protected)/layout.tsx` | Resolves the header-facing flags into the shell |
 | `src/lib/dashboard/data.ts` | Resolves the dashboard-facing flags (`savedEventToastVariant`, `translucencyLevel`, `reorderDrag`) into `DashboardSharedConfig` |

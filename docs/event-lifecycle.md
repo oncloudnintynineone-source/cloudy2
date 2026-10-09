@@ -612,7 +612,9 @@ assignments modal (Settings → Templates):
   recipes at dispatch time (docs/event-notifications.md §1.11).
 - Reads resolve assignments through `normalizeAssignments` and
   `getEventTitleTemplateMap()` (`src/lib/settings/queries.ts`); the update action
-  normalizes + validates before saving (`src/lib/settings/actions.ts`). Duplicating a
+  normalizes + validates before saving (`prepareTitleRecipe` in
+  `src/lib/settings/titleRecipe.ts`, applied by the settings-write ritual in
+  `src/lib/settings/{edits,write}.ts`). Duplicating a
   saved template (row copy or the edit dialog's Duplicate) creates a new library row
   named "Copy of X" (`duplicateEventTitleTemplate`).
 

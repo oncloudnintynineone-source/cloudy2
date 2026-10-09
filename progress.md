@@ -18,7 +18,7 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
 
 ## 1.1 Status
 
-- All work through changelog **1.292 (dashboard navigation deepening)** is shipped.
+- All work through changelog **1.293 (settings-write deepening)** is shipped.
 - Quality gates (`lint` / `typecheck` / `test` / schema-drift check) run in CI on every
   push and PR. Pushes also auto-apply migrations per environment: `dev` →
   `migrate-preview` against the dev Neon DB, `main` → `migrate` against the prod Neon
@@ -1620,6 +1620,20 @@ via `?attendance=1` and `attendanceStorage` became a `useSyncExternalStore` exte
     to `navigation.test.ts` driven through the new interface. Behavior-preserving;
     `GLOSSARY.md` created. Docs: `dashboard-views.md` §1.10,
     `loading-transitions.md` §1.13, `pwa-offline.md`.
+
+- 1.293 Settings-write deepening (refactor): the singleton-settings write ritual
+    (auth → read before-row → update → audit diff → invalidate config cache →
+    revalidate paths), previously copy-pasted across the eight field actions in
+    `src/lib/settings/actions.ts`, now lives once in `editSetting`
+    (`src/lib/settings/write.ts`; side effects injectable so the ritual is
+    unit-tested without a DB). The pure per-field patch/audit/targets live in
+    `src/lib/settings/edits.ts` (keyword, name template, title recipe, assignments,
+    retention, banner, feature flags, KAH templates); `updateFeatureFlags` routes
+    through `validateFeatureFlags` while keeping its labeled message;
+    `prepareTitleRecipe` is shared with the template CRUD. Title-template CRUD and
+    `purgeCalendarCache` are unchanged. Behavior-preserving; new `edits.test.ts` /
+    `write.test.ts`. GLOSSARY term "settings write". Docs: `feature-flags.md`,
+    `event-lifecycle.md`.
 
 ## 1.4 Open items & next steps
 
