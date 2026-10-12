@@ -1656,9 +1656,10 @@ via `?attendance=1` and `attendanceStorage` became a `useSyncExternalStore` exte
     (migration `0056`) on `details->>'eventId'`; new reads in
     `src/lib/audit/queries.ts`, a union builder in `src/lib/events/myEventsData.ts`,
     pure shaping in `src/lib/events/history.ts`/`myEvents.ts`/`myEventsRange.ts`,
-    and a shared `AuditDetails` component with the audit log. Bottom nav keeps its
-    four primary tiles and moves My Events / KAH Status / Settings into a **More**
-    popup `Menu`. Docs: `event-history.md`.
+    and a shared `AuditDetails` component with the audit log. History entries are
+    collapsible (newest expanded). Bottom nav keeps its four primary tiles and
+    moves My Events / KAH Status / Settings into an animated **More** popup
+    `Menu`. Docs: `event-history.md`.
 
 ## 1.4 Open items & next steps
 

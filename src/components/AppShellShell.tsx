@@ -1348,7 +1348,18 @@ export function AppShellShell({
                   compact={isNarrow}
                 />
               ))}
-              <Menu position="top" width={220} withinPortal shadow="md">
+              <Menu
+                position="top"
+                width={220}
+                withinPortal
+                shadow="md"
+                transitionProps={{
+                  transition: "pop-top-right",
+                  duration: MOTION.popover,
+                  exitDuration: MOTION.popover,
+                  timingFunction: "ease",
+                }}
+              >
                 <Menu.Target>
                   <MoreNavButton
                     active={footerOverflow.some(isActive)}

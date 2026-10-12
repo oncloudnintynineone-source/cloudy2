@@ -76,10 +76,13 @@ sequenceDiagram
   action row (next to Edit/Delete); it is hidden when `payload.eventId === null`
   (external or never-app-edited legacy events have no group id and no history) and
   is not shown in the read-only details (Double Booking / KAH Status).
-- The page renders each row as a card (action label, UTC+8 timestamp, actor) with
-  the shared `AuditDetails` component (`src/components/AuditDetails.tsx`) — the
-  same before→after lines and "Resulting state" section the admin audit modal
-  uses. A delete row (when present) is simply the last entry.
+- The page renders each row as a **collapsible entry** (newest expanded, the rest
+  collapsed): the always-visible header shows the action label, UTC+8 timestamp,
+  actor, and a one-line change summary (the changed field labels for an edit, or the
+  title for a create/delete); tapping it reveals the shared `AuditDetails`
+  (`src/components/AuditDetails.tsx`) — the same before→after lines and "Resulting
+  state" section the admin audit modal uses. A delete row (when present) is simply
+  the newest entry.
 - Title: the newest row's `entity_name` (the rendered title at that edit), falling
   back to the create snapshot's title.
 - **Back** returns to `/dashboard`.
@@ -176,7 +179,8 @@ offline.
 **My Events** is a global nav entry (`/my-events`), shown to every role. On the
 desktop sidebar (≥ `lg`) every entry is listed directly. The **mobile footer** keeps
 only the four primary tiles (Calendar, Parade State, Contacts, Double Booking) plus
-a **More** tile that opens a `Menu` popup (the profile-menu pattern) holding the
+a **More** tile that opens a `Menu` popup (the profile-menu pattern, animated with
+the shared `pop-top-right` / `MOTION.popover` transition) holding the
 rest — My Events, KAH Status (when visible), and Settings (admin). `NavRouteWarmer`
 preloads the new route.
 

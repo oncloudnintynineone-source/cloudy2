@@ -1,17 +1,18 @@
 "use client";
 
-import { useRef } from "react";
-import { Badge, Button, Group, Paper, Stack, Text } from "@mantine/core";
-import { IconArrowLeft, IconHistory } from "@tabler/icons-react";
+import { useId, useRef, useState } from "react";
+import { Badge, Box, Button, Collapse, Group, Paper, Stack, Text, UnstyledButton } from "@mantine/core";
+import { IconArrowLeft, IconChevronDown, IconHistory } from "@tabler/icons-react";
 import Link from "next/link";
 
 import { AuditDetails } from "@/components/AuditDetails";
 import { EmptyState } from "@/components/EmptyState";
 import { PageHeader } from "@/components/PageHeader";
-import { actionLabel, actorLabel, formatLogTimestamp } from "@/lib/audit/format";
+import { actionLabel, actorLabel, formatAuditDetails, formatLogTimestamp } from "@/lib/audit/format";
 import { CONTENT_ENTER_CLASS, useContentEnter } from "@/lib/loading/contentEnter";
 import { useLiveRouteRefresh } from "@/lib/loading/liveRefresh";
 import { useMinSkeletonHold } from "@/lib/loading/minHoldLoading";
+import { MOTION } from "@/lib/motion/timing";
 import type { AuditLog } from "@/db/schema";
 
 import { EventHistorySkeleton } from "./EventHistorySkeleton";
@@ -31,9 +32,10 @@ interface EventHistoryViewProps {
 
 /**
  * Read-only life story of one logical event: the create row, every subsequent
- * edit (as a before→after diff), and the delete row when it exists. Always-fresh
- * (see `docs/event-history.md`): the payload is stamped with `renderedAt` and a
- * cache replay forces one live re-read, sharing this route's skeleton.
+ * edit (as a before→after diff), and the delete row when it exists. Each entry
+ * is a collapsible disclosure (newest expanded); always-fresh (see
+ * docs/event-history.md): the payload is stamped with `renderedAt` and a cache
+ * replay forces one live re-read, sharing this route's skeleton.
  */
 export function EventHistoryView({
   title,
@@ -83,26 +85,90 @@ export function EventHistoryView({
         />
       ) : (
         <Stack gap="sm" ref={contentRef} className={CONTENT_ENTER_CLASS}>
-          {ordered.map((row) => (
-            <Paper key={row.id} withBorder p="sm">
-              <Stack gap="xs">
-                <Group gap={6} wrap="wrap">
-                  <Text size="sm" fw={600}>
-                    {actionLabel(row.action)}
-                  </Text>
-                  <Badge size="xs" variant="light" color="brand">
-                    {formatLogTimestamp(row.createdAt)}
-                  </Badge>
-                </Group>
-                <Text size="xs" c="dimmed">
-                  {actorLabel(row)}
-                </Text>
-                <AuditDetails details={row.details} />
-              </Stack>
-            </Paper>
+          {ordered.map((row, index) => (
+            <HistoryEntry key={row.id} row={row} defaultOpen={index === 0} />
           ))}
         </Stack>
       )}
     </Stack>
   );
+}
+
+/**
+ * One collapsible history entry: an always-visible header (action, timestamp,
+ * actor, and a one-line summary of what changed) that toggles the full
+ * before→after detail. Follows the shared disclosure recipe used by `ClashCard`
+ * (`src/components/clashCards.tsx`).
+ */
+function HistoryEntry({ row, defaultOpen }: { row: AuditLog; defaultOpen: boolean }) {
+  const [open, setOpen] = useState(defaultOpen);
+  const regionId = useId();
+  const summary = changeSummary(row.details, row.entityName ?? null);
+  return (
+    <Paper withBorder p="sm">
+      <UnstyledButton
+        type="button"
+        onClick={() => setOpen((value) => !value)}
+        aria-expanded={open}
+        aria-controls={regionId}
+        style={{ width: "100%", textAlign: "left" }}
+      >
+        <Group justify="space-between" align="flex-start" gap="xs" wrap="nowrap">
+          <Stack gap={4} style={{ flexGrow: 1, minWidth: 0 }}>
+            <Group gap={6} wrap="wrap">
+              <Text size="sm" fw={600}>
+                {actionLabel(row.action)}
+              </Text>
+              <Badge size="xs" variant="light" color="brand">
+                {formatLogTimestamp(row.createdAt)}
+              </Badge>
+            </Group>
+            <Text size="xs" c="dimmed">
+              {actorLabel(row)}
+            </Text>
+            {summary ? (
+              <Text size="xs" c="dimmed" lineClamp={1}>
+                {summary}
+              </Text>
+            ) : null}
+          </Stack>
+          <IconChevronDown
+            size={16}
+            style={{
+              flexShrink: 0,
+              marginTop: 2,
+              transform: open ? "rotate(180deg)" : undefined,
+              transition: `transform ${MOTION.micro}ms ease`,
+            }}
+            aria-hidden
+          />
+        </Group>
+      </UnstyledButton>
+      <Collapse
+        expanded={open}
+        id={regionId}
+        transitionDuration={MOTION.popover}
+        keepMounted={false}
+      >
+        <Box mt="xs">
+          <AuditDetails details={row.details} />
+        </Box>
+      </Collapse>
+    </Paper>
+  );
+}
+
+/**
+ * A concise one-line summary for a collapsed entry: the changed field labels
+ * for an edit (from the shared `FieldDiff` shaping), or the event title for a
+ * create/delete snapshot. Null when there is nothing useful to show.
+ */
+function changeSummary(details: unknown, entityName: string | null): string | null {
+  const formatted = formatAuditDetails(details);
+  if (formatted.kind === "changes") {
+    return formatted.lines.length > 0
+      ? formatted.lines.map((line) => line.label).join(", ")
+      : null;
+  }
+  return entityName;
 }
