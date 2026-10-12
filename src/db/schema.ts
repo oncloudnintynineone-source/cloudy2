@@ -646,6 +646,11 @@ export const auditLogs = pgTable(
     index("audit_logs_action_idx").on(table.action),
     index("audit_logs_created_idx").on(table.createdAt),
     index("audit_logs_entity_idx").on(table.entityType, table.entityId),
+    // Expression index on the event group id (event audit rows carry it in the
+    // jsonb `details`, not in `entity_id`, which holds the calendar id). Backs
+    // the per-event history page and the My Events list's deleted-status
+    // lookup — both filter `details->>'eventId'` (docs/event-history.md).
+    index("audit_logs_event_id_idx").on(sql`(details->>'eventId')`),
   ],
 );
 

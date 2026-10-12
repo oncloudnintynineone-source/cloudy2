@@ -459,6 +459,7 @@ In CI, the schema-drift check runs `pnpm db:generate` then fails on any diff to
 | [`webhooks.md`](webhooks.md) | Event webhooks: payloads, HMAC signatures, fan-out delivery |
 | [`event-notifications.md`](event-notifications.md) | Web Push: notify users added as participants to events |
 | [`audit-log.md`](audit-log.md) | Audit log: schema, retention, pagination, CSV export |
+| [`event-history.md`](event-history.md) | Per-event history + My Events (deleted-event tracking) |
 | [`pwa-offline.md`](pwa-offline.md) | Service worker: SWR caches, build versioning, offline fallback |
 | [`ui-state.md`](ui-state.md) | The `cloudy2.ui` cookie, launch targeting, pinned tabs |
 | [`loading-transitions.md`](loading-transitions.md) | Skeleton-only loading, fades, optimistic nav chrome |

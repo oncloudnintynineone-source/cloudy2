@@ -100,11 +100,20 @@ describe("swRules", () => {
       expect(isAlwaysFreshPath("/settings/audit-log/export")).toBe(true);
     });
 
+    it("matches My Events and per-event history routes", () => {
+      expect(isAlwaysFreshPath("/my-events")).toBe(true);
+      expect(isAlwaysFreshPath("/my-events/")).toBe(true);
+      expect(isAlwaysFreshPath("/event-history")).toBe(true);
+      expect(isAlwaysFreshPath("/event-history/abc-123")).toBe(true);
+    });
+
     it("does not match sibling settings tabs or a prefix-lookalike", () => {
       expect(isAlwaysFreshPath("/settings/audit-log-x")).toBe(false);
       expect(isAlwaysFreshPath("/settings/users")).toBe(false);
       expect(isAlwaysFreshPath("/settings")).toBe(false);
       expect(isAlwaysFreshPath("/dashboard")).toBe(false);
+      expect(isAlwaysFreshPath("/my-events-x")).toBe(false);
+      expect(isAlwaysFreshPath("/event-history-x")).toBe(false);
     });
   });
 

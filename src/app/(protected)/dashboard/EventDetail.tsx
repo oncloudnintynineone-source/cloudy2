@@ -16,12 +16,14 @@ import {
 } from "@mantine/core";
 import { useDisclosure, useMediaQuery, useViewportSize } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
+import { useRouter } from "next/navigation";
 import {
   IconBrandGoogle,
   IconCalendarEvent,
   IconCalendarPlus,
   IconCopy,
   IconDownload,
+  IconHistory,
   IconPencil,
   IconTrash,
 } from "@tabler/icons-react";
@@ -496,6 +498,7 @@ function EventActionsMenu({
   event: CalendarEvent;
   onDuplicate: (event: CalendarEvent, originRect: Rect | null) => void;
 }) {
+  const router = useRouter();
   return (
     <Menu position="bottom-end" zIndex={400}>
       <Menu.Target>
@@ -512,6 +515,14 @@ function EventActionsMenu({
         >
           Duplicate
         </Menu.Item>
+        {event.payload.eventId && (
+          <Menu.Item
+            leftSection={<IconHistory size={16} />}
+            onClick={() => router.push(`/event-history/${event.payload.eventId}`)}
+          >
+            History
+          </Menu.Item>
+        )}
         <CalendarExportMenuItems event={event} />
       </Menu.Dropdown>
     </Menu>

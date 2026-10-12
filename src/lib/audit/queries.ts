@@ -19,11 +19,14 @@ import {
   lte,
   lt,
   or,
+  sql,
   type SQL,
 } from "drizzle-orm";
 
 import { db } from "@/db";
 import { auditLogs, type AuditLog } from "@/db/schema";
+
+import { AUDIT_ACTIONS } from "./build";
 
 export const AUDIT_PAGE_SIZE = 30;
 
@@ -301,4 +304,78 @@ export async function listAuditActors(): Promise<string[]> {
     .where(isNotNull(auditLogs.actorName))
     .orderBy(asc(auditLogs.actorName));
   return rows.map((row) => row.value!).filter((value) => value.length > 0);
+}
+
+// --- Event history & My Events (docs/event-history.md) ---
+// Event audit rows carry the logical event's group id inside the jsonb
+// `details` (`details.eventId`), not in `entity_id` (which holds the calendar
+// id). These reads filter that expression; `audit_logs_event_id_idx` backs it.
+
+/** Inclusive retention-window lower bound, or null when retention is disabled. */
+function retentionCutoff(retentionDays: number): Date | null {
+  return retentionDays > 0 ? new Date(Date.now() - retentionDays * 86_400_000) : null;
+}
+
+/**
+ * Every recorded audit row for one logical event (create / update / delete),
+ * oldest first, limited to the retention window. Rows are never purged here —
+ * only the audit-log page rotates on read. Backs the per-event history page.
+ */
+export async function listEventHistory(
+  eventId: string,
+  retentionDays: number,
+): Promise<AuditLog[]> {
+  const cutoff = retentionCutoff(retentionDays);
+  const conditions: SQL[] = [
+    eq(auditLogs.entityType, "calendar"),
+    sql`${auditLogs.details}->>'eventId' = ${eventId}`,
+  ];
+  if (cutoff) {
+    conditions.push(gte(auditLogs.createdAt, cutoff));
+  }
+  return db
+    .select()
+    .from(auditLogs)
+    .where(and(...conditions))
+    .orderBy(asc(auditLogs.createdAt), asc(auditLogs.id));
+}
+
+/** Number of `event.create` rows attributed to a user (the events they created). */
+export async function countMyCreatedEvents(userId: string): Promise<number> {
+  const [row] = await db
+    .select({ n: count() })
+    .from(auditLogs)
+    .where(and(eq(auditLogs.action, AUDIT_ACTIONS.eventCreate), eq(auditLogs.actorId, userId)));
+  return row?.n ?? 0;
+}
+
+/** One page of a user's `event.create` rows (their created events), newest first. */
+export async function listMyCreatedEvents(
+  userId: string,
+  opts: { offset: number; pageSize: number },
+): Promise<AuditLog[]> {
+  return db
+    .select()
+    .from(auditLogs)
+    .where(and(eq(auditLogs.action, AUDIT_ACTIONS.eventCreate), eq(auditLogs.actorId, userId)))
+    .orderBy(desc(auditLogs.createdAt), desc(auditLogs.id))
+    .limit(opts.pageSize)
+    .offset(opts.offset);
+}
+
+/** The subset of `eventIds` that has a recorded `event.delete` row (deleted events). */
+export async function deletedEventIds(eventIds: string[]): Promise<Set<string>> {
+  if (eventIds.length === 0) {
+    return new Set();
+  }
+  const rows = await db
+    .selectDistinct({ eventId: sql<string | null>`${auditLogs.details}->>'eventId'` })
+    .from(auditLogs)
+    .where(
+      and(
+        eq(auditLogs.action, AUDIT_ACTIONS.eventDelete),
+        inArray(sql`${auditLogs.details}->>'eventId'`, eventIds),
+      ),
+    );
+  return new Set(rows.map((row) => row.eventId).filter((id): id is string => Boolean(id)));
 }

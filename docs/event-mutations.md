@@ -336,6 +336,8 @@ Related docs:
   title, location categories, time options.
 - [`events-cache.md`](events-cache.md) — the read cache these mutations invalidate.
 - [`audit-log.md`](audit-log.md) — the audit rows these mutations write, rendered.
+- [`event-history.md`](event-history.md) — the per-event history and My Events
+  pages that read these rows back.
 - [`roster-sharing.md`](roster-sharing.md) — the department calendars (Google ACLs)
   the copies live in.
 - `progress-archive.md` — phase write-ups: 1.16 (events), 1.20 (cross-department copies),

@@ -198,6 +198,16 @@ doc content here.
   `UserSelectModal`; the nav entry carries a live amber count pill (`checkUserClashes({})`,
   refreshed on `cloudy2:events-changed`). Advisory: never writes or audits.
   Design: [docs/user-clashes.md](docs/user-clashes.md).
+- **Event history & My Events (`/event-history/[eventId]`, `/my-events`):** read-only views
+  over the same `event.create`/`event.update`/`event.delete` audit rows — the create actor is
+  the fixed organizer, and the group id lives in `details.eventId` (indexed by
+  `audit_logs_event_id_idx`). The event modal's "History" action (only when `payload.eventId`
+  is non-null) opens the per-event changelog; **My Events** lists the signed-in user's own
+  created events (deleted ones flagged, still trackable). Both are `requireSession()` (no
+  ACL — reads aren't gated) and **always-fresh** (`useLiveRouteRefresh`). Reads live in
+  `src/lib/audit/queries.ts`; pure snapshot parsers in `src/lib/events/history.ts`; the
+  `details` renderer is shared with the audit log (`src/components/AuditDetails.tsx`).
+  Design: [docs/event-history.md](docs/event-history.md).
 - **KAH constraints are notify-only.** After every successful create/update (never delete),
   `dispatchKahBreachCheck()` (`src/lib/kah/notify.ts`) runs inside `after()` — best-effort,
   it can never fail or delay the mutation. The KAH Status nav entry carries an amber
@@ -292,9 +302,11 @@ doc content here.
   with a light progress fill — never `notifications.show({ message: <Button/> })`.
   Design: [docs/action-pill.md](docs/action-pill.md).
 - **Global bottom nav** (`AppShell.Footer`): Calendar `/dashboard`, Parade State
-  `/parade-state`, Contacts `/contacts`, Double Booking `/double-booking` (every role);
-  admins/KAH members additionally get KAH Status `/kah-status`; Settings `/settings` is
-  admin-only. `SettingsTabs` stacks directly above it.
+  `/parade-state`, Contacts `/contacts`, Double Booking `/double-booking`, My Events
+  `/my-events` (every role); admins/KAH members additionally get KAH Status `/kah-status`;
+  Settings `/settings` is admin-only. The footer shows at most 5 tiles — extras collapse
+  into a **More** bottom `Drawer` (`FOOTER_MAX_ITEMS`); the desktop sidebar always shows
+  every entry. `SettingsTabs` stacks directly above it.
 - **Admin settings live under `/settings`** (admin-only): Users, Departments, Event Types,
   Templates, Webhooks, Quick Links, KAH Groups, Banner, General, Security, Audit Log,
   Feature Flags tabs.

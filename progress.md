@@ -18,7 +18,7 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
 
 ## 1.1 Status
 
-- All work through changelog **1.294 (dashboard snapshot ownership)** is shipped.
+- All work through changelog **1.295 (event history & My Events)** is shipped.
 - Quality gates (`lint` / `typecheck` / `test` / schema-drift check) run in CI on every
   push and PR. Pushes also auto-apply migrations per environment: `dev` →
   `migrate-preview` against the dev Neon DB, `main` → `migrate` against the prod Neon
@@ -1635,7 +1635,7 @@ via `?attendance=1` and `attendanceStorage` became a `useSyncExternalStore` exte
     `write.test.ts`. GLOSSARY term "settings write". Docs: `feature-flags.md`,
     `event-lifecycle.md`.
 
-- 1.294 Dashboard snapshot ownership (refactor): `DashboardSnapshot` is now
+ - 1.294 Dashboard snapshot ownership (refactor): `DashboardSnapshot` is now
     defined in `src/lib/dashboard/snapshot.ts` as a deliberate typed contract
     instead of `Omit<DashboardViewProps, …>` (which made the client data module
     depend on the 4.9k-line view). `DashboardViewProps` now *extends*
@@ -1646,6 +1646,17 @@ via `?attendance=1` and `attendanceStorage` became a `useSyncExternalStore` exte
     `DASHBOARD_SNAPSHOT_VERSION` 5 → 6 drops each device's warm snapshot once
     (first open re-reads). GLOSSARY term "dashboard snapshot". Docs:
     `pwa-offline.md`.
+ - 1.295 Event history & My Events: two read-only surfaces over the existing
+    event audit rows — a per-event changelog (`/event-history/[eventId]`, opened
+    from the event modal's "History" action) and **My Events** (`/my-events`, the
+    signed-in user's own created events, deleted ones flagged but still
+    trackable). Both `requireSession()` (reads aren't ACL-gated) and
+    always-fresh. New expression index `audit_logs_event_id_idx`
+    (migration `0056`) on `details->>'eventId'`; new reads in
+    `src/lib/audit/queries.ts`, pure parsers in `src/lib/events/history.ts`, and
+    a shared `AuditDetails` component with the audit log. Bottom nav gained the
+    My Events entry and a 5-tile cap with a **More** bottom-sheet overflow.
+    Docs: `event-history.md`.
 
 ## 1.4 Open items & next steps
 

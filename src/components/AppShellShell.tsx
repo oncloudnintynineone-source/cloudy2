@@ -4,6 +4,7 @@ import {
   ActionIcon,
   AppShell,
   Box,
+  Drawer,
   Group,
   NavLink,
   Stack,
@@ -17,6 +18,8 @@ import {
   IconCalendarClock,
   IconCalendarMonth,
   IconClipboardList,
+  IconDots,
+  IconHistory,
   IconLayoutSidebarLeftCollapse,
   IconLayoutSidebarLeftExpand,
   IconRefresh,
@@ -134,6 +137,13 @@ const DOUBLE_BOOKING: NavItem = {
   badgeNoun: "double booking",
 };
 
+const MY_EVENTS: NavItem = {
+  href: "/my-events",
+  label: "My Events",
+  icon: <IconHistory size={22} />,
+  matches: (pathname) => pathname === "/my-events" || pathname.startsWith("/my-events"),
+};
+
 const KAH_STATUS: NavItem = {
   href: "/kah-status",
   label: "KAH Status",
@@ -152,6 +162,10 @@ const SETTINGS: NavItem = {
 // Desktop sidebar widths: full (labels) vs. the minimized icon rail.
 const SIDEBAR_WIDTH = 240;
 const SIDEBAR_RAIL_WIDTH = 64;
+
+// Most tiles the bottom nav can show legibly on a phone. Any extras collapse
+// into a "More" bottom sheet (the desktop sidebar always shows every entry).
+const FOOTER_MAX_ITEMS = 5;
 
 const NAV_ACTIVE_COLOR =
   "light-dark(var(--mantine-color-brand-7), var(--mantine-color-brand-4))";
@@ -418,6 +432,73 @@ function NavButton({
   );
 }
 
+/**
+ * The bottom nav's "More" tile: opens a bottom sheet holding the entries that
+ * don't fit in the footer (see `FOOTER_MAX_ITEMS`). Rendered in place of a
+ * `NavButton`; it is not a link itself. Carries the summed count of any badges
+ * living in the overflow so an off-screen alert is still signalled.
+ */
+function MoreNavButton({
+  active,
+  badge,
+  compact,
+  onOpen,
+}: {
+  active: boolean;
+  badge: number;
+  compact?: boolean;
+  onOpen: () => void;
+}) {
+  return (
+    <UnstyledButton
+      onClick={onOpen}
+      style={{
+        flex: 1,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        paddingBlock: compact ? 8 : 6,
+        minHeight: BOTTOM_NAV_HEIGHT,
+        color: active ? NAV_ACTIVE_COLOR : NAV_IDLE_COLOR,
+      }}
+      aria-label={badge > 0 ? `More — ${badge} item${badge === 1 ? "" : "s"} needing attention` : "More"}
+    >
+      <Box
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          gap: compact ? 0 : 2,
+        }}
+      >
+        <Box style={NAV_ICON_STYLE}>
+          <IconDots size={22} />
+          {badge > 0 ? (
+            <span className="c2-nav-badge" aria-hidden>
+              {badge}
+            </span>
+          ) : null}
+        </Box>
+        {!compact && (
+          <Text
+            size="xs"
+            fw={active ? 600 : 500}
+            style={{
+              maxWidth: "100%",
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              whiteSpace: "nowrap",
+              textAlign: "center",
+            }}
+          >
+            More
+          </Text>
+        )}
+      </Box>
+    </UnstyledButton>
+  );
+}
+
 // The header bar's height; the shell header stacks the optional
 // announcement banner (admin-picked height preset) on top of it.
 const HEADER_HEIGHT_PX = 56;
@@ -521,6 +602,8 @@ export function AppShellShell({
   // shell stays mounted across the navigation, so the modal survives it).
   const [pinnedOpen, setPinnedOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
+  // The bottom nav's overflow sheet (entries beyond `FOOTER_MAX_ITEMS`).
+  const [moreOpen, setMoreOpen] = useState(false);
   // The lazy search modal is mounted as soon as its chunk preloads (kept closed
   // until opened) so the first open is an instant prop flip — no mount, chunk
   // parse, or network wait on the click. It also stays mounted after the first
@@ -817,10 +900,10 @@ export function AppShellShell({
 
   const items: NavItem[] =
     role === "admin"
-      ? [CALENDAR, PARADE_STATE, CONTACTS, DOUBLE_BOOKING, KAH_STATUS, SETTINGS]
+      ? [CALENDAR, PARADE_STATE, CONTACTS, DOUBLE_BOOKING, MY_EVENTS, KAH_STATUS, SETTINGS]
       : kahGroup
-        ? [CALENDAR, PARADE_STATE, CONTACTS, DOUBLE_BOOKING, KAH_STATUS]
-        : [CALENDAR, PARADE_STATE, CONTACTS, DOUBLE_BOOKING];
+        ? [CALENDAR, PARADE_STATE, CONTACTS, DOUBLE_BOOKING, MY_EVENTS, KAH_STATUS]
+        : [CALENDAR, PARADE_STATE, CONTACTS, DOUBLE_BOOKING, MY_EVENTS];
 
   // The Double Booking nav badge: the acting user's own double-booking overlap
   // count (the same read-only scan the /double-booking page runs). Fetched
@@ -944,6 +1027,13 @@ export function AppShellShell({
     const count = badgeByHref[item.href];
     return count && count > 0 ? { ...item, badge: count } : item;
   });
+
+  // The footer shows at most `FOOTER_MAX_ITEMS` tiles; any extras move into the
+  // "More" bottom sheet. The desktop sidebar always renders every entry.
+  const footerOverflow =
+    navItems.length > FOOTER_MAX_ITEMS ? navItems.slice(FOOTER_MAX_ITEMS) : [];
+  const footerItems = footerOverflow.length > 0 ? navItems.slice(0, FOOTER_MAX_ITEMS) : navItems;
+  const overflowBadge = footerOverflow.reduce((sum, item) => sum + (item.badge ?? 0), 0);
 
   // --- iOS PWA viewport sync ---
   // On some iOS versions, 100dvh/vh resolves to the full screen height but the
@@ -1246,7 +1336,7 @@ export function AppShellShell({
                 display: "flex",
               }}
             >
-              {navItems.map((item) => (
+              {footerItems.map((item) => (
                 <NavButton
                   key={item.href}
                   item={item}
@@ -1255,8 +1345,43 @@ export function AppShellShell({
                   compact={isNarrow}
                 />
               ))}
+              {footerOverflow.length > 0 ? (
+                <MoreNavButton
+                  active={footerOverflow.some(isActive)}
+                  badge={overflowBadge}
+                  compact={isNarrow}
+                  onOpen={() => setMoreOpen(true)}
+                />
+              ) : null}
             </Box>
           </AppShell.Footer>
+
+          {/* Bottom-sheet overflow for nav entries that don't fit the footer. */}
+          <Drawer
+            opened={moreOpen}
+            onClose={() => setMoreOpen(false)}
+            position="bottom"
+            title="More"
+            hiddenFrom="lg"
+          >
+            <Stack gap="xs">
+              {footerOverflow.map((item) => (
+                <NavLink
+                  key={item.href}
+                  component={Link}
+                  href={item.href}
+                  label={item.label}
+                  leftSection={<NavIcon item={item} />}
+                  aria-label={item.badge ? navAriaLabel(item) : undefined}
+                  active={isActive(item)}
+                  onClick={() => {
+                    setMoreOpen(false);
+                    handleTap(item.href);
+                  }}
+                />
+              ))}
+            </Stack>
+          </Drawer>
         </AppShell>
       </ActivityProvider>
     </>

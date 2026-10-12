@@ -13,7 +13,6 @@ import {
   Pagination,
   Paper,
   Pill,
-  ScrollArea,
   Stack,
   Table,
   Text,
@@ -27,6 +26,7 @@ import { notifications } from "@mantine/notifications";
 import { IconDownload, IconFilter, IconFilterOff, IconTrash, IconX } from "@tabler/icons-react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
+import { AuditDetails } from "@/components/AuditDetails";
 import { EmptyState } from "@/components/EmptyState";
 import { FilterButton } from "@/components/FilterButton";
 import { FilterModal, type FilterGroup } from "@/components/FilterModal";
@@ -35,14 +35,7 @@ import { LoadingStatus } from "@/components/LoadingStatus";
 import { useColdStartContent } from "@/components/ColdStartReady";
 import { purgeAuditLogs } from "@/lib/audit/actions";
 import { listAuditActions } from "@/lib/audit/build";
-import {
-  actionLabel,
-  actorLabel,
-  EMPTY_VALUE,
-  formatAuditDetails,
-  formatLogTimestamp,
-  type DetailValue,
-} from "@/lib/audit/format";
+import { actionLabel, actorLabel, formatLogTimestamp } from "@/lib/audit/format";
 import type { AuditFilters } from "@/lib/audit/queries";
 import { CONTENT_ENTER_CLASS, useContentEnter } from "@/lib/loading/contentEnter";
 import { useLiveRouteRefresh } from "@/lib/loading/liveRefresh";
@@ -873,7 +866,6 @@ interface LogDetailModalProps {
 function LogDetailModal({ row, onClose }: LogDetailModalProps) {
   const theme = useMantineTheme();
   const isDesktop = useMediaQuery(`(min-width: ${theme.breakpoints.lg})`);
-  const details = row ? formatAuditDetails(row.details) : null;
   return (
     <Modal
       opened={row !== null}
@@ -882,7 +874,7 @@ function LogDetailModal({ row, onClose }: LogDetailModalProps) {
       centered
       size={isDesktop ? "lg" : "md"}
     >
-      {row && details ? (
+      {row ? (
         <Stack gap="sm">
           <Group gap={6} wrap="wrap">
             <Text size="sm" fw={600}>
@@ -912,82 +904,10 @@ function LogDetailModal({ row, onClose }: LogDetailModalProps) {
             </Text>
           ) : null}
           <Divider />
-          {details.kind === "json" ? (
-            <ScrollArea.Autosize mah={320} type="auto">
-              <Text
-                component="pre"
-                size="xs"
-                style={{ margin: 0, whiteSpace: "pre-wrap", wordBreak: "break-word" }}
-              >
-                {details.json}
-              </Text>
-            </ScrollArea.Autosize>
-          ) : (
-            <ScrollArea.Autosize mah={420} type="auto">
-              <Stack gap="sm">
-                {details.values.length > 0 ? <DetailValueList items={details.values} /> : null}
-                {details.kind === "changes" && details.lines.length > 0 ? (
-                  <Stack gap={4}>
-                    {details.lines.map((line) => (
-                      <Paper key={line.label} withBorder p="xs">
-                        <Stack gap={2}>
-                          <Text size="xs" fw={600} c="dimmed">
-                            {line.label}
-                          </Text>
-                          <Text size="sm">
-                            <Text component="span" c="red" size="sm" inherit>
-                              {line.before ?? EMPTY_VALUE}
-                            </Text>
-                            {" → "}
-                            <Text component="span" c="teal" size="sm" inherit>
-                              {line.after ?? EMPTY_VALUE}
-                            </Text>
-                          </Text>
-                        </Stack>
-                      </Paper>
-                    ))}
-                  </Stack>
-                ) : null}
-                {details.kind === "changes" && details.after.length > 0 ? (
-                  <Stack gap={4}>
-                    <Text size="xs" fw={600} c="dimmed">
-                      Resulting state
-                    </Text>
-                    <DetailValueList items={details.after} />
-                  </Stack>
-                ) : null}
-                {details.kind === "changes" &&
-                details.lines.length === 0 &&
-                details.values.length === 0 &&
-                details.after.length === 0 ? (
-                  <Text size="sm" c="dimmed">
-                    No changes recorded.
-                  </Text>
-                ) : null}
-              </Stack>
-            </ScrollArea.Autosize>
-          )}
+          <AuditDetails details={row.details} />
         </Stack>
       ) : null}
     </Modal>
   );
 }
 
-function DetailValueList({ items }: { items: DetailValue[] }) {
-  return (
-    <Stack gap={4}>
-      {items.map((item) => (
-        <Paper key={item.label} withBorder p="xs">
-          <Stack gap={2}>
-            <Text size="xs" fw={600} c="dimmed">
-              {item.label}
-            </Text>
-            <Text size="sm" style={{ wordBreak: "break-word" }}>
-              {item.value || EMPTY_VALUE}
-            </Text>
-          </Stack>
-        </Paper>
-      ))}
-    </Stack>
-  );
-}

@@ -56,8 +56,9 @@ The constraints:
 
 **Non-goals**
 
-- No real-time feed, no webhooks, no per-entity history view (the log is a flat
-  stream filtered by entity).
+- No real-time feed, no webhooks. This page is a flat stream filtered by entity;
+  the per-event and per-user views built on the same rows live in
+  [`event-history.md`](event-history.md).
 - No PII beyond what the actor/entity snapshots already require; login-failure
   rows store the *derived* phone, never the raw input.
 - Not a change-data-capture log: rows are written by the application code at the
@@ -434,6 +435,8 @@ Related docs:
 
 - [`event-mutations.md`](event-mutations.md) — the event create/update/delete rows
   and their snapshots.
+- [`event-history.md`](event-history.md) — the per-event history and My Events
+  pages built on these rows.
 - [`roster-sharing.md`](roster-sharing.md) — the user/calendar/access rows.
 - [`user-picker.md`](user-picker.md) — the multi-user filter/picker UX the audit
   filters now share.
