@@ -130,6 +130,7 @@ export function EventDetail({
   const theme = useMantineTheme();
   const isDesktop = useMediaQuery(`(min-width: ${theme.breakpoints.lg})`);
   const isNarrow = useMediaQuery(NARROW_MEDIA_QUERY);
+  const router = useRouter();
   // The modal is `centered` with a fixed size, so its content center is the
   // viewport center; the transform-origin can therefore be derived purely from
   // the clicked element's rect (see src/lib/motion/origin.ts). The modal
@@ -361,6 +362,19 @@ export function EventDetail({
             ) : canModify ? (
               <Group justify="flex-end" gap="xs" mt="md">
                 <EventActionsMenu event={showEvent} onDuplicate={onDuplicate} />
+                {payload.eventId && (
+                  <Tooltip label="History" position="top">
+                    <ActionIcon
+                      variant="light"
+                      color="gray"
+                      size="xl"
+                      aria-label="View event history"
+                      onClick={() => router.push(`/event-history/${payload.eventId}`)}
+                    >
+                      <IconHistory size={22} />
+                    </ActionIcon>
+                  </Tooltip>
+                )}
                 <Tooltip label="Edit" position="top">
                   <ActionIcon
                     variant="light"
@@ -498,7 +512,6 @@ function EventActionsMenu({
   event: CalendarEvent;
   onDuplicate: (event: CalendarEvent, originRect: Rect | null) => void;
 }) {
-  const router = useRouter();
   return (
     <Menu position="bottom-end" zIndex={400}>
       <Menu.Target>
@@ -515,14 +528,6 @@ function EventActionsMenu({
         >
           Duplicate
         </Menu.Item>
-        {event.payload.eventId && (
-          <Menu.Item
-            leftSection={<IconHistory size={16} />}
-            onClick={() => router.push(`/event-history/${event.payload.eventId}`)}
-          >
-            History
-          </Menu.Item>
-        )}
         <CalendarExportMenuItems event={event} />
       </Menu.Dropdown>
     </Menu>

@@ -340,27 +340,13 @@ export async function listEventHistory(
     .orderBy(asc(auditLogs.createdAt), asc(auditLogs.id));
 }
 
-/** Number of `event.create` rows attributed to a user (the events they created). */
-export async function countMyCreatedEvents(userId: string): Promise<number> {
-  const [row] = await db
-    .select({ n: count() })
-    .from(auditLogs)
-    .where(and(eq(auditLogs.action, AUDIT_ACTIONS.eventCreate), eq(auditLogs.actorId, userId)));
-  return row?.n ?? 0;
-}
-
-/** One page of a user's `event.create` rows (their created events), newest first. */
-export async function listMyCreatedEvents(
-  userId: string,
-  opts: { offset: number; pageSize: number },
-): Promise<AuditLog[]> {
+/** All of a user's `event.create` rows (they created the event), newest first. */
+export async function listMyCreatedEvents(userId: string): Promise<AuditLog[]> {
   return db
     .select()
     .from(auditLogs)
     .where(and(eq(auditLogs.action, AUDIT_ACTIONS.eventCreate), eq(auditLogs.actorId, userId)))
-    .orderBy(desc(auditLogs.createdAt), desc(auditLogs.id))
-    .limit(opts.pageSize)
-    .offset(opts.offset);
+    .orderBy(desc(auditLogs.createdAt), desc(auditLogs.id));
 }
 
 /** The subset of `eventIds` that has a recorded `event.delete` row (deleted events). */

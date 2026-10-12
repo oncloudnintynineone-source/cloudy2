@@ -60,11 +60,11 @@ read-only changelog of one logical event:
 ```mermaid
 sequenceDiagram
     participant U as User
-    participant M as EventDetail · EventActionsMenu
+    participant M as EventDetail · action row
     participant P as event-history/[eventId]/page.tsx
     participant Q as listEventHistory()
     participant V as EventHistoryView
-    U->>M: tap "History" (only when payload.eventId != null)
+    U->>M: tap the History button (only when payload.eventId != null)
     M->>P: router.push(`/event-history/${eventId}`)
     P->>Q: rows = listEventHistory(eventId, retentionDays)
     Q-->>P: AuditLog[] oldest-first
@@ -72,9 +72,10 @@ sequenceDiagram
     V->>U: cards (newest-first) via AuditDetails
 ```
 
-- The entry point is the **History** item in `EventDetail`'s "More actions" menu;
-  it is hidden when `payload.eventId === null` (external or never-app-edited
-  legacy events have no group id and therefore no history).
+- The entry point is a **standalone History button** in `EventDetail`'s editable
+  action row (next to Edit/Delete); it is hidden when `payload.eventId === null`
+  (external or never-app-edited legacy events have no group id and no history) and
+  is not shown in the read-only details (Double Booking / KAH Status).
 - The page renders each row as a card (action label, UTC+8 timestamp, actor) with
   the shared `AuditDetails` component (`src/components/AuditDetails.tsx`) — the
   same before→after lines and "Resulting state" section the admin audit modal
@@ -85,18 +86,26 @@ sequenceDiagram
 
 ## 1.4 My Events page
 
-`/my-events` lists the events the signed-in user created, newest first:
+`/my-events` lists the events the signed-in user organized, newest first, over an
+adjustable **±-months window** (default ±3; `±3 / ±6 / ±12`, selected with the same
+`NoKeyboardSelect` control the KAH Status page uses and reflected in `?range=`).
+It is a **union of two sources** (`buildMyEventsData`,
+`src/lib/events/myEventsData.ts`):
 
-- Rows come from the user's `event.create` audit rows — the create actor is always
-  the fixed organizer, so this is exactly "events I created" with no leakage of
-  other users' rows.
-- Each card shows the creation snapshot (title, time, department badges) and a red
-  **Deleted** badge when a later `event.delete` row with the same group id exists.
-  This is what makes **deleted events trackable**: the create row survives, so the
-  event stays listed and its full history (including the delete) stays reachable.
-- Clicking a card opens its `/event-history/<eventId>` page.
-- Offset pagination via `?page=` (page size `AUDIT_PAGE_SIZE`), mirroring the audit
-  log; page 1 drops the param.
+- **Live** events where `payload.creatorId === me`, read across every department
+  calendar over the window. The organizer is stored *on the event* (the notes
+  `createdBy`), not just on the audit actor — so this catches events created
+  "on behalf of" a user and events older than audit retention.
+- **Deleted** events, from the user's own `event.create` rows that have a paired
+  `event.delete` row (`deletedEventIds`) and are not still live, range-filtered by
+  the leading `YYYY-MM-DD` of the snapshot `time`. Shown with a red **Deleted**
+  badge. Because live reads can't see deleted events, this is what makes deleted
+  events trackable (within audit retention).
+
+Rows are deduped by group id (live wins) and sorted newest-first
+(`mergeMyEvents`). Each row links to `/event-history/<eventId>`; legacy rows with
+no group id render unlinked. Pagination is `?page=` (page size 20), applied in
+memory since the combined set is bounded by the window + retention.
 
 ## 1.5 Authorization & privacy
 
@@ -108,9 +117,9 @@ history" is "who can see the event" — no separate ACL.
 
 Privacy notes:
 
-- **Every viewer only sees their own created events** on `/my-events` (scoped by
-  `actor_id`); the history route is reachable by direct URL, consistent with event
-  visibility.
+- **Every viewer only sees their own events** on `/my-events` (the live read is
+  filtered by `payload.creatorId === me`; the audit read by `actor_id = me`); the
+  history route is reachable by direct URL, consistent with event visibility.
 - **Hidden-invitee event types** leak nothing: `resolveEffectiveInput` strips
   hidden attendees *before* any snapshot is built, so an audit row already contains
   only the effective (post-policy) participant set. The one residual case — an
@@ -142,8 +151,12 @@ Reads in `src/lib/audit/queries.ts`:
 | Function | Query |
 | -------- | ----- |
 | `listEventHistory(eventId, retentionDays)` | `entity_type='calendar' AND details->>'eventId'=$1` (+ window), `order by created_at asc, id asc` |
-| `countMyCreatedEvents(userId)` / `listMyCreatedEvents(userId, {offset, pageSize})` | `action='event.create' AND actor_id=$1`, `order by created_at desc, id desc` |
+| `listMyCreatedEvents(userId)` | all `action='event.create' AND actor_id=$1`, `order by created_at desc, id desc` (deleted candidates, retention-bounded) |
 | `deletedEventIds(eventIds)` | distinct `details->>'eventId'` from `action='event.delete'` for the given ids |
+
+`buildMyEventsData` (`src/lib/events/myEventsData.ts`) combines the live
+`fetchRangeEvents` read (organizer = the user) with those audit reads into one
+shaped, sorted list.
 
 ## 1.8 Always-fresh caching
 
@@ -158,26 +171,27 @@ already routes always-fresh paths through `LIVE_REFRESH_EVENT`
 (`AppShellShell`). Consequence: like the audit log, these pages are unavailable
 offline.
 
-## 1.9 Navigation & the footer overflow
+## 1.9 Navigation & the footer "More" menu
 
-**My Events** is a global nav entry (`/my-events`), shown to every role, driving
-both the desktop sidebar and the mobile bottom nav. Because the app now has more
-than five bottom-nav destinations, the footer caps at `FOOTER_MAX_ITEMS` (5) tiles
-plus a **More** tile that opens a bottom `Drawer` holding the rest (KAH Status and
-Settings for admins; KAH Status for KAH members). The desktop sidebar (≥ `lg`)
-always renders every entry with labels, and `NavRouteWarmer` preloads the new
-route.
+**My Events** is a global nav entry (`/my-events`), shown to every role. On the
+desktop sidebar (≥ `lg`) every entry is listed directly. The **mobile footer** keeps
+only the four primary tiles (Calendar, Parade State, Contacts, Double Booking) plus
+a **More** tile that opens a `Menu` popup (the profile-menu pattern) holding the
+rest — My Events, KAH Status (when visible), and Settings (admin). `NavRouteWarmer`
+preloads the new route.
 
 ## 1.10 Pure helpers & testing
 
 | Helper | Module | Tests |
 | ------ | ------ | ----- |
 | `eventIdFromAuditDetails`, `createdEventSummary` | `events/history.ts` | `events/history.test.ts` |
+| `formatMyEventTime`, `auditTimeSortKey`, `mergeMyEvents` | `events/myEvents.ts` | `events/myEvents.test.ts` |
+| `parseMyEventsRange`, `myEventsRangeLabel`, `myEventsWindow` | `events/myEventsRange.ts` | `events/myEventsRange.test.ts` |
 | `formatAuditDetails`, `actionLabel`, `actorLabel`, `formatLogTimestamp` | `audit/format.ts` | `audit/format.test.ts` |
 | `isAlwaysFreshPath` (the new prefixes) | `pwa/swRules.ts` | `pwa/swRules.test.ts` |
 
 I/O-bound (not unit-tested, per the repo convention): the `queries.ts` read
-functions, both route pages, and the client views.
+functions, `buildMyEventsData`, both route pages, and the client views.
 
 ## 1.11 File index & related docs
 
@@ -186,14 +200,16 @@ functions, both route pages, and the client views.
 | `src/app/(protected)/event-history/[eventId]/page.tsx` | Per-event history server page |
 | `src/app/(protected)/event-history/[eventId]/EventHistoryView.tsx` | Client view (always-fresh) |
 | `src/app/(protected)/event-history/[eventId]/EventHistorySkeleton.tsx` | Shared shaped skeleton |
-| `src/app/(protected)/my-events/page.tsx` | My Events server page |
-| `src/app/(protected)/my-events/MyEventsView.tsx` | Client view + pagination |
+| `src/app/(protected)/my-events/page.tsx` | My Events server page (window + pagination) |
+| `src/app/(protected)/my-events/MyEventsView.tsx` | Client view + range selector + pagination |
 | `src/components/AuditDetails.tsx` | Shared `details` renderer (audit log + history) |
-| `src/app/(protected)/dashboard/EventDetail.tsx` | The History entry point |
-| `src/lib/audit/queries.ts` | `listEventHistory`, `listMyCreatedEvents`, `countMyCreatedEvents`, `deletedEventIds` |
+| `src/app/(protected)/dashboard/EventDetail.tsx` | The standalone History button |
+| `src/lib/audit/queries.ts` | `listEventHistory`, `listMyCreatedEvents`, `deletedEventIds` |
+| `src/lib/events/myEventsData.ts` | My Events union builder (live + audit) |
 | `src/lib/events/history.ts` | Pure snapshot parsers (unit-tested) |
+| `src/lib/events/myEvents.ts` / `myEventsRange.ts` | Pure list shaping + window helpers (unit-tested) |
 | `src/db/schema.ts` + `drizzle/0056_charming_blue_marvel.sql` | `audit_logs_event_id_idx` |
-| `src/components/AppShellShell.tsx` | My Events nav entry + footer More sheet |
+| `src/components/AppShellShell.tsx` | My Events nav entry + footer More `Menu` |
 | `src/lib/pwa/swRules.ts` | Always-fresh prefixes |
 
 Related docs:

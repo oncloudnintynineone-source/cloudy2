@@ -199,15 +199,17 @@ doc content here.
   refreshed on `cloudy2:events-changed`). Advisory: never writes or audits.
   Design: [docs/user-clashes.md](docs/user-clashes.md).
 - **Event history & My Events (`/event-history/[eventId]`, `/my-events`):** read-only views
-  over the same `event.create`/`event.update`/`event.delete` audit rows — the create actor is
-  the fixed organizer, and the group id lives in `details.eventId` (indexed by
-  `audit_logs_event_id_idx`). The event modal's "History" action (only when `payload.eventId`
-  is non-null) opens the per-event changelog; **My Events** lists the signed-in user's own
-  created events (deleted ones flagged, still trackable). Both are `requireSession()` (no
-  ACL — reads aren't gated) and **always-fresh** (`useLiveRouteRefresh`). Reads live in
-  `src/lib/audit/queries.ts`; pure snapshot parsers in `src/lib/events/history.ts`; the
-  `details` renderer is shared with the audit log (`src/components/AuditDetails.tsx`).
-  Design: [docs/event-history.md](docs/event-history.md).
+  over the event audit rows. The event modal's action row has a **standalone History
+  button** (only when `payload.eventId` is non-null) opening the per-event changelog.
+  **My Events** is a union (`buildMyEventsData`, `src/lib/events/myEventsData.ts`) of a
+  live all-calendar read filtered to `payload.creatorId === me` (so it catches on-behalf
+  and pre-retention events) plus deleted events from the user's own `event.create` rows
+  with a paired `event.delete` row (Deleted badge, retention-bounded), over an adjustable
+  ±3/±6/±12-month window (`myEventsRange.ts`, `?range=`, KAH-style `NoKeyboardSelect`).
+  Both are `requireSession()` (no ACL — reads aren't gated) and **always-fresh**
+  (`useLiveRouteRefresh`). Reads live in `src/lib/audit/queries.ts`; pure shaping in
+  `src/lib/events/history.ts` + `myEvents.ts`; the `details` renderer is shared with the
+  audit log (`src/components/AuditDetails.tsx`). Design: [docs/event-history.md](docs/event-history.md).
 - **KAH constraints are notify-only.** After every successful create/update (never delete),
   `dispatchKahBreachCheck()` (`src/lib/kah/notify.ts`) runs inside `after()` — best-effort,
   it can never fail or delay the mutation. The KAH Status nav entry carries an amber
@@ -301,12 +303,12 @@ doc content here.
   `useActionPill()`, `src/components/ActionPill.tsx`) — a bottom-floating two-tone pill
   with a light progress fill — never `notifications.show({ message: <Button/> })`.
   Design: [docs/action-pill.md](docs/action-pill.md).
-- **Global bottom nav** (`AppShell.Footer`): Calendar `/dashboard`, Parade State
-  `/parade-state`, Contacts `/contacts`, Double Booking `/double-booking`, My Events
-  `/my-events` (every role); admins/KAH members additionally get KAH Status `/kah-status`;
-  Settings `/settings` is admin-only. The footer shows at most 5 tiles — extras collapse
-  into a **More** bottom `Drawer` (`FOOTER_MAX_ITEMS`); the desktop sidebar always shows
-  every entry. `SettingsTabs` stacks directly above it.
+- **Global bottom nav** (`AppShell.Footer`): the four primary tiles are Calendar
+  `/dashboard`, Parade State `/parade-state`, Contacts `/contacts`, Double Booking
+  `/double-booking`; a trailing **More** tile opens a `Menu` popup (the profile-menu
+  pattern) holding My Events `/my-events` (every role), KAH Status `/kah-status`
+  (admins/KAH members), and Settings `/settings` (admin-only). The desktop sidebar always
+  shows every entry. `SettingsTabs` stacks directly above the footer.
 - **Admin settings live under `/settings`** (admin-only): Users, Departments, Event Types,
   Templates, Webhooks, Quick Links, KAH Groups, Banner, General, Security, Audit Log,
   Feature Flags tabs.

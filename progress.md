@@ -1646,17 +1646,19 @@ via `?attendance=1` and `attendanceStorage` became a `useSyncExternalStore` exte
     `DASHBOARD_SNAPSHOT_VERSION` 5 → 6 drops each device's warm snapshot once
     (first open re-reads). GLOSSARY term "dashboard snapshot". Docs:
     `pwa-offline.md`.
- - 1.295 Event history & My Events: two read-only surfaces over the existing
-    event audit rows — a per-event changelog (`/event-history/[eventId]`, opened
-    from the event modal's "History" action) and **My Events** (`/my-events`, the
-    signed-in user's own created events, deleted ones flagged but still
-    trackable). Both `requireSession()` (reads aren't ACL-gated) and
-    always-fresh. New expression index `audit_logs_event_id_idx`
+ - 1.295 Event history & My Events: two read-only surfaces over the event audit
+    rows — a per-event changelog (`/event-history/[eventId]`, opened from a
+    standalone History button in the event modal's action row) and **My Events**
+    (`/my-events`, a union of a live all-calendar read by organizer plus deleted
+    events from audit, over an adjustable ±3/±6/±12-month window; deleted ones
+    flagged but still trackable). Both `requireSession()` (reads aren't
+    ACL-gated) and always-fresh. New expression index `audit_logs_event_id_idx`
     (migration `0056`) on `details->>'eventId'`; new reads in
-    `src/lib/audit/queries.ts`, pure parsers in `src/lib/events/history.ts`, and
-    a shared `AuditDetails` component with the audit log. Bottom nav gained the
-    My Events entry and a 5-tile cap with a **More** bottom-sheet overflow.
-    Docs: `event-history.md`.
+    `src/lib/audit/queries.ts`, a union builder in `src/lib/events/myEventsData.ts`,
+    pure shaping in `src/lib/events/history.ts`/`myEvents.ts`/`myEventsRange.ts`,
+    and a shared `AuditDetails` component with the audit log. Bottom nav keeps its
+    four primary tiles and moves My Events / KAH Status / Settings into a **More**
+    popup `Menu`. Docs: `event-history.md`.
 
 ## 1.4 Open items & next steps
 
