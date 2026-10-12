@@ -448,10 +448,15 @@ function NavButton({
  */
 const MoreNavButton = forwardRef<
   HTMLButtonElement,
-  { active: boolean; badge: number; compact?: boolean }
->(function MoreNavButton({ active, badge, compact }, ref) {
+  { active: boolean; badge: number; compact?: boolean } & React.ComponentPropsWithoutRef<
+    typeof UnstyledButton
+  >
+>(function MoreNavButton({ active, badge, compact, ...others }, ref) {
   return (
     <UnstyledButton
+      // The injected `Menu.Target` props (onClick, aria-*, data-*) must reach
+      // the button or the tile silently never opens the menu.
+      {...others}
       ref={ref}
       style={{
         flex: 1,
