@@ -250,6 +250,24 @@ type MyEventRender = (
 ) => ReactElement;
 
 /** Stable empty layout for the non-Week-(Grid) renders (no overflow). */
+// Shared empty just-settled id set (the cleared state; identity keeps memo
+// deps stable when nothing settled).
+const EMPTY_SETTLED_IDS: ReadonlySet<string> = new Set();
+
+// A chip whose logical group just took over from an optimistic stand-in
+// (docs/optimistic-mutations.md §1.3): module-level so the renderEvent
+// callbacks can call it while `justSettledIds` stays their memo dep.
+const isJustSettledRenderEvent = (
+  ids: ReadonlySet<string>,
+  event: { id: string | number },
+) => {
+  if (ids.size === 0) {
+    return false;
+  }
+  const eventId = (event as unknown as CalendarEvent).payload?.eventId;
+  return eventId != null && ids.has(eventId);
+};
+
 const NO_GRID_WEEK_ALLDAY: GridWeekAllDayLayout = {
   laneCount: 0,
   hidden: [],
@@ -1758,9 +1776,26 @@ function DashboardViewImpl({
   // This is a guarded render-phase state adjustment (the codebase's standard
   // derived-state pattern — setState during render is allowed here, an effect
   // is not), so no commit ever shows the overlay over the fresh data.
+  // The group ids of the ops that just dropped are parked in state so the
+  // renderEvent hooks add `c2-chip-settle` to the incoming chips on the
+  // adjusted re-render (the stand-in node is replaced, never morphed, so the
+  // pop plays on the new node — docs/optimistic-mutations.md §1.3).
   const [lastEvents, setLastEvents] = useState<readonly CalendarEvent[]>(events);
+  const [justSettledIds, setJustSettledIds] = useState<ReadonlySet<string>>(new Set());
   if (events !== lastEvents) {
     setLastEvents(events);
+    const settledIds = new Set(
+      optimisticOps.flatMap((op) =>
+        op.kind !== "remove" && op.settled && op.event.payload.eventId !== null
+          ? [op.event.payload.eventId]
+          : [],
+      ),
+    );
+    if (settledIds.size > 0) {
+      setJustSettledIds(settledIds);
+    } else if (justSettledIds.size > 0) {
+      setJustSettledIds(EMPTY_SETTLED_IDS);
+    }
     if (optimisticOps.some((op) => op.settled)) {
       setOptimisticOps((current) => current.filter((op) => !op.settled));
     }
@@ -2005,6 +2040,7 @@ function DashboardViewImpl({
   const isExternalRenderEvent = (event: { id: string | number }) =>
     (event as unknown as CalendarEvent).payload?.external === true;
 
+
   // renderEvent replacements for Month + Agenda: the same default root, plus
   // highlight classes on the user's events (amber) and external events
   // (purple). Month: c2-my-event = amber ring / c2-ext-event = purple ring
@@ -2012,33 +2048,35 @@ function DashboardViewImpl({
   // = amber bar/tint + bold title, c2-ext-agenda-event = the purple version.
   const renderMyMonthEvent: MyEventRender = useCallback(
     (event, props) => {
-      if (!myEventIds.has(String(event.id)) && !isExternalRenderEvent(event)) {
-        return <UnstyledButton {...props} />;
-      }
       const extra = [
         myEventIds.has(String(event.id)) && "c2-my-event",
         isExternalRenderEvent(event) && "c2-ext-event",
+        isJustSettledRenderEvent(justSettledIds, event) && "c2-chip-settle",
       ]
         .filter(Boolean)
         .join(" ");
+      if (!extra) {
+        return <UnstyledButton {...props} />;
+      }
       return <UnstyledButton {...props} className={`${props.className ?? ""} ${extra}`.trim()} />;
     },
-    [myEventIds],
+    [myEventIds, justSettledIds],
   );
   const renderMyAgendaEvent: MyEventRender = useCallback(
     (event, props) => {
-      if (!myEventIds.has(String(event.id)) && !isExternalRenderEvent(event)) {
-        return <UnstyledButton {...props} />;
-      }
       const extra = [
         myEventIds.has(String(event.id)) && "c2-my-agenda-event",
         isExternalRenderEvent(event) && "c2-ext-agenda-event",
+        isJustSettledRenderEvent(justSettledIds, event) && "c2-chip-settle-agenda",
       ]
         .filter(Boolean)
         .join(" ");
+      if (!extra) {
+        return <UnstyledButton {...props} />;
+      }
       return <UnstyledButton {...props} className={`${props.className ?? ""} ${extra}`.trim()} />;
     },
-    [myEventIds],
+    [myEventIds, justSettledIds],
   );
 
   // Day / Week (H) schedule events: the same pass-through root, plus
@@ -2047,16 +2085,22 @@ function DashboardViewImpl({
   // Week (H) all-day bars; the all-day sticky-title Box in the Day view), so
   // no structural re-render is needed here.
   const renderScheduleEvent: MyEventRender = useCallback((event, rootProps) => {
-    if (!isExternalRenderEvent(event)) {
+    const extra = [
+      isExternalRenderEvent(event) && "c2-ext-slot-event",
+      isJustSettledRenderEvent(justSettledIds, event) && "c2-chip-settle",
+    ]
+      .filter(Boolean)
+      .join(" ");
+    if (!extra) {
       return <UnstyledButton {...rootProps} />;
     }
     return (
       <UnstyledButton
         {...rootProps}
-        className={`${rootProps.className ?? ""} c2-ext-slot-event`.trim()}
+        className={`${rootProps.className ?? ""} ${extra}`.trim()}
       />
     );
-  }, []);
+  }, [justSettledIds]);
 
   const isWeekV2 = view === "weekv2";
   const isGridWeek = view === "weekgrid";
@@ -2093,18 +2137,19 @@ function DashboardViewImpl({
       if (positioned.position?.allDay && gridWeekAllDay.hiddenIds.has(String(event.id))) {
         return <span style={{ display: "none" }} aria-hidden />;
       }
-      if (!myEventIds.has(String(event.id)) && !isExternalRenderEvent(event)) {
-        return <UnstyledButton {...props} />;
-      }
       const extra = [
         myEventIds.has(String(event.id)) && "c2-my-event",
         isExternalRenderEvent(event) && "c2-ext-event",
+        isJustSettledRenderEvent(justSettledIds, event) && "c2-chip-settle",
       ]
         .filter(Boolean)
         .join(" ");
+      if (!extra) {
+        return <UnstyledButton {...props} />;
+      }
       return <UnstyledButton {...props} className={`${props.className ?? ""} ${extra}`.trim()} />;
     },
-    [myEventIds, gridWeekAllDay.hiddenIds],
+    [myEventIds, gridWeekAllDay.hiddenIds, justSettledIds],
   );
 
   // Month-grid zoom knob. Mantine sizes every day column as a percentage of
@@ -4013,6 +4058,7 @@ function DashboardViewImpl({
                 today={today}
                 myRowId={currentUser}
                 renderResourceLabel={renderResourceLabel}
+                settledIds={justSettledIds}
                 // The matrix bleeds with the canvas, so its floating controls
                 // anchor to the padded `weekBoxRef` (not the matrix root) to stay
                 // fixed when zoomed in.
@@ -4177,9 +4223,15 @@ function DashboardViewImpl({
                 // ring from globals.css lands on it.
                 renderEvent={(event, rootProps) => {
                   const payload = (event as unknown as CalendarEvent).payload;
+                  const extra = [
+                    payload.external === true && "c2-ext-slot-event",
+                    isJustSettledRenderEvent(justSettledIds, event) && "c2-chip-settle",
+                  ]
+                    .filter(Boolean)
+                    .join(" ");
                   const extClass =
-                    payload.external === true
-                      ? `${rootProps.className ?? ""} c2-ext-slot-event`.trim()
+                    extra.length > 0
+                      ? `${rootProps.className ?? ""} ${extra}`.trim()
                       : rootProps.className;
                   const isAllDay = Boolean(payload.allDay);
                   if (!isAllDay) {

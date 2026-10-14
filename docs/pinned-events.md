@@ -151,6 +151,10 @@ Sizing & a11y:
 - The count rides the button's `aria-label` (`"Pinned events (5)"`); the count
   chip, the countdown chip, the badge, the stacked block and the rotating titles
   are `aria-hidden` (see [`accessibility.md`](accessibility.md) §1.4).
+- The count chips are keyed by the pinned count, so a changed count remounts the
+  chip and replays the shared `c2-badge-tick` pop (a position rotation keeps the
+  same key and updates in place, no pop — see
+  [`loading-transitions.md`](loading-transitions.md) §1.17).
 
 The list behind the ticker refreshes:
 

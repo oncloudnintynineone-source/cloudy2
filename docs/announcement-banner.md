@@ -10,6 +10,7 @@ exactly as if the feature weren't there — no reserved space.
 - [1.2 Curated palette & validation (pure)](#12-curated-palette--validation-pure)
 - [1.3 Rendering & the height-var chain](#13-rendering--the-height-var-chain)
   - [1.3.1 Known from first paint — no reservation trade-off](#131-known-from-first-paint--no-reservation-trade-off)
+  - [1.3.2 Height reflow animation](#132-height-reflow-animation)
 - [1.4 Interplay with immersive mode](#14-interplay-with-immersive-mode)
 - [1.5 File index & related docs](#15-file-index--related-docs)
 
@@ -94,6 +95,17 @@ sequenceDiagram
 
 > **Do NOT pass the height via Mantine's `vars` prop** — in v9 that is a resolver
 > *function*, not an object.
+
+### 1.3.2 Height reflow animation
+
+`--app-banner-height` and `--app-shell-header-offset` are registered with
+`@property` and carry a `var(--c2-dur-standard)` transition on `.app-shell-root`
+(plus a `height` transition on the header element itself), so when the
+ResizeObserver re-reports a taller measured banner (text re-wrapped), the
+header, main padding and sticky chrome **grow smoothly together** instead of
+snapping. Browsers below the `@property` floor simply keep the old instant jump
+(unregistered custom properties can't transition); reduced motion resets the
+transitions. See [`loading-transitions.md`](loading-transitions.md) §1.17.
 
 ## 1.4 Interplay with immersive mode
 

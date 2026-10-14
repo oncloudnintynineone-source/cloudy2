@@ -42,10 +42,12 @@ export function FilterButton({
       </ActionIcon>
       {activeCount > 0 && (
         <Badge
+          key={activeCount}
           size="sm"
           variant="filled"
           radius="xl"
           pos="absolute"
+          className="c2-badge-tick"
           style={{ top: -4, right: -4 }}
           aria-hidden
         >

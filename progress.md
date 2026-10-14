@@ -18,7 +18,7 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
 
 ## 1.1 Status
 
-- All work through changelog **1.295 (event history & My Events)** is shipped.
+- All work through changelog **1.296 (micro-motion pass)** is shipped.
 - Quality gates (`lint` / `typecheck` / `test` / schema-drift check) run in CI on every
   push and PR. Pushes also auto-apply migrations per environment: `dev` →
   `migrate-preview` against the dev Neon DB, `main` → `migrate` against the prod Neon
@@ -1660,6 +1660,27 @@ via `?attendance=1` and `attendanceStorage` became a `useSyncExternalStore` exte
     collapsible (newest expanded). Bottom nav keeps its four primary tiles and
     moves My Events / KAH Status / Settings into an animated **More** popup
     `Menu`. Docs: `event-history.md`.
+- 1.296 Micro-motion pass (seven presentational animations, all `--c2-dur-*`-tokened,
+    reduced-motion guarded, low-end-tier neutered): optimistic **hand-off pop** —
+    the guarded reconcile parks just-settled group ids in state and the `renderEvent`
+    hooks + a new `settledIds` prop on `WeekMatrixView` add `c2-chip-settle`
+    (fade+scale; agenda rows fade-only) to the incoming authoritative chip, so the
+    stand-in→server swap reads as motion; **count-badge tick** — nav count pills,
+    the filter-button badge and the pinned ticker count chips are keyed by their
+    count so a changed value remounts and replays `c2-badge-tick` (0.72→1.06→1 pop;
+    rotation keeps the key, no pop); **settings-tab amber pill** — the active
+    settings tab carries an amber-tinted pill (`c2-settings-tabs [data-active]`)
+    that pops in while the outgoing tab's fades out; **banner height reflow** —
+    `--app-banner-height`/`--app-shell-header-offset` registered via `@property`
+    and transitioned on `.app-shell-root` (+ header `height`), so a re-wrapped
+    banner grows the chrome smoothly; **login→dashboard crossfade** — the `/login`
+    form branch wraps in `PageTransition` so `completeLogin()`'s router-push gets
+    its missing `c2-page-out` exit half; **empty-state reveal** — shared `EmptyState`
+    fades/rises in with the icon a beat behind; **FAB cluster entrance** —
+    `FloatingToolbar`'s Affix root carries `c2-fab-cluster` and the FABs pop in
+    per-child staggered on first paint. Docs: `loading-transitions.md` §1.17,
+    `optimistic-mutations.md` §1.3.1, `pinned-events.md` §1.4,
+    `announcement-banner.md` §1.3.2, `desktop-responsive.md` §1.3.
 
 ## 1.4 Open items & next steps
 

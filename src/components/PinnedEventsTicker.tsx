@@ -149,20 +149,24 @@ export function PinnedEventsTicker({
           {/* The count rides the aria-label above; hide the visual chip so
               screen readers don't read it twice (the old Indicator did the
               same). */}
+          {/* The count chips are keyed by the pinned count so a changed count
+              remounts the chip and replays the shared badge pop (`c2-badge-tick`,
+              docs/pinned-events.md §1.4); rotation keeps the same key, so a
+              position change updates the text in place without popping. */}
           {safeIndicator === "classic" ? (
-            <span className="c2-pinned-ticker-count" aria-hidden>
+            <span key={count} className="c2-pinned-ticker-count c2-badge-tick" aria-hidden>
               {safeIndex + 1}/{count}
             </span>
           ) : null}
           {safeIndicator === "stacked" ? (
-            <span className="c2-pinned-ticker-stacked" aria-hidden>
+            <span key={count} className="c2-pinned-ticker-stacked c2-badge-tick" aria-hidden>
               <span className="c2-pinned-ticker-stacked-count">
                 {safeIndex + 1}/{count}
               </span>
               <span className="c2-pinned-ticker-stacked-countdown">{daysUntil}d</span>
             </span>
           ) : safeIndicator === "split" ? (
-            <span className="c2-pinned-ticker-split" aria-hidden>
+            <span key={count} className="c2-pinned-ticker-split c2-badge-tick" aria-hidden>
               <span className="c2-pinned-ticker-split-count">
                 {safeIndex + 1}/{count}
               </span>
@@ -200,7 +204,7 @@ export function PinnedEventsTicker({
           {/* Compact amber count badge over the pill's corner; position rides
               the rotation titles themselves. */}
           {safeIndicator === "badge" ? (
-            <span className="c2-pinned-ticker-badge" aria-hidden>
+            <span key={count} className="c2-pinned-ticker-badge c2-badge-tick" aria-hidden>
               {count}
             </span>
           ) : null}

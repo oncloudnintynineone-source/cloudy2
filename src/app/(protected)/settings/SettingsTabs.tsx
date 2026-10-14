@@ -38,6 +38,7 @@ export function SettingsTabs() {
 
   const tabsEl = (
     <Tabs
+      className="c2-settings-tabs"
       value={active}
       onChange={(value) => {
         if (value) {

@@ -69,6 +69,11 @@ export interface WeekMatrixViewProps {
   /** Tapping an empty part of a cell: start a new event on that day. */
   onCellClick: (day: string, e: MouseEvent<HTMLDivElement>) => void;
   /**
+   * Logical group ids whose chips just took over from an optimistic stand-in
+   * (docs/optimistic-mutations.md §1.3): those banners replay the settle pop.
+   */
+  settledIds?: ReadonlySet<string>;
+  /**
    * Current Week (D) day-column zoom level. Single horizontal axis over the
    * matrix's absolute px column floor (1 = the default readable width; the
    * floor is also the zoom-out limit). Owned/persisted by the parent.
@@ -126,6 +131,7 @@ export function WeekMatrixView({
   renderResourceLabel,
   onEventClick,
   onCellClick,
+  settledIds,
   zoom,
   onZoomIn,
   onZoomOut,
@@ -427,6 +433,7 @@ export function WeekMatrixView({
                       renderResourceLabel={renderResourceLabel}
                       onEventClick={onEventClick}
                       onCellClick={onCellClick}
+                      settledIds={settledIds}
                       labelLeft={labelLeft}
                       labelWidth={labelWidth}
                       dayTemplate={dayTemplate}
@@ -475,6 +482,7 @@ function MatrixRow({
   renderResourceLabel,
   onEventClick,
   onCellClick,
+  settledIds,
   labelLeft,
   labelWidth,
   dayTemplate,
@@ -493,6 +501,8 @@ function MatrixRow({
   renderResourceLabel: (resource: ScheduleResource) => ReactNode;
   onEventClick: (event: CalendarEvent, e: MouseEvent<HTMLButtonElement>) => void;
   onCellClick: (day: string, e: MouseEvent<HTMLDivElement>) => void;
+  /** Logical group ids whose chips just took over from an optimistic stand-in. */
+  settledIds: ReadonlySet<string> | undefined;
   /** Sticky-left offset for the label (the group column width when groups exist). */
   labelLeft: string;
   /** Width of the sticky resource-label column. */
@@ -607,8 +617,19 @@ function MatrixRow({
                   component="span"
                   // External events carry the purple ring (self-outline: the
                   // banner box is the chip itself, unlike the ScheduleEvent
-                  // roots where the ring targets the inner child).
-                  className={span.event.payload.external === true ? "c2-ext-ring" : undefined}
+                  // roots where the ring targets the inner child); chips that
+                  // just took over from an optimistic stand-in replay the settle
+                  // pop (docs/optimistic-mutations.md §1.3).
+                  className={
+                    [
+                      span.event.payload.external === true && "c2-ext-ring",
+                      span.event.payload.eventId != null &&
+                        settledIds?.has(span.event.payload.eventId) &&
+                        "c2-chip-settle",
+                    ]
+                      .filter(Boolean)
+                      .join(" ") || undefined
+                  }
                   style={{
                     display: "flex",
                     alignItems: "center",

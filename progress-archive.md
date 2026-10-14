@@ -9289,3 +9289,57 @@ still write one `paradeState.emailSend` row; the admin test action is audited as
 the send happens on the first activity after the cutoff.
 
 Docs: `docs/parade-state-email.md` §1.1/§1.4/§1.5/§1.6, `docs/developer-guide.md` §1.9.1.
+
+## 1.296 Micro-motion pass
+
+Seven purely presentational animations added; none change layout or data logic,
+every one rides the `--c2-dur-*` tokens (mirrors of `src/lib/motion/timing.ts`),
+sits inside a `prefers-reduced-motion: no-preference` guard, and is collapsed by
+the `c2-low-end` tier.
+
+- **Optimistic hand-off pop.** The stand-in chip and the authoritative chip are
+  different DOM nodes (renderers key chips by event id, and the id trajectory is
+  placeholder → group → google id), so the guarded reconcile swap silently
+  replaced one node with another. `DashboardView` now parks the just-settled
+  group ids in a `justSettledIds` state var (guarded render-phase adjustment,
+  cleared on the next events change) and the four `renderEvent` hooks
+  (`renderMyMonthEvent`, `renderMyAgendaEvent`, `renderScheduleEvent`,
+  `renderGridWeekEvent`, plus the Day view's inline hook) add `c2-chip-settle`
+  to the incoming root — `WeekMatrixView` gets the set as a `settledIds` prop
+  and passes it through `MatrixRow`. Agenda rows take the fade-only
+  `c2-chip-settle-agenda` so full-width rows never scale.
+- **Count-badge tick.** Count pills whose value changes live now remount and
+  replay `c2-badge-tick` (0.72→1.06→1 scale pop over `--c2-dur-micro`): the
+  Double Booking / KAH nav pills are keyed by the badge count, the filter
+  `Badge` by `activeCount`, and the pinned ticker's classic/stacked/split/badge
+  count chips by the pinned count (rotation keeps the same key → text updates
+  in place, no pop). Counts still ride accessible names; chips stay aria-hidden.
+- **Settings-tab amber pill.** `SettingsTabs` root gets `c2-settings-tabs`;
+  `[role="tab"][data-active]` carries an amber-tinted pill (same scheme-aware
+  olive/cream pair as the my-row tints) with a `c2-tabs-active-enter` pop and a
+  `background-color` transition so the outgoing tab's pill fades out — the tab
+  strip now animates alongside the content crossfade.
+- **Banner height reflow.** `--app-banner-height` and `--app-shell-header-offset`
+  are registered with `@property` and transitioned on `.app-shell-root` (plus a
+  `height` transition on the AppShell header element), so a re-wrapped banner's
+  measured height grows the header, main padding and sticky chrome together
+  instead of snapping. Below the `@property` floor browsers keep the instant
+  jump (unregistered custom properties can't transition).
+- **Login→dashboard crossfade.** `completeLogin()` router-pushes to
+  `/dashboard`; the login page had no exit half, so the hand-off was a hard cut.
+  The form branch of `/login` now wraps in `PageTransition` (the
+  unsupported-browser notice branch never signs in and stays unwrapped), giving
+  `c2-page-out` while the dashboard's `c2-page-in` enters.
+- **Empty-state reveal.** Shared `EmptyState` Stack carries `c2-empty-state`
+  (fade + rise on mount, SSR-safe like `content-enter`) and the icon wrapper
+  `c2-empty-state-icon` rides the same keyframe 70 ms behind.
+- **FAB cluster entrance.** `FloatingToolbar`'s Affix root carries
+  `c2-fab-cluster`; the FABs (grandchildren: root → Group → FABs) play
+  `c2-fab-enter` with 50 ms nth-child stagger. The portaled cluster mounts once,
+  so the entrance plays exactly on first paint and never replays on state
+  changes.
+
+Verification: `pnpm lint` clean (0 errors), `pnpm test` 1475/1475, typecheck
+clean for all touched files (one pre-existing unrelated error remains: the
+orphaned `src/components/FloatingBottomNav.tsx` imports a `navChrome` module
+that was never created — untouched by this phase).

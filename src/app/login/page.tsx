@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { headers } from "next/headers";
 
+import { PageTransition } from "@/components/PageTransition";
 import { LoginForm } from "@/components/LoginForm";
 import { detectLegacyBrowser } from "@/lib/browserSupport";
 
@@ -29,9 +30,16 @@ export default async function LoginPage() {
       </LoginShell>
     );
   }
+  // A successful sign-in router-pushes to /dashboard: wrapping the card in
+  // PageTransition gives the login side its `c2-page-out` exit half, so the
+  // hand-off reads as one crossfade into the dashboard's `c2-page-in` enter
+  // (docs/loading-transitions.md §1.14). The unsupported-browser notice branch
+  // never signs in, so it stays unanimated.
   return (
     <LoginShell>
-      <LoginForm />
+      <PageTransition>
+        <LoginForm />
+      </PageTransition>
     </LoginShell>
   );
 }

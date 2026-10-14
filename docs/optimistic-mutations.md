@@ -21,6 +21,7 @@ the hand-off is seamless.
 - [1.1 Goals and non-goals](#11-goals-and-non-goals)
 - [1.2 The overlay model](#12-the-overlay-model)
 - [1.3 Reconciliation with authoritative data](#13-reconciliation-with-authoritative-data)
+  - [1.3.1 Hand-off pop](#131-hand-off-pop)
 - [1.4 The pure overlay engine](#14-the-pure-overlay-engine)
 - [1.5 The stand-in builder](#15-the-stand-in-builder)
 - [1.6 The server return contract](#16-the-server-return-contract)
@@ -127,13 +128,28 @@ day sync — an effect is not allowed here; `react-hooks/set-state-in-effect`):
 
 ```ts
 const [lastEvents, setLastEvents] = useState<readonly CalendarEvent[]>(events);
+const [justSettledIds, setJustSettledIds] = useState<ReadonlySet<string>>(EMPTY_SETTLED_IDS);
 if (events !== lastEvents) {
   setLastEvents(events);
+  // ids of the settled upserts → `c2-chip-settle` on the incoming chips (§1.3.1)
+  ...
   if (optimisticOps.some((op) => op.settled)) {
- setOptimisticOps((current) => current.filter((op) => !op.settled));
+    setOptimisticOps((current) => current.filter((op) => !op.settled));
   }
 }
 ```
+
+### 1.3.1 Hand-off pop
+
+The stand-in and the authoritative chip are **different DOM nodes** — renderers
+key chips by event id and the ids differ (placeholder → group → google id), so
+the swap removes one node and inserts another. To make the hand-off read as
+motion instead of a silent replacement, the guarded reconcile also parks the
+just-settled group ids in state; the `renderEvent` hooks (and `WeekMatrixView`
+via a `settledIds` prop) add `c2-chip-settle` to the incoming root, replaying a
+short fade + scale (`globals.css`, reduced-motion guarded — see
+[`loading-transitions.md`](loading-transitions.md) §1.17). Agenda rows get the
+fade-only variant (`c2-chip-settle-agenda`) so full-width rows never scale.
 
 `settled` ops survive *navigation too* (a filter/view/date change while a mutation is in
 flight keeps the chip; the current view's refreshed data may simply not include an event

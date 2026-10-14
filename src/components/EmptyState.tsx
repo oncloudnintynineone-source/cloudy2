@@ -37,11 +37,16 @@ export function EmptyState({
   ) : null;
 
   return (
-    <Stack align="center" gap="xs" py="xl" px="md">
+    // Entrance: the whole empty-state fades/rises in (`.c2-empty-state-enter`,
+    // globals.css) and the icon pops a beat later, so an empty panel reads as
+    // arriving rather than switching on (docs/loading-transitions.md).
+    <Stack className="c2-empty-state" align="center" gap="xs" py="xl" px="md">
       {icon ? (
-        <ThemeIcon variant="light" color="gray" size="lg" radius="md" aria-hidden>
-          {icon}
-        </ThemeIcon>
+        <span className="c2-empty-state-icon">
+          <ThemeIcon variant="light" color="gray" size="lg" radius="md" aria-hidden>
+            {icon}
+          </ThemeIcon>
+        </span>
       ) : null}
       <Text c="dimmed" ta="center" size="sm" maw={420}>
         {description}

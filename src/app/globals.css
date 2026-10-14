@@ -593,6 +593,25 @@ html {
   .c2-gutter-anim {
     transition: margin-inline var(--c2-dur-standard) cubic-bezier(0.22, 1, 0.36, 1);
   }
+
+  /* Empty-state reveal (shared EmptyState component): the block fades/rises in
+     on mount and the icon rides a beat behind, so an empty panel reads as
+     arriving rather than switching on. */
+  .c2-empty-state {
+    animation: c2-empty-enter var(--c2-dur-standard) cubic-bezier(0.22, 1, 0.36, 1);
+  }
+
+  .c2-empty-state-icon {
+    animation: c2-empty-enter var(--c2-dur-micro) cubic-bezier(0.22, 1, 0.36, 1) both;
+    animation-delay: 70ms;
+  }
+}
+
+@keyframes c2-empty-enter {
+  from {
+    opacity: 0;
+    transform: translateY(calc(0.5rem * var(--mantine-scale)));
+  }
 }
 
 /* Per-view tab load state (docs/loading-transitions.md §1.13.2): each dashboard
@@ -718,6 +737,44 @@ html {
 }
 
 /*
+  Active settings-tab amber pill (Settings → tabs strip): the active tab
+  carries an amber-tinted pill (same scheme-aware olive/cream pair the my-row
+  tints use) that pops in on the newly active tab, while the outgoing tab's
+  pill fades out via the background transition — the flip reads as motion
+  instead of a hard jump (docs/loading-transitions.md §1.13).
+*/
+.c2-settings-tabs [role="tab"] {
+  transition: background-color var(--c2-dur-micro) ease;
+}
+
+.c2-settings-tabs [role="tab"][data-active] {
+  background-color: var(--c2-my-row-tint);
+}
+
+@keyframes c2-tabs-active-enter {
+  from {
+    background-color: transparent;
+    transform: scale(0.92);
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .c2-settings-tabs [role="tab"][data-active] {
+    animation: c2-tabs-active-enter var(--c2-dur-micro) cubic-bezier(0.22, 1, 0.36, 1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .c2-settings-tabs [role="tab"] {
+    transition: none;
+  }
+
+  .c2-settings-tabs [role="tab"][data-active] {
+    animation: none;
+  }
+}
+
+/*
   Responsive desktop layout (>= 40em = Mantine's custom lg breakpoint, 640px —
   an unfolded foldable's inner screen).
 
@@ -775,6 +832,25 @@ html {
   --c2-safe-area-max-bottom: env(safe-area-max-inset-bottom, env(safe-area-inset-bottom, 0px));
 }
 
+/*
+  Banner height reflow (docs/announcement-banner.md §1.3): the banner vars are
+  registered so a measured height change (the ResizeObserver re-reports when
+  wrapped text grows the banner) animates instead of snapping — every consumer
+  of --app-shell-header-offset (AppShell main padding, sticky chrome, navbar)
+  recomputes smoothly along with the header's own height. Unregistered
+  properties simply can't transition (browsers below the @property floor keep
+  the old instant jump).
+*/
+@property --app-banner-height {
+  initial-value: 0px;
+  inherits: true;
+}
+
+@property --app-shell-header-offset {
+  initial-value: 56px;
+  inherits: true;
+}
+
 .app-shell-root {
   /* Announcement banner (Settings → Banner): 0px by default; AppShellShell
      sets --app-banner-height as an inline custom property on this same
@@ -786,6 +862,20 @@ html {
      style is omitted, so the CSS default of 0px applies. */
   --app-banner-height: 0px;
   --app-shell-header-offset: calc(56px + var(--app-banner-height));
+  transition:
+    --app-banner-height var(--c2-dur-standard) ease,
+    --app-shell-header-offset var(--c2-dur-standard) ease;
+}
+
+.app-shell-root > header {
+  transition: height var(--c2-dur-standard) ease;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .app-shell-root,
+  .app-shell-root > header {
+    transition: none;
+  }
 }
 
 /*
@@ -1086,6 +1176,38 @@ html {
     rgba(12, 166, 120, calc(var(--c2g-accent-l) + 0.24)),
     rgba(12, 166, 120, calc(var(--c2g-accent-d) + 0.18))
   ) !important;
+}
+
+/*
+  FAB cluster entrance (docs/desktop-responsive.md): FloatingToolbar's portaled
+  Affix root carries `c2-fab-cluster`; the FABs are the grandchildren (root →
+  Group → FABs), so they pop in with a small stagger the first time the
+  cluster is painted. Nodes are reused afterwards, so the pop never replays
+  on state changes.
+*/
+@keyframes c2-fab-enter {
+  from {
+    opacity: 0;
+    transform: scale(0.82);
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .c2-fab-cluster > * > * {
+    animation: c2-fab-enter var(--c2-dur-standard) cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+
+  .c2-fab-cluster > * > *:nth-child(2) {
+    animation-delay: 50ms;
+  }
+
+  .c2-fab-cluster > * > *:nth-child(3) {
+    animation-delay: 100ms;
+  }
+
+  .c2-fab-cluster > * > *:nth-child(4) {
+    animation-delay: 150ms;
+  }
 }
 
 /* Opacity levels (Settings → Feature Flags → `translucencyLevel`). The
@@ -1469,6 +1591,38 @@ html {
 }
 
 /*
+  Optimistic hand-off pop (docs/optimistic-mutations.md §1.3): when a settled
+  overlay op is dropped and the authoritative chip takes over, the incoming
+  node is a fresh DOM element (renderers key chips by event id, so the stand-in
+  is replaced, never morphed). The renderEvent hooks park the just-settled
+  group ids and add these classes to the incoming root, so the swap replays a
+  short pop instead of reading as a silent swap. Agenda rows only fade (a
+  full-width row scaling would fight the lane layout).
+*/
+@keyframes c2-chip-settle {
+  from {
+    opacity: 0;
+    transform: scale(0.94);
+  }
+}
+
+@keyframes c2-chip-settle-agenda {
+  from {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .c2-chip-settle {
+    animation: c2-chip-settle var(--c2-dur-standard) cubic-bezier(0.22, 1, 0.36, 1);
+  }
+
+  .c2-chip-settle-agenda {
+    animation: c2-chip-settle-agenda var(--c2-dur-standard) ease-out;
+  }
+}
+
+/*
   Mobile band (`max-width: 39.99em`, i.e. below the app's `lg` desktop
   breakpoint — the same band as the other `max-width: 39.99em` blocks; see
   docs/dashboard-views.md §1.4). The library's ScheduleEvent inner box pads
@@ -1638,6 +1792,28 @@ html {
   white-space: nowrap;
   box-shadow: 0 0 0 1px var(--mantine-color-body);
   pointer-events: none;
+}
+
+/* Badge tick (docs/loading-transitions.md): a count badge/pill whose value
+   changed remounts (the React nodes are keyed by the count) and replays this
+   pop — the nav count pills (Double Booking / KAH Status), the filter-button
+   badge and the pinned ticker count chips. A scale overshoot reads the change
+   as motion instead of a silent digit swap. */
+@keyframes c2-badge-tick {
+  from {
+    opacity: 0;
+    transform: scale(0.72);
+  }
+  70% {
+    transform: scale(1.06);
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .c2-nav-badge,
+  .c2-badge-tick {
+    animation: c2-badge-tick var(--c2-dur-micro) cubic-bezier(0.22, 1, 0.36, 1);
+  }
 }
 
 /* A deep-linked event row inside an expanded Double Booking card

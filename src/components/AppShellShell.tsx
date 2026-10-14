@@ -308,7 +308,10 @@ function navCountPill(item: NavItem): React.ReactNode {
     return null;
   }
   return (
-    <span className="c2-nav-badge" aria-hidden>
+    // Keyed by the count so a changed value remounts the pill and replays its
+    // pop-in (docs/loading-transitions.md: badge tick); the count still rides
+    // each surface's own aria-label, the visual pill stays aria-hidden.
+    <span key={item.badge} className="c2-nav-badge" aria-hidden>
       {item.badge}
     </span>
   );

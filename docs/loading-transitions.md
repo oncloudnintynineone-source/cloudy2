@@ -31,6 +31,7 @@ where it is wired.
 - [1.14 Route-change page transition](#114-route-change-page-transition)
 - [1.15 Code-splitting & low-end device tier](#115-code-splitting--low-end-device-tier)
 - [1.16 File index & related docs](#116-file-index--related-docs)
+- [1.17 Micro-motion polish](#117-micro-motion-polish)
 
 ## 1.1 Problem
 
@@ -729,7 +730,11 @@ It must sit in the **page**, not a layout: layouts persist across navigations,
 so their enter/exit never fire. A page mount = enter, a page unmount = exit, and
 a route navigation is a React Transition, so the animations activate
 automatically. Every protected page renders through `PageTransition`; the
-`/settings` redirect page is the only exception.
+`/settings` redirect page is the only exception. The public `/login` page wraps
+its sign-in form in `PageTransition` too, so a successful `completeLogin()`
+router-push gets both halves — the login card's `c2-page-out` exit crossfading
+into the dashboard's `c2-page-in` enter (the unsupported-browser notice branch
+never signs in and stays unwrapped).
 
 **Search-param-only navigations do not animate.** The dashboard's `?date=`,
 `?view=`, `?event=` and the parade page's `?date=` change search params without
@@ -850,3 +855,38 @@ Related docs:
 - `progress-archive.md` — phase write-ups: 1.52/1.53 (stale-while-navigating grid,
   cold-load reveal), 1.58/1.59 (skeleton-only loading across the app), 1.64/1.65
   (agenda slide-in), 1.168 (the global activity bar).
+
+## 1.17 Micro-motion polish
+
+A set of small, purely presentational animations that make state changes read as
+motion instead of hard cuts. All ride the `--c2-dur-*` tokens, sit inside
+`prefers-reduced-motion: no-preference` guards (with matching reduce-block resets
+where a transition is involved), and are neutered globally by the `c2-low-end`
+tier (§1.15). None change layout logic — removing any of them is always safe.
+
+- **Optimistic hand-off pop** (`c2-chip-settle` / `c2-chip-settle-agenda`): when
+  a settled overlay op drops and the authoritative chip takes over, the incoming
+  node is fresh (renderers key chips by event id), so the `renderEvent` hooks
+  add the class to it for one replay of a fade + 0.94→1 scale (agenda rows only
+  fade). The just-settled group ids are guarded render-phase state in
+  `DashboardView` and passed to `WeekMatrixView` as a prop — see
+  [`optimistic-mutations.md`](optimistic-mutations.md) §1.3.
+- **Count badge tick** (`c2-badge-tick`): count pills whose value changes
+  remount (the React nodes are keyed by the count — nav pills, filter badge,
+  pinned ticker chips) and replay a 0.72→1.06→1 scale pop, so a live breach/
+  overlap count change is visible before the aria-label updates.
+- **Settings tab amber pill** (`c2-settings-tabs [data-active]`): the active
+  settings tab carries an amber-tinted pill that pops in on the newly active
+  tab while the outgoing tab's fades out — the tab flip (a route navigation,
+  §1.14) now animates its chrome too, not just the content crossfade.
+- **Banner height reflow**: `--app-banner-height` / `--app-shell-header-offset`
+  are registered with `@property` and transition on `.app-shell-root`, so a
+  re-wrapped announcement banner grows the header, main padding and sticky
+  chrome smoothly instead of snapping (see
+  [`announcement-banner.md`](announcement-banner.md) §1.3).
+- **Empty-state reveal** (`c2-empty-state`): the shared `EmptyState` block fades
+  + rises in on mount with the icon a beat behind, so empty panels read as
+  arriving rather than switching on.
+- **FAB cluster entrance** (`c2-fab-cluster`): the portaled `FloatingToolbar`
+  row pops in per FAB with a small stagger the first time it is painted
+  (nodes are reused afterwards, so it never replays on state changes).

@@ -64,7 +64,10 @@ export function FloatingToolbar({
     // Responsive props like hiddenFrom land on this portaled Affix root
     // (Affix forwards them to its Box), which is why they work while a
     // wrapper around this component cannot.
+    // `c2-fab-cluster` drives the entrance (globals.css): the row's FABs pop
+    // in with a small stagger the first time the portaled cluster is painted.
     <Affix
+      className="c2-fab-cluster"
       position={{ bottom: bottomOffset, right: 16 }}
       zIndex={zIndex}
       hiddenFrom={hiddenFrom}
