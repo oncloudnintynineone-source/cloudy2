@@ -1551,7 +1551,9 @@ function DashboardViewImpl({
 
   // Directional swipe on the grid/skeleton wrapper, for two kinds of change:
   // - a view (tab) switch: the target's side in the strip picks the direction
-  //   (a target earlier in the strip enters from the right, later from the left);
+  //   (a target earlier in the strip enters from the right, later from the
+  //   left) — below `lg` there is no strip, so the switch instead plays a
+  //   fade + 8px rise entrance (docs/dashboard-views.md §1.1);
   // - a date move within the same view (chevron/Today/picker): forward in time
   //   enters from the right, backward from the left — matching the Agenda slide.
   // Driven by the optimistic chrome (`shown*`), so the slide starts on tap while
@@ -1571,8 +1573,9 @@ function DashboardViewImpl({
   useLayoutEffect(() => {
     const prev = prevSlideRef.current;
     prevSlideRef.current = { viewId: activeView.id, periodKey: slidePeriodKey };
+    const tabSwitch = prev.viewId !== activeView.id;
     let dir: 1 | -1 | 0 = 0;
-    if (prev.viewId !== activeView.id) {
+    if (tabSwitch) {
       dir = viewSwitchDirection(prev.viewId, activeView.id, tabs);
     } else if (shownTabId === activeView.id) {
       dir = periodSwitchDirection(prev.periodKey, slidePeriodKey);
@@ -1588,11 +1591,25 @@ function DashboardViewImpl({
     for (const running of el.getAnimations()) {
       running.cancel();
     }
+    // Below `lg` there is no tab strip, so the "side of the strip" metaphor
+    // doesn't exist: a tab switch instead plays the app's reveal entrance
+    // (fade + 8px rise, like `c2-page-in`). Date moves keep the horizontal
+    // swipe — the chevrons carry the direction on mobile too (docs/dashboard-views.md §1.1).
+    if (tabSwitch && !isDesktop) {
+      el.animate(
+        [
+          { opacity: 0, transform: "translateY(8px)" },
+          { opacity: 1, transform: "translateY(0)" },
+        ],
+        { duration: VIEW_SLIDE_MS, easing: "cubic-bezier(0.22, 1, 0.36, 1)" },
+      );
+      return;
+    }
     el.animate([{ transform: `translateX(${dir * 10}%)` }, { transform: "translateX(0)" }], {
       duration: VIEW_SLIDE_MS,
       easing: "cubic-bezier(0.22, 1, 0.36, 1)",
     });
-  }, [activeView.id, slidePeriodKey, shownTabId, tabs]);
+  }, [activeView.id, slidePeriodKey, shownTabId, tabs, isDesktop]);
 
   // Device-local "where you are": persist the resolved date/month anchor, the
   // Day/Week (H) + Month-grid zooms and the Dual Pane split to the per-device

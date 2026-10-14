@@ -187,7 +187,9 @@ export function FloatingBottomNav({
           withinPortal
           shadow="md"
           transitionProps={{
-            transition: "pop-top-right",
+            // Same rule as the shell footer's More popup: the menu opens above
+            // the tile, so it unfurls from the bottom-right corner.
+            transition: "pop-bottom-right",
             duration: MOTION.popover,
             exitDuration: MOTION.popover,
             timingFunction: "ease",

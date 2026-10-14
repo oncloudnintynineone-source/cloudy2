@@ -187,6 +187,13 @@ string maps to the first tab of that kind.
   same. It deliberately does **not** surface per-tab load state (see
   [`loading-transitions.md`](loading-transitions.md) §1.13.2, a `lg`-only
   affordance).
+- **Mobile tab-switch entrance (below `lg`).** The grid swipe (WAAPI on
+  `gridSlideRef`, `DashboardView.tsx`) normally slides the incoming grid in from
+  the side the target sits on — but below `lg` the tab strip is gone, so the
+  strip-order side metaphor has nothing on screen to match. A **tab switch**
+  there instead plays the app's reveal entrance (fade + 8px rise, like
+  `c2-page-in`); **date moves keep the horizontal swipe** at every width (the
+  chevrons carry the direction on mobile too).
 - **Mobile period chevrons (below `lg`).** The nav row's prev/next chevrons
   leave the sticky top row and join the **bottom-right FAB cluster** —
   `[<] [>] [LINK] [CREATE]` — so period steps sit in the phone thumb zone

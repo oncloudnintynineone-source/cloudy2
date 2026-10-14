@@ -9344,3 +9344,36 @@ Verification: `pnpm lint` clean (0 errors), `pnpm test` 1475/1475, typecheck
 clean for all touched files (one pre-existing unrelated error remains: the
 orphaned `src/components/FloatingBottomNav.tsx` imports a `navChrome` module
 that was never created — untouched by this phase).
+
+## 1.297 Mobile tab-switch entrance
+
+The grid/skeleton swipe (`el.animate` on `gridSlideRef`, `DashboardView.tsx`)
+picks its direction from the **tab strip order** for a view switch — but below
+`lg` the strip row is dropped (the 1.289 mobile indicator replaced it), so the
+left/right-from-the-strip metaphor had nothing on screen to match and read as
+arbitrary motion on phones.
+
+- **Tab switch below `lg`** now plays the app's reveal entrance instead: fade +
+  8px rise (`opacity 0→1`, `translateY(8px)→0`, `VIEW_SLIDE_MS`, same easing) —
+  same WAAPI mechanism, same running-animation cancel and
+  `prefers-reduced-motion` guard, still started on tap via the optimistic
+  `shown*` chrome.
+- **Unchanged:** desktop tab switch keeps the strip-order `translateX(±10%)`
+  swipe; date/period moves keep the horizontal swipe at every width (the nav-row
+  chevrons carry the direction on mobile); Agenda keeps its own inner keyed day
+  slide.
+
+Docs: `docs/dashboard-views.md` §1.1 (new bullet), the swipe comment in
+`src/app/globals.css` and the effect comment in `DashboardView.tsx`.
+
+## 1.298 More-popup pop direction
+
+The mobile bottom nav's **More** `Menu` (AppShellShell footer, and the
+`FloatingBottomNav` twin) renders `position="top"` — above its tile, since the
+footer hugs the viewport bottom — but its `transitionProps` used
+`transition: "pop-top-right"`. Mantine's `pop-*` name is the **transform-origin
+corner**, so the popup grew from its own top-right corner (downwards, away from
+the button). Switched to `pop-bottom-right`: it now unfurls upward from the
+More tile's corner, matching `QuickLinksMenu`'s `position === "top-end" ?
+"pop-bottom-right"` pattern. Other `pop-top-right` sites (UserMenu, EventSearch
+popover, AuditLog popover) open *below* their triggers and stay correct.

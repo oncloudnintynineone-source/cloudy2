@@ -566,8 +566,10 @@ html {
 /* View (tab)/date swipe: the incoming grid/skeleton slides in from the side the
    target sits on. Driven from JS through the Web Animations API (`el.animate`)
    rather than a CSS class, so restarting it doesn't need a forced reflow of the
-   whole grid — see the slide effect in `DashboardView.tsx`. The parent clips the
-   transient offset, so it is transform-only. */
+   whole grid — see the slide effect in `DashboardView.tsx`. Below `lg` there is
+   no tab strip, so a tab switch instead plays a fade + 8px rise entrance
+   (the strip-order side metaphor has nothing to match on screen). The parent
+   clips the transient offset, so the slide itself is transform-only. */
 
 @media (prefers-reduced-motion: no-preference) {
   .content-enter {

@@ -1679,9 +1679,21 @@ via `?attendance=1` and `attendanceStorage` became a `useSyncExternalStore` exte
     **empty-state reveal** — shared `EmptyState` fades/rises in with the icon a
     beat behind; **FAB cluster entrance** — `FloatingToolbar`'s Affix root carries
     `c2-fab-cluster` and the FABs pop in per-child staggered on first paint. Docs:
-    `loading-transitions.md` §1.17, `optimistic-mutations.md` §1.3.1,
+    `loading-transitions.md` §1.17,     `optimistic-mutations.md` §1.3.1,
     `pinned-events.md` §1.4, `announcement-banner.md` §1.3.2,
     `desktop-responsive.md` §1.3.
+- 1.297 Mobile tab-switch entrance: the grid swipe's strip-order `translateX(±10%)`
+    direction only exists where the tab strip is on screen, so below `lg` a **tab
+    switch** now plays a fade + 8px rise entrance instead (same WAAPI `el.animate`
+    on `gridSlideRef`, same cancel/reduced-motion guards — `DashboardView.tsx`
+    slide effect); date moves keep the horizontal swipe at every width (chevrons
+    carry the direction), desktop switch keeps the strip swipe. Docs:
+    `dashboard-views.md` §1.1, `globals.css` swipe comment.
+- 1.298 More-popup pop direction: the footer's **More** `Menu` (and the
+    `FloatingBottomNav` twin) sits `position="top"` above its tile but used
+    `pop-top-right`, so it grew away from the button; switched to
+    `pop-bottom-right` (unfurls upward from the More tile, matching
+    `QuickLinksMenu`'s top-positioned pattern).
 
 ## 1.4 Open items & next steps
 

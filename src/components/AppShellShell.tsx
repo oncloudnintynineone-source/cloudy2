@@ -1289,7 +1289,11 @@ export function AppShellShell({
                 withinPortal
                 shadow="md"
                 transitionProps={{
-                  transition: "pop-top-right",
+                  // The menu opens ABOVE the More tile (the footer hugs the
+                  // viewport bottom), so it must unfurl from its bottom-right
+                  // corner at the button — `QuickLinksMenu`'s top-positioned
+                  // pattern, not the below-trigger `pop-top-right`.
+                  transition: "pop-bottom-right",
                   duration: MOTION.popover,
                   exitDuration: MOTION.popover,
                   timingFunction: "ease",
