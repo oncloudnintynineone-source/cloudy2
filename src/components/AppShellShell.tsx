@@ -29,7 +29,7 @@ import {
   IconUsersGroup,
 } from "@tabler/icons-react";
 import { forwardRef, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import Link, { useLinkStatus } from "next/link";
+import Link from "next/link";
 import dynamic from "next/dynamic";
 import { usePathname, useRouter } from "next/navigation";
 
@@ -51,6 +51,15 @@ import {
   ShellChromeContext,
   type ShellChromeValue,
 } from "@/components/ShellChrome";
+import {
+  NAV_ACTIVE_COLOR,
+  NAV_IDLE_COLOR,
+  NAV_ICON_STYLE,
+  NavIcon,
+  navAriaLabel,
+  PendingDim,
+  type NavItem,
+} from "@/components/navChrome";
 
 // Lazy-loaded so the search modal (its AgendaView + DatePicker imports) stays
 // out of the shell's initial bundle — it only loads once the user opens search.
@@ -93,21 +102,6 @@ import { EVENTS_CHANGED_EVENT } from "@/lib/ui/eventChanges";
 import { checkUserClashes } from "@/lib/events/clashActions";
 import { checkKahBreaches } from "@/lib/kah/statusActions";
 import { withTimeout } from "@/lib/async";
-
-interface NavItem {
-  href: string;
-  label: string;
-  icon: React.ReactNode;
-  matches: (pathname: string) => boolean;
-  /**
-   * Optional count pill over the icon (the acting user's Double Booking
-   * overlap count or KAH breach count over the next 30 days). Rendered only
-   * when > 0.
-   */
-  badge?: number;
-  /** Singular noun for the badge in the aria-label ("double booking", "KAH breach"). */
-  badgeNoun?: string;
-}
 
 const CALENDAR: NavItem = {
   href: "/dashboard",
@@ -174,18 +168,9 @@ const FOOTER_PRIMARY_HREFS: ReadonlySet<string> = new Set([
   "/double-booking",
 ]);
 
-const NAV_ACTIVE_COLOR =
-  "light-dark(var(--mantine-color-brand-7), var(--mantine-color-brand-4))";
-const NAV_IDLE_COLOR = "light-dark(var(--mantine-color-gray-6), var(--mantine-color-dark-1))";
-
 // Static style objects hoisted out of the render body: this shell re-renders on
 // every pathname / pinned-events / badge / banner change, so these are shared
 // rather than re-allocated each pass.
-const NAV_ICON_STYLE: React.CSSProperties = {
-  position: "relative",
-  display: "flex",
-  flexShrink: 0,
-};
 const RAIL_BUTTON_STYLE: React.CSSProperties = {
   display: "flex",
   alignItems: "center",
@@ -225,23 +210,6 @@ const NAV_TAP_REVERT_MS = 6000;
  * never-settling case (a stalled server action / cold backend).
  */
 const COLD_LEG_TIMEOUT_MS = 12_000;
-
-/**
- * Subtle press feedback inside a nav `<Link>` while its navigation is in
- * flight: the icon dims until the route commits, and the shared activity bar
- * (`useLinkStatus`-driven) reports the navigation as busy. `useLinkStatus`
- * must run within the Link's subtree, hence this wrapper rather than state in
- * the button itself.
- */
-function PendingDim({ busyKey, children }: { busyKey: string; children: React.ReactNode }) {
-  const { pending } = useLinkStatus();
-  useReportActivity(pending, busyKey);
-  return (
-    <Box style={{ opacity: pending ? 0.55 : 1, transition: `opacity ${MOTION.fade}ms ease` }}>
-      {children}
-    </Box>
-  );
-}
 
 /**
  * Header Force refresh control. The refresh glyph rotates while the header's
@@ -301,22 +269,6 @@ function HeaderRefreshButton({ onRefresh, disabled }: { onRefresh: () => void; d
   );
 }
 
-/** Amber count pill for a nav entry with a `badge` (aria-hidden; the count
- *  rides each surface's own `aria-label`). */
-function navCountPill(item: NavItem): React.ReactNode {
-  if (!item.badge || item.badge <= 0) {
-    return null;
-  }
-  return (
-    // Keyed by the count so a changed value remounts the pill and replays its
-    // pop-in (docs/loading-transitions.md: badge tick); the count still rides
-    // each surface's own aria-label, the visual pill stays aria-hidden.
-    <span key={item.badge} className="c2-nav-badge" aria-hidden>
-      {item.badge}
-    </span>
-  );
-}
-
 /**
  * Reports the inactivity refresh's forced navigation on the shared activity
  * bar. It must live *inside* the `ActivityProvider` (the hook itself runs in
@@ -328,26 +280,6 @@ function navCountPill(item: NavItem): React.ReactNode {
 function InactivityActivityReporter({ pending }: { pending: boolean }) {
   useReportActivity(pending, "dashboard:background");
   return null;
-}
-
-/** A nav icon in a `position: relative` wrapper so the count pill can ride its
- *  top-right corner. */
-function NavIcon({ item }: { item: NavItem }) {
-  return (
-    <Box style={NAV_ICON_STYLE}>
-      {item.icon}
-      {navCountPill(item)}
-    </Box>
-  );
-}
-
-/** Accessible name for a nav surface, including the badge count when present. */
-function navAriaLabel(item: NavItem): string {
-  if (!item.badge || item.badge <= 0) {
-    return item.label;
-  }
-  const noun = item.badgeNoun ?? "item";
-  return `${item.label} — ${item.badge} ${item.badge === 1 ? noun : `${noun}s`}`;
 }
 
 /** Icon-only nav entry for the minimized sidebar rail; the label rides a tooltip. */

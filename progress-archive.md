@@ -9319,12 +9319,13 @@ the `c2-low-end` tier.
   olive/cream pair as the my-row tints) with a `c2-tabs-active-enter` pop and a
   `background-color` transition so the outgoing tab's pill fades out — the tab
   strip now animates alongside the content crossfade.
-- **Banner height reflow.** `--app-banner-height` and `--app-shell-header-offset`
-  are registered with `@property` and transitioned on `.app-shell-root` (plus a
-  `height` transition on the AppShell header element), so a re-wrapped banner's
-  measured height grows the header, main padding and sticky chrome together
-  instead of snapping. Below the `@property` floor browsers keep the instant
-  jump (unregistered custom properties can't transition).
+- **Banner height reflow.** The AppShell header element carries a `height`
+  transition, so a re-wrapped banner's measured height grows the header
+  smoothly instead of snapping. `@property` custom-property registration is
+  deliberately NOT used: Next 16's CSS pipeline (lightningcss/PostCSS) fails
+  to parse the at-rule and the whole build breaks, so the var-derived
+  consumers (sticky chrome, main padding) still recompute instantly — the
+  growing header covers the visible reflow.
 - **Login→dashboard crossfade.** `completeLogin()` router-pushes to
   `/dashboard`; the login page had no exit half, so the hand-off was a hard cut.
   The form branch of `/login` now wraps in `PageTransition` (the

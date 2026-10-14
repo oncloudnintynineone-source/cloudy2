@@ -98,14 +98,15 @@ sequenceDiagram
 
 ### 1.3.2 Height reflow animation
 
-`--app-banner-height` and `--app-shell-header-offset` are registered with
-`@property` and carry a `var(--c2-dur-standard)` transition on `.app-shell-root`
-(plus a `height` transition on the header element itself), so when the
-ResizeObserver re-reports a taller measured banner (text re-wrapped), the
-header, main padding and sticky chrome **grow smoothly together** instead of
-snapping. Browsers below the `@property` floor simply keep the old instant jump
-(unregistered custom properties can't transition); reduced motion resets the
-transitions. See [`loading-transitions.md`](loading-transitions.md) §1.17.
+The header element carries a `var(--c2-dur-standard)` `height` transition, so
+when the ResizeObserver re-reports a taller measured banner (text re-wrapped),
+the **header grows smoothly** instead of snapping. The custom-property vars
+(`--app-banner-height` / `--app-shell-header-offset`) are deliberately *not*
+registered with `@property` for a transition: Next 16's CSS pipeline
+(lightningcss/PostCSS) can't parse the at-rule and the build fails, so the
+var-derived consumers (sticky chrome, main padding) recompute instantly — the
+growing header covers the visible reflow. Reduced motion resets the transition.
+See [`loading-transitions.md`](loading-transitions.md) §1.17.
 
 ## 1.4 Interplay with immersive mode
 

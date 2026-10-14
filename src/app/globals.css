@@ -832,25 +832,6 @@ html {
   --c2-safe-area-max-bottom: env(safe-area-max-inset-bottom, env(safe-area-inset-bottom, 0px));
 }
 
-/*
-  Banner height reflow (docs/announcement-banner.md §1.3): the banner vars are
-  registered so a measured height change (the ResizeObserver re-reports when
-  wrapped text grows the banner) animates instead of snapping — every consumer
-  of --app-shell-header-offset (AppShell main padding, sticky chrome, navbar)
-  recomputes smoothly along with the header's own height. Unregistered
-  properties simply can't transition (browsers below the @property floor keep
-  the old instant jump).
-*/
-@property --app-banner-height {
-  initial-value: 0px;
-  inherits: true;
-}
-
-@property --app-shell-header-offset {
-  initial-value: 56px;
-  inherits: true;
-}
-
 .app-shell-root {
   /* Announcement banner (Settings → Banner): 0px by default; AppShellShell
      sets --app-banner-height as an inline custom property on this same
@@ -862,17 +843,20 @@ html {
      style is omitted, so the CSS default of 0px applies. */
   --app-banner-height: 0px;
   --app-shell-header-offset: calc(56px + var(--app-banner-height));
-  transition:
-    --app-banner-height var(--c2-dur-standard) ease,
-    --app-shell-header-offset var(--c2-dur-standard) ease;
 }
 
+/* Banner height reflow (docs/announcement-banner.md §1.3.2): the header
+   element itself grows smoothly when the ResizeObserver re-reports a
+   re-wrapped banner. Only a `height` transition on the real element —
+   the custom-property vars are deliberately NOT registered with `@property`
+   for a transition, because Next 16's CSS pipeline (lightningcss/PostCSS)
+   can't parse the at-rule (the build fails). Sticky chrome offsets recompute
+   instantly; the growing header covers the visible reflow. */
 .app-shell-root > header {
   transition: height var(--c2-dur-standard) ease;
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .app-shell-root,
   .app-shell-root > header {
     transition: none;
   }

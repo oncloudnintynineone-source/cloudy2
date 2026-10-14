@@ -879,11 +879,12 @@ tier (§1.15). None change layout logic — removing any of them is always safe.
   settings tab carries an amber-tinted pill that pops in on the newly active
   tab while the outgoing tab's fades out — the tab flip (a route navigation,
   §1.14) now animates its chrome too, not just the content crossfade.
-- **Banner height reflow**: `--app-banner-height` / `--app-shell-header-offset`
-  are registered with `@property` and transition on `.app-shell-root`, so a
-  re-wrapped announcement banner grows the header, main padding and sticky
-  chrome smoothly instead of snapping (see
-  [`announcement-banner.md`](announcement-banner.md) §1.3).
+- **Banner height reflow**: the AppShell header element carries a `height`
+  transition, so a re-wrapped announcement banner grows the header smoothly
+  instead of snapping. The banner custom properties are NOT `@property`-
+  registered — Next 16's CSS pipeline can't parse the at-rule (build fails) —
+  so var-derived consumers still recompute instantly (see
+  [`announcement-banner.md`](announcement-banner.md) §1.3.2).
 - **Empty-state reveal** (`c2-empty-state`): the shared `EmptyState` block fades
   + rises in on mount with the icon a beat behind, so empty panels read as
   arriving rather than switching on.

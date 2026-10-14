@@ -1671,16 +1671,17 @@ via `?attendance=1` and `attendanceStorage` became a `useSyncExternalStore` exte
     rotation keeps the key, no pop); **settings-tab amber pill** — the active
     settings tab carries an amber-tinted pill (`c2-settings-tabs [data-active]`)
     that pops in while the outgoing tab's fades out; **banner height reflow** —
-    `--app-banner-height`/`--app-shell-header-offset` registered via `@property`
-    and transitioned on `.app-shell-root` (+ header `height`), so a re-wrapped
-    banner grows the chrome smoothly; **login→dashboard crossfade** — the `/login`
-    form branch wraps in `PageTransition` so `completeLogin()`'s router-push gets
-    its missing `c2-page-out` exit half; **empty-state reveal** — shared `EmptyState`
-    fades/rises in with the icon a beat behind; **FAB cluster entrance** —
-    `FloatingToolbar`'s Affix root carries `c2-fab-cluster` and the FABs pop in
-    per-child staggered on first paint. Docs: `loading-transitions.md` §1.17,
-    `optimistic-mutations.md` §1.3.1, `pinned-events.md` §1.4,
-    `announcement-banner.md` §1.3.2, `desktop-responsive.md` §1.3.
+    the AppShell header element carries a `height` transition so a re-wrapped
+    banner grows smoothly (`@property` custom-property registration deliberately
+    avoided: Next 16's CSS pipeline can't parse the at-rule and the build fails);
+    **login→dashboard crossfade** — the `/login` form branch wraps in `PageTransition`
+    so `completeLogin()`'s router-push gets its missing `c2-page-out` exit half;
+    **empty-state reveal** — shared `EmptyState` fades/rises in with the icon a
+    beat behind; **FAB cluster entrance** — `FloatingToolbar`'s Affix root carries
+    `c2-fab-cluster` and the FABs pop in per-child staggered on first paint. Docs:
+    `loading-transitions.md` §1.17, `optimistic-mutations.md` §1.3.1,
+    `pinned-events.md` §1.4, `announcement-banner.md` §1.3.2,
+    `desktop-responsive.md` §1.3.
 
 ## 1.4 Open items & next steps
 
