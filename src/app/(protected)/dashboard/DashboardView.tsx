@@ -3382,9 +3382,10 @@ function DashboardViewImpl({
     </>
   );
 
-  // The floating control pill (below `lg` only): the period label (left) plus
-  // circular filter / date / view-menu / fullscreen buttons (right), floating
-  // at the bottom with the same 16px viewport-edge clearance as the FAB
+  // The floating control pill (below `lg` only): the period label (centered in
+  // the space left of the circular filter / date / view-menu / fullscreen
+   // buttons on the right), floating at the bottom with the same 16px
+   // viewport-edge clearance as the FAB
   // toolbar (thumb-zone reach), with the FAB row (chevron pill + quick-links
   // pill + create pill) above it. Frosted like the top strip; the grid scrolls
   // beneath it. Its measured height (bottomChromeHeight) feeds the FAB offset
@@ -3398,7 +3399,7 @@ function DashboardViewImpl({
             size="sm"
             lineClamp={1}
             title={periodLabel}
-            style={{ flex: 1, minWidth: 0 }}
+            style={{ flex: 1, minWidth: 0, textAlign: "center" }}
           >
             {periodLabel}
           </Text>

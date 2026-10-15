@@ -1061,8 +1061,9 @@ html {
 
 /*
   Dashboard mobile floating rows (below `lg`, DashboardView):
-  `.c2-control-pill` is the bottom pill carrying the period label (left) +
-  circular filter/date/view/fullscreen buttons (right), inset 16px from the
+  `.c2-control-pill` is the bottom pill carrying the period label (centered in
+  the space left of the circular filter/date/view/fullscreen buttons on the
+  right), inset 16px from the
   viewport edges (same clearance as the FAB toolbar); `.c2-period-pill` is the
   `[< | >]` step pill in the right-anchored FAB row floating above the pill —
   its height is driven inline to match the control pill's. Both ride the frosted
