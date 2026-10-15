@@ -205,7 +205,8 @@ via negative `margin-inline` + matching `padding-inline`, bottom divider,
 compact 36px controls) so the period label, filter and date buttons stay
 reachable while any view's grid scrolls — on phones too, where losing them
 mid-scroll was the old default. Below `lg` the prev/next chevrons leave this row
-for the bottom-right FAB cluster (`[<] [>] [LINK] [CREATE]`, frosted glass),
+for the bottom-right FAB cluster (`[<|>] [LINK] [CREATE]` — the chevrons merged
+into one segmented frosted-glass pill),
 putting period steps in the thumb zone (`dashboard-views.md` §1.1). At `lg`+ the view-tab strip
 row rides directly above it as part of the same pinned block; below `lg` that row
 is **dropped** (a full row of sticky chrome) and the nav row instead **gains the

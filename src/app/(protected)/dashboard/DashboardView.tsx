@@ -4853,29 +4853,36 @@ function DashboardViewImpl({
         // <body>, so a wrapper element could not hide it.
         <FloatingToolbar hiddenFrom="lg" bottomOffset={fabBottomOffset}>
           {/* Period chevrons, moved down from the top nav row below `lg` so
-              they sit in the thumb zone beside the FABs ([<][>][LINK][CREATE]).
-              44px circular frosted-glass controls sharing the desktop row's
-              view-aware dispatch; the whole mobile cluster is glass. */}
-          <ActionIcon
-            className={`c2-glass-fab c2-glass--${translucencyLevel}`}
-            size={44}
-            radius="50%"
-            variant="default"
-            aria-label={periodStepLabel("Previous")}
-            onClick={() => navigatePeriod(-1)}
+              they sit in the thumb zone beside the FABs ([<|>][LINK][CREATE]).
+              Merged into ONE segmented frosted-glass pill (44px tap zones +
+              hairline divider) so they read as a single nav control, not two
+              more FABs. Shares the desktop row's view-aware dispatch; the
+              whole mobile cluster is glass. */}
+          <Box
+            className={`c2-glass-fab c2-period-pill c2-glass--${translucencyLevel}`}
+            role="group"
+            aria-label="Period navigation"
           >
-            <IconChevronLeft size={20} />
-          </ActionIcon>
-          <ActionIcon
-            className={`c2-glass-fab c2-glass--${translucencyLevel}`}
-            size={44}
-            radius="50%"
-            variant="default"
-            aria-label={periodStepLabel("Next")}
-            onClick={() => navigatePeriod(1)}
-          >
-            <IconChevronRight size={20} />
-          </ActionIcon>
+            <ActionIcon
+              className="c2-period-pill__seg"
+              variant="transparent"
+              size={44}
+              aria-label={periodStepLabel("Previous")}
+              onClick={() => navigatePeriod(-1)}
+            >
+              <IconChevronLeft size={20} />
+            </ActionIcon>
+            <Box component="span" className="c2-period-pill__divider" aria-hidden="true" />
+            <ActionIcon
+              className="c2-period-pill__seg"
+              variant="transparent"
+              size={44}
+              aria-label={periodStepLabel("Next")}
+              onClick={() => navigatePeriod(1)}
+            >
+              <IconChevronRight size={20} />
+            </ActionIcon>
+          </Box>
           {/* The amber Quick-links FAB opens the quick-links menu (Settings →
               Quick Links); it renders only when at least one link is enabled.
               Amber + link icon on purpose: it must never be confused with the

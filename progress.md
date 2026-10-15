@@ -1748,6 +1748,12 @@ via `?attendance=1` and `attendanceStorage` became a `useSyncExternalStore` exte
     (`marginTop: calc(-1 * var(--app-shell-padding))` alongside the existing
     gutter bleed) so the frosted chrome sits flush under the app header;
     token unified on `--app-shell-padding` across all four pages.
+- 1.306 Mobile period-step pill: the bottom-right cluster's two 44px circular
+    chevron FABs merge into one segmented frosted-glass capsule
+    (`[<|>][LINK][CREATE]`) — `.c2-period-pill` with two transparent 44px
+    segments + hairline divider, so period nav reads as one control instead of
+    two more FABs; only the tapped segment tints (`docs/dashboard-views.md`
+    §1.1).
 
 ## 1.4 Open items & next steps
 

@@ -140,8 +140,8 @@ doc content here.
   dialog), delete, and a quiet accent left bar on the active row, plus the shared manage-row
   recipe (`reorderUpDown.tsx`, `variant="subtle"`) + optimistic `useReorderRows` FLIP. Below
   `lg` the prev/next period chevrons leave the nav row and join the bottom-right FAB cluster
-  (`[<][>][LINK][CREATE]`, frosted glass via `.c2-glass-fab`) for thumb reach; both sets share
-  the view-aware `navigatePeriod`.
+  (`[<|>][LINK][CREATE]` — chevrons merged into one segmented glass pill) for thumb
+  reach; both sets share the view-aware `navigatePeriod`.
   Month
   grids zoom from fit-to-width (`src/lib/ui/monthZoom.ts`,
   `dashboard.monthZoom`); Week (D) is a custom matrix (`buildWeekLanes`). Entry highlights:

@@ -196,9 +196,12 @@ string maps to the first tab of that kind.
   chevrons carry the direction on mobile too).
 - **Mobile period chevrons (below `lg`).** The nav row's prev/next chevrons
   leave the sticky top row and join the **bottom-right FAB cluster** —
-  `[<] [>] [LINK] [CREATE]` — so period steps sit in the phone thumb zone
-  instead of the top-of-screen dead zone. They are 44px circular
-  frosted-glass `ActionIcon`s (`.c2-glass-fab`, `globals.css`), alongside the
+  `[<|>] [LINK] [CREATE]` — so period steps sit in the phone thumb zone
+  instead of the top-of-screen dead zone. They merge into **one segmented
+  frosted-glass pill** (`.c2-period-pill`, `globals.css`): a 44px capsule with
+  two 44px transparent `ActionIcon` segments and a hairline divider, so they
+  read as a single nav control rather than two more FABs; only the tapped
+  segment tints (the pill surface itself stays constant). Alongside it sit the
   amber-tinted Quick-links FAB and brand-tinted New-event FAB — the whole
   mobile cluster is glass — while the desktop row keeps its 36px rounded-square
   chevrons. Both sets call the shared view-aware `navigatePeriod(±1)` dispatch
