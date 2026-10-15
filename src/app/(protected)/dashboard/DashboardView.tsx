@@ -864,6 +864,35 @@ function DashboardViewImpl({
   // Touch-first devices: only they get the agenda swipe hint (see below).
   const isCoarsePointer = useMediaQuery(COARSE_POINTER_MEDIA_QUERY);
 
+  // Heights of the two chrome boxes. At lg ONE box pins at the top (view tabs
+  // + date-nav row): topChromeHeight = its height, bottomChromeHeight = 0.
+  // Below lg the chrome SPLITS: a thin view-name strip pins at the top
+  // (topChromeHeight) and the date-nav row becomes a FIXED bottom toolbar
+  // (sticky bottom only pins while the element's flow position is below the
+  // fold — on a viewport-tall page it would just sit after the grid).
+  // Measured before first paint (and on resize / breakpoint flip) so the
+  // pinned grid strips dock under the top strip, the viewport-bounded grids
+  // subtract both, and the floating controls + FABs clear the bottom bar.
+  const tabsListRef = useRef<HTMLDivElement | null>(null);
+  const bottomBarRef = useRef<HTMLDivElement | null>(null);
+  const [topChromeHeight, setTopChromeHeight] = useState(0);
+  const [bottomChromeHeight, setBottomChromeHeight] = useState(0);
+  useLayoutEffect(() => {
+    const update = () => {
+      setTopChromeHeight(tabsListRef.current?.offsetHeight ?? 0);
+      setBottomChromeHeight(bottomBarRef.current?.offsetHeight ?? 0);
+    };
+    update();
+    const observer = new ResizeObserver(update);
+    if (tabsListRef.current) {
+      observer.observe(tabsListRef.current);
+    }
+    if (bottomBarRef.current) {
+      observer.observe(bottomBarRef.current);
+    }
+    return () => observer.disconnect();
+  }, [isDesktop]);
+
   // The event wizard modal scales with the viewport: it keeps phone widths
   // (xs/sm) below the desktop band, holds md (440px) across the narrow
   // desktop band, and only widens to lg (620px) once the shell's "wide
@@ -884,12 +913,17 @@ function DashboardViewImpl({
   }, [exitImmersive]);
 
   // In immersive mode the hidden bottom nav frees its clearance: the floating
-  // toolbars drop to the bare safe-area offset. Undefined keeps
-  // FloatingToolbar's default var (the var lives on :root — the Affix
+  // toolbars drop to the bare safe-area offset. Below lg the bottom toolbar
+  // owns the strip above the footer, so the FABs float above it. Undefined
+  // keeps FloatingToolbar's default var (the var lives on :root — the Affix
   // portals to <body>, outside any class scope).
   const fabBottomOffset = immersiveMode.active
-    ? "var(--app-floating-bottom-offset-immersive)"
-    : undefined;
+    ? isDesktop
+      ? "var(--app-floating-bottom-offset-immersive)"
+      : `calc(var(--app-floating-bottom-offset-immersive) + ${bottomChromeHeight}px)`
+    : isDesktop
+      ? undefined
+      : `calc(var(--app-floating-bottom-offset) + ${bottomChromeHeight}px)`;
 
   // Timeline zoom (Day/Week (H) hour-slot width). Purely client-owned, seeded
   // once from the remembered cookie; `usePersistDashboardNav` below writes the
@@ -1239,24 +1273,6 @@ function DashboardViewImpl({
     (shownIsWeekV2 && weekMatrixZoom > 1) ||
     (shownIsGridWeek && gridWeekColZoom > 1);
 
-  // Height of the sticky chrome block (view tabs + date-nav row, one sticky
-  // unit), so the Week (D) pinned day header and the Week (H) day-label strip can
-  // stick just below it. Measured before first paint (and on resize) so the
-  // pinned headers never overlap the chrome.
-  const tabsListRef = useRef<HTMLDivElement | null>(null);
-  const [chromeHeight, setChromeHeight] = useState(0);
-  useLayoutEffect(() => {
-    const el = tabsListRef.current;
-    if (!el) {
-      return;
-    }
-    const update = () => setChromeHeight(el.offsetHeight);
-    update();
-    const observer = new ResizeObserver(update);
-    observer.observe(el);
-    return () => observer.disconnect();
-  }, []);
-
   // The tab bar scrolls horizontally on narrow screens. After a tab change
   // (tab tap, `?view=` deep link, cold start) bring the active tab into view
   // if it sits outside the visible strip; a direct tap is already visible so
@@ -1499,10 +1515,12 @@ function DashboardViewImpl({
   // `.c2-gutter-anim` negative top margin below), so the hour rows scroll under
   // the frosted chrome like every other week view. The grid's own day header /
   // all-day row are re-pinned below the chrome and the height no longer
-  // subtracts that chrome; below `lg` the grid stays below the chrome as before.
+  // subtracts that chrome; below `lg` the chrome splits into the top name
+  // strip + the fixed bottom toolbar, and the height subtracts both so the
+  // grid's bottom edge lands exactly on the bar's top edge.
   const gridWeekMaxHeight = isDesktop
     ? `calc(var(--app-shell-vh, 100dvh) - var(--app-shell-header-offset) - var(--app-shell-footer-offset) - var(--c2-weekgrid-bottom-budget, 0px))`
-    : `calc(var(--app-shell-vh, 100dvh) - var(--app-shell-header-offset) - var(--app-shell-footer-offset) - var(--mantine-spacing-sm) - var(--c2-weekgrid-bottom-budget, 0px) - ${chromeHeight}px)`;
+    : `calc(var(--app-shell-vh, 100dvh) - var(--app-shell-header-offset) - var(--app-shell-footer-offset) - var(--mantine-spacing-sm) - var(--c2-weekgrid-bottom-budget, 0px) - ${topChromeHeight + bottomChromeHeight}px)`;
   const gridWeekScrollAreaProps = useMemo(
     () => ({
       viewportRef: gridWeekGridViewportRef,
@@ -3024,7 +3042,7 @@ function DashboardViewImpl({
     // overlay is the chrome plus the pinned day-header/all-day block; including
     // it keeps the zoom focal time from drifting.
     const headerPx =
-      (isDesktop ? chromeHeight : 0) + (head?.offsetHeight ?? 0) + (allDay?.offsetHeight ?? 0);
+      (isDesktop ? topChromeHeight : 0) + (head?.offsetHeight ?? 0) + (allDay?.offsetHeight ?? 0);
     const tracker = scrollAnchorTracker(viewport, { axis: "y", label: headerPx, focal: focalY });
     animateZoom(owner, {
       from: oldZoom,
@@ -3035,7 +3053,7 @@ function DashboardViewImpl({
       overrideVar: "--c2-row-zoom-anim",
       onDone: () => owner.style.removeProperty("--c2-row-zoom-anim"),
     });
-  }, [view, gridLoading, gridWeekRowZoom, isDesktop, chromeHeight]);
+  }, [view, gridLoading, gridWeekRowZoom, isDesktop, topChromeHeight]);
 
   // Week (Grid) column-zoom re-anchor: widening the day columns would otherwise
   // keep the same scrollLeft, so the day under the viewport's center drifts.
@@ -3086,7 +3104,7 @@ function DashboardViewImpl({
       gridWeekChromeNudgedRef.current = false;
       return;
     }
-    if (gridWeekChromeNudgedRef.current || chromeHeight <= 0) {
+    if (gridWeekChromeNudgedRef.current || topChromeHeight <= 0) {
       return;
     }
     const viewport = gridWeekViewportRef.current;
@@ -3094,8 +3112,8 @@ function DashboardViewImpl({
       return;
     }
     gridWeekChromeNudgedRef.current = true;
-    viewport.scrollTop = Math.max(0, viewport.scrollTop - chromeHeight);
-  }, [isDesktop, view, gridLoading, chromeHeight]);
+    viewport.scrollTop = Math.max(0, viewport.scrollTop - topChromeHeight);
+  }, [isDesktop, view, gridLoading, topChromeHeight]);
 
   // The grid week's width zoom changes the scroll content's width, which the
   // pan hook's ResizeObserver (watching the viewport's own box) can't see — so
@@ -3181,6 +3199,209 @@ function DashboardViewImpl({
     return <span style={{ writingMode: "vertical-rl" }}>{group.label}</span>;
   }
 
+  // The thin view-name line (below `lg` only): the active view would otherwise
+  // be *announced* (the view-menu trigger's accessible name, plus the live
+  // region) but never shown. It rides the top sticky strip so it stays visible
+  // while the grid scrolls. It reads `shownTabName` — the account's own view
+  // name (never the built-in kind label) — from the same optimistic chrome the
+  // trigger and the announcement use, so it moves the instant a tab is tapped.
+  // Passive: not a control, so it adds no focusable element.
+  const nameLine = (
+    <Text
+      hiddenFrom="lg"
+      size="xs"
+      fw={500}
+      c="dimmed"
+      ta="center"
+      lineClamp={1}
+      title={shownTabName}
+    >
+      {shownTabName}
+    </Text>
+  );
+
+  // The date-nav row, shared by both chrome boxes: pinned in the top box at
+  // lg (under the tab strip), and in the bottom toolbar below `lg` (thumb-zone
+  // reach). Kept compact (36px controls) — it is permanently visible at every
+  // breakpoint.
+  const navRow = (
+    <Group align="center" gap="xs" wrap="nowrap" mt={isDesktop ? "xs" : undefined}>
+      <Text fw={600} size="md" lineClamp={1} style={{ flex: 1, minWidth: 0, textAlign: "left" }}>
+        {/* Label flavor follows the optimistic chrome (same contract as the
+            skeleton below): the period you asked for is what reads, even while
+            its data is still in flight. The Agenda branch still tracks
+            `viewedDay` once the tab is live — a fresh entry has none, so it
+            falls back to the optimistic date (today). */}
+        {periodLabel}
+      </Text>
+      {/* Period chevrons: always in the nav row — at lg it is pinned top,
+          below lg it rides the bottom toolbar, so they are already in the
+          thumb zone (the old FAB-cluster chevron pill is gone). */}
+      <ActionIcon
+        size={36}
+        variant="default"
+        className="c2-glass-btn"
+        aria-label={periodStepLabel("Previous")}
+        onClick={() => navigatePeriod(-1)}
+      >
+        <IconChevronLeft size={18} />
+      </ActionIcon>
+      <ActionIcon
+        size={36}
+        variant="default"
+        className="c2-glass-btn"
+        aria-label={periodStepLabel("Next")}
+        onClick={() => navigatePeriod(1)}
+      >
+        <IconChevronRight size={18} />
+      </ActionIcon>
+      {/* Desktop: the "New event" FAB lives in the nav row instead of the
+          bottom corner (the FAB is hidden at lg, below). */}
+      <Button
+        visibleFrom="lg"
+        className="c2-glass-btn c2-glass-fab--brand"
+        __vars={{ "--button-height": "36px" }}
+        leftSection={<IconPlus size={16} />}
+        disabled={!googleConfigured}
+        onClick={(e) =>
+          openCreate(
+            isAgenda ? headerDate : isDual ? shownDate : today,
+            e.currentTarget.getBoundingClientRect(),
+          )
+        }
+      >
+        New event
+      </Button>
+      {/* The same quick-links menu, launched from the nav row at lg (the
+          mobile FAB is hidden there). Amber + labelled on purpose: it must
+          never be confused with the grey "More options" kebab next door. */}
+      {quickLinks.length > 0 && (
+        <QuickLinksMenu
+          links={quickLinks}
+          position="bottom-end"
+          trigger={
+            <Button
+              visibleFrom="lg"
+              variant="light"
+              color="accent"
+              className="c2-glass-btn c2-glass-fab--accent"
+              __vars={{ "--button-height": "36px" }}
+              leftSection={<IconLink size={16} />}
+              aria-label="Quick links"
+            >
+              Quick links
+            </Button>
+          }
+        />
+      )}
+      {/* Filters live in their own primary affordance (icon + count badge).
+          Date/Today navigation sits in the combined calendar button next door;
+          the fullscreen toggle is a floating button on the calendar (Force
+          refresh lives in the profile menu). */}
+      <FilterButton
+        activeCount={activeFilterCount}
+        onClick={(e) => {
+          setFilterOriginRect(e.currentTarget.getBoundingClientRect());
+          openFilter();
+        }}
+        size={36}
+        iconSize={18}
+        className="c2-glass-btn"
+      />
+      {/* Date + Today combined: a single calendar button (the old kebab's slot)
+          opens the view-aware date selector, which also carries the "Today"
+          action. The fullscreen toggle moved to a floating button on the
+          calendar (FullscreenToggle, below). */}
+      <ActionIcon
+        size={36}
+        variant="default"
+        className="c2-glass-btn"
+        aria-label="Select date"
+        title="Select date"
+        onClick={(e) => {
+          setPickerOriginRect(e.currentTarget.getBoundingClientRect());
+          openPicker();
+        }}
+      >
+        <IconCalendarDot size={18} />
+      </ActionIcon>
+      {/* Mobile-only view menu, at the row's right edge beside the date
+          selector: below `lg` the tab strip row is dropped to save a whole row
+          of chrome, so this compact four-squares button (deliberately distinct
+          from the row's left/right chevrons, filter funnel and calendar-date
+          icon) carries the tab list plus Add-/Manage-views in one dropdown.
+          Its accessible name reads the active view; the active row is checked
+          in the list. Anchored top-end: the row rides the bottom toolbar, so
+          the dropdown opens upward. */}
+      {(tabs.length > 1 || canManageViews) && (
+        <Menu
+          shadow="md"
+          width={240}
+          position="top-end"
+          withinPortal
+          transitionProps={{
+            transition: "pop-bottom-right",
+            duration: MOTION.popover,
+            timingFunction: "ease",
+          }}
+          styles={{
+            dropdown: { maxHeight: "min(60vh, 380px)", overflowY: "auto" },
+          }}
+        >
+          <Menu.Target>
+            <ActionIcon
+              hiddenFrom="lg"
+              variant="default"
+              size={36}
+              className="c2-glass-btn"
+              aria-label={`Calendar view: ${shownTabName}`}
+              title={`Calendar view: ${shownTabName}`}
+            >
+              <IconLayoutGrid size={18} />
+            </ActionIcon>
+          </Menu.Target>
+          <Menu.Dropdown>
+            {tabs.map((tab) => {
+              const meta = VIEW_TAB_META[tab.kind];
+              const isActive = tab.id === shownTabId;
+              return (
+                <Menu.Item
+                  key={tab.id}
+                  leftSection={meta.icon}
+                  rightSection={isActive ? <IconCheck size={14} aria-hidden /> : undefined}
+                  role="menuitemradio"
+                  aria-checked={isActive}
+                  onClick={() => switchTab(tab)}
+                >
+                  <Text
+                    size="sm"
+                    fw={isActive ? 700 : 500}
+                    truncate
+                    title={tab.name}
+                    style={{ maxWidth: 160 }}
+                  >
+                    {tab.name}
+                  </Text>
+                </Menu.Item>
+              );
+            })}
+            {canManageViews && (
+              <>
+                <Menu.Divider />
+                <Menu.Item leftSection={<IconPlus size={16} />} onClick={openAddView}>
+                  Add view
+                </Menu.Item>
+                <Menu.Item leftSection={<IconSettings size={16} />} onClick={openEdit}>
+                  Manage views
+                </Menu.Item>
+              </>
+            )}
+          </Menu.Dropdown>
+        </Menu>
+      )}
+    </Group>
+  );
+
   return (
     // Pulled up by the shell's md padding: AppShell.Main adds
     // --app-shell-padding ON TOP of the 56px header offset, which showed as a
@@ -3210,15 +3431,25 @@ function DashboardViewImpl({
             : "fab-page-pad"
       }
       gap="sm"
-      style={{ marginTop: "calc(-1 * var(--app-shell-padding))" }}
+      style={
+        {
+          marginTop: "calc(-1 * var(--app-shell-padding))",
+          // The bottom toolbar's measured height, consumed by the page-pad
+          // classes (globals.css) so document-scrolling grids clear the bar +
+          // the FABs floating above it. 0 at lg (the chrome is pinned top).
+          "--c2-bottom-chrome-height": isDesktop ? "0px" : `${bottomChromeHeight}px`,
+        } as CSSProperties
+      }
     >
-      {/* The sticky chrome block: view tabs + date-nav row pinned as one unit
-          at every breakpoint. The wrapper is a direct child of the Stack, so
-          its containing block spans the whole page and sticky can hold it at
-          the top (a sticky element pinned to a shorter root would scroll away
-          with it); page content slides beneath its frosted background. Its
-          measured height feeds the Week (D) day header and the Week (H) label
-          strip so they dock flush beneath it. */}
+      {/* The top sticky chrome box. At lg it holds the view-tab strip + the
+          date-nav row as one pinned unit (below the app header). Below `lg` it
+          shrinks to just the thin view-name line, still pinned at the top with
+          the frosted glass, while the date-nav row moves to the fixed bottom
+          toolbar (see below). The wrapper is a direct child of the Stack, so
+          its containing block spans the whole page and sticky can hold it (a
+          sticky element pinned to a shorter root would scroll away with it);
+          page content slides beneath its frosted background. Its measured
+          height (topChromeHeight) feeds the pinned grid strips. */}
       <Box
         ref={tabsListRef}
         className="c2-glass-surface"
@@ -3237,11 +3468,14 @@ function DashboardViewImpl({
           paddingInline: "var(--app-shell-padding)",
           // Immersive pins the chrome at the viewport top. Where the
           // Fullscreen API is unsupported (iOS) the OS status bar is still
-          // up — keep the tabs clear of it (0 elsewhere).
-          paddingTop: immersiveMode.active ? "env(safe-area-inset-top)" : undefined,
-          // Below `lg` the view-name line is the chrome's last child, so trim
-          // the bottom padding to tuck it against the grid; `lg`+ keeps its
-          // breathing room under the date-nav row.
+          // up — keep the chrome clear of it (0 elsewhere). Below lg the box
+          // is the thin name strip: trim its block padding to tuck it against
+          // the grid edge.
+          paddingTop: immersiveMode.active
+            ? "env(safe-area-inset-top)"
+            : isDesktop
+              ? undefined
+              : "calc(0.125rem * var(--mantine-scale))",
           paddingBottom: isDesktop
             ? "var(--mantine-spacing-xs)"
             : "calc(0.125rem * var(--mantine-scale))",
@@ -3258,9 +3492,9 @@ function DashboardViewImpl({
             controls sit to the RIGHT of the strip, outside the scroll area, and
             the gear opens the Manage-views modal (add / reorder / rename /
             delete — see below). Below `lg` this whole row is dropped to save
-            vertical space: the nav row below gains one compact view-menu button
-            (four-squares icon) that carries the tab list plus Add-/Manage-views
-            in a dropdown. */}
+            vertical space: the bottom toolbar's nav row carries one compact
+            view-menu button (four-squares icon) that holds the tab list plus
+            Add-/Manage-views in a dropdown. */}
         <Group
           visibleFrom="lg"
           align="center"
@@ -3401,220 +3635,10 @@ function DashboardViewImpl({
           )}
         </Group>
 
-        {/* Date navigation: pinned together with the tabs above so the period
-            label and controls stay reachable while the grid scrolls. Kept
-            compact (36px controls) — it is part of the permanently visible
-            chrome on every breakpoint. Below `lg` the tab strip row is dropped,
-            the mobile view menu sits at this row's right edge, and the
-            prev/next chevrons move down into the bottom-right cluster beside
-            the mobile FABs (thumb-zone reach on phones). */}
-        <Group align="center" gap="xs" wrap="nowrap" mt="xs">
-          <Text
-            fw={600}
-            size="md"
-            lineClamp={1}
-            style={{ flex: 1, minWidth: 0, textAlign: "left" }}
-          >
-            {/* Label flavor follows the optimistic chrome (same contract as
-                the skeleton below): the period you asked for is what reads,
-                even while its data is still in flight. The Agenda branch
-                still tracks `viewedDay` once the tab is live — a fresh entry
-                has none, so it falls back to the optimistic date (today). */}
-            {periodLabel}
-          </Text>
-          {/* Desktop period chevrons (visibleFrom="lg": desktop-only). Below
-              `lg` they move down into the bottom-right cluster beside the mobile
-              FABs, so reachability is a thumb-zone job on phones. */}
-          <ActionIcon
-            visibleFrom="lg"
-            size={36}
-            variant="default"
-            className="c2-glass-btn"
-            aria-label={periodStepLabel("Previous")}
-            onClick={() => navigatePeriod(-1)}
-          >
-            <IconChevronLeft size={18} />
-          </ActionIcon>
-          <ActionIcon
-            visibleFrom="lg"
-            size={36}
-            variant="default"
-            className="c2-glass-btn"
-            aria-label={periodStepLabel("Next")}
-            onClick={() => navigatePeriod(1)}
-          >
-            <IconChevronRight size={18} />
-          </ActionIcon>
-          {/* Desktop: the "New event" FAB lives in the nav row instead of the
-            bottom corner (the FAB is hidden at lg, below). */}
-          <Button
-            visibleFrom="lg"
-            className="c2-glass-btn c2-glass-fab--brand"
-            __vars={{ "--button-height": "36px" }}
-            leftSection={<IconPlus size={16} />}
-            disabled={!googleConfigured}
-            onClick={(e) =>
-              openCreate(
-                isAgenda ? headerDate : isDual ? shownDate : today,
-                e.currentTarget.getBoundingClientRect(),
-              )
-            }
-          >
-            New event
-          </Button>
-          {/* The same quick-links menu, launched from the nav row at lg (the
-              mobile FAB is hidden there). Amber + labelled on purpose: it must
-              never be confused with the grey "More options" kebab next door. */}
-          {quickLinks.length > 0 && (
-            <QuickLinksMenu
-              links={quickLinks}
-              position="bottom-end"
-              trigger={
-                <Button
-                  visibleFrom="lg"
-                  variant="light"
-                  color="accent"
-                  className="c2-glass-btn c2-glass-fab--accent"
-                  __vars={{ "--button-height": "36px" }}
-                  leftSection={<IconLink size={16} />}
-                  aria-label="Quick links"
-                >
-                  Quick links
-                </Button>
-              }
-            />
-          )}
-          {/* Filters live in their own primary affordance (icon + count badge).
-              Date/Today navigation sits in the combined calendar button next
-              door; the fullscreen toggle is a floating button on the calendar
-              (Force refresh lives in the profile menu). */}
-          <FilterButton
-            activeCount={activeFilterCount}
-            onClick={(e) => {
-              setFilterOriginRect(e.currentTarget.getBoundingClientRect());
-              openFilter();
-            }}
-            size={36}
-            iconSize={18}
-            className="c2-glass-btn"
-          />
-          {/* Date + Today combined: a single calendar button (the old kebab's
-              slot) opens the view-aware date selector, which also carries the
-              "Today" action. The fullscreen toggle moved to a floating button
-              on the calendar (FullscreenToggle, below). */}
-          <ActionIcon
-            size={36}
-            variant="default"
-            className="c2-glass-btn"
-            aria-label="Select date"
-            title="Select date"
-            onClick={(e) => {
-              setPickerOriginRect(e.currentTarget.getBoundingClientRect());
-              openPicker();
-            }}
-          >
-            <IconCalendarDot size={18} />
-          </ActionIcon>
-          {/* Mobile-only view menu, at the row's right edge beside the date
-              selector: below `lg` the tab strip row is dropped to save a whole
-              row of sticky chrome, so this compact four-squares button
-              (deliberately distinct from the row's left/right chevrons, filter
-              funnel and calendar-date icon) carries the tab list plus
-              Add-/Manage-views in one dropdown. Its accessible name reads the
-              active view; the active row is checked in the list. Anchored
-              bottom-end since it is the rightmost control. */}
-          {(tabs.length > 1 || canManageViews) && (
-            <Menu
-              shadow="md"
-              width={240}
-              position="bottom-end"
-              withinPortal
-              transitionProps={{
-                transition: "pop-top-right",
-                duration: MOTION.popover,
-                timingFunction: "ease",
-              }}
-              styles={{
-                dropdown: { maxHeight: "min(60vh, 380px)", overflowY: "auto" },
-              }}
-            >
-              <Menu.Target>
-                <ActionIcon
-                  hiddenFrom="lg"
-                  variant="default"
-                  size={36}
-                  className="c2-glass-btn"
-                  aria-label={`Calendar view: ${shownTabName}`}
-                  title={`Calendar view: ${shownTabName}`}
-                >
-                  <IconLayoutGrid size={18} />
-                </ActionIcon>
-              </Menu.Target>
-              <Menu.Dropdown>
-                {tabs.map((tab) => {
-                  const meta = VIEW_TAB_META[tab.kind];
-                  const isActive = tab.id === shownTabId;
-                  return (
-                    <Menu.Item
-                      key={tab.id}
-                      leftSection={meta.icon}
-                      rightSection={isActive ? <IconCheck size={14} aria-hidden /> : undefined}
-                      role="menuitemradio"
-                      aria-checked={isActive}
-                      onClick={() => switchTab(tab)}
-                    >
-                      <Text
-                        size="sm"
-                        fw={isActive ? 700 : 500}
-                        truncate
-                        title={tab.name}
-                        style={{ maxWidth: 160 }}
-                      >
-                        {tab.name}
-                      </Text>
-                    </Menu.Item>
-                  );
-                })}
-                {canManageViews && (
-                  <>
-                    <Menu.Divider />
-                    <Menu.Item leftSection={<IconPlus size={16} />} onClick={openAddView}>
-                      Add view
-                    </Menu.Item>
-                    <Menu.Item leftSection={<IconSettings size={16} />} onClick={openEdit}>
-                      Manage views
-                    </Menu.Item>
-                  </>
-                )}
-              </Menu.Dropdown>
-            </Menu>
-          )}
-        </Group>
-
-        {/* Which view am I on (below `lg` only). The tab strip row above is
-            dropped under `lg`, so the active view used to survive only in the
-            view-menu trigger's accessible name and the live-region
-            announcement — announced, never shown. This thin dimmed line names
-            it directly under the nav row, inside the sticky chrome so it
-            rides along with the switch button it describes. It reads
-            `shownTabName` — the account's own view name (never the built-in
-            kind label), from the same optimistic chrome the trigger and the
-            announcement use, so it moves the instant a tab is tapped. With no
-            top margin it sits flush under the nav row and adds ~17px to the
-            measured `chromeHeight`, which is exactly what re-docks the grid's
-            pinned strips below it. Passive: not a control, so it adds no
-            focusable element and nothing to keep in sync. */}
-        <Text
-          hiddenFrom="lg"
-          size="xs"
-          fw={500}
-          c="dimmed"
-          ta="center"
-          lineClamp={1}
-          title={shownTabName}
-        >
-          {shownTabName}
-        </Text>
+        {/* At lg the date-nav row rides this box directly under the tab strip;
+            below `lg` the box keeps only the thin view-name line and the row
+            moves to the bottom toolbar (see `navRow` / the bottom box). */}
+        {isDesktop ? navRow : nameLine}
       </Box>
 
       {currentUserName.trim().length <= 2 && (
@@ -3687,10 +3711,10 @@ function DashboardViewImpl({
           style={{
             overflow: "clip",
             // Month view: the pinned weekday strip is the grid's header, so it
-            // must dock flush under the sticky chrome (its sticky `top`), not
-            // 12px below it (the Stack's page gap). Cancelling the gap makes
-            // the rest position equal the pinned one — no gap at the top of the
-            // page and no jump on scroll.
+            // must dock flush under the sticky top chrome (its sticky `top`),
+            // not 12px below it (the Stack's page gap). Cancelling the gap
+            // makes the rest position equal the pinned one — no gap at the top
+            // of the page and no jump on scroll.
             // Week (Grid) at lg: lift the whole grid behind the sticky chrome
             // (cancel the page gap AND the chrome height) so its hour rows scroll
             // under the frosted chrome like every other week view; the grid's own
@@ -3700,7 +3724,7 @@ function DashboardViewImpl({
               shownView === "month"
                 ? "calc(-1 * var(--mantine-spacing-sm))"
                 : isDesktop && shownIsGridWeek
-                  ? `calc(-1 * var(--mantine-spacing-sm) - ${chromeHeight}px)`
+                  ? `calc(-1 * var(--mantine-spacing-sm) - ${topChromeHeight}px)`
                   : undefined,
             marginInline: reclaimGutter ? "calc(-1 * var(--app-shell-padding))" : undefined,
           }}
@@ -3711,7 +3735,7 @@ function DashboardViewImpl({
               hasGroups={scheduleResources.groups !== undefined}
               resourceLabelWidth={scheduleLabelWidths.resource}
               groupLabelWidth={scheduleLabelWidths.group}
-              chromeOffset={chromeHeight}
+              chromeOffset={topChromeHeight}
               innerRef={weekDayLabelRef}
               windowChangeRef={advanceWeekLabelRef}
             />
@@ -3724,7 +3748,7 @@ function DashboardViewImpl({
               hasGroups={scheduleResources.groups !== undefined}
               resourceLabelWidth={scheduleLabelWidths.resource}
               groupLabelWidth={scheduleLabelWidths.group}
-              chromeOffset={chromeHeight}
+              chromeOffset={topChromeHeight}
               stackBelowHeight="calc(var(--mantine-scale) * 2rem)"
               innerRef={weekRulerRef}
               days={7}
@@ -3736,7 +3760,7 @@ function DashboardViewImpl({
               hasGroups={scheduleResources.groups !== undefined}
               resourceLabelWidth={scheduleLabelWidths.resource}
               groupLabelWidth={scheduleLabelWidths.group}
-              chromeOffset={chromeHeight}
+              chromeOffset={topChromeHeight}
               innerRef={dayRulerRef}
               windowChangeRef={advanceDayRulerRef}
             />
@@ -3746,7 +3770,7 @@ function DashboardViewImpl({
             is sized to the zoomed grid so the initials stay over their columns. */}
           {!gridLoading && view === "month" && (
             <MonthWeekdayStrip
-              chromeOffset={chromeHeight}
+              chromeOffset={topChromeHeight}
               innerRef={monthWeekdayTrackRef}
               weekStartsOn={weekStartsOn}
             />
@@ -3768,12 +3792,15 @@ function DashboardViewImpl({
                   <DualPaneSkeleton
                     rows={monthGridRows(shownMonth, weekStartsOn)}
                     splitPct={dualSplit}
-                    chromeOffset={chromeHeight}
+                    chromeOffset={topChromeHeight}
                   />
                 ) : shownIsWeekV2 ? (
                   <WeekMatrixSkeleton />
                 ) : shownIsGridWeek ? (
-                  <WeekGridViewSkeleton chromeOffset={chromeHeight} />
+                  <WeekGridViewSkeleton
+                    chromeOffset={topChromeHeight}
+                    bottomChromeOffset={bottomChromeHeight}
+                  />
                 ) : shownIsWeek ? (
                   <WeekGridSkeleton />
                 ) : shownIsAgenda ? (
@@ -3873,7 +3900,8 @@ function DashboardViewImpl({
                 // the standalone Month view, whose cell tap opens the day modal.
                 onDayOpen={openDayModal}
                 showSwipeHint={showAgendaHint}
-                chromeOffset={chromeHeight}
+                chromeOffset={topChromeHeight}
+                bottomBarrierRef={isDesktop ? null : bottomBarRef}
               />
             ) : isAgenda ? (
               <div
@@ -3982,9 +4010,9 @@ function DashboardViewImpl({
                     zIndex: 7,
                     // At lg the scroller is lifted behind the chrome, so pin the
                     // day header just below it (the scroller's top is now the
-                    // header offset, so `top: chromeHeight` = chrome bottom).
+                    // header offset, so `top: topChromeHeight` = chrome bottom).
                     // Below lg the library's `top: 0` stands.
-                    top: isDesktop ? `${chromeHeight}px` : undefined,
+                    top: isDesktop ? `${topChromeHeight}px` : undefined,
                   },
                   // Left label column pinned while panning (the columns overflow
                   // by default at the 2× fit zoom): the week-number corner, the
@@ -3999,13 +4027,13 @@ function DashboardViewImpl({
                   // Pin the all-day row under the day header so both stay
                   // visible while the hour rows scroll. The header is
                   // `--week-view-week-day-height` tall with a -1px bottom margin.
-                  // At lg both are offset below the lifted chrome (`top:
-                  // chromeHeight`).
-                  weekViewAllDaySlots: {
-                    width: WEEK_GRID_COLUMN_WIDTH,
-                    position: "sticky",
-                    top: isDesktop
-                      ? `calc(${chromeHeight}px + var(--week-view-week-day-height) - 1px)`
+                    // At lg both are offset below the lifted chrome (`top:
+                    // topChromeHeight`).
+                    weekViewAllDaySlots: {
+                      width: WEEK_GRID_COLUMN_WIDTH,
+                      position: "sticky",
+                      top: isDesktop
+                        ? `calc(${topChromeHeight}px + var(--week-view-week-day-height) - 1px)`
                       : "calc(var(--week-view-week-day-height) - 1px)",
                     zIndex: 6,
                     backgroundColor: "var(--mantine-color-body)",
@@ -4103,7 +4131,8 @@ function DashboardViewImpl({
                   announce(`Zoom ${Math.round(next * 100)}%`);
                 }}
                 onZoomChange={setWeekMatrixZoom}
-                chromeOffset={chromeHeight}
+                chromeOffset={topChromeHeight}
+                bottomBarrierRef={isDesktop ? null : bottomBarRef}
               />
             ) : isWeek ? (
               <ResourcesWeekView
@@ -4352,6 +4381,47 @@ function DashboardViewImpl({
         </Box>
       </Box>
 
+      {/* The bottom toolbar (below `lg` only): the date-nav row floating above
+          the bottom nav. It is `position: fixed` — NOT sticky: sticky bottom
+          only pins while the element's natural flow position sits below the
+          fold, and the dashboard's page is usually viewport-tall or shorter
+          (Month fits at fit-to-width zoom, the bounded grids scroll
+          internally), so a sticky bar just sat mid-screen after the grid.
+          Fixed guarantees the float at every page height; the page pads
+          (`--c2-bottom-chrome-height`) keep the last content row clear of it.
+          Same frosted-glass treatment as the top strip: grid content slides
+          beneath it, and the Quick-links / New-event FABs float above it (see
+          `fabBottomOffset`). Its measured height (bottomChromeHeight) feeds
+          the bounded-grid heights, the FAB offset and the page pads. */}
+      {!isDesktop && (
+        <Box
+          ref={bottomBarRef}
+          className="c2-glass-surface"
+          style={{
+            position: "fixed",
+            // Viewport-wide (no gutter bleed needed — fixed is already
+            // edge-to-edge); controls keep the shell's side inset.
+            left: 0,
+            right: 0,
+            bottom: "var(--app-shell-footer-offset)",
+            // Same stacking contract as the top strip: above the grids'
+            // internal stickies, below the modals.
+            zIndex: 50,
+            paddingInline: "var(--app-shell-padding)",
+            paddingTop: "calc(0.125rem * var(--mantine-scale))",
+            // Immersive: the bottom nav is gone and the gesture bar is up —
+            // keep the controls clear of it.
+            paddingBottom: immersiveMode.active
+              ? "calc(env(safe-area-inset-bottom) + 0.25rem * var(--mantine-scale))"
+              : "var(--mantine-spacing-xs)",
+            // Marks the bar's top edge while content scrolls beneath it.
+            borderTop: "1px solid var(--mantine-color-default-border)",
+          }}
+        >
+          {navRow}
+        </Box>
+      )}
+
       {/* Timeline navigation for the Day/Week (H) grids: the zoom in/out pair
           and the right pan arrow share one right-edge control cluster, with the
           left pan arrow edge-anchored on the left (see GridNavControls). Gated
@@ -4363,7 +4433,8 @@ function DashboardViewImpl({
         (isSchedule || (view === "week" && week !== null)) && (
           <GridNavControls
             anchorRef={weekBoxRef}
-            layoutKey={`${isDesktop}:${chromeHeight}`}
+            layoutKey={`${isDesktop}:${topChromeHeight}:${bottomChromeHeight}`}
+            bottomBarrierRef={isDesktop ? null : bottomBarRef}
             canScrollLeft={schedulePan.canScrollLeft}
             canScrollRight={schedulePan.canScrollRight}
             onPan={schedulePan.panTo}
@@ -4388,7 +4459,8 @@ function DashboardViewImpl({
       {!gridLoading && isGridWeek && week !== null && (
         <GridNavControls
           anchorRef={weekBoxRef}
-          layoutKey={`${isDesktop}:${chromeHeight}`}
+          layoutKey={`${isDesktop}:${topChromeHeight}:${bottomChromeHeight}`}
+          bottomBarrierRef={isDesktop ? null : bottomBarRef}
           canScrollLeft={gridWeekPan.canScrollLeft}
           canScrollRight={gridWeekPan.canScrollRight}
           onPan={gridWeekPan.panTo}
@@ -4430,7 +4502,8 @@ function DashboardViewImpl({
       {!gridLoading && view === "month" && (
         <GridNavControls
           anchorRef={weekBoxRef}
-          layoutKey={`${isDesktop}:${chromeHeight}`}
+          layoutKey={`${isDesktop}:${topChromeHeight}:${bottomChromeHeight}`}
+          bottomBarrierRef={isDesktop ? null : bottomBarRef}
           canScrollLeft={monthPan.canScrollLeft}
           canScrollRight={monthPan.canScrollRight}
           onPan={monthPan.panTo}
@@ -4457,7 +4530,7 @@ function DashboardViewImpl({
       <FullscreenToggle
         anchorRef={weekBoxRef}
         chromeRef={tabsListRef}
-        layoutKey={`${isDesktop}:${chromeHeight}`}
+        layoutKey={`${isDesktop}:${topChromeHeight}:${bottomChromeHeight}`}
         active={immersiveMode.active}
         onToggle={immersiveMode.active ? immersiveMode.exit : immersiveMode.enter}
       />
@@ -4850,39 +4923,11 @@ function DashboardViewImpl({
       {formState === null && (
         // Mobile-only: at lg the "New event" button in the nav row replaces the
         // FAB. hiddenFrom sits on the toolbar itself: its Affix portals to
-        // <body>, so a wrapper element could not hide it.
+        // <body>, so a wrapper element could not hide it. The period chevrons
+        // are no longer part of this cluster — below `lg` the whole date-nav
+        // row rides the bottom toolbar, already in the thumb zone. The FABs
+        // float above that bar (see `fabBottomOffset`).
         <FloatingToolbar hiddenFrom="lg" bottomOffset={fabBottomOffset}>
-          {/* Period chevrons, moved down from the top nav row below `lg` so
-              they sit in the thumb zone beside the FABs ([<|>][LINK][CREATE]).
-              Merged into ONE segmented frosted-glass pill (44px tap zones +
-              hairline divider) so they read as a single nav control, not two
-              more FABs. Shares the desktop row's view-aware dispatch; the
-              whole mobile cluster is glass. */}
-          <Box
-            className={`c2-glass-fab c2-period-pill c2-glass--${translucencyLevel}`}
-            role="group"
-            aria-label="Period navigation"
-          >
-            <ActionIcon
-              className="c2-period-pill__seg"
-              variant="transparent"
-              size={44}
-              aria-label={periodStepLabel("Previous")}
-              onClick={() => navigatePeriod(-1)}
-            >
-              <IconChevronLeft size={20} />
-            </ActionIcon>
-            <Box component="span" className="c2-period-pill__divider" aria-hidden="true" />
-            <ActionIcon
-              className="c2-period-pill__seg"
-              variant="transparent"
-              size={44}
-              aria-label={periodStepLabel("Next")}
-              onClick={() => navigatePeriod(1)}
-            >
-              <IconChevronRight size={20} />
-            </ActionIcon>
-          </Box>
           {/* The amber Quick-links FAB opens the quick-links menu (Settings →
               Quick Links); it renders only when at least one link is enabled.
               Amber + link icon on purpose: it must never be confused with the

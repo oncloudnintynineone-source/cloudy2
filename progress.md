@@ -1754,6 +1754,13 @@ via `?attendance=1` and `attendanceStorage` became a `useSyncExternalStore` exte
     segments + hairline divider, so period nav reads as one control instead of
     two more FABs; only the tapped segment tints (`docs/dashboard-views.md`
     §1.1).
+- 1.307 Bottom toolbar (below `lg`): the dashboard chrome splits — the date-nav
+    row (chevrons included) becomes a frosted **fixed** bottom toolbar floating
+    above the bottom nav (fixed, not sticky: sticky bottom never engages on a
+    viewport-tall page), while a thin view-name strip stays pinned at the top;
+    bounded grids subtract both measured boxes, FABs float above the bar, and
+    the zoom/pan clusters clamp to it (`bottomBarrierRef`); the old FAB-cluster
+    chevron pill (1.306) is removed (`docs/dashboard-views.md` §1.1).
 
 ## 1.4 Open items & next steps
 

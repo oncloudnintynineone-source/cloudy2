@@ -199,24 +199,34 @@ events spanning a month boundary render as one bar across them. The loading
 skeleton matches the natural shape via `monthGridRows()`.
 
 **Sticky chrome & pinned view headers (every width):** the dashboard pins its
-date-nav row as a **sticky unit** (`top:
-var(--app-shell-header-offset)`, frosted-glass background bled corner-to-corner
-via negative `margin-inline` + matching `padding-inline`, bottom divider,
-compact 36px controls) so the period label, filter and date buttons stay
+chrome as **frosted-glass sticky boxes** (background bled corner-to-corner
+via negative `margin-inline` + matching `padding-inline`, compact 36px controls)
+so the period label, filter and date buttons stay
 reachable while any view's grid scrolls — on phones too, where losing them
-mid-scroll was the old default. Below `lg` the prev/next chevrons leave this row
-for the bottom-right FAB cluster (`[<|>] [LINK] [CREATE]` — the chevrons merged
-into one segmented frosted-glass pill),
-putting period steps in the thumb zone (`dashboard-views.md` §1.1). At `lg`+ the view-tab strip
-row rides directly above it as part of the same pinned block; below `lg` that row
-is **dropped** (a full row of sticky chrome) and the nav row instead **gains the
-compact four-squares view-menu button at its right edge** (the mobile view menu,
-[`dashboard-views.md`](dashboard-views.md) §1.1). The unit renders at `zIndex: 50`, above every
+mid-scroll was the old default. At `lg`+ ONE box pins at the top
+(`top: var(--app-shell-header-offset)`, bottom divider) holding the view-tab
+strip row and the date-nav row together. **Below `lg` the chrome splits**: a
+thin **view-name strip stays pinned at the top** under the header, and the
+date-nav row becomes a **bottom toolbar** floating above the bottom nav
+(`position: fixed`, `bottom: var(--app-shell-footer-offset)`, top divider) —
+fixed rather than sticky because sticky bottom only pins while the element's
+flow position is below the fold, and the dashboard's page is usually
+viewport-tall or shorter, so a sticky bar would just sit mid-screen after the
+grid. Every control sits in the thumb zone; the prev/next
+chevrons stay in the row (the old FAB-cluster chevron pill is gone) and the
+Quick-links / New-event FABs float above the bar (`dashboard-views.md` §1.1).
+Below `lg` the tab strip row is **dropped** (a full row of chrome) and the nav
+row instead **gains the compact four-squares view-menu button at its right
+edge** (the mobile view menu, [`dashboard-views.md`](dashboard-views.md) §1.1).
+The boxes render at `zIndex: 50`, above every
 layer `@mantine/schedule` stacks internally (sticky-left columns reach
 z-index 12-13, scrollbars 20), so grid content sliding beneath never paints
-over it. The unit's height is measured with a `ResizeObserver`
-(pre-first-paint + on resize) and feeds every view header that docks beneath
-it via `top: calc(var(--app-shell-header-offset) + <chromeHeight>px)`:
+over it. Both boxes' heights are measured with a `ResizeObserver`
+(pre-first-paint + on resize): `topChromeHeight` (the full chrome at `lg`+, the
+name strip below `lg`) docks every view header via
+`top: calc(var(--app-shell-header-offset) + <topChromeHeight>px)`, while
+`bottomChromeHeight` (0 at `lg`+) feeds the bottom clearance — FAB offset,
+page pads, bounded-grid heights:
 
 - **Week (D)** day header (`WeekMatrixView`, prop `chromeOffset`) — already
   sticky, now correctly docked below both chrome rows.
@@ -246,10 +256,13 @@ content-height `ScrollArea` and scrolls away with the page, so the view passes
 wasting a band before the grid) and is **non-shrinkable** (`flex-shrink: 0`), so
 when it is the fixed header of the Month & Agenda pane's bounded column the
 pane's overflowing grid can't crush and clip it. In the month view only, the grid
-wrapper cancels the page `Stack` gap (`marginTop: calc(-1 * var(--mantine-spacing-sm))`)
-so the strip **docks flush under the sticky chrome** at rest and on scroll — its
-rest position equals its pinned `top`, so there is no gap at the top of the page
-and no jump when it sticks. The Month grid
+wrapper cancels the page `Stack` gap (`marginTop: calc(-1 * var(--mantine-spacing-sm))`
+at every width) so the strip **docks flush under the sticky top chrome** at rest and on
+scroll — its rest position equals its pinned `top`, so there is no gap at the
+top of the page
+and no jump when it sticks; below `lg` the fixed bottom toolbar simply floats
+over the page's bottom pad, its top edge landing on the grid's bottom edge for
+the bounded views. The Month grid
 enforces a 5.25rem (84px) minimum column width, so on narrow screens the 7-column
 grid (≥588px) scrolls horizontally — the strip's inner track mirrors that width
 and translates by `-scrollLeft` via `monthScrollAreaProps`, keeping the initials

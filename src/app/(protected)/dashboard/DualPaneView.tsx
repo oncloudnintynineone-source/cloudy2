@@ -37,6 +37,7 @@ import {
   type MouseEvent,
   type ReactElement,
   type ReactNode,
+  type RefObject,
   useCallback,
   useLayoutEffect,
   useMemo,
@@ -118,6 +119,11 @@ export interface DualPaneViewProps {
   showSwipeHint: boolean;
   /** Height of the sticky chrome block above the grid (tabs + date-nav row). */
   chromeOffset: number;
+  /**
+   * The dashboard's bottom toolbar (below `lg`): clamps the month pane's
+   * zoom/pan cluster so it never parks behind the bar.
+   */
+  bottomBarrierRef?: RefObject<HTMLElement | null> | null;
 }
 
 /** How far a horizontal drag must travel to count as a day swipe. */
@@ -161,6 +167,7 @@ export function DualPaneView({
   onDayOpen,
   showSwipeHint,
   chromeOffset,
+  bottomBarrierRef,
 }: DualPaneViewProps) {
   const theme = useMantineTheme();
   const isDesktop = useMediaQuery(`(min-width: ${theme.breakpoints.lg})`);
@@ -499,6 +506,7 @@ export function DualPaneView({
           <GridNavControls
             anchorRef={monthBoxRef}
             layoutKey={isDesktop}
+            bottomBarrierRef={bottomBarrierRef}
             canScrollLeft={monthPan.canScrollLeft}
             canScrollRight={monthPan.canScrollRight}
             onPan={monthPan.panTo}

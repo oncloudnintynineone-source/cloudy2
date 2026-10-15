@@ -73,6 +73,7 @@ export function GridNavControls({
   label,
   secondaryZoom,
   layoutKey,
+  bottomBarrierRef,
 }: {
   anchorRef: RefObject<HTMLDivElement | null>;
   canScrollLeft: boolean;
@@ -115,6 +116,12 @@ export function GridNavControls({
    * leaving them at the previous layout's offsets.
    */
   layoutKey?: string | number | boolean;
+  /**
+   * Optional element that owns the viewport's bottom edge (the dashboard's
+   * bottom toolbar below `lg`): the visible slice is clamped to its top, so
+   * the cluster never parks behind it on document-scrolling grids.
+   */
+  bottomBarrierRef?: RefObject<HTMLElement | null> | null;
 }) {
   const canZoomIn = zoom < zoomMax;
   const canZoomOut = zoom > zoomMin;
@@ -139,11 +146,15 @@ export function GridNavControls({
         return;
       }
       const rect = layoutRect(anchor);
-      // The visible slice is the anchor's rect clamped to the window. If the
-      // anchor is entirely off-screen at measurement time, fall back to the
-      // full viewport so the controls still render somewhere sensible.
+      // The visible slice is the anchor's rect clamped to the window (and to
+      // the bottom barrier's top when one is given — the dashboard's bottom
+      // toolbar below `lg`). If the anchor is entirely off-screen at
+      // measurement time, fall back to the full viewport so the controls still
+      // render somewhere sensible.
       const visibleTop = Math.max(rect.top, 0);
-      const visibleBottom = Math.min(rect.bottom, window.innerHeight);
+      const barrier = bottomBarrierRef?.current;
+      const barrierTop = barrier ? layoutRect(barrier).top : window.innerHeight;
+      const visibleBottom = Math.min(rect.bottom, window.innerHeight, barrierTop);
       const onScreen = visibleTop < visibleBottom;
       // 8px inside each grid edge; clamp to the anchor's own midpoint so a very
       // narrow grid can't push the controls off-screen or onto each other. The
@@ -168,11 +179,15 @@ export function GridNavControls({
     if (anchor) {
       observer.observe(anchor);
     }
+    const barrier = bottomBarrierRef?.current;
+    if (barrier) {
+      observer.observe(barrier);
+    }
     return () => {
       window.removeEventListener("resize", measure);
       observer.disconnect();
     };
-  }, [anchorRef, layoutKey]);
+  }, [anchorRef, bottomBarrierRef, layoutKey]);
 
   if (!pos) {
     return null;

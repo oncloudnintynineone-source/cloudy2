@@ -157,34 +157,33 @@ string maps to the first tab of that kind.
   dropdown is exactly the desktop All-views list (every tab, kind icon + name,
   active row ticked) followed by a divider and **Add view** / **Manage views**
   entries (the latter two only for accounts that own stored views). It is
-  icon-only: the active view's name rides the button's accessible name
-  (`Calendar view: <name>`) and its tooltip, keeping the period label the row's
-  flexible element — the name itself is shown on its own line (see below). At
-  `lg` and up the button is hidden and the strip row returns unchanged.
+   icon-only: the active view's name rides the button's accessible name
+   (`Calendar view: <name>`) and its tooltip, keeping the period label the row's
+   flexible element — the name itself is shown on its own line (see below). The
+   dropdown opens **upward** (`position="top-end"`): the row rides the bottom
+   toolbar below `lg` (see the bottom-toolbar bullet below). At
+   `lg` and up the button is hidden and the strip row returns unchanged.
 - **Mobile view indicator (below `lg`).** Because the strip row is dropped under
   `lg`, the active view would otherwise be *announced* (the view-menu trigger's
   accessible name, plus the live region's `"<view> view, <period>"`) but never
   *shown* — so on a phone nothing on screen said which view you were in. A
   **thin dimmed text line** (`size="xs"`, `fw={500}`, `c="dimmed"`, `ta="center"`,
-  `lineClamp={1}`) naming the active view therefore sits **directly under the
-  date-nav row** with **no top margin**, inside the sticky chrome
-  (`hiddenFrom="lg"`, so `lg`+ is unchanged — there the active tab's underline
-  says it). It is **centered** on
-  the screen, and the chrome's own bottom padding is trimmed below `lg`
-  (`var(--mantine-spacing-xs)` → `calc(0.125rem * var(--mantine-scale))`) so the
-  line tucks against the grid; `lg`+ keeps the full padding under the date-nav
-  row. It reads **`shownTabName`**, the account's
+  `lineClamp={1}`) naming the active view therefore owns the **top sticky strip
+  below `lg`**: the chrome box that holds the tab strip + nav row at `lg`+
+  shrinks to just this line (block padding trimmed, bottom divider,
+  `c2-glass-surface`), pinned under the app header while the grid scrolls
+  beneath it (`hiddenFrom="lg"`, so `lg`+ is unchanged — there the active tab's
+  underline says it). It is **centered** on the screen. It reads
+  **`shownTabName`**, the account's
   **own view name** (e.g. "Ops Week") and never the built-in kind label
   (`DASHBOARD_VIEW_KIND_LABELS`), from the same optimistic chrome the trigger
   and the announcement use — so it moves the instant a tab is tapped, ahead of
   the grid's data. It is **passive**: not a control, so it adds no focusable
-  element and its `title` is only a hover fallback for a truncated name.
-  Inheriting the chrome's `paddingInline`, it aligns with the period label. It
-  adds ~17px to the chrome's measured `chromeHeight`, which is what re-docks the
-  pinned grid strips (Week (H) day strip / hour rulers, Month weekday strip,
-  Week (D) day header) beneath it — they all take `chromeOffset={chromeHeight}`
-  at every breakpoint — and shortens the bounded Week (Grid) container by the
-  same. It deliberately does **not** surface per-tab load state (see
+  element and its `title` is only a hover fallback for a truncated name. Its
+  measured height is `topChromeHeight` below `lg`: the pinned grid strips dock
+  under it, and together with the bottom bar's `bottomChromeHeight` it bounds
+  the viewport-height grids (see the bottom-toolbar bullet). It deliberately
+  does **not** surface per-tab load state (see
   [`loading-transitions.md`](loading-transitions.md) §1.13.2, a `lg`-only
   affordance).
 - **Mobile tab-switch entrance (below `lg`).** The grid swipe (WAAPI on
@@ -194,26 +193,40 @@ string maps to the first tab of that kind.
   there instead plays the app's reveal entrance (fade + 8px rise, like
   `c2-page-in`); **date moves keep the horizontal swipe** at every width (the
   chevrons carry the direction on mobile too).
-- **Mobile period chevrons (below `lg`).** The nav row's prev/next chevrons
-  leave the sticky top row and join the **bottom-right FAB cluster** —
-  `[<|>] [LINK] [CREATE]` — so period steps sit in the phone thumb zone
-  instead of the top-of-screen dead zone. They merge into **one segmented
-  frosted-glass pill** (`.c2-period-pill`, `globals.css`): a 44px capsule with
-  two 44px transparent `ActionIcon` segments and a hairline divider, so they
-  read as a single nav control rather than two more FABs; only the tapped
-  segment tints (the pill surface itself stays constant). Alongside it sit the
-  amber-tinted Quick-links FAB and brand-tinted New-event FAB — the whole
-  mobile cluster is glass — while the desktop row keeps its 36px rounded-square
-  chevrons. Both sets call the shared view-aware `navigatePeriod(±1)` dispatch
-  and read their accessible name from `periodStepLabel` (`DashboardView.tsx`),
-  so behaviour and announcements are identical. The top row's chevrons are
-  `visibleFrom="lg"` (desktop-only); at `lg`+ the cluster is hidden with the
-  rest of the mobile toolbar. The cluster's opacity is admin-adjustable via the
-  app-wide **`translucencyLevel`** feature flag (subtle / medium / strong;
-  medium = the shipped look), resolved into `DashboardSharedConfig` and applied
-  as a `c2-glass--<level>` modifier (the shell also publishes it on `<html>` as
-  `data-c2-glass`, which every glass surface inherits) — see
-  [`feature-flags.md`](feature-flags.md).
+- **Bottom toolbar (below `lg`).** The sticky chrome **splits** below `lg`: the
+  date-nav row (period label, prev/next chevrons, filter funnel, date selector,
+  view menu) becomes a **bottom toolbar** floating above the bottom nav
+  (`position: fixed`, `bottom: var(--app-shell-footer-offset)`) so every
+  control sits in the phone thumb zone, while a **thin view-name strip stays
+  pinned at the top** under the app header (see the mobile-view-indicator
+  bullet). Both boxes carry the same frosted-glass treatment
+  (`c2-glass-surface`, edge-to-edge, `zIndex: 50`), so grid content scrolls
+  *under* them. The bar is deliberately **fixed, not sticky**: sticky bottom
+  only pins while the element's natural flow position is below the fold, and
+  the dashboard's page is usually viewport-tall or shorter (Month fits at
+  fit-to-width zoom, the bounded grids scroll internally), so a sticky bar
+  simply sat mid-screen after the grid; fixed guarantees the float at every
+  page height, and the page pads (`--c2-bottom-chrome-height`) keep the last
+  content row clear of it. The grid starts under the top strip: the pinned
+  strips (Week (H) day strip / hour rulers, Month weekday strip, Week (D) day
+  header) dock under the name strip (`chromeOffset` = measured
+  `topChromeHeight`), while the viewport-bounded grids (Week (Grid),
+  skeletons) subtract **both** measured boxes (`topChromeHeight` +
+  `bottomChromeHeight`) so the grid's bottom edge lands exactly on the bar's
+  top edge. The **prev/next chevrons stay in the nav row** at every width (the
+  old bottom-right chevron pill — `.c2-period-pill` — is gone); both the row
+  and the FABs call the shared view-aware `navigatePeriod(±1)` dispatch and
+  read their accessible name from `periodStepLabel` (`DashboardView.tsx`). The
+  **Quick-links and New-event FABs float above the bar**: `fabBottomOffset`
+  adds the measured `bottomChromeHeight` to `--app-floating-bottom-offset`
+  (and the immersive variant), and the document-scrolling page pads
+  (`.fab-page-pad`, `.dual-page-pad`) add the inline `--c2-bottom-chrome-height`
+  var so the last row clears the bar and the FABs. The floating zoom/pan
+  clusters clamp their visible slice to the bar's top edge (`bottomBarrierRef`
+  on `GridNavControls`); the `FullscreenToggle` keeps anchoring below the top
+  strip at every width (below `lg` that is just the name strip). At `lg`+
+  everything is unchanged: one chrome box pinned top (tab strip + nav row),
+  FABs hidden.
 - **App-wide frosted glass (`translucencyLevel`).** Beyond the mobile cluster,
   the surfaces that overlap page content are translucent: the
   bottom nav, the settings tab strip, the desktop sidebar,   the dashboard sticky
@@ -619,8 +632,9 @@ the Day / Week (H) column widths):
   header and the app's all-day row are **re-pinned below the chrome**:
   (`weekViewHeader` gains `top: <chromeHeight>`, and `weekViewAllDaySlots` becomes
   `top: calc(<chromeHeight> + var(--week-view-week-day-height) - 1px)`) so they
-  stay pinned while the hour rows scroll. Below `lg` the grid sits below the
-  chrome as before. The sticky chrome is stacked above
+  stay pinned while the hour rows scroll. Below `lg` the chrome splits into the
+  top name strip + the bottom toolbar (§1.1), and the bounded height subtracts
+  both measured boxes. The sticky chrome is stacked above
   both the library's timed-event root (`z-index: 3`) **and** the app's highlight
   classes (`.c2-my-event` / `.c2-ext-event`, `z-index: 4` in globals.css):
   **regular events (3) < highlighted events (4) < hour labels (5) < all-day row

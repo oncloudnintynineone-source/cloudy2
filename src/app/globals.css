@@ -951,9 +951,13 @@ html {
   offset + 16px shell padding) adds the rest, while in immersive mode that
   footer allowance vanishes and this var compensates for it. Pages apply it
   instead of their pb="xl" so their regular bottom padding returns at lg.
+  On the dashboard, `--c2-bottom-chrome-height` (the measured bottom toolbar,
+  set inline, 0/undefined elsewhere) adds the bar the FABs now float above.
 */
 .fab-page-pad {
-  padding-bottom: calc(var(--app-floating-bottom-offset-immersive) + 65px);
+  padding-bottom: calc(
+    var(--app-floating-bottom-offset-immersive) + 65px + var(--c2-bottom-chrome-height, 0px)
+  );
 }
 
 /*
@@ -967,7 +971,9 @@ html {
   its bottom edge lands on the viewport bottom. See DualPaneView's height recipe.
 */
 .dual-page-pad {
-  padding-bottom: calc(var(--app-floating-bottom-offset-immersive) + 65px);
+  padding-bottom: calc(
+    var(--app-floating-bottom-offset-immersive) + 65px + var(--c2-bottom-chrome-height, 0px)
+  );
 }
 
 /*
@@ -992,7 +998,7 @@ html {
   header is deliberately **opaque** (owned by `HEADER_STYLE`), outside this
   system. Overlays (modals, menus, popovers, tooltips, toasts) are also opaque.
   `.c2-glass-fab` is the button form: applied to the
-  Calendar page's bottom-right `[<|>][LINK][CREATE]` row below `lg`
+  Calendar page's bottom-right `[LINK][CREATE]` row below `lg`
   (DashboardView) and to the floating controls / every page's FAB. Scheme-aware
   through `[data-mantine-color-scheme]`-scoped token values (not `light-dark()`
   in the composite custom properties — see the token block below); `!important`
@@ -1162,57 +1168,6 @@ html {
     rgba(12, 166, 120, calc(var(--c2g-accent-l) + 0.24)),
     rgba(12, 166, 120, calc(var(--c2g-accent-d) + 0.18))
   ) !important;
-}
-
-/*
-  Mobile period-step pill (docs/dashboard-views.md §1.1): the dashboard's
-  bottom-right cluster merges the prev/next chevrons into one segmented
-  frosted-glass capsule ([< | >]) so they read as a single nav control rather
-  than two more FABs. The pill surface rides `.c2-glass-fab` (tint + blur +
-  shadow); the pill's own hover/active stay constant so only the tapped
-  segment tints. Declared after the `.c2-glass-fab` state rules so the
-  equal-specificity overrides win.
-*/
-.c2-period-pill {
-  display: flex;
-  align-items: center;
-  height: 44px;
-  border-radius: 999px;
-  overflow: hidden;
-}
-
-.c2-period-pill:hover,
-.c2-period-pill:active {
-  background: var(--c2-glass-bg) !important;
-}
-
-.c2-period-pill__seg {
-  width: 44px;
-  height: 44px;
-  border-radius: 0 !important;
-  background: transparent !important;
-  color: light-dark(var(--mantine-color-gray-8), var(--mantine-color-gray-1)) !important;
-}
-
-.c2-period-pill__seg:hover {
-  background: light-dark(
-    rgba(255, 255, 255, var(--c2g-hover-l)),
-    rgba(44, 47, 52, var(--c2g-hover-d))
-  ) !important;
-}
-
-.c2-period-pill__seg:active {
-  background: light-dark(
-    rgba(255, 255, 255, var(--c2g-active-l)),
-    rgba(56, 60, 66, var(--c2g-active-d))
-  ) !important;
-}
-
-.c2-period-pill__divider {
-  flex: 0 0 auto;
-  width: 1px;
-  height: 20px;
-  background: light-dark(rgba(0, 0, 0, 0.14), rgba(255, 255, 255, 0.2));
 }
 
 /*

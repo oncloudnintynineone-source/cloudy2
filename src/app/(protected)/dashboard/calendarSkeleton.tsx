@@ -128,12 +128,17 @@ const WEEK_GRID_BORDER = "1px solid var(--mantine-color-default-border)";
 export function WeekGridViewSkeleton({
   hours = 8,
   chromeOffset,
+  bottomChromeOffset,
 }: {
   hours?: number;
-  /** Measured chrome height — the real grid is viewport-bounded (it scrolls
-   *  internally with a pinned header + all-day row), so the placeholder fills
-   *  the same box to keep the swap seamless. */
+  /** Measured top-chrome height — the real grid is viewport-bounded (it
+   *  scrolls internally with a pinned header + all-day row), so the
+   *  placeholder fills the same box to keep the swap seamless. Below `lg`
+   *  this is the thin view-name strip pinned at the top. */
   chromeOffset: number;
+  /** Measured bottom-toolbar height (below `lg` only, 0 at `lg`): the date-nav
+   *  row pinned above the bottom nav that the bounded box also stops under. */
+  bottomChromeOffset: number;
 }) {
   const theme = useMantineTheme();
   const isDesktop = useMediaQuery(`(min-width: ${theme.breakpoints.lg})`);
@@ -148,10 +153,12 @@ export function WeekGridViewSkeleton({
         // At lg the grid is lifted behind the chrome (the shared
         // `.c2-gutter-anim` negative top margin), so it no longer subtracts the
         // chrome/gap; the top padding keeps the visible placeholder band aligned
-        // below the chrome.
+        // below the chrome. Below lg the chrome splits: the name strip sits
+        // above the box and the fixed bottom toolbar sits directly under it,
+        // so both are subtracted here.
         height: isDesktop
           ? `calc(var(--app-shell-vh, 100dvh) - var(--app-shell-header-offset) - var(--app-shell-footer-offset) - var(--c2-weekgrid-bottom-budget, 0px))`
-          : `calc(var(--app-shell-vh, 100dvh) - var(--app-shell-header-offset) - var(--app-shell-footer-offset) - var(--mantine-spacing-sm) - var(--c2-weekgrid-bottom-budget, 0px) - ${chromeOffset}px)`,
+          : `calc(var(--app-shell-vh, 100dvh) - var(--app-shell-header-offset) - var(--app-shell-footer-offset) - var(--mantine-spacing-sm) - var(--c2-weekgrid-bottom-budget, 0px) - ${chromeOffset + bottomChromeOffset}px)`,
         paddingTop: isDesktop ? chromeOffset : undefined,
       }}
     >

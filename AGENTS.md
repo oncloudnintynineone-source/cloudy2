@@ -138,10 +138,14 @@ doc content here.
   opens the manage modal — an Add-view button, subtle ↑/↓ reorder, a per-row **Edit** dialog
   (name + type + an **Edit filters…** button that switches to the view and opens its filter
   dialog), delete, and a quiet accent left bar on the active row, plus the shared manage-row
-  recipe (`reorderUpDown.tsx`, `variant="subtle"`) + optimistic `useReorderRows` FLIP. Below
-  `lg` the prev/next period chevrons leave the nav row and join the bottom-right FAB cluster
-  (`[<|>][LINK][CREATE]` — chevrons merged into one segmented glass pill) for thumb
-  reach; both sets share the view-aware `navigatePeriod`.
+  recipe (`reorderUpDown.tsx`, `variant="subtle"`) + optimistic `useReorderRows` FLIP.   Below
+  `lg` the chrome **splits**: a thin view-name strip stays pinned at the top
+  and the date-nav row (incl. its chevrons) becomes a **fixed bottom toolbar**
+  floating above the bottom nav (`bottom: var(--app-shell-footer-offset)` —
+  fixed, not sticky: sticky bottom never engages on a viewport-tall page) for
+  thumb reach; pinned strips dock under the name strip (`chromeOffset` =
+  `topChromeHeight`), bounded grids subtract both boxes, and the Quick-links /
+  New-event FABs float above the bar; at `lg`+ one box (tabs + nav row) pins top.
   Month
   grids zoom from fit-to-width (`src/lib/ui/monthZoom.ts`,
   `dashboard.monthZoom`); Week (D) is a custom matrix (`buildWeekLanes`). Entry highlights:

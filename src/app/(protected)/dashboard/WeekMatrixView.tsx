@@ -96,6 +96,11 @@ export interface WeekMatrixViewProps {
    * here to keep the controls fixed; defaults to the matrix root.
    */
   controlsAnchorRef?: RefObject<HTMLDivElement | null>;
+  /**
+   * The dashboard's bottom toolbar (below `lg`): clamps the zoom/pan cluster
+   * so it never parks behind the bar on this document-scrolling matrix.
+   */
+  bottomBarrierRef?: RefObject<HTMLElement | null> | null;
 }
 
 /**
@@ -138,6 +143,7 @@ export function WeekMatrixView({
   onZoomChange,
   chromeOffset,
   controlsAnchorRef,
+  bottomBarrierRef,
 }: WeekMatrixViewProps) {
   const theme = useMantineTheme();
   const isDesktop = useMediaQuery(`(min-width: ${theme.breakpoints.lg})`);
@@ -453,6 +459,7 @@ export function WeekMatrixView({
       <GridNavControls
         anchorRef={controlsAnchorRef ?? rootRef}
         layoutKey={isDesktop}
+        bottomBarrierRef={bottomBarrierRef}
         canScrollLeft={gridPan.canScrollLeft}
         canScrollRight={gridPan.canScrollRight}
         onPan={gridPan.panTo}

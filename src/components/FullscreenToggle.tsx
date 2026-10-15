@@ -41,7 +41,7 @@ export function FullscreenToggle({
    * Layout identity the fixed position depends on (the caller passes its
    * breakpoint/chrome measurement). When it changes the anchors are
    * re-measured after commit, so a desktop↔mobile flip re-anchors the button
-   * instead of leaving it at the previous layout's offsets.
+   * instead of leaving them at the previous layout's offsets.
    */
   layoutKey?: string | number | boolean;
 }) {
@@ -64,7 +64,8 @@ export function FullscreenToggle({
       const gridRect = anchor.getBoundingClientRect();
       const chromeRect = chrome.getBoundingClientRect();
       setPos({
-        // 8px below the sticky chrome, so the button never slides beneath it
+        // 8px below the sticky top chrome (the full chrome at lg, the thin
+        // view-name strip below `lg`), so the button never slides beneath it
         // while the grid scrolls.
         top: chromeRect.bottom + FULLSCREEN_EDGE_INSET,
         // 8px inside the grid's right edge; clamp to half the viewport so a
