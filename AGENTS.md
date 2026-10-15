@@ -139,13 +139,16 @@ doc content here.
   (name + type + an **Edit filters…** button that switches to the view and opens its filter
   dialog), delete, and a quiet accent left bar on the active row, plus the shared manage-row
   recipe (`reorderUpDown.tsx`, `variant="subtle"`) + optimistic `useReorderRows` FLIP.   Below
-  `lg` the chrome **splits**: a thin view-name strip stays pinned at the top
-  and the date-nav row (incl. its chevrons) becomes a **fixed bottom toolbar**
-  floating above the bottom nav (`bottom: var(--app-shell-footer-offset)` —
-  fixed, not sticky: sticky bottom never engages on a viewport-tall page) for
-  thumb reach; pinned strips dock under the name strip (`chromeOffset` =
-  `topChromeHeight`), bounded grids subtract both boxes, and the Quick-links /
-  New-event FABs float above the bar; at `lg`+ one box (tabs + nav row) pins top.
+  `lg` the chrome **splits**: a thin view-name strip stays pinned at the top,
+  and the date controls move to **floating bottom rows** — a frosted
+  control pill (period label left + circular filter/date/view/quick-links
+  buttons right, inset 16px from the viewport edges) bottom-most, with the
+  right-anchored FAB row (`[<|>]` step pill + New-event **pill button** —
+  brand-blue `c2-glass-fab--brand` tint + `c2-glass-btn--bordered` grey ring,
+  both pill-height) floating above it — for thumb reach; pinned
+  strips dock under the name strip (`chromeOffset` = `topChromeHeight`),
+  bounded grids run flush to the bottom nav, and page pads clear the pill/FAB
+  row; at `lg`+ one box (tabs + nav row) pins top.
   Month
   grids zoom from fit-to-width (`src/lib/ui/monthZoom.ts`,
   `dashboard.monthZoom`); Week (D) is a custom matrix (`buildWeekLanes`). Entry highlights:
@@ -336,8 +339,7 @@ doc content here.
   ([`action-pill.md`](docs/action-pill.md)); and `translucencyLevel` — the app-wide frosted-glass
   opacity (subtle / medium / strong) for the page's overlapping surfaces (sticky
   calendar chrome, bottom nav, sidebar, floating controls; the header and overlays stay opaque), published on `<html>`
-   as `data-c2-glass` by the shell (plus a `c2-glass--<level>` class on the mobile FAB cluster via
-   `DashboardSharedConfig` → `DashboardView`)
+   as `data-c2-glass` by the shell
    ([`dashboard-views.md`](docs/dashboard-views.md) §1.1); `reorderDrag` — the
    reorder interaction for the manageable lists ([`reorder.md`](docs/reorder.md));
    and `bottomNavVariant` — the mobile footer's always-scrolling rail tile

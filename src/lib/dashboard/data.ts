@@ -46,7 +46,6 @@ import {
   type SettingsView,
 } from "@/lib/settings/queries";
 import {
-  translucencyLevelFlag,
   reorderDragFlag,
   resolveFlagValue,
   savedEventToastVariantFlag,
@@ -423,10 +422,6 @@ async function resolveDashboardConfig(session: Session): Promise<DashboardConfig
     savedEventToastVariant: resolveFlagValue(
       savedEventToastVariantFlag,
       settings.featureFlags.savedEventToastVariant,
-    ),
-    translucencyLevel: resolveFlagValue(
-      translucencyLevelFlag,
-      settings.featureFlags.translucencyLevel,
     ),
     reorderDrag: resolveFlagValue(reorderDragFlag, settings.featureFlags.reorderDrag),
     weekStartsOn: userPrefs?.weekStart ?? "monday",

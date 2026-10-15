@@ -93,9 +93,9 @@ normalization) and the full quality gates before pushing.
 | `src/lib/settings/queries.ts` | `getFeatureFlags` + `SettingsView.featureFlags` |
 | `src/lib/settings/{write,edits}.ts` | `updateFeatureFlags` through the shared settings-write ritual (`editSetting`) + the pure flag edit (audited, cache-invalidating) |
 | `src/app/(protected)/settings/feature-flags/` | Page + generic `FeatureFlagsForm` + skeleton |
-| `src/app/(protected)/layout.tsx` | Resolves the header-facing flags into the shell |
+| `src/app/(protected)/layout.tsx` | Resolves the shell-facing flags (`translucencyLevel`, `pinnedTickerIndicator`, `bottomNavVariant`) into the shell |
 | `src/lib/bottomNav.ts` | `footerPrimaryFor` — the `bottomNavVariant` flag's pure primary-tile rule (unit-tested in `bottomNav.test.ts`) |
-| `src/lib/dashboard/data.ts` | Resolves the dashboard-facing flags (`savedEventToastVariant`, `translucencyLevel`, `reorderDrag`) into `DashboardSharedConfig` |
+| `src/lib/dashboard/data.ts` | Resolves the dashboard-facing flags (`savedEventToastVariant`, `reorderDrag`) into `DashboardSharedConfig` |
 
 Related docs:
 

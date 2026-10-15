@@ -207,26 +207,27 @@ mid-scroll was the old default. At `lg`+ ONE box pins at the top
 (`top: var(--app-shell-header-offset)`, bottom divider) holding the view-tab
 strip row and the date-nav row together. **Below `lg` the chrome splits**: a
 thin **view-name strip stays pinned at the top** under the header, and the
-date-nav row becomes a **bottom toolbar** floating above the bottom nav
-(`position: fixed`, `bottom: var(--app-shell-footer-offset)`, top divider) —
-fixed rather than sticky because sticky bottom only pins while the element's
-flow position is below the fold, and the dashboard's page is usually
-viewport-tall or shorter, so a sticky bar would just sit mid-screen after the
-grid. Every control sits in the thumb zone; the prev/next
-chevrons stay in the row (the old FAB-cluster chevron pill is gone) and the
-Quick-links / New-event FABs float above the bar (`dashboard-views.md` §1.1).
-Below `lg` the tab strip row is **dropped** (a full row of chrome) and the nav
-row instead **gains the compact four-squares view-menu button at its right
-edge** (the mobile view menu, [`dashboard-views.md`](dashboard-views.md) §1.1).
-The boxes render at `zIndex: 50`, above every
+date controls move to **two floating rows at the bottom** (thumb-zone reach):
+a frosted **control pill** (`.c2-control-pill`, an Affix inset **16px from the
+viewport edges**) bottom-most with the period label left + circular
+filter/date/view-menu/quick-links buttons right, and above it the
+**right-anchored FAB row** — the `[< | >]` **step pill** (`.c2-period-pill`,
+height matched to the control pill's) with the **New-event pill button**
+(`c2-glass-btn` + `c2-glass-fab--brand`, brand-blue like the lg nav-row button,
+with the `c2-glass-btn--bordered` grey ring) parked on its right
+(`dashboard-views.md` §1.1).
+Below `lg` the tab strip row is **dropped** (a full row of chrome) and the pill
+instead **carries the compact four-squares view-menu button** (the mobile view
+menu, [`dashboard-views.md`](dashboard-views.md) §1.1).
+The top box renders at `zIndex: 50`, above every
 layer `@mantine/schedule` stacks internally (sticky-left columns reach
 z-index 12-13, scrollbars 20), so grid content sliding beneath never paints
-over it. Both boxes' heights are measured with a `ResizeObserver`
-(pre-first-paint + on resize): `topChromeHeight` (the full chrome at `lg`+, the
-name strip below `lg`) docks every view header via
+over it. The top strip's and the pill's heights are measured with a
+`ResizeObserver` (pre-first-paint + on resize): `topChromeHeight` (the full
+chrome at `lg`+, the name strip below `lg`) docks every view header via
 `top: calc(var(--app-shell-header-offset) + <topChromeHeight>px)`, while
-`bottomChromeHeight` (0 at `lg`+) feeds the bottom clearance — FAB offset,
-page pads, bounded-grid heights:
+`bottomChromeHeight` (0 at `lg`+) feeds the page pads so the last row clears
+the pill + FAB stack (the bounded grids run flush to the bottom nav):
 
 - **Week (D)** day header (`WeekMatrixView`, prop `chromeOffset`) — already
   sticky, now correctly docked below both chrome rows.
@@ -260,9 +261,9 @@ wrapper cancels the page `Stack` gap (`marginTop: calc(-1 * var(--mantine-spacin
 at every width) so the strip **docks flush under the sticky top chrome** at rest and on
 scroll — its rest position equals its pinned `top`, so there is no gap at the
 top of the page
-and no jump when it sticks; below `lg` the fixed bottom toolbar simply floats
-over the page's bottom pad, its top edge landing on the grid's bottom edge for
-the bounded views. The Month grid
+and no jump when it sticks; below `lg` the floating pill/FAB rows simply float
+over the page's bottom pad, overlaying the grid's bottom edge.
+The Month grid
 enforces a 5.25rem (84px) minimum column width, so on narrow screens the 7-column
 grid (≥588px) scrolls horizontally — the strip's inner track mirrors that width
 and translates by `-scrollLeft` via `monthScrollAreaProps`, keeping the initials

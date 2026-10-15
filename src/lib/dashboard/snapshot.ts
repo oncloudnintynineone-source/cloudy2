@@ -22,7 +22,6 @@ import {
 import type {
   ReorderDrag,
   SavedEventToastVariant,
-  TranslucencyLevel,
 } from "@/lib/settings/featureFlags";
 import type { TitleRecipe } from "@/lib/settings/titleRecipe";
 
@@ -74,11 +73,6 @@ export interface DashboardSnapshot {
    * pill, a standard toast with a "View event" action, or a plain toast.
    */
   savedEventToastVariant: SavedEventToastVariant;
-  /**
-   * Frosted-glass translucency level (Settings → Feature Flags): subtle /
-   * medium / strong. The shell applies it globally as `data-c2-glass`.
-   */
-  translucencyLevel: TranslucencyLevel;
   /**
    * Reorder interaction (Settings → Feature Flags): the Manage-views list's
    * drag handle / up-down chevrons.

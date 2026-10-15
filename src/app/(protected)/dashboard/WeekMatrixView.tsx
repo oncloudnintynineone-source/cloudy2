@@ -97,8 +97,9 @@ export interface WeekMatrixViewProps {
    */
   controlsAnchorRef?: RefObject<HTMLDivElement | null>;
   /**
-   * The dashboard's bottom toolbar (below `lg`): clamps the zoom/pan cluster
-   * so it never parks behind the bar on this document-scrolling matrix.
+   * The dashboard's right FAB row (below `lg`: `[<|>]` period-step pill +
+   * New-event pill button): clamps the zoom/pan cluster so it never parks
+   * behind it on this document-scrolling matrix.
    */
   bottomBarrierRef?: RefObject<HTMLElement | null> | null;
 }

@@ -21,6 +21,7 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import dynamic from "next/dynamic";
 import {
   ActionIcon,
+  Affix,
   Alert,
   Box,
   Button,
@@ -812,7 +813,6 @@ function DashboardViewImpl({
   viewEventTitleRecipe,
   googleConfigured,
   savedEventToastVariant,
-  translucencyLevel,
   reorderDrag,
   weekStartsOn,
   quickLinks,
@@ -864,23 +864,26 @@ function DashboardViewImpl({
   // Touch-first devices: only they get the agenda swipe hint (see below).
   const isCoarsePointer = useMediaQuery(COARSE_POINTER_MEDIA_QUERY);
 
-  // Heights of the two chrome boxes. At lg ONE box pins at the top (view tabs
+  // Heights of the two chrome pieces. At lg ONE box pins at the top (view tabs
   // + date-nav row): topChromeHeight = its height, bottomChromeHeight = 0.
   // Below lg the chrome SPLITS: a thin view-name strip pins at the top
-  // (topChromeHeight) and the date-nav row becomes a FIXED bottom toolbar
-  // (sticky bottom only pins while the element's flow position is below the
-  // fold — on a viewport-tall page it would just sit after the grid).
-  // Measured before first paint (and on resize / breakpoint flip) so the
-  // pinned grid strips dock under the top strip, the viewport-bounded grids
-  // subtract both, and the floating controls + FABs clear the bottom bar.
+  // (topChromeHeight) and the date controls move to a FULL-WIDTH floating pill
+  // at the bottom (bottomChromeHeight = its measured height; fabStackHeight =
+  // the right-anchored New-event-FAB + chevron-pill stack above it). Measured
+  // before first paint
+  // (and on resize / breakpoint flip) so the pinned grid strips dock under the
+  // top strip and the floating controls + FABs clear the pill.
   const tabsListRef = useRef<HTMLDivElement | null>(null);
   const bottomBarRef = useRef<HTMLDivElement | null>(null);
+  const fabStackRef = useRef<HTMLDivElement | null>(null);
   const [topChromeHeight, setTopChromeHeight] = useState(0);
   const [bottomChromeHeight, setBottomChromeHeight] = useState(0);
+  const [fabStackHeight, setFabStackHeight] = useState(0);
   useLayoutEffect(() => {
     const update = () => {
       setTopChromeHeight(tabsListRef.current?.offsetHeight ?? 0);
       setBottomChromeHeight(bottomBarRef.current?.offsetHeight ?? 0);
+      setFabStackHeight(fabStackRef.current?.offsetHeight ?? 0);
     };
     update();
     const observer = new ResizeObserver(update);
@@ -889,6 +892,9 @@ function DashboardViewImpl({
     }
     if (bottomBarRef.current) {
       observer.observe(bottomBarRef.current);
+    }
+    if (fabStackRef.current) {
+      observer.observe(fabStackRef.current);
     }
     return () => observer.disconnect();
   }, [isDesktop]);
@@ -913,17 +919,21 @@ function DashboardViewImpl({
   }, [exitImmersive]);
 
   // In immersive mode the hidden bottom nav frees its clearance: the floating
-  // toolbars drop to the bare safe-area offset. Below lg the bottom toolbar
-  // owns the strip above the footer, so the FABs float above it. Undefined
-  // keeps FloatingToolbar's default var (the var lives on :root — the Affix
-  // portals to <body>, outside any class scope).
+  // clusters drop to the bare safe-area offset. Undefined keeps
+  // FloatingToolbar's default var (the var lives on :root — the Affix portals
+  // to <body>, outside any class scope). Below `lg` the full-width control pill
+  // owns the bottom strip, so the right FAB row (chevron pill + create pill)
+  // floats above it: base + measured pill height + gap.
   const fabBottomOffset = immersiveMode.active
     ? isDesktop
       ? "var(--app-floating-bottom-offset-immersive)"
-      : `calc(var(--app-floating-bottom-offset-immersive) + ${bottomChromeHeight}px)`
+      : `calc(var(--app-floating-bottom-offset-immersive) + ${bottomChromeHeight + 12}px)`
     : isDesktop
       ? undefined
-      : `calc(var(--app-floating-bottom-offset) + ${bottomChromeHeight}px)`;
+      : `calc(var(--app-floating-bottom-offset) + ${bottomChromeHeight + 12}px)`;
+  const pillBottomOffset = immersiveMode.active
+    ? "var(--app-floating-bottom-offset-immersive)"
+    : "var(--app-floating-bottom-offset)";
 
   // Timeline zoom (Day/Week (H) hour-slot width). Purely client-owned, seeded
   // once from the remembered cookie; `usePersistDashboardNav` below writes the
@@ -1515,12 +1525,14 @@ function DashboardViewImpl({
   // `.c2-gutter-anim` negative top margin below), so the hour rows scroll under
   // the frosted chrome like every other week view. The grid's own day header /
   // all-day row are re-pinned below the chrome and the height no longer
-  // subtracts that chrome; below `lg` the chrome splits into the top name
-  // strip + the fixed bottom toolbar, and the height subtracts both so the
-  // grid's bottom edge lands exactly on the bar's top edge.
+  // subtracts that chrome; below `lg` the top chrome is just the name strip,
+  // and the grid runs flush to the bottom nav again. The full-width floating
+  // pill overlays the grid's bottom band (its surface passes pointer events
+  // through, see `.c2-control-pill`), and the right-anchored FAB row overlays
+  // its bottom-right corner.
   const gridWeekMaxHeight = isDesktop
     ? `calc(var(--app-shell-vh, 100dvh) - var(--app-shell-header-offset) - var(--app-shell-footer-offset) - var(--c2-weekgrid-bottom-budget, 0px))`
-    : `calc(var(--app-shell-vh, 100dvh) - var(--app-shell-header-offset) - var(--app-shell-footer-offset) - var(--mantine-spacing-sm) - var(--c2-weekgrid-bottom-budget, 0px) - ${topChromeHeight + bottomChromeHeight}px)`;
+    : `calc(var(--app-shell-vh, 100dvh) - var(--app-shell-header-offset) - var(--app-shell-footer-offset) - var(--mantine-spacing-sm) - var(--c2-weekgrid-bottom-budget, 0px) - ${topChromeHeight}px)`;
   const gridWeekScrollAreaProps = useMemo(
     () => ({
       viewportRef: gridWeekGridViewportRef,
@@ -3220,12 +3232,13 @@ function DashboardViewImpl({
     </Text>
   );
 
-  // The date-nav row, shared by both chrome boxes: pinned in the top box at
-  // lg (under the tab strip), and in the bottom toolbar below `lg` (thumb-zone
-  // reach). Kept compact (36px controls) — it is permanently visible at every
-  // breakpoint.
+  // The date-nav row, pinned in the top box at lg (under the tab strip).
+  // Below `lg` it is not rendered: the period label + filter/date/view/
+  // quick-links controls ride the floating bottom-right pill, and the period
+  // chevrons join the FAB cluster. Kept compact (36px controls) — it is
+  // permanently visible at `lg`+.
   const navRow = (
-    <Group align="center" gap="xs" wrap="nowrap" mt={isDesktop ? "xs" : undefined}>
+    <Group align="center" gap="xs" wrap="nowrap" mt="xs">
       <Text fw={600} size="md" lineClamp={1} style={{ flex: 1, minWidth: 0, textAlign: "left" }}>
         {/* Label flavor follows the optimistic chrome (same contract as the
             skeleton below): the period you asked for is what reads, even while
@@ -3234,9 +3247,8 @@ function DashboardViewImpl({
             falls back to the optimistic date (today). */}
         {periodLabel}
       </Text>
-      {/* Period chevrons: always in the nav row — at lg it is pinned top,
-          below lg it rides the bottom toolbar, so they are already in the
-          thumb zone (the old FAB-cluster chevron pill is gone). */}
+      {/* Period chevrons: in the nav row at lg; below `lg` they ride the FAB
+          cluster as the `[< | >]` pill (see the mobile FloatingToolbar). */}
       <ActionIcon
         size={36}
         variant="default"
@@ -3325,81 +3337,147 @@ function DashboardViewImpl({
       >
         <IconCalendarDot size={18} />
       </ActionIcon>
-      {/* Mobile-only view menu, at the row's right edge beside the date
-          selector: below `lg` the tab strip row is dropped to save a whole row
-          of chrome, so this compact four-squares button (deliberately distinct
-          from the row's left/right chevrons, filter funnel and calendar-date
-          icon) carries the tab list plus Add-/Manage-views in one dropdown.
-          Its accessible name reads the active view; the active row is checked
-          in the list. Anchored top-end: the row rides the bottom toolbar, so
-          the dropdown opens upward. */}
-      {(tabs.length > 1 || canManageViews) && (
-        <Menu
-          shadow="md"
-          width={240}
-          position="top-end"
-          withinPortal
-          transitionProps={{
-            transition: "pop-bottom-right",
-            duration: MOTION.popover,
-            timingFunction: "ease",
-          }}
-          styles={{
-            dropdown: { maxHeight: "min(60vh, 380px)", overflowY: "auto" },
-          }}
-        >
-          <Menu.Target>
-            <ActionIcon
-              hiddenFrom="lg"
-              variant="default"
-              size={36}
-              className="c2-glass-btn"
-              aria-label={`Calendar view: ${shownTabName}`}
-              title={`Calendar view: ${shownTabName}`}
-            >
-              <IconLayoutGrid size={18} />
-            </ActionIcon>
-          </Menu.Target>
-          <Menu.Dropdown>
-            {tabs.map((tab) => {
-              const meta = VIEW_TAB_META[tab.kind];
-              const isActive = tab.id === shownTabId;
-              return (
-                <Menu.Item
-                  key={tab.id}
-                  leftSection={meta.icon}
-                  rightSection={isActive ? <IconCheck size={14} aria-hidden /> : undefined}
-                  role="menuitemradio"
-                  aria-checked={isActive}
-                  onClick={() => switchTab(tab)}
-                >
-                  <Text
-                    size="sm"
-                    fw={isActive ? 700 : 500}
-                    truncate
-                    title={tab.name}
-                    style={{ maxWidth: 160 }}
-                  >
-                    {tab.name}
-                  </Text>
-                </Menu.Item>
-              );
-            })}
-            {canManageViews && (
-              <>
-                <Menu.Divider />
-                <Menu.Item leftSection={<IconPlus size={16} />} onClick={openAddView}>
-                  Add view
-                </Menu.Item>
-                <Menu.Item leftSection={<IconSettings size={16} />} onClick={openEdit}>
-                  Manage views
-                </Menu.Item>
-              </>
-            )}
-          </Menu.Dropdown>
-        </Menu>
-      )}
     </Group>
+  );
+
+  // The view-menu dropdown contents (tab list + Add-/Manage-views), rendered
+  // by the mobile pill's four-squares button.
+  const viewMenuItems = (
+    <>
+      {tabs.map((tab) => {
+        const meta = VIEW_TAB_META[tab.kind];
+        const isActive = tab.id === shownTabId;
+        return (
+          <Menu.Item
+            key={tab.id}
+            leftSection={meta.icon}
+            rightSection={isActive ? <IconCheck size={14} aria-hidden /> : undefined}
+            role="menuitemradio"
+            aria-checked={isActive}
+            onClick={() => switchTab(tab)}
+          >
+            <Text
+              size="sm"
+              fw={isActive ? 700 : 500}
+              truncate
+              title={tab.name}
+              style={{ maxWidth: 160 }}
+            >
+              {tab.name}
+            </Text>
+          </Menu.Item>
+        );
+      })}
+      {canManageViews && (
+        <>
+          <Menu.Divider />
+          <Menu.Item leftSection={<IconPlus size={16} />} onClick={openAddView}>
+            Add view
+          </Menu.Item>
+          <Menu.Item leftSection={<IconSettings size={16} />} onClick={openEdit}>
+            Manage views
+          </Menu.Item>
+        </>
+      )}
+    </>
+  );
+
+  // The floating control pill (below `lg` only): the period label (left) plus
+  // circular filter / date / view-menu / quick-links buttons (right), floating
+  // at the bottom with the same 16px viewport-edge clearance as the FAB
+  // toolbar (thumb-zone reach), with the FAB row (chevron pill + create pill)
+  // above it. Frosted like the top strip; the grid scrolls beneath it. Its
+  // measured height (bottomChromeHeight) feeds the FAB offset and the page
+  // pads so the last content row clears the whole stack.
+  const mobilePill = (
+    <Affix hiddenFrom="lg" position={{ bottom: pillBottomOffset, left: 16, right: 16 }} zIndex={100}>
+      <Box ref={bottomBarRef} className="c2-glass-surface c2-control-pill">
+        <Group align="center" gap="xs" wrap="nowrap">
+          <Text
+            fw={600}
+            size="sm"
+            lineClamp={1}
+            title={periodLabel}
+            style={{ flex: 1, minWidth: 0 }}
+          >
+            {periodLabel}
+          </Text>
+          <FilterButton
+            activeCount={activeFilterCount}
+            onClick={(e) => {
+              setFilterOriginRect(e.currentTarget.getBoundingClientRect());
+              openFilter();
+            }}
+            size={36}
+            iconSize={18}
+            radius="50%"
+            className="c2-glass-btn"
+          />
+          <ActionIcon
+            radius="50%"
+            size={36}
+            variant="default"
+            className="c2-glass-btn"
+            aria-label="Select date"
+            title="Select date"
+            onClick={(e) => {
+              setPickerOriginRect(e.currentTarget.getBoundingClientRect());
+              openPicker();
+            }}
+          >
+            <IconCalendarDot size={18} />
+          </ActionIcon>
+          {(tabs.length > 1 || canManageViews) && (
+            <Menu
+              shadow="md"
+              width={240}
+              position="top-end"
+              withinPortal
+              transitionProps={{
+                transition: "pop-bottom-right",
+                duration: MOTION.popover,
+                timingFunction: "ease",
+              }}
+              styles={{
+                dropdown: { maxHeight: "min(60vh, 380px)", overflowY: "auto" },
+              }}
+            >
+              <Menu.Target>
+                <ActionIcon
+                  radius="50%"
+                  variant="default"
+                  size={36}
+                  className="c2-glass-btn"
+                  aria-label={`Calendar view: ${shownTabName}`}
+                  title={`Calendar view: ${shownTabName}`}
+                >
+                  <IconLayoutGrid size={18} />
+                </ActionIcon>
+              </Menu.Target>
+              <Menu.Dropdown>{viewMenuItems}</Menu.Dropdown>
+            </Menu>
+          )}
+          {quickLinks.length > 0 && (
+            <QuickLinksMenu
+              links={quickLinks}
+              position="top-end"
+              trigger={
+                <ActionIcon
+                  radius="50%"
+                  variant="light"
+                  color="accent"
+                  size={36}
+                  className="c2-glass-btn c2-glass-fab--accent"
+                  aria-label="Quick links"
+                >
+                  <IconLink size={18} />
+                </ActionIcon>
+              }
+            />
+          )}
+        </Group>
+      </Box>
+    </Affix>
   );
 
   return (
@@ -3434,10 +3512,14 @@ function DashboardViewImpl({
       style={
         {
           marginTop: "calc(-1 * var(--app-shell-padding))",
-          // The bottom toolbar's measured height, consumed by the page-pad
-          // classes (globals.css) so document-scrolling grids clear the bar +
-          // the FABs floating above it. 0 at lg (the chrome is pinned top).
-          "--c2-bottom-chrome-height": isDesktop ? "0px" : `${bottomChromeHeight}px`,
+          // The pill's measured height + the gap + the right FAB row (chevron
+          // pill + create pill, both pill-height) floating above it, minus the
+          // FAB diameter the pad formula already adds — consumed by the page-pad
+          // classes (globals.css) so document-scrolling grids clear the whole
+          // bottom stack. 0 at lg (no pill).
+          "--c2-bottom-chrome-height": isDesktop
+            ? "0px"
+            : `${bottomChromeHeight + 12 + fabStackHeight - FAB_SIZE}px`,
         } as CSSProperties
       }
     >
@@ -3492,7 +3574,7 @@ function DashboardViewImpl({
             controls sit to the RIGHT of the strip, outside the scroll area, and
             the gear opens the Manage-views modal (add / reorder / rename /
             delete — see below). Below `lg` this whole row is dropped to save
-            vertical space: the bottom toolbar's nav row carries one compact
+            vertical space: the floating bottom-right pill carries one compact
             view-menu button (four-squares icon) that holds the tab list plus
             Add-/Manage-views in a dropdown. */}
         <Group
@@ -3636,8 +3718,8 @@ function DashboardViewImpl({
         </Group>
 
         {/* At lg the date-nav row rides this box directly under the tab strip;
-            below `lg` the box keeps only the thin view-name line and the row
-            moves to the bottom toolbar (see `navRow` / the bottom box). */}
+            below `lg` the box keeps only the thin view-name line and the row's
+            controls move to the floating pill / FAB cluster (see `mobilePill`). */}
         {isDesktop ? navRow : nameLine}
       </Box>
 
@@ -3797,10 +3879,7 @@ function DashboardViewImpl({
                 ) : shownIsWeekV2 ? (
                   <WeekMatrixSkeleton />
                 ) : shownIsGridWeek ? (
-                  <WeekGridViewSkeleton
-                    chromeOffset={topChromeHeight}
-                    bottomChromeOffset={bottomChromeHeight}
-                  />
+                  <WeekGridViewSkeleton chromeOffset={topChromeHeight} />
                 ) : shownIsWeek ? (
                   <WeekGridSkeleton />
                 ) : shownIsAgenda ? (
@@ -3901,7 +3980,7 @@ function DashboardViewImpl({
                 onDayOpen={openDayModal}
                 showSwipeHint={showAgendaHint}
                 chromeOffset={topChromeHeight}
-                bottomBarrierRef={isDesktop ? null : bottomBarRef}
+                bottomBarrierRef={isDesktop ? null : fabStackRef}
               />
             ) : isAgenda ? (
               <div
@@ -4132,7 +4211,7 @@ function DashboardViewImpl({
                 }}
                 onZoomChange={setWeekMatrixZoom}
                 chromeOffset={topChromeHeight}
-                bottomBarrierRef={isDesktop ? null : bottomBarRef}
+                bottomBarrierRef={isDesktop ? null : fabStackRef}
               />
             ) : isWeek ? (
               <ResourcesWeekView
@@ -4381,46 +4460,10 @@ function DashboardViewImpl({
         </Box>
       </Box>
 
-      {/* The bottom toolbar (below `lg` only): the date-nav row floating above
-          the bottom nav. It is `position: fixed` — NOT sticky: sticky bottom
-          only pins while the element's natural flow position sits below the
-          fold, and the dashboard's page is usually viewport-tall or shorter
-          (Month fits at fit-to-width zoom, the bounded grids scroll
-          internally), so a sticky bar just sat mid-screen after the grid.
-          Fixed guarantees the float at every page height; the page pads
-          (`--c2-bottom-chrome-height`) keep the last content row clear of it.
-          Same frosted-glass treatment as the top strip: grid content slides
-          beneath it, and the Quick-links / New-event FABs float above it (see
-          `fabBottomOffset`). Its measured height (bottomChromeHeight) feeds
-          the bounded-grid heights, the FAB offset and the page pads. */}
-      {!isDesktop && (
-        <Box
-          ref={bottomBarRef}
-          className="c2-glass-surface"
-          style={{
-            position: "fixed",
-            // Viewport-wide (no gutter bleed needed — fixed is already
-            // edge-to-edge); controls keep the shell's side inset.
-            left: 0,
-            right: 0,
-            bottom: "var(--app-shell-footer-offset)",
-            // Same stacking contract as the top strip: above the grids'
-            // internal stickies, below the modals.
-            zIndex: 50,
-            paddingInline: "var(--app-shell-padding)",
-            paddingTop: "calc(0.125rem * var(--mantine-scale))",
-            // Immersive: the bottom nav is gone and the gesture bar is up —
-            // keep the controls clear of it.
-            paddingBottom: immersiveMode.active
-              ? "calc(env(safe-area-inset-bottom) + 0.25rem * var(--mantine-scale))"
-              : "var(--mantine-spacing-xs)",
-            // Marks the bar's top edge while content scrolls beneath it.
-            borderTop: "1px solid var(--mantine-color-default-border)",
-          }}
-        >
-          {navRow}
-        </Box>
-      )}
+      {/* The floating control pill (below `lg` only): period label + circular
+          filter/date/view/quick-links buttons, bottom-right above the FAB
+          cluster. See `mobilePill` above. */}
+      {mobilePill}
 
       {/* Timeline navigation for the Day/Week (H) grids: the zoom in/out pair
           and the right pan arrow share one right-edge control cluster, with the
@@ -4434,7 +4477,7 @@ function DashboardViewImpl({
           <GridNavControls
             anchorRef={weekBoxRef}
             layoutKey={`${isDesktop}:${topChromeHeight}:${bottomChromeHeight}`}
-            bottomBarrierRef={isDesktop ? null : bottomBarRef}
+            bottomBarrierRef={isDesktop ? null : fabStackRef}
             canScrollLeft={schedulePan.canScrollLeft}
             canScrollRight={schedulePan.canScrollRight}
             onPan={schedulePan.panTo}
@@ -4460,7 +4503,7 @@ function DashboardViewImpl({
         <GridNavControls
           anchorRef={weekBoxRef}
           layoutKey={`${isDesktop}:${topChromeHeight}:${bottomChromeHeight}`}
-          bottomBarrierRef={isDesktop ? null : bottomBarRef}
+          bottomBarrierRef={isDesktop ? null : fabStackRef}
           canScrollLeft={gridWeekPan.canScrollLeft}
           canScrollRight={gridWeekPan.canScrollRight}
           onPan={gridWeekPan.panTo}
@@ -4503,7 +4546,7 @@ function DashboardViewImpl({
         <GridNavControls
           anchorRef={weekBoxRef}
           layoutKey={`${isDesktop}:${topChromeHeight}:${bottomChromeHeight}`}
-          bottomBarrierRef={isDesktop ? null : bottomBarRef}
+          bottomBarrierRef={isDesktop ? null : fabStackRef}
           canScrollLeft={monthPan.canScrollLeft}
           canScrollRight={monthPan.canScrollRight}
           onPan={monthPan.panTo}
@@ -4921,48 +4964,71 @@ function DashboardViewImpl({
       )}
 
       {formState === null && (
-        // Mobile-only: at lg the "New event" button in the nav row replaces the
-        // FAB. hiddenFrom sits on the toolbar itself: its Affix portals to
-        // <body>, so a wrapper element could not hide it. The period chevrons
-        // are no longer part of this cluster — below `lg` the whole date-nav
-        // row rides the bottom toolbar, already in the thumb zone. The FABs
-        // float above that bar (see `fabBottomOffset`).
+        // Mobile-only: at lg the "New event" button in the nav row replaces
+        // the FAB. hiddenFrom sits on the toolbar itself: its Affix portals
+        // to <body>, so a wrapper element could not hide it. The row floats
+        // right-anchored above the control pill: the period-step chevrons
+        // `[< | >]` pill left, the New-event **pill button** (`c2-glass-btn`
+        // + `c2-glass-fab--brand` — the same brand-blue tint as the lg nav-row
+        // button — + `c2-glass-btn--bordered`, the grey hairline ring matching
+        // the pill containers) parked on its right. Both pills match the
+        // control pill's measured height.
         <FloatingToolbar hiddenFrom="lg" bottomOffset={fabBottomOffset}>
-          {/* The amber Quick-links FAB opens the quick-links menu (Settings →
-              Quick Links); it renders only when at least one link is enabled.
-              Amber + link icon on purpose: it must never be confused with the
-              grey "More options" kebab in the nav row. */}
-          {quickLinks.length > 0 && (
-            <QuickLinksMenu
-              links={quickLinks}
-              position="top-end"
-              trigger={
-                <FloatingActionButton
-                  className={`c2-glass--${translucencyLevel} c2-glass-fab--accent`}
-                  variant="light"
-                  color="accent"
-                  aria-label="Quick links"
+          <Box ref={fabStackRef} style={{ display: "flex", gap: "var(--mantine-spacing-xs)", alignItems: "center" }}>
+            <Box
+              className="c2-glass-surface c2-period-pill"
+              style={{
+                display: "flex",
+                alignItems: "center",
+                minHeight: bottomChromeHeight ? `${bottomChromeHeight}px` : undefined,
+              }}
+            >
+              <Group align="center" gap={0} wrap="nowrap">
+                <ActionIcon
+                  size={36}
+                  radius="50%"
+                  variant="transparent"
+                  aria-label={periodStepLabel("Previous")}
+                  onClick={() => navigatePeriod(-1)}
                 >
-                  <IconLink size={FAB_ICON_SIZE} />
-                </FloatingActionButton>
+                  <IconChevronLeft size={18} />
+                </ActionIcon>
+                <Box
+                  aria-hidden
+                  style={{
+                    width: 1,
+                    height: 18,
+                    background: "var(--mantine-color-default-border)",
+                  }}
+                />
+                <ActionIcon
+                  size={36}
+                  radius="50%"
+                  variant="transparent"
+                  aria-label={periodStepLabel("Next")}
+                  onClick={() => navigatePeriod(1)}
+                >
+                  <IconChevronRight size={18} />
+                </ActionIcon>
+              </Group>
+            </Box>
+            <Button
+              className="c2-glass-btn c2-glass-fab--brand c2-glass-btn--bordered"
+              aria-label="New event"
+              radius="999px"
+              w={56}
+              h={bottomChromeHeight || 50}
+              onClick={(e) =>
+                openCreate(
+                  isAgenda ? headerDate : isDual ? shownDate : today,
+                  e.currentTarget.getBoundingClientRect(),
+                )
               }
-            />
-          )}
-          <FloatingActionButton
-            className={`c2-glass--${translucencyLevel} c2-glass-fab--brand`}
-            aria-label="New event"
-            // The Agenda tab prefills the day being viewed (like the day
-            // modal's button); the other views keep "today".
-            onClick={(e) =>
-              openCreate(
-                isAgenda ? headerDate : isDual ? shownDate : today,
-                e.currentTarget.getBoundingClientRect(),
-              )
-            }
-            disabled={!googleConfigured}
-          >
-            <IconPlus size={FAB_ICON_SIZE} />
-          </FloatingActionButton>
+              disabled={!googleConfigured}
+            >
+              <IconPlus size={24} />
+            </Button>
+          </Box>
         </FloatingToolbar>
       )}
     </Stack>

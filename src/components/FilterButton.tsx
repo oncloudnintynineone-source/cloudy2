@@ -16,6 +16,9 @@ interface FilterButtonProps {
   iconSize?: number;
   /** Extra class on the trigger (the dashboard passes `c2-glass-btn`). */
   className?: string;
+  /** Trigger corner radius (the dashboard's floating pill passes "50%" for a
+   *  circular button; table toolbars keep the default). */
+  radius?: string | number;
 }
 
 /**
@@ -28,11 +31,13 @@ export function FilterButton({
   size = 43,
   iconSize = 16,
   className,
+  radius,
 }: FilterButtonProps) {
   return (
     <Box pos="relative">
       <ActionIcon
         size={size}
+        radius={radius}
         variant="default"
         className={className}
         aria-label={activeCount > 0 ? `Filters (${activeCount} active)` : "Filters"}

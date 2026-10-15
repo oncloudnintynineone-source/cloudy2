@@ -147,22 +147,22 @@ string maps to the first tab of that kind.
   scrolling the strip.
 - **Mobile view menu (below `lg`).** The whole tab strip row — tabs, the `+`
   Add-view button, the All-views chevron and the Manage-views gear — is dropped
-  below `lg` to save a full row of sticky chrome. In its place the **nav row
-  gains one compact 36px view-menu button at its right edge**, beside the date
-  selector (filters, select-date, then views), so the number of leading
-  controls is unchanged. It is a generic four-squares
-  `IconLayoutGrid` deliberately distinct from the row's left/right chevrons,
-  filter funnel and calendar-date icon (the active view's kind icon would clash
-  with the adjacent date-picker calendar). Tapping it opens a `Menu` whose
-  dropdown is exactly the desktop All-views list (every tab, kind icon + name,
-  active row ticked) followed by a divider and **Add view** / **Manage views**
-  entries (the latter two only for accounts that own stored views). It is
-   icon-only: the active view's name rides the button's accessible name
-   (`Calendar view: <name>`) and its tooltip, keeping the period label the row's
-   flexible element — the name itself is shown on its own line (see below). The
-   dropdown opens **upward** (`position="top-end"`): the row rides the bottom
-   toolbar below `lg` (see the bottom-toolbar bullet below). At
-   `lg` and up the button is hidden and the strip row returns unchanged.
+  below `lg` to save a full row of sticky chrome. In its place the **floating
+  control pill carries one compact 36px circular view-menu button** beside the
+  filter and date buttons, so the control set is unchanged. It is a generic
+  four-squares `IconLayoutGrid` deliberately distinct from the FAB cluster's
+  step chevrons, the filter funnel and the calendar-date icon (the active
+  view's kind icon would clash with the adjacent date-picker calendar).
+   Tapping it opens a `Menu` whose dropdown is exactly the desktop All-views
+   list (every tab, kind icon + name, active row ticked) followed by a divider
+   and **Add view** / **Manage views** entries (the latter two only for
+   accounts that own stored views). It is icon-only: the active view's name
+   rides the button's accessible name (`Calendar view: <name>`) and its
+   tooltip, keeping the period label the pill's flexible element — the name
+   itself is shown on its own line (see below). The dropdown opens **upward**
+   (`position="top-end"`): the pill floats inset 16px at the bottom below
+   `lg` (see the floating-control-pill bullet below). At `lg` and up the
+   button is hidden and the strip row returns unchanged.
 - **Mobile view indicator (below `lg`).** Because the strip row is dropped under
   `lg`, the active view would otherwise be *announced* (the view-menu trigger's
   accessible name, plus the live region's `"<view> view, <period>"`) but never
@@ -179,11 +179,11 @@ string maps to the first tab of that kind.
   (`DASHBOARD_VIEW_KIND_LABELS`), from the same optimistic chrome the trigger
   and the announcement use — so it moves the instant a tab is tapped, ahead of
   the grid's data. It is **passive**: not a control, so it adds no focusable
-  element and its `title` is only a hover fallback for a truncated name. Its
-  measured height is `topChromeHeight` below `lg`: the pinned grid strips dock
-  under it, and together with the bottom bar's `bottomChromeHeight` it bounds
-  the viewport-height grids (see the bottom-toolbar bullet). It deliberately
-  does **not** surface per-tab load state (see
+   element and its `title` is only a hover fallback for a truncated name. Its
+   measured height is `topChromeHeight` below `lg`: the pinned grid strips dock
+   under it and the viewport-height grids subtract it (the bottom pill/FAB rows
+   only overlay the bottom edge — see the floating-control-pill bullet). It
+   deliberately does **not** surface per-tab load state (see
   [`loading-transitions.md`](loading-transitions.md) §1.13.2, a `lg`-only
   affordance).
 - **Mobile tab-switch entrance (below `lg`).** The grid swipe (WAAPI on
@@ -193,40 +193,40 @@ string maps to the first tab of that kind.
   there instead plays the app's reveal entrance (fade + 8px rise, like
   `c2-page-in`); **date moves keep the horizontal swipe** at every width (the
   chevrons carry the direction on mobile too).
-- **Bottom toolbar (below `lg`).** The sticky chrome **splits** below `lg`: the
-  date-nav row (period label, prev/next chevrons, filter funnel, date selector,
-  view menu) becomes a **bottom toolbar** floating above the bottom nav
-  (`position: fixed`, `bottom: var(--app-shell-footer-offset)`) so every
-  control sits in the phone thumb zone, while a **thin view-name strip stays
-  pinned at the top** under the app header (see the mobile-view-indicator
-  bullet). Both boxes carry the same frosted-glass treatment
-  (`c2-glass-surface`, edge-to-edge, `zIndex: 50`), so grid content scrolls
-  *under* them. The bar is deliberately **fixed, not sticky**: sticky bottom
-  only pins while the element's natural flow position is below the fold, and
-  the dashboard's page is usually viewport-tall or shorter (Month fits at
-  fit-to-width zoom, the bounded grids scroll internally), so a sticky bar
-  simply sat mid-screen after the grid; fixed guarantees the float at every
-  page height, and the page pads (`--c2-bottom-chrome-height`) keep the last
-  content row clear of it. The grid starts under the top strip: the pinned
-  strips (Week (H) day strip / hour rulers, Month weekday strip, Week (D) day
-  header) dock under the name strip (`chromeOffset` = measured
-  `topChromeHeight`), while the viewport-bounded grids (Week (Grid),
-  skeletons) subtract **both** measured boxes (`topChromeHeight` +
-  `bottomChromeHeight`) so the grid's bottom edge lands exactly on the bar's
-  top edge. The **prev/next chevrons stay in the nav row** at every width (the
-  old bottom-right chevron pill — `.c2-period-pill` — is gone); both the row
-  and the FABs call the shared view-aware `navigatePeriod(±1)` dispatch and
-  read their accessible name from `periodStepLabel` (`DashboardView.tsx`). The
-  **Quick-links and New-event FABs float above the bar**: `fabBottomOffset`
-  adds the measured `bottomChromeHeight` to `--app-floating-bottom-offset`
-  (and the immersive variant), and the document-scrolling page pads
-  (`.fab-page-pad`, `.dual-page-pad`) add the inline `--c2-bottom-chrome-height`
-  var so the last row clears the bar and the FABs. The floating zoom/pan
-  clusters clamp their visible slice to the bar's top edge (`bottomBarrierRef`
-  on `GridNavControls`); the `FullscreenToggle` keeps anchoring below the top
-  strip at every width (below `lg` that is just the name strip). At `lg`+
-  everything is unchanged: one chrome box pinned top (tab strip + nav row),
-  FABs hidden.
+- **Floating control pill (below `lg`).** The sticky chrome **splits** below
+  `lg`: a **thin view-name strip stays pinned at the top** under the app
+  header (see the mobile-view-indicator bullet), and the date controls move to
+  **two floating rows at the bottom** (thumb-zone reach): the frosted
+  **control pill** (`.c2-control-pill`, an `Affix` inset **16px from the
+  viewport edges** — `left: 16, right: 16`, the same clearance as the FAB
+  toolbar) sits **bottom-most** with the period label on the **left** and the
+  **circular** filter / date / view-menu / quick-links buttons on the **right**;
+  above it floats the **right-anchored FAB row** — the `[< | >]` **period-step
+  pill** (`.c2-period-pill`, its height driven inline to match the control
+   pill's) with the **New-event pill button** (`c2-glass-btn` +
+   `c2-glass-fab--brand` — the same brand-blue tint as the lg nav-row button —
+   + `c2-glass-btn--bordered`, the grey hairline ring matching the pill
+   containers) parked on its **right**. The row sits at
+  `bottom: calc(--app-floating-bottom-offset + pillH + 12px)`. All ride the
+  same frosted treatment (`c2-glass-surface`) with pill radius + hairline
+  edge, so grid content scrolls *under* them. The grid
+  starts under the top strip: the pinned strips (Week (H) day strip / hour
+  rulers, Month weekday strip, Week (D) day header) dock under the name strip
+  (`chromeOffset` = measured `topChromeHeight`), and the viewport-bounded
+  grids (Week (Grid), skeletons) run flush to the bottom nav — the floating
+  rows overlay the bottom edge. The document-scrolling page pads
+  (`.fab-page-pad`, `.dual-page-pad`) add the inline
+  `--c2-bottom-chrome-height` var (measured pill + FAB row, net of the FAB
+  diameter the formula already adds) so the last row clears the whole stack.
+  The **prev/next chevrons** in the step pill call the same view-aware
+  `navigatePeriod(±1)` dispatch and read their accessible name from
+  `periodStepLabel` as the `lg` nav row (`DashboardView.tsx`). The floating
+  zoom/pan clusters clamp their visible slice to the FAB row's top edge
+  (`bottomBarrierRef` on `GridNavControls`); the `FullscreenToggle` keeps
+  anchoring below the top strip at every width (below `lg` that is just the
+  name strip). At `lg`+ everything is unchanged: one chrome box pinned top
+  (tab strip + nav row incl. chevrons, New event and Quick links), FABs and
+  pill hidden.
 - **App-wide frosted glass (`translucencyLevel`).** Beyond the mobile cluster,
   the surfaces that overlap page content are translucent: the
   bottom nav, the settings tab strip, the desktop sidebar,   the dashboard sticky
@@ -632,9 +632,9 @@ the Day / Week (H) column widths):
   header and the app's all-day row are **re-pinned below the chrome**:
   (`weekViewHeader` gains `top: <chromeHeight>`, and `weekViewAllDaySlots` becomes
   `top: calc(<chromeHeight> + var(--week-view-week-day-height) - 1px)`) so they
-  stay pinned while the hour rows scroll. Below `lg` the chrome splits into the
-  top name strip + the bottom toolbar (§1.1), and the bounded height subtracts
-  both measured boxes. The sticky chrome is stacked above
+  stay pinned while the hour rows scroll. Below `lg` the top chrome is just the
+  name strip and the grid runs flush to the bottom nav again (the floating
+  pill/FAB rows overlay its bottom edge, §1.1). The sticky chrome is stacked above
   both the library's timed-event root (`z-index: 3`) **and** the app's highlight
   classes (`.c2-my-event` / `.c2-ext-event`, `z-index: 4` in globals.css):
   **regular events (3) < highlighted events (4) < hour labels (5) < all-day row

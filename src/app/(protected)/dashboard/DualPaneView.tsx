@@ -120,8 +120,9 @@ export interface DualPaneViewProps {
   /** Height of the sticky chrome block above the grid (tabs + date-nav row). */
   chromeOffset: number;
   /**
-   * The dashboard's bottom toolbar (below `lg`): clamps the month pane's
-   * zoom/pan cluster so it never parks behind the bar.
+   * The dashboard's right FAB row (below `lg`: `[<|>]` period-step pill +
+   * New-event pill button): clamps the month pane's zoom/pan cluster so it
+   * never parks behind it.
    */
   bottomBarrierRef?: RefObject<HTMLElement | null> | null;
 }

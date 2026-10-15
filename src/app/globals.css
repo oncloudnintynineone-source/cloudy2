@@ -951,8 +951,9 @@ html {
   offset + 16px shell padding) adds the rest, while in immersive mode that
   footer allowance vanishes and this var compensates for it. Pages apply it
   instead of their pb="xl" so their regular bottom padding returns at lg.
-  On the dashboard, `--c2-bottom-chrome-height` (the measured bottom toolbar,
-  set inline, 0/undefined elsewhere) adds the bar the FABs now float above.
+  On the dashboard, `--c2-bottom-chrome-height` (the measured pill +
+  the right FAB row above it, net of the FAB diameter this formula already
+  adds; set inline, 0/undefined elsewhere) completes the bottom stack.
 */
 .fab-page-pad {
   padding-bottom: calc(
@@ -1007,8 +1008,9 @@ html {
   links (`--accent`), brand-blue New event (`--brand`).
   The backdrop blur lets the content read through, while the blur + shadow keep
   the controls legible over any content. No border: the frosted edge is carried
-  by the shadow alone (a hard ring read as an off outline, especially in dark
-  mode).
+  by   the shadow alone (a hard ring read as an off outline, especially in dark
+  mode) — except the opt-in `.c2-glass-btn--bordered` ring on standalone
+  floating buttons that must match the floating pill containers' edge.
 
   The opacity is admin-adjustable via the `translucencyLevel` feature flag: the
   `[data-c2-glass]` attribute (on <html>) or the explicit `.c2-glass--{subtle|
@@ -1057,6 +1059,40 @@ html {
   backdrop-filter: var(--c2g-blur);
 }
 
+/*
+  Dashboard mobile floating rows (below `lg`, DashboardView):
+  `.c2-control-pill` is the bottom pill carrying the period label (left) +
+  circular filter/date/view/quick-links buttons (right), inset 16px from the
+  viewport edges (same clearance as the FAB toolbar); `.c2-period-pill` is the
+  `[< | >]` step pill in the right-anchored FAB row floating above the pill —
+  its height is driven inline to match the control pill's. Both ride the frosted
+  `.c2-glass-surface` tint with a pill radius, hairline edge and the shared
+  floating shadow.
+*/
+.c2-control-pill {
+  border-radius: 999px;
+  border: 1px solid var(--mantine-color-default-border);
+  box-shadow: var(--mantine-shadow-md);
+  padding: 6px 10px;
+  /* Below `lg` this full-width pill floats over the Week (Grid) viewport, which
+     runs flush to the bottom nav (`weekgrid-page-pad`) — so its frosted band
+     must not swallow taps on the grid content beneath it. The surface passes
+     pointer events through; its interactive children (the circular buttons)
+     re-enable them below, so only the buttons catch taps. */
+  pointer-events: none;
+}
+
+.c2-control-pill button {
+  pointer-events: auto;
+}
+
+.c2-period-pill {
+  border-radius: 999px;
+  border: 1px solid var(--mantine-color-default-border);
+  box-shadow: var(--mantine-shadow-md);
+  padding: 0 4px;
+}
+
 .c2-glass-fab {
   background: var(--c2-glass-bg) !important;
   color: light-dark(var(--mantine-color-dark-8), var(--mantine-color-gray-0)) !important;
@@ -1085,6 +1121,15 @@ html {
   box-shadow: var(--mantine-shadow-md);
   -webkit-backdrop-filter: var(--c2g-blur);
   backdrop-filter: var(--c2g-blur);
+}
+
+/* Opt-in hairline edge for a standalone glass button that floats on its own
+   (the mobile FAB row's create pill): the shared .c2-glass-btn form stays
+   borderless (the ring below re-adds the same edge the .c2-control-pill /
+   .c2-period-pill containers carry). Declared after .c2-glass-btn so its
+   !important beats that rule's transparent border. */
+.c2-glass-btn--bordered {
+  border: 1px solid var(--mantine-color-default-border) !important;
 }
 
 .c2-glass-fab:hover,
@@ -1205,8 +1250,8 @@ html {
 /* Opacity levels (Settings → Feature Flags → `translucencyLevel`). The
    `[data-c2-glass]` attribute lives on <html> (set by AppShellShell) so every
    glass surface — including the portaled FABs — inherits the level; the
-   `.c2-glass--*` classes are the explicit form the mobile FAB cluster and the
-   Settings preview use. Placed after the base rules so a single class wins;
+   `.c2-glass--*` classes are the explicit form the Settings preview uses.
+   Placed after the base rules so a single class wins;
    Medium equals the base defaults above. */
 [data-c2-glass="subtle"],
 .c2-glass--subtle {

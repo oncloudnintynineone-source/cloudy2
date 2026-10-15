@@ -117,9 +117,10 @@ export function GridNavControls({
    */
   layoutKey?: string | number | boolean;
   /**
-   * Optional element that owns the viewport's bottom edge (the dashboard's
-   * bottom toolbar below `lg`): the visible slice is clamped to its top, so
-   * the cluster never parks behind it on document-scrolling grids.
+   * Optional element that owns the viewport's bottom-right corner (the
+   * dashboard's right FAB row (chevron pill + create pill) below `lg`): the
+   * visible slice is clamped to its top, so the cluster never parks
+   * behind it on document-scrolling grids.
    */
   bottomBarrierRef?: RefObject<HTMLElement | null> | null;
 }) {

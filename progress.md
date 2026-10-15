@@ -1754,13 +1754,18 @@ via `?attendance=1` and `attendanceStorage` became a `useSyncExternalStore` exte
     segments + hairline divider, so period nav reads as one control instead of
     two more FABs; only the tapped segment tints (`docs/dashboard-views.md`
     §1.1).
-- 1.307 Bottom toolbar (below `lg`): the dashboard chrome splits — the date-nav
-    row (chevrons included) becomes a frosted **fixed** bottom toolbar floating
-    above the bottom nav (fixed, not sticky: sticky bottom never engages on a
-    viewport-tall page), while a thin view-name strip stays pinned at the top;
-    bounded grids subtract both measured boxes, FABs float above the bar, and
-    the zoom/pan clusters clamp to it (`bottomBarrierRef`); the old FAB-cluster
-    chevron pill (1.306) is removed (`docs/dashboard-views.md` §1.1).
+- 1.307 Mobile chrome split (below `lg`): the date-nav row leaves the top
+    chrome (which shrinks to a thin pinned view-name strip); its controls move
+    to **floating bottom rows** — a frosted control pill (`.c2-control-pill`:
+    period label left + circular filter/date/view/quick-links buttons right,
+    inset 16px from the viewport edges) bottom-most, with the right-anchored
+    FAB row (New-event **pill button** — `c2-glass-btn` + `c2-glass-fab--brand`
+    brand-blue tint + `c2-glass-btn--bordered` grey ring — parked right of the
+    `[<|>]` step pill, `.c2-period-pill`, both matched to the pill's height)
+    floating above it. Bounded grids run flush to the bottom
+    nav again; page pads (`--c2-bottom-chrome-height`) clear the pill/FAB
+    row; the zoom/pan clusters clamp to it (`bottomBarrierRef`)
+    (`docs/dashboard-views.md` §1.1).
 
 ## 1.4 Open items & next steps
 
