@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useRef } from "react";
-import { Badge, Group, Paper, Pagination, Stack, Text } from "@mantine/core";
+import { Badge, Box, Group, Paper, Pagination, Stack, Text } from "@mantine/core";
 import { IconHistory } from "@tabler/icons-react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
@@ -85,18 +85,35 @@ export function MyEventsView({
         }
       />
 
-      <NoKeyboardSelect
-        label="Range"
-        size="xs"
-        w={150}
-        allowDeselect={false}
-        value={String(rangeMonths)}
-        onChange={(value) => setParams({ range: value ?? null, page: null })}
-        data={MY_EVENTS_RANGE_MONTHS.map((months) => ({
-          value: String(months),
-          label: myEventsRangeLabel(months),
-        }))}
-      />
+      {/* The pinned chrome: the Range control stuck under the app header while
+          the event cards scroll beneath it — the shared sticky-chrome recipe
+          (docs/dashboard-views.md, SettingsTabs). */}
+      <Box
+        className="c2-glass-surface"
+        style={{
+          position: "sticky",
+          top: "var(--app-shell-header-offset)",
+          zIndex: 9,
+          borderBottom: "1px solid var(--mantine-color-default-border)",
+          marginInline: "calc(-1 * var(--app-shell-padding))",
+          paddingInline: "var(--app-shell-padding)",
+          paddingTop: "var(--mantine-spacing-md)",
+          paddingBottom: "var(--mantine-spacing-md)",
+        }}
+      >
+        <NoKeyboardSelect
+          label="Range"
+          size="xs"
+          w={150}
+          allowDeselect={false}
+          value={String(rangeMonths)}
+          onChange={(value) => setParams({ range: value ?? null, page: null })}
+          data={MY_EVENTS_RANGE_MONTHS.map((months) => ({
+            value: String(months),
+            label: myEventsRangeLabel(months),
+          }))}
+        />
+      </Box>
 
       {showEmpty ? (
         <EmptyState

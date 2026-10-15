@@ -182,6 +182,23 @@ export function ParadeStateView({
   // 0 disables it so month-edge switches and jumps use the reveal fade only.
   const [slideDir, setSlideDir] = useState(0);
 
+  // Day switches flip the state optimistically and push a URL whose re-render
+  // brings the props equal to the new state; refreshes (stale-document
+  // reconcile, header Force refresh) change the props with no client
+  // navigation. Track the pending client flip (cleared once a re-render's
+  // props confirm it) so the server's day is adopted only when no pending
+  // navigation explains the disagreement — otherwise the shown day would
+  // stay pinned to the old date across a refresh.
+  const pendingDateRef = useRef<string | null>(null);
+  const pendingMonthRef = useRef<string | null>(null);
+  if (pendingDateRef.current === initialDate) pendingDateRef.current = null;
+  if (pendingMonthRef.current === initialMonth) pendingMonthRef.current = null;
+  if (initialDate !== date && pendingDateRef.current !== date) {
+    setDate(initialDate);
+    setSlideDir(0);
+  }
+  if (initialMonth !== month && pendingMonthRef.current !== month) setMonth(initialMonth);
+
   // Cross-month day switches need the new month's events from the server (the
   // local `date` state flips optimistically, so the stale event props would
   // briefly render an empty list); show a skeleton — with a minimum ~350ms
@@ -281,11 +298,13 @@ export function ParadeStateView({
     const nextDate = next.format("YYYY-MM-DD");
     const nextMonth = next.format("YYYY-MM");
     setDate(nextDate);
+    pendingDateRef.current = nextDate;
     if (nextMonth !== month) {
       // Month edges refetch from the server; the skeleton + reveal fade
       // replace the directional slide, so clear it.
       setSlideDir(0);
       setMonth(nextMonth);
+      pendingMonthRef.current = nextMonth;
       navigate({ date: nextDate, month: nextMonth });
     } else {
       setSlideDir(delta > 0 ? 1 : -1);
@@ -296,9 +315,11 @@ export function ParadeStateView({
   function goToday() {
     const todayMonth = dayjs().format("YYYY-MM");
     setDate(today);
+    pendingDateRef.current = today;
     setSlideDir(0);
     if (todayMonth !== month) {
       setMonth(todayMonth);
+      pendingMonthRef.current = todayMonth;
       navigate({ date: today, month: todayMonth });
     } else {
       navigate({ date: today });
@@ -309,9 +330,11 @@ export function ParadeStateView({
     if (picked === date) return;
     const nextMonth = picked.slice(0, 7);
     setDate(picked);
+    pendingDateRef.current = picked;
     setSlideDir(0);
     if (nextMonth !== month) {
       setMonth(nextMonth);
+      pendingMonthRef.current = nextMonth;
       navigate({ date: picked, month: nextMonth });
     } else {
       navigate({ date: picked });
@@ -637,119 +660,150 @@ export function ParadeStateView({
     // attendance FAB below the last card row, restores plain xl at lg.
     <Stack gap="md" className="fab-page-pad">
       <PageHeader title="Parade State" subtitle="Roster whereabouts and attendance, by day." />
-      {/* Same nav-row recipe as the calendar page: the day label takes the
-          free space, prev/next sit together beside it, then the mode/filter/
-          date controls. Today lives in the date-picker dialog. */}
-      <Group align="center" gap="xs" wrap="nowrap">
-        <Text fw={600} size="md" lineClamp={1} style={{ flex: 1, minWidth: 0, textAlign: "left" }}>
-          {dayLabel}
-        </Text>
-        <ActionIcon
-          size={36}
-          variant="default"
-          aria-label="Previous day"
-          onClick={() => shiftDay(-1)}
-        >
-          <IconChevronLeft size={18} />
-        </ActionIcon>
-        <ActionIcon size={36} variant="default" aria-label="Next day" onClick={() => shiftDay(1)}>
-          <IconChevronRight size={18} />
-        </ActionIcon>
-        {desktopAttendanceButton}
-        <FilterButton
-          activeCount={activeFilterCount}
-          size={36}
-          iconSize={18}
-          onClick={(e) => {
-            setFilterOriginRect(e.currentTarget.getBoundingClientRect());
-            openFilter();
-          }}
-        />
-        <ActionIcon
-          size={36}
-          variant="default"
-          aria-label="Select date"
-          title="Select date"
-          onClick={(e) => {
-            setPickerOriginRect(e.currentTarget.getBoundingClientRect());
-            openPicker();
-          }}
-        >
-          <IconCalendarDot size={18} />
-        </ActionIcon>
-      </Group>
+      {/* The pinned chrome: day-nav row (+ the attendance mode bar when in
+          attendance mode) stuck under the app header as one unit — the
+          shared sticky-chrome recipe (docs/dashboard-views.md, SettingsTabs):
+          a direct child of the page column, frosted glass surface, gutter
+          bleed so content sliding beneath is masked to the shell edges. */}
+      <Box
+        className="c2-glass-surface"
+        style={{
+          position: "sticky",
+          top: "var(--app-shell-header-offset)",
+          zIndex: 9,
+          borderBottom: "1px solid var(--mantine-color-default-border)",
+          marginInline: "calc(-1 * var(--app-shell-padding))",
+          paddingInline: "var(--app-shell-padding)",
+          paddingTop: "var(--mantine-spacing-md)",
+          paddingBottom: "var(--mantine-spacing-md)",
+          display: "flex",
+          flexDirection: "column",
+          gap: "var(--mantine-spacing-md)",
+        }}
+      >
+        {/* Same nav-row recipe as the calendar page: the day label takes the
+            free space, prev/next sit together beside it, then the mode/filter/
+            date controls. Today lives in the date-picker dialog. */}
+        <Group align="center" gap="xs" wrap="nowrap">
+          <Text
+            fw={600}
+            size="md"
+            lineClamp={1}
+            style={{ flex: 1, minWidth: 0, textAlign: "left" }}
+          >
+            {dayLabel}
+          </Text>
+          <ActionIcon
+            size={36}
+            variant="default"
+            aria-label="Previous day"
+            onClick={() => shiftDay(-1)}
+          >
+            <IconChevronLeft size={18} />
+          </ActionIcon>
+          <ActionIcon size={36} variant="default" aria-label="Next day" onClick={() => shiftDay(1)}>
+            <IconChevronRight size={18} />
+          </ActionIcon>
+          {desktopAttendanceButton}
+          <FilterButton
+            activeCount={activeFilterCount}
+            size={36}
+            iconSize={18}
+            onClick={(e) => {
+              setFilterOriginRect(e.currentTarget.getBoundingClientRect());
+              openFilter();
+            }}
+          />
+          <ActionIcon
+            size={36}
+            variant="default"
+            aria-label="Select date"
+            title="Select date"
+            onClick={(e) => {
+              setPickerOriginRect(e.currentTarget.getBoundingClientRect());
+              openPicker();
+            }}
+          >
+            <IconCalendarDot size={18} />
+          </ActionIcon>
+        </Group>
 
-      {/* Attendance mode bar: a visible, bounded mode with its own exit (the
-          entry button toggles to Done), the live present count, Copy, and a
-          Reset overflow. The destructive all-dates wipe stays behind its own
-          confirm. */}
-      {attendanceMode && (
-        <Paper
-          withBorder
-          p="xs"
-          style={{
-            borderColor: "var(--mantine-color-teal-4)",
-            backgroundColor: colorScheme === "dark" ? "#0b2b21" : "#e6fcf5",
-          }}
-        >
-          <Group justify="space-between" gap="xs" wrap="wrap">
-            <Group gap="xs" wrap="nowrap" style={{ minWidth: 0 }}>
-              <IconClipboardCheck size={18} color="var(--mantine-color-teal-6)" aria-hidden />
-              <Stack gap={0} style={{ minWidth: 0 }}>
-                <Text fw={600} size="sm" lineClamp={1}>
-                  Attendance mode
+        {/* Attendance mode bar: a visible, bounded mode with its own exit (the
+            entry button toggles to Done), the live present count, Copy, and a
+            Reset overflow. The destructive all-dates wipe stays behind its own
+            confirm. */}
+        {attendanceMode && (
+          <Paper
+            withBorder
+            p="xs"
+            style={{
+              borderColor: "var(--mantine-color-teal-4)",
+              backgroundColor: colorScheme === "dark" ? "#0b2b21" : "#e6fcf5",
+            }}
+          >
+            <Group justify="space-between" gap="xs" wrap="wrap">
+              <Group gap="xs" wrap="nowrap" style={{ minWidth: 0 }}>
+                <IconClipboardCheck size={18} color="var(--mantine-color-teal-6)" aria-hidden />
+                <Stack gap={0} style={{ minWidth: 0 }}>
+                  <Text fw={600} size="sm" lineClamp={1}>
+                    Attendance mode
+                  </Text>
+                  <Text size="xs" c="dimmed" lineClamp={1}>
+                    Saved on this device only
+                  </Text>
+                </Stack>
+              </Group>
+              <Group gap="xs" wrap="nowrap" style={{ flexShrink: 0 }}>
+                <Text size="sm" fw={700} style={{ flexShrink: 0 }}>
+                  {presentTotal}/{users.length} present
                 </Text>
-                <Text size="xs" c="dimmed" lineClamp={1}>
-                  Saved on this device only
-                </Text>
-              </Stack>
+                <Button
+                  size="compact-sm"
+                  variant="light"
+                  color="teal"
+                  leftSection={<IconClipboard size={14} />}
+                  onClick={() => void copyAttendanceReport()}
+                >
+                  Copy
+                </Button>
+                <Menu
+                  shadow="md"
+                  width={220}
+                  position="bottom-end"
+                  transitionProps={{
+                    transition: "pop-top-right",
+                    duration: MOTION.popover,
+                    timingFunction: "ease",
+                  }}
+                >
+                  <Menu.Target>
+                    <ActionIcon size={32} variant="subtle" aria-label="Attendance options">
+                      <IconDotsVertical size={16} />
+                    </ActionIcon>
+                  </Menu.Target>
+                  <Menu.Dropdown>
+                    <Menu.Label>Attendance</Menu.Label>
+                    <Menu.Item
+                      leftSection={<IconX size={16} />}
+                      onClick={resetDay}
+                      closeMenuOnClick
+                    >
+                      Clear this day
+                    </Menu.Item>
+                    <Menu.Item
+                      leftSection={<IconRefresh size={16} />}
+                      onClick={openResetConfirm}
+                      closeMenuOnClick
+                    >
+                      Clear all dates…
+                    </Menu.Item>
+                  </Menu.Dropdown>
+                </Menu>
+              </Group>
             </Group>
-            <Group gap="xs" wrap="nowrap" style={{ flexShrink: 0 }}>
-              <Text size="sm" fw={700} style={{ flexShrink: 0 }}>
-                {presentTotal}/{users.length} present
-              </Text>
-              <Button
-                size="compact-sm"
-                variant="light"
-                color="teal"
-                leftSection={<IconClipboard size={14} />}
-                onClick={() => void copyAttendanceReport()}
-              >
-                Copy
-              </Button>
-              <Menu
-                shadow="md"
-                width={220}
-                position="bottom-end"
-                transitionProps={{
-                  transition: "pop-top-right",
-                  duration: MOTION.popover,
-                  timingFunction: "ease",
-                }}
-              >
-                <Menu.Target>
-                  <ActionIcon size={32} variant="subtle" aria-label="Attendance options">
-                    <IconDotsVertical size={16} />
-                  </ActionIcon>
-                </Menu.Target>
-                <Menu.Dropdown>
-                  <Menu.Label>Attendance</Menu.Label>
-                  <Menu.Item leftSection={<IconX size={16} />} onClick={resetDay} closeMenuOnClick>
-                    Clear this day
-                  </Menu.Item>
-                  <Menu.Item
-                    leftSection={<IconRefresh size={16} />}
-                    onClick={openResetConfirm}
-                    closeMenuOnClick
-                  >
-                    Clear all dates…
-                  </Menu.Item>
-                </Menu.Dropdown>
-              </Menu>
-            </Group>
-          </Group>
-        </Paper>
-      )}
+          </Paper>
+        )}
+      </Box>
 
       {/* Status legend: the card colors carry real meaning, so they are named
           in text (color-blind safe). The live present count lives in the

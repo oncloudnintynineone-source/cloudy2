@@ -14,7 +14,11 @@ import { PageHeader } from "@/components/PageHeader";
 import { useColdStartContent } from "@/components/ColdStartReady";
 import { ClashAffectedChips } from "@/components/clashUi";
 import { ClashCard, ClashEventRow } from "@/components/clashCards";
-import { ClashDayStrip, ClashTimelineDays, type ClashTimelineEntry } from "@/components/clashTimeline";
+import {
+  ClashDayStrip,
+  ClashTimelineDays,
+  type ClashTimelineEntry,
+} from "@/components/clashTimeline";
 import { EventDetail } from "../dashboard/EventDetail";
 import { CONTENT_ENTER_CLASS } from "@/lib/loading/contentEnter";
 import { useMinSkeletonHold } from "@/lib/loading/minHoldLoading";
@@ -240,27 +244,45 @@ export function DoubleBookingView({
 
   return (
     <Stack gap="md" pb="xl" className={CONTENT_ENTER_CLASS}>
-      <div className="c2-db-head">
-        <div className="c2-db-title">
-          <PageHeader title="Double Booking" subtitle={subtitleFor(view)} />
-        </div>
-        {isAdmin && (
-          <div className="c2-db-picker">
-            <PickerField
-              label="Check another person"
-              items={selfScan ? [] : [targetSummaryItem]}
-              empty={
-                selfScan ? (
-                  <Text size="xs" c="dimmed">
-                    Checking your own schedule
-                  </Text>
-                ) : null
-              }
-              onOpen={() => setTargetPickerOpen(true)}
-            />
+      {/* The pinned chrome: the head block (title + admin target picker, one
+          flex row at lg) stuck under the app header while the clash groups
+          scroll beneath it — the shared sticky-chrome recipe
+          (docs/dashboard-views.md, SettingsTabs). */}
+      <Box
+        className="c2-glass-surface"
+        style={{
+          position: "sticky",
+          top: "var(--app-shell-header-offset)",
+          zIndex: 9,
+          borderBottom: "1px solid var(--mantine-color-default-border)",
+          marginInline: "calc(-1 * var(--app-shell-padding))",
+          paddingInline: "var(--app-shell-padding)",
+          paddingTop: "var(--mantine-spacing-md)",
+          paddingBottom: "var(--mantine-spacing-md)",
+        }}
+      >
+        <div className="c2-db-head">
+          <div className="c2-db-title">
+            <PageHeader title="Double Booking" subtitle={subtitleFor(view)} />
           </div>
-        )}
-      </div>
+          {isAdmin && (
+            <div className="c2-db-picker">
+              <PickerField
+                label="Check another person"
+                items={selfScan ? [] : [targetSummaryItem]}
+                empty={
+                  selfScan ? (
+                    <Text size="xs" c="dimmed">
+                      Checking your own schedule
+                    </Text>
+                  ) : null
+                }
+                onOpen={() => setTargetPickerOpen(true)}
+              />
+            </div>
+          )}
+        </div>
+      </Box>
 
       {renderContent(view)}
 

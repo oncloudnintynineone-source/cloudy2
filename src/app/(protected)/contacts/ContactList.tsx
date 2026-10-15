@@ -165,7 +165,24 @@ export function ContactList({
         title="Contacts"
         subtitle="Roster directory — call, copy, or export contact details."
       />
-      <Paper withBorder p="sm">
+      {/* The pinned chrome: search/filter/export bar stuck under the app
+          header while the contact cards scroll beneath it — the shared
+          sticky-chrome recipe (docs/dashboard-views.md, SettingsTabs):
+          frosted glass surface, gutter bleed, direct child of the page
+          column. */}
+      <Box
+        className="c2-glass-surface"
+        style={{
+          position: "sticky",
+          top: "var(--app-shell-header-offset)",
+          zIndex: 9,
+          borderBottom: "1px solid var(--mantine-color-default-border)",
+          marginInline: "calc(-1 * var(--app-shell-padding))",
+          paddingInline: "var(--app-shell-padding)",
+          paddingTop: "var(--mantine-spacing-md)",
+          paddingBottom: "var(--mantine-spacing-md)",
+        }}
+      >
         <Group justify="space-between" wrap="nowrap" gap="sm">
           <TextInput
             aria-label="Search contacts by name, shortname, or phone"
@@ -184,7 +201,7 @@ export function ContactList({
             />
           )}
           {/* Desktop: full-size export button instead of the FAB (like the
-              settings tabs' "Add ..." buttons); the FAB below is mobile-only. */}
+                settings tabs' "Add ..." buttons); the FAB below is mobile-only. */}
           <Button
             visibleFrom="lg"
             __vars={{ "--button-height": "43px" }}
@@ -194,7 +211,7 @@ export function ContactList({
             Export contacts
           </Button>
         </Group>
-      </Paper>
+      </Box>
 
       {filtered.length === 0 ? (
         isNarrowed ? (
