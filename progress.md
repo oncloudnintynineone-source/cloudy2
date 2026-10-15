@@ -18,7 +18,7 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
 
 ## 1.1 Status
 
-- All work through changelog **1.296 (micro-motion pass)** is shipped.
+- All work through changelog **1.302 (fixed rail order)** is shipped.
 - Quality gates (`lint` / `typecheck` / `test` / schema-drift check) run in CI on every
   push and PR. Pushes also auto-apply migrations per environment: `dev` →
   `migrate-preview` against the dev Neon DB, `main` → `migrate` against the prod Neon
@@ -1694,6 +1694,43 @@ via `?attendance=1` and `attendanceStorage` became a `useSyncExternalStore` exte
     `pop-top-right`, so it grew away from the button; switched to
     `pop-bottom-right` (unfurls upward from the More tile, matching
     `QuickLinksMenu`'s top-positioned pattern).
+- 1.299 Bottom-nav variants (`bottomNavVariant` flag, Settings → Feature Flags):
+    mobile footer overflow was always crammed behind one More popup — research
+    says bottom bars want 3–5 destinations (Material) and hidden menus
+    discount feature use (NN/g). Three variants: `classic` (today), `roleAware`
+    (admins surface Double Booking/KAH Status/Settings as tiles), `sheetExpand`
+    (Google Maps expanding rail — hamburger toggle slides the overflow tiles
+    out of zero-width flex slots via an animated `max-width` with the delayed-
+    `visibility` focusability trick; height fixed so footer offsets untouched;
+    tapping the active tile collapses). Primary-tile rule is pure
+    `footerPrimaryFor` (`src/lib/bottomNav.ts`, unit-tested); flag resolved in
+    the (protected) layout into the shell. Docs: `feature-flags.md`,
+    `desktop-responsive.md` §1.2.
+- 1.300 Bottom-nav variant round 2: users rejected the expanded/More-menu UX
+    (two taps to reach hidden pages + small popup tap targets). Flag options
+    cut to `roleAware` (new default) + `scrollRail`; legacy `classic`/
+    `sheetExpand` fall back via `resolveFlagValue`. `scrollRail` puts every
+    destination in the bar at full tap-target size (72px floor tiles, labels
+    kept, `railOrderFor` role ordering leads with the role's own
+    destinations), overflow behind a right-edge gradient fade panned by touch
+    swipe or snapped by `RailEdgeControl` chevrons (`c2-scroll-rail` +
+    `c2-rail-nudge` hint in globals.css); height fixed → offsets intact.
+    Schema column default flipped to `roleAware` (new migration).
+- 1.301 Rail tile-width round: users found the 72px rail tiles compressed and
+    wanted fixed widths so wide screens reveal more buttons. Footer is now
+    ALWAYS the scrolling rail — `roleAware`/More-popup footer removed entirely
+    (popup machinery deleted from the shell); the `bottomNavVariant` flag
+    repurposed to the fixed tile width: `wide` 96 / `medium` 84 (new default)
+    / `tight` 72 via `RAIL_TILE_WIDTHS`, tiles `flex: 0 0 Wpx` (no grow —
+    wider viewports simply show more tiles, remainder clips under the fade).
+    Schema default → `medium` (new migration).
+- 1.302 Fixed rail order: the role-aware ordering is dropped — the rail uses
+    the original nav order for every role (Calendar, Parade State, Contacts,
+    Double Booking, My Events, KAH Status, Settings) via the constant
+    `RAIL_ORDER` (`src/lib/bottomNav.ts`, unit-tested; invisible entries
+    simply aren't in the item list). Cost: admins' Settings/KAH Status now
+    trail the rail (clipped behind the fade on small phones, reachable by
+    swipe/chevron).
 
 ## 1.4 Open items & next steps
 

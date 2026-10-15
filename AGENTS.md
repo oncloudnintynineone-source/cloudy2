@@ -303,12 +303,15 @@ doc content here.
   `useActionPill()`, `src/components/ActionPill.tsx`) — a bottom-floating two-tone pill
   with a light progress fill — never `notifications.show({ message: <Button/> })`.
   Design: [docs/action-pill.md](docs/action-pill.md).
-- **Global bottom nav** (`AppShell.Footer`): the four primary tiles are Calendar
-  `/dashboard`, Parade State `/parade-state`, Contacts `/contacts`, Double Booking
-  `/double-booking`; a trailing **More** tile opens a `Menu` popup (the profile-menu
-  pattern) holding My Events `/my-events` (every role), KAH Status `/kah-status`
-  (admins/KAH members), and Settings `/settings` (admin-only). The desktop sidebar always
-  shows every entry. `SettingsTabs` stacks directly above the footer.
+- **Global bottom nav** (`AppShell.Footer`): below `lg` the footer is always a
+  **scrolling rail** — every destination is a full-size fixed tile in the bar
+  (one tap to reach any page), in the fixed `RAIL_ORDER` order (`src/lib/bottomNav.ts`,
+  pure + unit-tested) with tile width from the `bottomNavVariant` flag
+  (`RAIL_TILE_WIDTHS`, fixed — wider viewports simply reveal more tiles). Tiles
+  beyond the viewport hide behind a right-edge fade and come with a swipe or the
+  edge **chevron** (`RailEdgeControl`, snapping the rail between its start/end
+  stops). The desktop sidebar always shows every entry. `SettingsTabs` stacks
+  directly above the footer.
 - **Admin settings live under `/settings`** (admin-only): Users, Departments, Event Types,
   Templates, Webhooks, Quick Links, KAH Groups, Banner, General, Security, Audit Log,
   Feature Flags tabs.
@@ -329,10 +332,16 @@ doc content here.
   ([`action-pill.md`](docs/action-pill.md)); and `translucencyLevel` — the app-wide frosted-glass
   opacity (subtle / medium / strong) for the page's overlapping surfaces (sticky
   calendar chrome, bottom nav, sidebar, floating controls; the header and overlays stay opaque), published on `<html>`
-  as `data-c2-glass` by the shell (plus a `c2-glass--<level>` class on the mobile FAB cluster via
-  `DashboardSharedConfig` → `DashboardView`)
-  ([`dashboard-views.md`](docs/dashboard-views.md) §1.1). Design:
-  [docs/feature-flags.md](docs/feature-flags.md).
+   as `data-c2-glass` by the shell (plus a `c2-glass--<level>` class on the mobile FAB cluster via
+   `DashboardSharedConfig` → `DashboardView`)
+   ([`dashboard-views.md`](docs/dashboard-views.md) §1.1); `reorderDrag` — the
+   reorder interaction for the manageable lists ([`reorder.md`](docs/reorder.md));
+   and `bottomNavVariant` — the mobile footer's always-scrolling rail tile
+   width (`wide` 96px / `medium` 84px default / `tight` 72px; fixed tiles,
+   wider screens reveal more), in the fixed original nav order (`RAIL_ORDER`
+   — `src/lib/bottomNav.ts`) in the shell
+   ([`desktop-responsive.md`](docs/desktop-responsive.md) §1.2). Design:
+   [docs/feature-flags.md](docs/feature-flags.md).
 - **Templates:** display-name template + **structured recipes** (`src/lib/settings/titleRecipe.ts`,
   no free text beyond an optional per-segment Text field) with per-target assignments
   (incl. `pinned`/`pinnedHeader` and the push bodies `notifyCreated`/`notifyAdded`).

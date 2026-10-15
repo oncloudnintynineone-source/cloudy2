@@ -9,9 +9,9 @@
  * Kept free of I/O and types so it unit-tests without a database.
  */
 
-export interface FeatureFlagDef<TOption extends string = string> {
+export interface FeatureFlagDef<TKey extends string = string, TOption extends string = string> {
   /** Must match the `settings` column name (camelCase) the flag is stored in. */
-  key: string;
+  key: TKey;
   /** UI label shown on the Feature Flags page. */
   label: string;
   /** Short description shown under the label. */
@@ -33,7 +33,7 @@ export const PINNED_TICKER_INDICATOR_OPTIONS = [
 ] as const;
 export type PinnedTickerIndicator = (typeof PINNED_TICKER_INDICATOR_OPTIONS)[number];
 
-export const pinnedTickerIndicatorFlag: FeatureFlagDef<PinnedTickerIndicator> = {
+export const pinnedTickerIndicatorFlag: FeatureFlagDef<"pinnedTickerIndicator", PinnedTickerIndicator> = {
   key: "pinnedTickerIndicator",
   label: "Pinned events indicator",
   description:
@@ -59,7 +59,7 @@ export const SAVED_EVENT_TOAST_OPTIONS = [
 ] as const;
 export type SavedEventToastVariant = (typeof SAVED_EVENT_TOAST_OPTIONS)[number];
 
-export const savedEventToastVariantFlag: FeatureFlagDef<SavedEventToastVariant> = {
+export const savedEventToastVariantFlag: FeatureFlagDef<"savedEventToastVariant", SavedEventToastVariant> = {
   key: "savedEventToastVariant",
   label: "Saved-event confirmation",
   description:
@@ -80,7 +80,7 @@ export const savedEventToastVariantFlag: FeatureFlagDef<SavedEventToastVariant> 
 export const TRANSLUCENCY_LEVEL_OPTIONS = ["subtle", "medium", "strong"] as const;
 export type TranslucencyLevel = (typeof TRANSLUCENCY_LEVEL_OPTIONS)[number];
 
-export const translucencyLevelFlag: FeatureFlagDef<TranslucencyLevel> = {
+export const translucencyLevelFlag: FeatureFlagDef<"translucencyLevel", TranslucencyLevel> = {
   key: "translucencyLevel",
   label: "Interface translucency",
   description:
@@ -102,7 +102,7 @@ export const translucencyLevelFlag: FeatureFlagDef<TranslucencyLevel> = {
 export const REORDER_DRAG_OPTIONS = ["drag", "arrowsDrag", "arrows"] as const;
 export type ReorderDrag = (typeof REORDER_DRAG_OPTIONS)[number];
 
-export const reorderDragFlag: FeatureFlagDef<ReorderDrag> = {
+export const reorderDragFlag: FeatureFlagDef<"reorderDrag", ReorderDrag> = {
   key: "reorderDrag",
   label: "Reorder interaction",
   description:
@@ -120,11 +120,35 @@ export const reorderDragFlag: FeatureFlagDef<ReorderDrag> = {
   defaultValue: "drag",
 };
 
+export const BOTTOM_NAV_VARIANT_OPTIONS = ["wide", "medium", "tight"] as const;
+export type BottomNavVariant = (typeof BOTTOM_NAV_VARIANT_OPTIONS)[number];
+
+export const bottomNavVariantFlag: FeatureFlagDef<"bottomNavVariant", BottomNavVariant> = {
+  key: "bottomNavVariant",
+  label: "Scrolling rail tile width",
+  description:
+    "Fixed tile width of the mobile bottom navigation's scrolling rail — " +
+    "every destination is a full-size tile in the bar itself (one tap to " +
+    "reach any page; the rest sit behind the right-edge fade and come with " +
+    "a swipe or the edge chevrons). Wider tiles show labels in full but fit " +
+    "fewer per screen; narrower tiles show more destinations at a glance. " +
+    "The desktop sidebar always shows every entry. Toggle to compare the " +
+    "widths live, then keep the one you want.",
+  options: BOTTOM_NAV_VARIANT_OPTIONS,
+  optionLabels: {
+    wide: "Wide — 96px",
+    medium: "Medium — 84px",
+    tight: "Tight — 72px",
+  },
+  defaultValue: "medium",
+};
+
 export const FEATURE_FLAGS = [
   pinnedTickerIndicatorFlag,
   savedEventToastVariantFlag,
   translucencyLevelFlag,
   reorderDragFlag,
+  bottomNavVariantFlag,
 ] as const;
 export type FeatureFlagKey = (typeof FEATURE_FLAGS)[number]["key"];
 
@@ -148,7 +172,7 @@ export function isFeatureFlagKey(value: unknown): value is FeatureFlagKey {
  * hand-edited rows can never produce an invalid value.
  */
 export function resolveFlagValue<TOption extends string>(
-  def: FeatureFlagDef<TOption>,
+  def: FeatureFlagDef<string, TOption>,
   stored: unknown,
 ): TOption {
   return typeof stored === "string" && (def.options as readonly string[]).includes(stored)

@@ -1,0 +1,1 @@
+ALTER TABLE "settings" ADD COLUMN "bottom_nav_variant" text DEFAULT 'classic' NOT NULL;

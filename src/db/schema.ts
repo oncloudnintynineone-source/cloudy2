@@ -447,6 +447,13 @@ export const settings = pgTable(
      */
     reorderDrag: text("reorder_drag").notNull().default("drag"),
     /**
+     * Mobile bottom navigation scrolling-rail tile width (Settings → Feature
+     * Flags): `wide` (96px), `medium` (default, 84px) or `tight` (72px). One
+     * of the keys in `FEATURE_FLAGS` (`src/lib/settings/featureFlags.ts`);
+     * the registry's default backs the column default.
+     */
+    bottomNavVariant: text("bottom_nav_variant").notNull().default("medium"),
+    /**
      * Daily parade-state email (Settings → Parade State Email): when enabled,
      * the selected roster users receive one snapshot on each configured weekday
      * once the configured send time has passed (Singapore time). The trigger is

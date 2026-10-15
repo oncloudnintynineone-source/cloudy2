@@ -3,10 +3,8 @@
 import {
   ActionIcon,
   AppShell,
-  Badge,
   Box,
   Group,
-  Menu,
   NavLink,
   Stack,
   Text,
@@ -18,8 +16,9 @@ import {
   IconAddressBook,
   IconCalendarClock,
   IconCalendarMonth,
+  IconChevronLeft,
+  IconChevronRight,
   IconClipboardList,
-  IconDots,
   IconHistory,
   IconLayoutSidebarLeftCollapse,
   IconLayoutSidebarLeftExpand,
@@ -28,7 +27,7 @@ import {
   IconSettings,
   IconUsersGroup,
 } from "@tabler/icons-react";
-import { forwardRef, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import dynamic from "next/dynamic";
 import { usePathname, useRouter } from "next/navigation";
@@ -54,7 +53,6 @@ import {
 import {
   NAV_ACTIVE_COLOR,
   NAV_IDLE_COLOR,
-  NAV_ICON_STYLE,
   NavIcon,
   navAriaLabel,
   PendingDim,
@@ -79,11 +77,14 @@ const preloadSearchModalChunk = () =>
   (EventSearchModal as unknown as { preload?: () => Promise<unknown> }).preload?.();
 import { UserMenu } from "@/components/UserMenu";
 import { BANNER_HEIGHT_PX, type BannerConfig } from "@/lib/banner/banner";
-import { BOTTOM_NAV_HEIGHT } from "@/lib/bottomNav";
+import { BOTTOM_NAV_HEIGHT, RAIL_ORDER, RAIL_TILE_WIDTHS } from "@/lib/bottomNav";
 import { fetchPinnedEvents, type PinnedEvent } from "@/lib/events/pinned";
-import type { PinnedTickerIndicator, TranslucencyLevel } from "@/lib/settings/featureFlags";
+import type {
+  BottomNavVariant,
+  PinnedTickerIndicator,
+  TranslucencyLevel,
+} from "@/lib/settings/featureFlags";
 import type { Rect } from "@/lib/motion/origin";
-import { MOTION } from "@/lib/motion/timing";
 import { LIVE_REFRESH_EVENT } from "@/lib/loading/liveRefreshRules";
 import { useInactivityRefresh, useOneShotRefreshStrip } from "@/lib/pwa/client";
 import { useParadeEmailTick } from "@/lib/parade-email/client";
@@ -158,15 +159,11 @@ const SETTINGS: NavItem = {
 const SIDEBAR_WIDTH = 240;
 const SIDEBAR_RAIL_WIDTH = 64;
 
-// The four daily-use tiles kept directly in the mobile bottom nav; every other
-// entry (My Events, KAH Status, Settings) collapses into the "More" popup. The
+// The mobile footer is always the scrolling rail: tile order comes from the
+// fixed `RAIL_ORDER` and the tile width from `RAIL_TILE_WIDTHS`
+// (`src/lib/bottomNav.ts`), keyed by the `bottomNavVariant` feature flag —
+// wider tiles show labels in full, narrower tiles fit more per screen. The
 // desktop sidebar always shows every entry.
-const FOOTER_PRIMARY_HREFS: ReadonlySet<string> = new Set([
-  "/dashboard",
-  "/parade-state",
-  "/contacts",
-  "/double-booking",
-]);
 
 // Static style objects hoisted out of the render body: this shell re-renders on
 // every pathname / pinned-events / badge / banner change, so these are shared
@@ -196,6 +193,62 @@ const HEADER_STYLE: React.CSSProperties = {
   // The safe-area region stays brand blue; the banner + header render below it.
   paddingTop: "env(safe-area-inset-top)",
 };
+
+/**
+ * The `scrollRail` variant's edge affordance: a gradient fade over the clipped
+ * tile signalling "more destinations this way" plus a chevron button that
+ * snaps the rail to its other stop. The fade itself is `pointer-events: none`
+ * so it never steals a tap from the tiles; the chevron is the fallback pan for
+ * keyboards and for browsers that capture bottom-edge swipes as OS gestures.
+ */
+function RailEdgeControl({
+  side,
+  onClick,
+  hint,
+}: {
+  side: "left" | "right";
+  onClick: () => void;
+  hint?: boolean;
+}) {
+  return (
+    <Box
+      style={{
+        position: "absolute",
+        top: 0,
+        bottom: 0,
+        width: 44,
+        left: side === "left" ? 0 : "auto",
+        right: side === "left" ? "auto" : 0,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        pointerEvents: "none",
+        background:
+          side === "right"
+            ? "linear-gradient(to left, var(--mantine-color-default), transparent)"
+            : "linear-gradient(to right, var(--mantine-color-default), transparent)",
+        zIndex: 1,
+      }}
+    >
+      <UnstyledButton
+        onClick={onClick}
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          padding: 8,
+          color: NAV_IDLE_COLOR,
+          pointerEvents: "auto",
+        }}
+        aria-label={side === "right" ? "Show more destinations" : "Show first destinations"}
+      >
+        <Box className={hint ? "c2-rail-hint" : undefined}>
+          {side === "right" ? <IconChevronRight size={20} /> : <IconChevronLeft size={20} />}
+        </Box>
+      </UnstyledButton>
+    </Box>
+  );
+}
 
 // How long an optimistic nav highlight survives without a commit before
 // reverting (stalled or offline request). Long enough to never flicker on a
@@ -315,6 +368,7 @@ function NavButton({
   active,
   onTap,
   compact,
+  railWidth,
 }: {
   item: NavItem;
   active: boolean;
@@ -324,6 +378,10 @@ function NavButton({
    *  centered with slightly more vertical padding. The button already carries
    *  `aria-label={item.label}`, so accessibility is preserved. */
   compact?: boolean;
+  /** Scrolling-rail tile: a fixed pixel width (no grow, no shrink), so tiles
+   *  never squeeze below full tap-target size — the overflow scrolls behind
+   *  the edge fade instead, and wider viewports simply reveal more tiles. */
+  railWidth?: number;
 }) {
   return (
     <UnstyledButton
@@ -331,7 +389,7 @@ function NavButton({
       href={item.href}
       onClick={onTap}
       style={{
-        flex: 1,
+        flex: railWidth ? `0 0 ${railWidth}px` : 1,
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
@@ -374,72 +432,6 @@ function NavButton({
   );
 }
 
-/**
- * The bottom nav's "More" tile — the `Menu.Target` for the popup holding the
- * entries that don't fit as primary footer tiles (see `FOOTER_PRIMARY_HREFS`).
- * Purely presentational; the surrounding `Menu.Target` owns the click. Carries
- * the summed count of any badges living in the overflow so an off-screen alert
- * is still signalled.
- */
-const MoreNavButton = forwardRef<
-  HTMLButtonElement,
-  { active: boolean; badge: number; compact?: boolean } & React.ComponentPropsWithoutRef<
-    typeof UnstyledButton
-  >
->(function MoreNavButton({ active, badge, compact, ...others }, ref) {
-  return (
-    <UnstyledButton
-      // The injected `Menu.Target` props (onClick, aria-*, data-*) must reach
-      // the button or the tile silently never opens the menu.
-      {...others}
-      ref={ref}
-      style={{
-        flex: 1,
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        paddingBlock: compact ? 8 : 6,
-        minHeight: BOTTOM_NAV_HEIGHT,
-        color: active ? NAV_ACTIVE_COLOR : NAV_IDLE_COLOR,
-      }}
-      aria-label={badge > 0 ? `More — ${badge} item${badge === 1 ? "" : "s"} needing attention` : "More"}
-    >
-      <Box
-        style={{
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
-          gap: compact ? 0 : 2,
-        }}
-      >
-        <Box style={NAV_ICON_STYLE}>
-          <IconDots size={22} />
-          {badge > 0 ? (
-            <span className="c2-nav-badge" aria-hidden>
-              {badge}
-            </span>
-          ) : null}
-        </Box>
-        {!compact && (
-          <Text
-            size="xs"
-            fw={active ? 600 : 500}
-            style={{
-              maxWidth: "100%",
-              overflow: "hidden",
-              textOverflow: "ellipsis",
-              whiteSpace: "nowrap",
-              textAlign: "center",
-            }}
-          >
-            More
-          </Text>
-        )}
-      </Box>
-    </UnstyledButton>
-  );
-});
-
 // The header bar's height; the shell header stacks the optional
 // announcement banner (admin-picked height preset) on top of it.
 const HEADER_HEIGHT_PX = 56;
@@ -453,6 +445,7 @@ export function AppShellShell({
   bannerConfig,
   pinnedTickerIndicator,
   translucencyLevel,
+  bottomNavVariant,
   kahNavSlot,
   children,
 }: {
@@ -486,6 +479,11 @@ export function AppShellShell({
    *  surface — including portaled menus/modals/FABs — inherits the level from
    *  the token cascade. */
   translucencyLevel: TranslucencyLevel;
+  /** Scrolling-rail tile width (Settings → Feature Flags), resolved by the
+   *  (protected) layout from the settings row and passed as a prop: `wide`
+   *  (96px) / `medium` (default, 84px) / `tight` (72px) — the fixed per-tile
+   *  width of the always-scrolling mobile footer rail (`RAIL_TILE_WIDTHS`). */
+  bottomNavVariant: BottomNavVariant;
   /** Streamed KAH-status probe (a <Suspense> from the (protected) layout);
    *  reveals the KAH Status nav entry when the signed-in user belongs to a
    *  group. Null for admins (they always see it). */
@@ -837,6 +835,20 @@ export function AppShellShell({
   const isActive = (item: NavItem) => item.matches(pathname) || item.href === tappedHref;
   const handleTap = (href: string) => setTappedHref(href);
 
+  // Scrolling-rail state: which stop the rail is parked at (start = the
+  // leading tiles visible, end = the trailing destinations visible). The
+  // chevron affordance snaps between the two; touch swipes pan freely
+  // between them without touching this state.
+  const [railAtEnd, setRailAtEnd] = useState(false);
+  const railSnap = (toEnd: boolean) => {
+    setRailAtEnd(toEnd);
+    const rail = document.querySelector(".c2-scroll-rail");
+    if (!rail) {
+      return;
+    }
+    rail.scrollBy({ left: toEnd ? rail.scrollWidth : -rail.scrollWidth, behavior: "smooth" });
+  };
+
   const items: NavItem[] =
     role === "admin"
       ? [CALENDAR, PARADE_STATE, CONTACTS, DOUBLE_BOOKING, MY_EVENTS, KAH_STATUS, SETTINGS]
@@ -967,11 +979,21 @@ export function AppShellShell({
     return count && count > 0 ? { ...item, badge: count } : item;
   });
 
-  // The mobile footer shows the four primary tiles plus a "More" popup holding
-  // every other entry. The desktop sidebar always renders every entry.
-  const footerPrimary = navItems.filter((item) => FOOTER_PRIMARY_HREFS.has(item.href));
-  const footerOverflow = navItems.filter((item) => !FOOTER_PRIMARY_HREFS.has(item.href));
-  const overflowBadge = footerOverflow.reduce((sum, item) => sum + (item.badge ?? 0), 0);
+  // The mobile footer is always the scrolling rail: every destination is a
+  // fixed-size tile in the bar itself (one tap to reach any page), in the
+  // original nav order (`RAIL_ORDER` — pure and unit-tested in
+  // `src/lib/bottomNav.ts`; entries a user can't see simply aren't in the
+  // item list). The tile width is the `bottomNavVariant` flag's entry of
+  // `RAIL_TILE_WIDTHS` — fixed (no grow), so wider viewports simply reveal
+  // more tiles. The desktop sidebar always renders every entry.
+  const railItems = navItems.slice().sort(
+    (a, b) => RAIL_ORDER.indexOf(a.href) - RAIL_ORDER.indexOf(b.href),
+  );
+  const railWidth = RAIL_TILE_WIDTHS[bottomNavVariant];
+  // Overflow is decided from the fixed tile widths vs. the viewport (the
+  // footer runs edge-to-edge on mobile); when everything fits, no fade or
+  // chevron is rendered.
+  const railOverflows = railItems.length * railWidth > window.innerWidth;
 
   // --- iOS PWA viewport sync ---
   // On some iOS versions, 100dvh/vh resolves to the full screen height but the
@@ -1270,65 +1292,28 @@ export function AppShellShell({
             }}
           >
             <Box
+              className="c2-scroll-rail"
               style={{
                 display: "flex",
+                overflowX: "auto",
               }}
             >
-              {footerPrimary.map((item) => (
+              {railItems.map((item) => (
                 <NavButton
                   key={item.href}
                   item={item}
                   active={isActive(item)}
                   onTap={() => handleTap(item.href)}
-                  compact={isNarrow}
+                  railWidth={railWidth}
                 />
               ))}
-              <Menu
-                position="top"
-                width={220}
-                withinPortal
-                shadow="md"
-                transitionProps={{
-                  // The menu opens ABOVE the More tile (the footer hugs the
-                  // viewport bottom), so it must unfurl from its bottom-right
-                  // corner at the button — `QuickLinksMenu`'s top-positioned
-                  // pattern, not the below-trigger `pop-top-right`.
-                  transition: "pop-bottom-right",
-                  duration: MOTION.popover,
-                  exitDuration: MOTION.popover,
-                  timingFunction: "ease",
-                }}
-              >
-                <Menu.Target>
-                  <MoreNavButton
-                    active={footerOverflow.some(isActive)}
-                    badge={overflowBadge}
-                    compact={isNarrow}
-                  />
-                </Menu.Target>
-                <Menu.Dropdown>
-                  {footerOverflow.map((item) => (
-                    <Menu.Item
-                      key={item.href}
-                      component={Link}
-                      href={item.href}
-                      leftSection={item.icon}
-                      aria-label={item.badge ? navAriaLabel(item) : undefined}
-                      onClick={() => handleTap(item.href)}
-                    >
-                      <Group justify="space-between" gap="md" wrap="nowrap">
-                        <Text size="sm">{item.label}</Text>
-                        {item.badge && item.badge > 0 ? (
-                          <Badge size="xs" variant="light" color="accent" aria-hidden>
-                            {item.badge}
-                          </Badge>
-                        ) : null}
-                      </Group>
-                    </Menu.Item>
-                  ))}
-                </Menu.Dropdown>
-              </Menu>
             </Box>
+            {railOverflows ? (
+              <>
+                <RailEdgeControl side="right" onClick={() => railSnap(true)} hint />
+                {railAtEnd ? <RailEdgeControl side="left" onClick={() => railSnap(false)} /> : null}
+              </>
+            ) : null}
           </AppShell.Footer>
         </AppShell>
       </ActivityProvider>

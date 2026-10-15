@@ -7,6 +7,7 @@ import { googleCalendarConfigured } from "@/lib/google";
 import { requireSession } from "@/lib/session";
 import { getBanner, getSettings } from "@/lib/settings/queries";
 import {
+  bottomNavVariantFlag,
   pinnedTickerIndicatorFlag,
   resolveFlagValue,
   translucencyLevelFlag,
@@ -47,6 +48,10 @@ export default async function ProtectedLayout({ children }: { children: React.Re
         translucencyLevel={resolveFlagValue(
           translucencyLevelFlag,
           settings.featureFlags.translucencyLevel,
+        )}
+        bottomNavVariant={resolveFlagValue(
+          bottomNavVariantFlag,
+          settings.featureFlags.bottomNavVariant,
         )}
         kahNavSlot={
           // Admins always see KAH Status (all groups) — skip the membership probe.

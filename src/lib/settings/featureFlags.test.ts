@@ -12,6 +12,7 @@ import {
   pinnedTickerIndicatorFlag,
   reorderDragFlag,
   savedEventToastVariantFlag,
+  bottomNavVariantFlag,
 } from "./featureFlags";
 
 describe("feature flag registry", () => {
@@ -41,14 +42,16 @@ describe("resolveFlagValue", () => {
     expect(resolveFlagValue(savedEventToastVariantFlag, "toastPlain")).toBe("toastPlain");
     expect(resolveFlagValue(translucencyLevelFlag, "strong")).toBe("strong");
     expect(resolveFlagValue(reorderDragFlag, "arrowsDrag")).toBe("arrowsDrag");
+    expect(resolveFlagValue(bottomNavVariantFlag, "tight")).toBe("tight");
   });
 
   it("falls back to the default for unknown values", () => {
-    for (const unknown of ["fancy", "", 42, null, undefined, {}]) {
+    for (const unknown of ["fancy", "", 42, null, undefined, {}, "classic", "roleAware", "sheetExpand", "scrollRail"]) {
       expect(resolveFlagValue(pinnedTickerIndicatorFlag, unknown)).toBe("classic");
       expect(resolveFlagValue(savedEventToastVariantFlag, unknown)).toBe("pill");
       expect(resolveFlagValue(translucencyLevelFlag, unknown)).toBe("medium");
       expect(resolveFlagValue(reorderDragFlag, unknown)).toBe("drag");
+      expect(resolveFlagValue(bottomNavVariantFlag, unknown)).toBe("medium");
     }
   });
 });
@@ -64,6 +67,7 @@ describe("normalizeFeatureFlags", () => {
       savedEventToastVariant: "toastAction",
       translucencyLevel: "medium",
       reorderDrag: "drag",
+      bottomNavVariant: "medium",
     });
   });
 
@@ -74,6 +78,7 @@ describe("normalizeFeatureFlags", () => {
       savedEventToastVariant: "pill",
       translucencyLevel: "medium",
       reorderDrag: "drag",
+      bottomNavVariant: "medium",
     });
   });
 });
@@ -84,6 +89,7 @@ describe("isFeatureFlagKey", () => {
     expect(isFeatureFlagKey("savedEventToastVariant")).toBe(true);
     expect(isFeatureFlagKey("translucencyLevel")).toBe(true);
     expect(isFeatureFlagKey("reorderDrag")).toBe(true);
+    expect(isFeatureFlagKey("bottomNavVariant")).toBe(true);
     expect(isFeatureFlagKey("notAFlag")).toBe(false);
   });
 });
@@ -114,6 +120,7 @@ describe("validateFeatureFlags", () => {
         savedEventToastVariant: "pillRestyle",
         translucencyLevel: "strong",
         reorderDrag: "arrowsDrag",
+        bottomNavVariant: "wide",
       }),
     ).toEqual({});
   });

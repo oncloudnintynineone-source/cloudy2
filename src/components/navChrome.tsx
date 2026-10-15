@@ -1,9 +1,8 @@
 "use client";
 
 /**
- * Shared nav-chrome pieces used by both the shell's own surfaces
- * (`AppShellShell`: bottom nav, sidebar, rail) and the floating bottom-nav
- * pill (`FloatingBottomNav`): the nav entry model, its idle/active colours,
+ * Shared nav-chrome pieces used by the shell's own surfaces
+ * (`AppShellShell`: bottom nav, sidebar, rail): the nav entry model, its idle/active colours,
  * the icon wrapper that carries the count pill, and the optimistic press
  * feedback (`PendingDim`).
  */

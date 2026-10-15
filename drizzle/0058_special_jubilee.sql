@@ -1,0 +1,1 @@
+ALTER TABLE "settings" ALTER COLUMN "bottom_nav_variant" SET DEFAULT 'roleAware';

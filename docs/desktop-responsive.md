@@ -111,13 +111,26 @@ flowchart LR
   writing `--app-shell-footer-offset` when `isDesktop` (an inline custom property
   on the shell root beats Mantine's `:root { …: 0px !important }` for all
   descendants — the old unconditional write left the navbar 56px short of the
-  viewport bottom and padded Main's bottom by the same amount on installed
-  PWAs at desktop width). The effect now measures `window.visualViewport` (the
+  viewport bottom and padded Main's bottom by the same amount on installed PWAs
+  at desktop width). The effect now measures `window.visualViewport` (the
   visible area) rather than `documentElement.clientHeight` (the layout viewport
   `position: fixed` resolves against), exposes the difference as
   `--app-shell-visual-bottom-gap`, and adds the JS-detected
   `app-shell-standalone` class that gates the standalone CSS; see
   [docs/pwa-offline.md](pwa-offline.md) §1.19.
+  - **Scrolling rail (`bottomNavVariant` flag):** the mobile footer is always
+    the scrolling rail — every destination is a fixed-size tile in the bar
+    itself (one tap to reach any page), in the fixed original nav order
+    (`RAIL_ORDER` in `src/lib/bottomNav.ts`). The flag now picks the
+    **fixed tile width** (`RAIL_TILE_WIDTHS` in `src/lib/bottomNav.ts`):
+    `wide` 96px / `medium` 84px (default) / `tight` 72px — wider tiles show
+    labels in full, narrower tiles fit more destinations per screen. Tiles
+    never grow or shrink (`flex: 0 0 Wpx`), so wider viewports simply reveal
+    **more** tiles; the overflow scrolls behind a right-edge gradient fade
+    panned by touch swipe — or snapped by the `RailEdgeControl` edge chevrons
+    (`c2-rail-nudge` one-time hint) for keyboards and OS-gesture-captured
+    browsers. The bar's height never changes, so every footer offset stays
+    intact.
 - `isDesktop` comes from `useMediaQuery` (see 1.1); it drives the footer's
   `collapsed` prop and the standalone-sync footer-offset guard — the navbar
   collapse is Mantine's own `breakpoint`.

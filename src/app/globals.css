@@ -1802,6 +1802,38 @@ html {
   }
 }
 
+/* Scrolling rail (`scrollRail` bottom-nav variant, docs/desktop-responsive.md
+   §1.2): the footer's overflow container pans by touch/swipe — no visible
+   scrollbar — and the edge chevrons snap the rail to its start/end stops. */
+.c2-scroll-rail {
+  scrollbar-width: none;
+  overscroll-behavior-x: contain;
+}
+.c2-scroll-rail::-webkit-scrollbar {
+  display: none;
+  width: 0;
+}
+
+/* One-time nudge on the right-edge chevron: the rail's hidden destinations
+   only exist behind the fade, so the affordance must announce itself without
+   being learned. The node is created once per footer render, so the pulse
+   plays once and never loops. */
+@keyframes c2-rail-nudge {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  50% {
+    transform: translateX(0.25rem);
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .c2-rail-hint {
+    animation: c2-rail-nudge var(--c2-dur-standard) ease-in-out 2;
+  }
+}
+
 /* A deep-linked event row inside an expanded Double Booking card
    (docs/user-clashes.md §1.8): padded/rounded so the whole row reads as a
    pressable target, with a hover tint and a focus ring for keyboard users. */
