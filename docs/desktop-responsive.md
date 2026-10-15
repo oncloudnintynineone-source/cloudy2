@@ -167,11 +167,15 @@ The old fixed pixel offsets (`BOTTOM_NAV_FLOATING_OFFSET`,
 above replace them, so a FAB's clearance now re-resolves automatically at the
 breakpoint.
 
-`FloatingToolbar`'s portaled Affix root carries `c2-fab-cluster`; the FABs (the
-grandchildren: root → Group → FABs) pop in with a small nth-child stagger the
-first time the cluster is painted (`c2-fab-enter` in `globals.css`, reduced-motion
-guarded — see [`loading-transitions.md`](loading-transitions.md) §1.17). Nodes are
-reused afterwards, so the entrance never replays on state changes.
+`FloatingToolbar`'s portaled Affix root carries `c2-fab-cluster`; the cluster's
+glass controls (`.c2-glass-fab` / `--btn` / `--surface`) pop in with a small
+nth-child stagger the first time the cluster is painted (`c2-fab-enter` in
+`globals.css`, reduced-motion guarded — see
+[`loading-transitions.md`](loading-transitions.md) §1.17). The selector keys off
+the glass controls themselves, not a wrapper: a transform/opacity animation on an
+ancestor of a `backdrop-filter` control would turn that ancestor into a backdrop
+root and break the control's frost. Nodes are reused afterwards, so the entrance
+never replays on state changes.
 
 ## 1.4 Dashboard
 

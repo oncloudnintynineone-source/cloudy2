@@ -1217,10 +1217,17 @@ html {
 
 /*
   FAB cluster entrance (docs/desktop-responsive.md): FloatingToolbar's portaled
-  Affix root carries `c2-fab-cluster`; the FABs are the grandchildren (root →
-  Group → FABs), so they pop in with a small stagger the first time the
-  cluster is painted. Nodes are reused afterwards, so the pop never replays
-  on state changes.
+  Affix root carries `c2-fab-cluster`; the cluster's glass controls pop in with a
+  small stagger the first time it is painted. Nodes are reused afterwards, so the
+  pop never replays on state changes.
+
+  Target the glass controls themselves, never a wrapper element: a
+  transform/opacity animation on an ANCESTOR of a `backdrop-filter` control makes
+  that ancestor a backdrop root, so the control blurs only the (empty) wrapper
+  interior and reads as solid. Standard toolbars put the `FloatingActionButton`s
+  (the glass) as the Group's direct children, but the dashboard's mobile FAB row
+  nests its step pill + create pill inside a ref wrapper, so an ancestor-keyed
+  selector would animate that wrapper and kill their frost.
 */
 @keyframes c2-fab-enter {
   from {
@@ -1230,19 +1237,19 @@ html {
 }
 
 @media (prefers-reduced-motion: no-preference) {
-  .c2-fab-cluster > * > * {
+  .c2-fab-cluster :is(.c2-glass-fab, .c2-glass-btn, .c2-glass-surface) {
     animation: c2-fab-enter var(--c2-dur-standard) cubic-bezier(0.22, 1, 0.36, 1) both;
   }
 
-  .c2-fab-cluster > * > *:nth-child(2) {
+  .c2-fab-cluster :is(.c2-glass-fab, .c2-glass-btn, .c2-glass-surface):nth-child(2) {
     animation-delay: 50ms;
   }
 
-  .c2-fab-cluster > * > *:nth-child(3) {
+  .c2-fab-cluster :is(.c2-glass-fab, .c2-glass-btn, .c2-glass-surface):nth-child(3) {
     animation-delay: 100ms;
   }
 
-  .c2-fab-cluster > * > *:nth-child(4) {
+  .c2-fab-cluster :is(.c2-glass-fab, .c2-glass-btn, .c2-glass-surface):nth-child(4) {
     animation-delay: 150ms;
   }
 }
