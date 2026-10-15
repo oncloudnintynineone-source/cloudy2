@@ -1775,6 +1775,11 @@ via `?attendance=1` and `attendanceStorage` became a `useSyncExternalStore` exte
     to the FAB row as an amber `c2-glass-fab--accent` pill beside the New-event
     pill (`docs/dashboard-views.md` §1.1, `docs/grid-pan.md` §1.2,
     `docs/immersive-mode.md` §1.1).
+- 1.309 Bottom-nav rail edge chevrons now decorative: `RailEdgeControl` drops
+    the snap button (`pointer-events: none`, taps pass through to the clipped
+    tile) and each side hides when the rail reaches that extreme, measured
+    from `scrollLeft` re-checked on `scrollend`/`pointerup` (`docs/desktop-responsive.md`
+    §1.2).
 
 ## 1.4 Open items & next steps
 

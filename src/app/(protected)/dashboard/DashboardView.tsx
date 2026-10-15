@@ -793,6 +793,59 @@ const DashboardTab = memo(function DashboardTab({
   );
 });
 
+/**
+ * One row of the mobile view-selector menu (the pill's four-squares dropdown).
+ * Mirrors `DashboardTab`'s per-view load state — fresh = solid, loading = a
+ * small amber spinner in the row's right slot (alongside the active check),
+ * not-loaded = the shared `c2-tab-not-loaded` fade on icon + label — so the
+ * mobile menu carries the same §1.13.2 status affordance the desktop strip
+ * paints. Extracted (not read inline in `DashboardViewImpl`) so it consumes
+ * the tab-status context itself: background-preload ticks re-render only the
+ * open menu rows, never the whole view.
+ */
+function DashboardViewMenuItem({
+  tab,
+  active,
+  onSwitch,
+}: {
+  tab: DashboardViewTab;
+  active: boolean;
+  onSwitch: (tab: Pick<DashboardViewTab, "id" | "kind">) => void;
+}) {
+  const tabStatus = useDashboardTabStatus();
+  const status = tabStatus[tab.id] ?? "fresh";
+  const meta = VIEW_TAB_META[tab.kind];
+  const faded = status === "not-loaded" ? "c2-tab-not-loaded" : undefined;
+  return (
+    <Menu.Item
+      leftSection={<span className={faded}>{meta.icon}</span>}
+      rightSection={
+        status === "loading" || active ? (
+          <Group gap={4} wrap="nowrap">
+            {status === "loading" && <Loader size={10} color="accent" aria-hidden />}
+            {active && <IconCheck size={14} aria-hidden />}
+          </Group>
+        ) : undefined
+      }
+      role="menuitemradio"
+      aria-checked={active}
+      aria-busy={status === "loading" || undefined}
+      onClick={() => onSwitch(tab)}
+    >
+      <Text
+        size="sm"
+        fw={active ? 700 : 500}
+        truncate
+        title={tab.name}
+        className={faded}
+        style={{ maxWidth: 160 }}
+      >
+        {tab.name}
+      </Text>
+    </Menu.Item>
+  );
+}
+
 function DashboardViewImpl({
   month,
   date,
@@ -3341,33 +3394,18 @@ function DashboardViewImpl({
   );
 
   // The view-menu dropdown contents (tab list + Add-/Manage-views), rendered
-  // by the mobile pill's four-squares button.
+  // by the mobile pill's four-squares button. Each row mirrors the desktop
+  // tab strip's per-view load state (see `DashboardViewMenuItem`).
   const viewMenuItems = (
     <>
-      {tabs.map((tab) => {
-        const meta = VIEW_TAB_META[tab.kind];
-        const isActive = tab.id === shownTabId;
-        return (
-          <Menu.Item
-            key={tab.id}
-            leftSection={meta.icon}
-            rightSection={isActive ? <IconCheck size={14} aria-hidden /> : undefined}
-            role="menuitemradio"
-            aria-checked={isActive}
-            onClick={() => switchTab(tab)}
-          >
-            <Text
-              size="sm"
-              fw={isActive ? 700 : 500}
-              truncate
-              title={tab.name}
-              style={{ maxWidth: 160 }}
-            >
-              {tab.name}
-            </Text>
-          </Menu.Item>
-        );
-      })}
+      {tabs.map((tab) => (
+        <DashboardViewMenuItem
+          key={tab.id}
+          tab={tab}
+          active={tab.id === shownTabId}
+          onSwitch={switchTab}
+        />
+      ))}
       {canManageViews && (
         <>
           <Menu.Divider />

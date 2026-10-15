@@ -126,11 +126,12 @@ flowchart LR
     `wide` 96px / `medium` 84px (default) / `tight` 72px — wider tiles show
     labels in full, narrower tiles fit more destinations per screen. Tiles
     never grow or shrink (`flex: 0 0 Wpx`), so wider viewports simply reveal
-    **more** tiles; the overflow scrolls behind a right-edge gradient fade
-    panned by touch swipe — or snapped by the `RailEdgeControl` edge chevrons
-    (`c2-rail-nudge` one-time hint) for keyboards and OS-gesture-captured
-    browsers. The bar's height never changes, so every footer offset stays
-    intact.
+    **more** tiles; the overflow scrolls behind edge gradient fades with
+    decorative `RailEdgeControl` chevrons (`c2-rail-nudge` one-time hint): the
+    control is `pointer-events: none` (taps pass through to the clipped tile)
+    and hides on a side once the rail reaches that extreme — panning is by
+    touch swipe, re-measured via `scrollend`/`pointerup` on the rail element.
+    The bar's height never changes, so every footer offset stays intact.
 - `isDesktop` comes from `useMediaQuery` (see 1.1); it drives the footer's
   `collapsed` prop and the standalone-sync footer-offset guard — the navbar
   collapse is Mantine's own `breakpoint`.

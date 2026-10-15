@@ -154,8 +154,11 @@ string maps to the first tab of that kind.
   step chevrons, the filter funnel and the calendar-date icon (the active
   view's kind icon would clash with the adjacent date-picker calendar).
    Tapping it opens a `Menu` whose dropdown is exactly the desktop All-views
-   list (every tab, kind icon + name, active row ticked) followed by a divider
-   and **Add view** / **Manage views** entries (the latter two only for
+   list (every tab, kind icon + name, active row ticked — and each row mirrors
+   the desktop tab's per-view load state: not-loaded faded, loading shows a
+   small amber spinner beside the tick; `DashboardViewMenuItem`,
+   [loading-transitions.md](loading-transitions.md) §1.13.2) followed by a
+   divider and **Add view** / **Manage views** entries (the latter two only for
    accounts that own stored views). It is icon-only: the active view's name
    rides the button's accessible name (`Calendar view: <name>`) and its
    tooltip, keeping the period label the pill's flexible element — the name

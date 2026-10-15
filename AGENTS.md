@@ -319,9 +319,10 @@ doc content here.
   (one tap to reach any page), in the fixed `RAIL_ORDER` order (`src/lib/bottomNav.ts`,
   pure + unit-tested) with tile width from the `bottomNavVariant` flag
   (`RAIL_TILE_WIDTHS`, fixed — wider viewports simply reveal more tiles). Tiles
-  beyond the viewport hide behind a right-edge fade and come with a swipe or the
-  edge **chevron** (`RailEdgeControl`, snapping the rail between its start/end
-  stops). The desktop sidebar always shows every entry. `SettingsTabs` stacks
+  beyond the viewport hide behind a right-edge fade and come with a swipe; the
+  edge **chevron** (`RailEdgeControl`) is a decorative hint only — `pointer-events:
+  none` so taps pass through to the clipped tile, and it hides on a side once
+  the rail reaches that extreme. The desktop sidebar always shows every entry. `SettingsTabs` stacks
   directly above the footer.
 - **Admin settings live under `/settings`** (admin-only): Users, Departments, Event Types,
   Templates, Webhooks, Quick Links, KAH Groups, Banner, General, Security, Audit Log,

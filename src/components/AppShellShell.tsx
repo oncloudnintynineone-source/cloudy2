@@ -196,18 +196,19 @@ const HEADER_STYLE: React.CSSProperties = {
 
 /**
  * The `scrollRail` variant's edge affordance: a gradient fade over the clipped
- * tile signalling "more destinations this way" plus a chevron button that
- * snaps the rail to its other stop. The fade itself is `pointer-events: none`
- * so it never steals a tap from the tiles; the chevron is the fallback pan for
- * keyboards and for browsers that capture bottom-edge swipes as OS gestures.
+ * tile signalling "more destinations this way" plus a purely decorative
+ * chevron. The whole control is `pointer-events: none`, so taps pass through
+ * to the clipped tile behind the fade; panning happens by touch swipe, and
+ * each side's control hides once the rail reaches that extreme (nothing is
+ * clipped on that side any more).
  */
 function RailEdgeControl({
   side,
-  onClick,
+  hidden,
   hint,
 }: {
   side: "left" | "right";
-  onClick: () => void;
+  hidden?: boolean;
   hint?: boolean;
 }) {
   return (
@@ -219,7 +220,7 @@ function RailEdgeControl({
         width: 44,
         left: side === "left" ? 0 : "auto",
         right: side === "left" ? "auto" : 0,
-        display: "flex",
+        display: hidden ? "none" : "flex",
         alignItems: "center",
         justifyContent: "center",
         pointerEvents: "none",
@@ -229,23 +230,21 @@ function RailEdgeControl({
             : "linear-gradient(to right, var(--mantine-color-default), transparent)",
         zIndex: 1,
       }}
+      aria-hidden
     >
-      <UnstyledButton
-        onClick={onClick}
+      <Box
         style={{
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
           padding: 8,
           color: NAV_IDLE_COLOR,
-          pointerEvents: "auto",
         }}
-        aria-label={side === "right" ? "Show more destinations" : "Show first destinations"}
       >
         <Box className={hint ? "c2-rail-hint" : undefined}>
           {side === "right" ? <IconChevronRight size={20} /> : <IconChevronLeft size={20} />}
         </Box>
-      </UnstyledButton>
+      </Box>
     </Box>
   );
 }
@@ -835,19 +834,34 @@ export function AppShellShell({
   const isActive = (item: NavItem) => item.matches(pathname) || item.href === tappedHref;
   const handleTap = (href: string) => setTappedHref(href);
 
-  // Scrolling-rail state: which stop the rail is parked at (start = the
-  // leading tiles visible, end = the trailing destinations visible). The
-  // chevron affordance snaps between the two; touch swipes pan freely
-  // between them without touching this state.
+  // Scrolling-rail state: which extreme the rail is currently parked at,
+  // measured from the rail element's real scroll position (not click state —
+  // the edge chevrons are decorative only and never snap). Touch swipes
+  // re-measure via pointer/scroll-end events on the rail element (pointer
+  // events bubble up from the tiles). Each side's edge control hides at its
+  // extreme so the fade+chevron never lie about clipped destinations.
+  const [railAtStart, setRailAtStart] = useState(true);
   const [railAtEnd, setRailAtEnd] = useState(false);
-  const railSnap = (toEnd: boolean) => {
-    setRailAtEnd(toEnd);
+  useEffect(() => {
     const rail = document.querySelector(".c2-scroll-rail");
     if (!rail) {
       return;
     }
-    rail.scrollBy({ left: toEnd ? rail.scrollWidth : -rail.scrollWidth, behavior: "smooth" });
-  };
+    const measure = () => {
+      const max = rail.scrollWidth - rail.clientWidth;
+      setRailAtStart(rail.scrollLeft <= 1);
+      setRailAtEnd(rail.scrollLeft >= max - 1);
+    };
+    measure();
+    rail.addEventListener("scrollend", measure);
+    rail.addEventListener("pointerup", measure);
+    rail.addEventListener("pointercancel", measure);
+    return () => {
+      rail.removeEventListener("scrollend", measure);
+      rail.removeEventListener("pointerup", measure);
+      rail.removeEventListener("pointercancel", measure);
+    };
+  }, []);
 
   const items: NavItem[] =
     role === "admin"
@@ -1310,8 +1324,8 @@ export function AppShellShell({
             </Box>
             {railOverflows ? (
               <>
-                <RailEdgeControl side="right" onClick={() => railSnap(true)} hint />
-                {railAtEnd ? <RailEdgeControl side="left" onClick={() => railSnap(false)} /> : null}
+                <RailEdgeControl side="right" hidden={railAtEnd} hint />
+                <RailEdgeControl side="left" hidden={railAtStart} />
               </>
             ) : null}
           </AppShell.Footer>
