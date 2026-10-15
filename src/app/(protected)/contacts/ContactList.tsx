@@ -178,6 +178,7 @@ export function ContactList({
           zIndex: 9,
           borderBottom: "1px solid var(--mantine-color-default-border)",
           marginInline: "calc(-1 * var(--app-shell-padding))",
+          marginTop: "calc(-1 * var(--app-shell-padding))",
           paddingInline: "var(--app-shell-padding)",
           paddingTop: "var(--mantine-spacing-md)",
           paddingBottom: "var(--mantine-spacing-md)",

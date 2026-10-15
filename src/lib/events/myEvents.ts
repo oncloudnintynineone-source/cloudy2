@@ -6,6 +6,7 @@
  */
 
 import { subOneDay } from "./datetime";
+import type { MantineColor } from "@mantine/core";
 
 /** One row in the My Events list, from either the live or the audit source. */
 export interface MyEventRow {
@@ -15,7 +16,7 @@ export interface MyEventRow {
   eventId: string | null;
   /** Rendered title. */
   title: string;
-  /** Human-readable time string. */
+  /** Human-readable time label (`21 Aug · 14:00 – 15:30` style). */
   time: string;
   /** Naive sort key (`YYYY-MM-DD HH:mm`) — the event's start. */
   sortKey: string;
@@ -23,6 +24,8 @@ export interface MyEventRow {
   departments: string[];
   /** True when a later delete row exists for this event. */
   deleted: boolean;
+  /** Row accent color: event-type color, else the department fallback. */
+  color: MantineColor;
 }
 
 /**
@@ -56,6 +59,44 @@ export function auditTimeSortKey(time: string): string {
   const date = time.slice(0, 10);
   const clock = time.slice(11, 16);
   return /^\d{2}:\d{2}$/.test(clock) ? `${date} ${clock}` : `${date} 00:00`;
+}
+
+const MONTH_ABBREVIATIONS = [
+  "Jan",
+  "Feb",
+  "Mar",
+  "Apr",
+  "May",
+  "Jun",
+  "Jul",
+  "Aug",
+  "Sep",
+  "Oct",
+  "Nov",
+  "Dec",
+] as const;
+
+/**
+ * Humanize an ISO-ish time label (from {@link formatMyEventTime} or an audit
+ * snapshot): every `YYYY-MM-DD` becomes `D Mon`, dropping the year when it
+ * matches `todayYear`, and a same-month date span collapses (`21 Aug – 23 Aug`
+ * → `21 – 23 Aug`). Clocks, dashes, and `(AM)`/`(PM)` markers pass through.
+ */
+export function humanizeMyEventTime(time: string, todayYear: string): string {
+  const replaced = time.replace(
+    /(\d{4})-(\d{2})-(\d{2})/g,
+    (_, year, month, day) => {
+      const label = `${Number(day)} ${MONTH_ABBREVIATIONS[Number(month) - 1]}`;
+      return year === todayYear ? label : `${label} ${year}`;
+    },
+  );
+  return replaced.replace(
+    /(\d+) ([A-Z][a-z]{2})( \d{4})? \u2013 (\d+) ([A-Z][a-z]{2})( \d{4})?/g,
+    (match, d1, mon1, year1, d2, mon2, year2) =>
+      mon1 === mon2 && (year1 ?? "") === (year2 ?? "")
+        ? `${d1} \u2013 ${d2} ${mon1}${year1 ?? ""}`
+        : match,
+  );
 }
 
 /**

@@ -33,7 +33,7 @@ interface EventHistoryViewProps {
 /**
  * Read-only life story of one logical event: the create row, every subsequent
  * edit (as a before→after diff), and the delete row when it exists. Each entry
- * is a collapsible disclosure (newest expanded); always-fresh (see
+ * is a collapsible disclosure (all collapsed by default); always-fresh (see
  * docs/event-history.md): the payload is stamped with `renderedAt` and a cache
  * replay forces one live re-read, sharing this route's skeleton.
  */
@@ -85,9 +85,7 @@ export function EventHistoryView({
         />
       ) : (
         <Stack gap="sm" ref={contentRef} className={CONTENT_ENTER_CLASS}>
-          {ordered.map((row, index) => (
-            <HistoryEntry key={row.id} row={row} defaultOpen={index === 0} />
-          ))}
+          {ordered.map((row) => <HistoryEntry key={row.id} row={row} />)}
         </Stack>
       )}
     </Stack>
@@ -97,11 +95,12 @@ export function EventHistoryView({
 /**
  * One collapsible history entry: an always-visible header (action, timestamp,
  * actor, and a one-line summary of what changed) that toggles the full
- * before→after detail. Follows the shared disclosure recipe used by `ClashCard`
+ * before→after detail. Collapsed by default — every entry opens only on tap.
+ * Follows the shared disclosure recipe used by `ClashCard`
  * (`src/components/clashCards.tsx`).
  */
-function HistoryEntry({ row, defaultOpen }: { row: AuditLog; defaultOpen: boolean }) {
-  const [open, setOpen] = useState(defaultOpen);
+function HistoryEntry({ row }: { row: AuditLog }) {
+  const [open, setOpen] = useState(false);
   const regionId = useId();
   const summary = changeSummary(row.details, row.entityName ?? null);
   return (

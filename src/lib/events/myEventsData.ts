@@ -20,6 +20,7 @@ import { createdEventSummary } from "@/lib/events/history";
 import {
   auditTimeSortKey,
   formatMyEventTime,
+  humanizeMyEventTime,
   mergeMyEvents,
   type MyEventRow,
 } from "@/lib/events/myEvents";
@@ -41,6 +42,7 @@ export async function buildMyEventsData(params: {
   rangeMonths: MyEventsRangeMonths;
 }): Promise<MyEventsData> {
   const today = formatInstantToNaive(new Date()).slice(0, 10);
+  const todayYear = today.slice(0, 4);
   const { windowStart, windowEnd } = myEventsWindow(today, params.rangeMonths);
   const months = monthsInRange(windowStart, windowEnd);
 
@@ -78,10 +80,14 @@ export async function buildMyEventsData(params: {
       key: payload.eventId ?? event.id,
       eventId: payload.eventId,
       title: event.title,
-      time: formatMyEventTime(payload.allDay, event.start, event.end),
-      sortKey: event.start.slice(0, 16),
+      time: humanizeMyEventTime(
+        formatMyEventTime(payload.allDay, event.start, event.end),
+        todayYear,
+      ),
+      sortKey: payload.allDay ? `${event.start.slice(0, 10)} 00:00` : event.start.slice(0, 16),
       departments: departmentNames,
       deleted: false,
+      color: event.color,
     });
   }
 
@@ -104,10 +110,11 @@ export async function buildMyEventsData(params: {
       key: summary.eventId,
       eventId: summary.eventId,
       title: summary.title ?? "Untitled event",
-      time: summary.time,
+      time: humanizeMyEventTime(summary.time, todayYear),
       sortKey: auditTimeSortKey(summary.time),
       departments: summary.departments,
       deleted: true,
+      color: "gray",
     });
   }
 

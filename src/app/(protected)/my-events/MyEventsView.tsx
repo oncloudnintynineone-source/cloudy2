@@ -1,7 +1,8 @@
 "use client";
 
 import { useCallback, useRef } from "react";
-import { Badge, Box, Group, Paper, Pagination, Stack, Text } from "@mantine/core";
+import type { CSSProperties } from "react";
+import { Badge, Box, Group, Paper, Pagination, Skeleton, Stack, Text } from "@mantine/core";
 import { IconHistory } from "@tabler/icons-react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
@@ -18,6 +19,8 @@ import type { MyEventRow } from "@/lib/events/myEvents";
 import { CONTENT_ENTER_CLASS, useContentEnter } from "@/lib/loading/contentEnter";
 import { useLiveRouteRefresh } from "@/lib/loading/liveRefresh";
 import { useMinSkeletonHold } from "@/lib/loading/minHoldLoading";
+
+const LIST_BORDER = "1px solid var(--mantine-color-default-border)";
 
 interface MyEventsViewProps {
   /** One page of the combined live + deleted list, newest first. */
@@ -96,6 +99,7 @@ export function MyEventsView({
           zIndex: 9,
           borderBottom: "1px solid var(--mantine-color-default-border)",
           marginInline: "calc(-1 * var(--app-shell-padding))",
+          marginTop: "calc(-1 * var(--app-shell-padding))",
           paddingInline: "var(--app-shell-padding)",
           paddingTop: "var(--mantine-spacing-md)",
           paddingBottom: "var(--mantine-spacing-md)",
@@ -124,11 +128,35 @@ export function MyEventsView({
         />
       ) : (
         <Stack gap="sm" ref={contentRef} className={CONTENT_ENTER_CLASS}>
-          {loading
-            ? Array.from({ length: 5 }, (_, index) => (
-                <Paper key={index} withBorder p="sm" h={72} />
-              ))
-            : items.map((item) => <MyEventCard key={item.key} item={item} />)}
+          <Box
+            style={{
+              border: LIST_BORDER,
+              borderRadius: "var(--mantine-radius-md)",
+              overflow: "hidden",
+            }}
+          >
+            <Stack gap={0}>
+              {loading
+                ? Array.from({ length: 5 }, (_, index) => (
+                    <Group
+                      key={index}
+                      gap="sm"
+                      wrap="nowrap"
+                      align="center"
+                      style={{
+                        padding: "var(--mantine-spacing-sm)",
+                        borderTop: index === 0 ? undefined : LIST_BORDER,
+                      }}
+                    >
+                      <Skeleton width={4} height={28} radius={2} style={{ flexShrink: 0 }} />
+                      <Skeleton height={12} radius={2} style={{ width: `${60 - (index % 3) * 12}%` }} />
+                    </Group>
+                  ))
+                : items.map((item, index) => (
+                    <MyEventRowView key={item.key} item={item} first={index === 0} />
+                  ))}
+            </Stack>
+          </Box>
         </Stack>
       )}
 
@@ -151,50 +179,61 @@ export function MyEventsView({
   );
 }
 
-function MyEventCard({ item }: { item: MyEventRow }) {
+function MyEventRowView({ item, first }: { item: MyEventRow; first: boolean }) {
+  const meta = [item.time, item.departments.join(", ")].filter(Boolean).join(" \u00b7 ");
   const body = (
-    <Stack gap={6}>
-      <Group gap={6} wrap="wrap">
-        <Text fw={600} size="sm">
-          {item.title}
-        </Text>
-        {item.deleted && (
-          <Badge size="xs" variant="light" color="red">
-            Deleted
-          </Badge>
-        )}
-      </Group>
-      <Text size="sm" c="dimmed">
-        {item.time || "No time recorded"}
-      </Text>
-      {item.departments.length > 0 && (
-        <Group gap={6} wrap="wrap">
-          {item.departments.map((name) => (
-            <Badge key={name} size="xs" variant="light" color="accent">
-              {name}
+    <Group gap="sm" wrap="nowrap" align="center">
+      <Box
+        style={{
+          width: 4,
+          height: 30,
+          borderRadius: 2,
+          flexShrink: 0,
+          background: `var(--mantine-color-${item.deleted ? "red" : item.color}-filled)`,
+        }}
+      />
+      <Box style={{ minWidth: 0, flex: 1 }}>
+        <Group gap={6}>
+          <Text fw={600} size="sm" truncate>
+            {item.title}
+          </Text>
+          {item.deleted && (
+            <Badge size="xs" variant="light" color="red">
+              Deleted
             </Badge>
-          ))}
+          )}
         </Group>
-      )}
-    </Stack>
+        {meta && (
+          <Text size="xs" c="dimmed" truncate>
+            {meta}
+          </Text>
+        )}
+      </Box>
+    </Group>
   );
+
+  const rowStyle: CSSProperties = {
+    display: "block",
+    width: "100%",
+    textAlign: "left",
+    padding: "var(--mantine-spacing-sm)",
+    borderTop: first ? undefined : LIST_BORDER,
+  };
 
   if (item.eventId) {
     return (
       <Paper
-        withBorder
-        p="sm"
         component={Link}
         href={`/event-history/${item.eventId}`}
-        style={{ display: "block", textDecoration: "none" }}
+        style={{ ...rowStyle, textDecoration: "none" }}
       >
         {body}
       </Paper>
     );
   }
   return (
-    <Paper withBorder p="sm">
+    <Box style={rowStyle}>
       {body}
-    </Paper>
+    </Box>
   );
 }

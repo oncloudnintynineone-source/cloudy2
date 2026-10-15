@@ -1731,6 +1731,23 @@ via `?attendance=1` and `attendanceStorage` became a `useSyncExternalStore` exte
     simply aren't in the item list). Cost: admins' Settings/KAH Status now
     trail the rail (clipped behind the fade on small phones, reachable by
     swipe/chevron).
+- 1.303 My Events one-line rows: the card list is replaced by the EventSearchModal
+    row recipe — bordered container, 1px-separated rows, 4px event-color bar +
+    truncated title + one dim `time · departments` meta line; `MyEventRow` gains
+    `color` (live = read-time `CalendarEvent.color`, deleted = `colorForId(type)`
+    else gray), deleted rows ride a red bar + small inline `Deleted` badge,
+    display times humanize via pure `humanizeMyEventTime` (year only off the
+    current year, same-month all-day spans collapse) while `sortKey` stays naive
+    and live all-day rows normalize to `00:00` so live/deleted all-day events
+    interleave consistently (`docs/event-history.md` §1.4).
+- 1.304 Event history: all entries collapsed by default (the newest no longer
+    opens expanded) — `HistoryEntry` starts closed; headers still carry the
+    one-line change summary (`docs/event-history.md` §1.3).
+- 1.305 Sticky-chrome `marginTop` pull: the Contacts / Double Booking / Parade
+    State / My Events sticky header boxes now reclaim the shell's top padding
+    (`marginTop: calc(-1 * var(--app-shell-padding))` alongside the existing
+    gutter bleed) so the frosted chrome sits flush under the app header;
+    token unified on `--app-shell-padding` across all four pages.
 
 ## 1.4 Open items & next steps
 

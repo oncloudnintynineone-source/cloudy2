@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 
-import { auditTimeSortKey, formatMyEventTime, mergeMyEvents, type MyEventRow } from "./myEvents";
+import {
+  auditTimeSortKey,
+  formatMyEventTime,
+  humanizeMyEventTime,
+  mergeMyEvents,
+  type MyEventRow,
+} from "./myEvents";
 
 function row(partial: Partial<MyEventRow> & { key: string; sortKey: string }): MyEventRow {
   return {
@@ -9,6 +15,7 @@ function row(partial: Partial<MyEventRow> & { key: string; sortKey: string }): M
     time: "",
     departments: [],
     deleted: false,
+    color: "blue",
     ...partial,
   };
 }
@@ -42,6 +49,32 @@ describe("auditTimeSortKey", () => {
   it("sorts AM/PM-marker day events as midnight", () => {
     expect(auditTimeSortKey("2026-08-21 (AM) \u2013 2026-08-23 (PM)")).toBe("2026-08-21 00:00");
     expect(auditTimeSortKey("2026-08-21")).toBe("2026-08-21 00:00");
+  });
+});
+
+describe("humanizeMyEventTime", () => {
+  it("drops the year for current-year dates and abbreviates the month", () => {
+    expect(humanizeMyEventTime("2026-08-21", "2026")).toBe("21 Aug");
+    expect(humanizeMyEventTime("2025-08-21", "2026")).toBe("21 Aug 2025");
+  });
+
+  it("collapses a same-month all-day span", () => {
+    expect(humanizeMyEventTime("2026-08-21 \u2013 2026-08-23", "2026")).toBe("21 \u2013 23 Aug");
+    expect(humanizeMyEventTime("2026-08-21 \u2013 2026-09-02", "2026")).toBe("21 Aug \u2013 2 Sep");
+  });
+
+  it("keeps clocks and AM/PM markers", () => {
+    expect(humanizeMyEventTime("2026-08-21 14:00 \u2013 15:30", "2026")).toBe("21 Aug 14:00 \u2013 15:30");
+    expect(humanizeMyEventTime("2026-08-21 (AM) \u2013 2026-08-23 (PM)", "2026")).toBe(
+      "21 Aug (AM) \u2013 23 Aug (PM)",
+    );
+    expect(humanizeMyEventTime("2026-08-21 (AM\u2013PM)", "2026")).toBe("21 Aug (AM\u2013PM)");
+  });
+
+  it("does not collapse a timed multi-day span (clocks stay on both sides)", () => {
+    expect(humanizeMyEventTime("2026-08-21 14:00 \u2013 2026-08-23 09:30", "2026")).toBe(
+      "21 Aug 14:00 \u2013 23 Aug 09:30",
+    );
   });
 });
 

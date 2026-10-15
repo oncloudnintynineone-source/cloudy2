@@ -76,9 +76,9 @@ sequenceDiagram
   action row (next to Edit/Delete); it is hidden when `payload.eventId === null`
   (external or never-app-edited legacy events have no group id and no history) and
   is not shown in the read-only details (Double Booking / KAH Status).
-- The page renders each row as a **collapsible entry** (newest expanded, the rest
-  collapsed): the always-visible header shows the action label, UTC+8 timestamp,
-  actor, and a one-line change summary (the changed field labels for an edit, or the
+- The page renders each row as a **collapsible entry** (all collapsed by default;
+  tap to expand): the always-visible header shows the action label, UTC+8 timestamp, actor, and a
+  one-line change summary (the changed field labels for an edit, or the
   title for a create/delete); tapping it reveals the shared `AuditDetails`
   (`src/components/AuditDetails.tsx`) — the same before→after lines and "Resulting
   state" section the admin audit modal uses. A delete row (when present) is simply
@@ -109,6 +109,18 @@ Rows are deduped by group id (live wins) and sorted newest-first
 (`mergeMyEvents`). Each row links to `/event-history/<eventId>`; legacy rows with
 no group id render unlinked. Pagination is `?page=` (page size 20), applied in
 memory since the combined set is bounded by the window + retention.
+
+Rows render in the shared one-line row style (the EventSearchModal list recipe,
+`docs/event-search.md`): one bordered container of 1px-separated rows, each a
+4px accent bar (`--mantine-color-<color>-filled`) + truncated title + one dim
+meta line (`time · departments`). The bar color is the event's read-time color
+(`CalendarEvent.color` for live rows; `gray` for audit rows); **Deleted** rows
+always ride a red bar and keep a small inline red
+`Deleted` badge. Times are humanized for display (`humanizeMyEventTime`:
+`21 Aug · 14:00 – 15:30`, year only off the current year, same-month all-day
+spans collapse) while `sortKey` stays the naive `YYYY-MM-DD HH:mm` — live
+all-day rows normalize to `00:00` so live/deleted all-day events interleave
+consistently within a day.
 
 ## 1.5 Authorization & privacy
 
@@ -189,7 +201,7 @@ preloads the new route.
 | Helper | Module | Tests |
 | ------ | ------ | ----- |
 | `eventIdFromAuditDetails`, `createdEventSummary` | `events/history.ts` | `events/history.test.ts` |
-| `formatMyEventTime`, `auditTimeSortKey`, `mergeMyEvents` | `events/myEvents.ts` | `events/myEvents.test.ts` |
+| `formatMyEventTime`, `auditTimeSortKey`, `humanizeMyEventTime`, `mergeMyEvents` | `events/myEvents.ts` | `events/myEvents.test.ts` |
 | `parseMyEventsRange`, `myEventsRangeLabel`, `myEventsWindow` | `events/myEventsRange.ts` | `events/myEventsRange.test.ts` |
 | `formatAuditDetails`, `actionLabel`, `actorLabel`, `formatLogTimestamp` | `audit/format.ts` | `audit/format.test.ts` |
 | `isAlwaysFreshPath` (the new prefixes) | `pwa/swRules.ts` | `pwa/swRules.test.ts` |
