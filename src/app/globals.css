@@ -1062,7 +1062,7 @@ html {
 /*
   Dashboard mobile floating rows (below `lg`, DashboardView):
   `.c2-control-pill` is the bottom pill carrying the period label (left) +
-  circular filter/date/view/quick-links buttons (right), inset 16px from the
+  circular filter/date/view/fullscreen buttons (right), inset 16px from the
   viewport edges (same clearance as the FAB toolbar); `.c2-period-pill` is the
   `[< | >]` step pill in the right-anchored FAB row floating above the pill —
   its height is driven inline to match the control pill's. Both ride the frosted
@@ -1103,8 +1103,9 @@ html {
 }
 
 /* Frosted control for page-level buttons sitting on the frosted surfaces (the
-   date-nav row, the New-event / Quick-links buttons, and the floating zoom/pan
-   and fullscreen controls): the same surface tint + blur, a drop shadow so they
+   date-nav row, the mobile FAB row's New-event / Quick-links pills, the
+   fullscreen control and the floating zoom/pan cluster): the same surface tint
+   + blur, a drop shadow so they
    lift off the chrome, and a scheme-aware icon colour. Accent/brand buttons
    layer their colour modifier on top (the `--accent`/`--brand` rules are
    declared after this one, so they win). The tab-strip trailing icons
@@ -1124,7 +1125,7 @@ html {
 }
 
 /* Opt-in hairline edge for a standalone glass button that floats on its own
-   (the mobile FAB row's create pill): the shared .c2-glass-btn form stays
+   (the mobile FAB row's create + quick-links pills): the shared .c2-glass-btn form stays
    borderless (the ring below re-adds the same edge the .c2-control-pill /
    .c2-period-pill containers carry). Declared after .c2-glass-btn so its
    !important beats that rule's transparent border. */

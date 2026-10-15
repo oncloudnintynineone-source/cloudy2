@@ -1766,6 +1766,15 @@ via `?attendance=1` and `attendanceStorage` became a `useSyncExternalStore` exte
     nav again; page pads (`--c2-bottom-chrome-height`) clear the pill/FAB
     row; the zoom/pan clusters clamp to it (`bottomBarrierRef`)
     (`docs/dashboard-views.md` §1.1).
+- 1.308 Mobile bottom-controls reshuffle + zoom-cluster centering: the
+    single-axis `GridNavControls` cluster now centers the WHOLE cluster (zoom
+    pair above, right pan arrow below) on the grid's visible-slice center
+    instead of hanging from its bottom edge; below `lg` the control pill's
+    quick-links slot becomes the inline `FullscreenButton` (extracted from
+    `FullscreenToggle`, which is now `visibleFrom="lg"`) and Quick links moves
+    to the FAB row as an amber `c2-glass-fab--accent` pill beside the New-event
+    pill (`docs/dashboard-views.md` §1.1, `docs/grid-pan.md` §1.2,
+    `docs/immersive-mode.md` §1.1).
 
 ## 1.4 Open items & next steps
 

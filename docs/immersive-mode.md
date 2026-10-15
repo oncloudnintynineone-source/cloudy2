@@ -15,11 +15,14 @@ hidden); only the dashboard controls it.
 
 ## 1.1 The toggle & state ownership
 
-- A floating circular button (`FullscreenToggle`, `src/components/FullscreenToggle.tsx`)
-  anchored to the top-right of the calendar view — beside the zoom/pan cluster, not in the
-  old kebab menu. It flips `IconArrowsMaximize` / `IconArrowsMinimize`
-  ("Enter fullscreen" / "Exit fullscreen") and is always rendered (it is the in-page exit
-  path while immersive).
+- At `lg`+, a floating circular button (`FullscreenToggle`,
+  `src/components/FullscreenToggle.tsx`, rendered `visibleFrom="lg"`) anchored to the
+  top-right of the calendar view — beside the zoom/pan cluster, not in the old kebab
+  menu. Below `lg` the same inline `FullscreenButton` lives in the bottom control pill
+  (the thin top strip there is too tight for a floating control). It flips
+  `IconArrowsMaximize` / `IconArrowsMinimize` ("Enter fullscreen" / "Exit fullscreen")
+  and is always rendered for its breakpoint (it is the in-page exit path while
+  immersive); `FullscreenButton` is the shared button both paths use.
 - `enter()` flips the shell chrome off **and** requests the page-level Fullscreen API
   (`requestFullscreen({ navigationUI: "hide" })`), so the OS status bar / browser UI
   disappear on devices that support it.

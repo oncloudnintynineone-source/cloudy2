@@ -200,13 +200,16 @@ string maps to the first tab of that kind.
   **control pill** (`.c2-control-pill`, an `Affix` inset **16px from the
   viewport edges** — `left: 16, right: 16`, the same clearance as the FAB
   toolbar) sits **bottom-most** with the period label on the **left** and the
-  **circular** filter / date / view-menu / quick-links buttons on the **right**;
-  above it floats the **right-anchored FAB row** — the `[< | >]` **period-step
+  **circular** filter / date / view-menu / fullscreen buttons on the **right**
+  (the fullscreen button is `FullscreenButton`, the same inline toggle the
+  floating lg-only `FullscreenToggle` uses); above it floats the
+  **right-anchored FAB row** — the `[< | >]` **period-step
   pill** (`.c2-period-pill`, its height driven inline to match the control
-   pill's) with the **New-event pill button** (`c2-glass-btn` +
-   `c2-glass-fab--brand` — the same brand-blue tint as the lg nav-row button —
-   + `c2-glass-btn--bordered`, the grey hairline ring matching the pill
-   containers) parked on its **right**. The row sits at
+   pill's), then the **Quick-links pill button** (`c2-glass-fab--accent`, amber —
+   shown only when the org has links) and the **New-event pill button**
+   (`c2-glass-btn` + `c2-glass-fab--brand` — the same brand-blue tint as the lg
+   nav-row button — + `c2-glass-btn--bordered`, the grey hairline ring matching
+   the pill containers) parked on the **right**. The row sits at
   `bottom: calc(--app-floating-bottom-offset + pillH + 12px)`. All ride the
   same frosted treatment (`c2-glass-surface`) with pill radius + hairline
   edge, so grid content scrolls *under* them. The grid
@@ -222,9 +225,10 @@ string maps to the first tab of that kind.
   `navigatePeriod(±1)` dispatch and read their accessible name from
   `periodStepLabel` as the `lg` nav row (`DashboardView.tsx`). The floating
   zoom/pan clusters clamp their visible slice to the FAB row's top edge
-  (`bottomBarrierRef` on `GridNavControls`); the `FullscreenToggle` keeps
-  anchoring below the top strip at every width (below `lg` that is just the
-  name strip). At `lg`+ everything is unchanged: one chrome box pinned top
+  (`bottomBarrierRef` on `GridNavControls`); the floating `FullscreenToggle`
+  anchors below the top strip **at `lg`+ only** (`visibleFrom="lg"`) — below `lg`
+  the control pill's inline `FullscreenButton` is the fullscreen path. At `lg`+
+  everything is unchanged: one chrome box pinned top
   (tab strip + nav row incl. chevrons, New event and Quick links), FABs and
   pill hidden.
 - **App-wide frosted glass (`translucencyLevel`).** Beyond the mobile cluster,
@@ -674,8 +678,10 @@ The rest of this section describes the shared horizontal mechanism.
   in/out pair lives in the **same right-edge control cluster** as the right pan
   arrow (zoom +/− on top, a divider, then the pan arrow), with the left pan arrow
   edge-anchored on the left; the pair is the familiar map-controls layout and can
-  never overlap the pan arrow, and the cluster hangs from its bottom edge so both
-  pan arrows align vertically at the visible-slice center ([`grid-pan.md`](grid-pan.md)).
+  never overlap the pan arrow. The **whole cluster is centered** on the grid's
+  visible-slice center (zoom pair above, right pan arrow below); the left pan
+  arrow stays edge-anchored at that center, so the right pan arrow now rides
+  below it ([`grid-pan.md`](grid-pan.md)).
   Rendered whenever the schedule grid is shown (skeleton/empty excluded) — unlike
   the pan arrows it shows even when the grid fits without overflowing.
 - **Pinch-to-zoom (touch).** Every zoom site is also pinchable: a two-finger spread
@@ -822,7 +828,8 @@ note in §1.7).
   narrower than the viewport, so zoom-out is disabled there — and the buttons step
   one level at a time and clamp at the extremes.
 - **Controls**: the same right-edge `GridNavControls` cluster as the timeline zoom
-  (zoom +/− over the right pan arrow, plus the left pan arrow), fed by the Month
+  (zoom +/− over the right pan arrow, whole cluster centered on the visible slice;
+  the left pan arrow edge-anchored on the left), fed by the Month
   view's own `useGridPan` instance (`monthPan`). The zoom pair always shows; the pan
   arrows and drag-to-pan appear only once a zoom level overflows the viewport.
   `GridNavControls` takes the month's level range via `zoomMin`/`zoomMax` (the

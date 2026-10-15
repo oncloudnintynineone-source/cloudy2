@@ -88,7 +88,7 @@ import { EmptyState } from "@/components/EmptyState";
 import { FilterButton } from "@/components/FilterButton";
 import { FilterModal, type FilterGroup } from "@/components/FilterModal";
 import { GridNavControls } from "@/components/GridNavControls";
-import { FullscreenToggle } from "@/components/FullscreenToggle";
+import { FullscreenButton, FullscreenToggle } from "@/components/FullscreenToggle";
 import {
   BUTTON_LOADER_PROPS,
   COARSE_POINTER_MEDIA_QUERY,
@@ -3234,9 +3234,9 @@ function DashboardViewImpl({
 
   // The date-nav row, pinned in the top box at lg (under the tab strip).
   // Below `lg` it is not rendered: the period label + filter/date/view/
-  // quick-links controls ride the floating bottom-right pill, and the period
-  // chevrons join the FAB cluster. Kept compact (36px controls) — it is
-  // permanently visible at `lg`+.
+  // fullscreen controls ride the floating bottom-right pill, and the period
+  // chevrons join the FAB cluster (with Quick links). Kept compact (36px
+  // controls) — it is permanently visible at `lg`+.
   const navRow = (
     <Group align="center" gap="xs" wrap="nowrap" mt="xs">
       <Text fw={600} size="md" lineClamp={1} style={{ flex: 1, minWidth: 0, textAlign: "left" }}>
@@ -3383,12 +3383,12 @@ function DashboardViewImpl({
   );
 
   // The floating control pill (below `lg` only): the period label (left) plus
-  // circular filter / date / view-menu / quick-links buttons (right), floating
+  // circular filter / date / view-menu / fullscreen buttons (right), floating
   // at the bottom with the same 16px viewport-edge clearance as the FAB
-  // toolbar (thumb-zone reach), with the FAB row (chevron pill + create pill)
-  // above it. Frosted like the top strip; the grid scrolls beneath it. Its
-  // measured height (bottomChromeHeight) feeds the FAB offset and the page
-  // pads so the last content row clears the whole stack.
+  // toolbar (thumb-zone reach), with the FAB row (chevron pill + quick-links
+  // pill + create pill) above it. Frosted like the top strip; the grid scrolls
+  // beneath it. Its measured height (bottomChromeHeight) feeds the FAB offset
+  // and the page pads so the last content row clears the whole stack.
   const mobilePill = (
     <Affix hiddenFrom="lg" position={{ bottom: pillBottomOffset, left: 16, right: 16 }} zIndex={100}>
       <Box ref={bottomBarRef} className="c2-glass-surface c2-control-pill">
@@ -3457,24 +3457,15 @@ function DashboardViewImpl({
               <Menu.Dropdown>{viewMenuItems}</Menu.Dropdown>
             </Menu>
           )}
-          {quickLinks.length > 0 && (
-            <QuickLinksMenu
-              links={quickLinks}
-              position="top-end"
-              trigger={
-                <ActionIcon
-                  radius="50%"
-                  variant="light"
-                  color="accent"
-                  size={36}
-                  className="c2-glass-btn c2-glass-fab--accent"
-                  aria-label="Quick links"
-                >
-                  <IconLink size={18} />
-                </ActionIcon>
-              }
-            />
-          )}
+          {/* Fullscreen (immersive-mode) toggle: inline in the pill below `lg`
+              (the floating top-right `FullscreenToggle` is lg-only), styled
+              like its circular peers (36px, `variant="default"`). */}
+          <FullscreenButton
+            active={immersiveMode.active}
+            onToggle={immersiveMode.active ? immersiveMode.exit : immersiveMode.enter}
+            size={36}
+            variant="default"
+          />
         </Group>
       </Box>
     </Affix>
@@ -4461,7 +4452,7 @@ function DashboardViewImpl({
       </Box>
 
       {/* The floating control pill (below `lg` only): period label + circular
-          filter/date/view/quick-links buttons, bottom-right above the FAB
+          filter/date/view/fullscreen buttons, bottom-right below the FAB
           cluster. See `mobilePill` above. */}
       {mobilePill}
 
@@ -4567,13 +4558,14 @@ function DashboardViewImpl({
       )}
 
       {/* Floating fullscreen (immersive) toggle — anchored to the top-right of
-          the calendar, beside the zoom/pan cluster. Always present (it is the
-          in-page exit path in immersive mode), so it is not gated on grid
-          content like GridNavControls. */}
+          the calendar at lg+, beside the zoom/pan cluster. Below `lg` the
+          control pill's inline FullscreenButton takes over (visibleFrom="lg"),
+          so it is not gated on grid content like GridNavControls. */}
       <FullscreenToggle
         anchorRef={weekBoxRef}
         chromeRef={tabsListRef}
         layoutKey={`${isDesktop}:${topChromeHeight}:${bottomChromeHeight}`}
+        visibleFrom="lg"
         active={immersiveMode.active}
         onToggle={immersiveMode.active ? immersiveMode.exit : immersiveMode.enter}
       />
@@ -4964,15 +4956,17 @@ function DashboardViewImpl({
       )}
 
       {formState === null && (
-        // Mobile-only: at lg the "New event" button in the nav row replaces
-        // the FAB. hiddenFrom sits on the toolbar itself: its Affix portals
-        // to <body>, so a wrapper element could not hide it. The row floats
-        // right-anchored above the control pill: the period-step chevrons
-        // `[< | >]` pill left, the New-event **pill button** (`c2-glass-btn`
-        // + `c2-glass-fab--brand` — the same brand-blue tint as the lg nav-row
-        // button — + `c2-glass-btn--bordered`, the grey hairline ring matching
-        // the pill containers) parked on its right. Both pills match the
-        // control pill's measured height.
+        // Mobile-only: at lg the "New event" / "Quick links" buttons in the nav
+        // row replace these FABs. hiddenFrom sits on the toolbar itself: its
+        // Affix portals to <body>, so a wrapper element could not hide it. The
+        // row floats right-anchored above the control pill: the period-step
+        // chevrons `[< | >]` pill left, then the amber Quick-links **pill
+        // button** (`c2-glass-fab--accent`) when the org has links, and the
+        // New-event **pill button** (`c2-glass-fab--brand` — the same
+        // brand-blue tint as the lg nav-row button) parked on the right. Every
+        // pill carries `c2-glass-btn--bordered` (the grey hairline ring that
+        // matches the pill containers) and matches the control pill's measured
+        // height.
         <FloatingToolbar hiddenFrom="lg" bottomOffset={fabBottomOffset}>
           <Box ref={fabStackRef} style={{ display: "flex", gap: "var(--mantine-spacing-xs)", alignItems: "center" }}>
             <Box
@@ -5012,6 +5006,26 @@ function DashboardViewImpl({
                 </ActionIcon>
               </Group>
             </Box>
+            {/* Quick links: the same menu the lg nav row launches, moved here
+                as an amber pill beside the New-event pill (the pill it used to
+                occupy now carries the fullscreen toggle). */}
+            {quickLinks.length > 0 && (
+              <QuickLinksMenu
+                links={quickLinks}
+                position="top-end"
+                trigger={
+                  <Button
+                    className="c2-glass-btn c2-glass-fab--accent c2-glass-btn--bordered"
+                    aria-label="Quick links"
+                    radius="999px"
+                    w={56}
+                    h={bottomChromeHeight || 50}
+                  >
+                    <IconLink size={24} />
+                  </Button>
+                }
+              />
+            )}
             <Button
               className="c2-glass-btn c2-glass-fab--brand c2-glass-btn--bordered"
               aria-label="New event"

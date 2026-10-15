@@ -141,11 +141,12 @@ doc content here.
   recipe (`reorderUpDown.tsx`, `variant="subtle"`) + optimistic `useReorderRows` FLIP.   Below
   `lg` the chrome **splits**: a thin view-name strip stays pinned at the top,
   and the date controls move to **floating bottom rows** — a frosted
-  control pill (period label left + circular filter/date/view/quick-links
+  control pill (period label left + circular filter/date/view/**fullscreen**
   buttons right, inset 16px from the viewport edges) bottom-most, with the
-  right-anchored FAB row (`[<|>]` step pill + New-event **pill button** —
-  brand-blue `c2-glass-fab--brand` tint + `c2-glass-btn--bordered` grey ring,
-  both pill-height) floating above it — for thumb reach; pinned
+  right-anchored FAB row (`[<|>]` step pill + Quick-links **pill button** —
+  amber `c2-glass-fab--accent` — + New-event **pill button** —
+  brand-blue `c2-glass-fab--brand` tint; all `c2-glass-btn--bordered` grey ring
+  and pill-height) floating above it — for thumb reach; pinned
   strips dock under the name strip (`chromeOffset` = `topChromeHeight`),
   bounded grids run flush to the bottom nav, and page pads clear the pill/FAB
   row; at `lg`+ one box (tabs + nav row) pins top.
@@ -156,13 +157,16 @@ doc content here.
   Design: [docs/dashboard-views.md](docs/dashboard-views.md).
 - **Wide grids pan + zoom** via `useGridPan` + the shared `GridNavControls`
   right-edge cluster (pan arrows + the zoom +/− pair(s); `zoomMin`/`zoomMax` per
-  view). Every grid kind zooms — Day/Week (H), Week (D), Week (Grid) (two axes),
-  Month (fit-to-width) — except Agenda. Zoom levels live in
-  `src/lib/ui/slotZoom.ts` / `monthZoom.ts` (0.25–6 and 1–6).
+  view; the whole cluster is centered on the grid's visible-slice center, the
+  left pan arrow keeping its own center anchor). Every grid kind zooms — Day/Week
+  (H), Week (D), Week (Grid) (two axes), Month (fit-to-width) — except Agenda.
+  Zoom levels live in `src/lib/ui/slotZoom.ts` / `monthZoom.ts` (0.25–6 and 1–6).
   Design: [docs/grid-pan.md](docs/grid-pan.md).
-- **Fullscreen calendar (immersive mode):** hides shell chrome + requests page fullscreen;
-  owned by `AppShellShell`, only `DashboardView` controls it and always exits on unmount.
-  Design: [docs/immersive-mode.md](docs/immersive-mode.md).
+- **Fullscreen calendar (immersive mode):** hides shell chrome + requests page
+  fullscreen; owned by `AppShellShell`, only `DashboardView` controls it and always
+  exits on unmount. The shared `FullscreenButton` renders floating top-right at `lg`+
+  (`FullscreenToggle`, `visibleFrom="lg"`) and inline in the mobile control pill below
+  `lg`. Design: [docs/immersive-mode.md](docs/immersive-mode.md).
 - **Reorderable lists (views / event-type groups / departments / quick links / title-recipe
   segments):** one shared path — `useReorderRows` (chevrons via `move(id, ±1)` + FLIP;
   drag via `moveTo(id, toIndex)`) + `ReorderUpDown` + `SortableList`/`SortableRow`/`DragHandle`
