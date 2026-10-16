@@ -64,11 +64,18 @@ export function FloatingToolbar({
     // Responsive props like hiddenFrom land on this portaled Affix root
     // (Affix forwards them to its Box), which is why they work while a
     // wrapper around this component cannot.
-    // `c2-fab-cluster` drives the entrance (globals.css): the cluster's glass
-    // controls pop in with a small stagger the first time the portaled cluster
-    // is painted.
+    // `c2-fab-cluster` (the class) doubles as the element's view-transition
+    // group name: the portaled cluster is held above the route-transition page
+    // groups instead of landing in `root` (which paints below the outgoing
+    // page's snapshot, so the cluster looked half-covered for the whole
+    // transition). globals.css owns that group rule; the cluster's staggered
+    // mount entrance was removed for the same reason (a named group is captured
+    // on the element's first, still-transparent frame). The name must be unique
+    // per document — never render two FloatingToolbars on one page (a duplicate
+    // aborts the whole transition).
     <Affix
       className="c2-fab-cluster"
+      style={{ viewTransitionName: "c2-fab-cluster" }}
       position={{ bottom: bottomOffset, right: 16 }}
       zIndex={zIndex}
       hiddenFrom={hiddenFrom}

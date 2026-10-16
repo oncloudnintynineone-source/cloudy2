@@ -757,6 +757,22 @@ briefly cover the fixed shell. The header, sidebar and bottom nav
 their own `view-transition-name`s, and `globals.css` holds those groups at
 `z-index: 100` above the content with no animation (old snapshot hidden).
 
+**Portaled floating chrome.** The mobile control pill (`c2-control-pill`), the
+Parade attendance bar (`c2-attendance-bar`) and the FAB clusters
+(`c2-fab-cluster` on `FloatingToolbar`'s Affix) are portaled to `<body>`, so
+without a name they land in the `root` group — which paints **below** the
+page-transition groups, meaning the outgoing page's snapshot covered the
+incoming pill/cluster for the whole transition (it looked half-rendered behind
+other UI until the animation completed). Each therefore carries its own
+`view-transition-name`, held at `z-index: 150` above the page and shell groups,
+`animation: none` with the old snapshot hidden, so the chrome rides through the
+navigation like the header/footer. Their mount entrance animations
+(`c2-glass-enter`, the FAB-cluster stagger) were removed: a transition captures
+the element on its first frame, so a running entrance animation is snapshotted
+at `opacity: 0` and the chrome would be invisible for the transition, then pop
+in. A `view-transition-name` must be unique per document — never render two
+`FloatingToolbar`s on one page (a duplicate aborts the whole transition).
+
 **Interaction with `content-enter`.** Both can fire when a route lands with a
 cold `loading.tsx` skeleton (the page transition animates the navigation;
 `content-enter` animates the skeleton→content reveal). Both are short opacity
@@ -890,14 +906,12 @@ tier (§1.15). None change layout logic — removing any of them is always safe.
 - **Empty-state reveal** (`c2-empty-state`): the shared `EmptyState` block fades
   + rises in on mount with the icon a beat behind, so empty panels read as
   arriving rather than switching on.
-- **FAB cluster entrance** (`c2-fab-cluster`): the portaled `FloatingToolbar`
-  row pops in per FAB with a small stagger the first time it is painted
-  (nodes are reused afterwards, so it never replays on state changes).
-- **Control-pill entrance** (`c2-glass-enter`): the mobile floating
-  `.c2-control-pill` (Calendar / Parade State / Contacts) fades + rises in the
-  first time it is painted. Applied on the glass element itself, never an Affix
-  wrapper (same backdrop-filter caution as the FAB cluster). Layout-neutral, so
-  the dashboard's `offsetHeight`-based pill measurement is unaffected.
+- **Portaled chrome has no mount entrance.** The FAB cluster and the mobile
+  control pill used to pop/rise in on first paint (`c2-fab-enter` /
+  `c2-glass-enter`); both were removed when those portaled surfaces became named
+  view-transition groups (§1.14) — a transition captures the element on its first
+  frame, so a running entrance animation is snapshotted transparent. They now
+  ride the route transition like the header/footer.
 - **Glass control colour cross-fade**: `.c2-glass-fab` / `.c2-glass-btn` carry a
   `background-color` transition, so hover/active states and the frosted↔
   accent/brand/teal tint swaps ramp instead of cutting (the tint modifiers only
