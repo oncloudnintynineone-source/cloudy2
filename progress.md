@@ -1824,8 +1824,19 @@ via `?attendance=1` and `attendanceStorage` became a `useSyncExternalStore` exte
     `accent-6` / `brand-7` with the same hover/active ramp as the standalone round
     FABs, and no backdrop blur. The Feature Flags preview mocks carry the modifier
     so they match the real buttons. No schema change (`translucency_level` is already
-    a `text` column defaulting to `medium`). Docs: `feature-flags.md`,
-    `dashboard-views.md` §1.1, `desktop-responsive.md` §1.2, `AGENTS.md`.
+     a `text` column defaulting to `medium`). Docs: `feature-flags.md`,
+     `dashboard-views.md` §1.1, `desktop-responsive.md` §1.2, `AGENTS.md`.
+- 1.314 Restyled-pill redesign: the `savedEventToastVariant` **Restyled pill** is
+     restyled to match the calendar page's bottom control pill — a brand-blue
+     frosted tint honoring the `translucencyLevel` flag (floored so white copy
+     stays legible at Very subtle), a hairline edge and the floating
+     `--mantine-shadow-md`, bottom-center placement above the bottom nav, a roomier
+     ~52px height, white title + amber (`accent-3`) action verb, and a circular
+     close button anchored to the right. The pill body still runs "View event"; the
+     close button only dismisses. The internal `ActionPill` variant is renamed
+     `toast` → `glassPill` (its only consumer is the flag) and the old corner/
+     `--toast` CSS is removed. No schema change. Docs: `action-pill.md`,
+     `feature-flags.md`, `AGENTS.md`.
 
 ## 1.4 Open items & next steps
 

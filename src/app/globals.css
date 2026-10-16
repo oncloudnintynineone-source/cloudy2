@@ -2334,6 +2334,10 @@ html {
   transition runs the full `--c2-pill-duration`, so a "empty" countdown drains
   in step with the auto-dismiss timer and a "fill" growth completes exactly
   when the fill is full.
+
+  The `glassPill` variant (Settings → Feature Flags → Saved-event confirmation,
+  "Restyled pill") drops the sweep and renders as a frosted confirmation styled
+  like the calendar page's bottom control pill — see the `--glass` rules below.
 */
 .c2-action-pill-host {
   position: fixed;
@@ -2409,58 +2413,93 @@ html {
   color: var(--c2-pill-dark);
 }
 
-/* "toast" variant: a confirmation read, not a countdown. Light surface + border
-   (no two-tone sweep), a green success rail, single-line copy with the action
-   verb in the pill's dark color. The host nests into the notification corners
-   — top-center on mobile, bottom-right on desktop — instead of bottom-center,
-   so the pill sits where users expect toast feedback (Notifications' own
-   positions, AppProviders.tsx). */
-.c2-action-pill-host--toast {
-  top: calc(var(--mantine-spacing-sm) + env(safe-area-inset-top));
-  bottom: auto;
-}
-
-.c2-action-pill--toast {
-  background: var(--mantine-color-body);
-  color: var(--mantine-color-text);
-  border: 1px solid var(--mantine-color-default-border);
-  border-radius: var(--mantine-radius-md);
-}
-
-/* Success rail on the leading edge. */
-.c2-action-pill--toast::before {
-  content: "";
-  position: absolute;
-  top: 0;
-  bottom: 0;
+/* "glassPill" variant: a confirmation styled like the calendar page's bottom
+   control pill — a frosted surface (brand-blue tinted, so it reads over the
+   near-white grid instead of blending), a hairline edge and the floating shadow,
+   sitting bottom-center above the bottom nav. No two-tone sweep: the body button
+   runs the action ("View event") and a circular close button anchored to the
+   right only dismisses. The host carries no transform so the pill's
+   `backdrop-filter` keeps its frost (see the FAB-cluster note above); its buttons
+   re-enable pointer events. */
+.c2-action-pill-host--glass {
   left: 0;
-  width: calc(0.25rem * var(--mantine-scale));
-  background: var(--mantine-color-green-6);
+  right: 0;
+  transform: none;
+  display: flex;
+  justify-content: center;
+  /* The base host's `max-width` + `left/right:0` would left-anchor the pill
+     (off-center); drop it and pad instead, so `justify-content: center` gives
+     exact bottom-center placement. `.c2-action-pill`'s own `max-width: 100%`
+     still guards overflow. */
+  max-width: none;
+  padding: 0 var(--mantine-spacing-md);
+  box-sizing: border-box;
+  pointer-events: none;
 }
 
-.c2-action-pill--toast .c2-action-pill-copy {
+.c2-action-pill--glass {
+  /* Brand-blue frosted tint — overrides `.c2-glass-surface`'s neutral body-tint
+     by source order (both `!important`), so the confirmation reads clearly over
+     the near-white calendar grid instead of blending into it. The level-aware
+     brand alpha feeds the tint; the `max()` floor holds white copy legible even
+     at Very subtle, where that alpha drops to 0.50. */
+  background: light-dark(
+    rgba(13, 71, 161, max(var(--c2g-brand-l), 0.78)),
+    rgba(13, 71, 161, max(var(--c2g-brand-d), 0.55))
+  ) !important;
+  color: var(--mantine-color-white);
+  border: 1px solid light-dark(rgba(255, 255, 255, 0.3), rgba(255, 255, 255, 0.18));
+  border-radius: 999px;
+  box-shadow: var(--mantine-shadow-md);
+  /* Roomier than the base pill: 36px close + 16px vertical padding = 52px. */
+  min-height: 52px;
+  padding: 8px 10px 8px 16px;
+  justify-content: space-between;
+  /* Let the circular close button's lift shadow escape the pill (the radius
+     still clips the background). */
+  overflow: visible;
+  pointer-events: auto;
+}
+
+.c2-action-pill--glass .c2-action-pill-body {
+  flex: 1 1 auto;
+  background: transparent;
+  border: none;
+  border-radius: 999px;
+  color: inherit;
+  cursor: pointer;
+  /* Nudge the copy clear of the rounded edge so the hover wash reads. */
+  padding: 0 8px;
+  font-family: inherit;
+  /* Cross-fade the hover wash like the calendar glass buttons. */
+  transition: background-color var(--c2-dur-micro) ease;
+}
+
+.c2-action-pill--glass .c2-action-pill-body:hover {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.c2-action-pill--glass .c2-action-pill-body:focus-visible {
+  outline: 2px solid var(--mantine-color-accent-3);
+  outline-offset: 2px;
+}
+
+.c2-action-pill--glass .c2-action-pill-copy {
   flex-direction: row;
   gap: var(--mantine-spacing-sm);
-  padding: var(--mantine-spacing-xs) var(--mantine-spacing-md);
+  padding: 0;
+  text-align: left;
 }
 
-.c2-action-pill--toast .c2-action-pill-title {
+.c2-action-pill--glass .c2-action-pill-title {
   font-size: var(--mantine-font-size-sm);
+  font-weight: var(--mantine-font-weight-semibold);
   opacity: 1;
 }
 
-.c2-action-pill--toast .c2-action-pill-label {
-  color: var(--c2-pill-dark);
-}
-
-@media (min-width: 40em) {
-  .c2-action-pill-host--toast {
-    top: auto;
-    bottom: var(--app-floating-bottom-offset);
-    right: 16px;
-    left: auto;
-    transform: none;
-  }
+.c2-action-pill--glass .c2-action-pill-label {
+  font-size: var(--mantine-font-size-sm);
+  color: var(--mantine-color-accent-3);
 }
 
 /* Entrance: quick pop-in from just below the resting spot. */

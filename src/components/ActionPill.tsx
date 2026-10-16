@@ -11,6 +11,8 @@ import {
   type CSSProperties,
   type ReactNode,
 } from "react";
+import { ActionIcon } from "@mantine/core";
+import { IconX } from "@tabler/icons-react";
 
 /**
  * Bespoke actionable toast: a pill-shaped button floating at the bottom of the
@@ -28,7 +30,7 @@ import {
 
 export type ActionPillDirection = "empty" | "fill";
 
-export type ActionPillVariant = "default" | "toast";
+export type ActionPillVariant = "default" | "glassPill";
 
 export interface ActionPillOptions {
   /** Action verb shown on the pill (e.g. "View event"). */
@@ -47,11 +49,11 @@ export interface ActionPillOptions {
   direction?: ActionPillDirection;
   /**
    * Presentation variant. "default" is the classic two-tone pill with the
-   * progress sweep. "toast" reads as a confirmation, not a countdown: light
-   * surface + border, a green success rail, no sweep fill, single-line copy,
-   * and it nests into the notification corners (top-center on mobile,
-   * bottom-right on desktop) instead of bottom-center. The "empty" auto-dismiss
-   * timer still runs.
+   * progress sweep. "glassPill" reads as a confirmation styled like the calendar
+   * page's bottom control pill: a frosted translucent surface, hairline edge and
+   * floating shadow, bottom-center placement, no sweep fill, and a circular close
+   * button anchored to the right. The pill body still runs the action; the close
+   * button only dismisses. The "empty" auto-dismiss timer still runs.
    */
   variant?: ActionPillVariant;
   /** Lighter progress-fill color. Default `var(--mantine-color-brand-3)`. */
@@ -209,13 +211,14 @@ interface ActionPillViewProps {
  * The pill itself. In the "default" variant the body is the dark color and a
  * light fill sweeps across as the progress indicator — legibility is kept on
  * both tones by rendering the copy twice (white over the dark body, and a dark
- * copy clipped to the light fill). The "toast" variant drops the sweep and the
- * two-tone layers: it renders as a confirmation — light surface, green success
- * rail, single-line copy filling both colors' roles with plain text.
+ * copy clipped to the light fill). The "glassPill" variant drops the sweep and
+ * the two-tone layers: it renders as a confirmation styled like the calendar
+ * page's bottom control pill — a frosted `.c2-glass-surface` with a circular
+ * close button anchored to the right, the body button still running the action.
  */
 function ActionPillView({ active, closing, onDismiss }: ActionPillViewProps) {
   const { options } = active;
-  const toast = options.variant === "toast";
+  const glass = options.variant === "glassPill";
   const start = options.direction === "fill" ? 0 : 100;
   const end = options.direction === "fill" ? 100 : 0;
   const [progress, setProgress] = useState(start);
@@ -253,22 +256,47 @@ function ActionPillView({ active, closing, onDismiss }: ActionPillViewProps) {
     "--c2-pill-duration": `${options.duration}ms`,
   } as CSSProperties;
 
-  const hostClass = toast ? "c2-action-pill-host c2-action-pill-host--toast" : "c2-action-pill-host";
+  if (glass) {
+    const pillClass = [
+      "c2-glass-surface",
+      "c2-action-pill",
+      "c2-action-pill--glass",
+      ...(closing ? ["c2-action-pill-closing"] : []),
+    ].join(" ");
+    return (
+      <div className="c2-action-pill-host c2-action-pill-host--glass">
+        <div className={pillClass} style={style}>
+          <button type="button" className="c2-action-pill-body" onClick={handleClick}>
+            <span className="c2-action-pill-copy">{copy}</span>
+          </button>
+          <ActionIcon
+            radius="50%"
+            size={36}
+            variant="default"
+            className="c2-glass-btn"
+            aria-label="Dismiss"
+            title="Dismiss"
+            onClick={onDismiss}
+          >
+            <IconX size={18} />
+          </ActionIcon>
+        </div>
+      </div>
+    );
+  }
+
   const pillClass = [
     "c2-action-pill",
-    ...(toast ? ["c2-action-pill--toast"] : []),
     ...(closing ? ["c2-action-pill-closing"] : []),
   ].join(" ");
 
   return (
-    <div className={hostClass}>
+    <div className="c2-action-pill-host">
       <button type="button" className={pillClass} style={style} onClick={handleClick}>
         <span className="c2-action-pill-copy">{copy}</span>
-        {toast ? null : (
-          <span className="c2-action-pill-fill" aria-hidden="true">
-            <span className="c2-action-pill-copy c2-action-pill-copy-invert">{copy}</span>
-          </span>
-        )}
+        <span className="c2-action-pill-fill" aria-hidden="true">
+          <span className="c2-action-pill-copy c2-action-pill-copy-invert">{copy}</span>
+        </span>
       </button>
     </div>
   );

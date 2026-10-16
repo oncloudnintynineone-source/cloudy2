@@ -344,9 +344,10 @@ doc content here.
   `src/lib/settings/featureFlags.ts` (the last Settings tab auto-renders its control), resolve
   the value server-side and pass it down as a prop. Flags are **global** (no per-user override),
   default to today's behavior, and every flip is audited. Flags: `pinnedTickerIndicator`
-  ([`pinned-events.md`](docs/pinned-events.md) §1.4); `savedEventToastVariant` — the four
-  post-save event-confirmation presentations (classic pill / restyled pill / toast + action /
-  plain toast), resolved into `DashboardSharedConfig` → `EventForm`
+   ([`pinned-events.md`](docs/pinned-events.md) §1.4); `savedEventToastVariant` — the four
+   post-save event-confirmation presentations (classic two-tone pill / restyled **frosted
+   bottom pill** styled like the calendar control pill with a circular close / toast + action /
+   plain toast), resolved into `DashboardSharedConfig` → `EventForm`
    ([`action-pill.md`](docs/action-pill.md)); and `translucencyLevel` — the app-wide frosted-glass
    opacity (very subtle / subtle / medium / strong) for the page's overlapping surfaces (sticky
    calendar chrome, bottom nav, sidebar, floating controls; the header and overlays stay opaque,

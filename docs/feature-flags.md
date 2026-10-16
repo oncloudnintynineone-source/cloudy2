@@ -102,7 +102,7 @@ Related docs:
 - [`pinned-events.md`](pinned-events.md) — the first flag (`pinnedTickerIndicator`)
   and its five variants in the header pill.
 - [`action-pill.md`](action-pill.md) — the `savedEventToastVariant` flag: the four
-  post-save confirmation variants and the action pill's `toast` presentation.
+  post-save confirmation variants and the action pill's `glassPill` presentation.
 - [`dashboard-views.md`](dashboard-views.md) §1.1 — the `translucencyLevel` flag:
   the app-wide frosted glass and its four opacity levels (`verySubtle` /
   `subtle` / `medium` / `strong`; the standalone round FABs
