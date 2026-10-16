@@ -48,7 +48,6 @@ import {
 import { AgendaSwipeHint } from "@/components/AgendaSwipeHint";
 import { EmptyState } from "@/components/EmptyState";
 import { FilterButton } from "@/components/FilterButton";
-import { PageHeader } from "@/components/PageHeader";
 import { useReportActivity } from "@/components/ActivityBar";
 import { useColdStartContent } from "@/components/ColdStartReady";
 import { FilterModal, type FilterGroup } from "@/components/FilterModal";
@@ -881,7 +880,6 @@ export function ParadeStateView({
         } as CSSProperties
       }
     >
-      <PageHeader title="Parade State" subtitle="Roster whereabouts and attendance, by day." />
       {/* The pinned chrome: at lg+ the day-nav row (+ the attendance mode bar
           when in attendance mode) stuck under the app header as one unit — the
           shared sticky-chrome recipe (docs/dashboard-views.md, SettingsTabs):

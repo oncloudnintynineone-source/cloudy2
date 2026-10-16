@@ -3,7 +3,6 @@ import { PageTransition } from "@/components/PageTransition";
 import { parsePage } from "@/lib/audit/queries";
 import { buildMyEventsData } from "@/lib/events/myEventsData";
 import { parseMyEventsRange } from "@/lib/events/myEventsRange";
-import { getSettings } from "@/lib/settings/queries";
 import { requireSession } from "@/lib/session";
 
 import { MyEventsView } from "./MyEventsView";
@@ -26,7 +25,6 @@ export default async function MyEventsPage({ searchParams }: MyEventsPageProps) 
   const rangeMonths = parseMyEventsRange(typeof params.range === "string" ? params.range : null);
   const requestedPage = parsePage(typeof params.page === "string" ? params.page : null);
 
-  const settings = await getSettings();
   const data = await buildMyEventsData({ userId: session.user.id, rangeMonths });
 
   const total = data.rows.length;
@@ -49,7 +47,6 @@ export default async function MyEventsPage({ searchParams }: MyEventsPageProps) 
           pageCount={pageCount}
           total={total}
           rangeMonths={data.rangeMonths}
-          retentionDays={settings.auditLogRetentionDays}
           renderedAt={renderedAt}
         />
       </PageContainer>

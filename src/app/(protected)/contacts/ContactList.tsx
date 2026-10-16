@@ -28,7 +28,6 @@ import {
 import { EmptyState } from "@/components/EmptyState";
 import { FilterButton } from "@/components/FilterButton";
 import { FilterModal, type FilterGroup } from "@/components/FilterModal";
-import { PageHeader } from "@/components/PageHeader";
 import { FAB_SIZE } from "@/components/FloatingToolbar";
 import { filterContacts, NO_DEPARTMENT_FILTER } from "@/lib/contacts/filter";
 import { buildContactsVcf } from "@/lib/contacts/vcf";
@@ -259,10 +258,6 @@ export function ContactList({
         } as CSSProperties
       }
     >
-      <PageHeader
-        title="Contacts"
-        subtitle="Roster directory — call, copy, or export contact details."
-      />
       {/* The pinned chrome (lg+ only): search/filter/export bar stuck under the
           app header while the contact cards scroll beneath it — the shared
           sticky-chrome recipe (docs/dashboard-views.md, SettingsTabs):

@@ -10,7 +10,6 @@ import { PickerField, type PickerBadgeItem } from "@/components/PickerField";
 import { UserSelectModal } from "@/components/UserSelectModal";
 import { LoadingStatus } from "@/components/LoadingStatus";
 import { EmptyState } from "@/components/EmptyState";
-import { PageHeader } from "@/components/PageHeader";
 import { useColdStartContent } from "@/components/ColdStartReady";
 import { ClashAffectedChips } from "@/components/clashUi";
 import { ClashCard, ClashEventRow } from "@/components/clashCards";
@@ -244,29 +243,26 @@ export function DoubleBookingView({
 
   return (
     <Stack gap="md" pb="xl" className={CONTENT_ENTER_CLASS}>
-      {/* The pinned chrome: the head block (title + admin target picker, one
-          flex row at lg) stuck under the app header while the clash groups
-          scroll beneath it — the shared sticky-chrome recipe
-          (docs/dashboard-views.md, SettingsTabs). */}
-      <Box
-        className="c2-glass-surface"
-        style={{
-          position: "sticky",
-          top: "var(--app-shell-header-offset)",
-          zIndex: 9,
-          borderBottom: "1px solid var(--mantine-color-default-border)",
-          marginInline: "calc(-1 * var(--app-shell-padding))",
-          marginTop: "calc(-1 * var(--app-shell-padding))",
-          paddingInline: "var(--app-shell-padding)",
-          paddingTop: "var(--mantine-spacing-md)",
-          paddingBottom: "var(--mantine-spacing-md)",
-        }}
-      >
-        <div className="c2-db-head">
-          <div className="c2-db-title">
-            <PageHeader title="Double Booking" subtitle={subtitleFor(view)} />
-          </div>
-          {isAdmin && (
+      {/* The pinned chrome: the admin target picker stuck under the app header
+          while the clash groups scroll beneath it — the shared sticky-chrome
+          recipe (docs/dashboard-views.md, SettingsTabs). Admin-only, since the
+          picker is the only thing that ever lived in this bar. */}
+      {isAdmin && (
+        <Box
+          className="c2-glass-surface"
+          style={{
+            position: "sticky",
+            top: "var(--app-shell-header-offset)",
+            zIndex: 9,
+            borderBottom: "1px solid var(--mantine-color-default-border)",
+            marginInline: "calc(-1 * var(--app-shell-padding))",
+            marginTop: "calc(-1 * var(--app-shell-padding))",
+            paddingInline: "var(--app-shell-padding)",
+            paddingTop: "var(--mantine-spacing-md)",
+            paddingBottom: "var(--mantine-spacing-md)",
+          }}
+        >
+          <div className="c2-db-head">
             <div className="c2-db-picker">
               <PickerField
                 label="Check another person"
@@ -281,9 +277,9 @@ export function DoubleBookingView({
                 onOpen={() => setTargetPickerOpen(true)}
               />
             </div>
-          )}
-        </div>
-      </Box>
+          </div>
+        </Box>
+      )}
 
       {renderContent(view)}
 
@@ -332,12 +328,6 @@ export function DoubleBookingView({
       />
     </Stack>
   );
-
-  function subtitleFor(current: View): string | undefined {
-    // The result states carry their own summary (the status line, the strip, or
-    // the empty state), so the header only orients while loading.
-    return current.kind === "loading" ? "Checking existing events…" : undefined;
-  }
 
   function jumpToDay(dayKey: string) {
     const target = document.getElementById(`c2-db-day-${dayKey}`);

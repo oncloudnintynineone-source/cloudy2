@@ -9,7 +9,6 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
 import { EmptyState } from "@/components/EmptyState";
 import { NoKeyboardSelect } from "@/components/NoKeyboardSelect";
-import { PageHeader } from "@/components/PageHeader";
 import {
   MY_EVENTS_RANGE_MONTHS,
   myEventsRangeLabel,
@@ -31,8 +30,6 @@ interface MyEventsViewProps {
   rangeMonths: MyEventsRangeMonths;
   /** Server render timestamp — drives the always-fresh re-read gate. */
   renderedAt: number;
-  /** Configured audit retention window in days (0 = disabled). */
-  retentionDays: number;
 }
 
 /**
@@ -48,7 +45,6 @@ export function MyEventsView({
   total,
   rangeMonths,
   renderedAt,
-  retentionDays,
 }: MyEventsViewProps) {
   const router = useRouter();
   const pathname = usePathname();
@@ -79,15 +75,6 @@ export function MyEventsView({
 
   return (
     <Stack gap="md">
-      <PageHeader
-        title="My Events"
-        subtitle={
-          retentionDays > 0
-            ? `Events you created · ${myEventsRangeLabel(rangeMonths)} · tracked for ${retentionDays} days`
-            : `Events you created · ${myEventsRangeLabel(rangeMonths)}`
-        }
-      />
-
       {/* The pinned chrome: the Range control stuck under the app header while
           the event cards scroll beneath it — the shared sticky-chrome recipe
           (docs/dashboard-views.md, SettingsTabs). */}

@@ -2036,17 +2036,12 @@ html {
   }
 }
 
-/* Double Booking page header (docs/user-clashes.md §1.8): the title + admin
-   target picker stack on mobile (picker full column width) and split into a
-   title-left / content-sized picker-right row from the 40em desktop band on. */
+/* Double Booking admin target picker (docs/user-clashes.md §1.8): full column
+   width on mobile and content-sized from the 40em desktop band on. */
 .c2-db-head {
   display: flex;
   flex-direction: column;
   gap: var(--mantine-spacing-sm);
-}
-
-.c2-db-title {
-  min-width: 0;
 }
 
 .c2-db-picker {
@@ -2059,10 +2054,6 @@ html {
     justify-content: space-between;
     align-items: flex-end;
     gap: var(--mantine-spacing-md);
-  }
-
-  .c2-db-title {
-    flex: 1 1 auto;
   }
 
   /* The admin target control is content-sized (a "Select" button + optional
