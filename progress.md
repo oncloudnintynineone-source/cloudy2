@@ -1748,6 +1748,16 @@ via `?attendance=1` and `attendanceStorage` became a `useSyncExternalStore` exte
     (`marginTop: calc(-1 * var(--app-shell-padding))` alongside the existing
     gutter bleed) so the frosted chrome sits flush under the app header;
     token unified on `--app-shell-padding` across all four pages.
+- 1.306 Solid tinted FABs: the `c2-glass-fab--accent` / `--brand` / `--teal`
+    modifiers in `globals.css` now paint fully opaque (amber `accent-6`, brand
+    `brand-7`, teal `#0ca678`) with lighter/darker shade shifts for hover/active
+    instead of alpha bumps, and their icons ride the dark shade in both schemes
+    — the faded translucent tints (Quick-links, New-event, Parade attendance,
+    contacts download, settings-table FABs) read at full colour over any content.
+    The now-dead `--c2g-accent-*` / `--c2g-brand-*` alphas are dropped from the
+    token block and the level modifiers; `translucencyLevel` still governs the
+    neutral frosted surfaces. Docs: `dashboard-views.md` §1.1,
+    `feature-flags.md`, `desktop-responsive.md`, `AGENTS.md`.
 
 ## 1.4 Open items & next steps
 

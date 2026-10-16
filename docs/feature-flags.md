@@ -104,7 +104,8 @@ Related docs:
 - [`action-pill.md`](action-pill.md) — the `savedEventToastVariant` flag: the four
   post-save confirmation variants and the action pill's `toast` presentation.
 - [`dashboard-views.md`](dashboard-views.md) §1.1 — the `translucencyLevel` flag:
-  the app-wide frosted glass and its three opacity levels.
+  the app-wide frosted glass and its three opacity levels (the tinted FAB
+  modifiers `--accent` / `--brand` / `--teal` are exempt — always solid).
 - [`reorder.md`](reorder.md) — the `reorderDrag` flag: the shared drag-to-reorder
   plumbing and the lists it upgrades.
 - [`desktop-responsive.md`](desktop-responsive.md) §1.2 — the `bottomNavVariant`

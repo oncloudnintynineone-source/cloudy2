@@ -331,7 +331,8 @@ doc content here.
   plain toast), resolved into `DashboardSharedConfig` → `EventForm`
   ([`action-pill.md`](docs/action-pill.md)); and `translucencyLevel` — the app-wide frosted-glass
   opacity (subtle / medium / strong) for the page's overlapping surfaces (sticky
-  calendar chrome, bottom nav, sidebar, floating controls; the header and overlays stay opaque), published on `<html>`
+  calendar chrome, bottom nav, sidebar, floating controls; the header and overlays stay opaque,
+  and the tinted FABs `--accent`/`--brand`/`--teal` are always solid), published on `<html>`
    as `data-c2-glass` by the shell (plus a `c2-glass--<level>` class on the mobile FAB cluster via
    `DashboardSharedConfig` → `DashboardView`)
    ([`dashboard-views.md`](docs/dashboard-views.md) §1.1); `reorderDrag` — the

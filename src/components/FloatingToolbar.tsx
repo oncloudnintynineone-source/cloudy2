@@ -28,10 +28,10 @@ export const FAB_ICON_SIZE = 30;
 /**
  * Shared floating action button: a 65px circle for the bottom-right toolbar.
  * Icon-only — pass the icon as children (at `FAB_ICON_SIZE`) and an
- * `aria-label` for accessibility. Every FAB is frosted (`.c2-glass-fab`, the
- * shared glass surface); callers add a `c2-glass-fab--brand` / `--accent` /
- * `--teal` modifier to keep their colour identity, or omit it for the neutral
- * body tint.
+ * `aria-label` for accessibility. Neutral FABs are frosted (`.c2-glass-fab`,
+ * the shared glass surface); callers add a `c2-glass-fab--brand` / `--accent`
+ * / `--teal` modifier for a **solid**, fully opaque tint that keeps their
+ * colour identity.
  */
 export function FloatingActionButton({ className, style, ...props }: FloatingActionButtonProps) {
   return (

@@ -199,17 +199,18 @@ string maps to the first tab of that kind.
   `[<] [>] [LINK] [CREATE]` — so period steps sit in the phone thumb zone
   instead of the top-of-screen dead zone. They are 44px circular
   frosted-glass `ActionIcon`s (`.c2-glass-fab`, `globals.css`), alongside the
-  amber-tinted Quick-links FAB and brand-tinted New-event FAB — the whole
-  mobile cluster is glass — while the desktop row keeps its 36px rounded-square
+  amber-tinted Quick-links FAB and brand-tinted New-event FAB (the tinted FABs
+  solid, the chevrons glass) — while the desktop row keeps its 36px rounded-square
   chevrons. Both sets call the shared view-aware `navigatePeriod(±1)` dispatch
   and read their accessible name from `periodStepLabel` (`DashboardView.tsx`),
   so behaviour and announcements are identical. The top row's chevrons are
   `visibleFrom="lg"` (desktop-only); at `lg`+ the cluster is hidden with the
-  rest of the mobile toolbar. The cluster's opacity is admin-adjustable via the
+  rest of the mobile toolbar. The cluster's glass opacity is admin-adjustable via the
   app-wide **`translucencyLevel`** feature flag (subtle / medium / strong;
   medium = the shipped look), resolved into `DashboardSharedConfig` and applied
   as a `c2-glass--<level>` modifier (the shell also publishes it on `<html>` as
-  `data-c2-glass`, which every glass surface inherits) — see
+  `data-c2-glass`, which every glass surface inherits) — the tinted LINK/CREATE
+  FABs are exempt (always solid) — see
   [`feature-flags.md`](feature-flags.md).
 - **App-wide frosted glass (`translucencyLevel`).** Beyond the mobile cluster,
   the surfaces that overlap page content are translucent: the
@@ -223,8 +224,8 @@ string maps to the first tab of that kind.
   page-level surfaces are translucent. The **sticky-left label columns** (resource/hour labels and
   the Week (Grid) day-header corner) also stay opaque so event chips scrolling
   beside them stay legible. Low-end devices (`c2-low-end`) fall back to tint only, and
-  the previous glass FAB cluster keeps `c2-glass-fab--accent` / `--brand` to
-  preserve its colour language (plus `--teal` for the Parade attendance toggle).
+  the tinted FAB modifiers (`c2-glass-fab--accent` / `--brand`, plus `--teal` for
+  the Parade attendance toggle) are exempt — they always render solid/opaque.
 - **Period preservation on switch** (`switchTab` in `DashboardView.tsx`): a
   tab switch is a _filter/context_ change, so switching between two tabs of the
   same kind (or any two day-anchored kinds) keeps the current date; leaving
