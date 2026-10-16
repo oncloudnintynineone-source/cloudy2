@@ -218,10 +218,9 @@ string maps to the first tab of that kind.
    the pill containers) parked on the **right**. The row sits at
   `bottom: calc(--app-floating-bottom-offset + pillH + 12px)`. All ride the
   same frosted treatment (`c2-glass-surface`) with pill radius + hairline
-  edge, so grid content scrolls *under* them. Neither the pill nor the FAB row
-  plays a mount entrance any more — both ride named view-transition groups held
-  above the page transition (see
-  [`loading-transitions.md`](loading-transitions.md) §1.14). The grid
+  edge, so grid content scrolls *under* them. The pill fades + rises in on
+  first paint (`c2-glass-enter`; the FAB row via `c2-fab-cluster`) — see
+  [`loading-transitions.md`](loading-transitions.md) §1.17. The grid
   starts under the top strip: the pinned strips (Week (H) day strip / hour
   rulers, Month weekday strip, Week (D) day header) dock under the name strip
   (`chromeOffset` = measured `topChromeHeight`), and the viewport-bounded
@@ -242,9 +241,10 @@ string maps to the first tab of that kind.
   pill hidden.
 - **Bottom control pill reuse (Parade State / Contacts).** Below `lg` both
   pages shed their sticky top chrome and ride the same `.c2-control-pill`
-  Affix recipe (inset 16, zIndex 100; the portaled pill rides a named
-  view-transition group so a route transition can't paint the outgoing page
-  over it — `loading-transitions.md` §1.14; 50px on Parade, 58px on Contacts):
+  Affix recipe (inset 16; zIndex **110** — above the bottom nav's AppShell
+  z-index 100 so an animating pill never slips behind its backdrop-filter
+  layer, below modals at 200; the Parade attendance bar rides 120 to stay
+  above its pill; 50px on Parade, 58px on Contacts):
   **Parade** puts the day label + `<`/`>` step + filter + date-picker +
   attendance-toggle circles in one pill (the attendance **mode bar** floats
   above it while in attendance mode and fades/slides in and out —

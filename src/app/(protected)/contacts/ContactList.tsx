@@ -179,22 +179,19 @@ export function ContactList({
   // so the search field keeps its view; it drops back the moment the
   // keyboard shrinks (see `useKeyboardInset`).
   const pillHeightPx = 58;
-  // The pill rides a named view-transition group (globals.css) so the portaled
-  // element is held above the route-transition page groups: unnamed portaled
-  // chrome lands in the `root` group, which paints *below* the outgoing page's
-  // snapshot for the whole transition (the pill looked half-covered until it
-  // ended).
+  // zIndex 110: above the bottom nav (Mantine AppShell z-index 100) so the
+  // pill never slips behind its backdrop-filter layer while animating, below
+  // modals (200).
   const mobilePill = (
     <Affix
       hiddenFrom="lg"
       className="c2-pill-lift"
-      style={{ viewTransitionName: "c2-control-pill" }}
       position={{
         bottom: keyboardInset > 0 ? keyboardInset + 8 : "var(--app-floating-bottom-offset)",
         left: 16,
         right: 16,
       }}
-      zIndex={100}
+      zIndex={110}
     >
       <Box className="c2-glass-surface c2-control-pill">
         <Group align="center" gap="xs" wrap="nowrap">

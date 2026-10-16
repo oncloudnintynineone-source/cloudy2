@@ -129,37 +129,6 @@ html {
   animation: none;
 }
 
-/*
-  Portaled floating chrome (the mobile control pill, the Parade attendance bar
-  and the FAB clusters) is held in its own named groups, above the page groups.
-  Without a name an element lands in the `root` group, which paints *below* the
-  page-transition groups — so the outgoing page's snapshot covered the incoming
-  pill/cluster for the whole transition ("half-rendered behind other UI until
-  the animation completes"). The layer is held still (old hidden, new static):
-  the container pages already cross-fade; the chrome should ride through like
-  the header/footer. Their own mount animations were removed because a running
-  entrance animation is captured on its first (transparent) frame, which would
-  make the chrome invisible for the transition and pop in at the end.
-*/
-::view-transition-group(c2-control-pill),
-::view-transition-group(c2-attendance-bar),
-::view-transition-group(c2-fab-cluster) {
-  animation: none;
-  z-index: 150;
-}
-
-::view-transition-old(c2-control-pill),
-::view-transition-old(c2-attendance-bar),
-::view-transition-old(c2-fab-cluster) {
-  display: none;
-}
-
-::view-transition-new(c2-control-pill),
-::view-transition-new(c2-attendance-bar),
-::view-transition-new(c2-fab-cluster) {
-  animation: none;
-}
-
 /* Let clicks reach the live page while the transition overlay is up. */
 ::view-transition {
   pointer-events: none;
@@ -1329,6 +1298,60 @@ html {
 }
 
 /*
+  FAB cluster entrance (docs/desktop-responsive.md): FloatingToolbar's portaled
+  Affix root carries `c2-fab-cluster`; the cluster's glass controls pop in with a
+  small stagger the first time it is painted. Nodes are reused afterwards, so the
+  pop never replays on state changes.
+
+  Target the glass controls themselves, never a wrapper element: a
+  transform/opacity animation on an ANCESTOR of a `backdrop-filter` control makes
+  that ancestor a backdrop root, so the control blurs only the (empty) wrapper
+  interior and reads as solid. Standard toolbars put the `FloatingActionButton`s
+  (the glass) as the Group's direct children, but the dashboard's mobile FAB row
+  nests its step pill + create pill inside a ref wrapper, so an ancestor-keyed
+  selector would animate that wrapper and kill their frost.
+*/
+@keyframes c2-fab-enter {
+  from {
+    opacity: 0;
+    transform: scale(0.82);
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .c2-fab-cluster :is(.c2-glass-fab, .c2-glass-btn, .c2-glass-surface) {
+    animation: c2-fab-enter var(--c2-dur-standard) cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+
+  .c2-fab-cluster :is(.c2-glass-fab, .c2-glass-btn, .c2-glass-surface):nth-child(2) {
+    animation-delay: 50ms;
+  }
+
+  .c2-fab-cluster :is(.c2-glass-fab, .c2-glass-btn, .c2-glass-surface):nth-child(3) {
+    animation-delay: 100ms;
+  }
+
+  .c2-fab-cluster :is(.c2-glass-fab, .c2-glass-btn, .c2-glass-surface):nth-child(4) {
+    animation-delay: 150ms;
+  }
+}
+
+/*
+  Shared entrance for the mobile floating control pills (`.c2-control-pill` on
+  the Calendar, Parade State and Contacts) and the Parade attendance mode bar:
+  a fade + small rise the first time the element is painted. Applied on the
+  glass element itself (never an Affix wrapper) so the `backdrop-filter` keeps
+  its frost — see the FAB-cluster note above. Nodes persist across re-renders,
+  so it never replays on state changes.
+*/
+@keyframes c2-glass-enter {
+  from {
+    opacity: 0;
+    transform: translateY(calc(0.5rem * var(--mantine-scale)));
+  }
+}
+
+/*
   Icon swap (the Parade mobile attendance toggle: clipboard → check on entering
   attendance mode): the icon node is keyed by the mode, so it remounts and
   replays a fade + scale-in. The circle's colour cross-fades via the
@@ -1349,6 +1372,11 @@ html {
 }
 
 @media (prefers-reduced-motion: no-preference) {
+  .c2-control-pill,
+  .c2-attendance-bar {
+    animation: c2-glass-enter var(--c2-dur-standard) cubic-bezier(0.22, 1, 0.36, 1);
+  }
+
   .c2-icon-swap {
     animation: c2-icon-swap var(--c2-dur-micro) cubic-bezier(0.22, 1, 0.36, 1);
   }
@@ -1380,6 +1408,8 @@ html {
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .c2-control-pill,
+  .c2-attendance-bar,
   .c2-icon-swap,
   .c2-fade-in {
     animation: none;
