@@ -204,21 +204,25 @@ string maps to the first tab of that kind.
   viewport edges** — `left: 16, right: 16`, the same clearance as the FAB
   toolbar) sits **bottom-most** with the period label on the **left** and the
   **circular** search / filter / date / view-menu / fullscreen buttons on the
-  **right** (the search circle replaces the header search icon on the
-  calendar below `lg` and opens the shell-owned modal through
-  `SearchPanelContext`, §1.9 of [`event-search.md`](event-search.md))
+   **right** (the search circle is the calendar's search trigger below `lg` —
+   the app header no longer carries one — and it opens the shell-owned modal
+   through `SearchPanelContext`, §1.9 of [`event-search.md`](event-search.md))
   (the fullscreen button is `FullscreenButton`, the same inline toggle the
   floating lg-only `FullscreenToggle` uses); above it floats the
   **right-anchored FAB row** — the `[< | >]` **period-step
   pill** (`.c2-period-pill`, its height driven inline to match the control
-   pill's), then the **Quick-links pill button** (`c2-glass-fab--accent`, amber —
-   shown only when the org has links) and the **New-event pill button**
-   (`c2-glass-btn` + `c2-glass-fab--brand` — the same brand-blue tint as the lg
-   nav-row button — + `c2-glass-btn--bordered`, the grey hairline ring matching
-   the pill containers) parked on the **right**. The row sits at
-  `bottom: calc(--app-floating-bottom-offset + pillH + 12px)`. All ride the
-  same frosted treatment (`c2-glass-surface`) with pill radius + hairline
-  edge, so grid content scrolls *under* them. The pill fades + rises in on
+    pill's), then the **Quick-links pill button** (`c2-glass-fab--accent` +
+    `c2-glass-btn--solid`, softened amber `accent-5` —
+    shown only when the org has links) and the **New-event pill button**
+    (`c2-glass-btn` + `c2-glass-fab--brand` + `c2-glass-btn--solid` — the same
+    softened brand-blue `brand-6` as the lg
+    nav-row button — + `c2-glass-btn--bordered`, the grey hairline ring matching
+    the pill containers, and a deeper `shadow-lg` lift (`.c2-fab-cluster
+    .c2-glass-btn--bordered`)) parked on the **right**. The row sits at
+   `bottom: calc(--app-floating-bottom-offset + pillH + 12px)`. The row's
+   containers ride the same frosted treatment (`c2-glass-surface`) with pill radius
+   + hairline edge, so grid content scrolls *under* them, while the two action
+   pills themselves are opaque at every `translucencyLevel`. The pill fades + rises in on
   first paint (`c2-glass-enter`; the FAB row via `c2-fab-cluster`) — see
   [`loading-transitions.md`](loading-transitions.md) §1.17. The grid
   starts under the top strip: the pinned strips (Week (H) day strip / hour
@@ -237,7 +241,7 @@ string maps to the first tab of that kind.
   anchors below the top strip **at `lg`+ only** (`visibleFrom="lg"`) — below `lg`
   the control pill's inline `FullscreenButton` is the fullscreen path. At `lg`+
   everything is unchanged: one chrome box pinned top
-  (tab strip + nav row incl. chevrons, New event and Quick links), FABs and
+  (tab strip + nav row incl. chevrons, search squircle, New event and Quick links), FABs and
   pill hidden.
 - **Bottom control pill reuse (Parade State / Contacts).** Below `lg` both
   pages shed their sticky top chrome and ride the same `.c2-control-pill`
@@ -288,11 +292,14 @@ string maps to the first tab of that kind.
   page-level surfaces are translucent. The **sticky-left label columns** (resource/hour labels and
   the Week (Grid) day-header corner) also stay opaque so event chips scrolling
   beside them stay legible. Low-end devices (`c2-low-end`) fall back to tint only. The
-  standalone round FABs (`c2-glass-fab--accent` / `--brand` / `--teal` without
-  `c2-glass-btn` — the Contacts download, the
-  settings-table FABs) are solid/opaque; the dashboard's tinted glass buttons
-  (and the Parade attendance toggle, now a `c2-glass-btn` circle in the control
-  pill) keep the frosted tint.
+   standalone round FABs (`c2-glass-fab--accent` / `--brand` / `--teal` without
+   `c2-glass-btn` — the Contacts download, the
+   settings-table FABs) are solid/opaque, and so are the dashboard's **Quick links**
+   and **New event** buttons at every screen size (the lg nav row and the mobile
+   FAB row alike) via the opt-in `c2-glass-btn--solid` — solid `accent-6` /
+   `brand-7` with the same hover/active ramp, and no backdrop blur. The remaining
+   tinted glass buttons (date-nav icons, the zoom/pan cluster, the Contacts export
+   circle, the Parade attendance toggle) keep the frosted tint.
 - **Period preservation on switch** (`switchTab` in `DashboardView.tsx`): a
   tab switch is a _filter/context_ change, so switching between two tabs of the
   same kind (or any two day-anchored kinds) keeps the current date; leaving

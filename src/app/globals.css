@@ -1047,9 +1047,10 @@ html {
   beats Mantine's runtime-injected variant background/colour/border rules. Tints
   preserve each surface's colour language: neutral surfaces keep the body tone,
   amber Quick links (`--accent`), brand-blue New event (`--brand`); the
-  **standalone** round FABs (`--accent` / `--brand` / `--teal` without
-  `.c2-glass-btn`) are **solid**, so their colour reads at full strength over any
-  content, while the dashboard's glass buttons keep the frosted tint.
+   **standalone** round FABs (`--accent` / `--brand` / `--teal` without
+   `.c2-glass-btn`) are **solid**, so their colour reads at full strength over any
+   content, and so are the dashboard's Quick links / New event pills
+   (`c2-glass-btn--solid`); every other glass button keeps the frosted tint.
   The backdrop blur lets the content read through, while the blur + shadow keep
   the controls legible over any content. No border: the frosted edge is carried
   by   the shadow alone (a hard ring read as an off outline, especially in dark
@@ -1057,12 +1058,14 @@ html {
   floating buttons that must match the floating pill containers' edge.
 
   The opacity is admin-adjustable via the `translucencyLevel` feature flag: the
-  `[data-c2-glass]` attribute (on <html>) or the explicit `.c2-glass--{subtle|
-  medium|strong}` modifier sets the `--c2g-*` alphas, which the neutral visual
+  `[data-c2-glass]` attribute (on <html>) or the explicit `.c2-glass--{verySubtle|
+  subtle|medium|strong}` modifier sets the `--c2g-*` alphas, which the neutral visual
   rules below consume. The base rules carry the `medium` defaults, so an
   unmatched level still renders medium rather than solid. Medium is the shipped
-  look; Subtle is more see-through, Strong nearly solid. Low-end devices fall
-  back to tint only. Only the standalone round FABs are opaque (see above).
+  look; Very subtle is the most see-through, Subtle more see-through, Strong nearly
+  solid. Low-end devices fall back to tint only. The header, overlays and the
+  standalone round FABs are opaque (see above), as are the Quick links / New event
+  pills (`c2-glass-btn--solid`), which ignore the level entirely.
 */
 /* Token base (the `medium` defaults). The level modifiers below override the
    alphas; the low-end tier switches `--c2g-blur` off entirely (tint only). */
@@ -1192,6 +1195,13 @@ html {
   border: 1px solid var(--mantine-color-default-border) !important;
 }
 
+/* The mobile FAB row's create + quick-links pills float over the grid rather
+   than sit inside the pinned chrome, so they get a deeper lift than the nav-row
+   buttons that share the same hairline ring. */
+.c2-fab-cluster .c2-glass-btn--bordered {
+  box-shadow: var(--mantine-shadow-lg) !important;
+}
+
 .c2-glass-fab:hover,
 .c2-glass-btn:hover {
   background: light-dark(
@@ -1318,6 +1328,45 @@ html {
 
 .c2-glass-fab--teal:not(.c2-glass-btn):active {
   background: #097b5a !important;
+}
+
+/* Opt-in: fully opaque action pills. The dashboard's Quick links and New event
+   buttons (lg nav row and the mobile FAB row alike) read at a slightly softened
+   brand/amber strength at every screen size and every `translucencyLevel` — no
+   tint, no backdrop blur: `accent-5` / `brand-6` with one step lighter on hover
+   and one step darker on active. Declared after the tint rules, so the
+   equal-specificity `!important` wins on source order and the `:hover` /
+   `:active` forms outrank `.c2-glass-fab--accent` / `--brand` by their extra
+   class. */
+.c2-glass-btn--solid {
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+
+.c2-glass-btn--solid.c2-glass-fab--accent {
+  background: var(--mantine-color-accent-5) !important;
+  color: var(--mantine-color-accent-9) !important;
+}
+
+.c2-glass-btn--solid.c2-glass-fab--accent:hover {
+  background: var(--mantine-color-accent-4) !important;
+}
+
+.c2-glass-btn--solid.c2-glass-fab--accent:active {
+  background: var(--mantine-color-accent-6) !important;
+}
+
+.c2-glass-btn--solid.c2-glass-fab--brand {
+  background: var(--mantine-color-brand-6) !important;
+  color: var(--mantine-color-white) !important;
+}
+
+.c2-glass-btn--solid.c2-glass-fab--brand:hover {
+  background: var(--mantine-color-brand-5) !important;
+}
+
+.c2-glass-btn--solid.c2-glass-fab--brand:active {
+  background: var(--mantine-color-brand-7) !important;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -1457,6 +1506,20 @@ html {
    `.c2-glass--*` classes are the explicit form the Settings preview uses.
    Placed after the base rules so a single class wins;
    Medium equals the base defaults above. */
+[data-c2-glass="verySubtle"],
+.c2-glass--verySubtle {
+  --c2g-base-l: 0.3;
+  --c2g-base-d: 0.26;
+  --c2g-hover-l: 0.42;
+  --c2g-hover-d: 0.36;
+  --c2g-active-l: 0.55;
+  --c2g-active-d: 0.48;
+  --c2g-accent-l: 0.16;
+  --c2g-accent-d: 0.11;
+  --c2g-brand-l: 0.5;
+  --c2g-brand-d: 0.42;
+}
+
 [data-c2-glass="subtle"],
 .c2-glass--subtle {
   --c2g-base-l: 0.45;

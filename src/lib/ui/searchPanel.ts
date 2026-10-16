@@ -3,16 +3,17 @@ import { createContext, useContext } from "react";
 import type { Rect } from "@/lib/motion/origin";
 
 /**
- * Event search modal for the Calendar: the shell owns the open/close state
- * (it renders the header trigger) and pages read it through
- * `useSearchPanel()`. Opening is a transient client state — never persisted.
- * On the calendar page below `lg` the trigger lives in the floating bottom
- * control pill instead of the header; the pill opens the shell-owned modal
- * through this context.
+ * Event search modal for the Calendar: the shell owns the open/close state and
+ * pages read it through `useSearchPanel()`. Opening is a transient client state
+ * — never persisted. The triggers live on the calendar page only: the nav-row
+ * squircle beside "New event" at `lg`+, and the floating bottom control pill
+ * below `lg`.
  */
 export interface SearchPanelValue {
   /** Opens the modal, given the tapped trigger's rect for the zoom origin. */
   openSearch: (originRect: Rect | null) => void;
+  /** Warms the lazy modal chunk (hover/focus on a trigger) so the first open is instant. */
+  preloadSearch: () => void;
 }
 
 export const SearchPanelContext = createContext<SearchPanelValue | null>(null);

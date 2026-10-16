@@ -1815,6 +1815,17 @@ via `?attendance=1` and `attendanceStorage` became a `useSyncExternalStore` exte
     `--c2-dur-*`, sit under `prefers-reduced-motion` guards with matches resets.
     Docs: `loading-transitions.md` §1.17, `dashboard-views.md` §1.1,
     `desktop-responsive.md` §1.2/§1.6.
+- 1.313 Translucency: a fourth level + two always-solid pills: the
+    `translucencyLevel` flag gains **Very subtle** (`verySubtle`, leftmost in the
+    SegmentedControl; alphas `0.30/0.26` base down to `0.16/0.11` accent) for the
+    most see-through chrome, and the dashboard's **Quick links** and **New event**
+    buttons are now opaque at every level and every screen size (lg nav row + the
+    mobile FAB row alike) via the new opt-in `c2-glass-btn--solid` modifier — solid
+    `accent-6` / `brand-7` with the same hover/active ramp as the standalone round
+    FABs, and no backdrop blur. The Feature Flags preview mocks carry the modifier
+    so they match the real buttons. No schema change (`translucency_level` is already
+    a `text` column defaulting to `medium`). Docs: `feature-flags.md`,
+    `dashboard-views.md` §1.1, `desktop-responsive.md` §1.2, `AGENTS.md`.
 
 ## 1.4 Open items & next steps
 

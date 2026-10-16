@@ -3329,11 +3329,27 @@ function DashboardViewImpl({
       >
         <IconChevronRight size={18} />
       </ActionIcon>
+      {/* Event search: the calendar page owns the trigger (the header no longer
+          carries one). Same 36px squircle family as the period chevrons, parked
+          right beside "New event"; it opens the shell-owned modal, zooming out
+          of this button. */}
+      <ActionIcon
+        size={36}
+        variant="default"
+        className="c2-glass-btn"
+        aria-label="Search events"
+        title="Search events"
+        onPointerEnter={searchPanel.preloadSearch}
+        onFocus={searchPanel.preloadSearch}
+        onClick={(e) => searchPanel.openSearch(e.currentTarget.getBoundingClientRect())}
+      >
+        <IconSearch size={18} />
+      </ActionIcon>
       {/* Desktop: the "New event" FAB lives in the nav row instead of the
           bottom corner (the FAB is hidden at lg, below). */}
       <Button
         visibleFrom="lg"
-        className="c2-glass-btn c2-glass-fab--brand"
+        className="c2-glass-btn c2-glass-btn--solid c2-glass-fab--brand c2-glass-btn--bordered"
         __vars={{ "--button-height": "36px" }}
         leftSection={<IconPlus size={16} />}
         disabled={!googleConfigured}
@@ -3358,7 +3374,7 @@ function DashboardViewImpl({
               visibleFrom="lg"
               variant="light"
               color="accent"
-              className="c2-glass-btn c2-glass-fab--accent"
+              className="c2-glass-btn c2-glass-btn--solid c2-glass-fab--accent c2-glass-btn--bordered"
               __vars={{ "--button-height": "36px" }}
               leftSection={<IconLink size={16} />}
               aria-label="Quick links"
@@ -3455,9 +3471,9 @@ function DashboardViewImpl({
           >
             {periodLabel}
           </Text>
-          {/* Search rides the pill (left of the filter circle) below `lg` —
-              the header search icon hides on the calendar at this width, and
-              tapping opens the shell-owned modal from this circle. */}
+          {/* Search rides the pill (left of the filter circle) below `lg` — the
+              calendar page is the only place search is reachable; tapping opens
+              the shell-owned modal from this circle. */}
           <ActionIcon
             radius="50%"
             size={36}
@@ -3465,6 +3481,8 @@ function DashboardViewImpl({
             className="c2-glass-btn"
             aria-label="Search events"
             title="Search events"
+            onPointerEnter={searchPanel.preloadSearch}
+            onFocus={searchPanel.preloadSearch}
             onClick={(e) =>
               searchPanel.openSearch(e.currentTarget.getBoundingClientRect())
             }
@@ -5030,12 +5048,13 @@ function DashboardViewImpl({
         // Affix portals to <body>, so a wrapper element could not hide it. The
         // row floats right-anchored above the control pill: the period-step
         // chevrons `[< | >]` pill left, then the amber Quick-links **pill
-        // button** (`c2-glass-fab--accent`) when the org has links, and the
-        // New-event **pill button** (`c2-glass-fab--brand` — the same
-        // brand-blue tint as the lg nav-row button) parked on the right. Every
-        // pill carries `c2-glass-btn--bordered` (the grey hairline ring that
-        // matches the pill containers) and matches the control pill's measured
-        // height.
+        // button** (`c2-glass-fab--accent` + `c2-glass-btn--solid`) when the org
+        // has links, and the New-event **pill button** (`c2-glass-fab--brand` +
+        // `c2-glass-btn--solid` — the same solid brand-blue as the lg nav-row
+        // button) parked on the right. Both are opaque at every
+        // `translucencyLevel`, and every pill carries `c2-glass-btn--bordered`
+        // (the grey hairline ring that matches the pill containers) and matches
+        // the control pill's measured height.
         <FloatingToolbar hiddenFrom="lg" bottomOffset={fabBottomOffset}>
           <Box ref={fabStackRef} style={{ display: "flex", gap: "var(--mantine-spacing-xs)", alignItems: "center" }}>
             <Box
@@ -5084,7 +5103,7 @@ function DashboardViewImpl({
                 position="top-end"
                 trigger={
                   <Button
-                    className="c2-glass-btn c2-glass-fab--accent c2-glass-btn--bordered"
+                    className="c2-glass-btn c2-glass-btn--solid c2-glass-fab--accent c2-glass-btn--bordered"
                     aria-label="Quick links"
                     radius="999px"
                     w={56}
@@ -5096,7 +5115,7 @@ function DashboardViewImpl({
               />
             )}
             <Button
-              className="c2-glass-btn c2-glass-fab--brand c2-glass-btn--bordered"
+              className="c2-glass-btn c2-glass-btn--solid c2-glass-fab--brand c2-glass-btn--bordered"
               aria-label="New event"
               radius="999px"
               w={56}

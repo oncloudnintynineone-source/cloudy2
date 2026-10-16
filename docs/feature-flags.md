@@ -104,9 +104,11 @@ Related docs:
 - [`action-pill.md`](action-pill.md) — the `savedEventToastVariant` flag: the four
   post-save confirmation variants and the action pill's `toast` presentation.
 - [`dashboard-views.md`](dashboard-views.md) §1.1 — the `translucencyLevel` flag:
-  the app-wide frosted glass and its three opacity levels (the standalone round
-  FABs `--accent` / `--brand` / `--teal` are solid at every level; the dashboard's
-  tinted glass buttons stay frosted).
+  the app-wide frosted glass and its four opacity levels (`verySubtle` /
+  `subtle` / `medium` / `strong`; the standalone round FABs
+  `c2-glass-fab--accent` / `--brand` / `--teal` are solid at every level, as are
+  the dashboard's Quick links and New event pills via `c2-glass-btn--solid`; the
+  remaining tinted glass buttons stay frosted).
 - [`reorder.md`](reorder.md) — the `reorderDrag` flag: the shared drag-to-reorder
   plumbing and the lists it upgrades.
 - [`desktop-responsive.md`](desktop-responsive.md) §1.2 — the `bottomNavVariant`

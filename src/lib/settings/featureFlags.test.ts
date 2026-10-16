@@ -41,18 +41,37 @@ describe("resolveFlagValue", () => {
     expect(resolveFlagValue(pinnedTickerIndicatorFlag, "segmented")).toBe("segmented");
     expect(resolveFlagValue(savedEventToastVariantFlag, "toastPlain")).toBe("toastPlain");
     expect(resolveFlagValue(translucencyLevelFlag, "strong")).toBe("strong");
+    expect(resolveFlagValue(translucencyLevelFlag, "verySubtle")).toBe("verySubtle");
     expect(resolveFlagValue(reorderDragFlag, "arrowsDrag")).toBe("arrowsDrag");
     expect(resolveFlagValue(bottomNavVariantFlag, "tight")).toBe("tight");
   });
 
   it("falls back to the default for unknown values", () => {
-    for (const unknown of ["fancy", "", 42, null, undefined, {}, "classic", "roleAware", "sheetExpand", "scrollRail"]) {
+    for (const unknown of [
+      "fancy",
+      "",
+      42,
+      null,
+      undefined,
+      {},
+      "classic",
+      "roleAware",
+      "sheetExpand",
+      "scrollRail",
+    ]) {
       expect(resolveFlagValue(pinnedTickerIndicatorFlag, unknown)).toBe("classic");
       expect(resolveFlagValue(savedEventToastVariantFlag, unknown)).toBe("pill");
       expect(resolveFlagValue(translucencyLevelFlag, unknown)).toBe("medium");
       expect(resolveFlagValue(reorderDragFlag, unknown)).toBe("drag");
       expect(resolveFlagValue(bottomNavVariantFlag, unknown)).toBe("medium");
     }
+  });
+
+  it("treats verySubtle as unknown for the flags that don't use it", () => {
+    expect(resolveFlagValue(pinnedTickerIndicatorFlag, "verySubtle")).toBe("classic");
+    expect(resolveFlagValue(savedEventToastVariantFlag, "verySubtle")).toBe("pill");
+    expect(resolveFlagValue(reorderDragFlag, "verySubtle")).toBe("drag");
+    expect(resolveFlagValue(bottomNavVariantFlag, "verySubtle")).toBe("medium");
   });
 });
 
@@ -121,6 +140,18 @@ describe("validateFeatureFlags", () => {
         translucencyLevel: "strong",
         reorderDrag: "arrowsDrag",
         bottomNavVariant: "wide",
+      }),
+    ).toEqual({});
+  });
+
+  it("accepts the new verySubtle translucency level", () => {
+    expect(
+      validateFeatureFlags({
+        pinnedTickerIndicator: "classic",
+        savedEventToastVariant: "pill",
+        translucencyLevel: "verySubtle",
+        reorderDrag: "drag",
+        bottomNavVariant: "medium",
       }),
     ).toEqual({});
   });
