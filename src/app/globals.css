@@ -129,6 +129,36 @@ html {
   animation: none;
 }
 
+/*
+  Floating bottom controls are portaled to <body>, so without a name they sit
+  in the root view-transition group and their element z-index cannot lift them
+  above the named shell-footer group during route transitions. Give them their
+  own groups, above the bottom nav, and keep the group itself unanimated so the
+  glass controls' own entrance animations remain the backdrop-filter root.
+*/
+.c2-control-pill-affix {
+  view-transition-name: c2-control-pill-affix;
+}
+
+.c2-attendance-bar-affix {
+  view-transition-name: c2-attendance-bar-affix;
+}
+
+.c2-fab-cluster {
+  view-transition-name: c2-fab-cluster;
+}
+
+::view-transition-group(c2-control-pill-affix),
+::view-transition-group(c2-fab-cluster) {
+  animation: none;
+  z-index: 110;
+}
+
+::view-transition-group(c2-attendance-bar-affix) {
+  animation: none;
+  z-index: 120;
+}
+
 /* Let clicks reach the live page while the transition overlay is up. */
 ::view-transition {
   pointer-events: none;

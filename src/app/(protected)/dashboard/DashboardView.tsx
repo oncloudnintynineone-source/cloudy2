@@ -3438,7 +3438,12 @@ function DashboardViewImpl({
   // (bottomChromeHeight) feeds the FAB offset and the page pads so the last
   // content row clears the whole stack.
   const mobilePill = (
-    <Affix hiddenFrom="lg" position={{ bottom: pillBottomOffset, left: 16, right: 16 }} zIndex={110}>
+    <Affix
+      hiddenFrom="lg"
+      className="c2-control-pill-affix"
+      position={{ bottom: pillBottomOffset, left: 16, right: 16 }}
+      zIndex={110}
+    >
       <Box ref={bottomBarRef} className="c2-glass-surface c2-control-pill">
         <Group align="center" gap="xs" wrap="nowrap">
           <Text
