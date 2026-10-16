@@ -1063,10 +1063,10 @@ html {
 }
 
 /*
-  Dashboard mobile floating rows (below `lg`, DashboardView):
-  `.c2-control-pill` is the bottom pill carrying the period label (centered in
-  the space left of the circular filter/date/view/fullscreen buttons on the
-  right), inset 16px from the
+  Mobile floating rows (below `lg`): `.c2-control-pill` is the bottom pill
+  (calendar: period label centered left of the circular search/filter/date/view/fullscreen
+  buttons; Parade and Contacts reuse it for their day/search controls), inset
+  16px from the
   viewport edges (same clearance as the FAB toolbar); `.c2-period-pill` is the
   `[< | >]` step pill in the right-anchored FAB row floating above the pill —
   its height is driven inline to match the control pill's. Both ride the frosted
@@ -1086,8 +1086,16 @@ html {
   pointer-events: none;
 }
 
-.c2-control-pill button {
+.c2-control-pill button,
+.c2-control-pill input {
   pointer-events: auto;
+}
+
+/* Focus-triggered lift (Contacts): while the pill's search field holds focus
+   the OS keyboard covers the bottom of the screen, so the Affix root moves to
+   mid-viewport; this transition rides that `bottom` change both ways. */
+.c2-pill-lift {
+  transition: bottom 260ms ease;
 }
 
 .c2-period-pill {

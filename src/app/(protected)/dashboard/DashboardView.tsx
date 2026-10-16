@@ -67,6 +67,7 @@ import {
   IconLayoutGrid,
   IconLink,
   IconPlus,
+  IconSearch,
   IconSettings,
   IconUser,
   IconUserOff,
@@ -167,6 +168,7 @@ import {
 } from "@/lib/ui/slotZoom";
 import { usePersistDashboardNav } from "@/lib/ui/uiStateClient";
 import { PINNED_EVENTS_CHANGED_EVENT } from "@/lib/ui/pinnedPanel";
+import { useSearchPanel } from "@/lib/ui/searchPanel";
 import { notifyEventsChanged } from "@/lib/ui/eventChanges";
 import { createDashboardView, saveDashboardViewFilters } from "@/lib/dashboardViews/actions";
 import {
@@ -970,6 +972,11 @@ function DashboardViewImpl({
   useEffect(() => {
     return () => exitImmersive();
   }, [exitImmersive]);
+
+  // The shell-owned event search modal: below `lg` the floating control pill
+  // carries its own search circle (the header icon hides on the calendar there)
+  // and opens the modal through this context.
+  const searchPanel = useSearchPanel();
 
   // In immersive mode the hidden bottom nav frees its clearance: the floating
   // clusters drop to the bare safe-area offset. Undefined keeps
@@ -3421,13 +3428,13 @@ function DashboardViewImpl({
   );
 
   // The floating control pill (below `lg` only): the period label (centered in
-  // the space left of the circular filter / date / view-menu / fullscreen
-   // buttons on the right), floating at the bottom with the same 16px
-   // viewport-edge clearance as the FAB
-  // toolbar (thumb-zone reach), with the FAB row (chevron pill + quick-links
-  // pill + create pill) above it. Frosted like the top strip; the grid scrolls
-  // beneath it. Its measured height (bottomChromeHeight) feeds the FAB offset
-  // and the page pads so the last content row clears the whole stack.
+  // the space left of the circular search / filter / date / view-menu /
+  // fullscreen buttons on the right), floating at the bottom with the same 16px
+  // viewport-edge clearance as the FAB toolbar (thumb-zone reach), with the FAB
+  // row (chevron pill + quick-links pill + create pill) above it. Frosted like
+  // the top strip; the grid scrolls beneath it. Its measured height
+  // (bottomChromeHeight) feeds the FAB offset and the page pads so the last
+  // content row clears the whole stack.
   const mobilePill = (
     <Affix hiddenFrom="lg" position={{ bottom: pillBottomOffset, left: 16, right: 16 }} zIndex={100}>
       <Box ref={bottomBarRef} className="c2-glass-surface c2-control-pill">
@@ -3441,6 +3448,22 @@ function DashboardViewImpl({
           >
             {periodLabel}
           </Text>
+          {/* Search rides the pill (left of the filter circle) below `lg` —
+              the header search icon hides on the calendar at this width, and
+              tapping opens the shell-owned modal from this circle. */}
+          <ActionIcon
+            radius="50%"
+            size={36}
+            variant="default"
+            className="c2-glass-btn"
+            aria-label="Search events"
+            title="Search events"
+            onClick={(e) =>
+              searchPanel.openSearch(e.currentTarget.getBoundingClientRect())
+            }
+          >
+            <IconSearch size={18} />
+          </ActionIcon>
           <FilterButton
             activeCount={activeFilterCount}
             onClick={(e) => {

@@ -98,6 +98,7 @@ import {
   PINNED_EVENTS_CHANGED_EVENT,
   type PinnedPanelValue,
 } from "@/lib/ui/pinnedPanel";
+import { SearchPanelContext, type SearchPanelValue } from "@/lib/ui/searchPanel";
 import { useRememberedPage, writeUiState } from "@/lib/ui/uiStateClient";
 import { EVENTS_CHANGED_EVENT } from "@/lib/ui/eventChanges";
 import { checkUserClashes } from "@/lib/events/clashActions";
@@ -593,11 +594,21 @@ export function AppShellShell({
     setSearchOpen(true);
   }, []);
 
+  // The calendar page's floating bottom control pill carries its own search
+  // trigger below `lg` (the header icon hides there); it opens this shell-owned
+  // modal through the context provided below.
+  const searchPanelValue: SearchPanelValue = useMemo(() => ({ openSearch }), [openSearch]);
+
   // Desktop keyboard shortcut: ⌘/Ctrl-K opens search from anywhere in the shell.
+  // Below `lg` on the calendar the header trigger is `display:none`, so its rect
+  // is zero-sized — pass null there and let the modal zoom from its center.
   useHotkeys([
     [
       "mod+K",
-      () => openSearch(searchButtonRef.current?.getBoundingClientRect() ?? null),
+      () => {
+        const rect = searchButtonRef.current?.getBoundingClientRect() ?? null;
+        openSearch(rect && rect.width > 0 && rect.height > 0 ? rect : null);
+      },
       { preventDefault: true },
     ],
   ]);
@@ -1196,11 +1207,15 @@ export function AppShellShell({
                   indicator={pinnedTickerIndicator}
                 />
                 <Group gap={isNarrow ? 2 : "xs"} wrap="nowrap">
+                  {/* Below `lg` on the calendar page the pill's own search
+                      circle takes over, so the header icon hides there;
+                      everywhere else (and at lg+) the header trigger stays. */}
                   <ActionIcon
                     ref={searchButtonRef}
                     variant="transparent"
                     c="white"
                     size="lg"
+                    hiddenFrom={isDashboard ? "lg" : undefined}
                     aria-label="Search events"
                     onPointerEnter={preloadSearchModal}
                     onFocus={preloadSearchModal}
@@ -1283,18 +1298,20 @@ export function AppShellShell({
 
           <AppShell.Main id="main-content" tabIndex={-1}>
             <ImmersiveModeContext.Provider value={immersiveMode}>
-              <PinnedPanelContext.Provider value={pinnedPanelValue}>
-                <StatusAnnouncer />
-                {children}
-                <PinnedEventsPanel seedEvents={pinnedEvents} />
-                {searchLoaded && (
-                  <EventSearchModal
-                    opened={searchOpen}
-                    onClose={() => setSearchOpen(false)}
-                    originRect={searchOriginRect}
-                  />
-                )}
-              </PinnedPanelContext.Provider>
+                <PinnedPanelContext.Provider value={pinnedPanelValue}>
+                  <SearchPanelContext.Provider value={searchPanelValue}>
+                    <StatusAnnouncer />
+                    {children}
+                    <PinnedEventsPanel seedEvents={pinnedEvents} />
+                    {searchLoaded && (
+                      <EventSearchModal
+                        opened={searchOpen}
+                        onClose={() => setSearchOpen(false)}
+                        originRect={searchOriginRect}
+                      />
+                    )}
+                  </SearchPanelContext.Provider>
+                </PinnedPanelContext.Provider>
             </ImmersiveModeContext.Provider>
           </AppShell.Main>
 

@@ -2,6 +2,7 @@
 
 import dayjs from "dayjs";
 import {
+  type CSSProperties,
   useCallback,
   useEffect,
   useMemo,
@@ -14,6 +15,7 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import dynamic from "next/dynamic";
 import {
   ActionIcon,
+  Affix,
   Badge,
   Box,
   Button,
@@ -69,7 +71,7 @@ import {
   markAgendaSwipeHintSeen,
   subscribeAgendaSwipeHint,
 } from "@/lib/ui/agendaSwipeHint";
-import { COARSE_POINTER_MEDIA_QUERY } from "@/lib/theme";
+import { COARSE_POINTER_MEDIA_QUERY, DESKTOP_MEDIA_QUERY } from "@/lib/theme";
 import { saveParadeFilters } from "@/lib/userPrefs/actions";
 import { invalidateCurrentPathCaches } from "@/lib/pwa/client";
 
@@ -242,6 +244,9 @@ export function ParadeStateView({
   // the roster slides in from the direction of travel. The caption is
   // touch-only and shown at most once per session (shared with the dashboard).
   const isCoarsePointer = useMediaQuery(COARSE_POINTER_MEDIA_QUERY);
+  // lg+ layout: the day controls stay in the sticky top chrome; below `lg`
+  // they move to the floating bottom control pill (calendar-page pattern).
+  const isDesktop = useMediaQuery(DESKTOP_MEDIA_QUERY);
   const swipeHintSeen = useSyncExternalStore(
     subscribeAgendaSwipeHint,
     getAgendaSwipeHintSnapshot,
@@ -655,37 +660,127 @@ export function ParadeStateView({
 
   const dayLabel = dayjs(date).format("ddd, MMM D, YYYY");
 
+  // The floating control pill (below `lg` only, calendar-page pattern): the
+  // day label centered in the space left of the circular step / filter / date
+  // buttons, floating at the bottom inset 16px from the viewport edges. The
+  // attendance FAB row (the mode toggle) floats right-anchored above it.
+  const mobilePill = (
+    <Affix hiddenFrom="lg" position={{ bottom: "var(--app-floating-bottom-offset)", left: 16, right: 16 }} zIndex={100}>
+      <Box className="c2-glass-surface c2-control-pill">
+        <Group align="center" gap="xs" wrap="nowrap">
+          <Text
+            fw={600}
+            size="sm"
+            lineClamp={1}
+            title={dayLabel}
+            style={{ flex: 1, minWidth: 0, textAlign: "center" }}
+          >
+            {dayLabel}
+          </Text>
+          <ActionIcon
+            radius="50%"
+            size={36}
+            variant="default"
+            className="c2-glass-btn"
+            aria-label="Previous day"
+            onClick={() => shiftDay(-1)}
+          >
+            <IconChevronLeft size={18} />
+          </ActionIcon>
+          <ActionIcon
+            radius="50%"
+            size={36}
+            variant="default"
+            className="c2-glass-btn"
+            aria-label="Next day"
+            onClick={() => shiftDay(1)}
+          >
+            <IconChevronRight size={18} />
+          </ActionIcon>
+          <FilterButton
+            activeCount={activeFilterCount}
+            onClick={(e) => {
+              setFilterOriginRect(e.currentTarget.getBoundingClientRect());
+              openFilter();
+            }}
+            size={36}
+            iconSize={18}
+            radius="50%"
+            className="c2-glass-btn"
+          />
+          <ActionIcon
+            radius="50%"
+            size={36}
+            variant="default"
+            className="c2-glass-btn"
+            aria-label="Select date"
+            title="Select date"
+            onClick={(e) => {
+              setPickerOriginRect(e.currentTarget.getBoundingClientRect());
+              openPicker();
+            }}
+          >
+            <IconCalendarDot size={18} />
+          </ActionIcon>
+        </Group>
+      </Box>
+    </Affix>
+  );
+  // The pill's fixed height (6px padding + 36px buttons + hairlines) plus the
+  // 12px gap: the FAB row floats above the pill, and the page pad clears the
+  // whole stack (fab-page-pad adds the FAB diameter itself, net of FAB_SIZE).
+  const pillHeightPx = 50;
+  const fabBottomOffset = `calc(var(--app-floating-bottom-offset) + ${pillHeightPx + 12}px)`;
+
   return (
     // fab-page-pad replaces pb="xl": reserves clearance for the mobile
     // attendance FAB below the last card row, restores plain xl at lg.
-    <Stack gap="md" className="fab-page-pad">
+    // --c2-bottom-chrome-height carries the pill + gap below lg so the last
+    // card row clears the pill/FAB stack (same math as the dashboard).
+    <Stack
+      gap="md"
+      className="fab-page-pad"
+      style={
+        {
+          "--c2-bottom-chrome-height": isDesktop ? "0px" : `${pillHeightPx + 12}px`,
+        } as CSSProperties
+      }
+    >
       <PageHeader title="Parade State" subtitle="Roster whereabouts and attendance, by day." />
-      {/* The pinned chrome: day-nav row (+ the attendance mode bar when in
-          attendance mode) stuck under the app header as one unit — the
+      {/* The pinned chrome: at lg+ the day-nav row (+ the attendance mode bar
+          when in attendance mode) stuck under the app header as one unit — the
           shared sticky-chrome recipe (docs/dashboard-views.md, SettingsTabs):
           a direct child of the page column, frosted glass surface, gutter
-          bleed so content sliding beneath is masked to the shell edges. */}
-      <Box
-        className="c2-glass-surface"
-        style={{
-          position: "sticky",
-          top: "var(--app-shell-header-offset)",
-          zIndex: 9,
-          borderBottom: "1px solid var(--mantine-color-default-border)",
-          marginInline: "calc(-1 * var(--app-shell-padding))",
-          marginTop: "calc(-1 * var(--app-shell-padding))",
-          paddingInline: "var(--app-shell-padding)",
-          paddingTop: "var(--mantine-spacing-md)",
-          paddingBottom: "var(--mantine-spacing-md)",
-          display: "flex",
-          flexDirection: "column",
-          gap: "var(--mantine-spacing-md)",
-        }}
-      >
-        {/* Same nav-row recipe as the calendar page: the day label takes the
-            free space, prev/next sit together beside it, then the mode/filter/
-            date controls. Today lives in the date-picker dialog. */}
-        <Group align="center" gap="xs" wrap="nowrap">
+          bleed so content sliding beneath is masked to the shell edges. Below
+          lg the day controls live in the floating bottom pill, so this chrome
+          only appears in attendance mode (just the mode bar). */}
+      {(isDesktop || attendanceMode) && (
+        <Box
+          className="c2-glass-surface"
+          style={{
+            position: "sticky",
+            top: "var(--app-shell-header-offset)",
+            zIndex: 9,
+            borderBottom: "1px solid var(--mantine-color-default-border)",
+            marginInline: "calc(-1 * var(--app-shell-padding))",
+            marginTop: "calc(-1 * var(--app-shell-padding))",
+            paddingInline: "var(--app-shell-padding)",
+            paddingTop: "var(--mantine-spacing-md)",
+            paddingBottom: "var(--mantine-spacing-md)",
+            display: "flex",
+            flexDirection: "column",
+            gap: "var(--mantine-spacing-md)",
+          }}
+        >
+          {/* Same nav-row recipe as the calendar page: the day label takes the
+              free space, prev/next sit together beside it, then the mode/filter/
+              date controls. Today lives in the date-picker dialog. */}
+          <Group
+            visibleFrom="lg"
+            align="center"
+            gap="xs"
+            wrap="nowrap"
+          >
           <Text
             fw={600}
             size="md"
@@ -804,7 +899,8 @@ export function ParadeStateView({
             </Group>
           </Paper>
         )}
-      </Box>
+        </Box>
+      )}
 
       {/* Status legend: the card colors carry real meaning, so they are named
           in text (color-blind safe). The live present count lives in the
@@ -939,11 +1035,15 @@ export function ParadeStateView({
         {showSwipeHint && <AgendaSwipeHint />}
       </Box>
 
+      {/* The floating control pill (below `lg` only): day label + step /
+          filter / date circles, inset 16px at the bottom (see above). */}
+      {mobilePill}
+
       {/* The attendance FAB is mobile-only; at lg the entry point is the
           nav-row button beside the filter/date buttons. hiddenFrom sits on the
           toolbar itself: its Affix portals to <body>, so a wrapper element
-          could not hide it. */}
-      <FloatingToolbar hiddenFrom="lg">
+          could not hide it. It floats right-anchored above the control pill. */}
+      <FloatingToolbar hiddenFrom="lg" bottomOffset={fabBottomOffset}>
         <FloatingActionButton
           aria-label={attendanceMode ? "Exit attendance mode" : "Start attendance"}
           className={attendanceMode ? "c2-glass-fab--teal" : "c2-glass-fab--brand"}

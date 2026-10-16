@@ -1,8 +1,9 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { type CSSProperties, useMemo, useRef, useState } from "react";
 import {
   ActionIcon,
+  Affix,
   Anchor,
   Badge,
   Box,
@@ -14,7 +15,7 @@ import {
   Text,
   TextInput,
 } from "@mantine/core";
-import { useClipboard, useDisclosure } from "@mantine/hooks";
+import { useClipboard, useDisclosure, useMediaQuery } from "@mantine/hooks";
 import {
   IconCheck,
   IconCopy,
@@ -28,7 +29,7 @@ import { EmptyState } from "@/components/EmptyState";
 import { FilterButton } from "@/components/FilterButton";
 import { FilterModal, type FilterGroup } from "@/components/FilterModal";
 import { PageHeader } from "@/components/PageHeader";
-import { FAB_ICON_SIZE, FloatingActionButton, FloatingToolbar } from "@/components/FloatingToolbar";
+import { FAB_SIZE } from "@/components/FloatingToolbar";
 import { filterContacts, NO_DEPARTMENT_FILTER } from "@/lib/contacts/filter";
 import { buildContactsVcf } from "@/lib/contacts/vcf";
 import { CONTENT_ENTER_CLASS } from "@/lib/loading/contentEnter";
@@ -36,7 +37,7 @@ import type { Rect } from "@/lib/motion/origin";
 import { departmentPathLabels, departmentTreeRows } from "@/lib/roster/hierarchy";
 import type { RosterUser } from "@/lib/roster/queries";
 import { formatFullName } from "@/lib/settings/formatName";
-import { BUTTON_LOADER_PROPS } from "@/lib/theme";
+import { BUTTON_LOADER_PROPS, DESKTOP_MEDIA_QUERY } from "@/lib/theme";
 
 /** Minimal department shape the Contacts filter needs (hierarchy-aware). */
 export interface ContactDepartment {
@@ -86,6 +87,16 @@ export function ContactList({
   const [selectedDepartments, setSelectedDepartments] = useState<string[]>([]);
   const [filterOpened, { open: openFilter, close: closeFilter }] = useDisclosure(false);
   const [filterOriginRect, setFilterOriginRect] = useState<Rect | null>(null);
+  // lg+ keeps the search/filter bar in the sticky top chrome; below `lg` the
+  // controls move to the floating bottom pill (calendar-page pattern).
+  const isDesktop = useMediaQuery(DESKTOP_MEDIA_QUERY);
+  // Focus-triggered lift: while the search input holds focus the OS keyboard
+  // covers the bottom of the screen, so the pill floats up above the keyboard
+  // zone; blur (tapping away) drops it back. Tapping the pill's filter/export
+  // circles doesn't reliably blur a focused input on mobile, so those handlers
+  // blur it explicitly (see `searchInputRef`) to drop the keyboard + lift.
+  const [searchLifted, setSearchLifted] = useState(false);
+  const searchInputRef = useRef<HTMLInputElement>(null);
   const [confirmOpened, { open: openConfirm, close: closeConfirm }] = useDisclosure(false);
   const [downloading, setDownloading] = useState(false);
 
@@ -157,62 +168,147 @@ export function ContactList({
     }
   }
 
-  return (
-    // fab-page-pad replaces pb="xl": reserves clearance for the mobile
-    // export FAB below the last contact card, restores plain xl at lg.
-    <Stack className={`${CONTENT_ENTER_CLASS} fab-page-pad`}>
-      <PageHeader
-        title="Contacts"
-        subtitle="Roster directory — call, copy, or export contact details."
-      />
-      {/* The pinned chrome: search/filter/export bar stuck under the app
-          header while the contact cards scroll beneath it — the shared
-          sticky-chrome recipe (docs/dashboard-views.md, SettingsTabs):
-          frosted glass surface, gutter bleed, direct child of the page
-          column. */}
-      <Box
-        className="c2-glass-surface"
-        style={{
-          position: "sticky",
-          top: "var(--app-shell-header-offset)",
-          zIndex: 9,
-          borderBottom: "1px solid var(--mantine-color-default-border)",
-          marginInline: "calc(-1 * var(--app-shell-padding))",
-          marginTop: "calc(-1 * var(--app-shell-padding))",
-          paddingInline: "var(--app-shell-padding)",
-          paddingTop: "var(--mantine-spacing-md)",
-          paddingBottom: "var(--mantine-spacing-md)",
-        }}
-      >
-        <Group justify="space-between" wrap="nowrap" gap="sm">
+  // The floating control pill (below `lg` only, calendar-page pattern): a
+  // rounded search field (flexible width) + the circular filter and download
+  // triggers, inset 16px from the viewport edges. (The old standalone export
+  // FAB is gone — the download circle rides inside the pill.) While the
+  // search field holds focus (the user is typing and the OS keyboard covers
+  // the bottom of the screen), the pill lifts to mid-viewport so the textbox
+  // keeps its view; blur drops it back.
+  const pillHeightPx = 58;
+  const mobilePill = (
+    <Affix
+      hiddenFrom="lg"
+      className="c2-pill-lift"
+      position={{
+        bottom: searchLifted ? "40vh" : "var(--app-floating-bottom-offset)",
+        left: 16,
+        right: 16,
+      }}
+      zIndex={100}
+    >
+      <Box className="c2-glass-surface c2-control-pill">
+        <Group align="center" gap="xs" wrap="nowrap">
+          {/* Default `sm` size = the themed 43px input height (same field
+              height as the lg+ search bar); `h`/`pl`/`pr` would land on the
+              label wrapper, not the input, so they'd desync the field from
+              the pill's padding. The filter circle grows to match (44px). */}
           <TextInput
+            ref={searchInputRef}
+            radius="999px"
             aria-label="Search contacts by name, shortname, or phone"
             placeholder="Search by name, shortname, or phone"
             value={search}
             onChange={(e) => setSearch(e.currentTarget.value)}
-            style={{ flex: 1 }}
+            onFocus={() => setSearchLifted(true)}
+            onBlur={() => setSearchLifted(false)}
+            style={{ flex: 1, minWidth: 0 }}
           />
           {filterGroups.length > 0 && (
             <FilterButton
               activeCount={activeFilterCount}
               onClick={(event) => {
+                searchInputRef.current?.blur();
                 setFilterOriginRect(event.currentTarget.getBoundingClientRect());
                 openFilter();
               }}
+              size={44}
+              iconSize={20}
+              radius="50%"
+              className="c2-glass-btn"
             />
           )}
-          {/* Desktop: full-size export button instead of the FAB (like the
-                settings tabs' "Add ..." buttons); the FAB below is mobile-only. */}
-          <Button
-            visibleFrom="lg"
-            __vars={{ "--button-height": "43px" }}
-            leftSection={<IconDownload size={16} />}
-            onClick={openConfirm}
+          {/* Export/download trigger: the FAB's action moved into the pill
+              as a brand-blue circle beside the filter (frosted tint like the
+              pill's other buttons, solid identity kept via the brand hue). */}
+          <ActionIcon
+            size={44}
+            radius="50%"
+            variant="default"
+            className="c2-glass-btn c2-glass-fab--brand"
+            aria-label="Export contacts"
+            onClick={() => {
+              searchInputRef.current?.blur();
+              openConfirm();
+            }}
           >
-            Export contacts
-          </Button>
+            <IconDownload size={20} />
+          </ActionIcon>
         </Group>
       </Box>
+    </Affix>
+  );
+
+  return (
+    // fab-page-pad replaces pb="xl": reserves clearance for the floating
+    // control pill below the last contact card, restores plain xl at lg.
+    // The class hardcodes the 65px FAB diameter in its pad; this page has no
+    // FAB row anymore, so the var subtracts it and carries just the pill
+    // height + the 12px gap.
+    <Stack
+      className={`${CONTENT_ENTER_CLASS} fab-page-pad`}
+      style={
+        {
+          "--c2-bottom-chrome-height": isDesktop
+            ? "0px"
+            : `${pillHeightPx + 12 - FAB_SIZE}px`,
+        } as CSSProperties
+      }
+    >
+      <PageHeader
+        title="Contacts"
+        subtitle="Roster directory — call, copy, or export contact details."
+      />
+      {/* The pinned chrome (lg+ only): search/filter/export bar stuck under the
+          app header while the contact cards scroll beneath it — the shared
+          sticky-chrome recipe (docs/dashboard-views.md, SettingsTabs):
+          frosted glass surface, gutter bleed, direct child of the page
+          column. Below lg the search + filter move to the floating bottom
+          pill, so this chrome disappears. */}
+      {isDesktop && (
+        <Box
+          className="c2-glass-surface"
+          style={{
+            position: "sticky",
+            top: "var(--app-shell-header-offset)",
+            zIndex: 9,
+            borderBottom: "1px solid var(--mantine-color-default-border)",
+            marginInline: "calc(-1 * var(--app-shell-padding))",
+            marginTop: "calc(-1 * var(--app-shell-padding))",
+            paddingInline: "var(--app-shell-padding)",
+            paddingTop: "var(--mantine-spacing-md)",
+            paddingBottom: "var(--mantine-spacing-md)",
+          }}
+        >
+          <Group justify="space-between" wrap="nowrap" gap="sm">
+            <TextInput
+              aria-label="Search contacts by name, shortname, or phone"
+              placeholder="Search by name, shortname, or phone"
+              value={search}
+              onChange={(e) => setSearch(e.currentTarget.value)}
+              style={{ flex: 1 }}
+            />
+            {filterGroups.length > 0 && (
+              <FilterButton
+                activeCount={activeFilterCount}
+                onClick={(event) => {
+                  setFilterOriginRect(event.currentTarget.getBoundingClientRect());
+                  openFilter();
+                }}
+              />
+            )}
+            {/* Desktop: full-size export button instead of the FAB (like the
+                settings tabs' "Add ..." buttons); the FAB below is mobile-only. */}
+            <Button
+              __vars={{ "--button-height": "43px" }}
+              leftSection={<IconDownload size={16} />}
+              onClick={openConfirm}
+            >
+              Export contacts
+            </Button>
+          </Group>
+        </Box>
+      )}
 
       {filtered.length === 0 ? (
         isNarrowed ? (
@@ -293,18 +389,10 @@ export function ContactList({
         </Box>
       )}
 
-      {/* Mobile-only: at lg the "Export contacts" button in the search bar
-          replaces the FAB. hiddenFrom sits on the toolbar itself: its Affix
-          portals to <body>, so a wrapper element could not hide it. */}
-      <FloatingToolbar hiddenFrom="lg">
-        <FloatingActionButton
-          aria-label="Export contacts"
-          className="c2-glass-fab--brand"
-          onClick={openConfirm}
-        >
-          <IconDownload size={FAB_ICON_SIZE} style={{ position: "relative", top: 2 }} />
-        </FloatingActionButton>
-      </FloatingToolbar>
+      {/* The floating control pill (below `lg` only): rounded search field +
+          filter + download circles, lifted above the keyboard zone while
+          typing (see the pill const above). */}
+      {mobilePill}
 
       <FilterModal
         opened={filterOpened}

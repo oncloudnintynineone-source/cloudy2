@@ -203,7 +203,10 @@ string maps to the first tab of that kind.
   **control pill** (`.c2-control-pill`, an `Affix` inset **16px from the
   viewport edges** — `left: 16, right: 16`, the same clearance as the FAB
   toolbar) sits **bottom-most** with the period label on the **left** and the
-  **circular** filter / date / view-menu / fullscreen buttons on the **right**
+  **circular** search / filter / date / view-menu / fullscreen buttons on the
+  **right** (the search circle replaces the header search icon on the
+  calendar below `lg` and opens the shell-owned modal through
+  `SearchPanelContext`, §1.9 of [`event-search.md`](event-search.md))
   (the fullscreen button is `FullscreenButton`, the same inline toggle the
   floating lg-only `FullscreenToggle` uses); above it floats the
   **right-anchored FAB row** — the `[< | >]` **period-step
@@ -234,6 +237,27 @@ string maps to the first tab of that kind.
   everything is unchanged: one chrome box pinned top
   (tab strip + nav row incl. chevrons, New event and Quick links), FABs and
   pill hidden.
+- **Bottom control pill reuse (Parade State / Contacts).** Below `lg` both
+  pages shed their sticky top chrome and ride the same `.c2-control-pill`
+  Affix recipe (inset 16, zIndex 100; 50px on Parade, 58px on Contacts):
+  **Parade** puts the day label + `<`/`>` step + filter + date-picker circles
+  in one pill (attendance FAB row floating above it; the top chrome survives
+  only in attendance mode, holding just the mode bar); **Contacts** puts a
+  **rounded search field** (pill-radius `TextInput` at the default `sm`
+  size — the themed ~43px input height, same as the lg+ search bar, with a
+  matching 44px filter circle; sizing/padding props must go on the input
+  via `size`, since `h`/`pl`/`pr` land on the label wrapper and desync the
+  field from the pill's padding) + filter circle + a brand-blue **download
+  circle** (the export FAB's action moved into the pill, `c2-glass-btn
+  c2-glass-fab--brand`) in it, with a **focus-triggered lift** (`.c2-pill-lift`, a
+  `bottom` transition on the Affix root): while the field holds focus —
+  the OS keyboard covers the bottom of the screen — the pill floats to
+  ~`40vh` so the textbox keeps its view, dropping back on blur. Parade sets
+  `--c2-bottom-chrome-height` (pill + gap) under `fab-page-pad` and keeps
+  its attendance FAB right-anchored above the pill; Contacts has no FAB row,
+  so its var subtracts the class's hardcoded 65px FAB diameter and carries
+  just pill + gap; at `lg`+
+  their top chrome rows are unchanged.
 - **App-wide frosted glass (`translucencyLevel`).** Beyond the mobile cluster,
   the surfaces that overlap page content are translucent: the
   bottom nav, the settings tab strip, the desktop sidebar,   the dashboard sticky

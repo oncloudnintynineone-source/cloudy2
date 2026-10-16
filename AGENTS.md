@@ -141,7 +141,7 @@ doc content here.
   recipe (`reorderUpDown.tsx`, `variant="subtle"`) + optimistic `useReorderRows` FLIP.   Below
   `lg` the chrome **splits**: a thin view-name strip stays pinned at the top,
   and the date controls move to **floating bottom rows** — a frosted
-  control pill (period label left + circular filter/date/view/**fullscreen**
+  control pill (period label left + circular **search**/filter/date/view/**fullscreen**
   buttons right, inset 16px from the viewport edges) bottom-most, with the
   right-anchored FAB row (`[<|>]` step pill + Quick-links **pill button** —
   amber `c2-glass-fab--accent` — + New-event **pill button** —
@@ -191,7 +191,9 @@ doc content here.
   the wizard's Other settings step). Titles render via the `pinnedHeader` template target
   (panel list: `pinned`). Design: [docs/pinned-events.md](docs/pinned-events.md);
   flags: [docs/feature-flags.md](docs/feature-flags.md).
-- **Event search:** header icon opens a **lazy-loaded** (`dynamic` + `ssr: false`) modal
+- **Event search:** header icon (calendar page below `lg`: the control pill's
+  search circle left of the filter button, via `SearchPanelContext`) opens a
+  **lazy-loaded** (`dynamic` + `ssr: false`) modal
   that free-text searches every department calendar **directly via Google Calendar**
   (`events.list` `q` — bypasses the month cache), rendered in `@mantine/schedule`'s
   `AgendaView`; tapping deep-links `/dashboard?date=…&event=…&_eventCal=<calendar id>` to
