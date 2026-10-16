@@ -624,6 +624,15 @@ html {
    it. */
 .c2-tab-not-loaded {
   opacity: 0.5;
+  /* Fade between fresh and not-loaded instead of snapping (the desktop tab
+     strip and the mobile view-selector menu rows share this class). */
+  transition: opacity var(--c2-dur-micro) ease;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .c2-tab-not-loaded {
+    transition: none;
+  }
 }
 
 .c2-tab-spinner {
@@ -1114,6 +1123,10 @@ html {
   box-shadow: var(--mantine-shadow-md);
   -webkit-backdrop-filter: var(--c2g-blur);
   backdrop-filter: var(--c2g-blur);
+  /* Hover/active (and the tinted frosted↔accent/brand/teal swaps) cross-fade
+     instead of cutting; the tint modifiers below only set `background`, so this
+     transition rides their state changes too. */
+  transition: background-color var(--c2-dur-micro) ease;
 }
 
 /* Frosted control for page-level buttons sitting on the frosted surfaces (the
@@ -1136,6 +1149,8 @@ html {
   box-shadow: var(--mantine-shadow-md);
   -webkit-backdrop-filter: var(--c2g-blur);
   backdrop-filter: var(--c2g-blur);
+  /* Same hover/active cross-fade as `.c2-glass-fab` (see above). */
+  transition: background-color var(--c2-dur-micro) ease;
 }
 
 /* Opt-in hairline edge for a standalone glass button that floats on its own
@@ -1275,6 +1290,13 @@ html {
   background: #097b5a !important;
 }
 
+@media (prefers-reduced-motion: reduce) {
+  .c2-glass-fab,
+  .c2-glass-btn {
+    transition: none;
+  }
+}
+
 /*
   FAB cluster entrance (docs/desktop-responsive.md): FloatingToolbar's portaled
   Affix root carries `c2-fab-cluster`; the cluster's glass controls pop in with a
@@ -1311,6 +1333,91 @@ html {
 
   .c2-fab-cluster :is(.c2-glass-fab, .c2-glass-btn, .c2-glass-surface):nth-child(4) {
     animation-delay: 150ms;
+  }
+}
+
+/*
+  Shared entrance for the mobile floating control pills (`.c2-control-pill` on
+  the Calendar, Parade State and Contacts) and the Parade attendance mode bar:
+  a fade + small rise the first time the element is painted. Applied on the
+  glass element itself (never an Affix wrapper) so the `backdrop-filter` keeps
+  its frost — see the FAB-cluster note above. Nodes persist across re-renders,
+  so it never replays on state changes.
+*/
+@keyframes c2-glass-enter {
+  from {
+    opacity: 0;
+    transform: translateY(calc(0.5rem * var(--mantine-scale)));
+  }
+}
+
+/*
+  Icon swap (the Parade mobile attendance toggle: clipboard → check on entering
+  attendance mode): the icon node is keyed by the mode, so it remounts and
+  replays a fade + scale-in. The circle's colour cross-fades via the
+  `.c2-glass-btn` background transition.
+*/
+@keyframes c2-icon-swap {
+  from {
+    opacity: 0;
+    transform: scale(0.7);
+  }
+}
+
+/* Generic mount fade for entering affordances (per-tab load spinners). */
+@keyframes c2-fade-in {
+  from {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .c2-control-pill,
+  .c2-attendance-bar {
+    animation: c2-glass-enter var(--c2-dur-standard) cubic-bezier(0.22, 1, 0.36, 1);
+  }
+
+  .c2-icon-swap {
+    animation: c2-icon-swap var(--c2-dur-micro) cubic-bezier(0.22, 1, 0.36, 1);
+  }
+
+  .c2-fade-in {
+    animation: c2-fade-in var(--c2-dur-micro) ease;
+  }
+}
+
+/* Attendance mode-bar exit: fade + slide back down before it unmounts (the
+   target state carries the transition, so it never vanishes in one frame). */
+.c2-attendance-bar-closing {
+  opacity: 0;
+  transform: translateY(calc(0.5rem * var(--mantine-scale)));
+  pointer-events: none;
+  transition:
+    opacity var(--c2-dur-micro) ease,
+    transform var(--c2-dur-micro) ease;
+}
+
+/* Bottom-nav rail edge affordance: the fade + chevron dissolves when the rail
+   reaches that extreme instead of snapping out of the layout. */
+.c2-rail-edge {
+  transition: opacity var(--c2-dur-micro) ease;
+}
+
+.c2-rail-edge--hidden {
+  opacity: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .c2-control-pill,
+  .c2-attendance-bar,
+  .c2-icon-swap,
+  .c2-fade-in {
+    animation: none;
+  }
+
+  .c2-attendance-bar-closing,
+  .c2-rail-edge {
+    transition: none;
   }
 }
 

@@ -893,3 +893,28 @@ tier (§1.15). None change layout logic — removing any of them is always safe.
 - **FAB cluster entrance** (`c2-fab-cluster`): the portaled `FloatingToolbar`
   row pops in per FAB with a small stagger the first time it is painted
   (nodes are reused afterwards, so it never replays on state changes).
+- **Control-pill entrance** (`c2-glass-enter`): the mobile floating
+  `.c2-control-pill` (Calendar / Parade State / Contacts) fades + rises in the
+  first time it is painted. Applied on the glass element itself, never an Affix
+  wrapper (same backdrop-filter caution as the FAB cluster). Layout-neutral, so
+  the dashboard's `offsetHeight`-based pill measurement is unaffected.
+- **Glass control colour cross-fade**: `.c2-glass-fab` / `.c2-glass-btn` carry a
+  `background-color` transition, so hover/active states and the frosted↔
+  accent/brand/teal tint swaps ramp instead of cutting (the tint modifiers only
+  set `background`, so the base transition rides them).
+- **Attendance mode-bar enter/exit** (`c2-attendance-bar` /
+  `c2-attendance-bar-closing`): the Parade State attendance mode bar (mobile
+  floating bar; the desktop top-chrome `Paper` reuses the entrance) fades +
+  rises in, and on exit `exitAttendance` holds it mounted for the exit duration
+  (the shared `action-pill` closing pattern) so it slides back down before it
+  unmounts.
+- **Attendance toggle icon swap** (`c2-icon-swap`): the Parade pill's toggle
+  icon is keyed by the mode, so it remounts and replays a fade + scale-in while
+  the circle's tint cross-fades (above).
+- **Per-view status fade** (`.c2-tab-not-loaded` + `.c2-fade-in`): the desktop
+  tab strip and the mobile view-selector menu rows fade between fresh and
+  not-loaded, and the amber load spinner fades in, instead of snapping
+  (§1.13.2).
+- **Rail-edge dissolve** (`.c2-rail-edge`): the bottom-nav rail's gradient fade
+  + chevron dissolves when the rail reaches that extreme instead of snapping
+  out of the layout (still `pointer-events: none`).

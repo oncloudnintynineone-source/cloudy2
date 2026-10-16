@@ -214,6 +214,11 @@ function RailEdgeControl({
 }) {
   return (
     <Box
+      // Kept mounted so the affordance can dissolve (`.c2-rail-edge`) when the
+      // rail reaches its extreme instead of snapping out of the layout; the
+      // whole control is `pointer-events: none`, so a faded edge never blocks
+      // taps on the clipped tile behind it.
+      className={`c2-rail-edge${hidden ? " c2-rail-edge--hidden" : ""}`}
       style={{
         position: "absolute",
         top: 0,
@@ -221,7 +226,7 @@ function RailEdgeControl({
         width: 44,
         left: side === "left" ? 0 : "auto",
         right: side === "left" ? "auto" : 0,
-        display: hidden ? "none" : "flex",
+        display: "flex",
         alignItems: "center",
         justifyContent: "center",
         pointerEvents: "none",

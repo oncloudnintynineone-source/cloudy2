@@ -129,8 +129,9 @@ flowchart LR
     **more** tiles; the overflow scrolls behind edge gradient fades with
     decorative `RailEdgeControl` chevrons (`c2-rail-nudge` one-time hint): the
     control is `pointer-events: none` (taps pass through to the clipped tile)
-    and hides on a side once the rail reaches that extreme — panning is by
-    touch swipe, re-measured via `scrollend`/`pointerup` on the rail element.
+    and dissolves (`.c2-rail-edge`, an opacity transition) on a side once the
+    rail reaches that extreme — panning is by touch swipe, re-measured via
+    `scrollend`/`pointerup` on the rail element.
     The bar's height never changes, so every footer offset stays intact.
 - `isDesktop` comes from `useMediaQuery` (see 1.1); it drives the footer's
   `collapsed` prop and the standalone-sync footer-offset guard — the navbar
@@ -351,9 +352,10 @@ controls:
   `Button visibleFrom="lg"` (same confirm modal as the FAB); the export FAB is
   `hiddenFrom="lg"`.
 - **Parade State** — the attendance toggle is a circle in the bottom control
-  pill below `lg` (the attendance mode bar floats above that pill); at `lg`
-  the entry point stays the nav-row button beside the ⋮ menu, with the mode bar
-  in the sticky top chrome.
+  pill below `lg` (the attendance mode bar floats above that pill, fading/
+  sliding in and out via `c2-attendance-bar` / `c2-attendance-bar-closing`);
+  at `lg` the entry point stays the nav-row button beside the ⋮ menu, with the
+  mode bar in the sticky top chrome (same entrance).
 
 FAB visibility is set via `hiddenFrom` on `FloatingToolbar` itself — its Affix
 portals to `<body>`, so wrapper elements cannot hide it (see the gotcha in 1.4).

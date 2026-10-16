@@ -236,6 +236,23 @@ export function ParadeStateView({
     [users, checkedIds],
   );
 
+  // The floating mobile attendance mode bar fades + slides out before it
+  // unmounts: `exitAttendance` holds it mounted through the exit transition
+  // (the shared `action-pill` closing pattern) before dropping it, so the next
+  // entry replays the entrance. The bar renders while
+  // `attendanceMode || attendanceBarClosing` — the extra term keeps it painted
+  // during the exit frame after `attendanceMode` has already gone false.
+  const [attendanceBarClosing, setAttendanceBarClosing] = useState(false);
+  const attendanceBarExitTimer = useRef<number | null>(null);
+  useEffect(
+    () => () => {
+      if (attendanceBarExitTimer.current !== null) {
+        window.clearTimeout(attendanceBarExitTimer.current);
+      }
+    },
+    [],
+  );
+
   const colorScheme = useComputedColorScheme("light");
   const today = dayjs().format("YYYY-MM-DD");
 
@@ -473,6 +490,11 @@ export function ParadeStateView({
   }, [sections, eventsByUser, attendanceMode, checkedIds]);
 
   function enterAttendance() {
+    if (attendanceBarExitTimer.current !== null) {
+      window.clearTimeout(attendanceBarExitTimer.current);
+      attendanceBarExitTimer.current = null;
+    }
+    setAttendanceBarClosing(false);
     setAttendanceMode(true);
     navigate({ attendance: "1" });
   }
@@ -480,6 +502,11 @@ export function ParadeStateView({
   function exitAttendance() {
     setAttendanceMode(false);
     navigate({ attendance: null });
+    setAttendanceBarClosing(true);
+    attendanceBarExitTimer.current = window.setTimeout(() => {
+      attendanceBarExitTimer.current = null;
+      setAttendanceBarClosing(false);
+    }, MOTION.micro);
   }
 
   function toggleAttendance(userId: string) {
@@ -779,7 +806,15 @@ export function ParadeStateView({
             title={attendanceMode ? "Exit attendance mode" : "Start attendance"}
             onClick={attendanceMode ? exitAttendance : enterAttendance}
           >
-            {attendanceMode ? <IconCheck size={18} /> : <IconClipboardCheck size={18} />}
+            {/* Keyed by the mode so the icon node remounts and replays its
+                fade + scale-in on the toggle (see `c2-icon-swap`). */}
+            <span
+              key={attendanceMode ? "done" : "start"}
+              className="c2-icon-swap"
+              style={{ display: "inline-flex" }}
+            >
+              {attendanceMode ? <IconCheck size={18} /> : <IconClipboardCheck size={18} />}
+            </span>
           </ActionIcon>
         </Group>
       </Box>
@@ -802,7 +837,9 @@ export function ParadeStateView({
       zIndex={100}
     >
       <Box
-        className="c2-glass-surface"
+        className={`c2-glass-surface c2-attendance-bar${
+          attendanceBarClosing ? " c2-attendance-bar-closing" : ""
+        }`}
         style={{
           borderRadius: 999,
           border: "1px solid var(--mantine-color-default-border)",
@@ -924,6 +961,7 @@ export function ParadeStateView({
           <Paper
             withBorder
             p="xs"
+            className="c2-attendance-bar"
             style={{
               borderColor: "var(--mantine-color-teal-4)",
               backgroundColor: colorScheme === "dark" ? "#0b2b21" : "#e6fcf5",
@@ -1087,7 +1125,7 @@ export function ParadeStateView({
           entry point is the nav-row button; the mode bar floats above the pill
           (see `mobileAttendanceBar`). */}
       {mobilePill}
-      {attendanceMode && mobileAttendanceBar}
+      {(attendanceMode || attendanceBarClosing) && mobileAttendanceBar}
 
       <FilterModal
         opened={filterOpened}

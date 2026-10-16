@@ -218,7 +218,9 @@ string maps to the first tab of that kind.
    the pill containers) parked on the **right**. The row sits at
   `bottom: calc(--app-floating-bottom-offset + pillH + 12px)`. All ride the
   same frosted treatment (`c2-glass-surface`) with pill radius + hairline
-  edge, so grid content scrolls *under* them. The grid
+  edge, so grid content scrolls *under* them. The pill fades + rises in on
+  first paint (`c2-glass-enter`; the FAB row via `c2-fab-cluster`) — see
+  [`loading-transitions.md`](loading-transitions.md) §1.17. The grid
   starts under the top strip: the pinned strips (Week (H) day strip / hour
   rulers, Month weekday strip, Week (D) day header) dock under the name strip
   (`chromeOffset` = measured `topChromeHeight`), and the viewport-bounded
@@ -242,7 +244,9 @@ string maps to the first tab of that kind.
   Affix recipe (inset 16, zIndex 100; 50px on Parade, 58px on Contacts):
   **Parade** puts the day label + `<`/`>` step + filter + date-picker +
   attendance-toggle circles in one pill (the attendance **mode bar** floats
-  above it while in attendance mode; the top chrome is `lg`-only); **Contacts** puts a
+  above it while in attendance mode and fades/slides in and out —
+  `c2-attendance-bar` / `c2-attendance-bar-closing`, the pill's toggle icon
+  swaps with a scale-in via `c2-icon-swap`; the top chrome is `lg`-only); **Contacts** puts a
   **rounded search field** (pill-radius `TextInput` at the default `sm`
   size — the themed ~43px input height, same as the lg+ search bar, with a
   matching 44px filter circle; sizing/padding props must go on the input

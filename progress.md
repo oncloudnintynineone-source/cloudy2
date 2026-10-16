@@ -1801,6 +1801,20 @@ via `?attendance=1` and `attendanceStorage` became a `useSyncExternalStore` exte
     used by both bars; `.fab-page-pad`'s 65px FAB reserve now clears the floating
     mode bar. Docs: `dashboard-views.md` §1.1, `desktop-responsive.md` §1.6,
     `user-guide.md` §1.7.
+- 1.312 Motion pass over the recent chrome changes: the mobile floating
+    `.c2-control-pill` (Calendar / Parade / Contacts) fades + rises in on first
+    paint (`c2-glass-enter`, applied on the glass element itself so the frost
+    survives); the Parade attendance mode bar fades/slides both ways
+    (`c2-attendance-bar` / `c2-attendance-bar-closing` — `exitAttendance` holds
+    it mounted for the exit, the `action-pill` closing pattern) with the toggle
+    icon swapping via `c2-icon-swap`; `.c2-glass-fab` / `.c2-glass-btn` gained a
+    `background-color` transition so hover/active and the frosted↔accent/brand/
+    teal swaps cross-fade; the per-tab status fade (`.c2-tab-not-loaded` +
+    `.c2-fade-in` spinner) and the bottom-nav rail-edge dissolve
+    (`.c2-rail-edge`, opacity instead of `display: none`) round it out. All ride
+    `--c2-dur-*`, sit under `prefers-reduced-motion` guards with matches resets.
+    Docs: `loading-transitions.md` §1.17, `dashboard-views.md` §1.1,
+    `desktop-responsive.md` §1.2/§1.6.
 
 ## 1.4 Open items & next steps
 

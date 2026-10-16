@@ -789,7 +789,7 @@ const DashboardTab = memo(function DashboardTab({
         </Text>
       </Group>
       {status === "loading" && (
-        <Loader size={9} color="accent" className="c2-tab-spinner" aria-hidden />
+        <Loader size={9} color="accent" className="c2-tab-spinner c2-fade-in" aria-hidden />
       )}
     </Tabs.Tab>
   );
@@ -824,7 +824,9 @@ function DashboardViewMenuItem({
       rightSection={
         status === "loading" || active ? (
           <Group gap={4} wrap="nowrap">
-            {status === "loading" && <Loader size={10} color="accent" aria-hidden />}
+            {status === "loading" && (
+              <Loader size={10} color="accent" className="c2-fade-in" aria-hidden />
+            )}
             {active && <IconCheck size={14} aria-hidden />}
           </Group>
         ) : undefined
