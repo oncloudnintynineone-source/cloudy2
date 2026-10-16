@@ -253,10 +253,13 @@ string maps to the first tab of that kind.
   via `size`, since `h`/`pl`/`pr` land on the label wrapper and desync the
   field from the pill's padding) + filter circle + a brand-blue **download
   circle** (the export FAB's action moved into the pill, `c2-glass-btn
-  c2-glass-fab--brand`) in it, with a **focus-triggered lift** (`.c2-pill-lift`, a
-  `bottom` transition on the Affix root): while the field holds focus —
-  the OS keyboard covers the bottom of the screen — the pill floats to
-  ~`40vh` so the textbox keeps its view, dropping back on blur. Parade sets
+  c2-glass-fab--brand`) in it, with a **keyboard-driven lift** (`.c2-pill-lift`, a
+  `bottom` transition on the Affix root): while the OS keyboard is up — measured
+  live from `visualViewport` via `useKeyboardInset` (`src/lib/ui/keyboardInset.ts`) —
+  the pill floats to sit just above the keyboard's top edge (inset + 8px), dropping
+  back the moment the keyboard shrinks. It is deliberately **not** focus-driven:
+  the keyboard's hide key / swipe-down dismiss leaves the input focused, so a
+  focus/blur lift stays stuck. Parade sets
   `--c2-bottom-chrome-height` (pill + gap) under `fab-page-pad`; the class's
   hardcoded 65px FAB reserve now clears the floating attendance mode bar above
   the pill. Contacts has no floating bar above its pill, so its var subtracts

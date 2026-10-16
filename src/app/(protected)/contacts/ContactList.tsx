@@ -38,6 +38,7 @@ import { departmentPathLabels, departmentTreeRows } from "@/lib/roster/hierarchy
 import type { RosterUser } from "@/lib/roster/queries";
 import { formatFullName } from "@/lib/settings/formatName";
 import { BUTTON_LOADER_PROPS, DESKTOP_MEDIA_QUERY } from "@/lib/theme";
+import { useKeyboardInset } from "@/lib/ui/keyboardInset";
 
 /** Minimal department shape the Contacts filter needs (hierarchy-aware). */
 export interface ContactDepartment {
@@ -90,12 +91,14 @@ export function ContactList({
   // lg+ keeps the search/filter bar in the sticky top chrome; below `lg` the
   // controls move to the floating bottom pill (calendar-page pattern).
   const isDesktop = useMediaQuery(DESKTOP_MEDIA_QUERY);
-  // Focus-triggered lift: while the search input holds focus the OS keyboard
-  // covers the bottom of the screen, so the pill floats up above the keyboard
-  // zone; blur (tapping away) drops it back. Tapping the pill's filter/export
-  // circles doesn't reliably blur a focused input on mobile, so those handlers
-  // blur it explicitly (see `searchInputRef`) to drop the keyboard + lift.
-  const [searchLifted, setSearchLifted] = useState(false);
+  // Keyboard-driven lift: the OS keyboard covers the bottom of the screen, so
+  // the pill floats to sit just above the keyboard's top edge while it's up.
+  // Driven by the visual viewport (not input focus/blur): the keyboard's own
+  // hide key / swipe-down dismiss leaves the input focused, and a focus-based
+  // lift would then stay stuck. Tapping the pill's filter/export circles
+  // blurs the input explicitly (see `searchInputRef`) to dismiss the keyboard
+  // before opening a modal.
+  const keyboardInset = useKeyboardInset();
   const searchInputRef = useRef<HTMLInputElement>(null);
   const [confirmOpened, { open: openConfirm, close: closeConfirm }] = useDisclosure(false);
   const [downloading, setDownloading] = useState(false);
@@ -171,17 +174,17 @@ export function ContactList({
   // The floating control pill (below `lg` only, calendar-page pattern): a
   // rounded search field (flexible width) + the circular filter and download
   // triggers, inset 16px from the viewport edges. (The old standalone export
-  // FAB is gone — the download circle rides inside the pill.) While the
-  // search field holds focus (the user is typing and the OS keyboard covers
-  // the bottom of the screen), the pill lifts to mid-viewport so the textbox
-  // keeps its view; blur drops it back.
+  // FAB is gone — the download circle rides inside the pill.) While the OS
+  // keyboard is up, the pill sits just above its top edge (inset + 8px gap)
+  // so the search field keeps its view; it drops back the moment the
+  // keyboard shrinks (see `useKeyboardInset`).
   const pillHeightPx = 58;
   const mobilePill = (
     <Affix
       hiddenFrom="lg"
       className="c2-pill-lift"
       position={{
-        bottom: searchLifted ? "40vh" : "var(--app-floating-bottom-offset)",
+        bottom: keyboardInset > 0 ? keyboardInset + 8 : "var(--app-floating-bottom-offset)",
         left: 16,
         right: 16,
       }}
@@ -200,8 +203,6 @@ export function ContactList({
             placeholder="Search by name, shortname, or phone"
             value={search}
             onChange={(e) => setSearch(e.currentTarget.value)}
-            onFocus={() => setSearchLifted(true)}
-            onBlur={() => setSearchLifted(false)}
             style={{ flex: 1, minWidth: 0 }}
           />
           {filterGroups.length > 0 && (
@@ -390,8 +391,8 @@ export function ContactList({
       )}
 
       {/* The floating control pill (below `lg` only): rounded search field +
-          filter + download circles, lifted above the keyboard zone while
-          typing (see the pill const above). */}
+          filter + download circles, lifted above the keyboard while it's up
+          (see the pill const above). */}
       {mobilePill}
 
       <FilterModal
