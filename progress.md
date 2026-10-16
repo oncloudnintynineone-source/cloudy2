@@ -1837,6 +1837,20 @@ via `?attendance=1` and `attendanceStorage` became a `useSyncExternalStore` exte
      `toast` → `glassPill` (its only consumer is the flag) and the old corner/
      `--toast` CSS is removed. No schema change. Docs: `action-pill.md`,
      `feature-flags.md`, `AGENTS.md`.
+- 1.315 Frosted-glass fix: the `view-transition-name`s that hold the portaled
+     floating bottom chrome above the shell footer were sitting on the **Affix
+     wrappers**, which made each wrapper a backdrop root and starved the
+     descendant `.c2-glass-surface` / `.c2-glass-fab` `backdrop-filter` — the
+     mobile control pill (Calendar / Parade / Contacts), the Parade attendance
+     bar and the calendar FAB row read as flat translucent blocks. The names now
+     ride the **glass elements themselves**: `.c2-control-pill` /
+     `.c2-attendance-bar` carry their group names, and the FAB row names each
+     glass child (`c2-fab-step` / `c2-fab-link` / `c2-fab-create` for the
+     dashboard row, `c2-fab-1…4` by position for generic `FloatingToolbar` FABs)
+     so the whole row keeps its transition z-order with frost intact. The dead
+     `c2-control-pill-affix` / `c2-attendance-bar-affix` Affix classes are
+     dropped. No schema change. Docs: `dashboard-views.md` §1.1,
+     `loading-transitions.md` §1.14.
 
 ## 1.4 Open items & next steps
 

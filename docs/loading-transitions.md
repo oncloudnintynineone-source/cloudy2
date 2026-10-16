@@ -756,9 +756,14 @@ briefly cover the fixed shell. The header, sidebar and bottom nav
 (`AppShellShell`) and the settings tab bar (`SettingsTabs`) therefore carry
 their own `view-transition-name`s, and `globals.css` holds those groups at
 `z-index: 100` above the content with no animation (old snapshot hidden). The
-portaled floating bottom pills/FAB clusters also get their own named groups so
+portaled floating bottom pills / FAB rows also get their own named groups so
 they are not left in the root group behind the shell footer during route
-transitions.
+transitions. The name must ride the **glass element itself** — naming an Affix
+wrapper makes it a backdrop root and starves every `backdrop-filter` descendant
+(the frost reads as a flat translucent block), so `.c2-control-pill` /
+`.c2-attendance-bar` carry their own names and the FAB row names each glass
+child individually (`c2-fab-step` / `c2-fab-link` / `c2-fab-create` for the
+dashboard row; `c2-fab-1…4` by position for generic `FloatingToolbar` FABs).
 
 **Interaction with `content-enter`.** Both can fire when a route lands with a
 cold `loading.tsx` skeleton (the page transition animates the navigation;

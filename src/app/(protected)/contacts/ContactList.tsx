@@ -184,7 +184,7 @@ export function ContactList({
   const mobilePill = (
     <Affix
       hiddenFrom="lg"
-      className="c2-pill-lift c2-control-pill-affix"
+      className="c2-pill-lift"
       position={{
         bottom: keyboardInset > 0 ? keyboardInset + 8 : "var(--app-floating-bottom-offset)",
         left: 16,

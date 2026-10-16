@@ -248,10 +248,13 @@ string maps to the first tab of that kind.
   Affix recipe (inset 16; zIndex **110** — above the bottom nav's AppShell
   z-index 100 so an animating pill never slips behind its backdrop-filter
   layer, below modals at 200; the Parade attendance bar rides 120 to stay
-  above its pill; 50px on Parade, 58px on Contacts). The floating Affix roots
-  also carry `c2-control-pill-affix` / `c2-attendance-bar-affix` view-transition
-  names, so route-change ViewTransition groups keep them above the named
-  `c2-shell-footer` group rather than dropping them into the root group:
+  above its pill; 50px on Parade, 58px on Contacts). The frosted pill / bar
+  **elements themselves** carry the `c2-control-pill-affix` /
+  `c2-attendance-bar-affix` view-transition names (never the Affix wrapper — a
+  name on a wrapper becomes a backdrop root and starves the child's
+  `backdrop-filter`, reading as a flat translucent block), so route-change
+  ViewTransition groups keep them above the named `c2-shell-footer` group
+  rather than dropping them into the root group:
   **Parade** puts the day label + `<`/`>` step + filter + date-picker +
   attendance-toggle circles in one pill (the attendance **mode bar** floats
   above it while in attendance mode and fades/slides in and out —

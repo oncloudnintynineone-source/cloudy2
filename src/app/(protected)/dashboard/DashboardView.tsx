@@ -3456,7 +3456,6 @@ function DashboardViewImpl({
   const mobilePill = (
     <Affix
       hiddenFrom="lg"
-      className="c2-control-pill-affix"
       position={{ bottom: pillBottomOffset, left: 16, right: 16 }}
       zIndex={110}
     >
@@ -5103,7 +5102,7 @@ function DashboardViewImpl({
                 position="top-end"
                 trigger={
                   <Button
-                    className="c2-glass-btn c2-glass-btn--solid c2-glass-fab--accent c2-glass-btn--bordered"
+                    className="c2-fab-link c2-glass-btn c2-glass-btn--solid c2-glass-fab--accent c2-glass-btn--bordered"
                     aria-label="Quick links"
                     radius="999px"
                     w={56}
@@ -5115,7 +5114,7 @@ function DashboardViewImpl({
               />
             )}
             <Button
-              className="c2-glass-btn c2-glass-btn--solid c2-glass-fab--brand c2-glass-btn--bordered"
+              className="c2-fab-create c2-glass-btn c2-glass-btn--solid c2-glass-fab--brand c2-glass-btn--bordered"
               aria-label="New event"
               radius="999px"
               w={56}

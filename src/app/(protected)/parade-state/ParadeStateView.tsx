@@ -741,7 +741,6 @@ export function ParadeStateView({
   const mobilePill = (
     <Affix
       hiddenFrom="lg"
-      className="c2-control-pill-affix"
       position={{ bottom: "var(--app-floating-bottom-offset)", left: 16, right: 16 }}
       zIndex={110}
     >
@@ -837,7 +836,6 @@ export function ParadeStateView({
   const mobileAttendanceBar = (
     <Affix
       hiddenFrom="lg"
-      className="c2-attendance-bar-affix"
       position={{ bottom: attendanceBarBottomOffset, left: 16, right: 16 }}
       zIndex={120}
     >

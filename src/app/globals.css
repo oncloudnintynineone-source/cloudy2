@@ -133,23 +133,30 @@ html {
   Floating bottom controls are portaled to <body>, so without a name they sit
   in the root view-transition group and their element z-index cannot lift them
   above the named shell-footer group during route transitions. Give them their
-  own groups, above the bottom nav, and keep the group itself unanimated so the
+  own groups, above the bottom nav.
+
+  CRITICAL: a `view-transition-name` must ride the **glass element itself**,
+  never an Affix wrapper that merely contains it. A non-`none`
+  `view-transition-name` makes its element a backdrop root, so a named ancestor
+  starves every `backdrop-filter` descendant of its real backdrop — the frosted
+  pill/buttons then render as a flat translucent block. So `.c2-control-pill` /
+  `.c2-attendance-bar` carry their group names directly (below), and the FAB
+  row names each glass child individually (`c2-fab-*`, below) rather than
+  naming the `.c2-fab-cluster` Affix root. Keep each group unanimated so the
   glass controls' own entrance animations remain the backdrop-filter root.
 */
-.c2-control-pill-affix {
-  view-transition-name: c2-control-pill-affix;
-}
-
-.c2-attendance-bar-affix {
-  view-transition-name: c2-attendance-bar-affix;
-}
-
-.c2-fab-cluster {
-  view-transition-name: c2-fab-cluster;
-}
-
+/* Control-pill / attendance-bar group names live on the glass elements:
+   `.c2-control-pill` and `.c2-attendance-bar` (see their rules below). The FAB
+   row's per-child names (`c2-fab-step`, `c2-fab-link`, `c2-fab-create`,
+   `c2-fab-1…4`) are declared with their element rules too. */
 ::view-transition-group(c2-control-pill-affix),
-::view-transition-group(c2-fab-cluster) {
+::view-transition-group(c2-fab-step),
+::view-transition-group(c2-fab-link),
+::view-transition-group(c2-fab-create),
+::view-transition-group(c2-fab-1),
+::view-transition-group(c2-fab-2),
+::view-transition-group(c2-fab-3),
+::view-transition-group(c2-fab-4) {
   animation: none;
   z-index: 110;
 }
@@ -1122,6 +1129,11 @@ html {
   border: 1px solid var(--mantine-color-default-border);
   box-shadow: var(--mantine-shadow-md);
   padding: 6px 10px;
+  /* Group name on the glass element itself (never the Affix wrapper — see the
+     view-transition note at the top of the file), so route-change transitions
+     hold the pill above the named `c2-shell-footer` group without starving its
+     `backdrop-filter`. */
+  view-transition-name: c2-control-pill-affix;
   /* Below `lg` this full-width pill floats over the Week (Grid) viewport, which
      runs flush to the bottom nav (`weekgrid-page-pad`) — so its frosted band
      must not swallow taps on the grid content beneath it. The surface passes
@@ -1147,6 +1159,45 @@ html {
   border: 1px solid var(--mantine-color-default-border);
   box-shadow: var(--mantine-shadow-md);
   padding: 0 4px;
+  /* Group name on the glass step pill itself (never the FAB Affix wrapper). */
+  view-transition-name: c2-fab-step;
+}
+
+/* Attendance mode bar (Parade State): group name on the glass bar itself. */
+.c2-attendance-bar {
+  view-transition-name: c2-attendance-bar-affix;
+}
+
+/* Per-child view-transition names for the mobile FAB row's two solid pills
+   (dashboard), so the whole row is held above the shell footer during route
+   transitions. Names ride the buttons themselves, never the Affix wrapper —
+   a name on the wrapper would be a backdrop root and kill the child frost. */
+.c2-fab-link {
+  view-transition-name: c2-fab-link;
+}
+
+.c2-fab-create {
+  view-transition-name: c2-fab-create;
+}
+
+/* Generic FloatingToolbar FABs (settings tables, etc.): name each `.c2-glass-fab`
+   by its position in the cluster. The dashboard FAB row nests its children in a
+   plain Box (not a `.c2-glass-fab`), so its step/link/create elements are named
+   above instead; the desktop minimized-draft FAB matches position 1. */
+.c2-fab-cluster .c2-glass-fab:nth-child(1) {
+  view-transition-name: c2-fab-1;
+}
+
+.c2-fab-cluster .c2-glass-fab:nth-child(2) {
+  view-transition-name: c2-fab-2;
+}
+
+.c2-fab-cluster .c2-glass-fab:nth-child(3) {
+  view-transition-name: c2-fab-3;
+}
+
+.c2-fab-cluster .c2-glass-fab:nth-child(4) {
+  view-transition-name: c2-fab-4;
 }
 
 .c2-glass-fab {
