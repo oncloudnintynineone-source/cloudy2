@@ -93,9 +93,9 @@ normalization) and the full quality gates before pushing.
 | `src/lib/settings/queries.ts` | `getFeatureFlags` + `SettingsView.featureFlags` |
 | `src/lib/settings/{write,edits}.ts` | `updateFeatureFlags` through the shared settings-write ritual (`editSetting`) + the pure flag edit (audited, cache-invalidating) |
 | `src/app/(protected)/settings/feature-flags/` | Page + generic `FeatureFlagsForm` + skeleton |
-| `src/app/(protected)/layout.tsx` | Resolves the header-facing flags into the shell |
+| `src/app/(protected)/layout.tsx` | Resolves the shell-facing flags (`translucencyLevel`, `pinnedTickerIndicator`, `bottomNavVariant`) into the shell |
 | `src/lib/bottomNav.ts` | `footerPrimaryFor` — the `bottomNavVariant` flag's pure primary-tile rule (unit-tested in `bottomNav.test.ts`) |
-| `src/lib/dashboard/data.ts` | Resolves the dashboard-facing flags (`savedEventToastVariant`, `translucencyLevel`, `reorderDrag`) into `DashboardSharedConfig` |
+| `src/lib/dashboard/data.ts` | Resolves the dashboard-facing flags (`savedEventToastVariant`, `reorderDrag`) into `DashboardSharedConfig` |
 
 Related docs:
 
@@ -104,8 +104,9 @@ Related docs:
 - [`action-pill.md`](action-pill.md) — the `savedEventToastVariant` flag: the four
   post-save confirmation variants and the action pill's `toast` presentation.
 - [`dashboard-views.md`](dashboard-views.md) §1.1 — the `translucencyLevel` flag:
-  the app-wide frosted glass and its three opacity levels (the tinted FAB
-  modifiers `--accent` / `--brand` / `--teal` are exempt — always solid).
+  the app-wide frosted glass and its three opacity levels (the standalone round
+  FABs `--accent` / `--brand` / `--teal` are solid at every level; the dashboard's
+  tinted glass buttons stay frosted).
 - [`reorder.md`](reorder.md) — the `reorderDrag` flag: the shared drag-to-reorder
   plumbing and the lists it upgrades.
 - [`desktop-responsive.md`](desktop-responsive.md) §1.2 — the `bottomNavVariant`

@@ -60,12 +60,15 @@ split around the arrow: the **columns** pair above the right pan arrow and the
 **rows** pair below (each behind its own divider), anchored so the arrow's center
 sits on the grid's **visible-slice center**, like the other clusters (§1.7 of
 [`dashboard-views.md`](dashboard-views.md#17-timeline-and-column-zoom-day-week-h-week-d-and-week-grid)).
-For the single-axis clusters the widget hangs from its **bottom edge**, so the
-right pan arrow's center sits on the visible-slice center — vertically aligned
-with the left pan arrow — and the zoom pair's slot above does not depend on
-`canScrollRight`; in the two-axis cluster the arrow slot and its dividers are
-likewise reserved (hidden, space kept) when the grid fits without
-overflowing. Either way nothing shifts when the arrow appears or disappears
+For the single-axis clusters the **whole widget is centered** on the
+visible-slice center — the zoom pair above, the right pan arrow below — and the
+left pan arrow stays edge-anchored at that same center (so on these views the
+right pan arrow now rides below the left one); the right arrow only renders when
+that edge can scroll, and the pair slot above does not depend on
+`canScrollRight`. In the two-axis cluster the arrow sits in the **middle**
+(columns pair above, rows pair below) and its slot + dividers are reserved
+(hidden, space kept) when the grid fits without overflowing. Either way nothing
+shifts when the arrow appears or disappears
 while panning. Unlike the pan
 arrows, the zoom pair(s) render whenever the schedule/grid is shown — zoom is
 useful even when the grid fits without overflowing.

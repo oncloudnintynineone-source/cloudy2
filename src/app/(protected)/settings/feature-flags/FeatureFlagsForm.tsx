@@ -60,7 +60,7 @@ function TickerIndicatorPreview({ value }: { value: PinnedTickerIndicator }) {
 }
 
 /** A composite mock of the translucent surfaces — a frosted chrome row with the
- *  date-nav buttons and the mobile bottom cluster (`[<][>][LINK][CREATE]`) —
+ *  date-nav buttons and the mobile bottom cluster (`[<|>][LINK][CREATE]`) —
  *  over a two-tone checker, so the selected opacity is visible before saving.
  *  `aria-hidden`: the preview is illustrative, not interactive. */
 function TranslucencyPreview({ value }: { value: TranslucencyLevel }) {

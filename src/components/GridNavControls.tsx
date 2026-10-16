@@ -28,13 +28,13 @@ const EDGE_INSET = 8;
  * widget can never overlap itself. The left pan arrow stays edge-anchored on
  * the left so "scroll left" still reads from the left edge; the right edge
  * hosts the zoom pair(s) and the right pan arrow together. Single-axis views
- * (Day/Week (H)/Month) hang the cluster from its bottom edge so the right pan
- * arrow's center lands on the grid's visible-slice center — vertically aligned
- * with the left pan arrow — with the zoom pair's slot above it. The two-axis
- * view (Week (Grid)) splits instead: the primary (columns) pair sits ABOVE the
- * right pan arrow and the secondary (rows) pair BELOW it, and the cluster is
- * anchored so the arrow's center lands on the anchor center. Either way the
- * arrow slot (plus its dividers in the two-axis case) does not depend on
+ * (Day/Week (H)/Month) center the WHOLE cluster — the zoom pair above, the
+ * right pan arrow below — on the grid's visible-slice center; the left pan
+ * arrow stays edge-anchored at that center, so the right pan arrow now rides
+ * below it. The two-axis view (Week (Grid)) is already symmetric: the primary
+ * (columns) pair sits ABOVE the right pan arrow and the secondary (rows) pair
+ * BELOW it, anchored so the arrow's center lands on the anchor center. In the
+ * two-axis case the arrow slot (plus its dividers) does not depend on
  * `canScrollRight` — it is reserved and hidden when the grid fits without
  * overflowing — so nothing shifts when the arrow appears or disappears while
  * panning. The zoom pair(s) render whenever the grid is shown (zoom is useful
@@ -58,7 +58,8 @@ const EDGE_INSET = 8;
  * instead pinned them to the grid's own box, so they rode out of view with it.)
  * The anchor is the grid's **visible-slice** center, never the raw viewport
  * center: the slice starts below the sticky chrome, so this keeps the cluster
- * clear of the floating fullscreen toggle at the top-right on short viewports.
+ * clear of the lg-only floating fullscreen toggle at the top-right on short
+ * viewports.
  */
 export function GridNavControls({
   anchorRef,
@@ -73,6 +74,7 @@ export function GridNavControls({
   label,
   secondaryZoom,
   layoutKey,
+  bottomBarrierRef,
 }: {
   anchorRef: RefObject<HTMLDivElement | null>;
   canScrollLeft: boolean;
@@ -115,6 +117,13 @@ export function GridNavControls({
    * leaving them at the previous layout's offsets.
    */
   layoutKey?: string | number | boolean;
+  /**
+   * Optional element that owns the viewport's bottom-right corner (the
+   * dashboard's right FAB row (chevron pill + create pill) below `lg`): the
+   * visible slice is clamped to its top, so the cluster never parks
+   * behind it on document-scrolling grids.
+   */
+  bottomBarrierRef?: RefObject<HTMLElement | null> | null;
 }) {
   const canZoomIn = zoom < zoomMax;
   const canZoomOut = zoom > zoomMin;
@@ -139,11 +148,15 @@ export function GridNavControls({
         return;
       }
       const rect = layoutRect(anchor);
-      // The visible slice is the anchor's rect clamped to the window. If the
-      // anchor is entirely off-screen at measurement time, fall back to the
-      // full viewport so the controls still render somewhere sensible.
+      // The visible slice is the anchor's rect clamped to the window (and to
+      // the bottom barrier's top when one is given — the dashboard's bottom
+      // toolbar below `lg`). If the anchor is entirely off-screen at
+      // measurement time, fall back to the full viewport so the controls still
+      // render somewhere sensible.
       const visibleTop = Math.max(rect.top, 0);
-      const visibleBottom = Math.min(rect.bottom, window.innerHeight);
+      const barrier = bottomBarrierRef?.current;
+      const barrierTop = barrier ? layoutRect(barrier).top : window.innerHeight;
+      const visibleBottom = Math.min(rect.bottom, window.innerHeight, barrierTop);
       const onScreen = visibleTop < visibleBottom;
       // 8px inside each grid edge; clamp to the anchor's own midpoint so a very
       // narrow grid can't push the controls off-screen or onto each other. The
@@ -168,11 +181,15 @@ export function GridNavControls({
     if (anchor) {
       observer.observe(anchor);
     }
+    const barrier = bottomBarrierRef?.current;
+    if (barrier) {
+      observer.observe(barrier);
+    }
     return () => {
       window.removeEventListener("resize", measure);
       observer.disconnect();
     };
-  }, [anchorRef, layoutKey]);
+  }, [anchorRef, bottomBarrierRef, layoutKey]);
 
   if (!pos) {
     return null;
@@ -180,14 +197,12 @@ export function GridNavControls({
 
   // The right-edge cluster's top edge, per shape:
   //
-  // Single-axis (Day/Week (H)/Month): bottom-edge anchor. The bottom of the
-  // cluster — the right pan arrow (or the zoom pair when the arrow is
-  // hidden) — is clamped so the arrow's center lands on the grid's
-  // visible-slice center, vertically aligned with the left pan arrow; the
-  // zoom pair's slot above stays fixed whether or not the arrow currently
-  // renders, so panning never shifts it. On strips shorter than the cluster
-  // the zoom pair overflows above rather than pushing the arrow out the
-  // bottom.
+  // Single-axis (Day/Week (H)/Month): center anchor. The whole cluster — the
+  // zoom pair above, the right pan arrow below (when it renders) — is centered
+  // on the grid's visible-slice center and clamped to the visible bounds, so
+  // it never bleeds past either edge. On strips shorter than the cluster it
+  // overflows evenly around the center. The left pan arrow keeps its own
+  // center anchor, so it no longer lines up with the right one.
   //
   // Two-axis (Week (Grid)): the pan arrow sits in the MIDDLE of the cluster
   // (primary/columns pair above, secondary/rows pair below), so the anchor is
@@ -217,21 +232,25 @@ export function GridNavControls({
             Math.min(pos.center - ARROW_CENTER_FROM_TOP, pos.visibleBottom - TWO_AXIS_CLUSTER_HEIGHT),
           );
   } else {
-    const zoomButtonCount = 2;
+    const itemCount = 2 + (canScrollRight ? 1 : 0);
     const dividerCount = canScrollRight ? 1 : 0;
-    const itemCount = zoomButtonCount + (canScrollRight ? 1 : 0);
     const clusterHeight =
       BUTTON_SIZE * itemCount +
       CLUSTER_GAP * (itemCount + dividerCount - 1) +
       DIVIDER_HEIGHT * dividerCount;
-    const desiredBottom = canScrollRight
-      ? pos.center + BUTTON_SIZE / 2
-      : pos.center - (BUTTON_SIZE / 2 + CLUSTER_GAP + DIVIDER_HEIGHT + CLUSTER_GAP);
-    const clusterBottom = Math.min(
-      Math.max(desiredBottom, pos.visibleTop + clusterHeight),
-      pos.visibleBottom,
-    );
-    clusterTop = clusterBottom - clusterHeight;
+    // Center the WHOLE cluster (zoom pair + pan arrow) on the grid's
+    // visible-slice center, then clamp so it never bleeds past either edge. On
+    // strips shorter than the cluster it overflows evenly around the center
+    // rather than being pinned to one edge. The left pan arrow stays at
+    // `pos.center`, so the right pan arrow now rides below it.
+    const sliceHeight = pos.visibleBottom - pos.visibleTop;
+    clusterTop =
+      clusterHeight > sliceHeight
+        ? (pos.visibleTop + pos.visibleBottom) / 2 - clusterHeight / 2
+        : Math.max(
+            pos.visibleTop,
+            Math.min(pos.center - clusterHeight / 2, pos.visibleBottom - clusterHeight),
+          );
   }
 
   const renderDivider = (hidden = false) => (

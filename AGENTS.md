@@ -138,10 +138,18 @@ doc content here.
   opens the manage modal — an Add-view button, subtle ↑/↓ reorder, a per-row **Edit** dialog
   (name + type + an **Edit filters…** button that switches to the view and opens its filter
   dialog), delete, and a quiet accent left bar on the active row, plus the shared manage-row
-  recipe (`reorderUpDown.tsx`, `variant="subtle"`) + optimistic `useReorderRows` FLIP. Below
-  `lg` the prev/next period chevrons leave the nav row and join the bottom-right FAB cluster
-  (`[<][>][LINK][CREATE]`, frosted glass via `.c2-glass-fab`) for thumb reach; both sets share
-  the view-aware `navigatePeriod`.
+  recipe (`reorderUpDown.tsx`, `variant="subtle"`) + optimistic `useReorderRows` FLIP.   Below
+  `lg` the chrome **splits**: a thin view-name strip stays pinned at the top,
+  and the date controls move to **floating bottom rows** — a frosted
+  control pill (period label left + circular filter/date/view/**fullscreen**
+  buttons right, inset 16px from the viewport edges) bottom-most, with the
+  right-anchored FAB row (`[<|>]` step pill + Quick-links **pill button** —
+  amber `c2-glass-fab--accent` — + New-event **pill button** —
+  brand-blue `c2-glass-fab--brand` tint; all `c2-glass-btn--bordered` grey ring
+  and pill-height) floating above it — for thumb reach; pinned
+  strips dock under the name strip (`chromeOffset` = `topChromeHeight`),
+  bounded grids run flush to the bottom nav, and page pads clear the pill/FAB
+  row; at `lg`+ one box (tabs + nav row) pins top.
   Month
   grids zoom from fit-to-width (`src/lib/ui/monthZoom.ts`,
   `dashboard.monthZoom`); Week (D) is a custom matrix (`buildWeekLanes`). Entry highlights:
@@ -149,13 +157,16 @@ doc content here.
   Design: [docs/dashboard-views.md](docs/dashboard-views.md).
 - **Wide grids pan + zoom** via `useGridPan` + the shared `GridNavControls`
   right-edge cluster (pan arrows + the zoom +/− pair(s); `zoomMin`/`zoomMax` per
-  view). Every grid kind zooms — Day/Week (H), Week (D), Week (Grid) (two axes),
-  Month (fit-to-width) — except Agenda. Zoom levels live in
-  `src/lib/ui/slotZoom.ts` / `monthZoom.ts` (0.25–6 and 1–6).
+  view; the whole cluster is centered on the grid's visible-slice center, the
+  left pan arrow keeping its own center anchor). Every grid kind zooms — Day/Week
+  (H), Week (D), Week (Grid) (two axes), Month (fit-to-width) — except Agenda.
+  Zoom levels live in `src/lib/ui/slotZoom.ts` / `monthZoom.ts` (0.25–6 and 1–6).
   Design: [docs/grid-pan.md](docs/grid-pan.md).
-- **Fullscreen calendar (immersive mode):** hides shell chrome + requests page fullscreen;
-  owned by `AppShellShell`, only `DashboardView` controls it and always exits on unmount.
-  Design: [docs/immersive-mode.md](docs/immersive-mode.md).
+- **Fullscreen calendar (immersive mode):** hides shell chrome + requests page
+  fullscreen; owned by `AppShellShell`, only `DashboardView` controls it and always
+  exits on unmount. The shared `FullscreenButton` renders floating top-right at `lg`+
+  (`FullscreenToggle`, `visibleFrom="lg"`) and inline in the mobile control pill below
+  `lg`. Design: [docs/immersive-mode.md](docs/immersive-mode.md).
 - **Reorderable lists (views / event-type groups / departments / quick links / title-recipe
   segments):** one shared path — `useReorderRows` (chevrons via `move(id, ±1)` + FLIP;
   drag via `moveTo(id, toIndex)`) + `ReorderUpDown` + `SortableList`/`SortableRow`/`DragHandle`
@@ -308,9 +319,10 @@ doc content here.
   (one tap to reach any page), in the fixed `RAIL_ORDER` order (`src/lib/bottomNav.ts`,
   pure + unit-tested) with tile width from the `bottomNavVariant` flag
   (`RAIL_TILE_WIDTHS`, fixed — wider viewports simply reveal more tiles). Tiles
-  beyond the viewport hide behind a right-edge fade and come with a swipe or the
-  edge **chevron** (`RailEdgeControl`, snapping the rail between its start/end
-  stops). The desktop sidebar always shows every entry. `SettingsTabs` stacks
+  beyond the viewport hide behind a right-edge fade and come with a swipe; the
+  edge **chevron** (`RailEdgeControl`) is a decorative hint only — `pointer-events:
+  none` so taps pass through to the clipped tile, and it hides on a side once
+  the rail reaches that extreme. The desktop sidebar always shows every entry. `SettingsTabs` stacks
   directly above the footer.
 - **Admin settings live under `/settings`** (admin-only): Users, Departments, Event Types,
   Templates, Webhooks, Quick Links, KAH Groups, Banner, General, Security, Audit Log,
@@ -332,9 +344,8 @@ doc content here.
   ([`action-pill.md`](docs/action-pill.md)); and `translucencyLevel` — the app-wide frosted-glass
   opacity (subtle / medium / strong) for the page's overlapping surfaces (sticky
   calendar chrome, bottom nav, sidebar, floating controls; the header and overlays stay opaque,
-  and the tinted FABs `--accent`/`--brand`/`--teal` are always solid), published on `<html>`
-   as `data-c2-glass` by the shell (plus a `c2-glass--<level>` class on the mobile FAB cluster via
-   `DashboardSharedConfig` → `DashboardView`)
+  and the standalone round FABs are solid while the dashboard's glass buttons stay frosted),
+  published on `<html>` as `data-c2-glass` by the shell
    ([`dashboard-views.md`](docs/dashboard-views.md) §1.1); `reorderDrag` — the
    reorder interaction for the manageable lists ([`reorder.md`](docs/reorder.md));
    and `bottomNavVariant` — the mobile footer's always-scrolling rail tile

@@ -1748,15 +1748,46 @@ via `?attendance=1` and `attendanceStorage` became a `useSyncExternalStore` exte
     (`marginTop: calc(-1 * var(--app-shell-padding))` alongside the existing
     gutter bleed) so the frosted chrome sits flush under the app header;
     token unified on `--app-shell-padding` across all four pages.
-- 1.306 Solid tinted FABs: the `c2-glass-fab--accent` / `--brand` / `--teal`
-    modifiers in `globals.css` now paint fully opaque (amber `accent-6`, brand
-    `brand-7`, teal `#0ca678`) with lighter/darker shade shifts for hover/active
-    instead of alpha bumps, and their icons ride the dark shade in both schemes
-    — the faded translucent tints (Quick-links, New-event, Parade attendance,
-    contacts download, settings-table FABs) read at full colour over any content.
-    The now-dead `--c2g-accent-*` / `--c2g-brand-*` alphas are dropped from the
-    token block and the level modifiers; `translucencyLevel` still governs the
-    neutral frosted surfaces. Docs: `dashboard-views.md` §1.1,
+- 1.306 Mobile period-step pill: the bottom-right cluster's two 44px circular
+    chevron FABs merge into one segmented frosted-glass capsule
+    (`[<|>][LINK][CREATE]`) — `.c2-period-pill` with two transparent 44px
+    segments + hairline divider, so period nav reads as one control instead of
+    two more FABs; only the tapped segment tints (`docs/dashboard-views.md`
+    §1.1).
+- 1.307 Mobile chrome split (below `lg`): the date-nav row leaves the top
+    chrome (which shrinks to a thin pinned view-name strip); its controls move
+    to **floating bottom rows** — a frosted control pill (`.c2-control-pill`:
+    period label left + circular filter/date/view/quick-links buttons right,
+    inset 16px from the viewport edges) bottom-most, with the right-anchored
+    FAB row (New-event **pill button** — `c2-glass-btn` + `c2-glass-fab--brand`
+    brand-blue tint + `c2-glass-btn--bordered` grey ring — parked right of the
+    `[<|>]` step pill, `.c2-period-pill`, both matched to the pill's height)
+    floating above it. Bounded grids run flush to the bottom
+    nav again; page pads (`--c2-bottom-chrome-height`) clear the pill/FAB
+    row; the zoom/pan clusters clamp to it (`bottomBarrierRef`)
+    (`docs/dashboard-views.md` §1.1).
+- 1.308 Mobile bottom-controls reshuffle + zoom-cluster centering: the
+    single-axis `GridNavControls` cluster now centers the WHOLE cluster (zoom
+    pair above, right pan arrow below) on the grid's visible-slice center
+    instead of hanging from its bottom edge; below `lg` the control pill's
+    quick-links slot becomes the inline `FullscreenButton` (extracted from
+    `FullscreenToggle`, which is now `visibleFrom="lg"`) and Quick links moves
+    to the FAB row as an amber `c2-glass-fab--accent` pill beside the New-event
+    pill (`docs/dashboard-views.md` §1.1, `docs/grid-pan.md` §1.2,
+    `docs/immersive-mode.md` §1.1).
+- 1.309 Bottom-nav rail edge chevrons now decorative: `RailEdgeControl` drops
+    the snap button (`pointer-events: none`, taps pass through to the clipped
+    tile) and each side hides when the rail reaches that extreme, measured
+    from `scrollLeft` re-checked on `scrollend`/`pointerup` (`docs/desktop-responsive.md`
+    §1.2).
+- 1.310 Solid standalone FABs: the `c2-glass-fab--accent` / `--brand` / `--teal`
+    modifiers now paint fully opaque (amber `accent-6`, brand `brand-7`, teal
+    `#0ca678`) with lighter/darker shade shifts for hover/active instead of alpha
+    bumps, scoped with `:not(.c2-glass-btn)` so only the standalone round FABs
+    (the Parade attendance toggle, the Contacts download, the settings-table FABs)
+    are affected — the dashboard's tinted glass buttons (the `lg` nav-row New
+    event / Quick links and the mobile pill row) keep their frosted tint and the
+    `--c2g-accent-*` / `--c2g-brand-*` alphas. Docs: `dashboard-views.md` §1.1,
     `feature-flags.md`, `desktop-responsive.md`, `AGENTS.md`.
 
 ## 1.4 Open items & next steps

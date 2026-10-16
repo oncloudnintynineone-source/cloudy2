@@ -130,9 +130,10 @@ export function WeekGridViewSkeleton({
   chromeOffset,
 }: {
   hours?: number;
-  /** Measured chrome height — the real grid is viewport-bounded (it scrolls
-   *  internally with a pinned header + all-day row), so the placeholder fills
-   *  the same box to keep the swap seamless. */
+  /** Measured top-chrome height — the real grid is viewport-bounded (it
+   *  scrolls internally with a pinned header + all-day row), so the
+   *  placeholder fills the same box to keep the swap seamless. Below `lg`
+   *  this is the thin view-name strip pinned at the top. */
   chromeOffset: number;
 }) {
   const theme = useMantineTheme();
@@ -148,7 +149,9 @@ export function WeekGridViewSkeleton({
         // At lg the grid is lifted behind the chrome (the shared
         // `.c2-gutter-anim` negative top margin), so it no longer subtracts the
         // chrome/gap; the top padding keeps the visible placeholder band aligned
-        // below the chrome.
+        // below the chrome. Below lg the top chrome is just the name strip and
+        // the box runs flush to the bottom nav (the floating pill/FABs overlay
+        // its bottom-right corner).
         height: isDesktop
           ? `calc(var(--app-shell-vh, 100dvh) - var(--app-shell-header-offset) - var(--app-shell-footer-offset) - var(--c2-weekgrid-bottom-budget, 0px))`
           : `calc(var(--app-shell-vh, 100dvh) - var(--app-shell-header-offset) - var(--app-shell-footer-offset) - var(--mantine-spacing-sm) - var(--c2-weekgrid-bottom-budget, 0px) - ${chromeOffset}px)`,

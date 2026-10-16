@@ -1,7 +1,7 @@
 "use client";
 
-import { type RefObject, useLayoutEffect, useState } from "react";
-import { ActionIcon } from "@mantine/core";
+import { type CSSProperties, type RefObject, useLayoutEffect, useState } from "react";
+import { ActionIcon, type ActionIconProps } from "@mantine/core";
 import { IconArrowsMaximize, IconArrowsMinimize } from "@tabler/icons-react";
 
 /**
@@ -14,17 +14,67 @@ export const FULLSCREEN_BUTTON_SIZE = 40;
 export const FULLSCREEN_EDGE_INSET = 8;
 
 /**
- * Floating fullscreen (immersive-mode) toggle for the calendar page. Moved out
- * of the old kebab menu: it now anchors to the top-right of the calendar view,
- * beside the zoom/pan controls. `position: fixed` like `GridNavControls`, with
- * the top measured from the sticky date-nav chrome (so it always sits just
+ * The fullscreen (immersive-mode) button itself — icon + accessible label, no
+ * positioning, so it drops into any chrome. Shared by the floating
+ * `FullscreenToggle` (lg+ only, top-right of the grid) and the mobile bottom
+ * control pill's inline fullscreen circle (below `lg`, where the floating
+ * button is hidden); callers vary `size`/`variant`/`className` to match their
+ * surroundings.
+ */
+export function FullscreenButton({
+  active,
+  onToggle,
+  size = FULLSCREEN_BUTTON_SIZE,
+  variant = "filled",
+  color = "gray",
+  className = "c2-glass-btn",
+  style,
+  visibleFrom,
+}: {
+  active: boolean;
+  onToggle: () => void;
+  size?: number | string;
+  variant?: ActionIconProps["variant"];
+  color?: ActionIconProps["color"];
+  className?: string;
+  style?: CSSProperties;
+  /** Mantine responsive prop — e.g. `"lg"` to show only at lg+. */
+  visibleFrom?: string;
+}) {
+  const label = active ? "Exit fullscreen" : "Enter fullscreen";
+  return (
+    <ActionIcon
+      style={style}
+      size={size}
+      radius="50%"
+      variant={variant}
+      color={color}
+      className={className}
+      visibleFrom={visibleFrom}
+      aria-label={label}
+      title={label}
+      onClick={onToggle}
+    >
+      {active ? <IconArrowsMinimize size={18} /> : <IconArrowsMaximize size={18} />}
+    </ActionIcon>
+  );
+}
+
+/**
+ * Floating fullscreen (immersive-mode) toggle for the calendar page at lg+.
+ * Moved out of the old kebab menu: it anchors to the top-right of the calendar
+ * view, beside the zoom/pan controls. `position: fixed` like `GridNavControls`,
+ * with the top measured from the sticky date-nav chrome (so it always sits just
  * below it, never hidden underneath while scrolled) and the right inset from
  * the grid box (so it tracks the desktop sidebar). Circular, subdued grey —
  * the same secondary-chrome treatment as the zoom/pan cluster.
  *
- * Unlike the zoom/pan controls, this button is never gated on grid content: it
- * must stay reachable in every view (and in immersive mode it is the in-page
- * exit path, so it re-measures when `active` flips and the header collapses).
+ * Called with `visibleFrom="lg"` (below `lg` the mobile bottom control pill
+ * carries its own `FullscreenButton` instead, and the thin top strip there is
+ * too tight for a floating control). Unlike the zoom/pan controls, this button
+ * is never gated on grid content: it must stay reachable in every view (and in
+ * immersive mode, at lg+, it is the in-page exit path, so it re-measures when
+ * `active` flips and the header collapses).
  */
 export function FullscreenToggle({
   anchorRef,
@@ -32,6 +82,7 @@ export function FullscreenToggle({
   active,
   onToggle,
   layoutKey,
+  visibleFrom,
 }: {
   anchorRef: RefObject<HTMLDivElement | null>;
   chromeRef: RefObject<HTMLDivElement | null>;
@@ -41,9 +92,12 @@ export function FullscreenToggle({
    * Layout identity the fixed position depends on (the caller passes its
    * breakpoint/chrome measurement). When it changes the anchors are
    * re-measured after commit, so a desktop↔mobile flip re-anchors the button
-   * instead of leaving it at the previous layout's offsets.
+   * instead of leaving them at the previous layout's offsets.
    */
   layoutKey?: string | number | boolean;
+  /** Mantine responsive prop forwarded to the button (the dashboard passes
+   *  `"lg"` so the floating toggle yields to the mobile pill below `lg`). */
+  visibleFrom?: string;
 }) {
   // Static anchor: the chrome's bottom edge (top) and the grid's right edge,
   // measured on load (null before first paint so the button never flashes
@@ -64,7 +118,8 @@ export function FullscreenToggle({
       const gridRect = anchor.getBoundingClientRect();
       const chromeRect = chrome.getBoundingClientRect();
       setPos({
-        // 8px below the sticky chrome, so the button never slides beneath it
+        // 8px below the sticky top chrome (the full chrome at lg, the thin
+        // view-name strip below `lg`), so the button never slides beneath it
         // while the grid scrolls.
         top: chromeRect.bottom + FULLSCREEN_EDGE_INSET,
         // 8px inside the grid's right edge; clamp to half the viewport so a
@@ -97,7 +152,10 @@ export function FullscreenToggle({
   }
 
   return (
-    <ActionIcon
+    <FullscreenButton
+      active={active}
+      onToggle={onToggle}
+      visibleFrom={visibleFrom}
       style={{
         position: "fixed",
         top: pos.top,
@@ -107,16 +165,6 @@ export function FullscreenToggle({
         // modals.
         zIndex: 46,
       }}
-      size={FULLSCREEN_BUTTON_SIZE}
-      radius="50%"
-      variant="filled"
-      color="gray"
-      className="c2-glass-btn"
-      aria-label={active ? "Exit fullscreen" : "Enter fullscreen"}
-      title={active ? "Exit fullscreen" : "Enter fullscreen"}
-      onClick={onToggle}
-    >
-      {active ? <IconArrowsMinimize size={18} /> : <IconArrowsMaximize size={18} />}
-    </ActionIcon>
+    />
   );
 }

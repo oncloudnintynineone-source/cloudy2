@@ -951,9 +951,14 @@ html {
   offset + 16px shell padding) adds the rest, while in immersive mode that
   footer allowance vanishes and this var compensates for it. Pages apply it
   instead of their pb="xl" so their regular bottom padding returns at lg.
+  On the dashboard, `--c2-bottom-chrome-height` (the measured pill +
+  the right FAB row above it, net of the FAB diameter this formula already
+  adds; set inline, 0/undefined elsewhere) completes the bottom stack.
 */
 .fab-page-pad {
-  padding-bottom: calc(var(--app-floating-bottom-offset-immersive) + 65px);
+  padding-bottom: calc(
+    var(--app-floating-bottom-offset-immersive) + 65px + var(--c2-bottom-chrome-height, 0px)
+  );
 }
 
 /*
@@ -967,7 +972,9 @@ html {
   its bottom edge lands on the viewport bottom. See DualPaneView's height recipe.
 */
 .dual-page-pad {
-  padding-bottom: calc(var(--app-floating-bottom-offset-immersive) + 65px);
+  padding-bottom: calc(
+    var(--app-floating-bottom-offset-immersive) + 65px + var(--c2-bottom-chrome-height, 0px)
+  );
 }
 
 /*
@@ -992,19 +999,21 @@ html {
   header is deliberately **opaque** (owned by `HEADER_STYLE`), outside this
   system. Overlays (modals, menus, popovers, tooltips, toasts) are also opaque.
   `.c2-glass-fab` is the button form: applied to the
-  Calendar page's bottom-right `[<][>][LINK][CREATE]` row below `lg`
+  Calendar page's bottom-right `[LINK][CREATE]` row below `lg`
   (DashboardView) and to the floating controls / every page's FAB. Scheme-aware
   through `[data-mantine-color-scheme]`-scoped token values (not `light-dark()`
   in the composite custom properties — see the token block below); `!important`
   beats Mantine's runtime-injected variant background/colour/border rules. Tints
   preserve each surface's colour language: neutral surfaces keep the body tone,
-  amber Quick links (`--accent`), brand-blue New event (`--brand`) — but the
-  tinted FABs (`--accent` / `--brand` / `--teal`) are **solid**, never frosted,
-  so their colour reads at full strength over any content.
+  amber Quick links (`--accent`), brand-blue New event (`--brand`); the
+  **standalone** round FABs (`--accent` / `--brand` / `--teal` without
+  `.c2-glass-btn`) are **solid**, so their colour reads at full strength over any
+  content, while the dashboard's glass buttons keep the frosted tint.
   The backdrop blur lets the content read through, while the blur + shadow keep
   the controls legible over any content. No border: the frosted edge is carried
-  by the shadow alone (a hard ring read as an off outline, especially in dark
-  mode).
+  by   the shadow alone (a hard ring read as an off outline, especially in dark
+  mode) — except the opt-in `.c2-glass-btn--bordered` ring on standalone
+  floating buttons that must match the floating pill containers' edge.
 
   The opacity is admin-adjustable via the `translucencyLevel` feature flag: the
   `[data-c2-glass]` attribute (on <html>) or the explicit `.c2-glass--{subtle|
@@ -1012,7 +1021,7 @@ html {
   rules below consume. The base rules carry the `medium` defaults, so an
   unmatched level still renders medium rather than solid. Medium is the shipped
   look; Subtle is more see-through, Strong nearly solid. Low-end devices fall
-  back to tint only. The tinted FAB modifiers are exempt — always opaque.
+  back to tint only. Only the standalone round FABs are opaque (see above).
 */
 /* Token base (the `medium` defaults). The level modifiers below override the
    alphas; the low-end tier switches `--c2g-blur` off entirely (tint only). */
@@ -1023,6 +1032,10 @@ html {
   --c2g-hover-d: 0.7;
   --c2g-active-l: 0.92;
   --c2g-active-d: 0.8;
+  --c2g-accent-l: 0.38;
+  --c2g-accent-d: 0.26;
+  --c2g-brand-l: 0.8;
+  --c2g-brand-d: 0.72;
   --c2g-blur: blur(14px) saturate(1.5);
   /* Composite surface tokens every glass surface consumes. Scheme-specific
      values are scoped by Mantine's `data-mantine-color-scheme` attribute rather
@@ -1049,6 +1062,41 @@ html {
   backdrop-filter: var(--c2g-blur);
 }
 
+/*
+  Dashboard mobile floating rows (below `lg`, DashboardView):
+  `.c2-control-pill` is the bottom pill carrying the period label (centered in
+  the space left of the circular filter/date/view/fullscreen buttons on the
+  right), inset 16px from the
+  viewport edges (same clearance as the FAB toolbar); `.c2-period-pill` is the
+  `[< | >]` step pill in the right-anchored FAB row floating above the pill —
+  its height is driven inline to match the control pill's. Both ride the frosted
+  `.c2-glass-surface` tint with a pill radius, hairline edge and the shared
+  floating shadow.
+*/
+.c2-control-pill {
+  border-radius: 999px;
+  border: 1px solid var(--mantine-color-default-border);
+  box-shadow: var(--mantine-shadow-md);
+  padding: 6px 10px;
+  /* Below `lg` this full-width pill floats over the Week (Grid) viewport, which
+     runs flush to the bottom nav (`weekgrid-page-pad`) — so its frosted band
+     must not swallow taps on the grid content beneath it. The surface passes
+     pointer events through; its interactive children (the circular buttons)
+     re-enable them below, so only the buttons catch taps. */
+  pointer-events: none;
+}
+
+.c2-control-pill button {
+  pointer-events: auto;
+}
+
+.c2-period-pill {
+  border-radius: 999px;
+  border: 1px solid var(--mantine-color-default-border);
+  box-shadow: var(--mantine-shadow-md);
+  padding: 0 4px;
+}
+
 .c2-glass-fab {
   background: var(--c2-glass-bg) !important;
   color: light-dark(var(--mantine-color-dark-8), var(--mantine-color-gray-0)) !important;
@@ -1059,8 +1107,9 @@ html {
 }
 
 /* Frosted control for page-level buttons sitting on the frosted surfaces (the
-   date-nav row, the New-event / Quick-links buttons, and the floating zoom/pan
-   and fullscreen controls): the same surface tint + blur, a drop shadow so they
+   date-nav row, the mobile FAB row's New-event / Quick-links pills, the
+   fullscreen control and the floating zoom/pan cluster): the same surface tint
+   + blur, a drop shadow so they
    lift off the chrome, and a scheme-aware icon colour. Accent/brand buttons
    layer their colour modifier on top (the `--accent`/`--brand` rules are
    declared after this one, so they win). The tab-strip trailing icons
@@ -1079,6 +1128,15 @@ html {
   backdrop-filter: var(--c2g-blur);
 }
 
+/* Opt-in hairline edge for a standalone glass button that floats on its own
+   (the mobile FAB row's create + quick-links pills): the shared .c2-glass-btn form stays
+   borderless (the ring below re-adds the same edge the .c2-control-pill /
+   .c2-period-pill containers carry). Declared after .c2-glass-btn so its
+   !important beats that rule's transparent border. */
+.c2-glass-btn--bordered {
+  border: 1px solid var(--mantine-color-default-border) !important;
+}
+
 .c2-glass-fab:hover,
 .c2-glass-btn:hover {
   background: light-dark(
@@ -1094,53 +1152,132 @@ html {
   ) !important;
 }
 
+/* Tinted glass (the dashboard's `c2-glass-fab--accent` / `--brand` pills keep
+   their frosted tint; hover/active derive from the base alpha with `calc()`). */
 .c2-glass-fab--accent {
-  background: var(--mantine-color-accent-6) !important;
-  color: var(--mantine-color-accent-9) !important;
+  background: light-dark(
+    rgba(251, 192, 45, var(--c2g-accent-l)),
+    rgba(251, 192, 45, var(--c2g-accent-d))
+  ) !important;
+  color: light-dark(var(--mantine-color-accent-9), var(--mantine-color-accent-1)) !important;
 }
 
 .c2-glass-fab--accent:hover {
-  background: var(--mantine-color-accent-5) !important;
+  background: light-dark(
+    rgba(251, 192, 45, calc(var(--c2g-accent-l) + 0.14)),
+    rgba(251, 192, 45, calc(var(--c2g-accent-d) + 0.1))
+  ) !important;
 }
 
 .c2-glass-fab--accent:active {
-  background: var(--mantine-color-accent-7) !important;
+  background: light-dark(
+    rgba(251, 192, 45, calc(var(--c2g-accent-l) + 0.24)),
+    rgba(251, 192, 45, calc(var(--c2g-accent-d) + 0.18))
+  ) !important;
 }
 
 .c2-glass-fab--brand {
-  background: var(--mantine-color-brand-7) !important;
+  background: light-dark(
+    rgba(13, 71, 161, var(--c2g-brand-l)),
+    rgba(13, 71, 161, var(--c2g-brand-d))
+  ) !important;
   color: var(--mantine-color-white) !important;
 }
 
 .c2-glass-fab--brand:hover {
-  background: var(--mantine-color-brand-6) !important;
+  background: light-dark(
+    rgba(13, 71, 161, calc(var(--c2g-brand-l) + 0.08)),
+    rgba(13, 71, 161, calc(var(--c2g-brand-d) + 0.08))
+  ) !important;
 }
 
 .c2-glass-fab--brand:active {
+  background: light-dark(
+    rgba(10, 58, 133, calc(var(--c2g-brand-l) + 0.15)),
+    rgba(10, 58, 133, calc(var(--c2g-brand-d) + 0.16))
+  ) !important;
+}
+
+/* Teal-tinted frosted FAB (the Parade State attendance toggle's active state,
+   keeping its `color="teal"` identity). */
+.c2-glass-fab--teal {
+  background: light-dark(
+    rgba(12, 166, 120, var(--c2g-accent-l)),
+    rgba(12, 166, 120, var(--c2g-accent-d))
+  ) !important;
+  color: light-dark(var(--mantine-color-teal-9), var(--mantine-color-teal-1)) !important;
+}
+
+.c2-glass-fab--teal:hover {
+  background: light-dark(
+    rgba(12, 166, 120, calc(var(--c2g-accent-l) + 0.14)),
+    rgba(12, 166, 120, calc(var(--c2g-accent-d) + 0.1))
+  ) !important;
+}
+
+.c2-glass-fab--teal:active {
+  background: light-dark(
+    rgba(12, 166, 120, calc(var(--c2g-accent-l) + 0.24)),
+    rgba(12, 166, 120, calc(var(--c2g-accent-d) + 0.18))
+  ) !important;
+}
+
+/* Solid overrides for the STANDALONE round FABs only (Parade attendance toggle,
+   Contacts download, the settings-table FABs). The dashboard's tinted buttons
+   carry `.c2-glass-btn` and are excluded, so they keep the frosted tint above;
+   the higher specificity of `:not()` wins without an `!important` war. */
+.c2-glass-fab--accent:not(.c2-glass-btn) {
+  background: var(--mantine-color-accent-6) !important;
+  color: var(--mantine-color-accent-9) !important;
+}
+
+.c2-glass-fab--accent:not(.c2-glass-btn):hover {
+  background: var(--mantine-color-accent-5) !important;
+}
+
+.c2-glass-fab--accent:not(.c2-glass-btn):active {
+  background: var(--mantine-color-accent-7) !important;
+}
+
+.c2-glass-fab--brand:not(.c2-glass-btn) {
+  background: var(--mantine-color-brand-7) !important;
+  color: var(--mantine-color-white) !important;
+}
+
+.c2-glass-fab--brand:not(.c2-glass-btn):hover {
+  background: var(--mantine-color-brand-6) !important;
+}
+
+.c2-glass-fab--brand:not(.c2-glass-btn):active {
   background: var(--mantine-color-brand-8) !important;
 }
 
-/* Teal-tinted solid FAB (the Parade State attendance toggle's active state,
-   keeping its `color="teal"` identity). */
-.c2-glass-fab--teal {
+.c2-glass-fab--teal:not(.c2-glass-btn) {
   background: #0ca678 !important;
   color: var(--mantine-color-teal-9) !important;
 }
 
-.c2-glass-fab--teal:hover {
+.c2-glass-fab--teal:not(.c2-glass-btn):hover {
   background: #35b594 !important;
 }
 
-.c2-glass-fab--teal:active {
+.c2-glass-fab--teal:not(.c2-glass-btn):active {
   background: #097b5a !important;
 }
 
 /*
   FAB cluster entrance (docs/desktop-responsive.md): FloatingToolbar's portaled
-  Affix root carries `c2-fab-cluster`; the FABs are the grandchildren (root →
-  Group → FABs), so they pop in with a small stagger the first time the
-  cluster is painted. Nodes are reused afterwards, so the pop never replays
-  on state changes.
+  Affix root carries `c2-fab-cluster`; the cluster's glass controls pop in with a
+  small stagger the first time it is painted. Nodes are reused afterwards, so the
+  pop never replays on state changes.
+
+  Target the glass controls themselves, never a wrapper element: a
+  transform/opacity animation on an ANCESTOR of a `backdrop-filter` control makes
+  that ancestor a backdrop root, so the control blurs only the (empty) wrapper
+  interior and reads as solid. Standard toolbars put the `FloatingActionButton`s
+  (the glass) as the Group's direct children, but the dashboard's mobile FAB row
+  nests its step pill + create pill inside a ref wrapper, so an ancestor-keyed
+  selector would animate that wrapper and kill their frost.
 */
 @keyframes c2-fab-enter {
   from {
@@ -1150,19 +1287,19 @@ html {
 }
 
 @media (prefers-reduced-motion: no-preference) {
-  .c2-fab-cluster > * > * {
+  .c2-fab-cluster :is(.c2-glass-fab, .c2-glass-btn, .c2-glass-surface) {
     animation: c2-fab-enter var(--c2-dur-standard) cubic-bezier(0.22, 1, 0.36, 1) both;
   }
 
-  .c2-fab-cluster > * > *:nth-child(2) {
+  .c2-fab-cluster :is(.c2-glass-fab, .c2-glass-btn, .c2-glass-surface):nth-child(2) {
     animation-delay: 50ms;
   }
 
-  .c2-fab-cluster > * > *:nth-child(3) {
+  .c2-fab-cluster :is(.c2-glass-fab, .c2-glass-btn, .c2-glass-surface):nth-child(3) {
     animation-delay: 100ms;
   }
 
-  .c2-fab-cluster > * > *:nth-child(4) {
+  .c2-fab-cluster :is(.c2-glass-fab, .c2-glass-btn, .c2-glass-surface):nth-child(4) {
     animation-delay: 150ms;
   }
 }
@@ -1170,8 +1307,8 @@ html {
 /* Opacity levels (Settings → Feature Flags → `translucencyLevel`). The
    `[data-c2-glass]` attribute lives on <html> (set by AppShellShell) so every
    glass surface — including the portaled FABs — inherits the level; the
-   `.c2-glass--*` classes are the explicit form the mobile FAB cluster and the
-   Settings preview use. Placed after the base rules so a single class wins;
+   `.c2-glass--*` classes are the explicit form the Settings preview uses.
+   Placed after the base rules so a single class wins;
    Medium equals the base defaults above. */
 [data-c2-glass="subtle"],
 .c2-glass--subtle {
@@ -1181,6 +1318,10 @@ html {
   --c2g-hover-d: 0.52;
   --c2g-active-l: 0.74;
   --c2g-active-d: 0.64;
+  --c2g-accent-l: 0.26;
+  --c2g-accent-d: 0.18;
+  --c2g-brand-l: 0.66;
+  --c2g-brand-d: 0.58;
 }
 
 [data-c2-glass="medium"],
@@ -1191,6 +1332,10 @@ html {
   --c2g-hover-d: 0.7;
   --c2g-active-l: 0.92;
   --c2g-active-d: 0.8;
+  --c2g-accent-l: 0.38;
+  --c2g-accent-d: 0.26;
+  --c2g-brand-l: 0.8;
+  --c2g-brand-d: 0.72;
 }
 
 [data-c2-glass="strong"],
@@ -1201,6 +1346,10 @@ html {
   --c2g-hover-d: 0.82;
   --c2g-active-l: 0.97;
   --c2g-active-d: 0.9;
+  --c2g-accent-l: 0.55;
+  --c2g-accent-d: 0.4;
+  --c2g-brand-l: 0.9;
+  --c2g-brand-d: 0.82;
 }
 
 /* Low-end devices (the `c2-low-end` tier, added by AppProviders): tint only —

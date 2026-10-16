@@ -15,11 +15,14 @@ hidden); only the dashboard controls it.
 
 ## 1.1 The toggle & state ownership
 
-- A floating circular button (`FullscreenToggle`, `src/components/FullscreenToggle.tsx`)
-  anchored to the top-right of the calendar view — beside the zoom/pan cluster, not in the
-  old kebab menu. It flips `IconArrowsMaximize` / `IconArrowsMinimize`
-  ("Enter fullscreen" / "Exit fullscreen") and is always rendered (it is the in-page exit
-  path while immersive).
+- At `lg`+, a floating circular button (`FullscreenToggle`,
+  `src/components/FullscreenToggle.tsx`, rendered `visibleFrom="lg"`) anchored to the
+  top-right of the calendar view — beside the zoom/pan cluster, not in the old kebab
+  menu. Below `lg` the same inline `FullscreenButton` lives in the bottom control pill
+  (the thin top strip there is too tight for a floating control). It flips
+  `IconArrowsMaximize` / `IconArrowsMinimize` ("Enter fullscreen" / "Exit fullscreen")
+  and is always rendered for its breakpoint (it is the in-page exit path while
+  immersive); `FullscreenButton` is the shared button both paths use.
 - `enter()` flips the shell chrome off **and** requests the page-level Fullscreen API
   (`requestFullscreen({ navigationUI: "hide" })`), so the OS status bar / browser UI
   disappear on devices that support it.
@@ -44,9 +47,13 @@ The CSS half is the `app-shell-immersive` class on the AppShell root
 
 - The dashboard's floating toolbars take the freed bottom-nav space: `FloatingToolbar`
   gets `bottomOffset="var(--app-floating-bottom-offset-immersive)"` while active — a
-  `:root` var, because the Affix portals to `<body>`.
-- Browsers that reject page fullscreen (iOS) keep the **CSS-only** mode — the sticky
-  chrome then takes `env(safe-area-inset-top)` padding.
+  `:root` var, because the Affix portals to `<body>`. Below `lg` the control
+  pill owns the bottom strip via the same var, and the FAB row stacks above it
+  (+ the measured pill height + gap).
+- Browsers that reject page fullscreen (iOS) keep the **CSS-only** mode — the
+  sticky top chrome (full chrome at `lg`+, the view-name strip below `lg`) then
+  takes `env(safe-area-inset-top)` padding; the bottom clusters' offsets
+  already carry `env(safe-area-inset-bottom)` through the immersive var.
 
 ## 1.4 Deliberate choices
 
@@ -56,9 +63,11 @@ The CSS half is the `app-shell-immersive` class on the AppShell root
   sidebar / banner) is hidden — the calendar's own view tabs, "All views" jump list,
   Add-view button and Manage-views gear remain visible so view switching and
   management still work in fullscreen. (At `lg`+ — below `lg` the tab row is
-  already dropped to save space, and the nav row's view-menu button carries the
-  same list + Add-/Manage-views and stays up too. The mobile period chevrons in
-  the bottom-right FAB cluster stay up as well.)
+  already dropped to save space, and the floating pill's view-menu button
+  carries the same list + Add-/Manage-views and stays up too. Below `lg` the
+  view-name strip stays pinned at the top and the date controls ride the
+  floating pill + the right FAB row above it — lifted by the
+  immersive offset over the (hidden) bottom nav.)
 - The announcement banner's inline height style and header contribution are omitted
   while immersive, so the CSS-default 0px applies ([`announcement-banner.md`](announcement-banner.md)).
 
