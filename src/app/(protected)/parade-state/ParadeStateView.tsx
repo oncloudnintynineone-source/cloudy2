@@ -52,7 +52,6 @@ import { PageHeader } from "@/components/PageHeader";
 import { useReportActivity } from "@/components/ActivityBar";
 import { useColdStartContent } from "@/components/ColdStartReady";
 import { FilterModal, type FilterGroup } from "@/components/FilterModal";
-import { FAB_ICON_SIZE, FloatingActionButton, FloatingToolbar } from "@/components/FloatingToolbar";
 import { LoadingStatus } from "@/components/LoadingStatus";
 import type { WeekStart } from "@/lib/events/datetime";
 import type { CalendarEvent } from "@/lib/events/queries";
@@ -540,6 +539,55 @@ export function ParadeStateView({
     </Button>
   );
 
+  // The live present count, Copy and Reset overflow shared by the desktop
+  // mode bar (in the top chrome) and the mobile mode bar (floating above the
+  // bottom control pill).
+  const attendanceControls = (
+    <Group gap="xs" wrap="nowrap" style={{ flexShrink: 0 }}>
+      <Text size="sm" fw={700} style={{ flexShrink: 0 }}>
+        {presentTotal}/{users.length} present
+      </Text>
+      <Button
+        size="compact-sm"
+        variant="light"
+        color="teal"
+        leftSection={<IconClipboard size={14} />}
+        onClick={() => void copyAttendanceReport()}
+      >
+        Copy
+      </Button>
+      <Menu
+        shadow="md"
+        width={220}
+        position="bottom-end"
+        transitionProps={{
+          transition: "pop-top-right",
+          duration: MOTION.popover,
+          timingFunction: "ease",
+        }}
+      >
+        <Menu.Target>
+          <ActionIcon size={32} variant="subtle" aria-label="Attendance options">
+            <IconDotsVertical size={16} />
+          </ActionIcon>
+        </Menu.Target>
+        <Menu.Dropdown>
+          <Menu.Label>Attendance</Menu.Label>
+          <Menu.Item leftSection={<IconX size={16} />} onClick={resetDay} closeMenuOnClick>
+            Clear this day
+          </Menu.Item>
+          <Menu.Item
+            leftSection={<IconRefresh size={16} />}
+            onClick={openResetConfirm}
+            closeMenuOnClick
+          >
+            Clear all dates…
+          </Menu.Item>
+        </Menu.Dropdown>
+      </Menu>
+    </Group>
+  );
+
   function renderUserCard(user: ParadeStateUser) {
     const userEvents = eventsByUser.get(user.id) ?? [];
     const checked = attendanceMode && checkedIds.has(user.id);
@@ -661,9 +709,9 @@ export function ParadeStateView({
   const dayLabel = dayjs(date).format("ddd, MMM D, YYYY");
 
   // The floating control pill (below `lg` only, calendar-page pattern): the
-  // day label centered in the space left of the circular step / filter / date
-  // buttons, floating at the bottom inset 16px from the viewport edges. The
-  // attendance FAB row (the mode toggle) floats right-anchored above it.
+  // day label centered in the space left of the circular step / filter / date /
+  // attendance buttons, floating at the bottom inset 16px from the viewport
+  // edges. The attendance mode bar floats above it (see `mobileAttendanceBar`).
   const mobilePill = (
     <Affix hiddenFrom="lg" position={{ bottom: "var(--app-floating-bottom-offset)", left: 16, right: 16 }} zIndex={100}>
       <Box className="c2-glass-surface c2-control-pill">
@@ -722,21 +770,65 @@ export function ParadeStateView({
           >
             <IconCalendarDot size={18} />
           </ActionIcon>
+          <ActionIcon
+            radius="50%"
+            size={36}
+            variant="default"
+            className={attendanceMode ? "c2-glass-btn c2-glass-fab--teal" : "c2-glass-btn"}
+            aria-label={attendanceMode ? "Exit attendance mode" : "Start attendance"}
+            title={attendanceMode ? "Exit attendance mode" : "Start attendance"}
+            onClick={attendanceMode ? exitAttendance : enterAttendance}
+          >
+            {attendanceMode ? <IconCheck size={18} /> : <IconClipboardCheck size={18} />}
+          </ActionIcon>
         </Group>
       </Box>
     </Affix>
   );
   // The pill's fixed height (6px padding + 36px buttons + hairlines) plus the
-  // 12px gap: the FAB row floats above the pill, and the page pad clears the
-  // whole stack (fab-page-pad adds the FAB diameter itself, net of FAB_SIZE).
+  // 12px gap: the attendance mode bar floats above the pill (see
+  // `mobileAttendanceBar`), and the page pad clears the whole stack.
   const pillHeightPx = 50;
-  const fabBottomOffset = `calc(var(--app-floating-bottom-offset) + ${pillHeightPx + 12}px)`;
+  const attendanceBarBottomOffset = `calc(var(--app-floating-bottom-offset) + ${pillHeightPx + 12}px)`;
+
+  // The attendance mode bar (below `lg`, only in attendance mode): the live
+  // present count + Copy + Reset overflow, floating full-width above the
+  // control pill in the same frosted-pill language. The desktop equivalent
+  // lives in the sticky top chrome.
+  const mobileAttendanceBar = (
+    <Affix
+      hiddenFrom="lg"
+      position={{ bottom: attendanceBarBottomOffset, left: 16, right: 16 }}
+      zIndex={100}
+    >
+      <Box
+        className="c2-glass-surface"
+        style={{
+          borderRadius: 999,
+          border: "1px solid var(--mantine-color-default-border)",
+          boxShadow: "var(--mantine-shadow-md)",
+          padding: "6px 10px",
+        }}
+      >
+        <Group justify="space-between" gap="xs" wrap="nowrap">
+          <Group gap="xs" wrap="nowrap" style={{ minWidth: 0 }}>
+            <IconClipboardCheck size={18} color="var(--mantine-color-teal-6)" aria-hidden />
+            <Text size="sm" fw={700} lineClamp={1} title="Saved on this device only">
+              {presentTotal}/{users.length} present
+            </Text>
+          </Group>
+          {attendanceControls}
+        </Group>
+      </Box>
+    </Affix>
+  );
 
   return (
-    // fab-page-pad replaces pb="xl": reserves clearance for the mobile
-    // attendance FAB below the last card row, restores plain xl at lg.
-    // --c2-bottom-chrome-height carries the pill + gap below lg so the last
-    // card row clears the pill/FAB stack (same math as the dashboard).
+    // fab-page-pad replaces pb="xl": reserves clearance so the last card row
+    // scrolls above the bottom control pill / floating attendance mode bar,
+    // and restores plain xl at lg. --c2-bottom-chrome-height carries the pill +
+    // gap below lg; the class's FAB-diameter reserve covers the mode bar above
+    // it (same math as the dashboard).
     <Stack
       gap="md"
       className="fab-page-pad"
@@ -752,9 +844,9 @@ export function ParadeStateView({
           shared sticky-chrome recipe (docs/dashboard-views.md, SettingsTabs):
           a direct child of the page column, frosted glass surface, gutter
           bleed so content sliding beneath is masked to the shell edges. Below
-          lg the day controls live in the floating bottom pill, so this chrome
-          only appears in attendance mode (just the mode bar). */}
-      {(isDesktop || attendanceMode) && (
+          lg the day controls live in the floating bottom control pill and the
+          attendance mode bar floats above it, so this chrome is lg-only. */}
+      {isDesktop && (
         <Box
           className="c2-glass-surface"
           style={{
@@ -849,53 +941,7 @@ export function ParadeStateView({
                   </Text>
                 </Stack>
               </Group>
-              <Group gap="xs" wrap="nowrap" style={{ flexShrink: 0 }}>
-                <Text size="sm" fw={700} style={{ flexShrink: 0 }}>
-                  {presentTotal}/{users.length} present
-                </Text>
-                <Button
-                  size="compact-sm"
-                  variant="light"
-                  color="teal"
-                  leftSection={<IconClipboard size={14} />}
-                  onClick={() => void copyAttendanceReport()}
-                >
-                  Copy
-                </Button>
-                <Menu
-                  shadow="md"
-                  width={220}
-                  position="bottom-end"
-                  transitionProps={{
-                    transition: "pop-top-right",
-                    duration: MOTION.popover,
-                    timingFunction: "ease",
-                  }}
-                >
-                  <Menu.Target>
-                    <ActionIcon size={32} variant="subtle" aria-label="Attendance options">
-                      <IconDotsVertical size={16} />
-                    </ActionIcon>
-                  </Menu.Target>
-                  <Menu.Dropdown>
-                    <Menu.Label>Attendance</Menu.Label>
-                    <Menu.Item
-                      leftSection={<IconX size={16} />}
-                      onClick={resetDay}
-                      closeMenuOnClick
-                    >
-                      Clear this day
-                    </Menu.Item>
-                    <Menu.Item
-                      leftSection={<IconRefresh size={16} />}
-                      onClick={openResetConfirm}
-                      closeMenuOnClick
-                    >
-                      Clear all dates…
-                    </Menu.Item>
-                  </Menu.Dropdown>
-                </Menu>
-              </Group>
+              {attendanceControls}
             </Group>
           </Paper>
         )}
@@ -1036,28 +1082,12 @@ export function ParadeStateView({
       </Box>
 
       {/* The floating control pill (below `lg` only): day label + step /
-          filter / date circles, inset 16px at the bottom (see above). */}
+          filter / date / attendance circles, inset 16px at the bottom (see
+          above). The attendance toggle is a circle inside the pill at lg the
+          entry point is the nav-row button; the mode bar floats above the pill
+          (see `mobileAttendanceBar`). */}
       {mobilePill}
-
-      {/* The attendance FAB is mobile-only; at lg the entry point is the
-          nav-row button beside the filter/date buttons. hiddenFrom sits on the
-          toolbar itself: its Affix portals to <body>, so a wrapper element
-          could not hide it. It floats right-anchored above the control pill. */}
-      <FloatingToolbar hiddenFrom="lg" bottomOffset={fabBottomOffset}>
-        <FloatingActionButton
-          aria-label={attendanceMode ? "Exit attendance mode" : "Start attendance"}
-          className={attendanceMode ? "c2-glass-fab--teal" : "c2-glass-fab--brand"}
-          variant={attendanceMode ? "light" : undefined}
-          color={attendanceMode ? "teal" : undefined}
-          onClick={attendanceMode ? exitAttendance : enterAttendance}
-        >
-          {attendanceMode ? (
-            <IconCheck size={FAB_ICON_SIZE} />
-          ) : (
-            <IconClipboardCheck size={FAB_ICON_SIZE} />
-          )}
-        </FloatingActionButton>
-      </FloatingToolbar>
+      {attendanceMode && mobileAttendanceBar}
 
       <FilterModal
         opened={filterOpened}

@@ -192,14 +192,16 @@ sub-departments, with aggregated counts):
   sub-department.
 - The day never auto-drifts: Parade State always opens on today; navigate days
   explicitly with the arrows or date picker.
-- **Attendance mode** (clipboard icon): tap to start, then tap each person's card
+- **Attendance mode** (clipboard icon — a circle in the bottom control pill on
+  phones, a nav-row button on desktop): tap to start, then tap each person's card
   to mark them present (the card tints green; a live `X/Y present` count sits in
-  the teal **mode bar**). The button becomes **Done** while active — tap it to
-  finish. Use **Copy** in the mode bar for a formatted attendance report, and the
-  mode bar's overflow menu to **Clear this day** (just today) or **Clear all
-  dates…** (every day, with confirmation). Attendance checks are stored **on this
-  device only**, per date; the mode survives a reload, but another device or
-  person won't see your checks.
+  the teal **mode bar**, which floats above the control pill on phones and in the
+  top chrome on desktop). The button becomes a **check / Done** while active —
+  tap it to finish. Use **Copy** in the mode bar for a formatted attendance
+  report, and the mode bar's overflow menu to **Clear this day** (just today) or
+  **Clear all dates…** (every day, with confirmation). Attendance checks are
+  stored **on this device only**, per date; the mode survives a reload, but
+  another device or person won't see your checks.
 - Admins can also have a **snapshot of the parade state emailed to selected people each
   weekday at 08:00** (Settings → Parade State Email). It uses the same in-camp/out-of-camp
   view — attendance checkmarks are device-local and are **not** included.

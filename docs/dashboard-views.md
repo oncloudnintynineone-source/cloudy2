@@ -240,9 +240,9 @@ string maps to the first tab of that kind.
 - **Bottom control pill reuse (Parade State / Contacts).** Below `lg` both
   pages shed their sticky top chrome and ride the same `.c2-control-pill`
   Affix recipe (inset 16, zIndex 100; 50px on Parade, 58px on Contacts):
-  **Parade** puts the day label + `<`/`>` step + filter + date-picker circles
-  in one pill (attendance FAB row floating above it; the top chrome survives
-  only in attendance mode, holding just the mode bar); **Contacts** puts a
+  **Parade** puts the day label + `<`/`>` step + filter + date-picker +
+  attendance-toggle circles in one pill (the attendance **mode bar** floats
+  above it while in attendance mode; the top chrome is `lg`-only); **Contacts** puts a
   **rounded search field** (pill-radius `TextInput` at the default `sm`
   size — the themed ~43px input height, same as the lg+ search bar, with a
   matching 44px filter circle; sizing/padding props must go on the input
@@ -253,10 +253,10 @@ string maps to the first tab of that kind.
   `bottom` transition on the Affix root): while the field holds focus —
   the OS keyboard covers the bottom of the screen — the pill floats to
   ~`40vh` so the textbox keeps its view, dropping back on blur. Parade sets
-  `--c2-bottom-chrome-height` (pill + gap) under `fab-page-pad` and keeps
-  its attendance FAB right-anchored above the pill; Contacts has no FAB row,
-  so its var subtracts the class's hardcoded 65px FAB diameter and carries
-  just pill + gap; at `lg`+
+  `--c2-bottom-chrome-height` (pill + gap) under `fab-page-pad`; the class's
+  hardcoded 65px FAB reserve now clears the floating attendance mode bar above
+  the pill. Contacts has no floating bar above its pill, so its var subtracts
+  the class's hardcoded 65px FAB diameter and carries just pill + gap; at `lg`+
   their top chrome rows are unchanged.
 - **App-wide frosted glass (`translucencyLevel`).** Beyond the mobile cluster,
   the surfaces that overlap page content are translucent: the
@@ -271,9 +271,10 @@ string maps to the first tab of that kind.
   the Week (Grid) day-header corner) also stay opaque so event chips scrolling
   beside them stay legible. Low-end devices (`c2-low-end`) fall back to tint only. The
   standalone round FABs (`c2-glass-fab--accent` / `--brand` / `--teal` without
-  `c2-glass-btn` — the Parade attendance toggle, the Contacts download, the
-  settings-table FABs) are solid/opaque; the dashboard's tinted glass buttons keep
-  the frosted tint.
+  `c2-glass-btn` — the Contacts download, the
+  settings-table FABs) are solid/opaque; the dashboard's tinted glass buttons
+  (and the Parade attendance toggle, now a `c2-glass-btn` circle in the control
+  pill) keep the frosted tint.
 - **Period preservation on switch** (`switchTab` in `DashboardView.tsx`): a
   tab switch is a _filter/context_ change, so switching between two tabs of the
   same kind (or any two day-anchored kinds) keeps the current date; leaving

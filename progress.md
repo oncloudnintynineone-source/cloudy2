@@ -1789,6 +1789,18 @@ via `?attendance=1` and `attendanceStorage` became a `useSyncExternalStore` exte
     event / Quick links and the mobile pill row) keep their frosted tint and the
     `--c2g-accent-*` / `--c2g-brand-*` alphas. Docs: `dashboard-views.md` §1.1,
     `feature-flags.md`, `desktop-responsive.md`, `AGENTS.md`.
+- 1.311 Parade State attendance UI to the bottom (mobile): the attendance-toggle
+    FAB is gone — below `lg` the toggle is now a `c2-glass-btn` circle inside the
+    bottom control pill (teal/check while active, `c2-glass-btn` frosted instead
+    of the old solid standalone FAB), and the attendance **mode bar** (present
+    count + Copy + Reset overflow) now floats full-width above the pill in the
+    same frosted-pill language, rendered only in attendance mode. The mode bar
+    left the top sticky chrome, so that chrome is now `lg`-only (desktop keeps
+    its nav-row "Attendance"/"Done" button + top mode bar unchanged). The shared
+    count/Copy/Reset cluster is extracted to one `attendanceControls` fragment
+    used by both bars; `.fab-page-pad`'s 65px FAB reserve now clears the floating
+    mode bar. Docs: `dashboard-views.md` §1.1, `desktop-responsive.md` §1.6,
+    `user-guide.md` §1.7.
 
 ## 1.4 Open items & next steps
 

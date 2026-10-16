@@ -350,8 +350,10 @@ controls:
   shared `FilterModal` with a Department chip group) and an `Export contacts`
   `Button visibleFrom="lg"` (same confirm modal as the FAB); the export FAB is
   `hiddenFrom="lg"`.
-- **Parade State** — the attendance FAB toolbar is `hiddenFrom="lg"`; at `lg`
-  the entry point stays the nav-row button beside the ⋮ menu.
+- **Parade State** — the attendance toggle is a circle in the bottom control
+  pill below `lg` (the attendance mode bar floats above that pill); at `lg`
+  the entry point stays the nav-row button beside the ⋮ menu, with the mode bar
+  in the sticky top chrome.
 
 FAB visibility is set via `hiddenFrom` on `FloatingToolbar` itself — its Affix
 portals to `<body>`, so wrapper elements cannot hide it (see the gotcha in 1.4).

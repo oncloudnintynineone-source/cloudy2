@@ -941,12 +941,14 @@ html {
 }
 
 /*
-  Bottom clearance for pages whose mobile-only FloatingToolbar FAB (a 65px row
-  sitting 16px above the bottom nav, portaled to <body>) overlaps
-  document-scrolling content: at max scroll the last content row must end
-  above the FAB's top edge. The 65px must stay in sync with FAB_SIZE in
-  src/components/FloatingToolbar.tsx. The value uses the immersive var
-  (16px + safe-area, never re-declared at lg) because it clears the FAB in
+  Bottom clearance for pages whose mobile-only floating controls (the 65px FAB
+  row sitting 16px above the bottom nav, or a page's control pill + the floating
+  bar above it) are portaled to <body> and overlap document-scrolling content:
+  at max scroll the last content row must end above the control's top edge. The
+  65px must stay in sync with FAB_SIZE in src/components/FloatingToolbar.tsx —
+  on Parade State it now clears the floating attendance mode bar that replaced
+  the old standalone FAB. The value uses the immersive var
+  (16px + safe-area, never re-declared at lg) because it clears the control in
   both modes: normally the AppShell main's own bottom padding (56px footer
   offset + 16px shell padding) adds the rest, while in immersive mode that
   footer allowance vanishes and this var compensates for it. Pages apply it
