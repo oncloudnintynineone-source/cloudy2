@@ -241,7 +241,10 @@ string maps to the first tab of that kind.
   pill hidden.
 - **Bottom control pill reuse (Parade State / Contacts).** Below `lg` both
   pages shed their sticky top chrome and ride the same `.c2-control-pill`
-  Affix recipe (inset 16, zIndex 100; 50px on Parade, 58px on Contacts):
+  Affix recipe (inset 16; zIndex **110** — above the bottom nav's AppShell
+  z-index 100 so an animating pill never slips behind its backdrop-filter
+  layer, below modals at 200; the Parade attendance bar rides 120 to stay
+  above its pill; 50px on Parade, 58px on Contacts):
   **Parade** puts the day label + `<`/`>` step + filter + date-picker +
   attendance-toggle circles in one pill (the attendance **mode bar** floats
   above it while in attendance mode and fades/slides in and out —
@@ -255,11 +258,16 @@ string maps to the first tab of that kind.
   circle** (the export FAB's action moved into the pill, `c2-glass-btn
   c2-glass-fab--brand`) in it, with a **keyboard-driven lift** (`.c2-pill-lift`, a
   `bottom` transition on the Affix root): while the OS keyboard is up — measured
-  live from `visualViewport` via `useKeyboardInset` (`src/lib/ui/keyboardInset.ts`) —
+  from `visualViewport` via `useKeyboardInset` (`src/lib/ui/keyboardInset.ts`) —
   the pill floats to sit just above the keyboard's top edge (inset + 8px), dropping
-  back the moment the keyboard shrinks. It is deliberately **not** focus-driven:
+  back the moment the keyboard is gone. It is deliberately **not** focus-driven:
   the keyboard's hide key / swipe-down dismiss leaves the input focused, so a
-  focus/blur lift stays stuck. Parade sets
+  focus/blur lift stays stuck. The inset is **settled, not chased** — opening
+  fires a storm of viewport resize/scroll events (and browsers scroll the page
+  mid-animation), so a keyboard-up commit is debounced (~120ms trailing) until
+  the events settle and fires one clean slide up at the final height, while a
+  keyboard-down commit is immediate; feeding every event into the transition
+  makes it re-target mid-flight and the pill visibly reverses. Parade sets
   `--c2-bottom-chrome-height` (pill + gap) under `fab-page-pad`; the class's
   hardcoded 65px FAB reserve now clears the floating attendance mode bar above
   the pill. Contacts has no floating bar above its pill, so its var subtracts

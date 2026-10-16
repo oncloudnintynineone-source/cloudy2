@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import { computeKeyboardInset, KEYBOARD_MIN_INSET_PX } from "./keyboardInset";
+import {
+  computeKeyboardInset,
+  decideKeyboardLift,
+  KEYBOARD_MIN_INSET_PX,
+} from "./keyboardInset";
 
 describe("computeKeyboardInset", () => {
   it("returns 0 when the visual viewport fills the layout viewport", () => {
@@ -28,5 +32,19 @@ describe("computeKeyboardInset", () => {
 
   it("never returns a negative inset", () => {
     expect(computeKeyboardInset(500, 800, 0)).toBe(0);
+  });
+});
+
+describe("decideKeyboardLift", () => {
+  it("schedules the measured inset while a keyboard is up", () => {
+    expect(decideKeyboardLift(300)).toEqual({ kind: "schedule", inset: 300 });
+  });
+
+  it("clears the lift immediately when the keyboard is gone", () => {
+    expect(decideKeyboardLift(0)).toEqual({ kind: "clear" });
+  });
+
+  it("clears on a non-positive raw inset", () => {
+    expect(decideKeyboardLift(-10)).toEqual({ kind: "clear" });
   });
 });

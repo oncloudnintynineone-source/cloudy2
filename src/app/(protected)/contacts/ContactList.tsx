@@ -179,6 +179,9 @@ export function ContactList({
   // so the search field keeps its view; it drops back the moment the
   // keyboard shrinks (see `useKeyboardInset`).
   const pillHeightPx = 58;
+  // zIndex 110: above the bottom nav (Mantine AppShell z-index 100) so the
+  // pill never slips behind its backdrop-filter layer while animating, below
+  // modals (200).
   const mobilePill = (
     <Affix
       hiddenFrom="lg"
@@ -188,7 +191,7 @@ export function ContactList({
         left: 16,
         right: 16,
       }}
-      zIndex={100}
+      zIndex={110}
     >
       <Box className="c2-glass-surface c2-control-pill">
         <Group align="center" gap="xs" wrap="nowrap">
