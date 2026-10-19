@@ -4,11 +4,11 @@ import type { Rect } from "@/lib/motion/origin";
 
 /**
  * Event search modal for the Calendar: the shell owns the open/close state
- * (it renders the header trigger) and pages read it through
- * `useSearchPanel()`. Opening is a transient client state — never persisted.
- * On the calendar page below `lg` the trigger lives in the floating bottom
- * control pill instead of the header; the pill opens the shell-owned modal
- * through this context.
+ * (it renders the modal and the shared chunk preload) and pages read it
+ * through `useSearchPanel()`. Opening is a transient client state — never
+ * persisted. Search is calendar-only: at `lg`+ the shell header's "Search
+ * events" button opens it, and below `lg` the floating bottom control pill's
+ * search circle does.
  */
 export interface SearchPanelValue {
   /** Opens the modal, given the tapped trigger's rect for the zoom origin. */

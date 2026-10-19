@@ -193,8 +193,9 @@ doc content here.
   the wizard's Other settings step). Titles render via the `pinnedHeader` template target
   (panel list: `pinned`). Design: [docs/pinned-events.md](docs/pinned-events.md);
   flags: [docs/feature-flags.md](docs/feature-flags.md).
-- **Event search:** header icon (calendar page below `lg`: the control pill's
-  search circle left of the filter button, via `SearchPanelContext`) opens a
+- **Event search (calendar-only):** the shell header's "Search events" button at
+  `lg`+ (below `lg`: the calendar control pill's search circle left of the filter
+  button, via `SearchPanelContext`) opens a
   **lazy-loaded** (`dynamic` + `ssr: false`) modal
   that free-text searches every department calendar **directly via Google Calendar**
   (`events.list` `q` — bypasses the month cache), rendered in `@mantine/schedule`'s

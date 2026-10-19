@@ -1,7 +1,8 @@
 # 1. Event search
 
-A header-launched (calendar-page bottom control-pill below `lg`) **fuzzy** free-text
-search over every department calendar.
+A calendar-only **fuzzy** free-text search over every department calendar, launched
+from the shell header's "Search events" button (calendar page at `lg`+) or the
+calendar-page bottom control pill's search circle (below `lg`).
 It reads the **layered events cache** for the months the date window touches,
 trims the result to the exact window, and Fuse.js-ranks title/location/type/
 calendar matches — so a small typo still finds the event. Results render as a
@@ -63,7 +64,7 @@ get every matching event across every department, best matches first.
 ```mermaid
 flowchart LR
  subgraph SHELL["AppShellShell (client)"]
- B["header Search ActionIcon<br/>(lg+ / other pages) + pill<br/>search circle (calendar below lg)"]
+ B["header 'Search events' button (lg+)<br/>+ pill search circle (below lg)"]
  M["EventSearchModal<br/>dynamic(ssr: false)"]
  SPIN["row spinner<br/>(useTransition isPending)"]
  end
@@ -187,21 +188,20 @@ fuzzily — see the `{ value, fuzzy: false }` field in §1.11.
   dependency-free skeleton fallback paints an immediate dialog for a click that
   races the chunk download. The chunk is **prefetched in the background** —
   `requestIdleCallback(cb, { timeout: 2000 })` after the shell's first paint,
-  plus `onPointerEnter` / `onFocus` / `onPointerDown` / `onTouchStart` on the
-  header button and the desktop `⌘/Ctrl-K` hotkey (the runtime Loadable's
-  `.preload()`, reached through a cast since the TS type omits it). The
+  plus the desktop `⌘/Ctrl-K` hotkey (the runtime Loadable's `.preload()`,
+  reached through a cast since the TS type omits it). The
   `searchLoaded` flag is set when the preload promise resolves, so the modal
   **mounts closed** the moment the chunk lands: the first open is then a pure
   `opened` flip (no mount, parse, or network on the click), and it stays mounted
   afterward so the shrink-out plays and repeat opens don't reload the chunk.
-- Owned by `AppShellShell`: the header `ActionIcon` toggles it; on click the
-  shell captures the icon's rect and passes it down as `originRect`, and the
-  modal zooms out of / shrinks back into it via the app's standard
-  `motion/origin` transition (mirroring `PinnedEventsPanel`). Below `lg` on
-  the calendar the header icon hides and the floating control pill's own
-  search circle (left of the filter button) is the trigger — it opens the
+- Owned by `AppShellShell` and **calendar-only**: at `lg`+ the shell header's
+  "Search events" button opens it; below `lg` the floating control pill's own
+  search circle (left of the filter button) does. Both are triggers into the
   shell-owned modal through `SearchPanelContext` (`src/lib/ui/searchPanel.ts`,
-  the same channel pattern as `PinnedPanelContext`).
+  the same channel pattern as `PinnedPanelContext`); the tapped trigger's rect
+  rides along as `originRect`, so the modal zooms out of / shrinks back into it
+  via the app's standard `motion/origin` transition (mirroring
+  `PinnedEventsPanel`). The mobile header bar carries no search control.
 - Contents: a single toolbar row — the query `TextInput` (no autofocus;
   in-field clear) plus a Search submit (`Button` at `lg`, a 43px icon below it)
   and a date-filter `ActionIcon` that opens a popover with the From/To
@@ -322,8 +322,8 @@ The shared `src/lib/search/fuzzy.ts` wraps Fuse.js once for the whole app
 | `src/app/(protected)/dashboard/EventDetail.tsx` | The shared detail modal the deep link lands on (unchanged) |
 | `src/components/EventSearchModal.tsx` | Lazy-loaded search modal + toolbar + flat relevance list + history badges + row-spinner deep link |
 | `src/components/EventSearchModalSkeleton.tsx` | Dependency-free `dynamic` loading fallback dialog |
-| `src/components/AppShellShell.tsx` | Header search button (lg+ / other pages) + ⌘/Ctrl-K + modal mount + origin rect + chunk preload + `SearchPanelContext` provider |
-| `src/lib/ui/searchPanel.ts` | `SearchPanelContext` — the calendar pill's search trigger → shell-owned modal |
+| `src/components/AppShellShell.tsx` | Desktop header "Search events" trigger + ⌘/Ctrl-K + modal mount + origin rect + chunk preload + `SearchPanelContext` provider |
+| `src/lib/ui/searchPanel.ts` | `SearchPanelContext` — the calendar's search triggers (desktop header + mobile pill) → shell-owned modal |
 
 Related docs:
 

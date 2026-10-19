@@ -136,7 +136,7 @@ export default function EventSearchModal({ opened, onClose, originRect }: EventS
 
   // The shell lazy-mounts this modal (closed) as soon as its chunk preloads, so
   // the Modal's Mantine Transition would initialize to "entered" and the zoom-in
-  // from the header button would never play. Mirror the `opened` prop into a
+  // from the search trigger would never play. Mirror the `opened` prop into a
   // local `mounted` state so the Transition always has an "exited" start state.
   // The open flip is deferred by one animation frame: flipped synchronously in
   // the effect, the browser coalesces the enter rAFs into a single paint and the
@@ -221,7 +221,7 @@ export default function EventSearchModal({ opened, onClose, originRect }: EventS
     };
   }, [opened]);
 
-  // The modal zooms out of / shrinks back into the header search button (the
+  // The modal zooms out of / shrinks back into the tapped search trigger (the
   // app's standard grow/shrink animation; mirror PinnedEventsPanel).
   // Resize-subscribed viewport (Mantine hook) rather than a raw window read
   // during render.

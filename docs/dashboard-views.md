@@ -204,8 +204,9 @@ string maps to the first tab of that kind.
   viewport edges** — `left: 16, right: 16`, the same clearance as the FAB
   toolbar) sits **bottom-most** with the period label on the **left** and the
   **circular** search / filter / date / view-menu / fullscreen buttons on the
-  **right** (the search circle replaces the header search icon on the
-  calendar below `lg` and opens the shell-owned modal through
+  **right** (the search circle is the mobile trigger, used below `lg`; at
+  `lg`+ the shell header's "Search events" button is the trigger; both open
+  the shell-owned modal through
   `SearchPanelContext`, §1.9 of [`event-search.md`](event-search.md))
   (the fullscreen button is `FullscreenButton`, the same inline toggle the
   floating lg-only `FullscreenToggle` uses); above it floats the

@@ -992,9 +992,9 @@ function DashboardViewImpl({
     return () => exitImmersive();
   }, [exitImmersive]);
 
-  // The shell-owned event search modal: below `lg` the floating control pill
-  // carries its own search circle (the header icon hides on the calendar there)
-  // and opens the modal through this context.
+  // The shell-owned event search modal: at `lg`+ the shell header's "Search
+  // events" button opens it; below `lg` the floating control pill's own search
+  // circle does. Both reach it through this context.
   const searchPanel = useSearchPanel();
 
   // In immersive mode the hidden bottom nav frees its clearance: the floating
@@ -3478,8 +3478,8 @@ function DashboardViewImpl({
             {periodLabel}
           </Text>
           {/* Search rides the pill (left of the filter circle) below `lg` —
-              the header search icon hides on the calendar at this width, and
-              tapping opens the shell-owned modal from this circle. */}
+              the shell header carries its own "Search events" button at `lg`+,
+              so this circle is the mobile trigger. */}
           <ActionIcon
             radius="50%"
             size={36}

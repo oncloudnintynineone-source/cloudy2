@@ -4,6 +4,7 @@ import {
   ActionIcon,
   AppShell,
   Box,
+  Button,
   Group,
   NavLink,
   Stack,
@@ -551,7 +552,7 @@ export function AppShellShell({
   // parse, or network wait on the click. It also stays mounted after the first
   // open so the shrink-out animation can play.
   const [searchLoaded, setSearchLoaded] = useState(false);
-  // The search icon's rect at open time; the modal zooms out of / shrinks into it.
+  // The search trigger's rect at open time; the modal zooms out of / shrinks into it.
   const [searchOriginRect, setSearchOriginRect] = useState<Rect | null>(null);
   const searchButtonRef = useRef<HTMLButtonElement>(null);
   const router = useRouter();
@@ -569,7 +570,7 @@ export function AppShellShell({
 
   // Preload shortly after first paint (idle, so it never competes with the
   // launch-critical work). The deadline keeps it from being starved on a busy
-  // phone; the header button's hover/touch signals are nearer triggers.
+  // phone; the search triggers' hover/touch signals are nearer triggers.
   useEffect(() => {
     if (typeof window === "undefined") {
       return;
@@ -590,23 +591,23 @@ export function AppShellShell({
     };
   }, [preloadSearchModal]);
 
-  // Open the search modal, growing it out of the header button (or the passed
-  // rect). Mounts the lazy chunk if the preload hasn't landed yet (the dynamic
-  // loading fallback covers that race).
+  // Open the search modal, growing it out of the passed trigger rect (or the
+  // viewport center when null). Mounts the lazy chunk if the preload hasn't
+  // landed yet (the dynamic loading fallback covers that race).
   const openSearch = useCallback((originRect: Rect | null) => {
     setSearchOriginRect(originRect);
     setSearchLoaded(true);
     setSearchOpen(true);
   }, []);
 
-  // The calendar page's floating bottom control pill carries its own search
-  // trigger below `lg` (the header icon hides there); it opens this shell-owned
-  // modal through the context provided below.
+  // Search is calendar-only: on desktop the header's "Search events" button
+  // opens it, below `lg` the floating bottom control pill does. Both reach this
+  // shell-owned modal through the context provided below.
   const searchPanelValue: SearchPanelValue = useMemo(() => ({ openSearch }), [openSearch]);
 
   // Desktop keyboard shortcut: ⌘/Ctrl-K opens search from anywhere in the shell.
-  // Below `lg` on the calendar the header trigger is `display:none`, so its rect
-  // is zero-sized — pass null there and let the modal zoom from its center.
+  // Anchor it to the header trigger when that is mounted (calendar at `lg`+);
+  // elsewhere there is no trigger, so the modal zooms from the viewport center.
   useHotkeys([
     [
       "mod+K",
@@ -1212,24 +1213,29 @@ export function AppShellShell({
                   indicator={pinnedTickerIndicator}
                 />
                 <Group gap={isNarrow ? 2 : "xs"} wrap="nowrap">
-                  {/* Below `lg` on the calendar page the pill's own search
-                      circle takes over, so the header icon hides there;
-                      everywhere else (and at lg+) the header trigger stays. */}
-                  <ActionIcon
-                    ref={searchButtonRef}
-                    variant="transparent"
-                    c="white"
-                    size="lg"
-                    hiddenFrom={isDashboard ? "lg" : undefined}
-                    aria-label="Search events"
-                    onPointerEnter={preloadSearchModal}
-                    onFocus={preloadSearchModal}
-                    onPointerDown={preloadSearchModal}
-                    onTouchStart={preloadSearchModal}
-                    onClick={(e) => openSearch(e.currentTarget.getBoundingClientRect())}
-                  >
-                    <IconSearch size={18} />
-                  </ActionIcon>
+                  {/* Search is calendar-only: the desktop header carries the
+                      visible trigger (below `lg` the floating control pill's
+                      search circle takes over, so this is hidden there). */}
+                  {isDashboard && (
+                    <Button
+                      ref={searchButtonRef}
+                      visibleFrom="lg"
+                      variant="subtle"
+                      c="white"
+                      radius="xl"
+                      size="compact-md"
+                      fz="sm"
+                      leftSection={<IconSearch size={16} />}
+                      styles={{ root: { backgroundColor: "var(--mantine-color-brand-8)" } }}
+                      onPointerEnter={preloadSearchModal}
+                      onFocus={preloadSearchModal}
+                      onPointerDown={preloadSearchModal}
+                      onTouchStart={preloadSearchModal}
+                      onClick={(e) => openSearch(e.currentTarget.getBoundingClientRect())}
+                    >
+                      Search events
+                    </Button>
+                  )}
                   <HeaderRefreshButton
                     onRefresh={handleForceRefresh}
                     disabled={isDashboard && !googleConfigured}
